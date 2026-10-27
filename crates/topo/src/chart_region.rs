@@ -243,6 +243,19 @@ pub enum ChartRegionError {
         /// The inventory statement violated.
         what: &'static str,
     },
+    /// A plane face's trim edge, imaged on demand, refused on its
+    /// incidence on the plane (`geom_brep::IncidenceRead::of`): decided
+    /// off it, read at a pose, or undecided. It ends by the one map
+    /// (`geom_brep::IncidenceRead::ending`) at a build, the reading every
+    /// region query of a body is.
+    TrimOffFace {
+        /// The face whose loop refused.
+        face: FaceKey,
+        /// The half-edge whose carrier was read.
+        half_edge: HalfEdgeKey,
+        /// The image's refusal, verbatim.
+        refusal: geom_brep::PcurveCertifyError,
+    },
     /// A minting chart's stored cache is absent — the body must
     /// re-mint before region queries (the `props.rs` posture); only
     /// plane charts are derive-on-demand.
@@ -393,6 +406,19 @@ impl core::fmt::Display for ChartRegionError {
                  is the named exclusion and has neither, so it waits on the curved \
                  region lane"
             ),
+            Self::TrimOffFace { refusal, .. } => match geom_brep::IncidenceRead::of(refusal) {
+                Some(read) => write!(
+                    f,
+                    "chart-region: an edge of a plane face {}. {}",
+                    if read.is_definite() {
+                        "does not lie on the face's plane"
+                    } else {
+                        "is not shown on the face's plane"
+                    },
+                    read.ending(geom_brep::recourse::Reading::Build)
+                ),
+                None => write!(f, "chart-region: {refusal}"),
+            },
             Self::MissingCache { half_edge } => write!(
                 f,
                 "chart-region: half-edge {half_edge:?} has no stored pcurve cache on \
@@ -2585,7 +2611,19 @@ fn loop_uv_polygon<T: Decide + Bounds>(
             };
             let (t0, t1) = curve.params();
             let pcurve = geom_brep::chart_pcurve_over(curve.carrier(), t0, t1, surface, band)
-                .map_err(|_| refuse("no closed-form chart image for this carrier kind"))?;
+                .map_err(|refusal| {
+                    // An incidence refusal ends by its read (D3); any
+                    // other is a carrier the affine chart has no image of.
+                    if geom_brep::IncidenceRead::of(&refusal).is_some() {
+                        ChartRegionError::TrimOffFace {
+                            face,
+                            half_edge: he,
+                            refusal,
+                        }
+                    } else {
+                        refuse("no closed-form chart image for this carrier kind")
+                    }
+                })?;
             pcurve_entry(&pcurve, t0, t1, forward).map_err(refuse)?
         } else {
             return Err(ChartRegionError::MissingCache { half_edge: he });
@@ -3848,6 +3886,18 @@ mod tests {
                 face: FaceKey::default(),
                 half_edge: HalfEdgeKey::default(),
                 what: "a Harmonic image",
+            },
+            ChartRegionErrorKind::TrimOffFace => ChartRegionError::TrimOffFace {
+                face: FaceKey::default(),
+                half_edge: HalfEdgeKey::default(),
+                refusal: geom_brep::PcurveCertifyError::CarrierOffChart {
+                    chart: geom::SurfaceKind::Plane,
+                    carrier: geom::CurveKind::Line,
+                    why: "the line's points are not on the plane",
+                    margin: Some(geom_brep::OffMargin::InBand(geom_core::MarginDiag::value(
+                        4e-10,
+                    ))),
+                },
             },
             ChartRegionErrorKind::MissingCache => ChartRegionError::MissingCache {
                 half_edge: HalfEdgeKey::default(),

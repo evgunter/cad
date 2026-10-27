@@ -3962,8 +3962,18 @@ pub(crate) fn classify_point_in_solid(
     }
 }
 
-fn classify_chart_region(e: &ChartRegionError) -> (&'static str, &'static str) {
-    match e {
+fn classify_chart_region(e: &ChartRegionError) -> (Cow<'static, str>, Cow<'static, str>) {
+    // A plane trim edge's incidence refusal reads its reason from the one
+    // table and ends by the one map, at rest.
+    if let ChartRegionError::TrimOffFace { refusal, .. } = e
+        && let Some(read) = geom_brep::IncidenceRead::of(refusal)
+    {
+        return (
+            incidence_reason(read).into(),
+            read.ending(Reading::AtRest).into(),
+        );
+    }
+    let (why, recourse): (&'static str, &'static str) = match e {
         ChartRegionError::ChartDivergence { .. } => (
             "the two faces lie on separately described surfaces, which the check cannot \
              compare",
@@ -4018,7 +4028,14 @@ fn classify_chart_region(e: &ChartRegionError) -> (&'static str, &'static str) {
         ChartRegionError::MissingCache { .. } | ChartRegionError::Corrupt => {
             ("a face's stored boundary is incomplete", DEFECT)
         }
-    }
+        // Built only with an incidence read (`chart_region::loop_uv_polygon`),
+        // read above; a refusal without one would be the image's own.
+        ChartRegionError::TrimOffFace { .. } => (
+            "a flat face's boundary edge has no image on its plane",
+            DEFECT,
+        ),
+    };
+    (why.into(), recourse.into())
 }
 
 fn classify_contact_lane(e: &ContactRefusal) -> (&'static str, &'static str) {
@@ -4046,10 +4063,7 @@ fn classify_contact_lane(e: &ContactRefusal) -> (&'static str, &'static str) {
 
 fn classify_census_cause(cause: &CensusUnsupportedCause) -> (Cow<'static, str>, Cow<'static, str>) {
     match cause {
-        CensusUnsupportedCause::ChartRegion(e) => {
-            let (why, recourse) = classify_chart_region(e);
-            (why.into(), recourse.into())
-        }
+        CensusUnsupportedCause::ChartRegion(e) => classify_chart_region(e),
         CensusUnsupportedCause::ContactLane(e) => {
             let (why, recourse) = classify_contact_lane(e);
             (why.into(), recourse.into())

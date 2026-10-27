@@ -6366,6 +6366,7 @@ fn sweep_conformal_patches<T: Decide>(
                     Some(Err(
                         cause @ (ChartRegionError::ChartDivergence { .. }
                         | ChartRegionError::NonPlanarTrim { .. }
+                        | ChartRegionError::TrimOffFace { .. }
                         | ChartRegionError::MissingCache { .. }
                         | ChartRegionError::ArmUnbounded { .. }
                         | ChartRegionError::SeamBranch
@@ -11025,6 +11026,7 @@ fn confirm_patch<T: Decide>(
         Some(Err(
             cause @ (ChartRegionError::ChartDivergence { .. }
             | ChartRegionError::NonPlanarTrim { .. }
+            | ChartRegionError::TrimOffFace { .. }
             | ChartRegionError::MissingCache { .. }
             | ChartRegionError::ArmUnbounded { .. }
             | ChartRegionError::SeamBranch

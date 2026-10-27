@@ -175,7 +175,8 @@ fn the_collapsed_meter_never_understates_the_distance_to_the_surface() {
 /// feature instead of a wrong locus).
 #[test]
 fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
-    // A sphere chart images circles only; no ellipse lies on a sphere.
+    // An ellipse in the pole's tangent plane is off the sphere: the
+    // mint's incidence read refuses it, naming the pair.
     let sphere = Surface::Sphere {
         center: Point3::origin(),
         radius: 1.0,
@@ -211,7 +212,7 @@ fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
         CertifyError::CarrierOffChart {
             chart: geom::SurfaceKind::Sphere,
             carrier: geom::CurveKind::Ellipse,
-            why: "a sphere holds no line, and its plane sections are circles",
+            why: "the carrier's points are not at the sphere's radius from its centre",
             margin: None,
         },
         "the refusal must name the (chart, carrier) pair it could not state"

@@ -1179,6 +1179,13 @@ fn every_arm_and_term_is_load_bearing_in_a_pinned_sweep() {
 /// sweep's are. Returned with the row: its `Centre` term's lower end at
 /// `Interval`, which the row that pins the witness reads.
 fn zero_winding_axis_circle(chart: &Surface<f64>, floors: f64) -> (Row, f64) {
+    super::incidence::unread(|| zero_winding_axis_circle_unread(chart, floors))
+}
+
+/// The circle lies off its chart (a cone's rim or a torus's parallel only
+/// at its own radius), so the mint reads it off first; the row reads the
+/// image a derivation gives it, as a stored row whose carrier moved.
+fn zero_winding_axis_circle_unread(chart: &Surface<f64>, floors: f64) -> (Row, f64) {
     let (rho, h, reach) = (0.25 * band().zero(), 1.0, TAU);
     let on_axis = circle(
         Point3::new(0.0, 0.0, h),
