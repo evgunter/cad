@@ -259,6 +259,7 @@ fn review_seam_split_wrong_side_census() {
                         }
                         Err(e) => format!("{}", format!("{e:?}").chars().take(30).collect::<String>()),
                     };
+                    println!("POSE φ {phi} ψ {psi:e} L {l} sign {sign}: {key}");
                     *tally.entry(key).or_insert(0) += 1;
                 }
             }
