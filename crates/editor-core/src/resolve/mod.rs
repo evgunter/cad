@@ -83,8 +83,8 @@ use crate::diff::NodeChange;
 use crate::doc::Doc;
 use crate::eval::{Evaluation, NodeStanding};
 use crate::names::{
-    EntityKey, EntityKind, EntityRef, Entry, Qualifier, RoleSeg, StableName, fragment_tail_start,
-    name_free_seg,
+    EntityKey, EntityKind, EntityRef, Entry, Qualifier, RoleSeg, Sense, StableName,
+    fragment_tail_start, name_free_seg,
 };
 use crate::node::{RecipeNodeId, SlotId};
 use crate::program::ProfileProgram;
@@ -2346,7 +2346,11 @@ impl SeamParent {
                     .map(|(_, l)| &*l.line)
                     .collect()
             }
-            RoleSeg::Crossing { edge, face, .. } => self
+            RoleSeg::Crossing {
+                edge,
+                face,
+                sense: _,
+            } => self
                 .holds(base, edge)
                 .then_some(&**face)
                 .into_iter()
@@ -2715,8 +2719,8 @@ fn upstream_nodes(
 }
 
 /// Whether a name walk visits discriminator PARTNERS: a `Borders`
-/// qualifier's walls, and the `band` of a [`RoleSeg::BandCross`] or
-/// [`RoleSeg::BandSlit`]. Partners are discrimination references — an
+/// qualifier's walls, the `band` of a [`RoleSeg::BandCross`] or
+/// [`RoleSeg::BandSlit`], and a crossing's [`Sense::Through`] things. Partners are discrimination references — an
 /// edit at a partner's node can re-qualify the name (N7 localization),
 /// but the name is not DERIVED from the partner (suggestions must not
 /// offer the other body's fragments for a painted cutter wall — review
@@ -2725,10 +2729,11 @@ fn upstream_nodes(
 enum Partners {
     /// Visit partner names (localization).
     Include,
-    /// Visit a band, and not a piece's walls (cascade): a wall is cited
-    /// by its parent's name, which no table holds once the wall is
-    /// itself cut, so a wall that does not resolve is no vanished
-    /// operand; a change of walls is the border delta's to state. A
+    /// Visit a band, and not a piece's walls or a sense's things
+    /// (cascade): each is cited by its whole name, which no table holds
+    /// once it is itself cut, so one that does not resolve is no
+    /// vanished operand; a change of walls is the border delta's to
+    /// state. A
     /// `Merged` set's constituents are read through and not visited:
     /// each retired into the merge (N3), so none is an operand
     /// ([`first_vanished`] states the rest of that rule).
@@ -2740,9 +2745,10 @@ enum Partners {
 /// Visits every name embedded in `name`'s role path, at every depth,
 /// in path order (operand names, seam pairs, pattern masters, merged
 /// constituents unless `partners` is [`Partners::Cascade`], which reads
-/// through them — and discriminator partners iff `partners` says so). [`embedded`]'s match is EXHAUSTIVE on purpose: a future [`RoleSeg`] or
-/// [`Qualifier`] variant embedding names must be
-/// classified here or the compile breaks — or, if it embeds no name,
+/// through them — and discriminator partners iff `partners` says so).
+/// [`embedded`]'s match is EXHAUSTIVE on purpose, field by field: a
+/// future [`RoleSeg`] or [`Qualifier`] variant or field embedding names
+/// must be classified here or the compile breaks — or, if it embeds no name,
 /// added to [`crate::names::name_free_seg`], which is the one place
 /// that answer is written for every match that shares it.
 /// (Review Finding 7 — no fail-quiet wildcard.)
@@ -2775,12 +2781,11 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<(&'a Stabl
     for seg in &name.path {
         match seg {
             // Structural embeddings: the entity derives from these.
-            RoleSeg::From { of: n, .. }
-            | RoleSeg::SectionEdge { face: n, .. }
-            | RoleSeg::SplitFragment { parent: n, .. }
-            | RoleSeg::CrossingVertex { edge: n, .. }
-            | RoleSeg::OnToolVertex { of: n, .. }
-            | RoleSeg::Instance { of: n, .. }
+            RoleSeg::From { of: n, read: _ }
+            | RoleSeg::SectionEdge { face: n }
+            | RoleSeg::SplitFragment { parent: n }
+            | RoleSeg::OnToolVertex { of: n }
+            | RoleSeg::Instance { of: n, i: _ }
             // The fillet vocabulary (M6-5): every argument is the
             // SOURCE entity the blend was born for — derivation, not
             // discrimination.
@@ -2788,7 +2793,7 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<(&'a Stabl
             | RoleSeg::CornerFace(n)
             | RoleSeg::Mitre { vertex: n }
             | RoleSeg::TurnFoot { vertex: n }
-            | RoleSeg::BandTrim { edge: n, .. }
+            | RoleSeg::BandTrim { edge: n, support: _ }
             | RoleSeg::BandFoot(n)
             | RoleSeg::BandCut(n)
             // The shell vocabulary: each argument is the SOURCE entity
@@ -2797,7 +2802,7 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<(&'a Stabl
             // not a name).
             | RoleSeg::Inner(n)
             | RoleSeg::Rim(n)
-            | RoleSeg::HoleRim { of: n, .. } => visit(n, partners, f),
+            | RoleSeg::HoleRim { of: n, hole: _ } => visit(n, partners, f),
             RoleSeg::TrimEdge {
                 edge: a,
                 support: b,
@@ -2830,16 +2835,23 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<(&'a Stabl
                     }
                 }
             }
-            RoleSeg::Seam { a, b }
-            | RoleSeg::Crossing {
-                edge: a, face: b, ..
-            } => {
+            RoleSeg::Seam { a, b } => {
                 visit(a, partners, f);
                 visit(b, partners, f);
             }
+            RoleSeg::CrossingVertex { edge, sense } => {
+                visit(edge, partners, f);
+                sense_partners(sense, partners, f);
+            }
+            RoleSeg::Crossing { edge, face, sense } => {
+                visit(edge, partners, f);
+                visit(face, partners, f);
+                sense_partners(sense, partners, f);
+            }
             RoleSeg::EdgeCrossing(run) => {
-                for l in run {
-                    visit(&l.line, partners, f);
+                for crate::names::RunLine { line, sense } in run {
+                    visit(line, partners, f);
+                    sense_partners(sense, partners, f);
                 }
             }
             RoleSeg::Merged(names) => {
@@ -2858,6 +2870,19 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<(&'a Stabl
             },
             name_free_seg!() => {}
         }
+    }
+}
+
+/// A crossing's sense's things: partners, since they say which way the
+/// crossing runs and not what it derives from.
+fn sense_partners<'a>(sense: &'a Sense, partners: Partners, f: &mut Vec<(&'a StableName, bool)>) {
+    match sense {
+        Sense::Through { entering } => {
+            if partners == Partners::Include {
+                f.extend(entering.iter().map(|n| (&**n, true)));
+            }
+        }
+        Sense::Enters | Sense::Leaves | Sense::Outside | Sense::Inside => {}
     }
 }
 
@@ -3274,6 +3299,60 @@ mod walk_tests {
         seen.clear();
         walk_names(&name, Partners::Skip, &mut |n| seen.push(n.node.0.digest()));
         assert_eq!(seen, [2, 1], "partners skipped");
+    }
+
+    /// A name whose only mention of node 3 is the thing a `Through`
+    /// sense enters along, in each segment that carries a sense: the
+    /// localization walk, and so the derivation path, reach it as a
+    /// partner, and the structural and cascade walks do not.
+    #[test]
+    fn a_walk_reaches_the_things_a_through_sense_enters_along() {
+        use crate::names::{RunLine, Sense};
+        let through = || Sense::Through {
+            entering: vec![NameRef::new(leaf(3))],
+        };
+        let segs = [
+            RoleSeg::Crossing {
+                edge: NameRef::new(leaf(1)),
+                face: NameRef::new(leaf(2)),
+                sense: through(),
+            },
+            RoleSeg::CrossingVertex {
+                edge: NameRef::new(leaf(1)),
+                sense: through(),
+            },
+            RoleSeg::EdgeCrossing(vec![RunLine {
+                line: NameRef::new(leaf(1)),
+                sense: through(),
+            }]),
+        ];
+        for seg in segs {
+            let name = StableName {
+                kind: EntityKind::Vertex,
+                node: RecipeNodeId::new(0, 9),
+                path: vec![seg],
+            };
+            let walked = |partners| {
+                let mut seen = Vec::new();
+                walk_names(&name, partners, &mut |n| seen.push(n.node.0.digest()));
+                seen
+            };
+            assert_eq!(
+                walked(Partners::Include).last(),
+                Some(&3),
+                "{name:?}: included"
+            );
+            for partners in [Partners::Skip, Partners::Cascade] {
+                assert!(
+                    !walked(partners).contains(&3),
+                    "{name:?}: a partner, not derivation"
+                );
+            }
+            assert!(
+                derivation_nodes(&name).contains(&RecipeNodeId::new(0, 3)),
+                "{name:?}: on the derivation path"
+            );
+        }
     }
 
     /// A merged face at node 9 whose constituents wrap the operand caps

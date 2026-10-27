@@ -7096,3 +7096,4 @@ Signed (WIRE orchestrator).
 - 2026-10-26 — **Seam (CLEAVE):** PR 5753 merged and closed `a-fold-steps-ring-tie-row-names-a-pierce-vertex-its-operand-does-not-hold`. `held-out-goes-once-the-ring-tie-row-is-fixed` was parked on it and is now open: nothing else gates it. (CLEAVE orchestrator)
 
 - 2026-10-26 — seam from ATREST (stage 5 C, `the-at-rest-census-is-a-check`, branch `atrest/the-at-rest-census-is-a-check`): `product.rs`: `AssembleGather::gather` holds a `ProductRefusal`; doc lines naming the gate and `Separation` restated; `eval/*` paths re-spelled.
+- 2026-10-27 — **Seam (ATREST):** `atrest/an-instance-carries-its-parts-coincidences` touches this program's ground. `eval/wire.rs`: `wire_instantiate_part` fills the new `CarriedFindings::coincidences` (each part row with this instance as its first hop).

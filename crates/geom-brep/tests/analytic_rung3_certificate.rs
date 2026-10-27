@@ -2,8 +2,8 @@
 //! a spline carrier between two analytic faces states C2's limbs in the
 //! edge's own certificate — its distance from EACH operand over the
 //! whole span, whatever faces store pcurve rows, and the uniqueness
-//! tube — through [`EdgeCurve::certify_via`] at construction and
-//! [`EdgeCurve::recertify_via`], the call tier 3 makes at rest.
+//! tube — through [`EdgeCurve::certify`] at construction and
+//! [`EdgeCurve::recertify`], the call tier 3 makes at rest.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -14,7 +14,7 @@ use geom::{Curve3, NurbsCurve3, Surface};
 use geom_brep::recourse::Reading;
 use geom_brep::{
     AnalyticRung3Refusal, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, NurbsLane,
-    Rung3Limb, SurfaceKey, SurfacePair, chart_pcurve_over,
+    SurfaceKey, SurfacePair, chart_pcurve_over,
 };
 use geom_core::spline::KnotVector;
 use geom_core::{
@@ -24,7 +24,7 @@ use geom_core::{
 use slotmap::SlotMap;
 
 use crate::shared::tol::band;
-use geom_core::test_support::upper;
+use geom_core::test_support::{lower, upper};
 
 /// The unit quarter circle in `z = 0`, as `n` rational quadratic
 /// sub-arcs joined at double knots `j/n`, each sub-arc's middle control
@@ -78,14 +78,12 @@ fn cylinder_z<T: Real>() -> Surface<T> {
     }
 }
 
-/// `EdgeCurve::certify_via` of an `Intersection` of `s1`, `s2` over
-/// `carrier`, at the scalar of its arguments, the plane × NURBS lane's
-/// door value in hand or withheld.
+/// `EdgeCurve::certify` of an `Intersection` of `s1`, `s2` over
+/// `carrier`, at the scalar of its arguments.
 fn certify<T: geom_core::Decide + geom_core::CertifiedBounds>(
     carrier: &NurbsCurve3<T>,
     s1: Surface<T>,
     s2: Surface<T>,
-    lane: bool,
 ) -> Result<EdgeCurve<T>, CertifyError> {
     let c = Curve3::Nurbs(Arc::new(carrier.clone()));
     let (d0, d1) = carrier.domain();
@@ -101,14 +99,14 @@ fn certify<T: geom_core::Decide + geom_core::CertifiedBounds>(
         param_start: t0,
         param_end: t1,
     };
-    EdgeCurve::certify_via(
+    EdgeCurve::certify(
         spec,
         c.eval(t0),
         c.eval(t1),
         |k| arena.get(k).cloned(),
         geom_core::Real::from_f64(1.0),
         band(),
-        lane.then(NurbsLane::certified),
+        NurbsLane::certified(),
     )
 }
 
@@ -158,15 +156,14 @@ fn a_carrier_off_the_plane_between_samples_refuses_on_the_plane_limb() {
             e,
             CertifyError::AnalyticRung3(AnalyticRung3Refusal::Limb {
                 operand: geom::SurfaceKind::Plane,
-                limb: Rung3Limb::HullValue,
                 margin,
                 ..
-            }) if upper(*margin) <= off && upper(*margin) >= 0.99 * off
+            }) if lower(*margin) <= off && lower(*margin) >= 0.99 * off
         )
     };
-    let at_f64 = certify(&carrier, plane(), cylinder_z(), true).map(|_| ());
+    let at_f64 = certify(&carrier, plane(), cylinder_z()).map(|_| ());
     assert!(at_f64.as_ref().is_err_and(plane_limb), "f64: {at_f64:?}");
-    let at_iv = certify(&lift(&carrier), plane(), cylinder_z(), true).map(|_| ());
+    let at_iv = certify(&lift(&carrier), plane(), cylinder_z()).map(|_| ());
     assert!(at_iv.as_ref().is_err_and(plane_limb), "Interval: {at_iv:?}");
     // The limb refuses on the miss itself, measured: at rest a stored
     // edge off its face is a contradiction, and the import door names
@@ -178,7 +175,7 @@ fn a_carrier_off_the_plane_between_samples_refuses_on_the_plane_limb() {
         else {
             panic!("the plane limb refused above: {refused:?}")
         };
-        let value = upper(*margin);
+        let value = lower(*margin);
         assert_eq!(
             e.ending(Reading::AtRest).as_deref(),
             Some(KERNEL_OR_FILE_DEFECT_ENDING),
@@ -218,28 +215,16 @@ fn a_carrier_off_the_plane_between_samples_refuses_on_the_plane_limb() {
     assert!(row.is_ok(), "{row:?}");
     // Without the bulge the edge certifies at both scalars.
     let flat = bulged(16, 0.0);
-    certify(&flat, plane(), cylinder_z(), true).expect("f64: the flat quarter certifies");
-    certify(&lift(&flat), plane(), cylinder_z(), true)
-        .expect("Interval: the flat quarter certifies");
-    // With the lane withheld the door refuses before it reads the
-    // carrier, the bulged and the flat quarter alike.
-    for (what, c) in [("bulged", &carrier), ("flat", &flat)] {
-        let free = certify(c, plane(), cylinder_z(), false).map(|_| ());
-        assert_eq!(
-            free,
-            Err(CertifyError::NurbsLaneNotSupplied),
-            "no lane, {what}"
-        );
-    }
+    certify(&flat, plane(), cylinder_z()).expect("f64: the flat quarter certifies");
+    certify(&lift(&flat), plane(), cylinder_z()).expect("Interval: the flat quarter certifies");
 }
 
-/// **The refusal for want of the lane comes first.** A rung-3 edge
-/// with a schedule defect — a backward interval, then an endpoint off
-/// the carrier — refuses `NurbsLaneNotSupplied` at a lane-free door,
-/// not the defect: the door checked nothing. With the lane in hand the
-/// same edge refuses on the defect itself.
+/// **A schedule defect refuses as itself.** A rung-3 edge with a
+/// backward interval, then an endpoint off the carrier, refuses on the
+/// defect: the door holds the lane, so nothing stands before the
+/// schedule's own checks.
 #[test]
-fn a_lane_free_door_refuses_for_the_lane_before_any_schedule_defect() {
+fn a_schedule_defect_refuses_as_itself() {
     let c = Curve3::Nurbs(Arc::new(bulged(16, 0.0)));
     let mut arena: SlotMap<SurfaceKey, Surface<f64>> = SlotMap::with_key();
     let (k1, k2) = (arena.insert(plane()), arena.insert(cylinder_z()));
@@ -263,42 +248,33 @@ fn a_lane_free_door_refuses_for_the_lane_before_any_schedule_defect() {
         ),
     ] {
         let surfaces = |k| arena.get(k).cloned();
-        assert_eq!(
-            EdgeCurve::certify(spec.clone(), start, end, surfaces, 1.0, band()).map(|_| ()),
-            Err(CertifyError::NurbsLaneNotSupplied),
-            "{defect}: lane-free"
-        );
-        let with_lane = EdgeCurve::certify_via(
+        let refused = EdgeCurve::certify(
             spec,
             start,
             end,
             surfaces,
             1.0,
             band(),
-            Some(NurbsLane::certified()),
+            NurbsLane::certified(),
         )
         .map(|_| ());
         let on_the_defect = match defect {
             "backward" => matches!(
-                with_lane,
+                refused,
                 Err(CertifyError::StatedInterval {
                     refused: geom_brep::StatedSpan::Forward(_),
                 })
             ),
-            _ => matches!(with_lane, Err(CertifyError::ResidualExceeded { .. })),
+            _ => matches!(refused, Err(CertifyError::ResidualExceeded { .. })),
         };
-        assert!(on_the_defect, "{defect}: with the lane: {with_lane:?}");
+        assert!(on_the_defect, "{defect}: {refused:?}");
     }
 }
 
-/// **Every lane-free door refuses an analytic rung-3 edge, typed.** C2's
-/// limbs are the edge certificate's own, so a door that cannot state
-/// them certifies nothing about the edge: [`EdgeCurve::certify`],
-/// [`EdgeCurve::recertify`], either `_via` door handed `None`, and a
-/// scalar that holds no lane (the dual) each answer
-/// `NurbsLaneNotSupplied` on a carrier the lane certifies clean.
+/// **Rest re-derives the door's certificate.** The edge the door
+/// certifies re-certifies through the same lane to the same record.
 #[test]
-fn lane_free_doors_refuse_an_analytic_rung3_edge() {
+fn rest_re_derives_an_analytic_rung3_edges_certificate() {
     let carrier = bulged(16, 0.0);
     let c = Curve3::Nurbs(Arc::new(carrier.clone()));
     let mut arena: SlotMap<SurfaceKey, Surface<f64>> = SlotMap::with_key();
@@ -314,75 +290,23 @@ fn lane_free_doors_refuse_an_analytic_rung3_edge() {
     };
     let (start, end) = (c.eval(0.0), c.eval(1.0));
     let surfaces = |k| arena.get(k).cloned();
-    let refused = Err(CertifyError::NurbsLaneNotSupplied);
-    let certified = EdgeCurve::certify_via(
-        spec.clone(),
+    let certified = EdgeCurve::certify(
+        spec,
         start,
         end,
         surfaces,
         1.0,
         band(),
-        Some(NurbsLane::certified()),
+        NurbsLane::certified(),
     )
     .expect("the lane certifies the flat quarter");
+    let at_rest = certified
+        .recertify(start, end, surfaces, 1.0, band(), NurbsLane::certified())
+        .expect("rest re-derives the certificate");
     assert_eq!(
-        EdgeCurve::certify(spec, start, end, surfaces, 1.0, band()).map(|_| ()),
-        refused,
-        "EdgeCurve::certify"
-    );
-    assert_eq!(
-        certified
-            .recertify(start, end, surfaces, 1.0, band())
-            .map(|_| ()),
-        refused,
-        "EdgeCurve::recertify"
-    );
-    assert_eq!(
-        certified
-            .recertify_via(start, end, surfaces, 1.0, band(), None)
-            .map(|_| ()),
-        refused,
-        "recertify_via(None)"
-    );
-    certified
-        .recertify_via(
-            start,
-            end,
-            surfaces,
-            1.0,
-            band(),
-            Some(NurbsLane::certified()),
-        )
-        .expect("recertify_via with the lane re-derives the certificate");
-
-    // The dual: a scalar with no lane to hand.
-    use geom_core::Dual64;
-    let dual = carrier.map_scalar(Dual64::from_f64);
-    let dc = Curve3::Nurbs(Arc::new(dual));
-    let mut dual_arena: SlotMap<SurfaceKey, Surface<Dual64>> = SlotMap::with_key();
-    let (d1, d2) = (dual_arena.insert(plane()), dual_arena.insert(cylinder_z()));
-    let half = Dual64::from_f64(0.5);
-    let dual_spec = EdgeCurveSpec {
-        description: EdgeDescriptionSpec::Intersection {
-            pair: SurfacePair::new(d1, d2),
-            witness: dc.eval(half),
-        },
-        carrier: dc.clone(),
-        param_start: Dual64::from_f64(0.0),
-        param_end: Dual64::from_f64(1.0),
-    };
-    assert_eq!(
-        EdgeCurve::certify(
-            dual_spec,
-            dc.eval(Dual64::from_f64(0.0)),
-            dc.eval(Dual64::from_f64(1.0)),
-            |k| dual_arena.get(k).cloned(),
-            geom_core::Real::from_f64(1.0),
-            band(),
-        )
-        .map(|_| ()),
-        refused,
-        "Dual64"
+        format!("{at_rest:?}"),
+        format!("{:?}", certified.certificate()),
+        "the record rest derives is the door's"
     );
 }
 
@@ -420,9 +344,7 @@ fn cylinder_about(axis: Vec3<f64>, u_ref: Vec3<f64>) -> Surface<f64> {
 /// A carrier along one Steinmetz branch through the point where the
 /// other branch crosses it: on both cylinders exactly, transverse at
 /// every schedule sample, and two arcs of the pair's crossing inside
-/// any tube around it. With the lane `certify_via` refuses on the tube;
-/// withheld it, the door refuses for want of the lane, so no door mints
-/// the edge.
+/// any tube around it. The door refuses on the tube.
 #[test]
 fn a_carrier_through_a_crossing_of_two_branches_refuses_on_the_tube() {
     let carrier = steinmetz_arc(0.4, 0.3);
@@ -444,9 +366,7 @@ fn a_carrier_through_a_crossing_of_two_branches_refuses_on_the_tube() {
             )
         )
     };
-    let free = certify(&carrier, s1.clone(), s2.clone(), false).map(|_| ());
-    assert_eq!(free, Err(CertifyError::NurbsLaneNotSupplied), "no lane");
-    let at_construction = certify(&carrier, s1, s2, true).map(|_| ());
+    let at_construction = certify(&carrier, s1, s2).map(|_| ());
     assert!(
         at_construction.as_ref().is_err_and(tube),
         "{at_construction:?}"
@@ -474,8 +394,8 @@ fn the_analytic_refusal_names_its_own_pair() {
     let _: Band = band();
 }
 
-/// `EdgeCurve::certify_via` of an `Intersection` of `s1`, `s2` over
-/// `carrier` restricted to `[t0, t1]`, the lane in hand.
+/// `EdgeCurve::certify` of an `Intersection` of `s1`, `s2` over
+/// `carrier` restricted to `[t0, t1]`.
 fn certify_over(
     carrier: &NurbsCurve3<f64>,
     (t0, t1): (f64, f64),
@@ -494,14 +414,14 @@ fn certify_over(
         param_start: t0,
         param_end: t1,
     };
-    EdgeCurve::certify_via(
+    EdgeCurve::certify(
         spec,
         c.eval(t0),
         c.eval(t1),
         |k| arena.get(k).cloned(),
         1.0,
         band(),
-        Some(NurbsLane::certified()),
+        NurbsLane::certified(),
     )
     .map(|_| ())
 }
@@ -543,7 +463,6 @@ fn an_edges_limbs_read_only_its_own_interval_of_the_carrier() {
             past,
             Err(CertifyError::AnalyticRung3(AnalyticRung3Refusal::Limb {
                 operand: geom::SurfaceKind::Plane,
-                limb: Rung3Limb::HullValue,
                 margin,
             })) if upper(margin) <= off && upper(margin) >= 0.99 * off
         ),
@@ -638,7 +557,6 @@ fn limb_two_halves_the_parts_whose_bound_does_not_clear() {
             got,
             Err(AnalyticRung3Refusal::Limb {
                 operand: geom::SurfaceKind::Plane,
-                limb: Rung3Limb::HullValue,
                 margin,
             }) if upper(margin) > 10.0 * zero && upper(margin) <= 20.0 * zero
         ),
@@ -716,9 +634,8 @@ fn limb_two_halves_then_stops_on_a_breaks_miss() {
             got,
             Err(AnalyticRung3Refusal::Limb {
                 operand: geom::SurfaceKind::Plane,
-                limb: Rung3Limb::HullValue,
                 margin,
-            }) if upper(*margin) > band.escalate() && upper(*margin) <= peak
+            }) if lower(*margin) > band.escalate() && lower(*margin) <= peak
         )
     };
     let got = geom_brep::analytic_rung3(&carrier, carrier.domain(), &plane(), &side, band);
@@ -763,7 +680,7 @@ fn a_cone_or_torus_operand_refuses_the_tube_by_name() {
         (torus, geom::SurfaceKind::Torus),
         (cone, geom::SurfaceKind::Cone),
     ] {
-        let got = certify(&carrier, plane(), wall, true).map(|_| ());
+        let got = certify(&carrier, plane(), wall).map(|_| ());
         assert_eq!(
             got,
             Err(CertifyError::AnalyticRung3(
@@ -810,6 +727,6 @@ fn a_dense_interpolant_of_a_section_certifies_its_tube() {
         .collect();
     let spline = NurbsCurve3::interpolate_with_params(&points, 3, &params).unwrap();
     assert_eq!(spline.control().len(), nodes + 1, "the export's net size");
-    let got = certify(&spline, oblique, wall, true).map(|_| ());
+    let got = certify(&spline, oblique, wall).map(|_| ());
     assert_eq!(got, Ok(()));
 }

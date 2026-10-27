@@ -1006,9 +1006,9 @@ fn run_at<T: editor_core::EvalScalar>(
 /// their points, each composing one map where it was rebuilt link by
 /// link.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0xe19a_6995_75b5_913b),
-    (1e-6, 0xe0bb_f412_cb09_bfd6),
-    (1e-12, 0xb585_4e9c_199a_864a),
+    (1e-9, 0xd5ec_4277_864d_1dcf),
+    (1e-6, 0x35c1_08d4_5569_8e4e),
+    (1e-12, 0x132e_b1b7_811d_4fd3),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
@@ -1059,6 +1059,12 @@ fn each_seat_stands_on_what_it_is_seated_on() {
 
 /// **A3, the `f64` fence**: the corpus's solved poses, spaces, faults and
 /// evaluations are byte-identical to the pre-generic tree's.
+///
+/// RE-BLESSED for limb 2 for every carrier (PR 5728): check 2's turn
+/// moved from the edge's `Certificate` onto the edge, which changes the
+/// edge curve's `Debug` the digest feeds. With that `Debug` written in
+/// main's shape every digest here reproduces main's value at all three
+/// ε rows, so nothing else moved.
 #[test]
 fn a3_the_f64_solve_is_mains_bit_for_bit_on_the_mate_corpus() {
     let eps = Tol::witness().eps();

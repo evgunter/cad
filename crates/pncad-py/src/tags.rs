@@ -1630,7 +1630,6 @@ pub fn transform_error_tag(err: &TransformError) -> &'static str {
         TransformError::NullScaffold { .. } => "null_scaffold",
         TransformError::NurbsPlaceholder => "nurbs_placeholder",
         TransformError::ApproxLaneUnsupported { .. } => "approx_lane_unsupported",
-        TransformError::NurbsLaneUnsupported { .. } => "nurbs_lane_unsupported",
         TransformError::ApproxRecertify { .. } => "approx_recertify",
         TransformError::Corrupt { .. } => "corrupt",
     }
@@ -2925,6 +2924,7 @@ pub fn check_evidence_tag(evidence: &CheckEvidence) -> &'static str {
         CheckEvidence::UnprovenCoincidence { .. } => "unproven_coincidence",
         CheckEvidence::Interference { .. } => "interference",
         CheckEvidence::CarriedInterference { .. } => "carried_interference",
+        CheckEvidence::CarriedCoincidence { .. } => "carried_coincidence",
         CheckEvidence::AtRest { .. } => "at_rest",
     }
 }

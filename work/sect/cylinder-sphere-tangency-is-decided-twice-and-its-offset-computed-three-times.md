@@ -2,11 +2,12 @@
 id: cylinder-sphere-tangency-is-decided-twice-and-its-offset-computed-three-times
 kind: issue
 title: The cylinder x sphere walls' tangency is decided at two sites under two names and two radius conventions, and the axis-to-centre offset is computed three times
-status: open
+status: dispatched
 opened: 2026-10-04
 priority: P1
 cost: M
 refs: [4025]
+rides_with: the-section-of-a-surface-pair-is-one-object
 ---
 
 Found by the single FULL review of PR 4025 (its style finding Q1, with
@@ -41,3 +42,16 @@ reach past each side) that the frame, the SSI door and the section table
 read, so their verdicts agree by construction; and one ruling on the
 radius sign at the frame dispatch (magnitude, or refuse as the section
 table does), applied to every arm.
+
+## More sites (SECT step 1 designers, 2026-10-27)
+
+The count is higher than measured above. The tangency is also decided by
+the interior-loop guard, `boolean/section_cert.rs` `sphere_cylinder`
+(`section_sphere_cylinder_reach`, `section_sphere_cylinder_girdle`), and
+by the coaxial `cs_wall_reach`. The offset is also computed by
+`boolean/glue.rs` `frame_rows`, INTENT E's record site, which calls
+`cylinder_sphere_section` per overlapping face pair, and again through
+`cs_pair_frame`. That makes five computations. The same shape on the crossing
+cylinders: `frame_rows` reaches into `join::crossing_cylinder_margins`
+(step 2's). Rides with `the-section-of-a-surface-pair-is-one-object`,
+whose one pose value closes it.

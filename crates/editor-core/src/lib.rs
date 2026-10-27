@@ -106,8 +106,9 @@ pub use appearance::{
     AppearanceResolution, Attr, AttrKind, AttrSet, Rgba8,
 };
 pub use checks::at_rest::{
-    AtRestEvidence, AtRestRow, CarriedAtRestFinding, CarriedFindings, CarriedInterference, CopyRef,
-    FaceSite, InterferenceFinding, Overlap, Route, Unlocalized,
+    AtRestEvidence, AtRestRow, CarriedAtRestFinding, CarriedCoincidence, CarriedCoincidenceRows,
+    CarriedFindings, CarriedInterference, CopyRef, FaceSite, InterferenceFinding, Overlap,
+    PinnedDoc, Route, Unlocalized,
 };
 pub use checks::{
     Advisory, ChartCoherenceLane, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal,

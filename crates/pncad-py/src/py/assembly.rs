@@ -226,7 +226,7 @@ pub(crate) fn product_named(
 /// the document that was gathered, then one per intervening
 /// sub-assembly in its own document's id space. One list rather than a
 /// head plus a tail, because a caller walking it walks one thing.
-fn route_fields(py: Python<'_>, route: &d::Route) -> (Py<PyAny>, Py<PyAny>) {
+pub(super) fn route_fields(py: Python<'_>, route: &d::Route) -> (Py<PyAny>, Py<PyAny>) {
     let of = PyString::new(py, &route.of.to_string()).unbind().into_any();
     let via = core::iter::once(route.through)
         .chain(route.via.iter().map(d::SpokenNode::id))

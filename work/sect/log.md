@@ -30,3 +30,63 @@ no per-pair stopgap lane is built elsewhere. Rows dispatchable: 10, for
 rung-3 arm that klein wall 3 and teapot wall 3 need. Step 4 of this
 plan mentioned it only as a sentence. Agreed in chat that SECT should
 get its own orchestrator rather than SPLICE taking these rows.
+
+## 2026-10-27 — picked up
+
+(SECT orchestrator) Track claimed, status `ready` → `active`. INTENT E
+(`booleans-glue-on-zero`) closed 2026-10-10, so the section door's
+coincidence seam the plan names is no longer a wait: E's record exists
+and moves to the door with the frame's retirement. First dispatches:
+
+- **Step 1's open choices to the designer pair** (one Opus, one Fable,
+  `docs/prompts/designer.md`): the section object's type and home, its
+  certificate's rung per kind pair, and the door's coincidence/tangency
+  seam with E's record, as the brief for
+  `cylinder-sphere-germ-pair-has-no-join-lane` (and its two riders)
+  finds them open. Converged and inside fork row 100 → the brief is
+  written from it; a split → an `[ev]` PR.
+- **`the-lilys-stem-and-arch-walls-have-no-certificate-arm`** (P0 M) to
+  an implementer now: a section-certificate arm in `section_cert.rs`,
+  which does not wait on the section object. Review tier: single FULL
+  (a certificate deciding a pair clear is a soundness claim a read
+  cannot believe on its own).
+
+- 2026-10-27 — **C5 torus survey** (read-only lane). Every torus pair but
+  plane × torus is `Rung::General`, `implemented: false` at `route`
+  (`geom_brep::intersect`), "blocked on the torus's exact meters
+  conversion"; the section certificate (`section_cert` `torus_pair`)
+  already classifies every torus × sphere pose and the coaxial,
+  parallel and square torus × cylinder poses, so the certificate runs
+  ahead of C5. The block is real in code (`ssi/certify.rs`
+  `composite_form` refuses a torus; so does `ssi/enclose.rs`
+  `implicit_enclosure`, which exhaustiveness reads), but its stated
+  reason ("certification arithmetic does not take a root") is stale:
+  `Certification::sqrt` exists. **Teapot wall 2's critical path is
+  therefore CHARTTAIL's `torus-certificate-runs-root-free-through-its-quartic`**
+  (P2 H, designed in fork row 30, waits on no ruling) plus a torus SSI
+  door; by the blocker-inherits-the-band rule it is P0 work. Whether
+  SECT claims it (budget) or it is re-banded in place is decided once
+  step 1's design is in, since the section object fixes how C5's torus
+  arms are read. Teapot's pose: torus axis +z square to the pot's +y,
+  through neither centre (no closed form). Lily's: parallel axes in
+  one plane, offset `R₁ − R₂`, spines internally tangent at the fork,
+  so "clear" holds only within the faces' windows (sent to the lily lane).
+
+- 2026-10-27 — **Step 1's design converged.** The two designers (blinding
+  record on `analysis/design-fork/the-section-object`) reached one final
+  state inside fork row 100: a section value in `geom_brep`, built by the
+  only kind dispatch, and a per-operation table in `topo::boolean` read
+  by the glue records, the guard, the germ mint and the join. They
+  differed only in sequencing. One kept the cs frames reading the table
+  until step 3; the other retires them in 1a through foot-parameter
+  matching. I took the retirement: it removes two of the five offset
+  computations and is what the pinned matcher test exercises. No `[ev]`
+  PR, and no fork-log row, since nothing went to Ev. Both designers
+  proposed re-wording the ratified row ("once per surface pair"; name
+  `section_cert::classify` under "kind dispatch only in C5"). I read both
+  as elaborations of row 100, not changes to it, and wrote them into the
+  1a row. Step 1 is split:
+  `the-section-of-a-surface-pair-is-one-object` (1a, P0 H, dispatched,
+  dual concurrent review) and the lane row as 1b, parked on it. The two
+  riders ride 1a. `in-band-…` is decided: escalate. The tangency row now
+  counts five offset computations.

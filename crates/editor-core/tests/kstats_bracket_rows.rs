@@ -93,8 +93,10 @@ const PRE_PASS: usize = 88;
 /// The one-solid part's log sizes by node at `f64`: profile, extrude,
 /// placement. At `f64` the Profile node's op takes the pre-pass's
 /// validated form (`editor_core::ProfileLane`) and logs what the second
-/// pass it skips decides, so its log is a lane scalar's.
-const EXTRUDE_LOG: usize = 655;
+/// pass it skips decides, so its log is a lane scalar's. Its at-rest
+/// gate re-certifies the box's edges, where limb 2's distance bound (`ssi_hull_sup`, C2) adds 24 = 12 box edges × 2 operands
+/// to the 655 it held before limb 2 was owed by every carrier.
+const EXTRUDE_LOG: usize = 679;
 /// The one-solid part's second pass: the op's own guided replay and
 /// validation, after the pre-pass in the Profile node's log.
 const LANE_OP: usize = 83;
