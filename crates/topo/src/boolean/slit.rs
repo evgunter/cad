@@ -95,11 +95,16 @@
 //! strut survives with F on both sides and a free end that bounds
 //! nothing. [`close_struts`] runs in the output stage, before the
 //! coplanar merge, whose entry gate refuses a strut, and deletes the
-//! struts the zip reported that F lies on both sides of, each with its
-//! free end, a ring closed whole with its lone vertex too
-//! ([`crate::strut`], the delete the merge runs on its own dangling seam
-//! edges). F's region is unchanged by each step. A strut the zip kept
-//! between two walls is a reflex edge of the result, and stays.
+//! struts the zip reported, and its seam edges, that F lies on both
+//! sides of, each with its free end, a ring closed whole with its lone
+//! vertex too ([`crate::strut`], the delete the merge runs on its own
+//! dangling seam edges). Where the slit runs on past both ends of the
+//! stretch the other operand fills, the edge F lies on both sides of
+//! there has no free end: it is no strut but a stretch of the slit
+//! closed across, and deleting it parts the slit's loop in two (`kemr`,
+//! [`part_mid_slit`]). F's region is unchanged by each step. A strut
+//! the zip kept between two walls is a reflex edge of the result, and
+//! stays.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -604,16 +609,18 @@ pub(super) fn merge_slivers<T: Decide + crate::props::AtRestPolicy>(
     }
 }
 
-/// One strut the output stage closed its face across
-/// ([`close_struts`]).
+/// One edge the output stage closed its face across ([`close_struts`]):
+/// a strut, deleted with its free end, or a slit's stretch, deleted by
+/// parting its loop ([`part_mid_slit`]).
 #[derive(Clone, Debug)]
 pub(super) struct ClosedStrut {
-    /// The face on both sides of the strut.
+    /// The face on both sides of the edge.
     pub(super) face: FaceKey,
-    /// The strut's edge.
+    /// The edge.
     pub(super) edge: EdgeKey,
-    /// The vertices deleted with it: its free end, then, where both its
-    /// ends were free, the other.
+    /// The vertices deleted with it: a strut's free end, then, where both
+    /// its ends were free, the other; none for a slit's stretch, whose
+    /// delete parts its loop ([`part_mid_slit`]).
     pub(super) vertices: Vec<VertexKey>,
 }
 
@@ -627,24 +634,28 @@ impl ClosedStrut {
     }
 }
 
-/// **Closes a face across each of `struts` it lies on both sides of**
-/// (module docs, *Closing*): `struts` are the section struts the zip kept
-/// (`zip::ZipReport::struts`), and each whose two halves bound one face
-/// is deleted with its free end ([`crate::strut`]), in the order given
-/// and again after each, so a chain goes one free end at a time. A strut
-/// between two faces is left as it is.
+/// **Closes a face across each of `candidates` it lies on both sides
+/// of** (module docs, *Closing*): `candidates` are the zip's section
+/// struts and seam edges (`ops::finish_output`). Each whose two halves
+/// bound one face and that has a free end is a strut, deleted with its
+/// free end ([`crate::strut`]), in the order given and again after each,
+/// so a chain goes one free end at a time. Once none is left, one with
+/// no free end, the slit's edges running on past both its ends, is a
+/// stretch of the slit closed across, and its delete parts the slit in
+/// two ([`part_mid_slit`]). An edge between two faces is left as it is.
 ///
 /// # Errors
 ///
-/// [`BooleanError::CurvedFaceClosesAcrossSlit`] where the face is not a
-/// plane; [`BooleanError::SlitFaceClosesMidSlit`] where a strut so held
-/// has no free end, the slit's edges running on past both its ends;
-/// [`BooleanError::JoinDesync`] where one with both ends free is its
+/// [`BooleanError::CurvedFaceClosesAcrossSlit`] where a strut's face is
+/// not a plane ([`crate::strut::StrutRefusal::Curved`]);
+/// [`BooleanError::SlitFaceClosesMidSlit`] where a stretch does not part
+/// its loop into a ring of the slit ([`part_mid_slit`]);
+/// [`BooleanError::JoinDesync`] where a strut with both ends free is its
 /// face's outline, which the zip never leaves; the Euler operators'
 /// refusals.
 pub(super) fn close_struts<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
-    struts: &[EdgeKey],
+    candidates: &[EdgeKey],
     tol: Tol,
 ) -> Result<Vec<ClosedStrut>, BooleanError> {
     let one_face = |body: &Body<T>, edge: EdgeKey| {
@@ -654,7 +665,7 @@ pub(super) fn close_struts<T: Decide + crate::props::AtRestPolicy>(
     };
     let mut closed = Vec::new();
     loop {
-        let open: Vec<(EdgeKey, FaceKey)> = struts
+        let open: Vec<(EdgeKey, FaceKey)> = candidates
             .iter()
             .filter_map(|&edge| one_face(body, edge).map(|face| (edge, face)))
             .collect();
@@ -662,10 +673,16 @@ pub(super) fn close_struts<T: Decide + crate::props::AtRestPolicy>(
             .iter()
             .find_map(|&(edge, face)| body.toward_free_end(edge).map(|t| (edge, face, t)));
         let Some((edge, face, toward_free)) = next else {
-            return match open.first() {
-                None => Ok(closed),
-                Some(&(edge, face)) => Err(BooleanError::SlitFaceClosesMidSlit { face, edge }),
+            let Some(&(edge, face)) = open.first() else {
+                return Ok(closed);
             };
+            part_mid_slit(body, face, edge, tol)?;
+            closed.push(ClosedStrut {
+                face,
+                edge,
+                vertices: Vec::new(),
+            });
+            continue;
         };
         let plan = body
             .plan_strut_prune(face, toward_free)
@@ -684,6 +701,67 @@ pub(super) fn close_struts<T: Decide + crate::props::AtRestPolicy>(
             vertices,
         });
     }
+}
+
+/// **Deletes a slit's stretch closed across**: `edge`, both of whose
+/// halves bound `face` in one loop and neither of whose ends is free,
+/// deleted with `kemr`. The loop parts in two, and `kemr` makes one part
+/// a new ring of `face`: the part that is a slit's run, each of its
+/// halves run back by another of its halves between the same two
+/// vertices. Of the outline, the other part keeps the outline, so
+/// neither part being a run refuses; of a ring, both parts are rings of
+/// `face` whichever is new, so a part that is no run is taken too. No
+/// edge is minted, so the face's surface does not matter.
+///
+/// # Errors
+///
+/// [`BooleanError::SlitFaceClosesMidSlit`] where the halves lie in two
+/// loops, or where neither part of the outline is a run; `kemr`'s
+/// refusals.
+fn part_mid_slit<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    face: FaceKey,
+    edge: EdgeKey,
+    tol: Tol,
+) -> Result<(), BooleanError> {
+    let gap = BooleanError::SlitFaceClosesMidSlit { face, edge };
+    let outline = proven(&body.faces, face, EntityId::Face).outer;
+    let e = proven(&body.edges, edge, EntityId::Edge);
+    let (plus, minus) = (e.he_plus, e.he_minus);
+    let half = |h: HalfEdgeKey| proven(&body.half_edges, h, EntityId::HalfEdge);
+    let lp = half(plus).parent_loop;
+    if half(minus).parent_loop != lp {
+        return Err(gap);
+    }
+    let cycle = body.loop_cycle(plus).ok_or(BooleanError::JoinDesync {
+        what: "a slit's stretch's loop does not walk",
+    })?;
+    let at = cycle
+        .iter()
+        .position(|&h| h == minus)
+        .ok_or(BooleanError::JoinDesync {
+            what: "a slit's stretch's two halves in one loop do not walk to each other",
+        })?;
+    // Each side: the halves strictly between one half and the other, in
+    // `next` order.
+    let (after_plus, after_minus) = (&cycle[1..at], &cycle[at + 1..]);
+    let ends = |h: HalfEdgeKey| (half(h).start, body.proven_half_edge_end(h));
+    let run_back = |hs: &[HalfEdgeKey]| {
+        !hs.is_empty()
+            && hs.iter().all(|&h| {
+                let (a, b) = ends(h);
+                hs.iter().any(|&k| k != h && ends(k) == (b, a))
+            })
+    };
+    let (he1, he2) = if run_back(after_plus) {
+        (plus, minus)
+    } else if lp != outline || run_back(after_minus) {
+        (minus, plus)
+    } else {
+        return Err(gap);
+    };
+    body.kemr_minting(he1, he2, tol)?;
+    Ok(())
 }
 
 /// A face an edge lies in, and whether the edge runs on past it
