@@ -211,7 +211,8 @@ fn offset_and_lowest_on_meet_the_written_down_distance() {
             // or the ray's.
             let bound = |got: f64, want: f64| {
                 got.signum() == want.signum()
-                    && (got - want).abs() <= 1e-12 + b.escalate().powi(2) / (2.0 * want.abs())
+                    && (got - want).abs()
+                        <= 1e-12 + b.escalate().powi(2) / (2.0 * want.abs().max(b.escalate()))
             };
             match link.offset(q, b) {
                 Ok(got)
@@ -229,7 +230,10 @@ fn offset_and_lowest_on_meet_the_written_down_distance() {
             let want = least(sd, a, c);
             match link.lowest_on((a, c), b) {
                 Ok(got)
-                    if got >= want - 1e-12 - b.escalate().powi(2) / (2.0 * want.abs())
+                    if got
+                        >= want
+                            - 1e-12
+                            - b.escalate().powi(2) / (2.0 * want.abs().max(b.escalate()))
                         && got <= want + 1e-9 => {}
                 Ok(got)
                     if want.abs() <= b.escalate() && (got - want).abs() <= 2.0 * b.escalate() => {}
