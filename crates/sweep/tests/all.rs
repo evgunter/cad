@@ -999,6 +999,8 @@ mod curved_coincident_fates;
 mod curved_copies_filling_one_volume;
 #[path = "curved_notch_pinch.rs"]
 mod curved_notch_pinch;
+#[path = "review_curved_same_side_probes.rs"]
+mod review_curved_same_side_probes;
 
 #[path = "verbs_gate_r1_probes.rs"]
 mod verbs_gate_r1_probes;
