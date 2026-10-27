@@ -7118,3 +7118,7 @@ Signed (WIRE orchestrator).
   - The door check is cfg(debug) with a bare assert; per D9 it must run in release with row-4's why.
   - Pre-existing and wrong today: emit_ball_cut_by_brick publishes a pole name nowhere near a pole. The ORBIT row moves to WIRE at P1, and rechart takes it next.
   - PR 5798's FULL review is dispatched.
+- 2026-10-27 (WIRE orchestrator) PR 5798 FULL review: the code is sound.
+  - MAJOR: the witness is green on the real merge base be2b7a1, because #5545 (CLEAVE fate-cut) already spells the flush case with Vertex@m0. The lane's red was on an older base.
+  - Lane told to measure whether the row is live on current main. If it is, witness a live case. If not, close the row as fixed by #5545 and keep only what 5795 needs (Coincidence `more`), plus `by` if it still widens something.
+  - The 5795 conflict and its hidden `third: None` compile break are noted for whichever PR lands second.
