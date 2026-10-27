@@ -1,6 +1,22 @@
 //! **The B-spline Green integral** ([`bspline_green_integral`]): the
-//! general hull-bounded boundary rule on B-spline pcurve channels, with
-//! no at-rest consumer (module docs of [`super`]).
+//! cylinder lane's boundary rule ([`super::cylinder`]'s module docs: the
+//! midpoint with its Taylor remainder) on B-spline pcurve channels.
+//!
+//! Channel hulls and derivative hulls come from the control-coefficient
+//! convexity facts (`geom_core::spline::hull`). This lane has **no
+//! at-rest consumer**: the NURBS-patch flux lanes beside it are separate
+//! engines — `patch_flux_exact` with its composite
+//! rounds for a polynomial patch, and `rational_patch_face`'s
+//! quotient composite (with the `w`-uniform-in-v exact arm) for a
+//! patch whose weights are not one constant — not this Green-form boundary
+//! integral. The consumer that would use it is
+//! the fitted-boundary Green lane, blocked on a construction that
+//! mints a fitted pcurve on an analytic chart at rest — the blocker
+//! `topo::props`' `QuadratureUnsupported` refusal names. That is a
+//! CONDITION, not a date: the lane is a deliberate frontier whose
+//! consumer lands with whichever banked construction (the marched
+//! join windows, the edge×NURBS-face boolean layer) first produces
+//! one, and its callers until then are tests.
 
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;

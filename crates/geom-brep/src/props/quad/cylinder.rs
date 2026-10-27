@@ -1,7 +1,76 @@
 //! **The cylinder-cut lane** ([`cylinder_cut_face_rounds`]): the
-//! harmonic-channel Green integral of the formulation in the module docs
-//! of [`super`], its composite rule and honesty pads, and the loop
-//! windings and ring readings a face rests on.
+//! kernel's first quadrature, the divergence-theorem contributions of a
+//! cylinder face whose trim loops are *curved* (conic cuts), and the
+//! loop windings and ring readings the face rests on.
+//!
+//! # Formulation (cylinder chart)
+//!
+//! With chart `S(u, v) = o + û·r·cos u + v̂·r·sin u + â·v` the chart
+//! normal is radial and `dA = r du dv`, so for a face whose trim region
+//! is Ω (bounded by its loops, the outer one and its rings, each
+//! traversed with the interior on its left about the outward normal):
+//!
+//! ```text
+//! A_s   = −Σ_loops ∮ (v − v_a) du   (signed UV area; A_s = s_f·|Ω|)
+//! area  = r·|A_s|
+//! flux  = ∮ p·n dA = r²·A_s + o·A⃗    (A⃗ the exact vector area, summed over the loops)
+//! ```
+//!
+//! — `v du` because it is a global 1-form on the cylinder (the azimuth
+//! is periodic, its differential is not), so the form reads a loop
+//! that winds the cylinder — a seamless band's rim — and a loop whose
+//! images sit in different branches of the chart alike; `u dv` reads
+//! neither. The loops' own traversal signs carry `s_f`, a ring's
+//! opposite to its face's, so no separate orientation classification
+//! is needed; what is decided is that the stored loops say so (every
+//! junction closes, a whole number of turns apart in the azimuth; each
+//! loop winds at most once and the face's loops none together, which
+//! makes the form independent of the anchor level `v_a`; every loop
+//! that does not wind, other than a non-band face's own, is wound
+//! against its face).
+//! The boundary is the face's **pcurves** (PR 6 caches; C4's first hot
+//! consumer): per edge the contribution is
+//! `σ·∫ (v_a − v(t))·u'(t) dt` over the stored carrier interval.
+//!
+//! # The integrand
+//!
+//! Every minted cylinder-chart pcurve is harmonic,
+//! `u, v(t) = c₀ + c_a·cos t + c_b·sin t + c_l·t`. Trigonometric
+//! values enter only as **enclosures propagated from the edge
+//! endpoints**: the caller supplies `(cos t₀, sin t₀)` brackets at the
+//! limits the lane integrates between ([`trig_at_limit`](super::trig::trig_at_limit), rotated from
+//! the exact `(1, 0)`), and the engine advances them by exact rotation
+//! with polynomial alternating-series bounds on the step's
+//! `(cos, sin)` (valid for |step| ≤ 1.5; every step here is ≤ 1).
+//! Sound and transcendental-free.
+//!
+//! # The rule and its remainder
+//!
+//! Per piece `[p, q]`, `h = q − p`, `m` the midpoint (Taylor with
+//! integral remainder; `∫(t−m)² dt = h³/12`):
+//!
+//! ```text
+//! ∫_p^q f  ∈  h·f(m) + F₂·h³/24,   F₂ ⊇ f'' over [p, q]
+//! ```
+//!
+//! `f(m)` is a *thin* enclosure (rotation to the midpoint), `F₂` a hull
+//! enclosure — the remainder is the enclosure width itself, so the
+//! bracket is sound at every refinement level and only *tightens* as
+//! pieces shrink. Refinement doubles the piece count.
+//!
+//! # Honesty pads (both directions accounted)
+//!
+//! - **Map residual**: each pcurve tracks its carrier within its
+//!   certificate envelope `e` (metres through the map). The cylinder
+//!   metric is `ds² = r²du² + dv²`, so the true trim boundary lies
+//!   within metric distance `e` of the pcurve and the UV-area defect is
+//!   ≤ Σ (metric edge length)·e / r — added to `A_s` symmetrically.
+//! - **Endpoint parameter brackets**: a non-thin `t₀/t₁` bracket
+//!   contributes `mag(f)·width` at each end.
+//!
+//! The closed-form `o·A⃗` term rides at the caller's scalar exactly as
+//! the closed-form lanes do (f64 rounding of closed forms is the
+//! documented slack there, unchanged).
 
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, certified_hi};
@@ -553,12 +622,12 @@ mod tests {
         );
         // The width cap SCALES FROM THE RESOLVED BAND (the multi-ε
         // lesson): the lane converges to
-        // width(flux) ≤ QUAD_TARGET_LEN_FACTOR·ε · 3·lever — assert
+        // width(flux) ≤ REPORTING_RESOLUTION_FACTOR·ε · 3·lever — assert
         // against the target the lane actually used, not a fixed
         // number (at ε = 1e-6 a ~3e-2 width is a legitimately wider
         // certified enclosure, not a defect).
         let lever = (out.area.lo() + out.area.hi()) * 0.5;
-        let width_cap = test_target::QUAD_TARGET_LEN_FACTOR * eps * 3.0 * lever * 1.000001;
+        let width_cap = test_target::REPORTING_RESOLUTION_FACTOR * eps * 3.0 * lever * 1.000001;
         assert!(
             out.flux.width() <= width_cap,
             "width {} exceeds the lane's own converged target {width_cap} (eps {eps})",
@@ -1484,7 +1553,7 @@ mod tests {
             // wall — with an enclosure that still contains the oracle and
             // really missed its target, never a silently wide bracket,
             // never a silent skip.
-            let target = test_target::QUAD_TARGET_LEN_FACTOR * eps;
+            let target = test_target::REPORTING_RESOLUTION_FACTOR * eps;
             match cylinder_cut_face::<f64>(
                 pt(1.0),
                 Interval::zero(),

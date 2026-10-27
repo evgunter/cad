@@ -639,7 +639,7 @@ mod tests {
 
     /// The two HONEST outcomes of an ε-coupled convergence row.
     ///
-    /// The target is `QUAD_TARGET_LEN_FACTOR·ε` while the lane's floor
+    /// The target is `REPORTING_RESOLUTION_FACTOR·ε` while the lane's floor
     /// and work wall do not scale with ε, so the same patch that
     /// certifies at ε = 1e-6 genuinely cannot at ε = 1e-12: the target
     /// is a million times tighter. A row asserting `Ok` unconditionally
@@ -674,7 +674,7 @@ mod tests {
         truth_area: f64,
         slack: f64,
     ) -> EpsPosture {
-        let target = test_target::QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
+        let target = test_target::REPORTING_RESOLUTION_FACTOR * Tol::witness().get().eps;
         let run = match out {
             Ok(run) => run,
             Err(e) => panic!("{row}: unsound outcome {e:?}"),
@@ -792,7 +792,7 @@ mod tests {
     /// to a per-span CONSTANT first derivative, and the lane returned a
     /// thin enclosure that EXCLUDED the truth. The oracle here is
     /// independent — `geom_core`'s Book-A2.3 basis ladder and the
-    /// quotient rule, not this module's de Boor — and the standing claim
+    /// quotient rule, not `net.rs`'s de Boor — and the standing claim
     /// is the one the MAJOR broke: **an answer always contains the
     /// truth; the alternative is a typed refusal, never a wrong
     /// bracket.**

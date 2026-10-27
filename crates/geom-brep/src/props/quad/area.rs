@@ -291,7 +291,7 @@ fn area_gauge_ok(area: Interval, perimeter_lo: f64) -> bool {
 ///   ceiling already sits far above the corpus and is aimed at
 ///   bug-scale widths, so even a 10x overstatement leaves orders of
 ///   detection headroom. This is the monotone-wrong direction, and
-///   it is the direction every other guard in this module errs.
+///   it is the direction every other guard on the area gauge errs.
 ///
 /// The costs are not comparable, so the denominator must never be too
 /// small — and neither input can be trusted alone to guarantee that.
@@ -453,9 +453,9 @@ pub(super) struct AreaCell {
 /// knot count. The flux path takes the same cuts for the same
 /// reason.
 ///
-/// Why not the plain hull rule everywhere: every hull in this module is a
-/// control-net convexity fact and those are SPAN-GRANULAR, so on a
-/// single-span patch the per-cell hull IS the whole-patch hull and the
+/// Why not the plain hull rule everywhere: every hull the patch lanes
+/// read off a net is a control-net convexity fact, and those are
+/// SPAN-GRANULAR, so on a single-span patch the per-cell hull IS the whole-patch hull and the
 /// rule never tightens (the unit square came out `[≈0, 10.4]`). Here
 /// only the pad carries hulls, so the width is genuinely O(h).
 ///

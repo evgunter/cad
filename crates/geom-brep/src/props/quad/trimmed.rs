@@ -592,7 +592,7 @@ fn trim_cells<T: Decide>(
             let a = vertex(block[0]);
             let b = vertex(block[block.len() - 1]);
             // An ESCALATION propagates, as it does from every other
-            // lane in this module: an in-band margin is the funnel's own
+            // quadrature lane: an in-band margin is the funnel's own
             // answer, and bisection cannot improve it — the span it
             // meters HALVES at every level, so a margin that sits in
             // the band arrives at the depth limit still in it. What
@@ -1916,7 +1916,7 @@ mod tests {
         // The chord polygon is integrated EXACTLY and a degree-1 image
         // IS its chord, so the only width here is outward rounding — the
         // target is four decades above it at every ε the matrix draws.
-        let target = test_target::QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
+        let target = test_target::REPORTING_RESOLUTION_FACTOR * Tol::witness().get().eps;
         assert!(
             b.flux.width() < target * 3.0 * b.area.lo(),
             "Q1: width {:e} is not inside the reporting target's own bound",
@@ -3299,7 +3299,7 @@ mod tests {
     /// to a foregone refusal, and the refusal would misreport an
     /// undecided margin as a decided fold. The funnel's own answer for
     /// an in-band margin is an escalation, which is what every other
-    /// lane in this module returns.
+    /// quadrature lane returns.
     ///
     /// The fixture puts the first Bézier block's backward step inside
     /// `(ε, K·ε)`: the image is split into `IMAGE_INIT_PIECES = 8`, so a

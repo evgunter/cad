@@ -1131,7 +1131,7 @@ the crate scan — the same carrier shape `chart_bound_gap` has):
 
 | name | carrier |
 |---|---|
-| `props_trim_piece_monotone` | a bare literal at `geom_brep::props::quad::piece_monotone`'s `classify_len` call |
+| `props_trim_piece_monotone` | a bare literal at `geom_brep::props::quad::trimmed::piece_monotone`'s `classify_len` call |
 
 Its dimension and disposition are `docs/predicate-dimension-audit.md`'s
 `props/quad/trimmed.rs (piece_monotone)` row: a chart-parameter span levered by

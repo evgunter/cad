@@ -1,4 +1,4 @@
-//! **Transcendental-free trig enclosures** (module docs of [`super`]):
+//! **Transcendental-free trig enclosures** (module docs of [`super::cylinder`]):
 //! `(cos, sin)` brackets advanced by exact rotation, with polynomial
 //! alternating-series bounds on each step — the cylinder lane's and the
 //! spiric lane's harmonic channels read them.
@@ -70,9 +70,10 @@ pub(in crate::props) fn rotate(
 }
 
 /// The limit a trim edge is integrated from or to, off the bracket `t`
-/// of its parameter: the bracket's midpoint. [`TrimEdgeQ::limits`] and
-/// [`trig_at_limit`](super::trig::trig_at_limit) both read it here, so the trig a caller hands the
-/// lane is at the limit the lane integrates from.
+/// of its parameter: the bracket's midpoint. The cylinder lane's
+/// `TrimEdgeQ::limits` and [`trig_at_limit`] both read it here, so the
+/// trig a caller hands the lane is at the limit the lane integrates
+/// from.
 pub(super) fn limit(t: Interval) -> f64 {
     mid(t)
 }
