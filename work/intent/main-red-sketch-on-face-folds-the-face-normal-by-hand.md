@@ -2,10 +2,12 @@
 id: main-red-sketch-on-face-folds-the-face-normal-by-hand
 kind: issue
 title: Main red: sketch-on-face's nearest orientation negates the face frame's axis by hand under its sense bit (face_normal's fold census, since PR 5742)
-status: open
+status: closed
 opened: 2026-10-27
 priority: P0
 cost: M
+closed: 2026-10-27
+branch: intent/value-chart-main-reds
 ---
 
 
@@ -43,3 +45,12 @@ the sense (or give `names::interrogate::face_frame`'s reading one), and
 leave the census's list as it is.
 
 Reproduce: `cargo nextest run -p topo -E 'test(=face_normal::tests::no_source_file_folds_the_bit_by_hand)'`.
+
+## Closed
+
+`Editor::nearest_to_face` reads the outward normal through
+`geom_brep::OutwardNormal::from_chart(pose.axis, pose.sense)`, the door
+`names::interrogate::face_frame`'s doc already names and the one
+editor-core's `test_support` reads it through. The census's sanctioned
+list is unchanged. Swept PR 5742's added lines for other folds; the
+PR body carries the hit list.

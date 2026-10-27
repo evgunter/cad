@@ -658,3 +658,14 @@ What it changes on the demos:
 
 Next: the spline × spline interior arm (lily). The held-pierce split
 pcurves (the wavy loft) and the G1-joint crease (klein) also remain.
+
+## 2026-10-27 — the spline × spline arm dispatched
+
+`splice/spline-span-arm` (`session_01EdpJs4Ez9ZNEZk53hwLNSN`) takes
+`a-spline-span-against-a-spline-face-has-no-interior-arm`, re-banded
+P1 → P0 because it is now lily wall 8's blocker. Letter H, so a
+concurrent pair.
+- The lane generalises PR 5826's `(t, u, v)` arm over the curve side
+  rather than copying it.
+- The brief binds the crease class on both curve and surface, the
+  sheet-exact placement, ε-scaled rows, and the full slow sets.

@@ -177,7 +177,8 @@ pub use contain::{
 // classification this module's own walk dispatches on, and the census
 // places a record's point in its face through the boolean's own read.
 pub(crate) use contain::{
-    CurvedPlacement, PlacementError, driver_face_stale, face_placement, loop_circle,
+    CurvedPlacement, PlacementError, curved_face_placement, driver_face_stale, face_placement,
+    loop_circle,
 };
 pub use discard::DiscardRow;
 pub use fate::{SubstitutedFace, UncutFace};
@@ -4795,8 +4796,9 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "the Boolean turned a sphere of the {} operand about its centre to find where \
                  it crosses the other solid, and cannot state what it decided on the turned \
-                 sphere ({relation:?}) on that sphere's own faces: {what}",
+                 sphere ({}) on that sphere's own faces: {what}",
                 operand_word(*operand),
+                relation.noun(),
             ),
             // No operand is named: the raise sites pass the operand being
             // scanned, which is not always the one whose face the refusal cites.
