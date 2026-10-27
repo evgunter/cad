@@ -26,4 +26,4 @@ surfaces is main's (`843fc228`) but for one plane normal's sign (`-0.0`), and E 
 the same 28 findings.
 
 Done when the cleared pair is judged right and the golden re-blessed at
-every ε row it moves (the 1e-12 and 1e-6 rows were not measured here).
+every ε row it moves: 1e-12 reds the same way on a clean `39134695` (at line 49, the census count; on E the same pair is the one gone); 1e-6 was not measured here.
