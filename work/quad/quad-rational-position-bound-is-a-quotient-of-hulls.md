@@ -25,3 +25,8 @@ quantity), so it is not the translation row's defect.
 
 Not taken by the quotient-statement unit, whose two bounds were the
 flux's `f_dd` and the area pad.
+
+## Re-checked on main `9267d3ae` (QUAD tracker sweep, 2026-10-27)
+
+Still holds: `crates/geom-brep/src/props/quad/rational.rs:421`, read at
+`:603` (`boundary_defect * p_bound`).

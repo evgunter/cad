@@ -25,3 +25,17 @@ bracket, per however the dial fork is ruled), or the result stops calling the
 measurement converged where only the volume is. Read the fork's ruling first:
 one designer's recommendation makes the bracket the primary value, which would
 settle the label half.
+
+## Re-checked on main `9267d3ae` (QUAD tracker sweep, 2026-10-27)
+
+Still holds. The fork this row waited on,
+`quad2-rational-max-rounds-dial-decision`, is closed, and the measure
+door answered it with a bracket (PR 5741, `MassMeasurement`). The
+area half stands. The patch lanes still take their area once at
+`AREA_CELLS_PER_AXIS` (`crates/geom-brep/src/props/quad/area.rs:17`;
+`rational.rs:457`, `patch.rs:266`), before and outside the round loop.
+The label half is now `Stop::Met`, "every face met the resolution"
+(`crates/topo/src/props/settle.rs:99`). The resolution is compared on
+the flux alone (`mean_boundary_displacement`,
+`crates/topo/src/props/quad_lane.rs:513`), so `Met` still says nothing
+about the area beside it.

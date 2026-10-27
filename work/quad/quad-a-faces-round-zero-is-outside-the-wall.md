@@ -26,3 +26,11 @@ Raised by both DUAL reviewers on PR 5589. The fault is old in kind.
 Fix shape: check whether `cost(first)` fits before running round 0 or
 a resumed round, and refuse typed (or answer `Wall` with no
 enclosure) instead of spending.
+
+## Re-checked on main `9267d3ae` (QUAD tracker sweep, 2026-10-27)
+
+Still holds after PR 5815. `Run::enter`
+(`crates/geom-brep/src/props/quad/run.rs:267`) replays the earlier
+rounds and only `debug_assert!`s at `:272` that the entering window's
+first round fits. `Run::stop` (`:293`) spends the round's cost after the
+lane has run it, and reads the wall only for `round + 1`.
