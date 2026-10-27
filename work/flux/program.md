@@ -2,7 +2,7 @@
 id: flux
 kind: program
 title: FLUX — the curved closed-form arms, and the scalar doors under them
-status: active
+status: ready
 opened: 2026-10-01
 area: kernel
 prefix: flux/
