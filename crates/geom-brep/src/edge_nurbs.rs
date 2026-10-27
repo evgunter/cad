@@ -3144,7 +3144,7 @@ mod tests {
     }
 
     /// **Limb 2 over a parameter box, on its identity** (C2; fork row
-    /// 201). Each row reads [`analytic_edge_limbs`] at `Sym<Interval>`
+    /// 203). Each row reads [`analytic_edge_limbs`] at `Sym<Interval>`
     /// over the box `a ∈ [0.5, 1.5]`, the parameter bracketed in the
     /// session as a drive mints it, and returns the limb's result with
     /// limb 2's decisions (`ssi_hull_sup` and `ssi_hull_value`) as the

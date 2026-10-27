@@ -171,7 +171,11 @@ pub(super) struct ZipReport {
     /// edge the zip kills and the A edge on its segment, which survives
     /// in its place; or, where B's is a section strut, A's onto it.
     pub edge_merges: Vec<(crate::entity::EdgeKey, crate::entity::EdgeKey)>,
-    /// The section struts the zip kept ([`kill_pair`]), each once.
+    /// The section struts the zip kept ([`kill_pair`]), each once. A
+    /// seam edge whose pair is no section strut can end with one face
+    /// on both sides too, where the gluing closes that face across a
+    /// slit's line; it is not named here, and the output stage reads
+    /// the seam edges for it (`ops::finish_output`).
     pub struts: Vec<crate::entity::EdgeKey>,
 }
 

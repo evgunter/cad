@@ -441,6 +441,11 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "null-face annotation; tier 2 bans it at rest, tier 1 does not see it",
     ),
     ("clear_null_face_pair", "removes that annotation"),
+    (
+        "validate_pseudomanifold",
+        "`Certifier`'s: it writes only the certificate the certifier keeps, and holds the \
+         body it certifies by shared reference, so no arena is written",
+    ),
 ];
 
 /// **The closure property the module docs of [`crate::euler`] and D9's

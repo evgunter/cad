@@ -69,7 +69,7 @@ use crate::validate::ValidationError;
 /// ulps of the faces' flux terms where each face is read about its own
 /// geometry, and more where a face's closed form is levered by a carrier
 /// stored far from it
-/// (`work/fluxtail/a-planar-face-sums-its-area-about-a-far-carrier-origin`),
+/// (`work/nearpoint/a-planar-face-sums-its-area-about-a-far-carrier-origin`),
 /// however small the body.
 ///
 /// **The rule for a reader:** a decision on a zero-pad value re-derives
@@ -4365,7 +4365,7 @@ fn quadrature_regions<T: Decide>(body: &Body<T>, shell: ShellKey) -> Vec<Vec<Fac
 /// choice, and the lever is unbounded by it: a shell whose quadrature
 /// faces lie a kilometre apart reads pads up to 90× apart across
 /// rotations of its face list at 1e-6
-/// (`work/flux/a-shells-pad-still-depends-on-which-quadrature-face-it-stores-first.md`).
+/// (`a-shells-pad-still-depends-on-which-quadrature-face-it-stores-first`, closed by PR 5699).
 /// A region after the first, far from it, is read about a point of its own
 /// and carried here ([`References`]).
 #[cfg_attr(not(any(test, feature = "test-support")), expect(dead_code))]
@@ -4398,7 +4398,7 @@ fn reference_of<T: Decide>(body: &Body<T>, shell: ShellKey, regions: &[Vec<FaceK
 /// A quadrature face's width scales with its lever from the point it is
 /// read about, and one point per shell is far from a region of the shell
 /// that lies far from the shell's first quadrature face
-/// (`work/flux/a-shells-pad-still-depends-on-which-quadrature-face-it-stores-first.md`:
+/// (`a-shells-pad-still-depends-on-which-quadrature-face-it-stores-first`, closed by PR 5699:
 /// two tori 900 m apart on one bar read pads 90× apart across rotations of
 /// the stored face list at 1e-6). So a region `g` may be read about a
 /// point of its own, `c_g` ([`region_point`]), and its sum carried to the
@@ -4438,7 +4438,7 @@ fn reference_of<T: Decide>(body: &Body<T>, shell: ShellKey, regions: &[Vec<FaceK
 /// a torus on that face and a torus at the bar's far end read pads 456×
 /// apart across rotations at 1e-6, and a torus midway, joining both
 /// ends, 83×
-/// (`work/flux/a-shells-pad-still-depends-on-face-order-where-one-quadrature-region-spans-the-lever.md`).
+/// (`a-shells-pad-still-depends-on-face-order-where-one-quadrature-region-spans-the-lever`, closed by PR 5801).
 ///
 /// **Its point** is the stored start of a curved face of it ([`region_point`]),
 /// not of a plane: a curved face's width is levered by its distance from
@@ -4987,7 +4987,7 @@ pub(crate) struct SeamRegion<T: Real> {
     /// meets the region at the vertex alone would lie on a second sphere
     /// entity coincident with the first, which `mef` refuses
     /// (`RechartUnvouched`) and STEP import merges into one entity
-    /// (`work/flux/a-pinched-seam-region-has-no-witness.md`).
+    /// (`work/measuredoor/a-pinched-seam-region-has-no-witness.md`).
     pub(crate) pinched: bool,
 }
 

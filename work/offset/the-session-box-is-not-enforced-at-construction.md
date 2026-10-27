@@ -11,7 +11,7 @@ design: true
 
 
 
-Filed by PR 5728's implementer lane, from fork row 200's fix.
+Filed by PR 5728's implementer lane, from fork row 202's fix.
 
 **Finding.** DESIGN `[tolerance.units]` (`docs/DESIGN.md:663`) says the
 session box is 1 km and that "geometry outside the range is rejected at

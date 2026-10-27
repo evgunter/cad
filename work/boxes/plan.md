@@ -7,7 +7,7 @@ Track size). Nothing dispatched yet.
 
 ## The slate
 
-**27 budget points** of dispatchable work against a ceiling of 30.
+**51.5 budget points** of dispatchable work against a ceiling of 30 (2026-10-27): over budget, and due a split; the table below lists only the P1 rows.
 
 | pri | item | cost | title |
 |---|---|---|---|
@@ -15,6 +15,7 @@ Track size). Nothing dispatched yet.
 | P1 | `D95` | D | boolean/combine.rs answers one proof two ways; dispose of the six siblings the unreachable! conversion left |
 | P1 | `G9` | D | Unify the two operand-kind gates (S95) and fix chord_join's contradicted placement (S96) |
 | P1 | `S173` | D | Move boolean::rest::face_carrier out of boolean/ so the curved half of the one door lives where the header argues |
+| P1 | `an-edges-extent-has-four-dispatchers` | M | an edge's extent has four per-Curve3 dispatchers and no home, so each per-site fold of a face's extent picks a different one |
 | P1 | `boolean-declarations-has-no-geometric-producer` | D | API gap — BooleanDeclarations has no geometric producer, so every direct kernel caller hand-writes one |
 | P1 | `chart-window-walk-written-twice` | E | One home for the chart-window walk: chord_join::run_azimuth_window and solid_contain::torus_chart_windows are the same construction written twice |
 | P1 | `description-staleness-ladder-three-spellings` | D | The description staleness/adjacency-coherence ladder has three hand-kept spellings, already drifted - it wants one home |
@@ -30,6 +31,8 @@ shape and the widest instance designs it best: `the-chord-dip-charge-has-two-hom
 (two homes, nine spellings), then `D280` (`census.rs`'s `reach_box`
 against `FaceBoxRule`), then `description-staleness-ladder-three-spellings`,
 which has already drifted and so carries its own evidence.
+
+`an-edges-extent-has-four-dispatchers` came from FLUXTAIL at the 2026-10-27 re-cut (`docs/doc-ledger/flux-leaves-the-tracker.md`), banded P1 then: it is this program's class, one question answered by four dispatchers, one of them `topo::boolean::boxes`. Three per-site folds in CHARTTAIL, HONE and LEVER wait on its home, so it ranks with the widest rows above.
 
 `sphere-operand-box-is-the-whole-ball` is the one `H` row and the one
 with a measurable payoff — it is also PERF's territory by subject, so

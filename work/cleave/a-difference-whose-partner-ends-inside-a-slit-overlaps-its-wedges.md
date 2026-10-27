@@ -46,3 +46,16 @@ material deciding the edges (`crates/topo/README.md`, tier 3), in the
 join: here, where `x`'s edge ends inside the slit, the slit's two edges
 part at that end into the stretch `x` crosses and the stretch it does
 not. Then pin these cells building.
+
+## Note (2026-10-26, branch `cleave/flush-partners-at-a-slit-build`)
+
+The box `[−1, 5]² × [−1, 0.5]` less the wide vee along `(1.7, 2.3)` or
+`(2.2, 3.4)` of the keel, less the slab with the trench closed at both
+ends or open at one, `x − y`, joins these cells there: the closing now
+parts the keel across the vee's stretch (`slit::part_mid_slit`), where
+it refused `SlitFaceClosesMidSlit` on main, and the stretches beyond
+refuse `LineWedges` `Overlap`, at ε default, 1e-6 and 1e-12, at rest,
+turned and flipped and turned. Pinned (Boolean's and split's slit, the
+closed keel, `(1.7, 2.3)`) by
+`a_keel_on_the_floor_subtracts_as_a_slit::a_face_closed_across_part_of_the_slit_refuses_typed`.
+

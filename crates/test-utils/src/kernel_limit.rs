@@ -9,7 +9,7 @@
 //! crate depends on nothing, so it cannot name the type.
 //!
 //! **At an enclosure scalar the same stall is an escalation** (fork row
-//! 201): limb 2 decides the enclosure `[floor, upper]` of the carrier's
+//! 203): limb 2 decides the enclosure `[floor, upper]` of the carrier's
 //! distance there, and an upper bound that stalls past the band is that
 //! decision's `Indeterminate`, refused as
 //! `AnalyticRung3Refusal::Escalated` on `HullSup` with no cause and no

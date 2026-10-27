@@ -461,6 +461,16 @@ fn certify_errors() -> Vec<CertifyError> {
                 channel: geom_brep::SectorChannel::Azimuth,
             },
         },
+        CertifyError::DeclaredOffChart {
+            chart: geom::SurfaceKind::Plane,
+            carrier: geom::CurveKind::Line,
+            margin: None,
+        },
+        CertifyError::DeclaredOffChart {
+            chart: geom::SurfaceKind::Cone,
+            carrier: geom::CurveKind::Line,
+            margin: Some(geom_brep::OffMargin::InBand(MarginDiag::value(4e-10))),
+        },
         CertifyError::UnresolvedSurface { key },
         CertifyError::Unimplemented,
         CertifyError::OnPairArcRim {
@@ -540,6 +550,12 @@ fn certify_errors() -> Vec<CertifyError> {
         },
         CertifyError::Escalated {
             check: CertCheck::ParamSpanMeter,
+            sample: geom_brep::certify::NOT_A_SAMPLE,
+            cause: diag(),
+        },
+        // A declared carrier's incidence in band at the edge certificate.
+        CertifyError::Escalated {
+            check: CertCheck::DeclaredIncidence,
             sample: geom_brep::certify::NOT_A_SAMPLE,
             cause: diag(),
         },
@@ -661,6 +677,19 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
                 4e-10,
             ))),
         },
+        PcurveCertifyError::CarrierOffChart {
+            chart: geom::SurfaceKind::Torus,
+            carrier: geom::CurveKind::Circle,
+            why: "the circle is no section of the torus",
+            margin: Some(geom_brep::OffMargin::Past(geom_core::MarginDiag::value(
+                3e-7,
+            ))),
+        },
+        PcurveCertifyError::Escalated {
+            check: geom_brep::PcurveCheck::ChartIncidence,
+            sample: 0,
+            cause: diag(),
+        },
         PcurveCertifyError::ImageMismatch {
             image: geom_brep::PcurveKind::General,
             why: "a fitted-grade image at the closed-form door",
@@ -752,12 +781,39 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
         },
     ];
     v.extend(band_errors().into_iter().map(PcurveMintError::Band));
-    v.extend(
-        pcurve_certify_errors()
-            .into_iter()
-            .map(|error| PcurveMintError::Certify { half_edge, error }),
-    );
+    // Each certification refusal under both authorities: the ending of
+    // a carrier off its face turns on which ([`crate::validate`]'s
+    // `off_face_ending`).
+    for authority in authorities() {
+        v.extend(
+            pcurve_certify_errors()
+                .into_iter()
+                .map(|error| PcurveMintError::Certify {
+                    half_edge,
+                    error,
+                    authority,
+                }),
+        );
+    }
     v
+}
+
+/// The two authorities a locus can have, each spelled through
+/// [`geom_brep::EdgeAuthority::kind`]: derived, and declared by an
+/// extruded sketch point.
+pub(crate) fn authorities() -> [geom_brep::AuthorityKind; 2] {
+    [
+        geom_brep::EdgeAuthority::<f64>::Derived.kind(),
+        geom_brep::EdgeAuthority::Declared(geom_brep::MappedCurve {
+            source: geom_brep::MappedSource::ExtrudedPoint {
+                point: geom_core::Point2::new(0.0, 0.0),
+                place: geom_core::Affine3::identity(),
+                vec: geom_core::Vec3::new(0.0, 0.0, 1.0),
+            },
+            range: geom_brep::SubRange::whole(),
+        })
+        .kind(),
+    ]
 }
 
 fn props_errors() -> Vec<PropsError> {

@@ -1,0 +1,1 @@
+- 2026-10-27 — **Opened** by the re-cut of FLUX and FLUXTAIL by logical thread (`docs/doc-ledger/flux-leaves-the-tracker.md`). Nothing dispatched; the slate is in `plan.md`.

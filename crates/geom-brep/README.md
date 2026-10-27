@@ -640,9 +640,12 @@ covers refuses at the producer rather than reaching rest uncached.
 A closed-form class gate is a lane choice (D3): in band or definite,
 the carrier takes a lane whose certificate does not rest on the class,
 its projected image where the chart has one. Whether the carrier lies
-on the chart at all is a residual, not a class gate: a miss is the
-lever on a declared carrier and a defect only on one the kernel
-derived. A
+on the chart at all is a residual, not a class gate: a definite miss
+is a contradiction between what the edge states and its geometry,
+ended by the door that reads it (D4 ¶1 (iv)), and a read in band, at a
+pose or undecided, ends in the decision's lever at every door. Which
+sketch entity an edge came from (`EdgeAuthority`) is provenance, and no
+ending reads it. A
 carrier whose route refuses (a spline or a circle whose projected image
 reaches a pole) refuses at the producer like any other refusal: no
 class goes unrouted, so the exemption excuses only a scalar that holds

@@ -10,7 +10,7 @@ cost: M
 
 
 
-Filed by PR 5728's implementer lane, from the measurements of fork row 200's
+Filed by PR 5728's implementer lane, from the measurements of fork row 202's
 fix (the one limb-2 reader framed in certification arithmetic).
 
 **Finding.** With every carrier framed at the operand before it is

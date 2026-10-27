@@ -89,7 +89,7 @@
 //!   and one
 //!   cross-solid residue named at that loop: a pair whose ONLY
 //!   meetings are declared has some of its records taken on their word
-//!   (`work/contacthold/declared-only-meetings-clear-at-the-census-gate-unread.md`).
+//!   (`work/atrest/declared-only-meetings-clear-at-the-census-gate-unread.md`).
 //!   Cross-solid
 //!   pairs the reach filter CLEARS are cleared soundly (the pads are
 //!   sound bounds for the kinds that take the test), so clearance is a
@@ -8975,7 +8975,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             // analysis cannot read and the events a declared face pair
             // backs are taken on the records' word — reading them
             // refuses ratified declared seats
-            // (`work/contacthold/declared-only-meetings-clear-at-the-census-gate-unread.md`).
+            // (`work/atrest/declared-only-meetings-clear-at-the-census-gate-unread.md`).
             // A point the two share a key at is no declaration: such a
             // pair is probed too, and its shared points are read strictly,
             // an undecided reading refusing (`blocks`).

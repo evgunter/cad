@@ -17,18 +17,18 @@ answer. A stalled limb-2 bound is decided definite past the band, so
 nothing lands on the node's escalation log, and the node's failure
 falls to read (3)'s catch-all `_ => return LeafVerdict::Bisect`
 (`crates/editor-core/src/drive.rs:1806`). At a parameter-family scalar
-this is the bisection that fork row 201 rules (a stalled bound over a
+this is the bisection that fork row 203 rules (a stalled bound over a
 box is undecided at that leaf). It is reached by the catch-all,
 though, not by a typed read.
 
 The arms' deletion question
 (`work/verdict/should-classify-replays-error-enum-arms-be-deleted.md`)
 now has a live case to measure against: deleting the catch-all would
-change what these leaves do. When fork 201's mechanism lands, the stall
+change what these leaves do. When fork 203's mechanism lands, the stall
 should reach the drive as an undecided margin, read (2)'s path, and the
 comment should be corrected either way.
 
-**Closed by fork 201's mechanism (PR 5728).** At an enclosure scalar,
+**Closed by fork 203's mechanism (PR 5728).** At an enclosure scalar,
 `Interval` and the drive's `Sym<Interval>`, limb 2 no longer refuses as
 `KernelLimit`: it decides the composite's enclosure `[floor, upper]` as
 one margin (`edge_nurbs::limb2_enclosure`), and a stall is that
