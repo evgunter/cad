@@ -78,7 +78,7 @@ detect self-intersection and to compute tolerance stackups.
 The root principle is **functional style**: a CAD kernel's job is to
 define what a shape *is*, and the implementation reads that way —
 values rather than mutable objects, pure functions rather than hidden
-state, data rather than behaviour. The six principles below are that
+state, data rather than behaviour. The seven principles below are that
 stance applied to a solid modeler.
 
 ### The model is a pure function `[pure-model]`
@@ -253,6 +253,14 @@ error that names the failing check, the entity and the recourse; valid
 input the kernel has not built yet gets a typed `Unsupported*` refusal
 naming its blocker. These are the project conventions of [failure] and
 [tolerance.recourse].
+
+### Checks serve the code `[checks-serve]`
+
+The code is as simple as the problem allows, and nothing is added to
+it for a check's sake. Tests, debug assertions and CI are tools for
+finding defects in the code: no representation, stage or decision
+exists only so a check can read it. Where a check needs one, the
+check changes or goes.
 
 ## Canonical places `[one-way.places]`
 
@@ -619,10 +627,7 @@ forms are the levered door applied at named arms; there is no raw
 construction door. Consistency backstops between integral results
 decide on bare `T` through `k_stats::decide_invariant`, no Margin
 minted, and a certified violation is a Corrupt-class kernel-invariant
-error, never a validity refusal. The volume relations between a
-boolean's result and its operands (vol(A ∪ B) ≤ vol(A) + vol(B) and
-its siblings) are a test oracle, checked on the suite's fixtures, not
-a check every operation runs. A site where no door honestly fits
+error, never a validity refusal. A site where no door honestly fits
 is a finding, not a cast. The vector/linalg interior stays bare `T`.
 (ii) **No dimensionally-heterogeneous uniform payloads**: a field
 whose dimension depends on a runtime kind tag is illegal;
@@ -1882,10 +1887,6 @@ swallowed.
   orders). Where the measured condition is reachable by input, the
   preferred disposition is a reported value, not a tripwire
   (`topo::coherence`).
-- *Checks serve the code, not the reverse.* The code is never made
-  worse to support a test or a debug check: no representation, stage
-  or decision exists only so a check can read it. Where a check needs
-  one, the check changes or goes (Ev, PR 5780).
 - *Boundary rule.* `pncad-py` re-types at the FFI edge — anything the
   Python layer can trigger is validated into a typed error before the
   kernel call, so an `unreachable!` never crosses into a
