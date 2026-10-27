@@ -138,6 +138,7 @@ mod slit;
 pub use slit::EdgeInFaceGap;
 pub mod solid_contain;
 pub(crate) mod sphere_region;
+pub(crate) mod spline_region;
 mod surface_group;
 pub mod tables;
 #[cfg(test)]
@@ -443,6 +444,10 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "point_in_arc_loop_spline_side"
         | "point_in_arc_loop_spline_turn"
         | "point_in_arc_loop_spline_advance" => BooleanDecision::CONTAINMENT_UNNAMED.subject(),
+        spline_region::CARRIER => "how far a point lies off a spline face's carrier",
+        spline_region::ARM | spline_region::TRIM => {
+            "whether a point of a spline face's carrier lies clear of the face's trim"
+        }
         _ => return None,
     })
 }
@@ -3498,6 +3503,27 @@ pub enum BooleanError {
         /// The precise uncertifiable sub-configuration.
         what: &'static str,
     },
+    /// **A decision on a re-charted sphere's cell is not stated by the
+    /// input cells that cell reads back as.** The containment re-cut
+    /// turns a closed sphere shell about its centre
+    /// (`ops::apply_recuts`), so each cell of the turned shell reads back
+    /// as the set of the input shell's faces, which wear that sphere. A
+    /// point decided on such a cell (a meeting, a vertex on a carrier) is
+    /// the meeting of those faces and the row's other cells, where a row
+    /// holds that many; any other decision, of carriers or of shapes,
+    /// holds of them only where the shell is one face and the cell that
+    /// face. Otherwise it is refused here rather than published against
+    /// faces it was not decided on.
+    RechartedRowUnstated {
+        /// The operand whose sphere shell was re-charted.
+        operand: Operand,
+        /// What was decided on the turned cell.
+        relation: crate::Relation,
+        /// The input shell's faces the turned cell reads back as, sorted.
+        faces: Vec<FaceKey>,
+        /// Why they do not state it.
+        what: &'static str,
+    },
     /// **Two sphere faces of the two solids touch** at the curved-extent
     /// scan, which runs only where the crossing layer found no edge
     /// crossing a face: their spheres touch within the tolerance, the
@@ -4136,6 +4162,8 @@ pub enum BooleanErrorKind {
     NurbsExtentUnsupported,
     /// [`BooleanError::FallbackExtentUnsupported`].
     FallbackExtentUnsupported,
+    /// [`BooleanError::RechartedRowUnstated`].
+    RechartedRowUnstated,
     /// [`BooleanError::SpheresMeet`].
     SpheresMeet,
     /// [`BooleanError::GermFrameUnsupported`].
@@ -4392,6 +4420,7 @@ impl BooleanError {
             Self::CurvedPairUnsupported { .. } => BooleanErrorKind::CurvedPairUnsupported,
             Self::NurbsExtentUnsupported { .. } => BooleanErrorKind::NurbsExtentUnsupported,
             Self::FallbackExtentUnsupported { .. } => BooleanErrorKind::FallbackExtentUnsupported,
+            Self::RechartedRowUnstated { .. } => BooleanErrorKind::RechartedRowUnstated,
             Self::SpheresMeet { .. } => BooleanErrorKind::SpheresMeet,
             Self::GermFrameUnsupported { .. } => BooleanErrorKind::GermFrameUnsupported,
             Self::GermSectionOpenConic { .. } => BooleanErrorKind::GermSectionOpenConic,
@@ -4741,6 +4770,18 @@ impl core::fmt::Display for BooleanError {
                  outside the other, so it refuses rather than guess. Recourse: make \
                  the solids' boundaries cross, or build that face from planes, \
                  cylinders or spheres",
+                operand_word(*operand),
+            ),
+            Self::RechartedRowUnstated {
+                operand,
+                relation,
+                what,
+                ..
+            } => write!(
+                f,
+                "the Boolean turned a sphere of the {} operand about its centre to find where \
+                 it crosses the other solid, and cannot state what it decided on the turned \
+                 sphere ({relation:?}) on that sphere's own faces: {what}",
                 operand_word(*operand),
             ),
             // No operand is named: the raise sites pass the operand being
@@ -9143,6 +9184,12 @@ mod tests {
                 face,
                 what: "an uncertifiable pose",
             },
+            BooleanError::RechartedRowUnstated {
+                operand: Operand::B,
+                relation: crate::Relation::SameOpposite,
+                faces: vec![face],
+                what: "only a point decided there is stated by the faces that hold it",
+            },
             BooleanError::SpheresMeet {
                 operand: Operand::A,
                 face,
@@ -9354,6 +9401,7 @@ mod tests {
                 BooleanErrorKind::CurvedPairUnsupported => "CurvedPairUnsupported",
                 BooleanErrorKind::NurbsExtentUnsupported => "NurbsExtentUnsupported",
                 BooleanErrorKind::FallbackExtentUnsupported => "FallbackExtentUnsupported",
+                BooleanErrorKind::RechartedRowUnstated => "RechartedRowUnstated",
                 BooleanErrorKind::SpheresMeet => "SpheresMeet",
                 BooleanErrorKind::GermFrameUnsupported => "GermFrameUnsupported",
                 BooleanErrorKind::GermSectionOpenConic => "GermSectionOpenConic",

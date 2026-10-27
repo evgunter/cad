@@ -547,3 +547,48 @@ it touched sweep tests. Five unfiled sweep and pncad-py slow-set reds
 on main surfaced through this lane's run. They are triaged on
 `splice/slow-set-reds`. Every SPLICE brief now names sweep's slow set
 explicitly.
+
+## 2026-10-27 — PR 5805 (point-in-face for a spline face) merges
+
+Letter M, holdout (byte 48), so a concurrent pair, frozen at
+`d4b983c13a`. Both reviewers: APPROVE-WITH-FIXES.
+
+R1 raised one MAJOR, shown by a red row: on a closed chart each loop
+was lifted on its own, so a hole one period from its outer loop read
+In. R2 raised no MAJOR and did not exercise closed charts. Blinded
+coding (byte 16) tallies R1's MAJOR, which makes this an **M-tier
+miss**. The short readout to Ev rides an `[ev]` PR.
+
+Bilateral: the Out rule, the parity half-open rule and the caps had no
+red row, and the reading drew on two period sources.
+
+The fix pass is `6b5c472181`, plus `5086a8a8ec` for an ε-scaled row.
+The orchestrator read the delta.
+- Rings are lifted into the outer loop's cover by one decided whole
+  period.
+- A square tube closed in u, with a seam face and a hole, is built at
+  rest as the witness.
+- One period source; clearance through the metric door; caps
+  witnessed.
+- Seam and pole completeness is filed P2
+  (`a-spline-faces-trim-reads-nothing-at-a-closed-seam-or-a-pole`).
+
+The wavy-loft union still stops at the held pierce, because a split
+piece has no pcurve mid-boolean. The parked wiring row is unparked.
+
+The lane had not run sweep's slow set in its first pass; it ran it
+before reporting. Its nine reds are all main's, already filed or fixed
+in PR 5814.
+
+## 2026-10-27 — the interior arm dispatched
+
+`splice/interior-arm` (`session_01EdpJs5Doyx3iN4jJo1CRrf`) takes
+`an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane` (P0 H,
+letter H, a concurrent pair). This is where lily wall 8 now stops.
+- It builds C5's analytic span × spline face arm by enclosure or
+  Krawczyk, and places each meeting through PR 5805's point-in-face.
+- The brief binds the crease class (four finds now), feet on another
+  sheet, ε-scaled rows, and sweep's and topo's full slow sets.
+- PR 5814 (main's slow-set reds and the past-every-reach axes) is on
+  its fix pass. PR 5821 is the `[ev]` short readout for the M-tier
+  miss at DR-353.
