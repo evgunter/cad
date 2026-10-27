@@ -30,3 +30,23 @@ no per-pair stopgap lane is built elsewhere. Rows dispatchable: 10, for
 rung-3 arm that klein wall 3 and teapot wall 3 need. Step 4 of this
 plan mentioned it only as a sentence. Agreed in chat that SECT should
 get its own orchestrator rather than SPLICE taking these rows.
+
+## 2026-10-27 — picked up
+
+(SECT orchestrator) Track claimed, status `ready` → `active`. INTENT E
+(`booleans-glue-on-zero`) closed 2026-10-10, so the section door's
+coincidence seam the plan names is no longer a wait: E's record exists
+and moves to the door with the frame's retirement. First dispatches:
+
+- **Step 1's open choices to the designer pair** (one Opus, one Fable,
+  `docs/prompts/designer.md`): the section object's type and home, its
+  certificate's rung per kind pair, and the door's coincidence/tangency
+  seam with E's record, as the brief for
+  `cylinder-sphere-germ-pair-has-no-join-lane` (and its two riders)
+  finds them open. Converged and inside fork row 100 → the brief is
+  written from it; a split → an `[ev]` PR.
+- **`the-lilys-stem-and-arch-walls-have-no-certificate-arm`** (P0 M) to
+  an implementer now: a section-certificate arm in `section_cert.rs`,
+  which does not wait on the section object. Review tier: single FULL
+  (a certificate deciding a pair clear is a soundness claim a read
+  cannot believe on its own).
