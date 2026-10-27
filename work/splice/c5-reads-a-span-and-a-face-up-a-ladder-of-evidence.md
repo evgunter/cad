@@ -2,12 +2,12 @@
 id: c5-reads-a-span-and-a-face-up-a-ladder-of-evidence
 kind: issue
 title: C5's curve × face clause reads a span and a face up one ladder of evidence, topology first, so twin_edge is the rule's first rung and not an exception
-status: open
+status: closed
 opened: 2026-10-27
-needs_ev: true
 priority: P2
 cost: E
 branch: splice/ev-c5-evidence-ladder
+closed: 2026-10-27
 ---
 
 
@@ -27,3 +27,11 @@ evidence:
 
 Each rung reads only what the rungs before it left undecided.
 `twin_edge` is then rung 1.
+
+## Closed (2026-10-27, PR 5860)
+
+Ev approved the rewrite on PR 5860 ("5860 looks good!", in chat). C5's
+curve × face clause now reads a span and a face up one ladder of
+evidence (topology, then ends, then boundary, then interior), with the
+boolean's validity precondition named as assumed. `twin_edge` is its
+first rung. Only the wording changed; the code is unchanged.
