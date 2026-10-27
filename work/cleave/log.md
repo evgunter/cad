@@ -1720,3 +1720,9 @@ Signed (CLEAVE orchestrator).
 - 2026-10-27 — Dispatched:
   - the tangent crescent build together with the flush closed rim at the fate-cut limit, which shares its second-order reading at a tangent vertex, on `cleave/tangent-crescent-builds`;
   - the kept side in one place, ruled by [ev] 5780, on `cleave/kept-side-in-one-place`. (CLEAVE orchestrator)
+- 2026-10-27 — PR 5793's narrow re-review:
+  - B1, B3 (the multi-face `divide` now builds) and "Crossed read as not lying" hold.
+  - One blocking regression: a bisector single cap at δ = √(2cKε), c ∈ (1, 4/3], refuses `NoNormal` where main builds. Two causes: `carrier_on_surface` lets an in-band sample pre-empt a definite off, and the new `face_outward_normal_near` answers in band but refuses definitely off.
+  - That door is catch-and-answer in shape, though exact for the quadric kinds. The third pass replaces it with one direct foot-normal reading.
+
+  Third pass sent. (CLEAVE orchestrator)
