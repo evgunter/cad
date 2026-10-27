@@ -373,9 +373,10 @@ pub enum SeamEscalation {
 /// may be spline faces (module docs, "A seam with a spline face"): the
 /// wedge between `faces` at the seam's point `p`, over the same arm
 /// gate and wedge decision, with each face's normal and curvature arm
-/// read by its kind. `lane` is the scalar's certified NURBS lane, which
-/// a spline face's curvature bound is read through; without one, a
-/// spline face's arm is poison.
+/// read by its kind. `chart_curvature` reads a certified bound on a
+/// spline chart's principal curvatures at this scalar
+/// ([`crate::NurbsLane::chart_curvature`] where the scalar certifies);
+/// where it reads none, a spline face's arm is poison.
 ///
 /// On two analytic faces it is [`classify_dihedral`], bit for bit.
 ///
@@ -387,12 +388,12 @@ pub fn classify_seam<T: Decide>(
     faces: [SeamFace<'_, T>; 2],
     p: Point3<T>,
     reach: T,
-    lane: Option<crate::NurbsLane<T>>,
+    chart_curvature: impl Fn(&geom::NurbsSurface<T>) -> Option<f64>,
     band: Band,
 ) -> Result<DihedralClass, SeamEscalation> {
     let [(n1, arm1), (n2, arm2)] = [
-        seam_face_reading(faces[0], p, reach, lane, band)?,
-        seam_face_reading(faces[1], p, reach, lane, band)?,
+        seam_face_reading(faces[0], p, reach, &chart_curvature, band)?,
+        seam_face_reading(faces[1], p, reach, &chart_curvature, band)?,
     ];
     wedge_of(n1, n2, arm1.min(arm2).min(reach), band)
         .map(|(class, _)| class)
@@ -405,7 +406,7 @@ fn seam_face_reading<T: Decide>(
     face: SeamFace<'_, T>,
     p: Point3<T>,
     reach: T,
-    lane: Option<crate::NurbsLane<T>>,
+    chart_curvature: &impl Fn(&geom::NurbsSurface<T>) -> Option<f64>,
     band: Band,
 ) -> Result<(geom_core::Vec3<T>, T), SeamEscalation> {
     let (chart, uv) = match face {
@@ -415,7 +416,7 @@ fn seam_face_reading<T: Decide>(
     let jet = crate::regular_jet(chart, uv, reach, band).map_err(SeamEscalation::Crease)?;
     let (normal, _) = crate::chart_normal_at(chart, true, &jet, uv, reach, band)
         .map_err(SeamEscalation::Crease)?;
-    let arm = match lane.and_then(|lane| lane.chart_curvature(chart)) {
+    let arm = match chart_curvature(chart) {
         Some(kappa) => T::from_computed((1.0 / kappa).next_down()),
         None => crate::implicit::poison(),
     };
@@ -2927,8 +2928,8 @@ mod seam_rows {
         (b.zero() * b.escalate()).sqrt()
     }
 
-    fn lane() -> Option<NurbsLane<f64>> {
-        Some(NurbsLane::certified())
+    fn curvature(chart: &NurbsSurface<f64>) -> Option<f64> {
+        NurbsLane::certified().chart_curvature(chart)
     }
 
     /// A chart ruled along the `x` axis, `u ∈ [0, 1]` running `x` from
@@ -2975,7 +2976,7 @@ mod seam_rows {
     const ORIGIN: Point3<f64> = Point3::new(0.0, 0.0, 0.0);
 
     fn seam(a: SeamFace<'_, f64>, b: SeamFace<'_, f64>) -> Result<DihedralClass, SeamEscalation> {
-        classify_seam([a, b], ORIGIN, 1.0, lane(), band())
+        classify_seam([a, b], ORIGIN, 1.0, curvature, band())
     }
 
     fn arm_refused(got: Result<DihedralClass, SeamEscalation>) -> bool {
@@ -3068,11 +3069,7 @@ mod seam_rows {
             &[(0.0, 0.0), (0.0, 0.5), (0.0, 1.0), (0.5, 1.5), (1.0, 2.0)],
             &[1.0, 0.8, 1.0, 0.8, 1.0],
         );
-        assert_eq!(
-            lane().unwrap().chart_curvature(&creased),
-            None,
-            "the creased chart's curvature"
-        );
+        assert_eq!(curvature(&creased), None, "the creased chart's curvature");
         let got = seam(at(&creased, 0.0), at(&floor(), 0.0));
         assert!(arm_refused(got), "the arm: {got:?}");
     }
@@ -3091,10 +3088,7 @@ mod seam_rows {
             let rows = [(0.0, 0.0), (0.01, 0.0), (0.02, 0.0), (0.02, 0.01)];
             integral(cubic(), &rows.map(rot))
         };
-        let kappa = lane()
-            .unwrap()
-            .chart_curvature(&bend(1.0, 0.0))
-            .expect("a bound");
+        let kappa = curvature(&bend(1.0, 0.0)).expect("a bound");
         let sin = in_band() * kappa;
         assert!(
             sin > band().escalate(),
@@ -3175,7 +3169,7 @@ mod seam_rows {
                     [SeamFace::Analytic(&floor), SeamFace::Analytic(&other)],
                     ORIGIN,
                     1.0,
-                    lane(),
+                    curvature,
                     band()
                 ),
                 classify_dihedral(&floor, &other, ORIGIN, 1.0, band())
