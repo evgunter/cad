@@ -2822,6 +2822,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("reduce.rs", "landing", "BooleanDecision::Containment", 1),
+    ("reduce.rs", "sheets_part", "BooleanDecision::of_normal", 1),
+    ("reduce.rs", "sheets_part", "Coincide::Sectors", 1),
     ("reduce.rs", "vertex_refusal", "Coincide::SectorSide", 1),
     ("reduce.rs", "vertex_refusal", "Coincide::VertexOnFace", 1),
     ("reduce.rs", "wall_crossing", "BooleanDecision::Crossing", 1),
@@ -2845,7 +2847,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("sectors.rs", "build_sectors", "BooleanDecision::Corner", 1),
-    ("sectors.rs", "closed_reach", "Coincide::EdgeOnPlane", 1),
     ("sectors.rs", "conic_side", "BooleanDecision::ConicBend", 1),
     ("sectors.rs", "crescent", "BooleanDecision::ConicBend", 1),
     ("sectors.rs", "crescent", "Coincide::Sectors", 1),
@@ -2856,6 +2857,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::DirectionSense",
         1,
     ),
+    ("sectors.rs", "on_planar_face", "Coincide::EdgeOnPlane", 1),
     ("sectors.rs", "pair_search", "Coincide::Sectors", 1),
     ("sectors.rs", "parallel_same", "Coincide::Sectors", 1),
     (
@@ -2866,7 +2868,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("sectors.rs", "read_side", "Coincide::SectorSide", 1),
     ("sectors.rs", "read_side", "LeverArm::SectorSide", 1),
-    ("sectors.rs", "runs_in", "Coincide::EdgeOnPlane", 1),
+    ("sectors.rs", "runs_into", "Coincide::Sectors", 1),
     ("sectors.rs", "tangent_lump", "Coincide::TangentLocus", 1),
     ("sectors.rs", "tangent_lump", "Coincide::TangentSide", 1),
     (

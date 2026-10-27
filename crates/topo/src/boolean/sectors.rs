@@ -1364,13 +1364,24 @@ pub(super) fn bound_edges<T: Decide>(
     body: &Body<T>,
     s: &BoolSector<T>,
 ) -> Vec<(crate::entity::EdgeKey, Vec3<T>)> {
+    bound_reaches(body, s)
+        .into_iter()
+        .map(|(e, dir, _)| (e, dir))
+        .collect()
+}
+
+/// [`bound_edges`] with each bound's [`Reach`].
+pub(super) fn bound_reaches<T: Decide>(
+    body: &Body<T>,
+    s: &BoolSector<T>,
+) -> Vec<(crate::entity::EdgeKey, Vec3<T>, Reach<T>)> {
     let edge = |he| proven(&body.half_edges, he, EntityId::HalfEdge).edge;
     let mut out = Vec::new();
     if s.end_edge() {
-        out.push((edge(s.he), s.end));
+        out.push((edge(s.he), s.end, s.end_reach));
     }
     if s.start_edge() {
-        out.push((edge(body.proven_orbit_step(s.he)), s.start));
+        out.push((edge(body.proven_orbit_step(s.he)), s.start, s.start_reach));
     }
     out
 }
@@ -1436,15 +1447,17 @@ pub(super) struct GermSide<'a, T: geom_core::Real> {
     pub read: (SideCode, SideCode),
 }
 
-/// What the reduction recorded at the far end of an edge leaving a
-/// site, against the partner, in rank order.
+/// Where an edge leaving a site lies against the partner past it, in
+/// rank order: what the reduction recorded at its far end, or for a
+/// closed edge where its midpoint lies ([`closed_reach`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Touch {
     /// No contact: the edge leaves the partner.
     Apart,
-    /// A vertex pair: the end lies on the partner's boundary.
+    /// On the partner's boundary: a far end in a vertex pair, or a
+    /// closed edge's midpoint on a face's boundary.
     Boundary,
-    /// The end lies inside a face of the partner.
+    /// Inside a face of the partner.
     Face,
 }
 
@@ -1489,10 +1502,12 @@ pub(super) fn germ_locus<T: Decide>(
 /// edge, and lies in the face its curve enters ([`tangent_face`]). Two
 /// edges recorded alike that the face test does not separate stay
 /// `OnEdge` both. A closed edge's far end is the site itself, so its
-/// midpoint is read in its far end's place ([`closed_reach`]): a
-/// one-segment rim reads as its two-arc form's would. Two closed edges
-/// are one segment unless a midpoint reads inside or outside the
-/// partner's face.
+/// midpoint is read in its far end's place ([`closed_reach`]), from
+/// geometry where an open edge's far end is read from the records.
+/// Two closed edges take the reading only where both midpoints read,
+/// and not both on the partner's boundary; otherwise their far ends,
+/// both the site, are a vertex pair and they are one segment
+/// ([`one_segment`]), as before the reading.
 pub(super) fn germ_loci<T: Decide>(
     a: GermSide<'_, T>,
     b: GermSide<'_, T>,
@@ -1571,10 +1586,10 @@ fn germ_curve<T: Decide>(
 /// again, and its pair is refused
 /// ([`BooleanError::GermEdgeCarrierUnsupported`]).
 ///
-/// Two closed edges (each one vertex, both its ends) have no far end
-/// to pair: [`germ_loci`] takes them as one segment unless one's
-/// midpoint reads inside or outside a face of the other
-/// ([`closed_reach`]).
+/// Two closed edges (each one vertex, both its ends) pair their far
+/// ends, the site, always: [`germ_loci`] asks [`closed_reach`] first,
+/// and comes here where both midpoints lie on the partner's boundary or
+/// either is not read.
 fn one_segment<T: Decide>(
     a: GermSide<'_, T>,
     ea: Along,
@@ -1600,61 +1615,103 @@ fn one_segment<T: Decide>(
 
 /// **Where a closed edge leaving the site lies against the partner**:
 /// its far end is the site itself, so what the reduction recorded there
-/// says nothing of the edge, and its midpoint is read instead, where its
-/// two-arc form's far vertex would be: against each planar face around
-/// the partner's site whose plane holds it, inside the face
-/// ([`Touch::Face`], with that face), on its boundary
-/// ([`Touch::Boundary`]), or outside every one ([`Touch::Apart`]). The
-/// sweep splits an edge at every crossing of the partner, so the
-/// midpoint speaks for the whole edge. `None` where `e` is not closed,
-/// or no such plane holds the midpoint.
+/// says nothing of the edge. Its midpoint is read instead, where its
+/// two-arc form's far vertex would be, but from geometry rather than
+/// from the reduction's records: against each planar face around the
+/// partner's site whose plane holds it ([`on_planar_face`]), inside one
+/// ([`Touch::Face`], with that face), on one's boundary within the band
+/// ([`Touch::Boundary`]: the edge runs along the partner's boundary
+/// there, as a far vertex paired with the partner's would), or outside
+/// every one ([`Touch::Apart`]). The sweep splits an edge at every
+/// crossing of the partner, so the midpoint speaks for the whole edge.
+/// `None` where `e` is not closed, is not a circle (no join arm copies
+/// another closed carrier, so its pair reads as [`one_segment`] reads
+/// it), or no planar face there holds the midpoint's plane: a curved
+/// partner is not read.
 fn closed_reach<T: Decide>(
     side: GermSide<'_, T>,
     e: Along,
     partner: GermSide<'_, T>,
     band: Band,
 ) -> Result<Option<(Touch, Option<FaceKey>)>, BooleanError> {
-    use super::solid_contain::{PointInSolidError, face_plane, point_in_face};
     if !site_of(side.body, e.far)?.contains(&side.site) {
         return Ok(None);
     }
-    let p = germ_curve(side.body, e.edge)?.mid_point();
+    let curve = germ_curve(side.body, e.edge)?;
+    if !matches!(curve.carrier(), geom::Curve3::Circle { .. }) {
+        return Ok(None);
+    }
+    let p = curve.mid_point();
     let mut reach = None;
     for face in faces_at(partner.body, partner.site).map_err(stale_site)? {
-        let (origin, normal) = match face_plane(partner.body, face) {
-            Ok(plane) => plane,
-            Err(PointInSolidError::KindUnsupported { .. }) => continue,
-            Err(e) => return Err(BooleanError::Containment(e)),
-        };
-        let height = Margin::of((p - origin).dot(normal));
-        match decide("bool_germ_tie_plane", height, band).map_err(|diag| {
-            BooleanError::coincidence(Coincide::EdgeOnPlane, DeclarationRead::Moot, diag)
-        })? {
-            Sign::Zero => {}
-            Sign::Positive | Sign::Negative => continue,
-        }
-        match point_in_face(partner.body, face, normal, p, band)
-            .map_err(BooleanError::Containment)?
-        {
-            Some(true) => return Ok(Some((Touch::Face, Some(face)))),
-            Some(false) => {
+        match on_planar_face(partner.body, face, p, band)? {
+            PlaneRead::Inside => return Ok(Some((Touch::Face, Some(face)))),
+            PlaneRead::Outside => {
                 reach.get_or_insert((Touch::Apart, None));
             }
-            None => reach = Some((Touch::Boundary, None)),
+            PlaneRead::OnBoundary => reach = Some((Touch::Boundary, None)),
+            PlaneRead::NotPlane | PlaneRead::OffPlane => {}
         }
     }
     Ok(reach)
 }
 
+/// Where a point lies against a face read as a plane
+/// ([`on_planar_face`]).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PlaneRead {
+    /// The face is not a plane.
+    NotPlane,
+    /// Definitely off the face's plane.
+    OffPlane,
+    /// On the plane, inside the face's trim.
+    Inside,
+    /// On the plane, outside the trim.
+    Outside,
+    /// On the plane, on the trim's boundary within the band.
+    OnBoundary,
+}
+
+/// **Where `p` lies against the planar `face` of `body`**: its height
+/// over the face's plane decided first (`bool_germ_tie_plane`), then its
+/// place in the face's trim ([`super::solid_contain::point_in_face`]).
+/// A trim the walk cannot read is refused.
+fn on_planar_face<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    p: Point3<T>,
+    band: Band,
+) -> Result<PlaneRead, BooleanError> {
+    use super::solid_contain::{PointInSolidError, face_plane, point_in_face};
+    let (origin, normal) = match face_plane(body, face) {
+        Ok(plane) => plane,
+        Err(PointInSolidError::KindUnsupported { .. }) => return Ok(PlaneRead::NotPlane),
+        Err(e) => return Err(BooleanError::Containment(e)),
+    };
+    let height = Margin::of((p - origin).dot(normal));
+    match decide("bool_germ_tie_plane", height, band).map_err(|diag| {
+        BooleanError::coincidence(Coincide::EdgeOnPlane, DeclarationRead::Moot, diag)
+    })? {
+        Sign::Zero => {}
+        Sign::Positive | Sign::Negative => return Ok(PlaneRead::OffPlane),
+    }
+    Ok(
+        match point_in_face(body, face, normal, p, band).map_err(BooleanError::Containment)? {
+            Some(true) => PlaneRead::Inside,
+            Some(false) => PlaneRead::Outside,
+            None => PlaneRead::OnBoundary,
+        },
+    )
+}
+
 /// Whether the edge `e` of `side`, past the site, runs inside the face
 /// of `partner` the germ runs along: the face across the partner's own
 /// edge `pe` from its sector's face. Its midpoint is decided on that
-/// face's plane and inside its trim
-/// ([`super::solid_contain::point_in_face`]); the sweep splits an edge
-/// at every crossing of the partner, so the midpoint speaks for the
-/// whole edge. `None`: undecided — a midpoint on the face's boundary, a
-/// face that is not a plane, or no single face across `pe`. A trim the
-/// walk cannot read is refused.
+/// face's plane and inside its trim ([`on_planar_face`]); the sweep
+/// splits an edge at every crossing of the partner, so the midpoint
+/// speaks for the whole edge. `None`: undecided — a midpoint on the
+/// face's boundary, a face that is not a plane, or no single face across
+/// `pe`. A trim the walk cannot read is refused.
 fn runs_in<T: Decide>(
     side: GermSide<'_, T>,
     e: Along,
@@ -1674,21 +1731,12 @@ fn runs_in<T: Decide>(
     let [face] = faces[..] else {
         return Ok(None);
     };
-    let (origin, normal) = match super::solid_contain::face_plane(pb, face) {
-        Ok(plane) => plane,
-        Err(super::solid_contain::PointInSolidError::KindUnsupported { .. }) => return Ok(None),
-        Err(e) => return Err(BooleanError::Containment(e)),
-    };
     let p = germ_curve(side.body, e.edge)?.mid_point();
-    let height = Margin::of((p - origin).dot(normal));
-    match decide("bool_germ_tie_plane", height, band).map_err(|diag| {
-        BooleanError::coincidence(Coincide::EdgeOnPlane, DeclarationRead::Moot, diag)
-    })? {
-        Sign::Zero => {}
-        Sign::Positive | Sign::Negative => return Ok(Some(false)),
-    }
-    super::solid_contain::point_in_face(pb, face, normal, p, band)
-        .map_err(BooleanError::Containment)
+    Ok(match on_planar_face(pb, face, p, band)? {
+        PlaneRead::Inside => Some(true),
+        PlaneRead::Outside | PlaneRead::OffPlane => Some(false),
+        PlaneRead::OnBoundary | PlaneRead::NotPlane => None,
+    })
 }
 
 /// The bound of the germ's sector read On against the partner face, when
@@ -1844,19 +1892,55 @@ pub(super) fn faces_at<T: Decide>(
     Ok(out)
 }
 
-/// Whether `dir`, coplanar with `s`, runs into its face: within the
-/// sector and along neither of its bounds that is an edge of the face.
+/// **Whether an edge leaving the vertex along `dir`, coplanar with `s`,
+/// runs into its face**: within the sector and along neither of its
+/// bounds that is an edge of the face, or, along one of them, bending
+/// into the face off it one order down. Along a bound `d̂`, with `û`
+/// the unit in-plane direction square to it into `s`, the edge stands
+/// `κ·û·l²/2` off the tangent line at arc length `l` and the bound
+/// `κ_b·û·l²/2`, so the edge enters the face iff `(κ − κ_b)·û > 0`
+/// ([`crescent`]'s reading, decided at the shorter reach). A bound or an
+/// edge with no bend to read (a fitted edge, a bisector) reads no entry.
 pub(super) fn runs_into<T: Decide>(
     s: &BoolSector<T>,
-    dir: Vec3<T>,
+    (dir, reach): (Vec3<T>, Reach<T>),
     arm: T,
     band: Band,
 ) -> Result<bool, BooleanError> {
     if !within(s, dir, false, DeclarationRead::Moot, band)? {
         return Ok(false);
     }
-    Ok(!(s.start_edge() && parallel_same(dir, s.start, arm, band)?
-        || s.end_edge() && parallel_same(dir, s.end, arm, band)?))
+    for (bound, along, is_edge) in [
+        (s.start, s.start_reach, s.start_edge()),
+        (s.end, s.end_reach, s.end_edge()),
+    ] {
+        if !(is_edge && parallel_same(dir, bound, arm, band)?) {
+            continue;
+        }
+        let (Some((k, l)), Some((kb, lb))) = (bound_bend(reach), bound_bend(along)) else {
+            return Ok(false);
+        };
+        for r in [reach, along] {
+            if let Reach::Conic { bend, .. } = r
+                && matches!(bend.bounds, geom_brep::BendBounds::Unbounded)
+            {
+                return Ok(false);
+            }
+        }
+        let d = bound.normalize();
+        let u = {
+            let m = s.middle();
+            (m - d * m.dot(d)).normalize()
+        };
+        let l = l.min(lb);
+        let entered = (k - kb).dot(u) * l.powi(2) / (T::one() + T::one());
+        return Ok(
+            decide("bool_sector_runs_into_bend", Margin::of(entered), band).map_err(|diag| {
+                BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
+            })? == Sign::Positive,
+        );
+    }
+    Ok(true)
 }
 
 /// Same-direction parallelism of two bound directions (unit-ish).

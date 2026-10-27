@@ -1839,7 +1839,9 @@ fn edge_covers<T: Decide>(
 /// whose roots do not settle, or a covered circle with no end on the
 /// carrier, its interior unseen, [`Placement::declared`]'s rule) and
 /// read again on the edge's fragments
-/// once both sweep directions have run ([`settle_deferred`]). Each
+/// once both sweep directions have run ([`settle_deferred`]), save one
+/// touching the face's boundary where the two tangent sheets part,
+/// which is split there ([`interior`]). Each
 /// on-carrier endpoint is
 /// classified through the boundary pre-pass rows
 /// ([`super::contain::curved_face_containment`] — the boundary walk,
@@ -2176,8 +2178,10 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // stands); definitely off on the side the cover
                 // certifies ⇒ no event at that end (a covered circle
                 // touches the carrier where it meets it); off on the
-                // other side ⇒ the frontier. An arc with no end on the
-                // carrier, its interior unseen, is deferred to the
+                // other side ⇒ the frontier. An arc touching the face's
+                // boundary where the sheets part is split there
+                // ([`interior`]); one with no end on the carrier, its
+                // interior otherwise unseen, is deferred to the
                 // fragments both directions leave ([`settle_deferred`]),
                 // read by this arm as the other operand order reads
                 // them. Uncovered keeps both doors verbatim.
@@ -2222,8 +2226,9 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // ([`Placement::Undecided`]) and a boundary the interior
                 // question has no closed form for. An arc with no end on
                 // the carrier and its interior unseen (a `Tangent` cover,
-                // no carrier identity) is deferred: it meets the face, if
-                // at all, strictly inside, at one point or several, and its
+                // no carrier identity, and no boundary touch where the
+                // sheets part) is deferred: it meets the face, if at all,
+                // strictly inside, at one point or several, and its
                 // fragments are read again once both directions have split
                 // it.
                 Ok(Sign::Zero) if covered => {
@@ -2402,7 +2407,9 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // Both ends on the carrier. Where the carrier identity puts the
         // line ON it (a parent face verified as `face`'s carrier), its
         // interior is asked before its ends; a `Tangent`-covered line has
-        // no such certificate and keeps the ends-only rule. The ends-only
+        // no such certificate and keeps the ends-only rule, save a touch
+        // of the face's boundary where the sheets part, which is split
+        // ([`interior`]). The ends-only
         // rule rests on the cover, not on the line's shape: the line lies
         // on its parent's carrier, which the certificate holds in one
         // closed side of `face`'s, so its residual is one-signed and its
@@ -3181,7 +3188,7 @@ fn interior<T: Decide>(
     let read = boundary_crossing(y, x_is.other(), face, curve.carrier(), curve.params(), band)?;
     match (read, on_carrier) {
         (BoundaryCrossing::At { t, p, at, margin }, true) => Ok(pierce(t, p, at, margin)),
-        (BoundaryCrossing::At { t, p, at, margin }, false)
+        (BoundaryCrossing::At { t, p, at, margin }, false) => Ok(
             if sheets_part(
                 (x, x_is, edge),
                 (y, face, at),
@@ -3189,10 +3196,12 @@ fn interior<T: Decide>(
                 curve,
                 (t, p),
                 band,
-            ) =>
-        {
-            Ok(pierce(t, p, at, margin))
-        }
+            )? {
+                pierce(t, p, at, margin)
+            } else {
+                Interior::Unseen
+            },
+        ),
         (_, false) => Ok(Interior::Unseen),
         (BoundaryCrossing::Clear, true) => Ok(Interior::Clear),
         (BoundaryCrossing::Unread, true) => Err(frontier()),
@@ -3201,17 +3210,30 @@ fn interior<T: Decide>(
 
 /// **Whether a covered edge's parent and `face` part at `p`**, where the
 /// edge meets `face`'s boundary edge `at`: the parent's direction into
-/// itself from the edge (`N × τ`, `N` its outward normal at `p`, `τ` its
-/// half-edge's tangent) and `face`'s from its own boundary edge there
-/// are definitely opposed. The two faces are tangent sheets (the cover),
-/// so each leaves `p` along their common tangent plane, perpendicular to
-/// the edges there; opposed, they meet nowhere else near `p`, and the
-/// meeting is a touch of the two boundaries alone. Alike, the sheets
-/// run on together past `p` through both faces' interiors, which the
-/// sweep does not read from a split there (`face_face_touch`'s nested
-/// disc), and anything the reading cannot decide (a boundary edge both
-/// of whose halves bound `face`, a carrier with no tangent here, a
-/// normal the door refuses) is `false`.
+/// itself from the edge and `face`'s from its own boundary edge there
+/// ([`crate::stands::inward`], about each face's outward normal at `p`)
+/// are definitely opposed (`bool_touch_sheets_part`, the cosine levered
+/// at the parent's reach from the edge, [`crate::wedge_reach`]). The two
+/// faces are tangent sheets (the cover), so each leaves `p` along their
+/// common tangent plane, across the edges there; opposed, they meet
+/// nowhere else near `p`, and the meeting is a touch of the two
+/// boundaries alone. Alike, the sheets run on together past `p` through
+/// both faces' interiors, which the sweep does not read from a split
+/// there (`face_face_touch.rs`'s nested disc), and so are directions at
+/// right angles (a boundary edge running across the edge, such as a
+/// seam ruling).
+///
+/// `false`, with nothing read, where there is nothing to read: a
+/// landing on a vertex, a boundary edge both of whose halves bound
+/// `face`, no single covered parent, a boundary carrier other than a
+/// line or a circle, or a normal the door refuses outright (off the
+/// surface, a cone's apex, a degenerate torus).
+///
+/// # Errors
+///
+/// [`BooleanError::JoinDesync`] where an entity the sweep holds does not
+/// resolve; [`BooleanError::Escalated`] where a normal is in band; the
+/// [`Coincide::Sectors`] coincidence where the cosine is.
 fn sheets_part<T: Decide>(
     (x, x_is, edge): (&Body<T>, Operand, &crate::entity::Edge),
     (y, face, at): (&Body<T>, FaceKey, FaceContainment),
@@ -3219,69 +3241,77 @@ fn sheets_part<T: Decide>(
     curve: &geom_brep::EdgeCurve<T>,
     (t, p): (T, Point3<T>),
     band: Band,
-) -> bool {
+) -> Result<bool, BooleanError> {
+    let desync = |what| BooleanError::JoinDesync { what };
     let FaceContainment::OnEdge(e_y) = at else {
-        return false;
+        return Ok(false);
     };
-    let covered: Vec<crate::entity::HalfEdgeKey> = [edge.he_plus, edge.he_minus]
-        .into_iter()
-        .filter(|&h| {
-            x.face_of_half_edge(h)
-                .is_some_and(|f| declared.cover(x_is, f, x_is.other(), face).is_some())
-        })
-        .collect();
-    let [h_x] = covered[..] else {
-        return false;
+    let mut covered = Vec::new();
+    for h in [edge.he_plus, edge.he_minus] {
+        let f = x
+            .face_of_half_edge(h)
+            .ok_or(desync("a covered edge's half has no face"))?;
+        if declared.cover(x_is, f, x_is.other(), face).is_some() {
+            covered.push((h, f));
+        }
+    }
+    let [(h_x, f_x)] = covered[..] else {
+        return Ok(false);
     };
-    let tau_x = curve.carrier().deriv(t)
-        * if h_x == edge.he_plus {
-            T::one()
-        } else {
-            -T::one()
-        };
-    let Some(d_y) = y.get_edge(e_y) else {
-        return false;
-    };
-    let halves: Vec<crate::entity::HalfEdgeKey> = [d_y.he_plus, d_y.he_minus]
-        .into_iter()
-        .filter(|&h| y.face_of_half_edge(h) == Some(face))
-        .collect();
+    let d_y = y.get_edge(e_y).ok_or(desync(
+        "a boundary edge a crossing lands on does not resolve",
+    ))?;
+    let mut halves = Vec::new();
+    for h in [d_y.he_plus, d_y.he_minus] {
+        if y.face_of_half_edge(h)
+            .ok_or(desync("a boundary edge's half has no face"))?
+            == face
+        {
+            halves.push(h);
+        }
+    }
     let [h_y] = halves[..] else {
-        return false;
+        return Ok(false);
     };
-    let Some(c_y) = y.edge_curve_linked(e_y, d_y).certified() else {
-        return false;
-    };
+    let c_y = y
+        .edge_curve_linked(e_y, d_y)
+        .certified()
+        .ok_or(desync("a boundary edge a crossing lands on is scaffolding"))?;
+    let along = |dir: Vec3<T>, forward: bool| if forward { dir } else { -dir };
     let tau_y = match *c_y.carrier() {
         geom::Curve3::Line { dir, .. } => dir,
         geom::Curve3::Circle { center, axis, .. } => axis.cross(p - center),
-        _ => return false,
-    } * if h_y == d_y.he_plus {
-        T::one()
-    } else {
-        -T::one()
+        _ => return Ok(false),
     };
-    let normal = |body: &Body<T>, f: FaceKey| {
-        crate::face_normal::face_outward_normal_at(body, f, p, band)
-            .ok()
-            .flatten()
-            .map(|n| n.vec())
+    let normal = |body: &Body<T>, f: FaceKey| -> Result<Option<Vec3<T>>, BooleanError> {
+        match crate::face_normal::face_outward_normal_at(body, f, p, band) {
+            Ok(Some(n)) => Ok(Some(n.vec())),
+            Ok(None) => Err(desync("a face a crossing reads does not resolve")),
+            Err(crate::face_normal::NormalAtError::Escalated { decision, diag }) => {
+                Err(BooleanError::Escalated {
+                    decision: BooleanDecision::of_normal(decision),
+                    diag,
+                })
+            }
+            Err(_) => Ok(None),
+        }
     };
-    let (Some(f_x), Some(n_y)) = (x.face_of_half_edge(h_x), normal(y, face)) else {
-        return false;
+    let (Some(n_x), Some(n_y)) = (normal(x, f_x)?, normal(y, face)?) else {
+        return Ok(false);
     };
-    let Some(n_x) = normal(x, f_x) else {
-        return false;
-    };
-    let (into_x, into_y) = (n_x.cross(tau_x.normalize()), n_y.cross(tau_y.normalize()));
-    matches!(
-        decide(
-            "bool_touch_sheets_part",
-            Margin::of(into_x.dot(into_y)),
-            band
-        ),
-        Ok(Sign::Negative)
+    let into_x = crate::stands::inward(
+        n_x,
+        along(curve.carrier().deriv(t), h_x == edge.he_plus).normalize(),
+    );
+    let into_y = crate::stands::inward(n_y, along(tau_y, h_y == d_y.he_plus).normalize());
+    let arm = crate::wedge_reach(x, [f_x, f_x], curve.carrier(), curve.params());
+    let sign = decide(
+        "bool_touch_sheets_part",
+        Margin::levered(into_x.dot(into_y), arm),
+        band,
     )
+    .map_err(|diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag))?;
+    Ok(sign == Sign::Negative)
 }
 
 /// An arc of `x` lying on `face`'s carrier, as [`lying_on`] reads it.

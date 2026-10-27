@@ -795,8 +795,9 @@ fn by_pose((pose, hx, hr, hole_az, boss_az, cells): Pose, turn: Option<&Affine3<
 /// midpoint is read where its two-arc form's far vertex would be
 /// (`boolean::sectors::closed_reach`), and the boss's rim walled off in
 /// the plate's top at the shared vertex (`boolean::join`'s
-/// `closes_at_its_site`). The poses through `the boss's there` are
-/// `circle()`'s phase, its vertex at azimuth 0. A concentric hole of the
+/// `closes_at_its_site`). The pose `tangent outside, the boss's there`
+/// has both rims at `circle()`'s phase, each vertex at azimuth 0. A
+/// concentric hole of the
 /// boss's radius leaves two solids touching along the rim, and the
 /// union's records name only the vertex pair
 /// (`work/cleave/a-union-touching-along-a-coincident-rim-records-only-its-vertex-pair.md`);
@@ -829,12 +830,136 @@ fn a_boss_over_a_hole_by_pose() {
 
 /// **The tangent poses turned**: each tangent pose of
 /// [`a_boss_over_a_hole_by_pose`], both operands turned rigidly off the
-/// axes ([`torax_pose`]), reads as it does at rest.
+/// axes ([`torax_pose`]), reads the cells it reads at rest. The crescent
+/// refusal's two faces are named at rest only ([`floor_or_top`] reads
+/// them in the rest frame).
 #[test]
 fn a_boss_over_a_hole_tangent_to_it_turned() {
     let turn = torax_pose();
-    for pose in poses().into_iter().filter(|p| p.0.starts_with("tangent")) {
+    for pose in poses().into_iter().filter(|p| p.0.contains("tangent")) {
         by_pose(pose, Some(&turn));
+    }
+}
+
+/// **A boss over two holes, each tangent outside its rim, no vertex at
+/// either touch**: the boss `r = 0.3` with its vertex at azimuth 1, the
+/// plate holed through by `r = 0.1` about `(±0.4, 0)` with their vertices
+/// at azimuth 2. The sweep splits the boss's rim at both touches, so one
+/// fragment of it runs from touch to touch with no vertex of its own in
+/// the plate's top: the vertex pairs there read it running into the top
+/// one order down (`boolean::sectors::runs_into`), and the difference
+/// cuts the top along the whole rim. Every op in both orders, both
+/// forms, at rest and turned, at the closed form.
+#[test]
+fn a_boss_over_two_holes_tangent_outside_with_no_vertex_at_either_touch() {
+    let vb = 0.09 * PI;
+    let vh = 2.0 - 2.0 * PI * 0.01 * 0.5;
+    for (turn, placed) in [("at rest", None), ("turned", Some(torax_pose()))] {
+        for one in [true, false] {
+            let place = |what: &str, body: Body<f64>| match &placed {
+                None => fin(what, body),
+                Some(m) => fin(
+                    what,
+                    topo::transform_rigid(&body, &geom_core::test_support::rigid(m, tol()), tol())
+                        .unwrap(),
+                ),
+            };
+            let boss = place(
+                "the boss",
+                extruded(vec![rim(one, 0.0, 0.3, 1.0)], 0.0, 1.0),
+            );
+            let holed = place(
+                "the plate holed twice",
+                extruded(
+                    vec![square(), rim(one, 0.4, 0.1, 2.0), rim(one, -0.4, 0.1, 2.0)],
+                    -0.5,
+                    0.5,
+                ),
+            );
+            let what = format!(
+                "two holes, {}, {turn}",
+                if one { "one segment" } else { "two arcs" }
+            );
+            every_op(&what, &boss, &holed, (vb, vh, 0.0));
+        }
+    }
+}
+
+/// **Ellipse rims tangent outside, one segment**: both cylinders of
+/// [`a_boss_over_a_hole_by_pose`]'s tangent-outside pose tilted `0.3`
+/// rad about `x` and cut by `z = 0` (the boss by a slab, the plate's hole
+/// through it), so both rims are ellipses tangent at `(0.3, 0, 0)`. No
+/// join arm copies a closed ellipse, so the union refuses typed: with
+/// both vertices at the touch, the pair's carrier
+/// (`GermEdgeCarrierUnsupported`); with the boss's there alone, the
+/// one-site loop (`SingleSiteSectionLoop`)
+/// (`work/cleave/one-segment-ellipse-rims-tangent-at-a-point-refuse-where-circles-build.md`).
+/// Both orders, at rest and turned.
+#[test]
+fn one_segment_ellipse_rims_tangent_outside_refuse_the_union_typed() {
+    let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), 0.3);
+    let tilted = |body: Body<f64>| {
+        topo::transform_rigid(&body, &geom_core::test_support::rigid(&tilt, tol()), tol()).unwrap()
+    };
+    let slab = fin(
+        "the slab",
+        brick((-2.0, 2.0), (-2.0, 2.0), (0.0, 1.0), tol()),
+    );
+    for (pose, hole_az, refused) in [
+        ("vertices there", PI, "GermEdgeCarrierUnsupported"),
+        ("the boss's there", 0.0, "SingleSiteSectionLoop"),
+    ] {
+        let tall = fin(
+            "the tall boss",
+            tilted(extruded(vec![circle(0.0, 0.0, 0.3, 0.0)], -3.0, 6.0)),
+        );
+        let boss = topo::intersect(&tall, &slab, tol())
+            .unwrap()
+            .body()
+            .unwrap()
+            .body
+            .clone();
+        let bore = fin(
+            "the tilted bore",
+            tilted(extruded(vec![circle(0.4, 0.0, 0.1, hole_az)], -3.0, 6.0)),
+        );
+        let holed = topo::subtract(&plate(), &bore, tol())
+            .unwrap()
+            .body()
+            .unwrap()
+            .body
+            .clone();
+        for (turn, m) in [("at rest", None), ("turned", Some(torax_pose()))] {
+            let place = |what: &str, b: &AtRestBody<f64>| match &m {
+                None => b.clone(),
+                Some(m) => fin(
+                    what,
+                    topo::transform_rigid(b, &geom_core::test_support::rigid(m, tol()), tol())
+                        .unwrap(),
+                ),
+            };
+            let (a, b) = (place("the boss", &boss), place("the plate", &holed));
+            for (op, r) in [
+                ("A ∪ B", topo::union(&a, &b, tol())),
+                ("B ∪ A", topo::union(&b, &a, tol())),
+            ] {
+                let got = match &r {
+                    Err(BooleanError::GermEdgeCarrierUnsupported { .. }) => {
+                        "GermEdgeCarrierUnsupported"
+                    }
+                    Err(BooleanError::Join(j))
+                        if matches!(
+                            j.error(),
+                            SplitJoinError::SingleSiteSectionLoop { count: 1 }
+                        ) =>
+                    {
+                        "SingleSiteSectionLoop"
+                    }
+                    _ => "other",
+                };
+                assert_eq!(got, refused, "{pose}, {turn}: {op}: {:?}", r.map(|_| ()));
+            }
+        }
     }
 }
 

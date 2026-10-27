@@ -8,8 +8,6 @@ priority: P2
 cost: M
 ---
 
-
-
 Found sweeping `one-segment-tangent-rims-refuse-where-their-two-arc-forms-build`
 for its class: a rim touching another rim where the crossing layer
 cannot settle the tangency.

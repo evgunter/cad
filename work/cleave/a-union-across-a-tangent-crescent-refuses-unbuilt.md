@@ -22,8 +22,8 @@ its floor and the plate's top face lying on each other with opposed
 normals over a crescent that narrows to the tangent point `(0.3, 0, 0)`.
 Where either rim has a vertex there (the other rim is split there), or
 neither has and the sweep splits both at their touch
-(`boolean/reduce.rs` `interior`), the two vertices are a vertex pair, and at that pair the floor's sector and
-the top face's sector share the rims' common tangent and lie on opposite
+(`boolean/reduce.rs` `interior`), the two vertices are a vertex pair,
+and at that pair the floor's sector and the top face's sector share the rims' common tangent and lie on opposite
 sides of it: at first order they only touch, and `sectors.rs`
 `pair_search` lists the pair as touching (`sector_overlap` reads no
 overlap). One order down they overlap, `(κ_b − κ_a)·û > 0`

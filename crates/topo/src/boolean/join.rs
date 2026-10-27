@@ -924,9 +924,9 @@ fn germ_site<T: Decide>(
 /// other [`one_site`] record is left for the
 /// [`SplitJoinError::SingleSiteSectionLoop`] refusal: a pierce of a face
 /// the joiner cannot side a whole conic on, a site on both operands'
-/// wrap edges, and a site where a transverse section or a pierce meets
-/// an edge of another face, or a closed edge meets one in a curved
-/// face.
+/// wrap edges, a site where a transverse section or a pierce meets an
+/// edge of another face, or a closed edge meets one in a curved face,
+/// and a closed edge that is not a circle.
 ///
 /// Where a record is taken, three things are kernel bugs, refused as
 /// [`BooleanError::JoinDesync`]: another record naming its locus pair
@@ -995,11 +995,13 @@ fn one_site_segments<T: Decide>(
 /// **Whether a one-site record's loop closes at its site**
 /// ([`one_site_segments`]), read from what the site is in the germ's cell
 /// on each operand ([`site_cell`]): a wrap edge against a pierce of a
-/// planar face, or a closed edge against a pierce of a face
+/// planar face, or a closed circle against a pierce of a face
 /// [`RimSide::of`] sides, against a vertex on a planar face's boundary,
-/// or against another closed edge. The germ's cell is the face, so the
-/// closed edge leaves that vertex into it, and the joiner walls it off
-/// there as it does any section loop of one face's loop. A pierce is
+/// or against another closed circle. At a boundary vertex the germ's
+/// cell is the face, so the circle leaves the vertex into the face and
+/// returns to it; the joiner mints its copy in that face as one chord
+/// from the vertex round to itself, dividing the face. A closed edge of
+/// any other carrier has no copy, and its loop is refused. A pierce is
 /// joined in its face as a ring of its own
 /// ([`crate::chord_join::ChordJoiner`]'s lone ring), on the face's
 /// [`RimSide`]; the transverse section's conic is the wall's, not a
@@ -1018,11 +1020,11 @@ fn closes_at_its_site<T: Decide>(
         ) {
             (SiteCell::Wrap, SiteCell::Pierce(f)) => rim(&red.b, f)? == Some(RimSide::Plane),
             (SiteCell::Pierce(f), SiteCell::Wrap) => rim(&red.a, f)? == Some(RimSide::Plane),
-            (SiteCell::Closed, SiteCell::Pierce(f)) => rim(&red.b, f)?.is_some(),
-            (SiteCell::Pierce(f), SiteCell::Closed) => rim(&red.a, f)?.is_some(),
-            (SiteCell::Closed, SiteCell::Closed) => true,
-            (SiteCell::Closed, SiteCell::Other(f)) => rim(&red.b, f)? == Some(RimSide::Plane),
-            (SiteCell::Other(f), SiteCell::Closed) => rim(&red.a, f)? == Some(RimSide::Plane),
+            (SiteCell::Closed(true), SiteCell::Pierce(f)) => rim(&red.b, f)?.is_some(),
+            (SiteCell::Pierce(f), SiteCell::Closed(true)) => rim(&red.a, f)?.is_some(),
+            (SiteCell::Closed(true), SiteCell::Closed(true)) => true,
+            (SiteCell::Closed(true), SiteCell::Other(f)) => rim(&red.b, f)? == Some(RimSide::Plane),
+            (SiteCell::Other(f), SiteCell::Closed(true)) => rim(&red.a, f)? == Some(RimSide::Plane),
             _ => false,
         },
     )
@@ -1039,8 +1041,10 @@ enum SiteCell {
     /// interior.
     Pierce(FaceKey),
     /// Along an edge: a closed one, both of whose ends are the site
-    /// ([`site_cell`]).
-    Closed,
+    /// ([`site_cell`]), and whether it is a circle, the one closed
+    /// carrier the joiner copies
+    /// (`crate::chord_join`'s `closed_edge_spec`).
+    Closed(bool),
     /// Inside this face, a real edge there bounding another face: the
     /// site is a vertex of the face's boundary.
     Other(FaceKey),
@@ -1056,10 +1060,20 @@ fn site_cell<T: Decide>(
     locus: super::Locus,
     he: HalfEdgeKey,
 ) -> Result<SiteCell, BooleanError> {
-    let super::Locus::InFace(face) = locus else {
-        return Ok(SiteCell::Closed);
-    };
     let desync = |what| BooleanError::JoinDesync { what };
+    let face = match locus {
+        super::Locus::InFace(face) => face,
+        super::Locus::OnEdge(e) => {
+            let edge = body
+                .get_edge(e)
+                .ok_or(desync("a germ's closed edge no longer resolves"))?;
+            let circle = body
+                .edge_curve_linked(e, edge)
+                .certified()
+                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle { .. }));
+            return Ok(SiteCell::Closed(circle));
+        }
+    };
     let start = body
         .get_half_edge(he)
         .ok_or(desync("germ half no longer resolves"))?
