@@ -4748,6 +4748,12 @@ mod wiring_rows {
         ) {
             return Err("surface_foot is not `NurbsSurface::project`");
         }
+        if !std::ptr::fn_addr_eq(
+            lane.chart_curvature,
+            NurbsLane::<T>::certified_chart_curvature as fn(_) -> _,
+        ) {
+            return Err("chart_curvature is not `NurbsLane::certified_chart_curvature`");
+        }
         Ok(())
     }
 
