@@ -389,15 +389,16 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// feeds each body where it stands, composed through `in_space`, and
 /// every other row held main's value. The kitchen sink's turned copy
 /// (node 171) composes one map where it was rebuilt by two, and one of
-/// its planes' normals reads `-0.0` where it read `0.0` in x; every
-/// point, curve and face holds main's bits.
+/// its planes' normals reads `-0.0` where it read `0.0` in x, and so
+/// does the product `⊔` (node 284), which reads that copy through its
+/// map; every point, curve and face holds main's bits.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
         ("cut_cylinder", 0xd82f_d380_9e2e_8e5e_u64),
         ("part_select", 0x4540_8c74_d757_704f),
-        ("kitchen_sink", 0xe04d_2db4_0c17_c2d3),
+        ("kitchen_sink", 0xed48_99e5_13ec_c8c3),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()

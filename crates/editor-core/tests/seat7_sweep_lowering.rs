@@ -475,8 +475,9 @@ fn both_sweeps_evaluate_in_one_document() {
 /// feeds each body where it stands, composed through `in_space`, and
 /// every other row held main's value. The kitchen sink's turned copy
 /// (node 171) composes one map where it was rebuilt by two, and one of
-/// its planes' normals reads `-0.0` where it read `0.0` in x; every
-/// point, curve and face holds main's bits.
+/// its planes' normals reads `-0.0` where it read `0.0` in x, and so
+/// does the product `⊔` (node 284), which reads that copy through its
+/// map; every point, curve and face holds main's bits.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
@@ -484,7 +485,7 @@ fn the_sweep_documents_evaluate_to_their_committed_digests() {
         ("corner_table", 0x252b_1c7f_90e8_0be6),
         ("cut_cylinder", 0xd82f_d380_9e2e_8e5e),
         ("boss_union", 0x7d7f_3a11_1c98_1b33),
-        ("kitchen_sink", 0xe04d_2db4_0c17_c2d3),
+        ("kitchen_sink", 0xed48_99e5_13ec_c8c3),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

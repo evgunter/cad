@@ -10,12 +10,17 @@ cost: E
 
 
 Found by INTENT stage 3 E (`intent/e-operation-frame-of-reads`), whose
-gather computes in its first non-empty source's frame
-(`crates/editor-core/src/product.rs`, `gather_sources`) and censuses the
-aggregate there. `perf12_census_goldens` (`kitchen_sink`, every ε row)
-reads the same 29 findings on the same keys at the same margins, and
-its seven `UnrecordedContact` witnesses 0.375 further along z than
-main: the product's first source's frame is a translation along z.
+gather computes in its first non-empty source that is in its space's
+coordinates (`Own`), else its first source's frame
+(`crates/editor-core/src/product.rs`, `gather_sources`), and censuses
+the aggregate there. While E's gather computed in its first source's
+frame, `perf12_census_goldens` (`kitchen_sink`, every ε row) read the
+same 29 findings on the same keys at the same margins and its seven
+`UnrecordedContact` witnesses 0.375 further along z than main. With the
+`Own` source preferred it reads main's witnesses again, because that
+product holds a source in the world's coordinates; a product whose
+sources are all copies under maps still states its witnesses in the
+first copy's frame, and no row holds one.
 
 A witness is a point a reader is told to look at. Nothing draws one
 today (the viewer and pncad-py read a finding's words, not its point),
