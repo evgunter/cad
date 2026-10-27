@@ -195,3 +195,38 @@ Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `cra
 - 2026-10-27 08:46Z (orchestrator): dispatched `curved-copies-filling-one-volume-read-as-undecidable` (P1, H) → `session_018u3gVFFPmQbjWscDyrESrE`, branch `atrest/curved-copies-filling-one-volume-interfere`.
   - Plan-first: deciding that two `SurfaceKey`s carry one surface may be a design fork.
   - The caps go through `planar_interiors_meet` in the census, since `chart_region.rs` is CHARTTAIL's.
+- 2026-10-27 10:08Z (orchestrator): **#5827 merged** at `7c3352aa`, head `179c6f8e`, CI green.
+  - The fix pass (`09e1f6d8`) was read by me. The concave arm is exact by the hollow's convexity.
+  - The main merge carried #5823 (one conflict, `TouchSite::verdict`). The dual-review row is sequential and the last commit.
+  - Main builds after the merge. The lane is archived.
+  - `gap-reads-no-curved-cell-below-a-face` is narrowed, keeping cone, torus, NURBS, curved edges and cells whose own link is curved. `gap-reads-a-cells-carrier-beyond-the-cell` is now P2.
+- 2026-10-27 08:52Z (orchestrator): the curved-copies plan was approved; it is not a design fork. Door 1's margin ladder decides one carrier for distinct-key cylinders and spheres, as C2 and the boolean's glue already do.
+  - Added rows: a copy turned about its own axis (seams apart); two half-cylinders sharing only seam rulings (no SameSide, never Ok(false)); a cap-cut sphere (a proper subset).
+  - Rim pairs (cap against the other copy's wall) stay as evidence on the one loud finding.
+- 2026-10-27 12:25Z (orchestrator): #5810's fix pass is in at `46d16060` (CI green, ci profile 14582/0, goldens unmoved, tour counts unchanged).
+  - Ruled: `quietable` means exactly that an assertion the quieting rule could accept exists (a `gap_reads` face pair AND `constant_pairing`). A Gap-admitted pair that `opposed` can never answer is unquietable and never refuses.
+  - This restates DS6 as DESIGN.md's companion table summarises it ("`error` only where a finding can be quieted"). It is not a change to a ratified decision; I checked the table row and `git log -S` (0ec34e4b, a move of the ratified DS6).
+  - A delta review follows the push.
+- 2026-10-27 12:24Z (orchestrator): #5853 (curved copies) is green on its frozen head `e78b63db`. Concurrent dual review (letter H) dispatched together from one brief: R1 `session_018u3gVFkJ5C4wcFnQdmq3S6`, R2 `session_018u3gVJdNSSkvmasEf4HL3P`. Isolation is on `review/atrest-curved-*`.
+- 2026-10-27 13:13Z (orchestrator): **#5853 adjudicated.** R1 rated it APPROVE (0/1/4), R2 APPROVE-WITH-FIXES (0/2/4). Every false-interference attack held, executed by both on turned bodies at three ε.
+  - The fix pass was sent:
+    - port both reviewers' abut, opposed and sphere rows;
+    - cost: arm 1's skip as a lookup, a sound cheap reject, a deterministic witness-count guard row;
+    - the curved arm called from the driver, so it no longer hides behind the region lane;
+    - one home each for "two cones share material" and `face_edges`;
+    - an escalation kept as `Undecided`, not `Unbuilt`;
+    - prose, ASSEMBLY.md, and the in-band residue recorded.
+
+    I merge on my read.
+  - Blind coding dispatched (byte 149, inputs `analysis/dual-review/pr-5853-coding` @ `66ec6268`).
+- 2026-10-27 14:12Z (orchestrator): **#5810 delta review** (`session_018u3gVHfE2aSpyRBq5Mv46D`) rated it NOT-MERGEABLE-AS-IS, and the MAJOR is against my 12:25Z ruling.
+  - `gap_reads && pairing_read` is narrower than the quieting rule, which also needs `opposed` with a negative gap, `beyond`'s containment lanes (no sphere arm), and `covered`.
+  - So ordinary press fits read quietable yet nothing quiets them, and they refuse at Error. Executed with d2, d3, d4 at three ε.
+  - **Corrected: `quietable` asks the rule itself.** It runs the same `quiet_verdicts`/`opposed`/`beyond`/`covered` path a holding Gap over each bounding face pair would take. Sent to the 5 C lane along with m1 (pin the funnel sites with the tilted press fit), N1, N3, N5, S5 and S7.
+  - **Lesson:** a ruling that names a predicate as "exactly what the rule accepts" must call the rule, not re-derive it. I re-derived two of its five gates.
+  - The delta review also found perf12 `kitchen_sink` at 28 vs 29 red on main at three ε; I'm bisecting it.
+- 2026-10-27 16:25Z (orchestrator): **#5810 merged** at `c7797726`, head `427a5f00`, CI green. **Stage 5 C, the P0, is done.**
+  - The fix pass (`2e8018cb`) was read by me. `quietable` asks the rule itself (`could_quiet` over `opposed`, `gap_value` and `crossing`, beside `covered`), and `intent_s5_c_quietable` ties it to real authored assertions.
+  - The census output equals main's apart from its outcome lines and #5817's inherited `kitchen_sink` drop.
+  - The merged tree with main built, workspace and tour, before the merge. The dual-review row: concurrent, tallied 1. The lane is archived.
+- 2026-10-27 16:28Z (orchestrator): dispatched `an-instance-carries-its-parts-coincidences` (P1) → `session_018u3gVGr6ModPWKuhAbvECW`. Step 1 re-checks main after D′3 and stage 5 C and builds the pinning row, then either closes the item or sends a plan in the `CarriedInterference` shape.
