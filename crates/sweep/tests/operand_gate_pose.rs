@@ -288,6 +288,10 @@ fn review_5814_capped_box_probes_at_every_pose() {
         ("beside", Point3::new(2.5, 1.0, 0.5)),
         ("diagonal far", Point3::new(3.0, 3.0, 3.0)),
         ("just over cap", Point3::new(1.0, 1.0, 1.0 + 1e-6)),
+        // Past the cap's normal but inside the hull along the anchor
+        // axis (anchor (1, 1, 0.5)): only the planar-normal candidate
+        // reads it.
+        ("over cap near a corner", Point3::new(1.9, 1.9, 1.05)),
     ];
     for (pose, map) in poses() {
         let b = posed("the capped box", &capped, &map, tol);
