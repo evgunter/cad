@@ -2,9 +2,12 @@
 id: edge-extent-reads-a-steep-nurbs-arcs-chord-four-to-ten-times-short
 kind: issue
 title: edge_extent levers a NURBS edge by its chord, 4-10x short of the point-set diameter on a steep hyperbolic arc, which can turn a Positive verdict into a definite Zero once such an arc rests
-status: open
+status: closed
 opened: 2026-10-25
 priority: P0
+closed: 2026-10-27
+pr: 5875
+branch: offset/edge-extent-true-bound
 ---
 
 
@@ -48,3 +51,32 @@ the control polygon's hull gives an upper bound to read the gap
 against. Found by the OFFSET conic-arc unit (branch
 `offset/conic-arc-and-axial-section`); the sign of the error was
 corrected by that PR's dual review.
+
+## Closed
+
+PR 5875. The edge extent is two true bounds, and every caller names
+its side: `geom_brep::edge_extent_inf` (≤ the point-set diameter and so
+≤ the arc: the chord, the circle and minor-axis folds, and for an
+ellipse, spiric or spline the farthest pair among its quarter-parameter
+points) and `geom_brep::edge_extent_sup` (≥ the diameter: exact on a
+circle, the major circle's arc on an ellipse, a stretch or diagonal
+bound on a spiric, the control net's farthest pair on a spline). A
+reading that acts on a Zero levers at the bound from above:
+`topo::validate::side`'s wedge, `census::curved::tangent_on_interior`,
+`boolean::carrier_pair::rest_locus`'s ball, `contact_verify`'s tangent
+table, and `boolean::fate::leaving` (a sweep hit, which levered the
+chord for every kind). A reading that acts on a definite nonzero sign
+levers at the bound from below: `certify.rs`'s spline lanes,
+`replace_face`'s section and corner roots, and `ConicDeparture`, whose
+`conic_bend_side` witness needs an arm no longer than the arc. On the
+steep arcs measured above, the bound from below now reads 0.99999 to
+1.0 of the diameter and the bound from above 1.0 to 1.0012
+(`plane_cone_arc::the_extent_on_a_steep_arc`). The row that goes red at the
+chord lever is
+`boolean::carrier_pair::extent_rows::a_steep_spline_rests_on_the_pair_its_ends_separate`.
+
+Residue, filed: `work/band/blend-battery-levers-a-chains-g1-from-below`,
+`work/twice/wedge-reach-calls-a-reach-short-of-its-faces-the-safe-direction`,
+and evidence on CONTACTHOLD's
+`conic-ties-outside-the-vertex-on-face-pass-still-read-first-order`
+(the sector walk's non-plane `On` tie at the bound from below).
