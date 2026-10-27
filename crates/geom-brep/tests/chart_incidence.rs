@@ -637,3 +637,160 @@ fn an_edge_on_a_chart_with_no_general_lane_ends_not_yet() {
         }
     }
 }
+
+/// **The edge certificate ends a declared carrier's incidence by what
+/// was read** (D3, E1b R2/R4): a declared carrier off its chart, one
+/// whose incidence test lands in band, and one read within the band at a
+/// pose where the chart holds no curve of its kind each end in the
+/// modeler's lever worded for that read, with no defect and no tolerance;
+/// the same carrier described with no declaration ends as the kernel's.
+/// At `f64`.
+///
+/// - **Off**: a line on the unit sphere, which holds none.
+/// - **Undecided**: a great circle tilted off the axis (none of the
+///   sphere's parallels or meridians) of radius `1 + mid`, its distance
+///   from the sphere mid-band.
+/// - **At a pose**: a circle of radius 2 about `(0, 0, 1)` tilted 30° off
+///   a cone's axis, whose lowest point sits at the apex's height: its
+///   nappe reading is a band-decided Zero (`cone_conic_incidence`), and
+///   the apex plane meets the cone only at the apex.
+#[test]
+fn a_declared_carrier_ends_by_its_incidence_read_at_the_edge_certificate() {
+    use geom_brep::recourse::Reading;
+    use geom_brep::{
+        CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve,
+        MappedSource, OffMargin,
+    };
+    use geom_core::{Affine3, Point2};
+    let mid = 0.5 * (band().zero() + band().escalate());
+    let sphere = Surface::Sphere {
+        center: Point3::origin(),
+        radius: 1.0,
+        axis: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let declaration = MappedCurve::whole(MappedSource::ExtrudedPoint {
+        point: Point2::new(0.0, 0.0),
+        place: Affine3::identity(),
+        vec: Vec3::unit_z(),
+    });
+    let line = |origin: Point3<f64>, dir: Vec3<f64>| Curve3::Line { origin, dir };
+    // (read, face, carrier, span, the ending's lever)
+    type Row = (
+        &'static str,
+        Surface<f64>,
+        Curve3<f64>,
+        (f64, f64),
+        &'static str,
+    );
+    let rows: [Row; 3] = [
+        (
+            "off",
+            sphere.clone(),
+            line(Point3::new(0.0, 0.0, 0.0), Vec3::unit_x()),
+            (0.2, 0.6),
+            "Recourse: move the declared curve onto the face it bounds",
+        ),
+        (
+            "undecided",
+            sphere,
+            Curve3::Circle {
+                center: Point3::origin(),
+                axis: Vec3::new(0.3_f64.sin(), 0.0, 0.3_f64.cos()),
+                radius: 1.0 + mid,
+                u_ref: Vec3::unit_y(),
+            },
+            (0.0, 1.0),
+            "Recourse: the declared curve is not shown on the face it bounds",
+        ),
+        (
+            "at a pose",
+            cone(0.5),
+            Curve3::Circle {
+                center: Point3::new(0.0, 0.0, 1.0),
+                axis: Vec3::new(0.5, 0.0, 0.75_f64.sqrt()),
+                radius: 2.0,
+                u_ref: Vec3::new(0.75_f64.sqrt(), 0.0, -0.5),
+            },
+            (0.0, 1.0),
+            "Recourse: move the declared curve clear of that pose by more than the tolerance",
+        ),
+    ];
+    for (what, surface, carrier, (t0, t1), lever) in rows {
+        let (keys, lookup) = crate::shared::surf::table(vec![surface]);
+        let certify = |declared: bool| {
+            let chart = EdgeDescriptionSpec::chart(keys[0]);
+            EdgeCurve::certify(
+                EdgeCurveSpec {
+                    description: if declared {
+                        chart.declared_by(declaration)
+                    } else {
+                        chart
+                    },
+                    carrier: carrier.clone(),
+                    param_start: t0,
+                    param_end: t1,
+                },
+                carrier.eval(t0),
+                carrier.eval(t1),
+                &lookup,
+                1.0,
+                band(),
+            )
+            .expect_err("the carrier is no curve of its chart here")
+        };
+        let declared = certify(true);
+        match (what, &declared) {
+            ("off", CertifyError::DeclaredOffChart { margin, .. }) => {
+                assert!(
+                    !matches!(margin, Some(OffMargin::InBand(_))),
+                    "{declared:?}"
+                );
+            }
+            (
+                "undecided",
+                CertifyError::Escalated {
+                    check: CertCheck::DeclaredIncidence,
+                    ..
+                },
+            )
+            | (
+                "at a pose",
+                CertifyError::DeclaredOffChart {
+                    margin: Some(OffMargin::InBand(_)),
+                    ..
+                },
+            ) => {}
+            _ => panic!("{what}: {declared:?}"),
+        }
+        assert_eq!(
+            declared.decision().map(|(check, _)| check),
+            Some(CertCheck::DeclaredIncidence),
+            "{what}"
+        );
+        for reading in [Reading::Build, Reading::AtRest] {
+            let ending = declared.ending(reading).unwrap();
+            assert!(ending.starts_with(lever), "{what} {reading:?}: {ending}");
+            for word in ["defect", "loosen", "tighten", "repair the body"] {
+                assert!(
+                    !ending.contains(word),
+                    "{what} {reading:?}: {word}: {ending}"
+                );
+            }
+        }
+        let derived = certify(false);
+        assert!(
+            !matches!(
+                derived,
+                CertifyError::DeclaredOffChart { .. }
+                    | CertifyError::Escalated {
+                        check: CertCheck::DeclaredIncidence,
+                        ..
+                    }
+            ),
+            "{what}: {derived:?}"
+        );
+        let ending = derived.ending(Reading::Build).unwrap_or_default();
+        assert!(!ending.contains("declared curve"), "{what}: {ending}");
+    }
+}

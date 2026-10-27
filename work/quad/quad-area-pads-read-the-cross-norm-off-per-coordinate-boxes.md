@@ -100,3 +100,18 @@ gone. The rest of the list stands: `trimmed_patch_face_rounds`' `sup_g`,
 `norm_hi` (still read by the integral and trimmed lanes), `area_at`,
 `area_cell`, and the `p_bound` L1 folds. The rotation probe was not
 re-run.
+
+## Re-checked on main `9267d3ae` (QUAD tracker sweep, 2026-10-27)
+
+Still holds at the sites the 2026-10-22 section left. Their homes after
+PR 5815 are:
+- `norm_hi`, `crates/geom-brep/src/props/quad/net.rs:764`;
+- `area_at` and `area_cell`, `props/quad/trimmed.rs:681` and `:703`;
+- `trimmed_patch_face_rounds`' `sup_g`, `trimmed.rs:1543`;
+- the integral lane's area cell, `props/quad/patch.rs:288`–`293`;
+- the `p_bound` L1 folds, `patch.rs:218` and `trimmed.rs:1534`.
+
+The lower-bound readers are `norm_lo` (`trimmed.rs:343`) and
+`boundary_chord_perimeter_lo` (`props/quad/area.rs:92`). The rational
+lane's `g_mid` (`props/quad/rational.rs:467`) is a point reading. The
+rotation probe was not re-run.
