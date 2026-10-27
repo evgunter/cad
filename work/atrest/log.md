@@ -263,3 +263,7 @@ Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `cra
   - **P1** `aligned-arc-or-curved-faces-that-only-abut-are-never-read-flush`, filed by #5853. Dispatched to `session_018u3gVFq1bXviQdAss26uqu`, plan-first.
   - **P1** `main-red-reader-census-misses-topo-link-rs`, caused by ATREST's #5773. Fixed in #5878, which also drops FLUSH's dead ledger entry on the same row.
   - `curved-copies-filling-one-volume-read-as-undecidable` and `gap-reads-no-curved-cell-below-a-face` are re-prioritised P1 → P2: their core asks merged, and the residue needs cone, torus and NURBS rungs. Every case stays loud.
+- 2026-10-27 21:28Z (orchestrator): the P0 plan (operation rows quieted by the contact rule) is approved.
+  - F1: a Tool or Piece row is unquietable, so it is loud and never refuses (DS6). A P3 row records that quieting one would need `[assertions.quiet]`/`Gap` to read a pose, which is Ev's call.
+  - `contact_quietable` asks the rule itself (the `gap()` admission), not a shape, per today's #5810 lesson.
+  - F2: a `Gap = 0` over adjacent cells is vacuous for tangency and coaxial rows. It is built as ratified and filed as a P2 design question on `[assertions.quiet]`, for a designer pair later.
