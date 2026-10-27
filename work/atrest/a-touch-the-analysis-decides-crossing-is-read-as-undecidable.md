@@ -69,7 +69,11 @@ Closing this row should retire this mapping with the `Crossing` one.
   band), or `On` a sector with the pair `Aligned`. Each is confirmed
   again inside the ball. Every in-band reading sets `notes.in_band` and
   ends as `Unread(InBand)`. No in-band case was found that needed to stay
-  undecidable.
+  undecidable. The review found a degenerate one: a piece whose probe
+  lies on another face of its own link (a fin, a doubled face with no
+  material) could read `In` and mint a crossing. Such a piece now
+  decides nothing (`census::tests::a_slit_reads_degenerate`, the fin
+  into the floor).
 - **A decided crossing touch is interference.** Arm 2 reports it as
   `ValidationError::TouchInterference { a, b }`, the two `Cell`s of the
   site that read it. `census_interference_solids` reads it, and so does
@@ -83,8 +87,11 @@ Closing this row should retire this mapping with the `Crossing` one.
 - **A pair decided by a standing finding is not read again.** If the
   census already reads one of the pair's findings as interference (a
   cross-solid `CoincidentWedgesOverlap`, an `EdgeFacePierce`, or an
-  `EdgeEdgeCross` with `SameSide`), arm 2 neither reads `blocks` nor
-  pushes the probe's undecided orderings. The wedges path was this
+  `EdgeEdgeCross` with `SameSide`), `blocks` answers `Stands` before
+  reading anything else, and arm 2 pushes neither a refusal nor the
+  probe's undecided orderings. A pierce or wedge finding that reaches
+  `blocks`' between-solids arm all the same means the two resolvers of
+  a finding's solids disagree, and refuses (`Undecided::Unresolved`). The wedges path was this
   row's second path; pierces and same-side crosses are the same
   defect: they used to add `CensusUndecidable` "another finding reports
   their boundaries crossing" beside their own interference.
@@ -93,7 +100,7 @@ Closing this row should retire this mapping with the `Crossing` one.
   (`Touch*`). `Undecided::Crossing` remains only for one solid's own
   boundary crossing itself.
 - **Witness:**
-  `census::tests::a_tetrahedron_inscribed_in_a_cube_interferes_at_its_touches`.
+  `a_decided_overlap_decides_its_pair::a_tetrahedron_inscribed_in_a_cube_interferes_at_every_pose`.
   The tetrahedron's corners are on the cube's, its edges lie in the
   cube's faces, and no face of one is coplanar with a face of the
   other. The test asserts one `TouchInterference` and no

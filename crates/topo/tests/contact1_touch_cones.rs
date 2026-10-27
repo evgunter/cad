@@ -105,7 +105,7 @@ fn flat_on_the_bracket(body: &Body<f64>) -> Vec<ValidationError> {
         "{certified:?}"
     );
     assert!(
-        placement_findings(&body, &certified).is_empty(),
+        placement_findings(body, &certified).is_empty(),
         "{certified:?}"
     );
     topo::validate_pseudomanifold_structural(body, &ContactRecords::default(), Tol::witness())
