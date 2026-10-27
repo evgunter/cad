@@ -367,7 +367,7 @@ fn the_extent_on_a_steep_arc() {
         (core::f64::consts::FRAC_PI_6, (-2.0, 2.0), false),
         (0.1, (-2.0, 2.0), true),
         (0.05, (-6.0, 6.0), true),
-        (0.1, (-1.0, 4.0), true),
+        (0.1, (-1.0, 4.0), false),
     ] {
         let d = 0.3;
         let section = open(alpha, Point3::new(d, 0.0, 0.0), Vec3::unit_x());

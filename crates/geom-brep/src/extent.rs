@@ -283,8 +283,8 @@ fn conic_arc_reach<T: Real>(
 const EXTENT_PIECES: u32 = 16;
 
 /// How many pieces [`edge_extent_sup`]'s ellipse arm reads the arc over,
-/// each from its start ([`conic_arc_reach`] twice per piece).
-const ELLIPSE_PIECES: u32 = 8;
+/// each from its middle ([`conic_arc_reach`] twice per piece).
+const ELLIPSE_PIECES: u32 = 16;
 
 /// The farthest distance between two of `points` (zero for fewer than
 /// two). The one spelling of a point set's diameter: a control net's
@@ -421,10 +421,11 @@ pub fn edge_extent_inf<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: 
 /// - **Ellipse** (semi-axes a ≥ b): `2a·sin(min(|Δt|, π)/2)` — the
 ///   ellipse is the image of the radius-a circle (same parameter θ)
 ///   under a one-axis contraction by b/a ≤ 1, which never lengthens a
-///   distance — and, cutting the span into 8 pieces `Eₖ` from `xₖ`,
-///   `maxₖ [reach(E, xₖ) + reach(Eₖ, xₖ)]` ([`conic_arc_reach`]): a
-///   point `x ∈ Eₖ` stands within `reach(Eₖ, xₖ)` of `xₖ`, which stands
-///   within `reach(E, xₖ)` of every point.
+///   distance — and, cutting the span into 16 pieces `Eₖ` about their
+///   middles `mₖ`, `maxₖ [reach(E, mₖ) + reach(Eₖ, mₖ)]`
+///   ([`conic_arc_reach`]): a point `x ∈ Eₖ` stands within
+///   `reach(Eₖ, mₖ)` of `mₖ`, which stands within `reach(E, mₖ)` of every
+///   point.
 /// - **Spiric** (major radius R, minor r, stand-off d): the oval's
 ///   diagonal `√((g(r) − g(−r))² + (2r)²)`, `g(x) = √((R + x)² − d²)`
 ///   (it lies in `m ∈ [g(−r), g(r)]`, `|axis| ≤ r`); the minor circle's
@@ -474,7 +475,7 @@ pub fn edge_extent_sup<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: 
             let step = (t1 - t0) / T::from_f64(f64::from(ELLIPSE_PIECES));
             let pieces = (0..ELLIPSE_PIECES).fold(T::zero(), |far, k| {
                 let s0 = t0 + step * T::from_f64(f64::from(k));
-                let x = carrier.eval(s0);
+                let x = carrier.eval(s0 + step * T::from_f64(0.5));
                 far.max(
                     conic_arc_reach(frame, axes, (t0, t1), x)
                         + conic_arc_reach(frame, axes, (s0, s0 + step), x),

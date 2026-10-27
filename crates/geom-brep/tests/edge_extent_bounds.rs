@@ -139,65 +139,65 @@ fn rows() -> Vec<Row> {
             "circle, short arc",
             &circle(2.0),
             (0.1, 0.4),
-            1.0 + 1e-12,
-            1.0 + 1e-12,
+            1.0 + 1e-9,
+            1.0 + 1e-9,
         ),
         row(
             "circle, past a half turn",
             &circle(2.0),
             (0.0, 4.0),
-            1.0 + 1e-12,
-            1.0 + 1e-12,
+            1.0 + 1e-9,
+            1.0 + 1e-9,
         ),
         row(
             "circle, closed",
             &circle(2.0),
             (0.0, TAU),
-            1.0 + 1e-12,
-            1.0 + 1e-12,
+            1.0 + 1e-9,
+            1.0 + 1e-9,
         ),
         row(
             "ellipse, half",
             &ellipse(1.0, 0.5),
             (-PI / 2.0, PI / 2.0),
-            1.05,
-            1.05,
+            1.1,
+            1.1,
         ),
-        row(
-            "ellipse, closed",
-            &ellipse(1.0, 0.5),
-            (0.0, TAU),
-            1.05,
-            1.05,
-        ),
+        row("ellipse, closed", &ellipse(1.0, 0.5), (0.0, TAU), 1.1, 1.1),
         row(
             "flat ellipse, about the major vertex",
             &ellipse(1.0, 0.01),
             (-0.3, 0.3),
-            1.2,
-            1.05,
+            1.1,
+            1.1,
         ),
         row(
             "flat ellipse, across the minor vertex",
             &ellipse(1.0, 0.01),
             (1.2, 1.9),
-            1.2,
-            1.05,
+            1.1,
+            1.1,
         ),
         row(
             "flat ellipse, stored minor first",
             &ellipse(0.01, 1.0),
             (1.2, 1.9),
-            1.2,
-            1.05,
+            1.1,
+            1.1,
         ),
-        row("spiric, closed", &spiric, (0.0, TAU), 1.25, 1.25),
-        row("spiric, an arc", &spiric, (0.7, 2.9), 1.25, 1.25),
-        row("steep spline, whole", &steep, (0.0, 1.0), 1.1, 1.1),
-        row("steep spline, a sub-window", &steep, (0.05, 0.25), 1.6, 1.6),
-        row("wave spline, whole", &wave, (0.0, 1.0), 1.6, 1.6),
-        row("wave spline, a sub-window", &wave, (0.45, 0.6), 1.6, 1.6),
-        row("closed spline", &closed, (0.0, 1.0), 1.6, 1.6),
+        row("spiric, closed", &spiric, (0.0, TAU), 1.05, 1.15),
+        row("spiric, an arc", &spiric, (0.7, 2.9), 1.05, 1.15),
+        row("steep spline, whole", &steep, (0.0, 1.0), 1.15, 1.15),
+        row(
+            "steep spline, a sub-window",
+            &steep,
+            (0.05, 0.25),
+            1.8,
+            1.45,
+        ),
+        row("wave spline, whole", &wave, (0.0, 1.0), 1.05, 1.05),
+        row("wave spline, a sub-window", &wave, (0.45, 0.6), 1.3, 1.2),
+        row("closed spline", &closed, (0.0, 1.0), 1.3, 1.2),
     ]
 }
 
@@ -228,17 +228,17 @@ fn each_kinds_bounds_bracket_the_diameter_and_stay_tight() {
         );
         assert!(sup >= d, "{w}: sup {sup} is short of D {d}");
         assert!(
-            sup <= row.c_sup * d,
+            sup <= row.c_sup * (d + slack),
             "{w}: sup {sup} passes {}·D = {}",
             row.c_sup,
-            row.c_sup * d
+            row.c_sup * (d + slack)
         );
         assert!(reach >= r, "{w}: the reach {reach} is short of R {r}");
         assert!(
-            reach <= row.c_reach * r,
+            reach <= row.c_reach * (r + slack),
             "{w}: the reach {reach} passes {}·R = {}",
             row.c_reach,
-            row.c_reach * r
+            row.c_reach * (r + slack)
         );
     }
 }

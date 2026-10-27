@@ -1882,10 +1882,12 @@ mod spline_departure_rows {
             (dir - tangent).norm() < 1e-12,
             "the arc leaves along its tangent (1, 2, 0)/√5, got {dir:?}"
         );
+        // The arc's farthest point from its start is its end, 2 off; the
+        // reach from above passes it by its samples' Lipschitz slack, and
+        // stays short of the control net's reach √5.
         assert!(
-            (len - 5f64.sqrt()).abs() < 1e-12,
-            "with its extent from above, its control net's farthest pair √5, not its \
-             chord 2: {len}"
+            (2.0..2.2).contains(&len),
+            "with its reach from the start, 2 to the bound's slack: {len}"
         );
     }
 }
