@@ -27,3 +27,10 @@ the same 28 findings.
 
 Done when the cleared pair is judged right and the golden re-blessed at
 every ε row it moves: 1e-12 reds the same way on a clean `39134695` (at line 49, the census count; on E the same pair is the one gone); 1e-6 was not measured here.
+
+## 2026-10-27 — still red at `fd74ba95`
+
+Main's at-rest-check merge re-blessed the census goldens (an `at rest:`
+outcome line above the census) but not this pair: on a clean
+`fd74ba95` the row reds at line 48 (eps=1e-9), the outcome line's count
+(29 → 28 on E, which also drops the census count and the same pair).
