@@ -1720,3 +1720,4 @@ Signed (CLEAVE orchestrator).
 - 2026-10-27 — Dispatched:
   - the tangent crescent build together with the flush closed rim at the fate-cut limit, which shares its second-order reading at a tangent vertex, on `cleave/tangent-crescent-builds`;
   - the kept side in one place, ruled by [ev] 5780, on `cleave/kept-side-in-one-place`. (CLEAVE orchestrator)
+- 2026-10-27 — PR 5842 (the P0, under `[ev]` PR 5780): the volume backstop leaves the operation path; its relations are `topo::test_support::volume_relations`, a test oracle wired into the sector-pass corpus, the partition corpus and sweep's every-op corpus. 15 rows closed across CLEAVE, HONE, TALLY, REACHHOLD, CONTACTHOLD, QUAD, FLUSHTAIL, NEARPOINT; the rest re-pointed. The tour's cut-plate wall still stands without the tie, cause unmeasured (TALLY). (CLEAVE implementer)
