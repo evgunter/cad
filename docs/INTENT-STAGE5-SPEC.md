@@ -129,7 +129,7 @@ It lives in `checks/at_rest.rs` beside `quiet_verdicts`, and the `unproven-coinc
 The space condition follows from the selections: a `Gap` over the `⊔`'s operands reads bodies of the `⊔`'s space. The rule matches by cells, not by bodies, so a second contact between the same two arrivals stays loud. It reads verdicts only, so a failed or poisoned assertion quiets nothing, gates nothing, and the finding stays loud (`a-failed-requirement-refuses-the-whole-product`'s acceptance is kept). The rule is written over a row's two cells, whatever the row's kind and the cells' dimension (§11):
 
 - **Rows.** C applies it to the at-rest rows of each `⊔`. An operation's unproven row (a boolean's glue, a split's ON verdict, a blend's) is quieted by the same rule once its cells can be selected (`an-assertion-quiets-an-operations-unproven-row`).
-- **Dimensions.** C quiets every row whose two cells `Gap`'s door admits: a face, an edge or a vertex (`gap-reads-vertex-and-edge-cells`). A row whose cell `Gap` refuses (a curved edge, a saddle vertex, `gap-reads-no-curved-cell-below-a-face`) stays loud, since no `Gap` over it holds.
+- **Dimensions.** C quiets every row whose two cells `Gap`'s door admits: a face, an edge or a vertex (`gap-reads-vertex-and-edge-cells`). A row whose cell `Gap` refuses (a curved edge or a cell beside a curved face, `gap-reads-no-curved-cell-below-a-face`) stays loud, since no `Gap` over it holds.
 - **A flush pair is never quieted by an assertion.** It is no contact, and only a flag mate or the replay establishes it (`[assertions]`).
 - **The lint's knob stays `Advisory`.**
 

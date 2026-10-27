@@ -9,15 +9,15 @@ opened: 2026-10-26
 Found by FLUSH's glue-verdict designer lane (round 3, probes on
 `flush/glue-verdict-design-015xnd`, `crates/topo/tests/honest_fold_probes.rs`,
 `tilt_along_the_row_is_order_dependent_in_substance`), measured with the
-kernel alone: the pass's verdicts handed back through
-`GlueVerdict::given_at` as the fold does.
+kernel alone: the pass's verdicts handed back to each step as the fold
+does (now inside `topo::nary_boolean`).
 
 ## What
 
 PR 4323's rule is that a union's fold step decides no carrier pair the
-pass did not: each step is handed the pass's verdicts
-(`BooleanInputs::given`) and `debug_assert_given` checks that every
-face-pair row a step records restates one. But a step still reads
+pass did not: each step is handed the pass's verdicts, and the n-ary
+door (`crates/topo/src/boolean/nary.rs`, `restated_rows`) debug-asserts
+that every face-pair row a step records restates one. But a step still reads
 vertex-against-carrier questions by value (`bool_vertex_face_side`,
 `Coincide::VertexOnFace`), over cells of members whose boxes never met
 and whom the pass therefore never judged, and a reading in band
@@ -63,3 +63,13 @@ should gain this fixture. Not a lever-arm issue: the margin is the plain
 point–plane distance; the LEVER row
 `lever-a-declared-pair-by-its-contact-patch-not-both-whole-faces` is the
 separate over-metering the same probes showed on a tilt along the row.
+
+## The kernel door (FLUSH, 2026-10-26)
+
+Since `flush/nary-union-door` the pass and the fold are one kernel
+operation (`topo::nary_boolean`), which holds every member body, every
+judgement and each step's lineage. So the second and third answers
+above are local to `crates/topo/src/boolean/nary.rs`: the door can judge
+a member pair whose boxes are apart only when a step reads across it,
+or tell a step's reading the pass did not back from one it did, with no
+channel between two crates. Nothing here is fixed by that move.

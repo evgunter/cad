@@ -4,8 +4,8 @@
 //! Each payload holds one operation's parameters as data. Scalars sit
 //! at `T`; entity references are arena keys, resolved by whoever built
 //! the value. The OPERANDs are not here — they are borrowed at the run
-//! doors ([`Blend::run`], [`Boolean::run_pair`], [`Sweep::run_profile`],
-//! [`Split::run_split`], [`Shell::run_shell`]), because an operand is
+//! doors ([`Blend::run`], [`Boolean::run_pair`], [`Members::run_members`],
+//! [`Sweep::run_profile`], [`Split::run_split`], [`Shell::run_shell`]), because an operand is
 //! not a parameter of the operation, it is the thing operated on, and
 //! putting it in the payload would make every declaration own a clone
 //! of it. That holds for the sweeps' validated PROFILE exactly as it
@@ -44,7 +44,7 @@ use core::fmt;
 
 use geom_core::Real;
 use sweep::{Revolution, RevolveAxis};
-use topo::{BooleanInputs, BooleanOp, EdgeKey, FaceKey, SplitPlane};
+use topo::{BooleanInputs, BooleanOp, EdgeKey, FaceKey, MemberInputs, NaryOp, SplitPlane};
 
 /// **The blend pair** — the verbs [`Blend::run`] answers.
 #[derive(Clone, Debug)]
@@ -78,13 +78,30 @@ pub enum Blend<T: Real> {
 /// strategies produce bit-identical results), so it comes in at
 /// [`Boolean::run_pair`] beside the tolerance witness.
 #[derive(Clone, Debug)]
-pub struct Boolean<T: Real> {
+pub struct Boolean {
     /// The regularized set operation.
     pub op: BooleanOp,
-    /// The operands' carried records and any given verdicts, in
-    /// operand arena keys, boxed so the verb stays one small value
-    /// whatever they hold.
-    pub inputs: Box<BooleanInputs<T>>,
+    /// The operands' carried records, in operand arena keys, boxed so
+    /// the verb stays one small value whatever they hold.
+    pub inputs: Box<BooleanInputs>,
+}
+
+/// **A union or an intersect over a list of member bodies** — the verb
+/// [`Members::run_members`] answers: the kernel's n-ary operation
+/// (`topo::nary_boolean`), whose judgements and fold steps are the
+/// boolean's own.
+///
+/// The payload is that door's parameter list with the member bodies
+/// and the run witnesses removed: which operation, and what each member
+/// carries ([`MemberInputs`]: its records and its rank), in list order.
+/// Its kind is the boolean's ([`VerbKind::Boolean`]): a union of a list
+/// is the union verb, answered at a door of its own.
+#[derive(Clone, Debug)]
+pub struct Members {
+    /// The operation.
+    pub op: NaryOp,
+    /// Each member's records and rank, in list order.
+    pub members: Vec<MemberInputs>,
 }
 
 /// **The two sweeps of a profile** — the verbs [`Sweep::run_profile`]
@@ -288,11 +305,19 @@ impl<T: Real> Blend<T> {
     }
 }
 
-impl<T: Real> Boolean<T> {
+impl Boolean {
     /// Which boolean this is: its op is its name.
     #[must_use]
     pub fn kind(&self) -> VerbKind {
         VerbKind::Boolean(self.op)
+    }
+}
+
+impl Members {
+    /// Which boolean this is: its operation's op is its name.
+    #[must_use]
+    pub fn kind(&self) -> VerbKind {
+        VerbKind::Boolean(self.op.op())
     }
 }
 

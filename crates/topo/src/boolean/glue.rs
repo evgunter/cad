@@ -231,7 +231,7 @@ pub(crate) fn frame_rows<T: Decide + Bounds>(
             crate::RowCell::face(Operand::A, fa),
             crate::RowCell::face(Operand::B, fb),
         ],
-        third: None,
+        more: [None; 3],
         relation,
         site,
         margin,

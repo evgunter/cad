@@ -2,11 +2,12 @@
 id: an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane
 kind: issue
 title: An analytic operand edge against the other operand's NURBS face refuses CurvedBooleanUnsupported at the crossing layer: the contact klein wall 3, lily wall 8 and teapot wall 3 reach once the edge gate is gone
-status: open
+status: dispatched
 opened: 2026-10-26
 priority: P0
 cost: H
 refs: [delete-the-boolean-operand-edge-gate, nurbs-edge-crossing-rung-is-the-ring-composite, a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm, nurbs-plane-section-has-no-component-arm, 5723]
+branch: splice/interior-arm
 ---
 
 

@@ -754,9 +754,17 @@ definitely on opposite sides, bisected and read on the surface; and
 otherwise cut where it is definitely past the band. A piece within the
 band that no cut parts, a meeting within the band of a crease and two
 crossings within the band of each other refuse. The composite reads the curved analytic faces too, but the
-curved lane does not dispatch a spline span to it, and every arm with a
-spline face is unbuilt. The analytic arms are the sweep's existing root
-doors.
+curved lane does not dispatch a spline span to it, and every arm of the
+table with a spline face is unbuilt. The analytic arms are the sweep's
+existing root doors. What such an arm will hand on, a meeting inside a
+spline face's chart, has its placement built
+(`topo::boolean::spline_region`, the spline arm of the boolean's
+point-in-face door): on the carrier by a foot decided within the band,
+off it where every Bézier cell of the chart is decided past it; then in
+where such a foot lies in the trim, read from the face's lifted pcurve
+loops, and out where a foot exists and every cell not decided past the
+band lies wholly outside the trim, each reading clear of the trim by
+more than the band along the chart.
 
 ### Fitted-cache structure
 

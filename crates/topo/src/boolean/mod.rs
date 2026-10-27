@@ -102,6 +102,7 @@ mod fragments;
 mod glue;
 pub(crate) mod insert;
 mod join;
+mod nary;
 mod node;
 mod ops;
 pub(crate) use ops::{AtRestRefusal, at_rest_refusal};
@@ -137,6 +138,7 @@ mod slit;
 pub use slit::EdgeInFaceGap;
 pub mod solid_contain;
 pub(crate) mod sphere_region;
+pub(crate) mod spline_region;
 mod surface_group;
 pub mod tables;
 #[cfg(test)]
@@ -187,6 +189,10 @@ pub use edge_join::{
     is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge,
 };
 pub use join::CompletedPolygonPair;
+pub use nary::{
+    FaceDescent, JudgedRow, MemberFace, MemberInputs, MemberLineage, NaryEnd, NaryJudgement,
+    NaryMember, NaryOp, NaryRefusal, NaryRun, NaryStep, nary_boolean,
+};
 pub use ops::{
     BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, SettleError,
     Settler, boolean_op_with, intersect, subtract, union,
@@ -440,6 +446,10 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "point_in_arc_loop_spline_side"
         | "point_in_arc_loop_spline_turn"
         | "point_in_arc_loop_spline_advance" => BooleanDecision::CONTAINMENT_UNNAMED.subject(),
+        spline_region::CARRIER => "how far a point lies off a spline face's carrier",
+        spline_region::ARM | spline_region::TRIM => {
+            "whether a point of a spline face's carrier lies clear of the face's trim"
+        }
         _ => return None,
     })
 }
@@ -689,6 +699,9 @@ pub(crate) struct EdgeSplit {
     pub(crate) vertex: VertexKey,
     /// The trailing piece.
     pub(crate) child: crate::entity::EdgeKey,
+    /// The cell of the other operand's clone whose crossing minted
+    /// `vertex`: the face, edge or vertex the split edge met there.
+    pub(crate) by: Cell,
 }
 
 /// **Where a Boolean reduction minted each vertex off its operands'
@@ -704,12 +717,13 @@ pub(crate) struct EdgeSplit {
 pub(crate) struct Mints {
     divisions: [crate::lineage::EdgeDivisions; 2],
     /// Each operand's vertices minted on edges, one per row of its
-    /// divisions and in the same order: [`Self::push`] is the one writer
-    /// of both, and pushes the vertex only once the division's row is
-    /// in, so the `i`-th vertex is the one minted between the `i`-th
-    /// row's two edges (asserted where they are read together,
-    /// [`Self::of`]).
-    vertices: [Vec<VertexKey>; 2],
+    /// divisions and in the same order, each beside the cell of the other
+    /// operand whose crossing minted it ([`EdgeSplit::by`]):
+    /// [`Self::push`] is the one writer of both, and pushes the vertex
+    /// only once the division's row is in, so the `i`-th vertex is the
+    /// one minted between the `i`-th row's two edges (asserted where
+    /// they are read together, [`Self::of`]).
+    vertices: [Vec<(VertexKey, Cell)>; 2],
     /// Each operand's vertices minted inside faces, each with its face.
     in_faces: [Vec<(VertexKey, FaceKey)>; 2],
 }
@@ -739,7 +753,7 @@ impl Mints {
     pub(crate) fn push(&mut self, split: EdgeSplit) -> Result<(), crate::lineage::RowRefusal> {
         let side = usize::from(split.operand == Operand::B);
         self.divisions[side].push((split.child, split.parent))?;
-        self.vertices[side].push(split.vertex);
+        self.vertices[side].push((split.vertex, split.by));
         Ok(())
     }
 
@@ -759,7 +773,7 @@ impl Mints {
             .rows()
             .iter()
             .zip(&self.vertices[side])
-            .map(|(&(child, parent), &vertex)| (parent, vertex, child))
+            .map(|(&(child, parent), &(vertex, _))| (parent, vertex, child))
     }
 
     /// The edge of `operand`'s input the piece `edge` of its clone lies
@@ -795,6 +809,15 @@ impl Mints {
         self.of(operand)
             .find(|&(_, vertex, _)| vertex == v)
             .map(|(parent, _, _)| parent)
+    }
+
+    /// The cell of the other operand's clone whose crossing minted `v`
+    /// on an edge of `operand`'s, where a split minted it.
+    pub(crate) fn minted_by(&self, operand: Operand, v: VertexKey) -> Option<Cell> {
+        self.vertices[usize::from(operand == Operand::B)]
+            .iter()
+            .find(|&&(w, _)| w == v)
+            .map(|&(_, by)| by)
     }
 
     /// The keys of `edge`'s pieces after `operand`'s splits, in order
@@ -967,43 +990,16 @@ impl OperandRecords {
 }
 
 /// **What a boolean is handed besides its two operands**: each
-/// operand's own contact records, carried into the result, and, for a
-/// step of an n-ary union's fold alone, the verdicts that union's
-/// pairwise judgement decided (DM4).
+/// operand's own contact records, carried into the result.
 ///
-/// Every key is validated at the op door (live, and planar for a
-/// given face) — a dangling key is a typed refusal
-/// ([`BooleanError::InvalidInput`]), never a silent drop.
-#[derive(Clone, Debug)]
-pub struct BooleanInputs<T: Real = f64> {
-    /// The carrier pairs whose verdicts are decided already: `Some`
-    /// makes these the operation's only coincidences, and it decides
-    /// none of its own; `None`, the default, has it decide every
-    /// coincidence it meets by its margin.
-    ///
-    /// **Not carried by the façade.** It is the union fold's channel
-    /// (`editor_core`'s n-ary union hands each step the pass's
-    /// verdicts, read through member lineage). Its pairs are made only
-    /// from a verdict some boolean decided ([`GlueVerdict::given_at`]),
-    /// but nothing ties that verdict to these operands: a caller who
-    /// re-keys or reuses one glues its pair here with nothing measured
-    /// and no row recorded
-    /// (`work/flush/a-glue-verdict-is-not-bound-to-the-bodies-it-judged.md`).
-    pub given: Option<Vec<GluedPair<T>>>,
+/// Every key is validated at the op door (live) — a dangling key is a
+/// typed refusal ([`BooleanError::InvalidInput`]), never a silent drop.
+#[derive(Clone, Debug, Default)]
+pub struct BooleanInputs {
     /// Operand A's own contact records, carried into the result.
     pub records_a: OperandRecords,
     /// Operand B's own contact records, carried into the result.
     pub records_b: OperandRecords,
-}
-
-impl<T: Real> Default for BooleanInputs<T> {
-    fn default() -> Self {
-        Self {
-            given: None,
-            records_a: OperandRecords::default(),
-            records_b: OperandRecords::default(),
-        }
-    }
 }
 
 /// **A face pair a boolean glued on its own decision**: a face of
@@ -1045,10 +1041,10 @@ impl<T: Real> GlueVerdict<T> {
     /// accumulation face whose lineage holds the judged `held` face, and
     /// the judged face of the other operand, under the judged class
     /// (every class is symmetric in its two faces), carrying the
-    /// decision: its margin, and a tangency's line. The fold passes each
-    /// such accumulation face, over the operand that other face belongs
-    /// to; nothing here checks either, since no body is in hand.
-    pub fn given_at(&self, held: Operand, at: FaceKey) -> GluedPair<T> {
+    /// decision: its margin, and a tangency's line. The n-ary door
+    /// ([`super::nary`]) passes each such accumulation face, read
+    /// through the lineage it advances itself.
+    pub(crate) fn given_at(&self, held: Operand, at: FaceKey) -> GluedPair<T> {
         let other = match held {
             Operand::A => self.b,
             Operand::B => self.a,
@@ -1100,7 +1096,7 @@ pub(crate) struct GivenDecision<T: Real> {
 
 /// **The pairs one boolean glues**, and the records it carries: the
 /// operation's own decisions ([`glue::decided_declarations`]) or the
-/// pairs it was given ([`BooleanInputs::given`]), in arena keys, each
+/// pairs it was given (a fold step of [`super::nary`]), in arena keys, each
 /// pair under the class its relation makes it.
 #[derive(Clone, Debug)]
 pub(crate) struct Glue<T: Real> {
@@ -1200,17 +1196,16 @@ impl<T: Real> Glue<T> {
         }
     }
 
-    /// The glue `inputs` states: its given pairs under their classes,
-    /// or none, to be decided ([`glue::decided_declarations`]).
-    pub(crate) fn of(inputs: &BooleanInputs<T>) -> Self {
+    /// The glue `inputs` carries, with `given`'s pairs under their
+    /// classes, or none, to be decided ([`glue::decided_declarations`]).
+    pub(crate) fn of(inputs: &BooleanInputs, given: Option<&[GluedPair<T>]>) -> Self {
         let BooleanInputs {
-            given,
             records_a,
             records_b,
         } = inputs;
         let (pairs, verdicts) = match given {
             None => (Vec::new(), Verdicts::Decided),
-            Some(given) => (given.clone(), Verdicts::Given),
+            Some(given) => (given.to_vec(), Verdicts::Given),
         };
         Self {
             pairs,
@@ -1223,11 +1218,11 @@ impl<T: Real> Glue<T> {
 }
 
 /// **One glued cross-operand face pair and its class**: a pair an
-/// operation decided, or one it was given ([`BooleanInputs::given`]),
-/// whose one public mint is [`GlueVerdict::given_at`]; a given pair
-/// carries the decision it was given on.
+/// operation decided, or one an n-ary union's fold step was given
+/// ([`GlueVerdict::given_at`]); a given pair carries the decision it
+/// was given on.
 #[derive(Clone, Copy, Debug)]
-pub struct GluedPair<T: Real = f64> {
+pub(crate) struct GluedPair<T: Real = f64> {
     /// The A-operand face.
     pub(crate) a: FaceKey,
     /// The B-operand face.
@@ -1253,7 +1248,7 @@ impl<T: Real> GluedPair<T> {
     /// Whether `row` restates this given pair's decision, as a fold step
     /// records it for a face–face record to cite: its two faces, its
     /// class's relation, its margin.
-    pub fn restated_by(&self, row: &crate::Coincidence) -> bool {
+    pub(crate) fn restated_by(&self, row: &crate::Coincidence) -> bool {
         self.given.is_some_and(|given| {
             row.face_pair() == Some((self.a, self.b))
                 && row.relation.glued_class() == Some(self.class)
@@ -3510,6 +3505,27 @@ pub enum BooleanError {
         /// The precise uncertifiable sub-configuration.
         what: &'static str,
     },
+    /// **A decision on a re-charted sphere's cell is not stated by the
+    /// input cells that cell reads back as.** The containment re-cut
+    /// turns a closed sphere shell about its centre
+    /// (`ops::apply_recuts`), so each cell of the turned shell reads back
+    /// as the set of the input shell's faces, which wear that sphere. A
+    /// point decided on such a cell (a meeting, a vertex on a carrier) is
+    /// the meeting of those faces and the row's other cells, where a row
+    /// holds that many; any other decision, of carriers or of shapes,
+    /// holds of them only where the shell is one face and the cell that
+    /// face. Otherwise it is refused here rather than published against
+    /// faces it was not decided on.
+    RechartedRowUnstated {
+        /// The operand whose sphere shell was re-charted.
+        operand: Operand,
+        /// What was decided on the turned cell.
+        relation: crate::Relation,
+        /// The input shell's faces the turned cell reads back as, sorted.
+        faces: Vec<FaceKey>,
+        /// Why they do not state it.
+        what: &'static str,
+    },
     /// **Two sphere faces of the two solids touch** at the curved-extent
     /// scan, which runs only where the crossing layer found no edge
     /// crossing a face: their spheres touch within the tolerance, the
@@ -4024,7 +4040,7 @@ pub enum LineWedgeFault {
         /// The result's edge.
         edge: EdgeKey,
         /// Why its wedge has no reading.
-        why: crate::census::TouchUnread,
+        why: crate::link::TouchUnread,
     },
 }
 
@@ -4148,6 +4164,8 @@ pub enum BooleanErrorKind {
     NurbsExtentUnsupported,
     /// [`BooleanError::FallbackExtentUnsupported`].
     FallbackExtentUnsupported,
+    /// [`BooleanError::RechartedRowUnstated`].
+    RechartedRowUnstated,
     /// [`BooleanError::SpheresMeet`].
     SpheresMeet,
     /// [`BooleanError::GermFrameUnsupported`].
@@ -4404,6 +4422,7 @@ impl BooleanError {
             Self::CurvedPairUnsupported { .. } => BooleanErrorKind::CurvedPairUnsupported,
             Self::NurbsExtentUnsupported { .. } => BooleanErrorKind::NurbsExtentUnsupported,
             Self::FallbackExtentUnsupported { .. } => BooleanErrorKind::FallbackExtentUnsupported,
+            Self::RechartedRowUnstated { .. } => BooleanErrorKind::RechartedRowUnstated,
             Self::SpheresMeet { .. } => BooleanErrorKind::SpheresMeet,
             Self::GermFrameUnsupported { .. } => BooleanErrorKind::GermFrameUnsupported,
             Self::GermSectionOpenConic { .. } => BooleanErrorKind::GermSectionOpenConic,
@@ -4753,6 +4772,18 @@ impl core::fmt::Display for BooleanError {
                  outside the other, so it refuses rather than guess. Recourse: make \
                  the solids' boundaries cross, or build that face from planes, \
                  cylinders or spheres",
+                operand_word(*operand),
+            ),
+            Self::RechartedRowUnstated {
+                operand,
+                relation,
+                what,
+                ..
+            } => write!(
+                f,
+                "the Boolean turned a sphere of the {} operand about its centre to find where \
+                 it crosses the other solid, and cannot state what it decided on the turned \
+                 sphere ({relation:?}) on that sphere's own faces: {what}",
                 operand_word(*operand),
             ),
             // No operand is named: the raise sites pass the operand being
@@ -6849,7 +6880,7 @@ fn tangent_row(fa: FaceKey, fb: FaceKey, margin: MarginDiag) -> crate::Coinciden
             crate::RowCell::face(Operand::A, fa),
             crate::RowCell::face(Operand::B, fb),
         ],
-        third: None,
+        more: [None; 3],
         relation: crate::Relation::SurfaceTangent,
         site: crate::DecisionSite::TangentWitness,
         margin,
@@ -6892,7 +6923,7 @@ fn verify_one_carrier_declaration<T: Decide>(
                 crate::RowCell::face(Operand::A, fa),
                 crate::RowCell::face(Operand::B, fb),
             ],
-            third: None,
+            more: [None; 3],
             relation,
             site: declared_site(a, fa, b, fb),
             margin,
@@ -9155,6 +9186,12 @@ mod tests {
                 face,
                 what: "an uncertifiable pose",
             },
+            BooleanError::RechartedRowUnstated {
+                operand: Operand::B,
+                relation: crate::Relation::SameOpposite,
+                faces: vec![face],
+                what: "only a point decided there is stated by the faces that hold it",
+            },
             BooleanError::SpheresMeet {
                 operand: Operand::A,
                 face,
@@ -9366,6 +9403,7 @@ mod tests {
                 BooleanErrorKind::CurvedPairUnsupported => "CurvedPairUnsupported",
                 BooleanErrorKind::NurbsExtentUnsupported => "NurbsExtentUnsupported",
                 BooleanErrorKind::FallbackExtentUnsupported => "FallbackExtentUnsupported",
+                BooleanErrorKind::RechartedRowUnstated => "RechartedRowUnstated",
                 BooleanErrorKind::SpheresMeet => "SpheresMeet",
                 BooleanErrorKind::GermFrameUnsupported => "GermFrameUnsupported",
                 BooleanErrorKind::GermSectionOpenConic => "GermSectionOpenConic",

@@ -2,8 +2,9 @@
 id: a-swept-circle-section-loop-decides-its-volume-sign-only-at-the-origin
 kind: issue
 title: tier 3's volume-sign check on a rational swept wall refuses QuadratureBudget or decides by the section's knot structure, the skin's degree and the body's position — not by the shape
-status: open
+status: closed
 opened: 2026-10-02
+closed: 2026-10-27
 priority: P1
 cost: H
 ---
@@ -231,3 +232,99 @@ because at 1e-12 the round wire still refuses. So this row's helix
 witness now stands at ε < 1e-9 only. The rest of the REPORTING half is
 untouched: the loft widths' dependence on knot structure and degree,
 and the quartered bodies' bracket-less continuation at 1e-6.
+
+## Closed — 2026-10-27: every cell decides, at every ε and both placements
+
+Re-measured on main `aaf9aa88`, after the measurement door's three
+units (PRs 5589, 5628, 5741). The probe is
+`crates/sweep/tests/quad_frame_remeasure.rs` `row3_swept_loop`, now
+through `validate_geometric_certificate`, whose `SignCertificate` is
+continued by `measure` at `pinned_resolution` (1024·ε). Its
+`ROW3_MEASURE=0` skips the continuation. The grid is the lofted twin
+of 2026-10-21: `circle` and `circle_split` 4/8/16, stations
+9/13/17/21/33/65, v-degree 2 and 3, at the body's own position and
+moved by (−1.2, 0, −1.8). That is 96 cells per ε.
+
+**The sign.** `validate_geometric` decides all 288 cells (96 at each of
+1e-6, 1e-9 and 1e-12). Each one settles at round 0. Each cell's
+round-0 width is the same at all three ε, and the moved body reads the
+same, to every printed digit, as the body at its own position. The
+widths below are 0.05–23 % of the 0.59 m³ volume.
+
+**The number at 1e-9.** Each cell's continuation reaches
+`Stop::Met` at 1.024e-6. Cells read as round-0 width / continuation
+pad (m³), and the moved body is the same:
+
+| section | stations | v-deg 2 | v-deg 3 |
+|---|---|---|---|
+| `circle` | 9 | 1.20e-01 / 3.7e-06 | 1.38e-01 / 4.2e-06 |
+| `circle` | 13 | 1.23e-01 / 3.8e-06 | 1.20e-01 / 3.7e-06 |
+| `circle` | 17 | 1.08e-01 / 7.3e-06 | 1.18e-01 / 3.6e-06 |
+| `circle` | 21 | 1.05e-01 / 7.0e-06 | 1.06e-01 / 7.1e-06 |
+| `circle` | 33 | 9.35e-02 / 6.2e-06 | 9.54e-02 / 6.4e-06 |
+| `circle` | 65 | 8.55e-02 / 1.0e-05 | 8.57e-02 / 7.8e-06 |
+| `circle_split` 4 | 9 | 2.08e-02 / 1.0e-05 | 2.61e-02 / 7.1e-06 |
+| `circle_split` 4 | 13 | 2.17e-02 / 1.1e-05 | 2.10e-02 / 1.0e-05 |
+| `circle_split` 4 | 17 | 1.78e-02 / 8.7e-06 | 2.04e-02 / 9.9e-06 |
+| `circle_split` 4 | 21 | 1.69e-02 / 8.2e-06 | 1.73e-02 / 8.5e-06 |
+| `circle_split` 4 | 33 | 1.40e-02 / 6.8e-06 | 1.44e-02 / 7.1e-06 |
+| `circle_split` 4 | 65 | 1.18e-02 / 5.8e-06 | 1.19e-02 / 5.8e-06 |
+| `circle_split` 8 | 9 | 3.75e-03 / 7.3e-06 | 5.07e-03 / 7.3e-06 |
+| `circle_split` 8 | 13 | 3.95e-03 / 7.7e-06 | 3.83e-03 / 7.5e-06 |
+| `circle_split` 8 | 17 | 3.04e-03 / 5.9e-06 | 3.67e-03 / 7.2e-06 |
+| `circle_split` 8 | 21 | 2.84e-03 / 5.5e-06 | 2.95e-03 / 5.8e-06 |
+| `circle_split` 8 | 33 | 2.14e-03 / 4.2e-06 | 2.28e-03 / 4.4e-06 |
+| `circle_split` 8 | 65 | 1.65e-03 / 6.9e-06 | 1.67e-03 / 5.9e-06 |
+| `circle_split` 16 | 9 | 7.75e-04 / 6.1e-06 | 1.10e-03 / 7.2e-06 |
+| `circle_split` 16 | 13 | 8.23e-04 / 6.4e-06 | 7.96e-04 / 6.2e-06 |
+| `circle_split` 16 | 17 | 6.02e-04 / 4.7e-06 | 7.57e-04 / 5.9e-06 |
+| `circle_split` 16 | 21 | 5.54e-04 / 4.6e-06 | 5.81e-04 / 4.8e-06 |
+| `circle_split` 16 | 33 | 3.87e-04 / 8.3e-06 | 4.19e-04 / 7.7e-06 |
+| `circle_split` 16 | 65 | 2.68e-04 / 8.4e-06 | 2.73e-04 / 8.5e-06 |
+
+**The second refusal is gone.** At ε = 1e-6 the continuation reaches
+`Met` at 1.024e-3 on every `circle` and `circle_split` 4 cell, 9–65
+stations at both degrees. That includes the 17- and 21-station
+v-degree-3 quartered bodies that refused with no bracket. A
+`Settle::Resolution` decides nothing, so an unmet one is a bracket;
+it is not a refusal.
+
+**At 1e-12** the cells the row cites (`circle` 9–65, `circle_split` 4
+9–21) reach `Wall` at 1.024e-9 with a bracket, except `circle_split`
+4 at 9 stations, v-degree 2, which reaches `Met`. Volume pads (m³), v-deg
+2 / 3: `circle` 9: 5.7e-8 / 6.6e-8; 13: 2.4e-7 / 2.3e-7; 17:
+2.1e-7 / 2.2e-7; 21: 2.0e-7 / 2.0e-7; 33: 7.1e-7 / 7.3e-7; 65:
+2.6e-6 / 2.6e-6. `circle_split` 4 9: 1.0e-8 (`Met`) / 1.3e-8; 13:
+4.1e-8 / 4.0e-8; 17: 3.4e-8 / 3.9e-8; 21: 3.2e-8 / 3.3e-8. This is
+the ratified door. `[tolerance.measure]` R3: a face that costs more
+per round gets fewer rounds and stops at `Wall` with a sound bracket.
+How narrow that bracket is still depends on the section's knots and
+the station count, but the bracket is the answer the door is ratified
+to give at the wall. It is not a defect of this row.
+
+**Mechanism.** The `rounds: 1` widths in the tables above were the
+reporting budget's exit answering the sign question (PR 5568's
+finding). They were never the sign's own width. Now no budget stands
+between the sign walk and its predicate, and round 0 already excludes
+zero by a wide margin on every body. The knot, degree and position
+effects that are left are in the width of a bracket a caller asks for,
+and only finer than the default ε.
+
+**Pinned.** `demos/tour/src/klein.rs` `loop_volume_grid` builds five
+cells with the scene's own `lofted_loop`: `circle` at 9 stations,
+v-degree 2 and 3; `circle_split` 4 and 8 at 9 stations, v-degree 3;
+and `circle` at 17 stations, v-degree 3, moved across the origin by
+`transform_rigid`. Each cell's sign must decide, and its continuation
+must reach `Met` at the printed precision. Each bracket must hold the
+body's own volume from `patch_quadrature`, an independent divergence
+integral of its patches that converges to 1e-12 between 16 and 24
+Gauss points and closes its shell about two points. A·L is not the
+oracle: the lofts differ between cells by up to 1.4 %.
+
+**The Klein scene** ships `circle`, 13 stations, v-degree 2, and is
+unchanged. The volume no longer constrains that setting. The mesher
+still does
+(`work/tess/a-quarter-arc-swept-annulus-exceeds-its-triangle-certificate`).
+`STATIONS`' comment now says so. **The helix**
+(`projectbox` wall 1) was retired at every ε before this re-measure,
+and `standing_spring` asserts `Met` against its own oracle.
