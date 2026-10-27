@@ -2,7 +2,9 @@
 id: a-ring-partner-inside-the-ring-unions-result-invalid
 kind: issue
 title: The plate with a ring ∪ a flush partner whose edge lies wholly inside the ring, plate first, refuses ResultInvalid
-status: dispatched
+status: closed
+closed: 2026-10-27
+pr: 5812
 opened: 2026-10-25
 priority: P1
 cost: M
@@ -44,12 +46,13 @@ did report it (the stretch from 0.2), `slit::close_struts`
 (`boolean/slit.rs:650`) refused `SlitFaceClosesMidSlit`: the strut has
 no free end, and parting the ring was not built.
 
-## Built (branch `cleave/flush-partners-at-a-slit-build`)
+## Closed
 
-`finish_output` hands the closing the seam edges too, and
-`slit::part_mid_slit` (`:713`) deletes a strut with no free end with
-`kemr`: the loop parts in two, the side that is the slit's run becomes
-a ring of the face. The union's top holds two rings on the ray, from
+2026-10-27, PR 5812. `finish_output` hands the closing the seam edges too, and
+`slit::part_mid_slit` deletes the edge left there, a stretch of the
+ring closed across with no free end and so no strut, with `kemr`: the
+loop parts in two, and the part that is the slit's run becomes a new
+ring of the face. The union's top holds two rings on the ray, from
 the apex to the partner's stretch and from its end to the tip. Every op
 builds, in both orders, as the closed form says, tier 3 and 3′, its
 edges on the line the material's creases, the partner's edge from 0.1

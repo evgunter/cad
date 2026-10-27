@@ -2,7 +2,9 @@
 id: a-box-corner-at-a-rings-tip-reads-two-crossing-germs-along-one-direction
 kind: issue
 title: A box flush under the ringed top with a corner or edge at the ring's tip refuses ClassificationInvariant: two crossing germs of a vertex pair lie along one direction in one sector entry
-status: dispatched
+status: closed
+closed: 2026-10-27
+pr: 5812
 opened: 2026-10-25
 priority: P1
 cost: M
@@ -53,14 +55,14 @@ ring's tips at the sliver's two ends through `slit_tip_on` (`:4708`),
 and the ends are the tips' null-edge copies, which it did not read, so
 `resolve_roles_geometric` refused `SectionLoopUndecided`.
 
-## Built (branch `cleave/flush-partners-at-a-slit-build`)
+## Closed
 
-Two germs along one direction in one entry, each along an edge of the
+2026-10-27, PR 5812. Two germs along one direction in one entry, each along an edge of the
 other solid, lie on the sides of the line where that edge's flanker
-flush with the entry lies: `insert::beside_order` (`:1574`) reads them
+flush with the entry lies: `insert::beside_order` reads them
 at second order (`d + δ o`), from each germ's edge's two flankers
-(`flankers_of`, `:1607`), and `walk_order`, `leads` and the strut
-facing read it (`tied_order`, `:1625`). `slit_tip_on` reads a vertex's
+(`flankers_of`), and `walk_order`, `leads` and the strut facing read
+it through one helper (`walks_before_beside`). `slit_tip_on` reads a vertex's
 null-edge copies as the vertex. Every cell of the table builds, in all
 six ops, as the closed form says, tier 3 and 3′, its edges on the line
 the material's creases, at ε default, 1e-6 and 1e-12, at rest, turned

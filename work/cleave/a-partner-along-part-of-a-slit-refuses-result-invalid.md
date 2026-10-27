@@ -2,7 +2,9 @@
 id: a-partner-along-part-of-a-slit-refuses-result-invalid
 kind: issue
 title: A Boolean with a partner whose edge runs along part of a slit refuses ResultInvalid DescriptionNotAdjacent or ScaffoldAtRest
-status: open
+status: closed
+closed: 2026-10-27
+pr: 5812
 opened: 2026-10-25
 priority: P2
 cost: M
@@ -55,24 +57,19 @@ there (`boolean/slit.rs`, `close_struts`). The fix is that parting:
 read as its own slit or ring. Pinned by
 `a_keel_on_the_floor_subtracts_as_a_slit::a_face_closed_across_part_of_the_slit_refuses_typed`.
 
-## Note (2026-10-26, branch `cleave/flush-partners-at-a-slit-build`)
+## Closed
 
-The unions build on that branch, every cell of the table, at ε
+2026-10-27, PR 5812. The unions build, every cell of the table, at ε
 default, 1e-6 and 1e-12, at rest, turned and flipped and turned, as
 the closed form says, tier 3 and 3′, their edges on the keel the
 material's creases. Their cause is the ringed plate's
 (`a-ring-partner-inside-the-ring-unions-result-invalid`): the zip
 leaves the vee's stretch of the keel an edge of the floor on both
-sides, which `y ∪ x`'s zip did not report as a strut, and the closing
-deletes it now from the seam edges too, parting the keel with `kemr`
-(`boolean/slit.rs`, `part_mid_slit`). Pinned by
+sides, and the closing deletes it from the seam edges, parting the
+keel with `kemr` (`boolean/slit.rs`, `part_mid_slit`). Pinned by
 `a_keel_on_the_floor_subtracts_as_a_slit::a_partner_along_part_of_the_keel_unites_with_the_slit_in_either_order`.
 
-The `x − y` cells with the box less the wide vee now part the keel too,
-and refuse `LineWedges` `Overlap` at the result gate beyond the vee's
-stretch (`ring` `half` refused so on main already): there the floor
-continues across the line and the trench's walls crease the narrow vee
-above it, one edge, but the keel's two edges stay, floor | wall each.
-That is `a-difference-whose-partner-ends-inside-a-slit-overlaps-its-wedges`
-(P2). With it, no cell of this row refuses a kernel defect.
-
+The `x − y` cells with the box less the wide vee part the keel too, and
+refuse `LineWedges` `Overlap`, typed, beyond the vee's stretch: that is
+`a-difference-whose-partner-ends-inside-a-slit-overlaps-its-wedges`
+(P2), which carries them.

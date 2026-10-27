@@ -2,7 +2,9 @@
 id: a-fate-cut-end-between-two-touching-lumps-lies-in-no-piece
 kind: issue
 title: A flush partner over two lumps touching along an edge, the lumps second, refuses ClassificationInvariant in ∪ and ∖: a fate cut's end lies inside no one piece of its face
-status: dispatched
+status: closed
+closed: 2026-10-27
+pr: 5812
 opened: 2026-10-25
 priority: P1
 cost: M
@@ -42,16 +44,17 @@ holding the point strictly inside it; the point is a vertex of the
 face's division, the corner of the second lump's imprint, so it lies
 inside none.
 
-## Built (branch `cleave/flush-partners-at-a-slit-build`)
+## Closed
 
-`fate::fragment_along` (`:961`) places it: where the point lies inside
-no piece but at vertices of their loops (`fragments_at`, `:923`), the
-piece is the one whose corner there holds the dropped sector's
-direction (`place`). `y − x` and `y ∪ x` build for the S and the wedge
+2026-10-27, PR 5812. Where the point lies inside no piece but at
+vertices of their loops (`fate::lies`, each vertex once), the piece is
+the one whose corner there holds the dropped sector's direction
+(`fate::piece_holding`, `place`, the ring arm's helper too). `y − x` and `y ∪ x` build for the S and the wedge
 above, both partners, as the closed form says, tier 3 and 3′, one edge
 along the line, at ε default, 1e-6 and 1e-12, at rest, turned and
 flipped and turned. Pinned by
 `a_keel_on_the_floor_subtracts_as_a_slit::a_flush_partner_over_two_lumps_touching_along_an_edge_builds`.
 `x ∪ y` still refuses `PinchRaysInAFace`, a typed construction gap,
 filed with its siblings as
-`two-lumps-touching-along-an-edge-refuse-pinch-rays-against-a-flush-partner`.
+`two-lumps-touching-along-an-edge-refuse-pinch-rays-against-a-flush-partner`
+(P1: an operand order that refuses where the other builds).

@@ -4,7 +4,7 @@ kind: issue
 title: Two lumps touching along an edge against a partner flush with a face of each refuse PinchRaysInAFace in some orders
 status: open
 opened: 2026-10-26
-priority: P2
+priority: P1
 cost: H
 refs: [a-fate-cut-end-between-two-touching-lumps-lies-in-no-piece]
 ---
@@ -36,8 +36,9 @@ The other ops build, tier 3 and 3′, as the closed form says
 (`a_keel_on_the_floor_subtracts_as_a_slit::a_flush_partner_over_two_lumps_touching_along_an_edge_builds`
 and `::a_flush_partner_crossing_the_slit_intersects_it_in_either_order`
 pin the S and wedge-above cells and the beside wedge's `y ∩ x`).
-`PinchRaysInAFace` is a typed construction gap, so the two orders of
-`∪` disagree only between a body and a typed refusal.
+`PinchRaysInAFace` is typed, but an operand order that refuses where
+the other builds is a kernel defect (DESIGN), not a gap: the ∪ cells
+are P1 (ruled 2026-10-27 on PR 5812).
 
 ## Owed
 
