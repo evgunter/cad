@@ -1983,9 +1983,8 @@ pub enum CylinderSphereSection<T: Real> {
         station: T,
     },
     /// `R = r`: one circle at the equator station — CLASSIFICATION
-    /// DATA, never a constructible edge (C7 / M5 PR 9), and the same
-    /// pose `ssi::cylinder_sphere_ssi`'s own `ssi_cs_tangency` trilean
-    /// refuses toward C7.
+    /// DATA, never a constructible edge (C7 / M5 PR 9), and the pose
+    /// `ssi::cylinder_sphere_ssi` refuses toward C7.
     TangentCircle {
         /// The sphere centre — the equator station itself.
         center: Point3<T>,
@@ -2009,148 +2008,65 @@ pub enum CylinderSphereSection<T: Real> {
 /// refusal here is a routing, not a frontier: the pair still has an
 /// answer, one rung down.
 ///
-/// Trileans, in order — one margin per question:
-///
-/// 1. `cs_coaxial` — margin `d`, the axis-to-centre distance (meters):
-///    Zero is the coaxial pose; definite ⇒ the pair routes to the
-///    general rung ([`SectionError::RoutesToGeneralRung`]); in band ⇒
-///    escalated.
-/// 2. `cs_cylinder_radius` — margin `r` (meters). The degeneracy guard
-///    runs FIRST among the numeric rows and it guards the **FULL**
-///    convention `R > 0` and `r > 0`, not merely the relation between
-///    them: a guard that decides only `R − r` lets `r = 0` through as
-///    `Positive` and mints two radius-zero "circles", and lets
-///    `r = R = 0` through as `Zero` and mints a point wearing a
-///    tangent circle's name. Definite-positive required; anything else
-///    is [`SectionError::DegenerateOperand`].
-/// 3. `cs_sphere_radius` — margin `R` (meters). Not implied by row 2
-///    plus row 5: a `Surface::Sphere` whose stored radius is NEGATIVE
-///    denotes the same point set as its absolute value, so `R = −r`
-///    reaches row 5 as `Negative` and answers `Empty` — a FALSE
-///    NEGATIVE on a pose whose true section is the tangent circle.
-///    Definite-positive required.
-/// 4. `cs_wall_reach` — margin `R − r` (a length): Positive ⇒
-///    [`CylinderSphereSection::TwoCircles`], Zero ⇒
-///    [`CylinderSphereSection::TangentCircle`], Negative ⇒
-///    [`CylinderSphereSection::Empty`].
-///
-/// **Consistency with the SSI's own tangency door, not a second
-/// adjudication.** At `d = 0` the SSI door's `ssi_cs_tangency` margin
-/// `min(||d − r| − R|, |d + r − R|)` collapses to `|r − R|` — the
-/// absolute value of row 4's margin, on the same band. So the two
-/// doors partition the coaxial poses identically: where this arm says
-/// `TangentCircle`, the SSI door's pre-rung decision says `PairTangent` and refuses
-/// toward C7; where this arm says `TwoCircles` or `Empty`, the
-/// door's trilean is definite. Same margin shape, same verdict
-/// class — a tangency is classification data at both doors, and
-/// neither constructs a carrier from it.
+/// It reads the pair's pose ([`crate::CylinderSpherePose::decide`]),
+/// decided once for every reader of the pair: the radius guards
+/// (`cs_cylinder_radius`, `cs_sphere_radius`, each definitely positive or
+/// [`SectionError::DegenerateOperand`]), the coaxiality (`cs_coaxial`:
+/// definite routes to the general rung, in band escalates), and the wall
+/// reach (`cs_wall_reach`, `R − r`): Positive ⇒
+/// [`CylinderSphereSection::TwoCircles`], Zero ⇒
+/// [`CylinderSphereSection::TangentCircle`], Negative ⇒
+/// [`CylinderSphereSection::Empty`]. The SSI door reads the same pose, so
+/// where this arm says `TangentCircle` it refuses `PairTangent` toward
+/// C7.
 ///
 /// # Errors
 ///
-/// [`SectionError`] — see the trilean list.
+/// [`SectionError`]: `WrongLane` for a pair not given cylinder first,
+/// the pose's refusals, and `RoutesToGeneralRung` off the axis.
 pub fn cylinder_sphere_section<T: Decide>(
     cyl: &Surface<T>,
     sph: &Surface<T>,
     band: Band,
 ) -> Result<(CylinderSphereSection<T>, MarginDiag), SectionError> {
-    let &Surface::Cylinder {
-        origin,
-        axis,
-        radius: r,
-        ..
-    } = cyl
-    else {
+    if !matches!(cyl, Surface::Cylinder { .. }) {
         return Err(SectionError::WrongLane {
             expected: "cylinder×sphere (cylinder first)",
         });
-    };
-    let &Surface::Sphere {
-        center,
-        radius: big_r,
-        ..
-    } = sph
-    else {
-        return Err(SectionError::WrongLane {
+    }
+    let pose =
+        crate::CylinderSpherePose::decide(cyl, sph, band).ok_or(SectionError::WrongLane {
             expected: "cylinder×sphere (sphere second)",
+        })??;
+    let crate::CsStance::Coaxial { coaxial, wall } = pose.stance else {
+        return Err(SectionError::RoutesToGeneralRung {
+            pair: "cylinder×sphere",
+            why: "the sphere's centre stands off the cylinder's axis, a transversal pose \
+                  the general rung's cylinder×sphere arm marches and fits, so this is a \
+                  routing and not a frontier",
         });
     };
-
-    // 1. Coaxial, decided by its margin. The rejection of the axial
-    // component is the standard point-to-line distance; `axis` is unit
-    // by the surface's own invariant, so no division enters here.
-    let q = center - origin;
-    let d = (q - axis * q.dot(axis)).norm();
-    let coaxial = match decide_reported("cs_coaxial", Margin::of(d), band)
-        .map_err(SectionError::Escalated)?
-    {
-        Decided {
-            sign: Sign::Zero,
-            margin,
-        } => margin,
-        Decided { .. } => {
-            return Err(SectionError::RoutesToGeneralRung {
-                pair: "cylinder×sphere",
-                why: "the sphere's centre stands off the cylinder's axis, a transversal pose \
-                      the general rung's cylinder×sphere arm marches and fits, so this is a \
-                      routing and not a frontier",
-            });
-        }
-    };
-
-    // 2-3. The degeneracy guard, on the FULL convention: two questions,
-    // two margins. Neither is implied by the reach trilean below.
-    for (name, margin, radius, what) in [
-        (
-            "cs_cylinder_radius",
-            r,
-            SectionRadius::Cylinder,
-            "the cylinder's radius is not definitely positive",
-        ),
-        (
-            "cs_sphere_radius",
-            big_r,
-            SectionRadius::Sphere,
-            "the sphere's radius is not definitely positive",
-        ),
-    ] {
-        match decide(name, Margin::of(margin), band)
-            .map_err(|diag| SectionError::RadiusEscalated { radius, diag })?
-        {
-            Sign::Positive => {}
-            Sign::Zero | Sign::Negative => {
-                return Err(SectionError::DegenerateOperand { what });
-            }
-        }
-    }
-
-    // 4. Reach: does the sphere's wall get out to the cylinder's?
-    match decide("cs_wall_reach", Margin::of(big_r - r), band).map_err(SectionError::Escalated)? {
-        // Both factors are DEFINITELY POSITIVE here, so the sqrt's
-        // argument is: `R − r` by this trilean's own `Positive`, and
-        // `R + r` as the sum of two definitely-positive radii by rows
-        // 2 and 3. The FACTORED form is what keeps an interval
-        // evaluation tight — `R² − r²` widens both squares before
-        // cancelling them, exactly the `sphere_sphere_section`
-        // precedent.
-        Sign::Positive => Ok((
-            CylinderSphereSection::TwoCircles {
+    let (center, axis, r, big_r) = (pose.center, pose.axis, pose.r, pose.big_r);
+    Ok((
+        match wall.sign {
+            // The factored form keeps an interval evaluation tight: both
+            // factors are definitely positive, `R − r` by the reach and
+            // `R + r` as the sum of two guarded radii.
+            Sign::Positive => CylinderSphereSection::TwoCircles {
                 center,
                 axis,
                 radius: r,
                 station: ((big_r - r) * (big_r + r)).sqrt(),
             },
-            coaxial,
-        )),
-        Sign::Zero => Ok((
-            CylinderSphereSection::TangentCircle {
+            Sign::Zero => CylinderSphereSection::TangentCircle {
                 center,
                 axis,
                 radius: r,
             },
-            coaxial,
-        )),
-        Sign::Negative => Ok((CylinderSphereSection::Empty, coaxial)),
-    }
+            Sign::Negative => CylinderSphereSection::Empty,
+        },
+        coaxial,
+    ))
 }
 
 // ---------------------------------------------------------------------

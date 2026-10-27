@@ -1387,7 +1387,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // The curved kinds the extent scan leaves: every torus,
         // cylinder and cone face's pairs, certified per pair by the
         // section certificate or refused typed.
-        section_extent_pass(a, b, &red.rest_contacts, band)?;
+        section_extent_pass(a, b, &red.sections, &red.rest_contacts, band)?;
         return fallback(op, &mut red, a, b, &glued, band, tol)
             .map(|result| Joined::Answered(Box::new(result)));
     }
@@ -1458,6 +1458,7 @@ fn interior_loop_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let pairs = section_pairs(
         a,
         b,
+        &red.sections,
         band,
         SectionPath::Crossings,
         Exempt::Glued(&glued),
@@ -1880,16 +1881,24 @@ fn overlap_reach<T: Real>(box_a: &bvh::Aabb, box_b: &bvh::Aabb) -> super::sectio
 fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     (a, fa): (&Body<T>, &FaceRow<T>),
     (b, fb): (&Body<T>, &FaceRow<T>),
+    sections: &super::section_table::SectionTable<T>,
     band: Band,
     evented: bool,
     charts: &mut ChartCache,
 ) -> Result<Result<Vec<super::section_cert::Cleared>, SectionRefusal>, BooleanError> {
-    use super::section_cert::{Side, certify, classify};
+    use super::section_cert::{Side, certify, classify, of_pair_section};
     if has_lone_vertex(a, fa.face) || has_lone_vertex(b, fb.face) {
         return Ok(Err(SectionRefusal::LoneVertex));
     }
-    let reach = overlap_reach(&fa.bbox, &fb.bbox);
-    let section = classify(&fa.surface, &fb.surface, reach, band);
+    let section = match sections.held((a, fa.face), (b, fb.face)) {
+        Some(held) => of_pair_section(held),
+        None => classify(
+            &fa.surface,
+            &fb.surface,
+            overlap_reach(&fa.bbox, &fb.bbox),
+            band,
+        ),
+    };
     let mut torn = None;
     let verdict = certify(
         &section,
@@ -1975,6 +1984,7 @@ fn face_boundary_meets<T: Decide + Bounds>(
 fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
     (a, a_rows): (&Body<T>, impl IntoIterator<Item = &'r FaceRow<T>>),
     (b, b_rows): (&Body<T>, impl IntoIterator<Item = &'r FaceRow<T>>),
+    sections: &super::section_table::SectionTable<T>,
     band: Band,
     charts: &mut ChartCache,
     admit: impl Fn(&FaceRow<T>, &FaceRow<T>) -> bool,
@@ -2002,7 +2012,14 @@ fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
             ) {
                 continue;
             }
-            let verdict = pair_verdict((a, fa), (b, fb), band, evented(fa.face, fb.face), charts)?;
+            let verdict = pair_verdict(
+                (a, fa),
+                (b, fb),
+                sections,
+                band,
+                evented(fa.face, fb.face),
+                charts,
+            )?;
             let refused = verdict.is_err();
             out.push(PairVerdict {
                 a_face: fa.face,
@@ -2035,6 +2052,7 @@ fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
 pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
+    sections: &super::section_table::SectionTable<T>,
     band: Band,
     path: SectionPath,
     exempt: Exempt<'_>,
@@ -2045,6 +2063,7 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
     walk_pairs(
         (a, &a_rows),
         (b, &b_rows),
+        sections,
         band,
         &mut ChartCache::default(),
         |fa, fb| path.scope(&fa.surface, &fb.surface) && !exempt.answers(fa.face, fb.face),
@@ -2104,12 +2123,14 @@ impl Exempt<'_> {
 fn section_extent_pass<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
+    sections: &super::section_table::SectionTable<T>,
     rest: &[(FaceKey, FaceKey)],
     band: Band,
 ) -> Result<(), BooleanError> {
     let pairs = section_pairs(
         a,
         b,
+        sections,
         band,
         SectionPath::Fallback,
         Exempt::Rest(rest),
@@ -2154,6 +2175,7 @@ pub(crate) fn section_report<T: Decide + Bounds + crate::props::AtRestPolicy>(
     section_pairs(
         a,
         b,
+        &red.sections,
         band,
         SectionPath::Crossings,
         Exempt::Nothing,
@@ -2179,6 +2201,7 @@ pub(crate) fn no_crossings_section_report(
     section_pairs(
         a,
         b,
+        &super::section_table::SectionTable::default(),
         Band::linear(tol)?,
         SectionPath::Fallback,
         Exempt::Nothing,
@@ -2208,7 +2231,13 @@ pub(crate) fn no_crossings_certificates(
     let recuts = sphere_extent_scan(a, b, no_rest, band)?;
     let asked = recuts.rechart.len() + recuts.cut_in.len();
     if asked == 0 {
-        section_extent_pass(a, b, no_rest, band)?;
+        section_extent_pass(
+            a,
+            b,
+            &super::section_table::SectionTable::default(),
+            no_rest,
+            band,
+        )?;
     }
     Ok(asked)
 }
@@ -7068,6 +7097,7 @@ fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
         Operand::A => walk_pairs(
             (x, on_sphere),
             (y, [y_row]),
+            &super::section_table::SectionTable::default(),
             band,
             charts,
             |_, _| true,
@@ -7079,6 +7109,7 @@ fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
         Operand::B => walk_pairs(
             (y, [y_row]),
             (x, on_sphere),
+            &super::section_table::SectionTable::default(),
             band,
             charts,
             |_, _| true,

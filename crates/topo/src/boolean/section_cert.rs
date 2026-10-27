@@ -724,31 +724,13 @@ pub(crate) fn classify<T: Decide>(
                 ..
             },
         ) => sphere_sphere(c1, r1, c2, r2, band),
-        (
-            &S::Sphere { center, radius, .. },
-            &S::Cylinder {
-                origin,
-                axis,
-                radius: rc,
-                ..
-            },
-        ) => sphere_cylinder(center, radius, origin, unit(axis), rc, band),
-        (
-            &S::Cylinder {
-                origin,
-                axis,
-                radius: rc,
-                ..
-            },
-            &S::Sphere { center, radius, .. },
-        ) => swapped(sphere_cylinder(
-            center,
-            radius,
-            origin,
-            unit(axis),
-            rc,
-            band,
-        )),
+        (S::Sphere { .. }, S::Cylinder { .. }) | (S::Cylinder { .. }, S::Sphere { .. }) => {
+            match geom_brep::pair_section(f, g, band) {
+                Ok(geom_brep::SectionRead::Built(section)) => of_pair_section(&Ok(section)),
+                Ok(geom_brep::SectionRead::Elsewhere(_)) => Section::Intractable,
+                Err(e) => of_pair_section(&Err(e)),
+            }
+        }
         (S::Nurbs(patch), &S::Plane { origin, normal, .. })
         | (&S::Plane { origin, normal, .. }, S::Nurbs(patch)) => {
             nurbs_plane(patch, origin, unit(normal), band)
@@ -2629,58 +2611,48 @@ fn sphere_sphere<T: Decide>(c1: Point3<T>, r1: T, c2: Point3<T>, r2: T, band: Ba
     }
 }
 
-/// **Sphere × cylinder** (the sphere is `F`).
-fn sphere_cylinder<T: Decide>(
-    cs: Point3<T>,
-    rho: T,
-    o: Point3<T>,
-    d: Vec3<T>,
-    rc: T,
-    band: Band,
+/// **A pair the section value builds** ([`geom_brep::pair_section`]),
+/// classified from it, its first surface `F`: a tangency it decided is a
+/// [`Touch`] at the point where the section is one point and R-tan
+/// otherwise; an escalated pose R-tan, named by the decision; a pose
+/// refused on an operand's convention R-reach. Every other section is its
+/// components, each with whether it winds about each carrier and its
+/// witness, certified single when there is one.
+pub(super) fn of_pair_section<T: Decide>(
+    read: &Result<geom_brep::PairSection<T>, geom_brep::SectionError>,
 ) -> Section<T> {
-    let w = cs - o;
-    let foot = o + d * w.dot(d);
-    let (perp, e) = perp_to(w, d);
-    let q_min = (e - rc).abs();
-    const REACH: &str = "section_sphere_cylinder_reach";
-    let [reach, girdle] = match signs(
-        [
-            (REACH, rho - q_min),
-            ("section_sphere_cylinder_girdle", e + rc - rho),
-        ],
-        band,
-    ) {
-        Ok(x) => x,
-        // The touch is on the nearest ruling, at the foot's height: the
-        // loop's centre, which the reflections through the plane of the
-        // axis and the centre and across the foot fix. It is the extreme
-        // of the distance from the axis over the sphere only while the
-        // girdle margin, `2·min(e, ρc)` there, is decided: a ball about
-        // the axis touches the wall all round. A girdle pinch is not a
-        // touch.
-        Err(tan) => {
-            if tan.name == REACH
-                && sign(
-                    "section_sphere_cylinder_girdle",
-                    Margin::of(e + rc - rho),
-                    band,
-                ) != Some(Sign::Positive)
-            {
-                return tan.into();
-            }
-            return tan.touch(&[REACH], || foot + perp / e * rc);
+    use geom_brep::{ComponentShape, SectionError};
+    let section = match read {
+        Ok(section) => section,
+        Err(SectionError::Escalated(diag) | SectionError::RadiusEscalated { diag, .. }) => {
+            return Section::Tangent(diag.predicate.unwrap_or("cs_pose"));
         }
+        Err(_) => return Section::Intractable,
     };
-    match (reach, girdle) {
-        (false, _) => none(),
-        // The ball holds every ruling's nearest point: two loops, each
-        // encircling the cylinder.
-        (true, false) => essential_pair(false, true),
-        // One loop, witnessed on the ruling nearest the centre.
-        (true, true) => {
-            let t = ((rho - q_min) * (rho + q_min)).sqrt();
-            lone(foot + perp / e * rc + d * t)
-        }
+    let components = section.components();
+    if let Some(zero) = section.tangency() {
+        return match components {
+            [c] if c.shape == ComponentShape::Point => match c.witness {
+                Some(at) => Section::Touch(Touch {
+                    name: zero.decision,
+                    at,
+                }),
+                None => Section::Tangent(zero.decision),
+            },
+            _ => Section::Tangent(zero.decision),
+        };
+    }
+    Section::Components {
+        parts: components
+            .iter()
+            .map(|c| Component {
+                unbounded: false,
+                essential_f: c.winds[0],
+                essential_g: c.winds[1],
+                witness: c.witness,
+            })
+            .collect(),
+        single: components.len() == 1,
     }
 }
 

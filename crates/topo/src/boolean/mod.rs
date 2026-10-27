@@ -107,6 +107,7 @@ mod node;
 mod ops;
 pub(crate) use ops::{AtRestRefusal, at_rest_refusal};
 pub(crate) mod section_cert;
+mod section_table;
 pub(crate) use ops::volume_backstop;
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) use ops::{ChartCache, section_report};
@@ -1293,6 +1294,8 @@ pub(crate) struct GluedPairs<T: Real> {
     /// What the glue door read of each pair it left in band,
     /// `(A face, B face)` ([`Glue::in_band`]).
     in_band: std::collections::BTreeMap<(FaceKey, FaceKey), DoorReading>,
+    /// The operation's section table ([`section_table`]).
+    pub(crate) sections: section_table::SectionTable<T>,
 }
 
 impl<T: Real> Default for GluedPairs<T> {
@@ -1303,6 +1306,7 @@ impl<T: Real> Default for GluedPairs<T> {
             one_sided: std::collections::BTreeMap::new(),
             extent: std::collections::BTreeMap::new(),
             in_band: std::collections::BTreeMap::new(),
+            sections: section_table::SectionTable::default(),
         }
     }
 }
@@ -1803,6 +1807,7 @@ impl<T: Real> GluedPairs<T> {
                 .iter()
                 .map(|p| ((p.a, p.b), p.reading))
                 .collect(),
+            sections: section_table::SectionTable::default(),
         }
     }
 
@@ -2340,6 +2345,9 @@ pub struct BooleanReduction<T: Real> {
     /// Each pair of pierces one ring serves, decided one point
     /// ([`RingTie`]).
     pub(crate) ring_ties: Vec<RingTie>,
+    /// The operation's section table, built at the glue door
+    /// ([`section_table`]).
+    pub(crate) sections: section_table::SectionTable<T>,
 }
 
 /// A cross-operand face pair the coincidence ladder settled one
@@ -2676,6 +2684,46 @@ thread_local! {
 #[cfg(feature = "sweep-testing")]
 pub fn forget_branches(on: bool) {
     FORGET_BRANCHES.with(|f| f.set(on));
+}
+
+/// **Why a germ pair's section was not built**
+/// ([`BooleanError::GermSectionUnbuilt`]).
+#[derive(Clone, Debug)]
+pub enum SectionUnbuilt {
+    /// The pair's section refused at the glue door.
+    Refused(geom_brep::SectionError),
+    /// The section did not carry.
+    Uncarried(geom_brep::CarryError),
+}
+
+impl core::fmt::Display for SectionUnbuilt {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use geom_brep::CarryError;
+        match self {
+            Self::Refused(e) => e.fmt(f),
+            Self::Uncarried(CarryError::Unminted(why)) => write!(
+                f,
+                "{why}. Recourse: move one face so the surfaces clearly cross or clearly part"
+            ),
+            Self::Uncarried(CarryError::NoLane { scalar }) => write!(
+                f,
+                "the section is marched on the general rung, which is written at f64 and not at \
+                 {scalar}. Recourse: run the operation at f64"
+            ),
+            Self::Uncarried(CarryError::March(e)) => {
+                write!(f, "{}", e.render(geom_brep::recourse::Reading::Build))
+            }
+            Self::Uncarried(CarryError::Site(geom_brep::SiteRefusal::Escalated(diag))) => {
+                write!(
+                    f,
+                    "a component of the section could not be told from another: {diag}"
+                )
+            }
+            Self::Uncarried(
+                CarryError::Site(geom_brep::SiteRefusal::Desync(what)) | CarryError::Desync(what),
+            ) => write!(f, "{what}, which is a defect in the kernel"),
+        }
+    }
 }
 
 /// Typed failure of [`boolean_reduce`]; the operands are never touched.
@@ -3588,6 +3636,25 @@ pub enum BooleanError {
         /// Its kind — the B half of the germ pair.
         b_kind: geom::SurfaceKind,
     },
+    /// **A germ pair whose section the Boolean cannot build**: the pair's
+    /// section is held by the operation's section table
+    /// (`boolean::section_table`, the C5 section value), and either it
+    /// refused at the glue door (an operand's radius not definitely
+    /// positive) or it did not carry: a tangent component, which C7
+    /// constructs and the section only classifies; a scalar at which the
+    /// general rung is not marched; or the march's own refusal.
+    GermSectionUnbuilt {
+        /// The A-side germ face.
+        a_face: FaceKey,
+        /// Its kind.
+        a_kind: geom::SurfaceKind,
+        /// The B-side germ face.
+        b_face: FaceKey,
+        /// Its kind.
+        b_kind: geom::SurfaceKind,
+        /// Why.
+        why: SectionUnbuilt,
+    },
     /// **A germ pair whose section is an open conic**: a plane cutting a
     /// cone face in a parabola (parallel to a generator) or a hyperbola
     /// (meeting both nappes). The section table serves either in closed
@@ -4182,6 +4249,8 @@ pub enum BooleanErrorKind {
     SpheresMeet,
     /// [`BooleanError::GermFrameUnsupported`].
     GermFrameUnsupported,
+    /// [`BooleanError::GermSectionUnbuilt`].
+    GermSectionUnbuilt,
     /// [`BooleanError::GermSectionOpenConic`].
     GermSectionOpenConic,
     /// [`BooleanError::GermSectionSpiric`].
@@ -4437,6 +4506,7 @@ impl BooleanError {
             Self::RechartedRowUnstated { .. } => BooleanErrorKind::RechartedRowUnstated,
             Self::SpheresMeet { .. } => BooleanErrorKind::SpheresMeet,
             Self::GermFrameUnsupported { .. } => BooleanErrorKind::GermFrameUnsupported,
+            Self::GermSectionUnbuilt { .. } => BooleanErrorKind::GermSectionUnbuilt,
             Self::GermSectionOpenConic { .. } => BooleanErrorKind::GermSectionOpenConic,
             Self::GermSectionSpiric { .. } => BooleanErrorKind::GermSectionSpiric,
             Self::NodeUnbuilt { .. } => BooleanErrorKind::NodeUnbuilt,
@@ -4821,6 +4891,18 @@ impl core::fmt::Display for BooleanError {
                 },
                 refusal_routes::SPHERES
                     .recourse(verdict.arm(), geom_brep::recourse::Reading::Build)
+            ),
+            Self::GermSectionUnbuilt {
+                a_kind,
+                b_kind,
+                why,
+                ..
+            } => write!(
+                f,
+                "the Boolean cannot build the section where the first operand's {} face meets \
+                 the second operand's {} face: {why}",
+                kind_word(*a_kind),
+                kind_word(*b_kind),
             ),
             Self::GermFrameUnsupported { a_kind, b_kind, .. } => write!(
                 f,
@@ -5812,10 +5894,10 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         Verdicts::Decided => verify_declared_contacts(a_operand, b_operand, decls, band)?,
         Verdicts::Given => given_verdicts(a_operand, b_operand, decls, band)?,
     };
-    verified
-        .coincidences
-        .extend(glue::frame_rows(a_operand, b_operand, decls, band)?);
-    let declared = GluedPairs::build(decls, verified, a_operand, b_operand, band)?;
+    let (sections, rows) = glue::section_door(a_operand, b_operand, decls, T::ssi_lane(), band)?;
+    verified.coincidences.extend(rows);
+    let mut declared = GluedPairs::build(decls, verified, a_operand, b_operand, band)?;
+    declared.sections = sections;
     reduce::gate_operand_pairs(
         a_operand,
         b_operand,
@@ -6033,6 +6115,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             .filter_map(|(_, plan)| plan.as_ref())
             .collect();
         let held = vtxfac::faces_holding_pierce(
+            &declared.sections,
             piercing_body,
             pierced_body,
             &box_holds,
@@ -6428,6 +6511,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         glued,
         tangent_lines: declared.verified.lines.clone(),
         pending,
+        sections: declared.sections,
     })
 }
 
@@ -9426,6 +9510,7 @@ mod tests {
                 BooleanErrorKind::RechartedRowUnstated => "RechartedRowUnstated",
                 BooleanErrorKind::SpheresMeet => "SpheresMeet",
                 BooleanErrorKind::GermFrameUnsupported => "GermFrameUnsupported",
+                BooleanErrorKind::GermSectionUnbuilt => "GermSectionUnbuilt",
                 BooleanErrorKind::GermSectionOpenConic => "GermSectionOpenConic",
                 BooleanErrorKind::GermSectionSpiric => "GermSectionSpiric",
                 BooleanErrorKind::NodeUnbuilt => "NodeUnbuilt",

@@ -138,7 +138,7 @@ use std::rc::Rc;
 use geom::{Collocation, Curve3, FitError, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::Bounds;
-use geom_core::{Band, Indeterminate, Margin, MarginDiag, NOT_YET_ENDING, Point3, Real, SizedPass};
+use geom_core::{Band, Indeterminate, MarginDiag, NOT_YET_ENDING, Point3, Real, SizedPass};
 
 use crate::certify::CertCheck;
 use crate::recourse::{
@@ -352,14 +352,22 @@ pub enum SsiError {
     /// internally (`d + r = R`, the cylinder inside the sphere touching
     /// it — around a whole circle when coaxial with `r = R`, at one point
     /// off-axis, where the pair still crosses elsewhere, as Viviani's
-    /// figure-eight does). Decided by the pair's own tangency gap before
-    /// any rung runs (`ssi_cs_tangency`, C5's within-pair degeneracy
-    /// rule): the C7 regime, like [`SsiError::TransversalityBand`],
-    /// reached by a different decision whose margin is the gap from the
-    /// nearer tangent pose.
+    /// figure-eight does). Decided by the pair's pose before any rung
+    /// runs (`cs_wall_reach`, `cs_near_reach` or `cs_far_reach`,
+    /// [`crate::CylinderSpherePose`]; C5's within-pair degeneracy rule):
+    /// the C7 regime, like [`SsiError::TransversalityBand`], reached by a
+    /// different decision whose margin is the reach past the tangent
+    /// pose.
     PairTangent {
-        /// The verdict on the gap, with the margin it classified.
+        /// The verdict on the reach, with the margin it classified.
         verdict: Refused,
+    },
+    /// A cylinder × sphere operand's radius is decided zero or negative:
+    /// refused by the pair's pose before any rung, as the section table
+    /// refuses it ([`crate::CylinderSpherePose`]).
+    RadiusNotPositive {
+        /// Whose radius.
+        radius: crate::SectionRadius,
     },
     /// An operand's stored datum is not a finite number, so the operand
     /// describes no surface. Refused at the door, as that operand's own
@@ -816,6 +824,11 @@ impl core::fmt::Display for SsiError {
                  (TangentIntersection), which the march does not pass",
                 verdict.margin()
             ),
+            Self::RadiusNotPositive { radius } => write!(
+                f,
+                "ssi: {} reads no, so the pair has no section to trace",
+                radius.subject()
+            ),
             Self::OperandNotFinite { operand, datum } => write!(
                 f,
                 "ssi: the {operand}'s {datum} is not a finite number, so it describes no \
@@ -1264,6 +1277,29 @@ impl core::fmt::Display for SsiError {
 impl std::error::Error for SsiError {}
 
 impl SsiError {
+    /// The march's refusal of a cylinder × sphere pose that was not
+    /// decided: a radius decided not positive, or a pose question in the
+    /// band.
+    #[must_use]
+    pub fn of_pose(refusal: crate::PoseRefusal) -> Self {
+        use crate::{CsDecision, PoseRefusal};
+        match refusal {
+            PoseRefusal::Radius {
+                radius,
+                verdict: Err(cause),
+            } => TraceDecision::PairRadius(radius).escalated(cause),
+            PoseRefusal::Radius { radius, .. } => Self::RadiusNotPositive { radius },
+            PoseRefusal::Undecided {
+                decision: CsDecision::Coaxial,
+                diag,
+            } => TraceDecision::PairCoaxial.escalated(diag),
+            PoseRefusal::Undecided {
+                decision: CsDecision::WallReach | CsDecision::NearReach | CsDecision::FarReach,
+                diag,
+            } => TraceDecision::PairTangency.escalated(diag),
+        }
+    }
+
     /// The ending this refusal's decision gives it, read at `reading`
     /// (D4 ¶1 (i)). Every arm has one: the match is exhaustive, so a new
     /// arm names its decision here before it compiles.
@@ -1279,6 +1315,9 @@ impl SsiError {
                 crate::certify::recourse(CertCheck::Transversality, verdict.arm(), reading)
             }
             Self::PairTangent { verdict } => PAIR_TANGENCY.recourse(verdict.arm(), reading),
+            Self::RadiusNotPositive { radius } => radius
+                .sized()
+                .recourse(RefusedArm::SignCertain(None), reading),
             Self::Escalated { decision, cause } => {
                 SsiDecision::Trace(*decision).ending(cause, reading)
             }
@@ -2220,9 +2259,17 @@ pub enum TraceDecision {
     /// `ssi_closure_tangent`: it came back running the way it left
     /// ([`SsiError::SelfCrossingLocus`] is its verdict).
     ClosureTangent,
-    /// `ssi_cs_tangency`: the cylinder × sphere pair's gap from a
-    /// tangent pose ([`SsiError::PairTangent`] is its verdict).
+    /// `cs_wall_reach`, `cs_near_reach`, `cs_far_reach`: the cylinder ×
+    /// sphere pose's reach past a tangent pose ([`SsiError::PairTangent`]
+    /// is its verdict).
     PairTangency,
+    /// `cs_coaxial`: whether the sphere's centre lies on the cylinder's
+    /// axis.
+    PairCoaxial,
+    /// `cs_cylinder_radius`, `cs_sphere_radius`: whether an operand's
+    /// radius is positive ([`SsiError::RadiusNotPositive`] is its
+    /// verdict).
+    PairRadius(crate::SectionRadius),
     /// `ssi_boundary_on_plane` and `ssi_boundary_corner`: how far a
     /// side or a corner of the wall lies from the plane. Every arm is
     /// reported (a region in the band), so only a poisoned distance
@@ -2254,6 +2301,8 @@ impl TraceDecision {
             Self::ClosureReturn => "the trace has come back to its start",
             Self::ClosureTangent => "the trace came back to its start running the way it left",
             Self::PairTangency => "the sphere and the cylinder are tangent",
+            Self::PairCoaxial => "the sphere's centre lies on the cylinder's axis",
+            Self::PairRadius(radius) => radius.subject(),
             Self::BoundarySection => "the wall's boundary lies on the plane",
         }
     }
@@ -2287,6 +2336,8 @@ impl TraceDecision {
             }
             Self::Transversality => crate::certify::recourse(CertCheck::Transversality, arm, at),
             Self::PairTangency => PAIR_TANGENCY.recourse(arm, at),
+            Self::PairCoaxial => PAIR_COAXIAL.recourse(arm, at),
+            Self::PairRadius(radius) => radius.sized().recourse(arm, at),
             Self::StepProgress | Self::ClosureTangent | Self::BranchOpenEnd
                 if cause.margin.is_invalid() =>
             {
@@ -2467,6 +2518,16 @@ const PAIR_TANGENCY: SizedDecision = SizedDecision {
     no_size: None,
 };
 
+/// The cylinder × sphere coaxiality (`cs_coaxial`): the sphere centre's
+/// distance from the cylinder's axis, which passes either way decided.
+const PAIR_COAXIAL: SizedDecision = SizedDecision {
+    lever: "move the sphere's centre onto the cylinder's axis, or clearly off it",
+    size: "axis offset",
+    passes: SizedPass::Positive,
+    side: RefusedSide::Lever,
+    no_size: None,
+};
+
 /// `surface`, the door's `operand`, refused when one of its stored data
 /// is not a finite number ([`SsiError::OperandNotFinite`]): an analytic
 /// kind's fields, or a spline's control points ([`finite_net`]).
@@ -2508,80 +2569,76 @@ fn finite_net(operand: &'static str, net: &NurbsSurface<f64>) -> Result<(), SsiE
 /// **cylinder × sphere** — the ℝ³ implicit-pair arm (2×3 SVD, module
 /// docs). Shape (iv)'s planted small loop lives here.
 ///
+/// The pair's pose is decided first, once, by the section value's own
+/// reading ([`crate::CylinderSpherePose::decide`]), and the march reads
+/// it ([`march_cylinder_sphere`]).
+///
 /// # Errors
 ///
 /// Any [`SsiError`]; in particular
 /// [`SsiError::ExhaustivenessInconclusive`] when the domain cannot be
 /// proved exhausted at the floor, [`SsiError::PairTangent`] when the
-/// pair is tangent somewhere to tolerance, [`SsiError::TransversalityBand`]
-/// when a march meets a near-tangent crossing, and
-/// [`SsiError::OperandNotFinite`] for an operand that is not finite.
+/// pose is tangent, [`SsiError::RadiusNotPositive`] for a radius not
+/// definitely positive, [`SsiError::TransversalityBand`] when a march
+/// meets a near-tangent crossing, and [`SsiError::OperandNotFinite`] for
+/// an operand that is not finite.
 pub fn cylinder_sphere_ssi(
     a: &Surface<f64>,
     b: &Surface<f64>,
     domain: SsiDomain,
     band: Band,
 ) -> Result<SsiOutcome, SsiError> {
-    match (a, b) {
+    let wrong = || SsiError::WrongLane {
+        expected: "a cylinder and a sphere in ℝ³ on their implicit pair",
+    };
+    if !matches!(
+        (a, b),
         (Surface::Cylinder { .. }, Surface::Sphere { .. })
-        | (Surface::Sphere { .. }, Surface::Cylinder { .. }) => {}
-        _ => {
-            return Err(SsiError::WrongLane {
-                expected: "a cylinder and a sphere in ℝ³ on their implicit pair",
-            });
-        }
+            | (Surface::Sphere { .. }, Surface::Cylinder { .. })
+    ) {
+        return Err(wrong());
     }
-    // ---- C5's rule: the within-pair degeneracy trilean runs BEFORE
-    // any rung. A sphere is tangent to a cylinder when the distance
-    // from its centre to the cylinder's surface equals its radius —
-    // |d − r| = R for a sphere against the wall, d + r = R for a
-    // cylinder inside the sphere touching it (around a circle when
-    // coaxial with r = R; at one point off-axis, where the pair still
-    // crosses elsewhere). Both are C7 constructions, and classifying
-    // them here rather than
-    // discovering them mid-march is not an optimization: near a
-    // tangency the exhaustiveness subdivision's surviving set is a
-    // three-dimensional shell rather than a curve, so a marcher that
-    // "found out later" would first exhaust its cell budget. ----
     let (sphere, cyl) = match (a, b) {
-        (Surface::Sphere { .. }, Surface::Cylinder { .. }) => (a, b),
+        (Surface::Sphere { .. }, _) => (a, b),
         _ => (b, a),
     };
     finite_operand("sphere", sphere)?;
     finite_operand("cylinder", cyl)?;
     domain.check()?;
-    let (
-        Surface::Sphere { center, radius, .. },
-        &Surface::Cylinder {
-            origin,
-            axis,
-            radius: r,
-            ..
-        },
-    ) = (sphere, cyl)
-    else {
-        return Err(SsiError::WrongLane {
-            expected: "a cylinder and a sphere in ℝ³ on their implicit pair",
+    let pose = crate::CylinderSpherePose::decide(a, b, band)
+        .ok_or_else(wrong)?
+        .map_err(SsiError::of_pose)?;
+    march_cylinder_sphere(&pose, domain, band)
+}
+
+/// **The ℝ³ march of a decided cylinder × sphere pose** over `domain`,
+/// in the order the pose was asked of.
+///
+/// A tangent pose refuses before any rung ([`SsiError::PairTangent`]):
+/// a tangency is C7's construction, and near one the exhaustiveness
+/// subdivision's surviving set is a three-dimensional shell rather than
+/// a curve, so a marcher that found out later would first exhaust its
+/// cell budget.
+///
+/// # Errors
+///
+/// [`cylinder_sphere_ssi`]'s, but the pose's own.
+pub fn march_cylinder_sphere(
+    pose: &crate::CylinderSpherePose<f64>,
+    domain: SsiDomain,
+    band: Band,
+) -> Result<SsiOutcome, SsiError> {
+    let (a, b) = pose.operands();
+    finite_operand("sphere", pose.sphere())?;
+    finite_operand("cylinder", pose.cylinder())?;
+    domain.check()?;
+    if let Some(zero) = pose.tangency() {
+        return Err(SsiError::PairTangent {
+            verdict: Refused::Zero(crate::recourse::Classified {
+                margin: zero.margin,
+                band,
+            }),
         });
-    };
-    let (big_r, c) = (*radius, *center);
-    let q = c - origin;
-    let d = (q - axis * q.dot(axis)).norm();
-    let tangency = Real::min(((d - r).abs() - big_r).abs(), (d + r - big_r).abs());
-    match crate::dihedral::decide_reported("ssi_cs_tangency", Margin::of(tangency), band) {
-        Ok(geom_core::Decided {
-            sign: geom_core::Sign::Positive | geom_core::Sign::Negative,
-            ..
-        }) => {}
-        Ok(geom_core::Decided {
-            sign: geom_core::Sign::Zero,
-            margin,
-        }) => {
-            return Err(SsiError::PairTangent {
-                verdict: Refused::Zero(crate::recourse::Classified { margin, band }),
-            });
-        }
-        Err(diag) => return Err(TraceDecision::PairTangency.escalated(diag)),
     }
 
     let sys = ImplicitPairR3 { a, b };
@@ -3893,7 +3950,7 @@ mod ending_tests {
     }
 
     /// How many arms [`SsiError`] has: [`arm`]'s numbering.
-    const ARMS: usize = 45;
+    const ARMS: usize = 46;
 
     /// Each arm's number. No wildcard: a new arm does not compile until
     /// it is numbered, and [`each_ssi_ending_is_its_decisions`] then
@@ -3945,6 +4002,7 @@ mod ending_tests {
             SsiError::PairBoundaryUnresolved { .. } => 42,
             SsiError::SeedOutsideTube { .. } => 43,
             SsiError::CarrierEnclosure(_) => 44,
+            SsiError::RadiusNotPositive { .. } => 45,
         }
     }
 
@@ -3991,6 +4049,12 @@ mod ending_tests {
                 },
             ),
             ("pair tangent", SsiError::PairTangent { verdict: zero }),
+            (
+                "radius",
+                SsiError::RadiusNotPositive {
+                    radius: crate::SectionRadius::Sphere,
+                },
+            ),
             (
                 "operand",
                 SsiError::OperandNotFinite {

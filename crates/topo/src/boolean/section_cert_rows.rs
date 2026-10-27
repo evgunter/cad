@@ -615,7 +615,7 @@ fn sphere_pairs_every_class() {
     );
     // Viviani's pinch: tangent.
     let s = classify(&ball, &cylinder(p(0.5, 0.0, -2.0), Vec3::unit_z(), 0.5));
-    assert_eq!(tangent(&s), "section_sphere_cylinder_girdle");
+    assert_eq!(tangent(&s), "cs_far_reach");
 }
 
 // -------------------------------------------------------------------
@@ -788,21 +788,13 @@ fn a_touch_is_the_centre_of_every_loop_its_margin_admits() {
         ("ball deep in a wall", 1.0, 0.02, 0.98),
     ] {
         let wall = cylinder(origin, Vec3::unit_z(), rc);
-        let t = touch_both_ways(
-            &sphere(p(e, 0.0, 0.0), rho),
-            &wall,
-            "section_sphere_cylinder_reach",
-        );
+        let t = touch_both_ways(&sphere(p(e, 0.0, 0.0), rho), &wall, "cs_near_reach");
         assert!(
             (t.at - p(rc, 0.0, 0.0)).norm() < 1e-12,
             "{label}: tangent at {:?}",
             t.at
         );
-        let t = touch_both_ways(
-            &sphere(p(e, 0.0, 0.0), rho + push),
-            &wall,
-            "section_sphere_cylinder_reach",
-        );
+        let t = touch_both_ways(&sphere(p(e, 0.0, 0.0), rho + push), &wall, "cs_near_reach");
         centres(label, &t, &ball_wall_loop(rc, e, rho + push));
     }
     // Skew walls outside one another, square and 5.7° apart.
@@ -838,10 +830,7 @@ fn pinches_and_undecided_tangencies_are_not_touches() {
     let pl = plane(p(0.0, 0.0, 1.0 - in_sliver()), Vec3::unit_z());
     assert_eq!(tangent(&classify(&ball, &pl)), "section_sphere_plane_reach");
     let girdle = cylinder(p(0.5, 0.0, -2.0), Vec3::unit_z(), 0.5);
-    assert_eq!(
-        tangent(&classify(&ball, &girdle)),
-        "section_sphere_cylinder_girdle"
-    );
+    assert_eq!(tangent(&classify(&ball, &girdle)), "cs_far_reach");
     let fat = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 1.0);
     let inner = cylinder(p(0.0, 0.8, 0.0), Vec3::unit_x(), 0.2);
     assert_eq!(
@@ -860,7 +849,7 @@ fn pinches_and_undecided_tangencies_are_not_touches() {
     let off = 0.3 * band().zero();
     assert_eq!(
         tangent(&classify(&sphere(p(off, 0.0, 0.0), 1.0), &fat)),
-        "section_sphere_cylinder_reach"
+        "cs_wall_reach"
     );
     assert_eq!(
         tangent(&classify(&ball, &sphere(p(off, 0.0, 0.0), 1.0 - off))),
@@ -1296,6 +1285,7 @@ pub(super) fn scan(
     ops::section_pairs(
         a,
         b,
+        &crate::boolean::section_table::SectionTable::default(),
         band(),
         ops::SectionPath::Crossings,
         ops::Exempt::Nothing,
@@ -1507,6 +1497,7 @@ pub(super) fn scan_b(
     ops::section_pairs(
         a,
         b,
+        &crate::boolean::section_table::SectionTable::default(),
         band(),
         ops::SectionPath::Crossings,
         ops::Exempt::Nothing,

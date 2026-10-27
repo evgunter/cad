@@ -86,6 +86,7 @@ pub mod offset;
 pub mod offset_fit;
 pub mod offset_fit_lane;
 pub mod offset_meters;
+pub mod pair_section;
 pub mod patch_bound;
 pub mod pcurve;
 pub mod pcurve_cache;
@@ -177,6 +178,11 @@ pub use offset_fit::{
     certify_offset_over_at, fit_offset, fit_offset_at, recertify_approx, recertify_approx_at,
 };
 pub use offset_fit_lane::{OFFSET_FIT_DOOR_HOLDERS, OffsetFitLane, ScalarList};
+pub use pair_section::{
+    CarriedComponent, CarriedSection, CarryError, ClassCarrier, ComponentShape, CsDecision,
+    CsStance, CylinderSpherePose, FittedCarrier, PairSection, PoseRefusal, SectionComponent,
+    SectionPose, SectionRead, SiteFoot, SiteRefusal, SsiLane, ZeroKind, ZeroVerdict, pair_section,
+};
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
 };
@@ -204,7 +210,7 @@ pub use ssi::{
     SettlingRefusal, SsiBoundaryContact, SsiBranch, SsiCertificate, SsiDecision, SsiDomain,
     SsiError, SsiLimb, SsiOperand, SsiOutcome, SsiTube, StepFault, StepperMode, TraceDecision,
     TubeDegeneracy, boundary_section, certify_rung3, cylinder_sphere_ssi, idealized_trace_r3,
-    plane_nurbs_ssi, trace_plane_nurbs_uncertified,
+    march_cylinder_sphere, plane_nurbs_ssi, trace_plane_nurbs_uncertified,
 };
 pub use tangent::{
     TangentJet, TangentSpanBounds, tangent_certificate_lane, tangent_jet, tangent_span_bounds,

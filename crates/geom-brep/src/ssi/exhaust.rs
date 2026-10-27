@@ -969,11 +969,12 @@ fn sweep_r3(
         if !e1.is_certified() || !e2.is_certified() {
             // The lane gate (`cylinder_sphere_ssi`'s `WrongLane`)
             // admits only kinds in the enclosure roster
-            // (`enclose::has_implicit_enclosure`), so a refused
-            // enclosure here is a degenerate operand, not a missing
-            // arm. A gate that admits a kind outside the roster must
-            // revisit this sentence, or the arm starts blaming a radius
-            // for a missing arm.
+            // (`enclose::has_implicit_enclosure`), and the pair's pose
+            // refuses a radius not definitely positive before any sweep
+            // (`CylinderSpherePose::decide`), so this arm is the
+            // defence behind both. A gate that admits a kind outside the
+            // roster must revisit this sentence, or the arm starts
+            // blaming a radius for a missing arm.
             return Err(SsiError::UnsupportedCertificate {
                 what: "a degenerate operand — a sphere or cylinder of zero \
                        radius, whose implicit form divides by that radius — \

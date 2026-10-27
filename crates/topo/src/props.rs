@@ -6832,6 +6832,14 @@ pub trait AtRestPolicy: Decide {
     /// ([`crate::ReplaceFaceError::NurbsLaneUnsupported`]).
     fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>>;
 
+    /// **This scalar's general-rung march door, or `None` where it is not
+    /// derived here** — the boolean's section table carries a section on
+    /// the general rung through it ([`geom_brep::PairSection::carry`]).
+    /// The ℝ³ march is written at `f64` alone, so that arm answers
+    /// `Some`; a join whose germs ride such a section refuses at any
+    /// other scalar by name ([`geom_brep::CarryError::NoLane`]).
+    fn ssi_lane() -> Option<geom_brep::SsiLane<Self>>;
+
     /// **This scalar's shell door, or `None` where it may not form the
     /// call** — the ONE seam the `Some` comes from, read by the verb
     /// seat's `verbs::Shell::run_shell` and, above it, the document
@@ -6970,6 +6978,11 @@ impl AtRestPolicy for f64 {
         Some(crate::offset_derive::SectionLane::f64())
     }
 
+    /// The march is written here.
+    fn ssi_lane() -> Option<geom_brep::SsiLane<Self>> {
+        Some(geom_brep::SsiLane::marched())
+    }
+
     /// The decide-with-escalation lane certifies, so it runs the door.
     fn shell_door() -> Option<ShellDoor<Self>> {
         Some(ShellDoor::certified())
@@ -7053,6 +7066,11 @@ impl AtRestPolicy for geom_core::Probe {
         None
     }
 
+    /// The march is written at `f64` alone.
+    fn ssi_lane() -> Option<geom_brep::SsiLane<Self>> {
+        None
+    }
+
     /// The recording scalar is `f64` with a sink attached, so it
     /// carries exactly what `f64` carries — here, the door.
     fn shell_door() -> Option<ShellDoor<Self>> {
@@ -7130,6 +7148,11 @@ impl AtRestPolicy for geom_core::interval::Interval {
 
     /// The march is written at `f64` alone.
     fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
+        None
+    }
+
+    /// The march is written at `f64` alone.
+    fn ssi_lane() -> Option<geom_brep::SsiLane<Self>> {
         None
     }
 
@@ -7220,6 +7243,11 @@ where
 
     /// The march is written at `f64` alone.
     fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
+        None
+    }
+
+    /// The march is written at `f64` alone.
+    fn ssi_lane() -> Option<geom_brep::SsiLane<Self>> {
         None
     }
 
@@ -7321,6 +7349,11 @@ where
 
     /// The march is written at `f64` alone.
     fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
+        None
+    }
+
+    /// The march is written at `f64` alone.
+    fn ssi_lane() -> Option<geom_brep::SsiLane<Self>> {
         None
     }
 

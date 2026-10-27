@@ -514,6 +514,7 @@ fn scan_with(
     ops::section_pairs(
         a,
         b,
+        &crate::boolean::section_table::SectionTable::default(),
         band(),
         ops::SectionPath::Crossings,
         ops::Exempt::Nothing,
