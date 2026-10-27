@@ -347,17 +347,15 @@ pub enum SsiError {
         /// The verdict on `sin θ · arm`, with the margin it classified.
         verdict: Refused,
     },
-    /// A cylinder × sphere pair is tangent somewhere to tolerance:
-    /// externally (`|d − r| = R`, the sphere against the wall) or
-    /// internally (`d + r = R`, the cylinder inside the sphere touching
-    /// it — around a whole circle when coaxial with `r = R`, at one point
-    /// off-axis, where the pair still crosses elsewhere, as Viviani's
-    /// figure-eight does). Decided by the pair's own tangency gap before
-    /// any rung runs (`ssi_cs_tangency`, C5's within-pair degeneracy
-    /// rule): the C7 regime, like [`SsiError::TransversalityBand`],
+    /// An analytic pair is tangent somewhere to tolerance, decided by
+    /// the pair's own tangency gap before any rung runs (C5's
+    /// within-pair degeneracy rule; [`TangentPair`] names each pair's
+    /// poses): the C7 regime, like [`SsiError::TransversalityBand`],
     /// reached by a different decision whose margin is the gap from the
     /// nearer tangent pose.
     PairTangent {
+        /// The pair.
+        pair: TangentPair,
         /// The verdict on the gap, with the margin it classified.
         verdict: Refused,
     },
@@ -809,11 +807,12 @@ impl core::fmt::Display for SsiError {
                  arm = {arm:e} m, {lever}, σ₂ = {sigma_min:e}): the tangency regime \
                  (TangentIntersection), not a locus to march"
             ),
-            Self::PairTangent { verdict } => write!(
+            Self::PairTangent { pair, verdict } => write!(
                 f,
-                "ssi: the sphere and the cylinder are tangent to each other within the \
-                 tolerance (gap {:e} m from a tangent pose): the tangency regime \
-                 (TangentIntersection), which the march does not pass",
+                "ssi: {} are tangent to each other within the tolerance (gap {:e} m from a \
+                 tangent pose): the tangency regime (TangentIntersection), which the march \
+                 does not pass",
+                pair.surfaces(),
                 verdict.margin()
             ),
             Self::OperandNotFinite { operand, datum } => write!(
@@ -1278,7 +1277,7 @@ impl SsiError {
             Self::TransversalityBand { verdict, .. } => {
                 crate::certify::recourse(CertCheck::Transversality, verdict.arm(), reading)
             }
-            Self::PairTangent { verdict } => PAIR_TANGENCY.recourse(verdict.arm(), reading),
+            Self::PairTangent { pair, verdict } => pair.sized().recourse(verdict.arm(), reading),
             Self::Escalated { decision, cause } => {
                 SsiDecision::Trace(*decision).ending(cause, reading)
             }
@@ -2223,6 +2222,9 @@ pub enum TraceDecision {
     /// `ssi_cs_tangency`: the cylinder × sphere pair's gap from a
     /// tangent pose ([`SsiError::PairTangent`] is its verdict).
     PairTangency,
+    /// `ssi_st_tangency`: the sphere × torus pair's gap from a tangent
+    /// pose ([`SsiError::PairTangent`] is its verdict).
+    SphereTorusTangency,
     /// `ssi_boundary_on_plane` and `ssi_boundary_corner`: how far a
     /// side or a corner of the wall lies from the plane. Every arm is
     /// reported (a region in the band), so only a poisoned distance
@@ -2254,6 +2256,7 @@ impl TraceDecision {
             Self::ClosureReturn => "the trace has come back to its start",
             Self::ClosureTangent => "the trace came back to its start running the way it left",
             Self::PairTangency => "the sphere and the cylinder are tangent",
+            Self::SphereTorusTangency => "the sphere and the torus are tangent",
             Self::BoundarySection => "the wall's boundary lies on the plane",
         }
     }
@@ -2287,6 +2290,7 @@ impl TraceDecision {
             }
             Self::Transversality => crate::certify::recourse(CertCheck::Transversality, arm, at),
             Self::PairTangency => PAIR_TANGENCY.recourse(arm, at),
+            Self::SphereTorusTangency => SPHERE_TORUS_TANGENCY.recourse(arm, at),
             Self::StepProgress | Self::ClosureTangent | Self::BranchOpenEnd
                 if cause.margin.is_invalid() =>
             {
@@ -2467,6 +2471,49 @@ const PAIR_TANGENCY: SizedDecision = SizedDecision {
     no_size: None,
 };
 
+/// The sphere × torus tangency decision (`ssi_st_tangency`), as
+/// [`PAIR_TANGENCY`].
+const SPHERE_TORUS_TANGENCY: SizedDecision = SizedDecision {
+    lever: "separate the sphere and the torus, or move one so they are clearly not tangent",
+    ..PAIR_TANGENCY
+};
+
+/// **Which analytic pair a pre-rung tangency gap is about**
+/// ([`SsiError::PairTangent`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TangentPair {
+    /// Cylinder × sphere (`ssi_cs_tangency`): externally `|d − r| = R`,
+    /// the sphere against the wall, or internally `d + r = R`, the
+    /// cylinder inside the sphere touching it — around a whole circle
+    /// when coaxial with `r = R`, at one point off-axis, where the pair
+    /// still crosses elsewhere, as Viviani's figure-eight does.
+    CylinderSphere,
+    /// Sphere × torus (`ssi_st_tangency`): the sphere's radius is one of
+    /// `|dₖ − r|`, `dₖ + r`, `dₖ` its centre's distance from either point
+    /// of the torus's core circle in the centre's meridian plane. A
+    /// common normal at a common point passes through the sphere's
+    /// centre and, being the torus's normal, through the core circle in
+    /// that point's meridian plane, which then holds the centre.
+    SphereTorus,
+}
+
+impl TangentPair {
+    /// The two surfaces, as a refusal names them.
+    fn surfaces(self) -> &'static str {
+        match self {
+            Self::CylinderSphere => "the sphere and the cylinder",
+            Self::SphereTorus => "the sphere and the torus",
+        }
+    }
+
+    fn sized(self) -> &'static SizedDecision {
+        match self {
+            Self::CylinderSphere => &PAIR_TANGENCY,
+            Self::SphereTorus => &SPHERE_TORUS_TANGENCY,
+        }
+    }
+}
+
 /// `surface`, the door's `operand`, refused when one of its stored data
 /// is not a finite number ([`SsiError::OperandNotFinite`]): an analytic
 /// kind's fields, or a spline's control points ([`finite_net`]).
@@ -2578,12 +2625,97 @@ pub fn cylinder_sphere_ssi(
             margin,
         }) => {
             return Err(SsiError::PairTangent {
+                pair: TangentPair::CylinderSphere,
                 verdict: Refused::Zero(crate::recourse::Classified { margin, band }),
             });
         }
         Err(diag) => return Err(TraceDecision::PairTangency.escalated(diag)),
     }
+    implicit_pair_r3(a, b, domain, band)
+}
 
+/// **sphere × torus** — the ℝ³ implicit-pair arm, as
+/// [`cylinder_sphere_ssi`]: the same seeds, march, certificate and
+/// accounting, the torus read through its quartic
+/// (`ssi::enclose`'s and `ssi::certify`'s torus arms).
+///
+/// # Errors
+///
+/// As [`cylinder_sphere_ssi`], the pair's tangency being
+/// [`TangentPair::SphereTorus`]'s; a torus whose `|q|² + R² − r²`
+/// reaches zero in a swept cell (a spindle or horn torus near its axis)
+/// refuses [`SsiError::UnsupportedCertificate`].
+pub fn sphere_torus_ssi(
+    a: &Surface<f64>,
+    b: &Surface<f64>,
+    domain: SsiDomain,
+    band: Band,
+) -> Result<SsiOutcome, SsiError> {
+    const EXPECTED: &str = "a sphere and a torus in ℝ³ on their implicit pair";
+    let (sphere, torus) = match (a, b) {
+        (Surface::Sphere { .. }, Surface::Torus { .. }) => (a, b),
+        (Surface::Torus { .. }, Surface::Sphere { .. }) => (b, a),
+        _ => return Err(SsiError::WrongLane { expected: EXPECTED }),
+    };
+    finite_operand("sphere", sphere)?;
+    finite_operand("torus", torus)?;
+    domain.check()?;
+    let (
+        &Surface::Sphere {
+            center: c,
+            radius: rs,
+            ..
+        },
+        &Surface::Torus {
+            center,
+            axis,
+            major_radius: big,
+            minor_radius: small,
+            ..
+        },
+    ) = (sphere, torus)
+    else {
+        return Err(SsiError::WrongLane { expected: EXPECTED });
+    };
+    // The centre's distances from the two core-circle points in its
+    // meridian plane (`TangentPair::SphereTorus`).
+    let q = c - center;
+    let h = q.dot(axis);
+    let rho = (q - axis * h).norm();
+    let tangency = [rho - big, rho + big]
+        .into_iter()
+        .map(|d| d.hypot(h))
+        .flat_map(|d| [(d - small).abs(), d + small])
+        .map(|reach| (reach - rs.abs()).abs())
+        .fold(f64::INFINITY, Real::min);
+    match crate::dihedral::decide_reported("ssi_st_tangency", Margin::of(tangency), band) {
+        Ok(geom_core::Decided {
+            sign: geom_core::Sign::Positive | geom_core::Sign::Negative,
+            ..
+        }) => {}
+        Ok(geom_core::Decided {
+            sign: geom_core::Sign::Zero,
+            margin,
+        }) => {
+            return Err(SsiError::PairTangent {
+                pair: TangentPair::SphereTorus,
+                verdict: Refused::Zero(crate::recourse::Classified { margin, band }),
+            });
+        }
+        Err(diag) => return Err(TraceDecision::SphereTorusTangency.escalated(diag)),
+    }
+    implicit_pair_r3(a, b, domain, band)
+}
+
+/// The ℝ³ implicit-pair arm past its pair's own gate and tangency
+/// decision: seeds, march, fit and certificate per branch, then the
+/// accounting over their tubes.
+fn implicit_pair_r3(
+    a: &Surface<f64>,
+    b: &Surface<f64>,
+    domain: SsiDomain,
+    band: Band,
+) -> Result<SsiOutcome, SsiError> {
     let sys = ImplicitPairR3 { a, b };
     let slab = domain.slab();
     // Both floors and the march's tolerance are minted over the slab
@@ -3367,7 +3499,11 @@ mod ending_tests {
         let pair = escalated(TraceDecision::PairTangency).ending(Reading::Build);
         assert_eq!(
             pair,
-            SsiError::PairTangent { verdict: zero }.ending(Reading::Build),
+            SsiError::PairTangent {
+                pair: super::TangentPair::CylinderSphere,
+                verdict: zero,
+            }
+            .ending(Reading::Build),
             "the pair's tangency"
         );
         let step = SsiError::StepCollapsed {
@@ -3424,6 +3560,7 @@ mod ending_tests {
             TraceDecision::ClosureReturn,
             TraceDecision::ClosureTangent,
             TraceDecision::PairTangency,
+            TraceDecision::SphereTorusTangency,
             TraceDecision::BoundarySection,
         ] {
             let error = escalated(decision);
@@ -3536,7 +3673,10 @@ mod ending_tests {
             sigma_min: 1e-10,
             verdict: zero,
         };
-        let pair = SsiError::PairTangent { verdict: zero };
+        let pair = SsiError::PairTangent {
+            pair: super::TangentPair::CylinderSphere,
+            verdict: zero,
+        };
         // The step budget met by refinement: where the refused residual
         // stopped falling (rose), and where it was still falling.
         let wall = |trend, before: f64, last: f64| SsiError::RefinementExhausted {
@@ -3990,7 +4130,13 @@ mod ending_tests {
                     verdict: zero,
                 },
             ),
-            ("pair tangent", SsiError::PairTangent { verdict: zero }),
+            (
+                "pair tangent",
+                SsiError::PairTangent {
+                    pair: super::TangentPair::CylinderSphere,
+                    verdict: zero,
+                },
+            ),
             (
                 "operand",
                 SsiError::OperandNotFinite {

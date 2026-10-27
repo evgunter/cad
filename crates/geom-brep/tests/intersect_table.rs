@@ -975,6 +975,7 @@ fn a_coaxial_tangency_is_classification_data_at_both_doors() {
         let err = geom_brep::ssi::cylinder_sphere_ssi(&cyl, &sph, domain, band())
             .expect_err("the marcher must refuse a tangency");
         let geom_brep::ssi::SsiError::PairTangent {
+            pair: geom_brep::ssi::TangentPair::CylinderSphere,
             verdict: geom_brep::recourse::Refused::Zero(classified),
         } = err
         else {
