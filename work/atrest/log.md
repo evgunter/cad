@@ -174,3 +174,10 @@
 ## 2026-10-27 — seam note from QUAD's main-red triage
 
 Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `crates/topo/src/link.rs` reads its own source, but test-utils' `reader_census` ledger has no entry for it, and the census is red on main. (QUAD triage lane, PR 5824)
+- 2026-10-27 07:00Z (orchestrator): **#5823** delta review (`session_018u3gVHCA7PG72anEwdK3hg`) rated it APPROVE-WITH-FIXES. Its one MINOR: `census_interference_solids` returns `(A, A)` for a solid's own pierce, and the one home now relies on that. The last fix pass was sent; I merge on my read.
+- 2026-10-27 07:00Z (orchestrator): **#5827** first review (sequential arm, `session_018u3gVJZMr4RcyeBuNvcrvr`) rated it APPROVE-WITH-FIXES with 0 MAJOR, so it is the unit's only review. The MINORs:
+  - `by_round`'s concave arm reads Rest past first order, so it must answer only within the re-entry chord;
+  - Dual is NaN at the axis or centre;
+  - past a cylinder's end `Gap` reads the carrier. This is C5's convention, and `gap-reads-a-cells-carrier-beyond-the-cell` names `Round` and is raised to P2.
+
+  The fix pass was sent; I merge on my read. A stray duplicate probe branch, `review/atrest-round-cvvr`, is the same commit as `review/atrest-round-Nvcrvr`. Its deletion was refused to agents, so it is left for Ev.
