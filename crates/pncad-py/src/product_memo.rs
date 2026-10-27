@@ -170,9 +170,7 @@ pub fn body(
     evaluation: &d::Evaluation<f64>,
     tol: Tol,
 ) -> Result<topo::Body<f64>, d::ProductError> {
-    memo.with(doc, evaluation, tol, |product| {
-        standing(product, doc, tol)
-    })?
+    memo.with(doc, evaluation, tol, |product| standing(product, doc, tol))?
 }
 
 /// The product's body composed into the world through the façade's
