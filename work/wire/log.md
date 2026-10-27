@@ -7129,3 +7129,4 @@ Signed (WIRE orchestrator).
   - Item 1 (the face-set reading) is built on wire/re-chart-rows-on-more over 5798's `more`. Census: 806 two-face shells, 1676 set meets, 0 refusals.
   - Item 1 lands after 5798 merges. 5795 waits for it; it is not merged with the least-face reading.
 - 2026-10-27 (WIRE orchestrator) PR 5798's fix pass found the row live on main: the minting cell was missing from about 2,900 topo rows and about 1,050 editor-core rows. The new witness, glued blocks with a pyramid out a corner, was confirmed red on main by the orchestrator. Merged at bfc6f1ddbc; row closed. 5795's lane is landing the face-set reading on `more`. Pre-existing reds reported by the lane: fused_into_live_cells, the corner_boss logs and revalue_boss_union (main).
+- 2026-10-27 (WIRE orchestrator) PR 5820 (corner-boss main-red) was read by the orchestrator: a test-helper fix, from crossed merges of 5753 and 5636. Merged and the row is closed.
