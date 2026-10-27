@@ -8463,7 +8463,9 @@ pub(crate) fn mate<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<HalfEdgeK
 
 /// `he`'s edge and its departure from `he`'s start, scaled to the
 /// edge's extent so a cross product over its length is a lever: a line
-/// by its chord, a conic or spiric arc by its walk tangent there.
+/// by its chord, a conic or spiric arc by its walk tangent there at
+/// [`geom_brep::edge_extent_sup`], since the wedge acts on a Zero (a side
+/// along a bound is not inside it).
 /// `None` for the departure of a NURBS edge, the residue.
 pub(crate) fn side<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<CornerSide<T>> {
     let h = body.half_edges.get(he)?;
@@ -8479,7 +8481,7 @@ pub(crate) fn side<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<CornerS
         | geom::Curve3::Ellipse { .. }
         | geom::Curve3::Spiric { .. } => {
             let (t0, t1) = curve.params();
-            let extent = geom_brep::edge_extent(curve.carrier(), t0, t1, p0.distance(p1));
+            let extent = geom_brep::edge_extent_sup(curve.carrier(), t0, t1, p0.distance(p1));
             Some(curve.walk_tangents(plus).0.normalize() * extent)
         }
         geom::Curve3::Nurbs(_) => None,

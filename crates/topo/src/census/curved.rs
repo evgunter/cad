@@ -185,7 +185,9 @@ fn on_interior_reading<T: Decide>(
 }
 
 /// **`e`'s tangent where `q` lies on its interior**, along its plus
-/// half and scaled to the edge's extent: `Some(None)` where `q` is not
+/// half and scaled to the edge's extent from above
+/// ([`geom_brep::edge_extent_sup`]: the corner it bounds is read by the
+/// wedge, which acts on a Zero): `Some(None)` where `q` is not
 /// on the interior; `None` where a decision escalated or the edge is not
 /// read (pushed).
 pub(super) fn tangent_on_interior<T: Decide>(
@@ -198,7 +200,7 @@ pub(super) fn tangent_on_interior<T: Decide>(
     let r = read(body, e, band, errors)?;
     let (t0, t1) = r.span;
     let chord = r.curve.eval(t0).distance(r.curve.eval(t1));
-    let extent = geom_brep::edge_extent(&r.curve, t0, t1, chord);
+    let extent = geom_brep::edge_extent_sup(&r.curve, t0, t1, chord);
     Some(
         on_interior_at(body, &r, q, band, errors)?
             .map(|(t, _)| r.curve.deriv(t).normalize() * extent),

@@ -3189,88 +3189,149 @@ pub enum DraftedIntersection<T: Real> {
     Chord(EdgeCurveSpec<T>),
 }
 
-/// The honest spatial **extent** of an edge's own point set — the lever
-/// arm of a reading consumed along the edge (D4 ¶1): a corner's
-/// departure, a section re-derived over the edge, the spline lanes'
-/// transversality and uniqueness tube. Never the wedge between the
+/// The **extent** of an edge's own point set bounded from below: no
+/// more than its diameter `D`, the farthest distance between two of its
+/// points, and so no more than its arc. The lever arm of a reading
+/// consumed along the edge (D4 ¶1) that acts on a definite *nonzero*
+/// verdict: a transversality or a uniqueness tube a certificate claims,
+/// a root a corner accepts as transversal, a section's crossing. An arm
+/// longer than `D` would certify a crossing too shallow to pin within
+/// the edge; a shorter one only refuses more. Being no longer than the
+/// arc, a point that far along the edge lies on it
+/// ([`crate::conic_bend_side`]'s witness). Never the wedge between the
 /// edge's two faces, which is levered at the faces' extent
 /// ([`crate::folded_lever_arm`]'s `reach`).
 ///
-/// # Derivation (the lever-arm rationale)
+/// A reading that acts on a **Zero** — a direction read along another,
+/// a tangency verified, an edge enclosed — levers at
+/// [`edge_extent_sup`] instead: an arm short of `D` turns a reading
+/// that is Positive at `D` into a definite Zero.
 ///
-/// The extent an angular defect accumulates over is the **diameter of
-/// the edge's point set** — the farthest distance between two of its
-/// points. For open edges the chord `|end − start|` is that diameter
-/// (exactly, for lines and for circular arcs up to a half period). But
-/// for closed and near-closed edges the chord collapses to ~0 while the
-/// true extent stays the carrier's diameter — folding the raw chord in
-/// turned a full-period 90° rim into "definitely Smooth" (a definite
-/// wrong answer) and made tier 3's dihedral pass vacuous on self-loops.
+/// Per carrier kind, the max of the chord `|end − start|` (a distance
+/// between two of the edge's points) and:
 ///
-/// Per carrier kind, this returns a **certified lower bound** on the
-/// point-set diameter (a lower bound is the safe direction: a smaller
-/// arm escalates more, never definitely misclassifies):
-///
-/// - **Line** — the chord (exact).
-/// - **Ellipse** (semi-axes a > b, span Δt): `max(chord,
-///   b·(1 − cos(Δt/2)))` — the circle fold at the MINOR semi-axis. A
-///   lower bound because the ellipse is the image of the radius-b
-///   circle (same parameter θ) under a one-axis expansion by a/b ≥ 1,
-///   which never shrinks a distance — so the ellipse arc's point-set
-///   diameter dominates the b-circle arc's, and the circle bound below
-///   applies to that circle verbatim.
-/// - **Circle** (radius r, span Δt = t₁ − t₀): `max(chord,
-///   r·(1 − cos(Δt/2)))`. The second term is the arc's sagitta-style
-///   bulge height, an even, branch-free function of Δt with the two
-///   properties the fold needs: it never exceeds the true diameter
-///   (for |Δt| ≤ π, `1 − cos(u) ≤ 2·sin(u)` on `u ∈ [0, π/2]`, i.e.
-///   `tan(u/2) ≤ 2`, so it is below the chord's own `2r·sin(Δt/2)`;
-///   for |Δt| ∈ (π, τ] it is ≤ 2r, the diameter), and at closure
-///   (Δt → τ, chord → 0) it reaches the full carrier diameter `2r` —
-///   the honest extent of a full-period rim. The winding bound
+/// - **Line** — nothing more: the chord is `D`.
+/// - **Circle** (radius r, span Δt = t₁ − t₀): `r·(1 − cos(Δt/2))`, an
+///   even, branch-free function of Δt that never exceeds `D` (for
+///   |Δt| ≤ π, `1 − cos(u) ≤ 2·sin(u)` on `u ∈ [0, π/2]`, i.e.
+///   `tan(u/2) ≤ 2`, so it is below the chord's own `2r·sin(Δt/2)`; for
+///   |Δt| ∈ (π, τ] it is ≤ 2r) and at closure (Δt → τ, chord → 0)
+///   reaches the full carrier diameter `2r`. The winding bound
 ///   (|Δt| ≤ τ, [`CertifyError::WindingExceeded`]) keeps the cosine in
 ///   its honest range.
-/// - **Spiric** (minor radius r, span Δv): `max(chord,
-///   r·(1 − cos(Δv/2)))` — the circle fold at the MINOR radius. A
-///   lower bound because in the `(m, axis)` plane the spiric is the
-///   image of the minor circle `(r cos v, r sin v)` under
+/// - **Ellipse** (semi-axes a ≥ b): the circle fold at the MINOR
+///   semi-axis, `b·(1 − cos(Δt/2))` — the ellipse is the image of the
+///   radius-b circle (same parameter θ) under a one-axis expansion by
+///   a/b ≥ 1, which never shrinks a distance, so its arc's `D`
+///   dominates that circle arc's — and the sampled pairs below.
+/// - **Spiric** (minor radius r, span Δv): the circle fold at the MINOR
+///   radius, `r·(1 − cos(Δv/2))` — in the `(m, axis)` plane the spiric
+///   is the image of the minor circle `(r cos v, r sin v)` under
 ///   `(x, y) ↦ (g(x), y)`, `g(x) = √((R + x)² − d²)`, whose derivative
-///   `g′ = ρ/f ≥ 1` never shrinks a distance — so the spiric arc's
-///   point-set diameter dominates the r-circle arc's, and the circle
-///   bound below applies to that circle verbatim.
-/// - **Nurbs** — the chord: the distance between two of the edge's
-///   points, so a lower bound on its point-set diameter whatever the
-///   spline — a fitted branch the zip mints, or a loft's or a sweep's
-///   seam or section edge on a boolean operand. It collapses toward
-///   zero on a closed or nearly closed spline edge, and there a smaller
-///   arm only escalates more (the safe direction), never definitely
-///   misclassifies.
+///   `g′ = ρ/f ≥ 1` never shrinks a distance — and the sampled pairs.
+/// - **Nurbs** — the sampled pairs.
+///
+/// **The sampled pairs** are the farthest pair among the carrier's
+/// points at the quarter parameters `t₀ + k·(t₁ − t₀)/4`, `k = 0..=4`:
+/// each is a distance between two of the edge's points. Where the
+/// farthest pair is an end and the middle (a steep conic arc about its
+/// vertex, `D` four to ten times its chord) they read it, and on a
+/// closed or nearly closed edge, whose chord collapses, the middle
+/// stands across from the ends.
 ///
 /// Total and comparison-free (`max` is the [`Real`] lattice operation).
-pub fn edge_extent<T: Real>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
+pub fn edge_extent_inf<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
+    let half_span = (t1 - t0) * T::from_f64(0.5);
     match *carrier {
-        Curve3::Circle { radius, .. } => {
-            let half_span = (t1 - t0) * T::from_f64(0.5);
-            chord.max(radius * (T::one() - half_span.cos()))
-        }
-        // The smaller semi-axis / the minor radius is the certified
-        // direction (doc above): the ellipse and the spiric each dominate
-        // that circle pointwise, so both take the circle fold at that
-        // radius. The ellipse's semi-axes carry no order and no sign
-        // (`Conic`), so its radius is the smaller MAGNITUDE — `minor`
-        // itself for a frame stored in the ordinary order.
-        Curve3::Ellipse { semi_u, semi_v, .. } => {
-            let half_span = (t1 - t0) * T::from_f64(0.5);
-            chord.max(
-                geom::Curve3::semi_axes_by_size(semi_u, semi_v).1 * (T::one() - half_span.cos()),
-            )
-        }
-        Curve3::Spiric { minor_radius, .. } => {
-            let half_span = (t1 - t0) * T::from_f64(0.5);
-            chord.max(minor_radius * (T::one() - half_span.cos()))
-        }
-        Curve3::Line { .. } | Curve3::Nurbs(_) => chord,
+        Curve3::Circle { radius, .. } => chord.max(radius * (T::one() - half_span.cos())),
+        // The ellipse's semi-axes carry no order and no sign (`Conic`),
+        // so its radius is the smaller MAGNITUDE.
+        Curve3::Ellipse { semi_u, semi_v, .. } => chord
+            .max(geom::Curve3::semi_axes_by_size(semi_u, semi_v).1 * (T::one() - half_span.cos()))
+            .max(sampled_pairs(carrier, t0, t1)),
+        Curve3::Spiric { minor_radius, .. } => chord
+            .max(minor_radius * (T::one() - half_span.cos()))
+            .max(sampled_pairs(carrier, t0, t1)),
+        Curve3::Nurbs(_) => chord.max(sampled_pairs(carrier, t0, t1)),
+        Curve3::Line { .. } => chord,
     }
+}
+
+/// The **extent** of an edge's own point set bounded from above: no two
+/// of its points lie farther apart, so a ball of this radius about any
+/// point of the edge encloses it. The lever arm of a reading consumed
+/// along the edge that acts on a **Zero** (two directions read along
+/// one another, a tangency verified, a region the edge is consumed
+/// over), where [`edge_extent_inf`]'s shorter arm would read a definite
+/// Zero that the edge's own diameter reads Positive.
+///
+/// Per carrier kind, the max of the chord and:
+///
+/// - **Line** — nothing more: the chord is the diameter.
+/// - **Circle** (radius r, span Δt): `2r·sin(min(|Δt|, π)/2)`, the
+///   arc's diameter exactly.
+/// - **Ellipse** (semi-axes a ≥ b): `2a·sin(min(|Δt|, π)/2)` — the
+///   ellipse is the image of the radius-a circle (same parameter θ)
+///   under a one-axis contraction by b/a ≤ 1, which never lengthens a
+///   distance.
+/// - **Spiric** (major radius R, minor r, stand-off d): the lesser of
+///   `L·2r·sin(min(|Δv|, π)/2)` and the oval's diagonal
+///   `√((g(r) − g(−r))² + (2r)²)`, `g(x) = √((R + x)² − d²)`. In the
+///   `(m, axis)` plane the spiric is the image of the minor circle
+///   under `(x, y) ↦ (g(x), y)`, whose stretch `g′(x) = (R + x)/g(x)`
+///   is greatest at `x = −r`, `L = (R − r)/g(−r) ≥ 1`; and the oval lies
+///   in `m ∈ [g(−r), g(r)]`, `|axis| ≤ r`.
+/// - **Nurbs** — the farthest pair of its control points: with positive
+///   weights (a construction invariant of the curve) the whole carrier
+///   lies in its control net's convex hull, whose diameter is the
+///   farthest pair of its vertices.
+///
+/// Total and comparison-free (`min`/`max` are the [`Real`] lattice
+/// operations).
+pub fn edge_extent_sup<T: Real>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
+    let two = T::from_f64(2.0);
+    // `sin(min(|Δt|, π)/2)`: the half-span folded to a half turn, past
+    // which an arc of a circle holds a diameter.
+    let fold = ((t1 - t0).abs().min(T::pi()) * T::from_f64(0.5)).sin();
+    match carrier {
+        Curve3::Line { .. } => chord,
+        Curve3::Circle { radius, .. } => chord.max(two * radius.abs() * fold),
+        Curve3::Ellipse { semi_u, semi_v, .. } => {
+            chord.max(two * geom::Curve3::semi_axes_by_size(*semi_u, *semi_v).0 * fold)
+        }
+        Curve3::Spiric {
+            major_radius,
+            minor_radius,
+            offset,
+            ..
+        } => {
+            let (big, r, d) = (*major_radius, minor_radius.abs(), *offset);
+            let g = |x: T| ((big + x).powi(2) - d.powi(2)).sqrt();
+            let (inner, outer) = (g(-r), g(r));
+            let stretch = (big - r) / inner;
+            let diagonal = ((outer - inner).powi(2) + (two * r).powi(2)).sqrt();
+            chord.max((stretch * two * r * fold).min(diagonal))
+        }
+        Curve3::Nurbs(spline) => chord.max(farthest_pair(spline.control())),
+    }
+}
+
+/// The farthest distance between two of `points` (zero for fewer than
+/// two).
+fn farthest_pair<T: Real>(points: &[Point3<T>]) -> T {
+    points.iter().enumerate().fold(T::zero(), |far, (i, a)| {
+        points[i + 1..]
+            .iter()
+            .fold(far, |far, b| far.max(a.distance(*b)))
+    })
+}
+
+/// [`edge_extent_inf`]'s sampled pairs: the farthest pair among
+/// `carrier`'s points at the quarter parameters of `[t0, t1]`.
+fn sampled_pairs<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T) -> T {
+    let step = (t1 - t0) * T::from_f64(0.25);
+    let at = [t0, t0 + step, geom::mid_param(t0, t1), t1 - step, t1];
+    farthest_pair(&at.map(|t| carrier.eval(t)))
 }
 
 /// Folds a residual into the running max and classifies it: must be
@@ -4336,7 +4397,7 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
     // The spline lanes lever their transversality and size their
     // uniqueness tube at the edge's own extent, beside the analytic
     // arms' faces' `reach`.
-    let extent = edge_extent(&spec.carrier, t0, t1, start.distance(end));
+    let extent = edge_extent_inf(&spec.carrier, t0, t1, start.distance(end));
     // ---- Intersection, plane × NURBS only (M7-8), over a carrier of
     // any kind: the whole declare-and-check certificate (C2's three
     // limbs, limbs 1–2 reading the carrier through the

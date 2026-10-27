@@ -410,7 +410,9 @@ enum Place {
 }
 
 /// The unit direction `he` leaves its start along, with the edge's
-/// chord length; `None` for null scaffolding.
+/// extent from above ([`geom_brep::edge_extent_sup`]: a corner's
+/// reading acts on a Zero, a chord along a bound); `None` for null
+/// scaffolding.
 fn departure<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<(Vec3<T>, T)> {
     leaving(body, he, false)
 }
@@ -424,7 +426,9 @@ fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<(
     let curve = body.get_curve_geom(edge.curve)?.certified()?;
     let base = body.half_edge_start_point(he)?;
     let end = body.half_edge_start_point(body.mate(he)?)?;
-    let len = (end - base).norm();
+    let chord = (end - base).norm();
+    let (t0, t1) = curve.params();
+    let len = geom_brep::edge_extent_sup(curve.carrier(), t0, t1, chord);
     let dir = match curve.carrier() {
         _ if secant => curve.mid_point() - base,
         geom::Curve3::Line { .. } => end - base,
@@ -432,7 +436,7 @@ fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<(
         | geom::Curve3::Ellipse { .. }
         | geom::Curve3::Spiric { .. }
         | geom::Curve3::Nurbs(_) => {
-            geom_brep::ConicDeparture::of(curve, he == edge.he_plus, len).dir
+            geom_brep::ConicDeparture::of(curve, he == edge.he_plus, chord).dir
         }
     };
     Some((dir / dir.norm(), len))
@@ -1876,8 +1880,9 @@ mod spline_departure_rows {
             "the arc leaves along its tangent (1, 2, 0)/√5, got {dir:?}"
         );
         assert!(
-            (len - 2.0).abs() < 1e-12,
-            "with its chord's length 2: {len}"
+            (len - 5f64.sqrt()).abs() < 1e-12,
+            "with its extent from above, its control net's farthest pair √5, not its \
+             chord 2: {len}"
         );
     }
 }

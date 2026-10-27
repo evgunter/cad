@@ -103,8 +103,8 @@ pub use carrier_net::CarrierEnclosureRefusal;
 pub use certify::{
     CERT_SAMPLES, CertCheck, Certificate, CertifiedTurn, CertifyError, DraftedIntersection,
     EdgeCurve, EdgeCurveSpec, ForwardReading, IntersectionDraft, MintedEdge, NurbsLane, SplineFoot,
-    StatedImage, StatedSpan, WindingReading, edge_extent, folded_parallelism, sample_param,
-    schedule_param,
+    StatedImage, StatedSpan, WindingReading, edge_extent_inf, edge_extent_sup, folded_parallelism,
+    sample_param, schedule_param,
 };
 pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side};
 pub use description::{

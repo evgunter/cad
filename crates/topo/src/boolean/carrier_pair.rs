@@ -641,10 +641,12 @@ pub fn rest_locus<T: Decide>(
         })
     };
     let (on_a, on_b) = (on(fa), on(fb));
+    // A ball about a point of the edge encloses it at the edge's extent
+    // from above.
     let chord = carrier.eval(t0).distance(carrier.eval(t1));
     let edge = ExtentBall::new(
         carrier.mid_point(t0, t1),
-        geom_brep::edge_extent(carrier, t0, t1, chord),
+        geom_brep::edge_extent_sup(carrier, t0, t1, chord),
     );
     let parts: Vec<_> = core::iter::once(edge)
         .chain(on_a.iter().chain(&on_b).map(|&p| ExtentBall::point(p)))
@@ -661,5 +663,70 @@ pub fn rest_locus<T: Decide>(
             geom_brep::RestLocus::Chart(pair.keys()[0])
         }
         Ok(CarrierRelation::Distinct) | Err(_) => geom_brep::RestLocus::Pair(pair),
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod extent_rows {
+    use super::*;
+    use geom_core::{Point3, Tol, Vec3};
+
+    /// **A steep spline edge rests on the pair two hinged planes make,
+    /// read over the whole edge.** A rational quadratic arc (weights
+    /// `1, 10, 1`) 2 m across its ends rises some 45 m to its vertex,
+    /// in the plane `x = 0`. A second plane through the vertex is
+    /// hinged off it by `θ = 0.45·ε` about the line along `ŷ` there,
+    /// so it stands `θ·s` off at `s` metres down the arc: under a band
+    /// within the chord's 2 m, past `K·ε` at the arc's ends. The rest
+    /// locus reads the planes over a ball about the arc's middle (its
+    /// vertex) at the edge's extent from above, which holds the ends:
+    /// the pair. A ball at the chord reads them one chart.
+    #[test]
+    fn a_steep_spline_rests_on_the_pair_its_ends_separate() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let arc = geom::Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2)
+                    .unwrap(),
+                vec![
+                    Point3::new(0.0, -1.0, 0.0),
+                    Point3::new(0.0, 0.0, 50.0),
+                    Point3::new(0.0, 1.0, 0.0),
+                ],
+                vec![1.0, 10.0, 1.0],
+            )
+            .unwrap(),
+        ));
+        let vertex = arc.mid_point(0.0, 1.0);
+        let chord = arc.eval(0.0).distance(arc.eval(1.0));
+        let theta = 0.45 * band.zero();
+        assert!(
+            chord * theta <= band.zero()
+                && vertex.distance(arc.eval(0.0)) * theta >= band.escalate(),
+            "the hinge is under a band within the chord and past K·ε at the ends"
+        );
+        let mut body = Body::<f64>::new();
+        let mut plane = |normal: Vec3<f64>| {
+            body.add_surface(geom::Surface::Plane {
+                origin: vertex,
+                normal,
+                u_ref: Vec3::unit_y(),
+            })
+        };
+        let (ka, kb) = (
+            plane(Vec3::unit_x()),
+            plane(Vec3::new(theta.cos(), 0.0, theta.sin())),
+        );
+        match rest_locus(&body, [(ka, None), (kb, None)], &arc, (0.0, 1.0), band) {
+            geom_brep::RestLocus::Pair(pair) => assert_eq!(
+                pair,
+                geom_brep::SurfacePair::new(ka, kb),
+                "the pair of the two planes"
+            ),
+            geom_brep::RestLocus::Chart(k) => {
+                panic!("the hinged planes read one chart {k:?} over the steep edge")
+            }
+        }
     }
 }

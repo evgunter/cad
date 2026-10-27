@@ -487,7 +487,7 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
 /// transversality margin folded in the edge-chord extent, and a closed
 /// edge's chord is ZERO (margin 0 -> "definitely Smooth" ->
 /// NotTransverse). The fix (B2): the extent arm is now
-/// `geom_brep::edge_extent` — for circle carriers
+/// `geom_brep::edge_extent_inf` — for circle carriers
 /// `max(chord, r·(1 − cos(Δt/2)))`, which reaches the honest carrier
 /// diameter 2r at closure — so the 90° rim classifies Transverse and
 /// certifies. The witness sits at the carrier's mid-parameter point
