@@ -71,3 +71,22 @@ and moves to the door with the frame's retirement. First dispatches:
   through neither centre (no closed form). Lily's: parallel axes in
   one plane, offset `R₁ − R₂`, spines internally tangent at the fork,
   so "clear" holds only within the faces' windows (sent to the lily lane).
+
+- 2026-10-27 — **Step 1's design converged.** The two designers (blinding
+  record on `analysis/design-fork/the-section-object`) reached one final
+  state inside fork row 100: a section value in `geom_brep`, built by the
+  only kind dispatch, and a per-operation table in `topo::boolean` read
+  by the glue records, the guard, the germ mint and the join. They
+  differed only in sequencing. One kept the cs frames reading the table
+  until step 3; the other retires them in 1a through foot-parameter
+  matching. I took the retirement: it removes two of the five offset
+  computations and is what the pinned matcher test exercises. No `[ev]`
+  PR, and no fork-log row, since nothing went to Ev. Both designers
+  proposed re-wording the ratified row ("once per surface pair"; name
+  `section_cert::classify` under "kind dispatch only in C5"). I read both
+  as elaborations of row 100, not changes to it, and wrote them into the
+  1a row. Step 1 is split:
+  `the-section-of-a-surface-pair-is-one-object` (1a, P0 H, dispatched,
+  dual concurrent review) and the lane row as 1b, parked on it. The two
+  riders ride 1a. `in-band-…` is decided: escalate. The tangency row now
+  counts five offset computations.
