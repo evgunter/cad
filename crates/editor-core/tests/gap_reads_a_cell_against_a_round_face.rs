@@ -384,3 +384,84 @@ fn an_off_centre_ball_reads_an_edge_resting_on_it() {
         }
     }
 }
+
+/// Review probe (#5827): the Dual pass's `∂g/∂r` where the cell meets
+/// the pin's axis — a vertex on it, an edge along it, and an edge
+/// crossing it (the pin turned a quarter turn about `x`).
+#[test]
+fn review_probe_dual_where_a_cell_meets_the_axis() {
+    let base = |frame: Option<Frame>, corner: V| {
+        let doc = ProfileDoc::empty_derived("gap-axis-probe", Tol::witness());
+        let (doc, _) = step(
+            doc,
+            DocEdit::DeclareVar {
+                name: VarName::from_static("r"),
+                def: VarDecl::Free(FreeVar::Continuous {
+                    dim: Dimension::Length,
+                    value: R,
+                    display_unit: UnitSym::canonical_for(Dimension::Length),
+                    distribution: Some(Distribution::Uniform { lo: -H, hi: H }),
+                }),
+            },
+        );
+        let circle = LoopProgram::Circle {
+            centre: [len(0.0), len(0.0)],
+            radius: Formula::named(VarName::from_static("r"), Dimension::Length),
+        };
+        let (doc, c) = extrude(doc, vec![circle], 2.0);
+        let (doc, pc) = match frame {
+            Some(f) => in_world(doc, c, &f),
+            None => in_world(doc, c, &Frame::translation([0.0, 0.0, 0.0])),
+        };
+        let wall = face_of(&doc, pc, geom::SurfaceKind::Cylinder);
+        let (doc, edge, foot) = cube_at(doc, corner);
+        (doc, wall, edge, foot)
+    };
+    let quarter = Frame::rotate_by_turns_then_translate(
+        [1.0, 0.0, 0.0],
+        Turns::new(1, 4).expect("a quarter"),
+        [0.0, 0.0, 0.0],
+        crate::fixture::band(),
+    )
+    .expect("unit");
+    for (name, frame, corner, use_edge) in [
+        ("vertex on the axis", None, [0.0, 0.0, 0.5], false),
+        ("edge along the axis", None, [0.0, 0.0, 0.5], true),
+        (
+            "edge across the axis",
+            Some(quarter),
+            [0.0, -1.0, -0.5],
+            true,
+        ),
+    ] {
+        let (doc, wall, edge, foot) = base(frame, corner);
+        let cell = if use_edge { &edge } else { &foot };
+        let (doc, m) = gap_node(&doc, &wall, cell);
+        let nominal = value::<f64>(&doc, m);
+        let var = doc.output(m, 0).expect("a value");
+        let sens = sensitivities(&doc, var, None, None, false, None, Tol::witness());
+        println!("PROBE {name}: f64 {nominal:?}; dual {sens:?}");
+    }
+}
+
+/// Review probe (#5827): a pin of height 2 (`z ∈ [0, 2]`) and a cube
+/// whose lateral edge stands wholly above its end, `z ∈ [3, 4]`, beside
+/// the axis: nothing of the edge is near the face, yet it reads.
+#[test]
+fn review_probe_an_edge_past_a_pins_end_reads_its_carrier() {
+    let doc = ProfileDoc::empty_derived("gap-past-end-probe", Tol::witness());
+    let circle = LoopProgram::Circle {
+        centre: [len(0.0), len(0.0)],
+        radius: len(R),
+    };
+    let (doc, c) = extrude(doc, vec![circle], 2.0);
+    let (doc, pc) = in_world(doc, c, &Frame::translation([0.0, 0.0, 0.0]));
+    let wall = face_of(&doc, pc, geom::SurfaceKind::Cylinder);
+    // A unit cube with its corner at (0.1, 0.1, 3): its edge 0 runs up z
+    // from there, 0.14 off the axis and 1 above the pin's end.
+    let (doc, edge, foot) = cube_at(doc, [0.1, 0.1, 3.0]);
+    for (cell, what) in [(&edge, "edge"), (&foot, "vertex")] {
+        let (doc, m) = gap_node(&doc, &wall, cell);
+        println!("PROBE past the end, {what}: {:?}", value::<f64>(&doc, m));
+    }
+}

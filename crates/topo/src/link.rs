@@ -2587,6 +2587,8 @@ mod cone_oracle;
 #[cfg(test)]
 mod oracle_rows;
 #[cfg(test)]
+mod review_round_probes;
+#[cfg(test)]
 mod round_rows;
 
 #[cfg(test)]
