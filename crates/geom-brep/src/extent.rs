@@ -524,26 +524,32 @@ pub fn edge_extent_sup<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: 
 ///   bound ([`edge_extent_sup`]'s Lipschitz pairs, read from `pivot`):
 ///   the edge's own window, where the net is the whole carrier's.
 ///
-/// Comparison-free; poison propagates as in [`edge_extent_sup`].
+/// Never below the samples' own reach from `pivot`. Comparison-free;
+/// poison propagates as in [`edge_extent_sup`].
 pub fn edge_reach_from<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, pivot: Point3<T>) -> T {
     let span = Reach::Span {
         carrier: carrier.clone(),
         t0,
         t1,
     };
-    match carrier {
+    let sampled = schedule(carrier, (t0, t1), EXTENT_PIECES)
+        .into_iter()
+        .fold(T::zero(), |far, x| far.max((x - pivot).norm()));
+    let bound = match carrier {
         Curve3::Line { .. } | Curve3::Circle { .. } | Curve3::Ellipse { .. } => {
             span.span_reach_from(pivot)
         }
         Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
-            let sampled = schedule(carrier, (t0, t1), EXTENT_PIECES)
-                .into_iter()
-                .fold(T::zero(), |far, x| far.max((x - pivot).norm()));
             let slack =
                 speed_sup(carrier) * (t1 - t0).abs() / T::from_f64(f64::from(2 * EXTENT_PIECES));
             span.lever_from(pivot).min(sampled + slack)
         }
-    }
+    };
+    // Every sample is a point of the edge, so its distance bounds the
+    // reach from below: at an enclosure scalar this lifts the lower end of
+    // a bound whose in-span reading was undecided (a full turn's crest),
+    // which would otherwise reach down to the pivot itself.
+    bound.max(sampled)
 }
 
 /// **What a section classifier reads its axis rows across**: where on
