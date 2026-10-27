@@ -241,10 +241,11 @@ fn copies_of_one_ball_are_one_interference() {
 /// of it. Two half-cylinders of one carrier side by side, each the
 /// other's half-turn: their walls share only the two seam rulings and
 /// their half-discs only a diameter. Neither is a `SameSideInterference`
-/// or any other interference; the half-cylinders' walls and discs are
-/// read no further, so the census stays loud about the pair (the
+/// or any other interference. The half-cylinders' walls and discs are
+/// read no further, so the census stays loud about the pair: the
 /// same-side reading on an arc or a curved carrier only ever finds a
-/// meeting, and cannot say there is none).
+/// meeting and cannot say there is none, so the walls stay undecidable
+/// and each half-disc pair keeps the region door's refusal of its arc.
 ///
 /// Red if the same-side reading takes a shared rim or seam for shared
 /// interior.
@@ -295,6 +296,22 @@ fn copies_that_abut_along_a_rim_or_a_seam_are_no_interference() {
                 )),
                 "{label}: the walls' shared seams stay undecidable: {:?}",
                 recorded.findings
+            );
+            assert!(
+                matches!(
+                    flush.findings[..],
+                    [
+                        ValidationError::CensusUnsupported {
+                            cause: topo::CensusUnsupportedCause::ChartRegion(
+                                topo::ChartRegionError::NonPlanarTrim { .. }
+                            ),
+                            ..
+                        },
+                        ValidationError::CensusUnsupported { .. }
+                    ]
+                ),
+                "{label}: the two half-disc pairs keep the region door's refusal: {:?}",
+                flush.findings
             );
         }
     }

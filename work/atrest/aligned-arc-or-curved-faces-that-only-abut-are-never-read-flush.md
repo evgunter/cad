@@ -26,8 +26,10 @@ an arc, or a face on a cylinder or a sphere, goes to
 and never certifies that they do not. So:
 
 - two half-discs side by side on one plane, sharing a diameter, are
-  `flush_at_rest`'s `FLUSH_UNREAD` finding (`MayOverlap`), not a flush
-  row;
+  no flush row. `flush_at_rest` carries the region door's refusal of
+  the arc (`CensusUnsupported`, `NonPlanarTrim`). An arc-bounded pair
+  whose trims the region walk refuses at a shared boundary is
+  `FLUSH_UNREAD` (`MayOverlap`);
 - two half-cylinders of one carrier side by side, sharing only their
   seam rulings, are arm 1's `CurvedWithinReach` refusal
   (`sweep_cross_solid_backstop`), loud and undecidable. Pinned by

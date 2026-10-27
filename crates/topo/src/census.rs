@@ -6050,11 +6050,13 @@ enum SameSideUnread {
 /// **Whether two planar faces on one carrier, facing the same way, share
 /// interior**, on Door 1's verdict: the region door's positive area or
 /// empty intersection in either frame order, as [`pair_verified`] reads
-/// it, and where its walk refuses at a shared boundary or at an arc, the
-/// faces' own reading ([`face_interiors_meet`]). Two faces with an arc are
-/// read so only on a carrier Door 1 decided Zero (`Definite`): the
-/// reading places points of one face in the other, which a carrier in
-/// band does not hold. A refusal is the first order's.
+/// it, and where its walk refuses at a shared boundary, the faces' own
+/// reading ([`face_interiors_meet`]). Where the walk refuses an arc, a
+/// meeting that reading finds is the answer, and the refusal stands
+/// where it finds none. Two faces with an arc are read so only on a
+/// carrier Door 1 decided Zero (`Definite`): the reading places points
+/// of one face in the other, which a carrier in band does not hold. A
+/// refusal is the first order's.
 fn same_side_overlap<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -6085,12 +6087,17 @@ fn same_side_overlap<T: Decide>(
         .iter()
         .any(|r| matches!(r, Err(ChartRegionError::NonPlanarTrim { .. })));
     let exact = matches!(verdict, crate::contact::ContactVerdict::Definite);
-    if (touching || arcs) && (exact || fa.polygon && fb.polygon) {
+    if touching && (exact || fa.polygon && fb.polygon) {
         return face_interiors_meet(body, geo, fa.key, fb.key, band)
             .map_err(SameSideUnread::Interiors);
     }
     if touching {
         return Err(SameSideUnread::Interiors(InteriorsUnread::Unbuilt));
+    }
+    // A meeting the faces' own reading finds answers an arc the region
+    // walk refused; where it finds none, that refusal stands.
+    if arcs && exact && face_interiors_meet(body, geo, fa.key, fb.key, band) == Ok(true) {
+        return Ok(true);
     }
     let [first, _] = either;
     first
