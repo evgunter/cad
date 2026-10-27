@@ -90,3 +90,7 @@ and moves to the door with the frame's retirement. First dispatches:
   dual concurrent review) and the lane row as 1b, parked on it. The two
   riders ride 1a. `in-band-…` is decided: escalate. The tangency row now
   counts five offset computations.
+
+- 2026-10-27 — **`the-lilys-stem-and-arch-walls-have-no-certificate-arm` closed** by PR 5869 (`torus_parallel_torus`, the general parallel-axis tori arm): lily wall 1 builds, both union orders one shell at the Pappus volume, ∩ and the differences too. Review: single FULL (a certified-clear verdict is a soundness claim), APPROVE-WITH-FIXES, no MAJOR; soundness held under a 1,100-pose fuzz against an independent chart trace; the fix pass landed the reviewer's two rows, stated the bare-margin invariants at their sites, moved the chart trace into `search_kit` and the decided insertion sort into `splitting::order`, and filed `circle-pair-crossing-is-spelled-three-times` (P1 E) here and three P2/P3 rows on SECTTAIL. Merged over an inherited red (`demos (tour + wild)`, the tour gallery's chain scene, #5853's), filed on ATREST as `the-tour-gallery-pin-reads-the-chains-old-could-not-look-count`.
+
+- 2026-10-27 — **Claimed `torus-certificate-runs-root-free-through-its-quartic`** from CHARTTAIL, re-banded P0 (teapot wall 2 waits on it). Dispatched to an implementer on `sect/torus-certificate`. Review: single FULL, because the arms are certificate soundness and a read cannot carry the bound. It goes to a dual if the diff reaches the shared composite machinery beyond the torus arms. First route pair: sphere × torus.
