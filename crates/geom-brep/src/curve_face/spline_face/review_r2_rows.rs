@@ -121,7 +121,6 @@ fn review_r2_an_end_on_a_crease_of_the_span_on_the_chart_is_the_ends() {
     let by_line = read(&line, (0.0, 1.0), &flat());
     let first = read(&bent, (0.0, 0.5), &flat());
     let second = read(&bent, (0.5, 1.0), &flat());
-    eprintln!("leg {by_leg:?}\nline {by_line:?}\nfirst {first:?}\nsecond {second:?}");
     assert!(
         matches!(by_leg.as_deref(), Ok([])),
         "the leg alone: {by_leg:?}"

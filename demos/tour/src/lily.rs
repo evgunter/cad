@@ -2369,9 +2369,11 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         // The SITE is the claim: the result's seam, its arm read through a
         // dihedral with no reading on a spline wall, so no value. If this
         // ever refuses elsewhere, the sentence above is wrong and must be
-        // re-derived before it is believed. The refusal names no edge and
-        // no face, so the probe cannot tell this seam from another seam of
-        // the result read the same way.
+        // re-derived before it is believed. `LeverArm::Seam` is raised by
+        // one door, the seam re-description's, so the decision and its
+        // predicate pin the site; the refusal names no edge and no face, so
+        // the probe cannot tell this seam from another seam of the result
+        // read the same way.
         |e| {
             matches!(
                 e,

@@ -76,8 +76,9 @@ fn blade(
 /// **Both orders get past the contact, the shared cap and the spline
 /// walls**, and stop at the result's shared rim, a seam between a NURBS
 /// wall of each body, whose dihedral arm reads no value: the seam
-/// re-description's refusal. The refusal names no edge and no face, so
-/// the row pins the decision and its predicate. Before the spline span
+/// re-description's refusal. The refusal names no edge and no face; the
+/// decision and its predicate pin the site, `LeverArm::Seam` being raised
+/// by one door (`topo::boolean::ops::seam_refusal`). Before the spline span
 /// × spline face arm, each refused `CurvedBooleanUnsupported { operand:
 /// B, kind: Nurbs }` at B's ridge wall, a seam of A there; before the
 /// boundary pass, at the contact on a wall of B; before the

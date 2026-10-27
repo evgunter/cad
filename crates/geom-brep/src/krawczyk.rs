@@ -147,3 +147,44 @@ pub(crate) fn solution_reach(
     let bound = Interval::point(reach) / (Interval::point(1.0) - Interval::point(q));
     bound.is_certified().then(|| bound.hi())
 }
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::expect_used)]
+
+    use geom_core::Interval;
+
+    use super::solution_reach;
+
+    /// `J(X) = diag([½, 3/2])`, its midpoint the identity, so `q = ½`.
+    /// The member `½·I` puts the solution of `F(e) = (1, 0, 0)` at
+    /// distance 2 from `e`, twice `‖Y·F(e)‖`: the bound must reach it.
+    #[test]
+    fn the_reach_holds_the_farthest_member_of_the_jacobian() {
+        let o = Interval::from_bounds(0.0, 0.0);
+        let d = Interval::from_bounds(0.5, 1.5);
+        let jac = [[d, o, o], [o, d, o], [o, o, d]];
+        let one = Interval::from_bounds(1.0, 1.0);
+        let r = solution_reach([one, o, o], &jac, [1.0; 3]).expect("q = ½ contracts");
+        assert!(
+            r >= 2.0,
+            "the solution at distance 2 is within the reach: {r}"
+        );
+        assert!(
+            r < 2.0 + 1e-12,
+            "and the reach is the bound's, not wider: {r}"
+        );
+    }
+
+    /// `J(X) = diag([−½, 5/2])`, its midpoint the identity, so `q = 3/2`:
+    /// a singular member, so no reach.
+    #[test]
+    fn no_reach_where_the_jacobian_holds_a_singular_member() {
+        let o = Interval::from_bounds(0.0, 0.0);
+        let d = Interval::from_bounds(-0.5, 2.5);
+        let jac = [[d, o, o], [o, d, o], [o, o, d]];
+        let one = Interval::from_bounds(1.0, 1.0);
+        let r = solution_reach([one, o, o], &jac, [1.0; 3]);
+        assert!(r.is_none(), "q > 1 bounds nothing: {r:?}");
+    }
+}

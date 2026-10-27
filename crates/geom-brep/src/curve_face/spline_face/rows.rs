@@ -908,15 +908,12 @@ fn review_r1_a_crossing_beside_an_end_on_the_charts_edge_is_not_dropped() {
     }
 }
 
-/// An end exactly on a crease of the span, the corner on the chart: the
-/// PR says it refuses Crease. And one with the corner off the chart reads.
+/// An end exactly on a crease of the span, the corner on the chart, is
+/// the end's meeting. And one with the corner off the chart reads.
 #[test]
 fn review_r1_an_end_on_a_crease_of_the_span() {
     let on = read(&bent([0.5, 0.5, 0.0]), (0.0, 0.5), &flat());
-    assert!(
-        matches!(on, Err(SplineFaceRefusal::Unsettled(Unsettled::Crease))),
-        "{on:?}"
-    );
+    assert!(matches!(on.as_deref(), Ok([])), "{on:?}");
     let off = read(&bent([0.5, 0.5, 0.2]), (0.5, 1.0), &flat());
     assert!(matches!(off.as_deref(), Ok([])), "{off:?}");
 }
@@ -979,8 +976,8 @@ fn review_r1_the_sheets_enclosures_hold_the_span() {
         ],
         Some(&[1.0, 0.5, 2.0, 0.7, 1.3, 1.0]),
     );
-    let sheet = super::sheet(&cubic).unwrap();
-    let path = super::Path::of(&cubic, Some(&sheet)).unwrap();
+    let carrier = super::SpanCarrier::of(&cubic);
+    let path = super::Path::of(&carrier).unwrap();
     let windows = [
         (0.25, 0.35),
         (0.29, 0.31),
@@ -1033,4 +1030,21 @@ fn review_r1_a_nurbs_crossing_on_a_closed_charts_seam_near_a_domain_end_is_not_d
             &format!("seam reversed, {k}"),
         );
     }
+}
+
+/// **A crossing in the band's gap from a domain end is not read as the
+/// end's**: a segment square to the flat patch ends `2·zero` above it, so
+/// its crossing lies `2·zero` from the end, which no end's box may hold
+/// (its bound is at least that distance); the crossing is then read
+/// against the end in the band's gap, and escalates.
+#[test]
+fn a_crossing_in_the_bands_gap_from_a_domain_end_escalates() {
+    let lift = 2.0 * band().zero();
+    assert!(lift < band().escalate());
+    let span = bezier(&[[0.4, 0.5, -0.5], [0.4, 0.5, lift]]);
+    let got = read_whole(&span, &flat());
+    assert!(
+        matches!(got, Err(SplineFaceRefusal::Escalated(_))),
+        "a crossing 2·zero from the end is neither the end's nor the span's: {got:?}"
+    );
 }
