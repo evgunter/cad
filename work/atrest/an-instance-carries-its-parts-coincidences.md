@@ -2,10 +2,11 @@
 id: an-instance-carries-its-parts-coincidences
 kind: issue
 title: An instance carries its part's coincidence rows, so the lint on a product document reports its parts' unproven glue
-status: open
+status: closed
 opened: 2026-10-08
 priority: P1
 cost: M
+closed: 2026-10-27
 ---
 
 
@@ -77,3 +78,7 @@ The row's first blocker (`coincidences-are-recorded-at-one-door`, PR 4354) is cl
 ## Released (INTENT, 2026-10-26)
 
 D′3 merged (PR 5636). An instance now defines one body, a copy of its part's product, and `PartValue` holds `coincidences` (`eval/parts.rs:118`, carried at `:145`/`:827`). Re-check against main whether the lint on a product document now reports its parts' unproven glue. ATREST's call: close it, or narrow it to what remains.
+
+## Closed
+
+2026-10-27 (ATREST lane). Re-checked against main after D′3 and stage 5 C: the row was still red (the part reported its five unproven rows, the host none). Now the part's door rows (its own, then those it carried up) ride `PartValue::door_rows` and `CarriedFindings::coincidences`, each once per part row with its `Route` and its pinned document. The host's `DoorJob` judges them with the part's own door over that document, at rest and cancelable, and reports each as `CheckEvidence::CarriedCoincidence` at the route's first instance, quiet only as the part's assertions quiet it. Python reads it as `CheckEvidence.carried_coincidence`; the viewer shows it at the instance, said by the part's labels. Rows: `crates/editor-core/tests/atrest_carried_coincidence.rs`. The sweep's sibling, a boolean over an instance dropping the part's census findings, is filed as `a-boolean-over-an-instance-drops-its-parts-census-findings`.
