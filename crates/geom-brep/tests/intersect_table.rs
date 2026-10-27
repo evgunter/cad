@@ -101,7 +101,9 @@ fn route_inventory() {
         // Circle (sphere_sphere_section — the same algebra profile's
         // arc/arc carrier gate runs in 2-D).
         (Sphere, Sphere, Rung::Closed, true),
-        (Sphere, Torus, Rung::General, false),
+        // The ℝ³ implicit-pair march, the torus read through its
+        // quartic (`ssi::sphere_torus_ssi`).
+        (Sphere, Torus, Rung::General, true),
         (Sphere, Nurbs, Rung::General, false),
         (Torus, Torus, Rung::General, false),
         (Torus, Nurbs, Rung::General, false),

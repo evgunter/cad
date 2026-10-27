@@ -2,6 +2,8 @@
 //! the torus read through its quartic, at every limb and in the
 //! accounting.
 
+#![allow(clippy::unwrap_used, clippy::panic)]
+
 use geom::Surface;
 use geom_brep::ssi::{self, SsiDomain, SsiError, TangentPair};
 use geom_core::{Point3, Vec3};

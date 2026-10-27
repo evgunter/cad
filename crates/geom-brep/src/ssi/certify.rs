@@ -3820,6 +3820,7 @@ mod tests {
     /// Limb 2's torus readings of `carrier` over its spans cut at
     /// `breaks`: the composite's breaks, its sup, each span's sup and
     /// each break's floor, all in meters.
+    #[allow(clippy::unwrap_used)]
     fn torus_readings(
         carrier: &geom::NurbsCurve3<f64>,
         torus: &geom::Surface<f64>,
