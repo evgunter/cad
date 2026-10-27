@@ -7123,3 +7123,8 @@ Signed (WIRE orchestrator).
   - Lane told to measure whether the row is live on current main. If it is, witness a live case. If not, close the row as fixed by #5545 and keep only what 5795 needs (Coincidence `more`), plus `by` if it still widens something.
   - The 5795 conflict and its hidden `third: None` compile break are noted for whichever PR lands second.
 - 2026-10-27 (WIRE orchestrator) The container restarted. Both lanes (meetrow fix pass, rechart fix pass) were stopped and resumed. Worktrees and targets survived. Disk is at 7 GB free.
+- 2026-10-27 (WIRE orchestrator) PR 5795 fix pass, items 2–5, at 7e097a6f71, gate ok green.
+  - New variant RechartedRowUnstated; the face-pair refusal follows an exhaustive states_a_point.
+  - The door check runs in release as unreachable! with row-4's why.
+  - Item 1 (the face-set reading) is built on wire/re-chart-rows-on-more over 5798's `more`. Census: 806 two-face shells, 1676 set meets, 0 refusals.
+  - Item 1 lands after 5798 merges. 5795 waits for it; it is not merged with the least-face reading.
