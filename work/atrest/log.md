@@ -147,3 +147,7 @@
   - `gap-reads-no-curved-cell-below-a-face` (the sphere and cylinder arm) → `session_018u3gVKihT5A6xc3PGs8S9q`, branch `atrest/gap-reads-a-cell-against-a-curved-face`.
 
   `an-instance-carries-its-parts-coincidences` waits for #5810 to merge, since it reshapes the same checks code. `curved-copies-filling-one-volume-read-as-undecidable` (H) waits for the crossing row, which shares its census path.
+
+## 2026-10-27 — seam note from QUAD's main-red triage
+
+Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `crates/topo/src/link.rs` reads its own source, but test-utils' `reader_census` ledger has no entry for it, and the census is red on main. (QUAD triage lane, PR 5824)
