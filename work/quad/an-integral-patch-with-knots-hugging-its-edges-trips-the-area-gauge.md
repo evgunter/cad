@@ -4,7 +4,7 @@ kind: issue
 title: quad: an integral patch with knots 1e-9 from both trim edges certifies an area 2e7 wide and trips the A2 area-gauge debug_assert
 status: open
 opened: 2026-10-22
-priority: P2
+priority: P1
 cost: M
 ---
 
