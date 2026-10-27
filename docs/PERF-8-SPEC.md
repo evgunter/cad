@@ -92,7 +92,7 @@ today (the detached frame's cost is the thing to watch).
 
 ## 4. Out of fence
 
-The lanes' quadrature (`quad.rs`); the schedule and target; the fold's
+The lanes' quadrature (`props/quad/`); the schedule and target; the fold's
 arithmetic; the closed-form lanes; tier 3′'s aggregate gate;
 `editor-core`'s parallel maps (report, do not fix). PROPS/TOPO
 territory plus the funnel door in `geom-core`, announced in

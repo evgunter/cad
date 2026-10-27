@@ -1454,6 +1454,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                     (arrival, corner_half.edge),
                     germ((run.0 + n - 1) % n, start_germ),
                     germ((run.0 + run.1 - 1) % n, end_germ),
+                    [None, None],
                     band,
                 )?;
                 // At a closed edge's lone vertex with a germ along it the

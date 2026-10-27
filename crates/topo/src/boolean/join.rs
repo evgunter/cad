@@ -4728,37 +4728,41 @@ fn pinch_ray_refusal<T: geom_core::Real>(
 /// ([`super::sectors::SlitTips`]), as its operand and carrying face:
 /// `side`'s own at the vertex, else the other's at a vertex the other
 /// holds there, a vertex pair's partner or a pierce the vertex's ring
-/// serves.
+/// serves. A null edge's copy of a vertex reads as the vertex.
 fn slit_tip_on<T: geom_core::Real>(
     red: &BooleanReduction<T>,
     side: Operand,
     vertices: impl IntoIterator<Item = VertexKey>,
 ) -> Option<(Operand, FaceKey)> {
-    vertices.into_iter().find_map(|v| {
-        let paired = red
-            .contacts
-            .vv
-            .iter()
-            .filter_map(|c| match side {
-                Operand::A => (c.record.a == v).then_some(c.record.b),
-                Operand::B => (c.record.b == v).then_some(c.record.a),
-            })
-            .chain(
-                red.pierce_rings
-                    .iter()
-                    .filter(|r| r.operand == side && r.ring_vertex == v)
-                    .flat_map(|r| r.pierces.iter().copied()),
-            )
-            .map(|w| (side.other(), w));
-        [(side, v)]
-            .into_iter()
-            .chain(paired)
-            .find_map(|(operand, w)| {
-                red.slit_tips[usize::from(operand == Operand::B)]
-                    .face_at(w)
-                    .map(|face| (operand, face))
-            })
-    })
+    let copies = super::NullCopies::of_operand(&red.null_edges, side);
+    vertices
+        .into_iter()
+        .flat_map(|v| copies.of(v))
+        .find_map(|v| {
+            let paired = red
+                .contacts
+                .vv
+                .iter()
+                .filter_map(|c| match side {
+                    Operand::A => (c.record.a == v).then_some(c.record.b),
+                    Operand::B => (c.record.b == v).then_some(c.record.a),
+                })
+                .chain(
+                    red.pierce_rings
+                        .iter()
+                        .filter(|r| r.operand == side && r.ring_vertex == v)
+                        .flat_map(|r| r.pierces.iter().copied()),
+                )
+                .map(|w| (side.other(), w));
+            [(side, v)]
+                .into_iter()
+                .chain(paired)
+                .find_map(|(operand, w)| {
+                    red.slit_tips[usize::from(operand == Operand::B)]
+                        .face_at(w)
+                        .map(|face| (operand, face))
+                })
+        })
 }
 
 /// **The ring lane's order where its run walls off a sliver along a

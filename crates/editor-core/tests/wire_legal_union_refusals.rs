@@ -124,8 +124,8 @@ impl SunkBossCut {
 
     /// The same document with block `k`'s copy slid to `y` along y: an
     /// edit of its Slide Y value, so every node keeps its id. The value
-    /// is charted on the plane its copy's start cap is mated to, which
-    /// faces down, so its `y` runs against the world's.
+    /// is charted on the plane its copy's start cap is mated to, its `y`
+    /// the world's.
     fn moved(&self, k: usize, y: f64) -> Self {
         let slot = value_slot(&self.doc, self.placements[k], Coord::Slide(TargetAxis::Y));
         let (doc, _) = step(
@@ -133,7 +133,7 @@ impl SunkBossCut {
             DocEdit::SetParam {
                 node: self.placements[k],
                 slot,
-                value: len(-y).into(),
+                value: len(y).into(),
                 fresh: Vec::new(),
             },
         );

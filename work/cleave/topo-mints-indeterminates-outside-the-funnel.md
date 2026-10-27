@@ -76,7 +76,7 @@ Five of the seven `contact_verify` mints are not escalations at all. A
 DEFINITE `Positive` residual is a CONTRADICTION of a declared contact,
 and dressing it as `MarginDiag::Invalid` says "the margin was poison"
 about a margin that was measured.
-`crates/geom-brep/src/props/quad.rs` names this class in prose — *"turns
+`crates/geom-brep/src/props/quad/` names this class in prose — *"turns
 into `Indeterminate{margin: Invalid}`: a MIS-TYPED refusal"*.
 
 **This is also a correction to PR 2928's own sweep, and it is the
@@ -368,7 +368,7 @@ New step-4 sites, of the same gate shape, off the log:
 - `merge_faces`' LoopWinding decided zero.
 
 Filed on flux:
-`work/flux/a-gate-rejection-of-a-decided-enclosure-bisects-to-budget.md`.
+`work/scalar/a-gate-rejection-of-a-decided-enclosure-bisects-to-budget.md`.
 
 ## Step 2 WIP, held by #3990 (2026-10-03)
 

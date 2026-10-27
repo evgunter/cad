@@ -596,6 +596,7 @@ fn row4_the_world_pin_moves_undoes_and_refuses() {
     let pin = editor_core::Mate {
         on: cap.clone(),
         to: cap,
+        orient: editor_core::Orientation::IDENTITY,
     };
     match editor_core::apply(
         &part_doc,

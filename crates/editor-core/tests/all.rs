@@ -836,6 +836,8 @@ mod intent_s4_h_placed;
 mod intent_s5_a_relation;
 #[path = "intent_s5_b_interference.rs"]
 mod intent_s5_b_interference;
+#[path = "intent_value_chart_orientation.rs"]
+mod intent_value_chart_orientation;
 #[path = "intent_vars_2_table.rs"]
 mod intent_vars_2_table;
 #[path = "intent_vars_3_readers.rs"]
@@ -848,3 +850,5 @@ mod run_wall_offers;
 mod union_flush_fuses;
 #[path = "union_member_orders_decide_alike.rs"]
 mod union_member_orders_decide_alike;
+#[path = "value_chart_sweeps.rs"]
+mod value_chart_sweeps;

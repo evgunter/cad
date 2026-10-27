@@ -309,7 +309,8 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | boxes::BOX_SPHERE_AXIS
         | boxes::BOX_SPHERE_SEAM_UNIT
         | separating::PAIR_AXIS
-        | separating::PAIR_NORMAL => geom_core::DIRECTION_LENGTH_SUBJECT,
+        | separating::PAIR_NORMAL
+        | solid_contain::POINT_AXIS => geom_core::DIRECTION_LENGTH_SUBJECT,
         boxes::BOX_SPHERE_SEAM => "whether a sphere's seam direction is square to its polar axis",
         // `geom_core`'s lever on a dimensionless direction, which the
         // narrow phase's normals and the cylinder box's axis read.
@@ -3975,10 +3976,13 @@ pub enum BooleanError {
     },
     /// The result keeps a curved face on both sides of an operand's
     /// slit or zero-area ring, whose two edges the zip glued into one
-    /// edge of that face, and deleting that edge from a curved face is
-    /// not built (`slit::close_struts`): the lone ring's bridge is a
-    /// line chord, which lies in no curved face. A construction gap,
-    /// with no lever.
+    /// edge of that face with a free end, a strut, and deleting a strut
+    /// from a curved face is not built (`slit::close_struts`,
+    /// `crate::strut`'s `StrutRefusal::Curved`). Of a strut with both
+    /// ends free, the lone ring's bridge is a line chord, which lies in
+    /// no curved face; the strut deleted with one free end by `kev`
+    /// mints nothing and is refused with it. A construction gap, with
+    /// no lever.
     CurvedFaceClosesAcrossSlit {
         /// The curved face, in the result's keys.
         face: FaceKey,
@@ -3989,8 +3993,10 @@ pub enum BooleanError {
     /// slit or zero-area ring, between stretches of it the result keeps:
     /// the zip glues the slit's two edges into one edge of that face
     /// there, with the slit's edges running on past both its ends, and
-    /// deleting it parts the slit in two, which is not built
-    /// (`slit::close_struts`). A construction gap, with no lever.
+    /// deleting it parts the slit in two, which is built only where the
+    /// edge's two halves lie in one loop of the face and, of the face's
+    /// outline, one side is the slit's run (`slit::part_mid_slit`). A
+    /// construction gap, with no lever.
     SlitFaceClosesMidSlit {
         /// The face, in the result's keys.
         face: FaceKey,
@@ -5322,19 +5328,24 @@ impl core::fmt::Display for BooleanError {
                      {NOT_YET_ENDING}"
                 )
             }
-            Self::EdgeInFace { edge, face, gap } if gap.is_defect() => write!(
-                f,
-                "edge {edge:?} of the result lies in face {face:?}, and {}. {}",
-                gap.words(),
-                geom_core::KERNEL_DEFECT_ENDING
-            ),
-            Self::EdgeInFace { edge, face, gap } => write!(
-                f,
-                "edge {edge:?} of the result lies in face {face:?}, whose material parts it into \
-                 two edges, and the parting is not built where {}. {}",
-                gap.words(),
-                geom_core::NOT_YET_ENDING
-            ),
+            Self::EdgeInFace { edge, face, gap } => {
+                if gap.is_defect() {
+                    write!(
+                        f,
+                        "edge {edge:?} of the result lies in face {face:?}, and {}. {}",
+                        gap.words(),
+                        geom_core::KERNEL_DEFECT_ENDING
+                    )
+                } else {
+                    write!(
+                        f,
+                        "edge {edge:?} of the result lies in face {face:?}, whose material parts \
+                         it into two edges, and the parting is not built where {}. {}",
+                        gap.words(),
+                        geom_core::NOT_YET_ENDING
+                    )
+                }
+            }
             Self::SlitLineCrossed {
                 operand,
                 vertex,
@@ -5363,7 +5374,7 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "the result keeps curved face {face:?} on both sides of edge {edge:?}, where an \
                  operand's slit or zero-area ring lay, so the face closes across it, and \
-                 deleting an edge from a curved face is not built. {}",
+                 deleting such an edge with a free end from a curved face is not built. {}",
                 geom_core::NOT_YET_ENDING
             ),
             Self::SlitFaceClosesMidSlit { face, edge } => write!(
@@ -5371,7 +5382,8 @@ impl core::fmt::Display for BooleanError {
                 "the result keeps face {face:?} on both sides of edge {edge:?}, part of an \
                  operand's slit or zero-area ring whose edges run on past both its ends, so the \
                  face closes across that part and parts the slit in two, which the Boolean does \
-                 not yet build. {}",
+                 not yet build where the edge's halves lie in two loops or the outline it parts \
+                 has no side that is the slit's run. {}",
                 geom_core::NOT_YET_ENDING
             ),
             Self::LineWedges { fault, from, to } => match fault {

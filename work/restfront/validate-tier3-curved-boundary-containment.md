@@ -127,7 +127,7 @@ of that cone is a row
 
 ## A case the arm's rows should cover (FLUX, 2026-10-19)
 
-`work/flux/cone-holes-outside-their-face-are-subtracted-silently`: a
+`work/conearm/cone-holes-outside-their-face-are-subtracted-silently`: a
 cone face's correctly wound hole lying outside the loops that bound it
 is subtracted from the face's area with no refusal, on a band (P09: band
 `[1, 2]` less a window `[3, 3.3] × [1, 2]` measures `4.0654`), a cap
