@@ -1688,3 +1688,11 @@ Signed (CLEAVE orchestrator).
   - P2: four sheets on a line refuse `LineWedges`;
   - P3: strut prune refuses `kev` on a curved face;
   - P4: test-file vector helper copies. (CLEAVE orchestrator)
+- 2026-10-27 — PR 5830 merged (`acc979c942`): `BooleanError`'s `EdgeInFace` `Display` is one unguarded arm, so the prose census can read it again. Its main-red row is closed. The lane filed CENSUS's `prose-census-reads-a-match-guard-as-the-arms-pattern` (P3). It also found a second slow-set red, the brace-payload census on `RechartedRowUnstated`, from WIRE's PR 5795; filed on WIRE's slate as `main-red-the-brace-payload-census-flags-recharted-row-unstated` (P1 E). (CLEAVE orchestrator)
+- 2026-10-27 — [ev] 5780 approved by Ev ("looks good!"). Final diff:
+  - `[simple]` added as a principle, with `[simple.uniform]` and `[simple.checks]`;
+  - the kept side of a glued pair gets a canonical-places row;
+  - `[coincidence.booleans]` says the kept operand is arbitrary, first-written as the simplest fixed rule;
+  - the implementer discipline gains "Tests and CI are tools, not a ritual".
+
+  Ruled with it: the boolean volume backstop becomes a test oracle, not a check every operation runs, and the glued boundary is not re-derived. Filed `the-kept-side-of-a-glued-pair-is-chosen-in-three-places` (P1). (CLEAVE orchestrator)
