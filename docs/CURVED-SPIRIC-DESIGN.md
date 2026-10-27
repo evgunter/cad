@@ -277,7 +277,7 @@ the list below is the non-test set), and what each costs a spiric:
 | chord tessellation | `mesh/src/chords.rs:compute_chords` (per-kind step: `sagitta_step`, `ellipse_step`, `nurbs_chord_count`) | closed-form `sup|C″|` bound: `|C″| ≤ r + (rρ_max + r²)/f_min + r²ρ_max²/f_min³`, `f_min = √((R−r)²−d²)` — the ellipse's curvature-bound pattern; `trimmed.rs:trim_polygon` consumes the pcurve |
 | STEP export | `step-export/src/writer.rs:edge_curve` (`EDGE_CURVE` with a bare curve; no `SURFACE_CURVE`/`PCURVE` written) | no ISO 10303-42 entity; genus 1 ⇒ no exact `B_SPLINE_CURVE`. Q4. Import (`step-import/src/adopt.rs`) would read a spline back; the adopted `Intersection{torus, plane}` with a `Nurbs` carrier passes `certify.rs`'s 9-sample gate but owes the C2 hull at rest, which the torus poison denies — a typed import refusal until Q3(ii) |
 | rigid transform / scalar lift | `topo/src/transform.rs:map_carrier`; `geom/src/scalar_lift.rs:map_scalar` | frame maps, mechanical |
-| props (+V, tier 3) | `geom-brep/src/props/curved.rs:torus_boundary` (circles only, else `NotIsoRectangle`/`Unimplemented`); `props/quad.rs` (cylinder-chart curved cuts only, C9 ring, harmonic pcurves) | **no lane; no elementary closed form** — §4.7 |
+| props (+V, tier 3) | `geom-brep/src/props/curved.rs:torus_boundary` (circles only, else `NotIsoRectangle`/`Unimplemented`); `props/quad/` (cylinder-chart curved cuts only, C9 ring, harmonic pcurves) | **no lane; no elementary closed form** — §4.7 |
 | kind tables, census, readback, queries | `topo/src/chart_iso.rs:classify_kind`, `query.rs`, `readback.rs:edge_pose`, `chord_join.rs:between_edge_is_section`, `loop_winding.rs:planar_loop_winding`, `boolean/{contain,join,reduce,sectors}.rs`, `splitting/*.rs`, `replace_face.rs:{transport_curve,plan_edge}`, `editor-core/src/eval/measure.rs:curve_reach`, `props.rs:face_flux` | each an explicit arm: a spiric is neither line nor conic, so most refuse typed exactly as `Nurbs` does today, and each refusal is a named frontier |
 | the mint itself | `offset_axial.rs:mint_carrier` ("the carrier keeps its KIND and conventional frame") | **the law bends once**: the old rim is a `Circle` (meridian), the moved rim a spiric — the first kind-changing mint. It is the moved pair's own section: `geom_brep::plane_torus_section`'s spiric arm, the table's closed form called by name, then `param_on` and the midpoint meter verify it as for every other arm |
 
@@ -296,7 +296,7 @@ a quadrature lane the elbow would stop precisely where the sphere
 lune stops today: `VolumeUncomputable { NotIsoRectangle }`
 (`work/props/sphere-flux-arm-refuses-partial-bands.md`). A lane
 would be certified quadrature in `v` with an enclosed remainder;
-`props/quad.rs`'s rule ("no transcendental is ever evaluated on the
+`props/quad/`'s rule ("no transcendental is ever evaluated on the
 certified path" — the C9 ring is the substrate) does not admit the
 integrand as written, so the lane is either a rationalization
 (`w = tan(v/2)` turns everything algebraic — the sqrt of a quartic

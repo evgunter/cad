@@ -809,8 +809,9 @@ fn a_tapered_concave_loft_keeps_the_prism_wall_directions() {
 /// was `union(notched, pellet)` on two disjoint solids: no surface
 /// intersections, so the operation asks `point_in_solid`, and a wrong
 /// `sense` on the concave wall made it answer `In` and swallow the
-/// pellet. On a LOFTED operand both doors refuse instead — the boolean
-/// layer rejects a rung-3 NURBS operand at admission, and
+/// pellet. On a LOFTED operand both doors refuse instead — the pellet
+/// sits inside the hull of the notch's NURBS walls, so the boolean
+/// cannot rule out a meeting it has no NURBS × plane arm for, and
 /// `point_in_solid` has no NURBS door at all.
 ///
 /// So the swallow is closed for loft by REFUSAL, not by the bit, which
@@ -847,12 +848,20 @@ fn a_lofted_operand_refuses_the_union_check_typed() {
     let pellet = finished("the pellet", pellet, Tol::witness());
 
     let err = match topo::boolean::union(&operand, &pellet, Tol::witness()) {
-        Err(e) => e.to_string(),
-        Ok(_) => panic!("a rung-3 NURBS operand has no boolean layer yet"),
+        Err(e) => e,
+        Ok(_) => panic!("a NURBS wall near the pellet has no boolean arm yet"),
     };
-    assert!(
-        err.contains("is a spiric or spline (NURBS) curve"),
-        "the refusal names the operand: {err}"
+    let topo::BooleanError::CurvedBooleanUnsupported {
+        operand: topo::boolean::Operand::A,
+        face,
+        kind: geom::SurfaceKind::Nurbs,
+    } = err
+    else {
+        panic!("the refusal names a NURBS face of the lofted operand: {err:?}");
+    };
+    assert_eq!(
+        face, lofted.side_faces[0][2],
+        "the named face is the concave top wall the pellet sits under"
     );
     let door = point_in_solid(
         &lofted.body,

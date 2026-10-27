@@ -238,12 +238,17 @@ pub fn rest(
     editor_core::Mate {
         on: plane(on),
         to: flip(plane(to)),
+        orient: editor_core::Orientation::IDENTITY,
     }
 }
 
 /// **A mate equating two poses** as written, `on` reading the copy.
 pub fn mate(on: editor_core::Operand, to: editor_core::Operand) -> editor_core::Mate<Formula> {
-    editor_core::Mate { on, to }
+    editor_core::Mate {
+        on,
+        to,
+        orient: editor_core::Orientation::IDENTITY,
+    }
 }
 
 /// **The placement whose copy an authored face side reads**: the node
@@ -1156,9 +1161,7 @@ pub fn value_bump(
     };
     let value = match coord {
         editor_core::Coord::Slide(_) => len(held + delta),
-        editor_core::Coord::Spin(editor_core::TargetAxis::Z) | editor_core::Coord::Spin(_) => {
-            ang(held + delta)
-        }
+        editor_core::Coord::SPIN | editor_core::Coord::Spin(_) => ang(held + delta),
     };
     DocEdit::SetParam {
         node: placement,
@@ -1277,6 +1280,7 @@ pub fn authored(
             editor_core::ConstraintKind::Mate(editor_core::Mate {
                 on: editor_core::Operand::Var(m.on),
                 to: editor_core::Operand::Var(m.to),
+                orient: editor_core::Orientation::IDENTITY,
             })
         }
         editor_core::ConstraintKind::Value(v) => {
@@ -1903,6 +1907,7 @@ impl Recorder {
             editor_core::Mate {
                 on: cap(),
                 to: cap(),
+                orient: editor_core::Orientation::IDENTITY,
             },
             vec![
                 (
@@ -1913,10 +1918,7 @@ impl Recorder {
                     editor_core::Coord::Slide(editor_core::TargetAxis::Y),
                     Formula::zero(Dimension::Length),
                 ),
-                (
-                    editor_core::Coord::Spin(editor_core::TargetAxis::Z),
-                    Formula::zero(Dimension::Angle),
-                ),
+                (editor_core::Coord::SPIN, Formula::zero(Dimension::Angle)),
             ],
         );
         let ev = editor_core::evaluate::<f64>(
@@ -2117,7 +2119,11 @@ impl Recorder {
         self.insert_placed(
             read,
             editor_core::Placed {
-                mates: vec![editor_core::Mate { on: own, to: frame }],
+                mates: vec![editor_core::Mate {
+                    on: own,
+                    to: frame,
+                    orient: editor_core::Orientation::IDENTITY,
+                }],
                 values: Vec::new(),
             },
         )
@@ -2126,13 +2132,16 @@ impl Recorder {
     /// **A copy of the full revolve `revolve` standing on the `z` of
     /// `frame`** (a frame read off the body the copy joins, stated by
     /// exact moves, [`editor_core::moved_frame`]): an `Axis` mate from
-    /// the revolve's own axis, slid `along` it, its spin about it the
-    /// constant `0`. Returns the placement.
+    /// the revolve's own axis under `orient`, which puts that axis on the
+    /// target's `z` ([`meridian_up`] for an axis along its meridian's
+    /// `+y`), slid `along` it, its spin about it the constant `0`.
+    /// Returns the placement.
     pub fn on_axis(
         &mut self,
         revolve: RecipeNodeId,
         frame: editor_core::Operand,
         along: Formula,
+        orient: editor_core::Orientation,
     ) -> RecipeNodeId {
         use editor_core::pose::{PoseDef, PoseRole, RoleRead};
         let read = body_read(&self.doc, editor_core::Operand::output(revolve, 0));
@@ -2150,11 +2159,12 @@ impl Recorder {
                         port: 1,
                     },
                     to,
+                    orient,
                 }],
                 values: vec![
                     (editor_core::Coord::Slide(editor_core::TargetAxis::Z), along),
                     (
-                        editor_core::Coord::Spin(editor_core::TargetAxis::Z),
+                        editor_core::Coord::SPIN,
                         Formula::zero(editor_core::Dimension::Angle),
                     ),
                 ],
@@ -2291,7 +2301,7 @@ pub fn turned_to(
             .iter()
             .find(|(a, _)| *a == axis)
             .map_or_else(|| Formula::zero(Dimension::Angle), |(_, by)| by.clone());
-        (Coord::Spin(axis), by)
+        (Coord::Spin(Some(axis)), by)
     });
     slides.chain(spun).collect()
 }
@@ -2320,7 +2330,7 @@ pub fn upright_at(origin: [f64; 3]) -> Vec<(editor_core::Coord, Formula)> {
         (TargetAxis::Z, Formula::zero(Dimension::Angle)),
     ]
     .into_iter()
-    .map(|(axis, by)| (Coord::Spin(axis), by));
+    .map(|(axis, by)| (Coord::Spin(Some(axis)), by));
     slides.chain(spins).collect()
 }
 
@@ -2473,6 +2483,17 @@ pub fn die() -> Die {
 }
 
 pub mod pr4;
+
+/// **The orientation of a revolve whose axis is its meridian's `+y`,
+/// stood on a target's `z`**: its `x` kept, its `y` on `+z` (so its `z`
+/// on `−y`), a quarter turn about `x`.
+pub fn meridian_up() -> editor_core::Orientation {
+    editor_core::Orientation::new(
+        editor_core::SignedAxis::PlusX,
+        editor_core::SignedAxis::MinusY,
+    )
+    .expect("x and z lie along two axes")
+}
 
 /// **The witness tolerance a suite decides under** — `Tol::witness()`
 /// under the name the suites reach for it by.

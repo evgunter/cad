@@ -56,7 +56,7 @@ use crate::pose::PoseValue;
 /// value is derived from [`Self::quoted`] or [`Self::upper`]. `quoted`
 /// feeds a sign and a payload, and it chooses between two spellings of
 /// one value where each is exact and only their conditioning differs:
-/// [`super::reference_about`]'s two formulas for `1 + c`, and
+/// the value chart's two formulas for `1 + c` ([`super::value`]), and
 /// [`frame_of`]'s pole a direction is aimed from. Such a choice is no
 /// verdict and is not sampled; a box lane may take the other spelling
 /// than its value lane, and each encloses the same value. `upper` forms
@@ -608,7 +608,7 @@ pub fn mate_coset<T: SolveScalar>(on: &PoseValue<T>, to: &PoseValue<T>) -> Coset
 
 /// **One constraint's equations, as the bundle rule reads them**
 /// (FORK-S3O): a mate's are its pose kind's symmetry, a value's the one
-/// freedom it sets on the target space's (swung) axes. Read once per bundle, off its
+/// freedom it sets on the target space's (carried) axes. Read once per bundle, off its
 /// definitions ([`equations_of`]), by the edit doors and by the solve
 /// alike, so the rule the door asks and the rule the fold asks are one
 /// reading.
@@ -684,34 +684,34 @@ pub(crate) fn chained(left: SubgroupFamily) -> bool {
 }
 
 /// **Whether the mates' residual `left` leaves `coord`** (D10
-/// `[placement.values]`), on the target space's axes swung onto the one
-/// mated direction where a mate fixes one: the one question a value is
-/// asked of its bundle. The solve reads a slide as a translation
-/// equation and a spin as a rotation equation, and settles each
-/// structurally inside what the mates leave, so a slide is the
-/// residual's only where it frees every translation along that axis,
-/// and a spin only where it frees that turn.
+/// `[placement.values]`): the one question a value is asked of its
+/// bundle, read off families alone. The solve reads a slide as a
+/// translation equation and a spin as a rotation equation, and settles
+/// each structurally inside what the mates leave.
 ///
 /// - No direction fixed ([`chained`]): a slide where the residual frees
-///   every translation, and a spin about any axis, one link of a chain.
-/// - A direction fixed: `Spin(Z)`, the turn about it, and a slide along
-///   a swung axis the residual frees — `x` and `y` in a plane's, `z`
-///   along an axis's, all three beside a lone direction.
+///   every translation, and a spin about an axis, one link of a chain.
+/// - A direction fixed: the spin with no axis, and a slide along any
+///   carried axis where the residual frees a translation — as many as
+///   it frees ([`slides_left`]); which of them the mate takes is the
+///   source's geometry's to say, decided once where the chart is read
+///   ([`super::NoChartWhy::SlidesDoNotSpan`]).
 pub(crate) fn leaves(left: SubgroupFamily, coord: super::Coord) -> bool {
-    use super::{Coord, TargetAxis as A};
+    use super::Coord;
     use SubgroupFamily as F;
     match coord {
-        Coord::Spin(_) if chained(left) => true,
-        Coord::Spin(axis) => {
-            axis == A::Z && matches!(left, F::Planar | F::Cylindrical | F::Parallel | F::Revolute)
+        Coord::Spin(Some(_)) => chained(left),
+        Coord::Spin(None) => {
+            !chained(left) && matches!(left, F::Planar | F::Cylindrical | F::Parallel | F::Revolute)
         }
-        Coord::Slide(axis) => match left {
-            F::Se3 | F::Parallel | F::Translation => true,
-            F::Planar | F::PlaneTranslation => axis != A::Z,
-            F::Cylindrical | F::Prismatic => axis == A::Z,
-            F::Spherical | F::Revolute | F::Trivial => false,
-        },
+        Coord::Slide(_) => slides_left(left) > 0,
     }
+}
+
+/// **How many slides the residual `left` leaves**
+/// ([`SubgroupFamily::slides`]).
+pub(crate) fn slides_left(left: SubgroupFamily) -> usize {
+    left.slides()
 }
 
 /// Whether a mate of `family` leaves `coord`'s whole class of freedom:
@@ -731,7 +731,8 @@ fn frees(family: SubgroupFamily, coord: super::Coord) -> bool {
 /// Where no direction is fixed, the spins are a chain about the target
 /// space's axes taken in bundle order, of at most three, no two in a
 /// row about one axis, counted by the turns it writes; where a mate
-/// fixes one, each freedom of the swung chart is written once.
+/// fixes one, each freedom of its chart is written once, and no more
+/// slides than the residual frees translations.
 fn written(
     left: SubgroupFamily,
     values: &[(crate::node::ConstraintId, super::Coord)],
@@ -751,7 +752,7 @@ fn written(
             continue;
         }
         match coord {
-            Coord::Spin(axis) if chained(left) => {
+            Coord::Spin(Some(axis)) if chained(left) => {
                 if let Some(&(last, before)) = spins.last()
                     && last == axis
                 {
@@ -775,6 +776,19 @@ fn written(
             name(id);
         }
     }
+    // More slides than the residual frees translations: each fixes an
+    // equation the rest already fix.
+    let slides: Vec<_> = set
+        .iter()
+        .filter(|&&(c, _)| matches!(c, Coord::Slide(_)))
+        .map(|&(_, id)| id)
+        .collect();
+    let excess = slides.len().saturating_sub(slides_left(left));
+    if excess > 0 {
+        for &id in &slides {
+            name(id);
+        }
+    }
     // The chain's turns, counted as written: a link about the axis of
     // the one before it turns no further freedom.
     let turns = spins
@@ -783,7 +797,9 @@ fn written(
         .filter(|&(k, &(axis, _))| k == 0 || spins[k - 1].0 != axis)
         .count()
         .min(3);
-    let count = u8::try_from(set.len() + turns).unwrap_or(u8::MAX).min(6);
+    let count = u8::try_from(set.len() - excess + turns)
+        .unwrap_or(u8::MAX)
+        .min(6);
     let order: Vec<_> = values
         .iter()
         .map(|&(id, _)| id)
@@ -848,7 +864,24 @@ fn already_fixed(
     let left = residual(&mates);
     let values = values_of(bundle);
     let (_, twice) = written(left, &values);
+    // More slides than the mates leave translations: the mates that fix
+    // a translation fix the one too many.
+    let slides = super::TargetAxis::ALL
+        .into_iter()
+        .filter(|&a| {
+            let c = super::Coord::Slide(a);
+            leaves(left, c) && values.iter().any(|&(_, v)| v == c)
+        })
+        .count();
+    let excess = slides > slides_left(left);
     for &(id, coord) in &values {
+        if excess && matches!(coord, super::Coord::Slide(_)) {
+            for &(other, family) in &mates {
+                if !frees(family, coord) {
+                    named(other, &mut out);
+                }
+            }
+        }
         if !leaves(left, coord) {
             for &(other, family) in &mates {
                 if !frees(family, coord) {
@@ -1110,23 +1143,6 @@ pub(crate) fn solve_bundle<T: SolveScalar>(
     Ok(Folded::Pinned(at, rigid))
 }
 
-/// **Whether a mate's target reads its pose in the opposite sense**: a
-/// flip, through any slides and spins of it — what the chart normalises
-/// to the copy's side (ruling C-1).
-pub(crate) fn target_flipped<P>(doc: &Doc<P>, to: crate::VarId) -> bool {
-    fn read<P>(doc: &Doc<P>, var: crate::VarId) -> bool {
-        use crate::pose::PoseDef as D;
-        match doc.var(var).map(crate::Var::def) {
-            Some(crate::var::VarDef::Pose(D::Flip { pose })) => !read(doc, pose.read),
-            Some(crate::var::VarDef::Pose(
-                D::Slide { pose, .. } | D::Spin { pose, .. } | D::Carried { pose, .. },
-            )) if pose.role.is_none() => read(doc, pose.read),
-            _ => false,
-        }
-    }
-    read(doc, to)
-}
-
 /// **The fold's arm**: the copy's reach in its own coordinates, plus
 /// the farthest a mate's two poses sit from their coordinates' origins
 /// — the length an angle's verdict is levered over (D4 ¶1), through
@@ -1216,8 +1232,10 @@ pub(crate) fn on_reads_the_copy<P>(
 /// mate, asked by the edit door of a constraint being written and by
 /// the load door of every constraint it reads: `on` reads the copy
 /// ([`MateFault::NotOnTheCopy`]), the two poses are of one kind
-/// ([`MateFault::KindsDiffer`]). Whether it fixes an equation the rest of its bundle already fixes is the bundle
-/// rule's ([`overconstrained`]).
+/// ([`MateFault::KindsDiffer`]), and a point or a frame mate carries no
+/// orientation ([`MateFault::Unoriented`]). Whether it fixes an equation
+/// the rest of its bundle already fixes is the bundle rule's
+/// ([`overconstrained`]).
 ///
 /// # Errors
 ///
@@ -1236,6 +1254,15 @@ pub(crate) fn admit_mate<P>(
         && on != to
     {
         return Err(Box::new(MateFault::KindsDiffer { mate, on, to }));
+    }
+    // A point or a frame mate fixes no one direction, so it carries no
+    // orientation.
+    if data.orient != super::Orientation::IDENTITY
+        && on
+            .and_then(crate::VarKind::symmetry)
+            .is_some_and(|f| matches!(f, SubgroupFamily::Spherical | SubgroupFamily::Trivial))
+    {
+        return Err(Box::new(MateFault::Unoriented { mate }));
     }
     Ok(())
 }
@@ -1346,7 +1373,7 @@ mod tests {
             verdict(&[
                 (id(1), Equations::Mate(F::Cylindrical)),
                 value(1, Coord::Slide(TargetAxis::Z)),
-                value(1, Coord::Spin(TargetAxis::Z)),
+                value(1, Coord::SPIN),
             ]),
             Ok(true)
         );
@@ -1356,11 +1383,7 @@ mod tests {
             (id(2), Equations::Mate(F::Parallel)),
         ];
         assert_eq!(verdict(&ball_and_direction), Ok(false));
-        let spun = [
-            ball_and_direction.to_vec(),
-            vec![value(2, Coord::Spin(TargetAxis::Z))],
-        ]
-        .concat();
+        let spun = [ball_and_direction.to_vec(), vec![value(2, Coord::SPIN)]].concat();
         assert_eq!(verdict(&spun), Ok(true));
         // ... and with a slide on the direction: no repeat (in general
         // position it would fix the ball's turn), but no translation the
@@ -1464,7 +1487,7 @@ mod tests {
         let chain = |axes: &[TargetAxis]| -> Vec<(ConstraintId, Equations)> {
             let mut bundle = slides.to_vec();
             for (k, &axis) in (3u32..).zip(axes) {
-                bundle.push(unmated(k, Coord::Spin(axis)));
+                bundle.push(unmated(k, Coord::Spin(Some(axis))));
             }
             bundle
         };
@@ -1517,7 +1540,11 @@ mod tests {
         let ball = (id(1), Equations::Mate(F::Spherical));
         let chain = |axes: &[TargetAxis]| -> Vec<(ConstraintId, Equations)> {
             std::iter::once(ball)
-                .chain((3u32..).zip(axes).map(|(k, &a)| unmated(k, Coord::Spin(a))))
+                .chain(
+                    (3u32..)
+                        .zip(axes)
+                        .map(|(k, &a)| unmated(k, Coord::Spin(Some(a)))),
+                )
                 .collect()
         };
         assert_eq!(

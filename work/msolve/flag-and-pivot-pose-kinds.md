@@ -2,11 +2,10 @@
 id: flag-and-pivot-pose-kinds
 kind: unit
 title: the Flag and Pivot pose kinds: reads, charts, folds, persistence, picks, and the rung-1 composition through each part's construction
-status: parked
+status: open
 opened: 2026-10-22
 priority: P1
 cost: H
-blocked_on: [the-value-chart-reads-a-written-orientation]
 ---
 
 
@@ -62,3 +61,7 @@ both together.
   (`a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space`),
   whose value chart the two kinds' mates fit; it can run beside D′3
   (`docs/INTENT-STAGE3-SPEC.md` §12, "Sequencing", step 3).
+
+## Released (INTENT, 2026-10-27)
+
+The value chart (PR 5742) merged, with ruling (b) built: the spin is about the target's own direction, with any `Flip` undone. The pivot and flag kinds' mates fit that chart now. Open for MSOLVE.

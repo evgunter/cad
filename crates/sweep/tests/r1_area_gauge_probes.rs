@@ -5,7 +5,7 @@
 //! (`sweep::loft_body` + `topo::props::mass_properties`) with debug
 //! assertions ON, and confirm the gauge is silent on an honest face.
 //! The corruption half is a separate run against a locally-patched
-//! `props/quad.rs` (recorded in the probe branch's log).
+//! `props/quad/` (recorded in the probe branch's log).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

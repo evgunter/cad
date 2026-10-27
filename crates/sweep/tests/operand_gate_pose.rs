@@ -1,7 +1,7 @@
 //! **Whether a pair may meet is a fact about the pair, not its pose.**
 //!
 //! Each fixture below is two operands with a curved face (a cone wall;
-//! an `Approx` cap, which no op admits) clear of a planar operand,
+//! an `Approx` cap, which no ray test crosses) clear of a planar operand,
 //! turned TOGETHER through a set of
 //! rigid poses and scales. Every pose gets the same verdict: every op,
 //! in both orders, builds, and weighs what the disjoint operands'
@@ -173,43 +173,79 @@ fn a_cone_wall_clear_of_a_bar_builds_at_every_pose_and_scale() {
 }
 
 /// The `Approx` cap clears every face of the bar at every pose, so each
-/// op reaches the classification, and refuses there by the kind's own
-/// door ([`topo::PointInSolidError::KindUnsupported`]): `Approx` stays off
-/// the boolean roster by decision. The verdict is the pose's no more
-/// than the cone's is. Five of [`poses`]: re-certifying the fit per pose
-/// is what this row spends.
+/// op reaches the classification, where the ray test has no `Approx`
+/// arm. The bar's point stands past the capped box's every face reach
+/// along the box's own face normals, so the classification answers
+/// outside without crossing a face, and every op builds to the closed
+/// forms: the box `2 × 2 × 1`, the bar `0.5 × 1 × 0.6`.
+///
+/// The capped box's own probes hold the reading both ways. A point in
+/// it, on it or in band of it never reads a side; a point definitely
+/// past it reads `Out`, and the one over the cap near a corner is past
+/// the hull only along the box's `z` normal — inside it along the
+/// anchor axis — so it reads `Out` through the planar-normal candidate
+/// alone.
+///
+/// Every third pose, and every turn about `z` and about the skew axis,
+/// which are where a world-axis reading refused: re-certifying the fit
+/// per pose is what this row spends.
 #[test]
 fn an_approx_cap_clear_of_a_bar_reads_alike_at_every_pose() {
+    use topo::SolidContainment::{In, Out};
     let tol = Tol::witness();
+    let band = crate::common::approx::band();
+    let eps = tol.eps();
     let (capped, _) = box_with_approx_cap(0.05, 1e-9);
     let bar = brick::<f64>((2.3, 2.8), (0.5, 1.5), (0.2, 0.8), tol);
-    for (pose, map) in poses().into_iter().step_by(3) {
-        let (a, b) = (
-            posed("the capped box", &capped, &map, tol),
-            posed("the bar", &bar, &map, tol),
-        );
-        for (op, out) in [
-            ("∪", topo::union(&a, &b, tol)),
-            ("∩", topo::intersect(&a, &b, tol)),
-            ("a ∖ b", topo::subtract(&a, &b, tol)),
-            ("b ∖ a", topo::subtract(&b, &a, tol)),
-        ] {
+    let unread = [
+        ("the centre", Point3::new(1.0, 1.0, 0.5)),
+        ("just under the cap", Point3::new(1.0, 1.0, 1.0 - 1e-6)),
+        ("on the cap", Point3::new(1.0, 1.0, 1.0)),
+        (
+            "in band over the cap",
+            Point3::new(1.0, 1.0, 1.0 + 0.5 * eps),
+        ),
+        (
+            "in band of the corner",
+            Point3::new(2.0 + 0.5 * eps, 2.0 + 0.5 * eps, 1.0 + 0.5 * eps),
+        ),
+        (
+            "inside, near a side face",
+            Point3::new(1.999_999, 0.000_001, 0.000_001),
+        ),
+    ];
+    let outside = [
+        ("over the cap", Point3::new(1.0, 1.0, 1.5)),
+        ("beside", Point3::new(2.5, 1.0, 0.5)),
+        ("far on the diagonal", Point3::new(3.0, 3.0, 3.0)),
+        ("just over the cap", Point3::new(1.0, 1.0, 1.0 + 1e-6)),
+        ("over the cap near a corner", Point3::new(1.9, 1.9, 1.05)),
+    ];
+    let walked = poses().into_iter().enumerate().filter(|(i, (pose, _))| {
+        i % 3 == 0 || pose.ends_with("about z") || pose.ends_with("about (1,2,3)")
+    });
+    for (_, (pose, map)) in walked {
+        let label = format!("ε {eps:e}, {pose}");
+        let box_ = posed("the capped box", &capped, &map, tol);
+        for (what, q) in unread {
+            let got = topo::point_in_solid(&box_, map.transform_point(q), band, tol);
             assert!(
-                matches!(
-                    out,
-                    Err(BooleanError::Containment(
-                        topo::PointInSolidError::KindUnsupported {
-                            kind: geom::SurfaceKind::Approx,
-                            ..
-                        }
-                    ))
-                ),
-                "ε {:e}, {pose}, {op}: the cap clears the bar, so the op reaches the \
-                 classification's Approx door: {:?}",
-                tol.eps(),
-                out.map(|r| r.body().is_some())
+                !matches!(got, Ok(In | Out)),
+                "{label}, {what}: no side is read, got {got:?}"
             );
         }
+        for (what, q) in outside {
+            let got = topo::point_in_solid(&box_, map.transform_point(q), band, tol);
+            assert!(
+                matches!(got, Ok(Out)),
+                "{label}, {what}: past the box, got {got:?}"
+            );
+        }
+        assert_apart_every_op(
+            &label,
+            (&box_, 4.0),
+            (&posed("the bar", &bar, &map, tol), 0.3),
+        );
     }
 }
 

@@ -23,7 +23,7 @@ refined scan (`nurbs/refined-scan-cost`): a 40-control-point cubic
 `RingRefinement::equal_split` 14.3 ms (pure `f64` structure),
 `refine_homogeneous` 4.8 ms per channel, against 3.5 ms for the bound
 read off the refined net. Its remaining callers construct and apply
-it in `geom-brep`: `props/quad.rs` (`RingRefinement::new`, `refine`,
+it in `geom-brep`: `props/quad/` (`RingRefinement::new`, `refine`,
 `refine_u` / `refine_v`), `ssi/section.rs`, `ssi/certify.rs` (over
 `cert_grid`) and `ssi/enclose.rs` (`refine_u` / `refine_v`), and
 `patch_bound.rs`'s `patch_cells_refined` through `geom-core`'s

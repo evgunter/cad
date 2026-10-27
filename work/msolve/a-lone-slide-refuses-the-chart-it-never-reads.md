@@ -2,8 +2,9 @@
 id: a-lone-slide-refuses-the-chart-it-never-reads
 kind: issue
 title: A value's chart refuses at the antipode band even for a lone slide that never reads the swung axes
-status: open
+status: closed
 opened: 2026-10-18
+closed: 2026-10-24
 priority: P3
 cost: E
 ---
@@ -49,3 +50,7 @@ swings for any value under a direction-fixing mate, so a lone slide
 still refuses in the band. Whether the clause narrows is still Ev's
 call (D10's ratified sentence); D′2 did not decide it, and this row
 stays open on that question.
+
+## Closed (2026-10-24)
+
+Absorbed by `the-value-chart-reads-a-written-orientation`. The two swings this row is about are gone, and with them their two antipode bands. Under F the chart has one pole, the orientation written backwards. Within its band the chart refuses whichever values the bundle holds, as `[placement.values]` states ("within the band about that one pole the chart refuses"). Away from it, the only refusal on the chart's account is the span of the slides written (`NoChartWhy::SlidesDoNotSpan`). That is decided from the source's geometry and not from where it stands. So the question of which values refuse at a swing's antipode no longer arises.

@@ -348,7 +348,7 @@ fn probe_dev1_area_enclosure_contains_a_violent_patch_oracle() {
     // the corpus the A2 gauge is calibrated on, and the gauge is silent
     // on it by well over an order of magnitude. That separation is what
     // the ceiling's generosity buys. The gauge's figures live at
-    // `props/quad.rs`'s `area_gauge_ok` and are deliberately not
+    // `props/quad/area.rs`'s `area_gauge_ok` and are deliberately not
     // restated here.
     assert!(
         out.area.width() > 1e-3,

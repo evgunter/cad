@@ -311,3 +311,7 @@ chained push.
 ## 2026-10-25 — band rule (band-rule triage)
 
 **Band rule (work/README.md, Priority):** conic unit 3, `a-classified-pairs-section-states-the-bounds-that-retire-the-tube`, re-banded P1→P0: `offset-lane-has-no-conic-carrier` (P0) is parked on it and closes when it lands, and it is the unit that lets the arc rest. Its blocker, SELECT's `edge-extent-reads-a-steep-nurbs-arcs-chord-four-to-ten-times-short`, goes to P0 with it. The plan's conic-build table still reads P1 for unit 3. (band-rule triage)
+
+## 2026-10-27 — seam note from QUAD's main-red triage
+
+Filed `two-door-rows-red-under-the-per-op-postcondition-scalpel` on this slate. Two topo rows go red only under `--features per-op-postcondition`: `a_join_sweeps_tier_1_once_however_many_it_joins` (from PR 5666) and `the_door_panics_on_an_out_of_scope_malformed_solid` (bisected to PR 5661). Both are green in the default build at every ε. (QUAD triage lane)
