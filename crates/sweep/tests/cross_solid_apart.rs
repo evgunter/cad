@@ -764,10 +764,12 @@ fn staggered_parallel_rods_part_along_the_line_of_centres_until_they_touch() {
 /// touch.** The rod `r ≤ 0.5` about `y` over `y ∈ [0, 1]`, and a rod of
 /// radius 0.1 along `x` over `x ∈ [−1, 1]` at `y = 0.5`, its axis
 /// `0.6 + gap` above the first's, the pair turned obliquely. Each rod's
-/// origin lies at its base, off the common normal, so neither origin's
-/// offset off the other's axis parts them, and their rims are closed
-/// circles, with no chord; the common normal of the two axes does.
-/// Red where the census proposes no common normal.
+/// origin lies at its base, off the common normal, and their rims are
+/// closed circles, with no chord. The common normal is the offset from
+/// one axis to the other wall's nearest seam point (`toward`), since a
+/// wall's seam ruling runs along its axis, which is why `across`
+/// proposes no common normal of its own. Red where `toward` does not
+/// aim at a seam ruling's nearest point.
 #[test]
 fn crossing_rods_part_along_their_axes_common_normal_until_they_touch() {
     let over = |gap: f64| {

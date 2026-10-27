@@ -96,10 +96,6 @@ pub(crate) const DEPTH_TOWARD: &str = "census_backstop_depth_toward";
 /// (metres), before it is read as a unit direction ([`across`]).
 pub(crate) const DEPTH_ACROSS: &str = "census_backstop_depth_across";
 
-/// K name: the common normal of two carriers' axes, a pure number levered
-/// by the pair's reach, before it is read as a unit direction ([`across`]).
-pub(crate) const DEPTH_ACROSS_NORMAL: &str = "census_backstop_depth_common_normal";
-
 /// The points within `minor` of the circle about `center`, of radius
 /// `major`, in the plane normal to `normal` (any `normal` where
 /// `major` is zero).
@@ -700,29 +696,29 @@ pub(super) fn toward<T: Decide>(
 ///   way. A closed rim (`p = q`) has no chord and proposes nothing: the
 ///   wall it bounds proposes through its carrier, below;
 /// - the two carriers' axes or centres, one from each face, propose the
-///   line between them: the common normal of two axes, and the offset
-///   of each axis's origin off the other's (for parallel axes, the line
-///   of centres); the offset of a centre off an axis; the offset
-///   between two centres. A torus's core proposes nothing.
+///   line between them: the offset of each axis's origin off the
+///   other's (for parallel axes, the line of centres); the offset of a
+///   centre off an axis; the offset between two centres. A torus's core
+///   proposes nothing.
 ///
-/// The common normal `â × b̂` is a pure number, so its length is decided
-/// levered by `arm` ([`geom_core::UnitVec3::levered`]), the reach over
-/// which arm 1 consumes it; every other offset is a length, decided as
-/// one.
+/// Two skew axes are not given their common normal here: a cylinder
+/// wall's seam rulings run along its axis, so [`toward`]'s offset from
+/// the other axis to the wall's nearest ruling point is that normal
+/// wherever the nearest point lies inside the ruling, and where it lies
+/// at a ruling's end the walls' nearest points are near that end, which
+/// the clamped offset aims at.
 ///
 /// That is at most one direction per arc of the two boundaries, and
-/// three per pair of carriers. As [`toward`]'s, they only propose, and
+/// two per pair of carriers. As [`toward`]'s, they only propose, and
 /// an offset the band cannot read as a unit proposes nothing.
 pub(super) fn across<T: Decide>(
     ra: &Read<T>,
     rb: &Read<T>,
-    arm: T,
     band: Band,
 ) -> Vec<geom_core::UnitVec3<T>> {
-    use geom_core::UnitVec3;
     let unit = |v: Vec3<T>| {
         is_finite_length(v.norm())
-            .then(|| UnitVec3::new(v, DEPTH_ACROSS, band).ok())
+            .then(|| geom_core::UnitVec3::new(v, DEPTH_ACROSS, band).ok())
             .flatten()
     };
     let chords = [ra, rb].into_iter().flat_map(|read| {
@@ -738,14 +734,7 @@ pub(super) fn across<T: Decide>(
     let off = |x: Point3<T>, origin: Point3<T>, axis: Vec3<T>| unit(split(x - origin, axis).0);
     let between = match (ra.carrier(), rb.carrier()) {
         (Some(Depth::Axis { origin: o, axis: a }), Some(Depth::Axis { origin: p, axis: b })) => {
-            let normal = (a / a.norm()).cross(b / b.norm());
-            vec![
-                is_finite_length(normal.norm())
-                    .then(|| UnitVec3::levered(normal, DEPTH_ACROSS_NORMAL, band, arm).ok())
-                    .flatten(),
-                off(p, o, a),
-                off(o, p, b),
-            ]
+            vec![off(p, o, a), off(o, p, b)]
         }
         (Some(Depth::Axis { origin, axis }), Some(Depth::Center { center }))
         | (Some(Depth::Center { center }), Some(Depth::Axis { origin, axis })) => {
@@ -1085,10 +1074,7 @@ mod tests {
     }
 
     fn dirs(a: &Read<f64>, b: &Read<f64>) -> Vec<Vec3<f64>> {
-        across(a, b, 2.0, band())
-            .into_iter()
-            .map(|u| u.get())
-            .collect()
+        across(a, b, band()).into_iter().map(|u| u.get()).collect()
     }
 
     fn holds(dirs: &[Vec3<f64>], want: Vec3<f64>) -> bool {
@@ -1099,11 +1085,11 @@ mod tests {
     /// chord through the centre) and a scaled conic normal still propose
     /// the chord's normal in the conic's plane; an ellipse arc's is
     /// perpendicular to its chord, not its conjugate diameter; a closed
-    /// rim and two coincident centres propose nothing; two parallel axes
-    /// propose the line of centres and no common normal; two skew axes
-    /// propose their common normal, whatever their origins. Red where
-    /// the chord direction is read from the centre to the chord's
-    /// midpoint, or the offset off an axis is not projected off it.
+    /// rim and two coincident centres propose nothing; two parallel axes,
+    /// their origins staggered along them, propose the line of centres.
+    /// Red where the chord direction is read from the centre to the
+    /// chord's midpoint, or the offset off an axis is not projected off
+    /// it.
     #[test]
     fn across_reads_its_degenerate_inputs() {
         let empty = read_of(Vec::new());
@@ -1149,20 +1135,12 @@ mod tests {
         let wall = |o, a| read_of(vec![carrier(Depth::Axis { origin: o, axis: a })]);
         let y = v(0.0, 1.0, 0.0);
         let parallel = dirs(&wall(p(0.0, 0.0, 0.0), y), &wall(p(1.0, 0.7, 1.0), y * 2.0));
-        assert_eq!(parallel.len(), 2, "two offsets, no common normal");
+        assert_eq!(parallel.len(), 2, "two offsets");
         assert!(
             parallel
                 .iter()
                 .all(|d| d.cross(v(1.0, 0.0, 1.0)).norm() < 1e-12),
             "the line of centres, off the axes: {parallel:?}"
-        );
-        let skew = dirs(
-            &wall(p(0.0, -3.0, 0.0), y),
-            &wall(p(5.0, 0.5, 0.6), v(-1.0, 0.0, 0.0)),
-        );
-        assert!(
-            holds(&skew, v(0.0, 0.0, 1.0)),
-            "the common normal: {skew:?}"
         );
     }
 }

@@ -8860,14 +8860,9 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                     depth_gap::face_read(body, a.face, band)
                         .zip(depth_gap::face_read(body, b.face, band))
                 };
-                // The pair's joint reach: the arm a pure-number direction
-                // is consumed over.
-                let arm = (Point3::new(ahi.x.max(bhi.x), ahi.y.max(bhi.y), ahi.z.max(bhi.z))
-                    - Point3::new(alo.x.min(blo.x), alo.y.min(blo.y), alo.z.min(blo.z)))
-                .norm();
                 let proposed = reads.as_ref().map_or_else(Vec::new, |(ra, rb)| {
                     let mut dirs = depth_gap::toward(ra, rb, band);
-                    dirs.extend(depth_gap::across(ra, rb, arm, band));
+                    dirs.extend(depth_gap::across(ra, rb, band));
                     dirs
                 });
                 if !cleared
