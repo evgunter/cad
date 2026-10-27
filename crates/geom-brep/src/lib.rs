@@ -103,8 +103,7 @@ pub use carrier_net::CarrierEnclosureRefusal;
 pub use certify::{
     CERT_SAMPLES, CertCheck, Certificate, CertifiedTurn, CertifyError, DraftedIntersection,
     EdgeCurve, EdgeCurveSpec, ForwardReading, IntersectionDraft, MintedEdge, NurbsLane, SplineFoot,
-    StatedImage, StatedSpan, WindingReading, edge_extent_inf, edge_extent_sup, folded_parallelism,
-    sample_param, schedule_param,
+    StatedImage, StatedSpan, WindingReading, folded_parallelism, sample_param, schedule_param,
 };
 pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side};
 pub use description::{
@@ -136,7 +135,9 @@ pub use enters::{
     ParallelSense, ReferenceNormal, WallBend, WallBendError, bends_into_material, enters_material,
     enters_material_order2, enters_material_reported, normal_alignment,
 };
-pub use extent::{ExtentBall, Reach, control_net_reach};
+pub use extent::{
+    ExtentBall, Reach, control_net_reach, edge_extent_inf, edge_extent_sup, edge_reach_from,
+};
 pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 /// The ring-torus convention's one home is `geom` (below this crate, so
 /// the spiric carrier's constructor reads it too); re-exported so the

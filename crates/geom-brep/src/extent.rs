@@ -66,6 +66,7 @@
 
 use geom::curves::boxes::ArcWindow;
 use geom::{Curve3, Surface};
+use geom_core::spline::SpanLocate;
 use geom_core::{Point3, Real, Vec3, is_finite_length};
 
 /// **The farthest a spline carrier reaches from `from`**: the largest
@@ -274,6 +275,271 @@ fn conic_arc_reach<T: Real>(
             .fold(far, |far, x| far.max((x - pivot).norm()))
     });
     far.min((c - pivot).norm() + a.abs().max(b.abs()))
+}
+
+/// How many pieces an edge's span is cut into where its extent is read
+/// from points of it ([`edge_extent_inf`]'s sampled pairs, the
+/// Lipschitz arms of [`edge_extent_sup`] and [`edge_reach_from`]).
+const EXTENT_PIECES: u32 = 16;
+
+/// How many pieces [`edge_extent_sup`]'s ellipse arm reads the arc over,
+/// each from its start ([`conic_arc_reach`] twice per piece).
+const ELLIPSE_PIECES: u32 = 8;
+
+/// The farthest distance between two of `points` (zero for fewer than
+/// two). The one spelling of a point set's diameter: a control net's
+/// (whose hull holds a positive-weight carrier) or a schedule's.
+pub(crate) fn farthest_pair<T: Real>(points: &[Point3<T>]) -> T {
+    points.iter().enumerate().fold(T::zero(), |far, (i, a)| {
+        points[i + 1..]
+            .iter()
+            .fold(far, |far, b| far.max((*a - *b).norm()))
+    })
+}
+
+/// The carrier's points at `t₀ + k·(t₁ − t₀)/n`, `k = 0..=n`, the ends
+/// exact.
+fn schedule<T: SpanLocate>(carrier: &Curve3<T>, (t0, t1): (T, T), n: u32) -> Vec<Point3<T>> {
+    let step = (t1 - t0) / T::from_f64(f64::from(n));
+    (0..=n)
+        .map(|k| match k {
+            0 => carrier.eval(t0),
+            k if k == n => carrier.eval(t1),
+            k => carrier.eval(t0 + step * T::from_f64(f64::from(k))),
+        })
+        .collect()
+}
+
+/// A certified upper bound on `|C′(t)|` over the whole carrier, in
+/// metres per parameter: a line's `|dir|`, a circle's radius, an
+/// ellipse's larger semi-axis, a spiric's rate bound over its period
+/// ([`geom::curves::spiric_rate_bounds`], `ρ ∈ [R − r, R + r]`, the sine
+/// held to 1), a spline's [`geom::NurbsCurve3::speed_upper_bound`].
+fn speed_sup<T: SpanLocate>(carrier: &Curve3<T>) -> T {
+    match carrier {
+        Curve3::Line { dir, .. } => dir.norm(),
+        Curve3::Circle { radius, .. } => radius.abs(),
+        Curve3::Ellipse { semi_u, semi_v, .. } => Curve3::semi_axes_by_size(*semi_u, *semi_v).0,
+        Curve3::Spiric {
+            major_radius,
+            minor_radius,
+            offset,
+            ..
+        } => {
+            let (big, r) = (major_radius.abs(), minor_radius.abs());
+            geom::curves::spiric_rate_bounds(r, *offset, (big - r, big + r), T::one()).0
+        }
+        Curve3::Nurbs(spline) => spline.speed_upper_bound().get(),
+    }
+}
+
+/// The extent of an edge's own point set bounded from below: no more
+/// than its diameter `D`, the farthest distance between two of its
+/// points, and so no more than its arc. The lever arm of a reading
+/// consumed along the edge (D4 ¶1) whose definite verdict is a
+/// nonzero sign and whose Zero only refuses: a transversality or a
+/// uniqueness tube a certificate claims, a root a corner accepts as
+/// transversal, a section's crossing. Such a reading's convention is
+/// that a Zero is a refusal, never a served class; under it an arm
+/// longer than `D` would certify a crossing too shallow to pin within
+/// the edge, and a shorter one only refuses more. Being no longer than
+/// the arc, a point that far along the edge lies on it
+/// ([`crate::conic_bend_side`]'s witness). Never the wedge between the
+/// edge's two faces, which is levered at the faces' extent
+/// ([`crate::folded_lever_arm`]'s `reach`).
+///
+/// A reading that acts on its Zero levers at [`edge_extent_sup`], or,
+/// where it reads the edge from a point of it, at [`edge_reach_from`]:
+/// an arm short of `D` turns a reading that is Positive at `D` into a
+/// definite Zero.
+///
+/// Per carrier kind, the max of the chord `|end − start|` (a distance
+/// between two of the edge's points) and:
+///
+/// - **Line** — nothing more: the chord is `D`.
+/// - **Circle** (radius r, span Δt = t₁ − t₀): `|r|·(1 − cos(Δt/2))`,
+///   an even, branch-free function of Δt that never exceeds `D` (for
+///   |Δt| ≤ π, `1 − cos(u) ≤ 2·sin(u)` on `u ∈ [0, π/2]`, i.e.
+///   `tan(u/2) ≤ 2`, so it is below the chord's own `2r·sin(Δt/2)`; for
+///   |Δt| ∈ (π, τ] it is ≤ 2r) and at closure (Δt → τ, chord → 0)
+///   reaches the full carrier diameter `2r`. The winding bound
+///   (|Δt| ≤ τ, [`crate::CertifyError::WindingExceeded`]) keeps the
+///   cosine in its honest range.
+/// - **Ellipse** (semi-axes a ≥ b): the circle fold at the MINOR
+///   semi-axis, `b·(1 − cos(Δt/2))` — the ellipse is the image of the
+///   radius-b circle (same parameter θ) under a one-axis expansion by
+///   a/b ≥ 1, which never shrinks a distance, so its arc's `D`
+///   dominates that circle arc's — and the sampled pairs below.
+/// - **Spiric** (minor radius r, span Δv): the circle fold at the MINOR
+///   radius, `r·(1 − cos(Δv/2))` — in the `(m, axis)` plane the spiric
+///   is the image of the minor circle `(r cos v, r sin v)` under
+///   `(x, y) ↦ (g(x), y)`, `g(x) = √((R + x)² − d²)`, whose derivative
+///   `g′ = ρ/f ≥ 1` never shrinks a distance — and the sampled pairs.
+/// - **Nurbs** — the sampled pairs.
+///
+/// **The sampled pairs** are the farthest pair among the carrier's
+/// points at `t₀ + k·(t₁ − t₀)/16`, `k = 0..=16`: each is a distance
+/// between two of the edge's points. Where the farthest pair is an end
+/// and an interior point (a steep conic arc about its vertex, `D` four
+/// to ten times its chord) they read it, and on a closed or nearly
+/// closed edge, whose chord collapses, the middle stands across from
+/// the ends.
+///
+/// Total and comparison-free (`max` is the [`Real`] lattice operation).
+pub fn edge_extent_inf<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
+    let half_span = (t1 - t0) * T::from_f64(0.5);
+    let fold = |r: T| r.abs() * (T::one() - half_span.cos());
+    let pairs = || farthest_pair(&schedule(carrier, (t0, t1), EXTENT_PIECES));
+    match carrier {
+        Curve3::Line { .. } => chord,
+        Curve3::Circle { radius, .. } => chord.max(fold(*radius)),
+        // The ellipse's semi-axes carry no order and no sign (`Conic`),
+        // so its radius is the smaller MAGNITUDE.
+        Curve3::Ellipse { semi_u, semi_v, .. } => chord
+            .max(fold(Curve3::semi_axes_by_size(*semi_u, *semi_v).1))
+            .max(pairs()),
+        Curve3::Spiric { minor_radius, .. } => chord.max(fold(*minor_radius)).max(pairs()),
+        Curve3::Nurbs(_) => chord.max(pairs()),
+    }
+}
+
+/// The extent of an edge's own point set bounded from above: no two of
+/// its points lie farther apart. The lever arm of a reading consumed
+/// over the whole edge whose Zero is acted on and whose definite signs
+/// only refuse (a tangency verified, with any defect a contradiction),
+/// where [`edge_extent_inf`]'s shorter arm would read a definite Zero
+/// that the edge's own diameter reads Positive. A reading that acts on
+/// its definite signs too, read from a point of the edge, levers at
+/// [`edge_reach_from`] that point instead: the extent the region has
+/// from where it is read, which this bound passes by up to twice.
+///
+/// Per carrier kind, the max of the chord and the least of:
+///
+/// - **Line** — nothing more: the chord is the diameter.
+/// - **Circle** (radius r, span Δt): `2|r|·sin(min(|Δt|, π)/2)`, the
+///   arc's diameter exactly.
+/// - **Ellipse** (semi-axes a ≥ b): `2a·sin(min(|Δt|, π)/2)` — the
+///   ellipse is the image of the radius-a circle (same parameter θ)
+///   under a one-axis contraction by b/a ≤ 1, which never lengthens a
+///   distance — and, cutting the span into 8 pieces `Eₖ` from `xₖ`,
+///   `maxₖ [reach(E, xₖ) + reach(Eₖ, xₖ)]` ([`conic_arc_reach`]): a
+///   point `x ∈ Eₖ` stands within `reach(Eₖ, xₖ)` of `xₖ`, which stands
+///   within `reach(E, xₖ)` of every point.
+/// - **Spiric** (major radius R, minor r, stand-off d): the oval's
+///   diagonal `√((g(r) − g(−r))² + (2r)²)`, `g(x) = √((R + x)² − d²)`
+///   (it lies in `m ∈ [g(−r), g(r)]`, `|axis| ≤ r`); the minor circle's
+///   arc stretched by `L = (R − r)/g(−r)`, `L·2r·sin(min(|Δv|, π)/2)`
+///   (in the `(m, axis)` plane the spiric is the image of the minor
+///   circle under `(x, y) ↦ (g(x), y)`, whose stretch `g′` is greatest at
+///   `x = −r`); and the Lipschitz pairs below.
+/// - **Nurbs** — the farthest pair of its control points (with positive
+///   weights, a construction invariant of the curve, the whole carrier
+///   lies in its net's convex hull, whose diameter is the farthest pair
+///   of its vertices), and the Lipschitz pairs below, which read the
+///   edge's own window where the net is the whole carrier's.
+///
+/// **The Lipschitz pairs**: the sampled pairs ([`edge_extent_inf`]) plus
+/// `s·|Δt|/16`, `s` the carrier's speed bound (a spiric's
+/// [`geom::curves::spiric_rate_bounds`] over its period, a spline's
+/// [`geom::NurbsCurve3::speed_upper_bound`]): every point of the edge
+/// lies within `s·|Δt|/32` of a sample, so no two lie farther apart than
+/// two samples and twice that.
+///
+/// Total and comparison-free (`min`/`max` are the [`Real`] lattice
+/// operations, which propagate poison: a spline whose speed bound or
+/// control net is poison reads poison here, and the reading levered at
+/// it escalates).
+pub fn edge_extent_sup<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
+    let two = T::from_f64(2.0);
+    let span = (t1 - t0).abs();
+    // `sin(min(|Δt|, π)/2)`: the half-span folded to a half turn, past
+    // which an arc of a circle holds a diameter.
+    let fold = (span.min(T::pi()) * T::from_f64(0.5)).sin();
+    let lipschitz = || {
+        farthest_pair(&schedule(carrier, (t0, t1), EXTENT_PIECES))
+            + speed_sup(carrier) * span / T::from_f64(f64::from(EXTENT_PIECES))
+    };
+    match carrier {
+        Curve3::Line { .. } => chord,
+        Curve3::Circle { radius, .. } => chord.max(two * radius.abs() * fold),
+        Curve3::Ellipse {
+            center,
+            axis,
+            semi_u,
+            semi_v,
+            u_ref,
+        } => {
+            let frame = (*center, *u_ref, axis.cross(*u_ref));
+            let axes = (*semi_u, *semi_v);
+            let step = (t1 - t0) / T::from_f64(f64::from(ELLIPSE_PIECES));
+            let pieces = (0..ELLIPSE_PIECES).fold(T::zero(), |far, k| {
+                let s0 = t0 + step * T::from_f64(f64::from(k));
+                let x = carrier.eval(s0);
+                far.max(
+                    conic_arc_reach(frame, axes, (t0, t1), x)
+                        + conic_arc_reach(frame, axes, (s0, s0 + step), x),
+                )
+            });
+            let major = Curve3::semi_axes_by_size(*semi_u, *semi_v).0;
+            chord.max((two * major * fold).min(pieces))
+        }
+        Curve3::Spiric {
+            major_radius,
+            minor_radius,
+            offset,
+            ..
+        } => {
+            let (big, r, d) = (major_radius.abs(), minor_radius.abs(), *offset);
+            let g = |x: T| ((big + x).powi(2) - d.powi(2)).sqrt();
+            let (inner, outer) = (g(-r), g(r));
+            let stretch = (big - r) / inner;
+            let diagonal = ((outer - inner).powi(2) + (two * r).powi(2)).sqrt();
+            chord.max((stretch * two * r * fold).min(diagonal).min(lipschitz()))
+        }
+        Curve3::Nurbs(spline) => chord.max(farthest_pair(spline.control()).min(lipschitz())),
+    }
+}
+
+/// **How far an edge reaches from `pivot`**, bounded from above: the
+/// farthest `|x − pivot|` over the edge's points `x`, never short of it.
+/// The lever of a reading consumed over the edge from a point of it (a
+/// departure at the vertex it leaves, a tangent at a point of its
+/// interior, a ball about its middle): no shorter than the region it
+/// consumes, and no longer than the edge's own measure from where it is
+/// read (module docs), so it serves a reading that acts on every sign.
+/// From a point of the edge it lies in `[D/2, D]`, `D` the edge's
+/// diameter.
+///
+/// - **Line**: its ends (distance to a point is convex along a line).
+/// - **Circle** and **Ellipse**: [`Reach::span_reach_from`] over
+///   `[t0, t1]` — exact on a circle arc, and on an ellipse arc past it by
+///   at most a quarter of its span's bulge.
+/// - **Spiric** and **Nurbs**: the lesser of [`Reach::lever_from`] (the
+///   torus's or the whole control net's reach) and the samples' reach
+///   at `t₀ + k·(t₁ − t₀)/16` plus `s·|Δt|/32`, `s` the carrier's speed
+///   bound ([`edge_extent_sup`]'s Lipschitz pairs, read from `pivot`):
+///   the edge's own window, where the net is the whole carrier's.
+///
+/// Comparison-free; poison propagates as in [`edge_extent_sup`].
+pub fn edge_reach_from<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, pivot: Point3<T>) -> T {
+    let span = Reach::Span {
+        carrier: carrier.clone(),
+        t0,
+        t1,
+    };
+    match carrier {
+        Curve3::Line { .. } | Curve3::Circle { .. } | Curve3::Ellipse { .. } => {
+            span.span_reach_from(pivot)
+        }
+        Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
+            let sampled = schedule(carrier, (t0, t1), EXTENT_PIECES)
+                .into_iter()
+                .fold(T::zero(), |far, x| far.max((x - pivot).norm()));
+            let slack =
+                speed_sup(carrier) * (t1 - t0).abs() / T::from_f64(f64::from(2 * EXTENT_PIECES));
+            span.lever_from(pivot).min(sampled + slack)
+        }
+    }
 }
 
 /// **What a section classifier reads its axis rows across**: where on

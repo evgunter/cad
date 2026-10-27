@@ -410,9 +410,9 @@ enum Place {
 }
 
 /// The unit direction `he` leaves its start along, with the edge's
-/// extent from above ([`geom_brep::edge_extent_sup`]: a corner's
-/// reading acts on a Zero, a chord along a bound); `None` for null
-/// scaffolding.
+/// reach from that start ([`geom_brep::edge_reach_from`]: a corner's
+/// reading acts on every sign, so its lever is the region's own measure
+/// from where it is read); `None` for null scaffolding.
 fn departure<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<(Vec3<T>, T)> {
     leaving(body, he, false)
 }
@@ -428,7 +428,10 @@ fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<(
     let end = body.half_edge_start_point(body.mate(he)?)?;
     let chord = (end - base).norm();
     let (t0, t1) = curve.params();
-    let len = geom_brep::edge_extent_sup(curve.carrier(), t0, t1, chord);
+    let len = match curve.carrier() {
+        geom::Curve3::Line { .. } => chord,
+        carrier => geom_brep::edge_reach_from(carrier, t0, t1, base),
+    };
     let dir = match curve.carrier() {
         _ if secant => curve.mid_point() - base,
         geom::Curve3::Line { .. } => end - base,

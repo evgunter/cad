@@ -363,10 +363,11 @@ fn limb_two_certifies_the_arc_and_the_tube_names_the_cone() {
 /// read a definite Zero.
 #[test]
 fn the_extent_on_a_steep_arc() {
-    for (alpha, y, steep) in [
-        (core::f64::consts::FRAC_PI_6, 2.0, false),
-        (0.1, 2.0, true),
-        (0.05, 6.0, true),
+    for (alpha, (y0, y1), steep) in [
+        (core::f64::consts::FRAC_PI_6, (-2.0, 2.0), false),
+        (0.1, (-2.0, 2.0), true),
+        (0.05, (-6.0, 6.0), true),
+        (0.1, (-1.0, 4.0), true),
     ] {
         let d = 0.3;
         let section = open(alpha, Point3::new(d, 0.0, 0.0), Vec3::unit_x());
@@ -374,8 +375,8 @@ fn the_extent_on_a_steep_arc() {
             .branch_at(Point3::new(d, 0.0, 2.0), band())
             .expect("a branch");
         let (from, to) = (
-            vertical_point(alpha, d, -y, 1.0),
-            vertical_point(alpha, d, y, 1.0),
+            vertical_point(alpha, d, y0, 1.0),
+            vertical_point(alpha, d, y1, 1.0),
         );
         let arc = branch.arc(from, to, band()).expect("an arc");
         let curve = nurbs(&arc);
@@ -391,7 +392,7 @@ fn the_extent_on_a_steep_arc() {
         let inf = geom_brep::edge_extent_inf(&arc, lo, hi, chord);
         let sup = geom_brep::edge_extent_sup(&arc, lo, hi, chord);
         println!(
-            "[measured] steep arc α {alpha}, y ±{y}: chord {chord}, diameter {diameter}, \
+            "[measured] steep arc α {alpha}, y {y0}..{y1}: chord {chord}, diameter {diameter}, \
              inf {inf}, sup {sup}, chord/D {}, inf/D {}, sup/D {}",
             chord / diameter,
             inf / diameter,

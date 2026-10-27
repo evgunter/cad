@@ -641,13 +641,10 @@ pub fn rest_locus<T: Decide>(
         })
     };
     let (on_a, on_b) = (on(fa), on(fb));
-    // A ball about a point of the edge encloses it at the edge's extent
-    // from above.
-    let chord = carrier.eval(t0).distance(carrier.eval(t1));
-    let edge = ExtentBall::new(
-        carrier.mid_point(t0, t1),
-        geom_brep::edge_extent_sup(carrier, t0, t1, chord),
-    );
+    // The ball about the edge's middle at its reach from there encloses
+    // it, and is no larger than the edge's own measure from that point.
+    let mid = carrier.mid_point(t0, t1);
+    let edge = ExtentBall::new(mid, geom_brep::edge_reach_from(carrier, t0, t1, mid));
     let parts: Vec<_> = core::iter::once(edge)
         .chain(on_a.iter().chain(&on_b).map(|&p| ExtentBall::point(p)))
         .collect();
@@ -726,6 +723,70 @@ mod extent_rows {
             ),
             geom_brep::RestLocus::Chart(k) => {
                 panic!("the hinged planes read one chart {k:?} over the steep edge")
+            }
+        }
+    }
+
+    /// **The rest ball reaches a spike the edge's samples miss.** A
+    /// polyline spline (degree 1) runs about a metre each way of its
+    /// middle `C`, but between `t = 0.19` and `0.21` it spikes 100 m off
+    /// it, between every one of the samples the extent from below reads.
+    /// Two planes through `C` hinged by `θ` stand under a band apart over
+    /// that bound from below and past `K·ε` at the spike, so a ball at the
+    /// bound from below reads one chart. The ball reads the edge's reach
+    /// from its middle, which holds the spike: the pair.
+    #[test]
+    fn the_rest_ball_reaches_a_spike_the_samples_miss() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let p = Point3::new;
+        let arc = geom::Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                geom_core::spline::KnotVector::clamped(
+                    vec![0.0, 0.0, 0.19, 0.2, 0.21, 0.5, 1.0, 1.0],
+                    1,
+                )
+                .unwrap(),
+                vec![
+                    p(0.0, -1.0, 0.0),
+                    p(0.0, -0.95, 0.0),
+                    p(0.0, 0.0, 100.0),
+                    p(0.0, -0.05, 0.0),
+                    p(0.0, 0.0, 0.0),
+                    p(0.0, 1.0, 0.0),
+                ],
+                vec![1.0; 6],
+            )
+            .unwrap(),
+        ));
+        let mid = arc.mid_point(0.0, 1.0);
+        let chord = arc.eval(0.0).distance(arc.eval(1.0));
+        let below = geom_brep::edge_extent_inf(&arc, 0.0, 1.0, chord);
+        let reach = geom_brep::edge_reach_from(&arc, 0.0, 1.0, mid);
+        let theta = 0.45 * band.zero() / below;
+        assert!(
+            reach * theta >= band.escalate(),
+            "the spike stands past K·ε: reach {reach}, the bound from below {below}"
+        );
+        let mut body = Body::<f64>::new();
+        let mut plane = |normal: Vec3<f64>| {
+            body.add_surface(geom::Surface::Plane {
+                origin: mid,
+                normal,
+                u_ref: Vec3::unit_y(),
+            })
+        };
+        let (ka, kb) = (
+            plane(Vec3::unit_x()),
+            plane(Vec3::new(theta.cos(), 0.0, theta.sin())),
+        );
+        match rest_locus(&body, [(ka, None), (kb, None)], &arc, (0.0, 1.0), band) {
+            geom_brep::RestLocus::Pair(pair) => assert_eq!(
+                pair,
+                geom_brep::SurfacePair::new(ka, kb),
+                "the pair of the two planes"
+            ),
+            geom_brep::RestLocus::Chart(k) => {
+                panic!("the hinged planes read one chart {k:?} past the spike")
             }
         }
     }

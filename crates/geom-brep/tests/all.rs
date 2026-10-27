@@ -97,6 +97,8 @@ mod cylinder_green_conditioning;
 mod d290_r2_e2e;
 #[path = "decoration_plane_mint.rs"]
 mod decoration_plane_mint;
+#[path = "edge_extent_bounds.rs"]
+mod edge_extent_bounds;
 #[path = "ellipse_signed_semi_axis_gate.rs"]
 mod ellipse_signed_semi_axis_gate;
 #[path = "end_samples_read_the_carrier.rs"]

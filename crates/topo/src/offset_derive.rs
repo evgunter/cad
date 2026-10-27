@@ -623,6 +623,15 @@ fn nearest<T: Decide>(
 /// planes hold; a plane against a cylinder, cone, sphere or torus, and
 /// a cone against a coaxial cylinder, is that C5 arm's carrier. Any
 /// other pair is not derived here.
+///
+/// `extent` is the old edge's extent from below
+/// ([`geom_brep::edge_extent_inf`]), which the plane pair's parallelism
+/// reads: its Zero refuses and its Positive certifies the crossing. The
+/// torus's axis fork (`pt_axis_in_plane`) and the cone and cylinder's
+/// parallelism (`coc_axes_parallel`) act on their Zero (a meridian or
+/// spiric pose, a coaxial pose) and refuse on a definite tilt, so they
+/// read the old edge's extent from above
+/// ([`geom_brep::edge_extent_sup`]).
 pub(crate) fn section_closed<T: Decide>(
     new: &Surface<T>,
     held: &Surface<T>,
@@ -632,6 +641,8 @@ pub(crate) fn section_closed<T: Decide>(
     band: Band,
 ) -> Result<Result<Curve3<T>, SectionVerdict>, Indeterminate> {
     use geom_brep::intersect as c5;
+    let chord = old.eval(span.0).distance(old.eval(span.1));
+    let sup = geom_brep::edge_extent_sup(old, span.0, span.1, chord);
     let closed = |e: geom_brep::SectionError| match e {
         geom_brep::SectionError::Escalated(source)
         | geom_brep::SectionError::RadiusEscalated { diag: source, .. } => Err(source),
@@ -647,7 +658,7 @@ pub(crate) fn section_closed<T: Decide>(
             } else {
                 (held, new)
             };
-            let candidates = match c5::cone_cylinder_section(cone, cyl, extent, band) {
+            let candidates = match c5::cone_cylinder_section(cone, cyl, sup, band) {
                 Ok(c5::ConeCylinderSection::CoaxialCircles { c1, c2 }) => vec![c1, c2],
                 Err(e) => return closed(e),
             };
@@ -715,7 +726,7 @@ pub(crate) fn section_closed<T: Decide>(
             Ok(c5::PlaneSphereSection::Empty) => return Ok(Err(SectionVerdict::NoBranch)),
             Err(e) => return closed(e),
         },
-        Surface::Torus { .. } => match c5::plane_torus_section(plane, other, extent, band) {
+        Surface::Torus { .. } => match c5::plane_torus_section(plane, other, sup, band) {
             Ok(
                 c5::PlaneTorusSection::MeridianCircles { c1, c2 }
                 | c5::PlaneTorusSection::ConcentricCircles { c1, c2 }
