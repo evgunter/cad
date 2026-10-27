@@ -118,7 +118,9 @@ round, each piece cut from its Bézier segment's own row so no cut
 compounds another's width, and the rounds stop once the bound is within
 the rounding factor of the net's own width (`CarrierNet::rounding`, its
 controls' width before any span's remainder, which no halving
-removes): the limb passes once the bound clears;
+removes), that width is itself that factor above the band, and a
+round no longer halves the bound: the limb passes once the bound
+clears;
 refuses on the composite's certified value at a break where that lies
 past the band's zero, since no bound over a span holding the break can
 clear; and otherwise refuses on the lowest bound any round reached

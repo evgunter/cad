@@ -1866,9 +1866,17 @@ pub(crate) struct OffsetRead<T> {
 /// read, and the rounds halve as
 /// [`crate::pcurve_cache::limb2_offset_sup`]'s docs say, stopping once
 /// the bound is within [`crate::KERNEL_LIMIT_ROUNDING_FACTOR`] of the
-/// net's rounding ([`NetSize::rounding`]): the composite cannot read
-/// the carrier sharper than its own data, so a round past that buys
-/// nothing. The bound is decided on [`net_incidence`] over the parts
+/// net's rounding ([`NetSize::rounding`]), that rounding itself that
+/// factor above the band's zero, and the last round did not halve it: a
+/// bound held up by the carrier's own data (at a family scalar, its
+/// spread over the box) far above the band stops falling there, and
+/// the rounds past it buy nothing. A rounding near the band leaves the
+/// rounds on, since the bound may still fall the little way the band
+/// asks. The rounding alone is no floor — it is
+/// the widest control over every channel, and the distance may read a
+/// channel far sharper, as at a far placement whose length rounds wide
+/// along the carrier — so a bound still falling at least twofold a
+/// round goes on, near the rounding or below it. The bound is decided on [`net_incidence`] over the parts
 /// the rounds stopped on.
 pub(crate) fn offset_rounds<T: Decide>(
     hull: impl Fn(&[f64]) -> Result<(ProjectedHull, NetSize), PcurveCertifyError>,
@@ -1922,8 +1930,13 @@ pub(crate) fn offset_rounds<T: Decide>(
         net_incidence(hull, window, chart, twin, T::zero(), band, true)
             .map(|(incidence, _)| incidence)
     };
+    let factor = crate::KERNEL_LIMIT_ROUNDING_FACTOR;
+    let last = core::cell::Cell::new(None::<f64>);
     let floored = |h: &Hull<(ProjectedHull, NetSize)>| {
-        h.sup <= crate::KERNEL_LIMIT_ROUNDING_FACTOR * h.data.1.rounding
+        let before = last.replace(Some(h.sup));
+        let slowed = before.is_some_and(|b| h.sup > 0.5 * b);
+        let rounding = h.data.1.rounding;
+        slowed && h.sup <= factor * rounding && rounding >= factor * band.zero()
     };
     Ok(match subdivide_until(round, band, floored)? {
         Subdivided::Bound(hull) => OffsetRead {

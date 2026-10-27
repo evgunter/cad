@@ -2326,35 +2326,62 @@ mod tests {
     }
 
     /// **The rounds stop at the floor their data sets** (limb 2's round
-    /// stop, [`super::subdivide_until`]): with every round's bound at
-    /// twice a floor that halving does not lower — a family scalar's
-    /// carrier spread over its box — the first hull is the only one
-    /// built, and the limb reads its bound; without the stop the same
-    /// hulls are rebuilt round after round until the stall rule ends
-    /// them. A hull that clears is still read as clearing.
+    /// stop, [`super::subdivide_until`], with `floored` as limb 2's
+    /// reader asks it: the bound within 16× the net's rounding, that
+    /// rounding 16× the band's zero, and the bound not halved by the
+    /// last round): with every round's bound at twice a
+    /// rounding that halving does not lower — a family scalar's carrier
+    /// spread over its box — the second hull is the last one built, and
+    /// the limb reads the bound; without the stop the same hulls are
+    /// rebuilt round after round until the stall rule ends them. A bound
+    /// still falling tenfold a round goes on below the rounding, and a
+    /// hull that clears is still read as clearing.
     #[test]
     #[allow(clippy::panic)]
     fn the_rounds_stop_once_the_bound_is_within_the_floor() {
         use super::{Subdivided, subdivide_until};
         let band = geom_core::Band::new(1e-9, 1e-8).unwrap_or_else(|e| panic!("{e}"));
-        let floor = 0.4;
-        let run = |stop: bool, sup: f64| {
+        let run = |stop: bool, sup: &dyn Fn(usize) -> f64, floor: f64| {
             let calls = core::cell::Cell::new(0);
             let hull = |cuts: &[f64]| {
-                calls.set(calls.get() + 1);
-                Ok::<_, ()>(flat_hull(cuts, sup))
+                let k = calls.get();
+                calls.set(k + 1);
+                Ok::<_, ()>(flat_hull(cuts, sup(k)))
             };
-            let floored = |h: &super::Hull| stop && h.sup <= 16.0 * floor;
+            let last = core::cell::Cell::new(None::<f64>);
+            let floored = |h: &super::Hull| {
+                let before = last.replace(Some(h.sup));
+                stop && before.is_some_and(|b| h.sup > 0.5 * b)
+                    && h.sup <= 16.0 * floor
+                    && floor >= 16.0 * band.zero()
+            };
             match subdivide_until(hull, band, floored) {
                 Ok(Subdivided::Bound(h)) => (h.sup, calls.get()),
                 _ => panic!("the synthetic hull stops on its bound"),
             }
         };
-        assert_eq!(run(true, 2.0 * floor), (0.8, 1));
-        let (sup, rounds) = run(false, 2.0 * floor);
+        let flat = |_: usize| 0.8;
+        assert_eq!(run(true, &flat, 0.4), (0.8, 2));
+        let (sup, rounds) = run(false, &flat, 0.4);
         assert_eq!(sup, 0.8);
-        assert!(rounds > 1, "without the stop the rounds go on: {rounds}");
-        assert_eq!(run(true, 1e-12), (1e-12, 1), "a hull that clears clears");
+        assert!(rounds > 2, "without the stop the rounds go on: {rounds}");
+        let falling = |k: usize| 1e-3 * 0.1_f64.powi(i32::try_from(k).unwrap_or(0));
+        let (cleared, _) = run(true, &falling, 0.4);
+        assert!(
+            cleared <= band.zero(),
+            "a bound falling tenfold a round goes on below the rounding until it clears: \
+             {cleared:e}"
+        );
+        let (_, near) = run(true, &|_| 2e-9, 1.5e-9);
+        assert!(
+            near > 2,
+            "a rounding near the band leaves the rounds on: {near}"
+        );
+        assert_eq!(
+            run(true, &|_| 1e-12, 0.4),
+            (1e-12, 1),
+            "a hull that clears clears"
+        );
     }
 
     /// **The subdivision stalls on the second round that does not lower

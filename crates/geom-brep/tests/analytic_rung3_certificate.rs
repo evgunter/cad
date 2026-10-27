@@ -24,7 +24,7 @@ use geom_core::{
 use slotmap::SlotMap;
 
 use crate::shared::tol::band;
-use geom_core::test_support::upper;
+use geom_core::test_support::{lower, upper};
 
 /// The unit quarter circle in `z = 0`, as `n` rational quadratic
 /// sub-arcs joined at double knots `j/n`, each sub-arc's middle control
@@ -158,7 +158,7 @@ fn a_carrier_off_the_plane_between_samples_refuses_on_the_plane_limb() {
                 operand: geom::SurfaceKind::Plane,
                 margin,
                 ..
-            }) if upper(*margin) <= off && upper(*margin) >= 0.99 * off
+            }) if lower(*margin) <= off && lower(*margin) >= 0.99 * off
         )
     };
     let at_f64 = certify(&carrier, plane(), cylinder_z()).map(|_| ());
@@ -175,7 +175,7 @@ fn a_carrier_off_the_plane_between_samples_refuses_on_the_plane_limb() {
         else {
             panic!("the plane limb refused above: {refused:?}")
         };
-        let value = upper(*margin);
+        let value = lower(*margin);
         assert_eq!(
             e.ending(Reading::AtRest).as_deref(),
             Some(KERNEL_OR_FILE_DEFECT_ENDING),
@@ -635,7 +635,7 @@ fn limb_two_halves_then_stops_on_a_breaks_miss() {
             Err(AnalyticRung3Refusal::Limb {
                 operand: geom::SurfaceKind::Plane,
                 margin,
-            }) if upper(*margin) > band.escalate() && upper(*margin) <= peak
+            }) if lower(*margin) > band.escalate() && lower(*margin) <= peak
         )
     };
     let got = geom_brep::analytic_rung3(&carrier, carrier.domain(), &plane(), &side, band);

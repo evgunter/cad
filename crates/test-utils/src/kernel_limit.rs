@@ -7,6 +7,14 @@
 //! The refusal is read off its `Debug` rendering or its `Display`
 //! sentence, since the fixtures wrap it in every door's own error; this
 //! crate depends on nothing, so it cannot name the type.
+//!
+//! **At an enclosure scalar the same stall is an escalation** (fork row
+//! 201): limb 2 decides the enclosure `[floor, upper]` of the carrier's
+//! distance there, and an upper bound that stalls past the band is that
+//! decision's `Indeterminate`, refused as
+//! `AnalyticRung3Refusal::Escalated` on `HullSup` with no cause and no
+//! terminality claimed. A fixture pinned to the kernel limit reads
+//! either: the limit at a point scalar, the stall at an enclosure one.
 
 #![allow(clippy::panic)]
 
@@ -18,17 +26,27 @@ const DEBUG_MARK: &str = "AnalyticRung3(KernelLimit {";
 /// The `Display` phrase of the refusal.
 const DISPLAY_MARK: &str = "does not clear the run tolerance";
 
-/// Whether `refusal` holds limb 2's kernel limit, read off its `Debug`
-/// rendering.
+/// The `Debug` marks of the stall at an enclosure scalar: limb 2's
+/// escalation on its distance bound.
+const STALL_MARKS: [&str; 2] = ["AnalyticRung3(Escalated {", "limb: HullSup"];
+
+/// The `Display` phrase of the stall at an enclosure scalar.
+const STALL_DISPLAY: &str = "limb 2 (control-hull sup-norm bound) against the";
+
+/// Whether `refusal` holds limb 2's kernel limit, or at an enclosure
+/// scalar its stall (module docs), read off its `Debug` rendering.
 #[must_use]
 pub fn is_kernel_limit(refusal: &dyn Debug) -> bool {
-    format!("{refusal:?}").contains(DEBUG_MARK)
+    let text = format!("{refusal:?}");
+    text.contains(DEBUG_MARK) || STALL_MARKS.iter().all(|m| text.contains(m))
 }
 
-/// Whether a refusal's sentence is limb 2's kernel limit.
+/// Whether a refusal's sentence is limb 2's kernel limit, or at an
+/// enclosure scalar its stall (module docs).
 #[must_use]
 pub fn says_kernel_limit(sentence: &str) -> bool {
     sentence.contains(DISPLAY_MARK)
+        || (sentence.contains(STALL_DISPLAY) && sentence.contains("escalated"))
 }
 
 /// Whether `eps` is one of `rows` (each read to a part in a thousand).
@@ -121,7 +139,9 @@ pub fn pinned_row(
     }
     match crate::panic_capture::caught(f) {
         Some(message) => assert!(
-            message.contains(DEBUG_MARK) || says_kernel_limit(&message),
+            message.contains(DEBUG_MARK)
+                || STALL_MARKS.iter().all(|m| message.contains(m))
+                || says_kernel_limit(&message),
             "{what}: pinned to stop on limb 2's kernel limit at ε = {eps:e}, it stopped otherwise: \
              {message}"
         ),
