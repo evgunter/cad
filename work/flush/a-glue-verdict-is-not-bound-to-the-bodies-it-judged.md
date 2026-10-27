@@ -2,12 +2,13 @@
 id: a-glue-verdict-is-not-bound-to-the-bodies-it-judged
 kind: issue
 title: A GlueVerdict is not bound to the bodies it judged: a caller can re-key its A face or hand it to another pair
-status: review
+status: closed
 opened: 2026-10-13
 priority: P2
 cost: H
 branch: flush/nary-union-door
 pr: 5772
+closed: 2026-10-27
 ---
 
 The residue of `boolean-given-pairs-glue-unmeasured-for-any-rust-caller`
@@ -170,14 +171,49 @@ the fix local to `nary.rs`, and the defect is pinned as it stands
 (`crates/sweep/tests/face_face_touch.rs`,
 `contacthold_m2_a_restated_tangency_carries_the_first_of_two_verdicts_margins`).
 
-Re-measured on the branch: every one of the 11,427 evaluations gives
-the same body, names, records, cited inputs and refusal. Rows are
-identical except in one test's four evaluations
+Re-measured on the branch, and again by both reviewers on the frozen
+head after main moved under it (462 and 464 tests, 11,527 and 11,529
+evaluations, as each filtered them): every evaluation gives the same
+body, names, records, cited inputs and refusal. Rows are identical
+except in one test
 (`coincidence_door::an_unproven_fold_row_is_reported_under_the_judged_row_decided_at_its_point`),
 where a fold row's margin carries a different deferred-entry index
 (`ZeroWord`, the place of a Zero on the deferring symbolic session's
-list): all of a union's booleans now run before its steps are named,
-so the session's list fills in another order. Value, relation, cells
-and site are equal. The batteries' 32,959 lines are identical, and the
-failing set is the 18 above on both sides.
+list; one reviewer counts 8 indices that move): all of a union's
+booleans now run before its steps are named, so the session's list
+fills in another order. `ZeroWord` is read only as that session's
+handle, so nothing reads the move. Value, relation, cells and site are
+equal. The batteries' lines are identical, and main's failing set is
+the same on both sides.
 
+## Resolution
+
+Closed by PR 5772 (2026-10-27). `topo::nary_boolean` is the kernel's
+n-ary union and intersect: it judges every pair whose boxes meet (operand
+A the lesser rank), folds in list order, hands each step the judgements'
+verdicts on the member it joins through the lineage it advances, and
+returns every judgement, step, lineage and restated row with a refusal
+that says where it was raised. The given channel (`GluedPair`,
+`GlueVerdict::given_at`, `boolean_op_given`) is crate-private, and
+`BooleanInputs` is records only. `editor-core` names from the door's
+output. No body, name, record, citation or refusal moved.
+
+Dual review (concurrent pair, one frozen head): both APPROVE-WITH-FIXES,
+no MAJOR. The fix pass restored the evaluation-order precedence of
+refusals (a judgement's naming defect had lost to a later refusal, and
+on an intersect to a later empty step, so an `Err` read as `Ok(Empty)`),
+pinned through a test seam; made one read of a result key back to its
+operand; and pinned the given channel's privacy by compile-fail
+doctests. Both delta checks approved; a last pass took their notes
+(each doctest fails only for the item it names, the `Judgement` doc,
+`pairwise` read once, a drop guard on the seam).
+
+CONTACTHOLD's m2 stays open: a restated tangency still carries the
+first of several verdicts' margins, now in `nary.rs`, pinned as it
+stands. One reviewer showed it reachable (two plates and a rod at
+dy = 1e-11 restate margins 0.0 and 1.0e-11, and the step carries 0.0).
+It is CONTACTHOLD's decision, on
+`work/contacthold/a-fold-steps-restated-tangency-takes-one-of-several-verdicts-margins.md`.
+Style notes not taken: `Fold::step`'s obstacle closure re-derives the
+member-lineage rule, the restated-row lookup is by structural equality,
+and the records' order across the crates is held by a comment.
