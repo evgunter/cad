@@ -65,6 +65,7 @@ fn the_gate_meters_either_order_and_refuses_a_negative_minor() {
             |k| surfaces.get(k).cloned(),
             1.0,
             band,
+            geom_brep::NurbsLane::certified(),
         )
     };
     assert!(certify(a, b, x).is_ok(), "the ordinary frame certifies");

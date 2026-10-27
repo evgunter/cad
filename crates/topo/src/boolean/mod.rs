@@ -3912,15 +3912,12 @@ pub enum BooleanError {
     /// operands, e.g. ∪ of a body with its own complement) — no
     /// boundary representation exists for it.
     UnrepresentableResult,
-    /// Re-certifying a grafted edge description against the combined
-    /// body's surfaces, through the scalar's NURBS lane, refused (the
+    /// Re-attaching a grafted edge description against the combined
+    /// body's surfaces, through the scalar's edge door, refused (the
     /// combine door's `graft_solid`). The inputs are bitwise the
     /// source's, so a certifying scalar re-derives what the source
-    /// already holds; what reaches here is a carrier whose certificate
-    /// needs the lane at a scalar that holds none
-    /// ([`geom_brep::CertifyError::NurbsLaneNotSupplied`]), or a
-    /// certificate the source should not have held. Loud, never a
-    /// dangling reference.
+    /// already holds; what reaches here is a certificate the source
+    /// should not have held. Loud, never a dangling reference.
     GraftRecertify(geom_brep::CertifyError),
     /// The result sort could not read which piece of material a shell
     /// of the result belongs to ([`crate::pieces`]): a solid is one

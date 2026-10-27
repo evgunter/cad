@@ -470,14 +470,20 @@ fn both_sweeps_evaluate_in_one_document() {
 /// Measured again for D′3 over main's merge at `4c341b9225`, which
 /// brings the run line's bare sense (above) beneath D′3's names and ids;
 /// the ids-masked fence held.
+///
+/// RE-BLESSED for limb 2 for every carrier (PR 5728): check 2's turn
+/// moved from the edge's `Certificate` onto the edge, which changes the
+/// edge curve's `Debug` the digest feeds. With that `Debug` written in
+/// main's shape every digest here reproduces main's value at all three
+/// ε rows, so nothing else moved.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0x8b0a_f8a3_bce4_167e),
-        ("corner_table", 0x0c2b_d8df_8c6b_8e3a),
-        ("cut_cylinder", 0xd82f_d380_9e2e_8e5e),
-        ("boss_union", 0x8a38_9154_e41e_4037),
-        ("kitchen_sink", 0xb9ff_1846_2c51_b69c),
+        ("die", 0x1c94_1d93_0592_1576),
+        ("corner_table", 0xa74f_a96b_430e_f942),
+        ("cut_cylinder", 0x0286_358d_ae09_89ce),
+        ("boss_union", 0xd935_06ea_7cc4_142f),
+        ("kitchen_sink", 0x2cab_0c2d_cbd8_4ea8),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

@@ -906,10 +906,15 @@ fn walk_tour(visit: &mut dyn FnMut(&TourStop), work: &std::path::Path, tol: Tol)
     println!(
         "\n-- the fairy lantern (Calochortus pulchellus): a plant, at the kernel's frontier --"
     );
-    for stop in lily::stops(tol) {
-        visit(&stop);
+    match lily::stem_frontier(tol) {
+        None => {
+            for stop in lily::stops(tol) {
+                visit(&stop);
+            }
+            lily::wall_probes::<f64>(tol);
+        }
+        Some(frontier) => println!("   {frontier}"),
     }
-    lily::wall_probes::<f64>(tol);
 
     println!(
         "\n-- the same bud, rounded (VERBS-ARMS-2: three CURVED support pairs in one \

@@ -1695,6 +1695,8 @@ impl Real for Probe {
 
     const NAME: &'static str = "telemetry probe";
 
+    type Carries<C: Copy + core::fmt::Debug + Send + Sync + 'static> = C;
+
     fn from_f64(x: f64) -> Self {
         Self(x)
     }
@@ -1820,6 +1822,14 @@ impl Bounds for Probe {
 impl crate::real::CertifiedEnclosure for Probe {
     fn certified_bracket(self) -> Option<(f64, f64)> {
         crate::real::CertifiedEnclosure::certified_bracket(self.0)
+    }
+
+    fn carried<C: Copy + core::fmt::Debug + Send + Sync + 'static>(record: C) -> C {
+        record
+    }
+
+    fn held<C: Copy + core::fmt::Debug + Send + Sync + 'static>(held: &C) -> &C {
+        held
     }
 }
 

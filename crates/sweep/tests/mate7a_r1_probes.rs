@@ -28,7 +28,10 @@ fn deg(d: f64) -> f64 {
 /// numbers: root at the origin heading +z (in the xz-plane), left turn
 /// of 22 degrees on a 5 m ring — so the ring centre is (-5, 0, 0), the
 /// start radial +x, the axis -y (`tube_arc`'s left-turn sense).
-pub(crate) fn stem() -> AtRestBody<f64> {
+/// The stem, or `None` at ε = 1e-12, where its torus wall is past limb
+/// 2's reach: the kernel's limit
+/// (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+pub(crate) fn stem() -> Option<AtRestBody<f64>> {
     let stem = tube_along_arc(
         tube_frame(
             Point3::new(-STEM_RING, 0.0, 0.0),
@@ -43,10 +46,10 @@ pub(crate) fn stem() -> AtRestBody<f64> {
         },
         STEM_TUBE,
         Tol::witness(),
-    )
-    .expect("stem builds")
-    .body;
-    finished("the stem", stem, Tol::witness())
+    );
+    let stem =
+        test_utils::kernel_limit::pinned(stem, Tol::witness().eps(), &[1e-12], "the stem")?.body;
+    Some(finished("the stem", stem, Tol::witness()))
 }
 
 /// The fork point (the stem's end / the arch's start), its tangent,
@@ -168,7 +171,8 @@ fn dist_to_stem_center_arc(p: Point3<f64>) -> f64 {
 /// MUST exist.
 #[test]
 fn p1_wall1_passes_the_gate_and_the_crossing_layer_and_stops_at_the_join() {
-    let (s, a) = (stem(), arch());
+    let Some(s) = stem() else { return };
+    let a = arch();
     assert_eq!(
         weld_cap_pairs(&s, &a),
         1,

@@ -814,20 +814,14 @@ fn dual_lane_value_channel_matches_f64_bitwise() {
         Ok(())
     );
     assert_eq!(validate_geometric(&f.body, Tol::witness()), Ok(()));
-    let f_res: Vec<f64> = f
-        .body
-        .curves()
-        .map(|(_, c)| c.certified().unwrap().certificate().max_residual)
-        .collect();
-    let d_res: Vec<Dual<f64>> = d
-        .body
-        .curves()
-        .map(|(_, c)| c.certified().unwrap().certificate().max_residual)
-        .collect();
-    assert_eq!(f_res.len(), d_res.len());
-    for (fv, dv) in f_res.iter().zip(&d_res) {
-        assert_eq!(fv.to_bits(), dv.value.to_bits());
-    }
+    // The dual's edges carry no certificate (DL3), and their intervals are
+    // the vertices' own; what each edge computes at its scalar — its
+    // carrier, the carrier at its interval's middle, and check 2's turn —
+    // is the f64 build's, value channel for value channel.
+    let fc = topo::test_support::computed_edge_channels(&f.body, |x| x);
+    let dc = topo::test_support::computed_edge_channels(&d.body, |x| x.value);
+    assert!(!fc.is_empty(), "the row compares edges");
+    assert_eq!(fc, dc);
 }
 
 /// Every stored vertex point's coordinate bits, sorted, beside the
