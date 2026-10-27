@@ -89,3 +89,49 @@ Main `6ff6b23` reads `(441036, 141417, 25542, 7998)`, and PR 5742 reads `(441036
 
 Every other landing reads the base's tally exactly.
 
+
+## 2026-10-27 (nightly triage): red again after PR 5717's re-pin, from PR 5742
+
+PR 5717 (`pred/mesh-sizing-rule`, `463956a6`) re-derived the pin as
+`(392112, 131712, 26058, 8292)`. Nightly run 40455870959 (main
+`fb476030a9`) reads `(392112, 131691, 26058, 8292)` at every ε, in the
+full suite and in `viewer app feature`. Main `57e3f95a` reads the same.
+Bisected over first-parent merges from `463956a6` with the reproduce
+line above: last good `767d26a9`, first bad **`19eff38c`, the merge of
+PR 5742** (`intent/value-chart-orientation`). That is the move the
+2026-10-26 entry measured on PR 5742's branch: aimed-vertex answers
+fall (21 now, 29 then) and the refusal columns hold. PR 5742 merged
+without re-pinning. The question this row already asks still stands
+before any re-pin.
+
+## 2026-10-27 (INTENT, `intent/value-chart-main-reds`): PR 5742's 21 are geometry that moved; re-pinned
+
+Measured landing by landing and ray by ray, at `767d26a9` (PR 5742's
+first parent) against `19eff38c` (its merge), with the reproduce line
+above and a per-landing, per-ray dump:
+- Every landing reads the base's tally except `kitchen_sink` after its
+  first edit: `(2196, 1058, 0, 0)` → `(2196, 1037, 0, 0)`.
+- That edit sets the moved copy's `Slide(Y)` to 5, on a plane mate to the
+  union's underside (`d = −z`). The retired chart ran a slide along
+  `d × x = −y`, and the least-turn chart runs it along `+y`, so the copy
+  and its linear pattern stand at `y ∈ [5, 6.8]` instead of
+  `[−5, −3.2]`. That is the 24 vertices that differ between the two
+  dumps, three parts of 8. The open landing reads the same at both
+  commits.
+- Rays aimed at those 24 vertices: 250 → 249 answered.
+- Rays aimed at the 91 fixed vertices: 808 → 788. All 20 are at the far
+  reach, which is four times the scene's extent and grew from 27 to
+  27.196 with the copy. At reaches 1.48 and 3.0, no fixed-vertex ray
+  changed.
+- The refusal columns are unchanged.
+
+So no answer moved without its geometry moving, and the pin is now
+`(392112, 131691, 26058, 8292)`, with this reading in the pin's doc comment.
+
+**Still open on this row:** the earlier refusal moves (PR 5225's +1218
+refused candidates, #5659's +750). PR 5717's re-pin folded them into
+the mesh-sizing entry, measured from `(440460, 141163, 13482, 6882)`
+when main read `(441036, 141417, 25542, 7998)`, so they were never
+attributed. Main is green again with this re-pin, but whether those
+refusals are what B1 and the single chart reading should produce is
+still unanswered.
