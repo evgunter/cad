@@ -295,3 +295,10 @@ PR 5568's fix pass.
   - PR 5629 flipped projectbox wall 1 and the teapot spout at 1e-12. Fixed by QUAD 5640 and ISO 5642.
   - The python census rows, red since PR 5605, are INTENT's P1. Ev chose to merge 5628 over that red rather than wait.
 - **Next.** Unit C: no default. The public doors take a required `Settle`.
+- 2026-10-27 — **C3 closed** (PR 5815, `quad/c3-split-quad-rs`). `props/quad.rs` is now `props/quad/`: `mod.rs` (docs and re-exports), `run.rs` (the stop home), `trig.rs`, `cylinder.rs`, `green.rs`, `net.rs`, `area.rs`, `cells.rs`, `patch.rs`, `rational.rs`, `trimmed.rs`. Tests moved with their code: 72 before, 72 after.
+  - **De-duplicated onto `run.rs`.** `face_extent` replaces six copies of the extent gate (spiric's included). `Run::ask` replaces five copies of the stop → accept → gate tail. `cells::knots_inside` replaces two closures.
+  - **Constants.** Renamed by what they bound. `TRIM_AREA_PIECES` is merged into `AREA_CELLS_PER_AXIS`.
+  - **Readers re-keyed.** k-lint `MINT_SOURCES` now reads `quad/run.rs` and `quad/trimmed.rs`. Also re-keyed: the endpoint census (per file, same totals), the gates, the ci.yml tools trigger, 23 nextest ids, QUAD's and QUADTAIL's territory, and the docs and open items. Closed items and logs stay as the record.
+  - **Bits.** The thread-count digest is byte-identical to main's own at 1e-9, 1e-12 and 1e-6. Main's digest is itself red on `tilted_cut_upper` since FLUX 5801; reported to the orchestrator.
+  - **Filed.** `the-patch-lanes-spell-their-derivative-grid-ladder-twice` (P4).
+  - **Seam (FLUX, FLUXTAIL).** `props/spiric.rs`'s extent gate and round tail now go through `face_extent` and `Run::ask`, and its piece constant is `EDGE_INIT_PIECES`. — (QUAD C3 lane)
