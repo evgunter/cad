@@ -13,11 +13,11 @@
 //! seam rising from the shared plane is read against the other body's
 //! base cap there by the curve × face table's ring-composite arm, which
 //! finds no crossing inside it: its start on the cap is its end vertex's
-//! meeting. The union stops one step on, at a seam of A against a NURBS
-//! wall of B whose boundary leaves it undecided, where the table's
-//! spline-face door has no interior reading
-//! (`work/splice/an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane`).
-//! This row is that door's tripwire: it reds when the door lands.
+//! meeting. The union stops one step on, at a NURBS tip seam of A
+//! against a NURBS wall of B whose boundary leaves it undecided, where
+//! the table's spline-face door has no interior arm for a spline span
+//! (`work/splice/a-spline-span-against-a-spline-face-has-no-interior-arm`).
+//! This row is that arm's tripwire: it reds when the arm lands.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::SurfaceKind;

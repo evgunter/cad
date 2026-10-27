@@ -222,7 +222,21 @@ struct Tally {
 /// sphere sized its azimuth at each face's widest latitude, from
 /// `(397512, 132612, 26058, 8292)`: 5 400 fewer rays and 900 fewer
 /// grazes, the refusals unchanged.
-const PINNED: (usize, usize, usize, usize) = (392_112, 131_712, 26_058, 8_292);
+///
+/// It moved when a mate's slides came to run along the target's axes as
+/// the least turn carries them (`docs/DESIGN.md` `[placement.values]`),
+/// from `(392112, 131712, 26058, 8292)`: 21 fewer rays answered at the
+/// aimed vertex, all at `kitchen_sink` after its first edit, every
+/// other landing as it was. That edit sets the moved
+/// copy's `Slide(Y)` to 5 on a mate to the union's underside, which the
+/// retired chart ran along `d × x = −y` and now runs along `+y`, so the
+/// copy and its pattern stand at `y ∈ [5, 6.8]` where they stood at
+/// `[−5, −3.2]`. Rays aimed at the copy's 24 vertices answer one fewer;
+/// the other 20 are far-reach rays at the fixed vertices, whose reach
+/// (four times the scene's extent) grew with the copy, from 27 to
+/// 27.196. The rays and the refusals are unchanged; no genuine crossing
+/// is refused.
+const PINNED: (usize, usize, usize, usize) = (392_112, 131_691, 26_058, 8_292);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let reference = FlatReference::of(index);
