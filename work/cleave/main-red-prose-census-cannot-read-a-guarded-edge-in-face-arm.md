@@ -5,6 +5,7 @@ title: Main red (slow set): the prose census reads BooleanError::EdgeInFace's gu
 status: closed
 opened: 2026-10-26
 closed: 2026-10-27
+pr: 5830
 priority: P1
 cost: E
 ---
@@ -50,7 +51,7 @@ CENSUS's ground (`work/census/`).
 
 ## Closed
 
-2026-10-27. `BooleanError`'s `Display` (`crates/topo/src/boolean/mod.rs`)
+2026-10-27, PR 5830. `BooleanError`'s `Display` (`crates/topo/src/boolean/mod.rs`)
 writes `EdgeInFace` as one unguarded arm that branches on
 `gap.is_defect()` inside it, so the census reads the arm's own pattern
 and types `edge` and `face`; both messages are byte-identical. The
