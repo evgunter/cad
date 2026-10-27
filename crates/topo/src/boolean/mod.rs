@@ -138,6 +138,7 @@ mod slit;
 pub use slit::EdgeInFaceGap;
 pub mod solid_contain;
 pub(crate) mod sphere_region;
+pub(crate) mod spline_region;
 mod surface_group;
 pub mod tables;
 #[cfg(test)]
@@ -443,6 +444,10 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "point_in_arc_loop_spline_side"
         | "point_in_arc_loop_spline_turn"
         | "point_in_arc_loop_spline_advance" => BooleanDecision::CONTAINMENT_UNNAMED.subject(),
+        spline_region::CARRIER => "how far a point lies off a spline face's carrier",
+        spline_region::ARM | spline_region::TRIM => {
+            "whether a point of a spline face's carrier lies clear of the face's trim"
+        }
         _ => return None,
     })
 }
