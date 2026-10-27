@@ -3974,10 +3974,13 @@ pub enum BooleanError {
     },
     /// The result keeps a curved face on both sides of an operand's
     /// slit or zero-area ring, whose two edges the zip glued into one
-    /// edge of that face, and deleting that edge from a curved face is
-    /// not built (`slit::close_struts`): the lone ring's bridge is a
-    /// line chord, which lies in no curved face. A construction gap,
-    /// with no lever.
+    /// edge of that face with a free end, a strut, and deleting a strut
+    /// from a curved face is not built (`slit::close_struts`,
+    /// `crate::strut`'s `StrutRefusal::Curved`). Of a strut with both
+    /// ends free, the lone ring's bridge is a line chord, which lies in
+    /// no curved face; the strut deleted with one free end by `kev`
+    /// mints nothing and is refused with it. A construction gap, with
+    /// no lever.
     CurvedFaceClosesAcrossSlit {
         /// The curved face, in the result's keys.
         face: FaceKey,
@@ -5364,7 +5367,7 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "the result keeps curved face {face:?} on both sides of edge {edge:?}, where an \
                  operand's slit or zero-area ring lay, so the face closes across it, and \
-                 deleting an edge from a curved face is not built. {}",
+                 deleting such an edge with a free end from a curved face is not built. {}",
                 geom_core::NOT_YET_ENDING
             ),
             Self::SlitFaceClosesMidSlit { face, edge } => write!(

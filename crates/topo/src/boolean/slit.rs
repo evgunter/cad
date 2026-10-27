@@ -609,13 +609,14 @@ pub(super) fn merge_slivers<T: Decide + crate::props::AtRestPolicy>(
     }
 }
 
-/// One strut the output stage closed its face across
-/// ([`close_struts`]).
+/// One edge the output stage closed its face across ([`close_struts`]):
+/// a strut, deleted with its free end, or a slit's stretch, deleted by
+/// parting its loop ([`part_mid_slit`]).
 #[derive(Clone, Debug)]
 pub(super) struct ClosedStrut {
-    /// The face on both sides of the strut.
+    /// The face on both sides of the edge.
     pub(super) face: FaceKey,
-    /// The strut's edge.
+    /// The edge.
     pub(super) edge: EdgeKey,
     /// The vertices deleted with it: a strut's free end, then, where both
     /// its ends were free, the other; none for a slit's stretch, whose
@@ -733,13 +734,13 @@ fn part_mid_slit<T: Decide + crate::props::AtRestPolicy>(
         return Err(gap);
     }
     let cycle = body.loop_cycle(plus).ok_or(BooleanError::JoinDesync {
-        what: "a strut's loop does not walk",
+        what: "a slit's stretch's loop does not walk",
     })?;
     let at = cycle
         .iter()
         .position(|&h| h == minus)
         .ok_or(BooleanError::JoinDesync {
-            what: "a strut's two halves in one loop do not walk to each other",
+            what: "a slit's stretch's two halves in one loop do not walk to each other",
         })?;
     // Each side: the halves strictly between one half and the other, in
     // `next` order.
