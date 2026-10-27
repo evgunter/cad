@@ -62,6 +62,7 @@ fn marginal_witness_slack_vs_remint_freshness() {
         &resolve,
         1.0,
         band,
+        geom_brep::NurbsLane::certified(),
     )
     .expect("0.9eps witness offset is marginal but VALID");
     // Old path: an exact-in-principle isometry (identity here — the
@@ -97,6 +98,7 @@ fn marginal_witness_slack_vs_remint_freshness() {
         &resolve,
         1.0,
         band,
+        geom_brep::NurbsLane::certified(),
     )
     .expect("the re-mint formula's witness certifies with fresh headroom");
 }

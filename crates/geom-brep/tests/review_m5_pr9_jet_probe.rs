@@ -43,7 +43,15 @@ fn certify_line(
         param_end: 1.0,
     };
     let (p0, p1) = (spec.carrier.eval(0.0), spec.carrier.eval(1.0));
-    EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), 1.0, band())
+    EdgeCurve::certify(
+        spec,
+        p0,
+        p1,
+        |k| map.get(k).cloned(),
+        1.0,
+        band(),
+        geom_brep::NurbsLane::certified(),
+    )
 }
 
 #[test]
@@ -142,7 +150,15 @@ fn ruling_drift_is_exactly_zero_and_the_bound_discriminates() {
         param_end: 100.0,
     };
     let (p0, p1) = (spec.carrier.eval(0.0), spec.carrier.eval(100.0));
-    let out = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), 1.0, band());
+    let out = EdgeCurve::certify(
+        spec,
+        p0,
+        p1,
+        |k| map.get(k).cloned(),
+        1.0,
+        band(),
+        geom_brep::NurbsLane::certified(),
+    );
     assert!(
         out.is_ok(),
         "a 100 m ruling on an r=0.1 cylinder must certify (drift = 0 on a ruling): {:?}",

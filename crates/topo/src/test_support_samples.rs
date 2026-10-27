@@ -475,7 +475,6 @@ fn certify_errors() -> Vec<CertifyError> {
         },
         CertifyError::UnresolvedSurface { key },
         CertifyError::Unimplemented,
-        CertifyError::NurbsLaneNotSupplied,
         CertifyError::OnPairArcRim {
             iso: None,
             limb: geom_brep::SsiLimb::HullValueChart,
@@ -592,14 +591,22 @@ fn certify_errors() -> Vec<CertifyError> {
 fn analytic_rung3_refusals() -> Vec<geom_brep::AnalyticRung3Refusal> {
     use geom_brep::AnalyticRung3Refusal as A;
     vec![
-        A::Limb {
+        A::KernelLimit {
             operand: geom::SurfaceKind::Plane,
-            limb: geom_brep::Rung3Limb::HullSup,
+            bound: 7.5e-5,
             margin: MarginDiag::value(7.5e-5),
+            width: 1e-6,
+            extent: 2.0,
+        },
+        A::KernelLimit {
+            operand: geom::SurfaceKind::Torus,
+            bound: 7.5e-5,
+            margin: MarginDiag::value(7.5e-5),
+            width: 1e-15,
+            extent: 2.0,
         },
         A::Limb {
             operand: geom::SurfaceKind::Plane,
-            limb: geom_brep::Rung3Limb::HullValue,
             margin: MarginDiag::value(7.5e-5),
         },
         A::Escalated {
@@ -612,10 +619,15 @@ fn analytic_rung3_refusals() -> Vec<geom_brep::AnalyticRung3Refusal> {
             limb: geom_brep::Rung3Limb::Tube,
             cause: diag(),
         },
+        A::Stalled {
+            operand: geom::SurfaceKind::Cylinder,
+            cause: diag(),
+        },
         A::NoOffsetBound {
             operand: geom::SurfaceKind::Cone,
             why: geom_brep::SectorChannel::Lever.describe(),
         },
+        A::CarrierEnclosure(carrier_enclosure()),
         A::NoTubeEnclosure {
             operand: geom::SurfaceKind::Torus,
         },

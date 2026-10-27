@@ -81,6 +81,10 @@ def enum_mirrors():
 #: source — stay true. That is the roster's blind spot, stated so its
 #: silence is not read as coverage.
 UNHASHABLE = {
+    "AtRestEvidence": "by design: `editor_core::AtRestEvidence` derives "
+    "`PartialEq` and no `Hash`, and this class mirrors its derives. It "
+    "is the payload of a finding, `CheckEvidence`'s reason one level "
+    "in, and holds the validator's findings, whose margins are floats",
     "Formula": "by design: equality is an IEEE comparison of the literals "
     "inside, so `0.0` and `-0.0` are equal trees whose bits are not "
     "(stated on the stub)",

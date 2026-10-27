@@ -1,7 +1,7 @@
 //! **The document layer's finding sink** (DISCIPLINES-DESIGN DS8;
 //! #981 part 1): one composition and one list rendering for the
 //! layer's finding surfaces — the checks report and refusal, the
-//! unrecorded-contact refusal, and the assembly at-rest gate — so a
+//! unrecorded-contact refusal, and the at-rest check's findings — so a
 //! new finding kind plugs into a shared shape instead of hand-rolling
 //! another renderer.
 //!
@@ -74,7 +74,7 @@ pub(crate) fn compose<F: Finding + ?Sized>(f: &mut fmt::Formatter<'_>, finding: 
 /// kinds. A [`Finding`] is three parts and reaches this through
 /// [`render_list`], which composes them. A payload that is ALREADY one
 /// composed sentence — a kernel `ValidationError`, an
-/// [`crate::AtRestFinding`] — renders through its own `Display` and
+/// [`crate::AtRestEvidence`] — renders through its own `Display` and
 /// comes here directly: composing it again would invent a second
 /// vocabulary for a refusal that has one, which is what
 /// [`Finding::recourse`] returning `""` exists to avoid one rung down.

@@ -3113,12 +3113,9 @@ fn spline_interior<T: Decide + crate::props::AtRestPolicy>(
         edge: edge_key,
         band,
     };
-    let (true, Some(lane)) = (
-        geom_brep::curve_face::route(curve.carrier().kind(), kind).implemented,
-        T::nurbs_lane(),
-    ) else {
+    if !geom_brep::curve_face::route(curve.carrier().kind(), kind).implemented {
         return Err(unbuilt());
-    };
+    }
     let surface = y
         .get_face(face)
         .and_then(|f| y.get_surface(f.surface))
@@ -3131,27 +3128,28 @@ fn spline_interior<T: Decide + crate::props::AtRestPolicy>(
         .ok_or(BooleanError::ClassificationInvariant {
             what: "spline face: the table routed a face with no spline chart",
         })?;
-    let found = lane
-        .chart_meetings(curve.carrier(), curve.params(), chart, band)
-        .or_else(|refusal| {
-            Err(match refusal {
-                SplineFaceRefusal::Escalated(diag) => BooleanError::Escalated {
-                    decision: BooleanDecision::Crossing(CrossingDecision::OnEdge),
-                    diag,
-                },
-                SplineFaceRefusal::Unsettled(why) => BooleanError::SplineCrossingUnsettled {
-                    operand: x_is,
-                    edge: x
-                        .split_root(edge_key, |_| false)
-                        .map_err(BooleanError::SplitLineage)?,
-                    face,
-                    face_of: x_is.other(),
-                    why,
-                },
-                SplineFaceRefusal::Unread(_) => unbuilt(),
-                SplineFaceRefusal::Fault(what) => BooleanError::ClassificationInvariant { what },
-            })
-        })?;
+    let Some(found) = T::spline_chart_meetings(curve.carrier(), curve.params(), chart, band) else {
+        return Err(unbuilt());
+    };
+    let found = found.or_else(|refusal| {
+        Err(match refusal {
+            SplineFaceRefusal::Escalated(diag) => BooleanError::Escalated {
+                decision: BooleanDecision::Crossing(CrossingDecision::OnEdge),
+                diag,
+            },
+            SplineFaceRefusal::Unsettled(why) => BooleanError::SplineCrossingUnsettled {
+                operand: x_is,
+                edge: x
+                    .split_root(edge_key, |_| false)
+                    .map_err(BooleanError::SplitLineage)?,
+                face,
+                face_of: x_is.other(),
+                why,
+            },
+            SplineFaceRefusal::Unread(_) => unbuilt(),
+            SplineFaceRefusal::Fault(what) => BooleanError::ClassificationInvariant { what },
+        })
+    })?;
     for m in found {
         let esc_y = |e| esc(e, x_is.other(), face);
         if let Some((at, margin)) =
@@ -3444,7 +3442,7 @@ fn interior<T: Decide>(
 /// ([`crate::stands::inward`], about each face's outward normal at `p`)
 /// are definitely opposed (`bool_touch_sheets_part`, the cosine levered
 /// at the longer of the two faces' reaches from their edges,
-/// [`crate::wedge_reach`]). The two
+/// [`crate::wedge_reach()`]). The two
 /// faces are tangent sheets (the cover), so each leaves `p` along their
 /// common tangent plane, across the edges there; opposed, they meet
 /// nowhere else near `p`, and the meeting is a touch of the two
@@ -4010,7 +4008,7 @@ enum SpanVerdict<T: geom_core::Real> {
 
 /// **A spline span against a plane face**: the crossings strictly inside
 /// the span, ascending, by the curve × face table's ring-composite arm
-/// ([`geom_brep::NurbsLane::surface_crossings`]), read through the
+/// ([`crate::props::AtRestPolicy::spline_face_crossings`]), read through the
 /// scalar's certified lane. A spiric span, or a scalar with no certified
 /// lane, has no arm.
 ///
@@ -4039,11 +4037,13 @@ fn spline_plane_crossings<T: crate::props::AtRestPolicy>(
             what: "planar lane: the face's plane does not resolve",
         })?;
     let arm = route(curve.carrier().kind(), surface.kind());
-    let (geom::Curve3::Nurbs(net), true, Some(lane)) = (
-        curve.carrier(),
-        arm.door == Door::SplineComposite && arm.implemented,
-        T::nurbs_lane(),
-    ) else {
+    let crossings = match curve.carrier() {
+        geom::Curve3::Nurbs(net) if arm.door == Door::SplineComposite && arm.implemented => {
+            T::spline_face_crossings(net, curve.params(), surface, band)
+        }
+        _ => None,
+    };
+    let Some(crossings) = crossings else {
         return Err(BooleanError::EdgeCarrierUnsupported {
             operand: x_is,
             edge: root()?,
@@ -4052,26 +4052,25 @@ fn spline_plane_crossings<T: crate::props::AtRestPolicy>(
             site: super::EdgeCarrierSite::PlanarCrossing,
         });
     };
-    lane.surface_crossings(net, curve.params(), surface, band)
-        .or_else(|refusal| {
-            Err(match refusal {
-                CompositeRefusal::Escalated(diag) => BooleanError::Escalated {
-                    decision: BooleanDecision::Crossing(CrossingDecision::OnEdge),
-                    diag,
-                },
-                CompositeRefusal::Unsettled(why) => BooleanError::SplineCrossingUnsettled {
-                    operand: x_is,
-                    edge: root()?,
-                    face,
-                    face_of: x_is.other(),
-                    why,
-                },
-                CompositeRefusal::Unread(_) => BooleanError::ClassificationInvariant {
-                    what: "planar lane: a built spline carrier's composite against a plane \
+    crossings.or_else(|refusal| {
+        Err(match refusal {
+            CompositeRefusal::Escalated(diag) => BooleanError::Escalated {
+                decision: BooleanDecision::Crossing(CrossingDecision::OnEdge),
+                diag,
+            },
+            CompositeRefusal::Unsettled(why) => BooleanError::SplineCrossingUnsettled {
+                operand: x_is,
+                edge: root()?,
+                face,
+                face_of: x_is.other(),
+                why,
+            },
+            CompositeRefusal::Unread(_) => BooleanError::ClassificationInvariant {
+                what: "planar lane: a built spline carrier's composite against a plane \
                            did not form",
-                },
-            })
+            },
         })
+    })
 }
 
 /// The curved-wall crossing route: solve the certified roots — a
@@ -8044,6 +8043,110 @@ mod spline_face_rows {
             ),
             other => panic!("the line pierces the face inside its trim: {other:?}"),
         }
+    }
+
+    /// The twisted sheet over `[¼, ¾]²`, and a body holding one quadratic
+    /// NURBS edge from `p` to `q`, its middle control point `bow` off the
+    /// chord's middle along `+x`, stated in the plane through the chord
+    /// and `x̂`, its chord along `+z`.
+    fn twisted_and_a_spline(
+        p: Point3<f64>,
+        q: Point3<f64>,
+        bow: f64,
+    ) -> (Body<f64>, FaceKey, Body<f64>, EdgeKey) {
+        use crate::boolean::spline_region::rows::{rect, sheet, twisted};
+        let tol = Tol::witness();
+        let (y, face) = sheet(&twisted(0.6), &rect((0.25, 0.75), (0.25, 0.75)));
+        let mut x = Body::<f64>::new();
+        let seed = x.mvfs(p, true).unwrap();
+        let x_hat = Vec3::unit_x();
+        let key = x
+            .set_face_surface(
+                seed.face,
+                crate::FaceSurface::New {
+                    surface: Surface::Plane {
+                        origin: p,
+                        normal: (q - p).cross(x_hat).normalize(),
+                        u_ref: x_hat,
+                    },
+                    sense: true,
+                },
+            )
+            .unwrap();
+        let kv = || {
+            geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap()
+        };
+        let mid = p.lerp(q, 0.5) + x_hat * bow;
+        let carrier = Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(kv(), vec![p, mid, q], vec![1.0; 3]).unwrap(),
+        ));
+        // The plane's chart is `p + u·x̂ + v·(n × x̂)`, `n × x̂ = −ẑ` here.
+        let half = 0.5 * (q - p).norm();
+        let image = geom_brep::Pcurve::General(std::sync::Arc::new(
+            geom::NurbsCurve2::new(
+                kv(),
+                vec![
+                    geom_core::Point2::new(0.0, 0.0),
+                    geom_core::Point2::new(bow, -half),
+                    geom_core::Point2::new(0.0, -2.0 * half),
+                ],
+                vec![1.0; 3],
+            )
+            .unwrap(),
+        ));
+        let spec = geom_brep::EdgeCurveSpec {
+            description: geom_brep::EdgeDescriptionSpec::chart_image(key, image),
+            carrier,
+            param_start: 0.0,
+            param_end: 1.0,
+        };
+        let edge = x
+            .mev(
+                crate::MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                q,
+                spec,
+                tol,
+            )
+            .unwrap()
+            .edge;
+        (y, face, x, edge)
+    }
+
+    /// **A NURBS edge through a spline face's interior pierces it there**,
+    /// at the meeting the spline span arm found, placed in by the trim at
+    /// its chart point; one through the chart past the trim is no event of
+    /// the face.
+    #[test]
+    fn a_nurbs_edge_pierces_a_spline_face_inside_its_trim_and_passes_it_outside() {
+        use crate::boolean::contain::FaceContainment;
+        let up = |x: f64, y: f64| (Point3::new(x, y, -1.0), Point3::new(x, y, 1.0));
+        let (p, q) = up(0.5, 0.5);
+        let (mut y, face, x, ek) = twisted_and_a_spline(p, q, 0.1);
+        let mut acc = ContactAcc::default();
+        match arm(&x, ek, &mut y, face, &mut acc) {
+            Ok(CurvedEvent::Pierce {
+                p,
+                at: FaceContainment::In,
+                ..
+            }) => assert!(
+                (p.z - 0.6 * p.x * p.y).abs() < 1e-9 && p.x > 0.5 && p.x < 0.55,
+                "on the sheet, on the bowed edge: {p:?}"
+            ),
+            other => panic!("the NURBS edge pierces the face inside its trim: {other:?}"),
+        }
+        let (p, q) = up(0.9, 0.4);
+        let (mut y, face, x, ek) = twisted_and_a_spline(p, q, 0.05);
+        let mut acc = ContactAcc::default();
+        match arm(&x, ek, &mut y, face, &mut acc) {
+            Ok(CurvedEvent::None) => {}
+            other => panic!("a meeting past the trim is no event of the face: {other:?}"),
+        }
+        assert!(
+            acc.records.vv.is_empty() && acc.records.a_on_b.is_empty(),
+            "nothing recorded"
+        );
     }
 
     /// **A point split out of a thin ellipse lands where it was read, or

@@ -669,3 +669,46 @@ concurrent pair.
   rather than copying it.
 - The brief binds the crease class on both curve and surface, the
   sheet-exact placement, ε-scaled rows, and the full slow sets.
+
+## 2026-10-27 — PR 5855 (the spline × spline arm) merges; lily moves
+
+Letter H, concurrent pair, frozen at `015e27412e`. Both reviewers:
+APPROVE-WITH-FIXES, no MAJOR. Both re-derived the new end bound
+(`krawczyk::solution_reach`) and found it sound, and every swallow probe
+was reported or refused at three ε.
+- Bilateral: the end-box gates had no red row, and an end on a span
+  crease refused needlessly.
+- The fix pass is `4742bb0286`. Every gate mutant now reds a per-PR
+  row. An end on a crease is the end's. `SpanCarrier` pairs a curve
+  with its sheet.
+
+**Lily wall 8 moves past every face reduction.** It now stops at the
+result's seam re-description: `classify_dihedral` reads no spline, on
+the shared rim between two NURBS walls. That is filed as
+`the-results-seam-between-two-spline-walls-is-read-by-no-dihedral`,
+and it is next on lily's path. Klein and teapot are unmoved.
+
+## 2026-10-27 — the spline seam reading dispatched
+
+`splice/spline-seam-dihedral` (`session_01EdpJs76R3BtUnnQPDh3NwV`) takes
+`the-results-seam-between-two-spline-walls-is-read-by-no-dihedral`. It
+is re-banded P1 → P0, as lily wall 8's next stop.
+- Letter M; draw byte 36, and 36 mod 3 = 0, so a holdout: a concurrent
+  pair.
+- The brief: each face's normal is read at the edge's pcurve parameter
+  on that face (sheet-exact, as PR 5802's sector walk), not at a foot.
+  It reuses `dihedral_side`'s regularity and crease guards. The arm is
+  read from certified curvature bounds.
+
+## 2026-10-27 — Ev ratifies C5's ladder of evidence (PR 5860)
+
+Ev asked for C5's curve × face clause to be made general rather than
+given a `twin_edge` exception. PR 5860 rewrites it as one ladder, each
+rung reading only what the rungs before it left undecided:
+1. topology, by incidence, under the boolean's validity precondition,
+   which it names as assumed;
+2. the span's ends;
+3. the face's boundary edges;
+4. the face's interior.
+
+Ev approved it ("5860 looks good!"). Only the wording changed.

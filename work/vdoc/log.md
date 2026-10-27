@@ -336,3 +336,5 @@ about 9000 magnitudes in `widgets.rs`'s own module.
     - `a-disabled-controls-reason-has-one-home`: its sequencing blockers are all closed.
 
   The plan's opening condition (VNEWS, VGEOM and VSEAM closed) still holds the spine.
+
+- 2026-10-26 — seam from ATREST (stage 5 C, `the-at-rest-census-is-a-check`, branch `atrest/the-at-rest-census-is-a-check`): viewer README (`LandedRun`'s body note; the refusal-shape census drops `AtRestBadge::Refused`: five shapes in four modules) and the assembly-display tests follow the at-rest badge's new counts.

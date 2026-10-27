@@ -837,6 +837,7 @@ fn an_edge_on_a_chart_with_no_general_lane_ends_not_yet() {
         &lookup,
         1.0,
         band(),
+        geom_brep::NurbsLane::certified(),
     )
     .expect_err("an on-cone circle that is no rim has no image yet");
     assert!(matches!(err, CertifyError::NoGeneralLane { .. }), "{err:?}");
@@ -957,6 +958,7 @@ fn a_carrier_ends_its_incidence_at_the_edge_certificate_by_the_door() {
                 &lookup,
                 1.0,
                 band(),
+                geom_brep::NurbsLane::certified(),
             )
             .expect_err("the carrier is no curve of its chart here")
         };

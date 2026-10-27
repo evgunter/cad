@@ -367,11 +367,11 @@ The backstop's containment arm decides the nested-instance class by a
 material test — a nested placement sharing no material clears; an
 instance with a vertex inside another's material is
 `ValidationError::InstanceInterference`, a face of each on one plane,
-facing the same way and sharing interior, is
+cylinder or sphere, facing the same way and sharing interior, is
 `ValidationError::SameSideInterference`, and a touch whose local
 analysis decides the two materials meet there is
 `ValidationError::TouchInterference` — and no declaration admits an
-interference. Between two copies at rest the editor's gate reads those
+interference. Between two copies at rest the at-rest check reads those
 verdicts, a pierce, a same-side crossing and two coincident edges'
 overlapping wedges as interference evidence (ASSEMBLY A5
 *Interference.*), quieted by a one-sided `Gap` assertion at the overlap,

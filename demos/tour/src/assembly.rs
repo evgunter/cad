@@ -29,8 +29,8 @@
 //! (one instance, patterned) and the shelf beside them, nothing
 //! touching. Both are real things a user models, and between them they
 //! cover the two halves of A5's validity story: the layout is DISJOINT
-//! and its at-rest gate passes outright; the stand TOUCHES, and its
-//! gate CERTIFIES, its two flush seats and the crate's rest included
+//! and its at-rest check finds nothing; the stand TOUCHES, and its
+//! check finds nothing either, its two flush seats and the crate's rest included
 //! (see [`stand_scene`]). Three `SetVarValue`
 //! edits on `swing` render three poses, each re-running only the
 //! instances the turntable places (see [`poses`]).
@@ -75,7 +75,7 @@
 //! - **A part resting on another follows a part edit.** The crate's
 //!   mate rests its bottom face on the shelf's top FACE, and its values
 //!   say where on the top it stands, so a thicker shelf lifts it and
-//!   shorter posts lower it, and the gate certifies both
+//!   shorter posts lower it, and the at-rest check finds nothing in either
 //!   (`update_door`).
 //! - **A seat's spin turns about the face it rests on.** A value is
 //!   measured on the world's axes, carried onto the mated direction by
@@ -100,13 +100,13 @@ use std::sync::Arc;
 use pncad::document::coincidence::Relation;
 use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
 use pncad::document::{
-    Assembly, BodyRead, CancelToken, CheckEvidence, CheckId, ChecksConfig, Constraint, Coord,
+    Advisory, BodyRead, CancelToken, CheckEvidence, CheckId, ChecksConfig, Constraint, Coord,
     Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue,
     FreeVar, LoopProgram, Mate, MateFault, MateRef, Node, OVERCONSTRAINED_RECOURSE, Operand,
     Orientation, PartResolver, PartSelect, PatternKind, Placed, ProfileDoc, ProfileProgram,
-    RecipeNodeId, SitedFace, TargetAxis, UNPINNED_RECOURSE, ValuePayload, VarId, VarName, apply,
-    assemble, content_pin, evaluate, flatten, inline, load, mixed_pins, parse_formula,
-    product_named, run_checks, save, solve_document, split, stand,
+    RecipeNodeId, Severity, SitedFace, Subject, TargetAxis, UNPINNED_RECOURSE, ValuePayload, VarId,
+    VarName, apply, content_pin, evaluate, flatten, inline, load, mixed_pins, parse_formula,
+    product_named, product_recorded, run_checks, run_checks_on, save, solve_document, split, stand,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -953,7 +953,7 @@ fn workspace(dir: &Path, tol: Tol) -> (Workspace, Parts) {
 // ---- The scenes ----
 
 /// The flat-pack layout: three disjoint solids, and A5's disjoint half
-/// — the at-rest gate passes outright.
+/// — the at-rest check finds nothing.
 ///
 /// TWO posts, the same count the bench assembles, so "the same parts,
 /// flat-packed" is true of the PARTS and not only of the documents. Two
@@ -1029,17 +1029,14 @@ fn layout_scene(ws: &Workspace, doc: &ProfileDoc, pattern: RecipeNodeId, tol: To
         pose.origin.y
     );
 
-    // A5's disjoint half: the at-rest gate over the gathered product.
-    // Nothing touches, so the kernel's tier-3' door passes outright and
-    // records nothing — which is exactly what "disjoint assemblies
-    // validate today" means.
-    let assembly = assemble(doc, &ev, tol)
-        .unwrap_or_else(|e| panic!("the disjoint layout must pass the at-rest gate: {e}"));
+    // A5's disjoint half: the at-rest check over the gathered product.
+    // Nothing touches, so the census finds nothing and records nothing.
+    let assembly = at_rest(doc, &ev, tol);
     assert!(
         assembly.contacts.is_empty(),
         "a disjoint assembly records no contact"
     );
-    println!("   [layout] A5 at-rest gate: PASSED (disjoint, per-solid checks, 0 contacts)");
+    println!("   [layout] A5 at-rest check: nothing found (disjoint, 0 contacts)");
 
     SceneBody::seamed(
         "benchlayout",
@@ -1051,7 +1048,7 @@ fn layout_scene(ws: &Workspace, doc: &ProfileDoc, pattern: RecipeNodeId, tol: To
 
 /// The assembled bench at its authored swing: the near post's world
 /// mate places it through the turntable, the mates place the rest onto
-/// it, the census records the seats, and the gate certifies them.
+/// it, the census records the seats, and the at-rest check finds nothing.
 fn stand_scene(ws: &Workspace, stand: &Stand, bench: &Bench, tol: Tol) -> Evaluation<f64> {
     let doc = &bench.doc;
     let ev = run(doc, &with_store(ws), tol);
@@ -1144,7 +1141,7 @@ fn stand_scene(ws: &Workspace, stand: &Stand, bench: &Bench, tol: Tol) -> Evalua
     let seats = gate.contacts.face_face().count();
     println!(
         "   [stand] the census recorded {seats} seat(s) between the copies, at FACE \
-         granularity; A5 at-rest gate: PASSED"
+         granularity; A5 at-rest check: nothing found"
     );
     assert_eq!(seats, 3, "one record per seat the mates make");
     // Each seat is the at-rest census's row of its mate's two faces,
@@ -1188,7 +1185,7 @@ const BENCH_VOLUME: f64 = 2.0 * POST_VOLUME + SHELF_VOLUME + CRATE_VOLUME;
 /// A swing re-runs the four instances the turntable places, and
 /// nothing else. Each pose is checked against the chain composed here,
 /// its volume
-/// against the bench's material, and its at-rest gate is run again.
+/// against the bench's material, and its at-rest check is run again.
 fn poses(
     ws: &Workspace,
     stand: &Stand,
@@ -1419,19 +1416,34 @@ fn points(body: &Body<f64>) -> Vec<[f64; 3]> {
     body.points().map(|(_, p)| [p.x, p.y, p.z]).collect()
 }
 
-/// The certified product and its record set.
+/// The product at rest and its record set.
 struct AtRest {
     body: Body<f64>,
     contacts: pncad::topo::ContactRecords,
 }
 
-/// Runs the A5 gate over a stand the scene means to certify, and panics
-/// on any refusal: every caller (the stand, the instanced stand, and the
-/// updated bench the update walk re-seats) asserts it is at rest.
+/// Gathers a stand the scene means to be at rest and runs the at-rest
+/// check over it, and panics on any finding: every caller (the stand,
+/// the instanced stand, and the updated bench the update walk re-seats)
+/// asserts it is at rest.
 fn at_rest(doc: &ProfileDoc, ev: &Evaluation<f64>, tol: Tol) -> AtRest {
-    match assemble(doc, ev, tol) {
-        Ok(Assembly { body, contacts, .. }) => AtRest { body, contacts },
-        Err(other) => panic!("the stand must be at rest: {other}"),
+    let product = product_recorded(doc, ev, tol)
+        .unwrap_or_else(|e| panic!("the stand gathers: {}", e.spoken(doc)));
+    let at_rest_only = ChecksConfig {
+        connectedness: Severity::Off,
+        unproven_coincidence: Advisory::Off,
+        ..ChecksConfig::default()
+    };
+    let report = run_checks_on(doc, ev, Subject::Product(&product), &at_rest_only, tol)
+        .unwrap_or_else(|e| panic!("the at-rest check runs: {}", e.spoken(doc)));
+    assert!(
+        report.findings.is_empty(),
+        "the stand must be at rest: {}",
+        report.spoken(doc)
+    );
+    AtRest {
+        body: product.body.into_body(),
+        contacts: product.contacts,
     }
 }
 
@@ -1921,7 +1933,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
     // The posts' seats name the shelf's UNDERSIDE, which a thicker
     // board leaves where it was, so they hold. The crate rests on the
     // shelf's TOP face, so it rides up with the board by exactly the
-    // thickness it gained, and the gate certifies the bench as it
+    // thickness it gained, and the at-rest check passes the bench as it
     // stands.
     let crate_after = solve_document(&updated, &with_store(ws), tol)
         .placement(&updated, bench.crate_i)
@@ -1935,7 +1947,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
         crate_before.columns, crate_after.columns,
         "the crate's orientation is untouched by a thickness edit"
     );
-    // The gate certifies the thicker bench, the crate on its top.
+    // The at-rest check passes the thicker bench, the crate on its top.
     at_rest(&updated, &after, tol);
     let (after_body, _) = product_of(&updated, &after, tol);
     let after_volume = pncad::topo::mass_properties(
@@ -1953,7 +1965,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
     println!(
         "   after {} recorded UpdateReference edit(s): V {:.6} -> {:.6} m^3; the \
          seats were recorded again against the new geometry and put back through the \
-         gate, which certifies: the crate rode up {risen:.3} m with the shelf's top",
+         at-rest check, which finds nothing: the crate rode up {risen:.3} m with the shelf's top",
         edits.len(),
         before_volume,
         after_volume,
@@ -2053,7 +2065,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
     // each seat's pose is the plane of the post's top cap FACE, read
     // off the post's own evaluation at every solve — so the shelf
     // comes down 40 mm with the posts, the rest between each cap and
-    // the shelf's underside still holds, and the gate certifies both
+    // the shelf's underside still holds, and the at-rest check passes both
     // seats. The face name is the state; the pose is derived.
     let ev = run(&migrated, &with_store(ws), tol);
     let shelf_after = solve_document(&migrated, &with_store(ws), tol)
@@ -2070,7 +2082,8 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
     );
     // The posts' seats follow their caps, so the stand fits, and the
     // crate rests on the shelf's top face, so it comes down with the
-    // shelf by the same height; the gate certifies the migrated bench.
+    // shelf by the same height; the at-rest check finds nothing on the
+    // migrated bench.
     let crate_migrated = solve_document(&migrated, &with_store(ws), tol)
         .placement(&migrated, bench.crate_i)
         .expect("the crate is solved after the migration");
@@ -2079,12 +2092,14 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
         (crate_dropped - 0.04).abs() < 1e-12,
         "the crate comes down with the shelf by the height change: {crate_dropped} m"
     );
-    // The gate certifies the migrated bench, the crate on its shelf.
+    // The at-rest check finds nothing on the migrated bench, the crate on
+    // its shelf.
     at_rest(&migrated, &ev, tol);
     println!(
         "   \"does it actually fit\": after the migration the shelf came down {dropped:.3} m with \
          the shortened posts and the crate {crate_dropped:.3} m with the shelf — each mate names \
-         a FACE and the solve reads its pose off the part — and the gate certifies"
+         a FACE and the solve reads its pose off the part — and the at-rest check finds \
+         nothing"
     );
 
     // Undo is keeping the prior value: the migrated document is one
@@ -2213,7 +2228,7 @@ fn round_trip(ws: &Workspace, doc: &ProfileDoc, label: &str, tol: Tol) {
 /// the values setting the freedoms the seat leaves are numbers in the
 /// bodies' own coordinates. A post whose height changes moves the seat
 /// with it, which the update walk shows — the shelf comes down with
-/// the shortened posts and the gate still certifies; the crate rests
+/// the shortened posts and the at-rest check still finds nothing; the crate rests
 /// on the shelf's top face, so it follows the shelf.
 ///
 /// # A pin places the stand, and a parameter drives the pin
@@ -2282,8 +2297,8 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<TourStop> {
         format!(
             "{counters}. ASSEMBLED: 4 solids, V = {BENCH_VOLUME:.6} m^3 at every swing; every \
              vertex is where the turntable's chain composed by hand puts it, the shelf's centroid \
-             stays on the pivot, and the A5 at-rest gate CERTIFIES the posts' flush seats and \
-             the crate's rest"
+             stays on the pivot, and the A5 at-rest check finds nothing at the posts' flush \
+             seats or the crate's rest"
         )
     };
     let mut layout_body = Some(layout_body);
@@ -2310,7 +2325,7 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<TourStop> {
                     "the bench on its turntable at the first swing, and beside it the post and \
                      shelf documents laid out for shipping: ONE post instance patterned TWICE \
                      plus the shelf, nothing touching, which is A5's disjoint half where the \
-                     at-rest gate passes outright. The bench: an ASSEMBLY document — two \
+                     at-rest check finds nothing at all. The bench: an ASSEMBLY document — two \
                      instances of a post document and one of a shelf document, the shelf \
                      SEATED on both by mates, only the near post pinned to the world — its \
                      pin turning on a TURNTABLE whose swing is a document parameter — and a \

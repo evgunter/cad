@@ -1755,7 +1755,7 @@ impl ViewerApp {
             // nothing about how a badge looks is decided here
             // (`frame::Badge`).
             //
-            // The A5 at-rest verdict, when the session took one
+            // The at-rest badge, when the session took one
             // (`DocSession::at_rest`): the verification verdict
             // living past the commit.
             if let Some(badge) = frame::at_rest_badge(self.session.at_rest()) {

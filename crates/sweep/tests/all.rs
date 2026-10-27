@@ -995,6 +995,8 @@ mod curved_mergedoor;
 
 #[path = "curved_coincident_fates.rs"]
 mod curved_coincident_fates;
+#[path = "curved_copies_filling_one_volume.rs"]
+mod curved_copies_filling_one_volume;
 #[path = "curved_notch_pinch.rs"]
 mod curved_notch_pinch;
 
