@@ -753,7 +753,6 @@ fn two_pinches_crossing_on_one_line_refuse_their_union_typed() {
         let decls = BooleanInputs {
             records_a: ca.clone(),
             records_b: cb.clone(),
-            ..BooleanInputs::default()
         };
         // At (0,0,1) the lower pinch's two vertices are its split edges'
         // and the upper pinch's are its corners; every pair crosses.
@@ -828,7 +827,6 @@ fn two_pinches_meeting_end_to_end_build_in_every_op() {
         let decls = BooleanInputs {
             records_a: ca.clone(),
             records_b: cb.clone(),
-            ..BooleanInputs::default()
         };
         let built = |op: &str, got: Result<BooleanResult<f64>, BooleanError>, want: f64| {
             let BooleanResult::Body(out) =
@@ -1209,7 +1207,6 @@ fn a_four_row_remap_group_certifies_a_subtract_of_two_pinches() {
     let decls = BooleanInputs {
         records_a: carried_a,
         records_b: carried_rows(&pinch_b.contacts),
-        ..BooleanInputs::default()
     };
     let BooleanResult::Body(out) =
         subtract_in(&pinch_a.body, &pinch_b.body, &decls, tol).expect("the subtract builds")

@@ -19,11 +19,11 @@ Two readers answer "is this direction inside this polygon cone's
 material" by the parity of a great arc's crossings of the cone's face
 sectors:
 
-- `crates/topo/src/census.rs` `Link::reads` (the census's touch
+- `crates/topo/src/link.rs` `Link::reads` (the census's touch
   analysis): a cone given as faces with real points (each face's piece
   at the vertex, a fan of wedges), every sign a point's distance from a
-  plane in metres through `census::metric::Distance`
-  (`census::tests::the_touch_analysis_decides_only_through_its_doors`).
+  plane in metres through `link::metric::Distance`
+  (`link::tests::the_link_decides_only_through_its_doors`).
   The reference is a wedge's centroid; an arc whose reading is undecided
   is passed over for the next reference.
 - `crates/topo/src/boolean/sectors.rs` `cone_side`: a cone given as
@@ -38,7 +38,7 @@ onto the census reader did not fit the unit that made it.
 ## Evidence that one can serve both
 
 `crates/topo/src/boolean/sectors/cone_fuzz.rs` now reads the census
-reader (`census::bare_cone_reads`, test-only) beside `cone_side` and
+reader (`link::bare_cone_reads`, test-only) beside `cone_side` and
 `wedge_classes` on every cone and probe of its families (stars, thin
 fins and slivers, turned stars, graze, bound, long-probe darts), under
 the same exact oracle and the same rule that a class decided in band is

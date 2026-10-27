@@ -221,7 +221,12 @@ fn one_solid_in_two_face_orders_carries_nearly_one_pad() {
     }
 }
 
-/// Pads of `body` with every shell's face list rotated by each `k`.
+/// Pads of `body` with every shell's face list rotated by each `k`: each
+/// rotation's volume enclosure's half-width, read at the pinned resolution
+/// whatever the measurement's stop. These rows compare brackets, so a
+/// rotation whose face stopped at its floor short of the resolution
+/// (`Stop::Floor`, at 1e-12 on the two tori's bar) is read as the bracket
+/// it states, not refused as a number unmet.
 fn pads_over_rotations(body: &topo::Body<f64>) -> Vec<f64> {
     let tol = Tol::witness();
     let n = *topo::test_support::rotate_shell_faces(&mut body.clone(), 0)
@@ -238,8 +243,7 @@ fn pads_over_rotations(body: &topo::Body<f64>) -> Vec<f64> {
                 topo::test_support::pinned_resolution(tol),
             )
             .expect("the measured body")
-            .met()
-            .expect("the measured body")
+            .enclosure
             .volume_pad
         })
         .collect()
@@ -341,6 +345,158 @@ fn a_shells_pad_reads_alike_whichever_quadrature_face_it_stores_first() {
     assert!(
         got <= turned,
         "the cut far off and turned: pads {got} apart across rotations, past {turned}"
+    );
+}
+
+/// Tori `(R, r, centre)`, each about `y`, united in turn and then with the
+/// 900.6 m bar of 12 × 12 from `x = 0.3` along `−x`: the two tori on a
+/// bar's bar.
+fn tori_on_the_bar(tori: &[(f64, f64, Vec3<f64>)]) -> topo::Body<f64> {
+    let tol = Tol::witness();
+    let placed = |&(big, small, at): &(f64, f64, Vec3<f64>)| {
+        finished(
+            "a torus on the bar",
+            topo::transform_rigid(
+                &torus(big, small),
+                &geom_core::test_support::rigid(&Affine3::translation(at), tol),
+                tol,
+            )
+            .unwrap(),
+            tol,
+        )
+    };
+    let union = |a: &AtRestBody<f64>, b: &AtRestBody<f64>| {
+        topo::union(a, b, tol).unwrap().body().unwrap().body.clone()
+    };
+    let tori = tori
+        .iter()
+        .map(placed)
+        .reduce(|a, b| union(&a, &b))
+        .unwrap();
+    let bar = finished(
+        "a 900.6 m bar",
+        framed_bar(
+            Point3::new(0.3, 0.0, 0.0),
+            Vec3::new(-1.0, 0.0, 0.0),
+            0.0,
+            900.6,
+            12.0,
+        ),
+        tol,
+    );
+    union(&tori, &bar).into_body()
+}
+
+/// R1: the home torus and one on the bar's long top face near its far end,
+/// `torus(2, 0.5)` at `(−895, 0, 5.7)`.
+fn a_torus_on_the_bars_top_face() -> topo::Body<f64> {
+    tori_on_the_bar(&[
+        (2.0, 0.5, Vec3::new(0.0, 0.0, 0.0)),
+        (2.0, 0.5, Vec3::new(-895.0, 0.0, 5.7)),
+    ])
+}
+
+/// R2: the two tori on a bar and a third on the top face midway,
+/// `torus(2, 0.5)` at `(−450, 0, 6.3)`.
+fn a_torus_midway_on_the_top_face() -> topo::Body<f64> {
+    tori_on_the_bar(&[
+        (2.0, 0.5, Vec3::new(0.0, 0.0, 0.0)),
+        (0.2, 0.05, Vec3::new(-900.27, 0.0, 0.0)),
+        (2.0, 0.5, Vec3::new(-450.0, 0.0, 6.3)),
+    ])
+}
+
+/// **A shell joined along a long face reads alike whichever face it
+/// stores first.** A torus on the bar's long top face cuts it, so the top
+/// face takes the quadrature and shares its straight edges with the end
+/// caps the end tori cut, which take it too. Joined across those edges,
+/// each body was one region spanning the bar, read about one point: R1,
+/// the home torus and one on the top face near the far end, read pads
+/// 456× apart across rotations at 1e-6, and R2, a torus midway with both
+/// ends' tori, 83×
+/// (`work/flux/a-shells-pad-still-depends-on-face-order-where-one-quadrature-region-spans-the-lever.md`).
+/// Joined only across rims (`topo::props`' `References`), each torus is a
+/// region with the faces its rims bound, read about its first curved
+/// face's start. Across the 12 and 16 rotations the pads are within 1.006×
+/// and 1.008× at every ε: R1 8.20e-6 at 1e-6 and 1e-9 and 7.29e-9 –
+/// 7.33e-9 at 1e-12, R2 8.20e-6, 6.21e-6 and 5.60e-9 – 5.65e-9. Pinned
+/// within 1.1×, and each below 1.1× its measure.
+#[test]
+fn a_shell_joined_along_a_long_face_reads_alike_whichever_face_it_stores_first() {
+    let tol = Tol::witness();
+    let (r1, r2) = match tol.eps() {
+        1e-6 => (8.20e-6, 8.21e-6),
+        1e-9 => (8.20e-6, 6.22e-6),
+        1e-12 => (7.33e-9, 5.65e-9),
+        _ => {
+            test_utils::vacuity::stood_down(
+                "non-matrix eps",
+                "the pads are measured at the matrix rows",
+            );
+            return;
+        }
+    };
+    let ratio = |pads: &[f64]| {
+        pads.iter().copied().fold(0.0, f64::max)
+            / pads.iter().copied().fold(f64::INFINITY, f64::min)
+    };
+    for (what, body, measured) in [
+        ("R1", a_torus_on_the_bars_top_face(), r1),
+        ("R2", a_torus_midway_on_the_top_face(), r2),
+    ] {
+        let pads = pads_over_rotations(&body);
+        let widest = pads.iter().copied().fold(0.0, f64::max);
+        assert!(
+            ratio(&pads) <= 1.1 && widest <= 1.1 * measured,
+            "{what}: pads {pads:?}, {}× apart, widest past 1.1 × {measured:e}",
+            ratio(&pads)
+        );
+    }
+}
+
+/// B5: the home torus, one astride the bar's end edge at `(−0.7, 0, 5)`,
+/// cutting the end cap and the top face, and one on the top face near the
+/// far end, `torus(2, 0.5)` each.
+fn a_torus_astride_the_end_edge_and_one_far_on_top() -> topo::Body<f64> {
+    tori_on_the_bar(&[
+        (2.0, 0.5, Vec3::new(0.0, 0.0, 0.0)),
+        (2.0, 0.5, Vec3::new(-0.7, 0.0, 5.0)),
+        (2.0, 0.5, Vec3::new(-895.0, 0.0, 5.7)),
+    ])
+}
+
+/// **The faces a circle joins stay regions of their own** (review of PR
+/// 5801's B5). A torus astride the bar's end edge cuts the end cap and the
+/// top face, and the home torus's walls meet each other along circles. A
+/// region joined across those circles too spans the bar with the far
+/// torus's: pads 186× apart across the 16 rotations at 1e-6. Joined only
+/// across what `loop_vector_area` does not read, the pads are 2.52×,
+/// 2.83× and 80.8× apart at 1e-6, 1e-9 and 1e-12, the widest 8.55e-5,
+/// 3.35e-5 and 8.53e-7. What is left is the end-edge torus's long top
+/// face read about a point off its plane
+/// (`work/flux/a-long-plane-face-cut-by-a-torus-reads-a-wide-pad-about-a-point-off-its-plane.md`).
+/// Pinned within 1.1× of both.
+#[test]
+fn a_shell_whose_tori_meet_along_circles_keeps_each_torus_a_region() {
+    let tol = Tol::witness();
+    let (apart, widest) = match tol.eps() {
+        1e-6 => (2.52, 8.55e-5),
+        1e-9 => (2.83, 3.35e-5),
+        1e-12 => (80.8, 8.53e-7),
+        _ => {
+            test_utils::vacuity::stood_down(
+                "non-matrix eps",
+                "the pads are measured at the matrix rows",
+            );
+            return;
+        }
+    };
+    let pads = pads_over_rotations(&a_torus_astride_the_end_edge_and_one_far_on_top());
+    let max = pads.iter().copied().fold(0.0, f64::max);
+    let ratio = max / pads.iter().copied().fold(f64::INFINITY, f64::min);
+    assert!(
+        ratio <= 1.1 * apart && max <= 1.1 * widest,
+        "B5: pads {pads:?}, {ratio}× apart (pinned {apart}×), widest {max:e} (pinned {widest:e})"
     );
 }
 
@@ -699,17 +855,19 @@ fn every_door_reads_a_carried_region_about_its_own_point() {
     }
 }
 
-/// **A shell of one quadrature region reads as about one point, bit for
-/// bit**: its region's point is the shell's, so it carries nothing. Each op
-/// on the torus and the half-space far off and turned, and their union at
-/// home, measures to the bits the one-point reading gives. Both readings
+/// **A shell whose quadrature regions all lie near its point reads as
+/// about one point, bit for bit**: no region is carried. Each op on the
+/// torus and the half-space far off and turned, and their union at home,
+/// measures to the bits the one-point reading gives: one torus cut by the
+/// plane, whose walls (joined to each other only across their seam
+/// circles) are regions of their own, and of their caps. Both readings
 /// are this code's (`mass_properties` and
 /// `topo::test_support::mass_properties_one_point`), not the code before
 /// regions: that the one-point reading is that code's bits is what the
 /// differential over the sweep and step-import suites against the merge
 /// base shows, not this row.
 #[test]
-fn a_shell_of_one_quadrature_region_reads_as_about_one_point_bit_for_bit() {
+fn a_shell_whose_regions_all_lie_near_its_point_reads_as_about_one_point_bit_for_bit() {
     let tol = Tol::witness();
     let home = topo::union(
         &torus(2.0, 0.5),
@@ -724,9 +882,8 @@ fn a_shell_of_one_quadrature_region_reads_as_about_one_point_bit_for_bit() {
     for (label, body) in built(100.0).into_iter().chain([("T ∪ P at home", home)]) {
         for (_, regions) in topo::test_support::region_carries_of(&body) {
             assert!(
-                regions.len() <= 1,
-                "{label}: a shell of {} regions",
-                regions.len()
+                regions.iter().all(|(_, carry)| carry.is_none()),
+                "{label}: a region is carried: {regions:?}"
             );
         }
         let carried =
@@ -746,23 +903,23 @@ fn a_shell_of_one_quadrature_region_reads_as_about_one_point_bit_for_bit() {
 }
 
 /// **A region near its shell's point is not carried.** The two tori on a
-/// bar 10.6 m long rather than 900.6 m: the far torus's region, its cap
-/// 12 m across, lies about one of its own extents from the home torus's
-/// point, short of the 16 a carry asks (`topo::props`' `far_from`), where
-/// the carry's own rounding outweighs what the shorter lever saves. So it
-/// is read about the shell's point, and the body measures to the bits the
-/// one-point reading gives.
+/// bar 3.6 m long rather than 900.6 m: the far torus's region lies about
+/// 3.3 m from the home torus's point, 13 of its own extents, short of the
+/// 16 a carry asks (`topo::props`' `far_from`), where the carry's own
+/// rounding outweighs what the shorter lever saves. Its cap counts by the
+/// point's distance off its plane, which is nothing: at 10.6 m the region
+/// is carried, and narrows the pad from the one-point reading's 4.32e-6,
+/// 1.04e-8 and 4.54e-6 to 4.10e-6, 3.68e-9 and 4.10e-6 at 1e-9, 1e-12
+/// and 1e-6. So here it is read about the shell's point, and the body
+/// measures to the bits the one-point reading gives.
 #[test]
 fn a_region_near_its_shells_point_is_read_about_it_bit_for_bit() {
     let tol = Tol::witness();
     let near = finished(
-        "the small torus 10 m down the bar",
+        "the small torus 3 m down the bar",
         topo::transform_rigid(
             &torus(0.2, 0.05),
-            &geom_core::test_support::rigid(
-                &Affine3::translation(Vec3::new(-10.27, 0.0, 0.0)),
-                tol,
-            ),
+            &geom_core::test_support::rigid(&Affine3::translation(Vec3::new(-3.27, 0.0, 0.0)), tol),
             tol,
         )
         .unwrap(),
@@ -775,12 +932,12 @@ fn a_region_near_its_shells_point_is_read_about_it_bit_for_bit() {
         .body
         .clone();
     let bar = finished(
-        "a 10.6 m bar",
+        "a 3.6 m bar",
         framed_bar(
             Point3::new(0.3, 0.0, 0.0),
             Vec3::new(-1.0, 0.0, 0.0),
             0.0,
-            10.6,
+            3.6,
             12.0,
         ),
         tol,
