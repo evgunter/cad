@@ -225,3 +225,8 @@ Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `cra
   - **Corrected: `quietable` asks the rule itself.** It runs the same `quiet_verdicts`/`opposed`/`beyond`/`covered` path a holding Gap over each bounding face pair would take. Sent to the 5 C lane along with m1 (pin the funnel sites with the tilted press fit), N1, N3, N5, S5 and S7.
   - **Lesson:** a ruling that names a predicate as "exactly what the rule accepts" must call the rule, not re-derive it. I re-derived two of its five gates.
   - The delta review also found perf12 `kitchen_sink` at 28 vs 29 red on main at three ε; I'm bisecting it.
+- 2026-10-27 16:25Z (orchestrator): **#5810 merged** at `c7797726`, head `427a5f00`, CI green. **Stage 5 C, the P0, is done.**
+  - The fix pass (`2e8018cb`) was read by me. `quietable` asks the rule itself (`could_quiet` over `opposed`, `gap_value` and `crossing`, beside `covered`), and `intent_s5_c_quietable` ties it to real authored assertions.
+  - The census output equals main's apart from its outcome lines and #5817's inherited `kitchen_sink` drop.
+  - The merged tree with main built, workspace and tour, before the merge. The dual-review row: concurrent, tallied 1. The lane is archived.
+- 2026-10-27 16:28Z (orchestrator): dispatched `an-instance-carries-its-parts-coincidences` (P1) → `session_018u3gVGr6ModPWKuhAbvECW`. Step 1 re-checks main after D′3 and stage 5 C and builds the pinning row, then either closes the item or sends a plan in the `CarriedInterference` shape.
