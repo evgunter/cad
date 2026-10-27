@@ -59,7 +59,8 @@
 //!
 //! The same depths also aim directions ([`toward`]): the offset from an
 //! axis or centre to the other face's nearest segment point, which arm
-//! 1's turned-direction test reads. That proposes; it decides nothing.
+//! 1's turned-direction test reads; the faces' arcs and carriers aim
+//! more ([`across`]). That proposes; it decides nothing.
 
 use geom::Surface;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3, is_finite_length};
