@@ -800,13 +800,14 @@ fn sense_verb(sense: &Sense) -> &'static str {
 }
 
 /// What a `Through` sense says between its line and its verb: the
-/// things it enters along, each cited; nothing for any other sense.
+/// things it enters along, each cited, or that it leaves along each
+/// where it enters along none; nothing for any other sense.
 fn entering<'n, 's>(sense: &'n Sense, cites: &mut Cites<'_, '_, 's>) -> Vec<Item<'n, 's>> {
     let Sense::Through { entering } = sense else {
         return Vec::new();
     };
     if entering.is_empty() {
-        return vec![text(", entering along none of its things,")];
+        return vec![text(", leaving along each of its things,")];
     }
     let mut out = vec![text(", entering along ")];
     for (i, n) in entering.iter().enumerate() {
@@ -1156,7 +1157,7 @@ mod tests {
             entering: Vec::new(),
         }));
         assert!(
-            none.contains(", entering along none of its things, crosses the body of "),
+            none.contains(", leaving along each of its things, crosses the body of "),
             "{none}"
         );
         assert_ne!(
