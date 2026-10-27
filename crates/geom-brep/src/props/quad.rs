@@ -43,13 +43,12 @@
 //! - **Harmonic** (every minted cylinder-chart pcurve):
 //!   `u, v(t) = c₀ + c_a·cos t + c_b·sin t + c_l·t`. Trigonometric
 //!   values enter only as **enclosures propagated from the edge
-//!   endpoints**: the caller supplies `(cos t₀, sin t₀)` brackets
-//!   recovered *algebraically* from the carrier frame and the endpoint
-//!   vertex point (within the run's ε of the carrier — D4 ¶2), and the
-//!   engine advances them by exact rotation with polynomial
-//!   alternating-series bounds on the step's `(cos, sin)` (valid for
-//!   |step| ≤ 1.5; every step here is ≤ 1). Sound and transcendental-
-//!   free.
+//!   endpoints**: the caller supplies `(cos t₀, sin t₀)` brackets at the
+//!   limits the lane integrates between ([`trig_at_limit`], rotated from
+//!   the exact `(1, 0)`), and the engine advances them by exact rotation
+//!   with polynomial alternating-series bounds on the step's
+//!   `(cos, sin)` (valid for |step| ≤ 1.5; every step here is ≤ 1).
+//!   Sound and transcendental-free.
 //! - **B-spline** ([`bspline_green_integral`], the general machinery):
 //!   channel hulls and derivative hulls from the control-coefficient
 //!   convexity facts (`geom_core::spline::hull`). This family has **no
@@ -88,8 +87,8 @@
 //! stops short of an answer on one of two findings of its own
 //! ([`LaneStop`], read by the one [`Run`]): its FLOOR, where the part of
 //! the width a later round removes (the rule's remainder) is at most
-//! [`FLOOR_SHARE`] of it, the rest being the part none removes (the
-//! honesty pads and the arithmetic),
+//! [`FLOOR_SHARE`] of it, the rest being the part the rule does not
+//! remove (the honesty pads and the arithmetic),
 //! and the work WALL, [`FACE_WORK_WALL`], one bound in one unit for every
 //! lane, on the weighted cell evaluations a face spends over all its
 //! rounds. A call that ends unaccepted answers with its narrowest round
@@ -168,15 +167,6 @@ use crate::patch_bound::{certified_inf, certified_sup};
 
 /// The initial piece count of the composite rule (round 0).
 pub(super) const QUAD_INIT_PIECES: usize = 16;
-/// The reporting target as a multiple of ε, metered as the mean
-/// boundary displacement `width(flux)/(3·area)` ([`mean_boundary_displacement`]).
-/// Not 1·ε: the width floor is set by the ε-scale endpoint and boundary
-/// slacks times the boundary length, so an ε-tight target would refuse
-/// every real face; three decades above the floor and far below display
-/// relevance is the useful band. No lane reads it: it is the caller's,
-/// and `topo`'s number doors pass it as their resolution until each
-/// takes its own caller's.
-pub const QUAD_TARGET_LEN_FACTOR: f64 = 1024.0;
 
 /// **The work a face may spend over all its rounds**, in weighted cell
 /// evaluations: the unit is a tenth of one cell of the rational lane's
@@ -208,15 +198,16 @@ pub const FACE_WORK_WALL: usize = 14_250_000;
 /// **The floor's share**, `2⁻¹⁰`: a lane is at its floor once the part
 /// of a round's width a later round removes is at most this share of
 /// the width. A stop there can cost a convergence only for a face whose
-/// target lies within that share above its floor, about `1·ε` against
+/// target lies within that share above its floor, or within what its
+/// rest moves by between rounds (below), about `1·ε` against
 /// the band's `K·ε` at the reporting target `1024·ε`, so such a face
 /// reads in-band, never certified.
 ///
-/// The stop reads that round alone, and it assumes the irremovable
-/// part does not shrink in a later round (the pads are fixed per face
-/// and the arithmetic grows with the cell count). Nothing asserts that:
-/// a lane whose irremovable part did shrink would floor a round early,
-/// with a sound but wider bracket.
+/// The stop reads that round alone, and it assumes the rest does not
+/// shrink much in a later round: the pads move as the pieces do, by
+/// 1–2% on a sliver wall, and the arithmetic grows with the cell count.
+/// Nothing asserts that: a lane whose rest did shrink would floor a round
+/// early, with a sound but wider bracket.
 pub const FLOOR_SHARE: f64 = 1.0 / FLOOR_SHARE_INV;
 /// `1 /` [`FLOOR_SHARE`], exact: the floor test is `removable · 1024 ≤ width`.
 const FLOOR_SHARE_INV: f64 = 1024.0;
@@ -368,9 +359,11 @@ pub enum LaneStop {
     Refinable,
     /// Refinement stopped paying: the part of the width a later round
     /// removes (the rule's remainder) is at most [`FLOOR_SHARE`] of the
-    /// width, the rest being the part none removes (the honesty pads and
-    /// the arithmetic), so no later round narrows it by more than that
-    /// share. A lane with no rounds is at its floor.
+    /// width, the rest being the part the rule does not remove (the
+    /// honesty pads and the arithmetic). That rest is the round's own: it
+    /// moves between rounds as the pieces move, by 1–2% on a sliver wall,
+    /// so a later round may be a little narrower or wider. A lane with no
+    /// rounds is at its floor.
     Floor,
     /// The next round would take the face past [`FACE_WORK_WALL`].
     Wall,
@@ -466,15 +459,15 @@ pub struct TrimEdgeQ {
     pub t1: Interval,
     /// Loop traversal direction (`he_plus`-forward or reversed).
     pub forward: bool,
-    /// Enclosure of `(cos t₀, sin t₀)` (module docs: algebraic, from
-    /// the carrier frame and the endpoint vertex point, ε-padded).
+    /// Enclosure of `(cos a, sin a)` at the start limit `a`
+    /// ([`TrimEdgeQ::limits`]; the at-rest caller forms it by
+    /// [`trig_at_limit`]).
     pub trig0: (Interval, Interval),
-    /// Enclosure of `(cos t₁, sin t₁)` at the interval's end, recovered
-    /// from the END vertex as `trig0` is from the start's. Where the
-    /// loop's junctions are read ([`chart_end`]), the end is this
-    /// vertex's own bracket rather than the start's carried through the
-    /// span, which on a steep conic widens it by the conic's tilt.
-    /// `None` reads the end through the span.
+    /// Enclosure of `(cos a, sin a)` at the end limit, formed as `trig0`
+    /// is. Where the loop's junctions are read ([`chart_end`]), the end
+    /// is this bracket rather than the start's carried through the span,
+    /// which on a steep conic widens it by the conic's tilt. `None` reads
+    /// the end through the span.
     pub trig1: Option<(Interval, Interval)>,
     /// The pcurve certificate envelope (metres through the map) — the
     /// map-residual honesty pad's per-edge input.
@@ -486,8 +479,16 @@ impl TrimEdgeQ {
     /// midpoints of its parameter brackets, whose widths the
     /// endpoint-bracket pad repays.
     fn limits(&self) -> (f64, f64) {
-        (mid(self.t0), mid(self.t1))
+        (limit(self.t0), limit(self.t1))
     }
+}
+
+/// The limit a trim edge is integrated from or to, off the bracket `t`
+/// of its parameter: the bracket's midpoint. [`TrimEdgeQ::limits`] and
+/// [`trig_at_limit`] both read it here, so the trig a caller hands the
+/// lane is at the limit the lane integrates from.
+fn limit(t: Interval) -> f64 {
+    mid(t)
 }
 
 // ---------------------------------------------------------------------
@@ -549,13 +550,23 @@ pub(super) fn rotate(c: Interval, s: Interval, ch: Interval, sh: Interval) -> (I
     (clamp(c * ch - s * sh), clamp(s * ch + c * sh))
 }
 
+/// `(cos a, sin a)` at the limit `a` a trim edge's bracket `t` is
+/// integrated from or to ([`limit`], as [`TrimEdgeQ::limits`] takes it),
+/// by `trig_at` from the exact `(1, 0)` at `a = 0`: transcendental-free,
+/// and its width grows with `|a|` by the double-angle steps, 1.7e-13 at
+/// `a = π` and 3.4e-13 at `2π`. Refused for a refused bracket.
+#[must_use]
+pub fn trig_at_limit(t: Interval) -> (Interval, Interval) {
+    trig_at((Interval::one(), Interval::zero()), limit(t))
+}
+
 /// `(cos, sin)` at exact offset `off` from a base enclosure:
 /// argument-halved series + double-angle squaring. `off` is halved
 /// (exactly — powers of two) until ≤ 0.05, the series pair bounds that
 /// seed (truncation below interval arithmetic's own ulp there), and the rotation
 /// is rebuilt by `k` double-angle steps `(c, s) → (c² − s², 2cs)` —
-/// the width amplification is 2^k on a ~1e-16 seed (≈ 1e-14 for a
-/// full-period offset), NOT the exponential-in-|off| compounding a
+/// the width amplification is 2^k on a ~1e-16 seed (3.4e-13 for a
+/// full-period offset, [`trig_at_limit`]), NOT the exponential-in-|off| compounding a
 /// step-march would suffer. The composed rotation is applied to the
 /// base exactly once.
 pub(super) fn trig_at(base: (Interval, Interval), off: f64) -> (Interval, Interval) {
@@ -956,8 +967,7 @@ fn refinable(cause: &geom_core::Indeterminate) -> bool {
 /// **mean boundary displacement** it corresponds to,
 /// `width(flux)/(3·area)` (module docs), with the area enclosure's
 /// midpoint as the lever arm. `pub` because its readers are the
-/// callers' questions: `topo` compares it with a resolution and sizes
-/// [`PropsError::QuadratureBudget`]'s payload from here.
+/// callers' questions: `topo` compares it with a resolution.
 ///
 /// INVARIANT: the returned length is FINITE and non-negative — so a
 /// budget refusal carries a number the caller can act on *by
@@ -1181,7 +1191,7 @@ fn end_slack(e: &TrimEdgeQ, end: bool, radius: Interval) -> f64 {
 /// images.
 ///
 /// Each junction's gap is read off the two ends' chart images, each
-/// through its own vertex's trig bracket ([`chart_end`]): the azimuth
+/// through its own end's trig bracket at its limit ([`chart_end`]): the azimuth
 /// metered at the radius, the level bare, and the slack the two ends'
 /// [`end_slack`] ([`super::closure::interval_loop_turns`]).
 ///
@@ -2574,8 +2584,8 @@ pub fn boundary_chord_perimeter_lo(
 /// is why this is a `debug_assert` of the D2 addendum's ROW-5
 /// BOUNDARY class (expensive checks whose failure PROBABLY indicates
 /// a bug), not a refusal: no typed behaviour rides on it, an
-/// input-reachable width still takes its own row-1/2/3 disposition
-/// through [`PropsError::QuadratureBudget`], and the honest answer to
+/// input-reachable width is reported with the measurement's stop, and
+/// the honest answer to
 /// a wide-but-sound bracket is that it is sound (S-CERT Q1, ruled
 /// 2026-08-29: no always-on area metering, no funnel target).
 ///
@@ -5764,9 +5774,12 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
 #[cfg(test)]
 pub(super) mod test_target {
     use super::{
-        FaceCutBounds, LaneEnd, LaneRun, LaneStop, PropsError, QUAD_TARGET_LEN_FACTOR,
-        mean_boundary_displacement,
+        FaceCutBounds, LaneEnd, LaneRun, LaneStop, PropsError, mean_boundary_displacement,
     };
+
+    /// The resolution these rows stand their targets at, as a multiple
+    /// of ε: 1024·ε, the one `topo`'s suites read their pinned numbers at.
+    pub(in crate::props) const QUAD_TARGET_LEN_FACTOR: f64 = 1024.0;
 
     /// Accepts a round whose mean boundary displacement is at most
     /// `QUAD_TARGET_LEN_FACTOR·eps`: the reporting target, read as a
@@ -5872,7 +5885,7 @@ mod tests {
         truth_area: f64,
         slack: f64,
     ) -> EpsPosture {
-        let target = QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
+        let target = test_target::QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
         let run = match out {
             Ok(run) => run,
             Err(e) => panic!("{row}: unsound outcome {e:?}"),
@@ -6101,6 +6114,38 @@ mod tests {
         }
     }
 
+    /// **The trig at a trim edge's limit**, [`trig_at_limit`]: it holds
+    /// the std `(cos, sin)` of the bracket's midpoint over a period each
+    /// way, and its width is what its docs say, 1.7e-13 at `π` and
+    /// 3.4e-13 at `2π`, each pinned within 1.1×.
+    #[test]
+    fn the_trig_at_a_limit_holds_its_value_at_the_width_its_docs_state() {
+        for i in -64..=64 {
+            let a = core::f64::consts::TAU * f64::from(i) / 64.0;
+            let t = Interval::from_bounds(a - 1e-9, a + 1e-9);
+            let (c, s) = trig_at_limit(t);
+            let m = mid(t);
+            assert!(
+                c.lo() <= m.cos() && m.cos() <= c.hi() && s.lo() <= m.sin() && m.sin() <= s.hi(),
+                "trig_at_limit misses the trig at {m}: {c:?}, {s:?}"
+            );
+        }
+        let width = |a: f64| {
+            let (c, s) = trig_at_limit(pt(a));
+            c.width().max(s.width())
+        };
+        for (a, pinned) in [
+            (core::f64::consts::PI, 1.7e-13),
+            (core::f64::consts::TAU, 3.4e-13),
+        ] {
+            let w = width(a);
+            assert!(
+                w <= 1.1 * pinned && w >= pinned / 1.1,
+                "trig_at_limit at {a} is {w:e} wide, pinned at {pinned:e}"
+            );
+        }
+    }
+
     /// A full sinusoid band on a unit cylinder: bottom rim v = 0
     /// (u = t), top boundary v(u) = 2 + 0.5·sin u traversed backwards,
     /// closed by the two branches of the seam meridian. The exact
@@ -6204,7 +6249,7 @@ mod tests {
         // number (at ε = 1e-6 a ~3e-2 width is a legitimately wider
         // certified enclosure, not a defect).
         let lever = (out.area.lo() + out.area.hi()) * 0.5;
-        let width_cap = QUAD_TARGET_LEN_FACTOR * eps * 3.0 * lever * 1.000001;
+        let width_cap = test_target::QUAD_TARGET_LEN_FACTOR * eps * 3.0 * lever * 1.000001;
         assert!(
             out.flux.width() <= width_cap,
             "width {} exceeds the lane's own converged target {width_cap} (eps {eps})",
@@ -7804,7 +7849,7 @@ mod tests {
             // wall — with an enclosure that still contains the oracle and
             // really missed its target, never a silently wide bracket,
             // never a silent skip.
-            let target = QUAD_TARGET_LEN_FACTOR * eps;
+            let target = test_target::QUAD_TARGET_LEN_FACTOR * eps;
             match cylinder_cut_face::<f64>(
                 pt(1.0),
                 Interval::zero(),
@@ -8099,7 +8144,7 @@ mod tests {
         // The chord polygon is integrated EXACTLY and a degree-1 image
         // IS its chord, so the only width here is outward rounding — the
         // target is four decades above it at every ε the matrix draws.
-        let target = QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
+        let target = test_target::QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
         assert!(
             b.flux.width() < target * 3.0 * b.area.lo(),
             "Q1: width {:e} is not inside the reporting target's own bound",
@@ -9104,8 +9149,7 @@ mod tests {
     /// work wall, holding its closed form.** A caller that accepts no
     /// round runs the composite arm until the next round would pass
     /// `FACE_WORK_WALL`; the round it hands back is the narrowest, still
-    /// an enclosure (the reporting adapter refuses it as
-    /// `QuadratureBudget`).
+    /// an enclosure, which the door hands back as its bracket.
     #[test]
     fn q15_a_composite_face_short_of_its_caller_stops_at_the_wall() {
         let (ku, kvv, control, w, truth) = cubic_by_quadratic(CUBIC_HEIGHTS);

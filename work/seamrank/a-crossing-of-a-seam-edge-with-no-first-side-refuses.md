@@ -7,7 +7,7 @@ opened: 2026-10-06
 priority: P3
 cost: M
 design: true
-blocked_on: [a-unions-line-of-several-edges-is-oriented-by-its-least-edge]
+blocked_on: [patterns-are-index-variables]
 ---
 
 
@@ -44,3 +44,7 @@ this row when it lands: the refusal goes with the first-side read, but
 where both sides carry ONE name an `entering` subset may still not say
 which side the crossing enters along, and that residue is this row's
 question.
+
+## Likely fixed, unwitnessed (WIRE orchestrator, 2026-10-26)
+
+PR 5758 ("nothing is ranked") retired the first-side reading. `emit_topo::edge_reading` now names a crossing of an equal-pair seam (`a == b`, emit_topo.rs ~4926), where the old code refused `UNORIENTED`. That is PR 5758's FULL review, by inspection; no test reaches it. The witness needs two placements of one prototype, which is D10 ground, so the row re-parks there. When D10 lifts, build the witness and close the row, or reopen it if the witness refuses.

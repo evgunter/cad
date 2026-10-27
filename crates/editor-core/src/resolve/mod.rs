@@ -317,6 +317,20 @@ impl ResolveError {
         })
     }
 
+    /// **Whether `name`, read in `read`, is a part's**: `read` reaches
+    /// an instance, whose copy carries its part's names verbatim, and
+    /// this document never minted the name's node. Rung 1 is the part's
+    /// own, decided there; issue
+    /// `a-part-name-in-the-host-is-spelled-in-the-parts-ids` holds what
+    /// that leaves open.
+    pub(crate) fn part_name(
+        name: &StableName,
+        read: crate::VarId,
+        doc: &Doc<ProfileProgram>,
+    ) -> bool {
+        !doc.has_minted(name.node) && doc.reaches_instance(read)
+    }
+
     /// Rung 1: the minting node must still be in the document, or the
     /// name is stranded. `None` when it is live.
     ///
@@ -1641,7 +1655,9 @@ fn resolve_rungs<T: Decide, P: PriorCtx>(
     name: &StableName,
 ) -> Resolution {
     // 1. NodeGone: the minting node is not live.
-    if let Some(error) = ResolveError::node_gone(name, new.doc) {
+    if let Some(error) = ResolveError::node_gone(name, new.doc)
+        .filter(|_| !ResolveError::part_name(name, site, new.doc))
+    {
         return Resolution::Failed(ResolutionFailure {
             error,
             offers: Vec::new(),
@@ -2569,6 +2585,12 @@ pub fn apply_with_names<T: Decide>(
             value: crate::SlotValue::Read(read),
             ..
         } => names.extend(read.selected_names()),
+        DocEdit::SetLoftSections { first, then, .. } => {
+            names.extend(first.selected_names());
+            for section in then {
+                names.extend(section.profile.selected_names());
+            }
+        }
         DocEdit::Rebind { to, .. } => names.push(to),
         DocEdit::AddConstraint { mate, .. } => {
             names.extend(mate.on.selected_names());
@@ -2613,6 +2635,7 @@ pub fn apply_with_names<T: Decide>(
         | DocEdit::RemoveConstraint { .. }
         | DocEdit::RemoveConstraints { .. }
         | DocEdit::SetLabel { .. }
+        | DocEdit::SetProduct { .. }
         | DocEdit::UpdateReference { .. } => {}
     }
     for name in names {
@@ -2758,7 +2781,6 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<(&'a Stabl
             | RoleSeg::CrossingVertex { edge: n, .. }
             | RoleSeg::OnToolVertex { of: n, .. }
             | RoleSeg::Instance { of: n, .. }
-            | RoleSeg::Placed { of: n }
             // The fillet vocabulary (M6-5): every argument is the
             // SOURCE entity the blend was born for — derivation, not
             // discrimination.
@@ -2776,17 +2798,6 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<(&'a Stabl
             | RoleSeg::Inner(n)
             | RoleSeg::Rim(n)
             | RoleSeg::HoleRim { of: n, .. } => visit(n, partners, f),
-            // ASM-2A: the DOCUMENT SEAM. An `InPart` argument is a name
-            // in ANOTHER document's id space — its `RecipeNodeId`s name
-            // that document's nodes, not this one's — so no local walk
-            // may descend into it. Every consumer of this walk reads
-            // `.node` as a local id: the persistence id check, the
-            // Rebind rewrite sites, the N7 suggestion machinery. Which
-            // document those ids belong to is the instantiate node's
-            // `doc_ref`, and a part-document edit that breaks a local
-            // name surfaces at the PART's own diagnosis, carried across
-            // as this node's typed refusal.
-            RoleSeg::InPart { .. } => {}
             RoleSeg::TrimEdge {
                 edge: a,
                 support: b,

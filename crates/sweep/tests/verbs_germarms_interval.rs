@@ -74,7 +74,11 @@ fn the_ring_lane_builds_at_the_certified_scalar() {
     )
     .unwrap_or_else(|e: BooleanError| panic!("the ring lane refused: {e:?}"));
     let body = &out.body().expect("a body").body;
-    let v = topo::mass_properties(body, tol).unwrap().volume;
+    let v = topo::mass_properties(body, tol, topo::test_support::pinned_resolution(tol))
+        .expect("the measured body")
+        .met()
+        .expect("the measured body")
+        .volume;
     let strip = |y: f64| y * (1.0 - y * y).sqrt() + y.asin();
     let truth = PI * 4.0 + 2.25 * 0.5 * 0.5 - 0.5 * (strip(0.25) - strip(-0.25));
     assert!(
@@ -108,7 +112,11 @@ fn a_clear_bar_still_answers_and_the_enclosure_is_narrow() {
         panic!("two clear solids union into a two-shell body");
     };
     assert_eq!(out.body.shells().count(), 2);
-    let v = topo::mass_properties(&out.body, tol).unwrap().volume;
+    let v = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
+        .expect("the measured body")
+        .met()
+        .expect("the measured body")
+        .volume;
     let truth = PI * 4.0 + 1.0 * 0.5 * 0.5;
     assert!(
         v.lo() <= truth && truth <= v.hi(),

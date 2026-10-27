@@ -46,3 +46,7 @@ falls on. The rest of that lane's selection
 `union_pinch_member_order`) was green at K = 1.5 and at
 `CAD_TOLERANCE_EPS=1e-6`. Its band, P3, is carried here; the cost is M
 because the other two fixtures are not yet diagnosed.
+
+## Re-pointed (WIRE orchestrator, 2026-10-26)
+
+Closed by PR 5758 (2026-10-26, "nothing is ranked", Ev's ruling on PR 5705). One of the three tests (`nurbs_crossings_rank_by_parameter`) is deleted. Its NURBS tripwire moved to `wavy_loft` and passes. The other two still fail at K=1.5.

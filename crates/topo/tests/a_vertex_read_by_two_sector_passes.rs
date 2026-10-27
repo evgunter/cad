@@ -145,7 +145,11 @@ fn built(what: &str, r: Result<BooleanResult<f64>, BooleanError>) -> AtRestBody<
 }
 
 fn volume(b: &AtRestBody<f64>) -> f64 {
-    mass_properties(b, t()).unwrap().volume
+    mass_properties(b, t(), topo::test_support::pinned_resolution(t()))
+        .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
+        .volume
 }
 
 /// The census's `TouchUnanalysed` class: two solids of the result touch
@@ -271,7 +275,9 @@ fn three_prime(
                 CensusContact::EdgeFaceOverlap { edge, .. } => along || on_ray(edge),
                 _ => false,
             },
-            ValidationError::CensusUndecidable { a, b, what: class } => {
+            ValidationError::CensusUndecidable {
+                a, b, what: class, ..
+            } => {
                 (class.starts_with("one passes into the other where they touch")
                     || class.starts_with(SLIT_TOUCH))
                     && touches_meet(a)
@@ -420,24 +426,11 @@ fn builds_along(
 ///   wedges overlap, which every tier passed. They return with the
 ///   re-pairing
 ///   (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
-/// - `SlitLineCrossed`: the plate less the void lying under the top
-///   holds the void's ray as a zero-area ring of the top, and a partner
-///   round the lying pyramid has an edge along it, so three sheets meet
-///   on the ring's line. Their union keeps only the top there, on both
-///   sides of the ring: it closes the top across the line, which the
-///   join does not build
-///   (`work/cleave/a-boolean-closes-a-slits-face-across-its-line.md`).
-///   The other ops place the two germs apart and build.
 /// - `EdgeInFace`: an edge lies in a face whose material parts it, and
-///   the parting is not built. A pyramid on the void's face, in the arch
-///   or round its island: `y − x` leaves the pyramid's edge in the
-///   void's face along part of its length (`Partly`; at its midpoint,
-///   from the face's own direction round into it, the material is solid
-///   to 20°, empty to 90°, solid to 180°, empty beyond, and main's one
-///   edge claimed a reflex 290° through the empty half-space). The
-///   pyramid out the bottom of the glued blocks: `y − x` leaves an edge
-///   in the glued face, which its material divides, and an end of it
-///   touches another edge (`DividedEndTouched`).
+///   the parting is not built. The pyramid out the bottom of the glued
+///   blocks: `y − x` leaves an edge in the glued face, which its
+///   material divides, and an end of it touches another edge
+///   (`DividedEndTouched`).
 const REFUSING: &[(&str, BooleanErrorKind)] = &[
     (
         "around the lying pyramid, x − y",
@@ -450,26 +443,6 @@ const REFUSING: &[(&str, BooleanErrorKind)] = &[
     (
         "on the lying pyramid's ray, beside it, mirrored into the void, y − x",
         BooleanErrorKind::LineWedges,
-    ),
-    (
-        "around the lying pyramid, mirrored into the void, x ∪ y",
-        BooleanErrorKind::SlitLineCrossed,
-    ),
-    (
-        "around the lying pyramid, mirrored into the void, y ∪ x",
-        BooleanErrorKind::SlitLineCrossed,
-    ),
-    (
-        "a pyramid on the void's face in the arch, y − x",
-        BooleanErrorKind::EdgeInFace,
-    ),
-    (
-        "on the void's face in the arch, y − x",
-        BooleanErrorKind::EdgeInFace,
-    ),
-    (
-        "on the void's face, the island in it, y − x",
-        BooleanErrorKind::EdgeInFace,
     ),
     (
         "a pyramid through the glued faces, out the bottom, y − x",
@@ -1219,9 +1192,10 @@ fn an_edge_through_two_blocks_glued_faces_builds_at_rest() {
 }
 
 /// A pyramid through the blocks' glued faces: a label, the far end of
-/// its edge along the contact face, and its base's two corners off it
-/// (bearing, radius and height), relative to [`MEET`].
-type GluedPyramid = (&'static str, [f64; 3], [(f64, f64, f64); 2]);
+/// its edge along the contact face, its base's two corners off it
+/// (bearing, radius and height), relative to [`MEET`], and whether the
+/// edge leaves the blocks through a corner of their glued rectangle.
+type GluedPyramid = (&'static str, [f64; 3], [(f64, f64, f64); 2], bool);
 
 /// The pyramids through the blocks' glued faces.
 const GLUED_PYRAMIDS: [GluedPyramid; 3] = [
@@ -1229,23 +1203,28 @@ const GLUED_PYRAMIDS: [GluedPyramid; 3] = [
         "a pyramid through the glued faces, out the side",
         [0.0, 0.8, -0.8],
         [(200.0, 0.4, 0.2), (240.0, 0.4, 0.2)],
+        true,
     ),
     (
         "a pyramid through the glued faces, out the bottom",
         [0.0, 0.3, -0.8],
         [(200.0, 0.4, 0.2), (240.0, 0.4, 0.2)],
+        false,
     ),
     (
         "a pyramid through the glued faces, out a far corner",
         [0.0, 0.7, -0.7],
         [(170.0, 0.4, 0.3), (260.0, 0.4, 0.3)],
+        true,
     ),
 ];
 
 /// The glued blocks' scene ([`an_edge_through_two_blocks_glued_faces_builds_in_every_op`])
-/// at `pose`, against one of [`GLUED_PYRAMIDS`]: every op builds, and
-/// the union names the edge through the glued faces `On`.
-fn through_glued_faces(pose: &Pose, &(label, along, corners): &GluedPyramid) {
+/// at `pose`, against one of [`GLUED_PYRAMIDS`]: every op builds, the
+/// union names the edge through the glued faces `On`, and where the edge
+/// leaves through a corner of the glued rectangle, the union's decision
+/// there names both blocks' vertices at that corner.
+fn through_glued_faces(pose: &Pose, &(label, along, corners, by_corner): &GluedPyramid) {
     let blocks = posed_boxes(
         "two blocks glued at their corners' face",
         &[
@@ -1291,6 +1270,32 @@ fn through_glued_faces(pose: &Pose, &(label, along, corners): &GluedPyramid) {
     assert!(!through.is_empty(), "{label}: the union names the edge");
     for row in through {
         assert_eq!(row.class, SideCode::On, "{label}: {row:?}");
+    }
+    if by_corner {
+        // The pyramid's edge leaves the blocks through a corner they share,
+        // one vertex of each: it is split at one, and the other is decided
+        // one with that split. The row naming that decision names both
+        // corners, the edge's minting cell beside the corner decided on it.
+        let corners = |row: &topo::Coincidence| {
+            let mut corners: Vec<_> = row
+                .every_cell()
+                .filter_map(|c| match c {
+                    topo::RowCell::Input {
+                        input: Operand::B,
+                        cell: topo::Cell::Vertex(v),
+                    } => Some(v),
+                    _ => None,
+                })
+                .collect();
+            corners.sort();
+            corners.dedup();
+            corners.len()
+        };
+        assert!(
+            r.coincidences.iter().any(|row| corners(row) == 2),
+            "{label}: a row names both blocks' corners on the edge: {:?}",
+            r.coincidences
+        );
     }
 }
 

@@ -741,6 +741,30 @@ with no signed residual is given none: a point is decided on it by a
 certified foot within the band, and off it by a lower bound on its
 distance past the band. A meeting inside the chart is placed in or out
 of the face by the face's trim.
+Implemented: the table (`curve_face::route`), the boundary pass
+(`curve_face::boundary`), which the boolean's sweep reads ahead of the
+carrier for a spline face and through which its on-carrier crossing
+reading reads every face's boundary, and the spline span × plane arm
+(`curve_face::composite`, the boolean's planar lane reading it). That
+arm composes the face's canonical residual along the span (the ring
+composite) and reads it piece by piece, a piece never straddling a
+knot: clear where the residual, metered, is definitely past the band
+over the piece; one crossing where it is monotone and its ends lie
+definitely on opposite sides, bisected and read on the surface; and
+otherwise cut where it is definitely past the band. A piece within the
+band that no cut parts, a meeting within the band of a crease and two
+crossings within the band of each other refuse. The composite reads the curved analytic faces too, but the
+curved lane does not dispatch a spline span to it, and every arm of the
+table with a spline face is unbuilt. The analytic arms are the sweep's
+existing root doors. What such an arm will hand on, a meeting inside a
+spline face's chart, has its placement built
+(`topo::boolean::spline_region`, the spline arm of the boolean's
+point-in-face door): on the carrier by a foot decided within the band,
+off it where every Bézier cell of the chart is decided past it; then in
+where such a foot lies in the trim, read from the face's lifted pcurve
+loops, and out where a foot exists and every cell not decided past the
+band lies wholly outside the trim, each reading clear of the trim by
+more than the band along the chart.
 
 ### Fitted-cache structure
 

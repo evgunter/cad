@@ -153,16 +153,17 @@ reads.
   one BVH of padded conservative face boxes over the one body; `certify(maps)`
   tests each pair `(i, j)` in that body's frame through `M_i⁻¹ ∘ M_j`. Box
   separation is real separation, and the test is sufficient-not-necessary:
-  copies it cannot certify disjoint go through the union's ordinary pairwise
-  pass and fold (DM4), which decides their contact as for any members. The
+  copies it cannot certify disjoint go through the union's ordinary n-ary
+  door (DM4, `topo::nary_boolean`), which decides their contact as for any
+  members. The
   certificate runs before any body is placed.
 - **Lowering.** In index order (D9), each certified copy goes through
   `graft_disjoint_all_keyed`, minting its own solids, so the result is a body
   of one solid per copy. That is the body the pairwise fold produces, since a
   solid is one piece of material (`docs/DESIGN.md`), and it is a boolean
-  operand like any other, since booleans take bodies. A product operand
-  refuses (`NodeErrorKind::ProductOperand`). No new kernel op or naming
-  record; `BooleanNaming` stays two-operand.
+  operand like any other, since booleans take bodies, a body of several
+  parts included. No new kernel op or naming record; `BooleanNaming`
+  stays two-operand.
 
 ## The profile-parameter lift (PP1–PP6)
 

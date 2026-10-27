@@ -2192,12 +2192,15 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::CurvedPierceUnsupported
         | BooleanErrorKind::CrossingAtConeApex
         | BooleanErrorKind::NormalAtConeApex
+        | BooleanErrorKind::NormalAtSplineCrease
         | BooleanErrorKind::EdgeCarrierUnsupported
+        | BooleanErrorKind::SplineCrossingUnsettled
         | BooleanErrorKind::PointSplitCarrierUnsupported
         | BooleanErrorKind::GermEdgeCarrierUnsupported
         | BooleanErrorKind::ArcLoopContainmentUnsupported
         | BooleanErrorKind::PointInFaceRefused
         | BooleanErrorKind::RestPieceUnread
+        | BooleanErrorKind::RechartedRowUnstated
         | BooleanErrorKind::CarryRefused
         | BooleanErrorKind::ScaffoldingOperand
         | BooleanErrorKind::InsideOutOperand
@@ -2261,6 +2264,8 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::EdgeInFace
         | BooleanErrorKind::SlitLineCrossed
         | BooleanErrorKind::SlitFaceGlued
+        | BooleanErrorKind::CurvedFaceClosesAcrossSlit
+        | BooleanErrorKind::SlitFaceClosesMidSlit
         | BooleanErrorKind::LineWedges => Vec::new(),
     }
 }
@@ -2595,6 +2600,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     (
         "mod.rs",
         "decision_words",
+        "BooleanDecision::PartingOrder",
+        1,
+    ),
+    (
+        "mod.rs",
+        "decision_words",
         "BooleanDecision::LineSpanPrecision",
         1,
     ),
@@ -2704,8 +2715,9 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::VertexOnVertex",
         1,
     ),
-    ("ops.rs", "piece_holds", "BooleanDecision::SelfCheck", 1),
-    ("ops.rs", "piece_holds", "SelfCheck::CarriedLineage", 1),
+    ("ops.rs", "piece_reading", "BooleanDecision::SelfCheck", 1),
+    ("ops.rs", "piece_reading", "BooleanDecision::Containment", 1),
+    ("ops.rs", "piece_reading", "SelfCheck::CarriedLineage", 1),
     ("ops.rs", "span_in_band", "BooleanDecision::SelfCheck", 1),
     ("ops.rs", "span_in_band", "SelfCheck::CarriedLineage", 1),
     ("recl.rs", "flank_rep", "Coincide::Sectors", 1),
@@ -2780,6 +2792,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("reduce.rs", "read_lying_in", "Coincide::VertexOnFace", 1),
     (
         "reduce.rs",
+        "twin_edge",
+        "BooleanDecision::VertexOnVertex",
+        1,
+    ),
+    (
+        "reduce.rs",
         "split_other_at_point",
         "BooleanDecision::SplitPointOnCircle",
         1,
@@ -2808,6 +2826,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("reduce.rs", "vertex_refusal", "Coincide::SectorSide", 1),
     ("reduce.rs", "vertex_refusal", "Coincide::VertexOnFace", 1),
     ("reduce.rs", "wall_crossing", "BooleanDecision::Crossing", 1),
+    (
+        "reduce.rs",
+        "spline_plane_crossings",
+        "BooleanDecision::Crossing",
+        1,
+    ),
     (
         "ruled_region.rs",
         "-",
@@ -2852,7 +2876,19 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("sectors.rs", "within_signs", "Coincide::Sectors", 1),
+    (
+        "slit.rs",
+        "crossing_escalated",
+        "BooleanDecision::Crossing",
+        1,
+    ),
     ("slit.rs", "lies_in", "Coincide::EdgeOnPlane", 1),
+    (
+        "slit.rs",
+        "parting_order",
+        "BooleanDecision::PartingOrder",
+        1,
+    ),
     ("slit.rs", "walls_inside", "BooleanDecision::of_normal", 1),
     ("slit.rs", "walls_inside", "Coincide::Sectors", 1),
     (

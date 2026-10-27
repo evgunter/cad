@@ -55,3 +55,9 @@ What these names become, a body or a piece of `⊔` rather than a
 placement, is D′3's answer, so renaming them to "placement" now would
 be churn. D′1's spec lists this row among its re-reads; D′3 renames
 or deletes these names and closes the row.
+
+## Read by D′3 (2026-10-23)
+
+D′3 (`assemble-is-an-operator-and-the-product-is-a-slot`) retired the gather of world placements. The product is the body its slot reads, and where that is a `⊔` each of its members is one source of the gather (`crates/editor-core/src/product.rs`, `gather`). So the "root" these names hold is now a source of the gather: the slot's body, or a `⊔`'s member read, at the node defining it. That node is a placement only where the member is a placement's copy. `ProductError::Root*` and `CheckFinding::root` still hold that node's id, and a placement's in every corpus document, since each member there is a world copy.
+
+D′3 did not rename them. A rename touches the façade's, the Python tags' and the viewer's vocabulary, and which word replaces "root" (member, source or piece) is a naming choice the spec does not make. The question is open here. The row no longer waits on anything.

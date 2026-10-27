@@ -30,21 +30,22 @@ fn certifies_exactly(name: &str, r: f64, b: f64) {
     else {
         panic!("{name} must import as a solid");
     };
-    topo::validate_geometric(&body, Tol::witness())
+    topo::validate_geometric(body.body(), Tol::witness())
         .unwrap_or_else(|e| panic!("{name} must pass tier 3: {e:?}"));
     let mp = topo::mass_properties(
-        &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+        &topo::test_support::finished("the measured body", body.body().clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap_or_else(|e| panic!("{name} must measure: {e:?}"));
-    assert_eq!(mp.volume_pad, 0.0, "{name}: closed-form pad is 0");
+    assert_eq!(mp.enclosure.volume_pad, 0.0, "{name}: closed-form pad is 0");
     let h = r * (1.0 - b.sin());
     let exact = core::f64::consts::PI * h * h * (3.0 * r - h) / 6.0;
-    let rel = (mp.volume - exact).abs() / exact;
+    let rel = (mp.enclosure.volume - exact).abs() / exact;
     assert!(
         rel < 1e-9,
         "{name}: volume {:.15e} != exact {exact:.15e} (rel {rel:.3e})",
-        mp.volume
+        mp.enclosure.volume
     );
 }
 

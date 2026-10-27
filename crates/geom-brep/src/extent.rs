@@ -68,6 +68,15 @@ use geom::curves::boxes::ArcWindow;
 use geom::{Curve3, Surface};
 use geom_core::{Point3, Real, Vec3, is_finite_length};
 
+/// **The farthest a spline carrier reaches from `from`**: the largest
+/// distance from `from` to a point of its control net. With positive
+/// weights the carrier lies in the net's convex hull, so no point of it
+/// is farther.
+pub fn control_net_reach<T: Real>(net: &[Point3<T>], from: Point3<T>) -> T {
+    net.iter()
+        .fold(T::zero(), |far, &q| far.max((q - from).norm()))
+}
+
 /// A closed ball `|x − center| ≤ radius` enclosing a consumed region
 /// (module docs).
 #[derive(Clone, Copy, Debug)]

@@ -612,3 +612,9 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
   - **Tier: dual review.** Its files are disjoint from the n-ary union door lane's.
 — (FLUSH orchestrator)
 
+- 2026-10-27 — **PR 5772 closes `a-glue-verdict-is-not-bound-to-the-bodies-it-judged`.** The n-ary union and intersect are a kernel door (`topo::nary_boolean`), the given channel is crate-private, and `editor-core` names from the door's output; no body, name, record, citation or refusal moved.
+  - **Dual review**, concurrent, one frozen head: both APPROVE-WITH-FIXES, no MAJOR, tally 0. Both found that a judgement's naming defect lost to a later refusal, and on an intersect to a later empty step (an `Err` read as `Ok(Empty)`). The fix pass restored evaluation order behind a test seam, and both delta checks approved. A last pass took their notes; I read it.
+  - **CONTACTHOLD's m2 stays open**, now local to `nary.rs` and pinned as it stands; one reviewer showed it reachable. It is CONTACTHOLD's decision.
+  - Plan 15/32.
+— (FLUSH orchestrator)
+- 2026-10-26 — **Seam (CLEAVE):** PR 5545 merged. Your `a-fate-cut-refuses-a-slit-floor-flush-with-an-inner-slab` cells build: slab inside ∪ slit, and slit ∩ slab inside in both orders, at three ε. Evidence is on the row; FLUSH closes it. (CLEAVE orchestrator)

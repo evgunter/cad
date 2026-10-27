@@ -22,7 +22,7 @@ use editor_core::{
     RecipeNodeId, RoleSeg, StableName, TargetAxis, assemble, product_recorded,
 };
 use editor_core::{Evaluation, Unreplayed};
-use fixture::resolver::{PartStore, in_part, with_resolver};
+use fixture::resolver::{PartName, PartStore, in_part, with_resolver};
 use fixture::{insert, len, mated_instance, on_frame, run};
 use geom_core::Tol;
 
@@ -69,7 +69,7 @@ fn cube_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 /// standing `b` `apart` beside `a` ([`Seat`]). `apart = 0.0` puts `b`'s
 /// bottom square on `a`'s top (the unit cube is z ∈ [0,1]); `2.0`
 /// leaves the two faces coplanar with a unit of clear air between them.
-fn rest_mate(a: StableName, b: StableName, apart: f64) -> Seat {
+fn rest_mate(a: impl crate::fixture::Sited, b: impl crate::fixture::Sited, apart: f64) -> Seat {
     Seat {
         mate: fixture::rest(fixture::head(b), fixture::head(a)),
         apart,
@@ -155,7 +155,7 @@ fn seated_row(
         doc = next;
         ids.push(id);
     }
-    (doc, ids)
+    (crate::fixture::assemble_world_copies(doc), ids)
 }
 
 /// `count` instances of `part`, each pinned `spacing * i` along +x so
@@ -177,7 +177,7 @@ fn row_of(
         doc = fixture::pin(next, id, &Frame::translation([dx, 0.0, 0.0]), &o);
         ids.push(id);
     }
-    (doc, ids)
+    (crate::fixture::assemble_world_copies(doc), ids)
 }
 
 /// Every finding the gate raised, rendered.
@@ -491,18 +491,32 @@ fn replayed(proof: &Proof) -> Option<(Unreplayed, editor_core::coincide::Recours
 }
 
 /// **The cap `cap` of the cube in `instance`'s copy**, as the at-rest
-/// census names it: in the instance's output.
+/// census names it: in the instance's output, by the name the product's
+/// `⊔` keys it with, the copy's read.
 fn copy_cap(
     doc: &ProfileDoc,
     instance: RecipeNodeId,
     body: RecipeNodeId,
     cap: CapEnd,
 ) -> NamedCell {
+    let input = doc
+        .output(instance, 0)
+        .expect("an instance defines its copies");
+    let of = in_part(instance, body, cap).name;
+    let (assembled, _) = doc
+        .product()
+        .and_then(|product| doc.defined_by(product))
+        .expect("the stand's product is the `⊔` of its cubes");
     NamedCell::Entity {
-        input: doc
-            .output(instance, 0)
-            .expect("an instance defines its copies"),
-        name: in_part(instance, body, cap),
+        input,
+        name: StableName {
+            kind: of.kind,
+            node: assembled,
+            path: vec![RoleSeg::From {
+                read: input,
+                of: of.into(),
+            }],
+        },
     }
 }
 
@@ -515,10 +529,7 @@ fn cap_vertex(
     end: CapEnd,
 ) -> NamedCell {
     fn minted(name: &StableName) -> &StableName {
-        match name.path.as_slice() {
-            [RoleSeg::InPart { of } | RoleSeg::Placed { of }] => minted(of),
-            _ => name,
-        }
+        name
     }
     let input = doc
         .output(instance, 0)
@@ -694,11 +705,11 @@ fn a_mate_states_its_own_seat_and_no_other_row() {
 
     // A stand whose mate states the other sense, and a standoff: each
     // read against the census row of its own two caps.
-    let plain = |on: StableName, to: StableName| editor_core::Mate {
+    let plain = |on: PartName, to: PartName| editor_core::Mate {
         on: fixture::plane(fixture::head(on)),
         to: fixture::plane(fixture::head(to)),
     };
-    let standoff = |on: StableName, to: StableName| {
+    let standoff = |on: PartName, to: PartName| {
         use editor_core::pose::{PoseDef, PoseRole, RoleRead};
         let up = || fixture::flip(fixture::plane(fixture::head(to.clone())));
         editor_core::Mate {
@@ -710,7 +721,7 @@ fn a_mate_states_its_own_seat_and_no_other_row() {
             })),
         }
     };
-    type Writes<'a> = &'a dyn Fn(StableName, StableName) -> editor_core::Mate<Formula>;
+    type Writes<'a> = &'a dyn Fn(PartName, PartName) -> editor_core::Mate<Formula>;
     let cases: [(&str, Writes<'_>, Unreplayed); 2] = [
         ("mate6-states-unflipped", &plain, Unreplayed::OtherDecisions),
         ("mate6-states-standoff", &standoff, Unreplayed::Numeric),
@@ -863,6 +874,7 @@ fn an_instances_record_cites_the_parts_record() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("mate6-seam-cube"), Tol::witness());
     let (stand, _, _) = stand("mate6-seam-stand", part, body, 0.0, &store);
+    let stand = crate::fixture::assemble_world_copies(stand);
     let stand_ref = store.insert(stand, Tol::witness());
     let (outer, instances) = row_of("mate6-seam-row", stand_ref, 1, 4.0, &store);
     let ev = run(&outer, &with_resolver(store));
@@ -938,28 +950,16 @@ fn the_world_records_the_placed_seat_and_not_the_loose_one() {
     );
 }
 
-/// **The name of `body`'s entity `seg` in `instance`'s copy**, as the
-/// instantiate node wears it ([`in_part`]'s shape, for any entity).
+/// **The name of `body`'s entity `seg` in `instance`'s copy**: the
+/// part's own name, which the instance's copy carries verbatim, read at
+/// the instance ([`fixture::resolver::in_part_of`]).
 fn in_part_entity(
     instance: RecipeNodeId,
     body: RecipeNodeId,
     kind: EntityKind,
     seg: RoleSeg,
-) -> StableName {
-    let wrap = |node, of: StableName, seg: fn(editor_core::NameRef) -> RoleSeg| StableName {
-        kind,
-        node,
-        path: vec![seg(editor_core::NameRef::new(of))],
-    };
-    let minted = StableName {
-        kind,
-        node: body,
-        path: vec![seg],
-    };
-    let placed = wrap(fixture::resolver::placement_of(body), minted, |of| {
-        RoleSeg::Placed { of }
-    });
-    wrap(instance, placed, |of| RoleSeg::InPart { of })
+) -> PartName {
+    fixture::resolver::in_part_of(kind, instance, body, seg)
 }
 
 /// **A mate's wall states the rim on it** (`[coincidence.structural]`):
@@ -986,7 +986,7 @@ fn a_mates_wall_states_the_rim_on_it_and_a_standoff_states_nothing() {
         other => panic!("a wall, got {other:?}"),
     };
     let (part, body) = store.insert_part((part_doc, part_body), Tol::witness());
-    let standoff = |to: StableName| {
+    let standoff = |to: PartName| {
         use editor_core::pose::{PoseDef, PoseRole, RoleRead};
         let up = || fixture::flip(fixture::plane(fixture::head(to.clone())));
         editor_core::Operand::Pose(Box::new(PoseDef::Slide {
@@ -1015,7 +1015,7 @@ fn a_mates_wall_states_the_rim_on_it_and_a_standoff_states_nothing() {
             let input = doc
                 .output(instance, 0)
                 .expect("an instance defines its copies");
-            let name = in_part_entity(instance, body, kind, seg);
+            let name = in_part_entity(instance, body, kind, seg).name;
             assert!(
                 ev.table(input).is_some_and(|t| t.lookup(&name).is_some()),
                 "{label}: the premise, the copy names {name:?}"

@@ -289,6 +289,16 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "SplineCrossingUnsettled",
+            BooleanError::SplineCrossingUnsettled {
+                operand: Operand::A,
+                edge,
+                face,
+                face_of: Operand::B,
+                why: geom_brep::roots::Unsettled::Crease,
+            },
+        ),
+        (
             "PointSplitCarrierUnsupported",
             BooleanError::PointSplitCarrierUnsupported {
                 operand: Operand::A,
@@ -393,6 +403,15 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                 what: "the sphere's section circle runs near the plane face's boundary — \
                        whole-circle membership cannot be certified from the enclosures, \
                        and no crossing layer saw an event",
+            },
+        ),
+        (
+            "RechartedRowUnstated",
+            BooleanError::RechartedRowUnstated {
+                operand: Operand::B,
+                relation: topo::Relation::SameOpposite,
+                faces: vec![face, face],
+                what: "only a point decided there is stated by the faces that hold it",
             },
         ),
         (

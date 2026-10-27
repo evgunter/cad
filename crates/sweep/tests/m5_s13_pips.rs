@@ -48,11 +48,11 @@ fn slack() -> f64 {
 }
 
 fn vol(body: &Body<f64>) -> f64 {
-    topo::mass_properties(
+    topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
         Tol::witness(),
     )
-    .unwrap()
     .volume
 }
 
@@ -264,6 +264,70 @@ fn two_pips_cut_under_the_group_arm() {
         sphere_surfaces.len(),
         2,
         "both pip walls survive, each on its own sphere surface"
+    );
+}
+
+/// **A re-charted ball's rows name its input shell, not the cells the
+/// turn moved.** `slab ∖ (two balls)` re-charts both balls and keeps no
+/// shell, so the first turned ball becomes the re-cut operand with its
+/// input keys at turned places, and the second is grafted under new
+/// keys. Every row naming a cell of the pair names every face of one of
+/// its input shells, both shells reached: the sphere each turned cell
+/// lies on. An input edge or vertex of the first ball, held under its
+/// own key but standing where the turn put it, names no row.
+#[test]
+fn a_re_charted_balls_rows_name_its_input_shells_faces() {
+    let pair = topo::union(&pip_ball(2.0, 1.2), &pip_ball(2.0, 2.8), Tol::witness())
+        .expect("disjoint balls assemble")
+        .body()
+        .expect("a body")
+        .body
+        .clone();
+    let shells: Vec<std::collections::BTreeSet<topo::Cell>> = pair
+        .shells()
+        .map(|(_, shell)| shell.faces.iter().map(|&f| topo::Cell::Face(f)).collect())
+        .collect();
+    assert_eq!(shells.len(), 2, "two disjoint balls, two shells");
+    let a = finished("operand A", slab(), Tol::witness());
+    let out = boolean_op_with(
+        BooleanOp::Subtract,
+        &a,
+        &pair,
+        &topo::BooleanInputs::default(),
+        SweepStrategy::Realized,
+        Tol::witness(),
+    )
+    .expect("the two pips cut");
+    let out = out.body().expect("a body");
+    let mut reached = vec![false; shells.len()];
+    for row in &out.coincidences {
+        let named: std::collections::BTreeSet<topo::Cell> = row
+            .every_cell()
+            .filter_map(|cell| match cell {
+                topo::RowCell::Input {
+                    input: topo::Operand::B,
+                    cell,
+                } => Some(cell),
+                _ => None,
+            })
+            .collect();
+        if named.is_empty() {
+            continue;
+        }
+        let shell = shells.iter().position(|faces| *faces == named);
+        assert!(
+            shell.is_some(),
+            "row {row:?} names the pair's {named:?}, not every face of one of its shells \
+             {shells:?}"
+        );
+        if let Some(at) = shell {
+            reached[at] = true;
+        }
+    }
+    assert_eq!(
+        reached,
+        [true, true],
+        "every shell's faces are named by a row"
     );
 }
 
@@ -547,17 +611,22 @@ fn a_ball_straddling_a_notched_walls_carrier_builds() {
                 // Against the enclosure's own half-width, which must be
                 // able to see the ball: `slack()` is 1e-3 at ε = 1e-6,
                 // twice the ball's whole volume.
-                let props = topo::mass_properties(&b.body, Tol::witness()).unwrap();
+                let props = topo::mass_properties(
+                    &b.body,
+                    Tol::witness(),
+                    topo::test_support::pinned_resolution(Tol::witness()),
+                )
+                .unwrap();
                 assert!(
-                    props.volume_pad < v_ball / 10.0,
+                    props.enclosure.volume_pad < v_ball / 10.0,
                     "{op:?}: a pad of {} cannot see a ball of {v_ball}",
-                    props.volume_pad
+                    props.enclosure.volume_pad
                 );
                 assert!(
-                    (props.volume - w).abs() <= props.volume_pad + 1e-12,
+                    (props.enclosure.volume - w).abs() <= props.enclosure.volume_pad + 1e-12,
                     "{op:?}: volume {} against {w} (pad {})",
-                    props.volume,
-                    props.volume_pad
+                    props.enclosure.volume,
+                    props.enclosure.volume_pad
                 );
             }
             (None, None) => {}

@@ -38,7 +38,15 @@ fn glued(
     };
     assert_eq!(g.kind, BooleanResultKind::Seamed);
     assert_eq!(
-        mass_properties(&g.body, Tol::witness()).unwrap().volume,
+        mass_properties(
+            &g.body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
+        .volume,
         volume
     );
     assert_eq!(validate_geometric(&g.body, Tol::witness()), Ok(()));
@@ -108,7 +116,18 @@ fn probe_symmetric_two_patch_bridge() {
         panic!("bridge subtract yields a body");
     };
     let b = b.body;
-    assert_eq!(mass_properties(&b, Tol::witness()).unwrap().volume, 2.5);
+    assert_eq!(
+        mass_properties(
+            &b,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
+        .volume,
+        2.5
+    );
     let g = glued(&a, &b, 5.5);
     // The hole-closing merges are real: ring-carrying faces exist and
     // their roles agree with the windings (tier-3 check 6 ran inside
@@ -147,7 +166,18 @@ fn probe_subtract_notch_rests_on_b() {
     )
     .body;
     let a = finished("a", a, Tol::witness());
-    assert_eq!(mass_properties(&a, Tol::witness()).unwrap().volume, 5.0);
+    assert_eq!(
+        mass_properties(
+            &a,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
+        .volume,
+        5.0
+    );
     let b = finished(
         "b",
         brick((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), Tol::witness()),
@@ -160,7 +190,15 @@ fn probe_subtract_notch_rests_on_b() {
     };
     assert_eq!(sub.kind, BooleanResultKind::OperandA);
     assert_eq!(
-        mass_properties(&sub.body, Tol::witness()).unwrap().volume,
+        mass_properties(
+            &sub.body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
+        .volume,
         5.0
     );
     glued(&a, &b, 6.0);

@@ -617,6 +617,8 @@ mod seat4_verb_lowering;
 mod seat7_sweep_lowering;
 #[path = "seat8_split_lowering.rs"]
 mod seat8_split_lowering;
+#[path = "split_carries_spaces.rs"]
+mod split_carries_spaces;
 #[path = "split_pinch_keeps.rs"]
 mod split_pinch_keeps;
 #[path = "step_handle_binding.rs"]
@@ -639,6 +641,8 @@ mod switch_slots;
 mod trim_3_windows_interval;
 #[path = "u8a_parse.rs"]
 mod u8a_parse;
+#[path = "union_defects_in_evaluation_order.rs"]
+mod union_defects_in_evaluation_order;
 #[path = "union_flush_onto_edge_contact.rs"]
 mod union_flush_onto_edge_contact;
 #[path = "union_fold_face_face_touch.rs"]
@@ -788,6 +792,8 @@ mod glue_on_zero_rows;
 mod intent_dprime1_target_space;
 #[path = "intent_dprime2_mates_read_geometry.rs"]
 mod intent_dprime2_mates_read_geometry;
+#[path = "intent_dprime3_assemble_product_slot.rs"]
+mod intent_dprime3_assemble_product_slot;
 #[path = "intent_literals_a_definitions.rs"]
 mod intent_literals_a_definitions;
 #[path = "intent_literals_b_door.rs"]
@@ -796,6 +802,8 @@ mod intent_literals_b_door;
 mod intent_literals_c_slots;
 #[path = "intent_literals_d_constants.rs"]
 mod intent_literals_d_constants;
+#[path = "intent_loft_set_sections.rs"]
+mod intent_loft_set_sections;
 #[path = "intent_part_census_seam.rs"]
 mod intent_part_census_seam;
 #[path = "intent_part_split_half.rs"]

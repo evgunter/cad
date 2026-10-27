@@ -385,3 +385,210 @@ span's interior from y's topology under the boolean's
 non-self-intersection precondition) is consistent with C5's "only what
 the boundary leaves undecided is read against the face's interior", or
 needs a sentence in C5.
+
+## 2026-10-26 — PR 5768 (boundary-first) merges
+
+The fix pass `76d5bbcfd5` answered the dual pair's union. The
+orchestrator read the delta: no second review, since the pair is
+concurrent and raised no MAJOR. Dual-review row:
+`docs/dual-review-log/rows/PR-5768.md`.
+
+The curve × face table now exists in geom-brep, with its boundary
+pass. Where the demos stand:
+- lily wall 8: reaches the converse arm (a blade NURBS seam against the
+  sheath's planar base cap);
+- teapot wall 3: reaches `PointSplitCarrierUnsupported` on the spout's
+  NURBS seam (`a-meeting-on-a-spline-boundary-edge-has-no-split-parameter`);
+- klein wall 3: unchanged, behind the cap tilt.
+
+Next on lily's path: the table's interior arm together with the
+converse rung, as one brief. `twin_edge`'s fit with C5 is put to Ev in
+chat. The code is kept, and its premise is stated as the boolean's
+non-self-intersection precondition.
+
+## 2026-10-26 — PR 5764 (spline dihedral side) merges
+
+The second fix pass, `49e19569`:
+- the door's contract now says the foot is the CARRIER's, and a caller
+  may consume the side only once the foot is placed in the face; the
+  wiring row is parked on point-in-face, with the hairpin fixture as its
+  witness;
+- a regularity check (`irregular_reach`) runs before any side, so a
+  foot near an irregular point (a kink or a pole) escalates `Crease`;
+- `EdgeWalk`'s public mint takes an `EdgeHalf`.
+
+Filed:
+- the zero-speed foot in geom's `project`;
+- seam continuity (P3);
+- the foot-reader class `a-derivative-is-read-at-a-foot-no-one-placed`.
+
+The orchestrator read the delta. It merged after main's RESTREAD red
+was fixed (ATREST PR 5779).
+
+## 2026-10-26 — the converse arm dispatched, stacked
+
+`splice/converse-arm` (`session_01GJUH1SbY5bRWRdPiwDHdvq`):
+`nurbs-edge-crossing-rung-is-the-ring-composite`. This is the
+curve × face table's spline-span × analytic-face arm, with the edge's
+control-hull box, the end-to-end crossing row, and the crease rule.
+Tier: dual, letter H.
+
+It is **stacked on `splice/boundary-first`** (PR 5768: reviewed,
+accepted, held only by main's RESTREAD red). Stacking was chosen over
+waiting, because lily wall 8's next refusal is exactly this arm and
+5768's table is final. The PR targets main and merges main once 5768
+lands. The interior arm (`an-analytic-edge-…`) follows on the same
+table after this one, rather than in parallel, so two lanes don't
+collide in the new module.
+
+PR 5764 (spline dihedral) and PR 5768 are both read and accepted, and
+both wait only on RESTREAD's main red
+(`work/restread/main-red-coincident-wedges-overlap-refuses-flush-copies.md`).
+
+## 2026-10-26 — two rulings for the converse-arm lane
+
+- **Witness 3** (the far loft prism against the `[5,6]^3` brick)
+  stops past the hull at two more refusals. One is
+  `sphere_extent_scan`'s NURBS re-gate. The lane scopes it
+  reach-first, in ops.rs, on this PR, as an announced seam. The other
+  is `point_in_solid`'s `KindUnsupported`. A box exit rides this PR
+  only in its sound form: q outside the selection's overall certified
+  box. "Outside every face's box" is unsound, since a box solid's
+  centre is outside every face slab yet inside the solid. A row must
+  pin that. If the sound form does not build the far case, the exit is
+  filed on the owning slate and the rows are re-pinned.
+- **The end-to-end row** stops at `sectors.rs`'s `sector_face::resolve`,
+  which has no NURBS arm. The lane pins a tripwire there, adds a
+  sweep-level witness, and files
+  `the-sector-walk-reads-no-nurbs-face-at-a-crossing-vertex`, which
+  carries the owed ranking row and the spline-crease caution.
+- 2026-10-26 — **Seam (CLEAVE):** filed `main-red-the-teapot-north-star-test-expects-the-old-spline-face-refusal` (P1 E) on your slate. Since the boundary pass, the python north-star teapot test expects the old spline-face refusal text and gets `PointSplitCarrierUnsupported`. The python suite runs only on PRs that touch `pncad-py`, so CLEAVE's PR 5544 was the first to see it red. (CLEAVE orchestrator)
+
+## 2026-10-26 — PR 5789 (the converse arm, spline span × plane) merges
+
+A concurrent dual review (letter H), frozen at `a2cec4f985`. Both
+reviewers: APPROVE-WITH-FIXES. Both fuzzed the root counting against a
+dense oracle, 3000 and 364 cases, with 0 mismatches. Bilateral
+findings:
+- an in-band pass read clear by sign alone, against C5's "an in-band
+  decision escalating and never pruning" (r2 MAJOR, r1 MINOR);
+- the crease rule coded twice, each half masking the other;
+- re-pins matching the variant only;
+- the subdivision ladder hand-rolled beside `geom_core::bisect`.
+
+r1 alone: the knots-f64 ratchet hidden behind a funnel, and
+`uncrossable` read eagerly ahead of the boundary pre-pass. C5 already
+decides the in-band case, so it was fixed to the contract rather than
+put to Ev.
+
+The fix pass is `36bb222376`; the orchestrator read the delta.
+Clearance is now the residual metered past the band. The crease rule
+has one home, in metres. The walk is `geom_core::bisect`. The baseline
+was raised honestly from 219 to 221. The exit is lazy. Re-pins name
+their face. `2174c44c5f` re-pins the M7-8 disjoint union, which now
+builds its assembly through the arm.
+
+Added to the curved-dispatch row:
+- the off-trim routing (r1);
+- the chart frame's rounding (r1);
+- the metering divisor's region, the hull grown by the band
+  (orchestrator).
+
+Next on lily's path:
+- the spline-face door's interior arm
+  (`an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane`), where
+  lily wall 8 now stops;
+- the sector walk's NURBS arm (P0, filed by this unit).
+
+## 2026-10-26 — two lanes dispatched: point-in-face and the sector walk
+
+- `splice/point-in-face` (`session_01UeAbQJ2zE9Jn1YEQa2tvML`):
+  `a-point-has-no-place-in-a-nurbs-faces-trim` (P1 M). Letter M, draw
+  byte 48, 48 mod 3 = 0: a holdout, so a concurrent pair. It unblocks
+  the parked wiring row and teapot wall 3's pierce placement, and the
+  interior arm places its meetings through it.
+- `splice/sector-walk-nurbs` (`session_01E1iVdA3wv8cshkHCxPcy6D`):
+  `the-sector-walk-reads-no-nurbs-face-at-a-crossing-vertex` (P0 M).
+  Letter M, draw byte 59, 59 mod 3 = 2: sequential. It owes the wavy
+  loft's end-to-end row. The brief binds the crease class and reuse of
+  `dihedral_side`'s regularity and crease readings.
+
+The two keep out of each other's files (`contain.rs` and
+`sectors.rs`/`sector_face.rs`). The interior arm
+(`an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane`, P0 H),
+where lily wall 8 now stops, goes next, once point-in-face lands.
+
+## 2026-10-27 — PR 5802 (the sector walk's NURBS arm) merges
+
+Letter M, sequential. One full review at `5ec4b34ddf` gave
+APPROVE-WITH-FIXES, with no MAJOR and no claim broken. Its four
+curved-chart rows passed, and mutations of the end choice, the sense
+fold, the half-edge, the crease check and the regularity check each
+went red. There were three MINORs:
+- the tripwire lost its face check;
+- no boolean row reaches the new refusals;
+- the PR's affine corner row is blind to the end choice.
+
+The fix pass is `b2c0a9ba68`, and the orchestrator read the delta.
+The face check is restored. The refusal mapping is pinned on the
+shared walk's fixture, and the doc says why no boolean reaches it
+today: a corner's own knot refuses at the crossing rung first. The
+control-net reach has one home, `geom_brep::control_net_reach`.
+
+The wavy-loft union now passes the sector walk and stops at the held
+pierce (`a-spline-wall-cannot-say-whether-it-holds-a-pierce-point`,
+P0, filed by this unit). The point-in-face lane measured that this
+stop does not move with PR 5805: the wall's trim has no pcurve on a
+split piece mid-boolean (`LiftGap`). That finding is recorded on the
+row.
+
+**Process note.** PR 5789's lane did not run sweep's slow set, though
+it touched sweep tests. Five unfiled sweep and pncad-py slow-set reds
+on main surfaced through this lane's run. They are triaged on
+`splice/slow-set-reds`. Every SPLICE brief now names sweep's slow set
+explicitly.
+
+## 2026-10-27 — PR 5805 (point-in-face for a spline face) merges
+
+Letter M, holdout (byte 48), so a concurrent pair, frozen at
+`d4b983c13a`. Both reviewers: APPROVE-WITH-FIXES.
+
+R1 raised one MAJOR, shown by a red row: on a closed chart each loop
+was lifted on its own, so a hole one period from its outer loop read
+In. R2 raised no MAJOR and did not exercise closed charts. Blinded
+coding (byte 16) tallies R1's MAJOR, which makes this an **M-tier
+miss**. The short readout to Ev rides an `[ev]` PR.
+
+Bilateral: the Out rule, the parity half-open rule and the caps had no
+red row, and the reading drew on two period sources.
+
+The fix pass is `6b5c472181`, plus `5086a8a8ec` for an ε-scaled row.
+The orchestrator read the delta.
+- Rings are lifted into the outer loop's cover by one decided whole
+  period.
+- A square tube closed in u, with a seam face and a hole, is built at
+  rest as the witness.
+- One period source; clearance through the metric door; caps
+  witnessed.
+- Seam and pole completeness is filed P2
+  (`a-spline-faces-trim-reads-nothing-at-a-closed-seam-or-a-pole`).
+
+The wavy-loft union still stops at the held pierce, because a split
+piece has no pcurve mid-boolean. The parked wiring row is unparked.
+
+The lane had not run sweep's slow set in its first pass; it ran it
+before reporting. Its nine reds are all main's, already filed or fixed
+in PR 5814.
+
+## 2026-10-27 — the interior arm dispatched
+
+`splice/interior-arm` (`session_01EdpJs5Doyx3iN4jJo1CRrf`) takes
+`an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane` (P0 H,
+letter H, a concurrent pair). This is where lily wall 8 now stops.
+- It builds C5's analytic span × spline face arm by enclosure or
+  Krawczyk, and places each meeting through PR 5805's point-in-face.
+- The brief binds the crease class (four finds now), feet on another
+  sheet, ε-scaled rows, and sweep's and topo's full slow sets.
+- PR 5814 (main's slow-set reds and the past-every-reach axes) is on
+  its fix pass. PR 5821 is the `[ev]` short readout for the M-tier
+  miss at DR-353.

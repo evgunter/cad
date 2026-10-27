@@ -18,7 +18,7 @@ feeds a decision, every walk is bounded.
 | Area | Modules |
 |---|---|
 | Arenas, entities, provenance | `src/body.rs`, `src/entity.rs`, `src/geometry.rs`, `src/provenance.rs`, `src/live.rs` |
-| Euler operators | `src/euler.rs` (make), `src/euler_kill.rs` (kill duals), `src/euler_ring.rs` (rings/genus), `src/split.rs`, `src/movefac.rs`, `src/revert.rs`, `src/attach.rs` |
+| Euler operators | `src/euler.rs` (make), `src/euler_kill.rs` (kill duals), `src/euler_ring.rs` (rings/genus), `src/strut.rs` (a strut deleted from its face, for the merge and the Boolean's closing), `src/split.rs`, `src/movefac.rs`, `src/revert.rs`, `src/attach.rs` |
 | Validation tiers 1–3, 3′ | `src/validate.rs` (`validate`, `validate_closed`, `validate_geometric`, `validate_pseudomanifold`), `src/face_normal.rs`, `src/sector_face.rs`, `src/sector_shape.rs`, `src/coherence.rs` |
 | Coincidence census, at rest | `src/census.rs` (`census_and_certify`: the BVH pre-filter `Candidates`, the sweeps, the backing rungs, the confirm pass, the cross-solid backstop) |
 | Contact vocabulary | `src/contact.rs` (`GlueClass`, `DeclaredContact`, `ContactVerdict`, `ContactRefusal`, `ContactFinding`, `CONTACT_RECOURSE`) |
@@ -26,7 +26,7 @@ feeds a decision, every walk is bounded.
 | Chart-region overlap (Door 2) | `src/chart_region.rs` (`chart_region_overlap`, `declared_pair_overlap`, `world_carrier`, `cylinder_pair_overlap`, `interior_witness`), `src/chart.rs`, `src/chart_iso.rs`, `src/pcurves.rs` |
 | Chart cells against a face's region | `src/cell_region.rs` (`cell_region`, `station_region`, `CellRegion`): a cell of a face's stored chart decided `Inside`, `Outside` or `Undecided` off the face's edges on their carriers and its point-in-face door; `src/pcurves.rs` (`loop_windings`) |
 | Plane splitting | `src/splitting/` (`classify`, `neighborhood`, `rules`, `insert`, `order`, `join`, `finish`, `section`, `containment`), `src/chord_join.rs`, `src/ring_path.rs`, `src/null.rs` |
-| Booleans | `src/boolean/mod.rs` (reduction, classification, `ReductionContacts`, `BooleanInputs`, the glue), `records.rs` (`ContactRecords`, `Contact`), `reduce.rs`, `vtxfac.rs`, `sectors.rs` (a slit's tip read as its face's full turn, `SlitTips`), `recl.rs`, `tables.rs`, `insert.rs`, `join.rs`, `finish.rs`, `zip.rs`, `slit.rs` (an edge lying in one of the result's faces, parted as the material decides, and a glued slit's two edges merged across the sliver between them), `ops.rs`, `carrier_pair.rs`, `combine.rs`, `voids.rs`, `boxes.rs`, `contain.rs`, `solid_contain.rs`, `surface_group.rs`, `rim_wedge.rs` |
+| Booleans | `src/boolean/mod.rs` (reduction, classification, `ReductionContacts`, `BooleanInputs`, the glue), `records.rs` (`ContactRecords`, `Contact`), `reduce.rs`, `vtxfac.rs`, `sectors.rs` (a slit's tip read as its face's full turn, `SlitTips`), `recl.rs`, `tables.rs`, `insert.rs`, `join.rs`, `finish.rs`, `zip.rs`, `slit.rs` (an edge lying in one of the result's faces, parted as the material decides, a glued slit's two edges merged across the sliver between them, and a face closed across the strut a slit's two edges leave where the result drops both walls), `ops.rs`, `carrier_pair.rs`, `combine.rs`, `voids.rs`, `boxes.rs`, `contain.rs`, `solid_contain.rs`, `surface_group.rs`, `rim_wedge.rs` |
 | Instances, separation | `src/instance.rs` (disjoint graft), `src/separation.rs` (certified no-touch), `src/transform.rs` (rigid placement) |
 | Shell and offset surgery | `src/shell.rs`, `src/replace_face.rs`, `src/offset_general.rs`, `src/offset_together.rs`, `src/offset_axial.rs`, `src/merge_faces.rs` — decisions in `crates/geom-brep/README.md` (OFFSET-DESIGN). `shell` and `shell_open` take a finished body (`AtRestBody`): their thickness is measured into the solid's material. `replace_face_offset`, `replace_faces_offset`, `offset_surfaces_together`, `offset_planes_together` and `offset_charts_together` take construction state (`Body`), tier 2 in and tier 2 out: their argument is a distance along each chart's stored normal, which no face's sense decides, and `shell` runs them over a clone mid-construction. Their result becomes finished only through `AtRestBody::validate`, where an inside-out result refuses `NegativeVolume`. A move that carries a face through its neighbours inverts the body too, and refuses there on the rings it leaves outside the moved face (`RingOutsideOuter`) |
 | Queries, flush detection, read-back | `src/query.rs` (the EXACT/DECIDED atoms and `rim_of`; `crates/verbs/README.md` S1), `src/flush.rs`, `src/readback.rs`, `src/props.rs` (mass properties, `AtRestPolicy`), `src/ray_walk.rs` |
@@ -341,10 +341,12 @@ straddle-hull treatment). Built as the document layer's
 `crates/editor-core/src/eval/measure.rs`), argument order the mating
 role, authored rather than inferred. Between a vertex or an edge and
 another cell, g is how far one cell stands out of the other's
-material, read as the half-spaces of the face carriers the reading
-cell lies on. The higher-dimensional cell reads, and of two edges or
-two vertices the outer. g is zero where the cell rests on them and
-negative inside (the arms are that module's table).
+material, read as the reading cell's link, the directions entering
+its solid at the point (a face's, the side of its carrier its material
+is on): the signed distance to it, negative inside. The
+higher-dimensional cell reads, and of two edges or two vertices the
+outer. g is zero where the cell rests on it (the arms are that
+module's table).
 
 **C6 — Interference fits.** No class states a fit; what an
 interference fit asserts is stage 5's question.
@@ -963,10 +965,12 @@ discharged by the claim under test), and the cylinder enclosure halves
 its zero band on `Bridged`.
 
 A boolean's face pairs are the glue its margins decide (`boolean::glue`),
-or, at a step of an n-ary union's fold, the verdicts that union's pairwise
-judgement decided (`BooleanInputs::given`, each pair made from a
-`GlueVerdict` some boolean returned, which nothing ties to the operands
-it is handed to); no node declares a contact, a mate included
+or, at a fold step of the n-ary union or intersect (`nary_boolean`), the
+verdicts that operation's own pairwise judgements decided over the
+members it holds, read through the face lineage it advances from each
+step's naming (`MemberLineage`); no public input states a glue, so no
+glue goes unrecorded by the judgement that decided it. No node declares a
+contact, a mate included
 (`crates/editor-core/ASSEMBLY.md` A3). Bodies carry only verified records,
 in the `BooleanBody` wrapper, never persisted. Replay is scalar-generic;
 an indeterminate verification at an interval scalar aborts.
@@ -1043,11 +1047,15 @@ reads as an interference between two copies at rest, so no bool may
 stand there. `Undecided` escalates
 `CensusEscalated`. The side is read by handing both faces' `Face::sense`
 bits to `geom_brep::classify_material_pairing` after `classify_dihedral`
-establishes the smooth precondition. The census reads sides in two
-other places, both through the touch analysis's `rest::judge`: pass 4,
-of an edge lying in a face of its own solid (`edge_in_own_face`), and
-arm 2's touches between two solids (`TouchSite::verdict`). Every other
-use of a face's normal in the coincidence sweeps is sense-invariant.
+establishes the smooth precondition. The census reads sides in three
+other places, all through the touch analysis's `rest` module: pass 4,
+of an edge lying in a face of its own solid (`edge_in_own_face`, by
+`rest::judge`); arm 2's touches between two solids
+(`TouchSite::verdict`, by `rest::judge`); and every point where one
+solid touches itself, its whole link there (`sweep_self_touch_points`,
+by `rest::one_material`), a link holding a curved face or edge left
+unread. Every other use of a face's normal in the coincidence sweeps is
+sense-invariant.
 
 **Confirmed pairs.** Every face-pair rung (`Declared::confine` around the
 vertex–vertex, vertex–edge, vertex–face and edge–edge lanes,
@@ -1072,6 +1080,33 @@ whose pair does not confirm answers for nothing. The crossing rung's side test r
 recorded pairs as well as the confirmed ones, so a declared pair holding
 a crossing with the materials on one side names `SameSide`; it backs only
 through a confirmed pair.
+
+**Unread pairs.** Two planar faces of two solids whose carriers Door 1
+reads in band are one pair too, which the census cannot look at
+(`planar_face_pairs`): an escalation the sweeps find of a touch of a
+cell bounding one of its faces against a cell bounding the other is
+the pair's one `CensusUndecidable`, naming the two faces, and nothing
+of the cells' escalations is reported (`Declared::absorb`); a decided
+finding of them stands. An escalation of two other cells is dropped
+as a reading of such a touch (`drop_shadows`) only where their
+closures hold the touch's two cells, they meet at one point in band of
+both, and each end of either is in band of both too or decidedly off
+the other cell; two cells with no one meeting point (an edge along a
+face) may have escalated anywhere along them, and that escalation
+stands. The finding's reason says whether the
+pair may hide an overlap. An opposed pair in band hides none thicker
+than the band: its two materials lie on either side
+(`Undecidable::ThinInBand`). An aligned pair has both materials behind
+both faces, so where the two share area the solids overlap: it is an
+overlap where the region door reads a positive area, `ThinInBand` only
+where they share no area thicker than the band (`thin_overlap`), and
+otherwise `Undecidable::MayOverlap`, as is a pair whose Door 1
+escalated; the flush arm's own in-band findings of an aligned pair read
+the same (`aligned_unread`). Arm 2 reads a `ThinInBand` finding as blocking nothing, its
+material test does not refuse on a vertex of such a pair's touch, and
+`census_uncleared_solids` leaves the solids' other touches to be
+recorded at rest; a `MayOverlap` finding blocks them. The flush arm
+leaves Door 1's in-band pairs to the census.
 
 The edge-on-face lane cuts an edge at every boundary vertex on it and
 every place a boundary edge crosses it, each placed in metres along

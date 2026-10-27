@@ -78,7 +78,7 @@ fn every_order(label: &str, holes: &[Hole], counts: [usize; 3]) {
             validate_pseudomanifold(&body, &contacts.unwrap(), t()).is_ok(),
             "{what}: tier 3′"
         );
-        let v = topo::mass_properties(&body, t()).unwrap().volume;
+        let v = topo::test_support::pinned_volume("the measured body", &body, t()).volume;
         assert!(
             (v - volume).abs() < 1e-9,
             "{what}: volume {v}, closed form {volume}"
@@ -137,7 +137,7 @@ fn built(what: &str, r: Result<BooleanResult<f64>, topo::BooleanError>) -> topo:
 }
 
 fn volume(b: &AtRestBody<f64>) -> f64 {
-    topo::mass_properties(b, t()).unwrap().volume
+    topo::test_support::pinned_volume("the measured body", b, t()).volume
 }
 
 /// Asserts `r` is tier 3 and 3′ valid with `want`, its corners disjoint, and

@@ -92,3 +92,20 @@ kernel verdict (`GlueVerdict::given_at`). A fix that has the kernel
 carry an operand's records itself (option (c), or records that ride on
 the body) would close both directions; minting `OperandRecords` only
 from `ContactRecords::carried` would close this one.
+
+## Measured (FLUSH, 2026-10-26): the fold's half closed
+
+The n-ary union's and intersect's fold steps no longer pass bare bodies
+from one crate to another. `topo::nary_boolean`
+(`crates/topo/src/boolean/nary.rs`, `flush/nary-union-door`) carries
+each step's records into the next itself (`records_a` is the previous
+step's `contacts.carried()`, the first member's records at the first
+step), and each member's own records into the step that joins it; the
+caller hands records in only once, per member (`MemberInputs`). That is
+what `editor-core`'s fold already did by hand, so no result moved
+(every union and intersect evaluated in `editor-core`'s suite gave the
+same body, names, rows and records). What is left of this row is the
+pair doors (`union`, `subtract`, `intersect`, `boolean_op_with`), whose
+results are complete only relative to the `BooleanInputs` records a
+caller passes, and the other direction below.
+

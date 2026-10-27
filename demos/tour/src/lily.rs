@@ -159,7 +159,7 @@ use pncad::topo::{AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, E
 
 use crate::booleans::{check, expect_seamed, finished, try_union};
 use crate::scalar::{Scalar, axis_frame, sketch_frame};
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 use pncad::authoring::{p2, p3, v2, v3, validated};
 use pncad::geom_core::{Tol, Turns};
 
@@ -605,8 +605,9 @@ const FOOT_BOTTOM_Z: f64 = -0.92;
 
 /// A body's exact volume, read out at `f64`.
 fn volume<S: Scalar>(b: &Body<S>, tol: Tol) -> f64 {
-    pncad::topo::mass_properties(&crate::booleans::at_rest(b, tol), tol)
+    pncad::topo::mass_properties(&crate::booleans::at_rest(b, tol), tol, crate::printed())
         .expect("the volume integrates")
+        .enclosure
         .volume
         .f()
 }
@@ -1643,7 +1644,7 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
 }
 
 /// The tour stop.
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     let pieces = plant::<f64>(tol);
     let note = format!(
         "{} closed solids: 1 ROOTSTOCK — a sphere-zone corm whose \
@@ -1674,7 +1675,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
          least of all: see the wall probes.",
         pieces.len()
     );
-    vec![Stop {
+    vec![TourStop {
         name: "lily",
         caption: "fairy lantern (Calochortus pulchellus)".to_string(),
         montage: true,
@@ -2316,14 +2317,20 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    so the mate is exact rather than tolerated, and the union
     //    decides it on its zero.
     //
-    //    It still refuses, on the contact: the sweep reads the blade's
-    //    base rim, a circle on the shared section, against one of the
-    //    sheath's NURBS walls rising from that same rim, and the
-    //    Boolean has no crossing layer for a spline face. No curved
-    //    section is asked for; what is missing is reading an edge that
-    //    bounds the mate against a spline wall beside it, and the flush
-    //    reading along the two bodies' NURBS edges behind that
-    //    (`work/splice/a-unions-flush-reading-cannot-follow-a-nurbs-carrier`).
+    //    The contact itself reads: the blade's base rim lies along the
+    //    sheath's rim, a run of one circle the curve-pair reading
+    //    decides, and against the sheath's other wall it is that rim
+    //    edge of the sheath, meeting the wall at the lens's two tips
+    //    only. The blade's NURBS seams rise from the tips, and the sweep
+    //    reads each against the sheath's base cap, in the blade's own cap
+    //    plane, through the ring composite of the cap's plane along the
+    //    seam: no crossing inside it, its start on the cap being its end
+    //    vertex's meeting. It still refuses, one step on: an edge of the
+    //    blade against a NURBS wall of the sheath whose boundary leaves
+    //    it undecided, where the spline-face door has no interior reading
+    //    (`work/splice/an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane`).
+    //    The flush reading along the two bodies' NURBS edges is behind
+    //    that (`work/splice/a-unions-flush-reading-cannot-follow-a-nurbs-carrier`).
     let sheath = {
         let base_section = leaf_a_plan().base;
         // Runs back out of the leaf's base along -dir, so its bottom
@@ -2353,18 +2360,37 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         8,
         "graft the leaf's sheath onto its blade at their shared section",
         crate::booleans::try_union(leaf_a, &sheath, tol),
-        // The KIND is the claim, as in wall 1: a NURBS wall of the
-        // sheath, operand B, met at the contact. If this ever refuses
-        // elsewhere, the sentence above is wrong and must be re-derived
-        // before it is believed.
+        // The DOOR is the claim: the sheath's ridge wall (operand B, the
+        // higher of its two NURBS walls by the mean height of its net),
+        // whose boundary leaves an edge of the blade undecided. If this
+        // ever refuses elsewhere, the sentence above is wrong and must be
+        // re-derived before it is believed. The refusal names no site, so
+        // the probe cannot tell that door from another raising the same
+        // variant on the same wall.
         |e| {
+            let ridge = sheath
+                .faces()
+                .filter_map(|(k, f)| match sheath.get_surface(f.surface) {
+                    Some(pncad::geom::Surface::Nurbs(n)) => {
+                        let z: f64 = n
+                            .control()
+                            .iter()
+                            .map(|p| pncad::geom_core::Bounds::lo(p.z))
+                            .sum();
+                        #[allow(clippy::cast_precision_loss)]
+                        Some((k, z / n.control().len() as f64))
+                    }
+                    _ => None,
+                })
+                .max_by(|x, y| x.1.total_cmp(&y.1))
+                .map(|(k, _)| k);
             matches!(
                 e,
                 BooleanError::CurvedBooleanUnsupported {
                     operand: Operand::B,
-                    kind: pncad::prelude::SurfaceKind::Nurbs,
-                    ..
-                }
+                    face,
+                    kind: SurfaceKind::Nurbs,
+                } if Some(*face) == ridge
             )
         },
         "grow the leaves out of the stem instead of standing them beside it",
@@ -2971,6 +2997,7 @@ mod review_probes {
         let props = pncad::topo::mass_properties(
             &crate::booleans::at_rest(lant, Tol::witness()),
             Tol::witness(),
+            crate::printed(),
         )
         .expect("mass properties");
         // The literal, DELIBERATELY: this row and
@@ -2985,11 +3012,14 @@ mod review_probes {
         // roll adds at r = 0.25 (`mouth_roll_delta_v`, by Pappus).
         let exact = 0.36456334483250313;
         assert!(
-            (props.volume - exact).abs() < 1e-12,
+            (props.enclosure.volume - exact).abs() < 1e-12,
             "lantern volume {} vs the closed form {exact}",
-            props.volume
+            props.enclosure.volume
         );
-        assert_eq!(props.volume_pad, 0.0, "every lantern face is closed-form");
+        assert_eq!(
+            props.enclosure.volume_pad, 0.0,
+            "every lantern face is closed-form"
+        );
     }
 
     /// The volume the mouth's roll ADDS ([`roll_the_mouth`]): the
@@ -3210,13 +3240,11 @@ mod review_probes {
                 "{name}: the skin's V = {skin_v} misses Pappus {pappus} by {fit:e} of it, past \
                  the cubic fit's scale {fit_scale:e}"
             );
-            let reading = pncad::topo::VolumeReading::of(
-                pncad::topo::validate_geometric_certificate(b, Tol::witness())
-                    .expect("the swept leaf is tier 3 clean")
-                    .measure(),
-            );
-            let e = reading
+            let e = pncad::topo::validate_geometric_certificate(b, Tol::witness())
+                .expect("the swept leaf is tier 3 clean")
+                .measure(crate::printed())
                 .unwrap_or_else(|refusal| panic!("{name}: no certified volume: {refusal}"))
+                .enclosure
                 .enclosure();
             let (lo, hi) = (e.volume_lo, e.volume_hi);
             assert!(

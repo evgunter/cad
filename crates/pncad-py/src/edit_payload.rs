@@ -103,8 +103,9 @@ pub struct EditPayload<'a> {
     /// fault decides which position it is: a repeated face's first
     /// occurrence, the edge that does not sort strictly before the one
     /// after it, or the name of another entity kind than the
-    /// selection's. Each is one index into one list, so they share the
-    /// attribute rather than minting a second word for it.
+    /// selection's, or the step of a pick's path that names no piece.
+    /// Each is one index into one list, so they share the attribute
+    /// rather than minting a second word for it.
     pub first: Option<usize>,
     /// The position at which a repeat is named AGAIN — carried only by
     /// a repeated face, the one fault that names two entries.
@@ -277,6 +278,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             ..none
         },
         EditError::SetMembersOnNonList { node }
+        | EditError::SetLoftSectionsOnNonLoft { node }
         | EditError::LoftSectionsSpelled { node }
         | EditError::SetProgramOnNonProfile { node }
         | EditError::WitnessOnNonSketch { node }
@@ -403,12 +405,17 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
                 ..none
             }
         }
-        EditError::CopyReadOffBodySeat { node, slot } => EditPayload {
+        // The step of the pick's path that names no piece is one
+        // index into one list, so it rides `first`.
+        EditError::PickPath { node, slot, at } => EditPayload {
             node: Some(node.id()),
             slot: Some(slot_id_tag(slot)),
             index: operand_index(slot),
+            first: *at,
             ..none
         },
+        // Why the read is no product rides `inner_variant`.
+        EditError::ProductRead { .. } => none,
         EditError::UnknownSlot { id, slot } => EditPayload {
             node: Some(id.id()),
             slot: Some(slot_id_tag(slot)),
@@ -513,6 +520,24 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         | EditError::DefinitionUnresolvedVar { var, read: _ } => EditPayload {
             param: var.name(),
             ..none
+        },
+        EditError::LoftShape { node, fault } => match fault {
+            pncad::document::LoftFault::TooFewSections { have } => EditPayload {
+                node: Some(node.id()),
+                count: Some(*have),
+                ..none
+            },
+            pncad::document::LoftFault::EmptyStation { section } => EditPayload {
+                node: Some(node.id()),
+                index: Some(*section),
+                ..none
+            },
+            pncad::document::LoftFault::DegreeOutOfRange { degree, sections } => EditPayload {
+                node: Some(node.id()),
+                count: Some(*sections),
+                given: usize::try_from(*degree).ok(),
+                ..none
+            },
         },
         EditError::LoftSectionCount {
             node,

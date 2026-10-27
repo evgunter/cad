@@ -91,6 +91,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+#[path = "common/printed.rs"]
+mod printed;
 use pncad::authoring::{p2, validated};
 use pncad::geom::Surface;
 use pncad::geom_core::{Point2, Tol, Vec2};
@@ -693,13 +695,14 @@ fn the_opened_rim_is_an_annulus_on_every_revolve() {
         // The drums have a closed form; the stepped pot does not get a
         // number invented for it here (the scene owns its census).
         if let Some(r) = drum_radius {
-            let props = pncad::topo::mass_properties(&at_rest(&cup, tol), tol).expect("props");
+            let props = pncad::topo::mass_properties(&at_rest(&cup, tol), tol, printed::printed())
+                .expect("props");
             let want = core::f64::consts::PI * (r * r * TOP - (r - t) * (r - t) * (TOP - t));
             assert!(
-                (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+                (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
                 "{what}: cup volume {} (pad {}), want {want}",
-                props.volume,
-                props.volume_pad
+                props.enclosure.volume,
+                props.enclosure.volume_pad
             );
         }
     }
@@ -825,13 +828,14 @@ fn the_annular_mouth_opens_to_two_disjoint_rims() {
         "the mouth plane is worn by two faces — the SPLIT, which is the finding"
     );
     pncad::mesh::tessellate(&cup, 1e-3, tol).expect("and it triangulates");
-    let props = pncad::topo::mass_properties(&at_rest(&cup, tol), tol).expect("props");
+    let props =
+        pncad::topo::mass_properties(&at_rest(&cup, tol), tol, printed::printed()).expect("props");
     let want = core::f64::consts::PI
         * ((ro * ro - ri * ri) * h - ((ro - t).powi(2) - (ri + t).powi(2)) * (h - t));
     assert!(
-        (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+        (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
         "annular cup volume {} (pad {}), want {want}",
-        props.volume,
-        props.volume_pad
+        props.enclosure.volume,
+        props.enclosure.volume_pad
     );
 }

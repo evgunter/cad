@@ -60,7 +60,7 @@ fn check(what: &str, r: Result<BooleanResult<f64>, BooleanError>, want: Want) {
                     topo::validate_pseudomanifold(&b.body, &b.contacts, tol)
                         .unwrap_or_else(|e| panic!("{what}: tier 3′, got {e:?}"));
                     sweep::test_support::assert_legal_operand(what, &b.body, tol);
-                    topo::mass_properties(&b.body, tol).unwrap().volume
+                    topo::test_support::pinned_volume("the measured body", &b.body, tol).volume
                 }
                 None => 0.0,
             };
@@ -74,7 +74,7 @@ fn check(what: &str, r: Result<BooleanResult<f64>, BooleanError>, want: Want) {
                 Some(b) => {
                     topo::validate_geometric(&b.body, tol)
                         .unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
-                    topo::mass_properties(&b.body, tol).unwrap().volume
+                    topo::test_support::pinned_volume("the measured body", &b.body, tol).volume
                 }
                 None => 0.0,
             };
@@ -367,8 +367,9 @@ fn vf_reading(
 /// could name: its own wall face confirms it; the other wall face, a
 /// vertex on the wall's boundary, and the corner of a cube set `δ` in
 /// from the wall past the band's escalation edge read it stale; a cube
-/// set in by half the band confirms it. A record on a face whose trim the door
-/// does not read (a swept elbow's NURBS wall) refuses typed.
+/// set in by half the band confirms it. A record on a spline face (a
+/// swept elbow's NURBS wall) of a vertex off it reads stale too, its trim
+/// read on its chart (`topo::boolean::spline_region`).
 #[test]
 fn a_vertex_on_a_curved_face_is_confirmed_by_its_trim() {
     let tol = Tol::witness();
@@ -471,13 +472,8 @@ fn a_vertex_on_a_curved_face_is_confirmed_by_its_trim() {
     assert!(
         matches!(
             r.as_ref().map_err(Vec::as_slice),
-            Err([topo::ValidationError::CensusUnsupported {
-                cause: topo::CensusUnsupportedCause::ContactLane(
-                    topo::ContactRefusal::NotCertifiable { .. }
-                ),
-                ..
-            }])
+            Err([topo::ValidationError::StaleContactDeclaration { .. }])
         ),
-        "a NURBS wall's trim has no reading: {r:?}"
+        "a vertex off a NURBS wall is stale on it: {r:?}"
     );
 }

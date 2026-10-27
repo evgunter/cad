@@ -41,57 +41,14 @@ pub(super) fn mid_pad(x: Interval) -> (f64, f64) {
     ((x.lo() + x.hi()) * 0.5, (x.hi() - x.lo()) * 0.5)
 }
 
-/// `(cos t₀, sin t₀)` enclosure at the carrier-interval start,
-/// recovered algebraically from the carrier frame and the interval
-/// start's VERTEX point (within the run's ε of the carrier, D4 ¶2
-/// — the ε rides into the bracket as an explicit pad).
-fn trig_at_start<T: Decide + Bounds + CertifiedEnclosure>(
-    carrier: &Curve3<T>,
-    p: Point3<T>,
-    eps: f64,
-) -> Result<(Interval, Interval), PropsError> {
-    let full = Interval::from_bounds(-1.0, 1.0);
-    // `from_bounds` mints a fresh bracket out of whatever
-    // endpoints it is handed, so a refused operand would come back
-    // clean. The refusal is carried across by hand.
-    let clamp = |x: Interval, pad: f64| {
-        if !x.is_certified() {
-            return Interval::refused();
-        }
-        Interval::from_bounds(x.lo() - pad, x.hi() + pad).clamped_to(-1.0, 1.0)
-    };
+/// **The trim carrier's kind, as the cylinder lane reads it**: a line, a
+/// circle or an ellipse, whose harmonic pcurve the lane integrates; each
+/// end's `(cos, sin)` is formed at the limit the lane integrates from
+/// ([`quad::trig_at_limit`]), so no vertex is read. The other kinds
+/// refuse by name.
+fn harmonic_carrier<T: Decide>(carrier: &Curve3<T>) -> Result<(), PropsError> {
     match carrier {
-        // A line's harmonic pcurve has zero trig amplitudes; the
-        // whole-circle bracket is sound and multiplies away.
-        Curve3::Line { .. } => Ok((full, full)),
-        Curve3::Circle {
-            center,
-            axis,
-            radius,
-            u_ref,
-        } => {
-            let v_ref = axis.cross(*u_ref);
-            let w = p - *center;
-            let c = Interval::from_certified(w.dot(*u_ref)) / Interval::from_certified(*radius);
-            let s = Interval::from_certified(w.dot(v_ref)) / Interval::from_certified(*radius);
-            let pad = (Interval::point(eps) / Interval::from_certified(*radius)).mag();
-            Ok((clamp(c, pad), clamp(s, pad)))
-        }
-        Curve3::Ellipse {
-            center,
-            axis,
-            semi_u,
-            semi_v,
-            u_ref,
-        } => {
-            let v_ref = axis.cross(*u_ref);
-            let w = p - *center;
-            let c = Interval::from_certified(w.dot(*u_ref)) / Interval::from_certified(*semi_u);
-            let s = Interval::from_certified(w.dot(v_ref)) / Interval::from_certified(*semi_v);
-            let pad_c = (Interval::point(eps) / Interval::from_certified(*semi_u)).mag();
-            let pad_s = (Interval::point(eps) / Interval::from_certified(*semi_v)).mag();
-            Ok((clamp(c, pad_c), clamp(s, pad_s)))
-        }
+        Curve3::Line { .. } | Curve3::Circle { .. } | Curve3::Ellipse { .. } => Ok(()),
         // The spiric's chart images are not harmonic (its `m`
         // channel is `√((R + r cos v)² − d²)`), so the trig
         // brackets this lane reads do not exist for it. Unreachable
@@ -536,13 +493,17 @@ pub(super) fn exact_polygon_volume(polygons: &[Vec<Vec<Point3<Interval>>>]) -> O
 /// reaches this lane only with a spiric on its boundary
 /// ([`rim_face`]); a sphere chart mints stored pcurves but has no
 /// flux lane here, and refuses typed.
+///
+/// The tolerance is the hook's ([`super::QuadLane`]): no lane here reads
+/// it, since each trim end's trig is formed at its parameter, not off its
+/// vertex within `ε` ([`harmonic_carrier`]).
 #[allow(clippy::too_many_arguments)]
 pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
     body: &Body<T>,
     surface: &Surface<T>,
     loops: &[super::FlatLoop<T>],
     band: Band,
-    tol: Tol,
+    _tol: Tol,
     window: RoundWindow,
     centre: Option<Point3<Interval>>,
     resolution: Option<f64>,
@@ -551,17 +512,15 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
         None => Ok(false),
         Some(len) => Ok(quad::mean_boundary_displacement(bounds.flux, bounds.area)? <= len),
     };
-    cut_face_lane(body, surface, loops, band, tol, window, centre, &mut accept)
+    cut_face_lane(body, surface, loops, band, window, centre, &mut accept)
 }
 
 /// [`cut_face_rounds`]' lanes, asking `accept` of every round.
-#[allow(clippy::too_many_arguments)]
 fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
     body: &Body<T>,
     surface: &Surface<T>,
     loops: &[super::FlatLoop<T>],
     band: Band,
-    tol: Tol,
     window: RoundWindow,
     centre: Option<Point3<Interval>>,
     accept: &mut Accept<'_>,
@@ -608,7 +567,6 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
                    algebra is the cylinder's",
         });
     };
-    let eps = tol.eps();
     let mut va = geom_core::Vec3::new(T::zero(), T::zero(), T::zero());
     for (edges, _) in loops {
         va = va + loop_vector_area(edges, *origin)?;
@@ -662,17 +620,15 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
                 });
             };
             let (t0, t1) = cache.params();
-            // The interval-start vertex: traversal start when forward,
-            // traversal end when reversed (`he_plus` start either way).
-            let p_start = start_point(body, *he, le.forward)?;
-            let trig0 = trig_at_start(&le.carrier, p_start, eps)?;
-            let p_end = start_point(body, *he, !le.forward)?;
-            let trig1 = Some(trig_at_start(&le.carrier, p_end, eps)?);
+            let (t0, t1) = (Interval::from_certified(t0), Interval::from_certified(t1));
+            harmonic_carrier(&le.carrier)?;
+            let trig0 = quad::trig_at_limit(t0);
+            let trig1 = Some(quad::trig_at_limit(t1));
             edges.push(TrimEdgeQ {
                 u: chan(p0.x, pa.x, pb.x, pl.x)?,
                 v: chan(p0.y, pa.y, pb.y, pl.y)?,
-                t0: Interval::from_certified(t0),
-                t1: Interval::from_certified(t1),
+                t0,
+                t1,
                 forward: le.forward,
                 trig0,
                 trig1,
@@ -1524,25 +1480,6 @@ fn about(control: Vec<quad::RVec3>, centre: Option<Point3<Interval>>) -> Vec<qua
     }
 }
 
-/// The vertex POINT at a half-edge's carrier-interval start (its
-/// edge's `he_plus` start vertex).
-fn start_point<T: Decide + Bounds + CertifiedEnclosure>(
-    body: &Body<T>,
-    he: HalfEdgeKey,
-    forward: bool,
-) -> Result<Point3<T>, PropsError> {
-    let corrupt = PropsError::QuadratureUnsupported {
-        what: "corrupt body reaching the quadrature lane (a key did not resolve)",
-    };
-    let vk = if forward {
-        body.half_edges.get(he).ok_or(corrupt.clone())?.start
-    } else {
-        body.half_edge_end(he).ok_or(corrupt.clone())?
-    };
-    let v = body.vertices.get(vk).ok_or(corrupt.clone())?;
-    body.points.get(v.point).copied().ok_or(corrupt)
-}
-
 #[cfg(test)]
 mod tests {
     /// The plane cap ([`super::plane_cap`]) over hand-built loops: a rim
@@ -1787,8 +1724,7 @@ mod tests {
         use crate::entity::{FaceKey, LoopBoundary};
         use crate::props::{
             FaceRun, QuadLane, References, corner_of, decide_faces_serially, face_flux, face_loops,
-            flat_loops, interim_resolution, rederive, resolve_face, round_hook, shell_polygons,
-            vertex_rings,
+            flat_loops, rederive, resolve_face, round_hook, shell_polygons, vertex_rings,
         };
 
         /// `m · 2^e`, exactly.
@@ -2045,7 +1981,7 @@ mod tests {
                     tol,
                     RoundWindow::SCHEDULE,
                     &refs,
-                    Some(interim_resolution(tol)),
+                    Some(crate::test_support::pinned_len(tol)),
                 )
             })
             .unwrap()

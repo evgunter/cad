@@ -51,7 +51,7 @@ fn var() -> editor_core::SpokenVar {
 test_utils::f6_variants! {
     const SPLIT: SplitError = [
         EmptyCut, UnknownCutNode, CutsTheWorld, PartIdCollides, RemainderReadUncarried,
-        SeveredEdge, NoMaterial, UncutVarReference, DefinitionStraddlesCut,
+        SeveredEdge, NoMaterial, UncutVarReference, SpaceStraddlesCut, DefinitionStraddlesCut,
         UnresolvedVarCrossesCut, PartNameReachesRemainder, NameStraddlesCut, NameOnDroppedStep,
         BodyNameCrossesCut, NameOutsidePartWorld, Pin, PartEdit, RemainderEdit,
     ];
@@ -59,9 +59,9 @@ test_utils::f6_variants! {
 
 test_utils::f6_variants! {
     const INLINE: InlineError = [
-        UnknownNode, NotAnInstance, UnplaceablePart, InstanceReadUncarried, Unresolved,
+        UnknownNode, NotAnInstance, UnplaceablePart, Unresolved,
         EpsilonSeam, PartCarriesMetadata, VarNameConflict,
-        UnresolvedVarCrossesCut, InstanceBodyNameReferenced, ForeignInstanceName, NameOnDroppedStep,
+        UnresolvedVarCrossesCut, InstanceBodyNameReferenced, NameOnDroppedStep,
         StrandedPartName,
         StrandedPartRead, Edit,
     ];
@@ -77,14 +77,8 @@ fn uncarried() -> Vec<Uncarried> {
         Uncarried::OtherSpace {
             placement: s(4, "InstantiatePart"),
         },
-        Uncarried::NoSuchCopy {
-            key: Box::new(editor_core::CopyKey::part(
-                n(4),
-                editor_core::CopyKey::Read(editor_core::VarId::new(
-                    0,
-                    test_utils::refusal::tagged(8),
-                )),
-            )),
+        Uncarried::NoSuchPiece {
+            of: vec![editor_core::VarId::new(0, test_utils::refusal::tagged(8))],
         },
     ]
 }
@@ -123,6 +117,11 @@ fn split_refusals() -> Vec<SplitError> {
             var: Box::new(var()),
             cut_node: s(4, "Extrude"),
             kept_node: s(6, "Extrude"),
+        },
+        SplitError::SpaceStraddlesCut {
+            space: Box::new(s(3, "Space")),
+            cut_node: s(4, "Place"),
+            kept_node: s(6, "Place"),
         },
         SplitError::DefinitionStraddlesCut {
             var: Box::new(var()),
@@ -199,19 +198,10 @@ fn inline_refusals() -> Vec<InlineError> {
             node: s(5, "Extrude"),
         },
     ];
-    out.extend(uncarried().into_iter().flat_map(|why| {
-        [
-            InlineError::UnplaceablePart {
-                instance: s(4, "InstantiatePart"),
-                why: why.clone(),
-            },
-            InlineError::InstanceReadUncarried {
-                reader: s(5, "Union"),
-                why,
-            },
-        ]
-    }));
     out.extend([
+        InlineError::UnplaceablePart {
+            instance: s(4, "InstantiatePart"),
+        },
         InlineError::Unresolved {
             failure: ResolveFailure::new(
                 ResolveFault::EpsilonSeam,
@@ -234,7 +224,6 @@ fn inline_refusals() -> Vec<InlineError> {
             node: s(4, "Extrude"),
         },
         InlineError::InstanceBodyNameReferenced { name: name() },
-        InlineError::ForeignInstanceName { name: name() },
         InlineError::NameOnDroppedStep {
             name: name(),
             step: StepId::new(0, 4),

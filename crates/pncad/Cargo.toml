@@ -28,6 +28,14 @@ per-op-postcondition = ["topo/per-op-postcondition"]
 # feature — it is per-face telemetry, not a scalar — so this row has
 # exactly one entry and stays that shape.
 budget = ["mesh/budget"]
+# Forwards `topo`'s test vocabulary, so the façade's own suite and the
+# crates that reach the kernel only through it (the viewer's fixtures)
+# read `topo::test_support` — the one home of the 1024·ε resolution the
+# suites' pinned numbers are stated at — rather than spelling a copy.
+# Test-only: on through this crate's self dev-dependency and through
+# other crates' `test-support` features, never a shipped edge
+# (`scripts/gates/test-features-dev-only.sh`).
+test-support = ["topo/test-support"]
 # Forwards geom-core's K-telemetry recording scalar so the
 # workspace-wide `--features probe` lane builds uniformly. See geom-core's manifest
 # for why Probe is opt-in (it is a `Real` instantiation, so it
@@ -69,7 +77,7 @@ getrandom = { workspace = true }
 # ONE test binary for the whole suite (see tests/all.rs). Each extra
 # test target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.
 #
-# The one dev-dependency is the shared Rust reader the suite's
+# The first dev-dependency is the shared Rust reader the suite's
 # source-scanning guards read through, and it is not a hole in the
 # closure property — an empty dev-dependency list never enforced that
 # and an earlier comment here was wrong to say it did. Cargo passes
@@ -80,6 +88,10 @@ getrandom = { workspace = true }
 # crate.
 [dev-dependencies]
 test-utils = { path = "../test-utils" }
+# Self dev-dependency: turns `test-support` on for this crate's own
+# suite, which reads `topo`'s test vocabulary through the façade
+# (`pncad::topo::test_support`) and so names no kernel crate.
+pncad = { path = ".", features = ["test-support"] }
 
 [[test]]
 name = "all"

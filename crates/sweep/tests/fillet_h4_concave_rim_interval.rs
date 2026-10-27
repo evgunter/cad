@@ -44,9 +44,10 @@ fn the_waist_carves_at_the_certified_scalar_and_brackets_the_pappus_fill() {
     let source = topo::test_support::finished("source", waisted_at::<Interval>(tol), tol);
     let arcs = rim_arcs_at(&source, 0.5, 0.5);
     assert_eq!(arcs.len(), 2, "the waist rim is seam-split into two arcs");
-    let p0 = topo::mass_properties(&source, tol).expect("interval props");
+    let p0 = topo::mass_properties(&source, tol, topo::test_support::pinned_resolution(tol))
+        .expect("interval props");
     let v0 = 7.0 * PI / 12.0;
-    assert_brackets(p0.volume, v0, "the source");
+    assert_brackets(p0.enclosure.volume, v0, "the source");
 
     let out = fillet_edges(
         &sweep::test_support::at_rest(&source, tol),
@@ -60,19 +61,24 @@ fn the_waist_carves_at_the_certified_scalar_and_brackets_the_pappus_fill() {
     let p1 = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .expect("interval props");
     assert_eq!(
-        p1.volume_pad, 0.0,
+        p1.enclosure.volume_pad, 0.0,
         "closed-form inventory at the certified scalar too"
     );
-    assert_brackets(p1.volume, v0 + waist_fill(0.5, r), "the carved body");
+    assert_brackets(
+        p1.enclosure.volume,
+        v0 + waist_fill(0.5, r),
+        "the carved body",
+    );
     // The sign is DEFINITE at the certified scalar: the whole enclosure
     // of the carved volume lies above the whole enclosure of the source's.
     assert!(
-        p1.volume.lo() > p0.volume.hi(),
+        p1.enclosure.volume.lo() > p0.enclosure.volume.hi(),
         "a concave band adds material, definitely: {:?} above {:?}",
-        p1.volume,
-        p0.volume
+        p1.enclosure.volume,
+        p0.enclosure.volume
     );
 }

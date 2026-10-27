@@ -93,11 +93,11 @@ fn plain(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> Eval
 }
 
 fn volume_bits(body: &topo::Body<f64>) -> u64 {
-    topo::mass_properties(
+    topo::test_support::pinned_volume(
+        "mass properties",
         &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
         Tol::witness(),
     )
-    .expect("mass properties")
     .volume
     .to_bits()
 }
@@ -485,8 +485,8 @@ fn the_memo_still_serves_a_same_document_re_evaluation() {
     );
     let after = run(&moved, Some(&warm), &opts);
     assert_eq!(
-        after.recomputed, 1,
-        "the moved instance re-keys: it is its own placement"
+        after.recomputed, 2,
+        "the moved instance re-keys: it is its own placement, and the product's `⊔` reads it"
     );
-    assert_eq!(after.reused, moved.len() - 1, "and nothing else does");
+    assert_eq!(after.reused, moved.len() - 2, "and nothing else does");
 }

@@ -321,10 +321,14 @@ fn r2_rims_one_n_past_the_suite_carve_at_the_homed_oracle() {
         let p0 = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
             tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .expect("props");
-        assert_eq!(p0.volume_pad, 0.0, "{name}: closed-form faces only");
-        let v0 = p0.volume;
+        assert_eq!(
+            p0.enclosure.volume_pad, 0.0,
+            "{name}: closed-form faces only"
+        );
+        let v0 = p0.enclosure.volume;
         let c0 = (
             body.vertices().count(),
             body.edges().count(),
@@ -362,13 +366,17 @@ fn r2_rims_one_n_past_the_suite_carve_at_the_homed_oracle() {
         let p1 = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
             tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .expect("props");
-        assert_eq!(p1.volume_pad, 0.0, "{name}: closed-form faces only after");
+        assert_eq!(
+            p1.enclosure.volume_pad, 0.0,
+            "{name}: closed-form faces only after"
+        );
         assert!(
-            (p1.volume - v0 - signed).abs() < 1e-13,
+            (p1.enclosure.volume - v0 - signed).abs() < 1e-13,
             "{name}: V1 - V0 = {} against wedge_fill's {signed}",
-            p1.volume - v0
+            p1.enclosure.volume - v0
         );
     }
 }

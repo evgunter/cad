@@ -39,3 +39,5 @@ a space nothing places.
 Done when: a new construction is drawn at once as its own shown space,
 tinted as outside the product, and goes once placed; and the author can
 show and hide any space, the choice kept as display state.
+
+**Evidence, 2026-10-26 (D′3, PR 5636).** D′3 makes the product a slot, and `docs/INTENT-STAGE3-SPEC.md` §5′.3 ("The viewer's contract after D′3", (c)) states the picture this row builds: the product slot's body plus the shown spaces, with a body the product does not read tinted as outside it. The viewer at D′3 still draws the world's placements and tints nothing. The INTENT orchestrator ruled that this row builds (c), with E's drawing. The wording "a space's bodies that nothing in it reads" is the sink-set rule that rows 80 and 85 retired, and is not the rule here.

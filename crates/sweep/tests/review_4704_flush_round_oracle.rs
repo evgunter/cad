@@ -198,7 +198,15 @@ fn judge(
         }
         Ok(BooleanResult::Body(bb)) => {
             let mut bad = Vec::new();
-            let v = mass_properties(&bb.body, Tol::witness()).unwrap().volume;
+            let v = mass_properties(
+                &bb.body,
+                Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
+            )
+            .unwrap()
+            .met()
+            .expect("the pinned resolution is met")
+            .volume;
             if (v - want_vol).abs() > 1e-9_f64.max(1e-9 * want_vol) {
                 bad.push(format!("volume {v} vs {want_vol}"));
             }
@@ -240,7 +248,17 @@ fn judge(
 fn pose(slab: Slab, beta: f64, mirror: bool, meet: f64) -> Vec<String> {
     let s = slab.body();
     let r = round(beta, mirror);
-    let vol = |b: &AtRestBody<f64>| mass_properties(b, Tol::witness()).unwrap().volume;
+    let vol = |b: &AtRestBody<f64>| {
+        mass_properties(
+            b,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
+        .volume
+    };
     let (vs, vr) = (vol(&s), vol(&r));
     let pts = samples(slab, beta, mirror);
     [

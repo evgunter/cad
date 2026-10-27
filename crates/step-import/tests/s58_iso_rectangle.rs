@@ -61,22 +61,23 @@ fn imports_and_measures(name: &str, exact: f64) {
     else {
         panic!("{name} must import as a solid");
     };
-    topo::validate_geometric(&body, Tol::witness())
+    topo::validate_geometric(body.body(), Tol::witness())
         .unwrap_or_else(|e| panic!("{name} must pass tier 3: {e:?}"));
     let mp = topo::mass_properties(
-        &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+        &topo::test_support::finished("the measured body", body.body().clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap_or_else(|e| panic!("{name} must measure: {e:?}"));
     assert_eq!(
-        mp.volume_pad, 0.0,
+        mp.enclosure.volume_pad, 0.0,
         "{name}: the closed-form lane's pad is 0"
     );
-    let rel = (mp.volume - exact).abs() / exact;
+    let rel = (mp.enclosure.volume - exact).abs() / exact;
     assert!(
         rel < 1e-12,
         "{name} volume {:.15e} != exact {exact:.15e} (rel {rel:.3e})",
-        mp.volume
+        mp.enclosure.volume
     );
 }
 
@@ -109,25 +110,27 @@ fn tee_the_one_sided_variant_imports_and_measures_exactly() {
 /// same exact volume rather than certify 7.2533e-7 with pad 0.
 #[test]
 fn merge_coplanar_faces_no_longer_turns_an_exact_body_into_a_wrong_one() {
-    let Ok(StepImport::Solid { mut body, .. }) = import_step(
+    let Ok(StepImport::Solid { body, .. }) = import_step(
         &fixture("xsplit.step"),
         &ImportOptions::default(),
         Tol::witness(),
     ) else {
         panic!("xsplit.step (rectangular sub-faces) must import as a solid");
     };
+    let mut body = body.into_body();
     let exact = cross_volume();
     let before = topo::mass_properties(
         &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("the sub-faced body measures");
-    let rel = (before.volume - exact).abs() / exact;
+    let rel = (before.enclosure.volume - exact).abs() / exact;
     assert!(
-        rel < 1e-12 && before.volume_pad == 0.0,
+        rel < 1e-12 && before.enclosure.volume_pad == 0.0,
         "BEFORE merge: {:.15e} (pad {:.3e}) != exact {exact:.15e}",
-        before.volume,
-        before.volume_pad
+        before.enclosure.volume,
+        before.enclosure.volume_pad
     );
 
     let out = body
@@ -151,13 +154,14 @@ fn merge_coplanar_faces_no_longer_turns_an_exact_body_into_a_wrong_one() {
     let after = topo::mass_properties(
         &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("the merged body measures");
-    let rel = (after.volume - exact).abs() / exact;
+    let rel = (after.enclosure.volume - exact).abs() / exact;
     assert!(
-        rel < 1e-12 && after.volume_pad == 0.0,
+        rel < 1e-12 && after.enclosure.volume_pad == 0.0,
         "AFTER merge: {:.15e} (pad {:.3e}) != exact {exact:.15e}",
-        after.volume,
-        after.volume_pad
+        after.enclosure.volume,
+        after.enclosure.volume_pad
     );
 }

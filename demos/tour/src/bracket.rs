@@ -61,7 +61,7 @@ use pncad::profile::ClosedLoop;
 use pncad::topo::{Body, mass_properties};
 
 use crate::scalar::Scalar;
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 
 /// The fillet's radius at the inner corner.
 const R: f64 = 0.5;
@@ -153,7 +153,8 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let (doc, body) = document(tol);
     let trimmed = trimmed_and_broken(&doc, body, tol);
-    crate::world::place_in_world(&trimmed.doc, trimmed.chamfer, tol).doc
+    let placed = crate::world::place_in_world(&trimmed.doc, trimmed.chamfer, tol);
+    crate::world::set_product(&placed.doc, &[Operand::Node(placed.placement)], tol).doc
 }
 
 /// The trim and the break, as nodes over the bracket's extrude.
@@ -255,8 +256,9 @@ fn body_at<S: Scalar>(ev: &Evaluation<S>, id: RecipeNodeId) -> Body<S> {
 }
 
 fn volume(body: &Body<f64>, tol: Tol) -> f64 {
-    mass_properties(&crate::booleans::at_rest(body, tol), tol)
+    mass_properties(&crate::booleans::at_rest(body, tol), tol, crate::printed())
         .expect("certified mass properties")
+        .enclosure
         .volume
 }
 
@@ -423,7 +425,7 @@ struct Broken {
 
 /// The bracket's stop: the document's corner piece, both section faces'
 /// whole rims chamfered.
-pub fn stop(tol: Tol) -> Stop {
+pub fn stop(tol: Tol) -> TourStop {
     let (doc, node) = document(tol);
     let ev = eval(&doc, tol);
     assert_volume(
@@ -435,7 +437,7 @@ pub fn stop(tol: Tol) -> Stop {
     let Broken { note, doc, rims } = split_and_break(&trimmed, node, tol);
     let ev = eval(&doc, tol);
     let body = body_at(&ev, rims);
-    Stop {
+    TourStop {
         name: "bracket",
         caption: String::new(),
         montage: true,
