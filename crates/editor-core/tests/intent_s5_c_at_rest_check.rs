@@ -937,3 +937,41 @@ fn shafts_side_by_side_stay_loud_at_every_bearing() {
     assert!(found > 0, "the premise: an overlap at some bearing");
     assert_eq!(quiet_at, Vec::<u32>::new(), "quiet at these eighths of a turn");
 }
+
+// ---- With no world product, both residents read every `⊔` ----
+
+/// **With no world product, an unread `⊔`'s contact is still the lint's,
+/// and its overlap the at-rest check's.** The small block resting on the
+/// big one, and sunk into it, with the world product cleared: the `⊔`
+/// the fixture authored is a node no product reads. The at-rest check
+/// gathers every `⊔` itself there (`Subject::EmptyProduct`), and the
+/// lint reads the rows of the same gathers, so the two residents agree
+/// on one document.
+///
+/// *Breaks if* the lint drops the contact the at-rest check's census
+/// recorded.
+#[test]
+fn with_no_product_both_residents_read_every_assemble() {
+    let unread = |label, z| {
+        let doc = ProfileDoc::empty_derived(label, Tol::witness());
+        let (doc, big) = block(doc, 0.5, 1.0);
+        let (doc, small) = block(doc, 0.3, 0.5);
+        let (doc, _) = place(doc, big);
+        let (doc, _) = in_world(doc, small, &Frame::translation([0.0, 0.0, z]));
+        let doc = crate::fixture::step(doc, editor_core::DocEdit::SetProduct { product: None }).0;
+        assert_eq!(doc.product(), None, "the premise: no product");
+        doc
+    };
+    let report = checks(&unread("s5c-unread-contact", 1.0));
+    let contacts: Vec<_> = of(&report, CheckId::UnprovenCoincidence)
+        .into_iter()
+        .filter(|f| matches!(f.subject, editor_core::FindingSubject::Copies { .. }))
+        .collect();
+    assert_eq!(contacts.len(), 1, "one contact row, the lint's: {report}");
+    let report = checks(&unread("s5c-unread-overlap", 0.75));
+    assert_eq!(
+        crate::fixture::interference(&report.findings).len(),
+        1,
+        "one interference, the at-rest check's: {report}"
+    );
+}

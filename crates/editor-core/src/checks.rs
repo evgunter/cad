@@ -1569,26 +1569,35 @@ type DoorRows = (
 /// quiet under the contact half of the quieting rule
 /// ([`at_rest::quiet_contact`]), read here, where the evaluation the
 /// census ran in is in hand.
-fn door_rows<P, T: Decide>(
+fn door_rows<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
     subject: &Subject<'_, T>,
     tol: Tol,
 ) -> Vec<DoorRows> {
-    let at_rest: Vec<&at_rest::AtRestRow> = match subject {
-        Subject::Product(gathered) => gathered
-            .coincidences
-            .iter()
-            .chain(
-                gathered
-                    .assembles
-                    .iter()
-                    .filter_map(|assemble| assemble.gather.as_ref().ok())
-                    .flat_map(|assemble| assemble.coincidences.iter()),
-            )
-            .collect(),
-        Subject::EmptyProduct | Subject::Unavailable { .. } => Vec::new(),
-    };
+    // The rows of the `⊔`s the at-rest check reads (`at_rest`): the
+    // product's and each other `⊔`'s, or, with no world product, every
+    // `⊔`'s, gathered here as the at-rest check gathers them, so the two
+    // residents read one census.
+    let elsewhere;
+    let (world, assembles): (&[at_rest::AtRestRow], &[product::AssembleGather<T>]) =
+        match subject {
+            Subject::Product(gathered) => (&gathered.coincidences, &gathered.assembles),
+            Subject::EmptyProduct => {
+                elsewhere = product::assemble_gathers(doc, ev, tol, None);
+                (&[], &elsewhere)
+            }
+            Subject::Unavailable { .. } => (&[], &[]),
+        };
+    let at_rest: Vec<&at_rest::AtRestRow> = world
+        .iter()
+        .chain(
+            assembles
+                .iter()
+                .filter_map(|assemble| assemble.gather.as_ref().ok())
+                .flat_map(|assemble| assemble.coincidences.iter()),
+        )
+        .collect();
     // A row of two copies is proved at the first copy's placement, which
     // is no decision the replay retakes: the door reads a census row off
     // the replay's copies.
