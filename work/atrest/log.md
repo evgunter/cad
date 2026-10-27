@@ -234,3 +234,7 @@ Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `cra
   - Plan approved with option 4b: rows are carried unproven, and the host's `DoorJob` proves them by the part's own door over the part's document, through the job's resolver, off the draw path. Host assertions are never read.
   - Subject: `FindingSubject::Node(route.through)`, with evidence `CarriedCoincidence { route, pin, held, finding }`.
   - Added rows: a host assertion leaves a carried row loud; a nested part (leaf → mid → host) is reported once with a two-hop route.
+- 2026-10-27 18:27Z (orchestrator): #5871 (carried coincidences) is up.
+  - Tier: dual, because it adds a public `CheckEvidence` arm and a Python projection and changes the DoorJob's work. Letter M, byte 6 (17:48:13Z), mod 3 = 0: HOLDOUT, a concurrent pair.
+  - Its first frozen head `34a0a501` was red on its own change: `TAG_INVENTORY` lacked `carried_coincidence`. The freeze was lifted for that one line, and the head is now `7c637654`, green.
+  - R1 `session_018u3gVJgViHJNnyPDw7GY6s` and R2 `session_018u3gVGRbiC6e2czqnwQ4HW` were dispatched together from one brief, isolated on `review/atrest-carried-*`.
