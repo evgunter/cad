@@ -18,13 +18,17 @@
 //! - the germ mint ([`super::join::germ_branch`]), which takes a site's
 //!   component;
 //! - the join's matcher, which takes a site's foot on its component,
-//!   once per germ ([`SectionTable::germ_foot`]).
+//!   once per germ ([`SectionTable::germ_foot`]), keyed by the germ's
+//!   operand, its half-edge and the pair it was read on.
 //!
 //! The table is classified when it is built, and a pair is carried on
 //! its first read that needs a carrier, through the scalar's march door
 //! ([`crate::AtRestPolicy::ssi_lane`]) held from the build: so only a
-//! pair whose germs the join matches is ever marched. An empty table
-//! (`Default`) is a reduction that read no section: a sweep-only door's.
+//! pair whose germs the join matches is ever marched. The table is read
+//! through a [`SectionReader`], which takes the operation's one band at
+//! its making, so every pair is classified and carried at that band. An
+//! empty table (`Default`) is a reduction that read no section: a
+//! sweep-only door's.
 
 use std::cell::{OnceCell, RefCell};
 use std::collections::BTreeMap;
@@ -34,11 +38,13 @@ use geom_brep::{
 };
 use geom_core::{Band, Indeterminate, Real};
 
+use super::Operand;
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey};
 use crate::geometry::SurfaceKey;
 
-/// One surface pair's section, read at the band it was read at.
+/// One surface pair's section, and the band its reader classified it at
+/// (the table's one band), which it is carried at.
 #[derive(Debug)]
 struct Held<T: Real> {
     read: Result<PairSection<T>, SectionError>,
@@ -77,12 +83,32 @@ pub(crate) enum FootRefusal {
     Desync(&'static str),
 }
 
+/// **A germ's key in the foot cache**: the operand whose half-edge
+/// faces the germ, that half-edge, and the pair the foot is read on.
+/// The two operands' arenas reuse keys, so the half-edge alone does not
+/// name a germ; and the pair is the section the foot lies on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct FootKey {
+    side: Operand,
+    he: HalfEdgeKey,
+    pair: PairKey,
+}
+
 /// **The section table** (module docs).
 #[derive(Debug)]
 pub(crate) struct SectionTable<T: Real> {
     pairs: BTreeMap<PairKey, Held<T>>,
     lane: Option<SsiLane<T>>,
-    feet: RefCell<BTreeMap<HalfEdgeKey, Result<GermFoot<T>, FootRefusal>>>,
+    feet: RefCell<BTreeMap<FootKey, Result<GermFoot<T>, FootRefusal>>>,
+}
+
+/// **The table's one reader**: it reads pairs into a table at the band
+/// it was made with, so one table holds one band
+/// ([`SectionTable::reader`]); [`Self::finish`] hands the table on.
+#[derive(Debug)]
+pub(crate) struct SectionReader<T: Real> {
+    table: SectionTable<T>,
+    band: Band,
 }
 
 impl<T: Real> Default for SectionTable<T> {
@@ -95,27 +121,19 @@ impl<T: Real> Default for SectionTable<T> {
     }
 }
 
-impl<T: geom_core::Decide> SectionTable<T> {
-    /// An empty table that carries through `lane`.
-    pub(crate) fn new(lane: Option<SsiLane<T>>) -> Self {
-        Self {
-            lane,
-            ..Self::default()
-        }
-    }
-
-    /// Reads surface `ka` of A against `kb` of B at `band`, the band the
-    /// pair is classified and carried at: the section on the pair's first
-    /// read, the held one after. `None` where the value does not build
-    /// the kind pair.
+impl<T: geom_core::Decide> SectionReader<T> {
+    /// Reads surface `ka` of A against `kb` of B at the reader's band,
+    /// the band the pair is classified and carried at: the section on the
+    /// pair's first read, the held one after, at the same band. `None`
+    /// where the value does not build the kind pair.
     pub(crate) fn read(
         &mut self,
         (ka, sa): (SurfaceKey, &geom::Surface<T>),
         (kb, sb): (SurfaceKey, &geom::Surface<T>),
-        band: Band,
     ) -> Option<&Result<PairSection<T>, SectionError>> {
         use std::collections::btree_map::Entry;
-        match self.pairs.entry(PairKey { a: ka, b: kb }) {
+        let band = self.band;
+        match self.table.pairs.entry(PairKey { a: ka, b: kb }) {
             Entry::Occupied(held) => Some(&held.into_mut().read),
             Entry::Vacant(slot) => {
                 let read = match geom_brep::pair_section(sa, sb, band) {
@@ -133,6 +151,25 @@ impl<T: geom_core::Decide> SectionTable<T> {
                         .read,
                 )
             }
+        }
+    }
+
+    /// The table read.
+    pub(crate) fn finish(self) -> SectionTable<T> {
+        self.table
+    }
+}
+
+impl<T: geom_core::Decide> SectionTable<T> {
+    /// The reader of a table that classifies every pair at `band`, the
+    /// operation's, and carries through `lane`.
+    pub(crate) fn reader(lane: Option<SsiLane<T>>, band: Band) -> SectionReader<T> {
+        SectionReader {
+            table: Self {
+                lane,
+                ..Self::default()
+            },
+            band,
         }
     }
 
@@ -169,20 +206,28 @@ impl<T: geom_core::Decide> SectionTable<T> {
         )
     }
 
-    /// **The germ facing half `he`'s place on its section**, read by
-    /// `read` on the first ask and held for the operation: a germ's site
-    /// and direction do not move while the join matches, so every
-    /// candidate pairing reads the one answer.
+    /// **The place on the section of A's face `fa` against B's `fb` of
+    /// the germ that operand `side`'s half `he` faces**, read by `read`
+    /// on the first ask and held for the operation: a germ's site and
+    /// direction do not move while the join matches, so every candidate
+    /// pairing reads the one answer. Held by operand, half-edge and pair
+    /// ([`FootKey`]). A desync where a face has no surface.
     pub(crate) fn germ_foot(
         &self,
-        he: HalfEdgeKey,
+        (side, he): (Operand, HalfEdgeKey),
+        a: (&Body<T>, FaceKey),
+        b: (&Body<T>, FaceKey),
         read: impl FnOnce() -> Result<GermFoot<T>, FootRefusal>,
     ) -> Result<GermFoot<T>, FootRefusal> {
-        if let Some(held) = self.feet.borrow().get(&he) {
+        let Some(pair) = Self::key(a, b) else {
+            return Err(FootRefusal::Desync("a germ's face has no surface"));
+        };
+        let key = FootKey { side, he, pair };
+        if let Some(held) = self.feet.borrow().get(&key) {
             return held.clone();
         }
         let answer = read();
-        self.feet.borrow_mut().insert(he, answer.clone());
+        self.feet.borrow_mut().insert(key, answer.clone());
         answer
     }
 
@@ -208,4 +253,63 @@ pub(crate) enum Uncarried<'t> {
     Section(&'t SectionError),
     /// The section did not carry.
     Carry(&'t CarryError),
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod tests {
+    use super::{FootRefusal, SectionTable};
+    use crate::boolean::Operand;
+    use crate::entity::HalfEdgeKey;
+
+    /// A body, and two of its faces on different surfaces: built twice
+    /// alike, its keys coincide across the two builds.
+    fn twins() -> (crate::body::Body<f64>, crate::FaceKey, crate::FaceKey) {
+        let mut body = crate::fixtures::ops_genus2(geom_core::Tol::witness());
+        let faces: Vec<_> = body.faces().map(|(k, _)| k).collect();
+        let (f, g) = (faces[0], faces[1]);
+        let other = body.add_surface(crate::fixtures::test_surface(geom_core::Point3::origin()));
+        body.get_face_mut(g).expect("a face of the body").surface = other;
+        (body, f, g)
+    }
+
+    /// **A germ's foot is its own operand's, on its own pair**: the two
+    /// operands' arenas reuse keys, so an A germ and a B germ can face
+    /// half-edges with one key, and each reads its own foot; one
+    /// operand's half-edge read on two pairs reads each pair's. (Red on
+    /// a cache keyed by the half-edge alone, which served the second
+    /// read the first's answer.)
+    #[test]
+    fn two_operands_germs_on_one_key_read_their_own_feet() {
+        let table = SectionTable::<f64>::default();
+        let he = HalfEdgeKey::default();
+        let (a, fa, ga) = twins();
+        let (b, fb, _) = twins();
+        let foot = |side, (fa, fb), what| {
+            table.germ_foot((side, he), (&a, fa), (&b, fb), || {
+                Err(FootRefusal::Desync(what))
+            })
+        };
+        assert!(matches!(
+            foot(Operand::A, (fa, fb), "A's"),
+            Err(FootRefusal::Desync("A's"))
+        ));
+        let b_read = foot(Operand::B, (fa, fb), "B's");
+        assert!(
+            matches!(b_read, Err(FootRefusal::Desync("B's"))),
+            "B read {b_read:?}"
+        );
+        let other = foot(Operand::A, (ga, fb), "A's other pair");
+        assert!(
+            matches!(other, Err(FootRefusal::Desync("A's other pair"))),
+            "the other pair read {other:?}"
+        );
+        assert!(
+            matches!(
+                foot(Operand::A, (fa, fb), "again"),
+                Err(FootRefusal::Desync("A's"))
+            ),
+            "a second ask reads the held answer"
+        );
+    }
 }

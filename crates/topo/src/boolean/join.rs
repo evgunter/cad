@@ -2505,7 +2505,13 @@ fn partners<T: Decide>(
     // germ lines take the chord test, and conic germ loci compare
     // rotational senses about the section frame, on one loop of it.
     let faced = match germ_section(red, &rga)? {
-        Some(section) => along_facing(&red.sections, section, (&rga, p_c), (&ega, p_e), band)?,
+        Some(section) => along_facing(
+            (&red.sections, &red.a, &red.b),
+            section,
+            (&rga, p_c),
+            (&ega, p_e),
+            band,
+        )?,
         None => {
             let loops = germ_section_loops((&red.a, &red.b), &rga, band)?;
             facing(loops.as_ref(), &rga, &ega, p_c, p_e, band)?
@@ -4317,7 +4323,9 @@ enum Faced<T: geom_core::Real> {
 /// tangent there (`bool_join_foot_heading`, the cosine levered by the
 /// section's own scale, [`geom_brep::CarriedSection::lever`]). Each
 /// germ's foot and heading are its own, read once for the operation
-/// ([`super::section_table::SectionTable::germ_foot`]). Two germs on
+/// ([`super::section_table::SectionTable::germ_foot`]); both germs are
+/// A's halves, the B halves at their slots being mirror checks
+/// ([`partners`]). Two germs on
 /// different components, or leaving the same way, never face. A closed component is travelled round; on an
 /// open one the partner's foot must lie ahead. `Along` carries the
 /// carrier's parameter from `g1`'s foot to `g2`'s, the way `g1` leaves.
@@ -4327,7 +4335,7 @@ enum Faced<T: geom_core::Real> {
 /// A site's escalation or desync; a germ with no heading along its
 /// component, a desync.
 fn along_facing<T: Decide>(
-    table: &super::section_table::SectionTable<T>,
+    (table, a, b): (&super::section_table::SectionTable<T>, &Body<T>, &Body<T>),
     section: &geom_brep::CarriedSection<T>,
     (g1, p1): (&HalfGerm<T>, Point3<T>),
     (g2, p2): (&HalfGerm<T>, Point3<T>),
@@ -4364,7 +4372,12 @@ fn along_facing<T: Decide>(
     };
     let foot = |germ: &HalfGerm<T>, p| {
         table
-            .germ_foot(germ.he, || read(germ, p))
+            .germ_foot(
+                (Operand::A, germ.he),
+                (a, germ.a_face),
+                (b, germ.b_face),
+                || read(germ, p),
+            )
             .map(|g| (g.foot, g.up))
             .map_err(|e| match e {
                 FootRefusal::Site(e) => site_refusal(e),

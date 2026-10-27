@@ -242,7 +242,7 @@ pub(crate) fn section_door<T: Decide + Bounds>(
         margin,
         discharge: crate::Discharge::of(margin),
     };
-    let mut table = SectionTable::new(lane);
+    let mut table = SectionTable::reader(lane, band);
     let mut rows = Vec::new();
     for (fa, fb) in overlapping_pairs(a, b, read, band)? {
         let (Some((ka, sa)), Some((kb, sb))) = (surface(a, fa), surface(b, fb)) else {
@@ -261,7 +261,7 @@ pub(crate) fn section_door<T: Decide + Bounds>(
         }
         // A refusal adds no row: where the faces meet, a later reading of
         // the pair refuses (`honeone/coaxiality-of-two-revolution-carriers-is-tested-five-ways`).
-        let coincidence = match table.read((ka, &sa), (kb, &sb), band) {
+        let coincidence = match table.read((ka, &sa), (kb, &sb)) {
             Some(Ok(section)) => section.coincidence(),
             Some(Err(_)) | None => None,
         };
@@ -274,7 +274,7 @@ pub(crate) fn section_door<T: Decide + Bounds>(
             ));
         }
     }
-    Ok((table, rows))
+    Ok((table.finish(), rows))
 }
 
 /// **The face-pair rows whose faces meet**: each row deciding faces
