@@ -1590,10 +1590,10 @@ Where its verdicts decide Zero, a union, a cut or a meet glues where
 an arm exists for the carrier pair ([topology]'s frontier), keeping
 one fixed operand's description for a merged face (the first-written
 operand's: its surface stays exactly the one that was written, so
-other cells built on that surface keep one description with it and a
-chain of operations does not drift; no surface derived from both exists
-for every pair of carriers; and a rule that read values would pick
-between two surfaces within the band of each other by rounding), and an assemble
+other cells built on that surface keep one description with it and the
+kept surface does not move; no surface derived from both exists for
+every pair of carriers; and a rule that read values would pick between
+two surfaces within the band of each other by rounding), and an assemble
 records the touch ([topology.records]); each refuses what falls in the
 sliver band. Its result holds no in-band pair, a pair of result cells
 whose one census number lies in band. A solid's only shell is its outer
