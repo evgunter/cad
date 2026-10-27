@@ -267,3 +267,5 @@ Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `cra
   - F1: a Tool or Piece row is unquietable, so it is loud and never refuses (DS6). A P3 row records that quieting one would need `[assertions.quiet]`/`Gap` to read a pose, which is Ev's call.
   - `contact_quietable` asks the rule itself (the `gap()` admission), not a shape, per today's #5810 lesson.
   - F2: a `Gap = 0` over adjacent cells is vacuous for tangency and coaxial rows. It is built as ratified and filed as a P2 design question on `[assertions.quiet]`, for a designer pair later.
+- 2026-10-27 21:30Z (orchestrator): the flush P1 plan is approved. It is a certificate of disjoint interiors by arc-splitting: cut each edge at every `curve_pair::meet` point, place each open sub-arc's midpoint, and use the clopen argument. It rests on `meet`'s completeness (a refusal is unread) and on each face's interior being connected.
+  - Conditions: a near-tangent double-crossing row; disconnected-face refusal; an audit of every flush-row consumer for planar assumptions.
