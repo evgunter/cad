@@ -128,7 +128,11 @@ side clears only
   it, with nothing else of its solid there, as its carrier's side
   (`topo::link`'s `Round`) against the other solid's planar link: any
   other touch a curved face takes part in refuses (`TouchUnreadable`) —
-  it never decides a Rest or a crossing there;
+  it never decides a Rest or a crossing there. No body reaches the round
+  reading yet: the round face and a planar face of the other solid
+  through the touch clear neither on separation nor on depth, so the
+  pair refuses `CensusUndecidable` before any touch of it is read
+  (`census-cross-solid-curved-pairs-undecidable-on-shell-results`);
 
 and refuses `CensusUndecidable` otherwise. Within one solid, two
 distinct-key curved faces touching along a tangent locus through both

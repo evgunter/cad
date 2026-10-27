@@ -100,8 +100,9 @@ fn a_round_offset_and_its_least_along_a_segment_meet_a_dense_walk() {
         let round = Round::of(&surface::<f64>(cyl, c, a, radius), convex).expect("round");
         let q = point(&mut r, 3.0);
         let want = written(cyl, convex, c, a, radius, q);
-        if (round.offset(q) - want).abs() > 1e-12 {
-            bad.push(format!("offset at {q:?}: {} not {want}", round.offset(q)));
+        let at = round.offset(q).expect("off the axis");
+        if (at - want).abs() > 1e-12 {
+            bad.push(format!("offset at {q:?}: {at} not {want}"));
         }
         let x0 = point(&mut r, 3.0);
         let x1 = if k % 5 == 0 {
@@ -122,13 +123,14 @@ fn a_round_offset_and_its_least_along_a_segment_meet_a_dense_walk() {
                 )
             })
             .fold(f64::INFINITY, f64::min);
-        let got = round.lowest_on((x0, x1));
-        // The walk's step is a thousandth of the segment at most; a
-        // convex least between two steps sits within the walk's
-        // first-order error, so the reading is never above the walk and
-        // never below the true least.
+        let got = round.lowest_on((x0, x1)).expect("off the axis");
+        // The offset moves no faster than the point (a distance less a
+        // constant), and the true least lies within half a step of a
+        // walked point, so it is at least the walk's least less half a
+        // step. The reading is a value the segment takes, so it is never
+        // above the walk, and never below the true least.
         let step = (x1 - x0).norm() / 4000.0;
-        if got > walk + 1e-12 || got < walk - step - 1e-12 {
+        if got > walk + 1e-12 || got < walk - step / 2.0 - 1e-12 {
             bad.push(format!(
                 "{} {}: least of {x0:?}–{x1:?} reads {got}, the walk {walk}",
                 if cyl { "cylinder" } else { "sphere" },
@@ -139,7 +141,9 @@ fn a_round_offset_and_its_least_along_a_segment_meet_a_dense_walk() {
         let wide = |v: f64| Interval::from_bounds(v - 1e-9, v + 1e-9);
         let wp = |q: Point3<f64>| Point3::new(wide(q.x), wide(q.y), wide(q.z));
         let iround = Round::of(&surface::<Interval>(cyl, c, a, radius), convex).expect("round");
-        let ig = iround.lowest_on((wp(x0), wp(x1)));
+        let ig = iround
+            .lowest_on((wp(x0), wp(x1)))
+            .expect("an enclosure off the axis");
         if !(ig.lo() <= got && got <= ig.hi()) {
             bad.push(format!("interval [{}, {}] misses {got}", ig.lo(), ig.hi()));
         }
@@ -152,7 +156,7 @@ fn a_round_offset_and_its_least_along_a_segment_meet_a_dense_walk() {
             )
         };
         let dround = Round::of(&surface::<Dual<f64>>(cyl, c, a, radius), convex).expect("round");
-        let dg = dround.lowest_on((dp(x0), dp(x1)));
+        let dg = dround.lowest_on((dp(x0), dp(x1))).expect("off the axis");
         if (dg.value - got).abs() > 1e-12 || !dg.deriv.is_finite() {
             bad.push(format!("dual reads {dg:?}, f64 {got}"));
         }
@@ -407,5 +411,113 @@ fn a_cell_against_a_round_face_reads_by_its_carrier_about_any_axis() {
         bad.len(),
         24 * poses.len(),
         bad.join("\n")
+    );
+}
+
+/// **On the axis or at the centre, the Dual lane reads the radius's
+/// derivative and refuses a point moved across.** A pin and a ball,
+/// the radius seeded: a vertex on the axis or at the centre, and an
+/// edge along the axis, across it and through the centre, each read
+/// `∂g/∂r = −1` (a pin's or a ball's offset is the distance less the
+/// radius), finite. A vertex on the axis seeded across it has no
+/// derivative there, and reads [`AtTheAxis`] rather than a NaN. The
+/// cylinder is turned off the axes and the centre off the origin; the
+/// vertex on the axis is the axis's own origin, so it lies on it exactly
+/// (a point a rounding off the axis has the derivative of its own,
+/// rounded, direction from it).
+/// Red if a NaN is minted or a defined derivative refused.
+#[test]
+fn the_dual_lane_at_the_axis_reads_the_radius_and_refuses_a_point_moved_across() {
+    let c = |x: f64| Dual::constant(x);
+    let cp = |q: Point3<f64>| Point3::new(c(q.x), c(q.y), c(q.z));
+    let cv = |q: Vec3<f64>| Vec3::new(c(q.x), c(q.y), c(q.z));
+    let o = Point3::new(0.4, -0.3, 1.1);
+    let a = Vec3::new(0.3, -0.5, 0.8).normalize();
+    let across = Vec3::new(0.8, 0.0, -0.3).normalize();
+    let pin = Round::cylinder(cp(o), cv(a), Dual::variable(1.0), true);
+    let ball = Round::sphere(cp(o), Dual::variable(1.0), true);
+    let mut bad = Vec::new();
+    let mut check = |what: &str, got: Result<Dual<f64>, AtTheAxis>, value: f64| match got {
+        Ok(g) if (g.value - value).abs() < 1e-12 && (g.deriv + 1.0).abs() < 1e-12 => {}
+        got => bad.push(format!("{what}: {got:?}")),
+    };
+    let on = o;
+    check("vertex on the axis", pin.offset(cp(on)), -1.0);
+    check("vertex at the centre", ball.offset(cp(o)), -1.0);
+    check(
+        "edge along the axis",
+        pin.lowest_on((cp(o + a * 0.2), cp(o + a * 0.9))),
+        -1.0,
+    );
+    check(
+        "edge across the axis",
+        pin.lowest_on((cp(on - across * 2.0), cp(on + across * 2.0))),
+        -1.0,
+    );
+    check(
+        "edge through the centre",
+        ball.lowest_on((cp(o - across * 2.0), cp(o + across * 2.0))),
+        -1.0,
+    );
+    let moved = Point3::new(Dual::variable(on.x), c(on.y), c(on.z));
+    let fixed = Round::cylinder(cp(o), cv(a), c(1.0), true);
+    if fixed.offset(moved).err() != Some(AtTheAxis) {
+        bad.push(format!(
+            "a vertex moved across the axis: {:?}",
+            fixed.offset(moved)
+        ));
+    }
+    assert!(bad.is_empty(), "{bad:#?}");
+}
+
+/// **A corner whose edges enter a bore's hollow at a shallow angle and
+/// meet its wall again within reach crosses** (the review's probe of
+/// #5827). The bore has radius 1; three rays dip `0.05` rad into the
+/// hollow, so each meets the wall again `2·sin 0.05 ≈ 0.1` from the
+/// touch, well inside the link's ball. A first-order reading (every
+/// ray above the tangent plane) reads Rest. Red if it does.
+#[test]
+fn a_corner_meeting_a_bores_wall_again_within_reach_crosses() {
+    let p = Point3::new(1.0, 0.0, 0.0);
+    let theta: f64 = 0.05;
+    let len = 0.4;
+    let dir = |phi: f64| {
+        v(
+            -theta.sin(),
+            theta.cos() * phi.cos(),
+            theta.cos() * phi.sin(),
+        )
+    };
+    let (d1, d2) = (dir(-0.15), dir(0.15));
+    let d3 = (dir(0.0) + v(-0.03, 0.0, 0.0)).normalize();
+    let centroid = (d1 + d2 + d3) * (1.0 / 3.0);
+    let sectors = [(d1, d2), (d2, d3), (d3, d1)]
+        .into_iter()
+        .map(|(x, y)| {
+            let (mut m, mut pts) = (x.cross(y).normalize(), vec![p + x * len, p + y * len]);
+            if m.dot(centroid) > 0.0 {
+                m = -m;
+                pts.reverse();
+            }
+            Sector {
+                surface: geom::Surface::Plane {
+                    origin: p,
+                    normal: m,
+                    u_ref: (pts[0] - p).normalize(),
+                },
+                sense: true,
+                outward: m,
+                apex: p,
+                wedges: vec![(pts[0], pts[1])],
+                closed: false,
+            }
+        })
+        .collect();
+    let link = Link::of(p, sectors).expect("the fans make a link");
+    let bore = Round::cylinder(Point3::origin(), v(0.0, 0.0, 1.0), 1.0, false);
+    assert_eq!(
+        rest::by_round(&link, &bore, 0.5, band()),
+        TouchVerdict::Crossing,
+        "the rays meet the wall again within reach"
     );
 }

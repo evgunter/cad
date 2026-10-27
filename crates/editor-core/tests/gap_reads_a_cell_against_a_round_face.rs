@@ -384,3 +384,64 @@ fn an_off_centre_ball_reads_an_edge_resting_on_it() {
         }
     }
 }
+
+/// **The Dual pass reads `∂g/∂r = −1` where a cell meets the pin's
+/// axis** (the review's probe of #5827): a vertex on the axis, an edge
+/// along it, and an edge crossing it (the pin turned a quarter turn
+/// about `x`). The cell does not move, so the distance from the axis
+/// has a derivative of zero even where it is zero, and only the radius
+/// moves the gap. Red if a NaN tangent is minted there
+/// (`TangentDegraded`), or the pass refuses.
+#[test]
+fn the_dual_pass_reads_the_radius_where_a_cell_meets_the_axis() {
+    let base = |frame: Frame, corner: V| {
+        let doc = ProfileDoc::empty_derived("gap-axis-dual", Tol::witness());
+        let (doc, _) = step(
+            doc,
+            DocEdit::DeclareVar {
+                name: VarName::from_static("r"),
+                def: VarDecl::Free(FreeVar::Continuous {
+                    dim: Dimension::Length,
+                    value: R,
+                    display_unit: UnitSym::canonical_for(Dimension::Length),
+                    distribution: Some(Distribution::Uniform { lo: -H, hi: H }),
+                }),
+            },
+        );
+        let circle = LoopProgram::Circle {
+            centre: [len(0.0), len(0.0)],
+            radius: Formula::named(VarName::from_static("r"), Dimension::Length),
+        };
+        let (doc, c) = extrude(doc, vec![circle], 2.0);
+        let (doc, pc) = in_world(doc, c, &frame);
+        let wall = face_of(&doc, pc, geom::SurfaceKind::Cylinder);
+        let (doc, edge, foot) = cube_at(doc, corner);
+        (doc, wall, edge, foot)
+    };
+    let quarter = Frame::rotate_by_turns_then_translate(
+        [1.0, 0.0, 0.0],
+        Turns::new(1, 4).expect("a quarter"),
+        [0.0, 0.0, 0.0],
+        crate::fixture::band(),
+    )
+    .expect("a unit axis");
+    let still = Frame::translation([0.0, 0.0, 0.0]);
+    for (name, frame, corner, use_edge) in [
+        ("vertex on the axis", still, [0.0, 0.0, 0.5], false),
+        ("edge along the axis", still, [0.0, 0.0, 0.5], true),
+        ("edge across the axis", quarter, [0.0, -1.0, -0.5], true),
+    ] {
+        let (doc, wall, edge, foot) = base(frame, corner);
+        let cell = if use_edge { &edge } else { &foot };
+        let (doc, m) = gap_node(&doc, &wall, cell);
+        let var = doc.output(m, 0).expect("a measure defines its value");
+        let entries = sensitivities(&doc, var, None, None, false, None, Tol::witness())
+            .unwrap_or_else(|e| panic!("{name}: the Dual pass refused {e:?}"));
+        match entries.first().map(|e| &e.outcome) {
+            Some(SensitivityOutcome::Derivative { value, .. }) => {
+                assert!((value + 1.0).abs() < 1e-9, "{name}: ∂g/∂r reads {value}");
+            }
+            other => panic!("{name}: {other:?}"),
+        }
+    }
+}

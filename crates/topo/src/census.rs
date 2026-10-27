@@ -7828,7 +7828,7 @@ impl<T: Decide> Link<T> {
     ) -> Result<Self, TouchUnread> {
         match Germ::touch_at_point(body, geo, ties, solid, keys, p, band)? {
             Germ::Cone(link) => Ok(link),
-            Germ::Round(..) => Err(TouchUnread::Unreadable),
+            Germ::Round { .. } => Err(TouchUnread::Unreadable),
         }
     }
 }
@@ -7888,7 +7888,10 @@ impl<T: Decide> Germ<T> {
             && all.iter().all(|h| *h == Hold::Inside)
             && let Some(round) = round_face(body, f, p)?
         {
-            return Ok(Germ::Round(round.0, round.1));
+            return Ok(Germ::Round {
+                round: round.0,
+                reach: round.1,
+            });
         }
         // A curved face refuses at once; any other refusal waits until
         // every face is tried. So a curved face anywhere in the link is
@@ -7993,9 +7996,7 @@ fn round_face<T: Decide>(
                         .and_then(|v| body.points.get(v.point))
                         .copied()
                         .ok_or(TouchUnread::Corrupt)?;
-                    let ab = b - a;
-                    let t = ((p - a).dot(ab) / ab.dot(ab)).max(T::zero()).min(T::one());
-                    (a + ab * t - p).norm()
+                    crate::link::to_segment(p, (a, b))
                 }
                 geom::Curve3::Circle {
                     center,

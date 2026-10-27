@@ -170,9 +170,9 @@ pub(crate) enum Carrier<'b, T: geom_core::Real> {
         /// the face — the face's own extent, and the lever [`arm`] is
         /// built from ([`reach_of`]).
         reach: T,
-        /// Whether the face's material is inside its carrier (a pin)
-        /// rather than outside it (a bore): the face's sense.
-        convex: bool,
+        /// The face's material, read by its carrier: a pin's or a
+        /// bore's, as the face's sense says.
+        round: topo::Round<T>,
     },
     /// A spherical face's carrier: centre and radius.
     Sphere {
@@ -180,9 +180,9 @@ pub(crate) enum Carrier<'b, T: geom_core::Real> {
         center: Point3<T>,
         /// The radius.
         radius: T,
-        /// Whether the face's material is inside its carrier (a ball)
-        /// rather than outside it (a socket): the face's sense.
-        convex: bool,
+        /// The face's material, read by its carrier: a ball's or a
+        /// socket's, as the face's sense says.
+        round: topo::Round<T>,
     },
     /// A straight edge's carrier: its unit direction, its two ends in
     /// the edge's own direction, and where the material beside it is
@@ -286,13 +286,18 @@ pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef) -> Carrier<'
                     reach,
                 };
             }
-            match body.get_surface(face.surface) {
-                Some(Surface::Cylinder {
-                    origin,
-                    axis,
-                    radius,
-                    ..
-                }) => {
+            let surface = body.get_surface(face.surface);
+            let round = surface.and_then(|s| topo::Round::of(s, face.sense));
+            match (surface, round) {
+                (
+                    Some(Surface::Cylinder {
+                        origin,
+                        axis,
+                        radius,
+                        ..
+                    }),
+                    Some(round),
+                ) => {
                     let Some(reach) = reach_of(body, k, *origin) else {
                         return Carrier::Other("a face with no readable boundary");
                     };
@@ -301,18 +306,18 @@ pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef) -> Carrier<'
                         axis: *axis,
                         radius: *radius,
                         reach,
-                        convex: face.sense,
+                        round,
                     }
                 }
-                Some(Surface::Sphere { center, radius, .. }) => Carrier::Sphere {
+                (Some(Surface::Sphere { center, radius, .. }), Some(round)) => Carrier::Sphere {
                     center: *center,
                     radius: *radius,
-                    convex: face.sense,
+                    round,
                 },
-                Some(Surface::Cone { .. }) => Carrier::Other("a cone face"),
-                Some(Surface::Torus { .. }) => Carrier::Other("a torus face"),
-                Some(_) => Carrier::Other("a free-form face"),
-                None => Carrier::Other("an unreadable face"),
+                (Some(Surface::Cone { .. }), _) => Carrier::Other("a cone face"),
+                (Some(Surface::Torus { .. }), _) => Carrier::Other("a torus face"),
+                (Some(_), _) => Carrier::Other("a free-form face"),
+                (None, _) => Carrier::Other("an unreadable face"),
             }
         }
         EntityKey::Edge(k) => {
@@ -867,11 +872,11 @@ fn gap<T: Decide>(
         (
             face @ (Carrier::Plane { .. } | Carrier::Cylinder { .. } | Carrier::Sphere { .. }),
             Carrier::Point { at, .. },
-        ) => Ok(face_offset(face, *at)),
+        ) => face_offset(face, *at),
         (
             Carrier::Point { at, .. },
             face @ (Carrier::Plane { .. } | Carrier::Cylinder { .. } | Carrier::Sphere { .. }),
-        ) => Ok(face_offset(face, *at)),
+        ) => face_offset(face, *at),
         // A face and a line edge: the face reads the edge.
         (
             face @ (Carrier::Plane { .. } | Carrier::Cylinder { .. } | Carrier::Sphere { .. }),
@@ -880,7 +885,7 @@ fn gap<T: Decide>(
         | (
             line @ Carrier::Line { .. },
             face @ (Carrier::Plane { .. } | Carrier::Cylinder { .. } | Carrier::Sphere { .. }),
-        ) => Ok(face_reads_edge(face, line)),
+        ) => face_reads_edge(face, line),
         // A vertex or a line edge and another: an edge reads a vertex in
         // either seat, and of two edges or two vertices the outer reads
         // the inner, through its link.
@@ -903,7 +908,10 @@ const NO_WEDGE: &str = "a line edge whose faces do not both read as planes bound
 /// A face reading a line edge at its lowest point: a plane at the
 /// edge's lower end, its offset affine along it; a sphere or a cylinder
 /// by its carrier's closed form ([`topo::Round::lowest_on`]).
-fn face_reads_edge<T: Decide>(face: &Carrier<'_, T>, line: &Carrier<'_, T>) -> T {
+fn face_reads_edge<T: Decide>(
+    face: &Carrier<'_, T>,
+    line: &Carrier<'_, T>,
+) -> Result<T, PrimitiveRefusal> {
     let Carrier::Line {
         ends: Some([start, end]),
         ..
@@ -912,26 +920,34 @@ fn face_reads_edge<T: Decide>(face: &Carrier<'_, T>, line: &Carrier<'_, T>) -> T
         unreachable!("gap matched a line edge whose ends read")
     };
     match round_of(face) {
-        Some(round) => round.lowest_on((*start, *end)),
-        None => face_offset(face, *start).min(face_offset(face, *end)),
+        Some(round) => round
+            .lowest_on((*start, *end))
+            .map_err(|_| at_the_axis(face, AXIS_EDGE)),
+        None => Ok(face_offset(face, *start)?.min(face_offset(face, *end)?)),
     }
 }
 
+/// A cell read exactly on a round face's axis or at its centre at a
+/// scalar that moves it ([`topo::link::AtTheAxis`]): the distance from
+/// the axis has no derivative there, so the gap refuses, naming why.
+fn at_the_axis<T: geom_core::Real>(face: &Carrier<'_, T>, cell: &'static str) -> PrimitiveRefusal {
+    PrimitiveRefusal::Unsupported(MeasureUnsupported {
+        verb: "gap",
+        a: face.class(),
+        b: cell,
+    })
+}
+
+/// [`at_the_axis`]'s cell, a vertex.
+const AXIS_VERTEX: &str = "a vertex on the face's axis or centre, moved across it";
+
+/// [`at_the_axis`]'s cell, a line edge.
+const AXIS_EDGE: &str = "a line edge through the face's axis or centre, moved across it";
+
 /// A sphere or a cylinder face's material, as `topo::link` reads it.
 fn round_of<T: Decide>(face: &Carrier<'_, T>) -> Option<topo::Round<T>> {
-    match *face {
-        Carrier::Sphere {
-            center,
-            radius,
-            convex,
-        } => Some(topo::Round::sphere(center, radius, convex)),
-        Carrier::Cylinder {
-            origin,
-            axis,
-            radius,
-            convex,
-            ..
-        } => Some(topo::Round::cylinder(origin, axis, radius, convex)),
+    match face {
+        Carrier::Sphere { round, .. } | Carrier::Cylinder { round, .. } => Some(*round),
         _ => None,
     }
 }
@@ -1021,15 +1037,15 @@ const GAP_LINK: &str = "gap_link_reading";
 /// cylinder the signed distance to its carrier, positive away from a
 /// ball's or a pin's material and toward a socket's or a bore's centre
 /// ([`topo::Round::offset`]).
-fn face_offset<T: Decide>(face: &Carrier<'_, T>, at: Point3<T>) -> T {
+fn face_offset<T: Decide>(face: &Carrier<'_, T>, at: Point3<T>) -> Result<T, PrimitiveRefusal> {
     match (face, round_of(face)) {
-        (_, Some(round)) => round.offset(at),
+        (_, Some(round)) => round.offset(at).map_err(|_| at_the_axis(face, AXIS_VERTEX)),
         (
             Carrier::Plane {
                 origin, outward, ..
             },
             None,
-        ) => outward.dot(at - *origin),
+        ) => Ok(outward.dot(at - *origin)),
         _ => unreachable!("the arm matched a face"),
     }
 }
@@ -1406,14 +1422,14 @@ mod tests {
         let sphere = |convex| Carrier::Sphere {
             center: p(0.0, 0.0, 0.0),
             radius: 1.0,
-            convex,
+            round: topo::Round::sphere(p(0.0, 0.0, 0.0), 1.0, convex),
         };
         let cylinder = |convex| Carrier::Cylinder {
             origin: p(0.0, 0.0, 0.0),
             axis: v(0.0, 0.0, 1.0),
             radius: 1.0,
             reach: 5.0,
-            convex,
+            round: topo::Round::cylinder(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), 1.0, convex),
         };
         let out = vertex(p(1.01, 0.0, 0.0));
         close(read(&sphere(true), &out), 0.01, "outside a ball");
