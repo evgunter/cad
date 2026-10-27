@@ -119,7 +119,8 @@ pub use dihedral::{
     second_order_walk, tangent_second_order,
 };
 pub use dihedral_side::{
-    EdgeHalf, EdgeWalk, FaceSide, SideEscalation, SideFace, SideRole, dihedral_side,
+    CreaseReading, EdgeHalf, EdgeWalk, FaceSide, SideEscalation, SideFace, SideRole,
+    chart_normal_at, dihedral_side, regular_jet,
 };
 pub use edge_nurbs::{
     AnalyticRung3Refusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal,
@@ -134,7 +135,7 @@ pub use enters::{
     ParallelSense, ReferenceNormal, WallBend, WallBendError, bends_into_material, enters_material,
     enters_material_order2, enters_material_reported, normal_alignment,
 };
-pub use extent::{ExtentBall, Reach};
+pub use extent::{ExtentBall, Reach, control_net_reach};
 pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 /// The ring-torus convention's one home is `geom` (below this crate, so
 /// the spiric carrier's constructor reads it too); re-exported so the

@@ -203,7 +203,7 @@ pub(super) fn apply_rule_a<T: Decide>(
         .map(|e| e.class == PlaneSide::On && e.kind == SectorEntryKind::Edge)
         .collect();
     for k in 0..n {
-        let (face, n_face, is_plane) = sector_face(body, vertex, entries[k].he)?;
+        let (face, n_face, is_plane) = sector_face(body, vertex, entries[k].he, band)?;
         let refuse = |reading| SplitReduceError::SliverSector {
             vertex,
             face,
@@ -472,8 +472,8 @@ fn edge_wedge<T: Decide>(
     he: HalfEdgeKey,
     band: Band,
 ) -> Result<Option<bool>, SplitReduceError> {
-    let (own_face, n_own, _) = sector_face(body, vertex, prev)?;
-    let (mate_face, n_mate, _) = sector_face(body, vertex, he)?;
+    let (own_face, n_own, _) = sector_face(body, vertex, prev, band)?;
+    let (mate_face, n_mate, _) = sector_face(body, vertex, he, band)?;
     let sliver = |diag| SplitReduceError::SliverSector {
         vertex,
         face: mate_face,
@@ -522,7 +522,7 @@ fn wall_graze<T: Decide>(
 ) -> Result<PlaneSide, SplitReduceError> {
     let mut verdict: Option<(PlaneSide, WallReading<T>)> = None;
     for &(he, reading) in sectors {
-        let (face, _, _) = sector_face(body, vertex, he)?;
+        let face = crate::sector_face::face_of(body, vertex, he);
         let refuse = |reading| SplitReduceError::SliverSector {
             vertex,
             face,
@@ -1320,7 +1320,8 @@ mod tests {
         orbit
             .iter()
             .find_map(|&he| {
-                let (_, n_face, _) = sector_face(body, vertex, he).unwrap();
+                let (_, n_face, _) =
+                    sector_face(body, vertex, he, Band::linear(Tol::witness()).unwrap()).unwrap();
                 ((n_face.vec() - n).norm() == 0.0).then_some((he, n_face))
             })
             .expect("a face at the corner has that normal")

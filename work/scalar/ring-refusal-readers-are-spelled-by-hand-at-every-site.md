@@ -25,7 +25,7 @@ independently.
 | --- | --- |
 | `crates/geom-brep/src/offset_meters.rs` | `mig` |
 | `crates/geom-brep/src/ssi/enclose.rs` | `zero_free_lower_bound` (moved from `ssi/certify.rs` by RING-5) |
-| `crates/geom-brep/src/props/quad.rs` | `norm_lo`'s `comp` closure |
+| `crates/geom-brep/src/props/quad/trimmed.rs` | `norm_lo`'s `comp` closure |
 | `crates/geom-brep/src/ssi/exhaust.rs` | `excludes_zero` — the same comparison pair, answering `bool` |
 
 The first two declare the duplication at both sites ("Kept separate
@@ -37,7 +37,7 @@ eight spellings, seven of them anonymous:**
 
 | site | name |
 | --- | --- |
-| `crates/geom-brep/src/props/quad.rs` | `lo_or_refuse`, `hi_or_refuse` — **named**, and the candidate home |
+| `crates/geom-brep/src/props/quad/` | `lo_or_refuse`, `hi_or_refuse` — **named**, and the candidate home |
 | `crates/geom-core/src/spline/compose/tensor.rs` | the channel closure |
 | `crates/geom-brep/src/ssi/enclose.rs` | `Box3::center`'s `mid` |
 | `crates/mesh/src/chords.rs` | the second-difference hull, and the pcurve speed fold |
@@ -69,7 +69,7 @@ Two things to weigh when it is taken:
 
 ## Disposition
 
-PROPS': `crates/geom-core/src/` and `quad.rs` are this program's, and
+PROPS': `crates/geom-core/src/` and `props/quad/` are this program's, and
 the candidate home is in both. The sites in `ssi/*` (SSI), `mesh/*`
 (CHORD, TESS) and `offset_meters.rs` (ENCL, OFFSET, SHELL) are named
 above rather than filed separately, because one fold is one change and
@@ -84,7 +84,7 @@ certification doors a home: the sealed `Certification` trait in
 `mignitude` door there is the natural fold of the three byte-identical
 copies — `ssi/enclose.rs`'s `zero_free_lower_bound` (moved there from
 `ssi/certify.rs` by that unit), `offset_meters.rs`'s `mig`,
-`props/quad.rs`'s `comp` closure in `norm_lo` — and of
+`props/quad/trimmed.rs`'s `comp` closure in `norm_lo` — and of
 `ssi/exhaust.rs`'s zero-free predicate, which asks the same comparison
 pair. Both RING-5 reviews found the triplication again (R1 style S1);
 this row is where it is scheduled, so no second row was filed.

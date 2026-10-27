@@ -63,7 +63,7 @@ The question this row owes is whether a split's halves should
 conserve volume to rounding: the same section, measured once and
 shared. Or whether this is the bound working as stated, in which case
 the row closes as such. If quadrature is the lever, the ground is
-flux/quad's (`crates/geom-brep/src/props/quad.rs`), and the row moves
+flux/quad's (`crates/geom-brep/src/props/quad/`), and the row moves
 there.
 
 The drum at a = 0 misses with equal pads. That residue is not

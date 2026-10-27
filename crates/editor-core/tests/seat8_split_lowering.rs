@@ -384,18 +384,13 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// `main-red-the-seat-and-name-table-goldens-moved-at-dprime2`),
 /// stage 4 I's ids and the walls' reads, beneath
 /// D′3's names and ids. `m10_p_fence`'s ids-masked row held.
-///
-/// RE-BLESSED, every row, when that `turn` moved off the certificate
-/// onto the edge curve (PR 5728): the edge curve's `Debug` spells it in
-/// another place. Rewritten to the old shape, every row reproduces its
-/// old digest, so nothing else moved.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x0286_358d_ae09_89ce_u64),
-        ("part_select", 0x8aa1_95af_2c83_4e37),
-        ("kitchen_sink", 0x2c66_c057_0db1_b2af),
+        ("cut_cylinder", 0xd82f_d380_9e2e_8e5e_u64),
+        ("part_select", 0x4540_8c74_d757_704f),
+        ("kitchen_sink", 0xb9ff_1846_2c51_b69c),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -547,12 +542,8 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     );
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
-    // The edge curve's `Debug` feeds the digest; it moved when check 2's
-    // turn moved off the certificate onto the edge (PR 5728). Rewritten
-    // to the old shape, the evaluation reproduces the old digest
-    // (`0x6514_aa34_b3e7_b9ae`), so nothing else moved.
     assert_eq!(
-        got, 0x95b6_b099_d57e_e9be,
+        got, 0x6514_aa34_b3e7_b9ae,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }

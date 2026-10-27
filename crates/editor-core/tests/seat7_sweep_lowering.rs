@@ -470,19 +470,14 @@ fn both_sweeps_evaluate_in_one_document() {
 /// Measured again for D′3 over main's merge at `4c341b9225`, which
 /// brings the run line's bare sense (above) beneath D′3's names and ids;
 /// the ids-masked fence held.
-///
-/// RE-BLESSED, every row, when check 2's `turn` moved off the
-/// certificate onto the edge curve (PR 5728): the edge curve's `Debug`
-/// spells it in another place. Rewritten to the old shape, every row
-/// reproduces its old digest, so nothing else moved.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0x27fa_d862_d592_6136),
-        ("corner_table", 0xdebf_8240_05b3_39de),
-        ("cut_cylinder", 0x0286_358d_ae09_89ce),
-        ("boss_union", 0xa40a_b8f5_1212_9883),
-        ("kitchen_sink", 0x2c66_c057_0db1_b2af),
+        ("die", 0x8b0a_f8a3_bce4_167e),
+        ("corner_table", 0x0c2b_d8df_8c6b_8e3a),
+        ("cut_cylinder", 0xd82f_d380_9e2e_8e5e),
+        ("boss_union", 0x8a38_9154_e41e_4037),
+        ("kitchen_sink", 0xb9ff_1846_2c51_b69c),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

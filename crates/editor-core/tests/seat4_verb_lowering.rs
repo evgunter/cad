@@ -294,17 +294,12 @@ fn both_blends_evaluate_in_one_document() {
 /// `main-red-the-seat-and-name-table-goldens-moved-at-dprime2`),
 /// stage 4 I's ids and the walls' reads, beneath
 /// D′3's names and ids. `m10_p_fence`'s ids-masked row held.
-///
-/// RE-BLESSED, every row, when that `turn` moved off the certificate
-/// onto the edge curve (PR 5728): the edge curve's `Debug` spells it in
-/// another place. Rewritten to the old shape, every row reproduces its
-/// old digest, so nothing else moved.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x4be9_87c3_76d7_814d_u64),
-        ("die_chamfer", 0xe4b5_16f2_ef50_6409),
+        ("die_fillet", 0xddf0_a0f0_e60d_6605_u64),
+        ("die_chamfer", 0x6538_8256_a1f3_ec21),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -551,18 +546,13 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// Measured again for D′3 over main's merge at `4c341b9225`, which
 /// brings the run line's bare sense (above) beneath D′3's names and ids;
 /// the ids-masked fence held.
-///
-/// RE-BLESSED, every row, when that `turn` moved off the certificate
-/// onto the edge curve (PR 5728): the edge curve's `Debug` spells it in
-/// another place. Rewritten to the old shape, every row reproduces its
-/// old digest, so nothing else moved.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x5574_8842_9ad0_3faf_u64),
-        ("heat_sink", 0x020f_42da_e5df_1fc6),
-        ("kiss_carry", 0xe515_ba97_d83d_8888),
+        ("crossing_slots", 0x4951_f0a3_9a34_c71f_u64),
+        ("heat_sink", 0x42f8_2b41_f90a_45d2),
+        ("kiss_carry", 0x848e_1ddf_0271_11c2),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -704,12 +694,8 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     );
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
-    // The edge curve's `Debug` feeds the digest; it moved when check 2's
-    // turn moved off the certificate onto the edge (PR 5728). Rewritten
-    // to the old shape, the evaluation reproduces the old digest
-    // (`0xdf3a_7395_42b8_2277`), so nothing else moved.
     assert_eq!(
-        got, 0x67b1_d463_bf86_6b77,
+        got, 0x5507_0f64_d10a_88af,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

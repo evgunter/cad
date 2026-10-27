@@ -2036,7 +2036,7 @@ pub enum ValidationError {
         witness: String,
         /// Why the reading was not taken; the finding renders it with
         /// its recourse.
-        why: crate::census::TouchUnread,
+        why: crate::link::TouchUnread,
     },
     /// **Tier 3′: two coincident edges' material wedges overlap.** Two
     /// line edges overlap along their line, the overlap backed, and on
@@ -2064,7 +2064,7 @@ pub enum ValidationError {
         witness: String,
         /// Why the reading was not taken; the finding renders it with
         /// its recourse.
-        why: crate::census::TouchUnread,
+        why: crate::link::TouchUnread,
     },
     /// **Tier 3′: a solid's boundary crosses itself at a point where it
     /// touches itself.** On decided readings the solid's faces through
@@ -2089,7 +2089,7 @@ pub enum ValidationError {
         witness: String,
         /// Why the reading was not taken; the finding renders it with
         /// its recourse.
-        why: crate::census::TouchUnread,
+        why: crate::link::TouchUnread,
     },
     /// Tier 3′: the census read a point at an arc's end that lies
     /// definitely off both of its edge's corners, on a body tier 3 passed

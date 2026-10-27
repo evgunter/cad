@@ -242,6 +242,19 @@ impl SubgroupFamily {
         }
     }
 
+    /// **How many slides a residual of this family leaves**: the
+    /// dimension of the translations it frees — two beside a plane, one
+    /// beside an axis, three beside a lone direction.
+    #[must_use]
+    pub fn slides(self) -> usize {
+        match self {
+            Self::Se3 | Self::Parallel | Self::Translation => 3,
+            Self::Planar | Self::PlaneTranslation => 2,
+            Self::Cylindrical | Self::Prismatic => 1,
+            Self::Spherical | Self::Revolute | Self::Trivial => 0,
+        }
+    }
+
     /// The family's name, for messages and table rows.
     #[must_use]
     pub fn name(self) -> &'static str {

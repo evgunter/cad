@@ -78,11 +78,12 @@ pub fn unobservable(doc: &ProfileDoc, ev: &Evaluation<f64>, tol: Tol) -> Vec<Uno
         };
         for c in bundle {
             let Some(value) = c.value() else { continue };
-            if value.coord != super::Coord::Spin(super::TargetAxis::Z) {
+            if value.coord != super::Coord::SPIN {
                 continue;
             }
-            // The spin about the mated direction: the one mate fixing a
-            // direction turns it, and a bundle with none spins a chain.
+            // The spin about the target's own direction: the one mate
+            // fixing a direction turns it, and a bundle with none spins a
+            // chain.
             if bundle
                 .iter()
                 .filter_map(super::Constraint::mate)

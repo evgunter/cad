@@ -23,7 +23,7 @@ item names two silent directions:
 - a predicate the kernel **adds** to that class is absent from the
   roster and is judged by the wrong rule.
 
-An `include_str!` pin over `crates/geom-brep/src/props/quad.rs` — the
+An `include_str!` pin over `crates/geom-brep/src/props/quad/` — the
 `D204` shape, whose machinery already exists at
 `tools/tess-meter/tests/derivations.rs:239` — closes the first
 direction completely: the name is either still minted at the cited site
@@ -55,7 +55,7 @@ question and probably reaches `crates/geom-brep/src/props/*` (PROPS'
 territory), which is why this is an issue and not a rider.
 
 **Confidence:** sure that no criterion is stated in `tools/k-lint` or
-in the `props/quad.rs` mint sites; unsure whether one exists somewhere
+in the `props/quad/` mint sites; unsure whether one exists somewhere
 in `docs/` under a name the sweep below could not match.
 
 **Sweep and its blind spot.** Grepped `EPS_COUPLED_PREDICATES` across

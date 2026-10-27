@@ -1127,6 +1127,8 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         MateFault::NotOnTheCopy { mate }
         | MateFault::Unleverable { mate, .. }
         | MateFault::KindsDiffer { mate, .. }
+        | MateFault::Backwards { mate, .. }
+        | MateFault::Unoriented { mate }
         | MateFault::SideUnevaluated { mate, .. } => vec![mate.placement],
         MateFault::NoChart { value, .. } => vec![value.placement],
         // A claim about one bundle: its placement is the row.
