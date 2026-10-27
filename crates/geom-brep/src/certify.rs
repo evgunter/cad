@@ -265,13 +265,11 @@ pub enum CertCheck {
     /// written for the pair, the refusal is lever-only "not yet"
     /// ([`crate::recourse::not_yet`]).
     ChartClass,
-    /// **The incidence reading of a DECLARED carrier** at the mint step:
-    /// whether the curve a modeler declared lies on the chart it names.
-    /// The modeler placed it, so every refusal ends in their lever alone,
-    /// worded by what was read ([`crate::IncidenceRead::ending`]); a
-    /// derived carrier's incidence refuses as [`CertCheck::ChartImage`],
-    /// the kernel's.
-    DeclaredIncidence,
+    /// **The incidence reading** at the mint step: whether the carrier
+    /// lies on the chart its description names. A definite miss ends by
+    /// the door that reads it, and a read in band in its lever at every
+    /// door ([`crate::IncidenceRead::ending`]).
+    ChartIncidence,
     /// **The general lane's own reading** at the mint step, where the
     /// class reading sent an on-chart carrier there and the lane cannot
     /// image this pose yet ([`crate::PcurveCheck::GeneralLane`]): "not
@@ -396,7 +394,7 @@ impl core::fmt::Display for CertCheck {
             Self::MappedSource => "the mapped-source residual",
             Self::ChartImage => "the chart-image mint",
             Self::ChartClass => "the chart-image class reading",
-            Self::DeclaredIncidence => "the declared curve's incidence on its chart",
+            Self::ChartIncidence => "the carrier's incidence on its chart",
             Self::GeneralLane => "the chart image's general lane",
             Self::ChartResidual => "the unified conventional residual",
             Self::PlaneNurbsOnLocus => "the spline Intersection lane's on-locus residual",
@@ -479,16 +477,18 @@ pub enum CertifyError {
         /// Why there is no general image ([`crate::LaneGap`]).
         gap: crate::LaneGap,
     },
-    /// A DECLARED carrier does not lie on the chart its description
-    /// names ([`PcurveCertifyError::CarrierOffChart`] under a declared
-    /// authority): the modeler's placement, ending in their lever
-    /// ([`CertCheck::DeclaredIncidence`]). A derived carrier off its chart
-    /// is [`CertifyError::ChartImageUnavailable`], the kernel's.
-    DeclaredOffChart {
+    /// The carrier is not shown on the chart its description names
+    /// ([`PcurveCertifyError::CarrierOffChart`], [`CertCheck::ChartIncidence`]):
+    /// decided off it, or read within the band at a pose where the chart
+    /// holds no curve of its kind.
+    CarrierOffChart {
         /// The chart kind the description named.
         chart: geom::SurfaceKind,
-        /// The declared carrier's kind.
+        /// The carrier's kind.
         carrier: geom::CurveKind,
+        /// Why the mint concluded it, in the mint's words
+        /// ([`PcurveCertifyError::CarrierOffChart`]'s `why`).
+        why: &'static str,
         /// The margin the incidence decision read, where it read one, and
         /// which side of the band it fell ([`crate::OffMargin`]).
         margin: Option<crate::OffMargin>,
@@ -812,12 +812,10 @@ impl core::fmt::Display for CertifyError {
                 channel.describe(),
                 crate::pcurve_cache::POSE_LEVER,
             ),
-            // Not shown off the chart: read AT a pose where the chart holds
-            // no curve of its kind, which says nothing about whether it
-            // lies on it.
-            Self::DeclaredOffChart {
+            Self::CarrierOffChart {
                 chart,
                 carrier,
+                why,
                 margin,
             } => match crate::IncidenceRead::of_margin(*margin) {
                 // Not shown off the chart: read AT a pose where the chart
@@ -825,15 +823,16 @@ impl core::fmt::Display for CertifyError {
                 // whether it lies on it.
                 crate::IncidenceRead::AtPose(_) => write!(
                     f,
-                    "a declared {} is no curve of the {} chart its description names at this \
-                     tolerance: it sits, within the band, at a pose where that chart holds no {}",
+                    "the {} is no curve of the {} chart its description names at this \
+                     tolerance: it sits, within the band, at a pose where that chart holds no {} \
+                     ({why})",
                     carrier.name(),
                     chart.name(),
                     carrier.name()
                 ),
                 crate::IncidenceRead::Off(_) => write!(
                     f,
-                    "a declared {} does not lie on the {} chart its description names",
+                    "the {} does not lie on the {} chart its description names ({why})",
                     carrier.name(),
                     chart.name()
                 ),
@@ -1024,8 +1023,8 @@ impl CertifyError {
                 gap: crate::LaneGap::Pose { .. },
                 ..
             } => (CertCheck::GeneralLane, RefusedArm::SignCertain(None)),
-            Self::DeclaredOffChart { margin, .. } => (
-                CertCheck::DeclaredIncidence,
+            Self::CarrierOffChart { margin, .. } => (
+                CertCheck::ChartIncidence,
                 crate::IncidenceRead::of_margin(*margin).arm(),
             ),
             Self::OnPairArcRim { iso, limb, bound } => {
@@ -1065,20 +1064,39 @@ impl CertifyError {
             Self::PlaneNurbs(refusal) => refusal.ending(at),
             Self::AnalyticRung3(refusal) => refusal.ending(at),
             Self::StatedInterval { refused } => Some(refused.ending(at)),
-            // A declared carrier's incidence ends by what was read, through
-            // the one map every incidence ending goes through
+            // A carrier's incidence ends by what was read, through the one
+            // map every incidence ending goes through
             // ([`crate::IncidenceRead::ending`]).
-            Self::DeclaredOffChart { margin, .. } => Some(
-                crate::IncidenceRead::of_margin(*margin).ending(crate::AuthorityKind::DECLARED, at),
-            ),
+            _ if let Some(read) = self.incidence_read() => Some(read.ending(at)),
+            _ => self.decision().map(|(check, arm)| recourse(check, arm, at)),
+        }
+    }
+
+    /// **The incidence read this refusal carries**
+    /// ([`crate::IncidenceRead`]): a carrier off its chart, read by its
+    /// margin, an incidence reading escalated, or the test's residual
+    /// exceeded; `None` for a refusal of anything else. It agrees arm for
+    /// arm with the pcurve layer's classifier ([`crate::IncidenceRead::of`]),
+    /// which every incidence refusal reaches it through, and is the one
+    /// reading of it [`Self::ending`] and a door's classification share.
+    #[must_use]
+    pub fn incidence_read(&self) -> Option<crate::IncidenceRead<'_>> {
+        match self {
+            Self::CarrierOffChart { margin, .. } => Some(crate::IncidenceRead::of_margin(*margin)),
             Self::Escalated {
-                check: CertCheck::DeclaredIncidence,
+                check: CertCheck::ChartIncidence,
                 cause,
                 ..
-            } => Some(
-                crate::IncidenceRead::Undecided(cause).ending(crate::AuthorityKind::DECLARED, at),
-            ),
-            _ => self.decision().map(|(check, arm)| recourse(check, arm, at)),
+            } => Some(crate::IncidenceRead::Undecided(cause)),
+            // The test's residual decided past the band: a definite miss,
+            // read as the pcurve layer's (`IncidenceRead::of`) reads it.
+            // Its margin is the residual, not a pose's height, so it is
+            // not quoted as one.
+            Self::ResidualExceeded {
+                check: CertCheck::ChartIncidence,
+                ..
+            } => Some(crate::IncidenceRead::Off(None)),
+            _ => None,
         }
     }
 
@@ -1128,12 +1146,12 @@ enum Ending {
     /// A lane choice with no general lane written yet (D3): lever-only
     /// "not yet" on every arm.
     NotYet,
-    /// A declared carrier's incidence (D3): the modeler's lever alone,
-    /// never a tolerance or a defect, worded
-    /// by what was read ([`crate::IncidenceRead::ending`]). A refused arm
-    /// does not say which read it was (off and at a pose both refuse
-    /// sign-certain), so no ending is spelled from the check alone: its
-    /// refusals end through [`CertifyError::ending`], which holds the read.
+    /// A carrier's incidence (D3): a definite miss ended by the door, a
+    /// read in band by its lever ([`crate::IncidenceRead::ending`]). A
+    /// refused arm does not say which read it was (off and at a pose both
+    /// refuse sign-certain), so a refusal that carries its read ends by it
+    /// ([`CertifyError::ending`]); the check alone reads it back off the
+    /// arm ([`crate::IncidenceRead::arm_ending`]).
     Incidence,
 }
 
@@ -1475,8 +1493,8 @@ impl CertCheck {
             Self::ChartImage => Ending::Unsized(Unsized::Defect),
             // A lane choice (D3): no defect and no tolerance on any arm.
             Self::ChartClass | Self::GeneralLane => Ending::NotYet,
-            // The modeler's own placement (D3), ended by its read.
-            Self::DeclaredIncidence => Ending::Incidence,
+            // A residual, not a class gate (D3), ended by its read.
+            Self::ChartIncidence => Ending::Incidence,
             // A fold over samples that each decided transverse: a poison
             // that survives it is the kernel's.
             Self::PlaneNurbsReportedTransversality => Ending::Unsized(Unsized::Defect),
@@ -1552,10 +1570,7 @@ pub(crate) fn recourse(check: CertCheck, arm: RefusedArm<'_>, at: impl Into<Read
         (Ending::Unsized(no_size) | Ending::Residual(no_size), at) => no_size.recourse(arm, at),
         (Ending::Undefined(recourse), _) => geom_core::lever_recourse(recourse, None),
         (Ending::NotYet, at) => crate::recourse::not_yet(arm, at),
-        (Ending::Incidence, _) => unreachable!(
-            "{check:?} ends by its incidence read, which a refused arm does not carry: \
-             end it through CertifyError::ending or IncidenceRead::ending"
-        ),
+        (Ending::Incidence, at) => crate::IncidenceRead::arm_ending(arm, at),
     }
 }
 
@@ -3810,11 +3825,8 @@ fn canonical_of<T: Decide>(
             key,
             image,
             wrap,
-            // Who placed the carrier decides how a miss ends (D3): the
-            // payload the meter reads, read once more here.
-            declared,
+            declared: _,
         } => {
-            let declared = declared.is_some();
             let pcurve = match image {
                 // D4, the stated half: a spline chart's image IS the
                 // constructor's own iso data, exactly, and a
@@ -3837,13 +3849,13 @@ fn canonical_of<T: Decide>(
                     band,
                 )
                 .map_err(|e| match e {
-                    // A declared carrier that misses its chart is the
-                    // modeler's placement (D3): its lever, decided or in
-                    // band. A derived one falls to the arms below.
-                    PcurveCertifyError::CarrierOffChart { margin, .. } if declared => {
-                        CertifyError::DeclaredOffChart {
+                    // A carrier not shown on its chart: its incidence,
+                    // ended by its read (D3), decided or in band.
+                    PcurveCertifyError::CarrierOffChart { why, margin, .. } => {
+                        CertifyError::CarrierOffChart {
                             chart: surface.kind(),
                             carrier: spec.carrier.kind(),
+                            why,
                             margin,
                         }
                     }
@@ -3851,8 +3863,8 @@ fn canonical_of<T: Decide>(
                         check: PcurveCheck::ChartIncidence,
                         cause,
                         ..
-                    } if declared => CertifyError::Escalated {
-                        check: CertCheck::DeclaredIncidence,
+                    } => CertifyError::Escalated {
+                        check: CertCheck::ChartIncidence,
                         sample: NOT_A_SAMPLE,
                         cause,
                     },
@@ -4579,11 +4591,9 @@ enum Resolved<T: Real> {
         image: Option<Pcurve<T>>,
         /// D1's wrap edge ([`ChartCurve::wrap`]).
         wrap: bool,
-        /// U2 Q3's authority payload, carried here for TWO reasons,
-        /// the one datum both read: the meter that used to run on it
-        /// still runs (below), and the chart-image mint ends a
-        /// carrier's incidence by who placed it (D3: `Some` routes a
-        /// miss to the modeler's lever).
+        /// U2 Q3's authority payload, carried here for ONE reason: so
+        /// the meter that used to run on it still runs. No ending
+        /// reads it (D3: provenance only).
         ///
         /// Pre-collapse a declared locus WAS the description and
         /// took the scaffolding arm, whose
@@ -4953,7 +4963,7 @@ mod tests {
             CertCheck::MappedSource,
             CertCheck::ChartImage,
             CertCheck::ChartClass,
-            CertCheck::DeclaredIncidence,
+            CertCheck::ChartIncidence,
             CertCheck::GeneralLane,
             CertCheck::ChartResidual,
             CertCheck::PlaneNurbsOnLocus,
@@ -5003,7 +5013,7 @@ mod tests {
             CertCheck::MappedSource => 32,
             CertCheck::ChartImage => 32,
             CertCheck::ChartClass => 32,
-            CertCheck::DeclaredIncidence => 32,
+            CertCheck::ChartIncidence => 32,
             CertCheck::GeneralLane => 32,
             CertCheck::ChartResidual => 32,
             CertCheck::PlaneNurbsOnLocus => 32,
@@ -8117,22 +8127,28 @@ mod tests {
             (cause, miss)
         });
         for check in all_checks() {
-            // A declared incidence ends by its read, which no refused arm
-            // carries ([`Ending::Incidence`]): at the import door its
-            // every read is the modeler's lever alone, with no ε_in offer,
-            // as at rest.
+            // An incidence ends by its read, which no refused arm carries
+            // ([`Ending::Incidence`]). At the import door a definite miss,
+            // with or without the pose height it may quote, is the damaged
+            // file, with no ε_in offer; a read in band is the geometry's
+            // lever, as at rest, never a defect.
             if matches!(check.ending(), Ending::Incidence) {
                 let cause = &causes[0].0;
                 for read in [
                     crate::IncidenceRead::Off(None),
+                    crate::IncidenceRead::Off(Some(MarginDiag::value(5e-9))),
                     crate::IncidenceRead::AtPose(MarginDiag::value(5e-9)),
                     crate::IncidenceRead::Undecided(cause),
                 ] {
-                    let at_rest = read.ending(crate::AuthorityKind::DECLARED, Reading::AtRest);
                     for file in [wide, narrow] {
-                        let door = read.ending(crate::AuthorityKind::DECLARED, file);
-                        assert_eq!(door, at_rest, "{read:?}");
-                        assert!(!door.contains("ε_in") && !door.contains("defect"), "{door}");
+                        let door = read.ending(file);
+                        assert!(!door.contains("ε_in"), "{read:?}: {door}");
+                        if matches!(read, crate::IncidenceRead::Off(_)) {
+                            assert_eq!(door, DAMAGED_FILE_ENDING, "{read:?}");
+                        } else {
+                            assert_eq!(door, read.ending(Reading::AtRest), "{read:?}");
+                            assert!(!door.contains("defect"), "{read:?}: {door}");
+                        }
                     }
                 }
                 continue;
@@ -9127,19 +9143,24 @@ mod tests {
         }
     }
 
-    /// **A declared carrier read in band at a degenerate pose is not
-    /// called off its face** (E1b, with E1's [`crate::OffMargin`]): the
-    /// edge certificate's `DeclaredOffChart` ends in the modeler's lever
-    /// either way, but only a reading decided past the pose says the curve
-    /// does not lie on its chart.
+    /// **A carrier off its chart ends by the door that reads it, and one
+    /// read in band at a pose in its lever** (D3, D4 ¶1 (iv)): the edge
+    /// certificate's `CarrierOffChart`, decided off (with no margin or
+    /// past the pose) or read within the band at the pose. A definite miss
+    /// is the kernel's defect at a build, the stored culprit at rest and
+    /// the damaged file at import; the read in band is the geometry's
+    /// lever at every door, never a defect, and only a definite miss says
+    /// the curve does not lie on its chart.
     #[test]
-    fn a_declared_carrier_at_a_pose_is_not_called_off_its_chart() {
-        let refusal = |margin| CertifyError::DeclaredOffChart {
+    fn a_carrier_off_its_chart_ends_by_the_door_and_at_a_pose_in_its_lever() {
+        let refusal = |margin| CertifyError::CarrierOffChart {
             chart: geom::SurfaceKind::Cone,
             carrier: geom::CurveKind::Line,
+            why: "WHY",
             margin,
         };
         let m = geom_core::MarginDiag::value(4e-10);
+        let file = FileCoincidence::new(1e-6);
         for (margin, off) in [
             (None, true),
             (Some(crate::OffMargin::Past(m)), true),
@@ -9149,14 +9170,28 @@ mod tests {
             assert_eq!(e.to_string().contains("does not lie on"), off, "{e}");
             assert_eq!(
                 e.decision().map(|(check, _)| check),
-                Some(CertCheck::DeclaredIncidence),
+                Some(CertCheck::ChartIncidence),
                 "{e:?}"
             );
-            let ending = e.ending(Reading::Build).unwrap_or_default();
-            assert!(
-                ending.starts_with("Recourse: move the declared curve"),
-                "{e:?}: {ending}"
-            );
+            let at = |at: ReadAt| e.ending(at).unwrap_or_default();
+            if off {
+                assert_eq!(at(Reading::Build.into()), KERNEL_DEFECT_ENDING, "{e:?}");
+                assert_eq!(
+                    at(Reading::AtRest.into()),
+                    geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
+                    "{e:?}"
+                );
+                assert_eq!(at(file.into()), DAMAGED_FILE_ENDING, "{e:?}");
+            } else {
+                for door in [Reading::Build.into(), Reading::AtRest.into(), file.into()] {
+                    let ending = at(door);
+                    assert!(
+                        ending.starts_with("Recourse: move the geometry so the edge sits clear")
+                            && !ending.contains("defect"),
+                        "{e:?} at {door:?}: {ending}"
+                    );
+                }
+            }
         }
     }
 
@@ -9170,8 +9205,9 @@ mod tests {
         Undefined,
         /// A lane choice's lever-only "not yet" ([`Ending::NotYet`]).
         NotYet,
-        /// The modeler's own lever and nothing else ([`Ending::Incidence`]).
-        LeverOnly,
+        /// Ended by its read ([`Ending::Incidence`]): a definite miss by
+        /// the door, a read in band by its lever.
+        Incidence,
     }
 
     /// **Every decision's class, written out by hand** in taxonomy
@@ -9224,7 +9260,7 @@ mod tests {
             (CertCheck::ChartImage, NoSize(Unsized::Defect)),
             (CertCheck::ChartClass, NotYet),
             (CertCheck::GeneralLane, NotYet),
-            (CertCheck::DeclaredIncidence, Class::LeverOnly),
+            (CertCheck::ChartIncidence, Class::Incidence),
             (CertCheck::PlaneNurbsOnLocus, Miss(Unsized::Fit)),
             (CertCheck::PlaneNurbsHull, Miss(Unsized::Bound)),
             (CertCheck::PlaneNurbsHullValue, Miss(Unsized::Bound)),
@@ -9268,14 +9304,13 @@ mod tests {
                 Ending::Residual(residual) => Miss(residual),
                 Ending::Undefined(_) => Undefined,
                 Ending::NotYet => NotYet,
-                Ending::Incidence => Class::LeverOnly,
+                Ending::Incidence => Class::Incidence,
             };
             assert_eq!(&got, want, "{check:?}");
-            // A lever is named exactly where the decision is sized. A
-            // declared incidence ends by its read, never from the check.
+            // A lever is named exactly where the decision is sized. An
+            // incidence ends by its read, never from the check.
             let at_build = match check.ending() {
-                Ending::Incidence => crate::IncidenceRead::Off(None)
-                    .ending(crate::AuthorityKind::DECLARED, Reading::Build),
+                Ending::Incidence => crate::IncidenceRead::Off(None).ending(Reading::Build),
                 _ => recourse(check, RefusedArm::SignCertain(None), Reading::Build),
             };
             let named = at_build.starts_with("Recourse: move the geometry");

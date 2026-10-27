@@ -109,7 +109,7 @@ pub use certify::{
 };
 pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side};
 pub use description::{
-    AuthorityKind, ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
+    ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
 };
 pub use dihedral::{
     DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DIHEDRAL_ARM_NOUN, DihedralClass, DihedralReading,

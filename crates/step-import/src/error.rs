@@ -639,7 +639,6 @@ mod nested_at_the_door {
         let error = StepImportError::Pcurves {
             source: topo::PcurveMintError::Certify {
                 half_edge: topo::HalfEdgeKey::default(),
-                authority: geom_brep::EdgeAuthority::<f64>::Derived.kind(),
                 error: geom_brep::PcurveCertifyError::Escalated {
                     check: geom_brep::PcurveCheck::ChartWinding,
                     sample: 0,
@@ -659,5 +658,37 @@ mod nested_at_the_door {
                 && text.ends_with(DAMAGED_FILE_ENDING),
             "{text}"
         );
+    }
+
+    /// **An adopted curve off its face names the damaged file, with no
+    /// ε_in offer** (D3, D4 ¶1 (iv)): a definite incidence miss read at
+    /// the import door, with no margin or with the pose height it may
+    /// quote (`OffMargin::Past`, within ε_in here), is the file's, whoever
+    /// declared the curve; its margin is no reading of the miss, so the
+    /// door's "set ε to ε_in" stopgap is not offered.
+    #[test]
+    fn an_adopted_curve_off_its_face_names_the_damaged_file() {
+        for margin in [
+            None,
+            Some(geom_brep::OffMargin::Past(MarginDiag::value(5e-7))),
+        ] {
+            let error = StepImportError::Pcurves {
+                source: topo::PcurveMintError::Certify {
+                    half_edge: topo::HalfEdgeKey::default(),
+                    error: geom_brep::PcurveCertifyError::CarrierOffChart {
+                        chart: geom::SurfaceKind::Cone,
+                        carrier: geom::CurveKind::Circle,
+                        why: "the circle dips below the apex",
+                        margin,
+                    },
+                },
+                file: FileCoincidence::new(1e-6),
+            };
+            let text = error.to_string();
+            assert!(text.ends_with(DAMAGED_FILE_ENDING), "{margin:?}: {text}");
+            for word in ["ε_in", "declared", "kernel defect"] {
+                assert!(!text.contains(word), "{margin:?}: {word}: {text}");
+            }
+        }
     }
 }

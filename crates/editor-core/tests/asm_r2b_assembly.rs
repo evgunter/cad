@@ -1620,3 +1620,99 @@ fn copies_filling_one_volume_are_one_interference() {
         );
     }
 }
+
+/// A one-revolve part document: the unit square on its own `xy`
+/// revolved a full turn about its `y`, a cylinder of radius 1 and
+/// height 1 whose walls are two half-bands and whose caps are two discs.
+fn cylinder_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, p) = on_frame(
+        ProfileDoc::empty(DocumentId::derive(label), Tol::witness()),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+    );
+    insert(
+        doc,
+        fixture::revolve_about(
+            p,
+            (0.0, 0.0),
+            fixture::along_y(),
+            fixture::ang(core::f64::consts::TAU),
+        ),
+    )
+}
+
+/// **Two copies of one revolved cylinder pinned at one pose fill one
+/// volume, and the gate reads them as one interference**, at the
+/// identity (the item's probe) and at a pose turned off every world axis
+/// and moved off the origin. The copies' discs, bounded by an arc, and
+/// their walls, on two keys, each lie on one carrier facing the same way
+/// sharing interior: the finding carries the `SameSideInterference`. Its
+/// overlap is unlocalized, since the intersection refuses the coincident
+/// copies, so it is loud and unquietable, and stage 5's check never
+/// refuses it. What the census leaves undecidable between
+/// the two copies rides the finding as evidence and is never refused on
+/// its own: a disc against the other copy's wall, two carriers meeting
+/// along the rim, and the two half-bands, one of each copy, that share a
+/// seam ruling and no interior.
+///
+/// Red if the copies read as could-not-look again (a refusal, or a
+/// finding with no same-side evidence), or if the undecidable pairs stop
+/// riding the decided pair.
+#[test]
+fn copies_of_one_cylinder_filling_one_volume_are_one_interference() {
+    let tilted = editor_core::Frame::rotate_then_translate(
+        [0.3, 0.2, 1.0],
+        0.7,
+        [0.31, -0.17, 0.42],
+        geom_core::Band::linear(Tol::witness()).unwrap(),
+    )
+    .unwrap();
+    for (label, pose) in [
+        ("identity", editor_core::Frame::IDENTITY),
+        ("tilted", tilted),
+    ] {
+        let mut store = PartStore::default();
+        let (doc_ref, _) =
+            store.insert_part(cylinder_part(&format!("{label}-part")), Tol::witness());
+        let o = with_resolver(store);
+        let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+        let (doc, a) = insert(doc, fixture::mated_instance(doc_ref));
+        let (doc, b) = insert(doc, fixture::mated_instance(doc_ref));
+        let doc = fixture::pin(doc, a, &pose, &o);
+        let doc = fixture::assemble_world_copies(fixture::pin(doc, b, &pose, &o));
+        let ev = run(&doc, &o);
+        let assembly = at_rest(&doc, &ev)
+            .unwrap_or_else(|e| panic!("{label}: an interference is a finding: {e}"));
+        let interference = fixture::interference(&assembly.findings);
+        let [finding] = &interference[..] else {
+            panic!("{label}: one interference: {interference:?}");
+        };
+        // The overlap is not bounded: the intersection that localizes it
+        // refuses two coincident curved copies
+        // (`work/atrest/coincident-curved-copies-overlap-is-unlocalized.md`).
+        // So no assertion could quiet it, and the check never refuses it:
+        // loud and unquietable.
+        assert!(
+            matches!(
+                finding.overlap,
+                editor_core::Overlap::Unlocalized(editor_core::Unlocalized::Refused { .. })
+            ) && finding.is_loud()
+                && !finding.quietable
+                && !finding.refusable(),
+            "{label}: loud and unquietable, its overlap unlocalized: {finding:?}"
+        );
+        let count = |f: fn(&topo::ValidationError) -> bool| {
+            finding.evidence.iter().filter(|&e| f(e)).count()
+        };
+        let same_side = count(|e| matches!(e, topo::ValidationError::SameSideInterference { .. }));
+        let undecided = count(|e| matches!(e, topo::ValidationError::CensusUndecidable { .. }));
+        assert_eq!(
+            (same_side, undecided, finding.evidence.len()),
+            (1, 10, 11),
+            "{label}: one decided pair, and the rim and seam pairs riding it: {:?}",
+            finding.evidence
+        );
+    }
+}

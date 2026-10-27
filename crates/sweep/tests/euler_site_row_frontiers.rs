@@ -108,9 +108,10 @@ fn a_strut_on_a_minted_spline_wall_refuses_with_the_body_untouched() {
 /// a right circular cone, so the strut does not lie on its face; left
 /// at rest without a closing mint, the wall reads loud at tier 3, which
 /// re-derives a rowless face and reports why it stores nothing, and the
-/// minting pass, re-run, refuses it the same way. The strut is scaffolding,
-/// the modeler's declaration, so both end in the modeler's lever, with no
-/// defect (D3, E1b).
+/// minting pass, re-run, refuses it the same way. The strut and the
+/// wall are both the kernel's, so the build door ends the miss as the
+/// kernel's defect and tier 3 as the stored culprit's, though the strut
+/// is scaffolding (a declaration, which no ending reads; D3).
 #[test]
 fn a_tilted_circle_strut_on_a_minted_cone_leaves_the_wall_unminted() {
     let v = |x: f64, y: f64| (Point2::new(x, y), 0.0);
@@ -174,22 +175,13 @@ fn a_tilted_circle_strut_on_a_minted_cone_leaves_the_wall_unminted() {
         "tier 3 reads the mint's own refusal"
     );
     assert!(cycle.iter().all(|&he| body.pcurve(he).is_none()));
-    let topo::PcurveMintError::Certify { authority, .. } = &refused else {
-        unreachable!("matched above")
-    };
-    assert!(authority.is_declared(), "a scaffold strut is declared");
     let built = refused.to_string();
     let at_rest = topo::ValidationError::Pcurve { finding: refused }.to_string();
-    for text in [built, at_rest] {
-        assert!(
-            text.contains("Recourse: move the declared curve onto the face it bounds"),
-            "{text}"
-        );
-        assert!(
-            !text.contains("defect") && !text.contains("repair the body"),
-            "{text}"
-        );
-    }
+    assert!(built.ends_with(geom_core::KERNEL_DEFECT_ENDING), "{built}");
+    assert!(
+        at_rest.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
+        "{at_rest}"
+    );
 }
 
 /// **The fitted frontier refuses last.** On the lofted prism's minted

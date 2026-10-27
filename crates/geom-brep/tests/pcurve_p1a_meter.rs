@@ -208,9 +208,11 @@ fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
     .expect_err("an ellipse is not a locus of any sphere chart image");
     assert_eq!(
         err,
-        CertifyError::ChartImageUnavailable {
+        CertifyError::CarrierOffChart {
             chart: geom::SurfaceKind::Sphere,
             carrier: geom::CurveKind::Ellipse,
+            why: "a sphere holds no line, and its plane sections are circles",
+            margin: None,
         },
         "the refusal must name the (chart, carrier) pair it could not state"
     );
