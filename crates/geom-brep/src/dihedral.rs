@@ -3179,3 +3179,123 @@ mod seam_rows {
         }
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod review_r1_seam_rows {
+    use super::*;
+    use crate::NurbsLane;
+    use geom::NurbsSurface;
+    use geom_core::Tol;
+    use geom_core::Vec3;
+    use geom_core::spline::KnotVector;
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn ruled(kv: KnotVector, profile: &[(f64, f64)]) -> NurbsSurface<f64> {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let control = [-1.0, 1.0]
+            .into_iter()
+            .flat_map(|x| profile.iter().map(move |&(y, z)| Point3::new(x, y, z)))
+            .collect();
+        NurbsSurface::new(ku, kv, control, vec![1.0; 2 * profile.len()]).unwrap()
+    }
+
+    /// A wall leaving the seam (the `x` axis) along `(c, s)` in the
+    /// `(y, z)` plane, dead straight for its first span (its first four
+    /// control rows collinear, the span reaching past 0.4 m out), with a
+    /// tight bend in its second span only, past the reach the seam is
+    /// read over.
+    fn wall_bent_past_the_reach(c: f64, s: f64) -> NurbsSurface<f64> {
+        let rot = |(y, z): (f64, f64)| (c * y - s * z, s * y + c * z);
+        let rows = [
+            (0.0, 0.0),
+            (0.4, 0.0),
+            (0.8, 0.0),
+            (1.2, 0.0),
+            (1.205, 0.005),
+        ];
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        ruled(kv, &rows.map(rot))
+    }
+
+    fn floor() -> NurbsSurface<f64> {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        ruled(kv, &[(0.0, 0.0), (2.0, 0.0)])
+    }
+
+    /// **Counterexample (claim 1)**: the seam between the floor and a wall
+    /// that is planar over every point within `reach` of the seam reads as
+    /// two planes at that angle read (`classify_dihedral`: Transverse), but
+    /// `classify_seam` reads it definitely Smooth, because the chart's
+    /// curvature bound is taken over a bend the reach never sees. The arm
+    /// shrinks with curvature anywhere on the chart, and a smaller arm
+    /// LOOSENS the wedge toward Smooth (`curvature_lever_arm`'s docs).
+    #[test]
+    fn a_bend_past_the_reach_reads_a_transverse_seam_smooth() {
+        let reach = 0.1;
+        let straight_span_end = wall_bent_past_the_reach(1.0, 0.0).ders(0.5, 0.5).point;
+        assert!(
+            straight_span_end.y > 4.0 * reach,
+            "the bend is past the reach: {straight_span_end:?}"
+        );
+        let kappa = NurbsLane::certified()
+            .chart_curvature(&wall_bent_past_the_reach(1.0, 0.0))
+            .expect("a bound");
+        let b = band();
+        // Smooth over the certified arm, Transverse over the reach.
+        let sin = 0.5 * b.zero() * kappa;
+        assert!(
+            sin * reach > 2.0 * b.escalate(),
+            "κ̄ {kappa} too small for the row"
+        );
+        assert!(
+            1.0 / kappa > 2.0 * b.escalate(),
+            "κ̄ {kappa} collapses the arm"
+        );
+        let wall = wall_bent_past_the_reach((1.0 - sin * sin).sqrt(), sin);
+        let floor = floor();
+        let origin = Point3::new(0.0, 0.0, 0.0);
+        // The same two tangent planes as analytic planes, over the same reach.
+        let plane = |n: Vec3<f64>| Surface::Plane {
+            origin,
+            normal: n.normalize(),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let planes = classify_dihedral(
+            &plane(Vec3::new(0.0, 0.0, 1.0)),
+            &plane(Vec3::new(0.0, -sin, (1.0 - sin * sin).sqrt())),
+            origin,
+            reach,
+            b,
+        );
+        assert_eq!(
+            planes,
+            Ok(DihedralClass::Transverse),
+            "the two tangent planes"
+        );
+        let got = classify_seam(
+            [
+                SeamFace::Spline {
+                    chart: &wall,
+                    uv: (0.5, 0.0),
+                },
+                SeamFace::Spline {
+                    chart: &floor,
+                    uv: (0.5, 0.0),
+                },
+            ],
+            origin,
+            reach,
+            |c| NurbsLane::certified().chart_curvature(c),
+            b,
+        );
+        assert_eq!(
+            got,
+            Ok(DihedralClass::Transverse),
+            "the spline seam, κ̄ {kappa}, sin θ {sin}"
+        );
+    }
+}
