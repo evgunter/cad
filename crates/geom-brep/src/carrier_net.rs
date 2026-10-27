@@ -740,6 +740,30 @@ pub(crate) fn framed_span_net<T: CertifiedBounds>(
     })
 }
 
+/// **The Taylor remainder a degree-`n` span `[a, b]` of a curved closed
+/// form carries**, in metres: `(|U|·|c_{n+1}(α)| + |V|·|c_{n+1}(β)|)`
+/// over the span, times `((b − a)/2)^{n+1}`, the bound
+/// [`framed_span_net`] adds to every coefficient up to the frame's
+/// rotation. NaN for a line, a spline or a span over which a
+/// coefficient does not certify. A selection read, not a bound any
+/// verdict reads.
+pub(crate) fn span_remainder<T: CertifiedBounds>(
+    carrier: &Curve3<T>,
+    (a, b): (f64, f64),
+    n: usize,
+) -> f64 {
+    let Some(h) = harmonic(carrier, None) else {
+        return f64::NAN;
+    };
+    let span = Interval::from_f64(a).enclosure_hull(Interval::from_f64(b));
+    let (alpha, beta) = alpha_beta(&h.alpha, span, n + 2);
+    let half = (Interval::from_f64(b) - Interval::from_f64(a)) / Interval::from_f64(2.0);
+    let reach = half.powi(i32::try_from(n + 1).unwrap_or(i32::MAX));
+    let norm = |v: Vec3<Interval>| (v.x * v.x + v.y * v.y + v.z * v.z).sqrt();
+    let r = (norm(h.u) * alpha[n + 1].abs() + norm(h.v) * beta[n + 1].abs()) * reach;
+    if r.is_certified() { Bounds::hi(r) } else { f64::NAN }
+}
+
 /// **`α` and `β` alone over a span, in Bernstein form**: each one's
 /// Taylor polynomial at the node as degree-`n` Bernstein coefficients
 /// over `[a, b]`, and its remainder `c_{n+1}([a, b])·(t − m)^{n+1}`
