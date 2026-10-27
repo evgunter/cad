@@ -258,3 +258,8 @@ Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `cra
 
   The dual-review row is the last commit (`c2bda572`); it merges on green.
 - 2026-10-27 19:47Z (orchestrator): **#5853 merged** at `3bb4dc55`, head `c2bda572`, CI green. Before merging I built the merged tree with current main (which had moved `census.rs`, `solid_contain.rs` and `ValidationError`): workspace check clean, and the census, link, two_copies, curved-copies and at-rest rows 532/533. The one red is the inherited `kitchen_sink` golden at line 48 (#5817's). The lane is archived. Copies whose coincident faces are arc-bounded planes, cylinders or spheres are now interference.
+- 2026-10-27 21:22Z (orchestrator): with #5871 merged, the board still has open P0/P1 rows:
+  - **P0** `an-assertion-quiets-an-operations-unproven-row`, opened by stage 5 C when its trigger fired. Dispatched to `session_018u3gVJL3Pm7MyRwP7cMq7x`, plan-first because the `Tool`-cell rows may be a design fork.
+  - **P1** `aligned-arc-or-curved-faces-that-only-abut-are-never-read-flush`, filed by #5853. Dispatched to `session_018u3gVFq1bXviQdAss26uqu`, plan-first.
+  - **P1** `main-red-reader-census-misses-topo-link-rs`, caused by ATREST's #5773. Fixed in #5878, which also drops FLUSH's dead ledger entry on the same row.
+  - `curved-copies-filling-one-volume-read-as-undecidable` and `gap-reads-no-curved-cell-below-a-face` are re-prioritised P1 → P2: their core asks merged, and the residue needs cone, torus and NURBS rungs. Every case stays loud.
