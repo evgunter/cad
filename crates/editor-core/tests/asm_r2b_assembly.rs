@@ -1681,10 +1681,11 @@ fn copies_of_one_cylinder_filling_one_volume_are_one_interference() {
         let doc = fixture::pin(doc, a, &pose, &o);
         let doc = fixture::assemble_world_copies(fixture::pin(doc, b, &pose, &o));
         let ev = run(&doc, &o);
-        let assembly = assemble(&doc, &ev, Tol::witness())
+        let assembly = at_rest(&doc, &ev)
             .unwrap_or_else(|e| panic!("{label}: an interference is a finding: {e}"));
-        let [finding] = &assembly.interference[..] else {
-            panic!("{label}: one interference: {:?}", assembly.interference);
+        let interference = fixture::interference(&assembly.findings);
+        let [finding] = &interference[..] else {
+            panic!("{label}: one interference: {interference:?}");
         };
         // The overlap is not bounded: the intersection that localizes it
         // refuses two coincident curved copies
