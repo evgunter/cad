@@ -1076,7 +1076,7 @@ fn components<T: Decide>(
     b: usize,
     result: &topo::BooleanBody<T>,
 ) -> Option<Vec<Component>> {
-    let descent = crate::names::FaceDescent::of(&result.naming);
+    let descent = topo::FaceDescent::of(&result.naming);
     let merged = descent.merged();
     let mut out = Vec::new();
     for (solid, _) in result.body.solids() {
@@ -1086,7 +1086,7 @@ fn components<T: Decide>(
             let alone = [face];
             let held = merged.get(&face).map_or(&alone[..], Vec::as_slice);
             for &piece in held {
-                let (operand, root) = descent.result_face(piece).ok()?;
+                let (operand, root) = descent.result_face(piece);
                 let copy = match operand {
                     topo::Operand::A => a,
                     topo::Operand::B => b,
@@ -1186,7 +1186,7 @@ fn crossing(
         Ok(topo::BooleanResult::Body(kept)) => kept,
         Err(refusal) => return Err(refusal.to_string()),
     };
-    let descent = crate::names::FaceDescent::of(&kept.naming);
+    let descent = topo::FaceDescent::of(&kept.naming);
     let of_solid: BTreeMap<SolidKey, usize> = components
         .iter()
         .enumerate()
@@ -1196,7 +1196,7 @@ fn crossing(
     for (solid, _) in kept.body.solids() {
         let mut named = false;
         for f in kept.body.faces_of_solid(solid).unwrap_or_default() {
-            if let Ok((topo::Operand::A, root)) = descent.result_face(f)
+            if let (topo::Operand::A, root) = descent.result_face(f)
                 && let Some(&i) = result
                     .body
                     .solid_of_face(root)

@@ -31,9 +31,7 @@ this plan, never this file. Branch prefix `quad/`; away-channel tag
   the body is translated or rotated. Ev's criterion (in chat,
   2026-10-21) is that such a row is P1 when it was encountered
   naturally, that is, when it actually blocked something.
-  `a-swept-circle-section-loop-decides-its-volume-sign-only-at-the-origin`
-  is P1: it blocked the Klein tube and the projectbox spring. The rest
-  were found by probes and sweeps:
+  Every row left in it was found by probes and sweeps:
   `quad-rational-patch-cross-grows-with-translation` (P2),
   `quadrature-interval-floor-grows-with-the-body-past-the-band` (P2),
   `a-translated-arc-prism-panics-the-area-gauge-through-mass-properties`
