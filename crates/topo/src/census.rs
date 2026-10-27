@@ -15002,6 +15002,44 @@ mod tests {
         );
     }
 
+    /// REVIEW PROBE (delta review, #5823): a genuine knife wedge, its
+    /// edge at the origin, sunk into the floor; half-width `s` at depth 1.
+    #[test]
+    fn review_probe_thin_knife_into_floor() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let floor = floor_link(band);
+        let mut out = Vec::new();
+        for s in [0.5, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8, 1e-9, 1e-10, 1e-12] {
+            for (label, turn) in [("axis", 0.0f64), ("turned", 0.37f64)] {
+                let (c, sn) = (turn.cos(), turn.sin());
+                // turn about the y axis (the edge stays on y)
+                let r = |x: f64, y: f64, z: f64| Point3::new(c * x + sn * z, y, -sn * x + c * z);
+                let rv = |v: Vec3<f64>| Vec3::new(c * v.x + sn * v.z, v.y, -sn * v.x + c * v.z);
+                let verts = vec![
+                    r(0.0, -1.0, 0.0),
+                    r(0.0, 1.0, 0.0),
+                    r(-s, 1.0, -1.0),
+                    r(-s, -1.0, -1.0),
+                    r(s, 1.0, -1.0),
+                    r(s, -1.0, -1.0),
+                ];
+                let nl = rv(Vec3::new(-1.0, 0.0, s).normalize());
+                let nr = rv(Vec3::new(1.0, 0.0, s).normalize());
+                let knife = synthetic(
+                    Point3::new(0.0, 0.0, 0.0),
+                    At::Edge,
+                    verts,
+                    &[(nl, vec![vec![2, 3, 0, 1]]), (nr, vec![vec![1, 0, 5, 4]])],
+                    &[(vec![0, 1], [0, 1])],
+                    band,
+                );
+                let v = knife.map(|k| (rest::judge(&k, &floor, band), rest::judge(&floor, &k, band)));
+                out.push(format!("s={s:e} {label}: {v:?}"));
+            }
+        }
+        panic!("eps={} \n{}", Tol::witness().eps(), out.join("\n"));
+    }
+
     /// **A corner whose edges are not numbers refuses on scale.** A
     /// brick shrunk to 1e-170 m (its chords underflow) and one blown up
     /// to 1e200 m (they overflow): the corner's link refuses as

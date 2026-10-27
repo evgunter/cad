@@ -468,6 +468,7 @@ fn a_pinwheel_beside_an_escalation_refuses_nothing_undecidable() {
             continue;
         }
         read += 1;
+        eprintln!("REVIEW-COUNT {} {} k-row {}", file!(), what, dip / t_eps());
         let pinwheel: Vec<_> = body.solids().map(|(s, _)| s).take(2).collect();
         assert!(
             !errs.iter().any(|e| {
@@ -488,3 +489,5 @@ fn a_pinwheel_beside_an_escalation_refuses_nothing_undecidable() {
         "the witness: an escalation stands at some dip and pose"
     );
 }
+
+fn t_eps() -> f64 { geom_core::Tol::witness().eps() }

@@ -142,6 +142,7 @@ fn a_box_sunk_past_the_band_refuses_nothing_undecidable_beside_its_pierces() {
                 .any(|e| matches!(e, ValidationError::CensusEscalated { .. }))
             {
                 escalated += 1;
+                eprintln!("REVIEW-COUNT sunk {what}");
             }
         }
     }
@@ -192,6 +193,7 @@ fn a_tetrahedron_inscribed_in_a_cube_interferes_at_every_pose() {
             matches!(decided[..], [ValidationError::TouchInterference { .. }]),
             "{what}: one decided interference, at a touch: {errors:?}"
         );
+        eprintln!("REVIEW-DISPLAY {what}: {}", decided[0]);
         let (x, y) = topo::census_interference_solids(&body, decided[0]).unwrap();
         let mut got = [x, y];
         got.sort();
@@ -253,6 +255,7 @@ fn a_crossing_touch_outranks_an_escalation_read_before_it() {
             continue;
         }
         read += 1;
+        eprintln!("REVIEW-COUNT {} {} k-row {}", file!(), what, dip / t_eps());
         let ours = |x: SolidKey, y: SolidKey| [x, y].contains(&cube) && [x, y].contains(&tet);
         assert!(
             errors
@@ -273,3 +276,5 @@ fn a_crossing_touch_outranks_an_escalation_read_before_it() {
         "the witness: an escalation stands at some dip and pose"
     );
 }
+
+fn t_eps() -> f64 { geom_core::Tol::witness().eps() }

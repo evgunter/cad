@@ -238,6 +238,7 @@ fn a_beam_tilted_in_band_escalates() {
         "the pivot edge still crosses: {errors:?}"
     );
     assert_eq!(refusals(&errors), [UNEXAMINED, UNEXAMINED], "{errors:?}");
+    assert!(!errors.iter().any(|e| topo::census_interference_solids(&body, e).is_some()), "REVIEW PROBE: no decided overlap beside the refusals: {errors:?}");
 }
 
 /// Two square bars turned 45° about their axes and crossed ridge on
@@ -527,6 +528,8 @@ fn a_solid_whose_cavity_crosses_its_wall_blocks_its_pair() {
     );
     assert!(pierces(&errors) > 0, "{errors:?}");
     assert_eq!(refusals(&errors), [CROSSING], "{errors:?}");
+    eprintln!("REVIEW-SOLIDS {:?} all={:?}", errors.iter().filter_map(|e| topo::census_interference_solids(&body, e)).collect::<Vec<_>>(), body.solids().map(|(s,_)|s).collect::<Vec<_>>());
+    assert!(!errors.iter().any(|e| topo::census_interference_solids(&body, e).is_some()), "REVIEW PROBE: no decided overlap beside the refusals: {errors:?}");
 }
 
 /// A block `outer` with the block `void` cut out of it as a cavity: one
