@@ -466,9 +466,13 @@ fn judged(
     pair.sort();
     let mut cells: Vec<String> = r.cells.iter().map(|c| format!("{c:?}")).collect();
     cells.sort();
+    // A margin of exactly zero is read without its sign: the union
+    // computes in its first member's frame (D10 `[placement.frame]`),
+    // and which way a zero rounds is that frame's, not the row's.
+    let margin = format!("{:?}", r.margin).replace("Value(-0.0,", "Value(0.0,");
     Some(format!(
-        "{cells:?} {:?} {:?} {:?} {:?} {pair:?}",
-        r.relation, r.site, r.margin, r.discharge
+        "{cells:?} {:?} {:?} {margin} {:?} {pair:?}",
+        r.relation, r.site, r.discharge
     ))
 }
 

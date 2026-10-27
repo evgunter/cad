@@ -71,6 +71,13 @@ use geom_core::Tol;
 /// `InstanceInterference` verdicts, which decide each pair first, and
 /// its pierces stand: 105 findings became 5, and 125 became 25 at 10,
 /// 40 and 160 fins.
+///
+/// Re-blessed at every ε row for INTENT stage 3 E (the gather computes
+/// in its first source's frame): only `kitchen_sink` moved, and only its
+/// seven `UnrecordedContact` witnesses, each 0.375 further along z: the
+/// same findings on the same keys at the same margins, their witness
+/// points stated in the product's computing frame
+/// (`work/intent/a-census-witness-is-stated-in-the-products-computing-frame.md`).
 const CENSUS_GOLDENS: &[(&str, &str, &str)] = &[
     (
         "1e-6",

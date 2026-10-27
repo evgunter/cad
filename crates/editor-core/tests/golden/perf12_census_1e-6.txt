@@ -47,13 +47,13 @@ rows: 0
 solids=8 faces=48 edges=96 vertices=64
 assemble: Err(AtRest)
 census: 29 findings
-UnrecordedContact { contact: VertexVertex { a: VertexKey(5v1), b: VertexKey(60v1) }, witness: "(0.0, 0.0, 0.0)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
-UnrecordedContact { contact: VertexVertex { a: VertexKey(25v1), b: VertexKey(60v1) }, witness: "(0.0, 0.0, 0.0)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
-UnrecordedContact { contact: VertexOnEdge { vertex: VertexKey(21v1), edge: EdgeKey(87v1) }, witness: "(0.0, 0.0, 0.625)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
-UnrecordedContact { contact: VertexOnEdge { vertex: VertexKey(30v1), edge: EdgeKey(87v1) }, witness: "(0.0, 0.0, 0.625)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
-UnrecordedContact { contact: VertexOnEdge { vertex: VertexKey(59v1), edge: EdgeKey(32v1) }, witness: "(0.0, 0.0, 1.0)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
-UnrecordedContact { contact: EdgeEdgeOverlap { a: EdgeKey(32v1), b: EdgeKey(87v1) }, witness: "(0.0, 0.0, 0.8125)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
-UnrecordedContact { contact: EdgeEdgeOverlap { a: EdgeKey(38v1), b: EdgeKey(87v1) }, witness: "(0.0, 0.0, 0.3125)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
+UnrecordedContact { contact: VertexVertex { a: VertexKey(5v1), b: VertexKey(60v1) }, witness: "(0.0, 0.0, 0.375)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
+UnrecordedContact { contact: VertexVertex { a: VertexKey(25v1), b: VertexKey(60v1) }, witness: "(0.0, 0.0, 0.375)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
+UnrecordedContact { contact: VertexOnEdge { vertex: VertexKey(21v1), edge: EdgeKey(87v1) }, witness: "(0.0, 0.0, 1.0)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
+UnrecordedContact { contact: VertexOnEdge { vertex: VertexKey(30v1), edge: EdgeKey(87v1) }, witness: "(0.0, 0.0, 1.0)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
+UnrecordedContact { contact: VertexOnEdge { vertex: VertexKey(59v1), edge: EdgeKey(32v1) }, witness: "(0.0, 0.0, 1.375)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
+UnrecordedContact { contact: EdgeEdgeOverlap { a: EdgeKey(32v1), b: EdgeKey(87v1) }, witness: "(0.0, 0.0, 1.1875)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
+UnrecordedContact { contact: EdgeEdgeOverlap { a: EdgeKey(38v1), b: EdgeKey(87v1) }, witness: "(0.0, 0.0, 0.6875)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
 CensusUndecidable { a: Face(FaceKey(47v1)), b: Face(FaceKey(1v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap", reason: MayOverlap }
 CensusUndecidable { a: Face(FaceKey(47v1)), b: Face(FaceKey(3v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap", reason: MayOverlap }
 CensusUndecidable { a: Face(FaceKey(47v1)), b: Face(FaceKey(6v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap", reason: MayOverlap }

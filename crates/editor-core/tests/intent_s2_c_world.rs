@@ -74,8 +74,9 @@ const FILES: [&str; 5] = [
 /// value; D′3 carries the re-pin, and moves no product.
 /// Since INTENT E the gather computes in its first source's frame, so
 /// each row digests the product composed into the world through
-/// `in_space`, and 29 of the 30 rows held. The tour die moved, its count
-/// kept: its 15 pip-floor points read four ulps from where they read,
+/// `in_space`, and 33 of the 35 rows held. The tour die and its
+/// committed file moved, their counts kept: its 15 pip-floor points
+/// read four ulps from where they read,
 /// because the pips' union computes in its first pip's frame and reads
 /// every other pip through `relative` (`edit_placement_corpus_bits`
 /// says the same of its last copy).

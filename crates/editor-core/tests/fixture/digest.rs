@@ -40,6 +40,11 @@
 //! - **Face carriers alone are not enough either**: the edge curve
 //!   carriers are fed beside them.
 //!
+//! **Where each body stands.** A value's body is in its own coordinates
+//! under a frame (D10 `[placement.frame]`), so the body fed is the one
+//! composed into its space through `in_space` ([`super::in_space`]): a
+//! copy is pinned where it stands, as its rebuilt body was.
+//!
 //! Geometry enters through `Debug`, whose `f64` rendering
 //! is the shortest round-tripping decimal: a bijection with the bits
 //! for every finite value, `-0.0` included. Nothing rendered from a
@@ -72,7 +77,7 @@ pub fn digest(ev: &Evaluation<f64>) -> u64 {
         // produces, and a wildcard would silently unfeed the next one
         // that is.
         match &value.payload {
-            ValuePayload::Body(body) => feed_body(&mut feed, body.body()),
+            ValuePayload::Body(body) => feed_body(&mut feed, &super::in_space(body)),
             ValuePayload::Boolean(bv) => match bv {
                 BooleanValue::Body {
                     body,
@@ -80,7 +85,7 @@ pub fn digest(ev: &Evaluation<f64>) -> u64 {
                     contacts,
                 } => {
                     feed(format!("{kind:?}{contacts:?}").as_bytes());
-                    feed_body(&mut feed, body.body());
+                    feed_body(&mut feed, &super::in_space(body));
                 }
                 BooleanValue::Empty => feed(b"empty"),
             },
@@ -88,7 +93,7 @@ pub fn digest(ev: &Evaluation<f64>) -> u64 {
                 for (role, side) in [("above", above), ("below", below)] {
                     feed(role.as_bytes());
                     match side {
-                        SplitSide::Body(body) => feed_body(&mut feed, body.body()),
+                        SplitSide::Body(body) => feed_body(&mut feed, &super::in_space(body)),
                         SplitSide::Empty => feed(b"empty-side"),
                     }
                 }

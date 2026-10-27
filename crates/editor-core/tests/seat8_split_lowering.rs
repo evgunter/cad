@@ -384,13 +384,20 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// `main-red-the-seat-and-name-table-goldens-moved-at-dprime2`),
 /// stage 4 I's ids and the walls' reads, beneath
 /// D′3's names and ids. `m10_p_fence`'s ids-masked row held.
+///
+/// RE-BLESSED, `kitchen_sink` only, for INTENT stage 3 E: the digest
+/// feeds each body where it stands, composed through `in_space`, and
+/// every other row held main's value. The kitchen sink's turned copy
+/// (node 171) composes one map where it was rebuilt by two, and one of
+/// its planes' normals reads `-0.0` where it read `0.0` in x; every
+/// point, curve and face holds main's bits.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
         ("cut_cylinder", 0xd82f_d380_9e2e_8e5e_u64),
         ("part_select", 0x4540_8c74_d757_704f),
-        ("kitchen_sink", 0x4f64_6f46_1d52_45eb),
+        ("kitchen_sink", 0xe04d_2db4_0c17_c2d3),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
