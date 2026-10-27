@@ -7150,3 +7150,7 @@ Signed (WIRE orchestrator).
   - `wire-splitchords`: key the split's chord groups per candidate. Ruling: NS3 locality and N4's 'undivided candidates stay bare' settle it, no fork.
   - `wire-seamselect`: seam (and other N0-set) SegPats match as sets. Ruling: N3 and NS1(a).
   WIRE is at 35/30 load because of re-homed and filed P3s; these two P2s take it down.
+- 2026-10-27 (WIRE orchestrator) `wire-seamselect` opened PR 5854 (head 67830ffe91).
+  - Seam, Merged, EdgeCrossing, BandFace and BandCross/BandSlit's band match as sets via bipartite matching. all_match memoizes per (pattern, name).
+  - The two witnesses are red on base, and the positional wording was unsigned agent text.
+  - A review (`wire-seamselect-rev`) is dispatched; the lane ran python only in CI.
