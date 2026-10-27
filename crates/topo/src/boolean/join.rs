@@ -3422,12 +3422,12 @@ pub(super) fn section_unbuilt(
     match why {
         Uncarried::Section(SectionError::Escalated(diag))
         | Uncarried::Carry(CarryError::Site(SiteRefusal::Escalated(diag))) => {
-            section_undecided(diag.clone())
+            section_undecided(*diag)
         }
         Uncarried::Section(SectionError::RadiusEscalated { radius, diag }) => {
             BooleanError::Escalated {
                 decision: BooleanDecision::Radius(*radius),
-                diag: diag.clone(),
+                diag: *diag,
             }
         }
         Uncarried::Section(e) => unbuilt(SectionUnbuilt::Refused(e.clone())),
@@ -4317,8 +4317,8 @@ enum Faced<T: geom_core::Real> {
 /// tangent there (`bool_join_foot_heading`, the cosine levered by the
 /// section's own scale, [`geom_brep::CarriedSection::lever`]). Each
 /// germ's foot and heading are its own, read once for the operation
-/// ([`super::section_table::SectionTable::germ_foot`]). Two germs on different components, or leaving the
-/// same way, never face. A closed component is travelled round; on an
+/// ([`super::section_table::SectionTable::germ_foot`]). Two germs on
+/// different components, or leaving the same way, never face. A closed component is travelled round; on an
 /// open one the partner's foot must lie ahead. `Along` carries the
 /// carrier's parameter from `g1`'s foot to `g2`'s, the way `g1` leaves.
 ///

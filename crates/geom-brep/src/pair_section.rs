@@ -35,9 +35,8 @@
 //! `CarriedSection`, and it refuses where a component has no carrier, so
 //! no reader takes a foot on a carrier that does not exist. The march is
 //! written at `f64`, and [`SsiLane`] is the door to it: holding one is
-//! the statement that the scalar may march (`SsiLane::marched` at
-//! `f64`, `SsiLane::probed` at the recording scalar, which marches its
-//! values at `f64`).
+//! the statement that the scalar may march (`SsiLane::marched`, at
+//! `f64` alone).
 //!
 //! # Cylinder × sphere
 //!
@@ -53,11 +52,7 @@ use geom_core::{
 };
 
 use crate::intersect::{PairRoute, SectionError, SectionRadius, route};
-#[cfg(feature = "probe")]
-use crate::ssi::SsiTube;
 use crate::ssi::{BranchEnd, SsiCertificate, SsiDomain, SsiError};
-#[cfg(feature = "probe")]
-use geom_core::Probe;
 
 /// **`v`'s part square to the unit `a`, and its norm**, taken as
 /// `a × (v × a)`, which stands square to `a` to the rounding of its own
@@ -781,18 +776,18 @@ pub struct FittedCarrier<T: Real> {
     pub witness: Point3<T>,
 }
 
-/// One march of a decided pose, as a lane holds it.
-type March<T> = fn(&CylinderSpherePose<T>, Band) -> Result<Vec<FittedCarrier<T>>, SsiError>;
-
 /// **The general rung's door** (module docs): the ℝ³ march of a
 /// cylinder × sphere pose, written at `f64`. Holding one is the
-/// statement that the scalar may march; [`SsiLane::marched`] (at `f64`)
-/// and `SsiLane::probed` (at the recording scalar, under `probe`) are
-/// its constructors.
+/// statement that the scalar may march; [`SsiLane::marched`], at `f64`,
+/// is its one constructor.
 #[derive(Clone, Copy, Debug)]
 pub struct SsiLane<T: Real> {
-    march: March<T>,
+    /// One march of a decided pose.
+    march: fn(&CylinderSpherePose<T>, Band) -> Marched<T>,
 }
+
+/// What one march of a pose answers: its fitted branches.
+type Marched<T> = Result<Vec<FittedCarrier<T>>, SsiError>;
 
 impl SsiLane<f64> {
     /// The march.
@@ -801,17 +796,6 @@ impl SsiLane<f64> {
         Self {
             march: march_over_the_sphere,
         }
-    }
-}
-
-#[cfg(feature = "probe")]
-impl SsiLane<Probe> {
-    /// The march, of the recording scalar's values read at `f64`: the
-    /// recording scalar is `f64` with a sink attached, so it carries
-    /// what `f64` carries.
-    #[must_use]
-    pub fn probed() -> Self {
-        Self { march: march_probe }
     }
 }
 
@@ -843,54 +827,6 @@ fn march_over_the_sphere(
             closed: matches!(b.end, BranchEnd::Closed),
             certificate: b.certificate,
             witness: b.witness,
-        })
-        .collect())
-}
-
-#[cfg(feature = "probe")]
-/// [`march_over_the_sphere`] of the recording scalar's pose, its values
-/// read at `f64` and its fitted branches lifted back.
-fn march_probe(
-    pose: &CylinderSpherePose<Probe>,
-    band: Band,
-) -> Result<Vec<FittedCarrier<Probe>>, SsiError> {
-    let (a, b) = pose.operands();
-    let (a, b) = (a.map_scalar(|x| x.0), b.map_scalar(|x| x.0));
-    let pose = CylinderSpherePose::decide(&a, &b, band)
-        .ok_or(SsiError::WrongLane {
-            expected: "a cylinder and a sphere in ℝ³ on their implicit pair",
-        })?
-        .map_err(SsiError::of_pose)?;
-    let lift = |c: SsiCertificate<f64>| SsiCertificate {
-        samples: c.samples,
-        on_locus_max: Probe(c.on_locus_max),
-        hull_sup: Probe(c.hull_sup),
-        tube: match c.tube {
-            SsiTube::Spatial { radius } => SsiTube::Spatial {
-                radius: Probe(radius),
-            },
-            SsiTube::Chart { rung, pad_u, pad_v } => SsiTube::Chart {
-                rung: Probe(rung),
-                pad_u: Probe(pad_u),
-                pad_v: Probe(pad_v),
-            },
-            SsiTube::TwoChart { rung, pad_a, pad_b } => SsiTube::TwoChart {
-                rung: Probe(rung),
-                pad_a: (Probe(pad_a.0), Probe(pad_a.1)),
-                pad_b: (Probe(pad_b.0), Probe(pad_b.1)),
-            },
-        },
-        tube_transversality: Probe(c.tube_transversality),
-        tube_boxes: c.tube_boxes,
-    };
-    Ok(march_over_the_sphere(&pose, band)?
-        .into_iter()
-        .map(|f| FittedCarrier {
-            carrier: f.carrier.map_scalar(Probe),
-            span: (Probe(f.span.0), Probe(f.span.1)),
-            closed: f.closed,
-            certificate: lift(f.certificate),
-            witness: Point3::new(Probe(f.witness.x), Probe(f.witness.y), Probe(f.witness.z)),
         })
         .collect())
 }
@@ -1015,10 +951,6 @@ mod wiring {
         ) {
             return Err("march is not `march_over_the_sphere`");
         }
-        #[cfg(feature = "probe")]
-        if !std::ptr::fn_addr_eq(SsiLane::probed().march, super::march_probe as fn(_, _) -> _) {
-            return Err("the recording scalar's march is not `march_probe`");
-        }
         Ok(())
     }
 
@@ -1027,7 +959,7 @@ mod wiring {
         assert_eq!(
             holds_the_ssi_lane(),
             Ok(()),
-            "`SsiLane::marched()` or `SsiLane::probed()` holds something other than its march"
+            "`SsiLane::marched()` holds something other than its march"
         );
     }
 }

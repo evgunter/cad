@@ -7235,9 +7235,10 @@ impl AtRestPolicy for geom_core::Probe {
         None
     }
 
-    /// The recording scalar is `f64` with a sink attached: its values march at `f64`.
+    /// The march is written at `f64` alone, as the section lane's
+    /// above.
     fn ssi_lane() -> Option<geom_brep::SsiLane<Self>> {
-        Some(geom_brep::SsiLane::probed())
+        None
     }
 
     /// The recording scalar is `f64` with a sink attached, so it

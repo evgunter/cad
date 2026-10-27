@@ -209,8 +209,7 @@ const ROSTERS: [Roster; 9] = [
         helper: "holds_the_ssi_lane",
         formed: Formed::F64Only(
             "`SsiLane::marched` is concrete at `f64`: the cylinder × sphere march it holds is \
-             written at `f64` (the recording scalar's `SsiLane::probed` reads its values at \
-             `f64` and marches there), so a new `CertifiedEnclosure` impl forms no `SsiLane` \
+             written at `f64` alone, so a new `CertifiedEnclosure` impl forms no `SsiLane` \
              and owes this roster nothing",
         ),
     },

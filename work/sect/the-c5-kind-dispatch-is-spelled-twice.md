@@ -19,13 +19,23 @@ Found by `the-section-of-a-surface-pair-is-one-object` (2026-10-27).
   exhaustive match.
 - `geom_brep::pair_section::pair_section`, the section value's one
   constructor, is a third: cylinder × sphere builds, every other pair
-  answers `SectionRead::Elsewhere(route(..))`. `pair_section::serves`
-  restates which kinds it builds for, a one-kind filter the glue door's
-  scan reads.
-- So a pair's arm is named twice for cylinder × sphere: `route`'s
-  `implemented: true` note, and `pair_section`'s arm. Nothing ties
-  them; `route`'s note still describes the pair as two separate doors
-  (`cylinder_sphere_section`, `cylinder_sphere_ssi`).
+  answers `SectionRead::Elsewhere(route(..))`.
+- `PairSection::serves` (`crates/geom-brep/src/pair_section.rs`)
+  restates which kinds the value builds for, a one-kind filter the glue
+  door's scan reads (`topo::boolean::glue::section_door`): a fourth
+  spelling. It cannot be derived from the match, which answers two
+  surfaces, where the scan asks of one face's kind before it has a
+  partner.
+- `route_pose`'s `(Cylinder, Sphere)` arm reads the value's pose
+  (`CylinderSpherePose::decide`) for its answer, so its pose reading is
+  the value's; the arm itself is still named there as well as in
+  `pair_section`'s match.
+- So a pair's arm is named in four places for cylinder × sphere:
+  `route`'s `implemented: true` note (which now names the value and
+  `ssi::march_cylinder_sphere`), `route_pose`'s arm, `pair_section`'s
+  arm and `serves`. Nothing but the rows of
+  `crates/geom-brep/tests/intersect_table.rs` and
+  `crates/geom-brep/tests/pair_section.rs` ties them.
 
 ## What a fix has to supply
 

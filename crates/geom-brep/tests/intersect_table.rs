@@ -10,13 +10,13 @@ use crate::shared::tol::{band, eps};
 use geom::Curve3;
 use geom::{Surface, SurfaceKind};
 use geom_brep::Reach;
-use geom_brep::{ClassCarrier, PairSection, SectionRead};
 use geom_brep::implicit_residual;
 use geom_brep::intersect::{
     EqualCylinderSection, OpenConic, PlaneConeSection, PlaneCylinderSection, Rung, SectionError,
     cylinder_cylinder_section, plane_cone_section, plane_cylinder_section, route,
 };
 use geom_brep::recourse::Refused;
+use geom_brep::{ClassCarrier, PairSection, SectionRead};
 use geom_brep::{TorusConvention, TorusRefusal, TorusVerdict};
 use geom_core::{Point3, Real, Vec3};
 
@@ -886,7 +886,7 @@ pub(crate) fn cs_section<T: geom_core::Decide>(
 
 /// The closed-form circles of a section, each as (centre, axis, radius).
 #[allow(clippy::type_complexity)] // (centre, axis, radius) per circle
-pub(crate) fn cs_circles<T: Real>(s: &PairSection<T>) -> Vec<(Point3<T>, Vec3<T>, T)> {
+pub(crate) fn cs_circles<T: geom_core::Decide>(s: &PairSection<T>) -> Vec<(Point3<T>, Vec3<T>, T)> {
     s.components()
         .iter()
         .map(|c| match c.carrier {
@@ -1074,11 +1074,13 @@ fn an_off_axis_centre_takes_the_general_rung_and_an_in_band_one_escalates() {
         ("re-posed twin", posed(&cyl), posed(&off(0.25))),
     ] {
         let s = cs_section(&c, &s).unwrap();
-        assert!(s.coincidence().is_none(), "{label}: no coincidence off the axis");
+        assert!(
+            s.coincidence().is_none(),
+            "{label}: no coincidence off the axis"
+        );
         assert!(
             !s.components().is_empty()
-                && s
-                    .components()
+                && s.components()
                     .iter()
                     .all(|c| matches!(c.carrier, ClassCarrier::General)),
             "{label}: {:?}",
@@ -1197,9 +1199,16 @@ fn route_pose_reads_the_cylinder_sphere_pose() {
     };
     let (cyl, bad) = coaxial_pair(-1.0, 1.5, 0.0);
     let got = geom_brep::route_pose(&cyl, &bad, &reach, band()).unwrap();
-    assert!(!got.implemented, "a negative cylinder radius is not served: {got:?}");
+    assert!(
+        !got.implemented,
+        "a negative cylinder radius is not served: {got:?}"
+    );
     let (cyl, sph) = coaxial_pair(1.0, 1.5, 0.0);
-    assert!(geom_brep::route_pose(&sph, &cyl, &reach, band()).unwrap().implemented);
+    assert!(
+        geom_brep::route_pose(&sph, &cyl, &reach, band())
+            .unwrap()
+            .implemented
+    );
 }
 
 // ---------------------------------------------------------------------
