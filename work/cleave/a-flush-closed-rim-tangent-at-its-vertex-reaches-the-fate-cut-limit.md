@@ -2,10 +2,11 @@
 id: a-flush-closed-rim-tangent-at-its-vertex-reaches-the-fate-cut-limit
 kind: issue
 title: A closed rim lying flush in a partner face, tangent inside its boundary at a vertex, reaches the fate cut's ClassificationInvariant (no corner of the dropped face)
-status: open
+status: dispatched
 opened: 2026-10-27
 priority: P1
 cost: M
+branch: cleave/tangent-crescent-builds
 ---
 
 Found by PR 5808's re-review (probe `rev5808r`, scenes S7 and S10), on

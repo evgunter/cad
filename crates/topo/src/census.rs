@@ -7822,7 +7822,7 @@ impl<T: Decide> Sector<T> {
     /// vertex twice or two vertices on one point (a pinch, one vertex per
     /// cone), and every edge a tie holds the point inside, about `p` —
     /// each pass ending at the first incoming ray of any pass
-    /// ([`face_piece`]). A corner tie that is a face tie too reads the
+    /// ([`face_piece`](crate::link::face_piece)). A corner tie that is a face tie too reads the
     /// corner, and an edge tie that is a face tie too reads the edge: the
     /// face's interior holds no point of its boundary.
     fn of(
