@@ -1,8 +1,10 @@
 //! **What crosses an instance seam at rest, and the census's rows**
 //! (ASSEMBLY A5, *A part's own census findings*): a part's at-rest
 //! findings, each carried with the [`Route`] it arrived by and reported
-//! once per part row, and the rows the census records between two
-//! arrivals ([`AtRestRow`]), which the `unproven-coincidence` lint reads.
+//! once per part row, the rows a part owes its own coincidence door
+//! ([`CarriedCoincidenceRows`], judged there as [`CarriedCoincidence`]),
+//! and the rows the census records between two arrivals ([`AtRestRow`]),
+//! which the `unproven-coincidence` lint reads.
 //!
 //! A part's census findings are the part's: the census over a document
 //! instantiating it discards what it finds again inside the part's copy
@@ -179,6 +181,64 @@ pub struct CarriedFindings {
     pub interference: Vec<CarriedInterference>,
     /// What the documents below could not look at.
     pub at_rest: Vec<CarriedAtRestFinding>,
+    /// The rows the documents below owe their own coincidence doors.
+    pub coincidences: Vec<CarriedCoincidenceRows>,
+}
+
+/// **The rows a document BELOW this one owes its own coincidence door**
+/// (D10 `[assertions]`), arriving across the instantiation seam
+/// unproven: each row set in `route.of`'s ids, quiet only as `route.of`'s
+/// assertions quiet it. The door that judges them runs over `doc`, the
+/// pinned version they were decided in, never over this document.
+#[derive(Debug, Clone)]
+pub struct CarriedCoincidenceRows {
+    /// How it reached this document.
+    pub route: Route,
+    /// The pin of `route.of` the rows are of.
+    pub pin: crate::ident::ContentPin,
+    /// `route.of` at `pin`: the document the door replays.
+    pub(crate) doc: Arc<crate::ProfileDoc>,
+    /// Its row sets, as its own door asks about them.
+    pub(crate) rows: Vec<crate::checks::DoorRows>,
+}
+
+// The document is fixed by `route.of` and the pin, so it is not compared.
+impl PartialEq for CarriedCoincidenceRows {
+    fn eq(&self, other: &Self) -> bool {
+        (&self.route, self.pin, &self.rows) == (&other.route, other.pin, &other.rows)
+    }
+}
+
+/// **A document's door rows as its part row**: the pinned document and
+/// its row sets ([`CarriedCoincidenceRows`]).
+#[derive(Debug, Clone)]
+pub(crate) struct DocRows {
+    pub(crate) doc: Arc<crate::ProfileDoc>,
+    pub(crate) rows: Vec<crate::checks::DoorRows>,
+}
+
+/// **A coincidence a document BELOW this one leaves unproven**, as its
+/// own door judged it over its own document: the part's
+/// `unproven-coincidence` finding, carried verbatim, quiet only as the
+/// part's assertions quiet it.
+#[derive(Debug, Clone)]
+pub struct CarriedCoincidence {
+    /// How it reached this document.
+    pub route: Route,
+    /// The pin of `route.of` the finding is of.
+    pub pin: crate::ident::ContentPin,
+    /// The part's own finding, in `route.of`'s ids.
+    pub finding: crate::checks::CheckFinding,
+    /// `route.of` at `pin`: the document the finding's ids are spelled
+    /// in, and the one it is said from.
+    pub doc: Arc<crate::ProfileDoc>,
+}
+
+// The document is fixed by `route.of` and the pin, so it is not compared.
+impl PartialEq for CarriedCoincidence {
+    fn eq(&self, other: &Self) -> bool {
+        (&self.route, self.pin, &self.finding) == (&other.route, other.pin, &other.finding)
+    }
 }
 
 /// **An overlap a document BELOW this one reported between two of its
@@ -281,6 +341,12 @@ macro_rules! carried_row {
 }
 
 carried_row!(CarriedInterference, CarriedAtRestFinding);
+
+impl CarriedRow for CarriedCoincidenceRows {
+    fn same_row(&self, other: &Self) -> bool {
+        (self.route.of, self.pin, &self.rows) == (other.route.of, other.pin, &other.rows)
+    }
+}
 
 /// **A carried census finding with the pin of the document it is of**,
 /// the body of a part's census row ([`mod@crate::eval`]'s `PartValue`): which

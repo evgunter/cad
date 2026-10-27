@@ -889,7 +889,19 @@ where
                 }
             })
             .collect(),
-        // Keyed in the part's body, which the placement moves without
+        coincidences: part
+            .door_rows
+            .iter()
+            .map(|row| {
+                let (route, pinned, _) = row.through(id);
+                crate::checks::at_rest::CarriedCoincidenceRows {
+                    route,
+                    pin: pinned.pin,
+                    doc: pinned.finding.doc,
+                    rows: pinned.finding.rows,
+                }
+            })
+            .collect(),
     };
     Ok(OpOut {
         payload: ValuePayload::Body(Arc::new(placed)),
@@ -897,7 +909,8 @@ where
         contacts: Arc::new(part.contacts.carried_from(0)),
         carried: Arc::new(carried),
         parts: part.parts,
-        // The part's own rows are its document's, read there.
+        // The part's own rows ride `carried`, proven over the part's
+        // document where a report asks.
         coincidences: Arc::new([]),
         cited_inputs: Arc::new([crate::coincide::CitedInput::Part(*doc_ref)]),
         pieces: moved_pieces(part.pieces.as_ref(), map.as_ref())?,

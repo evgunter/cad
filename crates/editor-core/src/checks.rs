@@ -528,6 +528,13 @@ pub enum CheckEvidence {
         /// The carried finding.
         finding: Box<at_rest::CarriedInterference>,
     },
+    /// A coincidence a document below this one leaves unproven, as its
+    /// own door judged it, quiet only as its own assertions quiet it
+    /// ([`at_rest::CarriedCoincidence`]).
+    CarriedCoincidence {
+        /// The carried finding.
+        finding: Box<at_rest::CarriedCoincidence>,
+    },
     /// A pair the at-rest census could not look at
     /// ([`at_rest::AtRestEvidence`]): loud, unquietable, and refusing at
     /// no severity (DS6).
@@ -668,9 +675,11 @@ impl crate::finding::Finding for SaidFinding<'_> {
             (None, _) => Ok(()),
             // A part's finding is quieted by the part's own assertion, in
             // its ids, which this document cannot say.
-            (Some(_), CheckEvidence::CarriedInterference { .. }) => {
-                f.write_str("; quiet: an assertion of the part's says so")
-            }
+            (
+                Some(_),
+                CheckEvidence::CarriedInterference { .. }
+                | CheckEvidence::CarriedCoincidence { .. },
+            ) => f.write_str("; quiet: an assertion of the part's says so"),
             (Some(assertion), _) => {
                 write!(f, "; quiet: {} says so", by.node_as(assertion, "assertion"))
             }
@@ -811,6 +820,15 @@ impl SaidFinding<'_> {
                 )?;
                 interference_words(f, &finding.finding, crate::spoken::Speaker::TAG)
             }
+            CheckEvidence::CarriedCoincidence { finding } => {
+                write!(
+                    f,
+                    "{} leaves a coincidence of its own unproven: ",
+                    crate::spoken::Said(&finding.route, by)
+                )?;
+                SaidFinding(&finding.finding, crate::spoken::Speaker::of(&*finding.doc))
+                    .evidence_story(f)
+            }
             CheckEvidence::AtRest { evidence } => {
                 write!(
                     f,
@@ -855,6 +873,9 @@ impl SaidFinding<'_> {
                  off rather than reading its silence as a clean body"
             }
             CheckEvidence::UnprovenCoincidence { recourse, .. } => recourse.words(),
+            CheckEvidence::CarriedCoincidence { finding } => {
+                SaidFinding(&finding.finding, self.1).recourse_words()
+            }
             // The first finding's own sentence carries its recourse.
             CheckEvidence::NotAtRest { .. }
             | CheckEvidence::Escalated { .. }
@@ -1473,11 +1494,13 @@ pub fn run_checks_at_rest_on<
         });
     } else {
         let rows = door_rows(doc, ev, &subject, tol);
-        if !rows.is_empty() {
+        let carried = carried_coincidences(ev);
+        if !rows.is_empty() || !carried.is_empty() {
             report.pending.push(CheckId::UnprovenCoincidence);
             door = Some(DoorJob {
                 document: doc.id(),
                 rows,
+                carried,
                 resolver: ev.resolver().cloned(),
                 tol,
                 at: report.findings.len(),
@@ -1506,6 +1529,8 @@ pub fn run_checks_at_rest_on<
 pub struct DoorJob {
     document: crate::DocumentId,
     rows: Vec<DoorRows>,
+    /// The rows its parts owe their own doors, each once per part row.
+    carried: Vec<at_rest::CarriedCoincidenceRows>,
     /// The resolver the report's evaluation crossed the seam with, so
     /// the replay builds the same parts.
     resolver: Option<std::sync::Arc<dyn crate::part::PartResolver>>,
@@ -1534,10 +1559,34 @@ impl DoorJob {
         cancel: &crate::CancelToken,
     ) -> Result<DoorFindings, crate::coincide::Canceled> {
         crate::spoken::assert_taken_of("this door job", self.document, doc);
+        let mut findings =
+            door_findings(doc, &self.rows, self.resolver.as_ref(), self.tol, cancel)?;
+        for part in &self.carried {
+            let own = door_findings(
+                &*part.doc,
+                &part.rows,
+                self.resolver.as_ref(),
+                self.tol,
+                cancel,
+            )?;
+            findings.extend(own.into_iter().map(|finding| CheckFinding {
+                check: CheckId::UnprovenCoincidence,
+                subject: FindingSubject::Node(part.route.through),
+                quiet: finding.quiet,
+                evidence: CheckEvidence::CarriedCoincidence {
+                    finding: Box::new(at_rest::CarriedCoincidence {
+                        route: part.route.clone(),
+                        pin: part.pin,
+                        finding,
+                        doc: std::sync::Arc::clone(&part.doc),
+                    }),
+                },
+            }));
+        }
         Ok(DoorFindings {
             document: self.document,
             at: self.at,
-            findings: door_findings(doc, &self.rows, self.resolver.as_ref(), self.tol, cancel)?,
+            findings,
         })
     }
 }
@@ -1554,7 +1603,7 @@ pub struct DoorFindings {
 /// One row set: the subject its findings are reported against, the
 /// node whose decision the door proves it at, and its rows in decision
 /// order, each with the assertion that quiets it, if one does.
-type DoorRows = (
+pub(crate) type DoorRows = (
     FindingSubject,
     RecipeNodeId,
     Vec<(crate::coincide::NamedCoincidence, Option<RecipeNodeId>)>,
@@ -1570,7 +1619,7 @@ type DoorRows = (
 /// quiet under the contact half of the quieting rule
 /// ([`at_rest::quiet_contact`]), read here, where the evaluation the
 /// census ran in is in hand.
-fn door_rows<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
+pub(crate) fn door_rows<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
     subject: &Subject<'_, T>,
@@ -1624,6 +1673,20 @@ fn door_rows<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
             )
         }))
         .collect()
+}
+
+/// **The rows `ev`'s parts owe their own doors**: every evaluated
+/// value's carried rows, in evaluation order, each once per part row
+/// ([`at_rest::once_per_part_row`]), so a part placed twice, or an
+/// instance and its placements, ask once, by the first route.
+pub(crate) fn carried_coincidences<T: Decide>(
+    ev: &Evaluation<T>,
+) -> Vec<at_rest::CarriedCoincidenceRows> {
+    let mut held = Vec::new();
+    for value in ev.order.iter().filter_map(|&node| ev.value(node)) {
+        at_rest::once_per_part_row(&mut held, value.carried.coincidences.iter().cloned());
+    }
+    held
 }
 
 /// The `unproven-coincidence` resident's findings: each row the door

@@ -51,8 +51,11 @@ use crate::product::{GatheredCopy, Product};
 
 mod carried;
 
-pub use carried::{AtRestRow, CarriedAtRestFinding, CarriedFindings, CarriedInterference, Route};
-pub(crate) use carried::{PartRow, Pinned, once_per_part_row};
+pub use carried::{
+    AtRestRow, CarriedAtRestFinding, CarriedCoincidence, CarriedCoincidenceRows, CarriedFindings,
+    CarriedInterference, Route,
+};
+pub(crate) use carried::{DocRows, PartRow, Pinned, once_per_part_row};
 
 /// **Why the at-rest check could not look** (CHECKS DS6): one finding,
 /// loud, unquietable, and refusing at no severity, since what the check
