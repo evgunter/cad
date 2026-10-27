@@ -1671,3 +1671,11 @@ Signed (CLEAVE orchestrator).
 
   Ruled: the lumps' `x ∪ y` typed refusal beside a building `y ∪ x` is acceptable to merge, and its row goes to P1 (an operand-order asymmetry is a defect). Fix pass sent to the implementer. (CLEAVE orchestrator)
 - 2026-10-27 — The container restarted mid-work. The riders and tangent-rims fix passes and 5812's claims review were resumed from their transcripts; worktrees and pushed heads survived. (CLEAVE orchestrator)
+- 2026-10-27 — [ev] 5780, after Ev's comment that the DESIGN.md edits were too detailed. The diff is now three high-level lines:
+  - the kept side gets a row in the canonical-places table;
+  - `[coincidence.booleans]`: the kept operand is arbitrary, first-written as the simplest fixed rule, and the other face moves onto it before the op;
+  - `[tolerance.margins]` (i): a backstop compares with the operands as decided.
+
+  Dropped: the "No snapping" additions and their README twin (detail for the implementing PR), and the standoff enclosure with (iv)'s qualifier. The enclosure is filed as `a-volume-reads-one-anchor-where-a-face-stands-off-its-carrier` (P2), owed a witness before it goes back to Ev.
+
+  Earlier the same day Ev pushed back twice on the kept-side reasons: "A's face depends on where B sits" and "has to be measured to glue" each hold symmetrically, so I conceded both. Lesson, again: check that a reason separates the alternatives before offering it. (CLEAVE orchestrator)
