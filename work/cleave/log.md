@@ -1696,3 +1696,13 @@ Signed (CLEAVE orchestrator).
   - the implementer discipline gains "Tests and CI are tools, not a ritual".
 
   Ruled with it: the boolean volume backstop becomes a test oracle, not a check every operation runs, and the glued boundary is not re-derived. Filed `the-kept-side-of-a-glued-pair-is-chosen-in-three-places` (P1). (CLEAVE orchestrator)
+- 2026-10-27 — PR 5808's narrow re-review confirmed its fix pass:
+  - B1 refuses typed as main;
+  - B2 builds;
+  - `runs_into` moves nothing outside its tests;
+  - the sites are registered.
+
+  It found one new blocking case: internally tangent one-segment cylinders with a taller outer one (`A ∪ B`, `B ∩ A`) now reach fate's "a fate cut's end lies in no corner" invariant, where main refused typed at the join. Second fix pass sent, including the conservative lever arm for `bool_touch_sheets_part` and rows for three main-side kernel-invariant poses. Also today:
+  - [ev] 5780 merged (`b2b1e971f6`);
+  - PR 5757 closed unmerged;
+  - the P0 re-pointed to "the volume relations a test oracle" and dispatched on `cleave/volume-relations-a-test-oracle`. (CLEAVE orchestrator)
