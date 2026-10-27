@@ -840,3 +840,10 @@ E1c waits on the answer.
   - Q1: the designers' round-3 answer. Topo's construction tier becomes kernel-internal (pncad stops re-exporting it). A build's miss is the kernel's defect. A read in band ends in the lever at every door. No ending reads `EdgeAuthority`.
   - Q2: "i don't care what it says while this functionality doesn't exist". An incidence refusal at import takes the damaged-file ending, without ε_in, until EXCH's healing lands. The healing and the later ε_in wording are tracked on `work/exch/adoption-rebuilds-caches-at-eps-from-eps-in-interpretation.md`.
   - New units: E1d (the ruling) and E1e (payload-only `Display`), ahead of E1c.
+- 2026-10-27 — **E1d (`pcert/door-endings`), the endings of Ev's PR 5838 ruling.**
+  - E1b's authority routing is out. `IncidenceRead::ending(at)` is the one map.
+  - A definite miss ends by the door: the kernel's defect at a build, the stored culprit at rest, the damaged file at import with no ε_in.
+  - A read in band ends in the geometry's lever at every door.
+  - The boolean loop walk reads an at-pose read as unread, and the edge join ends an incidence refusal by its read.
+  - Sealing the construction tier is split out to E1d2 (the orchestrator's call: inherent methods travel with `Body`, so re-export curation alone cannot seal them).
+  - Filed `policy-lane-origin-callers-outlives-the-sealed-construction-tier` and `stored-contradiction-at-a-build-still-tells-the-lever-story`.

@@ -164,3 +164,13 @@ Q2: while import healing does not exist, an incidence refusal at the import door
 
 The text: geom-brep README D3 and DESIGN D4 ¶1 (iv) (this PR). The implementation is `work/pcert/plan.md` E1d, and E1c follows it.
 
+
+## Implementation
+
+- **E1d (`pcert/door-endings`): the endings.**
+  - E1b's authority routing is gone.
+  - `IncidenceRead::ending(at)` is the one map: a definite miss ends by the door, and a read in band ends in the geometry's lever.
+  - `CertifyError::CarrierOffChart` and `CertCheck::ChartIncidence` serve every carrier.
+  - The import door ends a definite miss in the damaged-file ending.
+- **E1d2 (`work/pcert/plan.md`): seals topo's construction tier** behind a trait that pncad does not re-export, and closes this item. Until then a pncad consumer can still call `Body::set_edge_curve`, and its miss reads as a kernel defect; no product code calls it.
+- **Filed:** `policy-lane-origin-callers-outlives-the-sealed-construction-tier` (`policy_lane::Origin`'s `Callers` arm after the sealing).
