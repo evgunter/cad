@@ -364,23 +364,19 @@ fn creases<T: Real>(
     (a, b): (f64, f64),
     cross: &impl Fn(T) -> Interval,
 ) -> Result<Vec<f64>, CompositeRefusal> {
-    let knots = net.knot_values();
-    let mut values = Vec::new();
-    for (u, _) in knots.runs() {
+    let mut out = Vec::new();
+    for u in net.knot_values().crease_values() {
         let u = cross(u);
         if !u.is_certified() {
             return Err(CompositeRefusal::Unread(
                 "a knot of the carrier does not certify",
             ));
         }
-        values.push(u.lo());
+        if a < u.lo() && u.lo() < b {
+            out.push(u.lo());
+        }
     }
-    Ok(knots
-        .structure()
-        .crease_runs()
-        .map(|r| values[r])
-        .filter(|&k| a < k && k < b)
-        .collect())
+    Ok(out)
 }
 
 /// The hull of a row's coefficients: by the convex hull property, an

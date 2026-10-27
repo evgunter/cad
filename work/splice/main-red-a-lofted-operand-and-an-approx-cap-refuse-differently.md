@@ -47,6 +47,14 @@ merge's PR states. The lofted operand's refusal must be the typed one the
 row names, or the row must be re-pinned to the door that now answers
 first.
 
+## Evidence from `splice/interior-arm` (PR 5826), 2026-10-27
+
+With the analytic span × spline face arm in, `m5_s11`'s union reads
+every pellet edge clear of the loft's walls and refuses at the extent
+fallback, `NurbsExtentUnsupported { operand: A, face }`, naming
+`side_faces[0][2]`, the concave top wall. PR 5826 re-pins the row
+there; it is green at ε 1e-9, 1e-6 and 1e-12.
+
 ## Evidence — the Approx cap's probes at ε 1e-6 (#splice/eps-cap-probe)
 
 After PR 5814, `an_approx_cap_clear_of_a_bar_reads_alike_at_every_pose`

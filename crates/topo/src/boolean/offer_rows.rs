@@ -2838,6 +2838,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     (
+        "reduce.rs",
+        "spline_interior",
+        "BooleanDecision::Crossing",
+        1,
+    ),
+    (
         "ruled_region.rs",
         "-",
         "BooleanDecision::CONTAINMENT_UNNAMED",

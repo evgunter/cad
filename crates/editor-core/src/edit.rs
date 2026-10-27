@@ -6828,7 +6828,7 @@ impl Recording<'_, crate::ProfileProgram> {
         crate::names::interrogate::face_frame(&ev, at, face).map_or(
             crate::Orientation::IDENTITY,
             |pose| {
-                let outward = if pose.sense { pose.axis } else { -pose.axis };
+                let outward = geom_brep::OutwardNormal::from_chart(pose.axis, pose.sense).vec();
                 crate::Orientation::IDENTITY
                     .toward(geom_core::linalg::Vec3::new(0.0, 0.0, 1.0), outward)
             },

@@ -104,10 +104,14 @@ pub fn route(curve: CurveKind, surface: SurfaceKind) -> Route {
              lane does not read yet \
              (work/splice/nurbs-edge-crossing-rung-is-the-ring-composite)",
         ),
-        (Line | Circle | Ellipse | Spiric | Nurbs, SurfaceKind::Nurbs | Approx) => unbuilt(
+        (Line | Circle | Ellipse, SurfaceKind::Nurbs | Approx) => built(
             Door::SplineFace,
-            "enclosures of the span's pieces against the surface's cells \
-             (work/splice/an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane)",
+            "boxes of the span's parameter and the chart's, cleared past the band or \
+             proved one transverse meeting by a Krawczyk contraction",
+        ),
+        (Spiric | Nurbs, SurfaceKind::Nurbs | Approx) => unbuilt(
+            Door::SplineFace,
+            "enclosures of a spiric or spline span's pieces against the surface's cells",
         ),
         (Spiric, Plane | Cylinder | Cone | Sphere | Torus) => unbuilt(
             Door::Spiric,
@@ -251,3 +255,4 @@ pub mod composite;
 mod review_rows;
 #[cfg(test)]
 mod rows;
+pub mod spline_face;
