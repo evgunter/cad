@@ -6788,7 +6788,7 @@ pub(crate) enum Undecided {
     NoSoundReach,
     /// Arm 2: the containing instance's extent is unclaimable.
     Unclaimable,
-    /// Arm 2: a crossing already stands against the pair.
+    /// Arm 2: the boundary of one solid of the pair crosses itself.
     Crossing,
     /// Arm 2: an unexamined or escalated finding already stands.
     Unexamined,

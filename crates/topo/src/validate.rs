@@ -1992,9 +1992,10 @@ pub enum ValidationError {
     /// the material test (the contained instance's vertices against
     /// the container's material through the per-solid point-in-solid
     /// door), and this variant carries only its residue — a standing
-    /// crossing or unexamined finding on the pair, a witness the door
-    /// refused, a container whose extent no sound box claims, or an
-    /// instance whose every vertex lies on the container's boundary.
+    /// crossing of one instance's own boundary or an unexamined finding
+    /// on the pair, a touch the local analysis could not read, a witness
+    /// the door refused, a container whose extent no sound box claims, or
+    /// an instance whose every vertex lies on the container's boundary.
     /// A decided interference is
     /// [`ValidationError::InstanceInterference`],
     /// [`ValidationError::SameSideInterference`] or
