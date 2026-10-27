@@ -2,10 +2,11 @@
 id: main-red-the-brace-payload-census-flags-recharted-row-unstated
 kind: issue
 title: Main red (slow set): the prose census flags RechartedRowUnstated's Display rendering its relation payload through Debug, since PR 5795
-status: open
+status: closed
 opened: 2026-10-27
 priority: P1
 cost: E
+closed: 2026-10-27
 ---
 
 
@@ -26,3 +27,5 @@ user-facing message. It came in with the merge of PR 5795
 Render the relation in words, as the other arms render their payloads,
 or give the census its reason if a `Debug` rendering is right here. The
 test then goes green.
+
+Closed by this PR (wire/recharted-relation-words, 2026-10-27). `RechartedRowUnstated`'s Display now renders the relation through `Relation::noun` (words), not `Debug`. The same PR fixes the sibling census red from PR 5829: `UnsupportedTurnedCell`'s message renders its key through the variant's `cell` field, which the census can type, instead of locally bound keys. Both `prose_census` tests pass.

@@ -4790,8 +4790,9 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "the Boolean turned a sphere of the {} operand about its centre to find where \
                  it crosses the other solid, and cannot state what it decided on the turned \
-                 sphere ({relation:?}) on that sphere's own faces: {what}",
+                 sphere ({}) on that sphere's own faces: {what}",
                 operand_word(*operand),
+                relation.noun(),
             ),
             // No operand is named: the raise sites pass the operand being
             // scanned, which is not always the one whose face the refusal cites.
