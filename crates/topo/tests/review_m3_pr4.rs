@@ -725,6 +725,7 @@ fn assert_cone_face_refuses_at_rest(b: Body<f64>, face: topo::FaceKey) {
                                 chart: geom::SurfaceKind::Cone,
                                 ..
                             },
+                        ..
                     },
             } => Some(*half_edge),
             _ => None,

@@ -510,9 +510,12 @@ finding of its own (D10; `checks::at_rest`). The census decides that
 two copies interfere: a vertex of one strictly inside the other's
 material (`ValidationError::InstanceInterference`), a face of each on
 one plane facing the same way and sharing interior
-(`ValidationError::SameSideInterference`), an edge piercing a face
-(`CensusContact::EdgeFacePierce`), or an in-plane crossing whose side
-test reads `SameSide`. The check takes those verdicts, with every
+(`ValidationError::SameSideInterference`), a touch where the two
+materials meet (`ValidationError::TouchInterference`), an edge piercing
+a face (`CensusContact::EdgeFacePierce`), an in-plane crossing whose
+side test reads `SameSide`, or an edge of each on one line whose wedges
+overlap (`ValidationError::CoincidentWedgesOverlap`). The check takes
+those verdicts, with every
 `CensusUndecidable` the census left on the same pair of copies, and
 intersects the two copies. Each connected solid of the intersection is
 one `InterferenceFinding`, named by the faces of both copies that bound

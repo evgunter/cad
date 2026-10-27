@@ -2,8 +2,10 @@
 id: main-red-prose-census-cannot-read-a-guarded-edge-in-face-arm
 kind: issue
 title: Main red (slow set): the prose census reads BooleanError::EdgeInFace's guarded Display arm as undecided since PR 5546
-status: open
+status: closed
 opened: 2026-10-26
+closed: 2026-10-27
+pr: 5830
 priority: P1
 cost: E
 ---
@@ -46,3 +48,13 @@ example, branch on `gap.is_defect()` inside one unguarded arm), or
 teach the census to read a pattern that carries a match guard. Add
 `UNDECIDED` lines only if neither can be done. The census itself is
 CENSUS's ground (`work/census/`).
+
+## Closed
+
+2026-10-27, PR 5830. `BooleanError`'s `Display` (`crates/topo/src/boolean/mod.rs`)
+writes `EdgeInFace` as one unguarded arm that branches on
+`gap.is_defect()` inside it, so the census reads the arm's own pattern
+and types `edge` and `face`; both messages are byte-identical. The
+census is unchanged and `UNDECIDED` gains no line. The census's blind
+spot for guarded arms is filed on CENSUS's slate as
+`prose-census-reads-a-match-guard-as-the-arms-pattern` (P3).

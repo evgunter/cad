@@ -732,8 +732,9 @@ pub(crate) fn partition<T: LocalizeLane>(
         }
     }
     // What the census left undecided between two copies it decided
-    // interfere — a crossing standing on the pair, curved faces within
-    // reach of each other — rides the pair's findings as evidence: often
+    // interfere — curved faces within reach of each other, a face pair
+    // read in band; never the containment arm's own refusal, which a
+    // decided pair does not get — rides the pair's findings as evidence: often
     // the same overlap, but not always (a pin pressed into one bore and
     // slipped into another), so a quiet finding requires each such
     // verdict to lie on its own overlap (`covered`). So does a touch
@@ -794,23 +795,37 @@ pub(crate) fn finding_solids<T: Decide>(
     let (x, y) = match error {
         E::InstanceInterference { outer, inner, .. } => (*outer, *inner),
         E::SameSideInterference { a, b } => (face(*a)?, face(*b)?),
+        E::TouchInterference { a, b, .. } => (
+            topo::census_cell_solid(body, *a)?,
+            topo::census_cell_solid(body, *b)?,
+        ),
         E::CensusUndecidable { a, b, .. } => (
             topo::census_entity_solid(body, *a)?,
             topo::census_entity_solid(body, *b)?,
         ),
+        // A pierce, or a crossing whose side test read `SameSide`, by
+        // its own cells: two solids', or one solid's crossing itself.
+        E::UnrecordedContact {
+            contact: topo::CensusContact::EdgeFacePierce { edge: e, face: f },
+            ..
+        } => (edge(*e)?, face(*f)?),
+        E::UnrecordedContact {
+            contact:
+                topo::CensusContact::EdgeEdgeCross {
+                    a,
+                    b,
+                    side: Some(topo::CrossingSideVerdict::SameSide),
+                },
+            ..
+        } => (edge(*a)?, edge(*b)?),
         touch @ E::UnrecordedContact { .. } => {
-            match topo::census_interference_solids(body, touch) {
-                Some(pair) => pair,
-                None => {
-                    let [x, y] = topo::census_contact_row(touch)?
-                        .cells
-                        .map(|cell| match cell {
-                            topo::RowCell::Result { cell } => topo::census_cell_solid(body, cell),
-                            topo::RowCell::Input { .. } | topo::RowCell::Tool => None,
-                        });
-                    (x?, y?)
-                }
-            }
+            let [x, y] = topo::census_contact_row(touch)?
+                .cells
+                .map(|cell| match cell {
+                    topo::RowCell::Result { cell } => topo::census_cell_solid(body, cell),
+                    topo::RowCell::Input { .. } | topo::RowCell::Tool => None,
+                });
+            (x?, y?)
         }
         E::CoincidentWedgesOverlap { edges: [a, b], .. }
         | E::CoincidentWedgesOverlapUndecided { edges: [a, b], .. } => (edge(*a)?, edge(*b)?),

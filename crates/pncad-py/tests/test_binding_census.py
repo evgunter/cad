@@ -4002,6 +4002,7 @@ MEMBERS_BOUND_AS = {
     "ValidationError::ArcEndOffCorner": "ValidationFinding.variant",
     "ValidationError::InstanceInterference": "ValidationFinding.variant",
     "ValidationError::SameSideInterference": "ValidationFinding.variant",
+    "ValidationError::TouchInterference": "ValidationFinding.variant",
     "ValidationError::CuspEdgesMissing": "ValidationFinding.variant",
     "ValidationError::DanglingTopology": "ValidationFinding.variant",
     "ValidationError::DanglingGeometry": "ValidationFinding.variant",

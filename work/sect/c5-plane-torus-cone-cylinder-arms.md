@@ -181,7 +181,7 @@ one-face and seamed tori where their rings allow. B1, B2, the box
 between two ovals' planes and the fat corner bar's lens (Q1) build or
 stop past the join at two doors filed on their owners
 (`work/inside/point-in-solid-refuses-an-l-shaped-torus-face.md`,
-`work/flux/a-torus-face-with-a-spiric-ring-has-no-volume-lane.md`); no op
+`a-torus-face-with-a-spiric-ring-has-no-volume-lane`, closed by PR 5567); no op
 returns a wrong body. An oval pinched near the inner equator refuses its
 island's winding
 (`work/germ/a-planar-island-on-a-pinched-oval-refuses-its-winding.md`).

@@ -156,7 +156,7 @@ fn volume(body: &Body<f64>) -> f64 {
 /// corners, and −3e-16 for a 6e-19 one). A thousand times that keeps
 /// a volume check honest. Below it the corner set, which fixes the
 /// sliver and so its volume, is the oracle. The door's error is filed:
-/// `work/flux/a-planar-face-sums-its-area-about-a-far-carrier-origin`.
+/// `work/nearpoint/a-planar-face-sums-its-area-about-a-far-carrier-origin`.
 const RESOLVED_VOLUME: f64 = 1e-12;
 
 /// How far a measured volume may stand from its closed form, in m³:

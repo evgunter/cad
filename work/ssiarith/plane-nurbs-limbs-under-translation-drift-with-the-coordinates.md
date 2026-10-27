@@ -35,7 +35,7 @@ and `probes/scale_results.txt` on `analysis/reach-review/3964` at
   `tr = 10` m, and by **5.6 to 8.2 floors at `tr = 1` km** (s = 1).
   Several images refuse at 1 km with "foot-point projection did not
   converge", which is
-  `work/flux/project-eps-point-is-absolute-so-a-km-model-refuses-off-geometry.md`.
+  `work/nurbs/project-eps-point-is-absolute-so-a-km-model-refuses-off-geometry.md`.
 
 ## The work
 
