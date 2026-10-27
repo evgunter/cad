@@ -275,18 +275,17 @@ impl Path {
         }
     }
 
-    /// An upper bound on the carrier's speed, and a lower one.
+    /// An upper bound on the carrier's speed, and a lower one; NaN where
+    /// either does not certify.
     fn speeds(&self) -> (f64, f64) {
-        match self {
-            Self::Line { d, .. } => {
-                let n = norm(*d);
-                (n.hi(), n.lo())
-            }
-            Self::Conic { e1, e2, .. } => {
-                let (a, b) = (norm(*e1), norm(*e2));
-                (a.hi().max(b.hi()), a.lo().min(b.lo()))
-            }
+        let (a, b) = match self {
+            Self::Line { d, .. } => (norm(*d), norm(*d)),
+            Self::Conic { e1, e2, .. } => (norm(*e1), norm(*e2)),
+        };
+        if !(a.is_certified() && b.is_certified()) {
+            return (f64::NAN, f64::NAN);
         }
+        (a.hi().max(b.hi()), a.lo().min(b.lo()))
     }
 }
 
