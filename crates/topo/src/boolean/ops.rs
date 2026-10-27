@@ -424,6 +424,37 @@ impl Default for BooleanNaming {
 }
 
 impl BooleanNaming {
+    /// **The one read of a result key back to its operand**: which
+    /// operand the result key `k` belongs to, its key in that operand's
+    /// space, and whether it was read back through the graft rows (`inv`,
+    /// the graft's destination → source keys of `k`'s kind). A result key
+    /// is an A key only where A's clone is the arena, and a B key either
+    /// through the graft rows or because B's clone is the arena itself.
+    /// Reading the other way, an operand's key into the result, matches
+    /// on [`Self::a_keys`] and [`Self::b_keys`] where it is read.
+    ///
+    /// # Panics
+    ///
+    /// On a layout the boolean never records: it builds its result as
+    /// A's clone with B grafted in, or as one operand's clone with the
+    /// other absent ([`Self::a_keys`], [`Self::b_keys`]).
+    #[track_caller]
+    pub fn operand_of<K: Copy + Ord>(&self, inv: &BTreeMap<K, K>, k: K) -> (Operand, K, bool) {
+        match (self.a_keys, self.b_keys) {
+            (OperandKeys::Direct, OperandKeys::Grafted) => match inv.get(&k) {
+                Some(&kb) => (Operand::B, kb, true),
+                None => (Operand::A, k, false),
+            },
+            (OperandKeys::Direct, OperandKeys::Absent) => (Operand::A, k, false),
+            (OperandKeys::Absent, OperandKeys::Direct) => (Operand::B, k, false),
+            (a_keys, b_keys) => unreachable!(
+                "a boolean's naming records operand keys {a_keys:?} and {b_keys:?}: the boolean \
+                 builds its result as A's clone with B grafted in, or as one operand's clone with \
+                 the other absent"
+            ),
+        }
+    }
+
     /// Each result vertex a zip or a parting fused away → the live cell
     /// of `body` its point lies in ([`Self::settler`]).
     ///
@@ -702,13 +733,28 @@ pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &AtRestBody<T>,
     b: &AtRestBody<T>,
-    inputs: &BooleanInputs<T>,
+    inputs: &BooleanInputs,
+    strategy: SweepStrategy,
+    tol: Tol,
+) -> Result<BooleanResult<T>, BooleanError> {
+    boolean_op_given(op, a, b, inputs, None, strategy, tol)
+}
+
+/// [`boolean_op_with`], its coincidences `given` where they are a fold
+/// step's of the n-ary door ([`super::nary`]): `Some` makes those pairs
+/// the operation's only coincidences, and it decides none of its own.
+pub(crate) fn boolean_op_given<T: Decide + Bounds + crate::props::AtRestPolicy>(
+    op: BooleanOp,
+    a: &AtRestBody<T>,
+    b: &AtRestBody<T>,
+    inputs: &BooleanInputs,
+    given: Option<&[super::GluedPair<T>]>,
     strategy: SweepStrategy,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     #[cfg(feature = "door-tier3-meter")]
     let door_from = std::time::Instant::now();
-    let result = boolean_door(op, a, b, &Glue::of(inputs), strategy, tol);
+    let result = boolean_door(op, a, b, &Glue::of(inputs, given), strategy, tol);
     #[cfg(feature = "door-tier3-meter")]
     super::door_meter::record(op, &result, door_from.elapsed(), [a.outcome(), b.outcome()]);
     result

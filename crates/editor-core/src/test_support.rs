@@ -1378,6 +1378,56 @@ pub fn assemble_world_copies_edits(
     (doc, log)
 }
 
+/// The judgement whose naming [`with_judgement_naming_fault`] refuses,
+/// while it runs.
+static JUDGEMENT_FAULT: std::sync::Mutex<Option<usize>> = std::sync::Mutex::new(None);
+
+/// What [`with_judgement_naming_fault`]'s refused naming says.
+pub const JUDGEMENT_NAMING_FAULT: &str = "a test refused the naming of a union's judgement";
+
+/// **`f`, with the naming of every union's judgement `k` refused**
+/// ([`JUDGEMENT_NAMING_FAULT`]): a seam for the order in which a union
+/// announces what goes wrong, which no geometry reaches on demand. One
+/// at a time: a nested call panics.
+///
+/// The seam is disarmed when `f` returns or unwinds.
+///
+/// # Panics
+///
+/// Where another call is running.
+pub fn with_judgement_naming_fault<R>(k: usize, f: impl FnOnce() -> R) -> R {
+    /// Disarms the seam on every way out of `f`.
+    struct Disarm;
+    impl Drop for Disarm {
+        fn drop(&mut self) {
+            *JUDGEMENT_FAULT
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+        }
+    }
+    {
+        let mut slot = JUDGEMENT_FAULT
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        assert!(slot.is_none(), "one judgement-naming fault at a time");
+        *slot = Some(k);
+    }
+    let _disarm = Disarm;
+    f()
+}
+
+/// The refusal [`with_judgement_naming_fault`] makes of judgement `k`'s
+/// naming, where it is running for `k`.
+pub(crate) fn judgement_naming_fault(k: usize) -> Option<crate::names::NamingError> {
+    (*JUDGEMENT_FAULT
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        == Some(k))
+    .then_some(crate::names::NamingError::Emission {
+        what: JUDGEMENT_NAMING_FAULT,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::{axes_at, moves_at};
