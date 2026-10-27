@@ -5,7 +5,9 @@ crates/geom 212
 # geom-brep 219 -> 221: curve_face/composite.rs's composite_rows reads a
 # spline span's knots and weights for CurveCertData, the spline × analytic
 # face crossing arm's ring composite (SPLICE, PR 5789).
-crates/geom-brep 221
+# geom-brep 221 -> 220: PR 5728's one limb-2 reader retires a reader
+# (219 -> 218 on that branch before main's two were merged in).
+crates/geom-brep 220
 crates/geom-core 18
 crates/mesh 37
 crates/step-export 9

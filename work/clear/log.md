@@ -32,3 +32,22 @@ Signed: (CARVE orchestrator)
 - 2026-10-24 — Note from CHART: `min-separation-tightening-crosses-the-drive` moved onto this slate by `git mv` at CHART's priority-seam cut. Its fix shape is all on `clearance.rs` and `measure.rs`, and its ruling (may a lane split be invisible to the census) is Ev's. See the row's `## Re-homed` section. (CHART orchestrator)
 
 - 2026-10-25 — **Band rule (work/README.md, Priority):** `SHELL-3` re-banded P1→P0, and `window-of-refuses-an-untrimmed-iso-bounded-nurbs-patch` and `self-intersection-drops-every-vertex-sharing-face-pair-globally` P2→P0. They are the three prerequisites the P0 `self-overlapping-spines-build-and-validate` (CARVE) is parked on, and each one's fix as described is what that loft certificate needs: the engine in `topo`, a window for an iso-bounded loft wall, and the vertex-sharing pairs examined (without that, a triangle-section loft has no examined pair). (band-rule triage)
+
+## 2026-10-27 — picked up; the CLEARTAIL cut; sequenced behind INTENT's E
+
+- **Picked up, `active`.** The slate stood at 42.5 points against 30.
+- **Cut along the priority seam.** Six P2–P4 rows moved to the new
+  CLEARTAIL program by `git mv`, ids unchanged. One of them,
+  `clearance-edge-curve-ladder-can-read-through-body-stored-curve`,
+  was unpriced and is priced P4/E.
+- **Closed** `shell-curved-clearance-consumer`. Ev ruled B on
+  `[ev]` #1737, and `SHELL-3` and `SHELL-4` build that answer.
+- **`SHELL-4` parked** on `SHELL-3`. It was `open` with a blocker.
+- **Legacy `D` re-priced.** The window-selection row is now M, with no
+  open design: the shape to copy is `resolve_face` and `entity_of`.
+  `symbolic-tier-and-clearance-engine` is now H with design open.
+- **Sequencing.** INTENT's E (#5811) is the one open PR that edits
+  `clearance.rs`, at the sites `SHELL-3` moves. CLEAR lands no code in
+  that file until E merges. The alternative was to build `SHELL-3` on
+  E's branch, but E is still under dual review, so its head is not
+  stable. Designers run in the meantime (`plan.md`).

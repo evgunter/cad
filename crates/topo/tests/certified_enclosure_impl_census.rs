@@ -158,7 +158,7 @@ struct Roster {
 }
 
 /// The rosters, one per door value in the tree.
-const ROSTERS: [Roster; 7] = [
+const ROSTERS: [Roster; 8] = [
     Roster {
         door: "FittedLane",
         file: "crates/geom-brep/src/fitted_lane.rs",
@@ -209,6 +209,12 @@ const ROSTERS: [Roster; 7] = [
         helper: "holds_the_certified_shell_door",
         formed: Formed::CertifyingScalars,
     },
+    Roster {
+        door: "SplineFoot",
+        file: "crates/geom-brep/src/certify.rs",
+        helper: "holds_the_certified_spline_foot",
+        formed: Formed::CertifyingScalars,
+    },
 ];
 
 /// The types the door reader matches that are not door values, each
@@ -218,8 +224,7 @@ const NOT_A_DOOR: [(&str, &str); 1] = [(
     "CertifiedLanes",
     "a private bundle of door values that forms none of its own: its quadrature and region \
      fields are `QuadLane::certified()` and `RegionLane::certified()`, which their own rosters \
-     pin, and check 2's lane is `plane_nurbs_limbs` by name, so it has no fn-pointer field a \
-     wiring helper could compare",
+     pin, so it has no fn-pointer field a wiring helper could compare",
 )];
 
 /// The impls that are not door scalars, each with the reason no wiring

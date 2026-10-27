@@ -2871,9 +2871,9 @@ pub enum BooleanError {
     },
     /// An edge of `operand` meets a face of `face_of` where a spline arm
     /// of the curve × face table cannot count its crossings (`why`): the
-    /// ring composite for a spline edge
+    /// ring composite for a spline edge against an analytic face
     /// ([`geom_brep::curve_face::composite::crossings`]), or the
-    /// spline-face arm for an analytic edge against a spline face
+    /// spline-face arm for any edge against a spline face
     /// ([`geom_brep::NurbsLane::chart_meetings`]). The edge comes
     /// within the band of the face's carrier without a crossing the arm
     /// can tell apart (it touches it, runs along it, or crosses it more
@@ -3912,15 +3912,12 @@ pub enum BooleanError {
     /// operands, e.g. ∪ of a body with its own complement) — no
     /// boundary representation exists for it.
     UnrepresentableResult,
-    /// Re-certifying a grafted edge description against the combined
-    /// body's surfaces, through the scalar's NURBS lane, refused (the
+    /// Re-attaching a grafted edge description against the combined
+    /// body's surfaces, through the scalar's edge door, refused (the
     /// combine door's `graft_solid`). The inputs are bitwise the
     /// source's, so a certifying scalar re-derives what the source
-    /// already holds; what reaches here is a carrier whose certificate
-    /// needs the lane at a scalar that holds none
-    /// ([`geom_brep::CertifyError::NurbsLaneNotSupplied`]), or a
-    /// certificate the source should not have held. Loud, never a
-    /// dangling reference.
+    /// already holds; what reaches here is a certificate the source
+    /// should not have held. Loud, never a dangling reference.
     GraftRecertify(geom_brep::CertifyError),
     /// The result sort could not read which piece of material a shell
     /// of the result belongs to ([`crate::pieces`]): a solid is one

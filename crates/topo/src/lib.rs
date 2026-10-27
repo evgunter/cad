@@ -294,6 +294,18 @@ pub mod test_support {
 
     use crate::body::Body;
 
+    /// The at-rest window's reasons for an incidence refusal, one per
+    /// read (`validate::incidence_reasons`): a test outside this crate
+    /// reads them rather than copying their words.
+    pub mod incidence_reasons {
+        /// Decided off its face.
+        pub const OFF: &str = crate::validate::incidence_reasons::OFF;
+        /// Read within the band at a pose.
+        pub const AT_POSE: &str = crate::validate::incidence_reasons::AT_POSE;
+        /// The incidence reading landed in the band.
+        pub const UNSHOWN: &str = crate::validate::incidence_reasons::UNSHOWN;
+    }
+
     /// **The resolution the suites' pinned numbers are stated at**:
     /// [`crate::Settle::Resolution`] of 1024·ε of mean boundary
     /// displacement. A test that reads a volume or an area as a number,
@@ -352,11 +364,11 @@ pub mod test_support {
     pub use crate::test_support_fixtures::{
         CubeOps, CylFrame, CylKey, FaceGeometry, NullStrutListing, Prism, PrismOps, RingFaceOps,
         StraddleSeat, arc_chain_over_the_jump, assert_every_chord_named_by_the_fence, brick,
-        brick_with_fresh_keys, cube_into, cyl_arc_at, cyl_wall_sheet, cyl_wall_sheet_keyed,
-        declined_cube, describe_as_intersections, drill_hole, every_chord_stated_as_its_pair,
-        face_facing, fresh_keyed_body, geometric_cube, holed_block, identity_map,
-        kill_under_a_null_strut, line, mapped_cube, plane, plane_every_face, plant_disc_face,
-        plant_ring_face, prism, prism_ops, prism_z, split_plane, straddle_seat,
+        brick_with_fresh_keys, computed_edge_channels, cube_into, cyl_arc_at, cyl_wall_sheet,
+        cyl_wall_sheet_keyed, declined_cube, describe_as_intersections, drill_hole,
+        every_chord_stated_as_its_pair, face_facing, fresh_keyed_body, geometric_cube, holed_block,
+        identity_map, kill_under_a_null_strut, line, mapped_cube, plane, plane_every_face,
+        plant_disc_face, plant_ring_face, prism, prism_ops, prism_z, split_plane, straddle_seat,
         wedge_on_a_block_top,
     };
     pub use crate::test_support_impl::ArenaCounts;

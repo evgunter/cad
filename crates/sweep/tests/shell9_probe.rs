@@ -170,6 +170,7 @@ fn drum_reverted_plane_circle_image_is_the_one_a_fresh_derivation_gives() {
                 |sk| reverted.get_surface(sk).cloned(),
                 1.0,
                 band,
+                geom_brep::NurbsLane::certified(),
             )
         };
         let verbatim = certify(spec_with(Some(c.pcurve.clone())));

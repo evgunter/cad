@@ -445,7 +445,7 @@ fn a_fused_instances_section_is_drawn_and_its_display_controls_are_refused() {
 
 #[test]
 fn the_at_rest_badge_lands_with_the_evaluation() {
-    // The A5 verdict lives past the commit: the mate-less assembly
+    // The at-rest badge lives past the commit: the mate-less assembly
     // certifies, and so does a seated one — the seat is a touch between
     // copies the census records at the door, never an overlap.
     let tol = Tol::witness();
@@ -453,7 +453,11 @@ fn the_at_rest_badge_lands_with_the_evaluation() {
     let mut session = asm::open_bench(&bench, tol);
     assert_eq!(
         session.at_rest(),
-        Some(&viewer::session::AtRestBadge::Certified { loud: 0, quiet: 0 }),
+        Some(&viewer::session::AtRestBadge {
+            loud: 0,
+            quiet: 0,
+            could_not_look: 0,
+        }),
         "disjoint instances certify outright (A5's disjoint half)"
     );
     asm::unpin(&mut session, bench.post_b);
@@ -463,7 +467,11 @@ fn the_at_rest_badge_lands_with_the_evaluation() {
     );
     assert_eq!(
         session.at_rest(),
-        Some(&viewer::session::AtRestBadge::Certified { loud: 0, quiet: 0 }),
+        Some(&viewer::session::AtRestBadge {
+            loud: 0,
+            quiet: 0,
+            could_not_look: 0,
+        }),
         "a seated mate certifies, its touch recorded at rest"
     );
 }

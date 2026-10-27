@@ -155,7 +155,10 @@ use pncad::sweep::{
     ExtrudeError, Extrusion, Revolution, RevolveAxis, TubeWindow, WedgeFrames, extrude, loft_body,
     revolve, revolved_caps, sweep_body, tube_along_arc,
 };
-use pncad::topo::{AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, EdgeKey, Operand};
+use pncad::topo::{
+    AtRestBody, Body, BooleanBody, BooleanDecision, BooleanError, ContactRecords, EdgeKey,
+    LeverArm, Operand,
+};
 
 use crate::booleans::{check, expect_seamed, finished, try_union};
 use crate::scalar::{Scalar, axis_frame, sketch_frame};
@@ -1427,7 +1430,7 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
     // The long, nearly straight rise, then the tight turn-over that
     // makes the arch. 22 degrees on a 5 m ring reads as "leaning";
     // 170 degrees on a 1.1 m ring turns the stem right over.
-    let (lower, at_fork) = root.arc(5.0, deg(22.0));
+    let (lower, at_fork) = root.arc(STEM_RING, deg(22.0));
     let (upper, at_flower) = at_fork.arc(1.1, deg(170.0));
     // The side pedicel leaves the fork heading up and out, then
     // curls 130 degrees over so its lantern hangs nearly plumb.
@@ -1437,7 +1440,7 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
     };
     let (pedicel, at_bud) = fork.arc(0.42, deg(130.0));
 
-    let (stem, stem_caps) = tube_arc(lower, 0.060, tol);
+    let (stem, stem_caps) = tube_arc(lower, STEM_TUBE, tol);
     let (arch, arch_caps) = tube_arc(upper, ARCH_R, tol);
     let (pedicel_body, pedicel_caps) = tube_arc(pedicel, 0.032, tol);
 
@@ -1641,6 +1644,65 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
         });
     }
     pieces
+}
+
+/// The lower stem's tube: a 5 m ring at the authored 0.06 m pipe, so its
+/// ring is about 83 times its pipe.
+const STEM_RING: f64 = 5.0;
+const STEM_TUBE: f64 = 0.060;
+
+/// **The lily's declared frontier** (the tour's #795 posture: a scene
+/// may declare a frontier up front, and must fail loudly when it stops
+/// refusing). At ε = 1e-12 the lower stem's tube — a torus whose ring is
+/// about 83 times its pipe — refuses as limb 2's kernel approximation
+/// limit: its rim's certified distance bound from the torus lies far
+/// above the rim's own rounding, the thin-torus class fork row 203 rules
+/// a kernel limit at that row (R/r of 20 or more;
+/// `work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+/// The stem is the plant's spine, so the lily's stop and its wall probes
+/// stand down at that row and say so. `Some(narration)` where the
+/// frontier holds; `None` where the plant builds.
+///
+/// # Panics
+///
+/// At ε = 1e-12, when the stem builds (the frontier retired: drop this
+/// declaration) or refuses other than as the kernel limit; at any other
+/// row, when it refuses at all.
+pub fn stem_frontier(tol: Tol) -> Option<String> {
+    let at_row = (tol.eps() / 1.0e-12 - 1.0).abs() < 1.0e-3;
+    let root = Turtle {
+        p: Point3::origin(),
+        t: Vec3::unit_z(),
+    };
+    let (lower, _) = root.arc(STEM_RING, deg(22.0));
+    let sense = if lower.turn >= 0.0 { -1.0 } else { 1.0 };
+    let got = tube_along_arc(
+        axis_frame(lower.center, v3(0.0, sense, 0.0), lower.radial, tol),
+        lower.ring,
+        TubeWindow::Arc {
+            t0: 0.0,
+            t1: lower.turn.abs(),
+        },
+        STEM_TUBE,
+        tol,
+    );
+    match (at_row, got) {
+        (false, Ok(_)) => None,
+        (true, Err(e)) if format!("{e:?}").contains("AnalyticRung3(KernelLimit {") => {
+            Some(format!(
+                "DECLARED FRONTIER at eps = {:e}: the lower stem (a {STEM_RING} m ring at a \
+             {STEM_TUBE} m pipe, ring/pipe ~ 83) refuses as limb 2's kernel approximation \
+             limit — a thin torus, the class ruled a kernel limit at this row — so the \
+             plant, its stop and its wall probes stand down here: {e}",
+                tol.eps()
+            ))
+        }
+        (true, Ok(_)) => panic!(
+            "the lily's declared stem frontier RETIRED: the thin stem tube builds at eps = \
+             1e-12; drop `stem_frontier` and run the plant at every row"
+        ),
+        (_, Err(e)) => panic!("the lily's stem tube refused outside its declared frontier: {e:?}"),
+    }
 }
 
 /// The tour stop.
@@ -2064,38 +2126,21 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         runner_up
     );
 
-    // 1. The stem is ONE stem. Its two arcs meet on a shared disk —
-    //    an exact coincident planar contact, the crosslap mate, which
-    //    the union glues on its decided zero.
-    //
-    //    The torus is on the operand gate's KIND roster, and the
-    //    crossing layer has a circle × torus root lane: the stem's inner
-    //    equator seam and the arch's outer equator seam each cross the
-    //    other tube's carrier only outside that face's window, which
-    //    the roots certify. So the glue reaches the join, whose germ
-    //    pair of the stem's weld cap against the arch's wall (plane ×
-    //    torus, the arch's rim lying in the cap) takes the plane × wall
-    //    arm and its chord, an arc of the arch's meridian circle. Past
-    //    the join, the section certificate's interior-loop guard refuses
-    //    the stem's tube wall against the arch's: two tori with parallel
-    //    axes apart, which it has no arm for.
-    wall(
-        1,
-        "glue the two stem arcs into one stem (coincident-planar mate)",
-        crate::booleans::try_union(stem, arch, tol),
-        |e| {
-            matches!(
-                e,
-                BooleanError::CurvedPairUnsupported {
-                    site: pncad::topo::PairRefusalSite::InteriorLoopGuard,
-                    kind: pncad::geom::SurfaceKind::Torus,
-                    other_kind: pncad::geom::SurfaceKind::Torus,
-                    ..
-                }
-            )
-        },
-        "make the stem a single body — and close #968, whose whole content this is",
+    // Wall 1 — RETIRED, kept live. The stem's two arcs meet on a shared
+    //    disc, an exact coincident planar contact the union glues on its
+    //    decided zero, and the glue builds: the section certificate
+    //    reads the two tube walls (tori with parallel axes apart) as two
+    //    loops, mirror images across the weld plane, each outside one
+    //    face's window. The scene still ships the stem as two pieces;
+    //    gluing them is the scene's own change to make.
+    let glued = crate::booleans::try_union(stem, arch, tol)
+        .expect("the stem's two arcs glue into one stem");
+    assert_eq!(
+        glued.body().map(|b| b.body.shells().count()),
+        Some(1),
+        "the glued stem is one shell"
     );
+    println!("   wall 1 — RETIRED: the stem's two arcs glue into one stem");
 
     // 2. The flower grows OUT OF the pedicel, and it is now authored
     //    so that it CAN: the neck cone's rim and the arch tube's
@@ -2325,11 +2370,13 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    reads each against the sheath's base cap, in the blade's own cap
     //    plane, through the ring composite of the cap's plane along the
     //    seam: no crossing inside it, its start on the cap being its end
-    //    vertex's meeting. It still refuses, one step on: a NURBS tip
-    //    seam of the blade against a NURBS wall of the sheath whose
-    //    boundary leaves it undecided, where the spline-face door has no
-    //    interior arm for a spline span
-    //    (`work/splice/a-spline-span-against-a-spline-face-has-no-interior-arm`).
+    //    vertex's meeting. Each NURBS seam of one body is read against the
+    //    other's NURBS walls by the spline-face arm, a seam's end at a tip
+    //    being its end vertex's meeting. It still refuses, at the result:
+    //    the shared rim, a seam between the two bodies' NURBS walls, is
+    //    re-described through the dihedral of its two surfaces, which has
+    //    no reading on a spline surface
+    //    (`work/splice/the-results-seam-between-two-spline-walls-is-read-by-no-dihedral`).
     //    The flush reading along the two bodies' NURBS edges is behind
     //    that (`work/splice/a-unions-flush-reading-cannot-follow-a-nurbs-carrier`).
     let sheath = {
@@ -2361,37 +2408,21 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         8,
         "graft the leaf's sheath onto its blade at their shared section",
         crate::booleans::try_union(leaf_a, &sheath, tol),
-        // The DOOR is the claim: the sheath's ridge wall (operand B, the
-        // higher of its two NURBS walls by the mean height of its net),
-        // whose boundary leaves an edge of the blade undecided. If this
+        // The SITE is the claim: the result's seam, its arm read through a
+        // dihedral with no reading on a spline wall, so no value. If this
         // ever refuses elsewhere, the sentence above is wrong and must be
-        // re-derived before it is believed. The refusal names no site, so
-        // the probe cannot tell that door from another raising the same
-        // variant on the same wall.
+        // re-derived before it is believed. `LeverArm::Seam` is raised by
+        // one door, the seam re-description's, so the decision and its
+        // predicate pin the site; the refusal names no edge and no face, so
+        // the probe cannot tell this seam from another seam of the result
+        // read the same way.
         |e| {
-            let ridge = sheath
-                .faces()
-                .filter_map(|(k, f)| match sheath.get_surface(f.surface) {
-                    Some(pncad::geom::Surface::Nurbs(n)) => {
-                        let z: f64 = n
-                            .control()
-                            .iter()
-                            .map(|p| pncad::geom_core::Bounds::lo(p.z))
-                            .sum();
-                        #[allow(clippy::cast_precision_loss)]
-                        Some((k, z / n.control().len() as f64))
-                    }
-                    _ => None,
-                })
-                .max_by(|x, y| x.1.total_cmp(&y.1))
-                .map(|(k, _)| k);
             matches!(
                 e,
-                BooleanError::CurvedBooleanUnsupported {
-                    operand: Operand::B,
-                    face,
-                    kind: SurfaceKind::Nurbs,
-                } if Some(*face) == ridge
+                BooleanError::Escalated {
+                    decision: BooleanDecision::LeverArm(LeverArm::Seam),
+                    diag,
+                } if diag.predicate == Some("dihedral_arm") && diag.margin.is_invalid()
             )
         },
         "grow the leaves out of the stem instead of standing them beside it",
@@ -4059,29 +4090,8 @@ mod verbs_gate_r1_probes {
             &operand("lily_lantern"),
         );
 
-        let glued = crate::booleans::try_union(stem, arch, tol)
-            .expect_err("the stem's two arcs still cannot be glued");
-        println!("lily wall 1: {glued:?}");
-        // **Wall 1 is past the gate, the crossing layer and the
-        // join.** The circle × torus root lane certifies each seam's
-        // crossing of the other tube's carrier as lying outside that
-        // face's window, so the glue reaches the join, whose germ pair
-        // of the stem's weld cap against the arch's wall (plane × torus)
-        // takes the plane × wall arm and its chord. Past the join, the
-        // interior-loop guard refuses the stem's tube wall against the
-        // arch's, two tori with parallel axes apart.
-        assert!(
-            matches!(
-                glued,
-                BooleanError::CurvedPairUnsupported {
-                    site: pncad::topo::PairRefusalSite::InteriorLoopGuard,
-                    kind: pncad::geom::SurfaceKind::Torus,
-                    other_kind: pncad::geom::SurfaceKind::Torus,
-                    ..
-                }
-            ),
-            "wall 1 stops at the interior-loop guard on its two tube walls: {glued:?}"
-        );
+        crate::booleans::try_union(stem, arch, tol).expect("the stem's two arcs glue");
+
         // **The weld itself has no torus contact**, measured
         // off the two loci: the stem tube's end circle has radius
         // `STEM_R` = 0.060 and the arch's start disc radius `ARCH_R` =

@@ -85,6 +85,8 @@ mod asm_r2b_interface_wire;
 mod asm_upd_pin_update;
 #[path = "assemble_one_local_battery.rs"]
 mod assemble_one_local_battery;
+#[path = "atrest_carried_coincidence.rs"]
+mod atrest_carried_coincidence;
 #[path = "band_joined_rim_names.rs"]
 mod band_joined_rim_names;
 #[path = "band_planar_cut_off_names.rs"]
@@ -838,6 +840,10 @@ mod intent_s4_h_placed;
 mod intent_s5_a_relation;
 #[path = "intent_s5_b_interference.rs"]
 mod intent_s5_b_interference;
+#[path = "intent_s5_c_at_rest_check.rs"]
+mod intent_s5_c_at_rest_check;
+#[path = "intent_s5_c_quietable.rs"]
+mod intent_s5_c_quietable;
 #[path = "intent_value_chart_orientation.rs"]
 mod intent_value_chart_orientation;
 #[path = "intent_vars_2_table.rs"]

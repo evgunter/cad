@@ -315,3 +315,35 @@ chained push.
 ## 2026-10-27 — seam note from QUAD's main-red triage
 
 Filed `two-door-rows-red-under-the-per-op-postcondition-scalpel` on this slate. Two topo rows go red only under `--features per-op-postcondition`: `a_join_sweeps_tier_1_once_however_many_it_joins` (from PR 5666) and `the_door_panics_on_an_out_of_scope_malformed_solid` (bisected to PR 5661). Both are green in the default build at every ε. (QUAD triage lane)
+
+## 2026-10-27 — conic unit 1 merged (PR 5728); the chord-extent row claimed (OFFSET orchestrator)
+
+PR 5728 merged (`b8974faabc`). It carries the mint/certify door split
+(5689), limb 2 for every carrier through one framed reader with the
+kernel-limit refusal (fork row 203, Ev: "this seems good"), and limb 2 over
+a parameter box through the free-`t` identity (row 204).
+
+Ev's question on the last asked whether anything beyond "within ε
+everywhere" was being decided. Nothing was: it applied E6/E12 to an
+implementation defect.
+
+Process lesson: I over-escalated. Before an `[ev]` PR, check whether the
+question is already answered by ratified text (the claim) and only the
+mechanism is new. A mechanism that applies a ratified rule is mine to rule.
+
+The concurrent dual review tallied one finding (R2): at `f64` the
+line × plane end rule measured in round-to-nearest arithmetic and passed
+an edge 1.038e-12 m off its plane at ε = 1e-12. It was fixed by measuring
+in certification arithmetic.
+
+The orchestrator then ruled the ends' verdict order:
+- an end enclosure with a floor above zero is a measured distance;
+- one reaching zero is only an upper bound, so the stall stands.
+
+Limb 2's cost went from 299 fast-set rows over their limit to 11, which
+sit in the slow set; the cost row is P1. Three container restarts killed
+the lane mid-run; pushing at safe points kept each loss to one step.
+
+SELECT's `edge-extent-reads-a-steep-nurbs-arcs-chord-four-to-ten-times-short`
+(P0, unclaimed, SELECT `ready`) is claimed into OFFSET. Our conic arc
+(PR 5692) made it reachable, and unit 3 is parked on it.
