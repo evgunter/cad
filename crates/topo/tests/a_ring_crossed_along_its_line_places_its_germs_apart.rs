@@ -45,6 +45,12 @@ fn t() -> Tol {
     Tol::witness()
 }
 
+/// `b` with its heights negated: corners under the top where `lying`
+/// and the like give them above it.
+fn below(b: [[f64; 3]; 3]) -> [[f64; 3]; 3] {
+    b.map(|[x, y, z]| [x, y, -z])
+}
+
 fn built(what: &str, r: Result<BooleanResult<f64>, BooleanError>) -> AtRestBody<f64> {
     match r {
         Ok(BooleanResult::Body(r)) => r.body,
@@ -160,7 +166,6 @@ struct Scene {
 }
 
 fn scenes() -> [Scene; 2] {
-    let below = |b: [[f64; 3]; 3]| b.map(|[x, y, z]| [x, y, -z]);
     let phi = 250.0;
     [
         Scene {
@@ -329,7 +334,6 @@ fn an_edge_along_a_ring_places_its_germs_apart_and_the_union_closes_the_ring() {
 #[test]
 fn a_partner_flush_with_the_rings_face_builds_where_one_copy_is_kept() {
     let poses = poses();
-    let below = |b: [[f64; 3]; 3]| b.map(|[x, y, z]| [x, y, -z]);
     for (side, base) in [
         (
             "left",
@@ -429,7 +433,6 @@ fn a_partner_flush_with_the_rings_face_builds_where_one_copy_is_kept() {
 #[test]
 fn a_partner_grooved_along_the_ring_unites_in_either_order() {
     let poses = poses();
-    let below = |b: [[f64; 3]; 3]| b.map(|[x, y, z]| [x, y, -z]);
     for pose in [&poses[0], &poses[2]] {
         let plate = posed_box("the plate", PLATE, pose, t());
         let void = apex_pyramid(&below(lying(0.0)), pose, t());
@@ -506,142 +509,103 @@ fn a_partner_grooved_along_the_ring_unites_in_either_order() {
     }
 }
 
-/// A half-space `n · p ≤ c`, `n` unit.
-type Half = ([f64; 3], f64);
-
-fn dot(a: [f64; 3], b: [f64; 3]) -> f64 {
-    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+/// A convex polytope outside the kernel: its face loops and the
+/// half-spaces `n · p ≤ d` it is the meet of, for
+/// [`crate::union_flush_onto_edge_contact::clipped_volume`].
+struct Convex {
+    faces: Vec<Vec<[f64; 3]>>,
+    planes: Vec<([f64; 3], f64)>,
 }
 
-fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
-    [
-        a[1] * b[2] - a[2] * b[1],
-        a[2] * b[0] - a[0] * b[2],
-        a[0] * b[1] - a[1] * b[0],
-    ]
-}
-
-fn sub(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
-    [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
-}
-
-/// The half-spaces bounding the convex hull of `pts`.
-fn hull_planes(pts: &[[f64; 3]]) -> Vec<Half> {
-    let mut out = Vec::new();
-    for i in 0..pts.len() {
-        for j in i + 1..pts.len() {
-            for k in j + 1..pts.len() {
-                let n = cross(sub(pts[j], pts[i]), sub(pts[k], pts[i]));
-                let l = dot(n, n).sqrt();
-                if l < 1e-12 {
-                    continue;
-                }
-                let n = n.map(|c| c / l);
-                let c = dot(n, pts[i]);
-                if pts.iter().all(|&p| dot(n, p) - c <= 1e-12) {
-                    out.push((n, c));
-                } else if pts.iter().all(|&p| dot(n, p) - c >= -1e-12) {
-                    out.push((n.map(|x| -x), -c));
-                }
-            }
-        }
-    }
-    out
-}
-
-/// The half-spaces of the box `b`.
-fn box_planes(b: [(f64, f64); 3]) -> Vec<Half> {
-    (0..3)
-        .flat_map(|k| {
-            let mut e = [0.0; 3];
-            e[k] = 1.0;
-            [(e, b[k].1), (e.map(|x| -x), -b[k].0)]
-        })
-        .collect()
-}
-
-/// **The volume of a bounded intersection of half-spaces**, in closed
-/// form: its vertices are the points three planes meet at inside every
-/// half-space, and each plane holding three or more bounds a face, whose
-/// cone from the origin adds `area · c / 3`.
-fn convex_volume(hs: &[Half]) -> f64 {
-    let mut planes: Vec<Half> = Vec::new();
-    for &(n, c) in hs {
-        if !planes
-            .iter()
-            .any(|&(m, d)| dot(m, n) > 1.0 - 1e-12 && (d - c).abs() < 1e-12)
-        {
-            planes.push((n, c));
-        }
-    }
-    let mut verts: Vec<[f64; 3]> = Vec::new();
-    for i in 0..planes.len() {
-        for j in i + 1..planes.len() {
-            for k in j + 1..planes.len() {
-                let (a, b, c) = (planes[i], planes[j], planes[k]);
-                let det = dot(a.0, cross(b.0, c.0));
-                if det.abs() < 1e-12 {
-                    continue;
-                }
-                let (u, v, w) = (cross(b.0, c.0), cross(c.0, a.0), cross(a.0, b.0));
-                let p = [0, 1, 2].map(|q| (a.1 * u[q] + b.1 * v[q] + c.1 * w[q]) / det);
-                if planes.iter().all(|&(n, d)| dot(n, p) - d <= 1e-9)
-                    && !verts.iter().any(|&q| dot(sub(q, p), sub(q, p)) < 1e-18)
-                {
-                    verts.push(p);
-                }
-            }
-        }
-    }
-    let mut volume = 0.0;
-    for &(n, c) in &planes {
-        let mut on: Vec<[f64; 3]> = verts
-            .iter()
-            .copied()
-            .filter(|&p| (dot(n, p) - c).abs() < 1e-9)
+impl Convex {
+    /// The box `b`.
+    fn cuboid(b: [(f64, f64); 3]) -> Self {
+        let at = |i: usize, j: usize, k: usize| {
+            [
+                [b[0].0, b[0].1][i],
+                [b[1].0, b[1].1][j],
+                [b[2].0, b[2].1][k],
+            ]
+        };
+        let faces = (0..3)
+            .flat_map(|axis| {
+                [0, 1].map(|side| {
+                    let corner = |u: usize, v: usize| {
+                        let mut ijk = [0; 3];
+                        ijk[axis] = side;
+                        ijk[(axis + 1) % 3] = u;
+                        ijk[(axis + 2) % 3] = v;
+                        at(ijk[0], ijk[1], ijk[2])
+                    };
+                    vec![corner(0, 0), corner(1, 0), corner(1, 1), corner(0, 1)]
+                })
+            })
             .collect();
-        if on.len() < 3 {
-            continue;
-        }
-        let m = on.len() as f64;
-        let ctr = [0, 1, 2].map(|q| on.iter().map(|p| p[q]).sum::<f64>() / m);
-        let u = cross(
-            n,
-            if n[0].abs() < 0.9 {
-                [1.0, 0.0, 0.0]
-            } else {
-                [0.0, 1.0, 0.0]
-            },
-        );
-        let v = cross(n, u);
-        let angle = |p: [f64; 3]| dot(sub(p, ctr), v).atan2(dot(sub(p, ctr), u));
-        on.sort_by(|&a, &b| angle(a).total_cmp(&angle(b)));
-        let area: f64 = (0..on.len())
-            .map(|i| dot(cross(sub(on[i], ctr), sub(on[(i + 1) % on.len()], ctr)), n).abs() / 2.0)
-            .sum();
-        volume += area * c / 3.0;
+        let planes = (0..3)
+            .flat_map(|k| {
+                let e: [f64; 3] = core::array::from_fn(|j| if j == k { 1.0 } else { 0.0 });
+                [(e, b[k].1), (e.map(|x| -x), -b[k].0)]
+            })
+            .collect();
+        Self { faces, planes }
     }
-    volume
+
+    /// The tetrahedron on the corners `p`.
+    fn tetra(p: [[f64; 3]; 4]) -> Self {
+        let v = |q: [f64; 3]| Vec3::new(q[0], q[1], q[2]);
+        let mut faces = Vec::new();
+        let mut planes = Vec::new();
+        for skip in 0..4 {
+            let f: Vec<[f64; 3]> = (0..4).filter(|&i| i != skip).map(|i| p[i]).collect();
+            let n = (v(f[1]) - v(f[0])).cross(v(f[2]) - v(f[0])).normalize();
+            let n = if n.dot(v(p[skip]) - v(f[0])) > 0.0 {
+                -n
+            } else {
+                n
+            };
+            planes.push(([n.x, n.y, n.z], n.dot(v(f[0]))));
+            faces.push(f);
+        }
+        Self { faces, planes }
+    }
+
+    /// Its volume, cut to every half-space of `others`.
+    fn meet(&self, others: &[&Self]) -> f64 {
+        let planes: Vec<([f64; 3], f64)> = others.iter().flat_map(|o| o.planes.clone()).collect();
+        crate::union_flush_onto_edge_contact::clipped_volume(self.faces.clone(), &planes)
+    }
+}
+
+/// The plate less the lying void at `pose`, the void as a polytope, and
+/// the closed form of the plate less it.
+fn ringed_plate(pose: &Pose) -> (AtRestBody<f64>, Convex, f64) {
+    let void_at = below(lying(0.0));
+    let plate = posed_box("the plate", PLATE, pose, t());
+    let void = apex_pyramid(&void_at, pose, t());
+    let y = built("the plate less the void", subtract(&plate, &void, t()));
+    let corners = [0, 1, 2].map(|i| [0, 1, 2].map(|k| MEET[k] + void_at[i][k]));
+    let void = Convex::tetra([corners[0], corners[1], corners[2], MEET]);
+    let vy = Convex::cuboid(PLATE).meet(&[]) - void.meet(&[]);
+    (y, void, vy)
 }
 
 /// The pyramid with its apex at `MEET + apex` over `base` (relative to
 /// its apex), wound outward whichever way `base` runs, and its corners.
-fn pyramid(apex: [f64; 3], base: &[[f64; 3]], pose: &Pose) -> (AtRestBody<f64>, Vec<[f64; 3]>) {
+fn pyramid(apex: [f64; 3], base: &[[f64; 3]; 3], pose: &Pose) -> (AtRestBody<f64>, Convex) {
     let apex = [0, 1, 2].map(|k| MEET[k] + apex[k]);
-    let n = base.iter().enumerate().fold([0.0; 3], |acc, (i, &a)| {
-        let b = base[(i + 1) % base.len()];
-        [0, 1, 2].map(|k| acc[k] + cross(a, b)[k])
-    });
+    let v = |q: [f64; 3]| Vec3::new(q[0], q[1], q[2]);
+    let n = (v(base[1]) - v(base[0])).cross(v(base[2]) - v(base[0]));
     let mut at: Vec<[f64; 3]> = base
         .iter()
         .map(|q| [0, 1, 2].map(|k| apex[k] + q[k]))
         .collect();
-    if dot(n, base[0]) > 0.0 {
+    // Counterclockwise seen from the apex, which lies off the base on
+    // the side `n` points away from.
+    if n.dot(v(base[0])) > 0.0 {
         at.reverse();
     }
     let body = common::meeting::posed_pyramid(&at, apex, pose, t());
-    at.push(apex);
-    (body, at)
+    (body, Convex::tetra([at[0], at[1], at[2], apex]))
 }
 
 /// **The six ops of `x` and the plate less the lying void, each as the
@@ -750,20 +714,10 @@ fn six_ops(
 /// the material's creases, both unions alike.
 #[test]
 fn a_box_at_the_rings_tip_builds_in_every_op() {
-    let below = |b: [[f64; 3]; 3]| b.map(|[x, y, z]| [x, y, -z]);
-    let void_at = below(lying(0.0));
-    let void_pts: Vec<[f64; 3]> = void_at
-        .iter()
-        .map(|c| [0, 1, 2].map(|k| MEET[k] + c[k]))
-        .chain([MEET])
-        .collect();
     let tip = [0, 1, 2].map(|k| MEET[k] + bearing(60.0, 0.5, 0.0)[k]);
     let poses = poses();
     for pose in [&poses[0], &poses[2]] {
-        let plate = posed_box("the plate", PLATE, pose, t());
-        let void = apex_pyramid(&void_at, pose, t());
-        let y = built("the plate less the void", subtract(&plate, &void, t()));
-        let vy = 6.0 - convex_volume(&hull_planes(&void_pts));
+        let (y, void, vy) = ringed_plate(pose);
         for (label, bx) in [
             (
                 "corner at the tip",
@@ -788,10 +742,9 @@ fn a_box_at_the_rings_tip_builds_in_every_op() {
             ),
         ] {
             let x = posed_box("the box", bx, pose, t());
-            let planes = box_planes(bx);
-            let vx = convex_volume(&planes);
-            let vi = convex_volume(&[planes.clone(), box_planes(PLATE)].concat())
-                - convex_volume(&[planes, hull_planes(&void_pts)].concat());
+            let cube = Convex::cuboid(bx);
+            let vx = cube.meet(&[]);
+            let vi = cube.meet(&[&Convex::cuboid(PLATE)]) - void.meet(&[&cube]);
             six_ops(
                 label,
                 (&x, &y),
@@ -815,19 +768,9 @@ fn a_box_at_the_rings_tip_builds_in_every_op() {
 /// the line the material's creases, both unions alike.
 #[test]
 fn a_partner_inside_the_ring_parts_it_in_the_union() {
-    let below = |b: [[f64; 3]; 3]| b.map(|[x, y, z]| [x, y, -z]);
-    let void_at = below(lying(0.0));
-    let void_pts: Vec<[f64; 3]> = void_at
-        .iter()
-        .map(|c| [0, 1, 2].map(|k| MEET[k] + c[k]))
-        .chain([MEET])
-        .collect();
     let poses = poses();
     for pose in [&poses[0], &poses[2]] {
-        let plate = posed_box("the plate", PLATE, pose, t());
-        let void = apex_pyramid(&void_at, pose, t());
-        let y = built("the plate less the void", subtract(&plate, &void, t()));
-        let vy = 6.0 - convex_volume(&hull_planes(&void_pts));
+        let (y, void, vy) = ringed_plate(pose);
         for (from, r) in [(0.1, 0.3), (0.1, 0.2), (0.2, 0.2)] {
             for (side, base) in [
                 (
@@ -847,10 +790,11 @@ fn a_partner_inside_the_ring_parts_it_in_the_union() {
                     ],
                 ),
             ] {
-                let (x, pts) = pyramid(bearing(60.0, from, 0.0), &base, pose);
-                let planes = hull_planes(&pts);
-                let vx = convex_volume(&planes);
-                let vi = vx - convex_volume(&[planes, hull_planes(&void_pts)].concat());
+                let (x, partner) = pyramid(bearing(60.0, from, 0.0), &base, pose);
+                // The partner lies under the top: its meet with the plate
+                // less the void is it less its meet with the void.
+                let vx = partner.meet(&[]);
+                let vi = vx - partner.meet(&[&void]);
                 let what = format!("{side}, from {from} along {r}");
                 let ends = [from, from + r, 0.5];
                 let at: Vec<f64> = [0.05, 0.15, 0.25, 0.35, 0.45, 0.55]

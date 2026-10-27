@@ -2975,8 +2975,8 @@ pub(super) struct OutputStage {
 
 /// **The boolean's output stage**, the one every result path takes
 /// (`docs/DESIGN.md`, the merge stage): the closing of a face across
-/// each of the zip's `struts` that it lies on both sides of
-/// ([`super::slit::close_struts`]), the merge of coplanar faces over the
+/// each of the zip's `struts` and `seam_edges` that it lies on both
+/// sides of ([`super::slit::close_struts`]), the merge of coplanar faces over the
 /// `declared` surface pairs (none where one operand is absent from the
 /// result), the re-description of the edges the op minted (`seam_edges`,
 /// plus the boundaries of groups the merge skipped), the merge of each
@@ -3017,14 +3017,18 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
     // One snapshot of the records serves every stage: nothing between
     // the closing and the join mints an edge that survives it.
     let split_from = super::edge_join::split_records(body);
-    // A seam edge the zip left with one face on both sides is a strut
-    // as much as one it named.
-    let struts: Vec<EdgeKey> = struts
+    // The zip names the section struts it keeps (`ZipReport::struts`),
+    // not a seam edge its gluing leaves with one face on both sides,
+    // which the closing deletes as well: each candidate once, the named
+    // struts first.
+    let mut seen = BTreeSet::new();
+    let candidates: Vec<EdgeKey> = struts
         .iter()
-        .chain(seam_edges.listed.iter().filter(|e| !struts.contains(e)))
+        .chain(&seam_edges.listed)
         .copied()
+        .filter(|&e| seen.insert(e))
         .collect();
-    let closed = super::slit::close_struts(body, &struts, tol)?;
+    let closed = super::slit::close_struts(body, &candidates, tol)?;
     let mut killed_lineage = BTreeMap::new();
     super::edge_join::record_killed_lineage(
         &mut killed_lineage,

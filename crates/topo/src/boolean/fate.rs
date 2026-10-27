@@ -899,36 +899,41 @@ fn fragment_at<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<FaceKey, BooleanError> {
-    match fragments_at(body, root, divisions, p, band)? {
-        At::Inside(one) => Ok(one),
-        At::Corners(_) | At::Nowhere => Err(BooleanError::ClassificationInvariant {
-            what: "a fate cut's end lies inside no one piece of its face",
-        }),
+    match lies(body, root, divisions, p, band)? {
+        Lies::Inside(one) => Ok(one),
+        Lies::AtCorners(_) | Lies::Nowhere => Err(in_no_one_piece()),
     }
 }
 
-/// Where `p` lies among the faces divided from `root` ([`fragments_at`]).
-enum At {
+/// A fate cut's end that no one piece of its face holds.
+const fn in_no_one_piece() -> BooleanError {
+    BooleanError::ClassificationInvariant {
+        what: "a fate cut's end lies inside no one piece of its face",
+    }
+}
+
+/// Where a point lies among the faces divided from one root ([`lies`]).
+enum Lies {
     /// Inside this one piece.
     Inside(FaceKey),
-    /// Inside none, at these vertices of the pieces' loops: a vertex of
-    /// the face's division.
-    Corners(Vec<VertexKey>),
+    /// Inside none, at these vertices of the pieces' loops, each once: a
+    /// vertex of the face's division.
+    AtCorners(Vec<VertexKey>),
     /// Inside none and at no vertex, or inside several.
     Nowhere,
 }
 
 /// Where `p` lies among the faces divided from `root`: inside one, or
 /// at vertices of their loops.
-fn fragments_at<T: Decide>(
+fn lies<T: Decide>(
     body: &Body<T>,
     root: FaceKey,
     divisions: &FaceDivisions,
     p: Point3<T>,
     band: Band,
-) -> Result<At, BooleanError> {
+) -> Result<Lies, BooleanError> {
     if let Some(one) = one_piece(body, root, divisions) {
-        return Ok(At::Inside(one));
+        return Ok(Lies::Inside(one));
     }
     let unplaced = |e| contained(e, "a fate cut's end is not placed in its face");
     let (mut inside, mut corners) = (Vec::new(), Vec::new());
@@ -947,45 +952,67 @@ fn fragments_at<T: Decide>(
             super::FaceContainment::Out | super::FaceContainment::OnEdge(_) => {}
         }
     }
+    corners.sort();
+    corners.dedup();
     Ok(match (inside.as_slice(), corners.is_empty()) {
-        ([one], _) => At::Inside(*one),
-        ([], false) => At::Corners(corners),
-        _ => At::Nowhere,
+        ([one], _) => Lies::Inside(*one),
+        ([], false) => Lies::AtCorners(corners),
+        _ => Lies::Nowhere,
     })
 }
 
-/// The face divided from `root` that holds a dropped sector at `p`,
-/// its interior along unit `d`: the piece holding `p` inside it, or,
-/// where `p` is a vertex of the face's division, the piece whose corner
-/// there holds `d` ([`place`]).
-fn fragment_along<T: Decide>(
+/// What the vertices a dropped sector is held at are ([`piece_holding`]).
+#[derive(Clone, Copy)]
+enum HeldAt {
+    /// A pierce's ring vertex, with its null-edge copies.
+    RingVertex,
+    /// A vertex of the kept face's division.
+    DivisionVertex,
+}
+
+/// **The piece of the kept face divided from `root` that holds a dropped
+/// sector at one of `at`**, its interior along unit `d`: the piece whose
+/// corner there holds `d`, or whose empty loop is the lone vertex
+/// ([`place`]).
+fn piece_holding<T: Decide>(
     (body, operand): (&Body<T>, Operand),
+    (at, held): (&[VertexKey], HeldAt),
     root: FaceKey,
     divisions: &FaceDivisions,
-    (p, d): (Point3<T>, Vec3<T>),
+    d: Vec3<T>,
     band: Band,
 ) -> Result<FaceKey, CutError> {
-    let corners = match fragments_at(body, root, divisions, p, band)? {
-        At::Inside(one) => return Ok(one),
-        At::Corners(corners) => corners,
-        At::Nowhere => {
-            return Err(BooleanError::ClassificationInvariant {
-                what: "a fate cut's end lies inside no one piece of its face",
-            }
-            .into());
-        }
+    let refused = |ring, division| {
+        CutError::from(BooleanError::ClassificationInvariant {
+            what: match held {
+                HeldAt::RingVertex => ring,
+                HeldAt::DivisionVertex => division,
+            },
+        })
     };
-    let held = (body, operand);
-    match place(held, (&corners, &[]), root, divisions, Leaving::bisector(d), band)? {
+    match place(
+        (body, operand),
+        (at, &[]),
+        root,
+        divisions,
+        Leaving::bisector(d),
+        band,
+    )? {
         Some(Place::Corner(h)) => Ok(face_of_he(body, h)?),
-        Some(Place::Lone(..)) | None => Err(BooleanError::ClassificationInvariant {
-            what: "a dropped sector held at a vertex of its face's division lies in no corner there",
-        }
-        .into()),
-        Some(Place::Along(_)) => Err(BooleanError::ClassificationInvariant {
-            what: "a dropped sector held at a pierce runs along a kept edge",
-        }
-        .into()),
+        Some(Place::Lone(l, _)) => body.get_loop(l).map(|l| l.face).ok_or_else(|| {
+            BooleanError::JoinDesync {
+                what: "a ring vertex's loop no longer resolves",
+            }
+            .into()
+        }),
+        None => Err(refused(
+            "a pierce's ring vertex lies off its kept face",
+            "a vertex of a kept face's division lies off its pieces",
+        )),
+        Some(Place::Along(_)) => Err(refused(
+            "a dropped sector held at a pierce runs along a kept edge",
+            "a dropped sector held at a vertex of its kept face's division runs along a kept edge",
+        )),
     }
 }
 
@@ -1744,34 +1771,30 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                     (None, Some(ring)) => {
                         let copies =
                             NullCopies::of_operand(&red.null_edges, fc.holder).of(ring.ring_vertex);
-                        let at = Leaving::bisector(d);
                         let held = (kept_body, fc.holder);
-                        match place(held, (&copies, &[]), root, div_k, at, band)? {
-                            None => {
-                                return Err(BooleanError::ClassificationInvariant {
-                                    what: "a pierce's ring vertex lies off its kept face",
-                                }
-                                .into());
-                            }
-                            Some(Place::Corner(h)) => face_of_he(kept_body, h)?,
-                            Some(Place::Lone(l, _)) => kept_body
-                                .get_loop(l)
-                                .map(|l| l.face)
-                                .ok_or_else(|| desync("a ring vertex's loop no longer resolves"))?,
-                            Some(Place::Along(_)) => {
-                                return Err(BooleanError::ClassificationInvariant {
-                                    what: "a dropped sector held at a pierce runs along a kept edge",
-                                }.into());
-                            }
-                        }
+                        piece_holding(held, (&copies, HeldAt::RingVertex), root, div_k, d, band)?
                     }
+                    // No ring serves the pierce where the point is a
+                    // vertex of the kept face's division: the piece is
+                    // the one whose corner there holds the sector.
                     (None, None) => {
                         let p = body
                             .get_vertex(at)
                             .and_then(|v| body.get_point(v.point))
                             .copied()
                             .ok_or_else(|| desync("a piercing vertex has no point"))?;
-                        fragment_along((kept_body, fc.holder), root, div_k, (p, d), band)?
+                        match lies(kept_body, root, div_k, p, band)? {
+                            Lies::Inside(one) => one,
+                            Lies::AtCorners(corners) => piece_holding(
+                                (kept_body, fc.holder),
+                                (&corners, HeldAt::DivisionVertex),
+                                root,
+                                div_k,
+                                d,
+                                band,
+                            )?,
+                            Lies::Nowhere => return Err(in_no_one_piece().into()),
+                        }
                     }
                 }
             }

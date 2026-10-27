@@ -169,6 +169,24 @@ fn ends_of(body: &Body<f64>, edge: EdgeKey) -> [PointKey; 2] {
     v
 }
 
+/// The spans along the line `from + t·(to − from)`, in `t`, of the
+/// edges of `body` lying on it, `from` and `to` placed by `pose` a unit
+/// apart.
+fn spans_along(body: &Body<f64>, pose: &Pose, [from, to]: [[f64; 3]; 2]) -> Vec<(f64, f64)> {
+    let (o, d) = (pose.at(from), pose.at(to) - pose.at(from));
+    let along = |p: geom_core::Point3<f64>| {
+        let t = (p - o).dot(d);
+        ((o + d * t - p).norm() < 1e-9).then_some(t)
+    };
+    body.edges()
+        .filter_map(|(e, _)| {
+            let [a, b] = ends_of(body, e).map(|k| *body.get_point(k).unwrap());
+            Some((along(a)?, along(b)?))
+        })
+        .map(|(a, b)| (a.min(b), a.max(b)))
+        .collect()
+}
+
 /// The edges of `body` running between the keel's two ends.
 fn keel_edges(body: &Body<f64>, pose: &Pose, ends: [[f64; 3]; 2]) -> Vec<EdgeKey> {
     let at = |k: PointKey, p: [f64; 3]| body.get_point(k).unwrap().distance(pose.at(p)) < 1e-9;
@@ -1213,20 +1231,11 @@ fn a_flush_partner_over_two_lumps_touching_along_an_edge_builds() {
                         (v - want).abs() < 1e-9,
                         "{what}: volume {v}, closed form {want}"
                     );
-                    let line = [[1.0, 0.0, 1.0], [1.0, 1.0, 1.0]].map(|p| pose.at(p));
-                    let along: Vec<EdgeKey> = r
-                        .body
-                        .edges()
-                        .map(|(e, _)| e)
-                        .filter(|&e| {
-                            let [a, b] = ends_of(&r.body, e).map(|k| *r.body.get_point(k).unwrap());
-                            [a, b].iter().all(|p| {
-                                let s = (*p - line[0]).dot(line[1] - line[0]);
-                                (line[0] + (line[1] - line[0]) * s - *p).norm() < 1e-9
-                                    && (-1e-9..=1.0 + 1e-9).contains(&s)
-                            })
-                        })
-                        .collect();
+                    let along: Vec<(f64, f64)> =
+                        spans_along(&r.body, pose, [[1.0, 0.0, 1.0], [1.0, 1.0, 1.0]])
+                            .into_iter()
+                            .filter(|&(a, b)| a > -1e-9 && b < 1.0 + 1e-9)
+                            .collect();
                     assert_eq!(
                         along.len(),
                         1,
@@ -1255,8 +1264,8 @@ fn a_flush_partner_over_two_lumps_touching_along_an_edge_builds() {
 /// sides, between stretches of the keel the union keeps. The closing
 /// deletes it, parting the keel's ring or slit (`slit::part_mid_slit`):
 /// no edge lies on the keel inside the vee's stretch, and the keel's two
-/// edges lie beside it. Both orders build alike, tier 3 and 3′, and
-/// `|x ∪ y| + |x ∩ y| = |x| + |y|`
+/// edges lie beside it. Both orders build, tier 3 and 3′, as the closed
+/// form says
 /// (`work/cleave/a-partner-along-part-of-a-slit-refuses-result-invalid.md`).
 #[test]
 fn a_partner_along_part_of_the_keel_unites_with_the_slit_in_either_order() {
@@ -1279,6 +1288,12 @@ fn a_partner_along_part_of_the_keel_unites_with_the_slit_in_either_order() {
                 &|y, z, x| [x, y, z],
             );
             let inside = (stretch.0 + stretch.1.min(row.span.1)) / 2.0;
+            // The wide vee's section is 1.8, 0.45 of it under the floor's
+            // top at z = 1, where the trench's 0.3 lies inside it along
+            // their common stretch in the slab: |x ∪ y| = |x| + |y| − |x ∩ y|.
+            let common = (stretch.1.min(row.span.1).min(4.0) - stretch.0.max(row.span.0)).max(0.0);
+            let length = stretch.1 - stretch.0;
+            let want = 1.8 * length + row.volume - (0.45 * length - 0.3 * common);
             for (origin, y) in slit_operands(row, pose) {
                 let what = format!(
                     "{}, {origin}, the vee {stretch:?}, {}",
@@ -1299,25 +1314,8 @@ fn a_partner_along_part_of_the_keel_unites_with_the_slit_in_either_order() {
                         Ok(()),
                         "{what}: tier 3′"
                     );
-                    let on_keel = |s: f64| {
-                        r.body
-                            .edges()
-                            .filter(|&(e, _)| {
-                                let [a, b] =
-                                    ends_of(&r.body, e).map(|k| *r.body.get_point(k).unwrap());
-                                let o = pose.at([0.0, 2.0, 0.0]);
-                                let d = pose.at([1.0, 2.0, 0.0]) - o;
-                                let along = |p: geom_core::Point3<f64>| {
-                                    let t = (p - o).dot(d);
-                                    ((o + d * t - p).norm() < 1e-9).then_some(t)
-                                };
-                                matches!(
-                                    (along(a), along(b)),
-                                    (Some(ta), Some(tb)) if ta.min(tb) < s && s < ta.max(tb)
-                                )
-                            })
-                            .count()
-                    };
+                    let keel = spans_along(&r.body, pose, [[0.0, 2.0, 0.0], [1.0, 2.0, 0.0]]);
+                    let on_keel = |s: f64| keel.iter().filter(|&&(a, b)| a < s && s < b).count();
                     assert_eq!(
                         on_keel(inside),
                         0,
@@ -1330,18 +1328,12 @@ fn a_partner_along_part_of_the_keel_unites_with_the_slit_in_either_order() {
                     );
                     unions.push(volume(&r.body));
                 }
-                let i = match intersect(&vee, &y, tol) {
-                    Ok(BooleanResult::Body(r)) => volume(&r.body),
-                    other => panic!("{what}: x ∩ y: {:?}", other.map(|_| ())),
-                };
-                assert!(
-                    (unions[0] - unions[1]).abs() < 1e-9,
-                    "{what}: |x ∪ y| {unions:?} in the two orders"
-                );
-                assert!(
-                    (unions[0] + i - volume(&vee) - volume(&y)).abs() < 1e-9,
-                    "{what}: |x ∪ y| + |x ∩ y| = |x| + |y|"
-                );
+                for v in unions {
+                    assert!(
+                        (v - want).abs() < 1e-9,
+                        "{what}: |x ∪ y| {v}, closed form {want}"
+                    );
+                }
             }
         }
     }

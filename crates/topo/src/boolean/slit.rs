@@ -98,11 +98,13 @@
 //! struts the zip reported, and its seam edges, that F lies on both
 //! sides of, each with its free end, a ring closed whole with its lone
 //! vertex too ([`crate::strut`], the delete the merge runs on its own
-//! dangling seam edges). Where F keeps the slit on both sides of the
-//! stretch, the strut has no free end, and deleting it parts the slit's
-//! loop in two (`kemr`, [`part_mid_slit`]). F's region is unchanged by
-//! each step. A strut the zip kept between two walls is a reflex edge
-//! of the result, and stays.
+//! dangling seam edges). Where the slit runs on past both ends of the
+//! stretch the other operand fills, the edge F lies on both sides of
+//! there has no free end: it is no strut but a stretch of the slit
+//! closed across, and deleting it parts the slit's loop in two (`kemr`,
+//! [`part_mid_slit`]). F's region is unchanged by each step. A strut
+//! the zip kept between two walls is a reflex edge of the result, and
+//! stays.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -615,8 +617,9 @@ pub(super) struct ClosedStrut {
     pub(super) face: FaceKey,
     /// The strut's edge.
     pub(super) edge: EdgeKey,
-    /// The vertices deleted with it: its free end, then, where both its
-    /// ends were free, the other.
+    /// The vertices deleted with it: a strut's free end, then, where both
+    /// its ends were free, the other; none for a slit's stretch, whose
+    /// delete parts its loop ([`part_mid_slit`]).
     pub(super) vertices: Vec<VertexKey>,
 }
 
@@ -630,26 +633,28 @@ impl ClosedStrut {
     }
 }
 
-/// **Closes a face across each of `struts` it lies on both sides of**
-/// (module docs, *Closing*): `struts` are the edges the zip kept or
-/// minted (`zip::ZipReport`), and each whose two halves bound one face
-/// is deleted with its free end ([`crate::strut`]), in the order given
-/// and again after each, so a chain goes one free end at a time. One
-/// with no free end, the slit's edges running on past both its ends,
-/// parts the slit in two ([`part_mid_slit`]). A strut between two faces
-/// is left as it is.
+/// **Closes a face across each of `candidates` it lies on both sides
+/// of** (module docs, *Closing*): `candidates` are the zip's section
+/// struts and seam edges (`ops::finish_output`). Each whose two halves
+/// bound one face and that has a free end is a strut, deleted with its
+/// free end ([`crate::strut`]), in the order given and again after each,
+/// so a chain goes one free end at a time. Once none is left, one with
+/// no free end, the slit's edges running on past both its ends, is a
+/// stretch of the slit closed across, and its delete parts the slit in
+/// two ([`part_mid_slit`]). An edge between two faces is left as it is.
 ///
 /// # Errors
 ///
-/// [`BooleanError::CurvedFaceClosesAcrossSlit`] where the face is not a
-/// plane; [`BooleanError::SlitFaceClosesMidSlit`] where a strut with no
-/// free end does not part its loop into a ring of the slit
-/// ([`part_mid_slit`]); [`BooleanError::JoinDesync`] where one with both
-/// ends free is its face's outline, which the zip never leaves; the
-/// Euler operators' refusals.
+/// [`BooleanError::CurvedFaceClosesAcrossSlit`] where a strut's face is
+/// not a plane ([`crate::strut::StrutRefusal::Curved`]);
+/// [`BooleanError::SlitFaceClosesMidSlit`] where a stretch does not part
+/// its loop into a ring of the slit ([`part_mid_slit`]);
+/// [`BooleanError::JoinDesync`] where a strut with both ends free is its
+/// face's outline, which the zip never leaves; the Euler operators'
+/// refusals.
 pub(super) fn close_struts<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
-    struts: &[EdgeKey],
+    candidates: &[EdgeKey],
     tol: Tol,
 ) -> Result<Vec<ClosedStrut>, BooleanError> {
     let one_face = |body: &Body<T>, edge: EdgeKey| {
@@ -659,7 +664,7 @@ pub(super) fn close_struts<T: Decide + crate::props::AtRestPolicy>(
     };
     let mut closed = Vec::new();
     loop {
-        let open: Vec<(EdgeKey, FaceKey)> = struts
+        let open: Vec<(EdgeKey, FaceKey)> = candidates
             .iter()
             .filter_map(|&edge| one_face(body, edge).map(|face| (edge, face)))
             .collect();
@@ -697,19 +702,21 @@ pub(super) fn close_struts<T: Decide + crate::props::AtRestPolicy>(
     }
 }
 
-/// **Deletes `edge`, both of whose halves bound `face` in one loop and
-/// neither of whose ends is free, with `kemr`**: the loop parts in two,
-/// and the side that is a slit's run, each of its halves run back by
-/// another of its halves between the same two vertices, becomes a ring
-/// of `face`. Of an outline, that is the side that is not the outline;
-/// of a ring, either side is one.
+/// **Deletes a slit's stretch closed across**: `edge`, both of whose
+/// halves bound `face` in one loop and neither of whose ends is free,
+/// deleted with `kemr`. The loop parts in two, and `kemr` makes one part
+/// a new ring of `face`: the part that is a slit's run, each of its
+/// halves run back by another of its halves between the same two
+/// vertices. Of the outline, the other part keeps the outline, so
+/// neither part being a run refuses; of a ring, both parts are rings of
+/// `face` whichever is new, so a part that is no run is taken too. No
+/// edge is minted, so the face's surface does not matter.
 ///
 /// # Errors
 ///
-/// [`BooleanError::CurvedFaceClosesAcrossSlit`] where `face` is not a
-/// plane; [`BooleanError::SlitFaceClosesMidSlit`] where the halves lie
-/// in two loops, or no side is a slit's run where the loop is the
-/// outline; `kemr`'s refusals.
+/// [`BooleanError::SlitFaceClosesMidSlit`] where the halves lie in two
+/// loops, or where neither part of the outline is a run; `kemr`'s
+/// refusals.
 fn part_mid_slit<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     face: FaceKey,
@@ -717,11 +724,7 @@ fn part_mid_slit<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<(), BooleanError> {
     let gap = BooleanError::SlitFaceClosesMidSlit { face, edge };
-    let record = proven(&body.faces, face, EntityId::Face);
-    if body.face_surface_linked(face, record).kind() != geom::SurfaceKind::Plane {
-        return Err(BooleanError::CurvedFaceClosesAcrossSlit { face, edge });
-    }
-    let outline = record.outer;
+    let outline = proven(&body.faces, face, EntityId::Face).outer;
     let e = proven(&body.edges, edge, EntityId::Edge);
     let (plus, minus) = (e.he_plus, e.he_minus);
     let half = |h: HalfEdgeKey| proven(&body.half_edges, h, EntityId::HalfEdge);
