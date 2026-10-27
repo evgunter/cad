@@ -32,7 +32,7 @@ use topo::{AtRestBody, BooleanError, BooleanResult};
 use crate::common::differential::outcome;
 use crate::common::oracles::{ball_lens as lens, ball_volume, cap_volume};
 
-use Want::{Draws, Lumps, Refuses, Tilted};
+use Want::{Draws, Refuses, Tilted};
 
 /// A `y`-poled ball of radius `r` turned by `turn`, then moved to `c`.
 fn placed(r: f64, turn: Affine3<f64>, c: Vec3<f64>) -> AtRestBody<f64> {
@@ -89,11 +89,6 @@ enum Want {
     /// `SOUND`, and the mesher refuses a sphere face bounded by a
     /// circle tilted against its chart (TESS's tilted-circle row).
     Tilted,
-    /// Two lumps whose tier 3′ the census cannot decide (curved faces
-    /// of the two lumps within reach of each other,
-    /// `work/contact/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`),
-    /// otherwise sound; the mesher refuses as for [`Want::Tilted`].
-    Lumps,
     /// A typed refusal the predicate accepts.
     Refuses(fn(&BooleanError) -> bool),
 }
@@ -134,23 +129,11 @@ fn check(
                 .unwrap_or_else(|e| panic!("{label}: the mesh: {e:?}"));
             mesh::validate::check_mesh(&m).unwrap_or_else(|e| panic!("{label}: the mesh: {e:?}"));
         }
-        Tilted | Lumps => assert!(
+        Tilted => assert!(
             tilted_refusal(&bb.body),
             "{label}: the tilted-circle mesh refusal"
         ),
         Refuses(_) => unreachable!(),
-    }
-    if let Lumps = want {
-        let census = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol);
-        assert!(
-            bb.body.shells().count() == 2
-                && census.as_ref().is_err_and(|errors| {
-                    errors
-                        .iter()
-                        .all(|e| matches!(e, topo::ValidationError::CensusUndecidable { .. }))
-                }),
-            "{label}: two lumps the census cannot decide, got {census:?}"
-        );
     }
     let v = topo::test_support::pinned_volume("the measured body", &bb.body, tol).volume;
     assert!(
@@ -158,11 +141,7 @@ fn check(
         "{label}: volume {v} against the closed form {volume}"
     );
     let line = outcome(out, volume, tol);
-    let sound = match want {
-        Lumps => "OK BAD t2=true t3p=false cert=true operand=true",
-        _ => "OK SOUND",
-    };
-    assert!(line.starts_with(sound), "{label}: {line}");
+    assert!(line.starts_with("OK SOUND"), "{label}: {line}");
 }
 
 /// `a ∪ b`, `b ∪ a`, `a ∖ b`, `b ∖ a`, `a ∩ b`, `b ∩ a` against `wants`,
@@ -476,7 +455,7 @@ fn a_ball_crossing_both_faces_of_a_lens_builds() {
             ball_volume(0.2),
             lens(1.0, 0.2, 0.93) + lens(0.8, 0.2, to_top) - ball_volume(0.2),
         ),
-        [Tilted, Tilted, Tilted, Lumps, Tilted, Tilted],
+        [Tilted; 6],
     );
 }
 
@@ -513,7 +492,7 @@ fn a_ball_crossed_by_two_partners_builds() {
         &unit(),
         &partners(Vec3::new(-s, 0.0, -c)),
         volumes,
-        [Tilted, Tilted, Tilted, Lumps, Lumps, Lumps],
+        [Tilted; 6],
     );
 }
 

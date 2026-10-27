@@ -115,8 +115,13 @@ side clears only
 - on a definitely-positive separation margin between certified reach boxes
   (`face_reach_in`), read along each world axis and then along the
   directions that turn with the pair: the axis between the two faces'
-  anchors, and either face's normal where it is planar
-  (`boolean::separating::apart`), or
+  anchors, either face's normal where it is planar, and the offset from
+  an axis or centre either face proposes to the other's nearest boundary
+  segment point (`census::depth_gap::toward`). Along these turned
+  directions only (`boolean::separating::apart_by`), not the world axes,
+  a sphere face is taken to reach no further than its boundary at an
+  end whose pole the face places definitely `Out`
+  (`census::held_reach_in`); or
 - on a definitely-positive gap in depth (the distance from an axis
   line, a centre or a circle that either face's carrier or a conic on
   its boundary proposes) between one face's least depth and the

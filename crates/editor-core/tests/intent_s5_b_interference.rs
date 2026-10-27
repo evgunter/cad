@@ -743,17 +743,29 @@ fn a_clearance_fit_apart_in_depth_assembles() {
 }
 
 /// **(B) A quiet finding carries no verdict nothing checked.** The
-/// press fit again, its plate drilled with a small hole beside the pin
-/// (0.586 from its axis at the nearest, within its faces' reach):
-/// the census leaves the pin's wall and that hole's wall undecided, a
-/// face pair outside the overlap the assertion's containment check
-/// covers, so the finding stays loud and carries the verdict.
+/// press fit again, its plate drilled with a small hole beside the pin:
+/// radius `0.05`, its centre `0.5555` from the pin's axis on the
+/// diagonal, so its wall passes `5e-4` from the pin's wall. The census
+/// leaves a half of the pin's wall and that hole's wall undecided (one
+/// `CensusUndecidable` face pair), a pair outside the overlap the
+/// assertion's containment check covers, so the finding stays loud and
+/// carries the verdict.
+///
+/// The pair is apart, but arm 1 reads a cylinder wall's depth only about
+/// its own axis, and no direction it proposes parts them: their reach
+/// boxes overlap on every world axis, the anchor axis runs well off the
+/// line of centres, and the offset from either axis aims at the other
+/// wall's seam rulings, not at its nearest point. When
+/// `work/restread/census-arm-1-reads-directions-from-the-pairs-own-faces-only.md`
+/// lands a direction that parts it, move the hole in until no direction
+/// does.
 ///
 /// Red if an undecided verdict anywhere on the pair rides a quiet
 /// finding.
 #[test]
 fn an_undecided_pair_beside_the_press_fit_keeps_it_loud() {
-    let (doc, p, q, _, bore, wall) = bore_pin_and_holes(0.505, &[(0.45, 0.45, 0.05)]);
+    let at = 0.5555 * core::f64::consts::FRAC_1_SQRT_2;
+    let (doc, p, q, _, bore, wall) = bore_pin_and_holes(0.505, &[(at, at, 0.05)]);
     let (doc, _) = gap_at_copies(
         doc.clone(),
         (p, bore),
@@ -768,19 +780,27 @@ fn an_undecided_pair_beside_the_press_fit_keeps_it_loud() {
     let Overlap::Bounded { faces } = &finding.overlap else {
         panic!("bounded: {:?}", finding.overlap)
     };
-    let beside = finding.evidence.iter().filter(|e| {
+    // The side hole's wall: the product's one cylinder of its radius.
+    let hole_wall = |f: topo::FaceKey| {
+        let body = &assembly.body;
+        matches!(
+            body.get_face(f).and_then(|f| body.get_surface(f.surface)),
+            Some(geom::Surface::Cylinder { radius, .. }) if (radius - 0.05).abs() < 1e-12
+        )
+    };
+    let beside = finding.evidence.iter().any(|e| {
         matches!(
             e,
             ValidationError::CensusUndecidable {
-                a: topo::EntityId::Face(_),
-                b: topo::EntityId::Face(_),
+                a: topo::EntityId::Face(a),
+                b: topo::EntityId::Face(b),
                 ..
-            }
+            } if hole_wall(*a) || hole_wall(*b)
         )
     });
     assert!(
-        beside.count() > 0,
-        "the census left curved pairs undecided: {:?}",
+        beside,
+        "the census left the side hole's wall undecided: {:?}",
         finding.evidence
     );
     assert!(
