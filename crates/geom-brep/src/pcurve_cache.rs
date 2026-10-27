@@ -3347,9 +3347,14 @@ fn twin_span_hulls<T: geom_core::CertifiedBounds>(
 /// apex root where its lever is not positive) and halved under limb 2's
 /// budget ([`projected::offset_rounds`]): a spline's rounds insert their
 /// breaks into its own net exactly, and a closed form's re-enclose the
-/// spans they cut, over [`closed_form_grid`]'s first breaks. No net
-/// past the window's outer ends is read for a closed form; a spline is
-/// read whole, its parts the window overlaps deciding.
+/// spans they cut, over [`closed_form_grid`]'s first breaks. No round
+/// reads a closed form's net past the window's outer ends; a spline is
+/// read whole, its parts the window overlaps deciding. A curved closed
+/// form is read first on its dyadic spans (`limb2_quick`), which may
+/// reach past the window's ends: a bound over a span holding the window
+/// bounds the window, and a span past the ends that does not clear is
+/// read again within them, so that reading only ever passes, and every
+/// refusal is the rounds'.
 ///
 /// The reading carries the size of the net it stopped on
 /// ([`projected::NetSize`]): the carrier's own enclosure width there,

@@ -112,7 +112,17 @@ description against the operand, per span, with the carrier's parameter
 left free, formed by the limb from the operands' own values, and its
 numeric channel is the composite's enclosure `[floor, upper]`; an
 identity certifies every member of the box at every parameter of the
-carrier. Where the bound does
+carrier. A curved closed form is read first on the dyadic spans of
+its angle parameter (multiples of `τ/2ᵈ`), each enclosed alone at a
+higher Taylor degree and composed alone, an uncleared span halved
+into its dyadic halves (`pcurve_cache::limb2_quick`). A span may
+reach past the edge's ends, since a bound over a span holding the
+window bounds the window; one past them that does not clear is read
+again within them. That reading only passes: where it does not clear,
+the rounds below read the carrier as though it had not been taken,
+and every refusal is theirs. A span's reading is a function of the
+carrier, the operand and the span, never the window, so edges sharing
+a carrier and an operand read their shared spans once. Where the bound does
 not clear the band, the composite's uncleared spans are halved round by
 round, each piece cut from its Bézier segment's own row so no cut
 compounds another's width, and the rounds stop (`round_floored`) once
