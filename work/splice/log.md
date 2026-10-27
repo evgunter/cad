@@ -630,3 +630,31 @@ slate.
 The orchestrator read the diff, which is test-only, so it got no
 separate review. This is the third ε-unaware probe today (5805, 5814,
 and 5826's re-check). Every brief now binds ε-scaled geometry.
+
+## 2026-10-27 — PR 5826 (the interior arm, analytic span × spline face) merges
+
+Letter H, a concurrent pair, frozen at `b2728f422d`. Both reviewers:
+NOT-MERGEABLE-AS-IS, on one shared MAJOR. The chart-edge-near-end skip
+pruned in-band floor boxes, so a tangency, or a transverse crossing on
+a closed seam, returned `Ok([])` at all three ε. That broke C5's
+"never pruning". The MAJOR is bilateral, so nothing is tallied.
+
+The fix pass is `0271d125cd`; the orchestrator read the delta.
+- The skip is deleted. A span ending on an open chart's edge now
+  refuses, which is recorded.
+- One crease home, `Cuts::touch`; `crease_apart` is gone.
+- Krawczyk pieces live in `geom_brep::krawczyk`, and `meet3` fails
+  loud on a disjoint enclosure.
+- An arm-level sheet-exactness row was added, and the v-f ends read in
+  space are filed.
+
+What it changes on the demos:
+- Lily wall 8 was premised wrong. It is (Nurbs, Nurbs):
+  `a-spline-span-against-a-spline-face-has-no-interior-arm`, now lily's
+  next blocker.
+- Klein wall 3 moves to a Crease refusal on a G1 rational-arc joint,
+  filed as `a-meeting-on-a-g1-arc-joint-of-a-spline-face-refuses-as-a-crease`.
+- Teapot wall 3 is unchanged.
+
+Next: the spline × spline interior arm (lily). The held-pierce split
+pcurves (the wavy loft) and the G1-joint crease (klein) also remain.

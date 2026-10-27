@@ -2325,10 +2325,11 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    reads each against the sheath's base cap, in the blade's own cap
     //    plane, through the ring composite of the cap's plane along the
     //    seam: no crossing inside it, its start on the cap being its end
-    //    vertex's meeting. It still refuses, one step on: an edge of the
-    //    blade against a NURBS wall of the sheath whose boundary leaves
-    //    it undecided, where the spline-face door has no interior reading
-    //    (`work/splice/an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane`).
+    //    vertex's meeting. It still refuses, one step on: a NURBS tip
+    //    seam of the blade against a NURBS wall of the sheath whose
+    //    boundary leaves it undecided, where the spline-face door has no
+    //    interior arm for a spline span
+    //    (`work/splice/a-spline-span-against-a-spline-face-has-no-interior-arm`).
     //    The flush reading along the two bodies' NURBS edges is behind
     //    that (`work/splice/a-unions-flush-reading-cannot-follow-a-nurbs-carrier`).
     let sheath = {
