@@ -4540,8 +4540,10 @@ class SegPat:
     def group(group: OpGroup) -> SegPat: ...
     def side(self, side: CapEnd | MeridianEnd | RimSupport) -> SegPat: ...
     def of(self, args: list[NamePat]) -> SegPat:
-        """Constrain the segment's sub-name arguments, positionally,
-        as a PREFIX."""
+        """Constrain the segment's sub-name arguments: the slotted
+        ones as a PREFIX, then each pattern past them a DISTINCT member
+        of the segment's set, in any order (a seam's sides, `Merged`
+        constituents, an `EdgeCrossing`'s lines, a band's chain)."""
 
 class NamePat:
     """A pattern over a whole stable name: entity kind, minting node,
