@@ -7122,3 +7122,4 @@ Signed (WIRE orchestrator).
   - MAJOR: the witness is green on the real merge base be2b7a1, because #5545 (CLEAVE fate-cut) already spells the flush case with Vertex@m0. The lane's red was on an older base.
   - Lane told to measure whether the row is live on current main. If it is, witness a live case. If not, close the row as fixed by #5545 and keep only what 5795 needs (Coincidence `more`), plus `by` if it still widens something.
   - The 5795 conflict and its hidden `third: None` compile break are noted for whichever PR lands second.
+- 2026-10-27 (WIRE orchestrator) The container restarted. Both lanes (meetrow fix pass, rechart fix pass) were stopped and resumed. Worktrees and targets survived. Disk is at 7 GB free.
