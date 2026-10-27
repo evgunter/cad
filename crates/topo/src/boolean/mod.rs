@@ -1041,7 +1041,7 @@ impl<T: Real> GlueVerdict<T> {
     /// the judged face of the other operand, under the judged class
     /// (every class is symmetric in its two faces), carrying the
     /// decision: its margin, and a tangency's line. The n-ary door
-    /// ([`super::nary`]) passes each such accumulation face, read
+    /// ([`nary`]) passes each such accumulation face, read
     /// through the lineage it advances itself.
     pub(crate) fn given_at(&self, held: Operand, at: FaceKey) -> GluedPair<T> {
         let other = match held {
@@ -1095,7 +1095,7 @@ pub(crate) struct GivenDecision<T: Real> {
 
 /// **The pairs one boolean glues**, and the records it carries: the
 /// operation's own decisions ([`glue::decided_declarations`]) or the
-/// pairs it was given (a fold step of [`super::nary`]), in arena keys, each
+/// pairs it was given (a fold step of [`nary`]), in arena keys, each
 /// pair under the class its relation makes it.
 #[derive(Clone, Debug)]
 pub(crate) struct Glue<T: Real> {
