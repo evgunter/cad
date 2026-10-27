@@ -444,7 +444,7 @@ bodies, measured in §0.1:
   `QuadratureBudget` (`VolumeUnmeasured`), measured at ε `1e-12` on
   `P ∖ T` of the corner bar of half-width `0.05` on the fat torus and
   its spellings
-  (`work/fluxtail/a-thin-corner-bars-spiric-cap-exhausts-the-quadrature-budget-at-1e-12.md`).
+  (`work/spiricarm/a-thin-corner-bars-spiric-cap-exhausts-the-quadrature-budget-at-1e-12.md`).
 
 ### 1.4 The corner bar's lens
 
