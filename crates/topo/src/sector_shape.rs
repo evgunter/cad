@@ -11,9 +11,10 @@
 //! next orbit chord:
 //!
 //! 1. **Is the corner metered at all?** The lever arm is the shorter of
-//!    the two bounding chords (metres, from the same
-//!    [`geom_brep::edge_extent_inf`] machinery on both sides); a
-//!    non-positive arm is a degenerate neighborhood, refused typed.
+//!    the two bounds' lengths (metres: a line edge's chord, a curved
+//!    edge's extent from below, [`geom_brep::edge_extent_inf`], through
+//!    [`geom_brep::ConicDeparture`], on both sides); a non-positive arm
+//!    is a degenerate neighborhood, refused typed.
 //! 2. **Is the corner convex (< 180°)?** `sin θ = (b̂ × â)·n` metered at
 //!    the arm. Every face is planar-or-charted, so a sector's interior
 //!    is the positive cone of its bounds **iff** the angle is < 180°;
@@ -275,9 +276,9 @@ pub(crate) struct SectorShape<T: Real> {
 
 /// Climbs the three rungs for one sector (module docs).
 ///
-/// `dir_own` and `dir_next` are the bounding chords **scaled to their
-/// edges' honest extents** — their norms are the arm's raw material and
-/// their directions the bounds. `normal` is the sector face's
+/// `dir_own` and `dir_next` are the bounds **scaled to their edges'
+/// lengths** (a line's chord, a curved edge's extent from below) — their
+/// norms are the arm's raw material and their directions the bounds. `normal` is the sector face's
 /// [`OutwardNormal`] at the base vertex, minted by each lane's
 /// `sector_face`; the type carries the obligation that used to be a
 /// sentence here. This function must not re-apply the sense — the

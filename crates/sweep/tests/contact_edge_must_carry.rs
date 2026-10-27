@@ -141,9 +141,11 @@ impl ContactReading {
 }
 
 /// Every edge storing `TangentIntersection`, re-read through the rule
-/// and, station by station, through the metered predicate — the same
-/// extent (`edge_extent_inf` over the stored window) and the same band the
-/// surgery hands the rule. The station walk is DIAGNOSTIC (the rule
+/// and, station by station, through the metered predicate, at the edge's
+/// extent from below over the stored window (`edge_extent_inf`; the
+/// surgery hands the rule its faces' reach, `topo::wedge_reach`, so this
+/// is a reading of the rule, not a replay) and the band the surgery
+/// hands it. The station walk is DIAGNOSTIC (the rule
 /// returns a verdict, not its readings); the rule's own verdict is
 /// what the rows assert, and the walk's margin is the rule's spelling,
 /// `Margin::sagitta` over the jet and the folded arm.

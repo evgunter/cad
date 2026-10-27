@@ -497,6 +497,9 @@ pub fn edge_extent_sup<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: 
             let diagonal = ((outer - inner).powi(2) + (two * r).powi(2)).sqrt();
             chord.max((stretch * two * r * fold).min(diagonal).min(lipschitz()))
         }
+        // A poison speed bound (a rational degree past its ceiling) or a
+        // poison net reaches the result: `min`/`max` propagate it, and the
+        // reading levered at it escalates rather than taking the other arm.
         Curve3::Nurbs(spline) => chord.max(farthest_pair(spline.control()).min(lipschitz())),
     }
 }
