@@ -274,3 +274,13 @@ Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `cra
 - 2026-10-27 22:29Z (orchestrator): the P0 is up as #5882 at head `f510d54e`, CI green.
   - Tier: dual, because it adds a public `quietable` field and changes what refuses. Letter M, byte 244 (22:16:27Z), mod 3 = 1: SEQUENTIAL. First review `session_018u3gVGpc4xU8JHM6BXrc6p`.
   - Filed `the-unproven-coincidence-knob-is-re-read-against-ds3` (P2): re-deciding spec §11 Q4 is a design change, for a designer pair and an `[ev]` PR.
+- 2026-10-27 23:05Z (orchestrator): **#5882's review** (sequential, `session_018u3gVGpc4xU8JHM6BXrc6p`) rated it APPROVE-WITH-FIXES with 0 MAJOR, so it is the only review.
+  - **I corrected my own 21:28Z F2 ruling.** DESIGN `[assertions.quiet]` (ratified) quiets only by an assertion that "says the same", `= 0` for a contact. Spec §4's "whatever the row's kind" came from the orchestrator's §11 fold-in (`d5bf4f55`), not a ratification.
+  - So a `Gap = 0` quiets only rows that decided their cells meet. Tangency, coaxial and common-foot rows are unquietable: loud, never refuse. That closes the vacuity in the safe direction. The vacuity row becomes the `needs_ev` question "what assertion says a tangency".
+  - Also in the fix pass:
+    - `contact_quietable` decides a `Gap = 0` could hold (Zero under the contact bound), not just admission;
+    - the DESIGN.md:46 as-built line updated;
+    - the pose row set `needs_ev` (it conflicts with ratified `[intent.checked]`);
+    - a refusal row at Error.
+  - **Lesson:** before ruling a quieting rule "as ratified", check DESIGN's own clause, not the spec's restatement.
+- 2026-10-27 (orchestrator): #5884's lint job failed on its new head `24da1028`; the lane is told. It still owes the lens-depth answer (an Ok(false) where `meet` merges two crossings at 1 escalation width).
