@@ -50,3 +50,24 @@ and moves to the door with the frame's retirement. First dispatches:
   which does not wait on the section object. Review tier: single FULL
   (a certificate deciding a pair clear is a soundness claim a read
   cannot believe on its own).
+
+- 2026-10-27 — **C5 torus survey** (read-only lane). Every torus pair but
+  plane × torus is `Rung::General`, `implemented: false` at `route`
+  (`geom_brep::intersect`), "blocked on the torus's exact meters
+  conversion"; the section certificate (`section_cert` `torus_pair`)
+  already classifies every torus × sphere pose and the coaxial,
+  parallel and square torus × cylinder poses, so the certificate runs
+  ahead of C5. The block is real in code (`ssi/certify.rs`
+  `composite_form` refuses a torus; so does `ssi/enclose.rs`
+  `implicit_enclosure`, which exhaustiveness reads), but its stated
+  reason ("certification arithmetic does not take a root") is stale:
+  `Certification::sqrt` exists. **Teapot wall 2's critical path is
+  therefore CHARTTAIL's `torus-certificate-runs-root-free-through-its-quartic`**
+  (P2 H, designed in fork row 30, waits on no ruling) plus a torus SSI
+  door; by the blocker-inherits-the-band rule it is P0 work. Whether
+  SECT claims it (budget) or it is re-banded in place is decided once
+  step 1's design is in, since the section object fixes how C5's torus
+  arms are read. Teapot's pose: torus axis +z square to the pot's +y,
+  through neither centre (no closed form). Lily's: parallel axes in
+  one plane, offset `R₁ − R₂`, spines internally tangent at the fork,
+  so "clear" holds only within the faces' windows (sent to the lily lane).
