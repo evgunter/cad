@@ -474,7 +474,8 @@ type Pose = (&'static str, usize, f64, f64);
 /// [`EDGE_ON_FACES`] class — the section edge from the pierce to the far
 /// vertex measures its end one rounding past the band (about `ε + 2e-16`
 /// m at ε = 1e-9), in certification arithmetic, so limb 2 escalates on
-/// that measured value (`Escalated` on `HullValue`), the input ambiguous
+/// that measured value (`Escalated` on `HullValue`, which the boolean
+/// refuses as `Escalated` on `EdgeOnFaces`), the input ambiguous
 /// at this ε. No other run of these poses refuses on it.
 const BAND_EDGE_RUNS: &[(f64, Pose, &[&str])] = &[
     (
@@ -515,9 +516,18 @@ const BAND_EDGE_RUNS: &[(f64, Pose, &[&str])] = &[
     ),
 ];
 
+/// Whether a run's refusal is limb 2's measured in-band escalation as
+/// the boolean reads it: `Escalated` on [`BooleanDecision::EdgeOnFaces`],
+/// decided by limb 2's value predicate (`ssi_hull_value`) — the section
+/// edge's end measured in the ambiguity band or straddling its edge.
+fn measured_in_band(refusal: &str) -> bool {
+    refusal.contains("Escalated { decision: EdgeOnFaces")
+        && refusal.contains("predicate: Some(\"ssi_hull_value\")")
+}
+
 /// **The band-edge runs escalate on the measured value**
 /// ([`BAND_EDGE_RUNS`]): at their ε each pinned pose's runs that refuse
-/// on limb 2's `Escalated` on `HullValue` are exactly the pinned ones,
+/// on limb 2's measured value ([`measured_in_band`]) are exactly the pinned ones,
 /// and none of them reads as the kernel's limit.
 #[test]
 fn the_band_edge_runs_escalate_on_the_measured_value() {
@@ -529,7 +539,7 @@ fn the_band_edge_runs_escalate_on_the_measured_value() {
         let (_, _, refused) = check_pose_refusals(*pose, tol);
         let in_band: Vec<&str> = refused
             .iter()
-            .filter(|(_, e)| test_utils::kernel_limit::is_in_band(e))
+            .filter(|(_, e)| measured_in_band(e))
             .map(|(op, _)| *op)
             .collect();
         assert_eq!(&in_band, ops, "{pose:?} at ε = {eps:e}: {refused:#?}");
@@ -566,7 +576,7 @@ fn the_pierce_germs_witnesses_build_every_run() {
         );
         for (op, e) in &refused {
             assert!(
-                test_utils::kernel_limit::is_in_band(e),
+                measured_in_band(e),
                 "{pose:?}, {op}: pinned to the measured in-band escalation, got {e}"
             );
         }
