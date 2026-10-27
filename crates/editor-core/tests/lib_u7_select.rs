@@ -29,7 +29,7 @@ use crate::fixture::len;
 use corpus::die_composed;
 use editor_core::{
     CancelToken, CapEnd, EntityKind, EvalOptions, NamePat, Node, OpGroup, ProfileDoc, RecipeNodeId,
-    RoleSeg, SegPat, SegTag, Selector, evaluate,
+    RoleSeg, SegPat, SegTag, Selector, StableName, evaluate,
 };
 use geom_core::Tol;
 
@@ -327,22 +327,254 @@ fn the_selector_excludes_the_cavity_meridians_by_shape() {
     }
 }
 
-/// **Prefix argument matching**: constraining only the first side of a
-/// `Seam`, the lesser name, is a coarser, still-honest way to say the
-/// same pip rim — "wherever the cube's end cap crosses something": the
-/// cube's read names before the ball's. The two arcs come back without
-/// the pattern naming either band variant.
+/// **A seam's sides are a set, so a pattern matches them as one**:
+/// each argument fits a distinct side, in either order, and a pattern
+/// constraining one side fits a seam where either side does. The pip
+/// rim's two arcs come back from the cap's side alone, from the band's
+/// side alone, and with the band written first.
 #[test]
-fn a_seam_pattern_may_constrain_only_its_first_side() {
+fn a_seam_pattern_may_constrain_either_side_in_either_order() {
     let doc = die_composed::document();
     let ev = eval(&doc.doc);
     let (_, _, pipped) = composed_ids(&doc.doc);
-    let cap = NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::End));
-    let sel = Selector::of(
-        NamePat::of_kind(EntityKind::Edge).seg(
-            SegPat::tag(SegTag::Seam)
-                .of([NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::From).of([cap]))]),
-        ),
+    let carried = |seg: SegPat| {
+        NamePat::of_kind(EntityKind::Face)
+            .seg(SegPat::tag(SegTag::From).of([NamePat::of_kind(EntityKind::Face).seg(seg)]))
+    };
+    let cap = || carried(SegPat::tag(SegTag::Cap).side(CapEnd::End));
+    let seam = |sides: Vec<NamePat>| {
+        NamePat::of_kind(EntityKind::Edge).seg(SegPat::tag(SegTag::Seam).of(sides))
+    };
+    let bands = |sides: &dyn Fn(NamePat) -> Vec<NamePat>| {
+        Selector::any_of(
+            [SegTag::Band, SegTag::BandPi].map(|t| seam(sides(carried(SegPat::tag(t))))),
+        )
+    };
+    let rim = editor_core::select(&ev, pipped, &bands(&|band| vec![cap(), band]));
+    assert_eq!(rim.len(), 2, "the pip rim is two arcs");
+    for (what, sel) in [
+        ("the cap's side alone", Selector::of(seam(vec![cap()]))),
+        ("the band's side alone", bands(&|band| vec![band])),
+        ("the band's side first", bands(&|band| vec![band, cap()])),
+    ] {
+        assert_eq!(
+            editor_core::select(&ev, pipped, &sel),
+            rim,
+            "{what} says the pip rim"
+        );
+    }
+}
+
+/// Two boxes and their union, the low box `[0, 1]³` and the tall one
+/// `[0.5, 1.5]² × [0, 2]`, the low one inserted first or second: which
+/// one's read mints first, and so which side of each seam names first.
+/// Each stands in the world where it was drawn. Returns the document,
+/// the low box's extrude, the tall one's and the union.
+fn two_boxes(low_first: bool) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
+    let square = |doc, lo: f64, d: f64| {
+        let (doc, p) = fixture::insert(
+            doc,
+            Node::Profile(fixture::desc(vec![vec![
+                (lo, lo),
+                (lo + 1.0, lo),
+                (lo + 1.0, lo + 1.0),
+                (lo, lo + 1.0),
+            ]])),
+        );
+        let (doc, body) = fixture::insert(
+            doc,
+            Node::Extrude {
+                profile: p.into(),
+                distance: len(d),
+            },
+        );
+        let (doc, placed) = fixture::in_world(doc, body, &editor_core::Frame::IDENTITY);
+        (doc, body, placed)
+    };
+    let doc = ProfileDoc::empty_derived("lib_u7_select_two_boxes", Tol::witness());
+    let (doc, (low, low_placed), (tall, tall_placed)) = if low_first {
+        let (doc, low, low_placed) = square(doc, 0.0, 1.0);
+        let (doc, tall, tall_placed) = square(doc, 0.5, 2.0);
+        (doc, (low, low_placed), (tall, tall_placed))
+    } else {
+        let (doc, tall, tall_placed) = square(doc, 0.5, 2.0);
+        let (doc, low, low_placed) = square(doc, 0.0, 1.0);
+        (doc, (low, low_placed), (tall, tall_placed))
+    };
+    let (doc, union) = fixture::insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![low_placed.into(), tall_placed.into()]),
+        },
     );
-    assert_eq!(editor_core::select(&ev, pipped, &sel).len(), 2);
+    (doc, low, tall, union)
+}
+
+/// **A seam pattern holds under re-authoring.** The same pattern over
+/// the two boxes' union, written in either argument order, selects the
+/// same seams whichever box was inserted first, though that decides
+/// which side each seam names first. The union meets along four seams:
+/// the low box's two walls inside the tall one and its top against the
+/// tall one's two walls inside it. Each argument fits a DISTINCT side,
+/// so two arguments that both ask for the low box fit none of them.
+#[test]
+fn a_seam_pattern_selects_alike_in_either_order_under_either_mint_order() {
+    for low_first in [true, false] {
+        let (doc, low, tall, union) = two_boxes(low_first);
+        let ev = eval(&doc);
+        let of = |node: RecipeNodeId| {
+            NamePat::of_kind(EntityKind::Face)
+                .seg(SegPat::tag(SegTag::From).of([NamePat::any().node(node)]))
+        };
+        let top = NamePat::of_kind(EntityKind::Face).seg(
+            SegPat::tag(SegTag::From).of([NamePat::any()
+                .node(low)
+                .seg(SegPat::tag(SegTag::Cap).side(CapEnd::End))]),
+        );
+        let seams = |sides: Vec<NamePat>| {
+            editor_core::select(
+                &ev,
+                union,
+                &Selector::of(
+                    NamePat::of_kind(EntityKind::Edge).seg(SegPat::tag(SegTag::Seam).of(sides)),
+                ),
+            )
+        };
+        let all = seams(Vec::new());
+        assert_eq!(
+            all.len(),
+            4,
+            "low first {low_first}: the union's four seams"
+        );
+        // The premise: the mint order decides which side names first.
+        for seam in &all {
+            let RoleSeg::Seam { a, .. } = &seam.path[0] else {
+                panic!("low first {low_first}: a seam is named by its sides: {seam:?}");
+            };
+            assert_eq!(
+                of(low).matches(a),
+                low_first,
+                "low first {low_first}: the first-minted box's side names first"
+            );
+        }
+        for (what, sides, want) in [
+            ("low, tall", vec![of(low), of(tall)], 4),
+            ("tall, low", vec![of(tall), of(low)], 4),
+            ("low alone", vec![of(low)], 4),
+            ("tall alone", vec![of(tall)], 4),
+            ("the low top alone", vec![top.clone()], 2),
+            ("tall, then the low top", vec![of(tall), top.clone()], 2),
+            ("low twice", vec![of(low), of(low)], 0),
+        ] {
+            let got = seams(sides);
+            assert_eq!(got.len(), want, "low first {low_first}: {what}");
+            assert!(
+                got.iter().all(|n| all.contains(n)),
+                "low first {low_first}: {what} selects only seams"
+            );
+        }
+    }
+}
+
+/// **A set's patterns are matched to distinct members, and a first fit
+/// is not the answer.** On a `Merged` set of three faces, a wildcard
+/// written before the end cap fits the end cap first; the cap pattern
+/// then needs that member, and the match holds by moving the wildcard
+/// to another. Three caps, or the end cap twice, fit no set with one end
+/// cap: each pattern takes a member of its own.
+#[test]
+fn a_set_pattern_gives_each_argument_a_member_of_its_own() {
+    let node = RecipeNodeId::new(0, 3);
+    let face = |seg: RoleSeg| StableName {
+        kind: EntityKind::Face,
+        node,
+        path: vec![seg],
+    };
+    let merged = StableName {
+        kind: EntityKind::Face,
+        node,
+        path: vec![RoleSeg::Merged(vec![
+            face(RoleSeg::Cap(CapEnd::End)),
+            face(RoleSeg::Cap(CapEnd::Start)),
+            face(RoleSeg::OutputBody),
+        ])],
+    };
+    let cap = |end: CapEnd| NamePat::any().seg(SegPat::tag(SegTag::Cap).side(end));
+    let any_cap = || NamePat::any().seg(SegPat::tag(SegTag::Cap));
+    let set = |members: Vec<NamePat>| NamePat::any().seg(SegPat::tag(SegTag::Merged).of(members));
+    for (what, members, want) in [
+        (
+            "a wildcard, then the end cap",
+            vec![NamePat::any(), cap(CapEnd::End)],
+            true,
+        ),
+        (
+            "any cap, then the end cap",
+            vec![any_cap(), cap(CapEnd::End)],
+            true,
+        ),
+        (
+            "every member",
+            vec![NamePat::any(), NamePat::any(), NamePat::any()],
+            true,
+        ),
+        (
+            "the end cap twice",
+            vec![cap(CapEnd::End), cap(CapEnd::End)],
+            false,
+        ),
+        ("three caps", vec![any_cap(), any_cap(), any_cap()], false),
+        ("four members", vec![NamePat::any(); 4], false),
+    ] {
+        assert_eq!(set(members).matches(&merged), want, "{what}");
+    }
+}
+
+/// **A seam junction's lines are a set.** A junction vertex is named
+/// by the sorted run of the seam lines meeting at it, so which line
+/// comes first is only name order; a path pattern over it gives each
+/// segment pattern a distinct line, in either order. A pattern twice
+/// over one line fits no junction with one such line, and a path of
+/// another shape still matches segment for segment.
+#[test]
+fn a_junction_path_pattern_matches_its_lines_in_either_order() {
+    let node = RecipeNodeId::new(0, 3);
+    let face = |seg: RoleSeg| StableName {
+        kind: EntityKind::Face,
+        node,
+        path: vec![seg],
+    };
+    let line = |a: RoleSeg, b: RoleSeg| RoleSeg::Seam {
+        a: face(a).into(),
+        b: face(b).into(),
+    };
+    let end = || RoleSeg::Cap(CapEnd::End);
+    let start = || RoleSeg::Cap(CapEnd::Start);
+    let junction = StableName {
+        kind: EntityKind::Vertex,
+        node,
+        path: vec![
+            line(end(), RoleSeg::OutputBody),
+            line(start(), RoleSeg::OutputBody),
+        ],
+    };
+    let on = |cap: CapEnd| {
+        SegPat::tag(SegTag::Seam).of([NamePat::any().seg(SegPat::tag(SegTag::Cap).side(cap))])
+    };
+    let path = |segs: Vec<SegPat>| NamePat::of_kind(EntityKind::Vertex).path(segs);
+    for (what, segs, want) in [
+        ("end, start", vec![on(CapEnd::End), on(CapEnd::Start)], true),
+        ("start, end", vec![on(CapEnd::Start), on(CapEnd::End)], true),
+        ("start, any", vec![on(CapEnd::Start), SegPat::any()], true),
+        ("end twice", vec![on(CapEnd::End), on(CapEnd::End)], false),
+        ("one line", vec![on(CapEnd::Start)], false),
+    ] {
+        assert_eq!(path(segs).matches(&junction), want, "{what}");
+    }
+    // A path that is not a junction is matched segment for segment.
+    let mut edge = junction.clone();
+    edge.kind = EntityKind::Edge;
+    let path = |segs: Vec<SegPat>| NamePat::of_kind(EntityKind::Edge).path(segs);
+    assert!(path(vec![on(CapEnd::End), on(CapEnd::Start)]).matches(&edge));
+    assert!(!path(vec![on(CapEnd::Start), on(CapEnd::End)]).matches(&edge));
 }
