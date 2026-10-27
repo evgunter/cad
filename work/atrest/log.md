@@ -258,5 +258,16 @@ Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `cra
 
   The dual-review row is the last commit (`c2bda572`); it merges on green.
 - 2026-10-27 19:47Z (orchestrator): **#5853 merged** at `3bb4dc55`, head `c2bda572`, CI green. Before merging I built the merged tree with current main (which had moved `census.rs`, `solid_contain.rs` and `ValidationError`): workspace check clean, and the census, link, two_copies, curved-copies and at-rest rows 532/533. The one red is the inherited `kitchen_sink` golden at line 48 (#5817's). The lane is archived. Copies whose coincident faces are arc-bounded planes, cylinders or spheres are now interference.
+- 2026-10-27 21:22Z (orchestrator): with #5871 merged, the board still has open P0/P1 rows:
+  - **P0** `an-assertion-quiets-an-operations-unproven-row`, opened by stage 5 C when its trigger fired. Dispatched to `session_018u3gVJL3Pm7MyRwP7cMq7x`, plan-first because the `Tool`-cell rows may be a design fork.
+  - **P1** `aligned-arc-or-curved-faces-that-only-abut-are-never-read-flush`, filed by #5853. Dispatched to `session_018u3gVFq1bXviQdAss26uqu`, plan-first.
+  - **P1** `main-red-reader-census-misses-topo-link-rs`, caused by ATREST's #5773. Fixed in #5878, which also drops FLUSH's dead ledger entry on the same row.
+  - `curved-copies-filling-one-volume-read-as-undecidable` and `gap-reads-no-curved-cell-below-a-face` are re-prioritised P1 → P2: their core asks merged, and the residue needs cone, torus and NURBS rungs. Every case stays loud.
+- 2026-10-27 21:28Z (orchestrator): the P0 plan (operation rows quieted by the contact rule) is approved.
+  - F1: a Tool or Piece row is unquietable, so it is loud and never refuses (DS6). A P3 row records that quieting one would need `[assertions.quiet]`/`Gap` to read a pose, which is Ev's call.
+  - `contact_quietable` asks the rule itself (the `gap()` admission), not a shape, per today's #5810 lesson.
+  - F2: a `Gap = 0` over adjacent cells is vacuous for tangency and coaxial rows. It is built as ratified and filed as a P2 design question on `[assertions.quiet]`, for a designer pair later.
+- 2026-10-27 21:30Z (orchestrator): the flush P1 plan is approved. It is a certificate of disjoint interiors by arc-splitting: cut each edge at every `curve_pair::meet` point, place each open sub-arc's midpoint, and use the clopen argument. It rests on `meet`'s completeness (a refusal is unread) and on each face's interior being connected.
+  - Conditions: a near-tangent double-crossing row; disconnected-face refusal; an audit of every flush-row consumer for planar assumptions.
 - 2026-10-27 21:20Z (orchestrator): **#5871 merged** at `e19603f0`, head `5e7a59f7`, CI green; the fix pass (`97038c84`) was read by me, and the dual-review row is holdout, tallied 0. The lane is archived.
 - 2026-10-27 (orchestrator): **main red caused by ATREST.** #5773 added `topo/src/link.rs`, which reads its own source in tests, with no `reader_census` ledger entry. QUAD's triage filed it (`main-red-reader-census-misses-topo-link-rs`, P1). Fixed with a `Shared` entry; FLUSH's dead given-pair entry on the same row was dropped too. **Lesson:** a new source file whose tests read source needs a ledger entry, and `reader_census` is not in the topo PR gate.
