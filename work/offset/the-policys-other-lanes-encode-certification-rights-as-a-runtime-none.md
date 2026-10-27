@@ -52,10 +52,10 @@ rights (`crates/topo/src/props.rs`, the `Dual` arm of `AtRestPolicy`):
   to `false` (`crates/topo/src/census.rs`).
 - `spline_face_crossings` — added by the merge of `main`'s spline ×
   face crossings door into this branch, once `nurbs_lane()` was gone
-  (`crates/topo/src/props.rs:6743`, its `Dual` arm `:7407`). It is
+  (`crates/topo/src/props.rs:6875`, its `Dual` arm `:7539`). It is
   `Some` at the four certifying scalars and `None` at `Dual`. At
   `None` the boolean's planar lane refuses `EdgeCarrierUnsupported`
-  with site `PlanarCrossing` (`crates/topo/src/boolean/reduce.rs:3656`).
+  with site `PlanarCrossing` (`crates/topo/src/boolean/reduce.rs:3717`).
 
 Each consumer has its own `None` arm with its own meaning (a typed
 refusal for all but the quadrature, a fallback computation for the
