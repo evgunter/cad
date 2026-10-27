@@ -3592,7 +3592,7 @@ mod limb2_memo {
 /// **Limb 2's first reading of a curved closed form**: the carrier cut
 /// at the dyadic points of its angle parameter (multiples of `τ/2ᵈ`)
 /// inside the edge's outer ends, each span enclosed alone as a
-/// Bézier segment of the lowest degree whose remainder clears the band
+/// degree-[`limb2_quick::ORDER`] Bézier segment
 /// ([`crate::carrier_net::framed_span_net`]) in the operand's twin
 /// frame and composed with the twin's canonical form as the rounds
 /// compose each part ([`twin_span_hulls`]). A span whose bound does not
@@ -3610,21 +3610,17 @@ mod limb2_memo {
 /// pieces, an edge read at its attach and at rest, an edge re-attached
 /// over a moved window), and they are read once ([`limb2_quick`]'s
 /// memo). The degree is the Taylor remainder's lever: the remainder
-/// falls as the span's `n + 1`th power, so a higher degree reaches the
-/// band on a few spans where [`crate::carrier_net::ORDER`] needs tens,
-/// and a lower one costs a short span less.
+/// falls as the span's `ORDER + 1`th power, so a higher degree reaches
+/// the band on a few spans where [`crate::carrier_net::ORDER`] needs
+/// tens.
 mod limb2_quick {
     use super::{projected, twin_span_hulls};
     use crate::pcurve_cache::projected::{NetSize, ProjectedChart, ProjectedHull, SpanHull};
     use geom::{Curve3, Surface};
     use geom_core::predicate::{Band, Decide};
 
-    /// The Taylor degrees a span's net is written at: the lowest whose
-    /// remainder lies a [`MARGIN`] under the band, else the highest.
-    const ORDERS: [usize; 4] = [4, 6, 8, 12];
-
-    /// How far under the band's zero a degree's remainder must lie.
-    const MARGIN: f64 = 16.0;
+    /// The Taylor degree of a span's net.
+    pub(super) const ORDER: usize = 12;
 
     /// The first spans' level: quarter turns.
     const START: u32 = 2;
@@ -3644,8 +3640,7 @@ mod limb2_quick {
         boxed: Option<[(f64, f64); 3]>,
     }
 
-    type Memo =
-        std::collections::HashMap<String, std::collections::HashMap<(u64, u64, usize), Option<Part>>>;
+    type Memo = std::collections::HashMap<String, std::collections::HashMap<(u64, u64), Option<Part>>>;
 
     std::thread_local! {
         static MEMO: core::cell::RefCell<(usize, Memo)> =
@@ -3669,13 +3664,8 @@ mod limb2_quick {
 
     /// The span `[a, b]`'s part under `base`: the memo's, or
     /// `compute`'s, which is then kept.
-    fn part(
-        base: &str,
-        (a, b): (f64, f64),
-        order: usize,
-        compute: impl FnOnce() -> Option<Part>,
-    ) -> Option<Part> {
-        let key = (a.to_bits(), b.to_bits(), order);
+    fn part(base: &str, (a, b): (f64, f64), compute: impl FnOnce() -> Option<Part>) -> Option<Part> {
+        let key = (a.to_bits(), b.to_bits());
         if let Some(hit) = MEMO.with(|m| m.borrow().1.get(base).and_then(|s| s.get(&key)).copied()) {
             COUNTS.with(|c| c.set((c.get().0 + 1, c.get().1)));
             return hit;
@@ -3762,17 +3752,9 @@ mod limb2_quick {
             ProjectedChart::Cone { nappe, .. } => format!("{nappe:?}"),
             _ => String::new(),
         };
-        let base = format!("{}|{nappe}", super::limb2_memo::rendered(carrier, surface));
-        let order_for = |range: (f64, f64)| {
-            ORDERS
-                .into_iter()
-                .find(|&n| {
-                    crate::carrier_net::span_remainder(carrier, range, n) * MARGIN <= band.zero()
-                })
-                .unwrap_or(ORDERS[ORDERS.len() - 1])
-        };
-        let compute = |range: (f64, f64), order: usize| -> Option<Part> {
-            let net = crate::carrier_net::framed_span_net(carrier, range, frame, order).ok()?;
+        let base = format!("{}|{nappe}|{ORDER}", super::limb2_memo::rendered(carrier, surface));
+        let compute = |range: (f64, f64)| -> Option<Part> {
+            let net = crate::carrier_net::framed_span_net(carrier, range, frame, ORDER).ok()?;
             let curve = net.curve()?;
             let hull = match twin_span_hulls(&curve, twin, chart, 1, &[]).ok()?.as_slice() {
                 [one] => *one,
@@ -3801,8 +3783,7 @@ mod limb2_quick {
                 return None;
             }
             let range = if clipped { clip(d, k, domain)? } else { dyadic(d, k) };
-            let order = order_for(range);
-            let p = part(&base, range, order, || compute(range, order));
+            let p = part(&base, range, || compute(range));
             if clears(&p) {
                 cleared.extend(p);
                 continue;
