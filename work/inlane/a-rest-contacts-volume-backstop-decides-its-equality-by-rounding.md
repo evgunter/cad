@@ -13,3 +13,12 @@ cost: M
 `revalue_corpus` drops `face_sketch` from its compared rows (beside `kiss_carry`) until this is settled.
 
 **Done when** the backstop's verdict at a flush rest is a function of the contact (decided structurally, or Zero within a band its arithmetic justifies), so that `face_sketch` revalues on one branch under the apart move and its row comes back.
+
+## The backstop left the operation path (2026-10-27)
+
+PR 5842, under `[ev]` PR 5780 (the boolean's volume relations are a test oracle, `topo::test_support::volume_relations`), deleted the volume backstop, so `volume_backstop_violation` no longer decides this rest's equality. Re-measured on that PR's head with `revalue_census` (`REVALUE_DOC=face_sketch`):
+
+- In step: `compared 7861, moved 4513, drifted 0, opaque 1, escalated 0, laundered {}, flips [], parted None` — the builds no longer part.
+- Apart (`REVALUE_APART=1`): `compared 4311, moved 3001`; the builds part early, on `segment_gap` sign flips at decisions 32 and 33 (`−7.1e-15 → −2.96e-7`, `−1.2e-14 → −2.96e-7`), with `side_at_infinity_{edge,vertex,winding}` laundered — not the backstop.
+
+So `face_sketch` can come back as an in-step row; under the apart move it parts for another reason, which this row now holds.

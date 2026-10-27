@@ -529,10 +529,9 @@ fn revalue_boss_union_apart_to_its_parting() {
 
 // The corpus documents this row runs: those a debug build replays twice
 // at `Sym<f64>` in seconds. The others (`die`, `cup`, `tube_ring`, …) run
-// through `revalue_census`; `kiss_carry` and `face_sketch` change branch
-// under both moves and are not compared (`face_sketch`'s union of a box and
-// the boss resting on its top decides `volume_backstop_violation` exactly
-// zero at the nominal: `work/inlane/a-rest-contacts-volume-backstop-decides-its-equality-by-rounding.md`).
+// through `revalue_census`; `kiss_carry` changes branch under both moves
+// and is not compared, and `face_sketch` is not compared yet: it parts
+// under the apart move (`work/inlane/a-rest-contacts-volume-backstop-decides-its-equality-by-rounding.md`).
 // Each row's move is pinned, and its floor is half the margins it moved
 // and re-valued when it was pinned, so a change that makes a row opaque or
 // static, or sends it to the weaker move, goes red.
