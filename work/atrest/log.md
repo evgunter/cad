@@ -230,3 +230,7 @@ Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `cra
   - The census output equals main's apart from its outcome lines and #5817's inherited `kitchen_sink` drop.
   - The merged tree with main built, workspace and tour, before the merge. The dual-review row: concurrent, tallied 1. The lane is archived.
 - 2026-10-27 16:28Z (orchestrator): dispatched `an-instance-carries-its-parts-coincidences` (P1) → `session_018u3gVGr6ModPWKuhAbvECW`. Step 1 re-checks main after D′3 and stage 5 C and builds the pinning row, then either closes the item or sends a plan in the `CarriedInterference` shape.
+- 2026-10-27 16:45Z (orchestrator): `an-instance-carries-its-parts-coincidences` is red on main. A part reports 5 unproven rows on its own run, and a host instancing it reports 0 (pinned on the lane's branch @ `883ad599`).
+  - Plan approved with option 4b: rows are carried unproven, and the host's `DoorJob` proves them by the part's own door over the part's document, through the job's resolver, off the draw path. Host assertions are never read.
+  - Subject: `FindingSubject::Node(route.through)`, with evidence `CarriedCoincidence { route, pin, held, finding }`.
+  - Added rows: a host assertion leaves a carried row loud; a nested part (leaf → mid → host) is reported once with a two-hop route.
