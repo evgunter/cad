@@ -261,11 +261,13 @@ most of the weight:
 
 - **One uniform rule, not special cases.** `[simple.uniform]` Where one
   rule covers what a set of special cases would, the one rule is the
-  design: a crossing is named by what it enters along and nothing is
-  ranked, so names that do not tell two crossings apart tie (the
-  names' N4, `crates/editor-core/src/names/README.md`); orientation is
-  one rule and reversal is exact ([topology]); what a document
-  establishes is one rule ([intent.structural]).
+  design. For example, in the names
+  (`crates/editor-core/src/names/README.md`): what several members of
+  a union hold at once, a face, an edge or a vertex, is named `Merged`
+  of all of them, where each kind once had its own rule for picking
+  one; and nothing is ranked, so names that do not tell two crossings
+  apart tie. Orientation is one rule ([topology]), and so is what a
+  document establishes ([intent.structural]).
 - **Checks serve the code.** `[simple.checks]` Tests, debug assertions
   and CI are tools for finding defects in the code, not a ritual:
   nothing is added to the code for a check's sake, and no
