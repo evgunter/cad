@@ -8,6 +8,7 @@ closed: 2026-10-27
 priority: P0
 cost: H
 refs: [delete-the-boolean-operand-edge-gate, nurbs-edge-crossing-rung-is-the-ring-composite, a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm, nurbs-plane-section-has-no-component-arm, 5723]
+branch: splice/interior-arm
 ---
 
 

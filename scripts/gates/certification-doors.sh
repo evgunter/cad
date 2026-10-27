@@ -176,7 +176,7 @@
 # of them calls every `Real` method — the transcendentals, `is_poison`
 # — without the token `Real`, and does so at `T = Interval` too
 # (`QuadLane::<Interval>`). That is BY DESIGN: it is lane evaluation
-# (`topo/src/props/quad_lane.rs`'s norms, `geom-brep/src/props/quad.rs`,
+# (`topo/src/props/quad_lane.rs`'s norms, `geom-brep/src/props/quad/`,
 # `mesh/src/chords.rs`), and its result enters certification arithmetic
 # only through `Interval::from_certified`, whose `Def`/`Trv` cap carries
 # the lane's own verdict across. THIS GATE READS TOKENS: it cannot tell
@@ -214,7 +214,16 @@ CERT_IMPORTERS=(
   crates/geom-brep/src/offset_meters.rs
   crates/geom-brep/src/patch_bound.rs
   crates/geom-brep/src/props/bracket.rs
-  crates/geom-brep/src/props/quad.rs
+  crates/geom-brep/src/props/quad/area.rs
+  crates/geom-brep/src/props/quad/cells.rs
+  crates/geom-brep/src/props/quad/cylinder.rs
+  crates/geom-brep/src/props/quad/green.rs
+  crates/geom-brep/src/props/quad/net.rs
+  crates/geom-brep/src/props/quad/patch.rs
+  crates/geom-brep/src/props/quad/rational.rs
+  crates/geom-brep/src/props/quad/run.rs
+  crates/geom-brep/src/props/quad/trig.rs
+  crates/geom-brep/src/props/quad/trimmed.rs
   crates/geom-brep/src/props/rational_rim.rs
   crates/geom-brep/src/props/spiric.rs
   crates/geom-brep/src/props/taylor.rs

@@ -809,9 +809,14 @@ fn a_holed_cylinder_wall_drops_the_cells_in_its_hole() {
         &[(0.0, 0.0), (0.7, 0.0), (0.7, 0.6), (0.0, 0.6)],
         0.6,
     );
-    // Placed against the cylinder, whose `y` slide reads the other way
-    // round from the world's.
-    let tool = translated(&mut r, Some(cylinder), tool, [len(0.8), len(0.3), len(0.7)]);
+    // Placed against the cylinder, whose slides read along the world's
+    // axes: the tool spans `y ∈ [−0.3, 0.3]`, across the probe.
+    let tool = translated(
+        &mut r,
+        Some(cylinder),
+        tool,
+        [len(0.8), len(-0.3), len(0.7)],
+    );
     let cut = r.insert(Node::Subtract {
         from: cylinder.into(),
         tool: tool.into(),

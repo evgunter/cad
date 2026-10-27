@@ -12,7 +12,7 @@ cost: D
 ## The finding
 
 PERF-6 made the certified face lanes enterable over a `RoundWindow`
-(`crates/geom-brep/src/props/quad.rs`), so tier 3's check 7 can stop at
+(`crates/geom-brep/src/props/quad/run.rs`), so tier 3's check 7 can stop at
 the round its sign settles and a caller wanting the number can continue
 from there. The ROUNDS compose exactly — a face run as `0..=k` then
 `k+1..=...` evaluates the pieces an uninterrupted run evaluates, once
@@ -23,7 +23,7 @@ What does NOT compose is everything a lane does BEFORE its round loop.
 A window enters at the lane's front door, so each entry re-derives that
 face's round-independent setup:
 
-- `nurbs_patch_face` (quad.rs, the block before its loop): the
+- `nurbs_patch_face` (props/quad/patch.rs, the block before its loop): the
   derivative grids `su`/`sv`/`suu`/`svv`, the global second-derivative
   hulls, the interior-knot lists, the position-magnitude bound, and
   `last_round_width_lo` over the schedule's LAST round's cut lists;

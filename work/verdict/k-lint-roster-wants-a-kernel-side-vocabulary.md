@@ -13,7 +13,7 @@ cost: D
 
 `tools/k-lint/tests/predicate_roster.rs` pins `EPS_COUPLED_PREDICATES`
 against the kernel by **parsing Rust source text**: `include_str!` over
-`crates/geom-brep/src/props/quad.rs`, two blanked views from
+`crates/geom-brep/src/props/quad/`, two blanked views from
 `test_utils::source`, a bracket walk to find each
 `classify_len::<T>(` call, and a comma split to read its first two
 arguments. That is roughly 200 lines of machinery policing a
