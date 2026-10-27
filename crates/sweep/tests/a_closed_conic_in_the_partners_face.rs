@@ -22,6 +22,8 @@
 //!   or outside, apart, concentric, each read alike in the two-arc form,
 //!   and the tangent poses turned;
 //! - a plug in the bore of an annulus standing on a plate;
+//! - rods tangent inside one another along a ruling, a rim lying flush
+//!   in the partner's top or floor, at rest and turned;
 //! - two equal coaxial cylinders stacked end to end;
 //! - a tube whose rim lies inside one face of a ball;
 //! - a puck and the quarter-disc ring revolved round it.
@@ -316,26 +318,20 @@ fn a_boss_beside_a_ring_and_over_a_hole() {
     );
 }
 
-/// **The containment fallback cuts a closed rim, or says why not.** The
-/// boss `r = 0.3` less the plate is the boss, by the fallback, which
-/// divides the plate's top along the boss's rim, one closed edge whose
-/// vertex touches the top with no surgery, with a circular edge from a
-/// lone vertex: the disc is held by the boss's floor, and the rest of the
-/// top is a discard.
-///
-/// Over the hole `r = 0.1` the cut meets a placement limit, the rim's
-/// vertex reading in no corner of the top beside the hole's ring
-/// (`work/flush/a-fallback-cut-refuses-beside-a-ring-a-seam-or-a-pinch.md`):
-/// this half pins that known limit, not a target. The top is uncut, with
-/// that reason, and no row names any part of it, neither held nor
-/// discarded. With a lid standing on the boss as well, the lid's bottom is
-/// cut along the boss's top rim and held there, beside the uncut top: each
-/// face is cut on its own, and only the face whose cut refused is uncut.
-/// The body is the boss throughout. Red before the fallback cut: the plain
-/// top was one whole row; before the per-face record, the lid's bottom
-/// was uncut with the plate's reason.
+/// **The containment fallback cuts a closed rim.** The boss `r = 0.3`
+/// less the plate is the boss, by the fallback, which divides the
+/// plate's top along the boss's rim, one closed edge whose vertex
+/// touches the top with no surgery, with a circular edge from a lone
+/// vertex: the disc is held by the boss's floor, and the rest of the top
+/// is a discard. Over the hole `r = 0.1` the top holds the hole's ring,
+/// one closed edge, and the rim's chord is placed beside it, the corner
+/// it bounds read at its extent (`boolean::fate`'s `leaving`); with a lid
+/// standing on the boss as well, the lid's bottom is cut along the
+/// boss's top rim and held there too, each face cut on its own. The body
+/// is the boss throughout, and nothing is left uncut. Red before the
+/// fallback cut: the plain top was one whole row.
 #[test]
-fn the_fallback_cuts_a_closed_rim_or_records_why_not() {
+fn the_fallback_cuts_a_closed_rim() {
     let boss = fin(
         "the boss",
         extruded(vec![circle(0.0, 0.0, 0.3, 0.0)], 0.0, 1.0),
@@ -356,13 +352,14 @@ fn the_fallback_cuts_a_closed_rim_or_records_why_not() {
     };
     let lid = fin("the lid", extruded(vec![square()], 1.0, 0.5));
     let lidded = united(&holed(), &lid);
-    // Each case: the plate's top cut, then whether a lid's bottom is.
+    // Each case, with the levels of the faces it holds in part: the top
+    // at z 0, the lid's bottom at z 1.
     let cases = [
-        ("the plate", plate(), (true, false)),
-        ("the holed plate", holed(), (false, false)),
-        ("the holed plate and a lid", lidded, (false, true)),
+        ("the plate", plate(), vec![0]),
+        ("the holed plate", holed(), vec![0]),
+        ("the holed plate and a lid", lidded, vec![0, 2]),
     ];
-    for (label, other, (top_cut, lid_held)) in cases {
+    for (label, other, want) in cases {
         let Ok(BooleanResult::Body(out)) = topo::subtract(&boss, &other, tol()) else {
             panic!("{label}: the boss less it builds");
         };
@@ -373,22 +370,11 @@ fn the_fallback_cuts_a_closed_rim_or_records_why_not() {
         );
         let n = &out.naming;
         let root = |f| n.face_fragments_b.root(f);
-        // The rows by the plane of the B face they name: the top at z 0,
-        // the lid's bottom at z 1.
         let level = |f: topo::FaceKey| match topo::face_carrier(&other, root(f)) {
             Some(topo::CarrierDesc::Plane { origin, .. }) => (origin.z * 2.0).round() as i8,
             c => panic!("{label}: a plane face, {c:?}"),
         };
         let held: Vec<i8> = n.substituted.iter().map(|s| level(s.face)).collect();
-        let uncut: Vec<(i8, &str)> = n
-            .uncut
-            .iter()
-            .map(|u| (level(u.face), u.what.as_str()))
-            .collect();
-        let want: Vec<i8> = [(top_cut, 0), (lid_held, 2)]
-            .into_iter()
-            .filter_map(|(on, z)| on.then_some(z))
-            .collect();
         assert_eq!(held, want, "{label}: the faces held in part, by level");
         for s in &n.substituted {
             assert!(
@@ -398,24 +384,7 @@ fn the_fallback_cuts_a_closed_rim_or_records_why_not() {
                 "{label}: the rest of a cut face is a discard"
             );
         }
-        if top_cut {
-            assert_eq!(uncut, vec![], "{label}: nothing left uncut");
-            continue;
-        }
-        let [(0, why)] = uncut.as_slice() else {
-            panic!("{label}: the top alone is uncut, {:?}", n.uncut);
-        };
-        assert!(
-            why.contains("lies in no corner")
-                && n.uncut[0].kind == topo::BooleanErrorKind::ClassificationInvariant,
-            "{label}: the top's own reason, {why}"
-        );
-        assert!(
-            n.discards
-                .iter()
-                .all(|r| (r.operand, root(r.face)) != (n.uncut[0].operand, n.uncut[0].face)),
-            "{label}: no discard row names the uncut top"
-        );
+        assert!(n.uncut.is_empty(), "{label}: left uncut, {:?}", n.uncut);
     }
 }
 
@@ -885,27 +854,29 @@ fn a_boss_over_two_holes_tangent_outside_with_no_vertex_at_either_touch() {
     }
 }
 
-/// **A rim flush in the partner's top, tangent inside its rim at a
-/// vertex**: `A` the one-segment cylinder `r = 0.3`, `z ∈ [0, 1]`, its
-/// vertex at azimuth 0, inside the one-segment cylinder `B`, `r = 0.5`
-/// about `(−0.2, 0)`, `z ∈ [−0.5, 1]`, its vertex at azimuth 0 or 1; the
-/// walls are tangent along the ruling through `(0.3, 0)` and the tops
-/// coplanar, `A`'s rim tangent inside `B`'s at `(0.3, 0, 1)`. `B ∪ A`,
-/// `A ∩ B` and both differences build at their closed forms (read
-/// through `differential::outcome`, unmeshed: the mesher's certificate
-/// on `B`'s wall is its own question). Where the op reads the two tops
-/// facing one way and keeps `A`'s, the cut along `A`'s rim in `B`'s
-/// dropped top has no corner at the tangent vertex, so the join does not
-/// take a rim lying flush in a face (`boolean::join`'s `stands_on`), and
-/// `A ∪ B` and `B ∩ A` refuse typed
-/// (`work/cleave/a-flush-closed-rim-tangent-at-its-vertex-reaches-the-fate-cut-limit.md`).
-/// At rest and turned.
+/// **A rim flush in the partner's top, tangent inside its rim**: `A` the
+/// one-segment cylinder `r = 0.3`, `z ∈ [0, 1]`, inside the one-segment
+/// cylinder `B`, `r = 0.5` about `(−0.2, 0)`, `z ∈ [−0.5, 1]`; the walls
+/// are tangent along the ruling through `(0.3, 0)` and the tops
+/// coplanar, `A`'s rim tangent inside `B`'s at `(0.3, 0, 1)`. `A`'s
+/// vertex lies at azimuth 0, 1 or π, `B`'s at 0 or 1. Every op builds at
+/// its closed form in one shell (read through `differential::outcome`,
+/// unmeshed: the mesher's certificate on `B`'s wall is its own question),
+/// but one pair: with `A`'s vertex at the touch, where the op reads the
+/// two tops facing one way and keeps `A`'s, the join does not take a rim
+/// lying flush in a face at its one vertex (`boolean::join`'s
+/// `stands_on`), and `A ∪ B` and `B ∩ A` refuse typed
+/// (`work/cleave/a-flush-closed-rim-at-its-vertex-is-joined-reversed.md`).
+/// With `A`'s vertex elsewhere the sweep splits its rim at `B`'s vertex,
+/// and the cut along it in `B`'s dropped top ends at that vertex, a
+/// corner of `B`'s closed rim, read at the rim's extent
+/// (`boolean::fate`'s `leaving`). At rest and turned.
 #[test]
 fn a_rim_flush_in_its_partners_top_tangent_inside_refuses_typed_or_builds() {
     let va = 0.09 * PI;
     let vb = 0.25 * PI * 1.5;
     for (turn, placed) in [("at rest", None), ("turned", Some(torax_pose()))] {
-        for b_az in [0.0, 1.0] {
+        for (a_az, b_az) in [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (PI, 0.0)] {
             let place = |what: &str, body: Body<f64>| match &placed {
                 None => fin(what, body),
                 Some(m) => fin(
@@ -916,15 +887,15 @@ fn a_rim_flush_in_its_partners_top_tangent_inside_refuses_typed_or_builds() {
             };
             let a = place(
                 "the inner rod",
-                extruded(vec![circle(0.0, 0.0, 0.3, 0.0)], 0.0, 1.0),
+                extruded(vec![circle(0.0, 0.0, 0.3, a_az)], 0.0, 1.0),
             );
             let b = place(
                 "the outer rod",
                 extruded(vec![circle(-0.2, 0.0, 0.5, b_az)], -0.5, 1.5),
             );
             for (op, r, want) in every_op_both_orders(&a, &b, (va, vb, va), tol()) {
-                let row = format!("B's vertex at {b_az}, {turn}: {op}");
-                if matches!(op, "A ∪ B" | "B ∩ A") {
+                let row = format!("A's vertex at {a_az}, B's at {b_az}, {turn}: {op}");
+                if a_az == 0.0 && matches!(op, "A ∪ B" | "B ∩ A") {
                     assert!(
                         matches!(&r, Err(BooleanError::Join(j))
                             if matches!(j.error(), SplitJoinError::SingleSiteSectionLoop { count: 1 })),
@@ -932,12 +903,81 @@ fn a_rim_flush_in_its_partners_top_tangent_inside_refuses_typed_or_builds() {
                         r.map(|_| ())
                     );
                 } else {
-                    let line = outcome(r, want, tol());
-                    assert!(
-                        line.starts_with(if want == 0.0 { "EMPTY ok" } else { "OK SOUND" }),
-                        "{row}: {line}"
-                    );
+                    one_shell_at(&row, r, want);
                 }
+            }
+        }
+    }
+}
+
+/// `r` holds its closed form `want` (`differential::outcome`), in one
+/// shell where it is not empty.
+fn one_shell_at(row: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f64) {
+    let shells = match &r {
+        Ok(BooleanResult::Body(b)) => b.body.shells().count(),
+        _ => 0,
+    };
+    let line = outcome(r, want, tol());
+    if want == 0.0 {
+        assert!(line.starts_with("EMPTY ok"), "{row}: {line}");
+    } else {
+        assert!(line.starts_with("OK SOUND"), "{row}: {line}");
+        assert_eq!(shells, 1, "{row}: shells");
+    }
+}
+
+/// **A fate cut whose kept rim leaves along the dropped face's boundary
+/// and bends into it**: the kept copy's rim, tangent inside the dropped
+/// copy's, leaves their touch along the dropped face's boundary edge at
+/// first order, and the cut places it in the corner it bends into one
+/// order down (`boolean::fate`'s `corner_holds`). `A ∩ B` of the
+/// two-arc rods of
+/// [`a_rim_flush_in_its_partners_top_tangent_inside_refuses_typed_or_builds`],
+/// `B` over `z ∈ [0, 0.5]`, keeps `A`'s floor and cuts `B`'s along `A`'s
+/// rim; and the hole's rod `r = 0.1` about `(0.2, 0)` inside the boss's,
+/// both one-segment over `z ∈ [0, 1]`, tangent at `(0.3, 0)` where the
+/// boss's vertex lies. Every op in both orders, at its closed form in
+/// one shell, at rest and turned.
+#[test]
+fn a_kept_rim_leaving_along_the_dropped_faces_boundary_cuts_where_it_bends() {
+    for (turn, placed) in [("at rest", None), ("turned", Some(torax_pose()))] {
+        let place = |what: &str, body: Body<f64>| match &placed {
+            None => fin(what, body),
+            Some(m) => fin(
+                what,
+                topo::transform_rigid(&body, &geom_core::test_support::rigid(m, tol()), tol())
+                    .unwrap(),
+            ),
+        };
+        let poses = [
+            (
+                "the two-arc rods, their floors flush",
+                place(
+                    "the inner rod",
+                    extruded(vec![rim(false, 0.0, 0.3, 0.0)], 0.0, 1.0),
+                ),
+                place(
+                    "the outer rod",
+                    extruded(vec![rim(false, -0.2, 0.5, 0.0)], 0.0, 0.5),
+                ),
+                (0.09 * PI, 0.125 * PI, 0.045 * PI),
+            ),
+            (
+                "the hole's rod inside the boss's",
+                place(
+                    "the boss's rod",
+                    extruded(vec![rim(true, 0.0, 0.3, 0.0)], 0.0, 1.0),
+                ),
+                place(
+                    "the hole's rod",
+                    extruded(vec![rim(true, 0.2, 0.1, PI)], 0.0, 1.0),
+                ),
+                (0.09 * PI, 0.01 * PI, 0.01 * PI),
+            ),
+        ];
+        for (pose, a, b, v) in poses {
+            for (op, r, want) in every_op_both_orders(&a, &b, v, tol()) {
+                one_shell_at(&format!("{pose}, {turn}: {op}"), r, want);
             }
         }
     }

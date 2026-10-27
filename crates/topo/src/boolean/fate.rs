@@ -409,33 +409,70 @@ enum Place {
     Lone(LoopKey, VertexKey),
 }
 
-/// The unit direction `he` leaves its start along, with the edge's
-/// chord length; `None` for null scaffolding.
-fn departure<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<(Vec3<T>, T)> {
+/// How an edge leaves a vertex ([`leaving`]).
+#[derive(Debug, Clone, Copy)]
+struct Leaves<T: geom_core::Real> {
+    /// The unit direction.
+    dir: Vec3<T>,
+    /// The length it reaches over: a line's chord, a curved edge's
+    /// extent ([`geom_brep::edge_extent`], which a closed edge's zero
+    /// chord does not shrink).
+    reach: T,
+    /// Its curvature vector there: a line's zero, a circle's or an
+    /// ellipse's; `None` for a spiric or a spline, whose bend carries no
+    /// bound ([`geom_brep::BendBounds::Unbounded`]).
+    bend: Option<Vec3<T>>,
+}
+
+/// A leaving edge's curvature vector and reach, where its bend is read
+/// ([`Leaves`]).
+type Bend<T> = Option<(Vec3<T>, T)>;
+
+/// How `he` leaves its start, along its tangent; `None` for null
+/// scaffolding.
+fn departure<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<Leaves<T>> {
     leaving(body, he, false)
 }
 
-/// As [`departure`], or with `secant` the unit chord from `he`'s start
-/// to its edge's midpoint, which tells apart two curves leaving one
-/// point tangent to each other.
-fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<(Vec3<T>, T)> {
+/// As [`departure`], or with `secant` along the unit chord from `he`'s
+/// start to its edge's midpoint, which tells apart two curves leaving
+/// one point tangent to each other where neither bends by a certified
+/// curvature.
+fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<Leaves<T>> {
     let h = body.get_half_edge(he)?;
     let edge = body.get_edge(h.edge)?;
     let curve = body.get_curve_geom(edge.curve)?.certified()?;
     let base = body.half_edge_start_point(he)?;
     let end = body.half_edge_start_point(body.mate(he)?)?;
-    let len = (end - base).norm();
-    let dir = match curve.carrier() {
-        _ if secant => curve.mid_point() - base,
-        geom::Curve3::Line { .. } => end - base,
+    let chord = (end - base).norm();
+    let (dir, reach, bend) = match curve.carrier() {
+        geom::Curve3::Line { .. } => (
+            end - base,
+            chord,
+            Some(Vec3::new(T::zero(), T::zero(), T::zero())),
+        ),
         geom::Curve3::Circle { .. }
         | geom::Curve3::Ellipse { .. }
         | geom::Curve3::Spiric { .. }
         | geom::Curve3::Nurbs(_) => {
-            geom_brep::ConicDeparture::of(curve, he == edge.he_plus, len).dir
+            let d = geom_brep::ConicDeparture::of(curve, he == edge.he_plus, chord);
+            let bend = match d.bend.bounds {
+                geom_brep::BendBounds::Planar { .. } => Some(d.bend.curvature),
+                geom_brep::BendBounds::Unbounded => None,
+            };
+            (d.dir, d.extent, bend)
         }
     };
-    Some((dir / dir.norm(), len))
+    let dir = if secant {
+        curve.mid_point() - base
+    } else {
+        dir
+    };
+    Some(Leaves {
+        dir: dir / dir.norm(),
+        reach,
+        bend,
+    })
 }
 
 /// The sign of `x`, a dimensionless reading levered at `arm`.
@@ -485,29 +522,67 @@ fn contained(e: super::ContainError, what: &'static str) -> BooleanError {
 }
 
 /// Whether unit `d` lies strictly inside the corner swept
-/// counterclockwise about `n` from unit `out` to unit `back`, or along
-/// `out` (`None`). Where the two bounds leave along one ray, `wraps`
-/// says whether the face wraps round it, the corner then the whole
-/// turn but the ray itself, or holds no direction.
+/// counterclockwise about `n` from `out` to `back`, or along `out`
+/// (`None`). Where the two bounds leave along one ray, `wraps` says
+/// whether the face wraps round it, the corner then the whole turn but
+/// the ray itself, or the cusp between them.
+///
+/// Where `d` leaves along a bound at first order, its side of that bound
+/// is read one order down: with `û` the unit in-plane direction square
+/// to the bound into the corner, the edge stands `κ·û·l²/2` off the
+/// tangent line at arc length `l` and the bound `κ_b·û·l²/2`, so the
+/// edge runs into the corner past that bound iff `(κ − κ_b)·û > 0`
+/// (`sectors::runs_into`'s reading), decided at the shorter reach. `d`
+/// along `out` at both orders, or with no bend to read on either side,
+/// is along it; along `back` with none to read, it is in no corner here.
 fn corner_holds<T: Decide>(
-    d: Vec3<T>,
-    (out, back): (Vec3<T>, Vec3<T>),
+    (d, bend): (Vec3<T>, Bend<T>),
+    (out, back): (Leaves<T>, Leaves<T>),
     wraps: impl FnOnce() -> Result<bool, BooleanError>,
     n: Vec3<T>,
-    arm: T,
     band: Band,
 ) -> Result<Option<bool>, BooleanError> {
-    let s1 = sign(n.dot(out.cross(d)), arm, band)?;
-    if s1 == Sign::Zero && sign(out.dot(d), arm, band)? == Sign::Positive {
-        return Ok(None);
+    let arm = out.reach.min(back.reach);
+    // `d`'s side of bound `b` it leaves along, read one order down, `u`
+    // square to `b` into the corner.
+    let past = |b: Leaves<T>, u: Vec3<T>| -> Result<Option<Sign>, BooleanError> {
+        let (Some((k, reach)), Some(kb)) = (bend, b.bend) else {
+            return Ok(None);
+        };
+        let l = reach.min(b.reach);
+        let entered = (k - kb).dot(u) * l.powi(2) / (T::one() + T::one());
+        crate::validate::decide("bool_fate_corner_bend", Margin::of(entered), band)
+            .map(Some)
+            .map_err(|diag| {
+                BooleanError::coincidence(
+                    super::Coincide::Sectors,
+                    super::DeclarationRead::Moot,
+                    diag,
+                )
+            })
+    };
+    let ahead = |b: Vec3<T>| Ok::<_, BooleanError>(sign(b.dot(d), arm, band)? == Sign::Positive);
+    let mut s1 = sign(n.dot(out.dir.cross(d)), arm, band)?;
+    if s1 == Sign::Zero && ahead(out.dir)? {
+        match past(out, n.cross(out.dir))? {
+            None | Some(Sign::Zero) => return Ok(None),
+            Some(s) => s1 = s,
+        }
     }
-    let s2 = sign(n.dot(d.cross(back)), arm, band)?;
-    let turn = sign(n.dot(out.cross(back)), arm, band)?;
-    let holds = match turn {
-        Sign::Positive => s1 == Sign::Positive && s2 == Sign::Positive,
-        Sign::Negative => s1 == Sign::Positive || s2 == Sign::Positive,
-        Sign::Zero if sign(out.dot(back), arm, band)? == Sign::Positive => wraps()?,
-        Sign::Zero => s1 == Sign::Positive,
+    let mut s2 = sign(n.dot(d.cross(back.dir)), arm, band)?;
+    if s2 == Sign::Zero
+        && ahead(back.dir)?
+        && let Some(s) = past(back, back.dir.cross(n))?
+    {
+        s2 = s;
+    }
+    let either = s1 == Sign::Positive || s2 == Sign::Positive;
+    let both = s1 == Sign::Positive && s2 == Sign::Positive;
+    let holds = match sign(n.dot(out.dir.cross(back.dir)), arm, band)? {
+        Sign::Positive => both,
+        Sign::Negative => either,
+        Sign::Zero if sign(out.dir.dot(back.dir), arm, band)? == Sign::Positive => wraps()? || both,
+        Sign::Zero => either,
     };
     Ok(Some(holds))
 }
@@ -517,14 +592,16 @@ fn corner_holds<T: Decide>(
 /// `None` where none of those faces holds `at`. A corner whose two
 /// bounds leave along one ray wraps the face round it where they are
 /// one dangling edge, or two straight edges at a tip ([`tip_wraps`]);
-/// two other edges leaving tangent bound a cusp, which holds no
-/// direction at this order.
+/// two other edges leaving tangent bound a cusp, which holds a
+/// direction along them only one order down ([`corner_holds`]). `bend`
+/// is the leaving edge's curvature vector and reach, read where `d` is
+/// its tangent.
 fn places<T: Decide>(
     (body, operand): (&Body<T>, Operand),
     at: &[VertexKey],
     root: FaceKey,
     divisions: &FaceDivisions,
-    (d, secant): (Vec3<T>, bool),
+    (d, bend, secant): (Vec3<T>, Bend<T>, bool),
     band: Band,
 ) -> Result<Option<Vec<Place>>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
@@ -558,7 +635,7 @@ fn places<T: Decide>(
                 continue;
             }
             touched = true;
-            let Some((out, out_len)) = leaving(body, h, secant) else {
+            let Some(out) = leaving(body, h, secant) else {
                 continue;
             };
             // The corner's other bound is the first edge before `h` that
@@ -597,7 +674,6 @@ fn places<T: Decide>(
                 }
                 Ok(None) | Err(_) => return Err(no_normal),
             };
-            let arm = out_len.min(back.1);
             let wraps = || {
                 let bounds = [p, h].map(|x| body.get_half_edge(x).map(|x| x.edge));
                 if bounds[0] == bounds[1] {
@@ -611,7 +687,7 @@ fn places<T: Decide>(
                 }
                 tip_wraps((body, operand), (f, h), band)
             };
-            match corner_holds(d, (out, back.0), wraps, normal.vec(), arm, band)? {
+            match corner_holds((d, bend), (out, back), wraps, normal.vec(), band)? {
                 None => found.push(Place::Along(h)),
                 Some(true) => found.push(Place::Corner(h)),
                 Some(false) => {}
@@ -677,8 +753,9 @@ fn tip_wraps<T: Decide>(
         runs.push(run);
     }
     let (mut turned, mut halves, mut any) = (T::zero(), T::zero(), false);
-    for (k, &(b, b_len)) in runs.iter().enumerate() {
-        let (a, a_len) = runs[(k + runs.len() - 1) % runs.len()];
+    for (k, b) in runs.iter().enumerate() {
+        let a = runs[(k + runs.len() - 1) % runs.len()];
+        let (a, a_len, b, b_len) = (a.dir, a.reach, b.dir, b.reach);
         let (across, ahead) = (n.dot(a.cross(b)), a.dot(b));
         let arm = a_len.min(b_len);
         if sign(across, arm, band)? == Sign::Zero && sign(ahead, arm, band)? == Sign::Negative {
@@ -710,6 +787,10 @@ fn tip_wraps<T: Decide>(
 struct Leaving<T: geom_core::Real> {
     /// The unit tangent.
     tangent: Vec3<T>,
+    /// The leaving edge's curvature vector and reach, where its bend is
+    /// read ([`Leaves`]): what tells it apart from a bound it leaves
+    /// along at first order ([`corner_holds`]).
+    bend: Bend<T>,
     /// The unit chord to the leaving edge's midpoint, read where the
     /// tangent lies in no one corner: a curved edge leaving tangent to a
     /// boundary lies in the corner its chord does. A direction with no
@@ -722,6 +803,7 @@ impl<T: geom_core::Real> Leaving<T> {
     fn bisector(d: Vec3<T>) -> Self {
         Self {
             tangent: d,
+            bend: None,
             secant: d,
         }
     }
@@ -729,9 +811,10 @@ impl<T: geom_core::Real> Leaving<T> {
 
 /// The place where a chord leaving `at` starts (`places`): an edge
 /// the face already holds from `at` to one of `beyond`, the chord's
-/// other end, along its tangent, or the one corner its tangent lies in,
-/// else the one its secant does, the corners' bounds then read by their
-/// own secants too. `None` where no face divided from `root` holds
+/// other end, along its tangent, or the one corner its tangent lies in
+/// (one order down where it leaves along a bound), else the one its
+/// secant does, the corners' bounds then read by their own secants
+/// too. `None` where no face divided from `root` holds
 /// `at`: the kept edge leaves the dropped face where the reduction put
 /// no vertex in it.
 fn place<T: Decide>(
@@ -743,9 +826,12 @@ fn place<T: Decide>(
     band: Band,
 ) -> Result<Option<Place>, CutError> {
     let mut corners = Vec::new();
-    let readings = [(leaving.tangent, false), (leaving.secant, true)];
-    for (k, (d, secant)) in readings.into_iter().enumerate() {
-        let Some(found) = places((body, operand), at, root, divisions, (d, secant), band)? else {
+    let readings = [
+        (leaving.tangent, leaving.bend, false),
+        (leaving.secant, None, true),
+    ];
+    for (k, reading) in readings.into_iter().enumerate() {
+        let Some(found) = places((body, operand), at, root, divisions, reading, band)? else {
             return Ok(None);
         };
         if k == 0
@@ -1618,7 +1704,7 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                 .map(|h| h.start)
                 .zip(departure(kept_body, he))
         });
-        let [Some((x0, (d0, _))), Some((x1, (d1, _)))] = ends else {
+        let [Some((x0, l0)), Some((x1, l1))] = ends else {
             return Err(desync("a fate edge has no direction").into());
         };
         // Each end's chord to the kept edge's midpoint.
@@ -1665,7 +1751,8 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                 root,
                 div_d,
                 Leaving {
-                    tangent: d0,
+                    tangent: l0.dir,
+                    bend: l0.bend.map(|k| (k, l0.reach)),
                     secant: s0,
                 },
                 band,
@@ -1676,7 +1763,8 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                 root,
                 div_d,
                 Leaving {
-                    tangent: d1,
+                    tangent: l1.dir,
+                    bend: l1.bend.map(|k| (k, l1.reach)),
                     secant: s1,
                 },
                 band,
@@ -1853,6 +1941,70 @@ mod tests {
             "{err:?}"
         );
     }
+
+    /// **A kept edge leaving along a corner's bound is read one order
+    /// down**: in `z = 0` about `+z`, the cusp a crescent narrows to,
+    /// from the outer rim `r = 0.5` leaving `+y` round to the inner rim
+    /// `r = 0.3` arriving along it, both bending toward `−x`. An arc
+    /// leaving `+y` with the curvature `1/r` lies inside the cusp for
+    /// `0.3 < r < 0.5`, and outside it bending harder or straight; the
+    /// outer rim's own curvature runs along it. At a half-plane corner, an
+    /// arc leaving along the bound it arrives by lies in the corner iff it
+    /// bends into it.
+    #[test]
+    fn a_kept_edge_tangent_to_a_bound_reads_its_side_one_order_down() {
+        use super::{Leaves, corner_holds};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (up, y) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 1.0, 0.0));
+        let bend = |k: f64| Some(Vec3::new(-k, 0.0, 0.0));
+        let leaves = |dir, k: f64| Leaves {
+            dir,
+            reach: 0.6,
+            bend: bend(k),
+        };
+        let cusp = (leaves(y, 2.0), leaves(y, 1.0 / 0.3));
+        let reads = |k: f64, corner| {
+            corner_holds(
+                (y, bend(k).map(|b| (b, 0.6))),
+                corner,
+                || Ok(false),
+                up,
+                band,
+            )
+            .unwrap()
+        };
+        assert_eq!(
+            reads(1.0 / 0.4, cusp),
+            Some(true),
+            "r = 0.4 runs into the cusp"
+        );
+        assert_eq!(
+            reads(5.0, cusp),
+            Some(false),
+            "r = 0.2 bends past the inner rim"
+        );
+        assert_eq!(
+            reads(0.0, cusp),
+            Some(false),
+            "a line runs outside the outer rim"
+        );
+        assert_eq!(
+            reads(2.0, cusp),
+            None,
+            "the outer rim's own curvature runs along it"
+        );
+        let half = (leaves(-y, 0.0), leaves(y, 0.0));
+        assert_eq!(
+            reads(-1.0, half),
+            Some(true),
+            "bending toward +x, into the corner"
+        );
+        assert_eq!(
+            reads(1.0, half),
+            Some(false),
+            "bending toward -x, out of it"
+        );
+    }
 }
 
 /// **A spline leaves a vertex along its tangent, not its chord**: the
@@ -1869,7 +2021,9 @@ mod spline_departure_rows {
     fn a_fate_cut_reads_a_splines_tangent() {
         let (body, edge) = arc_sheet(1.0, 1.0);
         let he = body.get_edge(edge).unwrap().he_plus;
-        let (dir, len) = super::departure(&body, he).unwrap();
+        let super::Leaves {
+            dir, reach: len, ..
+        } = super::departure(&body, he).unwrap();
         let tangent = Vec3::new(1.0, 2.0, 0.0).normalize();
         assert!(
             (dir - tangent).norm() < 1e-12,
