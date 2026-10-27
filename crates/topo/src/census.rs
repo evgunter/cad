@@ -7874,8 +7874,10 @@ fn sweep_self_touch_points<T: Decide>(
 type LinkPair<T> = (Result<Germ<T>, TouchUnread>, Result<Germ<T>, TouchUnread>);
 
 impl<T: Decide> Sector<T> {
-    /// One planar, line-bounded face of the snapshot as its sectors at
-    /// the touch point, held there as `holds` say: inside it (one sector
+    /// One planar face of the snapshot as its sectors at the touch
+    /// point, held there as `holds` say — a face with an edge that is not
+    /// a line as the disc its edges clear ([`Sector::cleared`]), and a
+    /// line-bounded one as follows: inside it (one sector
     /// about `p`), or at each pass of its loops through the point — every
     /// corner on the point, about its vertex, whether the loops pass one
     /// vertex twice or two vertices on one point (a pinch, one vertex per
@@ -7894,7 +7896,7 @@ impl<T: Decide> Sector<T> {
     ) -> Result<Vec<Self>, TouchUnread> {
         // A face or surface that does not resolve, or a loop that does
         // not walk, is a defect (tier 1 admits none); a face that
-        // resolves off a plane, or bounded by a curved edge, is curved.
+        // resolves off a plane is curved.
         let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
         let surface = body
             .get_surface(face.surface)
@@ -7904,13 +7906,13 @@ impl<T: Decide> Sector<T> {
         if !fg.walked {
             return Err(TouchUnread::Corrupt);
         }
-        if !fg.polygon {
-            return Err(TouchUnread::Unreadable);
-        }
         // A planar face at rest has an outward normal: none is a defect.
         let outward = crate::face_normal::face_outward_normal(body, f)
             .ok_or(TouchUnread::Corrupt)?
             .vec();
+        if !fg.polygon {
+            return Self::cleared(body, face, surface, outward, p, holds);
+        }
         let rings = fg
             .loops
             .iter()
@@ -8084,11 +8086,10 @@ impl<T: Decide> Link<T> {
 
 /// **Face `f`'s material, where it lies on a sphere or a cylinder**, and
 /// a lower bound on its reach about `p`, a point inside it: the least
-/// distance from `p` to a boundary edge, each a line read as its segment
-/// or a circle as the whole circle; a face with no boundary reaches
-/// round its carrier. `None` off a sphere or a cylinder;
-/// [`TouchUnread::Unreadable`] for a boundary edge of another curve, and
-/// [`TouchUnread::Corrupt`] where the face does not read.
+/// clearance of a boundary edge ([`crate::link::clearance`]); a face
+/// with no boundary reaches round its carrier. `None` off a sphere or a
+/// cylinder; [`TouchUnread::Unreadable`] for a boundary edge no clearance
+/// reads, and [`TouchUnread::Corrupt`] where the face does not read.
 fn round_face<T: Decide>(
     body: &Body<T>,
     f: FaceKey,
@@ -8102,38 +8103,7 @@ fn round_face<T: Decide>(
     let mut reach = round.radius() * T::from_f64(2.0);
     for cycle in face_cycles(body, face) {
         for he in cycle.map_err(|_| TouchUnread::Corrupt)? {
-            let half = body.half_edges.get(he).ok_or(TouchUnread::Corrupt)?;
-            let curve = body
-                .edges
-                .get(half.edge)
-                .and_then(|d| body.curves.get(d.curve))
-                .and_then(crate::null::CurveGeom::certified)
-                .ok_or(TouchUnread::Unreadable)?;
-            let to = match *curve.carrier() {
-                geom::Curve3::Line { .. } => {
-                    let a = body.half_edge_start_point(he).ok_or(TouchUnread::Corrupt)?;
-                    let b = body
-                        .half_edge_end(he)
-                        .and_then(|v| body.vertices.get(v))
-                        .and_then(|v| body.points.get(v.point))
-                        .copied()
-                        .ok_or(TouchUnread::Corrupt)?;
-                    crate::link::to_segment(p, (a, b))
-                }
-                geom::Curve3::Circle {
-                    center,
-                    axis,
-                    radius,
-                    ..
-                } => {
-                    let rel = p - center;
-                    let h = rel.dot(axis);
-                    let across = (rel - axis * h).norm() - radius;
-                    (h.powi(2) + across.powi(2)).sqrt()
-                }
-                _ => return Err(TouchUnread::Unreadable),
-            };
-            reach = reach.min(to);
+            reach = reach.min(crate::link::clearance(body, he, p)?);
         }
     }
     Ok(Some((round, reach)))

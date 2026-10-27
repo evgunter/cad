@@ -46,8 +46,10 @@
 //! and a face that is not convex is read where it is near `p`, not where
 //! it reaches back far from it.
 //!
-//! A link holds planar faces bounded by line edges only: a curved face
-//! or edge at the point refuses ([`TouchUnread::Unreadable`]); a
+//! A link holds planar faces only. One with an edge that is not a line
+//! is read, held inside it or inside a line edge, as the disc about `p`
+//! its other edges clear ([`Sector::cleared`]); a curved face, or such a
+//! face held at its corner, refuses ([`TouchUnread::Unreadable`]); a
 //! sphere or cylinder face is read by its carrier instead, as above.
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
@@ -259,7 +261,10 @@ pub enum TouchUnread {
     /// it was in band, or its readings contradicted each other within
     /// ε. The smallest piece of all, which refuses.
     PieceInBand,
-    /// A curved face or edge takes part. (A tied edge whose key does not
+    /// A curved face or edge takes part: a face off a plane, or a planar
+    /// face with an edge that is not a line where [`Sector::cleared`]
+    /// does not read it — held at a corner, or bounded by a curve no
+    /// clearance reads. (A tied edge whose key does not
     /// resolve reads the same; tier 1, which the census runs behind,
     /// admits none. A face whose surface or loops do not resolve reads
     /// [`Self::Corrupt`].)
@@ -1283,8 +1288,9 @@ fn position<T: Real>(body: &Body<T>, v: VertexKey) -> Result<Point3<T>, TouchUnr
 
 impl<T: Decide> Sector<T> {
     /// Face `f` of a live `body` as its sectors at `p`, held there as
-    /// `holds` say ([`Sector::of_face`]): a face off a plane, or one with
-    /// an edge that is not a line, is [`TouchUnread::Unreadable`].
+    /// `holds` say ([`Sector::of_face`]), or as the disc its edges clear
+    /// where one of them is not a line ([`Sector::cleared`]): a face off
+    /// a plane is [`TouchUnread::Unreadable`].
     fn of_body_face(
         body: &Body<T>,
         f: FaceKey,
@@ -1312,7 +1318,7 @@ impl<T: Decide> Sector<T> {
             for he in cycle {
                 let he = body.half_edges.get(he).ok_or(TouchUnread::Corrupt)?;
                 if !crate::census::edge_is_line(body, he.edge) {
-                    return Err(TouchUnread::Unreadable);
+                    return Self::cleared(body, face, surface, outward, p, holds);
                 }
                 keys.push(he.start);
                 ring.push(position(body, he.start)?);
@@ -1328,6 +1334,190 @@ impl<T: Decide> Sector<T> {
             rings,
         };
         Self::of_face(&face, p, holds, band)
+    }
+
+    /// **A planar face with an edge that is not a line, as its sectors
+    /// at `p`**, held inside the face or inside one of its line edges: a
+    /// fan of the disc about `p` that every other edge of the face
+    /// clears ([`clearance`]) — the whole disc for a point inside the
+    /// face, and inside an edge, the half of it left of each pass of the
+    /// face's loops along the edge about the outward normal (the face's
+    /// side, [`face_piece`]'s orientation).
+    ///
+    /// Each such sector is a piece: every edge but the held one stands
+    /// at least the radius off `p`, the held edge's ends among their
+    /// points, so inside the disc the face's boundary is the held edge
+    /// alone, a diameter, or nothing. The open disc, or its open half on
+    /// the face's side, is connected, meets no boundary, and holds points
+    /// of the face as near `p` as any, so it lies inside the face; the
+    /// fan's points, on its rim, are real points of the face, and the fan
+    /// spans the face's whole sector at `p`.
+    ///
+    /// A corner hold, two edges held at once, or an edge no clearance
+    /// reads is [`TouchUnread::Unreadable`]; a radius too short or too
+    /// long to be a number, [`TouchUnread::ChordScale`].
+    pub(crate) fn cleared(
+        body: &Body<T>,
+        face: &crate::entity::Face,
+        surface: geom::Surface<T>,
+        outward: Vec3<T>,
+        p: Point3<T>,
+        holds: &[Hold],
+    ) -> Result<Vec<Self>, TouchUnread> {
+        if holds.iter().any(|h| matches!(h, Hold::Corner(_))) {
+            return Err(TouchUnread::Unreadable);
+        }
+        let mut held = holds.iter().filter_map(|h| match *h {
+            Hold::Edge(a, b) => Some((a, b)),
+            Hold::Corner(_) | Hold::Inside => None,
+        });
+        let edge = held.next();
+        if held.next().is_some() {
+            return Err(TouchUnread::Unreadable);
+        }
+        let mut radius = None;
+        let mut passes = Vec::new();
+        for cycle in crate::census::face_cycles(body, face) {
+            for he in cycle.map_err(|_| TouchUnread::Corrupt)? {
+                let half = body.half_edges.get(he).ok_or(TouchUnread::Corrupt)?;
+                let end = body.half_edge_end(he).ok_or(TouchUnread::Corrupt)?;
+                if let Some((a, b)) = edge
+                    && ((half.start, end) == (a, b) || (half.start, end) == (b, a))
+                    && crate::census::edge_is_line(body, half.edge)
+                {
+                    passes.push((position(body, end)? - position(body, half.start)?).normalize());
+                    continue;
+                }
+                let c = clearance(body, he, p)?;
+                radius = Some(radius.map_or(c, |r: T| r.min(c)));
+            }
+        }
+        let radius = radius.ok_or(TouchUnread::Corrupt)?;
+        let along: Vec<Option<Vec3<T>>> = match edge {
+            None => vec![None],
+            Some(_) if passes.is_empty() => return Err(TouchUnread::Corrupt),
+            Some(_) => passes.into_iter().map(Some).collect(),
+        };
+        along
+            .into_iter()
+            .map(|d| Self::disc(surface.clone(), face.sense, outward, p, radius, d))
+            .collect()
+    }
+
+    /// The fan of the disc of `radius` about `p` in the face's plane,
+    /// eight wedges of an eighth of a turn; or, `along` a pass of the
+    /// face's loops through `p`, the half of it left of the pass, four.
+    /// Counterclockwise about `outward`, from `along` where it is given.
+    fn disc(
+        surface: geom::Surface<T>,
+        sense: bool,
+        outward: Vec3<T>,
+        p: Point3<T>,
+        radius: T,
+        along: Option<Vec3<T>>,
+    ) -> Result<Self, TouchUnread> {
+        let a = match (along, &surface) {
+            (Some(d), _) => d,
+            (None, &geom::Surface::Plane { u_ref, .. }) => {
+                (u_ref - outward * outward.dot(u_ref)).normalize()
+            }
+            (None, _) => return Err(TouchUnread::Unreadable),
+        };
+        let b = outward.cross(a);
+        let s = T::from_f64(core::f64::consts::FRAC_1_SQRT_2);
+        let back = T::from_f64(-1.0);
+        let turns = [
+            a,
+            (a + b) * s,
+            b,
+            (b - a) * s,
+            a * back,
+            (a + b) * (s * back),
+            b * back,
+            (a - b) * s,
+        ];
+        let fan: Vec<Point3<T>> = turns
+            .iter()
+            .take(if along.is_some() { 5 } else { 8 })
+            .map(|&t| p + t * radius)
+            .collect();
+        chord(p, fan[0])?;
+        let mut wedges: Vec<Segment<T>> = fan.windows(2).map(|w| (w[0], w[1])).collect();
+        if along.is_none() {
+            wedges.push((fan[7], fan[0]));
+        }
+        Ok(Self {
+            surface,
+            sense,
+            outward,
+            apex: p,
+            wedges,
+            closed: along.is_none(),
+        })
+    }
+}
+
+/// **How far `p` stands from the edge of half-edge `he`, at least**, in
+/// metres: a line's distance from its segment, a circle's or an
+/// ellipse's from the whole conic. An ellipse is read through the map
+/// that shrinks it along its axes to the circle of its lesser semi-axis:
+/// the map moves no two points further apart, so `p`'s image stands no
+/// further from that circle than `p` from the ellipse.
+/// [`TouchUnread::Unreadable`] for an edge of another curve, or with no
+/// certified curve; [`TouchUnread::Corrupt`] where it does not read.
+pub(crate) fn clearance<T: Real>(
+    body: &Body<T>,
+    he: crate::entity::HalfEdgeKey,
+    p: Point3<T>,
+) -> Result<T, TouchUnread> {
+    let half = body.half_edges.get(he).ok_or(TouchUnread::Corrupt)?;
+    let curve = body
+        .edges
+        .get(half.edge)
+        .and_then(|d| body.curves.get(d.curve))
+        .and_then(crate::null::CurveGeom::certified)
+        .ok_or(TouchUnread::Unreadable)?;
+    // The distance from a circle of `radius` of a point `h` off its
+    // plane and `out` from its axis.
+    let off_circle = |h: T, out: T, radius: T| (h.powi(2) + (out - radius).powi(2)).sqrt();
+    match *curve.carrier() {
+        geom::Curve3::Line { .. } => {
+            let end = body.half_edge_end(he).ok_or(TouchUnread::Corrupt)?;
+            Ok(to_segment(
+                p,
+                (position(body, half.start)?, position(body, end)?),
+            ))
+        }
+        geom::Curve3::Circle {
+            center,
+            axis,
+            radius,
+            ..
+        } => {
+            let rel = p - center;
+            let h = rel.dot(axis);
+            Ok(off_circle(h, (rel - axis * h).norm(), radius))
+        }
+        geom::Curve3::Ellipse {
+            center,
+            axis,
+            semi_u,
+            semi_v,
+            u_ref,
+        } => {
+            let rel = p - center;
+            let minor = semi_u.min(semi_v);
+            let (u, v) = (
+                rel.dot(u_ref) * (minor / semi_u),
+                rel.dot(axis.cross(u_ref)) * (minor / semi_v),
+            );
+            Ok(off_circle(
+                rel.dot(axis),
+                (u.powi(2) + v.powi(2)).sqrt(),
+                minor,
+            ))
+        }
+        _ => Err(TouchUnread::Unreadable),
     }
 }
 
