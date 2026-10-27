@@ -89,15 +89,34 @@ fn chase_edge_to_table<T: Decide>(
     killed: &BTreeMap<EdgeKey, EdgeKey>,
     e: EdgeKey,
 ) -> Result<EdgeKey, NamingError> {
-    let named = |k: EdgeKey| table.name_of(&ent(0, EntityKey::Edge(k))).is_some();
+    chase_edge_until(
+        body,
+        killed,
+        |k| table.name_of(&ent(0, EntityKey::Edge(k))).is_some(),
+        e,
+    )
+}
+
+/// [`chase_edge_to_table`]'s walk, stopping at the first key `stop`
+/// holds of instead of the first a table names.
+///
+/// # Panics
+///
+/// As [`chase_edge_to_table`].
+fn chase_edge_until<T: geom_core::Real>(
+    body: &Body<T>,
+    killed: &BTreeMap<EdgeKey, EdgeKey>,
+    stop: impl Fn(EdgeKey) -> bool,
+    e: EdgeKey,
+) -> Result<EdgeKey, NamingError> {
     chase::to_root(
         e,
         killed.len(),
         "see `emit_topo::chase_edge_to_table`'s Panics",
         |k| {
-            let k = body.split_root(k, named)?;
+            let k = body.split_root(k, &stop)?;
             Ok(match killed.get(&k) {
-                Some(&up) if !named(k) => ControlFlow::Continue(up),
+                Some(&up) if !stop(k) => ControlFlow::Continue(up),
                 _ => ControlFlow::Break(k),
             })
         },
@@ -1558,6 +1577,111 @@ fn operand_key<K: Copy + Ord>(
     (OpSide::on(operand, key), space)
 }
 
+/// **A boolean's graft rows read backwards**, result key → B key: the
+/// grafted edges, those and the dead-on-arrival keys standing for B
+/// edges that died before the graft, and the grafted vertices.
+pub(crate) struct GraftInverse {
+    /// The grafted edges.
+    pub(crate) edges: BTreeMap<EdgeKey, EdgeKey>,
+    /// Every key a grafted record can name: `edges` and the dead ones.
+    pub(crate) lineage: BTreeMap<EdgeKey, EdgeKey>,
+    /// The grafted vertices.
+    pub(crate) vertices: BTreeMap<VertexKey, VertexKey>,
+}
+
+impl GraftInverse {
+    /// `naming`'s graft rows, read backwards.
+    pub(crate) fn of(naming: &topo::BooleanNaming) -> Self {
+        let back = |&(s, d): &(EdgeKey, EdgeKey)| (d, s);
+        Self {
+            edges: naming.graft_edges.iter().map(back).collect(),
+            lineage: naming
+                .graft_edges
+                .iter()
+                .chain(&naming.graft_dead_edges)
+                .map(back)
+                .collect(),
+            vertices: naming.graft_vertices.iter().map(|&(s, d)| (d, s)).collect(),
+        }
+    }
+}
+
+/// **No name reads a cell a sphere re-chart turned**
+/// (`topo::BooleanNaming::recharted`): a live edge whose descent reaches
+/// one, chased as the edge pass chases it ([`chase_edge_to_table`],
+/// through the split hops the kills dropped), or a live vertex that is
+/// one, is a turned seam piece or pole, which descends from no cell of
+/// its operand. A re-charted face is not asked after: a kept piece of a
+/// turned sphere is a band or a cap about the turned axis, which a
+/// turned seam crosses or a turned pole lies in, so its edges or
+/// vertices refuse first. `reads` are the operands' reads, A's then
+/// B's, and `b_body` B's body, which a grafted B's descent is chased in.
+///
+/// # Errors
+///
+/// [`NamingError::UnsupportedTurnedCell`] for the first such edge, in
+/// arena order, else the first such vertex;
+/// [`NamingError::SplitLineage`] for a cycling lineage.
+pub(crate) fn refuse_turned_cells<T: geom_core::Real>(
+    body: &Body<T>,
+    naming: &topo::BooleanNaming,
+    inv: &GraftInverse,
+    reads: [crate::VarId; 2],
+    b_body: &Body<T>,
+) -> Result<(), NamingError> {
+    use topo::Operand;
+    let turned = |operand: Operand, cell: topo::Cell| {
+        naming.recharted[usize::from(operand == Operand::B)].contains(cell)
+    };
+    if naming
+        .recharted
+        .iter()
+        .all(topo::boolean::Recharts::is_empty)
+    {
+        return Ok(());
+    }
+    let refuse = |operand: Operand, cell| NamingError::UnsupportedTurnedCell {
+        read: reads[usize::from(operand == Operand::B)],
+        cell,
+    };
+    let killed = KilledSplits::of(naming);
+    for (e, _) in body.edges() {
+        let (root, space) = operand_key(naming, &inv.edges, e);
+        let (operand, root) = match (root, space) {
+            (OpSide::A(k), _) | (OpSide::B(k), KeySpace::Arena) => {
+                let operand = root.operand();
+                let at = |k| turned(operand, topo::Cell::Edge(k));
+                (operand, chase_edge_until(body, &killed.arena, at, k)?)
+            }
+            (OpSide::B(_), KeySpace::Graft) => {
+                let at_b = |k| turned(Operand::B, topo::Cell::Edge(k));
+                let root = body.split_root(e, |r| inv.lineage.get(&r).is_none_or(|&k| at_b(k)))?;
+                // A walk that leaves the graft rows is the edge pass's to
+                // refuse.
+                let Some(&kb) = inv.lineage.get(&root) else {
+                    continue;
+                };
+                (
+                    Operand::B,
+                    chase_edge_until(b_body, &killed.graft_b, at_b, kb)?,
+                )
+            }
+        };
+        let cell = topo::Cell::Edge(root);
+        if turned(operand, cell) {
+            return Err(refuse(operand, cell));
+        }
+    }
+    for (v, _) in body.vertices() {
+        let (operand, k, _) = naming.operand_of(&inv.vertices, v);
+        let cell = topo::Cell::Vertex(k);
+        if turned(operand, cell) {
+            return Err(refuse(operand, cell));
+        }
+    }
+    Ok(())
+}
+
 /// Names a boolean result (spec D2's boolean vocabulary; N2/N3).
 pub(crate) fn name_boolean<T: Decide>(
     node: RecipeNodeId,
@@ -1578,19 +1702,9 @@ pub(crate) fn name_boolean<T: Decide>(
 
     let inv_faces: BTreeMap<FaceKey, FaceKey> =
         naming.graft_faces.iter().map(|&(s, d)| (d, s)).collect();
-    let inv_edges: BTreeMap<EdgeKey, EdgeKey> =
-        naming.graft_edges.iter().map(|&(s, d)| (d, s)).collect();
-    // Result → B key for every key a grafted record can name: the
-    // grafted edges and the dead-on-arrival keys standing for B edges
-    // that died before the graft.
-    let lineage_inv: BTreeMap<EdgeKey, EdgeKey> = naming
-        .graft_edges
-        .iter()
-        .chain(&naming.graft_dead_edges)
-        .map(|&(s, d)| (d, s))
-        .collect();
-    let inv_vertices: BTreeMap<VertexKey, VertexKey> =
-        naming.graft_vertices.iter().map(|&(s, d)| (d, s)).collect();
+    let inv = GraftInverse::of(naming);
+    let (inv_edges, lineage_inv, inv_vertices) = (&inv.edges, &inv.lineage, &inv.vertices);
+    refuse_turned_cells(body, naming, &inv, [a.read, b.read], b.body)?;
     let (a_rows, b_rows) = (&naming.face_fragments_a, &naming.face_fragments_b);
     let seam_set: BTreeSet<EdgeKey> = naming.seam_edges.iter().copied().collect();
     let inc = Incidence::of(body);
@@ -1834,9 +1948,9 @@ pub(crate) fn name_boolean<T: Decide>(
         naming,
         a,
         b,
-        &inv_edges,
-        &inv_vertices,
-        &lineage_inv,
+        inv_edges,
+        inv_vertices,
+        lineage_inv,
         &seam_set,
         &inc,
         &descend_face,
@@ -1852,7 +1966,7 @@ pub(crate) fn name_boolean<T: Decide>(
         &mut rec,
         body,
         naming,
-        &inv_vertices,
+        inv_vertices,
         a,
         b,
         &inc,

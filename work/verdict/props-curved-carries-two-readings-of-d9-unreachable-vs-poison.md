@@ -28,7 +28,7 @@ sites and written once. Measured, not acted on; difficulty S.
 kernel-bug-only class, and it is the one that reaches a USER: it returns
 a typed refusal, `PropsError::NotIsoRectangle { what: name }` — the same
 variant and the same `what` (`props_rim_level`) that a valid notched
-cylinder wall carries (`work/flux/a-notched-cylinder-wall-has-no-volume-measurement`).
+cylinder wall carries (`a-notched-cylinder-wall-has-no-volume-measurement`, closed by PR 5689).
 So the state its own doc calls "kernel-bug-only (one surface builds every
 rim of a face AND both its ends)" renders as a capability gap.
 

@@ -8,13 +8,12 @@
 //! (`chord_join::path_ring_side`).
 //!
 //! Every pose runs every op in both member orders. A body is held to
-//! tier 3, to tier 3′ (or, for a result in two lumps, to the census
-//! refusal its curved lumps draw), and to its volume against a slice
+//! tier 3, to tier 3′, and to its volume against a slice
 //! integral of the ball and box: each slice is a disc against a rectangle, exact, and
 //! only the stack over height is quadrature. A result whose ball face
 //! keeps the ring as a hole (the ball's side of ∪ and of ball ∖ box)
 //! is measured like the rest: the sphere arm reads every loop of a face
-//! by Gauss–Bonnet (`work/flux/sphere-face-with-a-hole-has-no-closed-form.md`).
+//! by Gauss–Bonnet (`sphere-face-with-a-hole-has-no-closed-form`, closed by PR 4573).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -25,8 +24,6 @@ use sweep::test_support::{ball_poled, ball_poled_y, ball_poled_z, brick, finishe
 use topo::{AtRestBody, BooleanError, BooleanResult};
 
 use crate::common::oracles::{ball_volume, lens_volume};
-
-use Want::{Body, Lumps};
 
 /// A box `[x0, x1] × [y0, y1] × [z0, z1]`.
 type Bounds = [(f64, f64); 3];
@@ -81,27 +78,14 @@ fn box_volume(b: Bounds) -> f64 {
     b.iter().map(|(lo, hi)| hi - lo).product()
 }
 
-/// What one op yields.
-#[derive(Clone, Copy, Debug)]
-enum Want {
-    /// A body at tiers 3 and 3′ and at its volume.
-    Body,
-    /// Two lumps at tier 3 and at their volume, whose tier 3′ the census
-    /// cannot decide: curved faces of the two lumps are within reach of
-    /// each other
-    /// (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
-    Lumps,
-}
-
-/// `a ∪ b`, `b ∪ a`, `a ∖ b`, `b ∖ a`, `a ∩ b`, `b ∩ a` against `wants`,
-/// in that order, each body's volume read from the operands' volumes
+/// `a ∪ b`, `b ∪ a`, `a ∖ b`, `b ∖ a`, `a ∩ b`, `b ∩ a`, each a body at
+/// tiers 3 and 3′ and at its volume, read from the operands' volumes
 /// `va`, `vb` and the volume they share.
 fn assert_six(
     pose: &str,
     a: &AtRestBody<f64>,
     b: &AtRestBody<f64>,
     (va, vb, shared): (f64, f64, f64),
-    wants: [Want; 6],
 ) {
     let tol = Tol::witness();
     let ops = [
@@ -112,24 +96,14 @@ fn assert_six(
         ("a ∩ b", shared, topo::intersect(a, b, tol)),
         ("b ∩ a", shared, topo::intersect(b, a, tol)),
     ];
-    for ((op, volume, out), want) in ops.into_iter().zip(wants) {
+    for (op, volume, out) in ops {
         let label = format!("{pose}, {op}");
-        match (out, want) {
-            (Ok(BooleanResult::Body(bb)), Body | Lumps) => {
+        match out {
+            Ok(BooleanResult::Body(bb)) => {
                 topo::validate_geometric(&bb.body, tol)
                     .unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
-                match (
-                    topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol),
-                    want,
-                ) {
-                    (Ok(()), Body) => {}
-                    (Err(errors), Lumps)
-                        if bb.body.shells().count() == 2
-                            && errors.iter().all(|e| {
-                                matches!(e, topo::ValidationError::CensusUndecidable { .. })
-                            }) => {}
-                    (got, _) => panic!("{label}: tier 3′ for {want:?}: {got:?}"),
-                }
+                topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol)
+                    .unwrap_or_else(|e| panic!("{label}: tier 3′: {e:?}"));
                 // Relative to the op's own volume: an absolute floor
                 // would pass any result of a millimetre pose (pair 82's
                 // small ball is 9.5e-10 m³).
@@ -140,18 +114,13 @@ fn assert_six(
                     "{label}: volume {v} against the slice integral {volume}"
                 );
             }
-            (out, want) => panic!(
-                "{label}: wanted {want:?}, got {:?}",
+            out => panic!(
+                "{label}: wanted a body, got {:?}",
                 out.map(|r| r.body().map(|b| b.body.faces().count()))
             ),
         }
     }
 }
-
-/// A box against a ball whose face keeps the section as a hole on the
-/// ball's side of ∪ and of ball ∖ box: every op builds, the ringed ball
-/// face measured with its hole.
-const BOX_RING: [Want; 6] = [Body; 6];
 
 /// The operand and shared volumes of the box `bounds` against the ball
 /// `(r, c)`.
@@ -177,13 +146,7 @@ fn a_slab_edge_through_a_ball_face_winds_its_island() {
         // The ring passes within 0.1 of the pole at (2, −0.1, 1.1).
         ("near a pole", Vec3::new(2.0, 0.4, 1.1)),
     ] {
-        assert_six(
-            pose,
-            &boxed(SLAB),
-            &ball_y(0.5, c),
-            box_ball(SLAB, 0.5, c),
-            BOX_RING,
-        );
+        assert_six(pose, &boxed(SLAB), &ball_y(0.5, c), box_ball(SLAB, 0.5, c));
     }
 }
 
@@ -199,7 +162,7 @@ fn an_outer_point_on_the_runs_side_of_the_section_winds_the_island() {
     for tilt in [0.3, -0.3, 0.6] {
         let pose = format!("tilt {tilt}");
         let ball = ball_z(0.5, c, tilt, 3.0 * FRAC_PI_2);
-        assert_six(&pose, &boxed(SLAB), &ball, box_ball(SLAB, 0.5, c), BOX_RING);
+        assert_six(&pose, &boxed(SLAB), &ball, box_ball(SLAB, 0.5, c));
     }
 }
 
@@ -218,7 +181,6 @@ fn a_box_corner_and_a_box_edge_inside_a_ball_wind_their_islands() {
             &boxed(bounds),
             &ball_y(1.0, o),
             box_ball(bounds, 1.0, o),
-            BOX_RING,
         );
     }
 }
@@ -237,7 +199,6 @@ fn a_ring_on_the_section_circle_winds_by_its_arc() {
         &big,
         &small,
         (ball_volume(1.0), ball_volume(0.6), lens_volume(1.0, 0.6, d)),
-        [Body, Body, Body, Body, Body, Body],
     );
 }
 
@@ -253,7 +214,6 @@ fn a_section_across_the_seam_meridian_divides_the_outer_loop() {
         &boxed(SLAB),
         &ball_y(0.5, c),
         box_ball(SLAB, 0.5, c),
-        [Body; 6],
     );
 }
 
@@ -296,7 +256,6 @@ fn a_pierce_ring_beside_a_sphere_island_stays_outside() {
         &lens,
         &small,
         (va, vb, common),
-        [Body; 6],
     );
 }
 
@@ -391,7 +350,6 @@ fn an_island_holding_the_far_caps_pole_winds() {
                     &tool,
                     &unit_ball(Vec3::new(0.0, 1.0, 0.0), spin, tilt),
                     (vt, ball_volume(1.0), shared),
-                    [Body, Body, Body, Body, Body, Body],
                 );
             }
         }
@@ -418,7 +376,6 @@ fn a_bar_through_a_ball_winds_both_rings() {
                 &boxed(b),
                 &ball,
                 box_ball(b, 1.0, o),
-                [Body, Body, Lumps, Body, Body, Body],
             );
         }
     }
@@ -439,13 +396,7 @@ fn a_ring_beside_an_outer_loop_on_the_run_is_read_from_an_edge_midpoint() {
         [(-0.3, 0.1), (0.2, 0.45), (-2.0, 2.0)],
     ] {
         let ball = unit_ball(pole, 0.0, (Vec3::new(1.0, 0.0, 0.0), 0.0));
-        assert_six(
-            &format!("bar {b:?}"),
-            &boxed(b),
-            &ball,
-            box_ball(b, 1.0, o),
-            [Body, Body, Lumps, Body, Body, Body],
-        );
+        assert_six(&format!("bar {b:?}"), &boxed(b), &ball, box_ball(b, 1.0, o));
     }
     let b: Bounds = [
         (-0.6237172865476482, 1.233346104703386),
@@ -454,13 +405,7 @@ fn a_ring_beside_an_outer_loop_on_the_run_is_read_from_an_edge_midpoint() {
     ];
     let pole = Vec3::new(0.6355369378990602, -0.7198546525528592, -0.2791094404779036);
     let ball = unit_ball(pole, 0.0, (Vec3::new(1.0, 0.0, 0.0), 0.0));
-    assert_six(
-        "the corner box",
-        &boxed(b),
-        &ball,
-        box_ball(b, 1.0, o),
-        [Body, Body, Lumps, Body, Body, Body],
-    );
+    assert_six("the corner box", &boxed(b), &ball, box_ball(b, 1.0, o));
 }
 
 /// **A path that grazes a run arc in the escalation band says nothing,
@@ -509,6 +454,5 @@ fn a_graze_hands_the_winding_on_and_pair_82_builds_at_every_eps() {
             ball_volume(r2),
             lens_volume(r1, r2, c2.norm()),
         ),
-        [Body, Body, Body, Body, Body, Body],
     );
 }

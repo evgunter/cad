@@ -67,7 +67,7 @@ fn flips(label: &str, body: &Body<f64>, failures: &mut Vec<String>) -> usize {
         // so the typed door never reads it, and the hollow-ball row of
         // `the_door_reads_seam_regions_as_tier_3_does` pins the raw door's
         // reading of it
-        // (`work/flux/a-sphere-shell-flipped-whole-in-a-multi-shell-body-measures-wrong-at-the-door.md`).
+        // (`a-sphere-shell-flipped-whole-in-a-multi-shell-body-measures-wrong-at-the-door`, closed by PR 5590).
         // Raw door: the subject is the door's parity with tier 3 over flips tier 3 may refuse.
         let door = topo::test_support::measure_unvalidated(
             &flipped,

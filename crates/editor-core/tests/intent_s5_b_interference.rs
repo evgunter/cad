@@ -168,22 +168,18 @@ fn a_bar_through_a_plate_with_no_vertex_inside_is_one_finding() {
     let [finding] = assembly.interference.as_slice() else {
         panic!("one overlap, one finding: {:?}", assembly.interference)
     };
-    // No vertex is inside: the evidence is the pierces, and the
-    // containment arm's undecided pair the standing pierces left it.
+    // No vertex is inside: the evidence is the pierces alone, which
+    // decide the pair, so the containment arm leaves nothing undecided
+    // beside them.
     assert!(
-        finding.evidence.iter().any(|e| matches!(
-            e,
-            ValidationError::UnrecordedContact {
-                contact: CensusContact::EdgeFacePierce { .. },
-                ..
-            }
-        )) && finding.evidence.iter().all(|e| matches!(
-            e,
-            ValidationError::UnrecordedContact {
-                contact: CensusContact::EdgeFacePierce { .. },
-                ..
-            } | ValidationError::CensusUndecidable { .. }
-        )),
+        !finding.evidence.is_empty()
+            && finding.evidence.iter().all(|e| matches!(
+                e,
+                ValidationError::UnrecordedContact {
+                    contact: CensusContact::EdgeFacePierce { .. },
+                    ..
+                }
+            )),
         "the census's evidence is pierces: {:?}",
         finding.evidence
     );
@@ -726,17 +722,29 @@ fn a_clearance_fit_apart_in_depth_assembles() {
 }
 
 /// **(B) A quiet finding carries no verdict nothing checked.** The
-/// press fit again, its plate drilled with a small hole beside the pin
-/// (0.586 from its axis at the nearest, within its faces' reach):
-/// the census leaves the pin's wall and that hole's wall undecided, a
-/// face pair outside the overlap the assertion's containment check
-/// covers, so the finding stays loud and carries the verdict.
+/// press fit again, its plate drilled with a small hole beside the pin:
+/// radius `0.05`, its centre `0.5555` from the pin's axis on the
+/// diagonal, so its wall passes `5e-4` from the pin's wall. The census
+/// leaves a half of the pin's wall and that hole's wall undecided (one
+/// `CensusUndecidable` face pair), a pair outside the overlap the
+/// assertion's containment check covers, so the finding stays loud and
+/// carries the verdict.
+///
+/// The pair is apart, but arm 1 reads a cylinder wall's depth only about
+/// its own axis, and no direction it proposes parts them: their reach
+/// boxes overlap on every world axis, the anchor axis runs well off the
+/// line of centres, and the offset from either axis aims at the other
+/// wall's seam rulings, not at its nearest point. When
+/// `work/restread/census-arm-1-reads-directions-from-the-pairs-own-faces-only.md`
+/// lands a direction that parts it, move the hole in until no direction
+/// does.
 ///
 /// Red if an undecided verdict anywhere on the pair rides a quiet
 /// finding.
 #[test]
 fn an_undecided_pair_beside_the_press_fit_keeps_it_loud() {
-    let (doc, p, q, _, bore, wall) = bore_pin_and_holes(0.505, &[(0.45, 0.45, 0.05)]);
+    let at = 0.5555 * core::f64::consts::FRAC_1_SQRT_2;
+    let (doc, p, q, _, bore, wall) = bore_pin_and_holes(0.505, &[(at, at, 0.05)]);
     let (doc, _) = gap_at_copies(
         doc.clone(),
         (p, bore),
@@ -751,19 +759,27 @@ fn an_undecided_pair_beside_the_press_fit_keeps_it_loud() {
     let Overlap::Bounded { faces } = &finding.overlap else {
         panic!("bounded: {:?}", finding.overlap)
     };
-    let beside = finding.evidence.iter().filter(|e| {
+    // The side hole's wall: the product's one cylinder of its radius.
+    let hole_wall = |f: topo::FaceKey| {
+        let body = &assembly.body;
+        matches!(
+            body.get_face(f).and_then(|f| body.get_surface(f.surface)),
+            Some(geom::Surface::Cylinder { radius, .. }) if (radius - 0.05).abs() < 1e-12
+        )
+    };
+    let beside = finding.evidence.iter().any(|e| {
         matches!(
             e,
             ValidationError::CensusUndecidable {
-                a: topo::EntityId::Face(_),
-                b: topo::EntityId::Face(_),
+                a: topo::EntityId::Face(a),
+                b: topo::EntityId::Face(b),
                 ..
-            }
+            } if hole_wall(*a) || hole_wall(*b)
         )
     });
     assert!(
-        beside.count() > 0,
-        "the census left curved pairs undecided: {:?}",
+        beside,
+        "the census left the side hole's wall undecided: {:?}",
         finding.evidence
     );
     assert!(
@@ -841,5 +857,112 @@ fn a_touch_beside_a_quieted_overlap_keeps_it_loud() {
     assert_eq!(
         finding.quiet, None,
         "the assertion {assertion:?} bounds the overlap and not the touch"
+    );
+}
+
+/// An extrude of the polygon `corners` on its own xy, `height` up.
+fn prism(doc: ProfileDoc, corners: Vec<(f64, f64)>, height: f64) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, profile) = on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![corners],
+    );
+    insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(height),
+        },
+    )
+}
+
+/// **An overlap that shows only where the copies touch is one loud
+/// finding.** A triangular prism stood 0.2 up inside a unit block, its
+/// corners on three of the block's walls and its upright edges lying in
+/// them: no vertex of either is strictly inside the other, no edge
+/// pierces a face and no faces share a plane, so the census decides the
+/// overlap at a touch (`TouchInterference`). The gate reports one loud
+/// finding for the two copies, with that verdict as its evidence and no
+/// undecided pair beside it. Red, the pair refused as undecidable or
+/// cleared, where a decided crossing touch is read as anything else.
+#[test]
+fn a_prism_inscribed_in_a_block_is_one_loud_finding_at_its_touches() {
+    let doc = ProfileDoc::empty_derived("atrest-touch-interference", Tol::witness());
+    let (doc, block) = block(doc, (0.0, 0.0), 0.5, 1.0);
+    let (doc, wedge) = prism(doc, vec![(0.0, -0.5), (0.5, 0.0), (-0.5, 0.0)], 0.6);
+    let (doc, p) = place(doc, block);
+    let (doc, q) = place_up(doc, wedge, 0.2);
+    let assembly = assembled(&doc);
+    let [finding] = assembly.interference.as_slice() else {
+        panic!("one overlap, one finding: {:?}", assembly.interference)
+    };
+    assert!(finding.is_loud(), "no assertion is written, so it is loud");
+    assert_eq!(
+        (finding.a.var, finding.b.var),
+        (doc.output(p, 0).unwrap(), doc.output(q, 0).unwrap()),
+        "the finding names the two copies"
+    );
+    assert!(
+        finding
+            .evidence
+            .iter()
+            .any(|e| matches!(e, ValidationError::TouchInterference { .. }))
+            && !finding
+                .evidence
+                .iter()
+                .any(|e| matches!(e, ValidationError::CensusUndecidable { .. })),
+        "the census decides the overlap at a touch, with nothing undecided beside it: {:?}",
+        finding.evidence
+    );
+}
+
+/// **An overlap only pierces show is quiet under its gap.** A unit
+/// block, and a block wider than it across y sunk 0.05 into its +x wall
+/// half-way up: no vertex of either is inside the other, and the
+/// census decides the overlap by the pierces of the wide block's edges
+/// through the unit block's ±y walls. Those decide the pair, so nothing
+/// undecided rides the finding, and a holding `Gap ≤ −0.01` over the
+/// unit block's +x wall and the wide block's −x wall, which bound the
+/// overlap, quiets it as it quiets the slab. Red, the finding loud
+/// under its gap, where a `CensusUndecidable` stands beside a decided
+/// pair.
+#[test]
+fn an_overlap_only_pierces_show_is_quiet_under_its_gap() {
+    let doc = ProfileDoc::empty_derived("atrest-pierce-quiet", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 0.0), 0.5, 1.0);
+    let (doc, b) = prism(
+        doc,
+        vec![(0.45, -1.0), (1.5, -1.0), (1.5, 1.0), (0.45, 1.0)],
+        0.5,
+    );
+    let (doc, p) = place(doc, a);
+    let (doc, q) = place_up(doc, b, 0.25);
+    let loud = only_finding(&doc);
+    assert!(
+        !loud.evidence.is_empty()
+            && loud.evidence.iter().all(|e| matches!(
+                e,
+                ValidationError::UnrecordedContact {
+                    contact: CensusContact::EdgeFacePierce { .. },
+                    ..
+                }
+            )),
+        "the evidence is the pierces alone: {:?}",
+        loud.evidence
+    );
+    assert!(loud.is_loud(), "no assertion is written, so it is loud");
+    let (doc, assertion) = gap_at_copies(
+        doc.clone(),
+        (p, plus_x(&doc, a)),
+        (q, minus_x(&doc, b)),
+        AssertionRelation::AtMost,
+        -0.01,
+    );
+    assert_eq!(
+        only_finding(&doc).quiet,
+        Some(assertion),
+        "the gap over the overlap's opposed walls quiets it"
     );
 }

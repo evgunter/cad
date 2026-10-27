@@ -683,7 +683,7 @@ fn a_brick_floating_in_a_cavity_whose_wedges_overlap_refuses_on_that_crossing() 
         panic!("the host's wedges, then arm 2 on the pair: {errors:?}");
     };
     assert!(
-        what.starts_with("another finding reports their boundaries crossing"),
+        what.starts_with("another finding reports one part's boundary crossing itself"),
         "arm 2 refuses the pair on the host's own crossing: {what}"
     );
 }

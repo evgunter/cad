@@ -721,9 +721,12 @@ fn a_rim_in_band_of_the_partners_wall_escalates() {
 ///   envelope reads the offset once, so both clear the zero band. The
 ///   kept rim stands off the other operand's surface by `|k|·zero`,
 ///   and the volume moves with it: `slack(k) = (|k|·zero/R + 64ε)·V`.
-///   A `1e-9` relative error in either reds the row at the default ε
-///   and at 1e-12. At a negative `k` the dome's disc overhangs the
-///   tube's by a lamina of no volume.
+///   Measured at the default ε, order 0 sits at `0.3` of the first term
+///   and order 1 at `0.6`; at ε = 1e-12, order 0 sits at `0` (the fan
+///   reads the kept rim on its own circle's sphere) and order 1 at about
+///   `0.6`. A `1e-9` relative error in either reds the row at the
+///   default ε and at 1e-12. At a negative `k` the dome's disc overhangs
+///   the tube's by a lamina of no volume.
 /// - `k = ±0.9`: the dome's meridian meets the tube's wall `√2·|k|·zero`
 ///   along its arc from the rim, and the crossing layer escalates on that
 ///   arc length, both orders

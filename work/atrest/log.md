@@ -147,7 +147,51 @@
   - `gap-reads-no-curved-cell-below-a-face` (the sphere and cylinder arm) → `session_018u3gVKihT5A6xc3PGs8S9q`, branch `atrest/gap-reads-a-cell-against-a-curved-face`.
 
   `an-instance-carries-its-parts-coincidences` waits for #5810 to merge, since it reshapes the same checks code. `curved-copies-filling-one-volume-read-as-undecidable` (H) waits for the crossing row, which shares its census path.
+- 2026-10-27 (orchestrator): **#5810 adjudicated.**
+  - R1 rated it NOT-MERGEABLE-AS-IS (2 MAJOR, 3 MINOR, 4 NOTE); R2 rated it APPROVE-WITH-FIXES (1 MAJOR, 4 MINOR, 8 NOTE).
+  - The bilateral MAJOR: `enforce_checks` refuses an unlocalized overlap at Error, against spec §4 and DS6.
+  - R1's unilateral, executed MAJOR: `opposed` reads its pairing at one point, so a parallel non-coaxial clash goes quiet at one bearing.
+  - The fix pass was sent to the 5 C lane: never refuse what cannot be quieted; `opposed` answers only on constant-pairing carriers; `less_carried` retires (unwitnessed, and a wrong silence); the empty world's `door_rows`; picks; classification; prose; badge; style.
+  - Blind coding (byte 178, inputs `analysis/dual-review/pr-5810-coding` @ `deb59ad7`) tallied 1: R1's MAJOR 2.
+- 2026-10-27 03:11Z (orchestrator): the crossing-touch lane opened #5823 at head `0bfb067e`. Tier: dual, because it adds a public `ValidationError` arm, retires `MixedTouch`, and widens one census rule (a pair a standing finding decides is not read again). The wider rule is accepted, as it fixes the same defect on pierces, and the reviewers have it to falsify.
+  - Letter M, byte 114 (03:10:09Z), mod 3 = 0: HOLDOUT, a concurrent pair.
+  - R1 `session_018u3gVFQ8NcHtE4fxQQpwZi`, R2 `session_018u3gVHhsXrVk3a9FZqXEaa`, isolation on `review/atrest-crossing-*`.
+- 2026-10-27 (orchestrator): **#5823 adjudicated.**
+  - Both reviews rated it APPROVE-WITH-FIXES. The bilateral MAJOR: `refusal_concision_at_rest` had no row for the new arm, and the lane fixed it in `fdb8a831`.
+  - The lane missed the freeze message and pushed twice after the frozen head (`fdb8a831`, `9e754e9d`, a main merge). The kernel diff is unchanged, so the reviews of `0bfb067e` stand.
+  - The fix pass was sent:
+    - one home for "decided overlap" (`is_decided_overlap` reads `census_interference_solids`);
+    - the precheck's arms made loud, with witnesses for the precheck and for "a crossing outranks";
+    - a degenerate probe decides nothing;
+    - editor-core rows, including `covered` for unexamined evidence;
+    - prose; a turned witness; a location in the Display.
+  - Blind coding (byte 166, inputs `analysis/dual-review/pr-5823-coding` @ `49385571`) tallied 0.
+- 2026-10-27 06:28Z (orchestrator): the curved-face `Gap` lane opened #5827 at head `0a2b6942`.
+  - Tier: dual, because it is new metric arithmetic on f64, Interval and Dual with closed-form roots. Letter M, byte 4 (06:28:29Z), mod 3 = 1: SEQUENTIAL. First review `session_018u3gVJZMr4RcyeBuNvcrvr`.
+  - No census row moves. The census half is unreachable while backstop arm 1 refuses curved × planar pairs, and that evidence went to RESTREAD's `census-cross-solid-curved-pairs-undecidable-on-shell-results`.
+  - The item is narrowed, not closed. Filed P3 `census-link-fuzz-prism-fixture-escalates-at-1e-6`.
 
 ## 2026-10-27 — seam note from QUAD's main-red triage
 
 Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `crates/topo/src/link.rs` reads its own source, but test-utils' `reader_census` ledger has no entry for it, and the census is red on main. (QUAD triage lane, PR 5824)
+- 2026-10-27 07:00Z (orchestrator): **#5823** delta review (`session_018u3gVHCA7PG72anEwdK3hg`) rated it APPROVE-WITH-FIXES. Its one MINOR: `census_interference_solids` returns `(A, A)` for a solid's own pierce, and the one home now relies on that. The last fix pass was sent; I merge on my read.
+- 2026-10-27 07:00Z (orchestrator): **#5827** first review (sequential arm, `session_018u3gVJZMr4RcyeBuNvcrvr`) rated it APPROVE-WITH-FIXES with 0 MAJOR, so it is the unit's only review. The MINORs:
+  - `by_round`'s concave arm reads Rest past first order, so it must answer only within the re-entry chord;
+  - Dual is NaN at the axis or centre;
+  - past a cylinder's end `Gap` reads the carrier. This is C5's convention, and `gap-reads-a-cells-carrier-beyond-the-cell` names `Round` and is raised to P2.
+
+  The fix pass was sent; I merge on my read. A stray duplicate probe branch, `review/atrest-round-cvvr`, is the same commit as `review/atrest-round-Nvcrvr`. Its deletion was refused to agents, so it is left for Ev.
+
+## 2026-10-27 — seam note: two rows in from CONTACTHOLD
+
+`CONTACT-13` and `declared-only-meetings-clear-at-the-census-gate-unread` moved here by `git mv`. Before the move they were P0s parked on `intent-stage4-is-built`, and no one re-read them when it closed.
+- `CONTACT-13` closed into the issue row. That row is now one P2 (cost M) re-read, on Ev's word in chat.
+- The re-read asks: can any op, now that records are only op-minted, leave records that hide an overlap at the census's `records_on_their_word` reading?
+- The row's top section has the steps. Its acceptance is stage 5 C's interference finding.
+- 2026-10-27 08:43Z (orchestrator): **#5823 merged** at `23cefbae`.
+  - The last fix pass (`ff8320c5`) was read by me. I built the merged tree with main and ran 589/589 of the census, link, concision, interference, contact, wedges and at-rest rows.
+  - The dual-review row was the last commit (`b2434c37`), and CI was green. Main builds after the merge.
+  - The lane is archived. The 5 C and 5827 lanes were told to merge main.
+- 2026-10-27 08:46Z (orchestrator): dispatched `curved-copies-filling-one-volume-read-as-undecidable` (P1, H) → `session_018u3gVFFPmQbjWscDyrESrE`, branch `atrest/curved-copies-filling-one-volume-interfere`.
+  - Plan-first: deciding that two `SurfaceKey`s carry one surface may be a design fork.
+  - The caps go through `planar_interiors_meet` in the census, since `chart_region.rs` is CHARTTAIL's.

@@ -49,5 +49,5 @@ on top of PR 4682's bound:
   body-level claim.
 
 Repair (a), an order-independent fold, moves to FLUX's design row
-`work/flux/the-whole-body-property-fold-depends-on-face-order.md`, so
+`the-whole-body-property-fold-depends-on-face-order`, closed by PR 5402, so
 this row closes.
