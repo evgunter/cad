@@ -271,3 +271,6 @@ Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `cra
   - Conditions: a near-tangent double-crossing row; disconnected-face refusal; an audit of every flush-row consumer for planar assumptions.
 - 2026-10-27 21:20Z (orchestrator): **#5871 merged** at `e19603f0`, head `5e7a59f7`, CI green; the fix pass (`97038c84`) was read by me, and the dual-review row is holdout, tallied 0. The lane is archived.
 - 2026-10-27 (orchestrator): **main red caused by ATREST.** #5773 added `topo/src/link.rs`, which reads its own source in tests, with no `reader_census` ledger entry. QUAD's triage filed it (`main-red-reader-census-misses-topo-link-rs`, P1). Fixed with a `Shared` entry; FLUSH's dead given-pair entry on the same row was dropped too. **Lesson:** a new source file whose tests read source needs a ledger entry, and `reader_census` is not in the topo PR gate.
+- 2026-10-27 22:29Z (orchestrator): the P0 is up as #5882 at head `f510d54e`, CI green.
+  - Tier: dual, because it adds a public `quietable` field and changes what refuses. Letter M, byte 244 (22:16:27Z), mod 3 = 1: SEQUENTIAL. First review `session_018u3gVGpc4xU8JHM6BXrc6p`.
+  - Filed `the-unproven-coincidence-knob-is-re-read-against-ds3` (P2): re-deciding spec §11 Q4 is a design change, for a designer pair and an `[ev]` PR.
