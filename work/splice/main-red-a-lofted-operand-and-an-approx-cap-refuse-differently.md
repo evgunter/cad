@@ -2,7 +2,9 @@
 id: main-red-a-lofted-operand-and-an-approx-cap-refuse-differently
 kind: issue
 title: Main red (sweep slow set): m5_s11's lofted operand and operand_gate_pose's Approx cap no longer refuse at their pinned doors, at every eps
-status: open
+status: closed
+closed: 2026-10-27
+branch: splice/eps-cap-probe
 opened: 2026-10-27
 priority: P1
 cost: M
@@ -44,3 +46,43 @@ its kind's door again, or the row must be re-pinned with a reason the
 merge's PR states. The lofted operand's refusal must be the typed one the
 row names, or the row must be re-pinned to the door that now answers
 first.
+
+## Evidence — the Approx cap's probes at ε 1e-6 (#splice/eps-cap-probe)
+
+After PR 5814, `an_approx_cap_clear_of_a_bar_reads_alike_at_every_pose`
+is green at ε 1e-9 and 1e-12 and red at **1e-6** on `origin/main` at
+`2037ee8d`, run alone (debug, `CAD_TOLERANCE_EPS=1e-6`):
+`ε 1e-6, identity, just over the cap: past the box, got
+Err(KindUnsupported { face: FaceKey(1v1), kind: Approx })`.
+
+The row's near-face probes stood off the cap by a fixed `1e-6` m. The
+past-reach reader (`solid_contain::past_every_reach`) reads a side only
+where the margin past the face's reach, less the sweep pad
+(`band.escalate() + 2·band.zero()`), is definitely positive, so it
+needs more than about `22ε`. At ε 1e-6 a `1e-6` m step is inside the
+band, and "past the box" was the wrong expectation. The under-the-cap
+and near-a-side probes were inside the solid and stayed unread at every
+ε. At 1e-6, though, they stood in the band rather than past it, so they
+no longer meant what their names say.
+
+The fix stands every near-face probe off by `fit + 4·band.escalate()`,
+the cap's fit target plus four escalations. That is past the band and
+the fit at every ε, which is the idiom of
+`curved_edge_ray_probes.rs` (offsets as multiples of `k·ε`) and
+`pis_arc_capped_poses.rs` (`band.zero()` / `band.escalate()`). The
+in-band probes were already `0.5·ε`.
+
+Green at 1e-9, 1e-6 and 1e-12 with the fix, with
+`a_point_past_a_spline_solids_reach` beside it. Its offsets are 0.1 m
+or more, so it reads alike at every ε. The mutations still red the
+row at all three ε:
+- drop the planar-normal candidates from `past_every_reach`: red at
+  `identity, over the cap near a corner`;
+- world axes only: red at `1.2000 about x, just over the cap`, and the
+  spline row reds too.
+
+## Closed
+
+The m5_s11 half and the Approx cap's default-ε half were fixed by
+PR 5814. The ε 1e-6 half is fixed by the PR that carries this section
+(`splice/eps-cap-probe`).
