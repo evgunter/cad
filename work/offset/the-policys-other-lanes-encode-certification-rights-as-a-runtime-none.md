@@ -70,3 +70,21 @@ what a dual's edge is, and none of these six has that sentence yet.
 The edge door's shape is the model: the certifying function bounded on
 the certification trait with its lane a plain argument, and the scalar's
 policy naming what the dual does instead.
+
+**Two more sites of the same shape, both older than PR 5728** (the PR's
+dual review, 2026-10-27):
+
+- `geom_brep::dihedral_side::dihedral_side` and its `normal_at`
+  (`crates/geom-brep/src/dihedral_side.rs:220`, `:243`) still take
+  `lane: Option<NurbsLane<T>>`, and a spline face at a scalar holding
+  none refuses `SideEscalation::NoLane` (`:157`, read at `:257`): a
+  certification right encoded as a runtime `None`, as the edge lane
+  was.
+- `topo::ReplaceFaceError::NurbsLaneUnsupported`
+  (`crates/topo/src/replace_face.rs:547`, minted at `:3267` from
+  `section_lane`, read at `crates/topo/src/shell.rs:3795`) is the
+  replace-face door's refusal for the same `None`, now covering the
+  spline foot and the section lane.
+
+PR 5728 removed `Option<NurbsLane>` from the edge door only (the
+policy's `nurbs_lane`); these two keep it.

@@ -1,7 +1,7 @@
 ---
 id: the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding
 kind: issue
-title: The torus's canonical composite bounds a carrier on a thin torus (R/r 5 to 520) at 40 to 800 times the carrier's own rounding: a conditioning limit shared by spline carriers
+title: The torus's canonical composite bounds a carrier on a thin torus (R/r 19 to 520) at 40 to 800 times the carrier's own rounding: a conditioning limit shared by spline carriers
 status: open
 opened: 2026-10-26
 priority: P2
@@ -20,12 +20,12 @@ the rows that still refuse limb 2 against a torus refuse as
 carrier's own enclosure width there, at ε = 1e-12 (and, for the largest,
 at the default ε):
 
-| row | R / r | bound b (m) | width w (m) | b / w |
+| row | R, r (R/r) | bound b (m) | width w (m) | b / w |
 |---|---|---|---|---|
-| `mate7a_torus_rest::*`, `germ_circle_torus::*` (lily stem) | 5 / 0.06 | 2.2e-12 to 3.2e-12 | 2.6e-14 | 80 to 120 |
-| `verbs_tubewall_r2_probes::r2_inner_radius_is_the_callers_own_rounding` | 10 / 0.2 | 1.1e-12 | 3.0e-14 | 36 |
+| `mate7a_torus_rest::*`, `germ_circle_torus::*` (lily stem) | 5, 0.06 (83) | 2.2e-12 to 3.2e-12 | 2.6e-14 | 80 to 120 |
+| `verbs_tubewall_r2_probes::r2_inner_radius_is_the_callers_own_rounding` | 10, 0.2 (50) | 1.1e-12 | 3.0e-14 | 36 |
 | `boolean::section_cert::section_cert_rows::*` | (rows' torus) | 9.6e-12 | 6.2e-14 | 150 |
-| `verbs_tubewall_r1_probes::*` (1300 / 2.5, outside the session box) | 520 | 5.4e-9 | 7.0e-12 | 780 |
+| `verbs_tubewall_r1_probes::*` (outside the session box) | 1300, 2.5 (520) | 5.4e-9 | 7.0e-12 | 780 |
 
 The width is the net's (`CarrierNet::width`), so the excess is the
 composite's. The torus's canonical form

@@ -115,11 +115,15 @@ identity certifies every member of the box at every parameter of the
 carrier. Where the bound does
 not clear the band, the composite's uncleared spans are halved round by
 round, each piece cut from its Bézier segment's own row so no cut
-compounds another's width, and the rounds stop once the bound is within
-the rounding factor of the net's own width (`CarrierNet::rounding`, its
+compounds another's width, and the rounds stop (`round_floored`) once
+the bound is within the stop's factor (`ROUND_FLOOR_FACTOR`, 16) of the
+net's own rounding (`CarrierNet::rounding`, its
 controls' width before any span's remainder, which no halving
 removes), that width is itself that factor above the band, and a
-round no longer halves the bound: the limb passes once the bound
+round no longer halves the bound (the rounding is the whole net's, not
+the window's parts', so the stop can end the rounds early: a cost in
+liveness, never in soundness, since every stop reads the lowest hull):
+the limb passes once the bound
 clears;
 refuses on the composite's certified value at a break where that lies
 past the band's zero, since no bound over a span holding the break can
@@ -134,7 +138,9 @@ reading is an upper bound, and an upper bound shows no miss: a bound that ends a
 measured miss past it refuses as a kernel approximation limit
 ([tolerance.recourse]; `AnalyticRung3Refusal::KernelLimit`), carrying the bound, the extent it was read over
 and the carrier's own enclosure width there, so the one story can name
-the input's extent where the bound is near that width and the width is
+the input's extent where the bound is near that width (within
+`KERNEL_LIMIT_ROUNDING_FACTOR`, a constant of the story's own, not the
+stop's) and the width is
 the extent's own rounding, and claims no cause otherwise; it is never
 an ambiguity of the input and never a definite miss. Only the measured
 value at a break refuses as a miss. A line against a plane is distant
@@ -143,8 +149,10 @@ reading that neither clears nor shows a miss there is decided on the
 two ends' measured distances, `(p − o)·n` over `|n|` in certification
 arithmetic at every scalar (the data and the ends' parameters lifted
 through their certified brackets): both in the band certify the edge,
-one past it is a miss, and ends the band cannot decide leave the
-composite's own refusal standing. At an enclosure scalar a bound that
+one past it is a miss, and an end in the ambiguity band or straddling
+its edge escalates on that measured value (`Escalated` on `HullValue`):
+the input is ambiguous at the tolerance, and the stall is the verdict
+only where nothing measured lies outside the zero band. At an enclosure scalar a bound that
 stalls is undecided at that input (`AnalyticRung3Refusal::Stalled`),
 and over a parameter box the drive bisects it (E6); the refusal carries
 the enclosure and claims no cause and no terminality. A floor measured

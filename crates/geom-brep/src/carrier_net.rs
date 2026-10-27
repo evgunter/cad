@@ -30,10 +30,13 @@
 //! [`framed_carrier_net`] is the same net written in a [`Frame`] (an
 //! analytic operand's chart frame) in certification arithmetic, the
 //! frame applied to the carrier's own data before anything is expanded:
-//! a closed form's centre and axes, a spline's controls, a line's points
-//! at the breaks (evaluated, then framed: a line has no expansion to
-//! spare, and its point's channels stay together). Each control then rounds at its distance from the
-//! frame's origin, never at its distance from the world origin.
+//! a closed form's centre and axes, a spline's controls. A closed form's
+//! and a spline's controls then round at their distance from the frame's
+//! origin, never at their distance from the world origin. A line is the
+//! exception: its points at the breaks are evaluated in world
+//! coordinates and then framed (it has no expansion to spare, and its
+//! point's channels stay together), so each of its controls carries the
+//! rounding of its world point as well as the frame's.
 
 use geom::Curve3;
 use geom_core::interval::Interval;
@@ -820,14 +823,14 @@ mod tests {
             minor: Interval::from_bounds(0.225, 0.225),
             offset: Interval::from_bounds(0.05, 0.05),
         };
-        let bits = |b: &super::SpanBasis| -> Vec<(u64, u64, u8)> {
+        let bits = |b: &super::SpanBasis| -> Vec<(u64, u64, bool)> {
             b.at_node
                 .0
                 .iter()
                 .chain(&b.at_node.1)
                 .chain(&b.over_span.0)
                 .chain(&b.over_span.1)
-                .map(|c| c.repr_bits())
+                .map(|c| (c.lo().to_bits(), c.hi().to_bits(), c.is_certified()))
                 .collect()
         };
         let (a, b) = (0.31, 0.47);

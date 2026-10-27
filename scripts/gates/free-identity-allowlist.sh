@@ -24,6 +24,12 @@
 # that surface at every parameter, for every member of the box, which
 # is what makes the distance zero.
 #
+# WHAT IT MATCHES: the method called (`m.free_identity(f)`) and the path
+# named, which is how a call is spelt in UFCS (`Decide::free_identity(m,
+# f)`, `<T as Decide>::free_identity(m, f)`, `T::free_identity`) and how
+# it is handed on as a function value (`.map(Decide::free_identity)`).
+# A definition (`fn free_identity`) names it after neither.
+#
 # WHAT THIS GATE DOES NOT COVER: it reads source text, so a call reached
 # through a macro, a re-export under another name, or a trait object is
 # invisible to it; and it says nothing about whether the site's identity
@@ -48,7 +54,7 @@ gate() {
   gate_require_homes "$CALLER_SUBJECT" "${CALLER_HOMES[@]}"
   local hits
   hits=$(gate_rust_code "${GATE_SOURCE_FILES[@]}" \
-    | gate_grep -E '\.free_identity\(' \
+    | gate_grep -E '(\.|::)[[:space:]]*free_identity([^[:alnum:]_]|$)' \
     | gate_grep -vE "$(gate_record_anchor_any "${DEFINITION_HOMES[@]}")" \
     | gate_grep -vE "$(gate_record_anchor_any "${CALLER_HOMES[@]}")" \
     | cut -c1-160)
@@ -95,6 +101,24 @@ plant_call_outside() {
   printf 'fn f<T: Decide>(a: T) -> T { a.free_identity(|_| a) }\n' > "$1/crates/topo/src/margin.rs"
 }
 
+plant_ufcs_call() {
+  mkdir -p "$1/crates/topo/src"
+  printf 'fn f<T: Decide>(a: T) -> T { Decide::free_identity(a, |_| a) }\n' \
+    > "$1/crates/topo/src/margin.rs"
+}
+
+plant_qualified_ufcs_call() {
+  mkdir -p "$1/crates/topo/src"
+  printf 'fn f<T: Decide>(a: T) -> T { <T as Decide>::free_identity(a, |_| a) }\n' \
+    > "$1/crates/topo/src/margin.rs"
+}
+
+plant_path_as_a_value() {
+  mkdir -p "$1/crates/topo/src"
+  printf 'fn f<T: Decide>(a: Option<T>) -> Option<T> { a.map(|m| T::free_identity(m, |_| m)) }\n' \
+    > "$1/crates/topo/src/margin.rs"
+}
+
 plant_call_after_block_comment() {
   mkdir -p "$1/crates/topo/src"
   printf 'fn f<T: Decide>(a: T) -> T { /* why */ a.free_identity(|_| a) }\n' \
@@ -114,13 +138,16 @@ gate_selftest() {
   gate_selftest_without_tool grep "it is grep saying it could not search"
   gate_selftest_case "$want" plant_call_outside
   gate_selftest_case "$want" plant_call_after_block_comment
+  gate_selftest_case "$want" plant_ufcs_call
+  gate_selftest_case "$want" plant_qualified_ufcs_call
+  gate_selftest_case "$want" plant_path_as_a_value
   gate_selftest_case "$want" plant_call_in_another_geom_brep_file
   gate_selftest_case "$want" plant_colon_after_the_home_that_is_not_a_line_number
   gate_selftest_passes "the trait default, the definitions, limb 2 and prose" gate_plant_clean
   gate_selftest_homes \
     --subject "$DEFINITION_SUBJECT" "${DEFINITION_HOMES[@]}" \
     --subject "$CALLER_SUBJECT" "${CALLER_HOMES[@]}"
-  printf '%s selftest OK: passes a clean fixture carrying every definition and caller file it exempts, the trait default and prose that names the method; fires on a call from another crate, on one hidden behind a block comment, on a second file inside geom-brep, and at the colon-carrying path a home skip that ends at `:` exempts; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture carrying every definition and caller file it exempts, the trait default and prose that names the method; fires on a call from another crate, on one spelt in UFCS (bare, qualified `<T as Decide>::`, and through the scalar `T::`), on one hidden behind a block comment, on a second file inside geom-brep, and at the colon-carrying path a home skip that ends at `:` exempts; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

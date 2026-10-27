@@ -1862,14 +1862,46 @@ pub(crate) struct OffsetRead<T> {
     pub(crate) floor: f64,
 }
 
+/// How far above the net's rounding limb 2's bound may lie and still be
+/// at the floor its rounds stop at, and how far above the band's zero
+/// that rounding must itself lie ([`round_floored`]): an order of
+/// magnitude, the composite's arithmetic adding a few roundings at the
+/// net's scale to the net's own. It is the stop's own constant, not
+/// [`crate::KERNEL_LIMIT_ROUNDING_FACTOR`], which reads a stopped bound
+/// against the net's whole width for the kernel limit's story.
+pub(crate) const ROUND_FLOOR_FACTOR: f64 = 16.0;
+
+/// **Limb 2's round stop** ([`offset_rounds`]): a round whose bound
+/// `sup` is within [`ROUND_FLOOR_FACTOR`] of the net's `rounding`, that
+/// rounding itself that factor above the band's zero, and the bound not
+/// halved since the round `before` it, is at its floor — no halving
+/// takes it lower. The first round, with no `before`, never is.
+///
+/// **The rounding is the whole net's, the bound the window's.** The net
+/// reports one rounding, the widest control over every part
+/// ([`NetSize::rounding`]), and a window reading parts whose own
+/// rounding is finer can be stopped while its bound would still fall.
+/// That costs liveness and never soundness: the stop only ends the
+/// rounds, and the limb reads the lowest hull any round reached exactly
+/// as the crate's other stops do (`crate::ssi::certify::subdivide_until`),
+/// so an early stop refuses a bound a later round might have cleared and
+/// passes none it would not. The halving clause keeps a bound still
+/// falling twofold a round going whatever the rounding says. A
+/// per-part rounding would need the net to carry one per part, which it
+/// does not.
+pub(crate) fn round_floored(sup: f64, before: Option<f64>, rounding: f64, band: Band) -> bool {
+    let slowed = before.is_some_and(|b| sup > 0.5 * b);
+    slowed && sup <= ROUND_FLOOR_FACTOR * rounding && rounding >= ROUND_FLOOR_FACTOR * band.zero()
+}
+
 /// Limb 2's rounds over a carrier's composite, read on the parts the
 /// edge's `window` overlaps: `hull` composes the carrier's twin with
 /// its parts cut at a round's breaks and says the size of the net it
 /// read, and the rounds halve as
-/// [`crate::pcurve_cache::limb2_offset_sup`]'s docs say, stopping once
-/// the bound is within [`crate::KERNEL_LIMIT_ROUNDING_FACTOR`] of the
-/// net's rounding ([`NetSize::rounding`]), that rounding itself that
-/// factor above the band's zero, and the last round did not halve it: a
+/// [`crate::pcurve_cache::limb2_offset_sup`]'s docs say, stopping
+/// ([`round_floored`]) once the bound is within [`ROUND_FLOOR_FACTOR`]
+/// of the net's rounding ([`NetSize::rounding`]), that rounding itself
+/// that factor above the band's zero, and the last round did not halve it: a
 /// bound held up by the carrier's own data (at a family scalar, its
 /// spread over the box) far above the band stops falling there, and
 /// the rounds past it buy nothing. A rounding near the band leaves the
@@ -1932,13 +1964,15 @@ pub(crate) fn offset_rounds<T: Decide>(
         net_incidence(hull, window, chart, twin, T::zero(), band, true)
             .map(|(incidence, _)| incidence)
     };
-    let factor = crate::KERNEL_LIMIT_ROUNDING_FACTOR;
+    // The last round's bound, replaced on every call before the stop
+    // reads it. `subdivide_until` asks the stop after its other
+    // exhaustions (`||`), so a round it does not ask about is one that
+    // ends the rounds anyway — nothing left to halve, or a NaN bound —
+    // and no later round reads a `before` that skipped one.
     let last = core::cell::Cell::new(None::<f64>);
     let floored = |h: &Hull<(ProjectedHull, NetSize)>| {
         let before = last.replace(Some(h.sup));
-        let slowed = before.is_some_and(|b| h.sup > 0.5 * b);
-        let rounding = h.data.1.rounding;
-        slowed && h.sup <= factor * rounding && rounding >= factor * band.zero()
+        round_floored(h.sup, before, h.data.1.rounding, band)
     };
     Ok(match subdivide_until(round, band, floored)? {
         Subdivided::Bound(hull) => OffsetRead {

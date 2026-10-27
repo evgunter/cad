@@ -814,25 +814,14 @@ fn dual_lane_value_channel_matches_f64_bitwise() {
         Ok(())
     );
     assert_eq!(validate_geometric(&f.body, Tol::witness()), Ok(()));
-    // The dual's edges carry no certificate (DL3); their intervals are
-    // the f64 build's, value channel for value channel.
-    let f_spans: Vec<(f64, f64)> = f
-        .body
-        .curves()
-        .map(|(_, c)| c.certified().unwrap().params())
-        .collect();
-    let d_spans: Vec<(Dual<f64>, Dual<f64>)> = d
-        .body
-        .curves()
-        .map(|(_, c)| c.certified().unwrap().params())
-        .collect();
-    assert_eq!(f_spans.len(), d_spans.len());
-    for ((f0, f1), (d0, d1)) in f_spans.iter().zip(&d_spans) {
-        assert_eq!(
-            (f0.to_bits(), f1.to_bits()),
-            (d0.value.to_bits(), d1.value.to_bits())
-        );
-    }
+    // The dual's edges carry no certificate (DL3), and their intervals are
+    // the vertices' own; what each edge computes at its scalar — its
+    // carrier, the carrier at its interval's middle, and check 2's turn —
+    // is the f64 build's, value channel for value channel.
+    let fc = topo::test_support::computed_edge_channels(&f.body, |x| x);
+    let dc = topo::test_support::computed_edge_channels(&d.body, |x| x.value);
+    assert!(!fc.is_empty(), "the row compares edges");
+    assert_eq!(fc, dc);
 }
 
 /// Every stored vertex point's coordinate bits, sorted, beside the

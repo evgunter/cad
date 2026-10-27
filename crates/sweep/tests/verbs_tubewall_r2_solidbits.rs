@@ -46,13 +46,18 @@ fn r2_solid_door_bits_dump() {
             minor,
             Tol::witness(),
         );
-        // A ring forty times its tube may bound its wall's circles past
+        // Pinned: the one case here on a ring forty times its tube, an
+        // arc window (10, 0.2), bounds its wall's meridian circles past
         // the finest band: the torus composite's conditioning, limb 2's
         // kernel limit
         // (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
-        let rows: &[f64] = if major >= 40.0 * minor { &[1e-12] } else { &[] };
+        let rows: &[f64] = if arc.is_some() && major >= 40.0 * minor {
+            &[1e-12]
+        } else {
+            &[]
+        };
         let Some(t) =
-            test_utils::kernel_limit::may_refuse(got, Tol::witness().eps(), rows, "the solid tube")
+            test_utils::kernel_limit::pinned(got, Tol::witness().eps(), rows, "the solid tube")
         else {
             continue;
         };

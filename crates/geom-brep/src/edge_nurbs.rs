@@ -1513,9 +1513,12 @@ pub fn analytic_edge_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 /// ([`line_plane_ends`]): there the sup is attained at an end, so a
 /// reading that neither clears the band nor shows a measured miss
 /// defers to those measured values ([`measured_ends`], in certification
-/// arithmetic at every scalar) where they decide: both ends in the band
-/// pass, an end past it is a miss, and ends that straddle it leave the
-/// composite's own refusal standing.
+/// arithmetic at every scalar), which decide: both ends in the band
+/// pass, an end past it is a miss, and an end in the ambiguity band or
+/// straddling its edge escalates on the measured value
+/// ([`AnalyticRung3Refusal::Escalated`] on [`Rung3Limb::HullValue`]).
+/// The composite's stall is the verdict only where nothing measured lies
+/// outside the zero band.
 fn limb2<T: Decide>(
     carrier: &Curve3<T>,
     params: (T, T),
@@ -1545,15 +1548,14 @@ fn limb2<T: Decide>(
     };
     match (decided, ends) {
         (Err(AnalyticRung3Refusal::Limb { .. }), _) | (_, None) | (Ok(()), _) => decided,
-        // The ends decide where they can: both in the band certify, one
-        // past it is a miss. Where they cannot (their enclosure straddles
-        // the band — at kilometre scale the data's own rounding does),
-        // the composite's own refusal stands: the kernel's limit at a
-        // point scalar, the undecided enclosure at an enclosure one.
-        (Err(stall), Some(ends)) => match measured_ends(kind, ends, band) {
-            Err(AnalyticRung3Refusal::Escalated { .. }) => Err(stall),
-            ends => ends,
-        },
+        // The ends are measured values and the sup is at one of them, so
+        // they decide whatever the composite read: both in the band
+        // certify, one past it is a miss, and one in the ambiguity band
+        // or straddling its edge is the measured in-band escalation.
+        // Nothing measured is then outside the zero band, so the stall —
+        // the kernel's limit, or the undecided enclosure — never stands
+        // beside them.
+        (Err(_), Some(ends)) => measured_ends(kind, ends, band),
     }
 }
 
@@ -1651,9 +1653,10 @@ fn free_residual<T: Decide>(
 /// — and decided as the enclosure it is: both ends in the band certify
 /// the whole edge, an end past it is a measured miss
 /// ([`AnalyticRung3Refusal::Limb`]), and an end the band cannot decide
-/// escalates — on which [`limb2`] lets the composite's own refusal
-/// stand, since a straddling end shows neither a pass nor a miss. No
-/// ratio over the net's width enters, and
+/// — its enclosure in the ambiguity band, or straddling its edge —
+/// escalates on that measured value ([`Rung3Limb::HullValue`]): the input
+/// is ambiguous at this tolerance, which no rule about the kernel's
+/// reach would say truly. No ratio over the net's width enters, and
 /// no round-to-nearest product: at `f64` a dot product at kilometre
 /// scale rounds past a 1e-12 band, so a point reading could pass a line
 /// that is off its plane.
@@ -2072,7 +2075,9 @@ impl AnalyticRung3Refusal {
                 RefusedArm::SignCertain(Some(*margin)),
             ),
             Self::Escalated { limb, cause, .. } => (limb.check(), RefusedArm::Undecided(cause)),
-            Self::Stalled { cause, .. } => (Rung3Limb::HullSup.check(), RefusedArm::Undecided(cause)),
+            Self::Stalled { cause, .. } => {
+                (Rung3Limb::HullSup.check(), RefusedArm::Undecided(cause))
+            }
             Self::TubeStraddles { verdict, .. } => (CertCheck::TransversalityTube, verdict.arm()),
             // The one-arc proof is the SSI door's own decision, and
             // `ending` reads it there.
@@ -3123,13 +3128,13 @@ mod tests {
 
     /// **A line against a plane is decided on its measured end value**
     /// (`measured_ends`): a line on one plane whose far end strays `d`
-    /// from a second plane certifies at `d = 0`, is undecided with `d`
-    /// inside the band (the ends straddle it, so the composite's own
-    /// refusal stands: at `Interval`, the undecided enclosure), and is
-    /// a measured miss ([`AnalyticRung3Refusal::Limb`]) with `d` just past
-    /// `Kε`. Red under a rule that reads the bound as the kernel's limit
-    /// at an enclosure scalar, or that decides on a ratio of the bound
-    /// over the net's width.
+    /// from a second plane certifies at `d = 0`, escalates on the
+    /// measured value with `d` inside the ambiguity band
+    /// ([`AnalyticRung3Refusal::Escalated`] on [`Rung3Limb::HullValue`]),
+    /// and is a measured miss ([`AnalyticRung3Refusal::Limb`]) with `d`
+    /// just past `Kε`. Red under a rule that reads the bound as the
+    /// kernel's limit or the stall where an end is measured, or that
+    /// decides on a ratio of the bound over the net's width.
     #[test]
     fn a_line_against_a_plane_is_decided_on_its_measured_end_value() {
         use geom::{Curve3, Surface};
@@ -3161,8 +3166,9 @@ mod tests {
         assert!(
             matches!(
                 edge(5e-9),
-                Err(AnalyticRung3Refusal::Stalled {
-                    operand: geom::SurfaceKind::Plane,
+                Err(AnalyticRung3Refusal::Escalated {
+                    operand: Some(geom::SurfaceKind::Plane),
+                    limb: Rung3Limb::HullValue,
                     ..
                 })
             ),
@@ -3235,6 +3241,63 @@ mod tests {
             band,
         );
         assert!(at_iv.is_err(), "Interval: {at_iv:?}");
+    }
+
+    /// **An end measured a rounding past ε escalates, and is never the
+    /// kernel's limit** (`measured_ends`; the band-edge class of
+    /// `near_tangent_pierce_poses`' `EDGE_ON_FACES`). A unit line along
+    /// `x` leaving the plane `y = 0` at its origin, `y₀ = ε + 2e-16` off
+    /// it at its far end: that end's distance is `y₀` exactly in
+    /// certification arithmetic, inside the ambiguity band `(ε, Kε]`,
+    /// while the composite shows no floor past the zero band and its
+    /// bound (`1.0000002e-9`) does not clear — the shape that read as
+    /// the kernel's limit, with a net width of zero. The input is ambiguous at this
+    /// tolerance, so limb 2 escalates on the measured value
+    /// ([`Rung3Limb::HullValue`]) at `f64` and at `Interval`. Red under a
+    /// rule that lets the composite's stall stand beside ends that
+    /// measure past the zero band.
+    #[test]
+    fn an_end_measured_a_few_ulps_past_epsilon_escalates_and_is_never_the_limit() {
+        use geom::{Curve3, Surface};
+        use geom_core::{Point3, Vec3};
+        let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+        let y0 = 1e-9 + 2e-16;
+        assert!(y0 > band.zero());
+        let wall = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 1.0, 0.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let floor = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let line = Curve3::Line {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            dir: Vec3::new(1.0, y0, 0.0),
+        };
+        let escalates = |got: &Result<(), AnalyticRung3Refusal>| {
+            matches!(
+                got,
+                Err(AnalyticRung3Refusal::Escalated {
+                    operand: Some(geom::SurfaceKind::Plane),
+                    limb: Rung3Limb::HullValue,
+                    ..
+                })
+            )
+        };
+        let at_f64 = analytic_edge_limbs(&line, (0.0, 1.0), &wall, &floor, band);
+        assert!(escalates(&at_f64), "f64: {at_f64:?}");
+        let lift = geom_core::Interval::from_f64;
+        let at_iv = analytic_edge_limbs(
+            &line.map_scalar(lift),
+            (lift(0.0), lift(1.0)),
+            &wall.map_scalar(lift),
+            &floor.map_scalar(lift),
+            band,
+        );
+        assert!(escalates(&at_iv), "Interval: {at_iv:?}");
     }
 
     /// **Limb 2 over a parameter box, on its identity** (C2; fork row
@@ -3376,9 +3439,11 @@ mod tests {
     /// The line sits at height `a` and its floor at height `1`, so the
     /// two meet only at the box's nominal `a = 1`. The residual is
     /// `a − 1`, not the zero form, so nothing is proved; the enclosure
-    /// over the box does not clear, so limb 2 is undecided on it
-    /// ([`AnalyticRung3Refusal::Stalled`]), the classifier's terminal bit
-    /// false — a smaller box is the remedy — and claims no kernel limit.
+    /// over the box does not clear, and the ends, measured over the box,
+    /// straddle the band from zero to past it, so limb 2 escalates on
+    /// them ([`AnalyticRung3Refusal::Escalated`] on
+    /// [`Rung3Limb::HullValue`]), the classifier's terminal bit false —
+    /// a smaller box is the remedy — and claims no kernel limit.
     #[test]
     fn a_coincidence_at_the_nominal_only_does_not_certify_the_box() {
         let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
@@ -3394,12 +3459,51 @@ mod tests {
             };
             analytic_edge_limbs(&line, (lit(0.0), lit(1.0)), &floor, &wall(), band)
         });
+        let Err(AnalyticRung3Refusal::Escalated {
+            operand: Some(geom::SurfaceKind::Plane),
+            limb: Rung3Limb::HullValue,
+            cause,
+        }) = &result
+        else {
+            panic!("a coincidence at the nominal is undecided over the box: {result:?}");
+        };
+        assert!(!cause.terminal_sliver, "{cause:?}");
+        assert!(
+            limb2.iter().all(|d| !d.proven),
+            "nothing is proved: {limb2:?}"
+        );
+    }
+
+    /// **The stall, where nothing is measured** (C2's enclosure arm): a
+    /// unit circle at height `a` against the floor at height `1`, which
+    /// it meets only at the box's nominal. No ends rule reads a circle,
+    /// and the composite's floor over the box reaches zero, so nothing
+    /// measured lies outside the zero band: limb 2 is undecided over the
+    /// box ([`AnalyticRung3Refusal::Stalled`]), the classifier's terminal
+    /// bit false, and claims no kernel limit.
+    #[test]
+    fn a_circle_meeting_its_plane_at_the_nominal_only_stalls_over_the_box() {
+        let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+        let (result, limb2) = over_the_box(|a| {
+            let floor = geom::Surface::Plane {
+                origin: point(0.0, 0.0, lit(1.0)),
+                normal: direction(0.0, 0.0, 1.0),
+                u_ref: direction(1.0, 0.0, 0.0),
+            };
+            let rim = geom::Curve3::Circle {
+                center: point(0.0, 0.0, a),
+                axis: direction(0.0, 0.0, 1.0),
+                radius: lit(1.0),
+                u_ref: direction(1.0, 0.0, 0.0),
+            };
+            analytic_edge_limbs(&rim, (lit(0.0), lit(1.0)), &floor, &wall(), band)
+        });
         let Err(AnalyticRung3Refusal::Stalled {
             operand: geom::SurfaceKind::Plane,
             cause,
         }) = &result
         else {
-            panic!("a coincidence at the nominal is undecided over the box: {result:?}");
+            panic!("a circle meeting its plane at the nominal stalls over the box: {result:?}");
         };
         assert!(!cause.terminal_sliver, "{cause:?}");
         assert!(

@@ -2326,10 +2326,10 @@ mod tests {
     }
 
     /// **The rounds stop at the floor their data sets** (limb 2's round
-    /// stop, [`super::subdivide_until`], with `floored` as limb 2's
-    /// reader asks it: the bound within 16× the net's rounding, that
-    /// rounding 16× the band's zero, and the bound not halved by the
-    /// last round): with every round's bound at twice a
+    /// stop, [`super::subdivide_until`], with limb 2's own predicate,
+    /// [`crate::pcurve_cache::projected::round_floored`]: the bound within
+    /// 16× the net's rounding, that rounding 16× the band's zero, and
+    /// the bound not halved by the last round): with every round's bound at twice a
     /// rounding that halving does not lower — a family scalar's carrier
     /// spread over its box — the second hull is the last one built, and
     /// the limb reads the bound; without the stop the same hulls are
@@ -2351,9 +2351,7 @@ mod tests {
             let last = core::cell::Cell::new(None::<f64>);
             let floored = |h: &super::Hull| {
                 let before = last.replace(Some(h.sup));
-                stop && before.is_some_and(|b| h.sup > 0.5 * b)
-                    && h.sup <= 16.0 * floor
-                    && floor >= 16.0 * band.zero()
+                stop && crate::pcurve_cache::projected::round_floored(h.sup, before, floor, band)
             };
             match subdivide_until(hull, band, floored) {
                 Ok(Subdivided::Bound(h)) => (h.sup, calls.get()),

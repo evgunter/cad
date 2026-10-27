@@ -3442,7 +3442,7 @@ fn interior<T: Decide>(
 /// ([`crate::stands::inward`], about each face's outward normal at `p`)
 /// are definitely opposed (`bool_touch_sheets_part`, the cosine levered
 /// at the longer of the two faces' reaches from their edges,
-/// [`crate::wedge_reach`]). The two
+/// [`crate::wedge_reach()`]). The two
 /// faces are tangent sheets (the cover), so each leaves `p` along their
 /// common tangent plane, across the edges there; opposed, they meet
 /// nowhere else near `p`, and the meeting is a touch of the two

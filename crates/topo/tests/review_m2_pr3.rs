@@ -266,19 +266,14 @@ fn e2e_prism_dual_lane_matches_f64() {
         Ok(())
     );
     assert_eq!(validate_geometric(&f, Tol::witness()), Ok(()));
-    // The dual's edges carry no certificate (DL3); their intervals are
-    // the f64 build's, value channel for value channel.
-    let fr: Vec<(u64, u64)> = f
-        .curves()
-        .map(|(_, c)| c.certified().unwrap().params())
-        .map(|(a, b)| (a.to_bits(), b.to_bits()))
-        .collect();
-    let dr: Vec<(u64, u64)> = d
-        .curves()
-        .map(|(_, c)| c.certified().unwrap().params())
-        .map(|(a, b)| (a.value.to_bits(), b.value.to_bits()))
-        .collect();
-    assert_eq!(fr, dr);
+    // The dual's edges carry no certificate (DL3), and their intervals are
+    // the vertices' own; what each edge computes at its scalar — its
+    // carrier, the carrier at its interval's middle, and check 2's turn —
+    // is the f64 build's, value channel for value channel.
+    let fc = topo::test_support::computed_edge_channels(&f, |x| x);
+    let dc = topo::test_support::computed_edge_channels(&d, |x| x.value);
+    assert!(!fc.is_empty(), "the row compares edges");
+    assert_eq!(fc, dc);
 }
 
 // =====================================================================

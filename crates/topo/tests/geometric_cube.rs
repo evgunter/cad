@@ -265,7 +265,7 @@ fn dual_lane_decisions_match_f64_bit_for_bit() {
     // at a dual with a zero pad; the cube's one shell skips check 10), and
     // none of them reads a certified lane. The
     // f64 lane's own composed-door rows are elsewhere in this file.
-    use geom_core::{Dual, Dual64};
+    use geom_core::Dual64;
     let mut f = geometric_cube::<f64>(Tol::witness());
     let mut d = geometric_cube::<Dual64>(Tol::witness());
     describe_as_intersections(&mut f.body, Tol::witness());
@@ -278,25 +278,14 @@ fn dual_lane_decisions_match_f64_bit_for_bit() {
     // structural pass above is not a weaker subject standing in for one
     // that would have failed.
     assert_eq!(validate_geometric(&f.body, Tol::witness()), Ok(()));
-    // The dual's edges carry no certificate (DL3); their intervals are
-    // the f64 build's, value channel for value channel.
-    let f_spans: Vec<(f64, f64)> = f
-        .body
-        .curves()
-        .map(|(_, c)| c.certified().unwrap().params())
-        .collect();
-    let d_spans: Vec<(Dual<f64>, Dual<f64>)> = d
-        .body
-        .curves()
-        .map(|(_, c)| c.certified().unwrap().params())
-        .collect();
-    assert_eq!(f_spans.len(), d_spans.len());
-    for ((f0, f1), (d0, d1)) in f_spans.iter().zip(&d_spans) {
-        assert_eq!(
-            (f0.to_bits(), f1.to_bits()),
-            (d0.value.to_bits(), d1.value.to_bits())
-        );
-    }
+    // The dual's edges carry no certificate (DL3), and their intervals are
+    // the vertices' own; what each edge computes at its scalar — its
+    // carrier, the carrier at its interval's middle, and check 2's turn —
+    // is the f64 build's, value channel for value channel.
+    let fc = topo::test_support::computed_edge_channels(&f.body, |x| x);
+    let dc = topo::test_support::computed_edge_channels(&d.body, |x| x.value);
+    assert!(!fc.is_empty(), "the row compares edges");
+    assert_eq!(fc, dc);
 }
 
 #[test]

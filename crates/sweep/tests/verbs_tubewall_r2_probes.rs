@@ -33,14 +33,20 @@ fn c() -> Point3<f64> {
     Point3::new(0.0, 0.0, 0.0)
 }
 
-/// The ε rows a case may refuse at as limb 2's kernel limit: a ring
-/// twenty times its thinnest tube (`tube`, the inner wall's radius for a
-/// hollow tube) or more bounds its torus walls' circles near
-/// the finest band, the torus composite's conditioning over the circles'
-/// own rounding
-/// (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
-fn kernel_limit_rows(major: f64, tube: f64) -> &'static [f64] {
-    if major >= 20.0 * tube { &[1e-12] } else { &[] }
+/// The ε rows a case is pinned to refuse at as limb 2's kernel limit: on
+/// a ring twenty times its thinnest tube (`tube`, the inner wall's radius
+/// for a hollow tube) or more, an arc window's ends put meridian circles
+/// on the torus walls, which limb 2 bounds past the finest band — the
+/// torus composite's conditioning over the circles' own rounding
+/// (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`;
+/// the "twenty" describes the rows measured, it is no threshold the
+/// kernel reads). A full period has no such circle, and builds.
+fn kernel_limit_rows(major: f64, tube: f64, arc: bool) -> &'static [f64] {
+    if arc && major >= 20.0 * tube {
+        &[1e-12]
+    } else {
+        &[]
+    }
 }
 
 fn build(
@@ -120,11 +126,15 @@ fn r2_inner_radius_is_the_callers_own_rounding() {
             "sanity: the probe's own arithmetic"
         );
         for window in [TubeWindow::Full, TubeWindow::Arc { t0: 0.25, t1: 1.75 }] {
-            let Some(t) = test_utils::kernel_limit::may_refuse(
+            let Some(t) = test_utils::kernel_limit::pinned(
                 build(major, window, minor, wall),
                 Tol::witness().eps(),
-                kernel_limit_rows(major, minor - wall),
-                "the tube",
+                kernel_limit_rows(
+                    major,
+                    minor - wall,
+                    matches!(window, TubeWindow::Arc { .. }),
+                ),
+                &format!("R {major} ro {minor} wall {wall} {window:?}"),
             ) else {
                 continue;
             };
@@ -349,10 +359,10 @@ fn r2_closed_forms_over_varied_radii_walls_and_windows() {
             Some((t0, t1)) => TubeWindow::Arc { t0, t1 },
         };
         let what = format!("R {major} ro {minor} wall {wall} arc {arc:?}");
-        let Some(t) = test_utils::kernel_limit::may_refuse(
+        let Some(t) = test_utils::kernel_limit::pinned(
             build(major, window, minor, wall),
             Tol::witness().eps(),
-            kernel_limit_rows(major, minor - wall),
+            kernel_limit_rows(major, minor - wall, arc.is_some()),
             &what,
         ) else {
             continue;
@@ -822,10 +832,11 @@ mod certified {
                 },
             };
             let what = format!("interval R {major} ro {minor} wall {wall} arc {arc:?}");
-            let Some(t) = test_utils::kernel_limit::may_refuse(
+            let Some(t) = test_utils::kernel_limit::pinned_at(
+                test_utils::kernel_limit::Scalar::Enclosure,
                 hollow_iv(major, window, minor, wall),
                 Tol::witness().eps(),
-                super::kernel_limit_rows(major, minor - wall),
+                super::kernel_limit_rows(major, minor - wall, arc.is_some()),
                 &what,
             ) else {
                 continue;

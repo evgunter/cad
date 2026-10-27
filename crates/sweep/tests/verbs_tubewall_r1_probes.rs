@@ -98,17 +98,25 @@ const CASES: [Case; 6] = [
 ];
 
 /// The ε rows a case is pinned to refuse at as limb 2's kernel limit:
-/// the 1.3 km ring (outside the session box) bounds its torus walls'
-/// meridian circles at about 5e-9 m, the torus composite's
-/// conditioning over the circles' own rounding
-/// (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
-fn kernel_limit_rows(major: f64) -> &'static [f64] {
-    if major > 1e3 { &[1e-9, 1e-12] } else { &[] }
+/// on the 1.3 km ring (outside the session box) an arc window's ends put
+/// meridian circles on the torus walls, which limb 2 bounds at about
+/// 5.4e-9 m, the torus composite's conditioning over the circles' own
+/// rounding
+/// (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`),
+/// past the band at the default ε and at 1e-12. A full period has no
+/// such circle, and builds at both.
+fn kernel_limit_rows(major: f64, window: Option<(f64, f64)>) -> &'static [f64] {
+    if major > 1e3 && window.is_some() {
+        &[1e-9, 1e-12]
+    } else {
+        &[]
+    }
 }
 
-/// The hollow tube, or `None` where it refuses as the kernel limit at
-/// one of its case's rows ([`kernel_limit_rows`]).
+/// The hollow tube, or `None` where it refuses, as it must, as the
+/// kernel limit at one of its case's rows ([`kernel_limit_rows`]).
 fn hollow(major: f64, outer: f64, wall: f64, window: Option<(f64, f64)>) -> Option<Revolved<f64>> {
+    let window_arg = window;
     let window = match window {
         None => TubeWindow::Full,
         Some((t0, t1)) => TubeWindow::Arc { t0, t1 },
@@ -126,11 +134,11 @@ fn hollow(major: f64, outer: f64, wall: f64, window: Option<(f64, f64)>) -> Opti
         wall,
         Tol::witness(),
     );
-    test_utils::kernel_limit::may_refuse(
+    test_utils::kernel_limit::pinned(
         got,
         Tol::witness().eps(),
-        kernel_limit_rows(major),
-        "the hollow tube",
+        kernel_limit_rows(major, window_arg),
+        &format!("the hollow tube R {major} ro {outer} wall {wall} {window:?}"),
     )
 }
 
@@ -442,7 +450,11 @@ mod certified {
                 // (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
                 Err(e @ TubeError::Revolve(_))
                     if major >= 1000.0
-                        && (eps <= 1e-12 || test_utils::kernel_limit::is_kernel_limit(&e)) =>
+                        && (eps <= 1e-12
+                            || test_utils::kernel_limit::is_kernel_limit_at(
+                                test_utils::kernel_limit::Scalar::Enclosure,
+                                &e,
+                            )) =>
                 {
                     let solid = tube_along_arc::<Interval>(
                         tube_frame(

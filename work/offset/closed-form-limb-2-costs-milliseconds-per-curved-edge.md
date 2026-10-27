@@ -133,3 +133,11 @@ the time is about half composite multiplication and half building the
 net. The options: a cheaper composite (fewer spans per turn, or a lower
 Taylor degree); running limb 2 less often in that loop; or changing the
 test.
+
+**A possible cut at the parameter-family scalar** (PR 5728's dual
+review, not taken there): `Sym::free_identity` builds limb 2's free-`t`
+residual (`crates/geom-brep/src/edge_nurbs.rs` `free_residual`) eagerly,
+on every `Sym<Interval>` read, before the margin's numeric channel is
+asked. Built only where the numeric channel does not already decide
+the margin, it would cost nothing on the reads that clear on their
+enclosure.
