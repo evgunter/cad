@@ -31,5 +31,10 @@ At ε = 1e-12 limb 2's certificate reaches the rounding of such geometry
 carrier's own width), which the box would have kept out by
 construction.
 
+The bars no longer show it. A line against a plane is decided on its
+two ends' measured distances (`edge_nurbs::measured_ends`), and the
+6 km bars' ends measure within 2.3e-13 m, so they certify at 1e-12. The
+tori and the far placements still reach the limit.
+
 **Wanted.** Enforce the box at construction as the clause says, or
 re-state the clause. That is Ev's call: it moves rows that build today.
