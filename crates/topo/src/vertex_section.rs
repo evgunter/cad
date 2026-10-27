@@ -269,9 +269,10 @@ fn entered_faces<T: Decide>(
         let holds = match (a, b) {
             (PlaneSide::Above, PlaneSide::Below) | (PlaneSide::Below, PlaneSide::Above) => true,
             (PlaneSide::Above, PlaneSide::Above) | (PlaneSide::Below, PlaneSide::Below) => {
-                let resolved = crate::sector_face::resolve(body, vertex, he).unwrap_or_else(|e| {
-                    unreachable!("{face:?}: a read face's kind has a sector arm, yet {e:?}")
-                });
+                let resolved =
+                    crate::sector_face::resolve(body, vertex, he, band).unwrap_or_else(|e| {
+                        unreachable!("{face:?}: a read face's kind has a sector arm, yet {e:?}")
+                    });
                 wide_entry(
                     (vertex, face),
                     (dir_a, dir_b),
