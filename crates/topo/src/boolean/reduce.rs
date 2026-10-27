@@ -812,10 +812,7 @@ pub(super) fn gate_maximal_faces<T: Decide>(
                     ((t1 - t0) * T::from_f64(0.5)).min(T::from_f64(core::f64::consts::FRAC_PI_2));
                 radius.abs() * T::from_f64(2.0) * half.sin()
             }
-            geom::Curve3::Nurbs(n) => n
-                .control()
-                .iter()
-                .fold(T::zero(), |far, &q| far.max((q - at).norm())),
+            geom::Curve3::Nurbs(n) => geom_brep::control_net_reach(n.control(), at),
             _ => crate::census::edge_reach_in(body, edge_key, &super::boxes::BoxFrame::World)
                 .map(|(lo, hi)| geom_brep::ExtentBall::of_box(lo, hi).lever_from(at))
                 .unwrap_or_else(|| {

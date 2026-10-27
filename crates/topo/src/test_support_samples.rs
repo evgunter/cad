@@ -784,16 +784,6 @@ fn props_errors() -> Vec<PropsError> {
             cause: diag(),
             check: geom_brep::props::PropsCheck::Inventory,
         },
-        PropsError::QuadratureBudget {
-            width_len: 1e-6,
-            target_len: 1e-9,
-            rounds: 12,
-        },
-        PropsError::QuadratureFloor {
-            width_len: 4.7e-6,
-            target_len: 1.024e-9,
-            rounds: 1,
-        },
         PropsError::QuadratureUnsupported {
             what: "a NURBS face",
         },
@@ -813,6 +803,16 @@ fn mass_props_errors() -> Vec<MassPropsError> {
         },
         MassPropsError::NullScaffoldEdge {
             edge: EdgeKey::default(),
+        },
+        MassPropsError::ResolutionFinerThanEps {
+            resolution: 1e-10,
+            eps: 1e-9,
+        },
+        MassPropsError::EmptyContains,
+        MassPropsError::Poisoned { cause: diag() },
+        MassPropsError::Undecided {
+            volume: (-1e-9, 1e-9),
+            stop: crate::Stop::Wall,
         },
     ]);
     v.extend(
@@ -1553,6 +1553,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         ValidationError::VolumeSignUnresolved {
             solid,
             limit: crate::props::SignLimit::Scalar,
+            volume: Some((-1e-9, 1e-9)),
         },
     ));
     s.push((

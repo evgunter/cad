@@ -202,13 +202,13 @@ fn every_op(
             Ok(()),
             "{label}: tier 3"
         );
-        let m = topo::mass_properties(&out.body, tol)
+        let m = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
             .unwrap_or_else(|e| panic!("{label}: mass properties {e:?}"));
         assert!(
-            (m.volume - truth).abs() <= m.volume_pad + 1e-9 * truth,
+            (m.enclosure.volume - truth).abs() <= m.enclosure.volume_pad + 1e-9 * truth,
             "{label}: volume {} ± {} against the closed form {truth}",
-            m.volume,
-            m.volume_pad
+            m.enclosure.volume,
+            m.enclosure.volume_pad
         );
         // A legal operand: its union with a far unit brick builds and
         // holds the brick beside it.
@@ -219,13 +219,18 @@ fn every_op(
         );
         let joined = topo::union(&out.body, &far, tol)
             .unwrap_or_else(|e| panic!("{label}: ∪ a far brick: {e:?}"));
-        let j = topo::mass_properties(&joined.body().expect("not empty").body, tol)
-            .unwrap_or_else(|e| panic!("{label}: ∪ a far brick: mass properties {e:?}"));
+        let j = topo::mass_properties(
+            &joined.body().expect("not empty").body,
+            tol,
+            topo::test_support::pinned_resolution(tol),
+        )
+        .unwrap_or_else(|e| panic!("{label}: ∪ a far brick: mass properties {e:?}"));
         assert!(
-            (j.volume - (truth + 1.0)).abs() <= j.volume_pad + 1e-9 * (truth + 1.0),
+            (j.enclosure.volume - (truth + 1.0)).abs()
+                <= j.enclosure.volume_pad + 1e-9 * (truth + 1.0),
             "{label}: ∪ a far brick: volume {} ± {} against {}",
-            j.volume,
-            j.volume_pad,
+            j.enclosure.volume,
+            j.enclosure.volume_pad,
             truth + 1.0
         );
         Reading::Body {

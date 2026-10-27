@@ -159,7 +159,7 @@ use pncad::topo::{AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, E
 
 use crate::booleans::{check, expect_seamed, finished, try_union};
 use crate::scalar::{Scalar, axis_frame, sketch_frame};
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 use pncad::authoring::{p2, p3, v2, v3, validated};
 use pncad::geom_core::{Tol, Turns};
 
@@ -605,8 +605,9 @@ const FOOT_BOTTOM_Z: f64 = -0.92;
 
 /// A body's exact volume, read out at `f64`.
 fn volume<S: Scalar>(b: &Body<S>, tol: Tol) -> f64 {
-    pncad::topo::mass_properties(&crate::booleans::at_rest(b, tol), tol)
+    pncad::topo::mass_properties(&crate::booleans::at_rest(b, tol), tol, crate::printed())
         .expect("the volume integrates")
+        .enclosure
         .volume
         .f()
 }
@@ -1643,7 +1644,7 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
 }
 
 /// The tour stop.
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     let pieces = plant::<f64>(tol);
     let note = format!(
         "{} closed solids: 1 ROOTSTOCK — a sphere-zone corm whose \
@@ -1674,7 +1675,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
          least of all: see the wall probes.",
         pieces.len()
     );
-    vec![Stop {
+    vec![TourStop {
         name: "lily",
         caption: "fairy lantern (Calochortus pulchellus)".to_string(),
         montage: true,
@@ -2996,6 +2997,7 @@ mod review_probes {
         let props = pncad::topo::mass_properties(
             &crate::booleans::at_rest(lant, Tol::witness()),
             Tol::witness(),
+            crate::printed(),
         )
         .expect("mass properties");
         // The literal, DELIBERATELY: this row and
@@ -3010,11 +3012,14 @@ mod review_probes {
         // roll adds at r = 0.25 (`mouth_roll_delta_v`, by Pappus).
         let exact = 0.36456334483250313;
         assert!(
-            (props.volume - exact).abs() < 1e-12,
+            (props.enclosure.volume - exact).abs() < 1e-12,
             "lantern volume {} vs the closed form {exact}",
-            props.volume
+            props.enclosure.volume
         );
-        assert_eq!(props.volume_pad, 0.0, "every lantern face is closed-form");
+        assert_eq!(
+            props.enclosure.volume_pad, 0.0,
+            "every lantern face is closed-form"
+        );
     }
 
     /// The volume the mouth's roll ADDS ([`roll_the_mouth`]): the
@@ -3235,13 +3240,11 @@ mod review_probes {
                 "{name}: the skin's V = {skin_v} misses Pappus {pappus} by {fit:e} of it, past \
                  the cubic fit's scale {fit_scale:e}"
             );
-            let reading = pncad::topo::VolumeReading::of(
-                pncad::topo::validate_geometric_certificate(b, Tol::witness())
-                    .expect("the swept leaf is tier 3 clean")
-                    .measure(),
-            );
-            let e = reading
+            let e = pncad::topo::validate_geometric_certificate(b, Tol::witness())
+                .expect("the swept leaf is tier 3 clean")
+                .measure(crate::printed())
                 .unwrap_or_else(|refusal| panic!("{name}: no certified volume: {refusal}"))
+                .enclosure
                 .enclosure();
             let (lo, hi) = (e.volume_lo, e.volume_hi);
             assert!(

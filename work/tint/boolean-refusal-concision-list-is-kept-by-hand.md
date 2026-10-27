@@ -40,6 +40,9 @@ census's `separation_reasons` (`crates/editor-core/tests/refusal_concision_chain
 Some of these may render elsewhere (`Join` through the chains census's
 `Boolean/Join/` rows). Each wants a row or a reason in-file.
 
+`NormalAtSplineCrease` joined the set on 2026-10-26 (PR 5802, the
+sector walk's spline arm). It renders through no row either.
+
 ## Repair shape
 
 An `f6_variants!` roster for `BooleanError` and a set difference over

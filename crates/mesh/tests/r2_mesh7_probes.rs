@@ -76,11 +76,11 @@ fn every_donut_split_meshes_and_measures_as_the_donut() {
     let tol = Tol::witness();
     let patterns: [&[f64]; 2] = [&[0.5], &[0.3129, 0.15645]];
     let n_edges = donut().edges().count();
-    let v0 = topo::mass_properties(
+    let v0 = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", donut().clone(), tol),
         tol,
     )
-    .unwrap()
     .volume
     .to_bits();
     let mut wrong = Vec::new();
@@ -103,7 +103,11 @@ fn every_donut_split_meshes_and_measures_as_the_donut() {
             }
             let got = mesh::tessellate(&body, 0.1, tol).map(|m| m.positions.len());
             let mp = match topo::AtRestBody::validate(body.clone(), tol) {
-                Ok(finished) => topo::mass_properties(&finished, tol),
+                Ok(finished) => topo::mass_properties(
+                    &finished,
+                    tol,
+                    topo::test_support::pinned_resolution(tol),
+                ),
                 Err(errors) => {
                     assert!(
                         errors.iter().all(|e| matches!(
@@ -113,10 +117,14 @@ fn every_donut_split_meshes_and_measures_as_the_donut() {
                         "edge {i}, pattern {pi}: tier 3 refuses the split body for more than its joinable vertices: {errors:?}"
                     );
                     // Raw door: a split that leaves joinable vertices at rest, which tier 3 refuses (JoinableVertexAtRest), as the assert above admits.
-                    topo::test_support::measure_unvalidated(&body, tol)
+                    topo::test_support::measure_unvalidated(
+                        &body,
+                        tol,
+                        topo::test_support::pinned_resolution(tol),
+                    )
                 }
             };
-            let vol = mp.map(|m| m.volume);
+            let vol = mp.map(|m| m.enclosure.volume);
             println!("edge {i} (r = {radius}), pattern {pi}: {got:?}, V = {vol:?}");
             if got.is_err() || vol.as_ref().map(|v| v.to_bits()) != Ok(v0) {
                 wrong.push((i, pi, format!("{got:?} / {vol:?}")));
@@ -141,7 +149,12 @@ fn the_witness_bodies_are_topologically_valid_and_tier3_refuses_them() {
         let topo_ok = topo::validate(&body);
         let closed = topo::validate_closed(&body);
         // Raw door: the measured body is a body still carrying construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
-        let mass = topo::test_support::measure_unvalidated(&body, Tol::witness()).map(|m| m.volume);
+        let mass = topo::test_support::measure_unvalidated(
+            &body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .map(|m| m.enclosure.volume);
         println!("{name}: validate = {topo_ok:?}, closed = {closed:?}, mass = {mass:?}");
         assert!(topo_ok.is_ok(), "{name} is a topologically valid body");
     }

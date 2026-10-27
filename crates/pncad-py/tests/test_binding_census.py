@@ -864,7 +864,7 @@ BOUND_AS = {
     # `StepImport` is what `import_step` answers. Its `Solid` arm is
     # the whole of what Python's door can adopt, so the carrier crosses
     # AS that arm — `ImportReport`, a frozen value with `body`,
-    # `enclosure`, `eps_in` and the three record lists — rather than as
+    # `measure`, `eps_in` and the three record lists — rather than as
     # a two-arm sum with a `variant` a Python caller could never see
     # the other value of. The `Wireframe` arm is not dropped: it is
     # already this door's typed refusal (`StepImportError.variant ==
@@ -876,8 +876,8 @@ BOUND_AS = {
     # had no Python spelling at all; the natural journey — import a
     # file, ask what it encloses — ran the certified quadrature TWICE
     # over one body at one band, once inside the import gate and once
-    # in `Body.mass_properties`. `enclosure` is the gate's own result
-    # handed back, so that journey now measures once, and
+    # in `Body.mass_properties`. `measure` continues the gate's own
+    # certificate, so that journey now measures once, and
     # `test_document.py` pins the two BIT for bit rather than within a
     # tolerance: the claim is that they are the same computation, and
     # an almost-equality would pass for two different ones that agreed.
@@ -1392,6 +1392,19 @@ BOUND_AS = {
     "intersect": "Node.intersect",
     "loft_body": "Node.loft",
     "mass_properties": "Body.mass_properties",
+    # Why a measurement stopped crosses as `MassMeasurement.stop`'s
+    # word, and what a deciding predicate decided as its `verdict`'s.
+    "Stop": "MassMeasurement.stop",
+    "SettleVerdict": "MassMeasurement.verdict",
+    # A sign's verdict: `"outer"` or `"void"`, the same words.
+    "ShellRole": "MassMeasurement.verdict",
+    # The imported body held with the import gate's certificate of it:
+    # Python's report hands out the body and measures through the pair,
+    # and never holds the pair apart from the report.
+    "CertifiedBody": ("ImportReport.body", "ImportReport.measure"),
+    # `MassMeasurement::met`'s refusal: Python raises `ValidationError`
+    # with `measure_refusal == "unmet"` and the `stop`.
+    "Unmet": "MassMeasurement.met",
     # The façade's lattice-backed loop door and the document layer's
     # node constructor answer the same question — a closed outline from
     # a coordinate table — one rung apart, which is the mapping rule's
@@ -1643,18 +1656,6 @@ FAMILIES: dict[str, str] = {
         "door that folds each `Doc.apply` result with the document it "
         "produced, a `pncad.pyi` entry on `Maintenance` for it, and one "
         "Python row asserting the net of a cascade whose rows cancel."
-    ),
-    # THE MEASUREMENT PREDICATE ARRIVED BEFORE ITS DOORS
-    # (`docs/QUAD-MEASURE-SPEC.md` unit B): the façade curates `Settle`
-    # and the vocabulary its variants carry, while no number door takes
-    # one yet. Python taking it as data is unit C's
-    # (`work/quad/the-measurement-door-refines-until-a-predicate-resolves`).
-    "B-SETTLE": (
-        "what a measurement is asked — `Settle` (a sign, a relation, a "
-        "containment or a resolution) with `RelOp`, `SignNames` and "
-        "`RoleNames`. Closing it needs `Body.mass_properties()` and the "
-        "other number doors to take one as data, a `pncad.pyi` entry for "
-        "each, and one Python row per variant."
     ),
 }
 
@@ -2402,10 +2403,11 @@ NOT_BOUND = {
     # whose space it is. Python reads a refusal's spaces in its message.
     "SpokenSpace": SHAPE,
     "VarDef": f"{GAP}: B-VAR-ID a variable's minted identity",
-    "Settle": f"{GAP}: B-SETTLE what a measurement is asked",
-    "RelOp": f"{GAP}: B-SETTLE what a measurement is asked",
-    "SignNames": f"{GAP}: B-SETTLE what a measurement is asked",
-    "RoleNames": f"{GAP}: B-SETTLE what a measurement is asked",
+    # The names a deciding predicate's decisions are recorded under:
+    # each `Settle` constructor fixes its own, which its docstring
+    # gives, so a Python caller states the question and not the name.
+    "SignNames": SHAPE,
+    "RoleNames": SHAPE,
     "VarRef": f"{GAP}: B-VAR-ID a variable's minted identity",
     "node_kind_noun": SHAPE,
     # A direction refusal before it is spelled as a node error: which
@@ -2505,19 +2507,9 @@ NOT_BOUND = {
     "GeomRef": SHAPE,
     "Mat3": SHAPE,
     "MassPropsError": SHAPE,
-    # `StepImport::Solid::enclosure`'s refusal arm and the bracket it
-    # carries cross the way `MassPropsError` does: as the measurement
-    # refusal `ImportReport.enclosure` and
-    # `Body.validate_geometric_measured` raise, with the bracket as its
-    # `volume_lo`/`volume_hi`/`surface_area` attributes (`None` unless
-    # the schedule ran out) rather than as values Python holds.
-    "TargetUnreached": SHAPE,
+    # A certificate's bracket, which a Python caller never holds: the
+    # certificate crosses only as the door that measures through it.
     "VolumeEnclosure": SHAPE,
-    # `VolumeReading` is that same fork, number or bracket, named as
-    # one value for the Rust demos and rows. Python reads the number
-    # from the mass properties and the bracket from the refusal's
-    # `volume_lo`/`volume_hi`, as above.
-    "VolumeReading": SHAPE,
     # WHAT THE CLASSIFIER SAW, curated at the prelude beside the
     # `Indeterminate` that holds it — and a discriminant that crosses
     # as WHICH ATTRIBUTE IS SET rather than as a word.
@@ -4626,6 +4618,58 @@ class TestBindingCensus(unittest.TestCase):
         )
         self.assertEqual(stale, [], "stale roster entries — remove them")
 
+
+
+class TestStopWords(unittest.TestCase):
+    """`Stop` crosses as `MassMeasurement.stop`'s words, which are its
+    variants' own names in snake case (the one-name rule, spelled in each
+    language's casing). This row holds the stub's `Literal` to the Rust
+    enum, in declaration order, so a variant added, removed or reordered
+    on either side reds here rather than reaching a caller as a word no
+    `Literal` admits."""
+
+    def test_the_stop_literal_is_stops_variants_in_order(self):
+        sweep = resolver()
+        crates = sweep.dependency_set(REPO)
+        index = sweep.declarations(REPO, crates)
+        where = sweep.resolve_curated(REPO, ("prelude",), crates, index)["Stop"]
+        decls = [d for stem in sorted(where) for d in where[stem]]
+        self.assertTrue(decls, "the prelude's `Stop` resolves to a declaration")
+        variants = sweep.declared_members(decls[0])
+        # The binding emits `topo::Stop::word()`, so the words are read off
+        # that function's own arms: one per variant, in the variants'
+        # order, each its variant's name in snake case.
+        settle = (REPO / "crates" / "topo" / "src" / "props" / "settle.rs").read_text(
+            encoding="utf-8"
+        )
+        body = re.search(r"impl Stop \{.*?fn word\(self\).*?\{(.*?)\n    \}", settle, re.S)
+        self.assertIsNotNone(body, "`topo::Stop::word` is the stop's one spelling")
+        arms = re.findall(r'Self::([A-Za-z]+)(?:\([^)]*\))? => "([a-z_]+)"', body.group(1))
+        self.assertEqual(
+            [variant for variant, _ in arms],
+            variants,
+            "`Stop::word` spells every variant once, in declaration order",
+        )
+        self.assertEqual(
+            [word for _, word in arms],
+            [snake_case(variant) for variant in variants],
+            "each stop's word is its variant's name in snake case",
+        )
+        words = [word for _, word in arms]
+        stub = STUB.read_text(encoding="utf-8")
+        found = re.search(
+            r"class MassMeasurement\b.*?def stop\(self\) -> Literal\[([^\]]*)\]",
+            stub,
+            re.S,
+        )
+        self.assertIsNotNone(found, "`MassMeasurement.stop` is a `Literal` in the stub")
+        literal = re.findall(r'"([a-z_]+)"', found.group(1))
+        self.assertEqual(
+            literal,
+            words,
+            "`MassMeasurement.stop`'s `Literal` must be `topo::Stop::word`'s words, "
+            "in the variants' order",
+        )
 
 if __name__ == "__main__":
     unittest.main()

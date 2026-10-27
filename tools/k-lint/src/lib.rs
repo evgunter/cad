@@ -137,11 +137,15 @@
 //!
 //! [`EPS_COUPLED_PREDICATES`] lists the predicates whose recorded
 //! margin is a headroom against an ε-SCALED target rather than a
-//! model-scale distance. Today that is exactly one:
-//! `props_quad_converged`, the adaptive-quadrature stopping test — it
-//! records `1024·ε − width`, so its margin shrinks with ε BY
+//! model-scale distance. Today it is empty. Its one member was
+//! `props_quad_converged`, the adaptive-quadrature stopping test, which
+//! recorded `1024·ε − width`, so its margin shrank with ε BY
 //! CONSTRUCTION (baseline minima 8.3952e-4 / 1.6467e-7 / 3.3595e-10 at
-//! 1e-6 / 1e-9 / 1e-12).
+//! 1e-6 / 1e-9 / 1e-12). Measure door unit B stopped minting it (a
+//! face's width is compared with the caller's resolution, not decided)
+//! and unit C removed the reporting target it measured against;
+//! [`ERA_EPS_COUPLED_PREDICATES`] keeps it for the committed eras'
+//! samples, which the rest of this section is about.
 //!
 //! No fixed metre floor can be both clean at 1e-12 and informative, so
 //! this family is taken out from under rule (3). It is taken out from

@@ -174,12 +174,13 @@ fn r2_partial_revolve_axis_touching_cap() {
             let props = topo::mass_properties(
                 &topo::test_support::finished("the measured body", topo::Body::clone(cup), tol),
                 tol,
+                topo::test_support::pinned_resolution(tol),
             )
             .expect("props");
             let want = 0.5 * theta * (r * r * h - (r - t) * (r - t) * (h - t));
             println!(
                 "    volume got {} want (naive wedge closed form) {want}",
-                props.volume
+                props.enclosure.volume
             );
         } else {
             // Any TYPED refusal is the pass here — the row's claim is
@@ -359,20 +360,21 @@ fn r2_my_own_annulus_splits_into_two_rims() {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&cup), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .expect("props");
     let want = core::f64::consts::PI
         * ((ro * ro - ri * ri) * h - ((ro - t).powi(2) - (ri + t).powi(2)) * (h - t));
     println!(
         "  my tube: V={} pad={} want={want} delta={}",
-        props.volume,
-        props.volume_pad,
-        (props.volume - want).abs()
+        props.enclosure.volume,
+        props.enclosure.volume_pad,
+        (props.enclosure.volume - want).abs()
     );
     assert!(
-        (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+        (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
         "my tube cup volume: got {} want {want}",
-        props.volume
+        props.enclosure.volume
     );
 }
 
@@ -642,6 +644,7 @@ fn r2_box_control_fingerprint() {
                         tol,
                     ),
                     tol,
+                    topo::test_support::pinned_resolution(tol),
                 )
                 .expect("props");
                 println!(
@@ -653,8 +656,8 @@ fn r2_box_control_fingerprint() {
                     rings_of(&cup),
                     cup.shells().count(),
                     genus_of(&cup),
-                    props.volume,
-                    props.surface_area,
+                    props.enclosure.volume,
+                    props.enclosure.surface_area,
                     topo::validate_geometric(&cup, tol).is_ok()
                 );
             }

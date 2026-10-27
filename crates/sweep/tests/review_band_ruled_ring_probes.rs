@@ -17,9 +17,10 @@ fn volume(body: &Body<f64>) -> f64 {
     let p = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("closed-form props");
-    p.volume
+    p.enclosure.volume
 }
 
 fn square(h: f64) -> ProfileLoop<f64> {

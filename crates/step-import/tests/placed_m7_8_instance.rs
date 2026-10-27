@@ -32,6 +32,7 @@ fn a_placed_m7_8_instance_imports() {
         Err(e) => panic!("placed import refused: {e:?}"),
     };
     let m7_8 = placed
+        .body()
         .curves()
         .filter(|(_, c)| {
             matches!(c, topo::CurveGeom::Certified(c)
@@ -41,14 +42,14 @@ fn a_placed_m7_8_instance_imports() {
         .count();
     assert!(m7_8 > 0, "the placed instance carries the M7-8 class");
     // The rotation by a quarter turn about z and the (5, 3, 2) shift.
-    for (_, p) in placed.points() {
+    for (_, p) in placed.body().points() {
         assert!(
             (4.0..=5.0).contains(&p.x) && (3.0..=4.25).contains(&p.y),
             "{p:?}"
         );
     }
-    re_mints_the_class(placed.clone(), m7_8);
-    offsets_beside_the_wall(&placed, m7_8);
+    re_mints_the_class(placed.body().clone(), m7_8);
+    offsets_beside_the_wall(placed.body(), m7_8);
 }
 
 /// How many M7-8 edges `body` holds.

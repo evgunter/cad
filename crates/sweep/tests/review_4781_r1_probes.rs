@@ -195,7 +195,15 @@ fn judge(
         }
         Ok(BooleanResult::Body(bb)) => {
             let mut bad = Vec::new();
-            let v = mass_properties(&bb.body, tol()).unwrap().volume;
+            let v = mass_properties(
+                &bb.body,
+                tol(),
+                topo::test_support::pinned_resolution(tol()),
+            )
+            .unwrap()
+            .met()
+            .expect("the pinned resolution is met")
+            .volume;
             if (v - want_vol).abs() > 1e-9 * vol_scale {
                 bad.push(format!("volume {v} vs {want_vol}"));
             }
@@ -260,7 +268,13 @@ fn judge(
 /// whether a union owes two solids.
 fn pose(a: Shape, b: Shape, meet: f64, union_solids: Option<usize>) -> Vec<String> {
     let (ba, bb) = (a.body(), b.body());
-    let vol = |x: &AtRestBody<f64>| mass_properties(x, tol()).unwrap().volume;
+    let vol = |x: &AtRestBody<f64>| {
+        mass_properties(x, tol(), topo::test_support::pinned_resolution(tol()))
+            .unwrap()
+            .met()
+            .expect("the pinned resolution is met")
+            .volume
+    };
     let (va, vb) = (vol(&ba), vol(&bb));
     let scale = va.max(vb);
     let (lo, hi) = a.bbox();
@@ -633,7 +647,12 @@ fn review_4781_ee_record_after_a_later_op() {
         ) {
             Ok(BooleanResult::Body(r)) => {
                 let ee: Vec<_> = r.contacts.edge_edge().collect();
-                let v = mass_properties(&r.body, tol()).unwrap().volume;
+                let v =
+                    mass_properties(&r.body, tol(), topo::test_support::pinned_resolution(tol()))
+                        .unwrap()
+                        .met()
+                        .expect("the pinned resolution is met")
+                        .volume;
                 let verdict = topo::validate_pseudomanifold(&r.body, &r.contacts, tol());
                 let short = verdict.as_ref().map_err(|e| {
                     e.iter()

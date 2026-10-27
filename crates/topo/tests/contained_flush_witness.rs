@@ -43,8 +43,11 @@ fn assert_valid_with_volume(label: &str, body: &Body<f64>, volume: f64) {
     let got = mass_properties(
         &topo::test_support::finished("the measured body", (body).clone(), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .unwrap()
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     assert!(
         (got - volume).abs() < 1e-9,

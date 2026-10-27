@@ -61,7 +61,12 @@ fn run(tag: &str, a: Body<f64>, b: Body<f64>) {
                 Ok(r) => match r.body() {
                     Some(bb) => format!(
                         "ok vol={:.9}",
-                        mass_properties(&bb.body, tol()).map_or(f64::NAN, |m| m.volume)
+                        mass_properties(
+                            &bb.body,
+                            tol(),
+                            topo::test_support::pinned_resolution(tol())
+                        )
+                        .map_or(f64::NAN, |m| m.enclosure.volume)
                     ),
                     None => "ok empty".to_owned(),
                 },

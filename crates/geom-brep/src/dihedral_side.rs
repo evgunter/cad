@@ -68,6 +68,11 @@
 //! that gap is not covered by it. It assumes the normal is defined and
 //! continuous between the foot and `p`, which the regularity and crease
 //! readings above check at the foot alone.
+//!
+//! The regularity and crease readings are the door's own, and also
+//! [`regular_jet`] and [`chart_normal_at`] for a reader that holds the
+//! point's chart parameters already, as the boolean's sector walk does
+//! for a vertex on the face's boundary, read off the edge's pcurve.
 
 use geom::{NurbsSurface, Surface, SurfaceJet};
 use geom_core::k_stats::Magnitude;
@@ -184,7 +189,7 @@ pub enum SideEscalation {
         role: SideRole,
         /// The foot's distance from the point or line, as decided: zero
         /// or in band.
-        reading: Result<MarginDiag, Indeterminate>,
+        reading: CreaseReading,
     },
     /// The arm, or the signed sine metered over it, did not decide.
     Lever(LeverEscalation),
@@ -276,14 +281,11 @@ fn spline_normal<T: Decide>(
             last_distance: e.last_distance,
         })?;
     let (u, v) = (T::from_computed(foot.u), T::from_computed(foot.v));
-    let jet = chart.ders(u, v);
     let crease = |reading| SideEscalation::Crease { role, reading };
     // A foot the projection accepted where the chart's speed vanishes is
     // a stationary point of the distance, not a nearest one, so its
     // distance decides nothing until the foot is regular.
-    if let Some(reading) = near("dihedral_side_regular", irregular_reach(&jet, reach), band) {
-        return Err(crease(reading));
-    }
+    let jet = regular_jet(chart, (u, v), reach, band).map_err(crease)?;
     match crate::dihedral::decide_magnitude_reported(
         "dihedral_side_foot",
         Margin::of(foot.distance),
@@ -295,10 +297,60 @@ fn spline_normal<T: Decide>(
         }
         Err(diag) => return Err(SideEscalation::FootUndecided { role, diag }),
     }
-    if let Some(reading) = on_a_crease(chart, foot.foot, (u, v), band) {
-        return Err(crease(reading));
+    chart_normal_at(chart, sense, &jet, (u, v), reach, band).map_err(crease)
+}
+
+/// How near a point of a spline chart lies to where the chart's normal
+/// is not defined or not continuous (module docs): zero, or in band.
+pub type CreaseReading = Result<MarginDiag, Indeterminate>;
+
+/// **The jet of `chart` at `(u, v)`, where its normal is defined**: the
+/// regularity reading of the module docs. `reach` is the extent the
+/// caller reads the face over, which a direction along which
+/// `S_u × S_v` does not change reads as the distance to an irregular
+/// point.
+///
+/// # Errors
+///
+/// The [`CreaseReading`] of an irregular point (`S_u × S_v` vanishing:
+/// coincident control rows, a pole) within the band of `(u, v)`.
+pub fn regular_jet<T: Decide>(
+    chart: &NurbsSurface<T>,
+    (u, v): (T, T),
+    reach: T,
+    band: Band,
+) -> Result<SurfaceJet<T>, CreaseReading> {
+    let jet = chart.ders(u, v);
+    match near("dihedral_side_regular", irregular_reach(&jet, reach), band) {
+        Some(reading) => Err(reading),
+        None => Ok(jet),
     }
-    let kappa = crate::shape_operator::max_principal_curvature(&jet);
+}
+
+/// **A spline face's outward normal at a regular jet of its chart** at
+/// `(u, v)` ([`regular_jet`]), and the radius of its largest principal
+/// curvature there folded with `reach`. The point is the face's own: the
+/// caller decides it is (a foot decided onto the carrier and placed in
+/// the face, or a boundary point read off its pcurve).
+///
+/// # Errors
+///
+/// The [`CreaseReading`] of a line the normal is not continuous across
+/// (an interior knot run of multiplicity at least the degree, or a
+/// closed chart's seam) within the band of the jet's point: the face has
+/// a normal on each side of it, and no one of them is the normal there.
+pub fn chart_normal_at<T: Decide>(
+    chart: &NurbsSurface<T>,
+    sense: bool,
+    jet: &SurfaceJet<T>,
+    (u, v): (T, T),
+    reach: T,
+    band: Band,
+) -> Result<(OutwardNormal<T>, T), CreaseReading> {
+    if let Some(reading) = on_a_crease(chart, jet.point, (u, v), band) {
+        return Err(reading);
+    }
+    let kappa = crate::shape_operator::max_principal_curvature(jet);
     let (arm, _) = crate::ssi::point_arm(kappa, reach);
     Ok((
         OutwardNormal::from_chart(jet.du.cross(jet.dv).normalize(), sense),
@@ -308,11 +360,7 @@ fn spline_normal<T: Decide>(
 
 /// A length the foot lies within: `Some` with its reading where the band
 /// does not decide it positive (zero or in band), `None` past the band.
-fn near<T: Decide>(
-    name: &'static str,
-    distance: T,
-    band: Band,
-) -> Option<Result<MarginDiag, Indeterminate>> {
+fn near<T: Decide>(name: &'static str, distance: T, band: Band) -> Option<CreaseReading> {
     match crate::dihedral::decide_magnitude_reported(name, Margin::of(distance), band) {
         Ok((Magnitude::Positive, _)) => None,
         Ok((Magnitude::Zero, margin)) => Some(Ok(margin)),
@@ -347,7 +395,7 @@ fn on_a_crease<T: Decide>(
     at: Point3<T>,
     (u, v): (T, T),
     band: Band,
-) -> Option<Result<MarginDiag, Indeterminate>> {
+) -> Option<CreaseReading> {
     let near = |q: Point3<T>| near("dihedral_side_crease", (q - at).norm(), band);
     for (knots, along_u) in [
         (chart.knot_values_u(), true),

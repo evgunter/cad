@@ -89,14 +89,15 @@ fn assert_exact(body: &topo::Body<f64>, pin: corpus::MassPin, what: &str) {
     let m = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties");
     assert_eq!(
-        m.volume, pin.volume,
+        m.enclosure.volume, pin.volume,
         "{what}: volume is not the closed form"
     );
     assert_eq!(
-        Some(m.surface_area),
+        Some(m.enclosure.surface_area),
         pin.area,
         "{what}: area is not the closed form"
     );
@@ -762,14 +763,19 @@ fn a_sealed_shell_over_a_revolved_ball_is_the_difference_of_two_balls() {
         "tier 3"
     );
     assert_eq!(body.shells().count(), 2, "an outer and a cavity shell");
-    let m = topo::mass_properties(&body, Tol::witness()).expect("mass properties");
+    let m = topo::mass_properties(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("mass properties");
     let want = 4.0 / 3.0 * std::f64::consts::PI * (PIP_R.powi(3) - (PIP_R - t).powi(3));
     // `sweep`'s `pole_ball_shells` rule: rounding scales with R³, the
     // pad is the quadrature's own bound.
     assert!(
-        (m.volume - want).abs() <= 1e-12 * PIP_R.powi(3) + m.volume_pad,
+        (m.enclosure.volume - want).abs() <= 1e-12 * PIP_R.powi(3) + m.enclosure.volume_pad,
         "volume {} vs the closed form {want}",
-        m.volume
+        m.enclosure.volume
     );
 }
 

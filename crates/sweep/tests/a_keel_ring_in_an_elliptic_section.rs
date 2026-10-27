@@ -126,11 +126,11 @@ fn a_keel_ring_nests_inside_an_elliptic_section() {
                 Ok(()),
                 "{what}: tier 3′"
             );
-            let got = topo::mass_properties(
+            let got = topo::test_support::pinned_volume(
+                "the measured body",
                 &topo::test_support::finished("the measured body", topo::Body::clone(b), tol()),
                 tol(),
             )
-            .unwrap()
             .volume;
             assert!(
                 (got - volume).abs() < 1e-9 * volume,
@@ -243,11 +243,11 @@ fn a_keel_ring_on_an_island_in_a_hole_nests_on_the_island() {
                 // trench (`work/cleave/a-hole-in-an-elliptic-section-keeps-a-face-of-its-own-that-tier-3-prime-refuses.md`).
                 let pseudo = topo::validate_pseudomanifold(b, &ContactRecords::default(), tol());
                 assert_eq!(pseudo.is_ok(), tilt == 0.0, "{what}: tier 3′ {pseudo:?}");
-                let got = topo::mass_properties(
+                let got = topo::test_support::pinned_volume(
+                    "the measured body",
                     &topo::test_support::finished("the measured body", topo::Body::clone(b), tol()),
                     tol(),
                 )
-                .unwrap()
                 .volume;
                 assert!(
                     (got - volume).abs() < 1e-9 * volume,
