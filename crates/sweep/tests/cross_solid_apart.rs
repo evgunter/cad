@@ -608,7 +608,10 @@ fn a_sliver_off_a_blocks_corner_parts_along_its_flat_until_it_touches() {
     for (s, what) in [(-clear, "on the corner's edge"), (-clear - 1e-3, "past it")] {
         let pair = off(s);
         let errs = census(&pair).expect_err(what);
-        assert!(refuses_curved_within_reach(&pair, &errs), "{what}: {errs:?}");
+        assert!(
+            refuses_curved_within_reach(&pair, &errs),
+            "{what}: {errs:?}"
+        );
     }
 }
 
@@ -630,7 +633,11 @@ fn a_lens_through_a_blocks_corner_leaves_two_pieces_the_census_parts() {
     );
     let lens = [((0.0, -0.4), 0.3), ((0.0, 0.4), 0.3)];
     for phi in [0.7, 4.0] {
-        let cutter = finished("the lens", prism(&lens, phi, (0.75, 0.75), -0.5, 2.0), tol());
+        let cutter = finished(
+            "the lens",
+            prism(&lens, phi, (0.75, 0.75), -0.5, 2.0),
+            tol(),
+        );
         let Ok(topo::BooleanResult::Body(pieces)) = topo::subtract(&block, &cutter, tol()) else {
             panic!("block ∖ lens builds at φ {phi}");
         };
@@ -669,6 +676,9 @@ fn two_parallel_rods_part_along_the_line_of_centres_until_they_touch() {
     for gap in [0.0, -1e-3] {
         let pair = beside(gap);
         let errs = census(&pair).expect_err("the walls meet");
-        assert!(refuses_curved_within_reach(&pair, &errs), "gap {gap}: {errs:?}");
+        assert!(
+            refuses_curved_within_reach(&pair, &errs),
+            "gap {gap}: {errs:?}"
+        );
     }
 }

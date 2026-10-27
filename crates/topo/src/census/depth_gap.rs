@@ -694,12 +694,12 @@ pub(super) fn across<T: Decide>(
             .iter()
             .map(move |&(c, n, p, q)| split(p + (q - p) * half - c, n / n.norm()).0)
     });
-    let off = |x: Point3<T>, origin: Point3<T>, axis: Vec3<T>| split(x - origin, axis / axis.norm()).0;
+    let off =
+        |x: Point3<T>, origin: Point3<T>, axis: Vec3<T>| split(x - origin, axis / axis.norm()).0;
     let between = match (ra.carrier, rb.carrier) {
-        (
-            Some(Depth::Axis { origin: o, axis: a }),
-            Some(Depth::Axis { origin: p, axis: b }),
-        ) => vec![a.cross(b), off(p, o, a), off(o, p, b)],
+        (Some(Depth::Axis { origin: o, axis: a }), Some(Depth::Axis { origin: p, axis: b })) => {
+            vec![a.cross(b), off(p, o, a), off(o, p, b)]
+        }
         (Some(Depth::Axis { origin, axis }), Some(Depth::Center { center }))
         | (Some(Depth::Center { center }), Some(Depth::Axis { origin, axis })) => {
             vec![off(center, origin, axis)]
