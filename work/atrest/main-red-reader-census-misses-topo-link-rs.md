@@ -3,6 +3,7 @@ id: main-red-reader-census-misses-topo-link-rs
 kind: issue
 title: Main red: reader_census's ledger has no entry for crates/topo/src/link.rs, which PR 5773 added reading its own source
 status: closed
+closed: 2026-10-27
 opened: 2026-10-27
 priority: P1
 cost: E

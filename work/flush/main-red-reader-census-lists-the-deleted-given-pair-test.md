@@ -3,6 +3,7 @@ id: main-red-reader-census-lists-the-deleted-given-pair-test
 kind: issue
 title: Main red: reader_census still lists crates/topo/tests/a_given_pair_is_made_from_a_kernel_verdict.rs, which PR 5772 deleted
 status: closed
+closed: 2026-10-27
 opened: 2026-10-27
 priority: P1
 cost: E
