@@ -1604,7 +1604,7 @@ pub mod bounds_allowlist {
     //! The same ruling's C2 (as ratified on PR 5652: limbs 1 and 2 owed
     //! by every carrier) puts a closed-form carrier's limb 2 at the rung-3
     //! limb's own bound, so `geom_brep::edge_nurbs`'s `analytic_edge_limbs`
-    //! and `geom_brep::pcurve_cache`'s `closed_form_offset_sup` ride the
+    //! and `geom_brep::pcurve_cache`'s `limb2_offset_sup` ride the
     //! M6-2/M7-8 entries above with nothing wider.
     //!
     //! **M9-2 PR-1 (under the PR 11 precedent; retroactive Ev review) —

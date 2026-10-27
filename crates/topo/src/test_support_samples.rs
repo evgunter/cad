@@ -595,7 +595,6 @@ fn analytic_rung3_refusals() -> Vec<geom_brep::AnalyticRung3Refusal> {
             margin: MarginDiag::value(7.5e-5),
             width: 1e-6,
             extent: 2.0,
-            terminal: true,
         },
         A::KernelLimit {
             operand: geom::SurfaceKind::Torus,
@@ -603,7 +602,6 @@ fn analytic_rung3_refusals() -> Vec<geom_brep::AnalyticRung3Refusal> {
             margin: MarginDiag::value(7.5e-5),
             width: 1e-15,
             extent: 2.0,
-            terminal: true,
         },
         A::Limb {
             operand: geom::SurfaceKind::Plane,
@@ -617,6 +615,10 @@ fn analytic_rung3_refusals() -> Vec<geom_brep::AnalyticRung3Refusal> {
         A::Escalated {
             operand: None,
             limb: geom_brep::Rung3Limb::Tube,
+            cause: diag(),
+        },
+        A::Stalled {
+            operand: geom::SurfaceKind::Cylinder,
             cause: diag(),
         },
         A::NoOffsetBound {

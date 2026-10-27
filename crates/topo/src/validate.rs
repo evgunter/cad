@@ -3151,7 +3151,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         }
         CertifyError::AnalyticRung3(A::NoOffsetBound { .. }) => {
             "its curve's distance from a face has no certified bound (it reaches a cone's \
-             apex height or the other nappe)"
+             other nappe, or no chart of the face places it)"
         }
         CertifyError::AnalyticRung3(A::NoTubeEnclosure { .. }) => {
             "its curve lies within the tolerance of both faces, but the check cannot yet \
@@ -3216,6 +3216,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         }
         CertifyError::PlaneNurbs(P::Escalated { limb, .. }) => certify_undecided(limb.check()),
         CertifyError::AnalyticRung3(A::Escalated { limb, .. }) => certify_undecided(limb.check()),
+        CertifyError::AnalyticRung3(A::Stalled { .. }) => {
+            certify_undecided(geom_brep::Rung3Limb::HullSup.check())
+        }
         CertifyError::PlaneNurbs(P::ReportedTransversalityPoisoned(_)) => {
             certify_undecided(CertCheck::PlaneNurbsReportedTransversality)
         }
@@ -3272,6 +3275,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
                 A::Limb { .. }
                 | A::KernelLimit { .. }
                 | A::Escalated { .. }
+                | A::Stalled { .. }
                 | A::TubeStraddles { .. }
                 | A::TubeNotOneArc { .. },
             ) => unreachable!("a refusal whose ending its own type gives always has one"),
@@ -17621,7 +17625,6 @@ mod certify_escalation_rows {
                         margin: geom_core::MarginDiag::value(2.0e-8),
                         width: 2.0e-15,
                         extent: 3.0,
-                        terminal: true,
                     },
                 )),
                 "the check's certified bound on how far it strays from its faces does not clear \

@@ -758,8 +758,8 @@ BOUNDS_ALLOWLIST=(
   # count is unmoved. Same seam, reached only through
   # `FittedLane::certified`.
   # C2 as ratified on PR 5652 (limbs 1 and 2 owed by every carrier)
-  # adds `closed_form_offset_sup`, the rung-3 limb 2's read of a
-  # closed-form carrier through its enclosing net, at that limb's bound.
+  # adds `limb2_offset_sup`, limb 2's one reader for every carrier
+  # (a closed form through its enclosing net), at that limb's bound.
   'crates/geom-brep/src/pcurve_cache.rs 10 M6-2, the SSI rung-3 certificate; C2 2026-10-24 (PR 5652), limb 2 for every carrier kind at the same bound'
   # The fitted lane's door value, beside the bodies it holds:
   # `FittedLane::certified`'s block (`Decide + CertifiedBounds`) is the
@@ -783,7 +783,7 @@ BOUNDS_ALLOWLIST=(
   # body, `analytic_rung3` (`Decide + Bounds + CertifiedEnclosure`, two
   # occurrences): the analytic rung-3 carrier's C2 limbs checked at the
   # edge certificate — its offset from each operand (limbs 1–2, through
-  # `pcurve_cache::projected::net_offset_sup`) and the uniqueness tube
+  # `pcurve_cache::limb2_offset_sup`) and the uniqueness tube
   # (limb 3). It reads no bracket. It hands the carrier and the two
   # analytic operands to `ssi::certify::certify_branch` (M6-2's seam,
   # ratified at this bound) with `Limbs::Tube`, and its bound is its

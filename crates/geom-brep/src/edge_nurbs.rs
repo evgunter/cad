@@ -1361,7 +1361,7 @@ pub fn is_analytic<T: Real>(surface: &Surface<T>) -> bool {
 ///
 /// - **limb 2, per operand**: the carrier's distance from the operand,
 ///   certified over the edge's interval `params`
-///   ([`crate::pcurve_cache::projected::net_offset_sup`]: the operand's
+///   ([`crate::pcurve_cache::limb2_offset_sup`]: the operand's
 ///   canonical implicit form composed along the carrier, converted to
 ///   metres per part, the parts halved under limb 2's budget) and
 ///   decided zero against the band, or, where the halving stops on a
@@ -1494,9 +1494,11 @@ pub fn analytic_edge_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 /// they stopped on the bound — decided as one margin
 /// ([`limb2_enclosure`]): `upper` within the band passes, a floor past
 /// it is the measured miss ([`AnalyticRung3Refusal::Limb`]), and
-/// anything else is undecided at this input
-/// ([`AnalyticRung3Refusal::Escalated`]), the classifier's own terminal
-/// bit kept (a bare upper bound is never terminal). At a
+/// anything else is undecided at this input: a bare upper bound refuses
+/// [`AnalyticRung3Refusal::Stalled`], claiming no cause and no
+/// terminality, and a floor inside the band escalates on the measured
+/// value ([`AnalyticRung3Refusal::Escalated`] on
+/// [`Rung3Limb::HullValue`], the classifier's terminal bit kept). At a
 /// parameter-family scalar the margin carries the free-parameter
 /// residual of the carrier against the operand as its symbolic identity
 /// ([`free_residual`]), so a carrier that lies on the operand for every
@@ -1510,14 +1512,16 @@ pub fn analytic_edge_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 /// `ends` are a line's distances from a plane at its ends
 /// ([`line_plane_ends`]): there the sup is attained at an end, so a
 /// reading that neither clears the band nor shows a measured miss
-/// defers to those measured values ([`measured_ends`]) rather than
-/// refusing short of the sup.
+/// defers to those measured values ([`measured_ends`], in certification
+/// arithmetic at every scalar) where they decide: both ends in the band
+/// pass, an end past it is a miss, and ends that straddle it leave the
+/// composite's own refusal standing.
 fn limb2<T: Decide>(
     carrier: &Curve3<T>,
     params: (T, T),
     operand: &Surface<T>,
     read: Result<crate::pcurve_cache::projected::OffsetRead<T>, crate::PcurveCertifyError>,
-    ends: Option<[(T, T); 2]>,
+    ends: Option<[(geom_core::Interval, geom_core::Interval); 2]>,
     band: Band,
 ) -> Result<(), AnalyticRung3Refusal> {
     use crate::pcurve_cache::projected::{Offset, OffsetRead};
@@ -1541,7 +1545,15 @@ fn limb2<T: Decide>(
     };
     match (decided, ends) {
         (Err(AnalyticRung3Refusal::Limb { .. }), _) | (_, None) | (Ok(()), _) => decided,
-        (Err(_), Some(ends)) => measured_ends(kind, ends, band),
+        // The ends decide where they can: both in the band certify, one
+        // past it is a miss. Where they cannot (their enclosure straddles
+        // the band — at kilometre scale the data's own rounding does),
+        // the composite's own refusal stands: the kernel's limit at a
+        // point scalar, the undecided enclosure at an enclosure one.
+        (Err(stall), Some(ends)) => match measured_ends(kind, ends, band) {
+            Err(AnalyticRung3Refusal::Escalated { .. }) => Err(stall),
+            ends => ends,
+        },
     }
 }
 
@@ -1552,11 +1564,15 @@ fn limb2<T: Decide>(
 /// ([`Decide::free_identity`]). The classifier's verdict is the limb's:
 /// within the band it passes; a floor past the band is a measured miss
 /// ([`AnalyticRung3Refusal::Limb`]); anything else is undecided at this
-/// input, so it escalates ([`AnalyticRung3Refusal::Escalated`]) with the
-/// classifier's own terminal bit — false wherever the enclosure reaches
-/// down to zero, as a bare upper bound's does — and no cause claimed:
-/// over a parameter box a smaller box is the remedy (E6), and the drive
-/// bisects it.
+/// input. A bare upper bound (`floor` 0) refuses
+/// [`AnalyticRung3Refusal::Stalled`] with the classifier's diagnostic,
+/// whose terminal bit is false (the enclosure reaches down to zero), and
+/// claims no cause: over a parameter box a smaller box is the remedy
+/// (E6), and the drive bisects it on the escalation the funnel logged. A
+/// floor inside the band escalates on the measured value
+/// ([`AnalyticRung3Refusal::Escalated`] on [`Rung3Limb::HullValue`]),
+/// the classifier's terminal bit kept: a distance measured in the
+/// sliver is one no subdivision decides.
 fn limb2_enclosure<T: Decide>(
     operand: geom::SurfaceKind,
     floor: f64,
@@ -1577,11 +1593,12 @@ fn limb2_enclosure<T: Decide>(
             sign: Sign::Zero, ..
         }) => Ok(()),
         Ok(Decided { margin, .. }) => Err(AnalyticRung3Refusal::Limb { operand, margin }),
-        Err(cause) => Err(AnalyticRung3Refusal::Escalated {
+        Err(cause) if floor > 0.0 => Err(AnalyticRung3Refusal::Escalated {
             operand: Some(operand),
             limb,
             cause,
         }),
+        Err(cause) => Err(AnalyticRung3Refusal::Stalled { operand, cause }),
     }
 }
 
@@ -1628,14 +1645,21 @@ fn free_residual<T: Decide>(
 /// bound did not clear the band: the carrier's distance from the plane
 /// is affine in the parameter, so its magnitude is convex and its sup
 /// over the interval is attained at an end. Each end's distance is
-/// measured in certification arithmetic, `(p − o)·n` over `|n|`, and
-/// decided as the measured value it is: both ends in the band certify
+/// measured in certification arithmetic (C9) — `|(p − o)·n|` over `|n|`,
+/// the line's and the plane's data and the end's parameter each lifted
+/// through its certified bracket ([`line_plane_ends`]), at every scalar
+/// — and decided as the enclosure it is: both ends in the band certify
 /// the whole edge, an end past it is a measured miss
 /// ([`AnalyticRung3Refusal::Limb`]), and an end the band cannot decide
-/// escalates on that reading. No ratio over the net's width enters.
-fn measured_ends<T: Decide>(
+/// escalates — on which [`limb2`] lets the composite's own refusal
+/// stand, since a straddling end shows neither a pass nor a miss. No
+/// ratio over the net's width enters, and
+/// no round-to-nearest product: at `f64` a dot product at kilometre
+/// scale rounds past a 1e-12 band, so a point reading could pass a line
+/// that is off its plane.
+fn measured_ends(
     operand: geom::SurfaceKind,
-    ends: [(T, T); 2],
+    ends: [(geom_core::Interval, geom_core::Interval); 2],
     band: Band,
 ) -> Result<(), AnalyticRung3Refusal> {
     for (measure, lever) in ends {
@@ -1660,17 +1684,25 @@ fn measured_ends<T: Decide>(
 }
 
 /// A line's distance from a plane at the ends of `params`, as the
-/// `(measure, lever)` pair `(p − o)·n`, `|n|` per end
-/// ([`measured_ends`]); `None` for any other pair of kinds.
-fn line_plane_ends<T: Decide>(
+/// `(measure, lever)` pair `(p − o)·n`, `|n|` per end in certification
+/// arithmetic ([`measured_ends`]): the line `p = q + d·t` and the plane's
+/// origin and normal are lifted through their certified brackets
+/// (`Interval::from_certified`), and so is each end's parameter, so each
+/// pair encloses the end's true distance whatever the scalar; `None` for
+/// any other pair of kinds.
+fn line_plane_ends<T: geom_core::CertifiedBounds>(
     carrier: &Curve3<T>,
     params: (T, T),
     operand: &Surface<T>,
-) -> Option<[(T, T); 2]> {
+) -> Option<[(geom_core::Interval, geom_core::Interval); 2]> {
+    let lift = geom_core::Interval::from_certified;
+    let vec = |v: geom_core::Vec3<T>| geom_core::Vec3::new(lift(v.x), lift(v.y), lift(v.z));
     match (carrier, operand) {
-        (Curve3::Line { .. }, Surface::Plane { origin, normal, .. }) => {
-            let lever = normal.norm();
-            Some([params.0, params.1].map(|t| ((carrier.eval(t) - *origin).dot(*normal), lever)))
+        (Curve3::Line { origin: q, dir }, Surface::Plane { origin, normal, .. }) => {
+            let (q, d) = (vec(*q - geom_core::Point3::origin()), vec(*dir));
+            let (o, n) = (vec(*origin - geom_core::Point3::origin()), vec(*normal));
+            let lever = n.norm();
+            Some([params.0, params.1].map(|t| ((q + d * lift(t) - o).dot(n), lever)))
         }
         _ => None,
     }
@@ -1707,20 +1739,19 @@ fn upper_bound<T: Decide>(
     size: crate::pcurve_cache::projected::NetSize,
     band: Band,
 ) -> Result<(), AnalyticRung3Refusal> {
-    let limit = |margin, terminal| AnalyticRung3Refusal::KernelLimit {
+    let limit = |margin| AnalyticRung3Refusal::KernelLimit {
         operand,
         bound: upper,
         margin,
         width: size.width,
         extent: size.extent,
-        terminal,
     };
     match crate::dihedral::decide_reported("ssi_hull_sup", geom_core::Margin::of(bound), band) {
         Ok(Decided {
             sign: Sign::Zero, ..
         }) => Ok(()),
-        Ok(Decided { margin, .. }) => Err(limit(margin, true)),
-        Err(cause) => Err(limit(cause.margin, cause.terminal_sliver)),
+        Ok(Decided { margin, .. }) => Err(limit(margin)),
+        Err(cause) => Err(limit(cause.margin)),
     }
 }
 
@@ -1885,11 +1916,20 @@ pub enum AnalyticRung3Refusal {
         /// The extent the bound was read over: the diagonal of the
         /// carrier's net's control box, in metres.
         extent: f64,
-        /// Whether no subdivision of the input decides the bound: the
-        /// classifier's terminal bit where it lay in the band
-        /// ([`Indeterminate::terminal_sliver`]), kept so the driver does
-        /// not retry it; `true` past the band.
-        terminal: bool,
+    },
+    /// **Limb 2 undecided at this input** — at an enclosure scalar, the
+    /// composite's enclosure `[0, upper]` of the carrier's distance from
+    /// the operand neither clears the band nor shows a measured miss
+    /// ([`limb2_enclosure`]). It claims no cause and no terminality: over
+    /// a parameter box a smaller box is the remedy and the drive bisects
+    /// it (E6), its escalation on the node's log. A floor measured inside
+    /// the band is not this: it escalates on the measured value
+    /// ([`Self::Escalated`] on [`Rung3Limb::HullValue`]).
+    Stalled {
+        /// The operand the bound is from.
+        operand: geom::SurfaceKind,
+        /// The classifier's diagnostic.
+        cause: Indeterminate,
     },
     /// A limb's margin escalated.
     Escalated {
@@ -1902,7 +1942,8 @@ pub enum AnalyticRung3Refusal {
     },
     /// No certified distance bound exists for the carrier against this
     /// operand: the composite or its metre conversion refused (on a
-    /// cone, a span reaching the apex's height or the other nappe).
+    /// cone, a part reaching the other nappe, or a window whose chart
+    /// sheet the composite cannot place).
     NoOffsetBound {
         /// The operand.
         operand: geom::SurfaceKind,
@@ -1948,17 +1989,6 @@ pub enum AnalyticRung3Refusal {
 }
 
 impl AnalyticRung3Refusal {
-    /// Whether no subdivision of the input decides this refusal: a
-    /// [`Self::KernelLimit`] past the band, or one in it whose enclosure
-    /// is a terminal sliver; `false` for every other refusal.
-    #[must_use]
-    pub fn terminal(&self) -> bool {
-        match self {
-            Self::KernelLimit { terminal, .. } => *terminal,
-            _ => false,
-        }
-    }
-
     fn of_offset(operand: geom::SurfaceKind, e: crate::PcurveCertifyError) -> Self {
         match e {
             crate::PcurveCertifyError::Escalated { cause, .. } => Self::Escalated {
@@ -2042,6 +2072,7 @@ impl AnalyticRung3Refusal {
                 RefusedArm::SignCertain(Some(*margin)),
             ),
             Self::Escalated { limb, cause, .. } => (limb.check(), RefusedArm::Undecided(cause)),
+            Self::Stalled { cause, .. } => (Rung3Limb::HullSup.check(), RefusedArm::Undecided(cause)),
             Self::TubeStraddles { verdict, .. } => (CertCheck::TransversalityTube, verdict.arm()),
             // The one-arc proof is the SSI door's own decision, and
             // `ending` reads it there.
@@ -2083,6 +2114,13 @@ impl core::fmt::Display for AnalyticRung3Refusal {
                  certificate cannot show the carrier stays on that surface at this tolerance",
                 Rung3Limb::HullSup.name(),
                 operand.name()
+            ),
+            Self::Stalled { operand, cause } => write!(
+                f,
+                "{} against the {} is undecided over this input: {}",
+                Rung3Limb::HullSup.name(),
+                operand.name(),
+                cause.payload()
             ),
             Self::Escalated {
                 operand,
@@ -3085,11 +3123,13 @@ mod tests {
 
     /// **A line against a plane is decided on its measured end value**
     /// (`measured_ends`): a line on one plane whose far end strays `d`
-    /// from a second plane certifies at `d = 0`, escalates on the measured
-    /// limb with `d` inside the band, and is a measured miss
-    /// ([`AnalyticRung3Refusal::Limb`]) with `d` just past `Kε`. Red under
-    /// a rule that reads the bound as the kernel's limit, or that decides
-    /// on a ratio of the bound over the net's width.
+    /// from a second plane certifies at `d = 0`, is undecided with `d`
+    /// inside the band (the ends straddle it, so the composite's own
+    /// refusal stands: at `Interval`, the undecided enclosure), and is
+    /// a measured miss ([`AnalyticRung3Refusal::Limb`]) with `d` just past
+    /// `Kε`. Red under a rule that reads the bound as the kernel's limit
+    /// at an enclosure scalar, or that decides on a ratio of the bound
+    /// over the net's width.
     #[test]
     fn a_line_against_a_plane_is_decided_on_its_measured_end_value() {
         use geom::{Curve3, Surface};
@@ -3121,9 +3161,8 @@ mod tests {
         assert!(
             matches!(
                 edge(5e-9),
-                Err(AnalyticRung3Refusal::Escalated {
-                    operand: Some(geom::SurfaceKind::Plane),
-                    limb: Rung3Limb::HullValue,
+                Err(AnalyticRung3Refusal::Stalled {
+                    operand: geom::SurfaceKind::Plane,
                     ..
                 })
             ),
@@ -3141,6 +3180,61 @@ mod tests {
             "{:?}",
             edge(1.0001e-8)
         );
+    }
+
+    /// **A line just past ε off its plane does not pass at `f64`**
+    /// (the dual review's MAJOR on the line-against-a-plane rule). The
+    /// plane through `(300.25, −700.5, 0)` with normal `(0.6, 0.8, 0)`,
+    /// and a line in it, at both ends, `1.0736e-12` m off it in exact
+    /// rational arithmetic on the stored `f64`s — past ε = 1e-12. Read
+    /// in round-to-nearest `f64`, `(p − o)·n/|n|` at those ends comes to
+    /// `9.663e-13`, inside the band, so an ends rule read at the scalar
+    /// passed the edge; read through the data's certified brackets it
+    /// cannot. The composite does not clear either (its bound encloses
+    /// the true distance), so the ends rule is what decides. Red under an
+    /// ends rule read in the scalar's own arithmetic at `f64`.
+    #[test]
+    fn a_line_just_past_epsilon_off_its_plane_does_not_pass_at_f64() {
+        use geom::{Curve3, Surface};
+        use geom_core::{Point3, Vec3};
+        let band = geom_core::Band::new(1e-12, 1e-11).unwrap();
+        let tilted = Surface::Plane {
+            origin: Point3::new(300.25, -700.5, 0.0),
+            normal: Vec3::new(0.6, 0.8, 0.0),
+            u_ref: Vec3::new(0.0, 0.0, 1.0),
+        };
+        let floor = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let line = Curve3::Line {
+            origin: Point3::new(-402.5061327433079, -173.4329004425178, 0.0),
+            dir: Vec3::new(-8.0, 6.0, 0.0),
+        };
+        // The f64 reading the old rule took sits inside the band.
+        for t in [0.0, 1.0] {
+            let p = line.eval(t);
+            let Surface::Plane { origin, normal, .. } = tilted else {
+                unreachable!()
+            };
+            let read = (p - origin).dot(normal).abs() / normal.norm();
+            assert!(
+                read <= band.zero(),
+                "the f64 reading at t = {t} is {read:e}"
+            );
+        }
+        let at_f64 = analytic_edge_limbs(&line, (0.0, 1.0), &tilted, &floor, band);
+        assert!(at_f64.is_err(), "f64: {at_f64:?}");
+        let lift = geom_core::Interval::from_f64;
+        let at_iv = analytic_edge_limbs(
+            &line.map_scalar(lift),
+            (lift(0.0), lift(1.0)),
+            &tilted.map_scalar(lift),
+            &floor.map_scalar(lift),
+            band,
+        );
+        assert!(at_iv.is_err(), "Interval: {at_iv:?}");
     }
 
     /// **Limb 2 over a parameter box, on its identity** (C2; fork row
@@ -3282,9 +3376,9 @@ mod tests {
     /// The line sits at height `a` and its floor at height `1`, so the
     /// two meet only at the box's nominal `a = 1`. The residual is
     /// `a − 1`, not the zero form, so nothing is proved; the enclosure
-    /// over the box does not clear, so limb 2 escalates on it, the
-    /// classifier's terminal bit false — a smaller box is the remedy —
-    /// and claims no kernel limit.
+    /// over the box does not clear, so limb 2 is undecided on it
+    /// ([`AnalyticRung3Refusal::Stalled`]), the classifier's terminal bit
+    /// false — a smaller box is the remedy — and claims no kernel limit.
     #[test]
     fn a_coincidence_at_the_nominal_only_does_not_certify_the_box() {
         let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
@@ -3300,16 +3394,14 @@ mod tests {
             };
             analytic_edge_limbs(&line, (lit(0.0), lit(1.0)), &floor, &wall(), band)
         });
-        let Err(AnalyticRung3Refusal::Escalated {
-            operand: Some(geom::SurfaceKind::Plane),
+        let Err(AnalyticRung3Refusal::Stalled {
+            operand: geom::SurfaceKind::Plane,
             cause,
-            ..
         }) = &result
         else {
-            panic!("a coincidence at the nominal escalates over the box: {result:?}");
+            panic!("a coincidence at the nominal is undecided over the box: {result:?}");
         };
         assert!(!cause.terminal_sliver, "{cause:?}");
-        assert!(!result.as_ref().unwrap_err().terminal());
         assert!(
             limb2.iter().all(|d| !d.proven),
             "nothing is proved: {limb2:?}"

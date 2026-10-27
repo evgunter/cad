@@ -1023,7 +1023,7 @@ pub(crate) enum Subdivided<P = ()> {
 /// **Limb 2, subdivided until it decides** (C2.2), for every door that
 /// states it: the search's two arms here, and the analytic rung-3
 /// certificate's distance bound
-/// ([`crate::pcurve_cache::projected::net_offset_sup`]). `hull` builds a
+/// ([`crate::pcurve_cache::limb2_offset_sup`]). `hull` builds a
 /// round's hull with its argument's breaks added. The composite's
 /// uncleared spans are halved, worst bound first, round by round, until
 /// its bound clears the band's zero, or a break's certified value lies

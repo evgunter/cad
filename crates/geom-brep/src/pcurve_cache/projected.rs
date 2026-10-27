@@ -72,7 +72,7 @@
 //! `INCIDENCE_CUTS` parts in the composite's own ring
 //! (`CurveCertData::with_breaks`; the net itself is never refined
 //! through an `f64` plan, which would re-round it), and further halved
-//! by the edge certificate's limb 2 (`net_offset_sup`). The conversion
+//! by the edge certificate's limb 2 (`limb2_offset_sup`). The conversion
 //! divides `|f|` by a lower bound on `|∇f|` along the segment from the
 //! point to its nearest point on the chart, so each is tight to first
 //! order: `|f|` on the plane;

@@ -1353,7 +1353,8 @@ impl SymNode {
     }
 
     /// The free indeterminate this node's form IS, where it is one —
-    /// a parameter, an opaque value or a hull — and `None` for every
+    /// a parameter, an opaque value, a limb identity's free parameter
+    /// ([`SymOp::Free`]) or a hull — and `None` for every
     /// other op, whose form is built from its children's.
     fn free_indet(&self) -> Option<u128> {
         match self.op {
@@ -2525,7 +2526,7 @@ struct Session {
     /// Every opaque atom minted so far, by its indeterminate id.
     atoms: IndetMap<AtomInfo>,
     /// **The free indeterminates this session's table names** — the
-    /// key of each `Param`, `Opaque` and `Hull` node it recorded,
+    /// key of each `Param`, `Opaque`, `Free` and `Hull` node it recorded,
     /// written as the node is interned. Every other non-atom
     /// indeterminate a form carries is an unknown the session cannot
     /// see into: a node the walk froze, or one minted outside the
@@ -4535,7 +4536,7 @@ fn any_indet(sess: &Session, form: &Form, mut hit: impl FnMut(u128) -> bool) -> 
 }
 
 /// **Whether `x` is a free indeterminate this session can name** — π,
-/// or the key of a `Param`, `Opaque` or `Hull` node in its table
+/// or the key of a `Param`, `Opaque`, `Free` or `Hull` node in its table
 /// ([`Session::free`]). An indeterminate that is neither this nor an
 /// atom stands for structure the session cannot see.
 fn names_free(sess: &Session, x: u128) -> bool {

@@ -3463,7 +3463,8 @@ mod limb2_memo {
     /// How many rounds the memo holds before it is cleared.
     pub(super) const CAPACITY: usize = 4096;
 
-    type Round = Result<(projected::ProjectedHull, projected::NetSize), PcurveCertifyError>;
+    pub(super) type Round =
+        Result<(projected::ProjectedHull, projected::NetSize), PcurveCertifyError>;
 
     std::thread_local! {
         static MEMO: core::cell::RefCell<std::collections::HashMap<(String, Vec<u64>), Round>> =
@@ -13072,9 +13073,9 @@ mod check_4_class_rows {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod limb2_memo_rows {
-    use super::{limb2_memo, limb2_offset_sup};
+    use super::{PcurveCertifyError, limb2_memo, limb2_offset_sup};
     use geom::{Curve3, Surface};
-    use geom_core::{Band, Point3, Vec3};
+    use geom_core::{Band, Point3, Real, Vec3};
 
     fn rim(radius: f64) -> (Curve3<f64>, Surface<f64>) {
         let rim = Curve3::Circle {
@@ -13092,31 +13093,43 @@ mod limb2_memo_rows {
         (rim, wall)
     }
 
-    /// **A memo hit is the fresh compute, bit for bit; a changed input
-    /// misses.** The same rim against the same wall read three times:
-    /// cold (every round a miss), warm (every round a hit) and cold
-    /// again after the memo is emptied; the three readings render
-    /// identically, `f64` bits included. A rim a ulp wider is a key the
-    /// memo has not seen, so its first read misses. Red under a key that
+    /// **A memo hit is the fresh compute, bit for bit, and every input
+    /// the key holds misses when it changes.** The same rim against the
+    /// same wall read cold (every round a miss), warm (every round a hit)
+    /// and cold again after the memo is emptied render identically, `f64`
+    /// bits included. Each key input then changed alone, after a warm
+    /// read of the base, must miss: the carrier (a ulp wider), the
+    /// surface (a ulp wider), the window, the band, the cuts (asked of
+    /// the memo directly), and the decoration (an `Interval` radius with
+    /// the base's ends that does not certify). And the one sharing the
+    /// key allows: `Sym<Interval>` reads `Interval`'s rounds as hits, and
+    /// its reading's `f64` fields are `Interval`'s. Red under a key that
     /// leaves out an input the round reads, or a memo that returns a
     /// neighbour's round.
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn a_hit_is_the_fresh_compute_and_a_changed_input_misses() {
+        use geom_core::spline::SpanLocate as _;
+        use geom_core::{Interval, Sym};
         let band = Band::new(1e-9, 1e-8).unwrap();
-        let read = |radius: f64| {
-            let (c, s) = rim(radius);
-            format!("{:?}", limb2_offset_sup(&c, (0.2, 2.9), &s, band))
+        let read = |radius: f64, wall: f64, window: (f64, f64), band: Band| {
+            let (c, mut s) = rim(radius);
+            if let Surface::Cylinder { ref mut radius, .. } = s {
+                *radius = wall;
+            }
+            format!("{:?}", limb2_offset_sup(&c, window, &s, band))
         };
+        let base = || read(1.25, 1.25, (0.2, 2.9), band);
         limb2_memo::clear();
         let (h0, m0) = limb2_memo::counts();
-        let cold = read(1.25);
+        let cold = base();
         let (h1, m1) = limb2_memo::counts();
         assert!(
             m1 > m0 && h1 == h0,
             "a cold read misses: {:?}",
             (h1 - h0, m1 - m0)
         );
-        let warm = read(1.25);
+        let warm = base();
         let (h2, m2) = limb2_memo::counts();
         assert!(
             h2 > h1 && m2 == m1,
@@ -13125,10 +13138,116 @@ mod limb2_memo_rows {
         );
         assert_eq!(warm, cold, "a hit is the miss's bits");
         limb2_memo::clear();
-        assert_eq!(read(1.25), cold, "a recompute is the same bits");
-        let (_, m3) = limb2_memo::counts();
-        let _ = read(1.25f64.next_up());
-        let (_, m4) = limb2_memo::counts();
-        assert!(m4 > m3, "a changed carrier misses");
+        assert_eq!(base(), cold, "a recompute is the same bits");
+        let misses = |what: &str, f: &dyn Fn()| {
+            let _ = base();
+            let (_, before) = limb2_memo::counts();
+            f();
+            let (_, after) = limb2_memo::counts();
+            assert!(after > before, "a changed {what} misses");
+        };
+        misses("carrier", &|| {
+            let _ = read(1.25f64.next_up(), 1.25, (0.2, 2.9), band);
+        });
+        misses("surface", &|| {
+            let _ = read(1.25, 1.25f64.next_up(), (0.2, 2.9), band);
+        });
+        misses("window", &|| {
+            let _ = read(1.25, 1.25, (0.2, 2.8), band);
+        });
+        misses("band", &|| {
+            let _ = read(1.25, 1.25, (0.2, 2.9), Band::new(1e-10, 1e-9).unwrap());
+        });
+        let (c, s) = rim(1.25);
+        let key = limb2_memo::Key::of(&c, (0.2, 2.9), &s, band);
+        let round = || -> super::limb2_memo::Round {
+            Err(PcurveCertifyError::UnsupportedChart { chart: s.kind() })
+        };
+        let _ = limb2_memo::read(&key, &[0.5], round);
+        let (_, before) = limb2_memo::counts();
+        let _ = limb2_memo::read(&key, &[0.5], round);
+        let _ = limb2_memo::read(&key, &[0.6], round);
+        let (_, after) = limb2_memo::counts();
+        assert_eq!(after, before + 1, "the same cuts hit and changed cuts miss");
+        // The decoration: the same ends, certified and not.
+        let lift = Interval::from_f64;
+        let iv = |radius: Interval| {
+            let (c, s) = rim(1.25);
+            let c = match c.map_scalar(lift) {
+                Curve3::Circle {
+                    center,
+                    axis,
+                    u_ref,
+                    ..
+                } => Curve3::Circle {
+                    center,
+                    axis,
+                    radius,
+                    u_ref,
+                },
+                _ => unreachable!(),
+            };
+            format!(
+                "{:?}",
+                limb2_offset_sup(&c, (lift(0.2), lift(2.9)), &s.map_scalar(lift), band)
+            )
+        };
+        let certified = lift(1.25);
+        let uncertified = Interval::from_bounds(-1.0, 1.5625)
+            .sqrt()
+            .clip_to(1.25, 1.25);
+        assert!(!uncertified.is_certified());
+        let _ = iv(certified);
+        let (_, before) = limb2_memo::counts();
+        let _ = iv(uncertified);
+        let (_, after) = limb2_memo::counts();
+        assert!(after > before, "a changed decoration misses");
+        // `Sym<Interval>` shares `Interval`'s rounds, and reads the same.
+        let at_iv = iv(certified);
+        let (hits, misses_before) = limb2_memo::counts();
+        let sym = geom_core::sym::with_session(
+            geom_core::SymBudget {
+                max_terms: 64,
+                max_degree: 8,
+            },
+            || {
+                let lift = |x: f64| <Sym<Interval> as Real>::from_f64(x);
+                let (c, s) = rim(1.25);
+                let read = limb2_offset_sup(
+                    &c.map_scalar(lift),
+                    (lift(0.2), lift(2.9)),
+                    &s.map_scalar(lift),
+                    band,
+                )
+                .unwrap();
+                (
+                    read.upper.to_bits(),
+                    read.size.width.to_bits(),
+                    read.size.rounding.to_bits(),
+                )
+            },
+        )
+        .0;
+        let (hits_after, misses_after) = limb2_memo::counts();
+        assert!(
+            hits_after > hits && misses_after == misses_before,
+            "Sym reads Interval's rounds"
+        );
+        let r = limb2_offset_sup(
+            &rim(1.25).0.map_scalar(lift),
+            (lift(0.2), lift(2.9)),
+            &rim(1.25).1.map_scalar(lift),
+            band,
+        )
+        .unwrap();
+        assert_eq!(
+            sym,
+            (
+                r.upper.to_bits(),
+                r.size.width.to_bits(),
+                r.size.rounding.to_bits()
+            ),
+            "{at_iv}"
+        );
     }
 }

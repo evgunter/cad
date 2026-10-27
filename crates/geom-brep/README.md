@@ -141,11 +141,15 @@ value at a break refuses as a miss. A line against a plane is distant
 from it by a function affine along it, whose sup is at an end, so a
 reading that neither clears nor shows a miss there is decided on the
 two ends' measured distances, `(p − o)·n` over `|n|` in certification
-arithmetic: both in the band certify the edge, one past it is a miss,
-and one the band cannot decide escalates. At an enclosure scalar a bound that stalls is
-undecided at that input, and over a parameter box the drive bisects it
-(E6); the refusal carries the enclosure and claims no cause and no
-terminality. Against
+arithmetic at every scalar (the data and the ends' parameters lifted
+through their certified brackets): both in the band certify the edge,
+one past it is a miss, and ends the band cannot decide leave the
+composite's own refusal standing. At an enclosure scalar a bound that
+stalls is undecided at that input (`AnalyticRung3Refusal::Stalled`),
+and over a parameter box the drive bisects it (E6); the refusal carries
+the enclosure and claims no cause and no terminality. A floor measured
+inside the band is not a stall: it escalates on the measured value, the
+classifier's terminal bit kept. Against
 an analytic operand
 the value at a break is limb 1's residual, a measured miss: at the edge
 certificate it is the carrier's distance from the surface, bounded

@@ -11,10 +11,12 @@
 //! **At an enclosure scalar the same stall is an escalation** (fork row
 //! 203): limb 2 decides the enclosure `[floor, upper]` of the carrier's
 //! distance there, and an upper bound that stalls past the band is that
-//! decision's `Indeterminate`, refused as
-//! `AnalyticRung3Refusal::Escalated` on `HullSup` with no cause and no
-//! terminality claimed. A fixture pinned to the kernel limit reads
-//! either: the limit at a point scalar, the stall at an enclosure one.
+//! decision's `Indeterminate`, refused as `AnalyticRung3Refusal::Stalled`
+//! with no cause and no terminality claimed — a variant of its own, which
+//! limb 2 alone mints and only at an enclosure scalar, so no other
+//! escalation (a cone's nappe, a chart's lever) reads as it. A fixture
+//! pinned to the kernel limit reads either: the limit at a point scalar,
+//! the stall at an enclosure one.
 
 #![allow(clippy::panic)]
 
@@ -26,27 +28,25 @@ const DEBUG_MARK: &str = "AnalyticRung3(KernelLimit {";
 /// The `Display` phrase of the refusal.
 const DISPLAY_MARK: &str = "does not clear the run tolerance";
 
-/// The `Debug` marks of the stall at an enclosure scalar: limb 2's
-/// escalation on its distance bound.
-const STALL_MARKS: [&str; 2] = ["AnalyticRung3(Escalated {", "limb: HullSup"];
+/// The `Debug` mark of the stall at an enclosure scalar.
+const STALL_MARK: &str = "AnalyticRung3(Stalled {";
 
 /// The `Display` phrase of the stall at an enclosure scalar.
-const STALL_DISPLAY: &str = "limb 2 (control-hull sup-norm bound) against the";
+const STALL_DISPLAY: &str = "is undecided over this input";
 
 /// Whether `refusal` holds limb 2's kernel limit, or at an enclosure
 /// scalar its stall (module docs), read off its `Debug` rendering.
 #[must_use]
 pub fn is_kernel_limit(refusal: &dyn Debug) -> bool {
     let text = format!("{refusal:?}");
-    text.contains(DEBUG_MARK) || STALL_MARKS.iter().all(|m| text.contains(m))
+    text.contains(DEBUG_MARK) || text.contains(STALL_MARK)
 }
 
 /// Whether a refusal's sentence is limb 2's kernel limit, or at an
 /// enclosure scalar its stall (module docs).
 #[must_use]
 pub fn says_kernel_limit(sentence: &str) -> bool {
-    sentence.contains(DISPLAY_MARK)
-        || (sentence.contains(STALL_DISPLAY) && sentence.contains("escalated"))
+    sentence.contains(DISPLAY_MARK) || sentence.contains(STALL_DISPLAY)
 }
 
 /// Whether `eps` is one of `rows` (each read to a part in a thousand).
@@ -140,7 +140,7 @@ pub fn pinned_row(
     match crate::panic_capture::caught(f) {
         Some(message) => assert!(
             message.contains(DEBUG_MARK)
-                || STALL_MARKS.iter().all(|m| message.contains(m))
+                || message.contains(STALL_MARK)
                 || says_kernel_limit(&message),
             "{what}: pinned to stop on limb 2's kernel limit at ε = {eps:e}, it stopped otherwise: \
              {message}"

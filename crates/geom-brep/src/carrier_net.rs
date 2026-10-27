@@ -327,16 +327,29 @@ fn span_basis_of(alpha: &Alpha, a: f64, b: f64) -> SpanBasis {
 }
 
 /// [`span_basis_of`] through a bounded thread-local memo keyed by `α`'s
-/// data and the span's ends, bit for bit: a pure function of them, so a
-/// hit is the bits a miss computes, and an entry left from another
-/// carrier with the same `α` and span is that key's basis.
+/// data and the span's ends, bit for bit — each datum as its certified
+/// bracket's two ends, or as uncertified, so a datum that does not
+/// certify never shares a certified twin's key (the decoration is part
+/// of what the basis reads: an uncertified datum makes an uncertified
+/// basis, which the net refuses). A pure function of the key, so a hit
+/// is the bits a miss computes, and an entry left from another carrier
+/// with the same `α` and span is that key's basis.
 fn span_basis(alpha: &Alpha, a: f64, b: f64) -> SpanBasis {
     const CAPACITY: usize = 4096;
     std::thread_local! {
         static MEMO: core::cell::RefCell<std::collections::HashMap<[u64; 9], SpanBasis>> =
             core::cell::RefCell::new(std::collections::HashMap::new());
     }
-    let ends = |x: Interval| [Bounds::lo(x).to_bits(), Bounds::hi(x).to_bits()];
+    // The certified bracket's ends, or a word no bracket end takes
+    // (a NaN's bits, never a bracket end) where the datum does not
+    // certify.
+    let ends = |x: Interval| {
+        use geom_core::CertifiedEnclosure as _;
+        x.certified_bracket()
+            .map_or([u64::MAX, u64::MAX], |(lo, hi)| {
+                [lo.to_bits(), hi.to_bits()]
+            })
+    };
     let key = match alpha {
         Alpha::Cos => [0, 0, 0, 0, 0, 0, 0, a.to_bits(), b.to_bits()],
         Alpha::Spiric {
@@ -782,6 +795,59 @@ fn enclosing_net<T: CertifiedBounds>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
+    /// **The basis memo keys on certification** (the dual review's
+    /// MINOR on its key). A spiric whose major radius does not certify
+    /// (`Trv`, a domain violation upstream) with the same bracket ends as
+    /// a certified twin: read cold, its basis carries the violation;
+    /// read warm, on a thread that has just read the certified twin, it
+    /// must be the same bits, decoration included, and never the twin's.
+    /// Red under a key over the bracket's ends alone.
+    #[test]
+    fn the_basis_memo_never_hands_an_uncertified_datum_a_certified_basis() {
+        use super::{Alpha, span_basis, span_basis_of};
+        use geom_core::spline::SpanLocate as _;
+        let certified = Interval::from_bounds(1.2, 1.2);
+        // `√[−1, 1.44]` is `[0, 1.2]` with the domain violation kept,
+        // clamped to the twin's ends.
+        let uncertified = Interval::from_bounds(-1.0, 1.44).sqrt().clip_to(1.2, 1.2);
+        assert!(certified.is_certified() && !uncertified.is_certified());
+        assert_eq!(
+            (certified.lo(), certified.hi()),
+            (uncertified.lo(), uncertified.hi())
+        );
+        let spiric = |major| Alpha::Spiric {
+            major,
+            minor: Interval::from_bounds(0.225, 0.225),
+            offset: Interval::from_bounds(0.05, 0.05),
+        };
+        let bits = |b: &super::SpanBasis| -> Vec<(u64, u64, u8)> {
+            b.at_node
+                .0
+                .iter()
+                .chain(&b.at_node.1)
+                .chain(&b.over_span.0)
+                .chain(&b.over_span.1)
+                .map(|c| c.repr_bits())
+                .collect()
+        };
+        let (a, b) = (0.31, 0.47);
+        let cold = bits(&span_basis_of(&spiric(uncertified), a, b));
+        assert!(
+            span_basis_of(&spiric(uncertified), a, b)
+                .at_node
+                .0
+                .iter()
+                .any(|c| !c.is_certified()),
+            "the uncertified datum's basis carries the violation"
+        );
+        let _ = span_basis(&spiric(certified), a, b);
+        let warm = bits(&span_basis(&spiric(uncertified), a, b));
+        assert_eq!(
+            warm, cold,
+            "a warm read is the cold read, decoration included"
+        );
+    }
+
     /// **The shared basis changes no bit of the net.** Each span's
     /// coefficients through [`super::span_basis`] (memoised, shared by
     /// the coordinates) against the expansion written out per
