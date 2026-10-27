@@ -147,6 +147,10 @@ pub(super) struct Proposed<T: geom_core::Real> {
     pub(super) level: Option<(SurfaceKey, T)>,
 }
 
+/// A circle or ellipse arc on a boundary: its conic's centre and
+/// normal, and the arc's two ends.
+type ArcEnds<T> = (Point3<T>, Vec3<T>, Point3<T>, Point3<T>);
+
 /// A face as the depth gap reads it ([`face_read`]).
 pub(super) struct Read<T: geom_core::Real> {
     pub(super) surface: SurfaceKey,
@@ -154,9 +158,8 @@ pub(super) struct Read<T: geom_core::Real> {
     pub(super) depths: Vec<Proposed<T>>,
     /// The depth the face's own carrier proposes, where it proposes one.
     carrier: Option<Depth<T>>,
-    /// Every circle or ellipse arc on the boundary: its conic's centre
-    /// and normal, and the arc's two ends.
-    arcs: Vec<(Point3<T>, Vec3<T>, Point3<T>, Point3<T>)>,
+    /// Every circle or ellipse arc on the boundary.
+    arcs: Vec<ArcEnds<T>>,
 }
 
 fn point_piece<T: Decide>(p: Point3<T>) -> Piece<T> {
