@@ -229,7 +229,7 @@ fn a_pole_struts_halves_face_their_own_meridians() {
         for k in 0..60 {
             let t = (f64::from(k) + 0.5) / 60.0;
             let (y, ring) = (1.0 - 2.0 * t, (1.0 - (1.0 - 2.0 * t).powi(2)).sqrt());
-            let phi = f64::from(k) * PI * (3.0 - 5f64.sqrt());
+            let phi = f64::from(k) * geom_core::GOLDEN_ANGLE;
             let dir = geom_core::Vec3::new(ring * phi.cos(), y, ring * phi.sin());
             for radius in [r - 2e-3, r + 2e-3] {
                 let q = geom_core::Point3::origin() + dir * radius;

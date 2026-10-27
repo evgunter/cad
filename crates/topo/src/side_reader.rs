@@ -258,8 +258,8 @@ impl<V> SideUnread<V> {
 type Aim<T> = (Point3<T>, Vec3<T>);
 
 /// **Where a ray aimed at `face` aims**, and the face's outward normal
-/// there. A planar face whose outer loop is all lines and circle arcs
-/// aims at a weighted mean of its points ([`loop_aim`]), which asks
+/// there. A planar face whose every edge is a line or a circle arc aims at
+/// a point stepped in from its first edge ([`loop_aim`]), which asks
 /// nothing: the ray meets the edges it passes, however near, and crosses
 /// the face by the turn of its loops ([`ray_crossings`]). Another planar
 /// face aims at a point certified strictly inside it
@@ -271,9 +271,10 @@ type Aim<T> = (Point3<T>, Vec3<T>);
 /// fixed point of their charts; none of these needs to lie inside the
 /// face: the ray's start lies beyond every face whatever it aims at, so
 /// its count reads the side wherever it lands, and an aim off the face
-/// only steers it. A curved aim lies on its surface by construction, so
-/// its normal is the chart's, read without certifying the aim onto the
-/// surface, except a cone's (below). A cylinder or cone face whose
+/// only steers it. A cylinder's or a sphere's aim lies on its surface by
+/// construction, so its normal is the chart's, read without certifying
+/// the aim onto the surface; a torus's and a cone's are their face's
+/// reader's (below). A cylinder or cone face whose
 /// region cannot be read ([`FaceGeo::PartialWall`],
 /// [`FaceGeo::PartialCone`]) has no window to aim in and offers none. A
 /// spline offers none: a selection holding one casts no ray
@@ -291,7 +292,7 @@ fn aim_at<T: Decide>(
 ) -> Result<Option<Aim<T>>, PointInSolidError> {
     match face_plane(body, face) {
         Ok((_, normal)) => {
-            if let Some(aim) = loop_aim(body, face) {
+            if let Some(aim) = loop_aim(body, face, normal) {
                 return Ok(Some((aim, normal)));
             }
             return Ok(
@@ -324,14 +325,18 @@ fn aim_at<T: Decide>(
         FaceGeo::Sphere { .. } => surface.eval(T::from_f64(1.0), T::from_f64(0.3)),
         _ => return Ok(None),
     };
-    // A cylinder's, a sphere's or a ring torus's aim lies on its surface
-    // by construction, where the chart's gradient is its unit normal: the
-    // aim only steers, so nothing certifies it onto the surface. A cone's
-    // gradient is unit everywhere off its axis and undefined at its apex,
-    // so its face's own reader gives the normal, and a normal it cannot
-    // give (an in-band residual, an apex) leaves no incidence to aim at:
-    // the face offers none.
-    if let FaceGeo::Cone { .. } = *geo {
+    // A cylinder's or a sphere's aim lies on its surface by construction,
+    // where the chart's gradient is its unit normal: the aim only steers,
+    // so nothing certifies it onto the surface. A torus's chart is singular
+    // outside the ring convention, which nothing here has asked of it, and
+    // a cone's gradient is unit everywhere off its axis and undefined at
+    // its apex, so for those two the face's own reader gives the normal,
+    // and a normal it cannot give (an in-band residual, a horn or spindle
+    // torus, an apex) leaves no incidence to aim at: the face offers none.
+    if matches!(
+        *geo,
+        FaceGeo::Cone { .. } | FaceGeo::Torus { .. } | FaceGeo::TorusPatch { .. }
+    ) {
         return Ok(
             crate::face_normal::face_outward_normal_at(body, face, aim, band)
                 .ok()
@@ -346,57 +351,53 @@ fn aim_at<T: Decide>(
     )))
 }
 
-/// **Where a ray aimed at planar `face` aims**, where every edge of its
-/// outer loop is a line or a circle arc: a mean of the loop's points,
-/// each vertex and each arc's point at the golden section of its span
-/// ([`geom_core::GOLDEN_SECTION`]), the `k`th in walk order weighted by
-/// `2 + cos(k·g)`, `g` the golden angle ([`geom_core::GOLDEN_ANGLE`]).
-/// The plain mean of a symmetric loop is its centre, which can be a
-/// vertex of it (an L whose arms match) or a point its edges' carriers
-/// pass through (a disc's axis). The weighted one is no symmetry's
-/// point: `cos g` is transcendental, so no sum of the weights with
-/// rational coefficients vanishes, as sums of the golden section's
-/// fractional multiples can (`frac(g) + frac(2g) = frac(3g)`). It asks
-/// nothing, and the ray crosses the face edge by edge or by the turn of
-/// its loops however near an edge it lands ([`ray_crossings`]). `None`
-/// for a loop with another edge, or one that does not walk.
-fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Point3<T>> {
-    // Not `face_edges`: the mean is the outer loop's, and that walks the rings too.
+/// **Where a ray aimed at planar `face` aims**, where every edge of it is
+/// a line or a circle arc, found by evaluation alone: the point `m` of the
+/// outer loop's first edge (in walk order, so a body rebuilt with another
+/// first half-edge aims elsewhere) at the golden section of its span
+/// ([`geom_core::GOLDEN_SECTION`]), stepped into the face along
+/// `normal × τ` ([`crate::stands::inward`]) by half a lower bound on `m`'s
+/// distance from every other edge of every loop
+/// ([`crate::boolean::solid_contain::edge_clearance`]), and
+/// by at most half its own arc's radius. The step's path meets no edge,
+/// so the aim lies in the face, off its middles and its boundary; a face
+/// narrower than the rounding there steps nowhere, and its aim only
+/// steers. It asks nothing, and the ray crosses the face edge by edge or
+/// by the turn of its loops however near an edge it lands
+/// ([`ray_crossings`]). `None` for a face with another edge, or one whose
+/// outer loop has none.
+fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option<Point3<T>> {
+    let edges = crate::boolean::solid_contain::face_edges(body, face).ok()?;
     let outer = body.get_face(face)?.outer;
-    let first = match body.get_loop(outer)?.boundary {
-        LoopBoundary::Cycle { first } => first,
-        // An outer loop with no edge has no points to take the mean of;
-        // the certified interior point, asked next, reads the same face.
-        LoopBoundary::Empty { .. } => return None,
-    };
-    let origin = Point3::new(T::zero(), T::zero(), T::zero());
-    let (mut sum, mut total, mut k) = (Vec3::zero(), T::zero(), 0_u32);
-    let mut add = |p: Point3<T>| {
-        let w = T::from_f64(2.0 + (f64::from(k) * geom_core::GOLDEN_ANGLE).cos());
-        sum = sum + (p - origin) * w;
-        total = total + w;
-        k += 1;
-    };
-    for h in body.loop_walk(first).closed("loop", first) {
-        let he = body.get_half_edge(h)?;
-        add(*body.get_point(body.get_vertex(he.start)?.point)?);
-        let edge = body.get_edge(he.edge)?;
-        let curve = body.get_curve_geom(edge.curve)?.certified()?;
-        match *curve.carrier() {
-            geom::Curve3::Line { .. } => {}
-            geom::Curve3::Circle { .. } => {
-                let (t0, t1) = curve.params();
-                let f = if edge.he_plus == h {
-                    geom_core::GOLDEN_SECTION
-                } else {
-                    1.0 - geom_core::GOLDEN_SECTION
-                };
-                add(curve.carrier().eval(t0 + (t1 - t0) * T::from_f64(f)));
-            }
-            _ => return None,
-        }
+    let first = *edges.first()?;
+    if body.get_half_edge(first.half)?.parent_loop != outer {
+        return None;
     }
-    Some(origin + sum / total)
+    let curve = |e: crate::entity::EdgeKey| {
+        body.get_edge(e)
+            .and_then(|ed| body.get_curve_geom(ed.curve))
+            .and_then(crate::null::CurveGeom::certified)
+    };
+    let (m, tau) = crate::boolean::solid_contain::along_half(
+        body,
+        first.half,
+        1.0 - geom_core::GOLDEN_SECTION,
+    )?;
+    let half = T::from_f64(0.5);
+    let mut step = match *curve(first.edge)?.carrier() {
+        geom::Curve3::Line { .. } => None,
+        geom::Curve3::Circle { radius, .. } => Some(radius.abs() * half),
+        _ => return None,
+    };
+    for e in &edges {
+        if e.edge == first.edge || e.across == face {
+            continue;
+        }
+        let room = crate::boolean::solid_contain::edge_clearance(body, e, m)? * half;
+        step = Some(step.map_or(room, |s: T| s.min(room)));
+    }
+    let into = crate::stands::inward(normal, tau);
+    Some(m + into / into.norm() * step.unwrap_or(T::zero()).max(T::zero()))
 }
 
 /// **How far from `aim` any face of the selection reaches**: the loops'
@@ -492,8 +493,8 @@ fn aim_turn() -> (f64, f64) {
 /// inside out).
 ///
 /// **Aimed rays first.** Each face of the selection that offers an aim
-/// ([`aim_at`]: a planar face's weighted mean point where its edges are
-/// lines and circle arcs, another planar face's certified interior
+/// ([`aim_at`]: a point stepped into a planar face from its first edge
+/// where its edges are lines and circle arcs, another planar face's certified interior
 /// point, a point of a curved face's surface)
 /// is aimed at, in face order: the ray leaves from twice the
 /// selection's reach from that point, beyond every face, so its start

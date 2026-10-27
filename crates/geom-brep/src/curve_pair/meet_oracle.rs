@@ -114,7 +114,7 @@ fn about(rng: &mut fuzz::Rng, conic: bool, t: f64) -> (f64, f64) {
 /// The least of `f` over `[lo, hi]` by golden-section search: its
 /// argument and value.
 fn golden(mut lo: f64, mut hi: f64, f: impl Fn(f64) -> f64) -> (f64, f64) {
-    let g = (5f64.sqrt() - 1.0) / 2.0;
+    let g = geom_core::GOLDEN_SECTION;
     for _ in 0..80 {
         let (x1, x2) = (hi - g * (hi - lo), lo + g * (hi - lo));
         if f(x1) < f(x2) {

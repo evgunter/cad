@@ -427,7 +427,7 @@ fn forced_first_ray_graze_retries_deterministically() {
 #[test]
 fn sixteen_spoke_alignment_exhausts_ray_casting() {
     const RAY_BASE: f64 = 0.5;
-    const RAY_STEP: f64 = 2.399_963_229_728_653;
+    const RAY_STEP: f64 = geom_core::GOLDEN_ANGLE;
     let mut spokes: Vec<(f64, f64)> = (0..16)
         .map(|k| {
             let (s, c) = (RAY_BASE + (k as f64) * RAY_STEP).sin_cos();
