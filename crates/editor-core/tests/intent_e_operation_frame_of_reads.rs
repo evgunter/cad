@@ -154,13 +154,63 @@ fn twist() -> ComputingTwist {
     }
 }
 
-/// What one node is, read where it stands in its space: its standing,
-/// and for a body each name's points; for a measure its value; for an
-/// assertion its verdict's side.
+/// **Text with every float masked**: a refusal, a verdict or a census
+/// finding compared whole, its words, keys, counts and variants, while
+/// the numbers a frame's rounding moves (margins, witnesses) read `#`.
+/// An integer (a key's index, a count) is kept: only a token with a
+/// decimal point or an exponent is masked.
+fn masked(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = String::with_capacity(text.len());
+    let mut i = 0;
+    while i < chars.len() {
+        let starts = chars[i].is_ascii_digit()
+            || (chars[i] == '-' && chars.get(i + 1).is_some_and(char::is_ascii_digit));
+        let after_word = i > 0 && (chars[i - 1].is_alphanumeric() || chars[i - 1] == '_');
+        if starts && !after_word {
+            let mut j = i + 1;
+            while j < chars.len()
+                && (chars[j].is_ascii_digit()
+                    || chars[j] == '.'
+                    || ((chars[j] == 'e' || chars[j] == 'E')
+                        && chars
+                            .get(j + 1)
+                            .is_some_and(|c| c.is_ascii_digit() || *c == '-'))
+                    || ((chars[j] == '-' || chars[j] == '+') && matches!(chars[j - 1], 'e' | 'E')))
+            {
+                j += 1;
+            }
+            let token: String = chars[i..j].iter().collect();
+            if token.contains('.') || token.contains('e') || token.contains('E') {
+                out.push('#');
+            } else {
+                out.push_str(&token);
+            }
+            i = j;
+        } else {
+            out.push(chars[i]);
+            i += 1;
+        }
+    }
+    out.replace("NaN", "#").replace("inf", "#")
+}
+
+/// A named entity where it stands in its space: its points, and for a
+/// face its carrier's kind, distinguished point, principal direction and
+/// sense (`topo::readback::face_pose`), where the carrier has one.
+#[derive(Debug)]
+struct Named {
+    points: Vec<[f64; 3]>,
+    surface: Option<(String, [f64; 3], [f64; 3], bool)>,
+}
+
+/// What one node is, read where it stands in its space: its standing
+/// (a refusal whole), and for a body each name's points and each face's
+/// carrier; for a measure its value; for an assertion its verdict whole.
 #[derive(Debug)]
 enum Reading {
-    Refused(String),
-    Bodies(Vec<BTreeMap<String, Vec<[f64; 3]>>>),
+    Refused { class: String, whole: String },
+    Bodies(Vec<BTreeMap<String, Named>>),
     Measure(f64),
     Verdict(String),
     Other(&'static str),
@@ -170,10 +220,16 @@ fn reading(ev: &Evaluation<f64>, node: RecipeNodeId) -> Option<Reading> {
     let value = match ev.result(node)? {
         NodeResult::Ok(value) => value,
         other => {
-            return Some(Reading::Refused(match ev.node_error(node) {
-                Some(e) => format!("{:?}", e.kind.class()),
-                None => format!("{:?}", core::mem::discriminant(other)),
-            }));
+            return Some(match ev.node_error(node) {
+                Some(e) => Reading::Refused {
+                    class: format!("{:?}", e.kind.class()),
+                    whole: masked(&format!("{:?}", e.kind)),
+                },
+                None => Reading::Refused {
+                    class: format!("{:?}", core::mem::discriminant(other)),
+                    whole: masked(&format!("{other:?}")),
+                },
+            });
         }
     };
     let bodies: Vec<&Framed<f64>> = match &value.payload {
@@ -190,9 +246,7 @@ fn reading(ev: &Evaluation<f64>, node: RecipeNodeId) -> Option<Reading> {
             .collect(),
         ValuePayload::Measure { value, .. } => return Some(Reading::Measure(*value)),
         ValuePayload::Assertion(verdict) => {
-            let said = format!("{verdict:?}");
-            let side = said.split([' ', '{', '(']).next().unwrap_or("").to_owned();
-            return Some(Reading::Verdict(side));
+            return Some(Reading::Verdict(masked(&format!("{verdict:?}"))));
         }
         other => return Some(Reading::Other(other.kind_name())),
     };
@@ -204,10 +258,16 @@ fn reading(ev: &Evaluation<f64>, node: RecipeNodeId) -> Option<Reading> {
             // A split's half reads its own output's table; every other
             // body indexes the node's one table.
             let (var, index) = ev.body_read_of(node, u32::from(i)).expect("a body's read");
-            let mut by_name: BTreeMap<String, Vec<[f64; 3]>> = BTreeMap::new();
+            let mut by_name: BTreeMap<String, Named> = BTreeMap::new();
             for (name, entry) in ev.table(var).expect("a table").iter() {
                 let Entry::Unique(e) = entry else {
-                    by_name.insert(format!("{name:?}"), Vec::new());
+                    by_name.insert(
+                        format!("{name:?}"),
+                        Named {
+                            points: Vec::new(),
+                            surface: None,
+                        },
+                    );
                     continue;
                 };
                 if e.body != index {
@@ -217,12 +277,25 @@ fn reading(ev: &Evaluation<f64>, node: RecipeNodeId) -> Option<Reading> {
                     let p = fixture::point(&placed, v);
                     [p.x, p.y, p.z]
                 };
-                let points = match e.key {
-                    EntityKey::Vertex(v) => vec![at(v)],
-                    EntityKey::Edge(k) => fixture::ends(&placed, k).map(at).to_vec(),
-                    EntityKey::Face(_) | EntityKey::Body => Vec::new(),
+                let (points, surface) = match e.key {
+                    EntityKey::Vertex(v) => (vec![at(v)], None),
+                    EntityKey::Edge(k) => (fixture::ends(&placed, k).map(at).to_vec(), None),
+                    EntityKey::Face(f) => {
+                        let kind = topo::readback::face_carrier_kind(&placed, f).ok();
+                        let pose = topo::readback::face_pose(&placed, f).ok();
+                        let surface = kind.zip(pose).map(|(kind, pose)| {
+                            (
+                                format!("{kind:?}"),
+                                [pose.origin.x, pose.origin.y, pose.origin.z],
+                                [pose.axis.x, pose.axis.y, pose.axis.z],
+                                pose.sense,
+                            )
+                        });
+                        (Vec::new(), surface)
+                    }
+                    EntityKey::Body => (Vec::new(), None),
                 };
-                by_name.insert(format!("{name:?}"), points);
+                by_name.insert(format!("{name:?}"), Named { points, surface });
             }
             by_name
         })
@@ -230,13 +303,16 @@ fn reading(ev: &Evaluation<f64>, node: RecipeNodeId) -> Option<Reading> {
     Some(Reading::Bodies(read))
 }
 
-/// Whether two readings agree: the same standing, the same names, every
-/// named point within `tol` once sorted (an edge's two ends are a set),
-/// measures within `tol` and the same verdicts.
+/// Whether two readings agree: the same standing and the same refusal
+/// whole, the same names, every named point within `tol` once sorted (an
+/// edge's two ends are a set), every face's carrier the same kind and
+/// sense with its point and direction within `tol`, measures within
+/// `tol` and the same verdicts whole.
 fn agree(a: &Reading, b: &Reading, tol: f64) -> Result<(), String> {
     let close = |p: &[f64; 3], q: &[f64; 3]| p.iter().zip(q).all(|(x, y)| (x - y).abs() <= tol);
     match (a, b) {
-        (Reading::Refused(x), Reading::Refused(y)) | (Reading::Verdict(x), Reading::Verdict(y)) => {
+        (Reading::Refused { whole: x, .. }, Reading::Refused { whole: y, .. })
+        | (Reading::Verdict(x), Reading::Verdict(y)) => {
             (x == y).then_some(()).ok_or_else(|| format!("{x} vs {y}"))
         }
         (Reading::Other(x), Reading::Other(y)) => {
@@ -255,9 +331,10 @@ fn agree(a: &Reading, b: &Reading, tol: f64) -> Result<(), String> {
                     let other: Vec<_> = by.keys().filter(|k| !bx.contains_key(*k)).collect();
                     return Err(format!("names differ: {only:?} vs {other:?}"));
                 }
-                for (name, px) in bx {
-                    let mut px = px.clone();
-                    let mut py = by[name].clone();
+                for (name, nx) in bx {
+                    let ny = &by[name];
+                    let mut px = nx.points.clone();
+                    let mut py = ny.points.clone();
                     // Ordered at a grid far coarser than the rounding, so
                     // two ends a rounding apart sort alike.
                     let grid = |a: &[f64; 3]| a.map(|c| (c * 1e6).round());
@@ -267,6 +344,17 @@ fn agree(a: &Reading, b: &Reading, tol: f64) -> Result<(), String> {
                     py.sort_by(order);
                     if px.len() != py.len() || !px.iter().zip(&py).all(|(p, q)| close(p, q)) {
                         return Err(format!("{name} stands at {px:?} vs {py:?}"));
+                    }
+                    let same = match (&nx.surface, &ny.surface) {
+                        (None, None) => true,
+                        (Some(x), Some(y)) => same_carrier(x, y, tol),
+                        _ => false,
+                    };
+                    if !same {
+                        return Err(format!(
+                            "{name}'s carrier reads {:?} vs {:?}",
+                            nx.surface, ny.surface
+                        ));
                     }
                 }
             }
@@ -282,24 +370,85 @@ fn agree(a: &Reading, b: &Reading, tol: f64) -> Result<(), String> {
     }
 }
 
+/// **Whether two face carriers are one surface where they stand**, by
+/// what the surface is rather than how its chart was minted (a chart's
+/// origin and pole follow the frame it was built in): a plane by its
+/// outward normal and offset, a sphere by its centre, a carrier about an
+/// axis (cylinder, cone, torus) by its axis line, direction up to sign;
+/// any other by its kind.
+fn same_carrier(
+    (kx, ox, ax, sx): &(String, [f64; 3], [f64; 3], bool),
+    (ky, oy, ay, sy): &(String, [f64; 3], [f64; 3], bool),
+    tol: f64,
+) -> bool {
+    let dot = |a: &[f64; 3], b: &[f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    let sub = |a: &[f64; 3], b: &[f64; 3]| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+    let near = |a: f64, b: f64| (a - b).abs() <= tol;
+    if kx != ky {
+        return false;
+    }
+    match kx.as_str() {
+        "Plane" => {
+            let side = |axis: &[f64; 3], sense: bool| {
+                let s = if sense { 1.0 } else { -1.0 };
+                axis.map(|c| s * c)
+            };
+            let (nx, ny) = (side(ax, *sx), side(ay, *sy));
+            nx.iter().zip(&ny).all(|(a, b)| near(*a, *b)) && near(dot(&nx, ox), dot(&ny, oy))
+        }
+        "Sphere" => ox.iter().zip(oy).all(|(a, b)| near(*a, *b)),
+        "Cylinder" | "Cone" | "Torus" => {
+            let parallel = near(dot(ax, ay).abs(), 1.0);
+            let off = sub(oy, ox);
+            let along = dot(&off, ax);
+            let across = sub(&off, &ax.map(|c| c * along));
+            parallel && near(dot(&across, &across).sqrt(), 0.0)
+        }
+        _ => true,
+    }
+}
+
+/// A document's product census as both runs gather it: every finding
+/// whole, its numbers masked, or the gather's refusal whole.
+fn census(doc: &ProfileDoc, ev: &Evaluation<f64>) -> Vec<String> {
+    match editor_core::product_recorded(doc, ev, Tol::witness()) {
+        Ok(product) => product
+            .census
+            .iter()
+            .map(|finding| masked(&format!("{finding:?}")))
+            .collect(),
+        Err(refusal) => vec![masked(&format!("gather refused: {refusal:?}"))],
+    }
+}
+
 /// **The computing frame is no part of meaning** (test 13). Every
 /// corpus document evaluated as built and again with every construction
-/// computed in a second frame — turned by an irrational angle about an
-/// irrational axis and translated, so every operation downstream computes
-/// in a frame that twist turned — reads the same: each node refuses or
-/// builds alike, every body stands where it stood in its space to the
-/// rounding of the frames, under the same names, every measure is the
-/// same number and every assertion the same verdict.
+/// computed in a second frame of its own — each its node's variation of
+/// a turn by an irrational angle about an irrational axis and a
+/// translation (`ComputingTwist::for_node`), a part's constructions
+/// too, so every operation downstream computes over operands in frames
+/// turned apart — reads the same:
+/// - each node refuses alike (the refusal compared whole) or builds
+///   alike, and a node with a result in one run has one in the other;
+/// - every body stands where it stood in its space to the rounding of
+///   the frames, under the same names, every face on the same carrier;
+/// - every measure is the same number and every assertion the same
+///   verdict, whole;
+/// - every document's product census finds the same findings.
 ///
 /// The one exception is a placed union's separation certificate, an
-/// axis-aligned box test, which refuses in the turned frame where it
+/// axis-aligned box test, which refuses in a turned frame where it
 /// certifies in the fins' own
 /// (`work/orbit/a-placed-unions-separation-certificate-depends-on-the-computing-axes.md`);
 /// it is named and counted.
 ///
-/// *Breaks if* an operation reads a body's coordinates as its space's
-/// without its frame (a copy or an operand lands elsewhere), or a minted
-/// reference follows the computing axes (a name changes).
+/// *Breaks if* an operation reads an operand's coordinates as its own
+/// computing frame's without `relative` (a measure, a union member, a
+/// gathered source lands elsewhere), a minted reference follows the
+/// computing axes (a name changes), or a census reads a frame's axes.
+/// Both reviewers' mutants of E — `wire_measure` reading an operand
+/// raw, and `Member::in_frame_of` returning a member unmapped — go red
+/// here.
 #[test]
 fn every_corpus_document_reads_alike_in_a_second_computing_frame() {
     let twisted = EvalOptions {
@@ -307,22 +456,34 @@ fn every_corpus_document_reads_alike_in_a_second_computing_frame() {
         ..EvalOptions::default()
     };
     let mut compared = 0usize;
-    let mut moved = 0usize;
     let mut apart: Vec<String> = Vec::new();
+    let mut unmoved: Vec<&str> = Vec::new();
     let mut uncertified: Vec<(&str, RecipeNodeId)> = Vec::new();
     for d in crate::corpus::documents() {
         let plain = run(&d.doc, None);
         let turned = evaluate::<f64>(&d.doc, None, &CancelToken::new(), &twisted, Tol::witness());
+        let mut bodies = 0usize;
+        let mut moved = 0usize;
         for node in d.doc.ids() {
-            let (Some(a), Some(b)) = (reading(&plain, node), reading(&turned, node)) else {
-                continue;
+            let (a, b) = match (reading(&plain, node), reading(&turned, node)) {
+                (None, None) => continue,
+                (Some(a), Some(b)) => (a, b),
+                (a, b) => {
+                    apart.push(format!(
+                        "{}: node {node:?} has a result in one run alone: {:?} vs {:?}",
+                        d.name,
+                        a.is_some(),
+                        b.is_some()
+                    ));
+                    continue;
+                }
             };
             // The one verdict outside the band a frame moves: a placed
             // union's separation certificate bounds each copy by an
-            // axis-aligned box, which the turned frame fattens
+            // axis-aligned box, which a turned frame fattens
             // (`work/orbit/a-placed-unions-separation-certificate-depends-on-the-computing-axes.md`).
             // Counted, so the exception cannot quietly grow.
-            if let (Reading::Bodies(_), Reading::Refused(class)) = (&a, &b)
+            if let (Reading::Bodies(_), Reading::Refused { class, .. }) = (&a, &b)
                 && class == "PlacementsUncertified"
             {
                 uncertified.push((d.name, node));
@@ -333,24 +494,46 @@ fn every_corpus_document_reads_alike_in_a_second_computing_frame() {
                     "{}: node {node:?} ({}) reads apart: {}",
                     d.name,
                     d.doc.node(node).map_or("?", crate::corpus::node_kind),
-                    why.chars().take(300).collect::<String>()
+                    why.chars().take(600).collect::<String>()
                 ));
             }
             compared += 1;
             if let (Some(p), Some(t)) = (plain.value(node), turned.value(node))
                 && let (ValuePayload::Body(p), ValuePayload::Body(t)) = (&p.payload, &t.payload)
-                && !Arc::ptr_eq(p.shared(), t.shared())
-                && p.relative(t).is_ok_and(|m| m.is_some())
             {
-                moved += 1;
+                bodies += 1;
+                if !Arc::ptr_eq(p.shared(), t.shared()) && p.relative(t).is_ok_and(|m| m.is_some())
+                {
+                    moved += 1;
+                }
             }
+        }
+        // The twist reached this document's operations: a document
+        // whose second run computed nothing in another frame compared
+        // itself with itself.
+        if bodies > 0 && moved == 0 {
+            unmoved.push(d.name);
+        }
+        // A document whose placed union is the named exception gathers
+        // over that refusal in the turned run; its census is not compared.
+        let excepted = uncertified.iter().any(|(name, _)| *name == d.name);
+        let (cx, cy) = (census(&d.doc, &plain), census(&d.doc, &turned));
+        if !excepted && cx != cy {
+            apart.push(format!(
+                "{}: the product census reads apart: {cx:?} vs {cy:?}",
+                d.name
+            ));
         }
     }
     assert!(
         apart.is_empty(),
-        "{} nodes read apart:\n{}",
+        "{} readings apart:\n{}",
         apart.len(),
         apart.join("\n")
+    );
+    assert!(
+        unmoved.is_empty(),
+        "documents with bodies none of which computed in another frame: {unmoved:?}"
     );
     assert_eq!(
         uncertified
@@ -360,10 +543,7 @@ fn every_corpus_document_reads_alike_in_a_second_computing_frame() {
         ["heat_sink_fins", "heat_sink_fins"],
         "the placed union and the copy reading it, alone: {uncertified:?}"
     );
-    // The twist reached the operations: a row whose second frame was the
-    // first would pass having compared a document with itself.
     assert!(compared > 100, "{compared} nodes compared");
-    assert!(moved > 20, "{moved} bodies computed in another frame");
 }
 
 /// **A value edit moves a frame, not a mesh** (§6, the viewer's

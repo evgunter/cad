@@ -536,6 +536,10 @@ pub(crate) struct PartStore<'a, T: Decide> {
     /// Whether the run binds every variable a symbol
     /// ([`super::EvalOptions::symbols`]), inherited for the same reason.
     symbols: bool,
+    /// The second computing frame ([`super::EvalOptions::computing_twist`]),
+    /// inherited so a part's constructions turn too (each by its own
+    /// node's [`super::ComputingTwist::for_node`]).
+    twist: Option<super::ComputingTwist>,
     rows: Rows<T>,
     /// How many referenced documents this store's descents evaluated,
     /// at every depth — the D-3 sharing evidence. A counter, not a
@@ -556,6 +560,7 @@ impl<'a, T: Decide> PartStore<'a, T> {
             eps_bits: tol.eps().to_bits(),
             boolean_sweep,
             symbols: false,
+            twist: None,
             rows: BTreeMap::new(),
             evaluations: 0,
         }
@@ -565,6 +570,12 @@ impl<'a, T: Decide> PartStore<'a, T> {
     /// `symbols`.
     pub(crate) fn with_symbols(self, symbols: bool) -> Self {
         Self { symbols, ..self }
+    }
+
+    /// The store, its parts evaluated in the run's second computing
+    /// frame ([`super::EvalOptions::computing_twist`]).
+    pub(crate) fn with_twist(self, twist: Option<super::ComputingTwist>) -> Self {
+        Self { twist, ..self }
     }
 }
 
@@ -749,9 +760,11 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
             symbols: self.symbols,
             // The reference's own pin already says which version this is.
             pin: false,
-            // A part's product computes in its own frames: the host's
-            // second frame reaches it through the instance's copy.
-            computing_twist: None,
+            // Inherited: a part's constructions compute in frames of
+            // their own too, each its node's variation of the twist
+            // (`ComputingTwist::for_node`), so its product is gathered
+            // over operands turned apart.
+            computing_twist: self.twist,
         };
         let evaluation =
             super::evaluate_nested::<T>(doc, cancel, &opts, Reached(reached), &doc_ref.pin, tol);

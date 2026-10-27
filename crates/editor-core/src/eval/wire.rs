@@ -238,10 +238,12 @@ impl<T> Copy for LaneEnv<'_, T> {}
 pub(crate) struct OpEnv<'a, T: Decide> {
     /// **A second computing frame**
     /// ([`super::EvalOptions::computing_twist`]): each construction's body
-    /// built, then mapped by it, its frame the inverse, so every
-    /// operation downstream computes in a frame the twist turned. A twist
-    /// that is no rigid motion refuses at each construction.
-    pub twist: Option<Result<RigidMotion<T>, geom_core::RigidMotionError>>,
+    /// built, then mapped by its node's variation of it
+    /// ([`super::ComputingTwist::for_node`]), its frame the inverse, so
+    /// every operation downstream computes in a frame the twist turned
+    /// and its operands in frames turned apart. A twist that is no rigid
+    /// motion refuses at each construction.
+    pub twist: Option<super::ComputingTwist>,
     pub boolean_sweep: topo::SweepStrategy,
     pub parts: &'a super::parts::Reached<T>,
     /// The environments profile geometry is elaborated over.
@@ -405,11 +407,11 @@ where
         }
         Node::Extrude { profile, .. } => {
             wire_extrude(id, at(O::Profile, *profile)?, results, vals, tol)
-                .and_then(|out| twisted(out, env, tol))
+                .and_then(|out| twisted(out, id, env, tol))
         }
         Node::Revolve { profile, .. } => {
             wire_revolve(id, at(O::Profile, *profile)?, results, vals, tol)
-                .and_then(|out| twisted(out, env, tol))
+                .and_then(|out| twisted(out, id, env, tol))
         }
         Node::Loft { first, then, .. } => {
             let sections = core::iter::once(*first)
@@ -422,17 +424,17 @@ where
                 .map(|section| section.station.as_slice())
                 .collect();
             wire_loft(id, &sections, &stations, results, vals, tol)
-                .and_then(|out| twisted(out, env, tol))
+                .and_then(|out| twisted(out, id, env, tol))
         }
         Node::Sweep { profile, path, .. } => {
             let (profile, path) = (at(O::Profile, *profile)?, at(O::Path, *path)?);
-            wire_sweep(profile, path, results, vals).and_then(|out| twisted(out, env, tol))
+            wire_sweep(profile, path, results, vals).and_then(|out| twisted(out, id, env, tol))
         }
         Node::Tube { window, .. } => {
-            wire_tube(id, window, vals, tol).and_then(|out| twisted(out, env, tol))
+            wire_tube(id, window, vals, tol).and_then(|out| twisted(out, id, env, tol))
         }
         Node::HollowTube { window, .. } => {
-            wire_hollow_tube(id, window, vals, tol).and_then(|out| twisted(out, env, tol))
+            wire_hollow_tube(id, window, vals, tol).and_then(|out| twisted(out, id, env, tol))
         }
         Node::Fillet { selection, .. } => wire_blend(
             &crate::verbs::blend::fillet(),
@@ -616,12 +618,16 @@ where
 /// its space. Itself everywhere else.
 fn twisted<T: Decide + topo::AtRestPolicy>(
     out: OpOut<T>,
+    id: RecipeNodeId,
     env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
     if let (Some(twist), ValuePayload::Body(body)) = (env.twist.as_ref(), &out.payload) {
-        let twist = twist.as_ref().map_err(|e| NodeErrorKind::Motion(*e))?;
-        let turned = transform_rigid(body.body(), twist, tol).map_err(NodeErrorKind::Transform)?;
+        let twist = twist
+            .for_node(id)
+            .at::<T>(tol)
+            .map_err(NodeErrorKind::Motion)?;
+        let turned = transform_rigid(body.body(), &twist, tol).map_err(NodeErrorKind::Transform)?;
         let back = super::Frame::Own
             .moved(&twist.inverse().map_err(NodeErrorKind::Motion)?)
             .map_err(NodeErrorKind::Motion)?;

@@ -3105,13 +3105,15 @@ pub struct EvalOptions {
     /// The run a sensitivity report is bound to asks for it (DL3).
     pub pin: bool,
     /// **A second computing frame** (D10 `[placement.frame]`, test 13):
-    /// each construction's body mapped by this rotation and translation
-    /// and framed by its inverse, so every operation computes in a frame
-    /// the twist turned while every body stands where it did in its
-    /// space. Answer-preserving up to the rounding of the frames, and
-    /// test-facing as [`Self::parallel`] is: the row that holds the frame
-    /// no part of meaning compares both. `None` — the default — is the
-    /// evaluation as built.
+    /// each construction's body mapped by a rotation and translation of
+    /// its own ([`ComputingTwist::for_node`], this twist varied
+    /// irrationally by the node's identity, a part's nodes too) and
+    /// framed by its inverse, so every operation computes in a frame the
+    /// twist turned, its operands in frames turned apart, while every
+    /// body stands where it did in its space. Answer-preserving up to the
+    /// rounding of the frames, and test-facing as [`Self::parallel`] is:
+    /// the row that holds the frame no part of meaning compares both.
+    /// `None` — the default — is the evaluation as built.
     pub computing_twist: Option<ComputingTwist>,
 }
 
@@ -3129,13 +3131,54 @@ pub struct ComputingTwist {
 }
 
 impl ComputingTwist {
+    /// **This twist varied for one construction**, a deterministic and
+    /// irrational function of the node's identity (its ordinal and its
+    /// mint digest, which differs between documents, so a part's nodes
+    /// turn apart from the host's): its angle advanced, its axis tipped
+    /// and its translation moved by sines of irrational multiples of a
+    /// number the identity reads. Two constructions of one run compute in
+    /// frames turned apart, so an operation that read an operand's body
+    /// as its own coordinates would compare bodies in two frames.
+    #[must_use]
+    pub fn for_node(self, id: crate::RecipeNodeId) -> Self {
+        // Reduced so the sines stay well conditioned; any spread works.
+        #[allow(clippy::cast_precision_loss)]
+        let k = f64::from(id.0.ordinal()) + (id.0.digest() % 10_007) as f64;
+        let (s2, s3, s5, s7) = (
+            2.0_f64.sqrt(),
+            3.0_f64.sqrt(),
+            5.0_f64.sqrt(),
+            7.0_f64.sqrt(),
+        );
+        let tipped = [
+            self.axis[0] + 0.5 * (k * s3).sin(),
+            self.axis[1] + 0.5 * (k * s5).cos(),
+            self.axis[2] + 0.5 * (k * s7).sin(),
+        ];
+        let norm = tipped.iter().map(|c| c * c).sum::<f64>().sqrt();
+        let axis = if norm > 0.25 {
+            tipped.map(|c| c / norm)
+        } else {
+            self.axis
+        };
+        Self {
+            axis,
+            angle: (self.angle + k * (s2 - 1.0)).rem_euclid(std::f64::consts::TAU),
+            by: [
+                self.by[0] + (k * s3 * s5).cos(),
+                self.by[1] + (k * s5 * s7).sin(),
+                self.by[2] + (k * s2 * s7).cos(),
+            ],
+        }
+    }
+
     /// The motion at scalar `T`.
     ///
     /// # Errors
     ///
     /// An axis no unit direction decides (refused as the map not being
     /// rigid, `computing_twist_axis_unit`), or a part that is not finite.
-    fn at<T: Decide>(
+    pub(crate) fn at<T: Decide>(
         &self,
         tol: Tol,
     ) -> Result<geom_core::RigidMotion<T>, geom_core::RigidMotionError> {
@@ -3667,6 +3710,7 @@ where
         },
         None => parts::PartStore::<T>::new(opts.resolver.as_ref(), opts.boolean_sweep, tol)
             .with_symbols(opts.symbols)
+            .with_twist(opts.computing_twist)
             .enter_census(doc, prior.map(|p| &p.parts), cancel, tol),
     };
     // A placement's bundle is folded where the placement evaluates
@@ -3674,7 +3718,7 @@ where
     // this run, at its scalar over the lane environment (A11 (5)), so a
     // seed or a box that binds what a mate reads moves the copy with it.
     let op_env = wire::OpEnv {
-        twist: opts.computing_twist.map(|twist| twist.at(tol)),
+        twist: opts.computing_twist,
         boolean_sweep: opts.boolean_sweep,
         parts: &entry.reached,
         lane: wire::LaneEnv {
