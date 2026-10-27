@@ -1,5 +1,5 @@
-//! **Where an edge lying on a curved face's carrier crosses that face's
-//! boundary in its own interior.**
+//! **Where an edge meets a curved face's boundary in its own interior**:
+//! an edge lying on the face's carrier, or one covered against it.
 //!
 //! The declared-cover arms of [`super::reduce::curved_face_arm`] place an
 //! on-carrier edge's two ENDPOINTS against the face. What happens between
@@ -22,6 +22,14 @@
 //! Its other job is the certificate behind
 //! [`super::reduce`]'s all-`Elsewhere` reading: a span whose interior
 //! meets the boundary nowhere, with both ends outside, lies outside.
+//! A covered edge OFF the carrier is read as well, for its meetings
+//! alone, and split at one only where its covered parent and the face
+//! leave the meeting to opposite sides (`super::reduce`'s
+//! `sheets_part`): a rim whose wall is tangent to the face's carrier and
+//! runs the other way from the face, tangent in its plane to the face's
+//! own rim, touches the face only at that rim, and both are split there
+//! (`a_closed_conic_in_the_partners_face::a_boss_over_a_hole_by_pose`).
+//! Its `Clear` says nothing of such an edge.
 //!
 //! **It reads, it does not solve.** Whether and where the edge meets the
 //! face's boundary is the curve × face table's boundary pass
@@ -48,7 +56,7 @@ use crate::entity::{EntityId, FaceKey};
 use crate::live::BoundaryMember;
 use crate::null::CurveGeom;
 
-/// What [`boundary_crossing`] found along an on-carrier edge.
+/// What [`boundary_crossing`] found along an edge.
 #[derive(Debug, Clone, Copy)]
 pub(super) enum BoundaryCrossing<T: geom_core::Real> {
     /// The edge meets the face's boundary at parameter `t`, strictly
@@ -71,8 +79,11 @@ pub(super) enum BoundaryCrossing<T: geom_core::Real> {
 }
 
 /// A point strictly inside `carrier`'s span `(t0, t1)` where it meets
-/// `face`'s boundary. The span must lie on `face`'s carrier — the
-/// caller's certificate, which this function does not re-ask.
+/// `face`'s boundary. A meeting is read curve against curve, so it holds
+/// of any span; [`BoundaryCrossing::Clear`] says the span's interior
+/// lies wholly inside or wholly outside the face only of a span lying on
+/// `face`'s carrier — the caller's certificate, which this function does
+/// not re-ask.
 ///
 /// # Errors
 ///

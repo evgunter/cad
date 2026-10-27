@@ -1036,9 +1036,14 @@ pub struct Census<T: Decide> {
 
 impl<T: Decide> std::fmt::Debug for Census<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let Self {
+            node,
+            pieces: _,
+            verdict,
+        } = self;
         f.debug_struct("Census")
-            .field("node", &self.node)
-            .field("run", &self.verdict.get().is_some())
+            .field("node", node)
+            .field("run", &verdict.get().is_some())
             .finish_non_exhaustive()
     }
 }

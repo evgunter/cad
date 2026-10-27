@@ -5105,6 +5105,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "split_lineage_cycle",
             "unnamed",
             "unsettled_vertex",
+            "unsupported_turned_cell",
         ],
         delegates: &[
             "band_error_tag",

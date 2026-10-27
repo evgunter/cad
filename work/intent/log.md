@@ -960,3 +960,11 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
 - 2026-10-26 — seam from ATREST (stage 5 C, `the-at-rest-census-is-a-check`, branch `atrest/the-at-rest-census-is-a-check`): `crates/pncad/src/document.rs`: the at-rest re-export block is restated (the gate's names out, `AtRestEvidence` in).
 - 2026-10-27 04:25 — **The value chart (#5742, MSOLVE-held) merged** at `3a50d9bb22`; details in `work/msolve/log.md`. The last push sat with no CI for 90 min: the PR had gone dirty against main (a `.config/nextest.toml` slow-set conflict), and GitHub runs no `pull_request` workflow on a dirty PR. INTENT merged main, resolving the conflict 3-way by keeping both sides' additions, and re-wrote the row's final-head line as the last commit. **E (#5811):** ruled that Python's read-out composes through `in_space` as export does (`[placement.world]`), but in the Rust façade, which pncad-py only calls, and the gate keeps pncad-py out of `in_space`. After E: the carry and G dispatch in parallel (spec §12 steps 5 and 7).
 - 2026-10-27 (ATREST orchestrator): filed `main-red-edit-rs-folds-a-face-sense-by-hand` (P1, E) here. MSOLVE's `6840af678f`, merged through #5742, folds a face's sense by hand at `edit.rs:6831`, and topo's `face_normal` source lint is red on main.
+- 2026-10-27 10:40 —
+  - **Nightly triage** (run 40455870959, 6 red jobs) went to a cloud lane, and #5845 merged on the orchestrator's read (green CI'd commit, `[skip ci]` render on top). Fixed there: rustdoc links, the D′3 montage cells (re-baselined), the two Debug impls the census flagged, and the cut_cylinder sidecar (re-synced to PR 5734's closed-form midpoint; revert with 5734 if that is reverted). Filed: two P0 rows.
+  - **Two of the reds are #5742's (INTENT's):**
+    - `main-red-sketch-on-face-folds-the-face-normal-by-hand` (P0): `nearest_to_face` folds a normal by hand.
+    - `review_pick_r2`: 21 fewer aimed-vertex answers, bisected to #5742's merge. #5742 merged without the re-pin the 10-26 branch note had measured.
+
+    Both went to lane `session_01VyvYnLzWE3bejGhz8K91pr` (`intent/value-chart-main-reds`). It explains the 21 before any re-pin.
+  - **E (#5811)** is still in its lane.
