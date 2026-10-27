@@ -389,3 +389,53 @@ fn review_r2_a_crossing_on_a_closed_charts_seam_near_an_end_is_not_dropped() {
         "a crossing 64 escalation lengths short of the end is not dropped: {near:?}"
     );
 }
+
+/// **A pass in the band's sliver escalates**: the dome's row passes at
+/// `½·zero`, which a clear rule reading `zero` as its threshold also
+/// refuses; this one passes between `zero` and `escalate`.
+#[test]
+fn review_r2_a_pass_in_the_bands_sliver_escalates() {
+    let b = band();
+    let chart = dome();
+    let gap = 0.5 * (b.zero() + b.escalate());
+    let below = line(Point3::new(0.0, 0.5, -gap), Vec3::unit_x());
+    let got = read(&below, (0.1, 0.9), &chart);
+    assert!(
+        matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Tangency))),
+        "a pass in the sliver is never clear: {got:?}"
+    );
+}
+
+/// **Two transverse meetings a few hundred escalation lengths apart are
+/// both found**: a line crosses both walls of a trough whose floor lies
+/// `61·escalate` below it, the meetings `1000·escalate` apart, so no isolating box may be grown over both.
+#[test]
+fn review_r2_two_close_meetings_are_both_found() {
+    let s = band().escalate();
+    let (a, h) = (512.0 * s, 64.0 * s);
+    let d = h * (500.0f64 / 512.0).powi(2);
+    let chart = trough(a, h, 1.0);
+    let flat = line(Point3::new(0.5, 0.5, d), Vec3::unit_x());
+    let found = read(&flat, (-2.0 * a, 2.0 * a), &chart).unwrap();
+    assert_eq!(found.len(), 2, "both walls: {found:?}");
+    on_chart(&chart, &found);
+}
+
+/// **A meeting within the band of a crease, not on it, refuses**; one a
+/// few escalation lengths off it reads.
+#[test]
+fn review_r2_a_meeting_beside_a_crease_within_the_band_refuses() {
+    let b = band();
+    let chart = tent();
+    let at = |x: f64| line(Point3::new(x, 0.5, -1.0), Vec3::unit_z());
+    let near = read(&at(0.5 + 0.5 * b.zero()), (0.0, 2.0), &chart);
+    assert!(
+        matches!(near, Err(SplineFaceRefusal::Unsettled(Unsettled::Crease))),
+        "within the band of the ridge: {near:?}"
+    );
+    let off = read(&at(0.5 + 8.0 * b.escalate()), (0.0, 2.0), &chart);
+    assert!(
+        matches!(off.as_deref(), Ok([_])),
+        "eight escalation lengths off the ridge: {off:?}"
+    );
+}

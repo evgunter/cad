@@ -7813,6 +7813,31 @@ mod spline_face_rows {
         );
     }
 
+    /// **review r2 (PR 5826): a meeting outside the trim does not hide one
+    /// inside it after it.** The diagonal line meets the twisted sheet at
+    /// `S(0.9, 0.9)`, past the trim, then at `S(½, ½)`, inside it.
+    #[test]
+    fn review_r2_a_meeting_past_the_trim_then_one_inside_it_pierces_at_the_second() {
+        use crate::boolean::contain::FaceContainment;
+        let at = |s: f64| {
+            let x = 0.9 - 0.4 * s;
+            Point3::new(x, x, 0.486 - 0.336 * s)
+        };
+        let (mut y, face, x, ek) = twisted_and_a_line(at(-0.2), at(1.5));
+        let mut acc = ContactAcc::default();
+        match arm(&x, ek, &mut y, face, &mut acc) {
+            Ok(CurvedEvent::Pierce {
+                p,
+                at: FaceContainment::In,
+                ..
+            }) => assert!(
+                (p - Point3::new(0.5, 0.5, 0.15)).norm() < 1e-9,
+                "at the sheet's point over (½, ½): {p:?}"
+            ),
+            other => panic!("the line pierces the face inside its trim: {other:?}"),
+        }
+    }
+
     /// **A point split out of a thin ellipse lands where it was read, or
     /// refuses.** The boundary placement splits the face's edge at a
     /// point the pre-pass put on it ([`super::split_other_at_point`]),
