@@ -9,6 +9,7 @@ cost: M
 refs: [curved-copies-filling-one-volume-read-as-undecidable]
 closed: 2026-10-27
 branch: atrest/aligned-arc-or-curved-faces-that-abut-are-flush
+pr: 5884
 ---
 
 
