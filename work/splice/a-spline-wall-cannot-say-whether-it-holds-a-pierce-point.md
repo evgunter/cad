@@ -52,3 +52,26 @@ builds, and the crossings of each corner are named through the
 boolean, the first and third, of one sense, tied. It replaces the
 tripwire above. If the union then refuses at a later site, pin that
 site and file it.
+
+## Measured against point-in-face (2026-10-27)
+
+The point-in-face lane (`splice/point-in-face`, PR 5805) measured this
+union on a scratch merge of 5805's head with 5802's. The union still
+refuses `HeldPierceUnbuilt { placed: false }`, and the spline arm is
+reached. `vtxfac::faces_holding_pierce` asks
+`curved_face_placement_decided` about the loft wall `FaceKey(4v1)` at
+`(1, −1, 3)`. The arm answers `Trim(None)` because it cannot build the
+wall's trim mid-boolean: `loop_lift` returns
+`LiftGap { half_edge: 53v1 }`. That half-edge has no stored pcurve row,
+most likely because it is a piece of a corner edge the sweep split.
+
+So this row also waits on the boolean keeping, or re-deriving, the
+rows of a spline face's split edges before it asks the trim. There are
+two doors:
+- `pcurves::split_cache`, which restricts a stored row to a split
+  piece;
+- `pcurve_of`, which derives a row on demand but needs an
+  `AtRestPolicy` that the `Decide`-generic containment door does not
+  have.
+
+Decide which while building this row. Re-measure once PR 5805 lands.
