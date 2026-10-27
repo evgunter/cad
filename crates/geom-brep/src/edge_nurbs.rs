@@ -1620,7 +1620,7 @@ fn free_residual<T: Decide>(
     match spans.as_slice() {
         [] => at(params.0),
         [one] => *one,
-        all => all.iter().fold(T::zero(), |sum, &r| sum + r * r),
+        all => all.iter().fold(T::zero(), |sum, &r| sum + r.powi(2)),
     }
 }
 
