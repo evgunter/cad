@@ -6569,6 +6569,65 @@ pub(crate) fn face_reach_in<T: Decide>(
     }
 }
 
+/// [`face_reach_in`], with a sphere face's first row read off what the
+/// face holds: at each end of that row, where the face places the
+/// sphere's pole `c ± r·d̂` along it definitely `Out`
+/// ([`crate::boolean::curved_face_placement`]), no further than its
+/// boundary reaches ([`boundary_reach`], which bounds every boundary
+/// edge's locus). The other rows, and every other kind, are
+/// [`face_reach_in`]'s.
+///
+/// The argument is the depth gap's for a least depth on a plane
+/// ([`depth_gap`] module docs), with the poles in the foot's place:
+/// `d·p` on a sphere has its only critical points at `c ± r·d̂`, so with
+/// that end's pole not a point of the face its extreme there is on the
+/// boundary.
+///
+/// **Only a definite `Out` narrows**, the one verdict that says the
+/// pole is not a point of the face. `In` and a boundary verdict say it
+/// is. `Trim(None)` (a region with an edge that is not a circle arc,
+/// which [`crate::boolean::sphere_region`] cannot read) and an error (a
+/// pole in an arc's band, or a region no ray settles) say nothing, and
+/// such a face may hold the pole: each keeps the carrier's end. No row
+/// holds those two branches, since no verb is known to build a trimmed
+/// sphere face with such an edge to hold one
+/// (`work/restread/held-reach-keeps-an-unread-pole-with-no-witness.md`).
+///
+/// # Panics
+///
+/// As [`face_reach_in`].
+fn held_reach_in<T: Decide>(
+    body: &Body<T>,
+    f: FaceKey,
+    band: Band,
+    frame: &crate::boolean::boxes::BoxFrame<T>,
+) -> Option<(Point3<T>, Point3<T>)> {
+    let (lo, hi) = face_reach_in(body, f, band, frame)?;
+    let face = proven(&body.faces, f, EntityId::Face);
+    let geom::Surface::Sphere { center, radius, .. } = *body.face_surface_linked(f, face) else {
+        return Some((lo, hi));
+    };
+    let Some((blo, bhi)) = boundary_reach(body, f, face, frame) else {
+        return Some((lo, hi));
+    };
+    let d = frame.rows()[0];
+    let out = |s: T| {
+        matches!(
+            crate::boolean::curved_face_placement(body, f, center + d * (radius.abs() * s), band),
+            Ok(crate::boolean::CurvedPlacement::Trim(Some(
+                FaceContainment::Out
+            )))
+        )
+    };
+    let lo_x = if out(-T::one()) {
+        lo.x.max(blo.x)
+    } else {
+        lo.x
+    };
+    let hi_x = if out(T::one()) { hi.x.min(bhi.x) } else { hi.x };
+    Some((Point3::new(lo_x, lo.y, lo.z), Point3::new(hi_x, hi.y, hi.z)))
+}
+
 /// A torus face's CHART WINDOW at this lane's scalar — the SAME walk
 /// the boolean lane runs, not a mirror of it: both enter
 /// [`crate::boolean::boxes::face_window_steps`] and
@@ -8099,35 +8158,41 @@ type WorldReach<T> = (Point3<T>, Point3<T>);
 
 /// Whether arm 1 of [`sweep_cross_solid_backstop`] may clear the face
 /// pair `a`, `b` along a direction that turns with the pair: the axis
-/// between the two faces' anchors, or either face's own normal where it
-/// is planar. Each face comes with its world reach, the lever its
-/// normal is read over.
+/// between the two faces' anchors, either face's own normal where it
+/// is planar, or the offset from an axis or centre either face proposes
+/// to the other's nearest boundary segment point ([`depth_gap::toward`]).
+/// Each face comes with its world reach, the lever its normal is read
+/// over; `toward` is [`depth_gap::toward`]'s offsets.
 ///
-/// The test is the boolean's narrow phase ([`crate::boolean::separating::apart`]):
-/// both reaches are read in the frame the direction aims
-/// ([`face_reach_in`]), and the pair clears only on a gap, less both
-/// reaches' [`sweep_pad`], decided definitely positive at this lane's
-/// scalar. Each reach encloses its face's locus along that direction,
-/// so the gap proves the loci disjoint, as a world-axis gap does. The
-/// pad covers the aimed frame's rounding ([`crate::boolean::boxes::BoxFrame`]),
-/// so the clear does not rest on the user-set escalate threshold.
+/// The test is the boolean's narrow phase
+/// ([`crate::boolean::separating::apart_by`]): both reaches are read in
+/// the frame the direction aims ([`held_reach_in`]), and the pair clears
+/// only on a gap, less both reaches' [`sweep_pad`], decided definitely
+/// positive at this lane's scalar. Each reach encloses its face's locus
+/// along that direction, so the gap proves the loci disjoint, as a
+/// world-axis gap does. The pad covers the aimed frame's rounding
+/// ([`crate::boolean::boxes::BoxFrame`]), so the clear does not rest on
+/// the user-set escalate threshold.
 fn backstop_apart<T: Decide>(
     body: &Body<T>,
     (fa, ra): (FaceKey, WorldReach<T>),
     (fb, rb): (FaceKey, WorldReach<T>),
+    toward: Vec<geom_core::UnitVec3<T>>,
     band: Band,
 ) -> bool {
-    use crate::boolean::separating::{Item, apart, planar_axis};
-    let axes: Vec<_> = [(fa, ra), (fb, rb)]
+    use crate::boolean::separating::{Item, apart_by, planar_axis};
+    let mut axes: Vec<_> = [(fa, ra), (fb, rb)]
         .into_iter()
         .filter_map(|(f, r)| planar_axis(body, f, || Some(r), band))
         .collect();
-    apart(
+    axes.extend(toward);
+    apart_by(
         (body, Item::Face(fa)),
         (body, Item::Face(fb)),
         &axes,
         sweep_pad(band),
         band,
+        &|body, f, frame| held_reach_in(body, f, band, frame),
     )
 }
 
@@ -8594,9 +8659,28 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                         break;
                     }
                 }
+                // Both faces are read once for their depths, which aim
+                // the offset directions and bound the depth gap.
+                let reads = if cleared {
+                    None
+                } else {
+                    depth_gap::face_read(body, a.face, band)
+                        .zip(depth_gap::face_read(body, b.face, band))
+                };
+                let toward = reads
+                    .as_ref()
+                    .map_or_else(Vec::new, |(ra, rb)| depth_gap::toward(ra, rb, band));
                 if !cleared
-                    && !backstop_apart(body, (a.face, (alo, ahi)), (b.face, (blo, bhi)), band)
-                    && !depth_gap::apart_in_depth(body, a.face, b.face, band)
+                    && !backstop_apart(
+                        body,
+                        (a.face, (alo, ahi)),
+                        (b.face, (blo, bhi)),
+                        toward,
+                        band,
+                    )
+                    && !reads.as_ref().is_some_and(|(ra, rb)| {
+                        depth_gap::apart_in_depth(body, (a.face, ra), (b.face, rb), band)
+                    })
                 {
                     errors.push(ValidationError::CensusUndecidable {
                         a: EntityId::Face(a.face),
