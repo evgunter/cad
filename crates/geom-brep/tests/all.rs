@@ -54,6 +54,8 @@ mod shared;
 
 #[path = "analytic_rung3_certificate.rs"]
 mod analytic_rung3_certificate;
+#[path = "e1d_probe.rs"]
+mod e1d_probe;
 #[path = "approx_surface.rs"]
 mod approx_surface;
 #[path = "arc_eval_anchor.rs"]

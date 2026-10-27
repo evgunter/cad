@@ -131,6 +131,8 @@ mod rev_import_probe;
 mod review_band_probes;
 #[path = "review_k3_probe.rs"]
 mod review_k3_probe;
+#[path = "e1d_probe.rs"]
+mod e1d_probe;
 #[path = "review_probes.rs"]
 mod review_probes;
 #[path = "review_probes_m7_3.rs"]

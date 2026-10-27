@@ -1457,6 +1457,36 @@ mod undecided_text {
         }
     }
 
+    #[test]
+    fn e1d_probe_join_non_incidence_arm() {
+        use geom_brep::recourse::Reading;
+        for e in [
+            geom_brep::PcurveCertifyError::Escalated {
+                check: geom_brep::PcurveCheck::ChartClass,
+                sample: 0,
+                cause: diag("pcurve_probe", MarginDiag::value(3e-9)),
+            },
+            geom_brep::PcurveCertifyError::NoGeneralLane {
+                chart: geom::SurfaceKind::Torus,
+                carrier: geom::CurveKind::Circle,
+                gap: geom_brep::LaneGap::Unwritten,
+            },
+            geom_brep::PcurveCertifyError::Escalated {
+                check: geom_brep::PcurveCheck::ChartWinding,
+                sample: 0,
+                cause: diag("pcurve_probe", MarginDiag::value(3e-9)),
+            },
+        ] {
+            let r = JoinRefusal::Undecided(JoinUndecided {
+                vertex: crate::VertexKey::default(),
+                reading: JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Image(e)),
+            });
+            for at in [Reading::Build, Reading::AtRest] {
+                println!("JOINPROBE {at:?}: {}", r.render(at));
+            }
+        }
+    }
+
     /// The undecided escalation at `margin`, read by `predicate`.
     fn diag(predicate: &'static str, margin: MarginDiag) -> Indeterminate {
         Indeterminate {
