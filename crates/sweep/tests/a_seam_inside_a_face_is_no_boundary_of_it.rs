@@ -6,7 +6,7 @@
 //! product along it exactly zero) reads its analytic side, and so does
 //! the same tube with a slit across a cap in that plane.
 
-#![allow(clippy::expect_used, clippy::unwrap_used)]
+#![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 
 use geom_core::{Band, Point2, Point3, RigidMotion, Tol, UnitVec3, Vec3};
 use sweep::test_support::{finished, revolved_about_y};

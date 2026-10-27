@@ -56,26 +56,27 @@ fn inside_out(phi: f64, psi: f64, l: f64, sign: f64, tol: Tol) -> bool {
 #[test]
 fn a_seam_split_a_hair_off_tangency_reads_a_side_inside_out() {
     let tol = Tol::witness();
-    let family: Vec<(f64, f64, f64, f64)> = match tol.eps() {
-        e if e == 1e-9 => [2e-7, 5e-7]
+    let eps = tol.eps();
+    let family: Vec<(f64, f64, f64, f64)> = if eps == 1e-9 {
+        [2e-7, 5e-7]
             .into_iter()
             .flat_map(|psi| [0.0, 0.1].map(|l| (psi, l)))
             .flat_map(|(psi, l)| [1.0, -1.0].map(|sign| (azimuth(13), psi, l, sign)))
-            .collect(),
-        e if e == 1e-12 => [(8, 1e-7), (8, 2e-7), (9, 2e-7), (9, 5e-7), (15, 1e-7)]
+            .collect()
+    } else if eps == 1e-12 {
+        [(8, 1e-7), (8, 2e-7), (9, 2e-7), (9, 5e-7), (15, 1e-7)]
             .into_iter()
             .map(|(i, psi)| (azimuth(i), psi, 0.0, 1.0))
-            .collect(),
-        e => {
-            #[allow(clippy::print_stdout)]
-            {
-                println!(
-                    "SKIPPED at eps {e:e}: no pose of the census reads a side inside out here, \
-                     so this row pins nothing at this ε"
-                );
-            }
-            return;
+            .collect()
+    } else {
+        #[allow(clippy::print_stdout)]
+        {
+            println!(
+                "SKIPPED at eps {eps:e}: no pose of the census reads a side inside out here, \
+                 so this row pins nothing at this ε"
+            );
         }
+        return;
     };
     for (phi, psi, l, sign) in family {
         assert!(
