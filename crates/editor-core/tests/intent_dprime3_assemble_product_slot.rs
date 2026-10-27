@@ -735,8 +735,8 @@ fn an_instance_defines_one_body_of_its_parts_product() {
 /// the census at that `⊔` records the touch, which the part's
 /// `unproven-coincidence` check reports. An instance of the part
 /// carries that decision: the host's census decides the touch inside
-/// the instance's copy no second time, and the host reports nothing of
-/// it.
+/// the instance's copy no second time, and the host reports the part's
+/// findings, each the part's, carried, and none of its own.
 ///
 /// *Breaks if* an instance's census rows are decided again in the host.
 #[test]
@@ -754,7 +754,8 @@ fn an_instances_census_decisions_are_its_parts() {
         !decided.coincidences.is_empty(),
         "the part's `⊔` records the touch"
     );
-    assert!(unproven(&part, &ev) > 0, "and the part reports it");
+    let own = unproven(&part, &ev);
+    assert!(own > 0, "and the part reports it");
 
     let mut store = fixture::resolver::PartStore::default();
     let part_ref = store.insert(part, Tol::witness());
@@ -774,10 +775,25 @@ fn an_instances_census_decisions_are_its_parts() {
         host.coincidences.is_empty() && host.census.is_empty(),
         "the host decides nothing inside the instance's copy"
     );
-    assert_eq!(
-        unproven(&doc, &ev),
-        0,
-        "and reports nothing of the part's touch"
+    let reported = editor_core::run_checks(
+        &doc,
+        &ev,
+        &editor_core::ChecksConfig::default(),
+        Tol::witness(),
+    )
+    .expect("the checks run")
+    .findings
+    .into_iter()
+    .filter(|f| f.check == editor_core::CheckId::UnprovenCoincidence)
+    .collect::<Vec<_>>();
+    assert_eq!(reported.len(), own, "the part's touch, once: {reported:?}");
+    assert!(
+        reported.iter().all(|f| matches!(
+            &f.evidence,
+            editor_core::CheckEvidence::CarriedCoincidence { finding }
+                if finding.route.through == instance
+        )),
+        "each the part's, carried through the instance, none the host's: {reported:?}"
     );
     crate::fixture::could_look(&doc, &ev).expect("the host assembles");
 }
