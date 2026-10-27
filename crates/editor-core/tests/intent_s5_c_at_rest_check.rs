@@ -697,6 +697,73 @@ fn a_parts_quiet_interference_is_carried_once() {
     );
 }
 
+/// **(Row 17) A host `Gap` over picks of an instance's pieces quiets
+/// nothing of the part's.** The slab overlap, unasserted in the part, is
+/// a part instanced once; the host asserts a holding `Gap ≤ −0.01`
+/// between picks of the instance's two pieces, the slab's own faces.
+/// The overlap is the part's, carried as the part judged it: loud. A
+/// host's assertion speaks for the host's own arrivals, and the two
+/// pieces are inside one of them.
+///
+/// *Breaks if* the host's assertion quiets the part's finding, or the
+/// picks make it a finding of the host's.
+#[test]
+fn a_hosts_gap_over_picks_quiets_no_carried_finding() {
+    use editor_core::Operand;
+    let (slab, a, b, p, q) = crate::intent_s5_b_interference::slab_overlap();
+    let part = crate::fixture::assemble_world_copies(slab.clone());
+    let (p_var, q_var) = (
+        part.output(p, 0).expect("a copy"),
+        part.output(q, 0).expect("a copy"),
+    );
+    let (host, ids, opts) = crate::intent_part_census_seam::instantiating("s5c-picked", &slab, 1);
+    let piece = |var, face| {
+        Operand::select(Operand::pick(Operand::Node(ids[0]), vec![var]), vec![face])
+    };
+    let (host, measure) = crate::fixture::measure_node(
+        &host,
+        MeasurePrimitive::Gap { outer: 0, inner: 1 },
+        vec![
+            piece(p_var, crate::intent_s5_b_interference::plus_x(&slab, a)),
+            piece(q_var, crate::intent_s5_b_interference::minus_x(&slab, b)),
+        ],
+    );
+    let value = crate::fixture::value_of(&host, measure);
+    let (host, assertion) = insert(
+        host,
+        Node::Assertion {
+            value,
+            bound: len(-0.01),
+            relation: AssertionRelation::AtMost,
+        },
+    );
+    let run = crate::fixture::run(&host, &opts);
+    assert!(
+        matches!(
+            run.value(assertion).map(|v| &v.payload),
+            Some(ValuePayload::Assertion(AssertionVerdict::Holds { .. }))
+        ),
+        "the premise: the host's Gap over the picks holds: {:?}",
+        run.value(assertion).map(|v| &v.payload)
+    );
+    let findings = crate::fixture::at_rest(&host, &run).expect("the host's check runs");
+    let carried: Vec<_> = findings
+        .iter()
+        .filter_map(|f| match &f.evidence {
+            CheckEvidence::CarriedInterference { finding } => Some((f, finding)),
+            _ => None,
+        })
+        .collect();
+    let [(finding, row)] = carried.as_slice() else {
+        panic!("one carried finding: {findings:?}")
+    };
+    assert_eq!((finding.quiet, row.finding.quiet), (None, None), "loud, as the part judged it");
+    assert!(
+        crate::fixture::interference(&findings).is_empty(),
+        "and nothing of the host's own: {findings:?}"
+    );
+}
+
 // ---- Row 18: not run at this scalar ----
 
 /// **(Row 18) At `Dual64` the census does not run, and the at-rest
@@ -974,4 +1041,70 @@ fn with_no_product_both_residents_read_every_assemble() {
         1,
         "one interference, the at-rest check's: {report}"
     );
+}
+
+// ---- A pick of an arrival's piece names its cell ----
+
+/// **A host `Gap = 0` over a pick of an arrival's piece quiets its
+/// contact** (spec §4 rule 2: each selection reads the cell's arrival
+/// "or a pick of that piece"). A copy of `bolt ⊔ plate` stands in the
+/// world with a cap resting on the bolt's top: the world `⊔`'s row
+/// names the bolt's top in the copy, keyed by the inner `⊔` too. A
+/// `Gap = 0` between the pick of the bolt's top and the cap's bottom
+/// quiets it; the same `Gap` over a pick of the plate names another
+/// piece, and quiets nothing.
+///
+/// *Breaks if* a pick of the arrival's piece does not name the cell, or
+/// a pick of another piece does.
+#[test]
+fn a_gap_over_a_pick_of_the_piece_quiets_its_contact() {
+    use editor_core::{Bodies, Operand};
+    let rested = |label, piece: fn(RecipeNodeId, RecipeNodeId) -> RecipeNodeId| {
+        let doc = ProfileDoc::empty_derived(label, Tol::witness());
+        let (doc, bolt) = block(doc, 0.2, 1.0);
+        let (doc, plate) = extrude(doc, square(2.0, 0.0, 0.5), 1.0);
+        let (doc, plate) = crate::fixture::slid(doc, bolt, plate, [0.0, 0.0, 0.0]);
+        let (doc, seat) = insert(
+            doc,
+            Node::Assemble {
+                members: Bodies::Spelled(vec![bolt.into(), plate.into()]),
+            },
+        );
+        let (doc, copy) = place(doc, seat);
+        let (doc, cap) = block(doc, 0.1, 0.5);
+        let (doc, rest) = in_world(doc, cap, &Frame::translation([0.0, 0.0, 1.0]));
+        let picked = piece(bolt, plate);
+        let piece_var = doc.output(picked, 0).expect("a piece");
+        let top = fname(picked, RoleSeg::Cap(CapEnd::End));
+        let (doc, measure) = crate::fixture::measure_node(
+            &doc,
+            MeasurePrimitive::Gap { outer: 0, inner: 1 },
+            vec![
+                Operand::select(Operand::pick(Operand::Node(copy), vec![piece_var]), vec![top]),
+                Operand::select(Operand::Node(rest), vec![fname(cap, RoleSeg::Cap(CapEnd::Start))]),
+            ],
+        );
+        let value = crate::fixture::value_of(&doc, measure);
+        let (doc, assertion) = insert(
+            doc,
+            Node::Assertion {
+                value,
+                bound: len(0.0),
+                relation: AssertionRelation::Equal,
+            },
+        );
+        let report = checks(&doc);
+        let contacts: Vec<_> = of(&report, CheckId::UnprovenCoincidence)
+            .into_iter()
+            .filter(|f| matches!(f.subject, editor_core::FindingSubject::Copies { .. }))
+            .collect();
+        let [contact] = contacts.as_slice() else {
+            panic!("one contact, the cap on the bolt: {report}")
+        };
+        (contact.quiet, assertion)
+    };
+    let (quiet, assertion) = rested("s5c-pick-bolt", |bolt, _| bolt);
+    assert_eq!(quiet, Some(assertion), "the pick of the bolt names the cell");
+    let (quiet, _) = rested("s5c-pick-plate", |_, plate| plate);
+    assert_eq!(quiet, None, "a pick of the plate names another piece");
 }

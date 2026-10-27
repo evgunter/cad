@@ -1,7 +1,7 @@
 ---
 id: at-rest-check-rows-left-unwitnessed
 kind: issue
-title: Stage 5 C's at-rest check leaves two of its spec rows unwitnessed: a ⊔ whose gather refuses, and a host Gap over picks of an instance's pieces
+title: Stage 5 C's at-rest check leaves one spec clause unwitnessed: a ⊔ whose gather refuses
 status: open
 opened: 2026-10-26
 priority: P3
@@ -11,8 +11,8 @@ refs: [the-at-rest-census-is-a-check]
 
 
 Stage 5 C (`the-at-rest-census-is-a-check`, spec §6) built every row of
-`crates/editor-core/tests/intent_s5_c_at_rest_check.rs` but two clauses,
-which have no witness the public API can author today:
+`crates/editor-core/tests/intent_s5_c_at_rest_check.rs` but one clause,
+which has no witness the public API can author today:
 
 - **Row 15, "a `⊔` whose gather refuses is one `NotGathered` finding".**
   `crates/editor-core/src/checks.rs` `at_rest` turns an
@@ -23,13 +23,12 @@ which have no witness the public API can author today:
   at its own door, so the census's graft and tier-1–3 gate
   (`product::gather_sources`) do not refuse over a `⊔` that evaluated.
   The arm is reached only by a hand-built `AssembleGather`.
-- **Row 17, "a host `Gap` over picks of the instance's pieces quiets
-  nothing".** Not built: the quieting rules match an assertion's
-  selections against the copies by their reads, and a pick of a piece
-  is a read of its own (`VarDef::Pick`), so a host's `Gap` over picks
-  cannot match a part's carried finding by construction (a carried
-  finding keeps the part's assertion, `CarriedInterference`); the row
-  wants a document that tries it.
 
-Owed: a witness for each, or the reason none can exist recorded where
-the arm is.
+Owed: a witness, or the reason none can exist recorded where the arm
+is.
+
+Row 17's other clause, "a host `Gap` over picks of the instance's
+pieces quiets nothing", was witnessed in stage 5 C's fix pass
+(`a_hosts_gap_over_picks_quiets_no_carried_finding`): a pick of an
+instance's piece is authorable, and its `Gap` holds and quiets nothing
+of the part's.

@@ -192,8 +192,9 @@ pub(crate) const AT_REST_QUIET_CONTACT_BOUND: &str = "at_rest_quiet_contact_boun
 ///
 /// An assertion quiets a row when it relates a `Gap` read directly by
 /// `=` to a bound decided zero, its two selections are the row's two
-/// cells in either order, each its arrival's read and the cell's name
-/// there, and its verdict in `evaluation` is `Holds`. The cells may be
+/// cells in either order, each its arrival's read (or a pick of the
+/// arrival's piece) and the cell's name there, and its verdict in
+/// `evaluation` is `Holds`. The cells may be
 /// of any dimension `Gap` admits. A flush pair
 /// ([`topo::Relation::SameOriented`]) is no contact, and no assertion
 /// quiets it. The rule matches cells, so another contact between the
@@ -211,13 +212,8 @@ pub(crate) fn quiet_contact<P, T: Decide>(
     let band = Band::linear(tol).ok()?;
     let cell = |c: &crate::coincide::NamedCell| match c {
         crate::coincide::NamedCell::Entity { input, name } => {
-            // The `⊔` keys an arrival's names by the read it entered
-            // through; the cell's name is the arrival's own.
-            let own = match name.path.as_slice() {
-                [crate::names::RoleSeg::From { read, of }] if read == input => (**of).clone(),
-                _ => name.clone(),
-            };
-            Some((*input, own))
+            // The cell's name is the arrival's own.
+            Some((*input, keyed_by(name, *input).unwrap_or(name).clone()))
         }
         _ => None,
     };
@@ -261,8 +257,35 @@ pub(crate) fn quiet_contact<P, T: Decide>(
         let (Some(o), Some(i)) = (selected(*outer), selected(*inner)) else {
             return false;
         };
-        (o == a && i == b) || (o == b && i == a)
+        let reads = |(body, name): &(VarId, StableName), (arrival, own): &(VarId, StableName)| {
+            if body == arrival {
+                return name == own;
+            }
+            // A pick of the arrival's piece: the arrival's name for the
+            // cell is keyed by each `⊔` the pick's path walks through,
+            // by the read that piece entered it by.
+            doc.pick(*body).is_some_and(|pick| {
+                pick.placement == *arrival
+                    && pick
+                        .of
+                        .iter()
+                        .try_fold(own, |held, &step| keyed_by(held, step))
+                        == Some(name)
+            })
+        };
+        (reads(&o, &a) && reads(&i, &b)) || (reads(&o, &b) && reads(&i, &a))
     })
+}
+
+/// **The name a read holds, of a name a `⊔` keyed by that read**: a
+/// `⊔` keys each name it takes from one of its reads by the read
+/// ([`crate::names::RoleSeg::From`]), so a selection reading the arrival
+/// itself names it by `of`. `None` for a name `read` did not key.
+pub(crate) fn keyed_by(name: &StableName, read: VarId) -> Option<&StableName> {
+    match name.path.as_slice() {
+        [crate::names::RoleSeg::From { read: by, of }] if *by == read => Some(of),
+        _ => None,
+    }
 }
 
 /// **One copy, as a finding names it**: the placement's output
@@ -427,10 +450,7 @@ pub(crate) fn gap_assertions<P, T: Decide>(
         // product's `⊔` keys that name by the copy it read.
         let entry = names.lookup(name).or_else(|| {
             names.iter().find_map(|(held, entry)| {
-                matches!(held.path.as_slice(),
-                    [crate::names::RoleSeg::From { read, of }]
-                        if *read == select.body && **of == *name)
-                .then_some(entry)
+                (keyed_by(held, select.body) == Some(name)).then_some(entry)
             })
         });
         let Some(Entry::Unique(EntityRef {
@@ -1082,12 +1102,8 @@ fn localize(
                 return unlocalized(Unlocalized::Unnamed);
             };
             let copy = copy_ref(copy);
-            // The product's `⊔` keys a copy's names by the copy it read;
-            // the site's name is the copy's own.
-            let face = match name.path.as_slice() {
-                [crate::names::RoleSeg::From { read, of }] if *read == copy.var => (**of).clone(),
-                _ => name.clone(),
-            };
+            // The site's name is the copy's own.
+            let face = keyed_by(&name, copy.var).unwrap_or(&name).clone();
             faces.push(FaceSite { copy, face });
         }
         faces.sort();
