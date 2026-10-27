@@ -112,10 +112,7 @@ fn zeroed(mate: editor_core::Mate<Formula>) -> Vec<editor_core::Constraint<Formu
                 editor_core::Coord::Slide(editor_core::TargetAxis::Y),
                 len(0.0),
             ),
-            (
-                editor_core::Coord::Spin(editor_core::TargetAxis::Z),
-                fixture::ang(0.0),
-            ),
+            (editor_core::Coord::SPIN, fixture::ang(0.0)),
         ],
     }
     .bundle()
@@ -244,16 +241,22 @@ fn a_copy_pinned_against_a_body_of_another_space_is_in_that_space() {
     let space = doc.output(space, 0).expect("a new space defines its space");
     let cap = fixture::fname(a, RoleSeg::Cap(CapEnd::Start));
     let placed_cap = cap;
-    // A copy's bottom on a face, square to its target's coordinates:
-    // the plane mate and a zero value on each freedom it leaves.
-    let pin_on = |doc: ProfileDoc, at: RecipeNodeId, body: RecipeNodeId, target: Operand| {
-        let mate = fixture::mate(
+    // A copy's bottom on a face, square to its target's coordinates
+    // under `orient`: the plane mate and a zero value on each freedom it
+    // leaves.
+    let pin_on = |doc: ProfileDoc,
+                  at: RecipeNodeId,
+                  body: RecipeNodeId,
+                  target: Operand,
+                  orient: editor_core::Orientation| {
+        let mut mate = fixture::mate(
             fixture::plane(fixture::head(fixture::fname(
                 body,
                 RoleSeg::Cap(CapEnd::Start),
             ))),
             fixture::plane(target),
         );
+        mate.orient = orient;
         fixture::write_bundle(doc, at, zeroed(mate)).0
     };
     let (doc, l2) = insert(doc, crate::fixture::stood(b));
@@ -262,6 +265,7 @@ fn a_copy_pinned_against_a_body_of_another_space_is_in_that_space() {
         l2,
         b,
         Operand::select(Operand::output(l, 0), vec![placed_cap]),
+        editor_core::Orientation::IDENTITY,
     );
     let (doc, s) = insert(
         doc,
@@ -287,6 +291,12 @@ fn a_copy_pinned_against_a_body_of_another_space_is_in_that_space() {
         p,
         c,
         Operand::select(Operand::output(s, 0), vec![face]),
+        // The face faces up and the copy's bottom down: the copy upended.
+        editor_core::Orientation::new(
+            editor_core::SignedAxis::PlusX,
+            editor_core::SignedAxis::MinusZ,
+        )
+        .expect("x and z lie along two axes"),
     );
     assert_eq!(
         doc.node_space(p),
@@ -341,6 +351,7 @@ fn a_place_copy_resting_on_the_world_asks_no_lever() {
             RoleSeg::Cap(CapEnd::Start),
         ))),
         to: fixture::flip(top),
+        orient: editor_core::Orientation::IDENTITY,
     };
     let (doc, place) = step(
         doc,
@@ -707,7 +718,7 @@ fn a_mate_on_a_copy_pinned_by_values_takes_the_freedoms_it_fixes() {
         [
             Coord::Slide(TargetAxis::X),
             Coord::Slide(TargetAxis::Y),
-            Coord::Spin(TargetAxis::Z),
+            Coord::SPIN,
         ],
         "the values the rest leaves, and none it fixes"
     );

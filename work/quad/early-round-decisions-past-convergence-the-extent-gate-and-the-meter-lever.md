@@ -11,7 +11,7 @@ cost: E
 
 ## What
 
-Two decisions in the face lanes of `crates/geom-brep/src/props/quad.rs`
+Two decisions in the face lanes of `crates/geom-brep/src/props/quad/`
 and `spiric.rs` are taken at one round and end the schedule, where a
 later round's narrower enclosure could answer. Found by the sweep of
 `an-undecided-ring-at-the-first-converged-round-refuses-instead-of-refining`;

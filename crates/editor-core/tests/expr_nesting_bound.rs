@@ -164,6 +164,7 @@ fn deepest_pose_document(levels: usize) -> Recorder {
         vec![Mate {
             on: cap(editor_core::CapEnd::Start),
             to: fixture::flip(to),
+            orient: editor_core::Orientation::IDENTITY,
         }],
         Vec::new(),
     );

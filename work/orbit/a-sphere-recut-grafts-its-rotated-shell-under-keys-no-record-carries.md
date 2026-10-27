@@ -50,3 +50,20 @@ It keeps no other shell, so the turned shell is the rebuild and no
 graft is made, and that document does not reach this row. Its
 refusal comes from the re-chart moving a pole and its meridians under
 their kept keys, not from the graft.
+
+## Evidence (2026-10-26, WIRE `wire/re-chart-rows-name-input-cells`)
+
+The boolean's coincidence rows are now read back through the re-chart:
+`boolean/ops.rs` `apply_recuts` returns each re-charted shell's cells
+in the re-cut operand (`Recharts`), the first turned shell's input-keyed
+cells and every grafted one's new keys alike, and
+`respell_through_cuts` reads each as its input shell's least face. The
+naming record (`BooleanNaming`) is not read through it, so this row's
+debt stands, and it covers the first turned shell too: its cells keep
+their input keys at turned places, so a fragment or discard row naming
+one names an operand cell that stands elsewhere. `Recharts` is the map
+a fix here can read. The documents that reach it are `sweep`'s
+`m5_s13_pips::two_pips_cut_under_the_group_arm`,
+`review_pr12_probes::probe_h_door_a_closed_tool` and the two
+`spheres_crossing_off_every_edge` builds, all `topo`-level;
+this lane did not look for an `editor-core` document that reaches it.

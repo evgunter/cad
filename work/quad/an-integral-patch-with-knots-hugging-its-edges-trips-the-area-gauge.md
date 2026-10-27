@@ -44,7 +44,7 @@ default, 1e-6 and 1e-12, with this row's panic: `ARM: perimeter. Width
 The row's net has weights 2 (constant). ISO's PR 5635
 (`iso/one-polynomial-weight-test`, merge `9180a67d`) routes a
 constant-weight net to the integral arm
-(`geom_core::spline::constant_weight`; `props/quad.rs`
+(`geom_core::spline::constant_weight`; `props/quad/`
 `nurbs_patch_face_rounds`). So this net now takes the unit-weight path
 this row describes, where before it took the rational quotient lane.
 5635 did not cause the defect. It routed a probe row onto it, and the

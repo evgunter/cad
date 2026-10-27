@@ -190,6 +190,12 @@
 //!   on the rows above; only where no
 //!   face offers an aim that reads, **`bool_point_in_solid_infinity`**,
 //!   the selection's signed volume scaled to a length (`V/A`), does.
+//! - **`bool_point_past_every_reach`**: where the ray test has no arm for
+//!   a face of the selection, how far `q` stands past the hull of every
+//!   face's reach along a direction that turns with the body, less the
+//!   sweep pad (metres); Positive ⇒ the side at infinity
+//!   ([`past_every_reach`]). **`bool_point_axis`**: the offset from the
+//!   faces' anchor to `q`, before it is read as one of those directions.
 
 use geom_core::period::{Exact, Extent, Period, TurnRows, Within};
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
@@ -290,15 +296,17 @@ pub enum PointInSolidError {
     /// face's region, [`super::torus_region`]) have one; `Nurbs` and
     /// `Approx` do not.
     ///
-    /// **This door is BOX-BLIND on purpose and that is why the kind
-    /// still matters here.** The operand gate is pair-scoped — a face
-    /// whose box clears the other operand cannot enter a crossing, so
-    /// it does not gate the operation — but containment asks a
-    /// different question: a ray from the query point crosses the
-    /// WHOLE boundary, and a face out of reach of the cut is not out
-    /// of reach of the ray. So an operation the gate admits can still
-    /// meet this refusal downstream, and that boundary is the honest
-    /// one until the kind has a containment arm. Issue 1011 has landed
+    /// **Why the kind still matters here.** The operand gate is
+    /// pair-scoped — a face whose box clears the other operand cannot
+    /// enter a crossing, so it does not gate the operation — but
+    /// containment asks a different question: a ray from the query
+    /// point crosses the WHOLE boundary, and a face out of reach of the
+    /// cut is not out of reach of the ray. The one box this door reads
+    /// is the hull of every face's reach: a point definitely past it
+    /// takes the side at infinity without crossing a face. Any other
+    /// point meets this refusal, so an operation the gate admits can
+    /// still meet it downstream, and that boundary is the honest one
+    /// until the kind has a containment arm. Issue 1011 has landed
     /// whole — the ray×cone quadratic and the ray×torus quartic with
     /// its certified root count, each root read against the face's
     /// region — and what this variant now carries is the spline kinds.
@@ -1028,47 +1036,49 @@ fn face_geo_arms<T: Decide>(
 }
 
 /// K name: how far a point stands past the hull of a selection's face
-/// reaches, along one world axis (metres).
+/// reaches, along one candidate direction (metres).
 const PAST_EVERY_REACH: &str = "bool_point_past_every_reach";
 
+/// K name: the offset from a selection's anchor to a point (metres),
+/// before it is read as a unit axis.
+pub(crate) const POINT_AXIS: &str = "bool_point_axis";
+
 /// Whether `q` lies definitely outside the hull of every face's
-/// certified reach (`census::face_reach_in`, the box rules' one map), on
-/// some world axis. A face with no claim to make answers `false`.
+/// certified reach (`census::face_reach_in`, the box rules' one map),
+/// along some direction that turns with the body: a planar face's
+/// outward normal, or the axis from the faces' anchor to `q`
+/// ([`super::separating`]'s candidates, each read both ways; this
+/// scalar carries no bracket to merge a normal with its negation by).
+/// World axes are not read: a turned body's world hull widens with the
+/// turn, so a verdict read on them would be the pose's. The hull is
+/// padded by the sweep pad, as [`super::separating`] pads each item it
+/// reads; `q` is exact and takes none. A face with no claim to make
+/// answers `false`.
 fn past_every_reach<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
     q: Point3<T>,
     band: Band,
 ) -> bool {
-    let frame = super::boxes::BoxFrame::World;
-    let mut hull: Option<(Point3<T>, Point3<T>)> = None;
-    for &face in faces {
-        let Some((lo, hi)) = crate::census::face_reach_in(body, face, band, &frame) else {
+    use super::separating::{self, Item};
+    let items = || faces.iter().map(|&f| Item::Face(f));
+    let mut dirs = separating::face_axes(faces.iter().map(|&f| (body, f)), band, None);
+    let anchor = separating::mean(items().filter_map(|i| separating::anchor(body, i)));
+    dirs.extend(anchor.and_then(|a| geom_core::UnitVec3::new(q - a, POINT_AXIS, band).ok()));
+    let pad = T::from_f64(super::boxes::sweep_pad(band));
+    dirs.into_iter().any(|dir| {
+        let Some((lo, hi)) = separating::support_along(body, items(), dir, band) else {
             return false;
         };
-        hull = Some(match hull {
-            None => (lo, hi),
-            Some((l, h)) => (
-                Point3::new(l.x.min(lo.x), l.y.min(lo.y), l.z.min(lo.z)),
-                Point3::new(h.x.max(hi.x), h.y.max(hi.y), h.z.max(hi.z)),
-            ),
-        });
-    }
-    let Some((lo, hi)) = hull else {
-        return false;
-    };
-    let past = |m: T| {
-        matches!(
-            decide(PAST_EVERY_REACH, Margin::of(m), band),
-            Ok(Sign::Positive)
-        )
-    };
-    past(q.x - hi.x)
-        || past(lo.x - q.x)
-        || past(q.y - hi.y)
-        || past(lo.y - q.y)
-        || past(q.z - hi.z)
-        || past(lo.z - q.z)
+        let at = dir.get().dot(Vec3::new(q.x, q.y, q.z));
+        let past = |m: T| {
+            matches!(
+                decide(PAST_EVERY_REACH, Margin::of(m - pad), band),
+                Ok(Sign::Positive)
+            )
+        };
+        past(at - hi) || past(lo - at)
+    })
 }
 
 /// **Whether the ray test has an arm for a surface kind** — the one

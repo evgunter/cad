@@ -91,7 +91,7 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 /// through): the ambiguous row's piece's wall moved from the tool's bare
 /// face name to that `From`. Every row keeps its shape: a spelling
 /// change. Re-measured with both merged.
-const DIAGNOSIS_DIGEST: u64 = 0x60eb_02dc_8b87_abf2;
+const DIAGNOSIS_DIGEST: u64 = 0xd1bb_9861_e24b_88c2;
 
 #[test]
 fn diagnosis_corpus_is_golden() {

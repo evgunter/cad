@@ -762,12 +762,15 @@ const ROWS: BoundaryRows = BoundaryRows {
 /// ray lane takes too: [`super::sphere_region`], [`super::torus_region`]
 /// and, for a cylinder or a cone, [`super::ruled_region`]
 /// ([`sphere_face_containment`], [`torus_face_containment`],
-/// [`ruled_face_containment`]). Nothing is read in a chart.
+/// [`ruled_face_containment`]). Nothing is read in a chart there. A
+/// spline face has neither an implicit carrier nor a closed-form region,
+/// so its carrier and its trim are both read on its chart
+/// ([`super::spline_region`]).
 ///
-/// `None` is therefore the honest remainder — a surface with no region
-/// reading (NURBS), a boundary edge the reading has no closed form for,
-/// or a point on the region's boundary that the boundary walk did not
-/// place — and the caller keeps its typed frontier door there.
+/// `None` is therefore the honest remainder — a boundary edge the
+/// reading has no closed form for, a spline face whose reading did not
+/// settle, or a point on the region's boundary that the boundary walk
+/// did not place — and the caller keeps its typed frontier door there.
 ///
 /// # Errors
 ///
@@ -935,9 +938,10 @@ fn curved_interior_placement<T: Decide>(
             q,
             band,
         ),
-        geom::Surface::Plane { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
-            Ok(CurvedPlacement::Trim(None))
+        geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
+            super::spline_region::spline_face_placement(body, face, q, band)
         }
+        geom::Surface::Plane { .. } => Ok(CurvedPlacement::Trim(None)),
     }
 }
 

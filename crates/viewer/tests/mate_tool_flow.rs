@@ -161,7 +161,7 @@ fn the_tool_refuses_typed_what_the_picks_do_not_admit() {
 /// a class outside the vocabulary — here with the picks' instance
 /// deleted out from under the tool, which the pick door would refuse
 /// were it reached. Which freedoms a kind leaves is the panel's
-/// reading (`MateFreedom::left_by`).
+/// reading (`MateFreedom::offered_beside`).
 #[test]
 fn the_tool_refuses_the_choices_own_faults_before_any_pick() {
     use pncad::document::{Coord, TargetAxis, VarKind};
@@ -192,9 +192,9 @@ fn the_tool_refuses_the_choices_own_faults_before_any_pick() {
     let mut choice = asm::seat_choice();
     choice.kind = VarKind::Axis;
     let Err(MateToolError::NotAFreedom { coord, kind }) = tool.proposal(doc, choice) else {
-        panic!("an axis mate leaves no slide along x");
+        panic!("an axis mate leaves one slide, not the seat's two");
     };
-    assert_eq!((coord, kind), (Coord::Slide(TargetAxis::X), VarKind::Axis));
+    assert_eq!((coord, kind), (Coord::Slide(TargetAxis::Y), VarKind::Axis));
     // And a choice whose every part is admitted reaches the pick door,
     // which is what "before any pick" means here.
     assert!(matches!(
@@ -337,8 +337,8 @@ fn copy_pick(session: &DocSession, i: u32) -> FaceSelection {
 
 /// **The shelf rested on a picked copy**, through the tool: the shelf's
 /// underside first — `on`, the copy the mate places — then `target`,
-/// with every value zero, so the shelf is pinned and its underside
-/// rests on the target's face.
+/// with no value named, so the gesture pins the shelf where the snap
+/// puts it and its underside rests on the target's face.
 fn shelf_on(
     session: &DocSession,
     shelf_bottom: &FaceSelection,
@@ -349,12 +349,7 @@ fn shelf_on(
     tool.pick(session.doc(), target.clone());
     let (doc, _) = session.landed_pair().expect("landed");
     let mut choice = asm::seat_choice();
-    for (coord, by) in &mut choice.values {
-        *by = match coord {
-            pncad::document::Coord::Spin(_) => ang(0.0),
-            pncad::document::Coord::Slide(_) => len(0.0),
-        };
-    }
+    choice.values = Vec::new();
     tool.proposal(doc, choice)
         .expect("the shelf's rest proposes")
 }
@@ -960,6 +955,92 @@ fn a_mate_refusal_names_the_picked_node_as_the_panel_does() {
     );
 }
 
+/// **A freshly mated copy moves only by the snap.** post_b stands in the
+/// world by its values, turned 10° about the world's `z` and slid 2 cm
+/// along `y`; the tool rests its top cap on the shelf's underside with no
+/// value named. The gesture writes the orientation nearest where post_b
+/// stands, the spin the least turn leaves and the slides at post_b's own
+/// coordinates, so post_b keeps its turn and its `x` and `y`, and moves
+/// along the mated direction alone, until the two faces rest.
+///
+/// *Breaks if* the gesture re-reads the values it keeps on the mate's
+/// chart (the turn or a slide jumps), or writes the identity orientation
+/// and a zero spin where the copy stands turned.
+#[test]
+fn a_freshly_mated_copy_moves_only_by_the_snap() {
+    use pncad::document::{Coord, Dimension, Node, SlotId, TargetAxis};
+    let tol = Tol::witness();
+    let bench = asm::bench("matetool-snap", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    let (post_top, shelf_bottom) = asm::seat_picks(&session, &bench);
+    let turn = 10.0_f64.to_radians();
+    for (coord, value) in [
+        (Coord::Slide(TargetAxis::Y), (Dimension::Length, 0.02)),
+        (Coord::Spin(Some(TargetAxis::Z)), (Dimension::Angle, turn)),
+    ] {
+        let constraint = match session.committed_doc().node(bench.post_b) {
+            Some(Node::InstantiatePart { constraints, .. }) => constraints
+                .iter()
+                .find(|c| c.value().is_some_and(|v| v.coord == coord))
+                .map(|c| c.id),
+            _ => None,
+        }
+        .expect("post_b's pin writes the freedom");
+        let slot = match coord {
+            Coord::Slide(_) => SlotId::ValueSlide { constraint },
+            Coord::Spin(_) => SlotId::ValueSpin { constraint },
+        };
+        let outcome = session.perform(SessionOp::SetSlot {
+            node: bench.post_b,
+            slot,
+            value: viewer::props::SlotValue::of(value.0, value.1).expect("a finite value"),
+        });
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    }
+    session.pump();
+    let pose = |session: &DocSession| {
+        let (doc, _) = session.landed_pair().expect("landed");
+        common::solve(session, doc, tol)
+            .placement(doc, bench.post_b)
+            .expect("post_b has a pose")
+    };
+    let before = pose(&session);
+    let mut tool = MateTool::new();
+    tool.pick(session.doc(), post_top.clone());
+    tool.pick(session.doc(), shelf_bottom.clone());
+    let (doc, _) = session.landed_pair().expect("landed");
+    let proposal = tool
+        .proposal(
+            doc,
+            viewer::matetool::MateChoice {
+                kind: pncad::document::VarKind::Plane,
+                flip: true,
+                values: Vec::new(),
+            },
+        )
+        .expect("the seat proposes");
+    common::commit_mate(&mut session, proposal.op());
+    let after = pose(&session);
+    for (c, (got, was)) in after.columns.iter().zip(&before.columns).enumerate() {
+        for r in 0..3 {
+            assert!(
+                (got[r] - was[r]).abs() < 1e-12,
+                "post_b keeps its turn: column {c} {got:?} was {was:?}"
+            );
+        }
+    }
+    for i in 0..2 {
+        assert!(
+            (after.translation[i] - before.translation[i]).abs() < 1e-12,
+            "post_b keeps its {} : {:?} was {:?}",
+            ["x", "y"][i],
+            after.translation,
+            before.translation
+        );
+    }
+    assert_faces_rest(&session, &post_top, &shelf_bottom, "the snapped seat");
+}
+
 /// **A face on a split's second half is mated on that half**: a block
 /// split at mid-height, its lower half placed 0.1 m along x, rested by
 /// its underside on the whole block's top. The mate's `on` side reads
@@ -992,4 +1073,137 @@ fn a_face_on_a_splits_lower_half_is_mated_on_that_half() {
         size.iter().product::<f64>() / 2.0,
         "the lower half, seated on the block's top",
     );
+}
+
+/// **The snap moves a turned copy only by the snap**, wherever it is
+/// turned: post_b turned about `z` and tilted about `x` by nine pairs,
+/// some needing a turn of their own onto the shelf and an orientation
+/// other than the identity, then rested by its top cap on the shelf's
+/// underside with no value named. It keeps everything the mate leaves.
+///
+/// *Breaks if* the gesture writes an orientation or spin the chart reads
+/// back as another turn, or slides it reads along other axes.
+#[test]
+fn the_snap_moves_a_turned_copy_only_by_the_snap() {
+    use pncad::document::{Coord, Dimension, Node, SlotId, TargetAxis};
+    let tol = Tol::witness();
+    let mut bad = Vec::new();
+    for (zt, xt) in [
+        (100.0_f64, 0.0_f64),
+        (10.0, 20.0),
+        (100.0, 20.0),
+        (190.0, -35.0),
+        (45.0, 50.0),
+        (-80.0, 10.0),
+        (0.0, 170.0),
+        (30.0, 120.0),
+        (30.0, 180.0),
+    ] {
+        let bench = asm::bench(&format!("matetool-snap-{zt}-{xt}"), tol);
+        let mut session = asm::open_bench(&bench, tol);
+        let (post_top, shelf_bottom) = asm::seat_picks(&session, &bench);
+        let mut ok = true;
+        for (coord, value) in [
+            (Coord::Slide(TargetAxis::Y), (Dimension::Length, 0.02)),
+            (
+                Coord::Spin(Some(TargetAxis::Z)),
+                (Dimension::Angle, zt.to_radians()),
+            ),
+            (
+                Coord::Spin(Some(TargetAxis::X)),
+                (Dimension::Angle, xt.to_radians()),
+            ),
+        ] {
+            let constraint = match session.committed_doc().node(bench.post_b) {
+                Some(Node::InstantiatePart { constraints, .. }) => constraints
+                    .iter()
+                    .find(|c| c.value().is_some_and(|v| v.coord == coord))
+                    .map(|c| c.id),
+                _ => None,
+            };
+            let Some(constraint) = constraint else {
+                println!("no value {coord:?} on post_b");
+                ok = false;
+                continue;
+            };
+            let slot = match coord {
+                Coord::Slide(_) => SlotId::ValueSlide { constraint },
+                Coord::Spin(_) => SlotId::ValueSpin { constraint },
+            };
+            let outcome = session.perform(SessionOp::SetSlot {
+                node: bench.post_b,
+                slot,
+                value: viewer::props::SlotValue::of(value.0, value.1).expect("a finite value"),
+            });
+            assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        }
+        if !ok {
+            bad.push(format!("{zt},{xt}: chain not present"));
+            continue;
+        }
+        session.pump();
+        let pose = |session: &DocSession| {
+            let (doc, _) = session.landed_pair().expect("landed");
+            common::solve(session, doc, tol)
+                .placement(doc, bench.post_b)
+                .expect("post_b has a pose")
+        };
+        let before = pose(&session);
+        let mut tool = MateTool::new();
+        tool.pick(session.doc(), post_top.clone());
+        tool.pick(session.doc(), shelf_bottom.clone());
+        let (doc, _) = session.landed_pair().expect("landed");
+        let proposal = tool
+            .proposal(
+                doc,
+                viewer::matetool::MateChoice {
+                    kind: pncad::document::VarKind::Plane,
+                    flip: true,
+                    values: Vec::new(),
+                },
+            )
+            .expect("the seat proposes");
+        common::commit_mate(&mut session, proposal.op());
+        let after = pose(&session);
+        // Expected: least turn of R0·z onto +z, composed after R0.
+        let r0 = before.columns;
+        let f = r0[2];
+        let (c, k) = (f[2], [f[1], -f[0], 0.0]); // f × z
+        let s = |e: [f64; 3]| -> [f64; 3] {
+            let kxe = [
+                k[1] * e[2] - k[2] * e[1],
+                k[2] * e[0] - k[0] * e[2],
+                k[0] * e[1] - k[1] * e[0],
+            ];
+            let kd = k[0] * e[0] + k[1] * e[1] + k[2] * e[2];
+            [0, 1, 2].map(|i| e[i] * c + kxe[i] + k[i] * kd / (1.0 + c))
+        };
+        let want: Vec<[f64; 3]> = r0.iter().map(|&col| s(col)).collect();
+        let dcol = after
+            .columns
+            .iter()
+            .zip(&want)
+            .flat_map(|(got, want)| got.iter().zip(want).map(|(g, w)| (g - w).abs()))
+            .fold(0.0_f64, f64::max);
+        let h = asm::POST_HEIGHT;
+        let p = |fr: &pncad::document::Frame| -> [f64; 3] {
+            [0, 1, 2].map(|i| fr.translation[i] + fr.columns[2][i] * h)
+        };
+        let (pb, pa) = (p(&before), p(&after));
+        let dxy = (pa[0] - pb[0]).abs().max((pa[1] - pb[1]).abs());
+        let orient = match session.committed_doc().node(bench.post_b) {
+            Some(Node::InstantiatePart { constraints, .. }) => {
+                constraints.iter().find_map(|c| c.mate().map(|m| m.orient))
+            }
+            _ => None,
+        };
+        println!("snap z={zt} x={xt}: orient {orient:?} turn err {dcol:e} point xy err {dxy:e}");
+        // At the antipode (x = 180°) the expected least turn has no
+        // formula; only the rest and the point are checked there.
+        if (dcol > 1e-9 && 1.0 + c > 1e-9) || dxy > 1e-9 {
+            bad.push(format!("{zt},{xt}: turn err {dcol:e}, point err {dxy:e}"));
+        }
+        assert_faces_rest(&session, &post_top, &shelf_bottom, "r1 snapped seat");
+    }
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
 }

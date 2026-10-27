@@ -16,7 +16,7 @@ that PR.
 `nurbs_patch_face` on random bicubic faces, with a caller-supplied
 perimeter below the true one, panics on 2 of 200 faces in a debug build.
 The panic is at `debug_assert_area_gauge`
-(`crates/geom-brep/src/props/quad.rs:2534`, called at `:3583` and
+(`crates/geom-brep/src/props/quad/`, called at `:3583` and
 `:3906`). It does not return a certified area or a typed refusal.
 
 A caller's input reaching a panic at a public door is a D9 defect.

@@ -170,3 +170,7 @@
   - Tier: dual, because it is new metric arithmetic on f64, Interval and Dual with closed-form roots. Letter M, byte 4 (06:28:29Z), mod 3 = 1: SEQUENTIAL. First review `session_018u3gVJZMr4RcyeBuNvcrvr`.
   - No census row moves. The census half is unreachable while backstop arm 1 refuses curved × planar pairs, and that evidence went to RESTREAD's `census-cross-solid-curved-pairs-undecidable-on-shell-results`.
   - The item is narrowed, not closed. Filed P3 `census-link-fuzz-prism-fixture-escalates-at-1e-6`.
+
+## 2026-10-27 — seam note from QUAD's main-red triage
+
+Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `crates/topo/src/link.rs` reads its own source, but test-utils' `reader_census` ledger has no entry for it, and the census is red on main. (QUAD triage lane, PR 5824)

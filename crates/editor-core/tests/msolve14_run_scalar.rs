@@ -231,8 +231,9 @@ impl Parts {
 
 /// **A seat**: `mover`'s bottom cap resting on `onto`'s top cap,
 /// `by` above it, and the mover's origin at `(x, y)` on the target
-/// space's axes swung onto the cap's normal, turned `spin` about it — the rest and its three
-/// values, in `mover`'s bundle. Answers the rest's address.
+/// space's axes as the least turn onto the mated direction carries
+/// them, turned `spin` about the cap's own normal — the rest and its
+/// three values, in `mover`'s bundle. Answers the rest's address.
 #[allow(clippy::too_many_arguments)]
 fn seat(
     doc: ProfileDoc,
@@ -252,7 +253,7 @@ fn seat(
         &[
             (Coord::Slide(TargetAxis::X), x),
             (Coord::Slide(TargetAxis::Y), y),
-            (Coord::Spin(editor_core::TargetAxis::Z), spin),
+            (Coord::SPIN, spin),
         ],
     )
 }
@@ -261,8 +262,9 @@ fn seat(
 /// corner along its own sides**: that point, `U + R·(1, 1, 0)` with the
 /// corner `U = Rz(turn)·(5, 0, lift)` and the slab's turn
 /// `R = Rz(turn)·Rx(0.3)`, read on the seat's chart — the world's `x`
-/// and `y` swung onto the slab's normal `n = R·z` by the shortest turn,
-/// from the world's origin.
+/// and `y` carried by the least turn from the bolt's mated `−z` onto
+/// the mated direction `−n`, the slab's normal `n = R·z` reversed (the
+/// same turn as `z` onto `n`), from the world's origin.
 fn seat_on_the_pinned_slab(turn: f64, lift: f64) -> (f64, f64) {
     let (ct, st, c3, s3) = (turn.cos(), turn.sin(), 0.3_f64.cos(), 0.3_f64.sin());
     let rz = |v: [f64; 3]| [ct * v[0] - st * v[1], st * v[0] + ct * v[1], v[2]];
@@ -360,8 +362,11 @@ fn turned_slab(p: &Parts, label: &str) -> (ProfileDoc, RecipeNodeId) {
     let plus = |a: Formula, b: Formula| Formula::add(a, b).expect("a sum");
     let (c3, s3) = (0.3_f64.cos(), 0.3_f64.sin());
     let values = vec![
-        (Coord::Spin(TargetAxis::X), ang(0.3)),
-        (Coord::Spin(TargetAxis::Z), named(turn(), Dimension::Angle)),
+        (Coord::Spin(Some(TargetAxis::X)), ang(0.3)),
+        (
+            Coord::Spin(Some(TargetAxis::Z)),
+            named(turn(), Dimension::Angle),
+        ),
         (
             Coord::Slide(TargetAxis::X),
             plus(metres(5.0, cos()), metres(-s3, sin())),
@@ -592,7 +597,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         fixture::mate(p.bolt_edge(bolts[0], 0), p.slab_line(slab, 4.0, 4.0)),
         &[
             (Coord::Slide(TargetAxis::Z), len(SLAB_HEIGHT + 0.25)),
-            (Coord::Spin(editor_core::TargetAxis::Z), ang(0.3)),
+            (Coord::SPIN, ang(0.3)),
         ],
     );
     out.push(("coaxial-slide-spin", doc, p.opts()));
@@ -658,8 +663,9 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     // and a seat on that: a chain of bundles back to the world.
     let p = parts("msolve14-c-pin");
     let (doc, slab) = turned_slab(&p, "msolve14-c-pin");
-    // A seat's values are charted on the world's axes swung onto the
-    // slab's normal `n = Rz(turn)·Rx(0.3)·z`, from the world's origin
+    // A seat's values are charted on the world's axes carried by the
+    // least turn onto the mated direction, the slab's normal
+    // `n = Rz(turn)·Rx(0.3)·z` reversed, from the world's origin
     // (§5′.2). The bolt is meant to stand `(1, 1)` along the slab's own
     // sides from its upper corner, so its values are that point read on
     // the chart at the parameters' nominal values (`turn = 0.25`,
@@ -937,9 +943,9 @@ fn run_at<T: editor_core::EvalScalar>(
 ///
 /// And for D′2 (a value charts on the target space, all three rows):
 /// every bundle is spelled in the new vocabulary and the content key's
-/// `VERSION` moved, so the ids moved; and a seat's values are charted
-/// on its target space's axes swung onto the mated normal rather than
-/// on the target body's frame. The two seats whose target stands off
+/// `VERSION` moved, so the ids moved; and a seat's values came to be
+/// charted on its target space's axes (then swung onto the mated
+/// normal) rather than on the target body's frame. The two seats whose target stands off
 /// its space's identity are written as the motion they mean: the
 /// pinned chain's bolts at the point `(1, 1)` along the slab's sides
 /// from its corner reads on the new chart
@@ -976,10 +982,19 @@ fn run_at<T: editor_core::EvalScalar>(
 /// evaluation digest feeds each edge curve's `Debug`, which now spells
 /// it. No pose, fault or point moved. Re-measured with both merged, at
 /// all three ε.
+///
+/// And when the value chart came to read a written orientation (D10
+/// `[placement.values]`, all three rows): every mate carries its
+/// orientation and the content key's `VERSION` moved to 22, so every
+/// id and value token moved; and the pinned chain's two seats on the
+/// turned slab are turned by the least turn where the swing turned
+/// them, so their rotations' off-diagonal entries no longer agree bit
+/// for bit, one translation entry (`z`) moved by an ulp, and five of
+/// their vertices by an ulp each. Every other pose is main's.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x7b0f_be4e_b4f4_e5d1),
-    (1e-6, 0x01ef_f0e0_9fde_7c4e),
-    (1e-12, 0x6429_efaa_9430_4fd7),
+    (1e-9, 0xaa45_2c35_08a5_7082),
+    (1e-6, 0x12ee_6451_f129_634c),
+    (1e-12, 0x8257_e764_d53a_2109),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
@@ -1705,7 +1720,7 @@ fn a_tilted_plane_slid_within_itself_leaves_the_map_thin() {
         &[
             (Coord::Slide(TargetAxis::X), len(x)),
             (Coord::Slide(TargetAxis::Y), len(y)),
-            (Coord::Spin(TargetAxis::Z), ang(0.0)),
+            (Coord::SPIN, ang(0.0)),
         ],
     );
     let opts = p.opts();

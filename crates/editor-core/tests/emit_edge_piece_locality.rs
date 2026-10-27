@@ -80,11 +80,11 @@ fn a_second_cut_on_a_seam_leaves_the_other_pieces_names() {
         doc.clone(),
         DocEdit::SetParam {
             node: tr,
-            // The value is charted on the plate's flipped start cap, whose
-            // `y` runs along the plate's `−y`: this slides the notch
-            // 4 toward `−y`.
+            // The value is a coordinate on the plate's own `y` (its start
+            // cap is where the identity orientation puts the notch's):
+            // this slides the notch 4 toward `−y`.
             slot: crate::fixture::value_slot(&doc, tr, Coord::Slide(TargetAxis::Y)),
-            value: len(4.0).into(),
+            value: len(-4.0).into(),
             fresh: Vec::new(),
         },
     );
