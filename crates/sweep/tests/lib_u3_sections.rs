@@ -121,13 +121,18 @@ fn u3_differential_loft_prism_is_bit_identical_to_the_recorded_base() {
         topo::Body::clone(&loft_prism(Tol::witness())),
         Tol::witness(),
     );
-    let m = topo::mass_properties(&body, Tol::witness()).expect("mass properties");
+    let m = topo::mass_properties(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("mass properties");
     assert_eq!(
-        m.volume.to_bits(),
+        m.enclosure.volume.to_bits(),
         BASE_VOLUME_BITS,
         "volume moved: {} (bits {:#x}) vs the recorded base",
-        m.volume,
-        m.volume.to_bits()
+        m.enclosure.volume,
+        m.enclosure.volume.to_bits()
     );
     let census = (
         body.solids().count(),

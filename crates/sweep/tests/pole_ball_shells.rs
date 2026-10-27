@@ -40,16 +40,17 @@ fn a_pole_touching_ball_shells_to_the_difference_of_two_balls() {
         let props = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&out), tol),
             tol,
+            topo::test_support::pinned_resolution(tol),
         )
         .expect("props");
         let want = 4.0 / 3.0 * PI * (r.powi(3) - (r - t).powi(3));
         // The volume is a sum of r³-sized terms, so its rounding scales
         // with r³; the pad is the quadrature's own bound.
         assert!(
-            (props.volume - want).abs() <= 1e-12 * r.powi(3) + props.volume_pad,
+            (props.enclosure.volume - want).abs() <= 1e-12 * r.powi(3) + props.enclosure.volume_pad,
             "{label}: volume {} vs the closed form {want} (pad {})",
-            props.volume,
-            props.volume_pad
+            props.enclosure.volume,
+            props.enclosure.volume_pad
         );
         let mesh = mesh::tessellate(&out, 1e-2 * r, tol)
             .unwrap_or_else(|e| panic!("{label}: tessellates, got {e:?}"));

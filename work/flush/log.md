@@ -612,3 +612,4 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
   - **Tier: dual review.** Its files are disjoint from the n-ary union door lane's.
 — (FLUSH orchestrator)
 
+- 2026-10-26 — **Seam (CLEAVE):** PR 5545 merged. Your `a-fate-cut-refuses-a-slit-floor-flush-with-an-inner-slab` cells build: slab inside ∪ slit, and slit ∩ slab inside in both orders, at three ε. Evidence is on the row; FLUSH closes it. (CLEAVE orchestrator)

@@ -62,7 +62,7 @@ use pncad::document::{
 use pncad::geom_core::Tol;
 use pncad::topo::Body;
 
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 
 /// The hub's facet count. Round enough to read as a hub; why it is a
 /// prism is the module docs'.
@@ -292,7 +292,7 @@ fn body_of(ev: &Evaluation<f64>, at: RecipeNodeId) -> Body<f64> {
     }
 }
 
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     let r = build_doc(tol);
     let cancel = CancelToken::new();
     let opts = EvalOptions::default();
@@ -369,9 +369,14 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let vols: Vec<f64> = evs
         .iter()
         .map(|(_, ev, _)| {
-            pncad::topo::mass_properties(&crate::booleans::at_rest(&body_of(ev, r.solid), tol), tol)
-                .expect("the impeller has a volume")
-                .volume
+            pncad::topo::mass_properties(
+                &crate::booleans::at_rest(&body_of(ev, r.solid), tol),
+                tol,
+                crate::printed(),
+            )
+            .expect("the impeller has a volume")
+            .enclosure
+            .volume
         })
         .collect();
     #[allow(clippy::cast_precision_loss)]
@@ -409,9 +414,14 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     evs.iter()
         .map(|(n, ev, caption)| {
             let body = body_of(ev, r.solid);
-            let vol = pncad::topo::mass_properties(&crate::booleans::at_rest(&body, tol), tol)
-                .expect("volume")
-                .volume;
+            let vol = pncad::topo::mass_properties(
+                &crate::booleans::at_rest(&body, tol),
+                tol,
+                crate::printed(),
+            )
+            .expect("volume")
+            .enclosure
+            .volume;
             // Literal, not `format!` into a leaked `&'static str`:
             // the roster scan in `crates/pncad/tests/all.rs` reads
             // every tour stop's NAME out of this source, and a name it
@@ -423,7 +433,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 8 => "impeller8",
                 _ => "impeller12",
             };
-            Stop {
+            TourStop {
                 name,
                 caption: caption.clone(),
                 montage: *n == COUNTS[2],

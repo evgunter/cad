@@ -144,11 +144,11 @@ fn a_blind_pocket_in_a_cylinder_cap_cuts_to_the_closed_form() {
             "{label}: tier 3"
         );
         let volume = |b: &topo::Body<f64>| {
-            topo::mass_properties(
+            topo::test_support::pinned_volume(
+                "mass properties",
                 &topo::test_support::finished("the measured body", topo::Body::clone(b), tol),
                 tol,
             )
-            .expect("mass properties")
             .volume
         };
         let tool_volume = volume(body_of(&ev, prism));
@@ -196,9 +196,7 @@ fn a_pocket_across_the_rim_cuts_to_the_closed_form() {
     let d = 0.035;
     let segment = R * R * (d / R).acos() - d * (R * R - d * d).sqrt();
     let truth = PI * R * R * HEIGHT - segment * DEPTH;
-    let got = topo::mass_properties(&body, tol)
-        .expect("mass properties")
-        .volume;
+    let got = topo::test_support::pinned_volume("mass properties", &body, tol).volume;
     assert!(
         (got - truth).abs() < 1e-15,
         "notched cylinder {got} against the closed form {truth}"

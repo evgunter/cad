@@ -119,9 +119,7 @@ fn holds(label: &str, side: &str, part: &SplitPart<f64>, want: f64) {
     topo::validate_geometric(&b, tol).unwrap_or_else(|e| panic!("{label}: {side}: tier 3: {e:?}"));
     topo::validate_pseudomanifold(&b, &ContactRecords::default(), tol)
         .unwrap_or_else(|e| panic!("{label}: {side}: tier 3′: {e:?}"));
-    let v = topo::mass_properties(&b, tol)
-        .unwrap_or_else(|e| panic!("{label}: {side}: mass properties: {e:?}"))
-        .volume;
+    let v = topo::test_support::pinned_volume("the measured body", &b, tol).volume;
     assert!(
         (v - want).abs() <= 1e-9 * want.max(1.0),
         "{label}: {side} volume {v}, want {want}"
@@ -369,12 +367,13 @@ fn a_near_tangent_cut_along_a_cylinder_ruling_never_answers_wrongly() {
                         .unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
                     topo::validate_pseudomanifold(b, &ContactRecords::default(), tol)
                         .unwrap_or_else(|e| panic!("{label}: tier 3′: {e:?}"));
-                    let m = mass_properties(b, tol)
+                    let m = mass_properties(b, tol, topo::test_support::pinned_resolution(tol))
                         .unwrap_or_else(|e| panic!("{label}: mass properties: {e:?}"));
                     assert!(
-                        (m.volume - PI).abs() <= 1e-9 * PI + m.volume_pad + floor,
+                        (m.enclosure.volume - PI).abs()
+                            <= 1e-9 * PI + m.enclosure.volume_pad + floor,
                         "{label}: landed whole with volume {}",
-                        m.volume
+                        m.enclosure.volume
                     );
                     continue;
                 }
@@ -394,12 +393,13 @@ fn a_near_tangent_cut_along_a_cylinder_ruling_never_answers_wrongly() {
                         .unwrap_or_else(|e| panic!("{label}: {side}: tier 3: {e:?}"));
                     topo::validate_pseudomanifold(b, &ContactRecords::default(), tol)
                         .unwrap_or_else(|e| panic!("{label}: {side}: tier 3′: {e:?}"));
-                    let m = mass_properties(b, tol)
+                    let m = mass_properties(b, tol, topo::test_support::pinned_resolution(tol))
                         .unwrap_or_else(|e| panic!("{label}: {side}: mass properties: {e:?}"));
                     assert!(
-                        (m.volume - want).abs() <= 1e-9 * want + m.volume_pad + floor,
+                        (m.enclosure.volume - want).abs()
+                            <= 1e-9 * want + m.enclosure.volume_pad + floor,
                         "{label}: {side} volume {}, want {want}",
-                        m.volume
+                        m.enclosure.volume
                     );
                 }
             }
@@ -479,12 +479,13 @@ fn near_tangent_rulings(name: &str, r0: f64, r1: f64) -> usize {
                         .unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
                     topo::validate_pseudomanifold(b, &ContactRecords::default(), tol)
                         .unwrap_or_else(|e| panic!("{label}: tier 3′: {e:?}"));
-                    let m = mass_properties(b, tol)
+                    let m = mass_properties(b, tol, topo::test_support::pinned_resolution(tol))
                         .unwrap_or_else(|e| panic!("{label}: mass properties: {e:?}"));
                     assert!(
-                        (m.volume - whole).abs() <= 1e-9 * whole + m.volume_pad + floor,
+                        (m.enclosure.volume - whole).abs()
+                            <= 1e-9 * whole + m.enclosure.volume_pad + floor,
                         "{label}: landed whole with volume {}, want {whole}",
-                        m.volume
+                        m.enclosure.volume
                     );
                     continue;
                 }
@@ -497,11 +498,14 @@ fn near_tangent_rulings(name: &str, r0: f64, r1: f64) -> usize {
                         .unwrap_or_else(|e| panic!("{label}: {side}: tier 2: {e:?}"));
                     topo::validate_geometric(b, tol)
                         .unwrap_or_else(|e| panic!("{label}: {side}: tier 3: {e:?}"));
-                    if let Ok(m) = mass_properties(b, tol) {
+                    if let Ok(m) =
+                        mass_properties(b, tol, topo::test_support::pinned_resolution(tol))
+                    {
                         assert!(
-                            (m.volume - want).abs() <= 1e-9 * want + m.volume_pad + floor,
+                            (m.enclosure.volume - want).abs()
+                                <= 1e-9 * want + m.enclosure.volume_pad + floor,
                             "{label}: {side} volume {}, want {want}",
-                            m.volume
+                            m.enclosure.volume
                         );
                     }
                 }

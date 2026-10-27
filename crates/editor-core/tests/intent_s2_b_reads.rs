@@ -753,7 +753,8 @@ fn split_block(name: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 
 /// The volume of `id`'s body in `ev`.
 fn volume(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> f64 {
-    topo::mass_properties(
+    topo::test_support::pinned_volume(
+        "mass properties",
         &topo::test_support::finished(
             "the measured body",
             topo::Body::clone(crate::corpus::body_of(ev, id)),
@@ -761,7 +762,6 @@ fn volume(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> f64 {
         ),
         Tol::witness(),
     )
-    .expect("mass properties")
     .volume
 }
 

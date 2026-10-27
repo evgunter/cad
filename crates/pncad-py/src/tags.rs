@@ -360,6 +360,23 @@ pub fn validation_refusal_tag(refusal: ValidationRefusal) -> &'static str {
     }
 }
 
+/// The `ValidationError.measure_refusal` of a measurement door's
+/// refusal: which arm of the kernel's `MassPropsError` refused.
+pub fn mass_props_error_tag(err: &pncad::topo::MassPropsError) -> &'static str {
+    use pncad::topo::MassPropsError as M;
+    match err {
+        M::Band { .. } => "band",
+        M::Face { .. } => "face",
+        M::RingOnCurvedFace { .. } => "ring_on_curved_face",
+        M::Corrupt { .. } => "corrupt",
+        M::NullScaffoldEdge { .. } => "null_scaffold_edge",
+        M::ResolutionFinerThanEps { .. } => "resolution_finer_than_eps",
+        M::EmptyContains => "empty_contains",
+        M::Poisoned { .. } => "poisoned",
+        M::Undecided { .. } => "undecided",
+    }
+}
+
 /// The `EditError.variant` of a refusal the boundary built, over the
 /// [`BoundaryEdit`] its raise takes.
 ///
@@ -441,6 +458,14 @@ pub fn stl_refusal_tag(refusal: StlRefusal<'_>) -> &'static str {
 /// the import door matches it exhaustively — which forces a decision,
 /// not a word in this file.
 pub const STEP_IMPORT_WIREFRAME: &str = "wireframe";
+
+/// The `measure_refusal` of `MassMeasurement.met()` where the
+/// measurement stopped short of its resolution: no kernel refusal, but
+/// the typed answer of `topo::MassMeasurement::met`, `topo::Unmet`, a
+/// one-field struct whose word this is. Spelled here, beside the
+/// inventory's other constant, for the reason
+/// [`STEP_IMPORT_WIREFRAME`] gives.
+pub const MEASUREMENT_UNMET: &str = "unmet";
 
 /// The stable tag for a NAMED expression slot — `EditError.slot`, the
 /// address a refusal is about.

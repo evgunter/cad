@@ -98,11 +98,12 @@ fn volume(h: &Body<f64>) -> Vol {
     let m = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(h), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .unwrap();
     Vol {
-        v: m.volume,
-        pad: m.volume_pad,
+        v: m.enclosure.volume,
+        pad: m.enclosure.volume_pad,
     }
 }
 

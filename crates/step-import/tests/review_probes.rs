@@ -16,7 +16,7 @@ fn solid(text: &str, what: &str) -> topo::Body<f64> {
     match import_step(text, &ImportOptions::default(), Tol::witness())
         .unwrap_or_else(|e| panic!("{what}: {e}"))
     {
-        StepImport::Solid { body, .. } => body,
+        StepImport::Solid { body, .. } => body.into_body(),
         StepImport::Wireframe { .. } => panic!("{what}: wireframe"),
     }
 }
@@ -45,11 +45,11 @@ fn a1_perturbed_value_flows_to_reexport() {
             "#8 = CARTESIAN_POINT('', (0.0, -1.25, 0.0));",
         );
     let body = solid(&text, "perturbed ball");
-    let v = topo::mass_properties(
+    let v = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
         Tol::witness(),
     )
-    .unwrap()
     .volume;
     let expected = 4.0 / 3.0 * std::f64::consts::PI * 1.25f64.powi(3);
     assert!(
@@ -86,6 +86,7 @@ fn a1_small_perturbation_breaks_row1_tolerance() {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
     let expect = common::expect_sidecar("ball");
@@ -93,14 +94,14 @@ fn a1_small_perturbation_breaks_row1_tolerance() {
     // Row-1 tolerance for ball (the tightened KERNEL_VOLUME_MM3 form —
     // roundtrip.rs derives it): pad + native pad + (2×faces + 2) = 6
     // ulps; no print-precision term, the literal is full precision.
-    let tol = props.volume_pad
+    let tol = props.enclosure.volume_pad
         + expect.kernel_volume_pad_mm3 * 1e-9
         + 6.0 * (expected.next_up() - expected);
-    let dev = (props.volume - expected).abs();
+    let dev = (props.enclosure.volume - expected).abs();
     assert!(
         dev > tol,
         "a 1e-7 radius error must exceed the row tolerance: dev {dev} vs tol {tol} (pad {})",
-        props.volume_pad
+        props.enclosure.volume_pad
     );
 }
 
@@ -221,17 +222,17 @@ fn d4_reversed_data_lines_still_assemble() {
     let body = solid(&permuted, "reversed die");
     let reference = solid(&text, "die");
     assert_eq!(arena_census(&body), arena_census(&reference));
-    let v1 = topo::mass_properties(
+    let v1 = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
         Tol::witness(),
     )
-    .unwrap()
     .volume;
-    let v2 = topo::mass_properties(
+    let v2 = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", reference.clone(), Tol::witness()),
         Tol::witness(),
     )
-    .unwrap()
     .volume;
     assert_eq!(v1.to_bits(), v2.to_bits());
     let e1 = export(&body, "die");
@@ -266,17 +267,17 @@ fn d4_renumbered_kiss_assembly_still_assembles() {
     let body = solid(&renumbered, "renumbered kiss");
     let reference = solid(&text, "kiss");
     assert_eq!(arena_census(&body), arena_census(&reference));
-    let v1 = topo::mass_properties(
+    let v1 = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
         Tol::witness(),
     )
-    .unwrap()
     .volume;
-    let v2 = topo::mass_properties(
+    let v2 = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", reference.clone(), Tol::witness()),
         Tol::witness(),
     )
-    .unwrap()
     .volume;
     assert_eq!(v1.to_bits(), v2.to_bits());
     let e1 = export(&body, "kiss_assembly");
@@ -305,8 +306,8 @@ fn f6_face_sense_flip_is_not_healed() {
     match import_text(&text) {
         Err(e) => println!("f6 .T.->.F.: typed refusal: {e}"),
         Ok(StepImport::Solid { body, .. }) => {
-            let tier3 = topo::validate_geometric(&body, Tol::witness());
-            let out = export(&body, "cube");
+            let tier3 = topo::validate_geometric(body.body(), Tol::witness());
+            let out = export(body.body(), "cube");
             let kept = out.contains("ADVANCED_FACE('', (#39), #5, .F.)")
                 || out.matches(", .F.);").count() > 0;
             println!("f6 .T.->.F.: imported; tier3 = {tier3:?}; re-export keeps .F.: {kept}");
@@ -340,16 +341,21 @@ fn f6_reversed_face_unflip_is_not_healed() {
             );
         }
         Ok(StepImport::Solid { body, .. }) => {
-            let tier3 = topo::validate_geometric(&body, Tol::witness());
-            let out = export(&body, "washer");
+            let tier3 = topo::validate_geometric(body.body(), Tol::witness());
+            let out = export(body.body(), "washer");
             let flipped_back = out.contains(", #5, .F.);");
-            let v = topo::mass_properties(
-                &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+            let v = topo::test_support::pinned_volume(
+                "the measured body",
+                &topo::test_support::finished(
+                    "the measured body",
+                    body.body().clone(),
+                    Tol::witness(),
+                ),
                 Tol::witness(),
             )
-            .unwrap()
             .volume;
-            let v0 = topo::mass_properties(
+            let v0 = topo::test_support::pinned_volume(
+                "the measured body",
                 &topo::test_support::finished(
                     "the measured body",
                     solid(&fixture("washer", "step"), "washer").clone(),
@@ -357,7 +363,6 @@ fn f6_reversed_face_unflip_is_not_healed() {
                 ),
                 Tol::witness(),
             )
-            .unwrap()
             .volume;
             // Finding data, not a hard assert: tier-3 detectability of a
             // curved-face sense flip is kernel scope, not import scope.
@@ -491,17 +496,25 @@ fn g7_nonunit_vector_rescales_without_moving_the_solid() {
         panic!("both are solids");
     };
     assert_eq!(
-        topo::mass_properties(
-            &topo::test_support::finished("the measured body", (a).clone(), Tol::witness()),
+        topo::test_support::pinned_volume(
+            "the measured body",
+            &topo::test_support::finished(
+                "the measured body",
+                ((a).clone()).into_body(),
+                Tol::witness()
+            ),
             Tol::witness()
         )
-        .unwrap()
         .volume,
-        topo::mass_properties(
-            &topo::test_support::finished("the measured body", (b).clone(), Tol::witness()),
+        topo::test_support::pinned_volume(
+            "the measured body",
+            &topo::test_support::finished(
+                "the measured body",
+                ((b).clone()).into_body(),
+                Tol::witness()
+            ),
             Tol::witness()
         )
-        .unwrap()
         .volume,
         "the line's parameter scale is not the line"
     );
@@ -562,22 +575,22 @@ fn e5_closed_forms() {
     assert!((pips - 987904868.2836792).abs() < 1e-4);
     // die_pips ulp distance of the imported volume from the sidecar.
     let body = solid(&fixture("die_pips", "step"), "die_pips");
-    let v = topo::mass_properties(
+    let v = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
         Tol::witness(),
     )
-    .unwrap()
     .volume;
     let expected: f64 = 987904868.2836792e-9;
     let ulp = expected.next_up() - expected;
     println!(
         "e5 die_pips imported volume is {:.2} ulps from the sidecar (pad {})",
         (v - expected).abs() / ulp,
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
             Tol::witness()
         )
-        .unwrap()
         .volume_pad
     );
 }
@@ -601,11 +614,11 @@ fn h8_eps_in_not_consumed() {
             panic!("wireframe?")
         };
         assert_eq!(eps_in, eps);
-        let v = topo::mass_properties(
-            &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+        let v = topo::test_support::pinned_volume(
+            "the measured body",
+            &topo::test_support::finished("the measured body", body.body().clone(), Tol::witness()),
             Tol::witness(),
         )
-        .unwrap()
         .volume;
         assert_eq!(
             v.to_bits(),

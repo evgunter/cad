@@ -162,13 +162,17 @@ pub(crate) fn assert_body(label: &str, body: &Body<f64>, want: f64) {
     let p = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .unwrap_or_else(|e| panic!("{label}: mass properties, got {e:?}"));
-    assert_eq!(p.volume_pad, 0.0, "{label}: closed-form faces only");
+    assert_eq!(
+        p.enclosure.volume_pad, 0.0,
+        "{label}: closed-form faces only"
+    );
     assert!(
-        (p.volume - want).abs() <= 1e-9 * want,
+        (p.enclosure.volume - want).abs() <= 1e-9 * want,
         "{label}: volume {} against the closed form {want}",
-        p.volume
+        p.enclosure.volume
     );
 }
 

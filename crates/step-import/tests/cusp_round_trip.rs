@@ -83,7 +83,7 @@ fn a_native_cusp_round_trips_through_step_as_a_solid() {
         other => panic!("the cusp lune must re-import as a solid, got {other:?}"),
     };
 
-    let after = tangent_edges(&back);
+    let after = tangent_edges(back.body());
     assert_eq!(after.len(), 1, "one tangent edge after the trip, {after:?}");
     assert!(
         after[0].iter().all(on_the_kiss),
