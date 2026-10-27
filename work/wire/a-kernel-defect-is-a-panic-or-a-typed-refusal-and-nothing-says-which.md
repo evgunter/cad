@@ -42,8 +42,10 @@ Returned as a question by `wire-breaks` (PR 5406), Part 1 of
   
   Each is a "kernel defect" refused typed.
 - Real input reaches at least one of them:
-  - `held_out` catches `Emission { what: ROW_CELL_NOT_IN_TABLE }`
-    (`work/cleave/a-fold-steps-ring-tie-row-names-a-pierce-vertex-its-operand-does-not-hold.md`);
+  - a union fold row naming a pierce vertex no operand table names
+    reached `Emission { what: ROW_CELL_NOT_IN_TABLE }`
+    (`work/cleave/a-fold-steps-ring-tie-row-names-a-pierce-vertex-its-operand-does-not-hold.md`,
+    fixed in PR 5753);
   - so for a defect like that, D9's "never panics on any input" and
     "a kernel bug must panic" disagree.
 - Applied as written, D9 turns all these sites into `unreachable!` and
