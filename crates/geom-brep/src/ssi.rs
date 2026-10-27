@@ -122,7 +122,7 @@ mod compensated;
 pub mod enclose;
 mod ends;
 pub mod exhaust;
-pub(crate) mod four;
+mod four;
 mod handle;
 pub mod jet;
 pub mod march;

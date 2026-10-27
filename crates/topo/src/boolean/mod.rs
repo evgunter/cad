@@ -334,8 +334,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         }
         "spline_composite_root_at_end"
         | "spline_composite_root_at_crease"
-        | "spline_face_root_at_end"
-        | "spline_face_root_at_crease" => CrossingDecision::OnEdge.subject(),
+        | "spline_face_root_at_end" => CrossingDecision::OnEdge.subject(),
         "spline_composite_root_on" => {
             "whether a crossing found along a spline edge lies on the face"
         }
@@ -2871,7 +2870,7 @@ pub enum BooleanError {
     /// ring composite for a spline edge
     /// ([`geom_brep::curve_face::composite::crossings`]), or the
     /// spline-face arm for an analytic edge against a spline face
-    /// ([`geom_brep::curve_face::spline_face::meetings`]). The edge comes
+    /// ([`geom_brep::NurbsLane::chart_meetings`]). The edge comes
     /// within the band of the face's carrier without a crossing the arm
     /// can tell apart (it touches it, runs along it, or crosses it more
     /// than once within the band), it meets it within the band of a crease

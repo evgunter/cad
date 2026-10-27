@@ -31,6 +31,7 @@ use geom_core::{Bounds, CertifiedBounds, Interval};
 use super::enclose::{Box3, NurbsBoxes, UvWindow, refused_box};
 use super::one_arc::{EXIT_CUT, EXIT_DEPTH, Shortfall};
 use super::section::sign;
+use crate::krawczyk::{det3, inverse3};
 
 /// A box in the ℝ⁴ state space: `[lo, hi]` per coordinate, the first
 /// chart's `u, v` then the second's.
@@ -182,13 +183,6 @@ impl<'a, T: CertifiedBounds> PairBoxes<'a, T> {
     fn widest(&self, x: Box4, free: &[usize]) -> usize {
         heaviest(free, |k| (x.0[k].1 - x.0[k].0) * self.speeds[k])
     }
-}
-
-/// The determinant of a 3×3 interval matrix.
-pub(crate) fn det3(m: [[Interval; 3]; 3]) -> Interval {
-    m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
-        - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
-        + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0])
 }
 
 /// The 3×3 minor of a 3×4 interval matrix with column `skip` deleted.
@@ -356,24 +350,6 @@ fn narrow<T: CertifiedBounds>(pair: &PairBoxes<'_, T>, (q, k): (Box4, usize)) ->
         q = next;
     }
     q
-}
-
-/// The inverse of a 3×3 matrix, `None` where it is singular or not
-/// finite.
-pub(crate) fn inverse3(m: [[f64; 3]; 3]) -> Option<[[f64; 3]; 3]> {
-    let c =
-        |r0: usize, r1: usize, c0: usize, c1: usize| m[r0][c0] * m[r1][c1] - m[r0][c1] * m[r1][c0];
-    let det = m[0][0] * c(1, 2, 1, 2) - m[0][1] * c(1, 2, 0, 2) + m[0][2] * c(1, 2, 0, 1);
-    if !det.is_finite() || det == 0.0 {
-        return None;
-    }
-    let inv = [
-        [c(1, 2, 1, 2), -c(0, 2, 1, 2), c(0, 1, 1, 2)],
-        [-c(1, 2, 0, 2), c(0, 2, 0, 2), -c(0, 1, 0, 2)],
-        [c(1, 2, 0, 1), -c(0, 2, 0, 1), c(0, 1, 0, 1)],
-    ];
-    let out = inv.map(|row| row.map(|v| v / det));
-    out.iter().flatten().all(|v| v.is_finite()).then_some(out)
 }
 
 /// The three coordinates a face held at `k` leaves free.

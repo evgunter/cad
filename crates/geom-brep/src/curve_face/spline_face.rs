@@ -9,19 +9,19 @@
 //! (`C` over the parameter window minus the chart's first-order box,
 //! [`NurbsBoxes::rect_box`]) and the mean-value one `F(m) + J(X)(X − m)`.
 //! A box that is not clear is read by the **Krawczyk operator**
-//! `K = m − Y·F(m) + (I − Y·J(X))(X − m)`, `Y` the inverse of `J`'s
-//! midpoint, `J = [C′ | −S_u | −S_v]`: where `K` lies strictly inside
-//! `X` and `det J(X)` is definitely nonzero, `X` holds exactly one
-//! solution and every Jacobian in it is invertible, so the meeting is
-//! transverse. Its box is narrowed by the operator, then grown into the
+//! ([`crate::krawczyk`]), `J = [C′ | −S_u | −S_v]`: where its image lies
+//! strictly inside `X`, `X` holds exactly one solution and every
+//! Jacobian in it is invertible, so the meeting is transverse; `det J(X)`
+//! definitely nonzero is read as well, which the inclusion already
+//! implies, as the contract's own spelling of the second half. The
+//! meeting's box is narrowed by the operator, then grown into the
 //! largest box round it on which the test still holds, its **isolating
-//! box**: every box inside one is accounted for by its meeting, and only
-//! by it. Any other box is halved along its widest side in metres, down
-//! to the band's escalation length; a box there that no isolating box
-//! holds is a pass within the band or a tangency, and the arm refuses
-//! ([`Unsettled::Tangency`]): an in-band reading escalates and never
-//! prunes, and the Krawczyk operator's "no solution here" is no
-//! clearance.
+//! boxes**: every box inside one is accounted for by its meeting, and
+//! only by it. Any other box is halved along its widest side in metres,
+//! down to a floor; a box there that no isolating box holds is a pass
+//! within the band, a tangency or a meeting on a crease, and the arm
+//! refuses: an in-band reading escalates and never prunes, and the
+//! operator's "no solution here" is no clearance.
 //!
 //! The state is `(t, u, v)` and not the chart alone against the span's
 //! two implicits: `F` is metric where an implicit residual needs a
@@ -30,14 +30,25 @@
 //! is placed on the sheet it was found on.
 //!
 //! - **No box straddles a crease** (an interior knot run of
-//!   multiplicity at least the degree, `KnotStructure::crease_runs`):
-//!   the chart is cut at its creases before the walk, and an isolating
-//!   box is grown inside its own crease-free block. A meeting within the
-//!   band of a crease's iso-curve refuses ([`Unsettled::Crease`]).
+//!   multiplicity at least the degree, `Knots::crease_values`): the
+//!   chart is cut at its creases before the walk, and an isolating box
+//!   is grown inside its own crease-free block. **The crease rule** has
+//!   one home ([`Cuts::touch`]): a box touching a crease carries no
+//!   Krawczyk proof, so no isolating box holds it, and at the floor it
+//!   refuses [`Unsettled::Crease`]. That is what refuses a meeting within
+//!   the band of a crease: the carrier there lies within the band of the
+//!   crease's point `q`, so every box holding the state `(t, q)` touches
+//!   the crease and is never decided past the band, and none is held. A
+//!   box at the floor refuses under that label where a crease lies within
+//!   the reach its test was read over; the label says where the refusal
+//!   stands, not how far.
 //! - **The span's ends are the end vertices'.** The walk reads the
 //!   carrier a little past each end ([`END_REACH`]), so a meeting at an
 //!   end is isolated like any other; one within the band of an end, or
-//!   past it, is not reported.
+//!   past it, is not reported. A meeting on the chart's domain edge is
+//!   isolated by no box inside the domain, so it refuses like any other
+//!   unaccounted box, an open chart's edge and a closed chart's seam
+//!   alike.
 //! - A meeting must read ON the chart, the carrier's point within the
 //!   band of the chart's at the meeting's chart point; two within the
 //!   band of each other refuse.
@@ -52,6 +63,7 @@ use geom_core::{
     Vec3,
 };
 
+use crate::krawczyk::{det3, image, inverse3, meet3, midpoints, norm};
 use crate::roots::Unsettled;
 use crate::ssi::enclose::{NurbsBoxes, UvWindow};
 
@@ -64,14 +76,20 @@ pub enum SplineFaceRefusal {
     Escalated(Indeterminate),
     /// The walk could not settle the span: [`Unsettled::Tangency`] (a box
     /// at the floor within the band that no meeting accounts for: a pass
-    /// within the band, a tangency, or two meetings the band cannot
-    /// part), [`Unsettled::Crease`], [`Unsettled::SignInBand`] (a
-    /// meeting does not read on the chart) or [`Unsettled::Exhausted`].
+    /// within the band, a tangency, two meetings the band cannot part, or
+    /// a meeting on the chart's domain edge), [`Unsettled::Crease`] (such
+    /// a box within its floor reach of a crease among its block's sides,
+    /// as a meeting within the band of a crease leaves one),
+    /// [`Unsettled::SignInBand`] (a meeting does not read on the chart)
+    /// or [`Unsettled::Exhausted`].
     Unsettled(Unsettled),
     /// The arm could not read the pair: the carrier is not a line, circle
     /// or ellipse, or a scalar, a knot or the chart's speeds did not
     /// certify.
     Unread(&'static str),
+    /// Two enclosures of one residual share no point: an argument behind
+    /// one of them is wrong, a kernel fault.
+    Fault(&'static str),
 }
 
 impl From<Unsettled> for SplineFaceRefusal {
@@ -97,52 +115,30 @@ pub struct ChartMeeting<T: Real> {
 const PAST_THE_BAND: &str = "spline_face_past_the_band";
 
 /// How far past each end of the span the walk reads the carrier, in
-/// escalation lengths: a meeting at an end then lies inside the walk's
-/// domain, where the Krawczyk test can isolate it.
+/// escalation lengths. A meeting at an end is a split point decided ON
+/// within the band's zero, so its solution lies within `zero / sin θ` of
+/// the end, `θ` the crossing's angle: the reach covers every crossing
+/// steeper than `zero / (1024·escalate) < 1/1024` rad, and a shallower one
+/// at an end refuses. No answer but a refusal rests on its size.
 const END_REACH: f64 = 1024.0;
 
 /// The growth an isolating box is tried at, largest first, in
-/// escalation lengths mapped through `Y`.
+/// escalation lengths mapped through `Y`: each is re-proved by the test
+/// before it is used, so the ladder bounds work and the reach of an
+/// isolating box (`4096·|Y|·escalate` at most), never a decision.
 const GROWTH: [f64; 5] = [4096.0, 512.0, 64.0, 8.0, 1.0];
 
-/// The most times a meeting's box is narrowed by the operator.
+/// The most times a meeting's box is narrowed by the operator: each
+/// narrowing at least halves a box the operator contracts, so 64 reach
+/// `f64` resolution from any box; a narrowing that stops sooner leaves a
+/// wider box holding the same one solution.
 const NARROWINGS: u32 = 64;
 
-/// `|f|`, enclosed.
-fn norm(f: [Interval; 3]) -> Interval {
-    (f[0].powi(2) + f[1].powi(2) + f[2].powi(2)).sqrt()
-}
-
-/// The point enclosure of `x`.
-fn point(x: f64) -> Interval {
-    Interval::from_bounds(x, x)
-}
-
-/// The refused enclosure.
-fn refused() -> Interval {
-    Interval::from_bounds(f64::NAN, f64::NAN)
-}
-
-/// The meet of two certified enclosures of one value, or `a` where
-/// either is refused or they share no point.
-fn meet(a: Interval, b: Interval) -> Interval {
-    if !(a.is_certified() && b.is_certified()) {
-        return a;
-    }
-    let (lo, hi) = (a.lo().max(b.lo()), a.hi().min(b.hi()));
-    if lo <= hi {
-        Interval::from_bounds(lo, hi)
-    } else {
-        a
-    }
-}
-
-/// A pair of the chart's knot values, as the `f64` ends of their
-/// enclosures; `None` where one does not certify.
-fn ends_of<T: CertifiedBounds>((lo, hi): (T, T)) -> Option<(f64, f64)> {
-    let (lo, hi) = (Interval::from_certified(lo), Interval::from_certified(hi));
-    (lo.is_certified() && hi.is_certified()).then(|| (lo.lo(), hi.hi()))
-}
+/// How far a box at the floor is grown, in its own sides, for the test
+/// to reach a meeting beside it: the one growth (by its sides) every box
+/// gets, and at the floor four times them, a work bound with no answer
+/// but a refusal resting on it.
+const FLOOR_REACHES: [f64; 2] = [1.0, 4.0];
 
 /// A box of the state, `[lo, hi]` per coordinate: `t`, `u`, `v`.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -187,6 +183,22 @@ impl Cell {
         hi.0[k].0 = c;
         [lo, hi]
     }
+
+    /// The box grown by `by` of its own sides each way, inside `block`.
+    fn grown(self, by: f64, block: Self) -> Self {
+        Self(core::array::from_fn(|k| {
+            let w = (self.0[k].1 - self.0[k].0) * by;
+            (
+                (self.0[k].0 - w).max(block.0[k].0),
+                (self.0[k].1 + w).min(block.0[k].1),
+            )
+        }))
+    }
+}
+
+/// The point enclosure of `x`.
+fn exact(x: f64) -> Interval {
+    Interval::from_bounds(x, x)
 }
 
 /// The span's carrier crossed into certification arithmetic:
@@ -291,99 +303,75 @@ impl<T: CertifiedBounds> Pair<'_, T> {
         UvWindow::new(x.0[1].0, x.0[1].1, x.0[2].0, x.0[2].1)
     }
 
+    /// `C` over `t` minus the chart's first-order box over `w`.
+    fn gap(&self, t: Interval, w: UvWindow) -> [Interval; 3] {
+        let s = self.boxes.rect_box(w);
+        let c = self.path.at(t);
+        [c[0] - s.x, c[1] - s.y, c[2] - s.z]
+    }
+
     /// `F` at the state `m`, enclosed.
     fn at(&self, m: [f64; 3]) -> [Interval; 3] {
-        let Some(w) = UvWindow::new(m[1], m[1], m[2], m[2]) else {
-            return [refused(); 3];
-        };
-        let s = self.boxes.rect_box(w);
-        let c = self.path.at(point(m[0]));
-        [c[0] - s.x, c[1] - s.y, c[2] - s.z]
+        match UvWindow::new(m[1], m[1], m[2], m[2]) {
+            Some(w) => self.gap(exact(m[0]), w),
+            None => [Interval::from_bounds(f64::NAN, f64::NAN); 3],
+        }
     }
 
     /// `J = [C′ | −S_u | −S_v]` over `x`, by rows.
     fn jacobian(&self, x: Cell) -> [[Interval; 3]; 3] {
         let Some(w) = Self::window(x) else {
-            return [[refused(); 3]; 3];
+            return [[Interval::from_bounds(f64::NAN, f64::NAN); 3]; 3];
         };
         let ct = self.path.tangent(x.interval(0));
         let su = self.boxes.deriv_box(w, true);
         let sv = self.boxes.deriv_box(w, false);
         let (su, sv) = ([su.x, su.y, su.z], [sv.x, sv.y, sv.z]);
-        let zero = point(0.0);
+        let zero = exact(0.0);
         core::array::from_fn(|r| [ct[r], zero - su[r], zero - sv[r]])
     }
 
     /// `F` over `x`: the componentwise enclosure met with the mean-value
-    /// one.
-    fn residual(&self, x: Cell, jac: &[[Interval; 3]; 3], fm: [Interval; 3]) -> [Interval; 3] {
+    /// one. `None` where the two share no point.
+    fn residual(
+        &self,
+        x: Cell,
+        jac: &[[Interval; 3]; 3],
+        fm: [Interval; 3],
+    ) -> Option<[Interval; 3]> {
         let Some(w) = Self::window(x) else {
-            return [refused(); 3];
+            return Some([Interval::from_bounds(f64::NAN, f64::NAN); 3]);
         };
-        let s = self.boxes.rect_box(w);
-        let c = self.path.at(x.interval(0));
-        let plain = [c[0] - s.x, c[1] - s.y, c[2] - s.z];
+        let plain = self.gap(x.interval(0), w);
         let m = x.mid();
-        let d: [Interval; 3] = core::array::from_fn(|k| x.interval(k) - point(m[k]));
-        core::array::from_fn(|r| {
-            let mv = (0..3).fold(fm[r], |acc, k| acc + jac[r][k] * d[k]);
-            meet(plain[r], mv)
-        })
+        let d: [Interval; 3] = core::array::from_fn(|k| x.interval(k) - exact(m[k]));
+        let mv = core::array::from_fn(|r| (0..3).fold(fm[r], |acc, k| acc + jac[r][k] * d[k]));
+        meet3(plain, mv)
     }
 
     /// The Krawczyk test over `x` (module docs): the image, where it
     /// lies strictly inside `x` and `det J(x)` excludes zero.
     fn krawczyk(&self, x: Cell) -> Option<Cell> {
-        self.krawczyk_with(x, self.jacobian(x), self.at(x.mid()))
+        self.krawczyk_with(x, &self.jacobian(x), self.at(x.mid()))
     }
 
     /// [`Self::krawczyk`] with `jac` an enclosure of `J` over `x` and `fm`
     /// of `F` at its middle.
-    fn krawczyk_with(&self, x: Cell, jac: [[Interval; 3]; 3], fm: [Interval; 3]) -> Option<Cell> {
-        let det = crate::ssi::four::det3(jac);
+    fn krawczyk_with(&self, x: Cell, jac: &[[Interval; 3]; 3], fm: [Interval; 3]) -> Option<Cell> {
+        let det = det3(*jac);
         if !(det.is_certified() && (det.lo() > 0.0 || det.hi() < 0.0)) {
             return None;
         }
-        let k = self.image(x, &jac, fm)?;
+        let k = Cell(image(x.0, fm, jac)?);
         k.strictly_within(x).then_some(k)
-    }
-
-    /// The Krawczyk operator's image of `x`: every solution in `x` lies
-    /// in it. `None` where `J`'s midpoint is singular or the image does
-    /// not certify.
-    fn image(&self, x: Cell, jac: &[[Interval; 3]; 3], f: [Interval; 3]) -> Option<Cell> {
-        let m = x.mid();
-        let jm = jac.map(|row| row.map(|v| v.lo() + (v.hi() - v.lo()) * 0.5));
-        let y = crate::ssi::four::inverse3(jm)?;
-        let d: [Interval; 3] = core::array::from_fn(|k| x.interval(k) - point(m[k]));
-        let mut out = x;
-        for r in 0..3 {
-            let mut v = point(m[r]);
-            for c in 0..3 {
-                v = v - point(y[r][c]) * f[c];
-            }
-            for c in 0..3 {
-                let mut yj = point(if r == c { 1.0 } else { 0.0 });
-                for q in 0..3 {
-                    yj = yj - point(y[r][q]) * jac[q][c];
-                }
-                v = v + yj * d[c];
-            }
-            if !v.is_certified() {
-                return None;
-            }
-            out.0[r] = (v.lo(), v.hi());
-        }
-        Some(out)
     }
 
     /// The meeting in `x`, which the test proved there, narrowed: met with
     /// its image until the meet stops shrinking.
     fn narrow(&self, mut x: Cell) -> Cell {
         for _ in 0..NARROWINGS {
-            let Some(next) = self
-                .image(x, &self.jacobian(x), self.at(x.mid()))
-                .and_then(|k| k.meet(x))
+            let Some(next) =
+                image(x.0, self.at(x.mid()), &self.jacobian(x)).and_then(|k| Cell(k).meet(x))
             else {
                 return x;
             };
@@ -399,10 +387,7 @@ impl<T: CertifiedBounds> Pair<'_, T> {
     /// the test holds, if one does past `proved`, the box it was found
     /// in.
     fn grown(&self, root: Cell, proved: Cell, block: Cell, band: Band) -> Option<Cell> {
-        let jm = self
-            .jacobian(root)
-            .map(|row| row.map(|v| v.lo() + (v.hi() - v.lo()) * 0.5));
-        let y = crate::ssi::four::inverse3(jm)?;
+        let y = inverse3(midpoints(&self.jacobian(root)))?;
         let c = root.mid();
         for g in GROWTH {
             let mut grown = root;
@@ -490,9 +475,8 @@ pub fn isolate<T: CertifiedBounds>(
         return Err(unread("the carrier's speed does not certify"));
     }
     let boxes = NurbsBoxes::new(chart);
-    let unknotted = || unread("a knot of the chart does not certify");
-    let du = ends_of(chart.knot_values_u().domain()).ok_or_else(unknotted)?;
-    let dv = ends_of(chart.knot_values_v().domain()).ok_or_else(unknotted)?;
+    let (us, vs) = (cuts(chart, true)?, cuts(chart, false)?);
+    let (du, dv) = ((us[0], us[us.len() - 1]), (vs[0], vs[vs.len() - 1]));
     let domain = UvWindow::new(du.0, du.1, dv.0, dv.1).ok_or(unread("the chart has no domain"))?;
     let speeds = [
         fast,
@@ -504,7 +488,6 @@ pub fn isolate<T: CertifiedBounds>(
     }
     let reach = END_REACH * band.escalate() / slow;
     let t = (a - reach, b + reach);
-    let (us, vs) = (cuts(chart, true, du)?, cuts(chart, false, dv)?);
     let blocks: Vec<Cell> = us
         .windows(2)
         .flat_map(|u| {
@@ -517,15 +500,18 @@ pub fn isolate<T: CertifiedBounds>(
         boxes,
         speeds,
     };
-    // A box not cleared nor isolated is cut no finer than a tangency
-    // keeps open, read over the shorter of the span and the chart.
+    // The shortest side a box is cut to, in metres: `tangency_floor`'s
+    // form over the shorter of the span and the chart. That length is no
+    // parting radius, and the floor bounds no decision: a box at it that
+    // no meeting holds refuses, so no answer but a refusal rests on it.
     let reach_of = |(lo, hi): (f64, f64), speed: f64| (hi - lo) * speed;
     let rho = reach_of((a, b), slow).min(reach_of(du, speeds[1]) + reach_of(dv, speeds[2]));
-    let floor = geom_core::bisect::tangency_floor(rho, band.escalate());
+    let floor = (rho * band.escalate()).sqrt() / 8.0;
+    let cut_lines = Cuts {
+        u: &us[1..us.len() - 1],
+        v: &vs[1..vs.len() - 1],
+    };
     let mut found: Vec<Found> = Vec::new();
-    let ends = [a, b].map(|t| pair.path.at(point(t)));
-    let edges = [du, dv];
-    let (interior_u, interior_v) = (&us[1..us.len() - 1], &vs[1..vs.len() - 1]);
     let pieces = blocks.iter().map(|&x| (x, x));
     let walked = bisect(pieces, |(x, block): (Cell, Cell)| {
         if found.iter().any(|f| f.holds(x)) {
@@ -533,38 +519,47 @@ pub fn isolate<T: CertifiedBounds>(
         }
         let jac = pair.jacobian(x);
         let fm = pair.at(x.mid());
+        let Some(f) = pair.residual(x, &jac, fm) else {
+            return Step::Stop(SplineFaceRefusal::Fault(
+                "two enclosures of the residual over a box are disjoint",
+            ));
+        };
         if matches!(
-            decide(
-                PAST_THE_BAND,
-                Margin::of(norm(pair.residual(x, &jac, fm))),
-                band
-            ),
+            decide(PAST_THE_BAND, Margin::of(norm(f)), band),
             Ok(Sign::Positive)
         ) {
             return Step::Settled;
         }
+        // A box touching a crease carries no proof, so it is cut on to the
+        // escalation length, where its carrier is decided past the band of
+        // the crease or refuses.
+        let creased = cut_lines.touch(x, block);
         let (k, length) = pair.widest(x);
-        let at_floor = !(length > floor);
-        // Read on `x`, then on `x` grown inside its block by its own sides
-        // (and, at the floor, by four times them), so a meeting beside `x`
-        // is isolated before its neighbours are walked to the floor.
-        let grown = |by: f64| {
-            Cell(core::array::from_fn(|k| {
-                let w = (x.0[k].1 - x.0[k].0) * by;
-                (
-                    (x.0[k].0 - w).max(block.0[k].0),
-                    (x.0[k].1 + w).min(block.0[k].1),
-                )
-            }))
+        let at_floor = !(length > if creased { band.escalate() } else { floor });
+        // Read on `x`, then on `x` grown inside its block, so a meeting
+        // beside `x` is isolated before its neighbours are walked to the
+        // floor.
+        let reaches: &[f64] = if at_floor {
+            &FLOOR_REACHES
+        } else {
+            &FLOOR_REACHES[..1]
         };
-        let reaches: &[f64] = if at_floor { &[1.0, 4.0] } else { &[1.0] };
-        let mut proof = pair.krawczyk_with(x, jac, fm).map(|k| (x, k));
+        // No box touching a crease carries a proof (the crease rule): a
+        // grown box stays inside the block's crease sides.
+        let proof_block = cut_lines.inside(block);
+        let mut proof = (!creased)
+            .then(|| pair.krawczyk_with(x, &jac, fm))
+            .flatten()
+            .map(|k| (x, k));
         for &by in reaches {
             if proof.is_some() {
                 break;
             }
-            let g = grown(by);
-            proof = pair.krawczyk(g).map(|k| (g, k));
+            let g = x.grown(by, proof_block);
+            proof = (g.within(proof_block) && !cut_lines.touch(g, block))
+                .then(|| pair.krawczyk(g))
+                .flatten()
+                .map(|k| (g, k));
         }
         // A box the test proves holds one solution; one whose narrowed box
         // lies in a box already proved is that meeting's, the solution
@@ -575,7 +570,7 @@ pub fn isolate<T: CertifiedBounds>(
                 Some(f) => f.isolating.push(proved),
                 None => {
                     let mut isolating = vec![proved];
-                    isolating.extend(pair.grown(root, proved, block, band));
+                    isolating.extend(pair.grown(root, proved, proof_block, band));
                     found.push(Found { root, isolating });
                 }
             }
@@ -587,89 +582,97 @@ pub fn isolate<T: CertifiedBounds>(
             let [lo, hi] = x.halves(k);
             return Step::Halve([(lo, block), (hi, block)]);
         }
-        // A box on the chart's edge within reach of an end of the span is
-        // that end's: the end lies within the band of the chart's edge,
-        // which is the boundary's to read.
-        let on_edge = (1..3).any(|k| x.0[k].0 <= edges[k - 1].0 || x.0[k].1 >= edges[k - 1].1);
-        let c = pair.path.at(x.interval(0));
-        let near_end = ends.iter().any(|e| {
-            norm(core::array::from_fn(|k| c[k] - e[k])).hi() <= END_REACH * band.escalate()
-        });
-        if on_edge && near_end {
-            return Step::Settled;
-        }
-        // Within the band at the floor, and no meeting there: a pass
-        // within the band, a tangency, or a meeting on a crease.
-        let touches =
-            |side: (f64, f64), cuts: &[f64]| cuts.iter().any(|&k| side.0 <= k && k <= side.1);
-        Step::Stop(
-            if touches(x.0[1], interior_u) || touches(x.0[2], interior_v) {
-                Unsettled::Crease
-            } else {
-                Unsettled::Tangency
-            },
-        )
+        // Within the band at the floor, and no meeting holds it: a pass
+        // within the band, a tangency, a meeting on the chart's edge, or
+        // one on a crease.
+        // Labelled by the reach the test was read over: a crease within
+        // it is where the refusal stands.
+        let near_crease = cut_lines.touch(x.grown(FLOOR_REACHES[1], block), block);
+        Step::Stop(if near_crease {
+            Unsettled::Crease.into()
+        } else {
+            Unsettled::Tangency.into()
+        })
     });
     match walked {
         Err(geom_core::bisect::Exhausted) => return Err(Unsettled::Exhausted.into()),
-        Ok(Some(why)) => return Err(why.into()),
+        Ok(Some(refusal)) => return Err(refusal),
         Ok(None) => {}
     }
     found.sort_by(|p, q| p.root.0[0].0.total_cmp(&q.root.0[0].0));
-    let creases: Vec<(bool, f64)> = interior_u
-        .iter()
-        .map(|&k| (true, k))
-        .chain(interior_v.iter().map(|&k| (false, k)))
-        .collect();
-    let mut roots = Vec::with_capacity(found.len());
-    for f in &found {
-        // A meeting past the span, or at its end, is the end's, and is
-        // no meeting to read against a crease.
-        if f.root.0[0].1 > a && f.root.0[0].0 < b {
-            for &(along_u, k) in &creases {
-                crease_apart(&pair, f.root, (along_u, k), (du, dv), band)?;
-            }
-        }
-        roots.push(f.root.0);
-    }
     Ok(Isolated {
         span: (a, b),
-        roots,
+        roots: found.iter().map(|f| f.root.0).collect(),
     })
 }
 
 /// The chart's parameters along `u` (`along_u`) or `v` at which the walk
-/// is cut: its domain's ends and its creases strictly inside.
+/// is cut: its domain's ends and its creases strictly inside, each as its
+/// enclosure's lower end.
 fn cuts<T: CertifiedBounds>(
     chart: &NurbsSurface<T>,
     along_u: bool,
-    (lo, hi): (f64, f64),
 ) -> Result<Vec<f64>, SplineFaceRefusal> {
     let knots = if along_u {
         chart.knot_values_u()
     } else {
         chart.knot_values_v()
     };
-    let mut values = Vec::new();
-    for (k, _) in knots.runs() {
-        let k = Interval::from_certified(k);
-        if !k.is_certified() {
-            return Err(SplineFaceRefusal::Unread(
-                "a knot of the chart does not certify",
-            ));
-        }
-        values.push(k.lo());
+    let (lo, hi) = knots.domain();
+    let (lo, hi) = (Interval::from_certified(lo), Interval::from_certified(hi));
+    let creases: Vec<Interval> = knots
+        .crease_values()
+        .into_iter()
+        .map(Interval::from_certified)
+        .collect();
+    if !(lo.is_certified() && hi.is_certified() && creases.iter().all(|k| k.is_certified())) {
+        return Err(SplineFaceRefusal::Unread(
+            "a knot of the chart does not certify",
+        ));
     }
+    let (lo, hi) = (lo.lo(), hi.hi());
     let mut out = vec![lo];
-    out.extend(
-        knots
-            .structure()
-            .crease_runs()
-            .map(|r| values[r])
-            .filter(|&k| lo < k && k < hi),
-    );
+    out.extend(creases.iter().map(|k| k.lo()).filter(|&k| lo < k && k < hi));
     out.push(hi);
     Ok(out)
+}
+
+/// The chart's interior crease parameters along each direction.
+#[derive(Clone, Copy)]
+struct Cuts<'a> {
+    u: &'a [f64],
+    v: &'a [f64],
+}
+
+impl Cuts<'_> {
+    /// **The crease rule** (module docs): whether the chart rectangle of
+    /// `x` touches a crease among its block's sides. Such a box carries no
+    /// proof, and at the floor it refuses [`Unsettled::Crease`].
+    /// `block` with each side on a crease moved one `f64` step inward: the
+    /// largest box inside it that touches no crease, which a proof's box
+    /// is grown within.
+    fn inside(self, block: Cell) -> Cell {
+        let mut out = block;
+        for (k, lines) in [(1, self.u), (2, self.v)] {
+            let (lo, hi) = block.0[k];
+            if lines.contains(&lo) {
+                out.0[k].0 = lo.next_up();
+            }
+            if lines.contains(&hi) {
+                out.0[k].1 = hi.next_down();
+            }
+        }
+        out
+    }
+
+    fn touch(self, x: Cell, block: Cell) -> bool {
+        let on = |side: (f64, f64), block: (f64, f64), lines: &[f64]| {
+            [block.0, block.1]
+                .into_iter()
+                .any(|k| lines.contains(&k) && side.0 <= k && k <= side.1)
+        };
+        on(x.0[1], block.0[1], self.u) || on(x.0[2], block.0[2], self.v)
+    }
 }
 
 /// **The meetings strictly inside the span**, ascending, from what
@@ -727,61 +730,6 @@ pub fn settle<T: Decide>(
         });
     }
     Ok(out)
-}
-
-/// Whether the meeting `root` stands past the band of the crease's
-/// iso-curve at `k` along `u` (`along_u`) or `v`: the iso-curve read in
-/// windows of the chart, each a first-order box, halved until every one
-/// is decided past the band of the carrier's box over `root`'s
-/// parameters.
-///
-/// # Errors
-///
-/// [`Unsettled::Crease`] where a window is decided within the band of
-/// it, [`SplineFaceRefusal::Escalated`] where a window at the floor is
-/// neither, and [`Unsettled::Exhausted`] past the budget.
-fn crease_apart<T: CertifiedBounds>(
-    pair: &Pair<'_, T>,
-    root: Cell,
-    (along_u, k): (bool, f64),
-    (du, dv): ((f64, f64), (f64, f64)),
-    band: Band,
-) -> Result<(), SplineFaceRefusal> {
-    let c = pair.path.at(root.interval(0));
-    let (lo, hi) = if along_u { dv } else { du };
-    let speed = pair.speeds[if along_u { 2 } else { 1 }];
-    let walked = bisect([(lo, hi)], |(s0, s1): (f64, f64)| {
-        let w = if along_u {
-            UvWindow::new(k, k, s0, s1)
-        } else {
-            UvWindow::new(s0, s1, k, k)
-        };
-        let Some(w) = w else {
-            return Step::Stop(Err(SplineFaceRefusal::Unread("a crease window is empty")));
-        };
-        let s = pair.boxes.rect_box(w);
-        let f = [c[0] - s.x, c[1] - s.y, c[2] - s.z];
-        let d = norm(f);
-        match decide("spline_face_root_at_crease", Margin::of(d), band) {
-            Ok(Sign::Positive) => Step::Settled,
-            Ok(_) => Step::Stop(Err(Unsettled::Crease.into())),
-            Err(_) if (s1 - s0) * speed <= band.escalate() && d.lo() <= band.zero() => {
-                Step::Stop(Err(Unsettled::Crease.into()))
-            }
-            Err(diag) if (s1 - s0) * speed <= band.escalate() => {
-                Step::Stop(Err(SplineFaceRefusal::Escalated(diag)))
-            }
-            Err(_) => {
-                let m = s0 + (s1 - s0) * 0.5;
-                Step::Halve([(s0, m), (m, s1)])
-            }
-        }
-    });
-    match walked {
-        Err(geom_core::bisect::Exhausted) => Err(Unsettled::Exhausted.into()),
-        Ok(Some(refusal)) => refusal,
-        Ok(None) => Ok(()),
-    }
 }
 
 #[cfg(test)]

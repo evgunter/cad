@@ -710,21 +710,46 @@ fn bottle<S: Scalar>(tol: Tol) -> Bottle<S> {
     }
 }
 
-/// Wall 3's pinned refusal: an edge of the bulb meets a NURBS wall of
-/// the loop on the wall's crease, the joint of its two rational arcs
-/// (a knot of multiplicity the degree), in the bulb's seam plane, where
-/// the spline-face arm reads no tangent plane to cross by. Shared with
+/// Wall 3's pinned refusal: the bulb's cone seam, a line in the plane
+/// `y = 0`, meets a NURBS wall of the loop on the joint of the wall's two
+/// rational arcs, which lies in that plane. The joint is a knot run of
+/// multiplicity the degree, a crease by its knots: the wall is tangent
+/// continuous across it, but its parametric derivative jumps there, and
+/// the spline-face arm reads no Jacobian across such a knot. Shared with
 /// `verbs_gate_r1_probes`, so the two cannot drift.
-fn wall3_pinned(e: &BooleanError) -> bool {
-    matches!(
-        e,
-        BooleanError::SplineCrossingUnsettled {
-            operand: Operand::A,
-            face_of: Operand::B,
-            why: pncad::geom_brep::roots::Unsettled::Crease,
-            ..
-        }
-    )
+fn wall3_pinned<S: Scalar>(e: &BooleanError, bulb: &AtRestBody<S>, top: &AtRestBody<S>) -> bool {
+    let BooleanError::SplineCrossingUnsettled {
+        operand: Operand::A,
+        edge,
+        face,
+        face_of: Operand::B,
+        why: pncad::geom_brep::roots::Unsettled::Crease,
+    } = e
+    else {
+        return false;
+    };
+    let in_the_seam_plane = bulb
+        .get_edge(*edge)
+        .and_then(|e| bulb.get_curve_geom(e.curve))
+        .is_some_and(|g| match g {
+            pncad::topo::CurveGeom::Certified(c) => matches!(
+                c.carrier(),
+                pncad::geom::Curve3::Line { origin, dir }
+                    if [origin.y, dir.y].iter().all(|&c| {
+                        let (lo, hi) = (pncad::geom_core::Bounds::lo(c), pncad::geom_core::Bounds::hi(c));
+                        lo.abs() < 1e-12 && hi.abs() < 1e-12
+                    })
+            ),
+            _ => false,
+        });
+    let on_an_arc_joint = top
+        .get_face(*face)
+        .and_then(|f| top.get_surface(f.surface))
+        .is_some_and(|s| match s {
+            pncad::geom::Surface::Nurbs(n) => !n.knot_values_u().crease_values().is_empty(),
+            _ => false,
+        });
+    in_the_seam_plane && on_an_arc_joint
 }
 
 /// Wall 4's pinned refusal: one of the loop's rational NURBS walls
@@ -1194,16 +1219,16 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
 
     // Wall 3: the bottle is ONE surface. Its two bodies meet on
     // annular faces — the REST mate — and the union refuses past them:
-    // an edge of the bulb in its seam plane meets a NURBS wall of the
-    // loop on the joint of the wall's two rational arcs, a crease of
-    // its knots, where the spline-face arm has no tangent plane to read
-    // a crossing by.
+    // the bulb's cone seam meets a NURBS wall of the loop on the joint of
+    // the wall's two rational arcs. The wall is tangent continuous there,
+    // but the joint is a crease of its knots, where its parametric
+    // derivative jumps and the spline-face arm reads no Jacobian.
     crate::walls::wall(
         "bottle",
         3,
         "join the loop to the bulb (annular mate)",
         pncad::topo::union(&bulb_body, &top, tol),
-        wall3_pinned,
+        |e| wall3_pinned(e, &bulb_body, &top),
         "make the bottle a single body",
     );
 
@@ -1530,7 +1555,7 @@ mod verbs_gate_r1_probes {
             .expect_err("the bottle's pieces still cannot be joined");
         println!("klein wall 3: {joined:?}");
         assert!(
-            wall3_pinned(&joined),
+            wall3_pinned(&joined, &bulb_body, &top),
             "wall 3 must refuse an edge of the bulb on a crease of the loop's NURBS wall: \
              {joined:?}"
         );

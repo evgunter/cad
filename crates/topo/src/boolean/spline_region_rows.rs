@@ -20,7 +20,7 @@ fn band() -> Band {
 /// A degree-1 net over `x ∈ [−1, 1]` (one span along `u`) through the
 /// `(y, z)` rows `rows` along `v`, its interior `v` knots evenly spaced,
 /// each a C⁰ crease.
-fn ruled(rows: &[(f64, f64)]) -> NurbsSurface<f64> {
+pub(crate) fn ruled(rows: &[(f64, f64)]) -> NurbsSurface<f64> {
     let n = rows.len();
     let mut kv = vec![0.0, 0.0];
     kv.extend((1..n - 1).map(|i| i as f64 / (n - 1) as f64));

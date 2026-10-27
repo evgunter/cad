@@ -137,15 +137,35 @@ fn a_line_tangent_to_a_dome_escalates() {
 }
 
 #[test]
-fn a_pass_within_the_band_escalates_and_one_past_it_is_clear() {
-    let chart = dome();
-    let below = |gap: f64| line(Point3::new(0.0, 0.5, -gap), Vec3::unit_x());
-    let near = read(&below(0.5 * band().zero()), (0.1, 0.9), &chart);
+fn a_pass_within_the_band_escalates() {
+    let below = line(Point3::new(0.0, 0.5, -0.5 * band().zero()), Vec3::unit_x());
+    let near = read(&below, (0.1, 0.9), &dome());
     assert!(
         matches!(near, Err(SplineFaceRefusal::Unsettled(Unsettled::Tangency))),
         "a pass within the band is never clear: {near:?}"
     );
-    let far = read(&below(64.0 * band().escalate()), (0.1, 0.9), &chart);
+}
+
+/// **A line running along a flat patch within the band refuses**: the
+/// fast set's in-band row, its walk reaching the floor in a few dozen
+/// boxes.
+#[test]
+fn a_line_along_a_patch_within_the_band_escalates() {
+    let along = line(Point3::new(0.0, 0.5, 0.5 * band().zero()), Vec3::unit_x());
+    let got = read(&along, (0.2, 0.8), &flat());
+    assert!(
+        matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Tangency))),
+        "a run within the band is never clear: {got:?}"
+    );
+}
+
+#[test]
+fn a_pass_past_the_band_is_clear() {
+    let below = line(
+        Point3::new(0.0, 0.5, -64.0 * band().escalate()),
+        Vec3::unit_x(),
+    );
+    let far = read(&below, (0.1, 0.9), &dome());
     assert!(
         matches!(far.as_deref(), Ok([])),
         "a pass past the band is clear: {far:?}"
@@ -291,6 +311,8 @@ fn review_r1_a_meeting_within_the_band_of_a_crease_refuses() {
     assert!(
         matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Crease))),
         "within the band of the ridge: {got:?}"
+    );
+}
 
 // ---- review r2 (PR 5826): the chart-edge skip near an end of the span ----
 
@@ -335,7 +357,9 @@ fn review_r2_a_tangency_beside_the_charts_edge_near_an_end_escalates() {
 /// chart closed in `u` with the seam at `(1, 0, z)`.
 fn full_cylinder() -> NurbsSurface<f64> {
     let ku = KnotVector::clamped(
-        vec![0.0, 0.0, 0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0, 1.0, 1.0],
+        vec![
+            0.0, 0.0, 0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0, 1.0, 1.0,
+        ],
         2,
     )
     .unwrap();
@@ -437,5 +461,68 @@ fn review_r2_a_meeting_beside_a_crease_within_the_band_refuses() {
     assert!(
         matches!(off.as_deref(), Ok([_])),
         "eight escalation lengths off the ridge: {off:?}"
+    );
+}
+
+/// A V valley over the `xy` square, bilinear on each half, its floor the
+/// crease at `x = ½`, `z = −0.2`.
+fn valley() -> NurbsSurface<f64> {
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let control = [(0.0, 0.0), (0.5, -0.2), (1.0, 0.0)]
+        .into_iter()
+        .flat_map(|(x, z)| [Point3::new(x, 0.0, z), Point3::new(x, 1.0, z)])
+        .collect();
+    NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap()
+}
+
+/// **Two meetings either side of a crease, apart from each other but each
+/// within the band of it, refuse.** A level line `0.3·escalate` over the
+/// valley's floor crosses both walls `1.5·escalate` apart, each meeting
+/// `0.8·escalate` from the crease: each block isolates its own, so no box
+/// at the floor is left, and only the crease reading of the meetings
+/// refuses them.
+#[test]
+fn two_meetings_apart_but_each_within_the_band_of_a_crease_refuse() {
+    let h = 0.3 * band().escalate();
+    let level = line(Point3::new(0.0, 0.5, -0.2 + h), Vec3::unit_x());
+    let got = read(&level, (0.1, 0.9), &valley());
+    eprintln!("IA-GOT {got:?}");
+    assert!(
+        matches!(
+            got,
+            Err(SplineFaceRefusal::Escalated(_) | SplineFaceRefusal::Unsettled(Unsettled::Crease))
+        ),
+        "meetings within the band of the valley crease refuse: {got:?}"
+    );
+}
+
+/// **A meeting within the band of a crease refuses where the chart is
+/// flat across it.**
+/// The plane `z = 0` as two bilinear halves, its knot at `x = ½` of
+/// multiplicity the degree, a crease by its knots though the two halves
+/// share one derivative: a box touching the crease reads the same
+/// Jacobian on both sides, so only the crease rule, and not the
+/// enclosure's width, keeps it from carrying a proof.
+#[test]
+fn a_meeting_on_a_flat_crease_refuses() {
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let control = [0.0, 0.5, 1.0]
+        .into_iter()
+        .flat_map(|x| [Point3::new(x, 0.0, 0.0), Point3::new(x, 1.0, 0.0)])
+        .collect();
+    let chart = NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap();
+    let x = 0.5 + 0.5 * band().zero();
+    let up = line(Point3::new(x, 0.5, -1.0), Vec3::unit_z());
+    let got = read(&up, (0.0, 2.0), &chart);
+    assert!(
+        matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Crease))),
+        "a meeting within the band of the knot refuses: {got:?}"
+    );
+    let off = line(Point3::new(0.25, 0.5, -1.0), Vec3::unit_z());
+    assert!(
+        matches!(read(&off, (0.0, 2.0), &chart).as_deref(), Ok([_])),
+        "one off it reads"
     );
 }

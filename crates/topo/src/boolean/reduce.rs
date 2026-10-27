@@ -3122,6 +3122,7 @@ fn spline_interior<T: Decide + crate::props::AtRestPolicy>(
                     why,
                 },
                 SplineFaceRefusal::Unread(_) => unbuilt(),
+                SplineFaceRefusal::Fault(what) => BooleanError::ClassificationInvariant { what },
             })
         })?;
     for m in found {
@@ -7601,7 +7602,7 @@ mod spline_face_rows {
     use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet, prism};
     use geom::{Curve3, Surface};
     use geom_brep::curve_pair::Span;
-    use geom_core::{Band, Point3, Tol};
+    use geom_core::{Band, Point3, Tol, Vec3};
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
@@ -7776,6 +7777,52 @@ mod spline_face_rows {
             .unwrap()
             .edge;
         (y, face, x, edge)
+    }
+
+    /// **A meeting is placed on its own sheet** (`spline_chart_placement`
+    /// in [`super::spline_interior`]): a chart whose third segment, the
+    /// plane `y = d` with `d` half the band's zero, passes within the band
+    /// of the line's crossing of its first, the plane `z = 0`, outside the
+    /// face. The face lies on the third segment alone, which the line
+    /// crosses at a shallow slope `s`, `10·escalate` further on. Read in
+    /// space, the first meeting would be in the face through the third
+    /// segment's foot; read at its own chart point it is out, and the
+    /// pierce is the second.
+    #[test]
+    fn a_meeting_is_placed_on_the_sheet_it_was_found_on() {
+        use crate::boolean::contain::FaceContainment;
+        use crate::boolean::spline_region::rows::{rect, ruled, sheet};
+        let tol = Tol::witness();
+        let b = band();
+        let d = 0.5 * b.zero();
+        let chart = ruled(&[(-1.0, 0.0), (1.0, 0.0), (d, -1.0), (d, 1.0)]);
+        let (mut y, face) = sheet(&chart, &rect((0.1, 0.9), (0.7, 0.95)));
+        let s = d / (10.0 * b.escalate());
+        let dir = Vec3::new(0.0, s, 1.0).normalize();
+        let mut x = Body::<f64>::new();
+        let seed = x.mvfs(Point3::origin() - dir * 0.5, true).unwrap();
+        let edge = x
+            .mev_line(
+                crate::MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                Point3::origin() + dir * 0.5,
+                tol,
+            )
+            .unwrap()
+            .edge;
+        let mut acc = ContactAcc::default();
+        match arm(&x, edge, &mut y, face, &mut acc) {
+            Ok(CurvedEvent::Pierce {
+                p,
+                at: FaceContainment::In,
+                ..
+            }) => assert!(
+                (p.y - d).abs() <= b.zero() && p.z > 5.0 * b.escalate(),
+                "the pierce is the third segment's, not the first's: {p:?}"
+            ),
+            other => panic!("the line pierces the face at its second meeting: {other:?}"),
+        }
     }
 
     /// **A line through a spline face's interior pierces it there**, at the

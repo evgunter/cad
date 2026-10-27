@@ -760,9 +760,11 @@ spline-face door reading it past the boundary pass): it settles boxes of
 the state `(t, u, v)` on `C(t) − S(u, v)`, a displacement read against
 the band with no meter, clear where the box's enclosure is past the band
 and one meeting where the Krawczyk test holds, which also isolates the
-meeting's neighbourhood; the chart is cut at its creases, a box within
-the band at the floor that no meeting holds refuses, and a meeting within
-the band of a crease, or two within the band of each other, refuse. A
+meeting's neighbourhood. The chart is cut at its creases and no box
+touching one carries a proof; a box within the band at the floor that no
+meeting holds refuses, wherever it lies, so a meeting within the band of
+a crease, on the chart's domain edge (a closed chart's seam included) or
+within the band of another refuses, and nothing in band is dropped. A
 spline or spiric span against a spline face is unbuilt. The analytic
 arms are the sweep's existing root doors. A meeting inside a spline
 face's chart is placed by the trim at the chart point it was found at,
