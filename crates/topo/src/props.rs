@@ -2440,14 +2440,15 @@ impl CertifiedBody {
 impl fmt::Debug for CertifiedBody {
     /// The certificate as [`SignCertificate`]'s render reads it.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let e = fold_runs(&self.held.runs).enclosure();
+        let Self { body: _, held } = self;
+        let e = fold_runs(&held.runs).enclosure();
         write!(
             f,
             "CertifiedBody: volume in [{:?}, {:?}], surface area {:?}, {} faces",
             e.volume_lo,
             e.volume_hi,
             e.surface_area,
-            self.held.runs.len()
+            held.runs.len()
         )
     }
 }
@@ -4039,7 +4040,7 @@ fn fold_runs<T: Decide>(runs: &[FaceRun<T>]) -> MassProperties<T> {
 
 /// One face's divergence-theorem contribution, with the certified
 /// quadrature half-widths it carries (`0.0` for closed-form faces).
-/// The unit shared by the whole-body walk ([`mass_properties_impl`])
+/// The unit shared by the whole-body walk ([`mass_properties`])
 /// and the per-shell walk ([`classify_shells`]) — one flux
 /// implementation, restricted by choosing which faces to visit, never
 /// re-derived.

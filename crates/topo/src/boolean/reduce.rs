@@ -3072,9 +3072,9 @@ fn disagree() -> BooleanError {
 /// Its use rests on an edge of `y` meeting a face of `y` it does not
 /// bound at most at its own vertices. That is the boolean's
 /// precondition, not a check: an operand that meets itself is outside
-/// the supported envelope ([`gate_operand_kinds`]'s docs), and tier 3
+/// the supported envelope ([`first_unsupported_pair`]'s docs), and tier 3
 /// defers the whole-body self-intersection and clearance check
-/// ([`crate::validate`]'s "What tier 3 does NOT yet check"). `y` is the
+/// ([`mod@crate::validate`]'s "What tier 3 does NOT yet check"). `y` is the
 /// reduction's working copy, split only at points of its own edges, so
 /// its geometry is the operand's.
 ///
