@@ -10877,7 +10877,10 @@ fn shared_interior_witness<T: Decide>(
 /// Two meetings the reader cannot part by more than the band refuse
 /// ([`geom_brep::curve_pair::meet`]'s stretches), and a piece lying
 /// within the band of the other's boundary along its length places in
-/// the band: either is unread, never `Ok(false)`.
+/// the band: either is unread, never `Ok(false)`. Two crossings the
+/// reader merges into one touch, their lens within the band's zero,
+/// are that touch here too: the certificate inherits the reader's
+/// merge, and certifies interiors apart only up to that zero.
 ///
 /// Unread: [`InteriorsUnread::Undecided`] where a reading escalated, and
 /// [`InteriorsUnread::Unbuilt`] where an edge is not read, the meeting
@@ -20407,25 +20410,44 @@ mod arc_interiors {
         pieces.or(faces)
     }
 
-    /// **Two arcs crossing twice a few escalation widths apart are never
-    /// read apart.** The lens between the crossings is far thinner than
-    /// the band, so the reading may refuse it or find it, but never
-    /// certify the interiors apart: the meeting reader parts two
-    /// crossings only where the arc between them stands definitely off
-    /// the other, and the piece between them then places inside. A lens
-    /// past the band is a meeting; arcs that touch at a point, or stand
-    /// apart, are certified apart. The radius is a thousand widths, so
-    /// every lens is a few hundred ulps of the frame's coordinates deep at
-    /// every ε.
+    /// **Two arcs crossing twice a few escalation widths apart are read
+    /// apart only where the lens between them lies within the zero
+    /// band.** The arcs' radius is a thousand widths, so a crossing `k`
+    /// widths apart bounds a lens `k²·K·ε/4000` deep: `ε/400` at one
+    /// width, `25ε` at a hundred. Where the meeting reader merges the two
+    /// crossings into one touch (a lens shallower than the band's zero),
+    /// the certificate inherits that reading and certifies the interiors
+    /// apart, the at-tolerance flush; at one width the lens is `0.0025ε`
+    /// and the reading is flush or unread at every ε. A lens past the
+    /// zero, in the band or past it, is never read apart: the reader
+    /// parts the crossings only where the arc between them stands
+    /// definitely off the other, and the piece between them then places
+    /// inside or in the band. Arcs that touch at a point, or stand apart,
+    /// are certified apart.
     #[test]
     fn arcs_crossing_twice_near_a_tangency_are_never_read_apart() {
         let tol = Tol::witness();
         let width = tol.k() * tol.eps();
+        let zero = band().zero();
         let r = 1000.0 * width;
-        for k in [2.0, 5.0, 20.0, 100.0] {
-            let chord = k * width;
-            let read = read(r, -chord * chord / (4.0 * r));
-            assert_ne!(read, Ok(false), "crossings {k} widths apart: {read:?}");
+        for k in [1.0, 2.0, 5.0, 20.0, 40.0, 100.0, 400.0] {
+            let depth = (k * width) * (k * width) / (4.0 * r);
+            let read = read(r, -depth);
+            let ratio = depth / zero;
+            if ratio > 1.0 {
+                assert_ne!(
+                    read,
+                    Ok(false),
+                    "crossings {k} widths apart, lens {ratio}·zero deep"
+                );
+            }
+            if k == 1.0 {
+                assert_ne!(
+                    read,
+                    Ok(true),
+                    "crossings one width apart, lens {ratio}·zero deep"
+                );
+            }
         }
         assert_eq!(read(r, -0.01 * r), Ok(true), "a lens past the band");
         assert_eq!(read(r, 0.0), Ok(false), "a touch at a point");
