@@ -3131,6 +3131,7 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::ArcEndOffCorner { .. } => "arc_end_off_corner",
         ValidationError::InstanceInterference { .. } => "instance_interference",
         ValidationError::SameSideInterference { .. } => "same_side_interference",
+        ValidationError::TouchInterference { .. } => "touch_interference",
         ValidationError::CuspEdgesMissing { .. } => "cusp_edges_missing",
         ValidationError::DanglingTopology { .. } => "dangling_topology",
         ValidationError::DanglingGeometry { .. } => "dangling_geometry",

@@ -73,7 +73,9 @@
 //!   with nothing on record between it and no outer shell of either
 //!   inside the other's reach; a pair that meets is probed and its
 //!   findings read, so half-overlapping cubes whose boundaries meet
-//!   only in touches refuse on the touch analysis. Why that decides a
+//!   only in touches refuse on the touch analysis, a touch it decides
+//!   the materials meet at as [`ValidationError::TouchInterference`].
+//!   Why that decides a
 //!   pair, and on what premises, is stated once, at arm 2's loop in
 //!   [`sweep_cross_solid_backstop`].
 //! - **Discovered within one solid**: two faces on distinct carriers
@@ -6790,9 +6792,6 @@ pub(crate) enum Undecided {
     Crossing,
     /// Arm 2: an unexamined or escalated finding already stands.
     Unexamined,
-    /// Arm 2: a touch where one material passes into the other — a
-    /// crossing at a lower-dimensional feature.
-    MixedTouch,
     /// Arm 2: a touch whose analysis needed a sign in band.
     TouchInBand,
     /// Arm 2: a touch where one face, seen from the touch point, could
@@ -6932,10 +6931,6 @@ impl Undecided {
                 "another finding left their boundaries unchecked, and this one cannot be \
                  decided until that is resolved. Recourse: resolve that finding first"
             }
-            Self::MixedTouch => {
-                "one passes into the other where they touch. Recourse: move them so they \
-                 meet without overlapping, or not at all"
-            }
             Self::TouchInBand => {
                 concat!(
                     "they touch, and ",
@@ -7064,10 +7059,10 @@ enum Said {
     Pierce,
     /// Two coincident edges' wedges on one line, read by
     /// [`ee_overlap_sides`]: overlapping (`None`), or unread for the
-    /// reason carried. Between two solids it is a touch whose reading
-    /// is already taken, so it says what [`TouchVerdict::refusal`] says
-    /// of that verdict; inside one solid an overlap is its boundary
-    /// crossing itself.
+    /// reason carried. Between two solids an overlap is the pair's
+    /// interference ([`census_interference_solids`]) and an unread one a
+    /// touch whose reading is already taken; inside one solid an overlap
+    /// is its boundary crossing itself.
     Wedges(Option<TouchUnread>),
     /// A curved touch: a conformal patch the curved arm found, or a
     /// tangent line.
@@ -7310,13 +7305,33 @@ impl TouchUnread {
     }
 }
 
+/// What arm 2 reads at a touch between two solids that is not a rest.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Unrest {
+    /// The materials' interiors meet there, on decided readings: the
+    /// pair's interference ([`ValidationError::TouchInterference`]).
+    Crossing,
+    /// No side read, for the reason named.
+    Undecided(Undecided),
+}
+
+/// Why arm 2's reading of a pair's findings and records does not clear
+/// it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Blocked {
+    /// A touch at this site read as a crossing: the pair's interference.
+    Crossing(TouchSite),
+    /// Undecided, for the reason named.
+    Undecided(Undecided),
+}
+
 impl TouchVerdict {
-    /// The refusal a verdict pushes, or `None` for a rest.
-    fn refusal(&self) -> Option<Undecided> {
+    /// What arm 2 reads of a verdict, or `None` for a rest.
+    fn refusal(&self) -> Option<Unrest> {
         match self {
             Self::Rest(_) => None,
-            Self::Crossing => Some(Undecided::MixedTouch),
-            Self::Unread(why) => Some(why.refusal()),
+            Self::Crossing => Some(Unrest::Crossing),
+            Self::Unread(why) => Some(Unrest::Undecided(why.refusal())),
         }
     }
 
@@ -7440,16 +7455,27 @@ impl TouchSite {
         })
     }
 
+    /// The two cells the site pairs, one per solid.
+    fn cells(self) -> (crate::Cell, crate::Cell) {
+        use crate::Cell::{Edge, Face, Vertex};
+        match self {
+            Self::VertexVertex(a, b) => (Vertex(a), Vertex(b)),
+            Self::VertexOnEdge(v, e) => (Vertex(v), Edge(e)),
+            Self::EdgeEdge(a, b) | Self::EdgeCross(a, b) => (Edge(a), Edge(b)),
+            Self::VertexOnFace(v, f) => (Vertex(v), Face(f)),
+            Self::EdgeInFace(e, f) => (Edge(e), Face(f)),
+        }
+    }
+
     /// The two entities the site pairs, one per solid.
     fn entities(self) -> (EntityId, EntityId) {
-        match self {
-            Self::VertexVertex(a, b) => (EntityId::Vertex(a), EntityId::Vertex(b)),
-            Self::VertexOnEdge(v, e) => (EntityId::Vertex(v), EntityId::Edge(e)),
-            Self::EdgeEdge(a, b) => (EntityId::Edge(a), EntityId::Edge(b)),
-            Self::VertexOnFace(v, f) => (EntityId::Vertex(v), EntityId::Face(f)),
-            Self::EdgeInFace(e, f) => (EntityId::Edge(e), EntityId::Face(f)),
-            Self::EdgeCross(a, b) => (EntityId::Edge(a), EntityId::Edge(b)),
-        }
+        let entity = |cell| match cell {
+            crate::Cell::Vertex(v) => EntityId::Vertex(v),
+            crate::Cell::Edge(e) => EntityId::Edge(e),
+            crate::Cell::Face(f) => EntityId::Face(f),
+        };
+        let (a, b) = self.cells();
+        (entity(a), entity(b))
     }
 
     /// The site's touch point, where it names a vertex: its keys
@@ -7590,16 +7616,16 @@ impl TouchSite {
     }
 }
 
-/// A touch's refusal, read once per unit ([`TouchSite::unit`]) and kept
+/// A touch's reading, taken once per unit ([`TouchSite::unit`]) and kept
 /// in `read`: every site of a unit shares its verdict.
 fn read_touch<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
     ties: &Ties,
-    read: &core::cell::RefCell<std::collections::BTreeMap<TouchUnit, Option<Undecided>>>,
+    read: &core::cell::RefCell<std::collections::BTreeMap<TouchUnit, Option<Unrest>>>,
     site: TouchSite,
     band: Band,
-) -> Option<Undecided> {
+) -> Option<Unrest> {
     let unit = site.unit(body, geo, ties);
     if let Some(&known) = read.borrow().get(&unit) {
         return known;
@@ -8668,20 +8694,28 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                   sa: SolidKey,
                   sb: SolidKey,
                   records_on_their_word: bool|
-     -> Option<Undecided> {
+     -> Option<Blocked> {
         let owns = |id: EntityId| solid_of_entity(id).is_some_and(|s| s == sa || s == sb);
         let between = |x: EntityId, y: EntityId| straddles(sa, sb, x, y);
+        // A touch read as a crossing decides the pair whatever else
+        // stands; failing one, any other reason refuses ahead of a touch
+        // the analysis could not decide.
+        let mut other = None;
         let mut undecided_touch = None;
         for e in standing_errors {
             let what = match Named::of(e) {
                 Named::Nothing => Some(Undecided::Unexamined),
                 Named::One(id) => owns(id).then_some(Undecided::Unexamined),
                 Named::Two(x, y, said) if between(x, y) => match said {
-                    Said::Touch(site) => touch(site),
-                    Said::Pierce => Some(Undecided::Crossing),
-                    Said::Wedges(why) => why
-                        .map_or(TouchVerdict::Crossing, TouchVerdict::Unread)
-                        .refusal(),
+                    Said::Touch(site) => match touch(site) {
+                        Some(Unrest::Crossing) => return Some(Blocked::Crossing(site)),
+                        Some(Unrest::Undecided(why)) => Some(why),
+                        None => None,
+                    },
+                    // The pair's interference, read before this
+                    // ([`census_interference_solids`]).
+                    Said::Pierce | Said::Wedges(None) => None,
+                    Said::Wedges(Some(why)) => Some(why.refusal()),
                     Said::CurvedTouch => Some(Undecided::TouchUnreadable),
                     Said::FacePair(a, b) => (!declared.confirmed.contains(&(a, b)))
                         .then_some(Undecided::TouchUnreadable),
@@ -8702,13 +8736,10 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                 Named::Two(..) => None,
             };
             match what {
-                // A touch the analysis could not decide waits: a
-                // decided crossing, or any other reason, standing
-                // later in the findings is the stronger refusal.
                 Some(why) if why.is_undecided_touch() => {
                     undecided_touch = undecided_touch.or(what);
                 }
-                Some(_) => return what,
+                Some(_) => other = other.or(what),
                 None => {}
             }
         }
@@ -8728,12 +8759,24 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             .chain(shared(sa, sb).into_iter().map(|site| (site, true)));
         for (site, strict) in sites {
             match touch(site) {
-                Some(Undecided::MixedTouch) => return Some(Undecided::MixedTouch),
-                what if strict => undecided_touch = undecided_touch.or(what),
+                Some(Unrest::Crossing) => return Some(Blocked::Crossing(site)),
+                Some(Unrest::Undecided(why)) if strict => {
+                    undecided_touch = undecided_touch.or(Some(why));
+                }
                 _ => {}
             }
         }
-        undecided_touch
+        other.or(undecided_touch).map(Blocked::Undecided)
+    };
+    // ---- Whether a standing finding already decides the pair
+    // interferes (a pierce, a same-side crossing, two coincident edges'
+    // wedges overlapping): the pair needs no clearing, and nothing it
+    // left undecided adds to it.
+    let decided = |standing_errors: &[ValidationError], sa: SolidKey, sb: SolidKey| {
+        standing_errors.iter().any(|e| {
+            census_interference_solids(body, e)
+                .is_some_and(|(x, y)| (x == sa && y == sb) || (x == sb && y == sa))
+        })
     };
     // ---- The material test of one ordering: every vertex of `inner`
     // against `outer`'s material.
@@ -9012,14 +9055,20 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                 // the findings are read whether or not the probe decided:
                 // a reason they give is reported in place of the probe's
                 // own, and the probe's stands when they give none.
-                if !interfered && coincident.is_none() {
+                if !interfered && coincident.is_none() && !decided(&errors[..standing], sa, sb) {
                     match blocks(&errors[..standing], sa, sb, declared_only) {
-                        Some(why) => errors.push(ValidationError::CensusUndecidable {
-                            a: EntityId::Solid(sa),
-                            b: EntityId::Solid(sb),
-                            what: why.what(),
-                            reason: Undecidable::MayOverlap,
-                        }),
+                        Some(Blocked::Crossing(site)) => {
+                            let (a, b) = site.cells();
+                            errors.push(ValidationError::TouchInterference { a, b });
+                        }
+                        Some(Blocked::Undecided(why)) => {
+                            errors.push(ValidationError::CensusUndecidable {
+                                a: EntityId::Solid(sa),
+                                b: EntityId::Solid(sb),
+                                what: why.what(),
+                                reason: Undecidable::MayOverlap,
+                            });
+                        }
                         None => errors.extend(undecided),
                     }
                 }
@@ -10125,9 +10174,9 @@ fn planar_interiors_meet<T: Decide>(
 
 /// **The two solids a finding decides interfere**: an instance's vertex
 /// inside the other's material, a face of each on one carrier facing the
-/// same way and sharing interior, an edge piercing a face, a crossing
-/// whose side test read `SameSide`, or an edge of each on one line whose
-/// wedges overlap. `None` for every other finding,
+/// same way and sharing interior, a touch whose materials meet, an edge
+/// piercing a face, a crossing whose side test read `SameSide`, or an
+/// edge of each on one line whose wedges overlap. `None` for every other finding,
 /// including the ones that only fail to clear a pair
 /// ([`census_uncleared_solids`]). The gather localizes these pairs as
 /// interference; this is that reading's one home.
@@ -10157,6 +10206,9 @@ pub fn census_interference_solids<T: Real>(
         } => Some((edge(*a)?, edge(*b)?)),
         ValidationError::CoincidentWedgesOverlap { edges: [a, b], .. } => {
             two_solids(edge(*a)?, edge(*b)?)
+        }
+        ValidationError::TouchInterference { a, b } => {
+            two_solids(census_cell_solid(body, *a)?, census_cell_solid(body, *b)?)
         }
         _ => None,
     }
@@ -13968,7 +14020,7 @@ mod tests {
             let got = crate::validate_pseudomanifold(&body, &ContactRecords::default(), tol);
             if label == "in band" {
                 assert_eq!(verdict, TouchVerdict::Unread(TouchUnread::InBand));
-                assert_eq!(verdict.refusal(), Some(Undecided::TouchInBand));
+                assert_eq!(verdict.refusal(), Some(Unrest::Undecided(Undecided::TouchInBand)));
                 assert!(got.is_err(), "{label}: an in-band shared point clears");
             } else {
                 assert!(
@@ -14799,7 +14851,7 @@ mod tests {
         ));
         let open = rest::judge(&pyramid(Some(0)), &floor_link(band), band);
         assert_eq!(open, TouchVerdict::Unread(TouchUnread::Unanalysed));
-        assert_eq!(open.refusal(), Some(Undecided::TouchUnanalysed));
+        assert_eq!(open.refusal(), Some(Unrest::Undecided(Undecided::TouchUnanalysed)));
     }
 
     /// **A tie's distance is not read as a side.** The floor, against
@@ -14868,7 +14920,7 @@ mod tests {
         let floor = floor_link(band);
         let slit = rest::judge(&link((x, vec![vec![0, 1, 2, 3]])), &floor, band);
         assert_eq!(slit, TouchVerdict::Unread(TouchUnread::Degenerate));
-        assert_eq!(slit.refusal(), Some(Undecided::TouchDegenerate));
+        assert_eq!(slit.refusal(), Some(Unrest::Undecided(Undecided::TouchDegenerate)));
         assert_eq!(
             rest::judge(&link((-x, vec![vec![0, 1, 4, 5]])), &floor, band),
             TouchVerdict::Crossing
@@ -14914,7 +14966,7 @@ mod tests {
             (TouchUnread::Unreadable, Undecided::TouchUnreadable),
             (TouchUnread::Corrupt, Undecided::CorruptInstance),
         ] {
-            assert_eq!(TouchVerdict::Unread(why).refusal(), Some(kind), "{why:?}");
+            assert_eq!(TouchVerdict::Unread(why).refusal(), Some(Unrest::Undecided(kind)), "{why:?}");
         }
     }
 

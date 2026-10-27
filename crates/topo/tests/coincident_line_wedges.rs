@@ -311,11 +311,6 @@ fn arm_2(errs: &[ValidationError]) -> Vec<&str> {
         .collect()
 }
 
-/// Arm 2's sentence for a touch where one material passes into the
-/// other.
-const MIXED_TOUCH: &str = "one passes into the other where they touch. Recourse: move them so \
-                           they meet without overlapping, or not at all";
-
 /// **A prism leaning into a brick on their shared line**: the brick
 /// over quadrant 1 and a prism over quadrant 2 whose wall leans `δ`
 /// into the brick, `δ` 40 ε and 4000 ε, each its own solid with every
@@ -373,8 +368,8 @@ fn a_prism_leaning_into_a_brick_refuses_the_axis_beside_its_caps() {
 /// census asks, every confirmed pair holds those lines in its overlap's
 /// closure, which answers for their touch's record, never for their
 /// sides (D1: no record makes two wedges' overlap valid). Each corner
-/// line refuses its wedges decided, and arm 2 reads the pair as one
-/// passing into the other, at every pose, with B's span above A's
+/// line refuses its wedges decided, the pair's interference, beside
+/// which arm 2 adds nothing, at every pose, with B's span above A's
 /// middle and below it.
 #[test]
 fn a_pinwheel_resting_on_confirmed_face_pairs_refuses_its_doubled_core() {
@@ -415,10 +410,11 @@ fn a_pinwheel_resting_on_confirmed_face_pairs_refuses_its_doubled_core() {
             );
             assert_eq!(
                 arm_2(&errs),
-                [MIXED_TOUCH],
-                "{what}: arm 2 reads the pair as one passing into the other: {errs:?}"
+                [] as [&str; 0],
+                "{what}: the overlaps decide the pair, which arm 2 leaves nothing undecided \
+                 beside: {errs:?}"
             );
-            assert_eq!(errs.len(), 5, "{what}: nothing else refuses: {errs:?}");
+            assert_eq!(errs.len(), 4, "{what}: nothing else refuses: {errs:?}");
         }
     }
 }

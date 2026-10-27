@@ -1996,8 +1996,9 @@ pub enum ValidationError {
     /// refused, a container whose extent no sound box claims, or an
     /// instance whose every vertex lies on the container's boundary.
     /// A decided interference is
-    /// [`ValidationError::InstanceInterference`] or
-    /// [`ValidationError::SameSideInterference`], never this.
+    /// [`ValidationError::InstanceInterference`],
+    /// [`ValidationError::SameSideInterference`] or
+    /// [`ValidationError::TouchInterference`], never this.
     CensusUndecidable {
         /// One side of the pair the census cannot clear.
         a: EntityId,
@@ -2142,6 +2143,21 @@ pub enum ValidationError {
         a: FaceKey,
         /// The face of the other, on `a`'s carrier and facing its way.
         b: FaceKey,
+    },
+    /// Tier 3′ (the census's instance-containment arm): two instances
+    /// touch, and the local analysis of the touch ([`crate::link`]'s
+    /// `rest::judge`) decides, on decided readings, that their
+    /// materials' interiors meet there — an interference fit DECIDED at
+    /// the touch, though no vertex of either need lie strictly inside the
+    /// other, no edge pierce a face and no face pair share a plane. The
+    /// interiors are open, so they share a positive volume. No record
+    /// answers for this finding; between two copies at rest the assembly
+    /// layer reports it as an interference finding.
+    TouchInterference {
+        /// The cell of one instance the touch names.
+        a: crate::Cell,
+        /// The cell of the other.
+        b: crate::Cell,
     },
     /// Tier 3′ (D1 tier 3, C4): two faces of one solid that share no
     /// edge, on carriers whose closed-form tangent line runs strictly
@@ -4517,6 +4533,12 @@ impl fmt::Display for ValidationError {
                 "two instances overlap: a face of each lies on one plane facing the same way, \
                  sharing an area that both hold material under (an interference fit), which no \
                  declaration can make valid. Recourse: move the instances apart"
+            ),
+            Self::TouchInterference { .. } => write!(
+                f,
+                "two instances overlap: where they touch, the material of each passes into \
+                 the other's (an interference fit), which no declaration can make valid. \
+                 Recourse: move the instances so they meet without overlapping, or apart"
             ),
             Self::CuspEdgesMissing { witness, .. } => write!(
                 f,

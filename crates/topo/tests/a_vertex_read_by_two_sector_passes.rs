@@ -163,8 +163,8 @@ const SLIT_TOUCH: &str = "they touch where a face of one meets it along an edge 
 /// backs, an operand's own, which a kernel op called without
 /// `BooleanInputs` records does not carry, or a touch there between two
 /// solids where one passes into the other (a pyramid notched by
-/// another), or that the touch analysis does not read along a slit's
-/// line ([`SLIT_TOUCH`]). [`material_holds`] reads those results right. Where `along`, a
+/// another, `TouchInterference`), or that the touch analysis does not
+/// read along a slit's line ([`SLIT_TOUCH`]). [`material_holds`] reads those results right. Where `along`, a
 /// pyramid's edge lies in a face of the other's, and that edge's own
 /// contact, which no record carries, may refuse too
 /// (`work/flush/a-corner-pair-with-an-edge-in-the-partners-face-plane-builds-with-unrecorded-contacts.md`).
@@ -277,12 +277,11 @@ fn three_prime(
             },
             ValidationError::CensusUndecidable {
                 a, b, what: class, ..
-            } => {
-                (class.starts_with("one passes into the other where they touch")
-                    || class.starts_with(SLIT_TOUCH))
-                    && touches_meet(a)
-                    && touches_meet(b)
-            }
+            } => class.starts_with(SLIT_TOUCH) && touches_meet(a) && touches_meet(b),
+            ValidationError::TouchInterference { a, b } => [a, b].iter().all(|&&cell| {
+                topo::census_cell_solid(&r.body, cell)
+                    .is_some_and(|s| touches_meet(&EntityId::Solid(s)))
+            }),
             _ => false,
         };
         assert!(

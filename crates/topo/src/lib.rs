@@ -363,9 +363,11 @@ pub mod test_support {
 
     /// **A placement the census decided overlaps**: arm 2's decided
     /// verdicts on a pair of solids, a vertex of one strictly inside the
-    /// other's material ([`crate::ValidationError::InstanceInterference`])
-    /// or a face of each on one carrier, facing the same way and sharing
-    /// interior ([`crate::ValidationError::SameSideInterference`]). The
+    /// other's material ([`crate::ValidationError::InstanceInterference`]),
+    /// a face of each on one carrier, facing the same way and sharing
+    /// interior ([`crate::ValidationError::SameSideInterference`]), or a
+    /// touch whose materials meet
+    /// ([`crate::ValidationError::TouchInterference`]). The
     /// one home of the test that a row asserting a placement clears, or
     /// refuses undecided, reads, so a new decided verdict reaches all of
     /// them.
@@ -375,6 +377,7 @@ pub mod test_support {
             e,
             crate::ValidationError::InstanceInterference { .. }
                 | crate::ValidationError::SameSideInterference { .. }
+                | crate::ValidationError::TouchInterference { .. }
         )
     }
 

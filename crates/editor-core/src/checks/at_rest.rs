@@ -439,6 +439,10 @@ pub(crate) fn finding_solids<T: Decide>(
     let (x, y) = match error {
         E::InstanceInterference { outer, inner, .. } => (*outer, *inner),
         E::SameSideInterference { a, b } => (face(*a)?, face(*b)?),
+        E::TouchInterference { a, b } => (
+            topo::census_cell_solid(body, *a)?,
+            topo::census_cell_solid(body, *b)?,
+        ),
         E::CensusUndecidable { a, b, .. } => (
             topo::census_entity_solid(body, *a)?,
             topo::census_entity_solid(body, *b)?,
