@@ -328,7 +328,7 @@ use crate::geometry::PointKey;
 use crate::live::{BoundaryMember, proven};
 use crate::null::CurveGeom;
 
-use crate::link::{Hold, Link, Planar, Sector, TouchUnread, TouchVerdict, rest};
+use crate::link::{Germ, Hold, Link, Planar, Sector, TouchUnread, TouchVerdict, rest};
 #[cfg(test)]
 use crate::link::{PieceAt, face_piece};
 use crate::validate::{
@@ -7523,7 +7523,7 @@ impl TouchSite {
         let mut all: Vec<TouchVerdict> = pairs
             .into_iter()
             .map(|pair| match pair {
-                (Ok(a), Ok(b)) => rest::judge(&a, &b, band),
+                (Ok(a), Ok(b)) => rest::meet(&a, &b, band),
                 (Err(v), _) | (_, Err(v)) => v.into(),
             })
             .collect();
@@ -7549,15 +7549,17 @@ impl TouchSite {
         band: Band,
     ) -> Result<Vec<LinkPair<T>>, TouchVerdict> {
         if let Some((keys, at, (sa, sb))) = self.point(body, geo, ties)? {
-            let side = |s| Link::touch_at_point(body, geo, ties, s, &keys, at, band);
+            let side = |s| Germ::touch_at_point(body, geo, ties, s, &keys, at, band);
             return Ok(vec![(side(sa), side(sb))]);
         }
         let edge = |e: EdgeKey| {
             geo.line_edge(e)
                 .ok_or(TouchVerdict::Unread(TouchUnread::Unreadable))
         };
-        let on_edge = |e: EdgeKey, p: Point3<T>| Link::touch_on_edge(body, geo, e, p, band);
-        let in_face = |f: FaceKey, p: Point3<T>| Link::touch_in_face(body, geo, f, p, band);
+        let on_edge =
+            |e: EdgeKey, p: Point3<T>| Link::touch_on_edge(body, geo, e, p, band).map(Germ::Cone);
+        let in_face =
+            |f: FaceKey, p: Point3<T>| Link::touch_in_face(body, geo, f, p, band).map(Germ::Cone);
         Ok(match self {
             Self::EdgeEdge(a, b) => {
                 let m = ee_overlap_midpoint(edge(a)?, edge(b)?);
@@ -7745,7 +7747,7 @@ fn sweep_self_touch_points<T: Decide>(
 
 /// One touch point's two links, each as built or as the verdict its
 /// build refused with.
-type LinkPair<T> = (Result<Link<T>, TouchUnread>, Result<Link<T>, TouchUnread>);
+type LinkPair<T> = (Result<Germ<T>, TouchUnread>, Result<Germ<T>, TouchUnread>);
 
 impl<T: Decide> Sector<T> {
     /// One planar, line-bounded face of the snapshot as its sectors at
@@ -7822,6 +7824,28 @@ impl<T: Decide> Link<T> {
         p: Point3<T>,
         band: Band,
     ) -> Result<Self, TouchUnread> {
+        match Germ::touch_at_point(body, geo, ties, solid, keys, p, band)? {
+            Germ::Cone(link) => Ok(link),
+            Germ::Round(..) => Err(TouchUnread::Unreadable),
+        }
+    }
+}
+
+impl<T: Decide> Germ<T> {
+    /// **Solid `solid`'s material at the touch point of `keys`**: its
+    /// link there, gathered as [`Link::touch_at_point`] says, or, where
+    /// all it holds at the point is one sphere or cylinder face with the
+    /// point inside it, that face's material ([`round_face`]).
+    #[allow(clippy::too_many_arguments)] // the snapshot, the ties, whose link, and where
+    fn touch_at_point(
+        body: &Body<T>,
+        geo: &Geo<T>,
+        ties: &Ties,
+        solid: crate::SolidKey,
+        keys: &BTreeSet<PointKey>,
+        p: Point3<T>,
+        band: Band,
+    ) -> Result<Self, TouchUnread> {
         let on = |v: &VertexKey| geo.vpoint.get(v).is_some_and(|k| keys.contains(k));
         let mine = |id: EntityId| census_entity_solid(body, id) == Some(solid);
         let verts: BTreeSet<VertexKey> = geo
@@ -7857,6 +7881,13 @@ impl<T: Decide> Link<T> {
                 holds.entry(*f).or_default().push(Hold::Inside);
             }
         }
+        if let Some((&f, all)) = holds.first_key_value()
+            && holds.len() == 1
+            && all.iter().all(|h| *h == Hold::Inside)
+            && let Some(round) = round_face(body, f, p)?
+        {
+            return Ok(Germ::Round(round.0, round.1));
+        }
         // A curved face refuses at once; any other refusal waits until
         // every face is tried. So a curved face anywhere in the link is
         // what it refuses with, whatever order its faces are walked in.
@@ -7880,9 +7911,11 @@ impl<T: Decide> Link<T> {
         if let Some(v) = refused {
             return Err(v);
         }
-        Self::of(p, sectors)
+        Link::of(p, sectors).map(Germ::Cone)
     }
+}
 
+impl<T: Decide> Link<T> {
     /// The link at a point `p` inside a line edge: the edge's two faces.
     fn touch_on_edge(
         body: &Body<T>,
@@ -7920,6 +7953,65 @@ impl<T: Decide> Link<T> {
     ) -> Result<Self, TouchUnread> {
         Self::of(p, Sector::of(body, geo, f, p, &[Hold::Inside], band)?)
     }
+}
+
+/// **Face `f`'s material, where it lies on a sphere or a cylinder**, and
+/// a lower bound on its reach about `p`, a point inside it: the least
+/// distance from `p` to a boundary edge, each a line read as its segment
+/// or a circle as the whole circle; a face with no boundary reaches
+/// round its carrier. `None` off a sphere or a cylinder;
+/// [`TouchUnread::Unreadable`] for a boundary edge of another curve, and
+/// [`TouchUnread::Corrupt`] where the face does not read.
+fn round_face<T: Decide>(
+    body: &Body<T>,
+    f: FaceKey,
+    p: Point3<T>,
+) -> Result<Option<(crate::link::Round<T>, T)>, TouchUnread> {
+    let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
+    let surface = body.get_surface(face.surface).ok_or(TouchUnread::Corrupt)?;
+    let Some(round) = crate::link::Round::of(surface, face.sense) else {
+        return Ok(None);
+    };
+    let mut reach = round.radius() * T::from_f64(2.0);
+    for cycle in face_cycles(body, face) {
+        for he in cycle.map_err(|_| TouchUnread::Corrupt)? {
+            let half = body.half_edges.get(he).ok_or(TouchUnread::Corrupt)?;
+            let curve = body
+                .edges
+                .get(half.edge)
+                .and_then(|d| body.curves.get(d.curve))
+                .and_then(crate::null::CurveGeom::certified)
+                .ok_or(TouchUnread::Unreadable)?;
+            let to = match *curve.carrier() {
+                geom::Curve3::Line { .. } => {
+                    let a = body.half_edge_start_point(he).ok_or(TouchUnread::Corrupt)?;
+                    let b = body
+                        .half_edge_end(he)
+                        .and_then(|v| body.vertices.get(v))
+                        .and_then(|v| body.points.get(v.point))
+                        .copied()
+                        .ok_or(TouchUnread::Corrupt)?;
+                    let ab = b - a;
+                    let t = ((p - a).dot(ab) / ab.dot(ab)).max(T::zero()).min(T::one());
+                    (a + ab * t - p).norm()
+                }
+                geom::Curve3::Circle {
+                    center,
+                    axis,
+                    radius,
+                    ..
+                } => {
+                    let rel = p - center;
+                    let h = rel.dot(axis);
+                    let across = (rel - axis * h).norm() - radius;
+                    (h * h + across * across).sqrt()
+                }
+                _ => return Err(TouchUnread::Unreadable),
+            };
+            reach = reach.min(to);
+        }
+    }
+    Ok(Some((round, reach)))
 }
 
 /// The role of `shell` the cross-solid gate reads: the one shell-role

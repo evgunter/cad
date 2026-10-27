@@ -76,6 +76,10 @@ const LINK_BALL: &str = "link_offset_ball";
 /// it is nearest, along the line to it, and two such points against each
 /// other along the segment, in metres ([`Link::lowest_on`]'s ties).
 const LINK_TIE: &str = "link_offset_tie";
+/// K name: a point of a link's boundary, or the lowest of a segment of
+/// it, against a sphere's or a cylinder's carrier, in metres — on the
+/// side of it the face's material is on ([`rest::by_round`]).
+const LINK_ROUND: &str = "link_round_offset";
 /// K name: two coplanar faces' outward normals, one of each link,
 /// aligned or opposed ([`geom_brep::classify_material_pairing_as`]).
 const TOUCH_NORMAL: &str = "census_touch_normal";
@@ -101,6 +105,16 @@ pub(crate) mod metric {
         /// `o` with unit normal `n`.
         pub(crate) fn of(q: Point3<T>, o: Point3<T>, n: Vec3<T>) -> Self {
             Self(n.dot(q - o))
+        }
+    }
+
+    impl<T: Decide> Distance<T> {
+        /// The segment `x0`–`x1`'s lowest signed distance from a sphere's
+        /// or a cylinder's carrier, positive away from its material
+        /// ([`Round::lowest_on`](super::Round::lowest_on)); a point is
+        /// the segment from it to itself.
+        pub(crate) fn off(round: &super::Round<T>, seg: (Point3<T>, Point3<T>)) -> Self {
+            Self(round.lowest_on(seg))
         }
     }
 
@@ -1815,6 +1829,123 @@ impl From<TouchUnread> for LinkRefusal {
     }
 }
 
+/// **A sphere or cylinder face's material, read by its carrier**: the
+/// side of the carrier the material is on. A point's offset from it is
+/// its signed distance from the carrier, positive away from the
+/// material ([`Round::offset`]), which is a face's reading of a vertex
+/// or an edge in `Gap` and of another solid's link at a touch inside the
+/// face in the census ([`rest::by_round`]).
+#[derive(Clone, Copy, Debug)]
+pub struct Round<T: Real> {
+    at: Axis<T>,
+    radius: T,
+    /// The material lies on the centre's side: a ball or a pin, not a
+    /// socket or a bore.
+    convex: bool,
+}
+
+/// **One solid's material at a touch point**, as the census reads it:
+/// its link there, or, where the point lies strictly inside one sphere or
+/// cylinder face of the solid and nothing else of it, that face's
+/// material and the face's reach about the point ([`rest::meet`]).
+pub(crate) enum Germ<T: Real> {
+    Cone(Link<T>),
+    Round(Round<T>, T),
+}
+
+/// What a [`Round`]'s carrier is round about.
+#[derive(Clone, Copy, Debug)]
+enum Axis<T: Real> {
+    Centre(Point3<T>),
+    Line(Point3<T>, Vec3<T>),
+}
+
+impl<T: Decide> Round<T> {
+    /// The material of a face on `surface` with `Face::sense` `sense`;
+    /// `None` off a sphere or a cylinder.
+    pub fn of(surface: &geom::Surface<T>, sense: bool) -> Option<Self> {
+        let (at, radius) = match *surface {
+            geom::Surface::Sphere { center, radius, .. } => (Axis::Centre(center), radius),
+            geom::Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                ..
+            } => (Axis::Line(origin, axis), radius),
+            _ => return None,
+        };
+        Some(Self {
+            at,
+            radius,
+            convex: sense,
+        })
+    }
+
+    /// The carrier's radius.
+    pub fn radius(&self) -> T {
+        self.radius
+    }
+
+    /// `v`'s part off the axis: all of it about a centre, its part
+    /// normal to the axis about a line.
+    fn across(&self, v: Vec3<T>) -> Vec3<T> {
+        match self.at {
+            Axis::Centre(_) => v,
+            Axis::Line(_, axis) => v - axis * axis.dot(v),
+        }
+    }
+
+    /// `q` less the centre, or less the axis's origin.
+    fn from_axis(&self, q: Point3<T>) -> Vec3<T> {
+        match self.at {
+            Axis::Centre(c) | Axis::Line(c, _) => q - c,
+        }
+    }
+
+    /// **`q`'s signed distance from the carrier**, in metres, positive
+    /// away from the material: out of a ball or a pin, into a socket's
+    /// or a bore's hollow.
+    pub fn offset(&self, q: Point3<T>) -> T {
+        let d = self.across(self.from_axis(q)).norm() - self.radius;
+        if self.convex { d } else { -d }
+    }
+
+    /// The outward unit normal at `p`, a point of the carrier.
+    fn outward(&self, p: Point3<T>) -> Vec3<T> {
+        let n = self.across(self.from_axis(p)).normalize();
+        if self.convex { n } else { -n }
+    }
+
+    /// **The lowest [`Round::offset`] along the segment `x0`–`x1`**, in
+    /// closed form. Along the segment the distance from the axis is the
+    /// square root of a convex quadratic, so the offset is convex for a
+    /// ball or a pin and concave for a socket or a bore. The candidates
+    /// are the two ends, which hold a concave least, and the quadratic's
+    /// least held to the segment, which holds a convex one; every
+    /// candidate is a real point of the segment, so the least read is a
+    /// value the segment takes. A segment along a cylinder's axis has no
+    /// least: its offset is constant, and an enclosure reads it over the
+    /// whole segment.
+    pub fn lowest_on(&self, (x0, x1): (Point3<T>, Point3<T>)) -> T {
+        let e = x1 - x0;
+        let (w, u) = (self.across(self.from_axis(x0)), self.across(e));
+        let ends = self.offset(x0).min(self.offset(x1));
+        let t = -w.dot(u) / u.dot(u);
+        // Where the least is, is structure, as in [`Link::lowest_on`]: a
+        // point scalar reads it as the point it is, and an enclosure
+        // with no bounded least reads every point of the segment.
+        let t = if t.is_poison() || !t.is_bounded() {
+            T::zero().enclosure_hull(T::one())
+        } else {
+            t.point_value().map_or(t, T::from_computed)
+        };
+        if t.is_poison() {
+            return ends;
+        }
+        ends.min(self.offset(x0 + e * t.max(T::zero()).min(T::one())))
+    }
+}
+
 /// [`Link::reads`] over a bare polygon cone at `p`, each face its
 /// outward normal and one wedge's two real points, read on `band`
 /// alone: how the boolean's sector fuzz runs the census's reader on its
@@ -1859,6 +1990,7 @@ pub(crate) mod rest {
         Band, Decide, Link, Material, Place, Point3, Reading, Segment, Sign, TouchUnread,
         TouchVerdict,
     };
+    use super::{Distance, Germ, LINK_ROUND, Round, TOUCH_PLANE, metric};
     use super::{TOUCH_NORMAL, ahead, on_plane, pairing, wedge_side, within};
 
     /// The certificate of a rest: every piece of both links read, on
@@ -2048,6 +2180,111 @@ pub(crate) mod rest {
             TouchVerdict::Unread(TouchUnread::InBand)
         } else {
             TouchVerdict::Rest(Rest { _sealed: () })
+        }
+    }
+
+    /// **A polygonal cone against a round face**, at a touch point `p`
+    /// strictly inside a sphere or cylinder face of the other solid: the
+    /// link `a` of one solid, and the face's material `round` of the
+    /// other, which is its carrier's side within `ball` of `p` (the
+    /// face's own reach about `p`, as [`Link::ball`] is a link's).
+    /// With `n` the face's outward normal at `p`, each ray of `a` — every
+    /// wedge's two ends, real points of its face — reads:
+    ///
+    /// - against a ball or a pin: Zero or above against the tangent plane
+    ///   through `p`, so its wedges keep out; below it, a crossing where
+    ///   its segment from the apex, drawn in to the ball, reads below the
+    ///   carrier ([`Round::lowest_on`]);
+    /// - against a socket or a bore: above the tangent plane, so its
+    ///   wedges keep out; on it, out where the ray's point reads Zero or
+    ///   above against the carrier (a cylinder's ruling, or a tangent
+    ///   whose dip the band holds); below it, or on it and below the
+    ///   carrier, a crossing where its point drawn in to the ball reads
+    ///   below the carrier.
+    ///
+    /// Then the probe `p − n·s`, `s` the least of the two balls and the
+    /// radius, inside the face's material: **Crossing** where `a` reads
+    /// it In, **Rest** where every ray kept out and it reads Out, and
+    /// [`TouchUnread::InBand`] otherwise.
+    ///
+    /// **Sound.** Against a ball or a pin, the carrier's signed distance
+    /// is at least the tangent plane's (the material is convex and the
+    /// plane supports it), and a wedge's plane offset is affine over its
+    /// triangle, so a wedge whose rays read Zero or above stands no
+    /// deeper than the band anywhere. Against a socket or a bore, the
+    /// hollow is convex: a ray strictly above the tangent plane enters it,
+    /// and a wedge under half a turn between two such rays, or one such
+    /// and one along a ruling, enters it with them; a wedge whose rays'
+    /// points read Zero or above against the carrier lies in the hollow
+    /// within the band (its vertices do). So `a`'s boundary keeps out of
+    /// the face's material near `p`; that material is connected there,
+    /// so it lies wholly inside `a`'s or wholly outside, and the probe,
+    /// in it, reads which. A crossing is a point of `a`'s boundary
+    /// decidedly inside the face's material within both balls, or the
+    /// probe decidedly inside both materials.
+    ///
+    /// Every reading is taken over twice `a`'s tie, as [`judge`] takes
+    /// its own.
+    pub(crate) fn by_round<T: Decide>(
+        a: &Link<T>,
+        round: &Round<T>,
+        ball: T,
+        band: Band,
+    ) -> TouchVerdict {
+        let rd = Reading {
+            band,
+            slack: Some(a.tie * T::from_f64(2.0)),
+            own: false,
+        };
+        if let Some(open) = held_closed(&[a], rd) {
+            return open;
+        }
+        let p = a.p;
+        let n = round.outward(p);
+        let near = a.ball.min(ball);
+        let below = |seg| metric::sign_over(LINK_ROUND, Distance::off(round, seg), rd);
+        let mut in_band = false;
+        for s in &a.sectors {
+            for r in s.wedges.iter().flat_map(|&(x, y)| [x, y]) {
+                let drawn = (s.apex, within(s.apex, r, near));
+                let tangent = metric::sign_over(TOUCH_PLANE, Distance::of(r, p, n), rd);
+                let enters = match (round.convex, tangent) {
+                    (true, Some(Sign::Positive | Sign::Zero)) | (false, Some(Sign::Positive)) => {
+                        continue;
+                    }
+                    (false, Some(Sign::Zero)) => match below((r, r)) {
+                        Some(Sign::Positive | Sign::Zero) => continue,
+                        Some(Sign::Negative) => below(drawn),
+                        None => None,
+                    },
+                    (_, Some(Sign::Negative)) => below(drawn),
+                    (_, None) => None,
+                };
+                if enters == Some(Sign::Negative) {
+                    return TouchVerdict::Crossing;
+                }
+                in_band = true;
+            }
+        }
+        let probe = p - n * near.min(round.radius());
+        match a.reads_over(probe, rd) {
+            Some(Material::In) => TouchVerdict::Crossing,
+            Some(Material::Out) if !in_band => TouchVerdict::Rest(Rest { _sealed: () }),
+            _ => TouchVerdict::Unread(TouchUnread::InBand),
+        }
+    }
+
+    /// **The one test of two solids' materials at a touch point**: two
+    /// links by [`judge`], a link and a round face by [`by_round`]. Two
+    /// round faces are a face pair, which the touch analysis does not
+    /// read ([`TouchUnread::Unreadable`]).
+    pub(crate) fn meet<T: Decide>(a: &Germ<T>, b: &Germ<T>, band: Band) -> TouchVerdict {
+        match (a, b) {
+            (Germ::Cone(x), Germ::Cone(y)) => judge(x, y, band),
+            (Germ::Cone(x), Germ::Round(r, ball)) | (Germ::Round(r, ball), Germ::Cone(x)) => {
+                by_round(x, r, *ball, band)
+            }
+            (Germ::Round(..), Germ::Round(..)) => TouchVerdict::Unread(TouchUnread::Unreadable),
         }
     }
 
@@ -2327,6 +2564,8 @@ pub(crate) mod rest {
 mod cone_oracle;
 #[cfg(test)]
 mod oracle_rows;
+#[cfg(test)]
+mod round_rows;
 
 #[cfg(test)]
 mod tests {
@@ -2700,7 +2939,9 @@ mod tests {
         };
         let metric = body("\npub(crate) mod metric");
         let pairing = body("\nfn pairing");
-        let lowest_on = body("\n    pub fn lowest_on(");
+        let lowest_on = body("\n    pub fn lowest_on(\n");
+        let round_lowest =
+            body("\n    pub fn lowest_on(&self, (x0, x1): (Point3<T>, Point3<T>)) -> T");
         let either = body("\nfn either<");
         let outside = |section: &str, needle: &str, allowed: &[&core::ops::Range<usize>]| {
             section
@@ -2758,6 +2999,13 @@ mod tests {
                 &lowest_on,
                 "let t = t.point_value().map_or(t, T::from_computed);",
             ),
+            (
+                &round_lowest,
+                "let t = if t.is_poison() || !t.is_bounded() {",
+            ),
+            (&round_lowest, "T::zero().enclosure_hull(T::one())"),
+            (&round_lowest, "t.point_value().map_or(t, T::from_computed)"),
+            (&round_lowest, "if t.is_poison() {"),
             (&either, "let both = lo.enclosure_hull(hi);"),
             (&either, "if both.is_poison() && !hi.is_poison() {"),
         ]
@@ -2803,9 +3051,10 @@ mod tests {
             "`Distance`'s field is private"
         );
         let of = body("\n        pub(crate) fn of(");
+        let off = body("\n        pub(crate) fn off(");
         assert!(
-            metric.contains(&of.start),
-            "`Distance::of` is in `mod metric`"
+            metric.contains(&of.start) && metric.contains(&off.start),
+            "`Distance::of` and `Distance::off` are in `mod metric`"
         );
         let builds: Vec<usize> = module
             .match_indices("Self(")
@@ -2814,14 +3063,21 @@ mod tests {
             .filter(|i| metric.contains(i))
             .collect();
         assert!(
-            builds.len() == 1 && of.contains(&builds[0]),
-            "`Distance` is built once, inside `Distance::of`: {} builds",
+            builds.len() == 2 && of.contains(&builds[0]) && off.contains(&builds[1]),
+            "`Distance` is built twice, once inside `Distance::of` from a plane and once \
+             inside `Distance::off` from a round carrier: {} builds",
             builds.len()
+        );
+        assert!(
+            door[off.start - metric.start..off.end - metric.start]
+                .contains("Self(round.lowest_on(seg))"),
+            "`Distance::off` is the round carrier's closed form, and nothing else"
         );
         assert_eq!(
             door.matches("-> Self").count() + door.matches("-> Distance").count(),
-            1,
-            "`Distance::of` is `mod metric`'s only function returning a `Distance`"
+            2,
+            "`Distance::of` and `Distance::off` are `mod metric`'s only functions returning a \
+             `Distance`"
         );
     }
 }
