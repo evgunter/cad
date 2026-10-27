@@ -3375,18 +3375,6 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
     surface: &Surface<T>,
     band: Band,
 ) -> Result<projected::OffsetRead<T>, PcurveCertifyError> {
-    limb2_read(carrier, window, surface, band, true)
-}
-
-/// [`limb2_offset_sup`], its first reading (`limb2_quick`) taken where
-/// `first` asks for it and the rounds read alone otherwise.
-fn limb2_read<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
-    carrier: &Curve3<T>,
-    window: (T, T),
-    surface: &Surface<T>,
-    band: Band,
-    first: bool,
-) -> Result<projected::OffsetRead<T>, PcurveCertifyError> {
     let Some((origin, e)) = projected::chart_frame(surface) else {
         return Err(PcurveCertifyError::UnsupportedChart {
             chart: surface.kind(),
@@ -3409,50 +3397,55 @@ fn limb2_read<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
             ((lo, hi), closed_form_grid(carrier, lo, hi), 1)
         }
     };
-    let round_over = |grid: &[f64], cuts: &[f64]| -> Result<
-        (projected::ProjectedHull, projected::NetSize),
-        PcurveCertifyError,
-    > {
-        let mut breaks: Vec<f64> = grid.iter().chain(cuts).copied().collect();
-        breaks.sort_by(f64::total_cmp);
-        breaks.dedup();
-        let net = crate::carrier_net::framed_carrier_net(carrier, domain, &breaks, &frame)
-            .map_err(PcurveCertifyError::CarrierEnclosure)?;
-        let curve = net.curve().ok_or(PcurveCertifyError::ImageMismatch {
-            image: PcurveKind::Projected,
-            why: "the carrier's net forms no curve",
-        })?;
-        let size = projected::NetSize {
-            width: net.width(),
-            rounding: net.rounding(),
-            extent: net.extent(),
+    let round_over =
+        |grid: &[f64],
+         cuts: &[f64]|
+         -> Result<(projected::ProjectedHull, projected::NetSize), PcurveCertifyError> {
+            let mut breaks: Vec<f64> = grid.iter().chain(cuts).copied().collect();
+            breaks.sort_by(f64::total_cmp);
+            breaks.dedup();
+            let net = crate::carrier_net::framed_carrier_net(carrier, domain, &breaks, &frame)
+                .map_err(PcurveCertifyError::CarrierEnclosure)?;
+            let curve = net.curve().ok_or(PcurveCertifyError::ImageMismatch {
+                image: PcurveKind::Projected,
+                why: "the carrier's net forms no curve",
+            })?;
+            let size = projected::NetSize {
+                width: net.width(),
+                rounding: net.rounding(),
+                extent: net.extent(),
+            };
+            let hull = projected::ProjectedHull {
+                pieces: Vec::new(),
+                spans: twin_span_hulls(&curve, &twin, &chart, per_span, net.cuts())?,
+            };
+            Ok((hull, size))
         };
-        let hull = projected::ProjectedHull {
-            pieces: Vec::new(),
-            spans: twin_span_hulls(&curve, &twin, &chart, per_span, net.cuts())?,
-        };
-        Ok((hull, size))
-    };
     let round_hull = |cuts: &[f64]| round_over(&grid, cuts);
     // A curved closed form is read first on its dyadic spans, each
     // enclosed alone (`limb2_quick`); a reading that clears is the
     // limb's, and anything else goes to the rounds below.
-    if first && std::env::var("CAD_L2_NOQUICK").is_err()
-        && !matches!(carrier, Curve3::Nurbs(_) | Curve3::Line { .. })
-        && let Some(mut read) =
-            limb2_quick::read(carrier, window, domain, surface, &frame, &twin, &chart, band)
-    {
-        read.upper = match &read.offset {
-            projected::Offset::Bound(b) | projected::Offset::Miss { bound: Ok(b), .. } => b.hi(),
-            projected::Offset::Miss { bound: Err(_), .. } => f64::NAN,
-        };
-        return Ok(read);
-    }
-    // The rounds read through limb 2's memo (`limb2_memo`): a round is
-    // a pure function of the key's inputs and its cuts.
-    let key = limb2_memo::Key::of(carrier, window, surface, band);
-    let hull = |cuts: &[f64]| limb2_memo::read(&key, cuts, || round_hull(cuts));
-    let mut read = projected::offset_rounds(hull, window, &chart, &twin, band)?;
+    let quick = if matches!(carrier, Curve3::Nurbs(_) | Curve3::Line { .. }) {
+        None
+    } else {
+        limb2_quick::read(carrier, domain, surface, &frame, &twin, &chart, band).and_then(
+            |(hull, size)| {
+                projected::offset_cleared(hull, size, window, &chart, &twin, band)
+                    .ok()
+                    .flatten()
+            },
+        )
+    };
+    let mut read = match quick {
+        Some(read) => read,
+        None => {
+            // The rounds read through limb 2's memo (`limb2_memo`): a
+            // round is a pure function of the key's inputs and its cuts.
+            let key = limb2_memo::Key::of(carrier, window, surface, band);
+            let hull = |cuts: &[f64]| limb2_memo::read(&key, cuts, || round_hull(cuts));
+            projected::offset_rounds(hull, window, &chart, &twin, band)?
+        }
+    };
     read.upper = match &read.offset {
         projected::Offset::Bound(b) | projected::Offset::Miss { bound: Ok(b), .. } => b.hi(),
         projected::Offset::Miss { bound: Err(_), .. } => f64::NAN,
@@ -3539,7 +3532,10 @@ mod limb2_memo {
 
     /// The carrier and the surface rendered whole, each scalar as its
     /// certified bracket's two ends beside the scalar's witness kind.
-    pub(super) fn rendered<T: CertifiedBounds>(carrier: &Curve3<T>, surface: &Surface<T>) -> String {
+    pub(super) fn rendered<T: CertifiedBounds>(
+        carrier: &Curve3<T>,
+        surface: &Surface<T>,
+    ) -> String {
         let (lo, hi) = (|x: T| end(x, false), |x: T| end(x, true));
         format!(
             "{:?}|{:?}|{:?}|{:?}|{:?}",
@@ -3614,10 +3610,11 @@ mod limb2_memo {
 /// the band on a few spans where [`crate::carrier_net::ORDER`] needs
 /// tens.
 mod limb2_quick {
-    use super::{projected, twin_span_hulls};
+    use super::twin_span_hulls;
     use crate::pcurve_cache::projected::{NetSize, ProjectedChart, ProjectedHull, SpanHull};
     use geom::{Curve3, Surface};
-    use geom_core::predicate::{Band, Decide};
+    use geom_core::CertifiedBounds;
+    use geom_core::predicate::Band;
 
     /// The Taylor degree of a span's net.
     pub(super) const ORDER: usize = 12;
@@ -3640,7 +3637,8 @@ mod limb2_quick {
         boxed: Option<[(f64, f64); 3]>,
     }
 
-    type Memo = std::collections::HashMap<String, std::collections::HashMap<(u64, u64), Option<Part>>>;
+    type Memo =
+        std::collections::HashMap<String, std::collections::HashMap<(u64, u64), Option<Part>>>;
 
     std::thread_local! {
         static MEMO: core::cell::RefCell<(usize, Memo)> =
@@ -3664,9 +3662,14 @@ mod limb2_quick {
 
     /// The span `[a, b]`'s part under `base`: the memo's, or
     /// `compute`'s, which is then kept.
-    fn part(base: &str, (a, b): (f64, f64), compute: impl FnOnce() -> Option<Part>) -> Option<Part> {
+    fn part(
+        base: &str,
+        (a, b): (f64, f64),
+        compute: impl FnOnce() -> Option<Part>,
+    ) -> Option<Part> {
         let key = (a.to_bits(), b.to_bits());
-        if let Some(hit) = MEMO.with(|m| m.borrow().1.get(base).and_then(|s| s.get(&key)).copied()) {
+        if let Some(hit) = MEMO.with(|m| m.borrow().1.get(base).and_then(|s| s.get(&key)).copied())
+        {
             COUNTS.with(|c| c.set((c.get().0 + 1, c.get().1)));
             return hit;
         }
@@ -3736,27 +3739,33 @@ mod limb2_quick {
         }
     }
 
-    /// [`super::limb2_offset_sup`]'s first reading (module docs).
-    #[allow(clippy::too_many_arguments)]
-    pub(super) fn read<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
+    /// [`super::limb2_offset_sup`]'s first reading (module docs): the
+    /// parts over `domain`, every one clearing the band, and the size of
+    /// their nets; `None` otherwise.
+    pub(super) fn read<T: CertifiedBounds>(
         carrier: &Curve3<T>,
-        window: (T, T),
         domain: (f64, f64),
         surface: &Surface<T>,
         frame: &crate::carrier_net::Frame,
         twin: &Surface<T>,
         chart: &ProjectedChart<T>,
         band: Band,
-    ) -> Option<projected::OffsetRead<T>> {
+    ) -> Option<(ProjectedHull, NetSize)> {
         let nappe = match chart {
             ProjectedChart::Cone { nappe, .. } => format!("{nappe:?}"),
             _ => String::new(),
         };
-        let base = format!("{}|{nappe}|{ORDER}", super::limb2_memo::rendered(carrier, surface));
+        let base = format!(
+            "{}|{nappe}|{ORDER}",
+            super::limb2_memo::rendered(carrier, surface)
+        );
         let compute = |range: (f64, f64)| -> Option<Part> {
             let net = crate::carrier_net::framed_span_net(carrier, range, frame, ORDER).ok()?;
             let curve = net.curve()?;
-            let hull = match twin_span_hulls(&curve, twin, chart, 1, &[]).ok()?.as_slice() {
+            let hull = match twin_span_hulls(&curve, twin, chart, 1, &[])
+                .ok()?
+                .as_slice()
+            {
                 [one] => *one,
                 _ => return None,
             };
@@ -3767,9 +3776,8 @@ mod limb2_quick {
                 boxed: net.control_box(),
             })
         };
-        let clears = |p: &Option<Part>| {
-            p.is_some_and(|p| crate::ssi::certify::clears(p.hull.meters, band))
-        };
+        let clears =
+            |p: &Option<Part>| p.is_some_and(|p| crate::ssi::certify::clears(p.hull.meters, band));
         // Each pending span: its dyadic index, its parent's bound, and
         // whether it is read clipped to the window's outer ends.
         let mut pending: Vec<((u32, i64), f64, bool)> = cover(START, domain)?
@@ -3782,7 +3790,11 @@ mod limb2_quick {
             if work > WORK {
                 return None;
             }
-            let range = if clipped { clip(d, k, domain)? } else { dyadic(d, k) };
+            let range = if clipped {
+                clip(d, k, domain)?
+            } else {
+                dyadic(d, k)
+            };
             let p = part(&base, range, || compute(range));
             if clears(&p) {
                 cleared.extend(p);
@@ -3794,7 +3806,8 @@ mod limb2_quick {
             // ends is then read again within them, since the carrier
             // past the edge's ends is not the edge's.
             let bound = p.map_or(f64::NAN, |p| p.hull.meters);
-            if !(bound <= 0.5 * parent) {
+            let halved = bound <= 0.5 * parent;
+            if !halved {
                 if clipped || clip(d, k, domain) == Some(range) {
                     return None;
                 }
@@ -3808,28 +3821,36 @@ mod limb2_quick {
             );
         }
         cleared.sort_by(|x, y| x.hull.range.0.total_cmp(&y.hull.range.0));
-        let widest = |m: f64, w: f64| if m.is_nan() || w.is_nan() { f64::NAN } else { m.max(w) };
-        let boxed = cleared.iter().try_fold(
-            [(f64::INFINITY, f64::NEG_INFINITY); 3],
-            |acc, p| {
+        let widest = |m: f64, w: f64| {
+            if m.is_nan() || w.is_nan() {
+                f64::NAN
+            } else {
+                m.max(w)
+            }
+        };
+        let boxed = cleared
+            .iter()
+            .try_fold([(f64::INFINITY, f64::NEG_INFINITY); 3], |acc, p| {
                 let b = p.boxed?;
-                Some(core::array::from_fn(|i| (acc[i].0.min(b[i].0), acc[i].1.max(b[i].1))))
-            },
-        );
+                Some(core::array::from_fn(|i| {
+                    (acc[i].0.min(b[i].0), acc[i].1.max(b[i].1))
+                }))
+            });
         let size = NetSize {
             width: cleared.iter().map(|p| p.width).fold(0.0, widest),
             rounding: cleared.iter().map(|p| p.rounding).fold(0.0, widest),
             extent: boxed.map_or(f64::NAN, |b| {
-                b.iter().map(|(lo, hi)| (hi - lo).powi(2)).sum::<f64>().sqrt()
+                b.iter()
+                    .map(|(lo, hi)| (hi - lo).powi(2))
+                    .sum::<f64>()
+                    .sqrt()
             }),
         };
         let hull = ProjectedHull {
             pieces: Vec::new(),
             spans: cleared.iter().map(|p| p.hull).collect(),
         };
-        projected::offset_cleared(hull, size, window, chart, twin, band)
-            .ok()
-            .flatten()
+        Some((hull, size))
     }
 }
 
@@ -13365,21 +13386,13 @@ mod check_4_class_rows {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod limb2_memo_rows {
-    use super::{PcurveCertifyError, limb2_memo, projected};
+    use super::{PcurveCertifyError, limb2_memo, limb2_offset_sup};
     use geom::{Curve3, Surface};
-    use geom_core::predicate::Decide;
     use geom_core::{Band, Point3, Real, Vec3};
 
-    /// Limb 2's rounds alone, which the memo serves: the first reading
-    /// would clear these rims before any round is asked.
-    fn rounds<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
-        carrier: &Curve3<T>,
-        window: (T, T),
-        surface: &Surface<T>,
-        band: Band,
-    ) -> Result<projected::OffsetRead<T>, PcurveCertifyError> {
-        super::limb2_read(carrier, window, surface, band, false)
-    }
+    /// The wall a micron inside the rim: limb 2's first reading does
+    /// not clear it, so its rounds, which the memo serves, decide.
+    const WALL: f64 = 1.25 - 1e-6;
 
     fn rim(radius: f64) -> (Curve3<f64>, Surface<f64>) {
         let rim = Curve3::Circle {
@@ -13391,7 +13404,7 @@ mod limb2_memo_rows {
         let wall = Surface::Cylinder {
             origin: Point3::new(0.3, -0.2, 0.0),
             axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 1.25,
+            radius: WALL,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         (rim, wall)
@@ -13421,9 +13434,9 @@ mod limb2_memo_rows {
             if let Surface::Cylinder { ref mut radius, .. } = s {
                 *radius = wall;
             }
-            format!("{:?}", rounds(&c, window, &s, band))
+            format!("{:?}", limb2_offset_sup(&c, window, &s, band))
         };
-        let base = || read(1.25, 1.25, (0.2, 2.9), band);
+        let base = || read(1.25, WALL, (0.2, 2.9), band);
         limb2_memo::clear();
         let (h0, m0) = limb2_memo::counts();
         let cold = base();
@@ -13451,16 +13464,16 @@ mod limb2_memo_rows {
             assert!(after > before, "a changed {what} misses");
         };
         misses("carrier", &|| {
-            let _ = read(1.25f64.next_up(), 1.25, (0.2, 2.9), band);
+            let _ = read(1.25f64.next_up(), WALL, (0.2, 2.9), band);
         });
         misses("surface", &|| {
-            let _ = read(1.25, 1.25f64.next_up(), (0.2, 2.9), band);
+            let _ = read(1.25, WALL.next_up(), (0.2, 2.9), band);
         });
         misses("window", &|| {
-            let _ = read(1.25, 1.25, (0.2, 2.8), band);
+            let _ = read(1.25, WALL, (0.2, 2.8), band);
         });
         misses("band", &|| {
-            let _ = read(1.25, 1.25, (0.2, 2.9), Band::new(1e-10, 1e-9).unwrap());
+            let _ = read(1.25, WALL, (0.2, 2.9), Band::new(1e-10, 1e-9).unwrap());
         });
         let (c, s) = rim(1.25);
         let key = limb2_memo::Key::of(&c, (0.2, 2.9), &s, band);
@@ -13493,7 +13506,7 @@ mod limb2_memo_rows {
             };
             format!(
                 "{:?}",
-                rounds(&c, (lift(0.2), lift(2.9)), &s.map_scalar(lift), band)
+                limb2_offset_sup(&c, (lift(0.2), lift(2.9)), &s.map_scalar(lift), band)
             )
         };
         let certified = lift(1.25);
@@ -13517,7 +13530,7 @@ mod limb2_memo_rows {
             || {
                 let lift = |x: f64| <Sym<Interval> as Real>::from_f64(x);
                 let (c, s) = rim(1.25);
-                let read = rounds(
+                let read = limb2_offset_sup(
                     &c.map_scalar(lift),
                     (lift(0.2), lift(2.9)),
                     &s.map_scalar(lift),
@@ -13537,7 +13550,7 @@ mod limb2_memo_rows {
             hits_after > hits && misses_after == misses_before,
             "Sym reads Interval's rounds"
         );
-        let r = rounds(
+        let r = limb2_offset_sup(
             &rim(1.25).0.map_scalar(lift),
             (lift(0.2), lift(2.9)),
             &rim(1.25).1.map_scalar(lift),
@@ -13564,7 +13577,7 @@ mod limb2_memo_rows {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod limb2_quick_rows {
-    use super::{limb2_memo, limb2_offset_sup, limb2_quick, limb2_read, projected};
+    use super::{limb2_memo, limb2_offset_sup, limb2_quick, projected};
     use geom::{Curve3, Surface};
     use geom_core::{Band, Point3, Real, Vec3};
 
@@ -13638,7 +13651,11 @@ mod limb2_quick_rows {
         assert!(h2 > h1 && m2 == m1, "a warm read hits");
         assert_eq!(warm, cold, "a hit is the miss's bits");
         limb2_quick::clear();
-        assert_eq!(read(1.25, 1.25, (0.2, 2.9)), cold, "a recompute is the same bits");
+        assert_eq!(
+            read(1.25, 1.25, (0.2, 2.9)),
+            cold,
+            "a recompute is the same bits"
+        );
         let (_, before) = limb2_quick::counts();
         let _ = read(1.25, 1.25, (0.3, 2.7));
         assert_eq!(
@@ -13714,7 +13731,11 @@ mod limb2_quick_rows {
             },
         )
         .0;
-        assert_eq!(limb2_quick::counts().1, before, "Sym reads Interval's spans");
+        assert_eq!(
+            limb2_quick::counts().1,
+            before,
+            "Sym reads Interval's spans"
+        );
         let r = limb2_offset_sup(
             &rim(1.25, 1.25).0.map_scalar(lift),
             (lift(0.2), lift(2.9)),
@@ -13787,14 +13808,16 @@ mod limb2_quick_rows {
 
     /// **A first reading that does not clear leaves the rounds'
     /// verdict.** A rim a micron off its wall, at a nanometre band:
-    /// limb 2's reading is the rounds' alone, bit for bit, and it is a
+    /// limb 2's reading is the rounds' (they are asked), and it is a
     /// measured miss. Red under a first reading that passes or refuses
     /// on its own.
     #[test]
     fn a_reading_that_does_not_clear_is_the_rounds() {
         let band = Band::new(1e-9, 1e-8).unwrap();
         let (c, s) = rim(1.25 + 1e-6, 1.25);
+        let (_, misses) = limb2_memo::counts();
         let read = limb2_offset_sup(&c, (0.2, 2.9), &s, band);
+        assert!(limb2_memo::counts().1 > misses, "the rounds are asked");
         assert!(
             matches!(
                 read,
@@ -13805,11 +13828,6 @@ mod limb2_quick_rows {
             ),
             "a micron off is a measured miss: {}",
             bits(&read)
-        );
-        assert_eq!(
-            bits(&read),
-            bits(&limb2_read(&c, (0.2, 2.9), &s, band, false)),
-            "the rounds' reading"
         );
     }
 }

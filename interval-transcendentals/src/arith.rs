@@ -618,12 +618,18 @@ mod tests {
                     continue;
                 }
                 assert_eq!(bits(x * y), bits(x.corner_product(y)), "{x:?} * {y:?}");
-                if x.signed_corners(y).or_else(|| y.signed_corners(x)).is_some() {
+                if x.signed_corners(y)
+                    .or_else(|| y.signed_corners(x))
+                    .is_some()
+                {
                     signed += 1;
                 }
             }
         }
-        assert!(signed > 10_000, "the table reaches the two-corner read: {signed}");
+        assert!(
+            signed > 10_000,
+            "the table reaches the two-corner read: {signed}"
+        );
     }
 
     /// **A product by a non-negative multiplier is the general

@@ -1210,8 +1210,19 @@ mod tests {
         let iv = Interval::from_bounds;
         let rows: Vec<Vec<Interval>> = vec![
             vec![iv(0.3, 0.30000000000000004), iv(-1.7, -1.6), iv(2.0, 2.0)],
-            vec![iv(-0.0, 0.0), iv(-1e-300, 1e300), iv(0.1, 0.7), iv(-3.0, 5.0)],
-            vec![iv(1.0 / 3.0, 0.5), Interval::refused(), iv(-2.5, -2.5), iv(7.0, 9.0), iv(-1e-9, 1e-9)],
+            vec![
+                iv(-0.0, 0.0),
+                iv(-1e-300, 1e300),
+                iv(0.1, 0.7),
+                iv(-3.0, 5.0),
+            ],
+            vec![
+                iv(1.0 / 3.0, 0.5),
+                Interval::refused(),
+                iv(-2.5, -2.5),
+                iv(7.0, 9.0),
+                iv(-1e-9, 1e-9),
+            ],
             (0..13)
                 .map(|i| {
                     let x = (f64::from(i) * 0.37).sin() * 1e3;
@@ -1227,7 +1238,13 @@ mod tests {
         ];
         let bits = |r: &[Interval]| -> Vec<(u64, u64, bool)> {
             r.iter()
-                .map(|c| (Bounds::lo(*c).to_bits(), Bounds::hi(*c).to_bits(), c.is_certified()))
+                .map(|c| {
+                    (
+                        Bounds::lo(*c).to_bits(),
+                        Bounds::hi(*c).to_bits(),
+                        c.is_certified(),
+                    )
+                })
                 .collect()
         };
         for row in &rows {

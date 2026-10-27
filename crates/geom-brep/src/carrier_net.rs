@@ -377,7 +377,18 @@ fn basis_key(alpha: &Alpha, a: f64, b: f64, n: usize) -> [u64; 10] {
             let ([m0, m1], [n0, n1], [o0, o1]) = (ends(*major), ends(*minor), ends(*offset));
             // The tag keeps a spiric's key off every circle's; each
             // datum enters as its enclosure's two ends.
-            [1, m0, m1, n0, n1, o0, o1, a.to_bits(), b.to_bits(), n as u64]
+            [
+                1,
+                m0,
+                m1,
+                n0,
+                n1,
+                o0,
+                o1,
+                a.to_bits(),
+                b.to_bits(),
+                n as u64,
+            ]
         }
     }
 }
@@ -561,9 +572,10 @@ impl CarrierNet {
             return None;
         }
         let reach = |row: &Vec<Interval>| {
-            row.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), c| {
-                (lo.min(Bounds::lo(*c)), hi.max(Bounds::hi(*c)))
-            })
+            row.iter()
+                .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), c| {
+                    (lo.min(Bounds::lo(*c)), hi.max(Bounds::hi(*c)))
+                })
         };
         Some([
             reach(&self.coords[0]),
@@ -1291,7 +1303,11 @@ mod tests {
         let frame = super::Frame::of(o, e);
         for carrier in &kinds {
             for order in [6, 12] {
-                for (a, b) in [(0.3, 0.35), (0.0, 1.5707963267948966), (-1.0, 2.14)] {
+                for (a, b) in [
+                    (0.3, 0.35),
+                    (0.0, core::f64::consts::FRAC_PI_2),
+                    (-1.0, 2.14),
+                ] {
                     let net = super::framed_span_net(carrier, (a, b), &frame, order).unwrap();
                     let (_, _, coords) = net.operand();
                     for j in 0..=40 {
@@ -1301,12 +1317,17 @@ mod tests {
                         let one = Interval::one();
                         for (d, ctl) in coords.iter().enumerate() {
                             let want = p.dot(e[d]);
-                            let val = ctl.iter().enumerate().fold(Interval::zero(), |acc, (i, c)| {
-                                acc + *c
-                                    * Interval::from_f64(geom_core::spline::pieces::binomial(order, i))
-                                    * si.powi(i32::try_from(i).unwrap())
-                                    * (one - si).powi(i32::try_from(order - i).unwrap())
-                            });
+                            let val =
+                                ctl.iter()
+                                    .enumerate()
+                                    .fold(Interval::zero(), |acc, (i, c)| {
+                                        acc + *c
+                                            * Interval::from_f64(
+                                                geom_core::spline::pieces::binomial(order, i),
+                                            )
+                                            * si.powi(i32::try_from(i).unwrap())
+                                            * (one - si).powi(i32::try_from(order - i).unwrap())
+                                    });
                             assert!(
                                 val.lo() - 1e-12 <= want && want <= val.hi() + 1e-12,
                                 "{carrier:?} degree {order} over [{a}, {b}] at s = {s}, \
