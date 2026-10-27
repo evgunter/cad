@@ -63,6 +63,7 @@ fn on_the_world(body: RecipeNodeId) -> editor_core::Mate<Formula> {
             RoleSeg::Cap(CapEnd::Start),
         ))),
         to: moved(body, len(0.3)),
+        orient: editor_core::Orientation::IDENTITY,
     }
 }
 

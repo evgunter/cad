@@ -160,11 +160,11 @@ pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
 pub use label::{Label, LabelFault};
 pub use mate::{
     Constraint, ConstraintKind, Coord, Coset, FrameMove, LeverRefusal, Mate, MateFault, MateRef,
-    MateSide, Member, NoChartWhy, OVERCONSTRAINED_RECOURSE, PinRefusal, Placed, Placing,
-    PoseRefusal, PoseSymmetry, ReachRefusal, SolvedPoses, Subgroup, SubgroupFamily, TargetAxis,
-    UNPINNED_RECOURSE, Unobservable, Value, corner_frame, corner_frame_in, head_face, head_of,
-    member_of, member_reading, moved_frame, reference_about, relative_freedom_components,
-    solve_document, stand, unobservable,
+    MateSide, Member, NoChartWhy, OVERCONSTRAINED_RECOURSE, Orientation, PinRefusal, Placed,
+    Placing, PoseRefusal, PoseSymmetry, ReachRefusal, SignedAxis, SlideAxes, SolvedPoses, Subgroup,
+    SubgroupFamily, TargetAxis, UNPINNED_RECOURSE, Unobservable, Value, corner_frame,
+    corner_frame_in, head_face, head_of, member_of, member_reading, moved_frame,
+    relative_freedom_components, solve_document, stand, unobservable,
 };
 pub use mc::{
     DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport, McValue,

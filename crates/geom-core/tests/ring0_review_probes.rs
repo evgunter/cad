@@ -169,7 +169,7 @@ fn overflow_agrees_on_every_ring_op_including_powi() {
 /// thing to read at a call site.
 ///
 /// **No production call site reaches it**: every ring exponent in
-/// `crates/*/src` is positive (`2`…`5`, in `props/quad.rs`'s quadrature
+/// `crates/*/src` is positive (`2`…`5`, in `props/quad/`'s quadrature
 /// weights and `offset_fit.rs`'s `w.powi(3)`).
 #[test]
 fn a_negative_power_can_refuse_where_the_division_by_hand_does_not() {
@@ -248,7 +248,7 @@ fn the_characterised_corners_the_swap_moved() {
     assert!(r.is_certified() && (r.lo(), r.hi()) == (0.0, 0.0));
 
     // (5) Production-shaped weight hulls under `powi(3)`, the shape
-    // `props/quad.rs` runs: every one of them certifies, including the
+    // `props/quad/` runs: every one of them certifies, including the
     // one whose chain reaches both zero and infinity.
     for (lo, hi) in [(0.5, 2.0), (0.0, 1.0), (1e-200, 1e200), (0.0, INF)] {
         assert!(

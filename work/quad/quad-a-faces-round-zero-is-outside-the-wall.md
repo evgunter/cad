@@ -13,13 +13,13 @@ opened: 2026-10-23
 Raised by both DUAL reviewers on PR 5589. The fault is old in kind.
 
 - **Round 0 is outside the wall.** `Run::stop`
-  (`crates/geom-brep/src/props/quad.rs:765`) spends a round's cost
+  (`crates/geom-brep/src/props/quad/`) spends a round's cost
   after the lane has run it. The wall only decides whether the NEXT
   round runs, so a face whose round 0 alone costs more than
   `FACE_WORK_WALL` still pays for it in full. The round caps had the
   same gap.
 - **Resuming past the wall is only debug-asserted.** `Run::enter`
-  (`quad.rs:741`–`748`) replays the earlier rounds' cost and only
+  (`props/quad/`–`748`) replays the earlier rounds' cost and only
   `debug_assert!`s that the entering window's first round fits. A
   release caller that resumes a window past the wall runs that round.
 

@@ -73,6 +73,7 @@ fn rest_mate(a: impl crate::fixture::Sited, b: impl crate::fixture::Sited, apart
     Seat {
         mate: fixture::rest(fixture::head(b), fixture::head(a)),
         apart,
+        across: [TargetAxis::X, TargetAxis::Y],
     }
 }
 
@@ -84,6 +85,9 @@ fn rest_mate(a: impl crate::fixture::Sited, b: impl crate::fixture::Sited, apart
 struct Seat {
     mate: editor_core::Mate<Formula>,
     apart: f64,
+    /// The two slides the mate leaves, across its mated direction: the
+    /// first takes `apart`.
+    across: [TargetAxis; 2],
 }
 
 /// `seat`'s mate added to `placement`'s bundle with the three freedoms
@@ -95,9 +99,9 @@ fn seated_at(doc: ProfileDoc, placement: RecipeNodeId, seat: Seat) -> (ProfileDo
         placement,
         seat.mate,
         &[
-            (Coord::Slide(TargetAxis::X), len(seat.apart)),
-            (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::Spin(editor_core::TargetAxis::Z), fixture::ang(0.0)),
+            (Coord::Slide(seat.across[0]), len(seat.apart)),
+            (Coord::Slide(seat.across[1]), len(0.0)),
+            (Coord::SPIN, fixture::ang(0.0)),
         ],
     );
     (doc, m)
@@ -568,12 +572,14 @@ fn stand_by(
     label: &str,
     part: DocRef,
     store: &PartStore,
+    across: [TargetAxis; 2],
     mate: impl FnOnce(&[RecipeNodeId]) -> editor_core::Mate<Formula>,
 ) -> (ProfileDoc, Vec<RecipeNodeId>, MateRef) {
     let (doc, ids) = seated_row(label, part, 2, store);
     let seat = Seat {
         mate: mate(&ids),
         apart: 0.0,
+        across,
     };
     let (doc, mate) = seated(doc, seat);
     (doc, ids, mate)
@@ -705,9 +711,16 @@ fn a_mate_states_its_own_seat_and_no_other_row() {
 
     // A stand whose mate states the other sense, and a standoff: each
     // read against the census row of its own two caps.
+    // Unflipped, the bottom cap faces the top's normal: the copy stands
+    // upended, its `z` along `−z`.
     let plain = |on: PartName, to: PartName| editor_core::Mate {
         on: fixture::plane(fixture::head(on)),
         to: fixture::plane(fixture::head(to)),
+        orient: editor_core::Orientation::new(
+            editor_core::SignedAxis::PlusX,
+            editor_core::SignedAxis::MinusZ,
+        )
+        .expect("x and z lie along two axes"),
     };
     let standoff = |on: PartName, to: PartName| {
         use editor_core::pose::{PoseDef, PoseRole, RoleRead};
@@ -719,6 +732,7 @@ fn a_mate_states_its_own_seat_and_no_other_row() {
                 along: RoleRead::through(up(), PoseRole::Normal),
                 by: len(0.0),
             })),
+            orient: editor_core::Orientation::IDENTITY,
         }
     };
     type Writes<'a> = &'a dyn Fn(PartName, PartName) -> editor_core::Mate<Formula>;
@@ -727,12 +741,13 @@ fn a_mate_states_its_own_seat_and_no_other_row() {
         ("mate6-states-standoff", &standoff, Unreplayed::Numeric),
     ];
     for (label, writes, want) in cases {
-        let (doc, ids, mate) = stand_by(label, part, &store, |ids| {
-            writes(
-                in_part(ids[1], body, CapEnd::Start),
-                in_part(ids[0], body, CapEnd::End),
-            )
-        });
+        let (doc, ids, mate) =
+            stand_by(label, part, &store, [TargetAxis::X, TargetAxis::Y], |ids| {
+                writes(
+                    in_part(ids[1], body, CapEnd::Start),
+                    in_part(ids[0], body, CapEnd::End),
+                )
+            });
         let ev = run(&doc, &with_resolver(store.clone()));
         let row = at_rest_row(
             vec![
@@ -996,20 +1011,23 @@ fn a_mates_wall_states_the_rim_on_it_and_a_standoff_states_nothing() {
         }))
     };
     for (label, stated) in [("mate6-wall-rest", true), ("mate6-wall-standoff", false)] {
-        let (doc, ids, mate) = stand_by(label, part, &store, |ids| {
-            let (on, to) = (
-                in_part_entity(ids[1], body, EntityKind::Face, west.clone()),
-                in_part_entity(ids[0], body, EntityKind::Face, east.clone()),
-            );
-            if stated {
-                fixture::rest(fixture::head(on), fixture::head(to))
-            } else {
-                editor_core::Mate {
-                    on: fixture::plane(fixture::head(on)),
-                    to: standoff(to),
+        // The walls face `±x`, which the mate takes: the slides across it.
+        let (doc, ids, mate) =
+            stand_by(label, part, &store, [TargetAxis::Y, TargetAxis::Z], |ids| {
+                let (on, to) = (
+                    in_part_entity(ids[1], body, EntityKind::Face, west.clone()),
+                    in_part_entity(ids[0], body, EntityKind::Face, east.clone()),
+                );
+                if stated {
+                    fixture::rest(fixture::head(on), fixture::head(to))
+                } else {
+                    editor_core::Mate {
+                        on: fixture::plane(fixture::head(on)),
+                        to: standoff(to),
+                        orient: editor_core::Orientation::IDENTITY,
+                    }
                 }
-            }
-        });
+            });
         let ev = run(&doc, &with_resolver(store.clone()));
         let cell = |instance: RecipeNodeId, kind, seg: RoleSeg| {
             let input = doc

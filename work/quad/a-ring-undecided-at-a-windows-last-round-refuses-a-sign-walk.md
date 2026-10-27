@@ -27,7 +27,7 @@ round, resume at the next".
 So the whole schedule (`RoundWindow::SCHEDULE`, `mass_properties`)
 measures a face the single-round windows refuse. Measured on the
 witness row
-`props::quad::tests::a_ring_undecided_at_the_first_converged_round_refines_on`
+`props::quad::cylinder::tests::a_ring_undecided_at_the_first_converged_round_refines_on`
 (a 2 × 1 chart rectangle with a circular hole of radius 1e-5 or 2e-6
 about `(1, 0.2)`, 3e-7 about `(1, 0.95)`, 3e-8 about `(1, 0.2)`):
 `RoundWindow::at(0)` escalates `props_ring_winding` on all four,

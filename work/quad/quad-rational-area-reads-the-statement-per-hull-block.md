@@ -11,10 +11,10 @@ cost: M
 
 ## Found (QUAD, `quad/rational-quotient-statement`, 2026-10-22)
 
-`crates/geom-brep/src/props/quad.rs` `rational_patch_face` reads the
+`crates/geom-brep/src/props/quad/rational.rs` `rational_patch_face` reads the
 area rule's pads `G_u`, `G_v` and its hull of `g = |S_u×S_v|` off the
-quotient statement once per hull block (`QUAD2_HULL_BLOCKS` per axis
-plus knots), not per area cell (`QUAD2_AREA_PIECES` = 64 per axis).
+quotient statement once per hull block (`HULL_BLOCKS_PER_AXIS`
+plus knots), not per area cell (`AREA_CELLS_PER_AXIS` = 64).
 Measured on the same branch, debug build, area width:
 
 | carrier | main | per hull block (shipped) | per area cell |

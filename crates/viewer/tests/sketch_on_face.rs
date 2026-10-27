@@ -269,3 +269,138 @@ fn a_face_on_a_splits_lower_half_is_sketched_on_that_half() {
         "the half and its boss drawn: {fused} vs {want}"
     );
 }
+
+/// **A boss sketched on a face of the box lands on it, turned by the
+/// orientation nearest where it stands**, through the session's own
+/// door: for each face `faces` names (a label, a ray's start and its
+/// direction), the gesture's copy is placed with its `z` along the
+/// face's outward normal by the orientation of greatest trace that puts
+/// it there (a tie keeping the author's `+x`), its origin on the face
+/// over the box's own, and the union holds the box and the boss whole.
+/// Answers what went wrong, face by face.
+fn bosses_land(faces: &[(&str, [f64; 3], [f64; 3])]) -> Vec<String> {
+    let tol = Tol::witness();
+    let mut bad = Vec::new();
+    for &(label, from, dir) in faces {
+        let (doc, _cube) = boxed(tol);
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+        let face = common::asm::pick_face(&session, &bvh::test_support::ray(from, dir));
+        let out = session.perform(boss_on(face));
+        if out.refusal.is_some() {
+            bad.push(format!("{label}: {:?}", out.refusal));
+            continue;
+        }
+        session.pump();
+        let doc = session.committed_doc();
+        let find = |want: fn(&Node<ProfileProgram>) -> bool| {
+            doc.ids()
+                .into_iter()
+                .rev()
+                .find(|&id| doc.node(id).is_some_and(want))
+        };
+        // The gesture's union and its copy, the last of each it inserted.
+        let union = find(|n| matches!(n, Node::Union { .. })).expect("the union landed");
+        let placement = find(|n| matches!(n, Node::Place { .. })).expect("the copy landed");
+        let got = common::body_volume(&mut session, union, tol);
+        let want = SIDE * SIDE * HEIGHT + BOSS[0] * BOSS[1] * BOSS[2];
+        if !common::near(got, want) {
+            bad.push(format!("{label}: volume {got} vs {want}"));
+        }
+        let doc = session.committed_doc();
+        let frame = common::solve(&session, doc, tol)
+            .relative(placement)
+            .expect("the copy is placed in the box's space");
+        let outward = dir.map(|c| -c);
+        let cols = frame.columns;
+        if cols[2] != outward {
+            bad.push(format!(
+                "{label}: z {:?}, the face looks along {outward:?}",
+                cols[2]
+            ));
+        }
+        // The nearest: the greatest trace of the four orientations that
+        // put `z` on the normal, a tie keeping the author's `+x`.
+        let axes = [
+            [1.0, 0.0, 0.0],
+            [-1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, -1.0, 0.0],
+            [0.0, 0.0, 1.0],
+            [0.0, 0.0, -1.0],
+        ];
+        let cross = |a: [f64; 3], b: [f64; 3]| {
+            [
+                a[1] * b[2] - a[2] * b[1],
+                a[2] * b[0] - a[0] * b[2],
+                a[0] * b[1] - a[1] * b[0],
+            ]
+        };
+        let traces: Vec<f64> = axes
+            .iter()
+            .filter(|x| (0..3).all(|i| x[i] * outward[i] == 0.0))
+            .map(|&x| x[0] + cross(outward, x)[1] + outward[2])
+            .collect();
+        let best = traces.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        let trace = cols[0][0] + cols[1][1] + cols[2][2];
+        if trace != best {
+            bad.push(format!("{label}: trace {trace}, the nearest has {best}"));
+        }
+        if traces.iter().filter(|&&t| t == best).count() > 1 && cols[0] != [1.0, 0.0, 0.0] {
+            bad.push(format!("{label}: a tie keeps +x, not {:?}", cols[0]));
+        }
+        // The origin over the box's own, on the face's plane.
+        let k = (0..3)
+            .find(|&i| outward[i] != 0.0)
+            .expect("a face looks along an axis");
+        let plane = if outward[k] > 0.0 {
+            [SIDE, SIDE, HEIGHT][k]
+        } else {
+            0.0
+        };
+        let at: [f64; 3] = std::array::from_fn(|i| if i == k { plane } else { 0.0 });
+        if (0..3).any(|i| (frame.translation[i] - at[i]).abs() > 1e-15) {
+            bad.push(format!(
+                "{label}: origin {:?}, want {at:?}",
+                frame.translation
+            ));
+        }
+    }
+    bad
+}
+
+/// **A boss sketched on each of the box's six faces lands on it**
+/// ([`bosses_land`]): the gesture writes the orientation nearest where
+/// the copy stands and the two slides that plane leaves, so every face
+/// takes the boss, turned by that orientation and over the box's origin.
+///
+/// *Breaks if* the gesture writes the slide the face's plane fixes (a
+/// side face refuses `SlidesDoNotSpan`), an orientation other than the
+/// nearest, or puts the boss anywhere but over the box's origin on the
+/// face.
+#[test]
+fn a_boss_sketched_on_each_of_the_six_faces_lands() {
+    let bad = bosses_land(&[
+        ("top", [0.005, 0.005, 1.0], [0.0, 0.0, -1.0]),
+        ("bottom", [0.005, 0.005, -1.0], [0.0, 0.0, 1.0]),
+        ("+x side", [1.0, 0.005, 0.005], [-1.0, 0.0, 0.0]),
+        ("-x side", [-1.0, 0.005, 0.005], [1.0, 0.0, 0.0]),
+        ("+y side", [0.005, 1.0, 0.005], [0.0, -1.0, 0.0]),
+        ("-y side", [0.005, -1.0, 0.005], [0.0, 1.0, 0.0]),
+    ]);
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
+
+/// **A boss sketched on a side lands on it** — the fast set's twin of
+/// [`a_boss_sketched_on_each_of_the_six_faces_lands`] through the same
+/// door, on a side, where the identity's slides would not span and the
+/// identity would leave the boss looking along `+z`. Python's
+/// `TestSketchOnEveryFace` takes all six faces through the façade on
+/// every run.
+///
+/// *Breaks if* as the six-face row, on the side.
+#[test]
+fn a_boss_sketched_on_a_side_lands() {
+    let bad = bosses_land(&[("+x side", [1.0, 0.005, 0.005], [-1.0, 0.0, 0.0])]);
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
