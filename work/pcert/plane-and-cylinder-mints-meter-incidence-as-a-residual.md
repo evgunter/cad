@@ -1,31 +1,63 @@
 ---
 id: plane-and-cylinder-mints-meter-incidence-as-a-residual
 kind: issue
-title: The plane and cylinder mints meter a carrier's incidence as a residual, so an off-face carrier ends ChartResidual's defect whoever placed it
+title: The plane and cylinder mints, the sphere, cone and torus class arms, and the sphere and torus ellipse kind gates end a carrier without reading its incidence first (as ChartResidual's defect, or off by kind)
 status: open
 opened: 2026-10-25
 ---
 
 
-**E1c's item** (`work/pcert/plan.md`). This is E1b's finding 8, deferred by the orchestrator's ruling (c).
+**E1c's item** (`work/pcert/plan.md`). E1b's finding 8, deferred by the
+orchestrator's ruling (c), widened by review A on E1d to the class arms of
+the sphere, cone and torus mints.
 
 ## What happens
 
-The sphere, cone and torus mints run `incidence::incident` (`crates/geom-brep/src/pcurve_cache.rs`, `mod incidence`) before they image a carrier. A carrier that is definitely off the chart ends `CarrierOffChart`, which E1b routes by `EdgeAuthority`: lever-only on a declared curve, a defect on a derived one.
+A carrier off its face should end as its incidence reading does
+(`CarrierOffChart`, or `Escalated { ChartIncidence }`), which E1d ends by
+the door that reads it (`IncidenceRead::ending`): a definite miss in the
+door's defect (the kernel's at a build, the stored culprit at rest, the
+damaged file at import), a read in band in the geometry's lever at every
+door. That holds only where the mint runs the incidence test
+(`incidence::incident`, `crates/geom-brep/src/pcurve_cache.rs`,
+`mod incidence`) before it images the carrier. These mints do not:
 
-The plane and cylinder mints do not run it in general:
-
-- **Plane.** `derive_class`'s `Surface::Plane` arm maps any carrier's harmonic coefficients through the affine chart. It reads no incidence.
-- **Cylinder.** `derive_class`'s `Surface::Cylinder` arm reads incidence only where `pcurve_chart_orientation` is in band (`incidence::general_lane`, E1's P1). The other arms take the carrier as given:
-  - the meridian arm (`pcurve_chart_radial_moving` Zero, and its in-band tie-break);
-  - the decided moving arm (β = ±1).
+- **Plane.** `derive_class`'s `Surface::Plane` arm maps any carrier's
+  harmonic coefficients through the affine chart. It reads no incidence.
+- **Cylinder.** `derive_class`'s `Surface::Cylinder` arm reads incidence
+  only where `pcurve_chart_orientation` is in band (`incidence::general_lane`,
+  E1's P1). The meridian arm (`pcurve_chart_radial_moving` Zero, and its
+  in-band tie-break) and the decided moving arm (β = ±1) take the carrier
+  as given.
+- **The sphere, cone and torus CLASS arms** (review A, E1d): the sphere's
+  polar circle, the cone's rim and the torus's parallel image a carrier
+  their class gates accept (the carrier plane ⊥ the axis, centred on it)
+  without reading incidence. The class gates read the plane and the
+  centre, not the radius, so a circle of the wrong radius passes them.
+- **The sphere and torus ellipse kind gates** (review on PR 5844): an
+  `Ellipse` carrier is refused `CarrierOffChart` by kind, with no margin,
+  before any incidence read. The kind is no reading of whether the curve
+  lies on the face: a tiny ellipse within ε of the sphere (semi-axes
+  `a = √(0.2·ε)` and `a/2` in the tangent plane at the pole, set at mid
+  sagitta) ends as a definite miss, the kernel's defect, though every
+  point of it is on the face within ε. A round-ish ellipse far off the
+  face ends right, but only by accident of the kind. (PR 5844 briefly
+  read the gate by `semi_u − semi_v`; that was no incidence read either:
+  a near-round ellipse 10 m off the sphere then ended in the pose lever.
+  It was reverted.)
+- **`topo::chart_region`** (~2587) reads a plane chart only, so it is
+  this item's plane half's.
 
 The carrier's miss is then read by the certificate:
 
 - by check 3's residual schedule (`check_residual_as` in `run_harmonic_checks`);
-- at the edge, by `certify.rs`'s `CertCheck::ChartResidual`, which ends `Ending::Residual(Unsized::Defect)`.
+- at the edge, by `certify.rs`'s `CertCheck::ChartResidual`, which ends
+  `Ending::Residual(Unsized::Defect)`.
 
-So a carrier off a plane or cylinder face ends as a defect whoever placed it, and E1b's authority routing never sees it.
+So such a carrier ends `ChartResidual`: a definite miss is right only by
+accident at a build and at rest, an in-band read ends as a defect, not in
+its lever, and at the import door a miss within ε_in is offered setting ε
+to ε_in, where the door rule gives the damaged file or the lever.
 
 ## Measurement (E1b)
 
@@ -33,22 +65,57 @@ A sketch arc set onto a face it does not lie on, through `set_edge_curve`:
 - off a cylinder's wall;
 - off a plane side of a box.
 
-Both refuse `ChartResidual` at sample 0 with margin 0.707: the arc's distance from the face, read as the residual's defect. On a sphere, cone or torus the same move ends `CarrierOffChart`, lever-only for a declared curve after E1b.
+Both refuse `ChartResidual` at sample 0 with margin 0.707: the arc's
+distance from the face, read as the residual's defect. On a sphere, cone
+or torus the same move, off every class, ends `CarrierOffChart`.
 
 ## The ruling
 
-Of finding 8's three options, the orchestrator took **(c)**: the plane and cylinder mints read incidence before they image, so an off-face carrier ends `CarrierOffChart` as on the other charts. It is its own unit, E1c, after E1b.
+Of finding 8's three options, the orchestrator took **(c)**: the mints
+read incidence before they image, so an off-face carrier ends as its
+incidence read, as on the charts that read it. It is its own unit, E1c,
+after E1d2 and before E1e (`plan.md`).
 
-**(a) is rejected**: routing `ChartResidual` itself by authority. `ChartResidual` also meters the image's own fidelity, so sending it to the modeler's lever could hide a kernel image bug.
+**(a) is rejected**: routing `ChartResidual` itself by what was read.
+`ChartResidual` also meters the image's own fidelity, so ending it in a
+lever could hide a kernel image bug.
 
-Until E1c lands, D3's incidence clause holds only on the charts whose mint reads incidence: sphere, cone and torus.
+Until E1c lands, D3's incidence clause is not finished on any chart: on
+the sphere, cone and torus it holds only on the carriers their class gates
+send to the incidence test.
 
 ## Overlap with E2
 
-The cylinder half overlaps E2. E2 gives a cylinder line a projected lane, and it re-reads the cylinder `pcurve_chart_radial_moving` tie-break: the meridian arm's `Ok(Sign::Zero) | Err(_)` fold, which is where a cylinder carrier's incidence would be read first. E1c's cylinder incidence test and E2's tie-break work therefore touch the same arm. Whichever lands second re-reads it. If E2 is dispatched first, it can absorb the cylinder half of E1c, leaving E1c the plane.
+The cylinder half overlaps E2. E2 gives a cylinder line a projected lane,
+and it re-reads the cylinder `pcurve_chart_radial_moving` tie-break: the
+meridian arm's `Ok(Sign::Zero) | Err(_)` fold, which is where a cylinder
+carrier's incidence would be read first. E1c's cylinder incidence test and
+E2's tie-break work therefore touch the same arm. Whichever lands second
+re-reads it. If E2 is dispatched first, it can absorb the cylinder half of
+E1c.
 
 ## Done when
 
-- A carrier definitely off a plane or cylinder face ends `CarrierOffChart` at the mint, at both lanes and every ε. It is routed by E1b's authority split: lever-only on a declared curve, a defect on a derived one.
+- A carrier off a plane or cylinder face, or one a sphere, cone or torus
+  class arm accepts while off the face, ends as its incidence read at the
+  mint, at both lanes and every ε, never `ChartResidual`.
+- The sphere and torus ellipse kind gates read incidence first, as the
+  cone's ellipse arm does: an ellipse off the face ends by that read
+  (definitely off: the door's defect; in band: the lever), and one not
+  shown off is a class reading (a lane choice: "not yet" until its lane is
+  written). The `Off` payload quotes the incidence read's margin, never a
+  roundness distance as the miss.
+- That read ends by the door rule (`IncidenceRead::ending`): a definite
+  miss is the kernel's defect at a build, the stored culprit at rest and
+  the damaged file at the import door, with no ε_in offer; a read in band
+  ends in the geometry's lever at every door, never a defect.
 - `ChartResidual` is left metering the image's own fidelity.
-- A row holds the set_edge_curve arc off a cylinder wall and off a plane side.
+- Rows hold the `set_edge_curve` arc off a cylinder wall and off a plane
+  side, and a wrong-radius circle on each class arm (sphere polar circle,
+  cone rim, torus parallel), each read at a build, at rest and at import.
+- Rows hold the review's two ellipse probes (`review/5844-delta`,
+  `crates/geom-brep/tests/probe_5844.rs`) in their E1c shape: the tiny
+  ellipse within ε of the sphere and of the torus is not refused as off
+  (a class reading, "not yet"); the near-round ellipse 10 m off each is
+  the definite miss (already pinned in
+  `chart_incidence::only_an_incidence_reading_ends_as_one`).
