@@ -291,5 +291,101 @@ fn review_r1_a_meeting_within_the_band_of_a_crease_refuses() {
     assert!(
         matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Crease))),
         "within the band of the ridge: {got:?}"
+
+// ---- review r2 (PR 5826): the chart-edge skip near an end of the span ----
+
+/// The parabolic trough `z = h·((x − ½)/a)²` over `x ∈ [½ − a, ½ + a]`,
+/// `y ∈ [0, y1]`: a Bézier patch of bidegree (2, 1).
+fn trough(a: f64, h: f64, y1: f64) -> NurbsSurface<f64> {
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let control = [(0.5 - a, h), (0.5, -h), (0.5 + a, h)]
+        .into_iter()
+        .flat_map(|(x, z)| [Point3::new(x, 0.0, z), Point3::new(x, y1, z)])
+        .collect();
+    NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap()
+}
+
+/// **A tangency just inside an open chart's edge, near an end of the
+/// span, is not silently cleared.** A line touches the trough along its
+/// floor at `x = ½`, `32·escalate` inside the chart's `y = 0` edge
+/// (past the band of that edge, so the boundary pass reads it clear),
+/// and the span ends `128·escalate` past the touch (past the band of
+/// it, so the touch is no end's). An in-band reading escalates.
+#[test]
+fn review_r2_a_tangency_beside_the_charts_edge_near_an_end_escalates() {
+    let s = band().escalate();
+    let l = 1_048_576.0 * s;
+    let chart = trough(512.0 * s, 64.0 * s, l);
+    let at = |y0: f64| line(Point3::new(0.5, y0, 0.0), Vec3::unit_x());
+    // The control: the same touch mid-chart refuses.
+    let mid = read(&at(0.5 * l), (-l + 128.0 * s, 128.0 * s), &chart);
+    assert!(
+        matches!(mid, Err(SplineFaceRefusal::Unsettled(Unsettled::Tangency))),
+        "a touch mid-chart refuses: {mid:?}"
+    );
+    let edge = read(&at(32.0 * s), (-l + 128.0 * s, 128.0 * s), &chart);
+    assert!(
+        matches!(edge, Err(SplineFaceRefusal::Unsettled(_))),
+        "a touch 32 escalation lengths inside the chart's edge refuses too: {edge:?}"
+    );
+}
+
+/// The full rational circle cylinder `x² + y² = 1`, `z ∈ [0, 1]`, its
+/// chart closed in `u` with the seam at `(1, 0, z)`.
+fn full_cylinder() -> NurbsSurface<f64> {
+    let ku = KnotVector::clamped(
+        vec![0.0, 0.0, 0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0, 1.0, 1.0],
+        2,
+    )
+    .unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let ring = [
+        (1.0, 0.0),
+        (1.0, 1.0),
+        (0.0, 1.0),
+        (-1.0, 1.0),
+        (-1.0, 0.0),
+        (-1.0, -1.0),
+        (0.0, -1.0),
+        (1.0, -1.0),
+        (1.0, 0.0),
+    ];
+    let control = ring
+        .into_iter()
+        .flat_map(|(x, y)| [Point3::new(x, y, 0.0), Point3::new(x, y, 1.0)])
+        .collect();
+    let weights = (0..9)
+        .flat_map(|i| {
+            let w = if i % 2 == 0 { 1.0 } else { FRAC_1_SQRT_2 };
+            [w, w]
+        })
+        .collect();
+    NurbsSurface::new(ku, kv, control, weights).unwrap()
+}
+
+/// **A transverse crossing on a closed chart's seam, near an end of the
+/// span, is not silently dropped.** The seam is interior to a face that
+/// wraps the cylinder, so it is no boundary for the boundary pass to
+/// read. The line crosses the wall at the seam `(1, 0, ½)`, its span
+/// ending `64·escalate` past the crossing: past the band of it, so the
+/// crossing is the span's, not the end's.
+#[test]
+fn review_r2_a_crossing_on_a_closed_charts_seam_near_an_end_is_not_dropped() {
+    let s = band().escalate();
+    let chart = full_cylinder();
+    let across = line(Point3::new(0.0, 0.0, 0.5), Vec3::unit_x());
+    let start = 1.0 - (1_048_576.0 * s).min(0.5);
+    // The control: far from the end the seam refuses, as filed in
+    // `a-meeting-on-a-closed-charts-seam-is-not-isolated`.
+    let far = read(&across, (start, 1.0 + 4096.0 * s), &chart);
+    assert!(
+        matches!(far, Err(SplineFaceRefusal::Unsettled(_))),
+        "the seam crossing refuses: {far:?}"
+    );
+    let near = read(&across, (start, 1.0 + 64.0 * s), &chart);
+    assert!(
+        !matches!(near.as_deref(), Ok([])),
+        "a crossing 64 escalation lengths short of the end is not dropped: {near:?}"
     );
 }
