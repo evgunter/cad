@@ -219,3 +219,9 @@ Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `cra
 
     I merge on my read.
   - Blind coding dispatched (byte 149, inputs `analysis/dual-review/pr-5853-coding` @ `66ec6268`).
+- 2026-10-27 14:12Z (orchestrator): **#5810 delta review** (`session_018u3gVHfE2aSpyRBq5Mv46D`) rated it NOT-MERGEABLE-AS-IS, and the MAJOR is against my 12:25Z ruling.
+  - `gap_reads && pairing_read` is narrower than the quieting rule, which also needs `opposed` with a negative gap, `beyond`'s containment lanes (no sphere arm), and `covered`.
+  - So ordinary press fits read quietable yet nothing quiets them, and they refuse at Error. Executed with d2, d3, d4 at three ε.
+  - **Corrected: `quietable` asks the rule itself.** It runs the same `quiet_verdicts`/`opposed`/`beyond`/`covered` path a holding Gap over each bounding face pair would take. Sent to the 5 C lane along with m1 (pin the funnel sites with the tilted press fit), N1, N3, N5, S5 and S7.
+  - **Lesson:** a ruling that names a predicate as "exactly what the rule accepts" must call the rule, not re-derive it. I re-derived two of its five gates.
+  - The delta review also found perf12 `kitchen_sink` at 28 vs 29 red on main at three ε; I'm bisecting it.
