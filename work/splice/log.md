@@ -699,3 +699,16 @@ is re-banded P1 → P0, as lily wall 8's next stop.
   on that face (sheet-exact, as PR 5802's sector walk), not at a foot.
   It reuses `dihedral_side`'s regularity and crease guards. The arm is
   read from certified curvature bounds.
+
+## 2026-10-27 — Ev ratifies C5's ladder of evidence (PR 5860)
+
+Ev asked for C5's curve × face clause to be made general rather than
+given a `twin_edge` exception. PR 5860 rewrites it as one ladder, each
+rung reading only what the rungs before it left undecided:
+1. topology, by incidence, under the boolean's validity precondition,
+   which it names as assumed;
+2. the span's ends;
+3. the face's boundary edges;
+4. the face's interior.
+
+Ev approved it ("5860 looks good!"). Only the wording changed.

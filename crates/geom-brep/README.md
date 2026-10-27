@@ -728,13 +728,21 @@ meet through one exhaustive `(CurveKind, SurfaceKind)` table, in the
 curve-pair vocabulary (stretches, meetings, an in-band decision
 escalating and never pruning), and the boolean's root doors are its
 arms: a spline span against an analytic face and an analytic span
-against a spline face are two arms of the one table. The span's ends are
-read first, then the span against each of the face's boundary edges
-through the curve-pair table. A shared run along a boundary edge is a
-coincidence, decided at the coincidence door (DESIGN `[coincidence]`)
-and never by surface arithmetic, and a point meeting there is a meeting
-on the face's boundary. Only what the boundary leaves undecided is read
-against the face's interior. An interior arm with no closed form settles
+against a spline face are two arms of the one table. The pair is
+decided from the strongest evidence first, and each rung reads only
+what the rungs before it left undecided: what the operands' topology
+already states; then the span's ends; then the span against each of the
+face's boundary edges, through the curve-pair table; then the face's
+interior. Topology decides by incidence. A span that the curve-pair
+table shows to run the whole of an edge of the face's own body, end to
+end, is that edge. It then meets the body's faces only at the vertices
+and edges they share, and nothing is read against their interiors. This
+holds under the boolean's precondition that its operands are valid
+bodies, which it assumes and does not certify per call.
+A shared run along a boundary edge is a coincidence, decided at the
+coincidence door (DESIGN `[coincidence]`) and never by surface
+arithmetic, and a point meeting there is a meeting on the face's
+boundary. An interior arm with no closed form settles
 each piece of the span against each cell of the surface by enclosures:
 clear when the two are definitely apart; exactly one transverse meeting
 when an interval Newton (Krawczyk) contraction on the piece and cell
