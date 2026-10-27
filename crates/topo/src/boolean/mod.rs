@@ -301,7 +301,8 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | boxes::BOX_SPHERE_AXIS
         | boxes::BOX_SPHERE_SEAM_UNIT
         | separating::PAIR_AXIS
-        | separating::PAIR_NORMAL => geom_core::DIRECTION_LENGTH_SUBJECT,
+        | separating::PAIR_NORMAL
+        | solid_contain::POINT_AXIS => geom_core::DIRECTION_LENGTH_SUBJECT,
         boxes::BOX_SPHERE_SEAM => "whether a sphere's seam direction is square to its polar axis",
         // `geom_core`'s lever on a dimensionless direction, which the
         // narrow phase's normals and the cylinder box's axis read.

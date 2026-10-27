@@ -859,15 +859,9 @@ fn a_lofted_operand_refuses_the_union_check_typed() {
     else {
         panic!("the refusal names a NURBS face of the lofted operand: {err:?}");
     };
-    assert!(
-        matches!(
-            lofted
-                .body
-                .get_face(face)
-                .and_then(|f| lofted.body.get_surface(f.surface)),
-            Some(Surface::Nurbs(_))
-        ),
-        "the named face is one of the loft's NURBS walls: {face:?}"
+    assert_eq!(
+        face, lofted.side_faces[0][2],
+        "the named face is the concave top wall the pellet sits under"
     );
     let door = point_in_solid(
         &lofted.body,

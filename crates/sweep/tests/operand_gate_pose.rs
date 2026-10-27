@@ -177,18 +177,73 @@ fn a_cone_wall_clear_of_a_bar_builds_at_every_pose_and_scale() {
 /// arm. The bar's point stands past the capped box's every face reach
 /// along the box's own face normals, so the classification answers
 /// outside without crossing a face, and every op builds to the closed
-/// forms at every pose: the box `2 × 2 × 1`, the bar `0.5 × 1 × 0.6`.
-/// Five of [`poses`]: re-certifying the fit per pose is what this row
-/// spends.
+/// forms: the box `2 × 2 × 1`, the bar `0.5 × 1 × 0.6`.
+///
+/// The capped box's own probes hold the reading both ways. A point in
+/// it, on it or in band of it never reads a side; a point definitely
+/// past it reads `Out`, and the one over the cap near a corner is past
+/// the hull only along the box's `z` normal — inside it along the
+/// anchor axis — so it reads `Out` through the planar-normal candidate
+/// alone.
+///
+/// Every third pose, and every turn about `z` and about the skew axis,
+/// which are where a world-axis reading refused: re-certifying the fit
+/// per pose is what this row spends.
 #[test]
 fn an_approx_cap_clear_of_a_bar_reads_alike_at_every_pose() {
+    use topo::SolidContainment::{In, Out};
     let tol = Tol::witness();
+    let band = crate::common::approx::band();
+    let eps = tol.eps();
     let (capped, _) = box_with_approx_cap(0.05, 1e-9);
     let bar = brick::<f64>((2.3, 2.8), (0.5, 1.5), (0.2, 0.8), tol);
-    for (pose, map) in poses().into_iter().step_by(3) {
+    let unread = [
+        ("the centre", Point3::new(1.0, 1.0, 0.5)),
+        ("just under the cap", Point3::new(1.0, 1.0, 1.0 - 1e-6)),
+        ("on the cap", Point3::new(1.0, 1.0, 1.0)),
+        (
+            "in band over the cap",
+            Point3::new(1.0, 1.0, 1.0 + 0.5 * eps),
+        ),
+        (
+            "in band of the corner",
+            Point3::new(2.0 + 0.5 * eps, 2.0 + 0.5 * eps, 1.0 + 0.5 * eps),
+        ),
+        (
+            "inside, near a side face",
+            Point3::new(1.999_999, 0.000_001, 0.000_001),
+        ),
+    ];
+    let outside = [
+        ("over the cap", Point3::new(1.0, 1.0, 1.5)),
+        ("beside", Point3::new(2.5, 1.0, 0.5)),
+        ("far on the diagonal", Point3::new(3.0, 3.0, 3.0)),
+        ("just over the cap", Point3::new(1.0, 1.0, 1.0 + 1e-6)),
+        ("over the cap near a corner", Point3::new(1.9, 1.9, 1.05)),
+    ];
+    let walked = poses().into_iter().enumerate().filter(|(i, (pose, _))| {
+        i % 3 == 0 || pose.ends_with("about z") || pose.ends_with("about (1,2,3)")
+    });
+    for (_, (pose, map)) in walked {
+        let label = format!("ε {eps:e}, {pose}");
+        let box_ = posed("the capped box", &capped, &map, tol);
+        for (what, q) in unread {
+            let got = topo::point_in_solid(&box_, map.transform_point(q), band, tol);
+            assert!(
+                !matches!(got, Ok(In | Out)),
+                "{label}, {what}: no side is read, got {got:?}"
+            );
+        }
+        for (what, q) in outside {
+            let got = topo::point_in_solid(&box_, map.transform_point(q), band, tol);
+            assert!(
+                matches!(got, Ok(Out)),
+                "{label}, {what}: past the box, got {got:?}"
+            );
+        }
         assert_apart_every_op(
-            &format!("ε {:e}, {pose}", tol.eps()),
-            (&posed("the capped box", &capped, &map, tol), 4.0),
+            &label,
+            (&box_, 4.0),
             (&posed("the bar", &bar, &map, tol), 0.3),
         );
     }
