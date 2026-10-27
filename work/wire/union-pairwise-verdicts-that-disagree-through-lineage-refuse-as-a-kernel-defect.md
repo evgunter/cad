@@ -38,3 +38,14 @@ faces is itself decided by the verdicts and so forces agreement. With a
 witness, the true ending is row 1 (a precision limit with its lever and
 `KERNEL_LIMIT_RECOURSE`), on its own variant rather than
 `NamingError::Emission`.
+
+## Moved (FLUSH, 2026-10-26)
+
+`given_pairs` moved into the kernel's n-ary door with the fold
+(`flush/nary-union-door`, `crates/topo/src/boolean/nary.rs`). The
+disagreement stays typed there, as `topo::NaryRefusal::VerdictsDisagree`
+naming the step's member and the two faces, and `editor-core`'s
+`verb_refused` (`crates/editor-core/src/eval/wire.rs`) maps it to the
+same `NamingError::Emission { what: UNION_VERDICTS_DISAGREE }` as
+before. What this row owes is unchanged; its true ending would now be
+given where `VerdictsDisagree` is mapped.

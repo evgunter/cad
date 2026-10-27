@@ -475,7 +475,7 @@ A second pass looked for any `pub fn` generic over `U`/`V`/`S`:
 - `SketchPlane::try_map`: **live** (`eval/wire.rs`'s `pinned_plane`).
   `Vec3`/`Mat3`/`Affine3::try_map` are live through it.
 - `Margin::lift` (`geom-core/src/predicate.rs`): **live**
-  (`geom-brep/src/props/quad.rs`).
+  (`geom-brep/src/props/quad/`).
 - `Frame::affine`, `SketchPlane::map`, `Point2`/`Point3`/`Affine3::map`:
   live, per the table above.
 - The `geom` rungs and `Vec2::map`: VERDICT's row. Not re-measured.

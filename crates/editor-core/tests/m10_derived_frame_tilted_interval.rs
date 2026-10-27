@@ -144,6 +144,13 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
         editor_core::Mate {
             on: fixture::plane(start),
             to,
+            // The start cap faces the plane's normal unflipped: the copy
+            // stands upended, its `z` along `−z`.
+            orient: editor_core::Orientation::new(
+                editor_core::SignedAxis::PlusX,
+                editor_core::SignedAxis::MinusZ,
+            )
+            .expect("x and z lie along two axes"),
         },
         vec![
             (
@@ -154,10 +161,7 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
                 editor_core::Coord::Slide(editor_core::TargetAxis::Y),
                 Formula::zero(Dimension::Length),
             ),
-            (
-                editor_core::Coord::Spin(editor_core::TargetAxis::Z),
-                Formula::zero(Dimension::Angle),
-            ),
+            (editor_core::Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     );
     r.doc

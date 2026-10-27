@@ -106,7 +106,7 @@ pub use certify::{
 };
 pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side};
 pub use description::{
-    ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
+    AuthorityKind, ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
 };
 pub use dihedral::{
     DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DIHEDRAL_ARM_NOUN, DihedralClass, DihedralReading,
@@ -118,7 +118,8 @@ pub use dihedral::{
     second_order_walk, tangent_second_order,
 };
 pub use dihedral_side::{
-    EdgeHalf, EdgeWalk, FaceSide, SideEscalation, SideFace, SideRole, dihedral_side,
+    CreaseReading, EdgeHalf, EdgeWalk, FaceSide, SideEscalation, SideFace, SideRole,
+    chart_normal_at, dihedral_side, regular_jet,
 };
 pub use edge_nurbs::{
     AnalyticRung3Refusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal,
@@ -132,7 +133,7 @@ pub use enters::{
     ParallelSense, ReferenceNormal, WallBend, WallBendError, bends_into_material, enters_material,
     enters_material_order2, enters_material_reported, normal_alignment,
 };
-pub use extent::{ExtentBall, Reach};
+pub use extent::{ExtentBall, Reach, control_net_reach};
 pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 /// The ring-torus convention's one home is `geom` (below this crate, so
 /// the spiric carrier's constructor reads it too); re-exported so the
@@ -181,8 +182,8 @@ pub use pcurve::{
 pub use pcurve_cache::{
     ANGLE_WINDOW_START, AxisMap, Azimuth, BranchMiss, Channel, ChartMap, ChartMapRefusal,
     ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm, FocalImage, FramedCarrier,
-    ISO_FAMILY_CLAUSE, IsoFamily, IsoFamilyRefusal, LaneGap, NoChartSup, OffMargin, Pcurve,
-    PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, Period,
+    ISO_FAMILY_CLAUSE, IncidenceRead, IsoFamily, IsoFamilyRefusal, LaneGap, NoChartSup, OffMargin,
+    Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, Period,
     ProjectedChart, ProjectedImage, SectorChannel, SpiricImage, WalkStop, WallTorus, angle_rate,
     chart_iso_family, chart_pcurve, chart_pcurve_over, chart_stretch_inf, chart_stretch_sup,
     chart_stretch_sup_v, chart_sup_arms_at, harmonic_form_of, iso_arc_spans,

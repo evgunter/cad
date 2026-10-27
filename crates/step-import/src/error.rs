@@ -639,6 +639,7 @@ mod nested_at_the_door {
         let error = StepImportError::Pcurves {
             source: topo::PcurveMintError::Certify {
                 half_edge: topo::HalfEdgeKey::default(),
+                authority: geom_brep::EdgeAuthority::<f64>::Derived.kind(),
                 error: geom_brep::PcurveCertifyError::Escalated {
                     check: geom_brep::PcurveCheck::ChartWinding,
                     sample: 0,

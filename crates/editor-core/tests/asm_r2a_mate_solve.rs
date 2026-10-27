@@ -1070,7 +1070,7 @@ fn row7a_a_value_on_a_freedom_its_mate_fixes_refuses_typed() {
             "a frame's spin",
             &doc,
             frame,
-            Coord::Spin(editor_core::TargetAxis::Z),
+            Coord::SPIN,
             ang(0.5),
             editor_core::VarKind::Frame,
         ),
@@ -1163,6 +1163,50 @@ fn times(a: [[f64; 3]; 3], b: [[f64; 3]; 3]) -> [[f64; 3]; 3] {
     std::array::from_fn(|i| std::array::from_fn(|j| (0..3).map(|k| a[i][k] * b[k][j]).sum()))
 }
 
+/// **An orientation on a point mate refuses at the door.** A point mate
+/// fixes no one direction, so it carries no orientation: the bundle with
+/// the identity is admitted, the same bundle with any other refuses
+/// `Unoriented`.
+///
+/// *Breaks if* the door lets an orientation ride a mate that never reads
+/// it.
+#[test]
+fn an_orientation_on_a_point_mate_refuses_at_the_door() {
+    use TargetAxis::{X, Y, Z};
+    let (doc, ids, kit) = assembly("asm-r2a-point-oriented", 2);
+    let ball = fixture::mate(
+        point_of(read(kit.corner(ids[1], CapEnd::Start, 0))),
+        point_of(read(kit.corner(ids[0], CapEnd::End, 2))),
+    );
+    let write = |mate: editor_core::Mate<Formula>| {
+        let values = [X, Y, Z].map(|a| (Coord::Spin(Some(a)), ang(0.0))).to_vec();
+        apply(
+            &doc,
+            &editor_core::Placed {
+                mates: vec![mate],
+                values,
+            }
+            .write(ids[1]),
+            Tol::witness(),
+        )
+    };
+    assert!(write(ball.clone()).is_ok(), "the identity is admitted");
+    let mut oriented = ball;
+    oriented.orient = editor_core::Orientation::new(
+        editor_core::SignedAxis::PlusY,
+        editor_core::SignedAxis::PlusZ,
+    )
+    .expect("x and z lie along two axes");
+    let refused = write(oriented);
+    assert!(
+        matches!(
+            &refused,
+            Err(EditError::MateRefused { fault, .. }) if matches!(**fault, MateFault::Unoriented { .. })
+        ),
+        "the door refuses an orientation on a point mate: {refused:?}"
+    );
+}
+
 /// **Test 20 (D′2): a lone point mate's rotation is a chain in the
 /// order written** (D10 `[placement.values]`). The second copy's start
 /// corner 0 is mated to the first's end corner 2, and its rotation
@@ -1188,7 +1232,7 @@ fn a_lone_point_mates_chain_turns_its_copy_in_the_order_written() {
     let chain = |spins: &[(TargetAxis, f64)]| -> Vec<(Coord, Formula)> {
         spins
             .iter()
-            .map(|&(a, t)| (Coord::Spin(a), ang(t)))
+            .map(|&(a, t)| (Coord::Spin(Some(a)), ang(t)))
             .collect()
     };
     let placed = fixture::with_values(
