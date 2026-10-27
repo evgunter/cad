@@ -723,27 +723,24 @@ fn a_clearance_fit_apart_in_depth_assembles() {
 
 /// **(B) A quiet finding carries no verdict nothing checked.** The
 /// press fit again, its plate drilled with a small hole beside the pin:
-/// radius `0.05`, its centre `0.5555` from the pin's axis on the
-/// diagonal, so its wall passes `5e-4` from the pin's wall. The census
-/// leaves a half of the pin's wall and that hole's wall undecided (one
-/// `CensusUndecidable` face pair), a pair outside the overlap the
-/// assertion's containment check covers, so the finding stays loud and
-/// carries the verdict.
+/// radius `0.05`, on the diagonal, its wall 1.5 of the census's box pads
+/// (`sweep_pad`) clear of the pin's wall. The census parts two faces
+/// only on a gap past both faces' pads, so it leaves the pin's wall and
+/// that hole's wall undecided (a `CensusUndecidable` face pair), a pair
+/// outside the overlap the assertion's containment check covers, so the
+/// finding stays loud and carries the verdict.
 ///
-/// The pair is apart, but arm 1 reads a cylinder wall's depth only about
-/// its own axis, and no direction it proposes parts them: their reach
-/// boxes overlap on every world axis, the anchor axis runs well off the
-/// line of centres, and the offset from either axis aims at the other
-/// wall's seam rulings, not at its nearest point. When
-/// `work/restread/census-arm-1-reads-directions-from-the-pairs-own-faces-only.md`
-/// lands a direction that parts it, move the hole in until no direction
-/// does.
+/// The pads hold the pair undecided, not a missing direction: the line
+/// between the two axes reads the gap, and the gap is less than the two
+/// pads, as for `sweep`'s `cross_solid_apart::a_rod_between_the_pads_refuses`.
 ///
 /// Red if an undecided verdict anywhere on the pair rides a quiet
 /// finding.
 #[test]
 fn an_undecided_pair_beside_the_press_fit_keeps_it_loud() {
-    let at = 0.5555 * core::f64::consts::FRAC_1_SQRT_2;
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let gap = 1.5 * topo::test_support::sweep_pad(band);
+    let at = (0.555 + gap) * core::f64::consts::FRAC_1_SQRT_2;
     let (doc, p, q, _, bore, wall) = bore_pin_and_holes(0.505, &[(at, at, 0.05)]);
     let (doc, _) = gap_at_copies(
         doc.clone(),
