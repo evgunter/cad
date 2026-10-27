@@ -104,14 +104,16 @@ pub fn route(curve: CurveKind, surface: SurfaceKind) -> Route {
              lane does not read yet \
              (work/splice/nurbs-edge-crossing-rung-is-the-ring-composite)",
         ),
-        (Line | Circle | Ellipse, SurfaceKind::Nurbs | Approx) => built(
+        (Line | Circle | Ellipse | Nurbs, SurfaceKind::Nurbs | Approx) => built(
             Door::SplineFace,
             "boxes of the span's parameter and the chart's, cleared past the band or \
              proved one transverse meeting by a Krawczyk contraction",
         ),
-        (Spiric | Nurbs, SurfaceKind::Nurbs | Approx) => unbuilt(
+        (Spiric, SurfaceKind::Nurbs | Approx) => unbuilt(
             Door::SplineFace,
-            "enclosures of a spiric or spline span's pieces against the surface's cells",
+            "enclosures of a spiric span's pieces against the surface's cells, \
+             deferred until its first producer \
+             (work/reachhold/spiric-operand-edges-reopen-with-their-first-producer)",
         ),
         (Spiric, Plane | Cylinder | Cone | Sphere | Torus) => unbuilt(
             Door::Spiric,

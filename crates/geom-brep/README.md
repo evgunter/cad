@@ -95,12 +95,36 @@ is a root of a polynomial, which no polynomial composite carries, so
 the conversion is a per-span lever instead: a scalar bound on the
 carrier's distance from the axis, whose one square root is of a bound,
 in the scalar's own outward-rounded arithmetic. The edge certificate
-reads it per part of the carrier's knot spans, at
-`pcurve_cache::projected::net_offset_sup`; the search's limbs do not
-yet, which is why their rung-3 arms are unretired. Where the bound does
+reads it per part of the carrier's knot spans, through one reader for
+every carrier (`pcurve_cache::limb2_offset_sup`): the carrier's net
+(`carrier_net::framed_carrier_net`: a spline is its own net, a closed
+form its enclosing net), framed at each operand in the scalar's
+arithmetic (C9's backend at the numeric channel), so the bound rounds at the part's own scale and never at
+its distance from the world origin,
+and on the cone a part the lever does not decide positive (one reaching
+the apex) reads `√|f|` instead: `f` is the product of the distances
+from the meridian half-plane's two generator lines, both on the implicit
+cone; the search's limbs do not
+yet, which is why their rung-3 arms are unretired. At a
+parameter-family scalar the limb is decided by the scalar like any
+margin (E12): its symbolic identity is the residual of the carrier's own
+description against the operand, per span, with the carrier's parameter
+left free, formed by the limb from the operands' own values, and its
+numeric channel is the composite's enclosure `[floor, upper]`; an
+identity certifies every member of the box at every parameter of the
+carrier. Where the bound does
 not clear the band, the composite's uncleared spans are halved round by
 round, each piece cut from its Bézier segment's own row so no cut
-compounds another's width: the limb passes once the bound clears;
+compounds another's width, and the rounds stop (`round_floored`) once
+the bound is within the stop's factor (`ROUND_FLOOR_FACTOR`, 16) of the
+net's own rounding (`CarrierNet::rounding`, its
+controls' width before any span's remainder, which no halving
+removes), that width is itself that factor above the band, and a
+round no longer halves the bound (the rounding is the whole net's, not
+the window's parts', so the stop can end the rounds early: a cost in
+liveness, never in soundness, since every stop reads the lowest hull):
+the limb passes once the bound
+clears;
 refuses on the composite's certified value at a break where that lies
 past the band's zero, since no bound over a span holding the break can
 clear; and otherwise refuses on the lowest bound any round reached
@@ -109,7 +133,39 @@ own units: `SSI_HULL_WORK` spans recomputed over the rounds,
 `SSI_HULL_CUTS` breaks added) — so a first composite already over
 `SSI_HULL_WORK` spans is never subdivided and refuses on its first
 hull, and a later round whose bound is NaN stops on the lowest certified
-bound before it rather than escalating. Against an analytic operand
+bound before it rather than escalating. At a point scalar, limb 2's
+reading is an upper bound, and an upper bound shows no miss: a bound that ends above the band with no
+measured miss past it refuses as a kernel approximation limit
+([tolerance.recourse]; `AnalyticRung3Refusal::KernelLimit`), carrying the bound, the extent it was read over
+and the carrier's own enclosure width there, so the one story can name
+the input's extent where the bound is near that width (within
+`KERNEL_LIMIT_ROUNDING_FACTOR`, a constant of the story's own, not the
+stop's) and the width is
+the extent's own rounding, and claims no cause otherwise; it is never
+an ambiguity of the input and never a definite miss. Only the measured
+value at a break refuses as a miss. A line against a plane is distant
+from it by a function affine along it, whose sup is at an end, so a
+reading that neither clears nor shows a miss there is decided on the
+two ends' measured distances, `(p − o)·n` over `|n|` in certification
+arithmetic at every scalar (the data and the ends' parameters lifted
+through their certified brackets), read by whether an end's enclosure
+excludes zero. An end whose floor is above zero is a measured,
+certified non-zero distance: within the zero band it passes, a floor
+past `Kε` is a miss, and otherwise — in the ambiguity band or
+straddling its edge — it escalates on that measured value (`Escalated`
+on `HullValue`), the input ambiguous at the tolerance. An end whose
+floor is at or below zero (it cannot exclude the carrier lying on the
+plane) passes if its upper end is within the band, and otherwise is
+only an upper bound, which says nothing about the input: it adds
+nothing to the composite's stall, which is the verdict (the kernel
+limit at a point scalar, `Stalled` at an enclosure one). Both ends
+passing certify the edge; a miss, then an escalation, refuses. At an enclosure scalar a bound that
+stalls is undecided at that input (`AnalyticRung3Refusal::Stalled`),
+and over a parameter box the drive bisects it (E6); the refusal carries
+the enclosure and claims no cause and no terminality. A floor measured
+inside the band is not a stall: it escalates on the measured value, the
+classifier's terminal bit kept. Against
+an analytic operand
 the value at a break is limb 1's residual, a measured miss: at the edge
 certificate it is the carrier's distance from the surface, bounded
 below by `|f|` over an upper bound on the factor that divides it to
@@ -122,7 +178,7 @@ connected piece of the solution set in a box ends on the box's boundary
 at two points. The solution set in the chain is one arc, and it spans
 the carrier; the proof is the same at every door, a search's and an
 edge's at rest. For a carrier between two analytic surfaces the three
-limbs are the edge certificate's own (`edge_nurbs::analytic_rung3`,
+limbs are the edge certificate's own (`edge_nurbs::analytic_edge_limbs`,
 through the scalar's certified lane): limb 2 against each operand, its
 distance from that surface over the edge's interval, whatever faces
 store pcurve rows (a planar face stores none), which implies limb 1;
@@ -728,13 +784,21 @@ meet through one exhaustive `(CurveKind, SurfaceKind)` table, in the
 curve-pair vocabulary (stretches, meetings, an in-band decision
 escalating and never pruning), and the boolean's root doors are its
 arms: a spline span against an analytic face and an analytic span
-against a spline face are two arms of the one table. The span's ends are
-read first, then the span against each of the face's boundary edges
-through the curve-pair table. A shared run along a boundary edge is a
-coincidence, decided at the coincidence door (DESIGN `[coincidence]`)
-and never by surface arithmetic, and a point meeting there is a meeting
-on the face's boundary. Only what the boundary leaves undecided is read
-against the face's interior. An interior arm with no closed form settles
+against a spline face are two arms of the one table. The pair is
+decided from the strongest evidence first, and each rung reads only
+what the rungs before it left undecided: what the operands' topology
+already states; then the span's ends; then the span against each of the
+face's boundary edges, through the curve-pair table; then the face's
+interior. Topology decides by incidence. A span that the curve-pair
+table shows to run the whole of an edge of the face's own body, end to
+end, is that edge. It then meets the body's faces only at the vertices
+and edges they share, and nothing is read against their interiors. This
+holds under the boolean's precondition that its operands are valid
+bodies, which it assumes and does not certify per call.
+A shared run along a boundary edge is a coincidence, decided at the
+coincidence door (DESIGN `[coincidence]`) and never by surface
+arithmetic, and a point meeting there is a meeting on the face's
+boundary. An interior arm with no closed form settles
 each piece of the span against each cell of the surface by enclosures:
 clear when the two are definitely apart; exactly one transverse meeting
 when an interval Newton (Krawczyk) contraction on the piece and cell
@@ -757,18 +821,26 @@ definitely on opposite sides, bisected and read on the surface; and
 otherwise cut where it is definitely past the band. A piece within the
 band that no cut parts, a meeting within the band of a crease and two
 crossings within the band of each other refuse. The composite reads the curved analytic faces too, but the
-curved lane does not dispatch a spline span to it. The analytic span ×
-spline face arm is built (`curve_face::spline_face`, the boolean's
-spline-face door reading it past the boundary pass): it settles boxes of
-the state `(t, u, v)` on `C(t) − S(u, v)`, a displacement read against
-the band with no meter, clear where the box's enclosure is past the band
-and one meeting where the Krawczyk test holds, which also isolates the
-meeting's neighbourhood. The chart is cut at its creases and no box
-touching one carries a proof; a box within the band at the floor that no
+curved lane does not dispatch a spline span to it. The span ×
+spline face arm is built for an analytic or a NURBS span
+(`curve_face::spline_face`, the boolean's spline-face door reading it
+past the boundary pass): it settles boxes of the state `(t, u, v)` on
+`C(t) − S(u, v)`, a displacement read against the band with no meter,
+clear where the box's enclosure is past the band and one meeting where
+the Krawczyk test holds, which also isolates the meeting's
+neighbourhood. A NURBS span's point and tangent over a parameter window
+are its control hull's and its hodograph's, read as the chart's are. The
+span and the chart are cut at their creases and no box touching one
+carries a proof; a box within the band at the floor that no
 meeting holds refuses, wherever it lies, so a meeting within the band of
 a crease, on the chart's domain edge (a closed chart's seam included) or
-within the band of another refuses, and nothing in band is dropped. A
-spline or spiric span against a spline face is unbuilt. The analytic
+within the band of another refuses, and nothing in band is dropped. An
+end of the span is the end vertex's meeting: the walk reads past it as
+far as the carrier runs, and a box holding the end's state on which
+every solution lies within the band of the end, by the mean value
+theorem, is accounted for by it, so an end at the carrier's domain end
+or on the chart's edge is read without reading past either. A spiric
+span against a spline face is unbuilt. The analytic
 arms are the sweep's existing root doors. A meeting inside a spline
 face's chart is placed by the trim at the chart point it was found at,
 on its own sheet (`topo::boolean::spline_region::spline_chart_placement`);

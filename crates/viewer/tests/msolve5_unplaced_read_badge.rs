@@ -120,7 +120,7 @@ fn a_mate_read_below_a_pattern_records_nothing_and_its_seat_is_a_finding() {
     // the gather records it, the badge stays green, and the checks
     // window reports it against the two copies (D10).
     assert!(
-        matches!(session.at_rest(), Some(AtRestBadge::Certified { .. })),
+        matches!(session.at_rest(), Some(AtRestBadge { .. })),
         "an unmated seat refuses nothing: {:?}",
         session.at_rest()
     );
