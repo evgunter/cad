@@ -7139,3 +7139,4 @@ Signed (WIRE orchestrator).
   - Measured flips: only emit_ball_cut_by_brick's two subtracts; no corpus, python or tour flips.
   - An ATREST row was filed. A FULL review (`wire-rechartname-rev`) is dispatched; it tries to break the dead-face argument.
 - 2026-10-27 (WIRE orchestrator) PR 5829 FULL review: MERGEABLE. The dead-face argument held (a two-brick band is caught by its turned meridian), and only the expected flips occur. A small fix pass is sent: KilledSplits lineage, the redundant step guard, operand and key in the message, test specificity, Recharts::contains. The stale BORDERS sentence is annotated.
+- 2026-10-27 (WIRE orchestrator) The orchestrator read PR 5829's fix pass: one chase_edge_until with the KilledSplits hops, one GraftInverse, the redundant step guard dropped, the read and key in the message, and the test asserting Cell::Edge. Merged at cfa35248b8; sphere re-key row closed.
