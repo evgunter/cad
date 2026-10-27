@@ -187,9 +187,9 @@ A sweep that works turns up defects that are not yours. **File them, on the
 slate of the program whose ground they land on, in the same PR that found
 them** — no permission, no routing through anyone. `work/README.md` settles
 it: *"a finding goes straight onto the slate of the program whose ground it
-lands on"* (`:117`), and *"a lane does not need the owner's permission to put
-a finding where it belongs"* (`:146`). `work/issues/` is the last resort it
-has always been, for a finding with no obvious owner.
+lands on"*, and *"a lane does not need the owner's permission to put a
+finding where it belongs"* (Rules, "Filing and ownership"). `work/issues/` is
+the last resort, for a finding with no obvious owner.
 
 `python3 scripts/work.py territory --files -` says who owns a path. Grep that
 program's directory first: if a row already covers your finding, add your
