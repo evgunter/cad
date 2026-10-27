@@ -804,3 +804,233 @@ fn two_nurbs_meetings_within_the_band_of_each_other_refuse() {
         "two meetings within the band of each other: {got:?}"
     );
 }
+
+// ---- review r1 (PR 5855) probes ----
+
+/// A degree-one NURBS span from `p` to `q`, its ends its domain's.
+fn segment(p: [f64; 3], q: [f64; 3]) -> Curve3<f64> {
+    bezier(&[p, q])
+}
+
+/// Not silently empty: a reported meeting or a refusal.
+fn not_dropped(got: &Result<Vec<ChartMeeting<f64>>, SplineFaceRefusal>, what: &str) {
+    assert!(!matches!(got.as_deref(), Ok([])), "{what}: {got:?}");
+}
+
+/// A crossing a few escalation lengths short of a NURBS span's domain
+/// end, the end off the chart.
+#[test]
+fn review_r1_a_crossing_a_few_bands_from_a_domain_end_is_not_dropped() {
+    let s = band().escalate();
+    for k in [2.0, 3.0, 4.0, 8.0, 16.0] {
+        let span = segment([0.4, 0.5, -0.5], [0.4, 0.5, k * s]);
+        not_dropped(
+            &read_whole(&span, &flat()),
+            &format!("vertical, {k} escalations"),
+        );
+        let back = segment([0.4, 0.5, k * s], [0.4, 0.5, -0.5]);
+        not_dropped(
+            &read_whole(&back, &flat()),
+            &format!("vertical reversed, {k}"),
+        );
+        // Grazing at slope 1/64: the end is 64× nearer the chart than the
+        // crossing is to the end.
+        let graze = segment([0.1, 0.5, k * s - 0.3 / 64.0], [0.4, 0.5, k * s / 64.0]);
+        let got = read_whole(&graze, &flat());
+        not_dropped(&got, &format!("grazing, {k}"));
+    }
+}
+
+/// A span ending ON a dome, which it crosses a second time a few bands
+/// away: the second crossing is never absorbed by the end's box. Both an
+/// analytic line and a NURBS segment, both orders.
+#[test]
+fn review_r1_a_second_crossing_beside_an_end_on_the_chart_is_not_dropped() {
+    let s = band().escalate();
+    for k in [2.0, 4.0, 8.0, 64.0] {
+        let half = 0.5 * k * s;
+        let c = half * half;
+        let x0 = 0.5 - half;
+        let lin = line(Point3::new(0.0, 0.5, c), Vec3::unit_x());
+        not_dropped(
+            &read(&lin, (x0, 0.9), &dome()),
+            &format!("line from the end, {k}"),
+        );
+        not_dropped(
+            &read(&lin, (0.1, 0.5 + half), &dome()),
+            &format!("line to the end, {k}"),
+        );
+        let fwd = segment([x0, 0.5, c], [0.9, 0.5, c]);
+        not_dropped(
+            &read_whole(&fwd, &dome()),
+            &format!("nurbs from the end, {k}"),
+        );
+        let rev = segment([0.9, 0.5, c], [x0, 0.5, c]);
+        not_dropped(
+            &read_whole(&rev, &dome()),
+            &format!("nurbs to the end, {k}"),
+        );
+    }
+}
+
+/// The NURBS cup tangent to the dome at its apex, its span ending a few
+/// bands past the tangency: never clear.
+#[test]
+fn review_r1_a_tangency_near_an_end_is_not_dropped() {
+    let s = band().escalate();
+    for k in [4.0, 16.0, 64.0] {
+        let dt = k * s / 0.8;
+        not_dropped(
+            &read(&cup(0.0), (0.0, 0.5 + dt), &dome()),
+            &format!("end past, {k}"),
+        );
+        not_dropped(
+            &read(&cup(0.0), (0.5 - dt, 1.0), &dome()),
+            &format!("start before, {k}"),
+        );
+    }
+}
+
+/// A NURBS span ending on the flat chart's open edge `x = 0`, which it
+/// re-crosses a few bands inside: the crossing is not the end's.
+#[test]
+fn review_r1_a_crossing_beside_an_end_on_the_charts_edge_is_not_dropped() {
+    let s = band().escalate();
+    for k in [2.0, 4.0, 16.0, 64.0] {
+        let d = k * s;
+        // z = A·x·(x − d) over x ∈ [0, 0.4], A = 4: on the edge at x = 0,
+        // below the chart, back across it at x = d.
+        let a = 4.0;
+        let (x1, z1) = (0.2, -a * 0.2 * d);
+        let z2 = a * 0.4 * (0.4 - d);
+        let span = bezier(&[[0.0, 0.5, 0.0], [x1, 0.5, z1], [0.4, 0.5, z2]]);
+        not_dropped(&read_whole(&span, &flat()), &format!("edge, {k}"));
+    }
+}
+
+/// An end exactly on a crease of the span, the corner on the chart: the
+/// PR says it refuses Crease. And one with the corner off the chart reads.
+#[test]
+fn review_r1_an_end_on_a_crease_of_the_span() {
+    let on = read(&bent([0.5, 0.5, 0.0]), (0.0, 0.5), &flat());
+    assert!(
+        matches!(on, Err(SplineFaceRefusal::Unsettled(Unsettled::Crease))),
+        "{on:?}"
+    );
+    let off = read(&bent([0.5, 0.5, 0.2]), (0.5, 1.0), &flat());
+    assert!(matches!(off.as_deref(), Ok([])), "{off:?}");
+}
+
+/// The NURBS rows read the same at `Interval`.
+#[test]
+fn review_r1_the_nurbs_rows_read_alike_at_interval() {
+    use geom_core::Interval;
+    use geom_core::interval::certification::Certification;
+    let lane = crate::NurbsLane::<Interval>::certified();
+    let up = |c: &Curve3<f64>| c.map_scalar(Interval::point);
+    let cases: Vec<(Curve3<f64>, NurbsSurface<f64>, usize)> = vec![
+        (
+            bezier(&[
+                [0.2, 0.5, 0.6],
+                [0.4, 0.5, -0.7],
+                [0.6, 0.5, -0.7],
+                [0.8, 0.5, 0.6],
+            ]),
+            waved(),
+            2,
+        ),
+        (
+            segment([0.4, 0.5, -0.5], [0.4, 0.5, 64.0 * band().escalate()]),
+            flat(),
+            1,
+        ),
+        (
+            bezier(&[[0.5, 0.5, 0.0], [0.6, 0.5, 0.3], [0.6, 0.5, 0.6]]),
+            flat(),
+            0,
+        ),
+    ];
+    for (c, chart, n) in cases {
+        let got = lane.chart_meetings(
+            &up(&c),
+            (Interval::point(0.0), Interval::point(1.0)),
+            &chart.map_scalar(Interval::point),
+            band(),
+        );
+        assert_eq!(got.as_ref().map(Vec::len).ok(), Some(n), "{got:?}");
+    }
+}
+
+/// The ruled sheet's enclosures hold the span's point and tangent over
+/// windows across a non-crease knot, polynomial and rational.
+#[test]
+fn review_r1_the_sheets_enclosures_hold_the_span() {
+    use geom_core::{Bounds, Interval};
+    let cubic = spline(
+        3,
+        vec![0.0, 0.0, 0.0, 0.0, 0.3, 0.6, 1.0, 1.0, 1.0, 1.0],
+        &[
+            [0.0, 0.0, 0.0],
+            [0.2, 0.7, -0.3],
+            [0.5, -0.4, 0.9],
+            [0.7, 0.8, 0.1],
+            [0.9, 0.1, -0.5],
+            [1.0, 0.5, 0.4],
+        ],
+        Some(&[1.0, 0.5, 2.0, 0.7, 1.3, 1.0]),
+    );
+    let sheet = super::sheet(&cubic).unwrap();
+    let path = super::Path::of(&cubic, Some(&sheet)).unwrap();
+    let windows = [
+        (0.25, 0.35),
+        (0.29, 0.31),
+        (0.0, 1.0),
+        (0.55, 0.65),
+        (0.3, 0.3),
+        (0.1, 0.2),
+    ];
+    for (t0, t1) in windows {
+        let w = Interval::from_bounds(t0, t1);
+        let (p, d) = (path.at(w), path.tangent(w));
+        for i in 0..=64 {
+            let t = t0 + (t1 - t0) * f64::from(i) / 64.0;
+            let c = cubic.eval(t);
+            let h = 1e-6;
+            let dc = (cubic.eval((t + h).min(1.0)) - cubic.eval((t - h).max(0.0)))
+                * (1.0 / ((t + h).min(1.0) - (t - h).max(0.0)));
+            for (k, (cv, dv)) in [(c.x, dc.x), (c.y, dc.y), (c.z, dc.z)]
+                .into_iter()
+                .enumerate()
+            {
+                let ulps = 1e-14 * (1.0 + cv.abs());
+                assert!(
+                    p[k].lo() - ulps <= cv && cv <= p[k].hi() + ulps,
+                    "point {k} at {t}: {cv} in {:?}",
+                    p[k]
+                );
+                let slack = 1e-4 * (1.0 + dv.abs());
+                assert!(
+                    d[k].lo() - slack <= dv && dv <= d[k].hi() + slack,
+                    "tangent {k} at {t}: {dv} in {:?}",
+                    d[k]
+                );
+            }
+        }
+    }
+}
+
+/// A NURBS segment crossing the closed cylinder's seam near its domain
+/// end: refused or reported, never dropped.
+#[test]
+fn review_r1_a_nurbs_crossing_on_a_closed_charts_seam_near_a_domain_end_is_not_dropped() {
+    let s = band().escalate();
+    for k in [2.0, 8.0, 64.0] {
+        let span = segment([0.5, 0.0, 0.5], [1.0 + k * s, 0.0, 0.5]);
+        not_dropped(&read_whole(&span, &full_cylinder()), &format!("seam, {k}"));
+        let back = segment([1.0 + k * s, 0.0, 0.5], [0.5, 0.0, 0.5]);
+        not_dropped(
+            &read_whole(&back, &full_cylinder()),
+            &format!("seam reversed, {k}"),
+        );
+    }
+}
