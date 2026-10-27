@@ -666,16 +666,6 @@ pub fn prove<P: crate::ProfilePayload>(
         .collect())
 }
 
-/// **Whether the door's first rung proves `row`**, with no replay
-/// ([`first_rung`]).
-pub(crate) fn first_rung_proves<P: crate::ProfilePayload>(
-    doc: &crate::doc::Doc<P>,
-    row: &NamedCoincidence,
-    tol: geom_core::Tol,
-) -> bool {
-    first_rung(doc, row, &constructions(doc, row, tol), tol)
-}
-
 /// **The door's first rung**, over `row`'s cells walked to their
 /// constructions: one construction read twice, a cell its face's minter
 /// built on it ([`on_by_construction`]), or the two faces a mate rests on

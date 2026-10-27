@@ -4998,30 +4998,24 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   and `MetaError` the producer boundary's own refusal, and no
 ///   curated carrier answers in any of them.
 ///
-///   **The A5 gate used to be in this family and was wrong to be.**
-///   `assemble` and its vocabulary (`Assembly`, `AssemblyError`,
-///   `AtRestFinding`) had no curated door of their own and were not
-///   machinery behind one: they ARE the door that answers whether an
-///   assembly is valid at rest, and the façade carried the whole
-///   authoring vocabulary that constructs one. A consumer could build
-///   an assembly and not check it. `crate::document` carries them
-///   now. `Product` and `product_recorded` came WITH them, and the
-///   reason is the doors that take a gathered product:
-///   `assemble_gathered` and `run_checks_on` are the canonical
-///   spellings of the at-rest gate and the check registry, and a
-///   consumer with several consumers of one document's product
-///   gathers once and feeds them. `product`/`product_named` stay the
-///   curated gather for a caller that wants only a body, and they
-///   cannot serve that one — a caller who cannot name `Product`
-///   cannot hold one.
+///   **The at-rest check's vocabulary is not in this family.**
+///   `AtRestEvidence`, `InterferenceFinding` and their neighbours are
+///   what the `AtRest` resident's findings carry, and a consumer who
+///   cannot name a finding cannot read the answer to whether an
+///   assembly is at rest. `crate::document` carries them. `Product`
+///   and `product_recorded` came with them, and the reason is the door
+///   that takes a gathered product: `run_checks_on` is the canonical
+///   spelling of the check registry, and a consumer with several
+///   consumers of one document's product gathers once and feeds them.
+///   `product`/`product_named` stay the curated gather for a caller
+///   that wants only a body, and they cannot serve that one — a caller
+///   who cannot name `Product` cannot hold one.
 ///
 ///   **`CarriedAtRestFinding`, `CarriedFindings` and `Route` came with
-///   them**, because nothing else states them: the gate's
-///   `AssemblyError::CarriedAtRest` raises EVERY finding a part's own
-///   gate refused, each a `CarriedAtRestFinding` with the `Route` it
-///   arrived by, and a consumer who cannot name a row cannot read the
-///   answer. `CarriedFindings` is what an instantiated value carries
-///   up.
+///   them**, because nothing else states them: what a part's own
+///   census could not look at crosses as one `CarriedAtRestFinding`
+///   per row, with the `Route` it arrived by. `CarriedFindings` is what
+///   an instantiated value carries up.
 ///   **The hit-test service's NAMED half left this list at GUI-2**
 ///   (`NodePick`, `NodePickError`, `PickHit`, `PickTarget`,
 ///   `pick_face`, `HitTestError`, and `Ray` — a `bvh` re-export riding
