@@ -692,6 +692,9 @@ pub(crate) struct EdgeSplit {
     pub(crate) vertex: VertexKey,
     /// The trailing piece.
     pub(crate) child: crate::entity::EdgeKey,
+    /// The cell of the other operand's clone whose crossing minted
+    /// `vertex`: the face, edge or vertex the split edge met there.
+    pub(crate) by: Cell,
 }
 
 /// **Where a Boolean reduction minted each vertex off its operands'
@@ -707,12 +710,13 @@ pub(crate) struct EdgeSplit {
 pub(crate) struct Mints {
     divisions: [crate::lineage::EdgeDivisions; 2],
     /// Each operand's vertices minted on edges, one per row of its
-    /// divisions and in the same order: [`Self::push`] is the one writer
-    /// of both, and pushes the vertex only once the division's row is
-    /// in, so the `i`-th vertex is the one minted between the `i`-th
-    /// row's two edges (asserted where they are read together,
-    /// [`Self::of`]).
-    vertices: [Vec<VertexKey>; 2],
+    /// divisions and in the same order, each beside the cell of the other
+    /// operand whose crossing minted it ([`EdgeSplit::by`]):
+    /// [`Self::push`] is the one writer of both, and pushes the vertex
+    /// only once the division's row is in, so the `i`-th vertex is the
+    /// one minted between the `i`-th row's two edges (asserted where
+    /// they are read together, [`Self::of`]).
+    vertices: [Vec<(VertexKey, Cell)>; 2],
     /// Each operand's vertices minted inside faces, each with its face.
     in_faces: [Vec<(VertexKey, FaceKey)>; 2],
 }
@@ -742,7 +746,7 @@ impl Mints {
     pub(crate) fn push(&mut self, split: EdgeSplit) -> Result<(), crate::lineage::RowRefusal> {
         let side = usize::from(split.operand == Operand::B);
         self.divisions[side].push((split.child, split.parent))?;
-        self.vertices[side].push(split.vertex);
+        self.vertices[side].push((split.vertex, split.by));
         Ok(())
     }
 
@@ -762,7 +766,7 @@ impl Mints {
             .rows()
             .iter()
             .zip(&self.vertices[side])
-            .map(|(&(child, parent), &vertex)| (parent, vertex, child))
+            .map(|(&(child, parent), &(vertex, _))| (parent, vertex, child))
     }
 
     /// The edge of `operand`'s input the piece `edge` of its clone lies
@@ -798,6 +802,15 @@ impl Mints {
         self.of(operand)
             .find(|&(_, vertex, _)| vertex == v)
             .map(|(parent, _, _)| parent)
+    }
+
+    /// The cell of the other operand's clone whose crossing minted `v`
+    /// on an edge of `operand`'s, where a split minted it.
+    pub(crate) fn minted_by(&self, operand: Operand, v: VertexKey) -> Option<Cell> {
+        self.vertices[usize::from(operand == Operand::B)]
+            .iter()
+            .find(|&&(w, _)| w == v)
+            .map(|&(_, by)| by)
     }
 
     /// The keys of `edge`'s pieces after `operand`'s splits, in order
@@ -6824,7 +6837,7 @@ fn tangent_row(fa: FaceKey, fb: FaceKey, margin: MarginDiag) -> crate::Coinciden
             crate::RowCell::face(Operand::A, fa),
             crate::RowCell::face(Operand::B, fb),
         ],
-        third: None,
+        more: [None; 3],
         relation: crate::Relation::SurfaceTangent,
         site: crate::DecisionSite::TangentWitness,
         margin,
@@ -6867,7 +6880,7 @@ fn verify_one_carrier_declaration<T: Decide>(
                 crate::RowCell::face(Operand::A, fa),
                 crate::RowCell::face(Operand::B, fb),
             ],
-            third: None,
+            more: [None; 3],
             relation,
             site: declared_site(a, fa, b, fb),
             margin,
