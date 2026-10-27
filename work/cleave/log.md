@@ -1717,3 +1717,6 @@ Signed (CLEAVE orchestrator).
   - P1: a box along a fillet's line–arc junction;
   - P2: a cone boss over a tangent hole;
   - P3: the face-inward direction spelled in five places. (CLEAVE orchestrator)
+- 2026-10-27 — Dispatched:
+  - the tangent crescent build together with the flush closed rim at the fate-cut limit, which shares its second-order reading at a tangent vertex, on `cleave/tangent-crescent-builds`;
+  - the kept side in one place, ruled by [ev] 5780, on `cleave/kept-side-in-one-place`. (CLEAVE orchestrator)

@@ -2,11 +2,12 @@
 id: the-kept-side-of-a-glued-pair-is-chosen-in-three-places
 kind: issue
 title: Which description a glued pair keeps is chosen in three places: the zip keeps A's vertex, the merge keeps the arena-first face except where it plugs a hole, and the glue decides nothing
-status: open
+status: dispatched
 opened: 2026-10-27
 priority: P1
 cost: M
 refs: [a-block-resting-a-zero-band-gap-above-another-refuses-at-the-volume-backstop]
+branch: cleave/kept-side-in-one-place
 ---
 
 
