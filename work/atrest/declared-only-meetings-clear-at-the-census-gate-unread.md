@@ -1,13 +1,71 @@
 ---
 id: declared-only-meetings-clear-at-the-census-gate-unread
 kind: issue
-title: A pair whose only meetings are declared is probed but its records are not side-read, so an overlap they hide with no vertex strictly inside clears
+title: A pair whose only meetings are records has some taken on their word at the census gate; after stage 4, re-read whether any op can mint records that hide an overlap
 status: open
 opened: 2026-09-26
-priority: P0
-cost: H
-parent: CONTACT-13
+priority: P2
+cost: M
+refs: [CONTACT-13, intent-stage4-is-built, the-at-rest-census-is-a-check, the-touch-analysis-reads-curved-cones-tighter-than-the-reach-box]
 ---
+
+## Where it stands (2026-10-27): one row, re-read after stage 4
+
+This row now carries `CONTACT-13` as well (closed into it). Both moved
+here from CONTACTHOLD by `git mv`, because what is left is the census's
+records (ATREST's ground). They were P0s parked on
+`intent-stage4-is-built`, which closed on 2026-10-24. Nobody did the
+re-read that row asks for when it closes, so this row owes it.
+
+**What stage 4 removed.** Every wrong clear below was built by
+declaration: a test pushes `VfContact` and `PatchContact` records into a
+`ContactRecords` by hand and hands them to `validate_pseudomanifold`.
+The red rows are on branch `contact/13-meeting-ledger` (`3a1c22add`),
+in `crates/topo/tests/contact13_declared_meetings.rs` and
+`crates/sweep/tests/contact13_curved_declared.rs`. On main that cannot
+be written:
+- `ContactRecords`' rows are private and `push` is `pub(crate)`
+  (`crates/topo/src/boolean/records.rs:317-342`);
+- records are minted only by the kernel's operations, each citing the
+  decision behind it;
+- `ContactClass` and `MintedDeclaration` are gone.
+
+So the rows do not compile against main, and no reachable pose is known.
+That is why the row is P2, not P0.
+
+**What stayed.** The census still reads a record-only pair's records with
+`records_on_their_word` (`crates/topo/src/census.rs`, `blocks`, and the
+gate comment that cites this row). What it now takes on its word is a
+record an operation decided, not a user's declaration. PR #5494 (each
+operator decides the meetings between its operands) is the ruling that
+makes that the intended design.
+
+**The re-read, which is this row's work:**
+1. Try to build the three committed poses on main through operations,
+   not hand-built records:
+   - the I-profile through a slab;
+   - the log dipping into a wall;
+   - each with its true-rest control.
+
+   The question is whether any op, or a carry through a later op, can
+   leave a record that states a side the geometry contradicts while no
+   vertex sits strictly inside. Rows on that ground include
+   CONTACTHOLD's
+   `a-cut-through-a-recorded-touch-mints-a-pair-no-record-backs` and
+   `a-carried-line-contact-an-op-cuts-is-dropped`.
+2. If no op can mint such records, close this row as retired by stage 4.
+   Rewrite the census module doc and the gate comment that cite it so
+   they say the record-only reading rests on #5494. Re-read Ev's
+   decision 1 on PR 3422 ("a declaration licenses a coincidence, never
+   a side") against #5494, and say in the PR how the two fit.
+3. If one can, commit that pose as a red row and re-band this row on
+   it. Under stage 5 C (`the-at-rest-census-is-a-check`) an overlap
+   between copies is an `AtRest` interference finding, and that is the
+   acceptance `CONTACT-13` carried ("an interference that no
+   declaration can excuse must be a finding there").
+
+The history below is from before stage 4 and is kept as it was written.
+Read "declared" there as "recorded by declaration".
 
 Filed by CONTACT-5 and re-scoped by its fix pass. Arm 2 of
 `sweep_cross_solid_backstop` (`crates/topo/src/census.rs`) now counts a
