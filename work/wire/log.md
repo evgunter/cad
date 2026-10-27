@@ -7174,3 +7174,4 @@ Signed (WIRE orchestrator).
   - other_half returns Option; None refuses Unwalked::Misplaced, because it would otherwise rest on two independent decisions agreeing.
   - Departure accepted: select classifies the sense rather than walking it, since a pattern has no sense axis.
   - A residue row was filed. Review dispatched (`wire-throughwalk-rev`).
+- 2026-10-27 (WIRE orchestrator) PR 5870 review: mergeable. The Include-walk consumers are unchanged, other_half's None cannot be reached by a legal split, and the witness is red on base. Merged; row closed. Two MINORs and the nits were appended to the residue row.
