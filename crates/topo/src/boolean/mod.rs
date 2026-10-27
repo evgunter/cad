@@ -2870,9 +2870,9 @@ pub enum BooleanError {
     },
     /// An edge of `operand` meets a face of `face_of` where a spline arm
     /// of the curve × face table cannot count its crossings (`why`): the
-    /// ring composite for a spline edge
+    /// ring composite for a spline edge against an analytic face
     /// ([`geom_brep::curve_face::composite::crossings`]), or the
-    /// spline-face arm for an analytic edge against a spline face
+    /// spline-face arm for any edge against a spline face
     /// ([`geom_brep::NurbsLane::chart_meetings`]). The edge comes
     /// within the band of the face's carrier without a crossing the arm
     /// can tell apart (it touches it, runs along it, or crosses it more

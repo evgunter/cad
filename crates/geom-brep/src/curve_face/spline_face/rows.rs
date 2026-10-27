@@ -2,7 +2,8 @@
 //! bicubic patch once, a circle crossing it twice, a line tangent to a
 //! dome, a pass within the band of it and one past the band, a meeting
 //! on a crease and one beside it, a meeting at an end of the span, and
-//! a rational patch. The in-band geometry scales with the run's band.
+//! a rational patch; then the same readings for a NURBS span, its ends
+//! at its domain's. The in-band geometry scales with the run's band.
 
 #![allow(clippy::unwrap_used, clippy::panic)]
 
@@ -487,7 +488,6 @@ fn two_meetings_apart_but_each_within_the_band_of_a_crease_refuse() {
     let h = 0.3 * band().escalate();
     let level = line(Point3::new(0.0, 0.5, -0.2 + h), Vec3::unit_x());
     let got = read(&level, (0.1, 0.9), &valley());
-    eprintln!("IA-GOT {got:?}");
     assert!(
         matches!(
             got,
@@ -524,5 +524,283 @@ fn a_meeting_on_a_flat_crease_refuses() {
     assert!(
         matches!(read(&off, (0.0, 2.0), &chart).as_deref(), Ok([_])),
         "one off it reads"
+    );
+}
+
+// ---- a NURBS span against a spline face ----
+
+/// The NURBS span of degree `p` over the clamped `knots` through
+/// `control`, weighted `weights` (all one where `None`).
+fn spline(p: usize, knots: Vec<f64>, control: &[[f64; 3]], weights: Option<&[f64]>) -> Curve3<f64> {
+    let control: Vec<Point3<f64>> = control
+        .iter()
+        .map(|&[x, y, z]| Point3::new(x, y, z))
+        .collect();
+    let weights = weights.map_or_else(|| vec![1.0; control.len()], <[f64]>::to_vec);
+    Curve3::Nurbs(std::sync::Arc::new(
+        geom::NurbsCurve3::new(KnotVector::clamped(knots, p).unwrap(), control, weights).unwrap(),
+    ))
+}
+
+/// The Bézier span through `control`, of degree one less than their count.
+fn bezier(control: &[[f64; 3]]) -> Curve3<f64> {
+    let p = control.len() - 1;
+    let mut knots = vec![0.0; p + 1];
+    knots.extend(vec![1.0; p + 1]);
+    spline(p, knots, control, None)
+}
+
+/// The meetings of a span over its whole domain `[0, 1]`.
+fn read_whole(
+    carrier: &Curve3<f64>,
+    chart: &NurbsSurface<f64>,
+) -> Result<Vec<ChartMeeting<f64>>, SplineFaceRefusal> {
+    read(carrier, (0.0, 1.0), chart)
+}
+
+/// Every meeting's point is the span's at its parameter.
+fn on_span(carrier: &Curve3<f64>, found: &[ChartMeeting<f64>]) {
+    for m in found {
+        assert!(
+            (carrier.eval(m.t) - m.point).norm() <= band().zero(),
+            "a meeting's point is the span's: {m:?}"
+        );
+    }
+}
+
+#[test]
+fn a_nurbs_span_crosses_a_bicubic_patch_once() {
+    let chart = waved();
+    let rising = bezier(&[
+        [0.3, 0.4, -0.5],
+        [0.5, 0.4, 0.0],
+        [0.4, 0.7, 0.3],
+        [0.6, 0.7, 0.8],
+    ]);
+    let found = read_whole(&rising, &chart).unwrap();
+    assert_eq!(found.len(), 1, "one meeting: {found:?}");
+    on_chart(&chart, &found);
+    on_span(&rising, &found);
+    let m = found[0];
+    assert!(
+        (m.uv.0 - m.point.x).abs() < 1e-9 && (m.uv.1 - m.point.y).abs() < 1e-9,
+        "the meeting's chart point is its (x, y): {m:?}"
+    );
+    // Strictly inside its domain, short of the patch, the span is clear:
+    // the walk reads past its ends and finds the meeting beyond them.
+    let below = read(&rising, (0.05, 0.6 * m.t), &chart);
+    assert!(
+        matches!(below.as_deref(), Ok([])),
+        "short of the patch: {below:?}"
+    );
+}
+
+#[test]
+fn a_nurbs_span_crosses_a_bicubic_patch_twice() {
+    let chart = waved();
+    let arch = bezier(&[
+        [0.2, 0.5, 0.6],
+        [0.4, 0.5, -0.7],
+        [0.6, 0.5, -0.7],
+        [0.8, 0.5, 0.6],
+    ]);
+    let found = read_whole(&arch, &chart).unwrap();
+    assert_eq!(found.len(), 2, "two meetings: {found:?}");
+    on_chart(&chart, &found);
+    on_span(&arch, &found);
+    assert!(found[0].t < found[1].t, "ascending");
+    assert!(
+        found[0].uv.0 < 0.5 && found[1].uv.0 > 0.5,
+        "one meeting each side of the arch's middle: {found:?}"
+    );
+}
+
+/// The quadratic `z = 0.8·(s − ½)² + lift` over `x = 0.1 + 0.8·s` at
+/// `y = ½`, over the dome, which it touches at its apex where `lift` is
+/// zero, its curvature larger than the dome's along it.
+fn cup(lift: f64) -> Curve3<f64> {
+    bezier(&[
+        [0.1, 0.5, 0.2 + lift],
+        [0.5, 0.5, -0.2 + lift],
+        [0.9, 0.5, 0.2 + lift],
+    ])
+}
+
+#[test]
+fn a_nurbs_span_tangent_to_a_dome_escalates() {
+    let got = read_whole(&cup(0.0), &dome());
+    assert!(
+        matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Tangency))),
+        "a tangency refuses: {got:?}"
+    );
+}
+
+/// The quadratic `z = lift + 3.25·(x − ½)²` over `x ∈ [0.1, 0.9]` at
+/// `y = ½`: `lift` over the dome's apex, and bending up from it faster
+/// than the dome does.
+fn steep(lift: f64) -> Curve3<f64> {
+    bezier(&[
+        [0.1, 0.5, lift + 0.52],
+        [0.5, 0.5, lift - 0.52],
+        [0.9, 0.5, lift + 0.52],
+    ])
+}
+
+#[test]
+fn a_nurbs_pass_within_the_band_escalates() {
+    let near = read_whole(&steep(0.5 * band().zero()), &dome());
+    assert!(
+        matches!(near, Err(SplineFaceRefusal::Unsettled(Unsettled::Tangency))),
+        "a pass within the band is never clear: {near:?}"
+    );
+    let gap = read_whole(&steep(2.0 * band().zero()), &dome());
+    assert!(
+        matches!(gap, Err(SplineFaceRefusal::Unsettled(Unsettled::Tangency))),
+        "nor one in the band's gap: {gap:?}"
+    );
+}
+
+#[test]
+fn a_nurbs_pass_past_the_band_is_clear() {
+    let far = read_whole(&steep(64.0 * band().escalate()), &dome());
+    assert!(
+        matches!(far.as_deref(), Ok([])),
+        "a pass past the band is clear: {far:?}"
+    );
+}
+
+/// A polyline of degree one with its corner, a crease of the span's own
+/// knots, at `corner`.
+fn bent(corner: [f64; 3]) -> Curve3<f64> {
+    spline(
+        1,
+        vec![0.0, 0.0, 0.5, 1.0, 1.0],
+        &[[0.3, 0.5, -0.5], corner, [0.6, 0.5, 0.5]],
+        None,
+    )
+}
+
+#[test]
+fn a_meeting_on_a_crease_of_the_span_refuses_and_one_beside_it_reads() {
+    for lift in [0.0, 0.5 * band().zero()] {
+        let got = read_whole(&bent([0.5, 0.5, lift]), &flat());
+        assert!(
+            matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Crease))),
+            "a meeting within the band of the span's corner refuses (lift {lift:e}): {got:?}"
+        );
+    }
+    let span = bent([0.5, 0.5, 0.2]);
+    let beside = read_whole(&span, &flat()).unwrap();
+    assert_eq!(beside.len(), 1, "one meeting off the corner: {beside:?}");
+    on_span(&span, &beside);
+    assert!(beside[0].t < 0.5, "on the first leg: {beside:?}");
+}
+
+#[test]
+fn a_nurbs_meeting_on_a_crease_of_the_chart_refuses_and_one_beside_it_reads() {
+    let chart = tent();
+    let at = |x: f64| bezier(&[[x, 0.5, -1.0], [x, 0.4, 0.5], [x, 0.6, 2.0]]);
+    for x in [0.5, 0.5 + 0.5 * band().zero()] {
+        let on = read_whole(&at(x), &chart);
+        assert!(
+            matches!(on, Err(SplineFaceRefusal::Unsettled(Unsettled::Crease))),
+            "a meeting within the band of the ridge refuses (x {x}): {on:?}"
+        );
+    }
+    let beside = read_whole(&at(0.25), &chart).unwrap();
+    assert_eq!(beside.len(), 1, "one meeting off the ridge: {beside:?}");
+    on_chart(&chart, &beside);
+    assert!(
+        (beside[0].point.z - 0.1).abs() < 1e-9,
+        "halfway up the tent's flank: {beside:?}"
+    );
+}
+
+/// **Rational on both sides**: the quarter circle of radius one about
+/// `(1, ½, 0)` in the plane `y = ½`, from `(0, ½, 0)` to `(1, ½, 1)`,
+/// crosses the rational quarter cylinder `x² + z² = 1` once, where
+/// `(1 + cos θ)² + sin² θ = 1`: at `(½, ½, √3/2)`.
+#[test]
+fn a_rational_span_crosses_a_rational_quarter_cylinder() {
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let control = [(1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+        .into_iter()
+        .flat_map(|(x, z)| [Point3::new(x, 0.0, z), Point3::new(x, 1.0, z)])
+        .collect();
+    let w = [1.0, FRAC_1_SQRT_2, 1.0];
+    let weights = w.iter().flat_map(|&w| [w, w]).collect();
+    let chart = NurbsSurface::new(ku, kv, control, weights).unwrap();
+    let arc = spline(
+        2,
+        vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
+        &[[0.0, 0.5, 0.0], [0.0, 0.5, 1.0], [1.0, 0.5, 1.0]],
+        Some(&w),
+    );
+    let found = read_whole(&arc, &chart).unwrap();
+    assert_eq!(found.len(), 1, "one meeting: {found:?}");
+    on_chart(&chart, &found);
+    on_span(&arc, &found);
+    assert!(
+        (found[0].point - Point3::new(0.5, 0.5, 0.75f64.sqrt())).norm() < 1e-9,
+        "at (½, ½, √3/2): {found:?}"
+    );
+}
+
+/// **A span whose end is its domain's, on the chart, is the end's
+/// meeting**: the walk cannot read past the carrier's domain, so the end
+/// is accounted for by a box round it on which every solution lies
+/// within the band of the end. An end on the chart's interior, and one
+/// on its domain's edge, the span leaving the chart there (the lily's
+/// tip seams, leaving the other body's wall at its rim).
+#[test]
+fn a_span_ending_on_the_chart_at_its_domains_end_is_the_ends() {
+    let interior = bezier(&[[0.5, 0.5, 0.0], [0.6, 0.5, 0.3], [0.6, 0.5, 0.6]]);
+    let got = read_whole(&interior, &flat());
+    assert!(
+        matches!(got.as_deref(), Ok([])),
+        "an end on the chart's interior: {got:?}"
+    );
+    let edge = bezier(&[[0.0, 0.5, 0.0], [-0.2, 0.5, 0.2], [-0.3, 0.5, 0.5]]);
+    let got = read_whole(&edge, &flat());
+    assert!(
+        matches!(got.as_deref(), Ok([])),
+        "an end on the chart's edge: {got:?}"
+    );
+    // Reversed, the end is the span's start.
+    let back = bezier(&[[-0.3, 0.5, 0.5], [-0.2, 0.5, 0.2], [0.0, 0.5, 0.0]]);
+    let got = read_whole(&back, &flat());
+    assert!(
+        matches!(got.as_deref(), Ok([])),
+        "a start on the chart's edge: {got:?}"
+    );
+}
+
+/// **A crossing past the band of the span's end is the span's**, though
+/// the walk cannot read past it: the end lies `64·escalate` above the
+/// flat patch, so no box round it holds every solution within the band
+/// of it.
+#[test]
+fn a_crossing_past_the_band_of_a_domain_end_is_reported() {
+    let lift = 64.0 * band().escalate();
+    let span = bezier(&[[0.4, 0.5, -0.5], [0.4, 0.5, lift]]);
+    let found = read_whole(&span, &flat()).unwrap();
+    assert_eq!(found.len(), 1, "the crossing short of the end: {found:?}");
+    on_span(&span, &found);
+    assert!(
+        found[0].point.z.abs() <= band().zero(),
+        "on the patch: {found:?}"
+    );
+}
+
+/// A spline span crossing a spline face twice within the band of each
+/// other refuses.
+#[test]
+fn two_nurbs_meetings_within_the_band_of_each_other_refuse() {
+    let dip = 0.25 * band().zero();
+    let got = read_whole(&cup(-dip), &dome());
+    assert!(
+        matches!(got, Err(SplineFaceRefusal::Unsettled(_))),
+        "two meetings within the band of each other: {got:?}"
     );
 }

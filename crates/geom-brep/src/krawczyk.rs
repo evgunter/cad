@@ -99,3 +99,51 @@ pub(crate) fn meet3(a: [Interval; 3], b: [Interval; 3]) -> Option<[Interval; 3]>
     }
     Some(out)
 }
+
+/// **How far a solution in a box can lie from a point of it**, in the
+/// scaled coordinates `diag(scale)·x`: for `e` in `X`, `f` an enclosure
+/// of `F(e)` and `jac` of `J` over `X`, every solution `z` in `X` has
+/// `‖diag(scale)·(z − e)‖∞` at most the bound returned. `F(z) − F(e) =
+/// M·(z − e)` with `M` the mean of `J` along the segment, which lies in
+/// `J(X)` entrywise as `X` is convex; with `Y` the inverse of `J`'s
+/// midpoint and `S = diag(scale)`, `q = ‖I − S·Y·J(X)·S⁻¹‖∞ < 1` bounds
+/// `‖(S·Y·M·S⁻¹)⁻¹‖∞` by `1/(1 − q)`, so `‖S·(z − e)‖∞ ≤
+/// ‖S·Y·F(e)‖∞/(1 − q)`. Existence is not claimed: `e` may lie on `X`'s
+/// side. `None` where `q` does not certify below one.
+pub(crate) fn solution_reach(
+    f: [Interval; 3],
+    jac: &[[Interval; 3]; 3],
+    scale: [f64; 3],
+) -> Option<f64> {
+    let y = inverse3(midpoints(jac))?;
+    let sy: [[Interval; 3]; 3] = core::array::from_fn(|r| {
+        core::array::from_fn(|c| Interval::point(scale[r]) * Interval::point(y[r][c]))
+    });
+    // `|v|`'s upper end, a magnitude read off the bracket's ends.
+    let mag = |v: Interval| v.lo().abs().max(v.hi().abs());
+    let (mut q, mut reach) = (0.0f64, 0.0f64);
+    for (r, syr) in sy.iter().enumerate() {
+        let mut row = Interval::point(0.0);
+        for c in 0..3 {
+            let mut v = Interval::point(if r == c { 1.0 } else { 0.0 });
+            for k in 0..3 {
+                v = v - syr[k] * jac[k][c] / Interval::point(scale[c]);
+            }
+            if !v.is_certified() {
+                return None;
+            }
+            row = row + Interval::point(mag(v));
+        }
+        let syf = (0..3).fold(Interval::point(0.0), |acc, k| acc + syr[k] * f[k]);
+        if !(row.is_certified() && syf.is_certified()) {
+            return None;
+        }
+        q = q.max(row.hi());
+        reach = reach.max(mag(syf));
+    }
+    if q >= 1.0 {
+        return None;
+    }
+    let bound = Interval::point(reach) / (Interval::point(1.0) - Interval::point(q));
+    bound.is_certified().then(|| bound.hi())
+}
