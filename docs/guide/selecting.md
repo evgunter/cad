@@ -241,7 +241,12 @@ assert!(!Selector::of(NamePat::any().path([SegPat::any(), SegPat::any()]))
 
 A selector is a UNION of patterns — which is how a real selection
 reads ("the box edges AND the pip rim") — and a segment's sub-NAME
-arguments are patterns too, positionally, as a prefix.
+arguments are patterns too. A segment's slotted arguments (a
+`Crossing`'s edge, then its face) are matched slot for slot, as a
+prefix. A set is matched as a set: a seam's two sides, `Merged`
+constituents, an `EdgeCrossing`'s lines and a band's chain. Each
+pattern matches a distinct member, in any order, so a seam pattern does
+not depend on which side's name sorts first.
 
 ```
 use pncad::prelude::*;
@@ -266,12 +271,27 @@ let cap_band = NamePat::of_kind(EntityKind::Edge).seg(SegPat::tag(SegTag::Seam).
 ]));
 assert!(Selector::of(cap_band).matches(&seam));
 
-// A PREFIX: constraining only the A side is coarser and still
-// honest.
-let any_cap_seam = NamePat::any().seg(SegPat::tag(SegTag::Seam).of([
+// A seam's sides are a set: the same pattern written band first
+// matches too.
+let band_cap = NamePat::of_kind(EntityKind::Edge).seg(SegPat::tag(SegTag::Seam).of([
+    NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Band)),
+    NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::End)),
+]));
+assert!(Selector::of(band_cap).matches(&seam));
+
+// Constraining one side is coarser and still honest: it matches a
+// seam where either side fits.
+let any_band_seam = NamePat::any().seg(SegPat::tag(SegTag::Seam).of([
+    NamePat::any().seg(SegPat::tag(SegTag::Band)),
+]));
+assert!(Selector::of(any_band_seam).matches(&seam));
+
+// Each pattern takes a side of its own: two caps fit no seam with one.
+let two_caps = NamePat::any().seg(SegPat::tag(SegTag::Seam).of([
+    NamePat::any().seg(SegPat::tag(SegTag::Cap)),
     NamePat::any().seg(SegPat::tag(SegTag::Cap)),
 ]));
-assert!(Selector::of(any_cap_seam).matches(&seam));
+assert!(!Selector::of(two_caps).matches(&seam));
 
 // `Selector::any_of` / `.or` — the union. An EMPTY selector
 // matches nothing.

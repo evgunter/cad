@@ -513,8 +513,11 @@ impl SegPat {
         Self(self.0.clone().side(side.to_kernel()))
     }
 
-    /// Constrains the segment's sub-name arguments, positionally, as
-    /// a PREFIX: `[p]` constrains the first argument only.
+    /// Constrains the segment's sub-name arguments: the slotted ones
+    /// as a PREFIX (`[p]` on a `Crossing` constrains its edge only),
+    /// then each pattern past them a DISTINCT member of the segment's
+    /// set, in any order (a seam's sides, `Merged` constituents, an
+    /// `EdgeCrossing`'s lines, a band's chain).
     fn of(&self, args: Vec<NamePat>) -> Self {
         Self(self.0.clone().of(args.into_iter().map(|p| p.0)))
     }
