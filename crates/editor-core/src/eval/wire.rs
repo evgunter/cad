@@ -2937,7 +2937,10 @@ fn subtract_from<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         Some(body) => body,
         None => from.finished(tol)?,
     };
-    let body_b = &b.finished_in(&from.body, body_b, tol)?;
+    let anchor = super::framed::recentred(&from.body, &[&from.body, &b.body])
+        .unwrap_or_else(|| from.body.clone());
+    let body_a = from.finished_in(&anchor, &body_a, tol)?;
+    let body_b = &b.finished_in(&anchor, body_b, tol)?;
     let inputs = BooleanInputs {
         given: None,
         records_a: from.records.carried(),
@@ -2982,7 +2985,7 @@ fn subtract_from<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             let body = out.body.into_body();
             OpOut::plain(
                 ValuePayload::Boolean(BooleanValue::Body {
-                    body: super::Framed::in_frame(Arc::new(body), from.body.frame().clone()),
+                    body: super::Framed::in_frame(Arc::new(body), anchor.frame().clone()),
                     kind,
                     contacts: Arc::new(contacts),
                 }),
@@ -3405,10 +3408,15 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let members = match members {
         [] => return empty(),
         [one] => return lone_member(id, one),
-        [first, ..] => members
-            .iter()
-            .map(|m| m.in_frame_of(&first.framed, tol))
-            .collect::<Result<Vec<_>, NodeErrorKind>>()?,
+        [first, ..] => {
+            let all: Vec<&super::Framed<T>> = members.iter().map(|m| &m.framed).collect();
+            let anchor = super::framed::recentred(&first.framed, &all)
+                .unwrap_or_else(|| first.framed.clone());
+            members
+                .iter()
+                .map(|m| m.in_frame_of(&anchor, tol))
+                .collect::<Result<Vec<_>, NodeErrorKind>>()?
+        }
     };
     let members = members.as_slice();
     let (first, rest) = match members {

@@ -163,6 +163,24 @@ impl<T: Decide> Framed<T> {
         self.frame.map().map_or(v, |map| map.transform_vec(v))
     }
 
+    /// **A heading stated in its space, in the body's coordinates**: what
+    /// a reader measuring the body along a direction of the space (a
+    /// duplicate's step) measures it along, computing in the body's
+    /// frame.
+    ///
+    /// # Errors
+    ///
+    /// The inverse's overflow.
+    pub fn heading_in_own(
+        &self,
+        v: geom_core::Vec3<T>,
+    ) -> Result<geom_core::Vec3<T>, RigidMotionError> {
+        Ok(match self.frame.map() {
+            None => v,
+            Some(map) => map.inverse()?.transform_vec(v),
+        })
+    }
+
     /// **The same body, its frame moved by `motion`**: a placement's
     /// copy, sharing its source's `Arc`.
     ///
@@ -213,4 +231,67 @@ impl<T: Decide + topo::AtRestPolicy> Framed<T> {
             }
         }
     }
+}
+
+/// MEASUREMENT ONLY (E's value-informed re-centring): the anchor frame
+/// an operation over `all` would compute in, re-centred on the operands'
+/// bounds in `first`'s frame snapped to a power-of-two grid at their
+/// scale; `None` where the snapped centre is the origin or the run did
+/// not ask (`E_RECENTRE`).
+pub(crate) fn recentred<T: Decide + geom_core::Bounds>(
+    first: &Framed<T>,
+    all: &[&Framed<T>],
+) -> Option<Framed<T>> {
+    std::env::var("E_RECENTRE").ok()?;
+    let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
+    for body in all {
+        let map = first.relative(body).ok()?;
+        for (_, p) in body.body().points() {
+            let p = map.map_or(*p, |m| m.transform_point(*p));
+            for (k, c) in [p.x, p.y, p.z].into_iter().enumerate() {
+                lo[k] = lo[k].min(c.lo());
+                hi[k] = hi[k].max(c.hi());
+            }
+        }
+    }
+    let extent = (0..3).map(|k| hi[k] - lo[k]).fold(0.0_f64, f64::max);
+    if !extent.is_finite() || extent <= 0.0 {
+        return None;
+    }
+    let grid = 2.0_f64.powi(extent.log2().ceil() as i32);
+    let c: [f64; 3] = std::array::from_fn(|k| ((lo[k] + hi[k]) / 2.0 / grid).round() * grid);
+    if c == [0.0; 3] {
+        return None;
+    }
+    RECENTRED.with(|n| n.set(n.get() + 1));
+    if let Ok(path) = std::env::var("E_RECENTRE_LOG") {
+        use std::io::Write as _;
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+            let _ = writeln!(f, "centre {c:?} extent {extent:e} grid {grid:e}");
+        }
+    }
+    let shift = geom_core::RigidMotion::translation(geom_core::Vec3::new(
+        T::from_f64(c[0]),
+        T::from_f64(c[1]),
+        T::from_f64(c[2]),
+    ))
+    .ok()?;
+    let frame = match first.frame.map() {
+        None => Frame::Map(Arc::new(shift)),
+        Some(m) => Frame::Map(Arc::new(m.compose(shift).ok()?)),
+    };
+    Some(Framed {
+        body: Arc::clone(&first.body),
+        frame,
+    })
+}
+
+thread_local! {
+    /// MEASUREMENT ONLY: how many operations re-centred.
+    pub(crate) static RECENTRED: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// MEASUREMENT ONLY.
+pub fn recentred_on_this_thread() -> u64 {
+    RECENTRED.with(std::cell::Cell::get)
 }
