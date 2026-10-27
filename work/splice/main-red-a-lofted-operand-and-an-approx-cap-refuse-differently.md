@@ -32,11 +32,12 @@ red at the default ε and at 1e-12.
   the boolean roster by decision, so a built body is either a new door
   or a wrong answer.
 
-**Culprit range.** These rows pass at `7eb29ffbe0` (main's merge of PR
-5778) and fail at `ab2b6108e8` (PR 5803). The merges in between that
-touch `crates/` are 5636, 5545, 5782, 5789, 5704 and 5803. Not PR 5723
-(the operand-gate removal): both its merge `d6eea3efa5` and that merge's
-first parent pass.
+**Culprit: PR 5789** (`splice/converse-arm`, merge `a006eb49ba`), by a
+first-parent bisect on both rows at the default ε. `a006eb49ba` fails
+both rows, and its first parent `92f1fd60ea` passes both. Other points
+measured: `7eb29ffbe0` green, `ab2b6108e8` red. Not PR 5723, the
+operand-gate removal: its merge `d6eea3efa5` and that merge's first
+parent both pass.
 
 **Done when** both rows are green on main. The Approx cap must refuse at
 its kind's door again, or the row must be re-pinned with a reason the
