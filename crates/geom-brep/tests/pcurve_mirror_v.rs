@@ -440,6 +440,7 @@ fn chart_edge(
         |_| Some(plane(n)),
         1.0,
         band,
+        geom_brep::NurbsLane::certified(),
     )
 }
 
@@ -511,7 +512,14 @@ fn mirrored_chart_images_recertify_on_the_reverted_plane_with_the_same_certifica
             .unwrap_or_else(|e| panic!("{name}: forward certification refused {e:?}"));
         let (start, end) = (carrier.eval(t0), carrier.eval(t1));
         let rev = plane(-Vec3::unit_z());
-        let stale = fwd.recertify(start, end, |_| Some(rev.clone()), 1.0, band);
+        let stale = fwd.recertify(
+            start,
+            end,
+            |_| Some(rev.clone()),
+            1.0,
+            band,
+            geom_brep::NurbsLane::certified(),
+        );
         assert!(
             matches!(
                 stale,
@@ -527,7 +535,14 @@ fn mirrored_chart_images_recertify_on_the_reverted_plane_with_the_same_certifica
             .with_chart_v_mirrored()
             .unwrap_or_else(|| panic!("{name}: a plane-chart image reflects"));
         let fresh = mirrored
-            .recertify(start, end, |_| Some(rev.clone()), 1.0, band)
+            .recertify(
+                start,
+                end,
+                |_| Some(rev.clone()),
+                1.0,
+                band,
+                geom_brep::NurbsLane::certified(),
+            )
             .unwrap_or_else(|e| panic!("{name}: mirrored refused on the reverted plane {e:?}"));
         assert_eq!(
             format!("{fresh:?}"),
@@ -578,6 +593,7 @@ fn a_description_without_a_chart_image_is_invariant_under_the_door() {
         |k| arena.get(k).cloned(),
         1.0,
         band,
+        geom_brep::NurbsLane::certified(),
     )
     .expect("the line is the two planes' intersection");
     assert_eq!(

@@ -371,14 +371,14 @@ pub fn graft_recertify_failures(body: &Body<f64>) -> Vec<(EdgeKey, CertifyError)
             }
             let start_v = body.get_half_edge(e.he_plus)?.start;
             let end_v = body.half_edge_end(e.he_plus)?;
-            EdgeCurve::certify_via(
+            EdgeCurve::certify(
                 curve.restated_spec(),
                 vertex_point(body, start_v).expect("a live vertex"),
                 vertex_point(body, end_v).expect("a live vertex"),
                 |sk| body.get_surface(sk).cloned(),
                 1.0,
                 band,
-                <f64 as topo::AtRestPolicy>::nurbs_lane(),
+                geom_brep::NurbsLane::certified(),
             )
             .err()
             .map(|err| (ek, err))

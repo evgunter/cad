@@ -1483,6 +1483,7 @@ fn each_conversion_reads_its_stated_floors() {
         &cone,
         d,
         b,
+        false,
     )
     .expect("a positive lever");
     let lever = alpha.cos() + 0.5 * alpha.sin();
@@ -1497,6 +1498,7 @@ fn each_conversion_reads_its_stated_floors() {
         &cone,
         d,
         b,
+        false,
     );
     assert!(
         matches!(
@@ -1550,8 +1552,16 @@ fn each_conversion_reads_its_stated_floors() {
             Surface::Sphere { .. } => ProjectedChart::Sphere,
             _ => ProjectedChart::Cylinder,
         };
-        let (inc, floor) = net_incidence(&hull(rho, (0.0, 0.0)), (0.0, 1.0), &chart, &surf, d, b)
-            .unwrap_or_else(|e| panic!("{surf:?}: {e:?}"));
+        let (inc, floor) = net_incidence(
+            &hull(rho, (0.0, 0.0)),
+            (0.0, 1.0),
+            &chart,
+            &surf,
+            d,
+            b,
+            false,
+        )
+        .unwrap_or_else(|e| panic!("{surf:?}: {e:?}"));
         assert!(close(inc, want), "{surf:?}: {inc:e} against {want:e}");
         assert!(close(floor, rho - d), "{surf:?}: floor {floor}");
     }
@@ -1564,6 +1574,7 @@ fn each_conversion_reads_its_stated_floors() {
         &cone,
         d,
         b,
+        false,
     );
     assert!(
         matches!(got, Err(PcurveCertifyError::ImageMismatch { .. })),
@@ -1940,7 +1951,7 @@ fn an_uncertified_part_refuses_only_inside_the_edges_interval() {
     let hull = lane.projected_hull(&image, net, &twin, &[]).unwrap();
     let edge = (0.0, 0.5);
     let read = |hull: &super::super::projected::ProjectedHull| {
-        super::super::projected::net_incidence(hull, edge, &image.chart, &twin, 0.0, b)
+        super::super::projected::net_incidence(hull, edge, &image.chart, &twin, 0.0, b, false)
     };
     let (clean, _) = read(&hull).expect("the clean hull");
     assert!(clean <= b.zero(), "{clean:e}");

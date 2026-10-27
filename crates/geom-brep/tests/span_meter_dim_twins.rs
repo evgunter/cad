@@ -116,14 +116,14 @@ fn span_meter_sample(
         param_end: Probe(domain),
     };
     k_stats::start_recording();
-    let got = EdgeCurve::certify_via(
+    let got = EdgeCurve::certify(
         spec,
         start,
         end,
         |k| arena.get(k).cloned(),
         Probe(1.0),
         band(),
-        Some(NurbsLane::certified()),
+        NurbsLane::certified(),
     );
     let samples = k_stats::take_samples();
     let mut hits: Vec<(SampleOutcome, f64)> = samples

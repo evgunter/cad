@@ -124,3 +124,9 @@ week earlier and was closed into this one. What it added:
   it is behind, naming both SHAs (fail-loud).
 - Whichever lands, `work/README.md`'s territory bullet and its script
   usage block move together, and `--selftest` gains a row.
+
+## The documentation half (2026-10-27)
+
+`work/README.md` now spells `territory --base origin/main` after a
+fetch, and says why a bare `main` is wrong. The guard in `work.py`
+(reading 2 above) is still open, and is what this row now carries.

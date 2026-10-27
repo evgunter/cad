@@ -115,8 +115,16 @@ fn seam_delta(
         param_start: t0,
         param_end: t1,
     };
-    let certified = EdgeCurve::certify(spec.clone(), p0, p1, &lookup, 1.0, band())
-        .expect("this seam class certified on main and must still certify");
+    let certified = EdgeCurve::certify(
+        spec.clone(),
+        p0,
+        p1,
+        &lookup,
+        1.0,
+        band(),
+        geom_brep::NurbsLane::certified(),
+    )
+    .expect("this seam class certified on main and must still certify");
     let cert = *certified.certificate();
     let legacy = legacy_seam_max(&spec, &surface, anchor, axis, u_ref, p0, p1);
     (ulps(cert.max_residual, legacy), legacy, cert.max_residual)
