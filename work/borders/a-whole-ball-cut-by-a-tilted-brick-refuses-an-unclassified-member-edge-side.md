@@ -141,3 +141,7 @@ The question goes to a designer pair only if that row lands with the
 re-chart kept. Until then intersect and union refuse, and
 `emit_ball_cut_by_brick.rs` pins the subtract's turned pole, so the
 test flips when the re-chart goes.
+
+## Option 2 is being built (WIRE orchestrator, 2026-10-27)
+
+PR 5829 builds option 2. A re-charted ball's turned seam edges and poles refuse typed as `NamingError::UnsupportedTurnedCell`: row 2, `NOT_YET_ENDING`, with ORBIT's retire-the-re-chart row as the way through. `emit_ball_cut_by_brick` now pins that refusal in all six cases. The subtract no longer publishes the turned pole. The sentence above, that the test "pins the subtract's turned pole", is superseded once 5829 lands.
