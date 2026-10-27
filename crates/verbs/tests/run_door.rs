@@ -21,7 +21,7 @@ use topo::{
     AtRestBody, Body, BooleanInputs, BooleanOp, BooleanResult, SplitPart, SweepStrategy,
     boolean_op_with, split,
 };
-use verbs::{Blend, Boolean, PairOut, Shell, Split, Sweep, VerbError, VerbRecord};
+use verbs::{Blend, Boolean, Members, PairOut, Shell, Split, Sweep, VerbError, VerbRecord};
 
 use crate::fixture::{disc, offset_disc, pinch_plane, pinch_prism, tol, x_axis, z_plane};
 use sweep::test_support::finished;
@@ -279,6 +279,88 @@ fn a_boolean_refusal_crosses_the_dispatch_unaltered() {
     };
     assert_eq!(format!("{door:?}"), format!("{carried:?}"));
     assert_eq!(door.to_string(), carried.to_string());
+}
+
+/// Three members with ranks `ranks`, run through the n-ary dispatch and
+/// through the kernel's door: (door, dispatch).
+fn members_both_ways(
+    bodies: [&AtRestBody<f64>; 3],
+    ranks: [u32; 3],
+) -> (topo::NaryRun<f64>, topo::NaryRun<f64>) {
+    let inputs: Vec<topo::MemberInputs> = ranks
+        .iter()
+        .map(|&rank| topo::MemberInputs {
+            rank,
+            ..topo::MemberInputs::default()
+        })
+        .collect();
+    let members: Vec<topo::NaryMember<'_, f64>> = bodies
+        .iter()
+        .zip(&inputs)
+        .map(|(&body, inputs)| topo::NaryMember { body, inputs })
+        .collect();
+    let door = topo::nary_boolean(
+        topo::NaryOp::Union,
+        &members,
+        SweepStrategy::Realized,
+        tol(),
+    );
+    let via = Members {
+        op: topo::NaryOp::Union,
+        members: inputs.clone(),
+    }
+    .run_members(&bodies, SweepStrategy::Realized, tol());
+    (door, via)
+}
+
+/// **The n-ary dispatch is the n-ary door, members, ranks and all**:
+/// three overlapping cubes ranked against their list order (2, 0, 1)
+/// run both ways to the same run, judgement for judgement and step for
+/// step, and the dispatch judges each pair with its lesser rank as
+/// operand A, so a dispatch that dropped or reordered the members'
+/// inputs differs.
+#[test]
+fn the_members_dispatch_is_the_nary_door() {
+    let [a, b, c] = [0.0, 0.5, 1.0].map(|x| shifted_cube(Vec3::new(x, 0.0, 0.0)));
+    let (door, via) = members_both_ways([&a, &b, &c], [2, 0, 1]);
+    assert!(
+        matches!(via.end, topo::NaryEnd::Built),
+        "the fixture's union builds: {:?}",
+        via.end
+    );
+    assert_eq!(
+        via.judgements
+            .iter()
+            .map(|j| (j.a, j.b))
+            .collect::<Vec<_>>(),
+        [(1, 0), (2, 0), (1, 2)],
+        "each pair is judged with its lesser rank as operand A"
+    );
+    assert_eq!(
+        format!("{door:?}"),
+        format!("{via:?}"),
+        "the dispatch's run is the door's"
+    );
+}
+
+/// **An n-ary refusal crosses unaltered**, naming where it was raised:
+/// two cubes 2ε apart, in the ambiguity band, beside a third far off.
+#[test]
+fn a_members_refusal_crosses_the_dispatch_unaltered() {
+    let a = unit_cube();
+    let b = shifted_cube(Vec3::new(1.0 + 2.0 * tol().eps(), 0.0, 0.0));
+    let far = shifted_cube(Vec3::new(10.0, 0.0, 0.0));
+    let (door, via) = members_both_ways([&a, &b, &far], [0, 1, 2]);
+    let topo::NaryEnd::Refused(carried) = &via.end else {
+        panic!("an n-ary refusal crossed as something else: {:?}", via.end);
+    };
+    assert!(
+        matches!(carried, topo::NaryRefusal::Judgement { a: 0, b: 1, .. })
+            && via.judgements.is_empty()
+            && via.steps.is_empty(),
+        "the pair's judgement refused, first: {carried:?}"
+    );
+    assert_eq!(format!("{door:?}"), format!("{via:?}"));
 }
 
 /// The two sides' dumps, in order, with an empty side as its own
