@@ -7165,3 +7165,4 @@ Signed (WIRE orchestrator).
   - A FULL review (`wire-splitchords-rev`) is dispatched.
 
 - 2026-10-26 — seam from ATREST (stage 5 C, `the-at-rest-census-is-a-check`, branch `atrest/the-at-rest-census-is-a-check`): `product.rs`: `AssembleGather::gather` holds a `ProductRefusal`; doc lines naming the gate and `Separation` restated; `eval/*` paths re-spelled.
+- 2026-10-27 (WIRE orchestrator) PR 5857 FULL review: MERGEABLE. A 217-test dump shows identical tables apart from the witness, and the witness is red on base. Merged; the split-chords row is closed. The sibling seam-groups row gained the review's measurement (the pair arm misnames today) and the key-reconciliation notes.

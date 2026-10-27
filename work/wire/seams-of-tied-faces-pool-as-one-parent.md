@@ -40,3 +40,11 @@ parent indices), as the split's chord, seam and fragment groups are
 keyed by `Parents`, with a witness: a seam of each candidate of
 `fixture::u_cutter_tie`'s tied cap against one untied face.
 
+
+## Measured (PR 5857's review, 2026-10-27)
+
+The pair-boolean arm misnames today. Probe: `u_cutter_tie` minus a block x∈[3,3.5], y∈[0.5,3.5], z∈[-0.25,1.25]. Each of C's two walls gets two `Unique` `Seam{tied Cap(Start) floor, C's wall}` + `Fragment(Ends)` rows, one per candidate. Keyed per candidate, each would be a bare `Seam` tied 2 (N4).
+
+The union arm was checked by inspection only; it is likely reachable.
+
+When this row is built, reconcile the keys: the pair corner pass keys by `(name, Upstream::candidate)` (emit_topo ~2935), and the split now keys by operand-entity sets (`type Parents`). Pick one spelling for "per candidate" and use it at all three sites. Rename the split's `Parents`, which clashes with `emit_union`'s `struct Parents`. Add tie witnesses for the `Seam` and `SetPiece` arms the split re-keyed.
