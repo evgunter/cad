@@ -138,3 +138,12 @@
   - R2 `session_01PUfKiWnxhEAiHSGYwjfxCC`.
 
   Lane isolation is on `review/atrest-s5c-*`. The implementer lane holds pushes until the adjudication.
+- 2026-10-27 02:13Z (orchestrator): **#5773 merged** at `6f9f74d8`, head `5f42dc1d`, CI green.
+  - Main was merged in a third time (SPLICE #5802; a slow-set name renamed on main, resolved as main's list plus the 24-axis row). The row was re-committed last.
+  - Before merging I built and tested the merged tree: workspace check, clippy, the ci profile 14485/14485, and the census goldens plus gap rows at three ε.
+  - Main builds after the merge. The link lane is archived.
+- 2026-10-27 02:15Z (orchestrator): dispatched the two P1 rows #5773 unblocked:
+  - `a-touch-the-analysis-decides-crossing-is-read-as-undecidable` → `session_018u3gVG9anzuXioY2jhVxXJ`, branch `atrest/a-crossing-touch-is-interference`;
+  - `gap-reads-no-curved-cell-below-a-face` (the sphere and cylinder arm) → `session_018u3gVKihT5A6xc3PGs8S9q`, branch `atrest/gap-reads-a-cell-against-a-curved-face`.
+
+  `an-instance-carries-its-parts-coincidences` waits for #5810 to merge, since it reshapes the same checks code. `curved-copies-filling-one-volume-read-as-undecidable` (H) waits for the crossing row, which shares its census path.
