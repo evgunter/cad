@@ -85,7 +85,7 @@ use geom_core::{Band, Bounds, Decide, Margin, Sign};
 use super::bracket::{AbsEnclosure, lo_or_refuse, pt};
 use super::closure::{IntervalJunction, interval_loop_turns};
 use super::quad::{
-    Accept, FaceCutBounds, LaneRun, QUAD_INIT_PIECES, RVec3, RoundWindow, Run, classify_len,
+    Accept, FaceCutBounds, LaneRun, EDGE_INIT_PIECES, RVec3, RoundWindow, Run, classify_len,
     rotate, spread_cos, spread_sin, trig_at,
 };
 use super::taylor::{Jet, composite_by, node};
@@ -812,7 +812,7 @@ pub(super) const fn w_rational(degree: usize) -> usize {
 
 /// **The certified flux and area of a spiric-bounded face** over a
 /// [`RoundWindow`] — [`super::quad`]'s schedule and stop (pieces
-/// doubling from `QUAD_INIT_PIECES`, the caller's [`Accept`], the
+/// doubling from `EDGE_INIT_PIECES`, the caller's [`Accept`], the
 /// lane's floor and work wall, the face-extent gate on the accepted
 /// round).
 ///
@@ -852,10 +852,10 @@ pub fn rim_face_rounds<T: Decide>(
         .map(|e| w_rational(e.degree()) * e.span_count())
         .sum();
     let cost =
-        |round: usize| (W_SPIRIC * face.spirics.len() + rational) * (QUAD_INIT_PIECES << round);
+        |round: usize| (W_SPIRIC * face.spirics.len() + rational) * (EDGE_INIT_PIECES << round);
     let mut run = Run::enter(window, &cost);
     let mut round = run.first();
-    let mut pieces = QUAD_INIT_PIECES << round;
+    let mut pieces = EDGE_INIT_PIECES << round;
     loop {
         let (bounds, loops, removable) = face_bounds(face, pieces)?;
         let stop = run.stop(round, bounds, removable);
