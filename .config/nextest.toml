@@ -25,6 +25,20 @@ fail-fast = false
 # turns into annotations and a step summary: a session reads the job log only
 # through its last 5000 lines, and one run prints ~14 000 PASS lines.
 failure-output = "immediate-final"
+# Limb 2 for every carrier (PR 5728) puts nine rows over the fast-set bar
+# that are under it on main: their time is limb 2's per-edge composite
+# (work/offset/closed-form-limb-2-costs-milliseconds-per-curved-edge.md,
+# which holds the cuts still open). CI default ε on the branch, against
+# under 1 s on main:
+#   17.70 s  geom-brep::all review_r1_turn_probes::r1_certify_turn_is_sound_against_the_true_defect_length
+#    8.80 s  topo boolean::boxes::sphere_rect_rows::a_zone_reach_charge_covers_random_poses_near_a_box_row
+#    2.40 s  topo boolean::join::frame_dispatch_tests::the_agreement_gate_never_serves_on_the_span_alone
+#    2.10 s  editor-core::all m10_4_stackup_interval::a_foreign_verdict_or_box_refuses_typed
+#    1.70 s  sweep::all copied_carriers_at_interval::random_copied_carriers_extrude_at_interval_without_contradiction
+#    1.50 s  sweep::all split_through_a_ruling::a_frustum_split_through_a_ruling_answers
+#    1.30 s  step-import::all wild::wild_bodies_are_a_fixed_point_of_our_own_dialect
+#    1.20 s  topo chord_join::torus_ring_rows::a_ring_on_a_torus_face_is_re_homed_by_a_path
+#    1.04 s  sweep::all split_tangent_edge_curved::a_concave_graze_of_a_revolved_hole_refuses
 # The filter's own entries are its count; the last measured total, under
 # 817 s of test time on 4 vCPU, was taken when it held 145.
 default-filter = """
@@ -136,6 +150,11 @@ not (
   (binary_id(geom-brep::all) & (test(=review_r1_rational_probes::a_conic_torus_costlier_per_round_stops_at_the_wall_holding_its_closed_form))) |
   (binary_id(mesh::all) & (test(=lofted_circle::a_loft_of_two_circles_tessellates))) |
   (binary_id(geom-brep) & (test(=props::quad::trimmed::tests::q6_a_chart_past_the_newton_cotes_window_refuses_typed) | test(=props::quad::trimmed::tests::q14_the_composite_arm_holds_a_closed_form_at_every_round) | test(=props::quad::trimmed::tests::q15_a_composite_face_short_of_its_caller_stops_at_the_wall) | test(=props::quad::trimmed::tests::q16_the_composite_arm_holds_an_independent_reference_across_knots) | test(=props::quad::trimmed::tests::q17_the_closure_gap_is_paid_over_the_column_below_the_trim))) |
+  (binary_id(geom-brep::all) & (test(=review_r1_turn_probes::r1_certify_turn_is_sound_against_the_true_defect_length))) |
+  (binary_id(topo) & (test(=boolean::boxes::sphere_rect_rows::a_zone_reach_charge_covers_random_poses_near_a_box_row) | test(=boolean::join::frame_dispatch_tests::the_agreement_gate_never_serves_on_the_span_alone) | test(=chord_join::torus_ring_rows::a_ring_on_a_torus_face_is_re_homed_by_a_path))) |
+  (binary_id(editor-core::all) & (test(=m10_4_stackup_interval::a_foreign_verdict_or_box_refuses_typed))) |
+  (binary_id(sweep::all) & (test(=copied_carriers_at_interval::random_copied_carriers_extrude_at_interval_without_contradiction) | test(=split_through_a_ruling::a_frustum_split_through_a_ruling_answers) | test(=split_tangent_edge_curved::a_concave_graze_of_a_revolved_hole_refuses))) |
+  (binary_id(step-import::all) & (test(=wild::wild_bodies_are_a_fixed_point_of_our_own_dialect))) |
   (binary_id(sweep::all) & (test(=m6_loft_body::shape_iii_volume_matches_the_derived_closed_form) | test(=r1_area_gauge_probes::r1_e2e_gauge_is_silent_on_an_honest_body_through_the_public_door)))
 )
 """
