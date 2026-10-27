@@ -1,0 +1,5 @@
+fork: who-placed-it (work/pcert/who-placed-it-is-read-off-the-description-not-the-door.md)
+drawn: 2026-10-27T07:25Z, od -An -N1 -tu1 /dev/urandom
+byte: 48 (even)
+mapping: Opus = A, Fable = B
+protocol: 26db1af89e
