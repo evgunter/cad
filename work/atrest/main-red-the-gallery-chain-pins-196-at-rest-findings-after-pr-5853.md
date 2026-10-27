@@ -1,7 +1,7 @@
 ---
 id: main-red-the-gallery-chain-pins-196-at-rest-findings-after-pr-5853
 kind: issue
-title: Main red (suspected from PR 5853): the gallery's chain document reads 10 at-rest findings, overlaps among them, where gallery.rs pins 196 could-not-look; PR 5853's CI skipped the demos job
+title: Main red (on main alone; suspected from PR 5853): the gallery's chain document reads 10 at-rest findings, overlaps among them, where gallery.rs pins 196 could-not-look; PR 5853's CI skipped the demos job
 status: open
 opened: 2026-10-27
 priority: P0
@@ -44,3 +44,16 @@ run saw the pin against it. Main's push CI does not run demos either.
 Run the test at `3bb4dc553` and at its first parent. If it reds only at
 the merge, decide whether the chain's pins now overlap their bar ends
 (re-pin the count and the document's words) or the reading over-reports.
+
+## Reproduced on main alone (2026-10-27)
+
+Run locally (`cd demos/tour && cargo nextest run -E
+'test(=gallery::tests::each_gallery_document_denotes_its_scene_or_says_why_not)'`):
+
+- `origin/main` at `b97c01957`: **fails**, `left: 10`, `right: 196`.
+- PR 5868's head `abf40f1d1` (main as of before PR 5853, no later
+  merge): **passes**.
+
+So the red is main's, with no PR in between. PR 5853 is the suspect by
+subject and by its skipped demos job; a run at `3bb4dc553` and its first
+parent would pin it.
