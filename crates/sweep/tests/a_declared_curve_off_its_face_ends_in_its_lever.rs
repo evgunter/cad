@@ -25,6 +25,7 @@ use geom_core::{Affine3, Bounds, Decide, Interval, Point2, Real, Tol, Vec2, Vec3
 use profile::test_support::bulge_loop;
 use profile::{Profile, SketchPlane};
 use sweep::{Revolution, RevolveAxis};
+use topo::construction::Construct;
 use topo::{AtRestPolicy, Body, CurveGeom, EdgeKey, EulerOpError};
 
 /// The unit quarter disc revolved a full turn about `y`.

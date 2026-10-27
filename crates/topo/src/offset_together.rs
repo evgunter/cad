@@ -759,7 +759,7 @@ pub(crate) fn unplaced_in_scope(vertex: VertexKey) -> ! {
 /// - **The clone** each door writes to.
 /// - **One tiers-1-and-2 walk over that clone**, when the door's
 ///   surgery scope ([`crate::surgery`]) closes
-///   ([`Surgery::close_gated`](crate::Surgery::close_gated)). Inside
+///   ([`Surgery::close_gated`](crate::construction::Surgery::close_gated)). Inside
 ///   the scope `set_face_surface` and `set_edge_curve` check their own
 ///   arena deltas and nothing else; the close derives tier 1 once, a
 ///   tier-1 finding panics naming the door

@@ -227,7 +227,7 @@ impl<T: Decide> Body<T> {
     /// The first failing precondition above, a tangent child the
     /// must-carry rule leaves in band or reads at a corner among them;
     /// the body is untouched on `Err`.
-    pub fn split_edge(
+    pub(crate) fn split_edge(
         &mut self,
         edge: EdgeKey,
         t: T,

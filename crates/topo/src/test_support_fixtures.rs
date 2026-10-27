@@ -69,9 +69,10 @@
 #![allow(dead_code)] // key bundles expose every minted key; a consumer picks what it needs
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
-use crate::{
-    Body, FaceKey, FaceSurface, HalfEdgeKey, KemrResult, KfmrhResult, LoopBoundary, MefCreated,
-    MefSite, MevCreated, MevSite, MvfsCreated,
+use crate::{Body, FaceKey, HalfEdgeKey, LoopBoundary};
+
+use crate::construction::{
+    FaceSurface, KemrResult, KfmrhResult, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated,
 };
 use geom::{Curve3, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair, newell_plane};
@@ -1750,7 +1751,7 @@ pub fn kill_under_a_null_strut(
     let null = body
         .mev_null(
             MevSite::Fan { he1: he, he2: he },
-            crate::NewVertexSide::Above,
+            crate::construction::NewVertexSide::Above,
         )
         .unwrap();
     let toward_tip = if body.get_half_edge(strut.he_plus).unwrap().start == m {

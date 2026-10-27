@@ -3532,7 +3532,7 @@ mod tests {
         describe_shared_key(&mut body);
         let ring = body.get_face(top).expect("live").rings[0];
         body.mekr_chord(
-            crate::MekrSite::Cycles {
+            crate::construction::MekrSite::Cycles {
                 target: outer_he_at(&body, top, [0.0, 0.0, 1.0]),
                 ring: loop_he_at(&body, ring, [0.25, 0.25, 1.0]),
             },
@@ -3541,7 +3541,7 @@ mod tests {
         .expect("the bridge joins the ring to the outline");
         let half = body
             .mef_chord(
-                crate::MefSite::Chords {
+                crate::construction::MefSite::Chords {
                     he1: outer_he_at(&body, top, [1.0, 1.0, 1.0]),
                     he2: outer_he_at(&body, top, [0.75, 0.75, 1.0]),
                 },

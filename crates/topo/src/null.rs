@@ -252,7 +252,7 @@ impl<T: geom_core::Decide> Body<T> {
     ///
     /// The first failing precondition above; the body is untouched on
     /// `Err`.
-    pub fn mev_null(
+    pub(crate) fn mev_null(
         &mut self,
         site: MevSite,
         new_side: NewVertexSide,
@@ -398,7 +398,7 @@ impl<T: Real> Body<T> {
     /// one loop; [`EulerOpError::NullPairForeignLoop`] naming the first
     /// role loop, in declaration order, that is not the face's own. The
     /// body is untouched on `Err`.
-    pub fn set_null_face_pair(
+    pub(crate) fn set_null_face_pair(
         &mut self,
         face: FaceKey,
         pair: NullFacePair,
@@ -424,7 +424,7 @@ impl<T: Real> Body<T> {
     /// Removes `face`'s null-face mark, returning it (or `None` if the
     /// face was not marked — total, like the accessor: clearing is the
     /// consuming pipeline's bookkeeping, not a checked surgery).
-    pub fn clear_null_face_pair(&mut self, face: FaceKey) -> Option<NullFacePair> {
+    pub(crate) fn clear_null_face_pair(&mut self, face: FaceKey) -> Option<NullFacePair> {
         self.null_faces.remove(face)
     }
 }
@@ -918,7 +918,7 @@ mod tests {
             .unwrap()
             .emanating
             .unwrap();
-        let strut = crate::MevSite::Fan { he1: he, he2: he };
+        let strut = crate::construction::MevSite::Fan { he1: he, he2: he };
         let created = body.mev_null(strut, NewVertexSide::Above).unwrap();
         let old_point = body.get_vertex(cube.seed.vertex).unwrap().point;
         assert_eq!(created.point, old_point, "the copy shares the point");
@@ -971,7 +971,7 @@ mod tests {
             .unwrap();
         let created = body
             .mev_null(
-                crate::MevSite::Fan { he1: he, he2: he },
+                crate::construction::MevSite::Fan { he1: he, he2: he },
                 NewVertexSide::Below,
             )
             .unwrap();
@@ -993,7 +993,7 @@ mod tests {
         let before = deep_snapshot(&body);
         let err = body
             .mev_null(
-                crate::MevSite::Fan {
+                crate::construction::MevSite::Fan {
                     he1: crate::HalfEdgeKey::default(),
                     he2: crate::HalfEdgeKey::default(),
                 },
@@ -1264,7 +1264,7 @@ mod tests {
             },
         )
         .unwrap();
-        let site = crate::MekrSite::Cycles {
+        let site = crate::construction::MekrSite::Cycles {
             target: first_of(&body, outer),
             ring: first_of(&body, ring),
         };
@@ -1339,7 +1339,7 @@ mod tests {
         let mut marked = base;
         marked.set_null_face_pair(face, pair).unwrap();
         let mut body = marked.clone();
-        let site = crate::MekrSite::EmptyRing {
+        let site = crate::construction::MekrSite::EmptyRing {
             target: first_of(&body, outer),
             ring: tip,
         };
@@ -1470,7 +1470,7 @@ mod tests {
         let p = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
         let null = body
             .mev_null(
-                crate::MevSite::Fan {
+                crate::construction::MevSite::Fan {
                     he1: first,
                     he2: first,
                 },
@@ -1527,8 +1527,8 @@ mod tests {
         body: Body<f64>,
         wall: FaceKey,
         seed: FaceKey,
-        null: crate::MevCreated,
-        spur: crate::MevCreated,
+        null: crate::construction::MevCreated,
+        spur: crate::construction::MevCreated,
         spec: geom_brep::EdgeCurveSpec<f64>,
     }
 
@@ -1558,7 +1558,7 @@ mod tests {
         let rise = if pw.z > 0.5 { -0.3 } else { 0.3 };
         let spur = body
             .mev_line(
-                crate::MevSite::Fan {
+                crate::construction::MevSite::Fan {
                     he1: elsewhere,
                     he2: elsewhere,
                 },
@@ -1568,7 +1568,7 @@ mod tests {
             .unwrap();
         let null = body
             .mev_null(
-                crate::MevSite::Fan {
+                crate::construction::MevSite::Fan {
                     he1: wall_leaving,
                     he2: seed_leaving,
                 },
@@ -1729,8 +1729,8 @@ mod tests {
     struct RulingCut {
         body: Body<f64>,
         wall: FaceKey,
-        null: crate::MevCreated,
-        site: crate::MefSite,
+        null: crate::construction::MevCreated,
+        site: crate::construction::MefSite,
         chord: geom_brep::EdgeCurveSpec<f64>,
     }
 
@@ -1776,7 +1776,7 @@ mod tests {
             .unwrap();
         let null = body
             .mev_null(
-                crate::MevSite::Fan {
+                crate::construction::MevSite::Fan {
                     he1: corner,
                     he2: corner,
                 },
@@ -1789,7 +1789,7 @@ mod tests {
                 .find(|&&he| start(&body, he) == v)
                 .unwrap()
         };
-        let site = crate::MefSite::Chords {
+        let site = crate::construction::MefSite::Chords {
             he1: leaving(bottom),
             he2: leaving(top),
         };
@@ -1869,7 +1869,12 @@ mod tests {
             "the null strut holds the wall open"
         );
         let made = body
-            .mef(site, chord, crate::FaceSurface::Inherit, Tol::witness())
+            .mef(
+                site,
+                chord,
+                crate::construction::FaceSurface::Inherit,
+                Tol::witness(),
+            )
             .unwrap();
         let held = face_of(&body, null.he_plus);
         let released = if held == wall { made.face } else { wall };
@@ -1917,7 +1922,7 @@ mod tests {
                 .mef(
                     site,
                     chord.clone(),
-                    crate::FaceSurface::Inherit,
+                    crate::construction::FaceSurface::Inherit,
                     Tol::witness(),
                 )
                 .unwrap();
@@ -1944,7 +1949,14 @@ mod tests {
                 &format!("mef, torn on the {side} side"),
                 &mut body,
                 &[premise.as_str(), crate::review_d18::ROW_FOUR],
-                |b| b.mef(site, chord, crate::FaceSurface::Inherit, Tol::witness()),
+                |b| {
+                    b.mef(
+                        site,
+                        chord,
+                        crate::construction::FaceSurface::Inherit,
+                        Tol::witness(),
+                    )
+                },
             );
         }
     }
@@ -1982,7 +1994,7 @@ mod tests {
         let from_foot = leaving(&body, foot);
         let lower = body
             .mev_line(
-                crate::MevSite::Fan {
+                crate::construction::MevSite::Fan {
                     he1: from_foot,
                     he2: from_foot,
                 },
@@ -1991,7 +2003,7 @@ mod tests {
             )
             .unwrap();
         body.mev_line(
-            crate::MevSite::Fan {
+            crate::construction::MevSite::Fan {
                 he1: lower.he_minus,
                 he2: lower.he_minus,
             },
@@ -2005,7 +2017,7 @@ mod tests {
         let corner = body.get_half_edge(he1).unwrap().next;
         let null = body
             .mev_null(
-                crate::MevSite::Fan {
+                crate::construction::MevSite::Fan {
                     he1: corner,
                     he2: corner,
                 },
@@ -2020,7 +2032,7 @@ mod tests {
             body,
             wall,
             null,
-            site: crate::MefSite::Chords { he1, he2 },
+            site: crate::construction::MefSite::Chords { he1, he2 },
             chord,
         };
         (cut, ring)
@@ -2054,7 +2066,12 @@ mod tests {
         };
         assert!(body.detach_pcurve(on_ring).is_some());
         let made = body
-            .mef(site, chord, crate::FaceSurface::Inherit, Tol::witness())
+            .mef(
+                site,
+                chord,
+                crate::construction::FaceSurface::Inherit,
+                Tol::witness(),
+            )
             .unwrap();
         assert_eq!(face_of(&body, null.he_plus), made.face, "the strut moves");
         assert_eq!(face_of(&body, on_ring), wall, "the ring stays");
@@ -2118,7 +2135,8 @@ mod tests {
     /// open. Returns the body, the held piece, and the chord's half on
     /// it.
     /// A kill of a null edge's two halves, by one door.
-    type Kill = fn(&mut Body<f64>, crate::MevCreated) -> Result<(), crate::EulerOpError>;
+    type Kill =
+        fn(&mut Body<f64>, crate::construction::MevCreated) -> Result<(), crate::EulerOpError>;
 
     /// The four doors that kill a null edge: each, and whether it takes
     /// a band.
@@ -2165,9 +2183,12 @@ mod tests {
     }
 
     /// A null strut hung at the start of `at`.
-    fn strut(body: &mut Body<f64>, at: crate::entity::HalfEdgeKey) -> crate::MevCreated {
+    fn strut(
+        body: &mut Body<f64>,
+        at: crate::entity::HalfEdgeKey,
+    ) -> crate::construction::MevCreated {
         body.mev_null(
-            crate::MevSite::Fan { he1: at, he2: at },
+            crate::construction::MevSite::Fan { he1: at, he2: at },
             NewVertexSide::Above,
         )
         .unwrap()
@@ -2180,7 +2201,7 @@ mod tests {
             .mef(
                 cut.site,
                 cut.chord.clone(),
-                crate::FaceSurface::Inherit,
+                crate::construction::FaceSurface::Inherit,
                 Tol::witness(),
             )
             .unwrap();
@@ -2288,19 +2309,19 @@ mod tests {
             };
             let chord =
                 geom_brep::EdgeCurveSpec::line_between(point(&body, bottom), point(&body, top));
-            let site = crate::MefSite::Chords {
+            let site = crate::construction::MefSite::Chords {
                 he1: leaving(&body, wall, bottom),
                 he2: leaving(&body, wall, top),
             };
             let made = body
-                .mef(site, chord, crate::FaceSurface::Inherit, tol)
+                .mef(site, chord, crate::construction::FaceSurface::Inherit, tol)
                 .unwrap();
             assert_eq!(missing_rows(&body), vec![], "the cut wall is complete");
             let far = face_of(&body, leaving(&body, wall, far_bottom));
             let near = if far == wall { made.face } else { wall };
             let null = body
                 .mev_null(
-                    crate::MevSite::Fan {
+                    crate::construction::MevSite::Fan {
                         he1: leaving(&body, near, bottom),
                         he2: leaving(&body, far, bottom),
                     },
@@ -2315,7 +2336,7 @@ mod tests {
             let at = leaving(&body, far, far_bottom);
             let spur = body
                 .mev_line(
-                    crate::MevSite::Fan { he1: at, he2: at },
+                    crate::construction::MevSite::Fan { he1: at, he2: at },
                     CylFrame::canonical(1.0).at(1.1, 0.5),
                     tol,
                 )
@@ -2464,7 +2485,7 @@ mod tests {
             let tip = strut(&mut body, n.he_minus);
             let spur = body
                 .mev_line(
-                    crate::MevSite::Fan {
+                    crate::construction::MevSite::Fan {
                         he1: n.he_minus,
                         he2: n.he_minus,
                     },

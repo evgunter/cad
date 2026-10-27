@@ -50,7 +50,9 @@ use geom_brep::certify::{CertCheck, CertifyError};
 use geom_brep::props::{PropsError, curved_face, require_iso_rectangle, require_one_chart_branch};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
-use topo::{Body, CoherenceCondition, EulerOpError, FaceSurface, MefSite, MevSite};
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, MefSite, MevSite};
+use topo::{Body, CoherenceCondition, EulerOpError};
 
 /// The sphere under every row: R = 10 mm about +Z at the origin.
 const RS: f64 = 0.010;

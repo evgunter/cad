@@ -23,8 +23,10 @@ use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use profile::test_support::bulge_loop;
 use sweep::Revolution;
 use sweep::test_support::{revolved_about_y, stacked_at};
+use topo::construction::Construct;
+use topo::construction::MevSite;
 use topo::pcurves::{SiteRowRefusal, validate_pcurves};
-use topo::{Body, EulerOpError, FaceKey, HalfEdgeKey, MevSite, PcurveMintError};
+use topo::{Body, EulerOpError, FaceKey, HalfEdgeKey, PcurveMintError};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -208,9 +210,9 @@ fn a_chord_that_fails_certification_on_a_spline_wall_names_the_certification() {
     let before = format!("{body:?}");
     let refused = body
         .mef(
-            topo::MefSite::Chords { he1, he2 },
+            topo::construction::MefSite::Chords { he1, he2 },
             EdgeCurveSpec::line_between(p1, p1 + Vec3::new(0.3, 0.3, 0.3)),
-            topo::FaceSurface::Inherit,
+            topo::construction::FaceSurface::Inherit,
             tol(),
         )
         .unwrap_err();
@@ -239,7 +241,7 @@ fn a_null_edge_described_on_a_spline_wall_leaves_its_rows_as_found() {
     let null = body
         .mev_null(
             MevSite::Fan { he1: he, he2: he },
-            topo::NewVertexSide::Above,
+            topo::construction::NewVertexSide::Above,
         )
         .unwrap();
     let rows = |b: &Body<f64>| {
@@ -295,7 +297,7 @@ fn a_strut_on_a_spline_wall_a_null_edge_holds_open_leaves_its_rows_as_found() {
     let null = body
         .mev_null(
             MevSite::Fan { he1: he, he2: he },
-            topo::NewVertexSide::Above,
+            topo::construction::NewVertexSide::Above,
         )
         .unwrap();
     // The strut is spliced before `he`, so the joint into `he` is

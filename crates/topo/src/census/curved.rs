@@ -414,9 +414,10 @@ mod tests {
     use geom_core::{Band, Point3, Tol, Vec3};
 
     use super::{Read, curved_interiors_meet, interior_meeting, reads_meet};
+    use crate::EdgeCurveSpec;
     use crate::body::Body;
+    use crate::construction::MevSite;
     use crate::entity::EdgeKey;
-    use crate::{EdgeCurveSpec, MevSite};
 
     /// Arcs of one unit circle, from `t0` to `t1` degrees, each its own
     /// solid in one arena.

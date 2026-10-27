@@ -20,6 +20,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::revert_ops::subtract_both_orders_and_intersect;
+use topo::construction::Construct;
 
 use geom_core::{Point3, Tol, Vec3};
 use sweep::test_support::{finished, tube_frame};

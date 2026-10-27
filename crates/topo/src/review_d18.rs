@@ -1191,7 +1191,7 @@ fn kev_either_door(
     body: &mut Body<f64>,
     he: HalfEdgeKey,
     tol: Tol,
-) -> Result<crate::KevResult, EulerOpError> {
+) -> Result<crate::construction::KevResult, EulerOpError> {
     match body.kev(he) {
         Err(refusal @ EulerOpError::MergeRebasesCarriers { .. }) => {
             match crate::seqgen::try_chord_redescriptions(body, he) {
@@ -1748,7 +1748,8 @@ const NULL_SCAFFOLDING: [(&str, BuildFixture); 2] = [
             .emanating
             .unwrap();
         let site = MevSite::Fan { he1: he, he2: he };
-        body.mev_null(site, crate::NewVertexSide::Above).unwrap();
+        body.mev_null(site, crate::construction::NewVertexSide::Above)
+            .unwrap();
         body
     }),
     ("null fan split on the declined cube", |tol| {
@@ -1764,7 +1765,8 @@ const NULL_SCAFFOLDING: [(&str, BuildFixture); 2] = [
             he1,
             he2: orbit[orbit.len() - 1],
         };
-        body.mev_null(site, crate::NewVertexSide::Above).unwrap();
+        body.mev_null(site, crate::construction::NewVertexSide::Above)
+            .unwrap();
         body
     }),
 ];
@@ -1884,7 +1886,10 @@ fn valid_fixtures_never_refuse_a_fan_split_or_a_vertex_read() {
                     continue;
                 }
                 let site = MevSite::Fan { he1, he2 };
-                if let Err(err) = body.clone().mev_null(site, crate::NewVertexSide::Above) {
+                if let Err(err) = body
+                    .clone()
+                    .mev_null(site, crate::construction::NewVertexSide::Above)
+                {
                     panic!("{fixture}: mev_null at {site:?} refused {err:?}");
                 }
             }

@@ -196,7 +196,8 @@
 //!
 //! ```
 //! use geom_core::{Point3, Tol};
-//! use topo::{Body, LoopBoundary, MekrSite, MevSite};
+//! use topo::{Body, LoopBoundary};
+//! use topo::construction::{Construct, MekrSite, MevSite};
 //!
 //! # fn run() -> Result<(), topo::EulerOpError> {
 //! let tol = Tol::witness();
@@ -258,7 +259,7 @@ use geom_core::Tol;
 /// Where [`Body::mekr`] acts: the site addressing for "make edge, kill
 /// ring".
 ///
-/// Same design as [`crate::MevSite`]/[`crate::MefSite`]: the ratified
+/// Same design as [`crate::construction::MevSite`]/[`crate::construction::MefSite`]: the ratified
 /// typed-`Empty` loop state makes every degenerate configuration its own
 /// variant instead of a placeholder half-edge. One variant per
 /// boundary-shape combination of the two loops, covering the inverse of
@@ -487,7 +488,11 @@ impl<T: Decide> Body<T> {
     /// write does not hold, both sides are empty at one vertex, or a
     /// record the kill keeps still names a killed one. Every public door
     /// keeps the body tier-1-valid, so only a kernel bug reaches these.
-    pub fn kemr(&mut self, he1: HalfEdgeKey, he2: HalfEdgeKey) -> Result<KemrResult, EulerOpError> {
+    pub(crate) fn kemr(
+        &mut self,
+        he1: HalfEdgeKey,
+        he2: HalfEdgeKey,
+    ) -> Result<KemrResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
         let killed = self.kemr_with(he1, he2, None)?;
@@ -508,7 +513,7 @@ impl<T: Decide> Body<T> {
     ///
     /// As [`Body::kemr`], except the `KeysOnly` refusal, and the site
     /// mint's plan in its place ([`Body::plan_released_rows`]').
-    pub fn kemr_minting(
+    pub(crate) fn kemr_minting(
         &mut self,
         he1: HalfEdgeKey,
         he2: HalfEdgeKey,
@@ -808,7 +813,7 @@ impl<T: Decide> Body<T> {
     /// half-edges that claim its loop, a face but the ring's lists the
     /// ring, or two empty loops share one lone vertex. Every public door
     /// keeps the body tier-1-valid, so only a kernel bug reaches these.
-    pub fn mekr(
+    pub(crate) fn mekr(
         &mut self,
         site: MekrSite,
         curve: EdgeCurveSpec<T>,
@@ -861,7 +866,11 @@ impl<T: Decide> Body<T> {
     /// # Errors
     ///
     /// As [`Body::mekr`].
-    pub fn mekr_chord(&mut self, site: MekrSite, tol: Tol) -> Result<MekrResult, EulerOpError>
+    pub(crate) fn mekr_chord(
+        &mut self,
+        site: MekrSite,
+        tol: Tol,
+    ) -> Result<MekrResult, EulerOpError>
     where
         T: crate::props::AtRestPolicy,
     {
@@ -971,7 +980,7 @@ impl<T: Decide> Body<T> {
     /// still names `f2` or, in the fusion form, its shell. Every public
     /// door keeps the body tier-1-valid, so only a kernel bug reaches
     /// these.
-    pub fn kfmrh(&mut self, f1: FaceKey, f2: FaceKey) -> Result<KfmrhResult, EulerOpError> {
+    pub(crate) fn kfmrh(&mut self, f1: FaceKey, f2: FaceKey) -> Result<KfmrhResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
         let plan = self.kfmrh_plan(f1, f2, None, |body, m| {
@@ -1000,7 +1009,7 @@ impl<T: Decide> Body<T> {
     /// [`Body::kfmrh_describing`] absorbs it once the zip states its
     /// re-descriptions
     /// (`work/restate/kef-and-kfmrh-across-keys-want-a-describing-door-or-reordered-callers`).
-    pub fn kfmrh_minting(
+    pub(crate) fn kfmrh_minting(
         &mut self,
         f1: FaceKey,
         f2: FaceKey,
@@ -1047,7 +1056,7 @@ impl<T: Decide> Body<T> {
     /// Also on a kernel bug: an edge the body stores, re-minted or
     /// restated on its own carrier and interval, whose span or winding
     /// reads certainly refused at the run's band.
-    pub fn kfmrh_describing(
+    pub(crate) fn kfmrh_describing(
         &mut self,
         f1: FaceKey,
         f2: FaceKey,
@@ -1081,7 +1090,7 @@ impl<T: Decide> Body<T> {
     /// ([`EulerOpError::SameFace`]); they share a solid
     /// ([`EulerOpError::CrossSolid`]); `f2` has no rings
     /// ([`EulerOpError::FaceHasRings`]).
-    pub fn kfmrh_carried_redescriptions(
+    pub(crate) fn kfmrh_carried_redescriptions(
         &self,
         f1: FaceKey,
         f2: FaceKey,
@@ -1441,7 +1450,11 @@ impl<T: Decide> Body<T> {
     /// Where the ring's face does not resolve, or the ring's walk is not
     /// exactly the half-edges that claim it: every public door keeps the
     /// body tier-1-valid, where neither happens.
-    pub fn ring_move(&mut self, ring: LoopKey, to_face: FaceKey) -> Result<(), EulerOpError> {
+    pub(crate) fn ring_move(
+        &mut self,
+        ring: LoopKey,
+        to_face: FaceKey,
+    ) -> Result<(), EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
         self.ring_move_with(ring, to_face, None, true)?;
@@ -1461,7 +1474,7 @@ impl<T: Decide> Body<T> {
     /// As [`Body::ring_move`], except the `KeysOnly` refusal, and the
     /// site mint's plan in its place ([`Body::plan_moved_rows`]'s
     /// errors).
-    pub fn ring_move_minting(
+    pub(crate) fn ring_move_minting(
         &mut self,
         ring: LoopKey,
         to_face: FaceKey,

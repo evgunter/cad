@@ -6808,7 +6808,9 @@ pub(crate) mod pole_slit_tests {
     use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
     use geom_core::{Band, Point3, Tol, Vec3};
 
-    use crate::{Body, FaceKey, FaceSurface, LoopBoundary, MefSite, MevSite};
+    use crate::{Body, FaceKey, LoopBoundary};
+
+    use crate::construction::{FaceSurface, MefSite, MevSite};
 
     /// The unit sphere's point at chart `(u, v)`: axis `+z`, seam `+x`.
     fn at(u: f64, v: f64) -> Point3<f64> {
@@ -8777,8 +8779,9 @@ mod lift_rows {
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod turn_miss {
     use super::{Deck, JointElement, turn_element};
+    use crate::construction::{MevSite, NewVertexSide};
     use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
-    use crate::{Body, LoopBoundary, MevSite, NewVertexSide};
+    use crate::{Body, LoopBoundary};
     use geom::Surface;
     use geom_core::{Band, Tol};
 

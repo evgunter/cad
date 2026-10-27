@@ -9990,8 +9990,8 @@ mod tests {
         use crate::boolean::{
             Contact, ContactKind, ContactRecords, ReductionContacts, VfContact, VvContact,
         };
+        use crate::construction::{MefSite, MevSite};
         use crate::entity::VertexKey;
-        use crate::{MefSite, MevSite};
         use geom_core::Point3;
 
         let tol = Tol::witness();
@@ -11028,7 +11028,7 @@ mod tests {
         capped
             .set_face_surface(
                 top,
-                crate::FaceSurface::New {
+                crate::construction::FaceSurface::New {
                     surface: geom::Surface::Sphere {
                         center: Point3::new(0.0, 0.0, 0.0),
                         radius: 1.0,
@@ -11325,9 +11325,10 @@ mod from_computed_rows {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod found_on_a_divided_face {
     use super::{Cell, Descendants, carry_in_place};
+    use crate::Body;
     use crate::boolean::{BooleanError, Contact, ContactKind, ContactRecords};
+    use crate::construction::{MefSite, MevSite};
     use crate::entity::{FaceKey, VertexKey};
-    use crate::{Body, MefSite, MevSite};
     use geom_core::{Band, Point3, Tol};
 
     fn band() -> Band {

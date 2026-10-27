@@ -3170,6 +3170,7 @@ mod tests {
 
     use super::*;
     use crate::names::role::{CapEnd, EntityKind};
+    use topo::construction::Construct;
 
     fn face(node: RecipeNodeId, path: Vec<RoleSeg>) -> StableName {
         StableName {
@@ -3544,7 +3545,7 @@ mod tests {
                 .mvfs(geom_core::Point3::new(x, 0.0, 0.0), true)
                 .expect("mvfs births a lone vertex");
             body.mev_line(
-                topo::MevSite::Lone {
+                topo::construction::MevSite::Lone {
                     r#loop: born.r#loop,
                 },
                 geom_core::Point3::new(x + 1.0, 0.0, 0.0),
@@ -3633,7 +3634,7 @@ mod tests {
                 .expect("mvfs births a lone vertex");
             let edge = member_body
                 .mev_line(
-                    topo::MevSite::Lone {
+                    topo::construction::MevSite::Lone {
                         r#loop: born.r#loop,
                     },
                     geom_core::Point3::new(1.0, 0.0, 0.0),
@@ -3935,7 +3936,7 @@ mod tests {
                 .expect("mvfs births a lone vertex");
             let edge = body
                 .mev_line(
-                    topo::MevSite::Lone {
+                    topo::construction::MevSite::Lone {
                         r#loop: born.r#loop,
                     },
                     geom_core::Point3::new(q[0], q[1], q[2]),

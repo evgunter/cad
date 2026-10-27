@@ -837,7 +837,11 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
     /// ([`BooleanError::Euler`]), a carrier the joined edge cannot be
     /// restated on ([`BooleanError::JoinCarrierUnsupported`]), the
     /// description's, or the re-mint's ([`BooleanError::Pcurves`]).
-    pub fn join_edges(&mut self, band: Band, tol: Tol) -> Result<Vec<EdgeJoin>, BooleanError> {
+    pub(crate) fn join_edges(
+        &mut self,
+        band: Band,
+        tol: Tol,
+    ) -> Result<Vec<EdgeJoin>, BooleanError> {
         // Nothing to join: no clone. Every reading in the band refuses
         // here, before any kill.
         if joinable_vertices(self, band)
@@ -888,7 +892,7 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
     /// # Errors
     ///
     /// As [`Body::join_edges`], for the vertices `within` holds.
-    pub fn join_edges_within(
+    pub(crate) fn join_edges_within(
         &mut self,
         band: Band,
         tol: Tol,
@@ -1143,7 +1147,8 @@ mod conventional {
     use geom_core::{Point3, Tol};
 
     use super::is_conventional_vertex;
-    use crate::{Body, MefSite, MevSite};
+    use crate::Body;
+    use crate::construction::{MefSite, MevSite};
 
     #[test]
     fn only_a_lone_self_loops_vertex_is_conventional() {

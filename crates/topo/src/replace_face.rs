@@ -745,7 +745,7 @@ pub enum ReplaceFaceError<T: Real> {
     /// reaches this, on a solid the call moved or one it did not. On a
     /// closed operand it is a kernel defect. A tier-1 finding is one
     /// always: under debug assertions it panics naming the door
-    /// ([`crate::Surgery::close_gated`]) instead of arriving here, and
+    /// ([`crate::construction::Surgery::close_gated`]) instead of arriving here, and
     /// with them off it arrives here ahead of the tier-2 findings.
     ResultNotClosed {
         /// The validator's report.

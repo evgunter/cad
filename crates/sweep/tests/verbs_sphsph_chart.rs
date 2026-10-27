@@ -31,6 +31,7 @@ use geom_core::{Point3, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{PointInSolidError, SolidContainment, point_in_solid};
+use topo::construction::Construct;
 use topo::query::{self, SurfaceKindSet};
 use topo::{Body, FaceContainment, FaceKey};
 
@@ -693,7 +694,7 @@ fn a_boundary_circle_tilted_against_the_chart_is_read_at_the_face_door() {
         let plane_key = planted
             .set_face_surface_unvouched_for_tests(
                 disc,
-                topo::FaceSurface::New {
+                topo::construction::FaceSurface::New {
                     surface: geom::Surface::Plane {
                         origin: c,
                         normal: m,

@@ -280,7 +280,7 @@ pub struct Face {
     ///
     /// **Writers.** `mvfs` writes its caller's bit, and `mef`, `mfkrh`
     /// and [`crate::Body::set_face_surface`] write the bit their
-    /// [`crate::FaceSurface`] spec resolves to
+    /// [`crate::construction::FaceSurface`] spec resolves to
     /// (`Body::resolve_face_surface`), so every construction that
     /// charts a face states or derives its bit through those doors. [`crate::Body::revert`] flips every
     /// face of a body at once, and [`crate::Body::set_face_sense`]

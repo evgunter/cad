@@ -78,7 +78,7 @@ impl<T: Decide> Body<T> {
     /// own (either direction), or a cycle that is not its loop's whole
     /// cycle: on a tier-1-valid body ownership is mutual and a loop's
     /// `next` cycle is exactly the half-edges that claim it.
-    pub fn movefac(&mut self, shell: ShellKey) -> Result<Vec<ShellKey>, EulerOpError> {
+    pub(crate) fn movefac(&mut self, shell: ShellKey) -> Result<Vec<ShellKey>, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
 
@@ -326,7 +326,7 @@ impl<T: Decide> Body<T> {
     ///
     /// Where a shell's solid does not resolve or does not list it: on a
     /// tier-1-valid body ownership is mutual.
-    pub fn move_shells_to_new_solid(
+    pub(crate) fn move_shells_to_new_solid(
         &mut self,
         shells: &[ShellKey],
     ) -> Result<SolidKey, EulerOpError> {

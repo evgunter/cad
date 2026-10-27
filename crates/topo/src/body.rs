@@ -898,7 +898,7 @@ impl<T: Real> Body<T> {
     /// Deliberately NOT a construction operator. Legitimate writers
     /// keep the two orientation encodings coherent: constructors state
     /// the honest bit with the chart they give the face
-    /// ([`crate::FaceSurface`] — the loop winding is already the
+    /// ([`crate::construction::FaceSurface`] — the loop winding is already the
     /// material-true one, so a concave wall's `false` agrees with it),
     /// and [`Body::revert`] flips *every* face of a body at once. Flipping a single face makes the body
     /// **inside-out at that
@@ -1677,7 +1677,7 @@ impl<T: Real> Body<T> {
     /// ([`crate::pcurves::validate_pcurves`]). The element is stored in
     /// its canonical form ([`JointElement::canonical`]: a reset's
     /// azimuth periods dropped).
-    pub fn attach_joint(
+    pub(crate) fn attach_joint(
         &mut self,
         half_edge: HalfEdgeKey,
         element: JointElement,
@@ -1700,7 +1700,7 @@ impl<T: Real> Body<T> {
     ///
     /// The ordinary producer is [`crate::pcurves::mint_pcurves`], which
     /// the splitting lane runs on every side it mints.
-    pub fn attach_pcurve(
+    pub(crate) fn attach_pcurve(
         &mut self,
         half_edge: HalfEdgeKey,
         cache: PcurveCache<T>,
@@ -1713,13 +1713,13 @@ impl<T: Real> Body<T> {
     /// tier-3 pcurve pass owns coherence, and a curved face left
     /// missing a row fails it loudly). Consumers of caches refuse
     /// typed on absence; nothing re-derives a branch silently.
-    pub fn detach_pcurve(&mut self, half_edge: HalfEdgeKey) -> Option<PcurveCache<T>> {
+    pub(crate) fn detach_pcurve(&mut self, half_edge: HalfEdgeKey) -> Option<PcurveCache<T>> {
         self.pcurves.remove(half_edge)
     }
 
     /// Removes and returns the element of the joint into `half_edge` —
     /// [`Body::attach_joint`]'s inverse.
-    pub fn detach_joint(&mut self, half_edge: HalfEdgeKey) -> Option<JointElement> {
+    pub(crate) fn detach_joint(&mut self, half_edge: HalfEdgeKey) -> Option<JointElement> {
         self.joints.remove(half_edge)
     }
 
@@ -1803,11 +1803,11 @@ mod tests {
         );
         let null = body
             .mev_null(
-                crate::MevSite::Fan {
+                crate::construction::MevSite::Fan {
                     he1: t.hes_a[0],
                     he2: t.hes_a[0],
                 },
-                crate::NewVertexSide::Above,
+                crate::construction::NewVertexSide::Above,
             )
             .unwrap();
         let null_edge = body.get_half_edge(null.he_plus).unwrap().edge;
@@ -2344,7 +2344,7 @@ mod tests {
             );
             assert_eq!(
                 site.unwrap().mev_site(),
-                crate::MevSite::Fan {
+                crate::construction::MevSite::Fan {
                     he1: first,
                     he2: first
                 },

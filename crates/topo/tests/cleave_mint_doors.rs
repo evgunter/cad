@@ -10,9 +10,11 @@
 use crate::common;
 use crate::fixture::m7_8::{edge_findings, m7_8_cube, m7_8_edges, nurbs_wall};
 use geom_core::spline::{Knots, SpanLocate};
+use topo::construction::Construct;
 
 use geom_core::{Dual64, Point3, Real, Tol};
-use topo::{Body, EdgeKey, EulerOpError, FaceKey, Rechart};
+use topo::construction::Rechart;
+use topo::{Body, EdgeKey, EulerOpError, FaceKey};
 
 /// The M7-8 edges of `body` with their restated specs, in arena order.
 fn wall_edges<T: SpanLocate>(body: &Body<T>) -> Vec<(EdgeKey, geom_brep::EdgeCurveSpec<T>)> {
@@ -172,7 +174,7 @@ where
     let wall = body
         .set_face_surface(
             wall_face,
-            topo::FaceSurface::New {
+            topo::construction::FaceSurface::New {
                 surface: nurbs_wall::<T>(),
                 sense: true,
             },

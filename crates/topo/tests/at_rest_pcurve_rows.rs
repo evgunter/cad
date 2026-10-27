@@ -14,6 +14,7 @@
 
 use geom_brep::{Pcurve, PcurveCache};
 use geom_core::{Band, Tol};
+use topo::construction::Construct;
 use topo::pcurves::validate_pcurves;
 use topo::test_support::{CylFrame, cyl_wall_sheet};
 use topo::{Body, FaceKey, HalfEdgeKey, PcurveMintError};

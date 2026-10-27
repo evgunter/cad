@@ -841,3 +841,8 @@ E1c waits on the answer.
   - Q2: "i don't care what it says while this functionality doesn't exist". An incidence refusal at import takes the damaged-file ending, without ε_in, until EXCH's healing lands. The healing and the later ε_in wording are tracked on `work/exch/adoption-rebuilds-caches-at-eps-from-eps-in-interpretation.md`.
   - New units: E1d (the ruling) and E1e (payload-only `Display`), ahead of E1c.
 - 2026-10-27 — **Sequencing: E1d is split.** The implementer found that topo's Euler operators and setters are inherent methods on `Body`, so curating pncad's re-export cannot hide them. `pncad::profile`'s doc names the same limit. E1d lands the endings, and a new unit E1d2 seals the tier: a pub trait `topo::construction::Construct`, with the inherent methods made `pub(crate)` (the `profile` precedent). Until E1d2 lands, an external `set_edge_curve` miss reads as a kernel defect; no product code calls it. The alternative, sealing inside E1d, was rejected: the churn (about 160 files importing the trait) would bury the endings E1c waits on.
+- 2026-10-27 — **E1d2 (`pcert/seal-construction`): topo's construction tier is sealed.**
+  - The doors are behind `topo::construction::Construct` (inherent `pub(crate)`), and their vocabulary lives in `topo::construction`.
+  - `pncad::topo` is the glob minus that tier. Kernel crates import the trait.
+  - The source walk counts the sealed doors (`construction_tier`), so the tier-1 and pcurve-posture censuses still range over them.
+  - Seam logged on `work/lib/log.md`.

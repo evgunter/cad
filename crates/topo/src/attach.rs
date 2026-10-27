@@ -141,7 +141,7 @@ impl<T: Decide> Body<T> {
     /// [`EulerOpError::RechartStrandsDescriptions`], then
     /// [`EulerOpError::RechartUnvouched`]. The body is untouched on
     /// `Err`.
-    pub fn set_face_surface(
+    pub(crate) fn set_face_surface(
         &mut self,
         face: FaceKey,
         surface: FaceSurface<T>,
@@ -210,7 +210,7 @@ impl<T: Decide> Body<T> {
     /// [`EulerOpError::RechartUnvouched`].
     #[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
     #[doc(hidden)]
-    pub fn set_face_surface_unvouched_for_tests(
+    pub(crate) fn set_face_surface_unvouched_for_tests(
         &mut self,
         face: FaceKey,
         surface: FaceSurface<T>,
@@ -321,7 +321,7 @@ impl<T: Decide> Body<T> {
     ///
     /// The first failing precondition above; the body is untouched on
     /// `Err`.
-    pub fn set_face_surfaces_describing(
+    pub(crate) fn set_face_surfaces_describing(
         &mut self,
         charts: Vec<Rechart<T>>,
         redescriptions: &[(EdgeKey, EdgeCurveSpec<T>)],
@@ -1273,7 +1273,11 @@ impl<T: Decide> Body<T> {
     ///
     /// [`BadArgument::Stale`](crate::euler::BadArgument::Stale) if `face` does not
     /// resolve. The body is untouched on `Err`.
-    pub fn set_face_sense(&mut self, face: FaceKey, sense: bool) -> Result<(), EulerOpError> {
+    pub(crate) fn set_face_sense(
+        &mut self,
+        face: FaceKey,
+        sense: bool,
+    ) -> Result<(), EulerOpError> {
         let f = self
             .get_face_mut(face)
             .ok_or_else(|| Arg("face").miss(EntityId::Face(face)))?;
@@ -1321,7 +1325,7 @@ impl<T: Decide> Body<T> {
     /// scalar holding none; [`EulerOpError::PcurveMint`] where a face is
     /// re-minted and a half-edge of it does not resolve.
     /// The body is untouched on `Err`.
-    pub fn set_edge_curve(
+    pub(crate) fn set_edge_curve(
         &mut self,
         edge: EdgeKey,
         curve: EdgeCurveSpec<T>,
@@ -1386,7 +1390,7 @@ impl<T: Decide> Body<T> {
     /// stored them at `Band::linear(tol)` of the run's one [`Tol`], so
     /// they read certainly refused here only where the kernel stored an
     /// edge its own gate refuses, whatever `description` says.
-    pub fn restate_stored_edge(
+    pub(crate) fn restate_stored_edge(
         &mut self,
         edge: EdgeKey,
         description: EdgeDescriptionSpec<T>,
@@ -1526,7 +1530,7 @@ impl<T: Decide> Body<T> {
     /// [`EulerOpError::RestJoinMixed`] where the rule over a pair is in
     /// band or mixed; and whatever [`Body::set_edge_curve`] raises on the
     /// re-attachment.
-    pub fn describe_at_rest(&mut self, edge: EdgeKey, tol: Tol) -> Result<(), EulerOpError>
+    pub(crate) fn describe_at_rest(&mut self, edge: EdgeKey, tol: Tol) -> Result<(), EulerOpError>
     where
         T: crate::props::AtRestPolicy,
     {
@@ -3560,7 +3564,7 @@ mod tests {
         let he = body.get_vertex(v).unwrap().emanating.unwrap();
         let null = body
             .mev_null(
-                crate::MevSite::Fan { he1: he, he2: he },
+                crate::construction::MevSite::Fan { he1: he, he2: he },
                 crate::null::NewVertexSide::Above,
             )
             .unwrap();
@@ -4668,8 +4672,8 @@ mod tests {
         let at = outer_cycle(&body, half)[1];
         let null = body
             .mev_null(
-                crate::MevSite::Fan { he1: at, he2: at },
-                crate::NewVertexSide::Above,
+                crate::construction::MevSite::Fan { he1: at, he2: at },
+                crate::construction::NewVertexSide::Above,
             )
             .unwrap();
         let null_edge = body.get_half_edge(null.he_plus).unwrap().edge;

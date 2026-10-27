@@ -561,6 +561,25 @@ pub(crate) enum SurgeryPosture {
 /// Lowering it is only ever correct when doors were deleted.
 const DOORS_MEASURED: usize = 57;
 
+/// The names of the construction tier's doors: every `fn` the
+/// `construction` module declares (its trait's forwarding impl).
+fn construction_tier(sources: &[std::path::PathBuf]) -> std::collections::BTreeSet<String> {
+    let path = sources
+        .iter()
+        .find(|f| f.file_stem().is_some_and(|s| s == "construction"))
+        .expect("topo/src/construction.rs");
+    let text = std::fs::read_to_string(path).expect("a readable source file");
+    let code = CodeOnly::of(&text);
+    let names: std::collections::BTreeSet<String> =
+        code.fns().into_iter().map(|f| f.name.to_owned()).collect();
+    assert!(
+        names.len() > 40,
+        "the construction tier read only {} door(s): the module's shape changed",
+        names.len()
+    );
+    names
+}
+
 /// The body of the fn named `name` in the crate source whose file
 /// stem is `stem`, with the items it hosts blanked
 /// ([`FnItem::own_body`]): for a guard that pins a call one door down
@@ -634,15 +653,30 @@ pub(crate) fn fn_body(stem: &str, name: &str) -> Option<String> {
 ///   a field, or a method of another type spelled the same is read as
 ///   the function reached: for a close, the door reads closed.
 ///
+/// **The construction tier is in this population.** Its doors are
+/// `pub(crate)` inherent methods that `crate::construction::Construct`
+/// forwards to, public through the trait, so the walk admits a
+/// `pub(crate)` fn named as one of the trait's methods
+/// ([`construction_tier`]); the forwarding impl itself is not `pub` and
+/// is not counted twice.
+///
 /// The first, fourth, fifth and sixth are the ones that cost coverage, and
 /// none of them is a lexing problem — see the module docs on why a
 /// parser is not the answer to them.
 pub(crate) fn mutation_doors() -> Vec<MutationDoor> {
+    let sources = crate_sources();
+    let tier = construction_tier(&sources);
     let mut out = Vec::new();
-    for file in crate_sources() {
+    for file in sources {
         let text = std::fs::read_to_string(&file).expect("a readable source file");
         let code = CodeOnly::of(&text);
-        for item in code.public_fns() {
+        let b = code.0.as_bytes();
+        for item in code.fns() {
+            let public = public_qualifiers_precede(b, item.kw);
+            let sealed = item.lead.contains("pub(crate)") && tier.contains(item.name);
+            if item.fn_local || !(public || sealed) {
+                continue;
+            }
             if !item.params.contains("&mut self") && !item.params.contains("&mut Body") {
                 continue;
             }

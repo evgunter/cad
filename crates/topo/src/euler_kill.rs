@@ -56,7 +56,7 @@
 //! the vertex `he` *points at* dies. Euler vector
 //! `(v −1, e −1, f 0, h 0, r 0, s 0)`.
 //!
-//! Derivation (exact inverse of the `mev` fan surgery, [`crate::MevSite`]):
+//! Derivation (exact inverse of the `mev` fan surgery, [`crate::construction::MevSite`]):
 //! `mev(Fan { he1, he2 })` at `v` minted `he_plus`/`he_minus`, spliced
 //! them immediately before `he1`/`he2`, and reassigned the clockwise
 //! orbit run `[he1 .. he2)` to the new vertex `w`. With `he = he_plus`
@@ -150,7 +150,7 @@
 //! bare). Euler vector `(v 0, e −1, f −1, h 0, r 0, s 0)`.
 //!
 //! Derivation (exact inverse of the `mef` tail swap,
-//! [`crate::MefSite`]): `mef(Chords { he1, he2 })` spliced
+//! [`crate::construction::MefSite`]): `mef(Chords { he1, he2 })` spliced
 //! `he_minus` before `he1` and `he_plus` before `he2`, moving
 //! `[he1 .. he2)` into the new loop. With `he = he_minus` and
 //! `m = he_plus`, the post-state satisfies `next(he) = he1`,
@@ -273,7 +273,8 @@
 //! ```
 //! use geom_core::Point3;
 //! use geom_core::Tol;
-//! use topo::{Body, MevSite};
+//! use topo::Body;
+//! use topo::construction::{Construct, MevSite};
 //!
 //! # fn run() -> Result<(), topo::EulerOpError> {
 //! let tol = Tol::witness();
@@ -705,7 +706,7 @@ impl<T: Decide> Body<T> {
     /// public door keeps the body tier-1-valid, where ownership is
     /// exclusive and the skeletal solid's records are named only by each
     /// other.
-    pub fn kvfs(&mut self, solid: SolidKey) -> Result<KvfsResult, EulerOpError> {
+    pub(crate) fn kvfs(&mut self, solid: SolidKey) -> Result<KvfsResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
 
@@ -830,7 +831,7 @@ impl<T: Decide> Body<T> {
     /// Which vertex dies is the argument's choice: `kev(he)` kills the
     /// vertex `he` points at; to kill the other endpoint, pass the mate.
     /// Full derivation, surgery diagram, and the degenerate strut/
-    /// segment cases (each the inverse of a [`crate::MevSite`] case):
+    /// segment cases (each the inverse of a [`crate::construction::MevSite`] case):
     /// [module docs](self).
     ///
     /// Euler vector: `(v −1, e −1, f 0, h 0, r 0, s 0)` — arena deltas
@@ -912,7 +913,7 @@ impl<T: Decide> Body<T> {
     /// writes does not hold, or a record the kill keeps names one it
     /// removes: every public door keeps the body tier-1-valid, where none
     /// of these occurs.
-    pub fn kev(&mut self, he: HalfEdgeKey) -> Result<KevResult, EulerOpError> {
+    pub(crate) fn kev(&mut self, he: HalfEdgeKey) -> Result<KevResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
         let plan = self.kev_plan(he)?;
@@ -1027,7 +1028,7 @@ impl<T: Decide> Body<T> {
     /// Also on a kernel bug: an edge the body stores, re-minted or
     /// restated on its own carrier and interval, whose span or winding
     /// reads certainly refused at the run's band.
-    pub fn kev_describing(
+    pub(crate) fn kev_describing(
         &mut self,
         he: HalfEdgeKey,
         redescriptions: &[(EdgeKey, EdgeCurveSpec<T>)],
@@ -1098,7 +1099,7 @@ impl<T: Decide> Body<T> {
     /// As [`Body::kev`], and where the surviving vertex's point or a
     /// member's other endpoint does not resolve: every public door keeps
     /// the body tier-1-valid, where a vertex's point resolves.
-    pub fn kev_merged_members(
+    pub(crate) fn kev_merged_members(
         &self,
         he: HalfEdgeKey,
     ) -> Result<Vec<MergedMember<T>>, EulerOpError> {
@@ -1584,7 +1585,7 @@ impl<T: Decide> Body<T> {
     /// Which face dies is the argument's choice: a `mef` is undone by
     /// `kef(created.he_minus)`; passing the mate kills the other side.
     /// Full derivation, surgery diagram, and the degenerate circular/
-    /// lone cases (each the inverse of a [`crate::MefSite`] case):
+    /// lone cases (each the inverse of a [`crate::construction::MefSite`] case):
     /// [module docs](self). Self-loop edges (`start == end`) are legal
     /// here — they are the `Lone`-inverse territory.
     ///
@@ -1674,7 +1675,7 @@ impl<T: Decide> Body<T> {
     /// claim it, an anchor the kill writes does not hold, or a record the
     /// kill keeps names one it removes: every public door keeps the body
     /// tier-1-valid, where none of these occurs.
-    pub fn kef(&mut self, he: HalfEdgeKey) -> Result<KefResult, EulerOpError> {
+    pub(crate) fn kef(&mut self, he: HalfEdgeKey) -> Result<KefResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
         let killed = self.kef_with(he, None, |body, m| body.vouch_kill(RechartDoor::Kef, m))?;
@@ -1700,7 +1701,11 @@ impl<T: Decide> Body<T> {
     /// move, and [`Body::kef_describing`] absorbs it once each states
     /// its re-descriptions
     /// (`work/restate/kef-and-kfmrh-across-keys-want-a-describing-door-or-reordered-callers`).
-    pub fn kef_minting(&mut self, he: HalfEdgeKey, tol: Tol) -> Result<KefResult, EulerOpError> {
+    pub(crate) fn kef_minting(
+        &mut self,
+        he: HalfEdgeKey,
+        tol: Tol,
+    ) -> Result<KefResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
         let killed = self.kef_with(he, Some(tol), |_, _| Ok(Vec::new()))?;
@@ -1754,7 +1759,7 @@ impl<T: Decide> Body<T> {
     /// Also on a kernel bug: an edge the body stores, re-minted or
     /// restated on its own carrier and interval, whose span or winding
     /// reads certainly refused at the run's band.
-    pub fn kef_describing(
+    pub(crate) fn kef_describing(
         &mut self,
         he: HalfEdgeKey,
         redescriptions: &[(EdgeKey, EdgeDescriptionSpec<T>)],
@@ -1787,7 +1792,7 @@ impl<T: Decide> Body<T> {
     ///
     /// [`Body::kef`]'s structural list through
     /// [`EulerOpError::FaceHasRings`].
-    pub fn kef_carried_redescriptions(
+    pub(crate) fn kef_carried_redescriptions(
         &self,
         he: HalfEdgeKey,
     ) -> Result<Vec<(EdgeKey, EdgeDescriptionSpec<T>)>, EulerOpError> {
@@ -2318,7 +2323,7 @@ impl<T: Decide> Body<T> {
     /// not close on the half-edges that claim it ([`Body::whole_cycle`]):
     /// every public door keeps the body tier-1-valid, where neither
     /// occurs.
-    pub fn mfkrh(
+    pub(crate) fn mfkrh(
         &mut self,
         ring: LoopKey,
         surface: FaceSurface<T>,
@@ -2342,7 +2347,7 @@ impl<T: Decide> Body<T> {
     ///
     /// As [`Body::mfkrh`], except the `KeysOnly` refusal, and the site
     /// mint's plan in its place ([`Body::plan_moved_rows`]'s errors).
-    pub fn mfkrh_minting(
+    pub(crate) fn mfkrh_minting(
         &mut self,
         ring: LoopKey,
         surface: FaceSurface<T>,
@@ -2488,7 +2493,11 @@ impl<T: Decide> Body<T> {
     ///
     /// As [`Body::mfkrh`], the re-chart refusals naming
     /// [`RechartDoor::MfkrhPlug`].
-    pub fn mfkrh_plug(&mut self, ring: LoopKey, sense: bool) -> Result<MfkrhCreated, EulerOpError> {
+    pub(crate) fn mfkrh_plug(
+        &mut self,
+        ring: LoopKey,
+        sense: bool,
+    ) -> Result<MfkrhCreated, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
         let created = self.mfkrh_with(
@@ -2860,7 +2869,9 @@ mod tests {
             body.clone().mev_line(site, p(5.0), Tol::witness()),
             Err(EulerOpError::RebasedCarrier { edge, .. }) if edge == b.edge
         ));
-        let split = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
+        let split = body
+            .mev_null(site, crate::construction::NewVertexSide::Above)
+            .unwrap();
         let result = body.kev(split.he_plus).unwrap();
         assert_eq!(validate(&body), Ok(()));
 
@@ -2918,7 +2929,9 @@ mod tests {
             body.clone().mev_line(site, p(2.0), Tol::witness()),
             Err(EulerOpError::RebasedCarrier { edge, .. }) if edge == seg.edge
         ));
-        let fan = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
+        let fan = body
+            .mev_null(site, crate::construction::NewVertexSide::Above)
+            .unwrap();
         // The new halves landed in different loops (pinned by PR 2's
         // test); now undo.
         let result = body.kev(fan.he_plus).unwrap();
@@ -3062,7 +3075,7 @@ mod tests {
                     he1: strut.he_minus,
                     he2: strut.he_minus,
                 },
-                crate::NewVertexSide::Above,
+                crate::construction::NewVertexSide::Above,
             )
             .unwrap();
         for (pose, mut body) in [("bare tip", bare), ("null edge at the tip", nulled)] {
@@ -3461,7 +3474,7 @@ mod tests {
                     he1: seg.he_minus,
                     he2: seg.he_minus,
                 },
-                crate::NewVertexSide::Above,
+                crate::construction::NewVertexSide::Above,
             )
             .unwrap();
         let at_w = if body.get_half_edge(n1.he_plus).unwrap().start == n1.vertex {
@@ -3475,7 +3488,7 @@ mod tests {
                     he1: at_w,
                     he2: at_w,
                 },
-                crate::NewVertexSide::Above,
+                crate::construction::NewVertexSide::Above,
             )
             .unwrap();
         let toward_w = body.mate(at_w).unwrap();
@@ -4140,7 +4153,7 @@ mod tests {
             |b| {
                 b.mfkrh(
                     kill.ring,
-                    crate::FaceSurface::Shared {
+                    crate::construction::FaceSurface::Shared {
                         key: stale,
                         sense: true,
                     },

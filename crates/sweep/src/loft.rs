@@ -91,6 +91,7 @@
 
 use core::fmt;
 use std::sync::Arc;
+use topo::construction::Construct;
 
 use geom::Curve3;
 use geom::{NurbsSurface, Surface};
@@ -100,10 +101,8 @@ use geom_core::{
     Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
 };
 use profile::{CanonicalStructure, SketchPlane, ValidatedProfile};
-use topo::{
-    Body, EdgeKey, EulerOpError, FaceKey, FaceSurface, MefSite, MevCreated, MevSite,
-    PcurveMintError, ShellKey, SolidKey,
-};
+use topo::construction::{FaceSurface, MefSite, MevCreated, MevSite};
+use topo::{Body, EdgeKey, EulerOpError, FaceKey, PcurveMintError, ShellKey, SolidKey};
 
 use crate::skin::{
     Section, SectionLoop, SkinError, check_counts, check_shapes, skin_validated, sweep_places,

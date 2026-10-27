@@ -14,10 +14,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;
+use topo::construction::Construct;
 
 use geom::{ApproxSurface, NurbsSurface, Surface};
 use geom_core::{Affine3, Decide, Point3, Real, Tol, Vec3};
-use topo::{Body, ContactRecords, FaceKey, FaceSurface};
+use topo::construction::FaceSurface;
+use topo::{Body, ContactRecords, FaceKey};
 
 /// The bowed patch the head's fixture uses, copied so the base can
 /// build it too.

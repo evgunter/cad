@@ -8,11 +8,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::construction::{MefSite, MevSite};
 use crate::fixtures::assert_err_deep_unchanged;
 use crate::review_d18::assert_torn_op_panics;
 use crate::{
-    BadArgument, Body, EntityId, EulerOpError, FaceKey, HalfEdgeKey, LoopKey, MefSite, MevSite,
-    PointKey, VertexKey, validate,
+    BadArgument, Body, EntityId, EulerOpError, FaceKey, HalfEdgeKey, LoopKey, PointKey, VertexKey,
+    validate,
 };
 
 /// The premise a dangling link's panic names.
@@ -36,9 +37,9 @@ fn pillow(
     tol: Tol,
 ) -> (
     Body<f64>,
-    crate::MvfsCreated,
-    crate::MevCreated,
-    crate::MefCreated,
+    crate::construction::MvfsCreated,
+    crate::construction::MevCreated,
+    crate::construction::MefCreated,
 ) {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(0.0), true).unwrap();

@@ -209,7 +209,8 @@
 //!
 //! ```
 //! use geom_core::Point3;
-//! use topo::{Body, MefSite, MevSite};
+//! use topo::Body;
+//! use topo::construction::{Construct, MefSite, MevSite};
 //! use geom_core::Tol;
 //!
 //! # fn run() -> Result<(), topo::EulerOpError> {
@@ -2185,7 +2186,11 @@ impl<T: Decide> Body<T> {
     ///
     /// None today — `mvfs` has no preconditions (it consumes nothing).
     /// The `Result` keeps the operator signatures uniform.
-    pub fn mvfs(&mut self, point: Point3<T>, sense: bool) -> Result<MvfsCreated, EulerOpError> {
+    pub(crate) fn mvfs(
+        &mut self,
+        point: Point3<T>,
+        sense: bool,
+    ) -> Result<MvfsCreated, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
 
@@ -2403,7 +2408,7 @@ impl<T: Decide> Body<T> {
     ///
     /// The first failing precondition above; the body is untouched on
     /// `Err`.
-    pub fn mev(
+    pub(crate) fn mev(
         &mut self,
         site: MevSite,
         point: Point3<T>,
@@ -2457,7 +2462,7 @@ impl<T: Decide> Body<T> {
     /// # Errors
     ///
     /// As [`Body::mev`].
-    pub fn mev_line(
+    pub(crate) fn mev_line(
         &mut self,
         site: MevSite,
         point: Point3<T>,
@@ -2617,7 +2622,7 @@ impl<T: Decide> Body<T> {
     ///
     /// The first failing precondition above; the body is untouched on
     /// `Err`.
-    pub fn mef(
+    pub(crate) fn mef(
         &mut self,
         site: MefSite,
         curve: EdgeCurveSpec<T>,
@@ -2673,7 +2678,7 @@ impl<T: Decide> Body<T> {
     /// # Errors
     ///
     /// As [`Body::mef`].
-    pub fn mef_chord(&mut self, site: MefSite, tol: Tol) -> Result<MefCreated, EulerOpError>
+    pub(crate) fn mef_chord(&mut self, site: MefSite, tol: Tol) -> Result<MefCreated, EulerOpError>
     where
         T: crate::props::AtRestPolicy,
     {
@@ -5401,7 +5406,7 @@ mod tests {
                 he1: b.he_plus,
                 he2: d.he_plus,
             },
-            crate::NewVertexSide::Above,
+            crate::construction::NewVertexSide::Above,
         )
         .unwrap();
         let after = [carrier_bits(&body, b.edge), carrier_bits(&body, c.edge)];
@@ -5426,7 +5431,7 @@ mod tests {
 
     /// A digon pillow whose second face carries a plane: the smallest
     /// body that can hold a `Chart` or an `Intersection` description.
-    fn described_pillow(tol: Tol) -> (Body<f64>, MevCreated, crate::MefCreated) {
+    fn described_pillow(tol: Tol) -> (Body<f64>, MevCreated, crate::construction::MefCreated) {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
         let seg = body
@@ -5582,7 +5587,7 @@ mod tests {
                     he1: seg.he_minus,
                     he2: seg.he_minus,
                 },
-                crate::NewVertexSide::Above,
+                crate::construction::NewVertexSide::Above,
             )
             .unwrap();
         (body, seg, nul)
@@ -5678,7 +5683,7 @@ mod tests {
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
-                crate::NewVertexSide::Above,
+                crate::construction::NewVertexSide::Above,
             )
             .unwrap();
         let circle = body
@@ -5870,7 +5875,7 @@ mod tests {
                     he1: nul.he_plus,
                     he2: seg.he_minus,
                 },
-                crate::NewVertexSide::Above,
+                crate::construction::NewVertexSide::Above,
             )
             .unwrap();
         assert_eq!(
@@ -6052,7 +6057,9 @@ mod tests {
 
         let mut body = pillow.clone();
         let carrier_before = carrier_bits(&body, edge);
-        let created = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
+        let created = body
+            .mev_null(site, crate::construction::NewVertexSide::Above)
+            .unwrap();
         assert_eq!(
             body.get_half_edge(hp).unwrap().start,
             created.vertex,
@@ -6143,7 +6150,9 @@ mod tests {
         let tol = Tol::witness();
         let (mut body, edge) = m7_8_pillow(tol);
         let (site, _hp, here) = m7_8_site(&body, edge);
-        let created = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
+        let created = body
+            .mev_null(site, crate::construction::NewVertexSide::Above)
+            .unwrap();
         let off = Point3::new(here.x + 1.0, here.y, here.z);
         let err = body.set_edge_curve(
             created.edge,
@@ -6267,7 +6276,9 @@ mod tests {
             body.clone().mev_line(site, p(5.0), Tol::witness()),
             Err(EulerOpError::RebasedCarrier { edge, .. }) if edge == b.edge
         ));
-        let split = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
+        let split = body
+            .mev_null(site, crate::construction::NewVertexSide::Above)
+            .unwrap();
         assert_eq!(validate(&body), Ok(()));
 
         let v = seed.vertex;
@@ -6342,7 +6353,9 @@ mod tests {
             body.clone().mev_line(site, p(2.0), Tol::witness()),
             Err(EulerOpError::RebasedCarrier { edge, .. }) if edge == seg.edge
         ));
-        let fan = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
+        let fan = body
+            .mev_null(site, crate::construction::NewVertexSide::Above)
+            .unwrap();
         assert_eq!(validate(&body), Ok(()));
 
         // The run [seg.he_plus] moved to the new vertex.
@@ -6893,7 +6906,7 @@ mod tests {
         let v = body.get_half_edge(he1).unwrap().start;
         let at = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
         assert_torn_op_panics("mev_null", body, premise, |b| {
-            b.mev_null(site, crate::NewVertexSide::Above)
+            b.mev_null(site, crate::construction::NewVertexSide::Above)
         });
         assert_torn_op_panics("mev_line", body, premise, |b| {
             b.mev_line(site, at + geom_core::Vec3::new(0.5, 0.0, 0.0), tol)
@@ -7032,7 +7045,7 @@ mod tests {
             let mut scope = trial.begin_surgery_on_a_torn_body();
             let site = MevSite::Fan { he1, he2 };
             let created = scope
-                .mev_null(site, crate::NewVertexSide::Above)
+                .mev_null(site, crate::construction::NewVertexSide::Above)
                 .unwrap_or_else(|err| panic!("{site:?} refused {err:?}"));
             drop(scope);
             let errors = validate(&trial).unwrap_err();
@@ -7098,7 +7111,8 @@ mod tests {
             for door in ["mev_null", "mev"] {
                 let mut body = cube.clone();
                 let created = if door == "mev_null" {
-                    body.mev_null(site, crate::NewVertexSide::Above).unwrap()
+                    body.mev_null(site, crate::construction::NewVertexSide::Above)
+                        .unwrap()
                 } else {
                     body.mev(site, at, EdgeCurveSpec::self_loop_circle_at(at), tol)
                         .unwrap()

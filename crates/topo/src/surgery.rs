@@ -313,7 +313,7 @@ impl<T: Real> Body<T> {
     /// the per-operator scalpel that recovers the failing operator's
     /// name.
     #[must_use = "a scope that is opened and immediately dropped silences nothing"]
-    pub fn begin_surgery(&mut self) -> Surgery<'_, T> {
+    pub(crate) fn begin_surgery(&mut self) -> Surgery<'_, T> {
         #[cfg(debug_assertions)]
         self.surgery.open();
         Surgery { body: self }

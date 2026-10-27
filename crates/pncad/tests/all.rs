@@ -1834,7 +1834,7 @@ fn squashed_with_offsets(code: &str) -> (String, Vec<usize>) {
 /// source-scanning guards below all read this one list;
 /// `the_boundary_guard_scans_every_facade_source_file` pins it
 /// against the directory, so a new module cannot arrive unguarded.
-const FACADE_SOURCES: [(&str, &str); 11] = [
+const FACADE_SOURCES: [(&str, &str); 12] = [
     ("lib.rs", include_str!("../src/lib.rs")),
     ("analysis.rs", include_str!("../src/analysis.rs")),
     ("prelude.rs", include_str!("../src/prelude.rs")),
@@ -1845,6 +1845,7 @@ const FACADE_SOURCES: [(&str, &str); 11] = [
     ("export.rs", include_str!("../src/export.rs")),
     ("guide.rs", include_str!("../src/guide.rs")),
     ("tolerance.rs", include_str!("../src/tolerance.rs")),
+    ("topo.rs", include_str!("../src/topo.rs")),
     ("workspace.rs", include_str!("../src/workspace.rs")),
 ];
 
@@ -5709,11 +5710,86 @@ fn every_profile_layer_root_export_is_carried_or_listed() {
     );
 }
 
+/// **The topology layer's guard: whole but for its construction tier.**
+///
+/// `crate::topo` is a glob of the topo crate with the construction
+/// tier's modules shadowed by private empty ones (`src/topo.rs`), so the
+/// layer cannot drift except through the shadows. This pins the three
+/// facts the curation rests on: the glob is there; the shadows are
+/// exactly the construction tier, each still a public module of topo
+/// (a shadow over a module topo no longer has is stale); and topo's own
+/// root lifts none of the tier's vocabulary (which would carry it past
+/// the shadows), that vocabulary being what `topo::construction`
+/// re-exports.
+#[test]
+fn the_topo_layer_is_whole_but_for_its_construction_tier() {
+    const SHADOWED: [&str; 9] = [
+        "attach",
+        "construction",
+        "euler",
+        "euler_kill",
+        "euler_ring",
+        "movefac",
+        "null",
+        "split",
+        "surgery",
+    ];
+    let (_, facade) = FACADE_SOURCES
+        .iter()
+        .find(|(name, _)| *name == "topo.rs")
+        .unwrap_or_else(|| panic!("FACADE_SOURCES no longer lists src/topo.rs"));
+    let facade = code_and_literals(facade);
+    // Spelled in pieces: this file names the kernel only through the
+    // façade (`this_file_reaches_the_kernel_only_through_pncad`).
+    let glob = ["pub use ::", "topo", "::*;"].concat();
+    assert!(
+        facade.contains(&glob),
+        "src/topo.rs no longer re-exports the topo layer by glob"
+    );
+    let shadows: Vec<&str> = facade
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix("mod ")?.strip_suffix(" {}"))
+        .collect();
+    assert_eq!(shadows, SHADOWED, "the construction tier's shadows");
+
+    let layer = |file: &str| {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../topo/src")
+            .join(file);
+        let src = std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("reading {}: {e}", path.display()));
+        code_without_cfg_gated(&code_and_literals(&src))
+    };
+    let root = layer("lib.rs");
+    for module in SHADOWED {
+        assert!(
+            root.contains(&format!("pub mod {module};")),
+            "the shadow `{module}` names no public module of topo: drop it"
+        );
+    }
+    let tier = module_pub_use_names(&layer("construction.rs"));
+    assert!(
+        tier.len() > 10,
+        "the scanner read only {} tier names",
+        tier.len()
+    );
+    let root_names = module_pub_use_names(&root);
+    let lifted: Vec<&str> = tier
+        .iter()
+        .filter(|n| root_names.contains(*n))
+        .map(String::as_str)
+        .collect();
+    assert!(
+        lifted.is_empty(),
+        "topo's root lifts construction-tier vocabulary past the shadows: {lifted:?}"
+    );
+}
+
 /// The layers whose surfaces the façade curates name by name, and
 /// which therefore have a completeness guard above. Anything not here
 /// must be re-exported whole; the test below is what makes that an
 /// enforced dichotomy rather than a description.
-const PER_NAME_GUARDED: [&str; 2] = ["editor_core", "profile"];
+const PER_NAME_GUARDED: [&str; 3] = ["editor_core", "profile", "topo"];
 
 /// Every crate the façade re-exports WHOLE at its root — `pub use
 /// foo;`, no path and no brace list — so every name that crate's root

@@ -27,10 +27,11 @@
     clippy::too_many_lines
 )]
 
+use crate::Body;
 use crate::boolean::ContactRecords;
+use crate::construction::FaceSurface;
 use crate::test_support_fixtures::{describe_as_intersections, geometric_cube};
 use crate::validate::{self, ValidationError};
-use crate::{Body, FaceSurface};
 use geom::{NurbsSurface, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::spline::KnotVector;

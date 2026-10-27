@@ -17,6 +17,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use topo::construction::Construct;
 
 use geom_core::{Point3, Tol};
 use topo::{
@@ -228,7 +229,7 @@ fn hemispheres() -> Body<f64> {
     let seed = body.mvfs(origin + x, true).unwrap();
     body.set_face_surface(
         seed.face,
-        topo::FaceSurface::New {
+        topo::construction::FaceSurface::New {
             surface: geom::Surface::Sphere {
                 center: origin,
                 radius: 1.0,
@@ -246,11 +247,11 @@ fn hemispheres() -> Body<f64> {
         u_ref: x,
     };
     body.mef(
-        topo::MefSite::Lone {
+        topo::construction::MefSite::Lone {
             r#loop: seed.r#loop,
         },
         geom_brep::EdgeCurveSpec::arc_of_circle(equator, 0.0, core::f64::consts::TAU).unwrap(),
-        topo::FaceSurface::Inherit,
+        topo::construction::FaceSurface::Inherit,
         tol,
     )
     .unwrap();

@@ -74,7 +74,8 @@
 //!
 //! ```
 //! use geom_core::Point3;
-//! use topo::{Body, MefSite, MevSite};
+//! use topo::Body;
+//! use topo::construction::{Construct, MefSite, MevSite};
 //! use geom_core::Tol;
 //!
 //! # fn run() -> Result<(), topo::EulerOpError> {
@@ -133,6 +134,7 @@ pub mod chart;
 pub(crate) mod chart_groups;
 pub mod chart_iso;
 pub mod chart_region;
+pub mod construction;
 // The shared chord-join core — ch. 14's `join`/`cut` mechanics and the
 // section-chord geometry, a top-level sibling of `boolean/` and
 // `splitting/` for the reason its own docs give. Non-doc comment for
@@ -1221,7 +1223,6 @@ pub use lineage::{
     Minted, Remainder, RowDefect, RowRefusal, SourceGeometry, SplitEdgeDivisions, Substitutions,
 };
 pub use side_reader::{FAMILY as SIDE_READER_FAMILY, SetAside, SetAsideWhy};
-pub use surgery::Surgery;
 // The contact vocabulary (C3/C4), defined once at the lowest crate
 // that can hold it: upward layers RE-EXPORT these, never redefine.
 #[cfg(feature = "sweep-testing")]
@@ -1234,7 +1235,6 @@ pub use boolean::{
 pub use chord_join::face_azimuth_window_traces;
 // The census's idealized/realized pair (its `Candidates`): the
 // vocabulary always, the door on the boolean sweep's terms.
-pub use attach::Rechart;
 pub use census::{
     CensusStrategy, CensusTrace, FlushAtRest, RecordedAtRest, SweepPairs, census_cell_solid,
     census_contact_row, census_entity_solid, census_interference_solids, census_rest_decision,
@@ -1250,12 +1250,7 @@ pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
     LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
-pub use euler::{
-    BadArgument, EulerOpError, FaceSurface, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated,
-    RechartDoor,
-};
-pub use euler_kill::{KefResult, KevResult, KvfsResult, MergedMember, MfkrhCreated};
-pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
+pub use euler::{BadArgument, EulerOpError, RechartDoor};
 pub use link::{Link, LinkRefusal, Material, TouchUnread};
 // The types that appear in this crate's own operator signatures, so a
 // consumer of the ops needs no direct geom-* imports for the common
@@ -1287,7 +1282,7 @@ pub use merge_faces::{
     DihedralReading, EdgeDescribeFailure, MergeCoplanarError, MergeCoplanarOutcome, MergeDecision,
     MergeKind, MergedGroup, OutlineVerdict, SkippedMerge,
 };
-pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
+pub use null::CurveGeom;
 pub use offset_axial::{is_axial, offset_charts_together};
 pub use offset_derive::{CornerVerdict, SectionLane, SectionVerdict};
 pub use offset_general::offset_surfaces_together;
@@ -1329,7 +1324,6 @@ pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, S
 pub use shell::{
     HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
 };
-pub use split::SplitEdgeCreated;
 pub use splitting::{
     ConicCrossingsCase, ConicRootFault, CrossingDecision, Escalation, KnifeEdge, KnifeEdgeSite,
     LoopContainment, LoopDecision, NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide,

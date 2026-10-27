@@ -799,11 +799,11 @@ pub(crate) fn with_null_edge(body: &mut Body<f64>, face: FaceKey) {
         unreachable!("the fixture's outer loop is a cycle")
     };
     body.mev_null(
-        crate::MevSite::Fan {
+        crate::construction::MevSite::Fan {
             he1: first,
             he2: first,
         },
-        crate::NewVertexSide::Above,
+        crate::construction::NewVertexSide::Above,
     )
     .unwrap();
 }

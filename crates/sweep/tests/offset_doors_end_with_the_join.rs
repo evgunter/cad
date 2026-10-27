@@ -13,6 +13,7 @@
 use geom_core::{Band, Point2, Tol};
 use sweep::Revolution;
 use sweep::test_support::revolved_about_y;
+use topo::construction::Construct;
 use topo::{Body, ChartMove, EdgeKey, FaceKey};
 
 /// `e` split at its parameter middle; the new vertex.

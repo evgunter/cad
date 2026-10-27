@@ -158,6 +158,9 @@ pub use geom;
 /// B-rep geometry primitives: surface/curve kinds, pcurves, section
 /// classification. Mostly interior, but it owns error payload types
 /// that surface through `topo` and `sweep` refusals.
+// Its edge specs (`EdgeCurveSpec`, `EdgeDescriptionSpec`) stay nameable
+// here, inert: the doors that take them are topo's construction tier,
+// which `topo` below leaves out.
 pub use geom_brep;
 /// The numeric foundation: points, vectors, transforms, the [`Real`]
 /// scalar trait, and the tolerance environment.
@@ -186,9 +189,9 @@ pub use step_import;
 pub use stl;
 /// The four body operations: extrude, revolve, loft/sweep, fillet.
 pub use sweep;
-/// Topology: bodies, Booleans, splitting, transforms, the validation
-/// ladder, and mass properties.
-pub use topo;
+// `topo` is NOT re-exported whole: its construction tier (the Euler
+// operators and the description setters) is the kernel's internal API.
+// `pub mod topo` below is the curated replacement.
 
 // `bvh` is deliberately NOT re-exported: it is an interior
 // acceleration structure. No demo scene, no export corpus, and no
@@ -204,4 +207,5 @@ pub mod prelude;
 pub mod profile;
 pub mod select;
 pub mod tolerance;
+pub mod topo;
 pub mod workspace;
