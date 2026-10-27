@@ -1288,7 +1288,7 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     // below are the same code for N as for 1.
     let mut aggregate = Body::new();
     // The gather computes in its first non-empty source's frame whose
-    // frame is exact, else its first's
+    // frame is its space's (`Own`), else its first's
     // ([`crate::eval::Framed::computing_among`]), and reads every other
     // into it through `relative`.
     let mut computing: Option<&crate::eval::Framed<T>> = crate::eval::Framed::computing_among(

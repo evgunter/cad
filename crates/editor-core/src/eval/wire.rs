@@ -2280,7 +2280,8 @@ fn wire_measure<'r, T: Decide + topo::AtRestPolicy + crate::measure::MinClearanc
         unreachable!("a primitive reads two references")
     };
     // Its two references are in one space (D′1): it measures in the
-    // first's frame, or the second's where only that one is exact
+    // first's frame, or the second's where only that one is in its space's
+    // coordinates
     // ([`super::Framed::computing_among`]), and reads the other into it
     // through `relative`.
     let computing = super::Framed::computing_among([*framed_a, *framed_b]).unwrap_or(*framed_a);
@@ -2952,7 +2953,8 @@ fn wire_subtract<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 
 /// `from` cut by `tool`, by piece where `from` holds pieces; `from`'s
 /// body finished where the caller has finished it. Each cut computes in
-/// its `from`'s frame, or the tool's where only that one is exact, and
+/// its `from`'s frame, or the tool's where only that one is in its space's
+/// coordinates, and
 /// reads the other into it ([`super::Framed::relative`]);
 /// `body_b` is the tool finished in its own frame.
 fn subtract_from<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
@@ -2978,7 +2980,8 @@ fn subtract_from<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         Some(body) => body,
         None => from.finished(tol)?,
     };
-    // It computes in `from`'s frame unless only the tool's is exact
+    // It computes in `from`'s frame unless only the tool is in its space's
+    // coordinates
     // ([`super::Framed::computing_among`]).
     let computing = super::Framed::computing_among([&from.body, &b.body])
         .unwrap_or(&from.body)
@@ -3447,7 +3450,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             names::empty(),
         ))
     };
-    // It computes in its first member's frame whose frame is exact,
+    // It computes in its first member's frame that is its space's,
     // else its first's ([`super::Framed::computing_among`]), reading
     // every other member into it through `relative`.
     let members = match members {
@@ -4342,8 +4345,8 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> OpResult<T> {
     let mut fused = Body::new();
-    // The frame it computes in: its first operand's whose frame is
-    // exact, else its first's, as the author lists them
+    // The frame it computes in: its first operand's that is in its
+    // space's coordinates, else its first's, as the author lists them
     // ([`super::Framed::computing_among`]); every other body is read
     // into it through `relative`.
     let operands: Vec<&super::Framed<T>> = members

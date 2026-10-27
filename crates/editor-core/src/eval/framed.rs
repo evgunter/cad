@@ -194,20 +194,20 @@ impl<T: Decide> Framed<T> {
         })
     }
 
-    /// **Whether its frame is exact**: [`Frame::Own`], or a map every
-    /// entry of which holds one finite value. A frame a widened
-    /// parameter moves is not.
-    pub(crate) fn exact_frame(&self) -> bool {
-        self.frame
-            .map()
-            .is_none_or(|map| map.point_value().is_some())
+    /// **Whether it is in its space's coordinates** ([`Frame::Own`]): a
+    /// construction, or a copy under no map. Structural, so every scalar
+    /// lane answers it alike.
+    pub(crate) fn in_own_frame(&self) -> bool {
+        matches!(self.frame, Frame::Own)
     }
 
     /// **The operand an operation over `operands` computes in**
-    /// (`[placement.frame]`, conditioning): the first whose frame is
-    /// exact, so no operand an exact map places is read through a frame
-    /// a widened parameter moves; the first where none is. At `f64` every
-    /// frame is exact and this is the first operand.
+    /// (`[placement.frame]`, conditioning): the first that is in its
+    /// space's coordinates, so no such operand is read through another's
+    /// map (a widened rotation's, on an enclosure lane); the first where
+    /// none is. The choice reads the frames' structure and no value, so
+    /// the `f64` witness and every lane over a box compute in one frame
+    /// and take one set of decisions.
     pub(crate) fn computing_among<'a>(
         operands: impl IntoIterator<Item = &'a Self> + Clone,
     ) -> Option<&'a Self>
@@ -217,7 +217,7 @@ impl<T: Decide> Framed<T> {
         operands
             .clone()
             .into_iter()
-            .find(|f| f.exact_frame())
+            .find(|f| f.in_own_frame())
             .or_else(|| operands.into_iter().next())
     }
 

@@ -211,7 +211,7 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> OpResult<T> {
     let mut fused = Body::new();
-    // Computed in the first result's frame whose frame is exact, else the
+    // Computed in the first result's frame that is its space's, else the
     // first's ([`crate::eval::Framed::computing_among`]), each other read
     // into it.
     let mut computing: Option<crate::eval::Framed<T>> = crate::eval::Framed::computing_among(
