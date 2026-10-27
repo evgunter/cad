@@ -27,7 +27,7 @@
 use crate::corpus;
 
 use corpus::{documents, eval, failures};
-use editor_core::{DocEdit, ProfileDoc, VarName, apply, assemble, product_recorded};
+use editor_core::{DocEdit, ProfileDoc, VarName, apply, product_recorded};
 use geom_core::Tol;
 
 /// The committed goldens, one per ε row `ci-filter.py` draws — keyed by
@@ -113,7 +113,7 @@ fn heatsink_at(fins: i64) -> ProfileDoc {
     corpus::place_pattern_to(driven, fins)
 }
 
-/// One document's row: the product's size, `assemble`'s outcome, and
+/// One document's row: the product's size, the at-rest check's outcome, and
 /// the census's error vector one finding per line.
 fn row(label: &str, doc: &ProfileDoc, out: &mut String) {
     let tol = Tol::witness();
@@ -139,19 +139,14 @@ fn row(label: &str, doc: &ProfileDoc, out: &mut String) {
         subject.body.edges().count(),
         subject.body.vertices().count(),
     ));
-    // `assemble`'s verdict, by variant: the census's findings ride the
-    // error below, so only the SHAPE of the outcome is recorded here.
-    match assemble(doc, &ev, tol) {
-        Ok(_) => out.push_str("assemble: Ok\n"),
-        Err(e) => {
-            let s = format!("{e:?}");
-            let variant = s
-                .split(|c: char| !c.is_alphanumeric())
-                .next()
-                .unwrap_or("?");
-            out.push_str(&format!("assemble: Err({variant})\n"));
-        }
-    }
+    // The at-rest check's outcome, by kind: the census's findings are
+    // listed below, so only the SHAPE of the outcome is recorded here.
+    let findings = crate::fixture::at_rest(doc, &ev).expect("the product gathered");
+    out.push_str(&format!(
+        "at rest: {} interference, {} could not look\n",
+        crate::fixture::interference(&findings).len(),
+        crate::fixture::could_not_look(&findings).len()
+    ));
     // The census as the gather ran it: its findings, then the rows it
     // recorded (a mated pair's, and each contact between two copies).
     match subject.census.as_slice() {

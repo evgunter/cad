@@ -32,7 +32,7 @@ from pncad import (
     Angle,
     AngleUnit,
     ArcSweep,
-    Assembly,
+    AtRestEvidence,
     Bulge,
     ClosedLoop,
     CancelToken,
@@ -117,7 +117,8 @@ from pncad import (
     SurfaceKind,
     Workspace,
     StationMove,
-    assemble,
+    InterferenceFinding,
+    CarriedInterference,
     canonical_bytes,
     circle,
     content_pin,
@@ -614,11 +615,9 @@ relative: Frame | None = poses.pose(instance)
 world_pose: Frame = poses.placement(doc, instance)
 partition: list[list[NodeId]] = relative_freedom_components(doc)
 
-# The gather and the gate.
+# The gather.
 gathered: Body = product(doc, seamed)
 named_gather: tuple[Body, list[str]] = product_named(doc, seamed)
-checked: Assembly = assemble(doc, seamed)
-assembled: Body = checked.body
 
 # The refactorings and the pin-update door.
 cut: SplitOutcome = split(doc, [instance], minted)
@@ -673,10 +672,20 @@ report: ChecksReport = run_checks(doc, seamed)
 strict: ChecksConfig = ChecksConfig(
     connectedness=Severity.Error,
     expected_components=[(instance, 0, 2)],
-    separation=Advisory.Warn,
+    unproven_coincidence=Advisory.Warn,
+    at_rest=Severity.Error,
 )
 findings: list[CheckFinding] = run_checks(doc, seamed, strict).findings
 label: CheckKind = CheckId.Connectedness.kind
+# What the at-rest check reports, read off a finding: the census it is
+# under, the assertion that quiets it, and the evidence's payloads.
+at_rest: list[CheckFinding] = [f for f in findings if f.check == CheckId.AtRest]
+census: Var | None = at_rest[0].census
+quieted_by: NodeId | None = at_rest[0].quiet
+overlap: InterferenceFinding | None = at_rest[0].evidence.interference
+carried_overlap: CarriedInterference | None = at_rest[0].evidence.carried_interference
+could_not_look: AtRestEvidence | None = at_rest[0].evidence.at_rest
+why: str | None = could_not_look.inner_variant if could_not_look is not None else None
 enforce_checks(report, strict)
 flagged: Body | None = subject_body(seamed, instance, 0)
 

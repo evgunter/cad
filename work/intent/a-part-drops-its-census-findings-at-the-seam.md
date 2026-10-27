@@ -55,7 +55,9 @@ orchestrator approved.
     `PartValue::census_pairs`. Each graft re-keys them by its solid
     order (`Product::census_pairs`).
 - **At the gate.** `checks::at_rest::less_carried` drops every verdict
-  about a carried pair. An in-copy verdict that matches nothing is
+  about a carried pair. (Since retired: D′3's in-arrival discard took
+  this over, and stage 5 C retired the by-value residue,
+  `work/contacthold/an-escalated-census-finding-names-no-pair.md`.) An in-copy verdict that matches nothing is
   refused as before, as the copy's door's own unrecorded contact.
   - Carried overlaps are reported on `Assembly::carried_interference` and
     never refuse.

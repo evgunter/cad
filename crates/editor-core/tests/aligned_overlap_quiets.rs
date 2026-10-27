@@ -62,10 +62,11 @@ fn a_flush_sided_slab_is_quiet_under_its_gap() {
         },
     );
     let run = corpus::eval::<f64>(&doc);
-    let assembly = editor_core::assemble(&doc, &run, Tol::witness())
+    let findings = crate::fixture::at_rest(&doc, &run)
         .unwrap_or_else(|e| panic!("an overlap is a finding: {e}"));
-    let [finding] = &assembly.interference[..] else {
-        panic!("one interference: {:?}", assembly.interference);
+    let interference = crate::fixture::interference(&findings);
+    let [finding] = &interference[..] else {
+        panic!("one interference: {interference:?}");
     };
     assert!(
         matches!(
