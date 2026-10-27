@@ -28,8 +28,8 @@ use editor_core::{
 use fixture::resolver::{PartStore, in_part, in_part_of, with_resolver};
 use fixture::seat::map_gap;
 use fixture::{
-    constrain_at, gate, head, head_at, in_copy, insert, insert_pinned, len, on_frame, rest, run,
-    scl, solve, step,
+    constrain_at, could_look, head, head_at, in_copy, insert, insert_pinned, len, on_frame, rest,
+    run, scl, solve, step,
 };
 use geom_core::Tol;
 use geom_core::linalg::Affine3;
@@ -388,9 +388,9 @@ impl Scene {
             what,
         );
         assert!(
-            gate(&self.doc, &ev).is_ok(),
-            "{what}: the at-rest gate refused a seat the solve placed: {:?}",
-            gate(&self.doc, &ev).err()
+            could_look(&self.doc, &ev).is_ok(),
+            "{what}: the at-rest check could not look at a seat the solve placed: {:?}",
+            could_look(&self.doc, &ev).err()
         );
     }
 }
@@ -555,9 +555,9 @@ fn a3a_a_pattern_of_a_placed_copy_seats() {
             "A3 pattern of a placed copy",
         );
         assert!(
-            gate(&doc, &ev).is_ok(),
+            could_look(&doc, &ev).is_ok(),
             "A3 pattern of a placed copy: the gate refused: {:?}",
-            gate(&doc, &ev).err()
+            could_look(&doc, &ev).err()
         );
     }
 }
@@ -1015,9 +1015,9 @@ fn a10_a_nested_pattern_head_is_read_at_its_copy() {
     );
     assert_seated(&doc, &ev, &a, &b, &control_seat("msolve1-a10"), "A10");
     assert!(
-        gate(&doc, &ev).is_ok(),
+        could_look(&doc, &ev).is_ok(),
         "A10: the gate refused: {:?}",
-        gate(&doc, &ev).err()
+        could_look(&doc, &ev).err()
     );
 
     // The numbering: (j, i) = (1, 1) is flat body 1·3 + 1.
@@ -1366,7 +1366,11 @@ fn a11_a_placement_between_two_patterns_composes_outer_t_inner() {
     let ev = run(&doc, &opts);
     assert!(ev.value(outer).is_some(), "{:?}", ev.node_error(outer));
     assert_seated(&doc, &ev, &a, &b, &control_seat("msolve1-a11"), "A11");
-    assert!(gate(&doc, &ev).is_ok(), "{:?}", gate(&doc, &ev).err());
+    assert!(
+        could_look(&doc, &ev).is_ok(),
+        "{:?}",
+        could_look(&doc, &ev).err()
+    );
     let table = ev.table_at(outer).unwrap();
     let Some(editor_core::Entry::Unique(row)) = table.lookup(&a) else {
         panic!("{:?}", table.lookup(&a))
@@ -1496,9 +1500,9 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_placed: bool, expect: PartCase) 
             );
             assert_seated(&doc, &ev, &a, &b, &control_seat(&label), &what);
             assert!(
-                gate(&doc, &ev).is_ok(),
+                could_look(&doc, &ev).is_ok(),
                 "{what}: {:?}",
-                gate(&doc, &ev).err()
+                could_look(&doc, &ev).err()
             );
         }
         PartCase::Refuses => {

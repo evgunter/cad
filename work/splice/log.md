@@ -630,3 +630,85 @@ slate.
 The orchestrator read the diff, which is test-only, so it got no
 separate review. This is the third ε-unaware probe today (5805, 5814,
 and 5826's re-check). Every brief now binds ε-scaled geometry.
+
+## 2026-10-27 — PR 5826 (the interior arm, analytic span × spline face) merges
+
+Letter H, a concurrent pair, frozen at `b2728f422d`. Both reviewers:
+NOT-MERGEABLE-AS-IS, on one shared MAJOR. The chart-edge-near-end skip
+pruned in-band floor boxes, so a tangency, or a transverse crossing on
+a closed seam, returned `Ok([])` at all three ε. That broke C5's
+"never pruning". The MAJOR is bilateral, so nothing is tallied.
+
+The fix pass is `0271d125cd`; the orchestrator read the delta.
+- The skip is deleted. A span ending on an open chart's edge now
+  refuses, which is recorded.
+- One crease home, `Cuts::touch`; `crease_apart` is gone.
+- Krawczyk pieces live in `geom_brep::krawczyk`, and `meet3` fails
+  loud on a disjoint enclosure.
+- An arm-level sheet-exactness row was added, and the v-f ends read in
+  space are filed.
+
+What it changes on the demos:
+- Lily wall 8 was premised wrong. It is (Nurbs, Nurbs):
+  `a-spline-span-against-a-spline-face-has-no-interior-arm`, now lily's
+  next blocker.
+- Klein wall 3 moves to a Crease refusal on a G1 rational-arc joint,
+  filed as `a-meeting-on-a-g1-arc-joint-of-a-spline-face-refuses-as-a-crease`.
+- Teapot wall 3 is unchanged.
+
+Next: the spline × spline interior arm (lily). The held-pierce split
+pcurves (the wavy loft) and the G1-joint crease (klein) also remain.
+
+## 2026-10-27 — the spline × spline arm dispatched
+
+`splice/spline-span-arm` (`session_01EdpJs4Ez9ZNEZk53hwLNSN`) takes
+`a-spline-span-against-a-spline-face-has-no-interior-arm`, re-banded
+P1 → P0 because it is now lily wall 8's blocker. Letter H, so a
+concurrent pair.
+- The lane generalises PR 5826's `(t, u, v)` arm over the curve side
+  rather than copying it.
+- The brief binds the crease class on both curve and surface, the
+  sheet-exact placement, ε-scaled rows, and the full slow sets.
+
+## 2026-10-27 — PR 5855 (the spline × spline arm) merges; lily moves
+
+Letter H, concurrent pair, frozen at `015e27412e`. Both reviewers:
+APPROVE-WITH-FIXES, no MAJOR. Both re-derived the new end bound
+(`krawczyk::solution_reach`) and found it sound, and every swallow probe
+was reported or refused at three ε.
+- Bilateral: the end-box gates had no red row, and an end on a span
+  crease refused needlessly.
+- The fix pass is `4742bb0286`. Every gate mutant now reds a per-PR
+  row. An end on a crease is the end's. `SpanCarrier` pairs a curve
+  with its sheet.
+
+**Lily wall 8 moves past every face reduction.** It now stops at the
+result's seam re-description: `classify_dihedral` reads no spline, on
+the shared rim between two NURBS walls. That is filed as
+`the-results-seam-between-two-spline-walls-is-read-by-no-dihedral`,
+and it is next on lily's path. Klein and teapot are unmoved.
+
+## 2026-10-27 — the spline seam reading dispatched
+
+`splice/spline-seam-dihedral` (`session_01EdpJs76R3BtUnnQPDh3NwV`) takes
+`the-results-seam-between-two-spline-walls-is-read-by-no-dihedral`. It
+is re-banded P1 → P0, as lily wall 8's next stop.
+- Letter M; draw byte 36, and 36 mod 3 = 0, so a holdout: a concurrent
+  pair.
+- The brief: each face's normal is read at the edge's pcurve parameter
+  on that face (sheet-exact, as PR 5802's sector walk), not at a foot.
+  It reuses `dihedral_side`'s regularity and crease guards. The arm is
+  read from certified curvature bounds.
+
+## 2026-10-27 — Ev ratifies C5's ladder of evidence (PR 5860)
+
+Ev asked for C5's curve × face clause to be made general rather than
+given a `twin_edge` exception. PR 5860 rewrites it as one ladder, each
+rung reading only what the rungs before it left undecided:
+1. topology, by incidence, under the boolean's validity precondition,
+   which it names as assumed;
+2. the span's ends;
+3. the face's boundary edges;
+4. the face's interior.
+
+Ev approved it ("5860 looks good!"). Only the wording changed.

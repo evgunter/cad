@@ -329,7 +329,6 @@ fn error_classes_name_the_python_hierarchy() {
             ErrorClass::Identity => "IdentityError",
             ErrorClass::Workspace => "WorkspaceError",
             ErrorClass::Mate => "MateError",
-            ErrorClass::Assembly => "AssemblyError",
             ErrorClass::Product => "ProductError",
             ErrorClass::Split => "SplitError",
             ErrorClass::Inline => "InlineError",
@@ -371,7 +370,6 @@ fn error_classes_name_the_python_hierarchy() {
         ErrorClass::Identity,
         ErrorClass::Workspace,
         ErrorClass::Mate,
-        ErrorClass::Assembly,
         ErrorClass::Product,
         ErrorClass::Split,
         ErrorClass::Inline,
@@ -3361,20 +3359,10 @@ fn check_registry_tags_are_stable() {
         "stale_expectation"
     );
     assert_eq!(
-        check_evidence_tag(&CheckEvidence::NotSeparated {
-            other_root: RecipeNodeId::new(0, 4),
-            other_output: 0
+        check_evidence_tag(&CheckEvidence::AtRest {
+            evidence: pncad::document::AtRestEvidence::NotRun
         }),
-        "not_separated"
-    );
-    assert_eq!(
-        check_evidence_tag(&CheckEvidence::SeparationUnavailable {
-            refusal: pncad::topo::BooleanError::ClassificationInvariant {
-                what: "boxes refused"
-            }
-            .into()
-        }),
-        "separation_unavailable"
+        "at_rest"
     );
 
     let refused = ShellClassifyError::ZeroVolume {
@@ -3407,7 +3395,7 @@ fn check_registry_tags_are_stable() {
 /// read.**
 ///
 /// The arm table, executable. `crate::check_payload::check_payload`
-/// is the projection `CheckEvidence`'s five Python attributes are
+/// is the projection `CheckEvidence`'s flat Python attributes are
 /// read off, and this pin says what each arm puts on the wire: the
 /// exact set it CARRIES, in publication order, with the rest `None`.
 ///
@@ -3418,14 +3406,15 @@ fn check_registry_tags_are_stable() {
 /// carries the refusal's own word beside the sentence it renders.
 ///
 /// Some are unreachable from Python entirely (the shell door
-/// escalating on a gathered subject, the box builder refusing over the
-/// whole product), so this is where their projection is pinned at all:
-/// `tests/test_checks.py` reads the rest.
+/// escalating on a gathered subject, most of the at-rest check's
+/// could-not-look reasons), so this is where their projection is
+/// pinned at all: `tests/test_checks.py` and `tests/test_interference.py`
+/// read the rest.
 #[test]
 fn every_check_evidence_arm_projects_the_payload_it_carries() {
     use crate::check_payload::check_payload;
     use crate::tags::check_evidence_tag;
-    use pncad::document::{CheckEvidence as E, RecipeNodeId};
+    use pncad::document::{AtRestEvidence as A, CheckEvidence as E, RecipeNodeId};
 
     let carries = |evidence: &E, want: &[&str]| {
         assert_eq!(
@@ -3444,20 +3433,6 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
         &["actual", "expected"],
     );
     carries(&E::StaleExpectation { expected: 1 }, &["expected"]);
-    carries(
-        &E::NotSeparated {
-            other_root: RecipeNodeId::new(0, 4),
-            other_output: 2,
-        },
-        &["other_root", "other_output"],
-    );
-    let unavailable = E::SeparationUnavailable {
-        refusal: pncad::topo::BooleanError::ClassificationInvariant {
-            what: "boxes refused",
-        }
-        .into(),
-    };
-    carries(&unavailable, &["reason", "boolean_variant"]);
 
     // The two arms that hold another door's refusal: its sentence and
     // its own word, which is the half a caller branches on.
@@ -3500,21 +3475,6 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
             }
         ))
     );
-    // The boolean class beside the sentence, and the two words are
-    // read off the same evidence: a consumer branching on this one
-    // never parses the prose to learn which refusal it was.
-    assert_eq!(
-        check_payload(&unavailable).boolean_variant,
-        Some("classification_invariant")
-    );
-
-    // The numbers and the sentence themselves, not just which fields
-    // are set: the counterpart names the root it names, and the
-    // separation arm's prose crosses as the kernel wrote it.
-    let separated = E::NotSeparated {
-        other_root: RecipeNodeId::new(0, 4),
-        other_output: 2,
-    };
     // An unproven coincidence: its two words and the residual's
     // sentence; the cells cross on the Python value, not the payload.
     let tool = pncad::document::NamedCell::Tool {
@@ -3573,23 +3533,47 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
         (words.relation, words.site),
         (Some("on_carrier"), Some("split_on"))
     );
-    let pair = check_payload(&separated);
-    assert_eq!(pair.other_root, Some(RecipeNodeId::new(0, 4)));
-    assert_eq!(pair.other_output, Some(2));
-    let E::SeparationUnavailable { refusal } = &unavailable else {
-        unreachable!("built as the separation arm above")
+    // The at-rest check's could-not-look arm: its own word, its
+    // sentence, and the inner refusal's word where it holds one.
+    let at_rest = |evidence: A| E::AtRest { evidence };
+    let negative = pncad::topo::ValidationError::NegativeVolume {
+        solid: pncad::topo::SolidKey::default(),
     };
-    let words = check_payload(&unavailable);
-    assert_eq!(
-        words.reason.as_deref(),
-        Some(refusal.to_string().as_str()),
-        "the reason is the kernel's own sentence, whole"
+    for (evidence, word) in [
+        (A::NoLane(negative.clone()), "no_lane"),
+        (A::Malformed(negative.clone()), "malformed"),
+        (A::InsideArrival(negative.clone()), "inside_arrival"),
+    ] {
+        let evidence = at_rest(evidence);
+        carries(&evidence, &["reason", "inner_variant", "at_rest_variant"]);
+        let words = check_payload(&evidence);
+        assert_eq!(words.at_rest_variant, Some(word), "the arm's own word");
+        assert_eq!(
+            words.inner_variant,
+            Some(crate::tags::validation_error_tag(&negative)),
+            "the validator's word for {word}"
+        );
+        assert_eq!(
+            words.reason.as_deref(),
+            Some(negative.to_string().as_str()),
+            "the validator's own sentence for {word}"
+        );
+    }
+    let not_gathered = at_rest(A::NotGathered(
+        pncad::document::ProductError::EmptyProduct.into(),
+    ));
+    carries(
+        &not_gathered,
+        &["reason", "inner_variant", "at_rest_variant"],
     );
     assert_eq!(
-        words.boolean_variant,
-        Some("classification_invariant"),
-        "the class is the arm the refusal is"
+        check_payload(&not_gathered).inner_variant,
+        Some("empty_product"),
+        "the gather's own word"
     );
+    let not_run = at_rest(A::NotRun);
+    carries(&not_run, &["reason", "at_rest_variant"]);
+    assert_eq!(check_payload(&not_run).at_rest_variant, Some("not_run"));
 }
 
 /// **The tier-3′ census findings read as prose, and that is a KERNEL
@@ -3791,8 +3775,9 @@ fn every_validation_finding_carries_every_word_its_arm_has() {
 /// the same for all four: a stale record is a declaration the
 /// geometry stopped backing, and every door that hands Python a body
 /// with declarations attached mints those declarations from the
-/// geometry it is looking at (`Value.body`) or gates them before it
-/// answers (`assemble`, whose gate refuses on exactly this census).
+/// geometry it is looking at (`Value.body`), or carries them from the
+/// document whose census minted them over its own geometry (an
+/// instance's body).
 /// A Python caller cannot edit a `ContactRecords`, so it cannot part
 /// a record from its witness; the kernel's own suites do it by
 /// tampering with the record set directly. This is therefore where
@@ -4331,9 +4316,16 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "assembly_error_tag",
-        values: &["assemble", "at_rest", "carried_at_rest"],
-        delegates: &["product_error_tag"],
+        function: "at_rest_evidence_tag",
+        values: &[
+            "carried",
+            "inside_arrival",
+            "malformed",
+            "no_lane",
+            "not_gathered",
+            "not_run",
+        ],
+        delegates: &[],
     },
     TagEntry {
         function: "attr_kind_tag",
@@ -4515,14 +4507,15 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "check_evidence_tag",
         values: &[
+            "at_rest",
+            "carried_interference",
             "chart_coherence",
             "chart_coherence_unavailable",
             "chart_coherence_unexamined",
             "connectedness",
             "escalated",
+            "interference",
             "not_at_rest",
-            "not_separated",
-            "separation_unavailable",
             "stale_expectation",
             "unproven_coincidence",
             "unsupported",
@@ -5112,6 +5105,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "split_lineage_cycle",
             "unnamed",
             "unsettled_vertex",
+            "unsupported_turned_cell",
         ],
         delegates: &[
             "band_error_tag",
@@ -7938,10 +7932,10 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
     },
     MintingItem {
         owner: "ErrorClass::class_name",
-        literals: 36,
+        literals: 35,
         held_by: &[Holder::Test {
             name: "error_classes_name_the_python_hierarchy",
-            holds: "the 37 class names, against a SECOND exhaustive match, so a new \
+            holds: "the 36 class names, against a SECOND exhaustive match, so a new \
                     class stops the build",
         }],
     },
@@ -10294,36 +10288,37 @@ mod product_memo_rows {
 
     /// The unit's whole point: a Python caller asking both questions
     /// of one evaluation pays for ONE gather, whichever order it asks
-    /// in. Before the memo each wrapper gathered for itself.
+    /// in.
     #[cfg(debug_assertions)]
     #[test]
-    fn the_checks_registry_and_the_assembly_gate_share_one_gather() {
+    fn the_checks_registry_and_the_product_share_one_gather() {
         let (doc, _, _) = box_doc("memo-both-orders");
         let ev = evaluated(&doc);
         let cfg = d::ChecksConfig::default();
         let tol = Tol::witness();
 
         let memo = ProductMemo::default();
-        let checks_then_assembly = gathers(|| {
+        let checks_then_product = gathers(|| {
             product_memo::checks_report(&memo, &doc, &ev, &cfg, tol).expect("the registry runs");
-            product_memo::assembly(&memo, &doc, &ev, tol).expect("the gate passes");
+            product_memo::body(&memo, &doc, &ev, tol).expect("the gather succeeds");
         });
-        assert_eq!(checks_then_assembly, 1);
+        assert_eq!(checks_then_product, 1);
 
         let memo = ProductMemo::default();
-        let assembly_then_checks = gathers(|| {
-            product_memo::assembly(&memo, &doc, &ev, tol).expect("the gate passes");
+        let product_then_checks = gathers(|| {
+            product_memo::body(&memo, &doc, &ev, tol).expect("the gather succeeds");
             product_memo::checks_report(&memo, &doc, &ev, &cfg, tol).expect("the registry runs");
+            product_memo::checks_report(&memo, &doc, &ev, &cfg, tol).expect("and runs again");
         });
-        assert_eq!(assembly_then_checks, 1);
+        assert_eq!(product_then_checks, 1);
     }
 
     /// The sweep: every door that wants a product joins the memo, so
-    /// all four together are still one gather.
+    /// all three together are still one gather.
     #[cfg(debug_assertions)]
     #[test]
-    fn all_four_product_doors_share_one_gather() {
-        let (doc, _, _) = box_doc("memo-four-doors");
+    fn all_three_product_doors_share_one_gather() {
+        let (doc, _, _) = box_doc("memo-three-doors");
         let ev = evaluated(&doc);
         let cfg = d::ChecksConfig::default();
         let tol = Tol::witness();
@@ -10332,27 +10327,8 @@ mod product_memo_rows {
             product_memo::body(&memo, &doc, &ev, tol).expect("the gather succeeds");
             product_memo::body_and_names(&memo, &doc, &ev, tol).expect("and names its entities");
             product_memo::checks_report(&memo, &doc, &ev, &cfg, tol).expect("the registry runs");
-            product_memo::assembly(&memo, &doc, &ev, tol).expect("the gate passes");
         });
         assert_eq!(count, 1);
-    }
-
-    /// The clone the assembly gate is handed is a clone of the SAME
-    /// product the registry read: the memo outlives the consuming
-    /// door, so a later caller finds it rather than re-earning it.
-    #[cfg(debug_assertions)]
-    #[test]
-    fn the_gate_consumes_a_copy_and_the_memo_survives_it() {
-        let (doc, _, _) = box_doc("memo-survives-the-gate");
-        let ev = evaluated(&doc);
-        let tol = Tol::witness();
-        let memo = ProductMemo::default();
-        product_memo::assembly(&memo, &doc, &ev, tol).expect("the gate passes");
-        let again = gathers(|| {
-            product_memo::assembly(&memo, &doc, &ev, tol).expect("and passes again");
-            product_memo::body(&memo, &doc, &ev, tol).expect("the gather succeeds");
-        });
-        assert_eq!(again, 0);
     }
 
     /// The registry's laziness survives the memo, and it is the point:
@@ -10365,7 +10341,7 @@ mod product_memo_rows {
         let (doc, _, _) = box_doc("memo-lazy");
         let ev = evaluated(&doc);
         let cfg = d::ChecksConfig {
-            separation: d::Advisory::Off,
+            at_rest: d::Severity::Off,
             unproven_coincidence: d::Advisory::Off,
             ..d::ChecksConfig::default()
         };

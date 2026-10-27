@@ -2,7 +2,7 @@
 id: SHELL-4
 kind: unit
 title: shell runs the curved wall-clearance gate at certifying scalars — the cavity clone checked embedded before insertion
-status: open
+status: parked
 opened: 2026-09-04
 blocked_on: [SHELL-3]
 refs: [shell-curved-clearance-consumer, shell-curved-wall-clearance-window, 1737]
@@ -24,3 +24,15 @@ module docs keep the window sentence, true. Closes
 refuses the OFF-D dumbbell's curved twin with a witness and holds on
 the tube; the pair-filter cost is measured on the tube and vessel
 fixtures in the same PR.
+
+## Lane sentence (CLEAR orchestrator, 2026-10-27)
+
+The decided shape (`symbolic-tier-and-clearance-engine`) changes the lane
+sentence above. `shell` reads `T::clearance_lane()`:
+- `Interval` and `Sym<T>` answer `Some`, so the certifying `Sym` rebuild
+  runs the gate the `Interval` rebuild runs;
+- `f64`, `Probe` and `Dual` answer `None`.
+
+The wording "over its non-adjacent face pairs" defers to the
+self-intersection row's design. Witness verification without a
+document is SHELL-3's spec question, above.

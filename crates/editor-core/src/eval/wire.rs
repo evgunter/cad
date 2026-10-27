@@ -71,7 +71,7 @@ pub(crate) struct OpOut<T: Decide> {
     pub contacts: Arc<topo::ContactRecords>,
     /// The at-rest findings of the documents below; same arena, same
     /// one op.
-    pub carried: Arc<crate::assembly::CarriedFindings>,
+    pub carried: Arc<crate::checks::at_rest::CarriedFindings>,
     /// How many parts each output body is (`NodeValue::parts`).
     pub parts: usize,
     /// The coincidences the op decided from values, named in its
@@ -98,7 +98,7 @@ impl<T: Decide> OpOut<T> {
             payload,
             outputs: vec![super::OutputNames::new(names, Arc::default())],
             contacts: Arc::new(topo::ContactRecords::default()),
-            carried: Arc::new(crate::assembly::CarriedFindings::default()),
+            carried: Arc::new(crate::checks::at_rest::CarriedFindings::default()),
             parts: 1,
             coincidences: Arc::new([]),
             cited_inputs: Arc::new([]),
@@ -833,7 +833,7 @@ where
             fault,
         })?;
     // ASM-R2b D-4/D-5: the structural half of A4's fit gate (the
-    // geometric half is `crate::assembly::assemble`). Every crossing
+    // geometric half is `crate::checks::at_rest::assemble`). Every crossing
     // names an entity of the PART's product, so a pin move (A13 clause
     // 4) that changed the part's contact face arrives as a crossing
     // that no longer resolves. INVARIANT: this runs on every
@@ -862,14 +862,14 @@ where
     // it is, through this instance ([`crate::coincide::CitedInput::Part`]).
     // The bookkeeping rows ride unchanged for the same reason; what is
     // added here is each row's first hop, this instance
-    // ([`crate::assembly::PartRow::through`]).
-    let carried = crate::assembly::CarriedFindings {
+    // ([`crate::checks::at_rest::PartRow::through`]).
+    let carried = crate::checks::at_rest::CarriedFindings {
         interference: part
             .interference
             .iter()
             .map(|row| {
                 let (route, pinned, _) = row.through(id);
-                crate::assembly::CarriedInterference {
+                crate::checks::at_rest::CarriedInterference {
                     route,
                     pin: pinned.pin,
                     finding: pinned.finding,
@@ -881,7 +881,7 @@ where
             .iter()
             .map(|row| {
                 let (route, pinned, held) = row.through(id);
-                crate::assembly::CarriedAtRestFinding {
+                crate::checks::at_rest::CarriedAtRestFinding {
                     route,
                     pin: pinned.pin,
                     finding: pinned.finding,
@@ -3399,7 +3399,14 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             .map_err(NodeErrorKind::Naming)?,
         );
         links
-            .judged(j.a, j.b, &j.body.naming, &j.body.body)
+            .judged(
+                j.a,
+                j.b,
+                &j.body.naming,
+                &j.body.body,
+                [members[j.a].read, members[j.b].read],
+                bodies[j.b],
+            )
             .map_err(NodeErrorKind::Naming)?;
     }
     // One row per statement: two pairs that state one thing (a member
@@ -3467,7 +3474,14 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             })
             .collect();
             links
-                .judged(0, 1, naming, &out.body)
+                .judged(
+                    0,
+                    1,
+                    naming,
+                    &out.body,
+                    [members[0].read, members[1].read],
+                    member_body,
+                )
                 .map_err(NodeErrorKind::Naming)?;
         }
         // The step's records in the node's terms: every row the step
