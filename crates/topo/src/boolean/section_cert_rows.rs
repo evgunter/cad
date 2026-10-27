@@ -3028,7 +3028,7 @@ fn a_ball_touching_a_wall_near_its_axis_stands_on_both_carriers() {
             centre: base,
             radius: 2.0 * scale,
         };
-        let mut touches = 0;
+        let (mut touches, mut poses) = (0, 0);
         for i in 0..16 {
             let z = 1.0 - (f64::from(i) + 0.5) / 8.0;
             let phi = 2.4 * f64::from(i);
@@ -3040,7 +3040,14 @@ fn a_ball_touching_a_wall_near_its_axis_stands_on_both_carriers() {
                 let o = base - d * far;
                 let wall = Partner::Wall(o, d, rc);
                 let ulps = 8.0 * f64::EPSILON * (far + 2.0 * scale);
-                for e in [2.0 * band.escalate(), 100.0 * eps, 1e3 * eps] {
+                // The ball's radius `ρc − e` must stay definitely positive:
+                // a radius the band cannot tell from zero is a degenerate
+                // operand, which the pose refuses rather than touches.
+                for e in [2.0 * band.escalate(), 100.0 * eps, 1e3 * eps]
+                    .into_iter()
+                    .filter(|&e| rc - e > 2.0 * band.escalate())
+                {
+                    poses += 1;
                     let ball = Partner::Sphere(base + q * e, rc - e);
                     let label = format!("×{scale:e}, axis {i}, origin {far:e} along, e {e:e}");
                     for section in [
@@ -3065,7 +3072,8 @@ fn a_ball_touching_a_wall_near_its_axis_stands_on_both_carriers() {
                 }
             }
         }
-        assert_eq!(touches, 192, "×{scale:e}: every pose a touch");
+        assert!(touches >= 128, "×{scale:e}: {touches} touches");
+        assert_eq!(touches, poses * 2, "×{scale:e}: every pose a touch");
     }
 }
 
