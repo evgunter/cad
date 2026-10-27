@@ -6,7 +6,7 @@
 //! (`Rest`, `Tangent`) — so there is no second vocabulary to keep
 //! synced. A value sets one freedom a mate leaves. Each is a constraint
 //! of the placement that holds it, addressed by a [`MateRef`], never a
-//! node; everything the solve and the gate then say about it is here.
+//! node; everything the solve and the checks then say about it is here.
 //!
 //! # The solve is TOTAL, so its faults are VALUES
 //!

@@ -4,10 +4,11 @@ kind: issue
 title: The result's seam between two spline walls is re-described through classify_dihedral, which reads no arm on a NURBS surface: lily wall 8 stops there
 status: closed
 opened: 2026-10-27
-priority: P1
+priority: P0
 cost: M
 closed: 2026-10-27
 refs: [the-side-of-a-spline-face-is-read-by-no-dihedral, a-unions-flush-reading-cannot-follow-a-nurbs-carrier]
+branch: splice/spline-seam-dihedral
 ---
 
 Filed by the SPLICE lane that built the spline span × spline face arm

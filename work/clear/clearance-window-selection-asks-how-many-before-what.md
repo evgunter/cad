@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-15
 refs: [named-face-scope-refuses-not-a-face-without-naming-what-it-found]
 priority: P1
-cost: D
+cost: M
 ---
 
 

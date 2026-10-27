@@ -1,15 +1,14 @@
 //! **A mate reads its face where it says.**
 //!
 //! A mate's target is a pose read off a selection of the body it is
-//! read in, and the at-rest gate mints the mate's declaration on the
-//! world copy of that body: on the placement that reads it. A target
-//! whose body no placement reads — one read below a union, a
-//! placement, a blend or a shell that is placed in its stead — has no
-//! world copy, and the mate mints nothing.
+//! read in, on the world copy of that body: on the placement that reads
+//! it. A target whose body no placement reads — one read below a union,
+//! a placement, a blend or a shell that is placed in its stead — has no
+//! world copy, and the mate seats nothing there.
 //!
 //! The rows build the documents the gather's own recourse leads to — a
 //! union over two pattern copies of one pinned instance, placed, the
-//! slabs seated under it — and measure the gate's verdict on each, the member walk's
+//! slabs seated under it — and measure the at-rest check on each, the member walk's
 //! descent through the union, the member key that makes two spellings
 //! of one placement one member, and what split and inline answer across
 //! a mate read at a union (A3).
@@ -23,7 +22,7 @@ use editor_core::{
     RecipeNodeId, SitedFace, SplitError, StableName, VarId, member_of,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{gate, head_at, in_copy, insert, len, member_name, on_frame, run, scl, solve};
+use fixture::{could_look, head_at, in_copy, insert, len, member_name, on_frame, run, scl, solve};
 use geom_core::Tol;
 
 // ---- the scene ----
@@ -261,7 +260,7 @@ fn a1a_mates_read_at_the_placements_below_a_placed_union_mint_nothing() {
     assert_placed(&s, &f, "A1(a)");
     let ev = run(&f.doc, &s.opts);
     assert!(
-        gate(&f.doc, &ev).is_ok(),
+        could_look(&f.doc, &ev).is_ok(),
         "A1(a): the unmated seats do not refuse"
     );
     crate::fixture::assert_copies_rows_alone(&f.doc, &ev);
@@ -289,7 +288,7 @@ fn a1c_a_reference_read_at_the_union_is_a_member_and_gates() {
     assert_eq!(m.instance, s.top);
     assert_placed(&s, &f, "A1(c)");
     let ev = run(&f.doc, &s.opts);
-    let gated = gate(&f.doc, &ev);
+    let gated = could_look(&f.doc, &ev);
     assert!(
         gated.is_ok(),
         "A1(c): a mate read at the union gates: {gated:?}"
@@ -363,7 +362,7 @@ fn a2_two_spellings_through_a_union_are_one_member() {
         "A2: the two spellings seat the slab alike: {by_t1:?} vs {by_union:?}"
     );
     let ev = run(&by_union_doc, &s.opts);
-    let gated = gate(&by_union_doc, &ev);
+    let gated = could_look(&by_union_doc, &ev);
     assert!(gated.is_ok(), "A2: the gate holds: {gated:?}");
 }
 
@@ -412,7 +411,7 @@ fn a2_a_part_and_its_pattern_naming_one_copy_are_one_member() {
         "A2: the two spellings seat the slab alike: {by_part:?} vs {by_pattern:?}"
     );
     let ev = run(&by_pattern_doc, &s.opts);
-    let gated = gate(&by_pattern_doc, &ev);
+    let gated = could_look(&by_pattern_doc, &ev);
     assert!(
         gated.is_ok(),
         "A2: the gate holds the pattern's spelling: {gated:?}"
@@ -696,7 +695,7 @@ fn a3d_an_assembly_with_a_mate_read_at_a_union_splits_and_inlines_back() {
         head_at(union, through_top),
     );
     let ev = run(&doc, &s.opts);
-    let gated = gate(&doc, &ev);
+    let gated = could_look(&doc, &ev);
     assert!(gated.is_ok(), "A3(d): the document gates: {gated:?}");
     let cut = fixture::with_placements(&doc, &[s.base1, s.top, t1, union].into_iter().collect());
     let cut: Vec<_> = cut.into_iter().collect();
@@ -721,7 +720,7 @@ fn a3d_an_assembly_with_a_mate_read_at_a_union_splits_and_inlines_back() {
     .unwrap_or_else(|e| panic!("A3(d): inline(split(d)) is d up to node ids:\n{e}"));
     let ev = run(&back.doc, &with_resolver(store));
     assert!(
-        gate(&back.doc, &ev).is_ok(),
+        could_look(&back.doc, &ev).is_ok(),
         "A3(d): the gate holds on the round trip"
     );
 }

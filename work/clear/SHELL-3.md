@@ -21,3 +21,32 @@ calls down. No behaviour change: the M10-5/M10-6 suites and goldens
 are the differential. Joint with M10 (the file is M10's; M10-7's PR
 #1725 does not touch it, measured); spec to follow, dispatched after
 SHELL-1 and SHELL-2 return.
+
+## Shape (CLEAR orchestrator, 2026-10-27)
+
+Ev's ruling on #1737 ("i think B makes sense?") placed the engine. It did
+not fix the detail above, which was agent prose. Two corrections, both
+from the symbolic-tier designers (`symbolic-tier-and-clearance-engine`,
+`## Decided`):
+
+- **There is no `interval` feature.** RING-4 (#3154) removed it, and
+  certified code compiles in every build. The engine moves into
+  `topo::clearance` unconditionally.
+- **`verify_witness` does not move.** It rebuilds the `Doc` at `f64` at
+  the leaf's midpoint. It stays in `editor-core` with `clearance_over`,
+  `LeafFold`, `facet_restrict` and the selection resolution. The `topo`
+  walk takes a verifier or returns an unverified candidate: the spec
+  picks one, and SHELL-4 needs its answer for a body with no document.
+
+What moves, in shape:
+- `Side { body: &Body<T>, faces }`, carrying no node address and no frame.
+  INTENT E's `Framed::read_in` reads both operands into one frame first.
+- `min_separation` and the bound walk, generic over `T: Decide +
+  CertifiedBounds`.
+- The door reads through `Interval::from_certified`, as `QuadLane` does.
+- `cell_region` and `station_region` become generic the same way.
+- `ClearanceLane<T>` is a door value on `AtRestPolicy`. At this step it
+  answers `Some` only at `Interval`; the symbolic row turns `Sym` on.
+
+At `Interval` the M10-5/M10-6 suites and goldens are the differential.
+Dispatch waits for INTENT's E (#5811), which edits these sites.
