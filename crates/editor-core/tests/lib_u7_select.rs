@@ -446,6 +446,17 @@ fn a_seam_pattern_selects_alike_in_either_order_under_either_mint_order() {
             4,
             "low first {low_first}: the union's four seams"
         );
+        // The premise: the mint order decides which side names first.
+        for seam in &all {
+            let RoleSeg::Seam { a, .. } = &seam.path[0] else {
+                panic!("low first {low_first}: a seam is named by its sides: {seam:?}");
+            };
+            assert_eq!(
+                of(low).matches(a),
+                low_first,
+                "low first {low_first}: the first-minted box's side names first"
+            );
+        }
         for (what, sides, want) in [
             ("low, tall", vec![of(low), of(tall)], 4),
             ("tall, low", vec![of(tall), of(low)], 4),
@@ -517,4 +528,53 @@ fn a_set_pattern_gives_each_argument_a_member_of_its_own() {
     ] {
         assert_eq!(set(members).matches(&merged), want, "{what}");
     }
+}
+
+/// **A seam junction's lines are a set.** A junction vertex is named
+/// by the sorted run of the seam lines meeting at it, so which line
+/// comes first is only name order; a path pattern over it gives each
+/// segment pattern a distinct line, in either order. A pattern twice
+/// over one line fits no junction with one such line, and a path of
+/// another shape still matches segment for segment.
+#[test]
+fn a_junction_path_pattern_matches_its_lines_in_either_order() {
+    let node = RecipeNodeId::new(0, 3);
+    let face = |seg: RoleSeg| StableName {
+        kind: EntityKind::Face,
+        node,
+        path: vec![seg],
+    };
+    let line = |a: RoleSeg, b: RoleSeg| RoleSeg::Seam {
+        a: face(a).into(),
+        b: face(b).into(),
+    };
+    let end = || RoleSeg::Cap(CapEnd::End);
+    let start = || RoleSeg::Cap(CapEnd::Start);
+    let junction = StableName {
+        kind: EntityKind::Vertex,
+        node,
+        path: vec![
+            line(end(), RoleSeg::OutputBody),
+            line(start(), RoleSeg::OutputBody),
+        ],
+    };
+    let on = |cap: CapEnd| {
+        SegPat::tag(SegTag::Seam).of([NamePat::any().seg(SegPat::tag(SegTag::Cap).side(cap))])
+    };
+    let path = |segs: Vec<SegPat>| NamePat::of_kind(EntityKind::Vertex).path(segs);
+    for (what, segs, want) in [
+        ("end, start", vec![on(CapEnd::End), on(CapEnd::Start)], true),
+        ("start, end", vec![on(CapEnd::Start), on(CapEnd::End)], true),
+        ("start, any", vec![on(CapEnd::Start), SegPat::any()], true),
+        ("end twice", vec![on(CapEnd::End), on(CapEnd::End)], false),
+        ("one line", vec![on(CapEnd::Start)], false),
+    ] {
+        assert_eq!(path(segs).matches(&junction), want, "{what}");
+    }
+    // A path that is not a junction is matched segment for segment.
+    let mut edge = junction.clone();
+    edge.kind = EntityKind::Edge;
+    let path = |segs: Vec<SegPat>| NamePat::of_kind(EntityKind::Edge).path(segs);
+    assert!(path(vec![on(CapEnd::End), on(CapEnd::Start)]).matches(&edge));
+    assert!(!path(vec![on(CapEnd::Start), on(CapEnd::End)]).matches(&edge));
 }

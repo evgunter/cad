@@ -567,6 +567,10 @@ enum Need<'a> {
     One(Ask<'a>),
     /// Each of these patterns matches a distinct one of these members.
     Distinct(&'a [NamePat], Vec<&'a StableName>),
+    /// Each of these segment patterns matches a distinct one of these
+    /// segments: a seam junction's run of lines, a set (N0) whose order
+    /// is only its name order (`canonical::is_junction`).
+    Segments(&'a [SegPat], &'a [RoleSeg]),
 }
 
 impl<'a> Need<'a> {
@@ -577,6 +581,18 @@ impl<'a> Need<'a> {
             Self::Distinct(pats, members) => pats
                 .iter()
                 .flat_map(|pat| members.iter().map(move |&member| (pat, member)))
+                .collect(),
+            Self::Segments(pats, segs) => pats
+                .iter()
+                .flat_map(|pat| segs.iter().map(move |seg| (pat, seg)))
+                .flat_map(|(pat, seg)| {
+                    let mut needs = Vec::new();
+                    if pat.level_matches(seg, &mut needs) {
+                        needs.iter().flat_map(Need::asks).collect()
+                    } else {
+                        Vec::new()
+                    }
+                })
                 .collect(),
         }
     }
@@ -592,6 +608,21 @@ impl<'a> Need<'a> {
                         members
                             .iter()
                             .map(|&member| answer((pat, member)))
+                            .collect()
+                    })
+                    .collect();
+                each_fits_a_distinct_member(&fits)
+            }
+            Self::Segments(pats, segs) => {
+                let fits: Vec<Vec<bool>> = pats
+                    .iter()
+                    .map(|pat| {
+                        segs.iter()
+                            .map(|seg| {
+                                let mut needs = Vec::new();
+                                pat.level_matches(seg, &mut needs)
+                                    && needs.iter().all(|need| need.holds(answer))
+                            })
                             .collect()
                     })
                     .collect();
@@ -628,9 +659,13 @@ fn each_fits_a_distinct_member(fits: &[Vec<bool>]) -> bool {
 }
 
 /// The key an [`Ask`] is answered under: the two values it asks about,
-/// by address, so a name two handles share is asked about once.
-fn ask_key((pat, name): Ask<'_>) -> (*const NamePat, *const StableName) {
-    (core::ptr::from_ref(pat), core::ptr::from_ref(name))
+/// by address, so a name two handles share is asked about once — the
+/// name by the address `names::nest`'s walks key their answers by.
+fn ask_key((pat, name): Ask<'_>) -> (usize, usize) {
+    (
+        core::ptr::from_ref(pat) as usize,
+        super::nest::address(name),
+    )
 }
 
 /// Whether `root`'s pattern matches its name, as deep as they nest —
@@ -692,7 +727,9 @@ pub struct NamePat {
     /// If set, the name's minting node must be exactly this.
     pub node: Option<RecipeNodeId>,
     /// If set, the role path must have EXACTLY this length and match
-    /// segment-for-segment. `None` matches any path — which is what
+    /// segment-for-segment — but for a seam junction's run of lines, a
+    /// set, where each segment pattern matches a distinct line in any
+    /// order. `None` matches any path — which is what
     /// makes a sub-name pattern like "any face of the A operand"
     /// sayable without spelling that operand's whole derivation.
     pub path: Option<Vec<SegPat>>,
@@ -722,7 +759,8 @@ impl NamePat {
         self
     }
 
-    /// Constrains the role path (exact length, segment-for-segment).
+    /// Constrains the role path (exact length, segment-for-segment; a
+    /// seam junction's lines in any order, [`NamePat::path`]'s field).
     #[must_use]
     pub fn path(mut self, path: impl IntoIterator<Item = SegPat>) -> Self {
         self.path = Some(path.into_iter().collect());
@@ -749,13 +787,15 @@ impl NamePat {
         }
         match &self.path {
             None => true,
-            Some(pats) => {
-                pats.len() == name.path.len()
-                    && pats
-                        .iter()
-                        .zip(&name.path)
-                        .all(|(p, s)| p.level_matches(s, needs))
+            Some(pats) if pats.len() != name.path.len() => false,
+            Some(pats) if super::canonical::is_junction(name) => {
+                needs.push(Need::Segments(pats, &name.path));
+                true
             }
+            Some(pats) => pats
+                .iter()
+                .zip(&name.path)
+                .all(|(p, s)| p.level_matches(s, needs)),
         }
     }
 

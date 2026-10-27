@@ -246,7 +246,9 @@ arguments are patterns too. A segment's slotted arguments (a
 prefix. A set is matched as a set: a seam's two sides, `Merged`
 constituents, an `EdgeCrossing`'s lines and a band's chain. Each
 pattern matches a distinct member, in any order, so a seam pattern does
-not depend on which side's name sorts first.
+not depend on which side's name sorts first. A seam junction's path,
+the run of `Seam` lines meeting at a vertex, is a set the same way:
+each segment pattern matches a distinct line.
 
 ```
 use pncad::prelude::*;

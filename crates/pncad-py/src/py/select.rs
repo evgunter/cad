@@ -552,7 +552,8 @@ impl NamePat {
         Self(self.0.clone().node(node.0))
     }
 
-    /// Constrains the role path (exact length, segment-for-segment).
+    /// Constrains the role path (exact length, segment-for-segment; a
+    /// seam junction's lines, a set, in any order).
     fn path(&self, path: Vec<SegPat>) -> Self {
         Self(self.0.clone().path(path.into_iter().map(|p| p.0)))
     }
