@@ -1654,8 +1654,8 @@ fn cylinder_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 /// refuses it. What the census leaves undecidable between
 /// the two copies rides the finding as evidence and is never refused on
 /// its own: a disc against the other copy's wall, two carriers meeting
-/// along the rim, and the two half-bands, one of each copy, that share a
-/// seam ruling and no interior.
+/// along the rim. The two half-bands, one of each copy, that share a seam
+/// ruling and no interior are certified apart, and ride it no longer.
 ///
 /// Red if the copies read as could-not-look again (a refusal, or a
 /// finding with no same-side evidence), or if the undecidable pairs stop
@@ -1710,8 +1710,8 @@ fn copies_of_one_cylinder_filling_one_volume_are_one_interference() {
         let undecided = count(|e| matches!(e, topo::ValidationError::CensusUndecidable { .. }));
         assert_eq!(
             (same_side, undecided, finding.evidence.len()),
-            (1, 10, 11),
-            "{label}: one decided pair, and the rim and seam pairs riding it: {:?}",
+            (1, 8, 9),
+            "{label}: one decided pair, and the rim pairs riding it: {:?}",
             finding.evidence
         );
     }
