@@ -203,7 +203,10 @@ fn a_ring_nearer_than_the_outer_loop_bounds_the_disc() {
     let s = Sector::cleared(&body, top, outward, q, &[Hold::Inside]).expect("the top's disc");
     assert_eq!(s.len(), 1, "one sector inside the face");
     let r = s[0].clear.expect("a cleared radius");
-    assert!((r - 0.1).abs() < 1e-12, "the ring clears, not the outer loop: {r}");
+    assert!(
+        (r - 0.1).abs() < 1e-12,
+        "the ring clears, not the outer loop: {r}"
+    );
 }
 
 /// **A curve's clearance is a lower bound on the distance from its whole
