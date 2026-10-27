@@ -123,6 +123,18 @@ fn a0_alone() -> SymRules {
 /// They rose by twelve (270 -> 282, 262 -> 274) when the simplicity pass
 /// began reading each line/line pair's gap along either one first
 /// (`segment_gap`).
+///
+/// Under limb 2 for every carrier (C2, fork row 201) the slab no longer
+/// certifies its box in one leaf: plain 456/282 → 2898/1668, shipped
+/// 464/274 → 2954/1612, over four leaves and three splits. At the root
+/// box the tilted face's normal, read over the box, is ±1.73 wide and
+/// its chart frame's in-plane axes do not certify, so limb 2's
+/// composite has no net to read (`CarrierEnclosure`) and the drive
+/// bisects; each half refuses the same way and each quarter certifies,
+/// every limb-2 decision there a theorem on the line's free-parameter
+/// residual. The counts are seven replays' (the root, two halves, four
+/// quarters), not one's. A0's yield is still the shipped tier's whole
+/// difference.
 #[test]
 fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     use crate::m10_3_driver_interval::slab;
@@ -152,13 +164,13 @@ fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     };
     assert_eq!(
         line(&plain),
-        "decisions symbolic=456 numeric=282 frozen=0",
+        "decisions symbolic=2898 numeric=1668 frozen=0",
         "the plain tier on straight geometry"
     );
     assert_eq!(
         line(&shipped),
-        "decisions symbolic=464 numeric=274 frozen=0",
-        "eight of the 282 numeric refusals are comparisons of two rational CONSTANTS, which \
+        "decisions symbolic=2954 numeric=1612 frozen=0",
+        "56 of the 1668 numeric refusals are comparisons of two rational CONSTANTS, which \
          A0 decides exactly"
     );
     assert_eq!(

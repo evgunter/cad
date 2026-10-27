@@ -276,10 +276,12 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("side_planes_cosurface", [0, 2]),
     // Limb 2's distance bound (C2), owed by every Intersection carrier:
     // 40 = the 20 Intersection edges (180 = 20 × 9 samples on
-    // `carrier_on_surface_1`) × 2 operands. Each a theorem: the margin
+    // `carrier_on_surface_1`) × 2 operands. 36 are theorems: the margin
     // carries the carrier's free-parameter residual against the operand
-    // as its identity (fork row 201), whose form is zero.
-    ("ssi_hull_sup", [40, 0]),
+    // as its identity (fork row 201), whose form is zero; the other 4
+    // are the enclosure's own Zero, their identity not reaching the zero
+    // form at the shipped rules.
+    ("ssi_hull_sup", [36, 4]),
     ("transform_rigid_col01_orth", [1, 0]),
     ("transform_rigid_col02_orth", [1, 0]),
     ("transform_rigid_col0_unit", [1, 0]),
