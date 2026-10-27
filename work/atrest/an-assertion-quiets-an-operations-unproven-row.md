@@ -9,6 +9,7 @@ cost: M
 refs: [the-at-rest-census-is-a-check]
 closed: 2026-10-27
 branch: atrest/an-assertion-quiets-an-operations-unproven-row
+pr: 5882
 ---
 
 DESIGN `[intent.checked]` says of every unproven coincidence that "an assertion at its site quiets it". Stage 5 C quiets only the at-rest rows of each `⊔`. Its contact half is written over a row's two cells (`docs/INTENT-STAGE5-SPEC.md` §4, "The contact half of the quieting rule", and §11 Q1), so this unit applies the same rule to the rows an operation decides. It adds no second rule.
