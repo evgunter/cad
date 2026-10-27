@@ -25,7 +25,7 @@ fail-fast = false
 # turns into annotations and a step summary: a session reads the job log only
 # through its last 5000 lines, and one run prints ~14 000 PASS lines.
 failure-output = "immediate-final"
-# Limb 2 for every carrier (PR 5728) puts nine rows over the fast-set bar
+# Limb 2 for every carrier (PR 5728) puts these rows over the fast-set bar
 # that are under it on main: their time is limb 2's per-edge composite
 # (work/offset/closed-form-limb-2-costs-milliseconds-per-curved-edge.md,
 # which holds the cuts still open). CI default ε on the branch, against
@@ -39,6 +39,9 @@ failure-output = "immediate-final"
 #    1.30 s  step-import::all wild::wild_bodies_are_a_fixed_point_of_our_own_dialect
 #    1.20 s  topo chord_join::torus_ring_rows::a_ring_on_a_torus_face_is_re_homed_by_a_path
 #    1.04 s  sweep::all split_tangent_edge_curved::a_concave_graze_of_a_revolved_hole_refuses
+# and two the next run put over (runner noise on rows at the bar):
+#    1.18 s  step-import::all wild::wild_files_import_and_agree_with_the_oracle
+#    1.01 s  sweep::all split_section_rings::an_axis_parallel_cut_of_a_cylinder_along_any_axis_pairs_each_ruling
 # The filter's own entries are its count; the last measured total, under
 # 817 s of test time on 4 vCPU, was taken when it held 145.
 default-filter = """
@@ -153,8 +156,8 @@ not (
   (binary_id(geom-brep::all) & (test(=review_r1_turn_probes::r1_certify_turn_is_sound_against_the_true_defect_length))) |
   (binary_id(topo) & (test(=boolean::boxes::sphere_rect_rows::a_zone_reach_charge_covers_random_poses_near_a_box_row) | test(=boolean::join::frame_dispatch_tests::the_agreement_gate_never_serves_on_the_span_alone) | test(=chord_join::torus_ring_rows::a_ring_on_a_torus_face_is_re_homed_by_a_path))) |
   (binary_id(editor-core::all) & (test(=m10_4_stackup_interval::a_foreign_verdict_or_box_refuses_typed))) |
-  (binary_id(sweep::all) & (test(=copied_carriers_at_interval::random_copied_carriers_extrude_at_interval_without_contradiction) | test(=split_through_a_ruling::a_frustum_split_through_a_ruling_answers) | test(=split_tangent_edge_curved::a_concave_graze_of_a_revolved_hole_refuses))) |
-  (binary_id(step-import::all) & (test(=wild::wild_bodies_are_a_fixed_point_of_our_own_dialect))) |
+  (binary_id(sweep::all) & (test(=copied_carriers_at_interval::random_copied_carriers_extrude_at_interval_without_contradiction) | test(=split_through_a_ruling::a_frustum_split_through_a_ruling_answers) | test(=split_tangent_edge_curved::a_concave_graze_of_a_revolved_hole_refuses) | test(=split_section_rings::an_axis_parallel_cut_of_a_cylinder_along_any_axis_pairs_each_ruling))) |
+  (binary_id(step-import::all) & (test(=wild::wild_bodies_are_a_fixed_point_of_our_own_dialect) | test(=wild::wild_files_import_and_agree_with_the_oracle))) |
   (binary_id(sweep::all) & (test(=m6_loft_body::shape_iii_volume_matches_the_derived_closed_form) | test(=r1_area_gauge_probes::r1_e2e_gauge_is_silent_on_an_honest_body_through_the_public_door)))
 )
 """

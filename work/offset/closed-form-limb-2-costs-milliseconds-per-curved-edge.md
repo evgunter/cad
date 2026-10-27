@@ -123,6 +123,8 @@ flipped four rows.
 | `step-import::all wild::wild_bodies_are_a_fixed_point_of_our_own_dialect` | 1.3 s |
 | `topo chord_join::torus_ring_rows::a_ring_on_a_torus_face_is_re_homed_by_a_path` | 1.2 s |
 | `sweep::all split_tangent_edge_curved::a_concave_graze_of_a_revolved_hole_refuses` | 1.04 s |
+| `step-import::all wild::wild_files_import_and_agree_with_the_oracle` (next run, at the bar) | 1.18 s |
+| `sweep::all split_section_rings::an_axis_parallel_cut_of_a_cylinder_along_any_axis_pairs_each_ruling` (next run, at the bar) | 1.01 s |
 
 **The turn row's breakdown.** About 8,000 full-turn ellipse
 certifications, almost all with distinct inputs (each case has its own
