@@ -727,16 +727,20 @@ fn a_clearance_fit_apart_in_depth_assembles() {
 
 /// **(B) A quiet finding carries no verdict nothing checked.** The
 /// press fit again, its plate drilled with a small hole beside the pin
-/// (0.586 from its axis at the nearest, within its faces' reach):
-/// the census leaves the pin's wall and that hole's wall undecided, a
-/// face pair outside the overlap the assertion's containment check
-/// covers, so the finding stays loud and carries the verdict.
+/// whose wall touches the pin's: centre `0.555` from the pin's axis on
+/// the diagonal, radius `0.05`, so its wall is `0.505` from the axis at
+/// the nearest, the pin's radius, and `0.005` clear of the bore. The
+/// census reads no curved touch, so it leaves the pin's wall and that
+/// hole's wall undecided, a face pair outside the overlap the
+/// assertion's containment check covers, and the finding stays loud and
+/// carries the verdict.
 ///
 /// Red if an undecided verdict anywhere on the pair rides a quiet
 /// finding.
 #[test]
 fn an_undecided_pair_beside_the_press_fit_keeps_it_loud() {
-    let (doc, p, q, _, bore, wall) = bore_pin_and_holes(0.505, &[(0.45, 0.45, 0.05)]);
+    let at = 0.555 * core::f64::consts::FRAC_1_SQRT_2;
+    let (doc, p, q, _, bore, wall) = bore_pin_and_holes(0.505, &[(at, at, 0.05)]);
     let (doc, _) = gap_at_copies(
         doc.clone(),
         (p, bore),
