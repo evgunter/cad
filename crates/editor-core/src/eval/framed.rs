@@ -4,15 +4,33 @@
 //! A body value is [`Framed`]: the body in its own coordinates, shared
 //! by `Arc`, and one map from them into its space's coordinates. A copy
 //! keeps its source's `Arc` under the composed map and is never
-//! rebuilt. An operation over operands in one space computes in its
-//! first operand's frame and reads every other operand through
-//! [`Framed::relative`], the one door between two operands of one
-//! space; its result is in that first operand's frame. A construction
-//! computes in its own coordinates ([`Frame::Own`]).
+//! rebuilt.
+//!
+//! **The computing frame is a conditioning choice.** `[placement.frame]`
+//! has an operation over operands in one space compute in a frame
+//! "chosen so its arithmetic is well conditioned", the first operand's
+//! "where conditioning does not decide". The choice here is
+//! [`Framed::computing_among`]: the first operand in its space's
+//! coordinates ([`Frame::Own`], read through no map, so no widened
+//! rotation's inverse reaches the others on an enclosure lane), else the
+//! first operand. It reads the frames' structure and no value, so the
+//! `f64` witness and every lane over a box decide in one frame. Every
+//! operation over two or more operands of one space takes it — the
+//! booleans' fold, subtract and distribute, measure, the product gather,
+//! clearance and its witness rebuild, the coincidence replay's carrier
+//! verdict — and reads every other operand through
+//! [`Framed::relative`], the one door between two operands of a space;
+//! its result is in the frame it computed in.
+//!
+//! A construction computes in its own coordinates ([`Frame::Own`]). A
+//! one-input construction over a body — blend, shell, split, mirror —
+//! computes in that body's frame, there being no second operand to
+//! condition against.
 //!
 //! Nothing here composes a body into its space's coordinates for a
 //! reader outside the model: that is `crate::mate::in_space`'s, and only
-//! export and the viewer's picture call it.
+//! export, the façade's read-outs (`pncad::export`) and the viewer's
+//! picture call it.
 
 use std::sync::Arc;
 

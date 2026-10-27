@@ -189,14 +189,22 @@ fn spin_moves_nothing(
         ValuePayload::Body(b) => vec![b],
         _ => return false,
     };
-    // Each body's reach in its space, from the space's origin.
-    let Some(arm) = bodies
-        .iter()
-        .filter_map(|b| super::part_reach_from(b.body(), b.space_origin().ok()?).ok())
-        .fold(None, |held: Option<f64>, r| {
-            Some(held.map_or(r, |h| h.max(r)))
-        })
-        .and_then(|reach| Arm::of(reach, (point - Point3::origin()).norm()).ok())
+    // Each body's reach in its space, from the space's origin. A body
+    // whose space's origin its frame cannot place leaves the arm
+    // unknown: the turn is not shown unobservable, rather than measured
+    // over the other bodies alone. (A body with no bounded reach adds
+    // none, as before E.)
+    let mut reach: Option<f64> = None;
+    for b in &bodies {
+        let Ok(origin) = b.space_origin() else {
+            return false;
+        };
+        let Ok(r) = super::part_reach_from(b.body(), origin) else {
+            continue;
+        };
+        reach = Some(reach.map_or(r, |h: f64| h.max(r)));
+    }
+    let Some(arm) = reach.and_then(|reach| Arm::of(reach, (point - Point3::origin()).norm()).ok())
     else {
         return false;
     };

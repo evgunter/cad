@@ -1284,25 +1284,29 @@ pub fn clearance_with(
             SelectionRefusal::AcrossSpaces { a, b },
         ));
     }
-    // The two selections are in one space: the question is asked in
-    // the first's frame, the second's body read into it through
-    // `relative`.
+    // The two selections are in one space: the question is asked in the
+    // frame `[placement.frame]` conditions on (`Framed::computing_among`:
+    // the selection in its space's coordinates, else the first), each
+    // body read into it through `relative`.
     let (framed_a, framed_b) = match (framed_of(&ev, a), framed_of(&ev, b)) {
         (Ok(fa), Ok(fb)) => (fa, fb),
         (Err(r), _) | (_, Err(r)) => return ClearanceReport::refused(r),
     };
-    let body_b = match framed_a.read_in(framed_b, query.tol) {
-        Ok(body) => body,
-        Err(kind) => {
-            return ClearanceReport::refused(ClearanceRefusal::Selection(
-                SelectionRefusal::Frame {
-                    node: b.at,
-                    refusal: crate::NodeRefusal::from(kind),
-                },
-            ));
-        }
+    let computing = crate::eval::Framed::computing_among([framed_a, framed_b])
+        .unwrap_or_else(|| unreachable!("two operands"));
+    let read = |framed: &crate::eval::Framed<Interval>, node: RecipeNodeId| {
+        computing.read_in(framed, query.tol).map_err(|kind| {
+            ClearanceRefusal::Selection(SelectionRefusal::Frame {
+                node,
+                refusal: crate::NodeRefusal::from(kind),
+            })
+        })
     };
-    let windows_a = match windows_of(&ev, a, framed_a.body(), Some(band)) {
+    let (body_a, body_b) = match (read(framed_a, a.at), read(framed_b, b.at)) {
+        (Ok(ba), Ok(bb)) => (ba, bb),
+        (Err(r), _) | (_, Err(r)) => return ClearanceReport::refused(r),
+    };
+    let windows_a = match windows_of(&ev, a, &body_a, Some(band)) {
         Ok(w) => w,
         Err(r) => return ClearanceReport::refused(r),
     };
@@ -3124,11 +3128,25 @@ fn verify_witness(
         let value = ev.value(w.at)?;
         crate::names::interrogate::output_body(&value.payload, w.body).ok()
     };
-    // In `x`'s frame, as the interval pass asked it.
-    let in_frame = framed_at(x).zip(framed_at(y)).and_then(|(fx, fy)| {
-        let by = fx.read_in(fy, tol).ok()?;
-        Some((Arc::clone(fx.shared()), by))
-    });
+    // In the frame the interval pass asked it in: the same structural
+    // choice over the same two operands (`Framed::computing_among`).
+    let in_frame = match framed_at(x).zip(framed_at(y)) {
+        None => None,
+        Some((fx, fy)) => {
+            let computing = crate::eval::Framed::computing_among([fx, fy])
+                .unwrap_or_else(|| unreachable!("two operands"));
+            match (computing.read_in(fx, tol), computing.read_in(fy, tol)) {
+                (Ok(bx), Ok(by)) => Some((bx, by)),
+                (Err(kind), _) | (_, Err(kind)) => {
+                    return Err(format!(
+                        "the f64 rebuild could not read a face of the violating pair into the \
+                         frame the pair is decided in: {}",
+                        crate::NodeRefusal::from(kind)
+                    ));
+                }
+            }
+        }
+    };
     let surface_at = |body: &Body<f64>, w: &Window<'_>| -> Option<Surface<f64>> {
         let f = body.get_face(w.face)?;
         Some(body.get_surface(f.surface)?.clone())

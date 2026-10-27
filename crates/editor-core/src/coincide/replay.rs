@@ -270,7 +270,8 @@ fn prove_row(
         };
         return Ok(match carrier_verdict(ev, row, band, tol) {
             Some(Ok(())) => Ok(Rung::CarrierVerdict),
-            Some(Err(why)) => Err(numeric(why)),
+            Some(Err(CarrierFail::Undischarged(why))) => Err(numeric(why)),
+            Some(Err(CarrierFail::Frame)) => Err((Unreplayed::Frame, Recourse::Assert)),
             None => Err((Unreplayed::OtherDecisions, Recourse::Assert)),
         });
     }
@@ -286,10 +287,12 @@ fn prove_row(
     else {
         return left(Unreplayed::OtherDecisions);
     };
-    if let Ok(band) = band
-        && let Some(Ok(())) = carrier_verdict(ev, row, band, tol)
-    {
-        return Ok(Ok(Rung::CarrierVerdict));
+    if let Ok(band) = band {
+        match carrier_verdict(ev, row, band, tol) {
+            Some(Ok(())) => return Ok(Ok(Rung::CarrierVerdict)),
+            Some(Err(CarrierFail::Frame)) => return left(Unreplayed::Frame),
+            Some(Err(CarrierFail::Undischarged(_))) | None => {}
+        }
     }
     if cancel.is_canceled() {
         return Err(Canceled);
@@ -344,19 +347,28 @@ fn why_no_value(ev: &Evaluation<Lane>, node: RecipeNodeId) -> Unreplayed {
     }
 }
 
+/// Why a carrier verdict the replay reads is not proven.
+enum CarrierFail {
+    /// Its Zero is not discharged.
+    Undischarged(deferred::Undischarged),
+    /// One cell's body could not be read into the other's frame.
+    Frame,
+}
+
 /// **The kernel's carrier-pair verdict on the row's two cells**, where
 /// the row decided two faces one carrier: whether every Zero it stands
-/// on is proven, or why the first that is not keeps; `None` where the
-/// replay reads no such verdict (not two faces, a face it did not
-/// build, or another relation decided). A meeting of cells at a point
-/// is read by the margin that decided it, which the replay computes
-/// from the cells' symbolic carriers ([`Rung::MarginIdentity`]).
+/// on is proven, or why the first that is not keeps, or that one cell
+/// could not be read into the frame the verdict is decided in; `None`
+/// where the replay reads no such verdict (not two faces, a face it did
+/// not build, or another relation decided). A meeting of cells at a
+/// point is read by the margin that decided it, which the replay
+/// computes from the cells' symbolic carriers ([`Rung::MarginIdentity`]).
 fn carrier_verdict(
     ev: &Evaluation<Lane>,
     row: &NamedCoincidence,
     band: Band,
     tol: Tol,
-) -> Option<Result<(), deferred::Undischarged>> {
+) -> Option<Result<(), CarrierFail>> {
     let wanted = match row.relation {
         topo::Relation::SameOriented => CarrierRelation::SameOriented,
         topo::Relation::SameOpposite => CarrierRelation::SameOpposite,
@@ -366,11 +378,15 @@ fn carrier_verdict(
         return None;
     };
     let ((a, fa), (b, fb)) = (face_of(ev, a)?, face_of(ev, b)?);
-    // Decided in the first cell's frame, the second read into it.
-    let b = a.read_in(b, tol).ok()?;
-    match topo::boolean::carrier_pair_decided(a.body(), fa, &b, fb, band) {
+    // Decided in the frame `[placement.frame]` conditions on (the cell
+    // in its space's coordinates, else the first), the other read in.
+    let computing = crate::eval::Framed::computing_among([a, b])?;
+    let (Ok(a_in), Ok(b_in)) = (computing.read_in(a, tol), computing.read_in(b, tol)) else {
+        return Some(Err(CarrierFail::Frame));
+    };
+    match topo::boolean::carrier_pair_decided(&a_in, fa, &b_in, fb, band) {
         Ok(Ok((relation, Some(margin)))) if relation == wanted => {
-            Some(deferred::discharge_or_why(margin))
+            Some(deferred::discharge_or_why(margin).map_err(CarrierFail::Undischarged))
         }
         _ => None,
     }

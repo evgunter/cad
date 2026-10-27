@@ -4,11 +4,13 @@
 //!
 //! A body value is its body in its own coordinates, shared, and one map
 //! into its space's (`Framed`). A copy keeps its source's `Arc` under the
-//! composed map and builds nothing. Every operation computes in its first
-//! operand's frame and reads the rest through `relative`, so the frame is
-//! no part of meaning: computed in a second frame, every corpus document
-//! is the same bodies where they stand, the same names and the same
-//! verdicts.
+//! composed map and builds nothing. An operation over operands of one
+//! space computes in a frame chosen for conditioning
+//! (`[placement.frame]`): its first operand in its space's coordinates,
+//! else its first (`Framed::computing_among`). It reads the rest through
+//! `relative`, so the frame is no part of meaning: computed in a second
+//! frame, every corpus document is the same bodies where they stand, the
+//! same names and the same verdicts.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
