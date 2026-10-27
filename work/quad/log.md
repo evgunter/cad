@@ -295,6 +295,10 @@ PR 5568's fix pass.
   - PR 5629 flipped projectbox wall 1 and the teapot spout at 1e-12. Fixed by QUAD 5640 and ISO 5642.
   - The python census rows, red since PR 5605, are INTENT's P1. Ev chose to merge 5628 over that red rather than wait.
 - **Next.** Unit C: no default. The public doors take a required `Settle`.
+- 2026-10-27 — **Main-red triage** (branch `quad/main-red-triage-1027`). Of the reds C3 reported, two are QUAD's.
+  - `every_public_mutation_path_preserves_tier1` comes from PR 5741's `Certifier::validate_pseudomanifold`. It now has an `ALLOWED` entry.
+  - The probe row `the_shell_census_sample_population_is_identical_at_one_and_four_threads` comes from PR 5628: the census reads a one-shell body at round zero, so it decides nothing. Its walk has been serial since PERF-11, so the row is deleted.
+  - The other reds are other programs'. They are filed on those programs' slates or fixed in flight by PR 5814.
 - 2026-10-27 — **C3 closed** (PR 5815, `quad/c3-split-quad-rs`). `props/quad.rs` is now `props/quad/`: `mod.rs` (docs and re-exports), `run.rs` (the stop home), `trig.rs`, `cylinder.rs`, `green.rs`, `net.rs`, `area.rs`, `cells.rs`, `patch.rs`, `rational.rs`, `trimmed.rs`. Tests moved with their code: 72 before, 72 after.
   - **De-duplicated onto `run.rs`.** `face_extent` replaces six copies of the extent gate (spiric's included). `Run::ask` replaces five copies of the stop → accept → gate tail. `cells::knots_inside` replaces two closures.
   - **Constants.** Renamed by what they bound. `TRIM_AREA_PIECES` is merged into `AREA_CELLS_PER_AXIS`.
