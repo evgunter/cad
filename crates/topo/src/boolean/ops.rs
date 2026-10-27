@@ -1622,10 +1622,11 @@ enum WalkRefusal {
 /// it is a precision limit, a lane not built or a read in band (a
 /// carrier at a pose where its chart holds no curve of its kind, D3): a
 /// face whose rows are not owed (`pcurves::not_owed`) is legal at rest,
-/// and its fresh derivation can meet one.
+/// and its fresh derivation can meet one. An incidence refusal is read
+/// by the one classifier ([`geom_brep::IncidenceRead::of`]) and its one
+/// policy ([`geom_brep::IncidenceRead::is_definite`]), as its ending is.
 fn walk_refusal(e: &crate::pcurves::PcurveMintError) -> WalkRefusal {
     use crate::pcurves::PcurveMintError as M;
-    use geom_brep::PcurveCertifyError as C;
     match e {
         M::Stale { .. }
         | M::PlaceholderChart { .. }
@@ -1639,36 +1640,47 @@ fn walk_refusal(e: &crate::pcurves::PcurveMintError) -> WalkRefusal {
         | M::JointWithoutRoom { .. }
         | M::Band(_) => WalkRefusal::Unread,
         M::Unminted { .. } => WalkRefusal::NotRaised,
-        M::Certify { error, .. } => match error {
-            C::CarrierOffChart {
-                margin: Some(geom_brep::OffMargin::InBand(_)),
-                ..
-            } => WalkRefusal::Unread,
-            C::PlaceholderChart
-            | C::CarrierOffChart { .. }
-            | C::ChartRow { .. }
-            | C::ImageMismatch { .. }
-            | C::ChannelKindMismatch { .. }
-            | C::WindingMismatch { .. }
-            | C::FittedCertificate { .. }
-            | C::IntervalNotForward
-            | C::AzimuthPeriodExceeded
-            | C::TubePeriodExceeded => WalkRefusal::Torn,
-            C::UnsupportedChart { .. }
-            | C::IsoUnsupported { .. }
-            | C::ChartWindingUnsupported
-            | C::NoGeneralLane { .. }
-            | C::SectorRefused { .. }
-            | C::FittedLaneUnsupported { .. }
-            | C::CarrierDomain(_)
-            | C::PlacementTurnsExceeded
-            | C::CarrierEnclosure(_)
-            | C::ResidualExceeded { .. }
-            | C::FittedLimb { .. }
-            | C::FittedEscalated { .. }
-            | C::Escalated { .. }
-            | C::Band(_) => WalkRefusal::Unread,
+        // An incidence refusal is read by the one classifier and its one
+        // policy: a definite read (decided off, or a margin that could
+        // not be read) is torn, a read in band unread.
+        M::Certify { error, .. } => match geom_brep::IncidenceRead::of(error) {
+            Some(read) if read.is_definite() => WalkRefusal::Torn,
+            Some(_) => WalkRefusal::Unread,
+            None => walk_certify_refusal(error),
         },
+    }
+}
+
+/// [`walk_refusal`] of a certification refusal that carries no incidence
+/// read (the incidence variants are listed for the match, and read by
+/// the classifier before they reach it).
+fn walk_certify_refusal(error: &geom_brep::PcurveCertifyError) -> WalkRefusal {
+    use geom_brep::PcurveCertifyError as C;
+    match error {
+        C::PlaceholderChart
+        | C::CarrierOffChart { .. }
+        | C::ChartRow { .. }
+        | C::ImageMismatch { .. }
+        | C::ChannelKindMismatch { .. }
+        | C::WindingMismatch { .. }
+        | C::FittedCertificate { .. }
+        | C::IntervalNotForward
+        | C::AzimuthPeriodExceeded
+        | C::TubePeriodExceeded => WalkRefusal::Torn,
+        C::UnsupportedChart { .. }
+        | C::IsoUnsupported { .. }
+        | C::ChartWindingUnsupported
+        | C::NoGeneralLane { .. }
+        | C::SectorRefused { .. }
+        | C::FittedLaneUnsupported { .. }
+        | C::CarrierDomain(_)
+        | C::PlacementTurnsExceeded
+        | C::CarrierEnclosure(_)
+        | C::ResidualExceeded { .. }
+        | C::FittedLimb { .. }
+        | C::FittedEscalated { .. }
+        | C::Escalated { .. }
+        | C::Band(_) => WalkRefusal::Unread,
     }
 }
 
@@ -8573,6 +8585,10 @@ mod tests {
     /// one read in band at a pose as unread** (D3): only a definite miss
     /// is a contradiction the kernel holds; a read in band is never a
     /// defect, so W2 reads nothing of the face rather than claiming one.
+    /// It reads through the one classifier and its one policy, so it
+    /// agrees with the ending on every read: the test's residual exceeded
+    /// and a poisoned margin are definite, an undecided read in band is
+    /// not (review on PR 5844, H7).
     #[test]
     fn the_walk_tears_only_on_a_definite_incidence_miss() {
         use super::{WalkRefusal, walk_refusal};
@@ -8587,12 +8603,48 @@ mod tests {
             },
         };
         let m = geom_core::MarginDiag::value(4e-10);
+        let poisoned = geom_core::MarginDiag::INVALID;
         for (margin, want) in [
             (None, WalkRefusal::Torn),
             (Some(OffMargin::Past(m)), WalkRefusal::Torn),
             (Some(OffMargin::InBand(m)), WalkRefusal::Unread),
+            // A margin that could not be read is definite, as its ending.
+            (Some(OffMargin::InBand(poisoned)), WalkRefusal::Torn),
         ] {
             assert_eq!(walk_refusal(&off(margin)), want, "{margin:?}");
+        }
+        // The rest of the classifier's reads, each by the same policy.
+        let certify = |error| crate::pcurves::PcurveMintError::Certify {
+            half_edge: crate::HalfEdgeKey::default(),
+            error,
+        };
+        let undecided = |margin| PcurveCertifyError::Escalated {
+            check: geom_brep::PcurveCheck::ChartIncidence,
+            sample: 0,
+            cause: geom_core::Indeterminate {
+                margin,
+                band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("pcurve_cone_chart_incident"),
+                terminal_sliver: false,
+            },
+        };
+        for (error, want) in [
+            (
+                PcurveCertifyError::ResidualExceeded {
+                    check: geom_brep::PcurveCheck::ChartIncidence,
+                    sample: 0,
+                },
+                WalkRefusal::Torn,
+            ),
+            (
+                undecided(geom_core::MarginDiag::value(5e-9)),
+                WalkRefusal::Unread,
+            ),
+            (undecided(poisoned), WalkRefusal::Torn),
+        ] {
+            let read = geom_brep::IncidenceRead::of(&error).expect("an incidence refusal");
+            assert_eq!(read.is_definite(), want == WalkRefusal::Torn, "{error:?}");
+            assert_eq!(walk_refusal(&certify(error.clone())), want, "{error:?}");
         }
     }
 

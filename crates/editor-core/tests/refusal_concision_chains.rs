@@ -1002,7 +1002,7 @@ mod kernel {
             Band, Euler, SectionEndEscalated, SectionUnresolved, Section, OpenConicChord,
             ApexUnlifted,
             PoleEdgesCoincide, SectionInvariant, SectionUnarmed, RunImageNotYet,
-            RingIslandUnread,
+            RunImageIncidence, RingIslandUnread,
             RunEdgeCarrierUnsupported,
             TangentChordEscalated, TangentChordBendEscalated, TangentChordRefuted,
             SectionCrossings,
@@ -2646,6 +2646,21 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 J::RunImageNotYet {
                     face,
                     kind: geom::SurfaceKind::Sphere,
+                },
+            ),
+            (
+                "RunImageIncidence",
+                J::RunImageIncidence {
+                    face,
+                    kind: geom::SurfaceKind::Cone,
+                    refusal: geom_brep::PcurveCertifyError::CarrierOffChart {
+                        chart: geom::SurfaceKind::Cone,
+                        carrier: geom::CurveKind::Circle,
+                        why: "the rim's height is not shown away from the apex's",
+                        margin: Some(geom_brep::OffMargin::InBand(geom_core::MarginDiag::value(
+                            4e-10,
+                        ))),
+                    },
                 },
             ),
             (

@@ -2883,7 +2883,7 @@ const DEFECT: &str = geom_core::KERNEL_OR_FILE_DEFECT_ENDING;
 /// The recourse for a tolerance that forms no usable band. A run's ε
 /// is finite and at least `EPS_MIN` (D4 ¶4), so the one way it fails to
 /// form a band is K·ε overflowing: the repair is a smaller ε.
-const TOLERANCE: &str = "Recourse: set a smaller tolerance, so that K times it stays finite; a \
+pub(crate) const TOLERANCE: &str = "Recourse: set a smaller tolerance, so that K times it stays finite; a \
                          run admits none below the floor its session box sets";
 
 /// The recourse for a curve whose parameter range its image on a
@@ -3316,6 +3316,11 @@ fn certify_undecided(check: CertCheck) -> &'static str {
         CertCheck::ChartClass => {
             geom_core::undecided!("which of its face's own curves it is")
         }
+        // `classify_certify` reads an incidence refusal by its read first
+        // (`incidence_reason`), so no caller reaches this arm today; it
+        // stays because the table is whole over `CertCheck` (a check added
+        // without a reason does not compile), and it gives the one
+        // table's reason.
         CertCheck::ChartIncidence => incidence_reasons::UNSHOWN,
         CertCheck::GeneralLane => {
             geom_core::undecided!("whether its face's general image covers it")
@@ -3626,15 +3631,15 @@ const CLOSE: &str = geom_core::undecided!("the boundary");
 /// edge's certification (`classify_certify`) and a face boundary's row
 /// (`off_face_ending`) both read. A definite miss is a stored
 /// contradiction; a read in band, not decided off, is not called a miss.
-mod incidence_reasons {
+pub(crate) mod incidence_reasons {
     /// Decided off its face.
-    pub(super) const OFF: &str = "it does not lie on its face";
+    pub(crate) const OFF: &str = "it does not lie on its face";
     /// Read within the band at a pose where the face holds no curve of
     /// its kind.
-    pub(super) const AT_POSE: &str =
+    pub(crate) const AT_POSE: &str =
         "it sits, within the band, where its face holds no curve of its kind";
     /// The incidence reading landed in the band.
-    pub(super) const UNSHOWN: &str = geom_core::undecided!("whether it lies on its face");
+    pub(crate) const UNSHOWN: &str = geom_core::undecided!("whether it lies on its face");
 }
 
 /// The reason [`incidence_reasons`] gives `read`.

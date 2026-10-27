@@ -779,8 +779,9 @@ impl JoinRefusal {
                     "two edges meeting at a vertex on one surface have no chart image to read \
                      their family off: {ended}"
                 ),
-                // A refusal no decision owns (an unsupported class, a band
-                // the tolerance cannot form) on a body the kernel built.
+                // A refusal no decision owns whose payload carries no
+                // recourse (an unsupported class, a band the tolerance
+                // cannot form), on a body the kernel built.
                 None => format!(
                     "two edges meeting at a vertex on one surface have no chart image to read \
                      their family off ({e}). {defect}"
@@ -1507,6 +1508,36 @@ mod undecided_text {
                 assert_eq!(text.contains("defect"), defect, "{e:?} at {at:?}: {text}");
             }
         }
+    }
+
+    /// **A refusal whose payload already ends gets no second ending**
+    /// (review on PR 5844, H5): a piece outside one sector carries its own
+    /// recourse and ends there, with no defect after it; an unsupported
+    /// chart carries none, and the join ends it in its defect, once.
+    #[test]
+    fn the_joins_image_arm_ends_a_self_ended_payload_once() {
+        use geom_brep::recourse::Reading;
+        let render = |e| {
+            JoinRefusal::Undecided(JoinUndecided {
+                vertex: crate::VertexKey::default(),
+                reading: JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Image(e)),
+            })
+            .render(Reading::Build)
+        };
+        let sector = render(geom_brep::PcurveCertifyError::SectorRefused {
+            piece: 1,
+            channel: geom_brep::SectorChannel::Azimuth,
+        });
+        assert_eq!(sector.matches("Recourse").count(), 1, "{sector}");
+        assert!(!sector.contains("defect"), "{sector}");
+        let unsupported = render(geom_brep::PcurveCertifyError::UnsupportedChart {
+            chart: geom::SurfaceKind::Sphere,
+        });
+        assert_eq!(
+            unsupported.matches(geom_core::KERNEL_DEFECT_ENDING).count(),
+            1,
+            "{unsupported}"
+        );
     }
 
     /// The undecided escalation at `margin`, read by `predicate`.

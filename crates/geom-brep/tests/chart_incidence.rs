@@ -503,17 +503,20 @@ fn a_rim_at_the_apex_height_refuses_as_not_shown_with_its_margin() {
 /// **Only an incidence reading ends as one** (D3, D4 ¶1 (iv)): a pose
 /// reading ends in the pose lever, a definite miss as the door's defect,
 /// and neither reaches "not shown on the face", the undecided incidence
-/// read's ending. Each row is a reading that is not the sampled incidence
-/// test, read at `f64` and at `Interval`:
+/// read's ending. Read at `f64` and at `Interval`:
 /// - a rim whose height sits in the apex's sliver
 ///   (`pcurve_cone_chart_nappe`, `cone_conic_incidence`): the pose the
 ///   in-band Zero names, so the pose lever, though it may lie on the cone;
-/// - an ellipse on the sphere's and the torus's kind gates, read by its
-///   distance from circularity: within the band or in the sliver, at a
-///   pose; past it, no circle, definitely off with the distance quoted.
+/// - a near-round ellipse 10 m off the sphere and off the torus: definitely
+///   off, the kernel's defect at a build, whatever its roundness (review
+///   on PR 5844). Today the kind gate refuses it by kind; once E1c reads
+///   incidence first it is the incidence test's definite miss, the same
+///   ending.
 ///
 /// The Villarceau tangent's parts, a class reading at `K ≤ 3`, are
-/// pinned in `pcurve_villarceau`.
+/// pinned in `pcurve_villarceau`. A tiny ellipse within ε of the sphere,
+/// which the kind gate still calls off, is E1c's row
+/// (`work/pcert/plane-and-cylinder-mints-meter-incidence-as-a-residual.md`).
 #[test]
 fn only_an_incidence_reading_ends_as_one() {
     use geom_brep::OffMargin;
@@ -535,6 +538,18 @@ fn only_an_incidence_reading_ends_as_one() {
                 && !text.contains(INCIDENCE_UNSHOWN.lever)
                 && !text.contains("defect"),
             "{what}: {text}"
+        );
+    };
+    let definitely_off = |what: &str, got: Result<(), PcurveCertifyError>| {
+        let Err(err @ PcurveCertifyError::CarrierOffChart { margin, .. }) = &got else {
+            panic!("{what}: definitely off: {got:?}");
+        };
+        assert!(
+            !matches!(margin, Some(OffMargin::InBand(_)))
+                && err
+                    .render(Reading::Build)
+                    .ends_with(geom_core::KERNEL_DEFECT_ENDING),
+            "{what}: {err}"
         );
     };
     let both = |what: &str,
@@ -583,7 +598,6 @@ fn only_an_incidence_reading_ends_as_one() {
         minor_radius: 0.5,
         u_ref: Vec3::unit_x(),
     };
-    // A parallel of each, its minor semi-axis short by `d`.
     let ellipse = |z: f64, r: f64, d: f64| Curve3::Ellipse {
         center: Point3::new(0.0, 0.0, z),
         axis: Vec3::unit_z(),
@@ -591,40 +605,118 @@ fn only_an_incidence_reading_ends_as_one() {
         semi_v: r - d,
         u_ref: Vec3::unit_x(),
     };
-    for d in [0.5 * e, 2.0 * e] {
-        both(
-            &format!("a sphere parallel's ellipse {d:e} from round"),
-            ellipse(0.6, 0.8, d),
-            sphere.clone(),
-            &at_pose,
-        );
-        both(
-            &format!("a torus parallel's ellipse {d:e} from round"),
-            ellipse(0.0, 2.5, d),
-            torus.clone(),
-            &at_pose,
-        );
-    }
     both(
-        "a sphere parallel's ellipse 1e-3 from round",
-        ellipse(0.6, 0.8, 1e-3),
+        "a near-round ellipse 10 m off the sphere",
+        ellipse(10.0, 0.8, 0.5 * e),
         sphere,
-        &|what, got| {
-            let Err(
-                err @ PcurveCertifyError::CarrierOffChart {
-                    margin: Some(OffMargin::Past(_)),
-                    ..
-                },
-            ) = &got
-            else {
-                panic!("{what}: definitely off: {got:?}");
-            };
-            assert!(
-                err.render(Reading::Build)
-                    .ends_with(geom_core::KERNEL_DEFECT_ENDING),
-                "{what}: {err}"
-            );
+        &definitely_off,
+    );
+    both(
+        "a near-round ellipse 10 m off the torus",
+        ellipse(10.0, 2.5, 0.5 * e),
+        torus,
+        &definitely_off,
+    );
+}
+
+/// **A class rate read Zero is no incidence reading, so the incidence test
+/// decides** (D3; review on PR 5844, H2). Each closed-form arm that reads
+/// a class's rate (`pcurve_chart_orientation` on a cone ellipse,
+/// `pcurve_sphere_chart_polar_rate`, `pcurve_torus_chart_meridional_rate`)
+/// and reads it Zero sends the carrier through D3's one door to the
+/// general lane: a carrier off the chart is the test's definite miss, one
+/// not shown off is the general lane's, here "not yet". Each arm is
+/// reached:
+/// - a thin ellipse (minor semi-axis under ε) along a cone generator,
+///   whose radial projection does not wind: on the cone, "not yet";
+/// - a great circle of the sphere whose plane leans `4.1e-10` off the
+///   axis, turned so its radial part passes the escalation band, at band
+///   `(1e-9, 1.05e-9)`: its polar rate reads `9.75e-10`, Zero, though it
+///   lies on the sphere (`K < √2`): "not yet", never off;
+/// - a circle centred on the tube's centre circle in the vertical plane ⊥
+///   the meridian: its meridional rate is exactly 0, and it is off the
+///   torus, so the incidence test's definite miss, the kernel's defect.
+///
+/// A Zero read here as a pose (`OffMargin::InBand`) reds the first two
+/// as an incidence ending and the third as a lever.
+#[test]
+fn a_class_rate_read_zero_takes_the_incidence_door() {
+    use geom_brep::recourse::Reading;
+    use geom_brep::{IncidenceRead, OffMargin};
+    let e = eps();
+    let not_incidence = |what: &str, got: Result<(), PcurveCertifyError>| {
+        let Err(err @ PcurveCertifyError::NoGeneralLane { .. }) = &got else {
+            panic!("{what}: on the chart, no lane yet: {got:?}");
+        };
+        assert!(IncidenceRead::of(err).is_none(), "{what}: {err:?}");
+    };
+    let alpha = 0.5_f64;
+    let g = Vec3::new(alpha.sin(), 0.0, alpha.cos());
+    not_incidence(
+        "a thin ellipse along a generator",
+        chart_pcurve(
+            &Curve3::Ellipse {
+                center: Point3::origin() + g * 2.0,
+                axis: Vec3::unit_y(),
+                semi_u: 0.5,
+                semi_v: 0.3 * e,
+                u_ref: g,
+            },
+            &cone(alpha),
+            band(),
+        )
+        .map(|_| ()),
+    );
+    let (lean, turn) = (4.125e-10_f64, 9.75e-10_f64);
+    let up = (1.0 - lean * lean).sqrt();
+    let (e1, e2) = (Vec3::new(-lean, 0.0, up), Vec3::unit_y());
+    let th = (turn / up).asin();
+    let sphere = Surface::Sphere {
+        center: Point3::origin(),
+        radius: 1.0,
+        axis: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    not_incidence(
+        "a leaning great circle at K < √2",
+        chart_pcurve(
+            &Curve3::Circle {
+                center: Point3::origin(),
+                axis: Vec3::new(up, 0.0, lean),
+                radius: 1.0,
+                u_ref: e1 * th.cos() + e2 * th.sin(),
+            },
+            &sphere,
+            geom_core::Band::new(1e-9, 1.05e-9).unwrap(),
+        )
+        .map(|_| ()),
+    );
+    let torus = Surface::Torus {
+        center: Point3::origin(),
+        axis: Vec3::unit_z(),
+        major_radius: 2.0,
+        minor_radius: 0.5,
+        u_ref: Vec3::unit_x(),
+    };
+    let got = chart_pcurve(
+        &Curve3::Circle {
+            center: Point3::new(2.0, 0.0, 0.0),
+            axis: Vec3::unit_x(),
+            radius: 0.5,
+            u_ref: Vec3::unit_z(),
         },
+        &torus,
+        band(),
+    );
+    let Err(err @ PcurveCertifyError::CarrierOffChart { margin, .. }) = &got else {
+        panic!("a circle ⊥ the meridian, off the torus: {got:?}");
+    };
+    assert!(
+        !matches!(margin, Some(OffMargin::InBand(_)))
+            && err
+                .render(Reading::Build)
+                .ends_with(geom_core::KERNEL_DEFECT_ENDING),
+        "{err}"
     );
 }
 

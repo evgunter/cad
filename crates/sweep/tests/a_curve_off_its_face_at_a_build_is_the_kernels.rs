@@ -156,7 +156,7 @@ fn check<T: Decide + AtRestPolicy + Bounds>() {
         }
         .to_string();
         assert!(
-            at_rest.contains("does not lie on its face")
+            at_rest.contains(topo::test_support::incidence_reasons::OFF)
                 && at_rest.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
             "{lane}: {at_rest}"
         );

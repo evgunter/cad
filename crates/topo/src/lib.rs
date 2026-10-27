@@ -294,6 +294,18 @@ pub mod test_support {
 
     use crate::body::Body;
 
+    /// The at-rest window's reasons for an incidence refusal, one per
+    /// read (`validate::incidence_reasons`): a test outside this crate
+    /// reads them rather than copying their words.
+    pub mod incidence_reasons {
+        /// Decided off its face.
+        pub const OFF: &str = crate::validate::incidence_reasons::OFF;
+        /// Read within the band at a pose.
+        pub const AT_POSE: &str = crate::validate::incidence_reasons::AT_POSE;
+        /// The incidence reading landed in the band.
+        pub const UNSHOWN: &str = crate::validate::incidence_reasons::UNSHOWN;
+    }
+
     /// **The resolution the suites' pinned numbers are stated at**:
     /// [`crate::Settle::Resolution`] of 1024·ε of mean boundary
     /// displacement. A test that reads a volume or an area as a number,

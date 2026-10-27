@@ -3378,6 +3378,7 @@ mod rim_seam_rows {
 
 #[cfg(test)]
 mod mint_endings {
+    #![allow(clippy::unwrap_used)]
     use super::ShellError;
     use crate::entity::{FaceKey, HalfEdgeKey};
     use crate::pcurves::PcurveMintError;
@@ -3388,7 +3389,9 @@ mod mint_endings {
     /// **The closing mint's refusal ends by its own ending at the build
     /// door** (D4 ¶1 (iv)), through both shell arms that carry it: an
     /// incidence read in band ends in the pose lever, never a defect, and
-    /// a definite miss in the kernel's defect, once.
+    /// a definite miss in the kernel's defect, once; an undecided reading
+    /// of the pass "not yet", a torn loop the defect. No arena key is
+    /// spelled.
     #[test]
     fn the_shell_ops_mint_refusal_ends_by_its_own_ending() {
         let mint = |margin| PcurveMintError::Certify {
@@ -3424,6 +3427,41 @@ mod mint_endings {
                     "{text}"
                 );
             }
+        }
+        // A refusal of the pass itself ends by its own arm: an undecided
+        // reading "not yet", a torn loop the kernel's defect, once.
+        let cause = geom_core::Indeterminate {
+            margin: MarginDiag::value(5e-9),
+            band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
+            predicate: Some("pcurve_loop_v_stretch"),
+            terminal_sliver: false,
+        };
+        for (source, defect) in [
+            (
+                PcurveMintError::NetStretchUndecided {
+                    half_edge: HalfEdgeKey::default(),
+                    cause,
+                },
+                false,
+            ),
+            (
+                PcurveMintError::LoopNotClosed {
+                    face: FaceKey::default(),
+                },
+                true,
+            ),
+        ] {
+            let text = ShellError::<f64>::Pcurve { source }.to_string();
+            assert_eq!(
+                text.matches(KERNEL_DEFECT_ENDING).count(),
+                usize::from(defect),
+                "{text}"
+            );
+            assert_eq!(text.contains("no way through yet"), !defect, "{text}");
+            assert!(
+                !text.contains("FaceKey") && !text.contains("HalfEdgeKey"),
+                "{text}"
+            );
         }
     }
 }

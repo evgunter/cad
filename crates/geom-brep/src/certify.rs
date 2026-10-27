@@ -772,7 +772,6 @@ fn exact_arc_rim_words(iso: Option<crate::pcurve_cache::PcurveCheck>) -> &'stati
             | C::AzimuthPeriod
             | C::TubePeriod
             | C::ChartIncidence
-            | C::ClassReread
             | C::Sector,
         ) => "its exact boundary-row image's certificate refused it",
     }
@@ -1101,9 +1100,11 @@ impl CertifyError {
 
     /// **The incidence read this refusal carries**
     /// ([`crate::IncidenceRead`]): a carrier off its chart, read by its
-    /// margin, or an incidence reading escalated; `None` for a refusal of
-    /// anything else. The one reading of it [`Self::ending`] and a door's
-    /// classification of the refusal share.
+    /// margin, an incidence reading escalated, or the test's residual
+    /// exceeded; `None` for a refusal of anything else. It agrees arm for
+    /// arm with the pcurve layer's classifier ([`crate::IncidenceRead::of`]),
+    /// which every incidence refusal reaches it through, and is the one
+    /// reading of it [`Self::ending`] and a door's classification share.
     #[must_use]
     pub fn incidence_read(&self) -> Option<crate::IncidenceRead<'_>> {
         match self {
@@ -1113,12 +1114,14 @@ impl CertifyError {
                 cause,
                 ..
             } => Some(crate::IncidenceRead::Undecided(cause)),
-            // The test's residual decided past the band: a definite miss.
+            // The test's residual decided past the band: a definite miss,
+            // read as the pcurve layer's (`IncidenceRead::of`) reads it.
+            // Its margin is the residual, not a pose's height, so it is
+            // not quoted as one.
             Self::ResidualExceeded {
                 check: CertCheck::ChartIncidence,
-                margin,
                 ..
-            } => Some(crate::IncidenceRead::Off(Some(*margin))),
+            } => Some(crate::IncidenceRead::Off(None)),
             _ => None,
         }
     }

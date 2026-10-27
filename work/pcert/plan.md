@@ -79,7 +79,8 @@ this order:
   lane); and the CLASS arms of the sphere, cone and torus mints (the
   sphere's polar circle, the cone's rim, the torus's parallel) image a
   carrier their class gates accept without an incidence read (review A on
-  E1d). Each then meters the carrier's miss as a residual at the samples,
+  E1d); and the sphere and torus refuse an ellipse by kind, before any
+  incidence read (review on PR 5844). Each then meters the carrier's miss as a residual at the samples,
   so a carrier off its face ends `ChartResidual`'s defect, and at the
   import door its ε_in offer, where E1d's door rule would end it: a
   definite miss by the door, a read in band by its lever

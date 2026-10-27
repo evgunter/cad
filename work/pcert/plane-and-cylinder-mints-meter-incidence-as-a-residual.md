@@ -1,7 +1,7 @@
 ---
 id: plane-and-cylinder-mints-meter-incidence-as-a-residual
 kind: issue
-title: The plane and cylinder mints, and the sphere, cone and torus class arms, meter a carrier's incidence as a residual, so an off-face carrier ends ChartResidual's defect
+title: The plane and cylinder mints, the sphere, cone and torus class arms, and the sphere and torus ellipse kind gates end a carrier without reading its incidence first (as ChartResidual's defect, or off by kind)
 status: open
 opened: 2026-10-25
 ---
@@ -34,6 +34,19 @@ door. That holds only where the mint runs the incidence test
   their class gates accept (the carrier plane ⊥ the axis, centred on it)
   without reading incidence. The class gates read the plane and the
   centre, not the radius, so a circle of the wrong radius passes them.
+- **The sphere and torus ellipse kind gates** (review on PR 5844): an
+  `Ellipse` carrier is refused `CarrierOffChart` by kind, with no margin,
+  before any incidence read. The kind is no reading of whether the curve
+  lies on the face: a tiny ellipse within ε of the sphere (semi-axes
+  `a = √(0.2·ε)` and `a/2` in the tangent plane at the pole, set at mid
+  sagitta) ends as a definite miss, the kernel's defect, though every
+  point of it is on the face within ε. A round-ish ellipse far off the
+  face ends right, but only by accident of the kind. (PR 5844 briefly
+  read the gate by `semi_u − semi_v`; that was no incidence read either:
+  a near-round ellipse 10 m off the sphere then ended in the pose lever.
+  It was reverted.)
+- **`topo::chart_region`** (~2587) reads a plane chart only, so it is
+  this item's plane half's.
 
 The carrier's miss is then read by the certificate:
 
@@ -86,6 +99,12 @@ E1c.
 - A carrier off a plane or cylinder face, or one a sphere, cone or torus
   class arm accepts while off the face, ends as its incidence read at the
   mint, at both lanes and every ε, never `ChartResidual`.
+- The sphere and torus ellipse kind gates read incidence first, as the
+  cone's ellipse arm does: an ellipse off the face ends by that read
+  (definitely off: the door's defect; in band: the lever), and one not
+  shown off is a class reading (a lane choice: "not yet" until its lane is
+  written). The `Off` payload quotes the incidence read's margin, never a
+  roundness distance as the miss.
 - That read ends by the door rule (`IncidenceRead::ending`): a definite
   miss is the kernel's defect at a build, the stored culprit at rest and
   the damaged file at the import door, with no ε_in offer; a read in band
@@ -94,3 +113,9 @@ E1c.
 - Rows hold the `set_edge_curve` arc off a cylinder wall and off a plane
   side, and a wrong-radius circle on each class arm (sphere polar circle,
   cone rim, torus parallel), each read at a build, at rest and at import.
+- Rows hold the review's two ellipse probes (`review/5844-delta`,
+  `crates/geom-brep/tests/probe_5844.rs`) in their E1c shape: the tiny
+  ellipse within ε of the sphere and of the torus is not refused as off
+  (a class reading, "not yet"); the near-round ellipse 10 m off each is
+  the definite miss (already pinned in
+  `chart_incidence::only_an_incidence_reading_ends_as_one`).

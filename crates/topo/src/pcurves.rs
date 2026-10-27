@@ -553,14 +553,34 @@ pub enum PcurveMintError {
 }
 
 impl PcurveMintError {
-    /// The ending a nested certification refusal's decision gives it at
-    /// `at` ([`PcurveCertifyError::ending`]), or `None` for a refusal of
-    /// the pass itself, which the door that reports it ends.
+    /// **The ending this refusal gives at `at`**, for a door that reports
+    /// it under its own sentence (the shell op's closing mint): a nested
+    /// certification refusal's decision's ([`PcurveCertifyError::ending`]);
+    /// an undecided reading's "not yet", as the at-rest table ends it
+    /// (`validate::classify_pcurve`); and the lever of a refusal a lever
+    /// answers (a joint too near a pole, a band the tolerance cannot form,
+    /// a placeholder chart). `None` for a torn arm (a key that does not
+    /// resolve, a null carrier, a loop that does not meet or close, a row
+    /// missing, misstated or unminted): on a body the kernel built, the
+    /// door's defect.
     #[must_use]
     pub fn ending(&self, at: impl Into<geom_brep::recourse::ReadAt>) -> Option<String> {
+        let at = at.into();
         match self {
             Self::Certify { error, .. } => error.ending(at),
-            _ => None,
+            Self::Escalated { cause, .. } | Self::NetStretchUndecided { cause, .. } => Some(
+                geom_brep::recourse::not_yet(geom_brep::recourse::RefusedArm::Undecided(cause), at),
+            ),
+            Self::JointWithoutRoom { .. } => Some(JOINT_WITHOUT_ROOM_RECOURSE.to_owned()),
+            Self::Band(_) => Some(crate::validate::TOLERANCE.to_owned()),
+            Self::PlaceholderChart { .. } => Some(PLACEHOLDER_RECOURSE.to_owned()),
+            Self::Stale { .. }
+            | Self::NoCarrier { .. }
+            | Self::LoopDiscontinuity { .. }
+            | Self::LoopNotClosed { .. }
+            | Self::MissingCache { .. }
+            | Self::Unminted { .. }
+            | Self::RowInterval { .. } => None,
         }
     }
 
@@ -614,8 +634,7 @@ impl PcurveMintError {
                 "loop {lp:?} of face {face:?} passes so near a sphere pole or cone apex at \
                  half-edge {half_edge:?} that its azimuth period is decided with less room than \
                  the joint bound, so its winding is not read; there is nothing in the body to \
-                 repair. Recourse: ask about a face whose loops keep farther from the pole or \
-                 apex, or ask at a smaller ε"
+                 repair. {JOINT_WITHOUT_ROOM_RECOURSE}"
             ),
             Self::MissingCache { half_edge } => write!(
                 f,
@@ -686,6 +705,11 @@ impl PcurveMintError {
         self
     }
 }
+
+/// The recourse for a joint decided with less room than the joint bound
+/// ([`PcurveMintError::JointWithoutRoom`]).
+const JOINT_WITHOUT_ROOM_RECOURSE: &str = "Recourse: ask about a face whose loops keep farther \
+     from the pole or apex, or ask at a smaller ε";
 
 /// The recourse for a placeholder chart, whichever enum refuses it.
 pub(crate) const PLACEHOLDER_RECOURSE: &str =

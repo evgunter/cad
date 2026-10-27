@@ -501,6 +501,20 @@ pub enum SplitJoinError {
         /// Its surface kind.
         kind: geom::SurfaceKind,
     },
+    /// A run edge's image refused on its incidence on the divided face's
+    /// chart (`geom_brep::IncidenceRead::of`): decided off it, read at a
+    /// pose, or undecided. It ends by the one map
+    /// (`geom_brep::IncidenceRead::ending`): a definite miss is the
+    /// kernel's defect (the join reads a body the kernel built), a read in
+    /// band the geometry's lever.
+    RunImageIncidence {
+        /// The face being divided.
+        face: FaceKey,
+        /// Its surface kind.
+        kind: geom::SurfaceKind,
+        /// The image's refusal, verbatim (`Debug`), read for its ending.
+        refusal: geom_brep::PcurveCertifyError,
+    },
     /// A ring whose island the ring lane does not read: on a curved face
     /// it winds an island, and re-homes a ring, on a cylinder wall's
     /// chart and on a sphere, a cone or a torus by a path's parity; on a
@@ -805,6 +819,28 @@ impl core::fmt::Display for SplitJoinError {
                      divide the {} face there. {}",
                     crate::boolean::kind_word(*divided),
                     crate::boolean::meeting_recourse(wall),
+                )
+            }
+            Self::RunImageIncidence { kind, refusal, .. } => {
+                use geom_brep::IncidenceRead as R;
+                let kind = crate::boolean::kind_word(*kind);
+                // Worded by what was read and ended by the one map; a
+                // refusal that carried no read is no incidence refusal.
+                let Some(read) = R::of(refusal) else {
+                    return write!(f, "{refusal}");
+                };
+                let what = match read {
+                    _ if read.is_definite() && !matches!(read, R::Off(_)) => {
+                        "could not be read against it"
+                    }
+                    R::Off(_) => "does not lie on it",
+                    R::AtPose(_) => "sits, within the band, where it holds no curve of its kind",
+                    R::Undecided(_) => "is not shown on it",
+                };
+                write!(
+                    f,
+                    "an edge of a {kind} face the join divides {what}. {}",
+                    read.ending(geom_brep::recourse::Reading::Build)
                 )
             }
             Self::RunImageNotYet { kind, .. } => write!(
@@ -3052,6 +3088,15 @@ fn run_azimuth_images<T: Decide>(
                     SplitJoinError::RunImageNotYet {
                         face,
                         kind: surface.kind(),
+                    }
+                }
+                // An incidence refusal ends by its read, through the one
+                // map, never as an invariant break or the join's own lever.
+                refusal if geom_brep::IncidenceRead::of(&refusal).is_some() => {
+                    SplitJoinError::RunImageIncidence {
+                        face,
+                        kind: surface.kind(),
+                        refusal,
                     }
                 }
                 geom_brep::PcurveCertifyError::Escalated { cause, .. } => {
@@ -7963,6 +8008,64 @@ mod run_edge_carrier_rows {
                 }
                 other => panic!("{name}: expected the run-edge refusal, got {other:?}"),
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod run_image_incidence {
+    #![allow(clippy::unwrap_used)]
+    use super::SplitJoinError;
+    use geom_brep::recourse::{INCIDENCE_AT_POSE, INCIDENCE_UNSHOWN};
+    use geom_brep::{OffMargin, PcurveCertifyError, PcurveCheck};
+    use geom_core::{Band, Indeterminate, KERNEL_DEFECT_ENDING, MarginDiag};
+
+    /// **A run edge's incidence refusal ends by the one map** (review on
+    /// PR 5844, H3): decided off, the kernel's defect; at a pose, the pose
+    /// lever; undecided, its lever; a poisoned margin, the defect. Never
+    /// the invariant break or the join's own coincidence lever it ended in
+    /// before.
+    #[test]
+    fn a_run_edges_incidence_refusal_ends_by_its_read() {
+        let off = |margin| PcurveCertifyError::CarrierOffChart {
+            chart: geom::SurfaceKind::Cone,
+            carrier: geom::CurveKind::Circle,
+            why: "WHY",
+            margin,
+        };
+        let undecided = |margin| PcurveCertifyError::Escalated {
+            check: PcurveCheck::ChartIncidence,
+            sample: 0,
+            cause: Indeterminate {
+                margin,
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("pcurve_cone_chart_incident"),
+                terminal_sliver: false,
+            },
+        };
+        let m = MarginDiag::value(4e-10);
+        for (refusal, ending) in [
+            (off(None), KERNEL_DEFECT_ENDING),
+            (off(Some(OffMargin::InBand(m))), INCIDENCE_AT_POSE.lever),
+            (undecided(MarginDiag::value(5e-9)), INCIDENCE_UNSHOWN.lever),
+            (undecided(MarginDiag::INVALID), KERNEL_DEFECT_ENDING),
+        ] {
+            let text = SplitJoinError::RunImageIncidence {
+                face: crate::FaceKey::default(),
+                kind: geom::SurfaceKind::Cone,
+                refusal: refusal.clone(),
+            }
+            .to_string();
+            assert!(text.contains(ending), "{refusal:?}: {text}");
+            assert_eq!(
+                text.matches("Recourse").count() + text.matches("defect").count(),
+                1,
+                "{text}"
+            );
+            assert!(
+                !text.contains("invariant") && !text.contains("coincide"),
+                "{text}"
+            );
         }
     }
 }

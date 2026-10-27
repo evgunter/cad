@@ -209,11 +209,7 @@ fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
             chart: geom::SurfaceKind::Sphere,
             carrier: geom::CurveKind::Ellipse,
             why: "a sphere holds no line, and its plane sections are circles",
-            // Its semi-axes differ by 0.5 m, past the band: no circle, so
-            // definitely off, quoting that distance from circularity.
-            margin: Some(geom_brep::OffMargin::Past(geom_core::MarginDiag::value(
-                0.5
-            ))),
+            margin: None,
         },
         "the refusal must name the (chart, carrier) pair it could not state"
     );
