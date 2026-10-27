@@ -552,3 +552,123 @@ fn a_trimmed_sphere_face_holding_its_pole_clears_only_past_it() {
         }
     }
 }
+
+/// An upright prism over `[z0, z0 + h]` on the bulge loop `shape`,
+/// turned by `phi` about `z` and moved by `by` in plan.
+fn prism(shape: &[((f64, f64), f64)], phi: f64, by: (f64, f64), z0: f64, h: f64) -> Body<f64> {
+    let (sin, cos) = phi.sin_cos();
+    let lp = profile::test_support::bulge_loop(
+        shape
+            .iter()
+            .map(|&((x, y), b)| {
+                (
+                    Point2::new(cos * x - sin * y + by.0, sin * x + cos * y + by.1),
+                    b,
+                )
+            })
+            .collect(),
+    );
+    let plane = profile::SketchPlane::xy_at(geom_core::Point3::new(0.0, 0.0, z0));
+    let p = profile::Profile::new(plane, vec![lp])
+        .validate(tol())
+        .unwrap();
+    let along = sweep::Extrusion::Distance {
+        depth: h,
+        side: sweep::ExtrudeSide::Along,
+    };
+    sweep::extrude(&p, along, tol()).unwrap().body
+}
+
+/// **A sliver off a block's corner parts along its own flat until it
+/// touches.** The block `[−1, 1]² × [0, 1]`, and the rod's segment past
+/// its chord at `x = −0.45`, turned 4 rad and moved by `(0.75, 0.75)`:
+/// the sliver stands off the corner `(1, 1)` with its flat facing it,
+/// `0.45 − (0.25, 0.25)·u` clear along the flat's normal `u`. Its arc
+/// wall's axis lies inside the block, so the offset from it aims across
+/// the block; the arc's chord normal, which is the flat's, parts the
+/// wall from the block's faces. Moved in along `u`, it clears 1e-3
+/// short of the corner's edge and refuses on it and past it. Red where
+/// the census proposes no direction from an arc's chord.
+#[test]
+fn a_sliver_off_a_blocks_corner_parts_along_its_flat_until_it_touches() {
+    let (sin, cos) = 4.0f64.sin_cos();
+    let u = (-cos, -sin);
+    let clear = 0.45 - 0.25 * (u.0 + u.1);
+    let c = sweep::test_support::rod_chord_at(-0.45);
+    let sliver = [((-0.45, c.half), c.wall_bulge), ((-0.45, -c.half), 0.0)];
+    let off = |s: f64| {
+        let mut out = sweep::test_support::brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), tol());
+        let by = (0.75 + s * u.0, 0.75 + s * u.1);
+        topo::graft_disjoint(&mut out, &prism(&sliver, 4.0, by, 0.0, 1.0)).expect("grafts");
+        finished("the sliver off the corner", out, tol())
+    };
+    for s in [0.0, 1e-3 - clear] {
+        assert_eq!(census(&off(s)), Ok(()), "the sliver {} clear", clear + s);
+    }
+    for (s, what) in [(-clear, "on the corner's edge"), (-clear - 1e-3, "past it")] {
+        let pair = off(s);
+        let errs = census(&pair).expect_err(what);
+        assert!(refuses_curved_within_reach(&pair, &errs), "{what}: {errs:?}");
+    }
+}
+
+/// **A lens through a block's corner leaves two pieces the census
+/// parts.** The block `[−1, 1]² × [0, 1]` less the lens on the tips
+/// `(0, ±0.4)` (bulge 0.3 each way), turned by φ and moved by
+/// `(0.75, 0.75)`, through the block: the corner is cut off, and the two
+/// pieces' walls are arcs of the lens's two circles, cut short by the
+/// block's sides. No face either piece has, and neither wall's axis
+/// toward the other's rulings, parts them; the line between the two
+/// circles' centres does, and so does either arc's chord. Red where the
+/// census proposes neither.
+#[test]
+fn a_lens_through_a_blocks_corner_leaves_two_pieces_the_census_parts() {
+    let block = finished(
+        "the block",
+        sweep::test_support::brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), tol()),
+        tol(),
+    );
+    let lens = [((0.0, -0.4), 0.3), ((0.0, 0.4), 0.3)];
+    for phi in [0.7, 4.0] {
+        let cutter = finished("the lens", prism(&lens, phi, (0.75, 0.75), -0.5, 2.0), tol());
+        let Ok(topo::BooleanResult::Body(pieces)) = topo::subtract(&block, &cutter, tol()) else {
+            panic!("block ∖ lens builds at φ {phi}");
+        };
+        assert_eq!(pieces.body.solids().count(), 2, "two pieces at φ {phi}");
+        assert_eq!(census(&pieces.body), Ok(()), "the two pieces at φ {phi}");
+    }
+}
+
+/// **Two parallel rods part along the line between their axes until
+/// they touch.** The rod `r ≤ 0.5` about `y` over `y ∈ [0, 1]`, and a
+/// rod of radius 0.05 beside it on the diagonal of `x` and `z`, its
+/// axis `0.55 + gap` from the first's. The walls' nearest points lie
+/// off both walls' seam rulings, so the offset from either axis to the
+/// other wall's segments aims past them, and neither wall has a least
+/// depth about the other's axis; the line between the axes parts them
+/// by the gap. At gap 0 the walls meet along a ruling, and inside it
+/// they cross: both refuse. Red where the census proposes no direction
+/// between two carriers' axes.
+#[test]
+fn two_parallel_rods_part_along_the_line_of_centres_until_they_touch() {
+    let beside = |gap: f64| {
+        let s = (0.55 + gap) * core::f64::consts::FRAC_1_SQRT_2;
+        let mut out = revolved(0.0, 0.5, 1.0);
+        let pin = topo::transform_rigid(
+            &revolved(0.0, 0.05, 1.0),
+            &RigidMotion::translation(Vec3::new(s, 0.0, s)).unwrap(),
+            tol(),
+        )
+        .unwrap();
+        topo::graft_disjoint(&mut out, &pin).expect("grafts");
+        finished("the rods side by side", out, tol())
+    };
+    for gap in [0.04, 5e-4] {
+        assert_eq!(census(&beside(gap)), Ok(()), "the rods {gap} clear");
+    }
+    for gap in [0.0, -1e-3] {
+        let pair = beside(gap);
+        let errs = census(&pair).expect_err("the walls meet");
+        assert!(refuses_curved_within_reach(&pair, &errs), "gap {gap}: {errs:?}");
+    }
+}

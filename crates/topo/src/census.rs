@@ -8159,10 +8159,12 @@ type WorldReach<T> = (Point3<T>, Point3<T>);
 /// Whether arm 1 of [`sweep_cross_solid_backstop`] may clear the face
 /// pair `a`, `b` along a direction that turns with the pair: the axis
 /// between the two faces' anchors, either face's own normal where it
-/// is planar, or the offset from an axis or centre either face proposes
-/// to the other's nearest boundary segment point ([`depth_gap::toward`]).
-/// Each face comes with its world reach, the lever its normal is read
-/// over; `toward` is [`depth_gap::toward`]'s offsets.
+/// is planar, the offset from an axis or centre either face proposes
+/// to the other's nearest boundary segment point ([`depth_gap::toward`]),
+/// either face's arc chords' normals, and the line between the two
+/// carriers' axes or centres ([`depth_gap::across`]). Each face comes
+/// with its world reach, the lever its normal is read over; `toward` is
+/// the depths' directions.
 ///
 /// The test is the boolean's narrow phase
 /// ([`crate::boolean::separating::apart_by`]): both reaches are read in
@@ -8667,9 +8669,11 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                     depth_gap::face_read(body, a.face, band)
                         .zip(depth_gap::face_read(body, b.face, band))
                 };
-                let toward = reads
-                    .as_ref()
-                    .map_or_else(Vec::new, |(ra, rb)| depth_gap::toward(ra, rb, band));
+                let toward = reads.as_ref().map_or_else(Vec::new, |(ra, rb)| {
+                    let mut dirs = depth_gap::toward(ra, rb, band);
+                    dirs.extend(depth_gap::across(ra, rb, band));
+                    dirs
+                });
                 if !cleared
                     && !backstop_apart(
                         body,

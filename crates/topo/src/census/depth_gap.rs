@@ -87,6 +87,11 @@ pub(crate) const DEPTH_FOOT: &str = "census_backstop_depth_foot";
 /// direction ([`toward`]).
 pub(crate) const DEPTH_TOWARD: &str = "census_backstop_depth_toward";
 
+/// K name: an arc's chord offset, or the offset between two carriers'
+/// axes or centres (metres), before it is read as a unit direction
+/// ([`across`]).
+pub(crate) const DEPTH_ACROSS: &str = "census_backstop_depth_across";
+
 /// The points within `minor` of the circle about `center`, of radius
 /// `major`, in the plane normal to `normal` (any `normal` where
 /// `major` is zero).
@@ -146,6 +151,11 @@ pub(super) struct Read<T: geom_core::Real> {
     pub(super) surface: SurfaceKey,
     pub(super) cover: Cover<T>,
     pub(super) depths: Vec<Proposed<T>>,
+    /// The depth the face's own carrier proposes, where it proposes one.
+    carrier: Option<Depth<T>>,
+    /// Every circle or ellipse arc on the boundary: its conic's centre
+    /// and normal, and the arc's two ends.
+    arcs: Vec<(Point3<T>, Vec3<T>, Point3<T>, Point3<T>)>,
 }
 
 fn point_piece<T: Decide>(p: Point3<T>) -> Piece<T> {
@@ -234,9 +244,9 @@ pub(super) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Op
     let face = proven(&body.faces, f, EntityId::Face);
     let surface = body.face_surface_linked(f, face);
     let rule = face_box_rule(surface, band).ok()?;
-    let mut depths: Vec<Proposed<T>> = carrier_depth(&rule, face.surface, band)
-        .into_iter()
-        .collect();
+    let carrier = carrier_depth(&rule, face.surface, band);
+    let mut depths: Vec<Proposed<T>> = carrier.into_iter().collect();
+    let mut arcs = Vec::new();
     let mut boundary = Some(Vec::new());
     for member in body.face_boundary_linked(f, face) {
         let piece = match member {
@@ -257,6 +267,12 @@ pub(super) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Op
                             },
                             level: None,
                         });
+                        arcs.push((
+                            arc.center,
+                            arc.axis,
+                            end(edge.he_plus, "he_plus"),
+                            end(edge.he_minus, "he_minus"),
+                        ));
                         Some(Piece::Ring(conic_ring(&arc)))
                     }
                     EdgeBoxRule::Spiric {
@@ -338,6 +354,8 @@ pub(super) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Op
         surface: face.surface,
         cover,
         depths,
+        carrier: carrier.map(|c| c.depth),
+        arcs,
     })
 }
 
@@ -643,6 +661,55 @@ pub(super) fn toward<T: Decide>(
                 geom_core::UnitVec3::new(nearest, DEPTH_TOWARD, band).ok()
             })
         })
+        .collect()
+}
+
+/// **The directions two faces, read as `ra` and `rb` ([`face_read`]),
+/// aim across the pair from their own arcs and carriers**, which
+/// [`toward`] does not read:
+///
+/// - each circle or ellipse arc on either boundary proposes its chord's
+///   normal in the conic's plane: the offset from the conic's centre to
+///   the midpoint of the arc's ends, off its normal. An arc lies on one
+///   side of its chord, and a flat cut along the chord (a D's flat, the
+///   line through a lens's tips) faces that way;
+/// - the two carriers' axes or centres, one from each face, propose the
+///   line between them: the common normal of two axes, and the offset
+///   of each axis's origin off the other's (for parallel axes, the line
+///   of centres); the offset of a centre off an axis; the offset
+///   between two centres. A torus's core proposes nothing.
+///
+/// That is at most one direction per arc of the two boundaries, and
+/// three per pair of carriers. As [`toward`]'s, they only propose, and
+/// an offset the band cannot read as a unit proposes nothing.
+pub(super) fn across<T: Decide>(
+    ra: &Read<T>,
+    rb: &Read<T>,
+    band: Band,
+) -> Vec<geom_core::UnitVec3<T>> {
+    let half = T::from_f64(0.5);
+    let chords = [ra, rb].into_iter().flat_map(|read| {
+        read.arcs
+            .iter()
+            .map(move |&(c, n, p, q)| split(p + (q - p) * half - c, n / n.norm()).0)
+    });
+    let off = |x: Point3<T>, origin: Point3<T>, axis: Vec3<T>| split(x - origin, axis / axis.norm()).0;
+    let between = match (ra.carrier, rb.carrier) {
+        (
+            Some(Depth::Axis { origin: o, axis: a }),
+            Some(Depth::Axis { origin: p, axis: b }),
+        ) => vec![a.cross(b), off(p, o, a), off(o, p, b)],
+        (Some(Depth::Axis { origin, axis }), Some(Depth::Center { center }))
+        | (Some(Depth::Center { center }), Some(Depth::Axis { origin, axis })) => {
+            vec![off(center, origin, axis)]
+        }
+        (Some(Depth::Center { center: c }), Some(Depth::Center { center: d })) => vec![d - c],
+        _ => Vec::new(),
+    };
+    chords
+        .chain(between)
+        .filter(|v| is_finite_length(v.norm()))
+        .filter_map(|v| geom_core::UnitVec3::new(v, DEPTH_ACROSS, band).ok())
         .collect()
 }
 
