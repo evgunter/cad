@@ -156,3 +156,17 @@
 - 2026-10-27 03:11Z (orchestrator): the crossing-touch lane opened #5823 at head `0bfb067e`. Tier: dual, because it adds a public `ValidationError` arm, retires `MixedTouch`, and widens one census rule (a pair a standing finding decides is not read again). The wider rule is accepted, as it fixes the same defect on pierces, and the reviewers have it to falsify.
   - Letter M, byte 114 (03:10:09Z), mod 3 = 0: HOLDOUT, a concurrent pair.
   - R1 `session_018u3gVFQ8NcHtE4fxQQpwZi`, R2 `session_018u3gVHhsXrVk3a9FZqXEaa`, isolation on `review/atrest-crossing-*`.
+- 2026-10-27 (orchestrator): **#5823 adjudicated.**
+  - Both reviews rated it APPROVE-WITH-FIXES. The bilateral MAJOR: `refusal_concision_at_rest` had no row for the new arm, and the lane fixed it in `fdb8a831`.
+  - The lane missed the freeze message and pushed twice after the frozen head (`fdb8a831`, `9e754e9d`, a main merge). The kernel diff is unchanged, so the reviews of `0bfb067e` stand.
+  - The fix pass was sent:
+    - one home for "decided overlap" (`is_decided_overlap` reads `census_interference_solids`);
+    - the precheck's arms made loud, with witnesses for the precheck and for "a crossing outranks";
+    - a degenerate probe decides nothing;
+    - editor-core rows, including `covered` for unexamined evidence;
+    - prose; a turned witness; a location in the Display.
+  - Blind coding (byte 166, inputs `analysis/dual-review/pr-5823-coding` @ `49385571`) tallied 0.
+- 2026-10-27 06:28Z (orchestrator): the curved-face `Gap` lane opened #5827 at head `0a2b6942`.
+  - Tier: dual, because it is new metric arithmetic on f64, Interval and Dual with closed-form roots. Letter M, byte 4 (06:28:29Z), mod 3 = 1: SEQUENTIAL. First review `session_018u3gVJZMr4RcyeBuNvcrvr`.
+  - No census row moves. The census half is unreachable while backstop arm 1 refuses curved × planar pairs, and that evidence went to RESTREAD's `census-cross-solid-curved-pairs-undecidable-on-shell-results`.
+  - The item is narrowed, not closed. Filed P3 `census-link-fuzz-prism-fixture-escalates-at-1e-6`.
