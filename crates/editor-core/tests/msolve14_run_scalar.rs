@@ -2381,3 +2381,39 @@ fn a5_certified_clearance_runs_over_a_seated_mate() {
         "the clearance leaf",
     );
 }
+
+/// R1 probe (INTENT E review): clearance asked in either selection's
+/// frame answers alike.
+#[test]
+fn r1_clearance_answers_alike_in_either_order() {
+    use editor_core::clearance::{ClearanceQuery, FaceScope, Selection, clearance_with};
+    let b = bolted("msolve14-a5-clearance");
+    let resolver = b.opts.resolver.clone().expect("the store resolves");
+    let (lo, hi) = narrow(0.05);
+    let leaf = ParamBox::from_axes(BTreeMap::from([(
+        var_of(&b.doc, &spacing()),
+        BoxAxis::Varying { lo, hi },
+    )]));
+    let copy2 = Selection { at: b.pattern, body: 2, faces: FaceScope::All };
+    let bolt = Selection::body_of(b.bolt);
+    let ask = |x: &Selection, y: &Selection, c: f64| {
+        let r = clearance_with(
+            &b.doc,
+            &leaf,
+            x,
+            y,
+            &ClearanceQuery::at_least(c, Tol::witness()).resolved_by(&resolver),
+        );
+        format!("{:?}", r.verdict()).chars().take(60).collect::<String>()
+    };
+    let mut apart = Vec::new();
+    for c in [2.5, 2.9, 2.99, 2.999, 2.9999, 2.99999, 3.0, 3.00001, 3.0001, 3.001, 3.01, 3.5] {
+        let (p, q) = (ask(&bolt, &copy2, c), ask(&copy2, &bolt, c));
+        eprintln!("c={c}: bolt-first {p} | copy-first {q}");
+        let kind = |s: &str| s.split([' ', '(', '{']).next().unwrap_or("").to_owned();
+        if kind(&p) != kind(&q) {
+            apart.push(format!("c={c}: {p} vs {q}"));
+        }
+    }
+    assert!(apart.is_empty(), "the order decides: {apart:#?}");
+}
