@@ -7145,3 +7145,4 @@ Signed (WIRE orchestrator).
   - UnsupportedTurnedCell's untypeable local keys (5829).
   Fixed directly in PR 5851 (Relation::noun; render the variant's cell field), with local census, concision and display runs green; the rows are closed in the PR.
   **Class note:** a new error variant's Display must pass pncad-py's prose_census (slow set). Lanes adding a variant run `-p pncad-py -E 'test(/prose_census/)' --run-ignored all`.
+- 2026-10-27 (WIRE orchestrator) PR 5851 is green and merged at 66bfc1c6d7. Main's two prose-census reds are fixed, and both rows are closed in the PR.
