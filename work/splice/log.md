@@ -517,3 +517,33 @@ The two keep out of each other's files (`contain.rs` and
 `sectors.rs`/`sector_face.rs`). The interior arm
 (`an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane`, P0 H),
 where lily wall 8 now stops, goes next, once point-in-face lands.
+
+## 2026-10-27 — PR 5802 (the sector walk's NURBS arm) merges
+
+Letter M, sequential. One full review at `5ec4b34ddf` gave
+APPROVE-WITH-FIXES, with no MAJOR and no claim broken. Its four
+curved-chart rows passed, and mutations of the end choice, the sense
+fold, the half-edge, the crease check and the regularity check each
+went red. There were three MINORs:
+- the tripwire lost its face check;
+- no boolean row reaches the new refusals;
+- the PR's affine corner row is blind to the end choice.
+
+The fix pass is `b2c0a9ba68`, and the orchestrator read the delta.
+The face check is restored. The refusal mapping is pinned on the
+shared walk's fixture, and the doc says why no boolean reaches it
+today: a corner's own knot refuses at the crossing rung first. The
+control-net reach has one home, `geom_brep::control_net_reach`.
+
+The wavy-loft union now passes the sector walk and stops at the held
+pierce (`a-spline-wall-cannot-say-whether-it-holds-a-pierce-point`,
+P0, filed by this unit). The point-in-face lane measured that this
+stop does not move with PR 5805: the wall's trim has no pcurve on a
+split piece mid-boolean (`LiftGap`). That finding is recorded on the
+row.
+
+**Process note.** PR 5789's lane did not run sweep's slow set, though
+it touched sweep tests. Five unfiled sweep and pncad-py slow-set reds
+on main surfaced through this lane's run. They are triaged on
+`splice/slow-set-reds`. Every SPLICE brief now names sweep's slow set
+explicitly.
