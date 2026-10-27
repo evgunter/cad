@@ -870,11 +870,9 @@ pub fn product_body(doc: &Doc<ProfileProgram>, tol: Tol) -> Result<Body<f64>, Sc
 /// **Gather the product of a pair the landing did not keep one for.**
 ///
 /// The expensive door, and the only one in this module that gathers a
-/// product for an evaluation someone else ran. It exists for exactly
-/// one case: an assembly whose A5 gate REFUSED consumed the body the
-/// landing would otherwise have kept
-/// ([`crate::session::DocSession::landed_body`]), so a consumer that
-/// needs one there has to pay for it. Naming that door rather than
+/// product for an evaluation someone else ran: a pair no landing kept a
+/// body for ([`crate::session::DocSession::landed_body`]), so a consumer
+/// that needs one there has to pay for it. Naming that door rather than
 /// hiding the gather inside a getter is what keeps the cost at the
 /// call site, where a reader meets it.
 ///

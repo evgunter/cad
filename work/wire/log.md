@@ -7163,3 +7163,5 @@ Signed (WIRE orchestrator).
   - A table dump over 210 split tests shows them identical apart from the witness.
   - The lane filed the seam-group sibling row (P2).
   - A FULL review (`wire-splitchords-rev`) is dispatched.
+
+- 2026-10-26 — seam from ATREST (stage 5 C, `the-at-rest-census-is-a-check`, branch `atrest/the-at-rest-census-is-a-check`): `product.rs`: `AssembleGather::gather` holds a `ProductRefusal`; doc lines naming the gate and `Separation` restated; `eval/*` paths re-spelled.

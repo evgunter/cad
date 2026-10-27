@@ -200,7 +200,7 @@
 //! SILENCE is a row a test can write; each states its own [`Tone`],
 //! which is the actionable-or-not rule the toolbar used to pick a
 //! colour for at four call sites; and one draw at the toolbar consumes
-//! them all. The members are the at-rest verdict ([`at_rest_badge`]),
+//! them all. The members are the at-rest check ([`at_rest_badge`]),
 //! the advisory checks ([`checks_badge`]), the δ the display budget
 //! chose ([`delta_badge`]), the product fault ([`product_badge`]), the
 //! store that keeps no preferences ([`prefs_badge`]), the profiles
@@ -2257,46 +2257,42 @@ pub fn tool_news(refusal: &PanelRefusal) -> Message {
     Message::new(Subject::Document, refusal.to_string(), Retold::Again)
 }
 
-/// **What the chrome badges about the A5 at-rest verdict**, and `None`
+/// **What the chrome badges about the at-rest check**, and `None`
 /// exactly when [`crate::session::DocSession::at_rest`] is — its own
 /// `None`, passed through; that doc says when.
 ///
-/// A certified assembly is [`Tone::Advisory`]: the verdict is good
-/// news and there is nothing to act on, unless it reports a loud
-/// overlap between copies, which only the reader can answer and which
-/// then leads the badge. A
-/// refusal is
-/// [`Tone::Actionable`] — it is the gate declining to certify the
-/// product on screen, and the reader is the only one who can answer
-/// it.
-///
-/// The refusal's words are [`crate::session::AtRestBadge`]'s own, the
-/// typed refusal rendered unaltered; the "at rest: " opening is this
-/// badge naming itself.
+/// Nothing at rest refuses, so the badge counts what the check found.
+/// A document with no loud finding is [`Tone::Advisory`]: there is
+/// nothing to act on. A loud overlap between copies, or a finding the
+/// census could not look at, is [`Tone::Actionable`]: only the reader
+/// can answer it, and it leads the badge. The badge says "clear" only
+/// where the census could look at everything, and counts what it could
+/// not look at by finding: a scalar that runs no census, a `⊔` that did
+/// not gather and a malformed body are no pair.
 pub fn at_rest_badge(at_rest: Option<&AtRestBadge>) -> Option<Badge> {
-    Some(match at_rest? {
-        AtRestBadge::Certified { loud, quiet } => {
-            // A loud overlap leads: it is what the reader acts on, and
-            // "certified" before it would read as nothing to do.
-            let (text, tone) = match (loud, quiet) {
-                (0, 0) => ("at rest: certified".to_owned(), Tone::Advisory),
-                (0, quiet) => (
-                    format!("at rest: certified (interference: 0 loud, {quiet} quiet)"),
-                    Tone::Advisory,
-                ),
-                (loud, quiet) => (
-                    format!("at rest: interference: {loud} loud, {quiet} quiet"),
-                    Tone::Actionable,
-                ),
-            };
-            Badge::read(Subject::Document, text, tone)
-        }
-        AtRestBadge::Refused { message } => Badge::read(
-            Subject::Document,
-            format!("at rest: {message}"),
-            Tone::Actionable,
-        ),
-    })
+    let AtRestBadge {
+        loud,
+        quiet,
+        could_not_look,
+    } = *at_rest?;
+    // A loud overlap leads: it is what the reader acts on. "Clear" is
+    // said only where nothing is open: never beside what the census
+    // could not look at.
+    let interference = format!("interference: {loud} loud, {quiet} quiet");
+    let blind = format!("{could_not_look} finding(s) the census could not look at");
+    let text = match (loud, quiet, could_not_look) {
+        (0, 0, 0) => "at rest: clear".to_owned(),
+        (0, _, 0) => format!("at rest: clear ({interference})"),
+        (_, _, 0) => format!("at rest: {interference}"),
+        (0, 0, _) => format!("at rest: {blind}"),
+        _ => format!("at rest: {interference}; {blind}"),
+    };
+    let tone = if loud > 0 || could_not_look > 0 {
+        Tone::Actionable
+    } else {
+        Tone::Advisory
+    };
+    Some(Badge::read(Subject::Document, text, tone))
 }
 
 /// **What the chrome badges about the advisory checks**, and `None`
@@ -2453,6 +2449,19 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
             let node = match finding.subject {
                 FindingSubject::Output { root, .. } => crate::world::seat_of(landed, root),
                 FindingSubject::Node(node) => node,
+                // An overlap's row is the earlier copy's, as a contact's
+                // is; the findings beside it are the `⊔`'s whose census
+                // decided them, or the body the product slot reads.
+                FindingSubject::Census { read } => {
+                    let at = match &finding.evidence {
+                        CheckEvidence::Interference { finding } => finding.a.var,
+                        _ => read,
+                    };
+                    let node = landed.operation_of(at).unwrap_or_else(|| {
+                        unreachable!("a census is taken over an operation's output")
+                    });
+                    crate::world::seat_of(landed, node)
+                }
                 // The earlier copy's placement: the row's cells name both.
                 FindingSubject::Copies { a, .. } => landed
                     .operation_of(a.var)
@@ -2529,7 +2538,7 @@ enum BadgeSite {
 }
 
 /// Which channel reports a refusal of this class, if any. The at-rest
-/// badge ([`at_rest_badge`]) is not one: it reports the A5 gate, which
+/// badge ([`at_rest_badge`]) is not one: it reads the at-rest check, which
 /// never runs on a product that did not gather.
 ///
 /// **The local policy is the three the feature tree owns.**

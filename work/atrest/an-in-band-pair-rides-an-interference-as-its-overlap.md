@@ -2,11 +2,12 @@
 id: an-in-band-pair-rides-an-interference-as-its-overlap
 kind: issue
 title: an in-band face pair between two interfering copies rides their interference as overlap evidence, and keeps a quiet finding loud
-status: open
+status: closed
 opened: 2026-10-26
 priority: P3
 cost: E
 refs: [an-in-band-face-pair-at-rest-is-not-one-finding]
+closed: 2026-10-26
 ---
 
 
@@ -33,3 +34,14 @@ routed into the pair's evidence, and stands as its own could-not-look finding (s
 vessel). It is conservative today (it keeps a finding loud, never quiets
 one), which is why it is P3. Found by the in-band unit's sweep. The
 file is INTENT D′3's while PR 5636 is open, so the unit left it alone.
+
+## Closed
+
+2026-10-26, by stage 5 C (`the-at-rest-census-is-a-check`): `partition`'s
+`undecided_pair` reads `reason`, and a `ThinInBand` verdict is routed into
+no pair's evidence; it stands as its own could-not-look finding
+(`AtRestEvidence::NoLane`). Pinned by
+`intent_s5_c_at_rest_check::an_in_band_pair_is_no_overlaps_evidence`
+(red with the arm removed). The quiet half the row named does not arise
+there: the two copies' intersection meets the same in-band arm and
+refuses, so the overlap is `Unlocalized`, loud either way.

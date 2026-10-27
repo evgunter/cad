@@ -2443,7 +2443,8 @@ impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
 
     /// The curve × face table's spline-face arm: the walk
     /// ([`crate::curve_face::spline_face::isolate`]), in certification
-    /// arithmetic, then its meetings placed at `T`
+    /// arithmetic on a NURBS carrier's ruled sheet
+    /// ([`crate::curve_face::spline_face::SpanCarrier`]), then its meetings placed at `T`
     /// ([`crate::curve_face::spline_face::settle`]).
     fn spline_face_meetings(
         carrier: &Curve3<T>,
@@ -2454,8 +2455,8 @@ impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
         Vec<crate::curve_face::spline_face::ChartMeeting<T>>,
         crate::curve_face::spline_face::SplineFaceRefusal,
     > {
-        use crate::curve_face::spline_face::{isolate, settle};
-        let isolated = isolate(carrier, params, chart, band)?;
+        use crate::curve_face::spline_face::{SpanCarrier, isolate, settle};
+        let isolated = isolate(&SpanCarrier::of(carrier), params, chart, band)?;
         settle(carrier, chart, &isolated, band)
     }
 
@@ -2547,7 +2548,7 @@ impl<T: Real> NurbsLane<T> {
         (self.composite)(net, params, surface, band)
     }
 
-    /// **An analytic span against a spline chart**: the meetings strictly
+    /// **A span against a spline chart**: the meetings strictly
     /// inside `params`, ascending, each with its chart point, by the
     /// curve × face table's spline-face arm
     /// ([`crate::curve_face::spline_face::isolate`], then

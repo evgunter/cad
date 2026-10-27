@@ -61,3 +61,5 @@ D′3 re-pins these rows over its own moves and main's merge at `1235f4c050`, wi
 - `intent_s2_c_world`'s `cut_cylinder` product row (the CLEAVE note above), whose move is main's plane pose (`34a2e26e61`), ported with a note naming it.
 
 Each pin's note names the move. Whether each of D′2's own moves was meant is PR 5613's record; the digests here do not separate a body move from a name move.
+
+**Evidence (ATREST orchestrator, 2026-10-27).** On main `18a2d434`+, `intent_s2_c_world::the_migrated_world_is_the_pre_c_product` still fails, now on `die_composed_tour`: digest `20ec31bb…/328` against the recorded `ca0b8371…/328`. Reproduced on a clean main worktree by ATREST's curved-copies lane. It fails with that lane's census.rs and validate.rs swapped back to main's, so it is not that branch's.
