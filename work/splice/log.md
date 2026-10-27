@@ -613,3 +613,20 @@ candidate had no red row; the reviewer's probe adopted. One fix pass,
 The root cause is a process gap: hosted CI runs no slow set, and
 PR 5789's lane skipped sweep's. Every SPLICE brief now binds sweep's
 and topo's full slow sets.
+
+## 2026-10-27 — PR 5837 (the capped box's probes scale with ε) merges
+
+PR 5814 adopted the reviewer's capped-box probes, but at fixed 1e-6 m
+offsets. Those fall inside the band at ε 1e-6, and the nightly runs the
+slow set at that ε, so it went red. RESTREAD filed the red on our
+slate.
+- The near-face probes now stand off by the cap's fit plus 4·escalate.
+- Both of PR 5814's mutations still turn the row red at all three ε,
+  verified locally.
+- Hosted CI does not run this slow row at the ε rows, so the local runs
+  are the evidence until the nightly.
+- The RESTREAD item is closed with PRs 5814 and 5837 named.
+
+The orchestrator read the diff, which is test-only, so it got no
+separate review. This is the third ε-unaware probe today (5805, 5814,
+and 5826's re-check). Every brief now binds ε-scaled geometry.

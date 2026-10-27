@@ -14,7 +14,7 @@
 //! only the stack over height is quadrature. A result whose ball face
 //! keeps the ring as a hole (the ball's side of ∪ and of ball ∖ box)
 //! is measured like the rest: the sphere arm reads every loop of a face
-//! by Gauss–Bonnet (`work/flux/sphere-face-with-a-hole-has-no-closed-form.md`).
+//! by Gauss–Bonnet (`sphere-face-with-a-hole-has-no-closed-form`, closed by PR 4573).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

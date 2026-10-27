@@ -2540,6 +2540,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("fate.rs", "sign", "Coincide::Sectors", 1),
     ("glue.rs", "tangency", "Coincide::Rim", 1),
+    ("insert.rs", "beside_order", "Coincide::Sectors", 1),
     ("insert.rs", "germ_dir", "BooleanDecision::SelfCheck", 1),
     ("insert.rs", "germ_dir", "SelfCheck::GermLine", 1),
     ("insert.rs", "record_germ_dir", "Coincide::TangentLocus", 2),
