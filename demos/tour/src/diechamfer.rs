@@ -67,7 +67,7 @@ use pncad::topo::Body;
 
 use crate::booleans::finished;
 use crate::diefillet::{L, R};
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 
 /// The setback. The point of the pair is that this IS the fillet's
 /// radius, so the panels compare verbs rather than parameters.
@@ -130,7 +130,7 @@ fn edge_material(a: f64, d: f64) -> f64 {
     6.0 * a * d * d - (16.0 / 3.0) * d.powi(3)
 }
 
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     let (cube, pipped) = crate::diefillet::source_bodies(tol);
     let (cube, pipped) = (finished("cube", cube, tol), finished("pipped", pipped, tol));
 
@@ -197,15 +197,17 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "the chamfer's census delta over the source, rings carried through"
     );
 
-    let src_props = pncad::topo::mass_properties(&pipped, tol).expect("source props");
+    let src_props =
+        pncad::topo::mass_properties(&pipped, tol, crate::printed()).expect("source props");
     let props =
-        pncad::topo::mass_properties(&crate::booleans::at_rest(&die, tol), tol).expect("die props");
-    let want = src_props.volume - edge_material(L, D);
-    let slack = 1e-9 * want + src_props.volume_pad + props.volume_pad;
+        pncad::topo::mass_properties(&crate::booleans::at_rest(&die, tol), tol, crate::printed())
+            .expect("die props");
+    let want = src_props.enclosure.volume - edge_material(L, D);
+    let slack = 1e-9 * want + src_props.enclosure.volume_pad + props.enclosure.volume_pad;
     assert!(
-        (props.volume - want).abs() <= slack,
+        (props.enclosure.volume - want).abs() <= slack,
         "the chamfer took exactly the box-edge material: {} vs {want}",
-        props.volume
+        props.enclosure.volume
     );
 
     let view = || View {
@@ -215,7 +217,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     };
 
     vec![
-        Stop {
+        TourStop {
             name: "diechamferblank",
             caption: "the die blank (chamfers)".to_string(),
             // Standalone for the same reason `diefillet`'s blank is
@@ -246,7 +248,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 chamfered,
             )],
         },
-        Stop {
+        TourStop {
             name: "diechamfer",
             caption: "THE CHAMFERED DIE (the same die, one verb over)".to_string(),
             montage: true,
@@ -270,8 +272,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  one implementation `select_where` delegates to. This body has no \
                  document because the scene calls the verb DIRECTLY; the recipe door \
                  (`Node::chamfer`, LIB-G16) is what a document-modelling consumer uses",
-                props.volume,
-                src_props.volume,
+                props.enclosure.volume,
+                src_props.enclosure.volume,
                 edge_material(L, D)
             )),
             view: view(),

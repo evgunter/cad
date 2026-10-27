@@ -58,13 +58,14 @@ fn volume(body: &Body<f64>) -> f64 {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("mass properties compute");
     assert_eq!(
-        props.volume_pad, 0.0,
+        props.enclosure.volume_pad, 0.0,
         "closed-form inventory: the volume pad is exactly zero"
     );
-    props.volume
+    props.enclosure.volume
 }
 
 /// The census delta a two-crossing rim band leaves, on either door.

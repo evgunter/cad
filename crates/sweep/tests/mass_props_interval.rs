@@ -49,10 +49,11 @@ fn check(body: &Body<Interval>, what: &str, volume: f64, area: f64) {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("interval mass properties must compute");
-    assert_encloses(&format!("{what} volume"), props.volume, volume);
-    assert_encloses(&format!("{what} area"), props.surface_area, area);
+    assert_encloses(&format!("{what} volume"), props.enclosure.volume, volume);
+    assert_encloses(&format!("{what} area"), props.enclosure.surface_area, area);
 }
 
 #[test]
@@ -156,8 +157,11 @@ fn f64_value_within_interval_enclosure() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .unwrap()
+    .expect("the measured body")
+    .met()
+    .expect("the measured body")
     .volume;
 
     let lp_f = bulge_loop(vec![
@@ -184,8 +188,11 @@ fn f64_value_within_interval_enclosure() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .unwrap()
+    .expect("the measured body")
+    .met()
+    .expect("the measured body")
     .volume;
     // The `Interval` enclosure must CONTAIN the f64 value, and be
     // narrow. Widening the admitted band by the enclosure's own width

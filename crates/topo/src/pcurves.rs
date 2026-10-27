@@ -5369,6 +5369,12 @@ pub(crate) mod staleness_posture {
              own; `cyl_wall_sheet` is the door that runs the pass over what it grew",
             ),
             (
+                "validate_pseudomanifold",
+                Neither,
+                "`Certifier`'s gate pass: it reads the body through a shared borrow, and its \
+                 `&mut self` keeps the certificate the pass derived; no body is written",
+            ),
+            (
                 "restate_surface",
                 Neither,
                 "a test-support door that overwrites one surface datum and leaves every row \

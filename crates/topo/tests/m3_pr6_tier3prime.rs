@@ -447,7 +447,15 @@ fn closure_kiss_vs_mover() {
     // passes (row 1 of the table).
     let r = run_body(union as BoolOp<f64>, &base.body, &mover);
     assert_eq!(
-        mass_properties(&r.body, Tol::witness()).unwrap().volume,
+        mass_properties(
+            &r.body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
+        .volume,
         2.875
     );
     assert_eq!(
@@ -458,7 +466,15 @@ fn closure_kiss_vs_mover() {
     // ∖: same shape — closes, the kiss persists on its shared key.
     let r = run_body(subtract as BoolOp<f64>, &base.body, &mover);
     assert_eq!(
-        mass_properties(&r.body, Tol::witness()).unwrap().volume,
+        mass_properties(
+            &r.body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
+        .volume,
         1.875
     );
     assert_eq!(
@@ -470,7 +486,15 @@ fn closure_kiss_vs_mover() {
     // with the exact volume (row 3: closes cleanly).
     let r = run_body(intersect as BoolOp<f64>, &base.body, &mover);
     assert_eq!(
-        mass_properties(&r.body, Tol::witness()).unwrap().volume,
+        mass_properties(
+            &r.body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
+        .volume,
         0.125
     );
     assert_eq!(
@@ -521,13 +545,29 @@ fn closure_consumed_base_stays_certified() {
     let pillar = finished_brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 3.0));
     let boss = run_body(union as BoolOp<f64>, &slab, &pillar);
     assert_eq!(
-        mass_properties(&boss.body, Tol::witness()).unwrap().volume,
+        mass_properties(
+            &boss.body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
+        .volume,
         18.0
     );
     let cutter = finished_brick::<f64>((3.0, 3.5), (3.0, 3.5), (0.5, 1.5));
     let r = run_body(subtract as BoolOp<f64>, &boss.body, &cutter);
     assert_eq!(
-        mass_properties(&r.body, Tol::witness()).unwrap().volume,
+        mass_properties(
+            &r.body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
+        .volume,
         18.0 - 0.125
     );
     assert_eq!(

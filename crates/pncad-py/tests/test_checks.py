@@ -71,6 +71,7 @@ from pncad import (
 
 from placing import against, assemble_world_copies
 from test_assembly_eval import identities, opened
+from measuring import pinned
 
 
 def slab(doc, x0, x1, y0=0.0, y1=1.0, z0=0.0, z1=1.0, on=None):
@@ -227,7 +228,7 @@ class TestTheReportGateSplit(unittest.TestCase):
         # Evaluated, measurable, exportable — all of it after the
         # finding, and none of it affected by it.
         body = ev.value(root).body()
-        self.assertAlmostEqual(body.mass_properties().volume, 2.0, places=9)
+        self.assertAlmostEqual(pinned(body).volume, 2.0, places=9)
         self.assertIn("ISO-10303-21", ev.step_string(root))
 
     def test_severity_moves_only_the_gate(self):
@@ -356,7 +357,7 @@ class TestSubjectBody(unittest.TestCase):
         body = subject_body(ev, finding.root, finding.output_ix)
         self.assertIsNotNone(body)
         # The two unit cubes the count found, as one body.
-        self.assertAlmostEqual(body.mass_properties().volume, 2.0, places=9)
+        self.assertAlmostEqual(pinned(body).volume, 2.0, places=9)
 
     def test_an_attribution_with_no_subject_answers_none(self):
         """The `None` a `stale_expectation` finding names — an answer,
@@ -431,8 +432,8 @@ class TestSubjectBodyCarriesItsDeclarations(unittest.TestCase):
         # It is ONE body: same geometry by every door that cannot see
         # declarations.
         self.assertEqual(
-            through_the_value.mass_properties().volume,
-            through_the_attribution.mass_properties().volume,
+            pinned(through_the_value).volume,
+            pinned(through_the_attribution).volume,
         )
         for rung in ("validate", "validate_closed", "validate_geometric"):
             with self.subTest(rung=rung):
@@ -489,7 +490,7 @@ class TestTheChecksCouldNotRun(unittest.TestCase):
         union = doc.insert(Node.union([a, b]))
         root = doc.place(union, doc.world)
         self.assertAlmostEqual(
-            evaluate(doc).value(union).body().mass_properties().volume, 2.0, places=9
+            pinned(evaluate(doc).value(union).body()).volume, 2.0, places=9
         )
         doc.apply(DocEdit.set_var_value(VarName("apart"), FreeValue.length((1.0 + 2e-9) * m)))
         ev = evaluate(doc)

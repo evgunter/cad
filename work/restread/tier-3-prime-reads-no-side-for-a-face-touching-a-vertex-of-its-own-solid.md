@@ -2,10 +2,11 @@
 id: tier-3-prime-reads-no-side-for-a-face-touching-a-vertex-of-its-own-solid
 kind: issue
 title: Tier 3′ reads no side where a face of a solid touches one of its own vertices, and the literal D1 corollary would refuse a cavity's corner on a face
-status: open
+status: closed
 opened: 2026-10-19
 priority: P1
 cost: M
+closed: 2026-10-25
 ---
 
 
@@ -121,3 +122,32 @@ Two designers weighed it and converged after two rounds. The `[ev]` PR states th
 - a finding for the failure, mapped in `Named::of` as a pierce of the solid;
 - the crossing body and the pit as witnesses;
 - the two-pits-and-a-needle body as a control that must pass.
+
+## Closed
+
+2026-10-26 (branch `restread/point-touch-winding`, PR 5704). Tier 3′
+reads each point where one solid touches itself once, over the solid's
+whole link (`sweep_self_touch_points`, `rest::one_material`). Its
+units are the vertex-vertex, vertex-on-edge and vertex-on-face ties and
+the point keys that name two cells of one solid; a line touch reaching
+the point is read with it, every sheet through the point included. No
+sheet may cross another, and every piece's front winding must be equal,
+so the winding takes two consecutive values; a link of one sector with
+no reading in band rests (one sheet alone bounds one material, and the
+tie loop cannot read a lone plane). A decided failure refuses
+`BoundaryCrossesItself`, which arm 2 reads as a pierce of the solid,
+and a planar link read in band, or not built, refuses
+`BoundaryCrossesItselfUndecided`, which leaves the solid unexamined.
+That closes the cross-solid gap above.
+
+- **Witnesses** (`census::self_touch`): the crossing tetrahedra refuse
+  with their four records, and the lifted control refuses four
+  `EdgeFacePierce`. The pit, two pits beside a needle and the mould of
+  a pyramid on a plate (its touch recorded) pass.
+- **A link holding a curved face or edge is left unread**, by the
+  orchestrator's ruling with Ev (option B, PR 5704): no refusal, a
+  silent pass of the class. Filed P1 as
+  `tier-3-prime-reads-no-side-where-a-solid-touches-itself-at-a-point-on-a-curved-face`.
+- **A face held at a corner and along an edge** at the point is read as
+  one sector per pass, so the Boolean union pinched at a crossing
+  (`vertex_on_edge_records`) certifies.

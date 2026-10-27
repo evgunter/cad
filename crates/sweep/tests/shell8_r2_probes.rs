@@ -316,6 +316,7 @@ fn r2_lift_on_the_vessels_void_ceiling_alone_and_beside_a_box() {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&alone.body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .unwrap();
     let want = hollow_vessel_want(t1, t, 1.0, 2.0, true);
@@ -323,11 +324,11 @@ fn r2_lift_on_the_vessels_void_ceiling_alone_and_beside_a_box() {
         "[r2] hollow vessel opened on its void ceiling: solids={} shells={} volume={} want={want} pad={}",
         alone.body.solids().count(),
         alone.body.shells().count(),
-        props.volume,
-        props.volume_pad
+        props.enclosure.volume,
+        props.enclosure.volume_pad
     );
     assert_eq!(topo::validate_geometric(&alone.body, tol()), Ok(()));
-    assert!((props.volume - want).abs() <= 1e-9 + props.volume_pad);
+    assert!((props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad);
     assert_eq!(alone.body.solids().count(), 2);
     assert_eq!(alone.body.shells().count(), 3);
 
@@ -379,6 +380,7 @@ fn r2_lift_on_the_vessels_void_ceiling_alone_and_beside_a_box() {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&opened.body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .unwrap();
     let want = (box_volume(2.0, 3.0, 4.0)
@@ -388,10 +390,10 @@ fn r2_lift_on_the_vessels_void_ceiling_alone_and_beside_a_box() {
         "[r2] box beside opened vessel: solids={} shells={} volume={} want={want}",
         opened.body.solids().count(),
         opened.body.shells().count(),
-        props.volume
+        props.enclosure.volume
     );
     assert_eq!(topo::validate_geometric(&opened.body, tol()), Ok(()));
-    assert!((props.volume - want).abs() <= 1e-9 + props.volume_pad);
+    assert!((props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad);
     assert_eq!(opened.body.solids().count(), 3);
     assert_eq!(opened.body.shells().count(), 5);
     assert_eq!(opened.naming.rims.len(), 1);
@@ -546,15 +548,16 @@ fn r2_e2e_consumer_seat() {
             tol(),
         ),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .unwrap();
     println!(
         "[r2] e2e 1: solids={} shells={} volume={} want={want}",
         hollowed.body.solids().count(),
         hollowed.body.shells().count(),
-        props.volume
+        props.enclosure.volume
     );
-    assert!((props.volume - want).abs() <= 1e-9 + props.volume_pad);
+    assert!((props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad);
     let rs = roles(&hollowed.body);
     println!(
         "[r2] e2e 1: roles {rs:?}; thickened {:?}",
@@ -660,16 +663,17 @@ fn r2_e2e_consumer_seat() {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&opened.body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .unwrap();
     println!(
         "[r2] e2e 3: solids={} shells={} volume={} want={want} rims={}",
         opened.body.solids().count(),
         opened.body.shells().count(),
-        props.volume,
+        props.enclosure.volume,
         opened.naming.rims.len()
     );
-    assert!((props.volume - want).abs() <= 1e-9 + props.volume_pad);
+    assert!((props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad);
     assert_eq!(topo::validate_geometric(&opened.body, tol()), Ok(()));
     let per_solid: Vec<(SolidKey, usize)> = opened
         .body
@@ -970,8 +974,13 @@ fn opposed_pair() -> (Body<f64>, SolidKey, SolidKey, FaceKey, FaceKey) {
 
 /// `body`'s volume is `want` to the exact-volume pad.
 fn assert_volume(body: &Body<f64>, want: f64, what: &str) {
-    let props = topo::mass_properties(&finished(what, Body::clone(body), tol()), tol()).unwrap();
-    assert_near_volume(&props, want, what);
+    let props = topo::mass_properties(
+        &finished(what, Body::clone(body), tol()),
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    )
+    .unwrap();
+    assert_near_volume(&props.enclosure, want, what);
 }
 
 /// [`assert_volume`] over measured `props`.
@@ -1209,16 +1218,29 @@ fn r2_replace_faces_offset_scopes_to_the_solid_across_shells_and_solids() {
         "one shell's wearer of the solid's chart: {e}"
     );
     // Raw door: `one` files two pieces under one solid, which tier 3 refuses (SolidOuterShells).
-    let before = topo::test_support::measure_unvalidated(&one, tol())
-        .unwrap()
-        .volume;
+    let before = topo::test_support::measure_unvalidated(
+        &one,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    )
+    .unwrap()
+    .met()
+    .expect("the pinned resolution is met")
+    .volume;
     topo::replace_faces_offset(&mut one, &tops, -0.1, tol()).expect("both of the solid's wearers");
     // Two pieces under one solid is tier 3's refusal by count; tiers 1
     // and 2 hold.
     assert_eq!(topo::validate_closed(&one), Ok(()));
     assert_near_volume(
         // Raw door: `one`, offset, still files two pieces under one solid (SolidOuterShells).
-        &topo::test_support::measure_unvalidated(&one, tol()).unwrap(),
+        &topo::test_support::measure_unvalidated(
+            &one,
+            tol(),
+            topo::test_support::pinned_resolution(tol()),
+        )
+        .unwrap()
+        .met()
+        .expect("the pinned resolution is met"),
         before - 2.0 * 2.5 * 0.1,
         "one solid, both tops",
     );

@@ -330,7 +330,7 @@ fn assert_sound(op: BooleanOp, a: &AtRestBody<f64>, b: &AtRestBody<f64>, volume:
         topo::validate_geometric_certificate(&bb.body, tol).is_ok(),
         "op {op:?}: the at-rest certificate"
     );
-    let v = topo::mass_properties(&bb.body, tol).unwrap().volume;
+    let v = topo::test_support::pinned_volume("the measured body", &bb.body, tol).volume;
     assert!(
         (v - volume).abs() < 1e-9,
         "op {op:?}: volume {v}, want {volume}"

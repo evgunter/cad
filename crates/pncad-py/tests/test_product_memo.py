@@ -37,6 +37,7 @@ from pncad import (
     product_named,
     run_checks,
 )
+from measuring import pinned
 
 
 def slab(doc, x0, x1):
@@ -79,8 +80,8 @@ class TestBothQuestionsOnOneEvaluation(unittest.TestCase):
         self.assertEqual(report_first.skipped, report_second.skipped)
         self.assertEqual(assembly_first.names, assembly_second.names)
         self.assertEqual(
-            assembly_first.body.mass_properties().volume,
-            assembly_second.body.mass_properties().volume,
+            pinned(assembly_first.body).volume,
+            pinned(assembly_second.body).volume,
         )
 
     def test_the_gate_consumes_a_copy_and_the_next_caller_still_answers(self):
@@ -93,8 +94,8 @@ class TestBothQuestionsOnOneEvaluation(unittest.TestCase):
         first = assemble(doc, ev)
         self.assertEqual(assemble(doc, ev).names, first.names)
         self.assertEqual(
-            product(doc, ev).mass_properties().volume,
-            first.body.mass_properties().volume,
+            pinned(product(doc, ev)).volume,
+            pinned(first.body).volume,
         )
         _, names = product_named(doc, ev)
         self.assertEqual(sorted(names), sorted(first.names))
@@ -105,9 +106,9 @@ class TestBothQuestionsOnOneEvaluation(unittest.TestCase):
         Two of them are two memos and one answer."""
         doc = one_box("memo-two-evaluations")
         assemble_world_copies(doc)
-        first = product(doc, evaluate(doc)).mass_properties().volume
+        first = pinned(product(doc, evaluate(doc))).volume
         assemble_world_copies(doc)
-        second = product(doc, evaluate(doc)).mass_properties().volume
+        second = pinned(product(doc, evaluate(doc))).volume
         self.assertEqual(first, second)
 
     def test_a_document_with_an_empty_world_refuses_every_time(self):

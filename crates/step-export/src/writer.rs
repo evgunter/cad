@@ -1055,8 +1055,8 @@ fn void_refusal(at_rest: &AtRestBody<f64>, shells: &[ShellKey], tol: Tol) -> Ste
         });
     StepExportError::VoidShellUnsupported {
         shell: void.shell,
-        volume_lo: void.volume - void.volume_pad,
-        volume_hi: void.volume + void.volume_pad,
+        volume_lo: void.enclosure.volume - void.enclosure.volume_pad,
+        volume_hi: void.enclosure.volume + void.enclosure.volume_pad,
     }
 }
 
