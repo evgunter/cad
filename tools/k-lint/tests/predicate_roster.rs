@@ -137,7 +137,9 @@ const DOOR_MINTS: MintSpelling = MintSpelling {
 };
 
 /// Every kernel source the roster's names are minted in, as
-/// `(path, text, spelling)`.
+/// `(path, spelling)`: a file, or a DIRECTORY (a path ending `/`) whose
+/// every `.rs` file is read ([`mint_files`]), so a lane file added
+/// there is under the roster without a line here.
 ///
 /// The lanes' own mints (`props_quad_face_extent`, at the one extent gate
 /// every lane asks, and `props_trim_piece_monotone`), and topo's
@@ -152,36 +154,65 @@ const DOOR_MINTS: MintSpelling = MintSpelling {
 /// than passing quietly, and the fix is a line in this table — the same
 /// fail-loud posture the allow-list itself takes.
 ///
-/// **Each entry is parsed on its own**, and each must yield at least
-/// one mint, so a second entry that mints nothing reds instead of
-/// riding the first one's sites — and a `let target_len` in one file
-/// can never answer for a mint in another.
+/// **Each file is parsed on its own**, and each entry must yield at
+/// least one mint, so an entry that mints nothing reds instead of
+/// riding another's sites — and a `let target_len` in one file can
+/// never answer for a mint in another. A file under a directory entry
+/// may mint nothing; the directory as a whole may not.
 ///
 /// **A path here is also a trigger** in `.github/workflows/ci.yml`'s
 /// `tools` row, since a PR editing only the kernel file is this
 /// roster's subject; a new entry adds its path there.
-const MINT_SOURCES: [(&str, &str, MintSpelling); 4] = [
-    (
-        "crates/geom-brep/src/props/quad/run.rs",
-        include_str!("../../../crates/geom-brep/src/props/quad/run.rs"),
-        LANE_MINTS,
-    ),
-    (
-        "crates/geom-brep/src/props/quad/trimmed.rs",
-        include_str!("../../../crates/geom-brep/src/props/quad/trimmed.rs"),
-        LANE_MINTS,
-    ),
-    (
-        "crates/topo/src/props.rs",
-        include_str!("../../../crates/topo/src/props.rs"),
-        DOOR_MINTS,
-    ),
-    (
-        "crates/topo/src/props/settle.rs",
-        include_str!("../../../crates/topo/src/props/settle.rs"),
-        DOOR_MINTS,
-    ),
+const MINT_SOURCES: [(&str, MintSpelling); 3] = [
+    ("crates/geom-brep/src/props/quad/", LANE_MINTS),
+    ("crates/topo/src/props.rs", DOOR_MINTS),
+    ("crates/topo/src/props/settle.rs", DOOR_MINTS),
 ];
+
+/// Every file [`MINT_SOURCES`] names, as `(entry, path, text)`: a file
+/// entry's own, and every `.rs` file under a directory entry, in path
+/// order. Read from the tree at run time, once; an entry naming no file
+/// reds here.
+fn mint_files() -> &'static [(usize, String, String)] {
+    static FILES: OnceLock<Vec<(usize, String, String)>> = OnceLock::new();
+    FILES.get_or_init(|| {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let mut out = Vec::new();
+        for (entry, (path, _)) in MINT_SOURCES.iter().enumerate() {
+            let mut paths = Vec::new();
+            if path.ends_with('/') {
+                let mut stack = vec![root.join(path)];
+                while let Some(dir) = stack.pop() {
+                    for item in std::fs::read_dir(&dir)
+                        .unwrap_or_else(|e| panic!("MINT_SOURCES' {path} does not read: {e}"))
+                    {
+                        let file = item.expect("an entry reads").path();
+                        if file.is_dir() {
+                            stack.push(file);
+                        } else if file.extension().is_some_and(|x| x == "rs") {
+                            paths.push(file);
+                        }
+                    }
+                }
+                paths.sort();
+            } else {
+                paths.push(root.join(path));
+            }
+            assert!(!paths.is_empty(), "MINT_SOURCES' {path} names no file");
+            for file in paths {
+                let text = std::fs::read_to_string(&file)
+                    .unwrap_or_else(|e| panic!("{} does not read: {e}", file.display()));
+                let rel = file
+                    .strip_prefix(&root)
+                    .expect("under the root")
+                    .to_string_lossy()
+                    .into_owned();
+                out.push((entry, rel, text));
+            }
+        }
+        out
+    })
+}
 
 /// The call the lanes mint with, as the pins below name it.
 ///
@@ -193,13 +224,13 @@ const MINT_SOURCES: [(&str, &str, MintSpelling); 4] = [
 /// leaving the population the other pins quantify over.
 const MINT_CALL: &str = LANE_MINTS.call;
 
-/// A `(code_only, code_and_literals)` pair per [`MINT_SOURCES`] entry,
+/// A `(code_only, code_and_literals)` pair per [`mint_files`] file,
 /// lexed once, with [`kernel_only`] applied, and held in `cache`.
 fn source_views(cache: &'static OnceLock<Vec<(String, String)>>) -> &'static [(String, String)] {
     cache.get_or_init(|| {
-        MINT_SOURCES
+        mint_files()
             .iter()
-            .map(|(path, text, _)| kernel_only(path, text))
+            .map(|(_, path, text)| kernel_only(path, text))
             .collect()
     })
 }
@@ -261,21 +292,33 @@ fn test_modules(code: &str, searched: &str) -> Vec<std::ops::Range<usize>> {
         .collect()
 }
 
-/// `(path, code_view, literal_view, spelling)` for every [`MINT_SOURCES`]
-/// entry.
+/// `(entry, path, code_view, literal_view, spelling)` for every
+/// [`mint_files`] file.
 ///
 /// The code view has prose AND string literals blanked — where a call
 /// is LOCATED. The literal view keeps the literals — where a located
 /// argument's VALUE is read. `source::blanked` refuses either unless it
 /// is the original's bytes blanked in place, so an offset means the
 /// same byte in both.
-fn kernel_views() -> Vec<(&'static str, &'static str, &'static str, MintSpelling)> {
+fn kernel_views() -> Vec<(
+    usize,
+    &'static str,
+    &'static str,
+    &'static str,
+    MintSpelling,
+)> {
     static VIEWS: OnceLock<Vec<(String, String)>> = OnceLock::new();
-    MINT_SOURCES
+    mint_files()
         .iter()
         .zip(source_views(&VIEWS))
-        .map(|((path, _, spelling), (code, literals))| {
-            (*path, code.as_str(), literals.as_str(), *spelling)
+        .map(|((entry, path, _), (code, literals))| {
+            (
+                *entry,
+                path.as_str(),
+                code.as_str(),
+                literals.as_str(),
+                MINT_SOURCES[*entry].1,
+            )
         })
         .collect()
 }
@@ -305,6 +348,20 @@ struct Mint {
 /// absence, and every pin downstream quantifies over a smaller
 /// population without saying so.
 fn mint_sites(spelling: MintSpelling, code: &str, literals: &str, searched: &str) -> Vec<Mint> {
+    let sites = parse_sites(spelling, code, literals, searched);
+    assert!(
+        !sites.is_empty(),
+        "no `{}` site in {searched} — the kernel's mint spelling moved and every pin \
+         over it is now vacuous",
+        spelling.call
+    );
+    sites
+}
+
+/// [`mint_sites`]' parse and its coverage check, without the demand
+/// that `code` mint at all: a file under a directory entry of
+/// [`MINT_SOURCES`] may mint nothing, as long as the directory mints.
+fn parse_sites(spelling: MintSpelling, code: &str, literals: &str, searched: &str) -> Vec<Mint> {
     let MintSpelling {
         call,
         bare,
@@ -345,11 +402,6 @@ fn mint_sites(spelling: MintSpelling, code: &str, literals: &str, searched: &str
             }
         })
         .collect();
-    assert!(
-        !sites.is_empty(),
-        "no `{call}` site in {searched} — the kernel's mint spelling moved and every pin \
-         over it is now vacuous"
-    );
     for (at, _) in code.match_indices(bare) {
         let is_call = sites.iter().any(|m| m.at == at);
         let is_decl = decl.is_some_and(|decl| {
@@ -369,15 +421,26 @@ fn mint_sites(spelling: MintSpelling, code: &str, literals: &str, searched: &str
     sites
 }
 
-/// [`mint_sites`] over every [`MINT_SOURCES`] entry, each parsed on its
-/// own so a listed source that mints nothing reds rather than riding
-/// another's sites. One `(path, code_view, mint)` per site.
+/// [`parse_sites`] over every [`mint_files`] file, each parsed on its
+/// own, and every [`MINT_SOURCES`] entry made to mint, so a listed
+/// source that mints nothing reds rather than riding another's sites.
+/// One `(path, code_view, mint)` per site.
 fn kernel_mint_sites() -> Vec<(&'static str, &'static str, Mint)> {
     let mut out = Vec::new();
-    for (path, code, literals, spelling) in kernel_views() {
-        for mint in mint_sites(spelling, code, literals, path) {
+    let mut minting = vec![false; MINT_SOURCES.len()];
+    for (entry, path, code, literals, spelling) in kernel_views() {
+        for mint in parse_sites(spelling, code, literals, path) {
+            minting[entry] = true;
             out.push((path, code, mint));
         }
+    }
+    for ((path, spelling), minted) in MINT_SOURCES.iter().zip(minting) {
+        assert!(
+            minted,
+            "no `{}` site in {path} — the kernel's mint spelling moved and every pin \
+             over it is now vacuous",
+            spelling.call
+        );
     }
     out
 }
@@ -415,7 +478,7 @@ fn unminted_roster_names(roster: &[&str], minted: &[&str], searched: &str) -> Ve
 fn every_rostered_predicate_is_still_minted_by_the_kernel() {
     let sites = kernel_mint_sites();
     let minted: Vec<&str> = sites.iter().map(|(_, _, m)| m.name.as_str()).collect();
-    let paths: Vec<&str> = MINT_SOURCES.iter().map(|(p, _, _)| *p).collect();
+    let paths: Vec<&str> = MINT_SOURCES.iter().map(|(p, _)| *p).collect();
     let complaints = unminted_roster_names(&EPS_COUPLED_PREDICATES, &minted, &format!("{paths:?}"));
     assert!(complaints.is_empty(), "{}", complaints.join("\n"));
 }

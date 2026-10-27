@@ -225,22 +225,15 @@ fn reaches_certification(lines: &[String]) -> bool {
 /// pinned in [`ROSTER`] like every other file's, so a read arriving in
 /// one of them reds, and [`every_listed_holder_exists`] reds when an
 /// entry names a file that is gone — a list that silently shrinks is
-/// the failure a list invites.
+/// the failure a list invites. An entry ending `/` lists a directory,
+/// every file under it ([`held`]): the quadrature's lanes, one module
+/// split by file.
 const HOLDERS: &[&str] = &[
     "crates/geom-brep/src/offset_fit.rs",
     "crates/geom-brep/src/offset_meters.rs",
     "crates/geom-brep/src/patch_bound.rs",
     "crates/geom-brep/src/props/mod.rs",
-    "crates/geom-brep/src/props/quad/area.rs",
-    "crates/geom-brep/src/props/quad/cells.rs",
-    "crates/geom-brep/src/props/quad/cylinder.rs",
-    "crates/geom-brep/src/props/quad/green.rs",
-    "crates/geom-brep/src/props/quad/net.rs",
-    "crates/geom-brep/src/props/quad/patch.rs",
-    "crates/geom-brep/src/props/quad/rational.rs",
-    "crates/geom-brep/src/props/quad/run.rs",
-    "crates/geom-brep/src/props/quad/trig.rs",
-    "crates/geom-brep/src/props/quad/trimmed.rs",
+    "crates/geom-brep/src/props/quad/",
     "crates/geom-brep/src/ssi.rs",
     "crates/geom-brep/src/ssi/certify.rs",
     "crates/geom-brep/src/ssi/enclose.rs",
@@ -264,6 +257,19 @@ const HOLDERS: &[&str] = &[
     "crates/step-import/src/recognize_curve.rs",
     "crates/topo/src/props/quad_lane.rs",
 ];
+
+/// Whether `rel` is one of [`HOLDERS`]: a listed file, or a file under a
+/// listed directory (an entry ending `/`), so a file added to a listed
+/// directory is walked without a line here.
+fn held(rel: &str) -> bool {
+    HOLDERS.iter().any(|h| {
+        if h.ends_with('/') {
+            rel.starts_with(h)
+        } else {
+            rel == *h
+        }
+    })
+}
 
 /// One entry per file walked with at least one endpoint read — every
 /// `crates/*/src` file whose production code reaches certification
@@ -525,7 +531,7 @@ fn population(root: &std::path::Path) -> Vec<(String, Vec<String>)> {
     let mut out = Vec::new();
     for (rel, code) in sources {
         let lines = production(&code);
-        if !reaches_certification(&lines) && !HOLDERS.contains(&rel.as_str()) {
+        if !reaches_certification(&lines) && !held(&rel) {
             continue;
         }
         out.push((rel, lines));
@@ -847,7 +853,14 @@ fn every_listed_holder_exists() {
     let gone: Vec<&str> = HOLDERS
         .iter()
         .copied()
-        .filter(|p| !root.join(p).is_file())
+        .filter(|p| {
+            let at = root.join(p);
+            if p.ends_with('/') {
+                !at.is_dir()
+            } else {
+                !at.is_file()
+            }
+        })
         .collect();
     assert!(
         gone.is_empty(),

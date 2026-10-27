@@ -193,7 +193,7 @@ pub struct FaceCutBounds {
 /// Funnel wrapper (the `props_*` idiom of [`crate::props::curved`]): margins
 /// are certification-substrate `f64` lengths lifted to the caller's
 /// scalar so every lane (f64 / Probe / Interval) records identically.
-pub fn classify_len<T: Decide>(
+pub(super) fn classify_len<T: Decide>(
     name: &'static str,
     margin: Margin<f64>,
     band: Band,

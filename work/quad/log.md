@@ -302,3 +302,11 @@ PR 5568's fix pass.
   - **Bits.** The thread-count digest is byte-identical to main's own at 1e-9, 1e-12 and 1e-6. Main's digest is itself red on `tilted_cut_upper` since FLUX 5801; reported to the orchestrator.
   - **Filed.** `the-patch-lanes-spell-their-derivative-grid-ladder-twice` (P4).
   - **Seam (FLUX, FLUXTAIL).** `props/spiric.rs`'s extent gate and round tail now go through `face_extent` and `Run::ask`, and its piece constant is `EDGE_INIT_PIECES`. — (QUAD C3 lane)
+- 2026-10-27 — **C3 fix pass on the STYLE review** (PR 5815).
+  - **No cycles.** Shared items moved to neutral homes: `limit` to `trig`, `PatchRect`/`normal_partials`/`knots_inside` to `net`, `EDGE_INIT_PIECES` to `run`. The sibling modules form no cycle.
+  - **Area constants.** `TRIM_AREA_PIECES` is UN-merged as `CHORD_AREA_CELLS`, which supersedes the merge in the entry above.
+  - **One knot filter.** `knots_inside` is applied once, inside `knot_aligned_cuts`, and `clipped_spans` and the chord cuts use it too.
+  - **Lanes' costs.** Each lane states its round cost as a function, and the work-wall row calls them.
+  - **Directory form.** k-lint's `MINT_SOURCES`, the census `HOLDERS` and the ci.yml trigger now take `props/quad/` as a directory. `CERT_IMPORTERS` stays an exact list.
+  - **Docs.** The cylinder prose moved to `cylinder.rs`, and the test-only resolution is renamed `REPORTING_RESOLUTION_FACTOR`.
+  - **Filed:** `the-face-extent-gate-is-spelled-twice-under-two-predicate-names` (P4). — (QUAD C3 lane)

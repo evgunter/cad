@@ -77,7 +77,7 @@ pub use patch::{nurbs_patch_face, nurbs_patch_face_rounds};
 pub use run::rounds_run_by;
 pub use run::{
     Accept, FACE_WORK_WALL, FLOOR_SHARE, FaceCutBounds, LaneEnd, LaneRun, LaneStop, RoundWindow,
-    classify_len, mean_boundary_displacement, narrower,
+    mean_boundary_displacement, narrower,
 };
 pub(super) use run::{EDGE_INIT_PIECES, Run, face_extent};
 pub use trig::trig_at_limit;
