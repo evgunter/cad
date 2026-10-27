@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-21
 priority: P2
 cost: M
-refs: [a-torus-face-with-a-spiric-ring-has-no-volume-lane]
+refs: [5567]
 ---
 
 

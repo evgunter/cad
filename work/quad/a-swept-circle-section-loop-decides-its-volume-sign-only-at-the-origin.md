@@ -161,7 +161,7 @@ stations). The one cell that decided only across the origin (33
 stations) now refuses everywhere. The reference is the start of the
 shell's first quadrature face, not a point central to the body, so
 each wall's lever is up to the loop's size.
-`work/flux/a-shells-pad-still-depends-on-which-quadrature-face-it-stores-first.md`
+`a-shells-pad-still-depends-on-which-quadrature-face-it-stores-first`, closed by PR 5699
 already tracks the choice of reference point.
 
 **ε.** At 1e-12 the widths are the same as at 1e-9: `circle` 9/17/21

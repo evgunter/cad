@@ -10,7 +10,7 @@
 //! `point_in_solid` at sampled points against the analytic memberships
 //! under the op), a result whose torus face holds a ring bounded by
 //! ovals among them: the spiric wall lane reads every loop of the face
-//! (`work/flux/a-torus-face-with-a-spiric-ring-has-no-volume-lane.md`).
+//! (`a-torus-face-with-a-spiric-ring-has-no-volume-lane`, closed by PR 5567).
 //! The `v` answer, the volume's stop past the join, is kept for an op
 //! that may still reach one.
 //!

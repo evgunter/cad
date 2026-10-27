@@ -123,7 +123,7 @@ bounded by an edge that is not a circle.
 The probe pose builds ∩ in both orders and slab ∖ ball at the slice
 integral; ∪ in both orders and ball ∖ slab keep the ring as a hole of
 the ball's face and refuse at the result gate
-(`work/flux/sphere-face-with-a-hole-has-no-closed-form.md`). The rows
+(`sphere-face-with-a-hole-has-no-closed-form`, closed by PR 4573). The rows
 are `crates/sweep/tests/a_ring_on_a_sphere_face.rs`, the review's
 far-pole, bar and edge-midpoint poses among them. Filed: the cone kind,
 `a-ring-on-a-cone-or-torus-face-has-no-island-winding`.
