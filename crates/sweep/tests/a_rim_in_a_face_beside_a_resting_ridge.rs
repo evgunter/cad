@@ -111,7 +111,7 @@ fn answers(what: &str, got: Result<BooleanResult<f64>, BooleanError>, want: Answ
         (Ok(BooleanResult::Body(r)), Answer::Body(volume)) => {
             topo::validate_geometric(&r.body, t())
                 .unwrap_or_else(|e| panic!("{what}: tier 3: {e:?}"));
-            let v = topo::mass_properties(&r.body, t()).unwrap().volume;
+            let v = topo::test_support::pinned_volume("the measured body", &r.body, t()).volume;
             assert!(
                 (v - volume).abs() < 1e-7,
                 "{what}: volume {v}, closed form {volume}"

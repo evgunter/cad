@@ -424,6 +424,37 @@ impl Default for BooleanNaming {
 }
 
 impl BooleanNaming {
+    /// **The one read of a result key back to its operand**: which
+    /// operand the result key `k` belongs to, its key in that operand's
+    /// space, and whether it was read back through the graft rows (`inv`,
+    /// the graft's destination → source keys of `k`'s kind). A result key
+    /// is an A key only where A's clone is the arena, and a B key either
+    /// through the graft rows or because B's clone is the arena itself.
+    /// Reading the other way, an operand's key into the result, matches
+    /// on [`Self::a_keys`] and [`Self::b_keys`] where it is read.
+    ///
+    /// # Panics
+    ///
+    /// On a layout the boolean never records: it builds its result as
+    /// A's clone with B grafted in, or as one operand's clone with the
+    /// other absent ([`Self::a_keys`], [`Self::b_keys`]).
+    #[track_caller]
+    pub fn operand_of<K: Copy + Ord>(&self, inv: &BTreeMap<K, K>, k: K) -> (Operand, K, bool) {
+        match (self.a_keys, self.b_keys) {
+            (OperandKeys::Direct, OperandKeys::Grafted) => match inv.get(&k) {
+                Some(&kb) => (Operand::B, kb, true),
+                None => (Operand::A, k, false),
+            },
+            (OperandKeys::Direct, OperandKeys::Absent) => (Operand::A, k, false),
+            (OperandKeys::Absent, OperandKeys::Direct) => (Operand::B, k, false),
+            (a_keys, b_keys) => unreachable!(
+                "a boolean's naming records operand keys {a_keys:?} and {b_keys:?}: the boolean \
+                 builds its result as A's clone with B grafted in, or as one operand's clone with \
+                 the other absent"
+            ),
+        }
+    }
+
     /// Each result vertex a zip or a parting fused away → the live cell
     /// of `body` its point lies in ([`Self::settler`]).
     ///
@@ -702,13 +733,28 @@ pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &AtRestBody<T>,
     b: &AtRestBody<T>,
-    inputs: &BooleanInputs<T>,
+    inputs: &BooleanInputs,
+    strategy: SweepStrategy,
+    tol: Tol,
+) -> Result<BooleanResult<T>, BooleanError> {
+    boolean_op_given(op, a, b, inputs, None, strategy, tol)
+}
+
+/// [`boolean_op_with`], its coincidences `given` where they are a fold
+/// step's of the n-ary door ([`super::nary`]): `Some` makes those pairs
+/// the operation's only coincidences, and it decides none of its own.
+pub(crate) fn boolean_op_given<T: Decide + Bounds + crate::props::AtRestPolicy>(
+    op: BooleanOp,
+    a: &AtRestBody<T>,
+    b: &AtRestBody<T>,
+    inputs: &BooleanInputs,
+    given: Option<&[super::GluedPair<T>]>,
     strategy: SweepStrategy,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     #[cfg(feature = "door-tier3-meter")]
     let door_from = std::time::Instant::now();
-    let result = boolean_door(op, a, b, &Glue::of(inputs), strategy, tol);
+    let result = boolean_door(op, a, b, &Glue::of(inputs, given), strategy, tol);
     #[cfg(feature = "door-tier3-meter")]
     super::door_meter::record(op, &result, door_from.elapsed(), [a.outcome(), b.outcome()]);
     result
@@ -2603,6 +2649,9 @@ fn bounded<T: Decide>(
                 crate::props::Ask::Decided(Err(escalated(cause)))
             }
             crate::props::settle::Step::Refine => crate::props::Ask::Refine(vec![true]),
+            crate::props::settle::Step::Empty => {
+                unreachable!("a single relation names a volume; only a `Contains` can be empty")
+            }
         }
     });
     match walked {
@@ -6057,6 +6106,8 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
         | V::FaceThroughEdgeWedgeUndecided { .. }
         | V::CoincidentWedgesOverlap { .. }
         | V::CoincidentWedgesOverlapUndecided { .. }
+        | V::BoundaryCrossesItself { .. }
+        | V::BoundaryCrossesItselfUndecided { .. }
         | V::ArcEndOffCorner { .. }
         | V::InstanceInterference { .. }
         | V::SameSideInterference { .. }
@@ -6295,20 +6346,50 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
             diag,
         }
     };
-    // The NURBS re-gate (M5 S13, pinned): ANY fallback entry with a
-    // NURBS face refuses before a vertex is probed — the extent test
-    // is unwritable for the kind (variant docs).
-    for (operand, body) in [(Operand::A, a), (Operand::B, b)] {
+    // Every surface is read through its link first: a torn surface is a
+    // broken at-rest operand, which panics (D2 row 4), whereas
+    // `face_rows` reads surfaces by lookup and would answer it as a lost
+    // surface, a refusal.
+    for body in [a, b] {
         for (face, fd) in body.faces() {
-            if matches!(body.face_surface_linked(face, fd), geom::Surface::Nurbs(_)) {
-                return Err(BooleanError::NurbsExtentUnsupported { operand, face });
-            }
+            let _ = body.face_surface_linked(face, fd);
         }
     }
     let pad = boxes::sweep_pad(band);
     let axes = super::separating::OperandAxes::new(boxes::axis_key);
     let mut section_charts = ChartCache::default();
     let rows = [face_rows(a, band)?, face_rows(b, band)?];
+    // The NURBS re-gate (M5 S13, pinned), REACH FIRST: a NURBS face
+    // whose certified box (its control net's hull) meets no face of the
+    // other operand is certified disjoint from it, and every other
+    // fallback entry with a NURBS face refuses before a vertex is
+    // probed — the extent test is unwritable for the kind (variant docs).
+    for (operand, x, x_rows, y, y_rows) in [
+        (Operand::A, a, &rows[0], b, &rows[1]),
+        (Operand::B, b, &rows[1], a, &rows[0]),
+    ] {
+        for row in x_rows {
+            if !matches!(row.surface, geom::Surface::Nurbs(_)) {
+                continue;
+            }
+            let reaches = y_rows.iter().any(|y_row| {
+                row.bbox.overlaps(&y_row.bbox)
+                    && !super::separating::apart(
+                        (x, super::separating::Item::Face(row.face)),
+                        (y, super::separating::Item::Face(y_row.face)),
+                        axes.of(a, b, band),
+                        pad,
+                        band,
+                    )
+            });
+            if reaches {
+                return Err(BooleanError::NurbsExtentUnsupported {
+                    operand,
+                    face: row.face,
+                });
+            }
+        }
+    }
     let mut out: Vec<SphereRecut<T>> = Vec::new();
     let mut cut_ins: Vec<SphereCutIn<T>> = Vec::new();
     for (x_is, x, x_rows, y, y_rows) in [
@@ -6621,13 +6702,10 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             }
                         }
                     }
-                    geom::Surface::Nurbs(_) => {
-                        // Unreachable: the re-gate above runs first.
-                        return Err(BooleanError::NurbsExtentUnsupported {
-                            operand: x_is.other(),
-                            face: yf,
-                        });
-                    }
+                    // The re-gate above certified the face clear of
+                    // every face of this operand, the sphere's among
+                    // them, or refused.
+                    geom::Surface::Nurbs(_) => {}
                     // `Approx` joins the no-wired-arm refusal, not the
                     // NURBS lane: the pair-scoped operand gate refuses
                     // it by kind before this scan runs.
@@ -9039,9 +9117,15 @@ mod tests {
         );
         let volume = |body: &crate::Body<f64>| {
             // Raw door: the measured prisms still carry construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
-            crate::test_support::measure_unvalidated(body, Tol::witness())
-                .unwrap()
-                .volume
+            crate::test_support::measure_unvalidated(
+                body,
+                Tol::witness(),
+                crate::test_support::pinned_resolution(Tol::witness()),
+            )
+            .unwrap()
+            .met()
+            .expect("the pinned resolution is met")
+            .volume
         };
         assert!(
             volume(&low) < volume(&high),
@@ -9221,13 +9305,12 @@ mod tests {
             assert_eq!(uncertifiable, faces, "{what}: every face named: {errors:?}");
         }
 
-        // Door 2 — the fallback's own re-gate, at the mechanism: any
-        // fallback entry carrying a NURBS face refuses BEFORE a vertex
-        // is probed. NO end-to-end path reaches it today (a lofted
-        // operand is refused at its NURBS EDGES first, a placeholder at
-        // the at-rest gate) — `sweep`'s `s16_box_soundness` pins the
-        // first and Door 1 above the second, so the day one lifts is
-        // loud.
+        // Door 2 — the fallback's own re-gate, at the mechanism: a
+        // fallback entry carrying a NURBS face whose box may meet a face
+        // of the other operand refuses BEFORE a vertex is probed. A
+        // placeholder's net is poison, so its box meets every face, far
+        // or not. `sweep`'s `s16_box_soundness` pins the re-gate end to
+        // end on a lofted operand.
         let band = Band::linear(Tol::witness()).unwrap();
         let Err(err) = super::sphere_extent_scan(&a, &b, &[], band) else {
             panic!("the NURBS fallback must be re-gated, never vertex-probed");

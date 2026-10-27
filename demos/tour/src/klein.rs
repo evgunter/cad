@@ -258,7 +258,7 @@ use pncad::topo::{AtRestBody, Body, BooleanError, BooleanOp, EdgeKey, Operand};
 
 use crate::booleans::finished;
 use crate::scalar::Scalar;
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 
 // ---------------------------------------------------------------
 // The bottle's dimensions (metres). Chosen, not measured: a stylized
@@ -297,15 +297,16 @@ const SWEEP_IN: f64 = 0.5 * PI;
 const SPINE_OVER: u32 = 36;
 const SPINE_IN: u32 = 12;
 /// Sections the loop's loft places along its spine, and the skin's
-/// degree through them. Chosen inside a neighbourhood measured on the
-/// loop's earlier section, four quarter arcs a wall: at v-degree 2,
-/// every station count from 9 to 19 passed tier 3 and meshed at the
-/// stop's δ at ε = 1e-6, 1e-9 and 1e-12, and so did 13 stations at
-/// v-degree 3; the edges were 21 stations at v-degree 2 (the mesher
-/// refused `CertificateExceeded`) and 17 at v-degree 3 (at ε = 1e-6
-/// the volume continuation refused with no bracket) —
-/// `work/tess/a-quarter-arc-swept-annulus-exceeds-its-triangle-certificate`.
-/// The `circle` loop is measured at this setting only.
+/// degree through them. The volume does not choose them: tier 3
+/// decides the loop's sign at every station count from 9 to 65, at
+/// v-degree 2 and 3, with two or 4, 8 or 16 arcs a wall, at ε = 1e-6,
+/// 1e-9 and 1e-12 ([`loop_volume_grid`] pins a grid of it). The mesher
+/// does. Meshing at the stop's δ was measured on the loop's earlier
+/// section, four quarter arcs a wall: every station count from 9 to 19
+/// at v-degree 2 meshed, and so did 13 at v-degree 3; 21 at v-degree 2
+/// refused `CertificateExceeded`
+/// (`work/tess/a-quarter-arc-swept-annulus-exceeds-its-triangle-certificate`).
+/// The `circle` loop is meshed at this setting only.
 const STATIONS: usize = 13;
 const V_DEGREE: usize = 2;
 /// The stop's mesh tolerance — the δ the loop's neighbourhood was
@@ -587,8 +588,8 @@ fn annulus<S: Scalar>(m: &Meridian, cx: f64, tol: Tol) -> Vec<ConstructedLoop<S>
 }
 
 /// `section` carried along `spine` as ONE body (the loft's stacking
-/// statement is per-slab, issue 368), lofted through [`STATIONS`]
-/// planes normal to the spine at the stations a sweep would take. The
+/// statement is per-slab, issue 368), lofted at `v_degree` through
+/// `stations` planes normal to the spine at the stations a sweep would take. The
 /// spine is planar (it lies in y = 0), so each station's frame is
 /// STATED rather than carried: its local +Z the unit tangent there, its
 /// local +X the roll of the frame the kernel hands out at the start
@@ -613,6 +614,8 @@ fn annulus<S: Scalar>(m: &Meridian, cx: f64, tol: Tol) -> Vec<ConstructedLoop<S>
 fn lofted_loop<S: Scalar>(
     spine: &NurbsCurve3<f64>,
     section: &[ConstructedLoop<f64>],
+    stations: usize,
+    v_degree: usize,
     tol: Tol,
 ) -> Result<Body<S>, LoftError> {
     let band = Band::linear(tol).map_err(LoftError::Band)?;
@@ -626,10 +629,10 @@ fn lofted_loop<S: Scalar>(
     .expect("the spine's start tangent fixes a frame")
     .u()
     .get();
-    let places: Vec<SketchPlane<S>> = (0..STATIONS)
+    let places: Vec<SketchPlane<S>> = (0..stations)
         .map(|i| {
             #[allow(clippy::cast_precision_loss)]
-            let s = i as f64 / (STATIONS - 1) as f64;
+            let s = i as f64 / (stations - 1) as f64;
             let (p, d) = spine.ders1((t1 - t0).mul_add(s, t0));
             let aim = UnitVec3::new(d.map(S::from_computed), "klein_loop_tangent", band)
                 .expect("the spine has a tangent at every station");
@@ -645,8 +648,8 @@ fn lofted_loop<S: Scalar>(
         })
         .collect();
     let section: Vec<ConstructedLoop<S>> = section.iter().map(|lp| lp.lift_computed()).collect();
-    let sections = vec![section; STATIONS];
-    loft_body::<S>(&sections, &places, V_DEGREE, tol).map(|l| l.body)
+    let sections = vec![section; stations];
+    loft_body::<S>(&sections, &places, v_degree, tol).map(|l| l.body)
 }
 
 /// `section` swept along `spine` by `sweep_body`, from the start frame
@@ -688,8 +691,14 @@ struct Bottle<S: Scalar> {
 fn bottle<S: Scalar>(tol: Tol) -> Bottle<S> {
     let m = meridian();
     let spine = loop_spine(&m);
-    let top = lofted_loop::<S>(&spine, &annulus::<f64>(&m, 0.0, tol), tol)
-        .expect("the annulus lofts along the loop's whole spine");
+    let top = lofted_loop::<S>(
+        &spine,
+        &annulus::<f64>(&m, 0.0, tol),
+        STATIONS,
+        V_DEGREE,
+        tol,
+    )
+    .expect("the annulus lofts along the loop's whole spine");
     Bottle {
         bulb: finished(
             "the bulb",
@@ -795,8 +804,9 @@ fn corners_by_wall<S: Scalar>(sharp: &Body<S>, corners: &[EdgeKey]) -> (EdgeKey,
 
 /// A body's exact volume, read out at `f64`.
 fn volume<S: Scalar>(b: &Body<S>, tol: Tol) -> f64 {
-    pncad::topo::mass_properties(&crate::booleans::at_rest(b, tol), tol)
+    pncad::topo::mass_properties(&crate::booleans::at_rest(b, tol), tol, crate::printed())
         .expect("the volume integrates")
+        .enclosure
         .volume
         .f()
 }
@@ -832,7 +842,7 @@ fn lever_arm<S: Scalar>(body: &Body<S>, edge: EdgeKey) -> f64 {
 }
 
 /// The bottle stop.
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     let m = meridian();
     let Bottle { bulb, top, spine } = bottle::<f64>(tol);
 
@@ -855,17 +865,16 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let allowance = pappus * (1.0 - half_step.sin() / half_step);
     let (band_lo, band_hi) = (pappus - allowance, pappus + allowance);
     // The kernel's reading is a certified ENCLOSURE (the walls are
-    // rational): a number with its half-width where the reporting
-    // target is met, the narrowest bracket the certificate held where
-    // it is not. The body's true volume is in it AND in the band, so
-    // the two must meet.
-    let e = pncad::topo::VolumeReading::of(
-        pncad::topo::validate_geometric_certificate(&top, tol)
-            .unwrap_or_else(|e| panic!("the loop's tier 3 refused: {e:?}"))
-            .measure(),
-    )
-    .unwrap_or_else(|refusal| panic!("the loop's mass properties: {refusal}"))
-    .enclosure();
+    // rational): a number with its half-width where the printed
+    // precision is met, the narrowest bracket it reached where it is
+    // not. The body's true volume is in it AND in the band, so the two
+    // must meet.
+    let e = pncad::topo::validate_geometric_certificate(&top, tol)
+        .unwrap_or_else(|e| panic!("the loop's tier 3 refused: {e:?}"))
+        .measure(crate::printed())
+        .unwrap_or_else(|refusal| panic!("the loop's mass properties: {refusal}"))
+        .enclosure
+        .enclosure();
     let (v_lo, v_hi) = (e.volume_lo, e.volume_hi);
     assert!(
         v_lo <= band_hi && band_lo <= v_hi,
@@ -1001,7 +1010,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  it meets the bulb's neck at the mate, and subtract refuses the loop's NURBS walls against a \
                  planar face at the revert roster. The neck passes through the flare \
                  uncut for that second reason";
-    vec![Stop {
+    vec![TourStop {
         name: "klein",
         caption: "Klein bottle — two bodies the kernel cannot join".to_string(),
         montage: true,
@@ -1377,6 +1386,108 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
          findings entry 11's seam measures (they become zero) and drop `lofted_loop`'s \
          gap comment",
     );
+}
+
+#[cfg(test)]
+mod loop_volume_grid {
+    //! **The loop's volume over its knots, its degree and its place.**
+    //! The same tube, lofted with two semicircles or with eighth arcs a
+    //! wall, at 9 or 17 stations, at v-degree 2 or 3, here or moved
+    //! across the world origin: tier 3 decides each one's sign, the
+    //! continuation meets the printed precision, and the bracket holds
+    //! the body's own volume from an independent quadrature of its
+    //! patches ([`crate::patch_quadrature`]). The lofts differ between
+    //! cells (a coarse skin differs from A·L by up to 1 %), so each
+    //! cell is held to its own body's oracle, not to A·L.
+
+    use super::*;
+    use pncad::geom_core::Vec3;
+    use pncad::prelude::circle_split;
+
+    #[test]
+    fn the_loops_volume_holds_its_own_quadrature_whatever_its_knots_degree_or_place() {
+        let tol = Tol::witness();
+        let m = meridian();
+        let spine = loop_spine(&m);
+        let ring = PI * (m.ro.powi(2) - m.ri.powi(2));
+        // Across the origin: the loop's arcs straddle it.
+        let across = Vec3::new(-1.2, 0.0, -1.8);
+        for (arcs, stations, v_degree, moved) in [
+            (2, 9, 2, false),
+            (2, 9, 3, false),
+            (4, 9, 3, false),
+            (8, 9, 3, false),
+            (2, 17, 3, true),
+        ] {
+            let cell = format!(
+                "{arcs} arcs a wall, {stations} stations, v-degree {v_degree}{}",
+                if moved {
+                    ", moved across the origin"
+                } else {
+                    ""
+                }
+            );
+            let section: Vec<ConstructedLoop<f64>> = [m.ro, m.ri]
+                .into_iter()
+                .map(|r| {
+                    if arcs == 2 {
+                        circle(p2(0.0, 0.0), r, tol).expect("a wall").into()
+                    } else {
+                        circle_split(p2(0.0, 0.0), r, arcs, 0.0, tol)
+                            .expect("a wall")
+                            .into()
+                    }
+                })
+                .collect();
+            let body = lofted_loop::<f64>(&spine, &section, stations, v_degree, tol)
+                .unwrap_or_else(|e| panic!("{cell}: the loop lofts: {e:?}"));
+            let body = if moved {
+                let motion = RigidMotion::translation(across).expect("a translation");
+                pncad::topo::transform_rigid(&body, &motion, tol)
+                    .unwrap_or_else(|e| panic!("{cell}: the loop moves: {e:?}"))
+            } else {
+                body
+            };
+            let measured = pncad::topo::validate_geometric_certificate(&body, tol)
+                .unwrap_or_else(|e| panic!("{cell}: tier 3 refuses: {e:?}"))
+                .measure(crate::printed())
+                .unwrap_or_else(|e| panic!("{cell}: the volume refuses: {e:?}"));
+            assert_eq!(
+                measured.stop,
+                pncad::topo::Stop::Met,
+                "{cell}: the volume stops short of the printed precision at ε = {:e}",
+                tol.eps()
+            );
+            let props = measured.enclosure;
+            let c = if moved {
+                across
+            } else {
+                Vec3::new(0.0, 0.0, 0.0)
+            };
+            let about = [[c.x, c.y, c.z], [RLOOP + c.x, c.y, ZTOP + c.z]];
+            let coarse = crate::patch_quadrature::measure(&body, 16, &about, |_, _| ring);
+            let oracle = crate::patch_quadrature::measure(&body, 24, &about, |_, _| ring);
+            let [v0, v1] = oracle.volume[..] else {
+                unreachable!("two reference points")
+            };
+            assert!(
+                (coarse.volume[0] - v0).abs() <= 1e-12 * v0 && (v0 - v1).abs() <= 1e-12 * v0,
+                "{cell}: the oracle converges and its shell closes: {coarse:?} vs {oracle:?}"
+            );
+            println!(
+                "{cell} at ε = {:e}: V = {} ± {:.1e}, oracle {v0}",
+                tol.eps(),
+                props.volume,
+                props.volume_pad
+            );
+            assert!(
+                (props.volume - v0).abs() <= props.volume_pad,
+                "{cell}: the loop's V = {} ± {:.1e} misses its own quadrature's {v0}",
+                props.volume,
+                props.volume_pad
+            );
+        }
+    }
 }
 
 #[cfg(test)]

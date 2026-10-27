@@ -54,11 +54,11 @@ fn rings(half: &Body<f64>) -> usize {
 }
 
 fn volume(half: &Body<f64>) -> f64 {
-    topo::mass_properties(
+    topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", topo::Body::clone(half), tol()),
         tol(),
     )
-    .unwrap()
     .volume
 }
 
@@ -234,10 +234,7 @@ fn a_bored_brick_splits_at_every_tilt_and_offset() {
                 let what = format!("rod ({cx}, {cy}) at tilt {t}, flipped {flip}");
                 let plane = tilted(1.25, t, flip);
                 let [below, above] = halves_at_rest(&what, &body, &plane);
-                // A tilted ellipse wall's quadrature may escalate at a
-                // tight ε (`props_quad_converged`); that pose's volume is
-                // then not read, and the count below says how many were.
-                let volumes = [&below, &above].map(|h| {
+                let [b, a] = [&below, &above].map(|h| {
                     topo::mass_properties(
                         &topo::test_support::finished(
                             "the measured body",
@@ -245,26 +242,13 @@ fn a_bored_brick_splits_at_every_tilt_and_offset() {
                             tol(),
                         ),
                         tol(),
+                        topo::test_support::pinned_resolution(tol()),
                     )
+                    .unwrap_or_else(|e| panic!("{what}: volume refused: {e:?}"))
                 });
-                let quadrature = |r: &Result<topo::MassProperties<f64>, topo::MassPropsError>| {
-                    matches!(
-                        r,
-                        Err(topo::MassPropsError::Face {
-                            source: geom_brep::PropsError::Escalated { cause, .. },
-                            ..
-                        }) if cause.predicate == Some("props_quad_converged")
-                    )
-                };
-                match &volumes {
-                    [Ok(b), Ok(a)] => {
-                        let sum = b.volume + a.volume;
-                        assert!((sum - whole).abs() < close, "{what}: {sum} against {whole}");
-                        measured += 1;
-                    }
-                    [b, a] if [b, a].iter().all(|r| r.is_ok() || quadrature(r)) => {}
-                    other => panic!("{what}: volume refused: {other:?}"),
-                }
+                let sum = b.enclosure.volume + a.enclosure.volume;
+                assert!((sum - whole).abs() < close, "{what}: {sum} against {whole}");
+                measured += 1;
                 for (side, half) in [("below", &below), ("above", &above)] {
                     let s = sections(half, &plane);
                     assert!(
@@ -275,11 +259,7 @@ fn a_bored_brick_splits_at_every_tilt_and_offset() {
             }
         }
     }
-    // 40 at ε = 1e-9 and 1e-6, 36 at 1e-12: the fewest over the rows.
-    assert!(
-        measured >= 36,
-        "volumes read on only {measured} of 40 poses"
-    );
+    assert_eq!(measured, 40, "every pose's volume is read");
 }
 
 /// **A hole inside an island inside a hole goes to the island.** The
@@ -643,11 +623,11 @@ fn a_plane_through_a_notch_tip_splits_exactly() {
     let second = [(0.5, 4.5), (1.0, 2.0), (1.5, 4.5)].map(|(x, y)| Point2::new(x, y));
     let two = cut("second notch", &v, &prism(&second, -1.0, 3.0));
     for (name, body) in [("one notch", &v), ("two notches", &two)] {
-        let whole = topo::mass_properties(
+        let whole = topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
             tol(),
         )
-        .unwrap()
         .volume;
         if name == "one notch" {
             // The notch's part inside the block is the triangle
@@ -679,7 +659,11 @@ fn a_plane_through_a_notch_tip_splits_exactly() {
                     Ok(()),
                     "{what} {side}: tier 3"
                 );
-                let v = mass_properties(b, tol()).unwrap().volume;
+                let v = mass_properties(b, tol(), topo::test_support::pinned_resolution(tol()))
+                    .unwrap()
+                    .met()
+                    .expect("the pinned resolution is met")
+                    .volume;
                 assert!(
                     (v - want).abs() < 1e-12,
                     "{what} {side}: volume {v}, want {want}"
@@ -1485,14 +1469,15 @@ fn a_split_across_a_ringed_wall_mints_each_segment_on_one_curve() {
         topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(h), tol()),
             tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .unwrap()
     });
-    let total = pb.volume + pa.volume;
+    let total = pb.enclosure.volume + pa.enclosure.volume;
     assert!(
-        (total - (2.0 * PI - pocket)).abs() <= pb.volume_pad + pa.volume_pad,
+        (total - (2.0 * PI - pocket)).abs() <= pb.enclosure.volume_pad + pa.enclosure.volume_pad,
         "the halves hold {total} ± {}, the drum less the pocket {}",
-        pb.volume_pad + pa.volume_pad,
+        pb.enclosure.volume_pad + pa.enclosure.volume_pad,
         2.0 * PI - pocket
     );
     let (lower, upper) = (ellipse_arcs(&below), ellipse_arcs(&above));

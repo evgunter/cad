@@ -310,7 +310,7 @@ fn a_keel_on_the_floor_subtracts_as_its_slit_form() {
                     Ok(()),
                     "{what}: tier 3′"
                 );
-                let v = topo::mass_properties(b, tol).unwrap().volume;
+                let v = topo::test_support::pinned_volume("the measured body", b, tol).volume;
                 assert!(
                     (v - row.volume).abs() < 1e-9 * row.volume,
                     "{what}: volume {v}, closed form {}",
@@ -364,14 +364,15 @@ fn the_split_and_the_boolean_build_one_body() {
                     b.solids().count(),
                 )
             };
-            let split_volume = topo::mass_properties(&walls, tol).unwrap().volume;
+            let split_volume =
+                topo::test_support::pinned_volume("the measured body", &walls, tol).volume;
             for (what, r) in doors(row, &pose) {
                 assert_eq!(
                     count(&r.body),
                     count(&walls),
                     "{what}: (v, e, f, solids) against the split"
                 );
-                let v = topo::mass_properties(&r.body, tol).unwrap().volume;
+                let v = topo::test_support::pinned_volume("the measured body", &r.body, tol).volume;
                 assert!(
                     (v - split_volume).abs() < 1e-9 * v,
                     "{what}: volume {v}, the split's {split_volume}"
@@ -413,7 +414,7 @@ fn a_cavity_resting_its_keel_on_the_floor_opens_through_it_as_a_ring() {
             "{what}: tier 3′"
         );
         // `16 − ½ · 0.3 · 0.5` along the trench's unit length.
-        let v = topo::mass_properties(b, tol).unwrap().volume;
+        let v = topo::test_support::pinned_volume("the measured body", b, tol).volume;
         assert!((v - 15.925).abs() < 1e-9 * v, "{what}: volume {v}");
         assert_eq!(
             (b.solids().count(), b.shells().count()),
@@ -577,7 +578,7 @@ fn a_face_glued_to_the_slit_floor_merges_its_two_edges() {
                         Ok(()),
                         "{what}: tier 3′"
                     );
-                    let v = topo::mass_properties(b, tol).unwrap().volume;
+                    let v = topo::test_support::pinned_volume("the measured body", b, tol).volume;
                     let want = (g.volume)(length);
                     assert!(
                         (v - want).abs() < 1e-9 * want,
@@ -654,7 +655,7 @@ fn a_slab_flush_with_the_slit_floor_intersects_it_keeping_the_keel() {
                         "{what}: tier 3′"
                     );
                     assert_eq!(b.solids().count(), row.solids, "{what}: solids");
-                    let v = topo::mass_properties(b, tol).unwrap().volume;
+                    let v = topo::test_support::pinned_volume("the measured body", b, tol).volume;
                     let want = 8.0 - 0.075 * length;
                     assert!(
                         (v - want).abs() < 1e-9 * want,
@@ -770,7 +771,7 @@ fn a_partner_flush_beside_the_keel_unions_with_the_slit_at_tier_three() {
             assert_eq!(validate_closed(b), Ok(()), "{what}: tier 2");
             assert_eq!(validate_geometric(b, tol), Ok(()), "{what}: tier 3");
             assert_eq!(b.solids().count(), 1, "{what}: solids");
-            let v = topo::mass_properties(b, tol).unwrap().volume;
+            let v = topo::test_support::pinned_volume("the measured body", b, tol).volume;
             let want = row.volume + share;
             assert!(
                 (v - want).abs() < 1e-9 * want,
@@ -920,7 +921,7 @@ fn a_box_flush_under_a_ringed_top_builds_in_every_op() {
                         Ok(()),
                         "{what}: {op}: tier 3′"
                     );
-                    topo::mass_properties(&r.body, tol).unwrap().volume
+                    topo::test_support::pinned_volume("the measured body", &r.body, tol).volume
                 }
                 other => panic!("{what}: {op}: {:?}", other.map(|_| ())),
             };
@@ -983,7 +984,7 @@ fn a_flush_partner_crossing_the_slit_intersects_it_in_either_order() {
                 Ok(()),
                 "{what}: tier 3′"
             );
-            topo::mass_properties(&r.body, tol).unwrap().volume
+            topo::test_support::pinned_volume("the measured body", &r.body, tol).volume
         }
         other => panic!("{what}: {:?}", other.map(|_| ())),
     };

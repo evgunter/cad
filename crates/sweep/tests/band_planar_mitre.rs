@@ -433,7 +433,11 @@ fn the_mitre_carves_at_the_certified_scalar() {
         between([0.0, 0.0, 1.0], [2.0, 0.0, 1.0]),
         between([0.0, 0.0, 1.0], [0.0, 1.5, 1.0]),
     ];
-    let v0 = mass_properties(&body, tol).expect("interval props").volume;
+    let v0 = mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
+        .expect("interval props")
+        .met()
+        .expect("the pinned resolution is met")
+        .volume;
     for verb in [Verb::Chamfer, Verb::Fillet] {
         let bracket = Bracket::open();
         let out = match verb {
@@ -456,11 +460,12 @@ fn the_mitre_carves_at_the_certified_scalar() {
         let p = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol),
             tol,
+            topo::test_support::pinned_resolution(tol),
         )
         .expect("interval props");
-        let removed = v0 - p.volume;
+        let removed = v0 - p.enclosure.volume;
         let truth = verb.section() * 3.5 - overlap(verb);
-        let pad = p.volume_pad.hi();
+        let pad = p.enclosure.volume_pad.hi();
         assert!(
             removed.lo() - pad <= truth && truth <= removed.hi() + pad,
             "{verb:?}: ΔV {removed:?} ± {pad} brackets {truth}"

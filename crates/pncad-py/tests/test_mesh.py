@@ -35,6 +35,7 @@ from pncad import (
 )
 
 from placing import against, axes_at, placed
+from measuring import pinned
 
 
 def mesh_signed_volume(mesh):
@@ -326,7 +327,7 @@ class TestBudget(unittest.TestCase):
         fine = body.tessellate(1 * mm)
         self.assertLess(coarse.triangle_count, fine.triangle_count)
         # Same body, both times: the exact measure does not move.
-        self.assertEqual(body.mass_properties().volume, body.mass_properties().volume)
+        self.assertEqual(pinned(body).volume, pinned(body).volume)
 
     def test_a_planar_body_is_the_same_mesh_at_any_budget(self):
         """A plane's chordal deviation is exactly zero, so there is
@@ -455,7 +456,7 @@ class TestCrossCheckOnBooleanGeometry(unittest.TestCase):
         body = body_of(doc, cut)
         body.validate()
 
-        exact = body.mass_properties().volume
+        exact = pinned(body).volume
         self.assertAlmostEqual(exact, 4.0 * 4.0 * 1.0 - 2.0 * 2.0 * 0.5, delta=1e-12)
 
         mesh = body.tessellate(1 * mm)
@@ -489,7 +490,7 @@ class TestCrossCheckOnATiltedPlacement(unittest.TestCase):
         body = body_of(doc, prism)
         body.validate()
 
-        exact = body.mass_properties().volume
+        exact = pinned(body).volume
         mesh = body.tessellate(1 * mm)
         self.assertEqual(unmatched_half_edges(mesh), [])
         self.assertGreater(mesh_signed_volume(mesh), 0.0)
@@ -521,7 +522,7 @@ class TestCrossCheckConverges(unittest.TestCase):
         )
         body = body_of(doc, ring)
         body.validate()
-        exact = body.mass_properties().volume
+        exact = pinned(body).volume
         self.assertAlmostEqual(exact, math.pi * (1.5**2 - 0.5**2) * 2.0, delta=1e-9)
 
         errors = []

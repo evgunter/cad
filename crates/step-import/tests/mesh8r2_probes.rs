@@ -37,8 +37,8 @@ fn r2r_the_halfcap_fixture_band_shape() {
             return;
         }
     };
-    let report = topo::examine_chart_coherence(&body, Tol::witness());
-    let tess = match mesh::tessellate(&body, 1.0e-3, Tol::witness()) {
+    let report = topo::examine_chart_coherence(body.body(), Tol::witness());
+    let tess = match mesh::tessellate(body.body(), 1.0e-3, Tol::witness()) {
         Ok(m) => format!(
             "Ok({} tris)",
             m.patches.iter().map(|p| p.triangles.len()).sum::<usize>()

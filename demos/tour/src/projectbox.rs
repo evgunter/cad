@@ -29,7 +29,7 @@ use pncad::topo::{AtRestBody, BooleanBody};
 use crate::bool_bodies::slab;
 use crate::booleans::{check, expect_seamed, finished, try_subtract, try_union};
 use crate::scalar::Scalar;
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 use pncad::authoring::{p2, p3, polygon, validated};
 use pncad::geom_core::{RigidMotion, Tol};
 use pncad::profile::SketchPlane;
@@ -193,16 +193,12 @@ const FINE_GAP: f64 = 5e-4;
 /// one `sweep_body` along the whole coil, standing on [`SPRING_AXIS`]'s
 /// boss. Returns the body and its relative gap to [`coil_volume`].
 ///
-/// Round wire is the natural section, and it is wall 1: the swept
-/// `circle_split` wire builds, and finer than the default ε its volume
-/// refuses short of its target, `QuadratureBudget` or, where the lane
-/// stopped at its floor, `QuadratureFloor` (at ε = 1e-12, an enclosure 2.74e-8 m
-/// wide against the 1024·ε target, after 7 rounds;
-/// `work/quad/a-swept-circle-section-loop-decides-its-volume-sign-only-at-the-origin`).
-/// At the default ε and looser the wall is RETIRED, kept live: the
-/// volume decides, 0.01036012 ± 1.9e-7 at the default ε, and the wall
-/// asserts its bracket holds the body's own [`ROUND_COIL_V`] and
-/// [`ROUND_COIL_A`]. Neither bracket holds [`coil_volume`]`(π WIRE_H²)`,
+/// Round wire is the natural section, and it was wall 1: the swept
+/// `circle_split` wire builds, and its volume meets the tour's printed
+/// precision at every ε (0.01036012 ± 1.9e-7 at the default ε; at
+/// ε = 1e-12 its enclosure is 2.74e-8 m wide after 7 rounds, under the
+/// precision). The wall is RETIRED, kept live: it asserts the bracket
+/// holds the body's own [`ROUND_COIL_V`] and [`ROUND_COIL_A`]. Neither bracket holds [`coil_volume`]`(π WIRE_H²)`,
 /// the continuum tube's: the body is a stack of slabs, as the square
 /// wire's is, and the retired wall asserts the same slab gap against
 /// it, inside [`COIL_GAP`] (measured −4.40e-3).
@@ -213,82 +209,62 @@ fn standing_spring(tol: Tol) -> (pncad::topo::Body<f64>, f64) {
             .into(),
     ];
     let round = spring::<f64>(&round, PER_TURN, tol).expect("the round-wire coil builds");
-    // Tier 3 measures the volume first: where the quadrature runs out
-    // of budget it is the gate that refuses, and the wall reads that
-    // measurement's refusal.
-    let round_props = match pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&round), tol)
-    {
-        Ok(round) => pncad::topo::mass_properties(&round, tol),
-        Err(errors) => Err(errors
-            .into_iter()
-            .find_map(|e| match e {
-                pncad::topo::ValidationError::VolumeUncomputable { source, .. } => Some(source),
-                _ => None,
-            })
-            .expect("the round-wire coil passes tier 3 or cannot be measured")),
-    };
-    if tol.eps() >= pncad::tolerance::DEFAULT_EPS {
-        let props = round_props.unwrap_or_else(|e| {
-            panic!(
-                "wall 1 (measure the round-wire spring's volume) refuses at ε = {:e}, \
-                 where it was retired: {e:?} — the wall MOVED; re-derive it",
-                tol.eps()
-            )
-        });
-        let want = coil_volume(core::f64::consts::PI * WIRE_H * WIRE_H);
-        let gap = (props.volume - want) / want;
-        assert!(
-            (props.volume - ROUND_COIL_V).abs() <= props.volume_pad
-                && (props.surface_area - ROUND_COIL_A).abs() <= props.area_pad,
-            "the round-wire coil's V = {} ± {:.1e} and A = {} ± {:.1e} against the body's own \
-             {ROUND_COIL_V} and {ROUND_COIL_A}",
-            props.volume,
-            props.volume_pad,
-            props.surface_area,
-            props.area_pad
-        );
-        assert!(
-            (-COIL_GAP..0.0).contains(&gap),
-            "the round-wire coil's volume {} against A·L = {want}: relative gap {gap:.3e}",
-            props.volume
-        );
-        println!(
-            "   wall 1 RETIRED at ε = {:e} — the round-wire spring's volume {} ± {:.1e} \
-             (A·L = {want}, gap {gap:.3e})",
-            tol.eps(),
-            props.volume,
-            props.volume_pad
-        );
-    } else {
-        crate::walls::wall(
-            "projectbox",
-            1,
-            "measure the round-wire spring's volume",
-            round_props,
-            |e| {
-                matches!(
-                    e,
-                    pncad::topo::MassPropsError::Face {
-                        source: pncad::geom_brep::PropsError::QuadratureBudget { .. }
-                            | pncad::geom_brep::PropsError::QuadratureFloor { .. },
-                        ..
-                    }
-                )
-            },
-            "make the spring's wire `circle_split`, its section area π WIRE_H²",
-        );
-    }
-
-    let body = spring::<f64>(&[square_wire(tol)], PER_TURN, tol).expect("the coil builds");
-    let props = pncad::topo::mass_properties(&crate::booleans::at_rest(&body, tol), tol)
-        .expect("the coil's volume");
-    let want = coil_volume(4.0 * WIRE_H * WIRE_H);
+    let round = pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&round), tol)
+        .unwrap_or_else(|e| panic!("the round-wire coil passes tier 3: {e:?}"));
+    let measured = pncad::topo::mass_properties(&round, tol, crate::printed())
+        .unwrap_or_else(|e| panic!("wall 1 (the round-wire spring's volume) refuses: {e:?}"));
+    assert_eq!(
+        measured.stop,
+        pncad::topo::Stop::Met,
+        "wall 1 (the round-wire spring's volume) stops short of the printed precision at \
+         ε = {:e}: the wall MOVED; re-derive it",
+        tol.eps()
+    );
+    let props = measured.enclosure;
+    let want = coil_volume(core::f64::consts::PI * WIRE_H * WIRE_H);
     let gap = (props.volume - want) / want;
     assert!(
-        (-COIL_GAP..0.0).contains(&gap) && props.volume_pad <= want * 1e-6,
-        "the coil's volume {} ± {:.1e} against A·L = {want}: relative gap {gap:.3e}",
+        (props.volume - ROUND_COIL_V).abs() <= props.volume_pad
+            && (props.surface_area - ROUND_COIL_A).abs() <= props.area_pad,
+        "the round-wire coil's V = {} ± {:.1e} and A = {} ± {:.1e} against the body's own \
+         {ROUND_COIL_V} and {ROUND_COIL_A}",
         props.volume,
-        props.volume_pad
+        props.volume_pad,
+        props.surface_area,
+        props.area_pad
+    );
+    assert!(
+        (-COIL_GAP..0.0).contains(&gap),
+        "the round-wire coil's volume {} against A·L = {want}: relative gap {gap:.3e}",
+        props.volume
+    );
+    println!(
+        "   wall 1 RETIRED — the round-wire spring's volume {} ± {:.1e} (A·L = {want}, gap \
+         {gap:.3e})",
+        props.volume, props.volume_pad
+    );
+
+    let body = spring::<f64>(&[square_wire(tol)], PER_TURN, tol).expect("the coil builds");
+    // The pad bound below is a claim about the kernel's precision, so it
+    // asks for the width it needs: a volume half-width of at most
+    // `want·1e-6` is a mean displacement of `2e-6·want/A` over the
+    // coil's area `A ≈ 8·WIRE_H·L`, and `want = 4·WIRE_H²·L`, so
+    // `1e-6·WIRE_H` — or ε, the finest width offered, where that is
+    // coarser.
+    let pad_width = pncad::quantity::Length::from_meters((1e-6 * WIRE_H).max(tol.eps()));
+    let props = pncad::topo::mass_properties(
+        &crate::booleans::at_rest(&body, tol),
+        tol,
+        pncad::topo::Settle::Resolution(pad_width),
+    )
+    .expect("the coil's volume");
+    let want = coil_volume(4.0 * WIRE_H * WIRE_H);
+    let gap = (props.enclosure.volume - want) / want;
+    assert!(
+        (-COIL_GAP..0.0).contains(&gap) && props.enclosure.volume_pad <= want * 1e-6,
+        "the coil's volume {} ± {:.1e} against A·L = {want}: relative gap {gap:.3e}",
+        props.enclosure.volume,
+        props.enclosure.volume_pad
     );
 
     // It stands: its lowest point is a start-cap corner on the boss
@@ -415,7 +391,7 @@ pub(crate) fn build<S: Scalar>(tol: Tol) -> (BooleanBody<S>, f64) {
 /// part with its interior shown, and two independently-scaled panels
 /// are the one arrangement that stops a reader laying the halves back
 /// onto the whole.
-pub fn stop(tol: Tol) -> Stop {
+pub fn stop(tol: Tol) -> TourStop {
     let (acc, vol) = build::<f64>(tol);
     let (spring, spring_gap) = standing_spring(tol);
     let spring = finished("the spring", spring, tol);
@@ -438,7 +414,7 @@ pub fn stop(tol: Tol) -> Stop {
         boss_h = BOSS_Z.1 - BOSS_Z.0,
         wire = 2.0 * WIRE_H,
     );
-    Stop {
+    TourStop {
         name: "projectbox",
         caption: "project box — whole, and sectioned".to_string(),
         montage: true,
@@ -584,9 +560,14 @@ mod tests {
         let want = coil_volume(4.0 * WIRE_H * WIRE_H);
         let gap = |per_turn| {
             let body = spring::<f64>(&[square_wire(tol)], per_turn, tol).expect("the coil");
-            let v = pncad::topo::mass_properties(&crate::booleans::at_rest(&body, tol), tol)
-                .expect("the coil's volume")
-                .volume;
+            let v = pncad::topo::mass_properties(
+                &crate::booleans::at_rest(&body, tol),
+                tol,
+                crate::printed(),
+            )
+            .expect("the coil's volume")
+            .enclosure
+            .volume;
             (v - want) / want
         };
         let (coarse, fine) = (gap(PER_TURN), gap(2 * PER_TURN));

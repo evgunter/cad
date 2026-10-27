@@ -28,6 +28,7 @@ from pncad import (
 )
 
 from test_slot_edits import blank
+from measuring import pinned
 
 
 def square(doc):
@@ -40,7 +41,7 @@ def square(doc):
 
 
 def volume(doc, node):
-    return evaluate(doc).value(node).body().mass_properties().volume
+    return pinned(evaluate(doc).value(node).body()).volume
 
 
 class TestASlotHoldsAVariable(unittest.TestCase):

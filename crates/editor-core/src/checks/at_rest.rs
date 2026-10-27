@@ -416,7 +416,8 @@ pub(crate) fn partition<T: LocalizeLane>(
 /// the pair an interference verdict decided, the two entities an
 /// undecidable verdict names, the two cells of an unrecorded touch, the
 /// two edges of a coincident-wedges verdict, the edge and face of a
-/// face-through-wedge verdict, the two faces of a contradicted
+/// face-through-wedge verdict, the one solid (twice) of a solid
+/// crossing itself, the two faces of a contradicted
 /// declaration or of a pair the census had no lane for.
 ///
 /// `None` for a finding that names no pair of solids: an escalation,
@@ -464,6 +465,11 @@ pub(crate) fn finding_solids<T: Decide>(
         | E::FaceThroughEdgeWedgeUndecided {
             edge: e, face: f, ..
         } => (edge(*e)?, face(*f)?),
+        // A solid crossing itself is about that one solid, placed as
+        // (s, s) as census `Named::of` reads it: inside an arrival a
+        // door already censused, it is that door's.
+        E::BoundaryCrossesItself { solid, .. }
+        | E::BoundaryCrossesItselfUndecided { solid, .. } => (*solid, *solid),
         E::ContactContradicted { declaration, .. } => (face(declaration.a)?, face(declaration.b)?),
         E::CensusUnsupported { subject, .. } | E::CensusLaneUnsupported { subject } => {
             match subject {
@@ -791,7 +797,7 @@ fn components<T: Decide>(
     b: usize,
     result: &topo::BooleanBody<T>,
 ) -> Option<Vec<Component>> {
-    let descent = crate::names::FaceDescent::of(&result.naming);
+    let descent = topo::FaceDescent::of(&result.naming);
     let merged = descent.merged();
     let mut out = Vec::new();
     for (solid, _) in result.body.solids() {
@@ -801,7 +807,7 @@ fn components<T: Decide>(
             let alone = [face];
             let held = merged.get(&face).map_or(&alone[..], Vec::as_slice);
             for &piece in held {
-                let (operand, root) = descent.result_face(piece).ok()?;
+                let (operand, root) = descent.result_face(piece);
                 let copy = match operand {
                     topo::Operand::A => a,
                     topo::Operand::B => b,
@@ -901,7 +907,7 @@ fn crossing(
         Ok(topo::BooleanResult::Body(kept)) => kept,
         Err(refusal) => return Err(refusal.to_string()),
     };
-    let descent = crate::names::FaceDescent::of(&kept.naming);
+    let descent = topo::FaceDescent::of(&kept.naming);
     let of_solid: BTreeMap<SolidKey, usize> = components
         .iter()
         .enumerate()
@@ -911,7 +917,7 @@ fn crossing(
     for (solid, _) in kept.body.solids() {
         let mut named = false;
         for f in kept.body.faces_of_solid(solid).unwrap_or_default() {
-            if let Ok((topo::Operand::A, root)) = descent.result_face(f)
+            if let (topo::Operand::A, root) = descent.result_face(f)
                 && let Some(&i) = result
                     .body
                     .solid_of_face(root)

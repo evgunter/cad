@@ -133,7 +133,8 @@ fn assert_six(
                 // Relative to the op's own volume: an absolute floor
                 // would pass any result of a millimetre pose (pair 82's
                 // small ball is 9.5e-10 m³).
-                let v = topo::mass_properties(&bb.body, tol).unwrap().volume;
+                let v =
+                    topo::test_support::pinned_volume("the measured body", &bb.body, tol).volume;
                 assert!(
                     (v - volume).abs() <= 1e-9 * volume,
                     "{label}: volume {v} against the slice integral {volume}"
@@ -277,9 +278,10 @@ fn a_pierce_ring_beside_a_sphere_island_stays_outside() {
     .body
     .clone();
     let small = ball_y(0.5, Vec3::new(2.7, 2.0, 1.3));
-    let va = topo::mass_properties(&lens, tol).unwrap().volume;
+    let va = topo::test_support::pinned_volume("the measured body", &lens, tol).volume;
     let vb = ball_volume(0.5);
-    let common = topo::mass_properties(
+    let common = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::intersect(&lens, &small, tol)
             .unwrap()
             .body()
@@ -287,7 +289,6 @@ fn a_pierce_ring_beside_a_sphere_island_stays_outside() {
             .body,
         tol,
     )
-    .unwrap()
     .volume;
     assert!(common > 0.0 && common < vb, "the shared volume {common}");
     assert_six(
@@ -376,7 +377,7 @@ fn an_island_holding_the_far_caps_pole_winds() {
             .unwrap()
             .body
             .clone();
-        let vt = topo::mass_properties(&tool, tol).unwrap().volume;
+        let vt = topo::test_support::pinned_volume("the measured body", &tool, tol).volume;
         let cut: Bounds = [(notch[0].0, 0.6), notch[1], notch[2]];
         let shared = ball_in_box(1.0, o, big) - ball_in_box(1.0, o, cut);
         for tilt in [

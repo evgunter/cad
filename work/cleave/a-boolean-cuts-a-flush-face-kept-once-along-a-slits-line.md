@@ -2,11 +2,12 @@
 id: a-boolean-cuts-a-flush-face-kept-once-along-a-slits-line
 kind: issue
 title: A Boolean that keeps one of two flush faces where one carries a slit cuts the dropped one through the slit's tip, which the fate cut reads as a cusp
-status: review
+status: closed
 opened: 2026-10-20
 priority: P1
 cost: M
 branch: cleave/fate-cut-ends-at-a-slit-tip
+closed: 2026-10-26
 ---
 
 

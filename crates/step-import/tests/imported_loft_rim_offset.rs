@@ -79,7 +79,7 @@ fn an_imported_lofts_cap_rims_are_derived_when_the_cap_moves() {
     )
     .expect("the twisted loft exports");
     let mut body = match import_step(&text, &ImportOptions::default(), Tol::witness()) {
-        Ok(StepImport::Solid { body, .. }) => body,
+        Ok(StepImport::Solid { body, .. }) => body.into_body(),
         other => panic!("the twisted loft must re-import as a solid, got {other:?}"),
     };
     let cap = top_cap(&body);

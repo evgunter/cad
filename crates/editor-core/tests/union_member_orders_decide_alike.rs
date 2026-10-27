@@ -5,8 +5,8 @@
 //!
 //! The pairwise pass judges every member pair in member space, and the
 //! fold reads one verdict per carrier pair through member lineage and
-//! re-glues none (`eval::wire`'s `debug_assert_given` holds that at the
-//! verdict site in every debug run). So each union below is
+//! re-glues none (`topo::nary_boolean` holds that at the verdict site
+//! in every debug run). So each union below is
 //! evaluated under every order of its members, a seeded sample of
 //! [`SAMPLE`] orders where `n!` is larger, and these are equal across
 //! the orders:
@@ -433,9 +433,8 @@ fn built(
         body.edges().count(),
         body.vertices().count(),
     );
-    let volume = topo::mass_properties(&body, Tol::witness())
-        .expect("a built union measures")
-        .volume;
+    let volume =
+        topo::test_support::pinned_volume("a built union measures", &body, Tol::witness()).volume;
     Decided::Built {
         rows,
         names,

@@ -11,17 +11,14 @@
 use core::f64::consts::PI;
 
 use crate::common::arc_section;
-use geom_brep::PropsError;
-use geom_brep::props::quad::{
-    PatchNet, QUAD_TARGET_LEN_FACTOR, RVec3, mean_boundary_displacement, nurbs_patch_face,
-};
+use geom_brep::props::quad::{PatchNet, RVec3, mean_boundary_displacement, nurbs_patch_face};
 use geom_core::linalg::frame::path_start_frame;
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Bounds, Interval, Point2, Point3, Real, RigidMotion, Tol, UnitVec3, Vec3};
 use profile::{ProfileLoop, SketchPlane, circle, circle_split, test_support::bulge_loop};
 use sweep::test_support::{extruded, finished, sketch_from_axes};
 use sweep::{loft_body, sweep_body};
-use topo::{AtRestBody, Body, BooleanError, BooleanOp, MassPropsError, ValidationError};
+use topo::{AtRestBody, Body, BooleanError, BooleanOp, ValidationError};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -56,7 +53,7 @@ fn patch(label: &str, map: &dyn Fn([f64; 3]) -> [f64; 3]) {
     let net = PatchNet::new(&ku, &kv, &control, &w).unwrap();
     let band = Band::linear(tol()).unwrap();
     let out = nurbs_patch_face::<f64>(&net, (0.0, 1.0, 0.0, 1.0), 3.8, 0.0, band, &mut |b, _| {
-        Ok(mean_boundary_displacement(b.flux, b.area)? <= QUAD_TARGET_LEN_FACTOR * tol().get().eps)
+        Ok(mean_boundary_displacement(b.flux, b.area)? <= topo::test_support::pinned_len(tol()))
     });
     match out.map(|run| (run.end, run.bounds)) {
         Ok((end, fb)) => println!(
@@ -255,19 +252,12 @@ fn verdict(r: Result<(), Vec<ValidationError>>) -> String {
     match r {
         Ok(()) => "decides".into(),
         Err(e) => match &e[..] {
-            [
-                ValidationError::VolumeUncomputable {
-                    source:
-                        MassPropsError::Face {
-                            source:
-                                PropsError::QuadratureBudget {
-                                    width_len, rounds, ..
-                                },
-                            ..
-                        },
-                    ..
-                },
-            ] => format!("refuses width {width_len:.3e} rounds {rounds}"),
+            [ValidationError::VolumeSignUnresolved { limit, volume, .. }] => {
+                format!(
+                    "leaves the sign unresolved: {limit:?}, bracket {volume:?} width {:.3e}",
+                    volume.map_or(f64::NAN, |(lo, hi)| hi - lo)
+                )
+            }
             other => format!("OTHER {other:?}"),
         },
     }
@@ -321,7 +311,26 @@ fn row3_swept_loop() {
                 for &dg in &degs {
                     let t = std::time::Instant::now();
                     let body = lofted_loop(&spine, &annulus(sp), st, dg);
-                    let v = verdict(topo::validate_geometric(&body, tol()));
+                    let v = (|| match topo::validate_geometric_certificate(&body, tol()) {
+                        Ok(cert) => {
+                            let e = cert.enclosure();
+                            let gate = format!(
+                                "decides, width {:.3e} [{cert:?}]",
+                                e.volume_hi - e.volume_lo
+                            );
+                            if env("ROW3_MEASURE", "1") == "0" {
+                                return gate;
+                            }
+                            match cert.measure(topo::test_support::pinned_resolution(tol())) {
+                                Ok(m) => format!(
+                                    "{gate}; measure {:?} volume {:.12e} pad {:.3e}",
+                                    m.stop, m.enclosure.volume, m.enclosure.volume_pad
+                                ),
+                                Err(e) => format!("{gate}; measure REFUSES {e:?}"),
+                            }
+                        }
+                        Err(e) => verdict(Err(e)),
+                    })();
                     println!(
                         "ROW3 eps={:e} off={off:?} section={} stations={st} vdeg={dg}: {v} ({:.1}s)",
                         tol().eps(),
@@ -363,12 +372,19 @@ fn row4_translated_arc_prism() {
         // The finish inside the catch, as the measurement is: a tier-3
         // refusal at a far placement prints as the row's PANIC line.
         let r = std::panic::catch_unwind(|| {
-            topo::mass_properties(&topo::test_support::finished("body", body, tol()), tol())
+            topo::mass_properties(
+                &topo::test_support::finished("body", body, tol()),
+                tol(),
+                topo::test_support::pinned_resolution(tol()),
+            )
         });
         match r {
             Ok(Ok(mp)) => println!(
                 "ROW4 eps={eps:e} s={s:e} at {metres} m: volume {:.6e} pad {:.3e} area {:.6e} pad {:.3e}",
-                mp.volume, mp.volume_pad, mp.surface_area, mp.area_pad
+                mp.enclosure.volume,
+                mp.enclosure.volume_pad,
+                mp.enclosure.surface_area,
+                mp.enclosure.area_pad
             ),
             Ok(Err(e)) => println!("ROW4 eps={eps:e} at {metres} m: REFUSES {e:?}"),
             Err(p) => println!(

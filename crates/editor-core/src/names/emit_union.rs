@@ -107,6 +107,7 @@
 //! declaration can name, and it is the reason the two questions are
 //! asked in two places rather than shared.
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
@@ -121,10 +122,9 @@ use crate::names::emit::{
     check_total, edge_ends, ent, face_half_edges, vertex_point,
 };
 use crate::names::emit_topo::{
-    CornerCopies, Cover, EdgeCarrier, EdgePieces, EdgeReading, FaceDescent, Lone, UNSIDED,
-    edge_reading, edges_holding, is_straight, joined_along, joined_candidates,
-    line_name as line_name_of, name_corner_copies, name_edge_pieces, name_parent_faces,
-    sense_along_line, sets_per_line,
+    CornerCopies, Cover, EdgeCarrier, EdgePieces, EdgeReading, Lone, UNSIDED, edge_reading,
+    edges_holding, is_straight, joined_along, joined_candidates, line_name as line_name_of,
+    name_corner_copies, name_edge_pieces, name_parent_faces, sense_along_line, sets_per_line,
 };
 use crate::names::groups::Rederived;
 use crate::names::least_root::LeastRoot;
@@ -265,7 +265,7 @@ pub(crate) fn name_union<T: geom_core::Decide>(
     body: &topo::Body<T>,
     folded: &NameTable,
     members: &[Member<'_, T>],
-    fold: &Fold,
+    fold: &Fold<'_>,
     links: &Links<T>,
     tol: geom_core::Tol,
 ) -> Result<(Arc<NameTable>, Rederived), NamingError> {
@@ -1780,7 +1780,7 @@ fn cite_member_edges<T: geom_core::Decide>(
     t: NameTable,
     vertex_rows: Vec<(StableName, Entry)>,
     body: &topo::Body<T>,
-    (flush, fold): (&Flush<'_, T>, &Fold),
+    (flush, fold): (&Flush<'_, T>, &Fold<'_>),
     (lines, links): (&EdgeLines<'_>, &Links<T>),
 ) -> Result<NameTable, NamingError> {
     let mut out = NameTable::new();
@@ -1863,7 +1863,7 @@ fn member_corner_walls<T: geom_core::Decide>(
     at: &BTreeSet<(usize, topo::VertexKey)>,
     keys: &[topo::VertexKey],
     body: &topo::Body<T>,
-    (flush, fold): (&Flush<'_, T>, &Fold),
+    (flush, fold): (&Flush<'_, T>, &Fold<'_>),
 ) -> Result<BTreeMap<Vec<StableName>, Vec<topo::VertexKey>>, NamingError> {
     let mut parent: BTreeSet<MemberFace> = BTreeSet::new();
     for &(i, w) in at {
@@ -2045,7 +2045,7 @@ impl<T: geom_core::Real> Links<T> {
         naming: &topo::BooleanNaming,
         body: &topo::Body<T>,
     ) -> Result<(), NamingError> {
-        let descent = FaceDescent::of(naming);
+        let descent = topo::FaceDescent::of(naming);
         let member = |(operand, f): (topo::Operand, topo::FaceKey)| match operand {
             topo::Operand::A => (a, f),
             topo::Operand::B => (b, f),
@@ -2053,7 +2053,7 @@ impl<T: geom_core::Real> Links<T> {
         for faces in descent.merged().values() {
             let mut held = BTreeSet::new();
             for &g in faces {
-                held.insert(member(descent.result_face(g)?));
+                held.insert(member(descent.result_face(g)));
             }
             for &x in held.iter().filter(|m| m.0 == a) {
                 for &y in held.iter().filter(|m| m.0 == b) {
@@ -2131,75 +2131,42 @@ impl<T: geom_core::Real> Links<T> {
 }
 
 /// **What a union's fold records for its end pass**: which member faces
-/// each face of the accumulation descends from, by entity, and every
+/// each face of the accumulation descends from, read off the kernel's
+/// n-ary door ([`topo::MemberLineage`], the last step's), and every
 /// step's discards ([`Obstacles`]) keyed by the member faces the
 /// discarded face descends from.
-///
-/// A face's descent is read off each step's rows, never off a name:
-/// a piece of a face descends from what the face does, a merged face
-/// from what each face it absorbed does, and a face of the member the
-/// step folds in from that member's face.
-pub(crate) struct Fold {
+pub(crate) struct Fold<'l> {
     /// Accumulation face → the member faces it descends from.
-    lineage: BTreeMap<topo::FaceKey, BTreeSet<MemberFace>>,
+    lineage: Cow<'l, topo::MemberLineage>,
     obstacles: Obstacles<MemberFace>,
 }
 
-impl Fold {
+impl<'l> Fold<'l> {
     /// The fold before any step: the first member's body.
     pub(crate) fn new<T: geom_core::Real>(first: usize, body: &topo::Body<T>) -> Self {
         Self {
-            lineage: body
-                .faces()
-                .map(|(f, _)| (f, BTreeSet::from([(first, f)])))
-                .collect(),
+            lineage: Cow::Owned(topo::MemberLineage::of_member(first, body)),
             obstacles: Obstacles::new(),
         }
     }
 
-    /// The member faces accumulation face `face` descends from — the
-    /// lineage a fold step reads its pairs' verdicts through. `None`
-    /// for a face the accumulation does not hold.
-    pub(crate) fn member_faces(&self, face: topo::FaceKey) -> Option<&BTreeSet<MemberFace>> {
-        self.lineage.get(&face)
-    }
-
     /// One fold step: `member` folded into the accumulation, giving
-    /// `result` with the kernel's record `naming`.
+    /// `result` with the kernel's record `naming`, whose faces descend
+    /// from the member faces `lineage` holds. A discarded face is read
+    /// through the kernel's own rule ([`topo::MemberLineage::operand_faces`]).
     pub(crate) fn step<T: geom_core::Real>(
         &mut self,
         member: usize,
         naming: &topo::BooleanNaming,
         result: &topo::Body<T>,
+        lineage: &'l topo::MemberLineage,
     ) -> Result<(), NamingError> {
-        let descent = FaceDescent::of(naming);
-        let from = |lineage: &BTreeMap<topo::FaceKey, BTreeSet<MemberFace>>,
-                    (operand, f): (topo::Operand, topo::FaceKey)|
-         -> Result<BTreeSet<MemberFace>, NamingError> {
-            match operand {
-                topo::Operand::A => Ok(lineage.get(&f).cloned().unwrap_or_else(|| {
-                    unreachable!(
-                        "fold step {member}'s face descends from accumulation face {f:?}, \
-                         which the fold does not hold: operand A of a step is the accumulation, \
-                         and the fold holds a lineage for each of its faces"
-                    )
-                })),
-                topo::Operand::B => Ok(BTreeSet::from([(member, f)])),
-            }
-        };
+        let descent = topo::FaceDescent::of(naming);
+        let held = &self.lineage;
         self.obstacles.record(naming, result, |operand, f| {
-            from(&self.lineage, (operand, descent.clone_face(operand, f)))
+            Ok(held.operand_faces(member, operand, descent.clone_face(operand, f)))
         })?;
-        let merged = descent.merged();
-        let mut next = BTreeMap::new();
-        for (f, _) in result.faces() {
-            let mut set = BTreeSet::new();
-            for &g in merged.get(&f).map_or(&[f][..], Vec::as_slice) {
-                set.extend(from(&self.lineage, descent.result_face(g)?)?);
-            }
-            next.insert(f, set);
-        }
-        self.lineage = next;
+        self.lineage = Cow::Borrowed(lineage);
         Ok(())
     }
 }
@@ -2244,7 +2211,7 @@ impl Parents {
         union: RecipeNodeId,
         body: &topo::Body<T>,
         members: &[Member<'_, T>],
-        fold: &Fold,
+        fold: &Fold<'_>,
         links: &Links<T>,
     ) -> Result<Self, NamingError> {
         // Finished face → the member faces it descends from, and the
@@ -2253,7 +2220,7 @@ impl Parents {
         for (f, _) in body.faces() {
             let (from, first) = fold
                 .lineage
-                .get(&f)
+                .member_faces(f)
                 .and_then(|s| Some((s, *s.first()?)))
                 .unwrap_or_else(|| {
                     unreachable!(
@@ -2499,7 +2466,7 @@ fn name_by_parents<T: geom_core::Decide>(
     t: &NameTable,
     body: &topo::Body<T>,
     parents: &Parents,
-    fold: &Fold,
+    fold: &Fold<'_>,
     flush: &Flush<'_, T>,
 ) -> Result<ByParents, NamingError> {
     let mut out = NameTable::new();

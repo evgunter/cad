@@ -23,11 +23,11 @@ fn close(got: f64, want: f64) -> bool {
 fn measure(label: &str, body: &Body<f64>, tol: Tol) -> f64 {
     topo::validate_geometric(body, tol)
         .unwrap_or_else(|e| panic!("{label}: tier 3 refuses: {e:?}"));
-    topo::mass_properties(
+    topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol),
         tol,
     )
-    .unwrap()
     .volume
 }
 
@@ -43,7 +43,11 @@ fn overcovered(label: &str, body: &Body<f64>, tol: Tol) {
         "{label}: refused as covered twice: {errs:?}"
     );
     // Raw door: the measured body is a seam region covered twice, which tier 3 refuses (SeamRegionOvercovered).
-    let door = topo::test_support::measure_unvalidated(body, tol);
+    let door = topo::test_support::measure_unvalidated(
+        body,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    );
     assert!(
         matches!(
             door,

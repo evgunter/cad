@@ -171,14 +171,15 @@ fn a_general_box_matches_an_independent_closed_form() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("props");
         assert!(
-            (props.volume - want).abs() <= 1e-12 * want,
+            (props.enclosure.volume - want).abs() <= 1e-12 * want,
             "volume {} vs independent closed form {want} (a={a} b={b} c={c} d={d})",
-            props.volume
+            props.enclosure.volume
         );
-        assert_eq!(props.volume_pad, 0.0, "closed forms need no pad");
+        assert_eq!(props.enclosure.volume_pad, 0.0, "closed forms need no pad");
 
         // **The agreement point, so "it can fail to agree" is a GATE
         // rather than a claim.** The draws above are independent, so
@@ -240,13 +241,14 @@ fn a_skewed_wedge_chamfers_with_every_face_outward() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("props");
         let uncut = 0.5 * base * t * h;
         assert!(
-            props.volume > 0.0 && props.volume < uncut,
+            props.enclosure.volume > 0.0 && props.enclosure.volume < uncut,
             "a chamfer removes material: {} vs {uncut}",
-            props.volume
+            props.enclosure.volume
         );
         let mesh = mesh::tessellate(&out.body, 5e-3, Tol::witness()).expect("tessellates");
         mesh::validate::check_mesh(&mesh).expect("watertight");
@@ -414,6 +416,7 @@ fn a_dimpled_spacer_carries_its_ring_through_the_chamfer() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("props");
     // The cube term is spelled out here, deliberately
@@ -424,9 +427,9 @@ fn a_dimpled_spacer_carries_its_ring_through_the_chamfer() {
     let want = l.powi(3) - 6.0 * l * d * d + 16.0 / 3.0 * d.powi(3)
         - 0.5 * 4.0 / 3.0 * core::f64::consts::PI * r.powi(3);
     assert!(
-        (props.volume - want).abs() <= 1e-9 * want,
+        (props.enclosure.volume - want).abs() <= 1e-9 * want,
         "chamfered box minus the hemisphere: {} vs {want}",
-        props.volume
+        props.enclosure.volume
     );
 }
 
@@ -485,13 +488,14 @@ fn an_overrunning_sliver_corner_refuses_or_stays_valid() {
                     Tol::witness(),
                 ),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .expect("props");
             let uncut = 0.5 * 2.0 * 0.4 * 1.0;
             assert!(
-                props.volume > 0.0 && props.volume < uncut,
+                props.enclosure.volume > 0.0 && props.enclosure.volume < uncut,
                 "a granted chamfer removed material honestly: {} vs {uncut}",
-                props.volume
+                props.enclosure.volume
             );
         }
     }
