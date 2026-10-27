@@ -147,3 +147,12 @@
   - `gap-reads-no-curved-cell-below-a-face` (the sphere and cylinder arm) → `session_018u3gVKihT5A6xc3PGs8S9q`, branch `atrest/gap-reads-a-cell-against-a-curved-face`.
 
   `an-instance-carries-its-parts-coincidences` waits for #5810 to merge, since it reshapes the same checks code. `curved-copies-filling-one-volume-read-as-undecidable` (H) waits for the crossing row, which shares its census path.
+- 2026-10-27 (orchestrator): **#5810 adjudicated.**
+  - R1 rated it NOT-MERGEABLE-AS-IS (2 MAJOR, 3 MINOR, 4 NOTE); R2 rated it APPROVE-WITH-FIXES (1 MAJOR, 4 MINOR, 8 NOTE).
+  - The bilateral MAJOR: `enforce_checks` refuses an unlocalized overlap at Error, against spec §4 and DS6.
+  - R1's unilateral, executed MAJOR: `opposed` reads its pairing at one point, so a parallel non-coaxial clash goes quiet at one bearing.
+  - The fix pass was sent to the 5 C lane: never refuse what cannot be quieted; `opposed` answers only on constant-pairing carriers; `less_carried` retires (unwitnessed, and a wrong silence); the empty world's `door_rows`; picks; classification; prose; badge; style.
+  - Blind coding (byte 178, inputs `analysis/dual-review/pr-5810-coding` @ `deb59ad7`) tallied 1: R1's MAJOR 2.
+- 2026-10-27 03:11Z (orchestrator): the crossing-touch lane opened #5823 at head `0bfb067e`. Tier: dual, because it adds a public `ValidationError` arm, retires `MixedTouch`, and widens one census rule (a pair a standing finding decides is not read again). The wider rule is accepted, as it fixes the same defect on pierces, and the reviewers have it to falsify.
+  - Letter M, byte 114 (03:10:09Z), mod 3 = 0: HOLDOUT, a concurrent pair.
+  - R1 `session_018u3gVFQ8NcHtE4fxQQpwZi`, R2 `session_018u3gVHhsXrVk3a9FZqXEaa`, isolation on `review/atrest-crossing-*`.
