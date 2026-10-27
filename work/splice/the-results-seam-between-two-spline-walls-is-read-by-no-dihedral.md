@@ -60,17 +60,24 @@ chart, read off the edge's pcurve on that face
 `S_u × S_v` through `regular_jet` and `chart_normal_at`, so a seam within
 the band of a crease, a closed chart's seam or an irregular point
 refuses as `EdgeUndescribed { failure: Crease }`, and a spline face with
-no image to read refuses `Unplaced`. The arm is `1/κ̄`, `κ̄` a certified
-bound on the chart's principal curvatures over every cell
-(`NurbsLane::chart_curvature`, from `patch_bound` and `offset_meters`'
-meter 2), folded with the reach and the other face's arm through the
+no image to read refuses `Unplaced` (a null edge is read off its loop
+neighbour's image at its start). The arm is the chart's own length scale
+at the witness, what an analytic face's is: the largest radius within the
+reach over which certified curvature bounds on the chart's cells near the
+point stay at most its reciprocal (`NurbsLane::chart_arm`, from
+`patch_bound` and `offset_meters`' meter 2). A bend past that radius is
+not charged, since a shorter arm reads a corner smooth. It is folded with
+the reach and the other face's arm through the
 same gate and wedge decision as the analytic path (`dihedral::wedge_of`).
 
 Witnesses: `geom_brep` `dihedral::seam_rows` (transverse and smooth
-spline pairs, a rational chart, a crease and a pinch, a creased chart's
-arm, the certified arm against a point's, the sheet the parameters
-name, analytic parity), each at ε 1e-6, 1e-12 and the default;
-`topo` `boolean::ops::spline_seam_rows`; the sweep row
+spline pairs, a rational chart, a crease and a pinch, a crease within
+and past the reach, a bend within and past the arm, the review's two
+far-bend counterexamples, the sheet the parameters name, a spline
+carrier read as analytic, analytic parity in both orders), each at ε
+1e-6, 1e-12 and the default; `topo` `boolean::ops::spline_seam_rows`
+(two flat spline faces, a turning chart read at its witness, a null edge
+placed off its neighbours); the sweep row
 `a_sheath_on_its_blade_unions_past_the_shared_rim`, which re-pins lily
 wall 8's next stop in both orders: the rim's `Intersection` certification
 on the NURBS pair, limb 2's `ImageMiss`
@@ -79,4 +86,5 @@ measured there).
 
 Residue, filed: `a-smooth-seam-between-spline-walls-has-no-second-order-reading`,
 `the-shared-rim-routing-exempts-a-spline-face-by-kind`,
-`a-seam-on-a-creased-spline-chart-reads-no-arm`.
+`a-seam-on-a-creased-spline-chart-reads-no-arm`,
+`the-seams-chart-arm-builds-every-cell-of-the-chart-per-read`.

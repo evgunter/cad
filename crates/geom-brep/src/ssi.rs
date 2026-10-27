@@ -276,10 +276,14 @@ impl PointLever {
 /// `κ` the larger principal curvature of either surface at the point
 /// and `E` the feature extent, spelled `E / max(1, κ·E)` so a flat pair
 /// (`κ = 0`) reads `E` and poison stays poison. Returns the arm and its
-/// reach `κ·E`, which names the lever ([`PointLever::of`]). Every point
-/// decision reads its arm here: the march's states, the Hermite's ends,
-/// refinement's chord midpoint ([`march::decide_transversality`]) and
-/// the at-rest plane × NURBS check ([`crate::plane_nurbs_limbs`]).
+/// reach `κ·E`, which names the lever ([`PointLever::of`]). Every SSI
+/// point decision reads its arm here: the march's states, the Hermite's
+/// ends, refinement's chord midpoint ([`march::decide_transversality`])
+/// and the at-rest plane × NURBS check ([`crate::plane_nurbs_limbs`]), as
+/// does [`crate::dihedral_side`]'s spline face. A seam's spline face
+/// ([`crate::classify_seam`]) reads its arm off certified curvature
+/// bounds near the point instead ([`crate::NurbsLane::chart_arm`]), the
+/// same length scale charged over the cells the arm reaches.
 /// It is not [`crate::folded_lever_arm`], whose arms are each carrier
 /// kind's own length scale and poison on a NURBS carrier; the two agree
 /// where that scale is `1/κ`, on a plane, a sphere or a cylinder.

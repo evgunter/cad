@@ -738,6 +738,101 @@ pub(crate) fn patch_curvature(cells: &[PatchCell]) -> (f64, f64) {
     (kappa_lo, kappa_hi)
 }
 
+/// **The chart's own length scale at `p`, over `reach`**: the largest
+/// radius `r ≤ reach` such that no principal curvature anywhere on the
+/// chart within `r` of `p` exceeds `1/r` — the radius over which the
+/// surface stays within its own curvature radius of its tangent plane at
+/// `p`. A sphere's or a cylinder's is its radius, the analytic carriers'
+/// length scale ([`crate::curvature_lever_arm`]); a bend past `r` is not
+/// charged, and one within it caps `r` near its distance.
+///
+/// The curvature is [`patch_curvature`]'s per-cell bound, on cells at
+/// the rational arm's resolution (both arms), and a cell's distance from
+/// `p` is that of its spatial enclosure: the chart at the cell's corner
+/// plus its partials' enclosures over the cell's sides (mean value,
+/// componentwise). That enclosure holds the cell, so a cell is counted at
+/// no more than its true distance; its slack, a cell's size, can only
+/// count a bend a little early.
+///
+/// `None` where no length scale is read: a chart the patch bound refuses
+/// (an integral chart with a C⁰ crease anywhere, a degree-0 direction, a
+/// rational degree past its ceiling), a rational chart's C⁰ crease
+/// bounding a cell within `reach` of `p` (no curvature is read across
+/// it), a cell containing `p` whose curvature is not bounded (a pole), or
+/// a poisoned `p` or `reach`.
+pub(crate) fn chart_arm(
+    net: &geom::surfaces::NurbsSurface<f64>,
+    p: geom_core::Point3<f64>,
+    reach: f64,
+) -> Option<f64> {
+    if reach.is_nan() {
+        return None;
+    }
+    let splits = crate::patch_bound::RATIONAL_CERT_SPLITS;
+    let cells = if net.constant_weight().is_some() {
+        patch_cells_refined(net, splits)
+    } else {
+        crate::patch_bound::patch_cells_across_creases(net)
+    }
+    .ok()?;
+    let creases = |knots: &geom_core::spline::Knots<f64>| -> Vec<f64> {
+        let runs: Vec<f64> = knots.runs().map(|(value, _)| value).collect();
+        knots.structure().crease_runs().map(|r| runs[r]).collect()
+    };
+    let (crease_u, crease_v) = (creases(net.knot_values_u()), creases(net.knot_values_v()));
+    let mut near = Vec::new();
+    for cell in &cells {
+        let d = cell_distance(net, cell, p);
+        if d.is_nan() || d > reach {
+            continue;
+        }
+        let on = |c: &[f64], (lo, hi): (f64, f64)| c.iter().any(|&k| k == lo || k == hi);
+        if on(&crease_u, cell.u) || on(&crease_v, cell.v) {
+            return None;
+        }
+        let kappa = cell_curvature(cell).map_or(f64::INFINITY, |(lo, hi)| (-lo).max(hi));
+        near.push((d, kappa));
+    }
+    near.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let (mut kappa, mut arm) = (0.0_f64, reach);
+    for (d, k) in near {
+        if d >= arm {
+            break;
+        }
+        kappa = kappa.max(k);
+        let fit = 1.0 / kappa;
+        if fit < d {
+            arm = d;
+            break;
+        }
+        arm = arm.min(fit);
+    }
+    (arm > 0.0).then_some(arm)
+}
+
+/// The distance from `p` to `cell`'s spatial enclosure ([`chart_arm`]):
+/// the chart at the cell's low corner, plus, per coordinate, the partials'
+/// enclosures times each side's extent, signed toward either end.
+fn cell_distance(
+    net: &geom::surfaces::NurbsSurface<f64>,
+    cell: &PatchCell,
+    p: geom_core::Point3<f64>,
+) -> f64 {
+    let corner = net.ders(cell.u.0, cell.v.0).point;
+    let (du, dv) = (cell.u.1 - cell.u.0, cell.v.1 - cell.v.0);
+    let gap = |c: f64, q: f64, su: Interval, sv: Interval| {
+        let lo = c + (su.lo() * du).min(0.0) + (sv.lo() * dv).min(0.0);
+        let hi = c + (su.hi() * du).max(0.0) + (sv.hi() * dv).max(0.0);
+        (lo - q).max(q - hi).max(0.0)
+    };
+    let g = [
+        gap(corner.x, p.x, cell.s_u[0], cell.s_v[0]),
+        gap(corner.y, p.y, cell.s_u[1], cell.s_v[1]),
+        gap(corner.z, p.z, cell.s_u[2], cell.s_v[2]),
+    ];
+    (g[0] * g[0] + g[1] * g[1] + g[2] * g[2]).sqrt()
+}
+
 /// Meter 2, whole patch: the certified curvature range and the
 /// folding-side headroom for this `d` (module docs).
 ///

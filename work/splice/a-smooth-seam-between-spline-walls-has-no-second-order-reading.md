@@ -34,5 +34,8 @@ reads.
 The stations' chart parameters off each face's pcurve, as
 `ops::seam_face` reads the witness's; the first order through
 `classify_seam`; the second order's relative normal curvature from the
-two charts' jets at those parameters and its arm from
-`NurbsLane::chart_curvature`, as the first order's is.
+two charts' jets at those parameters, levered over the same arm the first
+order reads (`NurbsLane::chart_arm`, the chart's own length scale at the
+station). Not a whole-chart curvature bound: a shorter arm shrinks the
+sagitta margin toward Zero, which here reads a determinate seam as
+under-determined.

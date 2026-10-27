@@ -2406,8 +2406,8 @@ pub struct NurbsLane<T: Real> {
         Point3<T>,
     )
         -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive>,
-    /// [`NurbsLane::chart_curvature`] at `T`.
-    chart_curvature: fn(&geom::NurbsSurface<T>) -> Option<f64>,
+    /// [`NurbsLane::chart_arm`] at `T`.
+    chart_arm: fn(&geom::NurbsSurface<T>, Point3<T>, T) -> Option<f64>,
 }
 
 impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
@@ -2423,30 +2423,21 @@ impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
             composite: Self::composite_crossings,
             spline_face: Self::spline_face_meetings,
             surface_foot: geom::NurbsSurface::project,
-            chart_curvature: Self::certified_chart_curvature,
+            chart_arm: Self::certified_chart_arm,
         }
     }
 
-    /// The largest principal curvature magnitude over every cell of
-    /// `chart`, certified from above, read where every control
-    /// coordinate, weight and knot of the chart is one point at `T`. A
-    /// wider value is a set of charts, whose cells this door does not
-    /// enclose, so it reads as poison and the chart's bound refuses. Both
-    /// arms read their cells at the rational arm's own resolution
-    /// ([`crate::patch_bound::patch_cells_refined`] at
-    /// [`crate::patch_bound::RATIONAL_CERT_SPLITS`]): a span the profile
-    /// turns through is too coarse a cell to bound its normal away from
-    /// zero.
-    fn certified_chart_curvature(chart: &geom::NurbsSurface<T>) -> Option<f64> {
-        let net = chart.map_scalar(|x: T| match x.certified_bracket() {
+    /// [`crate::offset_meters::chart_arm`] at `T`, read where every
+    /// control coordinate, weight and knot of the chart, the point and the
+    /// reach are each one point at `T`. A wider value is a set of charts or
+    /// points, whose cells this door does not enclose, so it reads as
+    /// poison and no arm is read.
+    fn certified_chart_arm(chart: &geom::NurbsSurface<T>, p: Point3<T>, reach: T) -> Option<f64> {
+        let point = |x: T| match x.certified_bracket() {
             Some((lo, hi)) if lo == hi => lo,
             _ => f64::NAN,
-        });
-        let splits = crate::patch_bound::RATIONAL_CERT_SPLITS;
-        let cells = crate::patch_bound::patch_cells_refined(&net, splits).ok()?;
-        let (lo, hi) = crate::offset_meters::patch_curvature(&cells);
-        let sup = (-lo).max(hi);
-        sup.is_finite().then_some(sup)
+        };
+        crate::offset_meters::chart_arm(&chart.map_scalar(point), p.map(point), point(reach))
     }
 
     /// [`crate::curve_face::composite::crossings`], each scalar crossed
@@ -2540,20 +2531,21 @@ impl<T: Real> NurbsLane<T> {
         (self.surface_foot)(surface, point)
     }
 
-    /// **A certified bound on `chart`'s curvature**: no principal
-    /// curvature anywhere on the chart is larger in magnitude, read off
-    /// [`crate::patch_bound`]'s per-cell enclosures of its partials
-    /// (`crate::offset_meters`' meter 2, its closed form and Gershgorin
-    /// intersected). It bounds the whole chart, so it bounds every
-    /// face the chart carries, wherever on it a reader looks.
+    /// **`chart`'s own length scale at `p`, over `reach`**: the largest
+    /// radius within `reach` over which a certified bound on the chart's
+    /// principal curvatures stays at most its reciprocal
+    /// ([`crate::offset_meters`]' `chart_arm`), the arm a spline face's
+    /// normal is levered over ([`crate::classify_seam`]). It reads the
+    /// chart near `p` alone: a bend farther out than the arm is not
+    /// charged, since a shorter arm shrinks every margin levered over it
+    /// toward Zero ([`crate::curvature_lever_arm`]'s docs).
     ///
-    /// `None` where no bound certifies: a chart the patch bound refuses
-    /// (a C⁰ crease, a degree-0 direction, a rational degree past its
-    /// ceiling), a cell whose normal is not bounded away from zero (a
-    /// pole), or a chart whose data is wider than a point at `T`.
+    /// `None` where no arm is read: a chart the patch bound refuses, a C⁰
+    /// crease within `reach`, an unbounded curvature at `p` (a pole), or
+    /// data wider than a point at `T`.
     #[must_use]
-    pub fn chart_curvature(self, chart: &geom::NurbsSurface<T>) -> Option<f64> {
-        (self.chart_curvature)(chart)
+    pub fn chart_arm(self, chart: &geom::NurbsSurface<T>, p: Point3<T>, reach: T) -> Option<f64> {
+        (self.chart_arm)(chart, p, reach)
     }
 
     /// The lane's limbs for a declared carrier of any kind on a plane ×
@@ -4807,10 +4799,10 @@ mod wiring_rows {
             return Err("surface_foot is not `NurbsSurface::project`");
         }
         if !std::ptr::fn_addr_eq(
-            lane.chart_curvature,
-            NurbsLane::<T>::certified_chart_curvature as fn(_) -> _,
+            lane.chart_arm,
+            NurbsLane::<T>::certified_chart_arm as fn(_, _, _) -> _,
         ) {
-            return Err("chart_curvature is not `NurbsLane::certified_chart_curvature`");
+            return Err("chart_arm is not `NurbsLane::certified_chart_arm`");
         }
         Ok(())
     }

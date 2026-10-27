@@ -3380,6 +3380,9 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
             geom_brep::SeamEscalation::Crease(_) => {
                 DescribeRefusal::failed(edge, EdgeDescribeFailure::Crease)
             }
+            geom_brep::SeamEscalation::Unplaced => {
+                DescribeRefusal::failed(edge, EdgeDescribeFailure::Unplaced)
+            }
         })? {
             geom_brep::DihedralClass::Transverse => {
                 let carrier = draft.span().0.kind();
@@ -3516,7 +3519,9 @@ pub(super) fn seam_class<T: Decide + crate::props::AtRestPolicy>(
             let (reading, diag) = DihedralReading::of_lever(e);
             seam_refusal(reading, diag)
         }
-        geom_brep::SeamEscalation::Crease(_) => unreachable!("an analytic face has no chart"),
+        geom_brep::SeamEscalation::Crease(_) | geom_brep::SeamEscalation::Unplaced => {
+            unreachable!("seam_class reads analytic pairs: {surf1:?} {surf2:?}")
+        }
     })
 }
 
@@ -3528,23 +3533,31 @@ fn seam_reading<T: Decide + crate::props::AtRestPolicy>(
     reach: T,
     band: Band,
 ) -> Result<geom_brep::DihedralClass, geom_brep::SeamEscalation> {
-    geom_brep::classify_seam(faces, witness, reach, T::spline_chart_curvature, band)
+    geom_brep::classify_seam(faces, witness, reach, T::spline_chart_arm, band)
 }
 
 /// **A face of a seam edge, as its dihedral reads it** at the edge's
 /// witness ([`geom_brep::SeamFace`]): an analytic face at the witness;
 /// a spline face at the witness's parameters on its own chart, read off
-/// the edge's pcurve on that face ([`crate::pcurves::pcurve_of`]: its
-/// stored image, or the one its chart's description derives) at the
-/// edge's own parameter of the witness, the middle of its interval. A
-/// pcurve is the edge's image on the face's sheet, where a projection
-/// foot of the witness could land on another sheet of the chart.
+/// an image of the edge in that chart ([`crate::pcurves::pcurve_of`]) at
+/// the edge's own parameter of the witness, the middle of its interval.
+/// The image is the stored one where the half-edge has it, and otherwise
+/// the one the chart's description derives, an iso row or arc rim of the
+/// chart. Either is the edge on the face's own sheet, where a projection
+/// foot of the witness could land on another sheet of the chart; a
+/// stored `Pcurve::Fitted` image was itself fitted through the chart's
+/// feet of a trace, placed on the face's sheet when it was minted.
+///
+/// A null edge has no carrier and no image, and its witness is its one
+/// point, where the next half-edge of the face's loop starts: the read
+/// is placed there instead, off that half-edge's image at its start, as
+/// the sector walk reads a vertex ([`crate::sector_face`]).
 ///
 /// # Errors
 ///
 /// [`DescribeRefusal::Failed`] with [`EdgeDescribeFailure::Unplaced`]:
-/// a spline face whose edge has no certified curve, or no image in the
-/// face's chart.
+/// a spline face with no image of the edge (or of a null edge's
+/// neighbour) in its chart to read the witness's parameters off.
 fn seam_face<'s, T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     edge: crate::entity::EdgeKey,
@@ -3557,9 +3570,28 @@ fn seam_face<'s, T: Decide + crate::props::AtRestPolicy>(
         return Ok(geom_brep::SeamFace::Analytic(surface));
     };
     let unplaced = || DescribeRefusal::failed(edge, EdgeDescribeFailure::Unplaced);
-    let (t0, t1) = curve.ok_or_else(unplaced)?.params();
-    let image = crate::pcurves::pcurve_of(body, side.half_edge, band).map_err(|_| unplaced())?;
-    let uv = image.eval(geom::mid_param(t0, t1));
+    let (half_edge, t) = match curve {
+        Some(c) => {
+            let (t0, t1) = c.params();
+            (side.half_edge, geom::mid_param(t0, t1))
+        }
+        None => {
+            let next = body
+                .get_half_edge(side.half_edge)
+                .ok_or_else(unplaced)?
+                .next;
+            let next_edge = body.get_half_edge(next).ok_or_else(unplaced)?.edge;
+            let leaving = body.get_edge(next_edge).ok_or_else(unplaced)?;
+            let (t0, t1) = body
+                .edge_curve_linked(next_edge, leaving)
+                .certified()
+                .ok_or_else(unplaced)?
+                .params();
+            (next, if next == leaving.he_plus { t0 } else { t1 })
+        }
+    };
+    let image = crate::pcurves::pcurve_of(body, half_edge, band).map_err(|_| unplaced())?;
+    let uv = image.eval(t);
     Ok(geom_brep::SeamFace::Spline {
         chart,
         uv: (uv.x, uv.y),
@@ -11652,17 +11684,31 @@ mod spline_seam_rows {
     use geom_core::spline::KnotVector;
     use geom_core::{Band, Point3, Tol};
 
-    use super::{DescribeRefusal, EdgeDescribeFailure, seam_face, seam_reading};
-    use crate::Body;
+    use super::{DescribeRefusal, seam_face, seam_reading};
+    use crate::{Body, EdgeKey, FaceKey};
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
     }
 
+    fn spline((ku, kv): (KnotVector, KnotVector), control: Vec<Point3<f64>>) -> geom::Surface<f64> {
+        let n = control.len();
+        geom::Surface::Nurbs(std::sync::Arc::new(
+            geom::NurbsSurface::new(ku, kv, control, vec![1.0; n]).unwrap(),
+        ))
+    }
+
+    fn linear() -> KnotVector {
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap()
+    }
+
+    fn quadratic() -> KnotVector {
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap()
+    }
+
     /// The bilinear chart through the four corners, `u` from `o` along
     /// `du`, `v` along `dv`.
     fn flat(o: [f64; 3], du: [f64; 3], dv: [f64; 3]) -> geom::Surface<f64> {
-        let kv = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
         let at = |a: f64, b: f64| {
             Point3::new(
                 o[0] + a * du[0] + b * dv[0],
@@ -11671,14 +11717,35 @@ mod spline_seam_rows {
             )
         };
         let control = vec![at(0.0, 0.0), at(0.0, 1.0), at(1.0, 0.0), at(1.0, 1.0)];
-        geom::Surface::Nurbs(std::sync::Arc::new(
-            geom::NurbsSurface::new(kv(), kv(), control, vec![1.0; 4]).unwrap(),
-        ))
+        spline((linear(), linear()), control)
     }
 
-    /// The unit cube with its top and its `y = 0` side on spline charts,
-    /// pcurves minted, and the edge they share.
-    fn two_spline_faces() -> (Body<f64>, crate::EdgeKey) {
+    /// The flat top `z = 1`, `u` along `x` and `v` along `y`.
+    fn flat_top() -> geom::Surface<f64> {
+        flat([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0])
+    }
+
+    /// A biquadratic top on the same unit square, its boundary rows the
+    /// square's sides, whose middle control point drops under the `y = 0`
+    /// side: along that side it leaves flat at the two corners and turns
+    /// to stand vertical at the middle.
+    fn turning_top() -> geom::Surface<f64> {
+        let mut control = Vec::new();
+        for (i, x) in [0.0, 0.5, 1.0].into_iter().enumerate() {
+            for (j, y) in [0.0, 0.5, 1.0].into_iter().enumerate() {
+                control.push(if (i, j) == (1, 1) {
+                    Point3::new(x, -0.5, 1.4)
+                } else {
+                    Point3::new(x, y, 1.0)
+                });
+            }
+        }
+        spline((quadratic(), quadratic()), control)
+    }
+
+    /// The unit cube with its top on `top` and its `y = 0` side on a flat
+    /// spline chart, and the two faces and the edge they share.
+    fn two_spline_faces(top: geom::Surface<f64>) -> (Body<f64>, [FaceKey; 2], EdgeKey) {
         let cube = crate::test_support_fixtures::prism::<f64>(
             &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
             1.0,
@@ -11687,10 +11754,7 @@ mod spline_seam_rows {
         let mut body = cube.body;
         let side = cube.side_faces[0];
         for (face, surface) in [
-            (
-                cube.top_face,
-                flat([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-            ),
+            (cube.top_face, top),
             (
                 side,
                 flat([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
@@ -11705,45 +11769,55 @@ mod spline_seam_rows {
             )
             .unwrap();
         }
-        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
+        let faces = [cube.top_face, side];
         let edge = body
             .edges()
             .map(|(e, _)| e)
             .find(|&e| {
                 let sides = crate::readback::edge_sides_of(&body, e, body.get_edge(e).unwrap());
                 let (a, b) = sides.faces();
-                [a, b] == [cube.top_face, side] || [b, a] == [cube.top_face, side]
+                faces.contains(&a) && faces.contains(&b) && a != b
             })
             .expect("the top's edge on the side");
-        (body, edge)
+        (body, faces, edge)
+    }
+
+    /// The seam reading of `edge`, each face read as `describe_edges`
+    /// reads it, its curve read through `curve`.
+    fn reading(
+        body: &Body<f64>,
+        edge: EdgeKey,
+    ) -> Result<geom_brep::DihedralClass, geom_brep::SeamEscalation> {
+        let sides = crate::readback::edge_sides_of(body, edge, body.get_edge(edge).unwrap());
+        let surface = |side: crate::readback::EdgeSide| body.get_surface(side.surface).unwrap();
+        let curve = body.stored_curve(edge).unwrap();
+        let face = |side| seam_face(body, edge, side, surface(side), Some(curve), band()).unwrap();
+        seam_reading(
+            [face(sides.plus), face(sides.minus)],
+            curve.mid_point(),
+            1.0,
+            band(),
+        )
     }
 
     /// **A seam between two spline faces reads its dihedral**: each
     /// face's normal is its chart's at the edge's pcurve on it, so the
-    /// cube's top edge between two spline faces reads transverse, where
-    /// the two carriers' implicit forms read no arm. Asked with no
-    /// certified curve to read a pcurve at, a spline face is unplaced.
+    /// cube's top edge between two flat spline faces reads transverse,
+    /// where the two carriers' implicit forms read no arm.
     #[test]
     fn a_seam_between_two_spline_faces_reads_transverse() {
-        let (body, edge) = two_spline_faces();
-        let sides = crate::readback::edge_sides_of(&body, edge, body.get_edge(edge).unwrap());
-        let surface = |side: crate::readback::EdgeSide| body.get_surface(side.surface).unwrap();
-        let curve = body.stored_curve(edge).unwrap();
-        let witness = curve.mid_point();
-        let face = |side, c| seam_face(&body, edge, side, surface(side), c, band());
-        let faces = [
-            face(sides.plus, Some(curve)).unwrap(),
-            face(sides.minus, Some(curve)).unwrap(),
-        ];
+        let (body, _, edge) = two_spline_faces(flat_top());
         assert_eq!(
-            seam_reading(faces, witness, 1.0, band()),
+            reading(&body, edge),
             Ok(geom_brep::DihedralClass::Transverse),
             "the spline seam"
         );
+        let sides = crate::readback::edge_sides_of(&body, edge, body.get_edge(edge).unwrap());
+        let surface = |side: crate::readback::EdgeSide| body.get_surface(side.surface).unwrap();
         let analytic = geom_brep::classify_dihedral(
             surface(sides.plus),
             surface(sides.minus),
-            witness,
+            body.stored_curve(edge).unwrap().mid_point(),
             1.0,
             band(),
         );
@@ -11751,10 +11825,79 @@ mod spline_seam_rows {
             matches!(analytic, Err(e) if e.diag().predicate == Some("dihedral_arm")),
             "the carriers' implicit forms: {analytic:?}"
         );
+    }
+
+    /// **The normal is read at the witness's own parameter**: along the
+    /// `y = 0` side the turning top leaves flat at the corners, a corner
+    /// against the side, and stands vertical at the middle, tangent to it.
+    /// The seam reads smooth at the witness, the middle of the edge's
+    /// interval; read at either end of the interval, it would read
+    /// transverse.
+    #[test]
+    fn the_seam_is_read_at_its_witness_on_a_turning_chart() {
+        let (body, _, edge) = two_spline_faces(turning_top());
         assert_eq!(
-            face(sides.plus, None).err(),
-            Some(DescribeRefusal::failed(edge, EdgeDescribeFailure::Unplaced)),
-            "no curve to read a pcurve at"
+            reading(&body, edge),
+            Ok(geom_brep::DihedralClass::Smooth),
+            "tangent at the witness"
+        );
+        let top = turning_top();
+        let chart = top.spline_chart().unwrap();
+        let normal = |u: f64| {
+            let j = chart.ders(u, 0.0);
+            j.du.cross(j.dv).normalize()
+        };
+        assert!(
+            normal(0.0).z > 0.9 && normal(1.0).z > 0.9,
+            "flat at the corners: {:?} {:?}",
+            normal(0.0),
+            normal(1.0)
+        );
+    }
+
+    /// **A null edge is read where its loop goes on**: a null edge minted
+    /// at the cube's corner between the two spline faces has no carrier
+    /// and no image, so each face is read at the corner off the image of
+    /// the half-edge its loop leaves the corner by. Placed, it stops where
+    /// an analytic pair's null edge stops: its zero-length chord gives the
+    /// wedge no reach, and the arm reads no value.
+    #[test]
+    fn a_null_edge_between_two_spline_faces_is_read_off_its_neighbours() {
+        let (mut body, [top, side], edge) = two_spline_faces(flat_top());
+        let he_of = |body: &Body<f64>, face: FaceKey| {
+            let e = body.get_edge(edge).unwrap();
+            [e.he_plus, e.he_minus]
+                .into_iter()
+                .find(|&h| {
+                    let l = body.get_half_edge(h).unwrap().parent_loop;
+                    body.get_loop(l).unwrap().face == face
+                })
+                .unwrap()
+        };
+        let (on_top, on_side) = (he_of(&body, top), he_of(&body, side));
+        let corner = body.get_half_edge(on_top).unwrap().start;
+        let leaving = |body: &Body<f64>, he: crate::entity::HalfEdgeKey| {
+            let h = body.get_half_edge(he).unwrap();
+            if h.start == corner { he } else { h.next }
+        };
+        let (he1, he2) = (leaving(&body, on_top), leaving(&body, on_side));
+        let null = body
+            .mev_null(
+                crate::MevSite::Fan { he1, he2 },
+                crate::NewVertexSide::Above,
+            )
+            .unwrap();
+        let got =
+            crate::boolean::describe_edges(&mut body, [null.edge], &[], band(), Tol::witness());
+        assert!(
+            matches!(
+                got,
+                Err(DescribeRefusal::Undecided {
+                    reading: crate::merge_faces::DihedralReading::Lever(geom_brep::LeverRung::Arm),
+                    ..
+                })
+            ),
+            "placed, the null edge stops at its arm, as an analytic pair's does: {got:?}"
         );
     }
 }

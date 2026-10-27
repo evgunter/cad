@@ -31,4 +31,4 @@ routine takes surfaces and a rim, not the edge, so it has no pcurve to
 read them off; the rim's half-edges' pcurves (`topo::pcurves::pcurve_of`)
 are where they are, as `ops::seam_face` reads them for a seam's witness.
 The material arm needs the same chart normals, signed by each face's
-sense.
+sense, levered over the same arm (`NurbsLane::chart_arm` at the station).

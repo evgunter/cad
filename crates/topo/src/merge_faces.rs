@@ -629,12 +629,13 @@ pub enum EdgeDescribeFailure {
     /// surfaces under-determine (incidence on both).
     Pair,
     /// A spline face it bounds has no one normal where its dihedral is
-    /// read: the point lies on a crease or a pinch of the face's chart
-    /// ([`geom_brep::SeamEscalation::Crease`]).
+    /// read: the point lies on a crease of the face's chart, on the line
+    /// where a closed chart's two ends meet, or on a point where the
+    /// chart's normal vanishes ([`geom_brep::SeamEscalation::Crease`]).
     Crease,
     /// A spline face it bounds has no image of it in its chart to read
-    /// the face's normal at: it carries no certified curve, or its image
-    /// in that chart does not derive ([`crate::pcurves::pcurve_of`]).
+    /// the face's normal at ([`crate::pcurves::pcurve_of`] derives none,
+    /// for the edge or, for a null edge, its neighbour in the face's loop).
     Unplaced,
 }
 
@@ -650,12 +651,13 @@ impl EdgeDescribeFailure {
             Self::Chart => "its curve does not certify as an image in its face's chart",
             Self::Pair => "its curve does not certify as lying on both its faces' surfaces",
             Self::Crease => {
-                "it meets a crease or a pinch of a curved face it bounds, where that face has \
-                 no single direction to read the angle between its faces by"
+                "it meets a crease, a closed seam or a pinch in the parameterization of a \
+                 spline face it bounds, where that face has no single direction to read the \
+                 angle between its faces by"
             }
             Self::Unplaced => {
-                "it has no image in the chart of a curved face it bounds to read that face's \
-                 direction at"
+                "it has no image in the parameterization of a spline face it bounds to read \
+                 that face's direction at"
             }
         }
     }

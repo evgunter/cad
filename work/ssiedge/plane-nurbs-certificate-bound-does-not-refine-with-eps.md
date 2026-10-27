@@ -250,3 +250,8 @@ re-derives a degree-1 image from feet instead (`chart_image`), and that
 image's miss is the whole refusal. So on this class a third route sits
 beside (i) and (ii) above: certify against the exact image the chart's
 description already states, where one exists.
+
+**The two margins' scaling (review of PR 5868).** The two fixtures differ
+in station count, 5 against 9 (4 against 8 spans along the loft), and the
+miss falls from 9.0e-6 to 4.53e-6: about `1/(n − 1)`, not the `h²` a
+chord's sagitta would give. Recorded here, not acted on.
