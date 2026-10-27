@@ -3106,6 +3106,56 @@ mod seam_rows {
         );
     }
 
+    /// REVIEW r2 counterexample: a wall leaving the floor at a definite
+    /// angle, flat for three quarters of a meter from the seam, that bends
+    /// hard only at its far end. Its displacement off the floor across the
+    /// flat run is hundreds of bands, and the same angle as an analytic
+    /// plane reads transverse; the chart-global arm `1/κ̄` shrinks the
+    /// lever to the far bend's radius and reads the corner smooth.
+    #[test]
+    fn review_r2_a_far_bend_reads_a_corner_smooth() {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let bend = |c: f64, s: f64| {
+            let rot = |(y, z): (f64, f64)| (c * y - s * z, s * y + c * z);
+            let rows = [(0.0, 0.0), (0.5, 0.0), (1.0, 0.0), (1.0, 0.01)];
+            integral(kv.clone(), &rows.map(rot))
+        };
+        let kappa = curvature(&bend(1.0, 0.0)).expect("a bound");
+        let sin = 0.5 * band().zero() * kappa;
+        let (c, s) = ((1.0 - sin * sin).sqrt(), sin);
+        let wall = bend(c, s);
+        // The flat run's far end, three quarters of a meter out.
+        let out = wall.ders(0.5, 0.5).point;
+        assert!(
+            out.z > 100.0 * band().escalate(),
+            "the wall stands {} off the floor at {:?}; κ̄ {kappa}, sin {sin}",
+            out.z,
+            out
+        );
+        let floor = floor();
+        let plane = Surface::Plane {
+            origin: ORIGIN,
+            normal: Vec3::new(0.0, -s, c),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let flat = Surface::Plane {
+            origin: ORIGIN,
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        assert_eq!(
+            classify_dihedral(&plane, &flat, ORIGIN, 1.0, band()),
+            Ok(DihedralClass::Transverse),
+            "the same angle between planes"
+        );
+        assert_eq!(
+            seam(at(&wall, 0.0), at(&floor, 0.0)),
+            Ok(DihedralClass::Transverse),
+            "the spline wall at that angle (κ̄ {kappa}, arm {}, sin {sin})",
+            1.0 / kappa
+        );
+    }
+
     /// **The reading is the sheet its parameters name**: a chart whose
     /// profile leaves the seam along `+z` and comes back through it along
     /// `+y` passes through the seam point twice, on two sheets. Against
