@@ -14,11 +14,10 @@ use crate::common::arc_section;
 use geom_brep::props::quad::{PatchNet, RVec3, mean_boundary_displacement, nurbs_patch_face};
 use geom_core::linalg::frame::path_start_frame;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Bounds, Interval, Point2, Point3, Real, RigidMotion, Tol, UnitVec3, Vec3};
-use profile::{ProfileLoop, SketchPlane, circle, circle_split, test_support::bulge_loop};
-use sweep::test_support::{extruded, finished, sketch_from_axes};
+use geom_core::{Band, Bounds, Interval, Point2, Point3, Real, RigidMotion, Tol, UnitVec3};
+use profile::{ProfileLoop, SketchPlane, circle, circle_split};
 use sweep::{loft_body, sweep_body};
-use topo::{AtRestBody, Body, BooleanError, BooleanOp, ValidationError};
+use topo::{Body, ValidationError};
 
 fn tol() -> Tol {
     Tol::witness()

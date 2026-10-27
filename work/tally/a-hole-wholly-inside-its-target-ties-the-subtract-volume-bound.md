@@ -72,3 +72,7 @@ frontier, independent of this tie, filed as
 `work/charttail/an-overshooting-subtract-flips-chart-bound-outer-span-over-a-tiny-box.md`.
 Overshoot is not the plate's spelling (its holes are its depth); it is
 evidence that clearing the tie alone would not certify a cut part.
+
+## The tie left the operation path; the wall stands (2026-10-27)
+
+PR 5842, under `[ev]` PR 5780 (the boolean's volume relations are a test oracle, `topo::test_support::volume_relations`), deleted the volume backstop, so `volume_backstop_violation` no longer decides anything and the tie above cannot refuse a leaf. The wall stands anyway: `demo-tour certified`, built `--release` on that PR's head, still prints `wall 1 — … over 1e-9 of the study: REFUSED TYPED, Ok(Receipt { certified: 0, refused: 1, splits: 0 })`, and the real study's cut plate was not re-run. Some other decision refuses the `1e-9` whole box now; which is not measured. The shape-report replay above (`m10_8_harness::over_band_set` at `Sym<Interval>`) is the instrument to find it.
