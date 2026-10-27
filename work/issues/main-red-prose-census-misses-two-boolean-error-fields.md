@@ -1,0 +1,25 @@
+---
+id: main-red-prose-census-misses-two-boolean-error-fields
+kind: issue
+title: Main red: pncad-py's prose census finds two BooleanError fields (edge, face in topo/src/boolean/mod.rs) it neither decides nor names
+status: open
+priority: P1
+cost: E
+opened: 2026-10-27
+---
+
+
+Found by INTENT stage 3 E's slow-set run (`intent/e-operation-frame-of-reads`)
+and confirmed on a clean `origin/main` worktree at `9d97abd7`:
+`pncad-py` `prose_census::tests::every_site_this_census_cannot_decide_is_named_with_its_reason`
+(`crates/pncad-py/src/prose_census.rs:2291`) reds with two sites the
+census cannot decide and `UNDECIDED` does not name:
+
+- `("crates/topo/src/boolean/mod.rs", "BooleanError", "edge")`
+- `("crates/topo/src/boolean/mod.rs", "BooleanError", "face")`
+
+Both arrived with main's recent `topo/src/boolean/mod.rs` changes
+(merged between `29110056e8` and `9d97abd7`; the latest is PR 5772,
+`3b0a7a6e`). The fix is the census's own rule: render each field so the
+census can decide it, or give each its line in `UNDECIDED` with the
+reason it cannot be decided.
