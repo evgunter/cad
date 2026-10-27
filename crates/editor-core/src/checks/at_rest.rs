@@ -200,40 +200,33 @@ fn could_not_look<T: Decide>(
 pub(crate) const AT_REST_QUIET_CONTACT_BOUND: &str = "at_rest_quiet_contact_bound";
 
 /// **The contact half of the quieting rule** (D10 `[assertions.quiet]`):
-/// the first assertion, in document order, that quiets `row`, an
-/// at-rest row of two cells, or `None` when the row stays loud.
+/// the first assertion, in document order, that quiets `row`, a row of
+/// two cells, or `None` when the row stays loud.
+///
+/// One rule for every row the lint reads: an at-rest row's cells are
+/// its arrivals', an operation's row's cells the deciding node's input
+/// reads' (`[operations]`, *Selections*), so a cell the result merged
+/// away is still selected on its operand.
 ///
 /// An assertion quiets a row when it relates a `Gap` read directly by
 /// `=` to a bound decided zero, its two selections are the row's two
-/// cells in either order, each its arrival's read (or a pick of the
-/// arrival's piece) and the cell's name there, and its verdict in
-/// `evaluation` is `Holds`. The cells may be
-/// of any dimension `Gap` admits. A flush pair
-/// ([`topo::Relation::SameOriented`]) is no contact, and no assertion
-/// quiets it. The rule matches cells, so another contact between the
-/// same two arrivals stays loud, and it reads verdicts only, so an
-/// assertion that failed or did not evaluate quiets nothing.
+/// cells in either order, each the cell's read (or a pick of that
+/// read's piece) and the cell's name there, and its verdict in
+/// `evaluation` is `Holds`. The cells may be of any dimension `Gap`
+/// admits. A flush pair ([`topo::Relation::SameOriented`]) is no
+/// contact, and no assertion quiets it, nor a row over a pose or a
+/// profile piece ([`contact_quietable`]). The rule matches cells, so
+/// another contact between the same two reads stays loud, and it reads
+/// verdicts only, so an assertion that failed or did not evaluate
+/// quiets nothing.
 pub(crate) fn quiet_contact<P, T: Decide>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     row: &crate::coincide::NamedCoincidence,
     tol: Tol,
 ) -> Option<RecipeNodeId> {
-    if row.relation == topo::Relation::SameOriented {
-        return None;
-    }
+    let [a, b] = contact_cells(row)?;
     let band = Band::linear(tol).ok()?;
-    let cell = |c: &crate::coincide::NamedCell| match c {
-        crate::coincide::NamedCell::Entity { input, name } => {
-            // The cell's name is the arrival's own.
-            Some((*input, keyed_by(name, *input).unwrap_or(name).clone()))
-        }
-        _ => None,
-    };
-    let [a, b] = match row.cells.as_slice() {
-        [a, b] => [cell(a)?, cell(b)?],
-        _ => return None,
-    };
     let selected = |var: VarId| {
         let select = doc.selection(var)?;
         let [name] = select.names.as_slice() else {
@@ -250,15 +243,15 @@ pub(crate) fn quiet_contact<P, T: Decide>(
         let (Some(o), Some(i)) = (selected(gap.outer), selected(gap.inner)) else {
             return None;
         };
-        let reads = |(body, name): &(VarId, StableName), (arrival, own): &(VarId, StableName)| {
-            if body == arrival {
+        let reads = |(body, name): &(VarId, StableName), (read, own): &(VarId, StableName)| {
+            if body == read {
                 return name == own;
             }
-            // A pick of the arrival's piece: the arrival's name for the
-            // cell is keyed by each `⊔` the pick's path walks through,
-            // by the read that piece entered it by.
+            // A pick of the read's piece: the read's name for the cell
+            // is keyed by each `⊔` the pick's path walks through, by the
+            // read that piece entered it by.
             doc.pick(*body).is_some_and(|pick| {
-                pick.placement == *arrival
+                pick.placement == *read
                     && pick
                         .of
                         .iter()
@@ -268,6 +261,61 @@ pub(crate) fn quiet_contact<P, T: Decide>(
         };
         ((reads(&o, &a) && reads(&i, &b)) || (reads(&o, &b) && reads(&i, &a))).then_some(gap.id)
     })
+}
+
+/// **Whether some assertion could quiet `row`** under the contact half
+/// ([`quiet_contact`]), in `evaluation`: the row is two entity cells
+/// and no flush pair, and the `Gap` such an assertion reads admits its
+/// two cells in some role order, by the measure's own definition
+/// ([`crate::eval::measure::gap_value`]). A row over a pose (a split's
+/// tool) or a profile piece, a `Meet` of more than two cells, a cell
+/// the measure has no closed form for (a curved edge, a vertex beside a
+/// curved face), a name that does not resolve uniquely, and a pair the
+/// measure refuses as not parallel are none of them: no `Gap` over
+/// them holds, so the finding never refuses (CHECKS DS6).
+pub(crate) fn contact_quietable<T: Decide>(
+    evaluation: &Evaluation<T>,
+    row: &crate::coincide::NamedCoincidence,
+    tol: Tol,
+) -> bool {
+    let Ok(band) = Band::linear(tol) else {
+        return false;
+    };
+    let Some([a, b]) = contact_cells(row) else {
+        return false;
+    };
+    let carrier = |(read, name): &(VarId, StableName)| {
+        let Some(Entry::Unique(ent)) = evaluation.table(*read)?.lookup(name) else {
+            return None;
+        };
+        let body = evaluation.read_body(*read, ent.body).ok()?.ok()?;
+        Some(crate::eval::measure::carrier_of(body, *ent))
+    };
+    let (Some(a), Some(b)) = (carrier(&a), carrier(&b)) else {
+        return false;
+    };
+    crate::eval::measure::gap_value(&a, &b, band).is_ok()
+        || crate::eval::measure::gap_value(&b, &a, band).is_ok()
+}
+
+/// **A row's two cells as the contact half reads them**: each entity
+/// cell's read and its name there, the arrival's own for an at-rest
+/// row. `None` for a flush pair, a row of other than two cells, or a
+/// cell that is no body's (a pose, a profile piece).
+fn contact_cells(row: &crate::coincide::NamedCoincidence) -> Option<[(VarId, StableName); 2]> {
+    if row.relation == topo::Relation::SameOriented {
+        return None;
+    }
+    let cell = |c: &crate::coincide::NamedCell| match c {
+        crate::coincide::NamedCell::Entity { input, name } => {
+            Some((*input, keyed_by(name, *input).unwrap_or(name).clone()))
+        }
+        crate::coincide::NamedCell::Tool { .. } | crate::coincide::NamedCell::Piece { .. } => None,
+    };
+    match row.cells.as_slice() {
+        [a, b] => Some([cell(a)?, cell(b)?]),
+        _ => None,
+    }
 }
 
 /// **A holding assertion that reads a `Gap`'s output directly**, the

@@ -899,10 +899,11 @@ fn gap<T: Decide>(
     }
 }
 
-/// **The signed [`gap`] of `outer` against `inner`**, for the at-rest
-/// check, which asks whether a holding `Gap ≤ −δ` over two faces
-/// bounding an overlap exists: the measure such an assertion reads, by
-/// the one definition of it.
+/// **The signed [`gap`] of `outer` against `inner`**, for the quieting
+/// rule's two halves, which ask whether a holding `Gap ≤ −δ` over two
+/// faces bounding an overlap could exist, and whether a `Gap` over a
+/// row's two cells is taken at all: the measure such an assertion
+/// reads, by the one definition of it.
 pub(crate) fn gap_value<T: Decide>(
     outer: &Carrier<'_, T>,
     inner: &Carrier<'_, T>,
