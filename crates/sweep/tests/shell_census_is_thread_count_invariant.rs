@@ -103,6 +103,7 @@ fn voided_rods_verdicts_as_a_sorted_multiset() {
         ("side_at_infinity_advance Positive", 4),
         ("side_at_infinity_bool_point_in_solid_denom Positive", 2),
         ("side_at_infinity_bool_ray_cylinder_disc Positive", 2),
+        ("side_at_infinity_bool_wall_turn_true Positive", 16),
         ("side_at_infinity_curve_carrier_clear Positive", 20),
         ("side_at_infinity_denom Negative", 4),
         ("side_at_infinity_denom Positive", 4),

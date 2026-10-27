@@ -139,58 +139,76 @@ and each ray (a probe, not kept):
 
 ## Fix (FLUSH, `flush/aims-ties`)
 
-- **A planar face of lines and circle arcs aims at a weighted mean**
-  (`side_reader.rs` `loop_aim`): its vertices and its arcs'
-  golden-section points, the `k`th weighted `2 + cos(k·g)`. It asks
-  nothing, and no sum of the weights with rational coefficients
-  vanishes, so it is no symmetric point.
+- **A planar face of lines and circle arcs aims at a point stepped in
+  from its first edge** (`side_reader.rs` `loop_aim`). The point is the
+  outer loop's first edge's point at the golden section of its span,
+  stepped along `normal × τ` by half a lower bound on its distance from
+  every other edge (`solid_contain.rs` `edge_clearance`), and by at most
+  half its own arc's radius.
+  - It lies in the face and off its middles, and it asks nothing.
+  - It hangs on the outer loop's first half-edge, so a rebuilt body can
+    aim elsewhere.
+  - It replaced a first, weighted-mean aim. That aim landed in an
+    annular cap's hole and off a sliced rod's sliver, which set those
+    aims aside: on FLUSH review R1's off-battery bodies, 0 of 117 aims
+    are now set aside, against 6 on main and more on the weighted mean.
 - **Such a face is crossed by the turn of its loops**
-  (`solid_contain.rs` `crosses_by_turn`, `loop_turn`, `arc_turn`): an
-  arc turns by `Arg(−conj M(m)) − Arg(−M(p) conj M(m))`,
-  `M(x) = (x − a)/(x − b)`, whose one cut is the arc itself. It needs
-  no chord split and no test of the crossing against a segment, so it
-  asks nothing.
+  (`solid_contain.rs` `crosses_by_turn`, `loop_turn`, `arc_turn`). An
+  arc turns by `Arg(−conj M(m)) − Arg(−M(p) conj M(m))`, with
+  `M(x) = (x − a)/(x − b)`, whose one cut is the arc itself. It needs no
+  chord split and no test of the crossing against a segment, so it asks
+  nothing.
 - **A cylinder face's root is held by the turn of its loops on an image
-  of its wall** (`wall_crosses_by_turn`), where every edge is a ruling
-  or a circle and is decided clear of the ray. The image is an annulus,
-  `ρ(Δh)·s` with `ρ(Δ) = 1 + Δ/(|Δ| + r)`: rulings go to radial
-  segments and rims to circles about the origin.
-- **A curved aim's normal is its chart's gradient**, with no on-surface
-  certificate (an aim only steers). The cone keeps its reader, because
-  of its apex.
-- **The sphere aim steps from its first arc**, not the deepest step,
-  so an enclosure never hulls two tied steps.
-  `geom_core::GOLDEN_SECTION` is the one spelling of the constant
-  (`sphere_region.rs`, `seqgen.rs`, and the golden-section searches in
-  `ring_path.rs`, `conic_oracle.rs`, `geom-brep` `extent.rs` and
-  `span_reach_hunt.rs`).
+  of its wall** (`wall_crosses_by_turn`) where every edge is a ruling or
+  a circle. The image is an annulus, `ρ(Δh)·s` with
+  `ρ(Δ) = 1 + Δ/(|Δ| + r)`: rulings go to radial segments, and rims to
+  circles about the origin.
+  - It holds only where the root lies farther from each edge than twice
+    how far the edge is off its ruling or parallel
+    (`bool_wall_turn_true`). Tier 3 admits a rim tilted up to `√(2εr)`
+    along the axis.
+  - For an edge on its ruling or parallel, that margin is the root's
+    clearance of the edge, so it never ties.
+- **A face's own seam is no boundary of its turn.** The turn leaves it
+  out, since its two passes cancel in the reals. In floats, a pass whose
+  products vanish reads `atan2(+0, x < 0) = π` both ways, and a turned
+  tube read in its seam plane misread 608, 509, 403, 456 and 352 of 7381
+  points at five turns (R1; base 0).
+- **What licenses a turn is now its own set, `EdgeMeets::clear`.** It
+  holds the edges every crossing reads definitely off: the lines
+  `edge_meets` decides, and each curved edge read clear from every
+  crossing, or whose carrier the ray definitely misses. `read` keeps
+  meaning "decided". A seam is in neither: `curved_edges` no longer
+  inserts it unread, and `every_bound_read` skips it by name. An edge
+  read past its span's end (`Passes::End`) stays in `read` and is not
+  `clear`.
+- **A cylinder's or a sphere's aim takes its chart's gradient as its
+  normal**, with no on-surface certificate (an aim only steers). A
+  torus's and a cone's keep their face's reader, which refuses outside
+  the ring convention and at the apex.
+- **The sphere aim steps from its first arc**, not the deepest step, so
+  an enclosure never hulls two tied steps.
+- **`geom_core::GOLDEN_SECTION` and `GOLDEN_ANGLE` are the one spelling
+  of their constants.** Every golden-section search and every golden-angle
+  sample in the tree reads them. `π(3 − √5)` equals `GOLDEN_ANGLE` in
+  `f64`, so the batteries' inputs keep their bits.
 
-After: **22** ties, all `bool_ruled_region_roots_coaxial` in
-`cut_cylinder`; every other document reads 0. The `Sym<f64>`
-trimmed-sphere bodies (`sweep` `sphere_aims_reader_ties`) read 0/0/0/0
-against 1/2/1/5.
+After, on the merged head: **22** ties, all
+`bool_ruled_region_roots_coaxial` in `cut_cylinder`; every other
+document reads 0. The `Sym<f64>` trimmed-sphere bodies (`sweep`
+`sphere_aims_reader_ties`) read 0/0/0/0, against 1/1/2/5 on main.
 
 ## What remains
 
-- **A wall whose loops hold an oblique section.** `cut_cylinder`'s
-  walls are bounded by an ellipse (the tilted cut), whose image on the
-  annulus is no circle. So its roots still take the region walk: 22
-  coaxial ties. There are at least two candidate readings, and the
-  choice between them is a design question:
-  - split the section at the root's azimuth and read each piece by
-    chords inside a sector of under half a turn, which asks where the
-    root's azimuth lies against the pieces;
-  - a different image of the wall in which a plane section is a circle.
-- **Cone, sphere-patch and torus-patch roots** still take their region
-  walks. Nothing in the corpus or in the sphere bodies ties on them at
-  a nominal, but no fixture stands for a symmetric cone or torus.
-- **The ruled aim still steps from its edges' middles.** Moved to
-  their golden-section points, it aims one of
-  `split_seam_vanishing_tilt`'s walls at the seam ruling. That ray
-  starts about `4·10⁷` m out and reads the side inside out
-  (`an-aimed-rays-start-past-a-sections-whole-ellipse-loses-its-wall-roots-and-reads-the-wrong-side`).
-  Nothing in the corpus ties on the ruled aim: `cut_cylinder`'s
-  `curve_foot_branch` ties were the cap's.
-- **The ruled aim's on-axis fallback** (`select_le_zero` on the mean's
-  distance from the axis) hulls at `Interval` where the mean is on the
-  axis.
+Each has its own row on this slate:
+
+- `a-wall-root-bounded-by-an-oblique-section-still-walks-and-ties-at-the-nominal`:
+  `cut_cylinder`'s 22, a design question with two readings stated.
+- `cone-sphere-patch-and-torus-patch-roots-still-walk-their-regions`.
+- `the-ruled-aims-on-axis-fallback-hulls-at-interval`.
+- `a-torus-face-aims-at-a-fixed-chart-point-that-a-symmetric-pose-holds`.
+- `the-census-ladder-asks-at-symmetric-points-unmeasured`.
+- `an-aimed-rays-start-past-a-sections-whole-ellipse-loses-its-wall-roots-and-reads-the-wrong-side`
+  (P1, live on main). The ruled aim stays at its middles because of it:
+  moved to its edges' golden sections, it steered one more wall aim
+  onto a seam ruling.
