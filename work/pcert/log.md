@@ -853,3 +853,11 @@ E1c waits on the answer.
   - `pncad::topo` is the glob minus that tier. Kernel crates import the trait.
   - The source walk counts the sealed doors (`construction_tier`), so the tier-1 and pcurve-posture censuses still range over them.
   - Seam logged on `work/lib/log.md`.
+- 2026-10-27 — E1d (PR 5844) merged: an incidence refusal ends by the door that reads it (Ev's ruling, PR 5838). E1b's authority routing is out, and `EdgeAuthority` is provenance only. `IncidenceRead::of` is the one classifier, `ending(at)` the one map and `is_definite` the one policy. Their endings:
+  - a definite miss is the kernel's defect at a build, the stored culprit at rest, and the damaged file at import (no ε_in);
+  - a read in band ends in its lever at every door;
+  - a poisoned margin is a defect.
+  Every holder ends a refusal by its own ending, and only a genuine incidence reading produces one. The review was a concurrent pair (byte 26, tallied 2), then fix passes G1–G10 and H1–H8 and one delta verifier. Handed on:
+  - E1c is widened to the sphere/cone/torus class arms and the sphere/torus ellipse kind gates;
+  - E1d2 seals topo's construction tier.
+  Next: E1d2 → E1c → E1e → E2 → E3 → E4.
