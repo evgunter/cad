@@ -978,17 +978,21 @@ fn run_at<T: editor_core::EvalScalar>(
 /// all three ε.
 ///
 /// And, all three rows, when a body value came to be its body in its own
-/// coordinates under a frame (INTENT stage 3 E): a copy is its source's
-/// body, so the evaluation digest's bodies are in their computing frames.
-/// Compared id-free against main (`29110056e8`) at 1e-9, every fault and
-/// space is main's, and two of the 47 solved poses moved, each by one
-/// ulp in one translation entry and every rotation entry bit-identical:
-/// a mate's `to` read off a copy is the pose read off the source moved
-/// by the copy's frame, where it was read off the mapped body.
+/// coordinates under a frame (INTENT stage 3 E). The evaluation digest
+/// feeds each body where it stands, composed through `in_space`.
+/// Compared against main (`29110056e8`, and again `9d97abd7`) at 1e-9:
+/// every fault, space and node error is main's; two of the 47 solved
+/// poses moved, each by one ulp in one translation entry and every
+/// rotation entry bit-identical (a mate's `to` read off a copy is the
+/// pose read off the source moved by the copy's frame, where it was read
+/// off the mapped body); and of the evaluations only `pinned-chain`'s
+/// moved, three copies of copies by up to 1.8e-15 at 7, 8 and 16 of
+/// their points, each composing one map where it was rebuilt link by
+/// link.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x42f1_6eb9_c0cc_b7e2),
-    (1e-6, 0x1cb5_11cb_3805_1724),
-    (1e-12, 0xbf22_2057_8d0a_a9e7),
+    (1e-9, 0x7b13_03a0_c1bc_44f0),
+    (1e-6, 0x40a1_e8d9_2e4d_c9e1),
+    (1e-12, 0x3410_19fb_5cff_f5a7),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the

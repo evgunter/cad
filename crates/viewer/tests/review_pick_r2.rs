@@ -222,7 +222,14 @@ struct Tally {
 /// sphere sized its azimuth at each face's widest latitude, from
 /// `(397512, 132612, 26058, 8292)`: 5 400 fewer rays and 900 fewer
 /// grazes, the refusals unchanged.
-const PINNED: (usize, usize, usize, usize) = (392_112, 131_712, 26_058, 8_292);
+///
+/// It moved for INTENT stage 3 E (a copy's mesh is its body's in its own
+/// coordinates, and the door reads each ray into the part's frame), from
+/// `(392112, 131712, 26058, 8292)`: each aim is fired at a vertex where
+/// its part stands, and a ray read into a turned copy's frame rounds
+/// its grazes differently, so 347 fewer grazes; the rays and the
+/// refusals unchanged. No genuine crossing is refused.
+const PINNED: (usize, usize, usize, usize) = (392_112, 131_365, 26_058, 8_292);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let reference = FlatReference::of(index);
@@ -233,6 +240,7 @@ fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
         let mut best: Option<(f64, Option<[f64; 3]>)> = None;
         let mut refused_here = 0usize;
         for flat in &reference.parts {
+            let ray = flat.local(&ray);
             for cand in flat.tree.ray(&ray) {
                 let tri = &flat.corners[cand.item];
                 let cross = crossing(&ray, tri);
