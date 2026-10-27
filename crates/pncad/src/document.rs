@@ -462,11 +462,12 @@ pub use editor_core::{
 // `CarriedAtRestFinding` and `CarriedCoincidence`, each with the `Route`
 // it arrived by (one type, on every carrier of that fact);
 // `CarriedFindings` is what an instantiated value carries up, its
-// `CarriedCoincidenceRows` the rows a part's own door judges.
+// `CarriedCoincidenceRows` the rows a part's own door judges, each over
+// the part's `PinnedDoc`.
 pub use editor_core::{
     AtRestEvidence, CarriedAtRestFinding, CarriedCoincidence, CarriedCoincidenceRows,
-    CarriedFindings, CarriedInterference, CopyRef, FaceSite, InterferenceFinding, Overlap, Route,
-    Unlocalized,
+    CarriedFindings, CarriedInterference, CopyRef, FaceSite, InterferenceFinding, Overlap,
+    PinnedDoc, Route, Unlocalized,
 };
 
 // Split, inline and flatten: the first-class

@@ -2717,6 +2717,9 @@ NOT_BOUND = {
     # report's door judges and Python reads only as judged.
     "CarriedFindings": INTERIOR,
     "CarriedCoincidenceRows": INTERIOR,
+    # The part's document a carried row is of: Python reads it as the
+    # document a carried finding is spoken over (`CarriedCoincidence.finding`).
+    "PinnedDoc": INTERIOR,
     "Route": INTERIOR,
     "Chamfered": INTERIOR,
     # A lane trait, one registry over: a trait naming
