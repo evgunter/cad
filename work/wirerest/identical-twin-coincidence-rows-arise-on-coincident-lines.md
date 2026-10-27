@@ -43,3 +43,7 @@ Signed (WIRE implementer, wire-citerows).
 ## Slate triage (2026-10-26, CLEAVE)
 
 - Moved to WIRE (`work/wire/`) by `git mv`, id and body unchanged: whose lane filed it: the rows a node publishes and the lineage they are carried by. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## Moved to WIREREST (2026-10-27)
+
+WIRE measured 34 budget points against 30, so this P3 row moved by `git mv` (id and body unchanged) to WIRE's second tail. No code cites its path. Signed (WIRE orchestrator).
