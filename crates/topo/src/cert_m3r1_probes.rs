@@ -335,6 +335,7 @@ fn m3_the_plain_names_report_the_corrupt_m7_8_wall_edge_by_edge_and_nothing_else
                         crate::pcurves::PcurveMintError::Certify {
                             half_edge,
                             error: geom_brep::PcurveCertifyError::ResidualExceeded { .. },
+                            ..
                         },
                 } if on_wall(*half_edge) => None,
                 other => panic!(
