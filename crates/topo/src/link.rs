@@ -302,11 +302,13 @@ pub(crate) enum Hold {
     Inside,
 }
 
-/// **One face's sector at the touch point `p`**: the face's piece there
-/// ([`face_piece`]) as a fan of wedges about `p`, each a triangle
-/// `(p, a, b)` of real points of the face under half a turn, in turn
+/// **One face's sector at the touch point `p`**: a fan of wedges about
+/// `p`, each a triangle `(p, a, b)` under half a turn, in turn
 /// counterclockwise about the outward normal, consecutive wedges on one
-/// ray. The fan spans the face's whole sector at `p`.
+/// ray, spanning the face's whole sector at `p`. Either the face's piece
+/// there ([`face_piece`]), whose wedges are real points of the face, or
+/// the disc its edges clear ([`Sector::cleared`]), the face's own inside
+/// [`Sector::clear`] and carried past the face beyond it.
 pub(crate) struct Sector<T: Real> {
     pub(crate) surface: geom::Surface<T>,
     /// `Face::sense`, the bit [`geom_brep::classify_material_pairing_as`]
@@ -322,6 +324,10 @@ pub(crate) struct Sector<T: Real> {
     /// Otherwise its first ray and its last are the face's edges through
     /// `p`, the sector's bounds.
     pub(crate) closed: bool,
+    /// Where the wedges run past the face (a cleared disc): the radius
+    /// about `p` inside which they are the face's own. `None` where every
+    /// wedge is real points of the face.
+    pub(crate) clear: Option<T>,
 }
 
 /// Where a point on a sector's plane lies against the sector.
@@ -344,7 +350,8 @@ pub struct Link<T: Real> {
     /// The farthest wedge point from `p`.
     pub(crate) reach: T,
     /// The radius of the ball about `p` the link's wedges fill: the
-    /// least distance from `p` to a wedge's far side. Inside it each of
+    /// least distance from `p` to a wedge's far side, or to a cleared
+    /// sector's edge of the face ([`Sector::clear`]). Inside it each of
     /// the link's faces covers its whole sector; a face of the solid
     /// that reaches into the ball without being tied to the point is
     /// not in the link, and is the backstop's to answer for (its
@@ -831,6 +838,7 @@ impl<T: Decide> Sector<T> {
                 apex: at,
                 wedges: piece.chunks_exact(2).map(|w| (w[0], w[1])).collect(),
                 closed: matches!(place, PieceAt::Inside),
+                clear: None,
             })
         };
         let named_corners = holds
@@ -945,6 +953,7 @@ impl<T: Decide> Link<T> {
             .fold(T::zero(), |r, l| r.max(l));
         let ball = wedges()
             .map(|&(a, b)| to_segment(p, (a, b)))
+            .chain(sectors.iter().filter_map(|s| s.clear))
             .fold(reach, |r, l| r.min(l));
         let tie = sectors
             .iter()
@@ -1318,7 +1327,7 @@ impl<T: Decide> Sector<T> {
             for he in cycle {
                 let he = body.half_edges.get(he).ok_or(TouchUnread::Corrupt)?;
                 if !crate::census::edge_is_line(body, he.edge) {
-                    return Self::cleared(body, face, surface, outward, p, holds);
+                    return Self::cleared(body, f, outward, p, holds);
                 }
                 keys.push(he.start);
                 ring.push(position(body, he.start)?);
@@ -1337,33 +1346,51 @@ impl<T: Decide> Sector<T> {
     }
 
     /// **A planar face with an edge that is not a line, as its sectors
-    /// at `p`**, held inside the face or inside one of its line edges: a
-    /// fan of the disc about `p` that every other edge of the face
-    /// clears ([`clearance`]) — the whole disc for a point inside the
-    /// face, and inside an edge, the half of it left of each pass of the
-    /// face's loops along the edge about the outward normal (the face's
-    /// side, [`face_piece`]'s orientation).
+    /// at `p`**, held inside the face or inside one of its line edges:
+    /// the disc about `p` that every other edge of the face clears
+    /// ([`clearance`]) — whole for a point inside the face, and inside an
+    /// edge, the half of it left of each pass of the face's loops along
+    /// the edge about the outward normal (the face's side, [`face_piece`]'s
+    /// orientation) — carried out past the face's reach.
     ///
-    /// Each such sector is a piece: every edge but the held one stands
-    /// at least the radius off `p`, the held edge's ends among their
-    /// points, so inside the disc the face's boundary is the held edge
-    /// alone, a diameter, or nothing. The open disc, or its open half on
-    /// the face's side, is connected, meets no boundary, and holds points
-    /// of the face as near `p` as any, so it lies inside the face; the
-    /// fan's points, on its rim, are real points of the face, and the fan
-    /// spans the face's whole sector at `p`.
+    /// Inside the disc the sector is the face's own: every edge but the
+    /// held one stands at least the radius off `p`, and so do the held
+    /// edge's ends, so inside the disc the face's boundary is the held
+    /// edge alone, a diameter, or nothing. The open disc, or its open
+    /// half on the face's side, is connected, meets no boundary, and
+    /// holds points of the face as near `p` as any, so it lies inside the
+    /// face, and the sector spans the face's whole sector at `p`. The
+    /// radius is the sector's [`Sector::clear`], which bounds the link's
+    /// ball.
     ///
-    /// A corner hold, two edges held at once, or an edge no clearance
-    /// reads is [`TouchUnread::Unreadable`]; a radius too short or too
-    /// long to be a number, [`TouchUnread::ChordScale`].
+    /// The fan itself runs further, past the face: eight wedges of an
+    /// eighth of a turn (four for a half), its rim at `1.1` times the
+    /// farthest the face's boundary stands from `p`
+    /// ([`face_reach_from`](crate::splitting::rules::face_reach_from)).
+    /// A chord of an eighth of a turn stands at least `cos(π/8) > 0.92`
+    /// of the rim's radius off `p`, so every point of the rim lies past
+    /// every point of the face, and a coincidence read there holds over
+    /// the whole face.
+    ///
+    /// A corner hold, a curved edge held, two edges held at once, a face
+    /// off a plane, or an edge no clearance reads is
+    /// [`TouchUnread::Unreadable`]; a radius or a reach that is not a
+    /// positive number, [`TouchUnread::ChordScale`].
     pub(crate) fn cleared(
         body: &Body<T>,
-        face: &crate::entity::Face,
-        surface: geom::Surface<T>,
+        f: FaceKey,
         outward: Vec3<T>,
         p: Point3<T>,
         holds: &[Hold],
     ) -> Result<Vec<Self>, TouchUnread> {
+        let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
+        let surface = body
+            .get_surface(face.surface)
+            .cloned()
+            .ok_or(TouchUnread::Corrupt)?;
+        let geom::Surface::Plane { u_ref, .. } = surface else {
+            return Err(TouchUnread::Unreadable);
+        };
         if holds.iter().any(|h| matches!(h, Hold::Corner(_))) {
             return Err(TouchUnread::Unreadable);
         }
@@ -1375,7 +1402,15 @@ impl<T: Decide> Sector<T> {
         if held.next().is_some() {
             return Err(TouchUnread::Unreadable);
         }
-        let mut radius = None;
+        // The held edge's ends bound the radius too: a spur's tip is the
+        // end of no other edge.
+        let mut radius: Option<T> = match edge {
+            Some((a, b)) => {
+                let (a, b) = (position(body, a)?, position(body, b)?);
+                Some((a - p).norm().min((b - p).norm()))
+            }
+            None => None,
+        };
         let mut passes = Vec::new();
         for cycle in crate::census::face_cycles(body, face) {
             for he in cycle.map_err(|_| TouchUnread::Corrupt)? {
@@ -1389,80 +1424,80 @@ impl<T: Decide> Sector<T> {
                     continue;
                 }
                 let c = clearance(body, he, p)?;
-                radius = Some(radius.map_or(c, |r: T| r.min(c)));
+                radius = Some(radius.map_or(c, |r| r.min(c)));
             }
         }
         let radius = radius.ok_or(TouchUnread::Corrupt)?;
-        let along: Vec<Option<Vec3<T>>> = match edge {
-            None => vec![None],
-            Some(_) if passes.is_empty() => return Err(TouchUnread::Corrupt),
-            Some(_) => passes.into_iter().map(Some).collect(),
-        };
-        along
-            .into_iter()
-            .map(|d| Self::disc(surface.clone(), face.sense, outward, p, radius, d))
-            .collect()
-    }
-
-    /// The fan of the disc of `radius` about `p` in the face's plane,
-    /// eight wedges of an eighth of a turn; or, `along` a pass of the
-    /// face's loops through `p`, the half of it left of the pass, four.
-    /// Counterclockwise about `outward`, from `along` where it is given.
-    fn disc(
-        surface: geom::Surface<T>,
-        sense: bool,
-        outward: Vec3<T>,
-        p: Point3<T>,
-        radius: T,
-        along: Option<Vec3<T>>,
-    ) -> Result<Self, TouchUnread> {
-        let a = match (along, &surface) {
-            (Some(d), _) => d,
-            (None, &geom::Surface::Plane { u_ref, .. }) => {
-                (u_ref - outward * outward.dot(u_ref)).normalize()
+        let far = crate::splitting::rules::face_reach_from(body, f, p)
+            .map_err(|_| TouchUnread::Corrupt)?
+            * T::from_f64(1.1);
+        for length in [radius, far] {
+            if !geom_core::is_finite_length(length) || geom_core::is_zero_length(length, length) {
+                return Err(TouchUnread::ChordScale);
             }
-            (None, _) => return Err(TouchUnread::Unreadable),
-        };
-        let b = outward.cross(a);
-        let s = T::from_f64(core::f64::consts::FRAC_1_SQRT_2);
-        let back = T::from_f64(-1.0);
-        let turns = [
-            a,
-            (a + b) * s,
-            b,
-            (b - a) * s,
-            a * back,
-            (a + b) * (s * back),
-            b * back,
-            (a - b) * s,
-        ];
-        let fan: Vec<Point3<T>> = turns
-            .iter()
-            .take(if along.is_some() { 5 } else { 8 })
-            .map(|&t| p + t * radius)
-            .collect();
-        chord(p, fan[0])?;
-        let mut wedges: Vec<Segment<T>> = fan.windows(2).map(|w| (w[0], w[1])).collect();
-        if along.is_none() {
-            wedges.push((fan[7], fan[0]));
         }
-        Ok(Self {
-            surface,
-            sense,
-            outward,
-            apex: p,
-            wedges,
-            closed: along.is_none(),
-        })
+        let along: Vec<(Vec3<T>, bool)> = match edge {
+            None => vec![((u_ref - outward * outward.dot(u_ref)).normalize(), false)],
+            // No line edge between the held ends: a curved edge held.
+            Some(_) if passes.is_empty() => return Err(TouchUnread::Unreadable),
+            Some(_) => passes.into_iter().map(|d| (d, true)).collect(),
+        };
+        Ok(along
+            .into_iter()
+            .map(|(a, half)| Self {
+                surface: surface.clone(),
+                sense: face.sense,
+                outward,
+                apex: p,
+                wedges: fan(p, outward, a, far, half),
+                closed: !half,
+                clear: Some(radius),
+            })
+            .collect())
     }
 }
 
+/// The fan of the disc of `radius` about `p` normal to `outward`, eight
+/// wedges of an eighth of a turn counterclockwise about it from the
+/// in-plane unit `a`; or, for a `half`, the four left of `a`.
+fn fan<T: Real>(
+    p: Point3<T>,
+    outward: Vec3<T>,
+    a: Vec3<T>,
+    radius: T,
+    half: bool,
+) -> Vec<Segment<T>> {
+    let b = outward.cross(a);
+    let s = T::from_f64(core::f64::consts::FRAC_1_SQRT_2);
+    let back = T::from_f64(-1.0);
+    let turns = [
+        a,
+        (a + b) * s,
+        b,
+        (b - a) * s,
+        a * back,
+        (a + b) * (s * back),
+        b * back,
+        (a - b) * s,
+    ];
+    let rim: Vec<Point3<T>> = turns
+        .iter()
+        .take(if half { 5 } else { 8 })
+        .map(|&t| p + t * radius)
+        .collect();
+    let mut wedges: Vec<Segment<T>> = rim.windows(2).map(|w| (w[0], w[1])).collect();
+    if !half {
+        wedges.push((rim[7], rim[0]));
+    }
+    wedges
+}
+
 /// **How far `p` stands from the edge of half-edge `he`, at least**, in
-/// metres: a line's distance from its segment, a conic's from the whole
-/// conic ([`conic_clearance`]). [`TouchUnread::Unreadable`] for an edge
-/// of another curve, or with no certified curve;
-/// [`TouchUnread::Corrupt`] where it does not read.
-pub(crate) fn clearance<T: Real>(
+/// metres: a line's distance from its segment, another curve's from its
+/// whole carrier ([`geom::Curve3::clearance`]). [`TouchUnread::Unreadable`]
+/// for a spline, which has no closed-form bound, or an edge with no
+/// certified curve; [`TouchUnread::Corrupt`] where it does not read.
+pub(crate) fn clearance<T: Decide>(
     body: &Body<T>,
     he: crate::entity::HalfEdgeKey,
     p: Point3<T>,
@@ -1481,51 +1516,7 @@ pub(crate) fn clearance<T: Real>(
             (position(body, half.start)?, position(body, end)?),
         ));
     }
-    conic_clearance(curve.carrier(), p).ok_or(TouchUnread::Unreadable)
-}
-
-/// **How far `p` stands from a circle or an ellipse, at least**, in
-/// metres: the whole conic's distance, exact for a circle. An ellipse is
-/// read through the map that shrinks it along its axes to the circle of
-/// its lesser semi-axis: the map moves no two points further apart, so
-/// `p`'s image stands no further from that circle than `p` from the
-/// ellipse. `None` for another curve.
-pub(crate) fn conic_clearance<T: Real>(carrier: &geom::Curve3<T>, p: Point3<T>) -> Option<T> {
-    // The distance from a circle of `radius` of a point `h` off its
-    // plane and `out` from its axis.
-    let off_circle = |h: T, out: T, radius: T| (h.powi(2) + (out - radius).powi(2)).sqrt();
-    match *carrier {
-        geom::Curve3::Circle {
-            center,
-            axis,
-            radius,
-            ..
-        } => {
-            let rel = p - center;
-            let h = rel.dot(axis);
-            Some(off_circle(h, (rel - axis * h).norm(), radius))
-        }
-        geom::Curve3::Ellipse {
-            center,
-            axis,
-            semi_u,
-            semi_v,
-            u_ref,
-        } => {
-            let rel = p - center;
-            let minor = semi_u.min(semi_v);
-            let (u, v) = (
-                rel.dot(u_ref) * (minor / semi_u),
-                rel.dot(axis.cross(u_ref)) * (minor / semi_v),
-            );
-            Some(off_circle(
-                rel.dot(axis),
-                (u.powi(2) + v.powi(2)).sqrt(),
-                minor,
-            ))
-        }
-        _ => None,
-    }
+    curve.carrier().clearance(p).ok_or(TouchUnread::Unreadable)
 }
 
 impl<T: Decide> Link<T> {
@@ -2252,6 +2243,7 @@ pub(crate) fn bare_cone_reads(
             apex: p,
             wedges: vec![(a, b)],
             closed: false,
+            clear: None,
         })
         .collect();
     let rd = Reading {
@@ -2920,6 +2912,7 @@ mod tests {
                     apex: p,
                     wedges: pts.windows(2).map(|w| (w[0], w[1])).collect(),
                     closed: false,
+                    clear: None,
                 }
             })
             .collect();

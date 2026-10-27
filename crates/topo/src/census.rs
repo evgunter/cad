@@ -7911,7 +7911,7 @@ impl<T: Decide> Sector<T> {
             .ok_or(TouchUnread::Corrupt)?
             .vec();
         if !fg.polygon {
-            return Self::cleared(body, face, surface, outward, p, holds);
+            return Self::cleared(body, f, outward, p, holds);
         }
         let rings = fg
             .loops
@@ -14998,6 +14998,7 @@ mod tests {
                 apex: p,
                 wedges: piece.chunks_exact(2).map(|w| (w[0], w[1])).collect(),
                 closed: matches!(place, PieceAt::Inside),
+                clear: None,
             });
         }
         Link::of(p, sectors)
