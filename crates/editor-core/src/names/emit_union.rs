@@ -2045,6 +2045,7 @@ impl<T: geom_core::Real> Links<T> {
         naming: &topo::BooleanNaming,
         body: &topo::Body<T>,
     ) -> Result<(), NamingError> {
+        super::emit_topo::refuse_turned_cells(body, naming)?;
         let descent = topo::FaceDescent::of(naming);
         let member = |(operand, f): (topo::Operand, topo::FaceKey)| match operand {
             topo::Operand::A => (a, f),
@@ -2161,6 +2162,7 @@ impl<'l> Fold<'l> {
         result: &topo::Body<T>,
         lineage: &'l topo::MemberLineage,
     ) -> Result<(), NamingError> {
+        super::emit_topo::refuse_turned_cells(result, naming)?;
         let descent = topo::FaceDescent::of(naming);
         let held = &self.lineage;
         self.obstacles.record(naming, result, |operand, f| {

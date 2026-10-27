@@ -4624,6 +4624,13 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "UnsupportedTurnedCell",
+            NamingError::UnsupportedTurnedCell {
+                operand: topo::Operand::A,
+                cell: topo::Cell::Vertex(topo::VertexKey::default()),
+            },
+        ),
+        (
             "WayInZeroBand",
             NamingError::WayInZeroBand {
                 edge: topo::EdgeKey::default(),

@@ -349,6 +349,12 @@ pub struct BooleanNaming {
     /// pieces (`face_fragments_a`/`face_fragments_b`): a cut of the
     /// face's chart, not an edge of the operand.
     pub chart_cuts: [Vec<EdgeKey>; 2],
+    /// The cells a sphere re-chart turned in each operand before the op
+    /// re-entered on the re-cut operands, A's then B's, in clone keys as
+    /// `chart_cuts`, each with the faces of the input shell it was turned
+    /// over ([`Recharts`]). Such a cell's key, an input key or one the
+    /// re-chart's graft minted, names no operand cell at its place.
+    pub recharted: Box<[Recharts; 2]>,
     /// The two vertices each of the classification's null edges joins,
     /// `(operand, below end, above end)` in clone keys as
     /// `edge_classes`: one point by construction, so a vertex and its
@@ -414,6 +420,7 @@ impl Default for BooleanNaming {
             edge_classes: Default::default(),
             unread_partners: Default::default(),
             chart_cuts: Default::default(),
+            recharted: Default::default(),
             null_copies: Default::default(),
             cone_splits: crate::lineage::ConeCopies::new(crate::lineage::LineageRows::ConeCopies),
             edge_joins: Default::default(),
@@ -1177,6 +1184,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         edge_classes,
         unread_partners,
         chart_cuts: [Vec::new(), Vec::new()],
+        recharted: Default::default(),
         null_copies,
         cone_splits,
         edge_joins,
@@ -1372,6 +1380,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     )?;
                     edges.extend(made.edges);
                 }
+                *n.recharted = recharted;
             }
             return Ok(Joined::Answered(Box::new(result)));
         }
@@ -7254,9 +7263,11 @@ fn cells_of<T: Real>(body: &Body<T>) -> BTreeSet<Cell> {
 /// What [`apply_recuts`] made in each operand, A's then B's.
 type RechartsPerOperand = [Recharts; 2];
 
-/// What [`apply_recuts`] made in one operand.
-#[derive(Default)]
-struct Recharts {
+/// What [`apply_recuts`] made in one operand: the cells of each sphere
+/// shell it turned about its centre, each with the faces of the input
+/// shell it was turned over.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Recharts {
     /// Each re-charted shell's cells in the re-cut operand, to that
     /// shell's place in `shells`.
     cells: BTreeMap<Cell, usize>,
@@ -7266,6 +7277,12 @@ struct Recharts {
 }
 
 impl Recharts {
+    /// Whether no shell was re-charted.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.shells.is_empty()
+    }
+
     /// Records one re-charted shell: its cells in the re-cut operand and
     /// its input shell's faces.
     fn add(&mut self, cells: BTreeSet<Cell>, mut faces: Vec<FaceKey>) {
@@ -7283,7 +7300,8 @@ impl Recharts {
     /// input shell wears that sphere: a closed sphere group
     /// ([`super::solid_contain::closed_sphere_group`]) is the whole
     /// shell.
-    fn input_faces(&self, cell: Cell) -> Option<&[FaceKey]> {
+    #[must_use]
+    pub fn input_faces(&self, cell: Cell) -> Option<&[FaceKey]> {
         self.cells.get(&cell).map(|&at| self.shells[at].as_slice())
     }
 }

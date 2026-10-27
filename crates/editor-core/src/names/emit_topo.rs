@@ -1558,6 +1558,67 @@ fn operand_key<K: Copy + Ord>(
     (OpSide::on(operand, key), space)
 }
 
+/// **No name reads a cell a sphere re-chart turned**
+/// (`topo::BooleanNaming::recharted`): a live edge whose split lineage
+/// reaches one, or a live vertex that is one, is a turned seam piece or
+/// pole, which descends from no cell of its operand. A re-charted face
+/// is not asked after: a kept piece of a turned sphere is a band or a
+/// cap about the turned axis, which a turned seam crosses or a turned
+/// pole lies in, so its edges or vertices refuse first.
+///
+/// # Errors
+///
+/// [`NamingError::UnsupportedTurnedCell`] for the first such edge, in
+/// arena order, else the first such vertex;
+/// [`NamingError::SplitLineage`] for a cycling lineage.
+pub(crate) fn refuse_turned_cells<T: geom_core::Real>(
+    body: &Body<T>,
+    naming: &topo::BooleanNaming,
+) -> Result<(), NamingError> {
+    if naming
+        .recharted
+        .iter()
+        .all(topo::boolean::Recharts::is_empty)
+    {
+        return Ok(());
+    }
+    let inv_edges: BTreeMap<EdgeKey, EdgeKey> = naming
+        .graft_edges
+        .iter()
+        .chain(&naming.graft_dead_edges)
+        .map(|&(s, d)| (d, s))
+        .collect();
+    let inv_vertices: BTreeMap<VertexKey, VertexKey> =
+        naming.graft_vertices.iter().map(|&(s, d)| (d, s)).collect();
+    let turned = |operand: topo::Operand, cell: topo::Cell| {
+        naming.recharted[usize::from(operand == topo::Operand::B)]
+            .input_faces(cell)
+            .is_some()
+    };
+    for (e, _) in body.edges() {
+        let mut hit = None;
+        body.split_root(e, |r| {
+            let (operand, k, _) = naming.operand_of(&inv_edges, r);
+            let cell = topo::Cell::Edge(k);
+            if turned(operand, cell) {
+                hit = Some((operand, cell));
+            }
+            hit.is_some()
+        })?;
+        if let Some((operand, cell)) = hit {
+            return Err(NamingError::UnsupportedTurnedCell { operand, cell });
+        }
+    }
+    for (v, _) in body.vertices() {
+        let (operand, k, _) = naming.operand_of(&inv_vertices, v);
+        let cell = topo::Cell::Vertex(k);
+        if turned(operand, cell) {
+            return Err(NamingError::UnsupportedTurnedCell { operand, cell });
+        }
+    }
+    Ok(())
+}
+
 /// Names a boolean result (spec D2's boolean vocabulary; N2/N3).
 pub(crate) fn name_boolean<T: Decide>(
     node: RecipeNodeId,
@@ -1591,6 +1652,7 @@ pub(crate) fn name_boolean<T: Decide>(
         .collect();
     let inv_vertices: BTreeMap<VertexKey, VertexKey> =
         naming.graft_vertices.iter().map(|&(s, d)| (d, s)).collect();
+    refuse_turned_cells(body, naming)?;
     let (a_rows, b_rows) = (&naming.face_fragments_a, &naming.face_fragments_b);
     let seam_set: BTreeSet<EdgeKey> = naming.seam_edges.iter().copied().collect();
     let inc = Incidence::of(body);
