@@ -1369,6 +1369,11 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             witness: vertex,
         },
         ValidationError::SameSideInterference { a: face, b: face },
+        ValidationError::TouchInterference {
+            a: crate::Cell::Vertex(vertex),
+            b: crate::Cell::Face(face),
+            witness: "(0.0, 2.0, 0.5)".to_owned(),
+        },
         ValidationError::CuspEdgesMissing {
             a: face,
             b: face,

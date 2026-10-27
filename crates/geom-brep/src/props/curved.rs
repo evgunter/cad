@@ -1923,7 +1923,7 @@ fn cone_face_read<T: Decide>(
         // boundary is a slit cap, a cap less a sector at the apex), but
         // these windings are no closed boundary's on the chart, and the
         // closed form refuses them rather than read them
-        // (`work/flux/cone-apex-loop-beside-a-winding-rim-refuses-a-region-it-bounds`).
+        // (`work/conearm/cone-apex-loop-beside-a-winding-rim-refuses-a-region-it-bounds`).
         if windings.iter().any(|&k| k != [0]) {
             return Err(PropsError::LoopsWindChart);
         }
@@ -3253,7 +3253,7 @@ fn solid_angle<T: Decide>(center: Point3<T>, lp: &SphereLoop<T>, left: bool) -> 
     // than a period. At an `f64` tie either branch leaves a gap of `±2π`,
     // far past the agreement band, so either blends to Gauss–Bonnet's
     // value exactly. At `Sym` the blend is numeric whatever `turns` is.
-    // (`work/flux/props-torus-lift-and-gauss-bonnet-fan-pick-a-branch-by-floor`.)
+    // (`props-torus-lift-and-gauss-bonnet-fan-pick-a-branch-by-floor`, closed by PR 5375.)
     let turns = ((gauss - fan) / four_pi + T::from_f64(0.5)).floor();
     let fixed = fan + four_pi * turns;
     let gap = fixed - gauss;
