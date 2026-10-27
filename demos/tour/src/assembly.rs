@@ -106,8 +106,7 @@ use pncad::document::{
     Orientation, PartResolver, PartSelect, PatternKind, Placed, ProfileDoc, ProfileProgram,
     RecipeNodeId, Severity, SitedFace, Subject, TargetAxis, UNPINNED_RECOURSE, ValuePayload, VarId,
     VarName, apply, content_pin, evaluate, flatten, inline, load, mixed_pins, parse_formula,
-    product_named, product_recorded, run_checks, run_checks_on, save, solve_document, split,
-    stand,
+    product_named, product_recorded, run_checks, run_checks_on, save, solve_document, split, stand,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
