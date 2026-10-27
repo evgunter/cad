@@ -373,3 +373,146 @@ fn a_part_two_documents_down_is_reported_once_by_its_route() {
         );
     }
 }
+
+// ---- review probes (review/atrest-carried-nwQ4HW) ----
+
+/// The part's own unproven findings, as its own `run_checks` reports them.
+fn own_of(part: &ProfileDoc) -> Vec<CheckFinding> {
+    unproven(
+        &crate::fixture::assemble_world_copies(part.clone()),
+        &EvalOptions::default(),
+    )
+}
+
+/// Probe: a leaf instanced by two mids, both instanced by the host:
+/// the leaf's rows reported once, via the first mid.
+#[test]
+fn probe_a_leaf_under_two_mids_is_reported_once() {
+    let part = resting_part("probe-two-mids-leaf");
+    let own = own_of(&part);
+    let mut store = PartStore::new();
+    let leaf = store.insert(
+        crate::fixture::assemble_world_copies(part.clone()),
+        Tol::witness(),
+    );
+    let opts = with_resolver(store.clone());
+    let mid1 = ProfileDoc::empty_derived("probe-mid-1", Tol::witness());
+    let (mid1, _) = insert_pinned(mid1, crate::fixture::mated_instance(leaf), &opts);
+    let mid2 = ProfileDoc::empty_derived("probe-mid-2", Tol::witness());
+    let (mid2, _) = insert_pinned(mid2, crate::fixture::mated_instance(leaf), &opts);
+    let m1 = store.insert(mid1.clone(), Tol::witness());
+    let m2 = store.insert(mid2.clone(), Tol::witness());
+    let opts = with_resolver(store);
+    let doc = ProfileDoc::empty_derived("probe-two-mids-top", Tol::witness());
+    let (doc, a) = insert(doc, crate::fixture::mated_instance(m1));
+    let doc = crate::fixture::pin(doc, a, &Frame::translation([0.0; 3]), &opts);
+    let (doc, b) = insert(doc, crate::fixture::mated_instance(m2));
+    let doc = crate::fixture::pin(doc, b, &Frame::translation([5.0, 0.0, 0.0]), &opts);
+    for doc in [doc.clone(), crate::fixture::assemble_world_copies(doc)] {
+        let found = unproven(&doc, &opts);
+        let rows = carried(&found);
+        assert_eq!(
+            rows.iter().map(|r| &r.finding).collect::<Vec<_>>(),
+            own.iter().collect::<Vec<_>>(),
+            "the leaf's own, once: {found:?}"
+        );
+        assert!(rows.iter().all(|r| r.route.through == a && r.route.of == part.id()));
+    }
+}
+
+/// Probe: two instances unioned by the host (a boolean consumes them):
+/// the part's rows still reported once each, and the host's own union
+/// rows (if any) are the host's.
+#[test]
+fn probe_instances_consumed_by_a_boolean_still_carry() {
+    let part = resting_part("probe-boolean-part");
+    let own = own_of(&part);
+    let (doc, ids, opts) = host(
+        "probe-boolean-host",
+        PartStore::new(),
+        &part,
+        &[[0.0; 3], [1.0, 0.0, 0.0]],
+    );
+    let (doc, _union) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![
+                crate::fixture::copy(ids[0], ids[0]),
+                crate::fixture::copy(ids[1], ids[1]),
+            ]),
+        },
+    );
+    let found = unproven(&doc, &opts);
+    let rows: Vec<_> = found
+        .iter()
+        .filter_map(|f| match &f.evidence {
+            CheckEvidence::CarriedCoincidence { finding } => Some(&finding.finding),
+            _ => None,
+        })
+        .collect();
+    let hosts = found.len() - rows.len();
+    eprintln!("probe boolean: {} carried, {hosts} host-own", rows.len());
+    assert_eq!(rows, own.iter().collect::<Vec<_>>(), "{found:?}");
+}
+
+/// Probe: a part of two resting copies, loud and quieted by its own
+/// `Gap = 0`: the host's carried findings equal the part's own
+/// run_checks findings verbatim, and the host has no row of its own.
+#[test]
+fn probe_census_rows_equal_the_parts_verdict_and_none_are_the_hosts() {
+    let (part, top, bottom) = stacked_copies("probe-census-part");
+    let (quieted, _) = gap_zero(&part, top, bottom);
+    for (label, part) in [("loud", part), ("quiet", quieted)] {
+        let own = own_of(&part);
+        let (doc, _, opts) = host("probe-census-host", PartStore::new(), &part, &[[0.0; 3]]);
+        for doc in [doc.clone(), crate::fixture::assemble_world_copies(doc)] {
+            let found = unproven(&doc, &opts);
+            let rows = carried(&found);
+            assert_eq!(
+                rows.iter().map(|r| &r.finding).collect::<Vec<_>>(),
+                own.iter().collect::<Vec<_>>(),
+                "{label}: the part's verdict, finding for finding"
+            );
+            for (f, r) in found.iter().zip(&rows) {
+                assert_eq!(f.quiet, r.finding.quiet, "{label}");
+            }
+        }
+    }
+}
+
+/// Probe: the door job over carried rows alone is cancelable.
+#[test]
+fn probe_a_carried_only_door_job_cancels() {
+    let part = resting_part("probe-cancel-part");
+    let (doc, _, opts) = host("probe-cancel-host", PartStore::new(), &part, &[[0.0; 3]]);
+    let ev = crate::fixture::run(&doc, &opts);
+    let gathered =
+        editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("the product gathers");
+    let (_, job) = editor_core::run_checks_at_rest_on(
+        &doc,
+        &ev,
+        editor_core::Subject::Product(&gathered),
+        &ChecksConfig::default(),
+        Tol::witness(),
+    )
+    .expect("the checks run");
+    let job = job.expect("the carried rows ask for the door");
+    let token = editor_core::CancelToken::new();
+    token.cancel();
+    assert!(job.run(&doc, &token).is_err(), "a canceled token cancels the carried replay");
+}
+
+/// Probe (prints): the part's own sentence beside the host's carried one.
+#[test]
+fn probe_print_the_sentences() {
+    let (part, top, bottom) = stacked_copies("probe-said-part");
+    let (quieted, _) = gap_zero(&part, top, bottom);
+    for part in [resting_part("probe-said-rest"), quieted] {
+        let asm = crate::fixture::assemble_world_copies(part.clone());
+        let own = own_of(&part);
+        let (doc, _, opts) = host("probe-said-host", PartStore::new(), &part, &[[0.0; 3]]);
+        let found = unproven(&doc, &opts);
+        eprintln!("PART: {}", editor_core::spoken_by(&own[0], &asm));
+        eprintln!("HOST: {}", editor_core::spoken_by(&found[0], &doc));
+    }
+}
