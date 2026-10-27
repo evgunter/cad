@@ -5326,19 +5326,24 @@ impl core::fmt::Display for BooleanError {
                      {NOT_YET_ENDING}"
                 )
             }
-            Self::EdgeInFace { edge, face, gap } if gap.is_defect() => write!(
-                f,
-                "edge {edge:?} of the result lies in face {face:?}, and {}. {}",
-                gap.words(),
-                geom_core::KERNEL_DEFECT_ENDING
-            ),
-            Self::EdgeInFace { edge, face, gap } => write!(
-                f,
-                "edge {edge:?} of the result lies in face {face:?}, whose material parts it into \
-                 two edges, and the parting is not built where {}. {}",
-                gap.words(),
-                geom_core::NOT_YET_ENDING
-            ),
+            Self::EdgeInFace { edge, face, gap } => {
+                if gap.is_defect() {
+                    write!(
+                        f,
+                        "edge {edge:?} of the result lies in face {face:?}, and {}. {}",
+                        gap.words(),
+                        geom_core::KERNEL_DEFECT_ENDING
+                    )
+                } else {
+                    write!(
+                        f,
+                        "edge {edge:?} of the result lies in face {face:?}, whose material parts \
+                         it into two edges, and the parting is not built where {}. {}",
+                        gap.words(),
+                        geom_core::NOT_YET_ENDING
+                    )
+                }
+            }
             Self::SlitLineCrossed {
                 operand,
                 vertex,
