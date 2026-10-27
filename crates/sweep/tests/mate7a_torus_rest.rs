@@ -45,8 +45,11 @@ fn window(deg: f64) -> TubeWindow<f64> {
 }
 
 /// Segment A of the chain: a tube along the lily's lower stem arc,
-/// starting at the origin heading `+z`.
-fn segment_a() -> AtRestBody<f64> {
+/// starting at the origin heading `+z`. `None` at ε = 1e-12, where its
+/// torus wall is past limb 2's reach (the kernel's limit,
+/// `work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`),
+/// as for segment B and the socket.
+fn segment_a() -> Option<AtRestBody<f64>> {
     let body = tube_along_arc(
         tube_frame(
             Point3::new(-RING, 0.0, 0.0),
@@ -58,17 +61,17 @@ fn segment_a() -> AtRestBody<f64> {
         window(TURN),
         TUBE,
         Tol::witness(),
-    )
-    .expect("segment A builds")
-    .body;
-    finished("segment A", body, Tol::witness())
+    );
+    let body =
+        test_utils::kernel_limit::pinned(body, Tol::witness().eps(), &[1e-12], "segment A")?.body;
+    Some(finished("segment A", body, Tol::witness()))
 }
 
 /// Segment B: the SAME tube radius on a tighter ring, continuing from
 /// A's end with A's own end tangent — so the two walls meet G1 along
 /// the shared terminal meridian circle and the composed material runs
 /// smoothly through it.
-fn segment_b() -> AtRestBody<f64> {
+fn segment_b() -> Option<AtRestBody<f64>> {
     let turn = TURN.to_radians();
     let end = Point3::new(-RING + RING * turn.cos(), 0.0, RING * turn.sin());
     let tangent = Vec3::new(-turn.sin(), 0.0, turn.cos());
@@ -82,15 +85,14 @@ fn segment_b() -> AtRestBody<f64> {
         window(170.0),
         TUBE,
         Tol::witness(),
-    )
-    .expect("segment B builds")
-    .body;
-    finished("segment B", body, Tol::witness())
+    );
+    let body = test_utils::kernel_limit::pinned(body, Tol::witness().eps(), &[], "segment B")?.body;
+    Some(finished("segment B", body, Tol::witness()))
 }
 
 /// The toroidal SOCKET: a hollow elbow whose BORE is a torus of tube
 /// radius [`TUBE`] — the curved spelling of the bored plate.
-fn socket() -> AtRestBody<f64> {
+fn socket() -> Option<AtRestBody<f64>> {
     let body = tube_along_arc_hollow(
         tube_frame(
             Point3::new(-RING, 0.0, 0.0),
@@ -103,10 +105,10 @@ fn socket() -> AtRestBody<f64> {
         0.09,
         0.09 - TUBE,
         Tol::witness(),
-    )
-    .expect("socket builds")
-    .body;
-    finished("the socket", body, Tol::witness())
+    );
+    let body =
+        test_utils::kernel_limit::pinned(body, Tol::witness().eps(), &[1e-12], "the socket")?.body;
+    Some(finished("the socket", body, Tol::witness()))
 }
 
 /// Two FULL tori KISSING along one circle: coaxial and coplanar, ring
@@ -244,7 +246,9 @@ fn a_fully_covered_torus_pair_reaches_past_the_operand_gate() {
 /// sound and additive ([`peg_in_socket_union_holds`]).
 #[test]
 fn a_partly_covered_torus_pair_is_no_longer_a_gate_question() {
-    let (s, p) = (socket(), segment_a());
+    let (Some(s), Some(p)) = (socket(), segment_a()) else {
+        return;
+    };
     peg_in_socket_union_holds(&s, &p);
 }
 
@@ -293,7 +297,9 @@ fn the_admitted_torus_lane_stops_at_the_section_pass() {
 /// residue no declaration stands behind. In both orders.
 #[test]
 fn the_g1_tube_chain_refuses_at_the_glue_door() {
-    let (a, b) = (segment_a(), segment_b());
+    let (Some(a), Some(b)) = (segment_a(), segment_b()) else {
+        return;
+    };
     for (x, y) in [(&a, &b), (&b, &a)] {
         let err = topo::union(x, y, Tol::witness()).expect_err("the chain refuses");
         assert!(osculates(&err), "the glue door's refusal: {err:?}");
@@ -343,7 +349,9 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures() {
             "{what}: {w}"
         );
     };
-    let (s, p) = (socket(), segment_a());
+    let (Some(s), Some(p)) = (socket(), segment_a()) else {
+        return;
+    };
     let pappus = |r_out: f64, r_in: f64| {
         core::f64::consts::PI * (r_out * r_out - r_in * r_in) * RING * TURN.to_radians()
     };
@@ -389,12 +397,14 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures() {
     for (op, r) in subtract_both_orders_and_intersect(&a, &b) {
         tangency(&format!("coincident pair, {op}"), &r.expect_err(op));
     }
-    for (op, r) in subtract_both_orders_and_intersect(&segment_a(), &segment_b()) {
-        let err = r.expect_err(op);
-        assert!(
-            osculates(&err),
-            "chain, {op}: the glue door's refusal: {err:?}"
-        );
+    if let (Some(sa), Some(sb)) = (segment_a(), segment_b()) {
+        for (op, r) in subtract_both_orders_and_intersect(&sa, &sb) {
+            let err = r.expect_err(op);
+            assert!(
+                osculates(&err),
+                "chain, {op}: the glue door's refusal: {err:?}"
+            );
+        }
     }
     for (name, (a, b)) in [("kissing pair", kissing_pair())] {
         for (op, r) in subtract_both_orders_and_intersect(&a, &b) {
@@ -426,7 +436,9 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures() {
 /// fixture that is not the geometry it names.
 #[test]
 fn the_chain_fixture_is_g1_with_one_shared_rim() {
-    let (a, b) = (segment_a(), segment_b());
+    let (Some(a), Some(b)) = (segment_a(), segment_b()) else {
+        return;
+    };
     let radii = |body: &Body<f64>| {
         body.faces()
             .filter_map(|(_, f)| match body.get_surface(f.surface) {

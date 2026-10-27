@@ -829,6 +829,13 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
 /// carry its source's names: the neck's placed copy names its faces as
 /// its body does, with no `Placed` qualifier, and the vector's rows
 /// carry the names.
+///
+/// All four keys moved, and not the filter (`dropped=1` held on both),
+/// when limb 2 came to decide its distance bound for every
+/// `Intersection` carrier (C2, PR 5728): the new `ssi_hull_sup` rows
+/// join the vector's contents. With those rows stripped, both
+/// documents' vectors give the keys held before (144 rows on
+/// `min_clearance_neck`, 24 on `plain_distance`).
 #[test]
 fn the_certifying_filter_moves_the_witness_key_and_the_move_is_goldened() {
     let doc = min_clearance_neck();

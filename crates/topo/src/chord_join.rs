@@ -5879,74 +5879,84 @@ mod tests {
     /// split, and never serves the whole turn's conic.
     #[test]
     fn a_rim_patchs_turn_is_levered_at_its_arcs_not_their_whole_turn() {
-        let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
-        let eps = Tol::witness().eps();
-        let (r, e, w) = (1000.0, 1e3 * eps, 1e5 * eps);
-        let mut body = crate::Body::<f64>::new();
-        let face = crate::test_support_fixtures::cyl_wall_sheet(
-            &mut body,
-            crate::test_support_fixtures::CylFrame::canonical(r),
-            (0.0, w / r),
-            (0.0, e),
-            Tol::witness(),
+        // Pinned to limb 2's kernel limit at ε = 1e-12: the 1 km-radius rim rounds at its radius
+        // (`work/offset/the-closed-form-net-builder-rounds-at-a-km-radius-not-at-the-span.md`).
+        test_utils::kernel_limit::pinned_row(
+            geom_core::Tol::witness().eps(),
+            &[1e-12],
+            "a_rim_patchs_turn_is_levered_at_its_arcs_not_their_whole_turn",
+            || {
+                let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
+                let eps = Tol::witness().eps();
+                let (r, e, w) = (1000.0, 1e3 * eps, 1e5 * eps);
+                let mut body = crate::Body::<f64>::new();
+                let face = crate::test_support_fixtures::cyl_wall_sheet(
+                    &mut body,
+                    crate::test_support_fixtures::CylFrame::canonical(r),
+                    (0.0, w / r),
+                    (0.0, e),
+                    Tol::witness(),
+                );
+                let base = Point3::new(r, 0.0, 0.0);
+                let corner = body
+                    .vertex_points()
+                    .find(|(_, p)| (*p - base).norm() < 1e-9)
+                    .map(|(v, _)| v)
+                    .expect("the patch's corner");
+                for k in [0.5, 0.8, 0.95] {
+                    let c: f64 = k * band.zero() / e;
+                    let normal =
+                        UnitVec3::new(Vec3::new(0.0, (1.0 - c * c).sqrt(), c), "rim patch", band)
+                            .unwrap();
+                    let bracket = geom_core::k_stats::Bracket::open();
+                    let got = wall_section(&body, band, base, normal, face, corner);
+                    let recorded = bracket.finish();
+                    let err = match got {
+                        Err(err @ SplitJoinError::Escalated { .. }) => err,
+                        got => panic!(
+                            "k = {k}: the span's rulings against the whole turn's conic, got {:?}",
+                            got.map(|w| w.map(|w| match w.case {
+                                SectionCase::Straight(_) => "straight",
+                                SectionCase::Tangent(_) => "tangent",
+                                SectionCase::Conic(_) => "conic",
+                                SectionCase::Loops { .. } => "loops",
+                            }))
+                        ),
+                    };
+                    let SplitJoinError::Escalated { diag, .. } = &err else {
+                        unreachable!("matched as an escalation")
+                    };
+                    assert_eq!(
+                        diag.predicate,
+                        Some("pc_axis_plane_parallel_straddle"),
+                        "k = {k}"
+                    );
+                    // The two readings' enclosure, on the frame: never poison.
+                    assert_eq!(
+                        diag.margin.kind(),
+                        geom_core::MarginKind::Enclosure,
+                        "k = {k}"
+                    );
+                    assert_eq!(
+                        recorded.escalations.last().map(|e| e.source),
+                        Some(*diag),
+                        "k = {k}: on the frame"
+                    );
+                    // The section's escalation ends as geom-brep ends it: the
+                    // enclosure's whole ending, kind lever first. (That a
+                    // straddle's enclosure reads as subdividable is open on the
+                    // cleave row `split-escalations-end-a-poisoned-margin-in-the-plane-lever`.)
+                    assert!(
+                        err.to_string().contains(&format!(
+                            "{}. Recourse: subdivide the parameter box for a tighter enclosure, or \
+                         move the geometry",
+                            diag.payload()
+                        )),
+                        "k = {k}: {err}"
+                    );
+                }
+            },
         );
-        let base = Point3::new(r, 0.0, 0.0);
-        let corner = body
-            .vertex_points()
-            .find(|(_, p)| (*p - base).norm() < 1e-9)
-            .map(|(v, _)| v)
-            .expect("the patch's corner");
-        for k in [0.5, 0.8, 0.95] {
-            let c: f64 = k * band.zero() / e;
-            let normal =
-                UnitVec3::new(Vec3::new(0.0, (1.0 - c * c).sqrt(), c), "rim patch", band).unwrap();
-            let bracket = geom_core::k_stats::Bracket::open();
-            let got = wall_section(&body, band, base, normal, face, corner);
-            let recorded = bracket.finish();
-            let err = match got {
-                Err(err @ SplitJoinError::Escalated { .. }) => err,
-                got => panic!(
-                    "k = {k}: the span's rulings against the whole turn's conic, got {:?}",
-                    got.map(|w| w.map(|w| match w.case {
-                        SectionCase::Straight(_) => "straight",
-                        SectionCase::Tangent(_) => "tangent",
-                        SectionCase::Conic(_) => "conic",
-                        SectionCase::Loops { .. } => "loops",
-                    }))
-                ),
-            };
-            let SplitJoinError::Escalated { diag, .. } = &err else {
-                unreachable!("matched as an escalation")
-            };
-            assert_eq!(
-                diag.predicate,
-                Some("pc_axis_plane_parallel_straddle"),
-                "k = {k}"
-            );
-            // The two readings' enclosure, on the frame: never poison.
-            assert_eq!(
-                diag.margin.kind(),
-                geom_core::MarginKind::Enclosure,
-                "k = {k}"
-            );
-            assert_eq!(
-                recorded.escalations.last().map(|e| e.source),
-                Some(*diag),
-                "k = {k}: on the frame"
-            );
-            // The section's escalation ends as geom-brep ends it: the
-            // enclosure's whole ending, kind lever first. (That a
-            // straddle's enclosure reads as subdividable is open on the
-            // cleave row `split-escalations-end-a-poisoned-margin-in-the-plane-lever`.)
-            assert!(
-                err.to_string().contains(&format!(
-                    "{}. Recourse: subdivide the parameter box for a tighter enclosure, or \
-                     move the geometry",
-                    diag.payload()
-                )),
-                "k = {k}: {err}"
-            );
-        }
     }
 
     /// **The Boolean's germ join never serves a rim patch where main

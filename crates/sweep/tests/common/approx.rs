@@ -590,6 +590,7 @@ pub fn reattach_certifies_at(body: &Body<f64>, edge: EdgeKey, eps: f64) -> bool 
         |k| body.get_surface(k).cloned(),
         1.0,
         band,
+        geom_brep::NurbsLane::certified(),
     )
     .is_ok()
 }

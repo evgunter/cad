@@ -53,7 +53,8 @@ use crate::node::RecipeNodeId;
 use super::geompred::{self, GeomPred, SelectRefusal};
 use super::interrogate;
 use super::role::{
-    CapEnd, EntityKind, MeridianEnd, Qualifier, RimSupport, RoleSeg, StableName, name_free_seg,
+    CapEnd, EntityKind, MeridianEnd, Qualifier, RimSupport, RoleSeg, RunLine, StableName,
+    name_free_seg,
 };
 use super::table::EntityRef;
 
@@ -385,10 +386,13 @@ struct Args<'a> {
 /// lines, [`RoleSeg::BandFace`]'s chain, and the `band` chain of
 /// [`RoleSeg::BandCross`] and [`RoleSeg::BandSlit`] after their slotted
 /// `edge`; every other argument has a slot. [`RoleSeg::Fragment`]'s
-/// [`Qualifier`] carries verdicts rather than a role argument and
-/// contributes none. The match is EXHAUSTIVE on purpose (the
-/// `walk_names` rule): a future [`RoleSeg`] or [`Qualifier`] variant
-/// embedding names must be classified here or the compile breaks — or,
+/// [`Qualifier`] and a crossing's [`Sense`](super::role::Sense) carry
+/// verdicts rather than role arguments and contribute none: a pattern
+/// has no axis for a sense, so a `Through`'s things are no more an
+/// argument than `Enters` is. The match is EXHAUSTIVE on purpose (the
+/// `walk_names` rule), field by field: a future [`RoleSeg`] or
+/// [`Qualifier`] variant or field embedding names must be classified
+/// here or the compile breaks — or,
 /// if it embeds no name, added to [`crate::names::name_free_seg`], which
 /// is the one place that answer is written for every match that shares
 /// it.
@@ -414,7 +418,7 @@ fn name_args(seg: &RoleSeg) -> Args<'_> {
         }
     }
     match seg {
-        RoleSeg::From { of: n, .. }
+        RoleSeg::From { of: n, read: _ }
         | RoleSeg::BlendFace(n)
         | RoleSeg::CornerFace(n)
         | RoleSeg::Mitre { vertex: n }
@@ -423,19 +427,29 @@ fn name_args(seg: &RoleSeg) -> Args<'_> {
         | RoleSeg::BandCut(n)
         | RoleSeg::Inner(n)
         | RoleSeg::Rim(n)
-        | RoleSeg::HoleRim { of: n, .. }
-        | RoleSeg::SectionEdge { face: n, .. }
-        | RoleSeg::SplitFragment { parent: n, .. }
-        | RoleSeg::CrossingVertex { edge: n, .. }
-        | RoleSeg::OnToolVertex { of: n, .. }
-        | RoleSeg::BandTrim { edge: n, .. }
-        | RoleSeg::Instance { of: n, .. } => seq(vec![n]),
-        RoleSeg::Crossing { edge, face, .. } => seq(vec![edge, face]),
+        | RoleSeg::HoleRim { of: n, hole: _ }
+        | RoleSeg::SectionEdge { face: n }
+        | RoleSeg::SplitFragment { parent: n }
+        | RoleSeg::CrossingVertex { edge: n, sense: _ }
+        | RoleSeg::OnToolVertex { of: n }
+        | RoleSeg::BandTrim {
+            edge: n,
+            support: _,
+        }
+        | RoleSeg::Instance { of: n, i: _ } => seq(vec![n]),
+        RoleSeg::Crossing {
+            edge,
+            face,
+            sense: _,
+        } => seq(vec![edge, face]),
         RoleSeg::TrimEdge { edge, support } => seq(vec![edge, support]),
         RoleSeg::FootVertex { vertex, support } => seq(vec![vertex, support]),
         RoleSeg::EndArc { vertex, edge } => seq(vec![vertex, edge]),
         RoleSeg::Seam { a, b } => set(vec![a, b]),
-        RoleSeg::EdgeCrossing(run) => set(run.iter().map(|l| &*l.line).collect()),
+        RoleSeg::EdgeCrossing(run) => set(run
+            .iter()
+            .map(|RunLine { line, sense: _ }| &**line)
+            .collect()),
         RoleSeg::Merged(members) | RoleSeg::BandFace(members) => set(members.iter().collect()),
         RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => Args {
             seq: vec![edge],
