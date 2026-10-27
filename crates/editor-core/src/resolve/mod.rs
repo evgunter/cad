@@ -323,10 +323,10 @@ impl ResolveError {
     /// own, decided there; issue
     /// `a-part-name-in-the-host-is-spelled-in-the-parts-ids` holds what
     /// that leaves open.
-    pub(crate) fn part_name(
+    pub(crate) fn part_name<P: crate::ProfilePayload>(
         name: &StableName,
         read: crate::VarId,
-        doc: &Doc<ProfileProgram>,
+        doc: &Doc<P>,
     ) -> bool {
         !doc.has_minted(name.node) && doc.reaches_instance(read)
     }
@@ -344,7 +344,7 @@ impl ResolveError {
     /// document has nothing to add to either — ids are not reused, so
     /// a node the prior run held and this one does not is deleted,
     /// which is what `Doc::has_minted` already says.
-    pub(crate) fn node_gone(name: &StableName, doc: &Doc<ProfileProgram>) -> Option<Self> {
+    pub(crate) fn node_gone<P>(name: &StableName, doc: &Doc<P>) -> Option<Self> {
         if doc.node(name.node).is_some() {
             return None;
         }

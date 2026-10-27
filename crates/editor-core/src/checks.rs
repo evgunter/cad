@@ -342,10 +342,9 @@ pub struct ChecksConfig {
     /// ([`ChecksReport::skipped`]).
     pub chart_coherence: Advisory,
     /// [`CheckId::UnprovenCoincidence`]'s severity — [`Advisory`], so
-    /// `Error` is unrepresentable. An assertion quiets a row over two
-    /// cells a `Gap` reads, an operation's or an at-rest one
-    /// ([`at_rest`]'s contact rule), and a row none could quiet — a flush
-    /// pair, a split's row over its tool — never refuses
+    /// `Error` is unrepresentable. An assertion quiets a row, an
+    /// operation's or an at-rest one, under [`at_rest`]'s contact rule,
+    /// and a row none could quiet never refuses
     /// ([`CheckEvidence::never_refuses`]). A per-run choice and never a
     /// document's: turning it off removes reports, never changes a body
     /// (DS3).
@@ -517,8 +516,8 @@ pub enum CheckEvidence {
             crate::coincide::Recourse,
         )>,
         /// Whether an assertion could quiet the row
-        /// ([`at_rest::contact_quietable`]): its two cells are entity
-        /// cells a `Gap` reads, and it is no flush pair. A row no
+        /// ([`at_rest::contact_quietable`]): it decided what a `Gap = 0`
+        /// says, and a `Gap` over its two cells reads zero. A row no
         /// assertion could quiet never refuses ([`Self::never_refuses`]).
         quietable: bool,
     },
@@ -565,11 +564,10 @@ impl CheckEvidence {
     /// ([`at_rest::InterferenceFinding::quietable`]): one the kernel
     /// could not intersect, or one whose bounding faces offer no pair an
     /// assertion the quieting rule accepts could be written over; or a
-    /// coincidence no assertion could quiet (a split's ON row, whose
-    /// second cell is its tool's pose, a flush pair, a cell `Gap` does
-    /// not read). Loud, and refused by [`enforce_checks`] at no
-    /// severity: a refusal there would have no recourse but changing
-    /// geometry.
+    /// coincidence no assertion could quiet
+    /// ([`at_rest::contact_quietable`]). Loud, and refused by
+    /// [`enforce_checks`] at no severity: a refusal there would have no
+    /// recourse but changing geometry.
     #[must_use]
     pub fn never_refuses(&self) -> bool {
         match self {
@@ -1641,17 +1639,21 @@ pub struct DoorFindings {
 
 /// One row set: the subject its findings are reported against, the
 /// node whose decision the door proves it at, and its rows in decision
-/// order, each with the assertion that quiets it, if one does, and
-/// whether one could ([`at_rest::contact_quietable`]).
-pub(crate) type DoorRows = (
-    FindingSubject,
-    RecipeNodeId,
-    Vec<(
-        crate::coincide::NamedCoincidence,
-        Option<RecipeNodeId>,
-        bool,
-    )>,
-);
+/// order.
+pub(crate) type DoorRows = (FindingSubject, RecipeNodeId, Vec<DoorRow>);
+
+/// **One row the door is asked about**, with what the contact half of
+/// the quieting rule says of it in the evaluation that decided it.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct DoorRow {
+    /// The row.
+    pub row: crate::coincide::NamedCoincidence,
+    /// The assertion that quiets it ([`at_rest::quiet_contact`]), if one
+    /// does.
+    pub quiet: Option<RecipeNodeId>,
+    /// Whether one could ([`at_rest::contact_quietable`]).
+    pub quietable: bool,
+}
 
 /// **The rows the `unproven-coincidence` resident asks the door
 /// about** (D10): every evaluated node's rows, in evaluation order then
@@ -1698,12 +1700,10 @@ pub(crate) fn door_rows<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         doc.operation_of(a.var)
             .unwrap_or_else(|| unreachable!("a gathered copy is a live placement's output"))
     };
-    let judged = |row: &crate::coincide::NamedCoincidence| {
-        (
-            row.clone(),
-            at_rest::quiet_contact(doc, ev, row, tol),
-            at_rest::contact_quietable(ev, row, tol),
-        )
+    let judged = |row: &crate::coincide::NamedCoincidence| DoorRow {
+        row: row.clone(),
+        quiet: at_rest::quiet_contact(doc, ev, row, tol),
+        quietable: at_rest::contact_quietable(doc, ev, row, tol),
     };
     ev.order
         .iter()
@@ -1753,7 +1753,7 @@ fn door_findings<P: crate::ProfilePayload>(
 ) -> Result<Vec<CheckFinding>, crate::coincide::Canceled> {
     let named: Vec<Vec<crate::coincide::NamedCoincidence>> = rows
         .iter()
-        .map(|(_, _, rows)| rows.iter().map(|(row, _, _)| row.clone()).collect())
+        .map(|(_, _, rows)| rows.iter().map(|asked| asked.row.clone()).collect())
         .collect();
     let nodes: Vec<(RecipeNodeId, &[crate::coincide::NamedCoincidence])> = rows
         .iter()
@@ -1766,9 +1766,9 @@ fn door_findings<P: crate::ProfilePayload>(
         let unproven: Vec<_> = rows
             .iter()
             .zip(proofs)
-            .filter_map(|((row, quiet, quietable), proof)| match proof {
+            .filter_map(|(asked, proof)| match proof {
                 crate::coincide::Proof::Unproven { residual, recourse } => {
-                    Some((row, residual, recourse, (*quiet, *quietable)))
+                    Some((&asked.row, residual, recourse, asked))
                 }
                 crate::coincide::Proof::Structural(_) => None,
             })
@@ -1808,7 +1808,7 @@ fn door_findings<P: crate::ProfilePayload>(
             })
             .collect();
         let mut at: Vec<Option<usize>> = vec![None; unproven.len()];
-        for (i, (row, residual, recourse, (quiet, quietable))) in unproven.iter().enumerate() {
+        for (i, (row, residual, recourse, asked)) in unproven.iter().enumerate() {
             if parents[i].is_some() {
                 continue;
             }
@@ -1821,9 +1821,9 @@ fn door_findings<P: crate::ProfilePayload>(
                     residual: Box::new(residual.clone()),
                     recourse: *recourse,
                     restated: Vec::new(),
-                    quietable: *quietable,
+                    quietable: asked.quietable,
                 },
-                quiet: *quiet,
+                quiet: asked.quiet,
             });
         }
         for (i, (row, residual, recourse, _)) in unproven.iter().enumerate() {

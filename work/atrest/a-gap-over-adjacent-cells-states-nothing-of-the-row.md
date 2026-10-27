@@ -1,58 +1,61 @@
 ---
 id: a-gap-over-adjacent-cells-states-nothing-of-the-row
 kind: issue
-title: A Gap = 0 over two cells that share a boundary holds by topology, so it quiets a row while stating nothing of what the row decided
+title: What assertion could say a tangency, a coaxiality or a blend's common foot? No Gap = 0 does, so those rows are quieted by none
 status: open
 opened: 2026-10-27
 priority: P2
 cost: M
+needs_ev: true
 ---
 
+D10 `[assertions.quiet]` quiets a finding only by an assertion that
+says the same, "`= 0` for a contact". A `Gap = 0` says that two cells
+meet. The contact half (`checks::at_rest::contact_cells`, whose table
+classifies each row kind the kernel decides) therefore quiets only rows
+whose decision is that their two cells meet:
 
-The contact half of the quieting rule (`checks::at_rest::quiet_contact`)
-quiets a row under a holding `Gap = 0` over its two cells, whatever
-the row's relation. Since `an-assertion-quiets-an-operations-unproven-row`
-it reads an operation's rows too. Some of those rows name two cells of
-**one operand that share a boundary**. A `Gap` between such cells
-reads zero at every value of the document, because the cells touch by
-topology. So the assertion holds without stating anything about the
-coincidence the row decided, and it quiets the row anyway.
+- a boolean's opposed glue (`PlaneLadder`, `CarrierLadder`,
+  `SameOpposite`);
+- a vertex fusion (`OnCarrier`, a two-cell `Meet`);
+- an at-rest contact.
 
-Evidence, by row kind:
+The other rows decide more than meeting, so no `Gap = 0` says them,
+and they are loud and never refuse (CHECKS DS6). Evidence by row kind:
 
 - **`BatteryTurn` (`CommonFoot`)**: the two rim edges meeting at a
-  corner (`crates/sweep/src/blend/battery.rs`, the `requested` edges at
-  the turn). The row decides that the two bands' feet on the third edge
-  are one point. `Gap = 0` over the two edges reads only that they share
-  the corner. Pinned by
+  corner (`crates/sweep/src/blend/battery.rs`). The row decides that the
+  two bands' feet on the third edge are one point. A `Gap = 0` over the
+  two edges holds at every value, because they share the corner, and so
+  says nothing about the feet.
   `crates/editor-core/tests/atrest_operation_rows_quiet.rs`
-  `a_blends_turn_is_quiet_under_its_gap_and_nothing_else`, which
-  asserts the adjacency and the quieting for a turned box's eight
-  corners.
-- **`BatteryJoint` (`Tangent`)**: the two links meeting at a chain
-  junction share its vertex. Over arcs, `Gap` refuses a curved edge, so
-  the row is unquietable today
-  (`gap-reads-no-curved-cell-below-a-face`). Over two line links, `Gap`
-  admits it, and `= 0` holds at the shared vertex whether or not the
-  links are tangent.
-- **`BatterySupportAxis` (`Coaxial`)**: the cap and the wall share the
-  band's rim edge. A plane against a cylinder has no `Gap` row, so this
-  is unquietable today. Two adjacent coaxial walls of one radius read
-  `r − r − 0 = 0` whatever their axes do along the shared edge.
-- **Not affected**: a boolean's rows (`PlaneLadder`, `VertexFusion`,
-  and the others) and every at-rest row name cells of two different
-  operands or arrivals, where a `Gap = 0` states the touch. A split's
-  row is unquietable (`a-row-over-a-pose-is-quieted-by-no-assertion`).
+  `a_blends_turn_is_quieted_by_no_gap_and_never_refuses` asserts the
+  adjacency, the holding `Gap = 0`, and that the row stays loud.
+- **`BatteryJoint` (`Tangent`)**: two links meeting at a chain junction,
+  which share its vertex.
+- **`BatterySupportAxis` (`Coaxial`)**: the cap and the wall, which share
+  the band's rim edge.
+- **`TangentWitness` (`SurfaceTangent`)**: two parallel rods externally
+  tangent read `r_b − r_p − d = −2r`-ish in either role order (the PR
+  5882 review's probe), so no `Gap = 0` over them even holds. A rod on a
+  plate is a pair `Gap` has no form for.
+  `a_tangency_is_quieted_by_no_gap_and_never_refuses` pins the second.
+- **`CoaxialSphere` (`OnCarrier`)** decides a sphere's centre on a
+  cylinder's axis. **`CrossingCylinders` (`SameRadius`, `AxesMeet`)**
+  decides a radius and an axis meeting.
 
-Beneath the adjacency there is a wider point. `Gap = 0` states contact,
-and a `Tangent`, `Coaxial` or `CommonFoot` row decides more than
-contact. `[assertions.quiet]` quiets "a contact", and stage 5 C wrote
-the rule over a row's two cells whatever its relation, excluding only
-a flush pair.
+`[intent.checked]` says of every unproven coincidence that "an assertion
+at its site quiets it", so these rows sit outside it until some
+assertion says what they decide.
 
-**The design question, for D10 `[assertions.quiet]`**: does a holding
-`Gap = 0` quiet a row whose cells share a boundary, or whose relation
-is more than contact? The options include excluding adjacent cells (the
-row then unquietable, never refusing), or asking for a measure that
-states the row's own relation. This goes to a designer pair and an
-`[ev]` PR. Until then the rule quiets these rows as ratified.
+**The question for Ev:** what assertion could say a tangency, a
+coaxiality, a common radius or a blend's common foot? Possible answers
+include:
+
+- a measure per relation, such as an angle between normals at a point,
+  or an axis distance;
+- a mate-like statement that makes the row structural;
+- an exception named in `[intent.checked]`.
+
+This goes to a designer pair first (`docs/prompts/designer.md`), then
+to an `[ev]` PR on D10.

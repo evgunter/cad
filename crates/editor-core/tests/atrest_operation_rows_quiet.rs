@@ -4,12 +4,13 @@
 //! rule", §11 Q1).
 //!
 //! The contact half is one rule over a row's two cells, whatever node
-//! decided it. A boolean's glue and a blend's turn are quiet under a
-//! holding `Gap = 0` over their two cells, selected on the deciding
-//! node's input reads, and loud under one over any other pair. A row
-//! no assertion could quiet — a split's ON row, whose second cell is
-//! its tool's pose, a flush pair, a pair `Gap` has no closed form for —
-//! is loud and never refuses (CHECKS DS6).
+//! decided it, and it quiets a row only by an assertion that says what
+//! the row decided (`[assertions.quiet]`). A boolean's glue is quiet
+//! under a holding `Gap = 0` over its two cells, selected on the
+//! deciding node's input reads, and loud under one over any other pair.
+//! A row no `Gap = 0` says — a split's ON row, whose second cell is its
+//! tool's pose, a flush pair, a blend's turn, a tangency — is loud and
+//! never refuses (CHECKS DS6).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -19,8 +20,8 @@ use crate::fixture::{against, axes_at, insert, len, union_over};
 use editor_core::{
     AssertionRelation, AssertionVerdict, CheckEvidence, CheckFinding, CheckId, ChecksConfig,
     EntityKey, Entry, Evaluation, FindingSubject, LoopProgram, MeasurePrimitive, NamedCell,
-    NamedCoincidence, Node, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, StableName,
-    ValuePayload,
+    NamedCoincidence, Node, ProfileDoc, ProfileProgram, RecipeNodeId, Severity, SitedRef,
+    StableName, ValuePayload, enforce_checks,
 };
 use geom_core::Tol;
 use topo::{DecisionSite, Relation};
@@ -137,17 +138,22 @@ fn finding_of(
     (*one).clone()
 }
 
-/// Whether the lint's evidence says an assertion could quiet the row.
-fn quietable(finding: &CheckFinding) -> bool {
-    let CheckEvidence::UnprovenCoincidence { quietable, .. } = &finding.evidence else {
-        panic!("an unproven coincidence: {finding:?}")
+/// **Whether [`enforce_checks`] refuses `finding` at `Error`.** The
+/// lint's knob is an `Advisory` and spells no `Error`, so the finding is
+/// read alone under the knob of a check that does: what the refusing
+/// path reads of a finding is its `quiet` and its evidence, not which
+/// check it is.
+fn refuses_at_error(report: &editor_core::ChecksReport, finding: &CheckFinding) -> bool {
+    let mut alone = report.clone();
+    alone.findings = vec![CheckFinding {
+        check: CheckId::AtRest,
+        ..finding.clone()
+    }];
+    let cfg = ChecksConfig {
+        at_rest: Severity::Error,
+        ..ChecksConfig::default()
     };
-    assert_eq!(
-        finding.evidence.never_refuses(),
-        !quietable,
-        "a finding refuses only where an assertion could have quieted it (DS6)"
-    );
-    *quietable
+    enforce_checks(&alone, &cfg).is_err()
 }
 
 /// The rows `node` decided.
@@ -182,11 +188,13 @@ fn turned_rest() -> (ProfileDoc, RecipeNodeId) {
 /// assertion over the two cap faces, selected on the union's operands
 /// (the result merges them away), quiets it in either role order. A
 /// `Gap = 0` over the top and one of the small block's bottom corners
-/// holds too, and quiets that corner's row, not the glue.
+/// holds too, and quiets that corner's row, not the glue. Loud, the glue
+/// refuses at `Error`; quiet, it does not.
 ///
 /// *Breaks if* an operation's row is never quietable (the lint passes
-/// `None`), the rule matches by operand pair rather than by cells, or
-/// the cells resolve against the result.
+/// `None`), the rule matches by operand pair rather than by cells, the
+/// cells resolve against the result, or a quietable loud row never
+/// refuses.
 #[test]
 fn a_booleans_glue_is_quiet_under_its_gap_and_nothing_else() {
     let (doc, union) = turned_rest();
@@ -205,7 +213,10 @@ fn a_booleans_glue_is_quiet_under_its_gap_and_nothing_else() {
     let loud = checks(&doc, None);
     let found = finding_of(&loud, union, &glue);
     assert!(found.quiet.is_none(), "nothing asserted: {found}");
-    assert!(quietable(&found), "two plane faces `Gap` reads: {found}");
+    assert!(
+        refuses_at_error(&loud, &found),
+        "an assertion could quiet it, so loud it refuses at Error: {found}"
+    );
 
     let [top, bottom] = sites(&doc, &glue);
     for (outer, inner, why) in [
@@ -217,7 +228,7 @@ fn a_booleans_glue_is_quiet_under_its_gap_and_nothing_else() {
         let found = finding_of(&report, union, &glue);
         assert_eq!(found.quiet, Some(assertion), "{why}: {report}");
         assert!(
-            editor_core::enforce_checks(&report, &ChecksConfig::default()).is_ok(),
+            !refuses_at_error(&report, &found),
             "{why}: a quiet finding refuses nothing"
         );
     }
@@ -250,10 +261,11 @@ fn a_booleans_glue_is_quiet_under_its_gap_and_nothing_else() {
 /// their tops are one carrier, both material sides facing the same way,
 /// a `SameOriented` row. The `Gap` between them reads zero and holds,
 /// and the row stays loud: a flush pair is no contact, and only a flag
-/// mate or the replay establishes it (`[assertions]`).
+/// mate or the replay establishes it (`[assertions]`). It refuses at no
+/// severity.
 ///
 /// *Breaks if* the contact half reads a flush row, or a flush finding
-/// reads quietable.
+/// refuses.
 #[test]
 fn a_flush_glue_stays_loud_under_a_holding_gap() {
     let doc = ProfileDoc::empty_derived("atrest-op-flush", Tol::witness());
@@ -277,8 +289,8 @@ fn a_flush_glue_stays_loud_under_a_holding_gap() {
     let found = finding_of(&report, union, row);
     assert_eq!(found.quiet, None, "a flush pair is no contact: {report}");
     assert!(
-        !quietable(&found),
-        "and no assertion could quiet it: {found}"
+        !refuses_at_error(&report, &found),
+        "no assertion could quiet it, so it never refuses: {found}"
     );
 }
 
@@ -359,10 +371,10 @@ fn face_through(ev: &Evaluation<f64>, node: RecipeNodeId, p: [f64; 3], n: [f64; 
 /// prism split through its tip edge by a turned plane, and by `y = 1`:
 /// a `Gap = 0` from a tip vertex to a face it lies on — the notch's
 /// flank, or the face `y = 1` itself lies on — holds, and the row stays
-/// loud, its finding unquietable, so it refuses at no severity.
+/// loud and refuses at no severity.
 ///
 /// *Breaks if* the contact half reads a tool cell as the operand's, or
-/// a split's row reads quietable.
+/// a split's row refuses.
 #[test]
 fn a_splits_on_row_is_loud_and_never_refuses() {
     let (s, c) = 0.17f64.sin_cos();
@@ -406,26 +418,26 @@ fn a_splits_on_row_is_loud_and_never_refuses() {
         let report = checks(&doc, Some(assertion));
         let found = finding_of(&report, split, row);
         assert_eq!(found.quiet, None, "{id}: no Gap reads the tool: {report}");
-        assert!(!quietable(&found), "{id}: so none could quiet it: {found}");
+        assert!(
+            !refuses_at_error(&report, &found),
+            "{id}: so none could quiet it, and it never refuses: {found}"
+        );
     }
 }
 
-/// **A blend's turn is quiet under a holding `Gap = 0` over its two
-/// edges, and under one over another turn's.** A turned box's copy with
-/// both rims filleted turns at its eight corners, one `CommonFoot` row
-/// each over the two rim edges meeting there, unproven. A `Gap = 0` over
-/// one corner's two edges quiets that corner's row and no other.
+/// **A blend's turn is quieted by no `Gap = 0`, and never refuses.** A
+/// turned box's copy with both rims filleted turns at its eight corners,
+/// one `CommonFoot` row each over the two rim edges meeting there,
+/// unproven. What the row decided is that the two bands' feet on the
+/// third edge are one point, which a `Gap = 0` does not say
+/// (`[assertions.quiet]`: an assertion that says the same). The two
+/// edges share the corner, so a `Gap = 0` over them holds at every value
+/// of the box, and it quiets nothing.
 ///
-/// The two edges of a turn share the corner vertex, and both lie on the
-/// face between them, so the `Gap` reads zero at every value of the
-/// box: it holds by the topology, and says nothing of the feet the row
-/// decided are one point (`work/atrest/`
-/// `a-gap-over-adjacent-cells-states-nothing-of-the-row.md`).
-///
-/// *Breaks if* a blend's row is never quietable, or the rule matches
-/// one edge rather than the row's two.
+/// *Breaks if* the contact half quiets a row by an assertion that does
+/// not say what it decided, or a turn refuses.
 #[test]
-fn a_blends_turn_is_quiet_under_its_gap_and_nothing_else() {
+fn a_blends_turn_is_quieted_by_no_gap_and_never_refuses() {
     let doc = ProfileDoc::empty_derived("atrest-op-turn", Tol::witness());
     let (doc, anchor) = block(doc, (10.0, 11.0), (10.0, 11.0), 1.0);
     let (doc, the_box) = block(doc, (0.0, 2.0), (0.0, 1.5), 1.0);
@@ -465,13 +477,6 @@ fn a_blends_turn_is_quiet_under_its_gap_and_nothing_else() {
             (Relation::CommonFoot, DecisionSite::BatteryTurn)
         );
     }
-    let loud = checks(&doc, None);
-    for row in &turns {
-        let found = finding_of(&loud, fillet, row);
-        assert_eq!(found.quiet, None, "nothing asserted: {found}");
-        assert!(quietable(&found), "two line edges `Gap` reads: {found}");
-    }
-
     let row = &turns[0];
     let adjacent = |r: &NamedCoincidence| {
         let ends = |cell: &NamedCell| {
@@ -502,47 +507,32 @@ fn a_blends_turn_is_quiet_under_its_gap_and_nothing_else() {
     let [outer, inner] = sites(&doc, row);
     let (doc, assertion) = gap_zero(&doc, &outer, &inner);
     let report = checks(&doc, Some(assertion));
-    assert_eq!(
-        finding_of(&report, fillet, row).quiet,
-        Some(assertion),
-        "the turn's own two edges: {report}"
-    );
-    for other in &turns[1..] {
-        assert_eq!(
-            finding_of(&report, fillet, other).quiet,
-            None,
-            "another corner's turn, which may share an edge with it: {report}"
+    for row in &turns {
+        let found = finding_of(&report, fillet, row);
+        assert_eq!(found.quiet, None, "a Gap = 0 says no common foot: {report}");
+        assert!(
+            !refuses_at_error(&report, &found),
+            "and none could quiet it, so it never refuses: {found}"
         );
     }
 }
 
-/// **A tangency `Gap` has no closed form for is loud and never
-/// refuses.** A rod resting on a plate's side face, unioned: the
-/// tangency row is a cylinder's wall against a plane, a pair the `Gap`
-/// table has no row for, so no assertion over them holds and the
-/// finding is unquietable.
+/// **A tangency is quieted by no `Gap = 0`, and never refuses.** A
+/// rod resting on a plate's side face, both turned, unioned: the
+/// tangency witness's row decided the rod's wall and the plate's face
+/// tangent along a ruling, which no `Gap = 0` says.
 ///
-/// *Breaks if* `quietable` reads the row's shape instead of asking the
-/// measure whether it admits the two cells.
+/// *Breaks if* a tangency row refuses.
 #[test]
-fn a_tangency_gap_cannot_read_never_refuses() {
+fn a_tangency_is_quieted_by_no_gap_and_never_refuses() {
     let doc = ProfileDoc::empty_derived("atrest-op-tangent", Tol::witness());
+    let (doc, anchor) = block(doc, (10.0, 11.0), (10.0, 11.0), 1.0);
     let (doc, plate) = block(doc, (-2.0, 2.0), (-2.0, 2.0), 1.0);
-    let (doc, profile) = insert(
-        doc,
-        Node::Profile(ProfileProgram {
-            loops: vec![LoopProgram::circle_split(0.0, 2.5, 0.5, 2, 0.0).expect("a finite circle")],
-            ids: Vec::new(),
-        }),
-    );
-    let (doc, rod) = insert(
-        doc,
-        Node::Extrude {
-            profile: profile.into(),
-            distance: len(1.0),
-        },
-    );
-    let (doc, rod) = against(doc, plate, rod, &editor_core::Frame::IDENTITY);
+    // Its seam vertices at (±0.5, 2.5), off the ruling it touches along.
+    let (doc, rod) = rod(doc, (0.0, 2.5), 0.5, 0.0, 1.0);
+    let at = turned([0.3, -0.2, 0.5]);
+    let (doc, plate) = against(doc, anchor, plate, &at);
+    let (doc, rod) = against(doc, anchor, rod, &at);
     let (doc, union) = union_over(doc, &[plate, rod]);
     let ev = run(&doc);
     let got = rows(&ev, union);
@@ -553,7 +543,99 @@ fn a_tangency_gap_cannot_read_never_refuses() {
     let report = checks(&doc, None);
     let found = finding_of(&report, union, tangent);
     assert!(
-        !quietable(&found),
-        "a cylinder's wall against a plane has no gap: {found}"
+        !refuses_at_error(&report, &found),
+        "a tangency is no contact a Gap = 0 says: {found}"
     );
+}
+
+/// A rod of radius `r` about `(cx, cy)` on its own xy, `h` up its own
+/// z, its circle's two seam vertices at `start` and half a turn on: a
+/// construction.
+fn rod(
+    doc: ProfileDoc,
+    (cx, cy): (f64, f64),
+    r: f64,
+    start: f64,
+    h: f64,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            loops: vec![LoopProgram::circle_split(cx, cy, r, 2, start).expect("a finite circle")],
+            ids: Vec::new(),
+        }),
+    );
+    insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(h),
+        },
+    )
+}
+
+/// A quarter turn: rods side by side along x keep their seam vertices
+/// off the line they touch along.
+const QUARTER: f64 = std::f64::consts::FRAC_PI_2;
+
+/// **A finding refuses only where a `Gap = 0` over its row's cells
+/// holds** (the review's external-tangency probe): two parallel rods
+/// externally tangent, as two world copies at rest and as the operands
+/// of a turned union. Their gap reads `−2r`-ish in either role order,
+/// so no `Gap = 0` over a tangency's cells holds, and whatever finding
+/// would refuse at `Error` has one that does.
+///
+/// *Breaks if* a refusing finding has no holding `Gap = 0` over its
+/// cells: `quietable` reading admission rather than the rule.
+#[test]
+fn a_refusing_finding_has_a_gap_zero_that_holds() {
+    for (r1, r2) in [(0.5, 0.5), (0.5, 0.3)] {
+        let doc = ProfileDoc::empty_derived("atrest-op-rods-rest", Tol::witness());
+        let (doc, a) = rod(doc, (0.0, 0.0), r1, QUARTER, 1.0);
+        let (doc, b) = rod(doc, (0.0, 0.0), r2, QUARTER, 1.0);
+        let (doc, _) = crate::fixture::place(doc, a);
+        let (doc, _) = crate::fixture::in_world(
+            doc,
+            b,
+            &editor_core::Frame::translation([r1 + r2, 0.0, 0.0]),
+        );
+        every_refusing_finding_has_a_holding_gap(&doc, &format!("at rest ({r1}, {r2})"));
+
+        let doc = ProfileDoc::empty_derived("atrest-op-rods-union", Tol::witness());
+        let (doc, anchor) = block(doc, (10.0, 11.0), (10.0, 11.0), 1.0);
+        let (doc, a) = rod(doc, (0.0, 0.0), r1, QUARTER, 1.0);
+        let (doc, b) = rod(doc, (r1 + r2, 0.0), r2, QUARTER, 0.5);
+        let origin = [0.3, -0.2, 0.5];
+        let (doc, a) = against(doc, anchor, a, &turned(origin));
+        let (doc, b) = against(doc, anchor, b, &turned(up(origin, 0.25)));
+        let (doc, _) = union_over(doc, &[a, b]);
+        every_refusing_finding_has_a_holding_gap(&doc, &format!("unioned ({r1}, {r2})"));
+    }
+}
+
+/// That every unproven-coincidence finding of `doc` that refuses at
+/// `Error` has a `Gap = 0` over its row's two cells holding in some role
+/// order.
+fn every_refusing_finding_has_a_holding_gap(doc: &ProfileDoc, what: &str) {
+    let report = checks(doc, None);
+    for found in &report.findings {
+        let CheckEvidence::UnprovenCoincidence { row, .. } = &found.evidence else {
+            continue;
+        };
+        if !refuses_at_error(&report, found) {
+            continue;
+        }
+        let [a, b] = sites(doc, row);
+        let held = [(&a, &b), (&b, &a)].into_iter().any(|(outer, inner)| {
+            let (doc, assertion) = gap_zero(doc, outer, inner);
+            matches!(
+                run(&doc).value(assertion).map(|v| &v.payload),
+                Some(ValuePayload::Assertion(AssertionVerdict::Holds { .. }))
+            )
+        });
+        assert!(
+            held,
+            "{what}: {row:?} refuses at Error, and no Gap = 0 over its cells holds"
+        );
+    }
 }
