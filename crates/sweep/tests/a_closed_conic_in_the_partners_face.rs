@@ -899,6 +899,12 @@ fn a_boss_over_two_holes_tangent_outside_with_no_vertex_at_either_touch() {
 /// take a rim lying flush in a face (`boolean::join`'s `stands_on`), and
 /// `A ∪ B` and `B ∩ A` refuse typed
 /// (`work/cleave/a-flush-closed-rim-tangent-at-its-vertex-reaches-the-fate-cut-limit.md`).
+/// With `B`'s vertex at azimuth 1, `B ∖ A` leaves `A`'s seam ruling
+/// lying in `B`'s wall over `z ∈ [0, 1]`, `A`'s wall bending off it into
+/// `B`'s material on both sides: D1's doubled cusp on a curved face,
+/// which the parting refuses `EdgeInFace` (`Tangent`) rather than ship
+/// as one edge
+/// (`work/cleave/the-boolean-parting-refuses-its-rarer-configurations.md`).
 /// At rest and turned.
 #[test]
 fn a_rim_flush_in_its_partners_top_tangent_inside_refuses_typed_or_builds() {
@@ -928,6 +934,18 @@ fn a_rim_flush_in_its_partners_top_tangent_inside_refuses_typed_or_builds() {
                     assert!(
                         matches!(&r, Err(BooleanError::Join(j))
                             if matches!(j.error(), SplitJoinError::SingleSiteSectionLoop { count: 1 })),
+                        "{row}: {:?}",
+                        r.map(|_| ())
+                    );
+                } else if op == "B ∖ A" && b_az == 1.0 {
+                    assert!(
+                        matches!(
+                            &r,
+                            Err(BooleanError::EdgeInFace {
+                                gap: topo::EdgeInFaceGap::Tangent,
+                                ..
+                            })
+                        ),
                         "{row}: {:?}",
                         r.map(|_| ())
                     );
