@@ -1098,6 +1098,11 @@ BOUND_AS = {
     # crosses as `MateFault.why`.
     "TargetAxis": "Coord.slide",
     "NoChartWhy": "MateFault.why",
+    # The slides a span refusal names to write cross as their axes'
+    # words.
+    "SlideAxes": "MateFault.slides",
+    # An orientation's axes are the words `Orientation` takes.
+    "SignedAxis": "Orientation",
     # A body's own frame at a corner it has, as a pose to read; a frame
     # it cannot read raises `EditError` under the pin refusal's own
     # word.
@@ -3026,9 +3031,6 @@ NOT_BOUND = {
     # either.
     "ExtrudeSide": INTERIOR,
     "SketchPlane": INTERIOR,
-    # A body's frame swung onto a mate's direction: the chart every
-    # value is measured on, behind `MateValue`.
-    "reference_about": INTERIOR,
     "validated": INTERIOR,
     # **The MC lane's reduction, which `monte_carlo` has already
     # applied by the time anything crosses.** `summarize` is public so
@@ -3761,6 +3763,8 @@ MEMBERS_BOUND_AS = {
     "MateFault::NotOnTheCopy": "MateFault.variant",
     "MateFault::KindsDiffer": "MateFault.variant",
     "MateFault::NoChart": "MateFault.variant",
+    "MateFault::Backwards": "MateFault.variant",
+    "MateFault::Unoriented": "MateFault.variant",
     "MateFault::SideUnevaluated": "MateFault.variant",
     "MateFault::Unleverable": "MateFault.variant",
     "MateFault::Unpinned": "MateFault.variant",

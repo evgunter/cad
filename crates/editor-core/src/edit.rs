@@ -6591,12 +6591,23 @@ impl Recording<'_, crate::ProfileProgram> {
     /// the extrude's copy placed against `face` of `body` — a `Plane`
     /// mate from its start cap, flipped to look up its own `z`, to the
     /// face's plane, with the copy's origin over the face body's own
-    /// (the two slides the constant `0`) and turned `spin` about the
-    /// face's normal — and the face's body and the copy fused.
+    /// (the two slides the plane leaves the constant `0`) and turned
+    /// `spin` about the face's normal — and the face's body and the copy
+    /// fused. `orient` is the mate's orientation: where the profile's
+    /// axes lie among the target space's. `None` is the one nearest
+    /// where the copy stands, the profile's `z` along the face's outward
+    /// normal ([`crate::Orientation::toward`]), read off the face under
+    /// `opts`; a face that does not read takes the identity, which the
+    /// solve then judges. The profile's `z` lies along the target axis
+    /// the orientation puts it on, so the plane fixes that slide and the
+    /// bundle writes the other two; an `orient` putting `z` opposite the
+    /// face's normal refuses [`crate::MateFault::Backwards`], naming the
+    /// orientation to write.
     ///
     /// # Errors
     ///
     /// As [`Self::apply`]'s: the first door that refuses ends the action.
+    #[allow(clippy::too_many_arguments)] // the gesture's own arguments, each a seat
     pub fn sketch_on_face(
         &mut self,
         body: crate::Operand,
@@ -6604,8 +6615,11 @@ impl Recording<'_, crate::ProfileProgram> {
         profile: crate::ProfileProgram<Formula>,
         distance: Formula,
         spin: Formula,
+        orient: Option<crate::Orientation>,
+        opts: &crate::EvalOptions,
     ) -> Result<SketchedOnFace, EditError> {
         use crate::pose::{PoseDef, RoleRead};
+        let orient = orient.unwrap_or_else(|| self.nearest_to_face(&body, &face, opts));
         let profile = self.insert(Node::Profile(profile))?;
         let extrude = self.insert(Node::Extrude {
             profile: profile.into(),
@@ -6635,18 +6649,21 @@ impl Recording<'_, crate::ProfileProgram> {
             mates: vec![crate::Mate {
                 on,
                 to: plane(body.clone(), face),
+                orient,
             }],
-            values: vec![
+            values: crate::mate::slides_left_along(
+                crate::SubgroupFamily::Planar.slides(),
+                orient.apply(geom_core::linalg::Vec3::<f64>::unit_z()),
+            )
+            .axes()
+            .map(|axis| {
                 (
-                    crate::Coord::Slide(crate::TargetAxis::X),
+                    crate::Coord::Slide(axis),
                     Formula::zero(crate::expr::Dimension::Length),
-                ),
-                (
-                    crate::Coord::Slide(crate::TargetAxis::Y),
-                    Formula::zero(crate::expr::Dimension::Length),
-                ),
-                (crate::Coord::Spin(crate::TargetAxis::Z), spin),
-            ],
+                )
+            })
+            .chain([(crate::Coord::SPIN, spin)])
+            .collect(),
         };
         let placement = self.insert(Node::place(
             crate::BodyRead::plain(crate::Operand::Output {
@@ -6672,6 +6689,150 @@ impl Recording<'_, crate::ProfileProgram> {
             union,
         })
     }
+
+    /// **Add `mate` to `placement`'s bundle, as a gesture**: the edit
+    /// [`DocEdit::AddConstraint`] writes, with the slides it leaves read
+    /// off the copy's geometry rather than filled in axis order. The
+    /// structural door's bundle is tried first; where its slides do not
+    /// span what the mate leaves, the bundle is written again
+    /// ([`DocEdit::SetConstraints`], every kept constraint under its own
+    /// id) with the slides that solve's refusal names
+    /// ([`crate::NoChartWhy::SlidesDoNotSpan`], the slides
+    /// [`crate::mate::turn::slides_left_along`] picks), each value along
+    /// them kept and the rest reported dropped. The evaluation reads the
+    /// copy under `opts`. Answers the constraints it minted, the mate's
+    /// first.
+    ///
+    /// # Errors
+    ///
+    /// As [`DocEdit::AddConstraint`]'s.
+    pub fn constrain(
+        &mut self,
+        placement: RecipeNodeId,
+        mate: crate::mate::Mate<Formula>,
+        opts: &crate::EvalOptions,
+    ) -> Result<Vec<crate::node::ConstraintId>, EditError> {
+        self.rebundle_by_geometry(placement, Some(mate), None, opts)
+    }
+
+    /// **Take `constraint` out of `placement`'s bundle, as a gesture**:
+    /// [`DocEdit::RemoveConstraint`]'s bundle, its slides read off the
+    /// copy's geometry as [`Self::constrain`] reads them. Answers the
+    /// constraints it minted.
+    ///
+    /// # Errors
+    ///
+    /// As [`DocEdit::RemoveConstraint`]'s.
+    pub fn remove_mate(
+        &mut self,
+        placement: RecipeNodeId,
+        constraint: crate::node::ConstraintId,
+        opts: &crate::EvalOptions,
+    ) -> Result<Vec<crate::node::ConstraintId>, EditError> {
+        self.rebundle_by_geometry(placement, None, Some(constraint), opts)
+    }
+
+    /// [`Self::constrain`] and [`Self::remove_mate`]: the structural
+    /// door's bundle where its slides span, and otherwise the bundle
+    /// with the slides the solve names.
+    fn rebundle_by_geometry(
+        &mut self,
+        placement: RecipeNodeId,
+        added: Option<crate::mate::Mate<Formula>>,
+        removed: Option<crate::node::ConstraintId>,
+        opts: &crate::EvalOptions,
+    ) -> Result<Vec<crate::node::ConstraintId>, EditError> {
+        self.open()?;
+        let raw = match (&added, removed) {
+            (Some(mate), _) => DocEdit::AddConstraint {
+                placement,
+                mate: Box::new(mate.clone()),
+                fresh: Vec::new(),
+            },
+            (None, Some(constraint)) => DocEdit::RemoveConstraint {
+                placement,
+                constraint,
+            },
+            (None, None) => unreachable!("a gesture adds a mate or takes one out"),
+        };
+        let tried = apply_spaced(self.doc(), &raw, self.tol, None);
+        let tried = tried.map_err(|e| self.end(e))?;
+        let along = match crate::mate::solve_document(&tried.doc, opts, self.tol).fault(placement) {
+            Some(crate::MateFault::NoChart {
+                why: crate::NoChartWhy::SlidesDoNotSpan { write, .. },
+                ..
+            }) => *write,
+            _ => {
+                let minted = tried.record.minted_constraints.clone();
+                self.take(raw, tried);
+                return Ok(minted);
+            }
+        };
+        let doc = self.doc();
+        let mut reported = Vec::new();
+        let rewritten = held_bundle(doc, doc, placement).and_then(|held| {
+            let removed: Vec<_> = removed.into_iter().collect();
+            rebundled(
+                doc,
+                doc,
+                &mut reported,
+                placement,
+                added,
+                &removed,
+                Some(along),
+            )
+            .map(|whole| (held, whole))
+        });
+        let (held, whole) = rewritten.map_err(|e| self.end(e))?;
+        let edit = DocEdit::SetConstraints {
+            placement,
+            constraints: whole,
+            fresh: Vec::new(),
+        };
+        let applied = apply_spaced(self.doc(), &edit, self.tol, None);
+        let mut applied = applied.map_err(|e| self.end(e))?;
+        applied.maintenance.extend(reported);
+        let minted = applied
+            .record
+            .minted_constraints
+            .iter()
+            .copied()
+            .filter(|id| !held.iter().any(|c| c.id == *id))
+            .collect();
+        self.take(edit, applied);
+        Ok(minted)
+    }
+
+    /// **The orientation nearest where a sketch on `face` of `body`
+    /// stands**: the profile's `z` along the face's outward normal, read
+    /// off the face as it stands now under `opts`; the identity where
+    /// the face does not read.
+    fn nearest_to_face(
+        &self,
+        body: &crate::Operand,
+        face: &crate::StableName,
+        opts: &crate::EvalOptions,
+    ) -> crate::Orientation {
+        let doc = self.doc();
+        let at = match body {
+            crate::Operand::Output { node, port } => doc
+                .output(*node, *port)
+                .map_or(crate::At::Node(*node), crate::At::Read),
+            crate::Operand::Node(node) => crate::At::Node(*node),
+            crate::Operand::Var(var) => crate::At::Read(*var),
+            _ => return crate::Orientation::IDENTITY,
+        };
+        let ev: crate::Evaluation<f64> =
+            crate::evaluate(doc, None, &crate::CancelToken::new(), opts, self.tol);
+        crate::names::interrogate::face_frame(&ev, at, face).map_or(
+            crate::Orientation::IDENTITY,
+            |pose| {
+                let outward = if pose.sense { pose.axis } else { -pose.axis };
+                crate::Orientation::IDENTITY
+                    .toward(geom_core::linalg::Vec3::new(0.0, 0.0, 1.0), outward)
+            },
+        )
+    }
 }
 
 /// [`fn@sketch_on_face`]'s outcome: the action applied, and what it
@@ -6693,6 +6854,7 @@ pub struct SketchOutcome {
 /// # Errors
 ///
 /// The first door's refusal; the document is untouched.
+#[allow(clippy::too_many_arguments)] // the gesture and its document
 pub fn sketch_on_face(
     doc: &Doc<crate::ProfileProgram>,
     body: crate::Operand,
@@ -6700,10 +6862,12 @@ pub fn sketch_on_face(
     profile: crate::ProfileProgram<Formula>,
     distance: Formula,
     spin: Formula,
+    orient: Option<crate::Orientation>,
+    opts: &crate::EvalOptions,
     tol: Tol,
 ) -> Result<SketchOutcome, EditError> {
     let mut action = Recording::start(doc, tol);
-    let sketched = action.sketch_on_face(body, face, profile, distance, spin)?;
+    let sketched = action.sketch_on_face(body, face, profile, distance, spin, orient, opts)?;
     let Recorded {
         doc,
         edits,
@@ -7271,22 +7435,53 @@ fn rebundle<P: Clone + crate::ProfilePayload>(
     fresh: &[FreshEntry],
     tol: Tol,
 ) -> Result<(Vec<crate::node::ConstraintId>, Vec<VarId>), EditError> {
-    use crate::mate::{Constraint, ConstraintKind, Mate, Value};
-    let bundle = match new.nodes.get(&placement) {
+    let bundle = held_bundle(doc, new, placement)?;
+    let whole = rebundled(doc, new, reported, placement, added, removed, None)?;
+    let (ids, fresh) = add_constraints(doc, new, placement, whole, true, fresh, tol)?;
+    // The ids it minted: the added mate's first, then each `0`'s.
+    let minted = ids
+        .into_iter()
+        .filter(|id| !bundle.iter().any(|c| c.id == *id))
+        .collect();
+    Ok((minted, fresh))
+}
+
+/// `placement`'s bundle in `new`, as [`rebundle`] reads it.
+fn held_bundle<P>(
+    doc: &Doc<P>,
+    new: &Doc<P>,
+    placement: RecipeNodeId,
+) -> Result<Vec<crate::mate::Constraint>, EditError> {
+    match new.nodes.get(&placement) {
         Some(node) => match crate::mate::solve::bundle_of(node) {
-            Some(bundle) => bundle.to_vec(),
-            None => {
-                return Err(EditError::ConstraintOnNonPlacement {
-                    node: doc.spoken(placement),
-                });
-            }
+            Some(bundle) => Ok(bundle.to_vec()),
+            None => Err(EditError::ConstraintOnNonPlacement {
+                node: doc.spoken(placement),
+            }),
         },
-        None => {
-            return Err(EditError::UnknownNode {
-                id: SpokenNode::absent(placement),
-            });
-        }
-    };
+        None => Err(EditError::UnknownNode {
+            id: SpokenNode::absent(placement),
+        }),
+    }
+}
+
+/// **[`rebundle`]'s bundle, before it is written**: the mates kept and
+/// `added`, the values kept, and the constant `0` on each freedom left
+/// unnamed, each kept constraint under its own id and each new one
+/// under the next placeholder. `along` is the slides a gesture read
+/// off the copy's geometry ([`crate::mate::turn::slides_left_along`]);
+/// `None` keeps and fills them in axis order, reading no geometry.
+fn rebundled<P: Clone + crate::ProfilePayload>(
+    doc: &Doc<P>,
+    new: &Doc<P>,
+    reported: &mut Vec<Maintenance>,
+    placement: RecipeNodeId,
+    added: Option<crate::mate::Mate<Formula>>,
+    removed: &[crate::node::ConstraintId],
+    along: Option<crate::SlideAxes>,
+) -> Result<Vec<crate::mate::Constraint<Formula>>, EditError> {
+    use crate::mate::{Constraint, ConstraintKind, Mate, Value};
+    let bundle = held_bundle(doc, new, placement)?;
     if let Some(&constraint) = removed
         .iter()
         .find(|id| !bundle.iter().any(|c| c.id == **id))
@@ -7317,6 +7512,7 @@ fn rebundle<P: Clone + crate::ProfilePayload>(
             kind: ConstraintKind::Mate(Mate {
                 on: crate::Operand::Var(m.on),
                 to: crate::Operand::Var(m.to),
+                orient: m.orient,
             }),
         })
     });
@@ -7338,7 +7534,7 @@ fn rebundle<P: Clone + crate::ProfilePayload>(
         })
         .collect();
     let written: Vec<crate::mate::Coord> = values.iter().map(|&(_, c)| c).collect();
-    let keep = crate::mate::pin::kept(residual, &written);
+    let keep = crate::mate::pin::kept(residual, &written, along);
     let mut kept = Vec::new();
     for ((held, coord), keep) in values.into_iter().zip(keep) {
         match (held, keep) {
@@ -7352,7 +7548,7 @@ fn rebundle<P: Clone + crate::ProfilePayload>(
         }
     }
     let named: Vec<crate::mate::Coord> = kept.iter().map(|&(_, c)| c).collect();
-    let zeros = crate::mate::pin::unnamed(residual, &named);
+    let zeros = crate::mate::pin::unnamed(residual, &named, along);
     let mut placeholder = (1..).map(crate::node::ConstraintId::placeholder);
     let mut next = || {
         placeholder
@@ -7379,13 +7575,7 @@ fn rebundle<P: Clone + crate::ProfilePayload>(
             },
         ));
     }
-    let (ids, fresh) = add_constraints(doc, new, placement, whole, true, fresh, tol)?;
-    // The ids it minted: the added mate's first, then each `0`'s.
-    let minted = ids
-        .into_iter()
-        .filter(|id| !bundle.iter().any(|c| c.id == *id))
-        .collect();
-    Ok((minted, fresh))
+    Ok(whole)
 }
 
 /// The record of a removal written whole again: the ids it minted for
@@ -8847,6 +9037,7 @@ mod tests {
         let mate = crate::mate::Mate {
             on: plane(crate::node::RecipeNodeId::new(0, 3)),
             to: plane(crate::node::RecipeNodeId::new(0, 2)),
+            orient: crate::Orientation::IDENTITY,
         };
         let constraint = crate::node::ConstraintId(crate::MintId::new(0, 4));
         let writing: [DocEdit<ProfileProgram>; 3] = [

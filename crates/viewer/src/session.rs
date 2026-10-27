@@ -92,6 +92,7 @@ pub mod op;
 pub mod probe;
 pub mod refuse;
 pub mod select;
+mod snap;
 
 pub use author::{BooleanSpec, PartSelectSpec, PatternRuleSpec, ProfileShape};
 pub use delete::DeleteAffordance;
@@ -1705,27 +1706,44 @@ impl DocSession {
                 mate,
                 values,
                 into_target_space,
-            } => self.commit_run(|run| {
-                let space = run.doc().operand_space(&mate.to);
-                if let Some(space) = space.filter(|&space| {
-                    into_target_space && Some(space) != run.doc().node_space(placement)
-                }) {
-                    into_space(run, placement, space)?;
-                }
-                // The door writes the bundle whole with the mate in it:
-                // the values whose freedoms the mate fixes go, each
-                // freedom it leaves keeps its value or is written `0`.
-                run.apply(DocEdit::AddConstraint {
-                    placement,
-                    mate,
-                    fresh: Vec::new(),
-                })?;
-                if values.is_empty() {
-                    return Ok(());
-                }
-                let bundle = valued(held_bundle(run.doc(), placement), values);
-                write_bundle(run, placement, bundle)
-            }),
+            } => {
+                let (opts, tol) = (self.eval_options(), self.tol);
+                self.commit_run(|run| {
+                    let space = run.doc().operand_space(&mate.to);
+                    if let Some(space) = space.filter(|&space| {
+                        into_target_space && Some(space) != run.doc().node_space(placement)
+                    }) {
+                        into_space(run, placement, space)?;
+                    }
+                    // Where the copy stands before its mate, and the
+                    // evaluation the snap reads its mate's poses off.
+                    let ev: Evaluation<f64> = pncad::document::evaluate(
+                        run.doc(),
+                        None,
+                        &pncad::document::CancelToken::new(),
+                        &opts,
+                        tol,
+                    );
+                    let before =
+                        pncad::document::SolvedPoses::of(run.doc(), &ev).relative(placement);
+                    // The door writes the bundle whole with the mate in it;
+                    // the gesture then writes the orientation and the values
+                    // that stand the copy where the snap puts it, so it moves
+                    // only by the snap, and the values the person named over
+                    // them.
+                    run.apply(DocEdit::AddConstraint {
+                        placement,
+                        mate,
+                        fresh: Vec::new(),
+                    })?;
+                    let snapped = snap::snapped(run.doc(), placement, before, &ev, tol);
+                    if snapped.is_none() && values.is_empty() {
+                        return Ok(());
+                    }
+                    let held = snapped.unwrap_or_else(|| held_bundle(run.doc(), placement));
+                    write_bundle(run, placement, valued(held, values))
+                })
+            }
             SessionOp::RemoveConstraint { mate } => self.remove_constraint(mate),
             SessionOp::IntoOwnSpace { placement } => self.commit_run(|run| {
                 let node = run.insert(Node::Space)?;
@@ -2722,6 +2740,8 @@ impl DocSession {
     ) -> OpOutcome {
         let doc = self.committed_doc();
         let (at, port, name) = crate::world::on_body(doc, face.node, face.body, &face.name);
+        // The body the face is on: the node's output by its port where
+        // it holds several.
         let body = match crate::world::seat_read(doc, at, Some(port)) {
             (at, Some(port)) => Operand::output(at, port),
             (at, None) => body_of(doc, at),
@@ -2730,6 +2750,7 @@ impl DocSession {
             return OpOutcome::refused(refusal);
         }
         let over = self.placements_of(&body);
+        let opts = self.eval_options();
         let taken = crate::world::read_var(doc, &body);
         if let Err(refusal) = stranded_pick(doc, &over, taken) {
             return OpOutcome::refused(refusal);
@@ -2744,6 +2765,8 @@ impl DocSession {
                 },
                 distance,
                 spin,
+                None,
+                &opts,
             )?;
             repoint(run, over, taken, sketched.union)
         })
@@ -4107,7 +4130,7 @@ fn gesture_moves(
                 Formula::neg(angle.clone())
                     .unwrap_or_else(|_| unreachable!("an angle negates to an angle"))
             };
-            vec![(Coord::Spin(*axis), by)]
+            vec![(Coord::Spin(Some(*axis)), by)]
         }
         _ => moves_of(&Frame {
             columns: at.columns,
@@ -4167,7 +4190,7 @@ fn moves_of(at: &Frame) -> Vec<(pncad::document::Coord, Formula)> {
             Formula::literal(angle, Dimension::Angle)
                 .unwrap_or_else(|_| unreachable!("a finite angle is a literal"))
         };
-        (Coord::Spin(axis), by)
+        (Coord::Spin(Some(axis)), by)
     });
     let slides = TargetAxis::ALL
         .into_iter()
@@ -4276,7 +4299,10 @@ fn frame_off(
     let moves = moves_of(&Frame::from_affine(frame.to_affine().inverse() * at))
         .into_iter()
         .map(|(coord, by)| match coord {
-            pncad::document::Coord::Spin(axis) => FrameMove::Spin(axis, by),
+            pncad::document::Coord::Spin(Some(axis)) => FrameMove::Spin(axis, by),
+            pncad::document::Coord::Spin(None) => {
+                unreachable!("a frame's moves are a chain about its own axes")
+            }
             pncad::document::Coord::Slide(axis) => FrameMove::Slide(axis, by),
         })
         .collect::<Vec<_>>();

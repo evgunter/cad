@@ -54,7 +54,7 @@ fn plane_seated(
         &[
             (Coord::Slide(TargetAxis::X), x),
             (Coord::Slide(TargetAxis::Y), y),
-            (Coord::Spin(editor_core::TargetAxis::Z), ang(0.0)),
+            (Coord::SPIN, ang(0.0)),
         ],
     );
     let vx = fixture::bundle(&doc, placement)

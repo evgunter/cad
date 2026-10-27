@@ -30,7 +30,7 @@ Filed by WIRE's orchestrator after Ev ratified PR 5411 (`docs/DESIGN.md`
 
 Each site's owner audits and converts its own. The constant's doc and,
 once no site is left, the constant itself are SCALAR's. WIRE converts
-editor-core (`eval/`, `names/` emitters, `held_out`). Sites by owning
+editor-core (`eval/`, `names/` emitters). Sites by owning
 program (`work.py territory`, 2026-10-20):
 
 - carve, carverest, strut: `crates/sweep/src/swept.rs`

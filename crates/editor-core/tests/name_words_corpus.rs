@@ -374,7 +374,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// `Borders` walls' reads under D′3's names.
 ///
 /// Measured again with [`NAME_WORDS`] over main's merge at `4c341b9225`.
-const SAID_DIGEST: u64 = 0x96f4_fccc_7bb3_0d9e;
+const SAID_DIGEST: u64 = 0xda87_4996_1194_12cf;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

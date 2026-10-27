@@ -140,3 +140,33 @@ the face's region from its edges), reads 62. Tonight's main `38f1a24ed3`
 still reads 62 locally. The row was already red at 6 before #5664, so
 #5664 widened an existing red rather than causing it. The 6 pairs are
 still unexplained.
+
+## 2026-10-26 — what PR 5742 (the value chart reads a written orientation) moves on these rows
+
+These rows stay red, main's own. Measured on main `6ff6b23` and on PR 5742 at the default ε. PR 5742 adds its own move on top of main's drift, and a re-bless should take both:
+
+- **Each mated placement:**
+  - the swing's two `mate_chart_reference_antipode` theorems leave;
+  - numerically, two `pose_unit_norm` decisions leave and one `mate_chart_pole` decision joins.
+- `m10_9_the_pad_at_both_rule_f_dials`: main `(1546, 1251, 2420)`, PR `(1544, 1250, 2420)`.
+- `sym11_exact_channel_rows`:
+
+  | study | main | PR |
+  |---|---|---|
+  | `two_hole_plate` | `[1253, 989, 297]` | `[1249, 987, 297]` |
+  | `r1_annulus` | `[632, 556, 212]` | `[630, 555, 212]` |
+  | `r2_filleted_bracket` | `[1630, 1328, 1544]` | `[1626, 1326, 1544]` |
+  | `r2_rounded_pad` | `[1570, 1263, 2431]` | `[1568, 1262, 2431]` |
+  | `r2_link` | unmoved | unmoved |
+
+- `sym_9_the_drive_writes_the_ladders_receipt`: main `[1421, 1377, 34]`, PR `[1419, 1376, 34]`.
+- `m4_pr3_names_ci::die_name_tables_are_golden`: the die's name-table digest moves with the mate's orientation in the minting edits' bytes. Main reads `0x7fb3623b41caf7c9`, the PR `0x07b858a990d27a53`.
+- Read the same on both: `m10_sym_profile_interval` ×2, `m10_9_what_the_registry_buys`, `node_standing`, `intent_s2_c_world` and `revalue_corpus` ×7.
+
+
+## 2026-10-26 — three more slow-set rows red on main `d67ac3cbde` (PR 5742's fix pass)
+
+Measured on main itself at the default ε:
+- **`m10_p_fence::the_corpus_evaluation_is_bit_identical_at_interval`:** reads `(11122170326591155306, 14158967091460525030)` against its pin `(13242046646792044098, 15401937490762412494)`. The f64 and ids-masked rows hold, so a change on main moved the Interval lane's bits without re-pinning. PR 5742 re-pins this row at its own reading, because the mate's orientation moves the ids the digest feeds; that reading takes in main's move too.
+- **`perf12_census_goldens::the_at_rest_census_verdicts_are_goldened_bit_exact`:** drifts from line 13 at every ε. The new lines are `CoincidentWedgesOverlap` findings (`work/restread/main-red-coincident-wedges-overlap-refuses-flush-copies.md`). PR 5742 re-blesses all three ε files at its own reading, for the same reason.
+- **`r2_m10_di_probes::assemble_census_door_matches_f64_at_dual64`:** the divergence set gains `heat_sink`, reading `["heat_sink", "kitchen_sink", "cut_cylinder"]` against `["kitchen_sink", "cut_cylinder"]`. It reads the same on PR 5742, which leaves it.

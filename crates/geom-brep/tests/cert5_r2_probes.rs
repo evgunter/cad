@@ -387,7 +387,7 @@ fn c0_multiplicity_knot_under_the_exact_arm() {
 }
 
 /// The sliver attack: an interior v knot one ulp above a coarse BLOCK
-/// edge (`QUAD2_HULL_BLOCKS = 8`), so two cut points sit one ulp apart
+/// edge (`HULL_BLOCKS_PER_AXIS = 8`), so two cut points sit one ulp apart
 /// and the cell between them is one ulp wide.
 #[test]
 fn knot_one_ulp_from_a_block_edge() {
@@ -442,7 +442,7 @@ fn knot_one_ulp_inside_the_rectangle_edge() {
 /// running the refinement schedule to its end — the exhausted-budget
 /// path TCOST-K1 is cutting. It is also the first candidate for the
 /// TCOST-1 per-file gate, whose marker would name
-/// `crates/geom-brep/src/props/quad.rs`, the cut list and hull grid
+/// `crates/geom-brep/src/props/quad/`, the cut list and hull grid
 /// this row is specific to.
 #[test]
 fn many_offgrid_knots_per_axis_stay_sound() {
@@ -468,7 +468,7 @@ fn many_offgrid_knots_per_axis_stay_sound() {
 ///
 /// Same cost note as the row above: kernel-bound at a refusing band,
 /// TCOST-K1's subject, and a TCOST-1 gate candidate naming
-/// `crates/geom-brep/src/props/quad.rs`.
+/// `crates/geom-brep/src/props/quad/`.
 #[test]
 fn many_dyadic_knots_per_axis_stay_sound() {
     let mk = || -> KnotVector {

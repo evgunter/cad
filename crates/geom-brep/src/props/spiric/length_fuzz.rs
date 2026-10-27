@@ -9,7 +9,7 @@
 
 test_utils::gated_to![
     "crates/geom-brep/src/props/spiric.rs",
-    "crates/geom-brep/src/props/quad.rs",
+    "crates/geom-brep/src/props/quad/",
     "crates/geom/src/curves.rs",
     "crates/geom-core/src/interval.rs",
     "crates/geom-core/src/interval/",

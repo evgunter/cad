@@ -65,35 +65,43 @@ const SAIL_B_PARK: [f64; 3] = [-0.12, 0.02, 0.0];
 
 /// **A rest of two centred boxes' faces, with its values**: the picked
 /// faces' planes, the target flipped (the faces rest against each
-/// other), the copy slid `slide` along the target's chart and spun
-/// `spin` about the mated normal. Every part here is a box centred on
-/// its own origin, so a slide of zero centres the copy on its target's
-/// own axis.
-fn rest_choice(slide: [f64; 2], spin: f64) -> viewer::matetool::MateChoice {
-    use pncad::document::{Coord, TargetAxis};
+/// other), the copy slid along the two target axes `slides` names, as
+/// the snap's orientation charts them, and spun `spin` about the target
+/// face's own normal. Every part here is a box centred on its own origin, so a
+/// slide of zero centres the copy on its target's own axis.
+fn rest_choice(
+    slides: [(pncad::document::TargetAxis, f64); 2],
+    spin: f64,
+) -> viewer::matetool::MateChoice {
+    use pncad::document::Coord;
     viewer::matetool::MateChoice {
         kind: pncad::document::VarKind::Plane,
         flip: true,
         values: vec![
-            (Coord::Slide(TargetAxis::X), common::len(slide[0])),
-            (Coord::Slide(TargetAxis::Y), common::len(slide[1])),
-            (Coord::Spin(TargetAxis::Z), common::ang(spin)),
+            (Coord::Slide(slides[0].0), common::len(slides[0].1)),
+            (Coord::Slide(slides[1].0), common::len(slides[1].1)),
+            (Coord::SPIN, common::ang(spin)),
         ],
     }
 }
 
 /// **A sail's rest on one of the hub's walls**: the sail's underside
-/// on the wall, its middle at the wall's middle. The chart is the
-/// world's frame — the space the hub stands in — swung onto the wall's
-/// outward normal, the world's `∓y` (front, back): the shortest turn
-/// there keeps the world's `x`, so the chart's `y` is `∓y × x = ±z`.
-/// The sail's origin is its underside's middle and the wall's middle
-/// is `HUB_SIDE / 2` up the hub, which sits on the tower's top, so the
-/// slide along the chart's `y` is `±(TOWER_HEIGHT + HUB_SIDE / 2)`;
-/// `spin` turns the blade about the wall's normal from the world's `x`.
-fn sail_choice(front: bool, spin: f64) -> viewer::matetool::MateChoice {
+/// on the wall, its middle at the wall's middle. The snap turns the
+/// parked sail's underside, its `−z`, the least way onto the mated
+/// direction, the wall's normal reversed, the world's `±y` (front,
+/// back), and writes that quarter turn about the world's `x` as the
+/// mate's orientation: the copy's mated direction is then the mated
+/// one, so the chart is the world's frame — the space the hub stands
+/// in — and the wall leaves the slides along its `x` and `z`. The
+/// sail's origin is its underside's middle and the wall's middle is
+/// `HUB_SIDE / 2` up the hub, which sits on the tower's top, so the
+/// slide along `z` is `TOWER_HEIGHT + HUB_SIDE / 2` on either wall;
+/// `spin` turns the blade about the wall's own normal from the world's
+/// `x`.
+fn sail_choice(spin: f64) -> viewer::matetool::MateChoice {
+    use pncad::document::TargetAxis;
     let up = TOWER_HEIGHT + HUB_SIDE / 2.0;
-    rest_choice([0.0, if front { up } else { -up }], spin)
+    rest_choice([(TargetAxis::X, 0.0), (TargetAxis::Z, up)], spin)
 }
 
 /// A session over a throwaway document — the story starts from
@@ -518,8 +526,17 @@ fn the_windmill_story() {
     assert!(matches!(tool.state(), MateToolState::Two { .. }));
     let seat_proposal = {
         let (doc, _) = session.landed_pair().expect("landed");
-        tool.proposal(doc, rest_choice([0.0; 2], 0.0))
-            .expect("the seat proposes")
+        tool.proposal(
+            doc,
+            rest_choice(
+                [
+                    (pncad::document::TargetAxis::X, 0.0),
+                    (pncad::document::TargetAxis::Y, 0.0),
+                ],
+                0.0,
+            ),
+        )
+        .expect("the seat proposes")
     };
     let outcome = session.perform(seat_proposal.op_into_target_space());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -695,7 +712,7 @@ fn the_windmill_story() {
     tool.pick(session.doc(), front_wall.clone());
     let sail_a_proposal = {
         let (doc, _) = session.landed_pair().expect("landed");
-        tool.proposal(doc, sail_choice(true, 0.0))
+        tool.proposal(doc, sail_choice(0.0))
             .expect("the first sail proposes")
     };
     let outcome = session.perform(sail_a_proposal.op_into_target_space());
@@ -743,7 +760,7 @@ fn the_windmill_story() {
     tool.pick(session.doc(), back_wall.clone());
     let sail_b_proposal = {
         let (doc, _) = session.landed_pair().expect("landed");
-        tool.proposal(doc, sail_choice(false, core::f64::consts::FRAC_PI_2))
+        tool.proposal(doc, sail_choice(core::f64::consts::FRAC_PI_2))
             .expect("the second sail proposes")
     };
     let outcome = session.perform(sail_b_proposal.op_into_target_space());

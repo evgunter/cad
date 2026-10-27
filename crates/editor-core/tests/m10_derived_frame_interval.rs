@@ -143,10 +143,7 @@ fn at_rest() -> Vec<(editor_core::Coord, Formula)> {
             Coord::Slide(TargetAxis::Y),
             Formula::zero(Dimension::Length),
         ),
-        (
-            Coord::Spin(editor_core::TargetAxis::Z),
-            Formula::zero(Dimension::Angle),
-        ),
+        (Coord::SPIN, Formula::zero(Dimension::Angle)),
     ]
 }
 
@@ -158,8 +155,14 @@ fn cap_plane(site: RecipeNodeId, body: RecipeNodeId, end: CapEnd) -> editor_core
 }
 
 /// **`body` seated on `to`**: a copy of it whose start cap rests on the
-/// plane `to`, at rest in that plane. Returns the placement.
-fn seated(r: &mut Recorder, body: RecipeNodeId, to: editor_core::Operand) -> RecipeNodeId {
+/// plane `to`, at rest in that plane, under `orient`. Returns the
+/// placement.
+fn seated_as(
+    r: &mut Recorder,
+    body: RecipeNodeId,
+    to: editor_core::Operand,
+    orient: editor_core::Orientation,
+) -> RecipeNodeId {
     let placement = r.insert(crate::fixture::stood(editor_core::BodyRead::plain(
         editor_core::Operand::from(body),
     )));
@@ -168,10 +171,22 @@ fn seated(r: &mut Recorder, body: RecipeNodeId, to: editor_core::Operand) -> Rec
         editor_core::Mate {
             on: cap_plane(body, body, CapEnd::Start),
             to,
+            orient,
         },
         at_rest(),
     );
     placement
+}
+
+/// [`seated_as`] on a plane facing up: the start cap faces the plane's
+/// normal unflipped, so the copy stands upended, its `z` along `−z`.
+fn seated(r: &mut Recorder, body: RecipeNodeId, to: editor_core::Operand) -> RecipeNodeId {
+    let upended = editor_core::Orientation::new(
+        editor_core::SignedAxis::PlusX,
+        editor_core::SignedAxis::MinusZ,
+    )
+    .expect("x and z lie along two axes");
+    seated_as(r, body, to, upended)
 }
 
 /// `body`'s start-cap plane slid `by` up its own z and turned to face
@@ -259,7 +274,14 @@ pub(crate) fn transform_lifted_boss(half: f64) -> ProfileDoc {
         profile: boss_p.into(),
         distance: len(0.25),
     });
-    seated(&mut r, boss, cap_plane(lifted, cube, CapEnd::End));
+    // The lifted copy stands upended, so its end cap faces down, the way
+    // the boss's start cap does: the boss stands as it is drawn.
+    seated_as(
+        &mut r,
+        boss,
+        cap_plane(lifted, cube, CapEnd::End),
+        editor_core::Orientation::IDENTITY,
+    );
     r.doc
 }
 
@@ -561,12 +583,7 @@ fn m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width(
 /// whose `newell_plane_residual` was a clause-1 `Invalid` while the
 /// placement's map widened its cross-sum to zero, is decided under D's
 /// placement solve. With every rule off, the plain
-/// tier freezes sixteen forms (twelve before D′2 charted the boss's
-/// seat on the target space's axes swung onto the mated direction, whose
-/// swing the plain tier reads over the box's unknowns; twenty-one before
-/// a plane pose held its offset and the seat's translation was set in
-/// closed form from the mate's two offsets) and refuses
-/// earlier, at the boss extrude's
+/// tier freezes twelve forms and refuses earlier, at the boss extrude's
 /// start-endpoint certification over an enclosure of [0, 0.32]; whether
 /// those freezes are what widens it is
 /// `work/carve/the-guided-derived-frame-extrude-escalates-as-a-kernel-defect.md`. The ten forms that used to freeze at A0's rung sat
@@ -586,7 +603,7 @@ fn m10_the_derived_frames_refusal_is_not_a_freeze() {
     let n = SymRules::none();
 
     // With the profile elaborated at the lane the plain tier no longer
-    // reaches the side plane: it freezes sixteen
+    // reaches the side plane: it freezes twelve
     // forms on the way and refuses earlier, at the boss extrude's
     // start-endpoint certification, over an enclosure of [0, 0.32] —
     // filed as a kernel defect reachable by input, with whether the
@@ -604,8 +621,8 @@ fn m10_the_derived_frames_refusal_is_not_a_freeze() {
         "with no rule, the guided boss refuses its start-endpoint certification: {plain_fails:?}"
     );
     assert_eq!(
-        plain_counts.frozen, 16,
-        "and freezes sixteen forms getting there: {plain_counts:?}"
+        plain_counts.frozen, 12,
+        "and freezes twelve forms getting there: {plain_counts:?}"
     );
 
     let a0 = SymRules {

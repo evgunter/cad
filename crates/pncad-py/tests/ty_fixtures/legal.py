@@ -597,7 +597,7 @@ pinned_on: DocEdit = DocEdit.add_constraint(instance, mate)
 placer: Node = Node.place(
     sideways, doc.world, [mate, MateValue(Coord.slide("x"), 0.1 * m)]
 )
-rewritten: list[MateRef] = doc.set_constraints(instance, [mate, MateValue(Coord.spin("z"), 0)])
+rewritten: list[MateRef] = doc.set_constraints(instance, [mate, MateValue(Coord.spin(), 0)])
 rewrite: DocEdit = DocEdit.set_constraints(instance, [mate])
 bundled: Placed = Placed.of(doc, [mate], [MateValue(Coord.slide("x"), 0.1 * m)])
 rebundled: DocEdit = DocEdit.set_constraints(instance, bundled)

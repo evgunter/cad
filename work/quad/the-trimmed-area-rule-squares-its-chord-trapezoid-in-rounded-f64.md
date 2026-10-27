@@ -14,7 +14,7 @@ cost: M
 Turned up by that lane's `midpoint(` sweep; inferred from the code,
 not reproduced.
 
-`chord_polygon_area` (`props/quad.rs`) integrates each sub-chord's
+`chord_polygon_area` (`props/quad/trimmed.rs`) integrates each sub-chord's
 column as the rectangle `[p, q] × [v₀, ℓ(u_m)]` and pads the gap to
 the trapezoid the chord really bounds by
 `mismatch = |ℓ′|·h_u²·width(g)/8`. Its comment says the two have

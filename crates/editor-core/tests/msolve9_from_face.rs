@@ -900,8 +900,8 @@ fn c5_every_tracked_document_loads_on_this_wire_and_re_saves_identically() {
                 .map(|o| o.keys().cloned().collect())
                 .unwrap_or_default();
             assert!(
-                keys == ["on", "to"],
-                "{}: a mate is two poses: {mate}",
+                keys == ["on", "orient", "to"],
+                "{}: a mate is two poses and an orientation: {mate}",
                 path.display()
             );
             seen += 1;
