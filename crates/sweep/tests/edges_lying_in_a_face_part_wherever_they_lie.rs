@@ -14,7 +14,9 @@
 //!   extruded along `+x`: its wall holds the edge over `z ∈ [.6, .9]`,
 //!   past the edge's midpoint; over `[.25, .5]`, the midpoint on the
 //!   wall's boundary; over `[.25, .45]` and `[.55, .75]`, the midpoint
-//!   in a hole of the wall.
+//!   in a hole of the wall; and over `[.2, .45]` and `[.55, .8]` of two
+//!   faces a slot through the cutter parts its wall into, the edge
+//!   divided against both at once.
 //! - **Across arcs.** A tunnel's apex edge lying in a pocket's floor and
 //!   running past it, its crossings with the floor's arcs named by
 //!   edge-edge records alone: a disc floor, a D-shaped floor crossed
@@ -25,11 +27,12 @@
 //! - **An arc resting in a curved face**, a V revolved about `y` whose
 //!   tip arc lies in a bore's wall or a spherical floor, refuses typed:
 //!   the reduction does not place an arc lying in a curved face's
-//!   interior ([`CURVED_ARC`]).
+//!   interior.
 //!
-//! Each op, both orders, builds at its closed-form volume with tiers 3
-//! and 3′ and its material at sample points, and `A ∖ B` holds two
-//! coincident edges over each piece of the edge the face holds.
+//! Each op of the scenes that build, both orders, builds at its
+//! closed-form volume with tiers 3 and 3′ and its material at sample
+//! points, and `A ∖ B` holds two coincident edges over each piece of the
+//! edge the face holds.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::f64::consts::PI;
@@ -117,15 +120,7 @@ fn every_op(scene: &Scene<'_>) -> Vec<String> {
     let mut wrong = Vec::new();
     for (op, k) in OPS {
         let what = format!("{}, {op}, ε = {eps:e}", scene.what);
-        let got = match op {
-            "A ∪ B" => topo::union(a, b, tol()),
-            "B ∪ A" => topo::union(b, a, tol()),
-            "A ∖ B" => topo::subtract(a, b, tol()),
-            "B ∖ A" => topo::subtract(b, a, tol()),
-            "A ∩ B" => topo::intersect(a, b, tol()),
-            _ => topo::intersect(b, a, tol()),
-        };
-        let r = match got {
+        let r = match run(op, a, b) {
             Ok(BooleanResult::Body(r)) => r,
             Ok(BooleanResult::Empty) => {
                 wrong.push(format!("{what}: empty"));
@@ -141,10 +136,29 @@ fn every_op(scene: &Scene<'_>) -> Vec<String> {
     wrong
 }
 
+/// Op `op` of [`OPS`] of `a` and `b`.
+fn run(
+    op: &str,
+    a: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
+) -> Result<BooleanResult<f64>, BooleanError> {
+    match op {
+        "A ∪ B" => topo::union(a, b, tol()),
+        "B ∪ A" => topo::union(b, a, tol()),
+        "A ∖ B" => topo::subtract(a, b, tol()),
+        "B ∖ A" => topo::subtract(b, a, tol()),
+        "A ∩ B" => topo::intersect(a, b, tol()),
+        _ => topo::intersect(b, a, tol()),
+    }
+}
+
 /// What is wrong with `r`, op `k` of `scene`'s closed forms.
 fn unsound(what: &str, scene: &Scene<'_>, r: &topo::BooleanBody<f64>, k: usize) -> Vec<String> {
     let mut wrong = Vec::new();
-    let v = topo::mass_properties(&r.body, tol()).unwrap().volume;
+    let v = topo::mass_properties(&r.body, tol(), topo::test_support::pinned_resolution(tol()))
+        .unwrap()
+        .enclosure
+        .volume;
     if (v - scene.want[k]).abs() > 1e-6 {
         wrong.push(format!("{what}: volume {v}, closed form {}", scene.want[k]));
     }
@@ -280,6 +294,21 @@ fn an_edge_lying_in_a_wall_away_from_its_midpoint_parts_in_every_op() {
     let line = (Point3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
     let sampled = (Point3::new(-1.1, -0.7, -0.1), Point3::new(4.1, 0.7, 1.1));
     let in_wall_hole = |q: Point3<f64>| in_cutter(q, 0.25, 0.75).max(-in_notch(q));
+    // The slot `x ∈ [.9, 1.2]`, `|y| ≤ 1`, `z ∈ [.45, .55]` cuts the
+    // wall `x = 1` into two faces, each holding a piece of the edge.
+    let slot = finished(
+        "the slot",
+        brick::<f64>((0.9, 1.2), (-1.0, 1.0), (0.45, 0.55), tol()),
+        tol(),
+    );
+    let in_slotted = |q: Point3<f64>| {
+        let slot = (0.9 - q.x)
+            .max(q.x - 1.2)
+            .max(q.y.abs() - 1.0)
+            .max(0.45 - q.z)
+            .max(q.z - 0.55);
+        in_cutter(q, 0.2, 0.8).max(-slot)
+    };
     let notch = finished(
         "the notch",
         brick::<f64>((1.0, 1.2), (-0.1, 0.1), (0.45, 0.55), tol()),
@@ -315,6 +344,16 @@ fn an_edge_lying_in_a_wall_away_from_its_midpoint_parts_in_every_op() {
             want: [4.675, 2.879, 0.8, 0.996],
             sampled,
             keel: (line.0, line.1, &[(0.25, 0.45), (0.55, 0.75)]),
+        },
+        Scene {
+            what: "the wall over z ∈ [.2, .8] slotted through, two faces",
+            a: plate(),
+            b: less("the slotted cutter", &cutter(0.2, 0.8), &slot),
+            in_a: &in_plate,
+            in_b: &in_slotted,
+            want: [4.831, 2.695, 0.956, 1.18],
+            sampled,
+            keel: (line.0, line.1, &[(0.2, 0.45), (0.55, 0.8)]),
         },
     ];
     let wrong: Vec<String> = scenes.iter().flat_map(every_op).collect();
@@ -530,11 +569,6 @@ fn a_keel_along_a_cylinder_floors_ruling_parts_in_every_op() {
     assert!(wrong.is_empty(), "{wrong:#?}");
 }
 
-/// What an arc resting in a curved face's interior refuses as, in every
-/// op at every ε: the reduction places no arc lying in a curved face
-/// (`work/cleave/an-arc-lying-in-a-curved-faces-interior-refuses-at-the-reduction.md`).
-const CURVED_ARC: &str = "CurvedPierceUnsupported";
-
 /// A V revolved 150° about `y`, turned `turn` degrees about it.
 fn turned_v(pts: &[(f64, f64)], turn: f64) -> AtRestBody<f64> {
     let v = revolved_about_y(
@@ -549,7 +583,11 @@ fn turned_v(pts: &[(f64, f64)], turn: f64) -> AtRestBody<f64> {
 }
 
 /// **An arc resting in a bore's wall, or in a spherical floor, refuses
-/// typed in every op** (module docs, [`CURVED_ARC`]): the slab is a 270°
+/// typed in every op**, `CurvedPierceUnsupported` at the reduction, which
+/// places no arc lying in a curved face's interior
+/// (`work/cleave/an-arc-lying-in-a-curved-faces-interior-refuses-at-the-reduction.md`).
+/// This pins a refusal main gives too: the parting is never reached
+/// here, and past the reduction it refuses `Curved`. The slab is a 270°
 /// revolve about `y` whose inner wall is the cylinder `r = .5` or the
 /// sphere `|p| = 2`, less a V whose tip arc lies on it, the V inside the
 /// slab's turn (60°) or leaving through its end face (−20°).
@@ -596,20 +634,12 @@ fn an_arc_resting_in_a_cylinder_or_sphere_face_refuses_typed() {
     ] {
         for turn in [60.0, -20.0] {
             let v = turned_v(&v, turn);
-            for (op, got) in [
-                ("A ∪ B", topo::union(slab, &v, tol())),
-                ("B ∪ A", topo::union(&v, slab, tol())),
-                ("A ∖ B", topo::subtract(slab, &v, tol())),
-                ("B ∖ A", topo::subtract(&v, slab, tol())),
-                ("A ∩ B", topo::intersect(slab, &v, tol())),
-                ("B ∩ A", topo::intersect(&v, slab, tol())),
-            ] {
-                match got {
-                    Err(e)
-                        if format!("{:?}", e.kind()) == CURVED_ARC
-                            && !e.to_string().contains(geom_core::KERNEL_DEFECT_ENDING) => {}
+            for (op, _) in OPS {
+                match run(op, slab, &v) {
+                    Err(BooleanError::CurvedPierceUnsupported { .. }) => {}
                     other => wrong.push(format!(
-                        "{what}, the V turned {turn}°, {op}: {:?}, where it refuses {CURVED_ARC}",
+                        "{what}, the V turned {turn}°, {op}: {:?}, where it refuses \
+                         CurvedPierceUnsupported",
                         other.map(|_| ()).map_err(|e: BooleanError| e.kind())
                     )),
                 }

@@ -2880,8 +2880,14 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::Crossing",
         1,
     ),
-    ("slit.rs", "on_carrier", "Coincide::EdgeOnCurvedFace", 2),
-    ("slit.rs", "on_carrier", "Coincide::EdgeOnPlane", 2),
+    (
+        "slit.rs",
+        "carrier_on_surface",
+        "Coincide::EdgeOnCurvedFace",
+        2,
+    ),
+    ("slit.rs", "carrier_on_surface", "Coincide::EdgeOnPlane", 2),
+    ("slit.rs", "coplanar_wall_inside", "Coincide::Sectors", 1),
     (
         "slit.rs",
         "parting_order",

@@ -146,6 +146,16 @@ fn four(
     out
 }
 
+/// **A row refused `EdgeInFace` (`Tangent`)**, D1's doubled cusp, read
+/// off its outcome line: the refusal's kind, then the gap's words.
+fn refuses_the_cusp(pose: &str, row: &str) {
+    assert!(
+        row.starts_with("REFUSED EdgeInFace")
+            && row.contains("one of the edge's faces is tangent to the face along it"),
+        "{pose}: {row}"
+    );
+}
+
 /// Every op answered.
 fn all_answer(pose: &str, got: &[String]) {
     assert!(got.iter().all(|r| r.starts_with("OK")), "{pose}: {got:#?}");
@@ -397,16 +407,7 @@ fn p4_a_plane_tangent_to_part_of_a_hole() {
         [Some(66.0 - pi), Some(30.0 - pi), Some(30.0), Some(6.0)],
         &grid(),
     );
-    assert!(
-        matches!(
-            topo::subtract(&a, &b, tol()),
-            Err(topo::BooleanError::EdgeInFace {
-                gap: topo::EdgeInFaceGap::Tangent,
-                ..
-            })
-        ),
-        "p4 A ∖ B: {got:#?}"
-    );
+    refuses_the_cusp("p4 A ∖ B", &got[1]);
     all_answer("p4", &[0, 2, 3].map(|k| got[k].clone()));
 }
 
@@ -685,16 +686,7 @@ fn p11_the_new_rows_in_the_other_order() {
         &grid(),
     );
     // B ∖ A here is p4's `A ∖ B`, the doubled cusp: it refuses as there.
-    assert!(
-        matches!(
-            topo::subtract(&hole, &cut, tol()),
-            Err(topo::BooleanError::EdgeInFace {
-                gap: topo::EdgeInFaceGap::Tangent,
-                ..
-            })
-        ),
-        "p11 p4 swapped B ∖ A: {got:#?}"
-    );
+    refuses_the_cusp("p11 p4 swapped B ∖ A", &got[2]);
     all_answer("p11 p4 swapped", &[0, 1, 3].map(|k| got[k].clone()));
     let fat = ext("fat", vec![circle(0.0, 0.0, 2.0)], 0.0, 1.0);
     let thin = ext("thin long", vec![circle(1.0, 0.0, 1.0)], -1.0, 3.0);

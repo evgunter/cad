@@ -142,22 +142,20 @@ type Want = Option<(Census, [usize; 6])>;
 ///
 /// Inside, the union is the tube, the intersection the prism, `b ∖ t`
 /// empty, and `t ∖ b` the tube with a prism-shaped void that touches
-/// the wall along the edge. Off a seam ruling the void's two faces
-/// leave the edge into the wall's material, so the edge is two, a ring
-/// of no area in the wall, which refuses `EdgeInFace` (`CurvedRing`,
-/// `work/cleave/a-ring-of-no-area-in-a-curved-face-is-not-measured.md`);
-/// on one, its two shells are recorded touching at the edge's ends,
-/// v-e against the ruling the join made whole again, with the edge-edge
-/// record of the prism's edge lying along that ruling. Across the rim,
-/// the prism's part above `z = H` is `b ∖ t`, and `t ∖ b` is a notch
-/// whose edge runs down the wall from the rim: off a seam ruling two
-/// edges, a slit of the wall from the rim, its end there parted into
-/// one vertex per wedge. On a seam ruling `t ∖ b` refuses `LineWedges`:
-/// its result keeps the seam edge (180°) and the void's edge along it
-/// (270°) on one line,
-/// overlapping, which every tier passed; the material there is two
-/// 45° wedges, each between a void face and the wall. It returns with
-/// the re-pairing
+/// the wall along the edge, the void's two faces leaving it into the
+/// wall's material. Off a seam ruling the edge is two, a ring of no area
+/// in the wall, which refuses `EdgeInFace` (`CurvedRing`); the census
+/// and the v-f rests it pinned are owed back with the ring
+/// (`work/cleave/a-ring-of-no-area-in-a-curved-face-is-not-measured.md`).
+/// Across the rim, the prism's part above `z = H` is `b ∖ t`, and
+/// `t ∖ b` is a notch whose edge runs down the wall from the rim: off a
+/// seam ruling two edges, a slit of the wall from the rim, its end there
+/// parted into one vertex per wedge. On a seam ruling `t ∖ b` refuses
+/// `LineWedges`, inside and across: its result keeps the seam edge
+/// (180°) and the void's edge along it (270°) on one line, overlapping,
+/// which every tier passed; the material there is two 45° wedges, each
+/// between a void face and the wall. It returns, with the v-e and
+/// edge-edge records it pinned against the ruling, with the re-pairing
 /// (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
 #[test]
 fn a_prism_edge_on_the_tubes_wall_builds_every_op_undeclared() {
@@ -168,25 +166,9 @@ fn a_prism_edge_on_the_tubes_wall_builds_every_op_undeclared() {
     let prism: Want = Some(((6, 12, 8, 1), nothing));
     for turn in [0.3, 0.5, 0.0, PI] {
         let on_seam = turn == 0.0 || turn == PI;
-        // `[∪, t ∖ b, b ∖ t, ∩]` inside one face, then across the rim.
-        let inside: [Want; 4] = if on_seam {
-            [
-                Some(((4, 6, 4, 1), nothing)),
-                Some(((10, 18, 12, 2), [0, 0, 2, 1, 0, 0])),
-                None,
-                prism,
-            ]
-        } else {
-            [
-                Some(((4, 6, 4, 1), nothing)),
-                Some(((10, 18, 12, 2), [0, 2, 0, 0, 0, 0])),
-                None,
-                prism,
-            ]
-        };
-        // Off a seam ruling the notch's edge is parted to its lower end,
-        // which the wall's loop then passes through: no record is left.
-        let notch = if on_seam { [0, 0, 1, 1, 0, 0] } else { nothing };
+        // `[∪, t ∖ b, b ∖ t, ∩]` inside one face, then across the rim. A
+        // `t ∖ b` that refuses (below) holds nothing here.
+        let inside: [Want; 4] = [Some(((4, 6, 4, 1), nothing)), None, None, prism];
         // On a seam ruling the prism's edge meets the rim at the tube's
         // own rim vertex, one vertex fewer.
         let rim = if on_seam {
@@ -194,10 +176,11 @@ fn a_prism_edge_on_the_tubes_wall_builds_every_op_undeclared() {
         } else {
             (9, 19, 12, 1)
         };
-        // Off a seam ruling the notch's edge is two, the floor's slit,
-        // its end on the rim parted into one vertex per wedge.
-        let notched = if on_seam { rim } else { (9, 20, 13, 1) };
-        let across: [Want; 4] = [Some((rim, nothing)), Some((notched, notch)), prism, prism];
+        // Off a seam ruling the notch's edge is two, the wall's slit from
+        // the rim, its end there parted into one vertex per wedge and its
+        // lower end on the wall's loop: no record is left.
+        let notched = (!on_seam).then_some(((9, 20, 13, 1), nothing));
+        let across: [Want; 4] = [Some((rim, nothing)), notched, prism, prism];
         for (extent, z0, h, census, [union, t_less_b, b_less_t, common]) in [
             ("inside", 0.5, 1.0, inside, [tube, tube - AREA, 0.0, AREA]),
             (

@@ -203,7 +203,8 @@ fn r2_a_spun_steinmetz_moves_the_raiser_to_the_partner_seam() {
 /// faces each leave into the wall's material, so each ruling is two
 /// coincident edges, a ring of no area in the wall, which the measure
 /// of a curved face does not read: it refuses `EdgeInFace`
-/// (`CurvedRing`).
+/// (`CurvedRing`), and owes back its census and eight v-f records with
+/// the ring (`work/cleave/a-ring-of-no-area-in-a-curved-face-is-not-measured.md`).
 #[test]
 fn r2_a_box_with_on_carrier_rulings_builds_every_op_undeclared() {
     let tol = Tol::witness();

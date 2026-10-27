@@ -38,3 +38,11 @@ past the planar arm (`nurbs-edge-crossing-rung-is-the-ring-composite`).
 Give `lies_in` an arm for the two kinds that refuses typed (or reads
 them, once a rung places a point on one), with a row driving
 `part_riders` on a spline edge lying in a plane face.
+
+## 2026-10-26 — re-pointed (CLEAVE, PR 5793)
+
+`lies_in` is gone: the reading is `slit::holding`, and the carrier
+question it asked is `slit::carrier_on_surface`, which reads a line or
+a conic on a plane, cylinder, cone or sphere and answers every other
+pair, a spline or spiric carrier among them, `Ok(false)` by its last
+arm. The finding stands as written against that arm.

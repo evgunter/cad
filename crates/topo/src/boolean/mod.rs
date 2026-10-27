@@ -271,6 +271,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_cone_apart"
         | "bool_rider_wall_side"
         | "bool_rider_wall_bend"
+        | slit::RIDER_WALL_BEND_ACROSS
         | "bool_rider_wall_coplanar" => Coincide::Sectors.subject(),
         "bool_cone_pointed" => "whether a corner's link leans to one side of its vertex",
         // The census's edge-edge reading, which the result gate takes of

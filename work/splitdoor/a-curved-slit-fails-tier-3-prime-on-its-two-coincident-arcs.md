@@ -74,3 +74,23 @@ Once this lands, lift `CurvedSlitTrace` from `Sweep::section_kind`, and
 
 - Re-banded P2 → P1: straight slits pass tier 3′ by the reconstruction rule and curved ones have no record: a special case that should be handled uniformly, P1 by `work/README.md` Priority.
 - Moved to SPLITDOOR (`work/splitdoor/`) by `git mv`, id and body unchanged: the P1 track opened for split and boolean shapes that refuse, or ship a side their own gate fails, where a uniform reading would build: the split door's tier-3′ bar, tangent and pinch poses, and the curved-carrier lanes that read lines and circles only. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## 2026-10-26 — rows PR 5793 moved onto this gap (CLEAVE)
+
+PR 5793 reads arcs lying in curved faces, so these rows, which built
+the one-arc rider form on main, refuse `EdgeInFace` (`Curved`) until the
+curved slit form is built; each is owed back then, with the records it
+pinned (`sweep/tests/pi_seam_and_kiss_through_the_boolean.rs`):
+
+- `a_tube_through_the_domes_base_builds_every_op_undeclared`, `t ∖ d`:
+  census `(7, 12, 8, 1)`, two v-e records of the rim's ends on the
+  seam ruling;
+- `a_dome_sunk_across_the_tubes_seam_rulings_builds_every_op_undeclared`,
+  `t ∖ d`: censuses `(7, 12, 8, 1)` (two walls) and `(9, 18, 12, 1)`
+  (four), records `[v-v, v-f, v-e, e-e]` = `[0, 2, 0, 2]`,
+  `[0, 2, 0, 4]` and, on the rulings, `[0, 0, 2, 2]`;
+- `a_turned_rim_on_a_wall_bounded_by_an_ellipse_builds_every_op_undeclared`,
+  `t ∖ d`: census `(7, 12, 8, 1)`, records `[0, 2, 0, 2]`;
+- `a_rod_rim_on_the_dome_across_its_seam_meridian_builds_every_op_undeclared`,
+  `d ∖ a`: census `(6, 10, 7, 1)`, two v-f records and one or two e-e
+  records at the seam meridian.
