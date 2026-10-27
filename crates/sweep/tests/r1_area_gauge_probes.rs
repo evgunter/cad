@@ -55,25 +55,29 @@ fn r1_e2e_gauge_is_silent_on_an_honest_body_through_the_public_door() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties");
     // Report the honest widths so the run is a measurement, not just a
     // non-panic.
     println!(
         "R1-E2E volume {} +/- {} | area {} +/- {} | rel {:e}",
-        m.volume,
-        m.volume_pad,
-        m.surface_area,
-        m.area_pad,
-        2.0 * m.area_pad / m.surface_area
+        m.enclosure.volume,
+        m.enclosure.volume_pad,
+        m.enclosure.surface_area,
+        m.enclosure.area_pad,
+        2.0 * m.enclosure.area_pad / m.enclosure.surface_area
     );
     println!(
         "R1BITS eps={:?} area_pad_bits={:016x} surface_bits={:016x}",
         std::env::var("CAD_TOLERANCE_EPS").ok(),
-        m.area_pad.to_bits(),
-        m.surface_area.to_bits()
+        m.enclosure.area_pad.to_bits(),
+        m.enclosure.surface_area.to_bits()
     );
-    assert!(m.area_pad > 0.0, "an honest curved wall pays a width");
+    assert!(
+        m.enclosure.area_pad > 0.0,
+        "an honest curved wall pays a width"
+    );
     assert!(
         debug_assertions_are_on(),
         "this probe is only a reading when the assert is compiled in"
@@ -112,10 +116,14 @@ fn r1_e2e_gauge_is_silent_at_the_interval_lane() {
     )
     .expect("r1 loft builds");
     // Raw door: the measured body is a body tier 3 cannot measure (VolumeUncomputable), whose typed refusal is the subject.
-    match topo::test_support::measure_unvalidated(&lofted.body, Tol::witness()) {
+    match topo::test_support::measure_unvalidated(
+        &lofted.body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    ) {
         Ok(m) => println!(
             "R1-E2E(interval) area_pad {:?} surface {:?}",
-            m.area_pad, m.surface_area
+            m.enclosure.area_pad, m.enclosure.surface_area
         ),
         Err(e) => {
             println!("R1-E2E(interval): typed refusal before quadrature ({e:?}) — gauge silent")

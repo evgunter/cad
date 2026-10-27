@@ -81,3 +81,14 @@ cylinder certificate via `spline::compose::tensor`), whose substrate
 since the sweeps — so before any unit is cut here, the route-2
 ownership conversation happens with PROPS; the remaining named
 beneficiary is #1195.
+
+## Premise update (2026-10-26, QUAD measure door unit C, PR 5741)
+
+`PropsError::QuadratureBudget` no longer exists: no lane refuses for
+width, and a measurement whose faces stop short of the caller's
+resolution answers the bracket it reached, with `stop` `Floor` or
+`Wall` (`topo::MassMeasurement`). The refusal quoted above, and the
+`transform_rigid` one below it, now read as brackets. What this item
+still asks for is unchanged by that: route 2's algebraic certificate
+would make the rational cylinder wall's bracket narrow, and a bracket
+that is narrow is a number that `met()` reads.

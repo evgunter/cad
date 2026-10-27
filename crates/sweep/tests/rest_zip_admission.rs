@@ -34,7 +34,7 @@ fn box_of(x: Span, y: Span, z: Span) -> AtRestBody<f64> {
 }
 
 fn vol(b: &AtRestBody<f64>) -> f64 {
-    topo::mass_properties(b, tol()).unwrap().volume
+    topo::test_support::pinned_volume("the measured body", b, tol()).volume
 }
 
 fn union(p: &AtRestBody<f64>, q: &AtRestBody<f64>) -> AtRestBody<f64> {

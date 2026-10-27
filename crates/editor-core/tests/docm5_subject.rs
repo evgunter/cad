@@ -547,7 +547,8 @@ fn measure(body: &Body<f64>) -> String {
                 topo::Body::clone(body),
                 Tol::witness()
             ),
-            Tol::witness()
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
     )
 }

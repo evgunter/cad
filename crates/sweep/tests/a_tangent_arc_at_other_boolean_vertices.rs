@@ -95,9 +95,13 @@ type R = Result<BooleanResult<f64>, topo::BooleanError>;
 fn outcome(r: R) -> Result<f64, String> {
     match r {
         Ok(BooleanResult::Empty) => Ok(0.0),
-        Ok(BooleanResult::Body(b)) => mass_properties(&b.body, Tol::witness())
-            .map(|m| m.volume)
-            .map_err(|e| format!("mass {e:?}")),
+        Ok(BooleanResult::Body(b)) => mass_properties(
+            &b.body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .map(|m| m.enclosure.volume)
+        .map_err(|e| format!("mass {e:?}")),
         Err(e) => Err(format!("{e:?}")),
     }
 }
@@ -113,7 +117,17 @@ fn outcome(r: R) -> Result<f64, String> {
 #[test]
 #[ignore = "reviewer probe: prints; run with --ignored --nocapture"]
 fn a_tilted_dip_at_vertex_edge_and_vertex_vertex_postures() {
-    let vol = |b: &AtRestBody<f64>| mass_properties(b, Tol::witness()).unwrap().volume;
+    let vol = |b: &AtRestBody<f64>| {
+        mass_properties(
+            b,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
+        .volume
+    };
     let mut wrong = 0;
     for alpha in [0.3f64, 0.6] {
         let round = tilted_dipping_round(alpha);
@@ -194,7 +208,17 @@ fn a_tilted_dip_at_vertex_edge_and_vertex_vertex_postures() {
 /// without a clean In/Out transition after rewrite"`.
 #[test]
 fn a_rising_round_tilted_onto_a_slab_edge_keeps_its_operands() {
-    let vol = |b: &AtRestBody<f64>| mass_properties(b, Tol::witness()).unwrap().volume;
+    let vol = |b: &AtRestBody<f64>| {
+        mass_properties(
+            b,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
+        .volume
+    };
     let round = tilted_round(0.3, false);
     let vr = vol(&round);
     for (posture, s) in [

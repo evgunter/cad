@@ -233,7 +233,7 @@ fn built_volume(
         Ok(()),
         "{label}: tier 3"
     );
-    Some(topo::mass_properties(body, tol).unwrap().volume)
+    Some(topo::test_support::pinned_volume("the measured body", body, tol).volume)
 }
 
 /// **The non-crossing pose: a ball wholly inside a wider cylinder.**

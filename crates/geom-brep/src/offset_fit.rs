@@ -52,8 +52,7 @@
 //! refinement itself ([`OffsetFitError::RefinementStalled`]),
 //! each carrying the bound its last grid achieved and the smallest any
 //! round reached, or [`OffsetFitError::BoundNotFinite`] when the last
-//! round's bound is not one, carrying the smallest finite one — the
-//! [`crate::props::PropsError::QuadratureBudget`] shape (a bound
+//! round's bound is not one, carrying the smallest finite one (a bound
 //! decides, expiry is typed and carries what was reached), never an
 //! uncertified return.
 //!

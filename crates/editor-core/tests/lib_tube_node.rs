@@ -246,11 +246,27 @@ fn the_solid_ring_meters_its_closed_form() {
         topo::Body::clone(body_of(&ev, d.result.expect("a result node"))),
         Tol::witness(),
     );
-    let props = topo::mass_properties(&body, Tol::witness()).expect("mass properties");
+    let props = topo::mass_properties(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("mass properties");
     let (r, minor) = (tube_ring::R, tube_ring::MINOR);
-    close(props.volume, 2.0 * PI * PI * r * minor * minor, "ring V");
-    close(props.surface_area, 4.0 * PI * PI * r * minor, "ring A");
-    assert_eq!(props.volume_pad, 0.0, "a closed form needs no pad");
+    close(
+        props.enclosure.volume,
+        2.0 * PI * PI * r * minor * minor,
+        "ring V",
+    );
+    close(
+        props.enclosure.surface_area,
+        4.0 * PI * PI * r * minor,
+        "ring A",
+    );
+    assert_eq!(
+        props.enclosure.volume_pad, 0.0,
+        "a closed form needs no pad"
+    );
     assert_eq!(body.shells().count(), 1, "a solid torus is one shell");
 
     // The storage contract: every stored minor radius is the authored
@@ -279,7 +295,12 @@ fn the_hollow_elbow_meters_its_closed_form_and_stores_both_radii() {
         topo::Body::clone(body_of(&ev, d.result.expect("a result node"))),
         Tol::witness(),
     );
-    let props = topo::mass_properties(&body, Tol::witness()).expect("mass properties");
+    let props = topo::mass_properties(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("mass properties");
 
     let (r, outer, wall) = (
         hollow_tube_elbow::R,
@@ -289,9 +310,9 @@ fn the_hollow_elbow_meters_its_closed_form_and_stores_both_radii() {
     let inner = hollow_tube_elbow::inner(wall);
     let theta = hollow_tube_elbow::T1 - hollow_tube_elbow::T0;
     let area = PI * (outer * outer - inner * inner);
-    close(props.volume, theta * r * area, "elbow V");
+    close(props.enclosure.volume, theta * r * area, "elbow V");
     close(
-        props.surface_area,
+        props.enclosure.surface_area,
         theta * r * 2.0 * PI * (outer + inner) + 2.0 * area,
         "elbow A",
     );
@@ -334,14 +355,19 @@ fn the_full_hollow_ring_is_a_torus_shell_with_a_cavity() {
         topo::Body::clone(body_of(&ev, tube)),
         Tol::witness(),
     );
-    let props = topo::mass_properties(&body, Tol::witness()).expect("mass properties");
+    let props = topo::mass_properties(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("mass properties");
     close(
-        props.volume,
+        props.enclosure.volume,
         2.0 * PI * PI * r * (outer * outer - inner * inner),
         "hollow ring V",
     );
     close(
-        props.surface_area,
+        props.enclosure.surface_area,
         4.0 * PI * PI * r * (outer + inner),
         "hollow ring A",
     );
@@ -374,15 +400,20 @@ fn the_solid_elbow_meters_its_pappus_form() {
         topo::Body::clone(body_of(&ev, tube)),
         Tol::witness(),
     );
-    let props = topo::mass_properties(&body, Tol::witness()).expect("mass properties");
+    let props = topo::mass_properties(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("mass properties");
     let theta = t1 - t0;
     close(
-        props.volume,
+        props.enclosure.volume,
         theta * r * PI * minor * minor,
         "solid elbow V",
     );
     close(
-        props.surface_area,
+        props.enclosure.surface_area,
         theta * r * 2.0 * PI * minor + 2.0 * PI * minor * minor,
         "solid elbow A",
     );
@@ -438,7 +469,8 @@ fn solid_minus_hollow_is_the_bore_within_one_document() {
     let ev = eval::<f64>(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let vol = |id| {
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "mass properties",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(body_of(&ev, id)),
@@ -446,7 +478,6 @@ fn solid_minus_hollow_is_the_bore_within_one_document() {
             ),
             Tol::witness(),
         )
-        .expect("mass properties")
         .volume
     };
     close(

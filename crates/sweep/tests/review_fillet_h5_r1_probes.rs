@@ -107,11 +107,11 @@ fn r1_the_bosss_base_rim_is_hostless_and_carves() {
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
     assert_eq!(out.band_faces.len(), 1, "one band");
     assert_eq!(
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
             tol()
         )
-        .unwrap()
         .volume_pad,
         0.0,
         "closed-form faces only"
@@ -169,11 +169,11 @@ fn r1_a_hostless_rim_on_a_ringed_host_carves_under_the_recourse_that_promises_it
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
     assert_eq!(out.band_faces.len(), 1, "one band");
     assert_eq!(
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
             tol()
         )
-        .unwrap()
         .volume_pad,
         0.0,
         "closed-form faces only"
@@ -221,9 +221,10 @@ fn r1_two_hostless_rims_of_one_body_compose_in_one_call() {
             tol(),
         ),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .unwrap();
-    assert_eq!(one.volume_pad, 0.0, "closed-form faces only");
+    assert_eq!(one.enclosure.volume_pad, 0.0, "closed-form faces only");
 
     for order in [[(1.0, 0.0), (0.2, 1.2)], [(0.2, 1.2), (1.0, 0.0)]] {
         let mut body = {
@@ -245,6 +246,7 @@ fn r1_two_hostless_rims_of_one_body_compose_in_one_call() {
         let seq = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol()),
             tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .unwrap();
         // The same body, not the same history: each carve ends with the
@@ -259,11 +261,12 @@ fn r1_two_hostless_rims_of_one_body_compose_in_one_call() {
             "the one-call result IS the sequential composition, cell for cell (order {order:?})"
         );
         assert!(
-            (one.volume - seq.volume).abs() <= 4.0 * f64::EPSILON * one.volume.abs(),
+            (one.enclosure.volume - seq.enclosure.volume).abs()
+                <= 4.0 * f64::EPSILON * one.enclosure.volume.abs(),
             "the one-call volume is the sequential one to the summation order \
              (order {order:?}): {} vs {}",
-            one.volume,
-            seq.volume
+            one.enclosure.volume,
+            seq.enclosure.volume
         );
     }
 }

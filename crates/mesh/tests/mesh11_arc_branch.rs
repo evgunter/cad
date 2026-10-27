@@ -117,7 +117,11 @@ fn the_apex_crossing_bowtie_refuses_at_the_shape_door() {
 fn mass_properties_reports_the_side_refusal_on_the_half_cap() {
     let (body, cap, rest) = pole_crossing_half_cap();
     // Raw door: the measured body is a body still carrying construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
-    let got = topo::test_support::measure_unvalidated(&body, Tol::witness());
+    let got = topo::test_support::measure_unvalidated(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    );
     let Err(topo::MassPropsError::Face { face, source }) = got else {
         panic!("issue 1598: the closed sphere must refuse, not measure; got {got:?}");
     };
