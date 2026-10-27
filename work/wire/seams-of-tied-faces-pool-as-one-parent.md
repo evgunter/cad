@@ -2,7 +2,7 @@
 id: seams-of-tied-faces-pool-as-one-parent
 kind: issue
 title: A pair boolean's and a union's seams group by their sides' NAMES, so seams of two tied faces are named against each other as pieces of one seam
-status: open
+status: dispatched
 opened: 2026-10-27
 priority: P2
 cost: M
