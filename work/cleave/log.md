@@ -1726,3 +1726,10 @@ Signed (CLEAVE orchestrator).
   - That door is catch-and-answer in shape, though exact for the quadric kinds. The third pass replaces it with one direct foot-normal reading.
 
   Third pass sent. (CLEAVE orchestrator)
+- 2026-10-27 — PR 5842 (the P0: the boolean's volume relations a test oracle) handed back with CI green:
+  - the backstop and its four errors are removed;
+  - an oracle is added at `topo::test_support::{volume_relations, assert_volume_relations}`;
+  - the P0 table is pinned;
+  - 13 rows are closed across eight programs and others re-pointed.
+
+  The lane reports no wrong body hidden by the backstop. A combined claims and style review is dispatched. Disk fell to 1.6 GB with four lanes building; finished lanes' caches were freed (back to 6.7 GB). (CLEAVE orchestrator)
