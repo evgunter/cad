@@ -32,7 +32,7 @@ from pncad import (
     Angle,
     AngleUnit,
     ArcSweep,
-    Assembly,
+    AtRestEvidence,
     Bulge,
     ClosedLoop,
     CancelToken,
@@ -117,7 +117,9 @@ from pncad import (
     SurfaceKind,
     Workspace,
     StationMove,
-    assemble,
+    InterferenceFinding,
+    CarriedCoincidence,
+    CarriedInterference,
     canonical_bytes,
     circle,
     content_pin,
@@ -374,16 +376,16 @@ rims: list[str] = ev.select_where(
 )
 narrowed_blend: NodeId = doc.insert(Node.fillet(lightened, Formula.length_in(0.01, m), straight))
 
-# The structural half: role-path shape, sides, sub-name prefixes, the
+# The structural half: role-path shape, sides, sub-name arguments, the
 # union — and `matches` on a materialized name, the binding reading
 # the text so your code never does.
 top_rim: Selector = Selector.of(
     NamePat.of_kind(EntityKind.Edge).seg(SegPat.tag(SegTag.RimEdge).side(CapEnd.End))
 )
-from_a: NamePat = NamePat.any().seg(
+cap_side: NamePat = NamePat.any().seg(
     SegPat.tag(SegTag.Seam).of([NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Cap))])
 )
-both: Selector = top_rim.or_(from_a)
+both: Selector = top_rim.or_(cap_side)
 structural: list[str] = ev.select(lightened, both)
 hit: bool = both.matches(blend_edges[0])
 
@@ -614,11 +616,9 @@ relative: Frame | None = poses.pose(instance)
 world_pose: Frame = poses.placement(doc, instance)
 partition: list[list[NodeId]] = relative_freedom_components(doc)
 
-# The gather and the gate.
+# The gather.
 gathered: Body = product(doc, seamed)
 named_gather: tuple[Body, list[str]] = product_named(doc, seamed)
-checked: Assembly = assemble(doc, seamed)
-assembled: Body = checked.body
 
 # The refactorings and the pin-update door.
 cut: SplitOutcome = split(doc, [instance], minted)
@@ -673,10 +673,21 @@ report: ChecksReport = run_checks(doc, seamed)
 strict: ChecksConfig = ChecksConfig(
     connectedness=Severity.Error,
     expected_components=[(instance, 0, 2)],
-    separation=Advisory.Warn,
+    unproven_coincidence=Advisory.Warn,
+    at_rest=Severity.Error,
 )
 findings: list[CheckFinding] = run_checks(doc, seamed, strict).findings
 label: CheckKind = CheckId.Connectedness.kind
+# What the at-rest check reports, read off a finding: the census it is
+# under, the assertion that quiets it, and the evidence's payloads.
+at_rest: list[CheckFinding] = [f for f in findings if f.check == CheckId.AtRest]
+census: Var | None = at_rest[0].census
+quieted_by: NodeId | None = at_rest[0].quiet
+overlap: InterferenceFinding | None = at_rest[0].evidence.interference
+carried_overlap: CarriedInterference | None = at_rest[0].evidence.carried_interference
+carried_glue: CarriedCoincidence | None = at_rest[0].evidence.carried_coincidence
+could_not_look: AtRestEvidence | None = at_rest[0].evidence.at_rest
+why: str | None = could_not_look.inner_variant if could_not_look is not None else None
 enforce_checks(report, strict)
 flagged: Body | None = subject_body(seamed, instance, 0)
 

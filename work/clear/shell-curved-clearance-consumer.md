@@ -2,11 +2,12 @@
 id: shell-curved-clearance-consumer
 kind: issue
 title: where a curved wall-clearance gate can call the E7 engine from (the shell verb sits below it)
-status: open
+status: closed
 opened: 2026-09-03
 refs: [shell-curved-wall-clearance-window, 1638, 1055, 1191]
 priority: P1
 cost: D
+closed: 2026-10-27
 ---
 
 ## The valve M10-5 left open
@@ -185,3 +186,12 @@ in place with the ruling.
 `interval`, joint with M10) and `SHELL-4` (the gate at the shell door
 at certifying scalars). `shell-curved-wall-clearance-window` is
 re-parked on SHELL-4. `docs/DESIGN.md`'s tier-3 note names the home.
+
+## Closed (2026-10-27)
+
+Answered: Ev ruled B on `[ev]` #1737 (2026-09-04). The answer is built
+by `SHELL-3` (the engine's body-level half moves into `topo` behind
+`interval`) and `SHELL-4` (`shell` runs the curved gate at the scalars
+that certify), which carry it; `shell-curved-wall-clearance-window`
+stays parked on `SHELL-4`. Nothing is left on this row that those two
+do not schedule. (CLEAR orchestrator)

@@ -461,19 +461,20 @@ fn certify_errors() -> Vec<CertifyError> {
                 channel: geom_brep::SectorChannel::Azimuth,
             },
         },
-        CertifyError::DeclaredOffChart {
+        CertifyError::CarrierOffChart {
             chart: geom::SurfaceKind::Plane,
             carrier: geom::CurveKind::Line,
+            why: "the line's points are not on the chart",
             margin: None,
         },
-        CertifyError::DeclaredOffChart {
+        CertifyError::CarrierOffChart {
             chart: geom::SurfaceKind::Cone,
             carrier: geom::CurveKind::Line,
+            why: "the line is not shown off the plane through the apex",
             margin: Some(geom_brep::OffMargin::InBand(MarginDiag::value(4e-10))),
         },
         CertifyError::UnresolvedSurface { key },
         CertifyError::Unimplemented,
-        CertifyError::NurbsLaneNotSupplied,
         CertifyError::OnPairArcRim {
             iso: None,
             limb: geom_brep::SsiLimb::HullValueChart,
@@ -554,9 +555,9 @@ fn certify_errors() -> Vec<CertifyError> {
             sample: geom_brep::certify::NOT_A_SAMPLE,
             cause: diag(),
         },
-        // A declared carrier's incidence in band at the edge certificate.
+        // A carrier's incidence in band at the edge certificate.
         CertifyError::Escalated {
-            check: CertCheck::DeclaredIncidence,
+            check: CertCheck::ChartIncidence,
             sample: geom_brep::certify::NOT_A_SAMPLE,
             cause: diag(),
         },
@@ -590,14 +591,22 @@ fn certify_errors() -> Vec<CertifyError> {
 fn analytic_rung3_refusals() -> Vec<geom_brep::AnalyticRung3Refusal> {
     use geom_brep::AnalyticRung3Refusal as A;
     vec![
-        A::Limb {
+        A::KernelLimit {
             operand: geom::SurfaceKind::Plane,
-            limb: geom_brep::Rung3Limb::HullSup,
+            bound: 7.5e-5,
             margin: MarginDiag::value(7.5e-5),
+            width: 1e-6,
+            extent: 2.0,
+        },
+        A::KernelLimit {
+            operand: geom::SurfaceKind::Torus,
+            bound: 7.5e-5,
+            margin: MarginDiag::value(7.5e-5),
+            width: 1e-15,
+            extent: 2.0,
         },
         A::Limb {
             operand: geom::SurfaceKind::Plane,
-            limb: geom_brep::Rung3Limb::HullValue,
             margin: MarginDiag::value(7.5e-5),
         },
         A::Escalated {
@@ -610,10 +619,15 @@ fn analytic_rung3_refusals() -> Vec<geom_brep::AnalyticRung3Refusal> {
             limb: geom_brep::Rung3Limb::Tube,
             cause: diag(),
         },
+        A::Stalled {
+            operand: geom::SurfaceKind::Cylinder,
+            cause: diag(),
+        },
         A::NoOffsetBound {
             operand: geom::SurfaceKind::Cone,
             why: geom_brep::SectorChannel::Lever.describe(),
         },
+        A::CarrierEnclosure(carrier_enclosure()),
         A::NoTubeEnclosure {
             operand: geom::SurfaceKind::Torus,
         },
@@ -771,39 +785,12 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
         },
     ];
     v.extend(band_errors().into_iter().map(PcurveMintError::Band));
-    // Each certification refusal under both authorities: the ending of
-    // a carrier off its face turns on which ([`crate::validate`]'s
-    // `off_face_ending`).
-    for authority in authorities() {
-        v.extend(
-            pcurve_certify_errors()
-                .into_iter()
-                .map(|error| PcurveMintError::Certify {
-                    half_edge,
-                    error,
-                    authority,
-                }),
-        );
-    }
+    v.extend(
+        pcurve_certify_errors()
+            .into_iter()
+            .map(|error| PcurveMintError::Certify { half_edge, error }),
+    );
     v
-}
-
-/// The two authorities a locus can have, each spelled through
-/// [`geom_brep::EdgeAuthority::kind`]: derived, and declared by an
-/// extruded sketch point.
-pub(crate) fn authorities() -> [geom_brep::AuthorityKind; 2] {
-    [
-        geom_brep::EdgeAuthority::<f64>::Derived.kind(),
-        geom_brep::EdgeAuthority::Declared(geom_brep::MappedCurve {
-            source: geom_brep::MappedSource::ExtrudedPoint {
-                point: geom_core::Point2::new(0.0, 0.0),
-                place: geom_core::Affine3::identity(),
-                vec: geom_core::Vec3::new(0.0, 0.0, 1.0),
-            },
-            range: geom_brep::SubRange::whole(),
-        })
-        .kind(),
-    ]
 }
 
 fn props_errors() -> Vec<PropsError> {

@@ -374,7 +374,14 @@ fn a_plane_face_with_an_iso_line_or_nurbs_image_reverts_and_recertifies() {
         assert_mirrored(label, &image_of(&source), &image_of(&mirrored), &ts);
         let (start, end) = (carrier.eval(0.0), carrier.eval(len));
         let surfaces = |k| reverted.get_surface(k).cloned();
-        let control = source.recertify(start, end, surfaces, 1.0, band);
+        let control = source.recertify(
+            start,
+            end,
+            surfaces,
+            1.0,
+            band,
+            geom_brep::NurbsLane::certified(),
+        );
         assert!(
             matches!(
                 control,
@@ -387,7 +394,14 @@ fn a_plane_face_with_an_iso_line_or_nurbs_image_reverts_and_recertifies() {
             "{label}: the source's image on the reverted plane: {control:?}"
         );
         let rerun = mirrored
-            .recertify(start, end, surfaces, 1.0, band)
+            .recertify(
+                start,
+                end,
+                surfaces,
+                1.0,
+                band,
+                geom_brep::NurbsLane::certified(),
+            )
             .expect(label);
         assert_eq!(
             format!("{rerun:?}"),

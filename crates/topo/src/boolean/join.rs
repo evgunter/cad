@@ -915,14 +915,18 @@ fn germ_site<T: Decide>(
 /// - **a closed edge lying in the partner** (a one-segment circle, both
 ///   of whose ends are its one vertex): the loop is that edge, and the
 ///   site is its vertex. The partner holds it inside a planar or a
-///   spherical face, whose interior the site pierces, or along a closed
-///   edge of its own through the same site.
+///   spherical face, whose interior the site pierces; inside a planar
+///   face whose boundary passes through the site, where the loop only
+///   touches that boundary (two rims tangent at their vertices); or
+///   along a closed edge of its own through the same site.
 ///
 /// Read from the records [`matched_records`]' quiescence left. Every
 /// other [`one_site`] record is left for the
 /// [`SplitJoinError::SingleSiteSectionLoop`] refusal: a pierce of a face
 /// the joiner cannot side a whole conic on, a site on both operands'
-/// wrap edges, and a site where the loop meets an edge of another face.
+/// wrap edges, a site where a transverse section or a pierce meets an
+/// edge of another face, or a closed edge meets one in a curved face,
+/// and a closed edge that is not a circle.
 ///
 /// Where a record is taken, three things are kernel bugs, refused as
 /// [`BooleanError::JoinDesync`]: another record naming its locus pair
@@ -944,7 +948,7 @@ fn one_site_segments<T: Decide>(
         let Some((g0, frame)) = one_site(red, rec, band)? else {
             continue;
         };
-        if !closes_at_its_site(red, &g0, rec.b[0].0.he)? {
+        if !closes_at_its_site(red, &g0, rec.b[0].0.he, band)? {
             continue;
         }
         for (_, other) in open.iter().enumerate().filter(|&(o, _)| o != r) {
@@ -991,8 +995,14 @@ fn one_site_segments<T: Decide>(
 /// **Whether a one-site record's loop closes at its site**
 /// ([`one_site_segments`]), read from what the site is in the germ's cell
 /// on each operand ([`site_cell`]): a wrap edge against a pierce of a
-/// planar face, or a closed edge against a pierce of a face
-/// [`RimSide::of`] sides or against another closed edge. A pierce is
+/// planar face, or a closed circle against a pierce of a face
+/// [`RimSide::of`] sides, against a vertex on the boundary of a planar
+/// face it stands on from the other side ([`stands_on`]), or against
+/// another closed circle. At a boundary vertex the germ's
+/// cell is the face, so the circle leaves the vertex into the face and
+/// returns to it; the joiner mints its copy in that face as one chord
+/// from the vertex round to itself, dividing the face. A closed edge of
+/// any other carrier has no copy, and its loop is refused. A pierce is
 /// joined in its face as a ring of its own
 /// ([`crate::chord_join::ChordJoiner`]'s lone ring), on the face's
 /// [`RimSide`]; the transverse section's conic is the wall's, not a
@@ -1001,6 +1011,7 @@ fn closes_at_its_site<T: Decide>(
     red: &BooleanReduction<T>,
     g0: &HalfGerm<T>,
     b_he: HalfEdgeKey,
+    band: Band,
 ) -> Result<bool, BooleanError> {
     let rim =
         |body: &Body<T>, f: FaceKey| Ok::<_, BooleanError>(RimSide::of(face_surface(body, f)?.1));
@@ -1011,12 +1022,77 @@ fn closes_at_its_site<T: Decide>(
         ) {
             (SiteCell::Wrap, SiteCell::Pierce(f)) => rim(&red.b, f)? == Some(RimSide::Plane),
             (SiteCell::Pierce(f), SiteCell::Wrap) => rim(&red.a, f)? == Some(RimSide::Plane),
-            (SiteCell::Closed, SiteCell::Pierce(f)) => rim(&red.b, f)?.is_some(),
-            (SiteCell::Pierce(f), SiteCell::Closed) => rim(&red.a, f)?.is_some(),
-            (SiteCell::Closed, SiteCell::Closed) => true,
+            (SiteCell::Closed(Some(_)), SiteCell::Pierce(f)) => rim(&red.b, f)?.is_some(),
+            (SiteCell::Pierce(f), SiteCell::Closed(Some(_))) => rim(&red.a, f)?.is_some(),
+            (SiteCell::Closed(Some(_)), SiteCell::Closed(Some(_))) => true,
+            (SiteCell::Closed(Some(e)), SiteCell::Other(f)) => {
+                rim(&red.b, f)? == Some(RimSide::Plane) && stands_on(red, (Operand::A, e), f, band)?
+            }
+            (SiteCell::Other(f), SiteCell::Closed(Some(e))) => {
+                rim(&red.a, f)? == Some(RimSide::Plane) && stands_on(red, (Operand::B, e), f, band)?
+            }
             _ => false,
         },
     )
+}
+
+/// **Whether closed edge `e` of operand `x` stands on planar face `f` of
+/// the other from the other side**: a planar face of `x` along `e`,
+/// which lies in `f`'s plane, faces the other way as the op reads them
+/// (`bool_rim_face_opposed`, the normals' cosine levered at that face's
+/// reach from `e`; a subtrahend's normals read reversed). A rim
+/// standing on the face (a boss on a plate, or over a hole whose rim it
+/// touches) is joined at the boundary vertex. A rim lying flush in it,
+/// both faces facing one way, is not: the operation keeps one copy of
+/// the shared region, and the cut that divides the dropped copy along
+/// the rim cannot place the rim's chord at its one vertex, where the rim
+/// is tangent to the face's boundary
+/// (`work/cleave/a-flush-closed-rim-tangent-at-its-vertex-reaches-the-fate-cut-limit.md`).
+fn stands_on<T: Decide>(
+    red: &BooleanReduction<T>,
+    (x_is, e): (Operand, EdgeKey),
+    f: FaceKey,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let (x, y) = match x_is {
+        Operand::A => (&red.a, &red.b),
+        Operand::B => (&red.b, &red.a),
+    };
+    // A ∖ B reads B's complement, whose faces face the other way.
+    let flips = red.op == super::BooleanOp::Subtract;
+    use super::solid_contain::{PointInSolidError, face_plane};
+    let desync = |what| BooleanError::JoinDesync { what };
+    let plane = |body: &Body<T>, face: FaceKey| match face_plane(body, face) {
+        Ok((_, n)) => Ok(Some(n)),
+        Err(PointInSolidError::KindUnsupported { .. }) => Ok(None),
+        Err(e) => Err(BooleanError::Containment(e)),
+    };
+    let Some(n_f) = plane(y, f)? else {
+        return Ok(false);
+    };
+    let edge = x
+        .get_edge(e)
+        .ok_or(desync("a germ's closed edge no longer resolves"))?;
+    let curve = x
+        .edge_curve_linked(e, edge)
+        .certified()
+        .ok_or(desync("a germ's closed edge is scaffolding"))?;
+    for h in [edge.he_plus, edge.he_minus] {
+        let face = x
+            .face_of_half_edge(h)
+            .ok_or(desync("a germ's closed edge has a half with no face"))?;
+        let Some(n) = plane(x, face)? else {
+            continue;
+        };
+        let arm = crate::wedge_reach(x, [face, face], curve.carrier(), curve.params());
+        let cosine = if flips { -n.dot(n_f) } else { n.dot(n_f) };
+        return Ok(
+            decide("bool_rim_face_opposed", Margin::levered(cosine, arm), band).map_err(
+                |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag),
+            )? == Sign::Negative,
+        );
+    }
+    Ok(false)
 }
 
 /// What a null half's site is in its germ's cell on one operand
@@ -1030,10 +1106,13 @@ enum SiteCell {
     /// interior.
     Pierce(FaceKey),
     /// Along an edge: a closed one, both of whose ends are the site
-    /// ([`site_cell`]).
-    Closed,
-    /// Inside a face, a real edge there bounding another face.
-    Other,
+    /// ([`site_cell`]): the edge where it is a circle, the one closed
+    /// carrier the joiner copies (`crate::chord_join`'s
+    /// `closed_edge_spec`), `None` for any other.
+    Closed(Option<EdgeKey>),
+    /// Inside this face, a real edge there bounding another face: the
+    /// site is a vertex of the face's boundary.
+    Other(FaceKey),
 }
 
 /// [`SiteCell`] of the site of null half `he`, its germ's cell `locus`.
@@ -1046,10 +1125,20 @@ fn site_cell<T: Decide>(
     locus: super::Locus,
     he: HalfEdgeKey,
 ) -> Result<SiteCell, BooleanError> {
-    let super::Locus::InFace(face) = locus else {
-        return Ok(SiteCell::Closed);
-    };
     let desync = |what| BooleanError::JoinDesync { what };
+    let face = match locus {
+        super::Locus::InFace(face) => face,
+        super::Locus::OnEdge(e) => {
+            let edge = body
+                .get_edge(e)
+                .ok_or(desync("a germ's closed edge no longer resolves"))?;
+            let circle = body
+                .edge_curve_linked(e, edge)
+                .certified()
+                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle { .. }));
+            return Ok(SiteCell::Closed(circle.then_some(e)));
+        }
+    };
     let start = body
         .get_half_edge(he)
         .ok_or(desync("germ half no longer resolves"))?
@@ -1070,7 +1159,7 @@ fn site_cell<T: Decide>(
             }
             for h in [e.he_plus, e.he_minus] {
                 if body.face_of_half_edge(h) != Some(face) {
-                    return Ok(SiteCell::Other);
+                    return Ok(SiteCell::Other(face));
                 }
             }
             cell = SiteCell::Wrap;
@@ -6289,45 +6378,55 @@ mod frame_dispatch_tests {
     /// serve, so it escalates on the split.
     #[test]
     fn a_rim_patchs_turn_is_levered_at_its_arcs_in_the_germ_frame() {
-        let eps = Tol::witness().eps();
-        let (r, e, w) = (1000.0, 1e3 * eps, 1e5 * eps);
-        let mut body = crate::Body::<f64>::new();
-        let face = crate::test_support_fixtures::cyl_wall_sheet(
-            &mut body,
-            crate::test_support_fixtures::CylFrame::canonical(r),
-            (0.0, w / r),
-            (0.0, e),
-            Tol::witness(),
+        // Pinned to limb 2's kernel limit at ε = 1e-12: the 1 km-radius rim rounds at its radius
+        // (`work/offset/the-closed-form-net-builder-rounds-at-a-km-radius-not-at-the-span.md`).
+        test_utils::kernel_limit::pinned_row(
+            geom_core::Tol::witness().eps(),
+            &[1e-12],
+            "a_rim_patchs_turn_is_levered_at_its_arcs_in_the_germ_frame",
+            || {
+                let eps = Tol::witness().eps();
+                let (r, e, w) = (1000.0, 1e3 * eps, 1e5 * eps);
+                let mut body = crate::Body::<f64>::new();
+                let face = crate::test_support_fixtures::cyl_wall_sheet(
+                    &mut body,
+                    crate::test_support_fixtures::CylFrame::canonical(r),
+                    (0.0, w / r),
+                    (0.0, e),
+                    Tol::witness(),
+                );
+                for k in [0.5, 0.8, 0.95] {
+                    let c = k * Tol::witness().eps() / e;
+                    let normal = Vec3::new(0.0, (1.0 - c * c).sqrt(), c);
+                    for (label, got) in plane_frames(&body, face, Point3::new(r, 0.0, 0.0), normal)
+                    {
+                        assert_eq!(
+                            verdict(&got),
+                            "pc_axis_plane_parallel_straddle",
+                            "k = {k} ({label}): the span's rulings against the whole turn's conic"
+                        );
+                        let Err(FrameError::Escalated { diag, .. }) = got else {
+                            unreachable!("named as an escalation")
+                        };
+                        // The Boolean's ending: the section question's lever alone,
+                        // the straddle's, with no unreadable-margin note — the
+                        // enclosure is read, where the poison it replaced was not.
+                        let said = crate::boolean::BooleanError::coincidence(
+                            crate::boolean::Coincide::Section,
+                            crate::boolean::DeclarationRead::Moot,
+                            diag,
+                        )
+                        .to_string();
+                        assert!(
+                        said.ends_with(
+                            "Recourse: move the parts so they clearly meet or clearly stand apart there"
+                        ) && !said.contains(geom_core::UNREADABLE_MARGIN_NOTE),
+                        "k = {k} ({label}): {said}"
+                    );
+                    }
+                }
+            },
         );
-        for k in [0.5, 0.8, 0.95] {
-            let c = k * Tol::witness().eps() / e;
-            let normal = Vec3::new(0.0, (1.0 - c * c).sqrt(), c);
-            for (label, got) in plane_frames(&body, face, Point3::new(r, 0.0, 0.0), normal) {
-                assert_eq!(
-                    verdict(&got),
-                    "pc_axis_plane_parallel_straddle",
-                    "k = {k} ({label}): the span's rulings against the whole turn's conic"
-                );
-                let Err(FrameError::Escalated { diag, .. }) = got else {
-                    unreachable!("named as an escalation")
-                };
-                // The Boolean's ending: the section question's lever alone,
-                // the straddle's, with no unreadable-margin note — the
-                // enclosure is read, where the poison it replaced was not.
-                let said = crate::boolean::BooleanError::coincidence(
-                    crate::boolean::Coincide::Section,
-                    crate::boolean::DeclarationRead::Moot,
-                    diag,
-                )
-                .to_string();
-                assert!(
-                    said.ends_with(
-                        "Recourse: move the parts so they clearly meet or clearly stand apart there"
-                    ) && !said.contains(geom_core::UNREADABLE_MARGIN_NOTE),
-                    "k = {k} ({label}): {said}"
-                );
-            }
-        }
     }
 
     /// **A face at one station is cut across the axis in a conic, by the

@@ -60,14 +60,14 @@ mod seam_region_common;
 mod a_carried_record_no_reading_covers;
 #[path = "a_circle_of_one_radius_elsewhere_is_no_rim.rs"]
 mod a_circle_of_one_radius_elsewhere_is_no_rim;
+#[path = "a_curve_off_its_face_at_a_build_is_the_kernels.rs"]
+mod a_curve_off_its_face_at_a_build_is_the_kernels;
 #[path = "a_curved_keel_in_the_plane.rs"]
 mod a_curved_keel_in_the_plane;
 #[path = "a_curved_keel_on_the_floor_refuses_its_slit_form.rs"]
 mod a_curved_keel_on_the_floor_refuses_its_slit_form;
 #[path = "a_cylinder_split_just_off_its_rim_vertex.rs"]
 mod a_cylinder_split_just_off_its_rim_vertex;
-#[path = "a_declared_curve_off_its_face_ends_in_its_lever.rs"]
-mod a_declared_curve_off_its_face_ends_in_its_lever;
 #[path = "a_face_across_a_wavy_corner.rs"]
 mod a_face_across_a_wavy_corner;
 #[path = "a_face_off_the_tangent_ruling.rs"]
@@ -995,6 +995,8 @@ mod curved_mergedoor;
 
 #[path = "curved_coincident_fates.rs"]
 mod curved_coincident_fates;
+#[path = "curved_copies_filling_one_volume.rs"]
+mod curved_copies_filling_one_volume;
 #[path = "curved_notch_pinch.rs"]
 mod curved_notch_pinch;
 

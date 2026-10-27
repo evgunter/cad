@@ -18,8 +18,8 @@ use editor_core::Formula;
 
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    AssemblyError, CapEnd, Coord, DocEdit, DocRef, DocumentId, EntityKind, Frame, Mate, MateRef,
-    Node, Operand, ProfileDoc, RecipeNodeId, StableName, TargetAxis, assemble, product_recorded,
+    CapEnd, Coord, DocEdit, DocRef, DocumentId, EntityKind, Frame, Mate, MateRef, Node, Operand,
+    ProfileDoc, RecipeNodeId, StableName, TargetAxis, product_recorded,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame, run, step};
@@ -781,16 +781,16 @@ fn a_mate_refused_at_the_door_speaks_the_nodes_its_fault_names() {
     );
 }
 
-/// **A part's own at-rest refusal crosses whole.** A sub-assembly holds
+/// **What a part could not look at crosses whole.** A sub-assembly holds
 /// a stand and a block of its own three ε off the stand's lower cube, in
-/// the sliver band, where its census escalates. Its own gate refuses. A
-/// top document instantiating it refuses `CarriedAtRest` with that
-/// refusal whole, verbatim, by the instance
-/// (`work/intent/a-part-drops-its-census-findings-at-the-seam.md`).
+/// the sliver band, where its census escalates: its own at-rest check
+/// reports could-not-look findings. A top document instantiating it
+/// reports each of them, verbatim, carried by the instance, and refuses
+/// nothing (`work/intent/a-part-drops-its-census-findings-at-the-seam.md`).
 ///
-/// *Breaks if* the carried refusal drops or re-says a finding.
+/// *Breaks if* a carried finding is dropped or re-said.
 #[test]
-fn a_parts_own_refusal_crosses_whole() {
+fn what_a_part_could_not_look_at_crosses_whole() {
     let mut store = PartStore::default();
     let (gapped, ..) = stand(&mut store, "docm6-whole-stand", 0.0, 3.0);
     let mid = ProfileDoc::empty(DocumentId::derive("docm6-whole-mid"), Tol::witness());
@@ -819,38 +819,41 @@ fn a_parts_own_refusal_crosses_whole() {
         block,
         &editor_core::Frame::translation([0.0, 0.0, 0.25]),
     );
-    let Err(AssemblyError::AtRest { findings: own }) = assemble(
-        &mid,
-        &run(&mid, &with_resolver(store.clone())),
-        Tol::witness(),
-    ) else {
-        panic!("the premise: the sub-assembly refuses at rest")
-    };
+    let own = fixture::could_not_look(
+        &fixture::at_rest(&mid, &run(&mid, &with_resolver(store.clone())))
+            .expect("the sub-assembly gathers"),
+    );
+    assert!(
+        !own.is_empty(),
+        "the premise: the sub-assembly's census could not look"
+    );
     let mid_id = mid.id();
     let mid_ref = store.insert(mid, Tol::witness());
     let (top, instances) = row_of(&store, "docm6-whole-top", mid_ref, 1, 4.0);
-    let result = assemble(&top, &run(&top, &with_resolver(store)), Tol::witness());
-    let Err(AssemblyError::CarriedAtRest { findings }) = &result else {
-        panic!("the sub-assembly's refusal, carried: {result:?}")
-    };
+    let reported = fixture::could_not_look(
+        &fixture::at_rest(&top, &run(&top, &with_resolver(store))).expect("the top gathers"),
+    );
+    let findings: Vec<_> = reported
+        .iter()
+        .filter_map(|evidence| match evidence {
+            editor_core::AtRestEvidence::Carried(row) => Some(row),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        findings.len(),
+        reported.len(),
+        "every finding is the sub-assembly's, carried: {reported:?}"
+    );
     assert_eq!(
         findings.iter().map(|row| &row.finding).collect::<Vec<_>>(),
         own.iter().collect::<Vec<_>>(),
-        "the refusal whole, verbatim"
+        "the findings whole, verbatim"
     );
     assert!(
         findings
             .iter()
             .all(|row| (row.route.through, row.route.of) == (instances[0], mid_id)),
         "every row is the sub-assembly's, by the instance"
-    );
-    // ONE recourse for the list, in the header: the repair is to open
-    // the document below.
-    let line = result.expect_err("refused").spoken(&top);
-    assert_eq!(
-        line.matches("open those documents and repair them there")
-            .count(),
-        1,
-        "{line}"
     );
 }

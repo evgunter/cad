@@ -115,17 +115,29 @@ side clears only
 - on a definitely-positive separation margin between certified reach boxes
   (`face_reach_in`), read along each world axis and then along the
   directions that turn with the pair: the axis between the two faces'
-  anchors, and either face's normal where it is planar
-  (`boolean::separating::apart`), or
+  anchors, either face's normal where it is planar, and the offset from
+  an axis or centre either face proposes to the other's nearest boundary
+  segment point (`census::depth_gap::toward`). Along these turned
+  directions only (`boolean::separating::apart_by`), not the world axes,
+  a sphere face is taken to reach no further than its boundary at an
+  end whose pole the face places definitely `Out`
+  (`census::held_reach_in`); or
 - on a definitely-positive gap in depth (the distance from an axis
   line, a centre or a circle that either face's carrier or a conic on
   its boundary proposes) between one face's least depth and the
   other's greatest, each bounded through rings and segments that cover
   the face or its convex hull (`census::depth_gap`): the nested walls,
   bores and plugs no direction separates, or
-- where the pair meets, by the touch analysis, which reads planar faces
-  only: a touch a curved face takes part in refuses (`TouchUnreadable`) —
-  it never decides a Rest or a crossing there;
+- where the pair meets, by the touch analysis, which reads planar faces,
+  and a sphere or cylinder face holding the touch point strictly inside
+  it, with nothing else of its solid there, as its carrier's side
+  (`topo::link`'s `Round`) against the other solid's planar link: any
+  other touch a curved face takes part in refuses (`TouchUnreadable`) —
+  it never decides a Rest or a crossing there. No body reaches the round
+  reading yet: the round face and a planar face of the other solid
+  through the touch clear neither on separation nor on depth, so the
+  pair refuses `CensusUndecidable` before any touch of it is read
+  (`census-cross-solid-curved-pairs-undecidable-on-shell-results`);
 
 and refuses `CensusUndecidable` otherwise. Within one solid, two
 distinct-key curved faces touching along a tangent locus through both
@@ -355,11 +367,11 @@ The backstop's containment arm decides the nested-instance class by a
 material test — a nested placement sharing no material clears; an
 instance with a vertex inside another's material is
 `ValidationError::InstanceInterference`, a face of each on one plane,
-facing the same way and sharing interior, is
+cylinder or sphere, facing the same way and sharing interior, is
 `ValidationError::SameSideInterference`, and a touch whose local
 analysis decides the two materials meet there is
 `ValidationError::TouchInterference` — and no declaration admits an
-interference. Between two copies at rest the editor's gate reads those
+interference. Between two copies at rest the at-rest check reads those
 verdicts, a pierce, a same-side crossing and two coincident edges'
 overlapping wedges as interference evidence (ASSEMBLY A5
 *Interference.*), quieted by a one-sided `Gap` assertion at the overlap,

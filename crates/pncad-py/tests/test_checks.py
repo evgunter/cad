@@ -3,8 +3,8 @@
 Every document here is AUTHORED — profile, extrude, boolean, through
 the ordinary doors — and every finding is one the kernel produced from
 that geometry. Nothing is stubbed: the disjoint union really has two
-components, the overlapping placed bodies really deny the separation
-certificate, and the touching union really fails to evaluate.
+components, the overlapping placed bodies really overlap at rest, and
+the touching union really fails to evaluate.
 
 ONE EXCEPTION, and it is deliberate:
 `TestSubjectBodyCarriesItsDeclarations` instantiates the bench
@@ -26,8 +26,8 @@ positively rather than described:
 - the same report under the same findings is `Ok` at `Warn` and raises
   at `Error`, with nothing about the geometry different between the
   two — `test_severity_moves_only_the_gate`;
-- the separation resident's refusing position is not merely unused, it
-  cannot be SPELLED — `test_the_separation_knob_cannot_express_error`.
+- an advisory resident's refusing position is not merely unused, it
+  cannot be SPELLED — `test_only_the_at_rest_knob_of_the_two_can_express_error`.
 
 The negative half matters as much: `test_a_connected_body_is_clean`
 is the document that trips nothing, so a finding here means the check
@@ -35,7 +35,10 @@ fired on the geometry and not on every document it is handed.
 """
 
 import math
+import shutil
+import tempfile
 import unittest
+from pathlib import Path
 
 import pncad
 from pncad import (
@@ -61,6 +64,7 @@ from pncad import (
     Severity,
     Start,
     VarName,
+    Workspace,
     enforce_checks,
     evaluate,
     m,
@@ -69,7 +73,7 @@ from pncad import (
     subject_body,
 )
 
-from placing import against, assemble_world_copies
+from placing import against, assemble_world_copies, placed
 from test_assembly_eval import identities, opened
 from measuring import pinned
 
@@ -138,11 +142,14 @@ class TestTheConnectednessResident(unittest.TestCase):
         # Attributes on EVERY arm: the payload another arm carries
         # reads `None` rather than raising, so handling never has to
         # branch on `variant` before reading.
-        self.assertIsNone(finding.evidence.other_root)
-        self.assertIsNone(finding.evidence.other_output)
         self.assertIsNone(finding.evidence.reason)
         self.assertIsNone(finding.evidence.inner_variant)
-        self.assertIsNone(finding.evidence.boolean_variant)
+        self.assertIsNone(finding.evidence.at_rest_variant)
+        self.assertIsNone(finding.evidence.interference)
+        self.assertIsNone(finding.evidence.carried_interference)
+        self.assertIsNone(finding.evidence.at_rest)
+        self.assertIsNone(finding.census)
+        self.assertIsNone(finding.quiet)
         self.assertIn("component", str(finding))
 
     def test_a_connected_body_is_clean(self):
@@ -191,17 +198,24 @@ class TestTheConnectednessResident(unittest.TestCase):
         self.assertIn("twice", str(caught.exception))
 
 
-class TestTheSeparationResident(unittest.TestCase):
-    def test_interpenetrating_copies_deny_the_certificate(self):
+class TestTheAtRestResident(unittest.TestCase):
+    def test_interpenetrating_copies_are_one_interference_finding(self):
         doc, first, second = two_placed(0.5)
         assemble_world_copies(doc)
         report = run_checks(doc, evaluate(doc))
         (finding,) = report.findings
-        self.assertEqual(finding.check, CheckId.Separation)
-        self.assertEqual(finding.evidence.variant, "not_separated")
-        self.assertEqual(finding.root, first)
-        self.assertEqual(finding.evidence.other_root, second)
-        self.assertEqual(finding.evidence.other_output, 0)
+        self.assertEqual(finding.check, CheckId.AtRest)
+        self.assertEqual(finding.evidence.variant, "interference")
+        self.assertEqual(finding.census, doc.product, "the `⊔` whose census decided it")
+        self.assertIsNone(finding.root)
+        self.assertIsNone(finding.node)
+        self.assertIsNone(finding.quiet)
+        interference = finding.evidence.interference
+        self.assertEqual(
+            (interference.a, interference.b), (doc.output(first), doc.output(second))
+        )
+        self.assertTrue(interference.loud)
+        self.assertIsNone(finding.evidence.at_rest)
         self.assertIsNone(finding.evidence.actual)
 
     def test_copies_that_are_apart_are_clean(self):
@@ -209,13 +223,16 @@ class TestTheSeparationResident(unittest.TestCase):
         assemble_world_copies(doc)
         self.assertEqual(run_checks(doc, evaluate(doc)).findings, [])
 
-    def test_the_separation_knob_cannot_express_error(self):
+    def test_only_the_at_rest_knob_of_the_two_can_express_error(self):
         """DS6's waiver rule as a TYPE, not as a comment asking
-        callers not to reach: this resident ships no acknowledgment
-        record, so its refusing position does not exist."""
+        callers not to reach: the at-rest check's acknowledgment is the
+        assertion that quiets an overlap, so its knob is a `Severity`;
+        the unproven-coincidence lint's is an `Advisory`, whose
+        refusing position does not exist."""
+        self.assertEqual(ChecksConfig(at_rest=Severity.Error).at_rest, Severity.Error)
         self.assertFalse(hasattr(Advisory, "Error"))
         with self.assertRaises(TypeError):
-            ChecksConfig(separation=Severity.Error)
+            ChecksConfig(unproven_coincidence=Severity.Error)
 
 
 class TestTheReportGateSplit(unittest.TestCase):
@@ -268,29 +285,43 @@ class TestTheReportGateSplit(unittest.TestCase):
         self.assertEqual(
             report.skipped, [CheckId.Connectedness, CheckId.ChartCoherence]
         )
-        both = ChecksConfig(connectedness=Severity.Off, separation=Advisory.Off)
+        both = ChecksConfig(connectedness=Severity.Off, at_rest=Severity.Off)
         self.assertEqual(
             run_checks(doc, ev, both).skipped,
-            [CheckId.Connectedness, CheckId.ChartCoherence, CheckId.Separation],
+            [CheckId.Connectedness, CheckId.ChartCoherence, CheckId.AtRest],
         )
 
 
 class TestTheRegistryVocabulary(unittest.TestCase):
     def test_every_resident_carries_its_honesty_label(self):
         self.assertEqual(CheckId.Connectedness.kind, CheckKind.Certified)
-        self.assertEqual(CheckId.Separation.kind, CheckKind.Certified)
+        self.assertEqual(CheckId.AtRest.kind, CheckKind.Certified)
         self.assertEqual(CheckId.ChartCoherence.kind, CheckKind.Certified)
         self.assertEqual(str(CheckId.Connectedness), "connectedness")
+        self.assertEqual(str(CheckId.AtRest), "at-rest")
 
     def test_the_configuration_reads_one_severity_vocabulary(self):
-        cfg = ChecksConfig(connectedness=Severity.Error, separation=Advisory.Off)
+        cfg = ChecksConfig(
+            connectedness=Severity.Error,
+            at_rest=Severity.Off,
+            unproven_coincidence=Advisory.Off,
+        )
         self.assertEqual(cfg.connectedness, Severity.Error)
-        self.assertEqual(cfg.separation, Advisory.Off)
+        self.assertEqual(cfg.at_rest, Severity.Off)
+        self.assertEqual(cfg.unproven_coincidence, Advisory.Off)
         # The Advisory widening: one vocabulary at the read door.
         self.assertEqual(cfg.severity(CheckId.Connectedness), Severity.Error)
-        self.assertEqual(cfg.severity(CheckId.Separation), Severity.Off)
-        self.assertEqual(cfg, ChecksConfig(connectedness=Severity.Error,
-                                           separation=Advisory.Off))
+        self.assertEqual(cfg.severity(CheckId.AtRest), Severity.Off)
+        self.assertEqual(cfg.severity(CheckId.UnprovenCoincidence), Severity.Off)
+        self.assertEqual(ChecksConfig().at_rest, Severity.Warn, "the default")
+        self.assertEqual(
+            cfg,
+            ChecksConfig(
+                connectedness=Severity.Error,
+                at_rest=Severity.Off,
+                unproven_coincidence=Advisory.Off,
+            ),
+        )
 
     def test_a_report_speaks_its_placements_from_the_evaluated_document(self):
         """`str()` of the report, of a finding and of the refusal says
@@ -542,7 +573,7 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
 
         cfg = ChecksConfig(
             connectedness=Severity.Off,
-            separation=Advisory.Off,
+            at_rest=Severity.Off,
             unproven_coincidence=Advisory.Warn,
         )
         report = run_checks(doc, ev, cfg)
@@ -568,6 +599,53 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
         self.assertEqual(
             [f for f in off.findings if f.check == CheckId.UnprovenCoincidence], []
         )
+
+    def test_a_parts_unproven_rest_is_reported_through_its_instance(self):
+        """The resting part, instanced: the instantiating document
+        reports each of the part's five unproven rows once, the part's
+        own finding over the part's document, by the route through the
+        instance and shown there."""
+        part = Doc("pncad-carried-coincidence-part")
+        lower = slab(part, 0.0, 1.0)
+        upper = slab(part, 0.25, 0.75, 0.25, 0.75, 1.0, 1.5, on=lower)
+        glued = part.insert(Node.union([lower, upper]))
+        placed(part, glued, Frame.translation((0 * m, 0 * m, 0 * m)))
+        assemble_world_copies(part)
+        cfg = ChecksConfig(
+            connectedness=Severity.Off,
+            at_rest=Severity.Off,
+            unproven_coincidence=Advisory.Warn,
+        )
+        own = run_checks(part, evaluate(part), cfg).findings
+        self.assertEqual(len(own), 5)
+        directory = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, directory, ignore_errors=True)
+        store = Workspace(str(directory))
+        store.create(part)
+        outer = Doc("pncad-carried-coincidence")
+        instance = outer.insert(
+            Node.instantiate_part(DocRef(part.id, pncad.content_pin(part)), outer.world)
+        )
+        outer.set_product(instance)
+        found = run_checks(outer, evaluate(outer, resolver=store), cfg).findings
+        self.assertEqual(len(found), len(own), "each of the part's rows, once")
+        for finding, mine in zip(found, own, strict=True):
+            self.assertEqual(finding.check, CheckId.UnprovenCoincidence)
+            self.assertEqual(finding.node, instance, "shown at the instance")
+            self.assertIsNone(finding.quiet)
+            self.assertEqual(finding.evidence.variant, "carried_coincidence")
+            self.assertIsNone(finding.evidence.coincidence, "not this document's row")
+            carried = finding.evidence.carried_coincidence
+            self.assertEqual(carried.finding, mine, "the part's own finding")
+            self.assertEqual(carried.finding.node, glued, "in the part's ids")
+            self.assertEqual(
+                carried.finding.evidence.coincidence.cells, mine.evidence.coincidence.cells
+            )
+            self.assertEqual(carried.of, part.id)
+            self.assertEqual(carried.through, instance)
+            self.assertEqual(carried.via, [instance])
+            self.assertEqual(carried.pin, pncad.content_pin(part))
+            self.assertIn("leaves a coincidence of its own unproven", str(finding))
 
 
 class TestAProfileJunctionTheDoorDecides(unittest.TestCase):

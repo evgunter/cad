@@ -2268,6 +2268,7 @@ test_utils::f6_variants! {
         UnsupportedSeamSides,
         UnsupportedJoin,
         UnsupportedUnionName,
+        UnsupportedTurnedCell,
         WayInZeroBand,
         JoinedPieceOffRoot,
         BandVerdictsDisagree,
@@ -2504,6 +2505,17 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 shape: editor_core::DisagreeShape::PiecesAtOneVertex,
             },
             vec!["two pieces of one member line", "longer than the band"],
+        ),
+        (
+            NamingError::UnsupportedTurnedCell {
+                read: editor_core::VarId::new(0, tagged(38)),
+                cell: topo::Cell::Edge(topo::EdgeKey::default()),
+            },
+            vec![
+                "turned a sphere",
+                "a piece of its seam",
+                "descends from no cell",
+            ],
         ),
         (
             NamingError::SharedRim {

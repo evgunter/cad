@@ -177,7 +177,8 @@ pub use contain::{
 // classification this module's own walk dispatches on, and the census
 // places a record's point in its face through the boolean's own read.
 pub(crate) use contain::{
-    CurvedPlacement, PlacementError, driver_face_stale, face_placement, loop_circle,
+    CurvedPlacement, PlacementError, curved_face_placement, driver_face_stale, face_placement,
+    loop_circle,
 };
 pub use discard::DiscardRow;
 pub use fate::{SubstitutedFace, UncutFace};
@@ -194,8 +195,8 @@ pub use nary::{
     NaryMember, NaryOp, NaryRefusal, NaryRun, NaryStep, nary_boolean,
 };
 pub use ops::{
-    BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, SettleError,
-    Settler, boolean_op_with, intersect, subtract, union,
+    BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, Recharts,
+    SettleError, Settler, boolean_op_with, intersect, subtract, union,
 };
 #[cfg(feature = "sweep-testing")]
 pub use ops::{StagePoints, arm_output_stage_points, take_output_stage_points};
@@ -274,7 +275,10 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_cone_apart"
         | "bool_rider_wall_side"
         | "bool_rider_wall_bend"
-        | "bool_rider_wall_coplanar" => Coincide::Sectors.subject(),
+        | "bool_rider_wall_coplanar"
+        | "bool_touch_sheets_part"
+        | "bool_sector_runs_into_bend"
+        | "bool_rim_face_opposed" => Coincide::Sectors.subject(),
         "bool_cone_pointed" => "whether a corner's link leans to one side of its vertex",
         // The census's edge-edge reading, which the result gate takes of
         // the result and ∖ of an operand part it reverts unjoined
@@ -329,15 +333,16 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "split_edge_param_interior" | "split_conic_crossing_root" | "bool_wall_root_in_span" => {
             CrossingDecision::OnEdge.subject()
         }
-        "split_conic_root_order" | "spline_composite_roots_apart" => {
+        "split_conic_root_order" | "spline_composite_roots_apart" | "spline_face_roots_apart" => {
             CrossingDecision::Order.subject()
         }
-        "spline_composite_root_at_end" | "spline_composite_root_at_crease" => {
-            CrossingDecision::OnEdge.subject()
-        }
+        "spline_composite_root_at_end"
+        | "spline_composite_root_at_crease"
+        | "spline_face_root_at_end" => CrossingDecision::OnEdge.subject(),
         "spline_composite_root_on" => {
             "whether a crossing found along a spline edge lies on the face"
         }
+        "spline_face_root_on" => "whether a meeting found on a spline face lies on it",
         "bool_point_past_every_reach" => "whether a point stands past every face of the solid",
         // The point-on-span reading's two halves, which the on-carrier
         // crossing and the boundary pass read: `geom`'s one-carrier
@@ -1041,7 +1046,7 @@ impl<T: Real> GlueVerdict<T> {
     /// the judged face of the other operand, under the judged class
     /// (every class is symmetric in its two faces), carrying the
     /// decision: its margin, and a tangency's line. The n-ary door
-    /// ([`super::nary`]) passes each such accumulation face, read
+    /// ([`nary`]) passes each such accumulation face, read
     /// through the lineage it advances itself.
     pub(crate) fn given_at(&self, held: Operand, at: FaceKey) -> GluedPair<T> {
         let other = match held {
@@ -1095,7 +1100,7 @@ pub(crate) struct GivenDecision<T: Real> {
 
 /// **The pairs one boolean glues**, and the records it carries: the
 /// operation's own decisions ([`glue::decided_declarations`]) or the
-/// pairs it was given (a fold step of [`super::nary`]), in arena keys, each
+/// pairs it was given (a fold step of [`nary`]), in arena keys, each
 /// pair under the class its relation makes it.
 #[derive(Clone, Debug)]
 pub(crate) struct Glue<T: Real> {
@@ -2864,16 +2869,19 @@ pub enum BooleanError {
         /// The lane.
         site: EdgeCarrierSite,
     },
-    /// A spline edge of `operand` meets a face of `face_of` where the
-    /// curve × face table's ring-composite arm
-    /// ([`geom_brep::curve_face::composite::crossings`]) cannot count its
-    /// crossings (`why`): it comes within the band of the face's carrier
-    /// without a crossing the arm can tell apart (it touches it, runs
-    /// along it, or crosses it more than once within the band), it meets
-    /// it within the band of a crease of the spline, where the spline has
-    /// no tangent, or the point it located does not evaluate onto it. The
-    /// definite half: a decision the arm needs that falls in the band's
-    /// gap escalates as [`Self::Escalated`] instead.
+    /// An edge of `operand` meets a face of `face_of` where a spline arm
+    /// of the curve × face table cannot count its crossings (`why`): the
+    /// ring composite for a spline edge against an analytic face
+    /// ([`geom_brep::curve_face::composite::crossings`]), or the
+    /// spline-face arm for any edge against a spline face
+    /// ([`geom_brep::NurbsLane::chart_meetings`]). The edge comes
+    /// within the band of the face's carrier without a crossing the arm
+    /// can tell apart (it touches it, runs along it, or crosses it more
+    /// than once within the band), it meets it within the band of a crease
+    /// of the spline, where the spline has no tangent, or the point it
+    /// located does not evaluate onto it. The definite half: a decision
+    /// the arm needs that falls in the band's gap escalates as
+    /// [`Self::Escalated`] instead.
     SplineCrossingUnsettled {
         /// The operand whose edge it is.
         operand: Operand,
@@ -3904,15 +3912,12 @@ pub enum BooleanError {
     /// operands, e.g. ∪ of a body with its own complement) — no
     /// boundary representation exists for it.
     UnrepresentableResult,
-    /// Re-certifying a grafted edge description against the combined
-    /// body's surfaces, through the scalar's NURBS lane, refused (the
+    /// Re-attaching a grafted edge description against the combined
+    /// body's surfaces, through the scalar's edge door, refused (the
     /// combine door's `graft_solid`). The inputs are bitwise the
     /// source's, so a certifying scalar re-derives what the source
-    /// already holds; what reaches here is a carrier whose certificate
-    /// needs the lane at a scalar that holds none
-    /// ([`geom_brep::CertifyError::NurbsLaneNotSupplied`]), or a
-    /// certificate the source should not have held. Loud, never a
-    /// dangling reference.
+    /// already holds; what reaches here is a certificate the source
+    /// should not have held. Loud, never a dangling reference.
     GraftRecertify(geom_brep::CertifyError),
     /// The result sort could not read which piece of material a shell
     /// of the result belongs to ([`crate::pieces`]): a solid is one
@@ -4497,7 +4502,7 @@ fn unsettled_crossing(why: geom_brep::roots::Unsettled) -> &'static str {
              tell apart: it touches the face, runs along it, or crosses it more than once \
              within the tolerance"
         }
-        U::Crease => "it meets the face at a corner of the curve",
+        U::Crease => "it meets the face at a corner of the spline",
         U::SignInBand => {
             "the point it located as a crossing does not evaluate onto the face within the \
              tolerance"
@@ -4640,8 +4645,9 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::SplineCrossingUnsettled { operand, why, .. } => write!(
                 f,
-                "a spline (NURBS) edge of the {} operand meets a face of the other \
-                 where the Boolean cannot count its crossings: {}. Recourse: move the \
+                "an edge of the {} operand meets a face of the other, one of the two a \
+                 spline (NURBS), where the Boolean cannot count its crossings: {}. \
+                 Recourse: move the \
                  parts so that edge crosses the face cleanly or stays clear of it",
                 operand_word(*operand),
                 unsettled_crossing(*why),
@@ -4787,8 +4793,9 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "the Boolean turned a sphere of the {} operand about its centre to find where \
                  it crosses the other solid, and cannot state what it decided on the turned \
-                 sphere ({relation:?}) on that sphere's own faces: {what}",
+                 sphere ({}) on that sphere's own faces: {what}",
                 operand_word(*operand),
+                relation.noun(),
             ),
             // No operand is named: the raise sites pass the operand being
             // scanned, which is not always the one whose face the refusal cites.

@@ -293,7 +293,7 @@ pub(crate) fn boundary<T: Decide>(
                 carrier: curve.carrier().clone(),
                 t0,
                 t1,
-                turn: curve.certificate().turn,
+                turn: curve.turn().copied(),
                 forward: he == edge.he_plus,
             });
         }
@@ -822,10 +822,18 @@ pub(crate) fn fixture_turn(t0: f64, t1: f64) -> Option<geom_brep::CertifiedTurn<
     };
     let spec = geom_brep::EdgeCurveSpec::arc_of_circle(circle.clone(), t0, t1)?;
     let (start, end) = (circle.eval(t0), circle.eval(t1));
-    geom_brep::EdgeCurve::certify(spec, start, end, |_| None, 1.0, band)
-        .ok()?
-        .certificate()
-        .turn
+    geom_brep::EdgeCurve::certify(
+        spec,
+        start,
+        end,
+        |_| None,
+        1.0,
+        band,
+        geom_brep::NurbsLane::certified(),
+    )
+    .ok()?
+    .turn()
+    .copied()
 }
 
 #[cfg(test)]

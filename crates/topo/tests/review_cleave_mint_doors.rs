@@ -108,25 +108,20 @@ fn review_mef_mints_the_plane_x_nurbs_class_at_f64() {
     assert_eq!(m7_8_edges(&body), 1, "mef minted one edge of the class");
 }
 
-/// At a dual the same `mef` refuses for the scalar's lack of a lane,
-/// naming the scalar; the new edge has no key yet.
+/// At a dual the same `mef` mints the edge through the dual's door
+/// (DL3).
 #[test]
-fn review_mef_at_a_dual_refuses_the_class_naming_the_scalar() {
-    let (_, r) = mef_the_class::<Dual64>();
-    assert_eq!(
-        r.map(|_| ()),
-        Err(EulerOpError::NurbsLaneUnsupported {
-            edge: None,
-            scalar: Dual64::NAME,
-        })
-    );
+fn review_mef_at_a_dual_mints_the_class() {
+    let (body, r) = mef_the_class::<Dual64>();
+    assert!(r.is_ok(), "mef at the dual: {r:?}");
+    assert_eq!(m7_8_edges(&body), 1, "mef minted one edge of the class");
 }
 
 /// A strut `mev` into the wall face whose spec is the plane × NURBS
 /// `Intersection` of the wall and its neighbour plane: both halves of
 /// the new edge are in ONE face, yet neither `IntersectionSameSurface`
 /// (the keys differ) nor `DescriptionNotAdjacent` (no adjacency gate at
-/// `mev`) comes first, so the lane decides.
+/// `mev`) comes first, so the edge door decides.
 fn mev_the_class<T>() -> Result<topo::construction::MevCreated, EulerOpError>
 where
     T: geom_core::Decide + topo::AtRestPolicy,
@@ -186,14 +181,9 @@ where
 }
 
 #[test]
-fn review_mev_strut_reaches_the_lane_at_both_scalars() {
+fn review_mev_strut_reaches_the_edge_door_at_both_scalars() {
     let f = mev_the_class::<f64>().map(|_| ());
     assert!(f.is_ok(), "a strut of the class at f64: {f:?}");
-    assert_eq!(
-        mev_the_class::<Dual64>().map(|_| ()),
-        Err(EulerOpError::NurbsLaneUnsupported {
-            edge: None,
-            scalar: Dual64::NAME,
-        })
-    );
+    let d = mev_the_class::<Dual64>().map(|_| ());
+    assert!(d.is_ok(), "a strut of the class at the dual: {d:?}");
 }

@@ -696,6 +696,39 @@ pub fn brick_with_fresh_keys<T: geom_core::Decide + crate::props::AtRestPolicy>(
     body
 }
 
+/// **What an edge computes, by value channel** — for the dual-against-
+/// `f64` rows, which compare a dual body with the same construction at
+/// `f64`. A dual edge carries no certificate (DL3), and its interval is
+/// the vertices' own, so a row comparing those compares input; these are
+/// what the edge computes at its own scalar: the carrier (an
+/// `Intersection` carrier is derived from its faces' surfaces), the
+/// carrier evaluated at the middle of the edge's interval, and the
+/// turn check 2 minted at both scalars with the extent it decided (`None`
+/// on a carrier with no period). One line per certified edge, the scalar
+/// read through `value`; `f64`'s `Debug` round-trips, so equal lines
+/// are equal bits.
+pub fn computed_edge_channels<T: geom_core::Decide>(
+    body: &Body<T>,
+    value: impl Fn(T) -> f64 + Copy,
+) -> Vec<String> {
+    body.curves()
+        .filter_map(|(_, c)| c.certified())
+        .map(|edge| {
+            let (t0, t1) = edge.params();
+            let mid = edge.carrier().eval((t0 + t1) * T::from_f64(0.5));
+            let turn = edge
+                .turn()
+                .map(|t| (t.turn(), value(t.extent().get()).to_bits()));
+            format!(
+                "{:?} | {:?} | {:?}",
+                edge.carrier().map_scalar(value),
+                [value(mid.x), value(mid.y), value(mid.z)].map(f64::to_bits),
+                turn
+            )
+        })
+        .collect()
+}
+
 /// **Construction step** for hand-built planar fixtures (M3 PR 6a,
 /// D6): describes every definitely-transverse edge as the
 /// `Intersection` of its two adjacent faces' surfaces, witness at the

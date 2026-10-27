@@ -20,7 +20,7 @@ fn band() -> Band {
 /// A degree-1 net over `x ∈ [−1, 1]` (one span along `u`) through the
 /// `(y, z)` rows `rows` along `v`, its interior `v` knots evenly spaced,
 /// each a C⁰ crease.
-fn ruled(rows: &[(f64, f64)]) -> NurbsSurface<f64> {
+pub(crate) fn ruled(rows: &[(f64, f64)]) -> NurbsSurface<f64> {
     let n = rows.len();
     let mut kv = vec![0.0, 0.0];
     kv.extend((1..n - 1).map(|i| i as f64 / (n - 1) as f64));
@@ -40,7 +40,7 @@ fn ruled(rows: &[(f64, f64)]) -> NurbsSurface<f64> {
 
 /// The twisted bilinear patch `S(u, v) = (u, v, c·u·v)` on `[0, 1]²`:
 /// curved, and a straight line along every iso line.
-fn twisted(c: f64) -> NurbsSurface<f64> {
+pub(crate) fn twisted(c: f64) -> NurbsSurface<f64> {
     let kv = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let control = vec![
         Point3::new(0.0, 0.0, 0.0),
@@ -57,7 +57,7 @@ fn twisted(c: f64) -> NurbsSurface<f64> {
 /// along it. A chart closed in `u` takes coordinates past its domain's
 /// end: a side wholly there is stated a period down, in the principal
 /// window, and the mint's joint elements lift it back.
-fn sheet(chart: &NurbsSurface<f64>, uv: &[(f64, f64)]) -> (Body<f64>, FaceKey) {
+pub(crate) fn sheet(chart: &NurbsSurface<f64>, uv: &[(f64, f64)]) -> (Body<f64>, FaceKey) {
     holed_sheet(chart, uv, None)
 }
 
@@ -192,7 +192,7 @@ fn holed_sheet(
 }
 
 /// The rectangle `[u0, u1] × [v0, v1]`, counterclockwise.
-fn rect((u0, u1): (f64, f64), (v0, v1): (f64, f64)) -> Vec<(f64, f64)> {
+pub(crate) fn rect((u0, u1): (f64, f64), (v0, v1): (f64, f64)) -> Vec<(f64, f64)> {
     vec![(u0, v0), (u1, v0), (u1, v1), (u0, v1)]
 }
 
@@ -709,5 +709,54 @@ fn a_way_out_of_the_window_within_the_band_keeps_a_query_near() {
     assert!(
         matches!(near, Place::Near(Some(ref d)) if d.predicate == Some(super::TRIM)),
         "the way out of the window is in the band: {near:?}"
+    );
+}
+
+// ---- the interior arm's chart placement ----
+
+/// **A meeting's chart point is placed by the trim on its own sheet**
+/// ([`super::spline_chart_placement`]): on the twisted sheet, a chart
+/// point inside the trim is in, one past it out, and one within the band
+/// of it along the chart is given no side. On the hairpin, a meeting on
+/// the upper half over the face's interior is out of a face on the lower
+/// half, where its point in space reads in through the lower sheet.
+#[test]
+fn a_meetings_chart_point_is_placed_on_its_own_sheet() {
+    use super::spline_chart_placement;
+    let b = band();
+    let chart = twisted(0.6);
+    let (body, face) = sheet(&chart, &rect((0.25, 0.75), (0.25, 0.75)));
+    let at = |uv| spline_chart_placement(&body, face, uv, b);
+    assert!(
+        matches!(at((0.5, 0.5)), Ok(Some(FaceContainment::In))),
+        "inside the trim"
+    );
+    assert!(
+        matches!(at((0.9, 0.4)), Ok(Some(FaceContainment::Out))),
+        "past the trim"
+    );
+    let step = (b.zero() + b.escalate()) / 2.0;
+    let near = at((0.75 + step, 0.5));
+    assert!(
+        matches!(near, Err(_) | Ok(None)),
+        "within the band of the trim along the chart: {near:?}"
+    );
+
+    let chart = hairpin();
+    let (body, face) = sheet(&chart, &rect((0.1, 0.9), (1.0 / 14.0, 2.0 / 7.0)));
+    assert_eq!(
+        place(&body, face, chart.eval(0.5, 0.8)),
+        CurvedPlacement::Trim(Some(FaceContainment::In)),
+        "the upper-half point, in space, reads in through the lower sheet"
+    );
+    let upper = spline_chart_placement(&body, face, (0.5, 0.8), b);
+    assert!(
+        matches!(upper, Ok(Some(FaceContainment::Out))),
+        "the upper-half meeting is out of the lower-half face: {upper:?}"
+    );
+    let lower = spline_chart_placement(&body, face, (0.5, 0.2), b);
+    assert!(
+        matches!(lower, Ok(Some(FaceContainment::In))),
+        "the lower-half meeting under it is in: {lower:?}"
     );
 }

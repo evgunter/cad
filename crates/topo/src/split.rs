@@ -164,9 +164,7 @@ impl<T: Decide> Body<T> {
     /// [`EulerOpError::SplitSmoothRefuted`]); both child specs certify
     /// ([`EulerOpError::Certification`] — endpoints
     /// `start(hp) → carrier(t)` and `carrier(t) → end(hp)`, he_plus
-    /// forward order on each child; the plane × NURBS lane is the
-    /// scalar's policy, and a scalar holding none refuses that class
-    /// [`EulerOpError::NurbsLaneUnsupported`] naming `edge`).
+    /// forward order on each child, through the scalar's edge door).
     ///
     /// **Pcurve rows** ([`crate::pcurves`]): a parent half-edge's
     /// stored chart row passes to both children as each child's own
@@ -503,7 +501,6 @@ impl<T: Decide> Body<T> {
                         edge,
                         half_edge,
                         error,
-                        authority: curve.authority().kind(),
                     },
                     crate::pcurves::SplitRefusal::Joint(diag) => {
                         EulerOpError::SplitJointUndecided {

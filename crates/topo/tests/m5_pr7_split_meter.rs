@@ -62,6 +62,7 @@ fn a_nurbs_carrier_under_a_conventional_description_still_refuses() {
         |_| None,
         1.0,
         Band::linear(Tol::witness()).unwrap(),
+        geom_brep::NurbsLane::certified(),
     )
     .expect_err("conventional-description Nurbs carriers do not certify");
     let msg = format!("{err}");

@@ -1029,22 +1029,29 @@ impl Sense {
 
     /// The sense of a Split's crossing of `edge` read against the other
     /// half: what runs into one half runs out of the other, so `Enters`
-    /// and `Leaves` swap, and a seam edge's `Through` names the side
-    /// it did not. A `Through` on any other line stays.
+    /// and `Leaves` swap, a touch stays, and a `Through` names the
+    /// line's things it did not.
+    ///
+    /// A split reads a seam edge by its two sides, whose loops run along
+    /// it opposite ways, so exactly one side enters and the other half's
+    /// `Through` names the other; a pair whose sides carry one name names
+    /// it again. Any other line it reads as stored, in one direction.
+    /// `None` for a `Through` neither reading gives: on a seam, one
+    /// naming other than exactly one side; on any other line, any.
     #[must_use]
-    pub(crate) fn other_half(&self, edge: &StableName) -> Self {
-        match (self, super::seam_pair::seam_edge_sides_carried(edge)) {
-            (Self::Through { entering }, Some((a, b))) => match entering.as_slice() {
-                [x] if **x == a => Self::Through {
-                    entering: vec![NameRef::new(b)],
-                },
-                [x] if **x == b => Self::Through {
-                    entering: vec![NameRef::new(a)],
-                },
-                _ => self.clone(),
-            },
-            _ => self.clone().flipped(),
-        }
+    pub(crate) fn other_half(&self, edge: &StableName) -> Option<Self> {
+        let Self::Through { entering } = self else {
+            return Some(self.clone().flipped());
+        };
+        let (a, b) = super::seam_pair::seam_edge_sides_carried(edge)?;
+        let other = match entering.as_slice() {
+            [x] if **x == a => b,
+            [x] if **x == b => a,
+            _ => return None,
+        };
+        Some(Self::Through {
+            entering: vec![NameRef::new(other)],
+        })
     }
 
     /// Whether the line passes through the body's boundary there.

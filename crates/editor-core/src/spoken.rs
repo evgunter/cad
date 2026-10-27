@@ -17,7 +17,7 @@
 //!   when the sentence is made. A part's labels are in its pin, which is
 //!   in the instance's key, so a fault from inside a part, and a row a
 //!   part carries up, hold the part's nodes as the pinned part says
-//!   them ([`crate::PartFault::held`], [`crate::assembly::CarriedAtRestFinding::held`]).
+//!   them ([`crate::PartFault::held`], [`crate::checks::at_rest::CarriedAtRestFinding::held`]).
 //! - The `Display` of [`RecipeNodeId`] and [`StepId`] — the bare tag,
 //!   for a sentence made where no document is at hand (a refusal's own
 //!   `Display`, a stored reference). The edit, load and save doors all

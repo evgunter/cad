@@ -13,19 +13,21 @@
 //! seam rising from the shared plane is read against the other body's
 //! base cap there by the curve × face table's ring-composite arm, which
 //! finds no crossing inside it: its start on the cap is its end vertex's
-//! meeting. The union stops one step on, at a seam of A against a NURBS
-//! wall of B whose boundary leaves it undecided, where the table's
-//! spline-face door has no interior reading
-//! (`work/splice/an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane`).
-//! This row is that door's tripwire: it reds when the door lands.
+//! meeting. Each NURBS seam of one body is read against the other's
+//! NURBS walls by the table's spline-face arm, its end at a tip accounted
+//! for as the end vertex's meeting. The union then stops at the result:
+//! the shared rim, a seam between the two bodies' NURBS walls, is
+//! re-described through the dihedral of its two surfaces, which has no
+//! reading on a spline surface
+//! (`work/splice/the-results-seam-between-two-spline-walls-is-read-by-no-dihedral`).
+//! This row is that site's tripwire: it reds when the site reads.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom::SurfaceKind;
 use geom_core::{Band, Point2, Point3, RigidMotion, Tol, Vec3};
 use profile::test_support::bulge_loop;
 use profile::{ProfileLoop, SketchPlane};
 use sweep::loft_body;
-use topo::{BooleanError, Operand};
+use topo::{BooleanDecision, BooleanError, LeverArm};
 
 /// The lens on chord `width`, rising `ridge` above it and dropping
 /// `keel` below, run counterclockwise from the `+s` margin.
@@ -71,21 +73,18 @@ fn blade(
     topo::test_support::finished("a lens blade", lofted, tol)
 }
 
-/// **Both orders get past the contact and the shared cap**, and stop
-/// where an edge of operand A meets B's ridge wall, a NURBS wall its
-/// boundary leaves undecided: the spline-face door's refusal. The row
-/// pins the operand and the wall; it cannot tell that door from another
-/// site raising the same variant on the same wall (the sector walk's, at
-/// a vertex on it), since the refusal names no site. Before the
-/// boundary pass, each refused at the contact,
-/// `CurvedBooleanUnsupported { kind: Nurbs }` on a wall of B; before the
-/// ring-composite arm, at the planar lane, `EdgeCarrierUnsupported` on a
-/// tip seam of A against the cap of B. The shared rim takes the `Along`
-/// reading: read `Clear`, it would be an edge of B bounding the face it
-/// is read against, which the twin-edge reading refuses as a
-/// contradiction.
+/// **Both orders get past the contact, the shared cap and the spline
+/// walls**, and stop at the result's shared rim, a seam between a NURBS
+/// wall of each body, whose dihedral arm reads no value: the seam
+/// re-description's refusal. The refusal names no edge and no face; the
+/// decision and its predicate pin the site, `LeverArm::Seam` being raised
+/// by one door (`topo::boolean::ops::seam_refusal`). Before the spline span
+/// × spline face arm, each refused `CurvedBooleanUnsupported { operand:
+/// B, kind: Nurbs }` at B's ridge wall, a seam of A there; before the
+/// boundary pass, at the contact on a wall of B; before the
+/// ring-composite arm, at the planar lane, `EdgeCarrierUnsupported` on
+/// a tip seam of A against the cap of B.
 #[test]
-#[allow(clippy::cast_precision_loss)]
 fn a_sheath_on_its_blade_unions_past_the_shared_rim() {
     let tol = Tol::witness();
     let base = [0.170, 0.028, 0.020];
@@ -103,33 +102,22 @@ fn a_sheath_on_its_blade_unions_past_the_shared_rim() {
         ("sheath ∪ blade", &sheath, &leaf),
     ] {
         let err = topo::union(a, b, tol).expect_err(what);
-        let BooleanError::CurvedBooleanUnsupported {
-            operand: Operand::B,
-            face,
-            kind: SurfaceKind::Nurbs,
+        let BooleanError::Escalated {
+            decision: BooleanDecision::LeverArm(LeverArm::Seam),
+            diag,
         } = err
         else {
-            panic!("{what}: past the cap, at a NURBS wall of B: {err:?}");
+            panic!("{what}: past the walls, at the result's seam: {err:?}");
         };
-        let surface = b
-            .get_face(face)
-            .and_then(|f| b.get_surface(f.surface))
-            .map(geom::Surface::kind);
-        assert_eq!(surface, Some(SurfaceKind::Nurbs), "{what}: a wall of B");
-        // Which wall: B's ridge wall, the higher of its two by the mean
-        // height of its control net, in either order.
-        let height = |f: &topo::entity::Face| match b.get_surface(f.surface) {
-            Some(geom::Surface::Nurbs(n)) => {
-                Some(n.control().iter().map(|p| p.z).sum::<f64>() / n.control().len() as f64)
-            }
-            _ => None,
-        };
-        let ridge = b
-            .faces()
-            .filter_map(|(k, f)| height(f).map(|h| (k, h)))
-            .max_by(|x, y| x.1.total_cmp(&y.1))
-            .map(|(k, _)| k);
-        assert_eq!(ridge, Some(face), "{what}: B's ridge wall");
+        assert_eq!(
+            diag.predicate,
+            Some("dihedral_arm"),
+            "{what}: the seam's arm"
+        );
+        assert!(
+            diag.margin.is_invalid(),
+            "{what}: the arm reads no value: {diag:?}"
+        );
         // The cap read on the way: every spline edge of A, against every
         // plane face of B, through the arm the planar lane reads, crosses
         // nothing inside itself.

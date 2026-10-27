@@ -992,8 +992,7 @@ impl<T: Decide> Body<T> {
     /// [`BadArgument::Stale`](crate::BadArgument::Stale) for a key the
     /// spec names that does not resolve); the spec certifies against
     /// the merged endpoints ([`EulerOpError::RebasedCarrier`] naming the
-    /// edge, or [`EulerOpError::NurbsLaneUnsupported`] where a plane ×
-    /// NURBS spec meets a scalar whose policy holds no lane). Then,
+    /// edge). Then,
     /// where the merged fan is not empty, the killed edge is not a null
     /// edge and a member is left unlisted, the unlisted members pass the
     /// re-basing gate in orbit order ([`EulerOpError::RebasedNullEdge`]
@@ -1736,8 +1735,7 @@ impl<T: Decide> Body<T> {
     /// null edge ([`EulerOpError::NullScaffoldCurve`]), is
     /// adjacency-coherent after the kill
     /// ([`EulerOpError::DescriptionNotAdjacent`]) and certifies
-    /// ([`EulerOpError::RechartFalsifies`],
-    /// [`EulerOpError::NurbsLaneUnsupported`]; `tol` builds the band,
+    /// ([`EulerOpError::RechartFalsifies`]; `tol` builds the band,
     /// [`EulerOpError::Certification`]); then no unlisted edge strands
     /// ([`EulerOpError::RechartUndescribed`]); then, onto another chart
     /// that is not chartless, every certified moved edge no description
@@ -3605,6 +3603,7 @@ mod tests {
                 |k| body.get_surface(k).cloned(),
                 1.0,
                 geom_core::Band::linear(tol).unwrap(),
+                geom_brep::NurbsLane::certified(),
             )
             .is_ok()
     }

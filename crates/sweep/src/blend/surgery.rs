@@ -3766,7 +3766,7 @@ pub(super) fn split_param_in_span<T: Decide + Bounds>(
     // is a length that may exceed 2π without meaning anything.
     let periodic = matches!(sc.carrier(), Curve3::Circle { .. } | Curve3::Ellipse { .. });
     if periodic {
-        let Some(turn) = sc.certificate().turn else {
+        let Some(turn) = sc.turn().copied() else {
             unreachable!("check 2 mints a turn for every circle and ellipse")
         };
         match turn.turn() {

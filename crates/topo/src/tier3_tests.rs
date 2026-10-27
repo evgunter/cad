@@ -1429,8 +1429,16 @@ fn a_planted_arc_past_a_turn_is_typed_at_rest_and_a_kernel_bug_at_a_re_mint() {
     let spec = EdgeCurveSpec::arc_of_circle(circle, 0.0, t1).unwrap();
     let (start, end) = (spec.carrier.eval(0.0), spec.carrier.eval(t1));
     let coarse = geom_core::Band::new(2.0 * past, 20.0 * past).unwrap();
-    let planted = geom_brep::EdgeCurve::certify(spec, start, end, |_| None, 1.0, coarse)
-        .expect("a headroom the coarse band reads as zero passes");
+    let planted = geom_brep::EdgeCurve::certify(
+        spec,
+        start,
+        end,
+        |_| None,
+        1.0,
+        coarse,
+        geom_brep::NurbsLane::certified(),
+    )
+    .expect("a headroom the coarse band reads as zero passes");
     let curve_key = body.get_edge(split.edge).unwrap().curve;
     *body.curves.get_mut(curve_key).unwrap() = crate::null::CurveGeom::Certified(planted);
 
@@ -1518,6 +1526,7 @@ fn pillow_with_an_arc_past_a_turn_in(
         |k| body.get_surface(k).cloned(),
         1.0,
         coarse,
+        geom_brep::NurbsLane::certified(),
     )
     .expect("a headroom the coarse band reads as zero passes");
     let curve_key = body.get_edge(split.edge).unwrap().curve;
