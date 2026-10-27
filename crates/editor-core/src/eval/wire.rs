@@ -694,7 +694,7 @@ where
     let params = env.lane.params;
     let mut mates = Vec::with_capacity(constraints.len());
     let mut values = Vec::new();
-    // Each mate's two poses and its target's sense: what the chart of the
+    // Each mate's two poses and its orientation: what the chart of the
     // one mate fixing a direction reads.
     let mut charted = Vec::new();
     for c in constraints {
@@ -748,8 +748,13 @@ where
         )
         .map_err(|kind| unevaluated(MateSide::To, kind))?;
         let to = crate::mate::solve::tightened(to);
-        let flipped = crate::mate::solve::target_flipped(doc, m.to);
-        charted.push((on.clone(), to.clone(), flipped));
+        charted.push((
+            mate,
+            on.clone(),
+            to.clone(),
+            crate::mate::flipped(doc, m.to),
+            m.orient,
+        ));
         mates.push(crate::mate::solve::ReadMate { mate, on, to });
     }
     let equations = crate::mate::solve::equations_of(doc, constraints);
@@ -770,8 +775,10 @@ where
             })
         })?;
         let arm = crate::mate::solve::bundle_arm(reach, &mates).map_err(|f| fault(*f))?;
-        for (on, to, flipped) in charted.iter().filter(|_| !values.is_empty()) {
-            if let Some(found) = crate::mate::value::Chart::of(on, to, *flipped, arm, b)? {
+        for (mate, on, to, to_flipped, orient) in charted.iter().filter(|_| !values.is_empty()) {
+            if let Some(found) =
+                crate::mate::value::Chart::of(*mate, on, to, *to_flipped, *orient, arm, b)?
+            {
                 chart = Some(found);
                 break;
             }
@@ -3392,7 +3399,14 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             .map_err(NodeErrorKind::Naming)?,
         );
         links
-            .judged(j.a, j.b, &j.body.naming, &j.body.body)
+            .judged(
+                j.a,
+                j.b,
+                &j.body.naming,
+                &j.body.body,
+                [members[j.a].read, members[j.b].read],
+                bodies[j.b],
+            )
             .map_err(NodeErrorKind::Naming)?;
     }
     // One row per statement: two pairs that state one thing (a member
@@ -3460,7 +3474,14 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             })
             .collect();
             links
-                .judged(0, 1, naming, &out.body)
+                .judged(
+                    0,
+                    1,
+                    naming,
+                    &out.body,
+                    [members[0].read, members[1].read],
+                    member_body,
+                )
                 .map_err(NodeErrorKind::Naming)?;
         }
         // The step's records in the node's terms: every row the step

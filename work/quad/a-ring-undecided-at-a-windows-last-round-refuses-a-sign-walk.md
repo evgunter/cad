@@ -27,7 +27,7 @@ round, resume at the next".
 So the whole schedule (`RoundWindow::SCHEDULE`, `mass_properties`)
 measures a face the single-round windows refuse. Measured on the
 witness row
-`props::quad::tests::a_ring_undecided_at_the_first_converged_round_refines_on`
+`props::quad::cylinder::tests::a_ring_undecided_at_the_first_converged_round_refines_on`
 (a 2 × 1 chart rectangle with a circular hole of radius 1e-5 or 2e-6
 about `(1, 0.2)`, 3e-7 about `(1, 0.95)`, 3e-8 about `(1, 0.2)`):
 `RoundWindow::at(0)` escalates `props_ring_winding` on all four,
@@ -48,3 +48,18 @@ with rounds remaining, carrying no enclosure and the round to resume
 at; the walks then treat the face as unsettled at that round (no sum
 can settle without it) and resume it, and the reporting walk
 escalates only at the schedule's end.
+
+## Re-checked on main `9267d3ae` (QUAD tracker sweep, 2026-10-27)
+
+Still holds. `RoundOutcome`, `OpenEnd` and `target_walk` are gone
+(PR 5628), but the gap is unchanged. `Run::ringed`
+(`crates/geom-brep/src/props/quad/run.rs:391`) refines an undecided
+ring only while `round < self.window.last`, and its doc (`:385`) cites
+this row: `LaneRun` has no end for an enclosure whose rings are
+undecided. The one-round windows are now `walk_set`'s
+(`crates/topo/src/props.rs:877`, `RoundWindow::at(round)`) and round
+0's (`:982`). The ringed lanes are `cylinder_cut_face_rounds`
+(`props/quad/cylinder.rs:303`) and `rim_face_rounds`
+(`props/spiric.rs:841`). The fix's shape now reads: a `LaneEnd`
+for a window that ends undecided on its rings with rounds left, which
+`walk_set` resumes.

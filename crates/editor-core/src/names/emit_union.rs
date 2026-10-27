@@ -2025,7 +2025,8 @@ struct UnreadAt<T: geom_core::Real> {
 impl<T: geom_core::Real> Links<T> {
     /// What one judgement recorded: members `a` (operand A) and `b`
     /// (operand B), the kernel's record `naming` of their union and its
-    /// result `body`.
+    /// result `body`; `reads` are the members' reads and `b_body` is
+    /// member `b`'s body.
     ///
     /// A classified piece, and a vertex read no partner of, is placed at
     /// the result vertex its operand key settles on
@@ -2037,14 +2038,23 @@ impl<T: geom_core::Real> Links<T> {
     /// # Errors
     ///
     /// [`NamingError::Settle`] where a key's rows lead to a cell the
-    /// result does not hold: a corrupt record, not an absent key.
+    /// result does not hold: a corrupt record, not an absent key; and
+    /// [`NamingError::UnsupportedTurnedCell`] where the judgement keeps
+    /// a cell a sphere re-chart turned
+    /// ([`super::emit_topo::refuse_turned_cells`]).
     pub(crate) fn judged(
         &mut self,
         a: usize,
         b: usize,
         naming: &topo::BooleanNaming,
         body: &topo::Body<T>,
+        reads: [crate::VarId; 2],
+        b_body: &topo::Body<T>,
     ) -> Result<(), NamingError> {
+        // A judgement's body is named by no pair emitter, and its faces
+        // are the node's links.
+        let inv = super::emit_topo::GraftInverse::of(naming);
+        super::emit_topo::refuse_turned_cells(body, naming, &inv, reads, b_body)?;
         let descent = topo::FaceDescent::of(naming);
         let member = |(operand, f): (topo::Operand, topo::FaceKey)| match operand {
             topo::Operand::A => (a, f),

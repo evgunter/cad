@@ -47,7 +47,7 @@ The four `plane-nurbs-*` refusal rows all edit `PlaneNurbsRefusal` in
 `edge_nurbs.rs` and its `refusal` map, so they are one unit, or a short
 chain on one branch, not four parallel lanes. The inner-rule row is
 the composite outer rule's sibling one level in (PR 5634), on QUAD's
-`props/quad.rs` by announced seam. `curved-trim-e2e-fixture-waits-for-a-producer`
+`props/quad/` by announced seam. `curved-trim-e2e-fixture-waits-for-a-producer`
 waits on geometry nothing mints yet; read it before planning around
 it.
 

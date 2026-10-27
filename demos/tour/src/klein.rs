@@ -300,7 +300,7 @@ const SPINE_IN: u32 = 12;
 /// degree through them. The volume does not choose them: tier 3
 /// decides the loop's sign at every station count from 9 to 65, at
 /// v-degree 2 and 3, with two or 4, 8 or 16 arcs a wall, at ε = 1e-6,
-/// 1e-9 and 1e-12 ([`loop_volume_grid`] pins a grid of it). The mesher
+/// 1e-9 and 1e-12 (its tests' `loop_volume_grid` pins a grid of it). The mesher
 /// does. Meshing at the stop's δ was measured on the loop's earlier
 /// section, four quarter arcs a wall: every station count from 9 to 19
 /// at v-degree 2 meshed, and so did 13 at v-degree 3; 21 at v-degree 2

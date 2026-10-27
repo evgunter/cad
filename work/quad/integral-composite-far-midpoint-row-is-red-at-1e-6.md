@@ -2,11 +2,12 @@
 id: integral-composite-far-midpoint-row-is-red-at-1e-6
 kind: issue
 title: cert5 integral_composite_midpoints_far_from_the_origin_stay_sound is red at 1e-6: the convergence margin lands in the ambiguity band
-status: open
+status: closed
 opened: 2026-10-23
 priority: P3
 cost: E
 refs: [5598, the-integral-composite-reads-its-midpoint-rule-at-a-rounded-midpoint]
+closed: 2026-10-27
 ---
 
 
@@ -35,3 +36,19 @@ band at every row or state the refusal at 1e-6 as the row's answer
 there.
 
 — INTENT nightly triage, 2026-10-23
+
+## Closed
+
+Dissolved by PR 5628 (measure door unit B), checked 2026-10-27 on main
+`9267d3ae`. The red was `props_quad_converged`'s margin landing in its
+ambiguity band. Since 5628 that predicate is minted nowhere: a resolution
+is a plain comparison, and the row's door (`face_posture` in
+`crates/geom-brep/tests/shared/patch.rs:402`, through `to_target` at
+`:320`) accepts on `mean_boundary_displacement(flux, area) <= 1024·ε`, with
+no band to land in. `grep -rn props_quad_converged crates/geom-brep` prints
+nothing.
+
+Re-run at all three ε:
+`CAD_TOLERANCE_EPS=<ε> cargo nextest run -p geom-brep --test all -E
+'test(integral_composite_midpoints_far_from_the_origin_stay_sound)'`
+passes at 1e-6, 1e-9 and 1e-12.

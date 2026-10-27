@@ -104,25 +104,39 @@ fn operand_axes<T: Decide>(
     band: Band,
     key: AxisKey<T>,
 ) -> Vec<UnitVec3<T>> {
+    let faces = a.faces().map(|(f, _)| (a, f));
+    face_axes(faces.chain(b.faces().map(|(f, _)| (b, f))), band, Some(key))
+}
+
+/// [`operand_axes`] over any faces: each planar face's outward normal
+/// ([`planar_axis`]), one axis per `key` up to sign. With no `key` (a
+/// scalar that carries no bracket) every normal is kept, so a direction
+/// and its negation may both be read: a second read of one span, which
+/// no verdict depends on.
+pub(crate) fn face_axes<'b, T: Decide + 'b>(
+    faces: impl IntoIterator<Item = (&'b Body<T>, FaceKey)>,
+    band: Band,
+    key: Option<AxisKey<T>>,
+) -> Vec<UnitVec3<T>> {
     let mut axes: Vec<UnitVec3<T>> = Vec::new();
     let mut kept: Vec<[(f64, f64); 3]> = Vec::new();
-    for body in [a, b] {
-        for (face, _) in body.faces() {
-            let Some(unit) = planar_axis(
-                body,
-                face,
-                || crate::census::face_reach(body, face, band),
-                band,
-            ) else {
-                continue;
-            };
+    for (body, face) in faces {
+        let Some(unit) = planar_axis(
+            body,
+            face,
+            || crate::census::face_reach(body, face, band),
+            band,
+        ) else {
+            continue;
+        };
+        if let Some(key) = key {
             let (plus, minus) = (key(unit.get()), key(-unit.get()));
             if kept.iter().any(|k| *k == plus || *k == minus) {
                 continue;
             }
             kept.push(plus);
-            axes.push(unit);
         }
+        axes.push(unit);
     }
     axes
 }
@@ -213,13 +227,33 @@ fn apart_along<T: Decide>(
     pad: f64,
     band: Band,
 ) -> bool {
-    let frame = BoxFrame::aimed(dir);
-    let (Some((xl, xh)), Some((yl, yh))) = (reach(x, xi, band, &frame), reach(y, yi, band, &frame))
-    else {
+    let (Some((xl, xh)), Some((yl, yh))) = (
+        support_along(x, [xi], dir, band),
+        support_along(y, [yi], dir, band),
+    ) else {
         return false;
     };
-    let gap = (yl.x - xh.x).max(xl.x - yh.x) - T::from_f64(2.0 * pad);
+    let gap = (yl - xh).max(xl - yh) - T::from_f64(2.0 * pad);
     matches!(decide(PAIR_GAP, Margin::of(gap), band), Ok(Sign::Positive))
+}
+
+/// The span of `items`' reaches along `dir`: the least and greatest
+/// support any of them has there, read as the first coordinate of each
+/// reach in the frame `dir` aims. `None` where an item has no reach, or
+/// there is no item.
+pub(crate) fn support_along<T: Decide>(
+    body: &Body<T>,
+    items: impl IntoIterator<Item = Item<T>>,
+    dir: UnitVec3<T>,
+    band: Band,
+) -> Option<(T, T)> {
+    let frame = BoxFrame::aimed(dir);
+    let mut span: Option<(T, T)> = None;
+    for item in items {
+        let (lo, hi) = reach(body, item, band, &frame)?;
+        span = Some(span.map_or((lo.x, hi.x), |(l, h)| (l.min(lo.x), h.max(hi.x))));
+    }
+    span
 }
 
 /// An item's reach in `frame`.
@@ -263,32 +297,38 @@ fn corners<T: Real>(b: super::boxes::SpanBox<T>) -> (Point3<T>, Point3<T>) {
 /// The mean of an item's boundary vertices, or a circle's or ball's
 /// centre — a point that moves with its body. `None` for a face whose
 /// boundary has no vertex.
-fn anchor<T: Decide>(body: &Body<T>, item: Item<T>) -> Option<Point3<T>> {
+pub(crate) fn anchor<T: Decide>(body: &Body<T>, item: Item<T>) -> Option<Point3<T>> {
     use super::boxes::edge_end_point;
-    let mut sum = Vec3::new(T::zero(), T::zero(), T::zero());
-    let mut n = 0u32;
-    let mut add = |p: Point3<T>| {
-        sum = sum + Vec3::new(p.x, p.y, p.z);
-        n += 1;
-    };
+    let mut points = Vec::new();
     match item {
         Item::Edge(ek) => {
             let e = crate::live::proven(&body.edges, ek, crate::entity::EntityId::Edge);
-            add(edge_end_point(body, ek, e.he_plus, "he_plus"));
-            add(edge_end_point(body, ek, e.he_minus, "he_minus"));
+            points.push(edge_end_point(body, ek, e.he_plus, "he_plus"));
+            points.push(edge_end_point(body, ek, e.he_minus, "he_minus"));
         }
         Item::Face(f) => {
             let face = crate::live::proven(&body.faces, f, crate::entity::EntityId::Face);
             for member in body.face_boundary_linked(f, face) {
-                match member {
-                    BoundaryMember::Isolated { point, .. } => add(point),
+                points.push(match member {
+                    BoundaryMember::Isolated { point, .. } => point,
                     BoundaryMember::Edge { ek, edge, .. } => {
-                        add(edge_end_point(body, ek, edge.he_plus, "he_plus"));
+                        edge_end_point(body, ek, edge.he_plus, "he_plus")
                     }
-                }
+                });
             }
         }
         Item::Circle(Circle { center, .. }) | Item::Ball { center, .. } => return Some(center),
+    }
+    mean(points)
+}
+
+/// The mean of `points`; `None` for none.
+pub(crate) fn mean<T: Real>(points: impl IntoIterator<Item = Point3<T>>) -> Option<Point3<T>> {
+    let mut sum = Vec3::new(T::zero(), T::zero(), T::zero());
+    let mut n = 0u32;
+    for p in points {
+        sum = sum + Vec3::new(p.x, p.y, p.z);
+        n += 1;
     }
     (n > 0).then(|| {
         let k = T::one() / T::from_f64(f64::from(n));

@@ -2011,10 +2011,16 @@ bundle's mates leave keeps its value or is written the constant `0`,
 and the door refuses what overconstrains. The person's numbers on the
 freedoms the kind leaves (`matetool::MateFreedom`) are then written
 over those values, in the same action (`DocEdit::SetConstraints`); the
-panel states that a freedom left unset is `0` (every bundle pins its
-copy). A value is measured on the axes of the space the copy is placed
-into, swung onto the mated direction. So a freshly inserted copy,
-standing by the identity bundle, is mated as it is. Where `to` is read
+panel states that a freedom left unset is written where the copy
+stands, snapped onto the mate (every bundle pins its copy). A value is measured on the axes of the space the copy is placed
+into, carried onto the mated direction by the least turn from where
+the mate's orientation puts the copy's. The gesture writes the
+orientation nearest where the copy stands, the spin the least turn
+leaves, and each slide it keeps at the copy's snapped coordinate, so a
+freshly mated copy moves only by the snap: its mated direction turned
+the least way onto the target's, its mated point moved the shortest
+way onto the target's plane or line (`session/snap.rs`). So a freshly
+inserted copy, standing by the identity bundle, is mated as it is. Where `to` is read
 in another space than the one the copy is placed into, the door
 refuses the mate, `EditError::SpaceMismatch` naming both spaces: the
 gesture never moves a copy as a side effect. The panel's "move the

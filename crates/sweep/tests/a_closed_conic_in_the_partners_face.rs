@@ -5,7 +5,9 @@
 //! of the loop's germs, one each way round it. The join takes it as one
 //! segment (`boolean::join`'s `one_site_segments`): the edge's own side
 //! copies it whole, and the partner's face is pierced at the site and
-//! joined there as a ring of its own. Where the partner holds the circle
+//! joined there as a ring of its own, or, where that face's boundary
+//! runs through the site (two rims tangent at their vertices), walled
+//! off in the face from its boundary vertex. Where the partner holds the circle
 //! along a closed edge of its own through the same vertex (two coaxial
 //! one-segment circles phased alike), both sides copy their edges.
 //!
@@ -17,7 +19,8 @@
 //! - a second boss on a plate whose top face already holds a boss's
 //!   ring, and a boss over a hole whose ring lies inside its rim;
 //! - a boss over a hole or a pocket, by pose: tangent to its rim inside
-//!   or outside, apart, concentric (with the two-arc forms beside);
+//!   or outside, apart, concentric, each read alike in the two-arc form,
+//!   and the tangent poses turned;
 //! - a plug in the bore of an annulus standing on a plate;
 //! - two equal coaxial cylinders stacked end to end;
 //! - a tube whose rim lies inside one face of a ball;
@@ -50,6 +53,7 @@ use topo::{
 
 use crate::common::differential::{every_op_both_orders, outcome};
 use crate::common::oracles::{ball_volume, cap_volume};
+use crate::common::poses::torax_pose;
 
 fn tol() -> Tol {
     Tol::witness()
@@ -468,33 +472,22 @@ enum Reads {
     Undecided,
     /// `TangentCrescentUnsupported`.
     Crescent,
-    /// `CurvedPierceUnsupported`.
-    Pierce,
-    /// `Join(SectionLoopMixed)`.
-    Mixed,
     /// `Join(SingleSiteSectionLoop { count: 1 })`.
     SingleSite,
     /// `Join(UnpairedLooseEnds { count })`.
     Loose(usize),
 }
 
-/// A pose's ops: the union over the through hole and over the pocket,
-/// the intersection empty and both differences `SOUND` in one shell;
-/// or every op reading one refusal.
-#[derive(Clone, Copy, Debug)]
-enum Cells {
-    Union([Reads; 2]),
-    Every(Reads),
-}
+/// A pose's unions, over the through hole and over the pocket; its
+/// intersections are empty and its differences `SOUND` in one shell.
+type Cells = [Reads; 2];
 
 /// One op's run held to what it `reads` ([`Reads`]), its closed form
 /// `want`.
 fn reads_as(row: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f64, reads: Reads) {
     let refused = |r: &Result<BooleanResult<f64>, BooleanError>| match r {
         Err(BooleanError::TangentCrescentUnsupported { .. }) => Some(Reads::Crescent),
-        Err(BooleanError::CurvedPierceUnsupported { .. }) => Some(Reads::Pierce),
         Err(BooleanError::Join(j)) => match j.error() {
-            SplitJoinError::SectionLoopMixed { .. } => Some(Reads::Mixed),
             SplitJoinError::SingleSiteSectionLoop { count: 1 } => Some(Reads::SingleSite),
             SplitJoinError::UnpairedLooseEnds { count } => Some(Reads::Loose(*count)),
             _ => None,
@@ -569,79 +562,53 @@ fn floor_or_top(body: &Body<f64>, face: topo::FaceKey) -> Option<f64> {
         .then_some(z)
 }
 
-/// **A boss over a hole, by pose**: the boss `r = 0.3`, `z ∈ [0, 1]`,
-/// over the plate holed through (`z ∈ [−0.5, 0]`) or pocketed (cut by
-/// `subtract` to `z = −0.25`) by a circle about `(x, 0)`, each rim a
-/// one-segment circle with its vertex at the azimuth given, or two arcs
-/// with vertices there and opposite. Every op in both orders.
-///
-/// Where the hole lies inside the boss's rim, tangent to it at
-/// `(0.3, 0, 0)`, the boss's floor and the plate's top face overlap in
-/// a crescent that narrows to the tangent point. A vertex of either rim
-/// there puts a vertex pair at the point (the other rim is split
-/// there), and the union refuses `TangentCrescentUnsupported`, naming
-/// the floor and the top
-/// (`work/cleave/a-union-across-a-tangent-crescent-refuses-unbuilt.md`).
-/// Built, the union would be one shell (through) or two (pocket, a
-/// cavity touching the outer shell at the point). With no vertex at the
-/// point the crossing layer refuses the tangency first. The
-/// intersection is empty and the differences keep the operands.
-///
-/// The boss inside a hole tangent to its rim (`r = 0.4` about
-/// `(−0.1, 0)`) curves the other way: the floor and the top only touch,
-/// and the union is two solids. Outside the rim, tangent, the faces'
-/// sectors coincide at first order and the two-arc union builds. A
-/// concentric hole of the boss's radius leaves two solids touching along
-/// the rim, and the union's records name only the vertex pair
-/// (`work/cleave/a-union-touching-along-a-coincident-rim-records-only-its-vertex-pair.md`);
-/// a larger one leaves them apart.
-///
-/// The same crescent between faces aligned (a holed plate standing on
-/// `z = 0` beside the boss, its hole tangent inside the boss's rim)
-/// overlaps the operands, and every op refuses at the join.
-#[test]
-fn a_boss_over_a_hole_by_pose() {
-    use Cells::{Every, Union};
-    use Reads::{Crescent, Empty, Loose, Mixed, Pierce, SingleSite, Sound, Undecided, Unrecorded};
-    let two = |cx: f64, cy: f64, r: f64, az: f64| -> ProfileLoop<f64> {
-        let arc = |a: f64| {
-            (
-                Point2::new(cx + r * a.cos(), cy + r * a.sin()),
-                Segment::Arc(Arc2 {
-                    centre: Point2::new(cx, cy),
-                    radius: r,
-                    sweep: PI,
-                }),
-            )
-        };
-        RawLoop::new([arc(az), arc(az + PI)])
+/// A rim of radius `r` about `(cx, 0)`: a one-segment circle with its
+/// vertex at azimuth `az` (`one`), or two arcs with vertices there and
+/// opposite.
+fn rim(one: bool, cx: f64, r: f64, az: f64) -> ProfileLoop<f64> {
+    if one {
+        return circle(cx, 0.0, r, az);
+    }
+    let arc = |a: f64| {
+        (
+            Point2::new(cx + r * a.cos(), r * a.sin()),
+            Segment::Arc(Arc2 {
+                centre: Point2::new(cx, 0.0),
+                radius: r,
+                sweep: PI,
+            }),
+        )
     };
-    let rim = |one: bool, cx: f64, r: f64, az: f64| {
-        if one {
-            circle(cx, 0.0, r, az)
-        } else {
-            two(cx, 0.0, r, az)
-        }
-    };
-    let square = || {
-        RawLoop::polygon([
-            Point2::new(-1.0, -1.0),
-            Point2::new(1.0, -1.0),
-            Point2::new(1.0, 1.0),
-            Point2::new(-1.0, 1.0),
-        ])
-    };
-    let crescent = Union([Crescent; 2]);
-    let built = Union([Sound(1); 2]);
-    // (pose, hole centre x, hole r, hole az, boss az, one segment, two arcs)
-    let poses: [(&str, f64, f64, f64, f64, Cells, Cells); 13] = [
+    RawLoop::new([arc(az), arc(az + PI)])
+}
+
+/// The plate's outline, `[−1, 1]²`.
+fn square() -> ProfileLoop<f64> {
+    RawLoop::polygon([
+        Point2::new(-1.0, -1.0),
+        Point2::new(1.0, -1.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(-1.0, 1.0),
+    ])
+}
+
+/// A pose of [`a_boss_over_a_hole_by_pose`]: its name, the hole's
+/// centre `x`, radius and vertex azimuth, the boss's vertex azimuth, and
+/// what its ops read, with one-segment rims and with two-arc rims alike.
+type Pose = (&'static str, f64, f64, f64, f64, Cells);
+
+/// The poses of [`a_boss_over_a_hole_by_pose`], the tangent ones first.
+fn poses() -> [Pose; 16] {
+    use Reads::{Crescent, Sound, Undecided, Unrecorded};
+    let crescent = [Crescent; 2];
+    let built = [Sound(1); 2];
+    [
         (
             "tangent inside, vertices there",
             0.2,
             0.1,
             0.0,
             0.0,
-            crescent,
             crescent,
         ),
         (
@@ -651,7 +618,6 @@ fn a_boss_over_a_hole_by_pose() {
             0.0,
             1.0,
             crescent,
-            crescent,
         ),
         (
             "tangent inside, the boss's at π",
@@ -659,7 +625,6 @@ fn a_boss_over_a_hole_by_pose() {
             0.1,
             0.0,
             PI,
-            crescent,
             crescent,
         ),
         (
@@ -669,7 +634,6 @@ fn a_boss_over_a_hole_by_pose() {
             1.0,
             0.0,
             crescent,
-            crescent,
         ),
         (
             "tangent inside, the hole's at π",
@@ -678,7 +642,6 @@ fn a_boss_over_a_hole_by_pose() {
             PI,
             0.0,
             crescent,
-            crescent,
         ),
         (
             "tangent inside, neither there",
@@ -686,8 +649,7 @@ fn a_boss_over_a_hole_by_pose() {
             0.1,
             2.0,
             1.0,
-            Every(Pierce),
-            Every(Pierce),
+            crescent,
         ),
         (
             "the boss inside the hole, tangent",
@@ -695,120 +657,160 @@ fn a_boss_over_a_hole_by_pose() {
             0.4,
             0.0,
             0.0,
-            Union([Undecided; 2]),
-            Union([Undecided; 2]),
+            [Undecided; 2],
         ),
+        ("tangent outside, vertices there", 0.4, 0.1, PI, 0.0, built),
         (
-            "tangent outside, vertices there",
+            "tangent outside, the boss's there",
             0.4,
             0.1,
-            PI,
             0.0,
-            Union([Mixed; 2]),
+            0.0,
             built,
         ),
         (
-            "tangent outside, elsewhere",
+            "tangent outside, the hole's there",
+            0.4,
+            0.1,
+            PI,
+            1.0,
+            built,
+        ),
+        (
+            "tangent outside, the boss's at 1",
             0.4,
             0.1,
             0.0,
             1.0,
-            Every(Pierce),
             built,
         ),
-        (
-            "inside, apart",
-            0.1,
-            0.1,
-            0.0,
-            0.0,
-            Union([Sound(1), Sound(2)]),
-            Union([Sound(1), Sound(2)]),
-        ),
-        (
-            "concentric, equal",
-            0.0,
-            0.3,
-            0.0,
-            0.0,
-            Union([Unrecorded; 2]),
-            Union([Unrecorded; 2]),
-        ),
+        ("tangent outside, neither there", 0.4, 0.1, 2.0, 1.0, built),
+        ("inside, apart", 0.1, 0.1, 0.0, 0.0, [Sound(1), Sound(2)]),
+        ("concentric, equal", 0.0, 0.3, 0.0, 0.0, [Unrecorded; 2]),
         (
             "concentric, equal, the hole's at 1",
             0.0,
             0.3,
             1.0,
             0.0,
-            Union([Unrecorded; 2]),
-            Union([Unrecorded; 2]),
+            [Unrecorded; 2],
         ),
-        (
-            "concentric, larger",
-            0.0,
-            0.4,
-            0.0,
-            0.0,
-            Union([Sound(2); 2]),
-            Union([Sound(2); 2]),
+        ("concentric, larger", 0.0, 0.4, 0.0, 0.0, [Sound(2); 2]),
+    ]
+}
+
+/// One pose's ops in both forms, through and pocketed, every op in both
+/// orders, both operands turned by `turn` where one is given.
+fn by_pose((pose, hx, hr, hole_az, boss_az, cells): Pose, turn: Option<&Affine3<f64>>) {
+    let placed = |what: &str, body: Body<f64>| match turn {
+        None => fin(what, body),
+        Some(turn) => fin(
+            what,
+            topo::transform_rigid(&body, &geom_core::test_support::rigid(turn, tol()), tol())
+                .unwrap(),
         ),
-    ];
+    };
     let vb = 0.09 * PI;
-    for (pose, hx, hr, haz, baz, one, two) in poses {
-        for (form, cells) in [(true, one), (false, two)] {
-            for (pocket, depth) in [(false, 0.5), (true, 0.25)] {
-                let what = format!(
-                    "{pose}, {}, {}",
-                    if form { "one segment" } else { "two arcs" },
-                    if pocket { "pocket" } else { "through" }
+    for form in [true, false] {
+        for (pocket, depth) in [(false, 0.5), (true, 0.25)] {
+            let what = format!(
+                "{pose}, {}, {}{}",
+                if form { "one segment" } else { "two arcs" },
+                if pocket { "pocket" } else { "through" },
+                if turn.is_some() { ", turned" } else { "" }
+            );
+            let boss = placed(
+                "the boss",
+                extruded(vec![rim(form, 0.0, 0.3, boss_az)], 0.0, 1.0),
+            );
+            let holed = if pocket {
+                let cutter = fin(
+                    "the cutter",
+                    extruded(vec![rim(form, hx, hr, hole_az)], -0.25, 0.5),
                 );
-                let boss = fin(
-                    "the boss",
-                    extruded(vec![rim(form, 0.0, 0.3, baz)], 0.0, 1.0),
-                );
-                let holed = if pocket {
-                    let cutter = fin(
-                        "the cutter",
-                        extruded(vec![rim(form, hx, hr, haz)], -0.25, 0.5),
-                    );
-                    topo::subtract(&plate(), &cutter, tol())
-                        .unwrap()
-                        .body()
-                        .unwrap()
-                        .body
-                        .clone()
-                } else {
-                    fin(
-                        "the holed plate",
-                        extruded(vec![square(), rim(form, hx, hr, haz)], -0.5, 0.5),
-                    )
+                let cut = topo::subtract(&plate(), &cutter, tol()).unwrap();
+                placed(
+                    "the pocketed plate",
+                    cut.body().unwrap().body.clone().into_body(),
+                )
+            } else {
+                placed(
+                    "the holed plate",
+                    extruded(vec![square(), rim(form, hx, hr, hole_az)], -0.5, 0.5),
+                )
+            };
+            let vh = 2.0 - PI * hr * hr * depth;
+            for (op, r, want) in every_op_both_orders(&boss, &holed, (vb, vh, 0.0), tol()) {
+                let reads = match op {
+                    "A ∪ B" | "B ∪ A" => cells[usize::from(pocket)],
+                    "A ∩ B" | "B ∩ A" => Reads::Empty,
+                    _ => Reads::Sound(1),
                 };
-                let vh = 2.0 - PI * hr * hr * depth;
-                for (op, r, want) in every_op_both_orders(&boss, &holed, (vb, vh, 0.0), tol()) {
-                    let reads = match (cells, op) {
-                        (Every(refusal), _) => refusal,
-                        (Union(union), "A ∪ B" | "B ∪ A") => union[usize::from(pocket)],
-                        (Union(_), "A ∩ B" | "B ∩ A") => Empty,
-                        (Union(_), _) => Sound(1),
+                if let (None, Err(BooleanError::TangentCrescentUnsupported { a_face, b_face })) =
+                    (turn, &r)
+                {
+                    let (a, b) = if op == "A ∪ B" {
+                        (&boss, &holed)
+                    } else {
+                        (&holed, &boss)
                     };
-                    if let Err(BooleanError::TangentCrescentUnsupported { a_face, b_face }) = &r {
-                        let (a, b) = if op == "A ∪ B" {
-                            (&boss, &holed)
-                        } else {
-                            (&holed, &boss)
-                        };
-                        for (face, body) in [(*a_face, a), (*b_face, b)] {
-                            assert_eq!(
-                                floor_or_top(body, face),
-                                Some(if std::ptr::eq(body, &boss) { -1.0 } else { 1.0 }),
-                                "{what}: {op}: the boss's floor and the plate's top"
-                            );
-                        }
+                    for (face, body) in [(*a_face, a), (*b_face, b)] {
+                        assert_eq!(
+                            floor_or_top(body, face),
+                            Some(if std::ptr::eq(body, &boss) { -1.0 } else { 1.0 }),
+                            "{what}: {op}: the boss's floor and the plate's top"
+                        );
                     }
-                    reads_as(&format!("{what}: {op}"), r, want, reads);
                 }
+                reads_as(&format!("{what}: {op}"), r, want, reads);
             }
         }
+    }
+}
+
+/// **A boss over a hole, by pose**: the boss `r = 0.3`, `z ∈ [0, 1]`,
+/// over the plate holed through (`z ∈ [−0.5, 0]`) or pocketed (cut by
+/// `subtract` to `z = −0.25`) by a circle about `(x, 0)`, each rim a
+/// one-segment circle with its vertex at the azimuth given, or two arcs
+/// with vertices there and opposite ([`poses`]). Every op in both
+/// orders.
+///
+/// Where the hole lies inside the boss's rim, tangent to it at
+/// `(0.3, 0, 0)`, the boss's floor and the plate's top face overlap in
+/// a crescent that narrows to the tangent point. A vertex of either rim
+/// there puts a vertex pair at the point (the other rim is split
+/// there), and so does a touch with no vertex there, where the sweep
+/// splits both rims; the union refuses `TangentCrescentUnsupported`,
+/// naming the floor and the top
+/// (`work/cleave/a-union-across-a-tangent-crescent-refuses-unbuilt.md`).
+/// Built, the union would be one shell (through) or two (pocket, a
+/// cavity touching the outer shell at the point). The intersection is
+/// empty and the differences keep the operands.
+///
+/// The boss inside a hole tangent to its rim (`r = 0.4` about
+/// `(−0.1, 0)`) curves the other way: the floor and the top only touch,
+/// and the union is two solids. Outside the rim, tangent, the faces'
+/// sectors coincide at first order and the union builds in one shell,
+/// in both forms, wherever the vertices lie: a one-segment rim's
+/// midpoint is read where its two-arc form's far vertex would be
+/// (`boolean::sectors::closed_reach`), and the boss's rim walled off in
+/// the plate's top at the shared vertex (`boolean::join`'s
+/// `closes_at_its_site`). The pose `tangent outside, the boss's there`
+/// has both rims at `circle()`'s phase, each vertex at azimuth 0. A
+/// concentric hole of the
+/// boss's radius leaves two solids touching along the rim, and the
+/// union's records name only the vertex pair
+/// (`work/cleave/a-union-touching-along-a-coincident-rim-records-only-its-vertex-pair.md`);
+/// a larger one leaves them apart.
+///
+/// The same crescent between faces aligned (a holed plate standing on
+/// `z = 0` beside the boss, its hole tangent inside the boss's rim)
+/// overlaps the operands, and every op refuses at the join.
+#[test]
+fn a_boss_over_a_hole_by_pose() {
+    use Reads::{Loose, SingleSite};
+    for pose in poses() {
+        by_pose(pose, None);
     }
     for (form, refusal) in [(true, SingleSite), (false, Loose(4))] {
         let what = if form { "one segment" } else { "two arcs" };
@@ -822,6 +824,199 @@ fn a_boss_over_a_hole_by_pose() {
         );
         for (op, r, _) in every_op_both_orders(&boss, &beside, (0.0, 0.0, 0.0), tol()) {
             reads_as(&format!("aligned, {what}: {op}"), r, 0.0, refusal);
+        }
+    }
+}
+
+/// **The tangent poses turned**: each tangent pose of
+/// [`a_boss_over_a_hole_by_pose`], both operands turned rigidly off the
+/// axes ([`torax_pose`]), reads the cells it reads at rest. The crescent
+/// refusal's two faces are named at rest only ([`floor_or_top`] reads
+/// them in the rest frame).
+#[test]
+fn a_boss_over_a_hole_tangent_to_it_turned() {
+    let turn = torax_pose();
+    for pose in poses().into_iter().filter(|p| p.0.contains("tangent")) {
+        by_pose(pose, Some(&turn));
+    }
+}
+
+/// **A boss over two holes, each tangent outside its rim, no vertex at
+/// either touch**: the boss `r = 0.3` with its vertex at azimuth 1, the
+/// plate holed through by `r = 0.1` about `(±0.4, 0)` with their vertices
+/// at azimuth 2. The sweep splits the boss's rim at both touches, so one
+/// fragment of it runs from touch to touch with no vertex of its own in
+/// the plate's top: the vertex pairs there read it running into the top
+/// one order down (`boolean::sectors::runs_into`), and the difference
+/// cuts the top along the whole rim. Every op in both orders, both
+/// forms, at rest and turned, at the closed form.
+#[test]
+fn a_boss_over_two_holes_tangent_outside_with_no_vertex_at_either_touch() {
+    let vb = 0.09 * PI;
+    let vh = 2.0 - 2.0 * PI * 0.01 * 0.5;
+    for (turn, placed) in [("at rest", None), ("turned", Some(torax_pose()))] {
+        for one in [true, false] {
+            let place = |what: &str, body: Body<f64>| match &placed {
+                None => fin(what, body),
+                Some(m) => fin(
+                    what,
+                    topo::transform_rigid(&body, &geom_core::test_support::rigid(m, tol()), tol())
+                        .unwrap(),
+                ),
+            };
+            let boss = place(
+                "the boss",
+                extruded(vec![rim(one, 0.0, 0.3, 1.0)], 0.0, 1.0),
+            );
+            let holed = place(
+                "the plate holed twice",
+                extruded(
+                    vec![square(), rim(one, 0.4, 0.1, 2.0), rim(one, -0.4, 0.1, 2.0)],
+                    -0.5,
+                    0.5,
+                ),
+            );
+            let what = format!(
+                "two holes, {}, {turn}",
+                if one { "one segment" } else { "two arcs" }
+            );
+            every_op(&what, &boss, &holed, (vb, vh, 0.0));
+        }
+    }
+}
+
+/// **A rim flush in the partner's top, tangent inside its rim at a
+/// vertex**: `A` the one-segment cylinder `r = 0.3`, `z ∈ [0, 1]`, its
+/// vertex at azimuth 0, inside the one-segment cylinder `B`, `r = 0.5`
+/// about `(−0.2, 0)`, `z ∈ [−0.5, 1]`, its vertex at azimuth 0 or 1; the
+/// walls are tangent along the ruling through `(0.3, 0)` and the tops
+/// coplanar, `A`'s rim tangent inside `B`'s at `(0.3, 0, 1)`. `B ∪ A`,
+/// `A ∩ B` and both differences build at their closed forms (read
+/// through `differential::outcome`, unmeshed: the mesher's certificate
+/// on `B`'s wall is its own question). Where the op reads the two tops
+/// facing one way and keeps `A`'s, the cut along `A`'s rim in `B`'s
+/// dropped top has no corner at the tangent vertex, so the join does not
+/// take a rim lying flush in a face (`boolean::join`'s `stands_on`), and
+/// `A ∪ B` and `B ∩ A` refuse typed
+/// (`work/cleave/a-flush-closed-rim-tangent-at-its-vertex-reaches-the-fate-cut-limit.md`).
+/// At rest and turned.
+#[test]
+fn a_rim_flush_in_its_partners_top_tangent_inside_refuses_typed_or_builds() {
+    let va = 0.09 * PI;
+    let vb = 0.25 * PI * 1.5;
+    for (turn, placed) in [("at rest", None), ("turned", Some(torax_pose()))] {
+        for b_az in [0.0, 1.0] {
+            let place = |what: &str, body: Body<f64>| match &placed {
+                None => fin(what, body),
+                Some(m) => fin(
+                    what,
+                    topo::transform_rigid(&body, &geom_core::test_support::rigid(m, tol()), tol())
+                        .unwrap(),
+                ),
+            };
+            let a = place(
+                "the inner rod",
+                extruded(vec![circle(0.0, 0.0, 0.3, 0.0)], 0.0, 1.0),
+            );
+            let b = place(
+                "the outer rod",
+                extruded(vec![circle(-0.2, 0.0, 0.5, b_az)], -0.5, 1.5),
+            );
+            for (op, r, want) in every_op_both_orders(&a, &b, (va, vb, va), tol()) {
+                let row = format!("B's vertex at {b_az}, {turn}: {op}");
+                if matches!(op, "A ∪ B" | "B ∩ A") {
+                    assert!(
+                        matches!(&r, Err(BooleanError::Join(j))
+                            if matches!(j.error(), SplitJoinError::SingleSiteSectionLoop { count: 1 })),
+                        "{row}: {:?}",
+                        r.map(|_| ())
+                    );
+                } else {
+                    let line = outcome(r, want, tol());
+                    assert!(
+                        line.starts_with(if want == 0.0 { "EMPTY ok" } else { "OK SOUND" }),
+                        "{row}: {line}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// **Ellipse rims tangent outside, one segment**: both cylinders of
+/// [`a_boss_over_a_hole_by_pose`]'s tangent-outside pose tilted `0.3`
+/// rad about `x` and cut by `z = 0` (the boss by a slab, the plate's hole
+/// through it), so both rims are ellipses tangent at `(0.3, 0, 0)`. No
+/// join arm copies a closed ellipse, so the union refuses typed: with
+/// both vertices at the touch, the pair's carrier
+/// (`GermEdgeCarrierUnsupported`); with the boss's there alone, the
+/// one-site loop (`SingleSiteSectionLoop`)
+/// (`work/cleave/one-segment-ellipse-rims-tangent-at-a-point-refuse-where-circles-build.md`).
+/// Both orders, at rest and turned.
+#[test]
+fn one_segment_ellipse_rims_tangent_outside_refuse_the_union_typed() {
+    let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), 0.3);
+    let tilted = |body: Body<f64>| {
+        topo::transform_rigid(&body, &geom_core::test_support::rigid(&tilt, tol()), tol()).unwrap()
+    };
+    let slab = fin(
+        "the slab",
+        brick((-2.0, 2.0), (-2.0, 2.0), (0.0, 1.0), tol()),
+    );
+    for (pose, hole_az, refused) in [
+        ("vertices there", PI, "GermEdgeCarrierUnsupported"),
+        ("the boss's there", 0.0, "SingleSiteSectionLoop"),
+    ] {
+        let tall = fin(
+            "the tall boss",
+            tilted(extruded(vec![circle(0.0, 0.0, 0.3, 0.0)], -3.0, 6.0)),
+        );
+        let boss = topo::intersect(&tall, &slab, tol())
+            .unwrap()
+            .body()
+            .unwrap()
+            .body
+            .clone();
+        let bore = fin(
+            "the tilted bore",
+            tilted(extruded(vec![circle(0.4, 0.0, 0.1, hole_az)], -3.0, 6.0)),
+        );
+        let holed = topo::subtract(&plate(), &bore, tol())
+            .unwrap()
+            .body()
+            .unwrap()
+            .body
+            .clone();
+        for (turn, m) in [("at rest", None), ("turned", Some(torax_pose()))] {
+            let place = |what: &str, b: &AtRestBody<f64>| match &m {
+                None => b.clone(),
+                Some(m) => fin(
+                    what,
+                    topo::transform_rigid(b, &geom_core::test_support::rigid(m, tol()), tol())
+                        .unwrap(),
+                ),
+            };
+            let (a, b) = (place("the boss", &boss), place("the plate", &holed));
+            for (op, r) in [
+                ("A ∪ B", topo::union(&a, &b, tol())),
+                ("B ∪ A", topo::union(&b, &a, tol())),
+            ] {
+                let got = match &r {
+                    Err(BooleanError::GermEdgeCarrierUnsupported { .. }) => {
+                        "GermEdgeCarrierUnsupported"
+                    }
+                    Err(BooleanError::Join(j))
+                        if matches!(
+                            j.error(),
+                            SplitJoinError::SingleSiteSectionLoop { count: 1 }
+                        ) =>
+                    {
+                        "SingleSiteSectionLoop"
+                    }
+                    _ => "other",
+                };
+                assert_eq!(got, refused, "{pose}, {turn}: {op}: {:?}", r.map(|_| ()));
+            }
         }
     }
 }

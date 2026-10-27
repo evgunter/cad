@@ -1,7 +1,7 @@
 ---
 id: a-refused-faces-later-hard-error-is-swallowed-whatever-its-kind
 kind: issue
-title: A budget-refused face's later-round hard error is mapped to stopped() whatever its kind, so a defect kind would be hidden by check 7
+title: A face's later-round hard error is held as FaceStop::Refused whatever its kind, so a defect kind would be hidden by check 7
 status: open
 opened: 2026-10-21
 priority: P3
@@ -42,3 +42,14 @@ other refusal, so check 7 would decide on the enclosure before it,
 where the round's refusal says the stored data is wrong. The fix's
 shape is unchanged: in `FaceRun::advance`'s `Err` arm, or at
 `walk_set`'s call of it, surface a defect kind at once.
+
+## Re-checked on main `9267d3ae` (QUAD tracker sweep, 2026-10-27)
+
+Still holds after PRs 5741 and 5815. There is no budget refusal any more
+(5741). The arm is now `FaceRun::advance`'s `Err` branch
+(`crates/topo/src/props.rs:4123`). It sets `FaceStop::Refused(refusal)`
+(`:4104`) for any refusal, and nothing reads
+`classify_mass_props(..).defect` first. `walk_set` (`props.rs:826`) and
+`role_walk_set` (`:6237`) decide on the held enclosure. The title
+dropped "budget-refused", because every face is held now. The fix's
+shape is unchanged.

@@ -35,7 +35,7 @@ So the repo's standing pattern is: measure, write the number into a comment or a
 Not exhaustive — these are where the style review pointed:
 
 - **`Cargo.toml:165-175`** — the `spade` / `mesh` `opt-level = 2` block, *"measured 2026-07-21"* (one washer test: 91.7s at opt 0 vs ~1.2s optimized). Nothing detects its removal, and the symptom is a slow suite that nobody attributes to the missing block. Arguably the highest-value row here: it is cheap to guard and expensive to lose silently.
-- `geom-brep/src/props/quad.rs:2052`, `:3213`, `:3256`
+- `geom-brep/src/props/quad/`, `:3213`, `:3256`
 - `ssi/march.rs:146`
 - `geom-core/src/dual.rs:1431`
 - `pcurve_cache.rs:2036`
@@ -100,7 +100,7 @@ Manifest-text guard, with two in-house precedents:
 crate's own `every_suite_file_is_aggregated`. No new test binary — it is a
 `#[path]` module in `mesh`'s aggregated `tests/all.rs`.
 
-### 2. `props/quad.rs:2052` — "the practical envelope (measured; every row re-measured)". **GUARDED.**
+### 2. `props/quad/` — "the practical envelope (measured; every row re-measured)". **GUARDED.**
 
 Every one of the ten carrier rows in that table is a named `const` in
 `crates/geom-brep/tests/review_r1_rational_probes.rs:74-91`
@@ -111,7 +111,7 @@ never widen this bound"*. The degenerate row is pinned separately by
 `pin_degenerate`. This is the strongest guard in the sweep and the doc
 comment already names the file. **No action.**
 
-### 3. `props/quad.rs:3213` — "MEASURED: 64 → 4 moves the oracle by at most 2.3e-13". **GUARDED, by construction.**
+### 3. `props/quad/` — "MEASURED: 64 → 4 moves the oracle by at most 2.3e-13". **GUARDED, by construction.**
 
 The claim is that dropping the oracle's v-samples 64 → 4 is free. It sits
 inside the test whose posture assertion (`eps_posture(…, 1e-5)` at `:3266`)
@@ -120,7 +120,7 @@ the comparand. The 2.3e-13 figure itself is unpinned, but nothing rests on
 the *number* — only on the conclusion, which the enclosing row tests
 directly. **No action.**
 
-### 4. `props/quad.rs:3256` — "2048 u-samples … 2.6e-7 off it (O(h²), measured)". **GUARDED, same mechanism, same row.** The 1e-5 slack is stated as 40× that headroom; if the discretization error grew past ~1e-5 the assertion fails. **No action.**
+### 4. `props/quad/` — "2048 u-samples … 2.6e-7 off it (O(h²), measured)". **GUARDED, same mechanism, same row.** The 1e-5 slack is stated as 40× that headroom; if the discretization error grew past ~1e-5 the assertion fails. **No action.**
 
 ### 5. `ssi/march.rs:146` — "conservative … by a factor measured at roughly 4–20× on the M5 fixtures". **UNGUARDABLE, and correctly so.**
 

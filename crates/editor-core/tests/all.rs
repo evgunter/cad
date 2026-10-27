@@ -223,6 +223,8 @@ mod fix_loop_polygon_expr;
 mod fix_pattern_mate_crossing;
 #[path = "fork7_shared_is_named.rs"]
 mod fork7_shared_is_named;
+#[path = "gap_reads_a_cell_against_a_round_face.rs"]
+mod gap_reads_a_cell_against_a_round_face;
 #[path = "gap_reads_vertex_and_edge_cells.rs"]
 mod gap_reads_vertex_and_edge_cells;
 #[path = "reach_slab_cut_sector_side.rs"]
@@ -836,6 +838,8 @@ mod intent_s4_h_placed;
 mod intent_s5_a_relation;
 #[path = "intent_s5_b_interference.rs"]
 mod intent_s5_b_interference;
+#[path = "intent_value_chart_orientation.rs"]
+mod intent_value_chart_orientation;
 #[path = "intent_vars_2_table.rs"]
 mod intent_vars_2_table;
 #[path = "intent_vars_3_readers.rs"]
@@ -848,3 +852,5 @@ mod run_wall_offers;
 mod union_flush_fuses;
 #[path = "union_member_orders_decide_alike.rs"]
 mod union_member_orders_decide_alike;
+#[path = "value_chart_sweeps.rs"]
+mod value_chart_sweeps;

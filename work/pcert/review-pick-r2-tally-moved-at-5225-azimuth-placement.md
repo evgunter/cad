@@ -79,3 +79,27 @@ missed `PcurveMintError::OuterSpanPoisoned`); #5662 fixed that at
 `09011e4179`, which reads the old tally. Whether #5659's single chart
 reading should refuse more here is the question this row already owes,
 answered from that PR. Do not re-pin before it is answered.
+
+## 2026-10-26 — PR 5742 (the value chart reads a written orientation)
+
+Main `6ff6b23` reads `(441036, 141417, 25542, 7998)`, and PR 5742 reads `(441036, 141388, 25542, 7998)`. The PR's 29 fewer aimed-vertex answers all come from one landing, `kitchen_sink` after its first edit, measured landing by landing against the merge base:
+- the edit sets the moved copy's `Slide(Y)`;
+- under the least-turn chart that slide runs along another carried axis;
+- so the edited copy stands elsewhere.
+
+Every other landing reads the base's tally exactly.
+
+
+## 2026-10-27 (nightly triage): red again after PR 5717's re-pin, from PR 5742
+
+PR 5717 (`pred/mesh-sizing-rule`, `463956a6`) re-derived the pin as
+`(392112, 131712, 26058, 8292)`. Nightly run 40455870959 (main
+`fb476030a9`) reads `(392112, 131691, 26058, 8292)` at every ε, in the
+full suite and in `viewer app feature`. Main `57e3f95a` reads the same.
+Bisected over first-parent merges from `463956a6` with the reproduce
+line above: last good `767d26a9`, first bad **`19eff38c`, the merge of
+PR 5742** (`intent/value-chart-orientation`). That is the move the
+2026-10-26 entry measured on PR 5742's branch: aimed-vertex answers
+fall (21 now, 29 then) and the refusal columns hold. PR 5742 merged
+without re-pinning. The question this row already asks still stands
+before any re-pin.

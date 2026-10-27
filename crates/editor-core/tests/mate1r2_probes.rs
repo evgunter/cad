@@ -94,16 +94,28 @@ fn seat(
     placed: impl crate::fixture::Sited,
     slide: [f64; 2],
     facing: bool,
+    upended: bool,
 ) -> (ProfileDoc, MateRef) {
     let to = fixture::plane(fixture::head(target));
     let to = if facing { fixture::flip(to) } else { to };
+    let mut mate = fixture::mate(fixture::plane(fixture::head(placed)), to);
+    // Where the start cap faces the mated direction's opposite — unflipped
+    // against an end cap, or flipped against one an upended copy holds
+    // facing down — the copy stands upended, its `z` along `−z`.
+    if upended {
+        mate.orient = editor_core::Orientation::new(
+            editor_core::SignedAxis::PlusX,
+            editor_core::SignedAxis::MinusZ,
+        )
+        .expect("x and z lie along two axes");
+    }
     let (doc, mate) = crate::fixture::constrain_with(
         doc,
-        fixture::mate(fixture::plane(fixture::head(placed)), to),
+        mate,
         &[
             (Coord::Slide(TargetAxis::X), len(slide[0])),
             (Coord::Slide(TargetAxis::Y), len(slide[1])),
-            (Coord::Spin(editor_core::TargetAxis::Z), ang(0.0)),
+            (Coord::SPIN, ang(0.0)),
         ],
     );
     (doc, mate)
@@ -278,6 +290,7 @@ fn r2_oblique_circular_seat_at_a_pinned_world_frame() {
         in_part(top, top_body, CapEnd::Start),
         [0.0, 0.0],
         true,
+        false,
     );
     assert_eq!(mate.placement, top, "the mate places the top");
 
@@ -349,6 +362,7 @@ fn r2_a_seat_still_verifies_under_a_pinned_world_frame() {
         in_part(top, top_body, CapEnd::Start),
         [0.0, 3.5],
         true,
+        false,
     );
     assert_eq!(m0.placement, top, "the seat places the top");
 
@@ -451,6 +465,7 @@ fn r2_an_out_of_range_copy_on_a_sibling_mate_refuses_at_its_placement() {
         in_part(top, top_body, CapEnd::Start),
         [0.0, 0.0],
         true,
+        false,
     );
     // The second mate names copy 1, live when it is authored; the
     // pattern then shrinks to one copy under it, which is how a read
@@ -461,6 +476,7 @@ fn r2_an_out_of_range_copy_on_a_sibling_mate_refuses_at_its_placement() {
         in_part(top2, top_body, CapEnd::Start),
         [0.0, 0.0],
         true,
+        false,
     );
     let (m0, m1): (MateRef, MateRef) = (m0, m1);
     assert_eq!((m0.placement, m1.placement), (top, top2));
@@ -521,6 +537,7 @@ fn r2_plain_document_pose_bits() {
         in_part(ib, b_body, CapEnd::Start),
         [0.25, 0.5],
         false,
+        true,
     );
     let (doc, m1) = seat(
         doc,
@@ -528,11 +545,14 @@ fn r2_plain_document_pose_bits() {
         in_part(ic, c_body, CapEnd::Start),
         [0.75, 0.125],
         true,
+        true,
     );
     assert_eq!((m0.placement, m1.placement), (ib, ic));
     let poses = solve(&doc, &o, Tol::witness());
     for id in [ia, ib, ic] {
-        let f = poses.relative(id).expect("a pose");
+        let f = poses
+            .relative(id)
+            .unwrap_or_else(|| panic!("a pose: {:?}", poses.fault(id)));
         let bits: Vec<u64> = f
             .columns
             .iter()
