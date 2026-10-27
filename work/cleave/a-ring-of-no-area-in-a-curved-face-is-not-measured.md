@@ -44,8 +44,8 @@ on the curved face's boundary parts as a slit of it and measures
 ## Fix
 
 Two steps, split by territory. The measure reads the ring:
-`work/flux/a-curved-faces-measure-reads-a-ring-of-no-area-as-degenerate.md`
-(FLUX owns the curved face's measure), which this row is parked on.
+`work/measuredoor/a-curved-faces-measure-reads-a-ring-of-no-area-as-degenerate.md`
+(MEASUREDOOR, the measurement door, owns it), which this row is parked on.
 Then CLEAVE drops the `CurvedRing` refusal (`slit::part_riders`) and
 re-pins what each moved test owes back:
 

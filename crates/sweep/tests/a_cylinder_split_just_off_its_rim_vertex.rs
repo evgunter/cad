@@ -3,7 +3,7 @@
 //! `(±1, 0, 1)`) split by the plane through `(1, 0, d)` with normal
 //! `(−1e-2, 0, 1)` leaves a wedge below the plane, `d` high at the seam
 //! vertex and meeting the rim disc in a chord near it
-//! (`work/flux/a-cylinder-split-just-off-its-rim-vertex-exhausts-the-volume-quadrature-at-rest.md`).
+//! (`work/spanfold/a-cylinder-split-just-off-its-rim-vertex-exhausts-the-volume-quadrature-at-rest.md`).
 //!
 //! The wedge's wall is a cylinder face whose height is a few `d`. Its
 //! quadrature read each trim edge's end trig off the edge's vertex, a

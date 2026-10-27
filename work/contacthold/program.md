@@ -18,7 +18,8 @@ follow-ons (PRs 4921, 4956, 4982, 4996, 5006, 5389, 5390), the pinch
 ruling (`[ev]` PR 5395: a material crescent along a tangent line is two
 coincident cusp edges; a void crescent and every point touch are
 records), and the same-solid discovery (PR 5456, the P1). No P0 or P1 is
-dispatchable: the P0s wait on `intent-stage4-is-built`. The P2 builds the
+on the slate: the two P0s that waited on `intent-stage4-is-built` moved
+to ATREST on 2026-10-27 as one P2 re-read. The P2 builds the
 ruling named (`a-material-crescent-tangent-line-builds-two-coincident-cusp-edges`,
 `a-material-crescent-face-face-record-refuses-typed-at-the-op-and-the-carry`)
 lead the tail.

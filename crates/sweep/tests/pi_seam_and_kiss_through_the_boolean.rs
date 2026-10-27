@@ -739,7 +739,7 @@ fn a_rim_in_band_of_the_partners_wall_escalates() {
 ///   closed form to `1e-16`); order 1 (the dome's rim kept on the tube's
 ///   wall) crosses the bound by `1.05e-12` and refuses
 ///   `ResultVolumeImplausible` at it. Filed as
-///   `work/fluxtail/a-kept-rim-off-its-sphere-is-read-on-its-own-sphere-so-member-orders-diverge.md`.
+///   `work/nearpoint/a-kept-rim-off-its-sphere-is-read-on-its-own-sphere-so-member-orders-diverge.md`.
 /// - `k = ±0.9`: the dome's meridian meets the tube's wall `√2·|k|·zero`
 ///   along its arc from the rim, and the crossing layer escalates on that
 ///   arc length, both orders
