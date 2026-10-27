@@ -7157,3 +7157,4 @@ Signed (WIRE orchestrator).
 - 2026-10-27 (WIRE orchestrator) PR 5854 review: mergeable.
   - Kuhn matching is correct, the address memo is sound, and positional tags are unchanged. Python 944 OK. Three witnesses are red on base.
   - Fix pass sent: the junction-run sibling (NamePat::path over a sorted Seam run, the same class one level up) to fix or file; the re-authoring test must assert that the flip happens; the stale audit doc; reuse nest.rs's address().
+- 2026-10-27 (WIRE orchestrator) PR 5854's fix pass was read by the orchestrator: junction runs now match as a set, the flip premise is asserted, and nest's address() is reused. Merged; row closed. The 7 revalue_corpus failures the lanes saw locally are on INTENT's main-red list.
