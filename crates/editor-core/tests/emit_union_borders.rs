@@ -234,20 +234,25 @@ fn label(
             .collect::<Vec<_>>()
             .join("+"),
         _ => {
-            // A placement's copy carries its source's names verbatim,
-            // so a name a labelled copy holds is minted at its source.
-            let at = labels
-                .keys()
-                .copied()
-                .find(|&id| {
-                    id == n.node
-                        || matches!(doc.node(id), Some(editor_core::Node::Place { source, .. })
-                            if doc.operation_of(source.read) == Some(n.node))
-                })
-                .unwrap_or_else(|| panic!("no labelled member holds {n:?}"));
+            let at = holder(doc, labels, n);
             format!("{}:{}", labels[&at], plane_label(ev, at, n))
         }
     }
+}
+
+/// The labelled member that holds `n`, a name minted at `n.node`: that
+/// node itself, or a placement of it, whose copy carries its source's
+/// names verbatim.
+fn holder(doc: &ProfileDoc, labels: &BTreeMap<RecipeNodeId, &str>, n: &StableName) -> RecipeNodeId {
+    labels
+        .keys()
+        .copied()
+        .find(|&id| {
+            id == n.node
+                || matches!(doc.node(id), Some(editor_core::Node::Place { source, .. })
+                    if doc.operation_of(source.read) == Some(n.node))
+        })
+        .unwrap_or_else(|| panic!("no labelled member holds {n:?}"))
 }
 
 /// `node`'s split parents, each as the sorted list of its pieces' wall
@@ -677,7 +682,10 @@ fn edge_label(
             Some(member) => format!("{}:{}", labels[&member], place(member, of)),
             None => edge_label(ev, doc, labels, of),
         },
-        _ => format!("{}:{}", labels[&n.node], place(n.node, n)),
+        _ => {
+            let at = holder(doc, labels, n);
+            format!("{}:{}", labels[&at], place(at, n))
+        }
     }
 }
 
