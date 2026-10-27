@@ -83,6 +83,14 @@ What stays open here:
 - **Other curved kinds.** Coincident cone, torus or spline faces on two
   keys are not read: Door 1 has no exact coincidence rung for them in
   this arm, so arm 1 still refuses them.
+- **Curved copies in band.** Two cylinder or sphere copies whose
+  carriers Door 1 reads in band (not `Definite`), offset by a few ε, are
+  not read by the curved arm, so arm 1 still refuses their walls
+  `CurvedWithinReach`. A sliver past the band is decided
+  (`curved_copies_filling_one_volume.rs`
+  `halves_off_by_a_few_eps_are_decided_past_the_band_only`). One in
+  band may hide an overlap and is loud, never interference. Its planar
+  counterpart is `an-aligned-in-band-pair-is-never-read-as-interference`.
 
 Filed beside this row:
 `aligned-arc-or-curved-faces-that-only-abut-are-never-read-flush` (the
