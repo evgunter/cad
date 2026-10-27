@@ -120,11 +120,12 @@ that is the assertion rule below at work.** A finding refuses only where
 an assertion could have quieted it (DESIGN `[assertions.quiet]`), so
 `Error` is legal: at `Error`, `enforce_checks` refuses a loud
 interference finding some assertion the quieting rule accepts could
-quiet, and nothing else this resident reports. An overlap the kernel
-could not intersect, and one whose bounding faces offer no pair such an
-assertion could be written over (no signed `Gap` covers them, or one
-reading cannot answer for their pairing), are outside what the document
-can yet say (below): loud, and refused at no severity. A quiet
+quiet, and nothing else this resident reports. A finding no such
+assertion could quiet (an overlap the kernel could not intersect; one
+whose bounding faces offer no pair the rule would take, or whose
+overlap crosses every such pair's carriers; one carrying a verdict no
+assertion over it speaks for) is outside what the document can yet say
+(below): loud, and refused at no severity. A quiet
 finding (`CheckFinding::quiet`) is listed with the assertion that quiets
 it and never refuses. The census's own pre-filter is the pair filter;
 the resident adds no box test of its own.

@@ -611,16 +611,18 @@ fn a_pin_pressed_into_a_bore_is_quiet_under_its_gap() {
     }
 }
 
-/// **(B, curved containment) A pin that bottoms through a blind bore
-/// stays loud.** The plate is a union of the holed plate and a floor
-/// slab under it, so the bore is blind at `z = 0`; the pin is pressed
-/// into it (radius 0.505) and runs on into the floor. The overlap is
-/// one solid, the annulus and the slug in the floor beneath the bore,
-/// and both asserted faces bound it, but the slug lies inside the
-/// bore's carrier, away from the plate's material: the region past the
-/// carrier keeps it, so the bore's own gap does not quiet the finding.
+/// **(B, curved containment) A pin that bottoms through a blind bore is
+/// not quieted by the bore's gap.** The plate is a union of the holed
+/// plate and a floor slab under it, so the bore is blind at `z = 0`; the
+/// pin is pressed into it (radius 0.505) and runs on into the floor. The
+/// overlap is one solid, the annulus and the slug in the floor beneath
+/// the bore, and both asserted faces bound it, but the slug lies inside
+/// the bore's carrier, away from the plate's material: the region past
+/// the carrier keeps it, so the bore's own gap does not quiet the
+/// finding. (A `Gap` between the plate's top and the pin's bottom does:
+/// `intent_s5_c_quietable::a_blind_bore_pin_is_quietable_and_refuses_until_quieted`.)
 #[test]
-fn a_pin_bottoming_through_a_blind_bore_stays_loud() {
+fn a_blind_bore_pin_is_not_quieted_by_the_bores_gap() {
     use crate::fixture::{in_world, piece, slid};
     use editor_core::{Bodies, LoopProgram, ProfileProgram};
     let circle = |r| LoopProgram::<Formula>::circle(0.0, 0.0, r).expect("a literal circle");

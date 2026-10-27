@@ -409,13 +409,17 @@ pub struct InterferenceFinding {
     pub overlap: Overlap,
     /// The assertion that quiets it, or `None` when it is loud.
     pub quiet: Option<RecipeNodeId>,
-    /// Whether an assertion the quieting rule accepts could quiet it: the
-    /// overlap is bounded, and two of its bounding faces, one of each
-    /// copy, are a carrier pair a signed `Gap` reads whose pairing one
-    /// reading answers for (two planes, cylinders on one axis, spheres
-    /// about one centre). `false` for an unlocalized overlap. A finding
-    /// no assertion could quiet is outside what the document can yet say
-    /// (CHECKS DS6): loud, and refused at no severity.
+    /// Whether an assertion the quieting rule accepts could quiet it,
+    /// asked of the rule itself ([`localize`]): the overlap is bounded;
+    /// every verdict it carries lies on it (`covered`, which no
+    /// assertion changes); and either an assertion quiets it, or two of
+    /// its bounding faces, one of each copy, in some role order, are
+    /// faces a holding `Gap ≤ −δ` over which the rule would take (the
+    /// faces opposed, their gap decided negative) and between whose
+    /// carriers the overlap lies (neither face's crossing keeps any of
+    /// it). `false` for an unlocalized overlap. A finding no assertion
+    /// could quiet is outside what the document can yet say (CHECKS
+    /// DS6): loud, and refused at no severity.
     pub quietable: bool,
 }
 
@@ -576,9 +580,8 @@ struct PairingRead<'b, T: Decide> {
 /// **The pairing of two faces, where one reading answers for it**: the
 /// reading at a point of the outer face, or `None` where the faces do
 /// not pair their materials alike at every point ([`constant_pairing`])
-/// or do not read. `opposed` decides the pairing on it, and an overlap
-/// is quietable only over a pair that has one (`gap_covers`), so the
-/// two cannot drift.
+/// or do not read. [`opposed`] decides the pairing on it, which both the
+/// quieting rule and [`could_quiet`] ask.
 fn pairing_read<T: Decide>(
     body: &Body<T>,
     outer: FaceKey,
@@ -1146,8 +1149,11 @@ fn localize(
             _ => true,
         })
     };
+    // The faces' crossings, each built once however many candidate pairs
+    // a face is in (`could_quiet`).
+    let mut crossings = BTreeMap::new();
     let mut out = Vec::with_capacity(components.len());
-    for (component, verdict) in components.iter().zip(verdicts) {
+    for (i, (component, verdict)) in components.iter().zip(verdicts).enumerate() {
         let mut faces = Vec::with_capacity(component.sources.len());
         for &(copy, face) in &component.sources {
             let Some(name) = product.names.name_of(&EntityRef {
@@ -1163,7 +1169,18 @@ fn localize(
         }
         faces.sort();
         faces.dedup();
-        let quietable = gap_covers(&product.body, a, b, component, tol);
+        let quietable = covered(component)
+            && (matches!(verdict, Quiet::By(_))
+                || (matches!(verdict, Quiet::Loud)
+                    && could_quiet(
+                        product,
+                        (a, b),
+                        &components,
+                        i,
+                        &result,
+                        tol,
+                        &mut crossings,
+                    )));
         out.push(match verdict {
             Quiet::Loud => finding(Overlap::Bounded { faces }, None, quietable),
             Quiet::By(assertion) if covered(component) => {
@@ -1180,39 +1197,66 @@ fn localize(
     out
 }
 
-/// **Whether an assertion the quieting rule accepts could quiet
-/// `component`**: two of the faces bounding it, one of copy `a` and one
-/// of copy `b`, are carriers [`crate::eval::measure::gap_reads`] reads in
-/// some role order, and pair their materials alike at every point
-/// ([`pairing_read`], which `opposed` decides on). Only over such a
-/// pair can a `Gap` assertion quiet the overlap.
-fn gap_covers(aggregate: &Body<f64>, a: usize, b: usize, component: &Component, tol: Tol) -> bool {
-    use crate::eval::measure::{carrier_of, gap_reads};
+/// **Whether an assertion the quieting rule accepts could quiet the
+/// component `i`**, asked of the rule itself: for each pair of the faces
+/// bounding it, one of copy `a` and one of copy `b`, in both role orders,
+/// whether a holding `Gap ≤ −δ` over the pair would be one the rule takes
+/// ([`gap_assertions`]: the faces [`opposed`], the gap they measure
+/// decided negative) and whether the component lies between their
+/// carriers as [`quiet_verdicts`] decides it ([`crossing`]). The caller
+/// asks [`localize`]'s `covered` first, which no assertion changes.
+/// `crossings` keeps each face's crossing, built once.
+fn could_quiet(
+    product: &Product<f64>,
+    (a, b): (usize, usize),
+    components: &[Component],
+    i: usize,
+    result: &topo::BooleanBody<f64>,
+    tol: Tol,
+    crossings: &mut BTreeMap<FaceKey, Result<BTreeSet<usize>, String>>,
+) -> bool {
+    use crate::eval::measure::{carrier_of, gap_value};
     let Ok(band) = Band::linear(tol) else {
         return false;
     };
-    let face = |key| {
+    let body = &product.body;
+    let of = |copy| {
+        components[i]
+            .sources
+            .iter()
+            .filter(move |(c, _)| *c == copy)
+            .map(|&(_, f)| f)
+            .collect::<Vec<_>>()
+    };
+    let carrier = |key| {
         carrier_of(
-            aggregate,
+            body,
             EntityRef {
                 body: 0,
                 key: EntityKey::Face(key),
             },
         )
     };
-    let of = |copy| {
-        component
-            .sources
-            .iter()
-            .filter(move |(c, _)| *c == copy)
-            .map(|&(_, f)| (f, face(f)))
-            .collect::<Vec<_>>()
-    };
     let (from_a, from_b) = (of(a), of(b));
-    let read = |x: FaceKey, y: FaceKey| pairing_read(aggregate, x, y, band).is_some();
-    from_a.iter().any(|(fx, x)| {
-        from_b.iter().any(|(fy, y)| {
-            (gap_reads(x, y, band) && read(*fx, *fy)) || (gap_reads(y, x, band) && read(*fy, *fx))
+    let mut candidates = Vec::new();
+    for &x in &from_a {
+        for &y in &from_b {
+            for (outer, inner) in [(x, y), (y, x)] {
+                let negative = gap_value(&carrier(outer), &carrier(inner), band).is_ok_and(|g| {
+                    decide(AT_REST_QUIET_BOUND, Margin::of(g), band) == Ok(Sign::Negative)
+                });
+                if negative && opposed(body, outer, inner, band) {
+                    candidates.push((outer, inner));
+                }
+            }
+        }
+    }
+    candidates.into_iter().any(|(outer, inner)| {
+        [outer, inner].into_iter().all(|face| {
+            let crossed = crossings
+                .entry(face)
+                .or_insert_with(|| crossing(body, face, components, result, tol));
+            matches!(crossed, Ok(set) if !set.contains(&i))
         })
     })
 }
@@ -1271,8 +1315,11 @@ enum Quiet {
 /// its carrier from its copy's material is built as a solid
 /// ([`beyond`]) and intersected with the pair's components, and a
 /// component lies between when neither intersection keeps any of it.
-/// A component touching a carrier is between it; one that crosses it
-/// (a sunk flange, a pin bottoming in a blind bore) is not.
+/// A component touching a carrier is between it; one that crosses it is
+/// not (a sunk flange past the face it is asserted against; a pin
+/// bottoming in a blind bore, against the bore, whose slug lies past
+/// the bore's carrier, though not against the plate's top and the pin's
+/// bottom, between which it all lies).
 fn quiet_verdicts(
     product: &Product<f64>,
     a: usize,

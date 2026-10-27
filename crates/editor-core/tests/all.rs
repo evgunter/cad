@@ -840,6 +840,8 @@ mod intent_s5_a_relation;
 mod intent_s5_b_interference;
 #[path = "intent_s5_c_at_rest_check.rs"]
 mod intent_s5_c_at_rest_check;
+#[path = "intent_s5_c_quietable.rs"]
+mod intent_s5_c_quietable;
 #[path = "intent_value_chart_orientation.rs"]
 mod intent_value_chart_orientation;
 #[path = "intent_vars_2_table.rs"]

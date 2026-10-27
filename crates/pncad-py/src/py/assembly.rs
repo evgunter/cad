@@ -585,11 +585,10 @@ impl InterferenceFinding {
         self.quiet_by.is_none()
     }
 
-    /// Whether an assertion the quieting rule accepts could quiet it: the
-    /// overlap is bounded and two of its bounding faces, one of each
-    /// copy, are a carrier pair a signed `gap` reads whose pairing one
-    /// reading answers for. One no assertion could quiet refuses at no
-    /// severity.
+    /// Whether an assertion the quieting rule accepts could quiet it, as
+    /// the rule itself answers: some holding `gap` assertion over two of
+    /// its bounding faces would quiet it. One no assertion could quiet
+    /// refuses at no severity.
     #[getter]
     fn quietable(&self) -> bool {
         self.quietable

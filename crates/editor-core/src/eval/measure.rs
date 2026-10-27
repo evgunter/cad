@@ -899,17 +899,16 @@ fn gap<T: Decide>(
     }
 }
 
-/// **Whether a signed [`gap`] reads `outer` against `inner`**: the pair
-/// is in its table and meets its arm's preconditions. The at-rest
-/// check asks this of an overlap's bounding faces to know whether an
-/// assertion could ever quiet it (CHECKS DS6: "a carrier pair no signed
-/// `Gap` covers" never refuses), rather than keeping a list of its own.
-pub(crate) fn gap_reads<T: Decide>(
+/// **The signed [`gap`] of `outer` against `inner`**, for the at-rest
+/// check, which asks whether a holding `Gap ≤ −δ` over two faces
+/// bounding an overlap exists: the measure such an assertion reads, by
+/// the one definition of it.
+pub(crate) fn gap_value<T: Decide>(
     outer: &Carrier<'_, T>,
     inner: &Carrier<'_, T>,
     band: Band,
-) -> bool {
-    gap(outer, inner, band).is_ok()
+) -> Result<T, PrimitiveRefusal> {
+    gap(outer, inner, band)
 }
 
 /// The class a refusal names for a vertex whose link does not read.

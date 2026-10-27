@@ -705,6 +705,13 @@ fn a_parts_quiet_interference_is_carried_once() {
 /// host's assertion speaks for the host's own arrivals, and the two
 /// pieces are inside one of them.
 ///
+/// What it pins, plainly: no code path today could quiet the carried
+/// finding. A carried finding keeps the part's own `quiet`, and the
+/// interference rule's selection lookup (`gap_assertions`' `face_of`)
+/// resolves only names of the gathered product's own copies, which a
+/// pick, a read of its own, never is. The row is a guard for whichever
+/// of those changes first, not the witness of a decision.
+///
 /// *Breaks if* the host's assertion quiets the part's finding, or the
 /// picks make it a finding of the host's.
 #[test]
