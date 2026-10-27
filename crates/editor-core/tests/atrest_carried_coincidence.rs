@@ -19,7 +19,7 @@ use editor_core::{
 use geom_core::Tol;
 
 /// A document labelled `text` at `node`.
-fn labelled(doc: ProfileDoc, node: RecipeNodeId, text: &str) -> ProfileDoc {
+pub(crate) fn labelled(doc: ProfileDoc, node: RecipeNodeId, text: &str) -> ProfileDoc {
     crate::fixture::step(
         doc,
         editor_core::DocEdit::SetLabel {
@@ -34,7 +34,7 @@ fn labelled(doc: ProfileDoc, node: RecipeNodeId, text: &str) -> ProfileDoc {
 /// `base-block` and `rest-plate`: the union's `Rest` of the block's top
 /// and the plate's bottom, two constructions, and the plate's four
 /// corners on that top are unproven.
-fn resting_part(label: &str) -> ProfileDoc {
+pub(crate) fn resting_part(label: &str) -> ProfileDoc {
     let doc = ProfileDoc::empty_derived(label, Tol::witness());
     let (doc, base) = block(doc, (0.0, 2.0), (0.0, 2.0), 1.0);
     let (doc, plate) = block_on(doc, base, (0.5, 1.5), (0.5, 1.5), 1.0, 0.5);
@@ -52,7 +52,7 @@ fn resting_part(label: &str) -> ProfileDoc {
 
 /// **A box split in two and reunited**: every row of the union lies on
 /// the split's one tool plane, and the door proves each.
-fn reunited_part() -> ProfileDoc {
+pub(crate) fn reunited_part() -> ProfileDoc {
     let doc = ProfileDoc::empty_derived("carried-coincidence-reunite", Tol::witness());
     let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let tool = crate::fixture::plane_on(&doc, the_box, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0]);
@@ -120,7 +120,7 @@ fn gap_zero<R: Clone + Into<Operand>>(
 /// A document instancing `part` once per `at`, each pinned to the world
 /// there; the instances, and the options that resolve every document
 /// `store` holds and `part`.
-fn host(
+pub(crate) fn host(
     label: &str,
     mut store: PartStore,
     part: &ProfileDoc,
@@ -140,7 +140,7 @@ fn host(
 }
 
 /// The `unproven-coincidence` findings of the checks over `doc`.
-fn unproven(doc: &ProfileDoc, opts: &EvalOptions) -> Vec<CheckFinding> {
+pub(crate) fn unproven(doc: &ProfileDoc, opts: &EvalOptions) -> Vec<CheckFinding> {
     let run = crate::fixture::run(doc, opts);
     editor_core::run_checks(doc, &run, &ChecksConfig::default(), Tol::witness())
         .unwrap_or_else(|e| panic!("the checks run: {e}"))
