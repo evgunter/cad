@@ -164,12 +164,14 @@ pub(super) struct ZipReport {
     /// Vertex fusions in zip order: `(dead, kept)` per zipped pair.
     pub vertex_merges: Fusions,
     /// The seam edges surviving the zip, one per seam pair in the order
-    /// the zip was given them: the A section half-edge's edge, or the B
-    /// one's where that is a section strut ([`kill_pair`]).
+    /// the zip was given them: the kept side's section half-edge's edge
+    /// ([`super::glue::kept_first`]), or the other's where that is a
+    /// section strut ([`kill_pair`]).
     pub seam_edges: Vec<crate::entity::EdgeKey>,
-    /// Edge fusions, `(dead, kept)`, one per seam pair: the B section
-    /// edge the zip kills and the A edge on its segment, which survives
-    /// in its place; or, where B's is a section strut, A's onto it.
+    /// Edge fusions, `(dead, kept)`, one per seam pair: the other side's
+    /// section edge the zip kills and the kept side's edge on its
+    /// segment, which survives in its place; or, where the other's is a
+    /// section strut, the kept side's onto it.
     pub edge_merges: Vec<(crate::entity::EdgeKey, crate::entity::EdgeKey)>,
     /// The section struts the zip kept ([`kill_pair`]), each once. A
     /// seam edge whose pair is no section strut can end with one face
@@ -888,10 +890,11 @@ fn glue<T: Decide + crate::props::AtRestPolicy>(
     };
     let mut report = ZipReport::default();
     for &(ob, r) in edges {
-        report.seam_edges.push(edge_of(body, ob)?);
+        let (kept, other) = super::glue::kept_first(ob, r);
+        report.seam_edges.push(edge_of(body, kept)?);
         report
             .edge_merges
-            .push((edge_of(body, r)?, edge_of(body, ob)?));
+            .push((edge_of(body, other)?, edge_of(body, kept)?));
     }
     let pair_of: BTreeMap<HalfEdgeKey, usize> = edges
         .iter()
@@ -944,8 +947,8 @@ fn glue<T: Decide + crate::props::AtRestPolicy>(
             }));
         }
         let prev_o = he(body, o).prev;
-        // The kept vertex is `ob`'s at its start, its successor's at its
-        // end: A's.
+        // The joint runs from A's side (`ob` at its start, its successor
+        // at its end) to B's.
         let (he1, he2) = if start { (o, x) } else { (x, o) };
         let (l1, l2) = (he(body, he1).parent_loop, he(body, he2).parent_loop);
         if l1 != l2 {
@@ -961,7 +964,7 @@ fn glue<T: Decide + crate::props::AtRestPolicy>(
         }
         let joint = Joint::between(body, he1, he2)
             .ok_or_else(|| corr("a seam joint's half-edge has no face"))?;
-        let keep = he(body, he1).start;
+        let keep = he(body, super::glue::kept_first(he1, he2).0).start;
         let p = body
             .get_vertex(keep)
             .and_then(|vd| body.get_point(vd.point).copied())
@@ -1009,9 +1012,10 @@ fn glue<T: Decide + crate::props::AtRestPolicy>(
     Ok(report)
 }
 
-/// **Kills seam pair `k`'s loop of two** with `kef`, across B's edge,
-/// whose A partner survives in its place; or across A's, where B's edge
-/// is a section strut.
+/// **Kills seam pair `k`'s loop of two** with `kef`, across the other
+/// side's edge, whose kept partner ([`super::glue::kept_first`])
+/// survives in its place; or across the kept side's, where the other's
+/// edge is a section strut.
 ///
 /// A section strut is an operand's edge along a line where the op
 /// drops both its faces, so its section loop runs it both ways and both
@@ -1022,7 +1026,8 @@ fn glue<T: Decide + crate::props::AtRestPolicy>(
 /// the result keeps it on both sides of the line (closed in the output
 /// stage, `slit::close_struts`), or the two walls, a reflex edge, where
 /// the result keeps them. `report` names it among its struts and, where
-/// it is B's, as the pair's seam edge in place of A's.
+/// it is the other side's, as the pair's seam edge in place of the kept
+/// side's.
 ///
 /// # Errors
 ///
@@ -1043,13 +1048,14 @@ fn kill_pair<T: Decide + crate::props::AtRestPolicy>(
             .is_some_and(|&j| j != k)
     };
     let edge = |h: HalfEdgeKey| proven(&body.half_edges, h, EntityId::HalfEdge).edge;
-    let (dying, kept_strut) = match (strut(ob), strut(r)) {
-        (false, false) => (r, None),
-        (true, false) => (r, Some(edge(ob))),
+    let (kept, other) = super::glue::kept_first(ob, r);
+    let (dying, kept_strut) = match (strut(kept), strut(other)) {
+        (false, false) => (other, None),
+        (true, false) => (other, Some(edge(kept))),
         (false, true) => {
-            report.seam_edges[k] = edge(r);
-            report.edge_merges[k] = (edge(ob), edge(r));
-            (ob, Some(edge(r)))
+            report.seam_edges[k] = edge(other);
+            report.edge_merges[k] = (edge(kept), edge(other));
+            (kept, Some(edge(other)))
         }
         (true, true) => {
             return Err(BooleanError::ZipCorrespondence {

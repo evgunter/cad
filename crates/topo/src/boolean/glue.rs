@@ -35,6 +35,19 @@ use crate::body::Body;
 use crate::contact::GlueClass;
 use crate::entity::FaceKey;
 
+/// **Which side's description a glued pair keeps** (`docs/DESIGN.md`
+/// [coincidence.booleans], its one place [one-way.places]): the
+/// first-written operand's, a fixed rule that reads no values. Given a
+/// pair's two sides as A's and B's, returns them as `(kept, other)`.
+/// The zip's fused vertices and edges and the merge's merged faces read
+/// the decision here: the boolean hands the merge each glued pair kept
+/// side first (`ops::declared_surface_pairs`). An n-ary operation folds
+/// its members in list order, each step's accumulation its operand A,
+/// so the first-written member's description is the one kept.
+pub(crate) const fn kept_first<X: Copy>(a: X, b: X) -> (X, X) {
+    (a, b)
+}
+
 /// `decls` with every undeclared pair the operation decides one carrier
 /// added under its class, and every pair it reads in band added to
 /// [`Glue::in_band`] with that reading, each in A's face order and B's

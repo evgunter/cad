@@ -343,7 +343,9 @@ fn an_oversized_plug_merges_to_whole_caps() {
 /// block's hole. The merge keeps the block's cap, the face with the
 /// hole, and absorbs the plug's into it; kept the other way round, the
 /// plug's cap would receive the block's ring and `kef` would find one
-/// face on both sides of the rim.
+/// face on both sides of the rim. The merged cap wears the plug's
+/// description, the first-written operand's, as every glued pair does:
+/// red if the hole's host keeps its own.
 #[test]
 fn a_plug_folded_first_merges_into_the_face_it_plugs() {
     let tol = Tol::witness();
@@ -371,4 +373,24 @@ fn a_plug_folded_first_merges_into_the_face_it_plugs() {
         12.0
     );
     assert_green(&bb, "plug ∪ block");
+    // The result arena is the plug's clone, so its surface keys are the
+    // plug's own.
+    for z in [0.0, 2.0] {
+        let description = |b: &Body<f64>| {
+            let faces: Vec<_> = b
+                .faces()
+                .filter(|&(f, _)| face_height(b, f) == Some(z))
+                .map(|(_, face)| (face.surface, face.sense))
+                .collect();
+            let [one] = faces[..] else {
+                panic!("one cap at z = {z}: {faces:?}")
+            };
+            one
+        };
+        assert_eq!(
+            description(&bb.body),
+            description(&*plug),
+            "the cap at z = {z} wears the plug's description"
+        );
+    }
 }

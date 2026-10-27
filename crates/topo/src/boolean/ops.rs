@@ -5981,7 +5981,9 @@ fn record<T: Real>(body: &Body<T>, out: &mut ContactRecords, x: End, y: End, cit
 /// licenses nothing and drops — its contact material did not survive
 /// the op (the same consumed-record rule as contact rows);
 /// resolution-level dangling was already refused at the door
-/// (`validate_declarations`).
+/// (`validate_declarations`). Each pair is ordered kept side first, as
+/// the glue decides ([`super::glue::kept_first`]): the description the
+/// merge keeps for the face the pair merges.
 pub(super) fn declared_surface_pairs<T: Real>(
     result: &Body<T>,
     a: &Body<T>,
@@ -6011,7 +6013,7 @@ pub(super) fn declared_surface_pairs<T: Real>(
                 let ka = a.get_face(fa)?.surface;
                 let kb = graft.surfaces.get(b.get_face(fb)?.surface).copied()?;
                 (result.get_surface(ka).is_some() && result.get_surface(kb).is_some() && ka != kb)
-                    .then_some((ka, kb))
+                    .then_some(super::glue::kept_first(ka, kb))
             },
         )
         .collect()
