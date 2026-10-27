@@ -126,3 +126,10 @@
 - 2026-10-26 (orchestrator): #5773 head `520f54ff` carries the dual-review row but reads `dirty` against main, so CI never ran. RESTREAD's #5704 (tier 3′ self-touch link reading) rewrote the census link code that #5773 lifts into `topo::link`: 6 hunks in `census.rs` and one in `.config/nextest.toml`. That is a semantic merge, so I sent it back to the link lane (session_019wGbSrLfmrqDKVBwjrputi) to carry #5704's change into `link.rs`, with the slow census goldens at three ε. I merge on green.
 - 2026-10-26 (orchestrator): main red at `ed68a59e`. #5704 (RESTREAD) added `BoundaryCrossesItself{,Undecided}` and `checks/at_rest.rs` `finding_solids`'s exhaustive match did not place them (E0004); the link lane found it while merging main into #5773. Fixed by #5803: both findings are placed at (s, s), as census `Named::of` reads them, so a self-crossing inside an already-censused arrival is that door's. The `None` group would have reported it a second time. #5773 carries the identical arm, and the 5 C lane is told.
   #5803 merged at `ab2b6108` on green (gate ok; lint and test jobs).  Main compiles again.
+- 2026-10-27 (orchestrator): the link lane merged main into #5773 twice:
+  - #5704's tier 3′ changes are carried into `link.rs`, census consumers adapted, census bit-unchanged at three ε;
+  - then #5803's arm.
+
+  It also widened the oracle row `offset_and_lowest_on_meet_the_written_down_distance` for a sector's bound (`s²/2|d|`). That was latent on `c20f7473`, seed `0x2dcfe5e9359f1e41`. I clamped the divisor at an escalation: at d = 0 the floor read −inf. The link rows are green at three ε. The row was re-committed last, naming the final head; the PR head is `061996b7`.
+
+  Six `sweep::all` slow-set rows that the lane saw red also fail on main `ab2b6108`, and none is ATREST's. Two are filed: the TESS thin nested rings, and the meeting-axes pose under CHARTTAIL #5664. The rest are left to the nightly triage.
