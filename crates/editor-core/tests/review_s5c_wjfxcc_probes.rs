@@ -336,3 +336,57 @@ fn p4_a_tilted_press_fit_is_quiet_in_either_role_order() {
         assert_eq!((*quiet, holds), (*why == "bore first", *why == "bore first"), "{pose} {why}: {table:#?}");
     }
 }
+
+/// **P5. An overlap the kernel could not intersect never refuses.**
+/// CHECKS DS6: "a finding outside what the document can yet say (... an
+/// overlap the kernel could not intersect ...) is reported loud, never
+/// refuses whatever the severity, and is not quietable"; spec §4: "an
+/// unlocalized overlap is not among them, since `Overlap::Unlocalized` is
+/// loud and never refuses". Row 16's `A ⊔ A`: its one interference
+/// finding, and `enforce_checks` at `Error`. Red = an `Unlocalized`
+/// interference refuses at `Error` (no assertion can quiet it, so the
+/// document has no recourse but moving geometry).
+#[test]
+fn p5_an_unlocalized_overlap_refuses_at_no_severity() {
+    let doc = ProfileDoc::empty_derived("p5-twice", Tol::witness());
+    let (doc, a) = block(doc, 0.5, 1.0);
+    let (doc, copy) = crate::fixture::place(doc, a);
+    let read = editor_core::BodyRead::plain(editor_core::Operand::Var(
+        doc.output(copy, 0).expect("a copy"),
+    ));
+    let (doc, twice) = insert(
+        doc,
+        Node::Assemble {
+            members: editor_core::Bodies::Spelled(vec![read.clone(), read]),
+        },
+    );
+    let doc = crate::fixture::step(
+        doc,
+        editor_core::DocEdit::SetProduct {
+            product: Some(editor_core::Operand::Node(twice)),
+        },
+    )
+    .0;
+    let mut r = report(&doc, &EvalOptions::default());
+    // `A ⊔ A` localizes (`Bounded`), so stand the finding at the overlap
+    // the kernel could not intersect: the same finding with its overlap
+    // `Unlocalized` (as the tour teapot's handle/vessel finding is). What
+    // is under test is `enforce_checks`' filter, which reads `quiet` and
+    // `could_not_look()` only.
+    let mut n = 0;
+    for f in &mut r.findings {
+        if let CheckEvidence::Interference { finding } = &mut f.evidence {
+            finding.overlap = editor_core::Overlap::Unlocalized(editor_core::Unlocalized::Empty);
+            n += 1;
+        }
+    }
+    assert_eq!(n, 1, "one interference: {r}");
+    let error = ChecksConfig {
+        at_rest: editor_core::Severity::Error,
+        ..ChecksConfig::default()
+    };
+    assert!(
+        editor_core::enforce_checks(&r, &error).is_ok(),
+        "an unlocalized overlap refuses at no severity"
+    );
+}

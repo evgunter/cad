@@ -508,3 +508,48 @@ mod tests {
         );
     }
 }
+
+/// Review probe (PR 5810, lane wjfxCC): the teapot's and the chain's
+/// at-rest findings by kind, and whether any finding repeats.
+#[cfg(test)]
+mod review_s5c_wjfxcc {
+    use super::*;
+
+    #[test]
+    fn at_rest_findings_by_kind_and_no_repeat() {
+        let tol = Tol::witness();
+        for (name, doc) in [
+            ("teapot", crate::teapot::gallery_document(tol)),
+            ("chain", crate::chain::gallery_document(tol)),
+        ] {
+            let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
+            let report = run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect("runs");
+            let mut kinds: std::collections::BTreeMap<String, usize> = Default::default();
+            let mut seen: std::collections::BTreeMap<String, usize> = Default::default();
+            for f in report.findings.iter().filter(|f| f.check == CheckId::AtRest) {
+                let ev = format!("{:?}", f.evidence);
+                let kind: String = ev
+                    .split(|c: char| c == '(' || c == '{')
+                    .take(4)
+                    .collect::<Vec<_>>()
+                    .join("/");
+                let kind: String = kind.chars().filter(|c| !c.is_whitespace()).take(90).collect();
+                *kinds.entry(kind).or_default() += 1;
+                *seen.entry(format!("{:?}|{ev}", f.subject)).or_default() += 1;
+            }
+            let error = ChecksConfig {
+                at_rest: pncad::document::Severity::Error,
+                ..ChecksConfig::default()
+            };
+            let refused = pncad::document::enforce_checks(&report, &error)
+                .err()
+                .map(|r| r.findings.iter().map(|f| format!("{:?}", f.evidence).chars().take(300).collect::<String>()).collect::<Vec<_>>());
+            println!("{name}: at Error refuses: {refused:#?}");
+            let repeats: Vec<_> = seen.iter().filter(|(_, n)| **n > 1).collect();
+            println!("{name}: {kinds:#?}\nrepeats: {}", repeats.len());
+            for (k, n) in repeats.iter().take(5) {
+                println!("  x{n}: {}", k.chars().take(400).collect::<String>());
+            }
+        }
+    }
+}
