@@ -5856,7 +5856,71 @@ fn planar_face_pairs<T: Decide>(
             }
         }
     }
+    curved_same_side_pairs(body, geo, band, cands, &mut found.same_side);
     found
+}
+
+/// **The aligned face-pair arm on curved carriers** ([`planar_face_pairs`]'
+/// same-side reading where the planar one cannot look): two faces of
+/// different solids, both on cylinders or both on spheres, which Door 1
+/// decides on one carrier facing the same way, a margin decided Zero
+/// (`Definite`), and whose interiors meet ([`shared_interior_witness`]).
+/// Each face has its solid's material on its inner side, so the two
+/// solids overlap under the area they share, as an aligned planar pair's
+/// do.
+///
+/// Cylinders and spheres are the curved kinds whose coincidence Door 1
+/// decides exactly, on its data rungs at the pair's extent; every other
+/// curved pair, and a cylinder or sphere pair this arm does not decide
+/// (in band, opposed, apart, or sharing interior it finds no witness
+/// of), is read by the arms it was read by before: the conformal arm
+/// ([`sweep_conformal_patches`]) and the backstop's proximity arm.
+fn curved_same_side_pairs<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    band: Band,
+    cands: &Candidates,
+    out: &mut Vec<FoundPair>,
+) {
+    let kind = |f: FaceKey| {
+        let surface = body.surfaces.get(body.get_face(f)?.surface)?;
+        matches!(
+            surface,
+            geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. }
+        )
+        .then(|| surface.kind())
+    };
+    for (i, &fa) in cands.every_face.iter().enumerate() {
+        let Some(ka) = kind(fa) else { continue };
+        for j in cands.trees.every_face.later(i) {
+            let fb = *candidate(&cands.every_face, j);
+            if kind(fb) != Some(ka) {
+                continue;
+            }
+            let (Some(sa), Some(sb)) = (body.solid_of_face(fa), body.solid_of_face(fb)) else {
+                continue;
+            };
+            if sa == sb {
+                continue;
+            }
+            let Ok(Ok((
+                crate::boolean::CarrierRelation::SameOriented,
+                crate::contact::ContactVerdict::Definite,
+                Some(margin),
+            ))) =
+                crate::boolean::carrier_pair::carrier_pair_reading(body, fa, body, fb, false, band)
+            else {
+                continue;
+            };
+            if let Ok(SharedInterior) = shared_interior_witness(body, geo, fa, fb, band) {
+                out.push(FoundPair {
+                    a: fa,
+                    b: fb,
+                    margin,
+                });
+            }
+        }
+    }
 }
 
 /// What [`in_band_reading`] makes of a pair Door 1 read in band.
@@ -5980,8 +6044,11 @@ enum SameSideUnread {
 /// **Whether two planar faces on one carrier, facing the same way, share
 /// interior**, on Door 1's verdict: the region door's positive area or
 /// empty intersection in either frame order, as [`pair_verified`] reads
-/// it, and where its walk refuses at a shared boundary, the faces' own
-/// reading ([`planar_interiors_meet`]). A refusal is the first order's.
+/// it, and where its walk refuses at a shared boundary or at an arc, the
+/// faces' own reading ([`face_interiors_meet`]). Two faces with an arc are
+/// read so only on a carrier Door 1 decided Zero (`Definite`): the
+/// reading places points of one face in the other, which a carrier in
+/// band does not hold. A refusal is the first order's.
 fn same_side_overlap<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -6005,11 +6072,19 @@ fn same_side_overlap<T: Decide>(
     if either.iter().any(|r| matches!(r, Ok(ChartOverlap::Empty))) {
         return Ok(false);
     }
-    if either
+    let touching = either
         .iter()
-        .any(|r| matches!(r, Err(ChartRegionError::TouchingBoundary)))
-    {
-        return planar_interiors_meet(body, geo, fa, fb, band).map_err(SameSideUnread::Interiors);
+        .any(|r| matches!(r, Err(ChartRegionError::TouchingBoundary)));
+    let arcs = either
+        .iter()
+        .any(|r| matches!(r, Err(ChartRegionError::NonPlanarTrim { .. })));
+    let exact = matches!(verdict, crate::contact::ContactVerdict::Definite);
+    if (touching || arcs) && (exact || fa.polygon && fb.polygon) {
+        return face_interiors_meet(body, geo, fa.key, fb.key, band)
+            .map_err(SameSideUnread::Interiors);
+    }
+    if touching {
+        return Err(SameSideUnread::Interiors(InteriorsUnread::Unbuilt));
     }
     let [first, _] = either;
     first
@@ -8467,6 +8542,14 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             if same_key_conformal || declared.faces.contains(&(a.face, b.face)) {
                 continue; // the conformal arm's pair, or a recorded face pair's
             }
+            // A pair the aligned face-pair arm decided overlaps: arm 2
+            // reports its solids' interference.
+            if same_side
+                .iter()
+                .any(|p| [p.a, p.b] == [a.face, b.face] || [p.b, p.a] == [a.face, b.face])
+            {
+                continue;
+            }
             let vf_deferred = (a.planar && planar_face_bridged(a.face, &b.verts))
                 || (b.planar && planar_face_bridged(b.face, &a.verts));
             if vf_deferred {
@@ -10218,6 +10301,164 @@ fn planar_interiors_meet<T: Decide>(
         }
     }
     unread.map_or(Ok(false), Err)
+}
+
+/// **Whether two faces on one carrier, facing the same way, share
+/// interior**: [`planar_interiors_meet`] where both are planar polygons,
+/// which certifies either answer; elsewhere [`shared_interior_witness`],
+/// which only ever finds the meeting, so a face with an arc or a curved
+/// carrier reads `Ok(true)` or unread, never `Ok(false)`.
+fn face_interiors_meet<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    fa: FaceKey,
+    fb: FaceKey,
+    band: Band,
+) -> Result<bool, InteriorsUnread> {
+    match (planar_face(geo, fa), planar_face(geo, fb)) {
+        (Some(x), Some(y)) if x.polygon && y.polygon => {
+            planar_interiors_meet(body, geo, x, y, band)
+        }
+        _ => shared_interior_witness(body, geo, fa, fb, band).map(|SharedInterior| true),
+    }
+}
+
+/// A certificate that two faces' interiors meet
+/// ([`shared_interior_witness`]); there is no certificate that they do
+/// not.
+struct SharedInterior;
+
+/// **A point both faces' interiors reach**, for two faces of any kind on
+/// one smooth carrier facing the same way (Door 1 decided the carrier
+/// Zero, `SameOriented`). The probes are points of either face's closure:
+/// each vertex, each edge's midpoint, and the first meeting of an edge of
+/// each on both edges' interiors ([`curved::interiors_meeting`]). Each is
+/// placed in the other face ([`placed`]), and the interiors meet:
+///
+/// - where it lies inside the other: the other's interior is open on the
+///   carrier, so it holds the probing face's interior near the point;
+/// - where it lies on the other's boundary too and the two faces' cones
+///   there ([`face_cone`], in the plane tangent to the carrier) share an
+///   open sector ([`corners_meet`]): on one carrier each face holds,
+///   near the point, every direction strictly inside its cone, so both
+///   hold the shared sector's.
+///
+/// Every probe is a sufficient witness and none is necessary, so a
+/// search that finds none is [`InteriorsUnread::Unbuilt`]: what a probe
+/// cannot read, a cone at a vertex the face meets twice (a seam's end)
+/// or a reading in the band, is only a witness not found. A seam's
+/// midpoint, which its face holds on both sides, reads the whole plane.
+fn shared_interior_witness<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    fa: FaceKey,
+    fb: FaceKey,
+    band: Band,
+) -> Result<SharedInterior, InteriorsUnread> {
+    let mut read = Vec::new();
+    let (edges_a, edges_b) = (face_edges(body, fa), face_edges(body, fb));
+    for (x, y, edges) in [(fa, fb, &edges_a), (fb, fa, &edges_b)] {
+        let corners = face_vertices(body, x)
+            .into_iter()
+            .filter_map(|v| Some((geo.vmap.get(&v).copied()?, FaceContainment::OnVertex(v))));
+        let middles = edges.iter().filter_map(|&e| {
+            let curve = body.get_curve_geom(body.get_edge(e)?.curve)?.certified()?;
+            Some((curve.mid_point(), FaceContainment::OnEdge(e)))
+        });
+        for (q, at) in corners.chain(middles) {
+            if meets_at(body, geo, (x, at), y, q, band, &mut read) == Some(true) {
+                return Ok(SharedInterior);
+            }
+        }
+    }
+    for &ea in &edges_a {
+        for &eb in &edges_b {
+            if let Some(Some(m)) = curved::interiors_meeting(body, ea, eb, band, &mut read)
+                && !m.overlap
+                && cones_meet(
+                    body,
+                    geo,
+                    (fa, FaceContainment::OnEdge(ea)),
+                    (fb, FaceContainment::OnEdge(eb)),
+                    m.point,
+                    band,
+                    &mut read,
+                ) == Some(true)
+            {
+                return Ok(SharedInterior);
+            }
+        }
+    }
+    Err(InteriorsUnread::Unbuilt)
+}
+
+/// Each edge bounding `f`, once.
+fn face_edges<T: Real>(body: &Body<T>, f: FaceKey) -> BTreeSet<EdgeKey> {
+    let Some(face) = body.get_face(f) else {
+        return BTreeSet::new();
+    };
+    face_cycles(body, face)
+        .filter_map(Result::ok)
+        .flatten()
+        .filter_map(|he| body.half_edges.get(he).map(|h| h.edge))
+        .collect()
+}
+
+/// Each vertex on `f`'s boundary, once.
+fn face_vertices<T: Real>(body: &Body<T>, f: FaceKey) -> BTreeSet<VertexKey> {
+    let Some(face) = body.get_face(f) else {
+        return BTreeSet::new();
+    };
+    face_cycles(body, face)
+        .filter_map(Result::ok)
+        .flatten()
+        .filter_map(|he| body.half_edges.get(he).map(|h| h.start))
+        .collect()
+}
+
+/// Whether `x`'s interior and `y`'s meet near `q`, a point of `x`'s
+/// boundary placed `at` on it ([`shared_interior_witness`]): `y` holds
+/// `q` inside, or on its boundary with the two cones sharing material.
+/// `Some(false)` where `y` holds `q` out or the cones share none; `None`
+/// where a reading escalated or is not built.
+fn meets_at<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    (x, at): (FaceKey, FaceContainment),
+    y: FaceKey,
+    q: Point3<T>,
+    band: Band,
+    read: &mut Vec<ValidationError>,
+) -> Option<bool> {
+    match placed(body, geo, y, q, band, read)?? {
+        FaceContainment::Out => Some(false),
+        FaceContainment::In => Some(true),
+        on_y => cones_meet(body, geo, (x, at), (y, on_y), q, band, read),
+    }
+}
+
+/// Whether two aligned faces' cones at `q`, a point of both boundaries,
+/// share an open sector: a whole plane on either side does, two corners
+/// are read by [`corners_meet`] about `x`'s outward normal at `q`, which
+/// `y` shares. `None` where a cone or the normal does not read.
+fn cones_meet<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    (x, at_x): (FaceKey, FaceContainment),
+    (y, at_y): (FaceKey, FaceContainment),
+    q: Point3<T>,
+    band: Band,
+    read: &mut Vec<ValidationError>,
+) -> Option<bool> {
+    let cx = face_cone(body, geo, x, at_x, q, band).ok()?;
+    let cy = face_cone(body, geo, y, at_y, q, band).ok()?;
+    let (Cone::Corner(cx), Cone::Corner(cy)) = (cx, cy) else {
+        return Some(true);
+    };
+    let axis = crate::face_normal::face_outward_normal_at(body, x, q, band)
+        .ok()??
+        .vec();
+    corners_meet(axis, cx, cy, band, read)
 }
 
 /// **The two solids a finding decides interfere**, never one solid
