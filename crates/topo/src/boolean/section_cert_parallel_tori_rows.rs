@@ -367,7 +367,9 @@ fn a_tilt_within_the_band_widens_the_nest_row() {
         u_ref: Vec3::new(t.cos(), 0.0, -t.sin()),
     };
     assert_eq!(
-        parts(&super::classify(&f, &tilted(0.0), reach, band())).0.len(),
+        parts(&super::classify(&f, &tilted(0.0), reach, band()))
+            .0
+            .len(),
         1,
         "exactly parallel: one loop"
     );
