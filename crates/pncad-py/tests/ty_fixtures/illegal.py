@@ -65,7 +65,6 @@ from pncad import (
     Mate,
     MateValue,
     PoseDef,
-    assemble,
     circle,
     content_pin,
     deg,
@@ -312,10 +311,10 @@ Mate("a-name", PoseDef.plane(solid, "a-name"))  # ty: error
 # Which freedom a value sets is a `Coord`, never its word.
 MateValue("slide_x", 1 * m)  # ty: error
 
-# The gather and the gate take a document AND an evaluation of it:
-# neither is derivable from the other, and the pair is the signature.
+# The gather takes a document AND an evaluation of it: neither is
+# derivable from the other, and the pair is the signature.
 product(doc)  # ty: error
-assemble(evaluate(doc), doc)  # ty: error
+product(evaluate(doc), doc)  # ty: error
 
 # The solve is a whole-DOCUMENT fold; there is no per-mate door.
 solve_document(doc, solid)  # ty: error
@@ -343,9 +342,10 @@ origin_floats: tuple[float, float, float] = pose.origin  # ty: error
 # at a point, and no `axis` to read off one.
 no_axis: object = evaluate(doc).vertex_position(solid, "a-name").axis  # ty: error
 # DS6's waiver rule is a TYPE here, not a comment asking callers not
-# to reach: the separation resident ships no acknowledgment record, so
-# its knob is an `Advisory` and `Error` is not a position it has.
-ChecksConfig(separation=Severity.Error)  # ty: error
+# to reach: the unproven-coincidence lint ships no acknowledgment record
+# for every row it reports, so its knob is an `Advisory` and `Error` is
+# not a position it has.
+ChecksConfig(unproven_coincidence=Severity.Error)  # ty: error
 
 # The report door takes a document AND an evaluation of it, in that
 # order; the gate door takes the finished REPORT. Neither is derivable

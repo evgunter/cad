@@ -819,7 +819,7 @@ fn the_checks_window_speaks_from_the_landed_document() {
     let row = rows
         .iter()
         .find(|row| row.node == big)
-        .expect("the two overlapping boxes are a separation finding about the big one");
+        .expect("the two overlapping boxes are an interference finding about the big one");
     let b = tag(big.0.digest());
     assert_eq!(row.button, format!("Extrude \"big block\" ({b})"));
     // The finding is about the two copies, and names them by their
@@ -827,7 +827,7 @@ fn the_checks_window_speaks_from_the_landed_document() {
     let copy = |body| tag(common::copy_of(landed, body).0.digest());
     assert!(
         row.sentence.contains(&format!(
-            "Place {} output 0: not certifiably disjoint from Place {} output 0",
+            "Place {} and Place {} overlap",
             copy(big),
             copy(small)
         )),

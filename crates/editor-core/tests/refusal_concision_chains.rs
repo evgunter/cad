@@ -117,10 +117,10 @@ const OVER_BUDGET: &[(&str, usize)] = &[
 /// here is English the person reads, not a pipeline stage.
 pub(crate) const ALLOWED_LABELS: &[(&str, &str)] = &[
     // A check finding's labels as its own `Display` says them, with no
-    // document at hand (`check separation: placement 000000000004 output
+    // document at hand (`check at-rest: placement 000000000004 output
     // 0: …`): the check the person ran, named as the menu names it, and
     // the placement it ran on, by its tag.
-    ("Check/", "check separation"),
+    ("Check/", "check at-rest"),
     ("Check/", "check connectedness"),
     ("Check/", "check chart-coherence"),
     ("Check/", "placement 000000000004 output 0"),
@@ -373,9 +373,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Check/ChartCoherenceUnexamined(corrupt)",
     "Check/ChartCoherenceUnexamined(non-iso)",
     "Check/ChartCoherenceUnexamined(scaffold)",
-    "Check/SeparationUnavailable/Containment(CorruptFace)",
-    "Check/SeparationUnavailable/Containment(NoSuchSolid)",
-    "Check/SeparationUnavailable/Containment(ZeroVolumeBody)",
 ];
 
 /// The rows that render a door's generic fallback subject
@@ -869,7 +866,6 @@ mod kernel {
     pub(super) type ShellError = topo::ShellError<f64>;
     pub(super) type ReplaceFaceError = topo::ReplaceFaceError<f64>;
     use geom_core::BandError;
-    use topo::PointInSolidError;
 
     test_utils::f6_variants! {
         /// `ExtrudeError`'s arms, for the `Extrude/` rows.
@@ -1050,16 +1046,6 @@ mod kernel {
     }
 
     test_utils::f6_variants! {
-        /// `PointInSolidError`'s arms, for the `Check/SeparationUnavailable/Containment(…)` rows.
-        pub(super) const POINT_IN_SOLID_ERROR: PointInSolidError = [
-            Escalated, RayExhausted, ZeroVolumeBody, InsideOut, Loop, CorruptFace,
-            KindUnsupported, VolumeUncertified, PartialSphereFace, PartialConeFace,
-            PartialTorusFace, EdgeCarrierUnsupported, WallOutlineUnsupported,
-            RootCountDisagrees, NoSuchSolid,
-        ];
-    }
-
-    test_utils::f6_variants! {
         /// `BandError`'s arms, for the `Band/` rows.
         pub(super) const BAND_ERROR: BandError = [
             InvalidValue, InvalidLeverArm, Empty,
@@ -1127,7 +1113,6 @@ const ROSTERS: &[(&str, &[&str])] = {
         ("SplitFinishError", SPLIT_FINISH_ERROR.identifiers()),
         ("ShellError", SHELL_ERROR.identifiers()),
         ("ReplaceFaceError", REPLACE_FACE_ERROR.identifiers()),
-        ("PointInSolidError", POINT_IN_SOLID_ERROR.identifiers()),
         ("BandError", BAND_ERROR.identifiers()),
     ]
 };
@@ -1348,9 +1333,7 @@ fn names_arms(label: &str, arms: &[&str]) -> bool {
 /// arms are checked under is its row's `NodeErrorKind` arm followed by
 /// the arms of the levels above it (`Split/Reduce`), so a family cannot
 /// drop out of the check while the arm above it has a row, and the
-/// first census makes every arm have one. The separation finding's
-/// containment refusals (`check_findings`) are welded the same way, as
-/// the `Check/SeparationUnavailable/Containment` family.
+/// first census makes every arm have one.
 ///
 /// What it does not weld: the arms [`forward`] files as `Unwelded` or
 /// `RenderedIn`, and any refusal below a level's last roster (a
@@ -1418,17 +1401,6 @@ fn every_forwarded_arm_has_a_row() {
             ));
         }
         record(name, family, levels, &mut reports);
-    }
-    let family = "Check/SeparationUnavailable/Containment";
-    for (label, e) in separation_reasons() {
-        let reason = level("PointInSolidError", &e);
-        if !names_arms(&label, &[reason.arm.as_str()]) {
-            reports.push(format!(
-                "{family}({label}): a row is named by its payload's arm, {}",
-                reason.arm
-            ));
-        }
-        record(&label, family, vec![reason], &mut reports);
     }
     for (family, (roster, arms)) in &families {
         let Some((_, census)) = ROSTERS.iter().find(|(r, _)| r == roster) else {
@@ -5907,6 +5879,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
                 output_ix: 0,
             },
             evidence,
+            quiet: None,
         }
         .to_string()
     };
@@ -5992,12 +5965,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
     assert!(!unowned.contains("thicken"), "{unowned}");
     for (name, finding) in &check_findings() {
         let text = finding.to_string();
-        // The separation arm forwards the Boolean's own sentence, whose
-        // coincidence ending is `geom_core::COINCIDENCE_RECOURSE`'s to
-        // repair (work/props/coincidence-recourse-says-lower-where-d4-says-tighten.md).
-        if !name.starts_with("SeparationUnavailable/") {
-            assert!(!text.contains("lower"), "{name}: {text}");
-        }
+        assert!(!text.contains("lower"), "{name}: {text}");
     }
 }
 
@@ -6006,10 +5974,22 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
     use geom_core::{Indeterminate, MarginDiag};
     use payloads::*;
     use topo::{
-        BooleanError, CoherenceCondition, CoherenceFinding, EdgeKey, FaceKey, LoopKey,
-        ShellClassifyError, ShellKey, StructureRead, Unexaminable, Unexamined, VertexKey,
+        CoherenceCondition, CoherenceFinding, EdgeKey, FaceKey, LoopKey, ShellClassifyError,
+        ShellKey, StructureRead, Unexaminable, Unexamined, VertexKey,
     };
     let shell = ShellKey::default();
+    let copy = |n| editor_core::CopyRef {
+        var: editor_core::VarId::new(0, tagged(n)),
+        member: 0,
+    };
+    let interference = |overlap| editor_core::InterferenceFinding {
+        a: copy(7),
+        b: copy(8),
+        evidence: Vec::new(),
+        overlap,
+        quiet: None,
+        quietable: true,
+    };
     let finding = |check, evidence| CheckFinding {
         check,
         subject: editor_core::FindingSubject::Output {
@@ -6017,6 +5997,7 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
             output_ix: 0,
         },
         evidence,
+        quiet: None,
     };
     let coherence = |condition| CoherenceFinding {
         face: FaceKey::default(),
@@ -6033,7 +6014,7 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
         r#loop: LoopKey::default(),
         why,
     };
-    let mut rows = vec![
+    vec![
         (
             "Connectedness",
             finding(
@@ -6123,12 +6104,40 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
             finding(CheckId::Connectedness, E::StaleExpectation { expected: 2 }),
         ),
         (
-            "NotSeparated",
+            "Interference(bounded)",
             finding(
-                CheckId::Separation,
-                E::NotSeparated {
-                    other_root: RecipeNodeId::new(0, tagged(7)),
-                    other_output: 0,
+                CheckId::AtRest,
+                E::Interference {
+                    finding: Box::new(interference(editor_core::Overlap::Bounded {
+                        faces: vec![editor_core::FaceSite {
+                            copy: copy(7),
+                            face: editor_core::StableName {
+                                kind: editor_core::EntityKind::Face,
+                                node: RecipeNodeId::new(0, tagged(9)),
+                                path: vec![editor_core::RoleSeg::Cap(editor_core::CapEnd::End)],
+                            },
+                        }],
+                    })),
+                },
+            ),
+        ),
+        (
+            "Interference(unlocalized)",
+            finding(
+                CheckId::AtRest,
+                E::Interference {
+                    finding: Box::new(interference(editor_core::Overlap::Unlocalized(
+                        editor_core::Unlocalized::Lane,
+                    ))),
+                },
+            ),
+        ),
+        (
+            "AtRest(not run)",
+            finding(
+                CheckId::AtRest,
+                E::AtRest {
+                    evidence: editor_core::AtRestEvidence::NotRun,
                 },
             ),
         ),
@@ -6194,127 +6203,7 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
     ]
     .into_iter()
     .map(|(n, f)| (n.to_owned(), f))
-    .collect::<Vec<_>>();
-    for (n, e) in separation_reasons() {
-        let source = BooleanError::Containment(e);
-        rows.push((
-            format!("SeparationUnavailable/Containment({n})"),
-            finding(
-                CheckId::Separation,
-                E::SeparationUnavailable {
-                    refusal: source.into(),
-                },
-            ),
-        ));
-    }
-    rows
-}
-
-/// Every containment refusal the separation read can raise, by its
-/// arm (and, for the loop walk's escalation, every form a site of it
-/// raises): the payloads `check_findings` renders through
-/// `SeparationUnavailable`.
-fn separation_reasons() -> Vec<(String, topo::PointInSolidError)> {
-    use payloads::*;
-    use topo::{FaceKey, PointInSolidError};
-    let face = FaceKey::default();
-    let separation_reasons = [
-        (
-            "Escalated",
-            PointInSolidError::Escalated { face, diag: diag() },
-        ),
-        ("RayExhausted", PointInSolidError::RayExhausted),
-        (
-            "Loop(RayExhausted)",
-            PointInSolidError::Loop(topo::PointInLoopError::RayExhausted {
-                r#loop: topo::LoopKey::default(),
-            }),
-        ),
-        ("ZeroVolumeBody", PointInSolidError::ZeroVolumeBody),
-        ("InsideOut", PointInSolidError::InsideOut),
-        ("CorruptFace", PointInSolidError::CorruptFace { face }),
-        (
-            "KindUnsupported",
-            PointInSolidError::KindUnsupported {
-                face,
-                kind: geom::SurfaceKind::Nurbs,
-            },
-        ),
-        ("VolumeUncertified", PointInSolidError::VolumeUncertified),
-        (
-            "PartialSphereFace",
-            PointInSolidError::PartialSphereFace { face },
-        ),
-        (
-            "PartialConeFace",
-            PointInSolidError::PartialConeFace { face },
-        ),
-        (
-            "PartialTorusFace",
-            PointInSolidError::PartialTorusFace { face },
-        ),
-        (
-            "EdgeCarrierUnsupported",
-            PointInSolidError::EdgeCarrierUnsupported {
-                face,
-                cause: topo::Uncrossable {
-                    r#loop: topo::LoopKey::default(),
-                    edge: Default::default(),
-                    carrier: topo::UncrossableCarrier::Spiric,
-                },
-            },
-        ),
-        (
-            "WallOutlineUnsupported",
-            PointInSolidError::WallOutlineUnsupported { face },
-        ),
-        (
-            "RootCountDisagrees",
-            PointInSolidError::RootCountDisagrees {
-                face,
-                certified: 2,
-                constructed: 4,
-            },
-        ),
-        (
-            "NoSuchSolid",
-            PointInSolidError::NoSuchSolid {
-                solid: topo::SolidKey::default(),
-            },
-        ),
-    ];
-    // The loop walk's escalation, in every form a site of it raises.
-    let with = |margin| geom_core::Indeterminate { margin, ..diag() };
-    let poisoned = with(geom_core::MarginDiag::INVALID);
-    let over_wound = with(geom_core::MarginDiag::value(-3.0e-10));
-    let (margin, straddle) = (topo::Escalation::Margin, topo::Escalation::Straddle);
-    let walk = [
-        (topo::LoopDecision::Boundary, margin, diag(), "Value"),
-        (topo::LoopDecision::Boundary, margin, poisoned, "Invalid"),
-        (topo::LoopDecision::Boundary, straddle, poisoned, "Straddle"),
-        (topo::LoopDecision::Ray, margin, diag(), "Value"),
-        (topo::LoopDecision::Ray, margin, poisoned, "Invalid"),
-        (topo::LoopDecision::ArcSpan, margin, over_wound, "OverWound"),
-        (topo::LoopDecision::ArcSpan, straddle, poisoned, "Straddle"),
-        (topo::LoopDecision::Plane, margin, diag(), "Value"),
-        (topo::LoopDecision::Plane, margin, poisoned, "Invalid"),
-    ]
-    .map(|(decision, escalation, diag, kind)| {
-        (
-            format!("Loop(Escalated/{decision:?}/{kind})"),
-            PointInSolidError::Loop(topo::PointInLoopError::Escalated {
-                r#loop: topo::LoopKey::default(),
-                decision,
-                escalation,
-                diag,
-            }),
-        )
-    });
-    separation_reasons
-        .into_iter()
-        .map(|(n, e)| (n.to_owned(), e))
-        .chain(walk)
-        .collect()
+    .collect::<Vec<_>>()
 }
 
 /// **Every detail a blend refusal is raised with fits its chain.** The
