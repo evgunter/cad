@@ -605,6 +605,48 @@ pub(super) fn mag_in_meters(i: Interval, per: f64) -> f64 {
     in_meters(i, per).mag()
 }
 
+/// The torus's `R² − r²`: the shift of its `A = |q|² + R² − r²` from
+/// the squared distance to its centre, and a lower bound on `A`.
+pub(super) fn torus_a_shift(major: f64, minor: f64) -> Interval {
+    Interval::point(major).sqr() - Interval::point(minor).sqr()
+}
+
+/// An upper bound in meters on the torus residual `F/(2r·(A + 2Rρ))`
+/// where its quartic `F = A² − 4R²ρ²` and its `A` are enclosed by `f`
+/// and `a`: `sup|F|` over `2r` times a lower bound on `A + 2Rρ`, which
+/// is `inf A` (floored by [`torus_a_shift`]) plus `2Rρ = √(A² − F) ≥
+/// √(inf A² − sup F)`. On the surface `2Rρ = A`, so the bound is tight
+/// to first order where `inf A` alone would be twice the residual.
+/// `NaN` where `f` is refused or the floor is not positive.
+pub(super) fn torus_meters_sup(f: Interval, a: Interval, major: f64, minor: f64) -> f64 {
+    let floor = torus_a_shift(major, minor).lo();
+    let inf = if a.is_certified() {
+        a.lo().max(floor)
+    } else {
+        floor
+    };
+    if !(f.is_certified() && inf > 0.0) {
+        return f64::NAN;
+    }
+    let inf = Interval::point(inf);
+    let radicand = (inf.sqr() - Interval::point(f.hi())).lo();
+    let two_big_rho = if radicand > 0.0 {
+        Interval::point(radicand).sqrt().lo()
+    } else {
+        0.0
+    };
+    let lever = (inf + Interval::point(two_big_rho)).lo();
+    (f / (Interval::point(2.0 * minor) * Interval::point(lever))).mag()
+}
+
+/// A lower bound in meters on the same residual's magnitude:
+/// `|F| / (2r·(2A + r²))`, since `2Rρ ≤ A + r²`; `0` where nothing is
+/// certified.
+pub(super) fn torus_meters_floor(f: Interval, a: Interval, minor: f64) -> f64 {
+    let r = Interval::point(minor);
+    zero_free_lower_bound(f / (Interval::point(2.0) * r * (Interval::point(2.0) * a + r.sqr())))
+}
+
 /// A NURBS wall's certified chart speeds over its whole domain, one per
 /// axis: each a [`SupSpeed`] (metres per parameter unit) that is
 /// positive and finite, which is what [`NurbsBoxes::chart_speeds`]
@@ -2805,6 +2847,52 @@ pub(super) mod tests {
                     );
                 }
             }
+        }
+    }
+
+    /// **Limb 2's torus conversion is tight and sound at a point.** With
+    /// `F` and `A` enclosed at one point near a torus (thin to fat,
+    /// tilted, within a tenth of the tube), [`super::torus_meters_sup`]
+    /// is the meters residual to within 10⁻⁶ of it, and
+    /// [`super::torus_meters_floor`] lies between 0.4 of it and it.
+    /// Dividing by `A` alone would read twice the residual, and the
+    /// global `2r(R² − r²)` up to `4R/(R − r)` times it.
+    #[test]
+    fn the_torus_meters_conversion_is_the_residual_at_a_point() {
+        use test_utils::fuzz;
+        let mut rng = fuzz::start("torus meters conversion");
+        for _ in 0..fuzz::scaled(500) {
+            let small = rng.log_uniform(1e-3, 1.0);
+            let big = small * rng.range(1.2, 30.0);
+            let c = [
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+            ];
+            let t = torus(c, [rng.range(-1.0, 1.0), 0.4, 0.7], big, small);
+            let on = on_torus(&t, rng.range(0.0, 6.3), rng.range(0.0, 6.3));
+            let lift = small * rng.log_uniform(1e-6, 0.1);
+            let p =
+                on + implicit_gradient(&t, on) * (lift * if rng.unit() < 0.5 { -1.0 } else { 1.0 });
+            let Surface::Torus { center, axis, .. } = t else {
+                unreachable!("a torus")
+            };
+            let q = p - center;
+            let rho2 = (q - axis * q.dot(axis)).norm_squared();
+            let a = Interval::point(q.norm_squared()) + super::torus_a_shift(big, small);
+            let f = a.sqr() - Interval::point(4.0 * big * big) * Interval::point(rho2);
+            let m = implicit_residual(&t, p).abs();
+            let sup = super::torus_meters_sup(f, a, big, small);
+            let floor = super::torus_meters_floor(f, a, small);
+            let ctx = format!("{t:?} at {p:?}: residual {m:e}; {}", fuzz::replay());
+            assert!(
+                sup >= m * (1.0 - 1e-6) && sup <= m * (1.0 + 1e-6),
+                "bound {sup:e}: {ctx}"
+            );
+            assert!(
+                floor <= m * (1.0 + 1e-6) && floor >= 0.4 * m,
+                "floor {floor:e}: {ctx}"
+            );
         }
     }
 

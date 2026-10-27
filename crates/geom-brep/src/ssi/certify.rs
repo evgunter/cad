@@ -32,12 +32,11 @@
 //! - **analytic**: `geom_core::spline::compose` composes the surface's
 //!   polynomial implicit form with the carrier and returns a certified
 //!   per-span hull of the composite. Its units are the composite's, so
-//!   this module converts to meters **exactly** — `÷ 2R` for the sphere
-//!   and cylinder, identity for the plane. Cone and torus are *not*
-//!   converted: their meters forms carry a root, which certification
-//!   arithmetic does not take (C9), so an
-//!   arm wanting them must land that conversion first
-//!   ([`super::enclose`] carries the same boundary, same reason).
+//!   this module converts to meters — **exactly** for the plane
+//!   (identity), the sphere and the cylinder (`÷ 2R`), and per span on
+//!   the torus, whose meters residual is `F/(2r·(A + 2Rρ))` for its
+//!   quartic `F = A² − 4R²ρ²` ([`ToMeters::Torus`]). The cone has no
+//!   conversion and refuses.
 //! - **NURBS**: `sup_t |S(P(t)) − C(t)|` bounded by the
 //!   **tensor-product Bernstein composition**
 //!   (`geom_core::spline::compose::tensor`, M5 PR 7b): the difference
@@ -130,7 +129,7 @@ use crate::dihedral::{decide_positive, decide_reported};
 
 use super::enclose::{
     Box3, NurbsBoxes, UvWindow, chart_transverse_margin, graph_margin, in_meters, mag_in_meters,
-    tube_margin, zero_free_lower_bound,
+    torus_a_shift, torus_meters_floor, torus_meters_sup, tube_margin, zero_free_lower_bound,
 };
 use super::exhaust::UvRect;
 use super::one_arc::{Shortfall, dominant_axis, one_arc, one_arc_r3};
@@ -437,15 +436,15 @@ fn exact3<T: Bounds>(p: [T; 3]) -> Option<[f64; 3]> {
     Some([exact(p[0])?, exact(p[1])?, exact(p[2])?])
 }
 
-/// The `compose` implicit form of an analytic surface, and the exact
-/// divisor converting its composite's units to meters.
+/// The `compose` implicit form of an analytic surface, and how its
+/// composite crosses to meters.
 ///
 /// `Err` names the reason, which the caller turns into an
-/// [`SsiError::UnsupportedCertificate`] verbatim: the kinds whose
-/// meters form carries a root certification arithmetic does not take (cone, torus), NURBS
-/// (no implicit form), and — since M6-2 — an operand whose structural
-/// parameters are not exact at the caller's scalar (see [`exact`]).
-fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, f64), &'static str> {
+/// [`SsiError::UnsupportedCertificate`] verbatim: the cone (no meters
+/// conversion), NURBS (no implicit form), and — since M6-2 — an operand
+/// whose structural parameters are not exact at the caller's scalar
+/// (see [`exact`]).
+fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, ToMeters), &'static str> {
     const WIDENED: &str = "the analytic operand's structural parameters are not exact at this \
                            scalar — the ring composite's implicit form is f64 structure, and a \
                            widened operand is a family of surfaces, not the body's surface \
@@ -460,7 +459,7 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, f64), &
             Ok((
                 ImplicitSurface::Plane { point, normal },
                 // n·(P − p₀) is already meters for a unit normal.
-                1.0,
+                ToMeters::Divisor(1.0),
             ))
         }
         Surface::Sphere { center, radius, .. } => {
@@ -471,7 +470,7 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, f64), &
                 ImplicitSurface::Sphere { center, radius },
                 // |P−c|² − R² = 2R · the linearized meters residual,
                 // exactly.
-                2.0 * radius,
+                ToMeters::Divisor(2.0 * radius),
             ))
         }
         Surface::Cylinder {
@@ -495,16 +494,117 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, f64), &
                 },
                 // |w|² − R² = 2R · the linearized meters residual,
                 // exactly.
-                2.0 * radius,
+                ToMeters::Divisor(2.0 * radius),
             ))
         }
-        Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
-            Err("no ring-computable meters composite for this surface kind \
-             (cone/torus need a certified root, which certification arithmetic does not take; \
-             a spline stand-in and its offset description have no implicit form \
-             to build one from)")
+        Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        } => {
+            let (Some(center), Some(axis), Some(major), Some(minor)) = (
+                exact3(center.to_array()),
+                exact3(axis.to_array()),
+                exact(major_radius),
+                exact(minor_radius),
+            ) else {
+                return Err(WIDENED);
+            };
+            Ok((
+                ImplicitSurface::Torus {
+                    center,
+                    axis,
+                    major_radius: major,
+                    minor_radius: minor,
+                },
+                ToMeters::Torus {
+                    center,
+                    major,
+                    minor,
+                },
+            ))
         }
+        Surface::Cone { .. } | Surface::Nurbs(_) | Surface::Approx(_) => Err(
+            "no meters composite for this surface kind (the cone's composite has no \
+             meters conversion; a spline stand-in and its offset description have no \
+             implicit form to build one from)",
+        ),
     }
+}
+
+/// How an implicit composite's units cross to meters.
+#[derive(Clone, Copy, Debug)]
+enum ToMeters {
+    /// One outward division by an exact divisor.
+    Divisor(f64),
+    /// The torus, per span of the carrier `C`. Its meters residual is
+    /// `m = F/(2r·(A + 2Rρ))` with `A = |q|² + R² − r²` and `ρ` the
+    /// distance from the axis, so a span's bound reads `F∘C` against
+    /// `A∘C`, `A`'s own composite over the same spans
+    /// (`enclose::torus_meters_sup`), and a break's floor uses
+    /// `2Rρ ≤ R² + ρ² ≤ A + r²` (`enclose::torus_meters_floor`).
+    Torus {
+        center: [f64; 3],
+        major: f64,
+        minor: f64,
+    },
+}
+
+/// A limb-2 composite's readings in meters: its sup, each span's sup,
+/// and each break's floor.
+fn meters_readings(
+    composite: &compose::CompositeForm,
+    data: &CurveCertData<'_>,
+    to: ToMeters,
+) -> Result<(f64, Vec<f64>, Vec<f64>), SsiError> {
+    let (center, major, minor) = match to {
+        ToMeters::Torus {
+            center,
+            major,
+            minor,
+        } => (center, major, minor),
+        ToMeters::Divisor(per) => {
+            let spans = composite
+                .span_bounds()
+                .into_iter()
+                .map(|b| mag_in_meters(b, per))
+                .collect();
+            let floors = composite
+                .break_values()
+                .into_iter()
+                .map(|v| zero_free_lower_bound(in_meters(v, per)))
+                .collect();
+            return Ok((mag_in_meters(composite.bound(), per), spans, floors));
+        }
+    };
+    let a = compose::squared_distance_composite(data, &center, torus_a_shift(major, minor))
+        .map_err(|_| SsiError::UnsupportedCertificate {
+            what: "the torus's A composite refused the fitted carrier",
+        })?;
+    let (f_spans, a_spans) = (composite.span_bounds(), a.span_bounds());
+    let (f_breaks, a_breaks) = (composite.break_values(), a.break_values());
+    if f_spans.len() != a_spans.len() || f_breaks.len() != a_breaks.len() {
+        return Err(SsiError::UnsupportedCertificate {
+            what: "the torus's A composite does not share its quartic's spans",
+        });
+    }
+    let spans: Vec<f64> = f_spans
+        .into_iter()
+        .zip(a_spans)
+        .map(|(f, a)| torus_meters_sup(f, a, major, minor))
+        .collect();
+    let sup = spans
+        .iter()
+        .try_fold(0.0f64, |acc, &x| (!x.is_nan()).then(|| acc.max(x)))
+        .unwrap_or(f64::NAN);
+    let floors = f_breaks
+        .into_iter()
+        .zip(a_breaks)
+        .map(|(f, a)| torus_meters_floor(f, a, minor))
+        .collect();
+    Ok((sup, spans, floors))
 }
 
 /// Limb 1 + limb 2 against one **analytic** operand. The carrier
@@ -526,7 +626,7 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         _ => range_grid_points(t0, t1, SSI_CERT_SPANS, &[]),
     };
     let hull = |cuts: &[f64]| -> Result<Hull, SsiError> {
-        let (form, per_meter) =
+        let (form, to_meters) =
             composite_form(surface).map_err(|what| SsiError::UnsupportedCertificate { what })?;
         let mut breaks: Vec<f64> = grid.iter().chain(cuts).copied().collect();
         breaks.sort_by(f64::total_cmp);
@@ -544,22 +644,13 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
                 what: "the implicit composite refused the fitted carrier",
             }
         })?;
-        // Every reading crosses to metres by one outward division.
-        let spans: Vec<f64> = composite
-            .span_bounds()
-            .into_iter()
-            .map(|b| mag_in_meters(b, per_meter))
-            .collect();
+        let (sup, spans, floors) = meters_readings(&composite, &data, to_meters)?;
         Ok(Hull {
-            sup: mag_in_meters(composite.bound(), per_meter),
+            sup,
             breaks: composite.num.breaks().to_vec(),
             work: spans.len(),
             spans,
-            floors: composite
-                .break_values()
-                .into_iter()
-                .map(|v| zero_free_lower_bound(in_meters(v, per_meter)))
-                .collect(),
+            floors,
             data: (),
         })
     };
@@ -3585,7 +3676,7 @@ mod tests {
         );
     }
 
-    /// **A refused transversality enclosure is no sliver.** A torus has
+    /// **A refused transversality enclosure is no sliver.** A cone has
     /// no ℝ³ gradient enclosure, so every box of every rung of an
     /// analytic tube against one is refused: the ladder answers nothing
     /// (`TubeProbeSilent`, every rung offered), where reading each
@@ -3604,11 +3695,10 @@ mod tests {
             normal: Vec3::new(0.0, 0.0, 1.0),
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        let torus = Surface::Torus {
-            center: Point3::new(0.0, 0.0, 0.0),
+        let cone = Surface::Cone {
+            apex: Point3::new(0.0, 0.0, -1.0),
             axis: Vec3::new(0.0, 0.0, 1.0),
-            major_radius: 1.25,
-            minor_radius: 0.25,
+            half_angle: core::f64::consts::FRAC_PI_4,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let carrier = NurbsCurve3::new(
@@ -3623,7 +3713,7 @@ mod tests {
             carrier.domain(),
             Lane::AtRest {
                 a: &SsiOperand::Analytic(&plane),
-                b: &SsiOperand::Analytic(&torus),
+                b: &SsiOperand::Analytic(&cone),
                 pcurve_a: None,
                 pcurve_b: None,
             },
@@ -3724,6 +3814,137 @@ mod tests {
                 "{}: the uncleared span is located",
                 arm.sup
             );
+        }
+    }
+
+    /// Limb 2's torus readings of `carrier` over its spans cut at
+    /// `breaks`: the composite's breaks, its sup, each span's sup and
+    /// each break's floor, all in meters.
+    fn torus_readings(
+        carrier: &geom::NurbsCurve3<f64>,
+        torus: &geom::Surface<f64>,
+        breaks: &[f64],
+    ) -> (Vec<f64>, f64, Vec<f64>, Vec<f64>) {
+        use geom_core::spline::compose::{self, CurveCertData};
+        let curve = geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone()));
+        let net = crate::carrier_net::carrier_net(&curve, carrier.domain(), breaks).unwrap();
+        let (ck, cw, cc) = net.operand();
+        let data = CurveCertData::new(ck, cw, cc)
+            .unwrap()
+            .with_breaks(net.cuts());
+        let (form, to) = super::composite_form(torus).unwrap();
+        let composite = compose::implicit_composite(&data, &form).unwrap();
+        let (sup, spans, floors) = super::meters_readings(&composite, &data, to).unwrap();
+        let at = composite.num.breaks().to_vec();
+        assert_eq!(
+            spans.len() + 1,
+            at.len(),
+            "one span between each two breaks"
+        );
+        assert_eq!(floors.len(), at.len(), "one floor per break");
+        (at, sup, spans, floors)
+    }
+
+    fn a_torus(c: [f64; 3], a: [f64; 3], big: f64, small: f64) -> geom::Surface<f64> {
+        use geom_core::{Point3, Vec3};
+        let axis = Vec3::new(a[0], a[1], a[2]).normalize();
+        geom::Surface::Torus {
+            center: Point3::new(c[0], c[1], c[2]),
+            axis,
+            major_radius: big,
+            minor_radius: small,
+            u_ref: axis.cross(Vec3::new(0.3, -0.7, 0.2)).normalize(),
+        }
+    }
+
+    /// **Limb 2's torus conversion bounds every sampled residual**,
+    /// counterexample search: cubic carriers whose controls lie on a
+    /// torus (thin to fat, tilted) displaced by up to a tenth of the
+    /// tube, read over eight spans. Each span's bound holds the meters
+    /// residual `implicit_residual` at points sampled in it, and each
+    /// break's floor is no more than the residual there: a conversion
+    /// that divided by too much, or floored by too little, reads red.
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn a_torus_carriers_limb_two_holds_its_sampled_residual() {
+        use geom::NurbsCurve3;
+        use geom_core::spline::KnotVector;
+        use geom_core::{Point3, Vec3};
+        use test_utils::fuzz;
+        let mut rng = fuzz::start("torus limb 2");
+        for _ in 0..fuzz::scaled(40) {
+            let small = rng.log_uniform(1e-3, 1.0);
+            let big = small * rng.range(1.2, 30.0);
+            let c = [
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+            ];
+            let torus = a_torus(
+                c,
+                [rng.range(-1.0, 1.0), rng.range(-1.0, 1.0), 0.6],
+                big,
+                small,
+            );
+            let geom::Surface::Torus {
+                center,
+                axis,
+                u_ref,
+                ..
+            } = torus
+            else {
+                unreachable!("a torus")
+            };
+            let e2 = axis.cross(u_ref);
+            let (u0, v0) = (rng.range(0.0, 6.3), rng.range(0.0, 6.3));
+            let (du, dv) = (rng.range(-0.6, 0.6), rng.range(-2.0, 2.0));
+            let lift = small * rng.log_uniform(1e-9, 0.1);
+            let points: Vec<Point3<f64>> = (0..6)
+                .map(|i| {
+                    let s = f64::from(i) / 5.0;
+                    let (u, v) = (u0 + du * s, v0 + dv * s);
+                    let radial = u_ref * u.cos() + e2 * u.sin();
+                    let off = Vec3::new(
+                        rng.range(-1.0, 1.0),
+                        rng.range(-1.0, 1.0),
+                        rng.range(-1.0, 1.0),
+                    );
+                    center
+                        + radial * (big + small * v.cos())
+                        + axis * (small * v.sin())
+                        + off * lift
+                })
+                .collect();
+            let knots = KnotVector::clamped(
+                vec![0.0, 0.0, 0.0, 0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0, 1.0, 1.0, 1.0],
+                3,
+            )
+            .unwrap();
+            let carrier = NurbsCurve3::new(knots, points, vec![1.0; 6]).unwrap();
+            let cuts: Vec<f64> = (1..8).map(|k| f64::from(k) / 8.0).collect();
+            let (at, sup, spans, floors) = torus_readings(&carrier, &torus, &cuts);
+            let ctx = format!("{torus:?}, lift {lift:e}: {}", fuzz::replay());
+            assert!(sup.is_finite(), "{ctx}");
+            let residual =
+                |t: f64| crate::implicit::implicit_residual(&torus, carrier.eval(t)).abs();
+            let slack = |x: f64| x * (1.0 + 1e-9) + 1e-15 * big;
+            for (j, span) in spans.iter().enumerate() {
+                for k in 0..=16 {
+                    let t = at[j] + (at[j + 1] - at[j]) * f64::from(k) / 16.0;
+                    let m = residual(t);
+                    assert!(
+                        m <= slack(*span),
+                        "span {j} at {t}: residual {m:e} over its bound {span:e}; {ctx}"
+                    );
+                }
+            }
+            for (j, floor) in floors.iter().enumerate() {
+                let m = residual(at[j]);
+                assert!(
+                    *floor <= slack(m),
+                    "break {j}: floor {floor:e} over the residual {m:e}; {ctx}"
+                );
+            }
         }
     }
 }
