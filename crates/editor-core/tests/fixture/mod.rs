@@ -3628,17 +3628,11 @@ pub fn frame_seat(
 pub fn in_space<T: geom_core::Decide + topo::AtRestPolicy>(
     value: &editor_core::Framed<T>,
 ) -> Body<T> {
-    let map = editor_core::in_space(value);
-    let identity = map.point_value().is_some_and(|m| {
-        let (u, v, w, o) = (m.u().get(), m.v().get(), m.w().get(), m.origin());
-        [u.x, u.y, u.z, v.x, v.y, v.z, w.x, w.y, w.z, o.x, o.y, o.z]
-            == [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
-    });
-    if identity {
-        return value.body().clone();
+    match editor_core::in_space(value) {
+        None => value.body().clone(),
+        Some(map) => topo::transform_rigid(value.body(), &map, Tol::witness())
+            .expect("a body composes into its space"),
     }
-    topo::transform_rigid(value.body(), &map, Tol::witness())
-        .expect("a body composes into its space")
 }
 
 /// **The document's product where it stands in the world**: the gather
@@ -3659,6 +3653,9 @@ pub fn product_in_world(
     tol: Tol,
 ) -> Result<Body<f64>, editor_core::ProductError> {
     let product = editor_core::product_recorded(doc, ev, tol)?;
-    let map = editor_core::in_space(&product);
-    Ok(topo::transform_rigid(&product.body, &map, tol).expect("a product composes into the world"))
+    Ok(match editor_core::in_space(&product) {
+        None => product.body.into_body(),
+        Some(map) => topo::transform_rigid(&product.body, &map, tol)
+            .expect("a product composes into the world"),
+    })
 }

@@ -36,7 +36,13 @@ fn landed_body_stands_where_the_scene_product_stands() {
         columns: [[c, s, 0.0], [-s, c, 0.0], [0.0, 0.0, 1.0]],
         translation: [0.25, -0.5, 0.125],
     };
-    let doc = common::pin(&doc, moved, &at, &pncad::document::EvalOptions::default(), tol);
+    let doc = common::pin(
+        &doc,
+        moved,
+        &at,
+        &pncad::document::EvalOptions::default(),
+        tol,
+    );
     let doc = crate::fixture::assemble_world_copies(doc);
     let world = viewer::scene::product_body(&doc, tol).expect("the copy gathers");
     let mut session = DocSession::inline(doc, tol);
@@ -47,7 +53,11 @@ fn landed_body_stands_where_the_scene_product_stands() {
             [m[0].min(p.x), m[1].min(p.y), m[2].min(p.z)]
         })
     };
-    eprintln!("world min {:?}  landed min {:?}", bbox(&world), bbox(landed));
+    eprintln!(
+        "world min {:?}  landed min {:?}",
+        bbox(&world),
+        bbox(landed)
+    );
     let delta = viewer::DisplayTolerance::new(1e-4).expect("a delta");
     let fit_w = viewer::scene::fit_delta(&world, delta, tol).expect("fits");
     let fit_l = viewer::scene::fit_delta(landed, delta, tol).expect("fits");

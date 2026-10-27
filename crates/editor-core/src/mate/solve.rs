@@ -264,21 +264,21 @@ impl<'a> From<&'a crate::NodePick> for Composing<'a, f64> {
 
 /// **The one composing door** (D10 `[placement.world]`): the map from a
 /// body's own coordinates into those of its space — the world's, for a
-/// product. Export and the viewer's picture compose a body through it,
-/// and nothing else does (`scripts/gates/in-space-composes-for-export-and-picture.sh`):
-/// every operation computes in a frame of its reads and relates two
-/// operands through [`crate::Framed::relative`], so what this answers
-/// never re-enters the model.
+/// product — or `None` where the value is in its space's coordinates
+/// already (its frame is `Own`), which is the one identity test every
+/// composer reads: structurally, never by comparing a map's entries.
+///
+/// Export, the façade's read-outs (`pncad::export`) and the viewer's
+/// picture compose a body through it, and nothing else does
+/// (`scripts/gates/in-space-composes-for-export-and-picture.sh`): every
+/// operation computes in a frame of its reads and relates two operands
+/// through [`crate::Framed::relative`], so what this answers never
+/// re-enters the model.
 #[must_use]
 pub fn in_space<'a, T: geom_core::Decide>(
     value: impl Into<Composing<'a, T>>,
-) -> geom_core::RigidMotion<T> {
-    value
-        .into()
-        .0
-        .map()
-        .copied()
-        .unwrap_or_else(geom_core::RigidMotion::identity)
+) -> Option<geom_core::RigidMotion<T>> {
+    value.into().0.map().copied()
 }
 
 impl<T: SolveScalar> SolvedPoses<T> {

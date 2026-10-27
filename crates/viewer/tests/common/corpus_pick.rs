@@ -127,15 +127,11 @@ impl FlatReference {
                         owner.push((pi, ti));
                     }
                 }
-                let map = editor_core::in_space(part);
-                let (u, v, w, o) = (map.u().get(), map.v().get(), map.w().get(), map.origin());
-                let identity = [u.x, u.y, u.z, v.x, v.y, v.z, w.x, w.y, w.z, o.x, o.y, o.z]
-                    == [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0];
                 FlatPart {
                     tree: Bvh::build(&boxes),
                     corners,
                     owner,
-                    map: (!identity).then_some(map),
+                    map: editor_core::in_space(part),
                 }
             })
             .collect();
@@ -235,12 +231,7 @@ pub fn too_wide(ray: &Ray, tri: &[Point3<f64>; 3]) -> Option<[f64; 3]> {
 /// (`editor_core::in_space`): the mesh is in the body's own coordinates,
 /// and an aim is fired at where the picture draws it.
 pub fn standing(part: &editor_core::NodePick) -> Vec<Point3<f64>> {
-    let map = editor_core::in_space(part);
-    part.mesh()
-        .positions
-        .iter()
-        .map(|&p| map.transform_point(p))
-        .collect()
+    pncad::export::pick_mesh_in_space(part).positions.clone()
 }
 
 /// The largest absolute coordinate of any position of any part — the

@@ -713,12 +713,10 @@ fn certified_pin_boxes(links: usize, fraction: f64, tol: Tol) -> Vec<(f64, f64)>
                 };
                 // Where the pin stands in the world: its frame composed
                 // through the one door a picture composes by.
-                let placed = pncad::topo::transform_rigid(
-                    body.body(),
-                    &pncad::document::in_space(body),
-                    Tol::witness(),
-                )
-                .expect("a pin composes into the world");
+                let placed = pncad::topo::Body::clone(
+                    &pncad::export::body_in_space(body, Tol::witness())
+                        .expect("a pin composes into the world"),
+                );
                 let (x, y) = crate::chain::pin_axis(&placed);
                 // The nominal is the enclosure's own centre only to
                 // within the widening, so the half-width is reported

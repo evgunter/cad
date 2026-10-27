@@ -652,7 +652,8 @@ struct Gathered {
     /// The at-rest badge for this pair ([`DocSession::at_rest`]);
     /// `None` where [`AtRestBadge`] says none is taken.
     at_rest: Option<AtRestBadge>,
-    /// **The aggregate the landing's own gather produced**, kept so
+    /// **The aggregate the landing's own gather produced**, in the
+    /// world's coordinates ([`crate::scene::product_in_world`]), kept so
     /// that a consumer which needs the product does not gather it a
     /// second time ([`DocSession::landed_body`]). Written once, by
     /// `land`.
@@ -1438,8 +1439,15 @@ impl DocSession {
                     .as_ref()
                     .filter(|_| assembly_shaped)
                     .map(|(report, _)| AtRestBadge::of(report));
-                let body = Arc::new(product.body.into_body());
-                (Ok(Gathered { at_rest, body }), checks)
+                // Kept as the picture draws it: in the world, composed
+                // by the scene's door, never in the gather's computing
+                // frame.
+                let gather =
+                    crate::scene::product_in_world(product, doc, self.tol).map(|body| Gathered {
+                        at_rest,
+                        body: Arc::new(body),
+                    });
+                (gather, checks)
             }
             Err(fault) => {
                 // **The product's own verdict.** The gather is the only

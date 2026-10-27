@@ -176,30 +176,15 @@ pub fn step_for_node(
             });
         }
     };
-    let body = in_its_space(body.body(), &editor_core::in_space(body), tol)?;
-    let body = AtRestBody::validate(body, tol)
+    let body = body_in_space(body, tol).map_err(ExportError::Compose)?;
+    let body = AtRestBody::validate(Body::clone(&body), tol)
         .map_err(|errors| ExportError::BodyInvalid { node, errors })?;
     step_string(&body, options, tol).map_err(ExportError::Step)
 }
 
-/// **`body` composed into its space** by `map`, the frame
-/// [`editor_core::in_space`] answers: itself where the frame is the
-/// identity, so a body computed in its space's coordinates is written
-/// as it was built.
-fn in_its_space(
-    body: &Body<f64>,
-    map: &geom_core::RigidMotion<f64>,
-    tol: Tol,
-) -> Result<Body<f64>, ExportError> {
-    if is_identity(map) {
-        return Ok(body.clone());
-    }
-    topo::transform_rigid(body, map, tol).map_err(ExportError::Compose)
-}
-
 /// **A body value as it stands in its space**, the façade's read-out
 /// door: the body composed through [`editor_core::in_space`], shared
-/// as it is where its frame is the identity.
+/// as it is where it is in its space's coordinates already.
 ///
 /// A read-out is an export in D10 `[placement.world]`'s sense: what it
 /// answers (a host-language body, its points and measures) has no way
@@ -210,62 +195,64 @@ fn in_its_space(
 ///
 /// [`topo::TransformError`] when the kernel refuses the frame's rigid
 /// map.
-pub fn body_in_space(
-    body: &editor_core::Framed<f64>,
+pub fn body_in_space<T: geom_core::Decide + topo::AtRestPolicy>(
+    body: &editor_core::Framed<T>,
     tol: Tol,
-) -> Result<std::sync::Arc<Body<f64>>, topo::TransformError> {
-    let map = editor_core::in_space(body);
-    if is_identity(&map) {
-        return Ok(std::sync::Arc::clone(body.shared()));
+) -> Result<std::sync::Arc<Body<T>>, topo::TransformError> {
+    match editor_core::in_space(body) {
+        None => Ok(std::sync::Arc::clone(body.shared())),
+        Some(map) => topo::transform_rigid(body.body(), &map, tol).map(std::sync::Arc::new),
     }
-    topo::transform_rigid(body.body(), &map, tol).map(std::sync::Arc::new)
 }
 
 /// **A product's body as it stands in the world**, [`body_in_space`]
-/// for the aggregate a gather computed ([`editor_core::Product`]):
-/// borrowed as it is where the gather computed in the world's
+/// for the aggregate a gather computed ([`editor_core::Product`]) of
+/// `doc`: borrowed as it is where the gather computed in the world's
 /// coordinates. The rigid map keeps every arena key, so the product's
 /// names and records cite the composed body as they cite the gathered
 /// one.
 ///
 /// # Errors
 ///
-/// As [`body_in_space`].
-pub fn product_body_in_space(
-    product: &editor_core::Product<f64>,
+/// [`ProductError::Frame`] naming the operation `doc`'s product slot
+/// reads, when the kernel refuses the frame's rigid map: the one place
+/// a composed product's refusal is built.
+pub fn product_body_in_space<'p>(
+    product: &'p editor_core::Product<f64>,
+    doc: &ProfileDoc,
     tol: Tol,
-) -> Result<std::borrow::Cow<'_, Body<f64>>, topo::TransformError> {
-    let map = editor_core::in_space(product);
-    if is_identity(&map) {
+) -> Result<std::borrow::Cow<'p, Body<f64>>, ProductError> {
+    let Some(map) = editor_core::in_space(product) else {
         return Ok(std::borrow::Cow::Borrowed(&product.body));
-    }
-    topo::transform_rigid(&product.body, &map, tol).map(std::borrow::Cow::Owned)
+    };
+    topo::transform_rigid(&product.body, &map, tol)
+        .map(std::borrow::Cow::Owned)
+        .map_err(|error| ProductError::Frame {
+            node: doc
+                .product()
+                .and_then(|var| doc.operation_of(var))
+                .unwrap_or_else(|| unreachable!("a gathered product reads an operation")),
+            kind: Box::new(editor_core::NodeErrorKind::Transform(error)),
+        })
 }
 
 /// **A pick index's mesh as it stands in its space**, the read-out a
 /// host-language display draws: [`editor_core::NodePick::mesh`] is in
 /// its body's frame, and [`editor_core::pick_face`] reads a ray in the
 /// space's coordinates into that frame, so the mesh drawn is the one
-/// composed here. Borrowed as it is where the frame is the identity; a
-/// rigid map keeps every winding and every patch's and polyline's key.
+/// composed here. Borrowed as it is where the body is in its space's
+/// coordinates already; a rigid map keeps every winding and every
+/// patch's and polyline's key.
 #[must_use]
 pub fn pick_mesh_in_space(pick: &editor_core::NodePick) -> std::borrow::Cow<'_, mesh::Mesh> {
-    let map = editor_core::in_space(pick);
-    if is_identity(&map) {
+    let Some(map) = editor_core::in_space(pick) else {
         return std::borrow::Cow::Borrowed(pick.mesh());
-    }
+    };
     let mut mesh = pick.mesh().clone();
     for p in &mut mesh.positions {
         *p = map.transform_point(*p);
     }
     std::borrow::Cow::Owned(mesh)
-}
-
-/// Whether `map` is the identity, bit for bit.
-fn is_identity(map: &geom_core::RigidMotion<f64>) -> bool {
-    let (u, v, w, o) = (map.u().get(), map.v().get(), map.w().get(), map.origin());
-    [u.x, u.y, u.z, v.x, v.y, v.z, w.x, w.y, w.z, o.x, o.y, o.z]
-        == [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
 }
 
 /// Serializes the WHOLE DOCUMENT's product — the body its product slot
@@ -296,13 +283,15 @@ pub fn export_document_step(
         editor_core::product_recorded(doc, evaluation, tol).map_err(ExportError::Product)?;
     // The product is in the frame its gather computed in; it is written
     // in the world's coordinates.
-    let map = editor_core::in_space(&product);
-    if is_identity(&map) {
-        return step_string(&product.body, options, tol).map_err(ExportError::Step);
+    match product_body_in_space(&product, doc, tol).map_err(ExportError::Product)? {
+        std::borrow::Cow::Borrowed(_) => {
+            step_string(&product.body, options, tol).map_err(ExportError::Step)
+        }
+        std::borrow::Cow::Owned(body) => {
+            let body = AtRestBody::validate(body, tol).map_err(|errors| {
+                ExportError::Product(editor_core::ProductError::ProductInvalid { errors })
+            })?;
+            step_string(&body, options, tol).map_err(ExportError::Step)
+        }
     }
-    let body = in_its_space(&product.body, &map, tol)?;
-    let body = AtRestBody::validate(body, tol).map_err(|errors| {
-        ExportError::Product(editor_core::ProductError::ProductInvalid { errors })
-    })?;
-    step_string(&body, options, tol).map_err(ExportError::Step)
 }

@@ -315,12 +315,7 @@ fn a_defect_that_stops_check_7_does_not_hide_another_placements_inside_out_body(
     for node in [a, b] {
         // Each block where it stands in the world.
         let framed = slot(&mut ev, node).clone();
-        let placed = topo::transform_rigid(
-            framed.body(),
-            &editor_core::in_space(&framed),
-            Tol::witness(),
-        )
-        .expect("a block composes into the world");
+        let placed = crate::fixture::in_space(&framed);
         topo::graft_disjoint_all(&mut aggregate, &placed).expect("the two blocks are disjoint");
     }
     let together =

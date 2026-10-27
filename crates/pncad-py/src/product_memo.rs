@@ -174,22 +174,13 @@ pub fn body(
 }
 
 /// The product's body composed into the world through the façade's
-/// read-out door; a refusal is the gather's `Frame` arm, naming the
-/// operation the product slot reads, as the viewer's picture names it.
+/// read-out door, which builds the gather's `Frame` refusal itself.
 fn standing(
     product: &d::Product<f64>,
     doc: &d::ProfileDoc,
     tol: Tol,
 ) -> Result<topo::Body<f64>, d::ProductError> {
-    pncad::export::product_body_in_space(product, tol)
-        .map(std::borrow::Cow::into_owned)
-        .map_err(|error| d::ProductError::Frame {
-            node: doc
-                .product()
-                .and_then(|var| doc.operation_of(var))
-                .unwrap_or_else(|| unreachable!("a gathered product reads an operation")),
-            kind: Box::new(d::NodeErrorKind::Transform(error)),
-        })
+    pncad::export::product_body_in_space(product, doc, tol).map(std::borrow::Cow::into_owned)
 }
 
 /// **`product_named`'s body**: the aggregate as it stands in the world

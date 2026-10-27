@@ -876,29 +876,30 @@ pub fn product_body(doc: &Doc<ProfileProgram>, tol: Tol) -> Result<Body<f64>, Sc
     let evaluation = evaluate::<f64>(doc, None, &cancel, &EvalOptions::default(), tol);
     let product = pncad::document::product_recorded(doc, &evaluation, tol)
         .map_err(|error| no_product(error, doc))?;
-    // Drawn in the world: the product's frame composed through the
-    // picture's one door.
-    let map = pncad::document::in_space(&product);
-    let body = product.body.into_body();
-    let (u, v, w, o) = (map.u().get(), map.v().get(), map.w().get(), map.origin());
-    if [u.x, u.y, u.z, v.x, v.y, v.z, w.x, w.y, w.z, o.x, o.y, o.z]
-        == [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
-    {
-        return Ok(body);
-    }
-    pncad::topo::transform_rigid(&body, &map, tol).map_err(|error| {
-        let node = doc
-            .product()
-            .and_then(|var| doc.operation_of(var))
-            .unwrap_or_else(|| unreachable!("a gathered product reads an operation"));
-        no_product(
-            ProductError::Frame {
-                node,
-                kind: Box::new(pncad::document::NodeErrorKind::Transform(error)),
-            },
-            doc,
-        )
-    })
+    product_in_world(product, doc, tol).map_err(|error| no_product(error, doc))
+}
+
+/// **A gathered product as the picture draws it**: its body in the
+/// world's coordinates, composed through the façade's read-out door
+/// (`pncad::export::product_body_in_space`), the product's own frame
+/// being the one its gather computed in. Every reader of a product's
+/// body for display — the scene and the session's display fit — reads
+/// it here, so none draws the computing frame.
+///
+/// # Errors
+///
+/// The door's [`ProductError::Frame`] refusal.
+pub fn product_in_world(
+    product: pncad::document::Product<f64>,
+    doc: &Doc<ProfileProgram>,
+    tol: Tol,
+) -> Result<Body<f64>, ProductError> {
+    let composed = match pncad::export::product_body_in_space(&product, doc, tol) {
+        Ok(std::borrow::Cow::Owned(body)) => Some(body),
+        Ok(std::borrow::Cow::Borrowed(_)) => None,
+        Err(error) => return Err(error),
+    };
+    Ok(composed.unwrap_or_else(|| product.body.into_body()))
 }
 
 /// **Gather the product of a pair the landing did not keep one for.**

@@ -405,7 +405,9 @@ fn a_value_edit_moves_a_copys_frame_and_not_its_mesh() {
         std::ptr::eq(before.mesh(), after.mesh()),
         "one mesh, under two frames"
     );
-    let x = |pick: &editor_core::NodePick| editor_core::in_space(pick).origin().x;
+    let x = |pick: &editor_core::NodePick| {
+        editor_core::in_space(pick).map_or(0.0, |map| map.origin().x)
+    };
     assert_eq!(
         (x(&before), x(&after)),
         (2.0, 3.5),

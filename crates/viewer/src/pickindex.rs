@@ -2218,7 +2218,7 @@ fn placement(display: &DisplayView, part: &NodePick) -> impl Fn(Point3<f64>) -> 
 /// **Where a drawn part's tessellation is drawn**: its body's frame
 /// composed into its space ([`pncad::document::in_space`], the picture's
 /// one composing door), then the free-move probe frame the display view
-/// puts the owning instance under. `None` where both are the identity,
+/// puts the owning instance under. `None` where it is under neither,
 /// so a part computed in its space's coordinates is drawn as tessellated.
 fn drawn(display: &DisplayView, part: &NodePick) -> Option<Affine3<f64>> {
     let placed = in_space_of(part);
@@ -2244,13 +2244,10 @@ fn probed(display: &DisplayView, part: &NodePick) -> Option<Affine3<f64>> {
         .map(|frame: Frame| frame.affine::<f64>())
 }
 
-/// The part's frame in its space, `None` where it is the identity.
+/// The part's frame in its space, `None` where its body is in its
+/// space's coordinates already.
 fn in_space_of(part: &NodePick) -> Option<Affine3<f64>> {
-    let map = pncad::document::in_space(part);
-    let (u, v, w, o) = (map.u().get(), map.v().get(), map.w().get(), map.origin());
-    let identity = [u.x, u.y, u.z, v.x, v.y, v.z, w.x, w.y, w.z, o.x, o.y, o.z]
-        == [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0];
-    (!identity).then(|| map.to_affine())
+    pncad::document::in_space(part).map(|map| map.to_affine())
 }
 
 /// **The one drawn edge's own nearest segment**, or `None` when no

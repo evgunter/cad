@@ -7182,12 +7182,11 @@ fn moving_the_only_world_placement_moves_no_body_bit_and_moves_the_step_bytes() 
 }
 
 /// **A copy where it stands in its space**: its body composed through
-/// [`pncad::document::in_space`], for a row that reads positions.
+/// the façade's read-out door ([`pncad::export::body_in_space`]), for a
+/// row that reads positions.
 fn standing(value: &pncad::document::Framed<f64>) -> pncad::topo::Body<f64> {
-    pncad::topo::transform_rigid(
-        value.body(),
-        &pncad::document::in_space(value),
-        Tol::witness(),
+    pncad::topo::Body::clone(
+        &pncad::export::body_in_space(value, Tol::witness())
+            .expect("a copy composes into its space"),
     )
-    .expect("a copy composes into its space")
 }
