@@ -238,3 +238,22 @@ Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `cra
   - Tier: dual, because it adds a public `CheckEvidence` arm and a Python projection and changes the DoorJob's work. Letter M, byte 6 (17:48:13Z), mod 3 = 0: HOLDOUT, a concurrent pair.
   - Its first frozen head `34a0a501` was red on its own change: `TAG_INVENTORY` lacked `carried_coincidence`. The freeze was lifted for that one line, and the head is now `7c637654`, green.
   - R1 `session_018u3gVJgViHJNnyPDw7GY6s` and R2 `session_018u3gVGRbiC6e2czqnwQ4HW` were dispatched together from one brief, isolated on `review/atrest-carried-*`.
+- 2026-10-27 19:12Z (orchestrator): **#5871 adjudicated.** R1 and R2 both rated it APPROVE-WITH-FIXES with 0 MAJOR. Every exactly-once, the-part's-door-alone and cancel probe held, executed by both.
+  - The fix pass was sent:
+    - eval-path cost (Arc-share the rows; measure the gathering; defer it if material);
+    - the sentences point at the part: recourse names the part, CarriedInterference's too; the story keeps the part's subject; the quiet suffix names the part's assertion;
+    - `Debug` elides the doc;
+    - one home for `PartialEq` and `CarriedRow`;
+    - stale docs;
+    - A5 sentences restating D10 for carried rows;
+    - port both reviewers' probes.
+
+    I merge on my read.
+  - Blind coding dispatched (byte 164, inputs `analysis/dual-review/pr-5871-coding` @ `0f4404e0`).
+- 2026-10-27 19:10Z (orchestrator): #5853's four pre-merge points were answered on `6498789b`:
+  - #5817's apart reading and the same-side arm never both decide one pair;
+  - the census output is byte-identical to main's;
+  - the finding is unlocalized, so loud, unquietable and never refused;
+  - `axial_span` was replaced by the existing `boundary_axial`.
+
+  The dual-review row is the last commit (`c2bda572`); it merges on green.
