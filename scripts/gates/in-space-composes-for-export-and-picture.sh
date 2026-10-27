@@ -27,6 +27,20 @@
 #                              their frames put them;
 #   viewer/src/scene.rs        the product's picture.
 #
+# AN ALIAS HIDES A CALL. `use … in_space as x` (or a façade composer
+# renamed so) makes every later call one this pattern cannot read, so an
+# aliased import reds anywhere in the scan, a home included.
+#
+# THE FAÇADE'S COMPOSERS ARE DOORS TOO. pncad/src/export.rs's public
+# composers — `body_in_space`, `product_body_in_space`,
+# `pick_mesh_in_space` — compose through `in_space` for a reader outside
+# the model, so they have callers of their own to hold: export itself,
+# the viewer's picture (pickindex.rs, scene.rs) and pncad-py's read-outs
+# (any pncad-py file: what it hands a host language never re-enters a
+# document). A call anywhere else in the scan reds, the model-writing
+# viewer/src/session.rs among them: the session keeps what the scene
+# composes (`scene::product_in_world`) and composes nothing itself.
+#
 # THE BINDINGS NEVER COMPOSE. pncad-py reads a body as it stands in its
 # space through pncad's read-out doors alone (the Python façade holds no
 # code that is not a call to the Rust façade), so a pncad-py file is
@@ -36,11 +50,27 @@
 # KNOWN GAPS. A home can grow a second call that feeds the model, and
 # nothing here sees it: a skip is per file. `in_space` passed as a value
 # (`.map(in_space)`) is no call this pattern reads. And a reader that
-# composes a frame by hand inside `editor-core` (`Framed`'s crate-private
-# `frame()` read and applied) is not this gate's shape: the frame's map is
-# crate-private, so only editor-core can, and its readers there
-# (interrogation, a mate's pose, a measure) compose through `relative`
-# or answer in the variable's space by name.
+# composes a frame by hand inside `editor-core` is not this gate's shape:
+# the frame's map and `Framed::point_in_space`/`vec_in_space`/
+# `space_origin` are crate-private, so only editor-core can, and these
+# readers there answer in the variable's space by design rather than
+# feed an operation:
+#   - the interrogation doors (`names/interrogate.rs`, `InItsSpace::
+#     moved_by`, crate-private): a position or a pose asked of a
+#     variable answers where it stands;
+#   - `mate::corner_frame_in` reads a body's vertices composed into its
+#     space and picks them by exact `==` against corners stated there,
+#     so a copy under a frame whose composition rounds misses a corner
+#     and refuses `NoFrame` (the fixtures that use it read
+#     constructions, frame `Own`, where nothing composes);
+#   - `mate::unobservable` reads a line stated in the space into each
+#     body's frame, and measures reach from the space's origin;
+#   - `Framed::heading_in_own` (public, the viewer's duplicate step)
+#     reads a heading stated in the space INTO the body's frame: the
+#     inverse direction, composing no body.
+# Picking reads a ray into each target's frame (`resolve::pick_face`):
+# a query composing through the frame, which answers on the ray as
+# handed.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -52,6 +82,9 @@ IN_SPACE_HOMES=(
   crates/viewer/src/scene.rs
 )
 IN_SPACE_CRATES='^crates/(editor-core|pncad|pncad-py|viewer)/src/'
+# The façade's composers and the files that may call them (see above).
+FACADE_COMPOSERS='(^|[^A-Za-z0-9_])(body_in_space|product_body_in_space|pick_mesh_in_space)[[:space:]]*(::[[:space:]]*<[^()]*>[[:space:]]*)?\('
+FACADE_CALLERS='^crates/(pncad/src/export\.rs|viewer/src/pickindex\.rs|viewer/src/scene\.rs|pncad-py/)'
 
 gate() {
   gate_require_crate_sources
@@ -75,6 +108,23 @@ gate() {
   local view hits bound
   if ! view=$(gate_rust_code --skip-cfg-test --statements "${scope[@]}"); then
     gate_error "$(gate_name): the shared Rust reader could not build the statement view, so what it did not match is unknown — that is not a pass"
+    exit 1
+  fi
+  local aliased composers
+  aliased=$(printf '%s\n' "$view" \
+    | gate_grep -E '(^|[^A-Za-z0-9_])(in_space|body_in_space|product_body_in_space|pick_mesh_in_space)[[:space:]]+as[[:space:]]+[A-Za-z_]')
+  if [ -n "$aliased" ]; then
+    echo "$aliased"
+    gate_error "a composing door imported under another name — an alias hides every call of it from this gate: import in_space (and the façade's composers) by their own names"
+    exit 1
+  fi
+  composers=$(printf '%s\n' "$view" \
+    | gate_grep -E "$FACADE_COMPOSERS" \
+    | gate_grep -vE '(^|[^A-Za-z0-9_])fn[[:space:]]' \
+    | gate_grep -vE "$FACADE_CALLERS")
+  if [ -n "$composers" ]; then
+    echo "$composers"
+    gate_error "a façade composer called outside export, the viewer's picture and pncad-py's read-outs — body_in_space, product_body_in_space and pick_mesh_in_space compose for a reader outside the model: compose in the picture (viewer/src/scene.rs) and keep what it answers, or relate operands through Framed::relative"
     exit 1
   fi
   hits=$(printf '%s\n' "$view" \
@@ -128,6 +178,20 @@ plant_bound() {
     > "$1/crates/pncad-py/src/py/value.rs"
 }
 
+# An import that renames the door.
+plant_alias() {
+  mkdir -p "$1/crates/viewer/src"
+  printf 'use pncad::document::in_space as frame_of;\npub fn read(b: &Framed) -> M { frame_of(b) }\n' \
+    > "$1/crates/viewer/src/planted.rs"
+}
+
+# The model-writing session composing a product itself.
+plant_session_composer() {
+  mkdir -p "$1/crates/viewer/src"
+  printf 'fn keep(p: &Product, d: &Doc) -> B { pncad::export::product_body_in_space(p, d, tol) }\n' \
+    > "$1/crates/viewer/src/session.rs"
+}
+
 plant_turbofish() {
   mkdir -p "$1/crates/viewer/src"
   printf 'pub fn read(b: &Framed) -> M { in_space::<f64>(b) }\n' \
@@ -159,9 +223,11 @@ gate_selftest() {
   gate_selftest_case "$bound" plant_wrapped
   gate_selftest_case "$bound" plant_bound
   gate_selftest_case "$want" plant_turbofish
+  gate_selftest_case "a composing door imported under another name" plant_alias
+  gate_selftest_case "a façade composer called outside export" plant_session_composer
   gate_selftest_passes "prose, a re-export, the definition, a longer name, a string, a test module and a crate outside the scope" plant_not_calls
   gate_selftest_homes --narrowed --subject "$IN_SPACE_SUBJECT" "${IN_SPACE_HOMES[@]}"
-  printf '%s selftest OK: passes a clean fixture carrying every home, and prose, a re-export, the definition, a longer name, a string, a test module and an out-of-scope crate; fires on a path call and a turbofish call outside the homes, and with its own diagnosis on a call (direct or rustfmt-wrapped) in the bindings; stays RED, with a diagnosis, when grep cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture carrying every home, and prose, a re-export, the definition, a longer name, a string, a test module and an out-of-scope crate; fires on a path call and a turbofish call outside the homes, with its own diagnosis on a call (direct or rustfmt-wrapped) in the bindings, on an aliased import, and on a façade composer called by the model-writing session; stays RED, with a diagnosis, when grep cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
