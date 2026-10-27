@@ -579,3 +579,16 @@ piece has no pcurve mid-boolean. The parked wiring row is unparked.
 The lane had not run sweep's slow set in its first pass; it ran it
 before reporting. Its nine reds are all main's, already filed or fixed
 in PR 5814.
+
+## 2026-10-27 — the interior arm dispatched
+
+`splice/interior-arm` (`session_01EdpJs5Doyx3iN4jJo1CRrf`) takes
+`an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane` (P0 H,
+letter H, a concurrent pair). This is where lily wall 8 now stops.
+- It builds C5's analytic span × spline face arm by enclosure or
+  Krawczyk, and places each meeting through PR 5805's point-in-face.
+- The brief binds the crease class (four finds now), feet on another
+  sheet, ε-scaled rows, and sweep's and topo's full slow sets.
+- PR 5814 (main's slow-set reds and the past-every-reach axes) is on
+  its fix pass. PR 5821 is the `[ev]` short readout for the M-tier
+  miss at DR-353.
