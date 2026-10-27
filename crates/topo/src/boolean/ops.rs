@@ -2049,6 +2049,7 @@ fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
 /// [`BooleanError::ClassificationInvariant`] for a face whose surface
 /// or loops do not resolve, or whose loop walk reads it torn
 /// ([`ChartCache::describes`]), and the box builder's own errors.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,

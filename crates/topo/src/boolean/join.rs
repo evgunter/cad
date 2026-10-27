@@ -1859,7 +1859,7 @@ fn bisector_planes<T: Decide>(
 
 /// **Every germ that rides an ellipse of an equal cylinder pair finds
 /// the pair read so on the operands**: the reading its coincidence rows
-/// are recorded from (`glue::frame_rows`) and its nodes are minted from
+/// are recorded from (`glue::section_door`) and its nodes are minted from
 /// (`node::mint_nodes`), [`crossing_cylinder_reading`] on the unmutated
 /// operands' faces. The germ's branch was decided where the germ was
 /// minted, on the working bodies; a pair that reading finds crossing
@@ -3398,11 +3398,13 @@ fn germ_section<'r, T: Decide>(
         Some(Ok(section)) => Ok(Some(section)),
         Some(Err(super::section_table::Uncarried::Section(e))) => Err(faces_section_unbuilt(
             SectionUnbuilt::Refused(e.clone()),
-            faces,
+            faces.0,
+            faces.1,
         )),
         Some(Err(super::section_table::Uncarried::Carry(e))) => Err(faces_section_unbuilt(
             SectionUnbuilt::Uncarried(e.clone()),
-            faces,
+            faces.0,
+            faces.1,
         )),
     }
 }
@@ -3444,7 +3446,8 @@ fn section_unbuilt(
 /// [`section_unbuilt`] on the faces `fa` of `a` and `fb` of `b`.
 fn faces_section_unbuilt<T: geom_core::Real>(
     why: SectionUnbuilt,
-    ((a, fa), (b, fb)): ((&Body<T>, FaceKey), (&Body<T>, FaceKey)),
+    (a, fa): (&Body<T>, FaceKey),
+    (b, fb): (&Body<T>, FaceKey),
 ) -> BooleanError {
     let kind = |body: &Body<T>, f| face_surface(body, f).map(|(_, s)| s.kind());
     match (kind(a, fa), kind(b, fb)) {
@@ -4152,7 +4155,7 @@ pub(super) fn crossing_cylinder_reading<T: Decide>(
 }
 
 /// [`crossing_cylinder_reading`], a refused reading taken as no crossing
-/// pair: for the coincidence rows (`glue::frame_rows`), which record no
+/// pair: for the coincidence rows (`glue::section_door`), which record no
 /// row where a reading refuses, a later decision refusing where the
 /// faces meet (the node's mint, [`crossing_germs_have_their_reading`]).
 pub(super) fn crossing_cylinder_section<T: Decide>(
@@ -4243,9 +4246,8 @@ fn intersecting_cylinder_axes<T: Decide>(
             e @ (geom_brep::SectionError::Escalated(_)
             | geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(_))),
         ) => section_refusal(e),
-        // The table's own routing verdict, honoured the way
-        // `cs_pair_frame` honours it: NOT a desync, since nothing is
-        // contradicted — the pair marches one rung down. Reachable only
+        // The table's own routing verdict: NOT a desync, since nothing
+        // is contradicted — the pair marches one rung down. Reachable only
         // if the table's coplanarity verdict differed from this
         // dispatch's on the same margin, and the general rung is the
         // right home for a skew pair either way.

@@ -2508,8 +2508,9 @@ const STEP_SCALE: SizedDecision = SizedDecision {
     no_size: None,
 };
 
-/// The cylinder × sphere tangency decision (`ssi_cs_tangency`): the
-/// gap from the nearer tangent pose, a magnitude, which passes positive.
+/// The cylinder × sphere pose's tangency (`cs_wall_reach`,
+/// `cs_near_reach`, `cs_far_reach`): the reach past a tangent pose,
+/// which passes either way decided.
 const PAIR_TANGENCY: SizedDecision = SizedDecision {
     lever: "separate the sphere and the cylinder, or move one so they are clearly not tangent",
     size: "near-tangency",
