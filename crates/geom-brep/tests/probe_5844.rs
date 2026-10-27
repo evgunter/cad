@@ -65,3 +65,21 @@ fn probe_5844_tiny_ellipse_within_eps_reads_definitely_off() {
     );
     assert!(!t.contains("defect") && !t2.contains("defect"), "a carrier within ε of its face ends as a defect");
 }
+
+/// G2c: the cone ellipse orientation's `Sign::Zero` arm. A thin ellipse
+/// (minor < ε) hugging a generator lies in a plane holding the axis, so
+/// its radial projection does not wind (orient = 0), and it is within ε
+/// of the cone: incidence does not show it off.
+#[test]
+fn probe_5844_g2c_cone_orientation_zero_is_reachable() {
+    let e = eps();
+    let alpha = 0.5_f64;
+    let g = Vec3::new(alpha.sin(), 0.0, alpha.cos());
+    let cone = Surface::Cone { apex: Point3::origin(), axis: Vec3::unit_z(), half_angle: alpha, u_ref: Vec3::unit_x() };
+    let t = show(
+        "thin ellipse along a cone generator",
+        Curve3::Ellipse { center: Point3::origin() + g * 2.0, axis: Vec3::unit_y(), semi_u: 0.5, semi_v: 0.3 * e, u_ref: g },
+        cone,
+    );
+    assert!(t.contains("InBand"), "{t}");
+}
