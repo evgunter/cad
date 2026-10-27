@@ -1390,28 +1390,42 @@ pub const JUDGEMENT_NAMING_FAULT: &str = "a test refused the naming of a union's
 /// announces what goes wrong, which no geometry reaches on demand. One
 /// at a time: a nested call panics.
 ///
+/// The seam is disarmed when `f` returns or unwinds.
+///
 /// # Panics
 ///
-/// Where another call is running, or the seam was poisoned.
+/// Where another call is running.
 pub fn with_judgement_naming_fault<R>(k: usize, f: impl FnOnce() -> R) -> R {
+    /// Disarms the seam on every way out of `f`.
+    struct Disarm;
+    impl Drop for Disarm {
+        fn drop(&mut self) {
+            *JUDGEMENT_FAULT
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+        }
+    }
     {
-        let mut slot = JUDGEMENT_FAULT.lock().expect("the judgement-naming seam");
+        let mut slot = JUDGEMENT_FAULT
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         assert!(slot.is_none(), "one judgement-naming fault at a time");
         *slot = Some(k);
     }
-    let out = f();
-    *JUDGEMENT_FAULT.lock().expect("the judgement-naming seam") = None;
-    out
+    let _disarm = Disarm;
+    f()
 }
 
 /// The refusal [`with_judgement_naming_fault`] makes of judgement `k`'s
 /// naming, where it is running for `k`.
 pub(crate) fn judgement_naming_fault(k: usize) -> Option<crate::names::NamingError> {
-    (*JUDGEMENT_FAULT.lock().expect("the judgement-naming seam") == Some(k)).then_some(
-        crate::names::NamingError::Emission {
-            what: JUDGEMENT_NAMING_FAULT,
-        },
-    )
+    (*JUDGEMENT_FAULT
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        == Some(k))
+    .then_some(crate::names::NamingError::Emission {
+        what: JUDGEMENT_NAMING_FAULT,
+    })
 }
 
 #[cfg(test)]

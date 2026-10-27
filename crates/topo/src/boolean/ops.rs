@@ -424,12 +424,14 @@ impl Default for BooleanNaming {
 }
 
 impl BooleanNaming {
-    /// **The one read of a result's key layout**: which operand the
-    /// result key `k` belongs to, its key in that operand's space, and
-    /// whether it was read back through the graft rows (`inv`, the
-    /// graft's destination → source keys of `k`'s kind). A result key is
-    /// an A key only where A's clone is the arena, and a B key either
+    /// **The one read of a result key back to its operand**: which
+    /// operand the result key `k` belongs to, its key in that operand's
+    /// space, and whether it was read back through the graft rows (`inv`,
+    /// the graft's destination → source keys of `k`'s kind). A result key
+    /// is an A key only where A's clone is the arena, and a B key either
     /// through the graft rows or because B's clone is the arena itself.
+    /// Reading the other way, an operand's key into the result, matches
+    /// on [`Self::a_keys`] and [`Self::b_keys`] where it is read.
     ///
     /// # Panics
     ///

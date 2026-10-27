@@ -1534,10 +1534,11 @@ enum KeySpace {
     Graft,
 }
 
-/// **A boolean result's key layout**, read once
+/// **A result key read back to its operand**
 /// ([`topo::BooleanNaming::operand_of`]): which operand a result-arena
 /// key belongs to, its key in that operand's space, and where that key
-/// lives. Every pass reads keys through here.
+/// lives. Every pass that reads a result key back reads it through
+/// here.
 ///
 /// # Panics
 ///

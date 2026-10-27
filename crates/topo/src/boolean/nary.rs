@@ -328,9 +328,10 @@ pub enum NaryRefusal {
         /// The box door's refusal.
         error: Box<BooleanError>,
     },
-    /// A pair's judgement refused, or, with two members, their one step
-    /// (`a` 0 and `b` 1, in list order, no rank read): the pair's
-    /// refusal, the same in every member order.
+    /// A pair's judgement refused: with three or more members, a pairwise
+    /// judgement, operand A the lesser rank, so the same pair refuses
+    /// alike in every member order; with two members, their one step,
+    /// `a` 0 and `b` 1 in list order, no rank read.
     Judgement {
         /// Operand A's member.
         a: usize,
@@ -432,34 +433,24 @@ struct PairVerdict<T: Real> {
 /// # The given channel is this door's own
 ///
 /// A step's glue is handed to it only here, over the members the door
-/// holds. Outside the crate no route states one: there is no public
-/// given pair,
+/// holds. Outside the crate no route states one. There is no public
+/// given pair, and that privacy is the fence on both crate-private
+/// routes that would state one: making one from a verdict
+/// (`GlueVerdict::given_at` returns one) and the pair boolean that takes
+/// them (`boolean_op_given`'s signature names them), so neither could be
+/// named outside the crate were it public.
 ///
 /// ```compile_fail,E0603
 /// let _: Option<topo::boolean::GluedPair> = None;
 /// ```
 ///
-/// no public way to make one from a verdict,
-///
-/// ```compile_fail,E0624
-/// fn forge(v: &topo::GlueVerdict<f64>) {
-///     let _ = v.given_at(topo::Operand::A, v.a());
-/// }
-/// ```
-///
-/// no field of a boolean's inputs to hand one in,
+/// Nor has a boolean's inputs a field to hand one in.
 ///
 /// ```compile_fail,E0560
 /// let _ = topo::BooleanInputs {
 ///     given: None,
 ///     ..topo::BooleanInputs::default()
 /// };
-/// ```
-///
-/// and no public door that takes one.
-///
-/// ```compile_fail,E0603
-/// let _ = topo::boolean::ops::boolean_op_given::<f64>;
 /// ```
 ///
 /// # Panics
@@ -482,23 +473,29 @@ pub fn nary_boolean<T: Decide + Bounds + AtRestPolicy>(
         pairwise,
         end: NaryEnd::Built,
     };
-    run.end = match run_members(op, members, sweep, tol, &mut run.judgements, &mut run.steps) {
+    run.end = match run_members(op, members, sweep, tol, &mut run) {
         Ok(()) => NaryEnd::Built,
         Err(end) => end,
     };
     run
 }
 
-/// [`nary_boolean`]'s body, filling `judgements` and `steps` as it runs
-/// and ending early with how it stopped.
+/// [`nary_boolean`]'s body, filling `run`'s judgements and steps as it
+/// runs, pairwise as `run` says, and ending early with how it stopped.
 fn run_members<T: Decide + Bounds + AtRestPolicy>(
     op: NaryOp,
     members: &[NaryMember<'_, T>],
     sweep: SweepStrategy,
     tol: Tol,
-    judgements: &mut Vec<NaryJudgement<T>>,
-    steps: &mut Vec<NaryStep<T>>,
+    run: &mut NaryRun<T>,
 ) -> Result<(), NaryEnd> {
+    let NaryRun {
+        judgements,
+        steps,
+        pairwise,
+        ..
+    } = run;
+    let pairwise = *pairwise;
     if members.len() < 2 {
         return Err(NaryEnd::Refused(NaryRefusal::Arity {
             members: members.len(),
@@ -526,7 +523,6 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
              bodies and their union holds each"
         ),
     };
-    let pairwise = members.len() > 2;
     let mut verdicts = Vec::new();
     if pairwise {
         let ranks: Vec<u32> = members.iter().map(|m| m.inputs.rank).collect();
