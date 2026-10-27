@@ -2923,6 +2923,7 @@ pub fn check_evidence_tag(evidence: &CheckEvidence) -> &'static str {
         CheckEvidence::UnprovenCoincidence { .. } => "unproven_coincidence",
         CheckEvidence::Interference { .. } => "interference",
         CheckEvidence::CarriedInterference { .. } => "carried_interference",
+        CheckEvidence::CarriedCoincidence { .. } => "carried_coincidence",
         CheckEvidence::AtRest { .. } => "at_rest",
     }
 }

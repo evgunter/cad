@@ -2712,8 +2712,11 @@ NOT_BOUND = {
     # The instantiation seam's bookkeeping. `Route` is what a carried
     # row says it came by, which Python reads as `of` and `via` without
     # holding the type. `CarriedFindings` is the evaluation VALUE
-    # channel's bundle, behind `Product` and `NodeValue`, both interior.
+    # channel's bundle, behind `Product` and `NodeValue`, both interior,
+    # and `CarriedCoincidenceRows` the unproven rows in it, which a
+    # report's door judges and Python reads only as judged.
     "CarriedFindings": INTERIOR,
+    "CarriedCoincidenceRows": INTERIOR,
     "Route": INTERIOR,
     "Chamfered": INTERIOR,
     # A lane trait, one registry over: a trait naming
@@ -3577,10 +3580,13 @@ MEMBERS_BOUND_AS = {
     "AtRestEvidence::NotRun": "AtRestEvidence.variant",
     # A part's own census findings, carried: a route is three facts and
     # Python reads all three without holding the type, and the
-    # finding's nodes are said from the part's (`str(row.finding)`).
+    # finding's nodes are said from the part's (`str(row.finding)`), a
+    # carried coincidence's from the part's document it holds.
     "CarriedAtRestFinding::route": "CarriedAtRestFinding.of",
     "CarriedAtRestFinding::held": "CarriedAtRestFinding.finding",
     "CarriedInterference::route": "CarriedInterference.of",
+    "CarriedCoincidence::route": "CarriedCoincidence.of",
+    "CarriedCoincidence::doc": "CarriedCoincidence.finding",
     # The registry's evidence, a value: which resident found what.
     "CheckEvidence::Connectedness": "CheckEvidence.variant",
     "CheckEvidence::Escalated": "CheckEvidence.variant",
@@ -4152,6 +4158,7 @@ ARMS_SPELLED_BY_A_PROPERTY = {
     # `"at_rest"`, `"carried"`).
     "CheckEvidence::Interference": "CheckEvidence.interference",
     "CheckEvidence::CarriedInterference": "CheckEvidence.carried_interference",
+    "CheckEvidence::CarriedCoincidence": "CheckEvidence.carried_coincidence",
     "CheckEvidence::AtRest": "CheckEvidence.at_rest",
     "AtRestEvidence::Carried": "AtRestEvidence.carried",
 }
