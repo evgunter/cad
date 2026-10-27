@@ -4,7 +4,7 @@ kind: issue
 title: Copies whose coincident faces are cones, tori or splines are read as undecidable, and the rim pairs of copies decided to interfere stay undecidable beside the finding
 status: open
 opened: 2026-10-26
-priority: P1
+priority: P2
 cost: H
 refs: [two-copies-filling-one-volume-certify-at-rest]
 ---
@@ -96,3 +96,7 @@ Filed beside this row:
 `aligned-arc-or-curved-faces-that-only-abut-are-never-read-flush` (the
 two half-bands of the coincident cylinders that share only a seam ruling
 are its subject), and `coincident-curved-copies-overlap-is-unlocalized`.
+
+## Re-prioritised (2026-10-27, ATREST orchestrator): P1 → P2
+
+The row's core ask merged (#5853 / #5827). What stays is residue that needs machinery not yet built: exact coincidence or metric rungs for cone, torus and NURBS carriers, a curved inner edge's extremal points, and the in-band and rim-pair readings. Each case stays loud and could-not-look, never a wrong verdict, so it is P2 work rather than a P1 defect.

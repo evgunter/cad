@@ -4508,6 +4508,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "check_evidence_tag",
         values: &[
             "at_rest",
+            "carried_coincidence",
             "carried_interference",
             "chart_coherence",
             "chart_coherence_unavailable",

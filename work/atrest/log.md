@@ -232,3 +232,44 @@ Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `cra
 - 2026-10-27 16:28Z (orchestrator): dispatched `an-instance-carries-its-parts-coincidences` (P1) → `session_018u3gVGr6ModPWKuhAbvECW`. Step 1 re-checks main after D′3 and stage 5 C and builds the pinning row, then either closes the item or sends a plan in the `CarriedInterference` shape.
 
 - 2026-10-27 (SECT orchestrator): filed `the-tour-gallery-pin-reads-the-chains-old-could-not-look-count` here, the demos-job red #5853 left on main (the tour gallery's `chain` scene). PR 5869 merges over it as an inherited red and is annotated with this row.
+- 2026-10-27 16:45Z (orchestrator): `an-instance-carries-its-parts-coincidences` is red on main. A part reports 5 unproven rows on its own run, and a host instancing it reports 0 (pinned on the lane's branch @ `883ad599`).
+  - Plan approved with option 4b: rows are carried unproven, and the host's `DoorJob` proves them by the part's own door over the part's document, through the job's resolver, off the draw path. Host assertions are never read.
+  - Subject: `FindingSubject::Node(route.through)`, with evidence `CarriedCoincidence { route, pin, held, finding }`.
+  - Added rows: a host assertion leaves a carried row loud; a nested part (leaf → mid → host) is reported once with a two-hop route.
+- 2026-10-27 18:27Z (orchestrator): #5871 (carried coincidences) is up.
+  - Tier: dual, because it adds a public `CheckEvidence` arm and a Python projection and changes the DoorJob's work. Letter M, byte 6 (17:48:13Z), mod 3 = 0: HOLDOUT, a concurrent pair.
+  - Its first frozen head `34a0a501` was red on its own change: `TAG_INVENTORY` lacked `carried_coincidence`. The freeze was lifted for that one line, and the head is now `7c637654`, green.
+  - R1 `session_018u3gVJgViHJNnyPDw7GY6s` and R2 `session_018u3gVGRbiC6e2czqnwQ4HW` were dispatched together from one brief, isolated on `review/atrest-carried-*`.
+- 2026-10-27 19:12Z (orchestrator): **#5871 adjudicated.** R1 and R2 both rated it APPROVE-WITH-FIXES with 0 MAJOR. Every exactly-once, the-part's-door-alone and cancel probe held, executed by both.
+  - The fix pass was sent:
+    - eval-path cost (Arc-share the rows; measure the gathering; defer it if material);
+    - the sentences point at the part: recourse names the part, CarriedInterference's too; the story keeps the part's subject; the quiet suffix names the part's assertion;
+    - `Debug` elides the doc;
+    - one home for `PartialEq` and `CarriedRow`;
+    - stale docs;
+    - A5 sentences restating D10 for carried rows;
+    - port both reviewers' probes.
+
+    I merge on my read.
+  - Blind coding dispatched (byte 164, inputs `analysis/dual-review/pr-5871-coding` @ `0f4404e0`).
+- 2026-10-27 19:10Z (orchestrator): #5853's four pre-merge points were answered on `6498789b`:
+  - #5817's apart reading and the same-side arm never both decide one pair;
+  - the census output is byte-identical to main's;
+  - the finding is unlocalized, so loud, unquietable and never refused;
+  - `axial_span` was replaced by the existing `boundary_axial`.
+
+  The dual-review row is the last commit (`c2bda572`); it merges on green.
+- 2026-10-27 19:47Z (orchestrator): **#5853 merged** at `3bb4dc55`, head `c2bda572`, CI green. Before merging I built the merged tree with current main (which had moved `census.rs`, `solid_contain.rs` and `ValidationError`): workspace check clean, and the census, link, two_copies, curved-copies and at-rest rows 532/533. The one red is the inherited `kitchen_sink` golden at line 48 (#5817's). The lane is archived. Copies whose coincident faces are arc-bounded planes, cylinders or spheres are now interference.
+- 2026-10-27 21:22Z (orchestrator): with #5871 merged, the board still has open P0/P1 rows:
+  - **P0** `an-assertion-quiets-an-operations-unproven-row`, opened by stage 5 C when its trigger fired. Dispatched to `session_018u3gVJL3Pm7MyRwP7cMq7x`, plan-first because the `Tool`-cell rows may be a design fork.
+  - **P1** `aligned-arc-or-curved-faces-that-only-abut-are-never-read-flush`, filed by #5853. Dispatched to `session_018u3gVFq1bXviQdAss26uqu`, plan-first.
+  - **P1** `main-red-reader-census-misses-topo-link-rs`, caused by ATREST's #5773. Fixed in #5878, which also drops FLUSH's dead ledger entry on the same row.
+  - `curved-copies-filling-one-volume-read-as-undecidable` and `gap-reads-no-curved-cell-below-a-face` are re-prioritised P1 → P2: their core asks merged, and the residue needs cone, torus and NURBS rungs. Every case stays loud.
+- 2026-10-27 21:28Z (orchestrator): the P0 plan (operation rows quieted by the contact rule) is approved.
+  - F1: a Tool or Piece row is unquietable, so it is loud and never refuses (DS6). A P3 row records that quieting one would need `[assertions.quiet]`/`Gap` to read a pose, which is Ev's call.
+  - `contact_quietable` asks the rule itself (the `gap()` admission), not a shape, per today's #5810 lesson.
+  - F2: a `Gap = 0` over adjacent cells is vacuous for tangency and coaxial rows. It is built as ratified and filed as a P2 design question on `[assertions.quiet]`, for a designer pair later.
+- 2026-10-27 21:30Z (orchestrator): the flush P1 plan is approved. It is a certificate of disjoint interiors by arc-splitting: cut each edge at every `curve_pair::meet` point, place each open sub-arc's midpoint, and use the clopen argument. It rests on `meet`'s completeness (a refusal is unread) and on each face's interior being connected.
+  - Conditions: a near-tangent double-crossing row; disconnected-face refusal; an audit of every flush-row consumer for planar assumptions.
+- 2026-10-27 21:20Z (orchestrator): **#5871 merged** at `e19603f0`, head `5e7a59f7`, CI green; the fix pass (`97038c84`) was read by me, and the dual-review row is holdout, tallied 0. The lane is archived.
+- 2026-10-27 (orchestrator): **main red caused by ATREST.** #5773 added `topo/src/link.rs`, which reads its own source in tests, with no `reader_census` ledger entry. QUAD's triage filed it (`main-red-reader-census-misses-topo-link-rs`, P1). Fixed with a `Shared` entry; FLUSH's dead given-pair entry on the same row was dropped too. **Lesson:** a new source file whose tests read source needs a ledger entry, and `reader_census` is not in the topo PR gate.

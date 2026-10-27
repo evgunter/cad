@@ -164,3 +164,13 @@ Q2: while import healing does not exist, an incidence refusal at the import door
 
 The text: geom-brep README D3 and DESIGN D4 ¶1 (iv) (this PR). The implementation is `work/pcert/plan.md` E1d, and E1c follows it.
 
+
+## Implementation
+
+- **E1d (`pcert/door-endings`): the endings.**
+  - E1b's authority routing is gone.
+  - `IncidenceRead::ending(at)` is the one map: a definite miss ends by the door, and a read in band ends in the geometry's lever.
+  - `CertifyError::CarrierOffChart` and `CertCheck::ChartIncidence` serve every carrier.
+  - The import door ends a definite miss in the damaged-file ending, but only on the path that reaches the incidence reading: the pcurve re-mint on the adopted body (`StepImportError::Pcurves`). A real STEP file whose curve misses its face refuses earlier, at the description ladder's residual meters (the surface residual, the endpoint residuals, the mapped source), with the set-ε-to-ε_in stopgap where the miss is within ε_in. That stopgap is EXCH's, under Ev's Q2 ruling, and E1d does not change it. Measured on PR 5844 with review B's probe (a cone fixture's half-angle, apex line or rim radius nudged by 1e-12 to 1e-2 m, at three ε_in): no run reached the re-mint. The note is in `work/exch/adoption-rebuilds-caches-at-eps-from-eps-in-interpretation.md`.
+- **E1d2 (`work/pcert/plan.md`): seals topo's construction tier** behind a trait that pncad does not re-export, and closes this item. Until then a pncad consumer can still call `Body::set_edge_curve`, and its miss reads as a kernel defect; no product code calls it.
+- **Filed:** `policy-lane-origin-callers-outlives-the-sealed-construction-tier` (`policy_lane::Origin`'s `Callers` arm after the sealing).

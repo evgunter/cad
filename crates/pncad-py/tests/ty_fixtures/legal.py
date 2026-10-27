@@ -118,6 +118,7 @@ from pncad import (
     Workspace,
     StationMove,
     InterferenceFinding,
+    CarriedCoincidence,
     CarriedInterference,
     canonical_bytes,
     circle,
@@ -684,6 +685,7 @@ census: Var | None = at_rest[0].census
 quieted_by: NodeId | None = at_rest[0].quiet
 overlap: InterferenceFinding | None = at_rest[0].evidence.interference
 carried_overlap: CarriedInterference | None = at_rest[0].evidence.carried_interference
+carried_glue: CarriedCoincidence | None = at_rest[0].evidence.carried_coincidence
 could_not_look: AtRestEvidence | None = at_rest[0].evidence.at_rest
 why: str | None = could_not_look.inner_variant if could_not_look is not None else None
 enforce_checks(report, strict)

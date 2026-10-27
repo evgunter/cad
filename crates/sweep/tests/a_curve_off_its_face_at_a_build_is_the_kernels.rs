@@ -1,9 +1,9 @@
-//! **A declared curve that does not lie on the face its description
-//! names ends in the modeler's lever, through the public door** (D3,
-//! E1b): the modeler placed it, so the refusal is theirs to move, with
-//! no tolerance offer and no defect. The same carrier described on the
-//! same face with no declaration is a locus the kernel would have
-//! derived, and its miss stays the kernel's defect.
+//! **A curve that does not lie on the face its description names is
+//! the kernel's defect at a build, declared or not** (D3, D4 ¶1 (iv)):
+//! every curve-and-face pair a build door holds is the kernel's own, so a
+//! definite miss there is a contradiction the kernel built, and at rest
+//! the stored culprit's. Who placed the carrier (a declaration on the
+//! description) is provenance and moves no ending.
 //!
 //! The body is a revolved hemisphere: a quarter disc about the `y` axis,
 //! whose arc sweeps the sphere and leaves its meridian seam. That seam
@@ -11,8 +11,9 @@
 //! between its two vertices, described as a chart image of the sphere:
 //! the sphere holds no line, so the mint reads it off its chart
 //! (`CarrierOffChart`) before any sample is metered, and the
-//! declaration's own source is never read (a dummy stands in). Read at
-//! `f64` and at `Interval`.
+//! declaration's own source is never read (a dummy stands in). At rest
+//! the same refusal is read through the at-rest door's window, the
+//! validator's finding that carries it. Read at `f64` and at `Interval`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -25,7 +26,7 @@ use geom_core::{Affine3, Bounds, Decide, Interval, Point2, Real, Tol, Vec2, Vec3
 use profile::test_support::bulge_loop;
 use profile::{Profile, SketchPlane};
 use sweep::{Revolution, RevolveAxis};
-use topo::{AtRestPolicy, Body, CurveGeom, EdgeKey, EulerOpError};
+use topo::{AtRestPolicy, Body, CurveGeom, EdgeKey, EulerOpError, ValidationError};
 
 /// The unit quarter disc revolved a full turn about `y`.
 fn hemisphere<T: Decide + AtRestPolicy>() -> Body<T> {
@@ -123,48 +124,51 @@ fn refused<T: Decide + AtRestPolicy + Bounds>(declared: bool) -> CertifyError {
 fn check<T: Decide + AtRestPolicy + Bounds>() {
     let lane = T::NAME;
     let declared = refused::<T>(true);
-    assert!(
-        matches!(declared, CertifyError::DeclaredOffChart { .. }),
-        "{lane}: {declared:?}"
-    );
+    let derived = refused::<T>(false);
+    for refusal in [&declared, &derived] {
+        assert!(
+            matches!(refusal, CertifyError::CarrierOffChart { margin: None, .. }),
+            "{lane}: {refusal:?}"
+        );
+        assert_eq!(
+            refusal.decision().map(|(check, _)| check),
+            Some(CertCheck::ChartIncidence),
+            "{lane}"
+        );
+    }
+    let ending = declared.ending(Reading::Build);
     assert_eq!(
-        declared.decision().map(|(check, _)| check),
-        Some(CertCheck::DeclaredIncidence),
+        ending.as_deref(),
+        Some(geom_core::KERNEL_DEFECT_ENDING),
         "{lane}"
     );
-    for reading in [Reading::Build, Reading::AtRest] {
-        let ending = declared
-            .ending(reading)
-            .expect("a decision's refusal has an ending");
-        assert!(
-            ending.starts_with("Recourse: move the declared curve onto the face it bounds"),
-            "{lane} {reading:?}: {ending}"
-        );
-        for word in ["defect", "tolerance", "bug"] {
-            assert!(
-                !ending.contains(word),
-                "{lane} {reading:?}: {word}: {ending}"
-            );
+    assert_eq!(
+        ending,
+        derived.ending(Reading::Build),
+        "{lane}: who placed the carrier moves no ending"
+    );
+    // At rest, through the at-rest door: the validator's finding that
+    // carries the same refusal names the stored culprit.
+    for refusal in [declared, derived] {
+        let at_rest = ValidationError::EdgeCertification {
+            edge: EdgeKey::default(),
+            error: refusal,
         }
+        .to_string();
+        assert!(
+            at_rest.contains(topo::test_support::incidence_reasons::OFF)
+                && at_rest.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
+            "{lane}: {at_rest}"
+        );
     }
-    let derived = refused::<T>(false);
-    assert!(
-        matches!(derived, CertifyError::ChartImageUnavailable { .. }),
-        "{lane}: an undeclared locus off its chart is the kernel's: {derived:?}"
-    );
-    let ending = derived.ending(Reading::Build).unwrap();
-    assert!(
-        !ending.contains("declared curve"),
-        "{lane}: the derived locus does not take the modeler's lever: {ending}"
-    );
 }
 
 #[test]
-fn a_declared_curve_off_its_face_ends_in_its_lever_at_f64() {
+fn a_curve_off_its_face_at_a_build_is_the_kernels_at_f64() {
     check::<f64>();
 }
 
 #[test]
-fn a_declared_curve_off_its_face_ends_in_its_lever_at_interval() {
+fn a_curve_off_its_face_at_a_build_is_the_kernels_at_interval() {
     check::<Interval>();
 }

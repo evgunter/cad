@@ -6249,6 +6249,27 @@ class CarriedInterference:
     @property
     def via(self) -> list[NodeId]: ...
 
+class CarriedCoincidence:
+    """A coincidence a document BELOW this one leaves unproven, with the
+    route it arrived by: an `unproven_coincidence` finding's
+    `CheckEvidence.carried_coincidence`, as the part's own door judged it
+    over the part's own document, quiet only by the part's assertions.
+    Each part row is reported once."""
+
+    @property
+    def finding(self) -> CheckFinding:
+        """The part's own finding, its ids and its words the part's."""
+
+    @property
+    def through(self) -> NodeId: ...
+    @property
+    def pin(self) -> ContentPin:
+        """Which version of `of` found it: two pins are two findings."""
+    @property
+    def of(self) -> str: ...
+    @property
+    def via(self) -> list[NodeId]: ...
+
 class CarriedAtRestFinding:
     """What a document BELOW this one's census could not look at, with
     the route it arrived by: `AtRestEvidence.carried`, loud and never
@@ -6706,7 +6727,11 @@ class CheckEvidence:
     `unproven_coincidence` (`relation`, `site`, `reason`, the row as
     `coincidence`, and `restated`) — a node decided a coincidence of
     its cells from values and the coincidence door does not prove it
-    structural. `reason` says what separates the constructions, or why
+    structural. `carried_coincidence` (the part's finding as
+    `carried_coincidence`) — a part leaves a coincidence of its own
+    unproven, as its own door judged it over its own document, quiet
+    only by its own assertions; the finding shows at the instance it
+    came through. `reason` says what separates the constructions, or why
     a cell's could not be read. `restated` lists a union's fold-step
     rows decided at a member vertex this row names, reported with it.
     A `profile_junction` row's `relation` is `tangent` or `cusp`
@@ -6755,6 +6780,8 @@ class CheckEvidence:
     def interference(self) -> Optional[InterferenceFinding]: ...
     @property
     def carried_interference(self) -> Optional[CarriedInterference]: ...
+    @property
+    def carried_coincidence(self) -> Optional[CarriedCoincidence]: ...
     @property
     def at_rest(self) -> Optional[AtRestEvidence]: ...
     def __eq__(self, other: object) -> bool: ...
@@ -6854,7 +6881,8 @@ class CheckFinding:
         quiet finding is listed, naming its assertion, so "checked and
         intended" stays distinct from "not checked"; `enforce_checks`
         never refuses it. A part's carried finding names the part's own
-        assertion, an id in the part's document."""
+        assertion, an id in the part's document (`CarriedInterference.of`,
+        `CarriedCoincidence.of`)."""
     def __eq__(self, other: object) -> bool: ...
 
 class ChecksReport:
