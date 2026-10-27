@@ -11,8 +11,9 @@
 //! between its two vertices, described as a chart image of the sphere:
 //! the sphere holds no line, so the mint reads it off its chart
 //! (`CarrierOffChart`) before any sample is metered, and the
-//! declaration's own source is never read (a dummy stands in). Read at
-//! `f64` and at `Interval`.
+//! declaration's own source is never read (a dummy stands in). At rest
+//! the same refusal is read through the at-rest door's window, the
+//! validator's finding that carries it. Read at `f64` and at `Interval`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -25,7 +26,7 @@ use geom_core::{Affine3, Bounds, Decide, Interval, Point2, Real, Tol, Vec2, Vec3
 use profile::test_support::bulge_loop;
 use profile::{Profile, SketchPlane};
 use sweep::{Revolution, RevolveAxis};
-use topo::{AtRestPolicy, Body, CurveGeom, EdgeKey, EulerOpError};
+use topo::{AtRestPolicy, Body, CurveGeom, EdgeKey, EulerOpError, ValidationError};
 
 /// The unit quarter disc revolved a full turn about `y`.
 fn hemisphere<T: Decide + AtRestPolicy>() -> Body<T> {
@@ -135,16 +136,29 @@ fn check<T: Decide + AtRestPolicy + Bounds>() {
             "{lane}"
         );
     }
-    for (reading, culprit) in [
-        (Reading::Build, geom_core::KERNEL_DEFECT_ENDING),
-        (Reading::AtRest, geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
-    ] {
-        let ending = declared.ending(reading);
-        assert_eq!(ending.as_deref(), Some(culprit), "{lane} {reading:?}");
-        assert_eq!(
-            ending,
-            derived.ending(reading),
-            "{lane} {reading:?}: who placed the carrier moves no ending"
+    let ending = declared.ending(Reading::Build);
+    assert_eq!(
+        ending.as_deref(),
+        Some(geom_core::KERNEL_DEFECT_ENDING),
+        "{lane}"
+    );
+    assert_eq!(
+        ending,
+        derived.ending(Reading::Build),
+        "{lane}: who placed the carrier moves no ending"
+    );
+    // At rest, through the at-rest door: the validator's finding that
+    // carries the same refusal names the stored culprit.
+    for refusal in [declared, derived] {
+        let at_rest = ValidationError::EdgeCertification {
+            edge: EdgeKey::default(),
+            error: refusal,
+        }
+        .to_string();
+        assert!(
+            at_rest.contains("does not lie on its face")
+                && at_rest.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
+            "{lane}: {at_rest}"
         );
     }
 }

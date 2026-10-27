@@ -464,11 +464,13 @@ fn certify_errors() -> Vec<CertifyError> {
         CertifyError::CarrierOffChart {
             chart: geom::SurfaceKind::Plane,
             carrier: geom::CurveKind::Line,
+            why: "the line's points are not on the chart",
             margin: None,
         },
         CertifyError::CarrierOffChart {
             chart: geom::SurfaceKind::Cone,
             carrier: geom::CurveKind::Line,
+            why: "the line is not shown off the plane through the apex",
             margin: Some(geom_brep::OffMargin::InBand(MarginDiag::value(4e-10))),
         },
         CertifyError::UnresolvedSurface { key },

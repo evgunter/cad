@@ -486,6 +486,9 @@ pub enum CertifyError {
         chart: geom::SurfaceKind,
         /// The carrier's kind.
         carrier: geom::CurveKind,
+        /// Why the mint concluded it, in the mint's words
+        /// ([`PcurveCertifyError::CarrierOffChart`]'s `why`).
+        why: &'static str,
         /// The margin the incidence decision read, where it read one, and
         /// which side of the band it fell ([`crate::OffMargin`]).
         margin: Option<crate::OffMargin>,
@@ -769,6 +772,7 @@ fn exact_arc_rim_words(iso: Option<crate::pcurve_cache::PcurveCheck>) -> &'stati
             | C::AzimuthPeriod
             | C::TubePeriod
             | C::ChartIncidence
+            | C::ClassReread
             | C::Sector,
         ) => "its exact boundary-row image's certificate refused it",
     }
@@ -832,6 +836,7 @@ impl core::fmt::Display for CertifyError {
             Self::CarrierOffChart {
                 chart,
                 carrier,
+                why,
                 margin,
             } => match crate::IncidenceRead::of_margin(*margin) {
                 // Not shown off the chart: read AT a pose where the chart
@@ -840,14 +845,15 @@ impl core::fmt::Display for CertifyError {
                 crate::IncidenceRead::AtPose(_) => write!(
                     f,
                     "the {} is no curve of the {} chart its description names at this \
-                     tolerance: it sits, within the band, at a pose where that chart holds no {}",
+                     tolerance: it sits, within the band, at a pose where that chart holds no {} \
+                     ({why})",
                     carrier.name(),
                     chart.name(),
                     carrier.name()
                 ),
                 crate::IncidenceRead::Off(_) => write!(
                     f,
-                    "the {} does not lie on the {} chart its description names",
+                    "the {} does not lie on the {} chart its description names ({why})",
                     carrier.name(),
                     chart.name()
                 ),
@@ -1088,15 +1094,32 @@ impl CertifyError {
             // A carrier's incidence ends by what was read, through the one
             // map every incidence ending goes through
             // ([`crate::IncidenceRead::ending`]).
-            Self::CarrierOffChart { margin, .. } => {
-                Some(crate::IncidenceRead::of_margin(*margin).ending(at))
-            }
+            _ if let Some(read) = self.incidence_read() => Some(read.ending(at)),
+            _ => self.decision().map(|(check, arm)| recourse(check, arm, at)),
+        }
+    }
+
+    /// **The incidence read this refusal carries**
+    /// ([`crate::IncidenceRead`]): a carrier off its chart, read by its
+    /// margin, or an incidence reading escalated; `None` for a refusal of
+    /// anything else. The one reading of it [`Self::ending`] and a door's
+    /// classification of the refusal share.
+    #[must_use]
+    pub fn incidence_read(&self) -> Option<crate::IncidenceRead<'_>> {
+        match self {
+            Self::CarrierOffChart { margin, .. } => Some(crate::IncidenceRead::of_margin(*margin)),
             Self::Escalated {
                 check: CertCheck::ChartIncidence,
                 cause,
                 ..
-            } => Some(crate::IncidenceRead::Undecided(cause).ending(at)),
-            _ => self.decision().map(|(check, arm)| recourse(check, arm, at)),
+            } => Some(crate::IncidenceRead::Undecided(cause)),
+            // The test's residual decided past the band: a definite miss.
+            Self::ResidualExceeded {
+                check: CertCheck::ChartIncidence,
+                margin,
+                ..
+            } => Some(crate::IncidenceRead::Off(Some(*margin))),
+            _ => None,
         }
     }
 
@@ -1147,10 +1170,11 @@ enum Ending {
     /// "not yet" on every arm.
     NotYet,
     /// A carrier's incidence (D3): a definite miss ended by the door, a
-    /// read in band by its lever ([`crate::IncidenceRead::ending`]). A refused arm
-    /// does not say which read it was (off and at a pose both refuse
-    /// sign-certain), so no ending is spelled from the check alone: its
-    /// refusals end through [`CertifyError::ending`], which holds the read.
+    /// read in band by its lever ([`crate::IncidenceRead::ending`]). A
+    /// refused arm does not say which read it was (off and at a pose both
+    /// refuse sign-certain), so a refusal that carries its read ends by it
+    /// ([`CertifyError::ending`]); the check alone reads it back off the
+    /// arm ([`crate::IncidenceRead::arm_ending`]).
     Incidence,
 }
 
@@ -1569,10 +1593,7 @@ pub(crate) fn recourse(check: CertCheck, arm: RefusedArm<'_>, at: impl Into<Read
         (Ending::Unsized(no_size) | Ending::Residual(no_size), at) => no_size.recourse(arm, at),
         (Ending::Undefined(recourse), _) => geom_core::lever_recourse(recourse, None),
         (Ending::NotYet, at) => crate::recourse::not_yet(arm, at),
-        (Ending::Incidence, _) => unreachable!(
-            "{check:?} ends by its incidence read, which a refused arm does not carry: \
-             end it through CertifyError::ending or IncidenceRead::ending"
-        ),
+        (Ending::Incidence, at) => crate::IncidenceRead::arm_ending(arm, at),
     }
 }
 
@@ -3847,10 +3868,11 @@ fn run_checks<T: Decide>(
                 .map_err(|e| match e {
                     // A carrier not shown on its chart: its incidence,
                     // ended by its read (D3), decided or in band.
-                    PcurveCertifyError::CarrierOffChart { margin, .. } => {
+                    PcurveCertifyError::CarrierOffChart { why, margin, .. } => {
                         CertifyError::CarrierOffChart {
                             chart: surface.kind(),
                             carrier: spec.carrier.kind(),
+                            why,
                             margin,
                         }
                     }
@@ -8732,6 +8754,7 @@ mod tests {
         let refusal = |margin| CertifyError::CarrierOffChart {
             chart: geom::SurfaceKind::Cone,
             carrier: geom::CurveKind::Line,
+            why: "WHY",
             margin,
         };
         let m = geom_core::MarginDiag::value(4e-10);

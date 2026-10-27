@@ -198,8 +198,8 @@
 //! The pass CLEARS the map first, so it reads none of the operand's
 //! rows; that they were sound is the operand type's promise (above),
 //! and a stale-row operand refuses where it is gated, not here
-//! (`shell9_r2_probes`). The refusal is [`ShellError::Pcurve`], a kernel finding by
-//! construction.
+//! (`shell9_r2_probes`). The refusal is [`ShellError::Pcurve`], carrying
+//! the mint's refusal whole and ending by its ending at the build door.
 //!
 //! # The record
 //!
@@ -610,10 +610,10 @@ pub enum ShellError<T: Real> {
     /// The closing pcurve mint refused on the assembled body (module
     /// docs, "The closing mint"). Every gate before it accepted the
     /// body — the offsets certified, the void door grafted, the rim
-    /// surgery closed — so a row that cannot be re-derived here is a
-    /// kernel finding about the pcurve pass or the carriers it reads,
-    /// surfaced typed rather than as the validator's report of a stale
-    /// row.
+    /// surgery closed — and the mint's refusal is carried whole,
+    /// ending by its own ending at the build door (a defect where it
+    /// reads one, the pose lever where an incidence read lands in band)
+    /// rather than as the validator's report of a stale row.
     Pcurve {
         /// The mint's typed refusal, verbatim.
         source: PcurveMintError,
@@ -748,12 +748,13 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
                     source.ending("change the wall thickness, or move the geometry"),
                 )
             ),
-            // Every gate before the closing mint accepted the body, so
-            // its refusal (in `Debug`) is the kernel's.
-            Self::Pcurve { .. } => write!(
+            // The mint's refusal ends by its own ending at the build
+            // door: an incidence read in band is the pose lever's, not
+            // a defect, though every gate before the mint accepted.
+            Self::Pcurve { source } => write!(
                 f,
-                "the finished thin solid's edges could not be parametrized on its faces. \
-                 {KERNEL_DEFECT_ENDING}"
+                "the finished thin solid's edges could not be parametrized on its faces: \
+                 {source}"
             ),
             Self::RimSeamMixed { stations, .. } => write!(
                 f,
@@ -896,11 +897,6 @@ impl<T: Real> core::fmt::Display for AsShelled<'_, T> {
                 f,
                 "the shell op asked to fit an offset of {d} m at a tolerance of {tolerance} m, \
                  which its thickness gate and its tolerance never allow. {KERNEL_DEFECT_ENDING}"
-            ),
-            R::Pcurve { .. } => write!(
-                f,
-                "the offset body's edges could not be parametrized on their faces. \
-                 {KERNEL_DEFECT_ENDING}"
             ),
             error => write!(f, "{error}"),
         }
@@ -3358,6 +3354,58 @@ mod rim_seam_rows {
                 && text.ends_with("Recourse: change the wall thickness, or move the geometry"),
             "the refusal names the seam and the shell's lever: {text}"
         );
+    }
+}
+
+#[cfg(test)]
+mod mint_endings {
+    use super::ShellError;
+    use crate::entity::{FaceKey, HalfEdgeKey};
+    use crate::pcurves::PcurveMintError;
+    use crate::replace_face::ReplaceFaceError;
+    use geom_brep::{OffMargin, PcurveCertifyError};
+    use geom_core::{KERNEL_DEFECT_ENDING, MarginDiag};
+
+    /// **The closing mint's refusal ends by its own ending at the build
+    /// door** (D4 ¶1 (iv)), through both shell arms that carry it: an
+    /// incidence read in band ends in the pose lever, never a defect, and
+    /// a definite miss in the kernel's defect, once.
+    #[test]
+    fn the_shell_ops_mint_refusal_ends_by_its_own_ending() {
+        let mint = |margin| PcurveMintError::Certify {
+            half_edge: HalfEdgeKey::default(),
+            error: PcurveCertifyError::CarrierOffChart {
+                chart: geom::SurfaceKind::Cone,
+                carrier: geom::CurveKind::Circle,
+                why: "WHY",
+                margin,
+            },
+        };
+        let in_band = Some(OffMargin::InBand(MarginDiag::value(4e-9)));
+        for (margin, defect) in [(in_band, false), (None, true)] {
+            let shell: ShellError<f64> = ShellError::Pcurve {
+                source: mint(margin),
+            };
+            let face: ShellError<f64> = ShellError::Face {
+                face: FaceKey::default(),
+                error: Box::new(ReplaceFaceError::Pcurve {
+                    source: mint(margin),
+                }),
+            };
+            for refusal in [shell, face] {
+                let text = refusal.to_string();
+                assert_eq!(
+                    text.matches(KERNEL_DEFECT_ENDING).count(),
+                    usize::from(defect),
+                    "{text}"
+                );
+                assert_eq!(
+                    text.contains(geom_brep::recourse::INCIDENCE_AT_POSE.lever),
+                    !defect,
+                    "{text}"
+                );
+            }
+        }
     }
 }
 

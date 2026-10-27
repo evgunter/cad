@@ -500,6 +500,134 @@ fn a_rim_at_the_apex_height_refuses_as_not_shown_with_its_margin() {
     );
 }
 
+/// **Only an incidence reading ends as one** (D3, D4 ¶1 (iv)): a pose
+/// reading ends in the pose lever, a definite miss as the door's defect,
+/// and neither reaches "not shown on the face", the undecided incidence
+/// read's ending. Each row is a reading that is not the sampled incidence
+/// test, read at `f64` and at `Interval`:
+/// - a rim whose height sits in the apex's sliver
+///   (`pcurve_cone_chart_nappe`, `cone_conic_incidence`): the pose the
+///   in-band Zero names, so the pose lever, though it may lie on the cone;
+/// - an ellipse on the sphere's and the torus's kind gates, read by its
+///   distance from circularity: within the band or in the sliver, at a
+///   pose; past it, no circle, definitely off with the distance quoted.
+///
+/// The Villarceau tangent's parts, a class reading at `K ≤ 3`, are
+/// pinned in `pcurve_villarceau`.
+#[test]
+fn only_an_incidence_reading_ends_as_one() {
+    use geom_brep::OffMargin;
+    use geom_brep::recourse::{INCIDENCE_AT_POSE, INCIDENCE_UNSHOWN, Reading};
+    let e = eps();
+    let at_pose = |what: &str, got: Result<(), PcurveCertifyError>| {
+        let Err(
+            err @ PcurveCertifyError::CarrierOffChart {
+                margin: Some(OffMargin::InBand(_)),
+                ..
+            },
+        ) = &got
+        else {
+            panic!("{what}: a pose reading: {got:?}");
+        };
+        let text = err.render(Reading::Build);
+        assert!(
+            text.contains(INCIDENCE_AT_POSE.lever)
+                && !text.contains(INCIDENCE_UNSHOWN.lever)
+                && !text.contains("defect"),
+            "{what}: {text}"
+        );
+    };
+    let both = |what: &str,
+                carrier: Curve3<f64>,
+                surface: Surface<f64>,
+                want: &dyn Fn(&str, Result<(), PcurveCertifyError>)| {
+        want(
+            &format!("{what} (f64)"),
+            chart_pcurve(&carrier, &surface, band()).map(|_| ()),
+        );
+        want(
+            &format!("{what} (Interval)"),
+            chart_pcurve(
+                &carrier.map_scalar(Interval::from_f64),
+                &surface.map_scalar(Interval::from_f64),
+                band(),
+            )
+            .map(|_| ()),
+        );
+    };
+    // The apex's sliver: past the zero band, under the escalation band.
+    let alpha = 0.5_f64;
+    for h in [2.0 * e, 5.5 * e] {
+        both(
+            &format!("a rim at h = {h:e}"),
+            Curve3::Circle {
+                center: Point3::new(0.0, 0.0, h),
+                axis: Vec3::unit_z(),
+                radius: h * alpha.tan(),
+                u_ref: Vec3::unit_x(),
+            },
+            cone(alpha),
+            &at_pose,
+        );
+    }
+    let sphere = Surface::Sphere {
+        center: Point3::origin(),
+        radius: 1.0,
+        axis: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let torus = Surface::Torus {
+        center: Point3::origin(),
+        axis: Vec3::unit_z(),
+        major_radius: 2.0,
+        minor_radius: 0.5,
+        u_ref: Vec3::unit_x(),
+    };
+    // A parallel of each, its minor semi-axis short by `d`.
+    let ellipse = |z: f64, r: f64, d: f64| Curve3::Ellipse {
+        center: Point3::new(0.0, 0.0, z),
+        axis: Vec3::unit_z(),
+        semi_u: r,
+        semi_v: r - d,
+        u_ref: Vec3::unit_x(),
+    };
+    for d in [0.5 * e, 2.0 * e] {
+        both(
+            &format!("a sphere parallel's ellipse {d:e} from round"),
+            ellipse(0.6, 0.8, d),
+            sphere.clone(),
+            &at_pose,
+        );
+        both(
+            &format!("a torus parallel's ellipse {d:e} from round"),
+            ellipse(0.0, 2.5, d),
+            torus.clone(),
+            &at_pose,
+        );
+    }
+    both(
+        "a sphere parallel's ellipse 1e-3 from round",
+        ellipse(0.6, 0.8, 1e-3),
+        sphere,
+        &|what, got| {
+            let Err(
+                err @ PcurveCertifyError::CarrierOffChart {
+                    margin: Some(OffMargin::Past(_)),
+                    ..
+                },
+            ) = &got
+            else {
+                panic!("{what}: definitely off: {got:?}");
+            };
+            assert!(
+                err.render(Reading::Build)
+                    .ends_with(geom_core::KERNEL_DEFECT_ENDING),
+                "{what}: {err}"
+            );
+        },
+    );
+}
+
 /// **A closed form minted at Zero, re-read with its class reading in
 /// band, is undecided at check 4: typed, escalating, never a pass and
 /// never a defect** (D3; only a definite contradiction of what is stored
