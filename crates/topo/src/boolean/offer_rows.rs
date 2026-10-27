@@ -2243,10 +2243,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::SeamOrientation
         | BooleanErrorKind::ZipCorrespondence
         | BooleanErrorKind::ResultInvalid
-        | BooleanErrorKind::ResultVolumeImplausible
-        | BooleanErrorKind::VolumeCorrupt
         | BooleanErrorKind::PoisonedCarrierDatum
-        | BooleanErrorKind::VolumeUndecided
         | BooleanErrorKind::UnrepresentableResult
         | BooleanErrorKind::NonManifoldResult
         // Nest another module's refusal, whose offers are that module's
@@ -2257,7 +2254,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::Pcurves
         | BooleanErrorKind::Euler
         | BooleanErrorKind::Join
-        | BooleanErrorKind::VolumeUnmeasured
         | BooleanErrorKind::GraftRecertify
         | BooleanErrorKind::Pieces
         | BooleanErrorKind::Revert
@@ -2657,13 +2653,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("mod.rs", "verify_tangency", "Coincide::Contact", 1),
     ("mod.rs", "verify_tangency", "Coincide::Rim", 1),
     ("mod.rs", "verify_tangency", "Coincide::TangentLocus", 1),
-    ("ops.rs", "bounded", "BooleanDecision::VolumeBackstop", 1),
-    (
-        "ops.rs",
-        "decide_left",
-        "BooleanDecision::VolumeBackstop",
-        1,
-    ),
     ("ops.rs", "apply_cut_ins", "BooleanDecision::Sphere", 2),
     ("ops.rs", "apply_cut_ins", "SphereQuestion::CutIn", 2),
     ("ops.rs", "sphere_pair_cut", "BooleanDecision::Sphere", 1),

@@ -790,7 +790,7 @@ impl<T: crate::real::Real> Margin<T> {
     ///
     /// What this door deliberately does NOT serve (Ev's #213
     /// layering ruling): the **consistency backstops** — inequalities
-    /// between integral RESULTS, the `volume_backstop` family. Those
+    /// between integral RESULTS. Those
     /// are outside the length seam by design: they decide on bare `T`
     /// through the invariant lane
     /// ([`crate::k_stats::decide_invariant`]), and their firing is a

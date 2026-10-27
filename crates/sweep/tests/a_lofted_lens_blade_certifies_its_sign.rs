@@ -205,38 +205,3 @@ fn a_round_tube_certifies_its_sign_while_its_number_is_open() {
         enclosure.volume_hi
     );
 }
-
-/// **The backstop pays a refused face once per body it reads.** The
-/// volume backstop reads each body from round 0 and refines it while an
-/// inequality straddles. Here the planted result is the tube itself, so
-/// `vol(A ∪ B) ≥ vol(A)` straddles at every round, and the walk takes
-/// both bodies' walls to their own stop and no further, as the reporting
-/// door does: reading the tube twice (`A` and the planted result) costs
-/// exactly twice the door's quadrature readings. Counted, not timed: a
-/// round a refused face ran again would be another reading.
-#[test]
-fn the_volume_backstop_reads_a_refused_face_once_per_body() {
-    let tol = Tol::witness();
-    let body = topo::test_support::finished("the round tube", round_tube(tol), tol);
-    let brick = crate::common::square_prism();
-    let reporting = crate::common::quad_rounds(|| {
-        let measured =
-            topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
-                .expect("the door measures the tube");
-        assert_eq!(
-            measured.stop,
-            topo::Stop::Wall,
-            "the tube's number stops at the wall"
-        );
-    });
-    let backstop = crate::common::quad_rounds(|| {
-        topo::test_support::volume_backstop(topo::BooleanOp::Union, &body, &brick, &body, tol)
-            .expect_err("the backstop refuses a body it cannot measure");
-    });
-    assert_eq!(
-        backstop,
-        2 * reporting,
-        "the backstop read the tube's refused wall past its stop ({backstop} quadrature \
-         readings against the reporting door's {reporting} for one body)"
-    );
-}

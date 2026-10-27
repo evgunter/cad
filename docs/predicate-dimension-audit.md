@@ -152,7 +152,11 @@ kernel-defect ending), separated in type and voice
 from every validity refusal. The former `per_boundary` door is renamed
 `over_lever` and re-scoped to the genuine geometric decisions
 (mean-width 2A/P, mean-thickness V/A containment, chart-orientation
-areas, the crossing advance).
+areas, the crossing advance). The boolean's volume backstop, the
+lane's one member, has since left the operation path: Ev made its
+relations a test oracle the suites run on their own results
+(`[ev]` PR 5780; `topo::test_support::volume_relations`), so the lane
+has no caller and its three predicates are no longer decided.
 
 Factor conventions used throughout (verified against definitions):
 `Curve3::Line.dir` unit ⇒ line parameter is arc length (m);
@@ -579,11 +583,7 @@ which is what actually moves the number.
 | boolean/join.rs (`cs_transverse_frame`) | bool_germ_frame_cs_reach | `|R| − |r| − d`: how far the sphere reaches past the wall's far side (two loops when positive, one when negative, the walls tangent at Zero) | m | OK |
 | boolean/join.rs (`parallel_radical_plane`) | bool_join_cc_axis_offset | the axis-to-axis offset of a parallel cylinder pair, `‖Δ − a₁(Δ·a₁)‖` with `Δ` between the axes' feet at the germ sites (`parallel_axes_at`) and `a₁` unit — the radical plane normal's length before it is normalized (`UnitVec3::new`); only a definite offset names a plane | m | OK |
 | boolean/join.rs:1093 | bool_ring_run_winding | (n̂ · Newell sum) / run perimeter — 2A/P, the run's mean width | m | FIXED (F4; was a bare **m² AREA**) |
-| boolean/ops.rs (`bounded`) | volume_backstop_operand | V/A — the operand's mean thickness | m | FIXED (F3); on the INVARIANT LANE since Ev's #213 layering ruling — bare `T`, outside the length seam by design |
 | boolean/sectors.rs (`cone_side`, `arc_side`, `in_sector`, `apart`, `cone_read`) | bool_cone_arc / bool_cone_arc_span / bool_cone_within / bool_cone_facing / bool_cone_apart / bool_cone_pointed | a polygon cone's reading of a direction: `bool_cone_arc` is `det(d̂,p̂,b̂)` over `\|p̂×b̂\|/L_d + \|d̂×p̂\|/L_b + \|d̂×b̂\|/arm₀` — the least joint displacement of the direction's far point, the bound's far point and the reference levered at its arm that flips it (`least_lever`); `bool_cone_arc_span` the sine between `p` and that bound × the shorter of the two sectors' arms, which gates that plane's normal; `bool_cone_within` the sine of a direction past each of a sector's bound planes, and `bool_cone_facing` its cosine to the sector's middle, each levered at the least joint deviation of the points it reads (`least_lever`, `1/Σ(rate/L)`): the read point at its reach (the direction's, or for a crossing point the shorter of it and how well the point is located, `\|x\|·arm₀·L_d/(arm₀ + L_d)`) and each bound compared against at its own reach; `bool_cone_apart` the sine `(a×b)·n` of two of a sector's bounds, the direction and the reference, in that sector's plane, less eight ulp of rounding, levered at the least joint deviation of the two points at their reaches (the reference at its arm); `bool_cone_pointed` the length of the link's mean unit bound × the shortest sector arm, which gates reading `−c` | m | OK (TANG polygon cones) |
-| boolean/ops.rs (`bound_holds`, arm 2) | volume_backstop | ΔV over the summed area of the bodies the inequality compares — mean boundary displacement | m | FIXED (F3); INVARIANT LANE (see above) |
-| boolean/ops.rs (`Posture::read`, arm 1) | volume_backstop_violation | the same length, against the EXACT bit-hairline band — a sign question, not a magnitude one | m (band-free) | OK by design (note N6's category; #200 review MAJ-1); INVARIANT LANE (see above) |
-| boolean/ops.rs (`Posture::read`, the +V arm) | positive_volume / positive_volume_enclosure | V/A — tier 3's check-7 reading (`validate::plus_v_read`), shared | m | OK (one home with tier 3's check 7) |
 | boolean/ops.rs:1194–1480 | bool_sphere_* | radius/gap differences; sin × radius | m | OK |
 | boolean/plane_eq.rs:174/233 | bool_plane_parallel | sin(n̂1,n̂2) × arm | m | OK |
 | boolean/plane_eq.rs:190/252 | bool_plane_orient | cos(n̂1,n̂2) × arm | m | FIXED (was bare cosine) |
@@ -946,7 +946,10 @@ speculative — each row below states what it measured):
   its predecessors. Pinned end-to-end by
   `ops::tests::volume_backstop_refuses_a_wrong_component_hidden_by_a_large_area`
   (verified red with the sign arm removed) and at band level by the
-  adopted `tests/probe_f34_review.rs`.
+  adopted `tests/probe_f34_review.rs`. The backstop has since left the
+  operation path (`[ev]` PR 5780), and those pins with it; the plate
+  is a row of the test oracle that replaced it
+  (`test_support_volume::tests::a_wrong_component_on_a_large_plate_is_flagged`).
 - **F4** `bool_ring_run_winding` (one predicate, three sites — the
   boolean join's ring lane, the merge's role assigner, tier 3's check
   6 — and one arithmetic home, `crate::loop_winding`, which all three

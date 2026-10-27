@@ -770,7 +770,7 @@ pub fn decide_flagged_reported<T: Decide>(
 
 /// The classify seam's **invariant lane** — [`decide`] for the
 /// kernel's **consistency backstops**: inequalities between integral
-/// RESULTS (the `volume_backstop` family — wrong-component detectors),
+/// RESULTS (wrong-component detectors),
 /// which are **outside the length seam by design — not a door, not
 /// debt** (Ev's #213 layering ruling). A consistency backstop is
 /// never an accuracy gate: pointwise-ε accuracy is owned upstream, and

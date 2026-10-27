@@ -746,13 +746,11 @@ fn a_side_reader_laundering_is_caught_and_its_flips_part_nothing() {
 
 /// A decision the two builds answer with different signs: a later
 /// mismatch is kept apart from the launderings, and a later match still
-/// counts. The branching build has the shape of `topo`'s volume
-/// backstop, whose exact-band violation read answers `Zero` on a margin
-/// that cancels exactly at `p0` and `Negative` on its rounding at `p1`,
-/// and whose next decision is `volume_backstop` either way, over two
-/// margins (`die`'s census candidate at decision #10548). The other
-/// build's split steers nothing, as `join.rs`'s `nearer` reads `Zero`
-/// and `Positive` alike.
+/// counts. The branching build's split answers `Zero` on a margin that
+/// cancels exactly at `p0` and `Negative` on its rounding at `p1`, and
+/// its next decision is the same either way, over two margins. The
+/// other build's split steers nothing, as `join.rs`'s `nearer` reads
+/// `Zero` and `Positive` alike.
 #[test]
 fn a_decision_answered_with_another_sign_keeps_what_follows_apart() {
     use geom_core::Real;

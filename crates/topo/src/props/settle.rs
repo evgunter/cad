@@ -60,8 +60,7 @@ pub enum Settle<T: Real> {
 }
 
 /// **Which side of a bound a relation claims** (`≤`, `≥`): the reading
-/// [`Settle::AtMost`] and [`Settle::AtLeast`] share, and the backstop's
-/// operand gate reads too.
+/// [`Settle::AtMost`] and [`Settle::AtLeast`] share.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum RelOp {
     /// At most the bound.
@@ -213,7 +212,14 @@ pub(crate) enum Step {
 
 /// **A relation read off a volume enclosure**: `V op bound`, the margin
 /// `bound − V` at each end of the enclosure, metered over the surface
-/// area and decided under `name` ([`relation_step_by`]).
+/// area and decided under `name`.
+///
+/// Each end is decided as the volume's least favourable reading for the
+/// side it settles: the claim `V ≤ b` holds when the margin at the HIGH
+/// end of the volume is definitely positive, and fails when the margin
+/// at its LOW end is definitely negative (`≥` the mirror). The end that
+/// can make the claim hold is decided first and the other only where it
+/// does not.
 pub(crate) fn relation_step<T: Decide>(
     e: VolumeEnclosure<T>,
     op: RelOp,
@@ -221,35 +227,14 @@ pub(crate) fn relation_step<T: Decide>(
     name: &'static str,
     band: Band,
 ) -> Step {
-    relation_step_by(e, op, false, |volume| {
+    let decide = |volume: T| {
         geom_core::k_stats::decide_reported(
             name,
             Margin::over_lever(bound - volume, e.surface_area),
             band,
         )
         .map(|decided| decided.sign)
-    })
-}
-
-/// **A relation read off a volume enclosure, by a stated decider**:
-/// `V op bound`, where `decide(v)` is the sign of the claim's margin
-/// `bound − V` at the volume end `v`. The one reading of a relation; its
-/// deciders differ only in the lane they record on and how they spell
-/// the margin (the funnel's [`relation_step`], and the backstop's
-/// operand gate on the invariant lane).
-///
-/// Each end is decided as the volume's least favourable reading for the
-/// side it settles: the claim `V ≤ b` holds when the margin at the HIGH
-/// end of the volume is definitely positive, and fails when the margin
-/// at its LOW end is definitely negative (`≥` the mirror). The end that
-/// can make the claim hold is decided first and the other only where it
-/// does not; an `exact` enclosure (both ends one value) is decided once.
-pub(crate) fn relation_step_by<T: Decide>(
-    e: VolumeEnclosure<T>,
-    op: RelOp,
-    exact: bool,
-    decide: impl Fn(T) -> Result<Sign, Indeterminate>,
-) -> Step {
+    };
     let poisoned = |d: &Result<Sign, Indeterminate>| match d {
         Err(cause) if cause.margin.is_invalid() => Some(*cause),
         _ => None,
@@ -271,7 +256,7 @@ pub(crate) fn relation_step_by<T: Decide>(
     if holds(&first) {
         return Step::Settled(true);
     }
-    let second = if exact { first } else { decide(second) };
+    let second = decide(second);
     if let Some(cause) = poisoned(&second) {
         return Step::Poisoned(cause);
     }

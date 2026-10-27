@@ -413,7 +413,9 @@ pub fn assert_sound_and_meshed(
 /// **Every op in both operand orders** between `a` (volume `va`) and
 /// `b` (`vb`), which overlap in `vab`: ∪, ∩ and ∖ run `a`-first then
 /// `b`-first, each with its closed-form volume, named `"A ∪ B"`,
-/// `"B ∪ A"`, `"A ∩ B"`, `"B ∩ A"`, `"A ∖ B"` and `"B ∖ A"`.
+/// `"B ∪ A"`, `"A ∩ B"`, `"B ∩ A"`, `"A ∖ B"` and `"B ∖ A"`. Each
+/// result that builds holds the volume relations
+/// (`topo::test_support::assert_volume_relations`).
 #[allow(clippy::type_complexity)] // (op, result, closed form) per run
 pub fn every_op_both_orders(
     a: &AtRestBody<f64>,
@@ -421,14 +423,35 @@ pub fn every_op_both_orders(
     (va, vb, vab): (f64, f64, f64),
     tol: Tol,
 ) -> Vec<(&'static str, Result<BooleanResult<f64>, BooleanError>, f64)> {
-    vec![
-        ("A ∪ B", topo::union(a, b, tol), va + vb - vab),
-        ("B ∪ A", topo::union(b, a, tol), va + vb - vab),
-        ("A ∩ B", topo::intersect(a, b, tol), vab),
-        ("B ∩ A", topo::intersect(b, a, tol), vab),
-        ("A ∖ B", topo::subtract(a, b, tol), va - vab),
-        ("B ∖ A", topo::subtract(b, a, tol), vb - vab),
+    use topo::BooleanOp::{Intersect, Subtract, Union};
+    [
+        ("A ∪ B", Union, a, b, va + vb - vab),
+        ("B ∪ A", Union, b, a, va + vb - vab),
+        ("A ∩ B", Intersect, a, b, vab),
+        ("B ∩ A", Intersect, b, a, vab),
+        ("A ∖ B", Subtract, a, b, va - vab),
+        ("B ∖ A", Subtract, b, a, vb - vab),
     ]
+    .into_iter()
+    .map(|(name, op, x, y, want)| {
+        let r = match op {
+            Union => topo::union(x, y, tol),
+            Intersect => topo::intersect(x, y, tol),
+            Subtract => topo::subtract(x, y, tol),
+        };
+        if let Ok(built) = &r {
+            topo::test_support::assert_volume_relations(
+                name,
+                op,
+                x,
+                y,
+                built.body().map(|bb| &*bb.body),
+                tol,
+            );
+        }
+        (name, r, want)
+    })
+    .collect()
 }
 
 /// The reflex corner's `a` profile: the 315° corner at the origin, all

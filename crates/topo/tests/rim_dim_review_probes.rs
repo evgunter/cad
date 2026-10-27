@@ -37,14 +37,9 @@ const FIXED: &[&str] = &[
     "point_in_loop_arm",
     "split_join_frame_arm",
     "split_section_area",
-    // The F3+F4 unit's sites. `witness_at_mid_parameter` rides along
-    // as the CONTROL: it is not a fixed site, it is the predicate F3's
-    // funnel bypass was stealing attribution from, so its count here is
-    // the before/after evidence.
+    // The F4 unit's site. `witness_at_mid_parameter` rides along as a
+    // CONTROL: its own samples are coincident residuals.
     "bool_ring_run_winding",
-    "volume_backstop",
-    "volume_backstop_violation",
-    "volume_backstop_operand",
     "witness_at_mid_parameter",
 ];
 
@@ -91,15 +86,9 @@ fn which_fixed_predicates_fire_in_the_twin_configs() {
             None => println!("SILENT {f}"),
         }
     }
-    // The F3 attribution pin (the funnel-bypass retirement). Before the
-    // fix this census read `witness_at_mid_parameter 123 samples, 5
-    // nonzero` and no `volume_backstop*` rows at all: the backstop's
-    // raw `sign_within` left the recorder's name unset, so its VOLUME
-    // margins were filed under whichever predicate had decided last.
-    // Now the volume gates carry their own rows and every remaining
-    // witness sample is a genuine coincident mid-parameter residual —
-    // a nonzero one would mean some margin is riding under this name
-    // again.
+    // The attribution pin: every witness sample is a genuine
+    // coincident mid-parameter residual, so a nonzero one would mean
+    // some other margin is riding under this name.
     let witness = counts
         .get("witness_at_mid_parameter")
         .copied()
@@ -108,34 +97,9 @@ fn which_fixed_predicates_fire_in_the_twin_configs() {
         witness.1, 0,
         "stale-name attribution is back: {} of {} witness_at_mid_parameter \
          samples carry a nonzero margin (its own samples are coincident \
-         residuals; nonzero ones belonged to the volume backstop)",
+         residuals)",
         witness.1, witness.0
     );
-    for gate in [
-        "volume_backstop",
-        "volume_backstop_violation",
-        "volume_backstop_operand",
-    ] {
-        assert!(
-            counts.get(gate).is_some_and(|c| c.1 > 0),
-            "{gate}: expected nonzero-margin samples under its OWN name \
-             (the F3 routing pin is vacuous otherwise)"
-        );
-    }
-    // Deviation 2, pinned rather than asserted in prose: the bound checks
-    // RUN on these mm-scale operands. Pre-F3 the raw m³ comparand put a
-    // 2 mm cube's 8e-9 m³ inside the default band, read that as "not
-    // certifiably bounded", and skipped the bound entirely. Each of the
-    // two subtracts reaches both arms of both its bounds (∖ ≤ A and
-    // ∖ ≥ A − B): 4 samples under each name.
-    for arm in ["volume_backstop", "volume_backstop_violation"] {
-        assert_eq!(
-            counts.get(arm).map(|c| c.0),
-            Some(4),
-            "{arm}: every mm-scale bound check must reach this arm — a \
-             lower count is the pre-F3 silent skip coming back"
-        );
-    }
 }
 
 use geom_core::Sign;
