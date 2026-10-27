@@ -885,7 +885,7 @@ pub(crate) struct Hull<P = ()> {
 /// Whether a certified upper bound clears the band's zero: a selection
 /// on the bound's own bracket (C6's f64 lane), never the limb's decision.
 /// A refused (`NaN`) bound does not clear.
-fn clears(bound: f64, band: Band) -> bool {
+pub(crate) fn clears(bound: f64, band: Band) -> bool {
     matches!(
         bound.partial_cmp(&band.zero()),
         Some(core::cmp::Ordering::Less | core::cmp::Ordering::Equal)

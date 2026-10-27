@@ -43,15 +43,13 @@ use geom_core::interval::Interval;
 use geom_core::spline::{KnotVector, SpanLocate};
 use geom_core::{Bounds, CertifiedBounds, Point3, Real, Vec3};
 
-/// The Taylor degree of each span's polynomial; the remainder is the
-/// next coefficient.
+/// The Taylor degree of each span's polynomial in the net limb 2's
+/// rounds read; the remainder is the next coefficient.
 pub(crate) const ORDER: usize = 6;
 
-/// The coefficient count a series carries: `0..=ORDER + 1`.
-const TERMS: usize = ORDER + 2;
-
-/// A truncated Taylor series in interval arithmetic.
-type Series = [Interval; TERMS];
+/// A truncated Taylor series in interval arithmetic: a degree-`n`
+/// expansion carries `0..=n + 1`.
+type Series = Vec<Interval>;
 
 /// The carrier enclosed: a clamped knot vector over `breaks` and three
 /// coordinate channels of interval controls on it.
@@ -193,19 +191,19 @@ impl Frame {
     }
 }
 
-fn zero_series() -> Series {
-    [Interval::zero(); TERMS]
+fn zero_series(terms: usize) -> Series {
+    vec![Interval::zero(); terms]
 }
 
 fn factorial(k: usize) -> Interval {
     (1..=k).fold(Interval::one(), |f, j| f * Interval::from_f64(j as f64))
 }
 
-/// `(sin, cos)` expanded at `x`: `f⁽ᵏ⁾(x)/k!`.
-fn sin_cos_series(x: Interval) -> (Series, Series) {
+/// `(sin, cos)` expanded at `x`: `f⁽ᵏ⁾(x)/k!`, `terms` coefficients.
+fn sin_cos_series(x: Interval, terms: usize) -> (Series, Series) {
     let (s, c) = x.sin_cos();
-    let (mut sin, mut cos) = (zero_series(), zero_series());
-    for k in 0..TERMS {
+    let (mut sin, mut cos) = (zero_series(terms), zero_series(terms));
+    for k in 0..terms {
         let f = factorial(k);
         let (sk, ck) = match k % 4 {
             0 => (s, c),
@@ -220,7 +218,7 @@ fn sin_cos_series(x: Interval) -> (Series, Series) {
 }
 
 fn mul(a: &Series, b: &Series) -> Series {
-    let mut out = zero_series();
+    let mut out = zero_series(a.len());
     for (k, o) in out.iter_mut().enumerate() {
         *o = (0..=k).fold(Interval::zero(), |acc, j| acc + a[j] * b[k - j]);
     }
@@ -229,19 +227,19 @@ fn mul(a: &Series, b: &Series) -> Series {
 
 /// `√a`: `y₀ = √a₀`, `yₖ = (aₖ − Σ_{j=1}^{k−1} yⱼ·y_{k−j}) / 2y₀`.
 fn sqrt(a: &Series) -> Series {
-    let mut y = zero_series();
+    let mut y = zero_series(a.len());
     y[0] = a[0].sqrt();
     let two_y0 = y[0] + y[0];
-    for k in 1..TERMS {
+    for k in 1..a.len() {
         let cross = (1..k).fold(Interval::zero(), |acc, j| acc + y[j] * y[k - j]);
         y[k] = (a[k] - cross) / two_y0;
     }
     y
 }
 
-/// `(α, β)` expanded at `x`.
-fn alpha_beta(alpha: &Alpha, x: Interval) -> (Series, Series) {
-    let (sin, cos) = sin_cos_series(x);
+/// `(α, β)` expanded at `x`, `terms` coefficients.
+fn alpha_beta(alpha: &Alpha, x: Interval, terms: usize) -> (Series, Series) {
+    let (sin, cos) = sin_cos_series(x, terms);
     match alpha {
         Alpha::Cos => (cos, sin),
         Alpha::Spiric {
@@ -249,7 +247,7 @@ fn alpha_beta(alpha: &Alpha, x: Interval) -> (Series, Series) {
             minor,
             offset,
         } => {
-            let mut rho = cos.map(|c| *minor * c);
+            let mut rho: Series = cos.iter().map(|c| *minor * *c).collect();
             rho[0] = rho[0] + *major;
             let mut g = mul(&rho, &rho);
             g[0] = g[0] - *offset * *offset;
@@ -260,8 +258,8 @@ fn alpha_beta(alpha: &Alpha, x: Interval) -> (Series, Series) {
 
 /// One coordinate's Taylor coefficients: `p₀ + u·α + v·β`.
 fn channel(p0: Interval, u: Interval, v: Interval, a: &Series, b: &Series) -> Series {
-    let mut out = zero_series();
-    for k in 0..TERMS {
+    let mut out = zero_series(a.len());
+    for k in 0..a.len() {
         out[k] = u * a[k] + v * b[k];
     }
     out[0] = out[0] + p0;
@@ -288,9 +286,8 @@ struct SpanBasis {
     choose: Vec<Vec<Interval>>,
 }
 
-/// [`SpanBasis`] over `[a, b]`.
-fn span_basis_of(alpha: &Alpha, a: f64, b: f64) -> SpanBasis {
-    let n = ORDER;
+/// [`SpanBasis`] over `[a, b]` at degree `n`.
+fn span_basis_of(alpha: &Alpha, a: f64, b: f64, n: usize) -> SpanBasis {
     let m = 0.5 * (a + b);
     let (ia, ib, im) = (
         Interval::from_f64(a),
@@ -321,8 +318,8 @@ fn span_basis_of(alpha: &Alpha, a: f64, b: f64) -> SpanBasis {
         })
         .collect();
     SpanBasis {
-        at_node: alpha_beta(alpha, im),
-        over_span: alpha_beta(alpha, ia.enclosure_hull(ib)),
+        at_node: alpha_beta(alpha, im, n + 2),
+        over_span: alpha_beta(alpha, ia.enclosure_hull(ib), n + 2),
         reach,
         terms,
         choose,
@@ -330,46 +327,24 @@ fn span_basis_of(alpha: &Alpha, a: f64, b: f64) -> SpanBasis {
 }
 
 /// [`span_basis_of`] through a bounded thread-local memo keyed by `α`'s
-/// data and the span's ends, bit for bit — each datum as its certified
+/// data, the degree and the span's ends, bit for bit — each datum as its certified
 /// bracket's two ends, or as uncertified, so a datum that does not
 /// certify never shares a certified twin's key (the decoration is part
 /// of what the basis reads: an uncertified datum makes an uncertified
 /// basis, which the net refuses). A pure function of the key, so a hit
 /// is the bits a miss computes, and an entry left from another carrier
 /// with the same `α` and span is that key's basis.
-fn span_basis(alpha: &Alpha, a: f64, b: f64) -> SpanBasis {
+fn span_basis(alpha: &Alpha, a: f64, b: f64, n: usize) -> SpanBasis {
     const CAPACITY: usize = 4096;
     std::thread_local! {
-        static MEMO: core::cell::RefCell<std::collections::HashMap<[u64; 9], SpanBasis>> =
+        static MEMO: core::cell::RefCell<std::collections::HashMap<[u64; 10], SpanBasis>> =
             core::cell::RefCell::new(std::collections::HashMap::new());
     }
-    // The certified bracket's ends, or a word no bracket end takes
-    // (a NaN's bits, never a bracket end) where the datum does not
-    // certify.
-    let ends = |x: Interval| {
-        use geom_core::CertifiedEnclosure as _;
-        x.certified_bracket()
-            .map_or([u64::MAX, u64::MAX], |(lo, hi)| {
-                [lo.to_bits(), hi.to_bits()]
-            })
-    };
-    let key = match alpha {
-        Alpha::Cos => [0, 0, 0, 0, 0, 0, 0, a.to_bits(), b.to_bits()],
-        Alpha::Spiric {
-            major,
-            minor,
-            offset,
-        } => {
-            let ([m0, m1], [n0, n1], [o0, o1]) = (ends(*major), ends(*minor), ends(*offset));
-            // The tag keeps a spiric's key off every circle's; each
-            // datum enters as its enclosure's two ends.
-            [1, m0, m1, n0, n1, o0, o1, a.to_bits(), b.to_bits()]
-        }
-    };
+    let key = basis_key(alpha, a, b, n);
     if let Some(hit) = MEMO.with(|m| m.borrow().get(&key).cloned()) {
         return hit;
     }
-    let basis = span_basis_of(alpha, a, b);
+    let basis = span_basis_of(alpha, a, b, n);
     MEMO.with(|m| {
         let mut m = m.borrow_mut();
         if m.len() >= CAPACITY {
@@ -380,12 +355,38 @@ fn span_basis(alpha: &Alpha, a: f64, b: f64) -> SpanBasis {
     basis
 }
 
-/// The span `[a, b]`'s Bernstein coefficients, degree [`ORDER`], per
+/// [`span_basis`]'s key: `α`'s data, the span's ends and the degree.
+fn basis_key(alpha: &Alpha, a: f64, b: f64, n: usize) -> [u64; 10] {
+    // The certified bracket's ends, or a word no bracket end takes
+    // (a NaN's bits, never a bracket end) where the datum does not
+    // certify.
+    let ends = |x: Interval| {
+        use geom_core::CertifiedEnclosure as _;
+        x.certified_bracket()
+            .map_or([u64::MAX, u64::MAX], |(lo, hi)| {
+                [lo.to_bits(), hi.to_bits()]
+            })
+    };
+    match alpha {
+        Alpha::Cos => [0, 0, 0, 0, 0, 0, 0, a.to_bits(), b.to_bits(), n as u64],
+        Alpha::Spiric {
+            major,
+            minor,
+            offset,
+        } => {
+            let ([m0, m1], [n0, n1], [o0, o1]) = (ends(*major), ends(*minor), ends(*offset));
+            // The tag keeps a spiric's key off every circle's; each
+            // datum enters as its enclosure's two ends.
+            [1, m0, m1, n0, n1, o0, o1, a.to_bits(), b.to_bits(), n as u64]
+        }
+    }
+}
+
+/// The span `[a, b]`'s Bernstein coefficients, degree `n`, per
 /// coordinate, enclosing the carrier over the span, and the widest of
 /// them before the remainder is added ([`CarrierNet::rounding`]).
-fn span_bernstein(h: &Harmonic, a: f64, b: f64) -> ([Vec<Interval>; 3], f64) {
-    let n = ORDER;
-    let basis = span_basis(&h.alpha, a, b);
+fn span_bernstein(h: &Harmonic, a: f64, b: f64, n: usize) -> ([Vec<Interval>; 3], f64) {
+    let basis = span_basis(&h.alpha, a, b, n);
     let SpanBasis {
         at_node,
         over_span,
@@ -552,6 +553,25 @@ impl CarrierNet {
             .sqrt()
     }
 
+    /// Each channel's `(least, greatest)` over the net's controls, the
+    /// box whose diagonal is [`Self::extent`]; `None` where a control
+    /// does not certify.
+    pub(crate) fn control_box(&self) -> Option<[(f64, f64); 3]> {
+        if !self.coords.iter().flatten().all(|c| c.is_certified()) {
+            return None;
+        }
+        let reach = |row: &Vec<Interval>| {
+            row.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), c| {
+                (lo.min(Bounds::lo(*c)), hi.max(Bounds::hi(*c)))
+            })
+        };
+        Some([
+            reach(&self.coords[0]),
+            reach(&self.coords[1]),
+            reach(&self.coords[2]),
+        ])
+    }
+
     /// The net as a curve over certification enclosures: its knots and
     /// weights as point enclosures, its controls as held.
     ///
@@ -623,7 +643,7 @@ pub(crate) fn carrier_net<T: CertifiedBounds>(
     all.extend([lo, hi]);
     all.sort_by(f64::total_cmp);
     all.dedup();
-    let net = enclosing_net(carrier, &all, None)?;
+    let net = enclosing_net(carrier, &all, None, ORDER)?;
     Ok(CarrierNet {
         weights: vec![1.0; net.knots.control_count()],
         knots: net.knots,
@@ -668,7 +688,7 @@ pub(crate) fn framed_carrier_net<T: CertifiedBounds>(
     all.extend([lo, hi]);
     all.sort_by(f64::total_cmp);
     all.dedup();
-    let net = enclosing_net(carrier, &all, Some(frame))?;
+    let net = enclosing_net(carrier, &all, Some(frame), ORDER)?;
     Ok(CarrierNet {
         weights: vec![1.0; net.knots.control_count()],
         knots: net.knots,
@@ -676,6 +696,152 @@ pub(crate) fn framed_carrier_net<T: CertifiedBounds>(
         cuts: Vec::new(),
         rounding: net.rounding,
     })
+}
+
+/// **One span `[a, b]` of a curved closed form's net at Taylor degree
+/// `order`, written in `frame`** — a single Bézier segment, expanded
+/// over the span alone as [`framed_carrier_net`] expands each of its
+/// spans, so it encloses the carrier over `[a, b]` whatever its
+/// neighbours are. A line or a spline is no Taylor net and refuses.
+///
+/// # Errors
+///
+/// As [`framed_carrier_net`]; the whole span for a line or a spline.
+pub(crate) fn framed_span_net<T: CertifiedBounds>(
+    carrier: &Curve3<T>,
+    (a, b): (f64, f64),
+    frame: &Frame,
+    order: usize,
+) -> Result<CarrierNet, CarrierEnclosureRefusal> {
+    if matches!(carrier, Curve3::Nurbs(_) | Curve3::Line { .. }) {
+        return Err(CarrierEnclosureRefusal {
+            kind: carrier.kind(),
+            span: (a, b),
+        });
+    }
+    let refuse = || CarrierEnclosureRefusal {
+        kind: carrier.kind(),
+        span: (a, b),
+    };
+    let h = harmonic(carrier, Some(frame)).ok_or_else(refuse)?;
+    let (coords, rounding) = factored_bernstein(&h, a, b, order);
+    if !coords.iter().all(|row| span_certifies(row)) {
+        return Err(refuse());
+    }
+    let mut knots = vec![a; order + 1];
+    knots.extend(core::iter::repeat_n(b, order + 1));
+    let knots = KnotVector::clamped(knots, order).map_err(|_| refuse())?;
+    Ok(CarrierNet {
+        weights: vec![1.0; knots.control_count()],
+        knots,
+        coords: coords.into(),
+        cuts: Vec::new(),
+        rounding,
+    })
+}
+
+/// **`α` and `β` alone over a span, in Bernstein form**: each one's
+/// Taylor polynomial at the node as degree-`n` Bernstein coefficients
+/// over `[a, b]`, and its remainder `c_{n+1}([a, b])·(t − m)^{n+1}`
+/// over the span, from [`span_basis`] in the operations
+/// [`span_bernstein`] applies to a coordinate. A coordinate
+/// `p₀ + u·α + v·β` is then `p₀ + u·Aᵢ + v·Bᵢ` plus `u·Rα + v·Rβ` at
+/// every coefficient (a partition of unity carries the polynomial's
+/// coefficients and the remainders through), which encloses the same
+/// reals as [`span_bernstein`]'s per-coordinate expansion at a few
+/// operations per coefficient instead of a conversion per coordinate,
+/// rounding on its own path.
+#[derive(Clone)]
+struct FactoredBasis {
+    alpha: Vec<Interval>,
+    beta: Vec<Interval>,
+    rest: (Interval, Interval),
+}
+
+/// [`FactoredBasis`] over `[a, b]` at degree `n`.
+fn factored_basis_of(alpha: &Alpha, a: f64, b: f64, n: usize) -> FactoredBasis {
+    let SpanBasis {
+        at_node,
+        over_span,
+        reach,
+        terms,
+        choose,
+    } = span_basis(alpha, a, b, n);
+    let bernstein = |node: &Series| -> Vec<Interval> {
+        let mut mono = vec![Interval::zero(); n + 1];
+        for (j, cj) in node.iter().take(n + 1).enumerate() {
+            for (k, mk) in mono.iter_mut().enumerate().take(j + 1) {
+                *mk = *mk + *cj * terms[j][k];
+            }
+        }
+        (0..=n)
+            .map(|i| {
+                (0..=i).fold(Interval::zero(), |acc, k| {
+                    acc + mono[k] * choose[i][k] / choose[n][k]
+                })
+            })
+            .collect()
+    };
+    FactoredBasis {
+        alpha: bernstein(&at_node.0),
+        beta: bernstein(&at_node.1),
+        rest: (over_span.0[n + 1] * reach, over_span.1[n + 1] * reach),
+    }
+}
+
+/// [`factored_basis_of`] through a bounded thread-local memo keyed as
+/// [`span_basis`]'s is (a pure function of the key, so a hit is the
+/// bits a miss computes).
+fn factored_basis(alpha: &Alpha, a: f64, b: f64, n: usize) -> FactoredBasis {
+    const CAPACITY: usize = 4096;
+    std::thread_local! {
+        static MEMO: core::cell::RefCell<std::collections::HashMap<[u64; 10], FactoredBasis>> =
+            core::cell::RefCell::new(std::collections::HashMap::new());
+    }
+    let key = basis_key(alpha, a, b, n);
+    if let Some(hit) = MEMO.with(|m| m.borrow().get(&key).cloned()) {
+        return hit;
+    }
+    let basis = factored_basis_of(alpha, a, b, n);
+    MEMO.with(|m| {
+        let mut m = m.borrow_mut();
+        if m.len() >= CAPACITY {
+            m.clear();
+        }
+        m.insert(key, basis.clone());
+    });
+    basis
+}
+
+/// The span `[a, b]`'s degree-`n` Bernstein coefficients per coordinate
+/// through [`FactoredBasis`], enclosing the carrier over the span, and
+/// the widest of them before the remainders are added.
+fn factored_bernstein(h: &Harmonic, a: f64, b: f64, n: usize) -> ([Vec<Interval>; 3], f64) {
+    let FactoredBasis { alpha, beta, rest } = factored_basis(&h.alpha, a, b, n);
+    let mut rounding = 0.0_f64;
+    let mut coords = |p0: Interval, u: Interval, v: Interval| -> Vec<Interval> {
+        let tail = u * rest.0 + v * rest.1;
+        alpha
+            .iter()
+            .zip(&beta)
+            .map(|(&ai, &bi)| {
+                let poly = p0 + u * ai + v * bi;
+                let width = if poly.is_certified() {
+                    Bounds::hi(poly) - Bounds::lo(poly)
+                } else {
+                    f64::NAN
+                };
+                rounding = widest(rounding, width);
+                poly + tail
+            })
+            .collect()
+    };
+    let rows = [
+        coords(h.p0.x, h.u.x, h.v.x),
+        coords(h.p0.y, h.u.y, h.v.y),
+        coords(h.p0.z, h.u.z, h.v.z),
+    ];
+    (rows, rounding)
 }
 
 /// **The interval a carrier's certificate spans**: the `f64` domain
@@ -709,7 +875,8 @@ fn span_certifies(row: &[Interval]) -> bool {
 }
 
 /// The net of a closed-form `carrier` over `breaks` (strictly
-/// increasing, both domain ends included).
+/// increasing, both domain ends included), a curved kind's spans at
+/// Taylor degree `order`.
 ///
 /// # Errors
 ///
@@ -719,6 +886,7 @@ fn enclosing_net<T: CertifiedBounds>(
     carrier: &Curve3<T>,
     breaks: &[f64],
     frame: Option<&Frame>,
+    order: usize,
 ) -> Result<EnclosingNet, CarrierEnclosureRefusal> {
     let refuse = |span| CarrierEnclosureRefusal {
         kind: carrier.kind(),
@@ -768,15 +936,15 @@ fn enclosing_net<T: CertifiedBounds>(
     let Some(h) = harmonic(carrier, frame) else {
         return Err(refuse(whole));
     };
-    let mut knots = vec![first; ORDER + 1];
+    let mut knots = vec![first; order + 1];
     for &k in &breaks[1..breaks.len() - 1] {
-        knots.extend(core::iter::repeat_n(k, ORDER));
+        knots.extend(core::iter::repeat_n(k, order));
     }
-    knots.extend(core::iter::repeat_n(last, ORDER + 1));
+    knots.extend(core::iter::repeat_n(last, order + 1));
     let mut coords: Vec<Vec<Interval>> = vec![Vec::new(), Vec::new(), Vec::new()];
     let mut rounding = 0.0;
     for pair in breaks.windows(2) {
-        let (span, width) = span_bernstein(&h, pair[0], pair[1]);
+        let (span, width) = span_bernstein(&h, pair[0], pair[1], order);
         rounding = widest(rounding, width);
         if !span.iter().all(|row| span_certifies(row)) {
             return Err(refuse((pair[0], pair[1])));
@@ -789,7 +957,7 @@ fn enclosing_net<T: CertifiedBounds>(
         }
     }
     Ok(EnclosingNet {
-        knots: KnotVector::clamped(knots, ORDER).map_err(|_| refuse(whole))?,
+        knots: KnotVector::clamped(knots, order).map_err(|_| refuse(whole))?,
         coords,
         rounding,
     })
@@ -834,17 +1002,17 @@ mod tests {
                 .collect()
         };
         let (a, b) = (0.31, 0.47);
-        let cold = bits(&span_basis_of(&spiric(uncertified), a, b));
+        let cold = bits(&span_basis_of(&spiric(uncertified), a, b, super::ORDER));
         assert!(
-            span_basis_of(&spiric(uncertified), a, b)
+            span_basis_of(&spiric(uncertified), a, b, super::ORDER)
                 .at_node
                 .0
                 .iter()
                 .any(|c| !c.is_certified()),
             "the uncertified datum's basis carries the violation"
         );
-        let _ = span_basis(&spiric(certified), a, b);
-        let warm = bits(&span_basis(&spiric(uncertified), a, b));
+        let _ = span_basis(&spiric(certified), a, b, super::ORDER);
+        let warm = bits(&span_basis(&spiric(uncertified), a, b, super::ORDER));
         assert_eq!(
             warm, cold,
             "a warm read is the cold read, decoration included"
@@ -872,13 +1040,14 @@ mod tests {
                 Interval::from_f64(m),
             );
             let (am, bm) = (ia - im, ib - im);
-            let at_node = alpha_beta(&h.alpha, im);
-            let over_span = alpha_beta(&h.alpha, ia.enclosure_hull(ib));
+            let terms = ORDER + 2;
+            let at_node = alpha_beta(&h.alpha, im, terms);
+            let over_span = alpha_beta(&h.alpha, ia.enclosure_hull(ib), terms);
             let reach = am.enclosure_hull(bm).powi(7);
             let w = ib - ia;
             let binom = geom_core::spline::pieces::binomial;
             let chan = |p0: Interval, u: Interval, v: Interval, x: &Series, y: &Series| {
-                let mut out = *x;
+                let mut out = x.clone();
                 for k in 0..out.len() {
                     out[k] = u * x[k] + v * y[k];
                 }
@@ -943,7 +1112,7 @@ mod tests {
         for carrier in carriers {
             let h = harmonic(&carrier.map_scalar(Interval::from_f64), None).unwrap();
             for (a, b) in [(0.0, 0.19), (0.4, 0.61), (2.9, 3.1), (0.4, 0.61)] {
-                let got: Vec<Vec<(u64, u64)>> = span_bernstein(&h, a, b)
+                let got: Vec<Vec<(u64, u64)>> = span_bernstein(&h, a, b, ORDER)
                     .0
                     .iter()
                     .map(|row| {
@@ -967,7 +1136,7 @@ mod tests {
     /// by its interval evaluation, which must contain `C(t)` at `f64`,
     /// and no wider than `width` where one is asked.
     fn encloses(carrier: &Curve3<f64>, breaks: &[f64], width: Option<f64>) -> Result<(), String> {
-        let net = enclosing_net(carrier, breaks, None).map_err(|e| e.to_string())?;
+        let net = enclosing_net(carrier, breaks, None, super::ORDER).map_err(|e| e.to_string())?;
         let p = net.knots.degree();
         for (k, pair) in breaks.windows(2).enumerate() {
             for j in 0..=40 {
@@ -1074,6 +1243,81 @@ mod tests {
                 Ok(()),
                 "the {name} carrier's net encloses it on coarse spans"
             );
+        }
+    }
+
+    /// **A span's net alone encloses its span**
+    /// ([`super::framed_span_net`], the factored expansion): for a
+    /// circle, an ellipse and a spiric, at degree 6 and 12, over a short
+    /// span, a quarter turn and a half turn, written in a turned frame
+    /// off the origin, the net's Bernstein sum at a dense sample of the
+    /// span holds the carrier's point written in that frame. Red under a
+    /// remainder left off a coordinate, or one scaled by the wrong axis.
+    #[test]
+    fn a_span_net_alone_encloses_its_span_at_every_degree() {
+        let (axis, u_ref) = (Vec3::new(0.0, 0.6, 0.8), Vec3::new(1.0, 0.0, 0.0));
+        let center = Point3::new(0.3, -0.2, 0.5);
+        let kinds = [
+            Curve3::Circle {
+                center,
+                axis,
+                radius: 0.8,
+                u_ref,
+            },
+            Curve3::Ellipse {
+                center,
+                axis,
+                semi_u: 1.2,
+                semi_v: 0.4,
+                u_ref,
+            },
+            Curve3::Spiric {
+                center,
+                axis,
+                u_ref,
+                major_radius: 2.0,
+                minor_radius: 0.5,
+                offset: 0.7,
+            },
+        ];
+        let (o, e) = (
+            Point3::new(-1.5, 2.0, 0.25),
+            [
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(0.6, 0.8, 0.0),
+                Vec3::new(-0.8, 0.6, 0.0),
+            ],
+        );
+        let frame = super::Frame::of(o, e);
+        for carrier in &kinds {
+            for order in [6, 12] {
+                for (a, b) in [(0.3, 0.35), (0.0, 1.5707963267948966), (-1.0, 2.14)] {
+                    let net = super::framed_span_net(carrier, (a, b), &frame, order).unwrap();
+                    let (_, _, coords) = net.operand();
+                    for j in 0..=40 {
+                        let s = f64::from(j) / 40.0;
+                        let p = carrier.eval(a + (b - a) * s) - o;
+                        let si = Interval::from_f64(s);
+                        let one = Interval::one();
+                        for (d, ctl) in coords.iter().enumerate() {
+                            let want = p.dot(e[d]);
+                            let val = ctl.iter().enumerate().fold(Interval::zero(), |acc, (i, c)| {
+                                acc + *c
+                                    * Interval::from_f64(geom_core::spline::pieces::binomial(order, i))
+                                    * si.powi(i32::try_from(i).unwrap())
+                                    * (one - si).powi(i32::try_from(order - i).unwrap())
+                            });
+                            assert!(
+                                val.lo() - 1e-12 <= want && want <= val.hi() + 1e-12,
+                                "{carrier:?} degree {order} over [{a}, {b}] at s = {s}, \
+                                 channel {d}: {want} outside [{}, {}]",
+                                val.lo(),
+                                val.hi()
+                            );
+                        }
+                    }
+                }
+            }
         }
     }
 
