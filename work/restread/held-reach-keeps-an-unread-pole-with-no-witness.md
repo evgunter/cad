@@ -50,3 +50,19 @@ the face's pole along a turned direction, with a box face at
 mutant above. `cross_solid_apart::a_trimmed_sphere_face_holding_its_pole_clears_only_past_it`
 is the shape to copy. A hand-written STEP sphere face bounded by a
 B-spline curve may be the cheapest witness.
+
+## 2026-10-27 — the verifier's reading (PR 5817)
+
+- The pole-in-band branch of the error case is harmless as well as
+  unpinned. A pole within band of an arc has the boundary within band
+  of it, so narrowing there costs about a band, which sits inside the
+  pads; the mutant that narrows on anything but `In` survived probes at
+  c = ±1e-11 for this reason. The case that matters is `Trim(None)` (a
+  non-circle boundary edge) and a region no ray settles.
+- `TAIL_TURBINE.stp` does not import today ("no intensional description
+  certifies", `crates/step-import/tests/wild.rs`, `tier_gate.rs`), so it
+  is no witness yet either.
+- No boolean builds one: the verifier tried a ball against coaxial,
+  off-axis and crosswise rods, cones and tori under every op. All refuse
+  (`CurvedBooleanUnsupported`, `GermFrameUnsupported`, `Escalated`)
+  except ball ∩ ball, whose circle edges read.

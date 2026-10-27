@@ -119,8 +119,9 @@ side clears only
   an axis or centre either face proposes to the other's nearest boundary
   segment point (`census::depth_gap::toward`). Along these turned
   directions only (`boolean::separating::apart_by`), not the world axes,
-  a sphere face reaches no further than its boundary at an end whose
-  pole the face places definitely `Out` (`census::held_reach_in`), or
+  a sphere face is taken to reach no further than its boundary at an
+  end whose pole the face places definitely `Out`
+  (`census::held_reach_in`); or
 - on a definitely-positive gap in depth (the distance from an axis
   line, a centre or a circle that either face's carrier or a conic on
   its boundary proposes) between one face's least depth and the
