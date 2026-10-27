@@ -63,6 +63,7 @@ fn certify_with_offset(offset: f64) -> Result<EdgeCurve<f64>, CertifyError> {
         &resolve,
         1.0,
         band,
+        geom_brep::NurbsLane::certified(),
     )
 }
 

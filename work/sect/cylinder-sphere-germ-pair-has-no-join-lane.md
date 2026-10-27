@@ -2,12 +2,12 @@
 id: cylinder-sphere-germ-pair-has-no-join-lane
 kind: issue
 title: A transverse cylinder wall x sphere germ pair has its section frame and no chord lane at the join (CurvedBooleanUnsupported): its section is a space quartic, and every lane rides a plane
-status: open
+status: parked
 opened: 2026-10-04
 priority: P0
 cost: H
-design: true
 refs: [4025, skew-cylinder-germ-pair-has-no-section-frame]
+blocked_on: [the-section-of-a-surface-pair-is-one-object]
 ---
 
 Found by the cylinder × sphere frame lane (branch
@@ -70,3 +70,16 @@ The join builds on one object: **the section of a germ face pair**. It is the ce
 - **Order.** The build lands after INTENT stage 4's PR A (`the-join-builds-what-the-rest-zip-builds`, PR 4364), which rewrites the join's ring re-homing on a wall chart (`chord_join::chart_ring_side`) and deletes the REST zip. That PR re-homes rings, deciding which face holds a ring; this row closes islands. They meet in `chord_join`, not in a decision.
 
 Downstream, the volume (`props`, which reads only `Harmonic` boundaries on analytic charts) and the mesher (which refuses `Pcurve::Fitted` on a trimmed face) each need a fitted-boundary arm on analytic charts before these poses' rows go `SOUND`. The spline-carrier mint on an analytic chart is PCERT's (`mint-has-no-route-from-the-closed-form-door-to-a-spline-carrier`, fork row 89).
+
+## Split at design (2026-10-27)
+
+The two designers (SECT step 1) converged on cutting step 1 in two:
+`the-section-of-a-surface-pair-is-one-object` (1a) builds the section
+value, its door and matching by foot parameter; this row is 1b, the chord
+lane and island closure on it, and waits on 1a. Its design is that row's
+"The design". Two facts the paragraph above predates: PCERT's
+spline-carrier mint closed (PR 4304), so a spline carrier on an analytic
+chart mints `Pcurve::Projected`, and the mesher reads `Projected` on a
+trimmed face (`mesh/src/trimmed.rs`); props' `Projected` arm on an
+analytic chart is what remains for these rows to go `SOUND` (1b
+measures it).

@@ -53,25 +53,39 @@ fn turned() -> Pose {
 /// past its charge. The union is one solid of volume `6000`.
 #[test]
 fn two_long_bars_overlapping_by_half_their_length_build_their_union() {
-    let tol = t();
-    let pose = turned();
-    let a = posed_box(
-        "the first bar",
-        [(0.0, 3000.0), (0.0, 1.0), (0.0, 1.0)],
-        &pose,
-        tol,
+    // Pinned to limb 2's kernel limit at ε = 1e-12: the kilometre bars'
+    // edges, outside the session box
+    // (`work/offset/the-session-box-is-not-enforced-at-construction.md`),
+    // measure their ends against their planes in certification arithmetic
+    // at `[0, about 1e-12]`, the data's own rounding at 3 to 6 km — an
+    // enclosure reaching zero, so only an upper bound, and the
+    // composite's stall stands.
+    test_utils::kernel_limit::pinned_row(
+        geom_core::Tol::witness().eps(),
+        &[1e-12],
+        "two_long_bars_overlapping_by_half_their_length_build_their_union",
+        || {
+            let tol = t();
+            let pose = turned();
+            let a = posed_box(
+                "the first bar",
+                [(0.0, 3000.0), (0.0, 1.0), (0.0, 1.0)],
+                &pose,
+                tol,
+            );
+            let b = posed_box(
+                "the second bar",
+                [(1500.0, 4500.0), (0.0, 1.0), (1.0, 2.0)],
+                &pose,
+                tol,
+            );
+            let built = union(&a, &b, tol).unwrap_or_else(|e| panic!("the union refused: {e}"));
+            let body = &built.body().expect("a body").body;
+            let volume = topo::test_support::pinned_volume("the measured body", body, tol).volume;
+            assert!((volume - 6000.0).abs() < 1e-6, "volume {volume}");
+            validate_geometric(body, tol).unwrap_or_else(|e| panic!("the union is invalid: {e:?}"));
+        },
     );
-    let b = posed_box(
-        "the second bar",
-        [(1500.0, 4500.0), (0.0, 1.0), (1.0, 2.0)],
-        &pose,
-        tol,
-    );
-    let built = union(&a, &b, tol).unwrap_or_else(|e| panic!("the union refused: {e}"));
-    let body = &built.body().expect("a body").body;
-    let volume = topo::test_support::pinned_volume("the measured body", body, tol).volume;
-    assert!((volume - 6000.0).abs() < 1e-6, "volume {volume}");
-    validate_geometric(body, tol).unwrap_or_else(|e| panic!("the union is invalid: {e:?}"));
 }
 
 /// **A cube on a 6 km bar builds its union.** The bar
@@ -83,25 +97,40 @@ fn two_long_bars_overlapping_by_half_their_length_build_their_union() {
 /// coordinates, so the union is one solid of volume `6001`.
 #[test]
 fn a_cube_on_a_six_kilometre_bar_builds_its_union() {
-    let tol = t();
-    let pose = turned();
-    let bar = posed_box(
-        "the bar",
-        [(0.0, 6000.0), (0.0, 1.0), (0.0, 1.0)],
-        &pose,
-        tol,
+    // Pinned to limb 2's kernel limit at ε = 1e-12: the kilometre bars'
+    // edges, outside the session box
+    // (`work/offset/the-session-box-is-not-enforced-at-construction.md`),
+    // measure their ends against their planes in certification arithmetic
+    // at `[0, about 1e-12]`, the data's own rounding at 3 to 6 km — an
+    // enclosure reaching zero, so only an upper bound, and the
+    // composite's stall stands.
+    test_utils::kernel_limit::pinned_row(
+        geom_core::Tol::witness().eps(),
+        &[1e-12],
+        "a_cube_on_a_six_kilometre_bar_builds_its_union",
+        || {
+            let tol = t();
+            let pose = turned();
+            let bar = posed_box(
+                "the bar",
+                [(0.0, 6000.0), (0.0, 1.0), (0.0, 1.0)],
+                &pose,
+                tol,
+            );
+            let cube = posed_box(
+                "the cube",
+                [(2000.0, 2001.0), (0.0, 1.0), (1.0, 2.0)],
+                &pose,
+                tol,
+            );
+            let built =
+                union(&bar, &cube, tol).unwrap_or_else(|e| panic!("the union refused: {e}"));
+            let body = &built.body().expect("a body").body;
+            let volume = topo::test_support::pinned_volume("the measured body", body, tol).volume;
+            assert!((volume - 6001.0).abs() < 1e-6, "volume {volume}");
+            validate_geometric(body, tol).unwrap_or_else(|e| panic!("the union is invalid: {e:?}"));
+        },
     );
-    let cube = posed_box(
-        "the cube",
-        [(2000.0, 2001.0), (0.0, 1.0), (1.0, 2.0)],
-        &pose,
-        tol,
-    );
-    let built = union(&bar, &cube, tol).unwrap_or_else(|e| panic!("the union refused: {e}"));
-    let body = &built.body().expect("a body").body;
-    let volume = topo::test_support::pinned_volume("the measured body", body, tol).volume;
-    assert!((volume - 6001.0).abs() < 1e-6, "volume {volume}");
-    validate_geometric(body, tol).unwrap_or_else(|e| panic!("the union is invalid: {e:?}"));
 }
 
 /// The second bar's start, `back` metres before the first bar's end
@@ -139,28 +168,42 @@ fn stood_down(tol: Tol) -> bool {
 /// message names the precision limit's recourse, not a move apart.
 #[test]
 fn an_overlap_inside_the_rounding_refuses_at_the_result_gate_on_the_precision() {
-    let tol = t();
-    if stood_down(tol) {
-        return;
-    }
-    let pose = turned();
-    let [ba, bb] = end_to_end(BACK);
-    let a = posed_box("the first bar", ba, &pose, tol);
-    let b = posed_box("the second bar", bb, &pose, tol);
-    let refused = union(&a, &b, tol).expect_err("the union refuses");
-    let said = refused.to_string();
-    assert!(
-        matches!(
-            refused,
-            BooleanError::Escalated {
-                decision: BooleanDecision::LineSpanPrecision,
-                ..
+    // Pinned to limb 2's kernel limit at ε = 1e-12: the kilometre bars'
+    // edges, outside the session box
+    // (`work/offset/the-session-box-is-not-enforced-at-construction.md`),
+    // measure their ends against their planes in certification arithmetic
+    // at `[0, about 1e-12]`, the data's own rounding at 3 to 6 km — an
+    // enclosure reaching zero, so only an upper bound, and the
+    // composite's stall stands.
+    test_utils::kernel_limit::pinned_row(
+        geom_core::Tol::witness().eps(),
+        &[1e-12],
+        "an_overlap_inside_the_rounding_refuses_at_the_result_gate_on_the_precision",
+        || {
+            let tol = t();
+            if stood_down(tol) {
+                return;
             }
-        ),
-        "{refused:?}"
+            let pose = turned();
+            let [ba, bb] = end_to_end(BACK);
+            let a = posed_box("the first bar", ba, &pose, tol);
+            let b = posed_box("the second bar", bb, &pose, tol);
+            let refused = union(&a, &b, tol).expect_err("the union refuses");
+            let said = refused.to_string();
+            assert!(
+                matches!(
+                    refused,
+                    BooleanError::Escalated {
+                        decision: BooleanDecision::LineSpanPrecision,
+                        ..
+                    }
+                ),
+                "{refused:?}"
+            );
+            assert!(said.contains(RECOURSE), "{said}");
+            assert!(!said.contains("apart"), "{said}");
+        },
     );
-    assert!(said.contains(RECOURSE), "{said}");
-    assert!(!said.contains("apart"), "{said}");
 }
 
 /// **At validation, the same two bars as one body escalate on the
@@ -172,35 +215,49 @@ fn an_overlap_inside_the_rounding_refuses_at_the_result_gate_on_the_precision() 
 /// contacts too; the row reads only the census's precision findings.)
 #[test]
 fn an_overlap_inside_the_rounding_escalates_at_validation_on_the_precision() {
-    let tol = t();
-    if stood_down(tol) {
-        return;
-    }
-    let pose = turned();
-    let mut body = Body::<f64>::new();
-    for [(x0, x1), (y0, y1), z] in end_to_end(BACK) {
-        prism_ops(
-            &mut body,
-            &[(x0, y0), (x1, y0), (x1, y1), (x0, y1)],
-            z,
-            |x, y, z| pose.at([x, y, z]),
-            FaceGeometry::Certified,
-            tol,
-        );
-    }
-    describe_as_intersections(&mut body, tol);
-    let errors = validate_pseudomanifold(&body, &ContactRecords::default(), tol)
-        .expect_err("validation escalates");
-    let precision: Vec<String> = errors
-        .iter()
-        .filter(|e| matches!(e, ValidationError::CensusEscalated { .. }))
-        .map(ToString::to_string)
-        .filter(|said| said.contains(RECOURSE))
-        .collect();
-    assert!(!precision.is_empty(), "{errors:?}");
-    for said in &precision {
-        assert!(!said.contains("apart"), "{said}");
-    }
+    // Pinned to limb 2's kernel limit at ε = 1e-12: the kilometre bars'
+    // edges, outside the session box
+    // (`work/offset/the-session-box-is-not-enforced-at-construction.md`),
+    // measure their ends against their planes in certification arithmetic
+    // at `[0, about 1e-12]`, the data's own rounding at 3 to 6 km — an
+    // enclosure reaching zero, so only an upper bound, and the
+    // composite's stall stands.
+    test_utils::kernel_limit::pinned_row(
+        geom_core::Tol::witness().eps(),
+        &[1e-12],
+        "an_overlap_inside_the_rounding_escalates_at_validation_on_the_precision",
+        || {
+            let tol = t();
+            if stood_down(tol) {
+                return;
+            }
+            let pose = turned();
+            let mut body = Body::<f64>::new();
+            for [(x0, x1), (y0, y1), z] in end_to_end(BACK) {
+                prism_ops(
+                    &mut body,
+                    &[(x0, y0), (x1, y0), (x1, y1), (x0, y1)],
+                    z,
+                    |x, y, z| pose.at([x, y, z]),
+                    FaceGeometry::Certified,
+                    tol,
+                );
+            }
+            describe_as_intersections(&mut body, tol);
+            let errors = validate_pseudomanifold(&body, &ContactRecords::default(), tol)
+                .expect_err("validation escalates");
+            let precision: Vec<String> = errors
+                .iter()
+                .filter(|e| matches!(e, ValidationError::CensusEscalated { .. }))
+                .map(ToString::to_string)
+                .filter(|said| said.contains(RECOURSE))
+                .collect();
+            assert!(!precision.is_empty(), "{errors:?}");
+            for said in &precision {
+                assert!(!said.contains("apart"), "{said}");
+            }
+        },
+    );
 }
 
 /// **At validation, bars that meet exactly read their touch as one point.**
@@ -214,30 +271,44 @@ fn an_overlap_inside_the_rounding_escalates_at_validation_on_the_precision() {
 /// undeclared touch of two solids is.)
 #[test]
 fn bars_meeting_exactly_raise_no_precision_escalation_at_validation() {
-    let tol = t();
-    if stood_down(tol) {
-        return;
-    }
-    let pose = turned();
-    let mut body = Body::<f64>::new();
-    for [(x0, x1), (y0, y1), z] in end_to_end(0.0) {
-        prism_ops(
-            &mut body,
-            &[(x0, y0), (x1, y0), (x1, y1), (x0, y1)],
-            z,
-            |x, y, z| pose.at([x, y, z]),
-            FaceGeometry::Certified,
-            tol,
-        );
-    }
-    describe_as_intersections(&mut body, tol);
-    let errors = validate_pseudomanifold(&body, &ContactRecords::default(), tol)
-        .expect_err("the undeclared touch refuses");
-    let precision: Vec<String> = errors
-        .iter()
-        .filter(|e| matches!(e, ValidationError::CensusEscalated { .. }))
-        .map(ToString::to_string)
-        .filter(|said| said.contains(RECOURSE))
-        .collect();
-    assert!(precision.is_empty(), "{precision:?}");
+    // Pinned to limb 2's kernel limit at ε = 1e-12: the kilometre bars'
+    // edges, outside the session box
+    // (`work/offset/the-session-box-is-not-enforced-at-construction.md`),
+    // measure their ends against their planes in certification arithmetic
+    // at `[0, about 1e-12]`, the data's own rounding at 3 to 6 km — an
+    // enclosure reaching zero, so only an upper bound, and the
+    // composite's stall stands.
+    test_utils::kernel_limit::pinned_row(
+        geom_core::Tol::witness().eps(),
+        &[1e-12],
+        "bars_meeting_exactly_raise_no_precision_escalation_at_validation",
+        || {
+            let tol = t();
+            if stood_down(tol) {
+                return;
+            }
+            let pose = turned();
+            let mut body = Body::<f64>::new();
+            for [(x0, x1), (y0, y1), z] in end_to_end(0.0) {
+                prism_ops(
+                    &mut body,
+                    &[(x0, y0), (x1, y0), (x1, y1), (x0, y1)],
+                    z,
+                    |x, y, z| pose.at([x, y, z]),
+                    FaceGeometry::Certified,
+                    tol,
+                );
+            }
+            describe_as_intersections(&mut body, tol);
+            let errors = validate_pseudomanifold(&body, &ContactRecords::default(), tol)
+                .expect_err("the undeclared touch refuses");
+            let precision: Vec<String> = errors
+                .iter()
+                .filter(|e| matches!(e, ValidationError::CensusEscalated { .. }))
+                .map(ToString::to_string)
+                .filter(|said| said.contains(RECOURSE))
+                .collect();
+            assert!(precision.is_empty(), "{precision:?}");
+        },
+    );
 }

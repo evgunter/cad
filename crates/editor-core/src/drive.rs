@@ -2332,6 +2332,7 @@ mod tests {
             |k| arena.get(k).cloned(),
             geom_core::Real::from_f64(1.0),
             band(),
+            geom_brep::NurbsLane::certified(),
         )
         .is_err();
         assert!(refused, "the configuration is not a tangency");

@@ -122,7 +122,6 @@ fn a_carrier_bumped_off_the_plane_between_samples_refuses_at_mev() {
                 Err(EulerOpError::Certification {
                     error: CertifyError::AnalyticRung3(AnalyticRung3Refusal::Limb {
                         operand: geom::SurfaceKind::Plane,
-                        limb: geom_brep::Rung3Limb::HullValue,
                         margin,
                     }),
                 }) if (0.99 * between..=1.01 * between).contains(&upper(*margin))

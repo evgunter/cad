@@ -7120,7 +7120,7 @@ impl Undecided {
 /// What a standing finding says, read by arm 2 against one solid pair.
 #[derive(Clone, Copy, Debug)]
 enum Said {
-    /// A planar touch, read through [`TouchSite::verdict`].
+    /// A planar touch, read through [`TouchSite::verdict_at`].
     Touch(TouchSite),
     /// An edge through a face's interior: a crossing.
     Pierce,
