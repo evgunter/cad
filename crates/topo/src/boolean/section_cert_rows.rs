@@ -3007,8 +3007,9 @@ fn a_plane_touch_near_the_top_parallel_stands_on_both_carriers() {
 
 /// **A ball touching a wall from inside, nearly coaxial, stands its
 /// touch on both carriers** (`Touch::at`'s contract): the ball of
-/// radius `ρc − e` about a centre `e` off the wall's axis, `e` from 10ε
-/// to 1e3ε, about 16 axes spread over the sphere, the wall's origin at
+/// radius `ρc − e` about a centre `e` off the wall's axis, `e` from
+/// twice the band's escalation threshold (a centre the pose decides off
+/// the axis, `cs_coaxial`) to 1e3ε, about 16 axes spread over the sphere, the wall's origin at
 /// the ball or 1e3 along the axis, at ×1e-3, ×1 and ×1e3, both operand
 /// orders. `at` is read on the ruling through the centre's part square
 /// to the axis, of norm `e`: it stands within ε of each carrier, plus 8
@@ -3039,7 +3040,7 @@ fn a_ball_touching_a_wall_near_its_axis_stands_on_both_carriers() {
                 let o = base - d * far;
                 let wall = Partner::Wall(o, d, rc);
                 let ulps = 8.0 * f64::EPSILON * (far + 2.0 * scale);
-                for e in [10.0, 100.0, 1e3].map(|k| k * eps) {
+                for e in [2.0 * band.escalate(), 100.0 * eps, 1e3 * eps] {
                     let ball = Partner::Sphere(base + q * e, rc - e);
                     let label = format!("×{scale:e}, axis {i}, origin {far:e} along, e {e:e}");
                     for section in [
