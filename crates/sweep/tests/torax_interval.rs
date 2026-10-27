@@ -440,6 +440,7 @@ fn rim_envelope_escalation(
                         cause,
                         ..
                     },
+                ..
             },
     } = error
     else {

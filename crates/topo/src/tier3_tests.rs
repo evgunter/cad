@@ -4034,7 +4034,7 @@ fn far_thin_half_disc_reads(far: bool, tol: Tol) {
     let upright = half_disc(1e-3, 1e-6, (0.6 * d, 0.48 * d, 0.64 * d), far, tol);
     let exact = std::f64::consts::PI * 1e-6 * 1e-6 / 2.0;
     // The far-anchored disc's `f64` sum is the filed measurement
-    // (`work/flux/a-planar-face-sums-its-area-about-a-far-carrier-origin`),
+    // (`work/nearpoint/a-planar-face-sums-its-area-about-a-far-carrier-origin`),
     // not this row's subject; the sign is read off the certified walk.
     if !far {
         let read = crate::mass_properties(

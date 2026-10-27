@@ -46,7 +46,7 @@ The quad lane decides whether the wider pad is the named consequence of
 reading the rational bounds off the quotient statement (a change that
 makes the bound right). If it is, both pins re-baseline to 2.2106e-6 with
 the cause named at the cut, and the looseness is filed. If it is not, the
-bound is tightened back. `work/flux/a-quadrature-faces-pad-scales-with-its-shells-size-and-stored-face-order.md`
+bound is tightened back. `a-quadrature-faces-pad-scales-with-its-shells-size-and-stored-face-order`, closed by PR 5689
 tables the same blade-8 pad under its own order question, and moves with
 this row's answer.
 

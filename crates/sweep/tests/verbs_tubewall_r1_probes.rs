@@ -53,7 +53,7 @@ use topo::Body;
 /// raw door: at ε 1e-12, tier 3's volume check escalates on the major-1300
 /// case's tubes, hollow and solid (`VolumeUncomputable`), though the
 /// measurement converges
-/// (`work/flux/tier-3-refuses-a-major-1300-torus-tube-at-1e-12-that-the-measurement-converges-on.md`).
+/// (`work/spiricarm/tier-3-refuses-a-major-1300-torus-tube-at-1e-12-that-the-measurement-converges-on.md`).
 /// Any other refusal panics.
 fn measured(body: &topo::Body<f64>, major: f64) -> topo::MassProperties<f64> {
     let tol = Tol::witness();

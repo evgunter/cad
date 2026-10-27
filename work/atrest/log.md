@@ -181,3 +181,10 @@ Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `cra
   - past a cylinder's end `Gap` reads the carrier. This is C5's convention, and `gap-reads-a-cells-carrier-beyond-the-cell` names `Round` and is raised to P2.
 
   The fix pass was sent; I merge on my read. A stray duplicate probe branch, `review/atrest-round-cvvr`, is the same commit as `review/atrest-round-Nvcrvr`. Its deletion was refused to agents, so it is left for Ev.
+
+## 2026-10-27 — seam note: two rows in from CONTACTHOLD
+
+`CONTACT-13` and `declared-only-meetings-clear-at-the-census-gate-unread` moved here by `git mv`. Before the move they were P0s parked on `intent-stage4-is-built`, and no one re-read them when it closed.
+- `CONTACT-13` closed into the issue row. That row is now one P2 (cost M) re-read, on Ev's word in chat.
+- The re-read asks: can any op, now that records are only op-minted, leave records that hide an overlap at the census's `records_on_their_word` reading?
+- The row's top section has the steps. Its acceptance is stage 5 C's interference finding.

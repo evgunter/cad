@@ -144,7 +144,7 @@ fn a_tilted_tube_builds_at_its_closed_form() {
 /// crosses neither seam meridian, so the ball face keeps it as a ring.
 /// The sphere arm measures a face over every loop, so every op builds
 /// sound at its closed form, read without a mesh as the tilted tube's
-/// are (`work/flux/sphere-face-with-a-hole-has-no-closed-form.md`).
+/// are (`sphere-face-with-a-hole-has-no-closed-form`, closed by PR 4573).
 #[test]
 fn a_rim_inside_one_ball_face_holes_it() {
     let tol = Tol::witness();
