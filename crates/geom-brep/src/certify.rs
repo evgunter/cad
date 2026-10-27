@@ -303,12 +303,12 @@ pub enum CertCheck {
     /// own residual, measured where the composite's bound did not clear:
     /// the implicit form linearized to metres at the search, and a
     /// certified lower bound on the carrier's distance from the surface
-    /// at the edge certificate (`crate::analytic_rung3`).
+    /// at the edge certificate (`crate::analytic_edge_limbs`).
     AnalyticBreakResidual,
-    /// Intersection, analytic rung 3: the carrier's certified distance
-    /// bound from an analytic operand over the edge's whole interval
-    /// (`crate::analytic_rung3`'s limb 2) — a bound on the miss, never
-    /// a sampled one.
+    /// Intersection of two analytic surfaces: the carrier's certified
+    /// distance bound from an operand over the edge's whole interval
+    /// (`crate::analytic_edge_limbs`'s limb 2, for a carrier of any
+    /// kind) — a bound on the miss, never a sampled one.
     AnalyticHull,
     /// Intersection, plane × NURBS (M7-8): the lane's reported
     /// transversality, the minimum sine over the interior samples that
@@ -509,29 +509,10 @@ pub enum CertifyError {
     /// left over. The analytic rung: both operands analytic (M5 PR 9,
     /// C12.3 — the class the curved-boolean zip mints). The **plane ×
     /// NURBS** rung (M7-8): exactly one PLANE and one described NURBS
-    /// wall, declare-and-check, through the [`NurbsLane`] — a caller
-    /// with none in hand gets [`CertifyError::NurbsLaneNotSupplied`].
+    /// wall, declare-and-check, through the [`NurbsLane`].
     /// The **NURBS × NURBS** rung: two spline charts, through the same
     /// lane. A spline beside a curved analytic surface has none.
     Unimplemented,
-    /// An edge whose certificate the [`NurbsLane`] states reached a
-    /// door that supplied **no lane** ([`EdgeCurve::certify`],
-    /// [`EdgeCurve::recertify`], or a `_via` door handed `None`).
-    ///
-    /// **The lane classes** — the one list of them; every other site
-    /// names the missing lane rather than the class:
-    ///
-    /// - an `Intersection` of a PLANE and a described NURBS wall (M7-8);
-    /// - an `Intersection` of two spline charts (NURBS × NURBS);
-    /// - a `Nurbs` carrier under an `Intersection` of two analytic
-    ///   surfaces (C2's limbs, [`crate::analytic_rung3`]).
-    ///
-    /// That is all this crate knows at the raising
-    /// site: whether the caller could have supplied one is the caller's
-    /// fact, which a caller that reads a scalar's policy states in its
-    /// own refusal. It is raised before any other check of the edge
-    /// runs, so it says nothing about the edge's geometry.
-    NurbsLaneNotSupplied,
     /// A two-surface description (`Intersection`, `TangentIntersection`,
     /// `OnPair`) names one surface twice — a locus on one surface is an
     /// image in its chart, never a pair's.
@@ -738,11 +719,10 @@ pub enum CertifyError {
         /// Its bound.
         bound: geom_core::MarginDiag,
     },
-    /// `Intersection` of two analytic surfaces over a rung-3
-    /// (`Curve3::Nurbs`) carrier: the analytic rung-3 certificate (C2's
-    /// limbs: the carrier's distance from each operand, and the
-    /// uniqueness tube) refused, carrying its own verdict
-    /// ([`crate::analytic_rung3`]).
+    /// `Intersection` of two analytic surfaces: C2's limbs (the
+    /// carrier's distance from each operand, for every carrier kind, and
+    /// the uniqueness tube, for a spline carrier) refused, carrying
+    /// their own verdict ([`crate::analytic_edge_limbs`]).
     AnalyticRung3(crate::edge_nurbs::AnalyticRung3Refusal),
 }
 
@@ -869,11 +849,6 @@ impl core::fmt::Display for CertifyError {
                  one plane and one described NURBS wall, or of two spline charts, through \
                  the declare-and-check lane; a spline beside a curved analytic surface has \
                  no certificate"
-            ),
-            Self::NurbsLaneNotSupplied => write!(
-                f,
-                "this edge's certificate needs the NURBS lane, and the door this check ran \
-                 through supplied none, so nothing about the edge was checked"
             ),
             Self::IntersectionSameSurface { key } => write!(
                 f,
@@ -1065,7 +1040,6 @@ impl CertifyError {
             Self::AnalyticRung3(refusal) => return refusal.decision(),
             Self::UnresolvedSurface { .. }
             | Self::Unimplemented
-            | Self::NurbsLaneNotSupplied
             | Self::IntersectionSameSurface { .. }
             | Self::WrapOnNonPeriodic
             | Self::TangentCertificateUnsupported
@@ -1912,10 +1886,6 @@ pub struct Certificate<T: Real> {
     /// arms move in opposite directions with scale — never laundered
     /// by re-associating a meter to make a number match.
     pub max_residual: T,
-    /// Where the edge's extent stands against one period of its
-    /// carrier, as check 2 decided it: `None` on a carrier with no
-    /// period (a line, a spline).
-    pub turn: Option<CertifiedTurn<T>>,
 }
 
 /// **A certified edge's turn**: its parameter interval, its extent
@@ -1955,14 +1925,18 @@ const FORWARD_ROW: &str = "interval_span_forward";
 const WINDING_ROWS: TurnRows<&str> =
     TurnRows::bounded("interval_span_winding", "interval_span_winding_straddle");
 
-/// A certified edge carrier: the intensional description, its cached
-/// [`Curve3`] carrier with the certified parameter interval, and the
-/// [`Certificate`] of the attachment-time run. Constructible only by a
-/// run of the schedule ([`EdgeCurve::certify`] and its `_via` doors),
-/// or from a certified value by a map that carries its certificate
+/// An edge carrier: the intensional description, its cached [`Curve3`]
+/// carrier with its parameter interval and turn, and what the scalar's
+/// door gave it to carry ([`Real::Carries`]): at a certifying scalar the
+/// [`Certificate`] of the attachment-time run, and at a tangent-transport
+/// scalar nothing. Constructible only by the scalar's own door
+/// ([`EdgeCurve::certify`] where the scalar certifies,
+/// [`EdgeCurve::uncertified`] where it never does), or from such a value
+/// by a map that carries what it carries
 /// ([`EdgeCurve::with_remapped_surfaces`],
-/// [`EdgeCurve::with_chart_v_mirrored`]) — fields are private so an
-/// uncertified value is unrepresentable (D4 ¶2 made structural).
+/// [`EdgeCurve::with_chart_v_mirrored`]) — fields are private, so an
+/// uncertified value at a certifying scalar is unrepresentable (D4 ¶2
+/// made structural).
 #[derive(Clone, Debug)]
 pub struct EdgeCurve<T: Real> {
     /// U2's collapsed description — ONE conventional form, minted and
@@ -1973,12 +1947,106 @@ pub struct EdgeCurve<T: Real> {
     carrier: Curve3<T>,
     param_start: T,
     param_end: T,
-    certificate: Certificate<T>,
+    /// Check 2's turn: the interval's extent against one period.
+    turn: Option<CertifiedTurn<T>>,
+    certificate: T::Carries<Certificate<T>>,
 }
 
 impl<T: Decide> EdgeCurve<T> {
+    /// **Mints** `spec`: the canonical description, carrier and
+    /// interval, which is construction at any scalar that decides —
+    /// checks 1 and 2 of [`EdgeCurve::certify`] and the canonical
+    /// description, in that door's order. No sample is read and nothing
+    /// is certified, so the result is no edge: a certifying scalar's
+    /// door certifies it ([`EdgeCurve::certify`]), and a
+    /// tangent-transport scalar's door holds it as minted
+    /// ([`EdgeCurve::uncertified`]).
+    ///
+    /// # Errors
+    ///
+    /// Check 1's and check 2's refusals, and the chart image's.
+    pub fn mint(
+        spec: EdgeCurveSpec<T>,
+        surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+        band: Band,
+    ) -> Result<MintedEdge<T>, CertifyError> {
+        let (description, turn) =
+            mint_checks(&spec, &surfaces, band).map_err(StatedSpan::at_a_door)?;
+        Ok(MintedEdge {
+            authority: authority_of(&spec.description),
+            description,
+            carrier: spec.carrier,
+            param_start: spec.param_start,
+            param_end: spec.param_end,
+            turn,
+        })
+    }
+}
+
+/// **A minted edge**: the canonical description, carrier and interval
+/// [`EdgeCurve::mint`] constructed, and the turn check 2 decided. It is
+/// no [`EdgeCurve`]: only a scalar's own door makes one of it.
+#[derive(Clone, Debug)]
+pub struct MintedEdge<T: Real> {
+    description: EdgeDescription<T>,
+    authority: EdgeAuthority<T>,
+    carrier: Curve3<T>,
+    param_start: T,
+    param_end: T,
+    turn: Option<CertifiedTurn<T>>,
+}
+
+impl<T: geom_core::TangentTransport> EdgeCurve<T> {
+    /// **A tangent-transport scalar's edge** (DUAL-DESIGN DL1, DL3): the
+    /// minted edge, carrying no certificate. A dual's door mints and
+    /// never checks; what it measures is read against the input-identical
+    /// certifying evaluation, which holds the certificate.
+    #[must_use]
+    pub fn uncertified(minted: MintedEdge<T>) -> Self {
+        Self {
+            description: minted.description,
+            authority: minted.authority,
+            carrier: minted.carrier,
+            param_start: minted.param_start,
+            param_end: minted.param_end,
+            turn: minted.turn,
+            certificate: T::uncertified(),
+        }
+    }
+}
+
+impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
     /// Certifies `spec` against the edge's endpoint points and the
-    /// owning body's surfaces, returning the certified carrier.
+    /// owning body's surfaces, returning the certified carrier: the
+    /// mint ([`EdgeCurve::mint`]'s steps, in its order) and every check
+    /// below, C2's limbs through `lane`. Bounded on the certification
+    /// trait, so a scalar that may not certify (a dual, DL1) cannot
+    /// name this door:
+    ///
+    /// ```compile_fail,E0599
+    /// use geom_brep::{EdgeCurve, EdgeCurveSpec, NurbsLane};
+    /// use geom_core::{Band, Dual64, Point3, Real};
+    /// fn at<T: geom_core::Decide>(spec: EdgeCurveSpec<T>, p: Point3<T>, band: Band, lane: NurbsLane<T>) {
+    ///     let _ = EdgeCurve::<T>::certify(spec, p, p, |_| None, T::from_f64(1.0), band, lane);
+    /// }
+    /// ```
+    ///
+    /// The row differs from the one below, which builds, in the bound
+    /// alone: a door generic over a deciding scalar, dual included,
+    /// cannot certify through a lane it was handed.
+    ///
+    /// ```
+    /// use geom_brep::{EdgeCurve, EdgeCurveSpec, NurbsLane};
+    /// use geom_core::{Band, Point3, Real};
+    /// fn at<T: geom_core::Decide + geom_core::CertifiedBounds>(
+    ///     spec: EdgeCurveSpec<T>,
+    ///     p: Point3<T>,
+    ///     band: Band,
+    ///     lane: NurbsLane<T>,
+    /// ) {
+    ///     let _ = EdgeCurve::<T>::certify(spec, p, p, |_| None, T::from_f64(1.0), band, lane);
+    /// }
+    /// ```
     ///
     /// `start`/`end` are the points of `start(he_plus)` and
     /// `end(he_plus)` (the `he_plus` forward contract); `surfaces`
@@ -1998,12 +2066,7 @@ impl<T: Decide> EdgeCurve<T> {
     ///    `Intersection` description (the rung-3 class, M5 PR 9 —
     ///    its span is metered through `speed_lower_bound`, gated
     ///    definitely-positive by `nurbs_span_meter`); `Intersection`'s
-    ///    two surfaces are distinct; `Seam`'s surface is periodic. An
-    ///    edge whose certificate needs the [`NurbsLane`] refuses
-    ///    [`CertifyError::NurbsLaneNotSupplied`] here with no lane in
-    ///    hand, before any other check of the edge, so this door and
-    ///    [`EdgeCurve::recertify`] certify none (the classes are listed
-    ///    on that variant).
+    ///    two surfaces are distinct; `Seam`'s surface is periodic.
     /// 2. Interval span (M2 PR 3 fix pass): the stored interval is
     ///    **forward** — its arc length `(t₁ − t₀)` (`·r` for circle
     ///    carriers, metering radians into meters) is definitely
@@ -2017,7 +2080,7 @@ impl<T: Decide> EdgeCurve<T> {
     ///    one full period, which closes the 9-sample `8kτ` winding-alias
     ///    family (see that variant's docs) — and the certificate keeps
     ///    whether it is short of a turn or a whole one
-    ///    ([`Certificate::turn`]). In-band/poisoned span margins
+    ///    ([`EdgeCurve::turn`]). In-band/poisoned span margins
     ///    escalate under [`CertCheck::ParamSpan`], an unsettled turn
     ///    under [`CertCheck::ParamWinding`]. The interval
     ///    is this door's input, so a reading certainly on either check's
@@ -2057,10 +2120,9 @@ impl<T: Decide> EdgeCurve<T> {
     ///    marching exists (M3) — the mid-pin verifies the carrier
     ///    traverses the witness's arc, not that the witness sits on
     ///    the branch the modeler intended.
-    /// 6. `Intersection` of two analytic surfaces over a `Nurbs`
-    ///    carrier, through the [`NurbsLane`]
-    ///    ([`EdgeCurve::certify_via`], [`EdgeCurve::recertify_via`]):
-    ///    C2's limbs over `[t₀, t₁]` ([`crate::analytic_rung3`]).
+    /// 6. `Intersection` of two analytic surfaces, over a carrier of
+    ///    any kind, through `lane`: C2's limbs over `[t₀, t₁]`
+    ///    ([`crate::analytic_edge_limbs`]).
     ///
     /// # Errors
     ///
@@ -2072,35 +2134,12 @@ impl<T: Decide> EdgeCurve<T> {
         surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
         reach: T,
         band: Band,
+        lane: NurbsLane<T>,
     ) -> Result<Self, CertifyError> {
-        Self::certify_via(spec, start, end, surfaces, reach, band, None)
+        Self::certify_stated(spec, start, end, surfaces, reach, band, lane, None)
     }
 
-    /// The shared certification body, with the NURBS lane
-    /// ([`NurbsLane`]) as its argument: `None` mints exactly what
-    /// [`EdgeCurve::certify`] does and `Some` also certifies, through
-    /// the lane, every edge whose certificate needs it. A pass generic over its scalar
-    /// fills the argument from that scalar's policy
-    /// (`topo::AtRestPolicy::nurbs_lane`).
-    ///
-    /// # Errors
-    ///
-    /// As [`EdgeCurve::certify`], plus the lane's own refusals when
-    /// one is injected; [`CertifyError::NurbsLaneNotSupplied`] for an
-    /// edge whose certificate needs the lane, with `None` in hand.
-    pub fn certify_via(
-        spec: EdgeCurveSpec<T>,
-        start: Point3<T>,
-        end: Point3<T>,
-        surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
-        reach: T,
-        band: Band,
-        nurbs_lane: Option<NurbsLane<T>>,
-    ) -> Result<Self, CertifyError> {
-        Self::certify_via_stated(spec, start, end, surfaces, reach, band, nurbs_lane, None)
-    }
-
-    /// [`EdgeCurve::certify_via`] with a chart image the caller already
+    /// [`EdgeCurve::certify`] with a chart image the caller already
     /// holds for the edge on one of its surfaces: the pcurve a mint
     /// stored there. An `OnPair` on a plane × NURBS pair whose wall is
     /// that surface certifies its wall side through that image as it
@@ -2110,29 +2149,29 @@ impl<T: Decide> EdgeCurve<T> {
     ///
     /// # Errors
     ///
-    /// As [`EdgeCurve::certify_via`].
-    #[allow(clippy::too_many_arguments)] // `certify_via`'s, plus the stated image
-    pub fn certify_via_stated(
+    /// As [`EdgeCurve::certify`].
+    #[allow(clippy::too_many_arguments)] // `certify`'s, plus the stated image
+    pub fn certify_stated(
         spec: EdgeCurveSpec<T>,
         start: Point3<T>,
         end: Point3<T>,
         surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
         reach: T,
         band: Band,
-        nurbs_lane: Option<NurbsLane<T>>,
+        lane: NurbsLane<T>,
         stated: Option<&StatedImage<T>>,
     ) -> Result<Self, CertifyError> {
-        let (certificate, canonical) = run_checks(
-            &spec, start, end, &surfaces, reach, nurbs_lane, stated, band,
-        )
-        .map_err(StatedSpan::at_a_door)?;
+        let (certificate, canonical, turn) =
+            run_checks(&spec, start, end, &surfaces, reach, lane, stated, band)
+                .map_err(StatedSpan::at_a_door)?;
         Ok(Self {
             authority: authority_of(&spec.description),
             description: canonical,
             carrier: spec.carrier,
             param_start: spec.param_start,
             param_end: spec.param_end,
-            certificate,
+            turn,
+            certificate: T::carried(certificate),
         })
     }
 
@@ -2155,36 +2194,14 @@ impl<T: Decide> EdgeCurve<T> {
         surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
         reach: T,
         band: Band,
+        lane: NurbsLane<T>,
     ) -> Result<Certificate<T>, CertifyError> {
-        self.recertify_via(start, end, surfaces, reach, band, None)
+        self.recertify_stated(start, end, surfaces, reach, band, lane, None)
     }
 
-    /// The shared re-certification body, with the NURBS lane
-    /// ([`NurbsLane`]) as its argument: `None` re-derives exactly what
-    /// [`EdgeCurve::recertify`] does and `Some` re-derives, through the
-    /// lane, every edge whose certificate needs it.
-    ///
-    /// # Errors
-    ///
-    /// As [`EdgeCurve::recertify`], plus the lane's own refusals when
-    /// one is injected; [`CertifyError::NurbsLaneNotSupplied`] for an
-    /// edge whose certificate needs the lane, with `None` in hand,
-    /// raised before any other check of that edge runs.
-    pub fn recertify_via(
-        &self,
-        start: Point3<T>,
-        end: Point3<T>,
-        surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
-        reach: T,
-        band: Band,
-        nurbs_lane: Option<NurbsLane<T>>,
-    ) -> Result<Certificate<T>, CertifyError> {
-        self.recertify_via_stated(start, end, surfaces, reach, band, nurbs_lane, None)
-    }
-
-    /// [`EdgeCurve::recertify_via`] with the chart image the body stores
+    /// [`EdgeCurve::recertify`] with the chart image the body stores
     /// for the edge on one of its surfaces, read as
-    /// [`EdgeCurve::certify_via_stated`] reads it: re-certification
+    /// [`EdgeCurve::certify_stated`] reads it: re-certification
     /// meters the image the op certified, not one derived anew, so an
     /// edge the op admitted through its stored image (a split child of
     /// an arc rim, whose parent's image covers it) is not refused at
@@ -2193,15 +2210,15 @@ impl<T: Decide> EdgeCurve<T> {
     /// # Errors
     ///
     /// As [`EdgeCurve::recertify`].
-    #[allow(clippy::too_many_arguments)] // `certify_via`'s, plus the stated image
-    pub fn recertify_via_stated(
+    #[allow(clippy::too_many_arguments)] // `recertify`'s, plus the stated image
+    pub fn recertify_stated(
         &self,
         start: Point3<T>,
         end: Point3<T>,
         surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
         reach: T,
         band: Band,
-        nurbs_lane: Option<NurbsLane<T>>,
+        lane: NurbsLane<T>,
         stated: Option<&StatedImage<T>>,
     ) -> Result<Certificate<T>, CertifyError> {
         run_checks(
@@ -2210,17 +2227,17 @@ impl<T: Decide> EdgeCurve<T> {
             end,
             &surfaces,
             reach,
-            nurbs_lane,
+            lane,
             stated,
             band,
         )
-        .map(|(cert, _)| cert)
+        .map(|(cert, _, _)| cert)
         .map_err(StatedSpan::at_a_door)
     }
 }
 
 /// A chart image a caller holds for an edge on one of its surfaces
-/// ([`EdgeCurve::certify_via_stated`]).
+/// ([`EdgeCurve::certify_stated`]).
 #[derive(Clone, Debug)]
 pub struct StatedImage<T: Real> {
     /// The surface the image is in.
@@ -2229,26 +2246,17 @@ pub struct StatedImage<T: Real> {
     pub pcurve: crate::pcurve_cache::Pcurve<T>,
 }
 
-/// **The plane × NURBS lane** — the one certification duty this
-/// module cannot discharge from `T: Decide` alone, as a value.
+/// **The certification lane** — C2's limbs, which this module cannot
+/// discharge from `T: Decide` alone, as a value.
 ///
-/// Limb 2 and limb 3 of the plane × NURBS certificate are C9
-/// certification hull bounds and the foot point is a bracket read, so
-/// the honest derivation ([`crate::plane_nurbs_limbs`]) needs
+/// Limbs 2 and 3 are C9 certification hull bounds and a spline wall's
+/// foot point is a bracket read, so the honest derivations
+/// ([`crate::plane_nurbs_limbs`], [`crate::analytic_edge_limbs`]) need
 /// `T: Decide + Bounds + CertifiedEnclosure`, which a `Dual` does not
-/// meet. [`EdgeCurve::certify_via`] and [`EdgeCurve::recertify_via`]
-/// are the shared body every certification door runs, and they take
-/// `Option<NurbsLane>` as an argument; `topo`'s operations fill it from
-/// the scalar's policy (`topo::AtRestPolicy::nurbs_lane`). A body
-/// holding `None` meets every edge whose certificate the lane states
-/// with [`CertifyError::NurbsLaneNotSupplied`] (that variant lists the
-/// classes): no door accepts such a description without its
-/// certificate.
-///
-/// The same bracket read is what a NURBS carrier's foot point needs, so
-/// the lane also carries [`NurbsLane::carrier_foot`]: a door that moves
-/// an endpoint along a spline carrier reads its new parameter here, and
-/// a scalar that holds no lane cannot read it at all.
+/// meet. [`EdgeCurve::certify`] and [`EdgeCurve::recertify`] take it as
+/// a plain argument, and are themselves bounded on
+/// [`geom_core::CertifiedBounds`]: every door that certifies holds one,
+/// and a scalar that may not certify reaches no such door.
 ///
 /// Its one constructor is [`NurbsLane::certified`], bounded on
 /// [`geom_core::CertifiedBounds`], so holding a value of this type IS
@@ -2256,7 +2264,7 @@ pub struct StatedImage<T: Real> {
 /// and the limbs a door records are the ones the lane's functions
 /// derived and decided: [`crate::plane_nurbs_limbs`],
 /// [`crate::nurbs_pair_limbs`] and [`crate::plane_nurbs_incidence`]
-/// (an `OnPair`'s incidence alone), with [`crate::analytic_rung3`]'s
+/// (an `OnPair`'s incidence alone), with [`crate::analytic_edge_limbs`]'s
 /// verdict. Its fields are private and no other constructor exists. A
 /// scalar that may not certify cannot write the value:
 ///
@@ -2289,7 +2297,7 @@ pub struct StatedImage<T: Real> {
 ///         limbs.hull_sup = 0.0;
 ///         Ok(limbs)
 ///     };
-///     let _ = EdgeCurve::certify_via(spec, ends.0, ends.1, surfaces, 1.0, band, Some(&forged));
+///     let _ = EdgeCurve::certify(spec, ends.0, ends.1, surfaces, 1.0, band, &forged);
 /// }
 /// ```
 ///
@@ -2325,8 +2333,8 @@ pub struct StatedImage<T: Real> {
 ///         Ok(limbs)
 ///     };
 ///     let _ = forged;
-///     let lane = Some(NurbsLane::certified());
-///     let _ = EdgeCurve::certify_via(spec, ends.0, ends.1, surfaces, 1.0, band, lane);
+///     let lane = NurbsLane::certified();
+///     let _ = EdgeCurve::certify(spec, ends.0, ends.1, surfaces, 1.0, band, lane);
 /// }
 /// ```
 #[derive(Clone, Copy)]
@@ -2354,9 +2362,9 @@ pub struct NurbsLane<T: Real> {
             Band,
         )
             -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal>,
-    /// [`crate::analytic_rung3`] at `T`.
-    analytic_rung3: fn(
-        &geom::NurbsCurve3<T>,
+    /// [`crate::analytic_edge_limbs`] at `T`.
+    analytic_limbs: fn(
+        &Curve3<T>,
         (T, T),
         &Surface<T>,
         &Surface<T>,
@@ -2392,12 +2400,6 @@ pub struct NurbsLane<T: Real> {
         Vec<crate::curve_face::spline_face::ChartMeeting<T>>,
         crate::curve_face::spline_face::SplineFaceRefusal,
     >,
-    /// [`NurbsLane::carrier_foot`]'s Newton at `T`.
-    foot: fn(
-        &geom::NurbsCurve3<T>,
-        Point3<T>,
-        T,
-    ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive>,
     /// [`geom::NurbsSurface::project`] at `T`.
     surface_foot: fn(
         &geom::NurbsSurface<T>,
@@ -2407,19 +2409,17 @@ pub struct NurbsLane<T: Real> {
 }
 
 impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
-    /// The certified NURBS lane, and the only constructor there is:
-    /// every field holds its door instantiated at `T`, the wiring rows
-    /// below naming which.
+    /// The certification lane, and the only constructor there is: the
+    /// limbs' free functions instantiated at `T`.
     #[must_use]
     pub const fn certified() -> Self {
         Self {
             limbs: crate::edge_nurbs::plane_nurbs_limbs::<T>,
             pair_limbs: crate::edge_nurbs::nurbs_pair_limbs::<T>,
-            analytic_rung3: crate::edge_nurbs::analytic_rung3::<T>,
+            analytic_limbs: crate::edge_nurbs::analytic_edge_limbs::<T>,
             incidence: crate::edge_nurbs::plane_nurbs_incidence::<T>,
             composite: Self::composite_crossings,
             spline_face: Self::spline_face_meetings,
-            foot: Self::seeded_foot,
             surface_foot: geom::NurbsSurface::project,
         }
     }
@@ -2459,6 +2459,32 @@ impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
         let isolated = isolate(&SpanCarrier::of(carrier), params, chart, band)?;
         settle(carrier, chart, &isolated, band)
     }
+}
+
+/// **The spline foot** — the parameter of a point moved along a NURBS
+/// carrier, read by a door that moves an endpoint along one (the offset
+/// door's re-anchor). Newton's foot is a bracket read written at the
+/// certified-bracket scalars ([`geom::NurbsCurve3::project_from_seed`]),
+/// so its one constructor is bounded there and a scalar outside them
+/// holds none.
+#[derive(Clone, Copy)]
+#[allow(clippy::type_complexity)]
+pub struct SplineFoot<T: Real> {
+    foot: fn(
+        &geom::NurbsCurve3<T>,
+        Point3<T>,
+        T,
+    ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive>,
+}
+
+impl<T: geom_core::CertifiedBounds> SplineFoot<T> {
+    /// The foot, instantiated at `T`.
+    #[must_use]
+    pub const fn certified() -> Self {
+        Self {
+            foot: Self::seeded_foot,
+        }
+    }
 
     /// [`geom::NurbsCurve3::project_from_seed`] seeded at the bracket
     /// midpoint of `seed`.
@@ -2473,6 +2499,22 @@ impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
 }
 
 impl<T: Real> NurbsLane<T> {
+    /// The foot of `point` on a NURBS surface ([`geom::NurbsSurface::project`]):
+    /// the projection carries its own distance and certifies nothing;
+    /// the caller decides that distance.
+    ///
+    /// # Errors
+    ///
+    /// [`geom::SurfaceProjectionInconclusive`] when Newton's budget
+    /// expires.
+    pub fn surface_foot(
+        self,
+        surface: &geom::NurbsSurface<T>,
+        point: Point3<T>,
+    ) -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive> {
+        (self.surface_foot)(surface, point)
+    }
+
     /// The lane's limbs for a declared carrier of any kind on a plane ×
     /// NURBS pair, over the edge's interval `params`.
     fn limbs(
@@ -2516,17 +2558,17 @@ impl<T: Real> NurbsLane<T> {
         (self.pair_limbs)(carrier, params, a, b, extent, band)
     }
 
-    /// The between-samples certificate of a rung-3 carrier between two
-    /// analytic surfaces ([`crate::analytic_rung3`]).
-    fn analytic_rung3(
+    /// C2's limbs of a carrier of any kind between two analytic
+    /// surfaces ([`crate::analytic_edge_limbs`]).
+    fn analytic_limbs(
         self,
-        carrier: &geom::NurbsCurve3<T>,
+        carrier: &Curve3<T>,
         params: (T, T),
         s1: &Surface<T>,
         s2: &Surface<T>,
         band: Band,
     ) -> Result<(), crate::edge_nurbs::AnalyticRung3Refusal> {
-        (self.analytic_rung3)(carrier, params, s1, s2, band)
+        (self.analytic_limbs)(carrier, params, s1, s2, band)
     }
 
     /// **A spline span against an analytic face's carrier**: the
@@ -2570,7 +2612,9 @@ impl<T: Real> NurbsLane<T> {
     > {
         (self.spline_face)(carrier, params, chart, band)
     }
+}
 
+impl<T: Real> SplineFoot<T> {
     /// The foot of `point` on a NURBS `carrier`, by Newton from `seed`:
     /// the parameter of a point moved along the carrier, read on the
     /// branch it was moved from. The foot carries its own residuals and
@@ -2588,22 +2632,6 @@ impl<T: Real> NurbsLane<T> {
         seed: T,
     ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive> {
         (self.foot)(carrier, point, seed)
-    }
-
-    /// The foot of `point` on a NURBS surface ([`geom::NurbsSurface::project`]):
-    /// the projection carries its own distance and certifies nothing;
-    /// the caller decides that distance.
-    ///
-    /// # Errors
-    ///
-    /// [`geom::SurfaceProjectionInconclusive`] when Newton's budget
-    /// expires.
-    pub fn surface_foot(
-        self,
-        surface: &geom::NurbsSurface<T>,
-        point: Point3<T>,
-    ) -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive> {
-        (self.surface_foot)(surface, point)
     }
 }
 
@@ -2661,9 +2689,18 @@ impl<T: Real> EdgeCurve<T> {
         (self.param_start, self.param_end)
     }
 
-    /// The attachment-time certification record.
-    pub fn certificate(&self) -> &Certificate<T> {
+    /// What the scalar's door gave this edge to carry
+    /// ([`Real::Carries`]): the attachment-time certification record at
+    /// a certifying scalar, nothing at a tangent-transport one.
+    pub fn certificate(&self) -> &T::Carries<Certificate<T>> {
         &self.certificate
+    }
+
+    /// Where the edge's extent stands against one period of its
+    /// carrier, as check 2 decided it at the mint: `None` on a carrier
+    /// with no period (a line, a spline).
+    pub fn turn(&self) -> Option<&CertifiedTurn<T>> {
+        self.turn.as_ref()
     }
 
     /// The same certified carrier with its description's **SURFACE
@@ -2726,6 +2763,7 @@ impl<T: Real> EdgeCurve<T> {
             carrier: self.carrier.clone(),
             param_start: self.param_start,
             param_end: self.param_end,
+            turn: self.turn,
             certificate: self.certificate,
         })
     }
@@ -2778,6 +2816,7 @@ impl<T: Real> EdgeCurve<T> {
             carrier: self.carrier.clone(),
             param_start: self.param_start,
             param_end: self.param_end,
+            turn: self.turn,
             certificate: self.certificate,
         })
     }
@@ -3423,19 +3462,14 @@ fn from_plane_nurbs(e: crate::edge_nurbs::PlaneNurbsRefusal) -> CertifyError {
     }
 }
 
-/// The shared certification engine (check sequence documented on
-/// [`EdgeCurve::certify`]).
-#[allow(clippy::too_many_arguments)] // one parameter per named quantity
-fn run_checks<T: Decide>(
+/// **Check 1 and the description's resolution**: whether the
+/// carrier's class certifies under its description at all, and the
+/// description's surfaces resolved, in key order. Construction, at any
+/// deciding scalar.
+fn resolve_spec<T: Decide>(
     spec: &EdgeCurveSpec<T>,
-    start: Point3<T>,
-    end: Point3<T>,
     surfaces: &impl Fn(SurfaceKey) -> Option<Surface<T>>,
-    reach: T,
-    lane: Option<NurbsLane<T>>,
-    stated: Option<&StatedImage<T>>,
-    band: Band,
-) -> Result<(Certificate<T>, EdgeDescription<T>), CertifyError> {
+) -> Result<Resolved<T>, CertifyError> {
     // ---- Check 1: implementedness / description well-formedness. ----
     // Rung-3 (`Nurbs`) carriers certify under an intrinsic description
     // of two ANALYTIC surfaces — the class the curved boolean zip
@@ -3488,97 +3522,7 @@ fn run_checks<T: Decide>(
         }
         Ok(s)
     };
-    // The pair's two surfaces resolved, in key order: the checks run
-    // in that order and each names its surface by key.
-    enum Resolved<T: Real> {
-        Intersection {
-            surfs: [(SurfaceKey, Surface<T>); 2],
-            witness: Point3<T>,
-            /// The lane C2's limbs run through: `Some` exactly when the
-            /// carrier is a spline (the analytic rung-3 class).
-            rung3_lane: Option<NurbsLane<T>>,
-        },
-        Tangent {
-            surfs: [(SurfaceKey, Surface<T>); 2],
-            witness: Point3<T>,
-        },
-        /// D2's conventional pair: incidence on both surfaces, metered
-        /// as `Intersection` meters it, and the declaration's meter as
-        /// on [`Resolved::Chart`].
-        OnPair {
-            surfs: [(SurfaceKey, Surface<T>); 2],
-            declared: Option<crate::mapped::MappedCurve<T>>,
-        },
-        /// D2's conventional pair on a PLANE and a spline chart (a
-        /// described NURBS wall, or an `Approx` one's fit): the lane's
-        /// incidence on both over the whole span, and the declaration's
-        /// meter at each sample as on [`Resolved::OnPair`].
-        OnPairNurbs {
-            plane: Surface<T>,
-            wall_key: SurfaceKey,
-            wall: Surface<T>,
-            declared: Option<crate::mapped::MappedCurve<T>>,
-            lane: NurbsLane<T>,
-        },
-        /// D3's fenced scaffolding door: a pushforward standing in
-        /// as a description while the edge is TRANSIENT.
-        Scaffold(crate::mapped::MappedCurve<T>),
-        /// U2's ONE conventional form: the chart, its arena key, and
-        /// the chart-image data the pcurve is minted from (D4 — the
-        /// mint runs after the interval checks, so a degenerate span
-        /// still refuses in its own order).
-        Chart {
-            surface: Surface<T>,
-            key: SurfaceKey,
-            /// `Some` for an image the CONSTRUCTION states (D4:
-            /// spline charts take the image from the caller, which
-            /// every iso constructor already knows, and a
-            /// re-certification restates the image the edge already
-            /// carries); `None` for an analytic chart, whose image is
-            /// minted here through [`crate::chart_pcurve`].
-            image: Option<Pcurve<T>>,
-            /// D1's wrap edge ([`ChartCurve::wrap`]).
-            wrap: bool,
-            /// U2 Q3's authority payload, carried here for TWO reasons,
-            /// the one datum both read: the meter that used to run on it
-            /// still runs (below), and the chart-image mint ends a
-            /// carrier's incidence by who placed it (D3: `Some` routes a
-            /// miss to the modeler's lever).
-            ///
-            /// Pre-collapse a declared locus WAS the description and
-            /// took the scaffolding arm, whose
-            /// `carrier_matches_mapped_source` residual ran on every
-            /// certify. The collapse moved the payload out of the
-            /// description and left the meter behind on an arm the
-            /// payload no longer takes — so a declaration could be
-            /// arbitrarily false and nothing said so (measured by R1:
-            /// a placement ~1000 units off the body certified clean
-            /// and passed tier 3). This is the SAME check, the same
-            /// `CertCheck::MappedSource`, the same quantity and the
-            /// same predicate name, following the datum to where it
-            /// now lives — not a new predicate.
-            declared: Option<crate::mapped::MappedCurve<T>>,
-        },
-        /// `Intersection` of a PLANE and a described NURBS wall or a
-        /// fitted one (M7-8): the declare-and-check lane's shape, with
-        /// the lane that derives its limbs. `wall` has a spline chart.
-        PlaneNurbs {
-            plane_key: SurfaceKey,
-            plane: Surface<T>,
-            wall: Surface<T>,
-            witness: Point3<T>,
-            lane: NurbsLane<T>,
-        },
-        /// `Intersection` of two spline charts, each described or
-        /// fitted: the same lane's NURBS × NURBS limbs.
-        PairNurbs {
-            a: Surface<T>,
-            b: Surface<T>,
-            witness: Point3<T>,
-            lane: NurbsLane<T>,
-        },
-    }
-    let resolved = match spec.description {
+    Ok(match spec.description {
         EdgeDescriptionSpec::Intersection { pair, witness } => {
             let [k1, k2] = pair.keys();
             if k1 == k2 {
@@ -3588,41 +3532,19 @@ fn run_checks<T: Decide>(
             // is one of the two readings under which a described `Nurbs`
             // or a fitted `Approx` operand certifies at all: `resolve`
             // below refuses one typed. The other is two such charts, the
-            // same lane's NURBS × NURBS limbs. The pair with no lane in
-            // hand is refused here, before any other check of the edge.
+            // same lane's NURBS × NURBS limbs.
             if let Some((plane_key, plane, _, wall)) = plane_nurbs_pair(pair, surfaces) {
-                let lane = lane.ok_or(CertifyError::NurbsLaneNotSupplied)?;
                 Resolved::PlaneNurbs {
                     plane_key,
                     plane,
                     wall,
                     witness,
-                    lane,
                 }
             } else if let Some((a, b)) = nurbs_pair(pair, surfaces) {
-                let lane = lane.ok_or(CertifyError::NurbsLaneNotSupplied)?;
-                Resolved::PairNurbs {
-                    a,
-                    b,
-                    witness,
-                    lane,
-                }
+                Resolved::PairNurbs { a, b, witness }
             } else {
                 let surfs = [(k1, resolve(k1)?), (k2, resolve(k2)?)];
-                // A spline carrier between two analytic surfaces: C2's
-                // limbs are this certificate's own and only the lane
-                // states them, so a door holding none refuses here,
-                // before any other check of the edge, as the NURBS
-                // pairs do.
-                let rung3_lane = match spec.carrier {
-                    Curve3::Nurbs(_) => Some(lane.ok_or(CertifyError::NurbsLaneNotSupplied)?),
-                    _ => None,
-                };
-                Resolved::Intersection {
-                    surfs,
-                    witness,
-                    rung3_lane,
-                }
+                Resolved::Intersection { surfs, witness }
             }
         }
         EdgeDescriptionSpec::TangentIntersection { pair, witness } => {
@@ -3654,7 +3576,6 @@ fn run_checks<T: Decide>(
                     wall_key,
                     wall,
                     declared,
-                    lane: lane.ok_or(CertifyError::NurbsLaneNotSupplied)?,
                 }
             } else {
                 // Two analytic surfaces' `OnPair` holds no lane for a
@@ -3700,11 +3621,17 @@ fn run_checks<T: Decide>(
                 declared: *declared,
             }
         }
-    };
+    })
+}
 
-    let mut max_residual = T::zero();
+/// **Check 2**: the interval's span, decided forward, and where a
+/// periodic carrier's extent stands against one period. Construction:
+/// the turn is the minted edge's, read by every scalar's readers.
+fn decide_turn<T: Decide>(
+    spec: &EdgeCurveSpec<T>,
+    band: Band,
+) -> Result<Option<CertifiedTurn<T>>, CertifyError> {
     let (t0, t1) = (spec.param_start, spec.param_end);
-
     // ---- Check 2: interval span (forward direction; winding bound) —
     // see the check-sequence docs. Spans are metered as arc length so
     // they classify against the linear band like every other margin
@@ -3761,7 +3688,7 @@ fn run_checks<T: Decide>(
     // spiric's MINOR radius (`|dP/dv| ≥ r`). The winding bound is the
     // 8kτ sample-alias argument about the parameter period, which all
     // three share.
-    let turn = match &spec.carrier {
+    Ok(match &spec.carrier {
         periodic @ (Curve3::Circle { .. } | Curve3::Ellipse { .. } | Curve3::Spiric { .. }) => {
             let Some(floor) = geom::carrier_speed::speed_floor(periodic) else {
                 unreachable!("check 2: `speed_floor` answers every periodic carrier")
@@ -3831,32 +3758,24 @@ fn run_checks<T: Decide>(
             forward(Margin::metered(span, meter))?;
             None
         }
-    };
+    })
+}
 
-    // ---- Check 3: endpoint pinning. ----
-    check_residual(
-        "carrier_endpoint_start",
-        CertCheck::EndpointStart,
-        0,
-        Margin::of(spec.carrier.eval(t0).distance(start)),
-        band,
-        &mut max_residual,
-    )?;
-    check_residual(
-        "carrier_endpoint_end",
-        CertCheck::EndpointEnd,
-        CERT_SAMPLES - 1,
-        Margin::of(spec.carrier.eval(t1).distance(end)),
-        band,
-        &mut max_residual,
-    )?;
-
+/// **The canonical description** (U2/D4): a chart edge's image minted,
+/// every other description restated. Construction, run after the
+/// interval checks so no chart image is derived from an interval the
+/// kernel has not accepted.
+fn canonical_of<T: Decide>(
+    spec: &EdgeCurveSpec<T>,
+    resolved: &Resolved<T>,
+    band: Band,
+) -> Result<EdgeDescription<T>, CertifyError> {
     // ---- The chart image (U2/D4): the certified description. ----
     // A derived image is minted HERE, after the interval checks and
     // before the residual schedule, so a degenerate span still refuses
     // in its own order and no chart image is derived from an interval
     // the kernel has not yet accepted.
-    let canonical: EdgeDescription<T> = match resolved {
+    Ok(match resolved {
         Resolved::Intersection { witness, .. }
         | Resolved::PlaneNurbs { witness, .. }
         | Resolved::PairNurbs { witness, .. } => {
@@ -3865,15 +3784,21 @@ fn run_checks<T: Decide>(
                 // way. Typed rather than assumed (D4 ¶2).
                 return Err(CertifyError::Unimplemented);
             };
-            EdgeDescription::Intersection { pair, witness }
+            EdgeDescription::Intersection {
+                pair,
+                witness: *witness,
+            }
         }
         Resolved::Tangent { witness, .. } => {
             let EdgeDescriptionSpec::TangentIntersection { pair, .. } = spec.description else {
                 return Err(CertifyError::Unimplemented);
             };
-            EdgeDescription::TangentIntersection { pair, witness }
+            EdgeDescription::TangentIntersection {
+                pair,
+                witness: *witness,
+            }
         }
-        Resolved::Scaffold(mc) => EdgeDescription::Scaffold(mc),
+        Resolved::Scaffold(mc) => EdgeDescription::Scaffold(*mc),
         Resolved::OnPair { .. } | Resolved::OnPairNurbs { .. } => {
             let EdgeDescriptionSpec::OnPair { pair, .. } = spec.description else {
                 return Err(CertifyError::Unimplemented);
@@ -3881,13 +3806,13 @@ fn run_checks<T: Decide>(
             EdgeDescription::OnPair { pair }
         }
         Resolved::Chart {
-            ref surface,
+            surface,
             key,
-            ref image,
+            image,
             wrap,
             // Who placed the carrier decides how a miss ends (D3): the
             // payload the meter reads, read once more here.
-            ref declared,
+            declared,
         } => {
             let declared = declared.is_some();
             let pcurve = match image {
@@ -3987,12 +3912,71 @@ fn run_checks<T: Decide>(
                 })?,
             };
             EdgeDescription::Chart(ChartCurve {
-                surface: key,
+                surface: *key,
                 pcurve,
-                wrap,
+                wrap: *wrap,
             })
         }
-    };
+    })
+}
+
+/// **The mint** — what every scalar's edge door constructs: check 1,
+/// the resolution, check 2 and the canonical description, in the order
+/// [`run_checks`] runs them. No sample is read and nothing is certified.
+fn mint_checks<T: Decide>(
+    spec: &EdgeCurveSpec<T>,
+    surfaces: &impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    band: Band,
+) -> Result<(EdgeDescription<T>, Option<CertifiedTurn<T>>), CertifyError> {
+    let resolved = resolve_spec(spec, surfaces)?;
+    let turn = decide_turn(spec, band)?;
+    let canonical = canonical_of(spec, &resolved, band)?;
+    Ok((canonical, turn))
+}
+
+/// What the certification engine derives: the certificate, the
+/// canonical description and check 2's turn.
+type Checked<T> = (Certificate<T>, EdgeDescription<T>, Option<CertifiedTurn<T>>);
+
+/// The certification engine (check sequence documented on
+/// [`EdgeCurve::certify`]): the mint's steps, with the endpoint pins
+/// between check 2 and the canonical description, then the sampled
+/// checks and C2's limbs through `lane`.
+#[allow(clippy::too_many_arguments)] // one parameter per named quantity
+fn run_checks<T: Decide + geom_core::CertifiedBounds>(
+    spec: &EdgeCurveSpec<T>,
+    start: Point3<T>,
+    end: Point3<T>,
+    surfaces: &impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    reach: T,
+    lane: NurbsLane<T>,
+    stated: Option<&StatedImage<T>>,
+    band: Band,
+) -> Result<Checked<T>, CertifyError> {
+    let resolved = resolve_spec(spec, surfaces)?;
+    let turn = decide_turn(spec, band)?;
+    let mut max_residual = T::zero();
+    let (t0, t1) = (spec.param_start, spec.param_end);
+
+    // ---- Check 3: endpoint pinning. ----
+    check_residual(
+        "carrier_endpoint_start",
+        CertCheck::EndpointStart,
+        0,
+        Margin::of(spec.carrier.eval(t0).distance(start)),
+        band,
+        &mut max_residual,
+    )?;
+    check_residual(
+        "carrier_endpoint_end",
+        CertCheck::EndpointEnd,
+        CERT_SAMPLES - 1,
+        Margin::of(spec.carrier.eval(t1).distance(end)),
+        band,
+        &mut max_residual,
+    )?;
+
+    let canonical = canonical_of(spec, &resolved, band)?;
 
     // ---- Check 4: per-sample description residuals. ----
     // Jet-schedule accumulators (TangentIntersection only): the worst
@@ -4362,10 +4346,7 @@ fn run_checks<T: Decide>(
     // tube. The lane refuses typed WITH its measured bound; a
     // transversality failure lands in this module's existing
     // vocabulary, exactly as the analytic arm's does. ----
-    if let Resolved::PlaneNurbs {
-        plane, wall, lane, ..
-    } = &resolved
-    {
+    if let Resolved::PlaneNurbs { plane, wall, .. } = &resolved {
         // `plane_nurbs_pair` admits only a wall with a chart.
         let Some(wall) = wall.spline_chart() else {
             return Err(CertifyError::Unimplemented);
@@ -4392,7 +4373,6 @@ fn run_checks<T: Decide>(
         plane,
         wall,
         wall_key,
-        lane,
         ..
     } = &resolved
     {
@@ -4426,7 +4406,7 @@ fn run_checks<T: Decide>(
     // ---- Intersection, NURBS × NURBS, over a carrier of any kind:
     // the same lane's certificate against both charts, its tube the
     // two-chart one. ----
-    if let Resolved::PairNurbs { a, b, lane, .. } = &resolved {
+    if let Resolved::PairNurbs { a, b, .. } = &resolved {
         let (Some(a), Some(b)) = (a.spline_chart(), b.spline_chart()) else {
             return Err(CertifyError::Unimplemented);
         };
@@ -4438,22 +4418,18 @@ fn run_checks<T: Decide>(
             .max(limbs.hull_sup.abs());
     }
 
-    // ---- Intersection of two analytic surfaces over a rung-3 carrier:
-    // C2's limbs, through the lane, which holds certification
-    // arithmetic — the carrier's distance from each operand over the
-    // edge's interval, and the uniqueness tube over it. A spline
+    // ---- Intersection of two analytic surfaces: C2's limbs, through
+    // the lane, which holds certification arithmetic — the carrier's
+    // distance from each operand over the edge's interval for every
+    // kind, and the uniqueness tube over it for a spline. A spline
     // operand's pair is the NURBS pairs' lane above, whose limbs are
     // its own. ----
-    if let (
-        Resolved::Intersection {
-            surfs: [(_, surf1), (_, surf2)],
-            rung3_lane: Some(lane),
-            ..
-        },
-        Curve3::Nurbs(carrier),
-    ) = (&resolved, &spec.carrier)
+    if let Resolved::Intersection {
+        surfs: [(_, surf1), (_, surf2)],
+        ..
+    } = &resolved
     {
-        lane.analytic_rung3(carrier, (t0, t1), surf1, surf2, band)
+        lane.analytic_limbs(&spec.carrier, (t0, t1), surf1, surf2, band)
             .map_err(CertifyError::AnalyticRung3)?;
     }
 
@@ -4550,10 +4526,95 @@ fn run_checks<T: Decide>(
         Certificate {
             samples: CERT_SAMPLES,
             max_residual,
-            turn,
         },
         canonical,
+        turn,
     ))
+}
+
+// The pair's two surfaces resolved, in key order: the checks run
+// in that order and each names its surface by key.
+enum Resolved<T: Real> {
+    Intersection {
+        surfs: [(SurfaceKey, Surface<T>); 2],
+        witness: Point3<T>,
+    },
+    Tangent {
+        surfs: [(SurfaceKey, Surface<T>); 2],
+        witness: Point3<T>,
+    },
+    /// D2's conventional pair: incidence on both surfaces, metered
+    /// as `Intersection` meters it, and the declaration's meter as
+    /// on [`Resolved::Chart`].
+    OnPair {
+        surfs: [(SurfaceKey, Surface<T>); 2],
+        declared: Option<crate::mapped::MappedCurve<T>>,
+    },
+    /// D2's conventional pair on a PLANE and a spline chart (a
+    /// described NURBS wall, or an `Approx` one's fit): the lane's
+    /// incidence on both over the whole span, and the declaration's
+    /// meter at each sample as on [`Resolved::OnPair`].
+    OnPairNurbs {
+        plane: Surface<T>,
+        wall_key: SurfaceKey,
+        wall: Surface<T>,
+        declared: Option<crate::mapped::MappedCurve<T>>,
+    },
+    /// D3's fenced scaffolding door: a pushforward standing in
+    /// as a description while the edge is TRANSIENT.
+    Scaffold(crate::mapped::MappedCurve<T>),
+    /// U2's ONE conventional form: the chart, its arena key, and
+    /// the chart-image data the pcurve is minted from (D4 — the
+    /// mint runs after the interval checks, so a degenerate span
+    /// still refuses in its own order).
+    Chart {
+        surface: Surface<T>,
+        key: SurfaceKey,
+        /// `Some` for an image the CONSTRUCTION states (D4:
+        /// spline charts take the image from the caller, which
+        /// every iso constructor already knows, and a
+        /// re-certification restates the image the edge already
+        /// carries); `None` for an analytic chart, whose image is
+        /// minted here through [`crate::chart_pcurve`].
+        image: Option<Pcurve<T>>,
+        /// D1's wrap edge ([`ChartCurve::wrap`]).
+        wrap: bool,
+        /// U2 Q3's authority payload, carried here for TWO reasons,
+        /// the one datum both read: the meter that used to run on it
+        /// still runs (below), and the chart-image mint ends a
+        /// carrier's incidence by who placed it (D3: `Some` routes a
+        /// miss to the modeler's lever).
+        ///
+        /// Pre-collapse a declared locus WAS the description and
+        /// took the scaffolding arm, whose
+        /// `carrier_matches_mapped_source` residual ran on every
+        /// certify. The collapse moved the payload out of the
+        /// description and left the meter behind on an arm the
+        /// payload no longer takes — so a declaration could be
+        /// arbitrarily false and nothing said so (measured by R1:
+        /// a placement ~1000 units off the body certified clean
+        /// and passed tier 3). This is the SAME check, the same
+        /// `CertCheck::MappedSource`, the same quantity and the
+        /// same predicate name, following the datum to where it
+        /// now lives — not a new predicate.
+        declared: Option<crate::mapped::MappedCurve<T>>,
+    },
+    /// `Intersection` of a PLANE and a described NURBS wall or a
+    /// fitted one (M7-8): the declare-and-check lane's shape, with
+    /// the lane that derives its limbs. `wall` has a spline chart.
+    PlaneNurbs {
+        plane_key: SurfaceKey,
+        plane: Surface<T>,
+        wall: Surface<T>,
+        witness: Point3<T>,
+    },
+    /// `Intersection` of two spline charts, each described or
+    /// fitted: the same lane's NURBS × NURBS limbs.
+    PairNurbs {
+        a: Surface<T>,
+        b: Surface<T>,
+        witness: Point3<T>,
+    },
 }
 
 /// The NURBS × NURBS pairing: two charts each a described NURBS
@@ -4607,7 +4668,7 @@ fn plane_nurbs_pair<T: Real>(
 /// The helper is instantiated once per certifying scalar, and that
 /// census counts the instantiations against the tree's
 /// `CertifiedEnclosure` impls.
-/// [`NurbsLane::carrier_foot`]'s seed is what picks the foot: a point
+/// [`SplineFoot::carrier_foot`]'s seed is what picks the foot: a point
 /// moved along a carrier is read on the branch it was moved from, not
 /// wherever a fixed start converges.
 #[cfg(test)]
@@ -4617,7 +4678,7 @@ mod foot_rows {
     use geom_core::Point3;
     use geom_core::spline::KnotVector;
 
-    use super::NurbsLane;
+    use super::SplineFoot;
 
     /// A U-shaped cubic, `x = 6t(1 − t)`, `y = 3t² − 2t³`. The distance
     /// from its point at `t = 0.9`, `(0.54, 0.972)`, has a second local
@@ -4634,15 +4695,15 @@ mod foot_rows {
         ];
         let carrier = NurbsCurve3::new(knots, control, vec![1.0; 4]).unwrap();
         let target = carrier.eval(0.9);
-        let lane = NurbsLane::<f64>::certified();
-        let moved_from = lane.carrier_foot(&carrier, target, 0.85).unwrap();
+        let foot = SplineFoot::<f64>::certified();
+        let moved_from = foot.carrier_foot(&carrier, target, 0.85).unwrap();
         assert!(
             (moved_from.t - 0.9).abs() < 1e-9 && moved_from.distance < 1e-9,
             "seeded at the old parameter 0.85 the foot is the point itself, got t = {} at {} m",
             moved_from.t,
             moved_from.distance
         );
-        let from_the_start = lane.carrier_foot(&carrier, target, 0.0).unwrap();
+        let from_the_start = foot.carrier_foot(&carrier, target, 0.0).unwrap();
         assert!(
             from_the_start.t < 0.3 && from_the_start.distance > 0.5,
             "seeded at the domain start the foot is the lower leg's minimum, got t = {} at {} m",
@@ -4654,7 +4715,7 @@ mod foot_rows {
 
 #[cfg(test)]
 mod wiring_rows {
-    use super::NurbsLane;
+    use super::{NurbsLane, SplineFoot};
     use crate::edge_nurbs::plane_nurbs_limbs;
 
     /// `Ok(())` when the fields hold the lane's certified functions;
@@ -4674,14 +4735,11 @@ mod wiring_rows {
         ) {
             return Err("spline_face is not `NurbsLane::spline_face_meetings`");
         }
-        if !std::ptr::fn_addr_eq(lane.foot, NurbsLane::<T>::seeded_foot as fn(_, _, _) -> _) {
-            return Err("foot is not `NurbsLane::seeded_foot`");
-        }
         if !std::ptr::fn_addr_eq(
-            lane.analytic_rung3,
-            crate::edge_nurbs::analytic_rung3::<T> as fn(_, _, _, _, _) -> _,
+            lane.analytic_limbs,
+            crate::edge_nurbs::analytic_edge_limbs::<T> as fn(_, _, _, _, _) -> _,
         ) {
-            return Err("analytic_rung3 is not `edge_nurbs::analytic_rung3`");
+            return Err("analytic_limbs is not `edge_nurbs::analytic_edge_limbs`");
         }
         if !std::ptr::fn_addr_eq(
             lane.pair_limbs,
@@ -4715,7 +4773,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<f64>(),
             Ok(()),
-            "`NurbsLane::<f64>::certified()` holds something other than `plane_nurbs_limbs`, `nurbs_pair_limbs`, `plane_nurbs_incidence`, `seeded_foot`, `analytic_rung3` and `composite_crossings`"
+            "`NurbsLane::<f64>::certified()` holds something other than `plane_nurbs_limbs`, `nurbs_pair_limbs`, `plane_nurbs_incidence`, `analytic_edge_limbs` and `composite_crossings`"
         );
     }
 
@@ -4746,6 +4804,46 @@ mod wiring_rows {
             holds_the_certified_nurbs_lane::<geom_core::interval::Interval>(),
             Ok(()),
             "`NurbsLane::<Interval>::certified()` holds something other than its routines"
+        );
+    }
+
+    /// `Ok(())` when the foot holds `SplineFoot::seeded_foot`.
+    fn holds_the_certified_spline_foot<T: geom_core::CertifiedBounds>() -> Result<(), &'static str>
+    {
+        let foot = SplineFoot::<T>::certified();
+        if !std::ptr::fn_addr_eq(foot.foot, SplineFoot::<T>::seeded_foot as fn(_, _, _) -> _) {
+            return Err("foot is not `SplineFoot::seeded_foot`");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn f64_is_wired_to_the_certified_spline_foot() {
+        assert_eq!(holds_the_certified_spline_foot::<f64>(), Ok(()));
+    }
+
+    #[test]
+    fn sym_over_f64_is_wired_to_the_certified_spline_foot() {
+        assert_eq!(
+            holds_the_certified_spline_foot::<geom_core::Sym<f64>>(),
+            Ok(())
+        );
+    }
+
+    #[cfg(feature = "probe")]
+    #[test]
+    fn probe_is_wired_to_the_certified_spline_foot() {
+        assert_eq!(
+            holds_the_certified_spline_foot::<geom_core::Probe>(),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn interval_is_wired_to_the_certified_spline_foot() {
+        assert_eq!(
+            holds_the_certified_spline_foot::<geom_core::interval::Interval>(),
+            Ok(())
         );
     }
 }
@@ -5392,6 +5490,7 @@ mod tests {
             &lookup,
             1.0,
             band(),
+            NurbsLane::certified(),
         )
         .expect("the seam certifies");
         let chart = seam.description().chart().expect("a seam IS a chart image");
@@ -5423,6 +5522,7 @@ mod tests {
             &plookup,
             1.0,
             band(),
+            NurbsLane::certified(),
         )
         .expect("the iso curve certifies");
         let iso_chart = iso
@@ -5438,8 +5538,16 @@ mod tests {
         // shape, and it is NOT a chart image — it has no surface.
         let (a, b) = (Point3::new(-1.0, 0.25, 0.5), Point3::new(2.0, -3.0, 4.0));
         let (_, empty) = table(vec![]);
-        let scaffold = EdgeCurve::certify(line_spec(a, b), a, b, &empty, 1.0, band())
-            .expect("the scaffolding line certifies");
+        let scaffold = EdgeCurve::certify(
+            line_spec(a, b),
+            a,
+            b,
+            &empty,
+            1.0,
+            band(),
+            NurbsLane::certified(),
+        )
+        .expect("the scaffolding line certifies");
         assert!(scaffold.description().chart().is_none());
         assert!(matches!(
             scaffold.description(),
@@ -5453,8 +5561,16 @@ mod tests {
     fn the_authority_record_says_who_declared_the_locus() {
         let (a, b) = (Point3::new(-1.0, 0.25, 0.5), Point3::new(2.0, -3.0, 4.0));
         let (_, empty) = table(vec![]);
-        let declared = EdgeCurve::certify(line_spec(a, b), a, b, &empty, 1.0, band())
-            .expect("the scaffolding line certifies");
+        let declared = EdgeCurve::certify(
+            line_spec(a, b),
+            a,
+            b,
+            &empty,
+            1.0,
+            band(),
+            NurbsLane::certified(),
+        )
+        .expect("the scaffolding line certifies");
         assert!(declared.authority().is_declared());
         assert!(matches!(
             declared.authority(),
@@ -5487,6 +5603,7 @@ mod tests {
             &lookup,
             1.0,
             band(),
+            NurbsLane::certified(),
         )
         .expect("the seam certifies");
         assert!(!derived.authority().is_declared());
@@ -5526,9 +5643,17 @@ mod tests {
             param_start: 0.0,
             param_end: 3.0,
         };
-        let cert = EdgeCurve::certify(seam_spec.clone(), p0, p1, &lookup, 1.0, d2_band(drift))
-            .expect("the seam certifies")
-            .certificate;
+        let cert = EdgeCurve::certify(
+            seam_spec.clone(),
+            p0,
+            p1,
+            &lookup,
+            1.0,
+            d2_band(drift),
+            NurbsLane::certified(),
+        )
+        .expect("the seam certifies")
+        .certificate;
         let legacy = legacy_seam_max(&seam_spec, &lookup(keys[0]).unwrap(), p0, p1);
         let seam_delta = ulps(cert.max_residual, legacy);
 
@@ -5538,9 +5663,17 @@ mod tests {
         let (a, b) = (Point3::new(-1.0, 0.25, 0.5), Point3::new(2.0, -3.0, 4.0));
         let mapped = line_spec(a, b);
         let (_, empty) = table(vec![]);
-        let mapped_cert = EdgeCurve::certify(mapped.clone(), a, b, &empty, 1.0, d2_band(drift))
-            .expect("the mapped line certifies")
-            .certificate;
+        let mapped_cert = EdgeCurve::certify(
+            mapped.clone(),
+            a,
+            b,
+            &empty,
+            1.0,
+            d2_band(drift),
+            NurbsLane::certified(),
+        )
+        .expect("the mapped line certifies")
+        .certificate;
         let mut mapped_legacy = mapped.carrier.eval(mapped.param_start).distance(a);
         mapped_legacy = mapped_legacy.max(mapped.carrier.eval(mapped.param_end).distance(b));
         let EdgeDescriptionSpec::Scaffold(mc) = mapped.description else {
@@ -5631,6 +5764,7 @@ mod tests {
             &plookup,
             1.0,
             d2_band(2.5e-10),
+            NurbsLane::certified(),
         )
         .expect("the nurbs iso certifies");
         let iso_chart = iso_cert
@@ -5892,12 +6026,23 @@ mod tests {
     fn self_loop_circle_certifies_at_its_anchor() {
         let p = Point3::new(-2.0, 0.5, 7.0);
         let spec = EdgeCurveSpec::self_loop_circle_at(p);
-        EdgeCurve::certify(spec.clone(), p, p, |_| None, 1.0, band()).unwrap();
+        EdgeCurve::certify(
+            spec.clone(),
+            p,
+            p,
+            |_| None,
+            1.0,
+            band(),
+            NurbsLane::certified(),
+        )
+        .unwrap();
         // Coincident-endpoint LINE specs, by contrast, poison and are
         // refused (typed, no panic) — the reason the circle convention
         // exists.
         let bad = EdgeCurveSpec::line_between(p, p);
-        assert!(EdgeCurve::certify(bad, p, p, |_| None, 1.0, band()).is_err());
+        assert!(
+            EdgeCurve::certify(bad, p, p, |_| None, 1.0, band(), NurbsLane::certified()).is_err()
+        );
     }
 
     #[test]
@@ -5905,8 +6050,26 @@ mod tests {
         let p0 = Point3::new(0.25, -1.0, 2.0);
         let p1 = Point3::new(1.25, 0.5, 3.5);
         let spec = line_spec(p0, p1);
-        let a = EdgeCurve::certify(spec.clone(), p0, p1, |_| None, 1.0, band()).unwrap();
-        let b = EdgeCurve::certify(spec.clone(), p0, p1, |_| None, 1.0, band()).unwrap();
+        let a = EdgeCurve::certify(
+            spec.clone(),
+            p0,
+            p1,
+            |_| None,
+            1.0,
+            band(),
+            NurbsLane::certified(),
+        )
+        .unwrap();
+        let b = EdgeCurve::certify(
+            spec.clone(),
+            p0,
+            p1,
+            |_| None,
+            1.0,
+            band(),
+            NurbsLane::certified(),
+        )
+        .unwrap();
         // D9: byte-identical certification records across runs.
         assert_eq!(
             format!("{:?}", a.certificate()),
@@ -5915,7 +6078,8 @@ mod tests {
         assert_eq!(a.certificate().samples, CERT_SAMPLES);
         assert!(a.certificate().max_residual <= eps());
         // Recertification at rest agrees.
-        a.recertify(p0, p1, |_| None, 1.0, band()).unwrap();
+        a.recertify(p0, p1, |_| None, 1.0, band(), NurbsLane::certified())
+            .unwrap();
     }
 
     #[test]
@@ -5931,7 +6095,16 @@ mod tests {
             origin: Point3::new(0.0, off, 0.0),
             dir: Vec3::unit_x(),
         };
-        let err = EdgeCurve::certify(spec.clone(), p0, p1, |_| None, 1.0, band()).unwrap_err();
+        let err = EdgeCurve::certify(
+            spec.clone(),
+            p0,
+            p1,
+            |_| None,
+            1.0,
+            band(),
+            NurbsLane::certified(),
+        )
+        .unwrap_err();
         assert!(
             matches!(
                 err,
@@ -5949,7 +6122,16 @@ mod tests {
             origin: Point3::new(0.0, 3.0 * eps(), 0.0),
             dir: Vec3::unit_x(),
         };
-        let err = EdgeCurve::certify(spec.clone(), p0, p1, |_| None, 1.0, band()).unwrap_err();
+        let err = EdgeCurve::certify(
+            spec.clone(),
+            p0,
+            p1,
+            |_| None,
+            1.0,
+            band(),
+            NurbsLane::certified(),
+        )
+        .unwrap_err();
         assert!(matches!(err, CertifyError::Escalated { .. }), "{err:?}");
     }
 
@@ -6007,7 +6189,16 @@ mod tests {
             param_start: 0.0,
             param_end: 1.0,
         };
-        let certified = EdgeCurve::certify(spec, p0, p1, &src_lookup, 1.0, band()).unwrap();
+        let certified = EdgeCurve::certify(
+            spec,
+            p0,
+            p1,
+            &src_lookup,
+            1.0,
+            band(),
+            NurbsLane::certified(),
+        )
+        .unwrap();
 
         let bridge = |k: SurfaceKey| src_keys.iter().position(|s| *s == k).map(|i| dst_keys[i]);
         let moved = certified
@@ -6037,7 +6228,9 @@ mod tests {
         // And the moved copy is genuinely certified AGAINST the
         // destination's surfaces: re-certification there agrees, which
         // is the claim the graft's `RemapKeys` bridge relies on.
-        moved.recertify(p0, p1, &dst_lookup, 1.0, band()).unwrap();
+        moved
+            .recertify(p0, p1, &dst_lookup, 1.0, band(), NurbsLane::certified())
+            .unwrap();
 
         // A remap that cannot answer writes nothing.
         assert!(
@@ -6045,8 +6238,16 @@ mod tests {
             "a dangling handle is never written"
         );
         // A description with no surface keys survives any remap.
-        let mapped_only =
-            EdgeCurve::certify(line_spec(p0, p1), p0, p1, |_| None, 1.0, band()).unwrap();
+        let mapped_only = EdgeCurve::certify(
+            line_spec(p0, p1),
+            p0,
+            p1,
+            |_| None,
+            1.0,
+            band(),
+            NurbsLane::certified(),
+        )
+        .unwrap();
         let same = mapped_only
             .with_remapped_surfaces(|_| None)
             .expect("a MappedCurve names no surface");
@@ -6086,7 +6287,16 @@ mod tests {
             param_start: 0.0,
             param_end: 1.0,
         };
-        EdgeCurve::certify(spec.clone(), p0, p1, &lookup, 1.0, band()).unwrap();
+        EdgeCurve::certify(
+            spec.clone(),
+            p0,
+            p1,
+            &lookup,
+            1.0,
+            band(),
+            NurbsLane::certified(),
+        )
+        .unwrap();
 
         // Both-surface teeth: a carrier lying ON keys[0] but definitely
         // off keys[1] fails keys[1]'s residual specifically.
@@ -6102,6 +6312,7 @@ mod tests {
             &lookup,
             1.0,
             band(),
+            NurbsLane::certified(),
         )
         .unwrap_err();
         assert!(
@@ -6122,7 +6333,8 @@ mod tests {
             pair: SurfacePair::new(keys[0], keys[1]),
             witness: Point3::new(0.5, 0.0, 0.25),
         };
-        let err = EdgeCurve::certify(bad, p0, p1, &lookup, 1.0, band()).unwrap_err();
+        let err = EdgeCurve::certify(bad, p0, p1, &lookup, 1.0, band(), NurbsLane::certified())
+            .unwrap_err();
         assert!(
             matches!(
                 err,
@@ -6142,7 +6354,8 @@ mod tests {
             witness: Point3::new(0.5, 0.0, 0.0),
         };
         assert_eq!(
-            EdgeCurve::certify(bad, p0, p1, &lookup, 1.0, band()).unwrap_err(),
+            EdgeCurve::certify(bad, p0, p1, &lookup, 1.0, band(), NurbsLane::certified())
+                .unwrap_err(),
             CertifyError::IntersectionSameSurface { key: keys[0] }
         );
 
@@ -6153,7 +6366,8 @@ mod tests {
             witness: Point3::new(0.5, 0.0, 0.0),
         };
         assert_eq!(
-            EdgeCurve::certify(bad, p0, p1, &lookup, 1.0, band()).unwrap_err(),
+            EdgeCurve::certify(bad, p0, p1, &lookup, 1.0, band(), NurbsLane::certified())
+                .unwrap_err(),
             CertifyError::UnresolvedSurface {
                 key: SurfaceKey::default()
             }
@@ -6191,7 +6405,16 @@ mod tests {
             param_start: 0.0,
             param_end: 1.0,
         };
-        let err = EdgeCurve::certify(spec.clone(), p0, p1, &lookup, 1.0, band()).unwrap_err();
+        let err = EdgeCurve::certify(
+            spec.clone(),
+            p0,
+            p1,
+            &lookup,
+            1.0,
+            band(),
+            NurbsLane::certified(),
+        )
+        .unwrap_err();
         assert!(
             matches!(
                 err,
@@ -6228,7 +6451,16 @@ mod tests {
             param_end: 1.0,
         };
         assert_eq!(
-            EdgeCurve::certify(spec.clone(), p0, p1, &lookup, 1.0, band()).unwrap_err(),
+            EdgeCurve::certify(
+                spec.clone(),
+                p0,
+                p1,
+                &lookup,
+                1.0,
+                band(),
+                NurbsLane::certified()
+            )
+            .unwrap_err(),
             CertifyError::NotTransverse {
                 lever: None,
                 sample: 1,
@@ -6264,7 +6496,16 @@ mod tests {
             param_start: 0.0,
             param_end: 3.0,
         };
-        EdgeCurve::certify(spec.clone(), p0, p1, &lookup, 1.0, band()).unwrap();
+        EdgeCurve::certify(
+            spec.clone(),
+            p0,
+            p1,
+            &lookup,
+            1.0,
+            band(),
+            NurbsLane::certified(),
+        )
+        .unwrap();
 
         let q0 = Point3::new(-r, 0.0, 0.0);
         let q1 = Point3::new(-r, 0.0, 3.0);
@@ -6273,7 +6514,16 @@ mod tests {
             origin: q0,
             dir: Vec3::unit_z(),
         };
-        let cut = EdgeCurve::certify(antipode, q0, q1, &lookup, 1.0, band()).unwrap();
+        let cut = EdgeCurve::certify(
+            antipode,
+            q0,
+            q1,
+            &lookup,
+            1.0,
+            band(),
+            NurbsLane::certified(),
+        )
+        .unwrap();
         let chart = cut
             .description()
             .chart()
@@ -6294,7 +6544,7 @@ mod tests {
             dir: Vec3::unit_z(),
         };
         assert!(
-            EdgeCurve::certify(off, o0, o1, &lookup, 1.0, band()).is_err(),
+            EdgeCurve::certify(off, o0, o1, &lookup, 1.0, band(), NurbsLane::certified()).is_err(),
             "a ruling off the cylinder is no image of it"
         );
 
@@ -6307,7 +6557,8 @@ mod tests {
         let mut bad = spec.clone();
         bad.description = EdgeDescriptionSpec::wrap(pkeys[0]);
         assert_eq!(
-            EdgeCurve::certify(bad, p0, p1, &plookup, 1.0, band()).unwrap_err(),
+            EdgeCurve::certify(bad, p0, p1, &plookup, 1.0, band(), NurbsLane::certified())
+                .unwrap_err(),
             CertifyError::WrapOnNonPeriodic
         );
     }
@@ -6341,8 +6592,16 @@ mod tests {
             description: EdgeDescriptionSpec::on_pair(pair),
             ..line_spec(p0, p1)
         };
-        let certified = EdgeCurve::certify(on(p0, p1), p0, p1, &lookup, 1.0, band())
-            .expect("a generator on both surfaces certifies as their pair");
+        let certified = EdgeCurve::certify(
+            on(p0, p1),
+            p0,
+            p1,
+            &lookup,
+            1.0,
+            band(),
+            NurbsLane::certified(),
+        )
+        .expect("a generator on both surfaces certifies as their pair");
         assert!(matches!(
             certified.description(),
             EdgeDescription::OnPair { pair: got } if *got == pair
@@ -6351,7 +6610,16 @@ mod tests {
         let (q0, q1) = (p0 + lift, p1 + lift);
         assert!(
             matches!(
-                EdgeCurve::certify(on(q0, q1), q0, q1, &lookup, 1.0, band()).unwrap_err(),
+                EdgeCurve::certify(
+                    on(q0, q1),
+                    q0,
+                    q1,
+                    &lookup,
+                    1.0,
+                    band(),
+                    NurbsLane::certified()
+                )
+                .unwrap_err(),
                 CertifyError::ResidualExceeded {
                     check: CertCheck::SurfaceResidual { .. },
                     ..
@@ -6362,13 +6630,15 @@ mod tests {
         let mut twice = on(p0, p1);
         twice.description = EdgeDescriptionSpec::on_pair(SurfacePair::new(keys[0], keys[0]));
         assert_eq!(
-            EdgeCurve::certify(twice, p0, p1, &lookup, 1.0, band()).unwrap_err(),
+            EdgeCurve::certify(twice, p0, p1, &lookup, 1.0, band(), NurbsLane::certified())
+                .unwrap_err(),
             CertifyError::IntersectionSameSurface { key: keys[0] }
         );
         let mut spline = on(p0, p1);
         spline.carrier = Curve3::nurbs_placeholder();
         assert_eq!(
-            EdgeCurve::certify(spline, p0, p1, &lookup, 1.0, band()).unwrap_err(),
+            EdgeCurve::certify(spline, p0, p1, &lookup, 1.0, band(), NurbsLane::certified())
+                .unwrap_err(),
             CertifyError::Unimplemented,
             "a spline carrier on a pair refuses typed: no between-sample bound"
         );
@@ -6381,13 +6651,31 @@ mod tests {
         let mut spec = line_spec(p0, p1);
         spec.carrier = Curve3::nurbs_placeholder();
         assert_eq!(
-            EdgeCurve::certify(spec.clone(), p0, p1, |_| None, 1.0, band()).unwrap_err(),
+            EdgeCurve::certify(
+                spec.clone(),
+                p0,
+                p1,
+                |_| None,
+                1.0,
+                band(),
+                NurbsLane::certified()
+            )
+            .unwrap_err(),
             CertifyError::Unimplemented
         );
         // Poisoned endpoints: typed escalation, no panic (totality).
         let spec = line_spec(p0, p1);
         let nan = Point3::new(f64::NAN, 0.0, 0.0);
-        let err = EdgeCurve::certify(spec.clone(), nan, p1, |_| None, 1.0, band()).unwrap_err();
+        let err = EdgeCurve::certify(
+            spec.clone(),
+            nan,
+            p1,
+            |_| None,
+            1.0,
+            band(),
+            NurbsLane::certified(),
+        )
+        .unwrap_err();
         assert!(matches!(err, CertifyError::Escalated { .. }));
     }
 
@@ -6418,7 +6706,16 @@ mod tests {
             param_start: 0.0,
             param_end: TAU,
         };
-        EdgeCurve::certify(spec.clone(), p, p, |_| None, 1.0, band()).unwrap();
+        EdgeCurve::certify(
+            spec.clone(),
+            p,
+            p,
+            |_| None,
+            1.0,
+            band(),
+            NurbsLane::certified(),
+        )
+        .unwrap();
     }
 
     /// A placed-arc mapped curve against a circle carrier: the
@@ -6454,7 +6751,16 @@ mod tests {
         };
         let p0 = Point3::new(1.0, 0.0, 1.0);
         let p1 = Point3::new(0.0, 1.0, 1.0);
-        EdgeCurve::certify(spec.clone(), p0, p1, |_| None, 1.0, band()).unwrap();
+        EdgeCurve::certify(
+            spec.clone(),
+            p0,
+            p1,
+            |_| None,
+            1.0,
+            band(),
+            NurbsLane::certified(),
+        )
+        .unwrap();
     }
 
     /// D4 ¶1 (i)/(iv), at every reading: the band-decided arms of one
@@ -6927,15 +7233,23 @@ mod tests {
         let spec = EdgeCurveSpec::arc_of_circle(circle, 0.0, t1).unwrap();
         let (start, end) = (spec.carrier.eval(0.0), spec.carrier.eval(t1));
         let coarse = Band::new(1e-6, 1e-5).unwrap();
-        let minted = EdgeCurve::certify(spec, start, end, |_| None, 1.0, coarse)
-            .expect("a headroom the coarse band reads as zero passes");
+        let minted = EdgeCurve::certify(
+            spec,
+            start,
+            end,
+            |_| None,
+            1.0,
+            coarse,
+            NurbsLane::certified(),
+        )
+        .expect("a headroom the coarse band reads as zero passes");
         let lever = "Recourse: move the geometry so this arc stays clearly short of a full turn";
         for (finer, in_band) in [
             (Band::new(1e-9, 1e-8).unwrap(), false),
             (Band::new(1e-7, 1e-6).unwrap(), true),
         ] {
             let error = minted
-                .recertify(start, end, |_| None, 1.0, finer)
+                .recertify(start, end, |_| None, 1.0, finer, NurbsLane::certified())
                 .unwrap_err();
             let CertifyError::StatedInterval {
                 refused: StatedSpan::Winding(reading),
@@ -6956,7 +7270,15 @@ mod tests {
                 "{finer:?} at the import door"
             );
             let kernels = minted
-                .recertify_via_stated(start, end, |_| None, 1.0, finer, None, None)
+                .recertify_stated(
+                    start,
+                    end,
+                    |_| None,
+                    1.0,
+                    finer,
+                    NurbsLane::certified(),
+                    None,
+                )
                 .unwrap_err();
             assert_eq!(
                 kernels, error,
@@ -6990,19 +7312,29 @@ mod tests {
                 spec.carrier.eval(spec.param_end),
             )
         }
-        type Door = fn(EdgeCurveSpec<f64>, Band) -> Result<EdgeCurve<f64>, CertifyError>;
+        type Door = fn(EdgeCurveSpec<f64>, Band) -> Result<(), CertifyError>;
         let doors: [(&str, Door); 3] = [
             ("certify", |spec, band| {
                 let (start, end) = ends(&spec);
-                EdgeCurve::certify(spec, start, end, |_| None, 1.0, band)
+                EdgeCurve::certify(
+                    spec,
+                    start,
+                    end,
+                    |_| None,
+                    1.0,
+                    band,
+                    NurbsLane::certified(),
+                )
+                .map(|_| ())
             }),
-            ("certify_via", |spec, band| {
+            ("certify_stated", |spec, band| {
                 let (start, end) = ends(&spec);
-                EdgeCurve::certify_via(spec, start, end, |_| None, 1.0, band, None)
+                let lane = NurbsLane::certified();
+                EdgeCurve::certify_stated(spec, start, end, |_| None, 1.0, band, lane, None)
+                    .map(|_| ())
             }),
-            ("certify_via_stated", |spec, band| {
-                let (start, end) = ends(&spec);
-                EdgeCurve::certify_via_stated(spec, start, end, |_| None, 1.0, band, None, None)
+            ("mint", |spec, band| {
+                EdgeCurve::mint(spec, |_| None, band).map(|_| ())
             }),
         ];
         let circle = Curve3::Circle {
@@ -7132,52 +7464,50 @@ mod tests {
             ("past a turn", arc(3.0 * core::f64::consts::PI)),
             ("past a turn within a coarse band", arc(slightly_past)),
         ];
-        type Mint = fn(EdgeCurveSpec<f64>, Band) -> Result<EdgeCurve<f64>, CertifyError>;
+        let certify = |spec: EdgeCurveSpec<f64>, band| {
+            let (a, b) = (
+                spec.carrier.eval(spec.param_start),
+                spec.carrier.eval(spec.param_end),
+            );
+            EdgeCurve::certify(spec, a, b, |_| None, 1.0, band, NurbsLane::certified())
+        };
+        type Mint = fn(EdgeCurveSpec<f64>, Band) -> Result<(), CertifyError>;
         let mints: [(&str, Mint); 3] = [
             ("certify", |spec, band| {
                 let (a, b) = (
                     spec.carrier.eval(spec.param_start),
                     spec.carrier.eval(spec.param_end),
                 );
-                EdgeCurve::certify(spec, a, b, |_| None, 1.0, band)
+                EdgeCurve::certify(spec, a, b, |_| None, 1.0, band, NurbsLane::certified())
+                    .map(|_| ())
             }),
-            ("certify_via", |spec, band| {
+            ("certify_stated", |spec, band| {
                 let (a, b) = (
                     spec.carrier.eval(spec.param_start),
                     spec.carrier.eval(spec.param_end),
                 );
-                EdgeCurve::certify_via(spec, a, b, |_| None, 1.0, band, None)
+                let lane = NurbsLane::certified();
+                EdgeCurve::certify_stated(spec, a, b, |_| None, 1.0, band, lane, None).map(|_| ())
             }),
-            ("certify_via_stated", |spec, band| {
-                let (a, b) = (
-                    spec.carrier.eval(spec.param_start),
-                    spec.carrier.eval(spec.param_end),
-                );
-                EdgeCurve::certify_via_stated(spec, a, b, |_| None, 1.0, band, None, None)
+            ("mint", |spec, band| {
+                EdgeCurve::mint(spec, |_| None, band).map(|_| ())
             }),
         ];
         type Recertify = fn(&EdgeCurve<f64>, Band) -> Result<Certificate<f64>, CertifyError>;
-        let recertifiers: [(&str, Recertify); 3] = [
+        let recertifiers: [(&str, Recertify); 2] = [
             ("recertify", |curve, band| {
                 let (a, b) = (
                     curve.carrier.eval(curve.param_start),
                     curve.carrier.eval(curve.param_end),
                 );
-                curve.recertify(a, b, |_| None, 1.0, band)
+                curve.recertify(a, b, |_| None, 1.0, band, NurbsLane::certified())
             }),
-            ("recertify_via", |curve, band| {
+            ("recertify_stated", |curve, band| {
                 let (a, b) = (
                     curve.carrier.eval(curve.param_start),
                     curve.carrier.eval(curve.param_end),
                 );
-                curve.recertify_via(a, b, |_| None, 1.0, band, None)
-            }),
-            ("recertify_via_stated", |curve, band| {
-                let (a, b) = (
-                    curve.carrier.eval(curve.param_start),
-                    curve.carrier.eval(curve.param_end),
-                );
-                curve.recertify_via_stated(a, b, |_| None, 1.0, band, None, None)
+                curve.recertify_stated(a, b, |_| None, 1.0, band, NurbsLane::certified(), None)
             }),
         ];
         let mut refusals = Vec::new();
@@ -7186,7 +7516,7 @@ mod tests {
                 refusals.push((format!("{door}, {row}"), mint(spec, fine).map(|_| ())));
             }
         }
-        let minted = mints[0].1(arc(slightly_past), coarse)
+        let minted = certify(arc(slightly_past), coarse)
             .expect("a headroom the coarse band reads as zero passes");
         for (door, recertify) in recertifiers {
             for band in [fine, Band::new(1e-7, 1e-6).unwrap()] {
@@ -7196,7 +7526,7 @@ mod tests {
                 ));
             }
         }
-        assert_eq!(refusals.len(), 21, "every door and row");
+        assert_eq!(refusals.len(), 19, "every door and row");
         let mut forward_in_band = 0;
         for (row, refusal) in refusals {
             let error = match refusal {
@@ -7241,8 +7571,16 @@ mod tests {
         let file = FileCoincidence::new(1e-9);
         let p = Point3::new(1.0, 2.0, 3.0);
         let refused = |q: Point3<f64>| {
-            EdgeCurve::certify(EdgeCurveSpec::line_between(p, q), p, q, |_| None, 1.0, band)
-                .unwrap_err()
+            EdgeCurve::certify(
+                EdgeCurveSpec::line_between(p, q),
+                p,
+                q,
+                |_| None,
+                1.0,
+                band,
+                NurbsLane::certified(),
+            )
+            .unwrap_err()
         };
         let coincident = refused(p);
         let sibling = refused(Point3::new(1.0 + 5e-12, 2.0, 3.0));
@@ -8439,7 +8777,8 @@ mod tests {
             param_end: 2.0 * reach,
         };
         let p1 = spec.carrier.eval(2.0 * reach);
-        let err = EdgeCurve::certify(spec, p0, p1, &lookup, 1.0, band()).unwrap_err();
+        let err = EdgeCurve::certify(spec, p0, p1, &lookup, 1.0, band(), NurbsLane::certified())
+            .unwrap_err();
         assert!(
             matches!(
                 err,
@@ -8728,7 +9067,8 @@ mod tests {
             param_end: 1.0,
         };
         let end = on + Vec3::unit_z();
-        let err = EdgeCurve::certify(spec, on, end, &lookup, 1.0, b).unwrap_err();
+        let err =
+            EdgeCurve::certify(spec, on, end, &lookup, 1.0, b, NurbsLane::certified()).unwrap_err();
         let CertifyError::Escalated {
             check: CertCheck::TransversalityArm,
             cause,

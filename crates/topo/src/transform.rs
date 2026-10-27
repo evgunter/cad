@@ -23,9 +23,9 @@
 //! rigid up to rounding, a door-admitted factor within the band, and a
 //! product of `k` admitted factors — not decided again — within about
 //! `k` bands (`RigidMotion`'s module docs). On top of that, every edge
-//! carrier is **re-certified** against the mapped geometry through
-//! [`geom_brep::EdgeCurve::certify_via`] — with the plane × NURBS lane the
-//! scalar's policy holds ([`crate::AtRestPolicy::nurbs_lane`]) — so a
+//! carrier is **re-attached** against the mapped geometry through the
+//! scalar's edge door ([`crate::AtRestPolicy::attach_edge`]: certified in
+//! full where the scalar certifies, minted where it never does) — so a
 //! map that breaks carrier consistency
 //! surfaces as a typed [`TransformError::Certify`] refusal, never as
 //! silently corrupt geometry. Re-running the checks rather than
@@ -168,19 +168,6 @@ pub enum TransformError {
         /// The scalar the map ran at ([`geom_core::Real::NAME`]).
         scalar: &'static str,
     },
-    /// An edge whose certificate needs the NURBS lane (the classes are
-    /// listed on [`geom_brep::CertifyError::NurbsLaneNotSupplied`])
-    /// cannot be re-certified at this scalar: its certificate is
-    /// re-derived on the moved pair through that lane, and the scalar's
-    /// policy holds none ([`crate::AtRestPolicy::nurbs_lane`] answers
-    /// `None` — a dual, DL1). It is a fact about the scalar and not
-    /// about the body.
-    NurbsLaneUnsupported {
-        /// The edge whose carrier is of the class.
-        edge: EdgeKey,
-        /// The scalar the map ran at ([`geom_core::Real::NAME`]).
-        scalar: &'static str,
-    },
     /// The fit door refused a mapped approximating surface: the image
     /// of a fit that does not certify in its own frame either (a limb
     /// above tolerance), a door meter, a window the derivation does not
@@ -234,12 +221,6 @@ impl TransformError {
                  only {holders} holds that door (the fit is derived there alone). Recourse: \
                  move the body at {holders}",
                 holders = geom_brep::ScalarList(geom_brep::OFFSET_FIT_DOOR_HOLDERS),
-            ),
-            Self::NurbsLaneUnsupported { scalar, .. } => format!(
-                "an edge whose certificate needs the NURBS lane cannot be moved at the \
-                 {scalar} scalar: its certificate is re-derived on the moved pair through that \
-                 lane, and only a scalar with certification rights holds it. Recourse: move \
-                 the body at a certifying scalar"
             ),
             Self::ApproxRecertify { source } => format!(
                 "a moved approximating surface could not be re-certified or re-fitted: {source}"
@@ -850,14 +831,7 @@ pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
         let origin =
             crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::RigidTransform);
         let mapped = crate::policy_lane::certify(origin, spec, start, end, surfaces, reach, band)
-            .map_err(|refusal| match refusal {
-            crate::policy_lane::ByPolicy::NoLane { scalar } => {
-                TransformError::NurbsLaneUnsupported { edge: ek, scalar }
-            }
-            crate::policy_lane::ByPolicy::Refused(source) => {
-                TransformError::Certify { edge: ek, source }
-            }
-        })?;
+            .map_err(|source| TransformError::Certify { edge: ek, source })?;
         out.curves[curve_key] = CurveGeom::Certified(mapped);
         rewritten.insert(curve_key, ());
     }

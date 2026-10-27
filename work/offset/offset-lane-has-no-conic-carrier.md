@@ -6,7 +6,7 @@ status: parked
 opened: 2026-09-08
 priority: P0
 cost: H
-blocked_on: [closed-form-edge-carriers-pass-on-samples-with-no-stated-bound-between-them, a-classified-pairs-section-states-the-bounds-that-retire-the-tube]
+blocked_on: [a-classified-pairs-section-states-the-bounds-that-retire-the-tube]
 ---
 
 

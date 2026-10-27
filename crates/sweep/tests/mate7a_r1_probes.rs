@@ -28,7 +28,10 @@ fn deg(d: f64) -> f64 {
 /// numbers: root at the origin heading +z (in the xz-plane), left turn
 /// of 22 degrees on a 5 m ring — so the ring centre is (-5, 0, 0), the
 /// start radial +x, the axis -y (`tube_arc`'s left-turn sense).
-pub(crate) fn stem() -> AtRestBody<f64> {
+/// The stem, or `None` at ε = 1e-12, where its torus wall is past limb
+/// 2's reach: the kernel's limit
+/// (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+pub(crate) fn stem() -> Option<AtRestBody<f64>> {
     let stem = tube_along_arc(
         tube_frame(
             Point3::new(-STEM_RING, 0.0, 0.0),
@@ -43,10 +46,10 @@ pub(crate) fn stem() -> AtRestBody<f64> {
         },
         STEM_TUBE,
         Tol::witness(),
-    )
-    .expect("stem builds")
-    .body;
-    finished("the stem", stem, Tol::witness())
+    );
+    let stem =
+        test_utils::kernel_limit::pinned(stem, Tol::witness().eps(), &[1e-12], "the stem")?.body;
+    Some(finished("the stem", stem, Tol::witness()))
 }
 
 /// The fork point (the stem's end / the arch's start), its tangent,
@@ -164,7 +167,8 @@ fn dist_to_stem_center_arc(p: Point3<f64>) -> f64 {
 /// skip-hazard: the far cap MUST exist.
 #[test]
 fn p1_wall1_glues_the_stem_into_one_body() {
-    let (s, a) = (stem(), arch());
+    let Some(s) = stem() else { return };
+    let a = arch();
     assert_eq!(
         weld_cap_pairs(&s, &a),
         1,
@@ -345,15 +349,16 @@ fn p1_wall1_glues_the_stem_into_one_body() {
 }
 
 /// **The same two tori with a stem window that reaches over a loop
-/// do not glue.** Run to 30° instead of 22°, the stem's tube wall
-/// spans the loop on the arch's side of the weld plane, where the
-/// arch's tube leaves the stem's through its inner wall, and its seams
-/// cross the arch's tube, so the pair carries events; the join's germ
-/// frame refuses the two tube walls before the interior-loop guard is
-/// asked; the certificate's own row for windows reaching a loop is
+/// refuse at the join's germ frame.** Run to 30° instead of 22°, the
+/// stem's tube wall spans the loop on the arch's side of the weld plane,
+/// and its seams cross the arch's tube, so the pair carries events and
+/// the join's germ frame refuses the two tube walls
+/// (`GermFrameUnsupported`, torus × torus) before the interior-loop
+/// guard is asked. What this row pins is that refusal: it goes red when
+/// the op starts building this pair, or refuses it somewhere else. It
+/// cannot see the certificate. The certificate-level degrade row is
 /// `section_cert_parallel_tori_rows`
 /// `the_lilys_pair_clears_only_on_windows_that_miss_its_loops`.
-/// Mutant: an op that builds this pair, dropping the loop.
 #[test]
 fn a_stem_window_reaching_over_a_loop_does_not_glue() {
     let long = tube_along_arc(
@@ -370,10 +375,13 @@ fn a_stem_window_reaching_over_a_loop_does_not_glue() {
         },
         STEM_TUBE,
         Tol::witness(),
-    )
-    .expect("the long stem builds")
-    .body;
-    let (long, a) = (finished("the long stem", long, Tol::witness()), arch());
+    );
+    let Some(long) =
+        test_utils::kernel_limit::pinned(long, Tol::witness().eps(), &[1e-12], "the long stem")
+    else {
+        return;
+    };
+    let (long, a) = (finished("the long stem", long.body, Tol::witness()), arch());
     for (what, r) in [
         ("long ∪ arch", topo::union(&long, &a, Tol::witness())),
         ("arch ∪ long", topo::union(&a, &long, Tol::witness())),
@@ -390,5 +398,52 @@ fn a_stem_window_reaching_over_a_loop_does_not_glue() {
             "{what}: the two tube walls refuse at the germ frame: {:?}",
             r.err()
         );
+    }
+}
+
+/// **An arch started inside the stem glues to the same volume.** Started
+/// 2° or 5° back from the fork, the arch's tube runs inside the stem's
+/// there (the stem-side loop starts about 7.8° back), so the union is
+/// still the two tubes' volume. Mutant: a certificate that clears a pair
+/// whose overlap the op then counts twice.
+#[test]
+fn an_arch_started_inside_the_stem_glues_to_the_same_volume() {
+    let f = arch_frame();
+    let want = core::f64::consts::PI
+        * (STEM_TUBE.powi(2) * STEM_RING * deg(22.0)
+            + ARCH_TUBE.powi(2) * ARCH_RING * deg(170.0));
+    let Some(s) = stem() else { return };
+    for back in [2.0, 5.0] {
+        let early = tube_along_arc(
+            tube_frame(
+                f.center,
+                Vec3::new(0.0, -1.0, 0.0),
+                f.radial,
+                Tol::witness(),
+            ),
+            ARCH_RING,
+            TubeWindow::Arc {
+                t0: deg(-back),
+                t1: deg(170.0),
+            },
+            ARCH_TUBE,
+            Tol::witness(),
+        )
+        .expect("the early arch builds")
+        .body;
+        let a = finished("the early arch", early, Tol::witness());
+        for (what, r) in [
+            ("stem ∪ early", topo::union(&s, &a, Tol::witness())),
+            ("early ∪ stem", topo::union(&a, &s, Tol::witness())),
+        ] {
+            let b = r.unwrap_or_else(|e| panic!("{what}: {e:?}"));
+            let b = b.body().expect("a body");
+            assert_eq!(b.body.shells().count(), 1, "{what}: one shell");
+            let v = topo::test_support::pinned_volume(what, &b.body, Tol::witness()).volume;
+            assert!(
+                (v - want).abs() < 1e-9 * want,
+                "{what} from {back}° back: {v} vs {want}"
+            );
+        }
     }
 }

@@ -429,8 +429,11 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
     // what the second pass the `f64` lane skips decides, logged in its
     // place (`editor_core::ProfileLane`). Its placement's stand is the
     // identity bundle, placed by no map, which decides nothing.
-    assert_eq!(first.len(), 456, "the instantiate op's own decisions");
-    assert_eq!(direct_total, 826, "the part's decisions on its own nodes");
+    // Each validation re-certifies the box's edges, where limb 2's
+    // distance bound (`ssi_hull_sup`, C2) adds 24 = 12 box edges × 2
+    // operands: 456 → 480 on the placing op, 826 → 850 on the part.
+    assert_eq!(first.len(), 480, "the instantiate op's own decisions");
+    assert_eq!(direct_total, 850, "the part's decisions on its own nodes");
 }
 
 // ---- Row 3: instance-qualified naming ----

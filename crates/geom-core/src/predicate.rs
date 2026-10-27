@@ -2929,6 +2929,42 @@ pub trait Decide: SpanLocate {
     fn enclosure_probe(self) -> Option<(f64, f64)> {
         None
     }
+
+    /// **Limb 2's identity door** (ERROR-DESIGN E12 at C2's limb 2):
+    /// this margin, carrying as its symbolic identity the residual
+    /// `identity` builds from a FREE parameter.
+    ///
+    /// `identity` is handed a minting function: given the value at
+    /// which a carrier is read, it returns that value as the identity's
+    /// free variable. The identity is the residual of the carrier's own
+    /// description against a surface, written in that variable: zero as
+    /// a form exactly when the carrier lies on the surface at every one
+    /// of its parameters, for every member of the box, which is what
+    /// limb 2's margin (a bound on the carrier's distance from the
+    /// surface) is zero for.
+    ///
+    /// At every scalar but [`crate::Sym`] this is `self`, and
+    /// `identity` is never called: the margin is its numeric channel.
+    /// At `Sym` the value channel is `self`'s, unchanged, and the node
+    /// is the identity's, so the ordinary decision
+    /// ([`Decide::sign_within`]) reads the numeric channel first and
+    /// asks the identity's normal form only where that channel does not
+    /// decide. The free variable is an indeterminate of its own with no
+    /// bracket (a [`crate::Sym::param`] minted outside a session reads
+    /// the same), so no decision read can certify a sign over it: it
+    /// reaches the zero test and nothing else.
+    ///
+    /// The door's one caller is limb 2 (`geom_brep::edge_nurbs`;
+    /// `scripts/gates/free-identity-allowlist.sh`): the identity is a
+    /// claim about the margin, and only the limb that formed both can
+    /// make it.
+    fn free_identity<F>(self, identity: F) -> Self
+    where
+        F: FnOnce(&dyn Fn(Self) -> Self) -> Self,
+    {
+        let _ = identity;
+        self
+    }
 }
 
 /// `f64` classification: |m| ≤ `zero` ⇒ `Zero`; |m| ≥ `escalate` ⇒ the

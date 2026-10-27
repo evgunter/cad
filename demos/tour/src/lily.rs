@@ -1430,7 +1430,7 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
     // The long, nearly straight rise, then the tight turn-over that
     // makes the arch. 22 degrees on a 5 m ring reads as "leaning";
     // 170 degrees on a 1.1 m ring turns the stem right over.
-    let (lower, at_fork) = root.arc(5.0, deg(22.0));
+    let (lower, at_fork) = root.arc(STEM_RING, deg(22.0));
     let (upper, at_flower) = at_fork.arc(1.1, deg(170.0));
     // The side pedicel leaves the fork heading up and out, then
     // curls 130 degrees over so its lantern hangs nearly plumb.
@@ -1440,7 +1440,7 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
     };
     let (pedicel, at_bud) = fork.arc(0.42, deg(130.0));
 
-    let (stem, stem_caps) = tube_arc(lower, 0.060, tol);
+    let (stem, stem_caps) = tube_arc(lower, STEM_TUBE, tol);
     let (arch, arch_caps) = tube_arc(upper, ARCH_R, tol);
     let (pedicel_body, pedicel_caps) = tube_arc(pedicel, 0.032, tol);
 
@@ -1644,6 +1644,65 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
         });
     }
     pieces
+}
+
+/// The lower stem's tube: a 5 m ring at the authored 0.06 m pipe, so its
+/// ring is about 83 times its pipe.
+const STEM_RING: f64 = 5.0;
+const STEM_TUBE: f64 = 0.060;
+
+/// **The lily's declared frontier** (the tour's #795 posture: a scene
+/// may declare a frontier up front, and must fail loudly when it stops
+/// refusing). At ε = 1e-12 the lower stem's tube — a torus whose ring is
+/// about 83 times its pipe — refuses as limb 2's kernel approximation
+/// limit: its rim's certified distance bound from the torus lies far
+/// above the rim's own rounding, the thin-torus class fork row 203 rules
+/// a kernel limit at that row (R/r of 20 or more;
+/// `work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+/// The stem is the plant's spine, so the lily's stop and its wall probes
+/// stand down at that row and say so. `Some(narration)` where the
+/// frontier holds; `None` where the plant builds.
+///
+/// # Panics
+///
+/// At ε = 1e-12, when the stem builds (the frontier retired: drop this
+/// declaration) or refuses other than as the kernel limit; at any other
+/// row, when it refuses at all.
+pub fn stem_frontier(tol: Tol) -> Option<String> {
+    let at_row = (tol.eps() / 1.0e-12 - 1.0).abs() < 1.0e-3;
+    let root = Turtle {
+        p: Point3::origin(),
+        t: Vec3::unit_z(),
+    };
+    let (lower, _) = root.arc(STEM_RING, deg(22.0));
+    let sense = if lower.turn >= 0.0 { -1.0 } else { 1.0 };
+    let got = tube_along_arc(
+        axis_frame(lower.center, v3(0.0, sense, 0.0), lower.radial, tol),
+        lower.ring,
+        TubeWindow::Arc {
+            t0: 0.0,
+            t1: lower.turn.abs(),
+        },
+        STEM_TUBE,
+        tol,
+    );
+    match (at_row, got) {
+        (false, Ok(_)) => None,
+        (true, Err(e)) if format!("{e:?}").contains("AnalyticRung3(KernelLimit {") => {
+            Some(format!(
+                "DECLARED FRONTIER at eps = {:e}: the lower stem (a {STEM_RING} m ring at a \
+             {STEM_TUBE} m pipe, ring/pipe ~ 83) refuses as limb 2's kernel approximation \
+             limit — a thin torus, the class ruled a kernel limit at this row — so the \
+             plant, its stop and its wall probes stand down here: {e}",
+                tol.eps()
+            ))
+        }
+        (true, Ok(_)) => panic!(
+            "the lily's declared stem frontier RETIRED: the thin stem tube builds at eps = \
+             1e-12; drop `stem_frontier` and run the plant at every row"
+        ),
+        (_, Err(e)) => panic!("the lily's stem tube refused outside its declared frontier: {e:?}"),
+    }
 }
 
 /// The tour stop.

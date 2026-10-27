@@ -1069,8 +1069,7 @@ const SPLIT_FRACTION: f64 = 0.618_033_988_749_895;
 /// describing door with [`chord_redescriptions`], which states the
 /// merged members where they land. So the parent's certificate is
 /// re-derived here through [`geom_brep::EdgeCurve::recertify`] — the
-/// door `split_edge` itself certifies through, not tier 3's
-/// lane-holding `recertify_via`, which admits a strictly wider class — and
+/// door `split_edge` and tier 3 certify through — and
 /// ASSERTED rather than filtered on, over every edge this is asked
 /// about: all of them where [`split_edge_candidates`] builds the list,
 /// and the edges up to the first splittable one where
@@ -1100,6 +1099,7 @@ fn split_site(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> Option<(f64, EdgeCur
         |k| body.get_surface(k).cloned(),
         crate::edge_wedge_reach(body, edge)?,
         band,
+        geom_brep::NurbsLane::certified(),
     ) {
         panic!("edge {edge:?} carries a carrier its own endpoints left: {error:?}");
     }
@@ -1278,6 +1278,7 @@ fn assert_unlisted_members_answer_to_the_gate(
                     |k| body.get_surface(k).cloned(),
                     crate::edge_wedge_reach(body, m.edge).expect("the walk mints no null edge"),
                     band,
+                    geom_brep::NurbsLane::certified(),
                 )
                 .is_err()
         })
@@ -1384,7 +1385,14 @@ fn carrier_is_coherent(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> bool {
         return false;
     };
     curve
-        .recertify(*p0, *p1, |k| body.get_surface(k).cloned(), reach, band)
+        .recertify(
+            *p0,
+            *p1,
+            |k| body.get_surface(k).cloned(),
+            reach,
+            band,
+            geom_brep::NurbsLane::certified(),
+        )
         .is_ok()
 }
 

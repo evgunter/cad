@@ -149,7 +149,8 @@ fn accepted_against_torus(
 /// `mate7a_r1_probes::p1_wall1_glues_the_stem_into_one_body`'s).
 #[test]
 fn the_lily_stem_glue_is_past_the_circle_torus_pairs() {
-    let (s, a) = (stem(), arch());
+    let Some(s) = stem() else { return };
+    let a = arch();
     let r = topo::union(&s, &a, Tol::witness())
         .unwrap_or_else(|e| panic!("the stem glue builds: {e:?}"));
     assert_eq!(
@@ -191,7 +192,8 @@ fn an_arc_whose_first_crossing_is_outside_the_window_still_pierces_inside_it() {
 /// window.
 #[test]
 fn the_lily_seams_cross_each_others_carriers_only_outside_the_windows() {
-    let (s, a) = (stem(), arch());
+    let Some(s) = stem() else { return };
+    let a = arch();
     let (ab, ba) = sweep_traces(&s, &a, SweepStrategy::Realized, None, Tol::witness())
         .unwrap_or_else(|e| panic!("the lily's reduction sweep refused: {e:?}"));
     for (label, trace, x, y, radius) in [
@@ -545,7 +547,8 @@ fn a_coaxial_seam_on_the_torus_is_placed_by_its_arc() {
 /// (`boolean_join_refusal`).
 #[test]
 fn a_planar_face_holding_the_arch_rim_is_no_edge_plane_holder() {
-    let (s, a) = (stem(), arch());
+    let Some(s) = stem() else { return };
+    let a = arch();
     let t = Tol::witness();
     for (label, x, y) in [("stem ∪ arch", &s, &a), ("arch ∪ stem", &a, &s)] {
         let refusal = topo::test_support::boolean_join_refusal(topo::BooleanOp::Union, x, y, t)

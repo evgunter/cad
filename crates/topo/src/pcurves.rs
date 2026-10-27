@@ -6642,10 +6642,8 @@ mod recourse_tests {
 /// exists, so the refusal it carries must not claim a check ran.
 ///
 /// Called directly, not through a body: the one arm that reaches it is
-/// an `Intersection` seam on a spline chart, and attaching that edge
-/// needs the plane × NURBS lane, which only a certifying scalar holds
-/// (`AtRestPolicy::nurbs_lane` is `None` at a dual), so no `Dual64`
-/// body carries one.
+/// an `Intersection` seam on a spline chart, which the mint reaches at a
+/// certifying scalar's door, so the row is written at `f64`.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod derive_without_a_door {
