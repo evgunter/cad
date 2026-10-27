@@ -15,7 +15,7 @@ not measured.
 
 ## What
 
-Three doors refuse on reach alone:
+Three pair doors refuse on reach alone:
 
 - the operand gate (`boolean/reduce.rs`, the `UnsupportedPair` scan:
   `boxed.overlaps(other_box) && !covered(..) && !apart(..)`);
@@ -25,6 +25,13 @@ Three doors refuse on reach alone:
   a sphere, torus, NURBS or Approx face refuses
   `CurvedBooleanUnsupported` unless its reach along the plane's normal
   (`gate_face_reach`) clears the plane (`reach_clears`).
+
+A fourth refuses a point, not a pair, on reach: point-in-solid
+(`boolean/solid_contain.rs` `past_every_reach`) keeps its
+`KindUnsupported` refusal for a selection holding a NURBS or Approx face
+unless the point lies past every face's reach along a turned direction
+(`separating::support_along`). A sphere face beside the spline one is
+read there by `face_reach_in`, so the held pole would sharpen it too.
 
 The first two read `apart` along the anchor axis and the operands'
 planar normals only. The split gate reads one direction, the plane's
