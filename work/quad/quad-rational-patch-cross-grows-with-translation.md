@@ -125,3 +125,15 @@ carries the frame's `c`, so `f_uu` itself scales with the distance
 from the origin. That is the flux's own magnitude, which this row asks
 to judge it against; the per-point midpoint reads in the absolute frame
 are unchanged.
+
+## Re-checked on main `9267d3ae` (QUAD tracker sweep, 2026-10-27)
+
+Still holds at the door, unmeasured since 2026-10-22.
+`nurbs_patch_face` (`crates/geom-brep/src/props/quad/patch.rs:141`)
+now takes the caller's accept closure. Since PR 5741 there is no
+`QuadratureBudget`, so the "refuses" rows above now read as a stop
+short of the closure's target (`LaneEnd::Floor` or `Wall`, with the
+bracket). The widths are not re-measured. The rational lane is
+`rational_patch_face` (`props/quad/rational.rs:360`). Topo still reads
+each face about its shell's reference point (`props/quad_lane.rs`,
+`about`), so a body's translation still does not reach the lane.
