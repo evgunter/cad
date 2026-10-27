@@ -44,3 +44,20 @@ its kind's door again, or the row must be re-pinned with a reason the
 merge's PR states. The lofted operand's refusal must be the typed one the
 row names, or the row must be re-pinned to the door that now answers
 first.
+
+## Evidence from `splice/interior-arm` (PR 5826), 2026-10-27
+
+- With the analytic span × spline face arm in, `m5_s11`'s union reads
+  every pellet edge clear of the loft's walls and refuses at the extent
+  fallback, `NurbsExtentUnsupported { operand: A, face }`, naming
+  `side_faces[0][2]`, the concave top wall. PR 5826 re-pins the row
+  there. It is green at ε 1e-9, 1e-6 and 1e-12.
+- `operand_gate_pose::an_approx_cap_clear_of_a_bar_reads_alike_at_every_pose`
+  passes at the default ε on main after PR 5814. It is still red at
+  **ε 1e-6** on `origin/main` `1f851964` (measured alone in a clean
+  worktree), at a different assertion,
+  `crates/sweep/tests/operand_gate_pose.rs:239`:
+  `ε 1e-6, identity, just over the cap: past the box, got
+  Err(KindUnsupported { face: FaceKey(1v1), kind: Approx })`. That is
+  the point-in-solid probe over the cap, which reads no side where the
+  row expects `Out`. PR 5826 reds identically there.

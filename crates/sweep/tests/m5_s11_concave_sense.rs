@@ -811,8 +811,9 @@ fn a_tapered_concave_loft_keeps_the_prism_wall_directions() {
 /// `sense` on the concave wall made it answer `In` and swallow the
 /// pellet. On a LOFTED operand both doors refuse instead: the boolean
 /// reads every edge of the pellet clear of the loft's NURBS walls, finds
-/// no crossing, and its containment fallback has no reading of a spline
-/// face's side, and `point_in_solid` has no NURBS door at all.
+/// no crossing, and its extent fallback cannot say which side of the
+/// concave top wall the pellet sits on, and `point_in_solid` has no
+/// NURBS door at all.
 ///
 /// So the swallow is closed for loft by REFUSAL, not by the bit, which
 /// is why the material-side probes above carry the guard. The extrude
@@ -848,13 +849,19 @@ fn a_lofted_operand_refuses_the_union_check_typed() {
     let pellet = finished("the pellet", pellet, Tol::witness());
 
     let err = match topo::boolean::union(&operand, &pellet, Tol::witness()) {
-        Err(e) => e.to_string(),
+        Err(e) => e,
         Ok(_) => panic!("a disjoint NURBS operand has no containment reading yet"),
     };
-    assert!(
-        err.contains("found no crossing between the two solids")
-            && err.contains("spline (NURBS) face lies inside or outside"),
-        "the refusal names the operand: {err}"
+    let topo::BooleanError::NurbsExtentUnsupported {
+        operand: topo::boolean::Operand::A,
+        face,
+    } = err
+    else {
+        panic!("the refusal names a NURBS face of the lofted operand: {err:?}");
+    };
+    assert_eq!(
+        face, lofted.side_faces[0][2],
+        "the named face is the concave top wall the pellet sits under"
     );
     let door = point_in_solid(
         &lofted.body,
