@@ -1404,6 +1404,18 @@ pub fn assemble_world_copies_edits(
     (doc, log)
 }
 
+/// **What the at-rest check could not look at in one gathered
+/// `product`**, read as the `AtRest` resident reads it: for a row at a
+/// scalar the checks registry cannot run at (a dual, which carries no
+/// chart-coherence lane), whose census is structurally absent
+/// ([`crate::AtRestEvidence::NotRun`]).
+pub fn at_rest_could_not_look<T: crate::checks::at_rest::LocalizeLane>(
+    product: &crate::Product<T>,
+    tol: geom_core::Tol,
+) -> Vec<crate::AtRestEvidence> {
+    crate::checks::at_rest::reading(product, tol).could_not_look
+}
+
 /// The judgement whose naming [`with_judgement_naming_fault`] refuses,
 /// while it runs.
 static JUDGEMENT_FAULT: std::sync::Mutex<Option<usize>> = std::sync::Mutex::new(None);

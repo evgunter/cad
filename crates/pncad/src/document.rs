@@ -455,33 +455,23 @@ pub use editor_core::{
     relative_freedom_components, solve_document, stand, unobservable,
 };
 
-// **The assembly at-rest gate** (A5): `assemble` gathers a document's
-// product, whose census records every touch between copies as a row and
-// a record citing it, and reads the census's verdict — the answer to "is
-// this assembly valid at rest", which the authoring vocabulary above can
-// otherwise construct and not check. `Assembly` is the validated result
-// (body, names, certified records); `AssemblyError` is the typed
-// refusal, and `AtRestFinding` is one kernel finding of its `AtRest`
-// arm. `assemble_gathered` is that gate over a product the caller
-// already holds — the canonical door, of which `assemble` is the gather
-// plus a call to it. A caller with several consumers of one product
-// gathers once and finishes here, since this door CONSUMES the product.
-// `Route` is by what path a row of a document BELOW this one reached
-// this document (one type, on every carrier of that fact), and
-// `CarriedFindings` is what an instantiated value carries up.
-// An overlap between two copies' material is not a refusal but an
-// `InterferenceFinding` on `Assembly::interference` (D10): its copies
+// **What the at-rest check reports** (A5): the census each `⊔` runs
+// over its arrivals is read by the checks registry's `AtRest` resident
+// (`run_checks`, `CheckId::AtRest`), and nothing at rest refuses; a
+// caller that wants a gate runs `enforce_checks` at `Error`. An overlap
+// between two copies' material is an `InterferenceFinding`: its copies
 // (`CopyRef`), its `Overlap` (the bounding faces as `FaceSite`s, or
-// `Unlocalized` with why), and the assertion that quiets it, if any.
-// A part's own census findings cross the seam with it, each reported
-// once, as the part's: `CarriedInterference` is an overlap between the
-// part's copies on `Assembly::carried_interference`, and
-// `CarriedAtRestFinding` a row of `AssemblyError::CarriedAtRest`, the
-// outermost gate's refusal over what the part's own gate refuses.
+// `Unlocalized` with why), the assertion that quiets it, if any, and
+// whether one could (`quietable`): one no assertion could quiet refuses
+// at no severity. A pair the census could not look at is an
+// `AtRestEvidence`, loud and never refusing. A part's own findings cross the seam with it, each
+// reported once, as the part's: `CarriedInterference` and
+// `CarriedAtRestFinding`, each with the `Route` it arrived by (one type,
+// on every carrier of that fact); `CarriedFindings` is what an
+// instantiated value carries up.
 pub use editor_core::{
-    Assembly, AssemblyError, AtRestFinding, CarriedAtRestFinding, CarriedFindings,
-    CarriedInterference, CopyRef, FaceSite, InterferenceFinding, Overlap, Route, Unlocalized,
-    assemble, assemble_gathered,
+    AtRestEvidence, CarriedAtRestFinding, CarriedFindings, CarriedInterference, CopyRef, FaceSite,
+    InterferenceFinding, Overlap, Route, Unlocalized,
 };
 
 // Split, inline and flatten: the first-class

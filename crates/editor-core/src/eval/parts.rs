@@ -73,7 +73,7 @@ use std::sync::Arc;
 use geom_core::Decide;
 
 use crate::ProfileDoc;
-use crate::assembly::PartRow;
+use crate::checks::at_rest::PartRow;
 use crate::ident::DocRef;
 use crate::names::NameTable;
 use crate::node::RecipeNodeId;
@@ -115,19 +115,21 @@ pub(crate) struct PartValue<T: Decide> {
     /// The at-rest census's rows the product's records cite
     /// ([`crate::Product::coincidences`]), named in the part's
     /// document.
-    pub coincidences: Arc<Vec<crate::assembly::AtRestRow>>,
+    pub coincidences: Arc<Vec<crate::checks::at_rest::AtRestRow>>,
     /// The product's inputs its carried records cite
     /// ([`crate::Product::cited_inputs`]).
     pub cited_inputs: Arc<Vec<crate::coincide::CitedInput>>,
-    /// **The part's own at-rest census verdict** ([`crate::assembly::SeamVerdict`]),
-    /// its own rows first and then those it carried up: the overlaps
-    /// between its copies, reported and never refused, as its gate
-    /// reports them.
-    pub interference:
-        Arc<Vec<PartRow<crate::assembly::Pinned<crate::checks::at_rest::InterferenceFinding>>>>,
+    /// **The part's own at-rest census verdict**, its own rows first and
+    /// then those it carried up: the overlaps between its copies,
+    /// reported and never refused, as its own at-rest check reads them
+    /// (`checks::at_rest::reading`).
+    pub interference: Arc<
+        Vec<PartRow<crate::checks::at_rest::Pinned<crate::checks::at_rest::InterferenceFinding>>>,
+    >,
     /// The census findings its gate refuses, its own first: inner
     /// at-rest health is the outermost gate's business.
-    pub at_rest: Arc<Vec<PartRow<crate::assembly::Pinned<crate::assembly::AtRestFinding>>>>,
+    pub at_rest:
+        Arc<Vec<PartRow<crate::checks::at_rest::Pinned<crate::checks::at_rest::AtRestEvidence>>>>,
     /// How many parts the referenced document's product is: its
     /// placements' copies ([`crate::product::Product::solid_copies`]),
     /// each counted at its own value's `parts`, so a sub-assembly's
@@ -767,10 +769,10 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
         // one row set.
         let parts = product.parts;
         let pieces = product.pieces.clone();
-        // The part's own verdict on what its census found, judged as its
-        // gate judges it, so the document instantiating it reports each
-        // finding once, as the part's (`assembly::seam_verdict`).
-        let seam = crate::assembly::seam_verdict(&product, tol);
+        // The part's own verdict on what its census found, read as its
+        // own at-rest check reads it, so the document instantiating it
+        // reports each finding once, as the part's.
+        let seam = crate::checks::at_rest::reading(&product, tol);
         Ok(PartValue {
             interference: Arc::new(
                 seam.interference
@@ -778,7 +780,7 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                     .map(|finding| {
                         PartRow::unspoken(
                             doc_ref.id,
-                            crate::assembly::Pinned {
+                            crate::checks::at_rest::Pinned {
                                 pin: doc_ref.pin,
                                 finding,
                             },
@@ -788,7 +790,7 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                         PartRow::below(
                             doc,
                             row.route,
-                            crate::assembly::Pinned {
+                            crate::checks::at_rest::Pinned {
                                 pin: row.pin,
                                 finding: row.finding,
                             },
@@ -798,13 +800,13 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                     .collect(),
             ),
             at_rest: Arc::new(
-                seam.refused
+                seam.could_not_look
                     .into_iter()
                     .map(|finding| {
                         PartRow::own(
                             doc,
                             doc_ref.id,
-                            crate::assembly::Pinned {
+                            crate::checks::at_rest::Pinned {
                                 pin: doc_ref.pin,
                                 finding,
                             },
@@ -814,7 +816,7 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                         PartRow::below(
                             doc,
                             row.route,
-                            crate::assembly::Pinned {
+                            crate::checks::at_rest::Pinned {
                                 pin: row.pin,
                                 finding: row.finding,
                             },

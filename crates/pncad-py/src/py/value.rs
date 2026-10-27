@@ -614,7 +614,7 @@ pub(crate) struct Body {
 
 impl Body {
     /// A body with no contact records — every door but those that have
-    /// records to carry (an evaluated value, `assemble`, an import).
+    /// records to carry (an evaluated value, an import).
     pub(crate) fn plain(inner: Arc<topo::Body<f64>>) -> Self {
         Self {
             inner,
@@ -1279,8 +1279,8 @@ pub(crate) struct Evaluation {
     /// It lives HERE because a product is a pure function of the pair
     /// above and the run's tolerance, and this object is that pair: it
     /// is frozen, so nothing can move under the memo, and the doors
-    /// that want a product — `run_checks`, `assemble`, `product`,
-    /// `product_named` — keep their signatures and share one gather.
+    /// that want a product — `run_checks`, `product`, `product_named` —
+    /// share one gather.
     product: crate::product_memo::ProductMemo,
 }
 

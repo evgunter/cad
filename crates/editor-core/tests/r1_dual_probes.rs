@@ -597,9 +597,9 @@ fn r1_e2e_consumer_drive_at_dual64() {
                 // dual: `run_checks` is `Decide + AtRestPolicy +
                 // CertifiedBounds`, and no `Dual` implements
                 // `CertifiedEnclosure`. That is DL1 holding one door
-                // further out — the registry's separation resident
-                // GRANTS a certificate (box non-overlap is a genuine
-                // separation claim), and a dual never certifies. The
+                // further out — the registry's residents GRANT
+                // certificates (the at-rest check reads a census a dual
+                // does not run), and a dual never certifies. The
                 // gap this row recorded is closed rather than
                 // unobserved.
                 println!("R1E2E {name}: run_checks is not callable at Dual64 (CertifiedBounds)");

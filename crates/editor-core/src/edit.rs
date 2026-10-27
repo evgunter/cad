@@ -2296,8 +2296,7 @@ pub enum EditError {
         /// widest payload, and every edit door returns the enum BY
         /// VALUE, so held inline it sets the width of every `Result`
         /// in the edit vocabulary and of the persist and replay
-        /// refusals that wrap one. `AssemblyError::Product` carries
-        /// `ProductError` the same way for the same reason.
+        /// refusals that wrap one.
         refusal: Box<crate::program::ProgramRefusal>,
     },
     /// An operand an edit writes names a node that is not live (spec

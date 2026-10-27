@@ -353,19 +353,24 @@ fn overlapping_copies_still_draw_and_land_a_finding() {
 
     // And the finding landed with it, naming both copies.
     let report = session.checks().expect("the registry ran");
-    let separation: Vec<_> = report
+    let overlaps: Vec<_> = report
         .findings
         .iter()
-        .filter(|f| f.check == pncad::document::CheckId::Separation)
+        .filter_map(|f| match &f.evidence {
+            pncad::document::CheckEvidence::Interference { finding } => Some(finding),
+            _ => None,
+        })
         .collect();
-    assert_eq!(separation.len(), 1, "one pair, one finding: {report}");
-    let rendered = separation[0].to_string();
-    for copy in &copies {
-        assert!(
-            rendered.contains(&test_utils::refusal::tag(copy.0.digest())),
-            "the finding names both copies: {rendered}"
-        );
-    }
+    let [overlap] = overlaps.as_slice() else {
+        panic!("one pair, one interference finding: {report}")
+    };
+    let doc = session.committed_doc();
+    let reads: Vec<_> = copies.iter().map(|&copy| doc.output(copy, 0)).collect();
+    assert_eq!(
+        vec![Some(overlap.a.var), Some(overlap.b.var)],
+        reads,
+        "the finding names both copies: {report}"
+    );
 }
 
 /// **A declaration authored in millimetres comes back in

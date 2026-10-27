@@ -561,10 +561,10 @@ pub fn corpus_text(tol: Tol) -> String {
 /// the product. It is the composed die's own outer shape with no pips
 /// cut; placed beside the die it would plug every pip cavity and
 /// count the same material twice (the #1162 defect, which the
-/// separation resident reports).
+/// at-rest check reports).
 ///
 /// The product is one copy of the die: 89 faces, V = 0.952915, no
-/// separation finding. The 21 pips are the members of ONE
+/// at-rest finding. The 21 pips are the members of ONE
 /// `Node::Union`, so the node count is the pips, the blank, the two
 /// blends and the placement — not a chain length — and the product
 /// slot reads the placement's copy.

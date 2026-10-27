@@ -28,7 +28,7 @@
 //! # Read-outs
 //!
 //! The bindings' bodies leave through here too: [`body_in_space`],
-//! [`assembly_body_in_space`] and [`pick_mesh_in_space`] compose a body
+//! [`product_body_in_space`] and [`pick_mesh_in_space`] compose a body
 //! (or its pick mesh) into its space as export does, for a
 //! host-language read-out that never re-enters a document.
 
@@ -221,24 +221,25 @@ pub fn body_in_space(
     topo::transform_rigid(body.body(), &map, tol).map(std::sync::Arc::new)
 }
 
-/// **An assembly's body as it stands in the world**, [`body_in_space`]
-/// for the body [`editor_core::assemble`] gated: borrowed as it is
-/// where the gather computed in the world's coordinates. The rigid map
-/// keeps every arena key, so the assembly's contact records cite the
-/// composed body as they cited the gathered one.
+/// **A product's body as it stands in the world**, [`body_in_space`]
+/// for the aggregate a gather computed ([`editor_core::Product`]):
+/// borrowed as it is where the gather computed in the world's
+/// coordinates. The rigid map keeps every arena key, so the product's
+/// names and records cite the composed body as they cite the gathered
+/// one.
 ///
 /// # Errors
 ///
 /// As [`body_in_space`].
-pub fn assembly_body_in_space(
-    assembly: &editor_core::Assembly<f64>,
+pub fn product_body_in_space(
+    product: &editor_core::Product<f64>,
     tol: Tol,
 ) -> Result<std::borrow::Cow<'_, Body<f64>>, topo::TransformError> {
-    let map = editor_core::in_space(assembly);
+    let map = editor_core::in_space(product);
     if is_identity(&map) {
-        return Ok(std::borrow::Cow::Borrowed(&assembly.body));
+        return Ok(std::borrow::Cow::Borrowed(&product.body));
     }
-    topo::transform_rigid(&assembly.body, &map, tol).map(std::borrow::Cow::Owned)
+    topo::transform_rigid(&product.body, &map, tol).map(std::borrow::Cow::Owned)
 }
 
 /// **A pick index's mesh as it stands in its space**, the read-out a

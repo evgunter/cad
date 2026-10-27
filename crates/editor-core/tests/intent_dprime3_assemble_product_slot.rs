@@ -265,8 +265,8 @@ fn a_pick_reads_one_piece_and_two_picks_are_two_variables() {
 
 // ---- Test 25: each operator decides its operands' meetings ----
 
-/// **`A ⊔ A` is an interference finding**: the census at the `⊔`
-/// reads two pieces in one place, and the assembly gate reports it.
+/// **`A ⊔ A` is a finding**: the census at the `⊔` reads two pieces in
+/// one place, and the at-rest check reports it.
 #[test]
 fn one_body_assembled_twice_is_an_interference_finding() {
     let doc = doc("dprime3-twice");
@@ -281,7 +281,7 @@ fn one_body_assembled_twice_is_an_interference_finding() {
         "the census reads the two pieces meeting"
     );
     let (_, findings) = outcome(&doc, &ev);
-    assert!(findings > 0, "the census's findings travel to the gate");
+    assert!(findings > 0, "the census's findings travel to the check");
 }
 
 /// **`A ∪ A` is `A`.**
@@ -378,7 +378,7 @@ fn a_splits_halves_assembled_record_the_cut_and_unioned_glue_it() {
         !product.coincidences.is_empty() && !product.contacts.is_empty(),
         "the meeting is recorded: rows and the record citing them"
     );
-    editor_core::assemble(&doc, &ev, Tol::witness()).expect("the halves assemble at rest");
+    crate::fixture::could_look(&doc, &ev).expect("the halves assemble at rest");
     let report = editor_core::run_checks(
         &doc,
         &ev,
@@ -779,7 +779,7 @@ fn an_instances_census_decisions_are_its_parts() {
         0,
         "and reports nothing of the part's touch"
     );
-    editor_core::assemble(&doc, &ev, Tol::witness()).expect("the host assembles");
+    crate::fixture::could_look(&doc, &ev).expect("the host assembles");
 }
 
 /// **A placement of `bolt ⊔ plate` made the product is at rest** (fix
@@ -819,9 +819,9 @@ fn a_placed_seat_made_the_product_is_at_rest() {
         1,
         "and the copy carries that record"
     );
-    editor_core::assemble(&doc, &ev, Tol::witness()).expect("a placed seat is at rest");
+    crate::fixture::could_look(&doc, &ev).expect("a placed seat is at rest");
     let ev_direct = run(&direct, &EvalOptions::default());
-    editor_core::assemble(&direct, &ev_direct, Tol::witness()).expect("the seat is at rest");
+    crate::fixture::could_look(&direct, &ev_direct).expect("the seat is at rest");
     assert_eq!(
         unproven(&doc, &ev),
         unproven(&direct, &ev_direct),
@@ -884,8 +884,8 @@ fn a_nested_assemble_records_what_the_flat_one_records_once() {
         "each touch decided once: the outer decides none of the inner's"
     );
     assert!(product.census.is_empty() && flat_product.census.is_empty());
-    editor_core::assemble(&flat, &ev_flat, Tol::witness()).expect("the flat stand is at rest");
-    editor_core::assemble(&nested, &ev, Tol::witness()).expect("the nested stand is at rest");
+    crate::fixture::could_look(&flat, &ev_flat).expect("the flat stand is at rest");
+    crate::fixture::could_look(&nested, &ev).expect("the nested stand is at rest");
     assert_eq!(
         unproven(&nested, &ev),
         unproven(&flat, &ev_flat),
@@ -893,18 +893,14 @@ fn a_nested_assemble_records_what_the_flat_one_records_once() {
     );
 }
 
-/// What `assemble` answers: whether it assembles, and how many
-/// findings it reports or refuses with, carried ones included.
+/// What the at-rest check answers: whether it could look at every
+/// pair, and how many findings it reports, carried ones included.
 fn outcome(doc: &ProfileDoc, ev: &Evaluation<f64>) -> (bool, usize) {
-    match editor_core::assemble(doc, ev, Tol::witness()) {
-        Ok(assembly) => (
-            true,
-            assembly.interference.len() + assembly.carried_interference.len(),
-        ),
-        Err(editor_core::AssemblyError::AtRest { findings }) => (false, findings.len()),
-        Err(editor_core::AssemblyError::CarriedAtRest { findings }) => (false, findings.len()),
-        Err(other) => panic!("the census answers: {other}"),
-    }
+    let findings = crate::fixture::at_rest(doc, ev).unwrap_or_else(|e| panic!("it gathers: {e}"));
+    (
+        findings.iter().all(|f| !f.evidence.could_not_look()),
+        findings.len(),
+    )
 }
 
 /// Two blocks overlapping in general position (no face of one on a face

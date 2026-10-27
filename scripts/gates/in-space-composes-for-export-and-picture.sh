@@ -21,7 +21,7 @@
 # THE HOMES, each a whole-file skip, each a composing reader:
 #   pncad/src/export.rs        STEP export of a node and of the product,
 #                              and the façade's read-outs (a value's
-#                              bodies, an assembly's body, a pick mesh)
+#                              bodies, a product's body, a pick mesh)
 #                              that the bindings hand a host language;
 #   viewer/src/pickindex.rs    the picture's parts, drawn and picked where
 #                              their frames put them;
@@ -83,7 +83,7 @@ gate() {
   bound=$(printf '%s\n' "$hits" | gate_grep -E '^crates/pncad-py/' || true)
   if [ -n "$bound" ]; then
     echo "$bound"
-    gate_error "in_space called by the bindings — pncad-py composes nothing: read a body as it stands in its space through pncad's read-out doors (pncad::export::body_in_space, assembly_body_in_space, pick_mesh_in_space)"
+    gate_error "in_space called by the bindings — pncad-py composes nothing: read a body as it stands in its space through pncad's read-out doors (pncad::export::body_in_space, product_body_in_space, pick_mesh_in_space)"
     exit 1
   fi
   if [ -n "$hits" ]; then
