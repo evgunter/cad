@@ -28,6 +28,10 @@ operand, not of the input:
 to its input shell's faces. A piece of a turned sphere descends from
 that whole set of faces, not from the one face its key names.
 
+The same file's quieting step reads `topo::FaceDescent::of(&kept.naming)`
+the same way (`result.body.solid_of_face(root)`), over the kept part of a
+second intersect, which can re-chart too.
+
 Unmeasured: whether any at-rest document pairs a re-charted ball with
 an assertion. The fix reads the root through `naming.recharted` and
 takes every face of the input shell as the piece's sources.
