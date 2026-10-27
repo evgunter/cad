@@ -718,8 +718,11 @@ plane×NURBS and plane×`Approx`, NURBS×NURBS and every pairing of
 `Approx` with NURBS or `Approx` (rung 3). The offset door reads
 plane×NURBS through `PlaneSection::branch_at` and NURBS×NURBS through
 `Section::branch_at`, each at the old edge's middle; the whole-section
-readings a boolean takes are their `all()`, which no boolean reads yet
-(no boolean reads a rung-3 arm). `implemented` covers
+readings a boolean takes are their `all()`, which no boolean reads yet.
+The boolean reads one rung-3 arm, cylinder×sphere, through the section
+value (`pair_section`: the pair's pose decided once, its components,
+and its loops marched and fitted at `f64` where a join matches germs on
+them). `implemented` covers
 the whole operation. Every other pair refuses, most blocked on the cone
 and torus metres conversion (C2 limb 2).
 

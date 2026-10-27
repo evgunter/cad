@@ -271,11 +271,15 @@ impl<T: Decide> CylinderSpherePose<T> {
             geom_core::k_stats::decide_reported(decision.name(), Margin::of(value), band)
                 .map_err(undecided(decision))
         };
-        // The rejection of the axial component is the point-to-line
-        // distance; `axis` is unit by the surface's own invariant.
-        let foot = origin + axis * (center - origin).dot(axis);
-        let off = center - foot;
+        // The centre's part square to the axis, taken as `a × (w × a)`
+        // (`axis` unit by the surface's invariant), which stands square
+        // to the axis to the rounding of its own size: `w − a·(a·w)`
+        // keeps a component along the axis of `w`'s size times the
+        // rounding, which dividing by a small offset turns into a
+        // direction off the plane square to the axis.
+        let off = axis.cross((center - origin).cross(axis));
         let d = off.norm();
+        let foot = center - off;
         let coaxial = read(CsDecision::Coaxial, d)?;
         let stance = if coaxial.sign == Sign::Zero {
             CsStance::Coaxial {
