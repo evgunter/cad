@@ -208,3 +208,14 @@ Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `cra
   - This restates DS6 as DESIGN.md's companion table summarises it ("`error` only where a finding can be quieted"). It is not a change to a ratified decision; I checked the table row and `git log -S` (0ec34e4b, a move of the ratified DS6).
   - A delta review follows the push.
 - 2026-10-27 12:24Z (orchestrator): #5853 (curved copies) is green on its frozen head `e78b63db`. Concurrent dual review (letter H) dispatched together from one brief: R1 `session_018u3gVFkJ5C4wcFnQdmq3S6`, R2 `session_018u3gVJdNSSkvmasEf4HL3P`. Isolation is on `review/atrest-curved-*`.
+- 2026-10-27 13:13Z (orchestrator): **#5853 adjudicated.** R1 rated it APPROVE (0/1/4), R2 APPROVE-WITH-FIXES (0/2/4). Every false-interference attack held, executed by both on turned bodies at three ε.
+  - The fix pass was sent:
+    - port both reviewers' abut, opposed and sphere rows;
+    - cost: arm 1's skip as a lookup, a sound cheap reject, a deterministic witness-count guard row;
+    - the curved arm called from the driver, so it no longer hides behind the region lane;
+    - one home each for "two cones share material" and `face_edges`;
+    - an escalation kept as `Undecided`, not `Unbuilt`;
+    - prose, ASSEMBLY.md, and the in-band residue recorded.
+
+    I merge on my read.
+  - Blind coding dispatched (byte 149, inputs `analysis/dual-review/pr-5853-coding` @ `66ec6268`).
