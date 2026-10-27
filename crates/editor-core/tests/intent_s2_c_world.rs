@@ -112,7 +112,7 @@ const PRE_C: [(&str, &str); 35] = [
     ("reshaped_rod", "128f9facfb4a7626/52"),
     (FILES[0], "8853ddff30bcec28/154"),
     (FILES[1], "e426662d8439569d/82"),
-    (FILES[2], "ca0b8371cb38e973/328"),
+    (FILES[2], "c47c71e7f0cc488f/328"),
     (FILES[3], "07c4e18f181e9b69/16"),
     (FILES[4], "fd7b71fa51270532/88"),
 ];

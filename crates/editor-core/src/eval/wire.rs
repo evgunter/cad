@@ -2280,8 +2280,12 @@ fn wire_measure<'r, T: Decide + topo::AtRestPolicy + crate::measure::MinClearanc
         unreachable!("a primitive reads two references")
     };
     // Its two references are in one space (D′1): it measures in the
-    // first's frame and reads the second into it through `relative`.
-    let body_b = framed_a.read_in(framed_b, tol)?;
+    // first's frame, or the second's where only that one is exact
+    // ([`super::Framed::computing_among`]), and reads the other into it
+    // through `relative`.
+    let computing = super::Framed::computing_among([*framed_a, *framed_b]).unwrap_or(*framed_a);
+    let body_a = computing.read_in(framed_a, tol)?;
+    let body_b = computing.read_in(framed_b, tol)?;
     let measured_at = |at, ent: &names::EntityRef, body| {
         (
             Measured {
@@ -2293,7 +2297,7 @@ fn wire_measure<'r, T: Decide + topo::AtRestPolicy + crate::measure::MinClearanc
             super::measure::carrier_of(body, *ent),
         )
     };
-    let (a, ca) = measured_at(*at_a, ent_a, framed_a.body());
+    let (a, ca) = measured_at(*at_a, ent_a, body_a.as_ref());
     let (b, cb) = measured_at(*at_b, ent_b, body_b.as_ref());
     let (a, b, ca, cb) = (&a, &b, &ca, &cb);
     let measured = if matches!(
@@ -2948,7 +2952,8 @@ fn wire_subtract<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 
 /// `from` cut by `tool`, by piece where `from` holds pieces; `from`'s
 /// body finished where the caller has finished it. Each cut computes in
-/// its `from`'s frame and reads `tool` into it ([`super::Framed::relative`]);
+/// its `from`'s frame, or the tool's where only that one is exact, and
+/// reads the other into it ([`super::Framed::relative`]);
 /// `body_b` is the tool finished in its own frame.
 fn subtract_from<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::boolean::PairVerb<T>,
@@ -2973,7 +2978,13 @@ fn subtract_from<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         Some(body) => body,
         None => from.finished(tol)?,
     };
-    let body_b = &b.finished_in(&from.body, body_b, tol)?;
+    // It computes in `from`'s frame unless only the tool's is exact
+    // ([`super::Framed::computing_among`]).
+    let computing = super::Framed::computing_among([&from.body, &b.body])
+        .unwrap_or(&from.body)
+        .clone();
+    let body_a = from.finished_in(&computing, &body_a, tol)?;
+    let body_b = &b.finished_in(&computing, body_b, tol)?;
     let inputs = BooleanInputs {
         given: None,
         records_a: from.records.carried(),
@@ -3018,7 +3029,7 @@ fn subtract_from<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             let body = out.body.into_body();
             OpOut::plain(
                 ValuePayload::Boolean(BooleanValue::Body {
-                    body: super::Framed::in_frame(Arc::new(body), from.body.frame().clone()),
+                    body: super::Framed::in_frame(Arc::new(body), computing.frame().clone()),
                     kind,
                     contacts: Arc::new(contacts),
                 }),
@@ -3436,15 +3447,21 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             names::empty(),
         ))
     };
-    // It computes in its first member's frame, reading every other
-    // member into it through `relative`.
+    // It computes in its first member's frame whose frame is exact,
+    // else its first's ([`super::Framed::computing_among`]), reading
+    // every other member into it through `relative`.
     let members = match members {
         [] => return empty(),
         [one] => return lone_member(id, one),
-        [first, ..] => members
-            .iter()
-            .map(|m| m.in_frame_of(&first.framed, tol))
-            .collect::<Result<Vec<_>, NodeErrorKind>>()?,
+        [first, ..] => {
+            let computing = super::Framed::computing_among(members.iter().map(|m| &m.framed))
+                .unwrap_or(&first.framed)
+                .clone();
+            members
+                .iter()
+                .map(|m| m.in_frame_of(&computing, tol))
+                .collect::<Result<Vec<_>, NodeErrorKind>>()?
+        }
     };
     let members = members.as_slice();
     let (first, rest) = match members {
@@ -4325,9 +4342,23 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> OpResult<T> {
     let mut fused = Body::new();
-    // The frame it computes in: its first operand's, as the author
-    // lists it; every other body is read into it through `relative`.
-    let mut computing: Option<super::Framed<T>> = None;
+    // The frame it computes in: its first operand's whose frame is
+    // exact, else its first's, as the author lists them
+    // ([`super::Framed::computing_among`]); every other body is read
+    // into it through `relative`.
+    let operands: Vec<&super::Framed<T>> = members
+        .iter()
+        .filter_map(|&(of, _, results)| value_of(results, of).ok())
+        .flat_map(|value| match &value.payload {
+            ValuePayload::Boolean(BooleanValue::Body { body, .. }) | ValuePayload::Body(body) => {
+                vec![body]
+            }
+            ValuePayload::Instances(bodies) => bodies.iter().collect(),
+            _ => Vec::new(),
+        })
+        .collect();
+    let mut computing: Option<super::Framed<T>> =
+        super::Framed::computing_among(operands.iter().copied()).cloned();
     let mut named: Vec<(crate::VarId, Arc<NameTable>, Vec<topo::GraftKeys>)> =
         Vec::with_capacity(members.len());
     let mut pieces: Vec<super::Piece<T>> = Vec::with_capacity(members.len());

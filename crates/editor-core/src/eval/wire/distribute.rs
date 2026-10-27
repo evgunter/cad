@@ -211,8 +211,18 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> OpResult<T> {
     let mut fused = Body::new();
-    // Computed in the first result's frame, each other read into it.
-    let mut computing: Option<crate::eval::Framed<T>> = None;
+    // Computed in the first result's frame whose frame is exact, else the
+    // first's ([`crate::eval::Framed::computing_among`]), each other read
+    // into it.
+    let mut computing: Option<crate::eval::Framed<T>> = crate::eval::Framed::computing_among(
+        outs.iter().filter_map(|(_, out)| match &out.payload {
+            ValuePayload::Boolean(BooleanValue::Body { body, .. }) | ValuePayload::Body(body) => {
+                Some(body)
+            }
+            _ => None,
+        }),
+    )
+    .cloned();
     let mut named: Vec<(crate::VarId, Arc<NameTable>, Vec<topo::GraftKeys>)> = Vec::new();
     let mut pieces: Vec<Piece<T>> = Vec::new();
     let mut contacts = topo::ContactRecords::default();

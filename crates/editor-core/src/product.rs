@@ -1287,9 +1287,16 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     // over the source however many solids it spans, so the carries
     // below are the same code for N as for 1.
     let mut aggregate = Body::new();
-    // The gather computes in its first source's frame and reads every
-    // other into it through `relative`.
-    let mut computing: Option<&crate::eval::Framed<T>> = None;
+    // The gather computes in its first non-empty source's frame whose
+    // frame is exact, else its first's
+    // ([`crate::eval::Framed::computing_among`]), and reads every other
+    // into it through `relative`.
+    let mut computing: Option<&crate::eval::Framed<T>> = crate::eval::Framed::computing_among(
+        sources
+            .iter()
+            .map(|source| &source.body)
+            .filter(|body| body.body().solids().next().is_some()),
+    );
     let mut grafted: Vec<Grafted<'_, T>> = Vec::with_capacity(sources.len());
     for source in &sources {
         let Source { node, body, .. } = source;

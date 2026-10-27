@@ -1303,12 +1303,14 @@ impl PickIndex {
         // origin at the world's — so the merge below orders the batches
         // as drawn, which is display, not logic.
         let mut unmoved: BTreeMap<Option<VarId>, Vec<PickTarget<'_>>> = BTreeMap::new();
-        // A part drawn under a map, its frame's or a probe's, is its
-        // own group, picked by the ray carried into its tessellation's
-        // coordinates.
+        // A part drawn under a probe is its own group, picked by the
+        // ray carried back through the probe's display map. A part's own
+        // frame is the kernel's door's to read ([`pick_face`] reads the
+        // ray into each target's frame), so copies in one space are one
+        // batch the kernel orders.
         let mut mapped: Vec<(Affine3<f64>, &NodePick)> = Vec::new();
         for part in self.parts.iter().filter(visible) {
-            match drawn(display, part) {
+            match probed(display, part) {
                 None => {
                     let space = self.spaces.get(&part.node()).copied();
                     unmoved.entry(space).or_default().push(part.target());
@@ -2230,6 +2232,16 @@ fn drawn(display: &DisplayView, part: &NodePick) -> Option<Affine3<f64>> {
         (Some(probe), None) => Some(probe),
         (Some(probe), Some(placed)) => Some(probe * placed),
     }
+}
+
+/// **The free-move probe frame a part's instance is drawn under**, if
+/// the display view puts it under one: a display map, not the model's.
+fn probed(display: &DisplayView, part: &NodePick) -> Option<Affine3<f64>> {
+    display
+        .moved_placements
+        .get(&part.node())
+        .copied()
+        .map(|frame: Frame| frame.affine::<f64>())
 }
 
 /// The part's frame in its space, `None` where it is the identity.

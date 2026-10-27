@@ -545,6 +545,11 @@ pub struct PickTarget<'a> {
     body: u32,
     /// The body's mesh index ([`MeshPick::build_every_table`]).
     pick: &'a MeshPick,
+    /// **The frame the tessellated body stands in** (D10
+    /// `[placement.frame]`): the mesh is in the body's own coordinates,
+    /// and [`pick_face`] reads the ray into them. `None` for a body in
+    /// its space's coordinates.
+    map: Option<geom_core::RigidMotion<f64>>,
 }
 
 impl<'a> PickTarget<'a> {
@@ -586,6 +591,7 @@ impl<'a> PickTarget<'a> {
             node,
             body,
             pick,
+            map: None,
         }
     }
 }
@@ -1240,6 +1246,7 @@ impl NodePick {
             node: self.node,
             body: self.body,
             pick: &self.pick,
+            map: self.frame.map().copied(),
         }
     }
 
@@ -1713,6 +1720,18 @@ pub fn pick_face<T: Decide>(
     let mut lowest_hi = f64::INFINITY;
     let mut undecided: Vec<Cand> = Vec::new();
     for (target_pos, target) in targets.iter().enumerate() {
+        // The ray read into the coordinates the target's mesh is in: a
+        // rigid map keeps the ray's parameter, so every target's `t` is
+        // one parameter along the one ray, and a hit's point is read off
+        // the ray as handed.
+        let local = target.map.map_or(*ray, |map| {
+            let back = map.linear().transpose();
+            Ray {
+                origin: Point3::origin() + back * (ray.origin - map.origin()),
+                dir: back * ray.dir,
+            }
+        });
+        let ray = &local;
         for cand in target.pick.candidates(ray) {
             let Some((tri, face)) = target.pick.triangle(&cand) else {
                 // Unreachable: the trees were built over exactly the

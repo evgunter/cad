@@ -194,6 +194,33 @@ impl<T: Decide> Framed<T> {
         })
     }
 
+    /// **Whether its frame is exact**: [`Frame::Own`], or a map every
+    /// entry of which holds one finite value. A frame a widened
+    /// parameter moves is not.
+    pub(crate) fn exact_frame(&self) -> bool {
+        self.frame
+            .map()
+            .is_none_or(|map| map.point_value().is_some())
+    }
+
+    /// **The operand an operation over `operands` computes in**
+    /// (`[placement.frame]`, conditioning): the first whose frame is
+    /// exact, so no operand an exact map places is read through a frame
+    /// a widened parameter moves; the first where none is. At `f64` every
+    /// frame is exact and this is the first operand.
+    pub(crate) fn computing_among<'a>(
+        operands: impl IntoIterator<Item = &'a Self> + Clone,
+    ) -> Option<&'a Self>
+    where
+        T: 'a,
+    {
+        operands
+            .clone()
+            .into_iter()
+            .find(|f| f.exact_frame())
+            .or_else(|| operands.into_iter().next())
+    }
+
     /// **The one door between two operands of one space**: the map from
     /// `other`'s body coordinates into this one's
     /// (`self.frame⁻¹ ∘ other.frame`), `None` where the two are in one
