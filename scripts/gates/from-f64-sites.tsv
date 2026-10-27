@@ -124,6 +124,7 @@ crates/topo/src/boolean/mod.rs	1	constant	boxes::sweep_pad(band)	the band's swee
 crates/topo/src/boolean/rim_wedge.rs	1	constant	k	a fixed wrap count
 crates/topo/src/boolean/rim_wedge.rs	1	constant	phase(i)	a fixed station of the sample schedule
 crates/topo/src/boolean/rim_wedge.rs	1	constant	sgn	a root's sign, ±1
+crates/topo/src/boolean/section_cert.rs	1	constant	n as f64	a strand count along a loop of the parallel-tori arm's matching curve
 crates/topo/src/boolean/section_cert/ruling.rs	1	constant	<block> if charged	the band's zero width or zero, a tolerance (the reader cuts the argument at its brace)
 crates/topo/src/boolean/section_cert/ruling.rs	2	constant	f64::from(k)	an eighth-turn sample index
 crates/topo/src/boolean/sectors.rs	1	constant	2.0 * sectors.len() as f64	a count
