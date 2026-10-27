@@ -7300,6 +7300,12 @@ pub struct Recharts {
 }
 
 impl Recharts {
+    /// Whether `cell` of the re-cut operand is a re-charted shell's.
+    #[must_use]
+    pub fn contains(&self, cell: Cell) -> bool {
+        self.cells.contains_key(&cell)
+    }
+
     /// Whether no shell was re-charted.
     #[must_use]
     pub fn is_empty(&self) -> bool {
@@ -7323,8 +7329,7 @@ impl Recharts {
     /// input shell wears that sphere: a closed sphere group
     /// ([`super::solid_contain::closed_sphere_group`]) is the whole
     /// shell.
-    #[must_use]
-    pub fn input_faces(&self, cell: Cell) -> Option<&[FaceKey]> {
+    fn input_faces(&self, cell: Cell) -> Option<&[FaceKey]> {
         self.cells.get(&cell).map(|&at| self.shells[at].as_slice())
     }
 }

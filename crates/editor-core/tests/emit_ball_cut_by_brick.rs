@@ -14,7 +14,7 @@
 use crate::blocks::{failure, run};
 use crate::emit_sphere_cut_in_cap::{ball, brick_toward, dir, world_in_brick};
 use crate::fixture::insert;
-use editor_core::{Node, ProfileDoc, RecipeNodeId};
+use editor_core::{NamingError, Node, NodeErrorKind, ProfileDoc, RecipeNodeId};
 use geom_core::Tol;
 
 const ROW: &str =
@@ -51,8 +51,10 @@ fn document(op: &str, ball_first: bool) -> (ProfileDoc, [RecipeNodeId; 3]) {
 }
 
 /// **Every op over the ball and the brick, in both orders, refuses at
-/// the turned ball's seam or pole**: no name form is true of a cell the
-/// re-chart turned, so none is published under the ball's names.
+/// a piece of the turned ball's seam**: no name form is true of a cell
+/// the re-chart turned, so none is published under the ball's names.
+/// Every result keeps a turned seam piece, and edges are read before
+/// vertices, so each refuses on an edge.
 #[test]
 fn a_ball_cut_by_a_brick_refuses_to_name_its_turned_seam_or_pole() {
     for (op, ball_first) in [
@@ -68,10 +70,16 @@ fn a_ball_cut_by_a_brick_refuses_to_name_its_turned_seam_or_pole() {
         let ev = run(&doc);
         assert!(failure(&ev, b).is_none(), "{what}: the ball names");
         assert!(failure(&ev, brick).is_none(), "{what}: the brick names");
-        let e = format!("{:?}", failure(&ev, out).expect("refuses"));
+        let cell = match failure(&ev, out) {
+            Some(NodeErrorKind::Naming(NamingError::UnsupportedTurnedCell { cell, .. })) => *cell,
+            other => {
+                panic!("{what}: refused other than at a turned seam or pole ({ROW}): {other:?}")
+            }
+        };
         assert!(
-            e.contains("UnsupportedTurnedCell"),
-            "{what}: refused other than at a turned seam or pole ({ROW}): {e}"
+            matches!(cell, topo::Cell::Edge(_)),
+            "{what}: refused on {cell:?}, not on a piece of the turned seam, which the pass \
+             reads before the turned pole"
         );
     }
 }

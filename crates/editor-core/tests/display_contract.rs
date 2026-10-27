@@ -2507,6 +2507,7 @@ fn naming_error_display_names_its_content_not_its_struct() {
         ),
         (
             NamingError::UnsupportedTurnedCell {
+                read: editor_core::VarId::new(0, tagged(38)),
                 cell: topo::Cell::Edge(topo::EdgeKey::default()),
             },
             vec![

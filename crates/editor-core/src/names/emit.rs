@@ -390,8 +390,12 @@ pub enum NamingError {
     /// its own chart instead of turning it
     /// (`work/orbit/closed-sphere-escape-is-re-charted-by-rotation-beside-the-meridian-cut.md`).
     UnsupportedTurnedCell {
-        /// The turned cell, in the operand's re-cut keys: an edge or a
-        /// vertex.
+        /// The read the turned sphere's operand came in through.
+        read: crate::VarId,
+        /// The turned cell, in the operand's re-cut keys. The emitter
+        /// raises it on an edge or a vertex
+        /// (`emit_topo::refuse_turned_cells`); the sentence reads any
+        /// kind.
         cell: topo::Cell,
     },
     /// Which way edge `edge` runs along another's carrier decided ZERO:
@@ -806,15 +810,18 @@ impl crate::spoken::Say for NamingError {
             Self::UnsupportedUnionName { name, shape } => {
                 write!(f, "{UNRULED_FRAMING}: union name {} {shape}", by.name(name))
             }
-            Self::UnsupportedTurnedCell { cell, .. } => write!(
+            Self::UnsupportedTurnedCell { read, cell } => write!(
                 f,
-                "{UNRULED_FRAMING}: the Boolean turned a sphere about its centre to find where \
-                 it meets the other solid, and the result keeps {} where the turn put it, \
-                 which descends from no cell of the sphere's solid",
+                "{UNRULED_FRAMING}: the Boolean turned a sphere of {} about its centre to find \
+                 where it meets the other solid, and the result keeps {} where the turn put \
+                 it, which descends from no cell of {}",
+                by.read(*read),
                 match cell {
-                    topo::Cell::Vertex(_) => "its pole",
-                    topo::Cell::Edge(_) | topo::Cell::Face(_) => "a piece of its seam",
-                }
+                    topo::Cell::Vertex(v) => format!("its pole {v:?}"),
+                    topo::Cell::Edge(e) => format!("a piece of its seam, {e:?}"),
+                    topo::Cell::Face(f) => format!("its face {f:?}"),
+                },
+                by.read(*read),
             ),
             Self::WayInZeroBand { edge, shape } => {
                 write!(f, "{LIMIT_FRAMING}: edge {edge:?} {shape}")
@@ -2273,6 +2280,7 @@ mod display_tests {
             ),
             (
                 NamingError::UnsupportedTurnedCell {
+                    read: crate::VarId::new(0, test_utils::refusal::tagged(38)),
                     cell: topo::Cell::Vertex(vtx),
                 },
                 vec!["turned a sphere", "its pole", "descends from no cell"],
