@@ -359,20 +359,9 @@ fn a_prism_leaning_into_a_brick_refuses_the_axis_beside_its_caps() {
     }
 }
 
-/// **A pinwheel of two prisms doubles the unit square's material, and
-/// the face pairs it rests on do not answer for that.** Both profiles
-/// hold the unit square `R`, with arms swept opposite ways about it, so
-/// the two prisms meet flush over four wall areas, and `R × (z-overlap)`
-/// lies in both: on each of the square's corner lines the two edges
-/// bound material on the same side. With the four face–face records the
-/// census asks, every confirmed pair holds those lines in its overlap's
-/// closure, which answers for their touch's record, never for their
-/// sides (D1: no record makes two wedges' overlap valid). Each corner
-/// line refuses its wedges decided, the pair's interference, beside
-/// which arm 2 adds nothing, at every pose, with B's span above A's
-/// middle and below it.
-#[test]
-fn a_pinwheel_resting_on_confirmed_face_pairs_refuses_its_doubled_core() {
+/// The pinwheel at `pose`: prism A over `z ∈ [0, 1]`, B over `zb`,
+/// each its own solid.
+fn pinwheel(pose: &Pose, zb: (f64, f64)) -> Body<f64> {
     let a = [
         (-2.0, -2.0),
         (3.0, -2.0),
@@ -393,11 +382,29 @@ fn a_pinwheel_resting_on_confirmed_face_pairs_refuses_its_doubled_core() {
         (-2.0, 3.0),
         (-2.0, -2.0),
     ];
+    let mut body = prism(pose, "A", &a, (0.0, 1.0)).into_body();
+    topo::graft_disjoint(&mut body, &prism(pose, "B", &b, zb)).unwrap();
+    body
+}
+
+/// **A pinwheel of two prisms doubles the unit square's material, and
+/// the face pairs it rests on do not answer for that.** Both profiles
+/// hold the unit square `R`, with arms swept opposite ways about it, so
+/// the two prisms meet flush over four wall areas, and `R × (z-overlap)`
+/// lies in both: on each of the square's corner lines the two edges
+/// bound material on the same side. With the four face–face records the
+/// census asks, every confirmed pair holds those lines in its overlap's
+/// closure, which answers for their touch's record, never for their
+/// sides (D1: no record makes two wedges' overlap valid). Each corner
+/// line refuses its wedges decided, the pair's interference, beside
+/// which arm 2 adds nothing, at every pose, with B's span above A's
+/// middle and below it.
+#[test]
+fn a_pinwheel_resting_on_confirmed_face_pairs_refuses_its_doubled_core() {
     for pose in poses() {
         for (span, zb) in [("above", (0.25, 1.5)), ("below", (-0.5, 0.75))] {
             let what = format!("{}, B {span}", pose.label);
-            let mut body = prism(&pose, "A", &a, (0.0, 1.0)).into_body();
-            topo::graft_disjoint(&mut body, &prism(&pose, "B", &b, zb)).unwrap();
+            let body = pinwheel(&pose, zb);
             assert_eq!(validate_geometric(&body, t()), Ok(()), "{what}: tier 3");
             let errs = recorded_verdict(&what, &body).expect_err("the doubled core refuses");
             let wedges = wedge_findings(&errs);
@@ -417,4 +424,59 @@ fn a_pinwheel_resting_on_confirmed_face_pairs_refuses_its_doubled_core() {
             assert_eq!(errs.len(), 4, "{what}: nothing else refuses: {errs:?}");
         }
     }
+}
+
+/// **A pair its wedges decide leaves nothing undecided beside them,
+/// whatever else stands.** The pinwheel, and far off a box turned about
+/// an edge it rests on until its far edge sinks 300 ε into a cube's top,
+/// at the poses where the sweep escalates there. An escalation names no
+/// entity, so it leaves every pair uncleared, the pinwheel's included;
+/// none of the pinwheel's touches reads as a crossing, so only its four
+/// wedge overlaps decide it. Red, a `CensusUndecidable` on the
+/// pinwheel's pair, where arm 2 reads a decided pair's other findings.
+#[test]
+fn a_pinwheel_beside_an_escalation_refuses_nothing_undecidable() {
+    use common::meeting::posed_box;
+    let dip = 300.0 * t().eps();
+    let mut read = 0;
+    for pose in poses() {
+        let what = pose.label;
+        let mut body = pinwheel(&pose, (0.25, 1.5));
+        let far = |b: [(f64, f64); 3], extra: &Pose| {
+            let shift = Pose::turn(what, [0.0, 0.0, 1.0], 0.0, [20.0, 0.0, 0.0]);
+            posed_box(what, b, &shift.after(&pose).after(extra), t())
+        };
+        let rest = Pose::rest();
+        let tilt = Pose::turn(
+            "tilt",
+            [0.0, 1.0, 0.0],
+            (dip / 0.75).asin(),
+            [0.25, 0.0, 1.0],
+        );
+        topo::graft_disjoint(&mut body, &far([(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)], &rest)).unwrap();
+        topo::graft_disjoint(&mut body, &far([(0.0, 1.0), (0.2, 0.8), (0.0, 1.0)], &tilt)).unwrap();
+        let errs = recorded_verdict(what, &body).expect_err("the doubled core refuses");
+        if !errs
+            .iter()
+            .any(|e| matches!(e, ValidationError::CensusEscalated { .. }))
+        {
+            continue;
+        }
+        read += 1;
+        let pinwheel: Vec<_> = body.solids().map(|(s, _)| s).take(2).collect();
+        assert!(
+            !errs.iter().any(|e| {
+                matches!(e, ValidationError::CensusUndecidable { .. })
+                    && topo::census_uncleared_solids(&body, e)
+                        .is_some_and(|(x, y)| pinwheel.contains(&x) && pinwheel.contains(&y))
+            }),
+            "{what}: nothing undecidable on the pinwheel's pair: {errs:?}"
+        );
+        assert_eq!(
+            wedge_findings(&errs).len(),
+            4,
+            "{what}: the four overlaps decide it: {errs:?}"
+        );
+    }
+    assert!(read > 0, "the witness: an escalation stands at some pose");
 }

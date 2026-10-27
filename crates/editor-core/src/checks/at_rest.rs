@@ -384,8 +384,9 @@ pub(crate) fn partition<T: LocalizeLane>(
         }
     }
     // What the census left undecided between two copies it decided
-    // interfere — a crossing standing on the pair, curved faces within
-    // reach of each other — rides the pair's findings as evidence: often
+    // interfere — curved faces within reach of each other, a face pair
+    // read in band; never the containment arm's own refusal, which a
+    // decided pair does not get — rides the pair's findings as evidence: often
     // the same overlap, but not always (a pin pressed into one bore and
     // slipped into another), so a quiet finding requires each such
     // verdict to lie on its own overlap (`covered`). So does a touch
@@ -439,7 +440,7 @@ pub(crate) fn finding_solids<T: Decide>(
     let (x, y) = match error {
         E::InstanceInterference { outer, inner, .. } => (*outer, *inner),
         E::SameSideInterference { a, b } => (face(*a)?, face(*b)?),
-        E::TouchInterference { a, b } => (
+        E::TouchInterference { a, b, .. } => (
             topo::census_cell_solid(body, *a)?,
             topo::census_cell_solid(body, *b)?,
         ),

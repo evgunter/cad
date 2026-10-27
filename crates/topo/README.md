@@ -356,16 +356,17 @@ material test — a nested placement sharing no material clears; an
 instance with a vertex inside another's material is
 `ValidationError::InstanceInterference`, a face of each on one plane,
 facing the same way and sharing interior, is
-`ValidationError::SameSideInterference`, and a touch whose local analysis
-decides the two materials meet there is
+`ValidationError::SameSideInterference`, and a touch whose local
+analysis decides the two materials meet there is
 `ValidationError::TouchInterference` — and no declaration admits an
 interference. Between two copies at rest the editor's gate reads those
-verdicts, a pierce and a same-side crossing as interference evidence
-(ASSEMBLY A5 *Interference.*), quieted by a one-sided `Gap` assertion at
-the overlap, not by a declaration. Invariant: inside one body an interference is always a
-typed error, and at rest between two copies it is always a finding
-(ASSEMBLY A5 *Interference.*), loud unless an assertion at its site
-quiets it; no blanket "disable interference checking" exists.
+verdicts, a pierce, a same-side crossing and two coincident edges'
+overlapping wedges as interference evidence (ASSEMBLY A5
+*Interference.*), quieted by a one-sided `Gap` assertion at the overlap,
+not by a declaration. Invariant: inside one body an interference is
+always a typed error, and at rest between two copies it is always a
+finding (ASSEMBLY A5 *Interference.*), loud unless an assertion at its
+site quiets it; no blanket "disable interference checking" exists.
 
 **C7 — The join lane.** At the curved coplanar-lump sites (`vtxfac.rs`,
 `recl.rs`) a tangent pair the witness lane decides (the

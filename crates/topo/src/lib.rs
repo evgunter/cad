@@ -361,35 +361,31 @@ pub mod test_support {
     };
     pub use crate::test_support_impl::ArenaCounts;
 
-    /// **A placement the census decided overlaps**: arm 2's decided
-    /// verdicts on a pair of solids, a vertex of one strictly inside the
-    /// other's material ([`crate::ValidationError::InstanceInterference`]),
-    /// a face of each on one carrier, facing the same way and sharing
-    /// interior ([`crate::ValidationError::SameSideInterference`]), or a
-    /// touch whose materials meet
-    /// ([`crate::ValidationError::TouchInterference`]). The
-    /// one home of the test that a row asserting a placement clears, or
-    /// refuses undecided, reads, so a new decided verdict reaches all of
-    /// them.
+    /// **A placement the census decided overlaps**: a finding
+    /// [`crate::census_interference_solids`] reads as two solids'
+    /// interference. The one home of the test that a row asserting a
+    /// placement clears, or refuses undecided, reads, so a new decided
+    /// verdict reaches all of them.
     #[must_use]
-    pub fn is_decided_overlap(e: &crate::ValidationError) -> bool {
-        matches!(
-            e,
-            crate::ValidationError::InstanceInterference { .. }
-                | crate::ValidationError::SameSideInterference { .. }
-                | crate::ValidationError::TouchInterference { .. }
-        )
+    pub fn is_decided_overlap<T: geom_core::Real>(
+        body: &crate::Body<T>,
+        e: &crate::ValidationError,
+    ) -> bool {
+        crate::census_interference_solids(body, e).is_some()
     }
 
     /// **The census's verdicts on where two solids sit**: each decided
     /// overlap ([`is_decided_overlap`]) and each
     /// [`crate::ValidationError::CensusUndecidable`] naming two solids.
     #[must_use]
-    pub fn placement_findings(errors: &[crate::ValidationError]) -> Vec<&crate::ValidationError> {
+    pub fn placement_findings<'e, T: geom_core::Real>(
+        body: &crate::Body<T>,
+        errors: &'e [crate::ValidationError],
+    ) -> Vec<&'e crate::ValidationError> {
         errors
             .iter()
             .filter(|e| {
-                is_decided_overlap(e)
+                is_decided_overlap(body, e)
                     || matches!(
                         e,
                         crate::ValidationError::CensusUndecidable {

@@ -2159,6 +2159,8 @@ pub enum ValidationError {
         a: crate::Cell,
         /// The cell of the other.
         b: crate::Cell,
+        /// Where the touch was read, as coordinates.
+        witness: String,
     },
     /// Tier 3′ (D1 tier 3, C4): two faces of one solid that share no
     /// edge, on carriers whose closed-form tangent line runs strictly
@@ -4535,11 +4537,11 @@ impl fmt::Display for ValidationError {
                  sharing an area that both hold material under (an interference fit), which no \
                  declaration can make valid. Recourse: move the instances apart"
             ),
-            Self::TouchInterference { .. } => write!(
+            Self::TouchInterference { witness, .. } => write!(
                 f,
-                "two instances overlap: where they touch, the material of each passes into \
-                 the other's (an interference fit), which no declaration can make valid. \
-                 Recourse: move the instances so they meet without overlapping, or apart"
+                "two instances overlap: where they touch at {witness}, the material of each \
+                 passes into the other's (an interference fit), which no declaration can make \
+                 valid. Recourse: move the instances so they meet without overlapping, or apart"
             ),
             Self::CuspEdgesMissing { witness, .. } => write!(
                 f,

@@ -603,11 +603,11 @@ one plane facing the same way and sharing interior
 (`ValidationError::SameSideInterference`), a touch where the two
 materials meet (`ValidationError::TouchInterference`), an edge piercing
 a face (`CensusContact::EdgeFacePierce`), an in-plane crossing whose
-side test reads `SameSide`, or an edge of each on one line whose
-wedges overlap (`ValidationError::CoincidentWedgesOverlap`). The gate takes those verdicts out of its
-refusal, with every `CensusUndecidable` the census left on the same
-pair of copies, and intersects the two copies. Each connected solid of
-the intersection is one `InterferenceFinding` on
+side test reads `SameSide`, or an edge of each on one line whose wedges
+overlap (`ValidationError::CoincidentWedgesOverlap`). The gate takes
+those verdicts out of its refusal, with every `CensusUndecidable` the
+census left on the same pair of copies, and intersects the two copies.
+Each connected solid of the intersection is one `InterferenceFinding` on
 `Assembly::interference`, named by the faces of both copies that bound
 it. An intersection the kernel cannot form leaves one
 `Overlap::Unlocalized` finding for the pair, which is loud and which

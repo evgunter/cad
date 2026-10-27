@@ -1936,9 +1936,11 @@ pub(crate) mod rest {
     /// A crossing is claimed on decided readings only; any other
     /// reading the test needed in band, or a sector whose pieces did not
     /// cut, leaves the touch [`TouchUnread::InBand`] (or the cut's own
-    /// refusal), and a probe lying on another face of its own link (a
-    /// slit, or a face doubled) leaves it [`TouchUnread::Degenerate`] —
-    /// never a crossing and never a rest.
+    /// refusal). A piece whose probe lies on another face of its own link
+    /// (a slit, or a face doubled: a fin, with no material behind it) or
+    /// in band of one decides nothing, not even a crossing, and leaves
+    /// the touch [`TouchUnread::Degenerate`] (or `InBand`) unless another
+    /// piece decides it — never a rest.
     pub(crate) fn judge<T: Decide>(a: &Link<T>, b: &Link<T>, band: Band) -> TouchVerdict {
         // Every reading over the pair is taken about `p`, while each
         // sector stands on its own apex, off `p` by at most its link's
@@ -1976,25 +1978,36 @@ pub(crate) mod rest {
             for (k, pieces) in &all[side] {
                 let s = &own.sectors[*k];
                 for &(c0, c1) in pieces {
-                    if crosses(other, &cut, &rays, (c0, c1), rd, &mut notes) {
-                        let mut scratch = Notes::default();
-                        if crosses(other, &cut, &rays, (near(c0), near(c1)), rd, &mut scratch) {
-                            return TouchVerdict::Crossing;
-                        }
-                        notes.in_band = true;
-                    }
                     let probe = c0 + (c1 - c0) * T::from_f64(0.5);
                     // On another face of its own link: a slit or a face
-                    // doubled, no boundary the probe can stand on.
+                    // doubled, no boundary the probe can stand on and no
+                    // material behind it, so the piece decides nothing.
+                    let mut on_own = false;
                     for (j, t) in own.sectors.iter().enumerate() {
                         if j == *k || own.side(t, probe, rd) != Some(Sign::Zero) {
                             continue;
                         }
                         match t.place(own.p, probe, rd) {
                             Some(Place::Outside) => {}
-                            Some(Place::Inside | Place::Bound) => notes.degenerate = true,
-                            None => notes.in_band = true,
+                            Some(Place::Inside | Place::Bound) => {
+                                notes.degenerate = true;
+                                on_own = true;
+                            }
+                            None => {
+                                notes.in_band = true;
+                                on_own = true;
+                            }
                         }
+                    }
+                    if on_own {
+                        continue;
+                    }
+                    if crosses(other, &cut, &rays, (c0, c1), rd, &mut notes) {
+                        let mut scratch = Notes::default();
+                        if crosses(other, &cut, &rays, (near(c0), near(c1)), rd, &mut scratch) {
+                            return TouchVerdict::Crossing;
+                        }
+                        notes.in_band = true;
                     }
                     // Every point strictly inside the piece reads its one
                     // cell, so any one that decides is the piece's

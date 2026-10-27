@@ -90,18 +90,21 @@ fn escalations(errors: &[ValidationError]) -> usize {
 /// Every placement refusal's `what`, cut to its reason: the text before
 /// the recourse.
 fn refusals(errors: &[ValidationError]) -> Vec<&'static str> {
-    placement_findings(errors)
-        .into_iter()
-        .map(|e| match e {
-            ValidationError::CensusUndecidable { what, .. } => {
-                what.split(", and this one").next().unwrap_or(what)
-            }
-            other => panic!("a typed refusal, not a decided interference: {other:?}"),
+    errors
+        .iter()
+        .filter_map(|e| match e {
+            ValidationError::CensusUndecidable {
+                a: topo::EntityId::Solid(_),
+                b: topo::EntityId::Solid(_),
+                what,
+                ..
+            } => Some(what.split(", and this one").next().unwrap_or(what)),
+            _ => None,
         })
         .collect()
 }
 
-const CROSSING: &str = "another finding reports their boundaries crossing";
+const CROSSING: &str = "another finding reports one part's boundary crossing itself";
 
 /// The solid pairs the findings decide interfere, each once, in order.
 fn interfering(
@@ -133,7 +136,7 @@ fn two_cubes_side_by_side_clear() {
     ]);
     let errors = errors_of(&body);
     assert!(!errors.is_empty(), "the undeclared touches stand");
-    assert!(placement_findings(&errors).is_empty(), "{errors:?}");
+    assert!(placement_findings(&body, &errors).is_empty(), "{errors:?}");
 }
 
 /// The pose of the beam across two supports: two blocks `[0, 0.1] ×
@@ -179,13 +182,16 @@ fn a_beam_across_two_supports_clears() {
         )),
         "{certified:?}"
     );
-    assert!(placement_findings(&certified).is_empty(), "{certified:?}");
+    assert!(
+        placement_findings(&body, &certified).is_empty(),
+        "{certified:?}"
+    );
     let errors =
         topo::validate_pseudomanifold_structural(&body, &ContactRecords::default(), Tol::witness())
             .unwrap_err();
     assert_eq!(crosses(&errors), 8, "{errors:?}");
     assert_eq!(pierces(&errors), 0, "{errors:?}");
-    assert!(placement_findings(&errors).is_empty(), "{errors:?}");
+    assert!(placement_findings(&body, &errors).is_empty(), "{errors:?}");
 }
 
 /// **The same beam sunk a millimetre into its supports refuses.** Its
@@ -262,9 +268,10 @@ fn crossed_ridges(lift: f64) -> Body<f64> {
 /// decided by the pierces, with nothing undecided beside them.
 #[test]
 fn crossed_ridges_clear_resting_and_refuse_sunk() {
-    let errors = errors_of(&crossed_ridges(0.0));
+    let body = crossed_ridges(0.0);
+    let errors = errors_of(&body);
     assert_eq!(crosses(&errors), 1, "{errors:?}");
-    assert!(placement_findings(&errors).is_empty(), "{errors:?}");
+    assert!(placement_findings(&body, &errors).is_empty(), "{errors:?}");
     let body = crossed_ridges(-0.01);
     let errors = errors_of(&body);
     assert!(pierces(&errors) > 0, "{errors:?}");
@@ -302,7 +309,7 @@ fn a_grid_of_brick_pairs_clears_exactly_the_rests() {
             for &z in &spans {
                 let body = assembly(&[block(a, a, a), block(x, y, z)]);
                 let errors = errors_of(&body);
-                let refused = !placement_findings(&errors).is_empty();
+                let refused = !placement_findings(&body, &errors).is_empty();
                 let overlap = overlaps(a, x) && overlaps(a, y) && overlaps(a, z);
                 if overlap {
                     overlapping += 1;
@@ -329,8 +336,8 @@ fn a_grid_of_brick_pairs_clears_exactly_the_rests() {
 }
 
 /// The one `InstanceInterference` a body carries: `(outer, inner)`.
-fn the_interference(errors: &[ValidationError]) -> (SolidKey, SolidKey) {
-    let placements = placement_findings(errors);
+fn the_interference(body: &Body<f64>, errors: &[ValidationError]) -> (SolidKey, SolidKey) {
+    let placements = placement_findings(body, errors);
     match placements[..] {
         [ValidationError::InstanceInterference { outer, inner, .. }] => (*outer, *inner),
         _ => panic!("one decided interference: {errors:?}"),
@@ -368,7 +375,7 @@ fn a_lump_inside_the_other_instance_is_found_whatever_its_sibling_does() {
             meets,
             "{errors:?}"
         );
-        assert_eq!(the_interference(&errors).1, lumps, "{errors:?}");
+        assert_eq!(the_interference(&body, &errors).1, lumps, "{errors:?}");
         // Declared: lump 2's corners resting on B, every touch recorded.
         let records = topo::test_support::records(
             &body,
@@ -381,7 +388,7 @@ fn a_lump_inside_the_other_instance_is_found_whatever_its_sibling_does() {
             }),
         );
         let errors = validate_pseudomanifold(&body, &records, tol).unwrap_err();
-        assert_eq!(the_interference(&errors).1, lumps, "{errors:?}");
+        assert_eq!(the_interference(&body, &errors).1, lumps, "{errors:?}");
     }
 }
 
@@ -412,7 +419,7 @@ fn a_declared_rest_with_a_dipping_point_is_probed() {
     let errors = validate_pseudomanifold(&body, &records, Tol::witness()).unwrap_err();
     let solids: Vec<SolidKey> = body.solids().map(|(k, _)| k).collect();
     assert_eq!(
-        the_interference(&errors),
+        the_interference(&body, &errors),
         (solids[0], solids[1]),
         "{errors:?}"
     );
@@ -479,7 +486,7 @@ fn a_declared_seat_with_a_keel_is_probed() {
         let errors = validate_pseudomanifold(&body, &records, Tol::witness())
             .err()
             .unwrap_or_default();
-        let placements = placement_findings(&errors);
+        let placements = placement_findings(&body, &errors);
         if keel {
             assert!(
                 matches!(
@@ -714,7 +721,7 @@ fn a_two_lump_body_seated_declared() {
             let errors = result.unwrap_err();
             let solids: Vec<SolidKey> = body.solids().map(|(k, _)| k).collect();
             assert_eq!(
-                the_interference(&errors),
+                the_interference(&body, &errors),
                 (solids[0], solids[2]),
                 "the sunk sibling is a solid of its own: {errors:?}"
             );
