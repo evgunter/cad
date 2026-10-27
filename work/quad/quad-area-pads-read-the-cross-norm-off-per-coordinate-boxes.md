@@ -11,7 +11,7 @@ cost: M
 
 ## Found (ENCL §5 sweep, `encl/offset-cert-coefficient-norms`, 2026-10-08)
 
-`crates/geom-brep/src/props/quad.rs` reads a vector norm as the root of
+`crates/geom-brep/src/props/quad/` reads a vector norm as the root of
 the sum of per-coordinate squares of a BOX in several certified places:
 `rational_patch_face`'s area cell (`g_hull: (ch[0].sqr() + ch[1].sqr() +
 ch[2].sqr()).sqrt() / wh.powi(3)`, with `ch = a.cross_num(&w, over…)`),

@@ -19,7 +19,7 @@ interior break at multiplicity two). The substitution is bit-for-bit;
 it names the count rather than re-deriving the clamp runs.
 
 Found by the ENCL `domain-grid-homing-residue` sweep for hand-spelled
-interior-knot filters, which settled the `props/quad.rs` instances.
+interior-knot filters, which settled the `props/quad/` instances.
 It is CHART's: TRIM's 2026-09-20 cut gave `pcurves.rs` to CHART
 (`work/trim/program.md` and `work/curved/program.md` `keep_out`).
 Two places still say TRIM owns the file and were left for their

@@ -324,8 +324,9 @@ pub const BASELINE_FLOOR_MARGIN: f64 = 4.0e-5;
 /// **PINNED TO ITS MINT SITES' SPELLING — read
 /// `tests/predicate_roster.rs` for what that does and does not
 /// cover**, because the pin's reach is narrower than this sentence can
-/// honestly summarise. It reads the quadrature's mint source
-/// (`crates/geom-brep/src/props/quad.rs`) across the cargo-root boundary
+/// honestly summarise. It reads the quadrature's mint sources (every
+/// file under `crates/geom-brep/src/props/quad/`) across the cargo-root
+/// boundary
 /// and reds if a name here stops being minted there; if a rostered
 /// mint's margin stops deriving from the whole identifier `target_len`
 /// in its own enclosing function, or that binding stops being
