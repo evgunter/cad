@@ -78,10 +78,12 @@ pub(crate) fn slab_overlap() -> (
 }
 
 /// **What the at-rest check reports**: its interference findings, and
-/// every finding beside them.
+/// every finding beside them, over the product's gathered body, whose
+/// keys the census's verdicts name.
 struct AtRest {
     interference: Vec<InterferenceFinding>,
     findings: Vec<editor_core::CheckFinding>,
+    body: topo::AtRestBody<f64>,
 }
 
 /// The at-rest check over `doc` at `run`.
@@ -90,9 +92,13 @@ fn at_rest(
     run: &editor_core::Evaluation<f64>,
 ) -> Result<AtRest, editor_core::ChecksError> {
     let findings = crate::fixture::at_rest(doc, run)?;
+    let body = editor_core::product_recorded(doc, run, Tol::witness())
+        .unwrap_or_else(|e| panic!("the product gathers: {e}"))
+        .body;
     Ok(AtRest {
         interference: crate::fixture::interference(&findings),
         findings,
+        body,
     })
 }
 
