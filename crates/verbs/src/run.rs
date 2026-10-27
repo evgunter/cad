@@ -11,11 +11,11 @@ use sweep::{ExtrudeError, Extruded, RevolveError, Revolved};
 use topo::splitting::SplitNaming;
 use topo::{
     AtRestBody, Body, BooleanError, BooleanNaming, BooleanResult, BooleanResultKind,
-    ContactRecords, GlueVerdict, ShellDoor, ShellError, ShellNaming, Shelled, SplitError,
-    SplitPart, SplitResult, SweepStrategy, boolean_op_with, split,
+    ContactRecords, GlueVerdict, NaryMember, NaryRun, ShellDoor, ShellError, ShellNaming, Shelled,
+    SplitError, SplitPart, SplitResult, SweepStrategy, boolean_op_with, nary_boolean, split,
 };
 
-use crate::verb::{Blend, Boolean, Shell, Split, Sweep};
+use crate::verb::{Blend, Boolean, Members, Shell, Split, Sweep};
 
 /// **What a verb produced**: the body, and the operation's own record
 /// of what it minted, in the record channel for the verb's family.
@@ -256,7 +256,7 @@ impl<T: DoorScalar> Blend<T> {
     }
 }
 
-impl<T: DoorScalar> Boolean<T> {
+impl Boolean {
     /// **Run this boolean against its operands.**
     ///
     /// Both bodies come in borrowed, in operand order, finished
@@ -271,7 +271,7 @@ impl<T: DoorScalar> Boolean<T> {
     ///
     /// [`VerbError::Boolean`] carrying the pipeline's [`BooleanError`]
     /// verbatim (`topo::boolean_op_with` enumerates the cases).
-    pub fn run_pair(
+    pub fn run_pair<T: DoorScalar>(
         &self,
         a: &AtRestBody<T>,
         b: &AtRestBody<T>,
@@ -306,6 +306,44 @@ impl<T: DoorScalar> Boolean<T> {
                 }))
             }
         }
+    }
+}
+
+impl Members {
+    /// **Run this union or intersect over its member bodies**, in list
+    /// order, one body per member of the payload.
+    ///
+    /// The bodies come in borrowed and finished, as at
+    /// [`Boolean::run_pair`]. What comes back is the kernel's own run
+    /// (`topo::NaryRun`): every judgement and every fold step, each a
+    /// pair boolean's body and record, which a consumer names from, and
+    /// how the operation ended. A refusal is carried there verbatim
+    /// (`NaryEnd::Refused`), after what ran before it, so this door has
+    /// no refusal of its own.
+    ///
+    /// # Panics
+    ///
+    /// Where `bodies` does not hold one body per member: a wiring bug.
+    pub fn run_members<T: DoorScalar>(
+        &self,
+        bodies: &[&AtRestBody<T>],
+        sweep: SweepStrategy,
+        tol: Tol,
+    ) -> NaryRun<T> {
+        let Self { op, members } = self;
+        if bodies.len() != members.len() {
+            unreachable!(
+                "an n-ary boolean of {} members was run over {} bodies",
+                members.len(),
+                bodies.len()
+            );
+        }
+        let members: Vec<NaryMember<'_, T>> = bodies
+            .iter()
+            .zip(members)
+            .map(|(&body, inputs)| NaryMember { body, inputs })
+            .collect();
+        nary_boolean(*op, &members, sweep, tol)
     }
 }
 

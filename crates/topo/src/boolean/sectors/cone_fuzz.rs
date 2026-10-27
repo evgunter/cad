@@ -1,10 +1,10 @@
 //! **The polygon-cone reader against an exact oracle**: random cones
 //! nobody chose, read by [`cone_side`] and [`wedge_classes`], and by the
-//! census's link reader (`census::bare_cone_reads`), each decided class
+//! census's link reader (`link::bare_cone_reads`), each decided class
 //! checked against an exact rational reading of the same cone.
 //!
 //! **What it certifies.** Every `cone_side`, every `wedge_classes` and
-//! every census link reading (`crate::census::bare_cone_reads`, the
+//! every census link reading (`crate::link::bare_cone_reads`, the
 //! census touch analysis's parity reader over the same cone as one
 //! link), on every family.
 //!
@@ -68,6 +68,7 @@
 // Gated to the reader it checks, and the band it decides in.
 test_utils::gated_to![
     "crates/topo/src/boolean/sectors.rs",
+    "crates/topo/src/link.rs",
     "crates/geom-core/src/predicate.rs",
     "crates/geom-core/src/tolerance.rs",
 ];
@@ -676,10 +677,10 @@ fn check_cone(
             (
                 "census_link",
                 Ok(
-                    crate::census::bare_cone_reads(o, &faces, o + d, band).map(|got| match got {
-                        crate::census::Material::In => SideCode::In,
-                        crate::census::Material::Out => SideCode::Out,
-                        crate::census::Material::On(_) => SideCode::On,
+                    crate::link::bare_cone_reads(o, &faces, o + d, band).map(|got| match got {
+                        crate::link::Material::In => SideCode::In,
+                        crate::link::Material::Out => SideCode::Out,
+                        crate::link::Material::On(_) => SideCode::On,
                     }),
                 ),
             ),

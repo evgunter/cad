@@ -1701,7 +1701,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             witness: "(0.0, 0.0, 0.0)".to_owned(),
         },
     ));
-    for why in crate::census::TouchUnread::iter() {
+    for why in crate::link::TouchUnread::iter() {
         s.push((
             format!("FaceThroughEdgeWedgeUndecided/{why:?}"),
             ValidationError::FaceThroughEdgeWedgeUndecided {
@@ -1721,7 +1721,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     ));
     // The reasons tier 3′'s line reading names: a sign in band, or an
     // edge's wedge with no reading.
-    let line_unread = core::iter::once((crate::census::TouchUnread::InBand, None))
+    let line_unread = core::iter::once((crate::link::TouchUnread::InBand, None))
         .chain(crate::census::WEDGE_UNREAD.map(|why| (why, Some(EdgeKey::default()))));
     for (why, unread) in line_unread {
         s.push((
@@ -1741,7 +1741,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             witness: "(0.0, 0.0, 0.0)".to_owned(),
         },
     ));
-    for why in crate::census::TouchUnread::iter() {
+    for why in crate::link::TouchUnread::iter() {
         s.push((
             format!("BoundaryCrossesItselfUndecided/{why:?}"),
             ValidationError::BoundaryCrossesItselfUndecided {
