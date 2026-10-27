@@ -619,9 +619,10 @@ forms are the levered door applied at named arms; there is no raw
 construction door. Consistency backstops between integral results
 decide on bare `T` through `k_stats::decide_invariant`, no Margin
 minted, and a certified violation is a Corrupt-class kernel-invariant
-error, never a validity refusal. A backstop between a result and its
-operands compares it with the operands as the operation decided them
-([coincidence.booleans]). A site where no door honestly fits
+error, never a validity refusal. The volume relations between a
+boolean's result and its operands (vol(A ∪ B) ≤ vol(A) + vol(B) and
+its siblings) are a test oracle, checked on the suite's fixtures, not
+a check every operation runs. A site where no door honestly fits
 is a finding, not a cast. The vector/linalg interior stays bare `T`.
 (ii) **No dimensionally-heterogeneous uniform payloads**: a field
 whose dimension depends on a runtime kind tag is illegal;
@@ -1574,8 +1575,7 @@ of `A` both operands carry are glued structurally.
 
 Where its verdicts decide Zero, a union, a cut or a meet glues where
 an arm exists for the carrier pair ([topology]'s frontier), keeping
-one fixed operand's description for a merged face and moving the
-other face onto it before the operation builds (which one is
+one fixed operand's description for a merged face (which one is
 arbitrary; the kernel keeps the first-written operand's, the simplest
 fixed rule, where a rule that read values would choose by rounding
 between two descriptions within the band of each other), and an assemble
