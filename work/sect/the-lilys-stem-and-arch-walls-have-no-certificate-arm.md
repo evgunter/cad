@@ -54,6 +54,13 @@ From ORBIT. Moved by `git mv` in the chat-approved refold (2026-10-25) that put 
 
 ## Closed
 
+**Correcting "Measured" above:** the two tube walls do meet. Their
+spine circles are internally tangent at the fork, and either side of it
+the arch's tube leaves the stem's through its inner wall: two loops,
+mirror images across the weld plane, each outside one face's window
+(the arch's side lies past the stem's 22°; the stem's side lies before
+the arch's start). What never meets is the faces.
+
 Built the general arm: `boolean/section_cert.rs` `torus_parallel_torus`,
 two tori on parallel axes at any offset and height. It lists every
 component of the carriers' section with a witness; the faces' windows
@@ -63,6 +70,7 @@ builds: `stem ∪ arch` and `arch ∪ stem` are one shell of the two tubes'
 volume, `stem ∩ arch` is empty and each difference gives back its first
 operand (`mate7a_r1_probes::p1_wall1_glues_the_stem_into_one_body`).
 Rows: `section_cert_parallel_tori_rows`. Filed: level tubes' node
-(`level-tubes-of-parallel-tori-refuse-at-the-node`), the cone sibling,
-ball separation for tilted poses, and the tour's two-piece stem
+(`work/secttail/level-tubes-of-parallel-tori-refuse-at-the-node.md`), the cone
+sibling and ball separation for tilted poses (both `work/secttail/`), and the
+tour's two-piece stem
 (`work/issues/the-tour-lily-ships-its-stem-as-two-pieces.md`).

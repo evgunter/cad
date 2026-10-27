@@ -74,7 +74,10 @@
 //! in general pose, whose section can hold several loops null on both
 //! carriers; and torus × square cylinder, where a wall biting the tube's
 //! inner side leaves a null loop beside two essential ones and one
-//! cutting its top leaves two null loops.
+//! cutting its top leaves two null loops; and torus × parallel-axis
+//! torus, which claims no component essential, so every part it lists
+//! is cleared by its witness or refuses (the lily's stem and arch walls
+//! meet in two loops, mirror images across the plane of the axes).
 //!
 //! # The refusals
 //!
@@ -1355,9 +1358,20 @@ fn torus_parallel_cylinder<T: Decide>(
     }
 }
 
-/// One strand of the matching curve `W` of [`torus_parallel_torus`]:
-/// the sheet of each tube (`true` outer) and whether the loop runs up it.
-type Strand = (bool, bool, bool);
+/// One strand of the matching curve `W` of [`torus_parallel_torus`].
+#[derive(Clone, Copy)]
+struct Strand {
+    /// The point stands on the torus's outer sheet.
+    outer: bool,
+    /// It stands on the partner's outer sheet.
+    outer2: bool,
+    /// The loop runs up the strand.
+    up: bool,
+}
+
+const fn strand(outer: bool, outer2: bool, up: bool) -> Strand {
+    Strand { outer, outer2, up }
+}
 
 const PARALLEL_TORI_ORDER: &str = "section_torus_parallel_tori_order";
 
@@ -1440,27 +1454,27 @@ fn torus_parallel_torus<T: Decide>(
     let y_lo = if own_bottom { -r } else { h - r2 };
     let run = y_hi - y_lo;
     // The station at the start of a loop's `n`th strand.
-    let runs = |n: usize| (0..n).fold(T::zero(), |s, _| s + run);
+    let runs = |n: usize| run * T::from_f64(n as f64);
     // The loops of `W`, each its strands in order: a strand's sheet on
     // the tube owning the end it runs into turns there.
     let loops: Vec<Vec<Strand>> = match (own_top, own_bottom) {
         (true, true) => [true, false]
-            .map(|s2| vec![(true, s2, true), (false, s2, false)])
+            .map(|s2| vec![strand(true, s2, true), strand(false, s2, false)])
             .to_vec(),
         (false, false) => [true, false]
-            .map(|s1| vec![(s1, true, true), (s1, false, false)])
+            .map(|s1| vec![strand(s1, true, true), strand(s1, false, false)])
             .to_vec(),
         (true, false) => vec![vec![
-            (true, true, true),
-            (false, true, false),
-            (false, false, true),
-            (true, false, false),
+            strand(true, true, true),
+            strand(false, true, false),
+            strand(false, false, true),
+            strand(true, false, false),
         ]],
         (false, true) => vec![vec![
-            (true, true, true),
-            (true, false, false),
-            (false, false, true),
-            (false, true, false),
+            strand(true, true, true),
+            strand(true, false, false),
+            strand(false, false, true),
+            strand(false, true, false),
         ]],
     };
     // The points of `Π` on both tori, each on its loop at its station
@@ -1496,9 +1510,16 @@ fn torus_parallel_torus<T: Decide>(
             for k in [k, -k] {
                 let (x, y) = (xa + ux * m - uy * k, uy * m + ux * k);
                 // The sheet each tube's circle holds the point on, by
-                // the side of the circle's centre it stands; undecided
-                // only at the tube's top or bottom, where both strands
-                // read one station if that tube owns the end.
+                // the side of the circle's centre it stands, read bare
+                // of the slack: the side changes only at the tube's top
+                // or bottom. A tube that owns no end of the span stands
+                // clear of both by the top and bottom rows' floors,
+                // decided across the slack, so its side is decided or
+                // the pair refuses. A tube that owns an end can stand
+                // undecided only at that end (its other end lies past
+                // the span by the same floors), where its two strands
+                // meet and read one station: either sheet places the
+                // point there.
                 let outer =
                     |off: T, owns: bool| match sign(PARALLEL_TORI_ORDER, Margin::of(off), band) {
                         Some(Sign::Positive) => Some(true),
@@ -1513,8 +1534,8 @@ fn torus_parallel_torus<T: Decide>(
                 };
                 let Some((i, j, up)) = loops.iter().enumerate().find_map(|(i, l)| {
                     l.iter()
-                        .position(|&(t1, t2, _)| (t1, t2) == (s1, s2))
-                        .map(|j| (i, j, l[j].2))
+                        .position(|t| (t.outer, t.outer2) == (s1, s2))
+                        .map(|j| (i, j, l[j].up))
                 }) else {
                     unreachable!("every pair of sheets is a strand of one loop of `W`")
                 };
@@ -1532,11 +1553,19 @@ fn torus_parallel_torus<T: Decide>(
     };
     for (strands, mut points) in loops.iter().zip(on_pi) {
         if points.is_empty() {
-            let (s1, s2, _) = strands[0];
+            let Strand {
+                outer: s1,
+                outer2: s2,
+                ..
+            } = strands[0];
             let y = (y_lo + y_hi) / T::from_f64(2.0);
             let (rho, rho2) = (sheet([big_r, r], y, s1), sheet([big_r2, r2], y - h, s2));
-            // `ρ₂` leans on the partner's height by the slope of its
-            // sheet there, beside its offset.
+            // Read at a fixed height, the rows move with the partner by
+            // one slack through `e`, and through `ρ₂` by at most the
+            // slack times `√(1 + slope²) ≤ 1 + slope`, `slope` being
+            // the sheet's `|dρ₂/dy|` there: a point of the partner moved
+            // by `δ` moves its sheet's radius at that height by at most
+            // that much.
             let slope = (y - h).abs() / ((r2 - (y - h).abs()) * (r2 + (y - h).abs())).sqrt();
             match signs_across(
                 [
@@ -1580,21 +1609,23 @@ fn torus_parallel_torus<T: Decide>(
 /// Sorts points of a loop of `W` by their station along it, every
 /// neighbour pair decided apart, the last and the first round the
 /// `cycle` too: two in one place within the band refuse R-tan.
+///
+/// The stations are read off the turned image, bare of the pose's slack,
+/// and that is sound: the points are distinct crossings of the meridian
+/// circles (two `A` circles never meet, nor two `B` circles, a ring
+/// torus's tube circles standing apart), so two stations trade places
+/// along the loop only by coinciding, a tangency of one circle pair,
+/// which its `reach` and `nest` rows decide across the slack; and the
+/// loop's strands are fixed by the top and bottom rows, decided across
+/// it too.
 fn along_w<T: Decide>(xs: &mut [(T, Point3<T>)], cycle: T, band: Band) -> Result<(), Section<T>> {
-    let apart = |m: T| sign(PARALLEL_TORI_ORDER, Margin::of(m), band);
-    for i in 1..xs.len() {
-        let mut j = i;
-        while j > 0 {
-            match apart(xs[j - 1].0 - xs[j].0) {
-                Some(Sign::Positive) => xs.swap(j - 1, j),
-                Some(Sign::Negative) => break,
-                _ => return Err(Section::Tangent(PARALLEL_TORI_ORDER)),
-            }
-            j -= 1;
-        }
-    }
+    apart_in_order(xs, PARALLEL_TORI_ORDER, Margin::of, band)?;
     if let [first, .., last] = xs
-        && apart(first.0 + cycle - last.0) != Some(Sign::Positive)
+        && sign(
+            PARALLEL_TORI_ORDER,
+            Margin::of(first.0 + cycle - last.0),
+            band,
+        ) != Some(Sign::Positive)
     {
         return Err(Section::Tangent(PARALLEL_TORI_ORDER));
     }
@@ -2050,22 +2081,25 @@ fn across_strip<T: Decide>(
 /// pair decided apart (as arc length): two in one place within the band
 /// refuse R-tan.
 fn along_k<T: Decide, X: Copy>(xs: &mut [(T, X)], rc: T, band: Band) -> Result<(), Section<T>> {
-    for i in 1..xs.len() {
-        let mut j = i;
-        while j > 0 {
-            match sign(
-                SQUARE_ORDER,
-                Margin::levered(xs[j - 1].0 - xs[j].0, rc),
-                band,
-            ) {
-                Some(Sign::Positive) => xs.swap(j - 1, j),
-                Some(Sign::Negative) => break,
-                _ => return Err(Section::Tangent(SQUARE_ORDER)),
-            }
-            j -= 1;
+    apart_in_order(xs, SQUARE_ORDER, |m| Margin::levered(m, rc), band)
+}
+
+/// Sorts `xs` by their keys, every pair the sort compares decided apart
+/// on `margin` of their difference: two in one place within the band,
+/// or undecided, refuse R-tan naming `name`.
+fn apart_in_order<T: Decide, X>(
+    xs: &mut [(T, X)],
+    name: &'static str,
+    margin: impl Fn(T) -> Margin<T>,
+    band: Band,
+) -> Result<(), Section<T>> {
+    crate::splitting::order::insertion_sort_by(xs, |a, b| {
+        match sign(name, margin(a.0 - b.0), band) {
+            Some(Sign::Positive) => Ok(true),
+            Some(Sign::Negative) => Ok(false),
+            _ => Err(Section::Tangent(name)),
         }
-    }
-    Ok(())
+    })
 }
 
 /// The cone arms: `k` is a cone, `p` its partner. Components are listed

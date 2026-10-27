@@ -13,7 +13,7 @@
     clippy::float_cmp
 )]
 
-use super::search_kit::{band, matched};
+use super::search_kit::{band, join, label, matched, near_cells};
 use super::section_cert_rows::{IN, OUT, at, classify, on_both, p, tangent, torus};
 use super::*;
 use core::f64::consts::TAU;
@@ -49,70 +49,41 @@ fn chart(big_r: f64, r: f64, i: usize, j: usize) -> Point3<f64> {
     p(rho * u.cos(), rho * u.sin(), r * w.sin())
 }
 
-fn find(parent: &mut [usize], mut x: usize) -> usize {
-    while parent[x] != x {
-        parent[x] = parent[parent[x]];
-        x = parent[x];
-    }
-    x
-}
-
 /// The partner's residual traced over the chart of the torus `(R, r)`
-/// about `z`: each cell whose corners change sign, labelled by its
-/// component (cell adjacency, both directions periodic).
+/// about `z`: each cell (`j·N + i`, `i` along `u`) whose corners change
+/// sign, labelled by its component (cell adjacency, both directions
+/// periodic).
 fn trace(big_r: f64, r: f64, partner: &Surface<f64>) -> (Vec<Option<usize>>, usize) {
     let g: Vec<f64> = (0..N * N)
-        .map(|k| geom_brep::implicit_residual(partner, chart(big_r, r, k / N, k % N)))
+        .map(|k| geom_brep::implicit_residual(partner, chart(big_r, r, k % N, k / N)))
         .collect();
-    let at = |i: usize, j: usize| g[(i % N) * N + j % N];
-    let crossed: Vec<bool> = (0..N * N)
+    let at = |i: usize, j: usize| g[(j % N) * N + i % N];
+    let active: Vec<bool> = (0..N * N)
         .map(|k| {
-            let (i, j) = (k / N, k % N);
+            let (i, j) = (k % N, k / N);
             let s = [at(i, j), at(i + 1, j), at(i, j + 1), at(i + 1, j + 1)];
             s.iter().any(|&x| x > 0.0) && s.iter().any(|&x| x <= 0.0)
         })
         .collect();
     let mut parent: Vec<usize> = (0..N * N).collect();
-    for k in (0..N * N).filter(|&k| crossed[k]) {
-        let (i, j) = (k / N, k % N);
-        for (di, dj) in [(1, 0), (0, 1), (1, 1), (1, N - 1)] {
-            let n = ((i + di) % N) * N + (j + dj) % N;
-            if crossed[n] {
-                let (x, y) = (find(&mut parent, k), find(&mut parent, n));
-                parent[x] = y;
+    for k in (0..N * N).filter(|&k| active[k]) {
+        let (i, j) = (k % N, k / N);
+        for (di, dj) in [(1, 0), (0, 1), (1, 1), (N - 1, 1)] {
+            let n = ((j + dj) % N) * N + (i + di) % N;
+            if active[n] {
+                join(&mut parent, k, n);
             }
         }
     }
-    let mut ids = std::collections::BTreeMap::new();
-    let label: Vec<Option<usize>> = (0..N * N)
-        .map(|k| {
-            crossed[k].then(|| {
-                let root = find(&mut parent, k);
-                let next = ids.len();
-                *ids.entry(root).or_insert(next)
-            })
-        })
-        .collect();
-    (label, ids.len())
+    label(&mut parent, &active)
 }
 
 /// The traced components within two cells of `w`'s chart cell.
 fn near(label: &[Option<usize>], big_r: f64, w: Point3<f64>) -> Vec<usize> {
     let rho = w.x.hypot(w.y);
-    let cell = |t: f64| ((t.rem_euclid(TAU) / TAU * N as f64) as usize) % N;
+    let cell = |t: f64| (t.rem_euclid(TAU) / TAU * N as f64) as isize;
     let (i, j) = (cell(w.y.atan2(w.x)), cell(w.z.atan2(rho - big_r)));
-    let mut out = Vec::new();
-    for di in 0..5 {
-        for dj in 0..5 {
-            let k = ((i + N + di - 2) % N) * N + (j + N + dj - 2) % N;
-            if let Some(c) = label[k]
-                && !out.contains(&c)
-            {
-                out.push(c);
-            }
-        }
-    }
-    out
+    near_cells(label, (N, N), (i, j), 2, true)
 }
 
 /// `(R, r)`, `(R₂, r₂)`, `(e, h)`, the traced count written down, and
@@ -368,4 +339,70 @@ fn the_lilys_pair_clears_only_on_windows_that_miss_its_loops() {
         Err(Refusal::Loop),
         "windows reaching over a loop with no event refuse R-loop"
     );
+}
+
+/// **The first row read across a nonzero slack: a tilt within the band
+/// widens the nest row.** The partner's near tube circle stands `10⁻⁸`
+/// past internally tangent to the torus's outer one
+/// (`d − |r − r₂| = 10⁻⁸`). With the axes exactly parallel the nest row
+/// decides and the pair has one loop; tilted by `10⁻¹¹` the pose still
+/// routes parallel, and the turn onto the torus axis swings the partner
+/// across the reach by more than that margin, so the nest row's floor
+/// reads Zero and the pair refuses R-tan naming it. Mutant: the reach
+/// and nest rows read bare of the slack (the tilted pose answers one
+/// loop).
+#[test]
+fn a_tilt_within_the_band_widens_the_nest_row() {
+    let reach = Reach {
+        centre: p(0.0, 0.0, 0.0),
+        radius: 6.0,
+    };
+    let f = torus(p(0.0, 0.0, 0.0), 2.0, 0.5);
+    let tilted = |t: f64| Surface::Torus {
+        center: p(3.2 + 1e-8, 0.0, 0.0),
+        axis: Vec3::new(t.sin(), 0.0, t.cos()),
+        major_radius: 1.0,
+        minor_radius: 0.3,
+        u_ref: Vec3::new(t.cos(), 0.0, -t.sin()),
+    };
+    assert_eq!(
+        parts(&super::classify(&f, &tilted(0.0), reach, band()))
+            .0
+            .len(),
+        1,
+        "exactly parallel: one loop"
+    );
+    assert_eq!(
+        tangent(&super::classify(&f, &tilted(1e-11), reach, band())),
+        "section_torus_parallel_tori_nest_floor",
+        "tilted within the band: the nest row's floor straddles"
+    );
+}
+
+/// **With an event on the pair, the lily's two loops refuse R-undec
+/// unless each witness is placed out.** A multi-part section never takes
+/// W4, so an event clears nothing: windows over both loops refuse
+/// undecided (not R-loop, which needs the pair's silence), and windows
+/// parted by the weld plane still clear each loop by its witness.
+/// Mutant: `single` set on a two-part section (W4 would clear both).
+#[test]
+fn an_evented_lily_pair_clears_only_by_its_witnesses() {
+    let [stem, arch] = lily(3.9, 0.0);
+    let s = classify_lily(&stem, &arch);
+    assert_eq!(
+        certify(&s, true, |_| Sheet::Not, at(IN, IN)),
+        Err(Refusal::Undecided),
+        "evented, both witnesses inside both faces: R-undec"
+    );
+    let a = 22f64.to_radians();
+    let weld_normal = Vec3::new(-a.sin(), 0.0, a.cos());
+    let fork = p(-5.0 + 5.0 * a.cos(), 0.0, 5.0 * a.sin());
+    let windows = |w: Point3<f64>| {
+        let after = (w - fork).dot(weld_normal) > 0.0;
+        [if after { OUT } else { IN }, if after { IN } else { OUT }]
+    };
+    let mut cleared =
+        certify(&s, true, |_| Sheet::Not, windows).expect("each witness out of one window");
+    cleared.sort_by_key(|c| format!("{c:?}"));
+    assert_eq!(cleared, [Cleared::Out(Side::F), Cleared::Out(Side::G)]);
 }

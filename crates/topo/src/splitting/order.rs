@@ -289,21 +289,36 @@ pub(super) fn sort_indices_by_point<T: Decide>(
     }
     let frame = in_plane_frame(plane, arm, band, exact)?;
     let mut order: Vec<usize> = (0..points.len()).collect();
-    for i in 1..order.len() {
+    insertion_sort_by(&mut order, |&a, &b| {
+        Ok(
+            lex_cmp(&points[b], &points[a], &plane.origin, frame, exact)?
+                == core::cmp::Ordering::Less,
+        )
+    })?;
+    Ok(order)
+}
+
+/// **A decided insertion sort**: `xs` sorted by `after(a, b)`, whether
+/// `a` stands strictly after `b`, asked of each element against its
+/// predecessors until one does not. Stable: elements no verdict puts
+/// apart keep their insertion order. The first `Err` stops the sort and
+/// comes back.
+///
+/// # Errors
+///
+/// `after`'s first.
+pub(crate) fn insertion_sort_by<X, E>(
+    xs: &mut [X],
+    mut after: impl FnMut(&X, &X) -> Result<bool, E>,
+) -> Result<(), E> {
+    for i in 1..xs.len() {
         let mut j = i;
-        while j > 0 {
-            let (a, b) = (order[j - 1], order[j]);
-            if lex_cmp(&points[b], &points[a], &plane.origin, frame, exact)?
-                == core::cmp::Ordering::Less
-            {
-                order.swap(j - 1, j);
-                j -= 1;
-            } else {
-                break;
-            }
+        while j > 0 && after(&xs[j - 1], &xs[j])? {
+            xs.swap(j - 1, j);
+            j -= 1;
         }
     }
-    Ok(order)
+    Ok(())
 }
 
 /// One planar face's crossings ordered along its section line, from
@@ -355,17 +370,9 @@ pub(super) fn sort_along<T: Decide>(
     band: Band,
 ) -> Result<Vec<usize>, Indeterminate> {
     let mut sorted: Vec<usize> = (0..n).collect();
-    for i in 1..sorted.len() {
-        let mut j = i;
-        while j > 0 {
-            let margin = Margin::of(gap(sorted[j], sorted[j - 1]));
-            if decide("split_join_line_order", margin, band)? != Sign::Negative {
-                break;
-            }
-            sorted.swap(j - 1, j);
-            j -= 1;
-        }
-    }
+    insertion_sort_by(&mut sorted, |&before, &at| {
+        Ok(decide("split_join_line_order", Margin::of(gap(at, before)), band)? == Sign::Negative)
+    })?;
     group_coincident(sorted, gap, band)
 }
 

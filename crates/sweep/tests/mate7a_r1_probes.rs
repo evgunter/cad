@@ -410,8 +410,7 @@ fn a_stem_window_reaching_over_a_loop_does_not_glue() {
 fn an_arch_started_inside_the_stem_glues_to_the_same_volume() {
     let f = arch_frame();
     let want = core::f64::consts::PI
-        * (STEM_TUBE.powi(2) * STEM_RING * deg(22.0)
-            + ARCH_TUBE.powi(2) * ARCH_RING * deg(170.0));
+        * (STEM_TUBE.powi(2) * STEM_RING * deg(22.0) + ARCH_TUBE.powi(2) * ARCH_RING * deg(170.0));
     let Some(s) = stem() else { return };
     for back in [2.0, 5.0] {
         let early = tube_along_arc(
