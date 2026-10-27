@@ -8,6 +8,7 @@ priority: P1
 cost: M
 refs: [census-cross-solid-curved-pairs-undecidable-on-shell-results]
 branch: restread/arm1-third-face-directions
+pr: 5858
 ---
 
 
