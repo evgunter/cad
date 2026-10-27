@@ -1439,6 +1439,8 @@ fn torus_parallel_torus<T: Decide>(
     let y_hi = if own_top { r } else { h + r2 };
     let y_lo = if own_bottom { -r } else { h - r2 };
     let run = y_hi - y_lo;
+    // The station at the start of a loop's `n`th strand.
+    let runs = |n: usize| (0..n).fold(T::zero(), |s, _| s + run);
     // The loops of `W`, each its strands in order: a strand's sheet on
     // the tube owning the end it runs into turns there.
     let loops: Vec<Vec<Strand>> = match (own_top, own_bottom) {
@@ -1488,7 +1490,7 @@ fn torus_parallel_torus<T: Decide>(
                 Ok(_) => continue,
                 Err(tan) => return tan.into(),
             }
-            let m = (d * d + (r - r2) * (r + r2)) / (d * T::from_f64(2.0));
+            let m = (d.powi(2) + (r - r2) * (r + r2)) / (d * T::from_f64(2.0));
             let k = ((r - m) * (r + m)).max(T::zero()).sqrt();
             let (ux, uy) = (dx / d, dy / d);
             for k in [k, -k] {
@@ -1516,7 +1518,7 @@ fn torus_parallel_torus<T: Decide>(
                 }) else {
                     unreachable!("every pair of sheets is a strand of one loop of `W`")
                 };
-                let station = run * T::from_f64(j as f64) + if up { y - y_lo } else { y_hi - y };
+                let station = runs(j) + if up { y - y_lo } else { y_hi - y };
                 on_pi[i].push((station, at(x, y, T::zero())));
             }
         }
@@ -1553,7 +1555,7 @@ fn torus_parallel_torus<T: Decide>(
                 band,
             ) {
                 Ok([true, true]) => {
-                    let x = ((rho - rho2) * (rho + rho2) + e * e) / (e * T::from_f64(2.0));
+                    let x = ((rho - rho2) * (rho + rho2) + e.powi(2)) / (e * T::from_f64(2.0));
                     let z = ((rho - x) * (rho + x)).max(T::zero()).sqrt();
                     parts.extend([z, -z].map(|z| component(at(x, y, z))));
                 }
@@ -1562,7 +1564,7 @@ fn torus_parallel_torus<T: Decide>(
             }
             continue;
         }
-        let cycle = run * T::from_f64(strands.len() as f64);
+        let cycle = runs(strands.len());
         if let Err(tan) = along_w(&mut points, cycle, band) {
             return tan;
         }
