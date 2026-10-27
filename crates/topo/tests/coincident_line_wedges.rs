@@ -428,8 +428,10 @@ fn a_pinwheel_resting_on_confirmed_face_pairs_refuses_its_doubled_core() {
 
 /// **A pair its wedges decide leaves nothing undecided beside them,
 /// whatever else stands.** The pinwheel, and far off a box turned about
-/// an edge it rests on until its far edge sinks 300 ε into a cube's top,
-/// at the poses where the sweep escalates there. An escalation names no
+/// an edge it rests on until its far edge sinks 10 ε to 1000 ε into a
+/// cube's top, at the dips and poses where the sweep escalates there (10
+/// ε at the 1e-6 and 1e-12 rows, 300 ε and 1000 ε at 1e-9's turned
+/// poses). An escalation names no
 /// entity, so it leaves every pair uncleared, the pinwheel's included;
 /// none of the pinwheel's touches reads as a crossing, so only its four
 /// wedge overlaps decide it. Red, a `CensusUndecidable` on the
@@ -437,9 +439,12 @@ fn a_pinwheel_resting_on_confirmed_face_pairs_refuses_its_doubled_core() {
 #[test]
 fn a_pinwheel_beside_an_escalation_refuses_nothing_undecidable() {
     use common::meeting::posed_box;
-    let dip = 300.0 * t().eps();
     let mut read = 0;
-    for pose in poses() {
+    for (k, pose) in [10.0, 300.0, 1000.0]
+        .into_iter()
+        .flat_map(|k| poses().into_iter().map(move |p| (k, p)))
+    {
+        let dip = k * t().eps();
         let what = pose.label;
         let mut body = pinwheel(&pose, (0.25, 1.5));
         let far = |b: [(f64, f64); 3], extra: &Pose| {
@@ -478,5 +483,8 @@ fn a_pinwheel_beside_an_escalation_refuses_nothing_undecidable() {
             "{what}: the four overlaps decide it: {errs:?}"
         );
     }
-    assert!(read > 0, "the witness: an escalation stands at some pose");
+    assert!(
+        read > 0,
+        "the witness: an escalation stands at some dip and pose"
+    );
 }

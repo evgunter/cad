@@ -97,44 +97,57 @@ fn a_box_sunk_on_an_edge_is_a_placement_finding() {
     );
 }
 
+/// The dips, in ε, at which the sweep escalates on the sunk box's
+/// far edge at some pose of some ε row: 10 ε at 1e-6 and 1e-12, 300 ε
+/// and 1000 ε at 1e-9's turned poses. Each witness row needs one
+/// escalation at some dip and pose of its row, and counts that it met
+/// one.
+const ESCALATING_DIPS: [f64; 3] = [10.0, 300.0, 1000.0];
+
 /// **A pair a standing finding decides leaves nothing undecided beside
-/// it.** The box sunk 300 ε on an edge: its walls pierce the cube's top,
-/// and at the turned poses the sweep also escalates there, an
-/// escalation that leaves any pair it might be about uncleared. The
-/// pierces decide this pair, and a touch on the top reads as a
-/// crossing too, so arm 2 refuses it neither for the escalation nor for
+/// it.** The box sunk 10 ε to 1000 ε on an edge: its walls pierce the
+/// cube's top, and at some dips and poses the sweep also escalates
+/// there, an escalation that leaves any pair it might be about
+/// uncleared. Wherever the census decides this pair (from 300 ε, at
+/// every ε row), the pierces and a touch on the top read as a crossing
+/// decide it, so arm 2 refuses it neither for the escalation nor for
 /// the probe's orderings, which find no vertex strictly inside. Red, a
-/// `CensusUndecidable` beside the pierces. (A pair only its standing
+/// `CensusUndecidable` beside a decided pair. (A pair only its standing
 /// findings decide is
 /// `coincident_line_wedges::a_pinwheel_beside_an_escalation_refuses_nothing_undecidable`.)
 #[test]
 fn a_box_sunk_past_the_band_refuses_nothing_undecidable_beside_its_pierces() {
-    let dip = 300.0 * Tol::witness().eps();
     let mut escalated = 0;
-    for pose in every_pose() {
-        let body = sunk_on_an_edge(&pose, dip);
-        let errors = findings(&body);
-        let what = pose.label;
-        assert!(
-            errors
+    for k in ESCALATING_DIPS {
+        for pose in every_pose() {
+            let body = sunk_on_an_edge(&pose, k * Tol::witness().eps());
+            let errors = findings(&body);
+            let what = format!("{k} ε, {}", pose.label);
+            let decided = errors
                 .iter()
-                .any(|e| topo::census_interference_solids(&body, e).is_some()),
-            "{what}: the pierces decide the pair: {errors:?}"
-        );
-        assert!(
-            undecidable(&errors).is_empty(),
-            "{what}: nothing undecidable beside them: {errors:?}"
-        );
-        if errors
-            .iter()
-            .any(|e| matches!(e, ValidationError::CensusEscalated { .. }))
-        {
-            escalated += 1;
+                .any(|e| topo::census_interference_solids(&body, e).is_some());
+            assert!(
+                decided || k < 300.0,
+                "{what}: the pierces decide the pair: {errors:?}"
+            );
+            if !decided {
+                continue;
+            }
+            assert!(
+                undecidable(&errors).is_empty(),
+                "{what}: nothing undecidable beside them: {errors:?}"
+            );
+            if errors
+                .iter()
+                .any(|e| matches!(e, ValidationError::CensusEscalated { .. }))
+            {
+                escalated += 1;
+            }
         }
     }
     assert!(
         escalated > 0,
-        "the witness: an escalation stands beside the pierces at some pose"
+        "the witness: an escalation stands beside the pierces at some dip and pose"
     );
 }
 
@@ -206,8 +219,9 @@ fn recorded(body: &Body<f64>) -> ContactRecords {
 
 /// **A crossing touch decides its pair over an undecided reading
 /// standing before it.** The inscribed tetrahedron, its touches with
-/// the cube recorded, and far off the box sunk 300 ε on an edge into a
-/// second cube, at the poses where the sweep escalates there. An
+/// the cube recorded, and far off the box sunk on an edge into a second
+/// cube, at the dips and poses where the sweep escalates there
+/// ([`ESCALATING_DIPS`]). An
 /// escalation names no entity, so it leaves every pair uncleared, the
 /// tetrahedron's included, and arm 2 reads it among the standing
 /// findings, before the tetrahedron's records; a recorded touch read as
@@ -216,9 +230,12 @@ fn recorded(body: &Body<f64>) -> ContactRecords {
 /// pair's read.
 #[test]
 fn a_crossing_touch_outranks_an_escalation_read_before_it() {
-    let dip = 300.0 * Tol::witness().eps();
     let mut read = 0;
-    for pose in every_pose() {
+    for (k, pose) in ESCALATING_DIPS
+        .into_iter()
+        .flat_map(|k| every_pose().into_iter().map(move |p| (k, p)))
+    {
+        let dip = k * Tol::witness().eps();
         let what = pose.label;
         let far = Pose::turn(what, [0.0, 0.0, 1.0], 0.0, [10.0, 0.0, 0.0]).after(&pose);
         let mut body = inscribed(&pose);
@@ -251,5 +268,8 @@ fn a_crossing_touch_outranks_an_escalation_read_before_it() {
             "{what}: nothing undecidable on the tetrahedron's pair: {errors:?}"
         );
     }
-    assert!(read > 0, "the witness: an escalation stands at some pose");
+    assert!(
+        read > 0,
+        "the witness: an escalation stands at some dip and pose"
+    );
 }
