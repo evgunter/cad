@@ -3371,6 +3371,7 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
         })?;
         let size = projected::NetSize {
             width: net.width(),
+            rounding: net.rounding(),
             extent: net.extent(),
         };
         let hull = projected::ProjectedHull {
@@ -4866,7 +4867,7 @@ fn periodic_envelope<T: Decide>(
 /// arithmetic it is the frame the lemma on
 /// [`EnvelopeStatement::MapResidualClosedForm`] assumes; a literal
 /// unit frame is its own twin, and its twin's forms reduce to its own.
-fn orthonormal_chart<T: Real>(surface: &Surface<T>) -> Surface<T> {
+pub(crate) fn orthonormal_chart<T: Real>(surface: &Surface<T>) -> Surface<T> {
     let frame = |axis: Vec3<T>, u_ref: Vec3<T>| {
         let f = geom::square_frame(axis, u_ref);
         (f.axis, f.u_ref)

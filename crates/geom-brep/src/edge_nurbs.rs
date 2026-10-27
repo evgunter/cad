@@ -1403,6 +1403,8 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     let curve = Curve3::Nurbs(std::sync::Arc::new(carrier.clone()));
     for operand in [s1, s2] {
         limb2(
+            &curve,
+            params,
             operand,
             crate::pcurve_cache::limb2_offset_sup(&curve, params, operand, band),
             None,
@@ -1472,6 +1474,8 @@ pub fn analytic_edge_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     }
     for operand in [s1, s2] {
         limb2(
+            carrier,
+            params,
             operand,
             crate::pcurve_cache::limb2_offset_sup(carrier, params, operand, band),
             line_plane_ends(carrier, params, operand),
@@ -1482,18 +1486,35 @@ pub fn analytic_edge_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 }
 
 /// Limb 2 against `operand`, decided on what the composite read of the
-/// carrier's distance from it: a measured miss at a break first
-/// ([`Rung3Limb::HullValue`]), then the upper bound over the interval,
-/// which clears the band or is the kernel's approximation limit
+/// carrier's distance from it.
+///
+/// **At an enclosure scalar** ([`geom_core::Witness::Exact`]) the
+/// reading is the enclosure `[floor, upper]` of that distance — `floor`
+/// the certified value at the break the rounds stopped on, `0` where
+/// they stopped on the bound — decided as one margin
+/// ([`limb2_enclosure`]): `upper` within the band passes, a floor past
+/// it is the measured miss ([`AnalyticRung3Refusal::Limb`]), and
+/// anything else is undecided at this input
+/// ([`AnalyticRung3Refusal::Escalated`]), the classifier's own terminal
+/// bit kept (a bare upper bound is never terminal). At a
+/// parameter-family scalar the margin carries the free-parameter
+/// residual of the carrier against the operand as its symbolic identity
+/// ([`free_residual`]), so a carrier that lies on the operand for every
+/// member of the box decides `Zero` there in one leaf.
+///
+/// **At a point scalar** the reading is an upper bound: a measured miss
+/// at a break first ([`Rung3Limb::HullValue`]), then the bound, which
+/// clears the band or is the kernel's approximation limit
 /// ([`AnalyticRung3Refusal::KernelLimit`]) and never a miss.
 ///
 /// `ends` are a line's distances from a plane at its ends
 /// ([`line_plane_ends`]): there the sup is attained at an end, so a
-/// reading that neither clears the band nor shows a measured miss — a
-/// bound that does not clear, or a break whose value the band cannot
-/// decide — defers to those measured values ([`measured_ends`]) rather
-/// than refusing as the kernel's limit or escalating short of the sup.
+/// reading that neither clears the band nor shows a measured miss
+/// defers to those measured values ([`measured_ends`]) rather than
+/// refusing short of the sup.
 fn limb2<T: Decide>(
+    carrier: &Curve3<T>,
+    params: (T, T),
     operand: &Surface<T>,
     read: Result<crate::pcurve_cache::projected::OffsetRead<T>, crate::PcurveCertifyError>,
     ends: Option<[(T, T); 2]>,
@@ -1506,15 +1527,100 @@ fn limb2<T: Decide>(
         offset,
         size,
         upper,
+        floor,
     } = read.map_err(refused)?;
-    let decided = match offset {
-        Offset::Bound(bound) => upper_bound(kind, bound, upper, size, band),
-        Offset::Miss { floor, bound } => measured_miss(kind, floor, band)
+    let decided = match (T::WITNESS, offset) {
+        (geom_core::Witness::Exact, Offset::Bound(_) | Offset::Miss { bound: Ok(_), .. }) => {
+            limb2_enclosure(kind, floor, upper, band, |free| {
+                free_residual(carrier, params, operand, free)
+            })
+        }
+        (_, Offset::Bound(bound)) => upper_bound(kind, bound, upper, size, band),
+        (_, Offset::Miss { floor, bound }) => measured_miss(kind, floor, band)
             .and_then(|()| upper_bound(kind, bound.map_err(refused)?, upper, size, band)),
     };
     match (decided, ends) {
         (Err(AnalyticRung3Refusal::Limb { .. }), _) | (_, None) | (Ok(()), _) => decided,
         (Err(_), Some(ends)) => measured_ends(kind, ends, band),
+    }
+}
+
+/// **Limb 2 at an enclosure scalar** ([`limb2`]): the carrier's
+/// distance from the operand enclosed by `[floor, upper]` in the
+/// scalar's own backend (C9) and decided as one margin, its symbolic
+/// identity the residual `identity` builds over a free parameter
+/// ([`Decide::free_identity`]). The classifier's verdict is the limb's:
+/// within the band it passes; a floor past the band is a measured miss
+/// ([`AnalyticRung3Refusal::Limb`]); anything else is undecided at this
+/// input, so it escalates ([`AnalyticRung3Refusal::Escalated`]) with the
+/// classifier's own terminal bit — false wherever the enclosure reaches
+/// down to zero, as a bare upper bound's does — and no cause claimed:
+/// over a parameter box a smaller box is the remedy (E6), and the drive
+/// bisects it.
+fn limb2_enclosure<T: Decide>(
+    operand: geom::SurfaceKind,
+    floor: f64,
+    upper: f64,
+    band: Band,
+    identity: impl FnOnce(&dyn Fn(T) -> T) -> T,
+) -> Result<(), AnalyticRung3Refusal> {
+    let (predicate, limb) = if floor > 0.0 {
+        ("ssi_hull_value", Rung3Limb::HullValue)
+    } else {
+        ("ssi_hull_sup", Rung3Limb::HullSup)
+    };
+    let enclosure = T::from_computed(floor)
+        .enclosure_hull(T::from_computed(upper))
+        .free_identity(identity);
+    match crate::dihedral::decide_reported(predicate, geom_core::Margin::of(enclosure), band) {
+        Ok(Decided {
+            sign: Sign::Zero, ..
+        }) => Ok(()),
+        Ok(Decided { margin, .. }) => Err(AnalyticRung3Refusal::Limb { operand, margin }),
+        Err(cause) => Err(AnalyticRung3Refusal::Escalated {
+            operand: Some(operand),
+            limb,
+            cause,
+        }),
+    }
+}
+
+/// **Limb 2's symbolic identity** ([`limb2_enclosure`]): the residual of
+/// the carrier's own description against `operand`, with the carrier's
+/// parameter free (`free` mints it). The operand is read as the
+/// composite reads it, its frame made orthonormal
+/// ([`crate::pcurve_cache::orthonormal_chart`]), so the identity is a
+/// residual of the surface the margin bounds the distance from; its
+/// implicit form ([`crate::implicit::implicit_residual`]) vanishes
+/// exactly on that surface.
+///
+/// A closed form is one description over its whole interval, so its
+/// residual is one. A spline is a polynomial per knot span, so it is
+/// read per span — every span of the carrier, which claims no less than
+/// the edge's interval needs — the free parameter minted at each span's
+/// middle so the span's own polynomial is the one read, and the spans'
+/// residuals are joined as a sum of squares, which is the zero form
+/// only where each of them is.
+fn free_residual<T: Decide>(
+    carrier: &Curve3<T>,
+    params: (T, T),
+    operand: &Surface<T>,
+    free: &dyn Fn(T) -> T,
+) -> T {
+    let twin = crate::pcurve_cache::orthonormal_chart(operand);
+    let at = |t: T| crate::implicit::implicit_residual(&twin, carrier.eval(free(t)));
+    let Curve3::Nurbs(net) = carrier else {
+        return at(params.0);
+    };
+    let breaks: Vec<T> = net.knot_values().runs().map(|(v, _)| v).collect();
+    let spans: Vec<T> = breaks
+        .windows(2)
+        .map(|w| at((w[0] + w[1]) / (T::one() + T::one())))
+        .collect();
+    match spans.as_slice() {
+        [] => at(params.0),
+        [one] => *one,
+        all => all.iter().fold(T::zero(), |sum, &r| sum + r * r),
     }
 }
 
@@ -3034,6 +3140,179 @@ mod tests {
             ),
             "{:?}",
             edge(1.0001e-8)
+        );
+    }
+
+    /// **Limb 2 over a parameter box, on its identity** (C2; fork row
+    /// 201). Each row reads [`analytic_edge_limbs`] at `Sym<Interval>`
+    /// over the box `a ∈ [0.5, 1.5]`, the parameter bracketed in the
+    /// session as a drive mints it, and returns the limb's result with
+    /// limb 2's decisions (`ssi_hull_sup` and `ssi_hull_value`) as the
+    /// recorder saw them.
+    fn over_the_box(
+        edge: impl FnOnce(SymI) -> Result<(), AnalyticRung3Refusal>,
+    ) -> (
+        Result<(), AnalyticRung3Refusal>,
+        Vec<geom_core::sym::revalue::Decision>,
+    ) {
+        use geom_core::sym::revalue::record;
+        use geom_core::sym::with_session;
+        use geom_core::{Interval, ParamSymbol, Sym, SymBudget};
+        let budget = SymBudget {
+            max_terms: 4096,
+            max_degree: 128,
+        };
+        let ((result, decisions), _) = with_session(budget, || {
+            let a = Sym::param_over(
+                ParamSymbol::new(1),
+                Interval::from_bounds(0.5, 1.5),
+                0.5,
+                1.5,
+            );
+            record(|| edge(a))
+        });
+        let limb2 = decisions
+            .into_iter()
+            .filter(|d| matches!(d.predicate, "ssi_hull_sup" | "ssi_hull_value"))
+            .collect();
+        (result, limb2)
+    }
+
+    type SymI = geom_core::Sym<geom_core::Interval>;
+
+    fn lit(x: f64) -> SymI {
+        <SymI as geom_core::Real>::from_f64(x)
+    }
+
+    fn point(x: f64, y: f64, z: SymI) -> geom_core::Point3<SymI> {
+        geom_core::Point3::new(lit(x), lit(y), z)
+    }
+
+    fn direction(x: f64, y: f64, z: f64) -> geom_core::Vec3<SymI> {
+        geom_core::Vec3::new(lit(x), lit(y), lit(z))
+    }
+
+    /// The wall `y = 0`, the second operand of every row: each carrier
+    /// lies on it.
+    fn wall() -> geom::Surface<SymI> {
+        geom::Surface::Plane {
+            origin: point(0.0, 0.0, lit(0.0)),
+            normal: direction(0.0, 1.0, 0.0),
+            u_ref: direction(1.0, 0.0, 0.0),
+        }
+    }
+
+    /// **A line derived from the parameter, on a plane derived from the
+    /// same parameter, certifies the whole macroscopic box in one leaf**:
+    /// the carrier and the floor both sit at height `a` for `a` over a
+    /// metre, and the composite, reading each over the box, puts the
+    /// line about a metre off its floor — the enclosure does not clear,
+    /// so the numeric channel cannot decide it. The free-parameter
+    /// residual `(p(t) − o)·n = a − a` is the zero form, so limb 2
+    /// decides `Zero` against each operand on its first decision, the
+    /// symbolic tier's, and nothing else is asked of it. Red where the
+    /// limb lifts the carrier out of the scalar before deciding, or
+    /// reads the stall as a kernel limit.
+    #[test]
+    fn a_parameter_derived_line_on_its_plane_certifies_the_box_in_one_leaf() {
+        let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+        let (result, limb2) = over_the_box(|a| {
+            let floor = geom::Surface::Plane {
+                origin: point(0.0, 0.0, a),
+                normal: direction(0.0, 0.0, 1.0),
+                u_ref: direction(1.0, 0.0, 0.0),
+            };
+            let line = geom::Curve3::Line {
+                origin: point(0.0, 0.0, a),
+                dir: direction(1.0, 0.0, 0.0),
+            };
+            analytic_edge_limbs(&line, (lit(0.0), lit(1.0)), &floor, &wall(), band)
+        });
+        assert_eq!(result, Ok(()));
+        assert_eq!(
+            limb2
+                .iter()
+                .map(|d| (d.predicate, d.sign, d.proven))
+                .collect::<Vec<_>>(),
+            vec![
+                ("ssi_hull_sup", Some(Sign::Zero), true),
+                ("ssi_hull_sup", Some(Sign::Zero), true),
+            ],
+            "one decision per operand, each a theorem"
+        );
+    }
+
+    /// The same over a curved carrier, where no end rule applies: a
+    /// circle of radius `a` about the axis of a cylinder of radius `a`
+    /// certifies the box on the residual `(ρ² − a²)/2a`, which is
+    /// `a²(cos² t + sin² t) − a²` over `2a` — the zero form.
+    #[test]
+    fn a_parameter_derived_circle_on_its_cylinder_certifies_the_box_in_one_leaf() {
+        let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+        let (result, limb2) = over_the_box(|a| {
+            let wall = geom::Surface::Cylinder {
+                origin: point(0.0, 0.0, lit(0.0)),
+                axis: direction(0.0, 0.0, 1.0),
+                radius: a,
+                u_ref: direction(1.0, 0.0, 0.0),
+            };
+            let floor = geom::Surface::Plane {
+                origin: point(0.0, 0.0, lit(0.0)),
+                normal: direction(0.0, 0.0, 1.0),
+                u_ref: direction(1.0, 0.0, 0.0),
+            };
+            let rim = geom::Curve3::Circle {
+                center: point(0.0, 0.0, lit(0.0)),
+                axis: direction(0.0, 0.0, 1.0),
+                radius: a,
+                u_ref: direction(1.0, 0.0, 0.0),
+            };
+            analytic_edge_limbs(&rim, (lit(0.0), lit(1.0)), &wall, &floor, band)
+        });
+        assert_eq!(result, Ok(()));
+        assert!(
+            limb2
+                .iter()
+                .any(|d| d.predicate == "ssi_hull_sup" && d.proven),
+            "the cylinder's decision is a theorem: {limb2:?}"
+        );
+    }
+
+    /// **The control: a coincidence at the nominal is not an identity.**
+    /// The line sits at height `a` and its floor at height `1`, so the
+    /// two meet only at the box's nominal `a = 1`. The residual is
+    /// `a − 1`, not the zero form, so nothing is proved; the enclosure
+    /// over the box does not clear, so limb 2 escalates on it, the
+    /// classifier's terminal bit false — a smaller box is the remedy —
+    /// and claims no kernel limit.
+    #[test]
+    fn a_coincidence_at_the_nominal_only_does_not_certify_the_box() {
+        let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+        let (result, limb2) = over_the_box(|a| {
+            let floor = geom::Surface::Plane {
+                origin: point(0.0, 0.0, lit(1.0)),
+                normal: direction(0.0, 0.0, 1.0),
+                u_ref: direction(1.0, 0.0, 0.0),
+            };
+            let line = geom::Curve3::Line {
+                origin: point(0.0, 0.0, a),
+                dir: direction(1.0, 0.0, 0.0),
+            };
+            analytic_edge_limbs(&line, (lit(0.0), lit(1.0)), &floor, &wall(), band)
+        });
+        let Err(AnalyticRung3Refusal::Escalated {
+            operand: Some(geom::SurfaceKind::Plane),
+            cause,
+            ..
+        }) = &result
+        else {
+            panic!("a coincidence at the nominal escalates over the box: {result:?}");
+        };
+        assert!(!cause.terminal_sliver, "{cause:?}");
+        assert!(!result.as_ref().unwrap_err().terminal());
+        assert!(
+            limb2.iter().all(|d| !d.proven),
+            "nothing is proved: {limb2:?}"
         );
     }
 }

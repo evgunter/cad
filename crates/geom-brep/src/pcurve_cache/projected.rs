@@ -1837,6 +1837,9 @@ pub(crate) enum Offset<T> {
 pub(crate) struct NetSize {
     /// The widest enclosure among the net's controls.
     pub(crate) width: f64,
+    /// The width no halving removes
+    /// ([`crate::carrier_net::CarrierNet::rounding`]).
+    pub(crate) rounding: f64,
     /// The diagonal of the net's control box.
     pub(crate) extent: f64,
 }
@@ -1851,14 +1854,22 @@ pub(crate) struct OffsetRead<T> {
     /// and story (`limb2_offset_sup` fills it at a bracket scalar); NaN
     /// where none was read.
     pub(crate) upper: f64,
+    /// The certified lower bound at the break the rounds stopped on,
+    /// in metres ([`Offset::Miss`]'s `floor`); `0` where they stopped
+    /// on the bound.
+    pub(crate) floor: f64,
 }
 
 /// Limb 2's rounds over a carrier's composite, read on the parts the
 /// edge's `window` overlaps: `hull` composes the carrier's twin with
 /// its parts cut at a round's breaks and says the size of the net it
 /// read, and the rounds halve as
-/// [`crate::pcurve_cache::limb2_offset_sup`]'s docs say. The bound is
-/// decided on [`net_incidence`] over the parts the rounds stopped on.
+/// [`crate::pcurve_cache::limb2_offset_sup`]'s docs say, stopping once
+/// the bound is within [`crate::KERNEL_LIMIT_ROUNDING_FACTOR`] of the
+/// net's rounding ([`NetSize::rounding`]): the composite cannot read
+/// the carrier sharper than its own data, so a round past that buys
+/// nothing. The bound is decided on [`net_incidence`] over the parts
+/// the rounds stopped on.
 pub(crate) fn offset_rounds<T: Decide>(
     hull: impl Fn(&[f64]) -> Result<(ProjectedHull, NetSize), PcurveCertifyError>,
     window: (T, T),
@@ -1866,7 +1877,7 @@ pub(crate) fn offset_rounds<T: Decide>(
     twin: &Surface<T>,
     band: Band,
 ) -> Result<OffsetRead<T>, PcurveCertifyError> {
-    use crate::ssi::certify::{Hull, Subdivided, subdivide};
+    use crate::ssi::certify::{Hull, Subdivided, subdivide_until};
     let round = |cuts: &[f64]| -> Result<Hull<(ProjectedHull, NetSize)>, PcurveCertifyError> {
         let (hull, size) = hull(cuts)?;
         let Window { parts, inside } = window_of(&hull, window)?;
@@ -1911,11 +1922,15 @@ pub(crate) fn offset_rounds<T: Decide>(
         net_incidence(hull, window, chart, twin, T::zero(), band, true)
             .map(|(incidence, _)| incidence)
     };
-    Ok(match subdivide(round, band)? {
+    let floored = |h: &Hull<(ProjectedHull, NetSize)>| {
+        h.sup <= crate::KERNEL_LIMIT_ROUNDING_FACTOR * h.data.1.rounding
+    };
+    Ok(match subdivide_until(round, band, floored)? {
         Subdivided::Bound(hull) => OffsetRead {
             offset: Offset::Bound(bound(&hull.data.0)?),
             size: hull.data.1,
             upper: f64::NAN,
+            floor: 0.0,
         },
         Subdivided::Value { hull, floor, .. } => OffsetRead {
             offset: Offset::Miss {
@@ -1924,6 +1939,7 @@ pub(crate) fn offset_rounds<T: Decide>(
             },
             size: hull.data.1,
             upper: f64::NAN,
+            floor,
         },
     })
 }

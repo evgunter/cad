@@ -1249,6 +1249,13 @@ enum SymOp {
     /// can carry different enclosures, so keying it by form would claim
     /// an equality that does not hold.
     Hull,
+    /// **The free parameter of a limb-2 identity**
+    /// ([`Decide::free_identity`]): a carrier's parameter left free, one
+    /// indeterminate whatever value it was minted at. Never bracketed —
+    /// no session records a range for it — so the decision read
+    /// ([`signed`]) encloses no form that holds it, and it reaches the
+    /// zero test alone.
+    Free,
 }
 
 impl SymOp {
@@ -1281,13 +1288,14 @@ impl SymOp {
             Self::Hull => 23,
             Self::Opaque => 24,
             Self::Select => 25,
+            Self::Free => 26,
         }
     }
 
     /// How many of the node's three child slots this op reads.
     fn arity(self) -> usize {
         match self {
-            Self::Param | Self::Opaque | Self::Lit | Self::Pi => 0,
+            Self::Param | Self::Opaque | Self::Lit | Self::Pi | Self::Free => 0,
             Self::Neg
             | Self::Powi
             | Self::Inv
@@ -1351,6 +1359,7 @@ impl SymNode {
         match self.op {
             SymOp::Param => Some(indet_param(self.payload)),
             SymOp::Opaque => Some(indet_opaque(self.payload)),
+            SymOp::Free => Some(INDET_FREE),
             SymOp::Hull => Some(indet_hull(self.kids[0], self.kids[1])),
             _ => None,
         }
@@ -3260,6 +3269,11 @@ fn indet_opaque(seq: u64) -> u128 {
         .finish()
 }
 
+/// The indeterminate a limb identity's free parameter enters the form
+/// as ([`SymOp::Free`]): keyed apart from every parameter symbol and
+/// opaque value, and recorded in no session's brackets.
+const INDET_FREE: u128 = 0x4652_4545_5f50_4152_414d_5f5f_5f5f_5f5f;
+
 /// The indeterminate a parameter symbol enters the form as.
 fn indet_param(symbol: u64) -> u128 {
     Hash128::new()
@@ -3421,6 +3435,9 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
     };
     match node.op {
         SymOp::Param => Some(Form::poly(Poly::indet(indet_param(node.payload)))),
+        // A limb identity's free parameter: one indeterminate, with no
+        // bracket (`SymOp::Free`'s docs).
+        SymOp::Free => Some(Form::poly(Poly::indet(INDET_FREE))),
         // One untracked real: its OWN indeterminate, keyed by the
         // sequence number the node carries (`SymOp::Opaque`'s docs).
         SymOp::Opaque => Some(Form::poly(Poly::indet(indet_opaque(node.payload)))),
@@ -5419,6 +5436,23 @@ impl<T: Decide> Decide for Sym<T> {
         #[cfg(feature = "sym-revalue-testing")]
         revalue::settle(noted, &decided);
         decided
+    }
+
+    /// The value channel `self`'s and the node the identity's
+    /// ([`Decide::free_identity`]): the identity is built over a free
+    /// variable ([`SymOp::Free`]) minted at the value the caller reads
+    /// the carrier at, and its own value channel is discarded — the
+    /// margin's numeric reading is the caller's, never the identity's
+    /// evaluation over the box.
+    fn free_identity<F>(self, identity: F) -> Self
+    where
+        F: FnOnce(&dyn Fn(Self) -> Self) -> Self,
+    {
+        let free = |at: Self| Self::nullary(at.value, SymOp::Free, 0);
+        Sym {
+            value: self.value,
+            node: identity(&free).node,
+        }
     }
 }
 

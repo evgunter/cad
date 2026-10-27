@@ -116,8 +116,9 @@ carrier. Where the bound does
 not clear the band, the composite's uncleared spans are halved round by
 round, each piece cut from its Bézier segment's own row so no cut
 compounds another's width, and the rounds stop once the bound is within
-the rounding factor of the net's own width: the limb passes once the
-bound clears;
+the rounding factor of the net's own width (`CarrierNet::rounding`, its
+controls' width before any span's remainder, which no halving
+removes): the limb passes once the bound clears;
 refuses on the composite's certified value at a break where that lies
 past the band's zero, since no bound over a span holding the break can
 clear; and otherwise refuses on the lowest bound any round reached
@@ -126,7 +127,7 @@ own units: `SSI_HULL_WORK` spans recomputed over the rounds,
 `SSI_HULL_CUTS` breaks added) — so a first composite already over
 `SSI_HULL_WORK` spans is never subdivided and refuses on its first
 hull, and a later round whose bound is NaN stops on the lowest certified
-bound before it rather than escalating. At a point input, limb 2's
+bound before it rather than escalating. At a point scalar, limb 2's
 reading is an upper bound, and an upper bound shows no miss: a bound that ends above the band with no
 measured miss past it refuses as a kernel approximation limit
 ([tolerance.recourse]; `AnalyticRung3Refusal::KernelLimit`), carrying the bound, the extent it was read over
@@ -139,9 +140,10 @@ from it by a function affine along it, whose sup is at an end, so a
 reading that neither clears nor shows a miss there is decided on the
 two ends' measured distances, `(p − o)·n` over `|n|` in certification
 arithmetic: both in the band certify the edge, one past it is a miss,
-and one the band cannot decide escalates. At a parameter-family scalar a bound that stalls is
-undecided at that leaf, and the drive bisects it (E6); the refusal
-carries the enclosure and claims no cause and no terminality. Against
+and one the band cannot decide escalates. At an enclosure scalar a bound that stalls is
+undecided at that input, and over a parameter box the drive bisects it
+(E6); the refusal carries the enclosure and claims no cause and no
+terminality. Against
 an analytic operand
 the value at a break is limb 1's residual, a measured miss: at the edge
 certificate it is the carrier's distance from the surface, bounded

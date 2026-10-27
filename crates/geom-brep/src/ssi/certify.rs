@@ -1071,6 +1071,20 @@ pub(crate) fn subdivide<P, E>(
     hull: impl Fn(&[f64]) -> Result<Hull<P>, E>,
     band: Band,
 ) -> Result<Subdivided<P>, E> {
+    subdivide_until(hull, band, |_| false)
+}
+
+/// [`subdivide`] with one stop more: a round whose hull `floored` calls
+/// at its floor — a bound no halving can take lower, read off the
+/// round's own data — stops on the lowest hull as the other stops do,
+/// so rounds that cannot clear are not spent. It is asked after the
+/// band and the break's value, so a hull that clears or shows a miss
+/// still says so.
+pub(crate) fn subdivide_until<P, E>(
+    hull: impl Fn(&[f64]) -> Result<Hull<P>, E>,
+    band: Band,
+    floored: impl Fn(&Hull<P>) -> bool,
+) -> Result<Subdivided<P>, E> {
     let mut cuts: Vec<f64> = Vec::new();
     let mut descent: Option<Descent<Hull<P>>> = None;
     let mut work = Work::new(SSI_HULL_WORK);
@@ -1091,8 +1105,9 @@ pub(crate) fn subdivide<P, E>(
         // Nothing left to halve, or a refused (NaN) bound, which steers
         // nothing: the loop's own exhaustion. A NaN never lowers the
         // lowest bound, so a later round's NaN stops on the earlier
-        // certified hull.
-        let exhausted = next.is_empty() || h.sup.is_nan();
+        // certified hull. A bound at its floor is exhausted the same
+        // way: no round would take it lower.
+        let exhausted = next.is_empty() || h.sup.is_nan() || floored(&h);
         next.truncate(SSI_HULL_CUTS - cuts.len());
         // On the first hull nothing is spent, so a composite over the
         // budget stops here unsubdivided.
@@ -2308,6 +2323,38 @@ mod tests {
             Ok(Subdivided::Value { .. }) => panic!("no break value is certified"),
             Err(()) => panic!("the synthetic hull does not refuse"),
         }
+    }
+
+    /// **The rounds stop at the floor their data sets** (limb 2's round
+    /// stop, [`super::subdivide_until`]): with every round's bound at
+    /// twice a floor that halving does not lower — a family scalar's
+    /// carrier spread over its box — the first hull is the only one
+    /// built, and the limb reads its bound; without the stop the same
+    /// hulls are rebuilt round after round until the stall rule ends
+    /// them. A hull that clears is still read as clearing.
+    #[test]
+    #[allow(clippy::panic)]
+    fn the_rounds_stop_once_the_bound_is_within_the_floor() {
+        use super::{Subdivided, subdivide_until};
+        let band = geom_core::Band::new(1e-9, 1e-8).unwrap_or_else(|e| panic!("{e}"));
+        let floor = 0.4;
+        let run = |stop: bool, sup: f64| {
+            let calls = core::cell::Cell::new(0);
+            let hull = |cuts: &[f64]| {
+                calls.set(calls.get() + 1);
+                Ok::<_, ()>(flat_hull(cuts, sup))
+            };
+            let floored = |h: &super::Hull| stop && h.sup <= 16.0 * floor;
+            match subdivide_until(hull, band, floored) {
+                Ok(Subdivided::Bound(h)) => (h.sup, calls.get()),
+                _ => panic!("the synthetic hull stops on its bound"),
+            }
+        };
+        assert_eq!(run(true, 2.0 * floor), (0.8, 1));
+        let (sup, rounds) = run(false, 2.0 * floor);
+        assert_eq!(sup, 0.8);
+        assert!(rounds > 1, "without the stop the rounds go on: {rounds}");
+        assert_eq!(run(true, 1e-12), (1e-12, 1), "a hull that clears clears");
     }
 
     /// **The subdivision stalls on the second round that does not lower

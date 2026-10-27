@@ -55,6 +55,9 @@ type Series = [Interval; TERMS];
 struct EnclosingNet {
     knots: KnotVector,
     coords: Vec<Vec<Interval>>,
+    /// [`CarrierNet::rounding`]: the widest control before any
+    /// remainder is added.
+    rounding: f64,
 }
 
 /// The carrier `C(t) = P₀ + U·α(t) + V·β(t)` in the scalar's
@@ -263,8 +266,9 @@ fn channel(p0: Interval, u: Interval, v: Interval, a: &Series, b: &Series) -> Se
 }
 
 /// The span `[a, b]`'s Bernstein coefficients, degree [`ORDER`], per
-/// coordinate, enclosing the carrier over the span.
-fn span_bernstein(h: &Harmonic, a: f64, b: f64) -> [Vec<Interval>; 3] {
+/// coordinate, enclosing the carrier over the span, and the widest of
+/// them before the remainder is added ([`CarrierNet::rounding`]).
+fn span_bernstein(h: &Harmonic, a: f64, b: f64) -> ([Vec<Interval>; 3], f64) {
     let n = ORDER;
     let m = 0.5 * (a + b);
     let (ia, ib, im) = (
@@ -283,6 +287,7 @@ fn span_bernstein(h: &Harmonic, a: f64, b: f64) -> [Vec<Interval>; 3] {
     // `s` are the binomial expansion.
     let w = ib - ia;
     let binom = geom_core::spline::pieces::binomial;
+    let rounding = core::cell::Cell::new(0.0_f64);
     let coords = |p0: Interval, u: Interval, v: Interval| -> Vec<Interval> {
         let node = channel(p0, u, v, &at_node.0, &at_node.1);
         let span = channel(p0, u, v, &over_span.0, &over_span.1);
@@ -297,21 +302,57 @@ fn span_bernstein(h: &Harmonic, a: f64, b: f64) -> [Vec<Interval>; 3] {
                 *mk = *mk + *cj * term;
             }
         }
-        // Monomial to Bernstein: `bᵢ = Σ_{k≤i} C(i,k)/C(n,k)·aₖ`.
+        // Monomial to Bernstein: `bᵢ = Σ_{k≤i} C(i,k)/C(n,k)·aₖ`; the
+        // polynomial's own coefficient first, whose width is the
+        // rounding no round removes, and the remainder after.
         (0..=n)
             .map(|i| {
-                (0..=i).fold(rest, |acc, k| {
+                let poly = (0..=i).fold(Interval::zero(), |acc, k| {
                     acc + mono[k] * Interval::from_f64(binom(i, k))
                         / Interval::from_f64(binom(n, k))
-                })
+                });
+                let width = if poly.is_certified() {
+                    Bounds::hi(poly) - Bounds::lo(poly)
+                } else {
+                    f64::NAN
+                };
+                rounding.set(widest(rounding.get(), width));
+                poly + rest
             })
             .collect()
     };
-    [
+    let rows = [
         coords(h.p0.x, h.u.x, h.v.x),
         coords(h.p0.y, h.u.y, h.v.y),
         coords(h.p0.z, h.u.z, h.v.z),
-    ]
+    ];
+    (rows, rounding.get())
+}
+
+/// The wider of two widths, NaN where either is: a control that does
+/// not certify has no width to read.
+fn widest(m: f64, w: f64) -> f64 {
+    if m.is_nan() || w.is_nan() {
+        f64::NAN
+    } else {
+        m.max(w)
+    }
+}
+
+/// The widest of `coords`' enclosures over every channel, NaN where a
+/// control does not certify.
+fn widest_control(coords: &[Vec<Interval>]) -> f64 {
+    coords
+        .iter()
+        .flatten()
+        .map(|c| {
+            if c.is_certified() {
+                Bounds::hi(*c) - Bounds::lo(*c)
+            } else {
+                f64::NAN
+            }
+        })
+        .fold(0.0, widest)
 }
 
 /// Why [`carrier_net`] has no certified net for a carrier: a span of
@@ -345,6 +386,7 @@ pub(crate) struct CarrierNet {
     weights: Vec<f64>,
     coords: Vec<Vec<Interval>>,
     cuts: Vec<f64>,
+    rounding: f64,
 }
 
 impl CarrierNet {
@@ -366,23 +408,19 @@ impl CarrierNet {
     /// with: the carrier's own rounding in the frame it is written in.
     /// NaN where a control does not certify.
     pub(crate) fn width(&self) -> f64 {
-        self.coords
-            .iter()
-            .flatten()
-            .map(|c| {
-                if c.is_certified() {
-                    Bounds::hi(*c) - Bounds::lo(*c)
-                } else {
-                    f64::NAN
-                }
-            })
-            .fold(0.0, |m: f64, w| {
-                if m.is_nan() || w.is_nan() {
-                    f64::NAN
-                } else {
-                    m.max(w)
-                }
-            })
+        widest_control(&self.coords)
+    }
+
+    /// **The width no halving removes**, in metres: the widest control
+    /// before a Taylor remainder is added — a spline's and a line's
+    /// controls as they are, a curved closed form's polynomial
+    /// coefficients before the span's remainder. It is the carrier's
+    /// own data rounded into the frame (at a family scalar, the data's
+    /// spread over the box), which a shorter span reads no sharper,
+    /// whereas the remainder in [`Self::width`] falls as a span is
+    /// halved. NaN where a control does not certify.
+    pub(crate) fn rounding(&self) -> f64 {
+        self.rounding
     }
 
     /// **The net's extent**, in metres: the diagonal of its controls'
@@ -446,6 +484,7 @@ fn spline_net<T: CertifiedBounds>(
     CarrierNet {
         knots: net.knots_f64_interim().clone(),
         weights: net.weights_f64_interim().to_vec(),
+        rounding: widest_control(&coords),
         coords,
         cuts: breaks.to_vec(),
     }
@@ -488,6 +527,7 @@ pub(crate) fn carrier_net<T: CertifiedBounds>(
         knots: net.knots,
         coords: net.coords,
         cuts: Vec::new(),
+        rounding: net.rounding,
     })
 }
 
@@ -532,6 +572,7 @@ pub(crate) fn framed_carrier_net<T: CertifiedBounds>(
         knots: net.knots,
         coords: net.coords,
         cuts: Vec::new(),
+        rounding: net.rounding,
     })
 }
 
@@ -611,13 +652,15 @@ fn enclosing_net<T: CertifiedBounds>(
                 return Err(refuse((pair[0], pair[1])));
             }
         }
+        let coords = vec![
+            points.iter().map(|p| p.x).collect(),
+            points.iter().map(|p| p.y).collect(),
+            points.iter().map(|p| p.z).collect(),
+        ];
         return Ok(EnclosingNet {
             knots: KnotVector::clamped(knots, 1).map_err(|_| refuse(whole))?,
-            coords: vec![
-                points.iter().map(|p| p.x).collect(),
-                points.iter().map(|p| p.y).collect(),
-                points.iter().map(|p| p.z).collect(),
-            ],
+            rounding: widest_control(&coords),
+            coords,
         });
     }
     let Some(h) = harmonic(carrier, frame) else {
@@ -629,8 +672,10 @@ fn enclosing_net<T: CertifiedBounds>(
     }
     knots.extend(core::iter::repeat_n(last, ORDER + 1));
     let mut coords: Vec<Vec<Interval>> = vec![Vec::new(), Vec::new(), Vec::new()];
+    let mut rounding = 0.0;
     for pair in breaks.windows(2) {
-        let span = span_bernstein(&h, pair[0], pair[1]);
+        let (span, width) = span_bernstein(&h, pair[0], pair[1]);
+        rounding = widest(rounding, width);
         if !span.iter().all(|row| span_certifies(row)) {
             return Err(refuse((pair[0], pair[1])));
         }
@@ -644,6 +689,7 @@ fn enclosing_net<T: CertifiedBounds>(
     Ok(EnclosingNet {
         knots: KnotVector::clamped(knots, ORDER).map_err(|_| refuse(whole))?,
         coords,
+        rounding,
     })
 }
 
