@@ -78,7 +78,7 @@ detect self-intersection and to compute tolerance stackups.
 The root principle is **functional style**: a CAD kernel's job is to
 define what a shape *is*, and the implementation reads that way —
 values rather than mutable objects, pure functions rather than hidden
-state, data rather than behaviour. The six principles below are that
+state, data rather than behaviour. The seven principles below are that
 stance applied to a solid modeler.
 
 ### The model is a pure function `[pure-model]`
@@ -254,6 +254,26 @@ input the kernel has not built yet gets a typed `Unsupported*` refusal
 naming its blocker. These are the project conventions of [failure] and
 [tolerance.recourse].
 
+### The code is as simple as it can be `[simple]`
+
+The code is as simple as the problem allows. Two instantiations carry
+most of the weight:
+
+- **One uniform rule, not special cases.** `[simple.uniform]` Where one
+  rule covers what a set of special cases would, the one rule is the
+  design. For example, in the names
+  (`crates/editor-core/src/names/README.md`): what several members of
+  a union hold at once, a face, an edge or a vertex, is named `Merged`
+  of all of them, where each kind once had its own rule for picking
+  one; and nothing is ranked, so names that do not tell two crossings
+  apart tie. Orientation is one rule ([topology]), and so is what a
+  document establishes ([intent.structural]).
+- **Checks serve the code.** `[simple.checks]` Tests, debug assertions
+  and CI are tools for finding defects in the code, not a ritual:
+  nothing is added to the code for a check's sake, and no
+  representation, stage or decision exists only so a check can read
+  it. Where a check needs one, the check changes or goes.
+
 ## Canonical places `[one-way.places]`
 
 The one place each of these is done or stated. A second place for any
@@ -270,6 +290,7 @@ of them is a defect.
 | A cavity's birth | `topo::insert_void` | [topology.conventions] |
 | A body's at-rest validity | one gate, for native and imported bodies alike | [topology.tiers], [import] |
 | Contact records across an op | one lineage, one carry | [topology.records] |
+| Which description a glued pair keeps | decided once, at the glue | [coincidence.booleans] |
 | An edge's geometry | one intensional description; every representation a certified cache | [edges] |
 | A locus one chart defines | `Chart`, one (surface, `Pcurve`) form | [edges] |
 | Dependency | reading a variable | [operations] |
@@ -1573,7 +1594,10 @@ of `A` both operands carry are glued structurally.
 
 Where its verdicts decide Zero, a union, a cut or a meet glues where
 an arm exists for the carrier pair ([topology]'s frontier), keeping
-one fixed operand's description for a merged face, and an assemble
+one fixed operand's description for a merged face (which one is
+arbitrary; the kernel keeps the first-written operand's, the simplest
+fixed rule, where a rule that read values would choose by rounding
+between two descriptions within the band of each other), and an assemble
 records the touch ([topology.records]); each refuses what falls in the
 sliver band. Its result holds no in-band pair, a pair of result cells
 whose one census number lies in band. A solid's only shell is its outer
