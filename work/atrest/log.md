@@ -188,3 +188,10 @@ Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `cra
 - `CONTACT-13` closed into the issue row. That row is now one P2 (cost M) re-read, on Ev's word in chat.
 - The re-read asks: can any op, now that records are only op-minted, leave records that hide an overlap at the census's `records_on_their_word` reading?
 - The row's top section has the steps. Its acceptance is stage 5 C's interference finding.
+- 2026-10-27 08:43Z (orchestrator): **#5823 merged** at `23cefbae`.
+  - The last fix pass (`ff8320c5`) was read by me. I built the merged tree with main and ran 589/589 of the census, link, concision, interference, contact, wedges and at-rest rows.
+  - The dual-review row was the last commit (`b2434c37`), and CI was green. Main builds after the merge.
+  - The lane is archived. The 5 C and 5827 lanes were told to merge main.
+- 2026-10-27 08:46Z (orchestrator): dispatched `curved-copies-filling-one-volume-read-as-undecidable` (P1, H) → `session_018u3gVFFPmQbjWscDyrESrE`, branch `atrest/curved-copies-filling-one-volume-interfere`.
+  - Plan-first: deciding that two `SurfaceKey`s carry one surface may be a design fork.
+  - The caps go through `planar_interiors_meet` in the census, since `chart_region.rs` is CHARTTAIL's.
