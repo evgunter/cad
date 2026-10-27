@@ -355,7 +355,7 @@ The backstop's containment arm decides the nested-instance class by a
 material test — a nested placement sharing no material clears; an
 instance with a vertex inside another's material is
 `ValidationError::InstanceInterference`, a face of each on one plane,
-facing the same way and sharing interior, is
+cylinder or sphere, facing the same way and sharing interior, is
 `ValidationError::SameSideInterference`, and a touch whose local
 analysis decides the two materials meet there is
 `ValidationError::TouchInterference` — and no declaration admits an

@@ -31,7 +31,10 @@
 //!   meeting over an area, one pair (the planar arm,
 //!   [`planar_face_pairs`], read before the sweeps, which then ask
 //!   nothing of the cells bounding it; an aligned one is reported as
-//!   [`ValidationError::SameSideInterference`]);
+//!   [`ValidationError::SameSideInterference`]); two cylinder or two
+//!   sphere faces of different solids on one carrier, facing the same
+//!   way and sharing interior (the same arm's curved half,
+//!   [`curved_same_side_pairs`], also an interference);
 //!   face–face records (the patch
 //!   certifier on one carrier or two planes, the `Tangent` table along
 //!   the closed-form tangent line on two other carriers, the line
@@ -5768,6 +5771,9 @@ pub(crate) fn unread_sample(a: FaceKey, b: FaceKey, reason: Undecidable) -> Vali
 ///   a datum it could not, reads no orientation, so the pair may hide
 ///   an overlap.
 ///
+/// Aligned faces on cylinders and spheres, which this arm's region door
+/// does not read, are its curved half's ([`curved_same_side_pairs`]).
+///
 /// Any other pair the doors do not decide is not this arm's: a definite
 /// apart, a shared line and no area (the region door's
 /// `TouchingBoundary` with no interior witness), an overlap the faces'
@@ -8158,8 +8164,8 @@ fn backstop_apart<T: Decide>(
 ///      [`ValidationError::InstanceInterference`] (`outer` holds the
 ///      witness, `inner` owns it), whatever else stands;
 ///    - with no vertex `In`, a face of each on one carrier, facing the
-///      same way and sharing interior, which the planar face-pair arm
-///      finds ([`planar_face_pairs`]) ⇒
+///      same way and sharing interior, which the aligned face-pair arm
+///      finds ([`planar_face_pairs`], [`curved_same_side_pairs`]) ⇒
 ///      [`ValidationError::SameSideInterference`], gate or no gate: an
 ///      overlap with every boundary cell coincident shows nowhere else;
 ///    - once either decides the pair, an ordering the probe could not
@@ -8239,7 +8245,9 @@ fn backstop_apart<T: Decide>(
 /// groups [`Geo::curved_faces`], so a same-key PLANAR pair is not on
 /// its list and stays here; record-NAMED face pairs are the
 /// patch/curve certifier's (a cross-key record escalates loudly
-/// there — skipping it here loses no loudness). Every deferral above
+/// there — skipping it here loses no loudness); a face pair the aligned
+/// face-pair arm decided overlaps is arm 2's, which reports its solids'
+/// interference. Every deferral above
 /// names an arm that asks the SAME question about the SAME pair; that
 /// is the bar a deferral has to clear, and it is what makes a skip
 /// something other than a silent not-examine (A5's letter).
@@ -10113,8 +10121,9 @@ const FLUSH_UNREAD: &str = "they lie on one plane facing the same way with their
 ///   share a boundary is refused `TouchingBoundary` by the region walk;
 ///   its interior-witness rung then certifies a point strictly inside
 ///   both (`PositiveArea`) or declines, and a decline carries the
-///   refusal. On that refusal the faces' own reading decides
-///   ([`planar_interiors_meet`]): interiors certified apart are a flush
+///   refusal. On that refusal, or on a trim with an arc the region walk
+///   does not read, the faces' own reading decides
+///   ([`face_interiors_meet`]): interiors certified apart are a flush
 ///   row; interiors that meet are none; a reading in band, or one not
 ///   built, is the pair's finding. Interiors that meet are no flush pair:
 ///   the two materials overlap there, which the census reports as
@@ -10229,8 +10238,9 @@ pub(crate) fn flush_at_rest<T: Decide + Bounds>(
 enum InteriorsUnread {
     /// A reading it needed landed in the band.
     Undecided,
-    /// The reading is not built: a face with an arc, or a cone
-    /// [`face_cone`] does not read (a face meeting the point twice).
+    /// The reading is not built: a cone [`face_cone`] does not read (a
+    /// face meeting the point twice), or a face with an arc whose
+    /// interiors no witness shows meeting ([`shared_interior_witness`]).
     Unbuilt,
 }
 
