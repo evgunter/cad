@@ -1592,7 +1592,7 @@ mod tests {
     /// **The torus's exclusion stays tight on a thin torus.** A sphere
     /// of radius `0.15` crossing a torus `R = 1, r = 0.1` (`R/r = 10`) is
     /// swept for seeds to a 512th of the root's width. The torus's
-    /// mean-value enclosure examines about 7.5k cells there; the direct
+    /// mean-value enclosure examines about 6.8k cells there; the direct
     /// quartic `A² − 4R²ρ²`, which treats its two dependent terms as
     /// independent, examined 67k, and a sweep to the accounting floor
     /// scales that ratio by the depth. Every point of the section lies
@@ -1622,7 +1622,7 @@ mod tests {
         let at = SweepFloor::r3(root, floor, FloorKind::Seeding).unwrap();
         let (tally, seeds) = super::sweep_r3(&torus, &sphere, at, SweepDuty::Seed).unwrap();
         assert!(
-            tally.examined < 16_000,
+            tally.examined < 12_000,
             "the torus's exclusion has loosened: {} cells examined",
             tally.examined
         );

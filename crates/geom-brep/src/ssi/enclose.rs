@@ -419,12 +419,13 @@ pub(crate) fn implicit_gradient_enclosure<T: CertifiedBounds>(
 }
 
 /// The torus's quartic over a box, with the parts its gradient reads:
-/// `q = p − c`, `A = |q|² + R² − r²`, `F = A² − 4R²|w|²` with
-/// `w = q − â(q·â)`, and `ŵ = ½∇|w|² = q − â(q·â)(2 − |â|²)`, exact for
-/// an `f64` axis that is not exactly unit (the cylinder arm's form).
+/// `q = p − c`, `h = q·â`, the radial vector `w = q − âh` formed
+/// itself (the cylinder arm's reason), `A = |q|² + R² − r²` and
+/// `F = A² − 4R²|w|²`.
 struct Quartic {
-    q: [Interval; 3],
-    w_grad: [Interval; 3],
+    h: Interval,
+    w: [Interval; 3],
+    axis: [Interval; 3],
     a: Interval,
     f: Interval,
     big_sq: Interval,
@@ -440,18 +441,17 @@ impl Quartic {
         minor: T,
     ) -> Self {
         let q = subp(b, center);
-        let ax = constv(axis);
-        let h = dot(&q, &ax);
-        let w = [q[0] - ax[0] * h, q[1] - ax[1] * h, q[2] - ax[2] * h];
-        let hk = h * (Interval::point(2.0) - norm_sq(&ax));
-        let w_grad = [q[0] - ax[0] * hk, q[1] - ax[1] * hk, q[2] - ax[2] * hk];
+        let axis = constv(axis);
+        let h = dot(&q, &axis);
+        let w = [q[0] - axis[0] * h, q[1] - axis[1] * h, q[2] - axis[2] * h];
         let big_sq = Interval::from_certified(major).sqr();
         let small = Interval::from_certified(minor);
         let a = norm_sq(&q) + (big_sq - small.sqr());
         let f = a.sqr() - Interval::point(4.0) * big_sq * norm_sq(&w);
         Self {
-            q,
-            w_grad,
+            h,
+            w,
+            axis,
             a,
             f,
             big_sq,
@@ -474,13 +474,22 @@ impl Quartic {
         self.f / (Interval::point(4.0) * self.small * self.a_positive())
     }
 
-    /// `∇g = (q·(1 − F/(2A²)) − (2R²/A)·ŵ)/r`, whose first two terms
-    /// alone are `∇F/(4rA)`.
+    /// `∇g = (k·q − l·½∇|w|²)/r` with `k = 1 − F/(2A²)` and `l = 2R²/A`
+    /// (`k·q` and `−l·w` alone are `∇F/(4rA)`), grouped by the radial
+    /// vector and the axis: `((k − l)·w + â·h·(k + l·(1 − |â|²)))/r`,
+    /// exact for an `f64` axis that is not exactly unit. Each term is
+    /// one scalar enclosure times one vector: `k·q − l·w` read
+    /// componentwise sums two `O(1)` widths into an `O(r)` difference,
+    /// which over a box wide along the carrier straddles where the
+    /// gradient does not.
     fn gradient(&self) -> [Interval; 3] {
         let a = self.a_positive();
-        let k = Interval::point(1.0) - self.f / (Interval::point(2.0) * a.sqr());
+        let one = Interval::point(1.0);
+        let k = one - self.f / (Interval::point(2.0) * a.sqr());
         let l = Interval::point(2.0) * self.big_sq / a;
-        [0, 1, 2].map(|i| (self.q[i] * k - l * self.w_grad[i]) / self.small)
+        let radial = k - l;
+        let along = self.h * (k + l * (one - norm_sq(&self.axis)));
+        [0, 1, 2].map(|i| (radial * self.w[i] + self.axis[i] * along) / self.small)
     }
 }
 

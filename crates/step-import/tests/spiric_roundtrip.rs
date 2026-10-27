@@ -116,17 +116,15 @@ fn vessel_cavity() -> topo::Body<f64> {
 /// stood at `VolumeUncomputable { Face { FaceKey(1v1), Unimplemented } }`,
 /// a cap's `loop_vector_area`, before that lane).
 ///
-/// The import stops earlier, at adoption. The rim comes back as a
-/// spline, the export's sagitta-bounded stand-in for the spiric
-/// (uncertainty 1e-4 m), and its `Intersection` reading is a rung-3
-/// carrier between the plane and the torus. Limb 2 holds against both
-/// (the spline lies within about 3e-13 m of the torus), and the edge
-/// certificate's uniqueness tube (C2's limb 3) has no enclosure of the
-/// torus's gradient, so the reading refuses naming the torus. Until the
-/// tube has a torus arm
-/// (`work/charttail/torus-certificate-runs-root-free-through-its-quartic.md`)
-/// no spline on a torus wall adopts as an `Intersection`, however close
-/// it lies.
+/// The import stops at tier 3. The rim comes back as a spline, the
+/// export's sagitta-bounded stand-in for the spiric (uncertainty
+/// 1e-4 m), and its `Intersection` reading is a rung-3 carrier between
+/// the plane and the torus: limb 2 holds against both (the spline lies
+/// within about 3e-13 m of the torus) and so does the uniqueness tube
+/// (C2's limb 3), so it adopts. Check 7 then measures the torus wall
+/// that spline bounds, and no quadrature lane reads a torus wall
+/// trimmed by a spline (`QuadratureUnsupported`;
+/// `work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md`).
 #[test]
 fn a_spiric_rim_exports_as_a_spline_and_its_reimport_door_is_pinned() {
     let native = vessel_cavity();
@@ -163,24 +161,21 @@ fn a_spiric_rim_exports_as_a_spline_and_its_reimport_door_is_pinned() {
 
     let back = import_step(&text, &ImportOptions::default(), tol());
     println!("[roundtrip] import door: {back:?}");
-    let Err(step_import::StepImportError::Adoption { attempts, .. }) = &back else {
-        panic!("the imported rim's spline refuses adoption, got {back:?}");
+    let Err(step_import::StepImportError::TierInvalid { errors, .. }) = &back else {
+        panic!("the imported cavity refuses at tier 3, got {back:?}");
     };
     assert!(
         matches!(
-            attempts.first(),
-            Some(step_import::AdoptionAttempt {
-                candidate: step_import::AdoptionCandidate::Intersection,
-                refusal: topo::EulerOpError::Certification {
-                    error: geom_brep::CertifyError::AnalyticRung3(
-                        geom_brep::AnalyticRung3Refusal::NoTubeEnclosure {
-                            operand: geom::SurfaceKind::Torus,
-                        }
-                    ),
+            errors.as_slice(),
+            [topo::ValidationError::VolumeUncomputable {
+                source: topo::props::MassPropsError::Face {
+                    source: geom_brep::props::PropsError::QuadratureUnsupported { what },
+                    ..
                 },
-            })
+                ..
+            }] if what.contains("torus")
         ),
-        "the spline's Intersection reading refuses at the tube for want of a torus enclosure, \
-         got {attempts:?}"
+        "the spline's Intersection reading adopts, and check 7 meets a torus wall trimmed by a \
+         spline, got {errors:?}"
     );
 }
