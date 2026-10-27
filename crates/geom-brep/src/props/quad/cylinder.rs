@@ -454,7 +454,6 @@ mod tests {
     use geom_core::Bounds;
 
     use super::super::run::{LaneEnd, LaneStop, mean_boundary_displacement};
-    use super::super::trig::trig_at_limit;
     use crate::props::PropsCheck;
     use crate::props::quad::test_target::{self, met, to_target};
     use geom_core::Tol;
@@ -465,77 +464,6 @@ mod tests {
             ca: pt(ca),
             cb: pt(cb),
             cl: pt(cl),
-        }
-    }
-
-    /// Trig propagation soundness: dense grid of bases and offsets —
-    /// the true (std) cos/sin at base+offset must lie inside the
-    /// propagated brackets, and the brackets stay tight (< 1e-9 after
-    /// a 6-rad walk).
-    #[test]
-    fn trig_propagation_contains_truth_and_stays_tight() {
-        for i in 0..40 {
-            let t0 = -6.0 + 0.31 * f64::from(i);
-            let base = (pt(t0.cos()), pt(t0.sin()));
-            for j in 0..30 {
-                let off = -6.0 + 0.41 * f64::from(j);
-                let (c, s) = trig_at(base, off);
-                let (tc, ts) = ((t0 + off).cos(), (t0 + off).sin());
-                assert!(
-                    c.lo() <= tc && tc <= c.hi() && s.lo() <= ts && ts <= s.hi(),
-                    "trig_at unsound at t0={t0}, off={off}: cos {tc} vs {c:?}, sin {ts} vs {s:?}"
-                );
-                assert!(
-                    c.width() < 1e-9 && s.width() < 1e-9,
-                    "width blowup at {off}"
-                );
-                // The RANGE form contains a sample fan of the interval.
-                let d = 0.7;
-                let (cr, sr) = trig_over(base, off, d);
-                for k in 0..=8 {
-                    let t = t0 + off + d * f64::from(k) / 8.0;
-                    assert!(
-                        cr.lo() <= t.cos() && t.cos() <= cr.hi(),
-                        "trig_over cos unsound at {t}"
-                    );
-                    assert!(
-                        sr.lo() <= t.sin() && t.sin() <= sr.hi(),
-                        "trig_over sin unsound at {t}"
-                    );
-                }
-            }
-        }
-    }
-
-    /// **The trig at a trim edge's limit**, [`trig_at_limit`]: it holds
-    /// the std `(cos, sin)` of the bracket's midpoint over a period each
-    /// way, and its width is what its docs say, 1.7e-13 at `π` and
-    /// 3.4e-13 at `2π`, each pinned within 1.1×.
-    #[test]
-    fn the_trig_at_a_limit_holds_its_value_at_the_width_its_docs_state() {
-        for i in -64..=64 {
-            let a = core::f64::consts::TAU * f64::from(i) / 64.0;
-            let t = Interval::from_bounds(a - 1e-9, a + 1e-9);
-            let (c, s) = trig_at_limit(t);
-            let m = mid(t);
-            assert!(
-                c.lo() <= m.cos() && m.cos() <= c.hi() && s.lo() <= m.sin() && m.sin() <= s.hi(),
-                "trig_at_limit misses the trig at {m}: {c:?}, {s:?}"
-            );
-        }
-        let width = |a: f64| {
-            let (c, s) = trig_at_limit(pt(a));
-            c.width().max(s.width())
-        };
-        for (a, pinned) in [
-            (core::f64::consts::PI, 1.7e-13),
-            (core::f64::consts::TAU, 3.4e-13),
-        ] {
-            let w = width(a);
-            assert!(
-                w <= 1.1 * pinned && w >= pinned / 1.1,
-                "trig_at_limit at {a} is {w:e} wide, pinned at {pinned:e}"
-            );
         }
     }
 

@@ -19,7 +19,7 @@ degree > 5 — the exact Gauss inventory covers the exportable degrees;
 extend the table before integrating higher" }`.
 
 The two other exact-rule windows in `props/` are not this shape:
-`quad.rs`'s `patch_flux_exact` and the rational lane's exact-v arm both
+`props/quad/`'s `patch_flux_exact` and the rational lane's exact-v arm both
 fall back to their composite rounds when `newton_cotes_weights` answers
 `None`. The trimmed lane's outer rule did refuse, and now has a composite
 arm (`chord_polygon_flux_composite`).

@@ -16,7 +16,7 @@ kept the curved closed-form arms. Nothing dispatched.
 | P3 | `a-loop-area-nurbs-segment-integrates-an-inverted-window-as-zero` | E | open | props loop_area: a NURBS boundary piece with t0 > t1 integrates to zero per span (half_len.max(0)) where the signed integral is negative |
 | P3 | `a-planar-face-sums-its-area-about-a-far-carrier-origin` | M | open | A planar face's closed form sums its vector area about the carrier plane's stored origin, so a small face far from that origin loses its area to cancellation |
 | P3 | `an-edges-extent-has-four-dispatchers` | M | open | an edge's extent has four per-Curve3 dispatchers and no home, so each per-site fold of a face's extent picks a different one |
-| P3 | `piece-monotone-span-drops-a-refused-step-through-f64-min` | E | open | props/quad.rs piece_monotone: the span fold's f64::min drops a refused step's NaN, so the span is the other steps' minimum |
+| P3 | `piece-monotone-span-drops-a-refused-step-through-f64-min` | E | open | props/quad/ piece_monotone: the span fold's f64::min drops a refused step's NaN, so the span is the other steps' minimum |
 | P3 | `props-rim-incidence-decides-axis-and-centre-one-at-a-time` | E | open | props' require_rim_incidence decides the rim's axis and centre one at a time, not their sum |
 | P3 | `props-sphere-side-in-arc-is-levered-by-arc-length-not-the-roots-slope` | M | open | props: the sphere side's in-arc reading is levered by arc length, so near a graze a root within its own error of a span end is read decided |
 | P3 | `sphere-rim-level-cosine-cancels-near-a-pole` | M | open | A sphere rim level's cosine is recovered as √(1 − s²) and cancels near a pole |

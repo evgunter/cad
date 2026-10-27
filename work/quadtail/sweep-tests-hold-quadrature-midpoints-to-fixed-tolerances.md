@@ -12,7 +12,7 @@ cost: E
 `topo::mass_properties` certifies a body with a curved-cut face only as
 `volume ± volume_pad`: the quadrature refines until its enclosure's mean
 boundary displacement is under `QUAD_TARGET_LEN_FACTOR·ε`
-(`geom-brep/src/props/quad.rs`, `cylinder_cut_face_rounds`), so the
+(`geom-brep/src/props/quad/cylinder.rs`, `cylinder_cut_face_rounds`), so the
 midpoint's distance from the truth is an ε-row quantity, certified to
 no better than the pad. A test that holds the midpoint to a fixed
 tolerance passes at a row only while the midpoint lands near the truth

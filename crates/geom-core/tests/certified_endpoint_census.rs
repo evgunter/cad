@@ -231,7 +231,16 @@ const HOLDERS: &[&str] = &[
     "crates/geom-brep/src/offset_meters.rs",
     "crates/geom-brep/src/patch_bound.rs",
     "crates/geom-brep/src/props/mod.rs",
-    "crates/geom-brep/src/props/quad.rs",
+    "crates/geom-brep/src/props/quad/area.rs",
+    "crates/geom-brep/src/props/quad/cells.rs",
+    "crates/geom-brep/src/props/quad/cylinder.rs",
+    "crates/geom-brep/src/props/quad/green.rs",
+    "crates/geom-brep/src/props/quad/net.rs",
+    "crates/geom-brep/src/props/quad/patch.rs",
+    "crates/geom-brep/src/props/quad/rational.rs",
+    "crates/geom-brep/src/props/quad/run.rs",
+    "crates/geom-brep/src/props/quad/trig.rs",
+    "crates/geom-brep/src/props/quad/trimmed.rs",
     "crates/geom-brep/src/ssi.rs",
     "crates/geom-brep/src/ssi/certify.rs",
     "crates/geom-brep/src/ssi/enclose.rs",
@@ -314,26 +323,50 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/pcurve_cache/projected.rs", 2, 2, ""),
     ("crates/geom-brep/src/props/bracket.rs", 4, 4, ""),
     (
-        "crates/geom-brep/src/props/quad.rs",
-        17,
-        7,
-        "the 7 that ask: `widen`, `ratio_hull`'s 2, `norm_lo` and `cuts`' crossing \
-         bracket each refuse the bracket they read by name; `rational_patch_face`'s 2 \
-         are weight reads (below) in a function that asks of other values. The other \
-         10 do not ask. `cos_step`/`sin_step` (3) and the two half-angle clamps build \
-         from `pt` of a finite f64 with nonzero exact divisors, so no operand can leave \
-         a domain (argued at each). `PatchNet::at` and `is_rational` read the weight \
-         channel, which `PatchNet::new`, its one constructor, fills with `pt` of a \
-         weight it has checked finite: a point bracket that certifies, whose `lo` IS \
-         the weight. `MeasureCells::build`'s `origin` is a frame choice: the measure \
-         quotients' `N = A·(A_u×A_v) + c·M̃` holds for every frame `c`, so no \
-         enclosure rests on which point it is. `composite_piece`'s 2: the located \
-         cell's containment test only picks which cell's polynomial the rule reads, and \
-         the rule then integrates at `chord.ell` of the same chord, whose slope's \
-         decoration rides into the piece's value (an uncertified slope makes an \
-         uncertified piece, and `widen` hands one on unwidened); the column bound's \
-         `h` is the width of a hull `ParamRange::certified` has just accepted, a \
-         difference of two finite point brackets. Every other read goes through \
+        "crates/geom-brep/src/props/quad/cells.rs",
+        3,
+        2,
+        "`ratio_hull`'s 2 refuse the bracket they read by name. The remainder is \
+         `MeasureCells::build`'s `origin`, a frame choice: the measure quotients' \
+         `N = A·(A_u×A_v) + c·M̃` holds for every frame `c`, so no enclosure rests on \
+         which point it is",
+    ),
+    (
+        "crates/geom-brep/src/props/quad/net.rs",
+        3,
+        1,
+        "`widen` refuses the bracket it reads by name. The remainder is \
+         `PatchNet::at` and `is_rational`, which read the weight channel that \
+         `PatchNet::new`, its one constructor, fills with `pt` of a weight it has \
+         checked finite: a point bracket that certifies, whose `lo` IS the weight",
+    ),
+    (
+        "crates/geom-brep/src/props/quad/rational.rs",
+        2,
+        2,
+        "`rational_patch_face`'s 2 are weight reads (`net.rs`'s note) in a function \
+         that asks of other values",
+    ),
+    (
+        "crates/geom-brep/src/props/quad/trig.rs",
+        5,
+        0,
+        "`cos_step`/`sin_step` (3) and the two half-angle clamps build from `pt` of a \
+         finite f64 with nonzero exact divisors, so no operand can leave a domain \
+         (argued at each)",
+    ),
+    (
+        "crates/geom-brep/src/props/quad/trimmed.rs",
+        4,
+        2,
+        "`norm_lo` and `cuts`' crossing bracket refuse the bracket they read by name. \
+         The remainder is `composite_piece`'s 2: the located cell's containment test \
+         only picks which cell's polynomial the rule reads, and the rule then \
+         integrates at `chord.ell` of the same chord, whose slope's decoration rides \
+         into the piece's value (an uncertified slope makes an uncertified piece, and \
+         `widen` hands one on unwidened); the column bound's `h` is the width of a hull \
+         `ParamRange::certified` has just accepted, a difference of two finite point \
+         brackets. Every other read in `props/quad/` goes through \
          `lo_or_refuse`/`certified_hi`/`mid` (`props/bracket.rs`), which are the \
          guarded ones",
     ),

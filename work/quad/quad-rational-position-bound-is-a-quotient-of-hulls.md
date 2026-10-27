@@ -11,7 +11,7 @@ cost: E
 
 ## Found (QUAD, `quad/rational-quotient-statement`, 2026-10-22, §5 sweep)
 
-`crates/geom-brep/src/props/quad.rs` `rational_patch_face`:
+`crates/geom-brep/src/props/quad/rational.rs` `rational_patch_face`:
 `p_bound = (a_hull[0] / g_w).mag() + (a_hull[1] / g_w).mag() + (a_hull[2] / g_w).mag()`
 divides the refined homogeneous net's hull by the weight net's hull,
 three separately hulled inputs and an L1 fold. With positive weights

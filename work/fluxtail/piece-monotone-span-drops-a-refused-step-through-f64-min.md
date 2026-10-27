@@ -1,7 +1,7 @@
 ---
 id: piece-monotone-span-drops-a-refused-step-through-f64-min
 kind: issue
-title: props/quad.rs piece_monotone: the span fold's f64::min drops a refused step's NaN, so the span is the other steps' minimum
+title: props/quad/ piece_monotone: the span fold's f64::min drops a refused step's NaN, so the span is the other steps' minimum
 status: open
 opened: 2026-10-09
 priority: P3
@@ -14,7 +14,7 @@ building a row that drives a `Trv` bracket through `piece_monotone`.
 
 ## The finding
 
-`crates/geom-brep/src/props/quad.rs`, `piece_monotone`: the chord's
+`crates/geom-brep/src/props/quad/trimmed.rs`, `piece_monotone`: the chord's
 per-step advance is folded as
 
 ```rust

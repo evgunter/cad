@@ -119,7 +119,7 @@ struct MintSpelling {
     literal_names: bool,
 }
 
-/// The lanes' spelling: `props/quad.rs`'s funnel wrapper over
+/// The lanes' spelling: `props/quad/run.rs`'s funnel wrapper over
 /// `geom_core::k_stats::decide`.
 const LANE_MINTS: MintSpelling = MintSpelling {
     call: "classify_len::<T>(",
@@ -139,7 +139,8 @@ const DOOR_MINTS: MintSpelling = MintSpelling {
 /// Every kernel source the roster's names are minted in, as
 /// `(path, text, spelling)`.
 ///
-/// The lanes' own mints (`props_quad_face_extent`), and topo's
+/// The lanes' own mints (`props_quad_face_extent`, at the one extent gate
+/// every lane asks, and `props_trim_piece_monotone`), and topo's
 /// measurement door, where a deciding predicate reads a volume enclosure
 /// (`props.rs`'s role read, `props/settle.rs`'s relations). The roster is
 /// empty (its one family, `props_quad_converged`, is no longer minted:
@@ -159,10 +160,15 @@ const DOOR_MINTS: MintSpelling = MintSpelling {
 /// **A path here is also a trigger** in `.github/workflows/ci.yml`'s
 /// `tools` row, since a PR editing only the kernel file is this
 /// roster's subject; a new entry adds its path there.
-const MINT_SOURCES: [(&str, &str, MintSpelling); 3] = [
+const MINT_SOURCES: [(&str, &str, MintSpelling); 4] = [
     (
-        "crates/geom-brep/src/props/quad.rs",
-        include_str!("../../../crates/geom-brep/src/props/quad.rs"),
+        "crates/geom-brep/src/props/quad/run.rs",
+        include_str!("../../../crates/geom-brep/src/props/quad/run.rs"),
+        LANE_MINTS,
+    ),
+    (
+        "crates/geom-brep/src/props/quad/trimmed.rs",
+        include_str!("../../../crates/geom-brep/src/props/quad/trimmed.rs"),
         LANE_MINTS,
     ),
     (
@@ -598,7 +604,7 @@ fn the_pin_reads_a_mint_a_respelling_and_a_missing_name_red_it() {
 /// pin quantifies over. So the fixture puts kernel mints on every side
 /// of what it blanks — before the module, after it, and after a
 /// `#[cfg(test)]` STATEMENT inside a kernel `fn` (which is kernel code,
-/// as the test hook in `props/quad.rs`'s `bezier_bisect` is) — and a
+/// as the test hook in `props/quad/trimmed.rs`'s `bezier_bisect` is) — and a
 /// test-only spelling inside the module that the coverage check would
 /// otherwise refuse.
 #[test]

@@ -30,7 +30,7 @@ Line numbers cite main at `9f7f131` and drift. Each unit's lane re-greps.
 
 ## Orchestrator rulings for the build (implementation level)
 
-- **R1. Lanes know no target.** A lane (`geom-brep` `props/quad.rs`,
+- **R1. Lanes know no target.** A lane (`geom-brep` `props/quad/`,
   `props/spiric.rs`) refines a face and reports, per round, the bounds and
   why it would stop:
   - `Refinable`: the next round is affordable and can narrow;

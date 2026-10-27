@@ -11,7 +11,7 @@ cost: M
 
 Measured by the measurement-door unit A lane on main `8513607169` (release, ε = 1e-9), 2026-10-22.
 
-In `props/quad.rs`, `trimmed_patch_face_rounds` computes the face's area once, at the first round of the window it is called with. A one-round window `RoundWindow::at(r)` (topo's sign walk, `PastTarget::refine`) therefore recomputes the area at round r's chords:
+In `props/quad/`, `trimmed_patch_face_rounds` computes the face's area once, at the first round of the window it is called with. A one-round window `RoundWindow::at(r)` (topo's sign walk, `PastTarget::refine`) therefore recomputes the area at round r's chords:
 - round 6 costs 66 s windowed against 2.4 s inside a whole-schedule call;
 - the width differs: round 1's `width_len` is 4.4466e-3 windowed against 4.4565e-3 in-schedule.
 
