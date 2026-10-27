@@ -2440,14 +2440,15 @@ impl CertifiedBody {
 impl fmt::Debug for CertifiedBody {
     /// The certificate as [`SignCertificate`]'s render reads it.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let e = fold_runs(&self.held.runs).enclosure();
+        let Self { body: _, held } = self;
+        let e = fold_runs(&held.runs).enclosure();
         write!(
             f,
             "CertifiedBody: volume in [{:?}, {:?}], surface area {:?}, {} faces",
             e.volume_lo,
             e.volume_hi,
             e.surface_area,
-            self.held.runs.len()
+            held.runs.len()
         )
     }
 }
@@ -4039,7 +4040,7 @@ fn fold_runs<T: Decide>(runs: &[FaceRun<T>]) -> MassProperties<T> {
 
 /// One face's divergence-theorem contribution, with the certified
 /// quadrature half-widths it carries (`0.0` for closed-form faces).
-/// The unit shared by the whole-body walk ([`mass_properties_impl`])
+/// The unit shared by the whole-body walk ([`mass_properties`])
 /// and the per-shell walk ([`classify_shells`]) — one flux
 /// implementation, restricted by choosing which faces to visit, never
 /// re-derived.
@@ -6879,6 +6880,24 @@ pub trait AtRestPolicy: Decide {
         band: geom_core::Band,
     ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>>;
 
+    /// **An analytic span's meetings with a spline chart at this
+    /// scalar, or `None` where it is not derived here** — the boolean's
+    /// spline-face lane ([`geom_brep::NurbsLane::chart_meetings`], the
+    /// curve × face table's spline-face arm), read at the certifying
+    /// scalars as [`AtRestPolicy::spline_face_crossings`] is, and `None`
+    /// at a dual, where the lane refuses the class by name.
+    fn spline_chart_meetings(
+        carrier: &geom::Curve3<Self>,
+        params: (Self, Self),
+        chart: &geom::NurbsSurface<Self>,
+        band: geom_core::Band,
+    ) -> Option<
+        Result<
+            Vec<geom_brep::curve_face::spline_face::ChartMeeting<Self>>,
+            geom_brep::curve_face::spline_face::SplineFaceRefusal,
+        >,
+    >;
+
     /// **This scalar's section lane, or `None` where it is not
     /// derived here** — the offset door's plane × spline-wall
     /// section and the plane's root along a spline edge
@@ -7054,6 +7073,20 @@ impl AtRestPolicy for f64 {
         Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
     }
 
+    fn spline_chart_meetings(
+        carrier: &geom::Curve3<Self>,
+        params: (Self, Self),
+        chart: &geom::NurbsSurface<Self>,
+        band: geom_core::Band,
+    ) -> Option<
+        Result<
+            Vec<geom_brep::curve_face::spline_face::ChartMeeting<Self>>,
+            geom_brep::curve_face::spline_face::SplineFaceRefusal,
+        >,
+    > {
+        Some(geom_brep::NurbsLane::certified().chart_meetings(carrier, params, chart, band))
+    }
+
     /// The march is written here.
     fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
         Some(crate::offset_derive::SectionLane::f64())
@@ -7170,6 +7203,20 @@ impl AtRestPolicy for geom_core::Probe {
         Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
     }
 
+    fn spline_chart_meetings(
+        carrier: &geom::Curve3<Self>,
+        params: (Self, Self),
+        chart: &geom::NurbsSurface<Self>,
+        band: geom_core::Band,
+    ) -> Option<
+        Result<
+            Vec<geom_brep::curve_face::spline_face::ChartMeeting<Self>>,
+            geom_brep::curve_face::spline_face::SplineFaceRefusal,
+        >,
+    > {
+        Some(geom_brep::NurbsLane::certified().chart_meetings(carrier, params, chart, band))
+    }
+
     /// The march is written at `f64` alone.
     fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
         None
@@ -7281,6 +7328,20 @@ impl AtRestPolicy for geom_core::interval::Interval {
         band: geom_core::Band,
     ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>> {
         Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
+    }
+
+    fn spline_chart_meetings(
+        carrier: &geom::Curve3<Self>,
+        params: (Self, Self),
+        chart: &geom::NurbsSurface<Self>,
+        band: geom_core::Band,
+    ) -> Option<
+        Result<
+            Vec<geom_brep::curve_face::spline_face::ChartMeeting<Self>>,
+            geom_brep::curve_face::spline_face::SplineFaceRefusal,
+        >,
+    > {
+        Some(geom_brep::NurbsLane::certified().chart_meetings(carrier, params, chart, band))
     }
 
     /// The march is written at `f64` alone.
@@ -7404,6 +7465,20 @@ where
         band: geom_core::Band,
     ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>> {
         Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
+    }
+
+    fn spline_chart_meetings(
+        carrier: &geom::Curve3<Self>,
+        params: (Self, Self),
+        chart: &geom::NurbsSurface<Self>,
+        band: geom_core::Band,
+    ) -> Option<
+        Result<
+            Vec<geom_brep::curve_face::spline_face::ChartMeeting<Self>>,
+            geom_brep::curve_face::spline_face::SplineFaceRefusal,
+        >,
+    > {
+        Some(geom_brep::NurbsLane::certified().chart_meetings(carrier, params, chart, band))
     }
 
     /// The march is written at `f64` alone.
@@ -7542,6 +7617,21 @@ where
         _surface: &geom::Surface<Self>,
         _band: geom_core::Band,
     ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>> {
+        None
+    }
+
+    /// The arm reads certified enclosures, which a dual does not hold.
+    fn spline_chart_meetings(
+        _carrier: &geom::Curve3<Self>,
+        _params: (Self, Self),
+        _chart: &geom::NurbsSurface<Self>,
+        _band: geom_core::Band,
+    ) -> Option<
+        Result<
+            Vec<geom_brep::curve_face::spline_face::ChartMeeting<Self>>,
+            geom_brep::curve_face::spline_face::SplineFaceRefusal,
+        >,
+    > {
         None
     }
 

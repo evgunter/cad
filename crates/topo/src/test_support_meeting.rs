@@ -722,6 +722,41 @@ pub fn posed_box(what: &str, b: [(f64, f64); 3], pose: &Pose, tol: Tol) -> AtRes
     posed_boxes(what, &[b], pose, tol)
 }
 
+/// The multiples of ε [`sunk_on_an_edge`] is swept at by a row that
+/// needs the sweep to escalate on the sunk box's far edge: together they
+/// span the dips at which it escalates there at some pose of each ε row.
+pub const ESCALATING_DIPS: [f64; 3] = [10.0, 300.0, 1000.0];
+
+/// **A box sunk on an edge into a cube**, at `pose`: the unit cube, and a
+/// box `[0, 1] × [0.2, 0.8] × [0, 1]` stood on its top and turned about
+/// the line `x = 0.25` on the top until its far bottom edge sinks `dip`
+/// into the cube. It rests on the top along that line, and its walls
+/// pierce the top. Each is its own solid.
+///
+/// # Panics
+///
+/// Where the two do not graft.
+#[allow(clippy::unwrap_used)]
+pub fn sunk_on_an_edge(pose: &Pose, dip: f64, tol: Tol) -> Body<f64> {
+    let cube = posed_box("the cube", [(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)], pose, tol);
+    let tilt = Pose::turn(
+        "tilt",
+        [0.0, 1.0, 0.0],
+        (dip / 0.75).asin(),
+        [0.25, 0.0, 1.0],
+    );
+    let tilted = Pose::rest().after(pose).after(&tilt);
+    let sunk = posed_box(
+        "the sunk box",
+        [(0.0, 1.0), (0.2, 0.8), (0.0, 1.0)],
+        &tilted,
+        tol,
+    );
+    let mut body = cube.into_body();
+    crate::instance::graft_disjoint(&mut body, &sunk).unwrap();
+    body
+}
+
 /// A hole's prism placed by `pose`, built under the caller's `tol`.
 pub fn posed_prism(h: &Hole, pose: &Pose, tol: Tol) -> AtRestBody<f64> {
     let [o, u, v, n] = h.frame();

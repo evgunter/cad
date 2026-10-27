@@ -30,7 +30,7 @@ re-anchor reads moved off the certification lane to its own value,
 certified-bracket scalars (`geom::NurbsCurve3::project_from_seed`'s
 `CertifiedBounds` bound), not a certification.
 
-**What did not, and why it is a unit of its own.** Five lanes still
+**What did not, and why it is a unit of its own.** Six lanes still
 answer `None` at a dual for the reason the edge lane did, certification
 rights (`crates/topo/src/props.rs`, the `Dual` arm of `AtRestPolicy`):
 
@@ -52,16 +52,21 @@ rights (`crates/topo/src/props.rs`, the `Dual` arm of `AtRestPolicy`):
   to `false` (`crates/topo/src/census.rs`).
 - `spline_face_crossings` — added by the merge of `main`'s spline ×
   face crossings door into this branch, once `nurbs_lane()` was gone
-  (`crates/topo/src/props.rs:6875`, its `Dual` arm `:7539`). It is
+  (`crates/topo/src/props.rs:6876`, its `Dual` arm `:7614`). It is
   `Some` at the four certifying scalars and `None` at `Dual`. At
   `None` the boolean's planar lane refuses `EdgeCarrierUnsupported`
-  with site `PlanarCrossing` (`crates/topo/src/boolean/reduce.rs:3717`).
+  with site `PlanarCrossing` (`crates/topo/src/boolean/reduce.rs:4042`).
+- `spline_chart_meetings` — added the same way by the next merge of
+  `main`, whose spline-face lane (an analytic span against a spline
+  chart) read `nurbs_lane()` (`crates/topo/src/props.rs:6889`, its
+  `Dual` arm `:7624`). At `None` that lane refuses
+  `CurvedBooleanUnsupported` (`crates/topo/src/boolean/reduce.rs:3131`).
 
 Each consumer has its own `None` arm with its own meaning (a typed
 refusal for all but the quadrature, a fallback computation for the
 quadrature), so moving them is a design pass per lane, not a mechanical
 edit: the edge door could only mint at a dual because C2 and DL3 say
-what a dual's edge is, and none of these five has that sentence yet.
+what a dual's edge is, and none of these six has that sentence yet.
 The edge door's shape is the model: the certifying function bounded on
 the certification trait with its lane a plain argument, and the scalar's
 policy naming what the dual does instead.

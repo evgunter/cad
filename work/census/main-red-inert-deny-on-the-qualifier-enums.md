@@ -24,3 +24,14 @@ PR 5742's slow-set run found these on the same day. Neither file is in that PR's
 
 - `deny_unknown_fields_census::the_walk_still_sees_every_attribute_site`: `crates/editor-core/src/var.rs` holds four `deny_unknown_fields` sites on main, and `ATTRIBUTE_SITES_TODAY` still says three.
 - `hand_written_impl_census::every_hand_written_walk_is_held_to_its_declaration` and `::the_walk_still_sees_every_file_holding_one`: `crates/editor-core/src/product.rs:1040`, `impl Debug for Census<T>`, reads `self.node` with no exhaustive pattern, and `product.rs` is not in `IMPL_FILES_TODAY`.
+
+## 2026-10-27 — the hand-written-impl half is fixed by the nightly triage (`triage/nightly-2026-10-27`)
+
+Nightly run 40455870959 (main `fb476030a9`) found a second offender
+beside `product.rs`: `crates/topo/src/props.rs:2439`,
+`impl Debug for CertifiedBody`, read `self.held` with no exhaustive
+pattern (from `c6dc4643`, merged with PR 5741). The triage branch
+destructures `Self` in both impls and adds `product.rs` to
+`IMPL_FILES_TODAY`, so both `hand_written_impl_census` rows are green
+there. What stays open here is the two `deny_unknown_fields_census`
+rows.
