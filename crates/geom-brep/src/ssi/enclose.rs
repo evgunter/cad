@@ -2753,7 +2753,11 @@ pub(super) mod tests {
         for _ in 0..fuzz::scaled(200) {
             let small = rng.log_uniform(1e-3, 1.0);
             let big = small * rng.range(1.2, 30.0);
-            let c = [rng.range(-1.0, 1.0), rng.range(-1.0, 1.0), rng.range(-1.0, 1.0)];
+            let c = [
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+            ];
             let a = [rng.range(-1.0, 1.0), rng.range(-1.0, 1.0), 0.5];
             let t = torus(c, a, big, small);
             let on = on_torus(&t, rng.range(0.0, 6.3), rng.range(0.0, 6.3));
@@ -2764,7 +2768,10 @@ pub(super) mod tests {
             let enc = implicit_enclosure(&t, b);
             let grad = implicit_gradient_enclosure(&t, b);
             let ctx = format!("{t:?} over {b:?}: {enc:?}; {}", fuzz::replay());
-            assert!(enc.is_certified() && grad.iter().all(|g| g.is_certified()), "{ctx}");
+            assert!(
+                enc.is_certified() && grad.iter().all(|g| g.is_certified()),
+                "{ctx}"
+            );
             if b.x.contains(on.x) && b.y.contains(on.y) && b.z.contains(on.z) {
                 assert!(enc.contains(0.0), "a box on the surface keeps zero: {ctx}");
             }
@@ -2812,11 +2819,17 @@ pub(super) mod tests {
             let n = implicit_gradient(&t, p);
             for (k, nk) in [n.x, n.y, n.z].into_iter().enumerate() {
                 let mid = 0.5 * (g[k].lo() + g[k].hi());
-                assert!((mid - nk).abs() < 1e-9, "({u}, {v}) axis {k}: {g:?} vs {n:?}");
+                assert!(
+                    (mid - nk).abs() < 1e-9,
+                    "({u}, {v}) axis {k}: {g:?} vs {n:?}"
+                );
             }
             let r = implicit_enclosure(&t, Box3::between(p, p));
             assert!(r.contains(0.0) || r.mag() < 1e-15, "({u}, {v}): {r:?}");
-            assert!(implicit_residual(&t, p).abs() < 1e-15, "the fixture is on the torus");
+            assert!(
+                implicit_residual(&t, p).abs() < 1e-15,
+                "the fixture is on the torus"
+            );
         }
     }
 
@@ -2827,10 +2840,17 @@ pub(super) mod tests {
         let spindle = torus([0.0; 3], [0.0, 0.0, 1.0], 0.2, 0.5);
         let b = Box3::around(Point3::new(0.0, 0.0, 0.0), 0.05);
         assert!(!implicit_enclosure(&spindle, b).is_certified());
-        assert!(implicit_gradient_enclosure(&spindle, b).iter().all(|g| !g.is_certified()));
+        assert!(
+            implicit_gradient_enclosure(&spindle, b)
+                .iter()
+                .all(|g| !g.is_certified())
+        );
         let clear = Box3::around(Point3::new(0.0, 0.0, 0.0), 0.05);
         let ring = torus([0.0; 3], [0.0, 0.0, 1.0], 0.5, 0.2);
-        assert!(implicit_enclosure(&ring, clear).is_certified(), "a ring torus's A > 0");
+        assert!(
+            implicit_enclosure(&ring, clear).is_certified(),
+            "a ring torus's A > 0"
+        );
     }
 
     /// **[`super::has_implicit_enclosure`] answers what the enclosures

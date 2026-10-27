@@ -1644,7 +1644,11 @@ mod tests {
                 }
                 for _ in 0..60 {
                     let m = 0.5 * (v0 + v1);
-                    if gap(v0) * gap(m) <= 0.0 { v1 = m } else { v0 = m }
+                    if gap(v0) * gap(m) <= 0.0 {
+                        v1 = m
+                    } else {
+                        v0 = m
+                    }
                 }
                 let p = point(u, v0);
                 found += 1;
