@@ -813,13 +813,13 @@ impl crate::spoken::Say for NamingError {
             Self::UnsupportedTurnedCell { read, cell } => write!(
                 f,
                 "{UNRULED_FRAMING}: the Boolean turned a sphere of {} about its centre to find \
-                 where it meets the other solid, and the result keeps {} where the turn put \
-                 it, which descends from no cell of {}",
+                 where it meets the other solid, and the result keeps {} {cell:?} where the \
+                 turn put it, which descends from no cell of {}",
                 by.read(*read),
                 match cell {
-                    topo::Cell::Vertex(v) => format!("its pole {v:?}"),
-                    topo::Cell::Edge(e) => format!("a piece of its seam, {e:?}"),
-                    topo::Cell::Face(f) => format!("its face {f:?}"),
+                    topo::Cell::Vertex(_) => "its pole",
+                    topo::Cell::Edge(_) => "a piece of its seam,",
+                    topo::Cell::Face(_) => "its face",
                 },
                 by.read(*read),
             ),
