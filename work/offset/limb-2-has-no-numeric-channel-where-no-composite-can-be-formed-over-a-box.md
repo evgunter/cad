@@ -11,7 +11,7 @@ parent: closed-form-edge-carriers-pass-on-samples-with-no-stated-bound-between-t
 
 
 
-Filed by PR 5728's implementer lane (fork row 203's mechanism).
+Filed by PR 5728's implementer lane (fork row 204's mechanism).
 
 **Finding.** At `Sym<Interval>` limb 2 decides the composite's enclosure
 `[floor, upper]` with the carrier's free-parameter residual as its

@@ -9,7 +9,7 @@ opened: 2026-10-26
 
 The torus residual (`crates/geom-brep/src/implicit.rs:31-38`) is
 `((ρ − R)² + h² − r²)/2r` with `ρ = |w|`, a square root of the radial
-component's norm. Fork row 203 decides limb 2 at a parameter-family
+component's norm. Fork row 204 decides limb 2 at a parameter-family
 scalar on the free-t residual `f_S(C(t))` as the margin's symbolic
 identity. The designers' census measured Zero on line/plane,
 circle/cylinder/sphere/tilted plane, ellipse/cylinder and spiric/plane,

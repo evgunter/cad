@@ -124,7 +124,7 @@ fn a0_alone() -> SymRules {
 /// began reading each line/line pair's gap along either one first
 /// (`segment_gap`).
 ///
-/// Under limb 2 for every carrier (C2, fork row 203) the slab no longer
+/// Under limb 2 for every carrier (C2, fork row 204) the slab no longer
 /// certifies its box in one leaf: plain 456/282 → 2898/1668, shipped
 /// 464/274 → 2954/1612, over four leaves and three splits. At the root
 /// box the tilted face's normal, read over the box, is ±1.73 wide and

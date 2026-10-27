@@ -11,7 +11,7 @@ design: true
 
 
 
-Filed by PR 5728's implementer lane, from fork row 202's fix (the
+Filed by PR 5728's implementer lane, from fork row 203's fix (the
 designers' follow-up).
 
 **Finding.** `crates/geom-core/src/tolerance.rs:102`

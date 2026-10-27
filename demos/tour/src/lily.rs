@@ -1656,7 +1656,7 @@ const STEM_TUBE: f64 = 0.060;
 /// refusing). At ε = 1e-12 the lower stem's tube — a torus whose ring is
 /// about 83 times its pipe — refuses as limb 2's kernel approximation
 /// limit: its rim's certified distance bound from the torus lies far
-/// above the rim's own rounding, the thin-torus class fork row 202 rules
+/// above the rim's own rounding, the thin-torus class fork row 203 rules
 /// a kernel limit at that row (R/r of 20 or more;
 /// `work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
 /// The stem is the plant's spine, so the lily's stop and its wall probes

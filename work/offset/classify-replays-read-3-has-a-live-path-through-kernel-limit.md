@@ -17,7 +17,7 @@ answer. A stalled limb-2 bound is decided definite past the band, so
 nothing lands on the node's escalation log, and the node's failure
 falls to read (3)'s catch-all `_ => return LeafVerdict::Bisect`
 (`crates/editor-core/src/drive.rs:1806`). At a parameter-family scalar
-this is the bisection that fork row 203 rules (a stalled bound over a
+this is the bisection that fork row 204 rules (a stalled bound over a
 box is undecided at that leaf). It is reached by the catch-all,
 though, not by a typed read.
 

@@ -78,7 +78,7 @@ door split cut it; the candidate cuts above stand.
 
 ## Measured on the one reader (2026-10-26)
 
-Same 13 rows and method, after fork row 202's fix (one limb-2 reader
+Same 13 rows and method, after fork row 203's fix (one limb-2 reader
 framed in certification arithmetic, PR 5728). Twelve of the rows are in
 the tree under the same names, and they total **10.7 s**, against
 12.4 s on the door split. The thirteenth,

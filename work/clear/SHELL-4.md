@@ -24,3 +24,15 @@ module docs keep the window sentence, true. Closes
 refuses the OFF-D dumbbell's curved twin with a witness and holds on
 the tube; the pair-filter cost is measured on the tube and vessel
 fixtures in the same PR.
+
+## Lane sentence (CLEAR orchestrator, 2026-10-27)
+
+The decided shape (`symbolic-tier-and-clearance-engine`) changes the lane
+sentence above. `shell` reads `T::clearance_lane()`:
+- `Interval` and `Sym<T>` answer `Some`, so the certifying `Sym` rebuild
+  runs the gate the `Interval` rebuild runs;
+- `f64`, `Probe` and `Dual` answer `None`.
+
+The wording "over its non-adjacent face pairs" defers to the
+self-intersection row's design. Witness verification without a
+document is SHELL-3's spec question, above.

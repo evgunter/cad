@@ -10,7 +10,7 @@ cost: M
 
 
 
-Filed by PR 5728's implementer lane, from fork row 202's fix.
+Filed by PR 5728's implementer lane, from fork row 203's fix.
 
 **Finding.** `crates/geom-brep/src/carrier_net.rs:266` `span_bernstein`
 expands a circle, ellipse or spiric about the span's node `m` as

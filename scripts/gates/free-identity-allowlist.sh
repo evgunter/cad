@@ -3,7 +3,7 @@
 # LIMB 2 only. ONE home; ci.yml's `lint` job runs every gate in this directory.
 #
 # WHY IT EXISTS. `Decide::free_identity` (C2's limb 2 at a
-# parameter-family scalar; fork row 203) attaches a symbolic identity to
+# parameter-family scalar; fork row 204) attaches a symbolic identity to
 # a margin: at `Sym` the margin keeps its numeric channel and takes the
 # identity's node, so a margin the numeric channel cannot decide is
 # decided `Zero` wherever the identity's normal form is the zero form.
