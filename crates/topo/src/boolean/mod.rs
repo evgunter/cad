@@ -194,8 +194,8 @@ pub use nary::{
     NaryMember, NaryOp, NaryRefusal, NaryRun, NaryStep, nary_boolean,
 };
 pub use ops::{
-    BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, SettleError,
-    Settler, boolean_op_with, intersect, subtract, union,
+    BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, Recharts,
+    SettleError, Settler, boolean_op_with, intersect, subtract, union,
 };
 #[cfg(feature = "sweep-testing")]
 pub use ops::{StagePoints, arm_output_stage_points, take_output_stage_points};
