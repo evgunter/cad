@@ -64,9 +64,11 @@ With no vertex at the tangent point at all, every op refused
   stack and the puck read. A curved partner, or a closed edge that is
   not a circle, is not read.
 - `join.rs` `closes_at_its_site` takes a closed circle against a vertex
-  of a planar face's boundary, the joiner minting its copy in that face
-  as one chord from the vertex round to itself; a closed edge that is
-  not a circle has no copy and its loop refuses
+  of the boundary of a planar face it stands on from the other side
+  (`stands_on`), the joiner minting its copy in that face as one chord
+  from the vertex round to itself. A closed edge that is not a circle
+  has no copy, and a circle lying flush in the face reaches a fate cut
+  with no corner at the vertex, so both loops refuse
   `SingleSiteSectionLoop`.
 - `reduce.rs` `interior` splits a covered rim off the carrier where it
   touches the face's boundary and the two tangent sheets leave the
@@ -82,7 +84,8 @@ With no vertex at the tangent point at all, every op refused
 Pinned by `crates/sweep/tests/a_closed_conic_in_the_partners_face.rs`:
 `a_boss_over_a_hole_by_pose` (16 poses, one cell per pose for both
 forms), `a_boss_over_a_hole_tangent_to_it_turned` (the 12 tangent poses
-turned), `a_boss_over_two_holes_tangent_outside_with_no_vertex_at_either_touch`
+turned), `a_boss_over_two_holes_tangent_outside_with_no_vertex_at_either_touch`,
+`a_rim_flush_in_its_partners_top_tangent_inside_refuses_typed_or_builds`
 and `one_segment_ellipse_rims_tangent_outside_refuse_the_union_typed`, at
 the default ε, 1e-6 and 1e-12. Every tangent-outside pose builds `SOUND`
 in every op; every tangent-inside pose refuses the union
@@ -98,6 +101,11 @@ What stays open:
   `one-segment-ellipse-rims-tangent-at-a-point-refuse-where-circles-build` (P1);
 - a one-segment cylinder through a plate, a hole tangent to its wall:
   `a-one-segment-cylinder-through-a-plate-tangent-to-a-hole-refuses-single-site` (P1);
+- a closed rim flush in a partner face, tangent inside its boundary at
+  a vertex, where the fate cut finds no corner (on `main` too):
+  `a-flush-closed-rim-tangent-at-its-vertex-reaches-the-fate-cut-limit` (P1);
+- a box along a fillet's line–arc junction (on `main` too):
+  `a-box-along-a-fillets-line-arc-junction-reaches-classification-invariants` (P1);
 - the inward direction spelled at five sites:
   `a-face-inward-direction-is-spelled-in-five-places` (P3).
 

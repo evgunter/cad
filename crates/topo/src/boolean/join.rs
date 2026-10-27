@@ -948,7 +948,7 @@ fn one_site_segments<T: Decide>(
         let Some((g0, frame)) = one_site(red, rec, band)? else {
             continue;
         };
-        if !closes_at_its_site(red, &g0, rec.b[0].0.he)? {
+        if !closes_at_its_site(red, &g0, rec.b[0].0.he, band)? {
             continue;
         }
         for (_, other) in open.iter().enumerate().filter(|&(o, _)| o != r) {
@@ -996,8 +996,9 @@ fn one_site_segments<T: Decide>(
 /// ([`one_site_segments`]), read from what the site is in the germ's cell
 /// on each operand ([`site_cell`]): a wrap edge against a pierce of a
 /// planar face, or a closed circle against a pierce of a face
-/// [`RimSide::of`] sides, against a vertex on a planar face's boundary,
-/// or against another closed circle. At a boundary vertex the germ's
+/// [`RimSide::of`] sides, against a vertex on the boundary of a planar
+/// face it stands on from the other side ([`stands_on`]), or against
+/// another closed circle. At a boundary vertex the germ's
 /// cell is the face, so the circle leaves the vertex into the face and
 /// returns to it; the joiner mints its copy in that face as one chord
 /// from the vertex round to itself, dividing the face. A closed edge of
@@ -1010,6 +1011,7 @@ fn closes_at_its_site<T: Decide>(
     red: &BooleanReduction<T>,
     g0: &HalfGerm<T>,
     b_he: HalfEdgeKey,
+    band: Band,
 ) -> Result<bool, BooleanError> {
     let rim =
         |body: &Body<T>, f: FaceKey| Ok::<_, BooleanError>(RimSide::of(face_surface(body, f)?.1));
@@ -1020,14 +1022,77 @@ fn closes_at_its_site<T: Decide>(
         ) {
             (SiteCell::Wrap, SiteCell::Pierce(f)) => rim(&red.b, f)? == Some(RimSide::Plane),
             (SiteCell::Pierce(f), SiteCell::Wrap) => rim(&red.a, f)? == Some(RimSide::Plane),
-            (SiteCell::Closed(true), SiteCell::Pierce(f)) => rim(&red.b, f)?.is_some(),
-            (SiteCell::Pierce(f), SiteCell::Closed(true)) => rim(&red.a, f)?.is_some(),
-            (SiteCell::Closed(true), SiteCell::Closed(true)) => true,
-            (SiteCell::Closed(true), SiteCell::Other(f)) => rim(&red.b, f)? == Some(RimSide::Plane),
-            (SiteCell::Other(f), SiteCell::Closed(true)) => rim(&red.a, f)? == Some(RimSide::Plane),
+            (SiteCell::Closed(Some(_)), SiteCell::Pierce(f)) => rim(&red.b, f)?.is_some(),
+            (SiteCell::Pierce(f), SiteCell::Closed(Some(_))) => rim(&red.a, f)?.is_some(),
+            (SiteCell::Closed(Some(_)), SiteCell::Closed(Some(_))) => true,
+            (SiteCell::Closed(Some(e)), SiteCell::Other(f)) => {
+                rim(&red.b, f)? == Some(RimSide::Plane) && stands_on(red, (Operand::A, e), f, band)?
+            }
+            (SiteCell::Other(f), SiteCell::Closed(Some(e))) => {
+                rim(&red.a, f)? == Some(RimSide::Plane) && stands_on(red, (Operand::B, e), f, band)?
+            }
             _ => false,
         },
     )
+}
+
+/// **Whether closed edge `e` of operand `x` stands on planar face `f` of
+/// the other from the other side**: a planar face of `x` along `e`,
+/// which lies in `f`'s plane, faces the other way as the op reads them
+/// (`bool_rim_face_opposed`, the normals' cosine levered at that face's
+/// reach from `e`; a subtrahend's normals read reversed). A rim
+/// standing on the face (a boss on a plate, or over a hole whose rim it
+/// touches) is joined at the boundary vertex. A rim lying flush in it,
+/// both faces facing one way, is not: the operation keeps one copy of
+/// the shared region, and the cut that divides the dropped copy along
+/// the rim cannot place the rim's chord at its one vertex, where the rim
+/// is tangent to the face's boundary
+/// (`work/cleave/a-flush-closed-rim-tangent-at-its-vertex-reaches-the-fate-cut-limit.md`).
+fn stands_on<T: Decide>(
+    red: &BooleanReduction<T>,
+    (x_is, e): (Operand, EdgeKey),
+    f: FaceKey,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let (x, y) = match x_is {
+        Operand::A => (&red.a, &red.b),
+        Operand::B => (&red.b, &red.a),
+    };
+    // A ∖ B reads B's complement, whose faces face the other way.
+    let flips = red.op == super::BooleanOp::Subtract;
+    use super::solid_contain::{PointInSolidError, face_plane};
+    let desync = |what| BooleanError::JoinDesync { what };
+    let plane = |body: &Body<T>, face: FaceKey| match face_plane(body, face) {
+        Ok((_, n)) => Ok(Some(n)),
+        Err(PointInSolidError::KindUnsupported { .. }) => Ok(None),
+        Err(e) => Err(BooleanError::Containment(e)),
+    };
+    let Some(n_f) = plane(y, f)? else {
+        return Ok(false);
+    };
+    let edge = x
+        .get_edge(e)
+        .ok_or(desync("a germ's closed edge no longer resolves"))?;
+    let curve = x
+        .edge_curve_linked(e, edge)
+        .certified()
+        .ok_or(desync("a germ's closed edge is scaffolding"))?;
+    for h in [edge.he_plus, edge.he_minus] {
+        let face = x
+            .face_of_half_edge(h)
+            .ok_or(desync("a germ's closed edge has a half with no face"))?;
+        let Some(n) = plane(x, face)? else {
+            continue;
+        };
+        let arm = crate::wedge_reach(x, [face, face], curve.carrier(), curve.params());
+        let cosine = if flips { -n.dot(n_f) } else { n.dot(n_f) };
+        return Ok(
+            decide("bool_rim_face_opposed", Margin::levered(cosine, arm), band).map_err(
+                |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag),
+            )? == Sign::Negative,
+        );
+    }
+    Ok(false)
 }
 
 /// What a null half's site is in its germ's cell on one operand
@@ -1041,10 +1106,10 @@ enum SiteCell {
     /// interior.
     Pierce(FaceKey),
     /// Along an edge: a closed one, both of whose ends are the site
-    /// ([`site_cell`]), and whether it is a circle, the one closed
-    /// carrier the joiner copies
-    /// (`crate::chord_join`'s `closed_edge_spec`).
-    Closed(bool),
+    /// ([`site_cell`]): the edge where it is a circle, the one closed
+    /// carrier the joiner copies (`crate::chord_join`'s
+    /// `closed_edge_spec`), `None` for any other.
+    Closed(Option<EdgeKey>),
     /// Inside this face, a real edge there bounding another face: the
     /// site is a vertex of the face's boundary.
     Other(FaceKey),
@@ -1071,7 +1136,7 @@ fn site_cell<T: Decide>(
                 .edge_curve_linked(e, edge)
                 .certified()
                 .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle { .. }));
-            return Ok(SiteCell::Closed(circle));
+            return Ok(SiteCell::Closed(circle.then_some(e)));
         }
     };
     let start = body

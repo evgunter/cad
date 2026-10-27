@@ -3277,7 +3277,8 @@ fn interior<T: Decide>(
 /// itself from the edge and `face`'s from its own boundary edge there
 /// ([`crate::stands::inward`], about each face's outward normal at `p`)
 /// are definitely opposed (`bool_touch_sheets_part`, the cosine levered
-/// at the parent's reach from the edge, [`crate::wedge_reach`]). The two
+/// at the longer of the two faces' reaches from their edges,
+/// [`crate::wedge_reach`]). The two
 /// faces are tangent sheets (the cover), so each leaves `p` along their
 /// common tangent plane, across the edges there; opposed, they meet
 /// nowhere else near `p`, and the meeting is a touch of the two
@@ -3368,7 +3369,9 @@ fn sheets_part<T: Decide>(
         along(curve.carrier().deriv(t), h_x == edge.he_plus).normalize(),
     );
     let into_y = crate::stands::inward(n_y, along(tau_y, h_y == d_y.he_plus).normalize());
-    let arm = crate::wedge_reach(x, [f_x, f_x], curve.carrier(), curve.params());
+    let arm = crate::wedge_reach(x, [f_x, f_x], curve.carrier(), curve.params()).max(
+        crate::wedge_reach(y, [face, face], c_y.carrier(), c_y.params()),
+    );
     let sign = decide(
         "bool_touch_sheets_part",
         Margin::levered(into_x.dot(into_y), arm),

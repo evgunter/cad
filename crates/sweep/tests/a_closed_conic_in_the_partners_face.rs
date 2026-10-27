@@ -885,6 +885,64 @@ fn a_boss_over_two_holes_tangent_outside_with_no_vertex_at_either_touch() {
     }
 }
 
+/// **A rim flush in the partner's top, tangent inside its rim at a
+/// vertex**: `A` the one-segment cylinder `r = 0.3`, `z ∈ [0, 1]`, its
+/// vertex at azimuth 0, inside the one-segment cylinder `B`, `r = 0.5`
+/// about `(−0.2, 0)`, `z ∈ [−0.5, 1]`, its vertex at azimuth 0 or 1; the
+/// walls are tangent along the ruling through `(0.3, 0)` and the tops
+/// coplanar, `A`'s rim tangent inside `B`'s at `(0.3, 0, 1)`. `B ∪ A`,
+/// `A ∩ B` and both differences build at their closed forms (read
+/// through `differential::outcome`, unmeshed: the mesher's certificate
+/// on `B`'s wall is its own question). Where the op reads the two tops
+/// facing one way and keeps `A`'s, the cut along `A`'s rim in `B`'s
+/// dropped top has no corner at the tangent vertex, so the join does not
+/// take a rim lying flush in a face (`boolean::join`'s `stands_on`), and
+/// `A ∪ B` and `B ∩ A` refuse typed
+/// (`work/cleave/a-flush-closed-rim-tangent-at-its-vertex-reaches-the-fate-cut-limit.md`).
+/// At rest and turned.
+#[test]
+fn a_rim_flush_in_its_partners_top_tangent_inside_refuses_typed_or_builds() {
+    let va = 0.09 * PI;
+    let vb = 0.25 * PI * 1.5;
+    for (turn, placed) in [("at rest", None), ("turned", Some(torax_pose()))] {
+        for b_az in [0.0, 1.0] {
+            let place = |what: &str, body: Body<f64>| match &placed {
+                None => fin(what, body),
+                Some(m) => fin(
+                    what,
+                    topo::transform_rigid(&body, &geom_core::test_support::rigid(m, tol()), tol())
+                        .unwrap(),
+                ),
+            };
+            let a = place(
+                "the inner rod",
+                extruded(vec![circle(0.0, 0.0, 0.3, 0.0)], 0.0, 1.0),
+            );
+            let b = place(
+                "the outer rod",
+                extruded(vec![circle(-0.2, 0.0, 0.5, b_az)], -0.5, 1.5),
+            );
+            for (op, r, want) in every_op_both_orders(&a, &b, (va, vb, va), tol()) {
+                let row = format!("B's vertex at {b_az}, {turn}: {op}");
+                if matches!(op, "A ∪ B" | "B ∩ A") {
+                    assert!(
+                        matches!(&r, Err(BooleanError::Join(j))
+                            if matches!(j.error(), SplitJoinError::SingleSiteSectionLoop { count: 1 })),
+                        "{row}: {:?}",
+                        r.map(|_| ())
+                    );
+                } else {
+                    let line = outcome(r, want, tol());
+                    assert!(
+                        line.starts_with(if want == 0.0 { "EMPTY ok" } else { "OK SOUND" }),
+                        "{row}: {line}"
+                    );
+                }
+            }
+        }
+    }
+}
+
 /// **Ellipse rims tangent outside, one segment**: both cylinders of
 /// [`a_boss_over_a_hole_by_pose`]'s tangent-outside pose tilted `0.3`
 /// rad about `x` and cut by `z = 0` (the boss by a slab, the plate's hole
