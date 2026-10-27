@@ -166,8 +166,8 @@ def identity():
 def zeros():
     """The three values a plane mate leaves, the bundle's first entry,
     each the constant zero: its slides along the chart's `x` and `y` and
-    its spin about `z`."""
-    return [MateValue(coord, 0) for coord in (Coord.slide("x"), Coord.slide("y"), Coord.spin("z"))]
+    its spin about the target's own direction."""
+    return [MateValue(coord, 0) for coord in (Coord.slide("x"), Coord.slide("y"), Coord.spin())]
 
 
 #: The two nodes `bench_scene.layout`'s `posts=` admits, by the name
@@ -464,7 +464,7 @@ class TestBenchStand(BenchWorkspace):
         self.assertIsInstance(bundle[0][1], Mate)
         self.assertEqual(
             [(type(held), held.coord) for _, held in bundle[1:]],
-            [(MateValue, Coord.slide("x")), (MateValue, Coord.slide("y")), (MateValue, Coord.spin("z"))],
+            [(MateValue, Coord.slide("x")), (MateValue, Coord.slide("y")), (MateValue, Coord.spin())],
         )
 
     def test_each_mate_is_a_constraint_of_the_copy_it_places(self):
@@ -1492,7 +1492,7 @@ class TestNestedAcrossTheSeam(BenchWorkspace):
                 ),
                 MateValue(Coord.slide("x"), slide[0] * m),
                 MateValue(Coord.slide("y"), slide[1] * m),
-                MateValue(Coord.spin("z"), 0),
+                MateValue(Coord.spin(), 0),
             ],
         )
         assemble_world_copies(doc)
@@ -1541,7 +1541,7 @@ class TestAPoseFollowsItsFace(BenchWorkspace):
                     MateValue(Coord.slide(axis), by if isinstance(by, Formula) else by * m)
                     for axis, by in zip(("x", "y"), at, strict=True)
                 ),
-                MateValue(Coord.spin("z"), 0),
+                MateValue(Coord.spin(), 0),
             ],
         )
         return doc, post_i, shelf_i, mate, slides

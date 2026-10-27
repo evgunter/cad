@@ -551,7 +551,18 @@ fn spin_z(n: u64, turn: f64) -> editor_core::Constraint<Formula> {
     value(
         n,
         editor_core::Value {
-            coord: editor_core::Coord::Spin(editor_core::TargetAxis::Z),
+            coord: editor_core::Coord::Spin(Some(editor_core::TargetAxis::Z)),
+            by: ang(turn),
+        },
+    )
+}
+
+/// A spin about the target's own direction turning by `turn` of a turn.
+fn spin_mated(n: u64, turn: f64) -> editor_core::Constraint<Formula> {
+    value(
+        n,
+        editor_core::Value {
+            coord: editor_core::Coord::SPIN,
             by: ang(turn),
         },
     )
@@ -741,7 +752,7 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
                         ))),
                     ),
                 ),
-                spin_z(3, 0.5),
+                spin_mated(3, 0.5),
                 slide_z(4, 0.5),
             ],
         },
