@@ -255,7 +255,9 @@ pub fn check_payload(evidence: &CheckEvidence) -> CheckEvidencePayload<'_> {
         },
         // The finding crosses whole on the Python value; nothing of it
         // is flattened here.
-        CheckEvidence::Interference { .. } | CheckEvidence::CarriedInterference { .. } => none,
+        CheckEvidence::Interference { .. }
+        | CheckEvidence::CarriedInterference { .. }
+        | CheckEvidence::CarriedCoincidence { .. } => none,
         CheckEvidence::AtRest { evidence } => {
             let AtRestPayload {
                 variant,

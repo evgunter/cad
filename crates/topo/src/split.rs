@@ -501,7 +501,6 @@ impl<T: Decide> Body<T> {
                         edge,
                         half_edge,
                         error,
-                        authority: curve.authority().kind(),
                     },
                     crate::pcurves::SplitRefusal::Joint(diag) => {
                         EulerOpError::SplitJointUndecided {

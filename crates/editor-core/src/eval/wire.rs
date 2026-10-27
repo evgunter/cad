@@ -860,8 +860,10 @@ where
     // keys verbatim. Re-deriving them from the placed geometry is the
     // scan-to-bless move F1 bans. Each record cites the part's record
     // it is, through this instance ([`crate::coincide::CitedInput::Part`]).
-    // The bookkeeping rows ride unchanged for the same reason; what is
-    // added here is each row's first hop, this instance
+    // The census findings ride unchanged for the same reason. The door
+    // rows ride unjudged for another: they are the part's, named in its
+    // document, and judged over it where a report asks. What is added to
+    // each row here is its first hop, this instance
     // ([`crate::checks::at_rest::PartRow::through`]).
     let carried = crate::checks::at_rest::CarriedFindings {
         interference: part
@@ -889,7 +891,14 @@ where
                 }
             })
             .collect(),
-        // Keyed in the part's body, which the placement moves without
+        coincidences: part
+            .door_rows
+            .iter()
+            .map(|row| {
+                let (route, pinned, _) = row.through(id);
+                (route, pinned).into()
+            })
+            .collect(),
     };
     Ok(OpOut {
         payload: ValuePayload::Body(Arc::new(placed)),
@@ -897,7 +906,8 @@ where
         contacts: Arc::new(part.contacts.carried_from(0)),
         carried: Arc::new(carried),
         parts: part.parts,
-        // The part's own rows are its document's, read there.
+        // The part's own rows ride `carried`, proven over the part's
+        // document where a report asks.
         coincidences: Arc::new([]),
         cited_inputs: Arc::new([crate::coincide::CitedInput::Part(*doc_ref)]),
         pieces: moved_pieces(part.pieces.as_ref(), map.as_ref())?,
