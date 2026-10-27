@@ -101,3 +101,50 @@ ends as the pair's residual even when the description carries
 `declared_by`. E1b routes only the chart mint's incidence; whether a
 declared on-pair edge's miss is the modeler's belongs with the
 question above.
+
+### S11: the edge join's chart-class reading
+
+`boolean::edge_join` reads a `Chart` edge's iso family off a fresh
+derivation (`geom_brep::chart_iso_family`). A refusal comes back as
+`IsoFamilyRefusal::Image(e)`, whose Display is the authority-blind
+`{e}` (`crates/geom-brep/src/pcurve_cache.rs:8231`), and
+`JoinRefusal::render` appends the kernel's defect ending to it
+(`crates/topo/src/boolean/edge_join.rs`, the `ChartClass(Image(e))`
+arm). The edge's authority is at hand there (`c.authority()`), but the
+edge already passed its certificate's incidence on this same chart. So
+whether a re-derivation's refusal is the modeler's, rather than the
+kernel disagreeing with its own certificate, is the same question as
+above. E1b leaves the join authority-blind until it is answered.
+
+### S12: the boolean's loop walk
+
+`boolean::ops::walk_refusal` (`crates/topo/src/boolean/ops.rs`) maps
+every `CarrierOffChart` to `WalkRefusal::Torn`, and so to
+`ClassificationInvariant`, a kernel defect, whatever the authority or
+the read. On a face whose rows the at-rest pass certified, that is the
+kernel's. On a face whose rows are not owed (`pcurves::not_owed`), a
+declared carrier, or one read at a pose, can be at rest unread and
+reach this walk on a cylinder, cone or torus operand. It then ends as
+the kernel's: the boolean door's instance of the question.
+
+### S13: the import door
+
+`step-import`'s adopt (`crates/step-import/src/adopt.rs:631`) declares
+the curves it adopts as `MappedCurve` candidates (`declared_by`). A
+re-mint refusal of such a curve, `StepImportError::Pcurves`, renders
+`PcurveMintError::render`, and so `render_by(declared, file)`. An
+imported curve off its face therefore now reads "move the declared
+curve onto the face it bounds", where it read "repair the body" before
+E1b. Should a damaged file read the modeler's lever, or the file's
+defect ending (`geom_core::DAMAGED_FILE_ENDING`)? The file's author
+placed the curve, but the person reading the refusal did not.
+
+### S14: who may stamp an authority on a refusal
+
+`AuthorityKind` is built through `EdgeAuthority::{Derived,
+Declared(..)}.kind()`, which any crate can call. The `authority` fields
+on `topo::PcurveMintError::Certify` and `topo::EulerOpError::PcurveSplit`
+are `pub`. So any door can stamp any kind on a refusal:
+`pcurves::certify_refused` is the one constructor in the kernel only by
+convention. Should the stamp be unforgeable (a sealed constructor that
+reads the edge), or is the convention enough?

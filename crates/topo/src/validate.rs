@@ -3602,29 +3602,34 @@ const DECLARED_CLOSE: &str = geom_core::undecided!("whether a declared curve lie
 /// it is not shown off its face, so the reason does not say it is.
 const DECLARED_AT_POSE: &str =
     "a declared curve sits, within the band, where its face holds no curve of its kind";
-/// Why a DERIVED boundary decided off its face refused at rest.
-const DERIVED_OFF: &str = "the stored boundary does not match the face";
+/// Why a stored boundary that does not match its face refused at rest:
+/// a DERIVED boundary decided off its face among them.
+const WRONG: &str = "the stored boundary does not match the face";
 /// Why a DERIVED boundary read, within the band, at a pose where its face
 /// holds no curve of its kind refused: not decided off, so the reason does
 /// not say it fails to match.
 const DERIVED_AT_POSE: &str =
     "the stored boundary sits, within the band, where its face holds no curve of its kind";
-/// Why a DERIVED boundary's incidence on its face is undecided.
-const DERIVED_CLOSE: &str = geom_core::undecided!("the boundary");
+/// Why a boundary's reading is undecided at rest: a DERIVED boundary's
+/// incidence on its face among them.
+const CLOSE: &str = geom_core::undecided!("the boundary");
 
 /// **Why a carrier's incidence refused, by what was read and who placed
 /// it**: the one reason table, read by a boundary row at rest
-/// ([`off_face_ending`]) and by the edge certificate's declared arms
-/// ([`classify_certify`]).
+/// ([`off_face_ending`]) and by the edge certificate's decided declared
+/// arm, `DeclaredOffChart` ([`classify_certify`]). The certificate's
+/// undecided declared arm, an `Escalated` `DeclaredIncidence`, takes
+/// [`DECLARED_CLOSE`] through [`certify_undecided`], as every escalation
+/// of the certificate takes its check's reason.
 fn incidence_reason(read: geom_brep::IncidenceRead<'_>, declared: bool) -> &'static str {
     use geom_brep::IncidenceRead as R;
     match (declared, read) {
         (true, R::Off(_)) => DECLARED_OFF,
         (true, R::AtPose(_)) => DECLARED_AT_POSE,
         (true, R::Undecided(_)) => DECLARED_CLOSE,
-        (false, R::Off(_)) => DERIVED_OFF,
+        (false, R::Off(_)) => WRONG,
         (false, R::AtPose(_)) => DERIVED_AT_POSE,
-        (false, R::Undecided(_)) => DERIVED_CLOSE,
+        (false, R::Undecided(_)) => CLOSE,
     }
 }
 
@@ -3648,10 +3653,8 @@ fn off_face_ending(
 fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'static, str>) {
     use crate::pcurves::PcurveMintError as M;
     use geom_brep::PcurveCertifyError as C;
-    const WRONG: &str = "the stored boundary does not match the face";
     const BOUND: &str = bound_reason!("the stored boundary strays from the face");
     const KIND: &str = "the kernel cannot yet map a boundary of this kind";
-    const CLOSE: &str = geom_core::undecided!("the boundary");
     let (why, recourse) = match e {
         M::LoopDiscontinuity { .. }
         | M::LoopNotClosed { .. }

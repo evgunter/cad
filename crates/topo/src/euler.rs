@@ -6120,13 +6120,10 @@ mod tests {
                         },
                         // The split's circle is scaffolding, whose
                         // pushforward is its declaration: the stamp the
-                        // finding must carry is spelled here, not read off
-                        // the body the way the stamp is.
-                        authority: {
-                            let declared = crate::test_support_samples::authorities()[1];
-                            assert!(declared.is_declared());
-                            declared
-                        },
+                        // finding must carry is spelled here (the samples'
+                        // declared kind), not read off the body the way
+                        // the stamp is, and the `assert_eq` below pins it.
+                        authority: crate::test_support_samples::authorities()[1],
                     },
                 },
             ],

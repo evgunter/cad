@@ -267,9 +267,10 @@ pub enum CertCheck {
     ChartClass,
     /// **The incidence reading of a DECLARED carrier** at the mint step:
     /// whether the curve a modeler declared lies on the chart it names.
-    /// The modeler placed it, so every refusal ends in their lever alone
-    /// ([`crate::recourse::DECLARED_OFF_FACE`]); a derived carrier's
-    /// incidence refuses as [`CertCheck::ChartImage`], the kernel's.
+    /// The modeler placed it, so every refusal ends in their lever alone,
+    /// worded by what was read ([`crate::IncidenceRead::ending`]); a
+    /// derived carrier's incidence refuses as [`CertCheck::ChartImage`],
+    /// the kernel's.
     DeclaredIncidence,
     /// **The general lane's own reading** at the mint step, where the
     /// class reading sent an on-chart carrier there and the lane cannot
@@ -1090,21 +1091,19 @@ impl CertifyError {
             Self::PlaneNurbs(refusal) => refusal.ending(at),
             Self::AnalyticRung3(refusal) => refusal.ending(at),
             Self::StatedInterval { refused } => Some(refused.ending(at)),
-            // A declared carrier's incidence ends by what was read
-            // ([`crate::IncidenceRead::declared_lever`]), the one map every
-            // incidence ending goes through.
-            Self::DeclaredOffChart { margin, .. } => {
-                let read = crate::IncidenceRead::of_margin(*margin);
-                Some(read.declared_lever().recourse(read.arm(), at))
-            }
+            // A declared carrier's incidence ends by what was read, through
+            // the one map every incidence ending goes through
+            // ([`crate::IncidenceRead::ending`]).
+            Self::DeclaredOffChart { margin, .. } => Some(
+                crate::IncidenceRead::of_margin(*margin).ending(crate::AuthorityKind::DECLARED, at),
+            ),
             Self::Escalated {
                 check: CertCheck::DeclaredIncidence,
                 cause,
                 ..
-            } => {
-                let read = crate::IncidenceRead::Undecided(cause);
-                Some(read.declared_lever().recourse(read.arm(), at))
-            }
+            } => Some(
+                crate::IncidenceRead::Undecided(cause).ending(crate::AuthorityKind::DECLARED, at),
+            ),
             _ => self.decision().map(|(check, arm)| recourse(check, arm, at)),
         }
     }
@@ -1155,9 +1154,13 @@ enum Ending {
     /// A lane choice with no general lane written yet (D3): lever-only
     /// "not yet" on every arm.
     NotYet,
-    /// A decision whose every refusal is the modeler's to move: the lever
-    /// alone, never a tolerance or a defect.
-    Lever(crate::recourse::LeverOnly),
+    /// A declared carrier's incidence (D3): the modeler's lever alone,
+    /// never a tolerance or a defect, worded
+    /// by what was read ([`crate::IncidenceRead::ending`]). A refused arm
+    /// does not say which read it was (off and at a pose both refuse
+    /// sign-certain), so no ending is spelled from the check alone: its
+    /// refusals end through [`CertifyError::ending`], which holds the read.
+    Incidence,
 }
 
 /// **What a span check refused of a door's input**
@@ -1498,12 +1501,8 @@ impl CertCheck {
             Self::ChartImage => Ending::Unsized(Unsized::Defect),
             // A lane choice (D3): no defect and no tolerance on any arm.
             Self::ChartClass | Self::GeneralLane => Ending::NotYet,
-            // The modeler's own placement (D3): their lever on every arm.
-            // Which lever is the read's ([`crate::IncidenceRead`]): both
-            // refusals this check owns end through
-            // [`CertifyError::ending`]'s incidence arms, and this entry
-            // classifies the check.
-            Self::DeclaredIncidence => Ending::Lever(crate::recourse::DECLARED_OFF_FACE),
+            // The modeler's own placement (D3), ended by its read.
+            Self::DeclaredIncidence => Ending::Incidence,
             // A fold over samples that each decided transverse: a poison
             // that survives it is the kernel's.
             Self::PlaneNurbsReportedTransversality => Ending::Unsized(Unsized::Defect),
@@ -1579,7 +1578,10 @@ pub fn recourse(check: CertCheck, arm: RefusedArm<'_>, at: impl Into<ReadAt>) ->
         (Ending::Unsized(no_size) | Ending::Residual(no_size), at) => no_size.recourse(arm, at),
         (Ending::Undefined(recourse), _) => geom_core::lever_recourse(recourse, None),
         (Ending::NotYet, at) => crate::recourse::not_yet(arm, at),
-        (Ending::Lever(lever), at) => lever.recourse(arm, at),
+        (Ending::Incidence, _) => unreachable!(
+            "{check:?} ends by its incidence read, which a refused arm does not carry: \
+             end it through CertifyError::ending or IncidenceRead::ending"
+        ),
     }
 }
 
@@ -7718,6 +7720,26 @@ mod tests {
             (cause, miss)
         });
         for check in all_checks() {
+            // A declared incidence ends by its read, which no refused arm
+            // carries ([`Ending::Incidence`]): at the import door its
+            // every read is the modeler's lever alone, with no ε_in offer,
+            // as at rest.
+            if matches!(check.ending(), Ending::Incidence) {
+                let cause = &causes[0].0;
+                for read in [
+                    crate::IncidenceRead::Off(None),
+                    crate::IncidenceRead::AtPose(MarginDiag::value(5e-9)),
+                    crate::IncidenceRead::Undecided(cause),
+                ] {
+                    let at_rest = read.ending(crate::AuthorityKind::DECLARED, Reading::AtRest);
+                    for file in [wide, narrow] {
+                        let door = read.ending(crate::AuthorityKind::DECLARED, file);
+                        assert_eq!(door, at_rest, "{read:?}");
+                        assert!(!door.contains("ε_in") && !door.contains("defect"), "{door}");
+                    }
+                }
+                continue;
+            }
             let mut arms: Vec<(RefusedArm<'_>, bool)> = causes
                 .iter()
                 .map(|(cause, miss)| (RefusedArm::Undecided(cause), *miss))
@@ -8749,7 +8771,7 @@ mod tests {
         Undefined,
         /// A lane choice's lever-only "not yet" ([`Ending::NotYet`]).
         NotYet,
-        /// The modeler's own lever and nothing else ([`Ending::Lever`]).
+        /// The modeler's own lever and nothing else ([`Ending::Incidence`]).
         LeverOnly,
     }
 
@@ -8847,11 +8869,16 @@ mod tests {
                 Ending::Residual(residual) => Miss(residual),
                 Ending::Undefined(_) => Undefined,
                 Ending::NotYet => NotYet,
-                Ending::Lever(_) => Class::LeverOnly,
+                Ending::Incidence => Class::LeverOnly,
             };
             assert_eq!(&got, want, "{check:?}");
-            // A lever is named exactly where the decision is sized.
-            let at_build = recourse(check, RefusedArm::SignCertain(None), Reading::Build);
+            // A lever is named exactly where the decision is sized. A
+            // declared incidence ends by its read, never from the check.
+            let at_build = match check.ending() {
+                Ending::Incidence => crate::IncidenceRead::Off(None)
+                    .ending(crate::AuthorityKind::DECLARED, Reading::Build),
+                _ => recourse(check, RefusedArm::SignCertain(None), Reading::Build),
+            };
             let named = at_build.starts_with("Recourse: move the geometry");
             assert_eq!(named, matches!(want, Class::Sized(..)), "{check:?}");
         }

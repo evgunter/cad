@@ -1524,11 +1524,22 @@ enum WalkRefusal {
 
 /// [`WalkRefusal`] of `e`, matched whole so a new refusal is read here
 /// before it is folded anywhere. A certification refusal is torn where
-/// the at-rest pass reads it as a boundary that does not match its face
-/// (`validate::classify_pcurve`), and unread where it is a precision
-/// limit or a lane not built: a face whose rows are not owed
-/// (`pcurves::not_owed`) is legal at rest, and its fresh derivation can
-/// meet one.
+/// it says the stored rows are not the face's (a malformed or misstated
+/// row, a span or a winding past its gate, a carrier off its chart),
+/// and unread where it is a precision limit or a lane not built: a face
+/// whose rows are not owed (`pcurves::not_owed`) is legal at rest, and
+/// its fresh derivation can meet one.
+///
+/// A carrier off its chart is torn whatever its authority or read: the
+/// walk does not hold the edge's authority, and on a face whose rows the
+/// at-rest pass certified, the edge passed its incidence on this chart
+/// there, so a fresh refusal is the kernel's. The at-rest pass itself
+/// ends one by who placed it (`validate::off_face_ending`): a declared
+/// carrier in the modeler's lever, and an at-pose read is not called off
+/// its face. On a face whose rows are not owed, a declared or at-pose
+/// carrier can reach this walk unread at rest and still end here as the
+/// kernel's: `work/pcert/who-placed-it-is-read-off-the-description-not-the-door.md`
+/// (S12) holds that instance.
 fn walk_refusal(e: &crate::pcurves::PcurveMintError) -> WalkRefusal {
     use crate::pcurves::PcurveMintError as M;
     use geom_brep::PcurveCertifyError as C;

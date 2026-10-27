@@ -2403,40 +2403,23 @@ impl PcurveCertifyError {
         if let Self::FittedEscalated { decision, cause } = self {
             return Some(decision.ending(cause, at));
         }
+        // Read with no authority, an incidence refusal ends as a derived
+        // carrier's, through the one map.
+        if let Some(read) = IncidenceRead::of(self) {
+            return Some(read.ending(crate::AuthorityKind::DERIVED, at));
+        }
         self.decided().map(|(check, arm)| check.recourse(arm, at))
     }
 
-    /// This refusal's text read at `at`: an escalation, whose text
-    /// carries its ending, ends as its decision does there; every other
-    /// refusal is its payload alone.
+    /// This refusal's text read at `at`, with no authority to read: an
+    /// incidence refusal ([`IncidenceRead::of`]) ends as a derived
+    /// carrier's ([`Self::render_by`] with the kernel's kind); an
+    /// escalation ends as its decision does there; every other decided
+    /// refusal is its payload alone, its ending left to the reader
+    /// ([`Self::ending`]).
     #[must_use]
     pub fn render(&self, at: impl Into<ReadAt>) -> String {
-        let at = at.into();
-        match self {
-            Self::FittedEscalated { decision, cause } => format!(
-                "pcurve certification: the fitted lane's certificate escalated — {}",
-                cause.undecided(decision, decision.ending(cause, at))
-            ),
-            Self::Escalated {
-                check,
-                sample,
-                cause,
-            } => format!(
-                "pcurve certification: {check:?} at sample {sample} escalated: {}. {}",
-                cause.payload(),
-                check.recourse(RefusedArm::Undecided(cause), at)
-            ),
-            // Read with no authority: the kernel's ending, the derived
-            // default. A reader holding the authority ends it by
-            // [`IncidenceRead::ending`].
-            Self::CarrierOffChart { .. } => format!(
-                "{}. {}",
-                core::fmt::from_fn(|f| self.write_payload(f)),
-                self.ending(at)
-                    .unwrap_or_else(|| unreachable!("an off-chart refusal is decided"))
-            ),
-            _ => core::fmt::from_fn(|f| self.write_payload(f)).to_string(),
-        }
+        self.render_by(crate::AuthorityKind::DERIVED, at)
     }
 
     /// This refusal's text read at `at` for a carrier of `authority`: an
@@ -2447,10 +2430,24 @@ impl PcurveCertifyError {
     #[must_use]
     pub fn render_by(&self, authority: crate::AuthorityKind, at: impl Into<ReadAt>) -> String {
         let at = at.into();
-        let Some(read) = IncidenceRead::of(self) else {
-            return self.render(at);
-        };
-        let ending = read.ending(authority, at);
+        if let Some(read) = IncidenceRead::of(self) {
+            return self.with_ending(&read.ending(authority, at));
+        }
+        match self {
+            Self::FittedEscalated { decision, cause } => format!(
+                "pcurve certification: the fitted lane's certificate escalated — {}",
+                cause.undecided(decision, decision.ending(cause, at))
+            ),
+            Self::Escalated { check, cause, .. } => {
+                self.with_ending(&check.recourse(RefusedArm::Undecided(cause), at))
+            }
+            _ => core::fmt::from_fn(|f| self.write_payload(f)).to_string(),
+        }
+    }
+
+    /// The refusal's text followed by `ending`: the one spelling of an
+    /// escalation's text and of a payload with its ending.
+    fn with_ending(&self, ending: &str) -> String {
         match self {
             Self::Escalated {
                 check,
@@ -11767,6 +11764,39 @@ mod tests {
                     && !as_declared.contains("repair the body"),
                 "{as_declared}"
             );
+        }
+    }
+
+    /// An incidence refusal read with no authority ends through the one
+    /// map as a derived carrier's: `render` is `render_by` the kernel's
+    /// kind, decided off and undecided alike, at every door.
+    #[test]
+    fn an_incidence_refusal_read_with_no_authority_ends_through_the_map() {
+        use geom::{CurveKind, SurfaceKind};
+        let derived = crate::EdgeAuthority::<f64>::Derived.kind();
+        let off = PcurveCertifyError::CarrierOffChart {
+            chart: SurfaceKind::Torus,
+            carrier: CurveKind::Line,
+            why: "WHY",
+            margin: Some(OffMargin::Past(geom_core::MarginDiag::value(4e-6))),
+        };
+        let undecided = PcurveCertifyError::Escalated {
+            check: PcurveCheck::ChartIncidence,
+            sample: 2,
+            cause: Indeterminate {
+                margin: geom_core::MarginDiag::value(5e-9),
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("pcurve_torus_chart_incident"),
+                terminal_sliver: false,
+            },
+        };
+        for err in [off, undecided] {
+            let read = IncidenceRead::of(&err).expect("an incidence refusal");
+            for at in [Reading::Build, Reading::AtRest] {
+                let text = err.render(at);
+                assert_eq!(text, err.render_by(derived, at));
+                assert!(text.ends_with(&read.ending(derived, at)), "{text}");
+            }
         }
     }
 

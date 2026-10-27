@@ -674,9 +674,12 @@ fn in_plane_strut(declared: bool) -> (Body<f64>, FaceKey) {
 /// profile cap it lies on):
 ///
 /// - the stamp on the mint's refusal is the edge's own authority;
-/// - at the build door (`topo::mint_pcurves_of`, and a sweep builder's
-///   wrapper of it), a declared strut reads the modeler's lever, with no
-///   "defect" and no "repair the body", and a derived one the kernel's;
+/// - at the build door (`topo::mint_pcurves_of`), a declared strut reads
+///   the modeler's lever, with no "defect" and no "repair the body", and a
+///   derived one the kernel's; so does the mint's refusal wrapped by hand
+///   in `sweep::ExtrudeError::Pcurve`, the variant a sweep builder returns
+///   it in (its Display carries the mint's text; this is not a refusal of
+///   an extrude);
 /// - at rest (tier 3's finding), the same.
 ///
 /// A render that drops the authority (every strut read as derived) reds
@@ -705,7 +708,11 @@ fn a_strut_off_its_face_ends_by_who_placed_it_at_every_door() {
         let built = minted.to_string();
         let wrapped = sweep::ExtrudeError::Pcurve(minted.clone()).to_string();
         let at_rest = topo::ValidationError::Pcurve { finding: minted }.to_string();
-        for (door, text) in [("build", &built), ("extrude", &wrapped), ("rest", &at_rest)] {
+        for (door, text) in [
+            ("build", &built),
+            ("ExtrudeError::Pcurve wrapping", &wrapped),
+            ("rest", &at_rest),
+        ] {
             if declared {
                 assert!(
                     text.contains("Recourse: move the declared curve onto the face it bounds"),

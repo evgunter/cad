@@ -141,6 +141,17 @@ pub struct AuthorityKind {
 }
 
 impl AuthorityKind {
+    /// The kind a refusal whose own type says the carrier was declared
+    /// carries ([`crate::CertifyError::DeclaredOffChart`], an
+    /// `Escalated` [`crate::CertCheck::DeclaredIncidence`]): the edge
+    /// certificate's mint routes only a declared description's incidence
+    /// there, so the refusal states the kind it ends by.
+    pub(crate) const DECLARED: Self = Self { declared: true };
+
+    /// The kind a refusal read with no authority ends by: the kernel's,
+    /// the derived default ([`crate::PcurveCertifyError::render`]).
+    pub(crate) const DERIVED: Self = Self { declared: false };
+
     /// Whether a modeler DECLARED the locus.
     #[must_use]
     pub const fn is_declared(self) -> bool {
