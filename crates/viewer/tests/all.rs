@@ -84,6 +84,8 @@ mod debug_dumps;
 mod display_budget;
 #[path = "doc_io.rs"]
 mod doc_io;
+#[path = "review_intent_e_r1.rs"]
+mod review_intent_e_r1;
 #[path = "docm9_range_vs_probe.rs"]
 mod docm9_range_vs_probe;
 #[path = "door_at_rest.rs"]
