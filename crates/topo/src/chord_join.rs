@@ -3043,6 +3043,45 @@ fn outer_cycle<T: Decide>(
     Ok(Some(body.loop_walk(first).closed("loop", first)))
 }
 
+/// **How a run edge's chart-image refusal ends at the join** (D3): a
+/// class reading or a lane not built "not yet" ([`SplitJoinError::RunImageNotYet`]);
+/// an incidence refusal by its read, through the one map
+/// ([`SplitJoinError::RunImageIncidence`]); another escalation as the
+/// join's; anything else an invariant the shipped carriers keep.
+fn run_image_refusal(
+    face: FaceKey,
+    kind: geom::SurfaceKind,
+    e: geom_brep::PcurveCertifyError,
+) -> SplitJoinError {
+    match e {
+        // The class reading is a lane choice (D3): in band, and
+        // with no general lane written, it ends "not yet".
+        geom_brep::PcurveCertifyError::Escalated {
+            check: geom_brep::PcurveCheck::ChartClass | geom_brep::PcurveCheck::GeneralLane,
+            ..
+        }
+        | geom_brep::PcurveCertifyError::NoGeneralLane { .. } => {
+            SplitJoinError::RunImageNotYet { face, kind }
+        }
+        // An incidence refusal ends by its read, through the one
+        // map, never as an invariant break or the join's own lever.
+        refusal if geom_brep::IncidenceRead::of(&refusal).is_some() => {
+            SplitJoinError::RunImageIncidence {
+                face,
+                kind,
+                refusal,
+            }
+        }
+        geom_brep::PcurveCertifyError::Escalated { cause, .. } => {
+            SplitJoinError::Escalated { face, diag: cause }
+        }
+        _ => SplitJoinError::SectionInvariant {
+            face,
+            what: "a run edge has no closed-form chart image on the divided face's chart",
+        },
+    }
+}
+
 /// The walk behind [`face_azimuth_images`]:
 /// each charted half-edge's image, its branch pinned to the previous
 /// edge's exit.
@@ -3076,37 +3115,8 @@ fn run_azimuth_images<T: Decide>(
             continue; // null scaffolding: zero-length, no azimuth extent
         };
         let (t0, t1) = curve.params();
-        let base =
-            chart_pcurve_over(curve.carrier(), t0, t1, surface, band).map_err(|e| match e {
-                // The class reading is a lane choice (D3): in band, and
-                // with no general lane written, it ends "not yet".
-                geom_brep::PcurveCertifyError::Escalated {
-                    check: geom_brep::PcurveCheck::ChartClass | geom_brep::PcurveCheck::GeneralLane,
-                    ..
-                }
-                | geom_brep::PcurveCertifyError::NoGeneralLane { .. } => {
-                    SplitJoinError::RunImageNotYet {
-                        face,
-                        kind: surface.kind(),
-                    }
-                }
-                // An incidence refusal ends by its read, through the one
-                // map, never as an invariant break or the join's own lever.
-                refusal if geom_brep::IncidenceRead::of(&refusal).is_some() => {
-                    SplitJoinError::RunImageIncidence {
-                        face,
-                        kind: surface.kind(),
-                        refusal,
-                    }
-                }
-                geom_brep::PcurveCertifyError::Escalated { cause, .. } => {
-                    SplitJoinError::Escalated { face, diag: cause }
-                }
-                _ => SplitJoinError::SectionInvariant {
-                    face,
-                    what: "a run edge has no closed-form chart image on the divided face's chart",
-                },
-            })?;
+        let base = chart_pcurve_over(curve.carrier(), t0, t1, surface, band)
+            .map_err(|e| run_image_refusal(face, surface.kind(), e))?;
         let plus = edge.he_plus == he;
         let (entry_t, exit_t) = if plus { (t0, t1) } else { (t1, t0) };
         let pcurve = match prev_exit {
@@ -8021,7 +8031,8 @@ mod run_image_incidence {
     use geom_core::{Band, Indeterminate, KERNEL_DEFECT_ENDING, MarginDiag};
 
     /// **A run edge's incidence refusal ends by the one map** (review on
-    /// PR 5844, H3): decided off, the kernel's defect; at a pose, the pose
+    /// PR 5844, H3), through the run walk's own mapping
+    /// (`run_image_refusal`): decided off, the kernel's defect; at a pose, the pose
     /// lever; undecided, its lever; a poisoned margin, the defect. Never
     /// the invariant break or the join's own coincidence lever it ended in
     /// before.
@@ -8050,12 +8061,16 @@ mod run_image_incidence {
             (undecided(MarginDiag::value(5e-9)), INCIDENCE_UNSHOWN.lever),
             (undecided(MarginDiag::INVALID), KERNEL_DEFECT_ENDING),
         ] {
-            let text = SplitJoinError::RunImageIncidence {
-                face: crate::FaceKey::default(),
-                kind: geom::SurfaceKind::Cone,
-                refusal: refusal.clone(),
-            }
-            .to_string();
+            let mapped = super::run_image_refusal(
+                crate::FaceKey::default(),
+                geom::SurfaceKind::Cone,
+                refusal.clone(),
+            );
+            assert!(
+                matches!(mapped, SplitJoinError::RunImageIncidence { .. }),
+                "{refusal:?}: {mapped:?}"
+            );
+            let text = mapped.to_string();
             assert!(text.contains(ending), "{refusal:?}: {text}");
             assert_eq!(
                 text.matches("Recourse").count() + text.matches("defect").count(),
