@@ -203,3 +203,7 @@ Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `cra
 - 2026-10-27 08:52Z (orchestrator): the curved-copies plan was approved; it is not a design fork. Door 1's margin ladder decides one carrier for distinct-key cylinders and spheres, as C2 and the boolean's glue already do.
   - Added rows: a copy turned about its own axis (seams apart); two half-cylinders sharing only seam rulings (no SameSide, never Ok(false)); a cap-cut sphere (a proper subset).
   - Rim pairs (cap against the other copy's wall) stay as evidence on the one loud finding.
+- 2026-10-27 12:25Z (orchestrator): #5810's fix pass is in at `46d16060` (CI green, ci profile 14582/0, goldens unmoved, tour counts unchanged).
+  - Ruled: `quietable` means exactly that an assertion the quieting rule could accept exists (a `gap_reads` face pair AND `constant_pairing`). A Gap-admitted pair that `opposed` can never answer is unquietable and never refuses.
+  - This restates DS6 as DESIGN.md's companion table summarises it ("`error` only where a finding can be quieted"). It is not a change to a ratified decision; I checked the table row and `git log -S` (0ec34e4b, a move of the ratified DS6).
+  - A delta review follows the push.
