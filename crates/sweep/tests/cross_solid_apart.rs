@@ -682,3 +682,107 @@ fn two_parallel_rods_part_along_the_line_of_centres_until_they_touch() {
         );
     }
 }
+
+/// **A half-disc off a block's corner parts along its diameter until it
+/// touches.** The rod's half past `x = 0`, turned 4 rad, its flat
+/// facing the block's corner `(1, 1)` `clear` away along the flat's
+/// normal, as the sliver above. The arc's chord is a diameter, through
+/// the arc's centre, so only the chord's own normal in the arc's plane
+/// parts the wall from the block. Red where the chord direction is read
+/// from the centre to the chord's midpoint.
+#[test]
+fn a_half_disc_off_a_blocks_corner_parts_along_its_diameter_until_it_touches() {
+    let (sin, cos) = 4.0f64.sin_cos();
+    let u = (-cos, -sin);
+    let k = u.0 + u.1;
+    let c = sweep::test_support::rod_chord_at(0.0);
+    let half = [((0.0, c.half), c.wall_bulge), ((0.0, -c.half), 0.0)];
+    let off = |clear: f64| {
+        // The flat's u-level is by·u; the corner's is k.
+        let s = k + clear - 0.75 * k;
+        let by = (0.75 + s * u.0, 0.75 + s * u.1);
+        let mut out = sweep::test_support::brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), tol());
+        topo::graft_disjoint(&mut out, &prism(&half, 4.0, by, 0.0, 1.0)).expect("grafts");
+        finished("the half-disc off the corner", out, tol())
+    };
+    for clear in [0.1, 1e-3] {
+        assert_eq!(census(&off(clear)), Ok(()), "the half-disc {clear} clear");
+    }
+    for clear in [0.0, -1e-3] {
+        let pair = off(clear);
+        let errs = census(&pair).expect_err("the half-disc meets the corner");
+        assert!(
+            refuses_curved_within_reach(&pair, &errs),
+            "{clear}: {errs:?}"
+        );
+    }
+}
+
+/// An oblique turn about the origin, so no world axis parts a pair.
+fn tilted(body: &Body<f64>) -> Body<f64> {
+    use geom_core::UnitVec3;
+    let rx = RigidMotion::rotation(UnitVec3::exact_x(), 0.4).unwrap();
+    let rz = RigidMotion::rotation(UnitVec3::exact_z(), 0.7).unwrap();
+    topo::transform_rigid(body, &rz.compose(rx).unwrap(), tol()).unwrap()
+}
+
+/// `a` and `b` turned obliquely together, two solids of one body.
+fn tilted_pair(a: &Body<f64>, b: &Body<f64>) -> AtRestBody<f64> {
+    let mut out = tilted(a);
+    topo::graft_disjoint(&mut out, &tilted(b)).expect("grafts");
+    finished("the turned pair", out, tol())
+}
+
+/// **Two parallel rods whose origins are staggered along their axes
+/// part along the line of centres until they touch.** The rods of the
+/// row above, the thin one's base 0.37 up the thick one's axis, the
+/// pair turned obliquely. The offset between the axes is the origins'
+/// offset projected off the axis; unprojected, it tilts by the stagger
+/// and no longer parts the walls. Red where the offset off an axis is
+/// not projected off it.
+#[test]
+fn staggered_parallel_rods_part_along_the_line_of_centres_until_they_touch() {
+    let beside = |gap: f64| {
+        let s = (0.55 + gap) * core::f64::consts::FRAC_1_SQRT_2;
+        let pin = topo::transform_rigid(
+            &revolved(0.0, 0.05, 1.0),
+            &RigidMotion::translation(Vec3::new(s, 0.37, s)).unwrap(),
+            tol(),
+        )
+        .unwrap();
+        tilted_pair(&revolved(0.0, 0.5, 1.0), &pin)
+    };
+    for gap in [0.04, 5e-4] {
+        assert_eq!(census(&beside(gap)), Ok(()), "the rods {gap} clear");
+    }
+    let touching = beside(0.0);
+    let errs = census(&touching).expect_err("the walls meet along a ruling");
+    assert!(refuses_curved_within_reach(&touching, &errs), "{errs:?}");
+}
+
+/// **Two crossing rods part along their axes' common normal until they
+/// touch.** The rod `r ≤ 0.5` about `y` over `y ∈ [0, 1]`, and a rod of
+/// radius 0.1 along `x` over `x ∈ [−1, 1]` at `y = 0.5`, its axis
+/// `0.6 + gap` above the first's, the pair turned obliquely. Each rod's
+/// origin lies at its base, off the common normal, so neither origin's
+/// offset off the other's axis parts them, and their rims are closed
+/// circles, with no chord; the common normal of the two axes does.
+/// Red where the census proposes no common normal.
+#[test]
+fn crossing_rods_part_along_their_axes_common_normal_until_they_touch() {
+    let over = |gap: f64| {
+        let bar = topo::transform_rigid(
+            &revolved(0.0, 0.1, 2.0),
+            &RigidMotion::axes_zx(geom_core::Point3::new(-1.0, 0.5, 0.6 + gap)),
+            tol(),
+        )
+        .unwrap();
+        tilted_pair(&revolved(0.0, 0.5, 1.0), &bar)
+    };
+    for gap in [0.04, 1e-3] {
+        assert_eq!(census(&over(gap)), Ok(()), "the rods {gap} clear");
+    }
+    let touching = over(0.0);
+    let errs = census(&touching).expect_err("the walls meet at a point");
+    assert!(refuses_curved_within_reach(&touching, &errs), "{errs:?}");
+}

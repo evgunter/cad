@@ -8360,8 +8360,9 @@ type WorldReach<T> = (Point3<T>, Point3<T>);
 /// to the other's nearest boundary segment point ([`depth_gap::toward`]),
 /// either face's arc chords' normals, and the line between the two
 /// carriers' axes or centres ([`depth_gap::across`]). Each face comes
-/// with its world reach, the lever its normal is read over; `toward` is
-/// the depths' directions.
+/// with its world reach, the lever its normal is read over; `proposed`
+/// is the directions [`depth_gap::toward`] and [`depth_gap::across`]
+/// read off the two faces.
 ///
 /// The test is the boolean's narrow phase
 /// ([`crate::boolean::separating::apart_by`]): both reaches are read in
@@ -8376,7 +8377,7 @@ fn backstop_apart<T: Decide>(
     body: &Body<T>,
     (fa, ra): (FaceKey, WorldReach<T>),
     (fb, rb): (FaceKey, WorldReach<T>),
-    toward: Vec<geom_core::UnitVec3<T>>,
+    proposed: Vec<geom_core::UnitVec3<T>>,
     band: Band,
 ) -> bool {
     use crate::boolean::separating::{Item, apart_by, planar_axis};
@@ -8384,7 +8385,7 @@ fn backstop_apart<T: Decide>(
         .into_iter()
         .filter_map(|(f, r)| planar_axis(body, f, || Some(r), band))
         .collect();
-    axes.extend(toward);
+    axes.extend(proposed);
     apart_by(
         (body, Item::Face(fa)),
         (body, Item::Face(fb)),
@@ -8859,9 +8860,14 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                     depth_gap::face_read(body, a.face, band)
                         .zip(depth_gap::face_read(body, b.face, band))
                 };
-                let toward = reads.as_ref().map_or_else(Vec::new, |(ra, rb)| {
+                // The pair's joint reach: the arm a pure-number direction
+                // is consumed over.
+                let arm = (Point3::new(ahi.x.max(bhi.x), ahi.y.max(bhi.y), ahi.z.max(bhi.z))
+                    - Point3::new(alo.x.min(blo.x), alo.y.min(blo.y), alo.z.min(blo.z)))
+                .norm();
+                let proposed = reads.as_ref().map_or_else(Vec::new, |(ra, rb)| {
                     let mut dirs = depth_gap::toward(ra, rb, band);
-                    dirs.extend(depth_gap::across(ra, rb, band));
+                    dirs.extend(depth_gap::across(ra, rb, arm, band));
                     dirs
                 });
                 if !cleared
@@ -8869,7 +8875,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                         body,
                         (a.face, (alo, ahi)),
                         (b.face, (blo, bhi)),
-                        toward,
+                        proposed,
                         band,
                     )
                     && !reads.as_ref().is_some_and(|(ra, rb)| {
