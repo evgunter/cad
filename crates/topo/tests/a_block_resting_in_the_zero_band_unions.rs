@@ -22,9 +22,12 @@ use topo::{AtRestBody, BooleanOp, BooleanResult};
 /// `B`'s height.
 const H: f64 = 0.5;
 
+/// A footprint: its name and its `x` and `y` spans.
+type Footprint = (&'static str, (f64, f64), (f64, f64));
+
 /// The footprints `B` stands on: inside `A`'s top, its whole top, and
 /// overhanging it by half.
-const FOOTPRINTS: [(&str, (f64, f64), (f64, f64)); 3] = [
+const FOOTPRINTS: [Footprint; 3] = [
     ("inside", (0.25, 0.75), (0.25, 0.75)),
     ("whole", (0.0, 1.0), (0.0, 1.0)),
     ("overhanging", (-0.5, 0.5), (0.25, 0.75)),
