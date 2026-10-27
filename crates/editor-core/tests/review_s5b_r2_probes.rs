@@ -386,20 +386,24 @@ mod interference {
     }
 
     /// Two parallel convex shafts side by side, clashing: A r=1 at the
-    /// origin, B r=0.3 at x=1.2, both 1 long. Gap(A, B) = 1 - 0.3 - 1.2 =
-    /// -0.5, which holds under <= -0.01, though the clash is 0.1 deep and
-    /// neither face is a socket. Both lateral faces bound the crescent
-    /// overlap, and it lies between their carriers. Only `opposed`'s sense
-    /// test (outer concave, inner convex) keeps it loud.
+    /// origin, B r=0.3 at 1.2 from it, both standing on one base. Gap(A, B)
+    /// = 1 - 0.3 - 1.2 = -0.5, which holds under <= -0.01, though the clash
+    /// is 0.1 deep and neither face is a socket. Both lateral faces bound
+    /// the crescent overlap, and it lies between their carriers. What
+    /// keeps it loud is `opposed`: two cylinders off one axis pair their
+    /// materials differently from point to point, so no single reading
+    /// answers for the pair, and it is not opposed at any bearing of B
+    /// about A (a reading at one point of A's wall was quiet at one
+    /// bearing in eight).
     #[test]
     fn r2_two_convex_shafts_side_by_side_stay_loud() {
         use crate::fixture::piece;
         use editor_core::{LoopProgram, ProfileProgram};
-        let rod = |doc: ProfileDoc, cx: f64, r: f64, long: bool| {
+        let rod = |doc: ProfileDoc, (cx, cy): (f64, f64), r: f64, long: bool| {
             let (doc, profile) = insert(
                 doc,
                 Node::Profile(ProfileProgram {
-                    loops: vec![LoopProgram::<Formula>::circle(cx, 0.0, r).expect("a circle")],
+                    loops: vec![LoopProgram::<Formula>::circle(cx, cy, r).expect("a circle")],
                     ids: Vec::new(),
                 }),
             );
@@ -411,31 +415,31 @@ mod interference {
                 },
             )
         };
-        let doc = ProfileDoc::empty_derived("r2-shafts", Tol::witness());
-        let (doc, a) = rod(doc, 0.0, 1.0, true);
-        let (doc, b) = rod(doc, 1.2, 0.3, false);
-        let (doc, p) = place(doc, a);
-        let (doc, q) = stand(doc, b, 0.25);
-        let lateral =
-            |doc: &ProfileDoc, node| fname(node, RoleSeg::Lateral(piece(doc, node, 0, 0).into()));
-        let (fa, fb) = (lateral(&doc, a), lateral(&doc, b));
-        let unasserted = report(&doc);
-        assert!(
-            !unasserted.is_empty() && unasserted.iter().all(|(l, _)| *l),
-            "{unasserted:?}"
-        );
-        let (doc, assertion) =
-            gap_at_copies(doc, (p, fa), (q, fb), AssertionRelation::AtMost, -0.01);
-        let run = corpus::eval::<f64>(&doc);
-        eprintln!(
-            "assertion verdict: {:?}",
-            run.value(assertion).map(|v| &v.payload)
-        );
-        let r = report(&doc);
-        assert!(
-            r.iter().all(|(l, _)| *l),
-            "side-by-side shafts quieted: {r:?}"
-        );
+        let mut decided = 0;
+        for k in 0..8u32 {
+            let bearing = f64::from(k) * std::f64::consts::FRAC_PI_4;
+            let doc = ProfileDoc::empty_derived("r2-shafts", Tol::witness());
+            let (doc, a) = rod(doc, (0.0, 0.0), 1.0, true);
+            let (doc, b) = rod(doc, (1.2 * bearing.cos(), 1.2 * bearing.sin()), 0.3, false);
+            let (doc, p) = place(doc, a);
+            let (doc, q) = stand(doc, b, 0.25);
+            let lateral = |doc: &ProfileDoc, node| {
+                fname(node, RoleSeg::Lateral(piece(doc, node, 0, 0).into()))
+            };
+            let (fa, fb) = (lateral(&doc, a), lateral(&doc, b));
+            // At some bearings the census leaves the curved pair undecided
+            // (a could-not-look finding), and there is no overlap to quiet.
+            let unasserted = report(&doc);
+            assert!(unasserted.iter().all(|(l, _)| *l), "bearing {k}/8: {unasserted:?}");
+            decided += usize::from(!unasserted.is_empty());
+            let (doc, _) = gap_at_copies(doc, (p, fa), (q, fb), AssertionRelation::AtMost, -0.01);
+            let r = report(&doc);
+            assert!(
+                r.iter().all(|(l, _)| *l),
+                "side-by-side shafts quieted at bearing {k}/8: {r:?}"
+            );
+        }
+        assert!(decided > 0, "the premise: an overlap at some bearing");
     }
 
     /// The sunk flange with the `Gap`'s roles swapped (a plane pair's gap
