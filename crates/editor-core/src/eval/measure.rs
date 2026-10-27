@@ -35,7 +35,10 @@
 //! lowest along it ([`topo::Link::lowest_on`]). A sphere's or a
 //! cylinder's material is its carrier's side ([`topo::Round`]), and the
 //! census reads the same carrier at a touch inside such a face. An edge
-//! or a vertex beside a curved face has no link yet and refuses.
+//! or a vertex beside a curved face has no link yet and refuses, and so
+//! does a vertex of a planar face with a curved edge; a line edge of such
+//! a face reads it as the disc its other edges clear
+//! (`topo::link`'s cleared sector).
 //!
 //! Everything else — a cone, a torus, a NURBS patch, a curved edge, a
 //! whole body, and every mixed pair not listed — refuses.
@@ -915,7 +918,7 @@ pub(crate) fn gap_value<T: Decide>(
 const NO_CORNER: &str = "a vertex whose faces do not all read as planes bounded by lines";
 
 /// The class a refusal names for an edge whose link does not read.
-const NO_WEDGE: &str = "a line edge whose faces do not both read as planes bounded by lines";
+const NO_WEDGE: &str = "a line edge whose faces do not both read as planes with closed-form edges";
 
 /// A face reading a line edge at its lowest point: a plane at the
 /// edge's lower end, its offset affine along it; a sphere or a cylinder

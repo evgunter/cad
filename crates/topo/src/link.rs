@@ -47,10 +47,13 @@
 //! it reaches back far from it.
 //!
 //! A link holds planar faces only. One with an edge that is not a line
-//! is read, held inside it or inside a line edge, as the disc about `p`
-//! its other edges clear ([`Sector::cleared`]); a curved face, or such a
-//! face held at its corner, refuses ([`TouchUnread::Unreadable`]); a
-//! sphere or cylinder face is read by its carrier instead, as above.
+//! is not read through a piece: held inside it or inside a line edge, it
+//! is read as the disc about `p` its other edges clear, the face's own
+//! out to that radius, which bounds the link's ball, and carried past
+//! the face's reach so that its readings are taken where the face's
+//! would be ([`Sector::cleared`]). A curved face, or such a face held at
+//! its corner, refuses ([`TouchUnread::Unreadable`]); a sphere or
+//! cylinder face is read by its carrier instead, as above.
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
@@ -2328,12 +2331,14 @@ pub(crate) mod rest {
     /// other material (2).
     ///
     /// **Each verdict at its own scale.** The readings run at the
-    /// pieces' real points, each link's as far out as its faces reach.
-    /// A rest needs every one decided there: a Zero read at a far point
-    /// is a Zero at every nearer one, so that is where the fewest
-    /// coincidences are taken. A crossing is confirmed inside the BALL
-    /// where both links are their solids — out to the nearest far side
-    /// of any wedge of either ([`Link::ball`]) — with the piece's points
+    /// pieces' real points, each link's as far out as its faces reach,
+    /// or, on a cleared sector, past every point of its face
+    /// ([`Sector::cleared`]). A rest needs every one decided there: a
+    /// Zero read at a far point is a Zero at every nearer one, so that is
+    /// where the fewest coincidences are taken. A crossing is confirmed
+    /// inside the BALL where both links are their solids — out to the
+    /// nearest far side of any wedge of either, or a cleared sector's
+    /// radius ([`Link::ball`]) — with the piece's points
     /// drawn in along their rays ([`within`]), still real points of its
     /// face: an overlap read there is one of the two bodies, not of one
     /// link's planes carried past the other's faces. A crossing read

@@ -85,8 +85,9 @@
 //!   ([`sweep_self_touch_points`]).
 //! - **Genuinely undetected until C9/C6**: the other SAME-solid
 //!   distinct-key curved pairs (the backstop is cross-solid); a point
-//!   where a solid touches itself with a curved face or edge in its link
-//!   there, which [`sweep_self_touch_points`] leaves unread
+//!   where a solid touches itself with a curved face in its link there,
+//!   or a face with a curved edge held at its corner, which
+//!   [`sweep_self_touch_points`] leaves unread
 //!   (`work/restread/tier-3-prime-reads-no-side-where-a-solid-touches-itself-at-a-point-on-a-curved-face.md`);
 //!   and one
 //!   cross-solid residue named at that loop: a pair whose ONLY
@@ -7795,9 +7796,13 @@ fn edge_in_own_face<T: Decide>(
 /// solid reaches is read whole here too, every sheet through it, the
 /// line's own included; the line's sides along it are its rules' (pass
 /// 4's [`edge_in_own_face`], read at each cell's middle). A link holding
-/// a curved face or edge is left unread, wherever in the link it stands
-/// ([`Link::touch_at_point`] answers `Unreadable` before any other refusal):
-/// no sector reads one yet.
+/// a curved face, or a face with a curved edge held at its corner, is
+/// left unread, wherever in the link it stands ([`Link::touch_at_point`]
+/// answers `Unreadable` before any other refusal): no sector reads one
+/// yet. A planar face with a curved edge held inside it or inside a
+/// line edge is read, as the disc its edges clear
+/// ([`crate::link::Sector::cleared`]), and its refusals are the
+/// undecided twin's like any other's.
 fn sweep_self_touch_points<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -7847,8 +7852,9 @@ fn sweep_self_touch_points<T: Decide>(
         }
         let verdict = match Link::touch_at_point(body, geo, &ties, s, &keys, at, band) {
             Ok(link) => rest::one_material(&link, band),
-            // A curved face or edge in the link: genuinely undetected
-            // (the module doc's class list), not refused.
+            // A curved face, or a face with a curved edge held at its
+            // corner, in the link: genuinely undetected (the module
+            // doc's class list), not refused.
             Err(TouchUnread::Unreadable) => continue,
             Err(why) => TouchVerdict::Unread(why),
         };

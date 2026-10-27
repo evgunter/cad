@@ -1068,8 +1068,8 @@ of an edge lying in a face of its own solid (`edge_in_own_face`, by
 `rest::judge`); arm 2's touches between two solids
 (`TouchSite::verdict`, by `rest::judge`); and every point where one
 solid touches itself, its whole link there (`sweep_self_touch_points`,
-by `rest::one_material`), a link holding a curved face or edge left
-unread. Every other use of a face's normal in the coincidence sweeps is
+by `rest::one_material`), a link holding a curved face, or a face with
+a curved edge held at its corner, left unread. Every other use of a face's normal in the coincidence sweeps is
 sense-invariant.
 
 **Confirmed pairs.** Every face-pair rung (`Declared::confine` around the
