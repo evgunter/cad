@@ -2,11 +2,12 @@
 id: a-spline-span-against-a-spline-face-has-no-interior-arm
 kind: issue
 title: A spline span against a spline face has no interior arm: lily wall 8 refuses CurvedBooleanUnsupported there with a NURBS tip seam of the blade
-status: open
+status: dispatched
 opened: 2026-10-27
-priority: P1
+priority: P0
 cost: H
 refs: [an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane, a-unions-flush-reading-cannot-follow-a-nurbs-carrier]
+branch: splice/spline-span-arm
 ---
 
 Filed by the SPLICE lane that built the analytic span × spline face
