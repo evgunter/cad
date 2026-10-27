@@ -639,8 +639,10 @@ fn twisted<T: Decide + topo::AtRestPolicy>(
     Ok(out)
 }
 
-/// **A copy's reach in its own coordinates** — a shape's body's, as
-/// [`crate::mate::part_reach`] bounds a part's — for the fold's arm.
+/// **A copy's reach, measured from its space's origin** — a shape's
+/// body's, as [`crate::mate::part_reach`] bounds a part's, each body
+/// read in its own coordinates about where its frame puts that origin
+/// ([`body_reach`]) — for the fold's arm.
 fn copy_reach<T: crate::mate::SolveScalar>(
     results: &Results<T>,
     at: RecipeNodeId,
@@ -2886,19 +2888,17 @@ fn with_replaced<T: Decide>(
     Some(local)
 }
 
-/// **One member of a union or an intersect, as the fold reads it**:
-/// the read it came through (its names' key), its finished body and its
-/// own table.
+/// **One member of a union or an intersect, as read and not yet
+/// finished**: the read it came through (its names' key), its body in
+/// its own frame and its own table. The fold reads it into the frame it
+/// computes in and finishes it there, once ([`MemberRead::finished_in`]).
 #[derive(Clone)]
-struct Member<T: Decide> {
+struct MemberRead<T: Decide> {
     read: crate::VarId,
     /// The node it is read from (error context).
     node: RecipeNodeId,
     /// Where it stands: its body in its own frame.
     framed: super::Framed<T>,
-    /// Its body finished, in `framed`'s frame until the fold reads it
-    /// into the frame it computes in ([`Member::in_frame_of`]).
-    body: Arc<topo::AtRestBody<T>>,
     table: Arc<NameTable>,
     /// The member's own contact records, carried into the fold step
     /// that joins it (D1 (ii)).
@@ -2908,28 +2908,49 @@ struct Member<T: Decide> {
     pieces: Option<Arc<distribute::Operand<T>>>,
 }
 
-impl<T: Decide + topo::AtRestPolicy> Member<T> {
-    /// **This member read into `first`'s frame**, finished there: itself
-    /// where the two are one frame.
-    fn in_frame_of(&self, first: &super::Framed<T>, tol: Tol) -> Result<Self, NodeErrorKind> {
-        if first
-            .relative(&self.framed)
-            .map_err(NodeErrorKind::Motion)?
-            .is_none()
-        {
-            return Ok(self.clone());
-        }
-        let read = first.read_in(&self.framed, tol)?;
+/// **One member of a union or an intersect, as the fold reads it**:
+/// a [`MemberRead`] read into the frame the fold computes in, its body
+/// finished there.
+#[derive(Clone)]
+struct Member<T: Decide> {
+    read: crate::VarId,
+    /// Where it stands, in the frame the fold computes in.
+    framed: super::Framed<T>,
+    /// Its body finished in that frame, through the at-rest gate once.
+    body: Arc<topo::AtRestBody<T>>,
+    table: Arc<NameTable>,
+    /// The member's own contact records, carried into the fold step
+    /// that joins it (D1 (ii)).
+    records: Arc<topo::ContactRecords>,
+}
+
+impl<T: Decide + topo::AtRestPolicy> MemberRead<T> {
+    /// **This member read into `computing`'s frame and finished there**,
+    /// through the at-rest gate once: its own body where the two are one
+    /// frame, else its body mapped once ([`super::Framed::read_in`]).
+    fn finished_in(
+        &self,
+        computing: &super::Framed<T>,
+        tol: Tol,
+    ) -> Result<Member<T>, NodeErrorKind> {
+        let read = computing.read_in(&self.framed, tol)?;
+        let framed = if Arc::ptr_eq(&read, self.framed.shared()) {
+            self.framed.clone()
+        } else {
+            super::Framed::in_frame(Arc::clone(&read), computing.frame().clone())
+        };
         let body = T::gate_at_rest_kept((*read).clone(), tol).map_err(|errors| {
             NodeErrorKind::UnfinishedOperand {
                 input: self.node,
                 errors,
             }
         })?;
-        Ok(Self {
-            framed: super::Framed::in_frame(read, first.frame().clone()),
+        Ok(Member {
+            read: self.read,
+            framed,
             body: Arc::new(body),
-            ..self.clone()
+            table: Arc::clone(&self.table),
+            records: Arc::clone(&self.records),
         })
     }
 }
@@ -3308,7 +3329,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // family read whole, in index order, its table the family's rows for
     // that member.
     use crate::OperandSlot as O;
-    let members: Vec<Member<T>> = match bodies {
+    let members: Vec<MemberRead<T>> = match bodies {
         crate::Bodies::Spelled(reads) => reads
             .iter()
             .enumerate()
@@ -3324,12 +3345,11 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     ),
                     _ => None,
                 };
-                let (body, framed) = finished_operand(results, at, tol)?;
-                Ok::<_, NodeErrorKind>(Member {
+                let framed = read_body(results, at)?;
+                Ok::<_, NodeErrorKind>(MemberRead {
                     read,
                     node: at,
                     framed,
-                    body: Arc::new(body),
                     table: read_table(value_of(results, at)?),
                     records: operand_records(value_of(results, at)?, doc, tol),
                     pieces,
@@ -3361,13 +3381,10 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                         .project(index)
                         .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
                     names::check_total(&table, body.body(), 0).map_err(NodeErrorKind::Naming)?;
-                    let finished = T::gate_at_rest_kept(body.body().clone(), tol)
-                        .map_err(|errors| NodeErrorKind::UnfinishedOperand { input: at, errors })?;
-                    Ok(Member {
+                    Ok(MemberRead {
                         read: *read,
                         node: at,
                         framed: body.clone(),
-                        body: Arc::new(finished),
                         table: Arc::new(table),
                         // A family's records are the family's, not one
                         // member's: a member read whole cites none.
@@ -3397,7 +3414,7 @@ fn combine_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     op: BooleanOp,
     id: RecipeNodeId,
     own_read: crate::VarId,
-    members: Vec<Member<T>>,
+    members: Vec<MemberRead<T>>,
     boolean_sweep: topo::SweepStrategy,
     tol: Tol,
 ) -> OpResult<T> {
@@ -3414,11 +3431,10 @@ fn combine_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         .map(|unit| {
             let mut replaced = members.clone();
             let unit = Arc::new(unit);
-            replaced[i] = Member {
+            replaced[i] = MemberRead {
                 read: unit.read,
                 node: unit.node,
                 framed: unit.body.clone(),
-                body: Arc::new(unit.finished(tol)?),
                 table: Arc::clone(&unit.table),
                 records: Arc::clone(&unit.records),
                 pieces: unit.pieces.is_some().then(|| Arc::clone(&unit)),
@@ -3449,7 +3465,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     op: BooleanOp,
     id: RecipeNodeId,
     own_read: crate::VarId,
-    members: &[Member<T>],
+    members: &[MemberRead<T>],
     boolean_sweep: topo::SweepStrategy,
     tol: Tol,
 ) -> OpResult<T> {
@@ -3464,14 +3480,14 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // every other member into it through `relative`.
     let members = match members {
         [] => return empty(),
-        [one] => return lone_member(id, one),
+        [one] => return lone_member(id, &one.finished_in(&one.framed, tol)?),
         [first, ..] => {
             let computing = super::Framed::computing_among(members.iter().map(|m| &m.framed))
                 .unwrap_or(&first.framed)
                 .clone();
             members
                 .iter()
-                .map(|m| m.in_frame_of(&computing, tol))
+                .map(|m| m.finished_in(&computing, tol))
                 .collect::<Result<Vec<_>, NodeErrorKind>>()?
         }
     };

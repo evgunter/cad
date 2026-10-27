@@ -7190,3 +7190,65 @@ fn standing(value: &pncad::document::Framed<f64>) -> pncad::topo::Body<f64> {
             .expect("a copy composes into its space"),
     )
 }
+
+/// **A body far out builds and refuses to be read out** (INTENT stage 3
+/// E, R2's far-from-origin note): a block's copy turned and stood near
+/// 1e7 builds, sharing its source's body under its frame, so nothing in
+/// the model maps it. The façade's read-out composes it into the world
+/// and re-certifies every edge there, which refuses at that distance:
+/// `body_in_space` answers `compose_refused`'s refusal, and so does a
+/// STEP export of the node. The viewer's picture, which moves the copy's
+/// tessellation on the CPU and certifies nothing, draws it
+/// (`work/intent/a-far-body-the-read-out-refuses-the-picture-draws.md`).
+#[test]
+fn a_far_turned_copy_builds_and_its_read_out_refuses_to_compose() {
+    use pncad::document::{Coord, Dimension, Formula, TargetAxis, ValuePayload};
+    let (doc, _, _) = box_doc("e-far-read-out");
+    let placement = doc
+        .product()
+        .and_then(|var| doc.operation_of(var))
+        .expect("the copy is the product");
+    let mut far = pncad::document::stand();
+    let turn = |r: f64| Formula::literal(r, Dimension::Angle).unwrap();
+    far.values = vec![
+        (Coord::Slide(TargetAxis::X), len(1.0e7 + 0.3)),
+        (Coord::Slide(TargetAxis::Y), len(-3.0e6 - 0.7)),
+        (Coord::Slide(TargetAxis::Z), len(2.0e6 + 0.1)),
+        (Coord::Spin(Some(TargetAxis::X)), turn(0.3)),
+        (
+            Coord::Spin(Some(TargetAxis::Y)),
+            turn(std::f64::consts::FRAC_1_SQRT_2),
+        ),
+        (Coord::Spin(Some(TargetAxis::Z)), turn(1.1)),
+    ];
+    let doc = applied(&doc, far.write(placement)).doc;
+    let ev = pncad::document::evaluate::<f64>(
+        &doc,
+        None,
+        &pncad::document::CancelToken::new(),
+        &pncad::document::EvalOptions::default(),
+        Tol::witness(),
+    );
+    let Some(ValuePayload::Body(copy)) = ev.value(placement).map(|v| &v.payload) else {
+        panic!(
+            "the far copy builds: {:?}",
+            ev.node_error(placement).map(|e| &e.kind)
+        );
+    };
+    let read = pncad::export::body_in_space::<f64>(copy, Tol::witness());
+    assert!(
+        read.is_err(),
+        "the read-out composes it into the world and re-certifies there, which refuses this far out"
+    );
+    let step = pncad::export::step_for_node(
+        &ev,
+        placement,
+        &pncad::step_export::StepOptions::default(),
+        Tol::witness(),
+    );
+    assert!(
+        matches!(step, Err(pncad::export::ExportError::Compose(_))),
+        "and so does the node's STEP export: {:?}",
+        step.as_ref().map(|_| ())
+    );
+}

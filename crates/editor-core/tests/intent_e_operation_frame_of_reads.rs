@@ -143,6 +143,36 @@ fn two_copies_share_one_arc_and_a_third_builds_nothing() {
     }
 }
 
+/// **The counter counts** (the positive control of
+/// [`two_copies_share_one_arc_and_a_third_builds_nothing`]): a union of
+/// a block and a copy of it moved by values reads the copy into the
+/// block's frame through `read_in`, and that read is a rigid map the
+/// counter sees. A counter that never counted would pass the row above
+/// by counting nothing.
+#[test]
+fn a_union_over_a_moved_copy_counts_its_rigid_map() {
+    let doc = ProfileDoc::empty(DocumentId::derive("e-counter"), Tol::witness());
+    let (doc, source) = block(doc);
+    let (doc, copy) = in_world(
+        doc,
+        source,
+        &editor_core::Frame::translation([0.5, 0.25, 0.0]),
+    );
+    let (doc, union) = fixture::union_over(doc, &[source, copy]);
+    let before = EvalCounters::on_this_thread();
+    let ev = run(&doc, None);
+    let counted = EvalCounters::on_this_thread().since(before);
+    assert!(
+        ev.value(union).is_some(),
+        "the union builds: {:?}",
+        ev.node_error(union)
+    );
+    assert!(
+        counted.rigid_maps > 0,
+        "the union reads its moved member through one rigid map: {counted:?}"
+    );
+}
+
 /// **The second computing frame**: a turn by an irrational angle about
 /// an irrational axis, then a translation off every axis.
 fn twist() -> ComputingTwist {

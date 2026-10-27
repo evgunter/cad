@@ -1813,9 +1813,12 @@ mod pattern_tests {
         (body, t)
     }
 
-    /// The pattern's instance bodies for a master and a z-step —
-    /// `wire_pattern`'s own shape: instance 0 verbatim, the rest
-    /// through the key-stable placement door.
+    /// The pattern's instance bodies for a master and a z-step, each
+    /// built apart where it stands: instance 0 verbatim, the rest moved
+    /// by the key-stable rigid map (`topo::transform_rigid`), which
+    /// keeps every key these rows read. (`wire_pattern` itself builds
+    /// none of these: an instance shares its master's body under its own
+    /// frame.)
     fn instances(master: &Body<f64>, n: i64, step: f64) -> Vec<Arc<Body<f64>>> {
         (0..n)
             .map(|i| {
