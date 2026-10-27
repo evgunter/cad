@@ -878,7 +878,10 @@ struct Names {
 ///
 /// Where whether the carrier lies on `f`'s surface is in band, the
 /// edge's faces are read against `f` first ([`walls_inside`]): the
-/// reading matters only where both go into `f`'s material.
+/// reading matters only where both go into `f`'s material. Where they
+/// leave the line on opposite sides of `f`, the edge lying in `f` would
+/// be the kernel defect [`EdgeInFaceGap::Crossed`], so it does not lie
+/// there.
 ///
 /// # Errors
 ///
@@ -887,7 +890,7 @@ struct Names {
 /// crossing names the pair; or where whether the carrier lies on `f`'s
 /// surface is in band, both the edge's faces go into `f`'s material and
 /// something other than a crossing names the pair. [`walls_inside`]'s
-/// refusals, where it reads the faces.
+/// refusals but `Crossed`, where it reads the faces.
 fn holding<T: Decide>(
     body: &Body<T>,
     named: &[&Contact],
@@ -914,9 +917,14 @@ fn holding<T: Decide>(
         // its faces go into the face's material: where they do not, the
         // parting is not asked whatever the answer.
         Err(read) => {
-            return match walls_inside(body, e, f, band)? {
-                Some(_) => unplaced(read),
-                None => Ok(None),
+            return match walls_inside(body, e, f, band) {
+                Ok(Some(_)) => unplaced(read),
+                Ok(None)
+                | Err(BooleanError::EdgeInFace {
+                    gap: EdgeInFaceGap::Crossed,
+                    ..
+                }) => Ok(None),
+                Err(other) => Err(other),
             };
         }
     }
@@ -1146,19 +1154,31 @@ fn walls_inside<T: Decide>(
         .carrier()
         .deriv((t0 + t1) * T::from_f64(0.5))
         .normalize();
-    let normal_at =
-        |face: FaceKey| match crate::face_normal::face_outward_normal_at(body, face, mid, band) {
-            Ok(Some(n)) => Ok(n.vec()),
-            Ok(None) => Err(desync()),
-            Err(crate::face_normal::NormalAtError::Escalated { decision, diag }) => {
-                Err(BooleanError::Escalated {
-                    decision: BooleanDecision::of_normal(decision),
-                    diag,
-                })
-            }
-            Err(_) => Err(refused(EdgeInFaceGap::NoNormal)),
-        };
-    let floor = normal_at(f)?;
+    let normal = |read: Result<
+        Option<geom_brep::OutwardNormal<T>>,
+        crate::face_normal::NormalAtError,
+    >| match read {
+        Ok(Some(n)) => Ok(n.vec()),
+        Ok(None) => Err(desync()),
+        Err(crate::face_normal::NormalAtError::Escalated { decision, diag }) => {
+            Err(BooleanError::Escalated {
+                decision: BooleanDecision::of_normal(decision),
+                diag,
+            })
+        }
+        Err(_) => Err(refused(EdgeInFaceGap::NoNormal)),
+    };
+    let normal_at = |face: FaceKey| {
+        normal(crate::face_normal::face_outward_normal_at(
+            body, face, mid, band,
+        ))
+    };
+    // The edge is read as lying on the floor's surface, or within the
+    // band of it where `holding` asks whether that reading matters, so
+    // its midpoint's own on-surface reading is that same question.
+    let floor = normal(crate::face_normal::face_outward_normal_near(
+        body, f, mid, band,
+    ))?;
     let floor_flat =
         super::sectors::FaceShape::of_face(body, f, "a face an edge lies in lost its carrier")?
             == super::sectors::FaceShape::Plane;

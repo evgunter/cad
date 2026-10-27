@@ -323,6 +323,39 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
     }
 }
 
+/// [`face_outward_normal_at`], for a point `p` its caller already reads
+/// as lying on the face's surface, or within the band of it: where the
+/// door's own on-surface reading lands in the band, the chart's
+/// gradient at `p`, made unit and folded with the face's sense, is the
+/// normal to first order in `p`'s offset, which is no larger than the
+/// band. The caller owns the reading that `p` lies on the surface, and
+/// raises it where it is in band and the answer matters.
+///
+/// # Errors
+///
+/// As [`face_outward_normal_at`], less its on-surface escalation.
+pub(crate) fn face_outward_normal_near<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    p: Point3<T>,
+    band: Band,
+) -> Result<Option<OutwardNormal<T>>, NormalAtError> {
+    match face_outward_normal_at(body, face, p, band) {
+        Err(NormalAtError::Escalated {
+            decision: NormalDecision::OnSurface,
+            ..
+        }) => {
+            let Some(f) = body.get_face(face) else {
+                return Ok(None);
+            };
+            let surface = body.face_surface_linked(face, f);
+            let grad = geom_brep::implicit_gradient(surface, p).normalize();
+            Ok(Some(OutwardNormal::from_chart(grad, f.sense)))
+        }
+        read => read,
+    }
+}
+
 /// The nappe a cone face's points are certified on: the face's own
 /// ([`crate::offset_nappe::face_nappe`]) where its corners decide it,
 /// and the double cone where they reach the apex's height, as a full

@@ -94,9 +94,16 @@ the edge's midpoint, so it carries over.
   `Curved` before it is divided.
 - An in-band reading of whether the edge's carrier lies on the face is
   raised only where both its faces go into the face's material
-  (`walls_inside`, whose own errors `slit::holding` raises), and a face
-  only a crossing record names is not asked where its reading is in
-  band.
+  (`walls_inside`, whose own errors `slit::holding` raises, but
+  `Crossed`: faces leaving on opposite sides say the edge does not lie
+  there), and a face only a crossing record names is not asked where
+  its reading is in band. `walls_inside` reads the face's normal at the
+  edge's midpoint through `face_normal::face_outward_normal_near`,
+  which reads the chart's gradient where the point's own on-surface
+  reading is in band, the question `slit::holding` already asks of the
+  carrier (`bisector_nodes::the_near_node_poses_at_the_witness_band`,
+  A's cap at δ = 1e-4: a rim arc `2δ` long about `δ²/2` off the other
+  rod's wall, whose faces leave it on opposite sides).
 - Not read: an edge lying in a torus or spline face
   (`work/cleave/the-parting-reads-no-edge-lying-in-a-torus-or-spline-face.md`),
   and a closed edge
