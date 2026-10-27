@@ -314,3 +314,23 @@ PR 5568's fix pass.
   - **Directory form.** k-lint's `MINT_SOURCES`, the census `HOLDERS` and the ci.yml trigger now take `props/quad/` as a directory. `CERT_IMPORTERS` stays an exact list.
   - **Docs.** The cylinder prose moved to `cylinder.rs`, and the test-only resolution is renamed `REPORTING_RESOLUTION_FACTOR`.
   - **Filed:** `the-face-extent-gate-is-spelled-twice-under-two-predicate-names` (P4). — (QUAD C3 lane)
+
+## 2026-10-27: P0 and P1 complete
+
+- **Measure door** (DESIGN.md `[tolerance.measure]`, ratified on PR 5574) is complete:
+  - unit A, PR 5589;
+  - unit B, PR 5628;
+  - unit C, PR 5741, which went through a FULL review with a MAJOR: `HeldCertificate` certified a twin body. The fix makes the body and certificate inseparable, as `CertifiedBody`.
+- **Other P1s:**
+  - patch doors take `PatchNet` (5611);
+  - integral midpoint (5598);
+  - endpoint census (5809), which also fixes an unsafe `deciding_walk` read in B;
+  - swept-circle sign, closed after re-measure (5816);
+  - C3 splits `props/quad.rs` into `props/quad/` (5815).
+- **Main reds owned or routed:** 5584, 5588, 5609, 5640, 5818, and 5824 (triage: two QUAD-caused reds fixed, the rest filed with their owners).
+- **Ev's rulings this stretch:**
+  - Rust and Python names never drift relative to each other (2026-10-26);
+  - unit B merged over main's INTENT python red rather than wait (2026-10-24);
+  - P2 and below only where context makes it easy (2026-10-27).
+- **Practice:** lanes and reviews ran as cloud sessions after three local container restarts. A cloud session given a short sha never starts; always pass a branch or a full sha.
+- **Next:** a sweep of P2–P4 rows the door dissolved (`quad/sweep-dissolved-rows`). What remains is ordinary P2–P4 work.
