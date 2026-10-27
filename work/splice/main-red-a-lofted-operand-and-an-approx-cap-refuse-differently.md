@@ -84,5 +84,5 @@ row at all three ε:
 ## Closed
 
 The m5_s11 half and the Approx cap's default-ε half were fixed by
-PR 5814. The ε 1e-6 half is fixed by the PR that carries this section
+PR 5814. The ε 1e-6 half is fixed by PR 5837
 (`splice/eps-cap-probe`).
