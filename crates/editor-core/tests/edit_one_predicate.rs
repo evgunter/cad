@@ -614,6 +614,7 @@ fn a_constraint_on_a_non_placement_is_refused_at_the_edit_door() {
     let on_the_world = Mate {
         on: cap.clone(),
         to: cap,
+        orient: editor_core::Orientation::IDENTITY,
     };
     match apply(
         &doc,

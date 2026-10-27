@@ -8,7 +8,7 @@ area: kernel
 prefix: isotail/
 tag: (ISOTAIL orchestrator)
 paths: [crates/geom-brep/src/edge_nurbs.rs]
-keep_out: [opened 2026-10-23 by ISO's priority-seam cut (ISO measured 48 budget points against 30 - work/README.md Track size) and holding ISO's own remaining rows since the 2026-10-26 tracker sweep merged ISO back in (ISO had closed every P0 and P1 row and kept four) - the rows moved by mv with ids and bodies unchanged. Shared ground is expected (Ev in chat 2026-09-20) - crates/geom-brep/src/edge_nurbs.rs is shared with SELECT - QUAD owns props/quad.rs and the trimmed lane's inner-rule row edits it by announced seam - run scripts/work.py territory on your branch and announce the seam on the other program's log]
+keep_out: [opened 2026-10-23 by ISO's priority-seam cut (ISO measured 48 budget points against 30 - work/README.md Track size) and holding ISO's own remaining rows since the 2026-10-26 tracker sweep merged ISO back in (ISO had closed every P0 and P1 row and kept four) - the rows moved by mv with ids and bodies unchanged. Shared ground is expected (Ev in chat 2026-09-20) - crates/geom-brep/src/edge_nurbs.rs is shared with SELECT - QUAD owns props/quad/ and the trimmed lane's inner-rule row edits it by announced seam - run scripts/work.py territory on your branch and announce the seam on the other program's log]
 ---
 
 **The trimmed and rational lane, after its P0 and P1 rows closed.**

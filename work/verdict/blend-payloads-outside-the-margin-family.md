@@ -89,7 +89,7 @@ Live instance, and it says so itself:
 
 Second, weaker instance:
 
-- `crates/geom-brep/src/props/quad.rs:3656` — `slack: f64`, a
+- `crates/geom-brep/src/props/quad/` — `slack: f64`, a
   tolerance a test-support row carries. **PROPS' ground.** Listed for
   the census rather than as a defect: it is a threshold handed in, not
   a reading taken.

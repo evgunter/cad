@@ -2,10 +2,13 @@
 id: main-red-the-pseudomanifold-gate-door-is-off-the-tier1-mutation-roster
 kind: issue
 title: Main red: Certifier::validate_pseudomanifold is a public mutation path off the tier-1 roster
-status: open
+status: closed
 opened: 2026-10-26
 priority: P1
 cost: E
+closed: 2026-10-27
+pr: 5824
+branch: quad/main-red-triage-1027
 ---
 
 **Main red.** Found by the CLEAVE lane on `cleave/flush-partners-at-a-slit-build`
@@ -33,3 +36,7 @@ The door declares the tier-1 postcondition, or goes on the roster's
 allowlist with the argument for why tier 1 survives it, and the roster
 test is green on main again.
 
+
+## Closed
+
+PR 5824. `validate_pseudomanifold` is on the roster's `ALLOWED` list. The certifier holds its body by shared reference and writes only the certificate it keeps, so no arena is written. The roster row and `the_two_door_tables_cover_the_same_surface` are green.

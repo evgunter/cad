@@ -9,11 +9,11 @@ prefix: quad/
 tag: (QUAD orchestrator)
 ab_band: 5700-5799
 budget: 45
-paths: [crates/geom-brep/src/props/quad.rs]
-keep_out: [CUT FROM PROPS 2026-09-20 with Ev's agreement in chat — PROPS keeps the closed-form flux arms in crates/geom-brep/src/props/curved.rs and props/mod.rs, this program takes quad.rs and the quadrature half of the refusals those two files share; PropsError and its QuadratureBudget variant live in props/mod.rs which is PROPS' file, so a change to the enum is an announced seam either way and the budget item says so; SHARED GROUND IS EXPECTED here and is not a conflict (Ev, in chat, 2026-09-20) — what the two programs owe each other is awareness when a lane is live on the same file, which the per-branch territory check and the announced-seam convention carry]
+paths: [crates/geom-brep/src/props/quad/*]
+keep_out: [CUT FROM PROPS 2026-09-20 with Ev's agreement in chat — PROPS keeps the closed-form flux arms in crates/geom-brep/src/props/curved.rs and props/mod.rs, this program takes props/quad/ and the quadrature half of the refusals those two files share; PropsError and its QuadratureBudget variant live in props/mod.rs which is PROPS' file, so a change to the enum is an announced seam either way and the budget item says so; SHARED GROUND IS EXPECTED here and is not a conflict (Ev, in chat, 2026-09-20) — what the two programs owe each other is awareness when a lane is live on the same file, which the per-branch territory check and the announced-seam convention carry]
 ---
 
-The quadrature lane as its own program: `props/quad.rs`'s four
+The quadrature lane as its own program: `props/quad/`'s four
 engines, the convergence block they triplicate, the budget that fires
 from six sites in three lanes under three round budgets, and the
 rounds dial that is a ruling for Ev. Cut from PROPS on 2026-09-20

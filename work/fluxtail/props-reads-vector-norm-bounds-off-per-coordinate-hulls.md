@@ -27,7 +27,7 @@ shape is here:
   coordinate's second-difference net over the WHOLE domain, squared and
   summed. This is exactly the shape the tensor composite had, and the
   three maxima can come from different control points.
-- `rational_patch_face` (`crates/geom-brep/src/props/quad.rs`): the
+- `rational_patch_face` (`crates/geom-brep/src/props/quad/rational.rs`): the
   area cell's `g_hull` and the `pad_d` pads through `norm_hi`, each
   `sqrt_enclosure` of the three channel squares of a bracketed
   cross-product vector.
@@ -43,7 +43,7 @@ coefficient norms.
 **Inferred from the code, not reproduced.** The same fold, through
 `norm_hi` or a hand-written `√(Σ cᵢ²)` over a cell's bracketed
 vectors, at sites the list above does not name, all in
-`crates/geom-brep/src/props/quad.rs`:
+`crates/geom-brep/src/props/quad/`:
 
 - `nurbs_patch_face_rounds`: the area cell's `g_u`, `g_v` (`norm_hi`
   of the `∂(S_u×S_v)` boxes) and `g_hull`.
@@ -67,9 +67,9 @@ bound from the vector coefficients' norms.
 
 (FLUX orchestrator) FLUX measured 125.5 budget points against 30 and was cut on its priority seam: FLUX kept the curved closed-form arms. FLUXTAIL collects the curved arms' numeric honesty rows: rim levels, chord lengths, span folds and bounds that cancel, drop a refusal or depend on the frame, under FLUX's closed forms. The id and the body above are unchanged; the move may have set `priority`, `cost` or `status` in the header.
 
-## The quad.rs sites are carried by QUAD (2026-10-21)
+## The props/quad/ sites are carried by QUAD (2026-10-21)
 
-(QUAD orchestrator) The `props/quad.rs` sites above (`rational_patch_face`,
+(QUAD orchestrator) The `props/quad/rational.rs` sites above (`rational_patch_face`,
 `trimmed_patch_face_rounds`, `nurbs_patch_face_rounds`, `area_cell`) are
 the same sites as `work/quad/quad-area-pads-read-the-cross-norm-off-per-coordinate-boxes`,
 which reads them against DESIGN.md D4 ¶2 and lists the L1 folds as well.

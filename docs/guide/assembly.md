@@ -181,10 +181,15 @@ resting on each other carry a flip on the target
 A mate holds no number. What the bundle's mates leave free — a plane
 mate's two slides and its spin, an axis mate's slide along it and its
 spin — is set by a **value**, `MateValue(Coord.slide("x"), by)`, which
-names no mate. A value is charted on the target space's own axes,
-swung by the shortest turn onto the one direction the mates fix, so
-zero says the copy's own coordinates agree with the space's as far as
-the mates allow. A standoff is not a value: it is the target plane
+names no mate; the spin beside a mate is `Coord.spin()`, with no
+axis, and it turns about the target's own direction (a face's outward
+normal) whichever side carries the rest's flip, so a positive spin on a
+part resting on a floor turns it counter-clockwise seen from above. A value is charted on the target space's own axes, carried by
+the least turn from where the mate's orientation (`Mate(...,
+orient=Orientation("+x", "-z"))`, the identity unless written) puts
+the copy's mated direction onto the one direction the mates fix, so
+zero says the copy's own coordinates agree with the space's, up to the
+orientation, as far as the mates allow. A standoff is not a value: it is the target plane
 slid along its own normal (`PoseDef.slide`).
 
 A bundle is written whole. `Doc.set_constraints(placement, [mate,
@@ -313,7 +318,7 @@ def rest(placement, on, to, slides):
         Mate(PoseDef.plane(*on), PoseDef.flip(PoseDef.plane(*to))),
         MateValue(Coord.slide("x"), slides[0] * m),
         MateValue(Coord.slide("y"), slides[1] * m),
-        MateValue(Coord.spin("z"), 0),
+        MateValue(Coord.spin(), 0),
     ])
     return mate
 
@@ -325,13 +330,13 @@ def rest(placement, on, to, slides):
 # The values put each post's top centre under its seat on the shelf,
 # flush with the shelf's ends. A value charts on the target space —
 # here the world — never on the body its copy rests on: the shelf's
-# slides are where its origin stands on the world's x and y, and the
-# far post's on the world's x and its -y, the world's axes swung onto
-# the mated normal.
+# slides are where its origin stands on the world's x and y, and so
+# are the far post's: each mated direction is where the identity
+# orientation puts the copy's face, so the least turn is the identity.
 half = POST_SECTION / 2
 mate_a = rest(shelf_i, (shelf_i, shelf_underside), (post_a, a_top), (0.0, inset + half - SHELF_DEPTH / 2))
 mate_b = rest(post_b, (post_b, b_top), (shelf_i, shelf_underside),
-              (SHELF_LENGTH - 2 * half, half - SHELF_DEPTH / 2))
+              (SHELF_LENGTH - 2 * half, SHELF_DEPTH / 2 - half))
 
 # A constraint is addressed by the placement that holds it. The near
 # post's bundle is its values alone, no mate; each other bundle is the
@@ -709,7 +714,7 @@ def rest(doc, placement, on, to, slides):
         Mate(PoseDef.plane(*on), PoseDef.flip(PoseDef.plane(*to))),
         MateValue(Coord.slide("x"), slides[0] * m),
         MateValue(Coord.slide("y"), slides[1] * m),
-        MateValue(Coord.spin("z"), 0),
+        MateValue(Coord.spin(), 0),
     ])
     return mate
 
@@ -738,7 +743,7 @@ def bench():
     m_a = rest(doc, s, underside, (a, instance_cap(ev, a, CapEnd.End)),
                (0.0, INSET + HALF - SHELF_DEPTH / 2))
     m_b = rest(doc, b, (b, instance_cap(ev, b, CapEnd.End)), underside,
-               (SHELF_LENGTH - 2 * HALF, HALF - SHELF_DEPTH / 2))
+               (SHELF_LENGTH - 2 * HALF, SHELF_DEPTH / 2 - HALF))
     # What the stand delivers: the three copies side by side.
     doc.set_product(doc.assemble([a, s, b]))
     return doc, (a, s, b), (m_a, m_b)
@@ -882,8 +887,8 @@ def post_under_shelf(doc, post_i, shelf_i, values=True):
     )]
     if values:
         bundle += [MateValue(Coord.slide("x"), 0 * m),
-                   MateValue(Coord.slide("y"), (HALF - SHELF_DEPTH / 2) * m),
-                   MateValue(Coord.spin("z"), 0)]
+                   MateValue(Coord.slide("y"), (SHELF_DEPTH / 2 - HALF) * m),
+                   MateValue(Coord.spin(), 0)]
     mate, *_ = doc.set_constraints(post_i, bundle)
     return mate
 

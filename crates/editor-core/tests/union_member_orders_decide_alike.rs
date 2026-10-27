@@ -5,8 +5,8 @@
 //!
 //! The pairwise pass judges every member pair in member space, and the
 //! fold reads one verdict per carrier pair through member lineage and
-//! re-glues none (`eval::wire`'s `debug_assert_given` holds that at the
-//! verdict site in every debug run). So each union below is
+//! re-glues none (`topo::nary_boolean` holds that at the verdict site
+//! in every debug run). So each union below is
 //! evaluated under every order of its members, a seeded sample of
 //! [`SAMPLE`] orders where `n!` is larger, and these are equal across
 //! the orders:
