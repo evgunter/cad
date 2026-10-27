@@ -1,10 +1,10 @@
 ---
 id: m-tier-miss-at-dr-353-a-hole-a-period-from-its-outer-loop-read-in
 kind: ruling
-title: "Short readout: M-tier miss at DR-353 (PR 5805), a holdout pair's tallied MAJOR: on a closed chart, a hole lifted one period from its outer loop read In, and the other review did not raise it"
-status: open
-needs_ev: true
+title: Short readout: M-tier miss at DR-353 (PR 5805), a holdout pair's tallied MAJOR: on a closed chart, a hole lifted one period from its outer loop read In, and the other review did not raise it
+status: closed
 opened: 2026-10-27
+closed: 2026-10-27
 ---
 
 **An FYI with no options.** Dual-review protocol rule 9 requires a short
@@ -42,3 +42,7 @@ readout at every M-tier miss. Acknowledging it closes this item.
 - **The count.** The foot of `docs/DUAL-REVIEW-LOG.md` gives the running
   tally and the M-tier misses since the last full readout. This is the
   fourth since readout 5, after DR-185, DR-208 and DR-321.
+
+## Closed (2026-10-27, PR 5821)
+
+Ev acknowledged the readout ("thanks for letting me know!"). Nothing further is owed.
