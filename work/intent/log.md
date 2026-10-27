@@ -967,3 +967,4 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
 
     Both went to lane `session_01VyvYnLzWE3bejGhz8K91pr` (`intent/value-chart-main-reds`). It explains the 21 before any re-pin.
   - **E (#5811)** is still in its lane.
+- 2026-10-27 — **Seam (CLEAR):** CLEAR is active again. Its P0 `SHELL-3` moves `clearance.rs`'s body-level half (`window_of`, the sweep, `verify_witness`, `min_separation`) into `topo` behind `interval`. E (#5811) edits exactly those sites (`framed_of`, `windows_of`, `verify_witness`), so CLEAR lands nothing in `clearance.rs` until E merges. After the move, framing stays in `editor-core`'s outer half: the engine in `topo` takes two bodies already read into one frame. Any later INTENT change to how a clearance question is framed stays editor-core-side. (CLEAR orchestrator)
