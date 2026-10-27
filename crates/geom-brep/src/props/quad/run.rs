@@ -524,12 +524,11 @@ mod tests {
     use super::*;
     use geom_core::Bounds;
 
-    use super::super::cells::AXIS_INIT_PIECES;
-    use super::super::cylinder::W_CYLINDER;
-    use super::super::patch::W_INTEGRAL_COMPOSITE;
-    use super::super::rational::{W_RATIONAL_COMPOSITE, W_RATIONAL_EXACT_V};
-    use super::super::trimmed::{IMAGE_INIT_PIECES, w_trimmed, w_trimmed_composite};
+    use super::super::net::PatchRect;
+    use super::super::trimmed::{Curvature, OuterRule};
+    use super::super::{cylinder, patch, rational};
     use crate::props::bracket::pt;
+    use crate::props::spiric;
 
     /// A round of flux width `w` about zero over a unit area.
     fn of_width(w: f64) -> FaceCutBounds {
@@ -555,58 +554,61 @@ mod tests {
     #[test]
     fn the_work_wall_buys_each_lane_its_measured_rounds() {
         type Cost<'a> = &'a dyn Fn(usize) -> usize;
-        let square = |w: usize| move |r: usize| w * (AXIS_INIT_PIECES << r).pow(2);
+        let unit = PatchRect::new((0.0, 1.0, 0.0, 1.0)).unwrap();
+        let bare: (&[f64], &[f64]) = (&[], &[]);
+        let exact = OuterRule::Exact(Vec::new());
+        let composite = OuterRule::Composite(Box::new(Curvature::of(None, None, None)));
         let rows: [(&str, Cost<'_>, usize); 12] = [
-            ("rational composite", &square(W_RATIONAL_COMPOSITE), 7),
-            ("integral composite", &square(W_INTEGRAL_COMPOSITE), 6),
             (
-                "rational exact-v, 8 v spans",
-                &|r| W_RATIONAL_EXACT_V * 8 * (AXIS_INIT_PIECES << r),
+                "rational composite",
+                &|r| rational::round_cost(unit, bare, false, r),
+                7,
+            ),
+            (
+                "integral composite",
+                &|r| patch::composite_round_cost(unit, bare, r),
+                6,
+            ),
+            (
+                "rational exact-v, its 8 v block cells",
+                &|r| rational::round_cost(unit, bare, true, r),
                 10,
             ),
-            (
-                "cylinder, 4 edges",
-                &|r| W_CYLINDER * 4 * (EDGE_INIT_PIECES << r),
-                15,
-            ),
-            (
-                "spiric, 1 edge",
-                &|r| crate::props::spiric::W_SPIRIC * (EDGE_INIT_PIECES << r),
-                13,
-            ),
+            ("cylinder, 4 edges", &|r| cylinder::round_cost(4, r), 15),
+            ("spiric, 1 edge", &|r| spiric::round_cost(1, 0, r), 13),
             (
                 "rational rim, degree 2, 4 spans (the vase's cap)",
-                &|r| crate::props::spiric::w_rational(2) * 4 * (EDGE_INIT_PIECES << r),
+                &|r| spiric::round_cost(0, spiric::w_rational(2) * 4, r),
                 9,
             ),
             (
                 "rational rim, degree 7, 1 span",
-                &|r| crate::props::spiric::w_rational(7) * (EDGE_INIT_PIECES << r),
+                &|r| spiric::round_cost(0, spiric::w_rational(7), r),
                 9,
             ),
             (
                 "trimmed bilinear chart, 1 image and 2 iso chords",
-                &|r| w_trimmed(1, 1) * ((IMAGE_INIT_PIECES << r) + 2),
+                &|r| exact.round_cost((1, 1), 1, 2, r),
                 10,
             ),
             (
                 "trimmed biquadratic chart, 1 image and 2 iso chords",
-                &|r| w_trimmed(2, 2) * ((IMAGE_INIT_PIECES << r) + 2),
+                &|r| exact.round_cost((2, 2), 1, 2, r),
                 7,
             ),
             (
                 "trimmed bicubic composite, 1 image and 3 iso chords",
-                &|r| w_trimmed_composite(3, 3) * 4 * (IMAGE_INIT_PIECES << r),
+                &|r| composite.round_cost((3, 3), 1, 3, r),
                 6,
             ),
             (
                 "trimmed (3, 2) composite, 3 iso chords",
-                &|r| w_trimmed_composite(3, 2) * 3 * (IMAGE_INIT_PIECES << r),
+                &|r| composite.round_cost((3, 2), 0, 3, r),
                 8,
             ),
             (
                 "trimmed (5, 2) composite at the fallback's floor, 3 iso chords",
-                &|r| w_trimmed_composite(5, 2) * 3 * (IMAGE_INIT_PIECES << r),
+                &|r| composite.round_cost((5, 2), 0, 3, r),
                 5,
             ),
         ];
@@ -620,7 +622,8 @@ mod tests {
     /// which the window entering later spends before its first round.
     #[test]
     fn a_window_stops_where_the_whole_schedule_does() {
-        let cost = |r: usize| W_RATIONAL_COMPOSITE * (AXIS_INIT_PIECES << r).pow(2);
+        let unit = PatchRect::new((0.0, 1.0, 0.0, 1.0)).unwrap();
+        let cost = |r: usize| rational::round_cost(unit, (&[], &[]), false, r);
         for first in 0..=7 {
             let mut run = Run::enter(RoundWindow::at(first), &cost);
             let want = if first == 7 {

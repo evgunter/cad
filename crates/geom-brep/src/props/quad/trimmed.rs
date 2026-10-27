@@ -42,7 +42,7 @@ use crate::props::{PropsCheck, PropsError};
 /// | (1, 2) | 3.905 | 4 300 |
 /// | (2, 2) | 6.064 | 6 700 |
 /// | (1, 3) | 10.59 | 11 700 |
-pub(super) const fn w_trimmed(p_u: usize, p_v: usize) -> usize {
+const fn w_trimmed(p_u: usize, p_v: usize) -> usize {
     match (p_u, p_v) {
         (1, 1) => 520,
         (2, 1) => 1_210,
@@ -83,7 +83,7 @@ pub(super) const fn w_trimmed(p_u: usize, p_v: usize) -> usize {
 /// | (2, 4) | 2.351 | 3 900 |
 /// | (3, 4) | 3.378 | 5 610 |
 /// | (4, 4) | 4.207 | 6 980 |
-pub(super) const fn w_trimmed_composite(p_u: usize, p_v: usize) -> usize {
+const fn w_trimmed_composite(p_u: usize, p_v: usize) -> usize {
     match (p_u, p_v) {
         (4, 1) => 700,
         (5, 1) => 710,
@@ -105,7 +105,7 @@ pub(super) const fn w_trimmed_composite(p_u: usize, p_v: usize) -> usize {
 
 /// Pieces per `General` image at round 0, doubling per round — the
 /// lever of the lune pad, which is `O(h²)` in the piece length.
-pub(super) const IMAGE_INIT_PIECES: usize = AXIS_INIT_PIECES;
+const IMAGE_INIT_PIECES: usize = AXIS_INIT_PIECES;
 /// Bisections a piece whose monotonicity is not definite is refined by
 /// before the lane refuses it (fixed, D9 — never data-dependent). Each
 /// bisection halves the chord, so a piece that is a graph over its
@@ -229,7 +229,7 @@ pub struct TrimChord {
 /// crosses a `v`-knot) is exact structure, and the distance from the
 /// bracket midpoint to the true image endpoint is repaid by the VERTEX
 /// PAD, never assumed away.
-pub(super) fn vertex(p: RPt2) -> (f64, f64) {
+fn vertex(p: RPt2) -> (f64, f64) {
     (mid(p.0), mid(p.1))
 }
 
@@ -644,7 +644,7 @@ fn trim_cells<T: Decide>(
 
 /// The distinct breakpoints of a knot vector, ascending — the cell
 /// boundaries of every rule below.
-pub(super) fn breakpoints(kv: &KnotVector) -> Vec<f64> {
+fn breakpoints(kv: &KnotVector) -> Vec<f64> {
     let mut b: Vec<f64> = kv.knots().to_vec();
     b.sort_by(f64::total_cmp);
     b.dedup();
@@ -917,7 +917,7 @@ fn column_integral(
 /// integrand's: the chart's second partials, and the two third partials
 /// `f_uu` needs, derived here so that every `None` is [`PatchGrid`]'s
 /// own "identically zero away from knots" and never "not built".
-struct Curvature<'g> {
+pub(super) struct Curvature<'g> {
     suu: Option<&'g PatchGrid>,
     suv: Option<&'g PatchGrid>,
     svv: Option<&'g PatchGrid>,
@@ -926,7 +926,7 @@ struct Curvature<'g> {
 }
 
 impl<'g> Curvature<'g> {
-    fn of(
+    pub(super) fn of(
         suu: Option<&'g PatchGrid>,
         suv: Option<&'g PatchGrid>,
         svv: Option<&'g PatchGrid>,
@@ -944,7 +944,7 @@ impl<'g> Curvature<'g> {
 /// **The trimmed lane's outer `u` rule**, chosen once at face entry by
 /// whether the exact rule's weights exist for the chord integrand's
 /// degree `3p_u + 3p_v − 1`.
-enum OuterRule<'g> {
+pub(super) enum OuterRule<'g> {
     /// Closed Newton–Cotes weights of that order: exact on a piece.
     Exact(Vec<Interval>),
     /// The composite midpoint rule with its certified remainder.
@@ -968,6 +968,21 @@ impl OuterRule<'_> {
             Self::Exact(_) => 1,
             Self::Composite(_) => pieces,
         }
+    }
+
+    /// The work of round `round` on a chart of bidegree `(p_u, p_v)`
+    /// whose loop has `images` `General` images and `isos` iso chords:
+    /// a round's blocks per image, and an iso chord's pieces, at the
+    /// rule's weight.
+    pub(super) fn round_cost(
+        &self,
+        (p_u, p_v): (usize, usize),
+        images: usize,
+        isos: usize,
+        round: usize,
+    ) -> usize {
+        let pieces = IMAGE_INIT_PIECES << round;
+        self.weight(p_u, p_v) * (images * pieces + isos * self.iso_pieces(pieces))
     }
 
     fn crossing_cut(&self) -> CrossingCut {
@@ -1557,17 +1572,8 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
     // adds any. `cost` does not count the pieces a chord's knot and
     // crossing cuts add, in either rule (the exact rule's cells have
     // always been counted so).
-    let cost = |round: usize| {
-        let pieces = IMAGE_INIT_PIECES << round;
-        let per_edge = |c: &TrimChord| {
-            if c.piece.is_some() {
-                pieces
-            } else {
-                rule.iso_pieces(pieces)
-            }
-        };
-        rule.weight(p_u, p_v) * chords.iter().map(per_edge).sum::<usize>()
-    };
+    let images = chords.iter().filter(|c| c.piece.is_some()).count();
+    let cost = |round: usize| rule.round_cost((p_u, p_v), images, chords.len() - images, round);
     let mut run = Run::enter(window, &cost);
     let mut round = run.first();
     let mut pieces = IMAGE_INIT_PIECES << round;

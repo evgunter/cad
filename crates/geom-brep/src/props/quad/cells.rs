@@ -392,8 +392,31 @@ pub(super) fn advance_block(b: &mut usize, cell_lo: f64, edges: &[f64]) {
 /// the whole v extent being integrated exactly per column — and the
 /// round's `pieces` otherwise. One home for the loop's cut list and
 /// its cost.
-pub(super) fn v_pieces(exact_v: bool, pieces: usize) -> usize {
+fn v_pieces(exact_v: bool, pieces: usize) -> usize {
     if exact_v { 1 } else { pieces }
+}
+
+/// **A rectangle lane's cut lists at `round`**, per axis: the round's
+/// `pieces` in `u`, and in `v` the same or the exact-v arm's one
+/// ([`v_pieces`]), each knot-aligned ([`knot_aligned_cuts`]). The loop
+/// cuts on them and the round's cost counts their cells.
+pub(super) fn round_cuts(
+    rect: PatchRect,
+    knots: (&[f64], &[f64]),
+    exact_v: bool,
+    round: usize,
+) -> (Vec<f64>, Vec<f64>) {
+    let (u0, u1, v0, v1) = rect.corners();
+    let pieces = AXIS_INIT_PIECES << round;
+    (
+        knot_aligned_cuts(u0, u1, pieces, knots.0),
+        knot_aligned_cuts(v0, v1, v_pieces(exact_v, pieces), knots.1),
+    )
+}
+
+/// The cells a pair of cut lists makes.
+pub(super) fn cell_count((cu, cv): &(Vec<f64>, Vec<f64>)) -> usize {
+    (cu.len() - 1) * (cv.len() - 1)
 }
 
 /// The u Taylor remainder's cell factor `h_u³·h_v/24` (module docs),

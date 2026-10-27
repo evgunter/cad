@@ -13,8 +13,8 @@ use super::area::{
     boundary_chord_perimeter_lo, debug_assert_area_gauge,
 };
 use super::cells::{
-    AXIS_INIT_PIECES, HULL_BLOCKS_PER_AXIS, MeasureCells, RefinedNet, advance_block, cell_midpoint,
-    knot_aligned_cuts, remainder_cell_u, remainder_cell_v, span_cells, v_pieces,
+    HULL_BLOCKS_PER_AXIS, MeasureCells, RefinedNet, advance_block, cell_count, cell_midpoint,
+    knot_aligned_cuts, remainder_cell_u, remainder_cell_v, round_cuts, span_cells,
 };
 use super::net::{
     Collapse, PatchGrid, PatchNet, PatchRect, RVec3, clipped_spans, grid_vec, newton_cotes_weights,
@@ -25,10 +25,10 @@ use crate::props::PropsError;
 use crate::props::bracket::{lo_or_refuse, pt};
 
 /// Weight of one cell of the rational lane's composite arm: the unit's ten.
-pub(super) const W_RATIONAL_COMPOSITE: usize = 10;
+const W_RATIONAL_COMPOSITE: usize = 10;
 /// Weight of one cell of the rational lane's exact-v arm (a u cell
 /// against one v span, integrated exactly).
-pub(super) const W_RATIONAL_EXACT_V: usize = 58;
+const W_RATIONAL_EXACT_V: usize = 58;
 
 /// The derivative ladder of one polynomial (B-spline) net, built once.
 ///
@@ -187,6 +187,22 @@ impl Ladder {
     }
 }
 
+/// The work of the lane's round `round` on `rect`: its cells
+/// ([`round_cuts`]) at the weight of the arm `exact_v` picks.
+pub(super) fn round_cost(
+    rect: PatchRect,
+    knots: (&[f64], &[f64]),
+    exact_v: bool,
+    round: usize,
+) -> usize {
+    let weight = if exact_v {
+        W_RATIONAL_EXACT_V
+    } else {
+        W_RATIONAL_COMPOSITE
+    };
+    weight * cell_count(&round_cuts(rect, knots, exact_v, round))
+}
+
 /// **Certified RATIONAL patch contributions** (M8-3) — the same two
 /// numbers [`nurbs_patch_face`](super::patch::nurbs_patch_face) certifies, for a patch whose weights
 /// are not all 1.
@@ -222,7 +238,7 @@ impl Ladder {
 /// integral-lane's per-span Newton–Cotes shortcut has no rational
 /// counterpart and none is claimed. The honest deliverable is the
 /// composite midpoint enclosure over a FIXED cut schedule (D9: pieces
-/// double per round from [`AXIS_INIT_PIECES`] — the cut points are
+/// double per round from [`AXIS_INIT_PIECES`](super::cells::AXIS_INIT_PIECES) — the cut points are
 /// never data-dependent; which round the loop stops at is decided by the
 /// caller's acceptance and by the lane's floor and work wall ([`Run`]),
 /// functions of the face and the caller alone), with the two 1-D Taylor
@@ -507,22 +523,8 @@ pub(super) fn rational_patch_face<T: Decide>(
     let exact_v = nc_v.is_some();
     // The round's cut lists, and its cost: one home for the loop and
     // the work it spends.
-    let cuts = |round: usize| {
-        let pieces = AXIS_INIT_PIECES << round;
-        (
-            knot_aligned_cuts(u0, u1, pieces, knots_u),
-            knot_aligned_cuts(v0, v1, v_pieces(exact_v, pieces), knots_v),
-        )
-    };
-    let weight = if exact_v {
-        W_RATIONAL_EXACT_V
-    } else {
-        W_RATIONAL_COMPOSITE
-    };
-    let cost = |round: usize| {
-        let (cu, cv) = cuts(round);
-        weight * (cu.len() - 1) * (cv.len() - 1)
-    };
+    let cuts = |round: usize| round_cuts(rect, (knots_u, knots_v), exact_v, round);
+    let cost = |round: usize| round_cost(rect, (knots_u, knots_v), exact_v, round);
     // The hulls a cell in block `(bu, bv)` reads: its `f_uu` hull, and
     // its `f_vv` hull unless the exact-v arm carries no v remainder.
     let block_hulls = |bu: usize, bv: usize| -> (Interval, Option<Interval>) {

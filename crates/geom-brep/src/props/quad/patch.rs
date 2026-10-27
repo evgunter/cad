@@ -12,9 +12,7 @@ use super::area::{
     AREA_CELLS_PER_AXIS, AreaCell, PERIMETER_CHORDS_PER_SIDE, area_midpoint_taylor,
     boundary_chord_perimeter_lo, debug_assert_area_gauge,
 };
-use super::cells::{
-    AXIS_INIT_PIECES, cell_midpoint, knot_aligned_cuts, remainder_cell_u, remainder_cell_v,
-};
+use super::cells::{cell_count, cell_midpoint, remainder_cell_u, remainder_cell_v, round_cuts};
 use super::net::{
     Collapse, PatchGrid, PatchNet, PatchRect, clipped_spans, grid_vec, newton_cotes_weights,
     norm_hi, normal_partials, widen,
@@ -27,7 +25,7 @@ use crate::props::PropsError;
 use crate::props::bracket::pt;
 
 /// Weight of one cell of the integral patch lane's composite.
-pub(super) const W_INTEGRAL_COMPOSITE: usize = 32;
+const W_INTEGRAL_COMPOSITE: usize = 32;
 
 /// **The exact per-span lane** (the primary flux path): on each
 /// knot-span rectangle the integrand `f = S·(S_u×S_v)` is one
@@ -88,6 +86,16 @@ pub(super) fn patch_flux_exact(
     Some(flux)
 }
 
+/// The work of the composite arm's round `round` on `rect`: its cells
+/// ([`round_cuts`]) at [`W_INTEGRAL_COMPOSITE`] each.
+pub(super) fn composite_round_cost(
+    rect: PatchRect,
+    knots: (&[f64], &[f64]),
+    round: usize,
+) -> usize {
+    W_INTEGRAL_COMPOSITE * cell_count(&round_cuts(rect, knots, false, round))
+}
+
 /// **Certified NURBS-patch contributions** (M6-3 Leg C): the
 /// chart-normal volume flux `∫∫ S·(S_u×S_v) du dv` and the patch area
 /// `∫∫ |S_u×S_v| du dv` of a patch over the exact UV
@@ -106,7 +114,7 @@ pub(super) fn patch_flux_exact(
 /// ```
 ///
 /// (the `S_u·(S_u×S_uv)`-shaped triples vanish identically). Cells
-/// are cut ON the interior knots ([`knot_aligned_cuts`]), so each one
+/// are cut ON the interior knots ([`knot_aligned_cuts`](super::cells::knot_aligned_cuts)), so each one
 /// lies inside a single smooth piece and the Taylor remainder is the
 /// whole error there. The area rides the
 /// shared [`area_midpoint_taylor`] rule (midpoint + Lipschitz pad on
@@ -330,17 +338,8 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
     // run, and a cell holding an interior knot has no rule but the
     // smoothness-free hull — span-granular, and therefore a floor
     // rather than a remainder. One home for the loop and its cost.
-    let cuts = |round: usize| {
-        let pieces = AXIS_INIT_PIECES << round;
-        (
-            knot_aligned_cuts(u0, u1, pieces, knots_u),
-            knot_aligned_cuts(v0, v1, pieces, knots_v),
-        )
-    };
-    let cost = |round: usize| {
-        let (cu, cv) = cuts(round);
-        W_INTEGRAL_COMPOSITE * (cu.len() - 1) * (cv.len() - 1)
-    };
+    let cuts = |round: usize| round_cuts(rect, (knots_u, knots_v), false, round);
+    let cost = |round: usize| composite_round_cost(rect, (knots_u, knots_v), round);
     let mut run = Run::enter(window, &cost);
     let mut round = run.first();
     loop {

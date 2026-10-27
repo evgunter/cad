@@ -810,6 +810,12 @@ pub(super) const fn w_rational(degree: usize) -> usize {
     }
 }
 
+/// The work of round `round` on a face of `spirics` spiric edges and
+/// rational rims weighing `rational` in all ([`w_rational`] per span).
+pub(super) fn round_cost(spirics: usize, rational: usize, round: usize) -> usize {
+    (W_SPIRIC * spirics + rational) * (EDGE_INIT_PIECES << round)
+}
+
 /// **The certified flux and area of a spiric-bounded face** over a
 /// [`RoundWindow`] — [`super::quad`]'s schedule and stop (pieces
 /// doubling from `EDGE_INIT_PIECES`, the caller's [`Accept`], the
@@ -851,8 +857,7 @@ pub fn rim_face_rounds<T: Decide>(
         .iter()
         .map(|e| w_rational(e.degree()) * e.span_count())
         .sum();
-    let cost =
-        |round: usize| (W_SPIRIC * face.spirics.len() + rational) * (EDGE_INIT_PIECES << round);
+    let cost = |round: usize| round_cost(face.spirics.len(), rational, round);
     let mut run = Run::enter(window, &cost);
     let mut round = run.first();
     let mut pieces = EDGE_INIT_PIECES << round;

@@ -82,7 +82,12 @@ use crate::props::PropsError;
 use crate::props::bracket::{AbsEnclosure, mid, pt};
 
 /// Weight of one harmonic piece of a cylinder edge, in [`FACE_WORK_WALL`](super::run::FACE_WORK_WALL)'s unit.
-pub(super) const W_CYLINDER: usize = 3;
+const W_CYLINDER: usize = 3;
+
+/// The work of round `round` on a face of `edges` trim edges.
+pub(super) fn round_cost(edges: usize, round: usize) -> usize {
+    W_CYLINDER * edges * (EDGE_INIT_PIECES << round)
+}
 
 /// One harmonic chart channel `c₀ + c_a·cos t + c_b·sin t + c_l·t`
 /// with ring-bracketed coefficients.
@@ -306,7 +311,7 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
     let winds = loop_windings::<T>(loops, radius, band)?;
     let anchor = level_anchor(loops)?;
     let edges: usize = loops.iter().map(|l| l.len()).sum();
-    let cost = |round: usize| W_CYLINDER * edges * (EDGE_INIT_PIECES << round);
+    let cost = |round: usize| round_cost(edges, round);
     let mut run = Run::enter(window, &cost);
     let mut round = run.first();
     let mut pieces = EDGE_INIT_PIECES << round;
@@ -465,7 +470,7 @@ fn level_anchor(loops: &[&[TrimEdgeQ]]) -> Result<f64, PropsError> {
 /// (`curved::cylinder_holes`); on such a face every loop that does not
 /// wind is a hole, the first one stored included. A face with one loop
 /// decides nothing here.
-pub(super) fn require_holes_wound_against(
+fn require_holes_wound_against(
     loops: &[&[TrimEdgeQ]],
     per_loop: &[Interval],
     winds: &[bool],
