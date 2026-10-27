@@ -2,10 +2,12 @@
 id: props-converged-calls-the-enclosures-own-width-a-fit
 kind: issue
 title: geom-brep props: PropsCheck::Converged meters the quadrature enclosure's own width but routes as Unsized::Fit, not Bound
-status: open
+status: closed
 opened: 2026-10-13
 priority: P4
 cost: E
+closed: 2026-10-27
+pr: 5741
 ---
 
 
@@ -33,3 +35,11 @@ end in the file's defect ending under `Fit`.
 ## Direction
 
 Route `Converged` through `Unsized::Bound` and re-word its doc to match.
+
+## Closed
+
+Overtaken. PR 5741 (QUAD's measure door, unit C) deleted
+`PropsCheck::Converged` along with `PropsError::QuadratureBudget`: an
+unmet resolution is now a bracket with `stop` `Floor` or `Wall`, not a
+refusal, so there is no `Converged` ending left to route. `PropsCheck`
+is `Exact`, `Inventory` and `Extent` (`crates/geom-brep/src/props/mod.rs`).

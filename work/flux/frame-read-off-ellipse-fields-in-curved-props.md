@@ -4,6 +4,8 @@ kind: issue
 title: props/curved.rs spells an ellipse's semi-axis frame from Curve3::Ellipse's fields instead of Conic::semi_axis_vectors
 status: open
 opened: 2026-10-14
+priority: P3
+cost: E
 ---
 
 Found by the review of PR 5058 (`cleave/carrier-cross-one-curve`),

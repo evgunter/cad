@@ -2,10 +2,11 @@
 id: main-red-5734-moves-tilted-cut-upper-and-two-reach-backstop-rows
 kind: issue
 title: Main red (sweep slow set): PR 5734 moves tilted_cut_upper in the thread-count digest at the default eps and 1e-12, and reds two reach_volume_backstop rows at the default eps
-status: open
+status: closed
 opened: 2026-10-27
 priority: P1
 cost: M
+closed: 2026-10-27
 ---
 
 
@@ -60,3 +61,12 @@ right, re-cut the digest at all three ε and say what moved. Re-pose the
 three-arc fixture so its premise holds again, and do not loosen its
 assertion. Then find why the planted ε/100 fattening refuses, and fix it
 at its source.
+
+## Closed
+
+Split by what each half needed. The digest half is done: QUAD re-cut
+`tilted_cut_upper` at all three ε after PR 5734, and each new bracket
+holds the closed form (`work/quad/tilted-cut-upper-digest-moved-by-5734`,
+PR 5818). The two `reach_volume_backstop` rows are the same failure
+`main-red-reach-volume-backstop-rows-after-the-exact-sliver-bracket`
+carries, filed a day earlier with the same bisect, so they stay there.

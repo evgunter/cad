@@ -4,7 +4,7 @@ kind: issue
 title: an edge's extent has four per-Curve3 dispatchers and no home, so each per-site fold of a face's extent picks a different one
 status: open
 opened: 2026-10-06
-priority: P3
+priority: P1
 cost: M
 ---
 

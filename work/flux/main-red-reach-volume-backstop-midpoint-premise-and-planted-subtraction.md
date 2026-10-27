@@ -2,10 +2,11 @@
 id: main-red-reach-volume-backstop-midpoint-premise-and-planted-subtraction
 kind: issue
 title: main red: reach_volume_backstop's midpoint premise holds no more and its planted subtractions stop refusing, since 692f50942c
-status: open
+status: closed
 opened: 2026-10-27
 priority: P2
 cost: E
+closed: 2026-10-27
 ---
 
 
@@ -29,3 +30,10 @@ Red on main `be2b7a139c` and on `2f9e6f9e39`, with output identical to
 the PR's tree. Both rows were green in E1b's earlier full round on a
 tree carrying main `692f50942c`, so the move landed between
 `692f50942c` and `be2b7a139c`; not bisected.
+
+## Closed
+
+Duplicate of `main-red-reach-volume-backstop-rows-after-the-exact-sliver-bracket`:
+the same two rows and the same messages. That row's first-parent bisect
+names PR 5734 (`ee4a094e`), which lies in the window this row left
+unbisected (`692f50942c`..`be2b7a139c`). The finding lives there.

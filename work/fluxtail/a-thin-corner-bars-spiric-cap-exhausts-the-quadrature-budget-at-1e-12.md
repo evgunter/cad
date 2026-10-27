@@ -4,6 +4,8 @@ kind: issue
 title: The fat torus less a thin corner bar (w = 0.05) refuses VolumeUnmeasured QuadratureBudget at eps 1e-12 (width 2.13e-9 against target 1.02e-9 at round 13): a spiric-bounded face of P minus T
 status: open
 opened: 2026-10-13
+priority: P3
+cost: M
 ---
 
 
@@ -54,3 +56,13 @@ The Boolean no longer refuses. Unit B's volume backstop decides its inequalities
 The bodies check against the closed forms. V(P) = 7.979321e-3 and V(T) = 7.106115169. The certificate enclosures of P ∩ T and P ∖ T sum to [7.976439e-3, 7.982204e-3], and those of T ∖ P and T ∩ P sum to [7.106112287, 7.106118051].
 
 What this row describes is still open, at the number door. `mass_properties` and `SignCertificate::measure` on `T ∩ P`, `P ∩ T` and `P ∖ T` refuse `QuadratureBudget` with the same 1.551e-9 width after 7 rounds.
+
+## Update 2026-10-27: the refusal this row names is gone
+
+PR 5741 (QUAD's measure door, unit C) removed `PropsError::QuadratureBudget`.
+`mass_properties` now takes a required resolution and answers a bracket
+whose `stop` is `Floor` or `Wall` when the resolution is not met. So
+this body no longer refuses at the number door; what remains to
+establish is whether its bracket is wide or stops at `Wall`. **First
+step: re-measure on current main**, then either close the row as
+overtaken or re-title it as the width it now reads.

@@ -49,3 +49,13 @@ slow-set triage lane (branch `splice/slow-set-reds`).
 Decide, on FLUX's ground, whether the new readings are right. If they
 are, re-meter `last_round_open` and its doc and give the midpoint row
 a pair whose midpoints still differ. If they are not, fix the bracket.
+
+## Update 2026-10-27: two duplicates folded in
+
+Two later rows filed the same failure, and both closed into this one:
+`main-red-reach-volume-backstop-midpoint-premise-and-planted-subtraction`
+(PCERT E1b's suite round, PR 5797; red on `be2b7a139c` and
+`2f9e6f9e39`) and `main-red-5734-moves-tilted-cut-upper-and-two-reach-backstop-rows`
+(a RESTREAD triage lane on `9d97abd704`, the same bisect). The latter's
+third row, `tilted_cut_upper` in the thread-count digest, has since been
+re-cut by QUAD (PR 5818), so the two backstop rows are all that is left red.

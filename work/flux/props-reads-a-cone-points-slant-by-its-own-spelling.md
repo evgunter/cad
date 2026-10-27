@@ -4,6 +4,8 @@ kind: issue
 title: props reads a cone point's chart v (its slant) by its own spelling, beside geom's chart reading
 status: open
 opened: 2026-10-24
+priority: P3
+cost: E
 ---
 
 

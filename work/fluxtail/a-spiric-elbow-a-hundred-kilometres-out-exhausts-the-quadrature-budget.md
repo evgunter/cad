@@ -35,3 +35,13 @@ Two smaller verifier notes go with this row:
   time, not width.
 
 (FLUX orchestrator)
+
+## Update 2026-10-27: the refusal this row names is gone
+
+PR 5741 (QUAD's measure door, unit C) removed `PropsError::QuadratureBudget`.
+`mass_properties` now takes a required resolution and answers a bracket
+whose `stop` is `Floor` or `Wall` when the resolution is not met. So
+this body no longer refuses at the number door; what remains to
+establish is whether its bracket is wide or stops at `Wall`. **First
+step: re-measure on current main**, then either close the row as
+overtaken or re-title it as the width it now reads.
