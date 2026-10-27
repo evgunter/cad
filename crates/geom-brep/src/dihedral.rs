@@ -3343,4 +3343,135 @@ mod seam_rows {
             Err(SeamEscalation::Unplaced)
         );
     }
+
+
+    /// **A planar spline wall reads the arm of a plane** (re-review): an
+    /// exactly planar cubic wall, its control rows collinear but bunched
+    /// toward the seam, tilted 0.3 rad, meets a plane 100ε off it. Two
+    /// planes at that angle read transverse over the unit reach; the
+    /// wall's true curvature is zero everywhere, so its arm is the reach.
+    #[test]
+    fn rr_a_flat_wall_with_uneven_speed_reads_as_a_plane() {
+        let cubic = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        let phi: f64 = 0.3;
+        let (s, c) = phi.sin_cos();
+        let rows = [(0.0, 0.0), (0.01, 0.0), (0.02, 0.0), (1.0, 0.0)];
+        let wall = integral(cubic, &rows.map(|(y, z)| (c * y - s * z, s * y + c * z)));
+        let nw = Vec3::new(0.0, -s, c);
+        let delta = 100.0 * band().zero();
+        let (sd, cd) = delta.sin_cos();
+        let n_other = Vec3::new(0.0, -(s * cd + c * sd), c * cd - s * sd);
+        let other = plane(n_other);
+        let wall_plane = plane(nw);
+        assert_eq!(
+            classify_dihedral(&wall_plane, &other, ORIGIN, 1.0, band()),
+            Ok(DihedralClass::Transverse),
+            "the two planes"
+        );
+        eprintln!("arm {:?}", chart_arm(&wall, ORIGIN, 1.0));
+        assert_eq!(
+            seam(at(&wall, 0.0), SeamFace::Analytic(&other)),
+            Ok(DihedralClass::Transverse),
+            "the planar spline wall at that angle"
+        );
+    }
+
+    /// **A flat wall with a collapsed edge reads the arm of a plane**
+    /// (re-review): a planar triangle whose far edge collapses to an apex
+    /// 0.02 m from the seam, against a plane 50ε off it.
+    #[test]
+    fn rr_a_flat_triangle_near_its_apex_reads_as_a_plane() {
+        let lin = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let apex = Point3::new(0.0, 0.02, 0.0);
+        let rows = vec![
+            vec![Point3::new(-1.0, 0.0, 0.0), apex],
+            vec![Point3::new(1.0, 0.0, 0.0), apex],
+        ];
+        let wall = general(lin(), lin(), &rows);
+        let delta = 50.0 * band().zero();
+        let other = plane(Vec3::new(0.0, -delta.sin(), delta.cos()));
+        assert_eq!(
+            classify_dihedral(&plane(Vec3::new(0.0, 0.0, 1.0)), &other, ORIGIN, 1.0, band()),
+            Ok(DihedralClass::Transverse),
+            "the two planes"
+        );
+        eprintln!("arm {:?}", chart_arm(&wall, ORIGIN, 1.0));
+        assert_eq!(
+            seam(at(&wall, 0.0), SeamFace::Analytic(&other)),
+            Ok(DihedralClass::Transverse),
+            "the flat triangle at that angle"
+        );
+    }
+
+    #[test]
+    fn rr_probe_mild() {
+        let cubic = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        for phi in [0.3_f64, 0.785] {
+            for (a, b2) in [(0.3, 0.6), (0.2, 0.4), (0.1, 0.2), (0.05, 0.1)] {
+                let (s, c) = phi.sin_cos();
+                let rows = [(0.0, 0.0), (a, 0.0), (b2, 0.0), (1.0, 0.0)];
+                let w = integral(cubic.clone(), &rows.map(|(y, z)| (c * y - s * z, s * y + c * z)));
+                eprintln!("mild phi {phi} rows {a},{b2}: arm {:?}", chart_arm(&w, ORIGIN, 1.0));
+            }
+        }
+        // multi-span uniform-ish (knot insertion), uniform speed, rotated
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        let (s, c) = 0.3_f64.sin_cos();
+        let ys = [0.0, 0.05, 0.15, 0.35, 0.6, 0.8, 1.0];
+        let rows: Vec<(f64, f64)> = ys.iter().map(|&y| (c * y, s * y)).collect();
+        let w = integral(kv, &rows);
+        eprintln!("multispan arm {:?}", chart_arm(&w, ORIGIN, 1.0));
+    }
+
+    /// Re-review probes.
+    fn general(ku: KnotVector, kv: KnotVector, rows: &[Vec<Point3<f64>>]) -> NurbsSurface<f64> {
+        // rows indexed [i_u][i_v]
+        let control: Vec<Point3<f64>> = rows.iter().flatten().copied().collect();
+        let n = control.len();
+        NurbsSurface::new(ku, kv, control, vec![1.0; n]).unwrap()
+    }
+
+    fn rot_yz(phi: f64, p: Point3<f64>) -> Point3<f64> {
+        let (s, c) = phi.sin_cos();
+        Point3::new(p.x, c * p.y - s * p.z, s * p.y + c * p.z)
+    }
+
+    #[test]
+    fn rr_probe_values() {
+        let b = band();
+        eprintln!("band zero {} escalate {}", b.zero(), b.escalate());
+        // P1: exactly planar walls, rotated, nonuniform speed.
+        let cubic = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        for phi in [0.0, 0.3, 0.785, 1.2] {
+            for rows in [
+                vec![(0.0, 0.0), (1.0 / 3.0, 0.0), (2.0 / 3.0, 0.0), (1.0, 0.0)],
+                vec![(0.0, 0.0), (0.01, 0.0), (0.02, 0.0), (1.0, 0.0)],
+                vec![(0.0, 0.0), (0.001, 0.0), (0.002, 0.0), (1.0, 0.0)],
+            ] {
+                let (s, c) = (phi as f64).sin_cos();
+                let r: Vec<(f64, f64)> = rows.iter().map(|&(y, z)| (c * y - s * z, s * y + c * z)).collect();
+                let w = integral(cubic.clone(), &r);
+                eprintln!("P1 phi {phi} rows {:?}: arm {:?} κ̄ {}", rows[1], chart_arm(&w, ORIGIN, 1.0), whole_chart_curvature(&w));
+            }
+        }
+        // P2: rational quarter cylinder radius R, the seam at its start.
+        for rr in [0.5, 0.1] {
+            let h = std::f64::consts::FRAC_1_SQRT_2;
+            let cyl = ruled(quadratic(), &[(0.0, 0.0), (rr, 0.0), (rr, rr)], &[1.0, h, 1.0]);
+            eprintln!("P2 R {rr}: arm {:?}", chart_arm(&cyl, ORIGIN, 1.0));
+        }
+        // P3: flat wall with a collapsed far edge (apex) at distance a.
+        let lin = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        for a in [0.5, 0.05, 0.02] {
+            for phi in [0.0, 0.785] {
+                let apex = Point3::new(0.0, a, 0.0);
+                let rows = vec![
+                    vec![rot_yz(phi, Point3::new(-1.0, 0.0, 0.0)), rot_yz(phi, apex)],
+                    vec![rot_yz(phi, Point3::new(1.0, 0.0, 0.0)), rot_yz(phi, apex)],
+                ];
+                let w = general(lin(), lin(), &rows);
+                eprintln!("P3 apex {a} phi {phi}: arm {:?}", chart_arm(&w, ORIGIN, 1.0));
+            }
+        }
+    }
 }
