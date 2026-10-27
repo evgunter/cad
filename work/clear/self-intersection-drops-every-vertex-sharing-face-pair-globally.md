@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-06
 priority: P0
 cost: H
-design: true
+needs_ev: true
 ---
 
 
@@ -52,3 +52,59 @@ engine's answer for any body is vacuous on the pairs this drops.
 
 Filed by the CARVE orchestrator, 2026-10-06, from two designer reports
 (read-only lanes). Not measured; read off the filter and its comment.
+
+## The design (two designers, converged after three rounds; CLEAR orchestrator, 2026-10-27)
+
+- **The question is embedding.** "Is the boundary embedded?" replaces
+  "are the non-adjacent pairs apart?"
+- **Every face pair is examined, a face against itself included.** A
+  face on an analytic carrier is one-to-one by kind; a torus needs
+  R > r decided at a funnel site. The discharge is a receipt line, not
+  a silent skip.
+- **Touching vs clear is decided per cell pair.**
+  - A cell is clear of a shared edge or vertex when `cell_region`'s
+    existing readings say so, in metres.
+  - A clear pair is decided by distance, as today.
+  - A touching pair is never decided by distance. It discharges only by
+    a local certificate. Otherwise it splits, and at the depth floor it
+    refuses typed, naming the two faces and the shared cell.
+- **The certificate has three arms.**
+  - *Across faces, at a shared edge or vertex: departure.* The edge
+    projects to a Lipschitz graph, and each face's departure cone lies
+    strictly on its own side of it. At a vertex, the projected sectors
+    are disjoint.
+  - *Within one face, against itself or across its chart seam: a
+    strongly monotone projection.* J(L∘S)+Jᵀ is positive definite, with
+    L taken from the pair's centre Jacobian. Collapsed charts use the
+    cone's development, or a graph over the tangent plane at a pole. A
+    NURBS corner collapsed to a point refuses.
+  - *Declared wedge-0/2π edges: second order.* The second inward
+    derivative of the faces' height difference has a definite sign.
+- **The proposal in this row's body is unsound,** in both its
+  right-angle and half-space forms ("normal cone narrower than a right
+  angle cannot cross"). Counterexample: a flat ribbon swept 370° along
+  a planar arc is one NURBS wall whose normals are all one vector, and
+  it overlaps itself.
+- **`min_separation` and `clearance ≥ c` drop their pairing rule.**
+  - They are metric doors with no topology. Scopes that meet are at 0,
+    with the witness named on the shared cell.
+  - `NoAdmittedPair` and `Window::vertices` retire.
+  - Counterexample to keeping the rule: two faces sharing a vertex, like
+    the arms of a U, that come within 0.1 m at the tips. The rule skips
+    the whole pair, so the tips are never measured.
+- **A pair with a recorded contact refuses typed** until the handoff to
+  CONTACT-DESIGN is designed.
+- **What is Ev's:** only the rewording of `docs/ERROR-DESIGN.md`'s
+  *Self-intersection scope* clause, on the `[ev]` PR.
+
+The unit pins these rows:
+- the 370° ribbon reads Violated;
+- the carvetail fold reads Violated, with a witness at v ≈ ½;
+- a cone, a pyramid and an embedded triangle loft read Holds;
+- a declared wedge-0 kiss holds;
+- a `clearance ≥ c` between scopes that share an edge reads Violated
+  at 0, on the shared cell.
+
+It lands on the moved engine, after `SHELL-3`. The analytic arms can
+land before `window-of-refuses-an-untrimmed-iso-bounded-nurbs-patch`;
+free-form walls need that row.

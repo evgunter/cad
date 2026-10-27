@@ -361,10 +361,18 @@ splits when indeterminate, reports on a definite violation.
 Probability never enters *inside* a leaf — no "probabilistically
 clear" verdict; mass accounting applies to leaves (E6), full stop.
 
-**Self-intersection scope**: the tier-3′ census made global and
-parametric — non-adjacent face pairs certified strictly positive
-distance; adjacent pairs are covered locally by the wedge predicates
-(their distance is legitimately 0). v1 geometry scope = the
+**Self-intersection scope**: the boundary embeds. Two faces meet
+only on the edges and vertices both bound, and each face is
+one-to-one. Every face pair is examined, a face against itself
+included; a face on an analytic carrier is one-to-one by its kind
+(a torus once R > r is decided). A cell pair clear of every shared
+cell is certified at strictly positive distance. A touching cell pair
+carries a local certificate: departure across a shared edge or
+vertex, a monotone projection within one face, and second order at a
+declared wedge-0/2π edge. A pair with neither refuses typed. The
+clearance question between two scopes has no pairing rule: scopes
+that meet are at distance 0, with the witness named on the shared
+cell. v1 geometry scope = the
 carriers the kernel has interval evaluators for; carriers without
 interval evaluation refuse typed (`Unsupported`), never downgrade
 to sampling.
