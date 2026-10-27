@@ -73,3 +73,16 @@ chord_join: head serves conic where main reads refused
 (0.00004901376726445554 rad × 7620.053854752845 on r = 1000,
  sin β = 0.0000000000013123654088462953)
 ```
+
+## Another seed (2026-10-27)
+
+ATREST's `atrest/a-crossing-touch-is-interference` CI (PR 5823, head
+`0bfb067e`) drew a second seed at the DEFAULT eps. That diff does not
+touch `boolean/join.rs` or `chord_join.rs`:
+
+```
+chord_join: head serves lines where main reads refused
+(0.000012485095070953775 rad × 3873.1882640132785 on r = 1000,
+ sin β = 0.00000000000025822144679227736)
+CAD_FUZZ_SEED=0x90ac89fbe5ecb537 CAD_FUZZ_EFFORT=1
+```

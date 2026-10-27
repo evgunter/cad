@@ -603,9 +603,12 @@ covers refuses at the producer rather than reaching rest uncached.
 A closed-form class gate is a lane choice (D3): in band or definite,
 the carrier takes a lane whose certificate does not rest on the class,
 its projected image where the chart has one. Whether the carrier lies
-on the chart at all is a residual, not a class gate: a miss is the
-lever on a declared carrier and a defect only on one the kernel
-derived. A
+on the chart at all is a residual, not a class gate: a definite miss
+is a contradiction between what the edge states and its geometry,
+ended by the door that reads it (D4 ¶1 (iv)), and a read in band, at a
+pose or undecided, ends in the decision's lever at every door. Which
+sketch entity an edge came from (`EdgeAuthority`) is provenance, and no
+ending reads it. A
 carrier whose route refuses (a spline or a circle whose projected image
 reaches a pole) refuses at the producer like any other refusal: no
 class goes unrouted, so the exemption excuses only a scalar that holds
@@ -754,10 +757,22 @@ definitely on opposite sides, bisected and read on the surface; and
 otherwise cut where it is definitely past the band. A piece within the
 band that no cut parts, a meeting within the band of a crease and two
 crossings within the band of each other refuse. The composite reads the curved analytic faces too, but the
-curved lane does not dispatch a spline span to it, and every arm of the
-table with a spline face is unbuilt. The analytic arms are the sweep's
-existing root doors. What such an arm will hand on, a meeting inside a
-spline face's chart, has its placement built
+curved lane does not dispatch a spline span to it. The analytic span ×
+spline face arm is built (`curve_face::spline_face`, the boolean's
+spline-face door reading it past the boundary pass): it settles boxes of
+the state `(t, u, v)` on `C(t) − S(u, v)`, a displacement read against
+the band with no meter, clear where the box's enclosure is past the band
+and one meeting where the Krawczyk test holds, which also isolates the
+meeting's neighbourhood. The chart is cut at its creases and no box
+touching one carries a proof; a box within the band at the floor that no
+meeting holds refuses, wherever it lies, so a meeting within the band of
+a crease, on the chart's domain edge (a closed chart's seam included) or
+within the band of another refuses, and nothing in band is dropped. A
+spline or spiric span against a spline face is unbuilt. The analytic
+arms are the sweep's existing root doors. A meeting inside a spline
+face's chart is placed by the trim at the chart point it was found at,
+on its own sheet (`topo::boolean::spline_region::spline_chart_placement`);
+a point in space has its placement built
 (`topo::boolean::spline_region`, the spline arm of the boolean's
 point-in-face door): on the carrier by a foot decided within the band,
 off it where every Bézier cell of the chart is decided past it; then in

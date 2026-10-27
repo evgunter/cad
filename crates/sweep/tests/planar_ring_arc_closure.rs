@@ -238,27 +238,10 @@ fn prism(shape: &Shape, pose: &Affine3<f64>, stations: &[Point2<f64>]) -> AtRest
     )
 }
 
-/// Whether tier 3′'s census can decide a result's parts apart.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum Reach {
-    /// It must: one part, or parts the census decides apart.
-    Decided,
-    /// Two parts whose curved faces lie within reach of each other, which
-    /// the census cannot yet decide apart (CONTACT's
-    /// `census-cross-solid-curved-pairs-undecidable-on-shell-results`):
-    /// tier 3′ passes or refuses with `CensusUndecidable` alone.
-    Undecided,
-}
-
 /// The result of `out`, held to tiers 1–3 and 3′ and to `truth`: exactly
 /// where every face is closed-form, within the measured pad where an
 /// ellipse arc bounds a face. Returns its census.
-fn check(
-    label: &str,
-    out: Result<topo::BooleanResult<f64>, BooleanError>,
-    truth: f64,
-    parts_out_of_reach: Reach,
-) -> Census {
+fn check(label: &str, out: Result<topo::BooleanResult<f64>, BooleanError>, truth: f64) -> Census {
     let tol = Tol::witness();
     let out = out.unwrap_or_else(|e| panic!("{label}: refused {e:?}"));
     let topo::BooleanResult::Body(out) = out else {
@@ -271,24 +254,11 @@ fn check(
         Ok(()),
         "{label}: tier 3"
     );
-    match topo::validate_pseudomanifold(&out.body, &out.contacts, tol) {
-        Ok(()) => {}
-        Err(errs) if parts_out_of_reach == Reach::Undecided => {
-            assert!(
-                out.body.solids().count() == 2
-                    && errs
-                        .iter()
-                        .all(|e| matches!(e, topo::ValidationError::CensusUndecidable { .. })),
-                "{label}: tier 3′ refuses only the two parts' curved pairs, got {errs:?}"
-            );
-            println!(
-                "{label}: tier 3′ cannot yet decide the two parts' curved faces apart \
-                 ({} pairs; work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md)",
-                errs.len()
-            );
-        }
-        Err(errs) => panic!("{label}: tier 3′ {errs:?}"),
-    }
+    assert_eq!(
+        topo::validate_pseudomanifold(&out.body, &out.contacts, tol),
+        Ok(()),
+        "{label}: tier 3′"
+    );
     let m = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
         .unwrap_or_else(|e| panic!("{label}: mass properties {e:?}"));
     assert!(
@@ -307,7 +277,7 @@ fn check(
 /// upright, shifted or spun prism meets the slab in circle arcs, and its
 /// volume must be exact; a tilted one meets it in ellipse arcs, whose
 /// faces measure within a pad, and leaves two stubs whose walls overhang
-/// each other, which tier 3′ cannot yet decide apart ([`Reach`]).
+/// each other, which tier 3′ decides apart.
 #[test]
 fn a_prism_with_arc_walls_through_a_slab_builds_every_op() {
     let tol = Tol::witness();
@@ -359,25 +329,16 @@ fn every_op(slab: &AtRestBody<f64>, shape: &Shape, stations: &[Point2<f64>]) {
         let v = shape.area * LENGTH;
         let shared = shape.area / dz;
         let want = pierced(shape.sides);
-        // Tilted, the two stubs' walls overhang each other across the
-        // slab.
-        let stubs = if dz < 1.0 {
-            Reach::Undecided
-        } else {
-            Reach::Decided
-        };
         let union = check(
             &format!("{label}, slab ∪ prism"),
             topo::union(slab, &prism, tol),
             SLAB + v - shared,
-            Reach::Decided,
         );
         assert_eq!(
             check(
                 &format!("{label}, prism ∪ slab"),
                 topo::union(&prism, slab, tol),
                 SLAB + v - shared,
-                Reach::Decided,
             ),
             union,
             "{label}: ∪ census in both member orders"
@@ -386,14 +347,12 @@ fn every_op(slab: &AtRestBody<f64>, shape: &Shape, stations: &[Point2<f64>]) {
             &format!("{label}, slab ∩ prism"),
             topo::intersect(slab, &prism, tol),
             shared,
-            Reach::Decided,
         );
         assert_eq!(
             check(
                 &format!("{label}, prism ∩ slab"),
                 topo::intersect(&prism, slab, tol),
                 shared,
-                Reach::Decided,
             ),
             meet,
             "{label}: ∩ census in both member orders"
@@ -405,13 +364,11 @@ fn every_op(slab: &AtRestBody<f64>, shape: &Shape, stations: &[Point2<f64>]) {
                 &format!("{label}, slab ∖ prism"),
                 topo::subtract(slab, &prism, tol),
                 SLAB - shared,
-                Reach::Decided,
             ),
             check(
                 &format!("{label}, prism ∖ slab"),
                 topo::subtract(&prism, slab, tol),
                 v - shared,
-                stubs,
             ),
         ];
         assert_eq!(

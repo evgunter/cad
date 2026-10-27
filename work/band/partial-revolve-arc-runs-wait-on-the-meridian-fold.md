@@ -6,7 +6,7 @@ status: closed
 opened: 2026-10-02
 priority: P1
 cost: M
-refs: [swept-cocircular-arc-runs-build-one-wall, 4200, sphere-wedge-arm-does-not-fold-split-meridians-by-lineage]
+refs: [swept-cocircular-arc-runs-build-one-wall, 4200, 4573]
 closed: 2026-10-06
 pr: 4200
 ---

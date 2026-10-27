@@ -146,7 +146,7 @@ This supersedes FLUX's
 `props-collapse-over-lands-a-nan-window-on-the-first-span`: its sites
 take a `ParamRange`, so the unit that builds this closes or re-points
 that row. Off-question finding, filed:
-`work/flux/a-loop-area-nurbs-segment-integrates-an-inverted-window-as-zero.md`.
+`work/spanfold/a-loop-area-nurbs-segment-integrates-an-inverted-window-as-zero.md`.
 (NURBS orchestrator)
 
 ## Closed (2026-10-09, PR 4442)
@@ -163,7 +163,7 @@ Built as decided. The parts:
 Review: a DUAL concurrent pair; both returned APPROVE-WITH-FIXES with no MAJOR (DR row in `docs/DUAL-REVIEW-LOG.md`). The fix pass took the union of both reviews. One item's mutant is equivalent: a producer box is a hull, which `Certification::hull` leaves either certified or NaI, never Trv. That is pinned behaviourally.
 
 Rows filed:
-- `work/flux/props-collapse-over-lands-a-nan-window-on-the-first-span` (closed: superseded by this row);
-- `work/flux/piece-monotone-span-drops-a-refused-step-through-f64-min`;
+- `props-collapse-over-lands-a-nan-window-on-the-first-span` (closed: superseded by this row);
+- `work/spanfold/piece-monotone-span-drops-a-refused-step-through-f64-min`;
 - `work/chord/nurbs-cell-bounds-cert-drops-a-nan-vertex-and-lands-a-nan-end-on-the-first-cell`;
 - `work/ssiedge/chart-sweep-cells-carry-f64-pairs-and-mint-a-window-per-reading` (the SSI sweeps' own cell type still holds `f64` pairs).

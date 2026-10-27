@@ -223,15 +223,27 @@ struct Tally {
 /// `(397512, 132612, 26058, 8292)`: 5 400 fewer rays and 900 fewer
 /// grazes, the refusals unchanged.
 ///
+/// It moved when a mate's slides came to run along the target's axes as
+/// the least turn carries them (`docs/DESIGN.md` `[placement.values]`),
+/// from `(392112, 131712, 26058, 8292)`: 21 fewer rays answered at the
+/// aimed vertex, all at `kitchen_sink` after its first edit, every
+/// other landing as it was. That edit sets the moved
+/// copy's `Slide(Y)` to 5 on a mate to the union's underside, which the
+/// retired chart ran along `d × x = −y` and now runs along `+y`, so the
+/// copy and its pattern stand at `y ∈ [5, 6.8]` where they stood at
+/// `[−5, −3.2]`. Rays aimed at the copy's 24 vertices answer one fewer;
+/// the other 20 are far-reach rays at the fixed vertices, whose reach
+/// (four times the scene's extent) grew with the copy, from 27 to
+/// 27.196. The rays and the refusals are unchanged; no genuine crossing
+/// is refused.
+///
 /// It moved for INTENT stage 3 E (a copy's mesh is its body's in its own
 /// coordinates, and the door reads each ray into the part's frame), from
-/// `(392112, 131712, 26058, 8292)`: each aim is fired at a vertex where
+/// `(392112, 131691, 26058, 8292)`: each aim is fired at a vertex where
 /// its part stands, and a ray read into a turned copy's frame rounds
-/// its grazes differently, so 347 fewer grazes; the rays and the
-/// refusals unchanged. No genuine crossing is refused. Over main's merge
-/// at `6597797b`, where main itself reads `(392112, 131691, 26058, 8292)`
-/// against its pin of `131712` (main's red, not E's), it reads 348 fewer
-/// grazes than main, the rays and the refusals unchanged.
+/// its grazes differently, so 348 fewer grazes (347 before main's
+/// slides moved `kitchen_sink`'s copy); the rays and the refusals
+/// unchanged. No genuine crossing is refused.
 const PINNED: (usize, usize, usize, usize) = (392_112, 131_343, 26_058, 8_292);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {

@@ -30,18 +30,16 @@ row; this names the ones that set the order.
 - **Parked:** `a-rim-locus-tangency-through-two-faces-interiors-mints-no-face-face-row`
   behind TANG's `dev1-cylinder-sphere-circle-locus-arm` (no circle
   witness locus exists); the D10-hold rows on
-  `d10-one-way-to-say-intent-is-unbuilt`; the P0s `CONTACT-13` and
-  `declared-only-meetings-clear-at-the-census-gate-unread` on
-  `intent-stage4-is-built`.
+  `d10-one-way-to-say-intent-is-unbuilt`.
 
 ## Order
 
 When a trigger fires, the row goes to the live program whose charter
 it fits (most to RESTREAD, INSIDE or SECTOR, or to INTENT's own stage-4
 units where they absorb it), by `git mv`, and this track closes when it
-is empty. `CONTACT-13` (the census's declared-only meetings) and
-`declared-only-meetings-clear-at-the-census-gate-unread` are the P0s:
-re-measure both when `intent-stage4-is-built` lands.
+is empty. The two P0s that waited on `intent-stage4-is-built`
+(`CONTACT-13` and `declared-only-meetings-clear-at-the-census-gate-unread`)
+moved to ATREST on 2026-10-27 as one P2 re-read.
 
 ## Ratified ground (cited, not re-litigated)
 

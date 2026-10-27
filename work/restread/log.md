@@ -130,3 +130,17 @@ crossing lane and the edge-on-face lane (plan.md, Order).
   - **Fix:** ATREST's PR 5779 had already fixed it on main. It skips the read where an aligned confirmed pair holds the span and re-pins 5529's two gating rows. Opposed pairs still reach the read, and the pinwheel still refuses. 5529's verdict was right on substance.
   - **A second break:** RESTREAD's own PR 5704 broke `editor-core`'s build. Its new `BoundaryCrossesItself` variants were not placed in `finding_solids`, and the change filter skipped editor-core, so PR CI and main's push run stayed green. ATREST placed them (`863030db6b`).
   - Filed `ciw/a-new-public-variant-skips-its-downstream-exhaustive-matches-in-the-change-filter` (P2). — (RESTREAD orchestrator)
+- 2026-10-27 — PR 5817 (`restread/curved-pairs-apart`) merges. It closes the certify-apart half of `census-cross-solid-curved-pairs-undecidable-on-shell-results` (P0). Touches stay held under D10.
+  - **Measured on main first:** PR 5323's depth gap had already cleared the shell class, ZIP's plug, REACH's 38 unions (0 of 3794 gated results refuse) and TANG's tilted stubs.
+  - **What this PR adds:** offset directions and a held sphere reach. They clear the ball-cut lumps, the crossing balls' lumps, and a box beside a rod. JOIN-2's grid goes from 850 to 794 `BAD`; the rest touch.
+  - **INTENT's `intent_s5_b_interference` undecided-pair row** lost its premise, since the census now proves its side pair apart. I ruled that the re-fixture lands with the change: the D10 hold covers semantics, and the rule, the press fit and the assertions are unchanged. The seam note is in INTENT's log.
+  - **Tier:** dual, arm concurrent (class H). Both reviews returned APPROVE-WITH-FIXES with no MAJOR. The pair is excluded under 6(e): restarts killed both mid-run twice.
+  - **Fix pass:** a trimmed-sphere gating row and the missed sweep hits. Verifier: VERIFIED-WITH-NITS.
+  - **Rows filed:**
+    - `census-arm-1-reads-directions-from-the-pairs-own-faces-only` (P1);
+    - `census-arm-1-cannot-part-coplanar-faces-no-line-separates` (P1);
+    - `held-reach-keeps-an-unread-pole-with-no-witness` (P3);
+    - `orbit/boolean-gate-refuses-a-pair-the-census-reads-apart` (P1).
+  - **Main reds:** the lanes' unfiled ones were confirmed and filed in PR 5828: SPLICE, from PR 5789, and FLUX, from PR 5734. — (RESTREAD orchestrator)
+
+- 2026-10-27 — **Seam (ATREST):** `atrest/a-crossing-touch-is-interference` touches this program's ground. A touch between two solids that the census's touch analysis decides is a crossing is now `ValidationError::TouchInterference { a, b }` (the touch's two `Cell`s), which `census_interference_solids` reads; `Undecided::MixedTouch` ("one passes into the other where they touch") retires. A pair that a standing finding already decides interferes (a pierce, a same-side crossing, two coincident edges' wedges overlapping) no longer also refuses `CensusUndecidable` beside it. New exhaustive-match arm: `boolean/ops.rs`, `checks/at_rest.rs` `finding_solids`, pncad-py `touch_interference`. Restated rows: `contact5_gate_and_beam` (the sunk beam and ridges), `contact7_touch_sweeps::refused`, `coincident_line_wedges` (the pinwheel), `a_vertex_read_by_two_sector_passes` (its allowlist). (ATREST crossing-touch lane)
