@@ -349,14 +349,14 @@ pub struct ChecksConfig {
     /// (DS3).
     pub unproven_coincidence: Advisory,
     /// [`CheckId::AtRest`]'s severity — a full [`Severity`], default
-    /// `Warn`. `Error` is legal because an assertion can quiet every
-    /// interference the kernel bounds on a carrier pair a signed `Gap`
-    /// covers (DS3, DS6); at `Error`, [`enforce_checks`] refuses a loud
-    /// interference finding of that kind and nothing else this check
-    /// reports: not an overlap the kernel could not intersect, not one
-    /// on a carrier pair no signed `Gap` covers
-    /// ([`CheckEvidence::never_refuses`]), and not a pair the census
-    /// could not look at.
+    /// `Warn`. `Error` is legal because a finding refuses only where an
+    /// assertion could have quieted it (DS3, DS6): at `Error`,
+    /// [`enforce_checks`] refuses a loud interference finding some
+    /// assertion the quieting rule accepts could quiet, and nothing else
+    /// this check reports ([`CheckEvidence::never_refuses`]): not an
+    /// overlap the kernel could not intersect, not one no such assertion
+    /// could be written over, and not a pair the census could not look
+    /// at.
     pub at_rest: Severity,
 }
 
@@ -548,9 +548,10 @@ impl CheckEvidence {
     /// **Whether this finding is outside what the document can yet say**
     /// (CHECKS DS6): a pair the census could not look at
     /// ([`Self::could_not_look`]), or an overlap no assertion could
-    /// quiet, because the kernel could not intersect it or no signed
-    /// `Gap` covers a carrier pair bounding it
-    /// ([`at_rest::InterferenceFinding::quietable`]). Loud, and refused
+    /// quiet ([`at_rest::InterferenceFinding::quietable`]): one the
+    /// kernel could not intersect, or one whose bounding faces offer no
+    /// pair an assertion the quieting rule accepts could be written
+    /// over. Loud, and refused
     /// by [`enforce_checks`] at no severity: a refusal there would have
     /// no recourse but changing geometry.
     #[must_use]

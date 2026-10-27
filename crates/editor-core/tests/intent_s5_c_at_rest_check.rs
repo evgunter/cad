@@ -944,8 +944,12 @@ fn an_overlap_no_assertion_could_quiet_refuses_at_no_severity() {
 /// for the pair: it is not opposed, and the finding is loud wherever B
 /// stands about A.
 ///
+/// No assertion the quieting rule accepts can quiet such a finding, so
+/// it is not quietable and refuses at no severity, `Error` included: a
+/// finding refuses only where an assertion could have quieted it.
+///
 /// *Breaks if* `opposed` reads such a pair at one point, which quieted
-/// it at one bearing in eight.
+/// it at one bearing in eight, or the pair counts as quietable.
 #[test]
 fn shafts_side_by_side_stay_loud_at_every_bearing() {
     use editor_core::{Formula, LoopProgram, ProfileProgram};
@@ -1002,6 +1006,21 @@ fn shafts_side_by_side_stay_loud_at_every_bearing() {
         if interference.iter().any(|f| !f.is_loud()) {
             quiet_at.push(k);
         }
+        // `Gap` reads the two walls (parallel axes), but no reading
+        // answers for their pairing, so no assertion the quieting rule
+        // accepts exists, and nothing refuses at `Error`.
+        assert!(
+            interference.iter().all(|f| !f.quietable),
+            "bearing {k}/8: not quietable: {interference:?}"
+        );
+        let error = ChecksConfig {
+            at_rest: Severity::Error,
+            ..ChecksConfig::default()
+        };
+        assert!(
+            enforce_checks(&checks(&doc), &error).is_ok(),
+            "bearing {k}/8: refused at Error"
+        );
     }
     assert!(found > 0, "the premise: an overlap at some bearing");
     assert_eq!(

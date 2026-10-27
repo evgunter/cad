@@ -409,11 +409,13 @@ pub struct InterferenceFinding {
     pub overlap: Overlap,
     /// The assertion that quiets it, or `None` when it is loud.
     pub quiet: Option<RecipeNodeId>,
-    /// Whether an assertion could ever quiet it: the overlap is bounded
-    /// and two of its bounding faces, one of each copy, are a carrier
-    /// pair a signed `Gap` reads. `false` for an unlocalized overlap.
-    /// A finding no assertion could quiet is outside what the document
-    /// can yet say (CHECKS DS6): loud, and refused at no severity.
+    /// Whether an assertion the quieting rule accepts could quiet it: the
+    /// overlap is bounded, and two of its bounding faces, one of each
+    /// copy, are a carrier pair a signed `Gap` reads whose pairing one
+    /// reading answers for (two planes, cylinders on one axis, spheres
+    /// about one centre). `false` for an unlocalized overlap. A finding
+    /// no assertion could quiet is outside what the document can yet say
+    /// (CHECKS DS6): loud, and refused at no severity.
     pub quietable: bool,
 }
 
@@ -544,37 +546,61 @@ pub(crate) fn gap_assertions<P, T: Decide>(
 /// one point, two parallel shafts side by side would pair one way at
 /// one bearing and the other way at the next.
 fn opposed<T: Decide>(body: &Body<T>, outer: FaceKey, inner: FaceKey, band: Band) -> bool {
+    let Some(read) = pairing_read(body, outer, inner, band) else {
+        return false;
+    };
+    let arm = geom_brep::folded_lever_arm(read.outer.0, read.inner.0, read.at, read.reach);
+    geom_brep::classify_material_pairing_as(
+        AT_REST_QUIET_OPPOSED,
+        read.outer.0,
+        read.outer.1,
+        read.inner.0,
+        read.inner.1,
+        read.at,
+        arm,
+        band,
+    ) == Ok(geom_brep::MaterialPairing::Opposed)
+}
+
+/// **Where one reading answers for two faces' pairing**
+/// ([`pairing_read`]): each face's carrier and sense, the point of the
+/// outer face it is read at, and the farther of the two faces' reach
+/// from it.
+struct PairingRead<'b, T: Decide> {
+    outer: (&'b geom::Surface<T>, bool),
+    inner: (&'b geom::Surface<T>, bool),
+    at: geom_core::Point3<T>,
+    reach: T,
+}
+
+/// **The pairing of two faces, where one reading answers for it**: the
+/// reading at a point of the outer face, or `None` where the faces do
+/// not pair their materials alike at every point ([`constant_pairing`])
+/// or do not read. `opposed` decides the pairing on it, and an overlap
+/// is quietable only over a pair that has one (`gap_covers`), so the
+/// two cannot drift.
+fn pairing_read<T: Decide>(
+    body: &Body<T>,
+    outer: FaceKey,
+    inner: FaceKey,
+    band: Band,
+) -> Option<PairingRead<'_, T>> {
     use crate::eval::measure::reach_of;
     let carrier = |key: FaceKey| {
         let face = body.get_face(key)?;
         Some((body.get_surface(face.surface)?, face.sense))
     };
-    let (Some((s_outer, sense_outer)), Some((s_inner, sense_inner))) =
-        (carrier(outer), carrier(inner))
-    else {
-        return false;
-    };
-    let Some(p) = face_point(body, outer) else {
-        return false;
-    };
-    let (Some(r_outer), Some(r_inner)) = (reach_of(body, outer, p), reach_of(body, inner, p))
-    else {
-        return false;
-    };
-    if !constant_pairing(s_outer, s_inner, r_outer + r_inner, band) {
-        return false;
-    }
-    let arm = geom_brep::folded_lever_arm(s_outer, s_inner, p, r_outer.max(r_inner));
-    geom_brep::classify_material_pairing_as(
-        AT_REST_QUIET_OPPOSED,
-        s_outer,
-        sense_outer,
-        s_inner,
-        sense_inner,
-        p,
-        arm,
-        band,
-    ) == Ok(geom_brep::MaterialPairing::Opposed)
+    let (outer_carrier, inner_carrier) = (carrier(outer)?, carrier(inner)?);
+    let at = face_point(body, outer)?;
+    let (r_outer, r_inner) = (reach_of(body, outer, at)?, reach_of(body, inner, at)?);
+    constant_pairing(outer_carrier.0, inner_carrier.0, r_outer + r_inner, band).then(|| {
+        PairingRead {
+            outer: outer_carrier,
+            inner: inner_carrier,
+            at,
+            reach: r_outer.max(r_inner),
+        }
+    })
 }
 
 /// **Whether two carriers pair their materials alike at every point**:
@@ -1154,10 +1180,12 @@ fn localize(
     out
 }
 
-/// **Whether a signed `Gap` covers `component`**: two of the faces
-/// bounding it, one of copy `a` and one of copy `b`, are carriers
-/// [`crate::eval::measure::gap_reads`] reads in some role order. Only
-/// such a pair can carry an assertion that quiets the overlap.
+/// **Whether an assertion the quieting rule accepts could quiet
+/// `component`**: two of the faces bounding it, one of copy `a` and one
+/// of copy `b`, are carriers [`crate::eval::measure::gap_reads`] reads in
+/// some role order, and pair their materials alike at every point
+/// ([`pairing_read`], which `opposed` decides on). Only over such a
+/// pair can a `Gap` assertion quiet the overlap.
 fn gap_covers(aggregate: &Body<f64>, a: usize, b: usize, component: &Component, tol: Tol) -> bool {
     use crate::eval::measure::{carrier_of, gap_reads};
     let Ok(band) = Band::linear(tol) else {
@@ -1177,14 +1205,15 @@ fn gap_covers(aggregate: &Body<f64>, a: usize, b: usize, component: &Component, 
             .sources
             .iter()
             .filter(move |(c, _)| *c == copy)
-            .map(|&(_, f)| face(f))
+            .map(|&(_, f)| (f, face(f)))
             .collect::<Vec<_>>()
     };
     let (from_a, from_b) = (of(a), of(b));
-    from_a.iter().any(|x| {
-        from_b
-            .iter()
-            .any(|y| gap_reads(x, y, band) || gap_reads(y, x, band))
+    let read = |x: FaceKey, y: FaceKey| pairing_read(aggregate, x, y, band).is_some();
+    from_a.iter().any(|(fx, x)| {
+        from_b.iter().any(|(fy, y)| {
+            (gap_reads(x, y, band) && read(*fx, *fy)) || (gap_reads(y, x, band) && read(*fy, *fx))
+        })
     })
 }
 
