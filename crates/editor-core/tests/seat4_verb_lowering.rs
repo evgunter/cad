@@ -294,12 +294,18 @@ fn both_blends_evaluate_in_one_document() {
 /// `main-red-the-seat-and-name-table-goldens-moved-at-dprime2`),
 /// stage 4 I's ids and the walls' reads, beneath
 /// D′3's names and ids. `m10_p_fence`'s ids-masked row held.
+///
+/// RE-BLESSED for limb 2 for every carrier (PR 5728): check 2's turn
+/// moved from the edge's `Certificate` onto the edge, which changes the
+/// edge curve's `Debug` the digest feeds. With that `Debug` written in
+/// main's shape every digest here reproduces main's value at all three
+/// ε rows, so nothing else moved.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0xddf0_a0f0_e60d_6605_u64),
-        ("die_chamfer", 0x6538_8256_a1f3_ec21),
+        ("die_fillet", 0x4be9_87c3_76d7_814d_u64),
+        ("die_chamfer", 0xe4b5_16f2_ef50_6409),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -546,13 +552,19 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// Measured again for D′3 over main's merge at `4c341b9225`, which
 /// brings the run line's bare sense (above) beneath D′3's names and ids;
 /// the ids-masked fence held.
+///
+/// RE-BLESSED for limb 2 for every carrier (PR 5728): check 2's turn
+/// moved from the edge's `Certificate` onto the edge, which changes the
+/// edge curve's `Debug` the digest feeds. With that `Debug` written in
+/// main's shape every digest here reproduces main's value at all three
+/// ε rows, so nothing else moved.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x4951_f0a3_9a34_c71f_u64),
-        ("heat_sink", 0x42f8_2b41_f90a_45d2),
-        ("kiss_carry", 0x848e_1ddf_0271_11c2),
+        ("crossing_slots", 0x13f6_26db_b10e_0577_u64),
+        ("heat_sink", 0x38a3_e942_327a_45ea),
+        ("kiss_carry", 0xafd8_5b4e_c535_9cc2),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -657,6 +669,12 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
 /// RE-BLESSED for a certificate that keeps its turn: the digest feeds
 /// each edge curve's `Debug`, which now spells the certificate's `turn`.
 /// No outcome or point moved. Re-measured with both merged.
+///
+/// RE-BLESSED for limb 2 for every carrier (PR 5728): check 2's turn
+/// moved from the edge's `Certificate` onto the edge, which changes the
+/// edge curve's `Debug` the digest feeds. With that `Debug` written in
+/// main's shape every digest here reproduces main's value at all three
+/// ε rows, so nothing else moved.
 #[test]
 fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let mut r = corpus::Recorder::new();
@@ -695,7 +713,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0x5507_0f64_d10a_88af,
+        got, 0xd44d_7ecb_0b12_30cf,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }
