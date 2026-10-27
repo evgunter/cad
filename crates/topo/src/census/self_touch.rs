@@ -1287,7 +1287,7 @@ fn read_with(face: Result<Vec<Sector<f64>>, TouchVerdict>, others: Vec<Link<f64>
     sectors.extend(others.into_iter().flat_map(|l| l.sectors));
     match Link::of(P::origin(), sectors) {
         Ok(link) => rest::one_material(&link, band()),
-        Err(v) => v,
+        Err(v) => TouchVerdict::Unread(v),
     }
 }
 

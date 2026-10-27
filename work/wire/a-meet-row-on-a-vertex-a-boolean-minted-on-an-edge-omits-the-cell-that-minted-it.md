@@ -86,3 +86,41 @@ Moved from `work/cleave/` to WIRE by `git mv` in PR 5753, banded P1 (a
 cell the row omits is a misnamed row), on the CLEAVE orchestrator's
 ruling. PR 5765's triage had left it unbanded on CLEAVE while 5753 was
 editing it.
+
+## Measured live on main (PR 5798, 2026-10-27)
+
+PR 5798 keeps the minting cell (`EdgeSplit::by`, `Mints::minted_by`)
+and widens through it in `spell` (`input_read`). To measure the row on
+main, `cite_rows` logged every decision whose spelling with the minting
+cell differs from the spelling without it, which is main's spelling.
+
+- **topo `--test all`:** 2889 rows across 40 tests, 2211 of them
+  `OnCarrier` turned `Meet`. The largest counts are in
+  `three_solids_on_one_line`, `a_keel_on_the_floor_subtracts_as_a_slit`,
+  `a_vertex_read_by_two_sector_passes` and
+  `union_flush_onto_edge_contact`.
+- **editor-core union, coincide, pinch, flush and `name_invariance`
+  sets:** 1055 rows across 18 tests. The largest counts are in
+  `union_pinch_member_order` and `name_invariance`.
+
+`flush_onto_an_edge`'s published member rows no longer differ between
+main and the PR: on main, PR 5545's merge already spells them alike. Its
+kernel rows still omit the minting cell on main, the same four
+decisions as before 5545, so the member spelling changed and the
+kernel's did not.
+
+The witness is `a_vertex_read_by_two_sector_passes`'s glued blocks.
+Where the pyramid's edge leaves through a corner of the glued rectangle,
+the union decides one block's corner onto the split the other block's
+corner made on the edge:
+- main spells that `OnCarrier {B corner, A edge}`;
+- the PR spells it `Meet {A edge, B corner, B corner}`.
+
+`an_edge_through_two_blocks_glued_faces_builds_*` is red on main and
+green on the PR at K = 1.5 and at ε = 1e-6 and 1e-12.
+
+Still open after 5798:
+- the in-face sibling,
+  `work/cleave/a-vertex-minted-inside-a-face-reads-as-that-face-alone.md`;
+- the minting cell is read one level deep: a minting cell that is
+  itself a minted vertex reads as its edge.
