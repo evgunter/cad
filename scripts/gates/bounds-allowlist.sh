@@ -813,11 +813,15 @@ BOUNDS_ALLOWLIST=(
   'crates/topo/src/policy_lane.rs 2 2026-10-25, the edge door split as a BOUND; the certifying door bodies'
   # M9-2 PR-1, the chart-region overlap predicate.
   'crates/topo/src/chart_region.rs 28 M9-2 PR-1, the chart-region overlap predicate; the region door value `RegionLane::certified` and its wiring row at the same bound'
-  # 2026-08-29, the advisory-check registry. Its fifth bound is the same
+  # 2026-08-29, the advisory-check registry. Its bound is the same
   # registry's door with the coincidence door split off to run at rest
   # (`run_checks_at_rest_on`): `run_checks_on` is that door with the job
   # run at once, so the two doors are one registry body at one bound.
-  'crates/editor-core/src/checks.rs 5 2026-08-29, the advisory-check registry; its at-rest door'
+  # The doors read `at_rest::LocalizeLane` (`Decide + AtRestPolicy` and
+  # the overlap's localizing lane) since the at-rest census became a
+  # resident (stage 5 C); the separation resident's bound retired with
+  # it, so the four are the three doors and `connectedness`.
+  'crates/editor-core/src/checks.rs 4 2026-08-29, the advisory-check registry; its at-rest door'
   # 2026-09-02, the certified at-rest validator and the shell verbs.
   # `validate.rs` carries the at-rest validator's bounds, 22 of them:
   # the 10 public doors of the module doc's door roster (5 at

@@ -1643,7 +1643,7 @@ pub mod bounds_allowlist {
     //! (DS6). One consequence crosses a unit boundary and is recorded here: no
     //! `Dual` implements [`CertifiedEnclosure`](super::CertifiedEnclosure), so `editor_core::run_checks`
     //! is no longer callable at one — DL1 holding one door further out, since
-    //! the registry's separation resident GRANTS a certificate. The suite
+    //! the registry's residents GRANT certificates. The suite
     //! that pins it is `editor-core/tests/r1_dual_probes.rs`, whose
     //! end-to-end rows build the dual body and the closure that would reach
     //! the registry and record that the call cannot be written; that is the

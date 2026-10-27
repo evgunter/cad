@@ -705,12 +705,10 @@ impl core::fmt::Display for CensusSubject {
 /// façade carries the cause, delete this paragraph and the
 /// disposition row with it.
 ///
-/// It carries no bearing on ATTRIBUTION:
-/// `editor_core::assembly::attribute` reads which variant refused and
-/// what its [`CensusSubject`] was, and a decline is the census
-/// neither certifying nor contradicting a declaration whichever lane
-/// declined. So this widens what the refusal SAYS and moves no
-/// `AssemblyError` verdict.
+/// It carries no bearing on what the editor's at-rest check reports: a
+/// decline is the census neither certifying nor contradicting a
+/// declaration whichever lane declined, so this widens what the refusal
+/// SAYS and moves no finding.
 #[derive(Clone, Debug, PartialEq)]
 // The variant roster the sample-coverage row reads (test builds only).
 #[cfg_attr(

@@ -255,9 +255,9 @@ impl SceneBody {
     /// the records the at-rest census wrote for the touches between
     /// its copies (A5's at-rest door).
     ///
-    /// Its tier-3′ verdict is taken by the at-rest gate —
-    /// `pncad::document::assemble`, in the scene — which reads the
-    /// census together with the records the gather wrote; the plain
+    /// Its tier-3′ verdict is taken by the at-rest check —
+    /// `CheckId::AtRest`, run in the scene — which reads the census
+    /// together with the records the gather wrote; the plain
     /// `validate_pseudomanifold` call below sees the body alone. So
     /// this door REPORTS what the plain call said and leaves the
     /// verdict to the scene, which asserts it.

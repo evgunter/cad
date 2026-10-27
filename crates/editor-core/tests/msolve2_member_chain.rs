@@ -38,7 +38,7 @@ use editor_core::{
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::seat::{assert_seated as assert_seated_named, seat_map as seat_map_named};
-use fixture::{ang, gate, in_copy, insert, len, on_frame, run, scl, solve, step};
+use fixture::{ang, could_look, in_copy, insert, len, on_frame, run, scl, solve, step};
 use geom_core::Tol;
 use geom_core::linalg::Affine3;
 
@@ -480,9 +480,9 @@ fn a3a_a_part_selected_copy_read_at_the_part_seats() {
         "A3(a) part-selected copy",
     );
     assert!(
-        gate(&doc, &ev).is_ok(),
+        could_look(&doc, &ev).is_ok(),
         "A3(a): the gate refused: {:?}",
-        gate(&doc, &ev).err()
+        could_look(&doc, &ev).err()
     );
 }
 
