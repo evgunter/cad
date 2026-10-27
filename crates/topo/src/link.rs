@@ -17,9 +17,11 @@
 //! gathered across the keys a touch ties to its point.
 //!
 //! **Every sign decided here is a point's signed distance from a
-//! plane**, in metres, and it comes through one door: [`metric`], whose
-//! [`metric::Distance`] is built only from a point and a plane (a point
-//! on it and its unit normal). Directions — face normals, ray
+//! plane or from a sphere's or cylinder's carrier**, in metres, and it
+//! comes through one door: [`metric`], whose [`metric::Distance`] is
+//! built only from a point and a plane (a point on it and its unit
+//! normal), or from a segment and a round carrier, as its lowest point's
+//! ([`Round`]). Directions — face normals, ray
 //! directions, their bisectors — only PROPOSE planes. One other sign
 //! stays, named where it is made: [`pairing`], of unit normals of
 //! magnitude about 1. Beside the signs, [`Link::lowest_on`] branches on
@@ -36,7 +38,10 @@
 //! it reaches back far from it.
 //!
 //! A link holds planar faces bounded by line edges only: a curved face
-//! or edge at the point refuses ([`TouchUnread::Unreadable`]).
+//! or edge at the point refuses ([`TouchUnread::Unreadable`]). A sphere
+//! or cylinder face is read by its carrier instead ([`Round`]): `Gap`
+//! reads a cell against it, and the census reads a link against one
+//! holding the touch point strictly inside ([`rest::by_round`]).
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
@@ -85,10 +90,11 @@ const LINK_ROUND: &str = "link_round_offset";
 const TOUCH_NORMAL: &str = "census_touch_normal";
 
 /// **The one door every verdict sign of the touch analysis comes
-/// through.** A [`Distance`] has a private field and one constructor,
-/// from a point and a plane, so a lever, a product or any other
-/// quantity cannot be decided here as a verdict: it has no way to
-/// become a `Distance`.
+/// through.** A [`Distance`] has a private field and two constructors,
+/// from a point and a plane and from a segment and a sphere's or a
+/// cylinder's carrier, so a lever, a product or any other quantity
+/// cannot be decided here as a verdict: it has no way to become a
+/// `Distance`.
 ///
 /// What the type cannot hold: that `n` is a unit normal. Every caller
 /// passes a normalized direction or a face's outward normal, and a
@@ -1865,7 +1871,9 @@ impl<T: Decide> Round<T> {
     /// `None` off a sphere or a cylinder.
     pub fn of(surface: &geom::Surface<T>, sense: bool) -> Option<Self> {
         match *surface {
-            geom::Surface::Sphere { center, radius, .. } => Some(Self::sphere(center, radius, sense)),
+            geom::Surface::Sphere { center, radius, .. } => {
+                Some(Self::sphere(center, radius, sense))
+            }
             geom::Surface::Cylinder {
                 origin,
                 axis,
@@ -2874,7 +2882,8 @@ mod tests {
     /// wherever it is definite and wrong where its Zero is taken as one:
     /// the class five review rounds found one site at a time. So every
     /// sign a link decides comes through [`metric::sign`], whose
-    /// [`metric::Distance`] is built only from a point and a plane. This
+    /// [`metric::Distance`] is built only from a point and a plane, or a
+    /// segment and a round carrier. This
     /// reads this module's source (all but its tests) and the census's
     /// touch analysis (`census.rs`, from its banner to the backstop's
     /// header), and holds:
@@ -2888,18 +2897,23 @@ mod tests {
     ///   `select_le_zero`, `partial_cmp` or `total_cmp`, and no
     ///   `classify_dihedral` (a levered classifier of its own). No code
     ///   needs one today, so the list has no exemption;
-    /// - `Distance` is built in exactly one place: its field is private,
-    ///   `mod metric` holds exactly one `Self(` — inside `Distance::of` —
-    ///   and no `Distance(`, and `of` is the module's only function
-    ///   returning a `Distance`. So a product or a lever has no way to
-    ///   become one, not even through a second constructor beside `of`.
+    /// - `Distance` is built in exactly two places: its field is private,
+    ///   `mod metric` holds exactly two `Self(` — one inside
+    ///   `Distance::of`, and one inside `Distance::off`, which is
+    ///   `Round::lowest_on` and nothing else — and no `Distance(`, and
+    ///   those are the module's only functions returning a `Distance`. So
+    ///   a product or a lever has no way to become one, not even through
+    ///   a third constructor.
     ///
     /// - structure (`is_poison(`, `is_bounded(`, `point_value(`,
-    ///   `enclosure_hull(`) is read only at six named call sites, each
-    ///   occurring once: four in `lowest_on` (a candidate that is no
+    ///   `enclosure_hull(`) is read only at ten named call sites, each
+    ///   occurring once: four in `Link::lowest_on` (a candidate that is no
     ///   bounded number is skipped; a candidate's location read as a
-    ///   point; a band joining two points of a point segment) and two in
-    ///   `either` (a hull where the scalar holds one);
+    ///   point; a band joining two points of a point segment), four in
+    ///   `Round::lowest_on` (the same skip and location, the whole segment
+    ///   standing in where an enclosure has no bounded least, and a point
+    ///   scalar then reading its ends), and two in `either` (a hull where
+    ///   the scalar holds one);
     /// - no text is made of a number: no `format!(`, `format_args!`,
     ///   `write!`, `writeln!`, `write_fmt` or `to_string(`.
     ///

@@ -123,8 +123,11 @@ side clears only
   other's greatest, each bounded through rings and segments that cover
   the face or its convex hull (`census::depth_gap`): the nested walls,
   bores and plugs no direction separates, or
-- where the pair meets, by the touch analysis, which reads planar faces
-  only: a touch a curved face takes part in refuses (`TouchUnreadable`) —
+- where the pair meets, by the touch analysis, which reads planar faces,
+  and a sphere or cylinder face holding the touch point strictly inside
+  it, with nothing else of its solid there, as its carrier's side
+  (`topo::link`'s `Round`) against the other solid's planar link: any
+  other touch a curved face takes part in refuses (`TouchUnreadable`) —
   it never decides a Rest or a crossing there;
 
 and refuses `CensusUndecidable` otherwise. Within one solid, two

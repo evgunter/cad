@@ -7202,7 +7202,9 @@ enum Recorded {
 // its solid's whole LINK there ([`Link`], gathered off the snapshot
 // across every key the touch ties to its point): every face of the
 // solid through the point, as its sector. One test of two polygonal
-// cones decides the pair ([`rest::judge`]); a solid touching itself at
+// cones decides the pair ([`rest::judge`]), or of a cone against a
+// sphere or cylinder face holding the point inside it, read by its
+// carrier ([`rest::by_round`], through [`rest::meet`]); a solid touching itself at
 // a point is read with its one link ([`rest::one_material`]). Every
 // sign it decides comes
 // through the link's one door (`crate::link`'s module docs);
@@ -13990,6 +13992,85 @@ mod tests {
                 assert!(verdict.is_rest(), "{verdict:?}");
             }
         }
+    }
+
+    /// **A brick's corner resting strictly inside a cylinder wall reads
+    /// by the wall's carrier** (`rest::by_round`, through
+    /// [`Germ::touch_at_point`]). The wall is a sheet on a cylinder of
+    /// radius 0.8 whose axis is tilted 0.4 rad off `z`, so the wall's
+    /// normal at the touch has no zero component; the brick is grafted
+    /// beside it with its corner on the wall at azimuth 0.3, its edges
+    /// running along each axis away from or into the carrier as the
+    /// normal's signs say. As a pin (sense true), a corner whose edges
+    /// all leave it rests and one with an edge into it crosses; as a
+    /// bore, the corner whose edges all enter the hollow rests and the
+    /// other crosses. Red if the touch refuses as curved, or a sense
+    /// reads the other material.
+    #[test]
+    fn a_corner_resting_inside_a_tilted_cylinder_wall_reads_by_its_carrier() {
+        use crate::test_support_fixtures::{
+            CylFrame, CylKey, brick, cyl_wall_sheet_keyed, set_sheet_sense,
+        };
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let frame = CylFrame::tilted(0.8, 0.4);
+        let (u, v) = (0.3, 0.2);
+        let p: Point3<f64> = frame.at(u, v);
+        let n = frame.radial(u);
+        let sign = |x: f64| if x > 0.0 { 1.0 } else { -1.0 };
+        let mut bad = Vec::new();
+        for (pin, flip_y, rest) in [
+            (true, false, true),
+            (true, true, false),
+            (false, false, true),
+            (false, true, false),
+        ] {
+            let mut body = Body::<f64>::new();
+            let (wall, _) = cyl_wall_sheet_keyed(
+                &mut body,
+                frame,
+                CylKey::Bare,
+                (-1.0, 1.0),
+                (-1.0, 1.0),
+                tol,
+            );
+            crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
+            set_sheet_sense(&mut body, wall, pin, tol);
+            // Away from a pin's material along each axis is the normal's
+            // sign; away from a bore's, its opposite. `flip_y` turns the
+            // y edge the other way.
+            let away = |i: usize, x: f64| {
+                let s = if pin { sign(x) } else { -sign(x) };
+                if i == 1 && flip_y { -s } else { s }
+            };
+            let span = |i: usize, c: f64, x: f64| {
+                let far = c + 0.3 * away(i, x);
+                (c.min(far), c.max(far))
+            };
+            let b = brick::<f64>(span(0, p.x, n.x), span(1, p.y, n.y), span(2, p.z, n.z), tol);
+            crate::graft_disjoint_all_keyed(&mut body, &b).unwrap();
+            let geo = snapshot(&body);
+            let corner = geo
+                .verts
+                .iter()
+                .find(|&&(_, q)| (q - p).norm() < 1e-12)
+                .map(|&(v, _)| v)
+                .expect("the brick's corner on the wall");
+            let ties = Ties {
+                vf: vec![(corner, wall)],
+                ..Ties::default()
+            };
+            let verdict = TouchSite::VertexOnFace(corner, wall).verdict(&body, &geo, &ties, band);
+            let ok = if rest {
+                verdict.is_rest()
+            } else {
+                verdict == TouchVerdict::Crossing
+            };
+            if !ok {
+                bad.push(format!("pin {pin}, y turned {flip_y}: {verdict:?}"));
+            }
+        }
+        assert!(bad.is_empty(), "{bad:#?}");
     }
 
     /// **A point two solids share a key at is read, strictly.** A cube
