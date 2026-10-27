@@ -638,13 +638,14 @@ fn an_edge_on_a_chart_with_no_general_lane_ends_not_yet() {
     }
 }
 
-/// **The edge certificate ends a declared carrier's incidence by what
-/// was read** (D3, E1b R2/R4): a declared carrier off its chart, one
-/// whose incidence test lands in band, and one read within the band at a
-/// pose where the chart holds no curve of its kind each end in the
-/// modeler's lever worded for that read, with no defect and no tolerance;
-/// the same carrier described with no declaration ends as the kernel's.
-/// At `f64`.
+/// **The edge certificate ends a carrier's incidence by the door, and a
+/// read in band by its lever** (D3, D4 ¶1 (iv)): a carrier off its
+/// chart is the kernel's defect at a build and the stored culprit at
+/// rest; one whose incidence test lands in band, and one read within the
+/// band at a pose where the chart holds no curve of its kind, each end in
+/// the geometry's lever worded for that read, never a defect. Who placed
+/// the carrier moves none of it: the same carrier with and without a
+/// declaration ends alike. At `f64`.
 ///
 /// - **Off**: a line on the unit sphere, which holds none.
 /// - **Undecided**: a great circle tilted off the axis (none of the
@@ -655,7 +656,7 @@ fn an_edge_on_a_chart_with_no_general_lane_ends_not_yet() {
 ///   nappe reading is a band-decided Zero (`cone_conic_incidence`), and
 ///   the apex plane meets the cone only at the apex.
 #[test]
-fn a_declared_carrier_ends_by_its_incidence_read_at_the_edge_certificate() {
+fn a_carrier_ends_its_incidence_at_the_edge_certificate_by_the_door() {
     use geom_brep::recourse::Reading;
     use geom_brep::{
         CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve,
@@ -675,13 +676,13 @@ fn a_declared_carrier_ends_by_its_incidence_read_at_the_edge_certificate() {
         vec: Vec3::unit_z(),
     });
     let line = |origin: Point3<f64>, dir: Vec3<f64>| Curve3::Line { origin, dir };
-    // (read, face, carrier, span, the ending's lever)
+    // (read, face, carrier, span, the in-band read's lever, if any)
     type Row = (
         &'static str,
         Surface<f64>,
         Curve3<f64>,
         (f64, f64),
-        &'static str,
+        Option<&'static str>,
     );
     let rows: [Row; 3] = [
         (
@@ -689,7 +690,7 @@ fn a_declared_carrier_ends_by_its_incidence_read_at_the_edge_certificate() {
             sphere.clone(),
             line(Point3::new(0.0, 0.0, 0.0), Vec3::unit_x()),
             (0.2, 0.6),
-            "Recourse: move the declared curve onto the face it bounds",
+            None,
         ),
         (
             "undecided",
@@ -701,7 +702,7 @@ fn a_declared_carrier_ends_by_its_incidence_read_at_the_edge_certificate() {
                 u_ref: Vec3::unit_y(),
             },
             (0.0, 1.0),
-            "Recourse: the declared curve is not shown on the face it bounds",
+            Some("Recourse: the edge's curve is not shown on the face it bounds"),
         ),
         (
             "at a pose",
@@ -713,7 +714,7 @@ fn a_declared_carrier_ends_by_its_incidence_read_at_the_edge_certificate() {
                 u_ref: Vec3::new(0.75_f64.sqrt(), 0.0, -0.5),
             },
             (0.0, 1.0),
-            "Recourse: move the declared curve clear of that pose by more than the tolerance",
+            Some("Recourse: move the geometry so the edge sits clear of that pose"),
         ),
     ];
     for (what, surface, carrier, (t0, t1), lever) in rows {
@@ -739,58 +740,55 @@ fn a_declared_carrier_ends_by_its_incidence_read_at_the_edge_certificate() {
             )
             .expect_err("the carrier is no curve of its chart here")
         };
-        let declared = certify(true);
-        match (what, &declared) {
-            ("off", CertifyError::DeclaredOffChart { margin, .. }) => {
-                assert!(
-                    !matches!(margin, Some(OffMargin::InBand(_))),
-                    "{declared:?}"
-                );
+        let refusal = certify(false);
+        match (what, &refusal) {
+            ("off", CertifyError::CarrierOffChart { margin, .. }) => {
+                assert!(!matches!(margin, Some(OffMargin::InBand(_))), "{refusal:?}");
             }
             (
                 "undecided",
                 CertifyError::Escalated {
-                    check: CertCheck::DeclaredIncidence,
+                    check: CertCheck::ChartIncidence,
                     ..
                 },
             )
             | (
                 "at a pose",
-                CertifyError::DeclaredOffChart {
+                CertifyError::CarrierOffChart {
                     margin: Some(OffMargin::InBand(_)),
                     ..
                 },
             ) => {}
-            _ => panic!("{what}: {declared:?}"),
+            _ => panic!("{what}: {refusal:?}"),
         }
         assert_eq!(
-            declared.decision().map(|(check, _)| check),
-            Some(CertCheck::DeclaredIncidence),
+            refusal.decision().map(|(check, _)| check),
+            Some(CertCheck::ChartIncidence),
             "{what}"
         );
-        for reading in [Reading::Build, Reading::AtRest] {
-            let ending = declared.ending(reading).unwrap();
-            assert!(ending.starts_with(lever), "{what} {reading:?}: {ending}");
-            for word in ["defect", "loosen", "tighten", "repair the body"] {
-                assert!(
-                    !ending.contains(word),
-                    "{what} {reading:?}: {word}: {ending}"
-                );
+        let declared = certify(true);
+        for (reading, culprit) in [
+            (Reading::Build, geom_core::KERNEL_DEFECT_ENDING),
+            (Reading::AtRest, geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
+        ] {
+            let ending = refusal.ending(reading).unwrap();
+            assert_eq!(
+                declared.ending(reading).as_deref(),
+                Some(ending.as_str()),
+                "{what} {reading:?}: who placed the carrier moves no ending"
+            );
+            match lever {
+                None => assert_eq!(ending, culprit, "{what} {reading:?}"),
+                Some(lever) => {
+                    assert!(ending.starts_with(lever), "{what} {reading:?}: {ending}");
+                    for word in ["defect", "loosen", "tighten", "declared"] {
+                        assert!(
+                            !ending.contains(word),
+                            "{what} {reading:?}: {word}: {ending}"
+                        );
+                    }
+                }
             }
         }
-        let derived = certify(false);
-        assert!(
-            !matches!(
-                derived,
-                CertifyError::DeclaredOffChart { .. }
-                    | CertifyError::Escalated {
-                        check: CertCheck::DeclaredIncidence,
-                        ..
-                    }
-            ),
-            "{what}: {derived:?}"
-        );
-        let ending = derived.ending(Reading::Build).unwrap_or_default();
-        assert!(!ending.contains("declared curve"), "{what}: {ending}");
     }
 }

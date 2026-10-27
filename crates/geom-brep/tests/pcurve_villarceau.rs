@@ -751,9 +751,10 @@ fn a_plane_gate_in_band_near_the_horn_refuses_not_yet_never_as_the_focal_section
 /// `decide_positive` rejects the tube-rate part's magnitude as a decided
 /// Zero. The payload places it in the zero band and carries no decided
 /// sign's word: a magnitude cannot fall past the band on the side the
-/// gate rejects. `ChartIncidence` ends it in the kernel-defect ending;
-/// whether that ending is true of a valid band-scale torus is the open
-/// D2 question of `work/pcert/band-scale-torus-geometry-ends-as-a-kernel-defect.md`,
+/// gate rejects. An incidence read in band ends in its lever at every
+/// door (D3), never the kernel-defect ending; whether the band-scale
+/// torus should reach the incidence reading at all is the open D2
+/// question of `work/pcert/band-scale-torus-geometry-ends-as-a-kernel-defect.md`,
 /// so this pins the text only so that a change to it shows.
 #[test]
 fn a_tube_rate_gates_rejected_zero_renders_its_current_ending() {
@@ -795,7 +796,8 @@ fn a_tube_rate_gates_rejected_zero_renders_its_current_ending() {
     assert_eq!(
         refusal.to_string(),
         "pcurve certification: ChartIncidence at sample 0 escalated: margin 9e-10 lies within \
-         the zero band (±1e-9). There is no way through: this is a kernel defect; report it",
+         the zero band (±1e-9). Recourse: the edge's curve is not shown on the face it bounds \
+         at this tolerance: move the geometry so it lies clearly on that face",
         "the rendered refusal"
     );
 }

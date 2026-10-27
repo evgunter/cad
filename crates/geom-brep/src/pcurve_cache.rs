@@ -2403,35 +2403,22 @@ impl PcurveCertifyError {
         if let Self::FittedEscalated { decision, cause } = self {
             return Some(decision.ending(cause, at));
         }
-        // Read with no authority, an incidence refusal ends as a derived
-        // carrier's, through the one map.
         if let Some(read) = IncidenceRead::of(self) {
-            return Some(read.ending(crate::AuthorityKind::DERIVED, at));
+            return Some(read.ending(at));
         }
         self.decided().map(|(check, arm)| check.recourse(arm, at))
     }
 
-    /// This refusal's text read at `at`, with no authority to read: an
-    /// incidence refusal ([`IncidenceRead::of`]) ends as a derived
-    /// carrier's ([`Self::render_by`] with the kernel's kind); an
-    /// escalation ends as its decision does there; every other decided
-    /// refusal is its payload alone, its ending left to the reader
-    /// ([`Self::ending`]).
+    /// This refusal's text read at `at`: an incidence refusal
+    /// ([`IncidenceRead::of`]) ends through the one map
+    /// ([`IncidenceRead::ending`]); an escalation ends as its decision
+    /// does there; every other decided refusal is its payload alone, its
+    /// ending left to the reader ([`Self::ending`]).
     #[must_use]
     pub fn render(&self, at: impl Into<ReadAt>) -> String {
-        self.render_by(crate::AuthorityKind::DERIVED, at)
-    }
-
-    /// This refusal's text read at `at` for a carrier of `authority`: an
-    /// incidence refusal ([`IncidenceRead::of`]) ends by who placed the
-    /// carrier, through the one map ([`IncidenceRead::ending`]); every
-    /// other refusal reads as [`Self::render`]. The door a boundary row's
-    /// refusal is read at holds the authority, so it renders here.
-    #[must_use]
-    pub fn render_by(&self, authority: crate::AuthorityKind, at: impl Into<ReadAt>) -> String {
         let at = at.into();
         if let Some(read) = IncidenceRead::of(self) {
-            return self.with_ending(&read.ending(authority, at));
+            return self.with_ending(&read.ending(at));
         }
         match self {
             Self::FittedEscalated { decision, cause } => format!(
@@ -2487,6 +2474,11 @@ enum Routing {
     /// written general lane that cannot image this pose yet
     /// ([`PcurveCheck::GeneralLane`]).
     NotYet,
+    /// A carrier's incidence on its chart ([`PcurveCheck::ChartIncidence`]):
+    /// ended by its read ([`IncidenceRead::ending`]), which a refused arm
+    /// does not carry (off and at a pose both refuse sign-certain), so
+    /// the check alone spells no ending.
+    Incidence,
 }
 
 impl PcurveCheck {
@@ -2509,9 +2501,10 @@ impl PcurveCheck {
             Self::ChartClass | Self::GeneralLane => Routing::NotYet,
             // The placement integer and the stored copies the kernel
             // writes exactly.
-            Self::ChartWinding | Self::ImageIdentity | Self::ChartIncidence | Self::Sector => {
+            Self::ChartWinding | Self::ImageIdentity | Self::Sector => {
                 Routing::Unsized(Unsized::Defect)
             }
+            Self::ChartIncidence => Routing::Incidence,
             // A sample's residual is the miss at that sample, on a
             // fitted image as well as an exact one.
             Self::MapResidual => Routing::Unsized(Unsized::Fit),
@@ -2529,14 +2522,19 @@ impl PcurveCheck {
     }
 
     /// The one ending a refusal of this check carries on `arm`, read at
-    /// `at` (D4 ¶1 (i)).
+    /// `at` (D4 ¶1 (i)). An incidence refusal ends by its read instead
+    /// ([`PcurveCertifyError::ending`], [`IncidenceRead::ending`]).
     #[must_use]
-    pub fn recourse(self, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
+    pub(crate) fn recourse(self, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
         let at = at.into();
         match self.routing() {
             Routing::Sized(decision) => decision.recourse(arm, at),
             Routing::Unsized(decision) => decision.recourse(arm, at),
             Routing::NotYet => crate::recourse::not_yet(arm, at),
+            Routing::Incidence => unreachable!(
+                "{self:?} ends by its incidence read, which a refused arm does not carry: \
+                 end it through PcurveCertifyError::ending or IncidenceRead::ending"
+            ),
         }
     }
 
@@ -9358,29 +9356,21 @@ impl<'a> IncidenceRead<'a> {
         }
     }
 
-    /// The modeler's lever for this read of a DECLARED carrier: each arm
-    /// worded for what was read.
+    /// **The one ending of an incidence refusal**, read at `at` (D3, D4
+    /// ¶1 (iv)): a definite miss is a contradiction between what the edge
+    /// states and its geometry, ended by the door that reads it (the
+    /// kernel's defect at a build, the stored culprit at rest, the
+    /// damaged file at the import door, with no ε_in offer: the margin it
+    /// may carry is a pose's height, not the miss); a read in band, at a
+    /// pose or undecided, is a reading of the geometry, ending in its
+    /// lever at every door, never a defect. No ending reads who placed
+    /// the carrier.
     #[must_use]
-    pub fn declared_lever(self) -> crate::recourse::LeverOnly {
+    pub fn ending(self, at: impl Into<ReadAt>) -> String {
         match self {
-            Self::Off(_) => crate::recourse::DECLARED_OFF_FACE,
-            Self::AtPose(_) => crate::recourse::DECLARED_AT_POSE,
-            Self::Undecided(_) => crate::recourse::DECLARED_UNSHOWN,
-        }
-    }
-
-    /// **The one ending of an incidence refusal** (D3), by who placed the
-    /// carrier, read at `at`: a declared carrier ends in the modeler's
-    /// lever alone ([`Self::declared_lever`]), with no tolerance offer and
-    /// no defect; a derived one ends as [`PcurveCheck::ChartIncidence`]'s
-    /// routing gives it, the kernel's. Every door that reads an incidence
-    /// refusal with its authority ends it here.
-    #[must_use]
-    pub fn ending(self, authority: crate::AuthorityKind, at: impl Into<ReadAt>) -> String {
-        if authority.is_declared() {
-            self.declared_lever().recourse(self.arm(), at)
-        } else {
-            PcurveCheck::ChartIncidence.recourse(self.arm(), at)
+            Self::Off(_) => crate::recourse::Unsized::Defect.recourse(self.arm(), at),
+            Self::AtPose(_) => crate::recourse::INCIDENCE_AT_POSE.recourse(self.arm(), at),
+            Self::Undecided(_) => crate::recourse::INCIDENCE_UNSHOWN.recourse(self.arm(), at),
         }
     }
 }
@@ -10253,7 +10243,7 @@ mod tests {
                     );
                     Some(decision.side)
                 }
-                Routing::Unsized(_) | Routing::NotYet => None,
+                Routing::Unsized(_) | Routing::NotYet | Routing::Incidence => None,
             };
             assert_eq!(side, want(check), "{check:?}");
         }
@@ -10551,7 +10541,7 @@ mod tests {
         }
         .to_string();
         assert!(
-            escalated.contains(&format!("escalated: {told}There is no way through")),
+            escalated.contains(&format!("escalated: {told}Recourse:")),
             "`Escalated`: {escalated}"
         );
         let fitted = PcurveCertifyError::FittedEscalated {
@@ -11726,14 +11716,6 @@ mod tests {
                 vec!["Spiric", "WHY"],
             ),
         ];
-        let declared = crate::EdgeAuthority::Declared(crate::MappedCurve::whole(
-            crate::MappedSource::ExtrudedPoint {
-                point: Point2::new(0.0, 0.0),
-                place: geom_core::Affine3::identity(),
-                vec: Vec3::unit_z(),
-            },
-        ))
-        .kind();
         for (err, payload) in rows {
             let msg = err.to_string();
             for word in payload {
@@ -11747,39 +11729,36 @@ mod tests {
                 assert_eq!(err.ending(Reading::AtRest), None, "{msg}");
                 continue;
             };
-            // An incidence refusal's payload carries no recourse: the
-            // ending is the authority's, so the text a reader with no
-            // authority sees is the kernel's ending, and a declared
-            // carrier's reads the modeler's lever alone.
+            // An incidence refusal's payload carries no recourse: its
+            // ending is the door's, through the one map.
             let text = core::fmt::from_fn(|f| err.write_payload(f)).to_string();
             assert!(!text.contains("Recourse"), "{text}");
             assert_eq!(
                 err.ending(Reading::Build),
-                Some(read.ending(crate::EdgeAuthority::<f64>::Derived.kind(), Reading::Build,))
+                Some(read.ending(Reading::Build))
             );
-            let as_declared = err.render_by(declared, Reading::Build);
-            assert!(
-                as_declared.contains("Recourse: move the declared curve")
-                    && !as_declared.contains("defect")
-                    && !as_declared.contains("repair the body"),
-                "{as_declared}"
-            );
+            assert!(!msg.contains("repair the body"), "{msg}");
         }
     }
 
-    /// An incidence refusal read with no authority ends through the one
-    /// map as a derived carrier's: `render` is `render_by` the kernel's
-    /// kind, decided off and undecided alike, at every door.
+    /// **An incidence refusal ends by the door that reads it, and a read
+    /// in band in its lever** (D3, D4 ¶1 (iv)), through the one map: a
+    /// definite miss (with no margin, or past a pose) is the kernel's
+    /// defect at a build, the stored culprit at rest and the damaged file
+    /// at import, with no ε_in offer; a read at a pose or undecided is
+    /// the geometry's lever at every door, never a defect. `render` ends
+    /// each the same way. A kernel build's miss read as a lever, or a
+    /// read in band read as a defect, reds a row here.
     #[test]
-    fn an_incidence_refusal_read_with_no_authority_ends_through_the_map() {
+    fn an_incidence_refusal_ends_by_the_door_and_in_band_by_its_lever() {
         use geom::{CurveKind, SurfaceKind};
-        let derived = crate::EdgeAuthority::<f64>::Derived.kind();
-        let off = PcurveCertifyError::CarrierOffChart {
+        let off = |margin| PcurveCertifyError::CarrierOffChart {
             chart: SurfaceKind::Torus,
             carrier: CurveKind::Line,
             why: "WHY",
-            margin: Some(OffMargin::Past(geom_core::MarginDiag::value(4e-6))),
+            margin,
         };
+        let m = geom_core::MarginDiag::value(4e-9);
         let undecided = PcurveCertifyError::Escalated {
             check: PcurveCheck::ChartIncidence,
             sample: 2,
@@ -11790,12 +11769,41 @@ mod tests {
                 terminal_sliver: false,
             },
         };
-        for err in [off, undecided] {
+        let file = geom_core::FileCoincidence::new(1e-6);
+        for (err, definite) in [
+            (off(None), true),
+            (off(Some(OffMargin::Past(m))), true),
+            (off(Some(OffMargin::InBand(m))), false),
+            (undecided, false),
+        ] {
             let read = IncidenceRead::of(&err).expect("an incidence refusal");
-            for at in [Reading::Build, Reading::AtRest] {
-                let text = err.render(at);
-                assert_eq!(text, err.render_by(derived, at));
-                assert!(text.ends_with(&read.ending(derived, at)), "{text}");
+            for (door, culprit) in [
+                (
+                    ReadAt::from(Reading::Build),
+                    geom_core::KERNEL_DEFECT_ENDING,
+                ),
+                (
+                    ReadAt::from(Reading::AtRest),
+                    geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
+                ),
+                (ReadAt::from(file), geom_core::DAMAGED_FILE_ENDING),
+            ] {
+                let ending = read.ending(door);
+                assert_eq!(
+                    err.ending(door).as_deref(),
+                    Some(ending.as_str()),
+                    "{err:?}"
+                );
+                assert!(err.render(door).ends_with(&ending), "{err:?} at {door:?}");
+                assert!(!ending.contains("ε_in"), "{err:?} at {door:?}: {ending}");
+                if definite {
+                    assert_eq!(ending, culprit, "{err:?} at {door:?}");
+                } else {
+                    assert!(
+                        ending.starts_with("Recourse:") && !ending.contains("defect"),
+                        "{err:?} at {door:?}: {ending}"
+                    );
+                }
             }
         }
     }

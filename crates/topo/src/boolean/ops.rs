@@ -1608,21 +1608,12 @@ enum WalkRefusal {
 /// [`WalkRefusal`] of `e`, matched whole so a new refusal is read here
 /// before it is folded anywhere. A certification refusal is torn where
 /// it says the stored rows are not the face's (a malformed or misstated
-/// row, a span or a winding past its gate, a carrier off its chart),
-/// and unread where it is a precision limit or a lane not built: a face
-/// whose rows are not owed (`pcurves::not_owed`) is legal at rest, and
-/// its fresh derivation can meet one.
-///
-/// A carrier off its chart is torn whatever its authority or read: the
-/// walk does not hold the edge's authority, and on a face whose rows the
-/// at-rest pass certified, the edge passed its incidence on this chart
-/// there, so a fresh refusal is the kernel's. The at-rest pass itself
-/// ends one by who placed it (`validate::off_face_ending`): a declared
-/// carrier in the modeler's lever, and an at-pose read is not called off
-/// its face. On a face whose rows are not owed, a declared or at-pose
-/// carrier can reach this walk unread at rest and still end here as the
-/// kernel's: `work/pcert/who-placed-it-is-read-off-the-description-not-the-door.md`
-/// (S12) holds that instance.
+/// row, a span or a winding past its gate, a carrier decided off its
+/// chart: a definite contradiction the kernel holds), and unread where
+/// it is a precision limit, a lane not built or a read in band (a
+/// carrier at a pose where its chart holds no curve of its kind, D3): a
+/// face whose rows are not owed (`pcurves::not_owed`) is legal at rest,
+/// and its fresh derivation can meet one.
 fn walk_refusal(e: &crate::pcurves::PcurveMintError) -> WalkRefusal {
     use crate::pcurves::PcurveMintError as M;
     use geom_brep::PcurveCertifyError as C;
@@ -1640,6 +1631,10 @@ fn walk_refusal(e: &crate::pcurves::PcurveMintError) -> WalkRefusal {
         | M::Band(_) => WalkRefusal::Unread,
         M::Unminted { .. } => WalkRefusal::NotRaised,
         M::Certify { error, .. } => match error {
+            C::CarrierOffChart {
+                margin: Some(geom_brep::OffMargin::InBand(_)),
+                ..
+            } => WalkRefusal::Unread,
             C::PlaceholderChart
             | C::CarrierOffChart { .. }
             | C::ChartRow { .. }
@@ -8549,6 +8544,33 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    /// **The loop walk reads a carrier decided off its chart as torn, and
+    /// one read in band at a pose as unread** (D3): only a definite miss
+    /// is a contradiction the kernel holds; a read in band is never a
+    /// defect, so W2 reads nothing of the face rather than claiming one.
+    #[test]
+    fn the_walk_tears_only_on_a_definite_incidence_miss() {
+        use super::{WalkRefusal, walk_refusal};
+        use geom_brep::{OffMargin, PcurveCertifyError};
+        let off = |margin| crate::pcurves::PcurveMintError::Certify {
+            half_edge: crate::HalfEdgeKey::default(),
+            error: PcurveCertifyError::CarrierOffChart {
+                chart: geom::SurfaceKind::Cone,
+                carrier: geom::CurveKind::Circle,
+                why: "a circle no cone holds here",
+                margin,
+            },
+        };
+        let m = geom_core::MarginDiag::value(4e-10);
+        for (margin, want) in [
+            (None, WalkRefusal::Torn),
+            (Some(OffMargin::Past(m)), WalkRefusal::Torn),
+            (Some(OffMargin::InBand(m)), WalkRefusal::Unread),
+        ] {
+            assert_eq!(walk_refusal(&off(margin)), want, "{margin:?}");
+        }
+    }
 
     /// **A re-charted shell's cell reads as its input shell's faces**
     /// ([`super::respell_through_cuts`]): a meeting on a turned edge, and

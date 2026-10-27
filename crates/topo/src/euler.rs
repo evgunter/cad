@@ -1324,9 +1324,6 @@ pub enum EulerOpError {
         half_edge: HalfEdgeKey,
         /// The typed certification failure, nested whole.
         error: geom_brep::PcurveCertifyError,
-        /// Who determined the edge's locus: an incidence refusal ends by
-        /// it ([`geom_brep::IncidenceRead::ending`]).
-        authority: geom_brep::AuthorityKind,
     },
     /// [`Body::split_edge`]: the one joint decision
     /// (`crate::pcurves::decide_joint`) decided no element for the joint
@@ -1663,11 +1660,10 @@ impl EulerOpError {
                 edge,
                 half_edge,
                 error,
-                authority,
             } => format!(
                 "split_edge: on edge {edge:?}, half-edge {half_edge:?}'s stored pcurve \
                  row does not re-certify over a child's sub-interval: {}",
-                error.render_by(*authority, geom_brep::recourse::Reading::Build)
+                error.render(geom_brep::recourse::Reading::Build)
             ),
             Self::SplitJointUndecided {
                 edge,
@@ -2007,16 +2003,17 @@ pub(crate) fn every_euler_op_error_once()
         EulerOpError::PcurveSplit {
             edge: ek,
             half_edge: he,
-            error: geom_brep::PcurveCertifyError::CarrierOffChart {
-                chart: geom::SurfaceKind::Torus,
-                carrier: geom::CurveKind::Spiric,
-                why: "the spiric lies on neither its own torus nor that torus's mirror",
-                margin: None,
-            },
-            // A declared locus: the refusal is the modeler's lever. The
-            // derived twin names the kernel's defect, the one exception
+            // Read in band at a pose: the geometry's lever. A definite miss
+            // names the kernel's defect, the one exception
             // `no_refusal_names_a_defect` pins.
-            authority: crate::test_support_samples::authorities()[1],
+            error: geom_brep::PcurveCertifyError::CarrierOffChart {
+                chart: geom::SurfaceKind::Cone,
+                carrier: geom::CurveKind::Circle,
+                why: "the circle sits at the apex's height",
+                margin: Some(geom_brep::OffMargin::InBand(geom_core::MarginDiag::value(
+                    5e-10,
+                ))),
+            },
         },
         EulerOpError::PcurveMint {
             face: fc,
@@ -6118,12 +6115,6 @@ mod tests {
                                    holds the circle at the probe — not an arc rim of this \
                                    chart",
                         },
-                        // The split's circle is scaffolding, whose
-                        // pushforward is its declaration: the stamp the
-                        // finding must carry is spelled here (the samples'
-                        // declared kind), not read off the body the way
-                        // the stamp is, and the `assert_eq` below pins it.
-                        authority: crate::test_support_samples::authorities()[1],
                     },
                 },
             ],
@@ -7361,8 +7352,8 @@ mod tests {
 
     /// **No refusal names a defect** (D2 row 4): a torn body panics
     /// rather than refuse, so no variant claims a kernel defect, but for
-    /// a stored row's incidence refusal on a locus the kernel derived,
-    /// which D3 makes the kernel's (pinned last); and a
+    /// a stored row's definite incidence miss read at a build, which D3
+    /// makes the kernel's (pinned last); and a
     /// caller's bad [`EulerOpError::Argument`] states the fact and
     /// claims neither a recourse nor a defect. `PcurveMint` answers by
     /// its payload and `Argument` by its [`BadArgument`], so each side
@@ -7398,10 +7389,10 @@ mod tests {
             }
         }
         assert_eq!(arguments, 3, "the argument samples this row reads");
-        // The one exception (D3): an incidence refusal of a locus the
-        // kernel DERIVED is the kernel's, so its split names the defect,
-        // where the declared twin in the array ends in the modeler's lever.
-        let [derived, _] = crate::test_support_samples::authorities();
+        // The one exception (D3, D4 ¶1 (iv)): a definite incidence miss
+        // read at a build is a contradiction the kernel built, so its
+        // split names the defect, where the in-band twin in the array ends
+        // in the geometry's lever.
         let split = EulerOpError::PcurveSplit {
             edge: EdgeKey::default(),
             half_edge: HalfEdgeKey::default(),
@@ -7411,7 +7402,6 @@ mod tests {
                 why: "the spiric lies on neither its own torus nor that torus's mirror",
                 margin: None,
             },
-            authority: derived,
         };
         assert!(split.to_string().contains("kernel defect"), "{split}");
     }

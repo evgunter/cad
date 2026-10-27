@@ -1,9 +1,9 @@
-//! **A declared curve that does not lie on the face its description
-//! names ends in the modeler's lever, through the public door** (D3,
-//! E1b): the modeler placed it, so the refusal is theirs to move, with
-//! no tolerance offer and no defect. The same carrier described on the
-//! same face with no declaration is a locus the kernel would have
-//! derived, and its miss stays the kernel's defect.
+//! **A curve that does not lie on the face its description names is
+//! the kernel's defect at a build, declared or not** (D3, D4 ¶1 (iv)):
+//! every curve-and-face pair a build door holds is the kernel's own, so a
+//! definite miss there is a contradiction the kernel built, and at rest
+//! the stored culprit's. Who placed the carrier (a declaration on the
+//! description) is provenance and moves no ending.
 //!
 //! The body is a revolved hemisphere: a quarter disc about the `y` axis,
 //! whose arc sweeps the sphere and leaves its meridian seam. That seam
@@ -123,48 +123,38 @@ fn refused<T: Decide + AtRestPolicy + Bounds>(declared: bool) -> CertifyError {
 fn check<T: Decide + AtRestPolicy + Bounds>() {
     let lane = T::NAME;
     let declared = refused::<T>(true);
-    assert!(
-        matches!(declared, CertifyError::DeclaredOffChart { .. }),
-        "{lane}: {declared:?}"
-    );
-    assert_eq!(
-        declared.decision().map(|(check, _)| check),
-        Some(CertCheck::DeclaredIncidence),
-        "{lane}"
-    );
-    for reading in [Reading::Build, Reading::AtRest] {
-        let ending = declared
-            .ending(reading)
-            .expect("a decision's refusal has an ending");
-        assert!(
-            ending.starts_with("Recourse: move the declared curve onto the face it bounds"),
-            "{lane} {reading:?}: {ending}"
-        );
-        for word in ["defect", "tolerance", "bug"] {
-            assert!(
-                !ending.contains(word),
-                "{lane} {reading:?}: {word}: {ending}"
-            );
-        }
-    }
     let derived = refused::<T>(false);
-    assert!(
-        matches!(derived, CertifyError::ChartImageUnavailable { .. }),
-        "{lane}: an undeclared locus off its chart is the kernel's: {derived:?}"
-    );
-    let ending = derived.ending(Reading::Build).unwrap();
-    assert!(
-        !ending.contains("declared curve"),
-        "{lane}: the derived locus does not take the modeler's lever: {ending}"
-    );
+    for refusal in [&declared, &derived] {
+        assert!(
+            matches!(refusal, CertifyError::CarrierOffChart { margin: None, .. }),
+            "{lane}: {refusal:?}"
+        );
+        assert_eq!(
+            refusal.decision().map(|(check, _)| check),
+            Some(CertCheck::ChartIncidence),
+            "{lane}"
+        );
+    }
+    for (reading, culprit) in [
+        (Reading::Build, geom_core::KERNEL_DEFECT_ENDING),
+        (Reading::AtRest, geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
+    ] {
+        let ending = declared.ending(reading);
+        assert_eq!(ending.as_deref(), Some(culprit), "{lane} {reading:?}");
+        assert_eq!(
+            ending,
+            derived.ending(reading),
+            "{lane} {reading:?}: who placed the carrier moves no ending"
+        );
+    }
 }
 
 #[test]
-fn a_declared_curve_off_its_face_ends_in_its_lever_at_f64() {
+fn a_curve_off_its_face_at_a_build_is_the_kernels_at_f64() {
     check::<f64>();
 }
 
 #[test]
-fn a_declared_curve_off_its_face_ends_in_its_lever_at_interval() {
+fn a_curve_off_its_face_at_a_build_is_the_kernels_at_interval() {
     check::<Interval>();
 }

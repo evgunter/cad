@@ -771,10 +771,20 @@ impl JoinRefusal {
             Self::Undecided(JoinUndecided {
                 reading: JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Image(e)),
                 ..
-            }) => format!(
-                "two edges meeting at a vertex on one surface have no chart image to read \
-                 their family off ({e}). {defect}"
-            ),
+            }) => match geom_brep::IncidenceRead::of(e) {
+                // An incidence refusal ends by its read at this door (D3):
+                // a definite miss in the door's defect, a read in band in
+                // its lever, never a defect.
+                Some(_) => format!(
+                    "two edges meeting at a vertex on one surface have no chart image to read \
+                     their family off: {}",
+                    e.render(at)
+                ),
+                None => format!(
+                    "two edges meeting at a vertex on one surface have no chart image to read \
+                     their family off ({e}). {defect}"
+                ),
+            },
             Self::CarrierUnsupported { carrier, closed } => format!(
                 "two edges meet at a vertex on one {} carrier, which the join cannot run an \
                  edge on {} yet (work/splice/joining-a-spline-carrier-is-unbuilt); there is no \
@@ -1410,6 +1420,41 @@ mod undecided_text {
                 diag.payload()
             )
         );
+    }
+
+    /// **A chart image refused on incidence ends by its read at the join**
+    /// (D3): a carrier decided off its chart is the door's defect, once; one
+    /// read in band at a pose ends in its lever, at a build and at rest,
+    /// with no defect appended.
+    #[test]
+    fn a_join_reading_an_incidence_refusal_ends_by_its_read() {
+        use geom_brep::recourse::Reading;
+        let refusal = |margin| {
+            JoinRefusal::Undecided(JoinUndecided {
+                vertex: crate::VertexKey::default(),
+                reading: JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Image(
+                    geom_brep::PcurveCertifyError::CarrierOffChart {
+                        chart: geom::SurfaceKind::Cone,
+                        carrier: geom::CurveKind::Circle,
+                        why: "WHY",
+                        margin,
+                    },
+                )),
+            })
+        };
+        let m = MarginDiag::value(4e-10);
+        for at in [Reading::Build, Reading::AtRest] {
+            let off = refusal(None).render(at);
+            let defect = geom_brep::recourse::defect_ending(geom_brep::recourse::ReadAt::from(at));
+            assert!(off.ends_with(defect), "{off}");
+            assert_eq!(off.matches("defect").count(), 1, "{off}");
+            let at_pose = refusal(Some(geom_brep::OffMargin::InBand(m))).render(at);
+            assert!(
+                at_pose.contains("Recourse: move the geometry so the edge sits clear")
+                    && !at_pose.contains("defect"),
+                "{at:?}: {at_pose}"
+            );
+        }
     }
 
     /// The undecided escalation at `margin`, read by `predicate`.

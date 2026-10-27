@@ -461,12 +461,12 @@ fn certify_errors() -> Vec<CertifyError> {
                 channel: geom_brep::SectorChannel::Azimuth,
             },
         },
-        CertifyError::DeclaredOffChart {
+        CertifyError::CarrierOffChart {
             chart: geom::SurfaceKind::Plane,
             carrier: geom::CurveKind::Line,
             margin: None,
         },
-        CertifyError::DeclaredOffChart {
+        CertifyError::CarrierOffChart {
             chart: geom::SurfaceKind::Cone,
             carrier: geom::CurveKind::Line,
             margin: Some(geom_brep::OffMargin::InBand(MarginDiag::value(4e-10))),
@@ -554,9 +554,9 @@ fn certify_errors() -> Vec<CertifyError> {
             sample: geom_brep::certify::NOT_A_SAMPLE,
             cause: diag(),
         },
-        // A declared carrier's incidence in band at the edge certificate.
+        // A carrier's incidence in band at the edge certificate.
         CertifyError::Escalated {
-            check: CertCheck::DeclaredIncidence,
+            check: CertCheck::ChartIncidence,
             sample: geom_brep::certify::NOT_A_SAMPLE,
             cause: diag(),
         },
@@ -771,39 +771,12 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
         },
     ];
     v.extend(band_errors().into_iter().map(PcurveMintError::Band));
-    // Each certification refusal under both authorities: the ending of
-    // a carrier off its face turns on which ([`crate::validate`]'s
-    // `off_face_ending`).
-    for authority in authorities() {
-        v.extend(
-            pcurve_certify_errors()
-                .into_iter()
-                .map(|error| PcurveMintError::Certify {
-                    half_edge,
-                    error,
-                    authority,
-                }),
-        );
-    }
+    v.extend(
+        pcurve_certify_errors()
+            .into_iter()
+            .map(|error| PcurveMintError::Certify { half_edge, error }),
+    );
     v
-}
-
-/// The two authorities a locus can have, each spelled through
-/// [`geom_brep::EdgeAuthority::kind`]: derived, and declared by an
-/// extruded sketch point.
-pub(crate) fn authorities() -> [geom_brep::AuthorityKind; 2] {
-    [
-        geom_brep::EdgeAuthority::<f64>::Derived.kind(),
-        geom_brep::EdgeAuthority::Declared(geom_brep::MappedCurve {
-            source: geom_brep::MappedSource::ExtrudedPoint {
-                point: geom_core::Point2::new(0.0, 0.0),
-                place: geom_core::Affine3::identity(),
-                vec: geom_core::Vec3::new(0.0, 0.0, 1.0),
-            },
-            range: geom_brep::SubRange::whole(),
-        })
-        .kind(),
-    ]
 }
 
 fn props_errors() -> Vec<PropsError> {
