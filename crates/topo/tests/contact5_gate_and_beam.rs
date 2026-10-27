@@ -102,6 +102,21 @@ fn refusals(errors: &[ValidationError]) -> Vec<&'static str> {
 }
 
 const CROSSING: &str = "another finding reports their boundaries crossing";
+
+/// The solid pairs the findings decide interfere, each once, in order.
+fn interfering(
+    body: &Body<f64>,
+    errors: &[ValidationError],
+) -> Vec<(topo::SolidKey, topo::SolidKey)> {
+    let mut pairs: Vec<_> = errors
+        .iter()
+        .filter_map(|e| topo::census_interference_solids(body, e))
+        .map(|(x, y)| (x.min(y), x.max(y)))
+        .collect();
+    pairs.sort();
+    pairs.dedup();
+    pairs
+}
 const UNEXAMINED: &str = "another finding left their boundaries unchecked";
 
 /// **Two cubes side by side, face to face.** `[0, 2]³` and `[2, 4] ×
@@ -175,13 +190,16 @@ fn a_beam_across_two_supports_clears() {
 
 /// **The same beam sunk a millimetre into its supports refuses.** Its
 /// bottom edges now pierce the supports' sides and the supports' top
-/// edges pierce its sides, so the boundaries meet in crossings and
-/// both beam × support pairs refuse on them.
+/// edges pierce its sides, so the boundaries meet in crossings: both
+/// beam × support pairs interfere, decided by the pierces, and arm 2
+/// leaves nothing undecided beside them.
 #[test]
 fn a_beam_sunk_into_its_supports_refuses() {
-    let errors = errors_of(&beam_across_two_supports(-0.001));
+    let body = beam_across_two_supports(-0.001);
+    let errors = errors_of(&body);
     assert!(pierces(&errors) > 0, "{errors:?}");
-    assert_eq!(refusals(&errors), [CROSSING, CROSSING], "{errors:?}");
+    assert_eq!(interfering(&body, &errors).len(), 2, "{errors:?}");
+    assert_eq!(refusals(&errors), [] as [&str; 0], "{errors:?}");
 }
 
 /// **A beam tilted in band about one bottom edge.** The beam pivots on
@@ -240,15 +258,18 @@ fn crossed_ridges(lift: f64) -> Body<f64> {
 /// face of either bar lies in the plane the two ridges span, and the
 /// crossing is still a touch: the plane `z = 2` through both ridges
 /// separates the two wedges. Lowered by a centimetre, the upper ridge
-/// passes through the lower bar's slopes and the pair refuses.
+/// passes through the lower bar's slopes, and the pair interferes,
+/// decided by the pierces, with nothing undecided beside them.
 #[test]
 fn crossed_ridges_clear_resting_and_refuse_sunk() {
     let errors = errors_of(&crossed_ridges(0.0));
     assert_eq!(crosses(&errors), 1, "{errors:?}");
     assert!(placement_findings(&errors).is_empty(), "{errors:?}");
-    let errors = errors_of(&crossed_ridges(-0.01));
+    let body = crossed_ridges(-0.01);
+    let errors = errors_of(&body);
     assert!(pierces(&errors) > 0, "{errors:?}");
-    assert_eq!(refusals(&errors), [CROSSING], "{errors:?}");
+    assert_eq!(interfering(&body, &errors).len(), 1, "{errors:?}");
+    assert_eq!(refusals(&errors), [] as [&str; 0], "{errors:?}");
 }
 
 /// Whether two closed intervals overlap in a positive length.

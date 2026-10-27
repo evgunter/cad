@@ -14020,7 +14020,10 @@ mod tests {
             let got = crate::validate_pseudomanifold(&body, &ContactRecords::default(), tol);
             if label == "in band" {
                 assert_eq!(verdict, TouchVerdict::Unread(TouchUnread::InBand));
-                assert_eq!(verdict.refusal(), Some(Unrest::Undecided(Undecided::TouchInBand)));
+                assert_eq!(
+                    verdict.refusal(),
+                    Some(Unrest::Undecided(Undecided::TouchInBand))
+                );
                 assert!(got.is_err(), "{label}: an in-band shared point clears");
             } else {
                 assert!(
@@ -14051,6 +14054,53 @@ mod tests {
         assert!(
             !got.is_empty() && got.iter().all(|v| *v == TouchVerdict::Crossing),
             "{got:?}"
+        );
+    }
+
+    /// **A tetrahedron inscribed in a cube is the pair's interference,
+    /// decided at its touches.** Its corners are four of the cube's, its
+    /// edges diagonals of the cube's faces, and none of its faces lies
+    /// on a plane of the cube's: no vertex of either lies strictly inside
+    /// the other, no edge pierces a face and no face pair shares a plane,
+    /// so the overlap shows only where they touch. Arm 2 reads a touch
+    /// there as a crossing, reports it as the one `TouchInterference`,
+    /// which [`census_interference_solids`] reads as the two solids, and
+    /// refuses nothing undecidable beside it. Red, the pair refused
+    /// undecidable or cleared, where a decided crossing is read as
+    /// anything else.
+    #[test]
+    fn a_tetrahedron_inscribed_in_a_cube_interferes_at_its_touches() {
+        let tol = Tol::witness();
+        let mut body =
+            crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let tet = crate::test_support_meeting::posed_pyramid(
+            &[[1.0, 1.0, 0.0], [1.0, 0.0, 1.0], [0.0, 1.0, 1.0]],
+            [0.0, 0.0, 0.0],
+            &crate::test_support_meeting::Pose::rest(),
+            tol,
+        );
+        crate::instance::graft_disjoint(&mut body, &tet).unwrap();
+        let errs = crate::validate_pseudomanifold(&body, &ContactRecords::default(), tol)
+            .expect_err("the inscribed tetrahedron overlaps the cube");
+        let decided: Vec<_> = errs
+            .iter()
+            .filter(|e| census_interference_solids(&body, e).is_some())
+            .collect();
+        assert!(
+            matches!(decided[..], [ValidationError::TouchInterference { .. }]),
+            "one decided interference, at a touch: {errs:?}"
+        );
+        let solids: Vec<_> = body.solids().map(|(s, _)| s).collect();
+        let pair = census_interference_solids(&body, decided[0]);
+        assert!(
+            pair.is_some_and(|(x, y)| x != y && solids.contains(&x) && solids.contains(&y)),
+            "read as the two solids' interference: {pair:?}"
+        );
+        assert!(
+            !errs
+                .iter()
+                .any(|e| matches!(e, ValidationError::CensusUndecidable { .. })),
+            "nothing undecidable beside it: {errs:?}"
         );
     }
 
@@ -14851,7 +14901,10 @@ mod tests {
         ));
         let open = rest::judge(&pyramid(Some(0)), &floor_link(band), band);
         assert_eq!(open, TouchVerdict::Unread(TouchUnread::Unanalysed));
-        assert_eq!(open.refusal(), Some(Unrest::Undecided(Undecided::TouchUnanalysed)));
+        assert_eq!(
+            open.refusal(),
+            Some(Unrest::Undecided(Undecided::TouchUnanalysed))
+        );
     }
 
     /// **A tie's distance is not read as a side.** The floor, against
@@ -14920,7 +14973,10 @@ mod tests {
         let floor = floor_link(band);
         let slit = rest::judge(&link((x, vec![vec![0, 1, 2, 3]])), &floor, band);
         assert_eq!(slit, TouchVerdict::Unread(TouchUnread::Degenerate));
-        assert_eq!(slit.refusal(), Some(Unrest::Undecided(Undecided::TouchDegenerate)));
+        assert_eq!(
+            slit.refusal(),
+            Some(Unrest::Undecided(Undecided::TouchDegenerate))
+        );
         assert_eq!(
             rest::judge(&link((-x, vec![vec![0, 1, 4, 5]])), &floor, band),
             TouchVerdict::Crossing
@@ -14966,7 +15022,11 @@ mod tests {
             (TouchUnread::Unreadable, Undecided::TouchUnreadable),
             (TouchUnread::Corrupt, Undecided::CorruptInstance),
         ] {
-            assert_eq!(TouchVerdict::Unread(why).refusal(), Some(Unrest::Undecided(kind)), "{why:?}");
+            assert_eq!(
+                TouchVerdict::Unread(why).refusal(),
+                Some(Unrest::Undecided(kind)),
+                "{why:?}"
+            );
         }
     }
 

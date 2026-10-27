@@ -20,6 +20,9 @@ fn refused(body: &Body<f64>) -> bool {
         .err()
         .unwrap_or_default();
     !common::placement_findings(&errors).is_empty()
+        || errors
+            .iter()
+            .any(|e| topo::census_interference_solids(body, e).is_some())
 }
 
 /// What the census says of the placement: the first placement finding's
