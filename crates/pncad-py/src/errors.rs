@@ -412,12 +412,6 @@ pub enum ErrorClass {
     /// that must answer with a pose or not at all, never by
     /// `solve_document`, which records the fault per node instead.
     Mate,
-    /// The at-rest assembly gate refused. The Python class is
-    /// `AssemblyError`, and its arms are NOT interchangeable: a
-    /// verdict against the document (`at_rest`) and the declared
-    /// direction's frontier (`uncertified`) are different facts, so
-    /// `variant` is what a caller must branch on.
-    Assembly,
     /// A whole-document gather refused. The Python class is
     /// `ProductError`.
     Product,
@@ -610,7 +604,6 @@ impl ErrorClass {
             Self::Identity => "IdentityError",
             Self::Workspace => "WorkspaceError",
             Self::Mate => "MateError",
-            Self::Assembly => "AssemblyError",
             Self::Product => "ProductError",
             Self::Split => "SplitError",
             Self::Inline => "InlineError",

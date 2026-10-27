@@ -806,3 +806,5 @@ filed and bisected as `work/cleave/review-pick-r2-tally-moved-by-4861-section-el
   conflicts.
 - Check a batch merge before pushing it: one merge here split a test's
   closing lines across two hunks.
+
+- 2026-10-26 — seam from ATREST (stage 5 C, `the-at-rest-census-is-a-check`, branch `atrest/the-at-rest-census-is-a-check`): viewer `frame.rs`: `at_rest_badge` restated as counts; `check_rows` gains the `FindingSubject::Census` arm (an overlap's row is its earlier copy's).

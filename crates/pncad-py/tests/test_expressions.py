@@ -286,7 +286,7 @@ class TestTheTextDoorRefusesTyped(unittest.TestCase):
     def test_every_payload_field_is_present_on_every_arm(self):
         """`getattr` never raises, so a caller reads the payload
         without first branching on `variant` — the shape
-        `ReadbackError` and `AssemblyError` already have."""
+        `ReadbackError` and `ProductError` already have."""
         fields = [
             "variant",
             "pos",

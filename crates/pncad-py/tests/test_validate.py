@@ -21,15 +21,15 @@ producer minted for it, and the Python door is a bare method like the
 three rungs below it. That claim is only worth what a test can show,
 and showing it needs the SAME geometry through two doors that differ
 in nothing but whether declarations rode along. The mated bench stand
-is that pair — `assemble` gates and mints, `product` gathers and
-declares nothing — and `TestTheRecordsRideWithTheBody` is the row.
+is that pair — an instance of it carries the records its census
+minted across the document seam, `product` gathers and declares
+nothing — and `TestTheRecordsRideWithTheBody` is the row.
 
 THE ORACLES ARE DOORS, NOT RESTATED ARITHMETIC
 ----------------------------------------------
 Nothing below asserts a hand-computed verdict. The fourth rung is
 checked against the third (which already shipped), and against the
-`assemble` gate (which takes the same verdict, and whose passing is
-the precondition for reaching an `Assembly` at all). The geometry is the tour's own bench,
+at-rest check, which reads the same census. The geometry is the tour's own bench,
 taken through `test_assembly_eval.opened` rather than rebuilt here, so
 this file and the two assembly files agree on the scene by
 construction (`bench_scene.py` is the one definition of it).
@@ -62,14 +62,15 @@ from pncad import (
     Start,
     StationMove,
     ValidationError,
+    DocRef,
     ValidationFinding,
-    assemble,
     circle,
     circle_split,
     evaluate,
     m,
     product,
     rad,
+    run_checks,
 )
 
 from placing import against, placed, assemble_world_copies
@@ -212,8 +213,9 @@ class TestTheRecordsRideWithTheBody(unittest.TestCase):
     """The family's load-bearing claim: the declarations are captured
     with the body, so the verdict turns on which door minted it.
 
-    ONE geometry, two doors. `assemble` gates the product against its
-    mates' minted records and hands back a body carrying them;
+    ONE geometry, two doors. An instance of the document, standing at
+    the identity in another one, is a body carrying the records the
+    document's census minted for its seats (D-1, across the seam);
     `product` gathers the identical solids and declares nothing. If the
     capture were decorative both would answer alike."""
 
@@ -225,28 +227,41 @@ class TestTheRecordsRideWithTheBody(unittest.TestCase):
         doc = self.docs[label]
         return doc, evaluate(doc, resolver=self.store)
 
+    def instanced(self, label):
+        """The body of an instance of `label`'s document, at the
+        identity in a document of its own: the document's product with
+        the records its census minted."""
+        doc = self.docs[label]
+        outer = Doc(f"validate-instance-of-{label}")
+        instance = outer.insert(
+            Node.instantiate_part(
+                DocRef(doc.id, self.store.current_pin(doc.id)), outer.world
+            )
+        )
+        outer.set_product(instance)
+        return evaluate(outer, resolver=self.store).value(instance).body()
+
     def test_the_same_geometry_answers_differently_through_the_two_doors(self):
         doc, ev = self.evaluated("stand")
         gathered = product(doc, ev)
-        assembly = assemble(doc, ev)
+        instanced = self.instanced("stand")
 
-        # It IS the same geometry — the gather and the gate agree on
-        # the body, which `test_assembly_author` already pins and this
-        # row depends on, so it is re-asserted rather than assumed.
+        # It IS the same geometry — the gather and the instance agree on
+        # the body, so it is asserted rather than assumed.
         self.assertEqual(
             pinned(gathered).volume,
-            pinned(assembly.body).volume,
+            pinned(instanced).volume,
         )
         # And on every rung that does not consult declarations.
         for rung in ("validate", "validate_closed", "validate_geometric"):
             with self.subTest(rung=rung):
                 getattr(gathered, rung)()
-                getattr(assembly.body, rung)()
+                getattr(instanced, rung)()
 
-        # The fourth rung is where they part. The at-rest body's
-        # records back its seats; the gathered body has none, so every
-        # seat is an unrecorded contact.
-        assembly.body.validate_pseudomanifold()
+        # The fourth rung is where they part. The instance's records
+        # back its seats; the gathered body has none, so every seat is
+        # an unrecorded contact.
+        instanced.validate_pseudomanifold()
         with self.assertRaises(ValidationError) as caught:
             gathered.validate_pseudomanifold()
         self.assertEqual(caught.exception.door, "validate_pseudomanifold")
@@ -256,7 +271,7 @@ class TestTheRecordsRideWithTheBody(unittest.TestCase):
         """The stand's two mated seats are two touches between copies,
         and the census records each as one face pair. Without the
         records the gathered body refuses on exactly those two pairs,
-        and carrying them the at-rest body passes: the body carries a
+        and carrying them the instance's body passes: the body carries a
         record for each seat. (Python sees no record count, so an extra
         record that backs nothing is outside what this row can see.)"""
         doc, ev = self.evaluated("stand")
@@ -266,20 +281,21 @@ class TestTheRecordsRideWithTheBody(unittest.TestCase):
             [(f.variant, f.contact_kind) for f in caught.exception.findings],
             [("unrecorded_contact", "conformal_patch")] * 2,
         )
-        assemble(doc, ev).body.validate_pseudomanifold()
+        self.instanced("stand").validate_pseudomanifold()
 
     def test_a_mate_less_assembly_is_the_control(self):
         """The flat-pack layout: same doors, no mates, no touches —
         and the two bodies agree, because its solids are disjoint.
 
-        Without this row the pair above would only show that
-        `assemble` answers more kindly than `product`. It shows
-        instead that they differ exactly when touches exist to
-        differ about."""
+        Without this row the pair above would only show that an
+        instance answers more kindly than `product`. It shows instead
+        that they differ exactly when touches exist to differ about,
+        and the at-rest check, reading the same census, has nothing to
+        report."""
         doc, ev = self.evaluated("layout")
-        assembly = assemble(doc, ev)
-        assembly.body.validate_pseudomanifold()
+        self.instanced("layout").validate_pseudomanifold()
         product(doc, ev).validate_pseudomanifold()
+        self.assertEqual(run_checks(doc, ev).findings, [])
 
 
 #: The phrase the kernel's prose spells each census contact word with,
@@ -516,10 +532,10 @@ class TestTheRefusalsShape(unittest.TestCase):
           Python a body WITH declarations either mints them from the
           geometry it is looking at — `Value.body` off a boolean,
           whose surviving records are the ones the result still
-          witnesses — or gates them first: `assemble` answers an
-          `Assembly` only after tier 3′ passed over exactly that pair,
-          and refuses with `AssemblyError` when it does not. `product`
-          gathers and declares nothing, so its bodies are plain. A
+          witnesses — or carries them from where they were minted: an
+          instance's body holds the records its document's census
+          left over that document's own geometry. `product` gathers and
+          declares nothing, so its bodies are plain. A
           `ContactRecords` has no Python spelling, so nothing here can
           part a record from its witness; the kernel's own suites do
           it by tampering with the record set directly.
