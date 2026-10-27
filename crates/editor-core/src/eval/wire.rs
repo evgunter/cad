@@ -694,7 +694,7 @@ where
     let params = env.lane.params;
     let mut mates = Vec::with_capacity(constraints.len());
     let mut values = Vec::new();
-    // Each mate's two poses and its target's sense: what the chart of the
+    // Each mate's two poses and its orientation: what the chart of the
     // one mate fixing a direction reads.
     let mut charted = Vec::new();
     for c in constraints {
@@ -748,8 +748,13 @@ where
         )
         .map_err(|kind| unevaluated(MateSide::To, kind))?;
         let to = crate::mate::solve::tightened(to);
-        let flipped = crate::mate::solve::target_flipped(doc, m.to);
-        charted.push((on.clone(), to.clone(), flipped));
+        charted.push((
+            mate,
+            on.clone(),
+            to.clone(),
+            crate::mate::flipped(doc, m.to),
+            m.orient,
+        ));
         mates.push(crate::mate::solve::ReadMate { mate, on, to });
     }
     let equations = crate::mate::solve::equations_of(doc, constraints);
@@ -770,8 +775,10 @@ where
             })
         })?;
         let arm = crate::mate::solve::bundle_arm(reach, &mates).map_err(|f| fault(*f))?;
-        for (on, to, flipped) in charted.iter().filter(|_| !values.is_empty()) {
-            if let Some(found) = crate::mate::value::Chart::of(on, to, *flipped, arm, b)? {
+        for (mate, on, to, to_flipped, orient) in charted.iter().filter(|_| !values.is_empty()) {
+            if let Some(found) =
+                crate::mate::value::Chart::of(*mate, on, to, *to_flipped, *orient, arm, b)?
+            {
                 chart = Some(found);
                 break;
             }
@@ -2941,17 +2948,6 @@ fn subtract_from<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     }
 }
 
-/// Whether a fold row that failed naming with `error` is held out of the
-/// log: only where its cell is one its operand's table does not name
-/// ([`crate::coincide::ROW_CELL_NOT_IN_TABLE`]) and no record cites it
-/// (`work/cleave/a-fold-steps-ring-tie-row-names-a-pierce-vertex-its-operand-does-not-hold.md`).
-/// Every other naming error refuses.
-fn held_out(error: &names::NamingError, cited: bool) -> bool {
-    !cited
-        && matches!(error, names::NamingError::Emission { what }
-            if *what == crate::coincide::ROW_CELL_NOT_IN_TABLE)
-}
-
 /// **One row a fold step returned**, until the records are recited.
 enum FoldRow {
     /// It restates given pairs' decisions: the judged rows of their
@@ -2959,9 +2955,6 @@ enum FoldRow {
     Restates(Vec<usize>),
     /// The step decided it, in member space ([`in_member_space`]).
     Decided(crate::coincide::NamedCoincidence),
-    /// It names a cell the step's operands do not hold, and no record
-    /// cites it: held out of the log.
-    Unnamed,
 }
 
 /// Whether `a` and `b` make one statement: one relation between one
@@ -3490,7 +3483,6 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 b: Some((own_read, &member_table)),
                 tool: None,
             };
-            let cited = out.contacts.decided();
             for (k, row) in out.coincidences.iter().enumerate() {
                 // A row restating a given pair's decision is the judged
                 // rows of its verdicts, as published.
@@ -3505,26 +3497,8 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     fold_rows.push(FoldRow::Restates(at));
                     continue;
                 }
-                let named =
-                    match crate::coincide::name_rows(std::slice::from_ref(row), &inputs_named) {
-                        Ok(named) => named,
-                        // A row naming a cell the step's operands do not
-                        // hold, a pierce vertex the reduction minted off
-                        // every edge split
-                        // (`work/cleave/a-fold-steps-ring-tie-row-names-a-pierce-vertex-its-operand-does-not-hold.md`):
-                        // no record cites it, and it is held out of the log,
-                        // as a record citing it refuses.
-                        Err(e)
-                            if held_out(
-                                &e,
-                                u32::try_from(k).map_or(true, |k| cited.binary_search(&k).is_ok()),
-                            ) =>
-                        {
-                            fold_rows.push(FoldRow::Unnamed);
-                            continue;
-                        }
-                        Err(e) => return Err(NodeErrorKind::Naming(e)),
-                    };
+                let named = crate::coincide::name_rows(std::slice::from_ref(row), &inputs_named)
+                    .map_err(NodeErrorKind::Naming)?;
                 let [named] = <[_; 1]>::try_from(named)
                     .unwrap_or_else(|_| unreachable!("one row names one row"));
                 #[cfg(any(test, feature = "test-support"))]
@@ -3661,7 +3635,6 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             .into_iter()
             .map(|row| match row {
                 FoldRow::Restates(judged) => judged,
-                FoldRow::Unnamed => Vec::new(),
                 // A fold row the judgement already states is that row: a
                 // record citing it cites the judged decision and its
                 // margin, not the step's (which can differ in its last
@@ -4523,7 +4496,7 @@ mod stepped_operand_tests {
 mod union_row_tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-    use super::{held_out, in_member_space, judged_at, member_ranks};
+    use super::{in_member_space, judged_at, member_ranks};
     use crate::coincide::{NamedCell, NamedCoincidence, RowOrigin};
     use crate::names::{CapEnd, EntityKind, RoleSeg, Sense, StableName};
     use crate::{RecipeNodeId, VarId};
@@ -4713,35 +4686,6 @@ mod union_row_tests {
             in_own(merged),
         );
         let _ = in_member_space(pair, own, 3);
-    }
-
-    /// **Only an uncited row whose cell its table does not name is held
-    /// out**: the same error on a cited row, and any other naming error
-    /// on an uncited one, refuse.
-    #[test]
-    fn only_an_uncited_row_naming_no_tabled_cell_is_held_out() {
-        use crate::names::NamingError;
-        let missing = NamingError::Emission {
-            what: crate::coincide::ROW_CELL_NOT_IN_TABLE,
-        };
-        assert!(
-            held_out(&missing, false),
-            "uncited, its cell untabled: held out"
-        );
-        assert!(!held_out(&missing, true), "cited: refused");
-        for other in [
-            NamingError::Emission {
-                what: "a coincidence row names a cell no input of its node names",
-            },
-            NamingError::Emission {
-                what: "a union fold row's cell has a head no fold step mints",
-            },
-        ] {
-            assert!(
-                !held_out(&other, false),
-                "another naming error refuses: {other:?}"
-            );
-        }
     }
 
     /// **One pair's two rows are two statements** (DM4: a coincidence

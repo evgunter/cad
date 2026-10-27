@@ -17,7 +17,7 @@ drops a NaN operand.
 
 ## The site
 
-`crates/geom-brep/src/props/quad.rs`, `piece_monotone`:
+`crates/geom-brep/src/props/quad/trimmed.rs`, `piece_monotone`:
 
 ```rust
 let mut span = f64::INFINITY;

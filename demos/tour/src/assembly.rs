@@ -77,13 +77,18 @@
 //!   say where on the top it stands, so a thicker shelf lifts it and
 //!   shorter posts lower it, and the gate certifies both
 //!   (`update_door`).
-//! - **A seat on a downward face charts its `y` backwards.** A value
-//!   is measured on the world's axes swung onto the mated direction by
-//!   the shortest turn, and a direction pointing straight down has
-//!   none, so its chart is the half turn about `x`: a seat whose chart
-//!   is that one writes its `y` slide negated, and nothing an author
-//!   reads at the seat says so short of `reference_about`'s
-//!   documentation (`stand_doc`).
+//! - **A seat's spin turns about the face it rests on.** A value is
+//!   measured on the world's axes, carried onto the mated direction by
+//!   the least turn from where the mate's orientation puts the copy's,
+//!   and the spin is the turn left about the target face's own outward
+//!   normal, whichever side the rest's flip is written on. A seat on an
+//!   upward face writes a turn about the world's vertical as it is, and
+//!   a seat under a downward face writes it negated (`stand_doc`).
+//!
+//! The declared direction's frontier — a mated assembly's gate can
+//! neither certify nor refute — is not new here; it is the census
+//! Door-2 gap steered to M9 on #591, and `at_rest` states what this
+//! scene can and cannot say about it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -98,10 +103,10 @@ use pncad::document::{
     Assembly, BodyRead, CancelToken, CheckEvidence, CheckId, ChecksConfig, Constraint, Coord,
     Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue,
     FreeVar, LoopProgram, Mate, MateFault, MateRef, Node, OVERCONSTRAINED_RECOURSE, Operand,
-    PartResolver, PartSelect, PatternKind, Placed, ProfileDoc, ProfileProgram, RecipeNodeId,
-    SitedFace, TargetAxis, UNPINNED_RECOURSE, ValuePayload, VarId, VarName, apply, assemble,
-    content_pin, evaluate, flatten, inline, load, mixed_pins, parse_formula, product_named,
-    run_checks, save, solve_document, split, stand,
+    Orientation, PartResolver, PartSelect, PatternKind, Placed, ProfileDoc, ProfileProgram,
+    RecipeNodeId, SitedFace, TargetAxis, UNPINNED_RECOURSE, ValuePayload, VarId, VarName, apply,
+    assemble, content_pin, evaluate, flatten, inline, load, mixed_pins, parse_formula,
+    product_named, run_checks, save, solve_document, split, stand,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -252,6 +257,7 @@ fn rest(on: Operand, against: Operand) -> Mate<Formula> {
     Mate {
         on,
         to: flipped(against),
+        orient: Orientation::IDENTITY,
     }
 }
 
@@ -318,7 +324,7 @@ fn seated_at(x: Formula, y: Formula, spin: Formula) -> [(Coord, Formula); 3] {
     [
         (Coord::Slide(TargetAxis::X), x),
         (Coord::Slide(TargetAxis::Y), y),
-        (Coord::Spin(TargetAxis::Z), spin),
+        (Coord::SPIN, spin),
     ]
 }
 
@@ -626,7 +632,10 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
     // turn about +y leaves where it was, so each copy is placed at the
     // same pose.
     let lying = || {
-        let mut values = vec![(Coord::Spin(TargetAxis::Y), crate::world::turn(4, true))];
+        let mut values = vec![(
+            Coord::Spin(Some(TargetAxis::Y)),
+            crate::world::turn(4, true),
+        )];
         values.extend(crate::world::slides([
             FLAT_PACK_GAP + POST_HEIGHT,
             0.0,
@@ -749,7 +758,7 @@ fn swung(spot: [f64; 2], scope: &BTreeMap<VarName, Dimension>) -> [Formula; 2] {
 fn on_the_turntable(spot: [f64; 3], scope: &BTreeMap<VarName, Dimension>) -> Placed {
     let [x, y] = swung([spot[0], spot[1]], scope);
     Placed::unmated(vec![
-        (Coord::Spin(TargetAxis::Z), pe("swing", scope)),
+        (Coord::Spin(Some(TargetAxis::Z)), pe("swing", scope)),
         (Coord::Slide(TargetAxis::X), x),
         (Coord::Slide(TargetAxis::Y), y),
         (Coord::Slide(TargetAxis::Z), length(spot[2])),
@@ -760,13 +769,11 @@ fn on_the_turntable(spot: [f64; 3], scope: &BTreeMap<VarName, Dimension>) -> Pla
 ///
 /// The seats' values are where the posts meet the shelf, [`SEAT_A`]
 /// and [`SEAT_B`]: each copy's origin at swing zero, turned about the
-/// pivot by the swing ([`swung`]), on the world's axes swung onto the
-/// mated direction, and its spin the swing. The shelf's seat reads the
-/// near post's top, which faces up, so its chart is the world's own;
-/// the far post's reads the shelf's underside, which faces DOWN, and
-/// the chart of a downward direction is the world's axes turned half
-/// about `x`, so its `y` runs along the world's `-y` and its spin
-/// turns the other way.
+/// pivot by the swing ([`swung`]), on the world's axes, and its spin the
+/// swing about the target face's own normal. The shelf's seat reads the
+/// near post's top, which faces up, so its spin is the swing; the far
+/// post's reads the shelf's underside, which faces down, so a turn by
+/// the swing about the world's `+z` is a spin of the negated swing.
 fn stand_doc(parts: &Parts, tol: Tol) -> Stand {
     let (post, shelf) = (parts.post, parts.shelf);
     let (post_top, shelf_bottom) = (&parts.post_top, &parts.shelf_bottom);
@@ -803,16 +810,11 @@ fn stand_doc(parts: &Parts, tol: Tol) -> Stand {
         let [x, y] = swung(at, &scope);
         seated_at(x, y, pe("swing", &scope))
     };
-    // A seat under a downward face charts on the world's axes turned
-    // half about `x`: its `y` is the world's `-y`, and a turn about the
-    // world's `+z` is a spin about its `-z`.
+    // A seat under a downward face spins about its normal, the world's
+    // `-z`: a turn about the world's `+z` is a spin of the negated swing.
     let under = |at: [f64; 2]| {
         let [x, y] = swung(at, &scope);
-        seated_at(
-            x,
-            Formula::neg(y).expect("a length negates"),
-            pe("-swing", &scope),
-        )
+        seated_at(x, y, pe("-swing", &scope))
     };
     let mate_1 = constrain(
         &mut doc,
@@ -1352,8 +1354,9 @@ fn placed_as_composed(
 ///
 /// The translation is the far post's pose in the turntable, one shelf
 /// length minus a section along, turned about [`PIVOT`]. The rotation
-/// is the half a translation check cannot see: both seats' spins are
-/// zero, so the post turns by the swing and no more — a solve that
+/// is the half a translation check cannot see: each seat's spin is the
+/// swing about its face's own normal, so the post turns by the swing and
+/// no more — a solve that
 /// rotated it further and still landed its seating point would pass
 /// the translation check and put the part in sideways.
 fn far_post_solved(doc: &ProfileDoc, stand: &Stand, opts: &EvalOptions, swing: f64, tol: Tol) {
