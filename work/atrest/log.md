@@ -133,3 +133,8 @@
   It also widened the oracle row `offset_and_lowest_on_meet_the_written_down_distance` for a sector's bound (`s²/2|d|`). That was latent on `c20f7473`, seed `0x2dcfe5e9359f1e41`. I clamped the divisor at an escalation: at d = 0 the floor read −inf. The link rows are green at three ε. The row was re-committed last, naming the final head; the PR head is `061996b7`.
 
   Six `sweep::all` slow-set rows that the lane saw red also fail on main `ab2b6108`, and none is ATREST's. Two are filed: the TESS thin nested rings, and the meeting-axes pose under CHARTTAIL #5664. The rest are left to the nightly triage.
+- 2026-10-27 00:36Z (orchestrator): stage 5 C is PR #5810, frozen head `193b0d5d9f9230a2c27b9c15ebb8d9567f1792d4`, CI green. Concurrent dual review (letter H) dispatched together with identical briefs:
+  - R1 `session_01J1EsuQasjk8hBy7RciLkyX`;
+  - R2 `session_01PUfKiWnxhEAiHSGYwjfxCC`.
+
+  Lane isolation is on `review/atrest-s5c-*`. The implementer lane holds pushes until the adjudication.
