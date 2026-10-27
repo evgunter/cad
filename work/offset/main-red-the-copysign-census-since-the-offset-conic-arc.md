@@ -3,6 +3,7 @@ id: main-red-the-copysign-census-since-the-offset-conic-arc
 kind: issue
 title: Main red: the copysign census row since PR 5692's offset conic arc added three unregistered copysign sites in intersect/conic_arc.rs
 status: closed
+pr: 5874
 opened: 2026-10-26
 closed: 2026-10-27
 priority: P1
