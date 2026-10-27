@@ -687,3 +687,15 @@ result's seam re-description: `classify_dihedral` reads no spline, on
 the shared rim between two NURBS walls. That is filed as
 `the-results-seam-between-two-spline-walls-is-read-by-no-dihedral`,
 and it is next on lily's path. Klein and teapot are unmoved.
+
+## 2026-10-27 — the spline seam reading dispatched
+
+`splice/spline-seam-dihedral` (`session_01EdpJs76R3BtUnnQPDh3NwV`) takes
+`the-results-seam-between-two-spline-walls-is-read-by-no-dihedral`. It
+is re-banded P1 → P0, as lily wall 8's next stop.
+- Letter M; draw byte 36, and 36 mod 3 = 0, so a holdout: a concurrent
+  pair.
+- The brief: each face's normal is read at the edge's pcurve parameter
+  on that face (sheet-exact, as PR 5802's sector walk), not at a foot.
+  It reuses `dihedral_side`'s regularity and crease guards. The arm is
+  read from certified curvature bounds.
