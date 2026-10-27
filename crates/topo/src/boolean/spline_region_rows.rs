@@ -683,17 +683,18 @@ fn a_reading_past_its_work_caps_stands_unsettled() {
 }
 
 /// **A way out of the window within the band keeps a query near.** On a
-/// chart `5e-8 m` across in `v` below `v = ½` and collapsed above it
-/// (its upper rows coincide), the trim square `v ∈ [0.6, 0.9]` is
-/// `0.15 · 5e-8 = 7.5e-9 m` along the chart from the query `(0.5, 0.35)`:
-/// within the band. The window round the query keeps below the collapse
-/// (the collapsed cell has no arm), and its way out along `v` is
-/// `5e-8 / 16 ≈ 3e-9 m`, in the band, so the query reads near. The gaps
-/// alone, metered by the window's arms (`0.25 · 5e-8 m`), clear every
-/// piece, and would read it out.
+/// chart `L = 5·escalate` across in `v` below `v = ½` and collapsed above
+/// it (its upper rows coincide), the trim square `v ∈ [0.6, 0.9]` is
+/// `0.15·L` along the chart from the query `(0.5, 0.35)`: within the
+/// band. The window round the query keeps below the collapse (the
+/// collapsed cell has no arm), and its way out along `v` is `L/16`, in
+/// the band, so the query reads near. The gaps alone, metered by the
+/// window's arms (`0.25·L`), clear every piece, and would read it out.
 #[test]
 fn a_way_out_of_the_window_within_the_band_keeps_a_query_near() {
-    let chart = ruled(&[(0.0, 0.0), (2.5e-8, 0.0), (2.5e-8, 0.0)]);
+    let b = band();
+    let reach = 2.5 * b.escalate();
+    let chart = ruled(&[(0.0, 0.0), (reach, 0.0), (reach, 0.0)]);
     let cells = bezier_cells(&chart).unwrap();
     let p = [[0.25, 0.6], [0.75, 0.6], [0.75, 0.9], [0.25, 0.9]];
     let square = (0..4)
@@ -704,7 +705,6 @@ fn a_way_out_of_the_window_within_the_band_keeps_a_query_near() {
         v: (0.0, 1.0),
     };
     let trim = Trim::from_pieces(square, unit, [None, None], Caps::READ).unwrap();
-    let b = band();
     let near = trim.place(&cells, super::Rect::point(0.5, 0.35), b);
     assert!(
         matches!(near, Place::Near(Some(ref d)) if d.predicate == Some(super::TRIM)),
