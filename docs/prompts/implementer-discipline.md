@@ -214,7 +214,7 @@ name and is allowed to go stale; a bare `file.rs:NNN` is not a citation.
 **Tests and CI are tools, not a ritual.** Write, run and keep a test because
 it can catch a defect you care about, not because a change is expected to carry
 one. Never make the code worse to support a test or a debug check
-(DESIGN.md [checks-serve]): if a check needs a representation, stage or hook the
+(DESIGN.md [simple.checks]): if a check needs a representation, stage or hook the
 code would not otherwise have, change the check or drop it.
 
 **First ask which SHAPE a randomized test is.** Three shapes; only the first
