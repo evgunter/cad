@@ -10220,7 +10220,8 @@ fn planar_interiors_meet<T: Decide>(
     unread.map_or(Ok(false), Err)
 }
 
-/// **The two solids a finding decides interfere**: an instance's vertex
+/// **The two solids a finding decides interfere**, never one solid
+/// twice (its boundary crossing itself is no placement): an instance's vertex
 /// inside the other's material, a face of each on one carrier facing
 /// the same way and sharing interior, a touch whose materials meet, an
 /// edge piercing a face, a crossing whose side test read `SameSide`, or
@@ -10242,7 +10243,7 @@ pub fn census_interference_solids<T: Real>(
         ValidationError::UnrecordedContact {
             contact: CensusContact::EdgeFacePierce { edge: e, face },
             ..
-        } => Some((edge(*e)?, body.solid_of_face(*face)?)),
+        } => two_solids(edge(*e)?, body.solid_of_face(*face)?),
         ValidationError::UnrecordedContact {
             contact:
                 CensusContact::EdgeEdgeCross {
@@ -10251,7 +10252,7 @@ pub fn census_interference_solids<T: Real>(
                     side: Some(CrossingSideVerdict::SameSide),
                 },
             ..
-        } => Some((edge(*a)?, edge(*b)?)),
+        } => two_solids(edge(*a)?, edge(*b)?),
         ValidationError::CoincidentWedgesOverlap { edges: [a, b], .. } => {
             two_solids(edge(*a)?, edge(*b)?)
         }

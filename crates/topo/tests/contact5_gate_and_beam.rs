@@ -88,17 +88,15 @@ fn escalations(errors: &[ValidationError]) -> usize {
 }
 
 /// Every placement refusal's `what`, cut to its reason: the text before
-/// the recourse.
-fn refusals(errors: &[ValidationError]) -> Vec<&'static str> {
-    errors
-        .iter()
+/// the recourse. A decided overlap is no refusal of this kind, and a row
+/// that meets one reads it on its own.
+fn refusals(body: &Body<f64>, errors: &[ValidationError]) -> Vec<&'static str> {
+    placement_findings(body, errors)
+        .into_iter()
         .filter_map(|e| match e {
-            ValidationError::CensusUndecidable {
-                a: topo::EntityId::Solid(_),
-                b: topo::EntityId::Solid(_),
-                what,
-                ..
-            } => Some(what.split(", and this one").next().unwrap_or(what)),
+            ValidationError::CensusUndecidable { what, .. } => {
+                Some(what.split(", and this one").next().unwrap_or(what))
+            }
             _ => None,
         })
         .collect()
@@ -205,7 +203,7 @@ fn a_beam_sunk_into_its_supports_refuses() {
     let errors = errors_of(&body);
     assert!(pierces(&errors) > 0, "{errors:?}");
     assert_eq!(interfering(&body, &errors).len(), 2, "{errors:?}");
-    assert_eq!(refusals(&errors), [] as [&str; 0], "{errors:?}");
+    assert_eq!(refusals(&body, &errors), [] as [&str; 0], "{errors:?}");
 }
 
 /// **A beam tilted in band about one bottom edge.** The beam pivots on
@@ -237,7 +235,17 @@ fn a_beam_tilted_in_band_escalates() {
         crosses(&errors) > 0,
         "the pivot edge still crosses: {errors:?}"
     );
-    assert_eq!(refusals(&errors), [UNEXAMINED, UNEXAMINED], "{errors:?}");
+    assert_eq!(
+        refusals(&body, &errors),
+        [UNEXAMINED, UNEXAMINED],
+        "{errors:?}"
+    );
+    assert!(
+        !errors
+            .iter()
+            .any(|e| topo::census_interference_solids(&body, e).is_some()),
+        "no decided overlap beside the refusals: {errors:?}"
+    );
 }
 
 /// Two square bars turned 45° about their axes and crossed ridge on
@@ -276,7 +284,7 @@ fn crossed_ridges_clear_resting_and_refuse_sunk() {
     let errors = errors_of(&body);
     assert!(pierces(&errors) > 0, "{errors:?}");
     assert_eq!(interfering(&body, &errors).len(), 1, "{errors:?}");
-    assert_eq!(refusals(&errors), [] as [&str; 0], "{errors:?}");
+    assert_eq!(refusals(&body, &errors), [] as [&str; 0], "{errors:?}");
 }
 
 /// Whether two closed intervals overlap in a positive length.
@@ -319,7 +327,7 @@ fn a_grid_of_brick_pairs_clears_exactly_the_rests() {
                 } else {
                     rests += 1;
                     if refused {
-                        false_refusals.push(((x, y, z), refusals(&errors)));
+                        false_refusals.push(((x, y, z), refusals(&body, &errors)));
                     }
                 }
             }
@@ -508,7 +516,9 @@ fn a_declared_seat_with_a_keel_is_probed() {
 /// wind as check 10 wants, and whose edges pierce that wall. A block B
 /// rests on A's `x = 0` wall, face to face. Every finding between A and B is a rest,
 /// but A's own edge crossings say its boundary crosses itself, and no
-/// placement can be read against such a material.
+/// placement can be read against such a material. Those crossings are
+/// A's alone, no placement of A against B: red, a decided overlap beside
+/// the refusal, where one solid's own pierce is read as a pair.
 #[test]
 fn a_solid_whose_cavity_crosses_its_wall_blocks_its_pair() {
     let mut body = block((0.0, 3.0), (0.0, 3.0), (0.0, 1.0));
@@ -526,7 +536,14 @@ fn a_solid_whose_cavity_crosses_its_wall_blocks_its_pair() {
         "the premise: check 10 passes the crossing cavity: {errors:?}"
     );
     assert!(pierces(&errors) > 0, "{errors:?}");
-    assert_eq!(refusals(&errors), [CROSSING], "{errors:?}");
+    assert_eq!(refusals(&body, &errors), [CROSSING], "{errors:?}");
+    // A's own pierces are its boundary crossing itself, no placement.
+    assert!(
+        !errors
+            .iter()
+            .any(|e| topo::census_interference_solids(&body, e).is_some()),
+        "no decided overlap beside the refusal: {errors:?}"
+    );
 }
 
 /// A block `outer` with the block `void` cut out of it as a cavity: one

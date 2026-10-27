@@ -427,39 +427,26 @@ fn a_pinwheel_resting_on_confirmed_face_pairs_refuses_its_doubled_core() {
 }
 
 /// **A pair its wedges decide leaves nothing undecided beside them,
-/// whatever else stands.** The pinwheel, and far off a box turned about
-/// an edge it rests on until its far edge sinks 10 ε to 1000 ε into a
-/// cube's top, at the dips and poses where the sweep escalates there (10
-/// ε at the 1e-6 and 1e-12 rows, 300 ε and 1000 ε at 1e-9's turned
-/// poses). An escalation names no
+/// whatever else stands.** The pinwheel, and far off a box sunk on an
+/// edge into a cube's top over the dips that escalate there
+/// (`ESCALATING_DIPS`), at the dips and poses where the sweep does. An
+/// escalation names no
 /// entity, so it leaves every pair uncleared, the pinwheel's included;
 /// none of the pinwheel's touches reads as a crossing, so only its four
 /// wedge overlaps decide it. Red, a `CensusUndecidable` on the
 /// pinwheel's pair, where arm 2 reads a decided pair's other findings.
 #[test]
 fn a_pinwheel_beside_an_escalation_refuses_nothing_undecidable() {
-    use common::meeting::posed_box;
+    use common::meeting::{ESCALATING_DIPS, sunk_on_an_edge};
     let mut read = 0;
-    for (k, pose) in [10.0, 300.0, 1000.0]
+    for (k, pose) in ESCALATING_DIPS
         .into_iter()
         .flat_map(|k| poses().into_iter().map(move |p| (k, p)))
     {
-        let dip = k * t().eps();
         let what = pose.label;
         let mut body = pinwheel(&pose, (0.25, 1.5));
-        let far = |b: [(f64, f64); 3], extra: &Pose| {
-            let shift = Pose::turn(what, [0.0, 0.0, 1.0], 0.0, [20.0, 0.0, 0.0]);
-            posed_box(what, b, &shift.after(&pose).after(extra), t())
-        };
-        let rest = Pose::rest();
-        let tilt = Pose::turn(
-            "tilt",
-            [0.0, 1.0, 0.0],
-            (dip / 0.75).asin(),
-            [0.25, 0.0, 1.0],
-        );
-        topo::graft_disjoint(&mut body, &far([(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)], &rest)).unwrap();
-        topo::graft_disjoint(&mut body, &far([(0.0, 1.0), (0.2, 0.8), (0.0, 1.0)], &tilt)).unwrap();
+        let far = Pose::turn(what, [0.0, 0.0, 1.0], 0.0, [20.0, 0.0, 0.0]).after(&pose);
+        topo::graft_disjoint_all(&mut body, &sunk_on_an_edge(&far, k * t().eps(), t())).unwrap();
         let errs = recorded_verdict(what, &body).expect_err("the doubled core refuses");
         if !errs
             .iter()

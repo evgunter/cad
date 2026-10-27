@@ -448,19 +448,29 @@ pub(crate) fn finding_solids<T: Decide>(
             topo::census_entity_solid(body, *a)?,
             topo::census_entity_solid(body, *b)?,
         ),
+        // A pierce, or a crossing whose side test read `SameSide`, by
+        // its own cells: two solids', or one solid's crossing itself.
+        E::UnrecordedContact {
+            contact: topo::CensusContact::EdgeFacePierce { edge: e, face: f },
+            ..
+        } => (edge(*e)?, face(*f)?),
+        E::UnrecordedContact {
+            contact:
+                topo::CensusContact::EdgeEdgeCross {
+                    a,
+                    b,
+                    side: Some(topo::CrossingSideVerdict::SameSide),
+                },
+            ..
+        } => (edge(*a)?, edge(*b)?),
         touch @ E::UnrecordedContact { .. } => {
-            match topo::census_interference_solids(body, touch) {
-                Some(pair) => pair,
-                None => {
-                    let [x, y] = topo::census_contact_row(touch)?
-                        .cells
-                        .map(|cell| match cell {
-                            topo::RowCell::Result { cell } => topo::census_cell_solid(body, cell),
-                            topo::RowCell::Input { .. } | topo::RowCell::Tool => None,
-                        });
-                    (x?, y?)
-                }
-            }
+            let [x, y] = topo::census_contact_row(touch)?
+                .cells
+                .map(|cell| match cell {
+                    topo::RowCell::Result { cell } => topo::census_cell_solid(body, cell),
+                    topo::RowCell::Input { .. } | topo::RowCell::Tool => None,
+                });
+            (x?, y?)
         }
         E::CoincidentWedgesOverlap { edges: [a, b], .. }
         | E::CoincidentWedgesOverlapUndecided { edges: [a, b], .. } => (edge(*a)?, edge(*b)?),

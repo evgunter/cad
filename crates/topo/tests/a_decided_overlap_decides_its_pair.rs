@@ -9,7 +9,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
-use common::meeting::{Pose, posed_box, posed_pyramid, poses};
+use common::meeting::{ESCALATING_DIPS, Pose, posed_box, posed_pyramid, poses, sunk_on_an_edge};
 use geom_core::Tol;
 use topo::{Body, ContactRecords, EntityId, SolidKey, ValidationError, validate_pseudomanifold};
 
@@ -55,25 +55,6 @@ fn pair(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
     body
 }
 
-/// The unit cube at `pose`, and a box `[0, 1] × [0.2, 0.8] × [0, 1]`
-/// stood on its top and turned about the line `x = 0.25` on the top so
-/// that its far bottom edge sinks `dip` into the cube: it rests on the
-/// top along that line, and its walls pierce the cube's top.
-fn sunk_on_an_edge(pose: &Pose, dip: f64) -> Body<f64> {
-    let tol = Tol::witness();
-    let theta = (dip / 0.75_f64).asin();
-    let cube = posed_box("the cube", [(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)], pose, tol);
-    let tilt = Pose::turn("tilt", [0.0, 1.0, 0.0], theta, [0.25, 0.0, 1.0]);
-    let pose = Pose::turn(pose.label, [0.0, 0.0, 1.0], 0.0, [0.0, 0.0, 0.0]).after(pose);
-    let b = posed_box(
-        "the sunk box",
-        [(0.0, 1.0), (0.2, 0.8), (0.0, 1.0)],
-        &pose.after(&tilt),
-        tol,
-    );
-    pair(&cube, &b)
-}
-
 /// **A box sunk on an edge into a cube is a placement finding.** The
 /// overlap shows only as pierces: no vertex of either lies strictly
 /// inside the other and no face pair shares a plane. A row asserting a
@@ -83,7 +64,7 @@ fn sunk_on_an_edge(pose: &Pose, dip: f64) -> Body<f64> {
 /// beside `census_interference_solids`.
 #[test]
 fn a_box_sunk_on_an_edge_is_a_placement_finding() {
-    let body = sunk_on_an_edge(&Pose::rest(), 1e-3);
+    let body = sunk_on_an_edge(&Pose::rest(), 1e-3, Tol::witness());
     let errors = findings(&body);
     assert!(
         errors
@@ -97,17 +78,10 @@ fn a_box_sunk_on_an_edge_is_a_placement_finding() {
     );
 }
 
-/// The dips, in ε, at which the sweep escalates on the sunk box's
-/// far edge at some pose of some ε row: 10 ε at 1e-6 and 1e-12, 300 ε
-/// and 1000 ε at 1e-9's turned poses. Each witness row needs one
-/// escalation at some dip and pose of its row, and counts that it met
-/// one.
-const ESCALATING_DIPS: [f64; 3] = [10.0, 300.0, 1000.0];
-
 /// **A pair a standing finding decides leaves nothing undecided beside
-/// it.** The box sunk 10 ε to 1000 ε on an edge: its walls pierce the
-/// cube's top, and at some dips and poses the sweep also escalates
-/// there, an escalation that leaves any pair it might be about
+/// it.** The box sunk on an edge over [`ESCALATING_DIPS`]: its walls
+/// pierce the cube's top, and at some dips and poses the sweep also
+/// escalates there, an escalation that leaves any pair it might be about
 /// uncleared. Wherever the census decides this pair (from 300 ε, at
 /// every ε row), the pierces and a touch on the top read as a crossing
 /// decide it, so arm 2 refuses it neither for the escalation nor for
@@ -120,7 +94,7 @@ fn a_box_sunk_past_the_band_refuses_nothing_undecidable_beside_its_pierces() {
     let mut escalated = 0;
     for k in ESCALATING_DIPS {
         for pose in every_pose() {
-            let body = sunk_on_an_edge(&pose, k * Tol::witness().eps());
+            let body = sunk_on_an_edge(&pose, k * Tol::witness().eps(), Tol::witness());
             let errors = findings(&body);
             let what = format!("{k} ε, {}", pose.label);
             let decided = errors
@@ -175,9 +149,10 @@ fn inscribed(pose: &Pose) -> Body<f64> {
 /// vertex of either lies strictly inside the other, no edge pierces a
 /// face and no face pair shares a plane, so the overlap shows only where
 /// they touch. The census reads a touch there as a crossing and reports
-/// the one `TouchInterference`, read as the two solids, with nothing
-/// undecidable beside it. Red, the pair refused undecidable or cleared,
-/// where a decided crossing is read as anything else.
+/// the one `TouchInterference`, at a corner the two share and read as
+/// the two solids, with nothing undecidable beside it. Red, the pair
+/// refused undecidable or cleared, where a decided crossing is read as
+/// anything else.
 #[test]
 fn a_tetrahedron_inscribed_in_a_cube_interferes_at_every_pose() {
     for pose in every_pose() {
@@ -191,6 +166,30 @@ fn a_tetrahedron_inscribed_in_a_cube_interferes_at_every_pose() {
         assert!(
             matches!(decided[..], [ValidationError::TouchInterference { .. }]),
             "{what}: one decided interference, at a touch: {errors:?}"
+        );
+        let ValidationError::TouchInterference { witness, .. } = decided[0] else {
+            unreachable!("matched above");
+        };
+        let at: Vec<f64> = witness
+            .trim_matches(|c| c == '(' || c == ')')
+            .split(", ")
+            .map(|x| x.parse().unwrap())
+            .collect();
+        assert!(
+            [
+                [0.0, 0.0, 0.0],
+                [1.0, 1.0, 0.0],
+                [1.0, 0.0, 1.0],
+                [0.0, 1.0, 1.0]
+            ]
+            .iter()
+            .any(|&c| {
+                let q = pose.at(c);
+                (q.x - at[0]).abs() < 1e-9
+                    && (q.y - at[1]).abs() < 1e-9
+                    && (q.z - at[2]).abs() < 1e-9
+            }),
+            "{what}: the touch is read at a corner the two share: {witness}"
         );
         let (x, y) = topo::census_interference_solids(&body, decided[0]).unwrap();
         let mut got = [x, y];
@@ -243,7 +242,7 @@ fn a_crossing_touch_outranks_an_escalation_read_before_it() {
         let [cube, tet] = solids(&body)[..] else {
             panic!("{what}: two solids");
         };
-        topo::graft_disjoint_all(&mut body, &sunk_on_an_edge(&far, dip)).unwrap();
+        topo::graft_disjoint_all(&mut body, &sunk_on_an_edge(&far, dip, Tol::witness())).unwrap();
         let errors = validate_pseudomanifold(&body, &records, Tol::witness())
             .expect_err("the overlaps refuse");
         if !errors
