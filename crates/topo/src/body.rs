@@ -2193,7 +2193,12 @@ mod tests {
             let _ = t.body.faces_of_vertex_linked(v);
         }));
         let sector = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
-            let _ = crate::sector_face::resolve(&t.body, v, t.hes_b[0]);
+            let _ = crate::sector_face::resolve(
+                &t.body,
+                v,
+                t.hes_b[0],
+                geom_core::Band::linear(geom_core::Tol::witness()).unwrap(),
+            );
         }));
         for (label, report) in [("edge door", edge_door), ("fan", fan), ("sector", sector)] {
             assert!(report.contains(&premise), "{label}: {report}");
