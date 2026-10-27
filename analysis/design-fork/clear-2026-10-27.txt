@@ -1,0 +1,8 @@
+forks: CLEAR 2026-10-27, two forks under one draw
+  sym: work/clear/symbolic-tier-and-clearance-engine.md
+  selfx: work/clear/self-intersection-drops-every-vertex-sharing-face-pair-globally.md
+drawn: 2026-10-27T16:3xZ, od -An -tu1 of one /dev/urandom byte
+  LATE: drawn after both pairs' first reports were in and before any [ev] PR; the reports were labelled 1/2 in the orchestrator's scratch until then
+byte: 77 (odd)
+mapping: Fable = A, Opus = B (both forks)
+protocol: 1c2a49c3
