@@ -23,7 +23,7 @@
 //! | `gap` | cylinder face x cylinder face | `r_bore − r_pin − d` | `carrier_cyl_axis_parallel` |
 //! | `gap` | vertex x plane, sphere or cylinder face, either seat | the vertex's signed offset from the face's carrier, positive away from its material | none |
 //! | `gap` | line edge x plane face, either seat | the lower end's offset `min((e − o)·ŵ)` | none |
-//! | `gap` | line edge x cylinder face, either seat | the edge's offset from the wall, `±(d − r)` | `carrier_cyl_axis_parallel` |
+//! | `gap` | line edge x sphere or cylinder face, either seat | the edge's lowest offset from the carrier, `±(d − r)` at the least of `d` along it or an end | none |
 //! | `gap` | line edge x vertex, either seat | the vertex's offset from the edge's link (below) | `topo::link`'s door |
 //! | `gap` | line edge x line edge | the inner's lowest offset from the outer's link | `topo::link`'s door |
 //! | `gap` | vertex x vertex | the inner's offset from the outer's link | `topo::link`'s door |
@@ -32,8 +32,10 @@
 //! cone its faces bound at the point, convex, concave or a saddle alike.
 //! A point's offset from it is its signed distance from the cone's
 //! boundary, negative inside ([`topo::Link::offset`]), and an edge's its
-//! lowest along it ([`topo::Link::lowest_on`]). An edge or a vertex
-//! beside a curved face has no link yet and refuses.
+//! lowest along it ([`topo::Link::lowest_on`]). A sphere's or a
+//! cylinder's material is its carrier's side ([`topo::Round`]), and the
+//! census reads the same carrier at a touch inside such a face. An edge
+//! or a vertex beside a curved face has no link yet and refuses.
 //!
 //! Everything else — a cone, a torus, a NURBS patch, a curved edge, a
 //! whole body, and every mixed pair not listed — refuses.
@@ -503,10 +505,10 @@ fn parallel<T: Decide>(
 /// reaches this function may have zero extent.
 ///
 /// **Which carriers reach it, stated rather than assumed.** Only the
-/// five call sites below reach `arm`, and each one has already matched
+/// four call sites below reach `arm`, and each one has already matched
 /// its operands to a shape with extent: `distance` and `gap` on a
-/// plane-face pair, the two cylinder-axis sites on a cylinder pair, and
-/// `gap`'s line edge on a cylinder face. A [`Carrier::Plane`] or
+/// plane-face pair, and the two cylinder-axis sites on a cylinder pair.
+/// A [`Carrier::Plane`] or
 /// [`Carrier::Cylinder`] carries the `reach` [`carrier_of`] computed
 /// for it, and `carrier_of` answers [`Carrier::Other`] — the measure's
 /// typed refusal — for a face whose boundary it cannot walk, so a face
@@ -518,7 +520,7 @@ fn parallel<T: Decide>(
 /// answers the world origin with reach zero. That is not a claim that
 /// such a carrier cannot arrive; it is what the function returns if one
 /// does. No lever site matches one, and this paragraph is the record of
-/// why, in place of an invariant nothing enforces. A sixth lever site
+/// why, in place of an invariant nothing enforces. A fifth lever site
 /// would have to re-establish it; `reference`'s own comment says so at
 /// the arm.
 ///
@@ -872,13 +874,13 @@ fn gap<T: Decide>(
         ) => Ok(face_offset(face, *at)),
         // A face and a line edge: the face reads the edge.
         (
-            face @ (Carrier::Plane { .. } | Carrier::Cylinder { .. }),
+            face @ (Carrier::Plane { .. } | Carrier::Cylinder { .. } | Carrier::Sphere { .. }),
             line @ Carrier::Line { .. },
-        ) => face_reads_edge(face, line, outer, inner, band),
-        (
+        )
+        | (
             line @ Carrier::Line { .. },
-            face @ (Carrier::Plane { .. } | Carrier::Cylinder { .. }),
-        ) => face_reads_edge(face, line, outer, inner, band),
+            face @ (Carrier::Plane { .. } | Carrier::Cylinder { .. } | Carrier::Sphere { .. }),
+        ) => Ok(face_reads_edge(face, line)),
         // A vertex or a line edge and another: an edge reads a vertex in
         // either seat, and of two edges or two vertices the outer reads
         // the inner, through its link.
@@ -898,39 +900,39 @@ const NO_CORNER: &str = "a vertex whose faces do not all read as planes bounded 
 /// The class a refusal names for an edge whose link does not read.
 const NO_WEDGE: &str = "a line edge whose faces do not both read as planes bounded by lines";
 
-/// A face reading a line edge: a plane at the edge's lower end, its
-/// offset linear along it; a cylinder at its ruling, the axis running
-/// along the edge.
-fn face_reads_edge<T: Decide>(
-    face: &Carrier<'_, T>,
-    line: &Carrier<'_, T>,
-    outer: &Carrier<'_, T>,
-    inner: &Carrier<'_, T>,
-    band: Band,
-) -> Result<T, PrimitiveRefusal> {
+/// A face reading a line edge at its lowest point: a plane at the
+/// edge's lower end, its offset affine along it; a sphere or a cylinder
+/// by its carrier's closed form ([`topo::Round::lowest_on`]).
+fn face_reads_edge<T: Decide>(face: &Carrier<'_, T>, line: &Carrier<'_, T>) -> T {
     let Carrier::Line {
-        dir,
         ends: Some([start, end]),
         ..
     } = line
     else {
         unreachable!("gap matched a line edge whose ends read")
     };
-    match face {
-        Carrier::Plane { .. } => Ok(face_offset(face, *start).min(face_offset(face, *end))),
-        Carrier::Cylinder { axis, .. } => {
-            if !parallel(
-                "carrier_cyl_axis_parallel",
-                *axis,
-                *dir,
-                arm(face, line),
-                band,
-            )? {
-                return not_parallel("gap", "carrier_cyl_axis_parallel", outer, inner);
-            }
-            Ok(face_offset(face, *start))
-        }
-        _ => unreachable!("gap matched a plane or a cylinder face"),
+    match round_of(face) {
+        Some(round) => round.lowest_on((*start, *end)),
+        None => face_offset(face, *start).min(face_offset(face, *end)),
+    }
+}
+
+/// A sphere or a cylinder face's material, as `topo::link` reads it.
+fn round_of<T: Decide>(face: &Carrier<'_, T>) -> Option<topo::Round<T>> {
+    match *face {
+        Carrier::Sphere {
+            center,
+            radius,
+            convex,
+        } => Some(topo::Round::sphere(center, radius, convex)),
+        Carrier::Cylinder {
+            origin,
+            axis,
+            radius,
+            convex,
+            ..
+        } => Some(topo::Round::cylinder(origin, axis, radius, convex)),
+        _ => None,
     }
 }
 
@@ -1017,25 +1019,17 @@ const GAP_LINK: &str = "gap_link_reading";
 /// **How far `at` stands out of a face's material**, along its outward
 /// normal: the signed offset from a plane, and from a sphere or a
 /// cylinder the signed distance to its carrier, positive away from a
-/// ball's or a pin's material and toward a socket's or a bore's centre.
+/// ball's or a pin's material and toward a socket's or a bore's centre
+/// ([`topo::Round::offset`]).
 fn face_offset<T: Decide>(face: &Carrier<'_, T>, at: Point3<T>) -> T {
-    let signed = |convex: bool, d: T| if convex { d } else { -d };
-    match face {
-        Carrier::Plane {
-            origin, outward, ..
-        } => outward.dot(at - *origin),
-        Carrier::Sphere {
-            center,
-            radius,
-            convex,
-        } => signed(*convex, (at - *center).norm() - *radius),
-        Carrier::Cylinder {
-            origin,
-            axis,
-            radius,
-            convex,
-            ..
-        } => signed(*convex, axis_offset(*origin, *axis, at) - *radius),
+    match (face, round_of(face)) {
+        (_, Some(round)) => round.offset(at),
+        (
+            Carrier::Plane {
+                origin, outward, ..
+            },
+            None,
+        ) => outward.dot(at - *origin),
         _ => unreachable!("the arm matched a face"),
     }
 }
@@ -1381,9 +1375,11 @@ mod tests {
     /// **A vertex or a line edge on a face reads the face's signed
     /// offset, in either seat**: zero on it, positive off its material,
     /// negative in it, for a plane, a ball, a socket, a pin and a bore.
-    /// An edge reads at its lowest end. Red if a seat flips the sign, if
-    /// a concave face reads as a convex one, or if a tilted edge reads
-    /// at its higher end.
+    /// An edge reads at its lowest point: an end on a plane, a socket or
+    /// a bore, and where it passes nearest the centre or the axis on a
+    /// ball or a pin. Red if a seat flips the sign, if a concave face
+    /// reads as a convex one, or if an edge reads at its higher end or
+    /// across a ball at its ends.
     #[test]
     fn a_face_reads_a_vertex_or_an_edge_by_its_outward_normal() {
         let floor = plane(p(0.0, 0.0, 1.0), v(0.0, 0.0, 1.0));
@@ -1435,16 +1431,26 @@ mod tests {
             0.01,
             "a ruling inside a bore's hollow",
         );
-        let skew = line(p(1.0, 0.0, -1.0), p(1.0, 0.5, 1.0));
-        assert!(
-            matches!(
-                gap(&cylinder(true), &skew, band()),
-                Err(PrimitiveRefusal::NotParallel {
-                    predicate: "carrier_cyl_axis_parallel",
-                    ..
-                })
-            ),
-            "an edge across a cylinder is no ruling of it"
+        // An edge across the axis, passing it at 0.5: its least is there
+        // against a ball or a pin, and at an end against a socket or a bore.
+        let across = line(p(-2.0, 0.5, 0.3), p(2.0, 0.5, 0.3));
+        let far = 1.0 - 4.25_f64.sqrt();
+        close(read(&cylinder(true), &across), -0.5, "an edge across a pin");
+        close(
+            read(&across, &cylinder(false)),
+            far,
+            "an edge across a bore",
+        );
+        let rel = (0.25_f64 + 0.09).sqrt();
+        close(
+            read(&sphere(true), &across),
+            rel - 1.0,
+            "an edge through a ball",
+        );
+        close(
+            read(&across, &sphere(false)),
+            1.0 - (4.34_f64).sqrt(),
+            "an edge through a socket",
         );
     }
 

@@ -1864,21 +1864,35 @@ impl<T: Decide> Round<T> {
     /// The material of a face on `surface` with `Face::sense` `sense`;
     /// `None` off a sphere or a cylinder.
     pub fn of(surface: &geom::Surface<T>, sense: bool) -> Option<Self> {
-        let (at, radius) = match *surface {
-            geom::Surface::Sphere { center, radius, .. } => (Axis::Centre(center), radius),
+        match *surface {
+            geom::Surface::Sphere { center, radius, .. } => Some(Self::sphere(center, radius, sense)),
             geom::Surface::Cylinder {
                 origin,
                 axis,
                 radius,
                 ..
-            } => (Axis::Line(origin, axis), radius),
-            _ => return None,
-        };
-        Some(Self {
-            at,
+            } => Some(Self::cylinder(origin, axis, radius, sense)),
+            _ => None,
+        }
+    }
+
+    /// A sphere's material, `convex` a ball's.
+    pub fn sphere(center: Point3<T>, radius: T, convex: bool) -> Self {
+        Self {
+            at: Axis::Centre(center),
             radius,
-            convex: sense,
-        })
+            convex,
+        }
+    }
+
+    /// A cylinder's material about the line through `origin` along the
+    /// unit `axis`, `convex` a pin's.
+    pub fn cylinder(origin: Point3<T>, axis: Vec3<T>, radius: T, convex: bool) -> Self {
+        Self {
+            at: Axis::Line(origin, axis),
+            radius,
+            convex,
+        }
     }
 
     /// The carrier's radius.
