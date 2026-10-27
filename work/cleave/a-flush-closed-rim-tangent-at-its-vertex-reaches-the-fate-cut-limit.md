@@ -2,10 +2,12 @@
 id: a-flush-closed-rim-tangent-at-its-vertex-reaches-the-fate-cut-limit
 kind: issue
 title: A closed rim lying flush in a partner face, tangent inside its boundary at a vertex, reaches the fate cut's ClassificationInvariant (no corner of the dropped face)
-status: open
+status: closed
 opened: 2026-10-27
 priority: P1
 cost: M
+closed: 2026-10-27
+pr: 5852
 ---
 
 Found by PR 5808's re-review (probe `rev5808r`, scenes S7 and S10), on
@@ -46,3 +48,34 @@ refusal for the limit.
 PR 5808 keeps a closed rim flush in such a face out of the join
 (`boolean/join.rs` `stands_on`), so the one-segment forms with a vertex
 at the touch refuse typed before reaching this, as they did on `main`.
+
+## Closed (PR 5852, 2026-10-27)
+
+Measured, the S10 cells had a different cause from the one read above.
+At the cut's end, `B`'s dropped top already held the join's copies of
+`A`'s rim, and the end's corner was bounded by `B`'s closed rim:
+`fate.rs` `leaving` levered a bound at its chord, which a closed edge's
+one vertex makes zero, so every corner it bounds read `Zero` on every
+sign and the copy the kept rim runs along was never read `Along`. A
+bound is now levered at its extent (`geom_brep::edge_extent`, the
+diameter for a closed circle), as the sector reader's bounds are.
+
+The two-arc `A ∩ B` with `B` over `z ∈ [0, 0.5]` (the floors flush) and
+S7's `B ∪ A` were the cause read above: the kept rim leaves the end
+along the dropped face's boundary edge at first order. `corner_holds`
+now reads a kept edge leaving along a bound one order down,
+`(κ − κ_b)·û` at the shorter reach (`bool_fate_corner_bend`, metres,
+`runs_into`'s reading): into the corner past the bound, out of it, or
+along it where the bends tie. The secant reading stays for a bound with
+no certified bend (a spline, a spiric).
+
+The cells listed above build `SOUND` at the closed form in one shell,
+point-sampled, at rest and turned, with `r_B` at 0.5 and from `1e-6` to
+`1e-4` over 0.3; nearer ties refuse typed, as on `main` (in band, or
+`FallbackExtentUnsupported`, or the volume backstop's
+`ResultVolumeImplausible`). The same lever moves the
+containment fallback's holed-plate cut
+(`work/flush/a-fallback-cut-refuses-beside-a-ring-a-seam-or-a-pinch.md`).
+`A ∪ B` and `B ∩ A` with `A`'s vertex at the touch still refuse at the
+join (`stands_on`); lifted, they do not build, for a reason of the
+join's own: `a-flush-closed-rim-at-its-vertex-is-joined-reversed`.
