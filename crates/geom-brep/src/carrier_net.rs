@@ -255,26 +255,34 @@ fn alpha_beta(alpha: &Alpha, x: Interval) -> (Series, Series) {
     }
 }
 
-/// **The frame-free half of a span's expansion**: the Bernstein
-/// coefficients over `[a, b]`, degree [`ORDER`], of `α` and of `β`'s
-/// Taylor polynomials at the node, and each one's remainder term
-/// `c_{n+1}([a, b])·(t − m)^{n+1}` over the span. A coordinate
-/// `p₀ + u·α + v·β` is linear in its data, so its coefficients are
-/// `p₀ + u·Aᵢ + v·Bᵢ` and its remainder `u·Rα + v·Rβ`: the same reals as
-/// expanding each coordinate on its own, enclosed by an interval
-/// evaluation of an expression equal to them (an interval evaluation
-/// of any real-equal expression encloses the real; this one is the
-/// sub-distributive, tighter one). The basis reads only `α` and the
-/// span, never the frame or the carrier's placement, so it is formed
-/// once per span and shared by the three coordinates, by every frame a
-/// carrier is written in (each operand's) and by every call that cuts
-/// the same span ([`span_basis`]'s memo).
+/// One coordinate's Taylor coefficients: `p₀ + u·α + v·β`.
+fn channel(p0: Interval, u: Interval, v: Interval, a: &Series, b: &Series) -> Series {
+    let mut out = zero_series();
+    for k in 0..TERMS {
+        out[k] = u * a[k] + v * b[k];
+    }
+    out[0] = out[0] + p0;
+    out
+}
+
+/// **The frame-free half of a span's expansion**: `α` and `β`'s Taylor
+/// series at the node and over the span, the remainder's reach
+/// `(t − m)^{n+1}` over the span, the binomial expansion's terms
+/// `C(j,k)·(a − m)^{j−k}·(b − a)^k` and the monomial-to-Bernstein
+/// factors `C(i,k)`. None reads the frame or the carrier's placement,
+/// so they are formed once per span and shared by the three
+/// coordinates, by each frame the carrier is written in (each
+/// operand's) and by every call that cuts the same span
+/// ([`span_basis`]'s memo); each coordinate then forms its own
+/// coefficients from them in exactly the operations, and the order,
+/// it always has, so the net's bits are unchanged.
 #[derive(Clone)]
 struct SpanBasis {
-    alpha: Vec<Interval>,
-    beta: Vec<Interval>,
-    rest_alpha: Interval,
-    rest_beta: Interval,
+    at_node: (Series, Series),
+    over_span: (Series, Series),
+    reach: Interval,
+    terms: Vec<Vec<Interval>>,
+    choose: Vec<Vec<Interval>>,
 }
 
 /// [`SpanBasis`] over `[a, b]`.
@@ -287,8 +295,6 @@ fn span_basis_of(alpha: &Alpha, a: f64, b: f64) -> SpanBasis {
         Interval::from_f64(m),
     );
     let (am, bm) = (ia - im, ib - im);
-    let at_node = alpha_beta(alpha, im);
-    let over_span = alpha_beta(alpha, ia.enclosure_hull(ib));
     // `(t − m)^{n+1}` over the span.
     let reach = am
         .enclosure_hull(bm)
@@ -297,42 +303,26 @@ fn span_basis_of(alpha: &Alpha, a: f64, b: f64) -> SpanBasis {
     // `s` are the binomial expansion.
     let w = ib - ia;
     let binom = geom_core::spline::pieces::binomial;
-    let choose = |i: usize, k: usize| Interval::from_f64(binom(i, k));
-    // The expansion's terms `C(j,k)·(a − m)^{j−k}·(b − a)^k`, formed
-    // once for both series.
-    let terms: Vec<Vec<Interval>> = (0..=n)
+    let choose: Vec<Vec<Interval>> = (0..=n)
+        .map(|i| (0..=i).map(|k| Interval::from_f64(binom(i, k))).collect())
+        .collect();
+    let terms = (0..=n)
         .map(|j| {
             (0..=j)
                 .map(|k| {
-                    choose(j, k)
+                    choose[j][k]
                         * am.powi(i32::try_from(j - k).unwrap_or(i32::MAX))
                         * w.powi(i32::try_from(k).unwrap_or(i32::MAX))
                 })
                 .collect()
         })
         .collect();
-    let bernstein = |series: &Series| -> Vec<Interval> {
-        // The polynomial's coefficients in `s`.
-        let mut mono = vec![Interval::zero(); n + 1];
-        for (j, cj) in series.iter().take(n + 1).enumerate() {
-            for (k, mk) in mono.iter_mut().enumerate().take(j + 1) {
-                *mk = *mk + *cj * terms[j][k];
-            }
-        }
-        // Monomial to Bernstein: `bᵢ = Σ_{k≤i} C(i,k)/C(n,k)·aₖ`.
-        (0..=n)
-            .map(|i| {
-                (0..=i).fold(Interval::zero(), |acc, k| {
-                    acc + mono[k] * choose(i, k) / choose(n, k)
-                })
-            })
-            .collect()
-    };
     SpanBasis {
-        alpha: bernstein(&at_node.0),
-        beta: bernstein(&at_node.1),
-        rest_alpha: over_span.0[n + 1] * reach,
-        rest_beta: over_span.1[n + 1] * reach,
+        at_node: alpha_beta(alpha, im),
+        over_span: alpha_beta(alpha, ia.enclosure_hull(ib)),
+        reach,
+        terms,
+        choose,
     }
 }
 
@@ -375,21 +365,38 @@ fn span_basis(alpha: &Alpha, a: f64, b: f64) -> SpanBasis {
 }
 
 /// The span `[a, b]`'s Bernstein coefficients, degree [`ORDER`], per
-/// coordinate, enclosing the carrier over the span ([`SpanBasis`]: each
-/// is `p₀ + u·Aᵢ + v·Bᵢ` plus the remainder `u·Rα + v·Rβ`), and the
-/// widest of them before the remainder is added
-/// ([`CarrierNet::rounding`]).
+/// coordinate, enclosing the carrier over the span, and the widest of
+/// them before the remainder is added ([`CarrierNet::rounding`]).
 fn span_bernstein(h: &Harmonic, a: f64, b: f64) -> ([Vec<Interval>; 3], f64) {
+    let n = ORDER;
     let basis = span_basis(&h.alpha, a, b);
+    let SpanBasis {
+        at_node,
+        over_span,
+        reach,
+        terms,
+        choose,
+    } = &basis;
     let mut rounding = 0.0_f64;
     let mut coords = |p0: Interval, u: Interval, v: Interval| -> Vec<Interval> {
-        let rest = u * basis.rest_alpha + v * basis.rest_beta;
-        basis
-            .alpha
-            .iter()
-            .zip(&basis.beta)
-            .map(|(&ai, &bi)| {
-                let poly = p0 + u * ai + v * bi;
+        let node = channel(p0, u, v, &at_node.0, &at_node.1);
+        let span = channel(p0, u, v, &over_span.0, &over_span.1);
+        let rest = span[n + 1] * *reach;
+        // The polynomial's coefficients in `s`.
+        let mut mono = vec![Interval::zero(); n + 1];
+        for (j, cj) in node.iter().take(n + 1).enumerate() {
+            for (k, mk) in mono.iter_mut().enumerate().take(j + 1) {
+                *mk = *mk + *cj * terms[j][k];
+            }
+        }
+        // Monomial to Bernstein: `bᵢ = Σ_{k≤i} C(i,k)/C(n,k)·aₖ`; the
+        // polynomial's own coefficient first, whose width is the
+        // rounding no round removes, and the remainder after.
+        (0..=n)
+            .map(|i| {
+                let poly = (0..=i).fold(Interval::zero(), |acc, k| {
+                    acc + mono[k] * choose[i][k] / choose[n][k]
+                });
                 let width = if poly.is_certified() {
                     Bounds::hi(poly) - Bounds::lo(poly)
                 } else {
@@ -775,6 +782,112 @@ fn enclosing_net<T: CertifiedBounds>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
+    /// **The shared basis changes no bit of the net.** Each span's
+    /// coefficients through [`super::span_basis`] (memoised, shared by
+    /// the coordinates) against the expansion written out per
+    /// coordinate as it was before the basis existed, for a circle, an
+    /// ellipse and a spiric over several spans, twice so the second read
+    /// is the memo's. Red under any regrouping of the arithmetic — a
+    /// factored `p₀ + u·A + v·B` encloses the same reals and moves the
+    /// bits, which moves limb 2's bounds at the tolerance's edge.
+    #[test]
+    fn the_shared_basis_is_the_per_coordinate_expansion_bit_for_bit() {
+        use super::{ORDER, Series, alpha_beta, harmonic, span_bernstein};
+        use geom_core::spline::SpanLocate as _;
+        fn direct(h: &super::Harmonic, a: f64, b: f64) -> Vec<Vec<(u64, u64)>> {
+            let n = ORDER;
+            let m = 0.5 * (a + b);
+            let (ia, ib, im) = (
+                Interval::from_f64(a),
+                Interval::from_f64(b),
+                Interval::from_f64(m),
+            );
+            let (am, bm) = (ia - im, ib - im);
+            let at_node = alpha_beta(&h.alpha, im);
+            let over_span = alpha_beta(&h.alpha, ia.enclosure_hull(ib));
+            let reach = am.enclosure_hull(bm).powi(7);
+            let w = ib - ia;
+            let binom = geom_core::spline::pieces::binomial;
+            let chan = |p0: Interval, u: Interval, v: Interval, x: &Series, y: &Series| {
+                let mut out = *x;
+                for k in 0..out.len() {
+                    out[k] = u * x[k] + v * y[k];
+                }
+                out[0] = out[0] + p0;
+                out
+            };
+            [
+                (h.p0.x, h.u.x, h.v.x),
+                (h.p0.y, h.u.y, h.v.y),
+                (h.p0.z, h.u.z, h.v.z),
+            ]
+            .into_iter()
+            .map(|(p0, u, v)| {
+                let node = chan(p0, u, v, &at_node.0, &at_node.1);
+                let span = chan(p0, u, v, &over_span.0, &over_span.1);
+                let rest = span[n + 1] * reach;
+                let mut mono = vec![Interval::zero(); n + 1];
+                for (j, cj) in node.iter().take(n + 1).enumerate() {
+                    for (k, mk) in mono.iter_mut().enumerate().take(j + 1) {
+                        let term = Interval::from_f64(binom(j, k))
+                            * am.powi(i32::try_from(j - k).unwrap())
+                            * w.powi(i32::try_from(k).unwrap());
+                        *mk = *mk + *cj * term;
+                    }
+                }
+                (0..=n)
+                    .map(|i| {
+                        let poly = (0..=i).fold(Interval::zero(), |acc, k| {
+                            acc + mono[k] * Interval::from_f64(binom(i, k))
+                                / Interval::from_f64(binom(n, k))
+                        });
+                        let c = poly + rest;
+                        (c.lo().to_bits(), c.hi().to_bits())
+                    })
+                    .collect()
+            })
+            .collect()
+        }
+        let carriers = [
+            Curve3::Circle {
+                center: Point3::new(0.3, -1.1, 2.7),
+                axis: Vec3::new(0.0, 0.6, 0.8),
+                radius: 1.7,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            Curve3::Ellipse {
+                center: Point3::new(-4.0, 0.25, 1.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                semi_u: 3.0,
+                semi_v: 0.7,
+                u_ref: Vec3::new(0.6, 0.8, 0.0),
+            },
+            Curve3::Spiric {
+                center: Point3::new(0.0, 0.0, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+                major_radius: 1.2,
+                minor_radius: 0.225,
+                offset: 0.05,
+            },
+        ];
+        for carrier in carriers {
+            let h = harmonic(&carrier.map_scalar(Interval::from_f64), None).unwrap();
+            for (a, b) in [(0.0, 0.19), (0.4, 0.61), (2.9, 3.1), (0.4, 0.61)] {
+                let got: Vec<Vec<(u64, u64)>> = span_bernstein(&h, a, b)
+                    .0
+                    .iter()
+                    .map(|row| {
+                        row.iter()
+                            .map(|c| (c.lo().to_bits(), c.hi().to_bits()))
+                            .collect()
+                    })
+                    .collect();
+                assert_eq!(got, direct(&h, a, b), "{carrier:?} over [{a}, {b}]");
+            }
+        }
+    }
+
     use super::{CarrierEnclosureRefusal, carrier_net, enclosing_net};
     use geom::Curve3;
     use geom_core::interval::Interval;
