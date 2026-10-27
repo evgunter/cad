@@ -57,6 +57,8 @@ mod a_certified_body_measures_only_itself;
 mod a_conic_quarter_torus_measures_a_bracket_at_the_wall;
 #[path = "an_off_iso_line_on_a_spline_wall_imports_its_general_row.rs"]
 mod an_off_iso_line_on_a_spline_wall_imports_its_general_row;
+#[path = "e1d_review_probe.rs"]
+mod e1d_review_probe;
 #[path = "cert1_r1_import_probes.rs"]
 mod cert1_r1_import_probes;
 #[path = "cert_n2r2_consumer_probes.rs"]
