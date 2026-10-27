@@ -136,6 +136,7 @@ not (
   (binary_id(geom-brep::all) & (test(=review_r1_rational_probes::a_conic_torus_costlier_per_round_stops_at_the_wall_holding_its_closed_form))) |
   (binary_id(mesh::all) & (test(=lofted_circle::a_loft_of_two_circles_tessellates))) |
   (binary_id(geom-brep) & (test(=props::quad::trimmed::tests::q6_a_chart_past_the_newton_cotes_window_refuses_typed) | test(=props::quad::trimmed::tests::q14_the_composite_arm_holds_a_closed_form_at_every_round) | test(=props::quad::trimmed::tests::q15_a_composite_face_short_of_its_caller_stops_at_the_wall) | test(=props::quad::trimmed::tests::q16_the_composite_arm_holds_an_independent_reference_across_knots) | test(=props::quad::trimmed::tests::q17_the_closure_gap_is_paid_over_the_column_below_the_trim))) |
+  (binary_id(geom-brep) & (test(=dihedral::seam_rows::two_spline_walls_read_transverse_or_smooth) | test(=dihedral::seam_rows::a_rational_chart_reads_its_seam) | test(=dihedral::seam_rows::the_arm_is_the_charts_certified_curvature) | test(=dihedral::seam_rows::the_seam_reads_the_sheet_its_parameters_name))) |
   (binary_id(sweep::all) & (test(=m6_loft_body::shape_iii_volume_matches_the_derived_closed_form) | test(=r1_area_gauge_probes::r1_e2e_gauge_is_silent_on_an_honest_body_through_the_public_door)))
 )
 """

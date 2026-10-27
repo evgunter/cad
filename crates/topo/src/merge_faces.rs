@@ -628,6 +628,14 @@ pub enum EdgeDescribeFailure {
     /// Its curve does not certify as the pair its two faces'
     /// surfaces under-determine (incidence on both).
     Pair,
+    /// A spline face it bounds has no one normal where its dihedral is
+    /// read: the point lies on a crease or a pinch of the face's chart
+    /// ([`geom_brep::SeamEscalation::Crease`]).
+    Crease,
+    /// A spline face it bounds has no image of it in its chart to read
+    /// the face's normal at: it carries no certified curve, or its image
+    /// in that chart does not derive ([`crate::pcurves::pcurve_of`]).
+    Unplaced,
 }
 
 impl EdgeDescribeFailure {
@@ -641,6 +649,14 @@ impl EdgeDescribeFailure {
             Self::Tangency => "its two faces' tangency does not certify on its curve",
             Self::Chart => "its curve does not certify as an image in its face's chart",
             Self::Pair => "its curve does not certify as lying on both its faces' surfaces",
+            Self::Crease => {
+                "it meets a crease or a pinch of a curved face it bounds, where that face has \
+                 no single direction to read the angle between its faces by"
+            }
+            Self::Unplaced => {
+                "it has no image in the chart of a curved face it bounds to read that face's \
+                 direction at"
+            }
         }
     }
 }

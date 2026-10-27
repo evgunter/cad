@@ -711,13 +711,12 @@ fn cell_curvature(cell: &PatchCell) -> Option<(f64, f64)> {
     Some((k_lo, k_hi))
 }
 
-/// Meter 2, whole patch: the certified curvature range and the
-/// folding-side headroom for this `d` (module docs).
-///
-/// A cell whose normal is not certifiably non-degenerate contributes
-/// an unbounded range — meter 1 is the predicate that names that
-/// case, and it runs first.
-pub fn patch_collapse(cells: &[PatchCell], d: f64) -> PatchCollapse {
+/// **The certified principal-curvature range over `cells`**, in the
+/// chart-normal sign convention (module docs, meter 2): `[κ_lo, κ_hi]`
+/// holds every principal curvature at every point of every cell. A cell
+/// whose normal is not certifiably non-degenerate, or no cell at all,
+/// leaves the range unbounded.
+pub(crate) fn patch_curvature(cells: &[PatchCell]) -> (f64, f64) {
     let mut kappa_lo = f64::INFINITY;
     let mut kappa_hi = f64::NEG_INFINITY;
     for cell in cells {
@@ -736,6 +735,17 @@ pub fn patch_collapse(cells: &[PatchCell], d: f64) -> PatchCollapse {
         kappa_lo = f64::NEG_INFINITY;
         kappa_hi = f64::INFINITY;
     }
+    (kappa_lo, kappa_hi)
+}
+
+/// Meter 2, whole patch: the certified curvature range and the
+/// folding-side headroom for this `d` (module docs).
+///
+/// A cell whose normal is not certifiably non-degenerate contributes
+/// an unbounded range — meter 1 is the predicate that names that
+/// case, and it runs first.
+pub fn patch_collapse(cells: &[PatchCell], d: f64) -> PatchCollapse {
+    let (kappa_lo, kappa_hi) = patch_curvature(cells);
     // The fold is `1 − d·κ = 0`. For `d > 0` only positive κ folds;
     // for `d < 0` only negative κ does. `κ⁺` is the folding-side
     // curvature magnitude, and `1/κ⁺` the critical distance.

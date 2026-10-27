@@ -34,3 +34,16 @@ midpoint.
 ## Moved to SPLICE (2026-10-25)
 
 From GAUGE. Moved by `git mv` in the chat-approved refold that opened SPLICE (`work/splice/program.md`), the track for a body built by loft or sweep entering every boolean. Re-banded P3 → P1: it becomes live the moment the gate goes, so it ships with the deletion.
+
+## The dihedral it reads (SPLICE, 2026-10-27)
+
+`describe_section_boundary` classifies a boundary edge through
+`geom_brep::classify_dihedral`, whose implicit forms are poison on a
+spline face, so a section edge on a loft wall would refuse at the arm
+(`"dihedral_arm"`, invalid) before it is described. The boolean's seam
+describer reads the same question through `geom_brep::classify_seam`,
+each spline face at the edge's pcurve on it (`topo::boolean::ops::seam_face`);
+the split's describer is the same shape and wants the same reading when
+its gate admits a NURBS edge. The split's sector rule
+(`splitting::rules`, its `classify_dihedral` at a vertex) is the same
+case at a vertex.

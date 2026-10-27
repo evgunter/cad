@@ -87,6 +87,28 @@
 //! through the ordinary decide door. "Arm too small to say" is always
 //! an escalation, never a classification, and every door ends it as
 //! [`DIHEDRAL_ARM`], the arm's own decision, not the wedge's.
+//!
+//! # A seam with a spline face
+//!
+//! A spline face has no implicit form, so [`classify_dihedral`] reads
+//! poison on it. [`classify_seam`] reads the same wedge, through the
+//! same gate and predicates, with each face read by its kind
+//! ([`SeamFace`]): an analytic face as above, a spline face at the
+//! point's parameters on its own sheet, which the caller reads off the
+//! edge's pcurve on that face (C4) and never off a projection foot,
+//! since a foot can land on another sheet of the carrier. There the
+//! normal is its chart's `S_u × S_v`, read only where the chart has
+//! one ([`crate::regular_jet`], [`crate::chart_normal_at`]): within the
+//! band of an irregular point or of a line the normal is not continuous
+//! across, the seam escalates [`SeamEscalation::Crease`].
+//!
+//! Its curvature arm is `1/κ̄`, `κ̄` a certified bound on every principal
+//! curvature anywhere on the chart ([`crate::NurbsLane::chart_curvature`]).
+//! The arm stands for the surface over the reach the wedge is levered
+//! across, so a curvature read at the point alone does not bound it; a
+//! bound over the whole chart bounds every face the chart carries. A
+//! chart the bound refuses, a C⁰-creased one among them, reads a
+//! poisoned arm, and the arm gate escalates.
 
 use core::ops::ControlFlow;
 
@@ -316,6 +338,90 @@ pub fn classify_dihedral<T: Decide>(
         .map_err(WedgeEscalation::into_lever)
 }
 
+/// **One face of a seam**, as [`classify_seam`] reads it at the seam's
+/// point.
+#[derive(Clone, Copy, Debug)]
+pub enum SeamFace<'a, T: Real> {
+    /// A face read off its carrier's implicit form at the point, as
+    /// [`classify_dihedral`] reads both: a spline carrier has none, and
+    /// reads poison.
+    Analytic(&'a Surface<T>),
+    /// A face on a spline chart, read at the point's chart parameters
+    /// on the face's own sheet: the edge's pcurve on that face at the
+    /// point's edge parameter (module docs).
+    Spline {
+        /// The face's chart.
+        chart: &'a geom::NurbsSurface<T>,
+        /// The point's parameters on it.
+        uv: (T, T),
+    },
+}
+
+/// Why [`classify_seam`] read no class.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SeamEscalation {
+    /// The arm gate or the wedge's own reading escalated, as
+    /// [`classify_dihedral`]'s.
+    Lever(LeverEscalation),
+    /// A spline face's chart has no one normal at the point: it lies
+    /// within the band of an irregular point of the chart or of a line
+    /// its normal is not continuous across ([`crate::chart_normal_at`]).
+    Crease(crate::CreaseReading),
+}
+
+/// **`classify_seam`** — [`classify_dihedral`] for a seam whose faces
+/// may be spline faces (module docs, "A seam with a spline face"): the
+/// wedge between `faces` at the seam's point `p`, over the same arm
+/// gate and wedge decision, with each face's normal and curvature arm
+/// read by its kind. `lane` is the scalar's certified NURBS lane, which
+/// a spline face's curvature bound is read through; without one, a
+/// spline face's arm is poison.
+///
+/// On two analytic faces it is [`classify_dihedral`], bit for bit.
+///
+/// # Errors
+///
+/// [`SeamEscalation`]: the arm or the wedge undecided, or a spline
+/// face's point on a crease or an irregular point of its chart.
+pub fn classify_seam<T: Decide>(
+    faces: [SeamFace<'_, T>; 2],
+    p: Point3<T>,
+    reach: T,
+    lane: Option<crate::NurbsLane<T>>,
+    band: Band,
+) -> Result<DihedralClass, SeamEscalation> {
+    let [(n1, arm1), (n2, arm2)] = [
+        seam_face_reading(faces[0], p, reach, lane, band)?,
+        seam_face_reading(faces[1], p, reach, lane, band)?,
+    ];
+    wedge_of(n1, n2, arm1.min(arm2).min(reach), band)
+        .map(|(class, _)| class)
+        .map_err(|e| SeamEscalation::Lever(e.into_lever()))
+}
+
+/// A seam face's normal at the seam's point, unnormalized, and its
+/// curvature arm (module docs).
+fn seam_face_reading<T: Decide>(
+    face: SeamFace<'_, T>,
+    p: Point3<T>,
+    reach: T,
+    lane: Option<crate::NurbsLane<T>>,
+    band: Band,
+) -> Result<(geom_core::Vec3<T>, T), SeamEscalation> {
+    let (chart, uv) = match face {
+        SeamFace::Analytic(s) => return Ok((implicit_gradient(s, p), curvature_lever_arm(s, p))),
+        SeamFace::Spline { chart, uv } => (chart, uv),
+    };
+    let jet = crate::regular_jet(chart, uv, reach, band).map_err(SeamEscalation::Crease)?;
+    let (normal, _) = crate::chart_normal_at(chart, true, &jet, uv, reach, band)
+        .map_err(SeamEscalation::Crease)?;
+    let arm = match lane.and_then(|lane| lane.chart_curvature(chart)) {
+        Some(kappa) => T::from_computed((1.0 / kappa).next_down()),
+        None => crate::implicit::poison(),
+    };
+    Ok((normal.vec(), arm))
+}
+
 /// Why [`wedge_decided`] could not classify: a rung of the levered
 /// reading, or no tangent plane to read an angle between.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -355,11 +461,26 @@ pub(crate) fn wedge_decided<T: Decide>(
     reach: T,
     band: Band,
 ) -> Result<(DihedralClass, geom_core::MarginDiag), WedgeEscalation> {
-    let n1 = implicit_gradient(s1, p);
-    let n2 = implicit_gradient(s2, p);
+    wedge_of(
+        implicit_gradient(s1, p),
+        implicit_gradient(s2, p),
+        folded_lever_arm(s1, s2, p, reach),
+        band,
+    )
+}
+
+/// The wedge between two faces whose normals at the point are `n1` and
+/// `n2`, of any length, levered over the folded arm `arm`: the arm gate,
+/// then the wedge decision ([`wedge_decided`]'s reading, whatever read
+/// the normals).
+fn wedge_of<T: Decide>(
+    n1: geom_core::Vec3<T>,
+    n2: geom_core::Vec3<T>,
+    arm: T,
+    band: Band,
+) -> Result<(DihedralClass, geom_core::MarginDiag), WedgeEscalation> {
     let magnitudes = n1.norm() * n2.norm();
     let sin_theta = n1.cross(n2).norm() / magnitudes;
-    let arm = folded_lever_arm(s1, s2, p, reach);
     // The collapsed-arm gate (module docs): the wedge margin is only
     // meaningful through a definitely-positive arm.
     decide_positive("dihedral_arm", Margin::of(arm), band).map_err(|gate| {
@@ -2783,5 +2904,284 @@ mod tests {
             ask((ka, &floor), (kb, &spline_wall)).is_none(),
             "beside a spline face: kept"
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod seam_rows {
+    use super::*;
+    use crate::NurbsLane;
+    use geom::NurbsSurface;
+    use geom_core::Tol;
+    use geom_core::Vec3;
+    use geom_core::spline::KnotVector;
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// The band's geometric middle: a length no row's band decides.
+    fn in_band() -> f64 {
+        let b = band();
+        (b.zero() * b.escalate()).sqrt()
+    }
+
+    fn lane() -> Option<NurbsLane<f64>> {
+        Some(NurbsLane::certified())
+    }
+
+    /// A chart ruled along the `x` axis, `u ∈ [0, 1]` running `x` from
+    /// −1 to 1, through the `(y, z)` profile with its weights on `kv`.
+    fn ruled(kv: KnotVector, profile: &[(f64, f64)], weights: &[f64]) -> NurbsSurface<f64> {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let control = [-1.0, 1.0]
+            .into_iter()
+            .flat_map(|x| profile.iter().map(move |&(y, z)| Point3::new(x, y, z)))
+            .collect();
+        let w = [weights, weights].concat();
+        NurbsSurface::new(ku, kv, control, w).unwrap()
+    }
+
+    fn integral(kv: KnotVector, profile: &[(f64, f64)]) -> NurbsSurface<f64> {
+        ruled(kv, profile, &vec![1.0; profile.len()])
+    }
+
+    fn linear() -> KnotVector {
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap()
+    }
+
+    fn quadratic() -> KnotVector {
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap()
+    }
+
+    fn cubic() -> KnotVector {
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap()
+    }
+
+    /// The floor strip `z = 0`, `y ∈ [0, 1]`, as a spline chart.
+    fn floor() -> NurbsSurface<f64> {
+        integral(linear(), &[(0.0, 0.0), (1.0, 0.0)])
+    }
+
+    /// A spline face at `(½, v)`, on the seam `x = 0` of every chart here.
+    fn at(chart: &NurbsSurface<f64>, v: f64) -> SeamFace<'_, f64> {
+        SeamFace::Spline {
+            chart,
+            uv: (0.5, v),
+        }
+    }
+
+    const ORIGIN: Point3<f64> = Point3::new(0.0, 0.0, 0.0);
+
+    fn seam(a: SeamFace<'_, f64>, b: SeamFace<'_, f64>) -> Result<DihedralClass, SeamEscalation> {
+        classify_seam([a, b], ORIGIN, 1.0, lane(), band())
+    }
+
+    fn arm_refused(got: Result<DihedralClass, SeamEscalation>) -> bool {
+        matches!(got, Err(SeamEscalation::Lever(e))
+            if e.diag().predicate == Some("dihedral_arm") && e.diag().margin.is_invalid())
+    }
+
+    /// Two spline walls meeting along the `x` axis at a right angle read
+    /// transverse, and a wall leaving the floor tangent to it reads
+    /// smooth: each normal is its chart's at the seam, and the arm is the
+    /// charts' certified curvature, so both decide.
+    #[test]
+    fn two_spline_walls_read_transverse_or_smooth() {
+        let floor = floor();
+        let rising = integral(quadratic(), &[(0.0, 0.0), (0.0, 0.5), (-0.2, 1.0)]);
+        assert_eq!(
+            seam(at(&rising, 0.0), at(&floor, 0.0)),
+            Ok(DihedralClass::Transverse),
+            "a wall rising off the floor"
+        );
+        let tangent = integral(quadratic(), &[(0.0, 0.0), (-0.5, 0.0), (-1.0, 0.5)]);
+        assert_eq!(
+            seam(at(&tangent, 0.0), at(&floor, 0.0)),
+            Ok(DihedralClass::Smooth),
+            "a wall leaving the floor along it"
+        );
+    }
+
+    /// A rational chart on one side: a quarter cylinder of radius one
+    /// leaving the seam along `+y`, smooth against the floor and
+    /// transverse against the wall `y = 0`.
+    #[test]
+    fn a_rational_chart_reads_its_seam() {
+        let h = core::f64::consts::FRAC_1_SQRT_2;
+        let quarter = ruled(
+            quadratic(),
+            &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)],
+            &[1.0, h, 1.0],
+        );
+        let wall = integral(linear(), &[(0.0, 0.0), (0.0, 1.0)]);
+        assert_eq!(
+            seam(at(&quarter, 0.0), at(&wall, 0.0)),
+            Ok(DihedralClass::Transverse),
+            "against the wall"
+        );
+        assert_eq!(
+            seam(at(&quarter, 0.0), at(&floor(), 0.0)),
+            Ok(DihedralClass::Smooth),
+            "against the floor"
+        );
+    }
+
+    /// A seam point on a C⁰ crease of a chart, or on a point where its
+    /// `S_u × S_v` vanishes, reads no normal there and escalates as a
+    /// crease, whatever the other face.
+    #[test]
+    fn a_seam_on_a_crease_or_a_pinch_escalates() {
+        let floor = floor();
+        // Folded along the `x` axis at the degree-1 knot `v = ½`.
+        let creased = integral(
+            KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap(),
+            &[(-1.0, 1.0), (0.0, 0.0), (1.0, 1.0)],
+        );
+        // The same fold with no knot crease: the middle rows coincide,
+        // so `S_v` vanishes on it.
+        let pinched = integral(
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap(),
+            &[(-1.0, 1.0), (0.0, 0.0), (0.0, 0.0), (1.0, 1.0)],
+        );
+        for (what, chart) in [("a crease", &creased), ("a pinch", &pinched)] {
+            let got = seam(at(chart, 0.5), at(&floor, 0.0));
+            assert!(
+                matches!(got, Err(SeamEscalation::Crease(_))),
+                "{what}: {got:?}"
+            );
+        }
+    }
+
+    /// **No curvature is read across a crease**: a seam clear of the
+    /// crease of a rational degree-2 chart (an interior knot of
+    /// multiplicity two) reads its normal, but the chart's curvature has
+    /// no bound across the crease, so the arm is poison and escalates.
+    /// The per-span cells of either side would bound each side's
+    /// curvature and say nothing of the turn at the crease.
+    #[test]
+    fn a_creased_chart_reads_no_arm() {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let creased = ruled(
+            kv,
+            &[(0.0, 0.0), (0.0, 0.5), (0.0, 1.0), (0.5, 1.5), (1.0, 2.0)],
+            &[1.0, 0.8, 1.0, 0.8, 1.0],
+        );
+        assert_eq!(
+            lane().unwrap().chart_curvature(&creased),
+            None,
+            "the creased chart's curvature"
+        );
+        let got = seam(at(&creased, 0.0), at(&floor(), 0.0));
+        assert!(arm_refused(got), "the arm: {got:?}");
+    }
+
+    /// **The arm is the chart's certified curvature, not the point's**: a
+    /// wall flat at the seam (its first three control rows collinear,
+    /// so `S_vv` vanishes there) that bends hard further out, leaving the
+    /// floor at an angle whose sine over the chart's curvature radius
+    /// lies in the band, escalates at the wedge. Read at the point, its
+    /// curvature is zero, and the same angle over the unit reach would
+    /// decide transverse.
+    #[test]
+    fn the_arm_is_the_charts_certified_curvature() {
+        let bend = |c: f64, s: f64| {
+            let rot = |(y, z): (f64, f64)| (c * y - s * z, s * y + c * z);
+            let rows = [(0.0, 0.0), (0.01, 0.0), (0.02, 0.0), (0.02, 0.01)];
+            integral(cubic(), &rows.map(rot))
+        };
+        let kappa = lane()
+            .unwrap()
+            .chart_curvature(&bend(1.0, 0.0))
+            .expect("a bound");
+        let sin = in_band() * kappa;
+        assert!(
+            sin > band().escalate(),
+            "the point's arm would decide it: sin θ {sin}, band {:?}",
+            band()
+        );
+        let got = seam(
+            at(&bend((1.0 - sin * sin).sqrt(), sin), 0.0),
+            at(&floor(), 0.0),
+        );
+        assert!(
+            matches!(got, Err(SeamEscalation::Lever(e))
+                if e.diag().predicate == Some("dihedral_wedge")),
+            "in band over the certified arm: {got:?}"
+        );
+    }
+
+    /// **The reading is the sheet its parameters name**: a chart whose
+    /// profile leaves the seam along `+z` and comes back through it along
+    /// `+y` passes through the seam point twice, on two sheets. Against
+    /// the floor, the first is transverse and the second smooth; a foot
+    /// of the point would land on one of the two whichever was asked.
+    #[test]
+    fn the_seam_reads_the_sheet_its_parameters_name() {
+        let kv =
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0], 2).unwrap();
+        let hairpin = integral(
+            kv,
+            &[
+                (0.0, 0.0),
+                (0.0, 0.5),
+                (-0.5, 0.0),
+                (0.5, 0.0),
+                (1.0, -0.5),
+                (1.0, -1.0),
+            ],
+        );
+        let floor = floor();
+        assert!(
+            (hairpin.ders(0.5, 0.5).point - ORIGIN).norm() < in_band(),
+            "the second pass is through the seam point"
+        );
+        assert_eq!(
+            seam(at(&hairpin, 0.0), at(&floor, 0.0)),
+            Ok(DihedralClass::Transverse),
+            "the sheet leaving along +z"
+        );
+        assert_eq!(
+            seam(at(&hairpin, 0.5), at(&floor, 0.0)),
+            Ok(DihedralClass::Smooth),
+            "the sheet crossing along +y"
+        );
+    }
+
+    /// Two analytic faces read as [`classify_dihedral`] reads them, the
+    /// in-band escalation included.
+    #[test]
+    fn two_analytic_faces_read_as_classify_dihedral() {
+        let plane = |n: Vec3<f64>| Surface::Plane {
+            origin: ORIGIN,
+            normal: n.normalize(),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let cylinder = Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 1.0),
+            axis: Vec3::new(1.0, 0.0, 0.0),
+            radius: 1.0,
+            u_ref: Vec3::new(0.0, 1.0, 0.0),
+        };
+        let floor = plane(Vec3::new(0.0, 0.0, 1.0));
+        for other in [
+            plane(Vec3::new(0.0, 1.0, 1.0)),
+            plane(Vec3::new(0.0, in_band(), 1.0)),
+            cylinder,
+        ] {
+            assert_eq!(
+                classify_seam(
+                    [SeamFace::Analytic(&floor), SeamFace::Analytic(&other)],
+                    ORIGIN,
+                    1.0,
+                    lane(),
+                    band()
+                ),
+                classify_dihedral(&floor, &other, ORIGIN, 1.0, band())
+                    .map_err(SeamEscalation::Lever),
+                "{other:?}"
+            );
+        }
     }
 }

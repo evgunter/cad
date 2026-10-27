@@ -2,10 +2,11 @@
 id: the-results-seam-between-two-spline-walls-is-read-by-no-dihedral
 kind: issue
 title: The result's seam between two spline walls is re-described through classify_dihedral, which reads no arm on a NURBS surface: lily wall 8 stops there
-status: open
+status: closed
 opened: 2026-10-27
 priority: P1
 cost: M
+closed: 2026-10-27
 refs: [the-side-of-a-spline-face-is-read-by-no-dihedral, a-unions-flush-reading-cannot-follow-a-nurbs-carrier]
 ---
 
@@ -45,3 +46,36 @@ The transverse/smooth class of a seam between two spline walls read
 from their normals at a foot on each (`S_u × S_v`, as `dihedral_side`
 reads a spline face's normal), with the arm folded from the walls'
 principal curvatures, as the side reading already does.
+
+## Closed
+
+`describe_edges` reads each face of a seam by its kind through
+`geom_brep::classify_seam`: an analytic face off its implicit form at
+the witness, as `classify_dihedral` reads it (bit for bit on two
+analytic faces); a spline face at the witness's parameters on its own
+chart, read off the edge's pcurve on that face
+(`topo::pcurves::pcurve_of` at the middle of the edge's interval,
+`ops::seam_face`), never a foot. There the normal is the chart's
+`S_u × S_v` through `regular_jet` and `chart_normal_at`, so a seam within
+the band of a crease, a closed chart's seam or an irregular point
+refuses as `EdgeUndescribed { failure: Crease }`, and a spline face with
+no image to read refuses `Unplaced`. The arm is `1/κ̄`, `κ̄` a certified
+bound on the chart's principal curvatures over every cell
+(`NurbsLane::chart_curvature`, from `patch_bound` and `offset_meters`'
+meter 2), folded with the reach and the other face's arm through the
+same gate and wedge decision as the analytic path (`dihedral::wedge_of`).
+
+Witnesses: `geom_brep` `dihedral::seam_rows` (transverse and smooth
+spline pairs, a rational chart, a crease and a pinch, a creased chart's
+arm, the certified arm against a point's, the sheet the parameters
+name, analytic parity), each at ε 1e-6, 1e-12 and the default;
+`topo` `boolean::ops::spline_seam_rows`; the sweep row
+`a_sheath_on_its_blade_unions_past_the_shared_rim`, which re-pins lily
+wall 8's next stop in both orders: the rim's `Intersection` certification
+on the NURBS pair, limb 2's `ImageMiss`
+(`work/ssiedge/plane-nurbs-certificate-bound-does-not-refine-with-eps`,
+measured there).
+
+Residue, filed: `a-smooth-seam-between-spline-walls-has-no-second-order-reading`,
+`the-shared-rim-routing-exempts-a-spline-face-by-kind`,
+`a-seam-on-a-creased-spline-chart-reads-no-arm`.

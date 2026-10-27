@@ -225,3 +225,28 @@ on the algebraic route. The schedule, the image and the doc are all in
 ## Un-parked (band-rule triage, 2026-10-25)
 
 This row parked on `f64-refinement-inside-an-enclosure-has-five-more-sites` and PR 3524 for the convex form at `insert_once_ring` (term (c) above). PR 3524 closed that site. The one site still open on that row, `crates/mesh/src/chords.rs`, plays no part in limb 2. So the design question in "What follows" item 2 can be taken up now. Before weighing (i) against (ii), re-take the 2026-10-01 table: its numbers are from the lerp form.
+
+## Measured on two spline charts: lily wall 8 (SPLICE, 2026-10-27)
+
+From `work/splice/the-results-seam-between-two-spline-walls-is-read-by-no-dihedral`.
+
+Once the result's seam between two spline walls reads its dihedral
+(`geom_brep::classify_seam`), lily wall 8 (the sheath grafted on its
+blade) gets one step further and stops at this row's limb, on the
+NURBS × NURBS lane (`edge_nurbs::nurbs_pair_limbs`) rather than the plane
+× NURBS one: `describe_intersection` on the shared rim, a `Circle` edge
+between a rational loft wall of each body, refuses
+`CertifyError::PlaneNurbs(Limb { limb: ImageMiss, margin: 9.007e-6 })`
+at `Tol::witness`, in both operand orders. Fixture:
+`crates/sweep/tests/a_sheath_grafted_on_its_blade.rs`
+`a_sheath_on_its_blade_unions_past_the_shared_rim` (5 stations); the
+tour's `lily.rs` wall 8 (9 stations) stops at the same refusal, its
+margin 4.527e-6.
+
+The circle is an exact boundary row of each wall: `topo::pcurves::pcurve_of`
+derives its image there as an exact `Pcurve::IsoArc` (the arc-rim class),
+which the seam's dihedral reads its chart parameters off. The pair lane
+re-derives a degree-1 image from feet instead (`chart_image`), and that
+image's miss is the whole refusal. So on this class a third route sits
+beside (i) and (ii) above: certify against the exact image the chart's
+description already states, where one exists.
