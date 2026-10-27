@@ -5980,6 +5980,7 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
         evidence: Vec::new(),
         overlap,
         quiet: None,
+        quietable: true,
     };
     let finding = |check, evidence| CheckFinding {
         check,

@@ -585,12 +585,11 @@ fn every_assemble_is_checked_against_nothing_outside_it() {
 // ---- Row 16: `A ⊔ A` refuses nothing ----
 
 /// **(Row 16) `A ⊔ A` gathers and refuses nothing.** One copy read twice
-/// by a `⊔`: the same document gathers, the at-rest check reports what
-/// the census found, and only `Error` refuses, and only a loud
-/// interference.
+/// by a `⊔`: the same document gathers, and the at-rest check reports
+/// what the census found, one loud interference no assertion can quiet,
+/// which refuses at no severity, `Error` included (DS6).
 ///
-/// *Breaks if* any severity but `Error` refuses it, or it reports a
-/// contact.
+/// *Breaks if* any severity refuses it, or it reports a contact.
 #[test]
 fn one_body_assembled_twice_refuses_nothing() {
     let doc = ProfileDoc::empty_derived("s5c-twice", Tol::witness());
@@ -644,7 +643,16 @@ fn one_body_assembled_twice_refuses_nothing() {
         at_rest: Severity::Error,
         ..ChecksConfig::default()
     };
-    assert!(enforce_checks(&report, &error).is_err(), "Error refuses it");
+    // No assertion can quiet it: both arrivals are one copy, so a
+    // selection names a face of the first arrival and never of the
+    // second, and no carrier pair of the two arrivals is one a signed
+    // `Gap` can be written over. Outside what the document can say, it
+    // refuses at no severity (DS6).
+    assert!(!overlap.quietable, "{overlap:?}");
+    assert!(
+        enforce_checks(&report, &error).is_ok(),
+        "and Error refuses nothing"
+    );
 }
 
 // ---- Row 17: carried, once ----
@@ -722,8 +730,49 @@ fn a_dual_runs_no_census_and_says_so() {
 /// *Breaks if* the in-band pair rides the interference as its evidence.
 #[test]
 fn an_in_band_pair_is_no_overlaps_evidence() {
+    let report = checks(&in_band_l("s5c-thin-in-band"));
+    let thin = |report: &editor_core::ChecksReport| {
+        crate::fixture::could_not_look(&report.findings)
+            .into_iter()
+            .filter(|e| {
+                matches!(
+                    e,
+                    AtRestEvidence::NoLane(topo::ValidationError::CensusUndecidable {
+                        reason: topo::Undecidable::ThinInBand,
+                        ..
+                    })
+                )
+            })
+            .count()
+    };
+    assert_eq!(
+        thin(&report),
+        1,
+        "the arm over the top is one in-band pair, its own finding: {report}"
+    );
+    let interference = crate::fixture::interference(&report.findings);
+    assert_eq!(interference.len(), 1, "one overlap: {report}");
+    assert!(
+        interference
+            .iter()
+            .all(|f| f.evidence.iter().all(|e| !matches!(
+                e,
+                topo::ValidationError::CensusUndecidable {
+                    reason: topo::Undecidable::ThinInBand,
+                    ..
+                }
+            ))),
+        "and the in-band pair is none of its evidence: {interference:?}"
+    );
+}
+
+/// A block and an L standing over its top 3 ε clear of it, the L's foot
+/// sunk into the block's side: the census reads the arm over the top in
+/// band, and the intersection of the two meets the same in-band arm and
+/// refuses, so the foot's overlap is `Overlap::Unlocalized`.
+fn in_band_l(label: &str) -> ProfileDoc {
     let g = 3.0 * Tol::witness().eps();
-    let doc = ProfileDoc::empty_derived("s5c-thin-in-band", Tol::witness());
+    let doc = ProfileDoc::empty_derived(label, Tol::witness());
     let (doc, a) = block(doc, 0.5, 1.0);
     // The L drawn with its height on its own y and swept 0.6 along its
     // z, then turned a quarter turn about x, which stands its y up the
@@ -748,40 +797,68 @@ fn an_in_band_pair_is_no_overlaps_evidence() {
     )
     .expect("the x axis is a direction");
     let (doc, _) = place(doc, a);
-    let (doc, _) = in_world(doc, l, &stand);
-    let bare = checks(&doc);
-    let thin = |report: &editor_core::ChecksReport| {
-        crate::fixture::could_not_look(&report.findings)
-            .into_iter()
-            .filter(|e| {
-                matches!(
-                    e,
-                    AtRestEvidence::NoLane(topo::ValidationError::CensusUndecidable {
-                        reason: topo::Undecidable::ThinInBand,
-                        ..
-                    })
-                )
-            })
-            .count()
+    in_world(doc, l, &stand).0
+}
+
+// ---- What no assertion could quiet refuses at no severity ----
+
+/// `doc`'s one interference finding, and whether `enforce_checks`
+/// refuses `doc` with the at-rest check at `Error`.
+fn at_error(doc: &ProfileDoc) -> (editor_core::InterferenceFinding, bool) {
+    let report = checks(doc);
+    let [finding] = crate::fixture::interference(&report.findings)
+        .try_into()
+        .unwrap_or_else(|f: Vec<_>| panic!("one interference finding, not {}: {report}", f.len()));
+    let error = ChecksConfig {
+        at_rest: Severity::Error,
+        ..ChecksConfig::default()
     };
-    let report = bare;
-    assert_eq!(
-        thin(&report),
-        1,
-        "the arm over the top is one in-band pair, its own finding: {report}"
-    );
-    let interference = crate::fixture::interference(&report.findings);
-    assert_eq!(interference.len(), 1, "one overlap: {report}");
+    (finding, enforce_checks(&report, &error).is_err())
+}
+
+/// A big block, and a small one sunk into its top corner at `pose`.
+fn sunk_corner(label: &str, pose: &Frame) -> ProfileDoc {
+    let doc = ProfileDoc::empty_derived(label, Tol::witness());
+    let (doc, big) = block(doc, 0.5, 1.0);
+    let (doc, small) = block(doc, 0.2, 0.4);
+    let (doc, _) = place(doc, big);
+    in_world(doc, small, pose).0
+}
+
+/// **An overlap no assertion could quiet refuses at no severity** (spec
+/// §4 "Severity and the refusing path"; CHECKS DS6). It is outside what
+/// the document can yet say: an overlap the kernel could not intersect
+/// (the in-band L's foot, `Overlap::Unlocalized`), and a bounded one
+/// whose bounding faces are no carrier pair a signed `Gap` covers (a
+/// block turned about a skew axis into another's corner: every face of
+/// one is tilted against every face of the other, and `Gap` reads only
+/// parallel planes). The same corner sunk square, which a `Gap` between
+/// two parallel faces could quiet, refuses at `Error`.
+///
+/// *Breaks if* `enforce_checks` refuses an overlap no assertion could
+/// quiet, or stops refusing one an assertion could.
+#[test]
+fn an_overlap_no_assertion_could_quiet_refuses_at_no_severity() {
+    let (finding, refused) = at_error(&in_band_l("s5c-unlocalized"));
     assert!(
-        interference
-            .iter()
-            .all(|f| f.evidence.iter().all(|e| !matches!(
-                e,
-                topo::ValidationError::CensusUndecidable {
-                    reason: topo::Undecidable::ThinInBand,
-                    ..
-                }
-            ))),
-        "and the in-band pair is none of its evidence: {interference:?}"
+        matches!(finding.overlap, editor_core::Overlap::Unlocalized(_)) && !finding.quietable,
+        "{finding:?}"
     );
+    assert!(!refused, "an unlocalized overlap refused at Error");
+    let skew = Frame::from_affine(geom_core::linalg::Affine3::from_parts(
+        geom_core::linalg::Mat3::rotation_about(geom_core::linalg::Vec3::new(1.0, 2.0, 3.0), 0.7),
+        geom_core::linalg::Vec3::new(0.5, 0.5, 0.85),
+    ));
+    let (finding, refused) = at_error(&sunk_corner("s5c-skew-corner", &skew));
+    assert!(
+        matches!(finding.overlap, editor_core::Overlap::Bounded { .. }) && !finding.quietable,
+        "a skew corner is bounded and no Gap covers it: {finding:?}"
+    );
+    assert!(!refused, "an overlap no Gap covers refused at Error");
+    let (finding, refused) = at_error(&sunk_corner(
+        "s5c-square-corner",
+        &Frame::translation([0.5, 0.5, 0.85]),
+    ));
+    assert!(finding.quietable && finding.is_loud(), "{finding:?}");
+    assert!(refused, "a loud overlap a Gap covers refuses at Error");
 }

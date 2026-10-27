@@ -116,10 +116,14 @@ document whose copies interpenetrate still draws, because the finding is
 the only thing that says the almost-right picture is wrong.
 
 **Its severity knob is `Severity` (Off/Warn/Error), default Warn, and
-that is the assertion rule below at work.** An assertion quiets every
-interference the kernel can bound (DESIGN `[assertions.quiet]`), so
-`Error` is legal: at `Error`, `enforce_checks` refuses a loud
-interference finding and nothing else this resident reports. A quiet
+that is the assertion rule below at work.** An assertion can quiet every
+interference the kernel bounds on a carrier pair a signed `Gap` covers
+(DESIGN `[assertions.quiet]`), so `Error` is legal: at `Error`,
+`enforce_checks` refuses a loud interference finding of that kind and
+nothing else this resident reports. An overlap the kernel could not
+intersect, and one whose bounding faces are no carrier pair a signed
+`Gap` covers, are outside what the document can yet say (below): loud,
+and refused at no severity. A quiet
 finding (`CheckFinding::quiet`) is listed with the assertion that quiets
 it and never refuses. The census's own pre-filter is the pair filter;
 the resident adds no box test of its own.

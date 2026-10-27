@@ -384,6 +384,18 @@ mod tests {
                 shape.why,
                 report.spoken(&shape.doc)
             );
+            // What a scene reports at rest is an overlap the kernel could
+            // not intersect or a pair it could not look at, outside what
+            // its document can yet say, so it refuses at no severity
+            // (CHECKS DS6): the teapot's handle in its vessel included.
+            let error = ChecksConfig {
+                at_rest: pncad::document::Severity::Error,
+                ..ChecksConfig::default()
+            };
+            let refused = pncad::document::enforce_checks(&report, &error)
+                .err()
+                .map(|refusal| refusal.findings.len());
+            assert_eq!(refused, None, "{}: refused at Error", shape.name);
         }
     }
 

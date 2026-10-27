@@ -452,9 +452,10 @@ pub use editor_core::{
 // caller that wants a gate runs `enforce_checks` at `Error`. An overlap
 // between two copies' material is an `InterferenceFinding`: its copies
 // (`CopyRef`), its `Overlap` (the bounding faces as `FaceSite`s, or
-// `Unlocalized` with why), and the assertion that quiets it, if any. A
-// pair the census could not look at is an `AtRestEvidence`, loud and
-// never refusing. A part's own findings cross the seam with it, each
+// `Unlocalized` with why), the assertion that quiets it, if any, and
+// whether one could (`quietable`): one no assertion could quiet refuses
+// at no severity. A pair the census could not look at is an
+// `AtRestEvidence`, loud and never refusing. A part's own findings cross the seam with it, each
 // reported once, as the part's: `CarriedInterference` and
 // `CarriedAtRestFinding`, each with the `Route` it arrived by (one type,
 // on every carrier of that fact); `CarriedFindings` is what an

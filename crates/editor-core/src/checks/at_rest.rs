@@ -382,6 +382,12 @@ pub struct InterferenceFinding {
     pub overlap: Overlap,
     /// The assertion that quiets it, or `None` when it is loud.
     pub quiet: Option<RecipeNodeId>,
+    /// Whether an assertion could ever quiet it: the overlap is bounded
+    /// and two of its bounding faces, one of each copy, are a carrier
+    /// pair a signed `Gap` reads. `false` for an unlocalized overlap.
+    /// A finding no assertion could quiet is outside what the document
+    /// can yet say (CHECKS DS6): loud, and refused at no severity.
+    pub quietable: bool,
 }
 
 impl InterferenceFinding {
@@ -389,6 +395,13 @@ impl InterferenceFinding {
     #[must_use]
     pub fn is_loud(&self) -> bool {
         self.quiet.is_none()
+    }
+
+    /// Whether [`crate::enforce_checks`] may refuse it: it is loud and
+    /// an assertion could have quieted it ([`Self::quietable`]).
+    #[must_use]
+    pub fn refusable(&self) -> bool {
+        self.is_loud() && self.quietable
     }
 }
 
@@ -597,6 +610,7 @@ fn unlocalized_at_lane<T: Decide>(
         evidence,
         overlap: Overlap::Unlocalized(Unlocalized::Lane),
         quiet: None,
+        quietable: false,
     }]
 }
 
@@ -995,14 +1009,15 @@ fn localize(
     tol: Tol,
 ) -> Vec<InterferenceFinding> {
     let copy_ref = |i: usize| copy_ref(product, i);
-    let finding = |overlap, quiet| InterferenceFinding {
+    let finding = |overlap, quiet, quietable| InterferenceFinding {
         a: copy_ref(a),
         b: copy_ref(b),
         evidence: evidence.clone(),
         overlap,
         quiet,
+        quietable,
     };
-    let unlocalized = |why| vec![finding(Overlap::Unlocalized(why), None)];
+    let unlocalized = |why| vec![finding(Overlap::Unlocalized(why), None, false)];
     let result = match intersection(product, a, b, tol) {
         Ok(Some(result)) => result,
         Ok(None) => return unlocalized(Unlocalized::Empty),
@@ -1052,19 +1067,55 @@ fn localize(
         }
         faces.sort();
         faces.dedup();
+        let quietable = gap_covers(&product.body, a, b, component, tol);
         out.push(match verdict {
-            Quiet::Loud => finding(Overlap::Bounded { faces }, None),
+            Quiet::Loud => finding(Overlap::Bounded { faces }, None, quietable),
             Quiet::By(assertion) if covered(component) => {
-                finding(Overlap::Bounded { faces }, Some(assertion))
+                finding(Overlap::Bounded { faces }, Some(assertion), quietable)
             }
-            Quiet::By(_) => finding(Overlap::Bounded { faces }, None),
+            Quiet::By(_) => finding(Overlap::Bounded { faces }, None, quietable),
             Quiet::Refused(refusal) => finding(
                 Overlap::Unlocalized(Unlocalized::Containment { refusal }),
                 None,
+                false,
             ),
         });
     }
     out
+}
+
+/// **Whether a signed `Gap` covers `component`**: two of the faces
+/// bounding it, one of copy `a` and one of copy `b`, are carriers
+/// [`crate::eval::measure::gap_reads`] reads in some role order. Only
+/// such a pair can carry an assertion that quiets the overlap.
+fn gap_covers(aggregate: &Body<f64>, a: usize, b: usize, component: &Component, tol: Tol) -> bool {
+    use crate::eval::measure::{carrier_of, gap_reads};
+    let Ok(band) = Band::linear(tol) else {
+        return false;
+    };
+    let face = |key| {
+        carrier_of(
+            aggregate,
+            EntityRef {
+                body: 0,
+                key: EntityKey::Face(key),
+            },
+        )
+    };
+    let of = |copy| {
+        component
+            .sources
+            .iter()
+            .filter(move |(c, _)| *c == copy)
+            .map(|&(_, f)| face(f))
+            .collect::<Vec<_>>()
+    };
+    let (from_a, from_b) = (of(a), of(b));
+    from_a.iter().any(|x| {
+        from_b
+            .iter()
+            .any(|y| gap_reads(x, y, band) || gap_reads(y, x, band))
+    })
 }
 
 /// The connected solids of `result`, each with the aggregate faces its

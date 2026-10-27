@@ -349,10 +349,14 @@ pub struct ChecksConfig {
     /// (DS3).
     pub unproven_coincidence: Advisory,
     /// [`CheckId::AtRest`]'s severity — a full [`Severity`], default
-    /// `Warn`. `Error` is legal because an assertion quiets every
-    /// interference the kernel can bound (DS3, DS6); at `Error`,
-    /// [`enforce_checks`] refuses a loud interference finding and
-    /// nothing else this check reports.
+    /// `Warn`. `Error` is legal because an assertion can quiet every
+    /// interference the kernel bounds on a carrier pair a signed `Gap`
+    /// covers (DS3, DS6); at `Error`, [`enforce_checks`] refuses a loud
+    /// interference finding of that kind and nothing else this check
+    /// reports: not an overlap the kernel could not intersect, not one
+    /// on a carrier pair no signed `Gap` covers
+    /// ([`CheckEvidence::never_refuses`]), and not a pair the census
+    /// could not look at.
     pub at_rest: Severity,
 }
 
@@ -539,6 +543,23 @@ impl CheckEvidence {
     #[must_use]
     pub fn could_not_look(&self) -> bool {
         matches!(self, Self::AtRest { .. })
+    }
+
+    /// **Whether this finding is outside what the document can yet say**
+    /// (CHECKS DS6): a pair the census could not look at
+    /// ([`Self::could_not_look`]), or an overlap no assertion could
+    /// quiet, because the kernel could not intersect it or no signed
+    /// `Gap` covers a carrier pair bounding it
+    /// ([`at_rest::InterferenceFinding::quietable`]). Loud, and refused
+    /// by [`enforce_checks`] at no severity: a refusal there would have
+    /// no recourse but changing geometry.
+    #[must_use]
+    pub fn never_refuses(&self) -> bool {
+        match self {
+            Self::Interference { finding } => !finding.quietable,
+            Self::CarriedInterference { finding } => !finding.finding.quietable,
+            other => other.could_not_look(),
+        }
     }
 }
 
@@ -1999,8 +2020,8 @@ pub fn subject_body<T: Decide>(
 /// a loud finding whose check `cfg` sets to [`Severity::Error`]. The
 /// caller chooses where to gate — this module never does. A quiet
 /// finding ([`CheckFinding::quiet`]) never refuses, and neither does a
-/// finding the check could not judge
-/// ([`CheckEvidence::could_not_look`]), at any severity (DS6).
+/// finding outside what the document can yet say
+/// ([`CheckEvidence::never_refuses`]), at any severity (DS6).
 ///
 /// Consumes a FINISHED report (DS3: enforcement is a read over
 /// findings; it evaluates nothing and can change nothing). `Warn`
@@ -2018,7 +2039,7 @@ pub fn enforce_checks(report: &ChecksReport, cfg: &ChecksConfig) -> Result<(), C
         .filter(|finding| {
             cfg.severity(finding.check) == Severity::Error
                 && finding.quiet.is_none()
-                && !finding.evidence.could_not_look()
+                && !finding.evidence.never_refuses()
         })
         .cloned()
         .collect();
