@@ -1679,3 +1679,12 @@ Signed (CLEAVE orchestrator).
   Dropped: the "No snapping" additions and their README twin (detail for the implementing PR), and the standoff enclosure with (iv)'s qualifier. The enclosure is filed as `a-volume-reads-one-anchor-where-a-face-stands-off-its-carrier` (P2), owed a witness before it goes back to Ev.
 
   Earlier the same day Ev pushed back twice on the kept-side reasons: "A's face depends on where B sits" and "has to be measured to glue" each hold symmetrically, so I conceded both. Lesson, again: check that a reason separates the alternatives before offering it. (CLEAVE orchestrator)
+- 2026-10-27 — PR 5812 merged (`5c5534ead7`): the three flush-partner P1s build: a box corner at a ring's tip, a fate cut between touching lumps, and a ring partner inside the ring. The PR closed their rows, plus the partner-along-part row. Reviewed by claims and style lanes, then a narrow re-review of the fix pass and a docs pass. The re-review found the dropped `part_mid_slit` plane gate unreachable (zero calls across the sweep suite).
+
+  Filed:
+  - P1: the remaining tie sites;
+  - P1: the touch-end placement at a division vertex;
+  - P1: the lumps' `x ∪ y` order asymmetry, raised from P2;
+  - P2: four sheets on a line refuse `LineWedges`;
+  - P3: strut prune refuses `kev` on a curved face;
+  - P4: test-file vector helper copies. (CLEAVE orchestrator)
