@@ -7,7 +7,11 @@
 //! (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
 //! Apart, the empty-record tier 3′ passes; touching, or apart by less
 //! than the band, it still refuses with that finding, which the census
-//! keeps until it can read a curved touch.
+//! keeps until it can read a curved touch. The same holds for parts a
+//! direction does separate but the census's world axes and anchors do
+//! not find: a box beside a rod's wall, read along the offset from the
+//! rod's axis, and two lumps of a ball's cut, whose sphere patches reach
+//! no further than their rims away from a pole they do not hold.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -423,4 +427,128 @@ fn a_torus_flush_in_a_bore_refuses() {
     let errs = census(&flush).expect_err("the flush torus touches the bore");
     assert!(refuses_curved_within_reach(&flush, &errs), "{errs:?}");
     assert_eq!(census(&in_bore(0.3, 0.2)), Ok(()), "a torus 0.1 clear");
+}
+
+/// **A box off a rod's side passes until it touches.** The rod `r ≤ 0.5`
+/// about `y` over `y ∈ [0, 1]`, and the unit box over the same `y` whose
+/// edge nearest the axis runs along `x = z = s`, `s = (0.5 + gap)/√2`:
+/// that edge is `gap` from the wall, and the box's bottom and top lie in
+/// the rod's cap planes, `gap` from the caps' rims. No world axis, and
+/// not the axis between the faces' anchors, parts the box from the
+/// wall or a cap at these gaps; the offset from the rod's axis to the
+/// box's nearest edge does ([`topo`]'s `depth_gap::toward`). At gap 0
+/// the edge lies along a ruling of the wall, and the pair refuses. Red
+/// where the census proposes no direction from a face's axis.
+#[test]
+fn a_box_off_a_rod_passes_until_it_touches() {
+    let beside = |gap: f64| {
+        let s = (0.5 + gap) * core::f64::consts::FRAC_1_SQRT_2;
+        let mut out = revolved(0.0, 0.5, 1.0);
+        let block = sweep::test_support::brick((s, s + 1.0), (0.0, 1.0), (s, s + 1.0), tol());
+        topo::graft_disjoint(&mut out, &block).expect("grafts");
+        finished("the box beside the rod", out, tol())
+    };
+    for gap in [0.04, 1e-3] {
+        assert_eq!(census(&beside(gap)), Ok(()), "a box {gap} clear");
+    }
+    let touching = beside(0.0);
+    let errs = census(&touching).expect_err("the box's edge lies on the wall");
+    assert!(refuses_curved_within_reach(&touching, &errs), "{errs:?}");
+}
+
+/// **A bar cut through a ball leaves two lumps the census parts.** The
+/// bar `[−2, 2] × [−0.2, 0.25] × [0.1, 0.4]` less the unit ball is a lump
+/// either side of the ball, each holding a patch of the sphere whose
+/// carrier's box is the whole ball's. Along `x`, each patch reaches no
+/// further than its own boundary, since neither holds the sphere's pole
+/// there, so the two lumps part along it. Red where a sphere face is
+/// read only by its carrier's box.
+#[test]
+fn a_bar_through_a_ball_leaves_two_lumps_the_census_parts() {
+    let ball = finished(
+        "the ball",
+        sweep::test_support::ball_poled_y(1.0, Vec3::new(0.0, 0.0, 0.0), tol()),
+        tol(),
+    );
+    let bar = finished(
+        "the bar",
+        sweep::test_support::brick((-2.0, 2.0), (-0.2, 0.25), (0.1, 0.4), tol()),
+        tol(),
+    );
+    let Ok(topo::BooleanResult::Body(lumps)) = topo::subtract(&bar, &ball, tol()) else {
+        panic!("bar ∖ ball builds");
+    };
+    assert_eq!(lumps.body.solids().count(), 2, "two lumps");
+    assert_eq!(census(&lumps.body), Ok(()), "the two lumps");
+}
+
+/// **A slab through a ball's side refuses.** The unit ball poled along
+/// `z`, its one face bounded by the seam meridian in `y = 0`, and the
+/// slab `[−2, 2] × [0.9, 0.95] × [−2, 2]` across its side: the slab cuts
+/// the ball, yet every vertex of each lies outside the other (the slab's
+/// corners outside the ball, the ball's at its poles `(0, 0, ±1)`), so
+/// only the curved pair can refuse it. The face's boundary reaches no
+/// further along `y` than `y = 0`, but the face holds the sphere's pole
+/// `(0, 1, 0)` there, so its reach along `y` is the sphere's. Red where
+/// a sphere face's reach is narrowed to its boundary at an end whose pole
+/// it holds.
+#[test]
+fn a_slab_through_a_balls_side_refuses() {
+    let mut out = sweep::test_support::ball_poled_z(1.0, Vec3::new(0.0, 0.0, 0.0), tol());
+    let slab = sweep::test_support::brick((-2.0, 2.0), (0.9, 0.95), (-2.0, 2.0), tol());
+    topo::graft_disjoint(&mut out, &slab).expect("grafts");
+    let crossed = finished("the slab through the ball", out, tol());
+    let errs = census(&crossed).expect_err("the slab cuts the ball");
+    assert!(refuses_curved_within_reach(&crossed, &errs), "{errs:?}");
+}
+
+/// **A trimmed sphere face holding its pole clears only past it.** The
+/// unit ball poled along `y`, spun about `y` by 1 and by π/2, less the
+/// slab `y > 0.1`: one sphere face bounded by the circle `y = 0.1`,
+/// which holds the ball's `±x` poles, and a box whose face `x = 1 + dx`
+/// faces the `+x` pole. The pair is apart only at `dx > 0`, so it clears
+/// there and refuses at `dx ≤ 0`, where the box reaches the pole. At
+/// these spins a direction arm 1 reads has one of its poles outside
+/// the face and the other inside. Red where the face is narrowed to its
+/// boundary at an end whose pole it holds: at every end, or with the
+/// two ends' poles swapped.
+#[test]
+fn a_trimmed_sphere_face_holding_its_pole_clears_only_past_it() {
+    use geom_core::{Affine3, Point3};
+    let knife = finished(
+        "the slab",
+        sweep::test_support::brick((-2.0, 2.0), (0.1, 2.0), (-2.0, 2.0), tol()),
+        tol(),
+    );
+    for spin in [1.0, core::f64::consts::FRAC_PI_2] {
+        let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), spin);
+        let ball = topo::transform_rigid(
+            &sweep::test_support::ball_poled_y(1.0, Vec3::new(0.0, 0.0, 0.0), tol()),
+            &geom_core::test_support::rigid(&turn, tol()),
+            tol(),
+        )
+        .unwrap();
+        let ball = finished("the ball", ball, tol());
+        let Ok(topo::BooleanResult::Body(patch)) = topo::subtract(&ball, &knife, tol()) else {
+            panic!("the ball less the slab builds at spin {spin}");
+        };
+        let patch = patch.body.into_body();
+        for dx in [1e-3, 0.0, -1e-3] {
+            let mut out = patch.clone();
+            let x0 = 1.0 + dx;
+            let block = sweep::test_support::brick((x0, x0 + 1.0), (-0.5, 0.5), (-0.5, 0.5), tol());
+            topo::graft_disjoint(&mut out, &block).expect("grafts");
+            let pair = finished("the box by the pole", out, tol());
+            let what = format!("spin {spin}, the box {dx} past the pole");
+            if dx > 0.0 {
+                assert_eq!(census(&pair), Ok(()), "{what}");
+            } else {
+                let errs = census(&pair).expect_err(&what);
+                assert!(
+                    refuses_curved_within_reach(&pair, &errs),
+                    "{what}: {errs:?}"
+                );
+            }
+        }
+    }
 }

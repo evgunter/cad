@@ -1834,6 +1834,7 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::UnsupportedSeamSides { shape, .. } => seam_sides_shape_tag(shape),
         NamingError::UnsupportedJoin { shape, .. } => join_shape_tag(shape),
         NamingError::UnsupportedUnionName { shape, .. } => union_name_shape_tag(shape),
+        NamingError::UnsupportedTurnedCell { .. } => "unsupported_turned_cell",
         // The PRECISION-LIMIT arms: a lever the model holds, neither a
         // kernel bug nor a missing rule.
         NamingError::WayInZeroBand { shape, .. } => way_shape_tag(shape),

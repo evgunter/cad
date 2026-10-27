@@ -457,6 +457,16 @@ impl<T: Real> Knots<T> {
         })
     }
 
+    /// **The creases as held**: the value of each interior run of
+    /// multiplicity at least the degree
+    /// ([`KnotStructure::crease_runs`](super::KnotStructure::crease_runs)),
+    /// ascending. The one statement of where a spline has no derivative
+    /// inside its domain, read as values.
+    pub fn crease_values(&self) -> Vec<T> {
+        let values: Vec<T> = self.runs().map(|(v, _)| v).collect();
+        self.structure.crease_runs().map(|r| values[r]).collect()
+    }
+
     /// The parameter domain as held: the end runs' values at the
     /// indices [`KnotVector::domain`] reads (`p` and `n − 1 − p`), so
     /// at `f64` it is that door's pair bit for bit, a clamp run that

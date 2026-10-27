@@ -297,7 +297,17 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          that reached the fitted gate fails it, and `chart_image`'s domain door \
          refuses one in a span",
     ),
-    ("crates/geom-brep/src/curve_face/composite.rs", 8, 8, ""),
+    ("crates/geom-brep/src/curve_face/composite.rs", 9, 9, ""),
+    ("crates/geom-brep/src/curve_face/spline_face.rs", 5, 5, ""),
+    (
+        "crates/geom-brep/src/krawczyk.rs",
+        2,
+        1,
+        "the remainder is `midpoints`, the real matrix whose inverse `Y` \
+         preconditions the operator: any `Y` keeps the test sound, so a midpoint \
+         read off an enclosure that does not certify can cost a proof and never \
+         make one, and `image` itself refuses an image that does not certify",
+    ),
     (
         "crates/geom-brep/src/offset_fit.rs",
         10,
