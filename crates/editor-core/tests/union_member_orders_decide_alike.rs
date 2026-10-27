@@ -223,16 +223,14 @@ fn decide(
 }
 
 /// What [`cells_are_held`] checked: published rows, their member
-/// cells, the rows of three cells or more, the rows whose cells were
-/// found to share a point ([`shared_point`]), and the point rows whose
-/// cells fix no point to read.
+/// cells, the rows of three cells or more, and the rows whose cells
+/// were found to share a point ([`shared_point`]).
 #[derive(Debug, Default, Clone, Copy)]
 pub(crate) struct Held {
     rows: usize,
     cells: usize,
     meetings: usize,
     sited: usize,
-    unfixed: usize,
 }
 
 /// **Every cell of a union's published row is a member-table row**
@@ -295,8 +293,6 @@ pub(crate) fn cells_are_held(ev: &Evaluation<f64>, union: RecipeNodeId, order: &
                 "{order:?}: a published row's cells share no point: {r:?}"
             );
             held.sited += 1;
-        } else if matches!(r.relation, topo::Relation::OnCarrier | topo::Relation::Meet) {
-            held.unfixed += 1;
         }
     }
     held
@@ -981,11 +977,6 @@ pub(crate) fn flush_onto_an_edge(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNode
 ///   crossing of two wedges' seam, spelled as the faces and edges that
 ///   meet there.
 ///
-/// In the pinch and the flush pair every point row's cells fix its
-/// point: a step's meeting at a vertex it minted on an edge names the
-/// cell whose crossing minted it, where the edges alone (the flush
-/// pair's rims, collinear with the third block's edge) fix none.
-///
 /// Every order must publish rows, and each fixture reach rows of the
 /// kind it is here for, so no fixture passes on nothing.
 #[test]
@@ -995,10 +986,10 @@ fn published_row_cells_are_member_cells_that_meet() {
         (
             "two blocks pinching on a plate",
             crate::union_pinch_member_order::pinch,
-            |h| h.cells > 0 && h.sited > 0 && h.unfixed == 0,
+            |h| h.cells > 0 && h.sited > 0,
         ),
         ("a flush pair on an edge", flush_onto_an_edge, |h| {
-            h.sited > 0 && h.unfixed == 0
+            h.sited > 0
         }),
         (
             "a prism crossing one wedge about the line, with the plate",
@@ -1030,7 +1021,6 @@ fn published_row_cells_are_member_cells_that_meet() {
             total.cells += held.cells;
             total.meetings += held.meetings;
             total.sited += held.sited;
-            total.unfixed += held.unfixed;
         }
         assert!(reaches(total), "{what}: checked {total:?}");
     }

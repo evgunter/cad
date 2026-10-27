@@ -6487,12 +6487,15 @@ mod lying_on_rows {
         );
         let bottom = edge_between(&y, from, to);
         let mid = Point3::new(FRAC_PI_4.cos(), FRAC_PI_4.sin(), 0.0);
+        // The splitting operand: an eighth sheet, whose corner stands at
+        // the split.
+        let (x, _) = sheet(FRAC_PI_4);
         split_other_at_point(
             &mut y,
             Operand::B,
             bottom,
             mid,
-            crate::boolean::Cell::Vertex(from),
+            crate::boolean::Cell::Vertex(vertex_at(&x, mid)),
             band(),
             Tol::witness(),
             &mut super::ContactAcc::default(),
@@ -7609,12 +7612,25 @@ mod spline_face_rows {
                 let p = p + axis.cross(d).normalize() * (0.5 * z);
                 let mut y = y.clone();
                 let mut acc = ContactAcc::default();
+                // The splitting operand: a block whose corner stands at
+                // the point.
+                let x = crate::test_support_fixtures::brick::<f64>(
+                    (p.x, p.x + 1.0),
+                    (p.y, p.y + 1.0),
+                    (p.z, p.z + 1.0),
+                    tol,
+                );
+                let corner = x
+                    .vertices()
+                    .map(|(v, _)| v)
+                    .find(|&v| (x.resolve_vertex_point(v, crate::live::Proven) - p).norm() == 0.0)
+                    .expect("the block's corner at the point");
                 match super::split_other_at_point(
                     &mut y,
                     Operand::B,
                     ek,
                     p,
-                    crate::boolean::Cell::Edge(ek),
+                    crate::boolean::Cell::Vertex(corner),
                     band(),
                     tol,
                     &mut acc,

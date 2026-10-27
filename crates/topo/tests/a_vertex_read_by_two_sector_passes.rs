@@ -1192,9 +1192,10 @@ fn an_edge_through_two_blocks_glued_faces_builds_at_rest() {
 }
 
 /// A pyramid through the blocks' glued faces: a label, the far end of
-/// its edge along the contact face, and its base's two corners off it
-/// (bearing, radius and height), relative to [`MEET`].
-type GluedPyramid = (&'static str, [f64; 3], [(f64, f64, f64); 2]);
+/// its edge along the contact face, its base's two corners off it
+/// (bearing, radius and height), relative to [`MEET`], and whether the
+/// edge leaves the blocks through a corner of their glued rectangle.
+type GluedPyramid = (&'static str, [f64; 3], [(f64, f64, f64); 2], bool);
 
 /// The pyramids through the blocks' glued faces.
 const GLUED_PYRAMIDS: [GluedPyramid; 3] = [
@@ -1202,23 +1203,28 @@ const GLUED_PYRAMIDS: [GluedPyramid; 3] = [
         "a pyramid through the glued faces, out the side",
         [0.0, 0.8, -0.8],
         [(200.0, 0.4, 0.2), (240.0, 0.4, 0.2)],
+        true,
     ),
     (
         "a pyramid through the glued faces, out the bottom",
         [0.0, 0.3, -0.8],
         [(200.0, 0.4, 0.2), (240.0, 0.4, 0.2)],
+        false,
     ),
     (
         "a pyramid through the glued faces, out a far corner",
         [0.0, 0.7, -0.7],
         [(170.0, 0.4, 0.3), (260.0, 0.4, 0.3)],
+        true,
     ),
 ];
 
 /// The glued blocks' scene ([`an_edge_through_two_blocks_glued_faces_builds_in_every_op`])
-/// at `pose`, against one of [`GLUED_PYRAMIDS`]: every op builds, and
-/// the union names the edge through the glued faces `On`.
-fn through_glued_faces(pose: &Pose, &(label, along, corners): &GluedPyramid) {
+/// at `pose`, against one of [`GLUED_PYRAMIDS`]: every op builds, the
+/// union names the edge through the glued faces `On`, and where the edge
+/// leaves through a corner of the glued rectangle, the union's decision
+/// there names both blocks' vertices at that corner.
+fn through_glued_faces(pose: &Pose, &(label, along, corners, by_corner): &GluedPyramid) {
     let blocks = posed_boxes(
         "two blocks glued at their corners' face",
         &[
@@ -1264,6 +1270,32 @@ fn through_glued_faces(pose: &Pose, &(label, along, corners): &GluedPyramid) {
     assert!(!through.is_empty(), "{label}: the union names the edge");
     for row in through {
         assert_eq!(row.class, SideCode::On, "{label}: {row:?}");
+    }
+    if by_corner {
+        // The pyramid's edge leaves the blocks through a corner they share,
+        // one vertex of each: it is split at one, and the other is decided
+        // one with that split. The row naming that decision names both
+        // corners, the edge's minting cell beside the corner decided on it.
+        let corners = |row: &topo::Coincidence| {
+            let mut corners: Vec<_> = row
+                .every_cell()
+                .filter_map(|c| match c {
+                    topo::RowCell::Input {
+                        input: Operand::B,
+                        cell: topo::Cell::Vertex(v),
+                    } => Some(v),
+                    _ => None,
+                })
+                .collect();
+            corners.sort();
+            corners.dedup();
+            corners.len()
+        };
+        assert!(
+            r.coincidences.iter().any(|row| corners(row) == 2),
+            "{label}: a row names both blocks' corners on the edge: {:?}",
+            r.coincidences
+        );
     }
 }
 
