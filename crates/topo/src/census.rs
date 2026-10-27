@@ -5956,7 +5956,7 @@ fn planar_face_pairs<T: Decide>(
 /// **Cost.** A candidate is a pair of boxes overlapping, of one of the
 /// two kinds, across solids. Two cylinder faces whose spans along the
 /// first's axis do not overlap by more than the band are dropped before
-/// Door 1 ([`axial_span`]): the axis is a direction separating them, so
+/// Door 1 ([`boundary_axial`]): the axis is a direction separating them, so
 /// they share no interior thicker than the band, which no reading here
 /// would decide. That is the common case of pins stacked end to end.
 /// The rest pay Door 1, and those it decides on one carrier facing the
@@ -5979,6 +5979,12 @@ fn curved_same_side_pairs<T: Decide>(
         s @ (geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. }) => Some(s.kind()),
         _ => None,
     };
+    // A face's span along an axis: its boundary's, which on a cylinder
+    // about that axis holds the face, the height there being a chart
+    // coordinate whose extremes lie on the boundary. Read against the
+    // first face's axis; a second face on another axis is a pair Door 1
+    // does not read as one carrier, so dropping it loses nothing.
+    let axial = |f, origin, axis| boundary_axial(body, f, body.get_face(f)?, origin, axis);
     let mut out = Vec::new();
     for (i, &fa) in cands.every_face.iter().enumerate() {
         let Some(ka) = kind(fa) else { continue };
@@ -5994,14 +6000,11 @@ fn curved_same_side_pairs<T: Decide>(
                 continue;
             }
             if let Some(&geom::Surface::Cylinder { origin, axis, .. }) = surface(fa)
-                && let (Some((la, ha)), Some((lb, hb))) = (
-                    axial_span(body, fa, origin, axis),
-                    axial_span(body, fb, origin, axis),
-                )
+                && let (Some(a), Some(b)) = (axial(fa, origin, axis), axial(fb, origin, axis))
                 && !matches!(
                     decide(
                         "census_aligned_axial_overlap",
-                        Margin::of(ha.min(hb) - la.max(lb)),
+                        Margin::of(a.hi.min(b.hi) - a.lo.max(b.lo)),
                         band
                     ),
                     Ok(Sign::Positive)
@@ -6033,64 +6036,6 @@ fn curved_same_side_pairs<T: Decide>(
         }
     }
     out
-}
-
-/// **The span of face `f` along `axis`**, measured from `origin`: an
-/// interval holding every point of the face's boundary. Where `f` lies
-/// on a cylinder about `axis` it holds the whole face, the height along
-/// the axis being a chart coordinate, whose least and greatest values on
-/// the face lie on its boundary. ([`curved_same_side_pairs`] reads it
-/// against the first face's axis; a second face on another axis is a
-/// pair Door 1 does not read as one carrier, so dropping it loses
-/// nothing.) Each edge answers exactly: a line by its ends, a circle or
-/// an ellipse by its centre widened by its largest semi-axis times the
-/// sine of its plane's tilt off `axis`. `None` where an edge has no
-/// certified curve or is of another kind.
-fn axial_span<T: Decide>(
-    body: &Body<T>,
-    f: FaceKey,
-    origin: Point3<T>,
-    axis: Vec3<T>,
-) -> Option<(T, T)> {
-    let at = |p: Point3<T>| (p - origin).dot(axis);
-    let mut span: Option<(T, T)> = None;
-    let mut take = |lo: T, hi: T| {
-        span = Some(span.map_or((lo, hi), |(l, h)| (l.min(lo), h.max(hi))));
-    };
-    let edges = crate::boolean::solid_contain::face_edges(body, f).ok()?;
-    for e in edges {
-        let curve = body
-            .get_curve_geom(body.get_edge(e.edge)?.curve)?
-            .certified()?;
-        match curve.carrier() {
-            geom::Curve3::Line { .. } => {
-                let (t0, t1) = curve.params();
-                let (a, b) = (at(curve.carrier().eval(t0)), at(curve.carrier().eval(t1)));
-                take(a.min(b), a.max(b));
-            }
-            geom::Curve3::Circle {
-                center,
-                axis: n,
-                radius,
-                ..
-            } => {
-                let (c, w) = (at(*center), *radius * n.cross(axis).norm());
-                take(c - w, c + w);
-            }
-            geom::Curve3::Ellipse {
-                center,
-                axis: n,
-                semi_u,
-                semi_v,
-                ..
-            } => {
-                let (c, w) = (at(*center), semi_u.max(*semi_v) * n.cross(axis).norm());
-                take(c - w, c + w);
-            }
-            _ => return None,
-        }
-    }
-    span
 }
 
 /// What [`in_band_reading`] makes of a pair Door 1 read in band.

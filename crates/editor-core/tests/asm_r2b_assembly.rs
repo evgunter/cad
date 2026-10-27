@@ -1648,8 +1648,10 @@ fn cylinder_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 /// identity (the item's probe) and at a pose turned off every world axis
 /// and moved off the origin. The copies' discs, bounded by an arc, and
 /// their walls, on two keys, each lie on one carrier facing the same way
-/// sharing interior: the finding is bounded, loud and carries the
-/// `SameSideInterference`. What the census leaves undecidable between
+/// sharing interior: the finding carries the `SameSideInterference`. Its
+/// overlap is unlocalized, since the intersection refuses the coincident
+/// copies, so it is loud and unquietable, and stage 5's check never
+/// refuses it. What the census leaves undecidable between
 /// the two copies rides the finding as evidence and is never refused on
 /// its own: a disc against the other copy's wall, two carriers meeting
 /// along the rim, and the two half-bands, one of each copy, that share a
@@ -1690,12 +1692,16 @@ fn copies_of_one_cylinder_filling_one_volume_are_one_interference() {
         // The overlap is not bounded: the intersection that localizes it
         // refuses two coincident curved copies
         // (`work/atrest/coincident-curved-copies-overlap-is-unlocalized.md`).
+        // So no assertion could quiet it, and the check never refuses it:
+        // loud and unquietable.
         assert!(
             matches!(
                 finding.overlap,
                 editor_core::Overlap::Unlocalized(editor_core::Unlocalized::Refused { .. })
-            ) && finding.is_loud(),
-            "{label}: loud, its overlap unlocalized: {finding:?}"
+            ) && finding.is_loud()
+                && !finding.quietable
+                && !finding.refusable(),
+            "{label}: loud and unquietable, its overlap unlocalized: {finding:?}"
         );
         let count = |f: fn(&topo::ValidationError) -> bool| {
             finding.evidence.iter().filter(|&e| f(e)).count()
