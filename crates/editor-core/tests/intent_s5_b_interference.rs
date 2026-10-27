@@ -763,19 +763,27 @@ fn an_undecided_pair_beside_the_press_fit_keeps_it_loud() {
     let Overlap::Bounded { faces } = &finding.overlap else {
         panic!("bounded: {:?}", finding.overlap)
     };
-    let beside = finding.evidence.iter().filter(|e| {
+    // The side hole's wall: the product's one cylinder of its radius.
+    let hole_wall = |f: topo::FaceKey| {
+        let body = &assembly.body;
+        matches!(
+            body.get_face(f).and_then(|f| body.get_surface(f.surface)),
+            Some(geom::Surface::Cylinder { radius, .. }) if (radius - 0.05).abs() < 1e-12
+        )
+    };
+    let beside = finding.evidence.iter().any(|e| {
         matches!(
             e,
             ValidationError::CensusUndecidable {
-                a: topo::EntityId::Face(_),
-                b: topo::EntityId::Face(_),
+                a: topo::EntityId::Face(a),
+                b: topo::EntityId::Face(b),
                 ..
-            }
+            } if hole_wall(*a) || hole_wall(*b)
         )
     });
     assert!(
-        beside.count() > 0,
-        "the census left curved pairs undecided: {:?}",
+        beside,
+        "the census left the side hole's wall undecided: {:?}",
         finding.evidence
     );
     assert!(

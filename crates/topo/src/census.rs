@@ -6568,19 +6568,28 @@ pub(crate) fn face_reach_in<T: Decide>(
 }
 
 /// [`face_reach_in`], with a sphere face's first row read off what the
-/// face holds: at each end of that row, where the face does not hold
-/// the sphere's pole along it, no further than its boundary reaches.
-///
-/// A linear coordinate `d·p` on a sphere about `c` of radius `r` has
-/// its only critical points at the poles `c ± r·d̂`, so over a face of
-/// the sphere it is greatest either on the face's boundary or at the
-/// pole `c + r·d̂`, and least on the boundary or at `c − r·d̂`. A pole
-/// the face's region places definitely `Out`
-/// ([`crate::boolean::curved_face_placement`]) is neither, so that end
-/// of the row is the boundary's ([`boundary_reach`], which bounds every
-/// boundary edge's locus). A pole placed anywhere else, or not placed,
-/// keeps the carrier's end. The other rows, and every other kind, are
+/// face holds: at each end of that row, where the face places the
+/// sphere's pole `c ± r·d̂` along it definitely `Out`
+/// ([`crate::boolean::curved_face_placement`]), no further than its
+/// boundary reaches ([`boundary_reach`], which bounds every boundary
+/// edge's locus). The other rows, and every other kind, are
 /// [`face_reach_in`]'s.
+///
+/// The argument is the depth gap's for a least depth on a plane
+/// ([`depth_gap`] module docs), with the poles in the foot's place:
+/// `d·p` on a sphere has its only critical points at `c ± r·d̂`, so with
+/// that end's pole not a point of the face its extreme there is on the
+/// boundary.
+///
+/// **Only a definite `Out` narrows**, the one verdict that says the
+/// pole is not a point of the face. `In` and a boundary verdict say it
+/// is. `Trim(None)` (a region with an edge that is not a circle arc,
+/// which [`crate::boolean::sphere_region`] cannot read) and an error (a
+/// pole in an arc's band, or a region no ray settles) say nothing, and
+/// such a face may hold the pole: each keeps the carrier's end. No row
+/// holds those two branches, since no verb is known to build a trimmed
+/// sphere face with such an edge to hold one
+/// (`work/restread/held-reach-keeps-an-unread-pole-with-no-witness.md`).
 ///
 /// # Panics
 ///
@@ -7995,7 +8004,7 @@ type WorldReach<T> = (Point3<T>, Point3<T>);
 /// is planar, or the offset from an axis or centre either face proposes
 /// to the other's nearest boundary segment point ([`depth_gap::toward`]).
 /// Each face comes with its world reach, the lever its normal is read
-/// over.
+/// over; `toward` is [`depth_gap::toward`]'s offsets.
 ///
 /// The test is the boolean's narrow phase
 /// ([`crate::boolean::separating::apart_by`]): both reaches are read in
@@ -8010,6 +8019,7 @@ fn backstop_apart<T: Decide>(
     body: &Body<T>,
     (fa, ra): (FaceKey, WorldReach<T>),
     (fb, rb): (FaceKey, WorldReach<T>),
+    toward: Vec<geom_core::UnitVec3<T>>,
     band: Band,
 ) -> bool {
     use crate::boolean::separating::{Item, apart_by, planar_axis};
@@ -8017,7 +8027,7 @@ fn backstop_apart<T: Decide>(
         .into_iter()
         .filter_map(|(f, r)| planar_axis(body, f, || Some(r), band))
         .collect();
-    axes.extend(depth_gap::toward(body, fa, fb, band));
+    axes.extend(toward);
     apart_by(
         (body, Item::Face(fa)),
         (body, Item::Face(fb)),
@@ -8491,9 +8501,28 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                         break;
                     }
                 }
+                // Both faces are read once for their depths, which aim
+                // the offset directions and bound the depth gap.
+                let reads = if cleared {
+                    None
+                } else {
+                    depth_gap::face_read(body, a.face, band)
+                        .zip(depth_gap::face_read(body, b.face, band))
+                };
+                let toward = reads
+                    .as_ref()
+                    .map_or_else(Vec::new, |(ra, rb)| depth_gap::toward(ra, rb, band));
                 if !cleared
-                    && !backstop_apart(body, (a.face, (alo, ahi)), (b.face, (blo, bhi)), band)
-                    && !depth_gap::apart_in_depth(body, a.face, b.face, band)
+                    && !backstop_apart(
+                        body,
+                        (a.face, (alo, ahi)),
+                        (b.face, (blo, bhi)),
+                        toward,
+                        band,
+                    )
+                    && !reads.as_ref().is_some_and(|(ra, rb)| {
+                        depth_gap::apart_in_depth(body, (a.face, ra), (b.face, rb), band)
+                    })
                 {
                     errors.push(ValidationError::CensusUndecidable {
                         a: EntityId::Face(a.face),

@@ -501,3 +501,54 @@ fn a_slab_through_a_balls_side_refuses() {
     let errs = census(&crossed).expect_err("the slab cuts the ball");
     assert!(refuses_curved_within_reach(&crossed, &errs), "{errs:?}");
 }
+
+/// **A trimmed sphere face holding its pole clears only past it.** The
+/// unit ball poled along `y`, spun about `y` by 1 and by π/2, less the
+/// slab `y > 0.1`: one sphere face bounded by the circle `y = 0.1`,
+/// which holds the ball's `±x` poles, and a box whose face `x = 1 + dx`
+/// faces the `+x` pole. The pair is apart only at `dx > 0`, so it clears
+/// there and refuses at `dx ≤ 0`, where the box reaches the pole. At
+/// these spins a direction arm 1 reads has one of its poles outside
+/// the face and the other inside. Red where the face is narrowed to its
+/// boundary at an end whose pole it holds: at every end, or with the
+/// two ends' poles swapped.
+#[test]
+fn a_trimmed_sphere_face_holding_its_pole_clears_only_past_it() {
+    use geom_core::{Affine3, Point3};
+    let knife = finished(
+        "the slab",
+        sweep::test_support::brick((-2.0, 2.0), (0.1, 2.0), (-2.0, 2.0), tol()),
+        tol(),
+    );
+    for spin in [1.0, core::f64::consts::FRAC_PI_2] {
+        let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), spin);
+        let ball = topo::transform_rigid(
+            &sweep::test_support::ball_poled_y(1.0, Vec3::new(0.0, 0.0, 0.0), tol()),
+            &geom_core::test_support::rigid(&turn, tol()),
+            tol(),
+        )
+        .unwrap();
+        let ball = finished("the ball", ball, tol());
+        let Ok(topo::BooleanResult::Body(patch)) = topo::subtract(&ball, &knife, tol()) else {
+            panic!("the ball less the slab builds at spin {spin}");
+        };
+        let patch = patch.body.into_body();
+        for dx in [1e-3, 0.0, -1e-3] {
+            let mut out = patch.clone();
+            let x0 = 1.0 + dx;
+            let block = sweep::test_support::brick((x0, x0 + 1.0), (-0.5, 0.5), (-0.5, 0.5), tol());
+            topo::graft_disjoint(&mut out, &block).expect("grafts");
+            let pair = finished("the box by the pole", out, tol());
+            let what = format!("spin {spin}, the box {dx} past the pole");
+            if dx > 0.0 {
+                assert_eq!(census(&pair), Ok(()), "{what}");
+            } else {
+                let errs = census(&pair).expect_err(&what);
+                assert!(
+                    refuses_curved_within_reach(&pair, &errs),
+                    "{what}: {errs:?}"
+                );
+            }
+        }
+    }
+}

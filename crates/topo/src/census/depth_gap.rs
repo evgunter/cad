@@ -575,21 +575,18 @@ fn least_on<T: Decide>(
     }
 }
 
-/// **Whether the faces `a`, `b` are apart in some depth** either
-/// proposes (module docs).
+/// **Whether the faces `a`, `b`, read as `ra`, `rb` ([`face_read`]),
+/// are apart in some depth** either proposes (module docs).
 ///
 /// # Panics
 ///
 /// As [`face_read`].
 pub(super) fn apart_in_depth<T: Decide>(
     body: &Body<T>,
-    a: FaceKey,
-    b: FaceKey,
+    (a, ra): (FaceKey, &Read<T>),
+    (b, rb): (FaceKey, &Read<T>),
     band: Band,
 ) -> bool {
-    let (Some(ra), Some(rb)) = (face_read(body, a, band), face_read(body, b, band)) else {
-        return false;
-    };
     ra.depths.iter().chain(&rb.depths).any(|proposed| {
         // A least bound costs a point placement, so it is read only
         // against a greatest the other face has.
@@ -598,36 +595,31 @@ pub(super) fn apart_in_depth<T: Decide>(
                 least_on(body, lo.0, lo.1, proposed, band).is_some_and(|lo| clears(hi, lo, band))
             })
         };
-        below((b, &rb), &ra) || below((a, &ra), &rb)
+        below((b, rb), ra) || below((a, ra), rb)
     })
 }
 
-/// **The directions the depths of `a` and `b` aim across the pair**:
-/// for each axis or centre one face proposes, the offset from it to the
-/// other face's nearest boundary segment point, off the axis or from
-/// the centre. Two convex sets lie either side of the plane normal to
-/// the offset between their nearest points, so where a curved face
-/// lies within its carrier's radius of that axis or centre and the
-/// other face's nearest point is on a segment, that offset is the
-/// direction that parts them; arm 1 reads both faces' reaches along it
-/// ([`crate::boolean::separating::apart_by`]), and the gap there, not
-/// the proposal, is the certificate. A face proposes nothing for a
-/// core depth or against a cover with no segment, and an offset the
-/// band cannot read as a direction proposes nothing.
+/// **The directions the depths of two faces, read as `ra` and `rb`
+/// ([`face_read`]), aim across the pair**: for each axis or centre one
+/// face proposes, the offset from it to the other face's nearest
+/// boundary segment point, off the axis or from the centre. This only
+/// proposes. Arm 1 reads both faces' reaches along each direction
+/// ([`crate::boolean::separating::apart_by`]), and the gap there is
+/// the certificate, whatever aimed it. A core depth or a cover with no
+/// segment proposes nothing, and neither does an offset the band cannot
+/// read as a unit direction.
 ///
-/// # Panics
-///
-/// As [`face_read`].
+/// The same axis proposed twice (a carrier's and each coaxial rim's)
+/// proposes two directions that agree only to rounding. They are kept,
+/// as [`crate::boolean::separating::face_axes`] keeps every normal at a
+/// scalar with no bracket to key them by: a second reading of a span
+/// that no verdict depends on.
 pub(super) fn toward<T: Decide>(
-    body: &Body<T>,
-    a: FaceKey,
-    b: FaceKey,
+    ra: &Read<T>,
+    rb: &Read<T>,
     band: Band,
 ) -> Vec<geom_core::UnitVec3<T>> {
-    let (Some(ra), Some(rb)) = (face_read(body, a, band), face_read(body, b, band)) else {
-        return Vec::new();
-    };
-    [(&ra, &rb), (&rb, &ra)]
+    [(ra, rb), (rb, ra)]
         .into_iter()
         .flat_map(|(own, other)| {
             own.depths.iter().filter_map(|proposed| {
