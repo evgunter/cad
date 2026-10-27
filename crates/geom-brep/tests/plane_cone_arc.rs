@@ -164,6 +164,61 @@ fn a_hyperbolic_arc_lies_on_both_surfaces() {
     assert!(worst <= 32.0 * f64::EPSILON * scale, "tilted: {worst:e}");
 }
 
+/// **A seed names the branch on its own nappe whichever way the plane
+/// leans across the axis.** The section's near and far branches swap
+/// labels as `c = a·n` changes sign, and `branch_at` reads its side by
+/// the same sign, so the branch a seed gets must not swap: the plane
+/// `x = d` leaned by `ε` about `y` (`c = sin ε`, `ε` small of either
+/// sign, and zero), with a seed above the apex and one below, gives each
+/// the branch whose vertex is on the plane, on the cone and on the
+/// seed's nappe, and the arc of it between two of the section's points
+/// on that nappe (traced down the cone's generators) lies on both
+/// surfaces.
+#[test]
+fn a_seed_names_its_own_nappes_branch_on_either_lean() {
+    let alpha = core::f64::consts::FRAC_PI_6;
+    let d = 0.3;
+    let q = Point3::new(d, 0.0, 0.0);
+    let apex = Point3::new(0.0, 0.0, 1.0);
+    for lean in [1e-3, 1e-12, 0.0, -0.0, -1e-12, -1e-3] {
+        let n = Vec3::new(f64::cos(lean), 0.0, f64::sin(lean));
+        let section = open(alpha, q, n);
+        assert_eq!(section.conic(), OpenConic::Hyperbola, "lean {lean:e}");
+        // The plane's trace on the generator at `azimuth`: above the
+        // apex where the generator's `x` is positive, below it where
+        // negative.
+        let on_section = |azimuth: f64| {
+            let g = Vec3::new(
+                alpha.sin() * azimuth.cos(),
+                alpha.sin() * azimuth.sin(),
+                alpha.cos(),
+            );
+            apex + g * ((q - apex).dot(n) / g.dot(n))
+        };
+        for (side, azimuths) in [(1.0, (-0.9, 0.6)), (-1.0, (2.2, -2.5))] {
+            let branch = section
+                .branch_at(Point3::new(d, 0.0, 1.0 + side), band())
+                .expect("the seed names a branch");
+            let v = branch.vertex();
+            let (on_plane, on_cone) = ((v - q).dot(n).abs(), off_cone(alpha, v));
+            assert!(
+                on_plane <= 1e-14 && on_cone <= 1e-14 && (v.z - 1.0) * side > 0.1,
+                "lean {lean:e} side {side}: the branch's vertex {v:?} is not on the seed's \
+                 nappe's branch (plane {on_plane:e}, cone {on_cone:e})"
+            );
+            let (from, to) = (on_section(azimuths.0), on_section(azimuths.1));
+            let arc = branch
+                .arc(from, to, band())
+                .expect("the window is on the seed's branch");
+            let worst = worst_residual(nurbs(&arc), alpha, (q, n));
+            assert!(
+                worst <= 64.0 * f64::EPSILON,
+                "lean {lean:e} side {side}: worst residual {worst:e}"
+            );
+        }
+    }
+}
+
 /// **Each span's weight is the closed form's, `cosh` of half its
 /// hyperbolic span, and the arc is halved until it is at most `√2`.**
 /// On the plane `x = d` the hyperbola is `y = d·sinh t`, so a window's
