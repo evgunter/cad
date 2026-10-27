@@ -1272,3 +1272,5 @@ mod fallback_rows_review;
 
 #[path = "fallback_rows_review_head.rs"]
 mod fallback_rows_review_head;
+#[path = "review_5797_delta_probe.rs"]
+mod review_5797_delta_probe;
