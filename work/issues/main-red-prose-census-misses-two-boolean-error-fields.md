@@ -2,10 +2,11 @@
 id: main-red-prose-census-misses-two-boolean-error-fields
 kind: issue
 title: Main red: pncad-py's prose census finds two BooleanError fields (edge, face in topo/src/boolean/mod.rs) it neither decides nor names
-status: open
+status: closed
 priority: P1
 cost: E
 opened: 2026-10-27
+closed: 2026-10-27
 ---
 
 
@@ -36,3 +37,8 @@ their place, with the same file and enum:
 `Debug` in a `Display` impl, so the binding's `typed_err` would panic on
 a struct-shaped payload instead of raising. The fix is the row's own:
 render the payload through its own `Display`, or give it one.
+
+## 2026-10-27 — gone on main `39134695`
+
+Both rows pass on main `39134695` (E's slow set over that merge, the
+default ε), and so does every other prose-census row. Closed.
