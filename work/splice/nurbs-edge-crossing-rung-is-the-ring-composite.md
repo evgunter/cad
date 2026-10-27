@@ -124,7 +124,7 @@ pins the refusal in miniature and reds when this arm lands.
 
 The spline span × analytic face arm is
 `geom_brep::curve_face::composite::crossings`, reached through
-`SplineFoot::surface_crossings`. Its unit rows are in
+`NurbsLane::surface_crossings`. Its unit rows are in
 `curve_face/composite/rows.rs`: clear, a pass within the zero band
 inside the span refusing (an in-band pass is not clear: C5's "an in-band
 decision escalating and never pruning"), one crossing, three crossings with the first and

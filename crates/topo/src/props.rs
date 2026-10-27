@@ -6733,6 +6733,20 @@ pub trait AtRestPolicy: Decide {
     /// ([`crate::ReplaceFaceError::NurbsLaneUnsupported`]).
     fn spline_foot() -> Option<geom_brep::SplineFoot<Self>>;
 
+    /// **A spline span's crossings of an analytic face's carrier at this
+    /// scalar, or `None` where it is not derived here** — the boolean's
+    /// planar lane ([`geom_brep::NurbsLane::surface_crossings`], the
+    /// curve × face table's ring-composite arm). The arm crosses its
+    /// scalars into certification arithmetic by their certified
+    /// enclosures, so it is read at the certifying scalars alone, and
+    /// a dual answers `None` and the lane refuses the class by name.
+    fn spline_face_crossings(
+        net: &geom::NurbsCurve3<Self>,
+        params: (Self, Self),
+        surface: &geom::Surface<Self>,
+        band: geom_core::Band,
+    ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>>;
+
     /// **This scalar's section lane, or `None` where it is not
     /// derived here** — the offset door's plane × spline-wall
     /// section and the plane's root along a spline edge
@@ -6899,6 +6913,15 @@ impl AtRestPolicy for f64 {
         Some(geom_brep::SplineFoot::certified())
     }
 
+    fn spline_face_crossings(
+        net: &geom::NurbsCurve3<Self>,
+        params: (Self, Self),
+        surface: &geom::Surface<Self>,
+        band: geom_core::Band,
+    ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>> {
+        Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
+    }
+
     /// The march is written here.
     fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
         Some(crate::offset_derive::SectionLane::f64())
@@ -7006,6 +7029,15 @@ impl AtRestPolicy for geom_core::Probe {
         Some(geom_brep::SplineFoot::certified())
     }
 
+    fn spline_face_crossings(
+        net: &geom::NurbsCurve3<Self>,
+        params: (Self, Self),
+        surface: &geom::Surface<Self>,
+        band: geom_core::Band,
+    ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>> {
+        Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
+    }
+
     /// The march is written at `f64` alone.
     fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
         None
@@ -7108,6 +7140,15 @@ impl AtRestPolicy for geom_core::interval::Interval {
 
     fn spline_foot() -> Option<geom_brep::SplineFoot<Self>> {
         Some(geom_brep::SplineFoot::certified())
+    }
+
+    fn spline_face_crossings(
+        net: &geom::NurbsCurve3<Self>,
+        params: (Self, Self),
+        surface: &geom::Surface<Self>,
+        band: geom_core::Band,
+    ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>> {
+        Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
     }
 
     /// The march is written at `f64` alone.
@@ -7222,6 +7263,15 @@ where
 
     fn spline_foot() -> Option<geom_brep::SplineFoot<Self>> {
         Some(geom_brep::SplineFoot::certified())
+    }
+
+    fn spline_face_crossings(
+        net: &geom::NurbsCurve3<Self>,
+        params: (Self, Self),
+        surface: &geom::Surface<Self>,
+        band: geom_core::Band,
+    ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>> {
+        Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
     }
 
     /// The march is written at `f64` alone.
@@ -7350,6 +7400,16 @@ where
     /// Newton's foot is written at the certified-bracket scalars, which
     /// a dual is not.
     fn spline_foot() -> Option<geom_brep::SplineFoot<Self>> {
+        None
+    }
+
+    /// The arm reads certified enclosures, which a dual does not hold.
+    fn spline_face_crossings(
+        _net: &geom::NurbsCurve3<Self>,
+        _params: (Self, Self),
+        _surface: &geom::Surface<Self>,
+        _band: geom_core::Band,
+    ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>> {
         None
     }
 

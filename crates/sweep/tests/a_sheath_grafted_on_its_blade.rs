@@ -133,7 +133,7 @@ fn a_sheath_on_its_blade_unions_past_the_shared_rim() {
         // The cap read on the way: every spline edge of A, against every
         // plane face of B, through the arm the planar lane reads, crosses
         // nothing inside itself.
-        let lane = geom_brep::SplineFoot::<f64>::certified();
+        let lane = geom_brep::NurbsLane::<f64>::certified();
         let band = Band::linear(tol).expect("the run's tolerance forms a band");
         let mut read = 0;
         for (_, edge) in a.edges() {

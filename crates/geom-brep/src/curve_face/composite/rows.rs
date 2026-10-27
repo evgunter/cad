@@ -272,7 +272,7 @@ fn a_cubic_leaves_a_sphere_through_the_door() {
         axis: Vec3::unit_z(),
         u_ref: Vec3::unit_x(),
     };
-    let lane = crate::SplineFoot::<f64>::certified();
+    let lane = crate::NurbsLane::<f64>::certified();
     let roots = lane
         .surface_crossings(&net, (0.0, 1.0), &ball, band())
         .unwrap();

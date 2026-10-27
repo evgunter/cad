@@ -134,7 +134,7 @@ enum Reading {
 /// true crossing's parameter.
 ///
 /// `cross` takes a scalar of the body into certification arithmetic: it
-/// is the door's ([`crate::SplineFoot::surface_crossings`]), so only a
+/// is the door's ([`crate::NurbsLane::surface_crossings`]), so only a
 /// scalar that may certify reaches the arm.
 ///
 /// # Errors

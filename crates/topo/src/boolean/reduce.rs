@@ -3622,7 +3622,7 @@ enum SpanVerdict<T: geom_core::Real> {
 
 /// **A spline span against a plane face**: the crossings strictly inside
 /// the span, ascending, by the curve × face table's ring-composite arm
-/// ([`geom_brep::SplineFoot::surface_crossings`]), read through the
+/// ([`crate::props::AtRestPolicy::spline_face_crossings`]), read through the
 /// scalar's certified lane. A spiric span, or a scalar with no certified
 /// lane, has no arm.
 ///
@@ -3651,11 +3651,13 @@ fn spline_plane_crossings<T: crate::props::AtRestPolicy>(
             what: "planar lane: the face's plane does not resolve",
         })?;
     let arm = route(curve.carrier().kind(), surface.kind());
-    let (geom::Curve3::Nurbs(net), true, Some(lane)) = (
-        curve.carrier(),
-        arm.door == Door::SplineComposite && arm.implemented,
-        T::spline_foot(),
-    ) else {
+    let crossings = match curve.carrier() {
+        geom::Curve3::Nurbs(net) if arm.door == Door::SplineComposite && arm.implemented => {
+            T::spline_face_crossings(net, curve.params(), surface, band)
+        }
+        _ => None,
+    };
+    let Some(crossings) = crossings else {
         return Err(BooleanError::EdgeCarrierUnsupported {
             operand: x_is,
             edge: root()?,
@@ -3664,26 +3666,25 @@ fn spline_plane_crossings<T: crate::props::AtRestPolicy>(
             site: super::EdgeCarrierSite::PlanarCrossing,
         });
     };
-    lane.surface_crossings(net, curve.params(), surface, band)
-        .or_else(|refusal| {
-            Err(match refusal {
-                CompositeRefusal::Escalated(diag) => BooleanError::Escalated {
-                    decision: BooleanDecision::Crossing(CrossingDecision::OnEdge),
-                    diag,
-                },
-                CompositeRefusal::Unsettled(why) => BooleanError::SplineCrossingUnsettled {
-                    operand: x_is,
-                    edge: root()?,
-                    face,
-                    face_of: x_is.other(),
-                    why,
-                },
-                CompositeRefusal::Unread(_) => BooleanError::ClassificationInvariant {
-                    what: "planar lane: a built spline carrier's composite against a plane \
+    crossings.or_else(|refusal| {
+        Err(match refusal {
+            CompositeRefusal::Escalated(diag) => BooleanError::Escalated {
+                decision: BooleanDecision::Crossing(CrossingDecision::OnEdge),
+                diag,
+            },
+            CompositeRefusal::Unsettled(why) => BooleanError::SplineCrossingUnsettled {
+                operand: x_is,
+                edge: root()?,
+                face,
+                face_of: x_is.other(),
+                why,
+            },
+            CompositeRefusal::Unread(_) => BooleanError::ClassificationInvariant {
+                what: "planar lane: a built spline carrier's composite against a plane \
                            did not form",
-                },
-            })
+            },
         })
+    })
 }
 
 /// The curved-wall crossing route: solve the certified roots — a

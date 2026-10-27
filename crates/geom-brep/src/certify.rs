@@ -2301,6 +2301,14 @@ pub struct NurbsLane<T: Real> {
         crate::edge_nurbs::PlaneNurbsIncidence<T>,
         crate::edge_nurbs::IncidenceRefusal,
     >,
+    /// [`crate::curve_face::composite::crossings`] at `T`, its scalars
+    /// crossed by their certified enclosures.
+    composite: fn(
+        &geom::NurbsCurve3<T>,
+        (T, T),
+        &Surface<T>,
+        Band,
+    ) -> Result<Vec<T>, crate::curve_face::composite::CompositeRefusal>,
     /// [`geom::NurbsSurface::project`] at `T`.
     surface_foot: fn(
         &geom::NurbsSurface<T>,
@@ -2319,42 +2327,8 @@ impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
             pair_limbs: crate::edge_nurbs::nurbs_pair_limbs::<T>,
             analytic_limbs: crate::edge_nurbs::analytic_edge_limbs::<T>,
             incidence: crate::edge_nurbs::plane_nurbs_incidence::<T>,
-            surface_foot: geom::NurbsSurface::project,
-        }
-    }
-}
-
-/// **The spline foot** — the parameter of a point moved along a NURBS
-/// carrier, read by a door that moves an endpoint along one (the offset
-/// door's re-anchor). Newton's foot is a bracket read written at the
-/// certified-bracket scalars ([`geom::NurbsCurve3::project_from_seed`]),
-/// so its one constructor is bounded there and a scalar outside them
-/// holds none.
-#[derive(Clone, Copy)]
-#[allow(clippy::type_complexity)]
-pub struct SplineFoot<T: Real> {
-    foot: fn(
-        &geom::NurbsCurve3<T>,
-        Point3<T>,
-        T,
-    ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive>,
-    /// [`crate::curve_face::composite::crossings`] at `T`, its scalars
-    /// crossed by their certified enclosures.
-    composite: fn(
-        &geom::NurbsCurve3<T>,
-        (T, T),
-        &Surface<T>,
-        Band,
-    ) -> Result<Vec<T>, crate::curve_face::composite::CompositeRefusal>,
-}
-
-impl<T: Decide + geom_core::CertifiedBounds> SplineFoot<T> {
-    /// The foot and the crossings, instantiated at `T`.
-    #[must_use]
-    pub const fn certified() -> Self {
-        Self {
-            foot: Self::seeded_foot,
             composite: Self::composite_crossings,
+            surface_foot: geom::NurbsSurface::project,
         }
     }
 
@@ -2373,6 +2347,32 @@ impl<T: Decide + geom_core::CertifiedBounds> SplineFoot<T> {
             band,
             geom_core::Interval::from_certified,
         )
+    }
+}
+
+/// **The spline foot** — the parameter of a point moved along a NURBS
+/// carrier, read by a door that moves an endpoint along one (the offset
+/// door's re-anchor). Newton's foot is a bracket read written at the
+/// certified-bracket scalars ([`geom::NurbsCurve3::project_from_seed`]),
+/// so its one constructor is bounded there and a scalar outside them
+/// holds none.
+#[derive(Clone, Copy)]
+#[allow(clippy::type_complexity)]
+pub struct SplineFoot<T: Real> {
+    foot: fn(
+        &geom::NurbsCurve3<T>,
+        Point3<T>,
+        T,
+    ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive>,
+}
+
+impl<T: geom_core::CertifiedBounds> SplineFoot<T> {
+    /// The foot, instantiated at `T`.
+    #[must_use]
+    pub const fn certified() -> Self {
+        Self {
+            foot: Self::seeded_foot,
+        }
     }
 
     /// [`geom::NurbsCurve3::project_from_seed`] seeded at the bracket
@@ -2459,6 +2459,25 @@ impl<T: Real> NurbsLane<T> {
     ) -> Result<(), crate::edge_nurbs::AnalyticRung3Refusal> {
         (self.analytic_limbs)(carrier, params, s1, s2, band)
     }
+
+    /// **A spline span against an analytic face's carrier**: the
+    /// crossings strictly inside `params`, ascending, by the curve × face
+    /// table's ring-composite arm
+    /// ([`crate::curve_face::composite::crossings`]).
+    ///
+    /// # Errors
+    ///
+    /// [`crate::curve_face::composite::CompositeRefusal`], as its
+    /// variants say.
+    pub fn surface_crossings(
+        self,
+        net: &geom::NurbsCurve3<T>,
+        params: (T, T),
+        surface: &Surface<T>,
+        band: Band,
+    ) -> Result<Vec<T>, crate::curve_face::composite::CompositeRefusal> {
+        (self.composite)(net, params, surface, band)
+    }
 }
 
 impl<T: Real> SplineFoot<T> {
@@ -2479,25 +2498,6 @@ impl<T: Real> SplineFoot<T> {
         seed: T,
     ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive> {
         (self.foot)(carrier, point, seed)
-    }
-
-    /// **A spline span against an analytic face's carrier**: the
-    /// crossings strictly inside `params`, ascending, by the curve × face
-    /// table's ring-composite arm
-    /// ([`crate::curve_face::composite::crossings`]).
-    ///
-    /// # Errors
-    ///
-    /// [`crate::curve_face::composite::CompositeRefusal`], as its
-    /// variants say.
-    pub fn surface_crossings(
-        self,
-        net: &geom::NurbsCurve3<T>,
-        params: (T, T),
-        surface: &Surface<T>,
-        band: Band,
-    ) -> Result<Vec<T>, crate::curve_face::composite::CompositeRefusal> {
-        (self.composite)(net, params, surface, band)
     }
 }
 
@@ -4592,6 +4592,12 @@ mod wiring_rows {
             return Err("incidence is not `edge_nurbs::plane_nurbs_incidence`");
         }
         if !std::ptr::fn_addr_eq(
+            lane.composite,
+            NurbsLane::<T>::composite_crossings as fn(_, _, _, _) -> _,
+        ) {
+            return Err("composite is not `NurbsLane::composite_crossings`");
+        }
+        if !std::ptr::fn_addr_eq(
             lane.surface_foot,
             geom::NurbsSurface::<T>::project as fn(_, _) -> _,
         ) {
@@ -4605,7 +4611,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<f64>(),
             Ok(()),
-            "`NurbsLane::<f64>::certified()` holds something other than `plane_nurbs_limbs`, `nurbs_pair_limbs`, `plane_nurbs_incidence` and `analytic_edge_limbs`"
+            "`NurbsLane::<f64>::certified()` holds something other than `plane_nurbs_limbs`, `nurbs_pair_limbs`, `plane_nurbs_incidence`, `analytic_edge_limbs` and `composite_crossings`"
         );
     }
 
@@ -4640,17 +4646,11 @@ mod wiring_rows {
     }
 
     /// `Ok(())` when the foot holds `SplineFoot::seeded_foot`.
-    fn holds_the_certified_spline_foot<T: geom_core::Decide + geom_core::CertifiedBounds>()
-    -> Result<(), &'static str> {
+    fn holds_the_certified_spline_foot<T: geom_core::CertifiedBounds>() -> Result<(), &'static str>
+    {
         let foot = SplineFoot::<T>::certified();
         if !std::ptr::fn_addr_eq(foot.foot, SplineFoot::<T>::seeded_foot as fn(_, _, _) -> _) {
             return Err("foot is not `SplineFoot::seeded_foot`");
-        }
-        if !std::ptr::fn_addr_eq(
-            foot.composite,
-            SplineFoot::<T>::composite_crossings as fn(_, _, _, _) -> _,
-        ) {
-            return Err("composite is not `SplineFoot::composite_crossings`");
         }
         Ok(())
     }
