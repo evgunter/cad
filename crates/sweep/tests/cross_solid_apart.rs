@@ -482,33 +482,22 @@ fn a_bar_through_a_ball_leaves_two_lumps_the_census_parts() {
     assert_eq!(census(&lumps.body), Ok(()), "the two lumps");
 }
 
-/// **A slab through a dome's top refuses.** The upper half of the unit
-/// ball, and the slab `[−2, 2] × [0.9, 0.95] × [−2, 2]` across its top:
-/// the slab cuts the dome, yet every vertex of each lies outside the
-/// other (the slab's corners outside the ball, the dome's on its rim and
-/// at its pole above the slab), so only the curved pair can refuse it.
-/// The dome holds its pole along `y`, so its reach there is the
-/// sphere's, not its rim's. Red where a sphere face's reach is narrowed
-/// to its boundary at an end whose pole it holds.
+/// **A slab through a ball's side refuses.** The unit ball poled along
+/// `z`, its one face bounded by the seam meridian in `y = 0`, and the
+/// slab `[−2, 2] × [0.9, 0.95] × [−2, 2]` across its side: the slab cuts
+/// the ball, yet every vertex of each lies outside the other (the slab's
+/// corners outside the ball, the ball's at its poles `(0, 0, ±1)`), so
+/// only the curved pair can refuse it. The face's boundary reaches no
+/// further along `y` than `y = 0`, but the face holds the sphere's pole
+/// `(0, 1, 0)` there, so its reach along `y` is the sphere's. Red where
+/// a sphere face's reach is narrowed to its boundary at an end whose pole
+/// it holds.
 #[test]
-fn a_slab_through_a_domes_top_refuses() {
-    let ball = finished(
-        "the ball",
-        sweep::test_support::ball_poled_y(1.0, Vec3::new(0.0, 0.0, 0.0), tol()),
-        tol(),
-    );
-    let below = finished(
-        "the lower half-space",
-        sweep::test_support::brick((-2.0, 2.0), (-2.0, 0.0), (-2.0, 2.0), tol()),
-        tol(),
-    );
-    let Ok(topo::BooleanResult::Body(dome)) = topo::subtract(&ball, &below, tol()) else {
-        panic!("the dome builds");
-    };
-    let mut out = dome.body.into_body();
+fn a_slab_through_a_balls_side_refuses() {
+    let mut out = sweep::test_support::ball_poled_z(1.0, Vec3::new(0.0, 0.0, 0.0), tol());
     let slab = sweep::test_support::brick((-2.0, 2.0), (0.9, 0.95), (-2.0, 2.0), tol());
     topo::graft_disjoint(&mut out, &slab).expect("grafts");
-    let crossed = finished("the slab through the dome", out, tol());
-    let errs = census(&crossed).expect_err("the slab cuts the dome");
+    let crossed = finished("the slab through the ball", out, tol());
+    let errs = census(&crossed).expect_err("the slab cuts the ball");
     assert!(refuses_curved_within_reach(&crossed, &errs), "{errs:?}");
 }
