@@ -2,7 +2,7 @@
 id: a-through-senses-names-are-invisible-to-the-name-walkers
 kind: issue
 title: Sense::Through's entering names are invisible to select.rs name_args and resolve's embedded walk, and Sense::other_half keeps a Through that names neither half
-status: open
+status: dispatched
 opened: 2026-10-26
 priority: P3
 cost: E
