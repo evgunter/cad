@@ -7,17 +7,14 @@
 //! A part's census findings are the part's: the census over a document
 //! instantiating it discards what it finds again inside the part's copy
 //! (`product::gather_sources`), and the part's own reading of its census
-//! ([`seam_verdict`]) crosses instead.
+//! ([`super::reading`]) crosses instead.
 
 use std::sync::Arc;
 
-use super::{AtRestEvidence, InterferenceFinding, LocalizeLane};
+use super::{AtRestEvidence, InterferenceFinding};
 use crate::doc::Doc;
 use crate::node::RecipeNodeId;
-use crate::product::Product;
 use crate::spoken::HeldNodes;
-
-use geom_core::Tol;
 
 /// How a row of another document's reached THIS document: the
 /// instantiating node here, the document the row is of, and the
@@ -271,17 +268,19 @@ pub(crate) trait CarriedRow {
     fn same_row(&self, other: &Self) -> bool;
 }
 
-impl CarriedRow for CarriedInterference {
-    fn same_row(&self, other: &Self) -> bool {
-        (self.route.of, self.pin, &self.finding) == (other.route.of, other.pin, &other.finding)
-    }
+/// One [`CarriedRow`] for each carried finding type: the same document,
+/// at the same pin, with the same finding.
+macro_rules! carried_row {
+    ($($row:ty),+) => {$(
+        impl CarriedRow for $row {
+            fn same_row(&self, other: &Self) -> bool {
+                (self.route.of, self.pin, &self.finding) == (other.route.of, other.pin, &other.finding)
+            }
+        }
+    )+};
 }
 
-impl CarriedRow for CarriedAtRestFinding {
-    fn same_row(&self, other: &Self) -> bool {
-        (self.route.of, self.pin, &self.finding) == (other.route.of, other.pin, &other.finding)
-    }
-}
+carried_row!(CarriedInterference, CarriedAtRestFinding);
 
 /// **A carried census finding with the pin of the document it is of**,
 /// the body of a part's census row ([`mod@crate::eval`]'s `PartValue`): which
@@ -300,28 +299,6 @@ impl<F: crate::spoken::Say> crate::spoken::Say for Pinned<F> {
         by: crate::spoken::Speaker<'_>,
     ) -> core::fmt::Result {
         self.finding.say(f, by)
-    }
-}
-
-/// **A part's own at-rest reading, as it crosses the seam**
-/// ([`mod@crate::eval`]'s part store): what the census over the part's
-/// product found, read as the part's own at-rest check reads it
-/// ([`super::reading`]), so the document instantiating the part reports
-/// each finding once, as the part's. Neither half refuses the host.
-pub(crate) struct SeamVerdict {
-    /// The overlaps between the part's own copies.
-    pub(crate) interference: Vec<InterferenceFinding>,
-    /// What the part's census could not look at.
-    pub(crate) could_not_look: Vec<AtRestEvidence>,
-}
-
-/// The part's at-rest reading over its gathered `product`
-/// ([`SeamVerdict`]).
-pub(crate) fn seam_verdict<T: LocalizeLane>(product: &Product<T>, tol: Tol) -> SeamVerdict {
-    let reading = super::reading(product, tol);
-    SeamVerdict {
-        interference: reading.interference,
-        could_not_look: reading.could_not_look,
     }
 }
 

@@ -1546,24 +1546,28 @@ fn a_badge_states_whether_a_reader_has_anything_to_do_about_it() {
         );
     }
 
-    let blind = frame::at_rest_badge(Some(&AtRestBadge {
-        loud: 0,
-        quiet: 0,
-        could_not_look: 2,
-    }))
-    .expect("a pair the census could not look at badges");
-    assert_eq!(
-        blind.tone(),
-        frame::Tone::Actionable,
-        "and the reader is the only one who can answer what the census could not look at"
-    );
-    assert!(
-        blind
-            .label()
-            .contains("2 pair(s) the census could not look at"),
-        "{}",
-        blind.label()
-    );
+    // What the census could not look at is counted by finding, and
+    // "clear" is never said beside it.
+    for (quiet, label) in [
+        (0, "at rest: 2 finding(s) the census could not look at"),
+        (
+            3,
+            "at rest: interference: 0 loud, 3 quiet; 2 finding(s) the census could not look at",
+        ),
+    ] {
+        let blind = frame::at_rest_badge(Some(&AtRestBadge {
+            loud: 0,
+            quiet,
+            could_not_look: 2,
+        }))
+        .expect("a finding the census could not look at badges");
+        assert_eq!(
+            blind.tone(),
+            frame::Tone::Actionable,
+            "and the reader is the only one who can answer what the census could not look at"
+        );
+        assert_eq!(blind.label(), label);
+    }
 
     let fitted = FittedDelta::as_requested(DisplayTolerance::new(1.0e-3).expect("a positive δ"));
     assert_eq!(

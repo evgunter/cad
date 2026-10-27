@@ -2079,7 +2079,8 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
     );
     // The posts' seats follow their caps, so the stand fits, and the
     // crate rests on the shelf's top face, so it comes down with the
-    // shelf by the same height; the gate certifies the migrated bench.
+    // shelf by the same height; the at-rest check finds nothing on the
+    // migrated bench.
     let crate_migrated = solve_document(&migrated, &with_store(ws), tol)
         .placement(&migrated, bench.crate_i)
         .expect("the crate is solved after the migration");
@@ -2088,12 +2089,14 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
         (crate_dropped - 0.04).abs() < 1e-12,
         "the crate comes down with the shelf by the height change: {crate_dropped} m"
     );
-    // The gate certifies the migrated bench, the crate on its shelf.
+    // The at-rest check finds nothing on the migrated bench, the crate on
+    // its shelf.
     at_rest(&migrated, &ev, tol);
     println!(
         "   \"does it actually fit\": after the migration the shelf came down {dropped:.3} m with \
          the shortened posts and the crate {crate_dropped:.3} m with the shelf — each mate names \
-         a FACE and the solve reads its pose off the part — and the gate certifies"
+         a FACE and the solve reads its pose off the part — and the at-rest check finds \
+         nothing"
     );
 
     // Undo is keeping the prior value: the migrated document is one
@@ -2222,7 +2225,7 @@ fn round_trip(ws: &Workspace, doc: &ProfileDoc, label: &str, tol: Tol) {
 /// the values setting the freedoms the seat leaves are numbers in the
 /// bodies' own coordinates. A post whose height changes moves the seat
 /// with it, which the update walk shows — the shelf comes down with
-/// the shortened posts and the gate still certifies; the crate rests
+/// the shortened posts and the at-rest check still finds nothing; the crate rests
 /// on the shelf's top face, so it follows the shelf.
 ///
 /// # A pin places the stand, and a parameter drives the pin
@@ -2291,8 +2294,8 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<TourStop> {
         format!(
             "{counters}. ASSEMBLED: 4 solids, V = {BENCH_VOLUME:.6} m^3 at every swing; every \
              vertex is where the turntable's chain composed by hand puts it, the shelf's centroid \
-             stays on the pivot, and the A5 at-rest gate CERTIFIES the posts' flush seats and \
-             the crate's rest"
+             stays on the pivot, and the A5 at-rest check finds nothing at the posts' flush \
+             seats or the crate's rest"
         )
     };
     let mut layout_body = Some(layout_body);
@@ -2319,7 +2322,7 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<TourStop> {
                     "the bench on its turntable at the first swing, and beside it the post and \
                      shelf documents laid out for shipping: ONE post instance patterned TWICE \
                      plus the shelf, nothing touching, which is A5's disjoint half where the \
-                     at-rest gate passes outright. The bench: an ASSEMBLY document — two \
+                     at-rest check finds nothing at all. The bench: an ASSEMBLY document — two \
                      instances of a post document and one of a shelf document, the shelf \
                      SEATED on both by mates, only the near post pinned to the world — its \
                      pin turning on a TURNTABLE whose swing is a document parameter — and a \

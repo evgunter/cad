@@ -714,7 +714,7 @@ impl core::fmt::Debug for LandedRun {
 /// findings over the landed product and every `⊔` beside it, counted
 /// (`CheckId::AtRest` in the landing's checks report). Nothing at rest
 /// refuses, so the badge says what the check found: overlaps between
-/// copies, loud and quiet, and pairs the census could not look at.
+/// copies, loud and quiet, and the findings the census could not look at.
 ///
 /// Taken only for an assembly-shaped document (one holding at least
 /// one `InstantiatePart`) whose product gathered and whose checks ran.
@@ -728,7 +728,7 @@ pub struct AtRestBadge {
     pub loud: usize,
     /// The interference findings an assertion quiets.
     pub quiet: usize,
-    /// The pairs the census could not look at, which nothing quiets.
+    /// The findings the census could not look at, which nothing quiets.
     pub could_not_look: usize,
 }
 

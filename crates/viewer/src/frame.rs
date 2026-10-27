@@ -2263,26 +2263,30 @@ pub fn tool_news(refusal: &PanelRefusal) -> Message {
 ///
 /// Nothing at rest refuses, so the badge counts what the check found.
 /// A document with no loud finding is [`Tone::Advisory`]: there is
-/// nothing to act on. A loud overlap between copies, or a pair the
+/// nothing to act on. A loud overlap between copies, or a finding the
 /// census could not look at, is [`Tone::Actionable`]: only the reader
-/// can answer it, and it leads the badge.
+/// can answer it, and it leads the badge. The badge says "clear" only
+/// where the census could look at everything, and counts what it could
+/// not look at by finding: a scalar that runs no census, a `⊔` that did
+/// not gather and a malformed body are no pair.
 pub fn at_rest_badge(at_rest: Option<&AtRestBadge>) -> Option<Badge> {
     let AtRestBadge {
         loud,
         quiet,
         could_not_look,
     } = *at_rest?;
-    // A loud overlap leads: it is what the reader acts on.
-    let mut text = match (loud, quiet) {
-        (0, 0) => "at rest: clear".to_owned(),
-        (0, quiet) => format!("at rest: clear (interference: 0 loud, {quiet} quiet)"),
-        (loud, quiet) => format!("at rest: interference: {loud} loud, {quiet} quiet"),
+    // A loud overlap leads: it is what the reader acts on. "Clear" is
+    // said only where nothing is open: never beside what the census
+    // could not look at.
+    let interference = format!("interference: {loud} loud, {quiet} quiet");
+    let blind = format!("{could_not_look} finding(s) the census could not look at");
+    let text = match (loud, quiet, could_not_look) {
+        (0, 0, 0) => "at rest: clear".to_owned(),
+        (0, _, 0) => format!("at rest: clear ({interference})"),
+        (_, _, 0) => format!("at rest: {interference}"),
+        (0, 0, _) => format!("at rest: {blind}"),
+        _ => format!("at rest: {interference}; {blind}"),
     };
-    if could_not_look > 0 {
-        text.push_str(&format!(
-            "; {could_not_look} pair(s) the census could not look at"
-        ));
-    }
     let tone = if loud > 0 || could_not_look > 0 {
         Tone::Actionable
     } else {

@@ -439,8 +439,10 @@ recorded at the coincidence door; unless it is structural, the
 `unproven-coincidence` lint reports it, quiet under a holding `Gap = 0`
 between its two cells. An overlap is an `AtRest` interference finding,
 localised to the faces bounding it, or loud and unquietable when the
-intersection refuses. An undecided pair is an `AtRest` could-not-look
-finding, which refuses at no severity (CHECKS DS6). Each finding is
+intersection refuses; one the intersection refuses, and one no signed
+`Gap` covers a carrier pair bounding, refuses at no severity. An
+undecided pair is an `AtRest` could-not-look finding, which refuses at
+no severity (CHECKS DS6). Each finding is
 quiet or loud. Nothing refuses: a caller that wants a gate runs
 `enforce_checks` at `Error`.
 

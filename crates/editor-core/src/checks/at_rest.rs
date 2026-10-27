@@ -52,7 +52,7 @@ use crate::product::{GatheredCopy, Product};
 mod carried;
 
 pub use carried::{AtRestRow, CarriedAtRestFinding, CarriedFindings, CarriedInterference, Route};
-pub(crate) use carried::{PartRow, Pinned, once_per_part_row, seam_verdict};
+pub(crate) use carried::{PartRow, Pinned, once_per_part_row};
 
 /// **Why the at-rest check could not look** (CHECKS DS6): one finding,
 /// loud, unquietable, and refusing at no severity, since what the check
@@ -155,7 +155,18 @@ pub(crate) fn reading<T: LocalizeLane>(product: &Product<T>, tol: Tol) -> Readin
 /// arrival, or a stale record of one ([`AtRestEvidence::InsideArrival`]);
 /// a census verdict between arrivals or naming none
 /// ([`AtRestEvidence::NoLane`]); or a finding about the gathered body's
-/// own structure ([`AtRestEvidence::Malformed`]).
+/// own structure ([`AtRestEvidence::Malformed`]), an arc end off its
+/// corner among them (two of the kernel's readings of one body
+/// disagree).
+///
+/// A contradicted contact declaration between two arrivals is
+/// `NoLane`: inside one arrival it is that arrival's door's record,
+/// contradicted, but between two no door at rest declares a contact
+/// (mates declare none), so it is a record the census could not square
+/// with what it read, which nothing the document says can answer. An
+/// escalation names no entity, so even inside a nested `⊔`'s arrival
+/// the discard cannot place it there, and it is `NoLane`
+/// (`work/contacthold/an-escalated-census-finding-names-no-pair.md`).
 fn could_not_look<T: Decide>(
     body: &Body<T>,
     groups: &BTreeMap<SolidKey, u32>,
@@ -174,7 +185,6 @@ fn could_not_look<T: Decide>(
                 | ValidationError::CensusLaneUnsupported { .. }
                 | ValidationError::CensusUndecidable { .. }
                 | ValidationError::UnrecordedContact { .. }
-                | ValidationError::ArcEndOffCorner { .. }
         )
     {
         return AtRestEvidence::NoLane(error);
@@ -228,34 +238,14 @@ pub(crate) fn quiet_contact<P, T: Decide>(
         };
         Some((select.body, name.clone()))
     };
-    doc.ids().into_iter().find(|&id| {
-        let Some(Node::Assertion {
-            value,
-            relation: AssertionRelation::Equal,
-            ..
-        }) = doc.node(id)
-        else {
-            return false;
-        };
-        let Some((measure, 0)) = doc.var(*value).and_then(|v| v.def().output()) else {
-            return false;
-        };
-        let Some(Node::Measure {
-            primitive: MeasurePrimitive::Gap { outer, inner },
-        }) = doc.node(measure)
-        else {
-            return false;
-        };
-        let Some(ValuePayload::Assertion(AssertionVerdict::Holds { bound, .. })) =
-            evaluation.value(id).map(|v| &v.payload)
-        else {
-            return false;
-        };
-        if decide(AT_REST_QUIET_CONTACT_BOUND, Margin::of(*bound), band) != Ok(Sign::Zero) {
-            return false;
+    holding_gaps(doc, evaluation).find_map(|gap| {
+        if gap.relation != AssertionRelation::Equal
+            || decide(AT_REST_QUIET_CONTACT_BOUND, Margin::of(*gap.bound), band) != Ok(Sign::Zero)
+        {
+            return None;
         }
-        let (Some(o), Some(i)) = (selected(*outer), selected(*inner)) else {
-            return false;
+        let (Some(o), Some(i)) = (selected(gap.outer), selected(gap.inner)) else {
+            return None;
         };
         let reads = |(body, name): &(VarId, StableName), (arrival, own): &(VarId, StableName)| {
             if body == arrival {
@@ -273,7 +263,56 @@ pub(crate) fn quiet_contact<P, T: Decide>(
                         == Some(name)
             })
         };
-        (reads(&o, &a) && reads(&i, &b)) || (reads(&o, &b) && reads(&i, &a))
+        ((reads(&o, &a) && reads(&i, &b)) || (reads(&o, &b) && reads(&i, &a))).then_some(gap.id)
+    })
+}
+
+/// **A holding assertion that reads a `Gap`'s output directly**, the
+/// preamble both halves of the quieting rule share: the assertion, its
+/// relation, the `Gap`'s two selections and the bound it holds at.
+struct HoldingGap<'a, T> {
+    id: RecipeNodeId,
+    relation: AssertionRelation,
+    outer: VarId,
+    inner: VarId,
+    bound: &'a T,
+}
+
+/// Every [`HoldingGap`] of `doc` in `evaluation`, in document order. It
+/// reads verdicts only: an assertion that did not evaluate, or does not
+/// hold, is none of them.
+fn holding_gaps<'a, P, T: Decide>(
+    doc: &'a Doc<P>,
+    evaluation: &'a Evaluation<T>,
+) -> impl Iterator<Item = HoldingGap<'a, T>> + 'a {
+    doc.ids().into_iter().filter_map(move |id| {
+        let Some(Node::Assertion {
+            value, relation, ..
+        }) = doc.node(id)
+        else {
+            return None;
+        };
+        let (measure, 0) = doc.var(*value).and_then(|v| v.def().output())? else {
+            return None;
+        };
+        let Some(Node::Measure {
+            primitive: MeasurePrimitive::Gap { outer, inner },
+        }) = doc.node(measure)
+        else {
+            return None;
+        };
+        let Some(ValuePayload::Assertion(AssertionVerdict::Holds { bound, .. })) =
+            evaluation.value(id).map(|v| &v.payload)
+        else {
+            return None;
+        };
+        Some(HoldingGap {
+            id,
+            relation: *relation,
+            outer: *outer,
+            inner: *inner,
+            bound,
+        })
     })
 }
 
@@ -467,44 +506,22 @@ pub(crate) fn gap_assertions<P, T: Decide>(
         Some((copy, *face))
     };
     let mut out = Vec::new();
-    for id in doc.ids() {
-        let Some(Node::Assertion {
-            value, relation, ..
-        }) = doc.node(id)
-        else {
-            continue;
-        };
+    for gap in holding_gaps(doc, evaluation) {
         if !matches!(
-            relation,
+            gap.relation,
             AssertionRelation::AtMost | AssertionRelation::Equal
-        ) {
+        ) || decide(AT_REST_QUIET_BOUND, Margin::of(*gap.bound), band) != Ok(Sign::Negative)
+        {
             continue;
         }
-        let Some((measure, 0)) = doc.var(*value).and_then(|v| v.def().output()) else {
-            continue;
-        };
-        let Some(Node::Measure {
-            primitive: MeasurePrimitive::Gap { outer, inner },
-        }) = doc.node(measure)
-        else {
-            continue;
-        };
-        let Some(ValuePayload::Assertion(AssertionVerdict::Holds { bound, .. })) =
-            evaluation.value(id).map(|v| &v.payload)
-        else {
-            continue;
-        };
-        if decide(AT_REST_QUIET_BOUND, Margin::of(*bound), band) != Ok(Sign::Negative) {
-            continue;
-        }
-        let (Some(outer), Some(inner)) = (face_of(*outer), face_of(*inner)) else {
+        let (Some(outer), Some(inner)) = (face_of(gap.outer), face_of(gap.inner)) else {
             continue;
         };
         if outer.0 == inner.0 || !opposed(aggregate, outer.1, inner.1, band) {
             continue;
         }
         out.push(GapAssertion {
-            assertion: id,
+            assertion: gap.id,
             outer,
             inner,
         });
@@ -633,11 +650,11 @@ pub trait LocalizeLane: Decide + AtRestPolicy {
     }
 }
 
-/// The copy `i` of `product`, as a finding names it.
-fn copy_ref<T: Decide>(product: &Product<T>, i: usize) -> CopyRef {
+/// A gathered copy, as a finding names it.
+fn copy_ref<T: Decide>(copy: &GatheredCopy<T>) -> CopyRef {
     CopyRef {
-        var: product.copies[i].var,
-        member: product.copies[i].output,
+        var: copy.var,
+        member: copy.output,
     }
 }
 
@@ -650,8 +667,8 @@ fn unlocalized_at_lane<T: Decide>(
     evidence: Vec<ValidationError>,
 ) -> Vec<InterferenceFinding> {
     vec![InterferenceFinding {
-        a: copy_ref(product, a),
-        b: copy_ref(product, b),
+        a: copy_ref(&product.copies[a]),
+        b: copy_ref(&product.copies[b]),
         evidence,
         overlap: Overlap::Unlocalized(Unlocalized::Lane),
         quiet: None,
@@ -985,10 +1002,7 @@ pub(crate) fn copy_rows<T: Decide>(
         };
         copy_cell(body, names, copies, &groups, cell)
     };
-    let by = |x: usize| CopyRef {
-        var: copies[x].var,
-        member: copies[x].output,
-    };
+    let by = |x: usize| copy_ref(&copies[x]);
     rows.into_iter()
         .map(|row| {
             let [Some((ca, na)), Some((cb, nb))] = row.cells.map(named) else {
@@ -1053,7 +1067,7 @@ fn localize(
     evidence: Vec<ValidationError>,
     tol: Tol,
 ) -> Vec<InterferenceFinding> {
-    let copy_ref = |i: usize| copy_ref(product, i);
+    let copy_ref = |i: usize| copy_ref(&product.copies[i]);
     let finding = |overlap, quiet, quietable| InterferenceFinding {
         a: copy_ref(a),
         b: copy_ref(b),
@@ -1103,7 +1117,7 @@ fn localize(
             };
             let copy = copy_ref(copy);
             // The site's name is the copy's own.
-            let face = keyed_by(&name, copy.var).unwrap_or(&name).clone();
+            let face = keyed_by(name, copy.var).unwrap_or(name).clone();
             faces.push(FaceSite { copy, face });
         }
         faces.sort();

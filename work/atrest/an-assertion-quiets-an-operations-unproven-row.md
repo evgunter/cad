@@ -21,7 +21,7 @@ The rows sit on each deciding node's value (`NodeValue::coincidences`): a boolea
 - An `Entity` cell is selectable when a `Face` selection of the input read's `Body` names it (`[operations]`, *Selections*). A `Gap = 0` over two such selections, in the deciding node's space, matches the row as the at-rest rule matches its cells.
 - Often a cell is merged away in the result (two glued caps), but it is still named on the operand, which is a first-class value (`[operations]`, "Reading is the only dependency"). Confirm that the selection resolves against the input read and not the result.
 - A `Tool` cell is not a body's cell, so no `Gap` reads it. Decide whether such a row is quietable at all, and if it is, by what measure. If no measure can quiet it, the row is reported loud and never refuses (CHECKS DS6).
-- Cells below a face wait on `gap-reads-vertex-and-edge-cells`.
+- `Gap` reads vertex and edge cells since #5746, so a row of cells below a face is quietable by the same rule.
 
 Done when a boolean's unproven glue, a split's unproven ON row and a blend's unproven row are each quiet under a holding `Gap = 0` over their two cells, and loud under one over any other pair. After this lands, the lint's knob is re-read against CHECKS DS3 (§11 Q4).
 

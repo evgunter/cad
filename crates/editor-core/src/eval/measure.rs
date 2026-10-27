@@ -897,7 +897,11 @@ fn gap<T: Decide>(
 /// check asks this of an overlap's bounding faces to know whether an
 /// assertion could ever quiet it (CHECKS DS6: "a carrier pair no signed
 /// `Gap` covers" never refuses), rather than keeping a list of its own.
-pub(crate) fn gap_reads<T: Decide>(outer: &Carrier<'_, T>, inner: &Carrier<'_, T>, band: Band) -> bool {
+pub(crate) fn gap_reads<T: Decide>(
+    outer: &Carrier<'_, T>,
+    inner: &Carrier<'_, T>,
+    band: Band,
+) -> bool {
     gap(outer, inner, band).is_ok()
 }
 

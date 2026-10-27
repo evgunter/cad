@@ -1,15 +1,14 @@
 //! **A mate reads its face where it says.**
 //!
 //! A mate's target is a pose read off a selection of the body it is
-//! read in, and the at-rest gate mints the mate's declaration on the
-//! world copy of that body: on the placement that reads it. A target
-//! whose body no placement reads — one read below a union, a
-//! placement, a blend or a shell that is placed in its stead — has no
-//! world copy, and the mate mints nothing.
+//! read in, on the world copy of that body: on the placement that reads
+//! it. A target whose body no placement reads — one read below a union,
+//! a placement, a blend or a shell that is placed in its stead — has no
+//! world copy, and the mate seats nothing there.
 //!
 //! The rows build the documents the gather's own recourse leads to — a
 //! union over two pattern copies of one pinned instance, placed, the
-//! slabs seated under it — and measure the gate's verdict on each, the member walk's
+//! slabs seated under it — and measure the at-rest check on each, the member walk's
 //! descent through the union, the member key that makes two spellings
 //! of one placement one member, and what split and inline answer across
 //! a mate read at a union (A3).

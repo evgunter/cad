@@ -389,7 +389,7 @@ impl Scene {
         );
         assert!(
             could_look(&self.doc, &ev).is_ok(),
-            "{what}: the at-rest gate refused a seat the solve placed: {:?}",
+            "{what}: the at-rest check could not look at a seat the solve placed: {:?}",
             could_look(&self.doc, &ev).err()
         );
     }

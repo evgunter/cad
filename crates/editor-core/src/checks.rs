@@ -1580,15 +1580,14 @@ fn door_rows<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     // `⊔`'s, gathered here as the at-rest check gathers them, so the two
     // residents read one census.
     let elsewhere;
-    let (world, assembles): (&[at_rest::AtRestRow], &[product::AssembleGather<T>]) =
-        match subject {
-            Subject::Product(gathered) => (&gathered.coincidences, &gathered.assembles),
-            Subject::EmptyProduct => {
-                elsewhere = product::assemble_gathers(doc, ev, tol, None);
-                (&[], &elsewhere)
-            }
-            Subject::Unavailable { .. } => (&[], &[]),
-        };
+    let (world, assembles): (&[at_rest::AtRestRow], &[product::AssembleGather<T>]) = match subject {
+        Subject::Product(gathered) => (&gathered.coincidences, &gathered.assembles),
+        Subject::EmptyProduct => {
+            elsewhere = product::assemble_gathers(doc, ev, tol, None);
+            (&[], &elsewhere)
+        }
+        Subject::Unavailable { .. } => (&[], &[]),
+    };
     let at_rest: Vec<&at_rest::AtRestRow> = world
         .iter()
         .chain(

@@ -119,10 +119,10 @@ pub(crate) struct PartValue<T: Decide> {
     /// The product's inputs its carried records cite
     /// ([`crate::Product::cited_inputs`]).
     pub cited_inputs: Arc<Vec<crate::coincide::CitedInput>>,
-    /// **The part's own at-rest census verdict** ([`crate::checks::at_rest::SeamVerdict`]),
-    /// its own rows first and then those it carried up: the overlaps
-    /// between its copies, reported and never refused, as its gate
-    /// reports them.
+    /// **The part's own at-rest census verdict**, its own rows first and
+    /// then those it carried up: the overlaps between its copies,
+    /// reported and never refused, as its own at-rest check reads them
+    /// (`checks::at_rest::reading`).
     pub interference: Arc<
         Vec<PartRow<crate::checks::at_rest::Pinned<crate::checks::at_rest::InterferenceFinding>>>,
     >,
@@ -765,10 +765,10 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
         // one row set.
         let parts = product.parts;
         let pieces = product.pieces.clone();
-        // The part's own verdict on what its census found, judged as its
-        // gate judges it, so the document instantiating it reports each
-        // finding once, as the part's (`checks::at_rest::seam_verdict`).
-        let seam = crate::checks::at_rest::seam_verdict(&product, tol);
+        // The part's own verdict on what its census found, read as its
+        // own at-rest check reads it, so the document instantiating it
+        // reports each finding once, as the part's.
+        let seam = crate::checks::at_rest::reading(&product, tol);
         Ok(PartValue {
             interference: Arc::new(
                 seam.interference

@@ -90,7 +90,7 @@ struct Seat {
 /// bare planar rest leaves a positive-dimensional residual, and a
 /// bundle that pins less than the copy needs leaves `b` a loose copy
 /// outside the product — the pair must be DETERMINED for `b` to join
-/// the world at all, and this unit is about the at-rest gate, not about
+/// the world at all, and this unit is about the at-rest check, not about
 /// re-testing the coset fold.
 /// `seat = 1.0` puts `b`'s bottom exactly on `a`'s top (the unit cube
 /// is z ∈ [0,1]); any other height is a standoff, a plane constructed

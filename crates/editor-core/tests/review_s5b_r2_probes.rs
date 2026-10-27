@@ -430,7 +430,10 @@ mod interference {
             // At some bearings the census leaves the curved pair undecided
             // (a could-not-look finding), and there is no overlap to quiet.
             let unasserted = report(&doc);
-            assert!(unasserted.iter().all(|(l, _)| *l), "bearing {k}/8: {unasserted:?}");
+            assert!(
+                unasserted.iter().all(|(l, _)| *l),
+                "bearing {k}/8: {unasserted:?}"
+            );
             decided += usize::from(!unasserted.is_empty());
             let (doc, _) = gap_at_copies(doc, (p, fa), (q, fb), AssertionRelation::AtMost, -0.01);
             let r = report(&doc);

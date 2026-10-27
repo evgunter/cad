@@ -717,9 +717,8 @@ fn a_hosts_gap_over_picks_quiets_no_carried_finding() {
         part.output(q, 0).expect("a copy"),
     );
     let (host, ids, opts) = crate::intent_part_census_seam::instantiating("s5c-picked", &slab, 1);
-    let piece = |var, face| {
-        Operand::select(Operand::pick(Operand::Node(ids[0]), vec![var]), vec![face])
-    };
+    let piece =
+        |var, face| Operand::select(Operand::pick(Operand::Node(ids[0]), vec![var]), vec![face]);
     let (host, measure) = crate::fixture::measure_node(
         &host,
         MeasurePrimitive::Gap { outer: 0, inner: 1 },
@@ -757,7 +756,11 @@ fn a_hosts_gap_over_picks_quiets_no_carried_finding() {
     let [(finding, row)] = carried.as_slice() else {
         panic!("one carried finding: {findings:?}")
     };
-    assert_eq!((finding.quiet, row.finding.quiet), (None, None), "loud, as the part judged it");
+    assert_eq!(
+        (finding.quiet, row.finding.quiet),
+        (None, None),
+        "loud, as the part judged it"
+    );
     assert!(
         crate::fixture::interference(&findings).is_empty(),
         "and nothing of the host's own: {findings:?}"
@@ -993,16 +996,19 @@ fn shafts_side_by_side_stay_loud_at_every_bearing() {
             ),
             "the premise at bearing {k}/8: the assertion holds"
         );
-        let interference = crate::fixture::interference(
-            &crate::fixture::at_rest(&doc, &run).expect("runs"),
-        );
+        let interference =
+            crate::fixture::interference(&crate::fixture::at_rest(&doc, &run).expect("runs"));
         found += interference.len();
         if interference.iter().any(|f| !f.is_loud()) {
             quiet_at.push(k);
         }
     }
     assert!(found > 0, "the premise: an overlap at some bearing");
-    assert_eq!(quiet_at, Vec::<u32>::new(), "quiet at these eighths of a turn");
+    assert_eq!(
+        quiet_at,
+        Vec::<u32>::new(),
+        "quiet at these eighths of a turn"
+    );
 }
 
 // ---- With no world product, both residents read every `⊔` ----
@@ -1080,8 +1086,14 @@ fn a_gap_over_a_pick_of_the_piece_quiets_its_contact() {
             &doc,
             MeasurePrimitive::Gap { outer: 0, inner: 1 },
             vec![
-                Operand::select(Operand::pick(Operand::Node(copy), vec![piece_var]), vec![top]),
-                Operand::select(Operand::Node(rest), vec![fname(cap, RoleSeg::Cap(CapEnd::Start))]),
+                Operand::select(
+                    Operand::pick(Operand::Node(copy), vec![piece_var]),
+                    vec![top],
+                ),
+                Operand::select(
+                    Operand::Node(rest),
+                    vec![fname(cap, RoleSeg::Cap(CapEnd::Start))],
+                ),
             ],
         );
         let value = crate::fixture::value_of(&doc, measure);
@@ -1104,7 +1116,11 @@ fn a_gap_over_a_pick_of_the_piece_quiets_its_contact() {
         (contact.quiet, assertion)
     };
     let (quiet, assertion) = rested("s5c-pick-bolt", |bolt, _| bolt);
-    assert_eq!(quiet, Some(assertion), "the pick of the bolt names the cell");
+    assert_eq!(
+        quiet,
+        Some(assertion),
+        "the pick of the bolt names the cell"
+    );
     let (quiet, _) = rested("s5c-pick-plate", |_, plate| plate);
     assert_eq!(quiet, None, "a pick of the plate names another piece");
 }
