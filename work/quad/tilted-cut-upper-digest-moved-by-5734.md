@@ -2,10 +2,13 @@
 id: tilted-cut-upper-digest-moved-by-5734
 kind: issue
 title: sweep thread-count digest: tilted_cut_upper's pads narrowed and midpoints moved by ulps at every ε after PR 5734; re-cut
-status: open
+status: closed
 opened: 2026-10-27
 priority: P1
 cost: E
+closed: 2026-10-27
+branch: quad/digest-after-flux-5801
+pr: 5818
 ---
 
 
@@ -52,3 +55,9 @@ holds the closed form at every ε:
 The rows `work/tcost/tilted-cut-upper-pads-moved-in-the-thread-count-digest-at-1e-12`
 and `work/flux/main-red-the-mass-props-thread-golden-since-4938` describe an
 earlier move (PR 4952) and are already closed. This is a new move.
+
+## Closed (2026-10-27)
+
+Re-cut on `quad/digest-after-flux-5801`: the `tilted_cut_upper` line of
+each `crates/sweep/tests/thread-count-digest/eps-*.txt` now carries the
+bits above. The suite's four rows pass at 1e-6, 1e-9 and 1e-12.
