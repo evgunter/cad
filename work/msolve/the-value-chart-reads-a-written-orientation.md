@@ -2,12 +2,13 @@
 id: the-value-chart-reads-a-written-orientation
 kind: unit
 title: The value chart reads a written orientation: the swing retires, slides carry by the least turn, one pole refuses
-status: review
+status: closed
 opened: 2026-10-24
 priority: P1
 cost: M
 branch: intent/value-chart-orientation
 pr: 5742
+closed: 2026-10-27
 ---
 
 
