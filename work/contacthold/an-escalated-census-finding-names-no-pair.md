@@ -40,10 +40,14 @@ CONTACTHOLD), it moved here by `git mv` with its id unchanged. Priced
 
 With the at-rest gate gone (`the-at-rest-census-is-a-check`), an
 escalation the census re-finds inside an instance's copy is no longer
-hidden behind the part's carried refusal. Stage 5 C answers it by value:
-`checks::at_rest::less_carried` drops a pair-less census verdict equal to
-one of the part's carried could-not-look rows, one row per verdict
-(pinned by `intent_part_census_seam`'s escalation rows). That match is by
-equality on a finding that names nothing, so a genuine escalation of the
-host's own equal to a part's would be dropped too; naming the pair would
-let the in-arrival discard place it instead.
+hidden behind the part's carried refusal: the in-arrival discard cannot
+place a finding that names no pair, so it is kept, and reported twice,
+once as the part's carried row and once as the host's `NoLane`. Stage
+5 C's review retired a by-value match that dropped such a verdict when
+it equalled a carried row: it reddened no row (since #5782 nothing in the
+corpus escalates pair-less), it was wrong for a part placed twice, and
+it could drop a genuine escalation of the host's own that happened to
+equal a part's. A loud double report is the safer error. Naming the pair
+lets the in-arrival discard place the re-found verdict inside its copy,
+which ends the double report. No row pins it today: the escalation rows
+of `intent_part_census_seam` read `ThinInBand` since #5782.
