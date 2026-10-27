@@ -2,11 +2,13 @@
 id: aligned-arc-or-curved-faces-that-only-abut-are-never-read-flush
 kind: issue
 title: Aligned faces with an arc or on a curved carrier that only abut are never read flush: the same-side reading finds meetings and certifies none
-status: open
+status: closed
 opened: 2026-10-27
 priority: P1
 cost: M
 refs: [curved-copies-filling-one-volume-read-as-undecidable]
+closed: 2026-10-27
+branch: atrest/aligned-arc-or-curved-faces-that-abut-are-flush
 ---
 
 
@@ -43,3 +45,29 @@ pair on one carrier. One way is the polygon argument with arcs: every
 edge pair's meetings read, each decided transverse (shared interior) or
 tangent with its second order read. Another is the region door
 answering `Empty` on the arc and curved trims.
+
+## Closed
+
+2026-10-27. The polygon argument with arcs, posed as pieces
+(`census.rs` `arc_interiors_meet`). Each edge of either face is cut at
+every meeting with the other face's boundary: each point meeting of an
+edge pair (`curve_pair::meet`, complete or refusing) and each of the
+other face's vertices on it. Each piece's midpoint is placed in the
+other face. No piece inside and no shared run with both interiors on
+one side certifies the interiors apart; the argument is the function's
+rustdoc. `face_interiors_meet` runs it where the witness search finds
+no meeting, so an aligned arc-bounded disc pair or a cylinder or sphere
+pair on one carrier (Door 1 `Definite`) is read either way:
+
+- `flush_at_rest` records the pair flush, the arc-bounded discs through
+  the region door's refusal and the cylinder and sphere pairs through
+  its curved half (`curved_flush_at_rest`), on a shared run of an edge
+  of each;
+- the curved aligned arm hands the census's arm 1 the pairs certified
+  apart, so the seam-sharing half-cylinders' walls are no longer
+  `CurvedWithinReach`. Cylinder faces whose axial spans meet at most at
+  a point are apart without the reading.
+
+What stays unread is loud as before: Door 1 in band, other curved
+kinds, a meeting reader that refuses, and the rim pairs (two carriers,
+`curved-copies-filling-one-volume-read-as-undecidable`).
