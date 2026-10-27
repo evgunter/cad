@@ -14,6 +14,11 @@
 //!   result keeps that face on both sides of the slit's line
 //!   (`boolean::slit::close_struts`).
 //!
+//! An edge whose two halves bound one face and neither of whose ends is
+//! free is no strut: it closes the face across a stretch of a slit the
+//! slit runs on past, and deleting it parts the slit's loop, which the
+//! Boolean does with `kemr` (`boolean::slit::part_mid_slit`).
+//!
 //! A delete is planned, then run ([`Body::plan_strut_prune`],
 //! [`Body::prune_strut`]): the plan only reads, so a door can re-check
 //! what it proved between the two. Only a planar face is pruned: the
