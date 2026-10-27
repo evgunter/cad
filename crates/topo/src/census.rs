@@ -330,7 +330,7 @@ use crate::geometry::PointKey;
 use crate::live::{BoundaryMember, proven};
 use crate::null::CurveGeom;
 
-use crate::link::{Hold, Link, Planar, Sector, TouchUnread, TouchVerdict, rest};
+use crate::link::{Germ, Hold, Link, Planar, Sector, TouchUnread, TouchVerdict, rest};
 #[cfg(test)]
 use crate::link::{PieceAt, face_piece};
 use crate::validate::{
@@ -6569,6 +6569,65 @@ pub(crate) fn face_reach_in<T: Decide>(
     }
 }
 
+/// [`face_reach_in`], with a sphere face's first row read off what the
+/// face holds: at each end of that row, where the face places the
+/// sphere's pole `c ± r·d̂` along it definitely `Out`
+/// ([`crate::boolean::curved_face_placement`]), no further than its
+/// boundary reaches ([`boundary_reach`], which bounds every boundary
+/// edge's locus). The other rows, and every other kind, are
+/// [`face_reach_in`]'s.
+///
+/// The argument is the depth gap's for a least depth on a plane
+/// ([`depth_gap`] module docs), with the poles in the foot's place:
+/// `d·p` on a sphere has its only critical points at `c ± r·d̂`, so with
+/// that end's pole not a point of the face its extreme there is on the
+/// boundary.
+///
+/// **Only a definite `Out` narrows**, the one verdict that says the
+/// pole is not a point of the face. `In` and a boundary verdict say it
+/// is. `Trim(None)` (a region with an edge that is not a circle arc,
+/// which [`crate::boolean::sphere_region`] cannot read) and an error (a
+/// pole in an arc's band, or a region no ray settles) say nothing, and
+/// such a face may hold the pole: each keeps the carrier's end. No row
+/// holds those two branches, since no verb is known to build a trimmed
+/// sphere face with such an edge to hold one
+/// (`work/restread/held-reach-keeps-an-unread-pole-with-no-witness.md`).
+///
+/// # Panics
+///
+/// As [`face_reach_in`].
+fn held_reach_in<T: Decide>(
+    body: &Body<T>,
+    f: FaceKey,
+    band: Band,
+    frame: &crate::boolean::boxes::BoxFrame<T>,
+) -> Option<(Point3<T>, Point3<T>)> {
+    let (lo, hi) = face_reach_in(body, f, band, frame)?;
+    let face = proven(&body.faces, f, EntityId::Face);
+    let geom::Surface::Sphere { center, radius, .. } = *body.face_surface_linked(f, face) else {
+        return Some((lo, hi));
+    };
+    let Some((blo, bhi)) = boundary_reach(body, f, face, frame) else {
+        return Some((lo, hi));
+    };
+    let d = frame.rows()[0];
+    let out = |s: T| {
+        matches!(
+            crate::boolean::curved_face_placement(body, f, center + d * (radius.abs() * s), band),
+            Ok(crate::boolean::CurvedPlacement::Trim(Some(
+                FaceContainment::Out
+            )))
+        )
+    };
+    let lo_x = if out(-T::one()) {
+        lo.x.max(blo.x)
+    } else {
+        lo.x
+    };
+    let hi_x = if out(T::one()) { hi.x.min(bhi.x) } else { hi.x };
+    Some((Point3::new(lo_x, lo.y, lo.z), Point3::new(hi_x, hi.y, hi.z)))
+}
+
 /// A torus face's CHART WINDOW at this lane's scalar — the SAME walk
 /// the boolean lane runs, not a mirror of it: both enter
 /// [`crate::boolean::boxes::face_window_steps`] and
@@ -7205,7 +7264,9 @@ enum Recorded {
 // its solid's whole LINK there ([`Link`], gathered off the snapshot
 // across every key the touch ties to its point): every face of the
 // solid through the point, as its sector. One test of two polygonal
-// cones decides the pair ([`rest::judge`]); a solid touching itself at
+// cones decides the pair ([`rest::judge`]), or of a cone against a
+// sphere or cylinder face holding the point inside it, read by its
+// carrier ([`rest::by_round`], through [`rest::meet`]); a solid touching itself at
 // a point is read with its one link ([`rest::one_material`]). Every
 // sign it decides comes
 // through the link's one door (`crate::link`'s module docs);
@@ -7570,7 +7631,7 @@ impl TouchSite {
         let mut all: Vec<(TouchVerdict, Option<Point3<T>>)> = pairs
             .into_iter()
             .map(|pair| match pair {
-                (Ok(a), Ok(b)) => (rest::judge(&a, &b, band), Some(a.p)),
+                (Ok(a), Ok(b)) => (rest::meet(&a, &b, band), a.point().or(b.point())),
                 (Err(v), _) | (_, Err(v)) => (v.into(), None),
             })
             .collect();
@@ -7611,15 +7672,17 @@ impl TouchSite {
         band: Band,
     ) -> Result<Vec<LinkPair<T>>, TouchVerdict> {
         if let Some((keys, at, (sa, sb))) = self.point(body, geo, ties)? {
-            let side = |s| Link::touch_at_point(body, geo, ties, s, &keys, at, band);
+            let side = |s| Germ::touch_at_point(body, geo, ties, s, &keys, at, band);
             return Ok(vec![(side(sa), side(sb))]);
         }
         let edge = |e: EdgeKey| {
             geo.line_edge(e)
                 .ok_or(TouchVerdict::Unread(TouchUnread::Unreadable))
         };
-        let on_edge = |e: EdgeKey, p: Point3<T>| Link::touch_on_edge(body, geo, e, p, band);
-        let in_face = |f: FaceKey, p: Point3<T>| Link::touch_in_face(body, geo, f, p, band);
+        let on_edge =
+            |e: EdgeKey, p: Point3<T>| Link::touch_on_edge(body, geo, e, p, band).map(Germ::Cone);
+        let in_face =
+            |f: FaceKey, p: Point3<T>| Link::touch_in_face(body, geo, f, p, band).map(Germ::Cone);
         Ok(match self {
             Self::EdgeEdge(a, b) => {
                 let m = ee_overlap_midpoint(edge(a)?, edge(b)?);
@@ -7808,7 +7871,7 @@ fn sweep_self_touch_points<T: Decide>(
 
 /// One touch point's two links, each as built or as the verdict its
 /// build refused with.
-type LinkPair<T> = (Result<Link<T>, TouchUnread>, Result<Link<T>, TouchUnread>);
+type LinkPair<T> = (Result<Germ<T>, TouchUnread>, Result<Germ<T>, TouchUnread>);
 
 impl<T: Decide> Sector<T> {
     /// One planar, line-bounded face of the snapshot as its sectors at
@@ -7818,7 +7881,7 @@ impl<T: Decide> Sector<T> {
     /// vertex twice or two vertices on one point (a pinch, one vertex per
     /// cone), and every edge a tie holds the point inside, about `p` —
     /// each pass ending at the first incoming ray of any pass
-    /// ([`face_piece`]). A corner tie that is a face tie too reads the
+    /// ([`face_piece`](crate::link::face_piece)). A corner tie that is a face tie too reads the
     /// corner, and an edge tie that is a face tie too reads the edge: the
     /// face's interior holds no point of its boundary.
     fn of(
@@ -7885,6 +7948,28 @@ impl<T: Decide> Link<T> {
         p: Point3<T>,
         band: Band,
     ) -> Result<Self, TouchUnread> {
+        match Germ::touch_at_point(body, geo, ties, solid, keys, p, band)? {
+            Germ::Cone(link) => Ok(link),
+            Germ::Round { .. } => Err(TouchUnread::Unreadable),
+        }
+    }
+}
+
+impl<T: Decide> Germ<T> {
+    /// **Solid `solid`'s material at the touch point of `keys`**: its
+    /// link there, gathered as [`Link::touch_at_point`] says, or, where
+    /// all it holds at the point is one sphere or cylinder face with the
+    /// point inside it, that face's material ([`round_face`]).
+    #[allow(clippy::too_many_arguments)] // the snapshot, the ties, whose link, and where
+    fn touch_at_point(
+        body: &Body<T>,
+        geo: &Geo<T>,
+        ties: &Ties,
+        solid: crate::SolidKey,
+        keys: &BTreeSet<PointKey>,
+        p: Point3<T>,
+        band: Band,
+    ) -> Result<Self, TouchUnread> {
         let on = |v: &VertexKey| geo.vpoint.get(v).is_some_and(|k| keys.contains(k));
         let mine = |id: EntityId| census_entity_solid(body, id) == Some(solid);
         let verts: BTreeSet<VertexKey> = geo
@@ -7920,6 +8005,16 @@ impl<T: Decide> Link<T> {
                 holds.entry(*f).or_default().push(Hold::Inside);
             }
         }
+        if let Some((&f, all)) = holds.first_key_value()
+            && holds.len() == 1
+            && all.iter().all(|h| *h == Hold::Inside)
+            && let Some(round) = round_face(body, f, p)?
+        {
+            return Ok(Germ::Round {
+                round: round.0,
+                reach: round.1,
+            });
+        }
         // A curved face refuses at once; any other refusal waits until
         // every face is tried. So a curved face anywhere in the link is
         // what it refuses with, whatever order its faces are walked in.
@@ -7943,9 +8038,11 @@ impl<T: Decide> Link<T> {
         if let Some(v) = refused {
             return Err(v);
         }
-        Self::of(p, sectors)
+        Link::of(p, sectors).map(Germ::Cone)
     }
+}
 
+impl<T: Decide> Link<T> {
     /// The link at a point `p` inside a line edge: the edge's two faces.
     fn touch_on_edge(
         body: &Body<T>,
@@ -7985,6 +8082,63 @@ impl<T: Decide> Link<T> {
     }
 }
 
+/// **Face `f`'s material, where it lies on a sphere or a cylinder**, and
+/// a lower bound on its reach about `p`, a point inside it: the least
+/// distance from `p` to a boundary edge, each a line read as its segment
+/// or a circle as the whole circle; a face with no boundary reaches
+/// round its carrier. `None` off a sphere or a cylinder;
+/// [`TouchUnread::Unreadable`] for a boundary edge of another curve, and
+/// [`TouchUnread::Corrupt`] where the face does not read.
+fn round_face<T: Decide>(
+    body: &Body<T>,
+    f: FaceKey,
+    p: Point3<T>,
+) -> Result<Option<(crate::link::Round<T>, T)>, TouchUnread> {
+    let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
+    let surface = body.get_surface(face.surface).ok_or(TouchUnread::Corrupt)?;
+    let Some(round) = crate::link::Round::of(surface, face.sense) else {
+        return Ok(None);
+    };
+    let mut reach = round.radius() * T::from_f64(2.0);
+    for cycle in face_cycles(body, face) {
+        for he in cycle.map_err(|_| TouchUnread::Corrupt)? {
+            let half = body.half_edges.get(he).ok_or(TouchUnread::Corrupt)?;
+            let curve = body
+                .edges
+                .get(half.edge)
+                .and_then(|d| body.curves.get(d.curve))
+                .and_then(crate::null::CurveGeom::certified)
+                .ok_or(TouchUnread::Unreadable)?;
+            let to = match *curve.carrier() {
+                geom::Curve3::Line { .. } => {
+                    let a = body.half_edge_start_point(he).ok_or(TouchUnread::Corrupt)?;
+                    let b = body
+                        .half_edge_end(he)
+                        .and_then(|v| body.vertices.get(v))
+                        .and_then(|v| body.points.get(v.point))
+                        .copied()
+                        .ok_or(TouchUnread::Corrupt)?;
+                    crate::link::to_segment(p, (a, b))
+                }
+                geom::Curve3::Circle {
+                    center,
+                    axis,
+                    radius,
+                    ..
+                } => {
+                    let rel = p - center;
+                    let h = rel.dot(axis);
+                    let across = (rel - axis * h).norm() - radius;
+                    (h.powi(2) + across.powi(2)).sqrt()
+                }
+                _ => return Err(TouchUnread::Unreadable),
+            };
+            reach = reach.min(to);
+        }
+    }
+    Ok(Some((round, reach)))
+}
+
 /// The role of `shell` the cross-solid gate reads: the one shell-role
 /// reader ([`crate::props::shell_role`], a solid's only shell `Outer` by
 /// arity) through the scalar's own lane, so the gate drops exactly the
@@ -8004,35 +8158,41 @@ type WorldReach<T> = (Point3<T>, Point3<T>);
 
 /// Whether arm 1 of [`sweep_cross_solid_backstop`] may clear the face
 /// pair `a`, `b` along a direction that turns with the pair: the axis
-/// between the two faces' anchors, or either face's own normal where it
-/// is planar. Each face comes with its world reach, the lever its
-/// normal is read over.
+/// between the two faces' anchors, either face's own normal where it
+/// is planar, or the offset from an axis or centre either face proposes
+/// to the other's nearest boundary segment point ([`depth_gap::toward`]).
+/// Each face comes with its world reach, the lever its normal is read
+/// over; `toward` is [`depth_gap::toward`]'s offsets.
 ///
-/// The test is the boolean's narrow phase ([`crate::boolean::separating::apart`]):
-/// both reaches are read in the frame the direction aims
-/// ([`face_reach_in`]), and the pair clears only on a gap, less both
-/// reaches' [`sweep_pad`], decided definitely positive at this lane's
-/// scalar. Each reach encloses its face's locus along that direction,
-/// so the gap proves the loci disjoint, as a world-axis gap does. The
-/// pad covers the aimed frame's rounding ([`crate::boolean::boxes::BoxFrame`]),
-/// so the clear does not rest on the user-set escalate threshold.
+/// The test is the boolean's narrow phase
+/// ([`crate::boolean::separating::apart_by`]): both reaches are read in
+/// the frame the direction aims ([`held_reach_in`]), and the pair clears
+/// only on a gap, less both reaches' [`sweep_pad`], decided definitely
+/// positive at this lane's scalar. Each reach encloses its face's locus
+/// along that direction, so the gap proves the loci disjoint, as a
+/// world-axis gap does. The pad covers the aimed frame's rounding
+/// ([`crate::boolean::boxes::BoxFrame`]), so the clear does not rest on
+/// the user-set escalate threshold.
 fn backstop_apart<T: Decide>(
     body: &Body<T>,
     (fa, ra): (FaceKey, WorldReach<T>),
     (fb, rb): (FaceKey, WorldReach<T>),
+    toward: Vec<geom_core::UnitVec3<T>>,
     band: Band,
 ) -> bool {
-    use crate::boolean::separating::{Item, apart, planar_axis};
-    let axes: Vec<_> = [(fa, ra), (fb, rb)]
+    use crate::boolean::separating::{Item, apart_by, planar_axis};
+    let mut axes: Vec<_> = [(fa, ra), (fb, rb)]
         .into_iter()
         .filter_map(|(f, r)| planar_axis(body, f, || Some(r), band))
         .collect();
-    apart(
+    axes.extend(toward);
+    apart_by(
         (body, Item::Face(fa)),
         (body, Item::Face(fb)),
         &axes,
         sweep_pad(band),
         band,
+        &|body, f, frame| held_reach_in(body, f, band, frame),
     )
 }
 
@@ -8499,9 +8659,28 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                         break;
                     }
                 }
+                // Both faces are read once for their depths, which aim
+                // the offset directions and bound the depth gap.
+                let reads = if cleared {
+                    None
+                } else {
+                    depth_gap::face_read(body, a.face, band)
+                        .zip(depth_gap::face_read(body, b.face, band))
+                };
+                let toward = reads
+                    .as_ref()
+                    .map_or_else(Vec::new, |(ra, rb)| depth_gap::toward(ra, rb, band));
                 if !cleared
-                    && !backstop_apart(body, (a.face, (alo, ahi)), (b.face, (blo, bhi)), band)
-                    && !depth_gap::apart_in_depth(body, a.face, b.face, band)
+                    && !backstop_apart(
+                        body,
+                        (a.face, (alo, ahi)),
+                        (b.face, (blo, bhi)),
+                        toward,
+                        band,
+                    )
+                    && !reads.as_ref().is_some_and(|(ra, rb)| {
+                        depth_gap::apart_in_depth(body, (a.face, ra), (b.face, rb), band)
+                    })
                 {
                     errors.push(ValidationError::CensusUndecidable {
                         a: EntityId::Face(a.face),
@@ -14001,6 +14180,85 @@ mod tests {
                 assert!(verdict.is_rest(), "{verdict:?}");
             }
         }
+    }
+
+    /// **A brick's corner resting strictly inside a cylinder wall reads
+    /// by the wall's carrier** (`rest::by_round`, through
+    /// [`Germ::touch_at_point`]). The wall is a sheet on a cylinder of
+    /// radius 0.8 whose axis is tilted 0.4 rad off `z`, so the wall's
+    /// normal at the touch has no zero component; the brick is grafted
+    /// beside it with its corner on the wall at azimuth 0.3, its edges
+    /// running along each axis away from or into the carrier as the
+    /// normal's signs say. As a pin (sense true), a corner whose edges
+    /// all leave it rests and one with an edge into it crosses; as a
+    /// bore, the corner whose edges all enter the hollow rests and the
+    /// other crosses. Red if the touch refuses as curved, or a sense
+    /// reads the other material.
+    #[test]
+    fn a_corner_resting_inside_a_tilted_cylinder_wall_reads_by_its_carrier() {
+        use crate::test_support_fixtures::{
+            CylFrame, CylKey, brick, cyl_wall_sheet_keyed, set_sheet_sense,
+        };
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let frame = CylFrame::tilted(0.8, 0.4);
+        let (u, v) = (0.3, 0.2);
+        let p: Point3<f64> = frame.at(u, v);
+        let n = frame.radial(u);
+        let sign = |x: f64| if x > 0.0 { 1.0 } else { -1.0 };
+        let mut bad = Vec::new();
+        for (pin, flip_y, rest) in [
+            (true, false, true),
+            (true, true, false),
+            (false, false, true),
+            (false, true, false),
+        ] {
+            let mut body = Body::<f64>::new();
+            let (wall, _) = cyl_wall_sheet_keyed(
+                &mut body,
+                frame,
+                CylKey::Bare,
+                (-1.0, 1.0),
+                (-1.0, 1.0),
+                tol,
+            );
+            crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
+            set_sheet_sense(&mut body, wall, pin, tol);
+            // Away from a pin's material along each axis is the normal's
+            // sign; away from a bore's, its opposite. `flip_y` turns the
+            // y edge the other way.
+            let away = |i: usize, x: f64| {
+                let s = if pin { sign(x) } else { -sign(x) };
+                if i == 1 && flip_y { -s } else { s }
+            };
+            let span = |i: usize, c: f64, x: f64| {
+                let far = c + 0.3 * away(i, x);
+                (c.min(far), c.max(far))
+            };
+            let b = brick::<f64>(span(0, p.x, n.x), span(1, p.y, n.y), span(2, p.z, n.z), tol);
+            crate::graft_disjoint_all_keyed(&mut body, &b).unwrap();
+            let geo = snapshot(&body);
+            let corner = geo
+                .verts
+                .iter()
+                .find(|&&(_, q)| (q - p).norm() < 1e-12)
+                .map(|&(v, _)| v)
+                .expect("the brick's corner on the wall");
+            let ties = Ties {
+                vf: vec![(corner, wall)],
+                ..Ties::default()
+            };
+            let verdict = TouchSite::VertexOnFace(corner, wall).verdict(&body, &geo, &ties, band);
+            let ok = if rest {
+                verdict.is_rest()
+            } else {
+                verdict == TouchVerdict::Crossing
+            };
+            if !ok {
+                bad.push(format!("pin {pin}, y turned {flip_y}: {verdict:?}"));
+            }
+        }
+        assert!(bad.is_empty(), "{bad:#?}");
     }
 
     /// **A point two solids share a key at is read, strictly.** A cube

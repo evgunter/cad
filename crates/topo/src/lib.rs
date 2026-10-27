@@ -1256,7 +1256,7 @@ pub use euler::{
 };
 pub use euler_kill::{KefResult, KevResult, KvfsResult, MergedMember, MfkrhCreated};
 pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
-pub use link::{Link, LinkRefusal, Material, TouchUnread};
+pub use link::{Link, LinkRefusal, Material, Round, TouchUnread};
 // The types that appear in this crate's own operator signatures, so a
 // consumer of the ops needs no direct geom-* imports for the common
 // path (the full geometry vocabulary still lives in those crates).

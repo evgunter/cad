@@ -2394,6 +2394,16 @@ pub struct NurbsLane<T: Real> {
         &Surface<T>,
         Band,
     ) -> Result<Vec<T>, crate::curve_face::composite::CompositeRefusal>,
+    /// [`NurbsLane::spline_face_meetings`] at `T`.
+    spline_face: fn(
+        &Curve3<T>,
+        (T, T),
+        &geom::NurbsSurface<T>,
+        Band,
+    ) -> Result<
+        Vec<crate::curve_face::spline_face::ChartMeeting<T>>,
+        crate::curve_face::spline_face::SplineFaceRefusal,
+    >,
     /// [`NurbsLane::carrier_foot`]'s Newton at `T`.
     foot: fn(
         &geom::NurbsCurve3<T>,
@@ -2420,6 +2430,7 @@ impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
             analytic_rung3: crate::edge_nurbs::analytic_rung3::<T>,
             incidence: crate::edge_nurbs::plane_nurbs_incidence::<T>,
             composite: Self::composite_crossings,
+            spline_face: Self::spline_face_meetings,
             foot: Self::seeded_foot,
             surface_foot: geom::NurbsSurface::project,
         }
@@ -2440,6 +2451,24 @@ impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
             band,
             geom_core::Interval::from_certified,
         )
+    }
+
+    /// The curve × face table's spline-face arm: the walk
+    /// ([`crate::curve_face::spline_face::isolate`]), in certification
+    /// arithmetic, then its meetings placed at `T`
+    /// ([`crate::curve_face::spline_face::settle`]).
+    fn spline_face_meetings(
+        carrier: &Curve3<T>,
+        params: (T, T),
+        chart: &geom::NurbsSurface<T>,
+        band: Band,
+    ) -> Result<
+        Vec<crate::curve_face::spline_face::ChartMeeting<T>>,
+        crate::curve_face::spline_face::SplineFaceRefusal,
+    > {
+        use crate::curve_face::spline_face::{isolate, settle};
+        let isolated = isolate(carrier, params, chart, band)?;
+        settle(carrier, chart, &isolated, band)
     }
 
     /// [`geom::NurbsCurve3::project_from_seed`] seeded at the bracket
@@ -2528,6 +2557,29 @@ impl<T: Real> NurbsLane<T> {
         band: Band,
     ) -> Result<Vec<T>, crate::curve_face::composite::CompositeRefusal> {
         (self.composite)(net, params, surface, band)
+    }
+
+    /// **An analytic span against a spline chart**: the meetings strictly
+    /// inside `params`, ascending, each with its chart point, by the
+    /// curve × face table's spline-face arm
+    /// ([`crate::curve_face::spline_face::isolate`], then
+    /// [`crate::curve_face::spline_face::settle`]).
+    ///
+    /// # Errors
+    ///
+    /// [`crate::curve_face::spline_face::SplineFaceRefusal`], as its
+    /// variants say.
+    pub fn chart_meetings(
+        self,
+        carrier: &Curve3<T>,
+        params: (T, T),
+        chart: &geom::NurbsSurface<T>,
+        band: Band,
+    ) -> Result<
+        Vec<crate::curve_face::spline_face::ChartMeeting<T>>,
+        crate::curve_face::spline_face::SplineFaceRefusal,
+    > {
+        (self.spline_face)(carrier, params, chart, band)
     }
 
     /// The foot of `point` on a NURBS `carrier`, by Newton from `seed`:
@@ -4621,6 +4673,12 @@ mod wiring_rows {
             plane_nurbs_limbs::<T> as fn(_, _, _, _, _, _) -> _,
         ) {
             return Err("limbs is not `edge_nurbs::plane_nurbs_limbs`");
+        }
+        if !std::ptr::fn_addr_eq(
+            lane.spline_face,
+            NurbsLane::<T>::spline_face_meetings as fn(_, _, _, _) -> _,
+        ) {
+            return Err("spline_face is not `NurbsLane::spline_face_meetings`");
         }
         if !std::ptr::fn_addr_eq(lane.foot, NurbsLane::<T>::seeded_foot as fn(_, _, _) -> _) {
             return Err("foot is not `NurbsLane::seeded_foot`");

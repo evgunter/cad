@@ -116,6 +116,26 @@ pub enum Relation {
 }
 
 impl Relation {
+    /// The relation in words, for a refusal's prose: a noun phrase,
+    /// never the derived `Debug` (`Tangent` carries a field).
+    #[must_use]
+    pub const fn noun(self) -> &'static str {
+        match self {
+            Self::SameOriented => "one carrier, sides aligned",
+            Self::SameOpposite => "one carrier, sides opposed",
+            Self::OnCarrier => "a cell on another's carrier",
+            Self::CommonFoot => "two bands ending at one point of an edge",
+            Self::Tangent { aligned: true } => "a smooth tangent joint",
+            Self::Tangent { aligned: false } => "a tangent cusp",
+            Self::SurfaceTangent => "two surfaces tangent along a locus",
+            Self::Coaxial => "one axis of revolution",
+            Self::SameRadius => "one radius",
+            Self::AxesMeet => "axes meeting in a point",
+            Self::CoRuled => "carriers ruled along one direction",
+            Self::Meet => "a point the cells share",
+        }
+    }
+
     /// The class a face pair glued under this relation glues as: one
     /// carrier opposed a `Rest` contact, aligned a continuation, a
     /// tangency `Tangent`. `None` for a relation that glues no face
