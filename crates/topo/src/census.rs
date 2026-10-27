@@ -20295,3 +20295,159 @@ mod same_solid_tangent_lines {
         );
     }
 }
+
+/// [`face_interiors_meet`] on two arc-bounded faces of one plane facing
+/// the same way, turned off the axes and off the origin: pieces of
+/// circles of radius `r` closed by their chords.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod arc_interiors {
+    use super::*;
+    use crate::euler::{FaceSurface, MefSite, MevSite};
+    use core::f64::consts::PI;
+    use geom::{Curve3, Surface};
+    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
+    use geom_core::{Tol, Vec3};
+
+    /// The frame: a centre off the origin, the plane's normal and `u`
+    /// off the axes, and `v = normal × u`.
+    fn frame() -> (Point3<f64>, Vec3<f64>, Vec3<f64>, Vec3<f64>) {
+        let n = Vec3::new(0.3, 0.5, 0.81).normalize();
+        let u = n.cross(Vec3::new(0.2, -0.9, 0.4)).normalize();
+        (Point3::new(0.7, -1.3, 2.1), n, u, n.cross(u))
+    }
+
+    /// The piece of the circle of radius `r` about `center` over
+    /// `[t0, t1]`, closed by its chord, as a lamina of its own: its face
+    /// whose loop runs counter-clockwise about its outward normal, `−n`.
+    fn add_piece(
+        body: &mut Body<f64>,
+        center: Point3<f64>,
+        r: f64,
+        (t0, t1): (f64, f64),
+    ) -> FaceKey {
+        let (origin, n, u, _) = frame();
+        let tol = Tol::witness();
+        let circle = Curve3::Circle {
+            center,
+            axis: n,
+            radius: r,
+            u_ref: u,
+        };
+        let (p0, p1) = (circle.eval(t0), circle.eval(t1));
+        let seed = body.mvfs(p0, true).expect("a seed");
+        let plane = body.add_surface(Surface::Plane {
+            origin,
+            normal: n,
+            u_ref: u,
+        });
+        let cyl = body.add_surface(Surface::Cylinder {
+            origin: center,
+            axis: n,
+            radius: r,
+            u_ref: u,
+        });
+        let arc = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p1,
+                EdgeCurveSpec {
+                    description: EdgeDescriptionSpec::Intersection {
+                        pair: SurfacePair::new(cyl, plane),
+                        witness: circle.eval(0.5 * (t0 + t1)),
+                    },
+                    carrier: circle,
+                    param_start: t0,
+                    param_end: t1,
+                },
+                tol,
+            )
+            .expect("the arc");
+        body.mef(
+            MefSite::Chords {
+                he1: arc.he_minus,
+                he2: arc.he_plus,
+            },
+            EdgeCurveSpec::line_between(p1, p0),
+            FaceSurface::Shared {
+                key: plane,
+                sense: false,
+            },
+            tol,
+        )
+        .expect("the chord closes the piece")
+        .face
+    }
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// The upper half of the circle of radius `r` about the frame's
+    /// centre, against the lower half of the one `2r + gap` along `v`
+    /// from it: where `gap` is negative the arcs cross twice about
+    /// `√(−gap·r)` apart, where it is zero they touch.
+    /// The faces' reading, and the reading of pieces alone
+    /// ([`arc_interiors_meet`]), which must agree where both decide.
+    fn read(r: f64, gap: f64) -> Result<bool, InteriorsUnread> {
+        let (c, _, _, v) = frame();
+        let mut body = Body::<f64>::new();
+        let a = add_piece(&mut body, c, r, (0.0, PI));
+        let b = add_piece(&mut body, c + v * (2.0 * r + gap), r, (PI, 2.0 * PI));
+        let geo = snapshot(&body);
+        let (faces, pieces) = (
+            face_interiors_meet(&body, &geo, a, b, band()),
+            arc_interiors_meet(&body, &geo, a, b, band()),
+        );
+        if let (Ok(x), Ok(y)) = (faces, pieces) {
+            assert_eq!(x, y, "the two readings at gap {gap:e}");
+        }
+        pieces.or(faces)
+    }
+
+    /// **Two arcs crossing twice a few escalation widths apart are never
+    /// read apart.** The lens between the crossings is far thinner than
+    /// the band, so the reading may refuse it or find it, but never
+    /// certify the interiors apart: the meeting reader parts two
+    /// crossings only where the arc between them stands definitely off
+    /// the other, and the piece between them then places inside. A lens
+    /// past the band is a meeting; arcs that touch at a point, or stand
+    /// apart, are certified apart. The radius is a thousand widths, so
+    /// every lens is a few hundred ulps of the frame's coordinates deep at
+    /// every ε.
+    #[test]
+    fn arcs_crossing_twice_near_a_tangency_are_never_read_apart() {
+        let tol = Tol::witness();
+        let width = tol.k() * tol.eps();
+        let r = 1000.0 * width;
+        for k in [2.0, 5.0, 20.0, 100.0] {
+            let chord = k * width;
+            let read = read(r, -chord * chord / (4.0 * r));
+            assert_ne!(read, Ok(false), "crossings {k} widths apart: {read:?}");
+        }
+        assert_eq!(read(r, -0.01 * r), Ok(true), "a lens past the band");
+        assert_eq!(read(r, 0.0), Ok(false), "a touch at a point");
+        assert_eq!(read(r, 0.1 * r), Ok(false), "apart");
+    }
+
+    /// **Halves of one disc sharing a diameter are certified apart**, and
+    /// a half turned a quarter against the other shares interior. Red if
+    /// a shared chord reads as shared interior, or the reading of pieces
+    /// misses an overlap whose every vertex lies on the other boundary.
+    #[test]
+    fn halves_of_a_disc_abut_and_turned_halves_overlap() {
+        let (c, ..) = frame();
+        for ((t0, t1), meet) in [((PI, 2.0 * PI), false), ((0.5 * PI, 1.5 * PI), true)] {
+            let mut body = Body::<f64>::new();
+            let a = add_piece(&mut body, c, 1.0, (0.0, PI));
+            let b = add_piece(&mut body, c, 1.0, (t0, t1));
+            assert_eq!(
+                face_interiors_meet(&body, &snapshot(&body), a, b, band()),
+                Ok(meet),
+                "the half over [{t0}, {t1}]"
+            );
+        }
+    }
+}
