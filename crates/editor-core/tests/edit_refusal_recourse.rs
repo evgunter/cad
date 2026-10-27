@@ -282,7 +282,6 @@ const WORDLESS: &[(&str, &[&str])] = &[
         &[
             "planar_boundary_residual",
             "planar_face_residual",
-            "positive_volume",
             "positive_volume_exact",
         ],
     ),

@@ -1777,14 +1777,14 @@ fn a_predicate_flip_names_its_signs_as_words() {
     // it, never by its name: tier 3's check 7, wordless on purpose
     // (`edit_refusal_recourse::WORDLESS` says why).
     let unnamed = Diagnosis::PredicateFlip {
-        predicate: "positive_volume",
+        predicate: "positive_volume_exact",
         from: geom_core::predicate::Sign::Zero,
         to: geom_core::predicate::Sign::Positive,
     }
     .to_string();
     assert!(
         unnamed.starts_with(&format!("the margin of {}", geom_core::UNNAMED_DECISION))
-            && !unnamed.contains("positive_volume"),
+            && !unnamed.contains("positive_volume_exact"),
         "{unnamed}"
     );
 }
