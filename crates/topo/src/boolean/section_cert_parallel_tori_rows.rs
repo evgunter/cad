@@ -342,38 +342,37 @@ fn the_lilys_pair_clears_only_on_windows_that_miss_its_loops() {
 }
 
 /// **The first row read across a nonzero slack: a tilt within the band
-/// widens the nest row.** The partner's near tube circle stands `10⁻⁸`
+/// widens the nest row.** The partner's near tube circle stands `10 ε`
 /// past internally tangent to the torus's outer one
-/// (`d − |r − r₂| = 10⁻⁸`). With the axes exactly parallel the nest row
-/// decides and the pair has one loop; tilted by `10⁻¹¹` the pose still
+/// (`d − |r − r₂| = 10 ε`). With the axes exactly parallel the nest row
+/// decides and the pair has one loop; tilted by `ε / 100` the pose still
 /// routes parallel, and the turn onto the torus axis swings the partner
 /// across the reach by more than that margin, so the nest row's floor
-/// reads Zero and the pair refuses R-tan naming it. Mutant: the reach
-/// and nest rows read bare of the slack (the tilted pose answers one
-/// loop).
+/// reads Zero and the pair refuses R-tan naming it. Both offsets are in
+/// band units, so the row reads alike at every ε. Mutant: the reach and
+/// nest rows read bare of the slack (the tilted pose answers one loop).
 #[test]
 fn a_tilt_within_the_band_widens_the_nest_row() {
+    let eps = geom_core::Tol::witness().eps();
     let reach = Reach {
         centre: p(0.0, 0.0, 0.0),
         radius: 6.0,
     };
     let f = torus(p(0.0, 0.0, 0.0), 2.0, 0.5);
     let tilted = |t: f64| Surface::Torus {
-        center: p(3.2 + 1e-8, 0.0, 0.0),
+        center: p(3.2 + 10.0 * eps, 0.0, 0.0),
         axis: Vec3::new(t.sin(), 0.0, t.cos()),
         major_radius: 1.0,
         minor_radius: 0.3,
         u_ref: Vec3::new(t.cos(), 0.0, -t.sin()),
     };
     assert_eq!(
-        parts(&super::classify(&f, &tilted(0.0), reach, band()))
-            .0
-            .len(),
+        parts(&super::classify(&f, &tilted(0.0), reach, band())).0.len(),
         1,
         "exactly parallel: one loop"
     );
     assert_eq!(
-        tangent(&super::classify(&f, &tilted(1e-11), reach, band())),
+        tangent(&super::classify(&f, &tilted(eps / 100.0), reach, band())),
         "section_torus_parallel_tori_nest_floor",
         "tilted within the band: the nest row's floor straddles"
     );
