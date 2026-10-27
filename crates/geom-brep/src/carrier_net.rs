@@ -288,6 +288,20 @@ fn span_bernstein(h: &Harmonic, a: f64, b: f64) -> ([Vec<Interval>; 3], f64) {
     let w = ib - ia;
     let binom = geom_core::spline::pieces::binomial;
     let rounding = core::cell::Cell::new(0.0_f64);
+    // The binomial expansion's terms `C(j,k)·(a − m)^{j−k}·(b − a)^k`,
+    // formed once per span for the three channels (each is the same
+    // product, in the same order, every channel would form).
+    let terms: Vec<Vec<Interval>> = (0..=n)
+        .map(|j| {
+            (0..=j)
+                .map(|k| {
+                    Interval::from_f64(binom(j, k))
+                        * am.powi(i32::try_from(j - k).unwrap_or(i32::MAX))
+                        * w.powi(i32::try_from(k).unwrap_or(i32::MAX))
+                })
+                .collect()
+        })
+        .collect();
     let coords = |p0: Interval, u: Interval, v: Interval| -> Vec<Interval> {
         let node = channel(p0, u, v, &at_node.0, &at_node.1);
         let span = channel(p0, u, v, &over_span.0, &over_span.1);
@@ -296,10 +310,7 @@ fn span_bernstein(h: &Harmonic, a: f64, b: f64) -> ([Vec<Interval>; 3], f64) {
         let mut mono = vec![Interval::zero(); n + 1];
         for (j, cj) in node.iter().take(n + 1).enumerate() {
             for (k, mk) in mono.iter_mut().enumerate().take(j + 1) {
-                let term = Interval::from_f64(binom(j, k))
-                    * am.powi(i32::try_from(j - k).unwrap_or(i32::MAX))
-                    * w.powi(i32::try_from(k).unwrap_or(i32::MAX));
-                *mk = *mk + *cj * term;
+                *mk = *mk + *cj * terms[j][k];
             }
         }
         // Monomial to Bernstein: `bᵢ = Σ_{k≤i} C(i,k)/C(n,k)·aₖ`; the

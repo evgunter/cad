@@ -375,12 +375,18 @@ fn admit(u: Interval, index: usize, (lo, hi): (f64, f64)) -> Result<Interval, Bl
 
 /// The span's closure and its level ratio: at level `r`, entry `j` of
 /// the window combines at `(u − U_i)/(U_{i+p+1−r} − U_i)`, `i = s − p + j`.
-fn span_ratio(span: Span<'_>) -> ((f64, f64), impl Fn(usize, usize, Interval) -> Interval) {
-    let (p, s, t) = (
+/// A span's degree, index and knot list, the one read both the ratio
+/// and the Bézier test take.
+fn span_knots(span: Span<'_>) -> (usize, usize, &[f64]) {
+    (
         span.degree(),
         span.index(),
         span.knots_f64_interim().knots(),
-    );
+    )
+}
+
+fn span_ratio(span: Span<'_>) -> ((f64, f64), impl Fn(usize, usize, Interval) -> Interval) {
+    let (p, s, t) = span_knots(span);
     // Indexing justified: `p ≤ s ≤ last_span() = len − p − 2`.
     ((t[s], t[s + 1]), slice_ratio(t, p, s))
 }
@@ -477,7 +483,30 @@ fn span_restrict(
     let p = span.degree();
     let (closure, ratio) = span_ratio(span);
     let (a, b) = (admit(a, 0, closure)?, admit(b, p - 1, closure)?);
+    if whole_bezier_span(span, (a, b)) {
+        return Ok(row.to_vec());
+    }
     Ok(pyramid(row, (a, b), ratio))
+}
+
+/// Whether `(a, b)` restricts a Bézier segment to its own whole span:
+/// both ends exact points on the span's two knots, and the span's
+/// window reading the left knot `p` times and the right `p` times. The
+/// restriction is then the identity in exact arithmetic — the blossom
+/// `B(a^{p−k}, b^k)` of a Bézier segment over `[a, b]` is its `k`-th
+/// coefficient — so the window's own coefficients are the restriction,
+/// with none of the pyramid's rounding. A closed form's enclosing net
+/// (`ORDER`-fold interior knots) and every span the composite has cut
+/// at its own breaks is such a segment.
+fn whole_bezier_span(span: Span<'_>, (a, b): (Interval, Interval)) -> bool {
+    use crate::real::Bounds as _;
+    let (p, s, t) = span_knots(span);
+    let point_at = |x: Interval, k: f64| x.lo() == k && x.hi() == k;
+    // Indexing justified as `span_ratio`'s: `p ≤ s` and `s + p < t.len()`.
+    point_at(a, t[s])
+        && point_at(b, t[s + 1])
+        && t[s + 1 - p..=s].iter().all(|&k| k == t[s])
+        && t[s + 1..=s + p].iter().all(|&k| k == t[s + 1])
 }
 
 /// The restriction to `[a, b]` of the row: the pyramid of `a` levels,
