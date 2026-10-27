@@ -214,3 +214,82 @@ fn a_line_crosses_a_rational_quarter_cylinder() {
         "on the circle x² + z² = 1: {found:?}"
     );
 }
+
+/// Review r1: the flat unit patch `z = 0` over `[0, 1]²`.
+fn flat() -> NurbsSurface<f64> {
+    graph(1, 1, &[vec![0.0, 0.0], vec![0.0, 0.0]])
+}
+
+/// Review r1: a circle of radius `r` in the plane `x = δ`, touching the
+/// flat patch at `(δ, ½, 0)` at `θ = π/2`, read from `θ = 0` to `rβ`
+/// metres past the touch.
+fn touching(delta: f64, r: f64, past: f64) -> (Curve3<f64>, (f64, f64)) {
+    let ring = Curve3::Circle {
+        center: Point3::new(delta, 0.5, r),
+        axis: Vec3::unit_x(),
+        radius: r,
+        u_ref: -Vec3::unit_y(),
+    };
+    (ring, (0.0, core::f64::consts::FRAC_PI_2 + past / r))
+}
+
+/// Review r1: a tangency strictly inside the span, `500·escalate` short
+/// of its end and well past the band from it, refuses wherever it is on
+/// the chart; the walk's chart-edge skip drops it when it lies `4·escalate`
+/// from the chart's edge (past the band of it).
+#[test]
+fn review_r1_a_tangency_near_the_chart_edge_and_an_end_is_not_dropped() {
+    let e = band().escalate();
+    let chart = flat();
+    for delta in [0.5, 4.0 * e] {
+        let (ring, params) = touching(delta, 5e4 * e, 500.0 * e);
+        let got = read(&ring, params, &chart);
+        assert!(
+            matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Tangency))),
+            "δ = {delta:e}: a tangency 500·escalate inside the span refuses: {got:?}"
+        );
+    }
+}
+
+/// Review r1: a circle of radius `1000·escalate` dipping half its radius
+/// through the flat patch crosses it twice, about 2 rad apart; each
+/// meeting's growth must be re-proved, or one box swallows both.
+#[test]
+fn review_r1_a_small_circle_crosses_a_flat_patch_twice() {
+    let r = 1000.0 * band().escalate();
+    let ring = Curve3::Circle {
+        center: Point3::new(0.5, 0.5, 0.5 * r),
+        axis: Vec3::unit_y(),
+        radius: r,
+        u_ref: Vec3::unit_x(),
+    };
+    let found = read(&ring, (0.0, 2.0 * core::f64::consts::PI - 0.1), &flat()).unwrap();
+    assert_eq!(found.len(), 2, "two meetings: {found:?}");
+}
+
+/// Review r1: a pass at twice the coincidence threshold, inside the
+/// band's gap, is not clear either.
+#[test]
+fn review_r1_a_pass_in_the_bands_gap_escalates() {
+    let gap = 2.0 * band().zero();
+    assert!(gap < band().escalate());
+    let below = line(Point3::new(0.0, 0.5, -gap), Vec3::unit_x());
+    let got = read(&below, (0.1, 0.9), &dome());
+    assert!(
+        matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Tangency))),
+        "a pass in the band's gap is never clear: {got:?}"
+    );
+}
+
+/// Review r1: a meeting half the coincidence threshold off the tent's
+/// ridge is within the band of the crease, and refuses.
+#[test]
+fn review_r1_a_meeting_within_the_band_of_a_crease_refuses() {
+    let x = 0.5 + 0.5 * band().zero();
+    let at = line(Point3::new(x, 0.5, -1.0), Vec3::unit_z());
+    let got = read(&at, (0.0, 2.0), &tent());
+    assert!(
+        matches!(got, Err(SplineFaceRefusal::Unsettled(Unsettled::Crease))),
+        "within the band of the ridge: {got:?}"
+    );
+}
