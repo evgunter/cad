@@ -340,16 +340,20 @@ fn an_edge_in_a_face_of_cleared_sheets_rests_crosses_or_refuses_in_band() {
 /// edges clear.** The point `(1 − d, 0, 0)`, `d = 1e-4`, stands `d` off
 /// the arcs of the edge's two caps and of the face's: every disc's
 /// radius is about `d`, while each face reaches about a metre. A keel
-/// tilted `t` below the face's plane on both sides, `t` from `1e-5` to
-/// `1e-8`, dips its face `b` about `t` metres into the face's material
-/// inside both faces — 10 to 10 000 times the band — while at the
-/// cleared radius it dips under the band. Red if any such keel rests.
+/// tilted `t` below the face's plane on both sides, `t` from 2 to 500
+/// times the band's escalation, dips its face `b` about `t` metres into
+/// the face's material inside both faces, past the band, while at the
+/// cleared radius it dips under the band's zero. Red if any such keel
+/// rests.
 #[test]
 fn a_keel_off_the_arcs_is_read_at_the_faces_reach_not_the_cleared_radius() {
     use core::f64::consts::PI;
     let d = 1e-4;
     let at = p(1.0 - d, 0.0, 0.0);
-    for t in [1e-5, 1e-6, 1e-7, 1e-8] {
+    let band = band();
+    for k in [2.0, 10.0, 100.0, 500.0] {
+        let t = k * band.escalate();
+        assert!(t * d < band.zero(), "under the band at the cleared radius");
         let got = judged_at(-t, PI + t, at, p(1.0 - d, -(1.0 - d), 0.0));
         assert!(
             !matches!(got, TouchVerdict::Rest(_)),
