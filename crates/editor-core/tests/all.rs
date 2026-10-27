@@ -842,6 +842,8 @@ mod intent_vars_2_table;
 mod intent_vars_3_readers;
 #[path = "review_s5b_r2_probes.rs"]
 mod review_s5b_r2_probes;
+#[path = "review_s5c_r1_probes.rs"]
+mod review_s5c_r1_probes;
 #[path = "run_wall_offers.rs"]
 mod run_wall_offers;
 #[path = "union_flush_fuses.rs"]
