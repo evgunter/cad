@@ -2688,6 +2688,21 @@ pub fn forget_branches(on: bool) {
 
 /// **Why a germ pair's section was not built**
 /// ([`BooleanError::GermSectionUnbuilt`]).
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names
+/// this rung; the disposition table cites this paragraph as its home).
+/// A Rust caller can already name and match it — `pncad` re-exports
+/// `topo` whole — and the refusal's sentence names the case and states
+/// its own recourse: move a face so the surfaces clearly cross or part,
+/// or run the operation at `f64`. Carrying it would add the CUR3
+/// property row and a Python word with no reader that acts on the
+/// difference.
+///
+/// **The falsifier is a caller that acts on the case by itself**: a
+/// driver that re-runs an operation at `f64` when it reads
+/// `Uncarried(NoLane)`, or nudges a part when it reads a tangency. Then
+/// carry it and delete this paragraph and the disposition row with it.
 #[derive(Clone, Debug)]
 pub enum SectionUnbuilt {
     /// The pair's section refused at the glue door.
