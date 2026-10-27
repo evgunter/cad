@@ -12,8 +12,7 @@ refs: [stackup-pairing-reads-the-shells-dual-refusal-as-a-violation, onpair-has-
 
 
 Filed by the designer lanes of the plane × spline rim fork, off their
-question. It is a question for Ev, to be raised as its own fork;
-`needs_ev` is set when that `[ev]` PR opens.
+question. It is a question for Ev, to be raised as its own fork in an `[ev]` PR.
 
 ## Finding
 

@@ -1,7 +1,8 @@
 # `work/` — the tracker
 
-Every stream of work in this repo is a file here. What is open, who
-owns it, and what waits on Ev are recorded here and nowhere else.
+Every stream of work in this repo is a file here. What is open and who
+owns it are recorded here and nowhere else; what waits on Ev is the
+set of open `[ev]` PRs (Ev's channel, below).
 
 - **The board** is `work/STATUS.md`, generated on main by CI (The
   board, below). For a live view in any checkout, run
@@ -63,7 +64,6 @@ closed:                    # a date; set exactly when status is closed
 priority: P1               # P0..P4 (Priority, below)
 cost: H                    # E | M | H: the effort (Vocabularies)
 design: true               # present only while a design question is open
-needs_ev: true             # present only while a question is before Ev
 parent: some-carrying-unit # optional: another item's id
 blocked_on: [a-blocker, 1601]   # item ids, or PR/issue numbers as ints
 rides_with: its-carrier    # optional: the item this one travels with
@@ -153,9 +153,8 @@ vary independently: a hard row can be pure execution, and a cheap one
 can hinge on a choice. `design: true` says a question with several
 viable answers is open on the row and must be weighed before a lane
 builds it (`memories/orchestration-model.md`: designers first, and an
-`[ev]` PR only if the fork is Ev's). It is not `needs_ev`, which says
-the question is already in front of Ev. Remove the flag once the
-question is decided.
+`[ev]` PR only if the fork is Ev's). Remove the flag once the question
+is decided.
 
 **status of a program** says whether an orchestrator is on the track.
 That is the one fact the row counts beside it cannot show: a session
@@ -288,12 +287,12 @@ A program may set its own `budget`, with its reason in `program.md`.
 **The budget binds when a program opens and as it grows**: a program
 is not opened over budget, and one that grows past it splits.
 
-**A track splits along its priority seam, not a territory seam.** A
-fifty-row track is usually a dozen rows on the goal and thirty-eight
-behind them; cutting it there leaves one track a successor can charter
-and dispatch. Cutting the same slate five ways by file leaves five
-tracks too thin to charter, and shared ground is fine anyway (Rules:
-territory). The rows MOVE, by `git mv`, keeping their ids.
+**A track splits along its semantic seams.** Cut where the rows part
+by question, mechanism or charter, so each successor tells one story
+that someone can charter and dispatch as a whole. A file boundary is
+not by itself a seam: cutting a slate by file leaves tracks too thin
+to charter, and shared files are fine anyway (Rules: territory). The
+rows MOVE, by `git mv`, keeping their ids.
 
 **Over budget is a report, not a lint warning.** `STATUS.md`'s `load`
 column shows every track's weight against its budget and bolds the
@@ -382,13 +381,27 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
 - **Territory is a glob list** (`paths`) on the program, and every
   glob must match at least one tracked path. Globs are `fnmatch`
   patterns, where `*` crosses `/`: `crates/mesh/*` is the whole crate.
-- **Two open programs may claim one path.** Shared ground is
-  legitimate and expected — a kernel file often has a structural
-  question on it and a numeric one, and splitting it between two
-  programs is usually worse than letting both claim it (Ev, in chat,
-  2026-09-20: *"it's ok if units have shared ground, they should just
-  be aware of each other if working at the same time"*).
-- **What is owed is awareness while a lane is live.** Fetch, then run
+- **Two open programs may claim one path, and two lanes may edit one
+  file.** What needs care is SEMANTIC conflict, not textual overlap: a
+  kernel file often has a structural question on it and a numeric one,
+  and splitting it between two programs is usually worse than letting
+  both claim it (Ev, in chat, 2026-09-20: *"it's ok if units have
+  shared ground, they should just be aware of each other if working at
+  the same time"*).
+- **Logically independent changes share files freely.** Two changes are
+  independent when neither one's correctness depends on what the other
+  changes: different functions, different invariants, or different
+  arms of one match that read nothing the other writes. They need no
+  announcement and no sequencing, and a textual merge conflict between
+  them is routine (merge main, resolve, carry on), not a coordination
+  failure.
+- **What is owed is awareness where changes are coupled.** Changes are
+  coupled when one alters a contract, invariant, signature or
+  behaviour that the other reads or relies on, when both rework the
+  same logic, or when one would make the other's tests or reasoning
+  wrong. Then the lanes must know of each other while both are live:
+  the lane says so in its PR, and the orchestrator posts a note on the
+  other program's log. To find the candidates, fetch, then run
   `python3 scripts/work.py territory --base origin/main` on the
   branch. Use `origin/main`, never a bare `main`: in a worktree or
   remote checkout the local `main` ref is typically far behind, and
@@ -396,8 +409,8 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
   reads the branch's prefix and diff and names every path another
   program owns, and every path the branch's own program shares with
   another ("owned by X" against "also claimed by X"). It warns; it
-  does not block. A lane touching another program's ground says so in
-  its PR, and the orchestrator posts a note on that program's log.
+  does not block. A path it names is a prompt to check what the other
+  program's live rows are doing there, not by itself a coupling.
 - **`keep_out` is for the next reader**, not for a checker. Write one
   when the relationship between two programs' ground is worth
   explaining, which is often.
@@ -450,12 +463,10 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
 
 Ev does not edit files. Anything that needs Ev is a PR whose title
 starts with **`[ev]`**; how to write one is "Asking Ev" in
-`CLAUDE.md`. The tracker's half: the item that asked sets
-`needs_ev: true`. The item does not name the PR — the item usually
-exists before the PR does, and the PR is one `git log` away. Once Ev
-answers, the agent updates the item and the docs, merges, and removes
-the flag. `STATUS.md` lists every open `needs_ev` row oldest first, so
-the PR list filtered on `[ev]` and the tracker name the same set.
+`CLAUDE.md`. The open `[ev]` PRs are the whole queue: the tracker
+keeps no flag or list of its own beside them, since a second copy
+could only drift from the first. Once Ev answers, the agent updates
+the item and the docs, and merges.
 
 ## The log merges by union
 
@@ -481,7 +492,6 @@ each check-in and before bringing main into its branch.
 
 `work/STATUS.md`, top to bottom:
 
-- **Waiting on Ev** — every live row with `needs_ev`, oldest first.
 - **Programs** — one row per program, in board order (Priority). The
   band columns count live rows; `load` is the track's weight against
   its budget, bold when over (Track size); the status columns count

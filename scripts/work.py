@@ -27,11 +27,9 @@ made: a migrated issue carries its number on the item that replaced it
 (`github:`), so a number in `blocked_on` that matches exactly one such
 item reaches the fired-trigger rule through it, as a warning rather
 than an error because the match is an inference (`work/README.md`).
-A number matching none, or two, stays unchecked. A `[ev]` PR title is
-likewise a GitHub fact; lint checks that `needs_ev` is a bare `true`,
-not that an open PR carries the flag (the PR is one `git log` away from
-the item). Territory globs are matched with
-`fnmatch`, where `*` crosses `/` — `crates/mesh/*` is the whole crate,
+A number matching none, or two, stays unchecked. What waits on Ev is
+likewise a GitHub fact, the open `[ev]` PRs, and the tracker does not
+mirror it. Territory globs are matched with `fnmatch`, where `*` crosses `/` — `crates/mesh/*` is the whole crate,
 which is what every territory in the tree means by it.
 """
 
@@ -135,7 +133,6 @@ SCHEMA: dict[str, tuple[str, tuple[str, ...]]] = {
     "rides_with": ("ref", ("unit", "issue", "ruling")),
     "pr": ("int", ("unit", "issue", "ruling")),
     "branch": ("str", ("unit", "issue", "ruling")),
-    "needs_ev": ("flag", ("unit", "issue", "ruling", "program")),
     "track": ("str", ("unit", "issue", "ruling")),
     "priority": ("enum:priority", ("unit", "issue", "ruling")),
     "cost": ("enum:cost", ("unit", "issue", "ruling")),
@@ -788,31 +785,16 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
                "`work/README.md` says how this file is produced and what each section means.")
     out.append("")
 
-    # Ev's queue
-    if not only_program:
-        queue = sorted((it for it in live if it.get("needs_ev") is not None), key=lambda i: (str(i.get("opened")), i.id))
-        out.append("## Waiting on Ev")
-        out.append("")
-        if queue:
-            out.append("| since | item | program | status | title |")
-            out.append("|---|---|---|---|---|")
-            for it in queue:
-                out.append(f"| {it.get('opened')} | `{it.id}` | {it.program or '—'} | {it.status} | {it.get('title')} |")
-        else:
-            out.append("Nothing.")
-        out.append("")
-
     # board
     out.append("## Programs")
     out.append("")
     bands = " | ".join(PRIORITIES)
-    out.append(f"| area | program | top | {bands} | load | status | open | spec | dispatched | review | parked | deferred | closed | on Ev |")
-    out.append("|---|---|---|" + "---|" * len(PRIORITIES) + "---|---|---|---|---|---|---|---|---|---|")
+    out.append(f"| area | program | top | {bands} | load | status | open | spec | dispatched | review | parked | deferred | closed |")
+    out.append("|---|---|---|" + "---|" * len(PRIORITIES) + "---|---|---|---|---|---|---|---|---|")
     totals = {b: 0 for b in PRIORITIES}
     for p in programs:
         rows = by_program.get(p.id, [])
         c = {s: sum(1 for r in rows if r.status == s) for s in ITEM_STATUS}
-        ev = sum(1 for r in rows if r.status != "closed" and r.get("needs_ev") is not None)
         # Band counts are over LIVE rows, whatever their status: a parked P0 is
         # still P0 work this track holds, and the status columns beside them
         # already say which rows are dispatchable.
@@ -823,10 +805,9 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
         cells = " | ".join(str(band[b] or "") for b in PRIORITIES)
         out.append(f"| {p.get('area') or '—'} | `{p.id}` | {_top_band(rows)} | {cells} | "
                    f"{_fmt_load(rows, p)} | {p.status} | {c['open']} | {c['spec']} | "
-                   f"{c['dispatched']} | {c['review']} | {c['parked']} | {c['deferred']} | {c['closed']} | "
-                   f"{ev or ''} |")
+                   f"{c['dispatched']} | {c['review']} | {c['parked']} | {c['deferred']} | {c['closed']} |")
     out.append("| | **all programs** | | " + " | ".join(f"**{totals[b]}**" for b in PRIORITIES)
-               + " | | | | | | | | | | |")
+               + " | | | | | | | | | |")
     out.append("")
     out.append("`P0`–`P4` count this program's LIVE rows in each band "
                "(`work/README.md`, Priority); a row is counted whatever its "
@@ -864,10 +845,9 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
         for r in sorted(rows, key=lambda i: (_prio_key(i), ITEM_STATUS.index(i.status) if i.status in ITEM_STATUS else 9, i.id)):
             blocked = ", ".join(_fmt_ref(b) for b in _listed(r, "blocked_on"))
             pr = f"#{r.get('pr')}" if r.get("pr") is not None else ""
-            ev = " **[ev]**" if r.get("needs_ev") is not None else ""
             cost = (r.get("cost") or "—") + (" +design" if r.get("design") is not None else "")
             out.append(f"| {r.get('priority') or '—'} | `{r.id}` | {r.kind} | {cost} | "
-                       f"{r.status}{ev} | {r.get('title')} | {blocked} | {pr} |")
+                       f"{r.status} | {r.get('title')} | {blocked} | {pr} |")
         out.append("")
 
     if only_program:
@@ -1137,7 +1117,7 @@ def _fixture(root: str) -> None:
            "---\nid: MESH-1\nkind: unit\ntitle: first\nstatus: review\nopened: 2026-09-01\npr: 1605\n"
            "blocked_on: [MESH-2, 1601]\n---\n\nbody\n")
     _write(root, "work/mesh/MESH-2.md",
-           "---\nid: MESH-2\nkind: issue\ntitle: second\nstatus: open\nopened: 2026-09-01\nneeds_ev: true\n---\n")
+           "---\nid: MESH-2\nkind: issue\ntitle: second\nstatus: open\nopened: 2026-09-01\nbranch: mesh/second\n---\n")
     _write(root, "work/topo/program.md",
            "---\nid: topo\nkind: program\ntitle: swept clean\nstatus: ready\nopened: 2026-08-01\n"
            "area: kernel\nprefix: topo/\npaths: [crates/topo/*]\n---\n")
@@ -1176,13 +1156,13 @@ def selftest() -> int:
         expect("clean fixture", lint(root, warns))
         expect("clean fixture (warnings)", warns)
         text = render(root, today=far)
-        for needle in ("## Waiting on Ev", "`MESH-2`", "`stray-thing`", "## Blocked", "MESH-2, #1601", "`topo`"):
+        for needle in ("`MESH-2`", "`stray-thing`", "## Blocked", "MESH-2, #1601", "`topo`"):
             if needle not in text:
                 failures.append(f"render lacks {needle!r}")
         if "MESH-1" not in text.split("## Untouched")[1]:
             failures.append(f"render: fixture items committed 'today' should still be listed stale at +{STALE_DAYS + 5} days")
         p = render(root, only_program="mesh", today=far)
-        if "## Waiting on Ev" in p or "`topo`" in p:
+        if "## Blocked" in p or "`topo`" in p:
             failures.append("--program render leaked whole-board sections")
 
         # new / set round-trip, the CLI spelling included
@@ -1212,8 +1192,7 @@ def selftest() -> int:
 
         # one mutation per rule, each restored
         cases: list[tuple[str, str, str, str]] = [
-            ("unknown key", "work/mesh/MESH-2.md", "needs_ev: true", "colour: red"),
-            ("needs_ev is a bare true", "work/mesh/MESH-2.md", "needs_ev: true", "needs_ev: 1700"),
+            ("unknown key", "work/mesh/MESH-2.md", "branch: mesh/second", "colour: red"),
             ("dangling ref", "work/mesh/MESH-1.md", "blocked_on: [MESH-2, 1601]", "blocked_on: [MESH-9]"),
             ("id vs file name", "work/mesh/MESH-1.md", "id: MESH-1", "id: MESH-7"),
             ("bad status", "work/mesh/MESH-1.md", "status: review", "status: landed"),
@@ -1241,9 +1220,9 @@ def selftest() -> int:
             ("closed before opened", "work/topo/T-1.md",
              "closed: 2026-08-19", "closed: 2026-07-31"),
             ("header fields fallen into the body", "work/mesh/MESH-2.md",
-             "needs_ev: true\n---\n", "needs_ev: true\n---\npriority: P3\ncost: E\n---\n"),
+             "branch: mesh/second\n---\n", "branch: mesh/second\n---\npriority: P3\ncost: E\n---\n"),
         ]
-        expectations = ["unknown key", "either `true` or absent", "no item", "must equal the file name", "must be one of",
+        expectations = ["unknown key", "no item", "must equal the file name", "must be one of",
                         "needs a `closed:` date", "non-empty `blocked_on`",
                         "matches no tracked path", "must end in `/`", "not a field of kind unit",
                         "indented line", "only kind issue lives under",
@@ -1437,7 +1416,7 @@ def selftest() -> int:
         expect("a fired trigger named by number does not block", lint(root, warns))
         expect("a fired trigger named by number warns", warns, "resolves through that item's `github:`")
         # ... and only when the mapping is unambiguous
-        _write(root, "work/mesh/MESH-2.md", orig2.replace("needs_ev: true", "github: 855"))
+        _write(root, "work/mesh/MESH-2.md", orig2.replace("branch: mesh/second", "github: 855"))
         warns = []
         errs = lint(root, warns)
         expect("an ambiguous number is not an error", errs)

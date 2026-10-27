@@ -107,7 +107,7 @@ lane that decides), and a new arm for an inexact refusal (counted in
 the receipt, never asserted). Plus the fixture-scale row asserting
 zero `Contradicted` on the M10 documents in the `Interval` lane, which
 closes this row. Lands as SYM-6's Phase 3 (A2) or a follow-on unit on
-Ev's pick. `needs_ev` stays until then.
+Ev's pick.
 
 ## Ev's answer (2026-09-14): the split
 
