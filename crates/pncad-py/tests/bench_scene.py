@@ -251,7 +251,7 @@ def rest(doc, placement, on, to, at):
             Mate(PoseDef.plane(*on), PoseDef.flip(PoseDef.plane(*to))),
             MateValue(Coord.slide("x"), at[0] * m),
             MateValue(Coord.slide("y"), at[1] * m),
-            MateValue(Coord.spin("z"), 0),
+            MateValue(Coord.spin(), 0),
         ],
     )
     return mate, values
@@ -277,9 +277,10 @@ def shelf_on_post(seat):
 def post_under_shelf(seat):
     """The slides that stand a post under the shelf's underside with
     its top's centre at the shelf's `seat`, the shelf standing at the
-    world's origin: along the world's axes swung onto the mated normal,
-    the world's `x` and its `-y`."""
-    return (seat[0] - POST_SEAT[0], POST_SEAT[1] - seat[1])
+    world's origin: along the world's own `x` and `y`, the mated
+    direction (the underside's flipped normal, `+z`) where the identity
+    orientation puts the post's top."""
+    return (seat[0] - POST_SEAT[0], seat[1] - POST_SEAT[1])
 
 
 #: The values each stand mate is set to, from its seats.

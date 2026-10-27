@@ -1189,7 +1189,7 @@ fn a_placement_row_carries_its_constraints_as_children() {
                 "constraint 1: mate",
                 "constraint 2: slide along x value",
                 "constraint 3: slide along y value",
-                "constraint 4: spin about z value",
+                "constraint 4: spin value",
             ])
             .map(|(mate, said)| ConstraintRow {
                 mate,

@@ -248,9 +248,9 @@ fn a1_a_mate_whose_on_reads_another_copy_refuses_not_on_the_copy() {
 }
 
 /// **A value is asked of its bundle, at the door** (row 190: a value
-/// names no mate): a slide along a plane mate's normal is a freedom the
-/// mate fixes, so the bundle refuses `Overconstrained`, naming the
-/// value and the mate; a ball's rotation is a chain of spins about the
+/// names no mate): a plane mate leaves two slides, so a third is a
+/// freedom it fixes and the bundle refuses `Overconstrained`, naming the
+/// three slides and the mate; a ball's rotation is a chain of spins about the
 /// target space's axes, admitted; and a spin about an axis mate whose
 /// target is the line two copies' caps meet in is admitted too, since
 /// the chart is the target space's whatever bodies the target reads.
@@ -262,10 +262,12 @@ fn a1_a_value_is_admitted_by_its_bundle() {
     let (doc, ids, _, body) = instances("msolve10-a1-values", 3);
     let plane = mate(body, ids[0], ids[1]);
     let mut bundle = lone(plane);
-    bundle.push(value_at(2, Coord::Slide(TargetAxis::Z), len(0.25)));
+    for (at, axis) in [(2, TargetAxis::X), (3, TargetAxis::Y), (4, TargetAxis::Z)] {
+        bundle.push(value_at(at, Coord::Slide(axis), len(0.25)));
+    }
     let (_, fault) = whole_door(&doc, ids[1], bundle).expect_err("refused");
     assert!(
-        matches!(&fault, MateFault::Overconstrained { constraints, .. } if constraints.len() == 2),
+        matches!(&fault, MateFault::Overconstrained { constraints, .. } if constraints.len() == 4),
         "{fault:?}"
     );
 
@@ -276,7 +278,7 @@ fn a1_a_value_is_admitted_by_its_bundle() {
     );
     let mut bundle = lone(ball);
     for (at, axis) in (2..).zip(TargetAxis::ALL) {
-        bundle.push(value_at(at, Coord::Spin(axis), ang(0.1)));
+        bundle.push(value_at(at, Coord::Spin(Some(axis)), ang(0.1)));
     }
     whole_door(&doc, ids[2], bundle).expect("a ball's chain of spins pins it");
 
@@ -291,11 +293,7 @@ fn a1_a_value_is_admitted_by_its_bundle() {
         meet,
     ));
     bundle.push(value_at(2, Coord::Slide(TargetAxis::Z), len(0.0)));
-    bundle.push(value_at(
-        3,
-        Coord::Spin(editor_core::TargetAxis::Z),
-        ang(0.1),
-    ));
+    bundle.push(value_at(3, Coord::SPIN, ang(0.1)));
     whole_door(&doc, lines[2], bundle).expect("a target over two bodies has one chart");
 }
 
@@ -540,7 +538,7 @@ fn corpus() -> Vec<Row> {
             doc,
             ids[1],
             mate(body, ids[0], ids[1]),
-            &[(Coord::Spin(editor_core::TargetAxis::Z), ang(0.3))],
+            &[(Coord::SPIN, ang(0.3))],
         );
         ("msolve10-corpus-value", doc, opts)
     });

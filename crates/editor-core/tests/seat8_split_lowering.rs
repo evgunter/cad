@@ -390,7 +390,7 @@ fn the_split_documents_evaluate_to_their_committed_digests() {
     for (name, want) in [
         ("cut_cylinder", 0xd82f_d380_9e2e_8e5e_u64),
         ("part_select", 0x4540_8c74_d757_704f),
-        ("kitchen_sink", 0x4f64_6f46_1d52_45eb),
+        ("kitchen_sink", 0xb9ff_1846_2c51_b69c),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
