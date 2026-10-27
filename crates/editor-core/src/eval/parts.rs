@@ -130,6 +130,12 @@ pub(crate) struct PartValue<T: Decide> {
     /// at-rest health is the outermost gate's business.
     pub at_rest:
         Arc<Vec<PartRow<crate::checks::at_rest::Pinned<crate::checks::at_rest::AtRestEvidence>>>>,
+    /// **The rows its coincidence door owes an answer about**, its own
+    /// first and then those it carried up, each with the document it is
+    /// of: unproven, since the door's replay runs at rest, over that
+    /// document, when a report asks (`checks::DoorJob`).
+    pub door_rows:
+        Arc<Vec<PartRow<crate::checks::at_rest::Pinned<crate::checks::at_rest::DocRows>>>>,
     /// How many parts the referenced document's product is: its
     /// placements' copies ([`crate::product::Product::solid_copies`]),
     /// each counted at its own value's `parts`, so a sub-assembly's
@@ -148,6 +154,7 @@ impl<T: Decide> Clone for PartValue<T> {
             cited_inputs: Arc::clone(&self.cited_inputs),
             interference: Arc::clone(&self.interference),
             at_rest: Arc::clone(&self.at_rest),
+            door_rows: Arc::clone(&self.door_rows),
             parts: self.parts,
         }
     }
@@ -705,7 +712,7 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
     /// label reaches them.
     fn evaluate_entered(
         &mut self,
-        doc: &ProfileDoc,
+        doc: &Arc<ProfileDoc>,
         doc_ref: DocRef,
         reached: Rows<T>,
         cancel: &super::CancelToken,
@@ -765,6 +772,44 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
         // one row set.
         let parts = product.parts;
         let pieces = product.pieces.clone();
+        // Its door rows, quiet as its own assertions quiet them, and
+        // those its parts carried up; proven where a report asks.
+        let own = crate::checks::door_rows(
+            &**doc,
+            &evaluation,
+            &crate::checks::Subject::Product(&product),
+            tol,
+        );
+        let door_rows = (!own.is_empty())
+            .then(|| {
+                PartRow::unspoken(
+                    doc_ref.id,
+                    crate::checks::at_rest::Pinned {
+                        pin: doc_ref.pin,
+                        finding: crate::checks::at_rest::DocRows {
+                            doc: crate::checks::at_rest::PinnedDoc::new(Arc::clone(doc)),
+                            sets: own.into(),
+                        },
+                    },
+                )
+            })
+            .into_iter()
+            .chain(
+                crate::checks::carried_coincidences(&evaluation)
+                    .into_iter()
+                    .map(|row| {
+                        PartRow::below(
+                            &**doc,
+                            row.route,
+                            crate::checks::at_rest::Pinned {
+                                pin: row.pin,
+                                finding: row.rows,
+                            },
+                            Arc::default(),
+                        )
+                    }),
+            )
+            .collect();
         // The part's own verdict on what its census found, read as its
         // own at-rest check reads it, so the document instantiating it
         // reports each finding once, as the part's.
@@ -821,6 +866,7 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                     }))
                     .collect(),
             ),
+            door_rows: Arc::new(door_rows),
             parts,
             pieces,
             body: Arc::new(product.body.into_body()),
@@ -892,7 +938,7 @@ pub(crate) fn instantiated<P>(doc: &crate::Doc<P>, id: RecipeNodeId) -> Option<D
 /// parts it instantiates.
 struct Entered<T: Decide> {
     doc_ref: DocRef,
-    doc: ProfileDoc,
+    doc: Arc<ProfileDoc>,
     /// Its `InstantiatePart` references in document order, repeats
     /// included; `next` is how far the descent has read them.
     refs: Vec<DocRef>,
@@ -935,7 +981,7 @@ impl<T: Decide> Entered<T> {
         };
         Ok(Self {
             doc_ref: *doc_ref,
-            doc,
+            doc: Arc::new(doc),
             refs,
             next: 0,
             reached: BTreeMap::new(),
