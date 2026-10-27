@@ -7169,3 +7169,8 @@ Signed (WIRE orchestrator).
 - 2026-10-27 (WIRE orchestrator) Dispatched `wire-seamgroups` (wire/seam-groups-keyed-by-candidate). The pair and union seam groups are keyed per candidate, with one 'per candidate' spelling across split, corner and seam passes, plus Seam/SetPiece split witnesses.
 - 2026-10-27 (WIRE orchestrator) WIRE was at 34/30. Moved two P3 rows to WIREREST (three-names K=1.5 calibration, identical-twin coincidence rows); no path citations. WIRE comes back under budget once the seam-groups row closes.
 - 2026-10-27 (WIRE orchestrator) Dispatched `wire-throughwalk` (wire/through-names-are-walked): walkers see Through's names and are made exhaustive; Sense::other_half computes a complement.
+- 2026-10-27 (WIRE orchestrator) `wire-throughwalk` opened PR 5870 (head cf2a3cb9a8).
+  - embedded walks Through names as partners, and name_args and embedded are exhaustively destructured.
+  - other_half returns Option; None refuses Unwalked::Misplaced, because it would otherwise rest on two independent decisions agreeing.
+  - Departure accepted: select classifies the sense rather than walking it, since a pattern has no sense axis.
+  - A residue row was filed. Review dispatched (`wire-throughwalk-rev`).
