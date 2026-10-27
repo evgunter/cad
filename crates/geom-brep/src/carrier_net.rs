@@ -255,20 +255,30 @@ fn alpha_beta(alpha: &Alpha, x: Interval) -> (Series, Series) {
     }
 }
 
-/// One coordinate's Taylor coefficients: `p₀ + u·α + v·β`.
-fn channel(p0: Interval, u: Interval, v: Interval, a: &Series, b: &Series) -> Series {
-    let mut out = zero_series();
-    for k in 0..TERMS {
-        out[k] = u * a[k] + v * b[k];
-    }
-    out[0] = out[0] + p0;
-    out
+/// **The frame-free half of a span's expansion**: the Bernstein
+/// coefficients over `[a, b]`, degree [`ORDER`], of `α` and of `β`'s
+/// Taylor polynomials at the node, and each one's remainder term
+/// `c_{n+1}([a, b])·(t − m)^{n+1}` over the span. A coordinate
+/// `p₀ + u·α + v·β` is linear in its data, so its coefficients are
+/// `p₀ + u·Aᵢ + v·Bᵢ` and its remainder `u·Rα + v·Rβ`: the same reals as
+/// expanding each coordinate on its own, enclosed by an interval
+/// evaluation of an expression equal to them (an interval evaluation
+/// of any real-equal expression encloses the real; this one is the
+/// sub-distributive, tighter one). The basis reads only `α` and the
+/// span, never the frame or the carrier's placement, so it is formed
+/// once per span and shared by the three coordinates, by every frame a
+/// carrier is written in (each operand's) and by every call that cuts
+/// the same span ([`span_basis`]'s memo).
+#[derive(Clone)]
+struct SpanBasis {
+    alpha: Vec<Interval>,
+    beta: Vec<Interval>,
+    rest_alpha: Interval,
+    rest_beta: Interval,
 }
 
-/// The span `[a, b]`'s Bernstein coefficients, degree [`ORDER`], per
-/// coordinate, enclosing the carrier over the span, and the widest of
-/// them before the remainder is added ([`CarrierNet::rounding`]).
-fn span_bernstein(h: &Harmonic, a: f64, b: f64) -> ([Vec<Interval>; 3], f64) {
+/// [`SpanBasis`] over `[a, b]`.
+fn span_basis_of(alpha: &Alpha, a: f64, b: f64) -> SpanBasis {
     let n = ORDER;
     let m = 0.5 * (a + b);
     let (ia, ib, im) = (
@@ -277,8 +287,8 @@ fn span_bernstein(h: &Harmonic, a: f64, b: f64) -> ([Vec<Interval>; 3], f64) {
         Interval::from_f64(m),
     );
     let (am, bm) = (ia - im, ib - im);
-    let at_node = alpha_beta(&h.alpha, im);
-    let over_span = alpha_beta(&h.alpha, ia.enclosure_hull(ib));
+    let at_node = alpha_beta(alpha, im);
+    let over_span = alpha_beta(alpha, ia.enclosure_hull(ib));
     // `(t − m)^{n+1}` over the span.
     let reach = am
         .enclosure_hull(bm)
@@ -287,47 +297,95 @@ fn span_bernstein(h: &Harmonic, a: f64, b: f64) -> ([Vec<Interval>; 3], f64) {
     // `s` are the binomial expansion.
     let w = ib - ia;
     let binom = geom_core::spline::pieces::binomial;
-    let rounding = core::cell::Cell::new(0.0_f64);
-    // The binomial expansion's terms `C(j,k)·(a − m)^{j−k}·(b − a)^k`,
-    // formed once per span for the three channels (each is the same
-    // product, in the same order, every channel would form).
-    let terms: Vec<Vec<Interval>> = (0..=n)
-        .map(|j| {
-            (0..=j)
-                .map(|k| {
-                    Interval::from_f64(binom(j, k))
-                        * am.powi(i32::try_from(j - k).unwrap_or(i32::MAX))
-                        * w.powi(i32::try_from(k).unwrap_or(i32::MAX))
-                })
-                .collect()
-        })
-        .collect();
-    let coords = |p0: Interval, u: Interval, v: Interval| -> Vec<Interval> {
-        let node = channel(p0, u, v, &at_node.0, &at_node.1);
-        let span = channel(p0, u, v, &over_span.0, &over_span.1);
-        let rest = span[n + 1] * reach;
+    let choose = |i: usize, k: usize| Interval::from_f64(binom(i, k));
+    let bernstein = |series: &Series| -> Vec<Interval> {
         // The polynomial's coefficients in `s`.
         let mut mono = vec![Interval::zero(); n + 1];
-        for (j, cj) in node.iter().take(n + 1).enumerate() {
+        for (j, cj) in series.iter().take(n + 1).enumerate() {
             for (k, mk) in mono.iter_mut().enumerate().take(j + 1) {
-                *mk = *mk + *cj * terms[j][k];
+                let term = choose(j, k)
+                    * am.powi(i32::try_from(j - k).unwrap_or(i32::MAX))
+                    * w.powi(i32::try_from(k).unwrap_or(i32::MAX));
+                *mk = *mk + *cj * term;
             }
         }
-        // Monomial to Bernstein: `bᵢ = Σ_{k≤i} C(i,k)/C(n,k)·aₖ`; the
-        // polynomial's own coefficient first, whose width is the
-        // rounding no round removes, and the remainder after.
+        // Monomial to Bernstein: `bᵢ = Σ_{k≤i} C(i,k)/C(n,k)·aₖ`.
         (0..=n)
             .map(|i| {
-                let poly = (0..=i).fold(Interval::zero(), |acc, k| {
-                    acc + mono[k] * Interval::from_f64(binom(i, k))
-                        / Interval::from_f64(binom(n, k))
-                });
+                (0..=i).fold(Interval::zero(), |acc, k| {
+                    acc + mono[k] * choose(i, k) / choose(n, k)
+                })
+            })
+            .collect()
+    };
+    SpanBasis {
+        alpha: bernstein(&at_node.0),
+        beta: bernstein(&at_node.1),
+        rest_alpha: over_span.0[n + 1] * reach,
+        rest_beta: over_span.1[n + 1] * reach,
+    }
+}
+
+/// [`span_basis_of`] through a bounded thread-local memo keyed by `α`'s
+/// data and the span's ends, bit for bit: a pure function of them, so a
+/// hit is the bits a miss computes, and an entry left from another
+/// carrier with the same `α` and span is that key's basis.
+fn span_basis(alpha: &Alpha, a: f64, b: f64) -> SpanBasis {
+    const CAPACITY: usize = 4096;
+    std::thread_local! {
+        static MEMO: core::cell::RefCell<std::collections::HashMap<[u64; 9], SpanBasis>> =
+            core::cell::RefCell::new(std::collections::HashMap::new());
+    }
+    let ends = |x: Interval| [Bounds::lo(x).to_bits(), Bounds::hi(x).to_bits()];
+    let key = match alpha {
+        Alpha::Cos => [0, 0, 0, 0, 0, 0, 0, a.to_bits(), b.to_bits()],
+        Alpha::Spiric {
+            major,
+            minor,
+            offset,
+        } => {
+            let ([m0, m1], [n0, n1], [o0, o1]) = (ends(*major), ends(*minor), ends(*offset));
+            // The tag keeps a spiric's key off every circle's; each
+            // datum enters as its enclosure's two ends.
+            [1, m0, m1, n0, n1, o0, o1, a.to_bits(), b.to_bits()]
+        }
+    };
+    if let Some(hit) = MEMO.with(|m| m.borrow().get(&key).cloned()) {
+        return hit;
+    }
+    let basis = span_basis_of(alpha, a, b);
+    MEMO.with(|m| {
+        let mut m = m.borrow_mut();
+        if m.len() >= CAPACITY {
+            m.clear();
+        }
+        m.insert(key, basis.clone());
+    });
+    basis
+}
+
+/// The span `[a, b]`'s Bernstein coefficients, degree [`ORDER`], per
+/// coordinate, enclosing the carrier over the span ([`SpanBasis`]: each
+/// is `p₀ + u·Aᵢ + v·Bᵢ` plus the remainder `u·Rα + v·Rβ`), and the
+/// widest of them before the remainder is added
+/// ([`CarrierNet::rounding`]).
+fn span_bernstein(h: &Harmonic, a: f64, b: f64) -> ([Vec<Interval>; 3], f64) {
+    let basis = span_basis(&h.alpha, a, b);
+    let mut rounding = 0.0_f64;
+    let mut coords = |p0: Interval, u: Interval, v: Interval| -> Vec<Interval> {
+        let rest = u * basis.rest_alpha + v * basis.rest_beta;
+        basis
+            .alpha
+            .iter()
+            .zip(&basis.beta)
+            .map(|(&ai, &bi)| {
+                let poly = p0 + u * ai + v * bi;
                 let width = if poly.is_certified() {
                     Bounds::hi(poly) - Bounds::lo(poly)
                 } else {
                     f64::NAN
                 };
-                rounding.set(widest(rounding.get(), width));
+                rounding = widest(rounding, width);
                 poly + rest
             })
             .collect()
@@ -337,7 +395,7 @@ fn span_bernstein(h: &Harmonic, a: f64, b: f64) -> ([Vec<Interval>; 3], f64) {
         coords(h.p0.y, h.u.y, h.v.y),
         coords(h.p0.z, h.u.z, h.v.z),
     ];
-    (rows, rounding.get())
+    (rows, rounding)
 }
 
 /// The wider of two widths, NaN where either is: a control that does
