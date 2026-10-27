@@ -6136,6 +6136,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "stale_null_face_loop",
             "stale_null_face_ownership",
             "tangent_not_intrinsic",
+            "touch_interference",
             "transverse_not_intrinsic",
             "uncertifiable_surface",
             "unreachable_half_edge",
