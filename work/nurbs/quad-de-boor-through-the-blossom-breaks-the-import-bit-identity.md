@@ -44,7 +44,7 @@ face and get the same flux back. The whole-body fold (`topo::props`'
 and the reader allocates faces in its own order. The blossom route
 moved the rational wall's flux bits, and with them whether the two
 orders happen to round alike. It is FLUX's design row
-`work/flux/the-whole-body-property-fold-depends-on-face-order.md`
+`the-whole-body-property-fold-depends-on-face-order`, closed by PR 5402
 (filed on PR 4684's branch). Main's row now bounds native against
 imported at `faces − 1` ulps with the pad bit-identical (ENCL's PR
 4682), so it no longer reddens on this.

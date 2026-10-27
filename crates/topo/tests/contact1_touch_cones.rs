@@ -104,7 +104,10 @@ fn flat_on_the_bracket(body: &Body<f64>) -> Vec<ValidationError> {
             .all(|&k| k == "ConformalPatch"),
         "{certified:?}"
     );
-    assert!(placement_findings(&certified).is_empty(), "{certified:?}");
+    assert!(
+        placement_findings(body, &certified).is_empty(),
+        "{certified:?}"
+    );
     topo::validate_pseudomanifold_structural(body, &ContactRecords::default(), Tol::witness())
         .expect_err("the touches refuse")
 }
@@ -132,7 +135,7 @@ fn a_block_standing_against_the_wall_clears_through_every_touch_kind() {
             "VertexVertex"
         ]
     );
-    assert!(placement_findings(&errors).is_empty(), "{errors:?}");
+    assert!(placement_findings(&body, &errors).is_empty(), "{errors:?}");
 }
 
 /// **The same block sunk into the leg** — `[0, 1.5] × [1, 3] × [0, 1]`,
@@ -170,7 +173,7 @@ fn a_block_sunk_into_the_leg_is_a_same_side_interference() {
     }
     assert!(
         matches!(
-            placement_findings(&errors)[..],
+            placement_findings(&body, &errors)[..],
             [ValidationError::SameSideInterference { .. }]
         ),
         "{errors:?}"
@@ -191,7 +194,7 @@ fn a_block_seated_in_the_inner_corner_clears_on_the_complement() {
     let kinds = touch_kinds(&errors);
     assert!(kinds.contains(&"EdgeEdgeOverlap"), "{kinds:?}");
     assert!(kinds.contains(&"VertexOnEdge"), "{kinds:?}");
-    assert!(placement_findings(&errors).is_empty(), "{errors:?}");
+    assert!(placement_findings(&body, &errors).is_empty(), "{errors:?}");
 }
 
 /// **A block flush with the arm's top edge** — `[1.5, 2.5] × [1, 2] ×
@@ -205,7 +208,7 @@ fn a_block_flush_with_the_arm_top_clears_on_its_shared_edge() {
     let errors = flat_on_the_bracket(&body);
     let kinds = touch_kinds(&errors);
     assert!(kinds.contains(&"EdgeEdgeOverlap"), "{kinds:?}");
-    assert!(placement_findings(&errors).is_empty(), "{errors:?}");
+    assert!(placement_findings(&body, &errors).is_empty(), "{errors:?}");
 }
 
 /// **A block seated in the inner corner ON the floor** — `[1, 2] × [1,
@@ -220,7 +223,7 @@ fn a_block_on_the_floor_of_the_inner_corner_clears() {
     let body = bracket_with(&block((1.0, 2.0), (1.0, 2.0), (0.0, 0.5)));
     let errors = flat_on_the_bracket(&body);
     assert!(touch_kinds(&errors).contains(&"VertexVertex"), "{errors:?}");
-    assert!(placement_findings(&errors).is_empty(), "{errors:?}");
+    assert!(placement_findings(&body, &errors).is_empty(), "{errors:?}");
 }
 
 /// The tilted block whose corner meets the bracket's corner `(3, 1,
@@ -246,7 +249,7 @@ fn a_tilted_block_touching_a_corner_clears_declared_or_not() {
     let body = tilted_on_the_corner();
     let errors = refused(&body, &ContactRecords::default());
     assert_eq!(touch_kinds(&errors), ["VertexVertex"]);
-    assert!(placement_findings(&errors).is_empty(), "{errors:?}");
+    assert!(placement_findings(&body, &errors).is_empty(), "{errors:?}");
     let (a, b) = errors
         .iter()
         .find_map(|e| match e {
@@ -291,5 +294,5 @@ fn a_sliver_corner_clears_on_its_long_edge_s_own_reading() {
             .any(|e| matches!(e, ValidationError::CensusEscalated { .. })),
         "no sweep escalates: {errors:?}"
     );
-    assert!(placement_findings(&errors).is_empty(), "{errors:?}");
+    assert!(placement_findings(&body, &errors).is_empty(), "{errors:?}");
 }

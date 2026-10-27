@@ -78,11 +78,26 @@ pub(super) fn eval_at(pair: SplineCoeffs<'_, Interval>, t: f64) -> Interval {
 
 /// Hull of a scalar B-spline over `range`: the hull of the active
 /// spans' coefficient hulls (conservative to span granularity).
+///
+/// A range that ENDS on a knot stops at the span ending there. The
+/// locator assigns the knot itself to the span starting at it, but a
+/// clamped spline (interior multiplicity ≤ degree) is continuous, so
+/// its value at that knot is the left span's endpoint value, which the
+/// left span's coefficients already hull. Reading the right span too
+/// would hull a neighbour the range only touches — on a sliver span
+/// beside a knot-aligned cell, a derivative 1e9 times the cell's own.
 pub(super) fn range_hull(pair: SplineCoeffs<'_, Interval>, range: ParamRange) -> Interval {
-    let (s0, s1) = pair.knots().span_range(range);
+    let knots = pair.knots();
+    let (s0, s1) = knots.span_range(range);
+    let (_, end) = range.ends();
+    let last = if s1.index() > s0.index() && knots.knots()[s1.index()] == end.get() {
+        s1.index() - 1
+    } else {
+        s1.index()
+    };
     let mut acc = Interval::refused();
     let mut seeded = false;
-    for index in s0.index()..=s1.index() {
+    for index in s0.index()..=last {
         // Emptiness check and window construction are one step.
         let Some(win) = pair.span(index) else {
             continue;

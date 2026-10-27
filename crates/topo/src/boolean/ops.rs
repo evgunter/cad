@@ -6212,6 +6212,7 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
         | V::ArcEndOffCorner { .. }
         | V::InstanceInterference { .. }
         | V::SameSideInterference { .. }
+        | V::TouchInterference { .. }
         | V::CuspEdgesMissing { .. } => None,
         // A certificate that failed or a lane that cannot run: the
         // kernel's.

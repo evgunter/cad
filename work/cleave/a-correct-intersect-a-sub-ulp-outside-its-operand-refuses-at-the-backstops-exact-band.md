@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-20
 priority: P2
 cost: M
-refs: [a-block-resting-a-zero-band-gap-above-another-refuses-at-the-volume-backstop, spiric-face-volume-budget-depends-on-world-position]
+refs: [a-block-resting-a-zero-band-gap-above-another-refuses-at-the-volume-backstop, 5442]
 ---
 
 Found by FLUX's spiric-budget unit (branch

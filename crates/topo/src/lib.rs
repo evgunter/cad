@@ -361,32 +361,31 @@ pub mod test_support {
     };
     pub use crate::test_support_impl::ArenaCounts;
 
-    /// **A placement the census decided overlaps**: arm 2's decided
-    /// verdicts on a pair of solids, a vertex of one strictly inside the
-    /// other's material ([`crate::ValidationError::InstanceInterference`])
-    /// or a face of each on one carrier, facing the same way and sharing
-    /// interior ([`crate::ValidationError::SameSideInterference`]). The
-    /// one home of the test that a row asserting a placement clears, or
-    /// refuses undecided, reads, so a new decided verdict reaches all of
-    /// them.
+    /// **A placement the census decided overlaps**: a finding
+    /// [`crate::census_interference_solids`] reads as two solids'
+    /// interference. The one home of the test that a row asserting a
+    /// placement clears, or refuses undecided, reads, so a new decided
+    /// verdict reaches all of them.
     #[must_use]
-    pub fn is_decided_overlap(e: &crate::ValidationError) -> bool {
-        matches!(
-            e,
-            crate::ValidationError::InstanceInterference { .. }
-                | crate::ValidationError::SameSideInterference { .. }
-        )
+    pub fn is_decided_overlap<T: geom_core::Real>(
+        body: &crate::Body<T>,
+        e: &crate::ValidationError,
+    ) -> bool {
+        crate::census_interference_solids(body, e).is_some()
     }
 
     /// **The census's verdicts on where two solids sit**: each decided
     /// overlap ([`is_decided_overlap`]) and each
     /// [`crate::ValidationError::CensusUndecidable`] naming two solids.
     #[must_use]
-    pub fn placement_findings(errors: &[crate::ValidationError]) -> Vec<&crate::ValidationError> {
+    pub fn placement_findings<'e, T: geom_core::Real>(
+        body: &crate::Body<T>,
+        errors: &'e [crate::ValidationError],
+    ) -> Vec<&'e crate::ValidationError> {
         errors
             .iter()
             .filter(|e| {
-                is_decided_overlap(e)
+                is_decided_overlap(body, e)
                     || matches!(
                         e,
                         crate::ValidationError::CensusUndecidable {
@@ -596,13 +595,13 @@ pub mod test_support {
     /// ([`crate::test_support_meeting`]).
     pub mod meeting {
         pub use crate::test_support_meeting::{
-            FIN_BOTTOM, Hole, MEET, PLATE, Point, Pose, along_lying_ray, apex_pyramid,
-            apex_pyramid_kept, arch, arch_cone, at, bearing, branching_cone, comb, corners,
-            corners_disjoint, crown, crown_body, cycles_of, ell, ell_and_wedges, fin,
+            ESCALATING_DIPS, FIN_BOTTOM, Hole, MEET, PLATE, Point, Pose, along_lying_ray,
+            apex_pyramid, apex_pyramid_kept, arch, arch_cone, at, bearing, branching_cone, comb,
+            corners, corners_disjoint, crown, crown_body, cycles_of, ell, ell_and_wedges, fin,
             fin_crown_body, four_wedges, inner_rows, leaned, lying, mix, near_flat, nest,
             nest_polygon, notch, notch_rows, on_the_lying_faces, orders, posed_box, posed_boxes,
             posed_crown, posed_crown_kept, posed_fin_crown, posed_prism, posed_pyramid, poses,
-            pyramid_volumes, shape, single_arch, three_wedges, two_wedges, wedge,
+            pyramid_volumes, shape, single_arch, sunk_on_an_edge, three_wedges, two_wedges, wedge,
             wedges_on_one_side, zigzag,
         };
     }
@@ -1257,7 +1256,7 @@ pub use euler::{
 };
 pub use euler_kill::{KefResult, KevResult, KvfsResult, MergedMember, MfkrhCreated};
 pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
-pub use link::{Link, LinkRefusal, Material, TouchUnread};
+pub use link::{Link, LinkRefusal, Material, Round, TouchUnread};
 // The types that appear in this crate's own operator signatures, so a
 // consumer of the ops needs no direct geom-* imports for the common
 // path (the full geometry vocabulary still lives in those crates).

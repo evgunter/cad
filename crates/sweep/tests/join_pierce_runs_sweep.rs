@@ -1786,7 +1786,7 @@ fn four_pairs_battery() {
 /// union the notch's solid holds two cones at `v`, one a convex sliver
 /// hole and one a saddle round a pocket a cube's corner sits in: tier 3′
 /// reads that solid's whole link at `v` against the cube's and finds
-/// them apart. Red as `MixedTouch` where the census reads one of the
+/// them apart. Red as `TouchInterference` where the census reads one of the
 /// two cones as its solid's material there, or as a key finding at `v`
 /// or a refusal where the touch unions leave their corners on separate
 /// keys.
