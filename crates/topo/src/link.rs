@@ -1458,13 +1458,10 @@ impl<T: Decide> Sector<T> {
 }
 
 /// **How far `p` stands from the edge of half-edge `he`, at least**, in
-/// metres: a line's distance from its segment, a circle's or an
-/// ellipse's from the whole conic. An ellipse is read through the map
-/// that shrinks it along its axes to the circle of its lesser semi-axis:
-/// the map moves no two points further apart, so `p`'s image stands no
-/// further from that circle than `p` from the ellipse.
-/// [`TouchUnread::Unreadable`] for an edge of another curve, or with no
-/// certified curve; [`TouchUnread::Corrupt`] where it does not read.
+/// metres: a line's distance from its segment, a conic's from the whole
+/// conic ([`conic_clearance`]). [`TouchUnread::Unreadable`] for an edge
+/// of another curve, or with no certified curve;
+/// [`TouchUnread::Corrupt`] where it does not read.
 pub(crate) fn clearance<T: Real>(
     body: &Body<T>,
     he: crate::entity::HalfEdgeKey,
@@ -1477,17 +1474,27 @@ pub(crate) fn clearance<T: Real>(
         .and_then(|d| body.curves.get(d.curve))
         .and_then(crate::null::CurveGeom::certified)
         .ok_or(TouchUnread::Unreadable)?;
+    if let geom::Curve3::Line { .. } = curve.carrier() {
+        let end = body.half_edge_end(he).ok_or(TouchUnread::Corrupt)?;
+        return Ok(to_segment(
+            p,
+            (position(body, half.start)?, position(body, end)?),
+        ));
+    }
+    conic_clearance(curve.carrier(), p).ok_or(TouchUnread::Unreadable)
+}
+
+/// **How far `p` stands from a circle or an ellipse, at least**, in
+/// metres: the whole conic's distance, exact for a circle. An ellipse is
+/// read through the map that shrinks it along its axes to the circle of
+/// its lesser semi-axis: the map moves no two points further apart, so
+/// `p`'s image stands no further from that circle than `p` from the
+/// ellipse. `None` for another curve.
+pub(crate) fn conic_clearance<T: Real>(carrier: &geom::Curve3<T>, p: Point3<T>) -> Option<T> {
     // The distance from a circle of `radius` of a point `h` off its
     // plane and `out` from its axis.
     let off_circle = |h: T, out: T, radius: T| (h.powi(2) + (out - radius).powi(2)).sqrt();
-    match *curve.carrier() {
-        geom::Curve3::Line { .. } => {
-            let end = body.half_edge_end(he).ok_or(TouchUnread::Corrupt)?;
-            Ok(to_segment(
-                p,
-                (position(body, half.start)?, position(body, end)?),
-            ))
-        }
+    match *carrier {
         geom::Curve3::Circle {
             center,
             axis,
@@ -1496,7 +1503,7 @@ pub(crate) fn clearance<T: Real>(
         } => {
             let rel = p - center;
             let h = rel.dot(axis);
-            Ok(off_circle(h, (rel - axis * h).norm(), radius))
+            Some(off_circle(h, (rel - axis * h).norm(), radius))
         }
         geom::Curve3::Ellipse {
             center,
@@ -1511,13 +1518,13 @@ pub(crate) fn clearance<T: Real>(
                 rel.dot(u_ref) * (minor / semi_u),
                 rel.dot(axis.cross(u_ref)) * (minor / semi_v),
             );
-            Ok(off_circle(
+            Some(off_circle(
                 rel.dot(axis),
                 (u.powi(2) + v.powi(2)).sqrt(),
                 minor,
             ))
         }
-        _ => Err(TouchUnread::Unreadable),
+        _ => None,
     }
 }
 
@@ -2864,6 +2871,9 @@ mod cone_oracle;
 mod oracle_rows;
 #[cfg(test)]
 mod round_rows;
+
+#[cfg(test)]
+mod cleared_rows;
 
 #[cfg(test)]
 mod tests {
