@@ -8045,6 +8045,110 @@ mod spline_face_rows {
         }
     }
 
+    /// The twisted sheet over `[¼, ¾]²`, and a body holding one quadratic
+    /// NURBS edge from `p` to `q`, its middle control point `bow` off the
+    /// chord's middle along `+x`, stated in the plane through the chord
+    /// and `x̂`, its chord along `+z`.
+    fn twisted_and_a_spline(
+        p: Point3<f64>,
+        q: Point3<f64>,
+        bow: f64,
+    ) -> (Body<f64>, FaceKey, Body<f64>, EdgeKey) {
+        use crate::boolean::spline_region::rows::{rect, sheet, twisted};
+        let tol = Tol::witness();
+        let (y, face) = sheet(&twisted(0.6), &rect((0.25, 0.75), (0.25, 0.75)));
+        let mut x = Body::<f64>::new();
+        let seed = x.mvfs(p, true).unwrap();
+        let x_hat = Vec3::unit_x();
+        let key = x
+            .set_face_surface(
+                seed.face,
+                crate::FaceSurface::New {
+                    surface: Surface::Plane {
+                        origin: p,
+                        normal: (q - p).cross(x_hat).normalize(),
+                        u_ref: x_hat,
+                    },
+                    sense: true,
+                },
+            )
+            .unwrap();
+        let kv = || {
+            geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap()
+        };
+        let mid = p.lerp(q, 0.5) + x_hat * bow;
+        let carrier = Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(kv(), vec![p, mid, q], vec![1.0; 3]).unwrap(),
+        ));
+        // The plane's chart is `p + u·x̂ + v·(n × x̂)`, `n × x̂ = −ẑ` here.
+        let half = 0.5 * (q - p).norm();
+        let image = geom_brep::Pcurve::General(std::sync::Arc::new(
+            geom::NurbsCurve2::new(
+                kv(),
+                vec![
+                    geom_core::Point2::new(0.0, 0.0),
+                    geom_core::Point2::new(bow, -half),
+                    geom_core::Point2::new(0.0, -2.0 * half),
+                ],
+                vec![1.0; 3],
+            )
+            .unwrap(),
+        ));
+        let spec = geom_brep::EdgeCurveSpec {
+            description: geom_brep::EdgeDescriptionSpec::chart_image(key, image),
+            carrier,
+            param_start: 0.0,
+            param_end: 1.0,
+        };
+        let edge = x
+            .mev(
+                crate::MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                q,
+                spec,
+                tol,
+            )
+            .unwrap()
+            .edge;
+        (y, face, x, edge)
+    }
+
+    /// **A NURBS edge through a spline face's interior pierces it there**,
+    /// at the meeting the spline span arm found, placed in by the trim at
+    /// its chart point; one through the chart past the trim is no event of
+    /// the face.
+    #[test]
+    fn a_nurbs_edge_pierces_a_spline_face_inside_its_trim_and_passes_it_outside() {
+        use crate::boolean::contain::FaceContainment;
+        let up = |x: f64, y: f64| (Point3::new(x, y, -1.0), Point3::new(x, y, 1.0));
+        let (p, q) = up(0.5, 0.5);
+        let (mut y, face, x, ek) = twisted_and_a_spline(p, q, 0.1);
+        let mut acc = ContactAcc::default();
+        match arm(&x, ek, &mut y, face, &mut acc) {
+            Ok(CurvedEvent::Pierce {
+                p,
+                at: FaceContainment::In,
+                ..
+            }) => assert!(
+                (p.z - 0.6 * p.x * p.y).abs() < 1e-9 && p.x > 0.5 && p.x < 0.55,
+                "on the sheet, on the bowed edge: {p:?}"
+            ),
+            other => panic!("the NURBS edge pierces the face inside its trim: {other:?}"),
+        }
+        let (p, q) = up(0.9, 0.4);
+        let (mut y, face, x, ek) = twisted_and_a_spline(p, q, 0.05);
+        let mut acc = ContactAcc::default();
+        match arm(&x, ek, &mut y, face, &mut acc) {
+            Ok(CurvedEvent::None) => {}
+            other => panic!("a meeting past the trim is no event of the face: {other:?}"),
+        }
+        assert!(
+            acc.records.vv.is_empty() && acc.records.a_on_b.is_empty(),
+            "nothing recorded"
+        );
+    }
+
     /// **A point split out of a thin ellipse lands where it was read, or
     /// refuses.** The boundary placement splits the face's edge at a
     /// point the pre-pass put on it ([`super::split_other_at_point`]),

@@ -777,13 +777,21 @@ meet through one exhaustive `(CurveKind, SurfaceKind)` table, in the
 curve-pair vocabulary (stretches, meetings, an in-band decision
 escalating and never pruning), and the boolean's root doors are its
 arms: a spline span against an analytic face and an analytic span
-against a spline face are two arms of the one table. The span's ends are
-read first, then the span against each of the face's boundary edges
-through the curve-pair table. A shared run along a boundary edge is a
-coincidence, decided at the coincidence door (DESIGN `[coincidence]`)
-and never by surface arithmetic, and a point meeting there is a meeting
-on the face's boundary. Only what the boundary leaves undecided is read
-against the face's interior. An interior arm with no closed form settles
+against a spline face are two arms of the one table. The pair is
+decided from the strongest evidence first, and each rung reads only
+what the rungs before it left undecided: what the operands' topology
+already states; then the span's ends; then the span against each of the
+face's boundary edges, through the curve-pair table; then the face's
+interior. Topology decides by incidence. A span that the curve-pair
+table shows to run the whole of an edge of the face's own body, end to
+end, is that edge. It then meets the body's faces only at the vertices
+and edges they share, and nothing is read against their interiors. This
+holds under the boolean's precondition that its operands are valid
+bodies, which it assumes and does not certify per call.
+A shared run along a boundary edge is a coincidence, decided at the
+coincidence door (DESIGN `[coincidence]`) and never by surface
+arithmetic, and a point meeting there is a meeting on the face's
+boundary. An interior arm with no closed form settles
 each piece of the span against each cell of the surface by enclosures:
 clear when the two are definitely apart; exactly one transverse meeting
 when an interval Newton (Krawczyk) contraction on the piece and cell
@@ -806,18 +814,26 @@ definitely on opposite sides, bisected and read on the surface; and
 otherwise cut where it is definitely past the band. A piece within the
 band that no cut parts, a meeting within the band of a crease and two
 crossings within the band of each other refuse. The composite reads the curved analytic faces too, but the
-curved lane does not dispatch a spline span to it. The analytic span ×
-spline face arm is built (`curve_face::spline_face`, the boolean's
-spline-face door reading it past the boundary pass): it settles boxes of
-the state `(t, u, v)` on `C(t) − S(u, v)`, a displacement read against
-the band with no meter, clear where the box's enclosure is past the band
-and one meeting where the Krawczyk test holds, which also isolates the
-meeting's neighbourhood. The chart is cut at its creases and no box
-touching one carries a proof; a box within the band at the floor that no
+curved lane does not dispatch a spline span to it. The span ×
+spline face arm is built for an analytic or a NURBS span
+(`curve_face::spline_face`, the boolean's spline-face door reading it
+past the boundary pass): it settles boxes of the state `(t, u, v)` on
+`C(t) − S(u, v)`, a displacement read against the band with no meter,
+clear where the box's enclosure is past the band and one meeting where
+the Krawczyk test holds, which also isolates the meeting's
+neighbourhood. A NURBS span's point and tangent over a parameter window
+are its control hull's and its hodograph's, read as the chart's are. The
+span and the chart are cut at their creases and no box touching one
+carries a proof; a box within the band at the floor that no
 meeting holds refuses, wherever it lies, so a meeting within the band of
 a crease, on the chart's domain edge (a closed chart's seam included) or
-within the band of another refuses, and nothing in band is dropped. A
-spline or spiric span against a spline face is unbuilt. The analytic
+within the band of another refuses, and nothing in band is dropped. An
+end of the span is the end vertex's meeting: the walk reads past it as
+far as the carrier runs, and a box holding the end's state on which
+every solution lies within the band of the end, by the mean value
+theorem, is accounted for by it, so an end at the carrier's domain end
+or on the chart's edge is read without reading past either. A spiric
+span against a spline face is unbuilt. The analytic
 arms are the sweep's existing root doors. A meeting inside a spline
 face's chart is placed by the trim at the chart point it was found at,
 on its own sheet (`topo::boolean::spline_region::spline_chart_placement`);

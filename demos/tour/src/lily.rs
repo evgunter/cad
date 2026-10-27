@@ -155,7 +155,10 @@ use pncad::sweep::{
     ExtrudeError, Extrusion, Revolution, RevolveAxis, TubeWindow, WedgeFrames, extrude, loft_body,
     revolve, revolved_caps, sweep_body, tube_along_arc,
 };
-use pncad::topo::{AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, EdgeKey, Operand};
+use pncad::topo::{
+    AtRestBody, Body, BooleanBody, BooleanDecision, BooleanError, ContactRecords, EdgeKey,
+    LeverArm, Operand,
+};
 
 use crate::booleans::{check, expect_seamed, finished, try_union};
 use crate::scalar::{Scalar, axis_frame, sketch_frame};
@@ -2384,11 +2387,13 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    reads each against the sheath's base cap, in the blade's own cap
     //    plane, through the ring composite of the cap's plane along the
     //    seam: no crossing inside it, its start on the cap being its end
-    //    vertex's meeting. It still refuses, one step on: a NURBS tip
-    //    seam of the blade against a NURBS wall of the sheath whose
-    //    boundary leaves it undecided, where the spline-face door has no
-    //    interior arm for a spline span
-    //    (`work/splice/a-spline-span-against-a-spline-face-has-no-interior-arm`).
+    //    vertex's meeting. Each NURBS seam of one body is read against the
+    //    other's NURBS walls by the spline-face arm, a seam's end at a tip
+    //    being its end vertex's meeting. It still refuses, at the result:
+    //    the shared rim, a seam between the two bodies' NURBS walls, is
+    //    re-described through the dihedral of its two surfaces, which has
+    //    no reading on a spline surface
+    //    (`work/splice/the-results-seam-between-two-spline-walls-is-read-by-no-dihedral`).
     //    The flush reading along the two bodies' NURBS edges is behind
     //    that (`work/splice/a-unions-flush-reading-cannot-follow-a-nurbs-carrier`).
     let sheath = {
@@ -2420,37 +2425,21 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         8,
         "graft the leaf's sheath onto its blade at their shared section",
         crate::booleans::try_union(leaf_a, &sheath, tol),
-        // The DOOR is the claim: the sheath's ridge wall (operand B, the
-        // higher of its two NURBS walls by the mean height of its net),
-        // whose boundary leaves an edge of the blade undecided. If this
+        // The SITE is the claim: the result's seam, its arm read through a
+        // dihedral with no reading on a spline wall, so no value. If this
         // ever refuses elsewhere, the sentence above is wrong and must be
-        // re-derived before it is believed. The refusal names no site, so
-        // the probe cannot tell that door from another raising the same
-        // variant on the same wall.
+        // re-derived before it is believed. `LeverArm::Seam` is raised by
+        // one door, the seam re-description's, so the decision and its
+        // predicate pin the site; the refusal names no edge and no face, so
+        // the probe cannot tell this seam from another seam of the result
+        // read the same way.
         |e| {
-            let ridge = sheath
-                .faces()
-                .filter_map(|(k, f)| match sheath.get_surface(f.surface) {
-                    Some(pncad::geom::Surface::Nurbs(n)) => {
-                        let z: f64 = n
-                            .control()
-                            .iter()
-                            .map(|p| pncad::geom_core::Bounds::lo(p.z))
-                            .sum();
-                        #[allow(clippy::cast_precision_loss)]
-                        Some((k, z / n.control().len() as f64))
-                    }
-                    _ => None,
-                })
-                .max_by(|x, y| x.1.total_cmp(&y.1))
-                .map(|(k, _)| k);
             matches!(
                 e,
-                BooleanError::CurvedBooleanUnsupported {
-                    operand: Operand::B,
-                    face,
-                    kind: SurfaceKind::Nurbs,
-                } if Some(*face) == ridge
+                BooleanError::Escalated {
+                    decision: BooleanDecision::LeverArm(LeverArm::Seam),
+                    diag,
+                } if diag.predicate == Some("dihedral_arm") && diag.margin.is_invalid()
             )
         },
         "grow the leaves out of the stem instead of standing them beside it",

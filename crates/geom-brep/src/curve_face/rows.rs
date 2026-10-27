@@ -78,7 +78,7 @@ fn every_kind_pair_routes_to_its_door() {
     for c in curves {
         for s in surfaces {
             let want = match (c, s) {
-                (Spiric | Nurbs, SurfaceKind::Nurbs | Approx) => (Door::SplineFace, false),
+                (Spiric, SurfaceKind::Nurbs | Approx) => (Door::SplineFace, false),
                 (_, SurfaceKind::Nurbs | Approx) => (Door::SplineFace, true),
                 (Spiric, _) => (Door::Spiric, false),
                 (Nurbs, Plane) => (Door::SplineComposite, true),
