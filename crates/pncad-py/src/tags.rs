@@ -303,6 +303,7 @@ pub fn select_refusal_tag(err: &pncad::select::SelectRefusal) -> &'static str {
         R::InBand { .. } => "in_band",
         R::TiedDisagrees { .. } => "tied_disagrees",
         R::Unreadable { .. } => "unreadable",
+        R::Frame { .. } => "frame_refused",
         R::NotAPlane { .. } => "not_a_plane",
         R::FaceUnresolved { .. } => "face_unresolved",
         R::NotALength { .. } => "not_a_length",

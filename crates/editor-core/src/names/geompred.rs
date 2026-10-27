@@ -230,6 +230,15 @@ pub enum SelectRefusal {
         /// Why.
         error: InterrogateError,
     },
+    /// A candidate's body could not be read into the frame of the
+    /// plane its distance is measured from: the relative map between
+    /// the two bodies' frames overflowed.
+    Frame {
+        /// The candidate that could not be read.
+        name: Box<StableName>,
+        /// The map's own refusal.
+        error: geom_core::RigidMotionError,
+    },
     /// The face a distance is measured from is not planar.
     NotAPlane {
         /// The face, as the query named it.
@@ -328,6 +337,14 @@ impl crate::spoken::Say for SelectRefusal {
                     crate::spoken::Said(error, by)
                 )
             }
+            Self::Frame { name, error } => {
+                f.write_str("select: ")?;
+                named(f, name)?;
+                write!(
+                    f,
+                    " could not be read into the frame of the plane it is measured from: {error}"
+                )
+            }
             Self::NotAPlane { face } => {
                 f.write_str("select: the query measures from ")?;
                 named(f, face)?;
@@ -411,8 +428,13 @@ pub(crate) enum Prepared<T: Decide> {
     Adjacent(SurfaceKindSet, SurfaceKindSet),
     /// [`GeomPred::PlaneDistance`], resolved.
     Distance {
-        /// The face's plane.
+        /// The face's plane, in its body's own coordinates: a selection
+        /// is a model reader, so it is decided in the frame of what it
+        /// reads and composes nothing into a space.
         plane: PoseValue<T>,
+        /// The body the plane is read off, whose frame every candidate
+        /// is read into ([`crate::eval::Framed::relative`]).
+        on: crate::eval::Framed<T>,
         /// Which side of `value` a candidate must land on.
         cmp: Cmp,
         /// The stated length, evaluated.
@@ -467,18 +489,16 @@ pub(crate) fn prepare<T: Decide>(
                         face: Box::new(face.clone()),
                     });
                 }
-                // In its space, where a candidate is measured from it.
+                // In its body's own coordinates: each candidate is read
+                // into this frame, never composed into the space.
                 let at = topo::readback::face_pose(body.body(), f).map_err(|_| unresolved())?;
-                let at = match body.frame().map() {
-                    None => at,
-                    Some(map) => super::interrogate::InItsSpace::moved_by(at, map),
-                };
                 let normal = geom_brep::OutwardNormal::from_chart(at.axis, at.sense).vec();
                 let band = Band::linear(tol)?;
                 let normal = geom_core::UnitVec3::new(normal, query::POSE_UNIT_NORM, band)
                     .map_err(|_| unresolved())?;
                 Ok(Prepared::Distance {
                     plane: PoseValue::plane_through(at.origin, normal),
+                    on: body.clone(),
                     cmp: *cmp,
                     value: crate::expr::eval(value, params).map_err(SelectRefusal::BadValue)?,
                 })
@@ -525,14 +545,32 @@ pub(crate) fn candidate_matches<T: Decide>(
                 EntityKey::Edge(e) => query::edge_adjacent_matches(body, e, *a, *b),
                 EntityKey::Body | EntityKey::Face(_) | EntityKey::Vertex(_) => false,
             },
-            Prepared::Distance { plane, cmp, value } => {
-                // Where it stands in its space, as the plane is read.
-                let point = super::interrogate::entity_point(body, key)
-                    .map(|point| framed.point_in_space(point))
-                    .map_err(|error| SelectRefusal::Unreadable {
+            Prepared::Distance {
+                plane,
+                on,
+                cmp,
+                value,
+            } => {
+                // In the plane's body's coordinates: the candidate's own
+                // where the two are one frame (one body, or bodies
+                // computed in one frame), else read in through the one
+                // door between two operands of a space.
+                let point = super::interrogate::entity_point(body, key).map_err(|error| {
+                    SelectRefusal::Unreadable {
                         name: Box::new(name.clone()),
                         error,
-                    })?;
+                    }
+                })?;
+                let point = match on.relative(framed) {
+                    Ok(None) => point,
+                    Ok(Some(map)) => map.transform_point(point),
+                    Err(error) => {
+                        return Err(SelectRefusal::Frame {
+                            name: Box::new(name.clone()),
+                            error,
+                        });
+                    }
+                };
                 let sign = crate::pose::pose_distance_sign(plane, point, *value, band)
                     .unwrap_or_else(|| unreachable!("`prepare` admits no direction"));
                 match sign {
@@ -585,6 +623,7 @@ mod census {
             InBand,
             TiedDisagrees,
             Unreadable,
+            Frame,
             NotAPlane,
             FaceUnresolved,
             NotALength,
@@ -626,6 +665,12 @@ mod census {
             SelectRefusal::Unreadable {
                 name: name(),
                 error: InterrogateError::WholeBody,
+            },
+            SelectRefusal::Frame {
+                name: name(),
+                error: geom_core::RigidMotionError::NonFinite(
+                    geom_core::linalg::MotionPart::Translation,
+                ),
             },
             SelectRefusal::NotAPlane { face: name() },
             SelectRefusal::FaceUnresolved { face: name() },

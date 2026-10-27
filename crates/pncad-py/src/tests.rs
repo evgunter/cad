@@ -5657,6 +5657,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "bad_value",
             "face_unresolved",
+            "frame_refused",
             "in_band",
             "not_a_length",
             "not_a_plane",
