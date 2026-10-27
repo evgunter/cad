@@ -2,11 +2,12 @@
 id: a-volume-reads-one-anchor-where-a-face-stands-off-its-carrier
 kind: issue
 title: A certified volume reads one anchor's value where a face's boundary stands off its carrier, and reports only rounding as its width
-status: open
+status: closed
 opened: 2026-10-27
 priority: P2
 cost: M
 refs: [a-block-resting-a-zero-band-gap-above-another-refuses-at-the-volume-backstop]
+closed: 2026-10-27
 ---
 
 
@@ -55,3 +56,10 @@ after 5780's implementation lands, so not a glued planar face. Only
 then the question to Ev: should a certified volume enclose its body's
 standoff, and what does a backstop "certain" violation mean against
 it?
+
+## Closed
+
+Not wanted (Ev, PR 5780, 2026-10-27): "i am hesitant to have special
+anything for comparing volume since it's not something we promise
+anyway. maybe it is helpful for debugging but maybe we should just
+drop it". A volume measurement gets no standoff enclosure.
