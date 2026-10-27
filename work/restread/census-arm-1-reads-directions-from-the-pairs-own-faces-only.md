@@ -49,3 +49,22 @@ is a lot of directions per pair. Price that first, against reading the
 normals of the faces adjacent to the pair's faces. The lens needs a
 direction no planar face carries: the chord between an arc's ends is
 one.
+
+## Two walls whose nearest points are off their seams
+
+`census::depth_gap::toward` aims the offset only at a cover's segments.
+A cylinder wall's segments are its seam rulings, so between two
+parallel walls the offset aims at the other wall's seam rather than its
+nearest point. Two walls less than about `r²·sin²φ / 2D` apart then
+stay undecided, where `φ` is the seam's angle off the line of centres.
+A cylinder wall also has no least depth about an axis other than its
+own, so the depth gap does not decide them either. The direction that
+parts them is the line between the two axes; for two parallel axes it
+is closed-form.
+
+The witness is `editor-core`
+`intent_s5_b_interference::an_undecided_pair_beside_the_press_fit_keeps_it_loud`:
+a hole of radius 0.05, 5e-4 clear of the pin's wall on the diagonal.
+That row *depends* on the pair staying undecided, so the lane that
+parts it must re-fixture the row in the same PR. The row's doc says
+how.
