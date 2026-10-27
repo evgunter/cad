@@ -551,8 +551,13 @@ fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wa
     let [(_, reference)] = topo::test_support::shell_references(&alone)[..] else {
         panic!("the vase is one shell");
     };
-    let reading = topo::test_support::face_reading(&alone, cap, Tol::witness())
-        .expect("a plane bounded by rational rims has a vector area");
+    let reading = topo::test_support::face_reading(
+        &alone,
+        cap,
+        Tol::witness(),
+        topo::test_support::pinned_len(Tol::witness()),
+    )
+    .expect("a plane bounded by rational rims has a vector area");
     let disc = core::f64::consts::PI * radius * radius;
     let residual = 2.0 * core::f64::consts::PI * radius * 1e-12;
     let lever = (reference.z - z).abs();
@@ -608,8 +613,13 @@ fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wa
     );
     // The structural door has no quadrature lane: the moved cap keeps
     // the closed form's typed refusal there.
-    let structural = topo::test_support::face_reading_structural(&alone, cap, Tol::witness())
-        .expect_err("the structural door has no rational rule");
+    let structural = topo::test_support::face_reading_structural(
+        &alone,
+        cap,
+        Tol::witness(),
+        topo::test_support::pinned_len(Tol::witness()),
+    )
+    .expect_err("the structural door has no rational rule");
     assert!(
         matches!(
             structural,
@@ -847,25 +857,29 @@ fn a_moved_plane_meets_a_fitted_cap_along_their_certified_section() {
     // the exact outer rule's window, so the composite arm's.
     let at_rest = topo::AtRestBody::validate(moved, Tol::witness())
         .unwrap_or_else(|e| panic!("the moved box passes tier 3: {e:?}"));
-    let props =
-        topo::mass_properties(&at_rest, Tol::witness()).expect("the moved box has a volume");
+    let props = topo::mass_properties(
+        &at_rest,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("the moved box has a volume");
     // The closed form is the box `(2 − T) × 2 × 1`, its cap a fit of the
     // plane `z = 1` within ε over an area under 4 m².
     let truth = (2.0 - THICKNESS) * 2.0;
-    let slack = props.volume_pad + 4.0 * Tol::witness().eps();
+    let slack = props.enclosure.volume_pad + 4.0 * Tol::witness().eps();
     assert!(
-        (props.volume - truth).abs() <= slack,
+        (props.enclosure.volume - truth).abs() <= slack,
         "the moved box's volume {} ± {} misses {truth}",
-        props.volume,
-        props.volume_pad
+        props.enclosure.volume,
+        props.enclosure.volume_pad
     );
     // And the bracket is tight: the cap floors at its first round, so
     // a pad that grew (a looser rule, a lost round) would make the
     // containment above vacuous. Measured 3.7e-14 at the default ε.
     assert!(
-        props.volume_pad <= 1e-12,
+        props.enclosure.volume_pad <= 1e-12,
         "the moved box's volume bracket widened to ± {}",
-        props.volume_pad
+        props.enclosure.volume_pad
     );
 }
 

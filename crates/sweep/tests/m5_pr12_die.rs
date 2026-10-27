@@ -208,22 +208,30 @@ fn the_die_blank_certifies_and_tessellates_watertight() {
         Ok(()),
         "tier 3"
     );
-    let props = topo::mass_properties(&die, Tol::witness()).unwrap();
+    let props = topo::mass_properties(
+        &die,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap();
     let want = blank_volume();
     assert!(
-        (props.volume - want).abs() <= 1e-9 * want,
+        (props.enclosure.volume - want).abs() <= 1e-9 * want,
         "blank volume {} vs closed form {want}",
-        props.volume
+        props.enclosure.volume
     );
     assert_eq!(
-        props.volume_pad, 0.0,
+        props.enclosure.volume_pad, 0.0,
         "a closed-form body needs no enclosure pad"
     );
     let mesh = mesh::tessellate(&die, 5e-3, Tol::witness()).expect("the blank tessellates");
     mesh::validate::check_mesh(&mesh).expect("watertight");
     let v_mesh = mesh::validate::signed_volume(&mesh);
-    assert!(v_mesh > 0.0 && v_mesh < props.volume, "an inscribed mesh");
-    assert!(((v_mesh - props.volume) / props.volume).abs() < 5e-3);
+    assert!(
+        v_mesh > 0.0 && v_mesh < props.enclosure.volume,
+        "an inscribed mesh"
+    );
+    assert!(((v_mesh - props.enclosure.volume) / props.enclosure.volume).abs() < 5e-3);
 }
 
 /// **The pips, cut in ONE certified group operation** — 21 balls on
@@ -258,9 +266,8 @@ fn the_pips_cut_in_one_group_operation_on_all_six_faces() {
         "tier 3"
     );
     let want = DIE_L.powi(3) - 21.0 * cap(PIP_R, PIP_H);
-    let vol = topo::mass_properties(&pipped, Tol::witness())
-        .unwrap()
-        .volume;
+    let vol =
+        topo::test_support::pinned_volume("the measured body", &pipped, Tol::witness()).volume;
     assert!(
         (vol - want).abs() <= 1e-9 * want,
         "pipped cube volume {vol} vs closed form {want}"
@@ -292,18 +299,26 @@ fn the_pip_caps_measure_through_the_closed_form() {
     let blank = finished("the cube", cube(DIE_L, Tol::witness()), Tol::witness());
     let pipped =
         topo::test_support::finished("pipped", subtract(&blank, &pip_tool()), Tol::witness());
-    let props = topo::mass_properties(&pipped, Tol::witness()).unwrap();
+    let props = topo::mass_properties(
+        &pipped,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap();
     println!(
         "PROBE pipped: volume={} volume_pad={} area={} area_pad={}",
-        props.volume, props.volume_pad, props.surface_area, props.area_pad
+        props.enclosure.volume,
+        props.enclosure.volume_pad,
+        props.enclosure.surface_area,
+        props.enclosure.area_pad
     );
     let want = DIE_L.powi(3) - 21.0 * cap(PIP_R, PIP_H);
     assert_eq!(
-        props.volume_pad, 0.0,
+        props.enclosure.volume_pad, 0.0,
         "a rim-only spherical cap is a closed-form face; got volume {} vs {want}",
-        props.volume
+        props.enclosure.volume
     );
-    assert_eq!(props.area_pad, 0.0, "and its area is one too");
+    assert_eq!(props.enclosure.area_pad, 0.0, "and its area is one too");
 }
 
 /// **DEVIATION 1, now FLIPPED at both doors** (kept, per the S9
@@ -352,9 +367,8 @@ fn deviation_1_both_doors_compose_and_agree() {
         Ok(()),
         "tier 3"
     );
-    let va = topo::mass_properties(via_boolean, Tol::witness())
-        .unwrap()
-        .volume;
+    let va =
+        topo::test_support::pinned_volume("the measured body", via_boolean, Tol::witness()).volume;
     assert!(
         (va - want).abs() <= 1e-9 * want,
         "door A volume {va} vs closed form {want}"
@@ -386,9 +400,8 @@ fn deviation_1_both_doors_compose_and_agree() {
         Ok(()),
         "tier 3"
     );
-    let vb = topo::mass_properties(&via_surgery, Tol::witness())
-        .unwrap()
-        .volume;
+    let vb =
+        topo::test_support::pinned_volume("the measured body", &via_surgery, Tol::witness()).volume;
     assert!(
         (vb - want).abs() <= 1e-9 * want,
         "door B volume {vb} vs closed form {want}"

@@ -95,7 +95,7 @@ fn prism_reflex_kiss_takes_edge_edge_lane() {
         topo::validate_geometric_certificate(&bb.body, tol).is_ok(),
         "the at-rest certificate"
     );
-    let v = topo::mass_properties(&bb.body, tol).unwrap().volume;
+    let v = topo::test_support::pinned_volume("the measured body", &bb.body, tol).volume;
     assert!((v - 40.0 / 3.0).abs() < 1e-9, "volume {v}");
 }
 
@@ -167,7 +167,11 @@ fn tilted_saddle_corner_builds_every_op() {
         let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
             panic!("{op} came back empty");
         };
-        let v = mass_properties(&out.body, tol).unwrap().volume;
+        let v = mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
+            .unwrap()
+            .met()
+            .expect("the pinned resolution is met")
+            .volume;
         assert!((v - want).abs() < 1e-9, "{op}: volume {v}, want {want}");
         assert_eq!(topo::validate_closed(&out.body), Ok(()), "{op}: tier 2");
         assert_eq!(

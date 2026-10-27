@@ -94,11 +94,11 @@ fn spans(len: f64) -> [(&'static str, (f64, f64)); 5] {
 }
 
 fn volume(b: &Body<f64>) -> f64 {
-    topo::mass_properties(
+    topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", topo::Body::clone(b), Tol::witness()),
         Tol::witness(),
     )
-    .unwrap()
     .volume
 }
 

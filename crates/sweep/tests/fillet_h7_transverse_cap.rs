@@ -65,10 +65,11 @@ fn volume(body: &Body<f64>) -> f64 {
     let p = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("closed-form props");
-    assert_eq!(p.volume_pad, 0.0, "the inventory is closed-form");
-    p.volume
+    assert_eq!(p.enclosure.volume_pad, 0.0, "the inventory is closed-form");
+    p.enclosure.volume
 }
 
 /// The faces an edge separates, by surface key.
@@ -453,9 +454,10 @@ fn an_oblique_cap_cuts_the_ruled_band_off_in_an_ellipse() {
             let p = topo::mass_properties(
                 &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
                 tol(),
+                topo::test_support::pinned_resolution(tol()),
             )
             .unwrap_or_else(|e| panic!("{what}: {which}'s certified props, got {e:?}"));
-            (p.volume, p.volume_pad)
+            (p.enclosure.volume, p.enclosure.volume_pad)
         };
         let (vol0, pad0) = enclosure(below, "the cut rod");
         for (request, removed) in [
@@ -731,7 +733,7 @@ fn the_parallel_cylinder_union_builds_and_a_box_edge_is_cut_off() {
     // Two r = 1/2 discs whose centres are 0.6 apart, one high.
     let lens = 0.5 * 0.6_f64.acos() - 0.3 * 0.8;
     let want = 2.0 * core::f64::consts::PI * 0.25 - lens;
-    let v = topo::mass_properties(&bb.body, tol()).unwrap().volume;
+    let v = topo::test_support::pinned_volume("the measured body", &bb.body, tol()).volume;
     assert!((v - want).abs() < 1e-9, "{v} vs the closed form {want}");
 
     let body = cube(1.0, tol());
@@ -786,9 +788,10 @@ fn the_cap_lever_is_the_links_extent() {
             let p = topo::mass_properties(
                 &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
                 tol(),
+                topo::test_support::pinned_resolution(tol()),
             )
             .unwrap_or_else(|e| panic!("L = {len}: certified props, got {e:?}"));
-            (p.volume, p.volume_pad)
+            (p.enclosure.volume, p.enclosure.volume_pad)
         };
         let (vol0, pad0) = enclosure(below);
         for e in creases {

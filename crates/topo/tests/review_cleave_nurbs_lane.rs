@@ -244,14 +244,15 @@ fn subtracting_an_enclosed_m7_8_cube_refuses_before_the_void_door() {
     }
 }
 
-/// A disjoint union with the M7-8 cube refuses typed BEFORE its
-/// fallback reaches the assembly graft: the sweep's planar crossing arm
-/// refuses the NURBS-carried edge at a face of the far brick, since a
-/// spline edge claims no box and so is cleared of no face. The row goes
-/// red the day a crossing rung reads the kind, which is the day the
-/// assembly's carried certificates become reachable from the boolean.
+/// A disjoint union with the M7-8 cube reaches the assembly graft and
+/// builds: the sweep's planar crossing arm reads the cube's NURBS-carried
+/// edges against the far brick's faces through the ring-composite arm
+/// (`geom_brep::curve_face::composite`) and finds none crossing. Before that arm the row refused
+/// `EdgeCarrierUnsupported { site: PlanarCrossing }` there. The four
+/// carriers survive the graft AS the class, and check 2 re-derives them
+/// at rest.
 #[test]
-fn a_disjoint_union_with_the_m7_8_cube_refuses_before_the_graft() {
+fn a_disjoint_union_with_the_m7_8_cube_grafts_its_carriers() {
     let tol = Tol::witness();
     let cube = finished_m7_8_cube(tol);
     let brick = common::finished(
@@ -259,32 +260,13 @@ fn a_disjoint_union_with_the_m7_8_cube_refuses_before_the_graft() {
         topo::test_support::brick_with_fresh_keys::<f64>((4.0, 5.0), (4.0, 5.0), (4.0, 5.0), tol),
         tol,
     );
-    match topo::union(&brick, &cube, Tol::witness()) {
-        Err(topo::BooleanError::EdgeCarrierUnsupported {
-            operand: topo::Operand::B,
-            edge,
-            face,
-            face_of: topo::Operand::A,
-            site: topo::EdgeCarrierSite::PlanarCrossing,
-        }) => {
-            assert!(
-                topo::query::edge_carrier_kind(&cube, edge) == Some(topo::query::CurveKind::Nurbs),
-                "the refusal names a spline edge of the cube: {edge:?}"
-            );
-            // The brick is fresh-keyed, so a face read in the wrong body
-            // resolves in neither.
-            assert!(
-                brick.get_face(face).is_some() && cube.get_face(face).is_none(),
-                "the refusal names a face of the brick, not of the cube: {face:?}"
-            );
-        }
-        Err(e) => panic!("expected the planar crossing refusal, got {e:?}"),
-        Ok(BooleanResult::Empty) => panic!("expected the planar crossing refusal, got Empty"),
-        Ok(BooleanResult::Body(b)) => {
-            panic!(
-                "expected the planar crossing refusal, got a {:?} body",
-                b.kind
-            )
-        }
-    }
+    let built = match topo::union(&brick, &cube, Tol::witness()) {
+        Ok(BooleanResult::Body(b)) => b,
+        other => panic!("expected the assembly, got {other:?}"),
+    };
+    assert_eq!(built.kind, topo::BooleanResultKind::Assembly);
+    let body = &built.body;
+    assert_eq!(body.solids().count(), 2, "the brick and the cube");
+    assert_eq!(m7_8_edges(body), 4, "the carriers survive the graft");
+    assert_eq!(edge_findings(body), 0, "check 2 re-derives them at rest");
 }

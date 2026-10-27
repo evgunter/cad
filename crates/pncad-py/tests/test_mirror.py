@@ -11,6 +11,7 @@ import unittest
 from pncad import Doc, EditError, Formula, Node, evaluate, m
 
 from placing import plane_on
+from measuring import pinned
 
 
 def plate(doc):
@@ -32,7 +33,7 @@ class MirrorTest(unittest.TestCase):
         source, mirrored = ev.value(body).body(), ev.value(image).body()
         mirrored.validate()
         self.assertAlmostEqual(
-            mirrored.mass_properties().volume, source.mass_properties().volume, delta=1e-12
+            pinned(mirrored).volume, pinned(source).volume, delta=1e-12
         )
         xs = sorted(
             round(p[0].meters, 12) + 0.0
@@ -51,8 +52,8 @@ class MirrorTest(unittest.TestCase):
         union = ev.value(whole).body()
         union.validate()
         self.assertAlmostEqual(
-            union.mass_properties().volume,
-            2.0 * ev.value(body).body().mass_properties().volume,
+            pinned(union).volume,
+            2.0 * pinned(ev.value(body).body()).volume,
             delta=1e-12,
         )
 

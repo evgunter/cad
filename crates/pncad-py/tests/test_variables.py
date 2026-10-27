@@ -24,6 +24,7 @@ from pncad import (
 )
 
 from test_slot_edits import blank
+from measuring import pinned
 
 
 def driven():
@@ -36,7 +37,7 @@ def driven():
 
 
 def volume(doc, box):
-    return evaluate(doc).value(box).body().mass_properties().volume
+    return pinned(evaluate(doc).value(box).body()).volume
 
 
 class TestAVarIsAnIdentity(unittest.TestCase):

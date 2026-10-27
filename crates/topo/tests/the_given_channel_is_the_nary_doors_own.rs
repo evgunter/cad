@@ -120,8 +120,9 @@ fn a_rest_touch_is_the_unions_one_verdict_and_glues_as_given() {
         "a given step decides no pair of its own, only the corners on the top: {:?}",
         step.body.coincidences
     );
-    let volume =
-        |out: &topo::BooleanBody<f64>| topo::mass_properties(&out.body, tol()).unwrap().volume;
+    let volume = |out: &topo::BooleanBody<f64>| {
+        topo::test_support::pinned_volume("the measured body", &out.body, tol()).volume
+    };
     assert_eq!(
         (volume(&step.body), step.body.body.faces().count()),
         (volume(&judged.body), judged.body.body.faces().count()),

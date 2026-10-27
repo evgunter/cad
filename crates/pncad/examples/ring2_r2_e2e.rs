@@ -31,7 +31,18 @@ fn main() {
         Err(errs) => println!("validate_geometric: {} error(s): {errs:?}", errs.len()),
     }
     let body = pncad::topo::AtRestBody::validate(body, tol).expect("the loft prism passes tier 3");
-    let m = mass_properties(&body, tol).expect("mass properties certify");
+    // 1.024e-6 m is 1024·ε at the witness tolerance, the resolution the
+    // suites' pinned numbers are stated at. A literal on purpose: this
+    // program compares bits across heads, so its resolution is a number
+    // no later change to the suites' vocabulary can move.
+    let m = mass_properties(
+        &body,
+        tol,
+        pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6)),
+    )
+    .expect("mass properties certify")
+    .met()
+    .expect("the resolution is met");
     println!(
         "volume {:.17e} ({:#018x}) pad {:.17e} ({:#018x})",
         m.volume,

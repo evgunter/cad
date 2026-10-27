@@ -120,7 +120,7 @@ fn a_rod_on_a_plate_records_its_touch_and_a_bridge_lands_it() {
         other => panic!("plate ∪ rod: {:?}", other.map(|_| ())),
     };
     assert_eq!(u.body.solids().count(), 2, "plate ∪ rod: two solids");
-    let v = topo::mass_properties(&u.body, tol()).unwrap().volume;
+    let v = topo::test_support::pinned_volume("the measured body", &u.body, tol()).volume;
     assert!(
         (v - (16.0 + 0.125 * pi)).abs() < 1e-9,
         "plate ∪ rod: volume {v}"
@@ -224,7 +224,7 @@ fn a_rod_on_a_plate_records_its_touch_and_a_bridge_lands_it() {
     match bridged(ff) {
         Ok(BooleanResult::Body(r)) => {
             assert_eq!(r.body.solids().count(), 1, "∪ bridge: one solid");
-            let v = topo::mass_properties(&r.body, tol()).unwrap().volume;
+            let v = topo::test_support::pinned_volume("the measured body", &r.body, tol()).volume;
             let want = 18.2 + 0.85 * pi / 8.0;
             assert!((v - want).abs() < 1e-9, "∪ bridge: volume {v}, want {want}");
             assert_eq!(
@@ -806,7 +806,7 @@ fn a_record_whose_faces_the_op_divides_lands_on_the_pair_holding_its_line() {
             other => panic!("{label}: {:?}", other.map(|_| ())),
         };
         assert_eq!(r.body.solids().count(), solids, "{label}: solids");
-        let v = topo::mass_properties(&r.body, tol()).unwrap().volume;
+        let v = topo::test_support::pinned_volume("the measured body", &r.body, tol()).volume;
         assert!(
             (v - want_v).abs() < tol().eps(),
             "{label}: volume {v}, want {want_v}"

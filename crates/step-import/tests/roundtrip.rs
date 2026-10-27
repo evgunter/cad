@@ -78,8 +78,12 @@ fn committed_corpus_row(name: &str) {
     // teeth both ways: the review's scale-corruption probe
     // (`review_k3_probe`) shows the new budget catching corruptions
     // the old slop accepted, at 1600×/8000× margins.
-    let (props, terms) = topo::test_support::mass_properties_with_face_terms(&body, Tol::witness())
-        .unwrap_or_else(|e| panic!("{name}: {e}"));
+    let (props, terms) = topo::test_support::mass_properties_with_face_terms(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap_or_else(|e| panic!("{name}: {e}"));
     let expected_m3 = expect.kernel_volume_mm3 * 1e-9;
     let native_pad_m3 = expect.kernel_volume_pad_mm3 * 1e-9;
     let ulp = expected_m3.next_up() - expected_m3;
@@ -94,18 +98,18 @@ fn committed_corpus_row(name: &str) {
         },
     );
     let diameter = (0..3).map(|i| (hi[i] - lo[i]).powi(2)).sum::<f64>().sqrt();
-    let reach = props.surface_area * diameter;
+    let reach = props.enclosure.surface_area * diameter;
     let own: f64 = terms.iter().map(|&(_, flux, _)| flux.abs()).sum();
     let fold = topo::test_support::fold_order_bound(&terms).0 * (reach / own).max(1.0);
     let ulps = 2.0 * fold + 2.0 * ulp;
-    let tolerance = props.volume_pad + native_pad_m3 + ulps;
+    let tolerance = props.enclosure.volume_pad + native_pad_m3 + ulps;
     assert!(
-        (props.volume - expected_m3).abs() <= tolerance,
+        (props.enclosure.volume - expected_m3).abs() <= tolerance,
         "{name}: volume {} m³ vs native {} m³ (tolerance {}: pad {} + native pad {} + ulps {})",
-        props.volume,
+        props.enclosure.volume,
         expected_m3,
         tolerance,
-        props.volume_pad,
+        props.enclosure.volume_pad,
         native_pad_m3,
         ulps
     );
@@ -182,27 +186,31 @@ fn fixed_point() {
         };
         assert_eq!(
             arena_census(&body1),
-            arena_census(&body2),
+            arena_census(body2.body()),
             "{name}: census identical across the adoption pass"
         );
-        let v1 = topo::mass_properties(
+        let v1 = topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished("the measured body", body1.clone(), Tol::witness()),
             Tol::witness(),
         )
-        .unwrap()
         .volume;
-        let v2 = topo::mass_properties(
-            &topo::test_support::finished("the measured body", body2.clone(), Tol::witness()),
+        let v2 = topo::test_support::pinned_volume(
+            "the measured body",
+            &topo::test_support::finished(
+                "the measured body",
+                body2.body().clone(),
+                Tol::witness(),
+            ),
             Tol::witness(),
         )
-        .unwrap()
         .volume;
         assert_eq!(
             v1.to_bits(),
             v2.to_bits(),
             "{name}: certified volume bit-identical across the adoption pass"
         );
-        let export2 = step_export::step_string(&at_rest(&body2), &options, Tol::witness())
+        let export2 = step_export::step_string(&at_rest(body2.body()), &options, Tol::witness())
             .unwrap_or_else(|e| panic!("{name}: re-export 2: {e}"));
         if line_promotions == 0 {
             assert_eq!(
@@ -236,8 +244,9 @@ fn fixed_point() {
             .unwrap_or_else(|e| panic!("{name}: re-import 2: {e}")) else {
                 panic!("{name}: re-import 2 lost the solid");
             };
-            let export3 = step_export::step_string(&at_rest(&body3), &options, Tol::witness())
-                .unwrap_or_else(|e| panic!("{name}: re-export 3: {e}"));
+            let export3 =
+                step_export::step_string(&at_rest(body3.body()), &options, Tol::witness())
+                    .unwrap_or_else(|e| panic!("{name}: re-export 3: {e}"));
             assert_eq!(
                 export2, export3,
                 "{name}: fixed point from the second cycle on"

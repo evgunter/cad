@@ -122,8 +122,11 @@ fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .unwrap()
+    .expect("the measured body")
+    .met()
+    .expect("the measured body")
     .volume;
     // Interior rotated cuboid 0.5 x 0.5 x 1.0 => volume exactly 8 - 0.25.
     let oracle = 8.0 - 0.25;

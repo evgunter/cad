@@ -29,7 +29,7 @@ use pncad::topo::{AtRestBody, Body, BooleanBody};
 
 use crate::booleans::{check, expect_seamed, finished, try_intersect};
 use crate::scalar::Scalar;
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 use pncad::authoring::{p3, polygon, validated};
 use pncad::geom_core::{RigidMotion, Tol};
 
@@ -184,7 +184,7 @@ fn shadow_area(body: &Body<f64>, w: usize, tol: Tol) -> f64 {
     area
 }
 
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     let (two, three, c) = build::<f64>(tol);
     // The 3-way lies inside each letter's prism, so its shadow down that
     // prism's axis lies inside the letter; equal area makes it the WHOLE
@@ -204,7 +204,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // The shadow PROOF renders (standalone, not montage panels): the
     // 3-way solid viewed straight down each axis — orthographic, so
     // each frame IS the shadow: an H (z), a T (x), a C (y).
-    let shadow = |name: &'static str, caption: &str, elev: f64, azim: f64| Stop {
+    let shadow = |name: &'static str, caption: &str, elev: f64, azim: f64| TourStop {
         name,
         caption: caption.to_string(),
         montage: false,
@@ -230,7 +230,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         shadow("silhouette3_shadow_y", "y-shadow: C", 0.0, -90.0),
     ];
     vec![
-        Stop {
+        TourStop {
             name: "silhouette",
             caption: "silhouette (H x T)".to_string(),
             // Montage carries only the 3-way (#91 revision note 5);
@@ -257,7 +257,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 two.contacts,
             )],
         },
-        Stop {
+        TourStop {
             name: "silhouette3",
             caption: "silhouette3 (H x T x C)".to_string(),
             montage: true,

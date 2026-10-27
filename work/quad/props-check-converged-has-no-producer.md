@@ -2,11 +2,12 @@
 id: props-check-converged-has-no-producer
 kind: issue
 title: PropsCheck::Converged and its recourse arm have no producer once the reporting target is a resolution
-status: open
+status: closed
 opened: 2026-10-23
 priority: P4
 cost: E
 parent: the-measurement-door-refines-until-a-predicate-resolves
+closed: 2026-10-26
 ---
 
 
@@ -28,3 +29,7 @@ any more.
 Fix: delete the variant, its arms and that leg. That is a public
 enum change in `geom_brep`, so it rides with unit C, which removes the
 rest of the reporting target's vocabulary (R10).
+
+## Closed
+
+Measure door unit C removed `PropsCheck::Converged`, its words and recourse arms, and the `Converged` leg of `an_escalation_ends_by_the_check_that_raised_it` (`crates/geom-brep/src/props/mod.rs`), with `topo::validate`'s checks-window arm.

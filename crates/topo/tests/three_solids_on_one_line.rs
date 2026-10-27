@@ -411,7 +411,7 @@ fn every_op(
                 "intersection" => common,
                 _ => x.volume - common,
             };
-            let v = topo::mass_properties(&body, t()).unwrap().volume;
+            let v = topo::test_support::pinned_volume("the measured body", &body, t()).volume;
             assert!(
                 (v - volume).abs() < 1e-9,
                 "{what}: volume {v}, closed form {volume}"
@@ -509,7 +509,7 @@ fn every_order(
             "{what}: tier 3′ refused by other than the records the uncarried fold drops: \
              {on_line:?}"
         );
-        let v = topo::mass_properties(body, t()).unwrap().volume;
+        let v = topo::test_support::pinned_volume("the measured body", body, t()).volume;
         assert!(
             (v - volume).abs() < slack,
             "{what}: volume {v}, closed form {volume}"
@@ -870,7 +870,7 @@ fn a_prism_whose_face_holds_the_line_builds_in_every_member_order() {
             .filter(|&&i| i > 0)
             .map(|&i| prisms[i - 1])
             .collect();
-        let v = topo::mass_properties(&r.body, t()).unwrap().volume;
+        let v = topo::test_support::pinned_volume("the measured body", &r.body, t()).volume;
         let want_v = union_volume(&held, plate);
         assert!(
             (v - want_v).abs() < 1e-9,
@@ -1043,7 +1043,7 @@ fn a_split_of_an_edge_lying_in_an_earlier_face_reads_its_vertex_against_it() {
             let solo = area(&tool.footprint()) * (tool.z.1 - tool.z.0);
             let common =
                 area(&tool.footprint()) * (PLATE[2].1 - tool.z.0) + wedge.common_with(&tool);
-            let v = topo::mass_properties(&body, t()).unwrap().volume;
+            let v = topo::test_support::pinned_volume("the measured body", &body, t()).volume;
             let volume = line_volume + solo - common;
             assert!(
                 (v - volume).abs() < 1e-9,
@@ -1157,7 +1157,7 @@ fn the_recourse_of_a_prism_crossing_a_face_beside_a_resting_corner_builds() {
         for (route, body, volume, holds) in &routes {
             let what = what(route);
             sound(&what, body, holds);
-            let v = topo::mass_properties(body, t()).unwrap().volume;
+            let v = topo::test_support::pinned_volume("the measured body", body, t()).volume;
             assert!(
                 (v - volume).abs() < 1e-9,
                 "{what}: volume {v}, closed form {volume}"
@@ -1520,7 +1520,7 @@ fn the_plate_joins_an_edge_lying_in_a_face_as_one_body() {
         .filter(|&(k, _)| at(topo::readback::vertex_point(&r, k).unwrap()) == c)
         .count();
     assert_eq!(at_c, 1, "vertices at MEET");
-    let v = topo::mass_properties(&r, t()).unwrap().volume;
+    let v = topo::test_support::pinned_volume("the measured body", &r, t()).volume;
     let volume = union_volume(&prisms, true);
     assert!(
         (v - volume).abs() < 1e-9,
@@ -1633,7 +1633,8 @@ fn a_prism_moved_off_the_line_builds_or_escalates_typed_in_every_member_order() 
                         "{what}: built, and its census does not escalate: {es:?}"
                     );
                     assert_eq!(validate_geometric(&r.body, t()), Ok(()), "{what}: tier 3");
-                    let v = topo::mass_properties(&r.body, t()).unwrap().volume;
+                    let v =
+                        topo::test_support::pinned_volume("the measured body", &r.body, t()).volume;
                     assert!(
                         (v - volume).abs() < 2.0f64.mul_add(k * eps, 1e-9),
                         "{what}: volume {v}, closed form {volume}"
@@ -1856,7 +1857,7 @@ fn pierces_of_one_point_build_one_body_in_every_member_order() {
             let body = &r.body;
             assert_eq!(validate_geometric(body, t()), Ok(()), "{what}: tier 3");
             assert_eq!(corners_disjoint(body, t()), Ok(()), "{what}: corners");
-            let v = topo::mass_properties(body, t()).unwrap().volume;
+            let v = topo::test_support::pinned_volume("the measured body", body, t()).volume;
             assert!(
                 (v - volume).abs() < slack,
                 "{what}: volume {v}, Monte Carlo {volume} ± {slack}"

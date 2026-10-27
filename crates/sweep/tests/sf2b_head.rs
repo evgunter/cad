@@ -275,13 +275,15 @@ fn cavity_report(what: &str, body: &Body<f64>, t: f64) {
             let outer = topo::mass_properties(
                 &topo::test_support::finished("the measured body", topo::Body::clone(body), tol),
                 tol,
+                topo::test_support::pinned_resolution(tol),
             )
-            .map(|p| p.volume);
+            .map(|p| p.enclosure.volume);
             let inner = topo::mass_properties(
                 &topo::test_support::finished("the measured body", topo::Body::clone(&cavity), tol),
                 tol,
+                topo::test_support::pinned_resolution(tol),
             )
-            .map(|p| p.volume);
+            .map(|p| p.enclosure.volume);
             println!("  {what}: outer {outer:?} cavity {inner:?}");
             for (k, p) in cavity.vertex_points() {
                 println!("    {k:?} -> [{:.6}, {:.6}, {:.6}]", p.x, p.y, p.z);
@@ -303,9 +305,10 @@ fn sf2b_bellied_pot_sealed_and_opened() {
             p.shells().count(),
             topo::mass_properties(
                 &topo::test_support::finished("the measured body", topo::Body::clone(&p), tol),
-                tol
+                tol,
+                topo::test_support::pinned_resolution(tol),
             )
-            .map(|x| (x.volume, x.surface_area))
+            .map(|x| (x.enclosure.volume, x.enclosure.surface_area))
         ),
         Err(e) => println!("[pot] SEALED REFUSED: {e:?}"),
     }
@@ -324,9 +327,10 @@ fn sf2b_bellied_pot_sealed_and_opened() {
             p.shells().count(),
             topo::mass_properties(
                 &topo::test_support::finished("the measured body", topo::Body::clone(&p), tol),
-                tol
+                tol,
+                topo::test_support::pinned_resolution(tol),
             )
-            .map(|x| (x.volume, x.surface_area))
+            .map(|x| (x.enclosure.volume, x.enclosure.surface_area))
         ),
         Err(e) => println!("[pot] OPENED REFUSED: {e:?}"),
     }
