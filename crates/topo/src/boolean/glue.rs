@@ -27,6 +27,7 @@ use std::borrow::Cow;
 
 use geom_core::{Band, Bounds, Decide};
 
+use super::section_table::SectionTable;
 use super::{
     BooleanError, CarrierRelation, DeclarationRead, DoorReading, Glue, GluedPair, InBandPair,
     Operand, PairUnread, TangencyFailure, boxes, carrier_pair_relation, glued_tangency,
@@ -193,34 +194,43 @@ pub(super) fn overlapping_pairs<T: Decide + Bounds>(
     Ok(out)
 }
 
-/// **The coincidences the join's germ frames read, per face pair of
-/// the two operands**: a coaxial cylinder×sphere pair's one row, the
-/// sphere's centre decided on the cylinder's axis by its margin
-/// (`geom_brep::cylinder_sphere_section`); and a crossing cylinder
-/// pair's two rows, its radii decided equal and its axes decided
+/// **The section door**: the operation's section table
+/// ([`super::section_table::SectionTable`]), read over every cross pair
+/// of faces whose boxes overlap and whose kinds the section value builds
+/// ([`geom_brep::pair_section::serves`]), and the coincidences the join
+/// reads, per face pair of the two operands: a pair whose section stands
+/// on a coincidence decided `Zero` (the sphere's centre on the
+/// cylinder's axis) one row, read from the table; and a crossing
+/// cylinder pair's two rows, its radii decided equal and its axes decided
 /// meeting ([`super::join::crossing_cylinder_margins`]), the
-/// classification the join's bisector lane reads. In A's face order and
-/// B's within each; none where the operation's verdicts are given.
+/// classification the join's bisector lane reads. The rows in A's face
+/// order and B's within each, none where the operation's verdicts are
+/// given; the table is built either way, carrying through `lane`. The
+/// crossing cylinder pairs are among the pairs the filter keeps, since
+/// it keeps every cylinder.
 ///
 /// # Errors
 ///
 /// A face box's own refusal; [`BooleanError::ClassificationInvariant`]
-/// where the face tree returns an index past its input.
-pub(crate) fn frame_rows<T: Decide + Bounds>(
+/// where the face tree returns an index past its input. Under given
+/// verdicts too: the reduction's sweep that follows boxes every face of
+/// both operands at this door's pad and band (`reduce::face_tree`), so a
+/// face box refused here would refuse there, and the door only meets it
+/// first.
+#[allow(clippy::type_complexity)] // (table, rows) — one door's reading
+pub(crate) fn section_door<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &Glue<T>,
+    lane: Option<geom_brep::SsiLane<T>>,
     band: Band,
-) -> Result<Vec<crate::Coincidence>, BooleanError> {
-    if decls.verdicts == super::Verdicts::Given {
-        return Ok(Vec::new());
-    }
+) -> Result<(SectionTable<T>, Vec<crate::Coincidence>), BooleanError> {
+    let recorded = decls.verdicts != super::Verdicts::Given;
     let surface = |body: &Body<T>, f| {
         body.get_face(f)
-            .and_then(|face| body.get_surface(face.surface))
-            .cloned()
+            .and_then(|face| Some((face.surface, body.get_surface(face.surface)?.clone())))
     };
-    let curved = super::carrier_eq::exact_curved::<T>;
+    let read = |s: &geom::Surface<T>| geom_brep::pair_section::serves(s.kind());
     let row = |(fa, fb), relation, site, margin| crate::Coincidence {
         cells: [
             crate::RowCell::face(Operand::A, fa),
@@ -232,42 +242,39 @@ pub(crate) fn frame_rows<T: Decide + Bounds>(
         margin,
         discharge: crate::Discharge::of(margin),
     };
+    let mut table = SectionTable::reader(lane, band);
     let mut rows = Vec::new();
-    for (fa, fb) in overlapping_pairs(a, b, curved, band)? {
-        let (Some(sa), Some(sb)) = (surface(a, fa), surface(b, fb)) else {
+    for (fa, fb) in overlapping_pairs(a, b, read, band)? {
+        let (Some((ka, sa)), Some((kb, sb))) = (surface(a, fa), surface(b, fb)) else {
             continue;
         };
-        let section = match (&sa, &sb) {
-            (geom::Surface::Cylinder { .. }, geom::Surface::Sphere { .. }) => {
-                geom_brep::cylinder_sphere_section(&sa, &sb, band)
-            }
-            (geom::Surface::Sphere { .. }, geom::Surface::Cylinder { .. }) => {
-                geom_brep::cylinder_sphere_section(&sb, &sa, band)
-            }
-            (geom::Surface::Cylinder { .. }, geom::Surface::Cylinder { .. }) => {
-                if let Some([radii, meet]) =
+        if let (geom::Surface::Cylinder { .. }, geom::Surface::Cylinder { .. }) = (&sa, &sb) {
+            if recorded
+                && let Some([radii, meet]) =
                     super::join::crossing_cylinder_margins((a, fa), (b, fb), band)
-                {
-                    let site = crate::DecisionSite::CrossingCylinders;
-                    rows.push(row((fa, fb), crate::Relation::SameRadius, site, radii));
-                    rows.push(row((fa, fb), crate::Relation::AxesMeet, site, meet));
-                }
-                continue;
+            {
+                let site = crate::DecisionSite::CrossingCylinders;
+                rows.push(row((fa, fb), crate::Relation::SameRadius, site, radii));
+                rows.push(row((fa, fb), crate::Relation::AxesMeet, site, meet));
             }
-            _ => continue,
+            continue;
+        }
+        // A refusal adds no row: where the faces meet, a later reading of
+        // the pair refuses (`honeone/coaxiality-of-two-revolution-carriers-is-tested-five-ways`).
+        let coincidence = match table.read((ka, &sa), (kb, &sb)) {
+            Some(Ok(section)) => section.coincidence(),
+            Some(Err(_)) | None => None,
         };
-        // A refusal adds no row: where the faces meet, a later decision
-        // refuses (`honeone/coaxiality-of-two-revolution-carriers-is-tested-five-ways`).
-        if let Ok((_, margin)) = section {
+        if let (true, Some(zero)) = (recorded, coincidence) {
             rows.push(row(
                 (fa, fb),
                 crate::Relation::OnCarrier,
                 crate::DecisionSite::CoaxialSphere,
-                margin,
+                zero.margin,
             ));
         }
     }
-    Ok(rows)
+    Ok((table.finish(), rows))
 }
 
 /// **The face-pair rows whose faces meet**: each row deciding faces

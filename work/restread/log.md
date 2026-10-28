@@ -147,3 +147,13 @@ crossing lane and the edge-on-face lane (plan.md, Order).
 - 2026-10-27 (ATREST orchestrator): filed `main-red-perf12-census-golden-kitchen-sink-loses-a-curved-pair-at-5817` (P1, E) here: #5817 moved one `kitchen_sink` census verdict, and the slow perf12 goldens are red on main at three ε. Bisected to the #5817 merge `48910f2b`.
 
 - 2026-10-27 — **Seam (ATREST):** `atrest/aligned-arc-or-curved-faces-that-abut-are-flush` edits `crates/topo/src/census.rs`, which this program also claims: `face_interiors_meet` now certifies an arc or curved pair apart (`arc_interiors_meet`), `curved_same_side_pairs` returns the pairs certified apart (arm 1 of `sweep_cross_solid_backstop` skips them), and `flush_at_rest` gains a curved half (`curved_flush_at_rest`).
+- 2026-10-28 — PR 5856 (`restread/curved-edge-in-face`) merges. It closes `tier-3-prime-reads-no-side-for-an-edge-with-a-curved-face-lying-in-a-face` (P1).
+  - **The row's diagnosis was wrong.** The 42 refusals measured on main (not 38) were planar faces with a curved edge elsewhere on their boundary, not curved edge faces. They read now as a cleared fan about the point, with its rim past the face and its radius capping where a crossing is confirmed. All 42 pass.
+  - **Tier:** dual, arm concurrent (class H), fair. R2 found a false Rest at link level (a cleared sector read at its radius, not the face's reach), which R1 contradicted. The coder sided with R2: +1 R2 (blinding byte 214).
+  - **Fix passes:**
+    - Pass 1 put the rim past the face. The verifier found the ball cap ungated.
+    - Pass 2 gated it.
+  - **Process:** the orchestrator removed the implementer's worktree before the PR merged, so a fresh lane took the fix pass. Worktrees stay until merge.
+  - **Rows filed:**
+    - `tier-3-prime-reads-no-side-for-an-edge-on-a-ruling-of-a-curved-face-lying-in-a-face` (P1);
+    - `the-pierce-span-clearance-gives-up-on-a-face-with-a-curved-edge` (P1). — (RESTREAD orchestrator)

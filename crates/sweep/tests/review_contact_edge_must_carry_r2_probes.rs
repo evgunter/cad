@@ -23,7 +23,7 @@ use std::fmt::Write as _;
 
 use geom::SurfaceKind;
 use geom_brep::{
-    CERT_SAMPLES, EdgeDescription, MustCarryVerdict, edge_extent, must_carry_over_edge,
+    CERT_SAMPLES, EdgeDescription, MustCarryVerdict, edge_extent_inf, must_carry_over_edge,
     sample_param, tangent_certificate_lane, tangent_second_order,
 };
 use geom_core::{Band, ErrorTextReading, Margin, Tol};
@@ -90,7 +90,7 @@ fn contacts(body: &Body<f64>) -> Vec<Contact> {
         let carrier = c.carrier();
         let (t0, t1) = c.params();
         let chord = carrier.eval(t0).distance(carrier.eval(t1));
-        let extent = edge_extent(carrier, t0, t1, chord);
+        let extent = edge_extent_inf(carrier, t0, t1, chord);
         let min_margin = (1..CERT_SAMPLES - 1)
             .map(|i| {
                 let t = sample_param(t0, t1, i);
