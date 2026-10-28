@@ -171,7 +171,7 @@ pub enum NodeErrorClass {
     /// [`NodeErrorKind::Part`] carrying [`PartFault::PartProductPoisoned`].
     PartProductPoisoned,
     /// [`NodeErrorKind::Part`] carrying
-    /// [`PartFault::ProductFailureUnrecorded`].
+    /// [`PartFault::PartProductFailureUnrecorded`].
     PartProductFailureUnrecorded,
     /// [`NodeErrorKind::Part`] carrying [`PartFault::PartProduct`].
     PartProduct,
@@ -295,7 +295,7 @@ impl NodeErrorKind {
                 },
                 PartFault::PartProductFailed { .. } => C::PartProductFailed,
                 PartFault::PartProductPoisoned { .. } => C::PartProductPoisoned,
-                PartFault::ProductFailureUnrecorded { .. } => C::PartProductFailureUnrecorded,
+                PartFault::PartProductFailureUnrecorded { .. } => C::PartProductFailureUnrecorded,
                 PartFault::PartProduct { .. } => C::PartProduct,
                 PartFault::ReferenceCycle { .. } => C::PartReferenceCycle,
                 PartFault::DepthExceeded => C::PartDepthExceeded,
@@ -752,10 +752,12 @@ mod tests {
                 through: n(7),
                 refusal: K::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
             }),
-            C::PartProductFailureUnrecorded => part(crate::PartFault::ProductFailureUnrecorded {
-                node: n(7),
-                held: Default::default(),
-            }),
+            C::PartProductFailureUnrecorded => {
+                part(crate::PartFault::PartProductFailureUnrecorded {
+                    node: n(7),
+                    held: Default::default(),
+                })
+            }
             C::PartProduct => part(crate::PartFault::PartProduct {
                 held: Default::default(),
                 refusal: crate::ProductError::EmptyProduct.into(),

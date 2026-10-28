@@ -989,7 +989,7 @@ try:
     product(doc, evaluate(doc))
     raise AssertionError("expected a typed refusal")
 except ProductError as refusal:
-    assert refusal.variant == "piece_poisoned"
+    assert refusal.variant == "read_poisoned"
     assert refusal.through == post_i
 ```
 

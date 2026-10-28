@@ -1026,7 +1026,7 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
         Err(refusal) => assert!(
             matches!(
                 refusal,
-                editor_core::ProductError::Piece(editor_core::NodeStanding::Poisoned {
+                editor_core::ProductError::Read(editor_core::NodeStanding::Poisoned {
                     through,
                     ..
                 }) if through == mate.placement

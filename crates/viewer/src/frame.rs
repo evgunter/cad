@@ -2546,9 +2546,9 @@ enum BadgeSite {
 /// **The local policy is the three the feature tree owns.**
 /// [`crate::tree::RowStatus`] has exactly three non-`Ok` states —
 /// `Failed`, `Poisoned`, `Unevaluated` — and
-/// [`ProductErrorKind::PieceFailed`], [`ProductErrorKind::PiecePoisoned`]
+/// [`ProductErrorKind::ReadFailed`], [`ProductErrorKind::ReadPoisoned`]
 /// and [`ProductErrorKind::UnknownNode`] — the classes of
-/// [`ProductError::Piece`], by the placement's standing — are those same
+/// [`ProductError::Read`], by the read's standing — are those same
 /// three states seen from the gather.
 /// [`ProductErrorKind::StrandedProduct`] is the first of them seen
 /// from the recipe: a product read whose body is gone reads nothing,
@@ -2587,8 +2587,8 @@ enum BadgeSite {
 /// catches.
 fn badge_site(kind: ProductErrorKind) -> BadgeSite {
     match kind {
-        ProductErrorKind::PieceFailed
-        | ProductErrorKind::PiecePoisoned
+        ProductErrorKind::ReadFailed
+        | ProductErrorKind::ReadPoisoned
         | ProductErrorKind::UnknownNode => BadgeSite::FeatureTree,
         ProductErrorKind::EvaluationOfAnotherDocument
         | ProductErrorKind::EmptyProduct
@@ -3081,7 +3081,7 @@ pub fn version_offer(kind: &NodeErrorKind, files: &PartFiles) -> Option<VersionO
         PartFault::NoResolver
         | PartFault::PartProductFailed { .. }
         | PartFault::PartProductPoisoned { .. }
-        | PartFault::ProductFailureUnrecorded { .. }
+        | PartFault::PartProductFailureUnrecorded { .. }
         | PartFault::PartProduct { .. }
         | PartFault::ReferenceCycle { .. }
         | PartFault::DepthExceeded
@@ -3459,18 +3459,18 @@ mod tests {
         for (quiet, site) in [
             (ProductError::EmptyProduct, BadgeSite::NotAFault),
             (
-                ProductError::Piece(NodeStanding::Failed { node }),
+                ProductError::Read(NodeStanding::Failed { node }),
                 BadgeSite::FeatureTree,
             ),
             (
-                ProductError::Piece(NodeStanding::Poisoned {
+                ProductError::Read(NodeStanding::Poisoned {
                     node,
                     through: RecipeNodeId::new(0, test_utils::refusal::tagged(1)),
                 }),
                 BadgeSite::FeatureTree,
             ),
             (
-                ProductError::Piece(NodeStanding::NotEvaluated { node }),
+                ProductError::Read(NodeStanding::NotEvaluated { node }),
                 BadgeSite::FeatureTree,
             ),
         ] {
@@ -3544,8 +3544,8 @@ mod tests {
         let left_to_the_tree = [
             ProductErrorKind::EvaluationOfAnotherDocument,
             ProductErrorKind::UnknownNode,
-            ProductErrorKind::PieceFailed,
-            ProductErrorKind::PiecePoisoned,
+            ProductErrorKind::ReadFailed,
+            ProductErrorKind::ReadPoisoned,
             ProductErrorKind::EmptyProduct,
             ProductErrorKind::StrandedProduct,
             ProductErrorKind::ProductOutsideWorld,
@@ -3558,8 +3558,8 @@ mod tests {
         .filter(|kind| badge_site(*kind) == BadgeSite::FeatureTree)
         // The row state each class reaches the pane as.
         .map(|kind| match kind {
-            ProductErrorKind::PieceFailed => 0,
-            ProductErrorKind::PiecePoisoned => 1,
+            ProductErrorKind::ReadFailed => 0,
+            ProductErrorKind::ReadPoisoned => 1,
             ProductErrorKind::UnknownNode => 2,
             other => unreachable!("{other:?} is not a class the tree draws"),
         })
@@ -3962,7 +3962,7 @@ mod tests {
             },
             PartFault::PartProductFailed { .. } => 4,
             PartFault::PartProductPoisoned { .. } => 5,
-            PartFault::ProductFailureUnrecorded { .. } => 6,
+            PartFault::PartProductFailureUnrecorded { .. } => 6,
             PartFault::PartProduct { .. } => 7,
             PartFault::ReferenceCycle { .. } => 8,
             PartFault::DepthExceeded => 9,
@@ -4006,7 +4006,7 @@ mod tests {
                 through: RecipeNodeId::new(0, test_utils::refusal::tagged(7)),
                 refusal: nested(),
             },
-            PartFault::ProductFailureUnrecorded {
+            PartFault::PartProductFailureUnrecorded {
                 held: Default::default(),
                 node: RecipeNodeId::new(0, test_utils::refusal::tagged(7)),
             },

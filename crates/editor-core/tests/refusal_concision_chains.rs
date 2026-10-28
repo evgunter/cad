@@ -5176,8 +5176,8 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "ProductFailureUnrecorded",
-            PartFault::ProductFailureUnrecorded {
+            "PartProductFailureUnrecorded",
+            PartFault::PartProductFailureUnrecorded {
                 held: Default::default(),
                 node: RecipeNodeId::new(0, tagged(7)),
             },

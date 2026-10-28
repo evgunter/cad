@@ -402,7 +402,7 @@ impl CarriedRows {
 
     /// Writes every carried name onto the aggregate — once, after the
     /// last source has been carried: `Unique` for one candidate (a
-    /// strict name, or a lone `Part` piece of a separated tie),
+    /// strict name, or a lone `Part` placement's piece of a separated tie),
     /// `Tied` for several.
     ///
     /// # Errors

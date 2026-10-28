@@ -36,7 +36,7 @@ goes to Ev as an `[ev]` PR rather than landing as a cleanup.
 **The product side is done (GATHER, 2026-09-28).** `editor_core::product_recorded`
 no longer calls `topo::per_part_gate_owed`: it gates the aggregate once
 and, only when that refuses, re-gates each source body to name every
-failing root (`ProductError::PieceInvalid`). Re-gating rather than
+failing piece (`ProductError::PieceInvalid`). Re-gating rather than
 reading the aggregate's findings was forced by attribution, and it
 bears on this row's question: tier 3's early stops are body-wide, so an
 aggregate with one solid's check 1–6 finding does not report another

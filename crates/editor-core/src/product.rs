@@ -120,11 +120,12 @@ pub enum ProductError {
         /// The document the handed evaluation is of.
         found: crate::ident::DocumentId,
     },
-    /// A piece has no value in this evaluation, and its standing
-    /// says why and where the repair is: no entry (the run stopped
+    /// The body the product slot reads has no value in this evaluation
+    /// (its node, a `⊔` itself rather than one of its pieces), and its
+    /// standing says why and where the repair is: no entry (the run stopped
     /// before it, or the id is not the document's), failed, or poisoned
     /// through its nearest failed ancestor.
-    Piece(NodeStanding),
+    Read(NodeStanding),
     /// **The product slot reads nothing** (D10 `[operations]`): there
     /// is no product for a door that needs one, and nothing has gone
     /// wrong. The reading is [`ProductErrorKind::means_no_body`]'s.
@@ -347,7 +348,7 @@ impl ProductError {
                 "the evaluation is of document {found}, not of \
                  document {expected}",
             ),
-            Self::Piece(standing) => write!(f, "{}", Said(&standing.of_piece(), by)),
+            Self::Read(standing) => write!(f, "{}", Said(&standing.of_read(), by)),
             Self::EmptyProduct => write!(
                 f,
                 "the product slot reads nothing, so the document has no product. {}",
@@ -460,9 +461,9 @@ impl ProductRefusal {
 /// a [`ProductRefusal`]; this projection is the class alone, for one
 /// that branches on it, hashes it or asserts it.
 ///
-/// One variant per [`ProductError`] arm, except [`ProductError::Piece`],
+/// One variant per [`ProductError`] arm, except [`ProductError::Read`],
 /// whose standing decides which refusal it is to a caller: one variant
-/// per state the feature tree draws a piece in — no entry, failed,
+/// per state the feature tree draws that node in — no entry, failed,
 /// poisoned. [`ProductError::kind`] matches exhaustively, the standing
 /// included, so an arm added to the error or a state added to
 /// [`NodeStanding`] reds `kind` itself, here in this crate.
@@ -480,13 +481,13 @@ impl ProductRefusal {
 pub enum ProductErrorKind {
     /// [`ProductError::EvaluationOfAnotherDocument`].
     EvaluationOfAnotherDocument,
-    /// [`ProductError::Piece`] with no entry for the piece:
+    /// [`ProductError::Read`] with no entry for the read node:
     /// [`NodeStanding::NotEvaluated`] or [`NodeStanding::NotInDocument`].
     UnknownNode,
-    /// [`ProductError::Piece`] carrying [`NodeStanding::Failed`].
-    PieceFailed,
-    /// [`ProductError::Piece`] carrying [`NodeStanding::Poisoned`].
-    PiecePoisoned,
+    /// [`ProductError::Read`] carrying [`NodeStanding::Failed`].
+    ReadFailed,
+    /// [`ProductError::Read`] carrying [`NodeStanding::Poisoned`].
+    ReadPoisoned,
     /// [`ProductError::EmptyProduct`].
     EmptyProduct,
     /// [`ProductError::StrandedProduct`].
@@ -546,8 +547,8 @@ impl ProductErrorKind {
             | Self::ProductOutsideWorld
             | Self::EvaluationOfAnotherDocument
             | Self::UnknownNode
-            | Self::PieceFailed
-            | Self::PiecePoisoned
+            | Self::ReadFailed
+            | Self::ReadPoisoned
             | Self::Frame
             | Self::Graft
             | Self::PieceInvalid
@@ -568,12 +569,12 @@ impl ProductError {
             Self::EvaluationOfAnotherDocument { .. } => {
                 ProductErrorKind::EvaluationOfAnotherDocument
             }
-            Self::Piece(standing) => match standing {
+            Self::Read(standing) => match standing {
                 NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. } => {
                     ProductErrorKind::UnknownNode
                 }
-                NodeStanding::Failed { .. } => ProductErrorKind::PieceFailed,
-                NodeStanding::Poisoned { .. } => ProductErrorKind::PiecePoisoned,
+                NodeStanding::Failed { .. } => ProductErrorKind::ReadFailed,
+                NodeStanding::Poisoned { .. } => ProductErrorKind::ReadPoisoned,
             },
             Self::EmptyProduct => ProductErrorKind::EmptyProduct,
             Self::StrandedProduct { .. } => ProductErrorKind::StrandedProduct,
@@ -1211,13 +1212,13 @@ fn gather<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     if doc.space_of(var).is_none() {
         return Err(ProductError::StrandedProduct { read: var });
     }
-    let value = evaluation.usable(node).map_err(ProductError::Piece)?;
+    let value = evaluation.usable(node).map_err(ProductError::Read)?;
     let mut product = match value.census.as_ref().filter(|census| census.node == node) {
         // A door that assembled pieces: its own census, as it kept it.
         Some(census) => census.verdict(doc, tol)?.fresh(),
         None => {
             let Some(bodies) = sources_of(value) else {
-                return Err(ProductError::Piece(NodeStanding::NotEvaluated { node }));
+                return Err(ProductError::Read(NodeStanding::NotEvaluated { node }));
             };
             // A split's port is its own half.
             let half = matches!(doc.node(node), Some(crate::node::Node::Split { .. }))
@@ -1654,7 +1655,7 @@ mod tests {
     use crate::sentence::Staged;
 
     /// One error per [`ProductError`] arm, and one per standing under
-    /// [`ProductError::Piece`] — a CENSUS, not a sample: every payload
+    /// [`ProductError::Read`] — a CENSUS, not a sample: every payload
     /// this error carries is constructible from here (keys, ids,
     /// `&'static str`, empty finding lists, and one unit arm of the
     /// kernel's own refusal), so no arm is left unbuilt.
@@ -1666,10 +1667,10 @@ mod tests {
                 expected: crate::ident::DocumentId::derive("expected"),
                 found: crate::ident::DocumentId::derive("found"),
             },
-            ProductError::Piece(NodeStanding::NotEvaluated { node }),
-            ProductError::Piece(NodeStanding::NotInDocument { node }),
-            ProductError::Piece(NodeStanding::Failed { node }),
-            ProductError::Piece(NodeStanding::Poisoned { node, through }),
+            ProductError::Read(NodeStanding::NotEvaluated { node }),
+            ProductError::Read(NodeStanding::NotInDocument { node }),
+            ProductError::Read(NodeStanding::Failed { node }),
+            ProductError::Read(NodeStanding::Poisoned { node, through }),
             ProductError::EmptyProduct,
             ProductError::StrandedProduct {
                 read: crate::VarId::new(0, test_utils::refusal::tagged(1)),
@@ -1728,8 +1729,8 @@ mod tests {
             match kind {
                 ProductErrorKind::EvaluationOfAnotherDocument => "EvaluationOfAnotherDocument",
                 ProductErrorKind::UnknownNode => "UnknownNode",
-                ProductErrorKind::PieceFailed => "PieceFailed",
-                ProductErrorKind::PiecePoisoned => "PiecePoisoned",
+                ProductErrorKind::ReadFailed => "ReadFailed",
+                ProductErrorKind::ReadPoisoned => "ReadPoisoned",
                 ProductErrorKind::EmptyProduct => "EmptyProduct",
                 ProductErrorKind::StrandedProduct => "StrandedProduct",
                 ProductErrorKind::ProductOutsideWorld => "ProductOutsideWorld",
@@ -1744,8 +1745,8 @@ mod tests {
             "EvaluationOfAnotherDocument",
             "UnknownNode",
             "UnknownNode",
-            "PieceFailed",
-            "PiecePoisoned",
+            "ReadFailed",
+            "ReadPoisoned",
             "EmptyProduct",
             "StrandedProduct",
             "ProductOutsideWorld",
@@ -1828,18 +1829,18 @@ mod tests {
         }
     }
 
-    /// **A piece with no value is refused with its standing**, under the
+    /// **A read with no value is refused with its standing**, under the
     /// gather's subject: the standing names the node, its state and the
-    /// repair, so the gather adds only that the node is a piece.
+    /// repair, so the gather adds only that the slot reads it.
     #[test]
-    fn a_piece_without_a_value_renders_its_standing() {
+    fn a_read_without_a_value_renders_its_standing() {
         let standing = NodeStanding::Poisoned {
             node: RecipeNodeId::new(0, test_utils::refusal::tagged(4)),
             through: RecipeNodeId::new(0, test_utils::refusal::tagged(2)),
         };
         assert_eq!(
-            ProductError::Piece(standing).to_string(),
-            format!("product: piece {standing}")
+            ProductError::Read(standing).to_string(),
+            format!("product: the body the slot reads: {standing}")
         );
     }
 

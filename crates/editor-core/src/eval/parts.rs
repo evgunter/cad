@@ -231,7 +231,7 @@ pub enum PartFault {
     /// holds no failure there. The two disagree about one node, so this
     /// is a kernel bug, reported typed rather than as a failure with no
     /// cause.
-    ProductFailureUnrecorded {
+    PartProductFailureUnrecorded {
         /// The node the product door named as failed, in the
         /// REFERENCED document's id space.
         node: RecipeNodeId,
@@ -306,7 +306,7 @@ impl PartFault {
             } => Some((*through, refusal, &**held)),
             Self::NoResolver
             | Self::Unresolved { .. }
-            | Self::ProductFailureUnrecorded { .. }
+            | Self::PartProductFailureUnrecorded { .. }
             | Self::PartProduct { .. }
             | Self::ReferenceCycle { .. }
             | Self::DepthExceeded
@@ -325,7 +325,7 @@ impl PartFault {
         match self {
             Self::PartProductFailed { held, .. }
             | Self::PartProductPoisoned { held, .. }
-            | Self::ProductFailureUnrecorded { held, .. }
+            | Self::PartProductFailureUnrecorded { held, .. }
             | Self::PartProduct { held, .. } => Some(&**held),
             Self::NoResolver
             | Self::Unresolved { .. }
@@ -387,7 +387,7 @@ impl PartFault {
                     InThePart(format_args!("repair {through}")),
                 )
             }
-            Self::ProductFailureUnrecorded { node, .. } => {
+            Self::PartProductFailureUnrecorded { node, .. } => {
                 let node = by.node(*node);
                 write!(
                     f,
@@ -510,8 +510,8 @@ fn product_recourse(kind: crate::product::ProductErrorKind) -> ProductRecourse {
         | K::Frame
         | K::EvaluationOfAnotherDocument
         | K::UnknownNode
-        | K::PieceFailed
-        | K::PiecePoisoned => ProductRecourse::KernelDefect,
+        | K::ReadFailed
+        | K::ReadPoisoned => ProductRecourse::KernelDefect,
     }
 }
 
@@ -1043,14 +1043,14 @@ fn product_fault<T: Decide>(
     // over `part`, recording what it names, and once holding them.
     type Arm = Box<dyn Fn(Arc<HeldNodes>) -> PartFault>;
     let unrecorded = |node: RecipeNodeId| -> Arm {
-        Box::new(move |held| PartFault::ProductFailureUnrecorded { node, held })
+        Box::new(move |held| PartFault::PartProductFailureUnrecorded { node, held })
     };
     let mut refusal_at = |failed: RecipeNodeId| match evaluation.nodes.remove(&failed) {
         Some(super::NodeResult::Failed(failure)) => Ok(super::NodeRefusal::from(failure.kind)),
         _ => Err(failed),
     };
     let arm: Arm = match error {
-        crate::product::ProductError::Piece(NodeStanding::Failed { node }) => {
+        crate::product::ProductError::Read(NodeStanding::Failed { node }) => {
             match refusal_at(node) {
                 Ok(refusal) => Box::new(move |held| PartFault::PartProductFailed {
                     node,
@@ -1060,7 +1060,7 @@ fn product_fault<T: Decide>(
                 Err(failed) => unrecorded(failed),
             }
         }
-        crate::product::ProductError::Piece(NodeStanding::Poisoned { node, through }) => {
+        crate::product::ProductError::Read(NodeStanding::Poisoned { node, through }) => {
             match refusal_at(through) {
                 Ok(refusal) => Box::new(move |held| PartFault::PartProductPoisoned {
                     node,

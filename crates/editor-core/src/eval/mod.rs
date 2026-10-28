@@ -567,14 +567,14 @@ impl NodeStanding {
         SubjectStanding("placement", self)
     }
 
-    /// The standing of a piece of the product, as the gather states it:
-    /// `piece`, then the standing.
-    pub(crate) fn of_piece(self) -> SubjectStanding {
-        SubjectStanding("piece", self)
+    /// The standing of the node the product slot reads, as the gather
+    /// states it: `the body the slot reads:`, then the standing.
+    pub(crate) fn of_read(self) -> SubjectStanding {
+        SubjectStanding("the body the slot reads:", self)
     }
 }
 
-/// [`NodeStanding::of_placement`]'s and [`NodeStanding::of_piece`]'s
+/// [`NodeStanding::of_placement`]'s and [`NodeStanding::of_read`]'s
 /// rendering: the one sentence for a subject with no value.
 pub(crate) struct SubjectStanding(&'static str, NodeStanding);
 
@@ -2545,8 +2545,8 @@ impl NodeErrorKind {
     /// that raised it and the refusal itself — the exception written
     /// over this type's `Display`, as a value.
     ///
-    /// Two arms carry one. A part whose piece failed carries that piece's
-    /// refusal, and one whose piece was poisoned carries the refusal of
+    /// Two arms carry one. A part whose product failed carries the failed
+    /// node's refusal, and one whose product was poisoned carries the refusal of
     /// the node that poisoned it, in the REFERENCED document's id space; a mate whose
     /// placer's own row cannot state its refusal carries the placer's,
     /// in the mate's document. One step only: a surface reads the whole

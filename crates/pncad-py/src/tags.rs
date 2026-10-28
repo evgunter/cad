@@ -1008,7 +1008,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::PartDepthExceeded => "part_depth_exceeded",
         C::PartNotEntered => "part_not_entered",
         // The mate solve's refusals tag per FAULT, the way
-        // the root invariants do — an overconstrained bundle, a lever
+        // the part faults above do — an overconstrained bundle, a lever
         // that cannot be formed and a pose that did not evaluate carry
         // different recourses, so a caller
         // branches on which one fired, not on "a mate failed".
@@ -2278,8 +2278,8 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
     match err.kind() {
         K::EvaluationOfAnotherDocument => "evaluation_of_another_document",
         K::UnknownNode => "unknown_node",
-        K::PieceFailed => "piece_failed",
-        K::PiecePoisoned => "piece_poisoned",
+        K::ReadFailed => "read_failed",
+        K::ReadPoisoned => "read_poisoned",
         K::EmptyProduct => "empty_product",
         K::StrandedProduct => "stranded_product",
         K::ProductOutsideWorld => "product_outside_world",

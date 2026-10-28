@@ -253,7 +253,7 @@ fn refuses_the_failed_placement(
         Err(refusal) => assert!(
             matches!(
                 *refusal,
-                editor_core::ProductError::Piece(editor_core::NodeStanding::Poisoned {
+                editor_core::ProductError::Read(editor_core::NodeStanding::Poisoned {
                     through,
                     ..
                 }) if through == badref

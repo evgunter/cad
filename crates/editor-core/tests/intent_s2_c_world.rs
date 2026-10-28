@@ -399,7 +399,7 @@ fn an_empty_world_names_the_unplaced_and_a_stranded_placement_refuses() {
     // The slot reads the placement's copy, and the placement's read is
     // gone: the gather refuses at the placement, failed.
     match product(&doc, &ev(&doc), Tol::witness()) {
-        Err(ProductError::Piece(editor_core::NodeStanding::Failed { node })) => {
+        Err(ProductError::Read(editor_core::NodeStanding::Failed { node })) => {
             assert_eq!(node, placement, "the gather names the stranded placement");
         }
         other => panic!("a stranded placement refuses: {other:?}"),

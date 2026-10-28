@@ -1,4 +1,4 @@
-//! **A part's piece failure draws one level per document, each line the
+//! **A part's product failure draws one level per document, each line the
 //! node's own and each within the budget.**
 //!
 //! An instance whose part does not evaluate names the part's failed
@@ -235,7 +235,7 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
     std::fs::remove_dir_all(&dir).expect("remove the fixture directory");
 }
 
-/// **A poisoned piece draws the failure that poisoned it, at depth 2.**
+/// **A poisoned part product draws the failure that poisoned it, at depth 2.**
 ///
 /// `broken.pncad` is [`common::broken_document`]: its extrude refuses
 /// and its one piece, a placement of the extrude, never runs.
@@ -249,7 +249,7 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
 /// at the failing node, drawn byte for byte as its own document draws
 /// it.
 #[test]
-fn a_poisoned_part_piece_draws_the_failure_that_poisoned_it() {
+fn a_poisoned_part_product_draws_the_failure_that_poisoned_it() {
     let tol = Tol::witness();
     let dir = common::tempdir("partroot-poisoned");
     let mut store = Workspace::open(&dir).expect("the empty workspace opens");

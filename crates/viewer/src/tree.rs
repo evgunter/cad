@@ -16,7 +16,7 @@
 //! verdict is the comparison it decided ([`Asserted::comparison`]),
 //! out of the kernel's own relation and two computed values.
 //!
-//! A failure that CARRIES another node's refusal — a part whose piece
+//! A failure that CARRIES another node's refusal — a part whose product
 //! failed or was poisoned, a mate whose pose did not evaluate — points at the
 //! node that failed and never quotes it, so the carried refusal is
 //! drawn under the row as a line of its own, and so on down, one line

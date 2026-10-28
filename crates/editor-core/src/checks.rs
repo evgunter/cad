@@ -2322,7 +2322,7 @@ mod tests {
     fn the_subject_door_routes_an_absence_away_from_the_unavailable_arm() {
         for refusal in [
             crate::ProductError::EmptyProduct,
-            crate::ProductError::Piece(crate::NodeStanding::Poisoned {
+            crate::ProductError::Read(crate::NodeStanding::Poisoned {
                 node: RecipeNodeId::new(0, 7),
                 through: RecipeNodeId::new(0, 2),
             }),

@@ -88,7 +88,7 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
     };
     let none = || py.None();
     match err {
-        E::Piece(standing) => (
+        E::Read(standing) => (
             id(&standing.node()),
             standing.through().map_or_else(none, |through| id(&through)),
             none(),

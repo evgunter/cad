@@ -152,7 +152,7 @@ fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_resident
     assert!(
         matches!(
             refusal,
-            ProductError::Piece(NodeStanding::Poisoned { through, .. }) if through == placement
+            ProductError::Read(NodeStanding::Poisoned { through, .. }) if through == placement
         ),
         "the premise: the gather refuses the product's `⊔`, poisoned through the failed \
          placement: {refusal:?}"

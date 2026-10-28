@@ -133,8 +133,8 @@ mod node_labels;
 mod panel_display;
 #[path = "panel_edits.rs"]
 mod panel_edits;
-#[path = "part_piece_carried.rs"]
-mod part_piece_carried;
+#[path = "part_product_carried.rs"]
+mod part_product_carried;
 #[path = "path_authoring.rs"]
 mod path_authoring;
 #[path = "pick3_acceptance.rs"]

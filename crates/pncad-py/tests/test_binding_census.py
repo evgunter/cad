@@ -741,8 +741,9 @@ BOUND_AS = {
     # `gap` roster at LIB-G18a, when the resolver parameter made them
     # reachable: the tags existed before it, and `part_no_resolver` was
     # the only one an evaluation could produce. The refusal a failed
-    # part root, or a poisoned root's failed ancestor, CARRIES crosses
-    # as the exception's `__cause__`, an `EvaluationError` of its own.
+    # node a part's product reads, or a poisoned one's failed
+    # ancestor, CARRIES crosses as the exception's `__cause__`, an
+    # `EvaluationError` of its own.
     "PartFault": "EvaluationError.kind",
     "PartResolver": "Workspace",
     # The read-back doors, which hang off the evaluation because a
@@ -1372,8 +1373,8 @@ BOUND_AS = {
     "ProductReadFault": "EditError.inner_variant",
     "Pick": "PickRead",
     # What a `PieceInvalid` refusal lists, one per failing source body;
-    # the arm crosses as its tag word, its first failing root as
-    # `node`, and every root, output and finding in its message.
+    # the arm crosses as its tag word, its first failing piece as
+    # `node`, and every piece, output and finding in its message.
     "SourceFinding": "ProductError.node",
     "RAD": "rad",
     "RecipeNodeId": "NodeId",
@@ -3864,7 +3865,6 @@ MEMBERS_BOUND_AS = {
     "PersistError::ToleranceConflict": "PersistError.variant",
     "PersistError::ToleranceInvalid": "PersistError.variant",
     "ProductError::EvaluationOfAnotherDocument": "ProductError.variant",
-    "ProductError::Piece": "ProductError.variant",
     "ProductError::EmptyProduct": "ProductError.variant",
     "ProductError::StrandedProduct": "ProductError.variant",
     "ProductError::ProductOutsideWorld": "ProductError.variant",
@@ -4183,6 +4183,12 @@ ARMS_SPELLED_BY_A_PROPERTY = {
     "CheckEvidence::CarriedCoincidence": "CheckEvidence.carried_coincidence",
     "CheckEvidence::AtRest": "CheckEvidence.at_rest",
     "AtRestEvidence::Carried": "AtRestEvidence.carried",
+    # A FIELD getter that shares the arm's word by accident: `read` is
+    # the slot's read a stranded or outside-world refusal carries. The
+    # `Read` arm itself crosses as the tag word (`variant ==
+    # "read_failed"`, `"read_poisoned"`, `"unknown_node"`), with its
+    # node as `node`.
+    "ProductError::Read": "ProductError.read",
 }
 
 #: Members with no Python spelling at all, by family — `NOT_BOUND`'s three

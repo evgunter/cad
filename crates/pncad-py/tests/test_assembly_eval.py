@@ -605,7 +605,7 @@ class TestAPartWhosePieceIsPoisoned(unittest.TestCase):
         with self.assertRaises(pncad.ProductError) as caught:
             pncad.product(self.part, evaluate(self.part))
         refusal = caught.exception
-        self.assertEqual(refusal.variant, "piece_poisoned")
+        self.assertEqual(refusal.variant, "read_poisoned")
         self.assertEqual(
             (refusal.node, refusal.through),
             (self.placed, self.extrude),
