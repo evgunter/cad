@@ -37,6 +37,21 @@
 //! coordinates and then framed (it has no expansion to spare, and its
 //! point's channels stay together), so each of its controls carries the
 //! rounding of its world point as well as the frame's.
+//!
+//! [`framed_span_net`] is one span of a curved closed form's net, at a
+//! degree its caller names: a single Bézier segment expanded over the
+//! span alone, so it encloses the carrier there whatever its
+//! neighbours are (limb 2's first reading, `pcurve_cache::limb2_quick`,
+//! reads one per dyadic span). It takes the **factored path**: rather
+//! than converting each coordinate's Taylor polynomial to Bernstein form
+//! ([`span_bernstein`]), it converts `α` and `β` once
+//! ([`factored_basis_of`], through the one conversion both paths share,
+//! [`taylor_to_bernstein`]) and forms each coordinate as `p₀ + u·Aᵢ +
+//! v·Bᵢ` plus `u·Rα + v·Rβ`, which encloses the same reals at a few
+//! operations per coefficient and rounds on its own path. The span
+//! bases both paths read are memoised on `α`'s data, the span and the
+//! degree ([`crate::memo`]). [`has_span_nets`] names the kinds that have
+//! span nets: the curved closed forms.
 
 use geom::Curve3;
 use geom_core::interval::Interval;
@@ -333,26 +348,15 @@ fn span_basis_of(alpha: &Alpha, a: f64, b: f64, n: usize) -> SpanBasis {
 /// of what the basis reads: an uncertified datum makes an uncertified
 /// basis, which the net refuses). A pure function of the key, so a hit
 /// is the bits a miss computes, and an entry left from another carrier
-/// with the same `α` and span is that key's basis.
+/// with the same `α` and span is that key's basis ([`crate::memo`]).
 fn span_basis(alpha: &Alpha, a: f64, b: f64, n: usize) -> SpanBasis {
-    const CAPACITY: usize = 4096;
     std::thread_local! {
-        static MEMO: core::cell::RefCell<std::collections::HashMap<[u64; 10], SpanBasis>> =
-            core::cell::RefCell::new(std::collections::HashMap::new());
+        static MEMO: core::cell::RefCell<crate::memo::Memo<[u64; 10], SpanBasis>> =
+            core::cell::RefCell::new(crate::memo::Memo::new());
     }
-    let key = basis_key(alpha, a, b, n);
-    if let Some(hit) = MEMO.with(|m| m.borrow().get(&key).cloned()) {
-        return hit;
-    }
-    let basis = span_basis_of(alpha, a, b, n);
-    MEMO.with(|m| {
-        let mut m = m.borrow_mut();
-        if m.len() >= CAPACITY {
-            m.clear();
-        }
-        m.insert(key, basis.clone());
-    });
-    basis
+    crate::memo::read(&MEMO, basis_key(alpha, a, b, n), || {
+        span_basis_of(alpha, a, b, n)
+    })
 }
 
 /// [`span_basis`]'s key: `α`'s data, the span's ends and the degree.
@@ -410,21 +414,11 @@ fn span_bernstein(h: &Harmonic, a: f64, b: f64, n: usize) -> ([Vec<Interval>; 3]
         let node = channel(p0, u, v, &at_node.0, &at_node.1);
         let span = channel(p0, u, v, &over_span.0, &over_span.1);
         let rest = span[n + 1] * *reach;
-        // The polynomial's coefficients in `s`.
-        let mut mono = vec![Interval::zero(); n + 1];
-        for (j, cj) in node.iter().take(n + 1).enumerate() {
-            for (k, mk) in mono.iter_mut().enumerate().take(j + 1) {
-                *mk = *mk + *cj * terms[j][k];
-            }
-        }
-        // Monomial to Bernstein: `bᵢ = Σ_{k≤i} C(i,k)/C(n,k)·aₖ`; the
-        // polynomial's own coefficient first, whose width is the
+        // The polynomial's own coefficient first, whose width is the
         // rounding no round removes, and the remainder after.
-        (0..=n)
-            .map(|i| {
-                let poly = (0..=i).fold(Interval::zero(), |acc, k| {
-                    acc + mono[k] * choose[i][k] / choose[n][k]
-                });
+        taylor_to_bernstein(&node, terms, choose, n)
+            .into_iter()
+            .map(|poly| {
                 let width = if poly.is_certified() {
                     Bounds::hi(poly) - Bounds::lo(poly)
                 } else {
@@ -443,9 +437,48 @@ fn span_bernstein(h: &Harmonic, a: f64, b: f64, n: usize) -> ([Vec<Interval>; 3]
     (rows, rounding)
 }
 
-/// The wider of two widths, NaN where either is: a control that does
-/// not certify has no width to read.
-fn widest(m: f64, w: f64) -> f64 {
+/// The diagonal of a box given as each channel's `(least, greatest)`:
+/// [`CarrierNet::extent`] of a net whose [`CarrierNet::control_box`] it
+/// is, and of a union of such boxes.
+pub(crate) fn diagonal(b: &[(f64, f64); 3]) -> f64 {
+    b.iter()
+        .map(|(lo, hi)| (hi - lo).powi(2))
+        .sum::<f64>()
+        .sqrt()
+}
+
+/// A span's Taylor coefficients at its node (`node[..=n]`) as its
+/// degree-`n` Bernstein coefficients in `s`: first the polynomial's
+/// coefficients in `s` through the span's power rows (`terms`), then
+/// `bᵢ = Σ_{k≤i} C(i,k)/C(n,k)·aₖ` (`choose` holding the binomials).
+/// The one conversion both [`span_bernstein`] (per coordinate) and
+/// [`factored_basis_of`] (per harmonic, `α` and `β` alone) read.
+fn taylor_to_bernstein(
+    node: &[Interval],
+    terms: &[Vec<Interval>],
+    choose: &[Vec<Interval>],
+    n: usize,
+) -> Vec<Interval> {
+    let mut mono = vec![Interval::zero(); n + 1];
+    for (j, cj) in node.iter().take(n + 1).enumerate() {
+        for (k, mk) in mono.iter_mut().enumerate().take(j + 1) {
+            *mk = *mk + *cj * terms[j][k];
+        }
+    }
+    (0..=n)
+        .map(|i| {
+            (0..=i).fold(Interval::zero(), |acc, k| {
+                acc + mono[k] * choose[i][k] / choose[n][k]
+            })
+        })
+        .collect()
+}
+
+/// The greater of two non-negative magnitudes (widths, bounds), NaN
+/// where either is: a control that does not certify has no width to
+/// read, and a refused part refuses the bound (`f64::max` would pass
+/// over its NaN). The one such fold limb 2 reads.
+pub(crate) fn widest(m: f64, w: f64) -> f64 {
     if m.is_nan() || w.is_nan() {
         f64::NAN
     } else {
@@ -542,26 +575,7 @@ impl CarrierNet {
     /// hull of a net with positive weights). NaN where a control does
     /// not certify.
     pub(crate) fn extent(&self) -> f64 {
-        let reach = |row: &Vec<Interval>| {
-            let lo = row
-                .iter()
-                .map(|c| Bounds::lo(*c))
-                .fold(f64::INFINITY, f64::min);
-            let hi = row
-                .iter()
-                .map(|c| Bounds::hi(*c))
-                .fold(f64::NEG_INFINITY, f64::max);
-            hi - lo
-        };
-        if !self.coords.iter().flatten().all(|c| c.is_certified()) {
-            return f64::NAN;
-        }
-        self.coords
-            .iter()
-            .map(reach)
-            .map(|r| r.powi(2))
-            .sum::<f64>()
-            .sqrt()
+        self.control_box().map_or(f64::NAN, |b| diagonal(&b))
     }
 
     /// Each channel's `(least, greatest)` over the net's controls, the
@@ -714,7 +728,8 @@ pub(crate) fn framed_carrier_net<T: CertifiedBounds>(
 /// `order`, written in `frame`** — a single Bézier segment, expanded
 /// over the span alone as [`framed_carrier_net`] expands each of its
 /// spans, so it encloses the carrier over `[a, b]` whatever its
-/// neighbours are. A line or a spline is no Taylor net and refuses.
+/// neighbours are. A carrier [`has_span_nets`] refuses is no Taylor net
+/// and refuses.
 ///
 /// # Errors
 ///
@@ -725,16 +740,13 @@ pub(crate) fn framed_span_net<T: CertifiedBounds>(
     frame: &Frame,
     order: usize,
 ) -> Result<CarrierNet, CarrierEnclosureRefusal> {
-    if matches!(carrier, Curve3::Nurbs(_) | Curve3::Line { .. }) {
-        return Err(CarrierEnclosureRefusal {
-            kind: carrier.kind(),
-            span: (a, b),
-        });
-    }
     let refuse = || CarrierEnclosureRefusal {
         kind: carrier.kind(),
         span: (a, b),
     };
+    if !has_span_nets(carrier) {
+        return Err(refuse());
+    }
     let h = harmonic(carrier, Some(frame)).ok_or_else(refuse)?;
     let (coords, rounding) = factored_bernstein(&h, a, b, order);
     if !coords.iter().all(|row| span_certifies(row)) {
@@ -750,6 +762,15 @@ pub(crate) fn framed_span_net<T: CertifiedBounds>(
         cuts: Vec::new(),
         rounding,
     })
+}
+
+/// **Whether a carrier has span nets** ([`framed_span_net`]): a curved
+/// closed form (circle, ellipse, spiric), which is a Taylor expansion
+/// in its angle. A line is its own degree-1 net and a spline its own
+/// net, so neither has one. The one place the kinds are told apart for
+/// limb 2's first reading.
+pub(crate) fn has_span_nets<T: Real>(carrier: &Curve3<T>) -> bool {
+    !matches!(carrier, Curve3::Nurbs(_) | Curve3::Line { .. })
 }
 
 /// **`α` and `β` alone over a span, in Bernstein form**: each one's
@@ -779,21 +800,7 @@ fn factored_basis_of(alpha: &Alpha, a: f64, b: f64, n: usize) -> FactoredBasis {
         terms,
         choose,
     } = span_basis(alpha, a, b, n);
-    let bernstein = |node: &Series| -> Vec<Interval> {
-        let mut mono = vec![Interval::zero(); n + 1];
-        for (j, cj) in node.iter().take(n + 1).enumerate() {
-            for (k, mk) in mono.iter_mut().enumerate().take(j + 1) {
-                *mk = *mk + *cj * terms[j][k];
-            }
-        }
-        (0..=n)
-            .map(|i| {
-                (0..=i).fold(Interval::zero(), |acc, k| {
-                    acc + mono[k] * choose[i][k] / choose[n][k]
-                })
-            })
-            .collect()
-    };
+    let bernstein = |node: &Series| taylor_to_bernstein(node, &terms, &choose, n);
     FactoredBasis {
         alpha: bernstein(&at_node.0),
         beta: bernstein(&at_node.1),
@@ -803,26 +810,15 @@ fn factored_basis_of(alpha: &Alpha, a: f64, b: f64, n: usize) -> FactoredBasis {
 
 /// [`factored_basis_of`] through a bounded thread-local memo keyed as
 /// [`span_basis`]'s is (a pure function of the key, so a hit is the
-/// bits a miss computes).
+/// bits a miss computes; [`crate::memo`]).
 fn factored_basis(alpha: &Alpha, a: f64, b: f64, n: usize) -> FactoredBasis {
-    const CAPACITY: usize = 4096;
     std::thread_local! {
-        static MEMO: core::cell::RefCell<std::collections::HashMap<[u64; 10], FactoredBasis>> =
-            core::cell::RefCell::new(std::collections::HashMap::new());
+        static MEMO: core::cell::RefCell<crate::memo::Memo<[u64; 10], FactoredBasis>> =
+            core::cell::RefCell::new(crate::memo::Memo::new());
     }
-    let key = basis_key(alpha, a, b, n);
-    if let Some(hit) = MEMO.with(|m| m.borrow().get(&key).cloned()) {
-        return hit;
-    }
-    let basis = factored_basis_of(alpha, a, b, n);
-    MEMO.with(|m| {
-        let mut m = m.borrow_mut();
-        if m.len() >= CAPACITY {
-            m.clear();
-        }
-        m.insert(key, basis.clone());
-    });
-    basis
+    crate::memo::read(&MEMO, basis_key(alpha, a, b, n), || {
+        factored_basis_of(alpha, a, b, n)
+    })
 }
 
 /// The span `[a, b]`'s degree-`n` Bernstein coefficients per coordinate
@@ -1328,8 +1324,13 @@ mod tests {
                                             * si.powi(i32::try_from(i).unwrap())
                                             * (one - si).powi(i32::try_from(order - i).unwrap())
                                     });
+                            // `want` is the carrier evaluated in `f64`:
+                            // a few ulps of its size, far below the
+                            // remainder of a degree-6 span of 0.05 (about
+                            // 1e-13), which this slack leaves visible.
+                            let slack = 8.0 * f64::EPSILON * (1.0 + want.abs());
                             assert!(
-                                val.lo() - 1e-12 <= want && want <= val.hi() + 1e-12,
+                                val.lo() - slack <= want && want <= val.hi() + slack,
                                 "{carrier:?} degree {order} over [{a}, {b}] at s = {s}, \
                                  channel {d}: {want} outside [{}, {}]",
                                 val.lo(),

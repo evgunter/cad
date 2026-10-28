@@ -38,9 +38,11 @@ fn c() -> Point3<f64> {
 /// for a hollow tube) or more, an arc window's ends put meridian circles
 /// on the torus walls, which limb 2 bounds past the finest band — the
 /// torus composite's conditioning over the circles' own rounding
-/// (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`;
-/// the "fifty" describes the rows measured, it is no threshold the
-/// kernel reads). A full period has no such circle, and builds.
+/// (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+/// Fifty is a threshold chosen between the rows measured, not one the
+/// kernel reads: the probes' rings at 25 times their tube build at
+/// `ε = 1e-12`, and those at 52.6 times refuse; no probe ring lies
+/// between. A full period has no such circle, and builds.
 fn kernel_limit_rows(major: f64, tube: f64, arc: bool) -> &'static [f64] {
     if arc && major >= 50.0 * tube {
         &[1e-12]

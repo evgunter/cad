@@ -116,13 +116,18 @@ carrier. A curved closed form is read first on the dyadic spans of
 its angle parameter (multiples of `τ/2ᵈ`), each enclosed alone at a
 higher Taylor degree and composed alone, an uncleared span halved
 into its dyadic halves (`pcurve_cache::limb2_quick`). A span may
-reach past the edge's ends, since a bound over a span holding the
-window bounds the window; one past them that does not clear is read
-again within them. That reading only passes: where it does not clear,
-the rounds below read the carrier as though it had not been taken,
-and every refusal is theirs. A span's reading is a function of the
-carrier, the operand and the span, never the window, so edges sharing
-a carrier and an operand read their shared spans once. Where the bound does
+reach past the edge's ends, since a bound over a span holding a piece
+of the window bounds that piece. A span past them that still halves
+its bound keeps halving, its halves past the ends dropped; one whose
+halving no longer halves its bound is read again clipped to the ends,
+and halved clipped from then on. That reading only passes, and only on
+cleared parts that cover the edge's outer ends with no gap; a span it
+cannot halve further ends it. Where it does not pass, the rounds below
+read the carrier as though it had not been taken, and every refusal is
+theirs. A span's reading is a function of the carrier, the operand,
+the chart (a cone's nappe, taken from the window's middle) and the
+span, so edges sharing a carrier, an operand and a nappe read their
+shared spans once. Where the bound does
 not clear the band, the composite's uncleared spans are halved round by
 round, each piece cut from its Bézier segment's own row so no cut
 compounds another's width, and the rounds stop (`round_floored`) once

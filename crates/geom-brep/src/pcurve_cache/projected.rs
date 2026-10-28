@@ -2012,15 +2012,8 @@ fn read_round<T: Decide>(
             .max(after.map_or(0.0, |s| s.floors.0))
     };
     Ok(Hull {
-        // A refused part refuses the bound (`f64::max` would pass
-        // over its NaN).
-        sup: spans.iter().fold(0.0, |m: f64, &b| {
-            if m.is_nan() || b.is_nan() {
-                f64::NAN
-            } else {
-                m.max(b)
-            }
-        }),
+        // A refused part refuses the bound.
+        sup: spans.iter().copied().fold(0.0, crate::carrier_net::widest),
         breaks: read
             .iter()
             .map(|s| s.range.0)
