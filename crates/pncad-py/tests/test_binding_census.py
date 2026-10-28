@@ -3963,6 +3963,7 @@ MEMBERS_BOUND_AS = {
     "TessellateError::TrimLoopOrientation": "TessellateError.variant",
     "TessellateError::FoldedTriangle": "TessellateError.variant",
     "TessellateError::ChordSegmentReused": "TessellateError.variant",
+    "TessellateError::BoundaryEar": "TessellateError.variant",
     "TessellateError::SphereTrimShape": "TessellateError.variant",
     "UpdateError::NoSuchReference": "UpdateError.variant",
     "UpdateError::AlreadyPinned": "UpdateError.variant",

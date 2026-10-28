@@ -443,8 +443,9 @@ fn the_oblique_corners_mesh() {
             &sweep::test_support::at_rest(&f.body, Tol::witness()),
             Tol::witness(),
         )
-            .volume;
+        .volume;
         mesh::validate::check_volume(&mesh, volume, 5e-3)
             .unwrap_or_else(|e| panic!("{name} at r {r}: the mesh encloses the body, got {e:?}"));
+        crate::common::differential::assert_outward(&format!("{name} at r {r}"), &f.body, &mesh);
     }
 }

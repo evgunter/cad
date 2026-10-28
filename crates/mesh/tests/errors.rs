@@ -117,6 +117,7 @@ test_utils::f6_variants! {
         TrimLoopOrientation,
         FoldedTriangle,
         ChordSegmentReused,
+        BoundaryEar,
         SphereTrimShape,
     ];
 }
@@ -304,6 +305,10 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
         (
             TessellateError::ChordSegmentReused { face },
             vec!["chord segment twice", "four triangles"],
+        ),
+        (
+            TessellateError::BoundaryEar { face },
+            vec!["consecutive boundary chord points", "four"],
         ),
         (
             TessellateError::SphereTrimShape {

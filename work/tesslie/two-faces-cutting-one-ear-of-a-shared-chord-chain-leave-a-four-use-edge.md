@@ -33,14 +33,39 @@ sees it. In practice a lattice point near the chain keeps a curved face
 from the ear, which is why it surfaced on a face about two lattice
 cells across.
 
-**What the unit did.** The sphere arm's CDT now runs in the chart's
-metric at the trim box's mid latitude (`(u·cos v_mid, v)` to a power of
-two, `trimmed::tessellate_trimmed`'s sphere arm), where a small face's
-boundary circle is near round and every ear's circumcircle holds the
-face's interior points, so the arm cuts none there, and the row meshes.
-That is a steer, not a guarantee.
+**The steer did not hold (PR 5920's review, B4).** The sphere arm's CDT
+was moved to the chart's metric at the trim box's mid latitude
+(`(u·cos v_mid, v)` to a power of two), where a small face's boundary
+circle is near round. The review then measured the same row at δ 4e-3
+(`Intersect` at latitude 60°): `tessellate` answered `Ok` and
+`check_mesh` refused it `NonManifoldEdge { edge: (0, 3), count: 4 }`
+twice (sphere patch 1v1 with planar 8v5, and 5v3 with 8v1). The fix
+pass's δ sweep of the PR's witness corpus (554 bodies × 9 δ from 4e-2
+to 2.5e-4) found 17 such meshes: this cap at both latitudes from 4e-2
+to 4e-3, the pole-strut slab at 4e-2, and a slab tilted −20° at 2e-2.
 
-**What would settle it.** A census at the fold that refuses typed (or
-re-triangulates) when two patches emit the same triangle on a shared
-chain, or a lane rule that no triangle has all three corners on one
-edge's chord list.
+**Why no patch sees it alone.** The four-use edge is the ear's
+DIAGONAL, and each patch uses it twice: the ear on one side, its
+neighbour triangle on the other, as any interior edge. A per-patch
+count of segment uses does not see it. The pass added that census too
+(`trimmed::segment_reused`, refusing `ChordSegmentReused`), and it
+fired on none of the 17.
+
+**What ships (the cure).** A curved face on an analytic arm (trimmed
+cylinder or sphere) keeps no ear. A kept triangle on three consecutive
+points of the trim polygon has its UV centroid inserted and the face
+rebuilt, which splits it (`TrimmedFace::attempt`'s ear cure). An ear
+the retry budget does not clear refuses `BoundaryEar`. The neighbour
+may still cut the ear: a plane cap's convex polygon cuts ears freely.
+But the curved side then holds three triangles about an interior
+point, so no triangle is made twice. After the cure the same sweep
+reads all 5535 meshes manifold and enclosing their bodies' volumes. The
+witness is pinned in `crates/sweep/tests/snowman.rs`,
+`a_cut_ends_at_the_nearest_of_several_boundary_hits`, at δ 4e-2, 2e-2,
+1e-2, 5e-3 and 4e-3.
+
+**What is left.** The NURBS arm and the curved lane still may keep an
+ear, and the planar lane cuts them by design. A face pair where neither
+side is an analytic trimmed face (curved lane against planar, say) is
+not covered. A census at the fold that reads triangle uses across
+patches would cover every lane.

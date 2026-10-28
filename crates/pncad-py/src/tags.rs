@@ -2449,6 +2449,7 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::TrimLoopOrientation { .. } => "trim_loop_orientation",
         TessellateError::FoldedTriangle { .. } => "folded_triangle",
         TessellateError::ChordSegmentReused { .. } => "chord_segment_reused",
+        TessellateError::BoundaryEar { .. } => "boundary_ear",
         TessellateError::SphereTrimShape { .. } => "sphere_trim_shape",
     }
 }

@@ -566,6 +566,15 @@ pub enum TessellateError {
         /// The face whose patch reuses the segment.
         face: FaceKey,
     },
+    /// A trimmed face on an analytic chart keeps an ear of its boundary
+    /// polygon (a triangle on three consecutive chord points) after the
+    /// retry budget: the neighbour across that chain may cut the same
+    /// ear, which would make one triangle twice and their diagonal an
+    /// edge of four triangles, so it refuses.
+    BoundaryEar {
+        /// The face whose patch keeps the ear.
+        face: FaceKey,
+    },
     /// A trimmed sphere face whose shape the sphere arm does not mesh
     /// ([`SphereTrimCause`] names which), at `edge`, the boundary edge
     /// that shows it.
@@ -819,6 +828,12 @@ impl core::fmt::Display for TessellateError {
                  cutting an ear of a chord chain it shares with another face — the \
                  two faces would meet in an edge of four triangles; a different δ \
                  may clear it",
+            ),
+            Self::BoundaryEar { .. } => f.write_str(
+                "tessellate: a trimmed face's patch keeps a triangle on three \
+                 consecutive boundary chord points after its retries — the face \
+                 across that chain may cut the same one, leaving an edge of four \
+                 triangles; a different δ may clear it",
             ),
             Self::SphereTrimShape { cause, .. } => {
                 let what = match cause {

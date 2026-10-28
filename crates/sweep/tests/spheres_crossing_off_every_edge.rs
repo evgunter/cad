@@ -116,7 +116,6 @@ fn check(
     let Ok(Some(bb)) = out.as_ref().map(BooleanResult::body) else {
         panic!("{label}: wanted a body, got {out:?}");
     };
-    crate::common::differential::delta_probe(label, &bb.body, volume);
     match want {
         Draws => {
             let m = mesh::tessellate(&bb.body, 5e-3, tol)
@@ -124,6 +123,7 @@ fn check(
             mesh::validate::check_mesh(&m).unwrap_or_else(|e| panic!("{label}: the mesh: {e:?}"));
             mesh::validate::check_volume(&m, volume, 5e-3)
                 .unwrap_or_else(|e| panic!("{label}: the mesh encloses the body, got {e:?}"));
+            crate::common::differential::assert_outward(label, &bb.body, &m);
         }
         Folds => {
             let drawn = mesh::tessellate(&bb.body, 5e-3, tol);

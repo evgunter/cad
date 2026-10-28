@@ -48,13 +48,24 @@ fn ball(r: f64, c: Vec3<f64>) -> AtRestBody<f64> {
 /// [`assert_solid`], then a mesh at δ = 1e-2 that `check_mesh` passes:
 /// the sphere faces a tilted circle bounds mesh through the trimmed
 /// lane's sphere arm.
+///
+/// Meshed at δ 1e-2, and at 2e-2 and 4e-2 too: PR 5920's review found
+/// triangles folded over the chord beside a tilted circle at the coarser
+/// two (`sphere_pairs_tilted_against_both_charts…` at 2e-2,
+/// `a_pierce_off_the_seam_plane…` at 4e-2), which the mesher now drops
+/// and rebuilds, and every triangle is read for its winding.
 fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
     assert_solid(label, body, expected);
-    let mesh = mesh::tessellate(body, 1e-2, Tol::witness())
-        .unwrap_or_else(|e| panic!("{label}: tessellate, got {e:?}"));
-    mesh::validate::check_mesh(&mesh).unwrap_or_else(|e| panic!("{label}: the mesh: {e:?}"));
-    mesh::validate::check_volume(&mesh, expected, 1e-2)
-        .unwrap_or_else(|e| panic!("{label}: the mesh encloses the body, got {e:?}"));
+    for delta in [1e-2, 2e-2, 4e-2] {
+        let mesh = mesh::tessellate(body, delta, Tol::witness())
+            .unwrap_or_else(|e| panic!("{label}, δ {delta}: tessellate, got {e:?}"));
+        mesh::validate::check_mesh(&mesh)
+            .unwrap_or_else(|e| panic!("{label}, δ {delta}: the mesh: {e:?}"));
+        mesh::validate::check_volume(&mesh, expected, delta).unwrap_or_else(|e| {
+            panic!("{label}, δ {delta}: the mesh encloses the body, got {e:?}")
+        });
+        crate::common::differential::assert_outward(&format!("{label}, δ {delta}"), body, &mesh);
+    }
 }
 
 /// Every tier of validation, then the volume against `expected` through
@@ -62,7 +73,6 @@ fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
 /// the slack is rounding's and a wrong arc (the complement of a cap
 /// selected) misses by the cap's own volume.
 fn assert_solid(label: &str, body: &Body<f64>, expected: f64) {
-    crate::common::differential::delta_probe(label, body, expected);
     assert_eq!(topo::validate(body), Ok(()), "{label}: validate");
     assert_eq!(
         topo::validate_closed(body),
@@ -545,7 +555,10 @@ fn a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed() {
 /// now, so a coarser δ asks fewer chords, never more.
 #[test]
 fn a_section_near_a_pole_meshes_at_every_delta() {
-    let (a, b) = (ball(1.0, Vec3::new(0.0, 0.0, 0.0)), ball(1.0, Vec3::new(1.0, 0.8, 0.0)));
+    let (a, b) = (
+        ball(1.0, Vec3::new(0.0, 0.0, 0.0)),
+        ball(1.0, Vec3::new(1.0, 0.8, 0.0)),
+    );
     let out = run(BooleanOp::Union, &a, &b).expect("the pair unions");
     let body = &out.body().expect("a body").body;
     let expected = 2.0 * ball_volume(1.0) - lens_volume(1.0, 1.0, 1.0f64.hypot(0.8));

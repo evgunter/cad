@@ -57,12 +57,12 @@ fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
     );
     mesh::validate::check_volume(&m, expected, 1e-3)
         .unwrap_or_else(|e| panic!("{label}: the mesh encloses the body, got {e:?}"));
+    crate::common::differential::assert_outward(label, body, &m);
     assert_solid(label, body, expected);
 }
 
 /// [`assert_body`] short of the mesh.
 fn assert_solid(label: &str, body: &Body<f64>, expected: f64) {
-    crate::common::differential::delta_probe(label, body, expected);
     assert_eq!(topo::validate(body), Ok(()), "{label}: validate");
     assert_eq!(
         topo::validate_closed(body),
@@ -1093,6 +1093,22 @@ fn a_slab_cutting_a_cap_off_a_pole_strut_carve_builds() {
             cap_volume(0.5, 0.0075),
         );
     }
+    // PR 5920's review found triangles folded over the chord beside the
+    // cut at δ 2.5e-4 (faces of the carve less the first slab). The
+    // mesher drops a fold's grid corners and rebuilds; every triangle
+    // winds outward and the mesh encloses the body.
+    let cut = run(
+        BooleanOp::Subtract,
+        &carve,
+        &brick_toward(Vec3::new(0.0, t.sin(), t.cos()), 0.4925, 3.0, 1.0),
+    );
+    let v_cut = v_carve - cap_volume(0.5, 0.0075);
+    let m = mesh::tessellate(&cut, 2.5e-4, tol)
+        .unwrap_or_else(|e| panic!("the strut cut at δ 2.5e-4: tessellates, got {e:?}"));
+    assert_eq!(mesh::validate::check_mesh(&m), Ok(()));
+    mesh::validate::check_volume(&m, v_cut, 2.5e-4)
+        .unwrap_or_else(|e| panic!("the strut cut at δ 2.5e-4: encloses the body, got {e:?}"));
+    crate::common::differential::assert_outward("the strut cut at δ 2.5e-4", &cut, &m);
 }
 
 /// **A pole-to-pole cut**: the unit ball's half-disc revolved by 4
@@ -1245,6 +1261,31 @@ fn a_cut_ends_at_the_nearest_of_several_boundary_hits() {
             &brick_toward(dir(lat, 30.0), 0.999, 3.0, 1.0),
             cap_volume(1.0, 0.001),
         );
+        // THE SHARED EAR (PR 5920's review, B4). The cap of height 0.001
+        // is one sphere face and one plane face on one circle, and its
+        // chord chain is a few points long: the plane cap's polygon is
+        // convex and cuts an ear of it, and the sphere face used to cut
+        // the same one, so the mesh came back `Ok` with an edge of four
+        // triangles (`NonManifoldEdge { count: 4 }` at δ 4e-3 and others).
+        // The sphere arm keeps no ear now, so the cap meshes manifold
+        // and encloses its volume at every δ the review swept.
+        let cap = run(
+            BooleanOp::Intersect,
+            &carve,
+            &brick_toward(dir(lat, 30.0), 0.999, 3.0, 1.0),
+        );
+        for delta in [4e-2, 2e-2, 1e-2, 5e-3, 4e-3] {
+            let m = mesh::tessellate(&cap, delta, Tol::witness())
+                .unwrap_or_else(|e| panic!("lat {lat}, δ {delta}: the cap meshes, got {e:?}"));
+            assert_eq!(
+                mesh::validate::check_mesh(&m),
+                Ok(()),
+                "lat {lat}, δ {delta}: a closed manifold mesh"
+            );
+            mesh::validate::check_volume(&m, cap_volume(1.0, 0.001), delta).unwrap_or_else(|e| {
+                panic!("lat {lat}, δ {delta}: the mesh encloses the cap, got {e:?}")
+            });
+        }
     }
 }
 

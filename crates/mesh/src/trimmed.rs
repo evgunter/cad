@@ -867,6 +867,10 @@ struct Emitted {
     /// ([`TrimmedFace::outward`]), to drop and rebuild; and whether a
     /// folded triangle had no grid corner to drop.
     folded: (Vec<usize>, bool),
+    /// The UV centroids of kept triangles on three consecutive points of
+    /// the trim polygon (an ear of a boundary chain), to insert and
+    /// rebuild — analytic arms only.
+    ears: Vec<(f64, f64)>,
 }
 
 impl TrimmedFace<'_> {
@@ -927,7 +931,27 @@ impl TrimmedFace<'_> {
             triangles,
             refine,
             folded,
+            ears,
         } = self.emit(&at, &crossings, candidates, measure, falsification)?;
+        // THE EAR CURE (both analytic arms). A kept triangle on three
+        // consecutive points of the trim polygon is an ear of a boundary
+        // chain, and it is the same three mesh vertices whichever face
+        // cuts it: a neighbour across that chain that cuts it too
+        // (a plane cap, whose polygon is convex, cuts ears freely) makes
+        // the triangle twice, wound both ways, and their diagonal an edge
+        // of four. No patch sees that alone — each uses the diagonal
+        // twice, as any interior edge — so this face never keeps an ear:
+        // its centroid, strictly inside the ear and so inside the
+        // polygon, is inserted and the face rebuilt, which splits it.
+        // An ear the retry budget does not clear refuses typed
+        // (`work/tesslie/two-faces-cutting-one-ear-of-a-shared-chord-chain-leave-a-four-use-edge.md`).
+        if !ears.is_empty() {
+            if attempt == MAX_GRID_RETRIES {
+                return Err(TessellateError::BoundaryEar { face: fk });
+            }
+            candidates.extend(ears);
+            return Ok(Next::Rebuild);
+        }
         // THE WINDING CENSUS (both analytic arms): a triangle whose
         // normal points into the surface is folded over the chord beside
         // it — a lattice point inside the UV polygon but past the 3-D
@@ -1260,6 +1284,14 @@ impl TrimmedFace<'_> {
         let mut refine: Vec<(f64, f64)> = Vec::new();
         let refine_lane = matches!(self.lane, Lane::Nurbs { .. });
         let (mut folded_grid, mut folded_boundary) = (Vec::new(), false);
+        // Each boundary handle's places in the trim polygon (a pinch
+        // handle holds several), for the ear test below.
+        let n_poly = at.handles.len();
+        let mut places: HashMap<usize, Vec<usize>> = HashMap::new();
+        for (i, h) in at.handles.iter().enumerate() {
+            places.entry(h.index()).or_default().push(i);
+        }
+        let mut ears = Vec::new();
         for f in cdt.inner_faces() {
             if !inside[f.fix().index()] {
                 continue;
@@ -1324,6 +1356,32 @@ impl TrimmedFace<'_> {
                 (tri[0].y + tri[1].y + tri[2].y) / 3.0,
                 (tri[0].z + tri[1].z + tri[2].z) / 3.0,
             );
+            // An ear: three corners at consecutive places `i, i+1, i+2`
+            // of the polygon (cyclically), read on the analytic arms.
+            if !refine_lane && n_poly >= 3 {
+                let at_places: Vec<&Vec<usize>> = vs
+                    .iter()
+                    .filter_map(|vtx| places.get(&vtx.fix().index()))
+                    .collect();
+                let consecutive = |a: usize, b: usize, c: usize| {
+                    let set = [a, b, c];
+                    set.iter().any(|&i| {
+                        set.contains(&((i + 1) % n_poly)) && set.contains(&((i + 2) % n_poly))
+                    })
+                };
+                if at_places.len() == 3
+                    && at_places[0].iter().any(|&a| {
+                        at_places[1]
+                            .iter()
+                            .any(|&b| at_places[2].iter().any(|&c| consecutive(a, b, c)))
+                    })
+                {
+                    ears.push((
+                        (uv[0][0] + uv[1][0] + uv[2][0]) / 3.0,
+                        (uv[0][1] + uv[1][1] + uv[2][1]) / 3.0,
+                    ));
+                }
+            }
             if self.outward(centroid).is_some_and(|n| normal.dot(n) <= 0.0) {
                 let grid: Vec<usize> = vs
                     .iter()
@@ -1455,6 +1513,7 @@ impl TrimmedFace<'_> {
             triangles,
             refine,
             folded: (folded_grid, folded_boundary),
+            ears,
         })
     }
 }
@@ -1806,7 +1865,7 @@ fn trim_polygon(
     nurbs_chart: bool,
     creases: Option<&Creases>,
     poles: ChartPoles,
-) -> Result<(Vec<(f64, f64, u32)>, Vec<EdgeKey>), TessellateError> {
+) -> Result<(TrimPolygon, Vec<EdgeKey>), TessellateError> {
     let lp = body
         .get_loop(lk)
         .ok_or(TessellateError::MissingEntity { what: "loop" })?;
@@ -2001,7 +2060,7 @@ fn flatten_traversals(
     travs: &[Vec<(f64, f64, u32)>],
     edges: &[EdgeKey],
     keep_poles: bool,
-) -> Result<(Vec<(f64, f64, u32)>, Vec<EdgeKey>), TessellateError> {
+) -> Result<(TrimPolygon, Vec<EdgeKey>), TessellateError> {
     let (mut out, mut out_edges) = (Vec::new(), Vec::new());
     for (k, trav) in travs.iter().enumerate() {
         let (&last, rest) = trav.split_last().ok_or(TessellateError::MissingEntity {
@@ -2011,10 +2070,7 @@ fn flatten_traversals(
         out_edges.extend(core::iter::repeat_n(edges[k], rest.len()));
         let next = travs[(k + 1) % travs.len()][0];
         #[allow(clippy::float_cmp)]
-        if keep_poles
-            && last.2 == next.2
-            && at_pole(last.1)
-            && (last.0, last.1) != (next.0, next.1)
+        if keep_poles && last.2 == next.2 && at_pole(last.1) && (last.0, last.1) != (next.0, next.1)
         {
             out.push(last);
             out_edges.push(edges[k]);
@@ -2137,6 +2193,10 @@ fn choose_pole_azimuths(
     }
     Ok(())
 }
+
+/// A trim polygon: each point's chart `(u, v)` and mesh id, in walk
+/// order.
+type TrimPolygon = Vec<(f64, f64, u32)>;
 
 /// Whether [`trim_polygon`] keeps a pole the loop passes as a side of
 /// the polygon: the sphere arm's chart has poles, and no other arm's
@@ -2920,7 +2980,10 @@ mod tests {
                 smin = smin.min(f(x));
                 smax = smax.max(f(x));
             }
-            assert!(lo <= smin + 1e-12 && hi >= smax - 1e-12, "{c} {a} {b} {t:?}");
+            assert!(
+                lo <= smin + 1e-12 && hi >= smax - 1e-12,
+                "{c} {a} {b} {t:?}"
+            );
             assert!(
                 smin - lo < 1e-6 && hi - smax < 1e-6,
                 "{c} {a} {b} {t:?}: the range is the function's, not wider: \
@@ -2962,7 +3025,10 @@ mod tests {
         assert_eq!(between(4), 1, "the first doubling alone does not clear it");
         let nu = super::pole_side_columns(&polygon, (0.0, 1.0), 2).unwrap();
         assert!(between(nu) >= 2, "nu {nu} leaves {} between", between(nu));
-        assert_eq!(super::pole_side_columns(&polygon, (0.0, 1.0), 3).unwrap(), 3);
+        assert_eq!(
+            super::pole_side_columns(&polygon, (0.0, 1.0), 3).unwrap(),
+            3
+        );
     }
 
     /// **The tilted pair's faces meet their poles as polygon sides, and
@@ -2988,8 +3054,7 @@ mod tests {
         }
         let mut bounds = crate::nurbs_cert::FaceBounds::new();
         let chords: ChordPass =
-            crate::chords::compute_chords(&body, 1e-2, &vids, &mut positions, &mut bounds)
-                .unwrap();
+            crate::chords::compute_chords(&body, 1e-2, &vids, &mut positions, &mut bounds).unwrap();
         let mut with_poles = 0;
         for (fk, face) in body.faces() {
             let surface = body.get_surface(face.surface).unwrap();
@@ -3029,6 +3094,9 @@ mod tests {
                 with_poles += 1;
             }
         }
-        assert!(with_poles >= 2, "both balls' remnants pass both poles: {with_poles}");
+        assert!(
+            with_poles >= 2,
+            "both balls' remnants pass both poles: {with_poles}"
+        );
     }
 }

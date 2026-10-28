@@ -62,6 +62,33 @@ fn halves_of(r: f64) -> (Body<f64>, Body<f64>) {
     (Body::clone(above), Body::clone(below))
 }
 
+/// Every cylinder-face triangle of `mesh` winds outward: its normal
+/// points off the cylinder's axis (reversed on a `sense: false` face). A
+/// triangle folded over the ellipse chord beside it is a closed manifold
+/// mesh `check_mesh` passes, so the winding is read here (PR 5920's
+/// review found such folds on these halves).
+fn assert_cylinder_outward(label: &str, body: &Body<f64>, mesh: &mesh::Mesh) {
+    for patch in &mesh.patches {
+        let face = body.get_face(patch.face).unwrap();
+        let geom::Surface::Cylinder { origin, axis, .. } = *body.get_surface(face.surface).unwrap()
+        else {
+            continue;
+        };
+        for tri in &patch.triangles {
+            let [a, b, c] = tri.map(|i| mesh.positions[i as usize]);
+            let centroid = a + ((b - a) + (c - a)) / 3.0;
+            let d = centroid - origin;
+            let out = d - axis * d.dot(axis);
+            let out = if face.sense { out } else { -out };
+            assert!(
+                (b - a).cross(c - a).dot(out) > 0.0,
+                "{label}: face {:?} triangle {tri:?} is wound against its face",
+                patch.face
+            );
+        }
+    }
+}
+
 /// Watertight at every δ of the standard schedule, positive signed
 /// volume, and the chordal (inscribed) volume converges to πr²H/2.
 #[test]
@@ -76,6 +103,7 @@ fn tilted_halves_tessellate_watertight_across_the_delta_schedule() {
             });
             check_mesh(&mesh)
                 .unwrap_or_else(|e| panic!("{label} at {delta}: watertightness: {e:?}"));
+            assert_cylinder_outward(&format!("{label} at {delta}"), body, &mesh);
             let v = signed_volume(&mesh);
             assert!(v > 0.0, "{label} at {delta}: outward orientation");
             let rel = (v - exact).abs() / exact;
@@ -117,6 +145,7 @@ fn a_wide_tilted_cylinder_meshes_at_every_delta() {
             let mesh = mesh::tessellate(&above, delta, Tol::witness())
                 .unwrap_or_else(|e| panic!("r = {r}, δ = {delta:e}: {e:?}"));
             check_mesh(&mesh).unwrap_or_else(|e| panic!("r = {r}, δ = {delta:e}: {e:?}"));
+            assert_cylinder_outward(&format!("r = {r}, δ = {delta:e}"), &above, &mesh);
             let rel = (signed_volume(&mesh) - exact).abs() / exact;
             assert!(
                 rel < 3.0 * delta / r,

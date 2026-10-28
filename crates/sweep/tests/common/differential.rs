@@ -403,12 +403,12 @@ pub fn assert_sound_and_meshed(
     let Ok(Some(bb)) = r.as_ref().map(BooleanResult::body) else {
         panic!("{label}: wanted a body, got {r:?}");
     };
-    delta_probe(label, &bb.body, want);
     let mesh = mesh::tessellate(&bb.body, 5e-3, tol)
         .unwrap_or_else(|e| panic!("{label}: the mesh: {e:?}"));
     mesh::validate::check_mesh(&mesh).unwrap_or_else(|e| panic!("{label}: the mesh: {e:?}"));
     mesh::validate::check_volume(&mesh, want, 5e-3)
         .unwrap_or_else(|e| panic!("{label}: the mesh encloses the body, got {e:?}"));
+    assert_outward(label, &bb.body, &mesh);
     let line = outcome(r, want, tol);
     assert!(line.starts_with("OK SOUND"), "{label}: {line}");
 }
@@ -898,26 +898,41 @@ pub fn nt_poly_volume(poly: &NtPoly) -> f64 {
         / 6.0
 }
 
-/// TEMPORARY (spherearm fix pass): with `SPHEREARM_PROBE` set, mesh
-/// `body` at a sweep of δ and print each outcome.
-pub fn delta_probe(label: &str, body: &Body<f64>, volume: f64) {
-    if std::env::var_os("SPHEREARM_PROBE").is_none() {
-        return;
-    }
-    for delta in [4e-2, 2e-2, 1e-2, 5e-3, 4e-3, 2.5e-3, 1e-3, 5e-4, 2.5e-4] {
-        let line = match mesh::tessellate(body, delta, Tol::witness()) {
-            Ok(m) => match (
-                mesh::validate::check_mesh(&m),
-                mesh::validate::check_volume(&m, volume, delta),
-            ) {
-                (Ok(()), Ok(())) => "OK".to_string(),
-                (c, v) => format!("BAD {c:?} {v:?}"),
-            },
-            Err(e) => {
-                let s = format!("{e:?}");
-                format!("ERR {}", &s[..s.len().min(90)])
+/// **Every sphere- and cylinder-face triangle of `mesh` winds outward.**
+/// A triangle's normal, as the mesh winds it, must point the way its
+/// face's outward normal does at its centroid: off the sphere's centre,
+/// or off the cylinder's axis, reversed on a `sense: false` face. A
+/// triangle folded over the chord beside it, or a face meshed inside
+/// out, is a closed manifold mesh that [`mesh::validate::check_mesh`]
+/// passes; this is the geometry it does not read. Faces on other
+/// surfaces are not read.
+pub fn assert_outward(label: &str, body: &Body<f64>, mesh: &mesh::Mesh) {
+    for patch in &mesh.patches {
+        let face = body.get_face(patch.face).expect("the patch's face");
+        let radial = |p: Point3<f64>| match *body.get_surface(face.surface).expect("its surface") {
+            geom::Surface::Sphere { center, .. } => Some(p - center),
+            geom::Surface::Cylinder { origin, axis, .. } => {
+                let d = p - origin;
+                Some(d - axis * d.dot(axis))
             }
+            _ => None,
         };
-        eprintln!("PROBE\t{label}\t{delta:e}\t{line}");
+        for tri in &patch.triangles {
+            let [a, b, c] = tri.map(|i| mesh.positions[i as usize]);
+            let centroid = Point3::new(
+                (a.x + b.x + c.x) / 3.0,
+                (a.y + b.y + c.y) / 3.0,
+                (a.z + b.z + c.z) / 3.0,
+            );
+            let Some(out) = radial(centroid) else { break };
+            let out = if face.sense { out } else { -out };
+            let normal = (b - a).cross(c - a);
+            assert!(
+                normal.dot(out) > 0.0,
+                "{label}: face {:?} has a triangle {tri:?} wound against it (cosine {})",
+                patch.face,
+                normal.dot(out) / (normal.norm() * out.norm())
+            );
+        }
     }
 }
