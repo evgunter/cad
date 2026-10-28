@@ -154,12 +154,14 @@ with interval multiplication at 45% of the total. Four cuts landed:
   Bézier segment enclosed alone (`carrier_net::framed_span_net`, its
   net factored through the span's `α`/`β` Bernstein rows) and composed
   alone. Uncleared spans are halved locally. A span may reach past the
-  window, and one past it that does not clear is read again within it.
-  The reading only passes; everything else goes to the rounds unchanged,
-  so every refusal is still the rounds'. A span's reading is keyed on
-  the carrier, the operand, the chart and the span, never the window,
-  so edges sharing a carrier share its spans. On the turn row,
-  6,912 reads compute 170 spans.
+  window; one past it whose halving stops halving its bound is read
+  again clipped to it. The reading passes only on cleared parts that
+  cover the window's outer ends with no gap (`limb2_quick::covering`),
+  and a span it cannot halve further ends it. Everything else goes to
+  the rounds unchanged, so every refusal is still the rounds'. A
+  span's reading is keyed on the carrier, the operand, the chart (a
+  cone's nappe included) and the span, so edges sharing a carrier
+  share its spans. On the turn row, 6,912 reads compute 170 spans.
 - **A Bernstein row squared once per mirror pair**
   (`compose::bern_square_row`), and no weight square for the plane's
   form. Bit for bit the same.
