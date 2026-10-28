@@ -5969,8 +5969,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "tessellate_error_tag",
         values: &[
+            "boundary_ear",
             "certificate_exceeded",
             "empty_loop",
+            "folded_triangle",
             "invalid_chordal_tolerance",
             "meridian_free_curved_face",
             "missing_entity",
@@ -5981,9 +5983,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "rounding_unresolved",
             "self_touching_trim_loop",
             "single_column_curved_face",
+            "sphere_trim_shape",
             "step_not_positive",
             "tolerance_band_unformable",
             "triangulation",
+            "trim_loop_orientation",
             "unsupported_curve",
             "unsupported_curved_domain",
             "unsupported_curved_shape",

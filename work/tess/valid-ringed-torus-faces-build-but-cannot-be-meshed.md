@@ -39,3 +39,24 @@ capability limit moves its ending.
 What to decide: mesh a ringed torus wall (the trimmed lane's
 inside/outside classification over every loop), or, until then, refuse
 it as a capability limit (`NOT_YET_ENDING`) and not as a kernel bug.
+
+## Evidence (2026-10-28, TESS sphere-arm unit): ringed SPHERE faces
+
+The same refusal holds valid sphere faces, now that the trimmed lane's
+sphere arm meshes the circle-bounded ones without rings. A ball's
+section that crosses neither seam meridian of a half-band stays a ring
+of that face:
+
+- `demos/tour/src/lily.rs` wall 7: the lantern's three tepal seams
+  (`seamed_lantern`) carve and measure, and the seam a third of a turn
+  round lies inside one half-band of the zone, so drawing the lantern
+  refuses `RingOnCurvedFace` (pinned by the wall and by
+  `verbs_gate_r1_probes::wall7_the_cone_pair_is_box_looseness_the_ball_meets_the_zone`;
+  the one seam that crosses the seam meridians draws);
+- `crates/sweep/tests/a_tube_ending_on_a_ball.rs`,
+  `a_rim_inside_one_ball_face_holes_it`, which reads its bodies without
+  a mesh for this reason.
+
+The sphere arm takes no ringed face either (`tessellate_trimmed` refuses
+rings before its chart roster), so the fix this row owes covers it: the
+trimmed lane's even-odd classification over every loop.
