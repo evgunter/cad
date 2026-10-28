@@ -2,7 +2,7 @@
 id: a-tie-summed-seam-decline-has-no-end-to-end-witness
 kind: issue
 title: After PR 5876 nothing end-to-end witnesses the tie-summed decline, or a tied pair seam group's own count
-status: dispatched
+status: open
 opened: 2026-10-28
 priority: P3
 cost: E

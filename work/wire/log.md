@@ -7208,3 +7208,8 @@ Signed (WIRE orchestrator).
   - Witnessed the split's `Joined::Seam` key with a vertical split of a pocketed U-tie. It goes red on revert.
   - Argued that the `record_by_name` tie-summed decline cannot be reached, and measured it: zero `sizes() == None` across the suite.
   - `SetPiece` has no witness; what was tried is on its row. Both rows stay open.
+- 2026-10-28 (WIRE orchestrator) PR 5891 review: mergeable. Both reverts went red when the reviewer ran them.
+  - MINOR: the row's closed-carrier claim was wrong. A tied joined set on a closed carrier would decline needlessly, because it is recorded tie-summed; the case is still unbuilt.
+  - MINORs: fixture copies (U profile, prism, a private run, twin prong fixtures).
+  - A fix pass shared them through `fixture` and corrected the row.
+  - Merged at df2462ff36. Both rows stay open, with the `record(.., Parent::Elsewhere)` proposal for joined sets on the tie-summed row.
