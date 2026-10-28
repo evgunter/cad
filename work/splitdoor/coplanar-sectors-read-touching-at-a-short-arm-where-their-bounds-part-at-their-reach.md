@@ -49,3 +49,32 @@ shorter of two, where each direction's own reach is known:
   a corner's own two bounds, which its module docs fix as the shared
   convention.
 
+## Further sites (PR 5949's review), dispositions
+
+- `boolean/recl.rs` `recl_sectors`: its `arm` (the pair's shorter) goes
+  to `sectors::runs_into`, which reads a kept edge's direction against a
+  dropped sector's bound with `parallel_same` at that arm, though both
+  carry their own reach: **the same shape**, unmeasured. A Zero there
+  records a fate edge running into the dropped face. The same `arm` goes
+  to `require_same`, which reads the faces' relation from their normals:
+  not the shape.
+- `boolean/recl.rs` `resolve_edge_edge`: `bool_dir_same` at the
+  flankers' shorter arm reads the sense of a direction already read on
+  the flanking plane, a cosine near ±1 that no lever blurs: not the
+  shape.
+- `boolean/recl.rs` `resolve_edge_sector`: the arm goes to the tangent
+  side reading, which reads each bound over its own reach
+  (`reached_bounds`) and only the bisector at the arm (the bisector's
+  lever is `work/contacthold/a-glued-tangencys-bisector-reads-its-curving-at-its-sectors-short-arm.md`),
+  and to `require_same` (normals): not the shape.
+- `boolean/insert.rs` `germ_dir` / `bool_germ_line`: the two faces'
+  normals' cross at the pair's shorter arm, `pair_search`'s own margin
+  read again. Normals, no per-bound reach: not the shape, though the
+  lever is the shorter sector's.
+- `boolean/insert.rs` `beside_order` (`bool_beside_flush`) and
+  `walks_after` (`bool_shared_cut_order`): a flanker's unit direction
+  off the sector's plane, and the order of two germs' second-order
+  offsets, levered at the sector's arm though each flanker is an edge
+  with its own reach: **the same shape**, unmeasured; both refuse in
+  band rather than read a side.
+
