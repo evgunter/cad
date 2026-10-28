@@ -216,6 +216,9 @@ pub struct Judgement {
     pub line: String,
     /// The measured volume.
     pub volume: Option<f64>,
+    /// The measured enclosure's half-width (`volume_pad`), where a
+    /// volume was measured.
+    pub pad: Option<f64>,
     /// The verdict the line prints.
     pub verdict: Verdict,
 }
@@ -231,20 +234,36 @@ pub fn judged(
     want: Option<f64>,
     tol: Tol,
 ) -> Judgement {
-    judge(r, want, tol, true)
+    judge(r, want, tol, true, VOLUME_PAD_BUDGET)
 }
 
-/// [`judged`], with `extra` one more condition a `SOUND` line needs.
+/// [`judged`] against an enclosure no wider than `pad_budget` in
+/// place of [`VOLUME_PAD_BUDGET`]: for a body whose certified enclosure
+/// is known not to meet the shared budget at every ε, the caller names
+/// its own ceiling, and why, at its site.
+pub fn judged_within(
+    r: Result<BooleanResult<f64>, BooleanError>,
+    want: Option<f64>,
+    tol: Tol,
+    pad_budget: f64,
+) -> Judgement {
+    judge(r, want, tol, true, pad_budget)
+}
+
+/// [`judged`], with `extra` one more condition a `SOUND` line needs and
+/// `pad_budget` the widest enclosure it accepts.
 fn judge(
     r: Result<BooleanResult<f64>, BooleanError>,
     want: Option<f64>,
     tol: Tol,
     extra: bool,
+    pad_budget: f64,
 ) -> Judgement {
     let want_col = want.map_or("want=none".to_string(), |w| format!("want={w:.9}"));
     let of = |line: String, volume, verdict| Judgement {
         line,
         volume,
+        pad: None,
         verdict,
     };
     match r {
@@ -283,7 +302,7 @@ fn judge(
                     Ok((v, pad)) => {
                         let verdict = match want {
                             _ if !(t2 && t3 && cert && operand && extra) => Verdict::Bad,
-                            _ if pad > VOLUME_PAD_BUDGET => Verdict::Bad,
+                            _ if pad > pad_budget => Verdict::Bad,
                             None => Verdict::Unjudged,
                             Some(w) if (v - w).abs() <= VOLUME_CLAIM + pad => Verdict::Sound,
                             Some(_) => Verdict::Bad,
@@ -298,14 +317,17 @@ fn judge(
                         } else {
                             String::new()
                         };
-                        of(
-                            format!(
-                                "OK {word} t2={t2} t3p={t3} cert={cert} operand={operand} \
-                                 v={v:.9}{pad_col} {want_col}"
-                            ),
-                            Some(v),
-                            verdict,
-                        )
+                        Judgement {
+                            pad: Some(pad),
+                            ..of(
+                                format!(
+                                    "OK {word} t2={t2} t3p={t3} cert={cert} operand={operand} \
+                                     v={v:.9}{pad_col} {want_col}"
+                                ),
+                                Some(v),
+                                verdict,
+                            )
+                        }
                     }
                     Err(e) => of(
                         format!(
@@ -380,7 +402,7 @@ pub fn judged_with_seams(
         .and_then(BooleanResult::body)
         .map(|bb| seams(&bb.body));
     let clean = seams.is_none_or(|(sk, _, z)| sk == 0 && z == 0);
-    let mut j = judge(r, want, tol, clean);
+    let mut j = judge(r, want, tol, clean, VOLUME_PAD_BUDGET);
     if let Some((sk, cp, z)) = seams {
         j.line = format!("{} samekey={sk} coplanar={cp} zero={z}", j.line);
     }
