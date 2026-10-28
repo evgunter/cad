@@ -2339,7 +2339,7 @@ pub(crate) mod rest {
     /// **Each verdict at its own scale.** The readings run at the
     /// pieces' real points, each link's as far out as its faces reach,
     /// or, on a cleared sector, past every point of its face
-    /// ([`Sector::cleared`]). A rest needs every one decided there: a
+    /// ([`super::Sector::cleared`]). A rest needs every one decided there: a
     /// Zero read at a far point is a Zero at every nearer one, so that is
     /// where the fewest coincidences are taken. A crossing is confirmed
     /// inside the BALL where both links are their solids — out to the
