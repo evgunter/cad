@@ -3147,6 +3147,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         | CertifyError::UnresolvedSurface { .. }
         | CertifyError::IntersectionSameSurface { .. }
         | CertifyError::WrapOnNonPeriodic
+        | CertifyError::RowImage { .. }
         | CertifyError::PlaneNurbs(P::PcurveFit) => MISMATCH,
         // An incidence refusal, decided or escalated, reads its reason
         // off the one table, by what was read.
@@ -3320,6 +3321,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             | CertifyError::NotSecondOrderSeparated { .. }
             | CertifyError::TubeNotSeparated { .. }
             | CertifyError::Escalated { .. }
+            | CertifyError::RowImage { .. }
             | CertifyError::PlaneNurbs(
                 P::NotTransverse { .. }
                 | P::TransversalityEscalated { .. }
@@ -14116,7 +14118,7 @@ mod tests {
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: geom_brep::SurfacePair::new(cyl, plane),
-                    witness: frame.at((u0 + u1) * 0.5, v0),
+                    selector: geom_brep::Selector::Witness(frame.at((u0 + u1) * 0.5, v0)),
                 },
                 carrier: geom::Curve3::Circle {
                     center: centre,
@@ -15170,7 +15172,7 @@ mod tests {
         let spec = geom_brep::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
                 pair: geom_brep::SurfacePair::new(plane, cylinder),
-                witness: carrier.mid_point(t0, t1),
+                selector: geom_brep::Selector::Witness(carrier.mid_point(t0, t1)),
             },
             carrier,
             param_start: t0,
@@ -15460,7 +15462,7 @@ mod tests {
                 EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
                         pair: SurfacePair::new(torus, plane),
-                        witness: spiric.eval(0.0),
+                        selector: geom_brep::Selector::Witness(spiric.eval(0.0)),
                     },
                     carrier: spiric.clone(),
                     param_start: -FRAC_PI_2,

@@ -2774,7 +2774,7 @@ pub(crate) mod tests {
         let arc = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(plane, cyl),
-                witness,
+                selector: geom_brep::Selector::Witness(witness),
             },
             carrier,
             param_start,
@@ -2966,7 +2966,7 @@ pub(crate) mod tests {
                 EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
                         pair: SurfacePair::new(wall, plane),
-                        witness: on((u0 + u1) * 0.5, z),
+                        selector: geom_brep::Selector::Witness(on((u0 + u1) * 0.5, z)),
                     },
                     carrier,
                     param_start: t0,
@@ -4117,7 +4117,7 @@ pub(crate) mod tests {
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(torus, plane),
-                    witness: on((u0 + u1) * 0.5, v),
+                    selector: geom_brep::Selector::Witness(on((u0 + u1) * 0.5, v)),
                 },
                 carrier,
                 param_start: t0,
@@ -4142,7 +4142,7 @@ pub(crate) mod tests {
                             u_ref: e(u),
                         }),
                     ),
-                    witness: on(u, (v0 + v1) * 0.5),
+                    selector: geom_brep::Selector::Witness(on(u, (v0 + v1) * 0.5)),
                 }
             } else {
                 EdgeDescriptionSpec::chart(torus)
@@ -4476,7 +4476,7 @@ pub(crate) mod tests {
                     EdgeCurveSpec {
                         description: EdgeDescriptionSpec::Intersection {
                             pair: SurfacePair::new(torus, pk),
-                            witness: on(u, core::f64::consts::PI),
+                            selector: geom_brep::Selector::Witness(on(u, core::f64::consts::PI)),
                         },
                         carrier: Curve3::Circle {
                             center: spine,
@@ -4512,7 +4512,7 @@ pub(crate) mod tests {
         let strut_spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(torus, eq_plane),
-                witness: on((u0 + u1) * 0.5, 0.0),
+                selector: geom_brep::Selector::Witness(on((u0 + u1) * 0.5, 0.0)),
             },
             carrier: Curve3::Circle {
                 center,
@@ -6750,7 +6750,7 @@ pub(crate) mod sphere_rect_rows {
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: geom_brep::SurfacePair::new(sphere, plane),
-                    witness,
+                    selector: geom_brep::Selector::Witness(witness),
                 },
                 carrier,
                 param_start: t0,
@@ -7009,7 +7009,7 @@ pub(crate) mod sphere_rect_rows {
                 EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
                         pair: geom_brep::SurfacePair::new(sphere, plane),
-                        witness,
+                        selector: geom_brep::Selector::Witness(witness),
                     },
                     carrier,
                     param_start: t0,

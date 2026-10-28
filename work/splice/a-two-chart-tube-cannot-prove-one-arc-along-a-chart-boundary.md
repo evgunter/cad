@@ -134,3 +134,27 @@ already states that the carrier is that chart's boundary row over the
 edge's span. Unasked: whether that, with the two charts' transversality
 along it, is enough to show that no other arc of the pair's locus lies
 in the tube's region.
+
+## Narrowed (2026-10-28)
+
+A rim that is a row on both walls' chart boundaries no longer reaches
+this tube: the boolean recovers it as the walls' shared row, D2's
+structural selector, certified per wall with no limb 3
+(`the-boolean-recovers-no-structural-selector-for-a-rim-known-in-advance`,
+closed). Lily wall 8 is past this site.
+
+Of the two owed rows:
+
+- **The exact limbs** are now guarded. `nurbs_pair_limbs`' exact arm and
+  the shared row's certificate read an exact image's limbs through one
+  accessor (`PcurveCertificate::limbs`), and zeroing it reds
+  `a_rim_on_both_walls_rows_is_a_certified_shared_row`.
+- **The tube's image** stays unguardable, for the reason this row gives:
+  every exact chart image is a boundary row, and a witness along one
+  refuses here, so no exact chart reaches `Ok` in the witness lane.
+
+What stays open is the witness lane's: a rim that is a boundary row of
+one wall only (a graft of one body's section across the other's
+interior), and shape 2's end on two charts' sides. Neither has a
+consumer today.
+

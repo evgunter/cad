@@ -61,7 +61,8 @@ use geom_core::{
 };
 
 use crate::description::{
-    ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, SurfacePair, authority_of,
+    ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, Selector, Structural,
+    SurfacePair, authority_of,
 };
 use crate::dihedral::{
     DihedralClass, WedgeEscalation, decide_positive, decide_reported, wedge_decided,
@@ -698,6 +699,31 @@ pub enum CertifyError {
     /// the uniqueness tube, for a spline carrier) refused, carrying
     /// their own verdict ([`crate::analytic_edge_limbs`]).
     AnalyticRung3(crate::edge_nurbs::AnalyticRung3Refusal),
+    /// `Intersection` under a shared row: `surface`'s certificate of its
+    /// own row image refused definitely, at `check` (`None` where the
+    /// refusal was no check's). The row is not the edge on that wall.
+    RowImage {
+        /// The wall whose row refused.
+        surface: SurfaceKey,
+        /// The row certificate's refusing check.
+        check: Option<crate::pcurve_cache::PcurveCheck>,
+    },
+}
+
+/// A shared row's certificate on `surface` refused: an escalation as the
+/// check it restates ([`arc_rim_check`]), anything else definitely.
+fn row_image_refusal(surface: SurfaceKey, refusal: PcurveCertifyError) -> CertifyError {
+    match refusal {
+        PcurveCertifyError::Escalated { check, cause, .. } => CertifyError::Escalated {
+            check: arc_rim_check(check),
+            sample: NOT_A_SAMPLE,
+            cause,
+        },
+        refused => CertifyError::RowImage {
+            surface,
+            check: refused.refused_check(),
+        },
+    }
 }
 
 /// The certification check an arc rim's exact image's `check` restates
@@ -853,6 +879,18 @@ impl core::fmt::Display for CertifyError {
                 f,
                 "the analytic Intersection's rung-3 certificate refused — {refusal}"
             ),
+            Self::RowImage { surface, check } => match check {
+                Some(check) => write!(
+                    f,
+                    "the shared row's image on surface {surface:?} is not the edge: its \
+                     certificate refused at its {check:?} check"
+                ),
+                None => write!(
+                    f,
+                    "the shared row's image on surface {surface:?} is not the edge: its \
+                     certificate refused"
+                ),
+            },
             Self::NotTransverse {
                 sample,
                 lever,
@@ -967,6 +1005,10 @@ impl CertifyError {
             ),
             Self::PlaneNurbs(refusal) => return refusal.decision(),
             Self::AnalyticRung3(refusal) => return refusal.decision(),
+            Self::RowImage { check, .. } => (
+                check.map_or(CertCheck::ChartImage, arc_rim_check),
+                RefusedArm::SignCertain(None),
+            ),
             Self::UnresolvedSurface { .. }
             | Self::Unimplemented
             | Self::IntersectionSameSurface { .. }
@@ -2711,10 +2753,10 @@ impl<T: Real> EdgeCurve<T> {
         mut remap: impl FnMut(crate::keys::SurfaceKey) -> Option<crate::keys::SurfaceKey>,
     ) -> Option<Self> {
         let description = match self.description {
-            EdgeDescription::Intersection { pair, witness } => EdgeDescription::Intersection {
-                pair: pair.try_map(|k| remap(k).ok_or(())).ok()?,
-                witness,
-            },
+            EdgeDescription::Intersection { pair, ref selector } => {
+                let (pair, selector) = selector.remapped(pair, &mut remap)?;
+                EdgeDescription::Intersection { pair, selector }
+            }
             EdgeDescription::TangentIntersection { pair, witness } => {
                 EdgeDescription::TangentIntersection {
                     pair: pair.try_map(|k| remap(k).ok_or(())).ok()?,
@@ -2846,12 +2888,20 @@ impl<T: SpanLocate> EdgeCurve<T> {
         let a = (t - t0) / span;
         let child = |s0: T, s1: T, ta: T, tb: T| -> EdgeCurveSpec<T> {
             let description = match self.description {
-                EdgeDescription::Intersection { pair, .. } => {
+                EdgeDescription::Intersection { pair, ref selector } => {
                     EdgeDescriptionSpec::Intersection {
                         pair,
-                        // The point the WitnessMidpoint pin reads:
-                        // zero residual by construction.
-                        witness: self.carrier.mid_point(ta, tb),
+                        selector: match selector {
+                            // The point the WitnessMidpoint pin reads:
+                            // zero residual by construction.
+                            Selector::Witness(_) => {
+                                Selector::Witness(self.carrier.mid_point(ta, tb))
+                            }
+                            // Each row image is a function of the
+                            // carrier's own parameter, as a chart
+                            // image is, so a child keeps it verbatim.
+                            Selector::Structural(row) => Selector::Structural(row.clone()),
+                        },
                     }
                 }
                 // TangentIntersection splits exactly as Intersection:
@@ -2985,8 +3035,11 @@ impl<T: Real> EdgeCurve<T> {
             EdgeAuthority::Derived => None,
         };
         match self.description {
-            EdgeDescription::Intersection { pair, witness } => {
-                EdgeDescriptionSpec::Intersection { pair, witness }
+            EdgeDescription::Intersection { pair, ref selector } => {
+                EdgeDescriptionSpec::Intersection {
+                    pair,
+                    selector: selector.clone(),
+                }
             }
             EdgeDescription::TangentIntersection { pair, witness } => {
                 EdgeDescriptionSpec::TangentIntersection { pair, witness }
@@ -3139,10 +3192,14 @@ impl<T: Real> IntersectionDraft<T> {
     /// description alone where the draft kept the edge's own carrier and
     /// interval, the whole chord spec where it drew one.
     pub fn into_intersection(self, pair: SurfacePair) -> DraftedIntersection<T> {
-        let description = EdgeDescriptionSpec::Intersection {
-            pair,
-            witness: self.witness,
-        };
+        let witness = Selector::Witness(self.witness);
+        self.into_selected(pair, witness)
+    }
+
+    /// The `Intersection` of `pair` that `selector` picks, over this
+    /// draft's carrier.
+    pub fn into_selected(self, pair: SurfacePair, selector: Selector<T>) -> DraftedIntersection<T> {
+        let description = EdgeDescriptionSpec::Intersection { pair, selector };
         if self.kept {
             DraftedIntersection::Kept(description)
         } else {
@@ -3154,6 +3211,68 @@ impl<T: Real> IntersectionDraft<T> {
             })
         }
     }
+}
+
+impl<T: Decide> IntersectionDraft<T> {
+    /// **D2's question of a seam between two spline walls: is its curve
+    /// known in advance?** `Some` where it is a row on each wall's chart
+    /// boundary: `walls` are the seam's two surfaces, each with the edge's
+    /// image on it, and each image is an iso row along a domain side of
+    /// that wall's chart and certifies there over the draft's own carrier
+    /// and interval (the wall's chart-image certificate, which the
+    /// structural selector's own certificate reads). `None` otherwise,
+    /// and for a draft that drew a chord: no row is stated over one.
+    ///
+    /// Asked of the geometry alone: the images are what the walls' charts
+    /// state for this carrier, whoever built the edge.
+    pub fn shared_row(
+        &self,
+        pair: SurfacePair,
+        walls: [(SurfaceKey, &Surface<T>, Pcurve<T>); 2],
+        band: Band,
+    ) -> Option<Selector<T>> {
+        if !self.kept {
+            return None;
+        }
+        let [(ka, wa, ia), (kb, wb, ib)] = walls;
+        let on_side = |wall: &Surface<T>, image: &Pcurve<T>| {
+            wall.spline_chart()
+                .is_some_and(|chart| boundary_row(chart, image))
+                && crate::pcurve_cache::PcurveCache::certify(
+                    image.clone(),
+                    self.param_start,
+                    self.param_end,
+                    &self.carrier,
+                    wall,
+                    band,
+                )
+                .is_ok()
+        };
+        if !(on_side(wa, &ia) && on_side(wb, &ib)) {
+            return None;
+        }
+        let row = crate::description::SharedRow::new(pair, (ka, ia), (kb, ib))?;
+        Some(Selector::Structural(Structural::SharedRow(row)))
+    }
+}
+
+/// Whether `image` runs along a domain side of `chart`: an iso row whose
+/// fixed coordinate is exactly one of that coordinate's domain ends.
+fn boundary_row<T: Real>(chart: &geom::NurbsSurface<T>, image: &Pcurve<T>) -> bool {
+    let (p0, d) = match image {
+        Pcurve::IsoLine { p0, pl } => (p0, pl),
+        Pcurve::IsoArc { p0, pd, .. } => (p0, pd),
+        _ => return false,
+    };
+    let at_end = |x: T, (lo, hi): (T, T)| {
+        geom_core::is_exact_zero(x - lo) || geom_core::is_exact_zero(x - hi)
+    };
+    let (u, v) = (
+        chart.knot_values_u().domain(),
+        chart.knot_values_v().domain(),
+    );
+    (geom_core::is_exact_zero(d.y) && at_end(p0.y, v))
+        || (geom_core::is_exact_zero(d.x) && at_end(p0.x, u))
 }
 
 /// An [`IntersectionDraft`]'s `Intersection`, by whose carrier it is
@@ -3424,7 +3543,33 @@ fn resolve_spec<T: Decide>(
         Ok(s)
     };
     Ok(match spec.description {
-        EdgeDescriptionSpec::Intersection { pair, witness } => {
+        EdgeDescriptionSpec::Intersection {
+            pair,
+            selector: Selector::Structural(Structural::SharedRow(ref row)),
+        } => {
+            let [k1, k2] = pair.keys();
+            if k1 == k2 {
+                return Err(CertifyError::IntersectionSameSurface { key: k1 });
+            }
+            // Each wall states its row on its own chart, which is
+            // evaluated as a stated chart image is: a described spline
+            // chart and nothing else.
+            let wall = |k: SurfaceKey, image: &Pcurve<T>| {
+                let s = resolve_iso(k)?;
+                if s.spline_chart().is_none() {
+                    return Err(CertifyError::Unimplemented);
+                }
+                Ok((k, s, image.clone()))
+            };
+            let [ia, ib] = row.images();
+            Resolved::SharedRow {
+                walls: [wall(k1, ia)?, wall(k2, ib)?],
+            }
+        }
+        EdgeDescriptionSpec::Intersection {
+            pair,
+            selector: Selector::Witness(witness),
+        } => {
             let [k1, k2] = pair.keys();
             if k1 == k2 {
                 return Err(CertifyError::IntersectionSameSurface { key: k1 });
@@ -3687,7 +3832,16 @@ fn canonical_of<T: Decide>(
             };
             EdgeDescription::Intersection {
                 pair,
-                witness: *witness,
+                selector: Selector::Witness(*witness),
+            }
+        }
+        Resolved::SharedRow { .. } => {
+            let EdgeDescriptionSpec::Intersection { pair, ref selector } = spec.description else {
+                return Err(CertifyError::Unimplemented);
+            };
+            EdgeDescription::Intersection {
+                pair,
+                selector: selector.clone(),
             }
         }
         Resolved::Tangent { witness, .. } => {
@@ -4191,6 +4345,9 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
             // points), so it runs once after the loop rather than
             // per-sample here — see the block below check 4.
             Resolved::PlaneNurbs { .. } | Resolved::PairNurbs { .. } => {}
+            // Each wall's row certificate owns its own schedule, read
+            // once after the loop.
+            Resolved::SharedRow { .. } => {}
         }
     }
 
@@ -4298,6 +4455,32 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
         max_residual = max_residual
             .max(limbs.on_locus_max.abs())
             .max(limbs.hull_sup.abs());
+    }
+
+    // ---- Intersection under a shared row (D2's structural selector):
+    // each wall's certificate of its own row image, limbs 1 and 2 on
+    // that chart (C2), and the walls definitely transverse along the
+    // row at the feet it states. No limb 3: the row is the curve. ----
+    if let Resolved::SharedRow { walls } = &resolved {
+        for (key, wall, image) in walls {
+            let cache = crate::pcurve_cache::PcurveCache::certify(
+                image.clone(),
+                t0,
+                t1,
+                &spec.carrier,
+                wall,
+                band,
+            )
+            .map_err(|e| row_image_refusal(*key, e))?;
+            let (on_locus, hull) = cache.certificate().limbs();
+            max_residual = max_residual.max(on_locus.abs()).max(hull.abs());
+        }
+        let [(_, a, image_a), (_, b, image_b)] = walls;
+        let (Some(a), Some(b)) = (a.spline_chart(), b.spline_chart()) else {
+            return Err(CertifyError::Unimplemented);
+        };
+        crate::edge_nurbs::row_transversality((t0, t1), (a, image_a), (b, image_b), extent, band)
+            .map_err(from_plane_nurbs)?;
     }
 
     // ---- Intersection of two analytic surfaces: C2's limbs, through
@@ -4487,6 +4670,11 @@ enum Resolved<T: Real> {
         plane: Surface<T>,
         wall: Surface<T>,
         witness: Point3<T>,
+    },
+    /// `Intersection` under a shared row: each wall, its key and its
+    /// row image, in key order.
+    SharedRow {
+        walls: [(SurfaceKey, Surface<T>, Pcurve<T>); 2],
     },
     /// `Intersection` of two spline charts, each described or
     /// fitted: the same lane's NURBS × NURBS limbs.
@@ -6068,7 +6256,7 @@ mod tests {
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(src_keys[0], src_keys[1]),
-                witness: Point3::new(0.5, 0.0, 0.0),
+                selector: crate::Selector::Witness(Point3::new(0.5, 0.0, 0.0)),
             },
             carrier: Curve3::Line {
                 origin: p0,
@@ -6095,7 +6283,10 @@ mod tests {
 
         // The handles moved.
         match *moved.description() {
-            EdgeDescription::Intersection { pair, witness } => {
+            EdgeDescription::Intersection {
+                pair,
+                selector: Selector::Witness(witness),
+            } => {
                 assert_eq!(pair, SurfacePair::new(dst_keys[0], dst_keys[1]));
                 // ...and the witness, a POINT, did not.
                 assert!((witness.x - 0.5).abs() < 1e-15);
@@ -6166,7 +6357,7 @@ mod tests {
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(keys[0], keys[1]),
-                witness: Point3::new(0.5, 0.0, 0.0),
+                selector: crate::Selector::Witness(Point3::new(0.5, 0.0, 0.0)),
             },
             carrier: Curve3::Line {
                 origin: p0,
@@ -6219,7 +6410,7 @@ mod tests {
         let mut bad = spec.clone();
         bad.description = EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(keys[0], keys[1]),
-            witness: Point3::new(0.5, 0.0, 0.25),
+            selector: crate::Selector::Witness(Point3::new(0.5, 0.0, 0.25)),
         };
         let err = EdgeCurve::certify(bad, p0, p1, &lookup, 1.0, band(), NurbsLane::certified())
             .unwrap_err();
@@ -6239,7 +6430,7 @@ mod tests {
         let mut bad = spec.clone();
         bad.description = EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(keys[0], keys[0]),
-            witness: Point3::new(0.5, 0.0, 0.0),
+            selector: crate::Selector::Witness(Point3::new(0.5, 0.0, 0.0)),
         };
         assert_eq!(
             EdgeCurve::certify(bad, p0, p1, &lookup, 1.0, band(), NurbsLane::certified())
@@ -6251,7 +6442,7 @@ mod tests {
         let mut bad = spec.clone();
         bad.description = EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(keys[0], SurfaceKey::default()),
-            witness: Point3::new(0.5, 0.0, 0.0),
+            selector: crate::Selector::Witness(Point3::new(0.5, 0.0, 0.0)),
         };
         assert_eq!(
             EdgeCurve::certify(bad, p0, p1, &lookup, 1.0, band(), NurbsLane::certified())
@@ -6284,7 +6475,7 @@ mod tests {
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(keys[0], keys[1]),
-                witness: Point3::new(0.5, 0.0, 0.0),
+                selector: crate::Selector::Witness(Point3::new(0.5, 0.0, 0.0)),
             },
             carrier: Curve3::Line {
                 origin: p0,
@@ -6329,7 +6520,7 @@ mod tests {
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(keys[0], keys[1]),
-                witness: Point3::new(0.5, 0.0, 0.0),
+                selector: crate::Selector::Witness(Point3::new(0.5, 0.0, 0.0)),
             },
             carrier: Curve3::Line {
                 origin: p0,
@@ -8664,7 +8855,7 @@ mod tests {
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(keys[0], keys[1]),
-                witness: p0 + dir * (reach / 2.0),
+                selector: crate::Selector::Witness(p0 + dir * (reach / 2.0)),
             },
             carrier: Curve3::Line { origin: p0, dir },
             param_start: 0.0,
@@ -8951,7 +9142,7 @@ mod tests {
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(keys[0], keys[1]),
-                witness: on + Vec3::unit_z() * 0.5,
+                selector: crate::Selector::Witness(on + Vec3::unit_z() * 0.5),
             },
             carrier: Curve3::Line {
                 origin: on,

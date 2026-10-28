@@ -76,9 +76,13 @@ pub(crate) fn restate<T: Real>(
         EdgeAuthority::Declared(mc) => Ok(Some(carried(mc)?)),
     };
     Ok(match description {
-        EdgeDescription::Intersection { pair, .. } => {
-            EdgeDescriptionSpec::Intersection { pair, witness: mid }
-        }
+        EdgeDescription::Intersection { pair, selector } => EdgeDescriptionSpec::Intersection {
+            pair,
+            selector: match selector {
+                geom_brep::Selector::Witness(_) => geom_brep::Selector::Witness(mid),
+                structural @ geom_brep::Selector::Structural(_) => structural,
+            },
+        },
         EdgeDescription::TangentIntersection { pair, .. } => {
             EdgeDescriptionSpec::TangentIntersection { pair, witness: mid }
         }

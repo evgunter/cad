@@ -3423,10 +3423,19 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
         })? {
             geom_brep::DihedralClass::Transverse => {
                 let carrier = draft.span().0.kind();
+                let drafted = crate::pcurves::seam_intersection(
+                    body,
+                    draft,
+                    [
+                        (sides.plus.half_edge, s1, surf1),
+                        (sides.minus.half_edge, s2, surf2),
+                    ],
+                    band,
+                );
                 body.describe_intersection(
                     crate::policy_lane::KernelSite::SeamIntersection,
                     edge,
-                    draft.into_intersection(geom_brep::SurfacePair::new(s1, s2)),
+                    drafted,
                     tol,
                 )
                 .map_err(|e| of_attachment(edge, EdgeDescribeFailure::Intersection, carrier, e))?;
@@ -7862,7 +7871,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
             geom_brep::EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::Intersection {
                     pair: geom_brep::SurfacePair::new(sphere, plane),
-                    witness: carrier.mid_point(T::zero(), span),
+                    selector: geom_brep::Selector::Witness(carrier.mid_point(T::zero(), span)),
                 },
                 carrier,
                 param_start: T::zero(),

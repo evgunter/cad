@@ -12,7 +12,7 @@
 //!
 //! An exact image is a boundary row, and limb 3's tube refuses a rim on a
 //! chart's boundary row undecided
-//! (`work/ssiedge/a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary.md`),
+//! (`work/splice/a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary.md`),
 //! so no row here reaches `Ok` through an exact chart. The rows read
 //! which limb refused: limb 3's undecided walk says limbs 1 and 2
 //! cleared on the exact image, and [`ArcRimRefusal::Refused`] that they

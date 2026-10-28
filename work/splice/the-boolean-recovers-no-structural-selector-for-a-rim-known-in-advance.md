@@ -2,8 +2,9 @@
 id: the-boolean-recovers-no-structural-selector-for-a-rim-known-in-advance
 kind: issue
 title: The boolean's describe_edges and the split's finish map every Transverse seam to a witness Intersection; a rim known in advance (a boundary row of both walls) should recover its structural selector (D2), owing no limb 3
-status: open
+status: closed
 opened: 2026-10-28
+closed: 2026-10-28
 priority: P0
 cost: H
 refs: [a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary, onpair-has-no-incidence-lane-on-a-spline-adjacent-pair]
@@ -52,3 +53,45 @@ pair just inside the rim. That is the boolean's interior-loop guard's
 obligation (`interior_loop_verdict`). The guard has no NURBS × NURBS
 arm today (`pair_section` routes `(Nurbs, Nurbs)` to `Elsewhere`), and
 SPLICE files that separately.
+
+## Closed
+
+Landed on `splice/structural-rim` (2026-10-28).
+
+- **The selector.** A two-surface edge's description is
+  `Intersection { pair, selector }`, the selector
+  `Selector::Witness(point)` or `Selector::Structural(..)`, whose one
+  form today is `Structural::SharedRow`: each wall's iso row image, held
+  in the pair's key order and admitted only as an `IsoLine` or `IsoArc`
+  along one chart coordinate (`geom-brep/src/description.rs`). A key remap
+  goes through `Selector::remapped`, which re-orders the images with the
+  pair. `TangentIntersection` keeps its witness.
+- **Per-surface certification.** A shared row is certified by each
+  wall's own row certificate (`PcurveCache::certify`, limbs 1 and 2 read
+  through `PcurveCertificate::limbs`), and the walls are read
+  definitely transverse along the row at the feet it states
+  (`edge_nurbs::row_transversality`). No limb 3, no witness pin. A wall
+  whose row is not the edge refuses `CertifyError::RowImage`.
+- **Recovery.** `describe_edges` and the split's finish ask D2's
+  question through `pcurves::seam_intersection`: both faces spline
+  walls, each side's image an iso row on its chart's domain side that
+  certifies over the kept carrier (`IntersectionDraft::shared_row`).
+  Otherwise the witness, as before. The dihedral reading still decides
+  that the seam is transverse; it no longer picks the selector.
+
+Measured first: the rim's existing description at the describer is the
+boolean's `Scaffold`, not a stated image, and neither half-edge has a
+stored pcurve; each side's `pcurve_of` derives the exact `IsoArc` on the
+`v = 0` row. Recovery reads the geometry, never the operands'
+descriptions.
+
+Rows: `geom-brep` `a_shared_row_is_certified_per_wall` (six rows, at ε
+1e-9, 1e-6 and 1e-12; mutants of the recovery's certificate gate, its
+domain-side predicate, the per-wall gate, the recorded limbs, the remap's
+re-ordering and the transversality reading each red a row), and lily's
+`a_sheath_on_its_blade_unions_past_the_shared_rim`, which now describes
+both rims structurally, passes the gate, and stops at the interior-loop
+guard (`CurvedPairUnsupported { InteriorLoopGuard }`, B's NURBS wall ×
+A's cap plane, both orders, three ε). With the recovery forced to the
+witness, that row reds on the old limb-3 refusal.
+

@@ -1002,10 +1002,20 @@ fn joined_spec<T: Decide>(
         },
     };
     let description = match kept.description() {
-        geom_brep::EdgeDescription::Intersection { pair, .. } => {
+        geom_brep::EdgeDescription::Intersection { pair, selector } => {
             geom_brep::EdgeDescriptionSpec::Intersection {
                 pair: *pair,
-                witness: carrier.mid_point(a, b),
+                selector: match selector {
+                    geom_brep::Selector::Witness(_) => {
+                        geom_brep::Selector::Witness(carrier.mid_point(a, b))
+                    }
+                    // A row is stated on the carrier's own parameter, so
+                    // the joined edge keeps it; its certificate decides
+                    // that the joined span lies in the row.
+                    geom_brep::Selector::Structural(row) => {
+                        geom_brep::Selector::Structural(row.clone())
+                    }
+                },
             }
         }
         geom_brep::EdgeDescription::TangentIntersection { pair, .. } => {

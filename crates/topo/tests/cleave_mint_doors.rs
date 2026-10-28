@@ -199,7 +199,7 @@ where
     let spec = geom_brep::EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Intersection {
             pair: geom_brep::SurfacePair::new(s1, s2),
-            witness: p0.lerp(p1, T::from_f64(0.5)),
+            selector: geom_brep::Selector::Witness(p0.lerp(p1, T::from_f64(0.5))),
         },
         carrier: geom::Curve3::Nurbs(std::sync::Arc::new(
             geom::NurbsCurve3::new(

@@ -120,6 +120,121 @@ impl<T: Real> EdgeAuthority<T> {
     }
 }
 
+/// **Which curve of a pair's intersection an edge is** (D2's selector).
+///
+/// D2 asks one question of the geometry: is the curve known in advance?
+/// Where it must be derived numerically, the selector is a
+/// [`Selector::Witness`]: the branch through a point, admitted where its
+/// transversality certifies, and owing C2's limb 3 (the branch is the only
+/// one near the carrier). Where it is known, the selector is
+/// [`Selector::Structural`]: that closed form, certified through each
+/// surface's chart-image certificate, owing no limb 3.
+#[derive(Clone, Debug)]
+pub enum Selector<T: Real> {
+    /// The branch through this point, the carrier's mid-parameter point.
+    Witness(geom_core::Point3<T>),
+    /// A curve known in advance.
+    Structural(Structural<T>),
+}
+
+impl<T: Real> Selector<T> {
+    /// The witness point, where the selector is one.
+    pub fn witness(&self) -> Option<geom_core::Point3<T>> {
+        match self {
+            Selector::Witness(p) => Some(*p),
+            Selector::Structural(_) => None,
+        }
+    }
+
+    /// This selector under `pair` re-keyed through `f`: the pair rebuilt
+    /// in its new keys' order, and a structural selector's per-surface
+    /// data re-ordered with it. The one way a pair is rebuilt under a
+    /// selector, so per-surface data never answers for the other surface.
+    /// `None` where `f` does.
+    pub fn remapped(
+        &self,
+        pair: SurfacePair,
+        mut f: impl FnMut(SurfaceKey) -> Option<SurfaceKey>,
+    ) -> Option<(SurfacePair, Self)> {
+        let [lo, hi] = pair.keys();
+        let (new_lo, new_hi) = (f(lo)?, f(hi)?);
+        let new = SurfacePair::new(new_lo, new_hi);
+        let selector = match self {
+            Selector::Witness(p) => Selector::Witness(*p),
+            Selector::Structural(Structural::SharedRow(row)) => {
+                let [a, b] = row.images.clone();
+                let images = if new_lo <= new_hi { [a, b] } else { [b, a] };
+                Selector::Structural(Structural::SharedRow(SharedRow { images }))
+            }
+        };
+        Some((new, selector))
+    }
+}
+
+/// **A curve known in advance** (D2's structural selector), by the form
+/// that states it. Each form is certified through each surface's
+/// chart-image certificate.
+#[derive(Clone, Debug)]
+pub enum Structural<T: Real> {
+    /// A row of each surface's chart.
+    SharedRow(SharedRow<T>),
+}
+
+/// **A row of each surface's chart that is the edge on both** — a rim
+/// where two swept or skinned walls meet at a shared section. One closed
+/// form, symmetric in the pair: each surface states its own row image.
+///
+/// The images are held in the pair's key order and are iso rows only
+/// ([`Pcurve::IsoLine`] or [`Pcurve::IsoArc`] along one chart
+/// coordinate); [`SharedRow::new`] refuses anything else.
+#[derive(Clone, Debug)]
+pub struct SharedRow<T: Real> {
+    images: [Pcurve<T>; 2],
+}
+
+impl<T: Real> SharedRow<T> {
+    /// The shared row of `pair`, `image_a` on `a` and `image_b` on `b`.
+    /// `None` where `{a, b}` is not `pair`, or an image is not an iso row.
+    pub fn new(
+        pair: SurfacePair,
+        (a, image_a): (SurfaceKey, Pcurve<T>),
+        (b, image_b): (SurfaceKey, Pcurve<T>),
+    ) -> Option<Self> {
+        let (sorted, images) = SurfacePair::sorted(a, image_a, b, image_b);
+        (sorted == pair && a != b && images.iter().all(is_row)).then_some(Self { images })
+    }
+
+    /// The row image on `surface`, a member of `pair` (the pair this row
+    /// is stated under). `None` for a key not in the pair.
+    pub fn image_on(&self, pair: SurfacePair, surface: SurfaceKey) -> Option<&Pcurve<T>> {
+        let [lo, hi] = pair.keys();
+        let [a, b] = &self.images;
+        if surface == lo {
+            Some(a)
+        } else if surface == hi {
+            Some(b)
+        } else {
+            None
+        }
+    }
+
+    /// Both images, in the pair's key order.
+    pub fn images(&self) -> &[Pcurve<T>; 2] {
+        &self.images
+    }
+}
+
+/// Whether `image` runs along one chart coordinate: an iso line or an
+/// arc rim whose chart displacement has one coordinate exactly zero.
+fn is_row<T: Real>(image: &Pcurve<T>) -> bool {
+    let along = |x: T, y: T| geom_core::is_exact_zero(x) || geom_core::is_exact_zero(y);
+    match image {
+        Pcurve::IsoLine { pl, .. } => along(pl.x, pl.y),
+        Pcurve::IsoArc { pd, .. } => along(pd.x, pd.y),
+        _ => false,
+    }
+}
+
 /// The canonical edge description (module docs): D2's two intrinsic
 /// arms, U2's ONE conventional form, and the fenced scaffolding door.
 ///
@@ -129,13 +244,13 @@ impl<T: Real> EdgeAuthority<T> {
 /// edge description is read, not moved around).
 #[derive(Clone, Debug)]
 pub enum EdgeDescription<T: Real> {
-    /// Intrinsic: the transverse intersection component selected by
-    /// `witness` (D2, verbatim).
+    /// Intrinsic: the transverse intersection curve `selector` picks
+    /// (D2, verbatim).
     Intersection {
         /// The two surfaces, as a set.
         pair: SurfacePair,
-        /// The mid-parameter witness point.
-        witness: geom_core::Point3<T>,
+        /// Which curve of the pair's intersection this edge is.
+        selector: Selector<T>,
     },
     /// Intrinsic, one differential order up: the tangential contact
     /// component selected by `witness` (D2 as sharpened by OQ7).
@@ -244,13 +359,13 @@ impl<T: Real> EdgeDescription<T> {
 /// degenerate-span row. A second input type is the cheaper honesty.
 #[derive(Clone, Debug)]
 pub enum EdgeDescriptionSpec<T: Real> {
-    /// Intrinsic: the transverse intersection component selected by
-    /// `witness` (D2).
+    /// Intrinsic: the transverse intersection curve `selector` picks
+    /// (D2).
     Intersection {
         /// The two surfaces, as a set.
         pair: SurfacePair,
-        /// The mid-parameter witness point.
-        witness: geom_core::Point3<T>,
+        /// Which curve of the pair's intersection this edge is.
+        selector: Selector<T>,
     },
     /// Intrinsic, one differential order up: the tangential contact
     /// component selected by `witness` (D2 as sharpened by OQ7).

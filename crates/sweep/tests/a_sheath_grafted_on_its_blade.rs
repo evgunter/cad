@@ -18,19 +18,20 @@
 //! for as the end vertex's meeting. At the result, the shared rim, a
 //! seam between the two bodies' NURBS walls, reads transverse: each
 //! wall's normal off the rim's image in its chart, levered over each
-//! chart's certified curvature. The union then stops where that seam is
-//! described as the walls' intersection: the NURBS pair's limb 2 reads
-//! the rim's derived degree-1 image in the walls' charts, which misses
-//! them between its feet by a definite margin
-//! (`work/ssiedge/plane-nurbs-certificate-bound-does-not-refine-with-eps`).
-//! This row is that site's tripwire: it reds when the site certifies.
+//! chart's certified curvature. The rim is the `v = 0` row of both walls,
+//! a curve known in advance, so it is described by that shared row (D2's
+//! structural selector) and certified through each wall's row
+//! certificate, owing no uniqueness tube. The result passes the gate, and
+//! the union stops at the interior-loop guard, which has no arm for a
+//! spline wall's pair. This row is that guard's tripwire: it reds when
+//! the guard reads the pair.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Band, Point2, Point3, RigidMotion, Tol, Vec3};
 use profile::test_support::bulge_loop;
 use profile::{ProfileLoop, SketchPlane};
 use sweep::loft_body;
-use topo::{BooleanError, EdgeDescribeFailure, EulerOpError};
+use topo::{BooleanError, PairRefusalSite};
 
 /// The lens on chord `width`, rising `ridge` above it and dropping
 /// `keel` below, run counterclockwise from the `+s` margin.
@@ -76,26 +77,22 @@ fn blade(
     topo::test_support::finished("a lens blade", lofted, tol)
 }
 
-/// **Both orders get past the contact, the shared cap, the spline walls
-/// and the seam's dihedral**, and stop where the result's shared rim, a
-/// seam between a NURBS wall of each body, is described as the walls'
-/// `Intersection`: its certification refuses. Limbs 1 and 2 read the
-/// rim through each wall's exact boundary-row image. Limb 3 refused at ε
-/// 1e-9, 1e-6 and 1e-12 when measured on 2026-10-28
-/// (`PlaneNurbs(TubeNotOneArc { Undecided })`). The two-chart tube is cut
-/// to the charts' domains, and the rim both ends at a corner of each
-/// chart and runs along a boundary row of each, so the one-arc walk
-/// isolates no root at either
-/// (`work/ssiedge/a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary.md`).
-/// The site is pinned, not the cause. Before the exact images, limb 2
-/// refused on the fitted image's 9.0e-6 m miss. Before the seam's
-/// spline entry, each stopped one step earlier, at the seam's dihedral
-/// arm (`Escalated { LeverArm(Seam), "dihedral_arm" }`, an invalid
-/// margin); before the spline span × spline face arm,
-/// `CurvedBooleanUnsupported { operand: B, kind: Nurbs }` at B's ridge
-/// wall, a seam of A there; before the boundary pass, at the contact on
-/// a wall of B; before the ring-composite arm, at the planar lane,
-/// `EdgeCarrierUnsupported` on a tip seam of A against the cap of B.
+/// **Both orders describe the shared rim and stop at the interior-loop
+/// guard.** The rim is each wall's `v = 0` row, recovered as the walls'
+/// shared row and certified per wall; the result passes the gate, so
+/// every edge, the rims among them, certifies at rest. The guard then
+/// refuses the pair of B's spline wall and A's cap plane
+/// (`CurvedPairUnsupported { site: InteriorLoopGuard }`, measured at ε
+/// 1e-9, 1e-6 and 1e-12 on 2026-10-28). Before the shared row, the rim's
+/// witness refused at limb 3 (`PlaneNurbs(TubeNotOneArc { Undecided })`):
+/// the two-chart tube cannot prove one arc along a chart's boundary row.
+/// Before the exact images, limb 2 refused on the fitted image's 9.0e-6 m
+/// miss; before the seam's spline entry, the seam's dihedral arm
+/// (`Escalated { LeverArm(Seam), "dihedral_arm" }`); before the spline
+/// span × spline face arm, `CurvedBooleanUnsupported { operand: B, kind:
+/// Nurbs }`; before the boundary pass, the contact on a wall of B; before
+/// the ring-composite arm, `EdgeCarrierUnsupported` on a tip seam of A
+/// against the cap of B.
 #[test]
 fn a_sheath_on_its_blade_unions_past_the_shared_rim() {
     let tol = Tol::witness();
@@ -114,17 +111,18 @@ fn a_sheath_on_its_blade_unions_past_the_shared_rim() {
         ("sheath ∪ blade", &sheath, &leaf),
     ] {
         let err = topo::union(a, b, tol).expect_err(what);
-        let BooleanError::EdgeUndescribed {
-            failure: EdgeDescribeFailure::Intersection,
-            cause: Some(cause),
-            ..
-        } = &err
-        else {
-            panic!("{what}: past the seam's dihedral, at its intersection: {err:?}");
-        };
         assert!(
-            matches!(**cause, EulerOpError::Certification { .. }),
-            "{what}: the rim's certification: {cause:?}"
+            matches!(
+                err,
+                BooleanError::CurvedPairUnsupported {
+                    site: PairRefusalSite::InteriorLoopGuard,
+                    operand: topo::Operand::B,
+                    kind: geom::SurfaceKind::Nurbs,
+                    other_kind: geom::SurfaceKind::Plane,
+                    ..
+                }
+            ),
+            "{what}: past the shared rim, at the interior-loop guard on a spline wall: {err:?}"
         );
         // The cap read on the way: every spline edge of A, against every
         // plane face of B, through the arm the planar lane reads, crosses

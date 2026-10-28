@@ -91,7 +91,7 @@ fn build(
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(ck, pk),
-                witness: c.eval(0.5),
+                selector: geom_brep::Selector::Witness(c.eval(0.5)),
             },
             carrier: Curve3::Nurbs(Arc::clone(c)),
             param_start: 0.0,
