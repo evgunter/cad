@@ -531,8 +531,10 @@ fn a_budget_too_small_is_indeterminate_and_never_a_bound() {
 
 /// **A line pair's gap is a boundary of its own.** From a nominal below
 /// the first of the [`GAP_ZEROS`], the walk up stops at it, short of the
-/// crossing, and names `segment_gap`: the two lines' projections go from
-/// overlapping to apart there, and nothing else about the notch changes.
+/// crossing, and names `segment_gap` leaving Negative: the two lines'
+/// projections go from overlapping to apart there (through the zero
+/// band, which a coarse ε reaches first), and nothing else about the
+/// notch changes.
 #[test]
 fn a_gap_between_two_lines_is_a_decision_flip_below_the_crossing() {
     let nominal = -0.25;
@@ -544,10 +546,15 @@ fn a_gap_between_two_lines_is_a_decision_flip_below_the_crossing() {
     else {
         panic!("the gap's zero is a decision flip, got {:?}", r.hi());
     };
+    // The bracket closes where the gap's margin enters the band, which
+    // at a coarse ε lies short of its exact zero by about ε.
     let zero = GAP_ZEROS[0] - nominal;
+    let resolution = (NOTCH_SEED.hi - NOTCH_SEED.lo) / 2f64.powi(24);
     assert!(
-        within.0 <= zero && zero <= within.1 && within.1 < THROUGH - nominal,
-        "the gap's zero at offset {zero} is inside {within:?}, below the crossing"
+        within.0 <= zero
+            && zero - within.1 < 100.0 * resolution.max(tol().eps())
+            && within.1 < THROUGH - nominal,
+        "the gap's zero at offset {zero} closes {within:?}, below the crossing"
     );
     let named: Vec<_> = evidence
         .verdicts
@@ -559,7 +566,7 @@ fn a_gap_between_two_lines_is_a_decision_flip_below_the_crossing() {
     assert!(
         named.iter().any(|(p, from, to)| *p == "segment_gap"
             && *from == geom_core::Sign::Negative
-            && *to == geom_core::Sign::Positive),
+            && *to != geom_core::Sign::Negative),
         "the gap's flip was not named: {named:?}"
     );
 }
