@@ -2389,6 +2389,10 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::MeridianFreeCurvedFace { .. } => "meridian_free_curved_face",
         TessellateError::SingleColumnCurvedFace { .. } => "single_column_curved_face",
         TessellateError::Band { .. } => "tolerance_band_unformable",
+        TessellateError::TrimLoopOrientation { .. } => "trim_loop_orientation",
+        TessellateError::FoldedTriangle { .. } => "folded_triangle",
+        TessellateError::BoundaryEar { .. } => "boundary_ear",
+        TessellateError::SphereTrimShape { .. } => "sphere_trim_shape",
     }
 }
 

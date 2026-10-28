@@ -1969,7 +1969,7 @@ pub enum NodeErrorKind {
     },
     /// The clearance engine refused a `min_clearance` measurement: its
     /// own typed refusal (E7's refusal vocabulary), carried unaltered.
-    MeasureClearanceRefused(crate::clearance::ClearanceRefusal),
+    MeasureClearanceRefused(topo::clearance::MinSeparationRefusal),
     /// An `Assertion`'s bound is dimensioned differently from the
     /// measure it constrains — comparing metres with radians is a
     /// document fault, refused rather than compared.
@@ -2346,7 +2346,7 @@ impl crate::spoken::Say for NodeErrorKind {
             } => write!(f, "{what} {index} failed to evaluate: {source}"),
             Self::MeasureClearanceRefused(refusal) => {
                 write!(f, "the clearance engine refused `{}`", refusal.name())?;
-                let payload = refusal.said_payload(by);
+                let payload = refusal.payload();
                 if !payload.is_empty() {
                     write!(f, " ({payload})")?;
                 }
@@ -2649,7 +2649,6 @@ pub trait EvalScalar:
     + topo::AtRestPolicy
     + crate::analysis::AxisScalar
     + crate::analysis::SeedScalar
-    + crate::measure::MinClearanceLane
     + crate::mate::SolveScalar
     + ProfileLane
     + crate::checks::at_rest::LocalizeLane
@@ -2665,7 +2664,6 @@ impl<T> EvalScalar for T where
         + topo::AtRestPolicy
         + crate::analysis::AxisScalar
         + crate::analysis::SeedScalar
-        + crate::measure::MinClearanceLane
         + crate::mate::SolveScalar
         + ProfileLane
         + crate::checks::at_rest::LocalizeLane
@@ -2789,8 +2787,9 @@ pub(crate) mod leaf {
     /// ([`LeafLane`]).
     ///
     /// It lives here rather than at each consumer because the lane is the
-    /// evaluation service's own fact and because the two arms below are the
-    /// only place in the tree that names both leaf scalars. A consumer that
+    /// evaluation service's own fact and because its two arms, and
+    /// [`read_leaf_with`]'s, are the only place in the tree that names both
+    /// leaf scalars. A consumer that
     /// picked its own scalar would be deciding, per file, which build it is
     /// reading — which is exactly the drift that made a perfectly good
     /// verdict report as "not of this build".
@@ -2819,6 +2818,50 @@ pub(crate) mod leaf {
                     read_leaf(doc, &ev, want, |v: geom_core::Sym<geom_core::Interval>| {
                         v.value
                     })
+                });
+                out
+            }
+        }
+    }
+
+    /// **A consumer that reads a leaf's replay at the scalar its lane
+    /// runs**, for a read [`LeafRequest`] does not name: the clearance
+    /// query, which hands the replay's bodies to the engine's door.
+    pub(crate) trait AtLeaf {
+        /// What the read answers.
+        type Out;
+
+        /// The read, over the leaf's replay at `T`, with the clearance
+        /// engine's door at `T`: every leaf lane is a certifying
+        /// scalar, so the door is held rather than asked for.
+        fn at<T: geom_core::Decide + topo::AtRestPolicy>(
+            self,
+            ev: &Evaluation<T>,
+            clearance: topo::ClearanceLane<T>,
+        ) -> Self::Out;
+    }
+
+    /// **Replays one leaf on `lane` and hands the replay to `read`**:
+    /// [`replay_leaf`]'s two arms, with no prior, for a read that has to
+    /// run inside the symbolic session the replay ran in.
+    pub(crate) fn read_leaf_with<A: AtLeaf>(
+        doc: &crate::doc::Doc<crate::program::ProfileProgram>,
+        opts: &EvalOptions,
+        lane: LeafLane,
+        tol: geom_core::Tol,
+        read: A,
+    ) -> A::Out {
+        match lane {
+            LeafLane::Numeric => {
+                let ev: Evaluation<geom_core::Interval> =
+                    evaluate(doc, None, &CancelToken::new(), opts, tol);
+                read.at(&ev, topo::ClearanceLane::certified())
+            }
+            LeafLane::Symbolic(budget, rules, retry) => {
+                let (out, _) = geom_core::sym::with_session_retry(budget, rules, retry, || {
+                    let ev: Evaluation<geom_core::Sym<geom_core::Interval>> =
+                        evaluate(doc, None, &CancelToken::new(), opts, tol);
+                    read.at(&ev, topo::ClearanceLane::certified())
                 });
                 out
             }
@@ -2865,7 +2908,7 @@ pub(crate) mod leaf {
     }
 }
 
-pub(crate) use leaf::{LeafLane, LeafPrior, LeafRequest, replay_leaf};
+pub(crate) use leaf::{AtLeaf, LeafLane, LeafPrior, LeafRequest, read_leaf_with, replay_leaf};
 
 /// Evaluation options (spec D5/D6).
 #[derive(Debug, Clone)]

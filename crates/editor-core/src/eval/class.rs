@@ -786,12 +786,10 @@ mod tests {
                 source: EvalError::NonFiniteResult,
             },
             C::MeasureClearanceRefused => {
-                K::MeasureClearanceRefused(crate::clearance::ClearanceRefusal::Engine(
-                    crate::clearance::EngineRefusal::Unsupported {
-                        carrier: "an approximated face",
-                        face: topo::FaceKey::default(),
-                    },
-                ))
+                K::MeasureClearanceRefused(topo::clearance::MinSeparationRefusal::Unsupported {
+                    carrier: "an approximated face",
+                    face: topo::FaceKey::default(),
+                })
             }
             C::AssertionDimension => K::AssertionDimension {
                 measured: crate::Dimension::Length,

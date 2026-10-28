@@ -5058,11 +5058,10 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 /// - **The analysis lane's INTERIOR residue** (`FlipEvidence`,
 ///   `StructureFlip`, `AxisScalar`, `var_env_over`, `SeedScalar`,
 ///   `seed_env`, `std_deviation`, `sensitivities`,
-///   `BindingViolation`; the third lane seam `MinClearanceLane`
-///   with its `MinClearanceOperand`, which is how a `min_clearance`
-///   measure asks the interval lane for the bracket only that lane
-///   can carry; and `ProfileLane`, the sealed fact that the `f64`
-///   lane is a profile's first pass).
+///   `BindingViolation`; `MinClearanceOperand`, which is how a
+///   `min_clearance` measure hands the engine one resolved side; and
+///   `ProfileLane`, the sealed fact that the `f64` lane is a profile's
+///   first pass).
 ///
 ///   **The rest of this family is now CARRIED**, by `crate::analysis`
 ///   (M10-6): the driver and its box,
@@ -5101,7 +5100,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   which `Doc::mint` answers. The doors read it and a consumer never
 ///   writes it; what a consumer holds is the ids themselves
 ///   (`RecipeNodeId`, `StepId`), carried.
-const NOT_CARRIED: [&str; 98] = [
+const NOT_CARRIED: [&str; 97] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceKey",
@@ -5136,7 +5135,6 @@ const NOT_CARRIED: [&str; 98] = [
     "MetaError",
     "MetaInt",
     "MetaValue",
-    "MinClearanceLane",
     "MinClearanceOperand",
     "Mint",
     "Minted",

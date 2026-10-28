@@ -172,8 +172,7 @@ pub use mc::{
 };
 pub use measure::{
     ASSERT_BOUND, AssertionRelation, AssertionVerdict, Certified, MeasurePrimitive,
-    MeasureUnavailableAt, MeasureVerb, MinClearanceLane, MinClearanceOperand, UnevaluatedReason,
-    WINDOW_TIGHTENING,
+    MeasureUnavailableAt, MeasureVerb, MinClearanceOperand, UnevaluatedReason, WINDOW_TIGHTENING,
 };
 pub use meta::{MetaError, MetaInt, MetaValue, MetaVersionError, from_value, to_value};
 pub use mint::{Mint, MintId, Minted};

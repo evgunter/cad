@@ -196,29 +196,18 @@ pub(crate) const FILED_DECLARE: &[&str] = &[];
 /// The rows that render a key or a hex id, by exact row id and the
 /// exact span, each filed with its owner.
 pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
-    // `EngineRefusal::payload` (`topo/src/clearance.rs`), which
-    // `ClearanceRefusal::payload` delegates to, is the goldening form, and
-    // this arm prints it: faces as `FaceKey` `Debug`, a budget as its
-    // `Debug`; the editor's own `NotADistance` prints its bound as bits.
+    // `EngineRefusal::payload` (`topo/src/clearance.rs`) is the
+    // goldening form, and this arm prints it: faces as `FaceKey`
+    // `Debug`.
     Admission {
-        row: "MeasureClearanceRefused/Engine/Unsupported",
+        row: "MeasureClearanceRefused/Unsupported",
         span: "FaceKey(null)",
-        filed: "work/clear/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
+        filed: "work/cleartail/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
     },
     Admission {
-        row: "MeasureClearanceRefused/Engine/PoisonEnclosure",
+        row: "MeasureClearanceRefused/PoisonEnclosure",
         span: "FaceKey(null)/FaceKey(null)",
-        filed: "work/clear/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
-    },
-    Admission {
-        row: "MeasureClearanceRefused/NotADistance",
-        span: "bff0000000000000",
-        filed: "work/clear/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
-    },
-    Admission {
-        row: "MeasureClearanceRefused/Engine/Budget",
-        span: "Depth { max_cell_depth: 24 }",
-        filed: "work/clear/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
+        filed: "work/cleartail/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
     },
     // A smooth-join refusal names its edge by key.
     Admission {
@@ -308,18 +297,11 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ProfileReplay/Path/UnderdeterminedLeg",
     "ProfileReplay/Path/ZeroDirection",
     "ProfileReplay/Transition",
-    // work/clear/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md
-    "MeasureClearanceRefused/Engine/Budget",
-    "MeasureClearanceRefused/Engine/EmptyScope",
-    "MeasureClearanceRefused/Engine/NoAdmittedPair",
-    "MeasureClearanceRefused/Engine/PoisonEnclosure",
-    "MeasureClearanceRefused/Engine/Sliver",
-    "MeasureClearanceRefused/Engine/Unsupported",
-    "MeasureClearanceRefused/Engine/WitnessUnverified",
-    "MeasureClearanceRefused/NotADistance",
-    "MeasureClearanceRefused/NothingCertified",
-    "MeasureClearanceRefused/Selection",
-    "MeasureClearanceRefused/ToleranceHasNoBand",
+    // work/cleartail/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md
+    "MeasureClearanceRefused/EmptyScope",
+    "MeasureClearanceRefused/NoAdmittedPair",
+    "MeasureClearanceRefused/PoisonEnclosure",
+    "MeasureClearanceRefused/Unsupported",
     // work/profiletail/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     "Profile/InconsistentArc",
     // work/honeword/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
@@ -770,7 +752,7 @@ fn every_node_refusal_renders_within_the_budget() {
     }
 }
 
-use editor_core::clearance::{ClearanceRefusal, EngineRefusal};
+use editor_core::clearance::MinSeparationRefusal;
 use editor_core::{BifurcationKind, Diagnosis, EvalError, ParamBoxError, ResolveError, SeedError};
 
 test_utils::f6_variants! {
@@ -1050,19 +1032,9 @@ test_utils::f6_variants! {
 }
 
 test_utils::f6_variants! {
-    /// `ClearanceRefusal`'s arms, for the `MeasureClearanceRefused/` rows.
-    const CLEARANCE_REFUSAL: ClearanceRefusal = [
-        Engine, Selection, NothingCertified, NotADistance, ToleranceHasNoBand,
-    ];
-}
-
-test_utils::f6_variants! {
-    /// `EngineRefusal`'s arms, for the `MeasureClearanceRefused/Engine/`
-    /// rows.
-    const ENGINE_REFUSAL: EngineRefusal = [
-        Sliver, Budget, Unsupported, PoisonEnclosure, EmptyScope, NoAdmittedPair,
-        WitnessUnverified,
-    ];
+    /// `MinSeparationRefusal`'s arms, for the `MeasureClearanceRefused/` rows.
+    const MIN_SEPARATION_REFUSAL: MinSeparationRefusal =
+        [Unsupported, PoisonEnclosure, EmptyScope, NoAdmittedPair];
 }
 
 /// Every roster the weld checks, by the refusal it is the census of.
@@ -1078,8 +1050,7 @@ const ROSTERS: &[(&str, &[&str])] = {
         ("ResolveError", RESOLVE_ERROR.identifiers()),
         ("Diagnosis", DIAGNOSIS.identifiers()),
         ("BifurcationKind", BIFURCATION_KIND.identifiers()),
-        ("ClearanceRefusal", CLEARANCE_REFUSAL.identifiers()),
-        ("EngineRefusal", ENGINE_REFUSAL.identifiers()),
+        ("MinSeparationRefusal", MIN_SEPARATION_REFUSAL.identifiers()),
         (
             "NamingError",
             crate::display_contract::NAMING_ERROR.identifiers(),
@@ -1176,17 +1147,7 @@ fn forward(kind: &NodeErrorKind) -> Forward {
             welded(levels)
         }
         NodeErrorKind::WitnessBifurcation(e) => one("BifurcationKind", &e.kind),
-        NodeErrorKind::MeasureClearanceRefused(e) => {
-            let mut levels = vec![level("ClearanceRefusal", e)];
-            match e {
-                ClearanceRefusal::Engine(engine) => levels.push(level("EngineRefusal", engine)),
-                ClearanceRefusal::Selection(_)
-                | ClearanceRefusal::NothingCertified { .. }
-                | ClearanceRefusal::NotADistance { .. }
-                | ClearanceRefusal::ToleranceHasNoBand => {}
-            }
-            welded(levels)
-        }
+        NodeErrorKind::MeasureClearanceRefused(e) => one("MinSeparationRefusal", e),
         // Labelled by the standing each carries, the names the filed
         // rows cite them by.
         NodeErrorKind::MeasureRefUnreadable { error, .. } => Forward::Welded {
@@ -4883,7 +4844,6 @@ fn doc_ref() -> editor_core::DocRef {
 
 /// The contact, frame, witness, part and measure arms.
 fn document_arms() -> Vec<(String, NodeErrorKind)> {
-    use editor_core::clearance::ClearanceRefusal;
     use editor_core::{
         BifurcationKind, BranchMarginEvidence, EntityKind, FaceName, Implicated, InterrogateError,
         PartFault, WitnessAge, WitnessBifurcation,
@@ -4960,59 +4920,23 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         ));
     }
     {
-        use editor_core::clearance::{CellBudget, EngineRefusal, SelectionRefusal};
-        let engine = |refusal| ClearanceRefusal::Engine(refusal);
         for (n, refusal) in [
             (
-                "Engine/Sliver",
-                engine(EngineRefusal::Sliver {
-                    predicate: "clearance_pair_separation",
-                }),
-            ),
-            (
-                "Engine/Budget",
-                engine(EngineRefusal::Budget(CellBudget::Depth {
-                    max_cell_depth: 24,
-                })),
-            ),
-            (
-                "Engine/Unsupported",
-                engine(EngineRefusal::Unsupported {
+                "Unsupported",
+                MinSeparationRefusal::Unsupported {
                     carrier: "an approximated face",
                     face: FaceKey::default(),
-                }),
+                },
             ),
             (
-                "Selection",
-                ClearanceRefusal::Selection(SelectionRefusal::NoSuchBody {
-                    node: RecipeNodeId::new(0, tagged(6)),
-                    index: 2,
-                }),
-            ),
-            (
-                "Engine/PoisonEnclosure",
-                engine(EngineRefusal::PoisonEnclosure {
+                "PoisonEnclosure",
+                MinSeparationRefusal::PoisonEnclosure {
                     a: FaceKey::default(),
                     b: FaceKey::default(),
-                }),
+                },
             ),
-            (
-                "NothingCertified",
-                ClearanceRefusal::NothingCertified { refused_leaves: 12 },
-            ),
-            ("NotADistance", ClearanceRefusal::NotADistance { c: -1.0 }),
-            ("Engine/EmptyScope", engine(EngineRefusal::EmptyScope)),
-            ("ToleranceHasNoBand", ClearanceRefusal::ToleranceHasNoBand),
-            (
-                "Engine/NoAdmittedPair",
-                engine(EngineRefusal::NoAdmittedPair),
-            ),
-            (
-                "Engine/WitnessUnverified",
-                engine(EngineRefusal::WitnessUnverified {
-                    what: "the f64 rebuild found the pair clear of the bound".to_owned(),
-                }),
-            ),
+            ("EmptyScope", MinSeparationRefusal::EmptyScope),
+            ("NoAdmittedPair", MinSeparationRefusal::NoAdmittedPair),
         ] {
             rows.push(row(
                 &format!("MeasureClearanceRefused/{n}"),
