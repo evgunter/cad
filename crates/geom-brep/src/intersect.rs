@@ -115,7 +115,7 @@ use geom_core::{Band, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, 
 use crate::dihedral::{
     decide, decide_magnitude, decide_magnitude_reported, decide_nonzero, decide_reported,
 };
-use crate::extent::Reach;
+use crate::extent::{LeverBounds, Reach};
 use crate::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use crate::torus_convention::TorusRefusal;
 use geom_core::Decide;
@@ -2810,6 +2810,16 @@ pub enum ConeCylinderSection<T: Real> {
 /// distance from the cylinder's axis and `θ` the tilt
 /// `coc_axes_parallel` admits, and `coc_coaxial` decides that sum.
 ///
+/// **A caller that knows the extent only from both sides hands both**
+/// ([`LeverBounds`]; a plain length is exact), and each row reads the
+/// side on which a wrong length only refuses. The rows that act on
+/// their Zero, `coc_axes_parallel` and `coc_coaxial`'s swing
+/// (`separation_range` over the extent), read the bound from above: a
+/// longer arm only reads more tilt and more swing. The rows that act on
+/// a Positive, the three convention guards and `coc_station_reach`'s
+/// admission, read the bound from below: a longer arm would certify a
+/// guard and admit a station the region does not reach.
+///
 /// 1. `coc_cylinder_radius` — margin `R` (meters): the arm states both
 ///    circles at exactly that radius, so it must be a positive length.
 /// 2. `coc_aperture_sin` and `coc_aperture_cos`, each metered at
@@ -2864,9 +2874,11 @@ pub enum ConeCylinderSection<T: Real> {
 pub fn cone_cylinder_section<T: Decide>(
     cone: &Surface<T>,
     cyl: &Surface<T>,
-    extent: T,
+    extent: impl Into<LeverBounds<T>>,
     band: Band,
 ) -> Result<ConeCylinderSection<T>, SectionError> {
+    let extent = extent.into();
+    let (below, above) = (extent.below(), extent.above());
     let wrong = || SectionError::WrongLane {
         expected: "cone×cylinder (cone first)",
     };
@@ -2941,9 +2953,7 @@ pub fn cone_cylinder_section<T: Decide>(
              azimuth zero is not decided",
         ),
     ] {
-        match decide(name, Margin::levered(margin, extent), band)
-            .map_err(SectionError::Escalated)?
-        {
+        match decide(name, Margin::levered(margin, below), band).map_err(SectionError::Escalated)? {
             Sign::Positive => {}
             Sign::Zero | Sign::Negative => return Err(SectionError::DegenerateOperand { what }),
         }
@@ -2951,7 +2961,7 @@ pub fn cone_cylinder_section<T: Decide>(
 
     match decide(
         "coc_axes_parallel",
-        Margin::levered(a.cross(b).norm(), extent),
+        Margin::levered(a.cross(b).norm(), above),
         band,
     )
     .map_err(SectionError::Escalated)?
@@ -2980,7 +2990,7 @@ pub fn cone_cylinder_section<T: Decide>(
     // cross-section, `R·(1 − cos θ) ≤ R·sin²θ`. The swing is that range's
     // reach from `d`, plus the turn.
     let d = (apex - o).reject_from(b).norm();
-    let (near, far) = separation_range((apex, a), (o, b), extent);
+    let (near, far) = separation_range((apex, a), (o, b), above);
     let swing = (far - d).abs().max((d - near).abs()) + big_r * a.cross(b).norm().powi(2);
     match decide_across(["coc_coaxial", "coc_coaxial_floor"], d, swing, band)
         .map_err(SectionError::Escalated)?
@@ -3002,12 +3012,8 @@ pub fn cone_cylinder_section<T: Decide>(
             // instead: inside it the position error is O(ε·extent),
             // which is what makes the zero-residual claim above a claim
             // about the arm and not about the fixture.
-            match decide(
-                "coc_station_reach",
-                Margin::of(extent - station.abs()),
-                band,
-            )
-            .map_err(SectionError::Escalated)?
+            match decide("coc_station_reach", Margin::of(below - station.abs()), band)
+                .map_err(SectionError::Escalated)?
             {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => {

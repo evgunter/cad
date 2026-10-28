@@ -136,7 +136,7 @@ pub(super) fn sector_face<T: Decide>(
 }
 
 /// The outgoing direction of orbit half-edge `he` out of the base
-/// vertex, scaled to the edge's honest extent (its `.norm()` is the
+/// vertex, scaled to the edge's extent from below (its `.norm()` is the
 /// sector predicates' lever arm, its `.normalize()` the direction):
 ///
 /// - **Line** carriers: the chord `p(final) − p(base)` — the M3 path,
@@ -144,7 +144,7 @@ pub(super) fn sector_face<T: Decide>(
 ///   extent).
 /// - **Curved** carriers (a conic, a spiric or a spline): the departure
 ///   [`geom_brep::ConicDeparture`] reads, the outgoing unit tangent
-///   scaled by [`geom_brep::edge_extent`] (the chord collapses on
+///   scaled by [`geom_brep::edge_extent_inf`] (the chord collapses on
 ///   near-closed arcs, and is not a spline's direction), with the
 ///   edge's [`geom_brep::ConicBend`] there.
 #[allow(clippy::type_complexity)] // (far vertex, scaled dir, conic bend) — one internal tuple
