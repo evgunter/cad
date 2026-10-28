@@ -59,7 +59,7 @@ sweep --ignore-default-filter -E 'test(/^pair_section::(one_loop_keeps|two_loops
 
 ## A fuzz counterexample in the same file, at 1e-6
 
-This PR's gate (head `cb9ff6a2`, docs-only diff) drew a counterexample
+This PR's gate (head `eee69f222f`, a docs-only diff) drew a counterexample
 from `pair_section::no_pose_off_the_band_moves_from_the_retired_formulas`
 (`crates/geom-brep/tests/pair_section.rs:586`), a fuzzer that is in the
 PR set at 1e-6:
