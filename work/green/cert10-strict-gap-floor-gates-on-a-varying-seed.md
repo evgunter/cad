@@ -4,7 +4,7 @@ kind: issue
 title: nurbs_cert_fuzz's cert10 strict-gap floor gates hosted CI over a per-run varying seed and fails at some seeds
 status: open
 opened: 2026-09-05
-priority: P4
+priority: P3
 cost: E
 ---
 

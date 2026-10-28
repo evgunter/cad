@@ -866,3 +866,11 @@ carrier, and a structural selector is certified per surface, owing no
 limb 3. Fork-log row 208 is completed: B's first recommendation, as
 converged. Next is the boundary-row recovery in the boolean's
 `describe_edges` and the split's `finish`, which SPLICE takes.
+
+## 2026-10-28 — lily's next stop filed on SELECT; the tori red closes
+
+`select/the-boolean-recovers-no-structural-selector-for-a-rim-known-in-advance`
+is filed at P0. It needs SELECT's unit 1, the selector type, and SELECT
+has nothing dispatched. Ev was asked whether to start a SELECT
+orchestrator or have SPLICE take the units. SECT fixed the tori main
+red in PR 5925, so its issue file is closed.
