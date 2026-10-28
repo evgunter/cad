@@ -876,3 +876,11 @@ E1c waits on the answer.
   - The spec types stay nameable because `EdgeCurve::{mint, certify, …}` take and return them.
   - Review tier: single FULL review (the move is mechanical, but whether the seal is complete had to be probed from outside). 0 MAJOR; fix list K1–K5 (the pins could not see a door made public; the tier's docs had dropped out of rustdoc). The orchestrator read the fixes.
 - 2026-10-28 — E1c (PR 5889) dispatched at review tier dual, class H (the incidence read across five charts). The concurrent pair reads frozen head 6c29a7e439, scope c591ab53c7..6c29a7e439.
+- 2026-10-28 — **E1c fix pass L1–L10** (PR 5889).
+  - Every at-rest reader of a stored carrier now reads incidence first: the stated chart image (`run_checks`), the stored pcurve rows (`PcurveCache::certify`/`recertify`) and the planar tier's boundary (through `IncidenceRead`). This closes `select/a-stated-chart-image-meters-its-carriers-incidence-as-a-residual`.
+  - The pair description's two-surface residual is filed on select: `a-two-surface-residual-meters-a-moved-face-as-the-descriptions-miss`.
+  - The read is decided less its rounding, as a multiple of the distance, so the symbolic tier's zero theorem survives the charge (the box replay of `m10_10`).
+  - The envelope sweeps draw on the face and count what they drop.
+  - The sphere parallel reads the radius its image turns at near the pole (`polar_read_radius`).
+  - Filed closed: `a-lifted-copy-of-a-circle-whose-turn-is-within-the-band-certifies` (check 2 refuses it).
+  - Three rows at the 1 s line move to the slow set; base and head measure alike.
