@@ -14,7 +14,8 @@
 
 test_utils::gated_to![
     "crates/geom-brep/src/pair_section/gap.rs",
-    "crates/geom-brep/src/pair_section/torus.rs"
+    "crates/geom-brep/src/pair_section/torus.rs",
+    "crates/geom-brep/tests/shared/"
 ];
 
 use crate::shared::tol::band;
