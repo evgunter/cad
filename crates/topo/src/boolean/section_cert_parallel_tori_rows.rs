@@ -95,10 +95,12 @@ type Row = ((f64, f64), (f64, f64), (f64, f64), usize, &'static str);
 /// Mutants: listing one mirror copy of a loop clear of `Π` (count),
 /// witnessing every point of `Π` instead of every other (count), the
 /// parity started on a point's strand read off the wrong sheet (two
-/// parts on one traced component), a lost meridian-circle pair (count).
+/// parts on one traced component), a lost meridian-circle pair (count),
+/// a level end refused even where its node clears the triangle (not
+/// classified).
 #[test]
 fn parallel_tori_every_class_against_the_trace() {
-    let rows: [Row; 8] = [
+    let rows: [Row; 12] = [
         (
             (2.0, 0.5),
             (2.0, 0.5),
@@ -143,6 +145,34 @@ fn parallel_tori_every_class_against_the_trace() {
             3,
             "the partner's tube spanning the first's heights",
         ),
+        (
+            (2.0, 0.5),
+            (2.0, 0.5),
+            (4.9, 0.0),
+            1,
+            "equal tubes level, their node beyond the triangle",
+        ),
+        (
+            (2.0, 0.3),
+            (1.0, 0.3),
+            (0.5, 0.0),
+            1,
+            "equal tubes level, their node within the triangle's near edge",
+        ),
+        (
+            (2.0, 0.5),
+            (2.0, 0.25),
+            (4.6, 0.25),
+            1,
+            "tops level, the partner owning the bottom, the node beyond",
+        ),
+        (
+            (2.0, 0.5),
+            (2.0, 0.5),
+            (4.5, 1.0),
+            0,
+            "slabs level, the node beyond",
+        ),
     ];
     for ((big_r, r), (big_r2, r2), (e, h), count, what) in rows {
         let f = torus(p(0.0, 0.0, 0.0), big_r, r);
@@ -173,18 +203,26 @@ fn parallel_tori_every_class_against_the_trace() {
     }
 }
 
-/// **Two tubes of one radius at one height refuse R-tan**: their tops
-/// stand level, where the matching curve `W` has a node (both sheets
-/// turning at once), and the arm does not read its loops through it.
-/// Mutant: the top row decided on its near side (loops read through
-/// the node).
+/// **Level ends whose node lies inside the triangle refuse R-tan**: the
+/// matching curve `W` has a node at `(R, R₂)` there (both tubes' sheets
+/// turning at once), and inside `|ρ − ρ₂| < e < ρ + ρ₂` it is a pair of
+/// points of both tori where both normals lie along the axes, a
+/// tangency. Two tubes of one radius at one height (their tops level),
+/// and two stacked so one's top meets the other's bottom (their slabs
+/// level). Mutant: the node's clearance read on the wrong side of the
+/// triangle (classified).
 #[test]
-fn level_tubes_of_one_radius_refuse_as_a_tangency() {
-    let s = classify(
-        &torus(p(0.0, 0.0, 0.0), 2.0, 0.5),
-        &torus(p(1.0, 0.0, 0.0), 2.0, 0.5),
-    );
-    assert_eq!(tangent(&s), "section_torus_parallel_tori_top");
+fn level_ends_with_the_node_inside_refuse_as_a_tangency() {
+    for (h, row) in [
+        (0.0, "section_torus_parallel_tori_top"),
+        (1.0, "section_torus_parallel_tori_slabs"),
+    ] {
+        let s = classify(
+            &torus(p(0.0, 0.0, 0.0), 2.0, 0.5),
+            &torus(p(1.0, 0.0, h), 2.0, 0.5),
+        );
+        assert_eq!(tangent(&s), row, "h = {h}");
+    }
 }
 
 /// The lily's stem torus, and its arch torus at the given offset `e`

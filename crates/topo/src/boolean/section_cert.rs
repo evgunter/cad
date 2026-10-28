@@ -1365,10 +1365,13 @@ const PARALLEL_TORI_ORDER: &str = "section_torus_parallel_tori_order";
 /// of `Π` on both tori, which are the crossings of the tori's meridian
 /// circles in `Π` (closed form, at most eight).
 ///
-/// `W` is smooth, its strands being the sheets `ρ = R ± √(r² − y²)` and
-/// the partner's over the heights both tubes span, joined where that
-/// span ends at a tube's top or bottom: two loops where one tube owns
-/// both ends, one loop of four strands otherwise. A crossing of the
+/// `W`'s strands are the sheets `ρ = R ± √(r² − y²)` and the partner's
+/// over the heights both tubes span, joined where that span ends at a
+/// tube's top or bottom: two loops where one tube owns both ends, one
+/// loop of four strands otherwise. `W` is smooth but where the two
+/// tubes' ends stand level, a node at `(R, R₂)` where all four strands
+/// meet; the arm reads past it where it clears the triangle, and refuses
+/// R-tan where it does not, the carriers tangent there. A crossing of the
 /// meridian circles is transverse (the rows below decide it), so the
 /// section crosses `Π` square to it there and `W` passes from inside the
 /// triangle to outside. A loop of `W` meeting `Π` in `2k` points is
@@ -1391,6 +1394,39 @@ fn torus_parallel_torus<T: Decide>(
 ) -> Section<T> {
     let side = a.cross(toward);
     let at = |x: T, y: T, z: T| c + toward * x + a * y + side * z;
+    // A level row (a tube's top against the other's top, bottom or
+    // bottom) left undecided stands within `δ = escalate + 2·slack` of
+    // level at every consumed pose. At heights within `δ` of the level
+    // end both tubes' sheets stand within `√(2·max(r, r₂)·δ)`, the neck,
+    // of `R` and `R₂`, so there `W` stays in the neck's ball about the
+    // node `(R, R₂)`; elsewhere the level row's verdict does not enter.
+    // The node clears the closed triangle when it stands beyond its far
+    // edge or below its near one by more than the neck: then every point
+    // `W` holds near the level end lies outside, no arc inside the
+    // triangle reaches it, and every reading of the end (which tube's
+    // sheets turn there, or none, the tubes apart) cuts the same arcs
+    // inside, each in the interior of one strand. Otherwise the node sits
+    // in or on the triangle within the neck: both tubes' level ends are
+    // points of both tori where both normals lie along the axes, a
+    // tangency.
+    let node_clear = || {
+        let delta = T::from_f64(band.escalate()) + slack * T::from_f64(2.0);
+        let neck = (T::from_f64(2.0) * r.max(r2) * delta).sqrt();
+        [
+            (
+                "section_torus_parallel_tori_node_beyond",
+                "section_torus_parallel_tori_node_beyond_floor",
+                e - (big_r + big_r2) - neck,
+            ),
+            (
+                "section_torus_parallel_tori_node_within",
+                "section_torus_parallel_tori_node_within_floor",
+                (big_r - big_r2).abs() - e - neck,
+            ),
+        ]
+        .into_iter()
+        .any(|row| matches!(signs_across([row], slack, band), Ok([true])))
+    };
     match signs_across(
         [(
             "section_torus_parallel_tori_slabs",
@@ -1402,27 +1438,40 @@ fn torus_parallel_torus<T: Decide>(
     ) {
         Ok([true]) => {}
         Ok([false]) => return none(),
+        Err(_) if node_clear() => return none(),
         Err(tan) => return tan.into(),
     }
-    // Which tube owns the top and the bottom of the heights both span.
-    let [own_top, own_bottom] = match signs_across(
-        [
+    // Which tube owns the top and the bottom of the heights both span; at
+    // a level end clear of the triangle, the first, by the reading above.
+    let owns = |row: (&'static str, &'static str, T), level: bool| match signs_across(
+        [row],
+        slack,
+        band,
+    ) {
+        Ok([first]) => Ok(first == level),
+        Err(_) if node_clear() => Ok(true),
+        Err(tan) => Err(tan),
+    };
+    let (own_top, own_bottom) = match (
+        owns(
             (
                 "section_torus_parallel_tori_top",
                 "section_torus_parallel_tori_top_floor",
                 h + r2 - r,
             ),
+            true,
+        ),
+        owns(
             (
                 "section_torus_parallel_tori_bottom",
                 "section_torus_parallel_tori_bottom_floor",
                 h - r2 + r,
             ),
-        ],
-        slack,
-        band,
+            false,
+        ),
     ) {
-        Ok([top_is_first, bottom_is_second]) => [top_is_first, !bottom_is_second],
-        Err(tan) => return tan.into(),
+        (Ok(top), Ok(bottom)) => (top, bottom),
+        (Err(tan), _) | (_, Err(tan)) => return tan.into(),
     };
     let y_hi = if own_top { r } else { h + r2 };
     let y_lo = if own_bottom { -r } else { h - r2 };
@@ -1488,8 +1537,10 @@ fn torus_parallel_torus<T: Decide>(
                 // of the slack: the side changes only at the tube's top
                 // or bottom. A tube that owns no end of the span stands
                 // clear of both by the top and bottom rows' floors,
-                // decided across the slack, so its side is decided or
-                // the pair refuses. A tube that owns an end can stand
+                // decided across the slack, or at a level end by the
+                // node's clearance of the triangle, on whose edges `Π`'s
+                // points lie; so its side is decided or the pair
+                // refuses. A tube that owns an end can stand
                 // undecided only at that end (its other end lies past
                 // the span by the same floors), where its two strands
                 // meet and read one station: either sheet places the

@@ -1146,8 +1146,9 @@ fn a_cube_in_the_donuts_hole_answers_subtract_and_intersect() {
 /// - the slab's face-interior oval is a certified interior loop
 ///   (R-loop), and so is the bite a cylinder grazing the outer equator
 ///   takes out of the tube (its axis square to the torus's, its trace
-///   sunk `0.05` into the tube circle); two tori meeting in an oval have
-///   no section classification (R-reach);
+///   sunk `0.05` into the tube circle), and so is the oval two tori side
+///   by side cut, level tubes whose node stands beyond the section's
+///   triangle;
 /// - the dumbbell's waists stop at the section pass on their tangency
 ///   (R-tan).
 ///
@@ -1255,7 +1256,7 @@ fn subtract_and_intersect_refuse_where_union_does() {
             &bar((-0.8, 0.8), (-0.4, 0.4), (2.45, 3.0)),
             "a closed loop interior to both faces",
         ),
-        ("two tori", &d, &far, "has no section classification"),
+        ("two tori", &d, &far, "a closed loop interior to both faces"),
         (
             "grazing cylinder",
             &d,
