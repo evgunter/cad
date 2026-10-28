@@ -759,3 +759,167 @@ fn staggered_parallel_rods_part_along_the_line_of_centres_until_they_touch() {
     let errs = census(&touching).expect_err("the walls meet along a ruling");
     assert!(refuses_curved_within_reach(&touching, &errs), "{errs:?}");
 }
+
+/// The L plate `[0, 6] × [0, 3] ∪ [0, 3] × [0, 6]` over `z ∈ [0, 1]`,
+/// every corner rounded at 0.5, the reflex one's centre at `(3.5, 3.5)`.
+fn rounded_ell() -> Body<f64> {
+    use profile::{Open, ProfileLoop, Start};
+    let t = tol();
+    let mut path = Open.at(Point2::new(3.0, 0.0)).toward(1.0, 0.0, t).unwrap();
+    for (corner, (dx, dy)) in [
+        (Point2::new(6.0, 1.5), (0.0, 1.0)),
+        (Point2::new(4.5, 3.0), (-1.0, 0.0)),
+        (Point2::new(3.0, 4.5), (0.0, 1.0)),
+        (Point2::new(1.5, 6.0), (-1.0, 0.0)),
+        (Point2::new(0.0, 3.0), (0.0, -1.0)),
+    ] {
+        path = path
+            .fillet(0.5, t)
+            .unwrap()
+            .at(corner, t)
+            .unwrap()
+            .toward(dx, dy, t)
+            .unwrap();
+    }
+    let outline: ProfileLoop<f64> = path.fillet(0.5, t).unwrap().to(Start, t).unwrap().into();
+    sweep::test_support::extruded(sweep::test_support::sketch_at(0.0), vec![outline], 1.0, t)
+}
+
+/// The rounded L with the block `x × y × z`, two solids of one body.
+fn ell_and_block(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> AtRestBody<f64> {
+    let mut out = rounded_ell();
+    topo::graft_disjoint(&mut out, &sweep::test_support::brick(x, y, z, tol())).expect("grafts");
+    finished("the plate and the block", out, tol())
+}
+
+/// Whether `errs` holds the curved-pair refusal on a planar face of the
+/// plate (the solid with a cylinder face) whose normal `on_plate` holds
+/// of, against a planar face of the block whose normal `on_block` holds
+/// of.
+fn refuses_on(
+    body: &AtRestBody<f64>,
+    errs: &[ValidationError],
+    on_plate: fn(Vec3<f64>) -> bool,
+    on_block: fn(Vec3<f64>) -> bool,
+) -> bool {
+    let normal = |f| match body.get_face(f).and_then(|d| body.get_surface(d.surface)) {
+        Some(geom::Surface::Plane { normal, .. }) => Some(*normal),
+        _ => None,
+    };
+    let plate = body
+        .faces()
+        .find(|(_, d)| {
+            matches!(
+                body.get_surface(d.surface),
+                Some(geom::Surface::Cylinder { .. })
+            )
+        })
+        .and_then(|(f, _)| body.solid_of_face(f))
+        .expect("the plate has a rounded wall");
+    errs.iter().any(|e| match e {
+        ValidationError::CensusUndecidable {
+            a: EntityId::Face(a),
+            b: EntityId::Face(b),
+            what,
+            ..
+        } if what.contains(CURVED_WITHIN_REACH) => {
+            [(*a, *b), (*b, *a)].into_iter().any(|(p, q)| {
+                body.solid_of_face(p) == Some(plate)
+                    && body.solid_of_face(q).is_some_and(|s| s != plate)
+                    && normal(p).is_some_and(on_plate)
+                    && normal(q).is_some_and(on_block)
+            })
+        }
+        _ => false,
+    })
+}
+
+/// A normal along `z`: the plate's top, the block's base or top.
+fn level(n: Vec3<f64>) -> bool {
+    n.x.abs() < 1e-12 && n.y.abs() < 1e-12
+}
+
+/// A normal across `z`: a wall.
+fn upright(n: Vec3<f64>) -> bool {
+    n.z.abs() < 1e-12
+}
+
+/// **A block in a plate's reflex notch passes, until it touches.** The
+/// block stands on the L's top plane in the notch, 0.5 or less clear of
+/// the L in plan: its base lies in the top's plane and its walls stand
+/// on it, and the L wraps two sides of it, so no plane parts the top
+/// from the base or from a wall, and the block's corner lies on the
+/// notch fillet's axis, so no depth does. Each is apart where it meets
+/// the top's plane (`census::coplanar`). Moved onto the fillet (its
+/// corner on the arc) or onto the L's straight edge, it touches, and
+/// the base and a wall refuse with the curved-pair finding. Red where
+/// arm 1 has no reading in the plane.
+#[test]
+fn a_block_in_a_plates_notch_passes_until_it_touches() {
+    let m = 0.5 * (1.0 - core::f64::consts::FRAC_1_SQRT_2);
+    for (x, y) in [
+        ((3.5, 6.0), (3.5, 6.0)),
+        ((3.5, 5.5), (3.5, 5.5)),
+        ((3.0 + m, 6.0), (3.5, 6.0)),
+        ((3.5, 6.0), (3.0 + m, 3.5)),
+    ] {
+        let pair = ell_and_block(x, y, (1.0, 2.0));
+        assert_eq!(census(&pair), Ok(()), "the block {x:?} × {y:?}");
+    }
+    for (x, y, what) in [
+        ((3.0 + m, 6.0), (3.0 + m, 6.0), "its corner on the fillet"),
+        ((3.5, 5.5), (3.0, 4.0), "its edge on the plate's"),
+    ] {
+        let pair = ell_and_block(x, y, (1.0, 2.0));
+        let errs = census(&pair).expect_err(what);
+        assert!(
+            refuses_on(&pair, &errs, level, level),
+            "{what}, the base: {errs:?}"
+        );
+        assert!(
+            refuses_on(&pair, &errs, level, upright),
+            "{what}, a wall: {errs:?}"
+        );
+    }
+}
+
+/// **A block across a plate's arm, on it, over it or sunk through it
+/// still refuses against the plate's top.** Across the arm, every vertex
+/// of the block's base and walls lies outside the top, but their edges
+/// cross the top's; on the arm, the base lies inside the top and the
+/// walls stand in it, no edge near the top's; over the whole plate, the
+/// top lies inside the base; sunk through the arm, the walls cross the
+/// top's plane with no vertex on it. Red where the reading in the plane
+/// drops its edge gaps, a placement either way, or the side a face lies
+/// on.
+#[test]
+fn a_block_over_a_plates_top_still_refuses() {
+    let base_and_wall = [
+        ((4.0, 5.0), (-1.0, 4.0), "across the arm"),
+        ((0.5, 2.5), (3.5, 5.5), "on the arm"),
+    ];
+    for (x, y, what) in base_and_wall {
+        let pair = ell_and_block(x, y, (1.0, 2.0));
+        let errs = census(&pair).expect_err(what);
+        assert!(
+            refuses_on(&pair, &errs, level, level),
+            "{what}, the base: {errs:?}"
+        );
+        assert!(
+            refuses_on(&pair, &errs, level, upright),
+            "{what}, a wall: {errs:?}"
+        );
+    }
+    let over = ell_and_block((-1.0, 7.0), (-1.0, 7.0), (1.0, 2.0));
+    let errs = census(&over).expect_err("over the plate");
+    assert!(
+        refuses_on(&over, &errs, level, level),
+        "over the plate, the base: {errs:?}"
+    );
+    let sunk = ell_and_block((1.0, 2.0), (1.0, 2.0), (0.5, 1.5));
+    let errs = census(&sunk).expect_err("through the arm");
+    assert!(
+        refuses_on(&sunk, &errs, level, upright),
+        "through the arm, a wall: {errs:?}"
+    );
+}
