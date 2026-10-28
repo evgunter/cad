@@ -308,7 +308,10 @@ pub(crate) fn door(e: &BooleanError) -> Option<Door> {
                 MassPropsError::Face {
                     source: PropsError::QuadratureUnsupported { what },
                     ..
-                } if what.starts_with("curved-cut face half-edge carries a pcurve with no harmonic form") => {
+                } if what.starts_with(
+                    "curved-cut face half-edge carries a pcurve with no harmonic form",
+                ) =>
+                {
                     Some(Door::Projected)
                 }
                 MassPropsError::Face {
