@@ -2,13 +2,14 @@
 id: a-loft-station-that-moves-nothing-refuses-only-at-evaluation
 kind: issue
 title: A loft station that moves its section by nothing (slide 0) refuses only at evaluation
-status: review
+status: closed
 opened: 2026-10-26
 priority: P3
 cost: E
 parent: transform-retires-into-a-placement
 pr: 5926
 branch: intent/cost-e-batch
+closed: 2026-10-28
 ---
 
 The edit door refuses a loft section whose station is empty (`LoftFault::EmptyStation`, `check_loft_shape` in `crates/editor-core/src/edit.rs`): its data alone stands it in the first section's plane. A station whose moves carry the plane nowhere *by value* is degenerate the same way: a `StationMove::Slide { by: 0 }`, or spins that only turn the plane in itself. The door does not compose the moves, so it admits that loft, and what refuses is the evaluation (`station_plane` and the skin in `crates/editor-core/src/eval/wire.rs`, `wire_loft`). Nothing pins that refusal.
