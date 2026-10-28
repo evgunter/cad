@@ -80,14 +80,14 @@ fn blade(
 /// and the seam's dihedral**, and stop where the result's shared rim, a
 /// seam between a NURBS wall of each body, is described as the walls'
 /// `Intersection`: its certification refuses. Limbs 1 and 2 read the
-/// rim through each wall's exact boundary-row image. Limb 3 refused at ε
-/// 1e-9, 1e-6 and 1e-12 when measured on 2026-10-28
-/// (`PlaneNurbs(TubeNotOneArc { Undecided })`). The two-chart tube is cut
-/// to the charts' domains, and the rim both ends at a corner of each
-/// chart and runs along a boundary row of each, so the one-arc walk
-/// isolates no root at either
-/// (`work/ssiedge/a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary.md`).
-/// The site is pinned, not the cause. Before the exact images, limb 2
+/// rim through each wall's exact boundary-row image. Limb 3 refuses at
+/// ε 1e-9, 1e-6 and 1e-12 by the rim's lie: the two-chart tube is cut to
+/// the charts' domains, and the rim runs along a boundary row of each
+/// (and ends at a corner of each), so it names the first operand's row,
+/// `TubeNotOneArc { AlongSide }`
+/// (`work/splice/a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary.md`).
+/// Before that refusal was named, the walk read `Undecided`; before the
+/// exact images, limb 2
 /// refused on the fitted image's 9.0e-6 m miss. Before the seam's
 /// spline entry, each stopped one step earlier, at the seam's dihedral
 /// arm (`Escalated { LeverArm(Seam), "dihedral_arm" }`, an invalid
@@ -123,8 +123,18 @@ fn a_sheath_on_its_blade_unions_past_the_shared_rim() {
             panic!("{what}: past the seam's dihedral, at its intersection: {err:?}");
         };
         assert!(
-            matches!(**cause, EulerOpError::Certification { .. }),
-            "{what}: the rim's certification: {cause:?}"
+            matches!(
+                **cause,
+                EulerOpError::Certification {
+                    error: geom_brep::CertifyError::PlaneNurbs(
+                        geom_brep::PlaneNurbsRefusal::TubeNotOneArc {
+                            cause: geom_brep::ssi::OneArcRefusal::AlongSide { .. },
+                            ..
+                        }
+                    ),
+                }
+            ),
+            "{what}: the rim's tube, along a wall's boundary row: {cause:?}"
         );
         // The cap read on the way: every spline edge of A, against every
         // plane face of B, through the arm the planar lane reads, crosses

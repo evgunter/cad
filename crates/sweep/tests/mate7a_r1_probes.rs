@@ -349,12 +349,13 @@ fn p1_wall1_glues_the_stem_into_one_body() {
 }
 
 /// **The same two tori with a stem window that reaches over a loop
-/// refuse at the join's germ frame.** Run to 30° instead of 22°, the
-/// stem's tube wall spans the loop on the arch's side of the weld plane,
-/// and its seams cross the arch's tube, so the pair carries events and
-/// the join's germ frame refuses the two tube walls
-/// (`GermFrameUnsupported`, torus × torus) before the interior-loop
-/// guard is asked. What this row pins is that refusal: it goes red when
+/// refuse at their germs.** Run to 30° instead of 22°, the stem's tube
+/// wall spans the loop on the arch's side of the weld plane, and its
+/// seams cross the arch's tube, so the pair carries events, and the
+/// reduction's germ mint refuses the two tube walls
+/// (`GermSectionUnbuilt`, torus × torus: the section value lists the
+/// parallel tori's components and tells no site's component apart among
+/// them) before the interior-loop guard is asked. What this row pins is that refusal: it goes red when
 /// the op starts building this pair, or refuses it somewhere else. It
 /// cannot see the certificate. The certificate-level degrade row is
 /// `section_cert_parallel_tori_rows`
@@ -389,13 +390,14 @@ fn a_stem_window_reaching_over_a_loop_does_not_glue() {
         assert!(
             matches!(
                 r,
-                Err(BooleanError::GermFrameUnsupported {
+                Err(BooleanError::GermSectionUnbuilt {
                     a_kind: geom::SurfaceKind::Torus,
                     b_kind: geom::SurfaceKind::Torus,
+                    why: topo::SectionUnbuilt::Untold(_),
                     ..
                 })
             ),
-            "{what}: the two tube walls refuse at the germ frame: {:?}",
+            "{what}: the two tube walls refuse at their germs: {:?}",
             r.err()
         );
     }

@@ -42,3 +42,24 @@ perpendicular span, which projects to a point, sat at the gap's zero
 at any depth inside the other span. It now reads the overlap's depth.
 A pair that shares a vertex is no longer read (its gap is zero by
 construction).
+
+**What the depth reading does at Interval** (2026-10-28, PR 5952's
+review, MINOR 1). At f64 no outcome moves: every reader acts only on a
+`Positive` gap, and a `Positive` reading is bit-identical. Over an
+Interval box it is not so. A lower `apart()` can turn a definite `Zero`
+into an in-band escalation, as when a point's projection sits within the
+band of the other span's end and the length read a flat 0.
+
+`gaps_apart` reads past that escalation, but it stays on the node's log.
+`editor_core::drive`'s leaf classifier (`classify`'s step (2),
+`log_read(escalations)`) reads `v.escalations` even on a
+`NodeResult::Ok` node, so a screen's escalation that changed nothing in
+the build still prices the leaf as a sliver or bisects it. Two instances
+on PR 5952:
+- the `m10_6` planted flip's accounting move;
+- `kstats_bracket_rows::a_pre_pass_that_escalates_before_failing_carries_the_escalation`'s
+  second `segment_gap`.
+
+The question for `drive.rs`'s owner (SCALAR, by `work.py territory`) is
+whether an escalation a screen read past, on a node that built, should
+refuse a leaf at all.

@@ -2,8 +2,9 @@
 # lib.sh — shared plumbing for the discipline gates.
 #
 # THE INVARIANT: every gate in this directory has exactly ONE home.
-# `.github/workflows/ci.yml`'s `lint` job runs every `*.sh` here except
-# this file, so the roster is the directory and is written nowhere else.
+# `scripts/run-gates.sh` runs every `*.sh` here except this file (plain
+# in ci.yml's `lint` job, `--selftest` in nightly.yml's), so the roster
+# is the directory and is written nowhere else.
 #
 # WHY `scripts/` AND NOT `local-scripts/`: every workflow job runs
 # `rm -rf local-scripts` right after checkout, so hosted CI cannot read

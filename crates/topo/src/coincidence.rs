@@ -178,6 +178,14 @@ pub enum DecisionSite {
     /// The cylinder×sphere pair's coaxial classification: the sphere's
     /// centre on the cylinder's axis.
     CoaxialSphere,
+    /// The sphere×torus pair's coaxial classification: the sphere's
+    /// centre on the torus's axis.
+    SphereOnTorusAxis,
+    /// The cylinder×torus pair's coaxial classification: the cylinder's
+    /// axis on the torus's.
+    CoaxialCylinderTorus,
+    /// The torus pair's coaxial classification: the two tori on one axis.
+    CoaxialTori,
     /// The cylinder pair's crossing classification: two walls of one
     /// radius whose axes meet, cut by each other in the two
     /// bisector-plane ellipses.

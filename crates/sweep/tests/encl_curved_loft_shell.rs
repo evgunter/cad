@@ -1114,6 +1114,20 @@ fn a_moved_fitted_cap_stands_its_corners_on_the_held_sides() {
 /// foot reads 1.4e-15 and 6.5e-16 m (`ImageMiss`).
 #[test]
 fn a_moved_curved_fitted_cap_builds_where_its_fit_certifies() {
+    // Pinned red since PR 4551: at ε = 1e-12 the cap's fit stops on (45, 48),
+    // not the pinned (45, 45)
+    // (`work/shell/a-curved-fitted-cap-rows-sample-cap-grid-pin-is-red-at-1e-12-on-main`).
+    test_utils::pinned_red::row(
+        geom_core::Tol::witness().eps(),
+        &[1e-12],
+        "the moved curved fitted cap",
+        &["eps 1e-12, d = 0.05: the cap's fit stopped at 4.38189780844083e-11 on (45, 48)"],
+        a_moved_curved_fitted_cap_builds_where_its_fit_certifies_row,
+    );
+}
+
+/// The row [`a_moved_curved_fitted_cap_builds_where_its_fit_certifies`] runs, under its pin.
+fn a_moved_curved_fitted_cap_builds_where_its_fit_certifies_row() {
     use crate::common::approx::{top_face, unit_box};
     use std::sync::Arc;
     let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2)

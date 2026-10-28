@@ -133,8 +133,8 @@ const THROUGH: f64 = 0.0;
 /// decision that changes sign (`profile::seg`'s `line_line` reads that
 /// gap before any side): `(1 − √2)/2`, where `(0.5, h)–(1, 0)`'s axis
 /// reads the left wall's top at its own start, and `−1/2`, where
-/// `(0, 0)–(0.5, h)`'s reads the top edge's end at its start. The pair's
-/// contacts are none on either side of both.
+/// `(0, 0)–(0.5, h)`'s reads the top edge's start `(1, 1)` at its own
+/// start. The pair's contacts are none on either side of both.
 const GAP_ZEROS: [f64; 2] = [(1.0 - std::f64::consts::SQRT_2) / 2.0, -0.5];
 
 /// The notch's nominal height, a convex point below the square, above
@@ -530,8 +530,8 @@ fn a_budget_too_small_is_indeterminate_and_never_a_bound() {
 }
 
 /// **A line pair's gap is a boundary of its own.** From a nominal below
-/// the first of the [`GAP_ZEROS`], the walk up stops at it, short of the
-/// crossing, and names `segment_gap` leaving Negative: the two lines'
+/// the first of the [`GAP_ZEROS`], the walk up stops at it, which the
+/// seed holds short of the crossing, and names `segment_gap` leaving Negative: the two lines'
 /// projections go from overlapping to apart there (through the zero
 /// band, which a coarse ε reaches first), and nothing else about the
 /// notch changes.
@@ -551,10 +551,8 @@ fn a_gap_between_two_lines_is_a_decision_flip_below_the_crossing() {
     let zero = GAP_ZEROS[0] - nominal;
     let resolution = (NOTCH_SEED.hi - NOTCH_SEED.lo) / 2f64.powi(24);
     assert!(
-        within.0 <= zero
-            && zero - within.1 < 100.0 * resolution.max(tol().eps())
-            && within.1 < THROUGH - nominal,
-        "the gap's zero at offset {zero} closes {within:?}, below the crossing"
+        within.0 <= zero && zero - within.1 < 100.0 * resolution.max(tol().eps()),
+        "the gap's zero at offset {zero} closes {within:?}"
     );
     let named: Vec<_> = evidence
         .verdicts

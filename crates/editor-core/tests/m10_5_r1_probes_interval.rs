@@ -146,6 +146,7 @@ fn query(bound: ClearanceBound, config: ClearanceConfig) -> ClearanceQuery<'stat
         config,
         oracle: &NoTangents,
         resolver: None,
+        symbolic: editor_core::drive::SymbolicDials::default(),
     }
 }
 
@@ -455,6 +456,7 @@ fn a_block_with_a_rounded_bump_certifies_strictly_positive() {
         },
         oracle: &NoTangents,
         resolver: None,
+        symbolic: editor_core::drive::SymbolicDials::default(),
     };
     let report = clearance_with(&doc, &box_of(&doc, "place"), &sel, &sel, &q);
     println!(

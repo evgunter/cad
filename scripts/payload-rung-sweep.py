@@ -186,6 +186,10 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     # beside the declaration.
     "NodeWhy": ("argued", "non-carriage with its falsifier, beside the declaration "
                 "in crates/topo/src/boolean/mod.rs"),
+    # `TessellateError::SphereTrimShape`'s cause: why the trimmed lane's
+    # sphere arm refuses a face's shape.
+    "SphereTrimCause": ("argued", "non-carriage with its falsifier, beside the declaration "
+                        "in crates/mesh/src/types.rs"),
     # `BooleanError::GermSectionUnbuilt`'s reason: why a germ pair's
     # section was not built.
     "SectionUnbuilt": ("argued", "non-carriage with its falsifier, beside the declaration "

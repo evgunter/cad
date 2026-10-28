@@ -171,6 +171,16 @@ Measured on main itself at the default ε:
 - **`perf12_census_goldens::the_at_rest_census_verdicts_are_goldened_bit_exact`:** drifts from line 13 at every ε. The new lines are `CoincidentWedgesOverlap` findings (`work/restread/main-red-coincident-wedges-overlap-refuses-flush-copies.md`). PR 5742 re-blesses all three ε files at its own reading, for the same reason.
 - **`r2_m10_di_probes::assemble_census_door_matches_f64_at_dual64`:** the divergence set gains `heat_sink`, reading `["heat_sink", "kitchen_sink", "cut_cylinder"]` against `["kitchen_sink", "cut_cylinder"]`. It reads the same on PR 5742, which leaves it.
 
+## 2026-10-28 — the nightly `--all-features` job holds `ray_wall_margin_twins` out
+
+`nightly.yml`'s `suite under --all-features (default eps)` job (GREEN,
+PR 5962) excludes
+`ray_wall_margin_twins::the_wall_arms_margins_scale_linearly_with_the_model`
+through its `HELD_OUT_TESTS` nextest filter, because it is this row's
+`k-lint (dev-probe)` red. Whoever fixes that test also drops the
+`HELD_OUT_TESTS` filter (the env and the `-E "not (…)"` it feeds) from
+that job in the same PR, so the job runs it again.
+
 ## 2026-10-28 — the `segment_gap` cause fixed; what is still red (GREEN, `green/slow-set-reds`)
 
 Today's failing set comes from nightly run 40637814390 (main `a1cfd1cfdb`), default ε.
@@ -246,3 +256,14 @@ A new row pins the gap's flip from the old nominal. Filed on CPAIR:
 - `k-lint (dev-probe)`: still stops on the ray-wall row, 62 pairs. The
   widening from 6 belongs to `work/charttail/main-red-ringed-curved-doors-reds-four-sweep-rows.md`.
   The base 6 is not investigated here.
+
+**After PR 5952's review** (merged with main, which carries #5935):
+- #5935's pin on `m10_3_driver::a_planted_flip…` is dropped; the row
+  passes as written.
+- `sym11` is re-pinned: the plate's numeric count 832 → 824 and the
+  bracket's 1171 → 1161.
+- `m10_9_what_the_registry_buys` is re-pinned: the bracket with the door
+  shut, (1474, 1228) → (1474, 1218).
+
+All three come from the shared-vertex pairs' gap readings leaving.
+Measured at all three ε.

@@ -102,4 +102,39 @@ Signed: (CARVE orchestrator)
 - **`min-separation-tightening-crosses-the-drive`'s designers
   dispatched.** The row asked for them to wait until E landed. The
   blinding byte was drawn at dispatch this time (analysis branch).
+
+## 2026-10-28 — SHELL-3's review
+
+- **The PR is #5909.** CI was green at the frozen head `4a4f7f211`.
+- **The full review read APPROVE-WITH-FIXES.** It found no behaviour change: the moved bodies differ from the base only in the lift and the renames, and every clearance golden and certifying key held.
+  - It found three MINORs: the topo README, a doc deferral in `drive.rs` with no schedule behind it, and an M5 PR 11 ledger sentence that is now false.
+  - Its style lane asked for the midpoint to have one home, for the two band inputs to become one, for topo's prose about editor-core's census to move to editor-core, for the verifier contract to be stated, and for a `same_body` row that can go red.
+  - All of that is in the implementer's fix pass.
+- **Class findings filed:**
+  - `the-bound-walk-and-min-separation-duplicate-one-frontier-loop` (P1);
+  - `the-clearance-budget-pair-is-spelled-three-times` (P1);
+  - `the-clearance-sliver-rule-lives-in-one-of-its-two-consumers` (P4, on CLEARTAIL).
+- **Scope added to the symbolic row:** narrowing `MeasureClearanceRefused`'s carrier, and a row that runs the generic door at a non-`Interval` `T`.
+
+## 2026-10-28 — the second wave
+
+- **SHELL-3 merged (#5909)**, `a1b4b82930`.
+- **NURBSWIN dispatched** (P0, `window-of-refuses-an-untrimmed-iso-bounded-nurbs-patch`) as a local lane on `clear/nurbswin`, spec `docs/NURBSWIN-SPEC.md`. Review: single FULL.
+- **SYMCLEAR dispatched** (`symbolic-tier-and-clearance-engine`, carrying the lane-replay row and the `NeedsEnclosure` door-path row) as a cloud session, `session_018u3gVF5GZTM5S9659fmMRF`, on `clear/symclear`, spec `docs/SYMCLEAR-SPEC.md`. Review: single FULL. It ran in the cloud because the container's disk holds one lane's build at a time.
+- **Sequenced after SYMCLEAR:** CLEARTEXT, the four refusal rows (spec drafted). SYMCLEAR narrows `MeasureClearanceRefused`'s carrier, which those rows reshape.
+- **After NURBSWIN:**
+  - the self-intersection build (dual review);
+  - the loop-duplication and budget-triple refactor, which goes ahead of it because the self-intersection build changes the same loop;
+  - `min-separation-tightening-crosses-the-drive`;
+  - then `SHELL-4`.
 - 2026-10-28 — **NURBSWIN merges (#5927)** with this commit last. The orchestrator read and accepted the fix pass at `2cef54df49`. Pruned the fired blocker on CARVE's `self-overlapping-spines-build-and-validate`.
+- 2026-10-28 — **SELFX dispatched** (P0, `self-intersection-drops-every-vertex-sharing-face-pair-globally`) as a local lane on `clear/selfx`, spec `docs/SELFX-SPEC.md`. Review: DUAL, concurrent pair (H), on a frozen head (`docs/DUAL-REVIEW-PROTOCOL.md`). Its class letter is H.
+- 2026-10-28 — **SELFX in review.** PR #5955 is green at `91109e84ac`. The DUAL concurrent pair runs as two cloud sessions (R1 `session_018u3gVGWkWwvU2JyhiPsRje`, R2 `session_018u3gVJQa1Ftewruzok4tLu`), with identical briefs and the frozen head pinned in each. The lane deferred the second-order (cusp) arm, as the spec allows: a cusp seam refuses typed, and the arm is filed. Departure is band-level: a crossing confined within ε of a shared edge is not seen. That claim is put to both reviewers.
+- 2026-10-28 — **SELFX dual review, adjudicated as a union.**
+  - **R1: APPROVE-WITH-FIXES.** MAJOR: the rows assert `certified >= 1`, so with cross-face pairs dropped and the self pairs kept, the loft and helix rows stay green (executed).
+  - **R2: NOT-MERGEABLE-AS-IS.** MAJOR: `present_chart` clips in edge order with a re-centred wrap. On a periodic face crossing its seam, one order discards most of the face, and departure certified a pierced pair at depth 0 (unit-level evidence, executed).
+  - Both found the band-sliver claim stated beyond the code, the `FaceKey::default()` fallback, and stale headers. Each found minors the other did not; the tally lives in the row file.
+  - **Fix pass** sent to the SELFX lane.
+  - **Filed:** `departure-presents-no-curved-shared-edge` (P1/H). It is a capability gap that fails closed, and it gates SHELL-4 on curved cavities. Also filed `an-analytic-face-may-cover-its-carrier-more-than-once` (P2).
+  - After the fix pass, a focused single review of the presentation fix runs before merge, given that a soundness MAJOR was fixed.
+- 2026-10-28 — **SYMCLEAR merges (#5928)** with this commit last. The orchestrator read and accepted the fix pass at `0fa633d5`; the `cell_region` hoist is sound, because the station's bounds are the same at both lanes. Friction, recorded: tier-on per-leaf queries moved fifteen rows into the slow set. The cost is the symbolic tier's per-decision `decide_sign` form expansion (~0.9 s on the e2e leaf), which is SYM's ground. Unblocked: CLEARTEXT.

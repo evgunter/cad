@@ -108,7 +108,9 @@ use geom_core::{Band, Bounds, CertifiedBounds, Decide, Margin, Point3, Real, Sig
 
 use crate::Body;
 use crate::FaceContainment;
-use crate::cell_region::{CellRegion, cell_region, station_region};
+use crate::cell_region::{
+    BoundaryStop, CellRegion, cell_region_lifted, lift_boundary, station_region,
+};
 use crate::entity::{EdgeKey, Face, FaceKey, LoopBoundary, VertexKey};
 
 /// The funnel site name of the clearance comparison — the separation
@@ -320,6 +322,54 @@ impl EngineRefusal {
             Self::EmptyScope => "empty_scope",
             Self::NoAdmittedPair => "no_admitted_pair",
         }
+    }
+}
+
+/// **Why [`min_separation`] has no bracket**: the four arms of
+/// [`EngineRefusal`] its walk can raise. It decides no cell and holds
+/// no budget it could exhaust, so a sliver, a budget and an unverified
+/// witness are the bound sweep's and never this door's.
+#[derive(Debug, Clone, PartialEq)]
+pub enum MinSeparationRefusal {
+    /// [`EngineRefusal::Unsupported`].
+    Unsupported {
+        /// The carrier class, named.
+        carrier: &'static str,
+        /// The face that carries it.
+        face: FaceKey,
+    },
+    /// [`EngineRefusal::PoisonEnclosure`].
+    PoisonEnclosure {
+        /// The first face of the pair.
+        a: FaceKey,
+        /// The second.
+        b: FaceKey,
+    },
+    /// [`EngineRefusal::EmptyScope`].
+    EmptyScope,
+    /// [`EngineRefusal::NoAdmittedPair`].
+    NoAdmittedPair,
+}
+
+impl MinSeparationRefusal {
+    /// The refusal as the engine's whole vocabulary spells it.
+    pub fn engine(&self) -> EngineRefusal {
+        match *self {
+            Self::Unsupported { carrier, face } => EngineRefusal::Unsupported { carrier, face },
+            Self::PoisonEnclosure { a, b } => EngineRefusal::PoisonEnclosure { a, b },
+            Self::EmptyScope => EngineRefusal::EmptyScope,
+            Self::NoAdmittedPair => EngineRefusal::NoAdmittedPair,
+        }
+    }
+
+    /// [`EngineRefusal::payload`], for this arm.
+    pub fn payload(&self) -> String {
+        self.engine().payload()
+    }
+
+    /// [`EngineRefusal::name`], for this arm.
+    pub fn name(&self) -> &'static str {
+        self.engine().name()
     }
 }
 
@@ -589,12 +639,14 @@ pub struct Candidate<'s, 'b, T: Real> {
     region: &'s mut RegionMemo,
 }
 
-impl<T: Decide + CertifiedBounds> Candidate<'_, '_, T> {
+impl<T: Real> Candidate<'_, '_, T> {
     /// The two faces, the first side's then the second's.
     pub fn faces(&self) -> (FaceKey, FaceKey) {
         (self.x.face, self.y.face)
     }
+}
 
+impl<T: Decide + CertifiedBounds> Candidate<'_, '_, T> {
     /// **The stations of each cell its face's point door places on the
     /// face**, the first side's then the second's, each a `(u, v)` of
     /// its face's stored chart.
@@ -1223,26 +1275,30 @@ impl MinSeparation {
 ///
 /// # Errors
 ///
-/// The engine's own, typed: a carrier with no admitted window
-/// ([`EngineRefusal::Unsupported`]), a side naming no face
-/// ([`EngineRefusal::EmptyScope`]), a pairing the wedge rule empties
-/// ([`EngineRefusal::NoAdmittedPair`]), and an enclosure that did not
-/// evaluate ([`EngineRefusal::PoisonEnclosure`]). Never a width, and
-/// never a budget: a budget is what the bracket's width is FOR.
+/// [`MinSeparationRefusal`]: a carrier with no admitted window, a side
+/// naming no face, a pairing the wedge rule empties, and an enclosure
+/// that did not evaluate. Never a width, and never a budget: a budget
+/// is what the bracket's width is FOR.
 pub fn min_separation<T: Decide + CertifiedBounds>(
     a: &Side<'_, T>,
     b: &Side<'_, T>,
     same_body: bool,
     config: MinSeparationConfig,
-) -> Result<MinSeparation, EngineRefusal> {
+) -> Result<MinSeparation, MinSeparationRefusal> {
     if a.faces.is_empty() || b.faces.is_empty() {
-        return Err(EngineRefusal::EmptyScope);
+        return Err(MinSeparationRefusal::EmptyScope);
     }
     // **No cell is decided here**: this walk holds no band, so it asks
     // neither point-in-face door anything and keeps every cell of the
     // carrier rectangles.
-    let wa = a.windows()?.of;
-    let wb = b.windows()?.of;
+    let narrow = |refusal| match refusal {
+        EngineRefusal::Unsupported { carrier, face } => {
+            MinSeparationRefusal::Unsupported { carrier, face }
+        }
+        other => unreachable!("`Side::windows` refuses only `Unsupported`, not {other:?}"),
+    };
+    let wa = a.windows().map_err(narrow)?.of;
+    let wb = b.windows().map_err(narrow)?.of;
     // The SAME-BODY rule the bound sweep uses, and for the same
     // reason: a face is never at a distance from itself, and two faces
     // sharing a vertex meet, so their separation is legitimately zero
@@ -1281,7 +1337,7 @@ pub fn min_separation<T: Decide + CertifiedBounds>(
                 // Geometry that did not evaluate. Not an indeterminacy
                 // refinement could settle and not a budget — the
                 // bound sweep's own class, for the same reason.
-                return Err(EngineRefusal::PoisonEnclosure {
+                return Err(MinSeparationRefusal::PoisonEnclosure {
                     a: x.face,
                     b: y.face,
                 });
@@ -1290,7 +1346,7 @@ pub fn min_separation<T: Decide + CertifiedBounds>(
         }
     }
     if roots.is_empty() {
-        return Err(EngineRefusal::NoAdmittedPair);
+        return Err(MinSeparationRefusal::NoAdmittedPair);
     }
     // The incumbent: the least certified UPPER bound over the root
     // pairs. Every pair's own `separation_hi` bounds the minimum, so
@@ -1353,7 +1409,7 @@ pub fn min_separation<T: Decide + CertifiedBounds>(
             let pair = task.pair;
             let sep = separation(&pair.a.enc, &pair.b.enc);
             if !(sep.lo().is_finite() && sep.hi().is_finite()) {
-                return Err(EngineRefusal::PoisonEnclosure {
+                return Err(MinSeparationRefusal::PoisonEnclosure {
                     a: x.face,
                     b: y.face,
                 });
@@ -1461,7 +1517,7 @@ struct Window<'b, T: Real> {
     surface: Surface<Interval>,
     u: (f64, f64),
     v: (f64, f64),
-    /// **The body the face is read from**, which [`cell_region`] reads
+    /// **The body the face is read from**, which [`cell_region`](crate::cell_region::cell_region) reads
     /// the face's region off: a cell the door decides
     /// [`CellRegion::Outside`] holds no point of the FACE, so
     /// classifying it would classify a place the body does not occupy.
@@ -1483,7 +1539,7 @@ enum Region {
     /// `Inside` is only that the cell is not outside, which holds.
     Whole,
     /// The window is a superset of the face (every analytic carrier):
-    /// [`cell_region`] reads each cell, and [`station_region`] each
+    /// [`cell_region`](crate::cell_region::cell_region) reads each cell, and [`station_region`] each
     /// station.
     Trimmed,
 }
@@ -1505,6 +1561,9 @@ struct RegionMemo {
     /// The witness stations the point doors were asked to place, by the
     /// same bitwise key, and where they placed them.
     stations: BTreeMap<(bool, usize, u64, u64), Option<FaceContainment>>,
+    /// Each window's stored carrier and boundary lifted, once: every
+    /// cell of the window reads them.
+    lifted: BTreeMap<(bool, usize), (Surface<Interval>, Vec<BoundaryStop>)>,
 }
 
 impl RegionMemo {
@@ -1513,6 +1572,7 @@ impl RegionMemo {
             band,
             seen: BTreeMap::new(),
             stations: BTreeMap::new(),
+            lifted: BTreeMap::new(),
         }
     }
 
@@ -1531,10 +1591,38 @@ impl RegionMemo {
             c.v.0.to_bits(),
             c.v.1.to_bits(),
         );
-        *self.seen.entry(key).or_insert_with(|| match w.region {
+        if let Some(&known) = self.seen.get(&key) {
+            return known;
+        }
+        let region = match w.region {
             Region::Whole => CellRegion::Inside,
-            Region::Trimmed => cell_region(w.body, w.face, c.u, c.v, self.band),
-        })
+            Region::Trimmed => match w
+                .body
+                .get_face(w.face)
+                .and_then(|f| w.body.get_surface(f.surface))
+            {
+                None => CellRegion::Undecided,
+                Some(stored) => {
+                    let (lifted, boundary) =
+                        self.lifted.entry((side_b, index)).or_insert_with(|| {
+                            (
+                                stored.map_scalar(Interval::from_certified),
+                                lift_boundary(w.body, w.face),
+                            )
+                        });
+                    cell_region_lifted(
+                        w.body,
+                        w.face,
+                        (stored, lifted, boundary),
+                        c.u,
+                        c.v,
+                        self.band,
+                    )
+                }
+            },
+        };
+        self.seen.insert(key, region);
+        region
     }
 
     /// Where the face's point door places the station `(u, v)` of
@@ -2056,6 +2144,270 @@ fn split<T: Real>(
             },
         )
     })
+}
+
+// ------------------------------------------------------ the lane door
+
+/// **The engine's door, as a value the document layer takes rather
+/// than a trait a scalar implements**: [`crate::QuadLane`]'s shape, for
+/// its reason. The layers above it stay generic over every evaluation
+/// scalar and read the door off [`crate::AtRestPolicy::clearance_lane`],
+/// the per-scalar policy home, refusing typed where it answers `None`.
+///
+/// Holding one is the statement that the scalar may certify: the one
+/// constructor ([`ClearanceLane::certified`]) is bounded on
+/// [`CertifiedBounds`], since every door it holds lifts what it reads
+/// through [`Interval::from_certified`] (this module's header). A
+/// scalar without that right cannot write the value:
+///
+/// ```compile_fail,E0599
+/// use geom_core::Dual64;
+/// use topo::ClearanceLane;
+/// let _ = ClearanceLane::<Dual64>::certified();
+/// ```
+///
+/// Why the code is `E0599`, and what the fence does not check:
+/// [`crate::QuadLane`]'s paragraph.
+#[derive(Clone, Copy)]
+#[allow(clippy::type_complexity)]
+pub struct ClearanceLane<T: Decide> {
+    /// [`Side::windows`] (`wiring_rows` pins the pointer).
+    windows: for<'b> fn(&Side<'b, T>) -> Result<Windows<'b, T>, EngineRefusal>,
+    /// [`Sweep::run`], with the verifier's witness kept by the caller
+    /// ([`ClearanceLane::sweep`]).
+    bound_sweep: fn(
+        &Sweep,
+        &Windows<'_, T>,
+        &Windows<'_, T>,
+        bool,
+        &mut dyn FnMut(Candidate<'_, '_, T>) -> Result<(), String>,
+    ) -> BoundReport<()>,
+    /// [`Candidate::on_face_stations`].
+    face_stations: fn(Candidate<'_, '_, T>) -> (Stations, Stations),
+    /// [`min_separation`].
+    min_separation: fn(
+        &Side<'_, T>,
+        &Side<'_, T>,
+        bool,
+        MinSeparationConfig,
+    ) -> Result<MinSeparation, MinSeparationRefusal>,
+}
+
+impl<T: Decide + CertifiedBounds> ClearanceLane<T> {
+    /// The certified engine: the whole inventory of this door, and the
+    /// only constructor there is.
+    #[must_use]
+    pub const fn certified() -> Self {
+        Self {
+            windows: Self::windows_of,
+            bound_sweep: Self::sweep_of,
+            face_stations: Self::stations_of,
+            min_separation: min_separation::<T>,
+        }
+    }
+
+    fn windows_of<'b>(side: &Side<'b, T>) -> Result<Windows<'b, T>, EngineRefusal> {
+        side.windows()
+    }
+
+    fn sweep_of(
+        sweep: &Sweep,
+        wa: &Windows<'_, T>,
+        wb: &Windows<'_, T>,
+        same_body: bool,
+        verify: &mut dyn FnMut(Candidate<'_, '_, T>) -> Result<(), String>,
+    ) -> BoundReport<()> {
+        sweep.run(wa, wb, same_body, verify)
+    }
+
+    fn stations_of(candidate: Candidate<'_, '_, T>) -> (Stations, Stations) {
+        candidate.on_face_stations()
+    }
+}
+
+impl<T: Decide> ClearanceLane<T> {
+    /// [`Side::windows`], at this lane.
+    ///
+    /// # Errors
+    ///
+    /// [`Side::windows`]'s own.
+    pub fn windows<'b>(self, side: &Side<'b, T>) -> Result<Windows<'b, T>, EngineRefusal> {
+        (self.windows)(side)
+    }
+
+    /// [`Sweep::run`], at this lane: the verdict, receipt and widths are
+    /// the sweep's, and the witness is the first one `verify` answered.
+    pub fn sweep<W>(
+        self,
+        sweep: &Sweep,
+        wa: &Windows<'_, T>,
+        wb: &Windows<'_, T>,
+        same_body: bool,
+        mut verify: impl FnMut(Candidate<'_, '_, T>) -> Result<W, String>,
+    ) -> BoundReport<W> {
+        let mut witness = None;
+        let report = (self.bound_sweep)(sweep, wa, wb, same_body, &mut |candidate| {
+            verify(candidate).map(|w| witness = Some(w))
+        });
+        let verdict = match report.verdict {
+            BoundVerdict::Holds => BoundVerdict::Holds,
+            BoundVerdict::Refused(r) => BoundVerdict::Refused(r),
+            BoundVerdict::Violated(()) => BoundVerdict::Violated(
+                witness.unwrap_or_else(|| unreachable!("the sweep stops at the verifier's `Ok`")),
+            ),
+        };
+        BoundReport {
+            verdict,
+            receipt: report.receipt,
+            widths: report.widths,
+            decided: report.decided,
+        }
+    }
+
+    /// [`Candidate::on_face_stations`], at this lane.
+    pub fn on_face_stations(self, candidate: Candidate<'_, '_, T>) -> (Stations, Stations) {
+        (self.face_stations)(candidate)
+    }
+
+    /// [`min_separation`], at this lane, with its bracket re-entered as
+    /// a value of `T`: the hull of `T::from_computed` of each end. At
+    /// `Interval` that is [`MinSeparation::enclosure`]; at a symbolic
+    /// scalar each end is its own unknown, so two measures with equal
+    /// brackets are never proved equal.
+    ///
+    /// # Errors
+    ///
+    /// [`min_separation`]'s own.
+    pub fn min_separation(
+        self,
+        a: &Side<'_, T>,
+        b: &Side<'_, T>,
+        same_body: bool,
+        config: MinSeparationConfig,
+    ) -> Result<T, MinSeparationRefusal> {
+        let m = (self.min_separation)(a, b, same_body, config)?;
+        Ok(geom_core::SpanLocate::enclosure_hull(
+            T::from_computed(m.lo),
+            T::from_computed(m.hi),
+        ))
+    }
+}
+
+/// **The door's WIRING**: which function each field of
+/// [`ClearanceLane::certified`] holds. Why a wiring row compares
+/// pointers rather than outputs: `certified_enclosure_impl_census`'s
+/// module doc.
+#[cfg(test)]
+mod wiring_rows {
+    use super::{ClearanceLane, min_separation};
+
+    /// `Ok(())` when every field holds its door; otherwise the name of
+    /// the first field that does not.
+    fn holds_the_certified_clearance_lane<T: super::Decide + geom_core::CertifiedBounds>()
+    -> Result<(), &'static str> {
+        let lane = ClearanceLane::<T>::certified();
+        if !std::ptr::fn_addr_eq(lane.windows, ClearanceLane::<T>::windows_of as fn(_) -> _) {
+            return Err("windows is not `Side::windows`");
+        }
+        if !std::ptr::fn_addr_eq(
+            lane.bound_sweep,
+            ClearanceLane::<T>::sweep_of as fn(_, _, _, _, _) -> _,
+        ) {
+            return Err("bound_sweep is not `Sweep::run`");
+        }
+        if !std::ptr::fn_addr_eq(
+            lane.face_stations,
+            ClearanceLane::<T>::stations_of as fn(_) -> _,
+        ) {
+            return Err("face_stations is not `Candidate::on_face_stations`");
+        }
+        if !std::ptr::fn_addr_eq(
+            lane.min_separation,
+            min_separation::<T> as fn(_, _, _, _) -> _,
+        ) {
+            return Err("min_separation is not `min_separation`");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn f64_is_wired_to_the_certified_clearance_lane() {
+        assert_eq!(
+            holds_the_certified_clearance_lane::<f64>(),
+            Ok(()),
+            "`ClearanceLane::<f64>::certified()` holds something other than the engine"
+        );
+    }
+
+    /// The symbolic tier holds the base scalar's doors: the same
+    /// pointers, instantiated at `Sym<f64>`.
+    #[test]
+    fn sym_over_f64_is_wired_to_the_certified_clearance_lane() {
+        assert_eq!(
+            holds_the_certified_clearance_lane::<geom_core::Sym<f64>>(),
+            Ok(()),
+            "`ClearanceLane::<Sym<f64>>::certified()` holds something other than the engine"
+        );
+    }
+
+    #[cfg(feature = "probe")]
+    #[test]
+    fn probe_is_wired_to_the_certified_clearance_lane() {
+        assert_eq!(
+            holds_the_certified_clearance_lane::<geom_core::Probe>(),
+            Ok(()),
+            "`ClearanceLane::<Probe>::certified()` holds something other than the engine"
+        );
+    }
+
+    /// Which scalars hold the door, one row for all of them: an answer
+    /// that flips at any scalar reds here by name.
+    #[test]
+    fn the_door_answers_at_the_enclosure_scalars_and_nowhere_else() {
+        use crate::AtRestPolicy;
+        use geom_core::interval::Interval;
+        let answers = |name, held: bool| (name, held);
+        #[cfg_attr(not(feature = "probe"), allow(unused_mut))]
+        let mut table = vec![
+            answers("f64", f64::clearance_lane().is_some()),
+            answers("Dual64", geom_core::Dual64::clearance_lane().is_some()),
+            answers("Interval", Interval::clearance_lane().is_some()),
+            answers(
+                "Sym<f64>",
+                geom_core::Sym::<f64>::clearance_lane().is_some(),
+            ),
+            answers(
+                "Sym<Interval>",
+                geom_core::Sym::<Interval>::clearance_lane().is_some(),
+            ),
+        ];
+        #[cfg_attr(not(feature = "probe"), allow(unused_mut))]
+        let mut expected = vec![
+            ("f64", false),
+            ("Dual64", false),
+            ("Interval", true),
+            ("Sym<f64>", false),
+            ("Sym<Interval>", true),
+        ];
+        #[cfg(feature = "probe")]
+        {
+            table.push(answers(
+                "Probe",
+                geom_core::Probe::clearance_lane().is_some(),
+            ));
+            expected.push(("Probe", false));
+        }
+        assert_eq!(table, expected, "(scalar, holds the clearance door)");
+    }
+
+    #[test]
+    fn interval_is_wired_to_the_certified_clearance_lane() {
+        assert_eq!(
+            holds_the_certified_clearance_lane::<geom_core::interval::Interval>(),
+            Ok(()),
+            "`ClearanceLane::<Interval>::certified()` holds something other than the engine"
+        );
+    }
 }
 
 #[cfg(test)]

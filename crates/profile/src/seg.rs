@@ -2563,17 +2563,17 @@ mod pair_contact_tests {
             let (lo, hi) = (tc.min(td).max(0.0), tc.max(td).min(s1.len));
             let along = on_one_line_2d(s1.unit, (s1.a, s1.b), (s2.a, s2.b), 0.0);
             let replay = test_utils::fuzz::replay;
-            assert_eq!(along.lo.to_bits(), lo.to_bits(), "lo — {}", replay());
-            let slack = if along.hi.to_bits() == hi.to_bits() {
+            assert_eq!(along.lo().to_bits(), lo.to_bits(), "lo — {}", replay());
+            let slack = if along.hi().to_bits() == hi.to_bits() {
                 0.0
             } else {
                 let end = (s1.b - s1.a).dot(s1.unit);
                 assert!(
                     hi == s1.len
-                        && along.hi == end
+                        && along.hi() == end
                         && (end - s1.len).abs() <= 4.0 * s1.len * f64::EPSILON,
                     "hi {} against {hi}, s1's end projected {end}, L {} — {}",
-                    along.hi,
+                    along.hi(),
                     s1.len,
                     replay()
                 );

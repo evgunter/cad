@@ -139,7 +139,9 @@ pub enum SectionGermReading {
     /// (`split_germ_line`).
     Line,
     /// The order of two germs about the plane's normal
-    /// (`split_germ_side`, `split_germ_sense`, `split_germ_order`).
+    /// (`split_germ_side`, `split_germ_sense`, `split_germ_order`), or of
+    /// two along one tangent by how their sections curve off it
+    /// (`tangent_sector_order2`, `tangent_sector_order2_arm`).
     Order,
 }
 
@@ -152,8 +154,12 @@ pub enum SectionGermFault {
     /// the tolerance.
     NoLine,
     /// Two germs of different sectors lie along one direction, to the
-    /// tolerance.
+    /// tolerance, and their sections curve alike off it.
     Coincident,
+    /// Two germs lie along one direction, and a face's section has no
+    /// curvature to read there: its surface is singular at the vertex
+    /// (a cone's apex) or meets the plane tangentially.
+    Singular,
     /// The germs as read do not alternate between the material's starts
     /// and ends. Argued to need faces within the tolerance of one
     /// another, which the readings decided apart rule out; not reached.
@@ -731,7 +737,12 @@ impl core::fmt::Display for SplitReduceError {
                         "a face round a vertex leaves the split plane along no line"
                     }
                     SectionGermFault::Coincident => {
-                        "the split plane leaves two faces round a vertex along one direction"
+                        "the split plane leaves two faces round a vertex along one direction, \
+                         curving alike off it"
+                    }
+                    SectionGermFault::Singular => {
+                        "the split plane leaves two faces round a vertex along one direction, \
+                         and one face has no curvature to read there"
                     }
                     SectionGermFault::Alternation => {
                         "material and gap do not alternate round a vertex in the split plane"
