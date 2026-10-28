@@ -7,7 +7,6 @@ use std::sync::Arc;
 
 use eframe::egui;
 use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId};
-use pncad::prelude::StableName;
 
 use crate::app::{ViewerBehavior, chrome};
 use crate::camera::{self, Camera, CameraOp};
@@ -20,7 +19,7 @@ use crate::input::{self, PickAction, PointerButton, ViewportEvent, ViewportSize}
 use crate::marks;
 use crate::narrowing::Narrow;
 use crate::pickcache;
-use crate::pickindex::{PickError, PickIndex, PictureKey};
+use crate::pickindex::{PickIndex, PictureKey};
 use crate::screen::{self, view_of};
 use crate::session::SessionOp;
 use crate::sketch::{self, PreviewLoop, TIP_MARK_PX, heading};
@@ -1243,7 +1242,6 @@ mod tests {
     use crate::sketch::{self, PreviewLoop, ProfilePreview, ProfileShape, TIP_MARK_PX};
     use pncad::document::{Doc, ProfileProgram, SlotId};
     use pncad::geom_core::Tol;
-    use pncad::prelude::StableName;
     use pncad::select::HitTestError;
 
     fn framed() -> Camera {

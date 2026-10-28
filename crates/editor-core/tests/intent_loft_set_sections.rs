@@ -300,10 +300,7 @@ fn a_loft_shape_no_evaluation_lofts_refuses_at_both_doors() {
         profile: b.into(),
         station,
     };
-    let slide = |along, by| StationMove::Slide {
-        along,
-        by: len(by),
-    };
+    let slide = |along, by| StationMove::Slide { along, by: len(by) };
     let rows: [(Sections, i64, LoftFault, &str); 6] = [
         (
             Vec::new(),
