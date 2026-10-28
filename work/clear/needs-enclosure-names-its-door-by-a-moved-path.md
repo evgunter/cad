@@ -4,6 +4,9 @@ kind: issue
 title: MeasureUnavailableAt::NeedsEnclosure names its door as clearance::min_separation, which now lives at topo::clearance::min_separation
 status: open
 opened: 2026-10-28
+priority: P4
+cost: E
+rides_with: symbolic-tier-and-clearance-engine
 ---
 
 Found by SHELL-3's sweep for readers of the moved symbols. The `f64`

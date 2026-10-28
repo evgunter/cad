@@ -2,10 +2,11 @@
 id: symbolic-tier-and-clearance-engine
 kind: issue
 title: The symbolic identity tier and the clearance engine do not compose
-status: open
+status: dispatched
 opened: 2026-09-03
 priority: P1
 cost: H
+branch: clear/symclear
 ---
 
 The E12 symbolic identity tier (`geom_core::sym`) replays a driver leaf
