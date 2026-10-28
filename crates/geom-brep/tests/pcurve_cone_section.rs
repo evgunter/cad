@@ -566,9 +566,24 @@ fn a_skew_section_minted_at_interval_reads_a_tight_vertex_azimuth() {
         let width = focal.u0.hi() - focal.u0.lo();
         assert!(width < 100.0 * f64::EPSILON, "f {f}: u0 width {width:e}");
         if f == 0.9999 {
-            let cache =
-                PcurveCache::certify(image.clone(), lift(-1.0), lift(1.0), &lc, &ls, band())
-                    .unwrap_or_else(|e| panic!("f {f}: {e}"));
+            // Off the default ε the box may now mint a section its read
+            // used to refuse, and its envelope may land in band there:
+            // the certificate's honest answer, not this row's subject.
+            let cache = match PcurveCache::certify(
+                image.clone(),
+                lift(-1.0),
+                lift(1.0),
+                &lc,
+                &ls,
+                band(),
+            ) {
+                Ok(cache) => cache,
+                Err(e @ geom_brep::PcurveCertifyError::Escalated { .. }) if !at_default => {
+                    println!("IN BAND f {f} at ε {:e}: {e}", eps());
+                    continue;
+                }
+                Err(e) => panic!("f {f}: {e}"),
+            };
             let envelope = cache.certificate().envelope.hi();
             assert!(envelope < 0.5 * eps(), "f {f}: envelope {envelope:e}");
             certified = true;
@@ -687,8 +702,19 @@ fn a_near_parabola_section_minted_at_interval_certifies() {
     } in interval_mints(&poses)
     {
         let at = format!("scale {scale}, f {f}, k {k:e}");
-        let minted = certify(Pcurve::FocalSection(image), &carrier, &surface)
-            .unwrap_or_else(|e| panic!("{at}: minted at Interval: {e}"));
+        // Off the default ε the box may now mint a section its read used
+        // to refuse, and its envelope may land in band there: the
+        // certificate's honest answer, not this row's subject.
+        let minted = match certify(Pcurve::FocalSection(image), &carrier, &surface) {
+            Ok(minted) => minted,
+            Err(e @ geom_brep::PcurveCertifyError::Escalated { .. })
+                if eps() != geom_core::tolerance::DEFAULT_EPS =>
+            {
+                println!("IN BAND {at} at ε {:e}: {e}", eps());
+                continue;
+            }
+            Err(e) => panic!("{at}: minted at Interval: {e}"),
+        };
         let Ok(Pcurve::FocalSection(at_f64)) = chart_pcurve(&carrier, &surface, band()) else {
             panic!("{at}: the f64 mint");
         };

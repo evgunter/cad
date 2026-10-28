@@ -2967,10 +2967,6 @@ fn own_close(margin: &geom_core::MarginDiag, lever: &'static str) -> &'static st
 /// corners, an exact construction.
 const PLANAR_CORNER: Unsized = Unsized::Defect;
 
-/// A flat face's edge on its plane: a residual of a carrier the kernel may
-/// have fitted.
-const PLANAR_BOUNDARY: Unsized = Unsized::Fit;
-
 /// The ring-torus convention `R − r > 0`: a size the user may intend, and
 /// the stored radii are what the lever edits.
 const RING_TORUS: SizedDecision = geom_brep::TorusConvention::Ring.sized();
@@ -3696,7 +3692,7 @@ pub(crate) mod incidence_reasons {
 }
 
 /// The reason [`incidence_reasons`] gives `read`.
-fn incidence_reason(read: geom_brep::IncidenceRead<'_>) -> &'static str {
+fn incidence_reason(read: geom_brep::IncidenceRead) -> &'static str {
     use geom_brep::IncidenceRead as R;
     match read {
         R::Off(_) => incidence_reasons::OFF,
@@ -4011,8 +4007,8 @@ pub(crate) fn classify_point_in_solid(
     }
 }
 
-fn classify_chart_region(e: &ChartRegionError) -> (&'static str, &'static str) {
-    match e {
+fn classify_chart_region(e: &ChartRegionError) -> (Cow<'static, str>, Cow<'static, str>) {
+    let (why, recourse): (&'static str, &'static str) = match e {
         ChartRegionError::ChartDivergence { .. } => (
             "the two faces lie on separately described surfaces, which the check cannot \
              compare",
@@ -4067,7 +4063,16 @@ fn classify_chart_region(e: &ChartRegionError) -> (&'static str, &'static str) {
         ChartRegionError::MissingCache { .. } | ChartRegionError::Corrupt => {
             ("a face's stored boundary is incomplete", DEFECT)
         }
-    }
+        // A plane trim edge's incidence read: its reason from the one
+        // table, its ending by the one map, at rest.
+        ChartRegionError::TrimOffFace { read, .. } => {
+            return (
+                incidence_reason(*read).into(),
+                read.ending(Reading::AtRest).into(),
+            );
+        }
+    };
+    (why.into(), recourse.into())
 }
 
 fn classify_contact_lane(e: &ContactRefusal) -> (&'static str, &'static str) {
@@ -4095,10 +4100,7 @@ fn classify_contact_lane(e: &ContactRefusal) -> (&'static str, &'static str) {
 
 fn classify_census_cause(cause: &CensusUnsupportedCause) -> (Cow<'static, str>, Cow<'static, str>) {
     match cause {
-        CensusUnsupportedCause::ChartRegion(e) => {
-            let (why, recourse) = classify_chart_region(e);
-            (why.into(), recourse.into())
-        }
+        CensusUnsupportedCause::ChartRegion(e) => classify_chart_region(e),
         CensusUnsupportedCause::ContactLane(e) => {
             let (why, recourse) = classify_contact_lane(e);
             (why.into(), recourse.into())
@@ -4265,7 +4267,7 @@ impl fmt::Display for ValidationError {
             Self::PlanarBoundaryResidual { .. } => write!(
                 f,
                 "an edge of a flat face leaves that face's plane between its ends. {}",
-                PLANAR_BOUNDARY.recourse(RefusedArm::SignCertain(None), Reading::AtRest)
+                geom_brep::IncidenceRead::Off(None).ending(Reading::AtRest)
             ),
             Self::PlanarBoundaryEscalated { cause, .. } => write!(
                 f,
@@ -4273,7 +4275,7 @@ impl fmt::Display for ValidationError {
                     geom_core::undecided!("whether an edge of a flat face stays on its plane"),
                     ". {}"
                 ),
-                PLANAR_BOUNDARY.recourse(RefusedArm::Undecided(cause), Reading::AtRest)
+                geom_brep::IncidenceRead::Undecided(*cause).ending(Reading::AtRest)
             ),
             Self::SliverDihedral { check, cause, .. } => {
                 write!(f, "{}. {}", check.lead(), check.ending(cause))
@@ -12452,7 +12454,7 @@ mod tests {
         let off = C::CarrierOffChart {
             chart: geom::SurfaceKind::Sphere,
             carrier: geom::CurveKind::Line,
-            why: "a sphere holds no line",
+            why: "the line's points are not on the chart (its distance from the chart at a sample of its span is past the band)",
             margin: None,
         };
         let undecided = C::Escalated {
@@ -12722,7 +12724,9 @@ mod tests {
                     edge,
                     cause: in_band,
                 },
-                KERNEL_LIMIT_RECOURSE.to_owned(),
+                "Recourse: the edge's curve is not shown on the face it bounds at this \
+                 tolerance: move the geometry so it lies clearly on that face"
+                    .to_owned(),
             ),
             (
                 "torus radii, in band",

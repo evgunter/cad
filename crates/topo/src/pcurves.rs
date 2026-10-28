@@ -6537,7 +6537,7 @@ mod recourse_tests {
         let certify_error = PcurveCertifyError::CarrierOffChart {
             chart: geom::SurfaceKind::Sphere,
             carrier: geom::CurveKind::Line,
-            why: "a sphere holds no line",
+            why: "the line's points are not on the chart (its distance from the chart at a sample of its span is past the band)",
             margin: None,
         };
         let arms = [

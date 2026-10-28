@@ -1025,7 +1025,7 @@ impl CertifyError {
             } => (CertCheck::GeneralLane, RefusedArm::SignCertain(None)),
             Self::CarrierOffChart { margin, .. } => (
                 CertCheck::ChartIncidence,
-                crate::IncidenceRead::of_margin(*margin).arm(),
+                RefusedArm::SignCertain(margin.map(crate::OffMargin::diag)),
             ),
             Self::OnPairArcRim { iso, limb, bound } => {
                 match iso.and_then(crate::pcurve_cache::PcurveCheck::incidence_limb) {
@@ -1080,14 +1080,14 @@ impl CertifyError {
     /// which every incidence refusal reaches it through, and is the one
     /// reading of it [`Self::ending`] and a door's classification share.
     #[must_use]
-    pub fn incidence_read(&self) -> Option<crate::IncidenceRead<'_>> {
+    pub fn incidence_read(&self) -> Option<crate::IncidenceRead> {
         match self {
             Self::CarrierOffChart { margin, .. } => Some(crate::IncidenceRead::of_margin(*margin)),
             Self::Escalated {
                 check: CertCheck::ChartIncidence,
                 cause,
                 ..
-            } => Some(crate::IncidenceRead::Undecided(cause)),
+            } => Some(crate::IncidenceRead::Undecided(*cause)),
             // The test's residual decided past the band: a definite miss,
             // read as the pcurve layer's (`IncidenceRead::of`) reads it.
             // Its margin is the residual, not a pose's height, so it is
@@ -3786,7 +3786,21 @@ fn canonical_of<T: Decide>(
                 // every stored cache of this class already carries,
                 // which is what makes description and cache the same
                 // object.
-                Some(p) => p.clone(),
+                Some(p) => {
+                    // A stated image is metered against the chart below;
+                    // whether the carrier lies on the chart is read first,
+                    // as the mint reads it (D3), so a carrier off its face
+                    // ends as that read, never as the residual's meter.
+                    crate::pcurve_cache::read_incidence(
+                        &spec.carrier,
+                        spec.param_start,
+                        spec.param_end,
+                        surface,
+                        band,
+                    )
+                    .map_err(|e| mint_refusal(e, surface, &spec.carrier))?;
+                    p.clone()
+                }
                 // D4, the minted half: an analytic chart's image is
                 // derived from the carrier through the one door that
                 // derives chart images anywhere in this kernel.
@@ -3797,80 +3811,7 @@ fn canonical_of<T: Decide>(
                     surface,
                     band,
                 )
-                .map_err(|e| match e {
-                    // A carrier not shown on its chart: its incidence,
-                    // ended by its read (D3), decided or in band.
-                    PcurveCertifyError::CarrierOffChart { why, margin, .. } => {
-                        CertifyError::CarrierOffChart {
-                            chart: surface.kind(),
-                            carrier: spec.carrier.kind(),
-                            why,
-                            margin,
-                        }
-                    }
-                    PcurveCertifyError::Escalated {
-                        check: PcurveCheck::ChartIncidence,
-                        cause,
-                        ..
-                    } => CertifyError::Escalated {
-                        check: CertCheck::ChartIncidence,
-                        sample: NOT_A_SAMPLE,
-                        cause,
-                    },
-                    // The mint runs ONCE, before the schedule, so the
-                    // sample field carries the not-a-sample sentinel:
-                    // reporting `0` would name a schedule point that
-                    // was never visited.
-                    // The class reading is a lane choice (D3): in band
-                    // it stays its own check, which ends "not yet", never
-                    // the mint's defect.
-                    PcurveCertifyError::Escalated {
-                        check: PcurveCheck::ChartClass,
-                        cause,
-                        ..
-                    } => CertifyError::Escalated {
-                        check: CertCheck::ChartClass,
-                        sample: NOT_A_SAMPLE,
-                        cause,
-                    },
-                    // The general lane's own reading where the lane
-                    // choice sent the carrier: its capability gap,
-                    // "not yet" as well.
-                    PcurveCertifyError::Escalated {
-                        check: PcurveCheck::GeneralLane,
-                        cause,
-                        ..
-                    } => CertifyError::Escalated {
-                        check: CertCheck::GeneralLane,
-                        sample: NOT_A_SAMPLE,
-                        cause,
-                    },
-                    PcurveCertifyError::Escalated { cause, .. } => CertifyError::Escalated {
-                        check: CertCheck::ChartImage,
-                        sample: NOT_A_SAMPLE,
-                        cause,
-                    },
-                    PcurveCertifyError::NoGeneralLane {
-                        chart,
-                        carrier,
-                        gap,
-                    } => CertifyError::NoGeneralLane {
-                        chart,
-                        carrier,
-                        gap,
-                    },
-                    // Every other refusal says the same thing: this
-                    // (chart, carrier) pair has no certified chart
-                    // image. That is a fact about the DESCRIPTION's
-                    // geometry, and it is reported as one — not as
-                    // `Unimplemented`, which means something else and
-                    // would send the caller looking for a missing
-                    // feature instead of a wrong locus.
-                    _ => CertifyError::ChartImageUnavailable {
-                        chart: surface.kind(),
-                        carrier: spec.carrier.kind(),
-                    },
-                })?,
+                .map_err(|e| mint_refusal(e, surface, &spec.carrier))?,
             };
             EdgeDescription::Chart(ChartCurve {
                 surface: *key,
@@ -3879,6 +3820,90 @@ fn canonical_of<T: Decide>(
             })
         }
     })
+}
+
+/// **A chart image's refusal, as the edge certificate's**: an incidence
+/// read ended by its read (D3), decided or in band; a class reading or
+/// the general lane's own, "not yet"; any other, the pair having no
+/// certified image. The mint and a stated image's incidence read refuse
+/// through it alike.
+fn mint_refusal<T: Real>(
+    e: PcurveCertifyError,
+    surface: &Surface<T>,
+    carrier: &Curve3<T>,
+) -> CertifyError {
+    match e {
+        // A carrier not shown on its chart: its incidence,
+        // ended by its read (D3), decided or in band.
+        PcurveCertifyError::CarrierOffChart { why, margin, .. } => CertifyError::CarrierOffChart {
+            chart: surface.kind(),
+            carrier: carrier.kind(),
+            why,
+            margin,
+        },
+        PcurveCertifyError::Escalated {
+            check: PcurveCheck::ChartIncidence,
+            cause,
+            ..
+        } => CertifyError::Escalated {
+            check: CertCheck::ChartIncidence,
+            sample: NOT_A_SAMPLE,
+            cause,
+        },
+        // The mint runs ONCE, before the schedule, so the
+        // sample field carries the not-a-sample sentinel:
+        // reporting `0` would name a schedule point that
+        // was never visited.
+        // The class reading is a lane choice (D3): in band
+        // it stays its own check, which ends "not yet", never
+        // the mint's defect.
+        PcurveCertifyError::Escalated {
+            check: PcurveCheck::ChartClass,
+            cause,
+            ..
+        } => CertifyError::Escalated {
+            check: CertCheck::ChartClass,
+            sample: NOT_A_SAMPLE,
+            cause,
+        },
+        // The general lane's own reading where the lane
+        // choice sent the carrier: its capability gap,
+        // "not yet" as well.
+        PcurveCertifyError::Escalated {
+            check: PcurveCheck::GeneralLane,
+            cause,
+            ..
+        } => CertifyError::Escalated {
+            check: CertCheck::GeneralLane,
+            sample: NOT_A_SAMPLE,
+            cause,
+        },
+        PcurveCertifyError::Escalated { cause, .. } => CertifyError::Escalated {
+            check: CertCheck::ChartImage,
+            sample: NOT_A_SAMPLE,
+            cause,
+        },
+        PcurveCertifyError::NoGeneralLane {
+            chart,
+            carrier,
+            gap,
+        } => CertifyError::NoGeneralLane {
+            chart,
+            carrier,
+            gap,
+        },
+        // Every other refusal says the same thing: this
+        // (chart, carrier) pair has no certified chart
+        // image. That is a fact about the DESCRIPTION's
+        // geometry, and it is reported as one — not as
+        // `Unimplemented`, which means something else and
+        // would send the caller looking for a missing
+        // feature instead of a wrong locus.
+        _ => CertifyError::ChartImageUnavailable {
+            chart: surface.kind(),
+            carrier: carrier.kind(),
+        },
+    }
 }
 
 /// **The mint** — what every scalar's edge door constructs: check 1,
@@ -8093,7 +8118,7 @@ mod tests {
                     crate::IncidenceRead::Off(None),
                     crate::IncidenceRead::Off(Some(MarginDiag::value(5e-9))),
                     crate::IncidenceRead::AtPose(MarginDiag::value(5e-9)),
-                    crate::IncidenceRead::Undecided(cause),
+                    crate::IncidenceRead::Undecided(*cause),
                 ] {
                     for file in [wide, narrow] {
                         let door = read.ending(file);

@@ -70,6 +70,8 @@ mod a_curved_keel_on_the_floor_refuses_its_slit_form;
 mod a_cylinder_split_just_off_its_rim_vertex;
 #[path = "a_face_across_a_wavy_corner.rs"]
 mod a_face_across_a_wavy_corner;
+#[path = "a_face_moved_off_its_edges_ends_as_their_incidence_read_at_rest.rs"]
+mod a_face_moved_off_its_edges_ends_as_their_incidence_read_at_rest;
 #[path = "a_face_off_the_tangent_ruling.rs"]
 mod a_face_off_the_tangent_ruling;
 #[path = "a_flank_touch_at_a_shared_corner.rs"]
@@ -152,6 +154,8 @@ mod a_wall_seam_takes_the_column_it_lies_on;
 mod an_annular_tube_through_a_plate;
 #[path = "an_arc_loft_seams_its_rational_wall_at_every_spacing.rs"]
 mod an_arc_loft_seams_its_rational_wall_at_every_spacing;
+#[path = "an_arc_off_a_plane_or_cylinder_face_ends_as_its_incidence_read.rs"]
+mod an_arc_off_a_plane_or_cylinder_face_ends_as_its_incidence_read;
 #[path = "an_arc_rim_picks_the_row_it_lies_on.rs"]
 mod an_arc_rim_picks_the_row_it_lies_on;
 #[path = "an_arc_tangent_at_a_boolean_vertex.rs"]

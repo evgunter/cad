@@ -231,10 +231,12 @@ impl core::fmt::Display for JoinUndecided {
                     diag.lever_ending(geom_core::COINCIDENCE_RECOURSE)
                 )
             ),
-            JoinReading::ChartClass(e @ geom_brep::IsoFamilyRefusal::Image(_)) => write!(
+            // The image's own refusal, no class reading: an incidence read
+            // among them ends by its own ending, never as undecided.
+            JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Image(e)) => write!(
                 f,
-                concat!("{}", geom_core::undecided!(), ": {}"),
-                JOIN_SUBJECT, e
+                "two edges meeting at a vertex on one surface have no chart image to read their \
+                 family off: {e}"
             ),
         }
     }
@@ -1579,9 +1581,11 @@ mod undecided_text {
         }
     }
 
-    /// A chart image that did not derive is classed undecided at the
-    /// Boolean and ends in whatever its derivation refusal carries, here
-    /// none: `work/honejoin/the-join-lever-names-a-pole-for-a-chart-class-reading.md`
+    /// A chart image that did not derive is no class reading: the
+    /// Boolean names the image's refusal, which ends in whatever it
+    /// carries, here none (an incidence read among them ends by its own
+    /// ending, never as undecided).
+    /// `work/honejoin/the-join-lever-names-a-pole-for-a-chart-class-reading.md`
     /// owns giving it one verdict, and re-baselines this text.
     #[test]
     fn a_chart_image_that_did_not_derive_ends_without_a_recourse_today() {
@@ -1592,8 +1596,8 @@ mod undecided_text {
         )));
         assert_eq!(
             got,
-            "whether two edges meeting at a vertex on one curve are one edge is undecided: \
-             pcurve certification: no sphere-chart lane covers this pcurve — every analytic \
+            "two edges meeting at a vertex on one surface have no chart image to read their \
+             family off: pcurve certification: no sphere-chart lane covers this pcurve — every analytic \
              chart certifies its closed-form (Harmonic) classes, a NURBS chart routes through \
              its description-driven iso/fitted lanes instead of this door, and an image outside \
              the chart's harmonic family belongs to the fitted lane where one exists"
