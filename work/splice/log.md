@@ -712,3 +712,50 @@ rung reading only what the rungs before it left undecided:
 4. the face's interior.
 
 Ev approved it ("5860 looks good!"). Only the wording changed.
+
+## 2026-10-28 — PR 5868 (the spline seam reading) merges; lily's rim reads Transverse
+
+Letter M; draw byte 36, a holdout, so a concurrent pair, frozen at
+`06e486b9af`. Both reviewers found the same MAJOR, so nothing is tallied
+and nothing is missed (row `PR-5868`). The MAJOR: the arm `1/κ̄` over
+the whole chart is the loose direction (`implicit.rs:309-314`), and a
+wall flat near the seam with a far bend read a true corner Smooth.
+- Fix pass 1 made the arm a region-local fixed point, `chart_arm`.
+- A single re-review at `abf40f1d12` found the class still open.
+  `chart_arm` is a certified lower bound with unbounded slack: a flat
+  wall at uneven speed reads arm 0.00375 against 1.0, and a refused cell
+  near an apex shrinks it to its distance.
+- Fix pass 2 (`833da0303c`) brackets the decision. The wedge is read at
+  hi, the spline arm taken as the reach. Transverse also needs
+  `sin θ · lo` decided, and anything else escalates at the arm. So a
+  lower bound's slack costs an escalation, never a class. The
+  orchestrator re-ran the seam rows at three ε, and the "wedge at lo"
+  mutation reds both ported counterexamples.
+
+**Lily wall 8:** the rim reads Transverse, decided at lo. She stops at
+the rim's certification, whose cause moves with ε:
+- at 1e-9 and 1e-12, `PlaneNurbs Limb ImageMiss`;
+- at 1e-6, `PlaneNurbsHullValue` (the sweep row) or the pair's
+  transversality (the tour).
+That is SSIEDGE's `plane-nurbs-certificate-bound-does-not-refine-with-eps`,
+and it is lily's next stop.
+
+Filed by the lane:
+- `the-chart-curvature-bound-over-reads-a-flat-chart-at-uneven-speed`
+- `the-seams-chart-arm-builds-every-cell-of-the-chart-per-read`
+- `a-smooth-seam-between-spline-walls-has-no-second-order-reading`
+- `the-shared-rim-routing-exempts-a-spline-face-by-kind`
+- `a-seam-on-a-creased-spline-chart-reads-no-arm`
+
+**The at-rest main red.** During the fix passes, demo-tour's chain
+gallery read 10 at-rest findings against its pin of 196. That was
+PR 5853's change: its CI skipped demos, and main's push CI runs none.
+The orchestrator reproduced it on main at `2d0d7307`, and the lane filed
+it as `atrest/main-red-the-gallery-chain-pins-196-at-rest-findings-after-pr-5853`.
+Main re-pinned the chain at `0f4502051b`, so the row is ATREST's to
+close.
+
+**Outside SPLICE's ground:** the lane added a new curve-pair
+touch-window fuzz seed (`0xdcf91059414eafd4`) to CPAIR's open row
+`a-touch-window-fuzz-seed-contradicts-the-dense-distance-at-1e-12`. It
+turned up in the lane's slow sets.

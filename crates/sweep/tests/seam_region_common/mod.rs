@@ -7,7 +7,9 @@ use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Point3, Tol, Vec3};
 use std::f64::consts::PI;
-use topo::{Body, FaceKey, FaceSurface, MefSite, ValidationError};
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, MefSite};
+use topo::{Body, FaceKey, ValidationError};
 
 pub(crate) fn v([x, y, z]: [f64; 3]) -> Vec3<f64> {
     Vec3::new(x, y, z)

@@ -34,14 +34,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::EulerCounts;
+use crate::construction::{MefCreated, MefSite, MekrSite, MevCreated, MevSite, MvfsCreated};
 use crate::euler::BadArgument;
 use crate::fixtures::{assert_err_deep_unchanged, deep_snapshot};
 use crate::readback::euler_counts;
 use crate::test_support_fixtures::{FaceGeometry, prism_ops};
 use crate::{
     Body, Edge, EntityId, EulerOpError, Face, FaceKey, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
-    LoopKey, MefCreated, MefSite, MekrSite, MevCreated, MevSite, MvfsCreated, Provenance, Shell,
-    Solid, Vertex, VertexKey, validate,
+    LoopKey, Provenance, Shell, Solid, Vertex, VertexKey, validate,
 };
 use geom_core::Point3;
 use geom_core::Tol;
@@ -197,12 +197,12 @@ fn build_box(body: &mut Body<f64>, tol: Tol) -> BoxBuilt {
 #[allow(dead_code)]
 struct HoleBuilt {
     strut: MevCreated,
-    kill: crate::KemrResult,
+    kill: crate::construction::KemrResult,
     rim: Vec<MevCreated>,
     membrane: MefCreated,
     drops: Vec<MevCreated>,
     walls: Vec<MefCreated>,
-    plug: crate::KfmrhResult,
+    plug: crate::construction::KfmrhResult,
 }
 
 /// Carve an n-gon hole from face `f_from` (strut planted at the start

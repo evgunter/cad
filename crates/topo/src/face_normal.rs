@@ -528,7 +528,7 @@ mod tests {
         };
         body.lifting_rechart_refusals_for_tests(|body| {
             body.set_face_surfaces_describing(
-                vec![crate::Rechart::new(cone, face, true)],
+                vec![crate::construction::Rechart::new(cone, face, true)],
                 &[],
                 Tol::witness(),
             )

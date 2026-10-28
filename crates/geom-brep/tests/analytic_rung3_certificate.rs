@@ -652,18 +652,19 @@ fn limb_two_halves_then_stops_on_a_breaks_miss() {
     assert!(refused(&got), "Interval: {got:?}");
 }
 
-/// **A torus operand refuses the tube by name, once limb 2 holds; a
-/// cone's section states the bounds that retire it.** The unit circle in
-/// `z = 0` lies on the plane exactly, on the torus `R = 5/4, r = 1/4` as
-/// its inner equator, and on the cone with apex `(0, 0, −1)` and
-/// half-angle `π/4`; its limbs hold against both operands of each pair.
-/// The tube's ℝ³ enclosure has no arm for either kind. The plane×cone
-/// section states its crossing angle's floor (`sin θ = 1/√2` on this
-/// circle) and the tube's clearance, so the edge certifies; the
-/// plane×torus section states none, and the edge says which operand the
-/// tube has no enclosure of rather than reading that refusal as a sliver.
+/// **A cone's section retires the tube, and a torus operand certifies
+/// on it.** The unit circle in `z = 0` lies on the plane exactly, on the
+/// torus `R = 5/4, r = 1/4` as its inner equator, and on the cone with
+/// apex `(0, 0, −1)` and half-angle `π/4`; its limbs hold against both
+/// operands of each pair. The tube's ℝ³ enclosure has no cone arm, but
+/// the plane×cone section states its crossing angle's floor
+/// (`sin θ = 1/√2` on this circle) and the tube's clearance, so the edge
+/// certifies with no tube. Against the torus the tube certifies over
+/// boxes as wide as the carrier's eight spans: a torus gradient enclosed
+/// as the componentwise difference of its two `O(1)` terms straddles
+/// there (`TubeStraddles`).
 #[test]
-fn a_torus_operand_refuses_the_tube_by_name_and_a_cones_section_retires_it() {
+fn a_cones_section_retires_the_tube_and_a_torus_operand_certifies() {
     let carrier = bulged(8, 0.0);
     let torus = Surface::Torus {
         center: Point3::origin(),
@@ -678,17 +679,10 @@ fn a_torus_operand_refuses_the_tube_by_name_and_a_cones_section_retires_it() {
         half_angle: core::f64::consts::FRAC_PI_4,
         u_ref: Vec3::unit_x(),
     };
-    assert_eq!(
-        certify(&carrier, plane(), torus).map(|_| ()),
-        Err(CertifyError::AnalyticRung3(
-            AnalyticRung3Refusal::NoTubeEnclosure {
-                operand: geom::SurfaceKind::Torus
-            }
-        )),
-        "the plane×torus section states no bounds"
-    );
     let got = certify(&carrier, plane(), cone).map(|_| ());
     assert_eq!(got, Ok(()), "the plane×cone section retires the tube");
+    let got = certify(&carrier, plane(), torus).map(|_| ());
+    assert_eq!(got, Ok(()), "torus");
 }
 
 /// **A dense export-shaped spline certifies where the tube has an

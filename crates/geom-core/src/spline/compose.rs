@@ -565,6 +565,32 @@ fn bern_mul_row_into(a: &[Interval], b: &[Interval], w: &BernWeights, out: &mut 
     }
 }
 
+/// [`bern_mul_row`] of `a` with itself, bit for bit: term `i` of row
+/// `k`, `(a[i]·a[k − i])·w(k, i)`, is its mirror `k − i`'s (the product
+/// and its binomial weight are both symmetric in the two factors), so
+/// each is formed once and the row is summed in [`bern_mul_row_into`]'s
+/// ascending order.
+fn bern_square_row(a: &[Interval]) -> Vec<Interval> {
+    let w = bern_weights(a.len() - 1, a.len() - 1);
+    let mut out = Vec::with_capacity(w.row_count());
+    let mut terms: Vec<Interval> = Vec::with_capacity(a.len());
+    for k in 0..w.row_count() {
+        let lo = w.lo(k);
+        terms.clear();
+        for (t, wt) in w.row(k).iter().enumerate() {
+            let i = lo + t;
+            let mirror = k - i;
+            terms.push(if mirror < i {
+                terms[mirror - lo]
+            } else {
+                (a[i] * a[mirror]).mul_nonneg(*wt)
+            });
+        }
+        out.push(terms.iter().fold(Interval::zero(), |acc, t| acc + *t));
+    }
+    out
+}
+
 /// A structurally refused channel: the shape mismatch outcome for the
 /// span-wise combinators (never produced by the entry-point builders,
 /// which share one decomposition structure; total anyway, D4).
@@ -616,10 +642,14 @@ fn ch_sub(a: &BernsteinSpans, b: &BernsteinSpans) -> BernsteinSpans {
 }
 
 /// Span-wise Bernstein product (degrees add; span counts must match).
+/// A channel times itself is [`ch_square`], the same bits.
 fn ch_mul(a: &BernsteinSpans, b: &BernsteinSpans) -> BernsteinSpans {
     let degree = a.degree + b.degree;
     if a.spans.len() != b.spans.len() {
         return refused_like(a, degree);
+    }
+    if core::ptr::eq(a, b) {
+        return ch_square(a);
     }
     BernsteinSpans {
         degree,
@@ -630,6 +660,16 @@ fn ch_mul(a: &BernsteinSpans, b: &BernsteinSpans) -> BernsteinSpans {
             .zip(b.spans.iter())
             .map(|(ra, rb)| bern_mul_row(ra, rb))
             .collect(),
+    }
+}
+
+/// [`ch_mul`] of `a` with itself, span by span through
+/// [`bern_square_row`].
+fn ch_square(a: &BernsteinSpans) -> BernsteinSpans {
+    BernsteinSpans {
+        degree: 2 * a.degree,
+        breaks: a.breaks.clone(),
+        spans: a.spans.iter().map(|r| bern_square_row(r)).collect(),
     }
 }
 
@@ -977,6 +1017,39 @@ pub fn implicit_composite(
     Ok(form)
 }
 
+/// `|C(t) − c|² + shift` along a 3-D curve, in rational Bernstein form:
+/// numerator `S + shift·W²` (`S` the squared-distance channel of
+/// [`implicit_composite`]'s sphere arm), denominator `W²`. Built from
+/// the same data as a composite of that curve, it shares its spans and
+/// breaks; at `shift = R² − r²` it is the torus quartic's `A`.
+///
+/// # Errors
+///
+/// [`ComposeError::DimensionMismatch`] unless `data.dims() == 3`.
+pub fn squared_distance_composite(
+    data: &CurveCertData<'_>,
+    center: &[f64; 3],
+    shift: Interval,
+) -> Result<CompositeForm, ComposeError> {
+    if data.dims() != 3 {
+        return Err(ComposeError::DimensionMismatch {
+            dims: data.dims(),
+            expected: 3,
+        });
+    }
+    let w = data.weight_channel();
+    let g = [
+        data.shifted_channel(0, center[0]),
+        data.shifted_channel(1, center[1]),
+        data.shifted_channel(2, center[2]),
+    ];
+    let w2 = ch_mul(&w, &w);
+    Ok(CompositeForm {
+        num: ch_add(&sum_of_squares(&g), &ch_scale_left(shift, &w2)),
+        den: w2,
+    })
+}
+
 /// The product of two coordinate splines `x_i(t)·x_j(t)` in rational
 /// Bernstein form: numerator `A_i·A_j` (weighted, unshifted channels),
 /// denominator `W²`.
@@ -1096,29 +1169,37 @@ pub fn canonical_composite(
         data.weighted_channel(1),
         data.weighted_channel(2),
     ];
-    let w2 = ch_mul(&w, &w);
+    // The weight's square, which the plane's form does not read.
+    let squared = || ch_mul(&w, &w);
     let radial = || ch_add(&ch_mul(&g[0], &g[0]), &ch_mul(&g[1], &g[1]));
     let form = match *surface {
         CanonicalSurface::Plane => CompositeForm {
             num: g[2].clone(),
-            den: w,
+            den: w.clone(),
         },
-        CanonicalSurface::Cylinder { radius } => CompositeForm {
-            num: ch_sub(&radial(), &ch_scale_left(radius.sqr(), &w2)),
-            den: w2,
-        },
-        CanonicalSurface::Sphere { radius } => CompositeForm {
-            num: ch_sub(&sum_of_squares(&g), &ch_scale_left(radius.sqr(), &w2)),
-            den: w2,
-        },
+        CanonicalSurface::Cylinder { radius } => {
+            let w2 = squared();
+            CompositeForm {
+                num: ch_sub(&radial(), &ch_scale_left(radius.sqr(), &w2)),
+                den: w2,
+            }
+        }
+        CanonicalSurface::Sphere { radius } => {
+            let w2 = squared();
+            CompositeForm {
+                num: ch_sub(&sum_of_squares(&g), &ch_scale_left(radius.sqr(), &w2)),
+                den: w2,
+            }
+        }
         CanonicalSurface::Cone { cos2, sin2 } => CompositeForm {
             num: ch_sub(
                 &ch_scale_left(cos2, &radial()),
                 &ch_scale_left(sin2, &ch_mul(&g[2], &g[2])),
             ),
-            den: w2,
+            den: squared(),
         },
         CanonicalSurface::Torus { major, minor } => {
+            let w2 = squared();
             let shifted = ch_add(
                 &sum_of_squares(&g),
                 &ch_scale_left(major.sqr() - minor.sqr(), &w2),
@@ -1152,6 +1233,61 @@ mod tests {
     use crate::spline::basis;
     use crate::spline::knots::{InteriorKnot, find_span_in};
     use num_bigint::BigInt;
+
+    /// **A row squared is the general product, bit for bit**: rows of
+    /// mixed signs, points, signed zeros, a straddle of zero, magnitudes
+    /// apart by 1e300, and a refused coefficient, at several degrees.
+    /// Red under a mirror term that is not its partner's.
+    #[test]
+    fn a_row_squared_is_the_general_product_bit_for_bit() {
+        let iv = Interval::from_bounds;
+        let rows: Vec<Vec<Interval>> = vec![
+            vec![iv(0.3, 0.30000000000000004), iv(-1.7, -1.6), iv(2.0, 2.0)],
+            vec![
+                iv(-0.0, 0.0),
+                iv(-1e-300, 1e300),
+                iv(0.1, 0.7),
+                iv(-3.0, 5.0),
+            ],
+            vec![
+                iv(1.0 / 3.0, 0.5),
+                Interval::refused(),
+                iv(-2.5, -2.5),
+                iv(7.0, 9.0),
+                iv(-1e-9, 1e-9),
+            ],
+            (0..13)
+                .map(|i| {
+                    let x = (f64::from(i) * 0.37).sin() * 1e3;
+                    iv(x, x + 1e-12 * f64::from(i % 3))
+                })
+                .collect(),
+            (0..13)
+                .map(|i| {
+                    let x = (f64::from(i) * 1.7).cos() * 10f64.powi(i % 7 - 3) + 1.0 / 3.0;
+                    iv(x, x.next_up())
+                })
+                .collect(),
+        ];
+        let bits = |r: &[Interval]| -> Vec<(u64, u64, bool)> {
+            r.iter()
+                .map(|c| {
+                    (
+                        Bounds::lo(*c).to_bits(),
+                        Bounds::hi(*c).to_bits(),
+                        c.is_certified(),
+                    )
+                })
+                .collect()
+        };
+        for row in &rows {
+            assert_eq!(
+                bits(&bern_square_row(row)),
+                bits(&bern_mul_row(row, row)),
+                "{row:?}"
+            );
+        }
+    }
 
     /// f64 rational-curve oracle: `x_d(t)` via A2.2 basis values —
     /// independent of every ring/decomposition code path.

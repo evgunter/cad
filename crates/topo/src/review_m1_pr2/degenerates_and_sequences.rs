@@ -7,9 +7,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::{euler_poincare_holds, face_polygon};
+use crate::construction::{MefSite, MevSite};
 use crate::{
-    Body, Edge, EntityId, Face, HalfEdge, HalfEdgeKey, Loop, LoopBoundary, LoopKey, MefSite,
-    MevSite, Provenance, Vertex, validate,
+    Body, Edge, EntityId, Face, HalfEdge, HalfEdgeKey, Loop, LoopBoundary, LoopKey, Provenance,
+    Vertex, validate,
 };
 use geom_core::Point3;
 use geom_core::Tol;
@@ -146,7 +147,9 @@ fn fan_mev_across_a_circular_edge() {
         body.clone().mev_line(site, p(1.0), tol),
         Err(crate::EulerOpError::RebasedCarrier { edge, .. }) if edge == circ.edge
     ));
-    let f = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
+    let f = body
+        .mev_null(site, crate::construction::NewVertexSide::Above)
+        .unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert!(euler_poincare_holds(&body, 1, 0));
     assert_eq!(body.vertices().count(), 2);

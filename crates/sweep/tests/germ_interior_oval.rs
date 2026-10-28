@@ -17,6 +17,7 @@
 
 use crate::revolve_common;
 use sweep::ExtrudeSide;
+use topo::construction::Construct;
 
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop, test_support::bulge_loop};
@@ -757,7 +758,7 @@ fn nurbs_bump() -> Body<f64> {
     // Lifts RechartStrandsDescriptions: the bump's net is the fixture; the top edges stay the lines they were.
     body.set_face_surface_unvouched_for_tests(
         top,
-        topo::FaceSurface::New {
+        topo::construction::FaceSurface::New {
             surface: geom::Surface::Nurbs(std::sync::Arc::new(patch)),
             sense: true,
         },

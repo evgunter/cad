@@ -2421,6 +2421,8 @@ pub struct NurbsLane<T: Real> {
         Point3<T>,
     )
         -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive>,
+    /// [`NurbsLane::chart_arm`] at `T`.
+    chart_arm: fn(&geom::NurbsSurface<T>, Point3<T>, T) -> Option<f64>,
 }
 
 impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
@@ -2436,7 +2438,21 @@ impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
             composite: Self::composite_crossings,
             spline_face: Self::spline_face_meetings,
             surface_foot: geom::NurbsSurface::project,
+            chart_arm: Self::certified_chart_arm,
         }
+    }
+
+    /// [`crate::offset_meters::chart_arm`] at `T`, read where every
+    /// control coordinate, weight and knot of the chart, the point and the
+    /// reach are each one point at `T`. A wider value is a set of charts or
+    /// points, whose cells this door does not enclose, so it reads as
+    /// poison and no arm is read.
+    fn certified_chart_arm(chart: &geom::NurbsSurface<T>, p: Point3<T>, reach: T) -> Option<f64> {
+        let point = |x: T| match x.certified_bracket() {
+            Some((lo, hi)) if lo == hi => lo,
+            _ => f64::NAN,
+        };
+        crate::offset_meters::chart_arm(&chart.map_scalar(point), p.map(point), point(reach))
     }
 
     /// [`crate::curve_face::composite::crossings`], each scalar crossed
@@ -2528,6 +2544,23 @@ impl<T: Real> NurbsLane<T> {
         point: Point3<T>,
     ) -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive> {
         (self.surface_foot)(surface, point)
+    }
+
+    /// **A certified lower bound on `chart`'s length scale at `p`, over
+    /// `reach`** (`crate::offset_meters`' `chart_arm`, which names its
+    /// slack): the largest radius within `reach` over which a certified
+    /// bound on the curvature of the chart's cells stays at most its
+    /// reciprocal. The true arm lies between it and `reach`, and
+    /// [`crate::classify_seam`] brackets a spline face's arm between the
+    /// two, so the slack, which has no bound, costs an escalation and never
+    /// a class.
+    ///
+    /// `None` where no bound is read: a chart the patch bound refuses, a
+    /// C⁰ crease within `reach`, an unbounded curvature at `p` (a pole),
+    /// or data wider than a point at `T`.
+    #[must_use]
+    pub fn chart_arm(self, chart: &geom::NurbsSurface<T>, p: Point3<T>, reach: T) -> Option<f64> {
+        (self.chart_arm)(chart, p, reach)
     }
 
     /// The lane's limbs for a declared carrier of any kind on a plane ×
@@ -4690,6 +4723,12 @@ mod wiring_rows {
             geom::NurbsSurface::<T>::project as fn(_, _) -> _,
         ) {
             return Err("surface_foot is not `NurbsSurface::project`");
+        }
+        if !std::ptr::fn_addr_eq(
+            lane.chart_arm,
+            NurbsLane::<T>::certified_chart_arm as fn(_, _, _) -> _,
+        ) {
+            return Err("chart_arm is not `NurbsLane::certified_chart_arm`");
         }
         Ok(())
     }

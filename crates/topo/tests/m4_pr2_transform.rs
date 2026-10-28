@@ -4,6 +4,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use topo::construction::Construct;
 
 use std::f64::consts::FRAC_PI_2;
 
@@ -243,7 +244,7 @@ fn moving_a_body_mid_edit_asks_to_finish_the_edit() {
     let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
     body.set_face_surface(
         seed.face,
-        topo::FaceSurface::New {
+        topo::construction::FaceSurface::New {
             surface: geom::Surface::Plane {
                 origin: Point3::new(0.0, 0.0, 0.0),
                 normal: Vec3::new(0.0, 0.0, 1.0),
@@ -254,10 +255,10 @@ fn moving_a_body_mid_edit_asks_to_finish_the_edit() {
     )
     .unwrap();
     body.mev_null(
-        topo::MevSite::Lone {
+        topo::construction::MevSite::Lone {
             r#loop: seed.r#loop,
         },
-        topo::NewVertexSide::Above,
+        topo::construction::NewVertexSide::Above,
     )
     .unwrap();
     let err = transform_rigid(

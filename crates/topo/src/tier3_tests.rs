@@ -17,6 +17,8 @@ use geom_brep::EdgeCurveSpec;
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Vec3};
 
+use crate::Body;
+use crate::construction::{MefSite, MevSite};
 use crate::euler::FaceSurface;
 use crate::fixtures::{refile_shells, test_curve};
 use crate::policy_lane::KernelSite;
@@ -24,7 +26,6 @@ use crate::validate::{
     MaterialArmOutcome, ValidationError, material_arm_error, material_arm_outcome, validate,
     validate_geometric,
 };
-use crate::{Body, MefSite, MevSite};
 use geom_brep::MaterialWedge;
 use geom_core::Indeterminate;
 use geom_core::Tol;
@@ -32,7 +33,7 @@ use geom_core::Tol;
 /// A geometric digon pillow: two vertices, two chord edges, two
 /// coplanar faces (the z = 0 plane on both sides) — the minimal body
 /// checks 1–6 pass clean, and the coplanar-split smooth-dihedral case.
-pub(crate) fn coplanar_pillow(tol: Tol) -> (Body<f64>, crate::MefCreated) {
+pub(crate) fn coplanar_pillow(tol: Tol) -> (Body<f64>, crate::construction::MefCreated) {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
     let seg = body
@@ -1462,7 +1463,10 @@ fn a_planted_arc_past_a_turn_is_typed_at_rest_and_a_kernel_bug_at_a_re_mint() {
 /// unit circle over `[0, τ + past]`, described in the split face's chart
 /// and minted at a band coarse enough to read its headroom to a full
 /// turn as zero (a state no door produces).
-fn pillow_with_an_arc_past_a_turn(tol: Tol, past: f64) -> (crate::Body<f64>, crate::MefCreated) {
+fn pillow_with_an_arc_past_a_turn(
+    tol: Tol,
+    past: f64,
+) -> (crate::Body<f64>, crate::construction::MefCreated) {
     pillow_with_an_arc_past_a_turn_in(tol, past, ArcChart::Face)
 }
 
@@ -1484,7 +1488,7 @@ fn pillow_with_an_arc_past_a_turn_in(
     tol: Tol,
     past: f64,
     named: ArcChart,
-) -> (crate::Body<f64>, crate::MefCreated) {
+) -> (crate::Body<f64>, crate::construction::MefCreated) {
     let (mut body, split) = coplanar_pillow(tol);
     let face_chart = body.get_face(split.face).unwrap().surface;
     let (chart, wrap) = match named {
@@ -1606,7 +1610,10 @@ fn a_re_based_arc_past_a_turn_is_a_kernel_bug() {
 }
 
 /// The pillow's face that is not `split`'s.
-fn other_face(body: &crate::Body<f64>, split: &crate::MefCreated) -> crate::entity::FaceKey {
+fn other_face(
+    body: &crate::Body<f64>,
+    split: &crate::construction::MefCreated,
+) -> crate::entity::FaceKey {
     [split.he_plus, split.he_minus]
         .into_iter()
         .filter_map(|he| body.face_of_half_edge(he))
@@ -1617,7 +1624,9 @@ fn other_face(body: &crate::Body<f64>, split: &crate::MefCreated) -> crate::enti
 /// The planted pillow with its other face's plane turned about the
 /// x axis, so the arc's midpoint (on that axis) reads a transverse
 /// dihedral.
-fn tilted_pillow_with_an_arc_past_a_turn(tol: Tol) -> (crate::Body<f64>, crate::MefCreated) {
+fn tilted_pillow_with_an_arc_past_a_turn(
+    tol: Tol,
+) -> (crate::Body<f64>, crate::construction::MefCreated) {
     let (mut body, split) = pillow_with_an_arc_past_a_turn(tol, 10.0 * tol.k() * tol.eps());
     let other = other_face(&body, &split);
     let key = body.get_face(other).unwrap().surface;

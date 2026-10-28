@@ -2533,7 +2533,7 @@ pub enum ValidationError {
         edge: EdgeKey,
     },
     /// **Tier 2 (M3 PR 1).** A null face at rest: the face carries an
-    /// F9 loop-role record (`crate::NullFacePair`) — mid-surgery
+    /// F9 loop-role record (`crate::construction::NullFacePair`) — mid-surgery
     /// scaffolding that must be consumed before a body rests.
     NullFaceAtRest {
         /// The marked face.
@@ -13937,7 +13937,7 @@ mod tests {
             body.lifting_rechart_refusals_for_tests(|body| {
                 body.set_face_surface(
                     bottom,
-                    crate::FaceSurface::New {
+                    crate::construction::FaceSurface::New {
                         surface: crate::Surface::Cone {
                             apex,
                             axis: geom_core::Vec3::new(1.0, 0.0, 0.0),
@@ -14157,7 +14157,7 @@ mod tests {
                     he2: first.he_plus,
                 },
                 close,
-                crate::FaceSurface::Shared { key: cyl, sense },
+                crate::construction::FaceSurface::Shared { key: cyl, sense },
                 tol,
             )
             .unwrap()
@@ -14933,7 +14933,7 @@ mod tests {
             let sense = c.get_face(face).unwrap().sense;
             c.set_face_surface(
                 face,
-                crate::FaceSurface::New {
+                crate::construction::FaceSurface::New {
                     surface: geom::Surface::nurbs_placeholder(),
                     sense,
                 },

@@ -29,7 +29,7 @@
 use geom_core::{Point3, Tol};
 
 use crate::Body;
-use crate::MekrSite;
+use crate::construction::MekrSite;
 use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey};
 use crate::euler::{EulerOpError, FaceSurface, MefSite, MevSite};
 use crate::fixtures::deep_snapshot;

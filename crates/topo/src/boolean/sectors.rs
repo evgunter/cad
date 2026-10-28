@@ -7150,7 +7150,7 @@ mod tests {
         );
         body.set_face_surface(
             face,
-            crate::FaceSurface::New {
+            crate::construction::FaceSurface::New {
                 surface: geom::Surface::Cone {
                     apex,
                     axis,

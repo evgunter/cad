@@ -8,6 +8,7 @@
 
 use core::f64::consts::PI;
 use sweep::ExtrudeSide;
+use topo::construction::Construct;
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
@@ -295,7 +296,7 @@ fn r2_the_transient_chord_mev_certifies_on_a_wall() {
     let p = Point3::new(0.0, 1.0, 0.0);
     let chord = body
         .mev(
-            topo::MevSite::Fan {
+            topo::construction::MevSite::Fan {
                 he1: anchor,
                 he2: anchor,
             },

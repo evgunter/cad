@@ -334,7 +334,7 @@ pub(crate) mod tests {
         let mut body = p.body;
         body.set_face_surface(
             face,
-            crate::FaceSurface::New {
+            crate::construction::FaceSurface::New {
                 surface: geom::Surface::Sphere {
                     center: geom_core::Point3::new(0.0, 0.0, 0.0),
                     radius: 2.0,
@@ -453,7 +453,7 @@ pub(crate) mod tests {
         let center = at - x * (big_r + r * cv) - z * (r * sv);
         body.set_face_surface(
             face,
-            crate::FaceSurface::New {
+            crate::construction::FaceSurface::New {
                 surface: geom::Surface::Torus {
                     center,
                     axis: z,
@@ -507,7 +507,7 @@ pub(crate) mod tests {
         let mut body = cube.body;
         body.set_face_surface_unvouched_for_tests(
             cube.top_face,
-            crate::FaceSurface::New {
+            crate::construction::FaceSurface::New {
                 surface: geom::Surface::Nurbs(std::sync::Arc::new(chart)),
                 sense,
             },
@@ -659,7 +659,7 @@ pub(crate) mod tests {
         let (mut body, top) = (prism.body, prism.top_face);
         body.set_face_surface_unvouched_for_tests(
             top,
-            crate::FaceSurface::New {
+            crate::construction::FaceSurface::New {
                 surface: geom::Surface::Nurbs(std::sync::Arc::new(chart)),
                 sense: true,
             },
@@ -726,7 +726,7 @@ mod review_5802 {
         let mut body = cube.body;
         body.set_face_surface_unvouched_for_tests(
             cube.top_face,
-            crate::FaceSurface::New {
+            crate::construction::FaceSurface::New {
                 surface: geom::Surface::Nurbs(std::sync::Arc::new(chart)),
                 sense,
             },

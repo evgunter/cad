@@ -1375,7 +1375,8 @@ pub fn is_analytic<T: Real>(surface: &Surface<T>) -> bool {
 ///   chain of boxes around the carrier the enclosure of
 ///   `(∇f₁ × ∇f₂)·e` excludes zero, so the solution set in the chain is
 ///   one arc and it spans the carrier over `params`. An operand outside
-///   the tube's enclosure roster (`ssi::enclose::has_implicit_enclosure`)
+///   the tube's enclosure roster (`ssi::enclose::tube_encloses`: a kind
+///   without an arm, or a torus not shown inside its ring convention)
 ///   refuses here, by name, before any box is probed.
 ///
 /// Both read the carrier cut to `params` (its bracket's outer ends, so
@@ -1419,11 +1420,13 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     if crate::intersect::tube_bounds(carrier, params, s1, s2, band).is_ok() {
         return Ok(());
     }
-    if let Some(operand) = [s1.kind(), s2.kind()]
+    if let Some(operand) = [s1, s2]
         .into_iter()
-        .find(|&k| !crate::ssi::enclose::has_implicit_enclosure(k))
+        .find(|s| !crate::ssi::enclose::tube_encloses(s, band))
     {
-        return Err(AnalyticRung3Refusal::NoTubeEnclosure { operand });
+        return Err(AnalyticRung3Refusal::NoTubeEnclosure {
+            operand: operand.kind(),
+        });
     }
     let carrier = Curve3::Nurbs(std::sync::Arc::new(piece.clone()));
     let (p0, p1) = piece.knot_values().domain();

@@ -17,7 +17,9 @@
 
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, Pcurve, SpiricImage, WallTorus};
 use geom_core::{Band, Bounds, Point3, Tol, Vec3};
-use topo::{AtRestPolicy, Body, FaceSurface, HalfEdgeKey, MefSite};
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, MefSite};
+use topo::{AtRestPolicy, Body, HalfEdgeKey};
 
 /// The mirror-torus body for a chart axis of `sigma·a`, and the oval
 /// edge's two half-edges.

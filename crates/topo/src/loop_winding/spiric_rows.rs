@@ -176,7 +176,7 @@ fn oval_faces(d: f64) -> (Body<f64>, [LoopKey; 2]) {
     };
     let first = body
         .mev(
-            crate::MevSite::Lone {
+            crate::construction::MevSite::Lone {
                 r#loop: seed.r#loop,
             },
             carrier.eval(PI),
