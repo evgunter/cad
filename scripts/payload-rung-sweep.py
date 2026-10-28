@@ -186,6 +186,10 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     # beside the declaration.
     "NodeWhy": ("argued", "non-carriage with its falsifier, beside the declaration "
                 "in crates/topo/src/boolean/mod.rs"),
+    # `BooleanError::GermSectionUnbuilt`'s reason: why a germ pair's
+    # section was not built.
+    "SectionUnbuilt": ("argued", "non-carriage with its falsifier, beside the declaration "
+                       "in crates/topo/src/boolean/mod.rs"),
     # `BooleanError::EdgeInFace`'s gap: why an edge lying in a face is not
     # parted.
     "EdgeInFaceGap": ("argued", "non-carriage with its falsifier, beside the declaration "

@@ -14,13 +14,13 @@
 //! WHICH one a pose takes turns on whether the walls cross:
 //!
 //! - **The crossing coaxial pose gets through the crossing layer and
-//!   the germ frame, and refuses at the join, `CurvedBooleanUnsupported`
+//!   the matcher, and refuses at the join, `CurvedBooleanUnsupported`
 //!   naming the cylinder.** The cylinder's SEAM LINE crossing the ball's
 //!   SPHERE face used to be the door (a line × sphere pair with no root
 //!   lane); the crossing layer has that lane now, so the pose reaches
-//!   `boolean::join::cs_pair_frame`, which decides the pair coaxial by
-//!   margin and names its frame; the join has no wired arm for the
-//!   coaxial cylinder × sphere germ pair.
+//!   the join, whose section table decides the pair coaxial by margin
+//!   (the section's two circles) and matches its germs on them; the join
+//!   has no wired arm for the coaxial cylinder × sphere germ pair.
 //! - **A non-crossing pose — a ball wholly inside a wider cylinder —
 //!   builds**: no crossing is found, the containment fallback runs, and
 //!   the section pass certifies the sphere × wall pair apart.
@@ -120,14 +120,14 @@ fn fixture() -> [(&'static str, AtRestBody<f64>, AtRestBody<f64>); 2] {
 }
 
 /// **THE OPENING MEASUREMENT.** The crossing coaxial union gets past
-/// the CROSSING layer and the GERM FRAME in both poses and dies at the
+/// the CROSSING layer and the MATCHER in both poses and dies at the
 /// join, with the same typed variant, naming the cylinder's wall.
 ///
 /// The crossing layer used to stop it: operand A's seam LINE crossing
 /// the ball's SPHERE face had no root lane. With the line × sphere
 /// roots the seam pierces, and the germ pair this crossing mints is a
-/// cylinder×sphere pair whose frame `cs_pair_frame` decides coaxial by
-/// margin; the join has no arm for that pair.
+/// cylinder×sphere pair whose section the section table decides coaxial
+/// by margin; the join has no arm for that pair.
 #[test]
 fn the_coaxial_union_refuses_at_the_join() {
     for (label, c, s) in fixture() {

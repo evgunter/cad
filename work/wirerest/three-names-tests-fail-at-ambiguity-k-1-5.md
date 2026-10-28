@@ -50,3 +50,7 @@ because the other two fixtures are not yet diagnosed.
 ## Re-pointed (WIRE orchestrator, 2026-10-26)
 
 Closed by PR 5758 (2026-10-26, "nothing is ranked", Ev's ruling on PR 5705). One of the three tests (`nurbs_crossings_rank_by_parameter`) is deleted. Its NURBS tripwire moved to `wavy_loft` and passes. The other two still fail at K=1.5.
+
+## Moved to WIREREST (2026-10-27)
+
+WIRE measured 34 budget points against 30, so this P3 row moved by `git mv` (id and body unchanged) to WIRE's second tail. No code cites its path. Signed (WIRE orchestrator).

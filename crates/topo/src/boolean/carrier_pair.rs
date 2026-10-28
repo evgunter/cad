@@ -641,11 +641,10 @@ pub fn rest_locus<T: Decide>(
         })
     };
     let (on_a, on_b) = (on(fa), on(fb));
-    let chord = carrier.eval(t0).distance(carrier.eval(t1));
-    let edge = ExtentBall::new(
-        carrier.mid_point(t0, t1),
-        geom_brep::edge_extent(carrier, t0, t1, chord),
-    );
+    // The ball about the edge's middle at its reach from there encloses
+    // it, and is no larger than the edge's own measure from that point.
+    let mid = carrier.mid_point(t0, t1);
+    let edge = ExtentBall::new(mid, geom_brep::edge_reach_from(carrier, t0, t1, mid));
     let parts: Vec<_> = core::iter::once(edge)
         .chain(on_a.iter().chain(&on_b).map(|&p| ExtentBall::point(p)))
         .collect();
@@ -661,5 +660,134 @@ pub fn rest_locus<T: Decide>(
             geom_brep::RestLocus::Chart(pair.keys()[0])
         }
         Ok(CarrierRelation::Distinct) | Err(_) => geom_brep::RestLocus::Pair(pair),
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod extent_rows {
+    use super::*;
+    use geom_core::{Point3, Tol, Vec3};
+
+    /// **A steep spline edge rests on the pair two hinged planes make,
+    /// read over the whole edge.** A rational quadratic arc (weights
+    /// `1, 10, 1`) 2 m across its ends rises some 45 m to its vertex,
+    /// in the plane `x = 0`. A second plane through the vertex is
+    /// hinged off it by `θ = 0.45·ε` about the line along `ŷ` there,
+    /// so it stands `θ·s` off at `s` metres down the arc: under a band
+    /// within the chord's 2 m, past `K·ε` at the arc's ends. The rest
+    /// locus reads the planes over a ball about the arc's middle (its
+    /// vertex) at the edge's extent from above, which holds the ends:
+    /// the pair. A ball at the chord reads them one chart.
+    #[test]
+    fn a_steep_spline_rests_on_the_pair_its_ends_separate() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let arc = geom::Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2)
+                    .unwrap(),
+                vec![
+                    Point3::new(0.0, -1.0, 0.0),
+                    Point3::new(0.0, 0.0, 50.0),
+                    Point3::new(0.0, 1.0, 0.0),
+                ],
+                vec![1.0, 10.0, 1.0],
+            )
+            .unwrap(),
+        ));
+        let vertex = arc.mid_point(0.0, 1.0);
+        let chord = arc.eval(0.0).distance(arc.eval(1.0));
+        let theta = 0.45 * band.zero();
+        assert!(
+            chord * theta <= band.zero()
+                && vertex.distance(arc.eval(0.0)) * theta >= band.escalate(),
+            "the hinge is under a band within the chord and past K·ε at the ends"
+        );
+        let mut body = Body::<f64>::new();
+        let mut plane = |normal: Vec3<f64>| {
+            body.add_surface(geom::Surface::Plane {
+                origin: vertex,
+                normal,
+                u_ref: Vec3::unit_y(),
+            })
+        };
+        let (ka, kb) = (
+            plane(Vec3::unit_x()),
+            plane(Vec3::new(theta.cos(), 0.0, theta.sin())),
+        );
+        match rest_locus(&body, [(ka, None), (kb, None)], &arc, (0.0, 1.0), band) {
+            geom_brep::RestLocus::Pair(pair) => assert_eq!(
+                pair,
+                geom_brep::SurfacePair::new(ka, kb),
+                "the pair of the two planes"
+            ),
+            geom_brep::RestLocus::Chart(k) => {
+                panic!("the hinged planes read one chart {k:?} over the steep edge")
+            }
+        }
+    }
+
+    /// **The rest ball reaches a spike the edge's samples miss.** A
+    /// polyline spline (degree 1) runs about a metre each way of its
+    /// middle `C`, but between `t = 0.19` and `0.21` it spikes 100 m off
+    /// it, between every one of the samples the extent from below reads.
+    /// Two planes through `C` hinged by `θ` stand under a band apart over
+    /// that bound from below and past `K·ε` at the spike, so a ball at the
+    /// bound from below reads one chart. The ball reads the edge's reach
+    /// from its middle, which holds the spike: the pair.
+    #[test]
+    fn the_rest_ball_reaches_a_spike_the_samples_miss() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let p = Point3::new;
+        let arc = geom::Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                geom_core::spline::KnotVector::clamped(
+                    vec![0.0, 0.0, 0.19, 0.2, 0.21, 0.5, 1.0, 1.0],
+                    1,
+                )
+                .unwrap(),
+                vec![
+                    p(0.0, -1.0, 0.0),
+                    p(0.0, -0.95, 0.0),
+                    p(0.0, 0.0, 100.0),
+                    p(0.0, -0.05, 0.0),
+                    p(0.0, 0.0, 0.0),
+                    p(0.0, 1.0, 0.0),
+                ],
+                vec![1.0; 6],
+            )
+            .unwrap(),
+        ));
+        let mid = arc.mid_point(0.0, 1.0);
+        let chord = arc.eval(0.0).distance(arc.eval(1.0));
+        let below = geom_brep::edge_extent_inf(&arc, 0.0, 1.0, chord);
+        let reach = geom_brep::edge_reach_from(&arc, 0.0, 1.0, mid);
+        let theta = 0.45 * band.zero() / below;
+        assert!(
+            reach * theta >= band.escalate(),
+            "the spike stands past K·ε: reach {reach}, the bound from below {below}"
+        );
+        let mut body = Body::<f64>::new();
+        let mut plane = |normal: Vec3<f64>| {
+            body.add_surface(geom::Surface::Plane {
+                origin: mid,
+                normal,
+                u_ref: Vec3::unit_y(),
+            })
+        };
+        let (ka, kb) = (
+            plane(Vec3::unit_x()),
+            plane(Vec3::new(theta.cos(), 0.0, theta.sin())),
+        );
+        match rest_locus(&body, [(ka, None), (kb, None)], &arc, (0.0, 1.0), band) {
+            geom_brep::RestLocus::Pair(pair) => assert_eq!(
+                pair,
+                geom_brep::SurfacePair::new(ka, kb),
+                "the pair of the two planes"
+            ),
+            geom_brep::RestLocus::Chart(k) => {
+                panic!("the hinged planes read one chart {k:?} past the spike")
+            }
+        }
     }
 }

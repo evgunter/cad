@@ -8,12 +8,12 @@
 //! plus a D5 provenance record per entity from birth. M1 PR 1 landed the
 //! half-edge structure itself (adjacency, orientation conventions, the
 //! tier-1 structural validator); PR 2 added the first Euler operators —
-//! [`Body::mvfs`], [`Body::mev`], [`Body::mef`] (see [`euler`]) — the
+//! [`Body::mvfs`](crate::construction::Construct::mvfs), [`Body::mev`](crate::construction::Construct::mev), [`Body::mef`](crate::construction::Construct::mef) (see [`euler`]) — the
 //! sanctioned construction path; PR 3 added the ring/genus operators —
-//! [`Body::kemr`], [`Body::mekr`], [`Body::kfmrh`] — and the non-Euler
-//! [`Body::ring_move`] helper (see [`euler_ring`]); PR 4 completed the
-//! ten-operator catalog with the kill-direction duals — [`Body::kvfs`],
-//! [`Body::kev`], [`Body::kef`], [`Body::mfkrh`] (see [`euler_kill`]) —
+//! [`Body::kemr`](crate::construction::Construct::kemr), [`Body::mekr`](crate::construction::Construct::mekr), [`Body::kfmrh`](crate::construction::Construct::kfmrh) — and the non-Euler
+//! [`Body::ring_move`](crate::construction::Construct::ring_move) helper (see [`euler_ring`]); PR 4 completed the
+//! ten-operator catalog with the kill-direction duals — [`Body::kvfs`](crate::construction::Construct::kvfs),
+//! [`Body::kev`](crate::construction::Construct::kev), [`Body::kef`](crate::construction::Construct::kef), [`Body::mfkrh`](crate::construction::Construct::mfkrh) (see [`euler_kill`]) —
 //! plus the make/kill roundtrip property-test machinery; PR 5 completed
 //! the validator (validity tiers — [`fn@validate`] accepts every
 //! Euler-reachable state, [`validate_closed`] the finished closed
@@ -26,10 +26,10 @@
 //! the surface arena holds `geom::Surface`s. Edge-minting
 //! operators take an uncertified `EdgeCurveSpec` and run the D4 ¶2
 //! certification gate before mutating (chord-line sugar:
-//! [`Body::mev_line`] / [`Body::mef_chord`] / [`Body::mekr_chord`] /
-//! [`Body::mfkrh_plug`]); face-minting operators take a
-//! [`FaceSurface`] spec; the two attachment setters
-//! ([`Body::set_face_surface`], [`Body::set_edge_curve`] — see
+//! [`Body::mev_line`](crate::construction::Construct::mev_line) / [`Body::mef_chord`](crate::construction::Construct::mef_chord) / [`Body::mekr_chord`](crate::construction::Construct::mekr_chord) /
+//! [`Body::mfkrh_plug`](crate::construction::Construct::mfkrh_plug)); face-minting operators take a
+//! [`FaceSurface`](crate::construction::FaceSurface) spec; the two attachment setters
+//! ([`Body::set_face_surface`](crate::construction::Construct::set_face_surface), [`Body::set_edge_curve`](crate::construction::Construct::set_edge_curve) — see
 //! [`attach`]) cover the construction-order cases mint-time attachment
 //! cannot reach. Tier 3 ([`validate_geometric`]) re-runs every
 //! certification at rest and adds the dihedral classification pass.
@@ -1218,13 +1218,13 @@ pub use boolean::{
     NaryEnd, NaryJudgement, NaryMember, NaryOp, NaryRefusal, NaryRun, NaryStep, NodeWhy,
     NullEdgePairRecord, Operand, OperandKeys, OperandRecords, PairFace, PairRefusalSite, PairSite,
     PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung,
-    PointInSolidError, ReductionContacts, RefusedRow, SectorRead, SectorRung, SelfCheck,
-    SettleError, Settler, Settling, ShellOrientation, SideCode, SlitFaceGap, SlitLineGap,
-    SolidContainment, SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy,
-    SweepTrace, TorusConvention, UncutFace, UnreadNeighbourhood, UnreadPartner, VeContact,
-    VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
-    boolean_op_with, boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words,
-    face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
+    PointInSolidError, ReductionContacts, RefusedRow, SectionUnbuilt, SectorRead, SectorRung,
+    SelfCheck, SettleError, Settler, Settling, ShellOrientation, SideCode, SlitFaceGap,
+    SlitLineGap, SolidContainment, SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace,
+    SweepStrategy, SweepTrace, TorusConvention, UncutFace, UnreadNeighbourhood, UnreadPartner,
+    VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact,
+    WallRung, boolean_op_with, boolean_reduce, carrier_eq, contfp, curved_face_containment,
+    decision_words, face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
     is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge, nary_boolean,
     oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of, rest_locus,
     subtract, tangent_pair_relation, union,

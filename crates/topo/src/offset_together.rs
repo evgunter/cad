@@ -775,7 +775,7 @@ pub(crate) fn unplaced_in_scope(vertex: VertexKey) -> ! {
 ///   every setter sweeps the whole body as well.
 /// - **One more tier-1 walk where the door joins anything** (`join`
 ///   set, as every public door does). The join
-///   (`replace_face::staged_join` → [`Body::join_edges_within`]) runs
+///   (`replace_face::staged_join` → [`Body::join_edges_within`](crate::construction::Construct::join_edges_within)) runs
 ///   on the staged body after the gated scope has closed, in a scope
 ///   of its own: its kills (`kev_describing`) check their arena deltas,
 ///   and the join's close sweeps tier 1 once however many vertices it

@@ -32,7 +32,7 @@
 //!   containment ([`crate::splitting::containment`] on a plane,
 //!   [`chart_ring_side`] on a cylinder wall's chart,
 //!   [`path_ring_side`] on a sphere, a cone or a torus) +
-//!   [`Body::ring_move`] — the `laringmv` step (lkemr/ring-placement
+//!   [`Body::ring_move`](crate::construction::Construct::ring_move) — the `laringmv` step (lkemr/ring-placement
 //!   mirror site);
 //! - two halves of one null edge making up a ring alone (a one-site
 //!   section loop's pierce of a planar or spherical face), or with the

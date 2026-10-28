@@ -112,7 +112,22 @@ description against the operand, per span, with the carrier's parameter
 left free, formed by the limb from the operands' own values, and its
 numeric channel is the composite's enclosure `[floor, upper]`; an
 identity certifies every member of the box at every parameter of the
-carrier. Where the bound does
+carrier. A curved closed form is read first on the dyadic spans of
+its angle parameter (multiples of `τ/2ᵈ`), each enclosed alone at a
+higher Taylor degree and composed alone, an uncleared span halved
+into its dyadic halves (`pcurve_cache::limb2_quick`). A span may
+reach past the edge's ends, since a bound over a span holding a piece
+of the window bounds that piece. A span past them that still halves
+its bound keeps halving, its halves past the ends dropped; one whose
+halving no longer halves its bound is read again clipped to the ends,
+and halved clipped from then on. That reading only passes, and only on
+cleared parts that cover the edge's outer ends with no gap; a span it
+cannot halve further ends it. Where it does not pass, the rounds below
+read the carrier as though it had not been taken, and every refusal is
+theirs. A span's reading is a function of the carrier, the operand,
+the chart (a cone's nappe, taken from the window's middle) and the
+span, so edges sharing a carrier, an operand and a nappe read their
+shared spans once. Where the bound does
 not clear the band, the composite's uncleared spans are halved round by
 round, each piece cut from its Bézier segment's own row so no cut
 compounds another's width, and the rounds stop (`round_floored`) once
@@ -774,8 +789,11 @@ plane×NURBS and plane×`Approx`, NURBS×NURBS and every pairing of
 `Approx` with NURBS or `Approx` (rung 3). The offset door reads
 plane×NURBS through `PlaneSection::branch_at` and NURBS×NURBS through
 `Section::branch_at`, each at the old edge's middle; the whole-section
-readings a boolean takes are their `all()`, which no boolean reads yet
-(no boolean reads a rung-3 arm). `implemented` covers
+readings a boolean takes are their `all()`, which no boolean reads yet.
+The boolean reads one rung-3 arm, cylinder×sphere, through the section
+value (`pair_section`: the pair's pose decided once, its components,
+and its loops marched and fitted at `f64` where a join matches germs on
+them). `implemented` covers
 the whole operation. Every other pair refuses, most blocked on the cone
 and torus metres conversion (C2 limb 2).
 

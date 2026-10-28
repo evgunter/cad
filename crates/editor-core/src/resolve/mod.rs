@@ -323,10 +323,10 @@ impl ResolveError {
     /// own, decided there; issue
     /// `a-part-name-in-the-host-is-spelled-in-the-parts-ids` holds what
     /// that leaves open.
-    pub(crate) fn part_name(
+    pub(crate) fn part_name<P: crate::ProfilePayload>(
         name: &StableName,
         read: crate::VarId,
-        doc: &Doc<ProfileProgram>,
+        doc: &Doc<P>,
     ) -> bool {
         !doc.has_minted(name.node) && doc.reaches_instance(read)
     }
@@ -344,7 +344,7 @@ impl ResolveError {
     /// document has nothing to add to either — ids are not reused, so
     /// a node the prior run held and this one does not is deleted,
     /// which is what `Doc::has_minted` already says.
-    pub(crate) fn node_gone(name: &StableName, doc: &Doc<ProfileProgram>) -> Option<Self> {
+    pub(crate) fn node_gone<P>(name: &StableName, doc: &Doc<P>) -> Option<Self> {
         if doc.node(name.node).is_some() {
             return None;
         }
@@ -2037,12 +2037,13 @@ fn border_delta<T: Decide>(
 ///
 /// Two TIED parents share one base. Where the emitter groups by parent
 /// ENTITY — a face or an edge by the operand entity it descends from,
-/// a split face by its face and side — each forms its own group, the
-/// tie lane gives their members' rows one set of names, and each group
-/// is counted on its own: `was` and `now` are one parent's group, never
-/// the tie's sum. Where it groups by parent NAMES — a seam edge or seam
-/// vertex by its two faces' names — tied parents' pieces land in one
-/// group, no one parent's count is on record, and the rung declines.
+/// a seam edge by its two parents' entities, a split face by its face
+/// and side — each forms its own group, the tie lane gives their
+/// members' rows one set of names, and each group is counted on its
+/// own: `was` and `now` are one parent's group, never the tie's sum.
+/// Where it groups by parent NAMES — a pair boolean's seam vertex by
+/// its parents' names — tied parents' pieces land in one group, no one
+/// parent's count is on record, and the rung declines.
 ///
 /// `now == 0` says no entity of the node's output is in that group:
 /// none descends from the parent there by the emitter's descent, or — for a split, whose group

@@ -623,6 +623,18 @@ fn nearest<T: Decide>(
 /// planes hold; a plane against a cylinder, cone, sphere or torus, and
 /// a cone against a coaxial cylinder, is that C5 arm's carrier. Any
 /// other pair is not derived here.
+///
+/// `extent` is the old edge's extent from below
+/// ([`geom_brep::edge_extent_inf`]), which the plane pair's parallelism
+/// reads: its Zero refuses and its Positive certifies the crossing. The
+/// torus's axis fork (`pt_axis_in_plane`) acts on its Zero (a meridian
+/// or spiric pose) and refuses on a definite tilt, so it reads the old
+/// edge's extent from above ([`geom_brep::edge_extent_sup`]). The cone
+/// and cylinder are handed both bounds ([`geom_brep::LeverBounds`]):
+/// their parallelism and coaxial swing act on a Zero and read the bound
+/// from above, their convention guards and station admission act on a
+/// Positive and read the bound from below
+/// ([`geom_brep::intersect::cone_cylinder_section`]).
 pub(crate) fn section_closed<T: Decide>(
     new: &Surface<T>,
     held: &Surface<T>,
@@ -632,6 +644,8 @@ pub(crate) fn section_closed<T: Decide>(
     band: Band,
 ) -> Result<Result<Curve3<T>, SectionVerdict>, Indeterminate> {
     use geom_brep::intersect as c5;
+    let chord = old.eval(span.0).distance(old.eval(span.1));
+    let sup = geom_brep::edge_extent_sup(old, span.0, span.1, chord);
     let closed = |e: geom_brep::SectionError| match e {
         geom_brep::SectionError::Escalated(source)
         | geom_brep::SectionError::RadiusEscalated { diag: source, .. } => Err(source),
@@ -646,6 +660,10 @@ pub(crate) fn section_closed<T: Decide>(
                 (new, held)
             } else {
                 (held, new)
+            };
+            let extent = geom_brep::LeverBounds::Between {
+                below: extent,
+                above: sup,
             };
             let candidates = match c5::cone_cylinder_section(cone, cyl, extent, band) {
                 Ok(c5::ConeCylinderSection::CoaxialCircles { c1, c2 }) => vec![c1, c2],
@@ -715,7 +733,7 @@ pub(crate) fn section_closed<T: Decide>(
             Ok(c5::PlaneSphereSection::Empty) => return Ok(Err(SectionVerdict::NoBranch)),
             Err(e) => return closed(e),
         },
-        Surface::Torus { .. } => match c5::plane_torus_section(plane, other, extent, band) {
+        Surface::Torus { .. } => match c5::plane_torus_section(plane, other, sup, band) {
             Ok(
                 c5::PlaneTorusSection::MeridianCircles { c1, c2 }
                 | c5::PlaneTorusSection::ConcentricCircles { c1, c2 }

@@ -5306,4 +5306,6 @@ Signed: (ENCL orchestrator)
   - So a pncad consumer cannot name the tier or call it on a `Body`. Three `compile_fail` doctests pin this, and the façade test `the_topo_layer_is_whole_but_for_its_construction_tier` adds `topo` to `PER_NAME_GUARDED`.
   - Everything else in topo, error payloads included (`EulerOpError`, `BadArgument`, `RechartDoor`), comes through as before.
   - No product code, pncad example, pncad-py, viewer or demo called the tier (Ev's ruling on PR 5838).
+
 - 2026-10-27 — **Seam (ATREST):** `atrest/an-instance-carries-its-parts-coincidences` touches this program's ground. `crates/pncad-py`: new `CarriedCoincidence` class and `CheckEvidence.carried_coincidence` (tag `carried_coincidence`; its `finding` is the part's `CheckFinding` over the part's document), stub and `ty` fixture rows, a census `BOUND_AS`/`INTERIOR` row each, one row in `test_checks.py`; `pncad::document` re-exports `CarriedCoincidence` and `CarriedCoincidenceRows`.
+- 2026-10-27 — **Seam (ATREST):** `atrest/an-assertion-quiets-an-operations-unproven-row` touches this program's ground. `crates/pncad-py/src/tests.rs`: the payload row's hand-built `CheckEvidence::UnprovenCoincidence` spells the new `quietable` field. No Python surface changes.

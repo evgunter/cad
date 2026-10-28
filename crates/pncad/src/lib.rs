@@ -159,8 +159,12 @@ pub use geom;
 /// classification. Mostly interior, but it owns error payload types
 /// that surface through `topo` and `sweep` refusals.
 // Its edge specs (`EdgeCurveSpec`, `EdgeDescriptionSpec`) stay nameable
-// here, inert: the doors that take them are topo's construction tier,
-// which `topo` below leaves out.
+// here because public doors outside topo's construction tier read and
+// write them: `EdgeCurve::{mint, certify, certify_stated}` certify one
+// into an edge curve, and `EdgeCurve::{split_specs, restated_spec,
+// restated_in_chart, restated_at, restated_on_pair}` return them.
+// None of those mutates a body; the doors that do are the tier, which
+// `topo` below leaves out.
 pub use geom_brep;
 /// The numeric foundation: points, vectors, transforms, the [`Real`]
 /// scalar trait, and the tolerance environment.

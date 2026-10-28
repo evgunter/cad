@@ -25,3 +25,11 @@ Every live row checked against main.
 - **Notes:** `S40`'s prose half is done (both stubs cite `[open.sketch-solver]`); `refusals-forwarding-…` is down to two rows.
 - **Plan:** the slate drops `part-cache-miss-…` (closed on WIRE) and lists `on-tool-vertex-…`. Load is 24 of 30.
 - **Not merged with WIREREST:** the two tails together weigh about 51.5 points against 30.
+
+## Moved in from WIRE (2026-10-28)
+
+WIRE measured 35 of 30 after PR 5876 and its filed rows were priced. Two P3 rows moved by `git mv`, with their ids and bodies unchanged:
+- `the-older-missing-rule-naming-variants-lack-the-unsupported-prefix`: refusal hygiene, this track's ground.
+- `a-body-value-consumed-by-k-nodes-is-gated-at-rest-k-times`: at-rest gating, away from WIRE's naming slate. Its one citation (in `work/measuredoor/…drops-its-verdict.md`) is repointed. Nothing under crates or scripts cites it.
+
+Load is now 29 of 30. (WIRE orchestrator)

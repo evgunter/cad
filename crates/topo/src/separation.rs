@@ -523,7 +523,7 @@ impl SolidSeparation {
 /// list, and every vertex is anchored by incident half-edges — each
 /// the member of some loop's cycle — or by exactly one empty loop, so
 /// the walk places every face and every vertex, the lone vertex of a
-/// bare [`Body::mvfs`](crate::Body::mvfs) seed included.
+/// bare [`Body::mvfs`](crate::construction::Construct::mvfs) seed included.
 #[derive(Debug, Clone, Default)]
 pub struct SolidOwners {
     faces: slotmap::SecondaryMap<crate::entity::FaceKey, SolidKey>,

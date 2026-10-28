@@ -153,8 +153,8 @@
 //! that rewires it out from under the null edge — the boolean's and the
 //! splitting lane's join, whose chord `mef`s leave the section's null
 //! halves on the sliver between the chords — or the edge's first
-//! description ([`crate::Body::set_edge_curve`], or a
-//! [`crate::Body::kev_describing`] that lists it), which walks every
+//! description ([`crate::Body::set_edge_curve`](crate::construction::Construct::set_edge_curve), or a
+//! [`crate::Body::kev_describing`](crate::construction::Construct::kev_describing) that lists it), which walks every
 //! loop of the face and mints what it misses; on a spline chart either
 //! leaves the face as found.
 //! A face half-minted any other way is left as found. Other doors still
@@ -190,7 +190,7 @@
 //! [`crate::graft_disjoint`] through it) remaps each row onto the
 //! transplanted half-edge's fresh key and DROPS any row whose key the
 //! graft walk did not reach, which is exactly the staleness test.
-//! [`crate::Body::split_edge`] carries rows across a parameter split:
+//! [`crate::Body::split_edge`](crate::construction::Construct::split_edge) carries rows across a parameter split:
 //! each child's row is its own edge's, so a closed-form or projected
 //! image is derived again over the child's sub-interval and placed in
 //! the chart's principal window as the mint places it (C4), and a
@@ -236,8 +236,8 @@
 //! and a cone through its apex.
 //!
 //! The **loop-re-parenting** doors hold the same posture for a
-//! different reason: [`crate::Body::kfmrh`],
-//! [`crate::Body::mfkrh`] and [`crate::Body::ring_move`] move a whole
+//! different reason: [`crate::Body::kfmrh`](crate::construction::Construct::kfmrh),
+//! [`crate::Body::mfkrh`](crate::construction::Construct::mfkrh) and [`crate::Body::ring_move`](crate::construction::Construct::ring_move) move a whole
 //! LOOP between faces, which changes the CHART every row on that loop
 //! is stated in while changing no key. Each carries the moved loop's
 //! rows where the two faces are on one CHART
@@ -245,8 +245,8 @@
 //! ([`crate::Body::drop_rows`]). Where the moved rows do not stand on
 //! the destination — dropped, or missing — and the destination was
 //! complete, a re-mint is owed, and each door answers it at one of two
-//! doors, as the kill family does ([`crate::Body::kev`] and
-//! [`crate::Body::kev_describing`]): the keys-only door refuses
+//! doors, as the kill family does ([`crate::Body::kev`](crate::construction::Construct::kev) and
+//! [`crate::Body::kev_describing`](crate::construction::Construct::kev_describing)): the keys-only door refuses
 //! [`SiteRowRefusal::KeysOnly`] before it mutates, and its `_minting`
 //! twin takes a band and runs the site mint over the destination,
 //! planned before it mutates ([`crate::Body::plan_moved_rows`]). The
@@ -261,12 +261,12 @@
 //! Their old `Neither` reading was the one the guard's table could not see: no posture
 //! makes a claim about what a row MEANS, and these doors changed
 //! nothing else. Two more doors move a RUN of half-edges between two
-//! faces' loops rather than a whole loop — [`crate::Body::mef`]'s
-//! chord surgery and [`crate::Body::kef`]'s unsplice — and take the
+//! faces' loops rather than a whole loop — [`crate::Body::mef`](crate::construction::Construct::mef)'s
+//! chord surgery and [`crate::Body::kef`](crate::construction::Construct::kef)'s unsplice — and take the
 //! same answer over the run; `staleness_posture::DECLARED` carries
 //! each door's note.
 //!
-//! [`crate::Body::set_face_surface`] reaches the same posture from the
+//! [`crate::Body::set_face_surface`](crate::construction::Construct::set_face_surface) reaches the same posture from the
 //! other side: nothing moves, and the CHART moves under every row the
 //! face stores at once. It carries them across a swap onto the same
 //! chart and drops them on any other ([`crate::Body::drop_rows`], over
@@ -275,8 +275,8 @@
 //! placeholder used to leave a COMPLETE row set stated in the chart
 //! the face left, and this pass skips exactly that face.
 //!
-//! **Completes the map** — [`crate::Body::set_edge_curve`] and
-//! [`crate::Body::kev_describing`]'s listed members. A carrier swap is
+//! **Completes the map** — [`crate::Body::set_edge_curve`](crate::construction::Construct::set_edge_curve) and
+//! [`crate::Body::kev_describing`](crate::construction::Construct::kev_describing)'s listed members. A carrier swap is
 //! the surface setter's sibling, NOT the same case: it moves neither
 //! the row's key nor its chart, and pass 2 re-derives every row's
 //! agreement from the edge's current carrier, so what it stales is
@@ -297,11 +297,11 @@
 //! **A kill that takes the last null edge off a loop releases it**, and
 //! the rows the loop missed while it was held open are owed there
 //! ([`releases_a_gap`]). The kills answer at two doors,
-//! as the loop-re-parenting doors do: [`crate::Body::kev`],
-//! [`crate::Body::kef`] and [`crate::Body::kemr`] take no band and
+//! as the loop-re-parenting doors do: [`crate::Body::kev`](crate::construction::Construct::kev),
+//! [`crate::Body::kef`](crate::construction::Construct::kef) and [`crate::Body::kemr`](crate::construction::Construct::kemr) take no band and
 //! refuse [`SiteRowRefusal::KeysOnly`] before they mutate, and their
-//! band twins — [`crate::Body::kev_describing`],
-//! [`crate::Body::kef_minting`] and [`crate::Body::kemr_minting`] — run
+//! band twins — [`crate::Body::kev_describing`](crate::construction::Construct::kev_describing),
+//! [`crate::Body::kef_minting`](crate::construction::Construct::kef_minting) and [`crate::Body::kemr_minting`](crate::construction::Construct::kemr_minting) — run
 //! the site mint over the loops they release, planned before they mutate
 //! ([`crate::Body::plan_released_rows`]), so the face leaves complete, or
 //! storing nothing where the closed-form lane cannot mint it. A face the
@@ -311,12 +311,12 @@
 //! **Neither clears nor re-mints** — the Euler operators that add no
 //! half-edge to an existing loop (`mvfs`, `kemr`), the null-edge `mev`
 //! (whose scaffolding has no carrier to derive a row from), and the
-//! kill ops other than [`crate::Body::kev_describing`] and the band
+//! kill ops other than [`crate::Body::kev_describing`](crate::construction::Construct::kev_describing) and the band
 //! twins (above). These are primitives: they keep every image they
 //! find, and on each joint they make they write its element keys-only
 //! and exactly. A kill sums
-//! the elements of the joints it bridges ([`crate::Body::kev`],
-//! [`crate::Body::kef`], [`crate::Body::kemr`]; [`JointElement::then`]):
+//! the elements of the joints it bridges ([`crate::Body::kev`](crate::construction::Construct::kev),
+//! [`crate::Body::kef`](crate::construction::Construct::kef), [`crate::Body::kemr`](crate::construction::Construct::kemr); [`JointElement::then`]):
 //! an edge's two halves share one image, so where one ends the other
 //! begins, and the sum carries the survivor's image onto the
 //! predecessor's exit exactly as the pass's decision there does. A null
@@ -407,7 +407,7 @@ pub enum PcurveMintError {
     },
     /// `half_edge`'s edge is null scaffolding
     /// ([`crate::null::CurveGeom::NullScaffold`], minted by
-    /// [`crate::Body::mev_null`]): it has no carrier yet, so there is
+    /// [`crate::Body::mev_null`](crate::construction::Construct::mev_null)): it has no carrier yet, so there is
     /// no chart image to derive over it. Scaffolding is a legal state
     /// mid-surgery; tier 2 refuses it at rest.
     NoCarrier {
@@ -476,17 +476,17 @@ pub enum PcurveMintError {
     /// - the moving doors carrying a loop's rows, across one chart,
     ///   onto a face that stored none of its own — or a rowless loop
     ///   onto a half-minted one — which leaves the rows they find;
-    /// - [`crate::Body::mev_null`], whose scaffolding edge has no
+    /// - [`crate::Body::mev_null`](crate::construction::Construct::mev_null), whose scaffolding edge has no
     ///   carrier to derive a row from. The loop it joins misses the
     ///   edge's two rows, and those of any half-edge an operator adds
     ///   to the loop meanwhile, while a null edge holds it open; the
     ///   door that releases the loop — an operator rewiring it out from
     ///   under the edge, as the pipelines' joins do, or the edge's first
-    ///   description ([`crate::Body::set_edge_curve`], or a
-    ///   [`crate::Body::kev_describing`] that lists it), or the band kill
+    ///   description ([`crate::Body::set_edge_curve`](crate::construction::Construct::set_edge_curve), or a
+    ///   [`crate::Body::kev_describing`](crate::construction::Construct::kev_describing) that lists it), or the band kill
     ///   of the edge ([`crate::Body::plan_released_rows`]) — mints it
     ///   whole, except on a spline chart;
-    /// - a caller's own [`crate::Body::detach_pcurve`];
+    /// - a caller's own [`crate::Body::detach_pcurve`](crate::construction::Construct::detach_pcurve);
     ///
     /// and a face that arrives half-minted any of these ways, but for a
     /// loop a null edge holds open, stays so through the three
@@ -2352,7 +2352,7 @@ pub(crate) enum SplitRefusal {
 }
 
 /// The **rows of an edge's two half-edges stated over the two
-/// children of a parameter split** — [`crate::Body::split_edge`]'s
+/// children of a parameter split** — [`crate::Body::split_edge`](crate::construction::Construct::split_edge)'s
 /// pcurve limb, and the reason that op carries its rows across the
 /// surgery instead of staling them. The answer holds one entry per
 /// given half-edge: that half-edge's [`CarriedRows`], or `None` where
@@ -2447,7 +2447,7 @@ pub(crate) enum SplitRefusal {
 /// Where a record the restriction reads does not resolve — each half's
 /// edge, curve, loop, face and surface — or a half's edge is null
 /// scaffolding: `halves` are the live halves of an edge whose curve
-/// [`crate::Body::split_edge`] resolved `Certified`.
+/// [`crate::Body::split_edge`](crate::construction::Construct::split_edge) resolved `Certified`.
 #[track_caller]
 pub(crate) fn split_cache<T: AtRestPolicy>(
     body: &Body<T>,
@@ -3359,7 +3359,7 @@ pub(crate) fn releases_a_gap<T: Decide>(
 /// **The rows a site mint writes onto one face**, derived before its
 /// door mutates: a face an Euler operator adds half-edges to, one a
 /// null edge's halves are on at its first description
-/// ([`crate::Body::set_edge_curve`]), one a door moves a loop or run
+/// ([`crate::Body::set_edge_curve`](crate::construction::Construct::set_edge_curve)), one a door moves a loop or run
 /// onto whose rows do not stand there ([`crate::Body::drop_rows`] names
 /// the doors), or one a band kill releases a loop of with a gap
 /// ([`crate::Body::plan_released_rows`]). `from` is the face as found, on a face
@@ -4381,7 +4381,7 @@ fn decide_joint<T: Decide>(
 /// **A killed half's turn**: the element carrying its image's exit onto
 /// its entry, where the two coincide in space — a closed carrier, whose
 /// two vertices hold one point. A kill that crosses the half whole sums
-/// it with the elements either side ([`crate::Body::kev_describing`]).
+/// it with the elements either side ([`crate::Body::kev_describing`](crate::construction::Construct::kev_describing)).
 /// `Ok(None)` where the half stores no image or its ends do not meet.
 ///
 /// Whether the ends meet is decided in 3-D, as the distance between the

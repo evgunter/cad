@@ -25,7 +25,11 @@ is measured; each is read from the code.
   `|delta|`) and nearly coaxial (small `|w|`) tilt the normal along the
   axis by `u·|delta|/|w|`; a tilted plane cuts a wall in a conic, which
   ends in `JoinDesync`.
-- `crates/topo/src/boolean/join.rs` `cs_transverse_frame` (~2050):
+- ~~`crates/topo/src/boolean/join.rs` `cs_transverse_frame` (~2050)~~:
+  retired 2026-10-27 (SECT, `the-section-of-a-surface-pair-is-one-object`);
+  its successor, `geom_brep::CylinderSpherePose::decide`, takes the
+  centre's part square to the axis as `a × (w × a)`. The finding as it
+  stood:
   `off = center − foot`, the frame axis `off / d` with `d` decided only
   above the band. `foot` is a rounded point, so the error is
   `u·max(|center|, |foot|)/d` in every direction: a sphere centre near

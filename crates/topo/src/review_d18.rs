@@ -1183,7 +1183,7 @@ fn tear_landed(tear: Tear) -> String {
 /// refuses in its plan phase wherever the merge would re-base a
 /// certified member ([`EulerOpError::MergeRebasesCarriers`]) — on these
 /// fixtures, every kill whose far vertex carries a fan — so where it
-/// does, the same kill is driven again through [`Body::kev_describing`]
+/// does, the same kill is driven again through [`Body::kev_describing`](crate::construction::Construct::kev_describing)
 /// with every merged member re-described as its chord
 /// ([`crate::seqgen::try_chord_redescriptions`]). The first door's
 /// refusal leaves `body` untouched, so the second runs on the same one.
@@ -1735,7 +1735,7 @@ const TWO_SHELLS_OF_ONE_SOLID: (&str, BuildFixture) = ("two shells of one solid"
     body
 });
 
-/// Null scaffolding on the declined cube ([`Body::mev_null`]): a null
+/// Null scaffolding on the declined cube ([`Body::mev_null`](crate::construction::Construct::mev_null)): a null
 /// strut at the seed vertex, and a null fan split there, whose kill
 /// merges a fan and moves nothing.
 const NULL_SCAFFOLDING: [(&str, BuildFixture); 2] = [

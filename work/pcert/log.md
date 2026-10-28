@@ -868,3 +868,11 @@ E1c waits on the answer.
   - Moves: E1b's `set_edge_curve` and Euler-chord rows now refuse `CarrierOffChart`; `m10_bulge` pins `pcurve_cylinder_chart_incident` 16/4 and `pcurve_line_chart_incident` 18/4.
   - The read is taken in the chart's own frame: the anchor at the origin and the axis unit. A read where the carrier sits misread an exact rim 1e7 m out as off at 1e-12 (a kernel defect), and a ruling high up an axis long by δ (inside the at-rest margin) as off at 1e-6. E1d's sphere, cone and torus reads had the same flaw.
   - Closed `plane-and-cylinder-mints-meter-incidence-as-a-residual`. The cylinder meridian arm's `pcurve_chart_radial_moving` tie-break, which E2 re-reads, now sits behind the read.
+- 2026-10-28 — E1d2 (PR 5881) merged: topo's construction tier is sealed.
+  - Its 46 doors are crate-private inherent methods of `Body`, public only through `topo::construction::Construct`, which is where they are documented.
+  - `pncad::topo` is the topo glob, with the tier's modules shadowed. The shadow set is derived from `construction.rs`.
+  - Pins that go red when a door is made public: the three `compile_fail` doctests; the façade row, which scans topo's root and every unshadowed public module for a `pub use` that carries a tier name or globs through a shadow; and `every_construction_door_is_a_crate_private_body_method`.
+  - `DOORS_MEASURED` is 72.
+  - The spec types stay nameable because `EdgeCurve::{mint, certify, …}` take and return them.
+  - Review tier: single FULL review (the move is mechanical, but whether the seal is complete had to be probed from outside). 0 MAJOR; fix list K1–K5 (the pins could not see a door made public; the tier's docs had dropped out of rustdoc). The orchestrator read the fixes.
+- 2026-10-28 — E1c (PR 5889) dispatched at review tier dual, class H (the incidence read across five charts). The concurrent pair reads frozen head 6c29a7e439, scope c591ab53c7..6c29a7e439.
