@@ -4,6 +4,8 @@ kind: issue
 title: A split's per-candidate keys for joined seams and set pieces have no tie witness
 status: open
 opened: 2026-10-27
+priority: P3
+cost: E
 ---
 
 

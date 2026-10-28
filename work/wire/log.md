@@ -7182,3 +7182,13 @@ Signed (WIRE orchestrator).
   - A FULL review (`wire-seamgroups-rev`) is dispatched. Also freed 7 GB of stale review scratch.
 - 2026-10-27 — **Seam (ATREST):** `atrest/an-instance-carries-its-parts-coincidences` touches this program's ground. `eval/wire.rs`: `wire_instantiate_part` fills the new `CarriedFindings::coincidences` (each part row with this instance as its first hop).
 - 2026-10-27 — **Seam (ATREST):** `atrest/an-assertion-quiets-an-operations-unproven-row` touches this program's ground. `eval/wire.rs`: `select_one` resolves its one name through the new `resolve_name` (the ladder, at the name's kind), and `wire_measure` reads a reference's body through the new `reference_body`; both `pub(crate)`, re-exported from `eval`, and read by the quieting rule's `checks::at_rest::contact_quietable` so a row's cell resolves as a measure's reference does. `ladder::live`/`resolve_key` take any `Doc<P: ProfilePayload>`. No refusal changes.
+- 2026-10-28 (WIRE orchestrator) PR 5876 review: mergeable, no BLOCKER or MAJOR.
+  - The keys are exactly the candidate partition at all four sites. The reviewer's own dump agrees: only tie conversions move.
+  - Witnesses are red on base, and the union key is shown to matter alone.
+  - MINOR: the PR body credited the README clause to PR 4221. It came from PR 3184, an agent's commit with no Ev ruling, so the reword stands. The body is corrected.
+  - MINOR: the tie-summed decline lost its end-to-end witness. Filed `a-tie-summed-seam-decline-has-no-end-to-end-witness` (P3, E).
+  - NITs: Debug-string matching in the new test helpers; ParentEntities is singleton-shaped at four of its six sites.
+  - Merged at eec1685386; row closed; worktree removed.
+- 2026-10-28 (WIRE orchestrator) Budget: main's merge plus the priced PR 5876 rows put WIRE at 35/30.
+  - Priced: split tie-witness row E; union fold row M.
+  - Moved to WIRETAIL (P3, 5 points): `the-older-missing-rule-naming-variants-lack-the-unsupported-prefix` and `a-body-value-consumed-by-k-nodes-is-gated-at-rest-k-times`. The measuredoor citation is repointed.
