@@ -33,8 +33,8 @@ origin, its axis tilted `1e3·ε` about `x`, edged over `t ∈ [−1e-4, 1e-4]`.
   over that span both refuse `CarrierOffChart { margin: Past(1.0e-6) }`,
   which is the full turn's farthest point.
 
-Before E1c the plane mint read no incidence. That arc was imaged and
-metered by its residual over the span, so it certified.
+Before E1c the plane mint read no incidence; the review measured base
+refusing the arc as a residual. Since E1c it is the read's definite miss.
 
 ## Repair shape
 
