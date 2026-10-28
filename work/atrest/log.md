@@ -316,3 +316,17 @@ Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `cra
   - CI is green but skipped `demos`, so the lane runs `demos/tour` and `demos/wild` before the row and merge.
   - **Lesson:** a census change must run the demos locally. CI's change filter skips them, which is how #5853's chain pin went red unseen.
 - 2026-10-28 (implementer): **`the-tour-gallery-pin-reads-the-chains-old-could-not-look-count` closed.** The chain's 10 at-rest findings since #5853 are all TRUE interference. Each pin is a separate extrude sharing a half-disc with every bar end it stands in (9 pairs); the target also coincides with the tip pin (1 pair). This was checked by the closed form and by `point_in_solid` at depth 0.4 mm (0.8 mm for target × tip pin). The bar end-cap contacts only touch and stay unreported at rest. `gallery.rs` re-pinned from 196 could-not-look to 10 interference.
+- 2026-10-28 07:20Z (orchestrator): **#5884 merged** at `db0fa98b`, head `e577bcfa`, CI green, with main merged twice and re-validated at three ε. The holdout row is tallied 0 (blind coding byte 130). The lane is archived.
+  - Closed `main-red-the-gallery-chain-pins-196-at-rest-findings-after-pr-5853` (P0, SPLICE's filing): it duplicates SECT's filing, which #5888 fixed.
+  - Moved `a-ridge-segment-at-contact-escalates-the-touch-plane-at-1e-6` (P3) from `work/issues/` to here, since `topo::link` is ATREST's (#5773).
+- 2026-10-28 07:20Z (orchestrator, `session_01AcexwLF78WVWsEy15j7s5B`): **the track is handed back, `ready`.**
+  - This sitting's P0 and P1 rows are all merged: #5773, #5803, #5823, #5827, #5810 (stage 5 C), #5853, #5871, #5878, #5882, #5884 and #5888.
+  - What is left is P2 and below. Two rows wait on design:
+    - `a-gap-over-adjacent-cells-states-nothing-of-the-row` (P2, `needs_ev`), which goes to a designer pair and then an `[ev]` PR: "what assertion says a tangency, a coaxiality, a blend's common foot";
+    - `the-unproven-coincidence-knob-is-re-read-against-ds3` (P2), which waits on that and on the flush-pair question.
+  - Also left: `a-row-over-a-pose-is-quieted-by-no-assertion` (P3, `needs_ev`); `an-in-band-lens-reads-as-shared-interior` (P2, new).
+  - The stray branch `review/atrest-round-cvvr` (identical to `review/atrest-round-Nvcrvr`) is left for Ev; the permission classifier denied deleting it.
+  - **Lessons for a successor:**
+    - a census change runs `demos/tour` locally, because CI's change filter skips it;
+    - check DESIGN's own clause, not a spec's restatement, before ruling a rule "as ratified";
+    - merge main and re-run the slow goldens at three ε before merging a census PR.

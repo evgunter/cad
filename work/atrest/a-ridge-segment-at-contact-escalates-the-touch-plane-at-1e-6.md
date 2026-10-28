@@ -11,8 +11,8 @@ cost: M
 
 Found by `atrest/aligned-arc-or-curved-faces-that-abut-are-flush`
 (PR 5884) running the topo `link` rows at three ε. Not that branch's: it
-does not touch `crates/topo/src/link*`. No program claims the path, so
-it lands here.
+does not touch `crates/topo/src/link*`. `topo::link` is ATREST's
+(PR 5773), so the ATREST orchestrator moved it here from `work/issues/`.
 
 ## What
 
