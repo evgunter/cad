@@ -2,11 +2,10 @@
 id: loft-slab-and-section-names-are-positional
 kind: issue
 title: A degree-1 loft's slab and section names count from the start section: key them on each section's input identity
-status: parked
+status: open
 opened: 2026-10-28
 priority: P1
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -51,3 +50,9 @@ its index; a row inserts and deletes an earlier section and finds every
 later slab, ring and vertex name unchanged; a row lofts one profile at
 two stations and finds their walls named apart; and N1's placeholder
 sentence is gone.
+
+## Re-homed to REFS, open (2026-10-28, TESS orchestrator)
+
+This was parked on `d10-one-way-to-say-intent-is-unbuilt` because keying a name on a read is D10's vocabulary. That vocabulary is REFS's own charter ("a name scoped by its read"). The refactor hold binds programs building on D10's ground, not the programs building D10. So this row is REFS's, open now, P1. Ev's bound applies: the positional placeholder (PR 5923) may stand for no more than a couple of PRs.
+
+The open part is the key for two sections of one profile, which a read alone does not separate. That design question is REFS's to settle; the station's reads are one candidate.
