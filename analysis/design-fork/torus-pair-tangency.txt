@@ -1,0 +1,5 @@
+fork: torus-pair-tangency (SECT, cylinder-torus / torus-torus rung-3 doors)
+drawn: 2026-10-28T04:45:39Z, od -An -tu1 -N1 /dev/urandom
+byte: 70
+mapping: A = Opus designer, B = Fable designer
+protocol: d6eea3efa5
