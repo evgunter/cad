@@ -51,7 +51,11 @@ reds those rows own.
 
 ## Merge
 
-BISECT
+Two-point check, `sweep`'s `all` binary built at each side, both rows
+run at 1e-12: at `97ce6f95` (the first parent of PR 5728's merge) both
+stop on their old messages above; at `b8974faa` (the merge of PR 5728,
+`offset/limb2-for-every-carrier`) both stop on the `KernelLimit` above.
+So the move is PR 5728's.
 
 ## Pinned
 
