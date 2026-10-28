@@ -4,7 +4,7 @@ kind: program
 title: CONTACTHOLD — CONTACT's parked rows: the D10 hold on declared contacts, the coincidence door and the declared-pair retirement
 status: ready
 opened: 2026-10-09
-area: kernel
+group: kernel/boolean/contact
 prefix: contacthold/
 tag: (CONTACTHOLD orchestrator)
 ab_band: 12100-12199

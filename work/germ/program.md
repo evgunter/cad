@@ -4,7 +4,7 @@ kind: program
 title: GERM — the cone and torus operand lanes, and the containment arms that stop short of them
 status: ready
 opened: 2026-09-20
-area: kernel
+group: kernel/boolean/curved
 prefix: germ/
 tag: (GERM orchestrator)
 ab_band: 7000-7099

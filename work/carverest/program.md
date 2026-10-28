@@ -4,7 +4,7 @@ kind: program
 title: CARVEREST — CARVE's P3 and P4 rows: the chain walk's other readers, the loft doors' input checks, and the order and naming residue of the surface-pair unit
 status: ready
 opened: 2026-10-10
-area: kernel
+group: kernel/sweep/loft
 prefix: carverest/
 tag: (CARVEREST orchestrator)
 ab_band: 12700-12799

@@ -4,7 +4,7 @@ kind: program
 title: WIRETAIL — WIRE's P3 and P4 tail: the selection vocabulary's missing atoms, refusal recourse and kind-mirror hygiene
 status: ready
 opened: 2026-10-17
-area: api
+group: api/names
 prefix: wiretail/
 tag: (WIRETAIL orchestrator)
 ab_band: 13300-13399

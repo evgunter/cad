@@ -4,7 +4,7 @@ kind: program
 title: BUDGET — the tessellation budget instrument: what tess-lint reads, what it compares, and what its figures are worth
 status: ready
 opened: 2026-09-20
-area: infra
+group: infra/measure
 prefix: budget/
 tag: (BUDGET orchestrator)
 ab_band: 9700-9799

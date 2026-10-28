@@ -4,7 +4,7 @@ kind: program
 title: HONEPAIR — one verdict on one margin at its own reach: split and boolean readings that decide two margins one at a time or lever a reading at the wrong extent
 status: ready
 opened: 2026-10-26
-area: kernel
+group: kernel/boolean/margin
 prefix: honepair/
 tag: (HONEPAIR orchestrator)
 paths: [crates/topo/src/splitting/*, crates/topo/src/boolean/*, crates/topo/src/chord_join.rs]

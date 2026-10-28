@@ -4,7 +4,7 @@ kind: program
 title: PROFILEREST — the profile lattice's P2 remainder and validation's P3 reads, behind PROFILE
 status: ready
 opened: 2026-10-21
-area: kernel
+group: kernel/sketch
 prefix: profilerest/
 tag: (PROFILEREST orchestrator)
 paths: [crates/profile/*, docs/PATHS-DESIGN.md]

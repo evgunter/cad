@@ -4,7 +4,7 @@ kind: program
 title: FORMS — the creation forms' vocabulary and the seats they gate
 status: ready
 opened: 2026-09-22
-area: gui
+group: gui/author
 prefix: forms/
 tag: (FORMS orchestrator)
 ab_band: 10000-10099

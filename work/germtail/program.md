@@ -4,7 +4,7 @@ kind: program
 title: GERMTAIL — GERM's refusal and structure tail: arms that give up where the answer is regular, and readings decided outside their home
 status: ready
 opened: 2026-10-20
-area: kernel
+group: kernel/boolean/curved
 prefix: germtail/
 tag: (GERMTAIL orchestrator)
 ab_band: 14100-14199

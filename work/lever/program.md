@@ -4,7 +4,7 @@ kind: program
 title: LEVER — a lever read at the extent its decision consumes, not a whole face, a pivot or a 3-D distance
 status: ready
 opened: 2026-10-17
-area: kernel
+group: kernel/boolean/margin
 prefix: lever/
 tag: (LEVER orchestrator)
 ab_band: 13500-13599

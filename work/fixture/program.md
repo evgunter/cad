@@ -4,7 +4,7 @@ kind: program
 title: FIXTURE — one body, fixture or helper spelled n times across the suites
 status: ready
 opened: 2026-09-20
-area: infra
+group: infra/tests
 prefix: fixture/
 tag: (FIXTURE orchestrator)
 ab_band: 8900-8999

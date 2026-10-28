@@ -4,7 +4,7 @@ kind: program
 title: UNREAD — claims, references and surfaces the tree states that no gate reads
 status: ready
 opened: 2026-10-26
-area: infra
+group: infra/ci
 prefix: unread/
 tag: (UNREAD orchestrator)
 ab_band: 15700-15799

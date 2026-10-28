@@ -4,7 +4,7 @@ kind: program
 title: WIREHOLD — WIRE's parked rows: the evaluation seat's placement, pattern and record carries that wait on D10 stage 3, 4 I and 5
 status: ready
 opened: 2026-10-17
-area: api
+group: api/eval
 prefix: wirehold/
 tag: (WIREHOLD orchestrator)
 ab_band: 13200-13299

@@ -4,7 +4,7 @@ kind: program
 title: SEAMRANK — what a union's crossing vertex cites and how a run ranks: the conventional vertex, the seam sides that do not settle, and the carriers the flush rule cannot read
 status: ready
 opened: 2026-10-19
-area: api
+group: api/names
 prefix: seamrank/
 tag: (SEAMRANK orchestrator)
 ab_band: 13800-13899

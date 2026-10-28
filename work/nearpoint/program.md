@@ -4,7 +4,7 @@ kind: program
 title: NEARPOINT — the closed forms' reference point and frame: sums about a far origin, rim levels that cancel, and reads that depend on the frame
 status: ready
 opened: 2026-10-27
-area: kernel
+group: kernel/props
 prefix: nearpoint/
 tag: (NEARPOINT orchestrator)
 ab_band: 15300-15399

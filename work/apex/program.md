@@ -4,7 +4,7 @@ kind: program
 title: APEX — the curved lanes' numeric frontier: where the cone, torus and touch lanes refuse short of what they could answer
 status: ready
 opened: 2026-10-08
-area: kernel
+group: kernel/boolean/curved
 prefix: apex/
 tag: (APEX orchestrator)
 ab_band: 11400-11499

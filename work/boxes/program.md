@@ -4,7 +4,7 @@ kind: program
 title: BOXES — one boolean fact, decided in several places: the box rules, the staleness ladders and the doors with two homes
 status: ready
 opened: 2026-09-20
-area: kernel
+group: kernel/boolean/one-home
 prefix: boxes/
 tag: (BOXES orchestrator)
 ab_band: 7300-7399

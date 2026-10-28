@@ -4,7 +4,7 @@ kind: program
 title: FLUSH — planar and declared-contact correctness at the join
 status: active
 opened: 2026-10-10
-area: kernel
+group: kernel/boolean/join
 prefix: flush/
 tag: (FLUSH orchestrator)
 paths: [crates/topo/src/boolean/join.rs, crates/topo/src/loop_winding.rs]

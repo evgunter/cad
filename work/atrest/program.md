@@ -4,7 +4,7 @@ kind: program
 title: ATREST — the at-rest records after the seat ruling: stage 4 I, stage 5 C, and what a record is
 status: active
 opened: 2026-10-22
-area: api
+group: api/assembly
 prefix: atrest/
 tag: (ATREST orchestrator)
 ab_band: 14400-14499

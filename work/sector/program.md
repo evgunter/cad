@@ -4,7 +4,7 @@ kind: program
 title: SECTOR — CONTACT's P3 tail: sector-arm levers, self-touches and wedge joins, torn records, and the gate readers that drop a verdict
 status: ready
 opened: 2026-10-09
-area: kernel
+group: kernel/boolean/contact
 prefix: sector/
 tag: (SECTOR orchestrator)
 ab_band: 12000-12099

@@ -4,7 +4,6 @@ kind: issue
 title: Dimensional-debt inventory — the 11+1 decide_flagged sites (F2/F6/F7/F10/F13/F14/F15 families)
 status: open
 opened: 2026-08-06
-github: 214
 refs: [213, 501, 502, 2063]
 priority: P4
 cost: E

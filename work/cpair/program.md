@@ -4,7 +4,7 @@ kind: program
 title: CPAIR — the curve-pair reader's residue: the poses it still refuses, the meters that lever by a span, and the spline edges it cannot bound
 status: ready
 opened: 2026-10-18
-area: kernel
+group: kernel/geom/curves
 prefix: cpair/
 tag: (CPAIR orchestrator)
 paths: [crates/geom-brep/src/curve_pair.rs, crates/geom-brep/src/curve_pair/*]

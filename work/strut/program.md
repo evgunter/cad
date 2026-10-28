@@ -4,7 +4,7 @@ kind: program
 title: STRUT — one sweep rule with several homes: the strut rule, the chain model and the walks beside them
 status: ready
 opened: 2026-09-20
-area: kernel
+group: kernel/sweep/loft
 prefix: strut/
 tag: (STRUT orchestrator)
 ab_band: 7900-7999

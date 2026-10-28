@@ -4,7 +4,6 @@ kind: issue
 title: Revisit — should the rustdoc gate reinstate private_intra_doc_links?
 status: open
 opened: 2026-08-15
-github: 519
 refs: [465]
 priority: P4
 cost: E

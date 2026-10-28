@@ -4,7 +4,7 @@ kind: program
 title: FLUSHTAIL — the join's tail: the side reader's bounds and ledgers, the glue door's quiet paths, and the curved-merge and conic-span residues
 status: ready
 opened: 2026-10-20
-area: kernel
+group: kernel/boolean/join
 prefix: flushtail/
 tag: (FLUSHTAIL orchestrator)
 paths: []

@@ -4,7 +4,7 @@ kind: program
 title: SPLICE — a body built by loft or sweep enters every boolean: the spline-edged operand, from the operand edge gate to the joins it reaches
 status: active
 opened: 2026-10-25
-area: kernel
+group: kernel/boolean/join
 prefix: splice/
 tag: (SPLICE orchestrator)
 paths: [crates/topo/src/boolean/reduce.rs, crates/topo/src/boolean/sectors.rs, crates/topo/src/boolean/join.rs, crates/topo/src/chord_join.rs, crates/editor-core/src/names/emit_union.rs]

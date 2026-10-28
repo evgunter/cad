@@ -4,7 +4,7 @@ kind: program
 title: INSIDE — containment and point-in-solid: the decision an escalation carries, the walls and charts the door refuses, and the P1/P2 touch reads
 status: ready
 opened: 2026-10-09
-area: kernel
+group: kernel/boolean/contact
 prefix: inside/
 tag: (INSIDE orchestrator)
 ab_band: 11900-11999

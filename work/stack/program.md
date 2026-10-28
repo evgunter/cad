@@ -4,7 +4,7 @@ kind: program
 title: STACK — what a certified enclosure CLAIMS: the stackup's hull, the non-real contract and the forgeable certificate family
 status: ready
 opened: 2026-09-20
-area: kernel
+group: kernel/geom/numeric
 prefix: stack/
 tag: (STACK orchestrator)
 ab_band: 9100-9199

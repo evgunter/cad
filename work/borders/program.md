@@ -4,7 +4,7 @@ kind: program
 title: BORDERS — a piece's Borders and the lineage it reads: the joins the records cannot place, the pieces named bare, and the unions that refuse by member order
 status: ready
 opened: 2026-10-19
-area: api
+group: api/names
 prefix: borders/
 tag: (BORDERS orchestrator)
 ab_band: 13900-13999

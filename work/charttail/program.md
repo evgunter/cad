@@ -4,7 +4,7 @@ kind: program
 title: CHARTTAIL — the chart boundary and its consumers, after CHART's P0 and P1 rows: the region doors' copies, the census's region door, refusals that name their chart and decision, and the docs pcurves outgrew
 status: ready
 opened: 2026-10-24
-area: kernel
+group: kernel/topo/certify
 prefix: charttail/
 tag: (CHARTTAIL orchestrator)
 ab_band: 14500-14599

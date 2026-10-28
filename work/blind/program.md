@@ -4,7 +4,7 @@ kind: program
 title: BLIND — the kernel-discipline gates' matchers, and the spellings they miss
 status: ready
 opened: 2026-10-26
-area: infra
+group: infra/ci
 prefix: blind/
 tag: (BLIND orchestrator)
 ab_band: 15600-15699

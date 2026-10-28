@@ -4,7 +4,7 @@ kind: program
 title: TESS — the tessellation kernel: crates/mesh and the body-side coherence examination
 status: ready
 opened: 2026-09-16
-area: kernel
+group: kernel/mesh
 prefix: tess/
 tag: (TESS orchestrator)
 ab_band: 5100-5199

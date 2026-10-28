@@ -4,7 +4,7 @@ kind: program
 title: TANGTAIL — TANG's P3 tail: contact-line and ring corners, the banked torus rest lane, Approx and offset readings, fixtures
 status: ready
 opened: 2026-10-17
-area: kernel
+group: kernel/boolean/contact
 prefix: tangtail/
 tag: (TANGTAIL orchestrator)
 ab_band: 13700-13799

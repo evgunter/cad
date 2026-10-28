@@ -4,7 +4,7 @@ kind: program
 title: SSIMARCH — the plane×NURBS march: its ladders, budgets and refusals
 status: ready
 opened: 2026-10-08
-area: kernel
+group: kernel/geom/ssi
 prefix: ssimarch/
 tag: (SSIMARCH orchestrator)
 ab_band: 11300-11399

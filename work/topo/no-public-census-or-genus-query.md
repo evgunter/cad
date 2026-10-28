@@ -4,7 +4,6 @@ kind: unit
 title: API gap — no public census/genus query, so the Euler-Poincare identity is hand-written about 13 times
 status: closed
 opened: 2026-08-20
-github: 758
 branch: topo/census-door
 pr: 2131
 closed: 2026-09-12

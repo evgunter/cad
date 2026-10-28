@@ -4,7 +4,7 @@ kind: program
 title: PCTAIL — the P3 tail of pcurve certification - its refusal vocabulary, its guards, and the coverage it claims
 status: ready
 opened: 2026-10-01
-area: kernel
+group: kernel/topo/certify
 prefix: pctail/
 tag: (PCTAIL orchestrator)
 paths: [crates/geom-brep/src/pcurve_cache.rs]

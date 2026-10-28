@@ -4,7 +4,7 @@ kind: program
 title: DECIDE — the symbolic decision door: what it may answer, what it may retry, and the ring it answers in
 status: ready
 opened: 2026-09-20
-area: kernel
+group: kernel/symbolic
 prefix: decide/
 tag: (DECIDE orchestrator)
 ab_band: 8600-8699

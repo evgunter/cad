@@ -4,7 +4,7 @@ kind: program
 title: SSIARITH — the plane×NURBS lane's arithmetic: f64 reads, units and frames
 status: ready
 opened: 2026-10-08
-area: kernel
+group: kernel/geom/ssi
 prefix: ssiarith/
 tag: (SSIARITH orchestrator)
 ab_band: 11200-11299

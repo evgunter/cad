@@ -7,7 +7,6 @@ opened: 2026-10-15
 priority: P3
 cost: M
 design: true
-needs_ev: true
 refs: [band-scale-torus-geometry-ends-as-a-kernel-defect, can-an-import-reach-a-state-only-a-kernel-bug-otherwise-reaches]
 ---
 

@@ -4,7 +4,6 @@ kind: issue
 title: Viewport focus marking is per NODE, so a profile step cannot light the walls it swept
 status: open
 opened: 2026-08-29
-github: 1182
 priority: P1
 cost: D
 ---

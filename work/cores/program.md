@@ -4,7 +4,7 @@ kind: program
 title: CORES — the boolean and splitting engines as one pipeline: the shared cores hosted in one half, and the pipeline built twice
 status: ready
 opened: 2026-10-26
-area: kernel
+group: kernel/boolean/one-home
 prefix: cores/
 tag: (CORES orchestrator)
 ab_band: 4500-4599

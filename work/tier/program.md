@@ -4,7 +4,7 @@ kind: program
 title: TIER — the symbolic tier's frontier, its cost and its prose: what it bounds, what it costs, and what its header claims
 status: ready
 opened: 2026-09-20
-area: kernel
+group: kernel/symbolic
 prefix: tier/
 tag: (TIER orchestrator)
 ab_band: 8700-8799

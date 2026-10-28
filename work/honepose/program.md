@@ -4,7 +4,7 @@ kind: program
 title: HONEPOSE — split and boolean poses that refuse in band where nothing is near a decision
 status: ready
 opened: 2026-10-26
-area: kernel
+group: kernel/boolean/margin
 prefix: honepose/
 tag: (HONEPOSE orchestrator)
 paths: [crates/topo/src/splitting/*, crates/topo/src/boolean/*, crates/topo/src/chord_join.rs]

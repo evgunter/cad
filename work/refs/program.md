@@ -4,7 +4,7 @@ kind: program
 title: REFS — references and reads: a name scoped by its read, indexed reads, and the façade's slot words
 status: ready
 opened: 2026-10-11
-area: api
+group: api/names
 prefix: refs/
 tag: (REFS orchestrator)
 ab_band: 13100-13199

@@ -4,7 +4,7 @@ kind: program
 title: ORIGIN — the D5/N6 identity channel: what a description's source says, and what the Live guard proves
 status: ready
 opened: 2026-09-20
-area: kernel
+group: kernel/topo/certify
 prefix: origin/
 tag: (ORIGIN orchestrator)
 ab_band: 6300-6399

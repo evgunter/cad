@@ -4,7 +4,7 @@ kind: program
 title: PROBE — topo's guards, probes and preconditions that nothing holds to account
 status: ready
 opened: 2026-09-20
-area: kernel
+group: kernel/topo/euler
 prefix: probe/
 tag: (PROBE orchestrator)
 ab_band: 6700-6799
