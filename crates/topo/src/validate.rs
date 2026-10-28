@@ -1232,48 +1232,52 @@ pub enum ValidationError {
         edge: EdgeKey,
     },
     /// Tier 3: a vertex of a planar face lies definitely off the face's
-    /// stored plane (the Newell-certified plane equation is a derived
-    /// cache; its residuals are re-checked at rest, D4 ¶2).
+    /// stored plane, read by the mint's incidence decider
+    /// ([`geom_brep::read_point_incidence`]); the stored plane is checked
+    /// against its corners at rest (D4 ¶2), and a definite miss ends in
+    /// the stored culprit ([`ValidationError::incidence_read`]).
     PlanarFaceResidual {
         /// The planar face.
         face: FaceKey,
         /// The off-plane vertex.
         vertex: VertexKey,
     },
-    /// Tier 3: a planar-face vertex residual escalated (in the sliver
-    /// band, or poisoned) — indeterminate geometry at rest is a defect
-    /// (D4 ¶3's escalate-never-guess, applied by the validator).
+    /// Tier 3: whether a planar face's vertex lies on its plane read in
+    /// the band, or poisoned: escalate, never guess (D4 ¶3); a reading in
+    /// band ends in the incidence lever, an unreadable one in the defect
+    /// ending ([`ValidationError::incidence_read`]).
     PlanarFaceEscalated {
         /// The planar face.
         face: FaceKey,
-        /// The vertex whose residual escalated.
+        /// The vertex whose read landed in band.
         vertex: VertexKey,
         /// The classifier's diagnostic.
         cause: Indeterminate,
     },
-    /// Tier 3: an edge bounding a **planar** face has carrier samples
-    /// definitely off that face's plane (M2 PR 3 fix pass, S3): the
-    /// planar-face pass checks vertices, and this check gives the same
-    /// teeth to the boundary *between* vertices — an honestly certified
-    /// arc bulging off its face's plane is a face-boundary defect even
-    /// though every vertex residual passes. (Curved-face boundary
+    /// Tier 3: an edge bounding a **planar** face is read definitely off
+    /// that face's plane, over the edge's span, by the mint's incidence
+    /// decider ([`geom_brep::read_incidence`]) (M2 PR 3 fix pass, S3):
+    /// the planar-face pass checks vertices, and this check gives the
+    /// same teeth to the boundary *between* vertices — an honestly
+    /// certified arc bulging off its face's plane is a face-boundary
+    /// defect even though every vertex lies on it. (Curved-face boundary
     /// containment is not checked: [`validate_geometric`]'s
     /// not-yet-checked list, tracked at #638.)
     PlanarBoundaryResidual {
         /// The planar face whose boundary leaves its plane.
         face: FaceKey,
-        /// The edge whose carrier samples lie off the plane.
+        /// The edge whose carrier is read off the plane.
         edge: EdgeKey,
     },
-    /// Tier 3: a planar-boundary sample residual escalated (in the
-    /// sliver band, or poisoned) — the escalation counterpart of
+    /// Tier 3: a planar boundary's incidence read landed in band, or
+    /// poisoned — the escalation counterpart of
     /// [`ValidationError::PlanarBoundaryResidual`].
     PlanarBoundaryEscalated {
         /// The planar face.
         face: FaceKey,
-        /// The edge whose sample residual escalated.
+        /// The edge whose read landed in band.
         edge: EdgeKey,
-        /// The classifier's diagnostic (first failing sample).
+        /// The read's diagnostic.
         cause: Indeterminate,
     },
     /// Tier 3: one of check 4's decisions at an edge could not be taken
@@ -5375,12 +5379,13 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///    image must name one of them, and an edge's two
 ///    halves bound one face exactly when it is a wrap edge
 ///    ([`ValidationError::DescriptionNotAdjacent`]).
-/// 3. **Planar-face residuals** (faces, arena order; per face the outer
+/// 3. **Planar-face corners** (faces, arena order; per face the outer
 ///    loop then rings in list order, vertices in cycle order): every
-///    vertex of a face whose surface is a plane lies within ε of that
-///    plane ([`ValidationError::PlanarFaceResidual`] /
-///    [`ValidationError::PlanarFaceEscalated`]) — the Newell-certified
-///    plane equations re-checked at rest.
+///    vertex of a face whose surface is a plane is read on that plane by
+///    the mint's incidence decider ([`geom_brep::read_point_incidence`];
+///    [`ValidationError::PlanarFaceResidual`] /
+///    [`ValidationError::PlanarFaceEscalated`]) — the stored plane
+///    equations checked against their corners at rest.
 /// 4. **Dihedral classification** (edges, arena order): at the interior
 ///    schedule samples (i = 1…7 — endpoints excluded: vertices may sit
 ///    on surface singularities like the cone apex, where angular
@@ -5414,15 +5419,16 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///    separates them), and an in-band κ_rel is the ordinary
 ///    `SliverDihedral` escalation. Samples that DISAGREE along one
 ///    edge escalate too, rather than falling silent.
-/// 5. **Planar-boundary containment** (same edge sweep, same samples;
-///    M2 PR 3 fix pass): each interior carrier sample is checked
-///    against each **adjacent planar** face's plane — the
-///    between-vertices counterpart of check 3, so an honestly certified
-///    carrier that bulges off its planar face's surface is reported
+/// 5. **Planar-boundary containment** (same edge sweep; M2 PR 3 fix
+///    pass): the edge's carrier is read over the edge's span on each
+///    **adjacent planar** face's plane by the mint's incidence decider
+///    ([`geom_brep::read_incidence`]) — the between-vertices
+///    counterpart of check 3, so an honestly certified carrier that
+///    bulges off its planar face's surface is reported
 ///    ([`ValidationError::PlanarBoundaryResidual`] /
 ///    [`ValidationError::PlanarBoundaryEscalated`]; plus face first,
-///    then the minus face when distinct; first failing sample, one
-///    error per edge–face pair). Curved-face containment is NOT
+///    then the minus face when distinct; one error per edge–face
+///    pair). Curved-face containment is NOT
 ///    checked (the not-yet-checked list below; #638).
 /// 6. **Loop-role and sense orientation** (faces, arena order): a
 ///    planar face's loop windings against its outward normal
@@ -7397,17 +7403,19 @@ pub(crate) fn tier3_local_checks_marked<
     }
 
     // ------------------------------------------------------------------
-    // Tier 3, check 3: planar-face vertex residuals (face-arena order;
-    // outer loop then rings; vertices in cycle order).
+    // Tier 3, check 3: planar-face corners on their plane (face-arena
+    // order; outer loop then rings; vertices in cycle order), each read
+    // by the mint's own incidence decider
+    // ([`geom_brep::read_point_incidence`]: the point's distance from the
+    // plane in its own frame, less its rounding), so a corner on its
+    // plane far from the plane's anchor reads on, and every reading ends
+    // as an incidence read ([`ValidationError::incidence_read`]).
     //
-    // S10 CATEGORY C (orientation-free): the margin `(p − origin)·n` is
-    // tested against `Zero`, and `Zero` is invariant under negating
-    // `n` — the plane as a POINT SET does not depend on which side the
-    // material is. Folding the sense in here would flip
-    // Positive↔Negative in a decision that never distinguishes them.
+    // S10 CATEGORY C (orientation-free): a distance from the plane does
+    // not depend on which side the material is.
     // ------------------------------------------------------------------
     for (face_key, face) in body.faces.iter() {
-        let Some(&Surface::Plane { origin, normal, .. }) = body.surfaces.get(face.surface) else {
+        let Some(plane @ Surface::Plane { .. }) = body.surfaces.get(face.surface) else {
             continue;
         };
         for &loop_key in core::iter::once(&face.outer).chain(&face.rings) {
@@ -7431,20 +7439,19 @@ pub(crate) fn tier3_local_checks_marked<
                 let Some(&point) = body.points.get(vertex_data.point) else {
                     continue;
                 };
-                let residual = (point - origin).dot(normal);
-                match decide("planar_face_residual", Margin::of(residual), band) {
-                    Ok(Sign::Zero) => {}
-                    Ok(Sign::Positive | Sign::Negative) => {
-                        errors.push(ValidationError::PlanarFaceResidual {
-                            face: face_key,
-                            vertex,
-                        });
-                    }
-                    Err(cause) => {
+                match geom_brep::read_point_incidence(point, plane, band) {
+                    Ok(()) => {}
+                    Err(geom_brep::PcurveCertifyError::Escalated { cause, .. }) => {
                         errors.push(ValidationError::PlanarFaceEscalated {
                             face: face_key,
                             vertex,
                             cause,
+                        });
+                    }
+                    Err(_) => {
+                        errors.push(ValidationError::PlanarFaceResidual {
+                            face: face_key,
+                            vertex,
                         });
                     }
                 }
@@ -7744,30 +7751,28 @@ pub(crate) fn tier3_local_checks_marked<
         if f_minus != f_plus {
             adjacent.push((f_minus, fs_minus));
         }
+        // The edge's carrier read on the plane over the edge's span by the
+        // mint's own incidence decider ([`geom_brep::read_incidence`]), so
+        // the tier and the mint never read one edge two ways.
         for (face_key, surface_key) in adjacent {
-            let Some(&Surface::Plane { origin, normal, .. }) = body.surfaces.get(surface_key)
-            else {
+            let Some(plane @ Surface::Plane { .. }) = body.surfaces.get(surface_key) else {
                 continue;
             };
-            for &(p, _) in &samples {
-                let residual = (p - origin).dot(normal);
-                match decide("planar_boundary_residual", Margin::of(residual), band) {
-                    Ok(Sign::Zero) => continue,
-                    Ok(Sign::Positive | Sign::Negative) => {
-                        errors.push(ValidationError::PlanarBoundaryResidual {
-                            face: face_key,
-                            edge: edge_key,
-                        });
-                    }
-                    Err(cause) => {
-                        errors.push(ValidationError::PlanarBoundaryEscalated {
-                            face: face_key,
-                            edge: edge_key,
-                            cause,
-                        });
-                    }
+            match geom_brep::read_incidence(curve.carrier(), t0, t1, plane, band) {
+                Ok(()) => {}
+                Err(geom_brep::PcurveCertifyError::Escalated { cause, .. }) => {
+                    errors.push(ValidationError::PlanarBoundaryEscalated {
+                        face: face_key,
+                        edge: edge_key,
+                        cause,
+                    });
                 }
-                break;
+                Err(_) => {
+                    errors.push(ValidationError::PlanarBoundaryResidual {
+                        face: face_key,
+                        edge: edge_key,
+                    });
+                }
             }
         }
     }
@@ -8157,7 +8162,7 @@ pub(crate) fn tier3_local_checks_marked<
     // they are silent on; `ring_nesting`'s doc is the premise's one
     // home, and says which part of it is checked on an `Ellipse`-
     // bearing loop. The queries lie in the face's plane because check
-    // 5 above certifies that they do (`planar_boundary_residual`),
+    // 5 above certifies that they do (the boundary's incidence read),
     // which is the walk's stated precondition.
     //
     // **What gates the arm is the face's SURFACE**, and nothing about

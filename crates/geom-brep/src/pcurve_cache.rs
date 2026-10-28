@@ -8914,18 +8914,20 @@ fn farthest_over_span<T: Real>(
 
 /// **The mint's incidence read alone** (D3), for a door that meters an
 /// image it was handed rather than one the mint derived (a description's
-/// stated image, a stored one restated at rest): whether `carrier` lies
-/// on `surface`'s chart over `[t0, t1]`, read as [`chart_image`] reads it
-/// before it images, so a carrier off its face ends as that read and
-/// never as the residual's meter. A spline chart's images are
-/// description-driven and read nothing here.
+/// stated image, a stored one restated at rest), or that decides an
+/// edge's place on its face with no image at all (`topo`'s planar tier):
+/// whether `carrier` lies on `surface`'s chart over `[t0, t1]`, read as
+/// [`chart_pcurve`] reads it before it images, in the carrier's own
+/// frame and less its rounding, so a carrier off its face ends as that
+/// read and never as another decider's arithmetic. A spline chart's
+/// images are description-driven and read nothing here.
 ///
 /// # Errors
 ///
 /// The read's refusal: [`PcurveCertifyError::CarrierOffChart`] for a
 /// definite miss or a pose, [`PcurveCertifyError::Escalated`]
 /// ([`PcurveCheck::ChartIncidence`]) in band.
-pub(crate) fn read_incidence<T: Decide>(
+pub fn read_incidence<T: Decide>(
     carrier: &Curve3<T>,
     t0: T,
     t1: T,
@@ -8949,6 +8951,37 @@ pub(crate) fn read_incidence<T: Decide>(
         band,
     )
     .map(|_| ())
+}
+
+/// **The mint's incidence read of one point** (D3): whether `point` lies
+/// on `surface`'s chart, read by the same decider as a carrier's
+/// ([`read_incidence`]), in the point's own frame (the chart's anchor
+/// slid to its foot nearest the point) and less its rounding, so a
+/// corner far from its plane's anchor is read on where it lies on, at
+/// every distance. `topo`'s planar tier reads a flat face's corners here.
+/// A spline chart reads nothing.
+///
+/// # Errors
+///
+/// As [`read_incidence`]: [`PcurveCertifyError::CarrierOffChart`] for a
+/// definite miss, [`PcurveCertifyError::Escalated`]
+/// ([`PcurveCheck::ChartIncidence`]) in band.
+pub fn read_point_incidence<T: Decide>(
+    point: Point3<T>,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<(), PcurveCertifyError> {
+    if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
+        return Ok(());
+    }
+    match incidence::point_incident(point, surface, band)? {
+        Incidence::On => Ok(()),
+        Incidence::Off(margin) => Err(OffChart("the point is not on the chart").with_margin(
+            OffMargin::Past(margin),
+            surface,
+            &incidence::point_probe(point),
+        )),
+    }
 }
 
 /// The incidence test of a spline carrier: [`chart_incidence`]'s, at
@@ -10687,6 +10720,38 @@ mod incidence {
     /// # Errors
     ///
     /// As above.
+    /// A point as the anchored read takes it: a line through it, whose
+    /// origin is the frame's anchor and whose direction nothing reads.
+    pub(super) fn point_probe<T: geom_core::Real>(point: geom_core::Point3<T>) -> Curve3<T> {
+        Curve3::Line {
+            origin: point,
+            dir: geom_core::Vec3::new(T::one(), T::zero(), T::zero()),
+        }
+    }
+
+    /// **The chart's incidence test of one point** ([`super::read_point_incidence`]):
+    /// the point's distance from the analytic chart, decided by
+    /// [`incidence_over_span`] in the point's own frame ([`anchored`]).
+    pub(super) fn point_incident<T: Decide>(
+        point: geom_core::Point3<T>,
+        surface: &Surface<T>,
+        band: Band,
+    ) -> Result<Incidence, PcurveCertifyError> {
+        let probe = point_probe(point);
+        let (moved, slack) = match anchored(&probe, surface) {
+            Some((_, moved, slack)) => (moved, slack),
+            None => (surface.clone(), T::zero()),
+        };
+        super::incidence_over_span(
+            "pcurve_point_chart_incident",
+            &moved,
+            (T::zero(), T::zero()),
+            |_| geom_core::Point3::origin(),
+            slack,
+            band,
+        )
+    }
+
     pub(super) fn incident<T: Decide>(
         carrier: &Curve3<T>,
         surface: &Surface<T>,

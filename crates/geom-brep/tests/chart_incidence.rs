@@ -1559,3 +1559,108 @@ fn a_stored_chart_edge_on_a_moved_chart_ends_as_its_incidence_read() {
         }
     }
 }
+
+/// **A corner and an edge exactly on a tilted plane, far from its
+/// anchor, are read on it** (D3): `topo`'s planar tier reads a flat
+/// face's corners and edges by the mint's own decider
+/// ([`geom_brep::read_point_incidence`], [`geom_brep::read_incidence`]),
+/// in their own frame and less their rounding, so the tier and the mint
+/// never read one edge two ways. On the plane through the origin with
+/// normal `(0, 0.6, 0.8)`, a point `2ᵏ` m along it and a line through
+/// that point in the plane, `k` up to 30: `f64` reads both on at every
+/// `k`; `Interval`, which charges nothing, reads them on below the
+/// measured `2ᵏ⁰` where its enclosure's width passes the zero band, in
+/// band from there, never off. Moved half a metre off the plane, each is
+/// the definite miss at both lanes.
+#[test]
+fn a_corner_and_an_edge_on_a_tilted_plane_far_from_its_anchor_are_read_on_it() {
+    let e = eps();
+    let n = Vec3::new(0.0, 0.6, 0.8);
+    let plane = Surface::Plane {
+        origin: Point3::origin(),
+        normal: n,
+        u_ref: Vec3::unit_x(),
+    };
+    let lift = Interval::from_f64;
+    let lift_point = |p: Point3<f64>| Point3::new(lift(p.x), lift(p.y), lift(p.z));
+    let reads = |p: Point3<f64>| {
+        let line = Curve3::Line {
+            origin: p,
+            dir: Vec3::unit_x(),
+        };
+        [
+            (
+                "corner, f64",
+                geom_brep::read_point_incidence(p, &plane, band()),
+            ),
+            (
+                "corner, Interval",
+                geom_brep::read_point_incidence(lift_point(p), &plane.map_scalar(lift), band()),
+            ),
+            (
+                "edge, f64",
+                geom_brep::read_incidence(&line, 0.0, 1.0, &plane, band()),
+            ),
+            (
+                "edge, Interval",
+                geom_brep::read_incidence(
+                    &line.map_scalar(lift),
+                    lift(0.0),
+                    lift(1.0),
+                    &plane.map_scalar(lift),
+                    band(),
+                ),
+            ),
+        ]
+    };
+    let k0 = match e {
+        x if x == 1e-9 => Some(24),
+        x if x == 1e-12 => Some(14),
+        x if x == 1e-6 => Some(31),
+        _ => None,
+    };
+    let mut first_in_band = [None; 2];
+    for k in 0..=30 {
+        let p = Point3::origin() + (Vec3::unit_x() + n.cross(Vec3::unit_x())) * 2f64.powi(k);
+        for (i, (what, got)) in reads(p).into_iter().enumerate() {
+            let read = got.as_ref().err().and_then(geom_brep::IncidenceRead::of);
+            if what.ends_with("f64") {
+                assert!(read.is_none(), "{what} 2^{k} m out: read on: {got:?}");
+                continue;
+            }
+            assert!(
+                !read.is_some_and(geom_brep::IncidenceRead::is_definite),
+                "{what} 2^{k} m out: never read off: {got:?}"
+            );
+            let slot = &mut first_in_band[i / 2];
+            match (read, *slot) {
+                (Some(_), None) => *slot = Some(k),
+                (None, Some(from)) => panic!("{what}: on again at 2^{k}, past 2^{from}"),
+                _ => {}
+            }
+        }
+    }
+    if let Some(k0) = k0 {
+        for (i, first) in first_in_band.into_iter().enumerate() {
+            assert_eq!(
+                first.unwrap_or(31),
+                k0,
+                "{} at ε {e:e}: Interval leaves the zero band at 2^{k0}",
+                ["corner", "edge"][i]
+            );
+        }
+    }
+    for k in [0, 20] {
+        let p =
+            Point3::origin() + (Vec3::unit_x() + n.cross(Vec3::unit_x())) * 2f64.powi(k) + n * 0.5;
+        for (what, got) in reads(p) {
+            assert!(
+                got.as_ref()
+                    .err()
+                    .and_then(geom_brep::IncidenceRead::of)
+                    .is_some_and(geom_brep::IncidenceRead::is_definite),
+                "{what} 2^{k} m out, 0.5 m off: the definite miss: {got:?}"
+            );
+        }
+    }
+}
