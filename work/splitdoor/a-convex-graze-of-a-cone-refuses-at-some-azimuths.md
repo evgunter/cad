@@ -2,11 +2,11 @@
 id: a-convex-graze-of-a-cone-refuses-at-some-azimuths
 kind: issue
 title: a plane holding a cone's apex refuses at the apex vertex, grazing or cutting
-status: open
+status: dispatched
 opened: 2026-10-02
 priority: P0
-cost: M
-design: true
+cost: H
+branch: splitdoor/cone-apex
 ---
 
 
@@ -138,3 +138,36 @@ t = 1e-3 refuses per ε (`ConsecutiveOnSectors`, `pn_apex_pair_reach` in band, a
 
 What is open: one coherent reading of a cone apex for the split, across all those readers, and
 where it lives. Weighed by the designer pair before any build.
+
+## Decided (2026-10-28, SPLITDOOR orchestrator, on the designer pair)
+
+Both designers (one Opus, one Fable, the same problem statement, blind to each other) recommended
+the same final state, so the fork does not go to Ev: it changes no ratified decision, and the two
+did not disagree on anything Ev's preference would settle.
+
+- **A face at a vertex is typed.** `sector_face::resolve` answers either a tangent plane (the
+  outward normal, every case today) or a cone apex (the cone's circle of rulings: apex, axis,
+  half-angle, sense), decided once inside `resolve` by the existing apex test
+  (`cone_axis_clearance`, one pooled trilean; the Boolean's private `bool_cone_off_axis` check
+  retires into it). A NaN normal never leaves `resolve`, and every reader must match the apex arm.
+  `normal_along(d)`, the outward normal approached along departing direction `d`, is exact on both
+  arms (a cone's normal is constant along a ruling).
+- **The split's readers take the rulings.** Sector subdivision (`wide_entry`): an apex sector's
+  bounds decide its interior only where the plane's side function along the ruling circle,
+  `s(φ) = n·d(φ)`, is monotone, so the split adds an entry at each extremum of `s` inside the
+  sector's window (0, 1 or 2; a window over π can need two, so `SectorShape` carries up to two),
+  taken from the apex lane's own section rulings so the reduction and the join read one trace.
+  Rule (a): an apex sector is never coplanar; a graze is the extremal ruling reading zero, and the
+  material side follows from the sense at first order (no curvature read at the apex). Rule (b)'s
+  edge wedge reads both faces along the edge's ruling. Insertion (`insert::section_chords`): at the
+  apex a cut's germ is the section ruling inside the cut's sector, not a positive combination of its
+  bounds. The join: an apex crossing is assigned to a ruling by its direction of departure, carried
+  as the germ datum `chord_join` already accepts from the Boolean, never by position.
+  `vertex_section` takes the apex arm explicitly instead of skipping a poisoned gradient.
+- **The Boolean keeps a typed refusal** on the apex arm of the shared reading; its documentation
+  stops calling it a design limit (each ruling has a normal; what is missing is the apex sector
+  pair algebra).
+- Re-priced `M` → `H`: five readers and a shared type move. Review tier: dual
+  (`docs/DUAL-REVIEW-PROTOCOL.md`), a shared type both verbs read, hard to change later.
+- Measure first at half-angles 30° and 60° on main: on one side of 45° the straight rung decides
+  with a NaN bisector, which could ship a wrong side rather than refuse.
