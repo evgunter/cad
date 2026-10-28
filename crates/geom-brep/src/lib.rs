@@ -125,8 +125,8 @@ pub use dihedral_side::{
     chart_normal_at, dihedral_side, regular_jet,
 };
 pub use edge_nurbs::{
-    AnalyticRung3Refusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal,
-    IncidenceRefusal, KERNEL_LIMIT_EXTENT_FACTOR, KERNEL_LIMIT_ROUNDING_FACTOR,
+    AnalyticRung3Refusal, ArcRimRefusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault,
+    CarrierDomainRefusal, KERNEL_LIMIT_EXTENT_FACTOR, KERNEL_LIMIT_ROUNDING_FACTOR,
     PlaneNurbsIncidence, PlaneNurbsLimbs, PlaneNurbsRefusal, Rung3Limb, analytic_edge_limbs,
     analytic_rung3, arc_rim_candidates, arc_rim_measured, first_within, is_analytic,
     nurbs_pair_limbs, pick_arc_rim, plane_nurbs_incidence, plane_nurbs_limbs, probe_pick,
