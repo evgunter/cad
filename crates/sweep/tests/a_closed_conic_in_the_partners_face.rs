@@ -1104,7 +1104,7 @@ fn united_at_the_run(row: &str, r: Result<BooleanResult<f64>, BooleanError>, wan
 /// The unions by ε (default, 1e-6, 1e-12), `A ∪ B` then `B ∪ A`. At
 /// ε 1e-6 `B ∪ A` of the `s = 1e-4` poses meets the volume backstop
 /// within an ulp of `vol(A) + vol(B)`
-/// (`work/splitdoor/a-union-at-its-operands-sum-meets-the-volume-backstop-by-an-ulp.md`).
+/// (`work/measuredoor/a-union-at-its-operands-sum-meets-the-volume-backstop-by-an-ulp.md`).
 #[test]
 fn short_arcs_at_a_crescents_tip() {
     use Tip::{Backstop, Built, Crescent, OnEdge, Pierce, Sectors, Unprofiled};
