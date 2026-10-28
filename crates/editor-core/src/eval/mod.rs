@@ -6066,7 +6066,7 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::Inner => 42,
         S::Rim => 43,
         S::HoleRim => 44,
-        S::Member => 53,
+        S::Member => 57,
         // 40 was a part's entity qualifier's and 51 a placed copy's,
         // retired with them: a copy's names are its source's; 26 was a
         // pattern instance's, retired with the pattern node.

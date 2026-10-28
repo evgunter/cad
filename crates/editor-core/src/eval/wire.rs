@@ -2661,7 +2661,19 @@ fn reads_projected<T: Decide>(
                 .project(index)
                 .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
             let names = super::OutputNames::new(Arc::new(table), Arc::default());
-            replaced.push(projected(family, value, body, names, index)?);
+            let (_, index_at, projected) = projected(family, value, body, names, index)?;
+            // A member carries its own value's carry: the pieces and the
+            // census its copy holds where it stands.
+            let member = value
+                .members
+                .as_ref()
+                .and_then(|members| members.members.get(index as usize))
+                .map(|(_, member)| member.carry.clone());
+            let projected = match member {
+                Some(carry) => super::NodeValue { carry, ..projected },
+                None => projected,
+            };
+            replaced.push((family, index_at, projected));
             continue;
         }
         replaced.extend(split_port(var, doc, results)?);
