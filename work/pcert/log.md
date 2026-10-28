@@ -861,3 +861,10 @@ E1c waits on the answer.
   - E1c is widened to the sphere/cone/torus class arms and the sphere/torus ellipse kind gates;
   - E1d2 seals topo's construction tier.
   Next: E1d2 → E1c → E1e → E2 → E3 → E4.
+- 2026-10-28 — **E1c (`pcert/mints-read-incidence`): every mint arm reads incidence before it images.**
+  - `derive_class` opens the plane, cylinder, cone, sphere and torus arms with the chart's incidence test. The general lane takes the witness (`general_lane(shown, undecided)`). The sphere and torus kind gates send an ellipse not shown off to the general lane.
+  - The spiric's plane cap and torus wall read it too (a sweep hit). `topo::chart_region`'s plane site ends an incidence refusal by the read (`TrimOffFace`).
+  - A carrier off its face ends by E1d's door rule, never `ChartResidual`.
+  - Moves: E1b's `set_edge_curve` and Euler-chord rows now refuse `CarrierOffChart`; `m10_bulge` pins `pcurve_cylinder_chart_incident` 16/4 and `pcurve_line_chart_incident` 18/4.
+  - `sym_thin_strip` `frozen` 168 → 96 at every ε (a work meter; verdicts, decisions and the sym/num split unmoved). Skipping only the plane read restores 168.
+  - Closed `plane-and-cylinder-mints-meter-incidence-as-a-residual`. The cylinder meridian arm's `pcurve_chart_radial_moving` tie-break, which E2 re-reads, now sits behind the read.
