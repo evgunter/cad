@@ -706,6 +706,79 @@ fn a_tie_carried_through_a_later_fold_step_counts_one_parent() {
     }
 }
 
+/// **A union's seam of a tied parent counts that parent's pieces.**
+///
+/// [`fixture::u_cutter_tie`]'s tied prong floors at z = 1, and a block D
+/// standing in one prong's mouth (x ∈ [3.5, 4.5]), so its wall x = 3.5
+/// meets that candidate along one seam: a tied parent's seam, as in
+/// `lib_g14_split_walls`'s
+/// `a_unions_seams_of_a_tied_face_tie_under_the_bare_name`, but with D
+/// in one prong, so neither side of the seam is held as several faces.
+/// A post across the seam parts it in two pieces; lifting the post off
+/// the floor leaves it whole. The union forms the seam's group over its
+/// finished body, keyed by its two parents' member faces, so the tied
+/// parent's count is on record: 2 → 1.
+#[test]
+fn a_unions_seam_of_a_tied_parent_counts_its_pieces() {
+    let (doc, sub) = crate::fixture::u_cutter_tie(ProfileDoc::empty_derived(
+        "group-membership-union-tied-seam",
+        Tol::witness(),
+    ));
+    let (doc, d) = block_on(doc, sub, (3.5, 4.5), (0.75, 1.75), 0.5, 1.0);
+    let (doc, body) = block(doc, (0.0, 0.4), (0.0, 0.1), 0.9);
+    let at = [3.3, 1.2, 0.5];
+    let (doc, placement) = crate::fixture::slid(doc, sub, body, at);
+    let post = Placed {
+        placement,
+        target: sub,
+        body,
+        at,
+    };
+    let (doc, u) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![
+                sub.into(),
+                d.into(),
+                post.placement.into(),
+            ]),
+        },
+    );
+    let ev1 = run(&doc, None);
+    let doc2 = moved(doc.clone(), &post, [0.0, 0.0, 0.6]);
+    let ev2 = silent(run(&doc2, Some(&ev1)));
+    let ev1 = silent(ev1);
+    // The seams on the tied floor, as the union publishes them.
+    let floor = crate::fixture::out(&doc, sub);
+    let on_floor = |side: &StableName| {
+        matches!(side.path.first(), Some(RoleSeg::From { read, .. }) if *read == floor)
+            && ev1
+                .table_at(sub)
+                .and_then(|t| match side.path.first() {
+                    Some(RoleSeg::From { of, .. }) => t.lookup(of),
+                    _ => None,
+                })
+                .is_some_and(|e| matches!(e, Entry::Tied(_)))
+    };
+    let rows = vanished(
+        (&doc2, &ev2),
+        (&doc, &ev1),
+        u,
+        |n, _| matches!(n.path.first(), Some(RoleSeg::Seam { a, b }) if on_floor(a) || on_floor(b)),
+    );
+    assert_eq!(
+        rows.len(),
+        2,
+        "both pieces of the tied floor's seam vanish: {rows:#?}"
+    );
+    for (n, d) in rows {
+        assert!(
+            matches!(d, Diagnosis::GroupResized { node, was: 2, now: 1, .. } if node == u),
+            "{n:?}: {d:?}"
+        );
+    }
+}
+
 /// Wall `segment` of the block `node` extruded (`block`'s profile runs
 /// counter-clockwise from `(x0, y0)`: wall 0 is y = y0, 1 is x = x1, 2
 /// is y = y1, 3 is x = x0).
