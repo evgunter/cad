@@ -20,7 +20,10 @@ the listing is the whole workspace (the nightly's), so every entry is checked
 and a package absent from it is itself a dead entry. `--members` names the
 workspace's packages instead (the per-PR `test` job, whose two shards each
 list part of the scope): an entry whose package is no member is dead, and one
-whose member this listing does not hold is left unchecked.
+whose member this listing does not hold is left unchecked. THE GAP: an entry
+naming a real member whose package has no test binary in EITHER shard's
+listing is unchecked in both, which `--complete` would have failed; no shard
+sees the other's listing, so nothing per-PR closes it.
 
 The listing is the default-feature build both gating `--profile ci` runs over
 the kernel use; a name that exists only under a feature would read as dead
@@ -132,6 +135,14 @@ def selftest() -> int:
         "member another shard lists"
     )
     assert check(pairs, half, complete=False, members={"a"}) == 1, "no such package"
+    # THE GAP: `b` is a member, but no listing holds a `b` binary. Each shard
+    # passes it unchecked; the whole-workspace `--complete` listing fails it.
+    assert check(pairs, half, complete=False, members={"a", "b"}) == 0, (
+        "member with no binary in any listing passes under --members"
+    )
+    assert check(pairs, half, complete=True) == 1, (
+        "the same listing fails it under --complete"
+    )
     try:
         entries(text.replace("test(=m::x)", "test(=m::x )"))
     except SystemExit:
@@ -152,7 +163,12 @@ def main(argv: list[str]) -> int:
             die("--members takes a comma-separated package list")
         members = set(argv[i + 1].split(","))
         argv = argv[:i] + argv[i + 2 :]
-    if set(argv) - {"--complete"} or ("--complete" in argv and members is not None):
+    if "--complete" in argv and members is not None:
+        die(
+            "--complete and --members are mutually exclusive: a complete listing "
+            "needs no member list"
+        )
+    if set(argv) - {"--complete"}:
         die(
             f"unknown arguments {argv}; usage: check-slow-set-names.py "
             "[--complete | --members a,b,...] [--selftest]"

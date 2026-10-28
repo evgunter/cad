@@ -161,6 +161,7 @@ jobs:
           PKGS: ${{ steps.classify.outputs.PKGS }}
           CARGO_SCOPE: ${{ steps.classify.outputs.CARGO_SCOPE }}
           EPS_EXTRA: ${{ steps.classify.outputs.EPS_EXTRA }}
+          RUN_BUILD: ${{ steps.classify.outputs.RUN_BUILD }}
         run: |
           # A row keyed here runs when the diff touches its own subject, and
           # nightly otherwise. TIER=all (an unscopable change) runs every row.
@@ -178,9 +179,9 @@ jobs:
           esac
           # THE TEST SHARDS. The test job's build is the per-PR floor and is
           # throughput-bound on one 4-core runner, so its scope is split in
-          # two and each half builds and runs on its own runner: `app` is
-          # editor-core and the members above it, `kernel` the rest. A half
-          # the scope leaves empty is not run.
+          # two and each half builds and runs on its own runner: `app` is the
+          # roster below (editor-core, the members that depend on it, and
+          # verbs), `kernel` the rest. A half the scope leaves empty is not run.
           app=(verbs editor-core pncad pncad-py viewer)
           kernel=""; apps=""
           if [ "$scope" = --workspace ]; then
@@ -196,6 +197,10 @@ jobs:
           shards=()
           [ -z "$kernel" ] || shards+=("{\"shard\":\"kernel\",\"scope\":\"${kernel# }\"}")
           [ -z "$apps" ] || shards+=("{\"shard\":\"app\",\"scope\":\"${apps# }\"}")
+          if [ "$RUN_BUILD" = true ] && [ ${#shards[@]} -eq 0 ]; then
+            echo "::error::a run that builds has no test shard (scope: '$scope'); the test job would skip and drop every test from the gate"
+            exit 1
+          fi
           {
             flag interval "touched '^interval-transcendentals/'"
             flag python "seeded pncad-py"

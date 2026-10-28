@@ -2,13 +2,12 @@
 id: a-sweep-seeded-diff-runs-the-test-job-past-the-fifteen-minute-bar
 kind: issue
 title: A diff that seeds sweep runs the per-PR test job for over 21 minutes, past the 15-minute bar
-status: closed
+status: open
 opened: 2026-10-11
 refs: [5001, 5011]
 cost: M
 priority: P0
 parent: pr-ci-wall-clock-root-cause-measured
-closed: 2026-10-28
 ---
 
 ## Measured
@@ -139,7 +138,7 @@ directory, in sequence:
 
 Ev took (A): a PR whose diff seeds geom-core, geom, geom-brep or topo gets a 25-min bar, and every other PR keeps 15 min. NURBS merged it at b8c3aa52. Ev also asked for a build-time investigation, which landed #5104 (−335 s median build hosted). `needs_ev` is cleared. What stays open is the deferred split of `test` into two package-group jobs, to be re-measured with the queue included, against nightly 61's `PR CI latency (alarm)` (median 32.6 min, p90 52.1 over 256 PR runs). (CIW orchestrator)
 
-## Closed (2026-10-28)
+## The test split, measured (2026-10-28)
 
 The seeded slow set no longer runs per PR (`demote-unearned-tests`): its
 step's median is 0.02 min over the 146 `test` jobs in the 24 h to
@@ -150,9 +149,14 @@ into two package-group jobs, to be re-measured with the queue included.
 - **The split** (green/latency-test-shards): `test (kernel)` and
   `test (app)` (verbs, editor-core, pncad, pncad-py, viewer) each build
   and run their half of the scope.
-- **Measured on that PR's own TIER=all run** (40718652598): `app` 12.2 min
-  (build 9.7), `kernel` 12.8 (build 9.6). The single-job TIER=all `test`
-  had a median of 27.6 (build 19.9, n=15).
-- A deep-kernel PR's `test` job is therefore under the 15-min bar on the
-  TIER=all scope. The closure tier is measured by the nightly's alarm
-  after merge (`pr-ci-wall-clock-root-cause-measured`).
+- **Measured on that PR's own TIER=all runs**, which include sweep in
+  `kernel`. The single-job TIER=all `test` had a median of 27.6 (build
+  19.9, n=15).
+  - Run 40718652598: `app` 12.2 min (build 9.7), `kernel` 12.8 (build 9.6).
+  - Run 40721475134, the final head: `app` 12.6 (build 10.2), `kernel`
+    **18.8** (build 13.6). Every kernel step ran about 1.5× slower (default
+    ε 1.5 against 0.9, extra ε 3.0 against 1.8), which points to the
+    runner, but it is still over the bar.
+- **Still open.** One run under 15 is not a measurement of the bar. This
+  closes when a sweep-seeding PR's `test (kernel)` measures under 15 min
+  over several runs after #5941 merges.
