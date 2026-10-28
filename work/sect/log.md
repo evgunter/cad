@@ -101,3 +101,9 @@ and moves to the door with the frame's retirement. First dispatches:
   - C5's kind dispatch is spelled in `route`, `route_pose`, `serves` and the value (`the-c5-kind-dispatch-is-spelled-twice`).
 
   Rows filed by the lane: those two, `section-arms-off-the-value-read-radii-unguarded`, and `the-recording-scalar-has-no-ssi-lane` (P3).
+
+- 2026-10-28 — **`torus-certificate-runs-root-free-through-its-quartic` closed** by PR 5886. The torus arms of `implicit_enclosure`, `implicit_gradient_enclosure` and limb 2 use the root-free mean-value form of `g = F/(4rA)`, chosen on the measurement: the quartic as written overran the 200k cell budget, and the factored √ form was about 2× worse on a tilted axis. `sphere_torus_ssi` is retired first: both teapot spheres meet the handle torus in two certified loops in both orders, and `route` answers sphere × torus at rung 3. Teapot wall 2 still stops at the join's germ frame, which is the section object's work.
+  - **Review:** single FULL, APPROVE-WITH-FIXES, one MINOR (executed). The break floor was unsound for `A < 0` on a spindle torus, and was reachable because the door skipped the ring check `route_pose` makes. The fix floors at 0 unless `A > 0`; the ring check now sits at the door and at the edge certificate (`SsiError::DegenerateTorus`). Soundness held under 20k adversarial boxes and 600 carriers, and every too-loose mutation went red.
+  - **Merge:** main was merged over step 1a. Cylinder × sphere keeps its decided pose, and both march through the shared `implicit_pair_r3`.
+  - **Rows filed:** cylinder × torus and torus × torus at rung 3 (P0: the torus germ frame row waits on both); cone × torus and tilted plane × torus (P2); and SPIRICARM's spline-trimmed torus volume lane.
+  - **Class:** a door's contract must equal its route's (the ring check lived in `route_pose` only).
