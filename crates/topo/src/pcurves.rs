@@ -1517,7 +1517,7 @@ fn computed_foot<T: Real>(foot: geom_core::Point2<f64>) -> Point2<T> {
 /// Is `half_edge` the `he_plus` of its edge (so the loop traverses it
 /// forward in the carrier parameter)?
 #[track_caller]
-fn is_plus<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> bool {
+pub(crate) fn is_plus<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> bool {
     edge_record(body, half_edge).1.he_plus == half_edge
 }
 

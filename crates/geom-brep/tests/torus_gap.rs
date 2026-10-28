@@ -263,11 +263,8 @@ fn values_of(t: &Surface<f64>, partner: &Surface<f64>) -> Vec<f64> {
 /// tangent line there, its radius the tube's. Moved off by `δ` in the
 /// second tube's radius (the level `|r₁ − r₂|` stands `δ` from the
 /// cores' least distance, `0`): within the zero band the gap is still
-/// Zero, inside the ambiguity band it escalates, and so it does a few
-/// escalation widths out: where `D` passes the level the cores run
-/// side by side, the offset's component along the core (`(D²)′/2R`, the
-/// slope's own scale) stands far inside the band, and no slope reads.
-/// A millimetre out it is transverse. Mutants: the least-distance reading
+/// Zero, inside the ambiguity band it escalates, a few escalation
+/// widths out it is transverse. Mutants: the least-distance reading
 /// dropped (the touch reads in band, `D` not smooth there), or decided on
 /// `D` alone (every `δ` reads Zero).
 #[test]
@@ -289,8 +286,7 @@ fn the_tube_circle_tangency_decides_zero() {
         (0.0, Some(true)),
         (0.25 * b.zero(), Some(true)),
         (0.5 * (b.zero() + b.escalate()), None),
-        (4.0 * b.escalate(), None),
-        (1e-3, Some(false)),
+        (4.0 * b.escalate(), Some(false)),
     ] {
         for (what, partner) in [("bend", bend(0.5 + delta)), ("pipe", pipe(0.5 + delta))] {
             for (x, y) in [(&first, &partner), (&partner, &first)] {
@@ -347,9 +343,9 @@ fn a_sphere_on_the_core_is_tangent_along_a_circle() {
 /// definitely transverse, never reads tangent. The joint is built on the
 /// first torus's core and checked against the oracle: the review's own
 /// first frame, read literally, stands `4.06e-6` apart (its cores do not
-/// touch), and reads transverse rightly. Mutant: a sign of `G′` decided
-/// on a value divided by `D` near zero (the rounding of `G′`, about
-/// `1e-15` of its scale, past the band once divided by `D ≈ 1e-8`).
+/// touch), and reads transverse rightly. Mutant: a sign of `G′` read
+/// past its rounding (the rounding of `G′`, about `1e-15` of its scale,
+/// past the band once divided by `D ≈ 1e-8`).
 #[test]
 fn a_generic_frame_pipe_joint_reads_no_definite_verdict_in_band() {
     let t = |c: [f64; 3], a: [f64; 3], u: [f64; 3], big: f64, r: f64| Surface::Torus {
@@ -651,8 +647,8 @@ fn square_to(g: &mut fuzz::Rng, n: Vec3<f64>) -> Vec3<f64> {
 /// zero band, across the ambiguity band, a few escalation widths off, or
 /// anywhere. As the first search: a tangent reading has an oracle gap
 /// within the zero band, a transverse one at least the escalation width.
-/// Two tori read alike in either order. Mutant: a sign of `G′` decided
-/// on a value divided by `D` (a joint in the band reads transverse).
+/// Two tori read alike in either order. Mutant: a sign of `G′` read past
+/// its rounding (a joint in the band reads transverse).
 #[test]
 fn no_tube_circle_pose_at_scale_reads_the_wrong_verdict() {
     let mut g = fuzz::start("torus_gap::tube_circles_at_scale");

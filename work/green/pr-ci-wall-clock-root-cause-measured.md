@@ -1,11 +1,11 @@
 ---
 id: pr-ci-wall-clock-root-cause-measured
 kind: issue
-title: PR CI wall-clock rose from 9 to 33 min because the test job's own steps tripled, with TIER=all runs tripling in share, not because of queueing
+title: PR CI's median wall-clock is past the 20-min alarm (23.1 min on nightly 74; Ev's bar is 15): the root cause measured, and the median owed back under the bar
 status: open
 opened: 2026-10-16
-priority: P3
-cost: E
+priority: P0
+cost: M
 ---
 
 

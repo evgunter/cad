@@ -330,9 +330,10 @@ pub use editor_core::{
     NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue,
     PoseValue, SplitSide, StepTurns, ValuePayload, evaluate,
 };
-// The pieces a body holds (`NodeValue::pieces`): what a `⊔` grafted,
-// each by its read, which a pick reads one of.
-pub use editor_core::{Piece, Pieces};
+// What a body value carries from its source (`NodeValue::carry`), and
+// the pieces it holds: what a `⊔` grafted, each by its read, which a
+// pick reads one of.
+pub use editor_core::{Carry, Piece, Pieces};
 
 // Persistence: the doors, verbatim.
 // `save`/`load` speak `ProfileDoc` + `DocEdit` — exactly this module's
@@ -514,7 +515,7 @@ pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update
 // or evaluation); `enforce_checks` is the one refusing path, and the
 // CALLER chooses where to gate on it. Deliberately NOT in the prelude
 // (prelude membership is corpus-measured).
-// `subject_body` resolves a root-output finding's (root, output_ix) attribution
+// `subject_body` resolves a placement-output finding's (placement, output_ix) attribution
 // back to the flagged body and the declarations its producer minted
 // for it, in the same evaluation.
 // `run_checks_on` is the registry over a `Subject` the caller gathered

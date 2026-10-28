@@ -36,3 +36,19 @@ Nothing can reach a spline join until a spline edge crosses a face. Even with th
 ## Moved to SPLICE (2026-10-25)
 
 From HONE. Moved by `git mv` in the chat-approved refold that opened SPLICE (`work/splice/program.md`), the track for a body built by loft or sweep entering every boolean. Re-banded P2 → P0 and UN-PARKED (was `blocked_on: [nurbs-edge-crossing-rung-is-the-ring-composite]`). Its P2 rested on no input reaching it; with the crossing rung on this slate the two are built in order here, and the demo joins (klein wall 3, lily wall 8, teapot wall 3) are its inputs.
+
+## Reached by a cylinder × sphere boolean (2026-10-28, SECT step 1b)
+
+The cylinder × sphere chord lane (`sect/cylinder-sphere-chord`) is a
+producer of spline edges between two faces: each chord is an arc cut
+from the section's fitted loop. Where the op drops the edge a germ site
+sat on, the two chords either side of it meet at a valence-2 vertex on
+one surface pair, and the join refuses there,
+`JoinCarrierUnsupported { carrier: Nurbs, closed: false }`, raised in
+`topo::boolean::edge_join::joined_spec` (the `param_near` arm).
+`crates/sweep/tests/cylinder_sphere_frame.rs` pins 26 of its 54 runs at
+this door (the `Door::Join` rows). The two chords are cut from one
+carrier over abutting intervals (`chord_join::cut_arc`), so their nets
+meet on a shared knot value: the run-on is their concatenation, the
+joint knot at multiplicity the degree, and its parameter foot is the
+far chord's own end parameter.

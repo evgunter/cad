@@ -952,6 +952,37 @@ impl<T: Decide> PairSection<T> {
             lever: self.lever,
         })
     }
+
+    /// **A closed fitted component, opened at the parameter `at`** of
+    /// its carrier, so that no chord cut from it straddles the carrier's
+    /// parameter seam: the carrier is split at `at` (knot insertion to
+    /// full multiplicity), its two pieces are joined the other way round
+    /// (the piece after `at` first, the piece before it shifted by the
+    /// carrier's period), and the joined carrier is certified again
+    /// against the pose's operands through `lane`, since the shifted
+    /// knots are rounded. The seated carrier runs from `at`'s point
+    /// round to it. A component that is open, or whose carrier is a
+    /// closed form, is returned as it is: a closed form's parameter is an
+    /// angle, which a chord reads on any branch.
+    ///
+    /// # Errors
+    ///
+    /// [`CarryError::NoLane`] off the march's scalar,
+    /// [`CarryError::Seat`] where the knot edit refuses, and the
+    /// certificate's refusal as [`CarryError::March`].
+    pub fn seat(
+        &self,
+        lane: Option<SsiLane<T>>,
+        component: &CarriedComponent<T>,
+        at: T,
+        band: Band,
+    ) -> Result<CarriedComponent<T>, CarryError> {
+        if !component.closed || component.certificate.is_none() {
+            return Ok(component.clone());
+        }
+        let lane = lane.ok_or(CarryError::NoLane { scalar: T::NAME })?;
+        (lane.seat)(&self.pose, component, at, band)
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -981,7 +1012,14 @@ pub struct FittedCarrier<T: Real> {
 pub struct SsiLane<T: Real> {
     /// One march of a decided pose.
     march: fn(&PairPose<T>, Band) -> Marched<T>,
+    /// One closed fitted component seated at a parameter, re-certified
+    /// against the pose's operands ([`PairSection::seat`]).
+    seat: fn(&PairPose<T>, &CarriedComponent<T>, T, Band) -> Seated<T>,
 }
+
+/// What one seating answers: the component opened at the parameter
+/// ([`PairSection::seat`]).
+pub type Seated<T> = Result<CarriedComponent<T>, CarryError>;
 
 /// What one march of a pose answers: its fitted branches.
 type Marched<T> = Result<Vec<FittedCarrier<T>>, SsiError>;
@@ -992,6 +1030,7 @@ impl SsiLane<f64> {
     pub fn marched() -> Self {
         Self {
             march: march_over_the_sphere,
+            seat: seat_at,
         }
     }
 }
@@ -1039,6 +1078,137 @@ fn march_over_the_sphere(
         .collect())
 }
 
+/// **[`PairSection::seat`] at `f64`.** `at` at either end of the
+/// carrier's domain is a seat already: the carrier starts there.
+fn seat_at(
+    pose: &PairPose<f64>,
+    component: &CarriedComponent<f64>,
+    at: f64,
+    band: Band,
+) -> Result<CarriedComponent<f64>, CarryError> {
+    let Curve3::Nurbs(net) = &component.carrier else {
+        return Err(CarryError::Desync(
+            "a fitted component's carrier is not a spline",
+        ));
+    };
+    let (lo, hi) = net.domain();
+    if at <= lo || at >= hi {
+        return Ok(component.clone());
+    }
+    // A seat so near the carrier's start (its end, the same point) that
+    // the piece before it has no knot room of its own is the start
+    // already, where it is decided within the band of it
+    // ([`at_the_start`]); one decided past the band is a knot edit that
+    // refused, and one undecided escalates.
+    let seated = match net
+        .split_at(at)
+        .and_then(|(before, after)| rotated(&after, &before, hi - lo))
+    {
+        Ok(seated) => seated,
+        Err(e) => {
+            let ends = [net.eval(lo), net.eval(hi)];
+            return match at_the_start(net.eval(at), ends, band) {
+                Ok(true) => Ok(component.clone()),
+                Ok(false) => Err(CarryError::Seat(e)),
+                Err(diag) => Err(CarryError::Site(SiteRefusal::Escalated(diag))),
+            };
+        }
+    };
+    // The feature extent the march read: the sphere's diameter.
+    let ((a, b), extent) = match pose {
+        PairPose::CylinderSphere(p) => (p.operands(), p.big_r * 2.0),
+        PairPose::SphereTorus(p) => (p.operands(), p.ball().1 * 2.0),
+        PairPose::CylinderTorus(_) | PairPose::TorusTorus(_) => {
+            return Err(CarryError::Desync(
+                "a fitted component on a pose with no sphere, which no door marches",
+            ));
+        }
+    };
+    let certificate = crate::ssi::certify_rung3(
+        &seated,
+        None,
+        &crate::ssi::SsiOperand::Analytic(a),
+        &crate::ssi::SsiOperand::Analytic(b),
+        extent,
+        band,
+    )
+    .map_err(CarryError::March)?;
+    let span = seated.domain();
+    Ok(CarriedComponent {
+        carrier: Curve3::Nurbs(std::sync::Arc::new(seated)),
+        span,
+        closed: true,
+        certificate: Some(certificate),
+    })
+}
+
+/// **Whether the seat `p` is the loop's start**, one of `ends` (the
+/// start and the end, one point), decided within the band of it
+/// (**`ssi_seat_at_the_start`**): `true` where it is decided at one,
+/// `false` where it is decided off both, and the escalation where either
+/// reading is undecided, which the seat refuses rather than keep the
+/// loop at its old seat.
+fn at_the_start(p: Point3<f64>, ends: [Point3<f64>; 2], band: Band) -> Result<bool, Indeterminate> {
+    let mut near = false;
+    for end in ends {
+        let read = geom_core::k_stats::decide_reported(
+            "ssi_seat_at_the_start",
+            Margin::norm3(p - end),
+            band,
+        )?;
+        near |= read.sign == Sign::Zero;
+    }
+    Ok(near)
+}
+
+/// **`first` followed by `second` shifted by `period`**: two clamped
+/// pieces of one closed carrier, `first` ending where `second` starts
+/// (the carrier's own start and end, one point). The join keeps
+/// `first`'s last control point and drops `second`'s first, its knot
+/// at the join of multiplicity the degree, and scales `second`'s weights
+/// to meet `first`'s there, so the joined carrier is continuous.
+fn rotated(
+    first: &geom::NurbsCurve3<f64>,
+    second: &geom::NurbsCurve3<f64>,
+    period: f64,
+) -> Result<geom::NurbsCurve3<f64>, geom_core::spline::KnotAlgebraError> {
+    use core::num::NonZeroUsize;
+    use geom_core::spline::{KnotAlgebraError, Knots};
+    let p = first.degree();
+    let runs =
+        |c: &geom::NurbsCurve3<f64>| -> Vec<(f64, usize)> { c.knot_values().runs().collect() };
+    let (r1, r2) = (runs(first), runs(second));
+    let mut joined: Vec<(f64, NonZeroUsize)> = Vec::with_capacity(r1.len() + r2.len());
+    let mut push = |v: f64, m: usize| {
+        if let Some(m) = NonZeroUsize::new(m) {
+            joined.push((v, m));
+        }
+    };
+    let last = r1.len() - 1;
+    for &(v, m) in &r1[..last] {
+        push(v, m);
+    }
+    push(r1[last].0, p);
+    for &(v, m) in &r2[1..] {
+        push(v + period, m);
+    }
+    let knots = Knots::new(joined, p).map_err(KnotAlgebraError::Structure)?;
+    let (w1, w2) = (first.weights(), second.weights());
+    let scale = w1[w1.len() - 1] / w2[0];
+    let control: Vec<Point3<f64>> = first
+        .control()
+        .iter()
+        .chain(&second.control()[1..])
+        .copied()
+        .collect();
+    let weights: Vec<f64> = w1
+        .iter()
+        .copied()
+        .chain(w2[1..].iter().map(|w| w * scale))
+        .collect();
+    geom::NurbsCurve3::new(knots, control, weights).map_err(KnotAlgebraError::Structure)
+}
+
 /// **Why a section was not carried.**
 #[derive(Clone, Debug)]
 pub enum CarryError {
@@ -1057,6 +1227,9 @@ pub enum CarryError {
     Site(SiteRefusal),
     /// The march and the classification disagree.
     Desync(&'static str),
+    /// A closed fitted component could not be opened at its first site
+    /// ([`PairSection::seat`]): the knot edit refused.
+    Seat(geom_core::spline::KnotAlgebraError),
 }
 
 /// One component of a carried section.
@@ -1151,7 +1324,7 @@ impl<T: Decide> CarriedSection<T> {
 
 #[cfg(test)]
 mod wiring {
-    use super::{SsiLane, march_over_the_sphere};
+    use super::{SsiLane, march_over_the_sphere, seat_at};
 
     /// `Ok(())` when the lane holds its march; otherwise the field that
     /// does not.
@@ -1162,7 +1335,35 @@ mod wiring {
         ) {
             return Err("march is not `march_over_the_sphere`");
         }
+        if !std::ptr::fn_addr_eq(SsiLane::marched().seat, seat_at as fn(_, _, _, _) -> _) {
+            return Err("seat is not `seat_at`");
+        }
         Ok(())
+    }
+
+    /// **An undecided nearness to the start refuses**: a seat one band
+    /// from the loop's start, between the band's zero and its escalation
+    /// edges, escalates rather than read as the start; one well inside
+    /// the band is the start, and one far past it is not.
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn a_seat_undecided_at_the_start_escalates() {
+        use geom_core::{Band, Point3, Tol};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let start = Point3::new(0.3, -0.2, 0.1);
+        let ends = [start, start];
+        let at = |d: f64| super::at_the_start(Point3::new(0.3 + d, -0.2, 0.1), ends, band);
+        assert_eq!(
+            at(0.1 * band.zero()),
+            Ok(true),
+            "inside the band: the start"
+        );
+        assert_eq!(at(1e-3), Ok(false), "far past the band: not the start");
+        assert!(
+            at(3.0 * band.zero()).is_err(),
+            "between the band's edges: an escalation, never the start: {:?}",
+            at(3.0 * band.zero())
+        );
     }
 
     #[test]

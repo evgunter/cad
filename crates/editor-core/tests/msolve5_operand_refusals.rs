@@ -20,6 +20,7 @@
 #![allow(clippy::panic)]
 
 use crate::fixture;
+use editor_core::Dimension;
 
 use editor_core::{
     CapEnd, Coord, DocumentId, EntityKind, Entry, EvalOptions, Evaluation, Formula, MateFault,
@@ -27,7 +28,7 @@ use editor_core::{
     ProductError, ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, StableName, TargetAxis,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{ang, insert, len, on_frame, run, scl};
+use fixture::{insert, len, on_frame, run, scl};
 use geom_core::Tol;
 
 // ---- the scene ----
@@ -153,7 +154,7 @@ fn seat(
         &[
             (Coord::Slide(TargetAxis::X), len(1.0)),
             (Coord::Slide(TargetAxis::Y), len(1.0)),
-            (Coord::SPIN, ang(0.0)),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     )
 }
@@ -192,7 +193,7 @@ fn assert_refused_at_the_block(doc: &ProfileDoc, ev: &Evaluation<f64>, top: Reci
         matches!(
             &err,
             e
-                if matches!(*e, ProductError::Root(NodeStanding::Poisoned { through, .. }) if through == top)
+                if matches!(*e, ProductError::Read(NodeStanding::Poisoned { through, .. }) if through == top)
         ),
         "{err:?}"
     );
@@ -377,7 +378,7 @@ fn a_poisoned_operand_never_reaches_the_gate() {
         matches!(
             &err,
             e
-                if matches!(*e, ProductError::Root(NodeStanding::Poisoned { through, .. }) if through == top)
+                if matches!(*e, ProductError::Read(NodeStanding::Poisoned { through, .. }) if through == top)
         ),
         "the gather refuses at the failed placement before any reference is read: {err:?}"
     );

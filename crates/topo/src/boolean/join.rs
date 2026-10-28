@@ -204,6 +204,11 @@ pub struct CompletedPolygonPair {
 enum GermLane<T: geom_core::Real> {
     /// Plane × plane: the chord runs along the two planes' common line.
     Planar,
+    /// A pair whose section the operation's section table carries: each
+    /// side's chord is an arc of a component of the carried section,
+    /// given there: the one the germ's branch names
+    /// (`chord_join::JoinLane::Carried`).
+    Carried(usize),
     /// A planar, B a wall: B's chords lie in A's plane.
     PlaneWall((Point3<T>, UnitVec3<T>)),
     /// A a wall, B planar: A's chords lie in B's plane.
@@ -234,12 +239,13 @@ enum GermLane<T: geom_core::Real> {
 impl<T: geom_core::Real> GermLane<T> {
     /// How each side's ring-lane island closes, A's then B's: a planar
     /// germ face on its own plane, a wall along the section its chords
-    /// lie in, and the edge's own side of an [`Self::EdgePlane`] as
+    /// lie in, a carried chord's face by the chord, and the edge's own side of an [`Self::EdgePlane`] as
     /// along its edge, since its chord copies the edge and reads no
     /// section.
     fn ring_closures(self) -> (RingClosure<T>, RingClosure<T>) {
         match self {
             Self::Planar => (RingClosure::Planar, RingClosure::Planar),
+            Self::Carried(_) => (RingClosure::Chord, RingClosure::Chord),
             Self::PlaneWall(plane) => (RingClosure::Planar, RingClosure::Wall(plane)),
             Self::WallPlane(plane) => (RingClosure::Wall(plane), RingClosure::Planar),
             Self::Radical(plane) | Self::Rulings(plane) | Self::Bisector(plane) => {
@@ -327,11 +333,15 @@ fn face_surface<T: geom_core::Real>(
 /// key, A's first, the pair's kind arm ([`segment_arm`]), which a
 /// segment along an edge of both solids takes none of, and, for a
 /// segment whose two ends are one record, the germ's own loop of the
-/// pair's section ([`germ_section_frame`]).
+/// pair's section ([`germ_section_frame`]). A segment inside a face of
+/// each operand on a pair the operation's section table carries on a
+/// fitted component takes no kind arm: `carried` names that component,
+/// the one its germ's branch names, which its chords are arcs of.
 struct SegmentPair<T: geom_core::Real> {
     a: (crate::geometry::SurfaceKey, geom::Surface<T>),
     b: (crate::geometry::SurfaceKey, geom::Surface<T>),
     arm: Option<KindArm>,
+    carried: Option<usize>,
     site_loop: Option<SectionLoop<T>>,
 }
 
@@ -348,12 +358,26 @@ impl<T: Decide> SegmentPair<T> {
             owned(face_surface(&red.a, germ.a_face)?),
             owned(face_surface(&red.b, germ.b_face)?),
         );
-        let arm = match seg.lane {
+        // A closed-form component (the coaxial pair's circles) is a
+        // coincidence the section door decided, which the join does not
+        // build until the door records it: only a fitted component is
+        // carried.
+        let carried = match seg.lane {
             SegmentLane::AlongEdge => None,
-            SegmentLane::Section => Some(segment_arm(red, germ, (&a.1, &b.1), band)?),
+            SegmentLane::Section => match germ_section(red, germ)? {
+                Some(section) => {
+                    let k = branch_component(germ.branch, section)?;
+                    section.components()[k].certificate.is_some().then_some(k)
+                }
+                None => None,
+            },
+        };
+        let arm = match (seg.lane, carried) {
+            (SegmentLane::AlongEdge, _) | (SegmentLane::Section, Some(_)) => None,
+            (SegmentLane::Section, None) => Some(segment_arm(red, germ, (&a.1, &b.1), band)?),
         };
         let [(entry, _), (cand, _)] = seg.ends;
-        let site_loop = if entry == cand {
+        let site_loop = if entry == cand && carried.is_none() {
             Some(
                 germ_section_frame(red, germ, band)?.ok_or(BooleanError::JoinDesync {
                     what: "a one-site section loop has no conic frame",
@@ -366,8 +390,24 @@ impl<T: Decide> SegmentPair<T> {
             a,
             b,
             arm,
+            carried,
             site_loop,
         })
+    }
+}
+
+/// The index of the component of `section` a germ's `branch` names: the
+/// only one, or the first or second of two.
+fn branch_component<T: Decide>(
+    branch: super::Branch,
+    section: &geom_brep::CarriedSection<T>,
+) -> Result<usize, BooleanError> {
+    match (branch, section.components().len()) {
+        (super::Branch::Only, 1) | (super::Branch::Positive, 2) => Ok(0),
+        (super::Branch::Negative, 2) => Ok(1),
+        _ => Err(BooleanError::JoinDesync {
+            what: "a germ's branch does not name a component of its section",
+        }),
     }
 }
 
@@ -447,6 +487,9 @@ enum RingClosure<T: geom_core::Real> {
     /// plane, on the face's chart; a sphere's, a cone's or a torus's by
     /// the segment's curve.
     Wall((Point3<T>, UnitVec3<T>)),
+    /// A cylinder or sphere face, closed by the segment's curve, a
+    /// carried chord ([`GermLane::Carried`]).
+    Chord,
     /// A segment along an edge of this solid (the named operand), of
     /// both solids or of this one alone, reads no section on this side:
     /// a planar face's island closes on its own plane, and a curved
@@ -469,6 +512,11 @@ enum IslandClosing<'a, T: geom_core::Real> {
     /// an arc of a plane section or a cone's ruling
     /// ([`crate::chord_join::path_island_winding`]).
     Quadric(&'a SegmentCurve<T>),
+    /// A cylinder or sphere face closed by a carried chord, whose run may
+    /// hold earlier carried chords: closed by the chord's arc with its
+    /// evidence of lying on the face
+    /// ([`crate::chord_join::path_island_winding_closed_by`]).
+    Carried(&'a SegmentCurve<T>),
 }
 
 /// Per-solid joining state: the shared chord core plus the F9 side
@@ -604,6 +652,31 @@ impl SolidJoin {
         };
         let curve = self.curve(body, plan, lane, leave)?;
         if let Some(k) = partner {
+            self.aux.insert(datum, k);
+        }
+        Ok(curve)
+    }
+
+    /// The curve of a segment whose chords are arcs of `component`, a
+    /// component of the germ pair's carried section, through
+    /// [`JoinLane::Carried`]: the partner face's surface `partner` copied
+    /// into this body once per `datum` ([`Self::aux`]).
+    fn carried_curve<T: Decide>(
+        &mut self,
+        body: &mut Body<T>,
+        plan: &JoinPlan,
+        ((component, lever), partner): ((&geom_brep::CarriedComponent<T>, T), geom::Surface<T>),
+        datum: AuxDatum,
+        leave: Leave<T>,
+    ) -> Result<SegmentCurve<T>, BooleanError> {
+        let mut ctx = crate::chord_join::CarriedCtx {
+            component: component.clone(),
+            partner,
+            partner_key: self.aux.get(&datum).copied(),
+            lever,
+        };
+        let curve = self.curve(body, plan, JoinLane::Carried(&mut ctx), leave)?;
+        if let Some(k) = ctx.partner_key {
             self.aux.insert(datum, k);
         }
         Ok(curve)
@@ -1248,6 +1321,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
     // The bisector lane's planes, read once per wall pair before any
     // surgery, so every segment on one branch rides one plane.
     let bisectors = bisector_planes(red, &segments, &pairs, band)?;
+    let seats = carried_seats(red, &open_records(red)?, &segments, &pairs, band)?;
     let mut sa = SolidJoin::new(red, Operand::A, band);
     let mut sb = SolidJoin::new(red, Operand::B, band);
     let mut completed: Vec<UnresolvedPair> = Vec::new();
@@ -1280,7 +1354,10 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         a_loose.remove(ra);
         b_loose.remove(eb);
         b_loose.remove(rb);
-        // Curved germ pairs: each solid's chord lane comes
+        // Curved germ pairs: a pair whose section the operation's
+        // section table carries (cylinder × sphere) cuts both sides'
+        // chords from one carried component, whatever the kinds. Every
+        // other pair's chord lane comes
         // from the germ FACE PAIR — plane×plane takes the straight-chord
         // lane with the partner's plane as its section; plane×cylinder,
         // plane×sphere (M5 S13) and plane×cone mint the C5 section conic
@@ -1298,6 +1375,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             a: (ka, ga),
             b: (kb, gb),
             arm,
+            carried,
             site_loop,
         } = pair;
         // The germ faces' SURFACES, deliberately unoriented (S10): what
@@ -1360,9 +1438,8 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         // two halves is the one the segment's locus on that solid names.
         let (seg_a, seg_b) = (germ.a_locus.edge(), germ.b_locus.edge());
         use geom::Surface as Sf;
-        // No wired join arm for this germ pair (cyl×sphere's rung-3
-        // fitted chords off any edge, a coaxial cylinder pair, which the
-        // section door owns, plane×NURBS behind PR 7b): typed, citing
+        // No wired join arm for this germ pair (a coaxial cylinder pair,
+        // which the section door owns, plane×NURBS behind PR 7b): typed, citing
         // the face that holds the segment's entry half now (an earlier
         // segment's `mef` may have divided the germ's recorded face) and
         // that face's kind.
@@ -1420,7 +1497,9 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 plane: (center, germ_normal(germ_reach(&red.a)?, center, axis)?),
             })
         };
-        let lane = if let Some(arm) = arm {
+        let lane = if let Some(k) = carried {
+            Some(GermLane::Carried(k))
+        } else if let Some(arm) = arm {
             let plane_of = |s: &geom::Surface<T>| match *s {
                 Sf::Plane { origin, normal, .. } => {
                     Ok((origin, germ_normal(germ_reach(&red.a)?, origin, normal)?))
@@ -1582,6 +1661,32 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 sa.curve(&mut red.a, &plan_a, JoinLane::Planar, leave_a)?,
                 sb.curve(&mut red.b, &plan_b, JoinLane::Planar, leave_b)?,
             ),
+            // Both sides' chords are arcs of one carried component, seated
+            // at its seat site ([`carried_seats`]).
+            Some(GermLane::Carried(k)) => {
+                let at = seats
+                    .get(&(ka, kb, k))
+                    .copied()
+                    .ok_or(desync("a carried segment's component has no seat"))?;
+                let (component, lever) = carried_component(red, &germ, k, at)?;
+                let component = (&component, lever);
+                (
+                    sa.carried_curve(
+                        &mut red.a,
+                        &plan_a,
+                        (component, gb.clone()),
+                        AuxDatum::Partner(germ.b_face),
+                        leave_a,
+                    )?,
+                    sb.carried_curve(
+                        &mut red.b,
+                        &plan_b,
+                        (component, ga.clone()),
+                        AuxDatum::Partner(germ.a_face),
+                        leave_b,
+                    )?,
+                )
+            }
             Some(GermLane::PlaneWall(plane)) => (
                 sa.bool_planar_curve(
                     &mut red.a,
@@ -3406,6 +3511,94 @@ fn germ_section<'r, T: Decide>(
     }
 }
 
+/// **Each carried component's seat**, by the pair's surfaces and the
+/// component: the least foot parameter of any site on it, every site
+/// being an end of a segment (the matcher consumes every germ). A
+/// function of the section and its sites alone, so the component is
+/// opened at the same site whatever order the segments are joined in.
+///
+/// # Errors
+///
+/// [`section_unbuilt`] and the site's reading ([`site_refusal`]); a
+/// desync where a carried segment's germ pair holds no section, or an
+/// end of it lies on another component than its germ's branch names.
+fn carried_seats<T: Decide>(
+    red: &BooleanReduction<T>,
+    open: &[OpenRecord<T>],
+    segments: &[SectionSegment<T>],
+    pairs: &[SegmentPair<T>],
+    band: Band,
+) -> Result<
+    BTreeMap<
+        (
+            crate::geometry::SurfaceKey,
+            crate::geometry::SurfaceKey,
+            usize,
+        ),
+        T,
+    >,
+    BooleanError,
+> {
+    let desync = |what| BooleanError::JoinDesync { what };
+    let mut seats = BTreeMap::new();
+    for (seg, pair) in segments.iter().zip(pairs) {
+        let Some(k) = pair.carried else {
+            continue;
+        };
+        let section = germ_section(red, &seg.germ)?.ok_or_else(unheld_section)?;
+        for (r, slot) in seg.ends {
+            let site = red
+                .a
+                .half_edge_start_point(open[r].a[slot].0.he)
+                .ok_or(desync("germ site has no point"))?;
+            let foot = section.foot(site, band).map_err(site_refusal)?;
+            if foot.component != k {
+                return Err(desync(
+                    "a carried segment's site lies on another component than its germ's branch \
+                     names",
+                ));
+            }
+            seats
+                .entry((pair.a.0, pair.b.0, k))
+                .and_modify(|t: &mut T| *t = t.min(foot.t))
+                .or_insert(foot.t);
+        }
+    }
+    Ok(seats)
+}
+
+/// A carried segment whose germ pair the section table holds no section
+/// for: the dispatch read one ([`SegmentPair::read`]), so a desync.
+fn unheld_section() -> BooleanError {
+    BooleanError::JoinDesync {
+        what: "a carried segment's germ pair holds no section",
+    }
+}
+
+/// **Component `k` of `germ`'s carried section, seated** at its seat
+/// parameter `at` ([`carried_seats`],
+/// [`super::section_table::SectionTable::seated`]), and the section's
+/// scale.
+///
+/// # Errors
+///
+/// [`section_unbuilt`] for a section that did not carry or a component
+/// that did not seat; a desync where the germ's pair holds no section.
+fn carried_component<T: Decide>(
+    red: &BooleanReduction<T>,
+    germ: &HalfGerm<T>,
+    k: usize,
+    at: T,
+) -> Result<(geom_brep::CarriedComponent<T>, T), BooleanError> {
+    let section = germ_section(red, germ)?.ok_or_else(unheld_section)?;
+    let faces = ((&red.a, germ.a_face), (&red.b, germ.b_face));
+    match red.sections.seated(faces.0, faces.1, k, at) {
+        None => Err(unheld_section()),
+        Some(Ok(component)) => Ok((component.clone(), section.lever())),
+        Some(Err(why)) => Err(faces_section_unbuilt(why, faces.0, faces.1)),
+    }
+}
+
 /// The Boolean's refusal of a germ pair's section, the pair being A's
 /// face and B's with their kinds: an escalation refuses as the decision
 /// it carries, a desync between the march, the classification and a
@@ -3446,6 +3639,10 @@ pub(super) fn section_unbuilt(
             unbuilt(SectionUnbuilt::NoLane { scalar })
         }
         Uncarried::Carry(CarryError::March(e)) => unbuilt(SectionUnbuilt::March(e.clone())),
+        Uncarried::Carry(CarryError::Seat(e)) => unbuilt(SectionUnbuilt::Seat(e.clone())),
+        Uncarried::Component => BooleanError::JoinDesync {
+            what: "a germ's branch names a component its carried section does not have",
+        },
         Uncarried::Carry(
             CarryError::Site(SiteRefusal::Desync(what)) | CarryError::Desync(what),
         ) => BooleanError::JoinDesync { what },
@@ -4372,15 +4569,9 @@ fn along_facing<T: Decide>(
     let desync = |what| BooleanError::JoinDesync { what };
     let read = |germ: &HalfGerm<T>, p| -> Result<GermFoot<T>, FootRefusal> {
         let foot = section.foot(p, band).map_err(FootRefusal::Site)?;
-        let named = match (germ.branch, section.components().len()) {
-            (super::Branch::Only, 1) | (super::Branch::Positive, 2) => 0,
-            (super::Branch::Negative, 2) => 1,
-            _ => {
-                return Err(FootRefusal::Desync(
-                    "a germ's branch does not name a component of its section",
-                ));
-            }
-        };
+        let named = branch_component(germ.branch, section).map_err(|_| {
+            FootRefusal::Desync("a germ's branch does not name a component of its section")
+        })?;
         if foot.component != named {
             return Err(FootRefusal::Desync(
                 "a germ's site lies on another component of its section than its branch names",
@@ -4606,20 +4797,36 @@ fn choose_roles<T: crate::props::AtRestPolicy>(
     }
     // Ring lane: decided by the run's winding. A planar, sphere, cone or
     // torus face's run is closed by the segment's curve, so it waits on
-    // that curve ([`RoleLane::resolve`]); a cylinder face's closes along its section
-    // plane on its chart, decided here, before the curve is computed in
-    // the order it decides. An along-edge segment reads no section: a
-    // curved face there refuses typed, before any chord is computed.
+    // that curve ([`RoleLane::resolve`]), and so does a carried chord's
+    // cylinder or sphere face; a cylinder face's on a planar section
+    // closes along its section plane on its chart, decided here, before
+    // the curve is computed in the order it decides. An along-edge
+    // segment reads no section: a curved face there refuses typed,
+    // before any chord is computed.
     enum RingFace<T: geom_core::Real> {
         Plane(Vec3<T>),
         Wall((Point3<T>, UnitVec3<T>)),
         Quadric,
+        Carried,
     }
     let surface = || face_surface(body, face).map(|(_, s)| s);
     let ring = match closure {
         RingClosure::Wall(section) => match crate::ring_path::Quadric::of(surface()?) {
+            Some(crate::ring_path::Quadric::Cylinder { .. }) | None => RingFace::Wall(section),
             Some(_) => RingFace::Quadric,
-            None => RingFace::Wall(section),
+        },
+        RingClosure::Chord => match crate::ring_path::Quadric::of(surface()?) {
+            Some(
+                crate::ring_path::Quadric::Cylinder { .. }
+                | crate::ring_path::Quadric::Sphere { .. },
+            ) => RingFace::Carried,
+            _ => {
+                return Err(BooleanError::CurvedBooleanUnsupported {
+                    operand,
+                    face,
+                    kind: surface()?.kind(),
+                });
+            }
         },
         RingClosure::Planar => RingFace::Plane(
             face_outward_normal(body, face)
@@ -4675,6 +4882,7 @@ fn choose_roles<T: crate::props::AtRestPolicy>(
     match ring {
         RingFace::Plane(normal) => Ok(RoleLane::Ring { face, normal }),
         RingFace::Quadric => Ok(RoleLane::QuadricRing { face }),
+        RingFace::Carried => Ok(RoleLane::CarriedRing { face }),
         RingFace::Wall(section) => {
             let ccw = ring_run_ccw(
                 (body, operand),
@@ -4700,6 +4908,8 @@ enum RoleLane<T: geom_core::Real> {
     Ring { face: FaceKey, normal: Vec3<T> },
     /// A ring of the sphere, cone or torus `face`.
     QuadricRing { face: FaceKey },
+    /// A ring of the cylinder or sphere `face` a carried chord closes.
+    CarriedRing { face: FaceKey },
 }
 
 impl<T: crate::props::AtRestPolicy> RoleLane<T> {
@@ -4709,7 +4919,9 @@ impl<T: crate::props::AtRestPolicy> RoleLane<T> {
     fn curve_order(&self, given: (HalfEdgeKey, HalfEdgeKey)) -> (HalfEdgeKey, HalfEdgeKey) {
         match *self {
             RoleLane::Decided(order) => order,
-            RoleLane::Ring { .. } | RoleLane::QuadricRing { .. } => given,
+            RoleLane::Ring { .. } | RoleLane::QuadricRing { .. } | RoleLane::CarriedRing { .. } => {
+                given
+            }
         }
     }
 
@@ -4734,6 +4946,7 @@ impl<T: crate::props::AtRestPolicy> RoleLane<T> {
         let (face, closing) = match self {
             RoleLane::Ring { face, normal } => (face, IslandClosing::Planar(normal, curve)),
             RoleLane::QuadricRing { face } => (face, IslandClosing::Quadric(curve)),
+            RoleLane::CarriedRing { face } => (face, IslandClosing::Carried(curve)),
             RoleLane::Decided(_) => return Ok(self.curve_order((ea, ra))),
         };
         let ccw = ring_run_ccw((body, operand), face, (ea, ra), closing, band)?;
@@ -4780,11 +4993,14 @@ fn ring_order<T: Decide>(
 /// traversal carries the other sign. `Indeterminate` escalates. Zero is
 /// a degenerate area-free run and a loud desync (the ring lane only
 /// closes full island cycles — slit-growing joins are mekr-lane
-/// merges). A spline run edge, which no closing winds, refuses first,
-/// whatever the face ([`BooleanError::EdgeCarrierUnsupported`], naming
-/// `operand`'s edge and `face`). A run the sum does not wind otherwise
+/// merges). A spline run edge refuses first
+/// ([`BooleanError::EdgeCarrierUnsupported`], naming `operand`'s edge
+/// and `face`) on every closing but a carried chord's, whose path reads
+/// one where it is certified on the face
+/// ([`crate::ring_path::SplineArc`]). A run the sum does not wind otherwise
 /// refuses by the reason it names ([`crate::loop_winding::Unwound`]): a
-/// spline closing curve, which no section lane mints, loudly; a spiric
+/// spline closing curve on a plane, which no section lane mints there,
+/// loudly; a spiric
 /// at a scalar that does not certify, typed
 /// ([`SplitJoinError::RingIslandUnread`]).
 ///
@@ -4792,7 +5008,9 @@ fn ring_order<T: Decide>(
 /// own chart, [`crate::chord_join::chart_island_winding`], with the run
 /// closed along the plane this solid's chords lie in; a sphere, cone or
 /// torus face ([`IslandClosing::Quadric`]) asks it without a chart,
-/// [`crate::chord_join::path_island_winding`], closed by the curve.
+/// [`crate::chord_join::path_island_winding`], closed by the curve, and
+/// a carried chord's cylinder or sphere face
+/// ([`IslandClosing::Carried`]) the same, closed by the chord's arc.
 fn ring_run_ccw<T: crate::props::AtRestPolicy>(
     (body, operand): (&Body<T>, Operand),
     face: FaceKey,
@@ -4801,7 +5019,9 @@ fn ring_run_ccw<T: crate::props::AtRestPolicy>(
     band: Band,
 ) -> Result<bool, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    if let Some(edge) = run_spline_edge(body, (h1, h2))? {
+    if !matches!(closing, IslandClosing::Carried(_))
+        && let Some(edge) = run_spline_edge(body, (h1, h2))?
+    {
         return Err(BooleanError::EdgeCarrierUnsupported {
             operand,
             edge,
@@ -4827,6 +5047,17 @@ fn ring_run_ccw<T: crate::props::AtRestPolicy>(
             )?;
             return ring_winding_order(wound);
         }
+        IslandClosing::Carried(curve) => {
+            let closing = curve.run_closing(h1, face)?;
+            let wound = crate::chord_join::path_island_winding_closed_by(
+                body,
+                face,
+                (h1, h2),
+                (closing.as_ref(), curve.carried_arc()),
+                band,
+            )?;
+            return ring_winding_order(wound);
+        }
         IslandClosing::Planar(normal, curve) => (normal, curve),
     };
     let closing = curve.run_closing(h1, face)?;
@@ -4836,7 +5067,7 @@ fn ring_run_ccw<T: crate::props::AtRestPolicy>(
         .map_err(|why| {
             BooleanError::from(match why {
                 // The run holds none (above), so the spline is the
-                // closing curve, and no section lane mints one.
+                // closing curve, and no section lane mints one on a plane.
                 Unwound::Spline => SplitJoinError::SectionInvariant {
                     face,
                     what: "the ring lane's closing section curve is a spline",
@@ -4851,7 +5082,8 @@ fn ring_run_ccw<T: crate::props::AtRestPolicy>(
 }
 
 /// The split root of the first spline (NURBS) edge on the run `h1 → h2`
-/// of a loop: no closing winds one. A spiric run edge is read by the
+/// of a loop: no closing but a carried chord's winds one
+/// ([`ring_run_ccw`]). A spiric run edge is read by the
 /// windings themselves, on the carriers that bear one.
 fn run_spline_edge<T: Decide>(
     body: &Body<T>,

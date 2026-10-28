@@ -176,15 +176,46 @@ fn both_poses_take_the_same_door() {
     assert_eq!(doors[0], "CurvedBooleanUnsupported", "{doors:?}");
 }
 
+/// **No coaxial pose builds, in either operand order, any op, either
+/// pose**: the section door decides the circles a coincidence, which the
+/// join does not build until the door records it, so every op refuses
+/// at the join's lane dispatch.
+#[test]
+fn coaxial_poses_build_nothing() {
+    let c = cyl(1.0, -2.0, 2.0);
+    for (r, z) in [(1.5, 0.0), (1.2, 0.3), (1.05, -0.5), (1.8, 1.0)] {
+        let s = ball_at(r, Vec3::new(0., 0., z));
+        for (c, s) in [(c.clone(), s.clone()), (posed(&c), posed(&s))] {
+            let (c, s) = (
+                finished("c", c, Tol::witness()),
+                finished("s", s, Tol::witness()),
+            );
+            for (x, y) in [(&c, &s), (&s, &c)] {
+                for got in [
+                    topo::union(x, y, Tol::witness()),
+                    topo::intersect(x, y, Tol::witness()),
+                    topo::subtract(x, y, Tol::witness()),
+                ] {
+                    assert!(
+                        matches!(got, Err(BooleanError::CurvedBooleanUnsupported { .. })),
+                        "R {r} z {z}: {:?}",
+                        got.err()
+                    );
+                }
+            }
+        }
+    }
+}
+
 /// **The non-coaxial transversal pose crosses, passes the germ frame
-/// and reaches the join's lane.** The crossing that used to keep the
-/// pierce door is certified now by the conic × quadric root door
-/// (`topo::boolean::conic_quadric`), its pierce's sector side
-/// certifies, and the cylinder × sphere germ pair it mints has the
-/// transverse frame (one loop, `R < r + d`), so the matcher pairs it; no
-/// chord lane takes its quartic section
-/// (`work/sect/cylinder-sphere-germ-pair-has-no-join-lane.md`), in both
-/// poses.
+/// and the join, and refuses at the result gate's volume.** The
+/// crossing that used to keep the pierce door is certified now by the
+/// conic × quadric root door (`topo::boolean::conic_quadric`), its
+/// pierce's sector side certifies, the matcher pairs the cylinder ×
+/// sphere germs by foot on the section's one loop (`R < r + d`), and the
+/// join cuts both sides' chords from that loop; the cylinder face they
+/// bound has no volume lane for a projected boundary
+/// (`crate::cylinder_sphere_frame::Door::Projected`), in both poses.
 #[test]
 fn a_transversal_pose_reaches_the_join_lane_in_both_poses() {
     let c = cyl(1.0, -2.0, 2.0);
@@ -197,15 +228,10 @@ fn a_transversal_pose_reaches_the_join_lane_in_both_poses() {
             finished(label, c, Tol::witness()),
             finished(label, s, Tol::witness()),
         );
-        let err = topo::union(&c, &s, Tol::witness()).expect_err("no cyl×sphere chord lane");
-        assert!(
-            matches!(
-                err,
-                BooleanError::CurvedBooleanUnsupported {
-                    kind: geom::SurfaceKind::Cylinder,
-                    ..
-                }
-            ),
+        let err = topo::union(&c, &s, Tol::witness()).expect_err("no projected volume lane");
+        assert_eq!(
+            crate::cylinder_sphere_frame::door(&err),
+            Some(crate::cylinder_sphere_frame::Door::Projected),
             "{label}: {err:?}"
         );
     }

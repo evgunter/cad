@@ -95,8 +95,13 @@ three torus pairs on `SphereTorusPose`, `CylinderTorusPose` and
 `TorusTorusPose`, each decided once: the guards, the symmetry reading
 (`axis_pose` and the square reading, moved from `section_cert` and read
 over the torus's own ball), a coincident torus pair refused, and the
-critical gap (`pair_section::gap`), a certified sweep of the core angle
-on `D` and `D²`, never a root formula. The closed-form components moved
+critical gap: for a sphere its centre's two meridian distances from the
+core (its critical values in closed form, the formula `ssi_st_tangency`
+read, now one reading), for a cylinder or a torus a certified sweep of
+the core angle on `D` and `D²` (`pair_section::gap`), two tori's on
+either core so the verdict does not depend on their order; never a root
+formula. Each of the sweep's margins is a length at its own scale less
+its rounding, a slope read as the offset's component along the core. The closed-form components moved
 from `section_cert`'s torus arms (`pair_section::torus_arms`); a
 general sphere × torus pose carries through `march_sphere_torus`; a
 general cylinder × torus or torus × torus pose answers

@@ -2725,6 +2725,9 @@ pub enum SectionUnbuilt {
     /// The classification does not tell the section's components apart
     /// at the germ's site, as the note says.
     Untold(&'static str),
+    /// A closed loop of the section could not be opened at its first
+    /// site: the knot edit refused.
+    Seat(geom_core::spline::KnotAlgebraError),
 }
 
 impl core::fmt::Display for SectionUnbuilt {
@@ -2746,6 +2749,10 @@ impl core::fmt::Display for SectionUnbuilt {
                 f,
                 "{why}, so the germ's component is not named. Recourse: none in this \
                  operation; the pair's lane is not built"
+            ),
+            Self::Seat(e) => write!(
+                f,
+                "the section's closed loop could not be opened at its first site ({e})"
             ),
         }
     }

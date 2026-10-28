@@ -46,7 +46,7 @@ escalated typed refusal, never a raw comparison.
 
 **C1 — Intersection loci live on a three-rung ladder.** The *carrier*
 of an `Intersection` edge (the 3-D curve cached against the intensional
-description `{pair, witness}`) is, by surface-kind pair and most exact
+description `{pair, selector}`, D2) is, by surface-kind pair and most exact
 first: rung 1, closed-form `Line`/`Circle`; rung 2, the exact conic
 `Curve3::Ellipse` (tilted plane×cylinder, tilted plane×cone,
 equal-radius cylinder×cylinder)
@@ -60,7 +60,7 @@ evidence of any kind — a fitted cubic `Curve3::Nurbs` where the kernel
 marched it, a closed form where a file stated one or recognition
 promoted one — carrying the C2 certificate. The rung is the pair's, read off the C5
 table, never the carrier's: what a carrier owes (C2) depends on its
-pair's pose and not on its kind or on who minted it. The kind inventory is closed at the
+pair's pose and its selector (D2), and not on its kind or on who minted it. The kind inventory is closed at the
 kinds above: a section that has a closed form and no kind is minted
 exactly into the NURBS container. A plane×cone parabola or hyperbola is
 such a section, minted from the pair in closed form as a
@@ -69,7 +69,11 @@ rational-quadratic arc (weights `(1, w, 1)`, `w = 1` the parabola,
 carriers stay kinds; they round-trip to rational-quadratic NURBS only as
 an export/tessellation form. There is no polyline rung.
 
-**C2 — The certificate of an `Intersection` carrier has three limbs.**
+**C2 — The certificate of a witness-selected `Intersection` carrier has three limbs.**
+A structural selector (D2: a curve known in advance, such as a row or
+column of a swept or skinned wall that is the edge on both surfaces)
+owes no limb 3: it is certified through each surface's chart-image
+certificate, its on-locus residual and sup-norm bound read per surface.
 Limbs 1 and 2 are owed by every carrier, of every kind, however it was
 minted. Limb 3 is owed unless the pair's section function, for this
 pose, states the two numbers the tube would prove: a lower bound on the
@@ -825,10 +829,11 @@ where `D²` is smooth and monotone on it (a Taylor bound on `(D²)′` with
 a bound on `(D²)‴`); a turn of `D` whose window bound reads within the
 zero band, or the least distance and `|ρ₁ − ρ₂|` both within it (the
 tube-circle tangency), is `Zero`; anything else at the floor escalates.
-Each margin is a length at its own scale, less its rounding: a slope is
-read as `(D²)′/2R`, the offset's component along the core's tangent,
-never divided by `D`, so near touching spines no slope decides and the
-value tests and the least distance do. Where the core crosses a torus
+Each margin is a length, less its rounding: a slope's sign is certified
+on `(D²)′` shrunk by its own rounding before anything divides it, so a
+slope within its rounding of zero reads no sign however small `D` is,
+and what is left, over the most `D` reaches, bounds the sine of the
+crossing, levered by the core radius. Where the core crosses a torus
 partner's axis `D` has a kink, and no cell holding one clears on its
 slope: a tangency on a kink always escalates, unless it is the least
 distance at the level `|ρ₁ − ρ₂|`. Over a transverse gap

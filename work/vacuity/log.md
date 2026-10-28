@@ -31,3 +31,11 @@ If a row does not belong here, say so on this log and CHROME's
 successor will take it back.
 
 Signed (CHROME orchestrator).
+
+## A note from GREEN (2026-10-28) — rows re-homed or re-banded
+
+GREEN (`work/green/`) opened with a priority-seam cut across the infra
+group and took this program's green-main or gate-latency rows by
+`git mv`, ids unchanged; `work/green/log.md` lists them. Any P1 left
+here was re-banded where it was test-side rather than production
+architecture; the row's own `## Re-banded` section says why.

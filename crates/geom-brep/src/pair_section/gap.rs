@@ -53,21 +53,23 @@
 //!
 //! # The scale of each margin
 //!
-//! Every margin is a length decided at its own scale, and carries the
-//! rounding of the reading it is made of ([`Rounding`]):
+//! Every margin is a length, and carries the rounding of the reading it
+//! is made of ([`Rounding`]):
 //!
 //! - a value test reads `D` against a level, metres of spine distance,
 //!   less `D`'s rounding;
-//! - a slope test reads `G′/2R = (p − q)·t̂`, the offset's component
-//!   along the core's unit tangent `t̂`: `G′ = 2(p − q)·p′` (the foot's
-//!   own variation drops out, the envelope theorem), and `R` is the
-//!   core's speed. The monotone test reads its Taylor lower bound over
-//!   the cell, `|G′(m)| − |G″(m)|·w − |G‴|·w²/2`, and a turn the sign of
-//!   `G′` at a window's end, each shrunk toward zero by the rounding of
-//!   `G′` and `G″`. Nothing is divided by `D`: where the spine distance
-//!   is small its tangential component is smaller still, so near a
-//!   touching pair of spines no slope reads past the band and the cell
-//!   falls to the value tests and the least distance.
+//! - a slope test first certifies the sign of `G′`: `|G′|`, or the
+//!   monotone test's Taylor lower bound over the cell, `|G′(m)| −
+//!   |G″(m)|·w − |G‴|·w²/2`, is shrunk toward zero by the rounding of
+//!   `G′` and `G″`. A `G′` within its own rounding of zero reads no sign
+//!   at all, however small `D` is, so no rounding is ever divided by
+//!   `D`. What is left is a certified lower bound on `|G′| = 2D·|D′|`,
+//!   and over `2D_hi`, `D_hi` the most `D` reaches, a certified lower
+//!   bound on `|D′| = R·sin θ`, `θ` the angle between the core's tangent
+//!   and the offset `p − q` (`G′ = 2(p − q)·p′`, the foot's own
+//!   variation dropping out, the envelope theorem). That sine levered by
+//!   the core radius is the band's reading (D4's `θ·r`): how far turning
+//!   the core by the angle moves it.
 //!
 //! [`Gap::Tangent`] is decided two ways, each a critical value within
 //! the zero band of a level:
@@ -370,10 +372,15 @@ impl<T: Decide> Sweep<'_, T> {
         matches!(decide(name, m, self.band), Ok(Sign::Positive))
     }
 
-    /// A slope in metres squared per radian as the offset's tangential
-    /// component it is (module docs, the scale of each margin).
-    fn tangential(&self, slope: T) -> Margin<T> {
-        Margin::levered_inv(slope, T::from_f64(2.0) * self.core.radius)
+    /// **A slope of `G` as the crossing it bounds** (module docs, the
+    /// scale of each margin): `slope`, a bound on `|G′|` already shrunk
+    /// by its rounding, over `2·D_hi·R`, `D_hi` a bound on `D` from above,
+    /// is a lower bound on the sine between the core's tangent and the
+    /// offset, `D′/R`; levered by the core radius it is the point
+    /// deviation that turning the core by that angle moves.
+    fn slope(&self, slope: T, d_hi: T) -> Margin<T> {
+        let big = self.core.radius;
+        Margin::levered(slope / (T::from_f64(2.0) * d_hi * big), big)
     }
 
     /// **`G‴`'s bound over a window `reach` metres of core about a
@@ -403,12 +410,14 @@ impl<T: Decide> Sweep<'_, T> {
     }
 
     /// The sign `D′` reads definitely at `phi`, if it reads one: `G′`'s,
-    /// as the offset's tangential component shrunk by its rounding.
+    /// shrunk by its rounding first (a `G′` within its rounding of zero
+    /// reads no sign, whatever `D` is), then read as the crossing it
+    /// bounds.
     fn turn(&self, far: bool, phi: T) -> Option<Sign> {
         let r = read(self.core, self.spine, far, phi);
         match decide(
             self.rows.turn,
-            self.tangential(shrunk(r.g1, r.err.g1)),
+            self.slope(shrunk(r.g1, r.err.g1), r.d + r.err.d),
             self.band,
         ) {
             Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),
@@ -458,10 +467,10 @@ impl<T: Decide> Sweep<'_, T> {
         ) {
             return Cell::Clear;
         }
-        // The least `|G′|` over the cell, as the least tangential
-        // component of the offset it is.
+        // The least `|G′|` over the cell, less its rounding, as the least
+        // crossing it bounds against `D`'s most over the cell.
         let least = r.g1.abs() - r.err.g1 - (r.g2.abs() + r.err.g2) * w - third * w.powi(2) / two;
-        if self.positive(self.rows.monotone, self.tangential(least)) {
+        if self.positive(self.rows.monotone, self.slope(least, r.d + r.err.d + reach)) {
             return Cell::Clear;
         }
         // Read across the cell padded by half its width each side, so a

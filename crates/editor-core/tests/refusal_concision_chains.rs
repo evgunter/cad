@@ -1463,7 +1463,7 @@ fn drawn_lines(kind: NodeErrorKind) -> Vec<String> {
 }
 
 /// **Every line a carried refusal draws fits where it is drawn.** A
-/// part whose root failed and a mate whose pose did not evaluate each
+/// part whose piece failed and a mate whose pose did not evaluate each
 /// name that node and point at it; the refusal they carry is drawn as
 /// its own line, one per document level, and never inside theirs.
 ///
@@ -1514,7 +1514,7 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
         .to_owned();
     let part = |node: u64, refusal: NodeErrorKind| NodeErrorKind::Part {
         doc_ref: doc_ref(),
-        fault: PartFault::PartRootFailed {
+        fault: PartFault::PartProductFailed {
             held: Default::default(),
             node: RecipeNodeId::new(0, tagged(node)),
             refusal: refusal.into(),
@@ -5032,7 +5032,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             (
                 "Engine/Unsupported",
                 engine(EngineRefusal::Unsupported {
-                    carrier: "a free-form face",
+                    carrier: "an approximated face",
                     face: FaceKey::default(),
                 }),
             ),
@@ -5136,7 +5136,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ));
     }
-    // A part's root failure carries the part's own node refusal, typed,
+    // A part's piece failure carries the part's own node refusal, typed,
     // and its sentence never renders it: the carried refusal is its own
     // line ([`every_carried_refusal_draws_within_the_budget_at_every_line`]).
     //
@@ -5147,16 +5147,16 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
     let parts = [
         ("NoResolver", PartFault::NoResolver),
         (
-            "PartRootFailed",
-            PartFault::PartRootFailed {
+            "PartProductFailed",
+            PartFault::PartProductFailed {
                 held: Default::default(),
                 node: RecipeNodeId::new(0, tagged(7)),
                 refusal: NodeErrorKind::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
             },
         ),
         (
-            "PartRootFailed(part)",
-            PartFault::PartRootFailed {
+            "PartProductFailed(part)",
+            PartFault::PartProductFailed {
                 held: Default::default(),
                 node: RecipeNodeId::new(0, tagged(7)),
                 refusal: NodeErrorKind::Part {
@@ -5167,17 +5167,17 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "PartRootPoisoned",
-            PartFault::PartRootPoisoned {
+            "PartProductPoisoned",
+            PartFault::PartProductPoisoned {
                 held: Default::default(),
-                root: RecipeNodeId::new(0, tagged(8)),
+                node: RecipeNodeId::new(0, tagged(8)),
                 through: RecipeNodeId::new(0, tagged(7)),
                 refusal: NodeErrorKind::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
             },
         ),
         (
-            "RootFailureUnrecorded",
-            PartFault::RootFailureUnrecorded {
+            "PartProductFailureUnrecorded",
+            PartFault::PartProductFailureUnrecorded {
                 held: Default::default(),
                 node: RecipeNodeId::new(0, tagged(7)),
             },
@@ -5294,8 +5294,8 @@ fn part_products_forwarding() -> Vec<(String, NodeErrorKind)> {
     };
     [
         (
-            "Part/PartProduct(RootInvalid)",
-            ProductError::RootInvalid {
+            "Part/PartProduct(PieceInvalid)",
+            ProductError::PieceInvalid {
                 findings: vec![SourceFinding {
                     node: RecipeNodeId::new(0, tagged(3)),
                     output: 0,
@@ -5916,7 +5916,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
         CheckFinding {
             check: CheckId::Connectedness,
             subject: editor_core::FindingSubject::Output {
-                root: RecipeNodeId::new(0, tagged(4)),
+                placement: RecipeNodeId::new(0, tagged(4)),
                 output_ix: 0,
             },
             evidence,
@@ -6034,7 +6034,7 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
     let finding = |check, evidence| CheckFinding {
         check,
         subject: editor_core::FindingSubject::Output {
-            root: RecipeNodeId::new(0, tagged(4)),
+            placement: RecipeNodeId::new(0, tagged(4)),
             output_ix: 0,
         },
         evidence,
