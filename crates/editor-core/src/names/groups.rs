@@ -64,10 +64,10 @@ struct Group {
     members: Vec<EntityRef>,
     /// Where they descend from.
     parent: Parent,
-    /// Whether the emitter formed this group from SEVERAL tied parents
-    /// at once. Its seam lanes key a group by the two parents' NAMES,
-    /// and tied parents share names, so their pieces land in one group
-    /// and no one parent's count is on record.
+    /// Whether the emitter formed this group by NAME over a tied
+    /// parent ([`GroupRecord::record_by_name`]): tied parents share
+    /// names, so their members may share the group and no one parent's
+    /// count is on record.
     tie_summed: bool,
     /// Whether the group is one parent's share of a LINE's group: the
     /// edges a node holds on one line (N2), whichever parent edge on it

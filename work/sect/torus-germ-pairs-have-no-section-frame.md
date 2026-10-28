@@ -75,3 +75,11 @@ this one pose.
 ## Re-banded to P0 (on request in chat, 2026-10-25)
 
 Teapot wall 2 (`demos/tour/src/teapot.rs`, the handle joined to the pot) refuses here: the vessel's sphere face against the handle's torus, the ball × donut row above. Joining a torus handle to a round body is an everyday join.
+
+## Evidence: two tori on parallel axes (2026-10-27)
+
+SECT's lily lane: the lily's stem run to 30° instead of 22° against its
+arch (`crates/sweep/tests/mate7a_r1_probes.rs`
+`a_stem_window_reaching_over_a_loop_does_not_glue`) puts the stem's seams
+across the arch's tube, and both unions refuse `GermFrameUnsupported`
+on the two tube walls (torus × torus, axes parallel and apart).
