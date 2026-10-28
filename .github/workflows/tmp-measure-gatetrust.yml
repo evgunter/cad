@@ -1,0 +1,78 @@
+name: tmp-measure-gatetrust
+# TEMPORARY: measures the two new nightly jobs on this branch; removed before review.
+on:
+  push:
+    branches: [green/nightly-selftests-allfeatures]
+env:
+  NEXTEST_VERSION: "0.9.140"
+jobs:
+  gate-selftests:
+    # ci.yml runs every gate plain; this runs each one's --selftest, which
+    # is what shows the gate still fires on a planted breach. About three
+    # minutes, so the nightly carries it and ordinary PRs do not.
+    name: gate self-tests (scripts/gates)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - name: every gate's --selftest
+        run: |
+          rc=0
+          for g in scripts/gates/*.sh; do
+            case "$(basename "$g")" in lib.sh) continue ;; esac
+            echo "::group::$g --selftest"
+            start=$SECONDS
+            bash "$g" --selftest || { echo "::error::$g --selftest failed"; rc=1; }
+            echo "$g: $((SECONDS - start)) s"
+            echo "::endgroup::"
+          done
+          exit $rc
+  all-features:
+    # The suite as `--all-features` compiles it: every probe-gated suite,
+    # the per-op postconditions, the test-only meters and payload
+    # features, which no other row executes together. Default eps, the
+    # ci profile's set (the slow set is left to the rows above), viewer
+    # excluded because its `app` feature needs the GPU stack the viewer
+    # job installs and runs.
+    name: suite under --all-features (default eps)
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_STRIP: debuginfo
+      CARGO_PROFILE_DEV_OPT_LEVEL: "1"
+      CARGO_PROFILE_TEST_OPT_LEVEL: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: nightly-all-features
+      - name: read the nextest pin from ci.yml
+        id: nextest
+        run: echo "version=$(scripts/ci-pin.py NEXTEST_VERSION)" >> "$GITHUB_OUTPUT"
+      - name: install cargo-nextest (pinned, official prebuilt)
+        uses: ./.github/actions/install-nextest
+        with:
+          version: ${{ steps.nextest.outputs.version }}
+      - name: build
+        run: cargo nextest run --workspace --exclude viewer --all-features --no-run
+      - name: the suite, --all-features
+        run: |
+          r=0
+          cargo nextest run --profile ci --workspace --exclude viewer --all-features --no-fail-fast || r=$?
+          scripts/nextest-failures.py "all-features" "$r"
+          exit "$r"
+      - name: failing tests (name, panic, seed)
+        if: failure()
+        run: cat "$RUNNER_TEMP/nextest-failures.txt" 2>/dev/null || echo "no nextest row failed; the red is in another step"
