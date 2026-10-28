@@ -88,8 +88,10 @@
 //!   ([`sweep_self_touch_points`]).
 //! - **Genuinely undetected until C9/C6**: the other SAME-solid
 //!   distinct-key curved pairs (the backstop is cross-solid); a point
-//!   where a solid touches itself with a curved face or edge in its link
-//!   there, which [`sweep_self_touch_points`] leaves unread
+//!   where a solid touches itself with a curved face in its link there,
+//!   a face with a curved edge held at its corner, a planar face with a
+//!   spline edge, or the point tied inside a curved edge, which
+//!   [`sweep_self_touch_points`] leaves unread
 //!   (`work/restread/tier-3-prime-reads-no-side-where-a-solid-touches-itself-at-a-point-on-a-curved-face.md`);
 //!   and one
 //!   cross-solid residue named at that loop: a pair whose ONLY
@@ -8002,9 +8004,14 @@ fn edge_in_own_face<T: Decide>(
 /// solid reaches is read whole here too, every sheet through it, the
 /// line's own included; the line's sides along it are its rules' (pass
 /// 4's [`edge_in_own_face`], read at each cell's middle). A link holding
-/// a curved face or edge is left unread, wherever in the link it stands
-/// ([`Link::touch_at_point`] answers `Unreadable` before any other refusal):
-/// no sector reads one yet.
+/// a curved face, a face with a curved edge held at its corner, a planar
+/// face with a spline edge (no clearance reads one), or a point tied
+/// inside a curved edge, is left unread, wherever in the link it stands ([`Link::touch_at_point`]
+/// answers `Unreadable` before any other refusal): no sector reads one
+/// yet. A planar face with a curved edge held inside it or inside a
+/// line edge is read, as the disc its edges clear
+/// ([`crate::link::Sector::cleared`]), and its refusals are the
+/// undecided twin's like any other's.
 fn sweep_self_touch_points<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -8054,8 +8061,10 @@ fn sweep_self_touch_points<T: Decide>(
         }
         let verdict = match Link::touch_at_point(body, geo, &ties, s, &keys, at, band) {
             Ok(link) => rest::one_material(&link, band),
-            // A curved face or edge in the link: genuinely undetected
-            // (the module doc's class list), not refused.
+            // A curved face, a face with a curved edge held at its
+            // corner, a spline edge, or a hold inside a curved edge, in
+            // the link: genuinely undetected (the module doc's class
+            // list), not refused.
             Err(TouchUnread::Unreadable) => continue,
             Err(why) => TouchVerdict::Unread(why),
         };
@@ -8081,8 +8090,10 @@ fn sweep_self_touch_points<T: Decide>(
 type LinkPair<T> = (Result<Germ<T>, TouchUnread>, Result<Germ<T>, TouchUnread>);
 
 impl<T: Decide> Sector<T> {
-    /// One planar, line-bounded face of the snapshot as its sectors at
-    /// the touch point, held there as `holds` say: inside it (one sector
+    /// One planar face of the snapshot as its sectors at the touch
+    /// point, held there as `holds` say — a face with an edge that is not
+    /// a line as the disc its edges clear ([`Sector::cleared`]), and a
+    /// line-bounded one as follows: inside it (one sector
     /// about `p`), or at each pass of its loops through the point — every
     /// corner on the point, about its vertex, whether the loops pass one
     /// vertex twice or two vertices on one point (a pinch, one vertex per
@@ -8101,7 +8112,7 @@ impl<T: Decide> Sector<T> {
     ) -> Result<Vec<Self>, TouchUnread> {
         // A face or surface that does not resolve, or a loop that does
         // not walk, is a defect (tier 1 admits none); a face that
-        // resolves off a plane, or bounded by a curved edge, is curved.
+        // resolves off a plane is curved.
         let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
         let surface = body
             .get_surface(face.surface)
@@ -8111,13 +8122,13 @@ impl<T: Decide> Sector<T> {
         if !fg.walked {
             return Err(TouchUnread::Corrupt);
         }
-        if !fg.polygon {
-            return Err(TouchUnread::Unreadable);
-        }
         // A planar face at rest has an outward normal: none is a defect.
         let outward = crate::face_normal::face_outward_normal(body, f)
             .ok_or(TouchUnread::Corrupt)?
             .vec();
+        if !fg.polygon {
+            return Self::cleared(body, f, outward, p, holds);
+        }
         let rings = fg
             .loops
             .iter()
@@ -8291,11 +8302,10 @@ impl<T: Decide> Link<T> {
 
 /// **Face `f`'s material, where it lies on a sphere or a cylinder**, and
 /// a lower bound on its reach about `p`, a point inside it: the least
-/// distance from `p` to a boundary edge, each a line read as its segment
-/// or a circle as the whole circle; a face with no boundary reaches
-/// round its carrier. `None` off a sphere or a cylinder;
-/// [`TouchUnread::Unreadable`] for a boundary edge of another curve, and
-/// [`TouchUnread::Corrupt`] where the face does not read.
+/// clearance of a boundary edge ([`crate::link::clearance`]); a face
+/// with no boundary reaches round its carrier. `None` off a sphere or a
+/// cylinder; [`TouchUnread::Unreadable`] for a boundary edge no clearance
+/// reads, and [`TouchUnread::Corrupt`] where the face does not read.
 fn round_face<T: Decide>(
     body: &Body<T>,
     f: FaceKey,
@@ -8309,38 +8319,7 @@ fn round_face<T: Decide>(
     let mut reach = round.radius() * T::from_f64(2.0);
     for cycle in face_cycles(body, face) {
         for he in cycle.map_err(|_| TouchUnread::Corrupt)? {
-            let half = body.half_edges.get(he).ok_or(TouchUnread::Corrupt)?;
-            let curve = body
-                .edges
-                .get(half.edge)
-                .and_then(|d| body.curves.get(d.curve))
-                .and_then(crate::null::CurveGeom::certified)
-                .ok_or(TouchUnread::Unreadable)?;
-            let to = match *curve.carrier() {
-                geom::Curve3::Line { .. } => {
-                    let a = body.half_edge_start_point(he).ok_or(TouchUnread::Corrupt)?;
-                    let b = body
-                        .half_edge_end(he)
-                        .and_then(|v| body.vertices.get(v))
-                        .and_then(|v| body.points.get(v.point))
-                        .copied()
-                        .ok_or(TouchUnread::Corrupt)?;
-                    crate::link::to_segment(p, (a, b))
-                }
-                geom::Curve3::Circle {
-                    center,
-                    axis,
-                    radius,
-                    ..
-                } => {
-                    let rel = p - center;
-                    let h = rel.dot(axis);
-                    let across = (rel - axis * h).norm() - radius;
-                    (h.powi(2) + across.powi(2)).sqrt()
-                }
-                _ => return Err(TouchUnread::Unreadable),
-            };
-            reach = reach.min(to);
+            reach = reach.min(crate::link::clearance(body, he, p)?);
         }
     }
     Ok(Some((round, reach)))
@@ -15414,6 +15393,7 @@ mod tests {
                 apex: p,
                 wedges: piece.chunks_exact(2).map(|w| (w[0], w[1])).collect(),
                 closed: matches!(place, PieceAt::Inside),
+                clear: None,
             });
         }
         Link::of(p, sectors)
