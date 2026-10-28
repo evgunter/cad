@@ -43,3 +43,10 @@ admitted together where the point lies on the axis. Either changes what `circula
 `bolt_circle`, the viewer's ring and pncad-py's `Node.circular_pattern`
 take (the point, or no `along`). Until then, an axis no target axis
 runs along is refused at the façade, not built as a helix.
+
+The same writer fixes the slide at zero, so a ring that stands off along
+its axis cannot be written by `circular_pattern` or `bolt_circle` at all:
+the tour's impeller (`demos/tour/src/impeller.rs`) writes its blade ring
+by hand, slid `BLADE_Z0` up the axis, and `recognise` then does not read
+it back as `Circular`. Whatever the repair says of the slide's
+direction, the writer takes its length.
