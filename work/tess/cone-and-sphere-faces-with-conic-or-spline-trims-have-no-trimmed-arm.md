@@ -4,6 +4,8 @@ kind: issue
 title: a cone face bounded by a conic section, or a sphere face bounded by a spline, has no trimmed-lane arm
 status: open
 opened: 2026-10-28
+priority: P2
+cost: H
 ---
 
 
