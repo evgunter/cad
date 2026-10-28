@@ -1366,14 +1366,11 @@ impl<T: Decide> Sector<T> {
     /// radius is the sector's [`Sector::clear`], which bounds the link's
     /// ball.
     ///
-    /// The fan itself runs further, past the face: eight wedges of an
-    /// eighth of a turn (four for a half), its rim at `1.1` times the
-    /// farthest the face's boundary stands from `p`
-    /// ([`face_reach_from`](crate::splitting::rules::face_reach_from)).
-    /// A chord of an eighth of a turn stands at least `cos(π/8) > 0.92`
-    /// of the rim's radius off `p`, so every point of the rim lies past
-    /// every point of the face, and a coincidence read there holds over
-    /// the whole face.
+    /// The fan itself runs further, past the face ([`fan`]): its every
+    /// chord stands past the farthest the face's boundary stands from `p`
+    /// ([`face_reach_from`](crate::splitting::rules::face_reach_from)),
+    /// so every point of the rim lies past every point of the face, and a
+    /// coincidence read there holds over the whole face.
     ///
     /// A corner hold, a curved edge held, two edges held at once, a face
     /// off a plane, or an edge no clearance reads is
@@ -1432,8 +1429,7 @@ impl<T: Decide> Sector<T> {
         }
         let radius = radius.ok_or(TouchUnread::Corrupt)?;
         let far = crate::splitting::rules::face_reach_from(body, f, p)
-            .map_err(|_| TouchUnread::Corrupt)?
-            * T::from_f64(1.1);
+            .map_err(|_| TouchUnread::Corrupt)?;
         for length in [radius, far] {
             if !geom_core::is_finite_length(length) || geom_core::is_zero_length(length, length) {
                 return Err(TouchUnread::ChordScale);
@@ -1460,14 +1456,17 @@ impl<T: Decide> Sector<T> {
     }
 }
 
-/// The fan of the disc of `radius` about `p` normal to `outward`, eight
-/// wedges of an eighth of a turn counterclockwise about it from the
-/// in-plane unit `a`; or, for a `half`, the four left of `a`.
+/// The fan about `p` normal to `outward` whose every chord stands past
+/// `reach`: eight wedges of an eighth of a turn counterclockwise about it
+/// from the in-plane unit `a`, or, for a `half`, the four left of `a`.
+/// A chord of a wedge of half-angle `θ` stands `cos θ` of the rim's
+/// radius off `p`, so the rim is `reach / cos θ`, with a hundredth to
+/// spare for the rounding of `reach` and of the turns.
 fn fan<T: Real>(
     p: Point3<T>,
     outward: Vec3<T>,
     a: Vec3<T>,
-    radius: T,
+    reach: T,
     half: bool,
 ) -> Vec<Segment<T>> {
     let b = outward.cross(a);
@@ -1483,14 +1482,20 @@ fn fan<T: Real>(
         b * back,
         (a - b) * s,
     ];
+    let half_angle = core::f64::consts::PI / turns.len() as f64;
+    let radius = reach * T::from_f64(1.01 / half_angle.cos());
     let rim: Vec<Point3<T>> = turns
         .iter()
-        .take(if half { 5 } else { 8 })
+        .take(if half {
+            turns.len() / 2 + 1
+        } else {
+            turns.len()
+        })
         .map(|&t| p + t * radius)
         .collect();
     let mut wedges: Vec<Segment<T>> = rim.windows(2).map(|w| (w[0], w[1])).collect();
     if !half {
-        wedges.push((rim[7], rim[0]));
+        wedges.push((rim[rim.len() - 1], rim[0]));
     }
     wedges
 }
@@ -2488,8 +2493,9 @@ pub(crate) mod rest {
     /// other, which is its carrier's side within `reach` of `p` (the
     /// face's own reach about `p`, as [`Link::ball`] is a link's). `near`
     /// is the lesser of the two. With `n` the face's outward normal at
-    /// `p`, each ray of `a` — every wedge's two ends, real points of its
-    /// face — reads:
+    /// `p`, each ray of `a` — every wedge's two ends, read as directions
+    /// of the cone, its points beyond `near` real points of a face or
+    /// not (a cleared sector's rim runs past its face) — reads:
     ///
     /// - against a ball or a pin: Zero or above against the tangent plane
     ///   through `p`, so its wedges keep out; below it, a crossing where

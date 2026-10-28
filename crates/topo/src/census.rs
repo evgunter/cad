@@ -86,7 +86,8 @@
 //! - **Genuinely undetected until C9/C6**: the other SAME-solid
 //!   distinct-key curved pairs (the backstop is cross-solid); a point
 //!   where a solid touches itself with a curved face in its link there,
-//!   or a face with a curved edge held at its corner, which
+//!   a face with a curved edge held at its corner, a planar face with a
+//!   spline edge, or the point tied inside a curved edge, which
 //!   [`sweep_self_touch_points`] leaves unread
 //!   (`work/restread/tier-3-prime-reads-no-side-where-a-solid-touches-itself-at-a-point-on-a-curved-face.md`);
 //!   and one
@@ -7796,8 +7797,9 @@ fn edge_in_own_face<T: Decide>(
 /// solid reaches is read whole here too, every sheet through it, the
 /// line's own included; the line's sides along it are its rules' (pass
 /// 4's [`edge_in_own_face`], read at each cell's middle). A link holding
-/// a curved face, or a face with a curved edge held at its corner, is
-/// left unread, wherever in the link it stands ([`Link::touch_at_point`]
+/// a curved face, a face with a curved edge held at its corner, a planar
+/// face with a spline edge (no clearance reads one), or a point tied
+/// inside a curved edge, is left unread, wherever in the link it stands ([`Link::touch_at_point`]
 /// answers `Unreadable` before any other refusal): no sector reads one
 /// yet. A planar face with a curved edge held inside it or inside a
 /// line edge is read, as the disc its edges clear
@@ -7852,9 +7854,10 @@ fn sweep_self_touch_points<T: Decide>(
         }
         let verdict = match Link::touch_at_point(body, geo, &ties, s, &keys, at, band) {
             Ok(link) => rest::one_material(&link, band),
-            // A curved face, or a face with a curved edge held at its
-            // corner, in the link: genuinely undetected (the module
-            // doc's class list), not refused.
+            // A curved face, a face with a curved edge held at its
+            // corner, a spline edge, or a hold inside a curved edge, in
+            // the link: genuinely undetected (the module doc's class
+            // list), not refused.
             Err(TouchUnread::Unreadable) => continue,
             Err(why) => TouchVerdict::Unread(why),
         };

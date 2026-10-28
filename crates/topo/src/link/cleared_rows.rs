@@ -361,3 +361,78 @@ fn a_keel_off_the_arcs_is_read_at_the_faces_reach_not_the_cleared_radius() {
         );
     }
 }
+
+/// A circular-segment cap: the arc of the unit circle over
+/// `(π/2 − δ, π/2 + δ)` closed by its chord through `chord_mid` along
+/// `u_ref`, bulging `1 − cos δ` toward `axis × u_ref`.
+fn sliver(chord_mid: Point3<f64>, axis: Vec3<f64>, u_ref: Vec3<f64>, delta: f64) -> Cap {
+    let w = axis.cross(u_ref);
+    let carrier = Curve3::Circle {
+        center: chord_mid - w * delta.cos(),
+        axis,
+        radius: 1.0,
+        u_ref,
+    };
+    let (mut body, face) = crate::test_support_fixtures::arc_cap(
+        carrier,
+        (
+            core::f64::consts::FRAC_PI_2 - delta,
+            core::f64::consts::FRAC_PI_2 + delta,
+        ),
+        Vec3::new(0.0, 0.0, 0.0),
+        Tol::witness(),
+    );
+    body.get_face_mut(face).unwrap().sense = false;
+    let outward = crate::face_normal::face_outward_normal(&body, face)
+        .expect("a planar face's outward normal")
+        .vec();
+    Cap {
+        body,
+        face,
+        outward,
+    }
+}
+
+/// **A crossing read on a cleared rim is confirmed only inside the
+/// radius its edges clear.** A keel of two sliver caps, `δ = 1e-3`, each
+/// reaching only `1 − cos δ ≈ 5e-7` off the edge's line, tilted `t` below
+/// the face of the unit half-disc whose chord is `y = −0.5`: the real
+/// overlap is about `t·5e-7`, under the band's zero, while on the
+/// slivers' rims, about `1e-3` out, the dip `t·1e-3` passes the band's
+/// escalation. `t` runs from `2·10⁴` to `5·10⁵` times the band's zero, so
+/// both hold at every ε row. The rims there are not the slivers' points,
+/// and the ball is about `5e-7`, where the dip is in band: in band, never
+/// a crossing. Red if the link's ball is not held to the cleared radius.
+#[test]
+fn a_crossing_on_a_sliver_keels_rim_is_confirmed_only_inside_its_cleared_radius() {
+    use core::f64::consts::PI;
+    let at = Point3::origin();
+    let delta = 1e-3;
+    let bulge = 1.0 - delta.cos();
+    let band = band();
+    for k in [2e4, 1e5, 5e5] {
+        let t = k * band.zero();
+        assert!(
+            t * bulge < band.zero() && t * delta > band.escalate(),
+            "the premise: no real overlap, a decided dip on the rim, at {t}"
+        );
+        let (sa, ca) = (-t).sin_cos();
+        let (sb, cb) = (PI + t).sin_cos();
+        let a = sliver(at, v(0.0, -sa, ca), v(1.0, 0.0, 0.0), delta);
+        let b = sliver(at, v(0.0, sb, -cb), v(-1.0, 0.0, 0.0), delta);
+        let face = cap(p(0.0, -0.5, 0.0), v(0.0, 0.0, -1.0), v(-1.0, 0.0, 0.0));
+        let mut edge = a.cleared(at, &[a.chord()]).expect("a's half-disc");
+        edge.extend(b.cleared(at, &[b.chord()]).expect("b's half-disc"));
+        let edge = Link::of(at, edge).expect("the edge's link");
+        let face = Link::of(
+            at,
+            face.cleared(at, &[Hold::Inside]).expect("the face's disc"),
+        )
+        .expect("the face's link");
+        assert_eq!(
+            rest::judge(&edge, &face, band),
+            TouchVerdict::Unread(TouchUnread::InBand),
+            "a sliver keel tilted {t}"
+        );
+    }
+}
