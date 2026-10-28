@@ -508,19 +508,13 @@ fn a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed() {
             .unwrap_or_else(|e| panic!("δ {d}: the near-pole section refused: {e:?}"));
         let body = &out.body().unwrap_or_else(|| panic!("δ {d}: empty")).body;
         assert_solid(&format!("δ {d}"), body, expected);
-        // Meshed at the nearest approach a debug build affords: at
-        // 3e-4 the uniform chord schedule the circle asks near the pole
-        // takes about 26 s and folds a triangle over the chord beside
-        // the pole, which refuses typed; at 1e-4 it takes minutes and at
-        // 1e-5 it asks millions of chords, so they are built, not meshed.
-        if d == 3e-4 {
-            let drawn = mesh::tessellate(body, 1e-2, Tol::witness());
-            assert!(
-                matches!(&drawn, Err(mesh::TessellateError::FoldedTriangle { .. })),
-                "δ {d}: the folded-triangle refusal, got {:?}",
-                drawn.map(|m| m.positions.len())
-            );
-        }
+        // Built, not meshed: the uniform chord schedule the circle asks
+        // near the pole takes about 26 s in a debug build at 3e-4 and folds
+        // a triangle over the chord beside the pole, which refuses typed
+        // (`FoldedTriangle`), minutes at 1e-4, and millions of chords at
+        // 1e-5. `spheres_crossing_off_every_edge::a_trimmed_face_cut_beside_its_pole_builds`
+        // pins the fold refusal at a cost the suite affords
+        // (`work/tess/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`).
     }
     let (a, b) = pair(0.0);
     let out = run(BooleanOp::Union, &a, &b);

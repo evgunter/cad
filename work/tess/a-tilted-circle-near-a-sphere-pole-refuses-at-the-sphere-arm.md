@@ -41,9 +41,9 @@ refuses (`FoldedTriangle`) after its grid-drop retries:
   `a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed`
   (radical circle 1e-5, 1e-4, 3e-4 from the pole, δ = 1e-2): all
   three build. At 3e-4 the mesh takes about 26 s in a debug build and
-  refuses `FoldedTriangle`, which is pinned. At 1e-4 it takes about
-  254 s and folds, and at 1e-5 it asks millions of chords, so neither
-  is meshed in the suite.
+  refuses `FoldedTriangle`. At 1e-4 it takes about 254 s and folds,
+  and at 1e-5 it asks millions of chords. All three are measured, not
+  meshed in the suite, which pins the fold at the next row's cost.
 - `crates/sweep/tests/spheres_crossing_off_every_edge.rs`,
   `a_trimmed_face_cut_beside_its_pole_builds` (a ball of radius 0.01
   whose circle passes 1e-3, 1e-5, 1e-7 from the pole, δ = 5e-3): at
