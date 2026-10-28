@@ -1207,7 +1207,7 @@ pub(crate) mod vertex_section;
 pub use body::Body;
 pub use boolean::{
     AimedPair, AlongFace, ArcEndGaps, BoolNullEdgeRecord, BooleanBody, BooleanDecision,
-    BooleanError, BooleanErrorKind, BooleanInputs, BooleanJoin, BooleanMerge, BooleanNaming,
+    Apart, BooleanError, BooleanErrorKind, BooleanInputs, BooleanJoin, BooleanMerge, BooleanNaming,
     BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind, CarriedRecord, CarrierDesc,
     CarrierEqError, CarrierRelation, CarryRefusal, Cell, Coincide, CoincidenceMeasure,
     CompletedPolygonPair, ConsumedExtent, Contact, ContactKind, ContactPairError, ContactRecords,
@@ -1225,7 +1225,7 @@ pub use boolean::{
     VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact,
     WallRung, boolean_op_with, boolean_reduce, carrier_eq, contfp, curved_face_containment,
     decision_words, face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
-    is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge, nary_boolean,
+    is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge, nary_boolean, nary_boolean_apart,
     oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of, rest_locus,
     subtract, tangent_pair_relation, union,
 };

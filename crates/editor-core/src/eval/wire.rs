@@ -3467,6 +3467,53 @@ fn combine_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     distribute::assembled(id, outs, tol)
 }
 
+/// **The union's fast path** (D10 `[repetition]`): the member pairs
+/// that are rigid images of one body — a family's members, each a
+/// [`super::Framed`] over its source's one `Arc` — and that the body's
+/// separation certificate ([`topo::Separation`]) holds apart, read in
+/// `computing`'s coordinates. Each such pair cannot meet, so the n-ary
+/// pass judges only the rest (DM4's pairwise pass).
+fn images_apart<T: Decide + geom_core::Bounds>(
+    members: &[MemberRead<T>],
+    computing: &super::Framed<T>,
+    tol: Tol,
+) -> Result<topo::Apart, NodeErrorKind> {
+    let mut pairs = Vec::new();
+    let mut seen = vec![false; members.len()];
+    for (i, m) in members.iter().enumerate() {
+        if seen[i] {
+            continue;
+        }
+        let images: Vec<usize> = (i..members.len())
+            .filter(|&j| Arc::ptr_eq(members[j].framed.shared(), m.framed.shared()))
+            .collect();
+        for &j in &images {
+            seen[j] = true;
+        }
+        if images.len() < 2 {
+            continue;
+        }
+        let maps = images
+            .iter()
+            .map(|&j| {
+                Ok(computing
+                    .relative(&members[j].framed)
+                    .map_err(NodeErrorKind::Motion)?
+                    .map_or_else(geom_core::Affine3::identity, |map| map.to_affine()))
+            })
+            .collect::<Result<Vec<geom_core::Affine3<T>>, NodeErrorKind>>()?;
+        let certificate =
+            topo::Separation::of(m.framed.body(), tol).map_err(NodeErrorKind::Boolean)?;
+        pairs.extend(
+            certificate
+                .apart(&maps)
+                .into_iter()
+                .map(|(a, b)| (images[a], images[b])),
+        );
+    }
+    Ok(topo::Apart::of(pairs))
+}
+
 /// The fold of a union's or an intersect's members ([`wire_combine`]).
 fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::boolean::PairVerb<T>,
@@ -3486,17 +3533,22 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // It computes in its first member's frame that is its space's,
     // else its first's ([`super::Framed::computing_among`]), reading
     // every other member into it through `relative`.
-    let members = match members {
+    let (members, apart) = match members {
         [] => return empty(),
         [one] => return lone_member(id, &one.finished_in(&one.framed, tol)?),
         [first, ..] => {
             let computing = super::Framed::computing_among(members.iter().map(|m| &m.framed))
                 .unwrap_or(&first.framed)
                 .clone();
-            members
+            let apart = match op {
+                BooleanOp::Union => images_apart(members, &computing, tol)?,
+                BooleanOp::Intersect | BooleanOp::Subtract => topo::Apart::default(),
+            };
+            let finished = members
                 .iter()
                 .map(|m| m.finished_in(&computing, tol))
-                .collect::<Result<Vec<_>, NodeErrorKind>>()?
+                .collect::<Result<Vec<_>, NodeErrorKind>>()?;
+            (finished, apart)
         }
     };
     let members = members.as_slice();
@@ -3541,7 +3593,12 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         steps,
         pairwise,
         end,
-    } = (verb.members)(nary, inputs).run_members(&bodies, boolean_sweep, tol);
+    } = {
+        let mut run = (verb.members)(nary, inputs);
+        run.apart = apart;
+        run.run_members(&bodies, boolean_sweep, tol)
+    };
+    super::counters::judgements(judgements.len());
     // Two members are one pair: its one fold step IS its judgement, and
     // its refusals the pair's own. Three or more are judged pairwise
     // first, and a refusal only a step raises names the member that

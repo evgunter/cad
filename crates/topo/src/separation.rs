@@ -202,29 +202,52 @@ impl Separation {
         let hulls: Vec<Aabb> = maps.iter().map(|m| image(&self.hull, m)).collect();
         for j in 1..maps.len() {
             for i in 0..j {
-                if !hulls[i].overlaps(&hulls[j]) {
-                    continue;
-                }
-                // The hulls meet, so descend to faces — in the
-                // PROTOTYPE's frame, where the one tree lives: carry j's
-                // boxes back through `M_i⁻¹ ∘ M_j` and query.
-                let rel = relative(&maps[i], &maps[j]);
-                // A prototype with no face boxes has nothing to descend
-                // to, so the hull overlap is the last word — and it says
-                // "meets" (the hull of no boxes is poison, which overlaps
-                // everything). Refusing here keeps the empty case from
-                // reading as a vacuous certificate.
-                if self.boxes.is_empty() {
+                if self.may_meet(&hulls, maps, i, j) {
                     return Err(PlacementsMeet { i, j });
-                }
-                for b in &self.boxes {
-                    if !self.tree.overlapping(&image(b, &rel)).is_empty() {
-                        return Err(PlacementsMeet { i, j });
-                    }
                 }
             }
         }
         Ok(())
+    }
+
+    /// **Every pair of `maps`'s placed copies certified apart**, as
+    /// ascending `(i, j)`: the pairs [`Self::certify`] separates, each
+    /// on its own, so one pair the boxes cannot separate leaves every
+    /// other pair's certificate standing.
+    pub fn apart<T: Decide + Bounds>(&self, maps: &[Affine3<T>]) -> Vec<(usize, usize)> {
+        let hulls: Vec<Aabb> = maps.iter().map(|m| image(&self.hull, m)).collect();
+        (1..maps.len())
+            .flat_map(|j| (0..j).map(move |i| (i, j)))
+            .filter(|&(i, j)| !self.may_meet(&hulls, maps, i, j))
+            .collect()
+    }
+
+    /// Whether copies `i` and `j` may meet: their hulls `hulls` meet and
+    /// some face box of one, carried into the other's frame, meets a
+    /// face box of it.
+    fn may_meet<T: Decide + Bounds>(
+        &self,
+        hulls: &[Aabb],
+        maps: &[Affine3<T>],
+        i: usize,
+        j: usize,
+    ) -> bool {
+        if !hulls[i].overlaps(&hulls[j]) {
+            return false;
+        }
+        // A prototype with no face boxes has nothing to descend to, so
+        // the hull overlap is the last word — and it says "meets" (the
+        // hull of no boxes is poison, which overlaps everything).
+        if self.boxes.is_empty() {
+            return true;
+        }
+        // The hulls meet, so descend to faces — in the PROTOTYPE's frame,
+        // where the one tree lives: carry j's boxes back through
+        // `M_i⁻¹ ∘ M_j` and query.
+        let rel = relative(&maps[i], &maps[j]);
+        self.boxes
+            .iter()
+            .any(|b| !self.tree.overlapping(&image(b, &rel)).is_empty())
     }
 }
 

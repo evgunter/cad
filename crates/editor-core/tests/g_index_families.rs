@@ -476,3 +476,67 @@ fn a_member_is_reused_by_its_key() {
     assert_eq!(now.len(), 6);
     assert_eq!(now[..4], before[..], "the four members keep their keys");
 }
+
+/// **A comb**: two teeth `width` wide, three apart along x, fused into
+/// one body of two solids.
+fn comb(doc: ProfileDoc, width: f64) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, a) = block(doc, (0.0, width), (0.0, 1.0), 1.0);
+    let (doc, b) = crate::blocks::block_on(doc, a, (3.0, 3.0 + width), (0.0, 1.0), 0.0, 1.0);
+    insert(
+        doc,
+        Node::Union {
+            members: Bodies::Spelled(vec![
+                editor_core::BodyRead::plain(Operand::Node(a)),
+                editor_core::BodyRead::plain(Operand::Node(b)),
+            ]),
+        },
+    )
+}
+
+/// The union of a row of three combs `pitch` apart, the judgements it
+/// ran, and its solids.
+fn interleaved(width: f64, pitch: f64) -> (u64, usize) {
+    let doc = ProfileDoc::empty_derived("g-fast-path", Tol::witness());
+    let (doc, teeth) = comb(doc, width);
+    let (doc, _, row) = fixture::row(doc, teeth, ("k", 3), TargetAxis::X, pitch);
+    let (doc, fused) = insert(
+        doc,
+        Node::Union {
+            members: Bodies::Family(editor_core::BodyRead::plain(Operand::Node(row))),
+        },
+    );
+    let before = editor_core::EvalCounters::on_this_thread();
+    let ev = run(&doc);
+    let judged = editor_core::EvalCounters::on_this_thread().since(before).judgements;
+    let ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. }) =
+        &ev.value(fused).unwrap_or_else(|| panic!("{:?}", ev.result(fused))).payload
+    else {
+        panic!("the union is a body")
+    };
+    // The combs' own two-tooth unions judge no pair.
+    (judged, body.body().solids().count())
+}
+
+/// **A union of one family of one placement is certified apart, not
+/// judged** (`placed-union-places-and-fuses-in-one-node`): three combs
+/// interleaved a pitch of one apart have hulls that all meet and teeth
+/// that never do, so the separation certificate of the one body holds
+/// every pair apart and no pairwise judgement runs; the union is six
+/// teeth. Red if the union judges the pairs its members' reads show are
+/// rigid images held apart.
+#[test]
+fn a_union_of_one_family_is_certified_apart_not_judged() {
+    assert_eq!(interleaved(0.8, 1.0), (0, 6));
+}
+
+/// **An uncertified pair goes through the pairwise pass, never
+/// refuses**: combs whose teeth touch face to face are judged and fuse,
+/// six teeth into one run.
+/// Red if a pair the certificate cannot separate refuses, as the group
+/// boolean's certificate did.
+#[test]
+fn an_uncertified_pair_is_judged_not_refused() {
+    let (judged, solids) = interleaved(1.0, 1.0);
+    assert!(judged > 0, "the touching pairs are judged");
+    assert_eq!(solids, 1, "the touching teeth fuse into one run of six");
+}
