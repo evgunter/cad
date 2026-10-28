@@ -27,6 +27,7 @@ use geom::{NurbsCurve3, Surface};
 use geom_core::k_stats::decide;
 use geom_core::{Band, Margin, Point2, Point3, Sign, Tol};
 use profile::{Open, Profile, ProfileLoop, RawLoop, SketchPlane, Start};
+use std::collections::BTreeSet;
 use sweep::test_support::revolved_about_y;
 use sweep::{Revolution, extrude, loft_body, revolve, sweep_body};
 use topo::clearance::{
@@ -34,7 +35,7 @@ use topo::clearance::{
     DEFAULT_MAX_CELL_DEPTH, EngineRefusal, MinSeparationConfig, SharedCell, Side, Sweep,
     min_separation,
 };
-use topo::{Body, FaceKey};
+use topo::{Body, FaceKey, LoopBoundary, VertexKey};
 
 use crate::common::{normal_start_place, quad, to_offset};
 use crate::revolve_common::{axis_y, donut_profile, validated};
@@ -141,13 +142,51 @@ fn pairs(n: usize) -> usize {
     n * (n + 1) / 2
 }
 
-/// **Holds, every pair examined, and the touching ones certified**: the
-/// receipt has a root for every face pair the tree admits, and at least
-/// `certified` touching pairs discharged by a local certificate.
-fn assert_holds(what: &str, report: &BoundReport<Witness>, faces: usize, certified: usize) {
+/// **The face pairs of `body` that share a vertex**, read off its
+/// topology: every one touches, and on a body that holds each is
+/// certified at least once — the cells holding the shared point always
+/// touch, and a touching pair is discharged only by a certificate.
+fn touching_pairs(body: &Body<f64>) -> usize {
+    let vertices = |f: FaceKey| -> BTreeSet<VertexKey> {
+        let face = body.get_face(f).unwrap();
+        core::iter::once(face.outer)
+            .chain(face.rings.iter().copied())
+            .flat_map(|l| match body.get_loop(l).unwrap().boundary {
+                LoopBoundary::Empty { vertex } => vec![vertex],
+                LoopBoundary::Cycle { first } => body
+                    .loop_cycle(first)
+                    .unwrap()
+                    .into_iter()
+                    .map(|he| body.get_half_edge(he).unwrap().start)
+                    .collect(),
+            })
+            .collect()
+    };
+    let faces: Vec<BTreeSet<VertexKey>> = body.faces().map(|(k, _)| vertices(k)).collect();
+    let mut n = 0;
+    for (i, a) in faces.iter().enumerate() {
+        n += faces
+            .iter()
+            .skip(i + 1)
+            .filter(|b| !a.is_disjoint(b))
+            .count();
+    }
+    n
+}
+
+/// **Holds, every pair examined, and the touching ones certified ACROSS
+/// faces**: the receipt has a root for every face pair the tree admits,
+/// each face against itself discharged by kind or examined, and at least
+/// one cross-face certificate for every face pair of `body` that shares
+/// a vertex ([`touching_pairs`]). The cross-face floor is what goes red
+/// if the sweep stops examining pairs that share a cell: the monotone
+/// self-pairs a free-form face certifies are no part of it.
+fn assert_holds(what: &str, report: &BoundReport<Witness>, body: &Body<f64>) {
     let r = report.receipt;
+    let faces = body.faces().count();
+    let touching = touching_pairs(body);
     println!(
-        "[selfx] {what}: {:?} {r:?} {:?}",
+        "[selfx] {what}: {:?} {r:?} {:?} touching pairs = {touching}",
         report.verdict, report.widths
     );
     assert!(
@@ -155,12 +194,15 @@ fn assert_holds(what: &str, report: &BoundReport<Witness>, faces: usize, certifi
         "{what} is embedded: {r:?}"
     );
     assert!(
-        r.candidates <= pairs(faces) && r.candidates >= faces,
-        "{what}: every face against itself, and the pairs the tree admits: {r:?}"
+        r.candidates <= pairs(faces) && r.candidates >= faces + touching,
+        "{what}: every face against itself and every touching pair, and the pairs the tree \
+         admits: {r:?}"
     );
+    assert!(touching > 0, "{what}: the row is about touching faces");
     assert!(
-        r.certified >= certified,
-        "{what}: the touching pairs are certified, not dropped: {r:?}"
+        r.across >= touching,
+        "{what}: every one of the {touching} face pairs sharing a vertex is certified across \
+         faces, not dropped: {r:?}"
     );
 }
 
@@ -310,9 +352,8 @@ fn a_revolved_cone_holds() {
     let body = revolve(&profile, axis_y(), Revolution::Full, tol())
         .unwrap()
         .body;
-    let n = body.faces().count();
     let report = injective(&body, None, BUDGET);
-    assert_holds("the cone", &report, n, 1);
+    assert_holds("the cone", &report, &body);
 }
 
 /// **A pyramid holds**: a square base and an apex — four planar faces
@@ -333,9 +374,8 @@ fn a_pyramid_holds() {
         tol(),
     );
     let body = at_rest.into_body();
-    let n = body.faces().count();
     let report = injective(&body, None, BUDGET);
-    assert_holds("the pyramid", &report, n, 1);
+    assert_holds("the pyramid", &report, &body);
 }
 
 /// **An embedded triangle loft holds**: every wall shares a seam with
@@ -351,9 +391,8 @@ fn an_embedded_triangle_loft_holds() {
     let sections = [tri(1.0, 0.0), tri(0.6, 0.3)];
     let places = [0.0, 1.0].map(|z| SketchPlane::xy_at(Point3::new(0.0, 0.0, z)));
     let lofted = loft_body::<f64>(&sections, &places, 1, tol()).expect("the triangles loft");
-    let n = lofted.body.faces().count();
     let report = injective(&lofted.body, None, BUDGET);
-    assert_holds("the triangle loft", &report, n, 1);
+    assert_holds("the triangle loft", &report, &lofted.body);
 }
 
 /// **A declared wedge-0 kiss refuses typed**: the lune between the
@@ -471,9 +510,13 @@ fn a_full_torus_certifies_by_kind() {
     .unwrap()
     .body;
     let report = injective(&body, None, BUDGET);
-    println!("[selfx] torus: {:?} {:?}", report.verdict, report.receipt);
-    assert!(matches!(report.verdict, BoundVerdict::Holds));
-    assert!(report.receipt.by_kind >= 1, "{:?}", report.receipt);
+    assert_holds("the torus", &report, &body);
+    assert_eq!(
+        report.receipt.by_kind,
+        body.faces().count(),
+        "every torus face against itself discharged by kind, R > r decided: {:?}",
+        report.receipt
+    );
 }
 
 /// **A long helical sweep certifies within the default budget**: a
@@ -485,9 +528,8 @@ fn a_long_helical_sweep_certifies_within_the_default_budget() {
     let place = normal_start_place(&path);
     let profile = quad([(-0.08, -0.08), (0.08, -0.08), (0.08, 0.08), (-0.08, 0.08)]);
     let swept = sweep_body::<f64>(&profile, place, &path, 65, 3, tol()).expect("the helix sweeps");
-    let n = swept.body.faces().count();
     let report = injective(&swept.body, None, BUDGET);
-    assert_holds("the helical sweep", &report, n, 1);
+    assert_holds("the helical sweep", &report, &swept.body);
 }
 
 /// **A big thin-walled cylinder shell**: the tube `r ∈ [0.96, 1]`, two
@@ -501,9 +543,8 @@ fn a_big_thin_walled_cylinder_shell_certifies_within_the_default_budget() {
         Revolution::Full,
         tol(),
     );
-    let n = body.faces().count();
     let report = injective(&body, None, BUDGET);
-    assert_holds("the thin shell", &report, n, 1);
+    assert_holds("the thin shell", &report, &body);
 }
 
 // ------------------------------------------- a face across its seam

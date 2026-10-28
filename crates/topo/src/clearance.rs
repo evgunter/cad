@@ -541,6 +541,12 @@ pub struct CellReceipt {
     /// a local certificate ([`CertificateArm::Monotone`],
     /// [`CertificateArm::Departure`]) rather than by distance.
     pub certified: usize,
+    /// **A sub-count of `certified`**: the certified pairs whose two
+    /// cells are on DIFFERENT faces — departure across an edge or vertex
+    /// two faces share. A row that pins it goes red when the sweep stops
+    /// examining the pairs that share a cell, which the monotone
+    /// self-pairs every free-form face certifies cannot hide.
+    pub across: usize,
     /// **A sub-count of `discharged`**: faces against themselves
     /// discharged whole as injective by their carrier's kind
     /// ([`CertificateArm::ByKind`]), one per face, never subdivided.
@@ -569,8 +575,14 @@ impl CellReceipt {
     ///
     /// # Panics
     ///
-    /// When `outside > discharged`.
+    /// When `outside > discharged`, or `across > certified`.
     fn check_outside_is_a_sub_count(&self) {
+        assert!(
+            self.across <= self.certified,
+            "a receipt's `across` is a SUB-COUNT of `certified`: across = {}, certified = {}",
+            self.across,
+            self.certified
+        );
         assert!(
             self.outside + self.certified + self.by_kind <= self.discharged,
             "a receipt's `outside`, `certified` and `by_kind` are disjoint SUB-COUNTs of \
@@ -602,6 +614,7 @@ impl CellReceipt {
             splits: self.splits + other.splits,
             outside: self.outside + other.outside,
             certified: self.certified + other.certified,
+            across: self.across + other.across,
             by_kind: self.by_kind + other.by_kind,
             abandoned: self.abandoned + other.abandoned,
         }
@@ -1176,6 +1189,9 @@ impl Sweep {
                             Outcome::Certified => {
                                 discharge(&mut receipt, &mut widths);
                                 receipt.certified += 1;
+                                if x.face != y.face {
+                                    receipt.across += 1;
+                                }
                             }
                             Outcome::Refuse(r) => {
                                 receipt.refused += 1;
