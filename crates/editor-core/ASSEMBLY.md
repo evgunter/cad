@@ -458,9 +458,9 @@ seat a mate set up or a touch no mate relates alike, is recorded
 census's next pass confirms. The coincidence door proves a mated seat's
 row from the mate's own statement (`[coincidence.structural]`). Two
 copies' planar faces meeting over an area are one such row, the face
-pair. Two faces of two copies on one plane, facing the same way, whose
-boundaries share a segment and whose interiors do not meet, are a flush
-pair: a row of its own (`topo::AtRestPolicy::flush_at_rest`) that no
+pair. Two faces of two copies on one carrier (a plane, a cylinder or a
+sphere), facing the same way, whose boundaries share a run of an edge
+and whose interiors do not meet, are a flush pair: a row of its own (`topo::AtRestPolicy::flush_at_rest`) that no
 record cites, reported unless the door proves it, and never quieted by
 an assertion. A pierce or a same-side crossing is no touch: it is an
 overlap between two copies. The findings follow the gathers: the
