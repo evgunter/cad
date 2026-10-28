@@ -7218,3 +7218,8 @@ Signed (WIRE orchestrator).
   - Dump over 11,648 union evaluations: 0 rows and 0 sizes moved; 101 tied bases are now recorded as the union's own.
   - The witness passes on base too: no document was found where the fold and the union's own count differ.
   - Filed `doctail/a-unions-seam-piece-on-a-divided-parent-diagnoses-as-cascade`. FULL review dispatched (`wire-unionrecord-rev`).
+- 2026-10-28 (WIRE orchestrator) PR 5902 FULL review: the code is correct, and the README reword needs no Ev sign-off (f457b08861 is an implementation commit).
+  - MAJOR: the PR claimed the readings never differ, which is false. The reviewer's two-bar document has unequal tied groups. Base read `GroupResized` in one member order and declined in the other; the branch declines in both, which is right by N5. The PR owes this as a red-on-base pin.
+  - MINORs: a stale `Rederived` cite in a WIRE row, and `groups.rs` tie_summed docs.
+  - Fix pass sent to the lane.
+  - Filed `wirerest/the-judgement-naming-fault-seam-refuses-other-tests-unions` (P4, E) for a pre-existing threaded-cargo-test flake.
