@@ -24,6 +24,7 @@ mod class;
 mod counters;
 mod framed;
 pub mod measure;
+pub mod members;
 mod memo;
 pub(crate) mod parts;
 
@@ -866,6 +867,10 @@ pub struct NodeValue<T: Decide> {
     /// them), and a copy, pick or projection of either. A census reading
     /// such a body as one arrival discards what it finds inside it.
     pub censused: bool,
+    /// **A family's members** (D10 `[repetition]`): each member's value,
+    /// for a node evaluated once per value of the indices it reaches
+    /// ([`members`]); `None` for every other node.
+    pub members: Option<Arc<members::Members<T>>>,
     /// The node's verdict log (M4 PR 4, N5): every definite predicate
     /// decision made evaluating the node — those made before its
     /// content key (a profile's f64 precompute: the plane read, the
@@ -935,6 +940,7 @@ impl<T: Decide> NodeValue<T> {
             pieces: out.pieces,
             census: out.census,
             censused: out.censused,
+            members: None,
             verdicts: Arc::new(Vec::new()),
             escalations: Arc::new(Vec::new()),
             motion: None,
@@ -972,6 +978,7 @@ impl NodeValue<f64> {
             pieces: None,
             census: None,
             censused: false,
+            members: None,
             witness: WitnessSlot::default(),
             content_key: ContentKey(0),
             naming_key: NamingKey(0),
@@ -1138,6 +1145,9 @@ pub enum ValuePayload<T: Decide> {
     /// vocabulary takes a verdict as an operand, so this payload is
     /// consumed by reports and by nothing else.
     Assertion(crate::measure::AssertionVerdict<T>),
+    /// **A family of anything but bodies** (D10 `[repetition]`): its
+    /// members are the value's ([`NodeValue::members`]).
+    Family,
 }
 
 /// **One family word, as a literal** — so [`concat!`] can compose a
@@ -1174,6 +1184,9 @@ macro_rules! family_word {
     (assertion) => {
         "assertion"
     };
+    (family) => {
+        "family"
+    };
 }
 
 /// **The family words** — the vocabulary a typed operand mismatch
@@ -1189,6 +1202,7 @@ pub(crate) mod family {
     pub(crate) const INSTANCES: &str = family_word!(instances);
     pub(crate) const MEASURE: &str = family_word!(measure);
     pub(crate) const ASSERTION: &str = family_word!(assertion);
+    pub(crate) const FAMILY: &str = family_word!(family);
 }
 // OPERAND-VOCABULARY END
 
@@ -1282,6 +1296,7 @@ impl<T: Decide> ValuePayload<T> {
             // and the two variants are how it is asked.
             Self::MeasureUnavailable { .. } => family::MEASURE,
             Self::Assertion(_) => family::ASSERTION,
+            Self::Family => family::FAMILY,
         }
     }
 }
@@ -3603,6 +3618,12 @@ where
             pass_two,
         },
     };
+    // Which indices each node reaches, read once off the recipe: a node
+    // reaching any is evaluated once per member of them ([`members`]).
+    let chains: BTreeMap<RecipeNodeId, crate::repetition::Reached> = {
+        let mut reach = crate::repetition::Reach::new(doc);
+        sched.order.iter().map(|&id| (id, reach.node(id))).collect()
+    };
     let mut nodes: BTreeMap<RecipeNodeId, NodeResult<T>> = BTreeMap::new();
     let mut recomputed = 0usize;
     let mut reused = 0usize;
@@ -3634,7 +3655,7 @@ where
             // Each node runs under a K-funnel frame of its own; its
             // bracket in `eval_node` nests inside that frame.
             let results = geom_core::k_stats::map_detached(level, |&id| {
-                eval_node(doc, &env, id, &nodes, prior, &op_env, tol)
+                eval_any(doc, &env, id, &chains, &nodes, prior, &op_env, tol)
             });
             for (&id, (step, recording)) in level.iter().zip(results) {
                 bookkeep(&step, &mut recomputed, &mut reused);
@@ -3653,7 +3674,7 @@ where
                 outcome = EvalOutcome::Canceled;
                 break;
             }
-            let step = eval_node(doc, &env, id, &nodes, prior, &op_env, tol);
+            let step = eval_any(doc, &env, id, &chains, &nodes, prior, &op_env, tol);
             bookkeep(&step, &mut recomputed, &mut reused);
             nodes.insert(id, step.result);
         }
@@ -3880,6 +3901,41 @@ fn resolve_appearance<T: Decide>(
 
 /// One node's evaluation step: the result plus whether it was a memo
 /// reuse (for the D4 counters).
+/// **One node of the schedule, evaluated**: as itself where it reaches
+/// no index, once per member of the indices it reaches otherwise
+/// ([`members::eval_family`]), and refused where it reaches two
+/// indices neither of which is within the other.
+#[allow(clippy::too_many_arguments)] // eval_node's inputs, and the chains
+fn eval_any<T>(
+    doc: &Doc<ProfileProgram>,
+    env: &crate::expr::VarEnv<T>,
+    id: RecipeNodeId,
+    chains: &BTreeMap<RecipeNodeId, crate::repetition::Reached>,
+    results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
+    prior: Option<&Evaluation<T>>,
+    op_env: &wire::OpEnv<'_, T>,
+    tol: Tol,
+) -> NodeStep<T>
+where
+    T: EvalScalar,
+{
+    let prior = prior.and_then(|p| p.value(id));
+    match chains.get(&id) {
+        Some(crate::repetition::Reached::Unrelated(a, b)) => NodeStep {
+            result: NodeResult::Failed(NodeError {
+                node: id,
+                kind: NodeErrorKind::IndicesUnrelated { a: *a, b: *b },
+                escalations: Arc::new(Vec::new()),
+            }),
+            reused: false,
+        },
+        Some(crate::repetition::Reached::Chain(chain)) if !chain.is_empty() => {
+            members::eval_family(doc, env, id, chain, results, prior, op_env, tol)
+        }
+        _ => eval_node(doc, env, id, results, prior, op_env, &[], tol),
+    }
+}
+
 struct NodeStep<T: Decide> {
     result: NodeResult<T>,
     reused: bool,
@@ -3901,13 +3957,15 @@ fn bookkeep<T: Decide>(step: &NodeStep<T>, recomputed: &mut usize, reused: &mut 
 /// Evaluates one node against the results so far: poison propagation,
 /// slot evaluation with (node, slot) context, content key, memo
 /// lookup, and the op wiring.
+#[allow(clippy::too_many_arguments)] // the node, its inputs, and the member it is
 fn eval_node<T>(
     doc: &Doc<ProfileProgram>,
     env: &crate::expr::VarEnv<T>,
     id: RecipeNodeId,
     results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
-    prior: Option<&Evaluation<T>>,
+    prior: Option<&NodeValue<T>>,
     op_env: &wire::OpEnv<'_, T>,
+    at: &[(crate::VarId, i64)],
     tol: Tol,
 ) -> NodeStep<T>
 where
@@ -4163,6 +4221,7 @@ where
         doc.witness(id),
         tol,
     );
+    let content_key = members::member_key(content_key, at);
     let naming_key = naming_key(content_key, &upstream_naming);
 
     // Memo (spec D4 + #95 disposition 2): a content-key match
@@ -4178,7 +4237,7 @@ where
     // drops a foreign one before the schedule is built (DI3), so this
     // lookup cannot serve a coincidental id collision from another
     // document.
-    if let Some(v) = prior.and_then(|p| p.value(id))
+    if let Some(v) = prior
         && v.content_key == content_key
         && v.naming_key == naming_key
     {
@@ -4225,6 +4284,7 @@ where
                 pieces: out.pieces,
                 census: out.census,
                 censused: out.censused,
+                members: None,
                 verdicts: Arc::new(recorded.verdicts),
                 escalations,
                 witness: WitnessSlot {},
@@ -4453,6 +4513,14 @@ mod tag {
         /// values are slots, fed with the slot values.
         index {
             READS = 1,
+        }
+        /// A family's members ([`super::members`]): a member's key is
+        /// its operation's at one value of its indices, then `AT` and
+        /// each index and value; a family's is `FAMILY`, then each
+        /// member's.
+        member {
+            AT = 1,
+            FAMILY = 2,
         }
         /// The word before a node's picked reads ([`crate::VarDef::Pick`]),
         /// written only by a node holding one; then each picked read's

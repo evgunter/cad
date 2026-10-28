@@ -2092,13 +2092,25 @@ impl<P> Doc<P> {
     /// door's operand walk — so the rule is stated once; liveness is
     /// each door's own question, asked before. The world defines no
     /// variable, so no read reaches it (D10).
+    ///
+    /// A `Body` that reaches an index is a family of bodies (D10
+    /// `[repetition]`), so a seat admitting `Bodies` admits it.
     pub(crate) fn read_fault(
         &self,
+        var: VarId,
         held: &crate::Var,
         expected: crate::SlotKind,
         _reader: Reader,
-    ) -> Option<ReadFault> {
-        (!expected.admits(held)).then_some(ReadFault::Kind { found: held.kind() })
+    ) -> Option<ReadFault>
+    where
+        P: crate::ProfilePayload,
+    {
+        let family = || {
+            held.kind() == crate::VarKind::Body
+                && expected == crate::SlotKind::Is(crate::VarKind::Bodies)
+                && !self.var_reach(var).is_none()
+        };
+        (!expected.admits(held) && !family()).then_some(ReadFault::Kind { found: held.kind() })
     }
 
     /// **The variable port `port` of `node` defines**

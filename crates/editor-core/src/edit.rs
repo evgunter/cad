@@ -1759,7 +1759,7 @@ fn check_read<P: crate::ProfilePayload>(
     let Some(held) = doc.var(var) else {
         return Err(unresolved());
     };
-    match doc.read_fault(held, expected, reader) {
+    match doc.read_fault(var, held, expected, reader) {
         None => Ok(var),
         Some(crate::doc::ReadFault::Kind { found }) => Err(EditError::SlotVarKind {
             var: Box::new(doc.spoken_var(var)),

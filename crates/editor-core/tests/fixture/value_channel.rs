@@ -280,6 +280,9 @@ fn feed_node<T: Decide + ValueChannelBits>(d: &mut Digest, ev: &Evaluation<T>, i
                         AssertionVerdict::Unevaluated { .. } => {}
                     }
                 }
+                // A family of no bodies: its members are its own nodes'
+                // values, digested where each is read.
+                ValuePayload::Family => d.u64(25),
             }
         }
     }

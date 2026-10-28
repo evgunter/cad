@@ -749,7 +749,7 @@ fn first_selection_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                 } else {
                     crate::SlotKind::Placeable
                 };
-                match snapshot.read_fault(held, expected, crate::doc::Reader::Observes)? {
+                match snapshot.read_fault(select.body, held, expected, crate::doc::Reader::Observes)? {
                     crate::doc::ReadFault::Kind { found } => SelectionBodyFault::Kind {
                         body: Box::new(snapshot.spoken_var(select.body)),
                         found,
@@ -918,6 +918,7 @@ fn first_operand_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
             let held = snapshot.var(var)?;
             Some(
                 match snapshot.read_fault(
+                    var,
                     held,
                     node.seat_kind(slot),
                     crate::doc::Reader::of(node.seat_kind(slot)),

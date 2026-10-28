@@ -181,7 +181,7 @@ pub use names::{
     CONTACT_RECOURSE, CapEnd, Cmp, ContactRefusal, ContactVerdict, CrossingSensesShape, CurveKind,
     CurveKindSet, DeclaredContact, Denotation, DisagreeShape, DuplicateName, EntityKey, EntityKind,
     EntityNamed, EntityRef, Entry, FaceName, FragmentGroups, GeomPred, InterrogateError, JoinShape,
-    KindMismatch, LeafRole, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NameTextError,
+    KindMismatch, LeafRole, MemberAt, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NameTextError,
     NamingError, NotAFaceName, OpGroup, PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef,
     Qualifier, RimShare, RimSupport, RolePath, RoleSeg, RunLine, SEL_PLANE_DISTANCE,
     SeamSidesShape, SeamVertexShape, SeatingRefusal, SectionCircle, SegPat, SegTag, SelectRefusal,

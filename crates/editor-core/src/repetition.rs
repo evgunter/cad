@@ -4,10 +4,10 @@
 //! A variable reaches the indices its definition reads, through every
 //! definition, pose, selection, pick and operation between; an
 //! operation reaches what its slots and its reads reach. A read that
-//! takes a family whole — a `Bodies` seat reading a family, or an
-//! indexed read `xs[i, j]`, whose own index expressions are slots —
-//! reaches nothing through the family it reads: the family is its
-//! operand, not its repetition.
+//! takes a family whole — a `union`'s, an `intersect`'s or an
+//! `assemble`'s member, or an indexed read `xs[i, j]`, whose own index
+//! expressions are slots — reaches nothing through the family it reads:
+//! the family is its operand, not its repetition.
 //!
 //! The indices one reader reaches are a chain: each within the one
 //! before it, outermost first ([`Reach::order`]). An index is within
@@ -182,15 +182,17 @@ impl<'d, P: crate::ProfilePayload> Reach<'d, P> {
 }
 
 /// Whether `node` reads the variable at `seat` as a family whole: a
-/// `Bodies` seat, or an indexed read.
-fn takes_whole<P: crate::ProfilePayload>(
+/// member of a `Bodies` argument, or an indexed read.
+pub(crate) fn takes_whole<P: crate::ProfilePayload>(
     node: &crate::Node<P>,
     seat: crate::OperandSlot,
 ) -> bool {
-    seat == crate::OperandSlot::Members
-        || node
-            .body_read(seat)
-            .is_some_and(crate::BodyRead::is_indexed)
+    matches!(
+        seat,
+        crate::OperandSlot::Members | crate::OperandSlot::Member(_)
+    ) || node
+        .body_read(seat)
+        .is_some_and(crate::BodyRead::is_indexed)
 }
 
 impl<P: crate::ProfilePayload> Doc<P> {

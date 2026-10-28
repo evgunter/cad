@@ -1038,8 +1038,6 @@ pub fn det_and_conditioning(ray: &Ray, tri: &[Point3<f64>; 3]) -> (f64, f64) {
 /// variant of `names::VerbatimEdge`, without the operands it carries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum VerbatimKind {
-    /// `VerbatimEdge::Selected`: one body of the input, projected.
-    Selected,
     /// `VerbatimEdge::Intact`: the entities a split leaves intact.
     Intact,
     /// `VerbatimEdge::Reflected`: a mirror's image.
@@ -1061,7 +1059,6 @@ pub enum VerbatimKind {
 pub fn verbatim_kind<P>(node: &Node<P>) -> Option<VerbatimKind> {
     use crate::names::VerbatimEdge;
     Some(match crate::names::verbatim_edge(node)? {
-        VerbatimEdge::Selected { .. } => VerbatimKind::Selected,
         VerbatimEdge::Intact { .. } => VerbatimKind::Intact,
         VerbatimEdge::Reflected { .. } => VerbatimKind::Reflected,
         VerbatimEdge::Copied { .. } => VerbatimKind::Copied,

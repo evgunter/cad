@@ -645,7 +645,8 @@ fn payload_reach<T: crate::mate::SolveScalar>(
         | ValuePayload::Profile(_)
         | ValuePayload::Measure { .. }
         | ValuePayload::MeasureUnavailable { .. }
-        | ValuePayload::Assertion(_) => Ok(0.0),
+        | ValuePayload::Assertion(_)
+        | ValuePayload::Family => Ok(0.0),
     }
 }
 
@@ -2584,6 +2585,45 @@ fn instance_of<T: Decide>(
     Ok((instances[ix as usize].clone(), ix))
 }
 
+/// **The member of `of`'s family an indexed read picks**, with its
+/// place among the family's bodies: the member whose index values are
+/// the read's `rank` index slots at `seat`, in order. A read of another
+/// rank, or at values no member stands at, refuses as one out of range
+/// ([`NodeErrorKind::MemberOutOfRange`]).
+fn member_of<T: Decide>(
+    of: RecipeNodeId,
+    members: &super::members::Members<T>,
+    instances: &[super::Framed<T>],
+    vals: &SlotValues<T>,
+    seat: crate::OperandSlot,
+    rank: usize,
+) -> Result<(super::Framed<T>, u32), NodeErrorKind> {
+    let at = (0..rank)
+        .map(|k| {
+            let slot = SlotId::Index {
+                seat,
+                k: u8::try_from(k).unwrap_or(u8::MAX),
+            };
+            slots::count(vals, slot).ok_or(NodeErrorKind::MissingSlot { slot })
+        })
+        .collect::<Result<Vec<i64>, _>>()?;
+    let out = || NodeErrorKind::MemberOutOfRange {
+        input: of,
+        at: at.clone(),
+    };
+    if rank != members.over.len() {
+        return Err(out());
+    }
+    let narrow: Vec<u32> = at
+        .iter()
+        .map(|&v| u32::try_from(v).ok())
+        .collect::<Option<_>>()
+        .ok_or_else(out)?;
+    let index = members.position(&narrow).ok_or_else(out)?;
+    let body = instances.get(index).cloned().ok_or_else(out)?;
+    Ok((body, names::output_body(index).map_err(NodeErrorKind::Naming)?))
+}
+
 /// One half of a split's value, or [`NodeErrorKind::EmptyHalf`].
 fn split_side<T: Decide>(
     of: RecipeNodeId,
@@ -2658,7 +2698,11 @@ fn reads_projected<T: Decide>(
             let ValuePayload::Instances(instances) = &value.payload else {
                 return Err(wrong_operand(value, family, super::family::INSTANCES));
             };
-            let (body, index) = instance_of(family, instances, vals, SlotId::Index { seat, k: 0 })?;
+            let rank = node.body_read(seat).map_or(0, |read| read.at.len());
+            let (body, index) = match &value.members {
+                Some(members) => member_of(family, members, instances, vals, seat, rank)?,
+                None => instance_of(family, instances, vals, SlotId::Index { seat, k: 0 })?,
+            };
             // A family's one table holds every member at its place.
             let table = read_table(value)
                 .project(index)
@@ -3283,33 +3327,67 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // family read whole, in index order, its table the family's rows for
     // that member.
     use crate::OperandSlot as O;
-    let members: Vec<MemberRead<T>> = match bodies {
-        crate::Bodies::Spelled(reads) => reads
+    // Each member of a family read whole, in index order, its table the
+    // family's rows for that member.
+    let whole = |read: crate::VarId, at: RecipeNodeId, value: &super::NodeValue<T>| {
+        let ValuePayload::Instances(bodies) = &value.payload else {
+            return Err(wrong_operand(value, at, super::family::INSTANCES));
+        };
+        bodies
             .iter()
             .enumerate()
-            .map(|(i, member)| {
+            .map(|(i, body)| {
+                let index = u32::try_from(i).unwrap_or(u32::MAX);
+                let table = read_table(value)
+                    .project(index)
+                    .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
+                names::check_total(&table, body.body(), 0).map_err(NodeErrorKind::Naming)?;
+                Ok(MemberRead {
+                    read,
+                    node: at,
+                    framed: body.clone(),
+                    table: Arc::new(table),
+                    // A family's records are the family's, not one
+                    // member's: a member read whole cites none.
+                    records: Arc::default(),
+                    pieces: None,
+                })
+            })
+            .collect::<Result<Vec<_>, NodeErrorKind>>()
+    };
+    let members: Vec<MemberRead<T>> = match bodies {
+        crate::Bodies::Spelled(reads) => {
+            let mut members = Vec::with_capacity(reads.len());
+            for (i, member) in reads.iter().enumerate() {
                 let read = member.read;
                 let slot = O::Member(u32::try_from(i).unwrap_or(u32::MAX));
                 let at = super::read_at(doc, slot, read)?;
                 let projected = reads_projected(node, &[(slot, read)], doc, (results, vals))?;
                 let results = projected.as_ref().unwrap_or(results);
+                let value = value_of(results, at)?;
+                // A family spelled as one read is its every member
+                // (D10 `[repetition]`).
+                if value.members.is_some() && !member.is_member() {
+                    members.extend(whole(read, at, value)?);
+                    continue;
+                }
                 let pieces = match op {
-                    BooleanOp::Intersect if value_of(results, at)?.pieces.is_some() => Some(
-                        Arc::new(distribute::Operand::read(results, at, read, doc, tol)?),
-                    ),
+                    BooleanOp::Intersect if value.pieces.is_some() => Some(Arc::new(
+                        distribute::Operand::read(results, at, read, doc, tol)?,
+                    )),
                     _ => None,
                 };
-                let framed = read_body(results, at)?;
-                Ok::<_, NodeErrorKind>(MemberRead {
+                members.push(MemberRead {
                     read,
                     node: at,
-                    framed,
-                    table: read_table(value_of(results, at)?),
-                    records: operand_records(value_of(results, at)?, doc, tol),
+                    framed: read_body(results, at)?,
+                    table: read_table(value),
+                    records: operand_records(value, doc, tol),
                     pieces,
-                })
-            })
-            .collect::<Result<Vec<_>, NodeErrorKind>>(),
+                });
+            }
+            members
+        }
         crate::Bodies::Family(family) => {
             // Every door refuses an indexed family argument
             // (`InputFault::IndexedFamily`); one reaching here would
@@ -3322,33 +3400,9 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             }
             let read = &family.read;
             let at = super::read_at(doc, O::Members, *read)?;
-            let value = value_of(results, at)?;
-            let ValuePayload::Instances(bodies) = &value.payload else {
-                return Err(wrong_operand(value, at, super::family::INSTANCES));
-            };
-            bodies
-                .iter()
-                .enumerate()
-                .map(|(i, body)| {
-                    let index = u32::try_from(i).unwrap_or(u32::MAX);
-                    let table = read_table(value)
-                        .project(index)
-                        .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
-                    names::check_total(&table, body.body(), 0).map_err(NodeErrorKind::Naming)?;
-                    Ok(MemberRead {
-                        read: *read,
-                        node: at,
-                        framed: body.clone(),
-                        table: Arc::new(table),
-                        // A family's records are the family's, not one
-                        // member's: a member read whole cites none.
-                        records: Arc::default(),
-                        pieces: None,
-                    })
-                })
-                .collect::<Result<Vec<_>, NodeErrorKind>>()
+            whole(*read, at, value_of(results, at)?)?
         }
-    }?;
+    };
     // The node's own read: the space a fold step's rows are read in.
     let Some(own_read) = doc.output(id, 0) else {
         unreachable!(
