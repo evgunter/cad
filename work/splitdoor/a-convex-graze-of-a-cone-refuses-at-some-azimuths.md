@@ -2,11 +2,12 @@
 id: a-convex-graze-of-a-cone-refuses-at-some-azimuths
 kind: issue
 title: a plane holding a cone's apex refuses at the apex vertex, grazing or cutting
-status: dispatched
+status: review
 opened: 2026-10-02
 priority: P0
 cost: H
 branch: splitdoor/cone-apex
+pr: 5956
 ---
 
 

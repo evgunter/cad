@@ -2,10 +2,12 @@
 id: a-plane-tangent-to-a-holes-rim-at-a-vertex-refuses-its-germs-as-coincident
 kind: issue
 title: A split whose plane touches a hole's rim at a vertex from the material side refuses SectionGermsUnordered Coincident: the cap's trace and the hole wall's section leave the vertex along one direction
-status: open
+status: review
 opened: 2026-10-11
 priority: P1
 cost: M
+pr: 5951
+branch: splitdoor/hole-rim-tangent-germs
 ---
 
 
