@@ -956,7 +956,7 @@ pub fn clearance_with(
     // windows, the first selection whole before the second.
     let windows = |sel: &Selection, body| {
         let faces = faces_of(&ev, sel, body)?;
-        Ok::<_, ClearanceRefusal>(Side { body, faces }.windows(band)?)
+        Ok::<_, ClearanceRefusal>(Side { body, faces }.windows()?)
     };
     let windows_a = match windows(a, &body_a) {
         Ok(w) => w,

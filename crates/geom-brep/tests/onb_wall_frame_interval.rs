@@ -87,7 +87,7 @@ fn refines(surface: &Surface<Interval>, u: (f64, f64), v: (f64, f64)) -> bool {
         )
     };
     let whole = cell(u, v);
-    let mid = |(lo, hi): (f64, f64)| 0.5 * (lo + hi);
+    let mid = |(lo, hi): (f64, f64)| geom::mid_param(lo, hi);
     let narrower = |b: &Point3<Interval>| {
         [(b.x, whole.x), (b.y, whole.y), (b.z, whole.z)]
             .iter()

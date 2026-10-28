@@ -28,9 +28,8 @@
 //! **The windows and the cells are not the same, either**, and for
 //! that same reason. The bound question's sweep drops the cells decided
 //! outside their faces; [`min_separation`] keeps every cell of the
-//! carrier rectangles, because a drop is a decision and that door may
-//! take none (its own header, and
-//! `work/clear/min-separation-tightening-crosses-the-drive.md`). So
+//! carrier rectangles, because a drop is a decision and that door takes
+//! none (its own header). So
 //! `window_hi` is a minimum over strictly more of the carrier than a
 //! `Holds` covers, and the asymmetry is in the direction its own docs
 //! already state.
@@ -136,14 +135,9 @@ pub const DEFAULT_MAX_CELL_DEPTH: u32 = 40;
 
 /// The whole-query cell-pair budget of ONE [`min_separation`] query.
 ///
-/// A recorded run dial, and deliberately far below a clearance query's
-/// pair budget, because the two doors are asked at different rates: a
-/// clearance query is asked once per certified leaf by a fold a
-/// consumer calls deliberately, while this one is asked INSIDE the
-/// evaluation of a measure node — so a drive of a few hundred leaves
-/// pays it a few hundred times. The bracket a budget buys is honest at
-/// any width ([`MinSeparation`]), so the dial trades tightness for time
-/// and never truth.
+/// A recorded run dial. The bracket a budget buys is honest at any
+/// width ([`MinSeparation`]), so the dial trades tightness for time and
+/// never truth.
 pub const DEFAULT_MAX_MIN_SEP_PAIRS: usize = 512;
 
 /// Which question the engine is answering — the two readings of a
@@ -201,15 +195,19 @@ pub struct Side<'b, T: Real> {
 
 impl<'b, T: Decide + CertifiedBounds> Side<'b, T> {
     /// The side's faces read into carrier windows for [`Sweep::run`],
-    /// each cell of which the sweep decides at `band`
-    /// ([`crate::cell_region`]).
+    /// in the order of [`Self::faces`].
     ///
     /// # Errors
     ///
     /// [`EngineRefusal::Unsupported`] for the first face whose carrier
     /// has no admitted window.
-    pub fn windows(&self, band: Band) -> Result<Windows<'b, T>, EngineRefusal> {
-        read(self, Some(band))
+    pub fn windows(&self) -> Result<Windows<'b, T>, EngineRefusal> {
+        let of = self
+            .faces
+            .iter()
+            .map(|&k| window_of(self.body, k))
+            .collect::<Result<_, _>>()?;
+        Ok(Windows { of })
     }
 }
 
@@ -218,18 +216,6 @@ impl<'b, T: Decide + CertifiedBounds> Side<'b, T> {
 #[derive(Debug, Clone)]
 pub struct Windows<'b, T: Real> {
     of: Vec<Window<'b, T>>,
-}
-
-fn read<'b, T: Decide + CertifiedBounds>(
-    side: &Side<'b, T>,
-    band: Option<Band>,
-) -> Result<Windows<'b, T>, EngineRefusal> {
-    let of = side
-        .faces
-        .iter()
-        .map(|&k| window_of(side.body, k, band))
-        .collect::<Result<_, _>>()?;
-    Ok(Windows { of })
 }
 
 /// Why the engine has no answer. Typed and named, never a silent
@@ -284,21 +270,15 @@ pub enum EngineRefusal {
     /// backs.
     NoAdmittedPair,
     /// A cell pair the interval pass classified as a definite violation
-    /// whose witness the caller's verifier did not confirm.
-    ///
-    /// **Not reachable on any geometry built so far**, and the reason is
-    /// structural: a verifier evaluates points INSIDE the cell pair the
-    /// interval pass proved violating, so the distance it recomputes
-    /// lies inside an enclosure already classified definite. It is kept
-    /// because "the interval pass and the verifier disagree" is exactly
-    /// the thing a witness claim must not paper over, and a
-    /// reachable-looking arm nobody can fire is better than an
-    /// `unreachable!` that is wrong one day.
+    /// whose witness the caller's verifier did not confirm. The engine
+    /// reports what the verifier returned, verbatim, and goes on with
+    /// the sweep; whether the arm can fire is the verifier's property,
+    /// stated at the verifier.
     ///
     /// Its own arm, and never a violation: a witness is a claim about a
     /// concrete configuration, and one the independent recomputation
     /// contradicts is evidence about the analysis, not about the
-    /// geometry. The prose carries what the verifier found.
+    /// geometry.
     WitnessUnverified {
         /// What the verifier could not confirm.
         what: String,
@@ -537,9 +517,8 @@ impl DischargeWidths {
 pub struct Sweep {
     /// Which question ([`ClearanceBound`]).
     pub bound: ClearanceBound,
-    /// The linear band every compare classifies against. The windows
-    /// the walk runs over decide their cells at the same band
-    /// ([`Side::windows`]).
+    /// The linear band every compare classifies against: the clearance
+    /// site's and the cells' and stations' ([`crate::cell_region`]).
     pub band: Band,
     /// Per-pair subdivision depth ([`DEFAULT_MAX_CELL_DEPTH`]).
     pub max_cell_depth: u32,
@@ -580,12 +559,18 @@ pub enum BoundVerdict<W> {
     Refused(EngineRefusal),
 }
 
-/// **A cell pair the interval pass found violating**, as the sweep hands
-/// it to the verifier.
+/// **A cell pair the interval pass found violating, or could not
+/// decide**, as the sweep hands it to the verifier.
 ///
-/// The verifier answers whether a concrete pair of points of the two
-/// faces violates the bound, by a computation independent of the
-/// interval pass; the sweep stops at the first one it confirms.
+/// The verifier's duty: answer `Ok` only for a concrete pair of points,
+/// one in each of the two cells, whose separation it has itself decided
+/// violates the bound, by a computation independent of the interval
+/// pass; otherwise `Err` with what it found. The sweep stops at the
+/// first `Ok` and takes it as the witness without re-checking it. For
+/// the witness to be a pair of FACE points rather than carrier-window
+/// points, the verifier draws its points from
+/// [`Candidate::on_face_stations`]; the sweep cannot tell whether it
+/// did.
 pub struct Candidate<'s, 'b, T: Real> {
     x: &'s Window<'b, T>,
     ca: Cell,
@@ -634,7 +619,7 @@ fn admitted<T: Decide + CertifiedBounds>(
     w: &Window<'_, T>,
     c: Cell,
 ) -> Stations {
-    let stations = |span: (f64, f64)| [span.0, mid_of(span), span.1];
+    let stations = |(lo, hi): (f64, f64)| [lo, geom::mid_param(lo, hi), hi];
     let mut out = Vec::with_capacity(9);
     for u in stations(c.u) {
         for v in stations(c.v) {
@@ -744,7 +729,7 @@ impl Sweep {
             ..CellReceipt::default()
         };
         let mut widths = DischargeWidths::empty();
-        let mut region = RegionMemo::default();
+        let mut region = RegionMemo::at(self.band);
         let mut deepest = 0;
         let mut first_refusal: Option<EngineRefusal> = None;
         let mut violation: Option<W> = None;
@@ -1054,9 +1039,8 @@ impl Default for MinSeparationConfig {
 /// [`CellRegion::Inside`] and stations the face's point door places
 /// on the face, which bound the FACES' separation from above; the
 /// lower end already bounds it from below. That needs this door to
-/// decide cells, which it may not while its decisions cross the drive
-/// on one lane only (`work/clear/min-separation-tightening-crosses-the-drive.md`).
-/// Until then the asymmetry is typed rather than papered over.
+/// decide cells, and it decides none. The asymmetry is typed rather than
+/// papered over.
 ///
 /// # How WIDE the bracket actually is
 ///
@@ -1092,10 +1076,9 @@ impl Default for MinSeparationConfig {
 ///
 /// # Cost, and where it is paid
 ///
-/// The door runs once per call, and a measure that calls it inside
-/// evaluation pays it once per leaf of a drive: at a 65,536-leaf
-/// budget that is up to 65,536 subdivision searches of up to
-/// [`DEFAULT_MAX_MIN_SEP_PAIRS`] cell pairs each. Nothing here caps it.
+/// One subdivision search of up to [`MinSeparationConfig::max_cell_pairs`]
+/// cell pairs per call. A caller that asks once per leaf of a drive pays
+/// it once per leaf, and nothing here caps that.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MinSeparation {
     lo: f64,
@@ -1239,14 +1222,11 @@ pub fn min_separation<T: Decide + CertifiedBounds>(
     if a.faces.is_empty() || b.faces.is_empty() {
         return Err(EngineRefusal::EmptyScope);
     }
-    // **No cell is decided here.** A measure calls this door from inside
-    // an evaluation, and every funnel row a cell verdict records lands
-    // in that leaf's census, while the `f64` witness build asks none —
-    // so the two builds would differ `0 -> N` on every box and the leaf
-    // would refuse `flip_crossing`. Details in
-    // `work/clear/min-separation-tightening-crosses-the-drive.md`.
-    let wa = read(a, None)?.of;
-    let wb = read(b, None)?.of;
+    // **No cell is decided here**: this walk holds no band, so it asks
+    // neither point-in-face door anything and keeps every cell of the
+    // carrier rectangles.
+    let wa = a.windows()?.of;
+    let wb = b.windows()?.of;
     // The SAME-BODY rule the bound sweep uses, and for the same
     // reason: a face is never at a distance from itself, and two faces
     // sharing a vertex meet, so their separation is legitimately zero
@@ -1395,8 +1375,8 @@ pub fn min_separation<T: Decide + CertifiedBounds>(
             // surface evaluations a pair, and the bracket stops being
             // dominated by cell size.
             let station = |w: &Window<'_, T>, c: Cell| {
-                let u = mid_of(c.u);
-                let v = mid_of(c.v);
+                let u = geom::mid_param(c.u.0, c.u.1);
+                let v = geom::mid_param(c.v.0, c.v.1);
                 enclosure(&w.surface, (u, u), (v, v))
             };
             let stations = separation(&station(x, pair.a), &station(y, pair.b));
@@ -1476,13 +1456,11 @@ struct Window<'b, T: Real> {
     surface: Surface<Interval>,
     u: (f64, f64),
     v: (f64, f64),
-    /// **The body the face is read from, and the band its cells are
-    /// decided at** ([`cell_region`]): a cell the door decides
+    /// **The body the face is read from**, which [`cell_region`] reads
+    /// the face's region off: a cell the door decides
     /// [`CellRegion::Outside`] holds no point of the FACE, so
     /// classifying it would classify a place the body does not occupy.
-    /// `None` where the door passed no band and so asks nothing of any
-    /// cell ([`min_separation`]).
-    region: Option<(&'b Body<T>, Band)>,
+    body: &'b Body<T>,
     /// The face's boundary vertices — the wedge rule's currency, read
     /// off topology and never off geometry.
     vertices: BTreeSet<VertexKey>,
@@ -1498,8 +1476,9 @@ struct Window<'b, T: Real> {
 /// exactly when their four bounds are bit-identical, and a bitwise key
 /// is total where a float comparison would have to decide something.
 /// [`CellReceipt::outside`] still counts pairs.
-#[derive(Default)]
 struct RegionMemo {
+    /// The band every cell and station is decided at: the sweep's.
+    band: Band,
     seen: BTreeMap<(bool, usize, u64, u64, u64, u64), CellRegion>,
     /// The witness stations the point doors were asked to place, by the
     /// same bitwise key, and where they placed them.
@@ -1507,6 +1486,14 @@ struct RegionMemo {
 }
 
 impl RegionMemo {
+    fn at(band: Band) -> Self {
+        Self {
+            band,
+            seen: BTreeMap::new(),
+            stations: BTreeMap::new(),
+        }
+    }
+
     fn ask<T: Decide + CertifiedBounds>(
         &mut self,
         side_b: bool,
@@ -1514,9 +1501,6 @@ impl RegionMemo {
         w: &Window<'_, T>,
         c: Cell,
     ) -> CellRegion {
-        let Some((body, band)) = w.region else {
-            return CellRegion::Undecided;
-        };
         let key = (
             side_b,
             index,
@@ -1528,12 +1512,11 @@ impl RegionMemo {
         *self
             .seen
             .entry(key)
-            .or_insert_with(|| cell_region(body, w.face, c.u, c.v, band))
+            .or_insert_with(|| cell_region(w.body, w.face, c.u, c.v, self.band))
     }
 
     /// Where the face's point door places the station `(u, v)` of
-    /// window `index` ([`station_region`]); `None` for a window built
-    /// with no band.
+    /// window `index` ([`station_region`]).
     fn station<T: Decide + CertifiedBounds>(
         &mut self,
         side_b: bool,
@@ -1541,11 +1524,10 @@ impl RegionMemo {
         w: &Window<'_, T>,
         (u, v): (f64, f64),
     ) -> Option<FaceContainment> {
-        let (body, band) = w.region?;
         *self
             .stations
             .entry((side_b, index, u.to_bits(), v.to_bits()))
-            .or_insert_with(|| station_region(body, w.face, (u, v), band))
+            .or_insert_with(|| station_region(w.body, w.face, (u, v), self.band))
     }
 
     /// How many readings of a face's region the answer rests on: cells
@@ -1630,7 +1612,6 @@ fn full_latitude() -> (f64, f64) {
 fn window_of<'b, T: Decide + CertifiedBounds>(
     body: &'b Body<T>,
     face: FaceKey,
-    band: Option<Band>,
 ) -> Result<Window<'b, T>, EngineRefusal> {
     let unsupported = |carrier| Err(EngineRefusal::Unsupported { carrier, face });
     let Some(f) = body.get_face(face) else {
@@ -1685,7 +1666,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         surface: charted,
         u,
         v,
-        region: band.map(|band| (body, band)),
+        body,
         vertices,
     })
 }
@@ -1702,8 +1683,8 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
 /// here never moves.
 fn refines(surface: &Surface<Interval>, u: (f64, f64), v: (f64, f64)) -> bool {
     let whole = cell_box(surface, u, v);
-    let half_u = cell_box(surface, (u.0, mid_of(u)), v);
-    let half_v = cell_box(surface, u, (v.0, mid_of(v)));
+    let half_u = cell_box(surface, (u.0, geom::mid_param(u.0, u.1)), v);
+    let half_v = cell_box(surface, u, (v.0, geom::mid_param(v.0, v.1)));
     let narrower = |b: &Aabb| {
         b.max_x < whole.max_x
             || b.max_y < whole.max_y
@@ -1874,7 +1855,7 @@ fn split<T: Real>(
     let (ru, rv) = cell.relative(root);
     let axis_v = rv.total_cmp(&ru) == core::cmp::Ordering::Greater;
     let (lo, hi) = if axis_v { cell.v } else { cell.u };
-    let mid = mid_of((lo, hi));
+    let mid = geom::mid_param(lo, hi);
     if !(lo < mid && mid < hi) {
         return None;
     }
@@ -1932,13 +1913,6 @@ fn split<T: Real>(
             },
         )
     })
-}
-
-/// A span's midpoint, `0.5 * (lo + hi)`: where the split rule cuts and
-/// where a witness lattice and a min-separation station stand, one
-/// spelling so a station and a split cannot drift apart.
-fn mid_of(span: (f64, f64)) -> f64 {
-    0.5 * (span.0 + span.1)
 }
 
 #[cfg(test)]

@@ -2206,9 +2206,7 @@ pub fn assertion_at(
 /// engine's: `EmptyScope`, `NoAdmittedPair`, `Unsupported` and
 /// `PoisonEnclosure`. The other seven are classed by what they mean, so
 /// the match stays exhaustive and an arm added to either enum does not
-/// compile unclassed; the carrier narrows to the engine's own type when
-/// `MinClearanceLane` goes
-/// (`work/clear/symbolic-tier-and-clearance-engine.md`).
+/// compile unclassed.
 ///
 /// [`ClearanceRefusal`]: crate::clearance::ClearanceRefusal
 /// [`MinClearanceLane`]: crate::measure::MinClearanceLane

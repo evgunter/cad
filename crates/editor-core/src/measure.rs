@@ -343,6 +343,23 @@ pub struct MinClearanceOperand<'b, T: geom_core::Real> {
     pub faces: Vec<topo::entity::FaceKey>,
 }
 
+impl<'b, T: geom_core::Real> MinClearanceOperand<'b, T> {
+    /// The operand as the engine's side: the body and its faces, without
+    /// the address.
+    pub fn side(&self) -> topo::clearance::Side<'b, T> {
+        topo::clearance::Side {
+            body: self.body,
+            faces: self.faces.clone(),
+        }
+    }
+
+    /// Whether two operands read one body: the same output of the same
+    /// node. The engine's wedge rule applies between them exactly then.
+    pub fn same_body(&self, other: &Self) -> bool {
+        self.at == other.at && self.index == other.index
+    }
+}
+
 /// A point scalar has no enclosure to answer with. The whole content of
 /// the trait, at the lane where it bites.
 impl MinClearanceLane for f64 {
@@ -391,22 +408,20 @@ impl MinClearanceLane for geom_core::Interval {
         a: &MinClearanceOperand<'_, Self>,
         b: &MinClearanceOperand<'_, Self>,
     ) -> Option<Result<Self, crate::clearance::ClearanceRefusal>> {
-        fn side<'b>(
-            o: &MinClearanceOperand<'b, geom_core::Interval>,
-        ) -> topo::clearance::Side<'b, geom_core::Interval> {
-            topo::clearance::Side {
-                body: o.body,
-                faces: o.faces.clone(),
-            }
-        }
-        // One body when both references read the same output of the
-        // same node: the engine's wedge rule then applies.
-        let same_body = a.at == b.at && a.index == b.index;
+        // **The engine decides no cell on this path** (it takes no band).
+        // This door runs inside an evaluation, and every funnel row a cell
+        // verdict records lands in that leaf's census, while the `f64`
+        // witness build asks none — so the two builds would differ
+        // `0 -> N` on every box and the leaf would refuse `flip_crossing`
+        // (`work/clear/min-separation-tightening-crosses-the-drive.md`).
+        // For the same reason the pair budget is the engine's small
+        // default: a drive of a few hundred leaves pays this search a few
+        // hundred times.
         Some(
             topo::clearance::min_separation(
-                &side(a),
-                &side(b),
-                same_body,
+                &a.side(),
+                &b.side(),
+                a.same_body(b),
                 topo::clearance::MinSeparationConfig::default(),
             )
             .map_err(crate::clearance::ClearanceRefusal::Engine)

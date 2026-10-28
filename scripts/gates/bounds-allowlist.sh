@@ -680,7 +680,8 @@ BOUNDS_ALLOWLIST=(
   # plain `Decide`.
   'crates/topo/src/props/quad_lane.rs 14 M5 PR 11, the certified-quadrature plumbing'
   # The clearance engine's door, under the same seam and for the same
-  # reason as `QuadLane::certified`: it reads a `Body<T>` at any
+  # reason as `QuadLane::certified` (its own ledger paragraph in
+  # `real.rs`, after the M5 PR 11 entry): it reads a `Body<T>` at any
   # certifying scalar and lifts every surface, curve and point it reads
   # through `Interval::from_certified`, the certification act this
   # seam's right is; the cells, the enclosures, the funnelled `d − c`
@@ -688,13 +689,13 @@ BOUNDS_ALLOWLIST=(
   # branched on. `cell_region.rs` 3: `cell_region` and `station_region`,
   # whose station is placed at `T` by the point-in-face doors and whose
   # ball is lifted, and `clear_of_boundary`, which lifts the boundary it
-  # clears. `clearance.rs` 10: `Side::windows` and `read` (the windows),
+  # clears. `clearance.rs` 9: `Side::windows` (the windows),
   # `window_of` and `boundary_of` (the lifts), `RegionMemo::ask` and
   # `station` (the two doors above, memoized), `Candidate`'s block and
   # `admitted` (a verifier's on-face stations), `Sweep::run` and
   # `min_separation` (the two walks).
   'crates/topo/src/cell_region.rs 3 M5 PR 11, the certified-quadrature plumbing'
-  'crates/topo/src/clearance.rs 10 M5 PR 11, the certified-quadrature plumbing'
+  'crates/topo/src/clearance.rs 9 M5 PR 11, the certified-quadrature plumbing'
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
   # 15 -> 17: `chain_turns` is predicate 4's loop moved out of
   # `run_battery_for` whole (its junction-end pick the one bracket read,

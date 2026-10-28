@@ -196,9 +196,10 @@ pub(crate) const FILED_DECLARE: &[&str] = &[];
 /// The rows that render a key or a hex id, by exact row id and the
 /// exact span, each filed with its owner.
 pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
-    // `ClearanceRefusal::payload` (`editor-core/src/clearance.rs`) is
-    // the goldening form, and this arm prints it: faces as `FaceKey`
-    // `Debug`, a bound as its bits, a budget as its `Debug`.
+    // `EngineRefusal::payload` (`topo/src/clearance.rs`), which
+    // `ClearanceRefusal::payload` delegates to, is the goldening form, and
+    // this arm prints it: faces as `FaceKey` `Debug`, a budget as its
+    // `Debug`; the editor's own `NotADistance` prints its bound as bits.
     Admission {
         row: "MeasureClearanceRefused/Engine/Unsupported",
         span: "FaceKey(null)",
