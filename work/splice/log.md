@@ -866,3 +866,30 @@ carrier, and a structural selector is certified per surface, owing no
 limb 3. Fork-log row 208 is completed: B's first recommendation, as
 converged. Next is the boundary-row recovery in the boolean's
 `describe_edges` and the split's `finish`, which SPLICE takes.
+
+## 2026-10-28 — lily's next stop filed on SELECT; the tori red closes
+
+`select/the-boolean-recovers-no-structural-selector-for-a-rim-known-in-advance`
+is filed at P0. It needs SELECT's unit 1, the selector type, and SELECT
+has nothing dispatched. Ev was asked whether to start a SELECT
+orchestrator or have SPLICE take the units. SECT fixed the tori main
+red in PR 5925, so its issue file is closed.
+
+## 2026-10-28 — SPLICE splits along its seams
+
+The load was 91/30. Ev asked whether to split the track, keeping in
+SPLICE the threads its orchestrator should continue. It split four ways,
+by mechanism, with the rows moved by `git mv`, ids kept and a dated
+Moved note on each:
+- **SPLICE** (20/30 plus the structural-rim row in flight): lily wall
+  8's path. The limb-3 rows, lily at 1e-6, the census main red.
+- **SPLICECARRIER** (20/30, 5 rows): a NURBS carrier has no parameter
+  inverse. The join, the split parameter (teapot wall 3), the two flush
+  readings, the touch floor.
+- **SPLICEFACE** (26/30, 10 rows): a spline face read on its own sheet.
+  End placement, a foot no one placed, closed seams and poles, creases
+  (klein wall 3's G1 joint), the curved-face dispatch, the zero-speed
+  projection, the held pierce.
+- **SPLICESEAM** (25/30, 13 rows): the seam reader's residue after PR
+  5868, and the doors that still read a spline by kind.
+The three new tracks are `ready`, with no orchestrator.
