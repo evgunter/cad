@@ -233,15 +233,22 @@ fn foreign_master() -> (ProfileDoc, EvalOptions) {
 
 /// INVARIANT (AQ8, exhaustively): over EVERY subset of the recipe, the
 /// crossings a cut `split` accepts mints are exactly the kept
-/// constraints welding two members across it.
+/// constraints welding two members across it, and no accepted cut
+/// leaves a straddling constraint whose head is no member: the
+/// underqualified head's cuts refuse.
 #[test]
 fn every_cut_mints_exactly_its_straddling_member_edges() {
     let seen = sweep_every_cut(&three_shapes(), "shapes");
     assert!(seen.accepted > 0, "the sweep accepted nothing: vacuous");
-    assert!(
-        seen.straddling_mates > seen.crossings,
-        "no accepted cut ever put a dangling constraint's ends on opposite \
-         sides — the non-member seam is unexercised"
+    // The underqualified head names nothing the family's copy holds
+    // (its members are keyed by both indices), so a cut that would put
+    // it on one side and its constraint on the other cannot carry it
+    // and refuses: every straddle an accepted cut leaves is a member
+    // edge, recorded.
+    assert!(seen.refused > 0, "no cut refused: the underqualified head is unexercised");
+    assert_eq!(
+        seen.straddling_mates, seen.crossings,
+        "an accepted cut left a straddling constraint that is no member edge"
     );
     eprintln!(
         "shapes: {} accepted, {} refused, {} straddling remainder constraints, {} crossings",
