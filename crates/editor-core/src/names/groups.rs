@@ -6,8 +6,9 @@
 //! the boolean groups a result face by the operand face it descends
 //! from, an edge by its operand edge, seam pair or joined set, a corner
 //! held at several vertices by that corner, and the split groups a face
-//! by its operand face and the side it landed on. The group's base name is spelled from that key,
-//! and each member's name is the base, alone or with one qualifier.
+//! by its operand face and the side it landed on. The group's base
+//! name is spelled from that key, and each member's name is the base,
+//! alone or with one qualifier.
 //!
 //! The name alone cannot say which group a row belongs to. Two TIED
 //! parents (N2) have one name, so their groups share a base and the

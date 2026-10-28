@@ -92,8 +92,8 @@ count are deleted, so no group the emitter records is a tie's sum.
 - **Joined sets** (`name_boolean_edges`, the `joined_sets` loop) record
   with `GroupRecord::record(.., Parent::Elsewhere)`. The set is keyed by
   the operand edges themselves, so a tied set's group is one
-  candidate's, and the closed-carrier case above now answers with its
-  own count instead of declining.
+  candidate's. The closed-carrier case above would answer with its own
+  count instead of declining, if it can be built (below).
 - **Pair seam vertices** (`name_boolean_vertices`, the last loop) record
   nothing. They are always minted bare (`defer::mint_candidates`), so
   the rung returned at `fragment_base` before reading them. Their
@@ -113,4 +113,8 @@ vertices on the circle that survive the output stage's join. The
 operand whose feature keeps such a vertex has its own rim broken
 there, so its arcs overlap one result edge only. A crossing the
 boolean makes removes one side of the rim. So the shape looks
-unreachable from a pair boolean, but this is argued, not proved.
+unreachable from a pair boolean, but this is argued, not proved. The
+lead the brief named, a lateral face merged across two coaxial
+coincident cylinders, was not tried. With the tie-summed path deleted,
+nothing is left for such a witness to tell apart, so it is not
+scheduled.

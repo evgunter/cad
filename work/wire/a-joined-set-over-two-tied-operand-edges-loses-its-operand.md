@@ -78,3 +78,8 @@ One question stays open. The set's base `From(x)` is also `edge_line`
 of the tied roots' other pieces, so its `rec.record` group lands
 beside their line groups. Whether it belongs in each candidate's group
 instead has to be settled against the witness.
+
+## Review note (PR 5916, 2026-10-28)
+
+- **A gap in the no-witness argument.** The rule that a transversal crossing flips in and out ignores a non-transversal split. A tool edge touching E at v from outside leaves both pieces surviving, with tied far ends (crossings of two tied faces). Not built: it needs degenerate contact.
+- **A decline guard is gone once this row is fixed.** A tied set that collapses to one `From` name would record under the same base as its roots' `record_on_line` line group. `line_counts` then gives `[line, set]`, which reads as a two-parent tie or a size mismatch where it used to decline. Decide this with the fix.
