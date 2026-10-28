@@ -1420,19 +1420,21 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
             operand: operand.kind(),
         });
     }
+    let carrier = Curve3::Nurbs(std::sync::Arc::new(piece.clone()));
+    let (p0, p1) = piece.knot_values().domain();
     crate::ssi::certify::certify_branch(
-        &Curve3::Nurbs(std::sync::Arc::new(piece.clone())),
-        piece.knot_values().domain(),
+        &carrier,
+        (p0, p1),
         crate::ssi::certify::Lane::AtRest {
             a: &SsiOperand::Analytic(s1),
             b: &SsiOperand::Analytic(s2),
             pcurve_a: None,
             pcurve_b: None,
         },
-        // The tube's extent, from the object being certified: the
-        // piece's control-net diameter (a closed carrier's chord says
-        // nothing about its size).
-        carrier_diameter(&piece),
+        // The tube's extent, from the object being certified, as limb 3
+        // reads it everywhere: from below, since its transversality is
+        // the definite verdict it acts on.
+        crate::edge_extent_inf(&carrier, p0, p1, piece.eval(p0).distance(piece.eval(p1))),
         band,
         crate::ssi::certify::Limbs::Tube,
         &mut crate::ssi::certify::Refused::default(),
@@ -2238,21 +2240,6 @@ fn kernel_limit_ending(bound: f64, width: f64, extent: f64) -> String {
             geom_core::KERNEL_LIMIT_RECOURSE
         )
     }
-}
-
-/// The control-net diameter of a carrier, in metres — a convexity fact
-/// (the hull property), not an evaluation.
-fn carrier_diameter<T: geom_core::Real>(carrier: &NurbsCurve3<T>) -> T {
-    let mut ctl = carrier.control().iter();
-    let Some(first) = ctl.next() else {
-        return T::zero();
-    };
-    let (mut lo, mut hi) = (*first, *first);
-    for p in ctl {
-        lo = geom_core::Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z));
-        hi = geom_core::Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z));
-    }
-    (hi - lo).norm()
 }
 
 /// What [`chart_image`] reads of a carrier: its evaluator, the `f64`

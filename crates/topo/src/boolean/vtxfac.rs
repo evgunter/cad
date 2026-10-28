@@ -3592,7 +3592,7 @@ mod tests {
             u_ref: -z,
         };
         let span = core::f64::consts::FRAC_PI_2;
-        let extent = geom_brep::edge_extent(&arc, 0.0, span, 2f64.sqrt());
+        let extent = geom_brep::edge_extent_inf(&arc, 0.0, span, 2f64.sqrt());
         let bend = ConicBend::of(&arc, arc.deriv(0.0), arc.deriv2(0.0), span);
         let partner = [BoolSector {
             he: HalfEdgeKey::default(),

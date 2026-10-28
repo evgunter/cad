@@ -407,23 +407,22 @@ fn limb_two_certifies_the_arc_and_the_tube_names_the_cone() {
     }
 }
 
-/// **The chord the edge certificate levers a NURBS edge's dihedral by,
-/// on a steep arc.** `edge_extent` reads a NURBS carrier's chord as a
-/// lower bound on its point-set diameter; on a hyperbolic arc of a
+/// **The extent of a steep arc, bracketed.** On a hyperbolic arc of a
 /// needle cone, symmetric about its vertex and turning nearly a half
-/// turn, the farthest pair of points is a vertex and an end, not the
-/// two ends. Measured: the chord stays a lower bound, and on the needle
-/// it is under a fifth of the diameter. A lower bound is not the safe
-/// side here: the lever shrinks with it, so a margin Positive at the
-/// diameter can read a definite Zero at the chord
-/// (`work/select/edge-extent-reads-a-steep-nurbs-arcs-chord-four-to-ten-times-short.md`,
-/// which this row goes red for once the bound reads more of the arc).
+/// turn, the farthest pair of points is the vertex and an end, not the
+/// two ends: the chord is under a fifth of the diameter. The bound from
+/// below (`edge_extent_inf`) reads the vertex as the arc's middle and
+/// comes within a thousandth of the diameter; the bound from above
+/// (`edge_extent_sup`, the control net's farthest pair) stays over it. A lever from below that
+/// stopped at the chord would let a margin Positive at the diameter
+/// read a definite Zero.
 #[test]
-fn the_chord_on_a_steep_arc() {
-    for (alpha, y, loose) in [
-        (core::f64::consts::FRAC_PI_6, 2.0, false),
-        (0.1, 2.0, true),
-        (0.05, 6.0, true),
+fn the_extent_on_a_steep_arc() {
+    for (alpha, (y0, y1), steep) in [
+        (core::f64::consts::FRAC_PI_6, (-2.0, 2.0), false),
+        (0.1, (-2.0, 2.0), true),
+        (0.05, (-6.0, 6.0), true),
+        (0.1, (-1.0, 4.0), false),
     ] {
         let d = 0.3;
         let section = open(alpha, Point3::new(d, 0.0, 0.0), Vec3::unit_x());
@@ -431,8 +430,8 @@ fn the_chord_on_a_steep_arc() {
             .branch_at(Point3::new(d, 0.0, 2.0), band())
             .expect("a branch");
         let (from, to) = (
-            vertical_point(alpha, d, -y, 1.0),
-            vertical_point(alpha, d, y, 1.0),
+            vertical_point(alpha, d, y0, 1.0),
+            vertical_point(alpha, d, y1, 1.0),
         );
         let arc = branch.arc(from, to, band()).expect("an arc");
         let curve = nurbs(&arc);
@@ -445,21 +444,33 @@ fn the_chord_on_a_steep_arc() {
             .flat_map(|a| pts.iter().map(move |b| a.distance(*b)))
             .fold(0.0, f64::max);
         let chord = from.distance(to);
-        let extent = geom_brep::edge_extent(&arc, lo, hi, chord);
+        let inf = geom_brep::edge_extent_inf(&arc, lo, hi, chord);
+        let sup = geom_brep::edge_extent_sup(&arc, lo, hi, chord);
         println!(
-            "[measured] steep arc α {alpha}, y ±{y}: chord {chord}, diameter {diameter}, \
-             edge_extent {extent}, ratio {}",
-            extent / diameter
-        );
-        assert!(
-            extent <= diameter * (1.0 + 1e-12),
-            "α {alpha}: a lower bound, {extent} against {diameter}"
+            "[measured] steep arc α {alpha}, y {y0}..{y1}: chord {chord}, diameter {diameter}, \
+             inf {inf}, sup {sup}, chord/D {}, inf/D {}, sup/D {}",
+            chord / diameter,
+            inf / diameter,
+            sup / diameter
         );
         assert_eq!(
-            extent < 0.25 * diameter,
-            loose,
+            chord < 0.25 * diameter,
+            steep,
             "α {alpha}: the chord reads {} of the diameter",
-            extent / diameter
+            chord / diameter
+        );
+        assert!(
+            inf <= diameter * (1.0 + 1e-12),
+            "α {alpha}: the bound from below {inf} exceeds the diameter {diameter}"
+        );
+        assert!(
+            inf >= diameter * 0.999,
+            "α {alpha}: the bound from below {inf} is short of the diameter {diameter} \
+             (the chord is {chord})"
+        );
+        assert!(
+            sup >= diameter,
+            "α {alpha}: the bound from above {sup} is short of the diameter {diameter}"
         );
     }
 }
