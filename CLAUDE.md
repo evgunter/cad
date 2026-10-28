@@ -50,8 +50,8 @@ the body with its `file:line` citations, and commit it on your branch;
 ## Asking Ev
 
 Anything that needs Ev — a design fork, a ruling, a ratification, a
-question — is a PR titled `[ev] ...`; the open `[ev]` PRs are the
-whole queue ("Ev's channel" in `work/README.md`).
+question — is a PR titled `[ev] ...` ("Ev's channel" in
+`work/README.md`).
 
 - **A design fork is weighed first** by one Opus and one Fable
   designer (`docs/prompts/designer.md`), reconciled until the

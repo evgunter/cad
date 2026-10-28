@@ -4,7 +4,6 @@ kind: issue
 title: pncad-py — edit_error_tag / refusal-tag VALUES are compile-checked for existence but pinned nowhere
 status: closed
 opened: 2026-08-16
-github: 561
 refs: [652]
 closed: 2026-09-03
 ---

@@ -4,7 +4,6 @@ kind: issue
 title: Arc-aware point-in-loop - the polygon walk's remainder on arc-bearing planar faces
 status: closed
 opened: 2026-08-27
-github: 1076
 refs: [1068, 1425, 1464]
 priority: P0
 cost: H

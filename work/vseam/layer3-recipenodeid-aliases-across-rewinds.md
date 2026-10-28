@@ -4,7 +4,6 @@ kind: issue
 title: The RecipeNodeId aliasing hazard is gone under digest ids; the counter-era prose and two of DI1's rows remain
 status: open
 opened: 2026-08-31
-github: 1384
 refs: [1375]
 priority: P4
 cost: E

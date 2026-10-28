@@ -4,7 +4,6 @@ kind: issue
 title: local cargo test — review_m2_pr7_k reds under a malformed ambient CAD_TOLERANCE_EPS
 status: open
 opened: 2026-08-15
-github: 497
 refs: [415, 448]
 priority: P4
 cost: E

@@ -1,8 +1,7 @@
 # `work/` — the tracker
 
 Every stream of work in this repo is a file here. What is open and who
-owns it are recorded here and nowhere else; what waits on Ev is the
-set of open `[ev]` PRs (Ev's channel, below).
+owns it are recorded here and nowhere else.
 
 - **The board** is `work/STATUS.md`, generated on main by CI (The
   board, below). For a live view in any checkout, run
@@ -73,11 +72,7 @@ branch: mesh/saturated-span
 ---
 ```
 
-`id`, `kind`, `title`, `status` and `opened` are required. Two keys
-appear only on older rows and are never added to new ones: `track`
-(the 2026-08 findings register's code-quality track letter) and
-`github` (the number of the GitHub issue a row was migrated from,
-which the fired-trigger rule reads; Rules, below).
+`id`, `kind`, `title`, `status` and `opened` are required.
 
 A program (`program.md`):
 
@@ -102,9 +97,7 @@ The prefix and tag follow the branch-prefix and away-channel
 conventions in `memories/orchestration-model.md`: unit branches are
 `<prefix><unit>`, the orchestrator's branch is `<prefix>orchestrator`,
 and every comment the orchestrator posts leads with its tag. A program
-carries no priority (Priority, below). The schema still accepts a
-`blocks` key, from the findings register's per-track id blocks; no
-program carries it, and none should, since an item's id is its name.
+carries no priority (Priority, below).
 
 ## Vocabularies
 
@@ -247,9 +240,8 @@ lower band, and there are three ways to clear the error:
 
 A chain settles one link at a time: a blocker re-banded upward brings
 its own blockers under the rule. A program carries no band, so naming
-one as a blocker is not checked; a number in `blocked_on` reaches the
-rule only through `github:`, and only as a warning (Rules: *A fired
-trigger is not a blocker*). Raising a parked row's band can red `main`
+one as a blocker is not checked, and neither is a number in
+`blocked_on`. Raising a parked row's band can red `main`
 for a blocker on another program; the answer is to fix the blocker's
 band, not to soften the check.
 
@@ -353,7 +345,8 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
   (`D102`, `S330`, `C15`); nothing mints new ids in that shape.
 - **References resolve.** Every id in `parent`, `blocked_on`,
   `rides_with` and `refs` names a file that exists. Ints are PR or
-  issue numbers and are not checked against GitHub.
+  issue numbers and are not checked against GitHub, so a blocker
+  that is an item should be named by its id.
 - **A fired trigger is not a blocker.** A `parked` row whose
   `blocked_on` names a CLOSED item has had its trigger fire, so the
   reference is no evidence the row is still blocked. Two cases:
@@ -366,15 +359,6 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
   closing a trigger cannot un-park another program's rows in the same
   PR (one file, one item). That cost was accepted deliberately (Ev,
   2026-09-04): fix the stale rows, do not soften the check.
-
-  **A number reaches the rule only as a warning.** A migrated issue
-  carries its GitHub number on the item that replaced it (`github:`),
-  so an int in `blocked_on` matching exactly one such item is read as
-  that item, and if that item is closed the row is named — as a
-  warning in both cases above, never the error, because the match is
-  an inference rather than a naming, and an inference does not get to
-  red `main`. A number matching no `github:`, or two, is not checked.
-  To get the full check, name the item instead of the number.
 
 ### Territory
 
@@ -463,9 +447,7 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
 
 Ev does not edit files. Anything that needs Ev is a PR whose title
 starts with **`[ev]`**; how to write one is "Asking Ev" in
-`CLAUDE.md`. The open `[ev]` PRs are the whole queue: the tracker
-keeps no flag or list of its own beside them, since a second copy
-could only drift from the first. Once Ev answers, the agent updates
+`CLAUDE.md`. Once Ev answers, the agent updates
 the item and the docs, and merges.
 
 ## The log merges by union

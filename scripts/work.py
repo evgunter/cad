@@ -22,14 +22,9 @@ library, matching every other cheap tripwire under scripts/.
 WHAT LINT CANNOT SEE, stated because a disclosed blind spot is a work
 order. Ints in `blocked_on`, `refs` and `pr` are PR or issue numbers
 on GitHub and are not resolved AGAINST GITHUB — the tracker is version
-control and does not call out. One resolution is in the tree and is
-made: a migrated issue carries its number on the item that replaced it
-(`github:`), so a number in `blocked_on` that matches exactly one such
-item reaches the fired-trigger rule through it, as a warning rather
-than an error because the match is an inference (`work/README.md`).
-A number matching none, or two, stays unchecked. What waits on Ev is
-likewise a GitHub fact, the open `[ev]` PRs, and the tracker does not
-mirror it. Territory globs are matched with `fnmatch`, where `*` crosses `/` — `crates/mesh/*` is the whole crate,
+control and does not call out; to have a blocker checked, name the
+item instead of the number. Territory globs are matched with
+`fnmatch`, where `*` crosses `/` — `crates/mesh/*` is the whole crate,
 which is what every territory in the tree means by it.
 """
 
@@ -133,18 +128,15 @@ SCHEMA: dict[str, tuple[str, tuple[str, ...]]] = {
     "rides_with": ("ref", ("unit", "issue", "ruling")),
     "pr": ("int", ("unit", "issue", "ruling")),
     "branch": ("str", ("unit", "issue", "ruling")),
-    "track": ("str", ("unit", "issue", "ruling")),
     "priority": ("enum:priority", ("unit", "issue", "ruling")),
     "cost": ("enum:cost", ("unit", "issue", "ruling")),
     "design": ("flag", ("unit", "issue", "ruling")),
-    "github": ("int", ("unit", "issue", "ruling")),
     "area": ("enum:area", ("program",)),
     "prefix": ("str", ("program",)),
     "tag": ("str", ("program",)),
     "ab_band": ("str", ("program",)),
     "paths": ("strlist", ("program",)),
     "keep_out": ("strlist", ("program",)),
-    "blocks": ("strlist", ("program",)),
     "budget": ("int", ("program",)),
 }
 REQUIRED = ("id", "kind", "title", "status", "opened")
@@ -464,11 +456,9 @@ def _top_band(rows: list[Item]) -> str:
     return next((b for b, n in zip(PRIORITIES, counts, strict=True) if n), "—")
 
 
-def _say_fired(vs: list[object], resolves: dict[int, Item]) -> str:
-    """Fired blockers, named. An id prints as itself; a number prints as the
-    number AND the item it resolved to, so the reader can check the inference
-    rather than take it."""
-    return ", ".join(f"`{v}`" if isinstance(v, str) else f"#{v} (`{resolves[v].id}`)" for v in vs)
+def _say_fired(vs: list[str]) -> str:
+    """Fired blockers, named."""
+    return ", ".join(f"`{v}`" for v in vs)
 
 
 def _names(text: str, program_id: str) -> bool:
@@ -552,12 +542,6 @@ def lint(root: str, warnings: list[str] | None = None) -> list[str]:
     items, errors = load_tree(root)
     warns: list[str] = []
     by_id: dict[str, Item] = {}
-    # The migrated-issue map: `github: 1202` says this item is what GitHub
-    # issue 1202 became, which is the only thing in the tree that can turn a
-    # number in `blocked_on` back into a row. A number two rows both claim
-    # resolves to NEITHER — an ambiguous mapping is not a mapping — and is
-    # reported instead.
-    by_github: dict[int, list[Item]] = {}
     for it in items:
         # keys and types
         for key in it.fields:
@@ -593,16 +577,6 @@ def lint(root: str, warnings: list[str] | None = None) -> list[str]:
                 errors.append(f"{it.path}: id `{it.id}` is already {by_id[it.id].path}")
             else:
                 by_id[it.id] = it
-        gh = it.get("github")
-        if isinstance(gh, int) and not isinstance(gh, bool):
-            by_github.setdefault(gh, []).append(it)
-    for gh, claimants in sorted(by_github.items()):
-        if len(claimants) > 1:
-            warns.append(f"{claimants[0].path}: `github` {gh} is claimed by "
-                         f"{', '.join(f'`{c.id}`' for c in claimants)} — one GitHub issue became one item, "
-                         f"and a number two rows both claim resolves to neither, so a `blocked_on: [{gh}]` "
-                         f"goes unchecked")
-    resolves = {gh: c[0] for gh, c in by_github.items() if len(c) == 1}
     programs = {it.id: it for it in items if it.kind == "program" and it.id}
     owned: dict[str, list[Item]] = defaultdict(list)
     for it in items:
@@ -633,53 +607,33 @@ def lint(root: str, warnings: list[str] | None = None) -> list[str]:
             # else here objects and the row reads blocked forever.
             named = [v for v in _listed(it, "blocked_on")
                      if isinstance(v, str) and v in by_id and by_id[v].status == "closed"]
-            # An int reaches the rule only INFERRED, through `github:`: the
-            # author wrote a number, not a reference, and the tracker matched it
-            # to the item that number became. A true inference is still an
-            # inference, so it WARNS and names the row where a naming errors —
-            # `work/README.md` gives the reason. A number matching no `github:`,
-            # or two, stays unchecked, as every int did before. (GitHub numbers
-            # PRs and issues from one sequence per repo, so the number a row is
-            # parked on cannot be a PR number AND some other row's issue.)
-            inferred = [v for v in _listed(it, "blocked_on")
-                        if isinstance(v, int) and not isinstance(v, bool)
-                        and v in resolves and resolves[v].status == "closed"]
-            fired = named + inferred
-            if fired:
-                rest = [_fmt_ref(v) for v in _listed(it, "blocked_on") if v not in fired]
-                if named and not rest:
-                    errors.append(f"{it.path}: parked on {_say_fired(named, resolves)}, which is closed — "
+            if named:
+                rest = [_fmt_ref(v) for v in _listed(it, "blocked_on") if v not in named]
+                if not rest:
+                    errors.append(f"{it.path}: parked on {_say_fired(named)}, which is closed — "
                                   f"that trigger has fired and nothing else gates this row; "
                                   f"re-park it on what does, open it, or defer it")
-                elif named:
+                else:
                     # Still blocked, so the status is true and only the entry is stale.
-                    warns.append(f"{it.path}: parked on {_say_fired(named, resolves)}, which is closed — "
+                    warns.append(f"{it.path}: parked on {_say_fired(named)}, which is closed — "
                                  f"that trigger has fired; it still waits on {', '.join(rest)}, "
                                  f"so prune the fired entry")
-                if inferred:
-                    gate = "nothing else gates this row" if not rest else f"it still waits on {', '.join(rest)}"
-                    warns.append(f"{it.path}: parked on {_say_fired(inferred, resolves)}, which is closed — "
-                                 f"the number resolves through that item's `github:` and its trigger has fired; "
-                                 f"{gate}. Name the item instead of the number, then the rule reads it directly")
             # A blocker inherits the band of what waits on it (work/README.md,
             # Priority): the part of it that stands in the way is that band's
             # work, or the parked row is dispatched in its blocker's turn.
-            # A naming errors and a `github:` inference warns, as above; a
-            # program carries no band, and a band-less row has none to lend.
+            # A program carries no band, and a band-less row has none to lend.
             if str(it.get("priority")) in PRIORITIES:
                 for v in _listed(it, "blocked_on"):
-                    named_ref = isinstance(v, str) and v in by_id
-                    inferred_ref = isinstance(v, int) and not isinstance(v, bool) and v in resolves
-                    if not (named_ref or inferred_ref):
+                    if not (isinstance(v, str) and v in by_id):
                         continue
-                    b = by_id[v] if named_ref else resolves[v]
+                    b = by_id[v]
                     if b.status == "closed" or b.kind == "program" or _prio_key(b) <= _prio_key(it):
                         continue
-                    msg = (f"{it.path}: {it.get('priority')} row parked on {_say_fired([v], resolves)}, "
+                    msg = (f"{it.path}: {it.get('priority')} row parked on {_say_fired([v])}, "
                            f"which is {b.get('priority') or 'unbanded'} — a blocker inherits the band of what "
                            f"waits on it: re-band the blocker, split off the part that unblocks at "
                            f"{it.get('priority')} and re-park on that, or open this row")
-                    (errors if named_ref else warns).append(msg)
+                    errors.append(msg)
         # references
         for key in ("parent", "rides_with"):
             v = it.get(key)
@@ -1166,16 +1120,16 @@ def selftest() -> int:
             failures.append("--program render leaked whole-board sections")
 
         # new / set round-trip, the CLI spelling included
-        if main(["--root", root, "new", "MESH-4", "--kind", "issue", "--title", "fourth", "--program", "mesh", "--set", "track=R", "--set", "opened=2026-09-03"]) != 0:
+        if main(["--root", root, "new", "MESH-4", "--kind", "issue", "--title", "fourth", "--program", "mesh", "--set", "branch=R", "--set", "opened=2026-09-03"]) != 0:
             failures.append("CLI `new` with --set fields failed")
-        elif _find(root, "MESH-4").get("track") != "R":
+        elif _find(root, "MESH-4").get("branch") != "R":
             failures.append("CLI `new` dropped its trailing assignments")
         os.remove(os.path.join(root, "work/mesh/MESH-4.md"))
-        rel = cmd_new(root, "MESH-3", "unit", "third", "mesh", ["track=R"])
+        rel = cmd_new(root, "MESH-3", "unit", "third", "mesh", ["branch=R"])
         expect("after new", lint(root))
-        cmd_set(root, "MESH-3", ["status=parked", "blocked_on=[MESH-1, 42]", "track="])
+        cmd_set(root, "MESH-3", ["status=parked", "blocked_on=[MESH-1, 42]", "branch="])
         it = _find(root, "MESH-3")
-        if it.get("blocked_on") != ["MESH-1", 42] or it.get("track") is not None or it.status != "parked":
+        if it.get("blocked_on") != ["MESH-1", 42] or it.get("branch") is not None or it.status != "parked":
             failures.append(f"set round-trip: {it.fields}")
         expect("after set", lint(root))
         os.remove(os.path.join(root, rel))
@@ -1245,7 +1199,7 @@ def selftest() -> int:
         expect("restored fixture", lint(root))
 
         # A blocker inherits the band of what waits on it: a naming of a
-        # lower-banded live blocker errors, a `github:` inference only warns,
+        # lower-banded live blocker errors, a number is not checked,
         # and a blocker at the parked row's band or above passes.
         m1, m2 = (os.path.join(root, f"work/mesh/MESH-{n}.md") for n in (1, 2))
         with open(m1, encoding="utf-8") as f:
@@ -1253,13 +1207,12 @@ def selftest() -> int:
         with open(m2, encoding="utf-8") as f:
             orig2 = f.read()
         parked_p0 = orig1.replace("status: review", "status: parked\npriority: P0")
-        _write(root, "work/mesh/MESH-2.md", orig2.replace("status: open", "status: open\npriority: P2\ngithub: 1601"))
+        _write(root, "work/mesh/MESH-2.md", orig2.replace("status: open", "status: open\npriority: P2"))
         _write(root, "work/mesh/MESH-1.md", parked_p0.replace("[MESH-2, 1601]", "[MESH-2]"))
         expect("a P0 parked on a P2 errors", lint(root), "a blocker inherits the band")
         _write(root, "work/mesh/MESH-1.md", parked_p0.replace("[MESH-2, 1601]", "[1601]"))
         warns = []
-        expect("a P0 parked on a P2 by number warns", lint(root, warns))
-        expect("  ... and the warning names the band", warns, "a blocker inherits the band")
+        expect("a P0 parked on a number is not checked", lint(root, warns) + warns)
         _write(root, "work/mesh/MESH-2.md", orig2.replace("status: open", "status: open\npriority: P0"))
         _write(root, "work/mesh/MESH-1.md", parked_p0.replace("[MESH-2, 1601]", "[MESH-2]"))
         expect("a P0 parked on a P0 passes", lint(root))
@@ -1406,27 +1359,6 @@ def selftest() -> int:
         expect("a hand-written scalar reflist is reported, not a crash", lint(root, warns), "must be a list")
         _write(root, "work/mesh/MESH-1.md", orig1)
 
-        # the fired-trigger rule reaches an int through `github:` — and does it
-        # as a warning, because the number is matched to the row, not naming it
-        t1 = open(os.path.join(root, "work/topo/T-1.md"), encoding="utf-8").read()
-        _write(root, "work/topo/T-1.md", t1.replace("kind: unit", "kind: unit\ngithub: 855"))
-        _write(root, "work/mesh/MESH-1.md",
-               orig1.replace("status: review", "status: parked").replace("[MESH-2, 1601]", "[855]"))
-        warns = []
-        expect("a fired trigger named by number does not block", lint(root, warns))
-        expect("a fired trigger named by number warns", warns, "resolves through that item's `github:`")
-        # ... and only when the mapping is unambiguous
-        _write(root, "work/mesh/MESH-2.md", orig2.replace("branch: mesh/second", "github: 855"))
-        warns = []
-        errs = lint(root, warns)
-        expect("an ambiguous number is not an error", errs)
-        expect("an ambiguous number resolves to neither", warns, "resolves to neither")
-        if any("github:`" in w for w in warns):
-            failures.append(f"an ambiguous number should not reach the fired-trigger rule: {warns}")
-        _write(root, "work/mesh/MESH-2.md", orig2)
-        _write(root, "work/topo/T-1.md", t1)
-        _write(root, "work/mesh/MESH-1.md", orig1)
-        expect("restored after the github cases", lint(root))
 
         # two open programs claiming one path: a warning naming both, and
         # silence once both keep_outs name the other

@@ -4,7 +4,6 @@ kind: issue
 title: A refused mate solve badges every instance row — the offending mate should be the loudest badge
 status: closed
 opened: 2026-09-01
-github: 1463
 refs: [1461]
 branch: chrome/refused-mate-badges-every-instance-row
 pr: 1769

@@ -4,7 +4,6 @@ kind: issue
 title: shell/offset follow-ups - curved-rim narrowing, the three-owner winding predicate, the per-call pcurve mint
 status: closed
 opened: 2026-08-27
-github: 1058
 refs: [1048, 1019]
 priority: P1
 cost: M
