@@ -2379,7 +2379,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    each wall's exact boundary-row image. Limb 3's two-chart tube is
     //    cut to the walls' domains, and the rim ends at a corner of each
     //    and runs along a boundary row of each, so no one arc is proved
-    //    (`work/ssiedge/a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary`).
+    //    (`work/splice/a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary`).
     //    The flush reading along the two bodies' NURBS edges is behind
     //    that (`work/splice/a-unions-flush-reading-cannot-follow-a-nurbs-carrier`).
     let sheath = {

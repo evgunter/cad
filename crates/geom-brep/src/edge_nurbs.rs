@@ -1449,7 +1449,7 @@ pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     // one certified, the fitted image's limbs otherwise. No row reaches
     // an `Ok` through an exact chart, whose rim lies on a boundary row
     // and refuses at limb 3
-    // (`work/ssiedge/a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary.md`),
+    // (`work/splice/a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary.md`),
     // so the exact certificate's numbers here are unguardable until that
     // row lands: zeroing them turns no row red.
     let (mut on_locus_max, mut hull_sup) = (T::zero(), T::zero());
