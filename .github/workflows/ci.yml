@@ -392,12 +392,6 @@ jobs:
           # shellcheck disable=SC2086
           cargo test --no-run --timings ${{ matrix.scope }}
           cargo nextest run --no-run --profile ci ${{ matrix.scope }}
-      - name: THROWAWAY timings summary
-        run: |
-          python3 scripts/tmp-timings.py target/cargo-timings/cargo-timing.html
-          find target/debug/deps -maxdepth 1 -name 'lib*.rlib' -printf '%f\n' | grep -E '^lib(geom|geom_core|geom_brep|topo|mesh|sweep|profile|bvh|quantity|step_export|step_import|stl|verbs|test_utils)-' | sort | sed 's/^/RLIB /'
-          du -sh target | sed 's/^/TARGETSIZE /'
-          du -sh target/debug/deps | sed 's/^/DEPSSIZE /'
       - name: test (default eps; a fast-set test at 0.5 s if new, 1 s otherwise, fails it)
         env:
           TEST_FILTER: ${{ needs.filter.outputs.test_filter }}
@@ -473,6 +467,14 @@ jobs:
       - name: failing tests (name, panic, seed) and slow fast-set tests
         if: failure()
         run: cat "$RUNNER_TEMP/nextest-failures.txt" 2>/dev/null || echo "no nextest row failed or ran slow; the red is in another step"
+      - name: THROWAWAY timings summary
+        if: always()
+        run: |
+          python3 scripts/tmp-timings.py target/cargo-timings/cargo-timing.html
+          find target/debug/deps -maxdepth 1 -name 'lib*.rlib' -printf '%f\n' | grep -E '^lib(geom|geom_core|geom_brep|topo|mesh|sweep|profile|bvh|quantity|step_export|step_import|stl|verbs|test_utils)-' | sort | sed 's/^/RLIB /'
+          du -sh target | sed 's/^/TARGETSIZE /'
+          du -sh target/debug/deps | sed 's/^/DEPSSIZE /'
+          find target/debug/deps -maxdepth 1 -name '*.rlib' -printf '%s\n' | awk '{s+=$1} END {print "RLIBBYTES", s}'
 
   viewer:
     name: viewer app feature (eframe + wgpu, wasm32)
