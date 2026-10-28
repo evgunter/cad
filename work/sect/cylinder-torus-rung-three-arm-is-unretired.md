@@ -2,11 +2,13 @@
 id: cylinder-torus-rung-three-arm-is-unretired
 kind: issue
 title: Cylinder × torus routes to rung 3 and refuses: no ℝ³ implicit-pair door or pose classification for the pair
-status: open
+status: closed
 opened: 2026-10-27
 priority: P0
 cost: M
 refs: [torus-germ-pairs-have-no-section-frame, torus-certificate-runs-root-free-through-its-quartic, each-torus-pair-decides-tangency-on-one-pose]
+branch: sect/torus-doors
+closed: 2026-10-28
 ---
 
 Filed by SECT's `sect-toruscert` lane (branch `sect/torus-certificate`),
@@ -65,3 +67,28 @@ naming it, so `PairSection::carry` refuses `CarryError::Unbuilt`. A
 `march_over_the_sphere` takes a sphere's box today, and this pair has
 none, so the door also owes its domain.
 
+## Closed
+
+2026-10-28, by `sect/torus-doors`. `geom_brep::ssi::cylinder_torus_ssi` reads the
+pose decided once (`CylinderTorusPose::decide`), refuses a tangent gap as the
+pair's own (`TangentPair`) before any rung, and marches a transverse
+one through `implicit_pair_r3` (`march_past_the_gap`, every door's).
+`route` and `route_pose` answer `implemented`. The march's domain is a
+ball that holds the whole section (`PairPose::ball`: a torus lies in
+`|x − c| ≤ R + r`, the smaller of two tori's), one construction for
+every pose (`march_over_the_ball`). The symmetric poses' components
+carry the general rung's carrier, which `PairSection::carry` marches;
+`ClassCarrier::Unbuilt` is gone. All six of the germ row's placements certify in both orders (drum ×
+donut and donut × drum: two loops at five, one at the sixth), each
+branch on both surfaces by an exact-distance oracle and each loop count
+an independent contour count on the torus's chart
+(`crates/geom-brep/tests/torus_doors_ssi.rs` `germ_row`); GERM's radial
+hole marches as many loops as the square wall's classification lists
+(`the_radial_hole_marches_the_square_walls_loops`); a parallel rod
+through the tube carries both loops, told apart by the torus's plane
+(`a_rod_through_the_tube_carries_both_loops`).
+
+A general pose still refuses at the section value
+(`RoutesToGeneralRung`): it has no closed-form count of its components,
+and what its classification lists is a design fork, filed as
+`a-general-torus-pose-lists-no-components`.

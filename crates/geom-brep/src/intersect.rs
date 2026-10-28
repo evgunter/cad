@@ -85,24 +85,24 @@
 //!    per nappe at `±R·cot α`, admitted by the station's own reach;
 //!    tilted and parallel-but-offset refuse typed.
 //!
-//! # What M5 PR 7 added (rung 3 becomes real)
+//! # Rung 3
 //!
-//! Two arms retired their refusals — per-arm, never wholesale (C12.1),
+//! These arms retired their refusals — per-arm, never wholesale (C12.1),
 //! each with its trace shape as a **compile-time** decision documented
 //! at the arm (C5: no runtime fallback, so an arm's shape is not
 //! something a caller can influence):
 //!
 //! - **plane × NURBS** — the ℝ⁴ parametric×parametric trace (3×4 SVD).
-//! - **cylinder × sphere** and **sphere × torus** — the ℝ³ implicit-pair
-//!   march (2×3 SVD).
+//! - **cylinder × sphere** and the three torus pairs (**sphere × torus**,
+//!   **cylinder × torus**, **torus × torus**) — the ℝ³ implicit-pair
+//!   march (2×3 SVD), each past its pose's own tangency decision.
 //!
 //! Each goes through `geom_brep::ssi`, which marches (untrusted), fits
 //! (PR 4), certifies all three C2 limbs, and proves the domain
 //! exhausted or refuses typed. Every other rung-3 arm keeps its typed
 //! refusal and **cites the trace shape it would use** and what is
 //! actually missing: for the cone pairs, the meters conversion of the
-//! cone's composite; for the other torus pairs, the arm's own
-//! retirement.
+//! cone's composite.
 //!
 //! Tangential outcomes (`TangentLine` variants) are **classification
 //! data**, not constructible edges: a pair whose transversality margin
@@ -307,15 +307,6 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
         // ---- Rung 3: quartic-and-worse loci. The general rung is
         // implemented, but it retires per arm (C12.1), so these still
         // refuse typed, naming the routing AND what each one lacks.
-        (Cylinder, Torus) | (Torus, Cylinder) => PairRoute {
-            rung: Rung::General,
-            implemented: false,
-            note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
-                   trace shape (the general-rung marcher), whose cylinder×torus arm has \
-                   not retired (arms retire one at a time, each with its proof), as \
-                   plane×torus's tilted residue has not (that pair's exact-degenerate \
-                   half closed in VERBS-C5ARMS)",
-        },
         (Cone, Cone) => PairRoute {
             rung: Rung::General,
             implemented: false,
@@ -338,7 +329,7 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
                    trace shape (the general-rung marcher), blocked on the cone's exact \
                    meters conversion",
         },
-        // ---- Rung 3, IMPLEMENTED: the ℝ³ implicit-pair march, the
+        // ---- Rung 3, IMPLEMENTED: the ℝ³ implicit-pair march, each
         // torus read through its quartic. ----
         (Sphere, Torus) | (Torus, Sphere) => PairRoute {
             rung: Rung::General,
@@ -348,12 +339,24 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
                    (geom_brep::ssi::sphere_torus_ssi), the torus read through its \
                    quartic; a torus outside its ring convention is refused as a shape",
         },
+        (Cylinder, Torus) | (Torus, Cylinder) => PairRoute {
+            rung: Rung::General,
+            implemented: true,
+            note: "marched in ℝ³ on the IMPLICIT PAIR and fitted, with the full \
+                   three-limb certificate and in-op exhaustiveness \
+                   (geom_brep::ssi::cylinder_torus_ssi), the torus read through its \
+                   quartic, past the pose's critical gap; a torus outside its ring \
+                   convention is refused as a shape",
+        },
         (Torus, Torus) => PairRoute {
             rung: Rung::General,
-            implemented: false,
-            note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
-                   trace shape (the general-rung marcher), whose torus×torus arm has not \
-                   retired (arms retire one at a time, each with its proof)",
+            implemented: true,
+            note: "marched in ℝ³ on the IMPLICIT PAIR and fitted, with the full \
+                   three-limb certificate and in-op exhaustiveness \
+                   (geom_brep::ssi::torus_torus_ssi), both tori read through their \
+                   quartics, past the pose's critical gap; two tori decided one are a \
+                   coincidence, and a torus outside its ring convention is refused as a \
+                   shape",
         },
         // ---- Rung 3, IMPLEMENTED (M5 PR 7): the ℝ⁴ trace. The
         // plane and the wall are both charts, so the state is
@@ -474,12 +477,10 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
 ///
 /// Every other implemented pair serves every pose: plane×plane,
 /// plane×cylinder, plane×sphere, sphere×sphere, and the general-rung
-/// arms that march (cylinder×sphere and sphere×torus on their decided
-/// poses, plane×NURBS with plane×Approx over its fit, and NURBS×NURBS
-/// with every Approx pairing over its fits). Cylinder×torus and
-/// torus×torus are unimplemented and read their poses too, so a pose in
-/// the band escalates rather than answering the kind's routing. Every
-/// other unimplemented pair answers [`route`] unchanged. The match is
+/// arms that march (cylinder×sphere and the three torus pairs on their
+/// decided poses, plane×NURBS with plane×Approx over its fit, and
+/// NURBS×NURBS with every Approx pairing over its fits). Every
+/// unimplemented pair answers [`route`] unchanged. The match is
 /// exhaustive with no wildcard, as [`route`]'s is, so a kind added to
 /// the table is a compile-time visit here too.
 ///

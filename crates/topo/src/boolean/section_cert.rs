@@ -1751,8 +1751,9 @@ fn sphere_sphere<T: Decide>(c1: Point3<T>, r1: T, c2: Point3<T>, r2: T, band: Ba
 /// otherwise; a pose question undecided, a closed-form count that
 /// pinches, and two tori decided one, R-tan, named by the decision; a
 /// crossing the closed form cannot order R-order; a radius not definitely
-/// positive, decided or not, a torus off its ring convention, and a pose
-/// whose general-rung door is unbuilt, R-reach: an operand's size is no
+/// positive, decided or not, a torus off its ring convention, and a
+/// general pose whose components the classification does not list,
+/// R-reach: an operand's size is no
 /// tangency, and the pair has no arm for it. Every other section is its
 /// components, each with whether it winds about each carrier and its
 /// witness, certified single when there is one.

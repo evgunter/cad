@@ -2,11 +2,13 @@
 id: torus-torus-rung-three-arm-is-unretired
 kind: issue
 title: Torus × torus routes to rung 3 and refuses: no ℝ³ implicit-pair door or tangency decision for the pair
-status: open
+status: closed
 opened: 2026-10-27
 priority: P0
 cost: M
 refs: [torus-germ-pairs-have-no-section-frame, torus-certificate-runs-root-free-through-its-quartic, each-torus-pair-decides-tangency-on-one-pose]
+branch: sect/torus-doors
+closed: 2026-10-28
 ---
 
 Filed by SECT's `sect-toruscert` lane (branch `sect/torus-certificate`),
@@ -64,3 +66,25 @@ naming it, so `PairSection::carry` refuses `CarryError::Unbuilt`. A
 `march_over_the_sphere` takes a sphere's box today, and this pair has
 none, so the door also owes its domain.
 
+## Closed
+
+2026-10-28, by `sect/torus-doors`. `geom_brep::ssi::torus_torus_ssi` reads the
+pose decided once (`TorusTorusPose::decide`), refuses a tangent gap as the
+pair's own (`TangentPair`) before any rung, and marches a transverse
+one through `implicit_pair_r3` (`march_past_the_gap`, every door's).
+`route` and `route_pose` answer `implemented`. The march's domain is a
+ball that holds the whole section (`PairPose::ball`: a torus lies in
+`|x − c| ≤ R + r`, the smaller of two tori's), one construction for
+every pose (`march_over_the_ball`). The symmetric poses' components
+carry the general rung's carrier, which `PairSection::carry` marches;
+`ClassCarrier::Unbuilt` is gone. Five of the germ row's six donut × donut placements certify (two loops
+at three, one at two), the sixth a tangency the gap decides and the door
+refuses before any rung; the lily's stem and arch tori meet in one
+certified loop per component the value lists
+(`crates/sweep/tests/mate7a_r1_probes.rs`
+`the_lilys_tori_meet_in_certified_loops_at_the_door`).
+
+A general pose still refuses at the section value
+(`RoutesToGeneralRung`): it has no closed-form count of its components,
+and what its classification lists is a design fork, filed as
+`a-general-torus-pose-lists-no-components`.

@@ -448,3 +448,47 @@ fn an_arch_started_inside_the_stem_glues_to_the_same_volume() {
         }
     }
 }
+
+/// **The lily's stem and arch tori meet in certified loops at the torus ×
+/// torus door.** The two tube walls' whole tori (axes parallel and
+/// apart): the pose's gap is transverse, the door marches it over the
+/// smaller torus's ball, and every loop it returns closes there,
+/// certified within the band, one per component the section value lists.
+/// The value cannot tell those components apart at a site, which is
+/// where the op stops (`a_stem_window_reaching_over_a_loop_does_not_glue`).
+#[test]
+fn the_lilys_tori_meet_in_certified_loops_at_the_door() {
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let ring = |center, big, small| geom::Surface::Torus {
+        center,
+        axis: Vec3::new(0.0, -1.0, 0.0),
+        major_radius: big,
+        minor_radius: small,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let stem = ring(Point3::new(-STEM_RING, 0.0, 0.0), STEM_RING, STEM_TUBE);
+    let arch = ring(arch_frame().center, ARCH_RING, ARCH_TUBE);
+    let geom_brep::SectionRead::Built(section) =
+        geom_brep::pair_section(&stem, &arch, band).expect("the pose decides")
+    else {
+        panic!("the value builds two tori");
+    };
+    let ball = section.pose().ball();
+    let domain = geom_brep::SsiDomain {
+        center: ball.center(),
+        half_extent: ball.radius() * 1.01,
+        extent: ball.radius() * 2.0,
+        floor_scale: 1.0,
+    };
+    let out = geom_brep::torus_torus_ssi(&stem, &arch, domain, band)
+        .unwrap_or_else(|e| panic!("the door marches the lily's pair: {e}"));
+    assert_eq!(
+        out.branches.len(),
+        section.components().len(),
+        "one loop per listed component"
+    );
+    for b in &out.branches {
+        assert!(matches!(b.end, geom_brep::ssi::BranchEnd::Closed));
+        assert!(b.certificate.hull_sup <= band.zero());
+    }
+}

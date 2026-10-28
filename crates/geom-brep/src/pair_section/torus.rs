@@ -28,13 +28,16 @@
 //!
 //! Over a transverse gap the symmetric poses list their components in
 //! closed form ([`super::torus_arms`]): coaxial parallels as circles, the
-//! rest classified with the general rung's carrier for a sphere, or no
-//! carrier yet for a cylinder or a torus ([`ClassCarrier::Unbuilt`]). A
-//! general sphere pose is the sphere arm's; a general cylinder or torus
-//! pose routes to the general rung, whose door for the pair is unbuilt
-//! ([`SectionError::RoutesToGeneralRung`]). Over a tangent gap the
-//! components are one tangent component, a point where the pose is a
-//! touch.
+//! rest classified with the general rung's carrier
+//! ([`ClassCarrier::General`]), which [`super::PairSection::carry`]
+//! marches over the pose's ball. A general sphere pose is the sphere
+//! arm's; a general cylinder or torus pose has no closed-form count of
+//! its components, and refuses
+//! ([`SectionError::RoutesToGeneralRung`]) while the classification
+//! lists none, though the general rung's door marches it
+//! ([`crate::ssi::cylinder_torus_ssi`], [`crate::ssi::torus_torus_ssi`]).
+//! Over a tangent gap the components are one tangent component, a point
+//! where the pose is a touch.
 
 use geom::{Curve3, Surface};
 use geom_core::k_stats::decide_reported;
@@ -281,7 +284,7 @@ impl<T: Real> Ring<T> {
     }
 
     /// The ball holding the torus, and so every section of it.
-    fn ball(self) -> ExtentBall<T> {
+    pub fn ball(self) -> ExtentBall<T> {
         ExtentBall::of_torus(self.center, self.big_r, self.r)
     }
 
@@ -346,14 +349,11 @@ pub(super) const TT_GAP: GapRows = GapRows {
 /// rounding.
 const ST_GAP: [&str; 2] = ["st_critical_gap", "st_critical_gap_floor"];
 
-/// The note a cylinder × torus component carries while its door is
-/// unbuilt.
-pub(super) const CT_DOOR: &str = "the cylinder × torus section's general-rung door is unbuilt \
-     (work/sect/cylinder-torus-rung-three-arm-is-unretired.md)";
-/// The note a torus × torus component carries while its door is
-/// unbuilt.
-pub(super) const TT_DOOR: &str = "the torus × torus section's general-rung door is unbuilt \
-     (work/sect/torus-torus-rung-three-arm-is-unretired.md)";
+/// The note a general cylinder × torus or torus × torus pose refuses
+/// with.
+const GENERAL_POSE: &str = "a general pose's components have no closed-form count, so the \
+     classification lists none for its readers to take; the general rung's door marches the \
+     pose (work/sect/a-general-torus-pose-lists-no-components.md)";
 
 /// The sweep's verdict as the pose holds it.
 fn swept<T: Decide>(
@@ -928,6 +928,16 @@ impl<T: Decide> CylinderTorusPose<T> {
         }
     }
 
+    /// The cylinder, as given.
+    pub fn cylinder(&self) -> &Surface<T> {
+        &self.cylinder
+    }
+
+    /// The torus, as given.
+    pub fn torus(&self) -> &Surface<T> {
+        &self.torus
+    }
+
     /// The torus, guarded.
     pub fn ring(&self) -> Ring<T> {
         self.ring
@@ -1057,7 +1067,7 @@ pub(super) fn cylinder_torus<T: Decide>(
         (CtStance::General, TorusGap::Transverse) => {
             return Err(SectionError::RoutesToGeneralRung {
                 pair: "cylinder×torus",
-                why: CT_DOOR,
+                why: GENERAL_POSE,
             });
         }
     };
@@ -1105,6 +1115,7 @@ pub struct TorusTorusPose<T: Real> {
     first: Surface<T>,
     second: Surface<T>,
     rings: [Ring<T>; 2],
+    ball: ExtentBall<T>,
     stance: TtStance<T>,
     gap: TorusGap<T>,
 }
@@ -1200,6 +1211,7 @@ impl<T: Decide> TorusTorusPose<T> {
                 first: a.clone(),
                 second: b.clone(),
                 rings: [r1, r2],
+                ball,
                 stance,
                 gap,
             })
@@ -1214,6 +1226,12 @@ impl<T: Decide> TorusTorusPose<T> {
     /// Both tori, guarded, in order.
     pub fn rings(&self) -> [Ring<T>; 2] {
         self.rings
+    }
+
+    /// The smaller torus's ball, which holds the section: the one the
+    /// axis pose was read over.
+    pub fn ball(&self) -> ExtentBall<T> {
+        self.ball
     }
 
     /// How the second stands to the first.
@@ -1309,7 +1327,7 @@ pub(super) fn torus_torus<T: Decide>(
         (TtStance::General, TorusGap::Transverse) => {
             return Err(SectionError::RoutesToGeneralRung {
                 pair: "torus×torus",
-                why: TT_DOOR,
+                why: GENERAL_POSE,
             });
         }
     };

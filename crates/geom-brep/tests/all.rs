@@ -341,6 +341,8 @@ mod span_reach_hunt;
 mod tangent_gap_hull_charges_both_sags;
 #[path = "torus_chart_guards.rs"]
 mod torus_chart_guards;
+#[path = "torus_doors_ssi.rs"]
+mod torus_doors_ssi;
 #[path = "torus_gap.rs"]
 mod torus_gap;
 #[path = "torus_meridian_radial.rs"]

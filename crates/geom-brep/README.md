@@ -797,16 +797,15 @@ plane×cylinder, plane×cone (the parabola and hyperbola in closed form,
 each arc minted per window, `ConicBranch::arc`),
 declared-equal cylinder×cylinder, axis-aligned plane×torus (its
 axis-parallel pose off the axis the `Spiric`) (rung 2); cylinder×sphere,
-sphere×torus, plane×NURBS and plane×`Approx`, NURBS×NURBS and every pairing of
-`Approx` with NURBS or `Approx` (rung 3). The offset door reads
+sphere×torus, cylinder×torus, torus×torus, plane×NURBS and plane×`Approx`,
+NURBS×NURBS and every pairing of `Approx` with NURBS or `Approx` (rung 3). The offset door reads
 plane×NURBS through `PlaneSection::branch_at` and NURBS×NURBS through
 `Section::branch_at`, each at the old edge's middle; the whole-section
 readings a boolean takes are their `all()`, which no boolean reads yet.
-The boolean reads two rung-3 arms, cylinder×sphere and sphere×torus,
-through the section value (`pair_section`: the pair's pose decided
-once, its components, and its loops marched and fitted at `f64` where a
-join matches germs on them). The value builds cylinder×torus and
-torus×torus too, as classification: each torus pair's pose
+The boolean reads the rung-3 arms cylinder×sphere and the three torus
+pairs through the section value (`pair_section`: the pair's pose
+decided once, its components, and its loops marched and fitted at
+`f64` where a join matches germs on them). Each torus pair's pose
 (`SphereTorusPose`, `CylinderTorusPose`, `TorusTorusPose`) guards its
 operands, reads the partner's symmetry on the section certificate's
 lever and pivot margins over the torus's own ball `|x − c| ≤ R + r`
@@ -838,13 +837,17 @@ partner's axis `D` has a kink, and no cell holding one clears on its
 slope: a tangency on a kink always escalates, unless it is the least
 distance at the level `|ρ₁ − ρ₂|`. Over a transverse gap
 the symmetric poses (coaxial, parallel, square) list their components
-in closed form, the coaxial ones as circles; a general sphere × torus
-pose is the sphere arm's, marched; a general cylinder or torus pose
-routes to the general rung, whose doors are unbuilt
-(`RoutesToGeneralRung`). `implemented` covers the whole operation.
+in closed form, the coaxial ones as circles and the rest the general
+rung's, marched by `carry` over a ball that holds the whole section
+(`PairPose::ball`: the sphere, else the torus's `|x − c| ≤ R + r`, the
+smaller of two tori's), every branch closing inside it; a general
+sphere × torus pose is the sphere arm's, marched; a general cylinder or
+torus pose has no closed-form count of its components, and the value
+refuses it (`RoutesToGeneralRung`) while the general rung's door
+(`ssi::cylinder_torus_ssi`, `ssi::torus_torus_ssi`) marches it past a
+transverse gap. `implemented` covers the whole operation.
 Every other pair refuses: the cone pairs blocked on the cone's metres
-conversion (C2 limb 2), cylinder×torus and torus×torus on their doors'
-retirement.
+conversion (C2 limb 2).
 
 The same rule governs a curve against a face. A carrier span and a face
 meet through one exhaustive `(CurveKind, SurfaceKind)` table, in the

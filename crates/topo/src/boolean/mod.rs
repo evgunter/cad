@@ -2720,8 +2720,6 @@ pub enum SectionUnbuilt {
     },
     /// The march refused.
     March(geom_brep::SsiError),
-    /// The pair's general-rung door is unbuilt, as the note says.
-    Unbuilt(&'static str),
     /// The classification does not tell the section's components apart
     /// at the germ's site, as the note says.
     Untold(&'static str),
@@ -2744,7 +2742,6 @@ impl core::fmt::Display for SectionUnbuilt {
                  {scalar}. Recourse: run the operation at f64"
             ),
             Self::March(e) => write!(f, "{}", e.render(geom_brep::recourse::Reading::Build)),
-            Self::Unbuilt(why) => write!(f, "{why}"),
             Self::Untold(why) => write!(
                 f,
                 "{why}, so the germ's component is not named. Recourse: none in this \

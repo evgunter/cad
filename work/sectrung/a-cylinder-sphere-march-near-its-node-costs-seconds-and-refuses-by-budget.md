@@ -68,3 +68,18 @@ at-rest gate's re-certification. Cutting the chord from the loop
 (`chord_join::cut_arc`) rather than carrying the whole loop with an
 interval took a segment from 18 s to 3.5 s; the fixture's 54 runs still
 take 3–120 s each in debug (8–80 s per pose on CI).
+
+## The torus doors pay the same near a tangency (SECT, 2026-10-28)
+
+Measured on `sect/torus-doors`, debug build, `crates/geom-brep/tests/torus_doors_ssi.rs`
+`near_tangent_cost` (ignored; a measurement): a rod of the tube's radius
+whose axis passes `δ` from a torus's core (`R = 1`, `r = 1/4`), the
+straight pipe entering its bend parted by `δ`, a transverse critical
+gap of `δ`. At `δ = 1e-2` `cylinder_torus_ssi` spends 9.4 s and refuses
+`CellBudget` (200000 cells); at `δ = 1e-3` through `1e-6` it refuses in
+0.8–1.0 s on the tube (`TubeStraddles`, a 1244-box chain whose crossing
+angle bound reads zero). Far from any tangency the germ row's poses
+examine 3500–150000 cells, 1–20 s each in debug (`germ_row`, the slow
+set). So the cylinder × sphere shape holds for the torus pairs too: the
+cost is the accounting's, and nearer the tangency the refusal is typed
+but not cheap.
