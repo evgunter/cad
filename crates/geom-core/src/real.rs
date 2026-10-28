@@ -1478,6 +1478,24 @@ pub mod bounds_allowlist {
     //! it resumes that walk, so what it may read and what it may decide
     //! are the walk's, scalar for scalar.
     //!
+    //! **The clearance engine's door rides the same seam** (CLEAR's
+    //! symbolic-tier ruling, 2026-10-27, applying the M5 PR 11
+    //! precedent): `topo::clearance` (`Side::windows`, `Sweep::run`,
+    //! `min_separation` and the window and region helpers beneath them)
+    //! and `topo::cell_region`'s two doors take a `Body<T>` at
+    //! `Decide + CertifiedBounds`. `QuadLane::certified` stays the only
+    //! entry from the props reporting walks; these are further doors of
+    //! the same kind, outside them. The argument is the same one. The
+    //! bracket half is what lifts each surface, curve and point the door
+    //! reads into interval arithmetic (`Interval::from_certified`), where
+    //! the cells, the enclosures, the funnelled `d − c` and the bracket
+    //! are computed. The `Decide` half is what places a cell's or a
+    //! witness station's point at `T` through the point-in-face doors.
+    //! No bracket of `T` is branched on. The weakest bound that works is
+    //! this one: drop the bracket term and no lift into interval
+    //! arithmetic can be formed; drop `Decide` and no station can be
+    //! placed.
+    //!
     //! **M5 PR 12 (orchestrator ruling 2026-08-03 applying the PR 11
     //! precedent; retroactive Ev review per the self-merge convention) — the
     //! edge-blend battery**, `sweep::blend::{battery, surgery, build}`: it

@@ -844,10 +844,12 @@ mod tests {
                 source: EvalError::NonFiniteResult,
             },
             C::MeasureClearanceRefused => {
-                K::MeasureClearanceRefused(crate::clearance::ClearanceRefusal::Unsupported {
-                    carrier: "a free-form face",
-                    face: topo::FaceKey::default(),
-                })
+                K::MeasureClearanceRefused(crate::clearance::ClearanceRefusal::Engine(
+                    crate::clearance::EngineRefusal::Unsupported {
+                        carrier: "a free-form face",
+                        face: topo::FaceKey::default(),
+                    },
+                ))
             }
             C::AssertionDimension => K::AssertionDimension {
                 measured: crate::Dimension::Length,
