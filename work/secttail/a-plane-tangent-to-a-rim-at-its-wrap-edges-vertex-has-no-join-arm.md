@@ -56,3 +56,19 @@ this is any plane tangent to a round boss's rim at its profile vertex.
 ## Moved to SECTTAIL (2026-10-25)
 
 From SECT, cut on its priority seam (SECT measured 46 budget points against 31) in a chat-approved refold. Read SECT's step 3 first: SECT's plan says several of these may close by retirement then.
+
+## The hole's form of the pose (2026-10-28, SPLITDOOR `splitdoor/boolean-strut-order`)
+
+The same pose on a hole: the block `[-2, 2]² × [0, 2]` with the
+one-segment hole (`holed_block(π/2, ±2π)` in
+`crates/sweep/tests/a_split_through_a_wrap_edges_vertex.rs`), turned
+0.4 about x against the brick through the turned vertex. Once the
+pierce ring orders its two germs along the rim's tangent (that
+branch), A − B, A ∩ B and A ∪ B refuse
+`JoinDesync { what: "derived ring role order separates a loose
+scaffolding pair" }` (`join.rs` `ring_order`) at ε = 1e-6, 1e-9 and
+1e-12, either winding. The two-arc hole and the one-segment hole at
+`t = 0.9` (whose section crosses the top rim, a second site) build
+sound at their closed forms. Pinned as it stands by
+`a_boolean_tangent_to_a_holes_rim_at_a_vertex_builds_sound` (its
+`held` rows), red when it builds.
