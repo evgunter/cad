@@ -1236,17 +1236,25 @@ fn a_tiny_ellipse_within_eps_of_the_sphere_or_torus_is_not_yet() {
 }
 
 /// **The incidence read is the distance from the surface the chart
-/// denotes, at the carrier's own size** (D3). Two carriers on their
-/// face that a read taken where they sit would call off:
+/// denotes, taken in the carrier's own frame** (D3). Carriers on their
+/// face that a read taken where they sit, or from where the chart's
+/// anchor sits, would call off:
 /// - a cylinder's rim and a sphere's polar circle placed 1e7 m out along
 ///   each axis (their data exact there), whose points' coordinates round
 ///   by about ε;
+/// - a rim on a cylinder whose tilted axis runs through the origin,
+///   `2ᵏ` m up it, and a circle on a tilted plane through the origin
+///   `2ᵏ` m along it: the chart's anchor that far from the carrier, the
+///   data exact;
 /// - a ruling `h` up a cylinder whose axis is long by `δ = ε/4`, inside
 ///   the at-rest margin, where a distance taken through the long axis
 ///   levers it by the height (`2δ²h²/R`, here `100·ε`).
 ///
 /// Each is shown on its face at `f64` and at `Interval`: the mint images
-/// it or refuses it for a reason that is no incidence read.
+/// it or refuses it for a reason that is no incidence read. Past `2¹⁰` m
+/// from the anchor the box reads in band where `u·D` passes the zero
+/// band, never off. The same placements half a metre off are the
+/// definite miss.
 #[test]
 fn a_carrier_on_its_face_is_read_on_it_far_out_and_on_a_long_axis() {
     let e = eps();
@@ -1299,22 +1307,93 @@ fn a_carrier_on_its_face_is_read_on_it_far_out_and_on_a_long_axis() {
             },
         ),
     ];
-    for (what, surface, carrier) in rows {
-        let lift = Interval::from_f64;
-        for (lane, got) in [
-            ("f64", chart_pcurve(&carrier, &surface, band()).map(|_| ())),
+    let tilted = Vec3::new(0.0, 0.6, 0.8);
+    let far_anchor = |k: i32, off: f64| {
+        let h = 2f64.powi(k);
+        let in_plane = Vec3::unit_x() * h + tilted.cross(Vec3::unit_x()) * h;
+        [
+            (
+                format!("a rim 2^{k} m up a tilted axis, {off} m off"),
+                Surface::Cylinder {
+                    origin: Point3::origin(),
+                    axis: tilted,
+                    radius: 1.0,
+                    u_ref: Vec3::unit_x(),
+                },
+                Curve3::Circle {
+                    center: Point3::origin() + tilted * h,
+                    axis: tilted,
+                    radius: 1.0 + off,
+                    u_ref: Vec3::unit_x(),
+                },
+            ),
+            (
+                format!("a circle 2^{k} m along a tilted plane, {off} m off"),
+                Surface::Plane {
+                    origin: Point3::origin(),
+                    normal: tilted,
+                    u_ref: Vec3::unit_x(),
+                },
+                Curve3::Circle {
+                    center: Point3::origin() + in_plane + tilted * off,
+                    axis: tilted,
+                    radius: 1.0,
+                    u_ref: Vec3::unit_x(),
+                },
+            ),
+        ]
+    };
+    let lift = Interval::from_f64;
+    let at_both = |carrier: &Curve3<f64>, surface: &Surface<f64>| {
+        [
+            ("f64", chart_pcurve(carrier, surface, band()).map(|_| ())),
             (
                 "Interval",
                 chart_pcurve(&carrier.map_scalar(lift), &surface.map_scalar(lift), band())
                     .map(|_| ()),
             ),
-        ] {
+        ]
+    };
+    let on = rows
+        .into_iter()
+        .map(|(what, s, c)| (what.to_owned(), s, c))
+        .chain(far_anchor(10, 0.0));
+    for (what, surface, carrier) in on {
+        for (lane, got) in at_both(&carrier, &surface) {
             assert!(
                 got.as_ref()
                     .err()
                     .and_then(geom_brep::IncidenceRead::of)
                     .is_none(),
                 "{what} ({lane}): shown on its face: {got:?}"
+            );
+        }
+    }
+    // Farther out, the box's slide from the chart's anchor to the
+    // carrier's foot is an enclosure about `u·D` wide (`D` the distance
+    // slid): past the zero band it is not shown on the face, and never
+    // shown off it.
+    for (what, surface, carrier) in [14, 17, 23].into_iter().flat_map(|k| far_anchor(k, 0.0)) {
+        for (lane, got) in at_both(&carrier, &surface) {
+            let read = got.as_ref().err().and_then(geom_brep::IncidenceRead::of);
+            assert!(
+                if lane == "f64" {
+                    read.is_none()
+                } else {
+                    !read.is_some_and(geom_brep::IncidenceRead::is_definite)
+                },
+                "{what} ({lane}): shown on its face, or over the box at least not off it: {got:?}"
+            );
+        }
+    }
+    for (what, surface, carrier) in [10, 23].into_iter().flat_map(|k| far_anchor(k, 0.5)) {
+        for (lane, got) in at_both(&carrier, &surface) {
+            assert!(
+                got.as_ref()
+                    .err()
+                    .and_then(geom_brep::IncidenceRead::of)
+                    .is_some_and(geom_brep::IncidenceRead::is_definite),
+                "{what} ({lane}): the definite miss: {got:?}"
             );
         }
     }

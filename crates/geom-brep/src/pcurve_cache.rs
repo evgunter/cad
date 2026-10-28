@@ -181,7 +181,7 @@ use geom_core::predicate::{Band, BandError};
 use geom_core::spline::{KnotVector, SpanLocate, SplineError, constant_weight};
 use geom_core::{
     Decide, Decided, Indeterminate, InfSpeed, Margin, Point2, Point3, Real, Sign, SupSpeed, Vec2,
-    Vec3,
+    Vec3, rounding_charge,
 };
 
 pub(crate) use geom::Window;
@@ -8735,9 +8735,13 @@ fn chart_image<T: Decide>(
                 chart: surface.kind(),
             });
         }
-        if let Incidence::Off = net_incidence(net, span, surface, band)? {
+        if let Incidence::Off(margin) = net_incidence(net, span, surface, band)? {
             return Err(
-                OffChart("the spline carrier does not lie on the chart").refusal(surface, carrier)
+                OffChart("the spline carrier does not lie on the chart").with_margin(
+                    OffMargin::Past(margin),
+                    surface,
+                    carrier,
+                ),
             );
         }
         return projected::project(carrier, span, surface, band)
@@ -8835,21 +8839,40 @@ fn general_lane_refusal<T: Real>(
 /// `at(t)` at [`INCIDENCE_SAMPLES`] + 1 evenly spaced parameters of
 /// `[t0, t1]`, its ends included: an open carrier's sampled incidence. A
 /// poisoned distance is carried to the decision rather than dropped by
-/// `max`.
+/// `max`. Returned with the samples' reach: their largest offset from
+/// the chart's anchor, plus the chart's own size, the scale every
+/// coordinate the distance is computed from is rounded at.
 fn farthest_over_span<T: Real>(
     surface: &Surface<T>,
     (t0, t1): (T, T),
     at: impl Fn(T) -> Point3<T>,
-) -> T {
+) -> (T, T) {
+    let (anchor, size) = match *surface {
+        Surface::Plane { origin, .. } => (origin, T::zero()),
+        Surface::Cylinder { origin, radius, .. } => (origin, radius),
+        Surface::Sphere { center, radius, .. } => (center, radius),
+        Surface::Torus {
+            center,
+            major_radius,
+            minor_radius,
+            ..
+        } => (center, major_radius + minor_radius),
+        Surface::Cone { apex, .. } => (apex, T::zero()),
+        Surface::Nurbs(_) | Surface::Approx(_) => {
+            unreachable!("farthest_over_span: the incidence test reads an analytic chart")
+        }
+    };
     let n = f64::from(INCIDENCE_SAMPLES);
-    (0..=INCIDENCE_SAMPLES).fold(T::zero(), |far, i| {
+    (0..=INCIDENCE_SAMPLES).fold((T::zero(), size), |(far, reach), i| {
         let t = t0 + (t1 - t0) * T::from_f64(f64::from(i) / n);
-        let d = chart_distance(surface, at(t));
-        if far.is_poison() || d.is_poison() {
+        let p = at(t);
+        let d = chart_distance(surface, p);
+        let far = if far.is_poison() || d.is_poison() {
             d + far
         } else {
             far.max(d)
-        }
+        };
+        (far, reach.max((p - anchor).norm() + size))
     })
 }
 
@@ -8869,6 +8892,7 @@ fn net_incidence<T: Decide>(
         surface,
         span,
         |t| net.eval(t),
+        T::zero(),
         band,
     )
 }
@@ -9933,12 +9957,14 @@ fn derive_harmonic<T: Decide>(
     })
 }
 
-/// The margin a [`PcurveCertifyError::CarrierOffChart`] read at a
-/// degenerate pose (the cone's apex plane, which meets the cone only at
-/// the apex), and which side of the band it fell.
+/// The margin a [`PcurveCertifyError::CarrierOffChart`]'s incidence
+/// read decided, and which side of the band it fell: the carrier's
+/// sampled distance from the chart, or its height off a degenerate pose
+/// (the cone's apex plane, which meets the cone only at the apex).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum OffMargin {
-    /// Decided past the pose: the carrier is off the chart.
+    /// Decided past the band: the carrier is off the chart by this
+    /// margin (its distance, or its height past the pose).
     Past(geom_core::MarginDiag),
     /// A band-decided Zero: the carrier is not shown away from the pose,
     /// so at this tolerance it is read as there, and no carrier of its
@@ -10121,7 +10147,8 @@ impl OffChart {
 #[derive(Clone, Copy, Debug)]
 enum Incidence {
     On,
-    Off,
+    /// Off the chart, by the margin the test decided.
+    Off(geom_core::MarginDiag),
 }
 
 /// The escalation an identity check on a stored image's copied data
@@ -10396,6 +10423,7 @@ fn chart_incidence<T: Decide>(
     name: &'static str,
     carrier: &Curve3<T>,
     surface: &Surface<T>,
+    slack: T,
     band: Band,
 ) -> Result<Incidence, PcurveCertifyError> {
     incidence_over_span(
@@ -10403,6 +10431,7 @@ fn chart_incidence<T: Decide>(
         surface,
         (T::zero(), T::tau()),
         |t| carrier.eval(t),
+        slack,
         band,
     )
 }
@@ -10410,8 +10439,9 @@ fn chart_incidence<T: Decide>(
 /// **A carrier's sampled incidence test**, decided one-sidedly: `Off`
 /// only when the carrier is definitely off the chart somewhere. The
 /// largest exact distance from the chart of its points at the
-/// [`farthest_over_span`] samples of `span` bounds its distance from
-/// below, so a `Positive` verdict is certified; `Zero` says only that the
+/// [`farthest_over_span`] samples of `span`, less the rounding of the
+/// coordinates it is computed from, bounds its distance from below, so
+/// a `Positive` verdict on it is certified; `Zero` says only that the
 /// carrier is not shown off, and is `On` here — the image the caller
 /// derives is then measured by its certificate, and a carrier that is no
 /// class of the chart takes D3's lane choice ([`incidence::general_lane`]).
@@ -10426,12 +10456,31 @@ fn incidence_over_span<T: Decide>(
     surface: &Surface<T>,
     span: (T, T),
     at: impl Fn(T) -> Point3<T>,
+    slack: T,
     band: Band,
 ) -> Result<Incidence, PcurveCertifyError> {
-    let farthest = farthest_over_span(surface, span, at);
-    match decide(name, Margin::of(farthest), band).map_err(incidence_escalated)? {
-        Sign::Positive => Ok(Incidence::Off),
-        Sign::Zero | Sign::Negative => Ok(Incidence::On),
+    let (farthest, reach) = farthest_over_span(surface, span, at);
+    // The distance is computed from coordinates rounded at the samples'
+    // reach, after a move into the carrier's frame that rounded by
+    // `slack` (`incidence::anchored`), so it is decided less that
+    // rounding: the lower bound of the exact distance. A carrier on the
+    // chart then reads Zero wherever it sits, and a miss is decided off
+    // only past its rounding. A miss inside the rounding (a placement
+    // whose own ulp passes the band) is not shown off here; the image it
+    // gets is measured by its certificate.
+    let charged = if farthest.is_poison() {
+        farthest
+    } else {
+        (farthest - slack - rounding_charge(T::from_f64(2.0) * reach)).max(T::zero())
+    };
+    match geom_core::k_stats::decide_reported(name, Margin::of(charged), band)
+        .map_err(incidence_escalated)?
+    {
+        Decided {
+            sign: Sign::Positive,
+            margin,
+        } => Ok(Incidence::Off(margin)),
+        Decided { .. } => Ok(Incidence::On),
     }
 }
 
@@ -10475,20 +10524,39 @@ mod incidence {
         _tested: (),
     }
 
-    /// The carrier and the chart moved together so the chart's anchor
-    /// (a plane's or cylinder's origin, a sphere's or torus's centre, a
-    /// cone's apex) is the origin, and the chart's axis made unit: a move
-    /// keeps every distance, and the surface an axisymmetric chart
-    /// denotes reads its axis's direction only (its length is a frame
-    /// defect the at-rest margin bounds, which a distance taken through
-    /// it would lever by the sample's height). So the read is the
-    /// distance from that surface, evaluated at the carrier's own size
-    /// rather than at its placement's. `None` for a spline carrier or
-    /// chart, read where it is.
+    /// **The read in the carrier's own frame.** The carrier and the
+    /// chart are moved together by the carrier's own anchor (a conic's or
+    /// spiric's centre, a line's origin), so the carrier's points are
+    /// evaluated at its own size; the chart's axis is made unit; and a
+    /// plane's or cylinder's anchor, which the chart reads up to a slide
+    /// in its plane or along its axis, is slid to its foot nearest the
+    /// carrier. A move keeps every distance; the surface an axisymmetric
+    /// chart denotes reads its axis's direction only (its length is a
+    /// frame defect the at-rest margin bounds, which a distance taken
+    /// through it would lever by the sample's height); and every
+    /// coordinate the sampled distance is then computed from is of the
+    /// carrier's size off the chart, wherever the chart's anchor sat.
+    ///
+    /// Returned with the move's own rounding, a first-order running
+    /// bound ([`geom_core::running`]): the read charges it
+    /// (`incidence_over_span`), so data exactly on the chart read Zero,
+    /// and a miss the move's rounding could hide is not decided. A
+    /// sphere's or torus's centre is within the chart's own size of any
+    /// carrier on it, and a cone's apex slides nowhere, so theirs are
+    /// read from where they sit. `None` for a spline carrier or chart,
+    /// read where it is.
     fn anchored<T: geom_core::Real>(
         carrier: &Curve3<T>,
         surface: &Surface<T>,
-    ) -> Option<(Curve3<T>, Surface<T>)> {
+    ) -> Option<(Curve3<T>, Surface<T>, T)> {
+        use geom_core::running::{Rounded, dot, exact_vec};
+        let k = match *carrier {
+            Curve3::Line { origin, .. } => origin,
+            Curve3::Circle { center, .. }
+            | Curve3::Ellipse { center, .. }
+            | Curve3::Spiric { center, .. } => center,
+            _ => return None,
+        };
         let mut moved = surface.clone();
         let anchor = match &mut moved {
             Surface::Plane { origin, .. } | Surface::Cylinder { origin, .. } => origin,
@@ -10496,15 +10564,40 @@ mod incidence {
             Surface::Cone { apex, .. } => apex,
             Surface::Nurbs(_) | Surface::Approx(_) => return None,
         };
-        let by = geom_core::Point3::origin() - *anchor;
-        *anchor = geom_core::Point3::origin();
+        // The anchor's offset from the carrier's, with its rounding.
+        let [ax, ay, az] = exact_vec(*anchor - geom_core::Point3::origin());
+        let [kx, ky, kz] = exact_vec(k - geom_core::Point3::origin());
+        let mut off = [ax - kx, ay - ky, az - kz];
+        // Slid to its foot nearest the carrier: in the plane, the normal
+        // part of the offset; on the axis, its radial part.
+        let slide = |off: [Rounded<T>; 3], dir: geom_core::Vec3<T>, keep_along: bool| {
+            let d = exact_vec(dir);
+            let along = dot(off, d).quotient(dot(d, d));
+            let part = [d[0] * along, d[1] * along, d[2] * along];
+            if keep_along {
+                part
+            } else {
+                [off[0] - part[0], off[1] - part[1], off[2] - part[2]]
+            }
+        };
+        match *surface {
+            Surface::Plane { normal, .. } => off = slide(off, normal, true),
+            Surface::Cylinder { axis, .. } => off = slide(off, axis, false),
+            _ => {}
+        }
+        let error = off[0].error + off[1].error + off[2].error;
+        *anchor = geom_core::Point3::new(off[0].value, off[1].value, off[2].value);
         if let Surface::Cylinder { axis, .. }
         | Surface::Cone { axis, .. }
         | Surface::Torus { axis, .. } = &mut moved
         {
             *axis = axis.normalize();
         }
-        Some((carrier.translated(by)?, moved))
+        Some((
+            carrier.translated(geom_core::Point3::origin() - k)?,
+            moved,
+            error,
+        ))
     }
 
     /// **The chart's incidence test of `carrier`**: a carrier shown off
@@ -10533,15 +10626,15 @@ mod incidence {
         // Read in the chart's own frame, so a sample's distance carries
         // the rounding of the carrier's size, not of its placement.
         let anchored = anchored(carrier, surface);
-        let (carrier, surface) = anchored
+        let (carrier, surface, slack) = anchored
             .as_ref()
-            .map_or((carrier, surface), |(c, s)| (c, s));
+            .map_or((carrier, surface, T::zero()), |(c, s, e)| (c, s, *e));
         let (name, off_why) = match (carrier, surface) {
             (Curve3::Circle { .. } | Curve3::Ellipse { .. }, Surface::Cone { .. }) => {
-                return cone_conic_incidence(carrier, surface, band).map(|()| tested);
+                return cone_conic_incidence(carrier, surface, slack, band).map(|()| tested);
             }
             (Curve3::Line { .. }, _) => {
-                return line_incidence(carrier, surface, place.span, band).map(|()| tested);
+                return line_incidence(carrier, surface, place.span, slack, band).map(|()| tested);
             }
             (_, Surface::Sphere { .. }) => (
                 "pcurve_sphere_chart_incident",
@@ -10561,9 +10654,11 @@ mod incidence {
                  takes its own test"
             ),
         };
-        match chart_incidence(name, carrier, surface, band)? {
+        match chart_incidence(name, carrier, surface, slack, band)? {
             Incidence::On => Ok(tested),
-            Incidence::Off => Err(OffChart(off_why).refusal(surface, carrier)),
+            Incidence::Off(margin) => {
+                Err(OffChart(off_why).with_margin(super::OffMargin::Past(margin), surface, carrier))
+            }
         }
     }
 
@@ -10573,6 +10668,7 @@ mod incidence {
         carrier: &Curve3<T>,
         surface: &Surface<T>,
         span: (T, T),
+        slack: T,
         band: Band,
     ) -> Result<(), PcurveCertifyError> {
         match super::incidence_over_span(
@@ -10580,13 +10676,14 @@ mod incidence {
             surface,
             span,
             |t| carrier.eval(t),
+            slack,
             band,
         )? {
-            Incidence::Off => Err(OffChart(
+            Incidence::Off(margin) => Err(OffChart(
                 "the line's points are not on the chart (its distance from the chart at a \
                  sample of its span is past the band)",
             )
-            .refusal(surface, carrier)),
+            .with_margin(super::OffMargin::Past(margin), surface, carrier)),
             Incidence::On => Ok(()),
         }
     }
@@ -10824,6 +10921,7 @@ fn spiric_chart_pcurve<T: Decide>(
 fn cone_conic_incidence<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
+    slack: T,
     band: Band,
 ) -> Result<(), PcurveCertifyError> {
     let (Some(form), &Surface::Cone { apex, axis, .. }) = (carrier_harmonic(carrier), surface)
@@ -10868,13 +10966,13 @@ fn cone_conic_incidence<T: Decide>(
             return Err(near_apex.with_margin(OffMargin::InBand(margin), surface, carrier));
         }
     }
-    match chart_incidence("pcurve_cone_chart_incident", carrier, surface, band)? {
+    match chart_incidence("pcurve_cone_chart_incident", carrier, surface, slack, band)? {
         Incidence::On => Ok(()),
-        Incidence::Off => Err(OffChart(
+        Incidence::Off(margin) => Err(OffChart(
             "the conic's points are not on the cone (its distance from the cone at a sample is \
              past the band)",
         )
-        .refusal(surface, carrier)),
+        .with_margin(OffMargin::Past(margin), surface, carrier)),
     }
 }
 

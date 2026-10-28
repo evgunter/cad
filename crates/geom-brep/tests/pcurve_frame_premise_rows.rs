@@ -34,9 +34,14 @@ fn dense_sup(p: &Pcurve<f64>, s: &Surface<f64>, c: &Curve3<f64>, t0: f64, t1: f6
 }
 
 /// Certify at the interval scalar (the box lane: no schedule) and at
-/// f64 (the point lane: schedule as cross-check); report both, the
-/// dense residual of the f64 image, and whether the interval refusal
-/// (if any) names the frame's own term.
+/// f64 (the point lane: schedule as cross-check); report both, and the
+/// dense residual of the f64 image.
+fn run(name: &str, s: &Surface<f64>, c: &Curve3<f64>, t0: f64, t1: f64) -> (bool, bool, f64, f64) {
+    run_named(name, s, c, t0, t1).0
+}
+
+/// [`run`], with whether the interval refusal (if any) names the
+/// frame's own term.
 fn run_named(
     name: &str,
     s: &Surface<f64>,
@@ -178,15 +183,16 @@ fn a_long_axis_inside_the_rest_margin_refuses_a_far_ruling_over_the_box() {
 /// placement.** `normalize(1, 2, 3)` is unit only to rounding (`δ` a
 /// few ulps), and the bare `Interval` lift of an f64 body carries that
 /// datum as the chart. At `1e9` m along the axis — `sym11`'s furthest
-/// placement — the ruling's origin is itself rounded by an ulp of `1e9`
-/// (about `1.2e-7`) off the wall. The mint reads that first: at `f64`
-/// it images the ruling where the miss is within the band and reads it
-/// off past it; over the box, whose enclosure of the distance 1e9 m out
-/// is wider than any band, it is not shown on the wall. No image is
-/// minted that the read did not admit, so none is certified under its
-/// residual.
+/// placement — the axial channel's `2δ·h` is the residual, and the
+/// ruling's origin is itself rounded there by about an ulp of `1e9`.
+/// Each scalar's mint either images it or reads its incidence in band
+/// (the box's slide that far out is wider than any band); never a
+/// definite miss. The control, on each image minted: whatever its
+/// certificate answers, it is never under the residual's certified lower
+/// bound at `t = 0` (the f64 dense sample is itself rounding at 1e9 m).
 #[test]
 fn a_rounded_unit_axis_at_a_far_placement_is_never_under_its_residual() {
+    let eps = geom_core::Tol::witness().eps();
     let axis = Vec3::new(1.0, 2.0, 3.0).normalize();
     let u_ref = axis.cross(Vec3::unit_x()).normalize();
     let radius = 1.0;
@@ -212,28 +218,54 @@ fn a_rounded_unit_axis_at_a_far_placement_is_never_under_its_residual() {
         origin: Point3::origin() + u_ref * radius + axis * far,
         dir: axis,
     };
+    let lift = |x: f64| Interval::from_f64(x);
+    let (si, ci) = (cyl.map_scalar(lift), ruling.map_scalar(lift));
     let by_incidence = |lane: &str, e: &PcurveCertifyError| {
         assert!(
-            matches!(
-                e,
-                PcurveCertifyError::CarrierOffChart { .. }
-                    | PcurveCertifyError::Escalated {
-                        check: PcurveCheck::ChartIncidence,
-                        ..
-                    }
-            ),
-            "the {lane} mint refuses only by its incidence read: {e:?}"
+            geom_brep::IncidenceRead::of(e).is_some_and(|read| !read.is_definite()),
+            "{lane}: the mint refuses only by its incidence read in band: {e:?}"
         );
     };
-    let at_point = chart_pcurve(&ruling, &cyl, band());
-    println!("[rounded axis far] the f64 mint: {at_point:?}");
-    if let Err(e) = &at_point {
-        by_incidence("f64", e);
+    // The residual's certified lower bound at `t = 0`, at chart point `q`.
+    let floor =
+        |q: geom_core::Point2<Interval>| si.eval(q.x, q.y).distance(ci.eval(lift(0.0))).lo();
+    let mut minted = 0;
+    match chart_pcurve(&ruling, &cyl, band()) {
+        Ok(pf) => {
+            minted += 1;
+            let q = pf.eval(0.0);
+            let r = floor(geom_core::Point2::new(lift(q.x), lift(q.y)));
+            let cert = PcurveCache::certify(pf, 0.0, 1.0, &ruling, &cyl, band());
+            println!(
+                "[rounded axis far] f64 eps {eps:e}: certify {cert:?}; residual lower bound {r:e}"
+            );
+            if let Ok(cache) = cert {
+                let env = cache.certificate().envelope;
+                assert!(
+                    env >= r,
+                    "UNSOUND at f64: certified envelope {env:e} under the residual's lower bound {r:e}"
+                );
+            }
+        }
+        Err(e) => by_incidence("f64", &e),
     }
-    let lift = |x: f64| Interval::from_f64(x);
-    let at_box = chart_pcurve(&ruling.map_scalar(lift), &cyl.map_scalar(lift), band())
-        .map(|_| ())
-        .expect_err("the box cannot show a ruling 1e9 m out on the wall");
-    println!("[rounded axis far] the interval mint: {at_box:?}");
-    by_incidence("interval", &at_box);
+    match chart_pcurve(&ci, &si, band()) {
+        Ok(pi) => {
+            minted += 1;
+            let r = floor(pi.eval(lift(0.0)));
+            let cert = PcurveCache::certify(pi, lift(0.0), lift(1.0), &ci, &si, band());
+            println!(
+                "[rounded axis far] interval eps {eps:e}: certify {cert:?}; residual lower bound {r:e}"
+            );
+            if let Ok(cache) = cert {
+                let env = cache.certificate().envelope.hi();
+                assert!(
+                    env >= r,
+                    "UNSOUND at Interval: certified envelope {env:e} under the residual's lower bound {r:e}"
+                );
+            }
+        }
+        Err(e) => by_incidence("Interval", &e),
+    }
+    assert!(minted > 0, "at least the f64 mint images the ruling");
 }

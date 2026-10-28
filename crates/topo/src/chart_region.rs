@@ -6173,10 +6173,12 @@ mod from_computed_rows {
         // contact probes (`bool_contact_edge`, `_vertex`, `_edge_length`
         // each) and 29 fewer opaque `point_in_loop_*` steps than one
         // picked in a chart off the world axes (1189 kept, 186 opaque).
+        // The plane mint reads each trim's incidence before it images it,
+        // and those reads re-value with the scale too: 12 kept.
         assert_eq!(
             found,
             Revalued {
-                kept: 1169,
+                kept: 1181,
                 opaque: 117,
                 laundered: 0,
             },
