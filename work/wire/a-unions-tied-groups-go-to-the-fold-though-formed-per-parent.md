@@ -2,10 +2,11 @@
 id: a-unions-tied-groups-go-to-the-fold-though-formed-per-parent
 kind: issue
 title: A union leaves its tied parents' face and seam groups to the fold, though it forms them per parent now
-status: open
+status: closed
 opened: 2026-10-27
 priority: P3
 cost: M
+closed: 2026-10-28
 ---
 
 
@@ -38,3 +39,7 @@ wanted for another reason; then make the code and the two comments say
 the same thing. A witness: `lib_g14_split_walls`'s
 `a_unions_seams_of_a_tied_face_tie_under_the_bare_name` document, with
 the group-size rung queried on one of the tied seams.
+
+## Closed
+
+2026-10-28 (WIRE orchestrator): PR 5902 merged. A union records its tied parents' face and seam groups as its own, and `Rederived`/`by_fold` are deleted. When tied groups resize unequally the rung now declines in every member order; base's answer depended on the order. That case is pinned by `tied_groups_that_resize_unequally_decline_in_every_member_order`, which is red on base.
