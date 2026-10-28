@@ -46,7 +46,7 @@ a module and a function), 5885 (`[without]`, a `cfg(test)` item), 5868
 exits 1: `crates/topo/src/chord_join.rs`'s `IslandReading::closed_by`
 links `[Self::new]`, which is `#[cfg(test)]`. Introduced by PR 5894
 (merge `34051ed3`, 2026-10-28 11:44 UTC, after nightly 74 ran), so
-tonight's nightly would have been red on it. Fixed on PR (this branch,
+tonight's nightly would have been red on it. Fixed on PR 5943 (branch
 `green/small-reds`): the substantive doc moves onto `closed_by` and the
 test-only `new` points at it. `scripts/doc-gate.sh` then exits 0 over
 every root.
