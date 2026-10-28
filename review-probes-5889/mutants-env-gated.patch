@@ -1,0 +1,48 @@
+diff --git a/crates/geom-brep/src/pcurve_cache.rs b/crates/geom-brep/src/pcurve_cache.rs
+index 9de3728d..77970fc9 100644
+--- a/crates/geom-brep/src/pcurve_cache.rs
++++ b/crates/geom-brep/src/pcurve_cache.rs
+@@ -8620,7 +8620,7 @@ fn derive_class<T: Decide>(
+             // D3: whether the carrier lies on the plane is read first, by
+             // the chart's incidence test; the affine chart then images any
+             // carrier the test does not show off it, exactly.
+-            incidence::incident(carrier, surface, place, band)?;
++            if std::env::var_os("MUT_PLANE").is_none() { incidence::incident(carrier, surface, place, band)?; }
+             // Affine chart: the coefficients map through one by one.
+             let v_ref = normal.cross(u_ref);
+             let chart = |v: Vec3<T>| Vec2::new(v.dot(u_ref), v.dot(v_ref));
+@@ -9680,7 +9680,7 @@ impl<'a> IncidenceRead<'a> {
+             Self::AtPose(_) if !self.is_definite() => {
+                 crate::recourse::INCIDENCE_AT_POSE.recourse(arm, at)
+             }
+-            Self::Undecided(_) if !self.is_definite() => {
++            Self::Undecided(_) if !self.is_definite() && std::env::var_os("MUT_END").is_none() => {
+                 crate::recourse::INCIDENCE_UNSHOWN.recourse(arm, at)
+             }
+             // A definite miss, or a margin that could not be read.
+@@ -10115,6 +10115,7 @@ mod incidence {
+         carrier: &Curve3<T>,
+         surface: &Surface<T>,
+     ) -> Option<(Curve3<T>, Surface<T>)> {
++        if std::env::var_os("MUT_ANCHOR").is_some() { return None; }
+         let mut moved = surface.clone();
+         let anchor = match &mut moved {
+             Surface::Plane { origin, .. } | Surface::Cylinder { origin, .. } => origin,
+@@ -10156,6 +10157,8 @@ mod incidence {
+         if super::mutants::skip_incidence() || UNREAD.get() {
+             return Ok(tested);
+         }
++        if std::env::var_os("MUT_CYL").is_some() && matches!(surface, Surface::Cylinder { .. }) { return Ok(tested); }
++        if std::env::var_os("MUT_CLASS").is_some() && matches!(carrier, Curve3::Circle { .. }) && matches!(surface, Surface::Sphere { .. } | Surface::Cone { .. } | Surface::Torus { .. }) { return Ok(tested); }
+         // Read in the chart's own frame, so a sample's distance carries
+         // the rounding of the carrier's size, not of its placement.
+         let anchored = anchored(carrier, surface);
+@@ -10313,7 +10316,7 @@ fn spiric_chart_pcurve<T: Decide>(
+     };
+     // D3: whether the oval lies on the chart is read first, by the
+     // chart's incidence test, before the cap or the wall is imaged.
+-    if matches!(surface, Surface::Plane { .. } | Surface::Torus { .. }) {
++    if matches!(surface, Surface::Plane { .. } | Surface::Torus { .. }) && std::env::var_os("MUT_SPIRIC").is_none() {
+         incidence::incident(carrier, surface, place, band)?;
+     }
+     match *surface {
