@@ -2,7 +2,7 @@
 id: a-loft-station-that-moves-nothing-refuses-only-at-evaluation
 kind: issue
 title: A loft station that moves its section by nothing (slide 0) refuses only at evaluation
-status: review
+status: closed
 opened: 2026-10-26
 priority: P3
 cost: E

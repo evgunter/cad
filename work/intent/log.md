@@ -1010,3 +1010,10 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
   - **Duplicate closed:** `issues/main-red-perf12-kitchen-sink-…`; RESTREAD's row is kept.
   - **Correction:** the scalar dual-corpus red stays P3. The README's bands make no main red P0 by itself (an f64/Interval disagreement at 1e-12 is interval ground), so triage briefs stop saying "main reds are P0".
   - **#5919 roots rename:** STYLE review APPROVE-WITH-FIXES. The orchestrator refined the piece ruling: the arm raised for the node the slot reads is `ProductError::Read`, since a `⊔` is not its own piece; `PieceInvalid` keeps "piece". The fix pass is sent.
+- 2026-10-28 12:40 —
+  - **Merged:**
+    - #5919, the roots rename (single STYLE, fixes read). It closes `the-world-still-speaks-of-roots`.
+    - #5915, refactor pose definitions (single FULL; `Doc::slot` now answers operand reads, and pncad-py calls it plainly). It closes `refactor-remaps-no-pose-definition` and `a-pose-defined-split-tool-names-no-tool-cell`.
+    - #5926, the cost-E batch (single STYLE plus a fix pass). It closes the loft station, the pick cross-check and the fixture zero literals; `a-fused-instances-held-frame-has-no-reset` was closed in the PR because its premise is false.
+  - **Filed from #5926:** `a-value-edit-never-re-asks-the-door-checks-that-read-values` (P3). A `SetVarValue` that brings a value-reading door check false is admitted, and evaluation refuses it. Pinned by `a_value_edit_to_a_zero_slide_is_refused_at_evaluation`.
+  - **Still in flight:** the carry (#5903, FULL review), and G (merging rule H, then a dual H review).

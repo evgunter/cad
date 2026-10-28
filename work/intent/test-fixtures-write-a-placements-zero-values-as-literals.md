@@ -2,7 +2,7 @@
 id: test-fixtures-write-a-placements-zero-values-as-literals
 kind: issue
 title: test fixtures write a mate's or placement's zero values, and a split's zero phase, as literals that mint variables the design writes as the constant 0
-status: review
+status: closed
 opened: 2026-10-21
 priority: P3
 cost: M
