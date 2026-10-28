@@ -401,3 +401,48 @@ fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
         "the octant's rows re-certify: {findings:?}"
     );
 }
+
+/// **The oblique corners mesh.** Each corner patch is a geodesic
+/// triangle whose chart poles on one foot: two of its sides are
+/// meridians meeting at that pole, and the third is a great circle
+/// tilted against the chart. The trimmed lane's sphere arm meshes it,
+/// the pole a vertex of its loop, and the whole body passes
+/// `check_mesh`: the `f4` clip at two radii, and the unit cube clipped
+/// by the cube turned 0.15 about `(1, 2, 3)`.
+#[test]
+fn the_oblique_corners_mesh() {
+    let turned = crate::common::oblique::clip(
+        sweep::test_support::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
+        0.15,
+        Vec3::new(1.0, 2.0, 3.0),
+    )
+    .expect("the turned clip");
+    let f4 = crate::common::oblique::f4();
+    for (name, clipped, r) in [
+        ("f4", &f4, 0.03),
+        ("f4", &f4, 0.08),
+        ("the cube turned 0.15 about (1, 2, 3)", &turned, 0.08),
+    ] {
+        let f = fillet_edges(
+            &sweep::test_support::at_rest(clipped, Tol::witness()),
+            &query::all_edges(clipped),
+            r,
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("{name} at r {r}: the fillet builds, got {e:?}"));
+        assert!(
+            !f.corner_faces.is_empty(),
+            "{name} at r {r}: corners to mesh"
+        );
+        let mesh = mesh::tessellate(&f.body, 5e-3, Tol::witness())
+            .unwrap_or_else(|e| panic!("{name} at r {r}: the mesh, got {e:?}"));
+        mesh::validate::check_mesh(&mesh)
+            .unwrap_or_else(|e| panic!("{name} at r {r}: the mesh checks, got {e:?}"));
+        crate::common::differential::assert_meshed_geometry(
+            &format!("{name} at r {r}"),
+            &f.body,
+            &mesh,
+            5e-3,
+        );
+    }
+}

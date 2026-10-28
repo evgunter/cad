@@ -20,6 +20,7 @@
 //! dropped, and at `f64` the identity.
 
 mod anchor;
+mod carry;
 mod class;
 mod counters;
 mod framed;
@@ -40,6 +41,7 @@ pub(crate) use wire::{reference_body, resolve_name};
 
 pub use anchor::{CanonicalSegment, LoopAnchor, ProfileNaming, ProfilePieces, ProfileValue};
 pub(crate) use anchor::{derive_naming, validated_naming};
+pub use carry::Carry;
 pub use class::NodeErrorClass;
 pub use counters::EvalCounters;
 pub(crate) use framed::Frame;
@@ -815,19 +817,12 @@ pub struct NodeValue<T: Decide> {
     /// Rides the value, so memo reuse transfers names with geometry
     /// (the content key is the proof).
     outputs: Arc<[OutputNames]>,
-    /// The DECLARED CONTACT RECORDS the node's output body 0 carries
-    /// (ASM-R2b D-1's contacts channel; [`crate::eval::wire::OpOut`]
-    /// states the invariant). Empty for every op but instantiate — a
-    /// boolean's records ride its payload, and
-    /// `product::sources_of` is where the two homes
-    /// reconcile. Rides the value, so memo reuse transfers
-    /// declarations with the geometry they are keyed into.
-    pub contacts: Arc<topo::ContactRecords>,
-    /// The at-rest findings of the documents below (`ASSEMBLY.md` A5),
-    /// keyed in the same arena as `contacts` and filled at the same one
-    /// op. Rides the value, so memo reuse transfers them with the
-    /// geometry they are keyed into.
-    pub carried: Arc<crate::checks::at_rest::CarriedFindings>,
+    /// **What its body carries from its source** ([`Carry`]): its
+    /// records, the findings of the documents below, its pieces and
+    /// their door's census, and how many parts it is. Rides the value,
+    /// so memo reuse transfers them with the geometry they are keyed
+    /// into.
+    pub carry: Carry<T>,
     /// **The coincidences the node's op decided from values**
     /// ([`crate::coincide`]), in decision order, each cell named in the
     /// table of the input the decision read, so a row survives a later
@@ -841,39 +836,12 @@ pub struct NodeValue<T: Decide> {
     /// A [`topo::Backing::Decided`] names a row of
     /// [`Self::coincidences`].
     pub cited_inputs: Arc<[crate::coincide::CitedInput]>,
-    /// How many parts each of this value's output bodies is
-    /// (`crates/editor-core/ASSEMBLY.md`, A2 and A10): a document's
-    /// product is its pieces, so an instantiation's bodies are as many
-    /// parts as the referenced document's piece outputs, each counted at
-    /// its own `parts` — a sub-assembly's parts count through. Two piece
-    /// outputs that are a split's two halves are two parts. The placers
-    /// (`Place`, `Pattern`) and `Part` carry the count through; every
-    /// other op builds a body of its own and counts 1, an explicit union
-    /// (the fuse) included. A body of several parts is an ordinary
-    /// operand (D10 `[operations.operators]`: `(p ⊔ q) − t` cuts both
-    /// pieces).
-    pub parts: usize,
     /// **A placement's solved motion** (D10): where its copy sits
     /// relative to its source, `None` for a copy the identity
     /// bundle places by no map and for every value that is no
     /// placement's. A carried
     /// pose reads it ([`crate::pose::PoseDef::Carried`]).
     pub motion: Option<geom_core::RigidMotion<T>>,
-    /// **The pieces its body holds** ([`Pieces`]): a `⊔`'s members, or
-    /// the pieces a copy or an instance carries from its source; `None`
-    /// for a body of no pieces.
-    pub pieces: Option<Arc<Pieces<T>>>,
-    /// **The census at the door that assembled its pieces**
-    /// ([`crate::product::Census`]): a `⊔`'s, or a cut's or a meet's
-    /// that kept its operand's pieces; the one a copy or a pick carries
-    /// from its source. Each door's census runs once, where a reader
-    /// first asks for its verdict, and every reader reads that one.
-    pub census: Option<Arc<crate::product::Census<T>>>,
-    /// **Whether a door already decided the meetings inside its body**:
-    /// a `⊔`'s value, an instance's copy (its part's census decided
-    /// them), and a copy, pick or projection of either. A census reading
-    /// such a body as one arrival discards what it finds inside it.
-    pub censused: bool,
     /// The node's verdict log (M4 PR 4, N5): every definite predicate
     /// decision made evaluating the node — those made before its
     /// content key (a profile's f64 precompute: the plane read, the
@@ -935,14 +903,9 @@ impl<T: Decide> NodeValue<T> {
         Self {
             payload: out.payload,
             outputs: out.outputs.into(),
-            contacts: out.contacts,
-            carried: out.carried,
+            carry: out.carry,
             coincidences: out.coincidences,
             cited_inputs: out.cited_inputs,
-            parts: out.parts,
-            pieces: out.pieces,
-            census: out.census,
-            censused: out.censused,
             verdicts: Arc::new(Vec::new()),
             escalations: Arc::new(Vec::new()),
             motion: None,
@@ -969,17 +932,12 @@ impl NodeValue<f64> {
         Self {
             payload: ValuePayload::Boolean(BooleanValue::Empty),
             outputs: vec![OutputNames::new(Arc::new(table), Arc::new(groups))].into(),
-            contacts: Arc::new(topo::ContactRecords::default()),
-            carried: Arc::new(crate::checks::at_rest::CarriedFindings::default()),
+            carry: Carry::default(),
             coincidences: Arc::new([]),
             cited_inputs: Arc::new([]),
-            parts: 1,
             verdicts: Arc::new(verdicts),
             escalations: Arc::new(vec![]),
             motion: None,
-            pieces: None,
-            census: None,
-            censused: false,
             witness: WitnessSlot::default(),
             content_key: ContentKey(0),
             naming_key: NamingKey(0),
@@ -1338,24 +1296,12 @@ pub struct Piece<T: Decide> {
     pub bodies: Vec<Framed<T>>,
     /// Whether it is a family, whatever its count.
     pub family: bool,
-    /// The parts it delivers ([`NodeValue::parts`]).
-    pub parts: usize,
     /// Its names, indexing `bodies` by position: the member's own.
     pub table: Arc<crate::names::NameTable>,
-    /// Its own contact records, keyed in `bodies[0]`'s arena: what the
-    /// census at the `⊔`'s door carries for it.
-    pub contacts: Arc<topo::ContactRecords>,
-    /// The mate bookkeeping those records travel with.
-    pub carried: Arc<crate::checks::at_rest::CarriedFindings>,
-    /// The pieces it holds in turn: a member that is itself a `⊔`, or a
-    /// copy of one.
-    pub pieces: Option<Arc<Pieces<T>>>,
-    /// The census of the door that assembled those pieces, as the
-    /// member's value carries it ([`NodeValue::census`]).
-    pub census: Option<Arc<crate::product::Census<T>>>,
-    /// Whether a door already decided the meetings inside it
-    /// ([`NodeValue::censused`]).
-    pub censused: bool,
+    /// What it carries from its member ([`Carry`]): its records,
+    /// keyed in `bodies[0]`'s arena, what the census at the `⊔`'s door
+    /// carries for it, its own pieces and their door's census.
+    pub carry: Carry<T>,
 }
 
 impl<T: Decide> Pieces<T> {
@@ -2073,7 +2019,7 @@ pub enum NodeErrorKind {
     },
     /// The clearance engine refused a `min_clearance` measurement: its
     /// own typed refusal (E7's refusal vocabulary), carried unaltered.
-    MeasureClearanceRefused(crate::clearance::ClearanceRefusal),
+    MeasureClearanceRefused(topo::clearance::MinSeparationRefusal),
     /// An `Assertion`'s bound is dimensioned differently from the
     /// measure it constrains — comparing metres with radians is a
     /// document fault, refused rather than compared.
@@ -2510,7 +2456,7 @@ impl crate::spoken::Say for NodeErrorKind {
             } => write!(f, "{what} {index} failed to evaluate: {source}"),
             Self::MeasureClearanceRefused(refusal) => {
                 write!(f, "the clearance engine refused `{}`", refusal.name())?;
-                let payload = refusal.said_payload(by);
+                let payload = refusal.payload();
                 if !payload.is_empty() {
                     write!(f, " ({payload})")?;
                 }
@@ -2813,7 +2759,6 @@ pub trait EvalScalar:
     + topo::AtRestPolicy
     + crate::analysis::AxisScalar
     + crate::analysis::SeedScalar
-    + crate::measure::MinClearanceLane
     + crate::mate::SolveScalar
     + ProfileLane
     + crate::checks::at_rest::LocalizeLane
@@ -2829,7 +2774,6 @@ impl<T> EvalScalar for T where
         + topo::AtRestPolicy
         + crate::analysis::AxisScalar
         + crate::analysis::SeedScalar
-        + crate::measure::MinClearanceLane
         + crate::mate::SolveScalar
         + ProfileLane
         + crate::checks::at_rest::LocalizeLane
@@ -2953,8 +2897,9 @@ pub(crate) mod leaf {
     /// ([`LeafLane`]).
     ///
     /// It lives here rather than at each consumer because the lane is the
-    /// evaluation service's own fact and because the two arms below are the
-    /// only place in the tree that names both leaf scalars. A consumer that
+    /// evaluation service's own fact and because its two arms, and
+    /// [`read_leaf_with`]'s, are the only place in the tree that names both
+    /// leaf scalars. A consumer that
     /// picked its own scalar would be deciding, per file, which build it is
     /// reading — which is exactly the drift that made a perfectly good
     /// verdict report as "not of this build".
@@ -2983,6 +2928,50 @@ pub(crate) mod leaf {
                     read_leaf(doc, &ev, want, |v: geom_core::Sym<geom_core::Interval>| {
                         v.value
                     })
+                });
+                out
+            }
+        }
+    }
+
+    /// **A consumer that reads a leaf's replay at the scalar its lane
+    /// runs**, for a read [`LeafRequest`] does not name: the clearance
+    /// query, which hands the replay's bodies to the engine's door.
+    pub(crate) trait AtLeaf {
+        /// What the read answers.
+        type Out;
+
+        /// The read, over the leaf's replay at `T`, with the clearance
+        /// engine's door at `T`: every leaf lane is a certifying
+        /// scalar, so the door is held rather than asked for.
+        fn at<T: geom_core::Decide + topo::AtRestPolicy>(
+            self,
+            ev: &Evaluation<T>,
+            clearance: topo::ClearanceLane<T>,
+        ) -> Self::Out;
+    }
+
+    /// **Replays one leaf on `lane` and hands the replay to `read`**:
+    /// [`replay_leaf`]'s two arms, with no prior, for a read that has to
+    /// run inside the symbolic session the replay ran in.
+    pub(crate) fn read_leaf_with<A: AtLeaf>(
+        doc: &crate::doc::Doc<crate::program::ProfileProgram>,
+        opts: &EvalOptions,
+        lane: LeafLane,
+        tol: geom_core::Tol,
+        read: A,
+    ) -> A::Out {
+        match lane {
+            LeafLane::Numeric => {
+                let ev: Evaluation<geom_core::Interval> =
+                    evaluate(doc, None, &CancelToken::new(), opts, tol);
+                read.at(&ev, topo::ClearanceLane::certified())
+            }
+            LeafLane::Symbolic(budget, rules, retry) => {
+                let (out, _) = geom_core::sym::with_session_retry(budget, rules, retry, || {
+                    let ev: Evaluation<geom_core::Sym<geom_core::Interval>> =
+                        evaluate(doc, None, &CancelToken::new(), opts, tol);
+                    read.at(&ev, topo::ClearanceLane::certified())
                 });
                 out
             }
@@ -3029,7 +3018,7 @@ pub(crate) mod leaf {
     }
 }
 
-pub(crate) use leaf::{LeafLane, LeafPrior, LeafRequest, replay_leaf};
+pub(crate) use leaf::{AtLeaf, LeafLane, LeafPrior, LeafRequest, read_leaf_with, replay_leaf};
 
 /// Evaluation options (spec D5/D6).
 #[derive(Debug, Clone)]
@@ -4347,15 +4336,10 @@ where
             result: NodeResult::Ok(NodeValue {
                 payload: out.payload,
                 outputs: out.outputs.into(),
-                contacts: out.contacts,
-                carried: out.carried,
+                carry: out.carry,
                 coincidences: out.coincidences,
                 cited_inputs: out.cited_inputs,
-                parts: out.parts,
                 motion: out.motion,
-                pieces: out.pieces,
-                census: out.census,
-                censused: out.censused,
                 verdicts: Arc::new(recorded.verdicts),
                 escalations,
                 witness: WitnessSlot {},
@@ -6179,6 +6163,10 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::CapVertex => 6,
         S::LoftWall => 45,
         S::LoftSeam => 46,
+        S::LoftSlabWall => 53,
+        S::LoftSlabSeam => 54,
+        S::LoftSectionEdge => 55,
+        S::LoftSectionVertex => 56,
         S::Band => 7,
         S::BandRim => 8,
         S::BandRimPi => 9,
@@ -6346,6 +6334,28 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
             for v in vs {
                 pv(h, *v);
             }
+        }
+        RoleSeg::LoftSlabWall(s, es) => {
+            h.write_u64(u64::from(*s));
+            h.write_u64(es.len() as u64);
+            for e in es {
+                pe(h, *e);
+            }
+        }
+        RoleSeg::LoftSlabSeam(s, vs) => {
+            h.write_u64(u64::from(*s));
+            h.write_u64(vs.len() as u64);
+            for v in vs {
+                pv(h, *v);
+            }
+        }
+        RoleSeg::LoftSectionEdge(s, e) => {
+            h.write_u64(u64::from(*s));
+            pe(h, *e);
+        }
+        RoleSeg::LoftSectionVertex(s, v) => {
+            h.write_u64(u64::from(*s));
+            pv(h, *v);
         }
         RoleSeg::Band(r) => {
             run(h, r);

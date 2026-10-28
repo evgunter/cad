@@ -1696,6 +1696,7 @@ pub fn loft_error_tag(err: &LoftError) -> &'static str {
         LoftError::Pcurve(_) => "pcurve",
         LoftError::SeamStructure { .. } => "seam_structure",
         LoftError::SectionStructure => "section_structure",
+        LoftError::SectionRim { .. } => "section_rim",
         LoftError::PlacementNotFinite { .. } => "placement_not_finite",
         LoftError::SectionNotFinite { .. } => "section_not_finite",
         LoftError::ReversedStacking { .. } => "reversed_stacking",
@@ -2447,6 +2448,10 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::MeridianFreeCurvedFace { .. } => "meridian_free_curved_face",
         TessellateError::SingleColumnCurvedFace { .. } => "single_column_curved_face",
         TessellateError::Band { .. } => "tolerance_band_unformable",
+        TessellateError::TrimLoopOrientation { .. } => "trim_loop_orientation",
+        TessellateError::FoldedTriangle { .. } => "folded_triangle",
+        TessellateError::BoundaryEar { .. } => "boundary_ear",
+        TessellateError::SphereTrimShape { .. } => "sphere_trim_shape",
     }
 }
 

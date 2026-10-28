@@ -78,3 +78,33 @@ Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb
 
 - Re-banded P2 → P1: the edge-plane lane copies a circle and not an ellipse, so crossing equal rods refuse: verb breadth beyond the everyday shapes (a split or boolean that refuses, or ships a body its own gate fails, on a legal input), P1 by `work/README.md` Priority.
 - Moved to HONEJOIN (`work/honejoin/`) by `git mv`, id and body unchanged: whose charter is the curved and chord join's residue. The join's edge-plane lane admits an ellipse edge its copy then refuses as a broken invariant: an arm its gate admits and a refusal it misfiles. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## The copy, landed elsewhere (SPLITDOOR, 2026-10-28)
+
+`splitdoor/tilted-plug-rosters`
+(`a-tilted-plug-union-refuses-at-the-germ-segment-and-section-copy-rosters`)
+gave `chord_join::along_edge_spec` a copy for every carrier past a
+line and a circle: the edge's own spec (`EdgeCurve::restated_spec`,
+its own description), run back where the chord runs against it
+(`chord_join::run_back`, the reversal `SegmentCurve::running_from`
+already used). That answers the description question above with the
+source edge's own. Measured on that branch at ε = 1e-9, 1e-6 and
+1e-12, the fixture now ends past the copy:
+
+- spins `(0, 0)`, `B` from `x = 0.2`: every op in both orders builds,
+  passing tiers 2 and 3′, the at-rest certificate and the
+  legal-operand check, the closed form inside the certified enclosure,
+  whose pad is over `differential`'s `1e-7` budget above ε = 1e-12
+  (to `1.1e-5` m³ at ε = 1e-9, `5.7e-5` at 1e-6), so the pins judge it
+  against a stated ceiling (`PAD_CEILING`, `1e-3`);
+- spins `(0.4, 0.3)` and `(1.0, −0.7)` from `x = 0.2`, and `(0.4, 0.3)`
+  from `x = 0.5`: every op refuses `Join(UnpairedLooseEnds { count: 4 })`.
+
+The pins (`crossing_rods_end_past_the_ellipse_edge_copy*`) name those
+endings, `NO_ELLIPSE_COPY` gone. What is left of this row is the
+loose ends at the turned poses, and the enclosure's width at `(0, 0)`.
+Nobody has root-caused the `UnpairedLooseEnds { count: 4 }`: it is
+the same count at every turned pose, ε and op, and the poses whose seam
+rulings sit at `±x` (spins `(0, 0)`) do not reach it, so the seam
+rulings' placement against the copied ellipse is the first thing to
+read.

@@ -113,6 +113,10 @@ and moves to the door with the frame's retirement. First dispatches:
 
 - 2026-10-28 — **The torus-pair tangency question converged** (two designers; record `analysis/design-fork/torus-pair-tangency`). Every torus pair decides "not transverse" on one pose value's **critical gap**, `min |D − (ρ₁ ± ρ₂)|` over the critical values of the spine-to-spine distance (offset duality), by a certified 1-D sweep. The symmetric closed forms move from `section_cert` into the value. The designers differed only on the sweep: 1-D over the core angle against 2-D over the torus chart with a separately named tube-circle arm. I took the 1-D form, which covers the tube-circle tangency without a special arm; that tangency is a required Zero row. One designer proposed a C5 sentence stating the principle; that would bind future work, so it is put to Ev, not written. Unit `each-torus-pair-decides-tangency-on-one-pose` (P0 H, dual) is dispatched. The cylinder × torus and torus × torus door rows are parked on it. Sphere × torus's double tangency decision (the 5886 door against `section_cert`) closes inside the unit.
 
+- 2026-10-28 — **A main red traced to PR 5869** (reported by SPLICE; bisected by a SECT lane; suspected 5886, not it): `sweep` `germ_torus_doors::subtract_and_intersect_refuse_where_union_does`. `torus_parallel_torus` refuses the donut pair on an exact top-ownership tie (equal minor radii, h = 0) whose singular point lies outside the arm's triangle, and reports that proof gap as carrier tangency. The pair was traced transverse everywhere, at 23°–52°. A kernel fix is on `sect/two-tori-subtract-red`. **Classes:** a refusal for an arm's own proof gap must not speak as a geometric tangency; and a slow-set row on ground a PR edits is not run by per-PR CI, so 5869's green gate and its single review both missed a row that already pinned this pose. That escape is 5869's (single tier, not in the dual log).
+- 2026-10-28 — **The 5869 main red is fixed** (PR 5925, `sweep` `germ_torus_doors::subtract_and_intersect_refuse_where_union_does`). `torus_parallel_torus` refuses a level-end tie only where W's node lies in the triangle or within its neck. Each branch gets its own neck, derived for its shape (`√(2(r+r₂)δ)` for slabs, `√(2·max(r,r₂)·δ)` for top and bottom), and δ comes from the row's own datum. This also closes SECTTAIL's `level-tubes-of-parallel-tori-refuse-at-the-node`. It files `r-tan-carries-the-arms-proof-gaps-as-tangent-carriers` (P2) for the wider wording class.
+  - **Review:** single FULL. The first pass found one MAJOR by execution: the slabs neck took one sheet's deviation where both add, so it certified `none()` over a real intersection, a regression to a false certificate. The fix pass corrected it, and the same reviewer re-ran its probes on the fixed head: APPROVE.
+  - **Class:** a clearance bound is derived per shape; one constant fitted to two shapes hid this MAJOR.
 - 2026-10-28 — **Step 1b merges** (PR 5894, `cylinder-sphere-germ-pair-has-no-join-lane` closed). The cylinder × sphere chord lane and island closure stand on the section object. All 54 fixture runs pass the join and stop typed downstream, so none builds a body yet. **What waits:**
   - props, which has no `Projected` arm on an analytic chart (SPIRICARM, filed);
   - `edge_join`, which cannot join a spline carrier (SPLICE).
@@ -123,3 +127,24 @@ and moves to the door with the frame's retirement. First dispatches:
   - an arc a reader trusts on-surface must carry that evidence in its type, not by convention;
   - an undecided nearness must escalate, never fold into a verdict (my delta read caught one);
   - a surface pair's section is carried in operand order (P3, filed).
+
+- 2026-10-28 — **Split on Ev's request in chat.** SECT was over its budget, and SECTTAIL was at 27/30.
+  - **SECTARMS** (new, P0-led, 22 points) takes the section object's remaining transverse arms: NURBS × cone/sphere, the cone frames, skew cylinders and the walk order.
+  - **SECTSITE** (new, P1, 16 points) takes the closed edge in a curved face and the C5 plane × torus / cone × cylinder residue (U-H1, D10-held).
+  - **SECTRUNG** (new, P2/P3, 22 points) takes the C5 dispatch and rung-3 residue.
+  - Points are at the tracker's current weights (E 1, M 3, H 8).
+  - **SECT keeps** the torus-pair thread it is driving (teapot wall 2, the torus poses and their two doors), the new P0 main red, and two follow-ups its context makes cheap. The budget override is dropped.
+  - All rows moved by `git mv`, ids unchanged. **Main red** `main-red-cylinder-sphere-section-runs-out-of-cells-near-the-node-at-1e-6` (nightly, ε 1e-6, slow-set rows from PR 5872) is dispatched on `sect/near-node-at-1e-6`.
+
+## 2026-10-28 — GREEN pinned four rows on `main-red-cylinder-sphere-section-runs-out-of-cells-near-the-node-at-1e-6`
+
+GREEN's full-suite pins (PR 5958, `green/full-suite-pins`) pin the four
+rows that row names at ε 1e-6, with `test_utils::pinned_red::row`, each
+on main's exact stop: `pair_section::one_loop_keeps_its_order_near_the_node`,
+`pair_section::two_loops_keep_their_sites_and_order_near_the_node`,
+`cylinder_sphere_frame::a_ball_across_a_cylinder_wall_wider_than_the_wall`
+(written out of `pose_rows!` to carry its pin) and
+`cylinder_sphere_frame::every_segment_joins_neighbouring_sites_along_its_loop`.
+A pin goes red the day its row passes, so the fix on
+`sect/near-node-at-1e-6` removes the four pins (and restores the macro
+row) in the same PR, and re-measures what each row runs after the stop.

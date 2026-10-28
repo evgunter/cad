@@ -181,3 +181,11 @@ with or after that.
   - **To UNREAD, new** (`work/unread/`, 9 rows, 12 points, top P3): claims with no gate at all — `measurements-have-no-mechanical-guard`, `viewer-disabled-control-population-has-no-gate`, `raw-door-compile-proof-needs-a-gate`, `comment-symbol-names-…`, `door-table-reason-strings-…`, `vocabulary-macro-bodies-…`, `feature-gated-lib-unit-tests-…` (unpriced, charged 2.5), `inserting-an-item-above-…`, `S115`.
   - Not moved into CIW or S-TINT, whose charters fit two rows (`gate-selftests-run-in-no-ci-job`, `feature-gated-lib-unit-tests-…`): both are over budget. Path citations of moved rows repointed in `crates/` comments and in other programs' rows; earlier log entries are left as written. (GUARD split)
 - 2026-10-26 — **Seam (QUAD):** measure door unit C (`quad/measure-c-no-default`, PR 5741) touches this program's ground. Every public number door takes a required predicate (`topo::Settle`: `Sign`, `AtMost`, `AtLeast`, `Contains`, `Resolution`) and answers `topo::MassMeasurement { enclosure, stop }`; a number is read through `MassMeasurement::met()`, which answers the enclosure where the resolution was met and a typed `Unmet` where it was not, and an unmet resolution is a bracket with `stop` `Floor`/`Wall`, not a refusal. A deciding predicate still undecided where no face can refine is the one quadrature refusal, `MassPropsError::Undecided { volume: (lo, hi), stop }`. An import hands out `StepImport::Solid { body: topo::CertifiedBody, .. }`: the body held with the gate's certificate of it (`body()`, `into_body()`, `measure(settle)`). `PropsError::QuadratureBudget`, `TargetUnreached`, `HeldCertificate`, `PropsCheck::Converged` and `QUAD_TARGET_LEN_FACTOR` are gone. Tests reading a number use `topo::test_support::pinned_volume(what, body, tol)` (1024·ε, asserting the resolution met). (QUAD unit C lane)
+
+## A note from GREEN (2026-10-28) — rows re-homed or re-banded
+
+GREEN (`work/green/`) opened with a priority-seam cut across the infra
+group and took this program's green-main or gate-latency rows by
+`git mv`, ids unchanged; `work/green/log.md` lists them. Any P1 left
+here was re-banded where it was test-side rather than production
+architecture; the row's own `## Re-banded` section says why.

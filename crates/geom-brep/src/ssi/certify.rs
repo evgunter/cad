@@ -1624,6 +1624,8 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
             u: surface.knots_u_f64_interim().domain(),
             v: surface.knots_v_f64_interim().domain(),
         };
+        // An `Undecided` here stays unnamed: past the side arm it may come
+        // from that arm's own in-band readings, which are indeterminate.
         one_arc(boxes, (n, p0), (domain, band), pcurve, &probed, ends)
     });
     #[allow(clippy::cast_possible_truncation)]
@@ -1711,7 +1713,7 @@ fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
     (rung, (pad_a, pad_b)): (f64, PairPads),
     band: Band,
 ) -> Option<Rung> {
-    use super::four::{Box4, PairBoxes, dominant, graph_margin, one_arc_pair};
+    use super::four::{Box4, PairBoxes, dominant, end_reach, graph_margin, one_arc_pair};
     let (sa, sb) = (na.speeds(), nb.speeds());
     let speeds = [sa.u.get(), sa.v.get(), sb.u.get(), sb.v.get()];
     let pair = PairBoxes::new(na, nb, speeds);
@@ -1762,7 +1764,23 @@ fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
             (state(t), dominant(&pair, e))
         });
         let domain = Box4::of_charts(na.surface(), nb.surface());
-        one_arc_pair(&pair, (&boxes, domain), ends, band.zero())
+        let mut along = None;
+        for (k, p) in [pa, pb].into_iter().enumerate() {
+            let (u, v) = (2 * k, 2 * k + 1);
+            let rect = UvRect {
+                u: domain.0[u],
+                v: domain.0[v],
+            };
+            let within = (
+                end_reach(band.zero(), speeds[u]),
+                end_reach(band.zero(), speeds[v]),
+            );
+            if super::four::along_side(p, rect, within) {
+                along = u32::try_from(k).ok();
+                break;
+            }
+        }
+        one_arc_pair(&pair, (&boxes, domain, along), ends, band.zero())
     });
     #[allow(clippy::cast_possible_truncation)]
     Some(Rung {
@@ -1830,9 +1848,28 @@ pub enum OneArcRefusal {
     Short,
     /// A walk of a box's boundary resolved no count, or a linking
     /// reading no sign. A solution on the boundary may be tangential to
-    /// it, sit on a corner, or lie below the walk's resolution. The
-    /// cause carries the escalation as the funnel recorded it.
+    /// it, sit where faces of the box meet, or lie below the walk's
+    /// resolution. The cause carries the escalation as the funnel
+    /// recorded it. On the two-chart tube the two shapes below are
+    /// renamed out of it.
     Undecided(Indeterminate),
+    /// The two-chart tube's walk resolved nothing, and the carrier's
+    /// image on a chart lies along a side of that chart's domain (a
+    /// boundary row or column) within the end box: the locus may run on
+    /// a face of every box rather than cross it, where no root is
+    /// isolated. The image is placed, not the locus.
+    AlongSide {
+        /// The chart: `0` the first operand's, `1` the second's.
+        chart: u32,
+    },
+    /// The two-chart tube's walk resolved nothing at an end of the
+    /// carrier, which lies on this many sides of the two charts' domains
+    /// at once, each within the end box: its root may sit on an edge or
+    /// corner where those sides meet, which no face's walk isolates.
+    EndOnSides {
+        /// How many domain sides the end lies on.
+        sides: u32,
+    },
 }
 
 impl core::fmt::Display for OneArcRefusal {
@@ -1857,8 +1894,23 @@ impl core::fmt::Display for OneArcRefusal {
                  slice through that end or within the tolerance of it"
             }
             Self::Undecided(_) => {
-                "a box's boundary walk resolved no count: a solution tangent to it, on a \
-                 corner, or below the walk's resolution"
+                "a box's boundary walk resolved no count: a solution tangent to it, where \
+                 its faces meet, or below the walk's resolution"
+            }
+            Self::AlongSide { chart } => {
+                return write!(
+                    f,
+                    "a box's boundary walk resolved no count, and the carrier lies along a \
+                     boundary row of chart {chart}'s domain: the locus may run on a face of every \
+                     box, where no root is isolated"
+                );
+            }
+            Self::EndOnSides { sides } => {
+                return write!(
+                    f,
+                    "the walk at an end of the carrier resolved nothing, and that end lies on \
+                     {sides} domain sides at once, where no face's walk isolates its root"
+                );
             }
         })
     }
@@ -1937,6 +1989,8 @@ fn limb_three<T: Decide>(
         Shortfall::Count(solutions) => OneArcRefusal::Count { solutions },
         Shortfall::Unlinked => OneArcRefusal::Unlinked,
         Shortfall::Short => OneArcRefusal::Short,
+        Shortfall::AlongSide(chart) => OneArcRefusal::AlongSide { chart },
+        Shortfall::EndOnSides(sides) => OneArcRefusal::EndOnSides { sides },
         // The walk read no margin it could classify, and the funnel
         // records that as it records any unreadable one; an unreadable
         // margin never classifies positive.

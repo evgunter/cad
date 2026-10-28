@@ -4,8 +4,8 @@ kind: issue
 title: test-utils documents itself as dev-only but is production source to every gate that narrows by test-only mounts
 status: open
 opened: 2026-09-15
-priority: P1
-cost: D
+priority: P3
+cost: M
 ---
 
 
@@ -66,3 +66,11 @@ The evidence spans `crates/test-utils/**` (S-TINT's) and
 untouched). Filed on `tint` because the crate is where the claim that is
 wrong is written; a fix that moves the file set belongs with whoever
 owns the gates.
+
+## Re-banded P1 → P3 (2026-10-28, GREEN's cut)
+
+The duplication and classification this row names live in test
+support and in the gates, not in production code, so it is not P1's
+"architecture that entrenches as things are built on it". Its cost is
+what `work/README.md` puts at P3: tooling whose failure can let a
+silent bug through. Legacy `cost: D` re-priced `M`.

@@ -136,7 +136,7 @@ pub use edit::{
 };
 pub use eval::measure::{Observed, ObservedRefusal};
 pub use eval::{
-    At, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
+    At, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel, Carry,
     ComputingTwist, ContentBits, ContentKey, DirectionRefusal, Epoch, EvalCounters, EvalOptions,
     EvalOutcome, EvalScalar, Evaluation, Framed, NamingKey, NodeError, NodeErrorClass,
     NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault, Piece, Pieces,
@@ -171,8 +171,7 @@ pub use mc::{
 };
 pub use measure::{
     ASSERT_BOUND, AssertionRelation, AssertionVerdict, Certified, MeasurePrimitive,
-    MeasureUnavailableAt, MeasureVerb, MinClearanceLane, MinClearanceOperand, UnevaluatedReason,
-    WINDOW_TIGHTENING,
+    MeasureUnavailableAt, MeasureVerb, MinClearanceOperand, UnevaluatedReason, WINDOW_TIGHTENING,
 };
 pub use meta::{MetaError, MetaInt, MetaValue, MetaVersionError, from_value, to_value};
 pub use mint::{Mint, MintId, Minted};

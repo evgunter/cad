@@ -144,22 +144,19 @@ pub use editor_core::{Label, LabelFault};
 // point is that a verdict is consumed by reports. `ASSERT_BOUND` is
 // the funnel site name, carried like `SEL_PLANE_DISTANCE` so a
 // K-census consumer can name the row rather than spell the string.
-// `MeasureUnavailableAt` and `ClearanceRefusal` are carried for the
+// `MeasureUnavailableAt` and `MinSeparationRefusal` are carried for the
 // reason a payload's payload always is: they are what
 // `UnevaluatedReason::MeasureUnavailable` and
 // `NodeErrorKind::MeasureClearanceRefused` CARRY, so a consumer who can
 // name the outer type and not the inner one can see that there is a
-// reason and never read it. `EngineRefusal` and `SelectionRefusal` are
-// `ClearanceRefusal`'s own `Engine` and `Selection` payloads, one rung
-// further down, and `CellBudget` is the engine's `Budget` payload, one
-// rung below that, for the same reason.
+// reason and never read it.
 // `SitedFace` is a mate's head — a `SitedRef` whose name is a
 // `FaceName`, so a mate whose head names an edge does not compile —
 // and `FaceName`/`NotAFaceName` are the type that makes that true and
 // the refusal its one constructor answers with. A caller authoring a
 // mate needs all three: the constructor is the door, and its refusal
 // is what a caller who read a name out of a file has to handle.
-pub use editor_core::clearance::{CellBudget, ClearanceRefusal, EngineRefusal, SelectionRefusal};
+pub use editor_core::clearance::MinSeparationRefusal;
 pub use editor_core::{
     ASSERT_BOUND, AssertionRelation, AssertionVerdict, FaceName, MeasureOutcome, MeasurePrimitive,
     MeasureUnavailableAt, MeasureVerb, Measured, NotAFaceName, Observed, ObservedRefusal,
@@ -330,9 +327,10 @@ pub use editor_core::{
     NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue,
     PoseValue, SplitSide, StepTurns, ValuePayload, evaluate,
 };
-// The pieces a body holds (`NodeValue::pieces`): what a `⊔` grafted,
-// each by its read, which a pick reads one of.
-pub use editor_core::{Piece, Pieces};
+// What a body value carries from its source (`NodeValue::carry`), and
+// the pieces it holds: what a `⊔` grafted, each by its read, which a
+// pick reads one of.
+pub use editor_core::{Carry, Piece, Pieces};
 
 // Persistence: the doors, verbatim.
 // `save`/`load` speak `ProfileDoc` + `DocEdit` — exactly this module's
