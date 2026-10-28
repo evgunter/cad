@@ -298,7 +298,7 @@ fn arm<T: geom_core::Decide>(r: Option<&NodeResult<T>>) -> &'static str {
 /// The nodes whose content and naming keys split between the lanes on
 /// main, as (document, the first split node's mint ordinal, how many
 /// nodes split), each splitting both keys, pinned so the rest of the
-/// differential runs (`work/ROWPATH`). Every other comparison holds on
+/// differential runs (`work/tally/probe-lane-content-and-naming-keys-split-from-f64-on-every-corpus-document.md`). Every other comparison holds on
 /// them. The pin goes red the day the set moves.
 const PINNED_KEY_SPLITS: &[(&str, u32, usize)] = &[
     ("die", 10, 57),
@@ -599,7 +599,7 @@ fn probe_agrees_with_f64_bit_for_bit_over_the_corpus() {
         split_nodes, PINNED_KEY_SPLITS,
         "the nodes whose content or naming key splits between the lanes — `ContentBits for \
          Probe` feeds the wrapped f64's bits, so the two lanes' memo keys are the same word; \
-         the pin names the splits main has (`work/ROWPATH`)"
+         the pin names the splits main has (`work/tally/probe-lane-content-and-naming-keys-split-from-f64-on-every-corpus-document.md`)"
     );
     assert!(
         samples > 0,

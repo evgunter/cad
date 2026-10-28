@@ -145,7 +145,8 @@ fn the_wall_arms_margins_scale_linearly_with_the_model() {
     // one between the twins where every other predicate's read a
     // thousand. Six pairs were off before PR 5664 and 62 since
     // (`work/charttail/main-red-ringed-curved-doors-reds-four-sweep-rows.md`
-    // owns the widening, `work/issues/ROWPATH` the six).
+    // owns the widening, `work/issues/ray-wall-twins-curve-foot-branch-margin-scales-with-the-model-squared.md`
+    // the six).
     assert_eq!(
         nonlinear,
         ["curve_foot_branch: 62 pairs off, e.g. 9.990e2"],
