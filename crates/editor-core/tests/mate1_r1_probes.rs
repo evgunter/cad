@@ -426,11 +426,9 @@ fn r1_no_mate_can_give_one_copy_a_pose_apart_from_its_siblings() {
     );
     assert!(
         matches!(
-            bad,
-            Err(editor_core::EditError::MateRefused {
-                fault: editor_core::MateFault::NotOnTheCopy { .. },
-                ..
-            })
+            &bad,
+            Err(editor_core::EditError::MateRefused { fault, .. })
+                if matches!(**fault, editor_core::MateFault::NotOnTheCopy { .. })
         ),
         "a member's pose is never its own: {:?}",
         bad.err()
