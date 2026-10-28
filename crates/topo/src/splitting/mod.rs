@@ -783,10 +783,10 @@ impl core::fmt::Display for SplitReduceError {
                 };
                 write!(f, "{what}. Recourse: {SPLIT_COINCIDENCE_RECOURSE}")
             }
-            Self::ApexSection { section, .. } => write!(
+            Self::ApexSection { .. } => write!(
                 f,
-                "the split plane passes through the tip of a cone, and where it leaves the \
-                 cone there does not read ({section}). Recourse: \
+                "the split plane passes through the tip of a cone, and the section it cuts \
+                 in the cone does not run through the tip. Recourse: \
                  {SPLIT_COINCIDENCE_RECOURSE}"
             ),
             Self::ApexUndecided { diag, .. } => write!(
