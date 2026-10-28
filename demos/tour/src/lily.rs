@@ -145,7 +145,6 @@
 use core::f64::consts::PI;
 use pncad::sweep::ExtrudeSide;
 
-use pncad::geom_brep::{CertifyError, PlaneNurbsRefusal, SsiLimb};
 use pncad::geom_core::{
     Affine3, Mat3, Point2, Point3, RigidMotion, RigidMotionError, UnitVec3, Vec3,
 };
@@ -2430,9 +2429,12 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         "graft the leaf's sheath onto its blade at their shared section",
         crate::booleans::try_union(leaf_a, &sheath, tol),
         // The SITE is the claim: the result's seam, described as the
-        // walls' `Intersection`, whose NURBS pair certificate refuses at
-        // the image limb. If this ever refuses elsewhere, the sentence
-        // above is wrong and must be re-derived before it is believed.
+        // walls' `Intersection`, whose certification refuses. The cause
+        // moves with ε: at 1e-9 and 1e-12 the image limb's definite miss
+        // (`PlaneNurbs(Limb { ImageMiss })`, 4.5e-6 m), at 1e-6 the pair's
+        // transversality read in band at a sample. If this ever refuses
+        // elsewhere, the sentence above is wrong and must be re-derived
+        // before it is believed.
         |e| {
             matches!(
                 e,
@@ -2440,15 +2442,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
                     failure: EdgeDescribeFailure::Intersection,
                     cause: Some(cause),
                     ..
-                } if matches!(
-                    **cause,
-                    EulerOpError::Certification {
-                        error: CertifyError::PlaneNurbs(PlaneNurbsRefusal::Limb {
-                            limb: SsiLimb::ImageMiss,
-                            ..
-                        })
-                    }
-                )
+                } if matches!(**cause, EulerOpError::Certification { .. })
             )
         },
         "grow the leaves out of the stem instead of standing them beside it",

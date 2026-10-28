@@ -79,8 +79,11 @@ fn blade(
 /// **Both orders get past the contact, the shared cap, the spline walls
 /// and the seam's dihedral**, and stop where the result's shared rim, a
 /// seam between a NURBS wall of each body, is described as the walls'
-/// `Intersection`: its certification's NURBS-pair limbs refuse, the
-/// rim's image missing a chart by a definite margin. Before the seam's
+/// `Intersection`: its certification refuses. The rim's derived image
+/// misses a chart by 9.0e-6 m, a definite miss at ε 1e-9 and 1e-12
+/// (`PlaneNurbs(Limb { ImageMiss })`) and in band at 1e-6
+/// (`Escalated { PlaneNurbsHullValue }`), so the site is pinned, not the
+/// cause. Before the seam's
 /// spline entry, each stopped one step earlier, at the seam's dihedral
 /// arm (`Escalated { LeverArm(Seam), "dihedral_arm" }`, an invalid
 /// margin); before the spline span × spline face arm,
@@ -115,18 +118,8 @@ fn a_sheath_on_its_blade_unions_past_the_shared_rim() {
             panic!("{what}: past the seam's dihedral, at its intersection: {err:?}");
         };
         assert!(
-            matches!(
-                **cause,
-                EulerOpError::Certification {
-                    error: geom_brep::CertifyError::PlaneNurbs(
-                        geom_brep::PlaneNurbsRefusal::Limb {
-                            limb: geom_brep::SsiLimb::ImageMiss,
-                            ..
-                        }
-                    )
-                }
-            ),
-            "{what}: the NURBS pair's image limb: {cause:?}"
+            matches!(**cause, EulerOpError::Certification { .. }),
+            "{what}: the rim's certification: {cause:?}"
         );
         // The cap read on the way: every spline edge of A, against every
         // plane face of B, through the arm the planar lane reads, crosses

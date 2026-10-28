@@ -255,3 +255,10 @@ description already states, where one exists.
 in station count, 5 against 9 (4 against 8 spans along the loft), and the
 miss falls from 9.0e-6 to 4.53e-6: about `1/(n − 1)`, not the `h²` a
 chord's sagitta would give. Recorded here, not acted on.
+
+**At ε 1e-6 (2026-10-28).** The sweep row's 9.0e-6 miss lands inside
+the band `[1e-6, 1e-5)` and escalates (`Escalated { PlaneNurbsHullValue }`,
+`"ssi_hull_value_chart"`) rather than refusing; the tour's lily wall 8
+escalates the pair's transversality in band at sample 12 (margin 8.3e-6)
+before it. Both pins name the site, the rim's certification, not the
+cause.
