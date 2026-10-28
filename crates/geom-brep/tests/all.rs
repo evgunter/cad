@@ -333,3 +333,5 @@ mod tangent_gap_hull_charges_both_sags;
 mod torus_chart_guards;
 #[path = "torus_meridian_radial.rs"]
 mod torus_meridian_radial;
+#[path = "probe_5889b.rs"]
+mod probe_5889b;
