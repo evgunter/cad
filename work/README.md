@@ -61,7 +61,8 @@ status: open               # Vocabularies, below
 opened: 2026-10-02
 closed:                    # a date; set exactly when status is closed
 priority: P1               # P0..P4 (Priority, below)
-cost: H                    # E | M | H: the effort (Vocabularies)
+cost: H                    # C | E | M | H | X: the effort (Vocabularies)
+points: 30                 # only with cost: X, priced by hand
 design: true               # present only while a design question is open
 parent: some-carrying-unit # optional: another item's id
 blocked_on: [a-blocker, 1601]   # item ids, or PR/issue numbers as ints
@@ -130,15 +131,24 @@ dispatchable, and neither is listed as stale for going untouched.
 **cost** is the row's effort and nothing else (Ev, in chat,
 2026-09-27):
 
+- `C` — chore: a mechanical change (a rename, a citation or count
+  fix, a header sweep) that needs no judgement. Chores are dispatched
+  only in bundles, several to one lane, or ride along with a unit that
+  touches the same ground; a chore never gets an implementer of its
+  own.
 - `E` — easy: the fix is written in the item or is obvious.
 - `M` — medium: more than a written-down fix, short of hard.
 - `H` — hard: the intent is clear, and getting it right is technically
   difficult (geometry, certified-interval reasoning, topology
   invariants, tests that are hard to construct).
+- `X` — extra hard: larger than any one hard row, typically a feature
+  that will expand into a program of its own. An `X` row is priced by
+  hand in `points:`, with the reasoning in its body; no other row
+  carries `points:`.
 
 `cost: D` is legacy: before 2026-09-27 it meant either "a design
 question is open" or "medium", so read such a row's body, re-price it
-`E`/`M`/`H`, and set `design` if it applies, whenever you touch it.
+`C`/`E`/`M`/`H`/`X`, and set `design` if it applies, whenever you touch it.
 Lint refuses `cost: D` on a row opened on or after 2026-09-27.
 
 **design** is separate from cost, because effort and an open decision
@@ -264,16 +274,23 @@ on the next sitting's attention:
 
 | cost | points |
 |---|---|
+| `C` | 0 |
 | `E` | 1 |
-| `M` | 2.5 |
-| `H` | 5 |
-| legacy `D` | 2.5 |
-| unpriced | 2.5 |
+| `M` | 3 |
+| `H` | 8 |
+| `X` | its `points:` |
+| legacy `D` | 3 |
+| unpriced | 3 |
 
-The default budget is **30 points**: about 30 easy rows, 12 medium or
-6 hard, or any mix. `design` adds nothing, because the cost prices the
-whole row, the weighing included. An unpriced row is charged as medium
-so a track cannot come in under budget by declining to price itself.
+The default budget is **30 points**: about 30 easy rows, 10 medium or
+4 hard, or any mix. The weights come from the measured effort of
+closed rows (wall time and commits, `analysis/cost-tiers/` on the
+`analysis/cost-tier-effort` branch), and `H` carries the follow-up
+rows a hard row typically files as well as its own work. A chore costs
+nothing because it only ever travels in a bundle. `design` adds
+nothing, because the cost prices the whole row, the weighing included.
+An unpriced row is charged as medium so a track cannot come in under
+budget by declining to price itself.
 A program may set its own `budget`, with its reason in `program.md`.
 
 **The budget binds when a program opens and as it grows**: a program

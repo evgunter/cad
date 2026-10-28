@@ -95,17 +95,23 @@ PRIORITIES = ("P0", "P1", "P2", "P3", "P4")
 # in the item or obvious, M between the two, H getting it right is technically
 # hard. Whether a design question is open is a separate fact, the `design` flag,
 # because the two vary independently. The weights are what make one budget say
-# "about 6 hard rows or about 30 easy ones" in a single number.
+# "about 4 hard rows or about 30 easy ones" in a single number; they were set
+# from the measured effort of closed rows (analysis/cost-tiers/ on the
+# `analysis/cost-tier-effort` branch), H's including the follow-up rows a hard
+# row typically files. C, a chore, is priced 0 because chores are dispatched
+# only in bundles, never with an implementer of their own. X, extra hard, is a
+# row larger than any H, typically a feature that will grow into a program;
+# it carries its price by hand in `points:`, and only X does.
 #
 # D is LEGACY. The 2026-09-03 cut (docs/WORK-TRACKS-2026-09.md) defined it as
 # "a design question is open", but the README never said so and rows priced
 # before 2026-09-27 used it for middling effort too, so a `cost: D` on a row
 # opened before then means "M, and maybe design work": re-price it when you
 # touch the row. A row opened on or after LEGACY_D_UNTIL may not carry it.
-COSTS = ("E", "M", "H", "D")
-COST_WEIGHT = {"E": 1.0, "M": 2.5, "H": 5.0, "D": 2.5}
+COSTS = ("C", "E", "M", "H", "X", "D")
+COST_WEIGHT = {"C": 0, "E": 1, "M": 3, "H": 8, "D": 3}   # X: the row's own `points:`
 LEGACY_D_UNTIL = "2026-09-27"  # the first `opened:` date that refuses `cost: D`
-DEFAULT_BUDGET = 30            # points; 30 E, 12 M, or 6 H
+DEFAULT_BUDGET = 30            # points; 30 E, 10 M, or about 4 H
 UNPRICED_WEIGHT = COST_WEIGHT["M"]   # an unscored row is priced mid-range
 
 # A row counts against its track's budget only while it is DISPATCHABLE. A row
@@ -130,6 +136,7 @@ SCHEMA: dict[str, tuple[str, tuple[str, ...]]] = {
     "branch": ("str", ("unit", "issue", "ruling")),
     "priority": ("enum:priority", ("unit", "issue", "ruling")),
     "cost": ("enum:cost", ("unit", "issue", "ruling")),
+    "points": ("int", ("unit", "issue", "ruling")),
     "design": ("flag", ("unit", "issue", "ruling")),
     "area": ("enum:area", ("program",)),
     "prefix": ("str", ("program",)),
@@ -409,16 +416,19 @@ def _listed(item: Item, key: str) -> list[object]:
     return v if isinstance(v, list) else []
 
 
-def _load(rows: list[Item]) -> float:
+def _load(rows: list[Item]) -> int:
     """The weighted DISPATCHABLE load a slate is carrying, in budget points.
     An unpriced row is charged the middle weight rather than nothing, so a
     track cannot come in under budget by declining to price itself."""
-    total = 0.0
+    total = 0
     for r in rows:
         if r.status not in DISPATCHABLE:
             continue
-        c = r.get("cost")
-        total += COST_WEIGHT.get(str(c), UNPRICED_WEIGHT)
+        c, pts = r.get("cost"), r.get("points")
+        if c == "X" and isinstance(pts, int) and not isinstance(pts, bool):
+            total += pts
+        else:
+            total += COST_WEIGHT.get(str(c), UNPRICED_WEIGHT)
     return total
 
 
@@ -598,7 +608,14 @@ def lint(root: str, warnings: list[str] | None = None) -> list[str]:
             errors.append(f"{it.path}: parked needs a non-empty `blocked_on`")
         if it.get("cost") == "D" and str(it.get("opened")) >= LEGACY_D_UNTIL:
             errors.append(f"{it.path}: `cost: D` is legacy (opened before {LEGACY_D_UNTIL} only) — "
-                          f"price the effort E, M or H, and set `design: true` if a design question is open")
+                          f"price the effort C, E, M, H or X, and set `design: true` if a design question is open")
+        if it.get("cost") == "X" and it.get("points") is None:
+            errors.append(f"{it.path}: `cost: X` is priced by hand — set `points:` and say why in the body")
+        if it.get("points") is not None and it.get("cost") != "X":
+            errors.append(f"{it.path}: `points:` prices only a `cost: X` row; every other cost has its fixed weight")
+        pts = it.get("points")
+        if isinstance(pts, int) and not isinstance(pts, bool) and pts < 0:
+            errors.append(f"{it.path}: `points:` must not be negative")
         if it.status == "deferred" and it.get("blocked_on"):
             errors.append(f"{it.path}: deferred is a ratified not-now, not a wait on a named trigger — "
                           f"a row with `blocked_on` is parked; cite the ratification in the body instead")
@@ -1222,6 +1239,20 @@ def selftest() -> int:
         o2 = open(os.path.join(root, "work/mesh/MESH-2.md"), encoding="utf-8").read()
         _write(root, "work/mesh/MESH-2.md", o2.replace("status: open", "status: open\ncost: D"))
         expect("legacy D on a row opened before the cut is clean", lint(root))
+        # the load: an unpriced row is charged as M, a chore nothing, and an X
+        # its own `points:`, which only an X may carry
+        for header, cell in (("", "| 3/30 |"), ("cost: C\n", "| 0/30 |"),
+                             ("cost: H\n", "| 8/30 |"), ("cost: X\npoints: 31\n", "| **31/30** |")):
+            _write(root, "work/mesh/MESH-2.md", o2.replace("status: open\n", "status: open\n" + header))
+            expect(f"load with {header!r} is clean", lint(root))
+            if cell not in render(root, today=far):
+                failures.append(f"render: load with {header!r} lacks {cell!r}")
+        _write(root, "work/mesh/MESH-2.md", o2.replace("status: open", "status: open\ncost: X"))
+        expect("X without points", lint(root), "set `points:`")
+        _write(root, "work/mesh/MESH-2.md", o2.replace("status: open", "status: open\ncost: H\npoints: 9"))
+        expect("points on a non-X row", lint(root), "prices only a `cost: X` row")
+        _write(root, "work/mesh/MESH-2.md", o2.replace("status: open", "status: open\ncost: X\npoints: -1"))
+        expect("negative points", lint(root), "must not be negative")
         _write(root, "work/mesh/MESH-2.md",
                o2.replace("opened: 2026-09-01", f"opened: {LEGACY_D_UNTIL}\ncost: M\ndesign: true"))
         expect("M with design on a new row is clean", lint(root))
