@@ -445,3 +445,31 @@ fn a_named_pose_a_cut_and_a_kept_split_read_refuses_severed() {
         "{refused:?}"
     );
 }
+
+/// **`Doc::slot` answers every slot**: an operand's read as well as an
+/// expression slot's variable, and `None` for a slot the node lacks.
+#[test]
+fn a_slot_answers_an_operands_read_and_an_expressions_variable() {
+    use editor_core::{OperandSlot, SlotId};
+    let (doc, split_node, cut) = split_block("pose-slot");
+    assert_eq!(
+        doc.slot(split_node, SlotId::Operand(OperandSlot::Tool)),
+        Some(tool_of(&doc, split_node)),
+        "a split's tool slot reads its pose"
+    );
+    assert_eq!(
+        doc.slot(split_node, SlotId::Operand(OperandSlot::Target)),
+        doc.output(cut[1], 0),
+        "a split's target slot reads the block's output"
+    );
+    assert!(
+        doc.slot(cut[1], SlotId::Distance)
+            .is_some_and(|var| doc.var(var).is_some()),
+        "an extrude's distance reads its variable"
+    );
+    assert_eq!(
+        doc.slot(split_node, SlotId::Operand(OperandSlot::Cut)),
+        None,
+        "a split has no cut operand"
+    );
+}
