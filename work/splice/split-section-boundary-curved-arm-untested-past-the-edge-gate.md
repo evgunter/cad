@@ -35,6 +35,19 @@ midpoint.
 
 From GAUGE. Moved by `git mv` in the chat-approved refold that opened SPLICE (`work/splice/program.md`), the track for a body built by loft or sweep entering every boolean. Re-banded P3 → P1: it becomes live the moment the gate goes, so it ships with the deletion.
 
+## The dihedral it reads (SPLICE, 2026-10-27)
+
+`describe_section_boundary` classifies a boundary edge through
+`geom_brep::classify_dihedral`, whose implicit forms are poison on a
+spline face, so a section edge on a loft wall would refuse at the arm
+(`"dihedral_arm"`, invalid) before it is described. The boolean's seam
+describer reads the same question through `geom_brep::classify_seam`,
+each spline face at the edge's pcurve on it (`topo::boolean::ops::seam_face`);
+the split's describer is the same shape and wants the same reading when
+its gate admits a NURBS edge. The split's sector rule
+(`splitting::rules`, its `classify_dihedral` at a vertex) is the same
+case at a vertex.
+
 ## The edge extent's new home (OFFSET, 2026-10-27)
 
 `geom_brep::edge_extent` no longer exists (OFFSET, PR 5875). Its home is `geom_brep::extent`, beside the reach family, as three functions: `edge_extent_inf` (≤ the edge's diameter `D`: the chord, the minor-axis folds and the sampled pairs; the lever of a reading whose Zero only refuses), `edge_extent_sup` (≥ `D`; a reading whose Zero is acted on and whose definite signs only refuse) and `edge_reach_from` (the edge's farthest distance from a point of it; a reading that acts on every sign, read from that point). The curved arm this row cites reads `edge_extent_inf` through `ConicDeparture`.
