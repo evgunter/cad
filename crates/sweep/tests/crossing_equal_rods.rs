@@ -31,9 +31,7 @@
 
 use core::f64::consts::{FRAC_PI_2, PI};
 
-use crate::common::differential::{
-    VOLUME_PAD_BUDGET, Verdict, judged_within, outcome,
-};
+use crate::common::differential::{VOLUME_PAD_BUDGET, Verdict, judged_within, outcome};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::test_support::{brick, finished};
 use topo::{AtRestBody, BooleanError, BooleanResult, SplitJoinError};
@@ -129,7 +127,10 @@ fn not_ending((sa, sb, x0): (f64, f64, f64), want: Ending) -> Vec<String> {
             (Some(Ending::LooseEnds), outcome(r, volume, tol))
         } else {
             let j = judged_within(r, Some(volume), tol, PAD_CEILING);
-            ((j.verdict == Verdict::Sound).then_some(Ending::Builds), j.line)
+            (
+                (j.verdict == Verdict::Sound).then_some(Ending::Builds),
+                j.line,
+            )
         };
         if ending != Some(want) {
             lines.push(format!(

@@ -103,3 +103,8 @@ source edge's own. Measured on that branch at ε = 1e-9, 1e-6 and
 The pins (`crossing_rods_end_past_the_ellipse_edge_copy*`) name those
 endings, `NO_ELLIPSE_COPY` gone. What is left of this row is the
 loose ends at the turned poses, and the enclosure's width at `(0, 0)`.
+Nobody has root-caused the `UnpairedLooseEnds { count: 4 }`: it is
+the same count at every turned pose, ε and op, and the poses whose seam
+rulings sit at `±x` (spins `(0, 0)`) do not reach it, so the seam
+rulings' placement against the copied ellipse is the first thing to
+read.

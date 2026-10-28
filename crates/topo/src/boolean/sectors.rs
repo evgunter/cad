@@ -1579,19 +1579,28 @@ fn germ_curve<T: Decide>(
 
 /// **Two edges leaving a site along the germ, with paired far ends,
 /// are one segment** when both are lines or circles, or both are
-/// sections of one plane and one quadric. Each is tangent to the germ
-/// at the site, and a line or circle meets a line or circle tangent to
-/// it there at no other point unless the two are one curve, so the
-/// paired far ends make them one; the sweep splits an edge at every
-/// crossing of the partner, so neither passes the other's far end.
-/// Where the glue door verified each edge's two faces one carrier with
-/// the partner's two, crosswise, and one of those carriers is a plane
-/// and the other a plane or quadric, both edges lie on that plane's
-/// section of the quadric: one conic, which has one branch through the
-/// site along the germ, so they are one curve too
-/// ([`same_construction`]). This is structure, not a test: no reading
-/// of the two curves could answer otherwise. Any other conic or spline
-/// can meet such a partner again, and its pair is refused
+/// sections of one plane and one cylinder or cone. Each is tangent to
+/// the germ at the site, and the sweep splits an edge at every crossing
+/// of the partner, so neither passes the other's far end.
+///
+/// - A line or circle meets a line or circle tangent to it at the site
+///   at no other point unless the two are one curve, so the paired far
+///   ends make them one.
+/// - Where the glue door verified each edge's two faces one carrier
+///   with the partner's two, crosswise, one a plane and the other a
+///   cylinder or cone ([`same_construction`]), both edges lie on that
+///   plane's section of the quadric. That section is one conic, which
+///   has one branch through the site along the germ; or a line pair
+///   (the plane through a cone's apex, or along a cylinder's rulings),
+///   whose two lines cross at most at one point and there in two
+///   directions, so the two edges leaving the site along one direction
+///   are on one line. Either way they are one curve. Two curved
+///   carriers can meet in two branches tangent at a point, so the
+///   identity is read only where one of the two is a plane.
+///
+/// This is structure, not a test: no reading of the two curves could
+/// answer otherwise. Any other conic or spline can meet such a partner
+/// again, and its pair is refused
 /// ([`BooleanError::GermEdgeCarrierUnsupported`]).
 ///
 /// Two closed edges (each one vertex, both its ends) pair their far
@@ -1605,7 +1614,7 @@ fn one_segment<T: Decide>(
     eb: Along,
     declared: &super::GluedPairs<T>,
 ) -> Result<(super::Locus, super::Locus), BooleanError> {
-    if same_construction(a, ea, b, eb, declared) {
+    if same_construction(a, ea, b, eb, declared)? {
         return Ok((super::Locus::OnEdge(ea.edge), super::Locus::OnEdge(eb.edge)));
     }
     for (side, e) in [(a, ea), (b, eb)] {
@@ -1626,40 +1635,57 @@ fn one_segment<T: Decide>(
 }
 
 /// Whether the faces either side of `ea` and of `eb` pair crosswise
-/// as carriers the glue door verified one ([`super::GluedPairs::verified_one_carrier`]),
-/// one of the two a plane and the other a plane or quadric: the two
-/// edges are then sections of one plane and one quadric ([`one_segment`]).
+/// as carriers the glue door verified one
+/// ([`super::GluedPairs::verified_one_carrier`]), one of the two a plane
+/// and the other a cylinder or cone: the two edges are then sections of
+/// one plane and one quadric ([`one_segment`]). A plane meets a sphere
+/// in a circle and two faces on one plane are one face, so neither
+/// reaches here past the kind rule. An edge bounding one face on both
+/// sides (a wrap edge) is no section of two faces.
+///
+/// # Errors
+///
+/// [`BooleanError::ClassificationInvariant`] where a germ edge's half
+/// has no mate or no face, or a face's carrier does not read.
 fn same_construction<T: Decide>(
     a: GermSide<'_, T>,
     ea: Along,
     b: GermSide<'_, T>,
     eb: Along,
     declared: &super::GluedPairs<T>,
-) -> bool {
-    use geom::SurfaceKind::{Cone, Cylinder, Plane, Sphere};
+) -> Result<bool, BooleanError> {
+    use geom::SurfaceKind::{Cone, Cylinder, Plane};
+    let lost = |what| BooleanError::ClassificationInvariant { what };
     let faces = |side: GermSide<'_, T>, e: EdgeKey| {
         let plus = proven(&side.body.edges, e, EntityId::Edge).he_plus;
-        match [Some(plus), side.body.mate(plus)]
-            .map(|h| h.and_then(|h| side.body.face_of_half_edge(h)))
-        {
-            [Some(f), Some(g)] if f != g => Some([f, g]),
-            _ => None,
-        }
+        let minus = side
+            .body
+            .mate(plus)
+            .ok_or(lost("a germ edge's half has no mate"))?;
+        let face = |h| {
+            side.body
+                .face_of_half_edge(h)
+                .ok_or(lost("a germ edge's half bounds no face"))
+        };
+        Ok::<_, BooleanError>([face(plus)?, face(minus)?])
     };
-    let (Some([a0, a1]), Some(fb)) = (faces(a, ea.edge), faces(b, eb.edge)) else {
-        return false;
+    let ([a0, a1], fb) = (faces(a, ea.edge)?, faces(b, eb.edge)?);
+    if a0 == a1 || fb[0] == fb[1] {
+        return Ok(false);
+    }
+    let kind = |f| {
+        crate::readback::face_carrier_kind(a.body, f)
+            .map_err(|_| lost("a germ edge's face carrier does not read"))
     };
-    let kind = |f| crate::readback::face_carrier_kind(a.body, f).ok();
     let section = matches!(
-        (kind(a0), kind(a1)),
-        (Some(Plane), Some(Plane | Cylinder | Cone | Sphere))
-            | (Some(Cylinder | Cone | Sphere), Some(Plane))
+        (kind(a0)?, kind(a1)?),
+        (Plane, Cylinder | Cone) | (Cylinder | Cone, Plane)
     );
     let one = |fa, fb| declared.verified_one_carrier(a.operand, fa, b.operand, fb);
-    section
+    Ok(section
         && [fb, [fb[1], fb[0]]]
             .iter()
-            .any(|&[b0, b1]| one(a0, b0) && one(a1, b1))
+            .any(|&[b0, b1]| one(a0, b0) && one(a1, b1)))
 }
 
 /// **Where a closed edge leaving the site lies against the partner**:

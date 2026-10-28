@@ -2980,13 +2980,15 @@ pub enum BooleanError {
     /// the reduction paired their far ends, the join reads them as one
     /// segment only for lines and circles, which meet a line or circle
     /// tangent to them at the site nowhere else, and for two sections of
-    /// one plane and one quadric, the faces either side of each edge on
-    /// carriers the glue door verified one with the other's. Any other
-    /// conic or spline can meet such a partner again, so the paired ends
-    /// do not make the two edges one, and nothing here reads whether
+    /// one plane and one cylinder or cone, the faces either side of each
+    /// edge on carriers the glue door verified one with the other's. Any
+    /// other conic or spline can meet such a partner again, so the paired
+    /// ends do not make the two edges one, and nothing here reads whether
     /// they are.
     GermEdgeCarrierUnsupported {
-        /// The operand whose edge is neither a line nor a circle.
+        /// The first operand, A before B, whose edge is neither a line nor
+        /// a circle, where the two edges are not sections of one plane
+        /// and one cylinder or cone.
         operand: Operand,
         /// The edge: the operand's own, its split pieces' root.
         edge: EdgeKey,
@@ -4757,7 +4759,8 @@ impl core::fmt::Display for BooleanError {
                 "an edge of each solid runs from one shared point to another, and the \
                  Boolean can tell whether two such edges are one curve only when both \
                  are lines or circles, or both lie where the same plane meets the same \
-                 cylinder, cone or sphere; the {} operand's is neither. Recourse: move the \
+                 cylinder or cone, each edge's two faces on the other's two surfaces; here \
+                 neither holds, and the {} operand's edge is no line or circle. Recourse: move the \
                  parts so those edges do not run together",
                 operand_word(*operand),
             ),
