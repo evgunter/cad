@@ -889,28 +889,20 @@ fn seat_at(
     }
     // A seat so near the carrier's start (its end, the same point) that
     // the piece before it has no knot room of its own is the start
-    // already, where it is within the band of it
-    // (**`ssi_seat_at_the_start`**); one past the band is a knot edit
-    // that refused.
+    // already, where it is decided within the band of it
+    // ([`at_the_start`]); one decided past the band is a knot edit that
+    // refused, and one undecided escalates.
     let seated = match net
         .split_at(at)
         .and_then(|(before, after)| rotated(&after, &before, hi - lo))
     {
         Ok(seated) => seated,
         Err(e) => {
-            let p = net.eval(at);
-            let near = [lo, hi].into_iter().any(|end| {
-                geom_core::k_stats::decide(
-                    "ssi_seat_at_the_start",
-                    Margin::norm3(p - net.eval(end)),
-                    band,
-                )
-                .map_or(true, |s| s == Sign::Zero)
-            });
-            return if near {
-                Ok(component.clone())
-            } else {
-                Err(CarryError::Seat(e))
+            let ends = [net.eval(lo), net.eval(hi)];
+            return match at_the_start(net.eval(at), ends, band) {
+                Ok(true) => Ok(component.clone()),
+                Ok(false) => Err(CarryError::Seat(e)),
+                Err(diag) => Err(CarryError::Site(SiteRefusal::Escalated(diag))),
             };
         }
     };
@@ -931,6 +923,25 @@ fn seat_at(
         closed: true,
         certificate: Some(certificate),
     })
+}
+
+/// **Whether the seat `p` is the loop's start**, one of `ends` (the
+/// start and the end, one point), decided within the band of it
+/// (**`ssi_seat_at_the_start`**): `true` where it is decided at one,
+/// `false` where it is decided off both, and the escalation where either
+/// reading is undecided, which the seat refuses rather than keep the
+/// loop at its old seat.
+fn at_the_start(p: Point3<f64>, ends: [Point3<f64>; 2], band: Band) -> Result<bool, Indeterminate> {
+    let mut near = false;
+    for end in ends {
+        let read = geom_core::k_stats::decide_reported(
+            "ssi_seat_at_the_start",
+            Margin::norm3(p - end),
+            band,
+        )?;
+        near |= read.sign == Sign::Zero;
+    }
+    Ok(near)
 }
 
 /// **`first` followed by `second` shifted by `period`**: two clamped
@@ -1108,6 +1119,31 @@ mod wiring {
             return Err("seat is not `seat_at`");
         }
         Ok(())
+    }
+
+    /// **An undecided nearness to the start refuses**: a seat one band
+    /// from the loop's start, between the band's zero and its escalation
+    /// edges, escalates rather than read as the start; one well inside
+    /// the band is the start, and one far past it is not.
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn a_seat_undecided_at_the_start_escalates() {
+        use geom_core::{Band, Point3, Tol};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let start = Point3::new(0.3, -0.2, 0.1);
+        let ends = [start, start];
+        let at = |d: f64| super::at_the_start(Point3::new(0.3 + d, -0.2, 0.1), ends, band);
+        assert_eq!(
+            at(0.1 * band.zero()),
+            Ok(true),
+            "inside the band: the start"
+        );
+        assert_eq!(at(1e-3), Ok(false), "far past the band: not the start");
+        assert!(
+            at(3.0 * band.zero()).is_err(),
+            "between the band's edges: an escalation, never the start: {:?}",
+            at(3.0 * band.zero())
+        );
     }
 
     #[test]
