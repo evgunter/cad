@@ -3156,7 +3156,7 @@ impl ComputingTwist {
             self.axis[1] + 0.5 * (k * s5).cos(),
             self.axis[2] + 0.5 * (k * s7).sin(),
         ];
-        let norm = tipped.iter().map(|c| c * c).sum::<f64>().sqrt();
+        let norm = tipped.iter().map(|c| c.powi(2)).sum::<f64>().sqrt();
         let axis = if norm > 0.25 {
             tipped.map(|c| c / norm)
         } else {
