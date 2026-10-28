@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-06
 priority: P0
 cost: H
-needs_ev: true
 ---
 
 
@@ -108,3 +107,15 @@ The unit pins these rows:
 It lands on the moved engine, after `SHELL-3`. The analytic arms can
 land before `window-of-refuses-an-untrimmed-iso-bounded-nurbs-patch`;
 free-form walls need that row.
+
+## Ev's ruling (#5866, 2026-10-28)
+
+Approved. Ev asked what the correct semantics are: "if the point is to
+detect self-intersections of the surface then it's presumably going to
+have to, like, show that the regions that intersect are separated by a
+chart region that maps to a region that definitely doesn't intersect,
+or something like that". On the statement that *Holds* certifies
+f : M → ℝ³ injective, with touching cells certified injective on their
+union and non-touching cells at positive distance, Ev wrote "ok great!",
+and asked that the clause lead with "it proves injectivity". The clause
+in `docs/ERROR-DESIGN.md` now does. The unit builds against that clause.
