@@ -3,6 +3,7 @@ id: a-name-through-a-parts-assemble-moves-with-every-earlier-part-edit
 kind: issue
 title: A host's name through a part's product ⊔ moves with every edit the part made before the ⊔
 status: open
+priority: P2
 opened: 2026-10-23
 ---
 
@@ -31,3 +32,7 @@ the `⊔`'s own id and read ids (keyed by member position, say), or
 whether a version update should carry host names across a re-minted
 `⊔` (as `update_references` carries step ids), or whether this is the
 expected cost of a product the author re-states.
+
+## Slate triage (2026-10-28, INTENT)
+
+Moved from `work/intent/` by `git mv`, id and body unchanged: residue of INTENT's D10 build that belongs to REFS's charter (names scoped by their read). INTENT keeps D10's core (G and its riders, the stage-3 umbrellas, the carry, the refactor rows, the roots rename); Ev asked for INTENT's slate to be cut to its charter and its residue handed on (in chat, 2026-10-28).

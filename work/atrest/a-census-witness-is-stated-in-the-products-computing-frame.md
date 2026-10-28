@@ -29,3 +29,7 @@ the space the product is in. The census runs in `topo`, which knows no
 frame, so the composition belongs where the finding leaves the gather:
 map each witness through the product's frame (`Product.frame`), as the
 interrogation doors answer in the space (`InItsSpace::moved_by`).
+
+## Slate triage (2026-10-28, INTENT)
+
+Moved from `work/intent/` by `git mv`, id and body unchanged: residue of INTENT's D10 build that belongs to ATREST's charter (at-rest census work; ATREST's stage 5 C makes the census a check at each `⊔`, the same door). INTENT keeps D10's core (G and its riders, the stage-3 umbrellas, the carry, the refactor rows, the roots rename); Ev asked for INTENT's slate to be cut to its charter and its residue handed on (in chat, 2026-10-28).
