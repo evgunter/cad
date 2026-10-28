@@ -79,3 +79,20 @@ sweep that found it ran 96 azimuths, `2πi/96 + 0.0123·(i mod 3)`.
 - Re-banded P3 → P1: one plane refuses under one normal and ships sides tier 3′ refuses under the other: verb breadth beyond the everyday shapes (a split or boolean that refuses, or ships a body its own gate fails, on a legal input), P1 by `work/README.md` Priority.
 - Priced `M`, the effort the body describes.
 - Moved to SPLITDOOR (`work/splitdoor/`) by `git mv`, id and body unchanged: the P1 track opened for split and boolean shapes that refuse, or ship a side their own gate fails, where a uniform reading would build: the split door's tier-3′ bar, tangent and pinch poses, and the curved-carrier lanes that read lines and circles only. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## Measured on `splitdoor/hole-rim-tangent-germs` (2026-10-28)
+
+On `origin/main` the row's pose no longer refuses as above: at ε = 1e-9
+all 192 runs (the 96 azimuths, both normals) refuse
+`Reduce(SectionGermsUnordered { Coincident })`, the cap's trace and the
+bore wall's section leaving `P` along one tangent
+(`a-plane-tangent-to-a-holes-rim-at-a-vertex-refuses-its-germs-as-coincident`).
+With that branch's two changes (the germs ordered by how their sections
+curve, and `conic_pairs` taking a touch point's exits first), `s = +1`
+builds at all 96 azimuths and `s = −1` at 95, every side passing tier 3′
+with no contact records; `split_across_a_revolve_seam.rs`
+`a_plane_touching_a_bore_rim_splits_alike_under_either_normal` pins six
+azimuths at the cap side's closed form, `tan t ∫∫ (0.5 − d·x) dA` over
+the annulus where `d·x < 0.5`. The seam azimuth `a = 0` under `s = −1`
+still refuses, `Join(Euler(Certification { StatedInterval { refused:
+Forward(Decided(Zero(..))) } }))`: unmeasured.

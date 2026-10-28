@@ -476,71 +476,52 @@ fn two_arc_holed_block(phase: f64, sweep: f64) -> Body<f64> {
     extruded(vec![square, RawLoop::new([arc(phase), arc(phase + PI)])])
 }
 
-/// **A plane tangent to a two-arc hole's rim at a vertex**: the poses of
+/// **A plane tangent to a hole's rim at a vertex**: the poses of
 /// [`POSES`] that touch the rim there (`β = 0`), through the bottom
-/// vertex and the top one, both senses of each normal, either winding.
-/// Each side holds at all three tiers and its volume is the closed
-/// form's: the block's prism under the plane less the hole's.
+/// vertex and the top one, both senses of each normal, either winding,
+/// of the one-segment hole and the two-arc one. Each side holds at all
+/// three tiers and at tier 3′, and its volume is the closed form's: the
+/// block's prism under the plane less the hole's.
 #[test]
-fn a_plane_tangent_to_a_two_arc_holes_rim_at_a_vertex_splits_sound() {
+fn a_plane_tangent_to_a_holes_rim_at_a_vertex_splits_sound() {
+    let builds: [(fn(f64, f64) -> Body<f64>, &str); 2] = [
+        (holed_block, "one segment"),
+        (two_arc_holed_block, "two arcs"),
+    ];
     let (mut runs, mut failures) = (0, Vec::new());
-    for (phase, sweep) in [(0.0, TAU), (FRAC_PI_2, -TAU)] {
-        let body =
-            topo::test_support::finished("the body", two_arc_holed_block(phase, sweep), tol());
-        let (c, s) = (phase.cos(), phase.sin());
-        for (z, up) in [(0.0, 1.0), (HEIGHT, -1.0)] {
-            for &(h, _, pose) in POSES.iter().filter(|&&(_, beta, _)| beta == 0.0) {
-                for sense in [1.0, -1.0] {
-                    let n = [sense * h * c, sense * h * s, sense * up];
-                    let plane = Plane {
-                        n,
-                        d: n[0] * c + n[1] * s + n[2] * z,
-                    };
-                    let split = topo::test_support::split_plane(
-                        Point3::new(c, s, z),
-                        Vec3::new(n[0], n[1], n[2]),
-                        tol(),
-                    );
-                    let what = format!(
-                        "phase {phase}, sweep {sweep}, vertex z = {z}: {pose}, sense {sense}"
-                    );
-                    runs += 1;
-                    let out = match topo::split(&body, &split, tol()) {
-                        Ok(out) => out,
-                        Err(e) => {
-                            failures.push(format!("{what}: the split: {e:?}"));
-                            continue;
-                        }
-                    };
-                    for (side, positive) in [(&out.above, true), (&out.below, false)] {
-                        let (_, closed) = closed_form(plane, phase, positive, true, 0.0);
-                        let Some(b) = side.body() else {
-                            failures.push(format!("{what}: no body where {closed} is kept"));
-                            continue;
+    for (build, form) in builds {
+        for (phase, sweep) in [(0.0, TAU), (FRAC_PI_2, -TAU)] {
+            let body = topo::test_support::finished("the body", build(phase, sweep), tol());
+            let (c, s) = (phase.cos(), phase.sin());
+            for (z, up) in [(0.0, 1.0), (HEIGHT, -1.0)] {
+                for &(h, _, pose) in POSES.iter().filter(|&&(_, beta, _)| beta == 0.0) {
+                    for sense in [1.0, -1.0] {
+                        let n = [sense * h * c, sense * h * s, sense * up];
+                        let plane = Plane {
+                            n,
+                            d: n[0] * c + n[1] * s + n[2] * z,
                         };
-                        let tiers = topo::validate(b)
-                            .map_err(|e| format!("tier 1: {e:?}"))
-                            .and_then(|()| {
-                                topo::validate_closed(b).map_err(|e| format!("tier 2: {e:?}"))
-                            })
-                            .and_then(|()| {
-                                topo::validate_geometric(b, tol())
-                                    .map_err(|e| format!("tier 3: {e:?}"))
-                            });
-                        if let Err(e) = tiers {
-                            failures.push(format!("{what}, positive {positive}: {e}"));
-                            continue;
-                        }
-                        let m = topo::test_support::pinned_volume(
-                            &what,
-                            &topo::test_support::finished("the side", Body::clone(b), tol()),
+                        let split = topo::test_support::split_plane(
+                            Point3::new(c, s, z),
+                            Vec3::new(n[0], n[1], n[2]),
                             tol(),
                         );
-                        if (m.volume - closed).abs() > m.volume_pad + 1e-9 * closed {
-                            failures.push(format!(
-                                "{what}, positive {positive}: volume {} ± {}, closed form {closed}",
-                                m.volume, m.volume_pad
-                            ));
+                        let what = format!(
+                            "{form}, phase {phase}, sweep {sweep}, vertex z = {z}: {pose}, sense \
+                             {sense}"
+                        );
+                        runs += 1;
+                        match topo::split(&body, &split, tol()) {
+                            Ok(out) => {
+                                for (side, positive) in [(&out.above, true), (&out.below, false)] {
+                                    let (_, closed) =
+                                        closed_form(plane, phase, positive, true, 0.0);
+                                    if let Err(e) = tangent_side(side.body(), closed, &what) {
+                                        failures.push(format!("{what}, positive {positive}: {e}"));
+                                    }
+                                }
+                            }
+                            Err(e) => failures.push(format!("{what}: the split: {e:?}")),
                         }
                     }
                 }
@@ -548,6 +529,31 @@ fn a_plane_tangent_to_a_two_arc_holes_rim_at_a_vertex_splits_sound() {
         }
     }
     report(&failures, runs);
+}
+
+/// One side of [`a_plane_tangent_to_a_holes_rim_at_a_vertex_splits_sound`]:
+/// all three tiers, tier 3′, and its volume against `closed`.
+fn tangent_side(
+    body: Option<&topo::AtRestBody<f64>>,
+    closed: f64,
+    what: &str,
+) -> Result<(), String> {
+    let Some(b) = body else {
+        return Err(format!("no body where {closed} is kept"));
+    };
+    topo::validate(b).map_err(|e| format!("tier 1: {e:?}"))?;
+    topo::validate_closed(b).map_err(|e| format!("tier 2: {e:?}"))?;
+    topo::validate_geometric(b, tol()).map_err(|e| format!("tier 3: {e:?}"))?;
+    topo::validate_pseudomanifold(b, &topo::ContactRecords::default(), tol())
+        .map_err(|e| format!("tier 3′: {e:?}"))?;
+    let m = topo::test_support::pinned_volume(what, b, tol());
+    if (m.volume - closed).abs() > m.volume_pad + 1e-9 * closed {
+        return Err(format!(
+            "volume {} ± {}, closed form {closed}",
+            m.volume, m.volume_pad
+        ));
+    }
+    Ok(())
 }
 
 /// **A boolean against a half-space through the bottom vertex**: the
