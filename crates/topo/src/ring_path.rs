@@ -175,7 +175,11 @@ impl<T: Decide> Quadric<T> {
     /// the core circle's nearest point, off the axis and the core.
     fn chart_normal(&self, p: Point3<T>) -> Vec3<T> {
         match *self {
-            Self::Cylinder { origin, axis, radius } => Self::axial(origin, axis, p).1 / radius,
+            Self::Cylinder {
+                origin,
+                axis,
+                radius,
+            } => Self::axial(origin, axis, p).1 / radius,
             Self::Sphere { centre, radius } => (p - centre) / radius,
             Self::Cone {
                 apex,
@@ -1888,8 +1892,7 @@ mod tests {
                         vec![1.0, half.cos(), 1.0],
                     )
                     .unwrap();
-                    LoopArc::of(&geom::Curve3::Nurbs(std::sync::Arc::new(net)), (0.0, 1.0))
-                        .unwrap()
+                    LoopArc::of(&geom::Curve3::Nurbs(std::sync::Arc::new(net)), (0.0, 1.0)).unwrap()
                 } else {
                     let circle = geom::Curve3::Circle {
                         center: f.at(0.0, 0.0, h),

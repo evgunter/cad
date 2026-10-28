@@ -34,7 +34,8 @@ use std::cell::{OnceCell, RefCell};
 use std::collections::BTreeMap;
 
 use geom_brep::{
-    CarriedComponent, CarriedSection, CarryError, PairSection, SectionError, SiteFoot, SiteRefusal, SsiLane,
+    CarriedComponent, CarriedSection, CarryError, PairSection, SectionError, SiteFoot, SiteRefusal,
+    SsiLane,
 };
 use geom_core::{Band, Indeterminate, Real};
 
@@ -239,9 +240,13 @@ impl<T: geom_core::Decide> SectionTable<T> {
         let Some(component) = carried.components().get(k) else {
             return Some(Err(Uncarried::Component));
         };
-        let slots = held
-            .seated
-            .get_or_init(|| carried.components().iter().map(|_| OnceCell::new()).collect());
+        let slots = held.seated.get_or_init(|| {
+            carried
+                .components()
+                .iter()
+                .map(|_| OnceCell::new())
+                .collect()
+        });
         Some(
             slots[k]
                 .get_or_init(|| section.seat(self.lane, component, at, held.band))

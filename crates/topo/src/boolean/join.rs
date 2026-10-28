@@ -3522,9 +3522,8 @@ fn carried_component<T: Decide>(
     band: Band,
 ) -> Result<CarriedChord<T>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let section = germ_section(red, germ)?.ok_or(desync(
-        "a carried segment's germ pair holds no section",
-    ))?;
+    let section =
+        germ_section(red, germ)?.ok_or(desync("a carried segment's germ pair holds no section"))?;
     let site = red
         .a
         .half_edge_start_point(at)

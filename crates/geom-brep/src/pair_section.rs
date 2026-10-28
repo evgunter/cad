@@ -921,7 +921,8 @@ fn rotated(
     use core::num::NonZeroUsize;
     use geom_core::spline::{KnotAlgebraError, Knots};
     let p = first.degree();
-    let runs = |c: &geom::NurbsCurve3<f64>| -> Vec<(f64, usize)> { c.knot_values().runs().collect() };
+    let runs =
+        |c: &geom::NurbsCurve3<f64>| -> Vec<(f64, usize)> { c.knot_values().runs().collect() };
     let (r1, r2) = (runs(first), runs(second));
     let mut joined: Vec<(f64, NonZeroUsize)> = Vec::with_capacity(r1.len() + r2.len());
     let mut push = |v: f64, m: usize| {

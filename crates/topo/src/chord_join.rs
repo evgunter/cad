@@ -2747,22 +2747,28 @@ fn carried_chord_spec<T: Decide>(
 ) -> Result<SectionChord<T>, SplitJoinError> {
     let invariant = |what| SplitJoinError::SectionInvariant { face, what };
     let escalated = |diag| SplitJoinError::Escalated { face, diag };
-    let own = body.get_face(face).ok_or_else(|| corrupt_face(face))?.surface;
+    let own = body
+        .get_face(face)
+        .ok_or_else(|| corrupt_face(face))?
+        .surface;
     let (lo, hi) = ctx.span;
     let seat = ctx.carrier.eval(lo);
     let at_seat = |p: Point3<T>| -> Result<bool, SplitJoinError> {
         if !ctx.closed {
             return Ok(false);
         }
-        Ok(decide("chord_carried_at_seat", Margin::norm3(p - seat), band)
-            .map_err(escalated)?
-            == Sign::Zero)
+        Ok(
+            decide("chord_carried_at_seat", Margin::norm3(p - seat), band).map_err(escalated)?
+                == Sign::Zero,
+        )
     };
     let foot = |p: Point3<T>| -> Result<T, SplitJoinError> {
         let foot = ctx.carrier.foot(p, lo);
         match foot.on_carrier(band) {
             Ok(geom::OnCarrier::On { .. }) => Ok(foot.t()),
-            Ok(geom::OnCarrier::Off) => Err(invariant("a carried chord's end lies off its component")),
+            Ok(geom::OnCarrier::Off) => {
+                Err(invariant("a carried chord's end lies off its component"))
+            }
             Err(geom::CarrierRefusal::Escalated(diag) | geom::CarrierRefusal::Straddle(diag)) => {
                 Err(escalated(diag))
             }
