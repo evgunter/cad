@@ -24,9 +24,9 @@ refusals a Python caller can ever see. `min_clearance` is answered by
 an engine whose value is an ENCLOSURE, and the binding evaluates at
 `f64` alone — a point scalar, with nowhere to put one. So
 `MeasureUnavailableAt` is reachable here and is exercised below, while
-the engine's own `ClearanceRefusal` is not reachable: its one
-producer on the measure path is the interval lane's `MinClearanceLane`
-impl, at a scalar the binding does not evaluate at. That refusal's tag and prose are
+the engine's own `MinSeparationRefusal` is not reachable: its one producer
+on the measure path is the `topo::ClearanceLane` door, which only a
+certifying scalar holds, and the binding does not evaluate at one. That refusal's tag and prose are
 pinned in Rust instead (`src/tests.rs`).
 
 NOTHING HERE READS INSIDE A NAME. Every reference is a `(node, name)`
@@ -421,7 +421,7 @@ class TestTheFourthVerb(unittest.TestCase):
         self.assertEqual(refusal.scalar, "f64")
         # The recourse is IN the refusal: it names the door that can
         # answer rather than handing back a worse number.
-        self.assertEqual(refusal.door, "clearance::min_separation")
+        self.assertEqual(refusal.door, "topo::ClearanceLane")
         self.assertIn(refusal.door, str(refusal))
 
     def test_it_is_not_the_analysis_lanes_refusal_of_the_same_name(self):
@@ -451,7 +451,7 @@ class TestTheFourthVerb(unittest.TestCase):
         self.assertIsNone(answer.measured)
         self.assertIsNone(answer.bound)
         self.assertIn("min_clearance", answer.reason)
-        self.assertIn("clearance::min_separation", answer.reason)
+        self.assertIn("topo::ClearanceLane", answer.reason)
 
     def test_it_refuses_typed_on_an_edge_reference(self):
         """A reference's entity kind is the selection's face scope, and

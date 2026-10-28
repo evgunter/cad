@@ -192,6 +192,7 @@ fn at_least(c: f64, config: ClearanceConfig) -> ClearanceQuery<'static> {
         config,
         oracle: &NoTangents,
         resolver: None,
+        symbolic: editor_core::drive::SymbolicDials::default(),
     }
 }
 
