@@ -1680,6 +1680,7 @@ pub fn loft_fault_tag(fault: &LoftFault) -> &'static str {
     match fault {
         LoftFault::TooFewSections { .. } => "too_few_sections",
         LoftFault::EmptyStation { .. } => "empty_station",
+        LoftFault::StationInFirstPlane { .. } => "station_in_first_plane",
         LoftFault::DegreeOutOfRange { .. } => "degree_out_of_range",
     }
 }
@@ -1695,6 +1696,7 @@ pub fn loft_error_tag(err: &LoftError) -> &'static str {
         LoftError::Pcurve(_) => "pcurve",
         LoftError::SeamStructure { .. } => "seam_structure",
         LoftError::SectionStructure => "section_structure",
+        LoftError::SectionRim { .. } => "section_rim",
         LoftError::PlacementNotFinite { .. } => "placement_not_finite",
         LoftError::SectionNotFinite { .. } => "section_not_finite",
         LoftError::ReversedStacking { .. } => "reversed_stacking",
@@ -2552,6 +2554,7 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::EpsilonSeam { .. } => "epsilon_seam",
         InlineError::PartCarriesMetadata { .. } => "part_carries_metadata",
         InlineError::VarNameConflict { .. } => "var_name_conflict",
+        InlineError::UnreadPose { .. } => "unread_pose",
         InlineError::UnresolvedVarCrossesCut { .. } => "unresolved_var_crosses_cut",
         InlineError::InstanceBodyNameReferenced { .. } => "instance_body_name_referenced",
         InlineError::StrandedPartName { .. } => "stranded_part_name",

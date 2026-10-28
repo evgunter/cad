@@ -55,6 +55,6 @@ demo scenes or `cup`/`vessel`. The two sibling sentences, in
 are other programs' ground and were not edited.
 
 That differential is one of the two rows recorded as red on main in
-`work/tcost/main-reds-editor-core-slow-set-and-the-k-probe-sweep`. The
+`work/green/main-reds-editor-core-slow-set-and-the-k-probe-sweep`. The
 citation names the check. Whether the check passes today is that row's
 question.

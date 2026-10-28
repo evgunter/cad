@@ -19,6 +19,12 @@ anywhere near the other body. Three demo joins stop there: klein wall 3
 (the loop onto the bulb), lily wall 8 (the leaf's sheath onto its
 blade) and teapot wall 3 (the spout onto the pot).
 
+**Split 2026-10-28** (Track size; Ev, in chat): SPLICE keeps lily wall
+8's path. Klein wall 3's blocker moved to SPLICEFACE (a spline face read
+on its own sheet), teapot wall 3's to SPLICECARRIER (a NURBS carrier's
+parameter inverse), and the seam reader's residue and the kind-based
+spline refusals to SPLICESEAM.
+
 Deleting the gate alone builds nothing (PR 3984's backed-out attempt:
 every outcome refuses typed). The chain behind it is this slate: the
 sites the gate protects refuse a spline edge typed at their own site,

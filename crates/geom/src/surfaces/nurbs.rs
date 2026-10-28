@@ -44,7 +44,7 @@ use geom_core::spline::{
     self, KnotAlgebraError, KnotMirrorError, KnotSpan, KnotVector, Knots, Span, SpanLocate,
     SplineError, Weights,
 };
-use geom_core::{Point3, Real, Vec3};
+use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 use std::sync::OnceLock;
 
 use crate::net;
@@ -1537,6 +1537,129 @@ impl<T: geom_core::CertifiedBounds> NurbsSurface<T> {
     pub fn certified_coords(&self) -> Vec<Vec<geom_core::Interval>> {
         net::certified_coords(&self.control)
     }
+}
+
+impl NurbsSurface<Interval> {
+    /// **The patch's enclosure over the parameter rectangle `u × v`**,
+    /// one that narrows with the rectangle: the hull of the control
+    /// points of the patch RESTRICTED to the rectangle, cell by cell.
+    ///
+    /// On each knot cell the rectangle meets, the window's homogeneous
+    /// net `(w·P, w)` is restricted to the meet, along `u` and then
+    /// along `v` ([`spline::SpanRow::restrict`]): the Bernstein net of
+    /// exactly that piece of the patch. With every restricted weight
+    /// certified positive the piece is a convex combination of its
+    /// dehomogenized control points, so their hull encloses it, and the
+    /// hull over the cells encloses the rectangle. The restricted net
+    /// converges to the patch as the rectangle shrinks, so the
+    /// enclosure narrows with it.
+    ///
+    /// [`Self::eval`] at a wide interval does not: its basis recurrence
+    /// carries every dependency between the interval arguments, and the
+    /// weight sum it divides by can straddle zero, which encloses a
+    /// whole knot cell by the whole line.
+    ///
+    /// A rectangle that reaches past the knot domain, one that meets no
+    /// cell, a restriction the blossom door refuses, and a restricted
+    /// weight not certified positive answer poison: an unclaimable
+    /// extent, never a smaller one. Past the domain the patch has no
+    /// points, and `eval` there reads the end pieces' polynomial
+    /// extension, so a clipped answer would be smaller than `eval`'s.
+    pub fn rect_enclosure(&self, u: (f64, f64), v: (f64, f64)) -> Point3<Interval> {
+        let (iu, iv) = (
+            Interval::from_bounds(u.0, u.1),
+            Interval::from_bounds(v.0, v.1),
+        );
+        let poison = || poison_point(iu + iv);
+        let inside = |knots: &Knots<Interval>, (lo, hi): (f64, f64)| {
+            let (start, end) = knots.domain();
+            start.hi() <= lo && lo <= hi && hi <= end.lo()
+        };
+        if !(inside(&self.knots_u, u) && inside(&self.knots_v, v)) {
+            return poison();
+        }
+        let (Some(su), Some(sv)) = (self.knots_u.locate(iu), self.knots_v.locate(iv)) else {
+            return poison();
+        };
+        let clip_to_span = |knots: &Knots<Interval>, span: Span<'_>, (lo, hi): (f64, f64)| {
+            let values = knots.values();
+            let a = lo.max(values.get(span.index())?.lo());
+            let b = hi.min(values.get(span.index() + 1)?.hi());
+            (a <= b).then(|| (Interval::from_bounds(a, a), Interval::from_bounds(b, b)))
+        };
+        let mut acc: Option<Point3<Interval>> = None;
+        for cu in su.0.span().index()..=su.1.span().index() {
+            for cv in sv.0.span().index()..=sv.1.span().index() {
+                let Some(win) = self.window(cu, cv) else {
+                    continue;
+                };
+                let (Some(eu), Some(ev)) = (
+                    clip_to_span(&self.knots_u, win.span_u(), u),
+                    clip_to_span(&self.knots_v, win.span_v(), v),
+                ) else {
+                    continue;
+                };
+                let Some(piece) = restricted_hull(win, eu, ev) else {
+                    return poison();
+                };
+                acc = Some(acc.map_or(piece, |a| hull_point(a, piece)));
+            }
+        }
+        acc.unwrap_or_else(poison)
+    }
+}
+
+/// The hull of the dehomogenized control points of `win`'s piece
+/// restricted to `eu × ev` ([`NurbsSurface::rect_enclosure`]), or
+/// `None` where a restriction refuses or a restricted weight is not
+/// certified positive.
+fn restricted_hull(
+    win: SurfaceWindow<'_, Interval>,
+    eu: (Interval, Interval),
+    ev: (Interval, Interval),
+) -> Option<Point3<Interval>> {
+    let surface = win.surface();
+    let (pu, pv) = (win.span_u().degree(), win.span_v().degree());
+    let homogeneous = |idx: usize| {
+        let (w, p) = (surface.weights.values()[idx], surface.control[idx]);
+        [w * p.x, w * p.y, w * p.z, w]
+    };
+    // `along_u[j][k]`: the net restricted along `u`, Bernstein in `k`,
+    // still the span's window in `j`.
+    let along_u = (0..=pv)
+        .map(|j| {
+            let column: Vec<[Interval; 4]> =
+                (0..=pu).map(|i| homogeneous(win.row(i) + j)).collect();
+            let mut restricted = vec![[Interval::zero(); 4]; pu + 1];
+            for c in 0..4 {
+                let row: Vec<Interval> = column.iter().map(|h| h[c]).collect();
+                let bernstein = win.span_u().with_window(&row)?.restrict(eu).ok()?;
+                for (slot, x) in restricted.iter_mut().zip(bernstein) {
+                    slot[c] = x;
+                }
+            }
+            Some(restricted)
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let mut acc: Option<Point3<Interval>> = None;
+    for k in 0..=pu {
+        let mut piece = vec![[Interval::zero(); 4]; pv + 1];
+        for c in 0..4 {
+            let row: Vec<Interval> = along_u.iter().map(|column| column[k][c]).collect();
+            let restricted = win.span_v().with_window(&row)?.restrict(ev).ok()?;
+            for (slot, x) in piece.iter_mut().zip(restricted) {
+                slot[c] = x;
+            }
+        }
+        for [x, y, z, w] in piece {
+            if !(w.is_certified() && w.lo() > 0.0) {
+                return None;
+            }
+            let p = Point3::new(x / w, y / w, z / w);
+            acc = Some(acc.map_or(p, |a| hull_point(a, p)));
+        }
+    }
+    acc
 }
 
 /// The point a poison parameter pair evaluates to:

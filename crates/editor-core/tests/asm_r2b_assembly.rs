@@ -10,6 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::Dimension;
 use editor_core::Formula;
 use test_utils::refusal::tagged;
 
@@ -133,7 +134,7 @@ fn seat(doc: ProfileDoc, placement: RecipeNodeId, seat: Seat) -> (ProfileDoc, Ma
         &[
             (Coord::Slide(TargetAxis::X), len(seat.slide[0])),
             (Coord::Slide(TargetAxis::Y), len(seat.slide[1])),
-            (Coord::SPIN, fixture::ang(0.0)),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     );
     (doc, mate)

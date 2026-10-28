@@ -14,6 +14,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::Dimension;
 use editor_core::Formula;
 
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
@@ -118,8 +119,11 @@ fn seated(doc: ProfileDoc, mate: Mate<Formula>, shift: f64) -> (ProfileDoc, Mate
         mate,
         &[
             (Coord::Slide(TargetAxis::X), len(shift)),
-            (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::SPIN, fixture::ang(0.0)),
+            (
+                Coord::Slide(TargetAxis::Y),
+                Formula::zero(Dimension::Length),
+            ),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     );
     (doc, mate)
@@ -460,7 +464,7 @@ fn a_measure_on_a_product_evaluates() {
     );
     let ev = run(&doc, &with_resolver(store));
     assert_eq!(
-        ev.value(instance).map(|v| v.parts),
+        ev.value(instance).map(|v| v.carry.parts),
         Some(2),
         "the stand is a product"
     );

@@ -50,10 +50,9 @@
 //! — the alternative, accepting the op and drawing nothing different,
 //! is the silent no-op G3's honesty rule forbids. The free-move refuses
 //! it so that it answers the test the properties pane draws its control
-//! from. A frame already held when a fuse arrives stays: its space is
-//! still shown and the frame still moves that space's own copies, while
-//! the fused product is placed by its own placement, in its own space,
-//! and does not move with it.
+//! from. A frame held when a fuse arrives goes with it: the placement
+//! that draws the fused product reads a body of the frame's space, so
+//! that space is no longer shown and the frame is discarded (below).
 //!
 //! # Supersession: the frame goes when its space stops being shown
 //!

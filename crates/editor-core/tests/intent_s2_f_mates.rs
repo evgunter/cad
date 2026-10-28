@@ -10,6 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::Dimension;
 use editor_core::{
     CapEnd, Coord, DocEdit, DocumentId, Formula, Mate, MateRef, Node, OperandSlot, ProfileDoc,
     RecipeNodeId, SplitError, TargetAxis, product_recorded, relative_freedom_components,
@@ -58,9 +59,15 @@ fn seated(doc: ProfileDoc, mate: Mate<Formula>) -> (ProfileDoc, MateRef) {
         doc,
         mate,
         &[
-            (Coord::Slide(TargetAxis::X), len(0.0)),
-            (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::SPIN, fixture::ang(0.0)),
+            (
+                Coord::Slide(TargetAxis::X),
+                Formula::zero(Dimension::Length),
+            ),
+            (
+                Coord::Slide(TargetAxis::Y),
+                Formula::zero(Dimension::Length),
+            ),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     );
     (doc, mate)
@@ -290,8 +297,11 @@ fn a_mates_on_side_is_read_in_its_own_placements_copy_alone() {
         seat(body, (b, b), (a, a)),
         &[
             (Coord::Slide(TargetAxis::X), len(-5.0)),
-            (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::SPIN, fixture::ang(0.0)),
+            (
+                Coord::Slide(TargetAxis::Y),
+                Formula::zero(Dimension::Length),
+            ),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     );
     let ev = run(&doc, &opts);

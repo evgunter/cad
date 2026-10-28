@@ -151,7 +151,11 @@ fn stepped_shaft_sized(
         &mut r,
         base,
         boss_raw,
-        [len(0.0), len(0.0), param("h1", Dimension::Length)],
+        [
+            Formula::zero(Dimension::Length),
+            Formula::zero(Dimension::Length),
+            param("h1", Dimension::Length),
+        ],
     );
     let refs = vec![
         SitedRef::new(base, fname(base, RoleSeg::Cap(CapEnd::Start))),

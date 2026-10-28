@@ -3360,7 +3360,7 @@ fn run_azimuth_images<T: Decide>(
         let (t0, t1) = curve.params();
         let base = chart_pcurve_over(curve.carrier(), t0, t1, surface, band)
             .map_err(|e| run_image_refusal(face, surface.kind(), e))?;
-        let plus = edge.he_plus == he;
+        let plus = crate::pcurves::is_plus(body, he);
         let (entry_t, exit_t) = if plus { (t0, t1) } else { (t1, t0) };
         let pcurve = match prev_exit {
             None => base,
@@ -4118,9 +4118,7 @@ pub(crate) struct IslandReading<T: Real> {
 }
 
 impl<T: Decide> IslandReading<T> {
-    /// The reading of the run `h1 → h2` closed by `closing`; an
-    /// escalation where `q` is not decided off a cone's apex or a
-    /// torus's axis.
+    /// [`Self::closed_by`] with no spline arc.
     #[cfg(test)]
     pub(crate) fn new(
         body: &Body<T>,
@@ -4132,8 +4130,10 @@ impl<T: Decide> IslandReading<T> {
         Self::closed_by(body, face, run, (closing, None), band)
     }
 
-    /// [`Self::new`] closed by a chord whose arc, where it is a spline,
-    /// is `arc` ([`path_island_winding_closed_by`]).
+    /// The reading of the run `h1 → h2` closed by `closing`, whose arc,
+    /// where it is a spline, is `arc` ([`path_island_winding_closed_by`]);
+    /// an escalation where `q` is not decided off a cone's apex or a
+    /// torus's axis.
     pub(crate) fn closed_by(
         body: &Body<T>,
         face: FaceKey,

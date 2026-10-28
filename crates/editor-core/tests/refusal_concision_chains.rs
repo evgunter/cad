@@ -911,7 +911,7 @@ mod kernel {
         /// `LoftError`'s arms, for the `Loft/` rows.
         pub(super) const LOFT_ERROR: LoftError = [
             Band, Skin, Euler, CapPlane, Pcurve, SeamStructure, SectionStructure,
-            SectionNotFinite, PlacementNotFinite, ReversedStacking, DegenerateStacking,
+            SectionRim, SectionNotFinite, PlacementNotFinite, ReversedStacking, DegenerateStacking,
             FarSectionNotForward, FarStackingEscalated, StackingEscalated,
         ];
     }
@@ -3497,6 +3497,20 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         ("SectionStructure", E::SectionStructure),
+        (
+            "SectionRim",
+            E::SectionRim {
+                section: 1,
+                source: None,
+            },
+        ),
+        (
+            "SectionRim(Escalated)",
+            E::SectionRim {
+                section: 1,
+                source: Some(diag()),
+            },
+        ),
         ("PlacementNotFinite", E::PlacementNotFinite { section: 1 }),
         ("SectionNotFinite", E::SectionNotFinite { section: 1 }),
         ("ReversedStacking", E::ReversedStacking { slab: 1 }),
@@ -5032,7 +5046,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             (
                 "Engine/Unsupported",
                 engine(EngineRefusal::Unsupported {
-                    carrier: "a free-form face",
+                    carrier: "an approximated face",
                     face: FaceKey::default(),
                 }),
             ),
