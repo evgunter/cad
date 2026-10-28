@@ -2,11 +2,13 @@
 id: partial-cone-frustum-three-quarter-turn-refuses-edge-disagreement
 kind: issue
 title: a three-quarter-turn partial revolve of a cone frustum refuses TogetherEdgeDisagreement at its wall/cap generator
-status: parked
+status: closed
 opened: 2026-09-08
-blocked_on: [offset-lane-has-no-conic-carrier]
 priority: P1
 cost: H
+closed: 2026-10-28
+parent: a-classified-pairs-section-states-the-bounds-that-retire-the-tube
+pr: 5897
 ---
 
 
@@ -84,3 +86,18 @@ pin is `crates/sweep/tests/shell7_seam_corner.rs`,
 parked on its blocker: the frustum shells once the arc certifies
 (OFFSET's `a-classified-pairs-section-states-the-bounds-that-retire-the-tube`,
 or CHARTTAIL's `the-cones-rung3-certificate-has-no-metres-enclosure`).
+
+## Closed
+
+Claimed from SHELF and closed by OFFSET's
+`a-classified-pairs-section-states-the-bounds-that-retire-the-tube`. The
+axial door mints each moved wall/cap edge as the moved pair's hyperbolic
+arc between the moved corners (`crates/topo/src/offset_axial.rs`,
+`mint_carrier`'s cone/cap arm), the plane×cone section states the bounds
+that retire its tube (`geom_brep::intersect::tube_bounds`), and a cone cap
+bounded by the arc takes the certified rim lane about its apex
+(`geom_brep::props::spiric::cone_cap_rounds`). The three-quarter-turn
+frustum hollows, passes tier 3 and measures the operand less the reflex
+wedge's cavity in closed form within its pad
+(`crates/sweep/tests/shell7_seam_corner.rs`,
+`a_three_quarter_turn_cone_frustum_hollows`).

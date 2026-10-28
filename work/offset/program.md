@@ -2,7 +2,7 @@
 id: offset
 kind: program
 title: OFFSET — the offset lane: the carriers it cannot hold and the folds it calls bounds
-status: active
+status: ready
 opened: 2026-09-20
 group: kernel/shell-offset
 prefix: offset/
