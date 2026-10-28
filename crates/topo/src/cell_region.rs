@@ -102,15 +102,20 @@ pub fn cell_region<T: Decide + CertifiedBounds>(
     cell_region_lifted(
         body,
         face,
-        (stored, &stored.map_scalar(Interval::from_certified)),
+        (
+            stored,
+            &stored.map_scalar(Interval::from_certified),
+            &lift_boundary(body, face),
+        ),
         u,
         v,
         band,
     )
 }
 
-/// [`cell_region`] with the face's stored carrier and its lift in hand,
-/// for a caller that asks many cells of one face.
+/// [`cell_region`] with the face's stored carrier, its lift and its
+/// lifted boundary ([`lift_boundary`]) in hand, for a caller that asks
+/// many cells of one face.
 ///
 /// The station is placed at `T` only for a cell already decided clear
 /// of the boundary: the clear tests read its lift, which at `T` is the
@@ -119,7 +124,7 @@ pub fn cell_region<T: Decide + CertifiedBounds>(
 pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
     body: &Body<T>,
     face: FaceKey,
-    (stored, surface): (&Surface<T>, &Surface<Interval>),
+    (stored, surface, boundary): (&Surface<T>, &Surface<Interval>, &[BoundaryStop]),
     u: (f64, f64),
     v: (f64, f64),
     band: Band,
@@ -138,7 +143,7 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
         )
     };
     if !(clear_of_singular(surface, station, &clear)
-        && clear_of_boundary(body, face, station, &clear))
+        && clear_of_boundary(boundary, station, &clear))
     {
         return CellRegion::Undecided;
     }
@@ -205,79 +210,108 @@ fn clear_of_singular(
     }
 }
 
-/// Is every vertex of `face`, and every edge of it that is not a seam,
-/// decided clear of the ball?
-fn clear_of_boundary<T: Decide + CertifiedBounds>(
+/// One stop of a face's boundary walk, lifted to the interval scalar:
+/// what [`clear_of_boundary`] decides, in the order it decides it.
+#[derive(Debug, Clone)]
+pub(crate) enum BoundaryStop {
+    /// A vertex's point.
+    Vertex(Point3<Interval>),
+    /// A non-seam edge's carrier and parameter span.
+    Arc(Box<(geom::Curve3<Interval>, (Interval, Interval))>),
+    /// Something the walk could not read: never clear.
+    Unreadable,
+}
+
+/// Every vertex of `face`, and every edge of it that is not a seam, in
+/// walk order and lifted, ending at the first thing the walk could not
+/// read. A sweep lifts a face's boundary once and asks it of every
+/// cell; the lift reads no bracket and decides nothing.
+pub(crate) fn lift_boundary<T: Decide + CertifiedBounds>(
     body: &Body<T>,
     face: FaceKey,
-    station: Point3<Interval>,
-    clear: &dyn Fn(&'static str, Interval) -> bool,
-) -> bool {
+) -> Vec<BoundaryStop> {
+    let mut stops = Vec::new();
     let Some(f) = body.get_face(face) else {
-        return false;
+        stops.push(BoundaryStop::Unreadable);
+        return stops;
     };
     let on_face = |he| {
         body.get_half_edge(he)
             .and_then(|h| body.get_loop(h.parent_loop))
             .is_some_and(|l| l.face == face)
     };
-    let vertex_clear = |vertex| {
+    let vertex = |vertex| {
         body.get_vertex(vertex)
             .and_then(|x| body.get_point(x.point))
-            .is_some_and(|p| clear(VERTEX, (p.map(Interval::from_certified) - station).norm()))
+            .map_or(BoundaryStop::Unreadable, |p| {
+                BoundaryStop::Vertex(p.map(Interval::from_certified))
+            })
     };
     for &lk in core::iter::once(&f.outer).chain(&f.rings) {
         let Some(l) = body.get_loop(lk) else {
-            return false;
+            stops.push(BoundaryStop::Unreadable);
+            return stops;
         };
         let first = match l.boundary {
-            LoopBoundary::Empty { vertex } => {
-                if !vertex_clear(vertex) {
-                    return false;
-                }
+            LoopBoundary::Empty { vertex: v } => {
+                stops.push(vertex(v));
                 continue;
             }
             LoopBoundary::Cycle { first } => first,
         };
         let Some(cycle) = body.loop_cycle(first) else {
-            return false;
+            stops.push(BoundaryStop::Unreadable);
+            return stops;
         };
         for he in cycle {
             let Some(h) = body.get_half_edge(he) else {
-                return false;
+                stops.push(BoundaryStop::Unreadable);
+                return stops;
             };
-            if !vertex_clear(h.start) {
-                return false;
-            }
+            stops.push(vertex(h.start));
             let Some(e) = body.get_edge(h.edge) else {
-                return false;
+                stops.push(BoundaryStop::Unreadable);
+                return stops;
             };
             if on_face(e.he_plus) && on_face(e.he_minus) {
                 continue;
             }
             let Some(geom) = body.get_curve_geom(e.curve) else {
-                return false;
+                stops.push(BoundaryStop::Unreadable);
+                return stops;
             };
             // Null scaffolding has no carrier: its locus is its vertex,
             // read above.
             let Some(curve) = geom.certified() else {
                 continue;
             };
-            let carrier = curve.carrier().map_scalar(Interval::from_certified);
             let (t0, t1) = curve.params();
-            let params = (Interval::from_certified(t0), Interval::from_certified(t1));
-            let cleared = arc_distance_floor(&carrier, params, station).is_some_and(|floor| {
-                let row = match floor {
-                    ArcFloor::Segment(_) => SEGMENT,
-                    ArcFloor::Conic { .. } => CONIC,
-                    ArcFloor::Ball { .. } => BALL,
-                };
-                floor.clears(|d| clear(row, d))
-            });
-            if !cleared {
-                return false;
-            }
+            stops.push(BoundaryStop::Arc(Box::new((
+                curve.carrier().map_scalar(Interval::from_certified),
+                (Interval::from_certified(t0), Interval::from_certified(t1)),
+            ))));
         }
     }
-    true
+    stops
+}
+
+/// Is every stop of a face's lifted boundary decided clear of the
+/// ball? The first stop that is not ends the walk.
+fn clear_of_boundary(
+    stops: &[BoundaryStop],
+    station: Point3<Interval>,
+    clear: &dyn Fn(&'static str, Interval) -> bool,
+) -> bool {
+    stops.iter().all(|stop| match stop {
+        BoundaryStop::Vertex(p) => clear(VERTEX, (*p - station).norm()),
+        BoundaryStop::Arc(arc) => arc_distance_floor(&arc.0, arc.1, station).is_some_and(|floor| {
+            let row = match floor {
+                ArcFloor::Segment(_) => SEGMENT,
+                ArcFloor::Conic { .. } => CONIC,
+                ArcFloor::Ball { .. } => BALL,
+            };
+            floor.clears(|d| clear(row, d))
+        }),
+        BoundaryStop::Unreadable => false,
+    })
 }

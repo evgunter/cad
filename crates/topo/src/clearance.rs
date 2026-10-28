@@ -108,7 +108,9 @@ use geom_core::{Band, Bounds, CertifiedBounds, Decide, Margin, Point3, Real, Sig
 
 use crate::Body;
 use crate::FaceContainment;
-use crate::cell_region::{CellRegion, cell_region_lifted, station_region};
+use crate::cell_region::{
+    BoundaryStop, CellRegion, cell_region_lifted, lift_boundary, station_region,
+};
 use crate::entity::{EdgeKey, Face, FaceKey, LoopBoundary, VertexKey};
 
 /// The funnel site name of the clearance comparison — the separation
@@ -1559,9 +1561,9 @@ struct RegionMemo {
     /// The witness stations the point doors were asked to place, by the
     /// same bitwise key, and where they placed them.
     stations: BTreeMap<(bool, usize, u64, u64), Option<FaceContainment>>,
-    /// Each window's stored carrier lifted, once: every cell of the
-    /// window reads it.
-    lifted: BTreeMap<(bool, usize), Surface<Interval>>,
+    /// Each window's stored carrier and boundary lifted, once: every
+    /// cell of the window reads them.
+    lifted: BTreeMap<(bool, usize), (Surface<Interval>, Vec<BoundaryStop>)>,
 }
 
 impl RegionMemo {
@@ -1601,11 +1603,21 @@ impl RegionMemo {
             {
                 None => CellRegion::Undecided,
                 Some(stored) => {
-                    let lifted = self
-                        .lifted
-                        .entry((side_b, index))
-                        .or_insert_with(|| stored.map_scalar(Interval::from_certified));
-                    cell_region_lifted(w.body, w.face, (stored, lifted), c.u, c.v, self.band)
+                    let (lifted, boundary) =
+                        self.lifted.entry((side_b, index)).or_insert_with(|| {
+                            (
+                                stored.map_scalar(Interval::from_certified),
+                                lift_boundary(w.body, w.face),
+                            )
+                        });
+                    cell_region_lifted(
+                        w.body,
+                        w.face,
+                        (stored, lifted, boundary),
+                        c.u,
+                        c.v,
+                        self.band,
+                    )
                 }
             },
         };

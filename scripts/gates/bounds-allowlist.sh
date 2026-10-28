@@ -692,11 +692,12 @@ BOUNDS_ALLOWLIST=(
   # and the bracket are interval arithmetic, and no bracket of `T` is
   # branched on. `cell_region.rs` 3: `cell_region` and `station_region`,
   # whose station is placed at `T` by the point-in-face doors and whose
-  # ball is lifted, and `clear_of_boundary`, which lifts the boundary it
-  # clears. 3 -> 4 (SYMCLEAR): `cell_region_lifted`, `cell_region`'s
-  # body taking the carrier's lift in hand, so the sweep lifts each
-  # window once and places a station at `T` only for a cell already
-  # clear of the boundary. `clearance.rs` 10: `Side::windows` (the windows),
+  # ball is lifted, and `lift_boundary`, which lifts the boundary
+  # `clear_of_boundary` clears (that one now reads only the lift).
+  # 3 -> 4 (SYMCLEAR): `cell_region_lifted`, `cell_region`'s body taking
+  # the carrier's and the boundary's lifts in hand, so the sweep lifts
+  # each window once and places a station at `T` only for a cell
+  # already clear of the boundary. `clearance.rs` 10: `Side::windows` (the windows),
   # `window_of`, `boundary_of` and `iso_bounded_domain` (the lifts:
   # the last reads a NURBS face's boundary images at `T` and lifts their
   # ends), `RegionMemo::ask` and
