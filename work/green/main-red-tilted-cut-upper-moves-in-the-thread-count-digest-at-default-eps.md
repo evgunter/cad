@@ -4,7 +4,7 @@ kind: issue
 title: main red: tilted_cut_upper's volume, area and pads move by a few ulps in the thread-count digest at the default eps, since 692f50942c
 status: open
 opened: 2026-10-27
-priority: P2
+priority: P1
 cost: E
 ---
 

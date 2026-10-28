@@ -837,3 +837,32 @@ the operands already state. One Opus and one Fable designer weigh it
 under `docs/DESIGN-FORK-PROTOCOL.md`, blinded (byte 123) on
 `analysis/design-fork/limb-three-boundary`. No lane is dispatched
 until they are reconciled.
+
+## 2026-10-28 — limb 3's fork reconciled; to Ev
+
+Three rounds. The designers converged:
+- lily's rim is a structural selector under D2 (PR 5216), owing no
+  limb 3;
+- the boolean's `describe_edges` must recover the selector, not map
+  `Transverse` to a witness;
+- a carrier along a domain side refuses by name.
+
+The ratified-text change goes to Ev as an `[ev]` PR. C1/C2's limb-3
+wording (PR 5652, 2026-10-25) is later than D2's ruling (PR 5216,
+2026-10-16), so the two conflict in letter. Both designers recommend
+that C2 open on a witness-selected carrier.
+
+The near-rim exclusion belongs to the boolean's interior-loop guard. It
+has no NURBS×NURBS arm and refuses spline pairs. SPLICE files that row.
+
+SELECT owns the selector type (unit 1) and import's recovery (unit 6).
+The boolean-recovery unit is in no program's list yet. SPLICE takes it
+once Ev rules, and asks SELECT's blessing on the PR.
+
+## 2026-10-28 — Ev approves the limb-3 re-wording (PR 5933)
+
+Ev: "nice catch, sounds good!". C2 now opens on a witness-selected
+carrier, and a structural selector is certified per surface, owing no
+limb 3. Fork-log row 208 is completed: B's first recommendation, as
+converged. Next is the boundary-row recovery in the boolean's
+`describe_edges` and the split's `finish`, which SPLICE takes.
