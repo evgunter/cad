@@ -121,11 +121,13 @@ use crate::torus_convention::TorusRefusal;
 use geom_core::Decide;
 
 mod conic_arc;
+mod section_bounds;
 use conic_arc::ConeTilt;
 pub use conic_arc::{
     ConicArcError, ConicBranch, OpenConic, OpenConicSection, SPAN_WEIGHT_MAX, WindowEnd,
 };
 use geom_core::k_stats::{Magnitude, NonzeroSign};
+pub use section_bounds::{SectionBounds, Unstated, tube_bounds};
 
 // ---------------------------------------------------------------------
 // Kinds, rungs, routing

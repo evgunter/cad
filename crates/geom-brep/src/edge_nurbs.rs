@@ -1368,12 +1368,15 @@ pub fn is_analytic<T: Real>(surface: &Surface<T>) -> bool {
 ///   break whose certified distance lies past the band, that measured
 ///   miss decided first ([`Rung3Limb::HullValue`]). Limb 1, the same
 ///   distance at the schedule's samples, is implied by it;
-/// - **limb 3**: over a chain of boxes around the carrier the
-///   enclosure of `(∇f₁ × ∇f₂)·e` excludes zero, so the solution set in
-///   the chain is one arc and it spans the carrier over `params`. An
-///   operand outside the tube's enclosure roster
-///   (`ssi::enclose::has_implicit_enclosure`) refuses here, by name,
-///   before any box is probed.
+/// - **limb 3**, owed unless the pair's section states, for the pose,
+///   the crossing angle's floor over the carrier's stretch and the
+///   clearance of the tube that floor buys from the rest of the two
+///   surfaces' ε-overlap ([`crate::intersect::tube_bounds`]): over a
+///   chain of boxes around the carrier the enclosure of
+///   `(∇f₁ × ∇f₂)·e` excludes zero, so the solution set in the chain is
+///   one arc and it spans the carrier over `params`. An operand outside
+///   the tube's enclosure roster (`ssi::enclose::has_implicit_enclosure`)
+///   refuses here, by name, before any box is probed.
 ///
 /// Both read the carrier cut to `params` (its bracket's outer ends, so
 /// the piece covers the interval at every scalar): the net past the
@@ -1410,6 +1413,11 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
             None,
             band,
         )?;
+    }
+    // The tube is owed unless the pair's section states, for this pose,
+    // the crossing angle's floor and the tube's clearance (C2).
+    if crate::intersect::tube_bounds(carrier, params, s1, s2, band).is_ok() {
+        return Ok(());
     }
     if let Some(operand) = [s1.kind(), s2.kind()]
         .into_iter()
@@ -1982,7 +1990,9 @@ pub enum AnalyticRung3Refusal {
     CarrierEnclosure(crate::CarrierEnclosureRefusal),
     /// The uniqueness tube has no enclosure of this operand's implicit
     /// gradient, so no box of any rung certifies, whatever the carrier's
-    /// accuracy: raised once limb 2 holds against both operands.
+    /// accuracy: raised once limb 2 holds against both operands and the
+    /// pair's section states no bounds for the pose
+    /// ([`crate::intersect::tube_bounds`]).
     NoTubeEnclosure {
         /// The operand.
         operand: geom::SurfaceKind,
