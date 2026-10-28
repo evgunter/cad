@@ -300,3 +300,12 @@ Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `cra
   - Tier: orchestrator's read, as a mechanical re-pin of an independently verified count. Merge on green.
   - The item's "the links interlock" framing was wrong: the bars butt end to end.
 - 2026-10-28 01:09Z (orchestrator): **#5888 merged** at `c56ac2cd`, head `0f450205`, with CI green including `demos (tour + wild)`. That is the chain-scene re-pin, 196 → 10, all true interference. The lane is archived. #5884's R1 reported APPROVE-WITH-FIXES, 0/3/7, and R2 is pending.
+- 2026-10-28 01:15Z (orchestrator): **#5884's holdout pair is in.** R1 rated it APPROVE-WITH-FIXES 0/3/7, R2 APPROVE-WITH-FIXES 0/1/7; no MAJOR.
+  - Both found an in-band lens read as `Ok(true)` by main's `shared_interior_witness`. That is loud, not a false flush, but the rustdoc, the row and the body overclaim it. It is to be owned in the row and the doc, and filed P2.
+  - The fix pass, F1–F7, went to the lane:
+    - F2: one flush loop over carriers, fixing the curved half's silent drops at the root;
+    - F3: an arc-only shared run on a plane (rod in tube, R1), in scope as the item's own shape;
+    - F4: step-import `gate3_findings` against the new curved flush findings (R2). The freecad job was skipped in CI, so the lane runs it locally;
+    - F5: enforce the meet/contact coupling at run ends.
+  - My brief's census path was wrong (`crates/topo/src/census.rs`).
+  - Blind coding: inputs `analysis/dual-review/pr-5884-coding` @ `5a710ae4`, byte 130.
