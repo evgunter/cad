@@ -160,3 +160,55 @@ fn dual_interval_channels_contain_pointwise_duals() {
         }
     }
 }
+
+/// Whether a point evaluation's enclosure meets the door's: the true
+/// value lies in both, so an empty meet proves the door misses it.
+fn meets(x: Interval, b: Interval) -> bool {
+    b.lo() <= x.hi() && x.lo() <= b.hi()
+}
+
+/// **`span_enclosure` and `span_deriv` enclose the curve and its
+/// derivative over a parameter range**: ranges inside one span, ranges
+/// straddling the circle's double knots, and the whole domain, each
+/// sampled densely; every `C(t)` and `C′(t)` evaluated at `Interval`
+/// at a point parameter meets the door's box. A range with no extent,
+/// or one past the domain, is declined.
+#[test]
+fn span_enclosure_and_span_deriv_contain_every_sampled_value() {
+    let ni = nurbs_circle().map_scalar(Interval::from_f64);
+    let ranges = [
+        (0.05, 0.2),
+        (0.2, 0.3),
+        (0.24, 0.26),
+        (0.1, 0.6),
+        (0.49, 0.5),
+        (0.7, 0.9999),
+        (0.0, 1.0),
+        (0.3, 0.3 + 1e-9),
+    ];
+    for (lo, hi) in ranges {
+        let enc = ni
+            .span_enclosure(lo, hi)
+            .expect("a range inside the domain");
+        let der = ni.span_deriv(lo, hi).expect("a range inside the domain");
+        for k in 0..=64 {
+            let t = (lo + (hi - lo) * f64::from(k) / 64.0).min(hi);
+            let p = ni.eval(Interval::from_f64(t));
+            let d = ni.deriv(Interval::from_f64(t));
+            assert!(
+                meets(p.x, enc.x) && meets(p.y, enc.y) && meets(p.z, enc.z),
+                "C({t}) = {p:?} misses span_enclosure({lo}, {hi}) = {enc:?}"
+            );
+            assert!(
+                meets(d.x, der.x) && meets(d.y, der.y) && meets(d.z, der.z),
+                "C′({t}) = {d:?} misses span_deriv({lo}, {hi}) = {der:?}"
+            );
+        }
+    }
+    for (lo, hi) in [(0.4, 0.4), (0.6, 0.5), (-0.1, 0.5), (0.5, 1.1)] {
+        assert!(
+            ni.span_enclosure(lo, hi).is_none() && ni.span_deriv(lo, hi).is_none(),
+            "{lo}..{hi} is declined"
+        );
+    }
+}
