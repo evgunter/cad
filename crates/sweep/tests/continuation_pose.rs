@@ -230,8 +230,7 @@ fn every_op(
             j.volume_pad
         );
         assert!(
-            (j.volume - (truth + 1.0)).abs()
-                <= j.volume_pad + 1e-9 * (truth + 1.0),
+            (j.volume - (truth + 1.0)).abs() <= j.volume_pad + 1e-9 * (truth + 1.0),
             "{label}: ∪ a far brick: volume {} ± {} against {}",
             j.volume,
             j.volume_pad,
