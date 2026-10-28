@@ -1507,6 +1507,7 @@ pub(super) fn germ_loci<T: Decide>(
     a: GermSide<'_, T>,
     b: GermSide<'_, T>,
     contacts: &super::ReductionContacts,
+    declared: &super::GluedPairs<T>,
     band: Band,
 ) -> Result<(super::Locus, super::Locus), BooleanError> {
     use super::Locus::{InFace, OnEdge};
@@ -1516,7 +1517,7 @@ pub(super) fn germ_loci<T: Decide>(
     let (ca, cb) = (closed_reach(a, ea, b, band)?, closed_reach(b, eb, a, band)?);
     let (ta, tb) = match (ca, cb) {
         (Some((Touch::Boundary, _)), Some((Touch::Boundary, _))) => {
-            return one_segment(a, ea, b, eb);
+            return one_segment(a, ea, b, eb, declared);
         }
         (Some((ta, _)), Some((tb, _))) => (ta, tb),
         (ca, cb) => {
@@ -1526,7 +1527,7 @@ pub(super) fn germ_loci<T: Decide>(
                 .iter()
                 .any(|c| far_a.contains(&c.a) && far_b.contains(&c.b))
             {
-                return one_segment(a, ea, b, eb);
+                return one_segment(a, ea, b, eb, declared);
             }
             (
                 ca.map_or_else(|| touch(a, ea.far, contacts), |c| Ok(c.0))?,
@@ -1571,13 +1572,28 @@ fn germ_curve<T: Decide>(
 }
 
 /// **Two edges leaving a site along the germ, with paired far ends,
-/// are one segment** when both are lines or circles. Each is tangent to
-/// the germ at the site, and a line or circle meets a line or circle
-/// tangent to it there at no other point unless the two are one curve,
-/// so the paired far ends make them one; the sweep splits an edge at
-/// every crossing of the partner, so neither passes the other's far
-/// end. This is structure, not a test: no reading of the two curves
-/// could answer otherwise. A conic or spline can meet such a partner
+/// are one segment** when both are lines or circles, or both are
+/// sections of one plane and one cylinder or cone. Each is tangent to
+/// the germ at the site, and the sweep splits an edge at every crossing
+/// of the partner, so neither passes the other's far end.
+///
+/// - A line or circle meets a line or circle tangent to it at the site
+///   at no other point unless the two are one curve, so the paired far
+///   ends make them one.
+/// - Where the glue door verified each edge's two faces one carrier
+///   with the partner's two, crosswise, one a plane and the other a
+///   cylinder or cone ([`same_construction`]), both edges lie on that
+///   plane's section of the quadric. That section is one conic, which
+///   has one branch through the site along the germ; or a line pair
+///   (the plane through a cone's apex, or along a cylinder's rulings),
+///   whose two lines cross at most at one point and there in two
+///   directions, so the two edges leaving the site along one direction
+///   are on one line. Either way they are one curve. Two curved
+///   carriers can meet in two branches tangent at a point, so the
+///   identity is read only where one of the two is a plane.
+///
+/// This is structure, not a test: no reading of the two curves could
+/// answer otherwise. Any other conic or spline can meet such a partner
 /// again, and its pair is refused
 /// ([`BooleanError::GermEdgeCarrierUnsupported`]).
 ///
@@ -1590,7 +1606,11 @@ fn one_segment<T: Decide>(
     ea: Along,
     b: GermSide<'_, T>,
     eb: Along,
+    declared: &super::GluedPairs<T>,
 ) -> Result<(super::Locus, super::Locus), BooleanError> {
+    if same_construction(a, ea, b, eb, declared)? {
+        return Ok((super::Locus::OnEdge(ea.edge), super::Locus::OnEdge(eb.edge)));
+    }
     for (side, e) in [(a, ea), (b, eb)] {
         match germ_curve(side.body, e.edge)?.carrier() {
             geom::Curve3::Line { .. } | geom::Curve3::Circle { .. } => {}
@@ -1606,6 +1626,60 @@ fn one_segment<T: Decide>(
         }
     }
     Ok((super::Locus::OnEdge(ea.edge), super::Locus::OnEdge(eb.edge)))
+}
+
+/// Whether the faces either side of `ea` and of `eb` pair crosswise
+/// as carriers the glue door verified one
+/// ([`super::GluedPairs::verified_one_carrier`]), one of the two a plane
+/// and the other a cylinder or cone: the two edges are then sections of
+/// one plane and one quadric ([`one_segment`]). A plane meets a sphere
+/// in a circle and two faces on one plane are one face, so neither
+/// reaches here past the kind rule. An edge bounding one face on both
+/// sides (a wrap edge) is no section of two faces.
+///
+/// # Errors
+///
+/// [`BooleanError::ClassificationInvariant`] where a germ edge's half
+/// has no mate or no face, or a face's carrier does not read.
+fn same_construction<T: Decide>(
+    a: GermSide<'_, T>,
+    ea: Along,
+    b: GermSide<'_, T>,
+    eb: Along,
+    declared: &super::GluedPairs<T>,
+) -> Result<bool, BooleanError> {
+    use geom::SurfaceKind::{Cone, Cylinder, Plane};
+    let lost = |what| BooleanError::ClassificationInvariant { what };
+    let faces = |side: GermSide<'_, T>, e: EdgeKey| {
+        let plus = proven(&side.body.edges, e, EntityId::Edge).he_plus;
+        let minus = side
+            .body
+            .mate(plus)
+            .ok_or(lost("a germ edge's half has no mate"))?;
+        let face = |h| {
+            side.body
+                .face_of_half_edge(h)
+                .ok_or(lost("a germ edge's half bounds no face"))
+        };
+        Ok::<_, BooleanError>([face(plus)?, face(minus)?])
+    };
+    let ([a0, a1], fb) = (faces(a, ea.edge)?, faces(b, eb.edge)?);
+    if a0 == a1 || fb[0] == fb[1] {
+        return Ok(false);
+    }
+    let kind = |f| {
+        crate::readback::face_carrier_kind(a.body, f)
+            .map_err(|_| lost("a germ edge's face carrier does not read"))
+    };
+    let section = matches!(
+        (kind(a0)?, kind(a1)?),
+        (Plane, Cylinder | Cone) | (Cylinder | Cone, Plane)
+    );
+    let one = |fa, fb| declared.verified_one_carrier(a.operand, fa, b.operand, fb);
+    Ok(section
+        && [fb, [fb[1], fb[0]]]
+            .iter()
+            .any(|&[b0, b1]| one(a0, b0) && one(a1, b1)))
 }
 
 /// **Where a closed edge leaving the site lies against the partner**:
@@ -2019,6 +2093,7 @@ pub(super) fn crescent_refusal<T: Decide>(
     bodies: [&Body<T>; 2],
     sectors: [&[BoolSector<T>]; 2],
     touching: &[(usize, usize)],
+    contacts: &super::ReductionContacts,
     band: Band,
 ) -> Result<(), BooleanError> {
     let what = "a sector's face has no carrier";
@@ -2030,7 +2105,13 @@ pub(super) fn crescent_refusal<T: Decide>(
             continue;
         }
         let arm = sa.arm.min(sb.arm);
-        if !direction_sense(sa.normal.vec(), sb.normal.vec(), arm, band)? && crescent(sa, sb, band)?
+        let corner = |k: usize, sector| Corner {
+            body: bodies[k],
+            sectors: sectors[k],
+            sector,
+        };
+        if !direction_sense(sa.normal.vec(), sb.normal.vec(), arm, band)?
+            && crescent(corner(0, sa), corner(1, sb), contacts, band)?
         {
             return Err(BooleanError::TangentCrescentUnsupported {
                 a_face: sa.face,
@@ -2063,6 +2144,13 @@ fn bound_bend<T: Decide>(reach: Reach<T>) -> Option<(Vec3<T>, T)> {
 /// bisector reads no bend, and a pair holding one reads no crescent.
 /// Equal bends (one circle bounding both) read none.
 ///
+/// The shared direction is read at the sector arm, as [`pair_search`]
+/// read the pair touching. Two bounds that part at their own reach
+/// leave the site at an angle the arm is too short to resolve; where
+/// the corners' other edges run on together from the site
+/// ([`coincident_run`]), the section closes that wedge and the pair
+/// reads none.
+///
 /// The verdict is the second-order term's sign at the vertex, read off
 /// the two carriers' point curvatures, which is exact as a claim that
 /// the crescent exists: near enough the vertex that term dominates
@@ -2076,14 +2164,16 @@ fn bound_bend<T: Decide>(reach: Reach<T>) -> Option<(Vec3<T>, T)> {
 /// section certifies no bend, and refuses as
 /// [`geom_brep::conic_bend_side`] does.
 fn crescent<T: Decide>(
-    a: &BoolSector<T>,
-    b: &BoolSector<T>,
+    ca: Corner<'_, T>,
+    cb: Corner<'_, T>,
+    contacts: &super::ReductionContacts,
     band: Band,
 ) -> Result<bool, BooleanError> {
+    let (a, b) = (ca.sector, cb.sector);
     let arm = a.arm.min(b.arm);
     let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
-    for (da, ra) in [(a.start, a.start_reach), (a.end, a.end_reach)] {
-        for (db, rb) in [(b.start, b.start_reach), (b.end, b.end_reach)] {
+    for (a_start, da, ra) in [(true, a.start, a.start_reach), (false, a.end, a.end_reach)] {
+        for (b_start, db, rb) in [(true, b.start, b.start_reach), (false, b.end, b.end_reach)] {
             let (Some((ka, la)), Some((kb, lb))) = (bound_bend(ra), bound_bend(rb)) else {
                 continue;
             };
@@ -2124,6 +2214,11 @@ fn crescent<T: Decide>(
                 continue;
             }
             let l = la.min(lb);
+            if coincident_run((ca, a_start), (cb, b_start), contacts, band)?
+                && !parallel_same(da, db, l, band)?
+            {
+                continue;
+            }
             let opened = (kb - ka).dot(u) * l.powi(2) / (T::one() + T::one());
             if decide("bool_sector_crescent", Margin::of(opened), band).map_err(escalate)?
                 == Sign::Positive
@@ -2133,6 +2228,129 @@ fn crescent<T: Decide>(
         }
     }
     Ok(false)
+}
+
+/// **Whether the section runs on from a vertex pair along the other
+/// edges of the two corners whose bounds [`crescent`] reads**: the edge
+/// across each corner from the bound it reads (`start`, or the end),
+/// each a line or an arc of at most a half-turn ([`far_edge`]), their
+/// far ends a vertex pair the reduction recorded, their departure
+/// directions parallel levered at the shorter reach `L`.
+///
+/// Such edges lie on each other within the band. Two such arcs through
+/// one pair of points `P`, `Q` (chord `c`, a line the arc of zero turn)
+/// meeting at `P` at an angle `θ` turn by `α`, `α + θ` off the chord,
+/// each `α ≤ π/2`, and the arc turning `α` off the chord stands
+/// `(c/2)·tan(α/2)` from it at mid-chord, so they part by at most
+/// `(c/4)·sec²(α/2)·θ ≤ c·θ/2` to first order. An arc's reach is no
+/// shorter than its chord, so `L ≥ c`, and the parallel reading's
+/// Zero, `θ·L` within the band, bounds that parting by half the band,
+/// on top of the band the vertex pair stands within. Past a half-turn
+/// the parting grows as `4R²θ/c`, which the reach does not bound, so a
+/// longer arc carries no run.
+///
+/// The section carried along the run reaches the pair from both sides,
+/// so where the two read bounds part at their own reach, the region
+/// between them is a wedge the run's loops close, not a crescent
+/// narrowing to the site. A closed edge, whose far end is the site,
+/// carries nothing past it.
+fn coincident_run<T: Decide>(
+    a: (Corner<'_, T>, bool),
+    b: (Corner<'_, T>, bool),
+    contacts: &super::ReductionContacts,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let [Some(a), Some(b)] = [far_edge(a.0, a.1, band)?, far_edge(b.0, b.1, band)?] else {
+        return Ok(false);
+    };
+    Ok(contacts
+        .vv
+        .iter()
+        .any(|c| a.far.contains(&c.a) && b.far.contains(&c.b))
+        && parallel_same(a.dir, b.dir, a.reach.min(b.reach), band)?)
+}
+
+/// A corner [`crescent`] reads: one operand's body, its sectors at the
+/// site, and the sector.
+#[derive(Clone, Copy)]
+struct Corner<'s, T: geom_core::Real> {
+    body: &'s Body<T>,
+    sectors: &'s [BoolSector<T>],
+    sector: &'s BoolSector<T>,
+}
+
+/// A line or an arc of at most a half-turn leaving a site
+/// ([`far_edge`]).
+struct RunEdge<T: geom_core::Real> {
+    /// Its unit direction at the site.
+    dir: Vec3<T>,
+    /// Its reach from the site, in metres, no shorter than its chord.
+    reach: T,
+    /// Its far end's site.
+    far: Vec<VertexKey>,
+}
+
+/// The edge across `corner` from its `start` bound (or its end), where
+/// it is an open line or an arc of at most a half-turn
+/// ([`within_half_turn`], [`coincident_run`]).
+fn far_edge<T: Decide>(
+    corner: Corner<'_, T>,
+    start: bool,
+    band: Band,
+) -> Result<Option<RunEdge<T>>, BooleanError> {
+    let (body, s) = (corner.body, corner.sector);
+    let same = |o: &&BoolSector<T>| o.he == s.he && o.face == s.face;
+    let (he, bound) = if start {
+        let bound = corner.sectors.iter().filter(same).find(|o| o.end_edge());
+        (s.he, bound.map(|o| (o.end, o.end_reach)))
+    } else {
+        let bound = corner.sectors.iter().filter(same).find(|o| o.start_edge());
+        (
+            body.proven_orbit_step(s.he),
+            bound.map(|o| (o.start, o.start_reach)),
+        )
+    };
+    let Some((dir, reach)) = bound else {
+        return Ok(None);
+    };
+    let half = proven(&body.half_edges, he, EntityId::HalfEdge);
+    let far = body.proven_half_edge_end(he);
+    if far == half.start {
+        return Ok(None);
+    }
+    match germ_curve(body, half.edge)?.carrier() {
+        geom::Curve3::Line { .. } => {}
+        geom::Curve3::Circle { .. } => {
+            let chord = body.resolve_vertex_point(far, Proven)
+                - body.resolve_vertex_point(half.start, Proven);
+            if !within_half_turn(dir, chord, band)? {
+                return Ok(None);
+            }
+        }
+        _ => return Ok(None),
+    }
+    Ok(Some(RunEdge {
+        dir,
+        reach: reach.length(),
+        far: site_of(body, far)?,
+    }))
+}
+
+/// Whether an arc leaving its start along `dir` and ending `chord` off
+/// it turns at most a half-turn: the chord leaves ahead of `dir`, the
+/// angle between them being half the arc's turn. Decided as a length;
+/// in band it escalates.
+fn within_half_turn<T: Decide>(
+    dir: Vec3<T>,
+    chord: Vec3<T>,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let ahead = Margin::of(dir.normalize().dot(chord));
+    Ok(
+        decide("bool_sector_run_ahead", ahead, band).map_err(|diag| {
+            BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
+        })? == Sign::Positive,
+    )
 }
 
 /// A sector bound's side code against a face's PLANE ([`side_code`]
@@ -6780,6 +6998,30 @@ mod tests {
 
     /// The generic pair search on two orthogonal quarter-sector fans:
     /// records carry transition codes.
+    /// An arc short of a half-turn carries a run and a reflex one does
+    /// not, at a chord as short as the crescent's short arcs: a reflex
+    /// arc through both ends of another, tangent to it within the band
+    /// at its reach, parts from it by up to `4R²θ/c` across the turn.
+    #[test]
+    fn only_an_arc_of_at_most_a_half_turn_carries_a_run() {
+        use core::f64::consts::{PI, TAU};
+        let r = 0.1;
+        for (turn, carries) in [
+            (0.3, true),
+            (PI - 0.01, true),
+            (PI + 0.01, false),
+            (TAU - 1e-3, false),
+        ] {
+            let dir = Vec3::new(0.0, 1.0, 0.0);
+            let far = Vec3::new(r - r * turn.cos(), r * turn.sin(), 0.0);
+            assert_eq!(
+                within_half_turn(dir, far, band()).unwrap(),
+                carries,
+                "an arc of turn {turn}"
+            );
+        }
+    }
+
     #[test]
     fn pair_search_generic_crossing() {
         // A-sector in the xy-plane (normal +z), sweeping +x → +y CCW

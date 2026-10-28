@@ -16,6 +16,7 @@ priority-seam cut across the infra group (`work/green/log.md`).
 | P1 | `tess-lint-gate-red-on-main-23-findings` | M | tess-lint |
 | P1 | `main-red-tilted-cut-upper-moves-in-the-thread-count-digest-at-default-eps` | E | small reds |
 | P1 | `nightly-rustdoc-gate-red-on-main` | E | small reds |
+| P1 | `nightly-full-suite-reds-pinned-green` | H | full-suite pins |
 | P2 | `tests-red-under-all-features-never-run-by-ci` | E | gate trust |
 | P3 | `pick-oracle-sweep-anti-vacuity-fails-one-seed-in-1300` | E | gate trust |
 | P3 | `pick-face-fuzz-anti-vacuity-guard-trips-at-effort-1` | C | rides with the above |

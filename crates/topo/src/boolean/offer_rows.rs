@@ -2899,6 +2899,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "LeverArm::SectorCurving",
         1,
     ),
+    ("sectors.rs", "within_half_turn", "Coincide::Sectors", 1),
     ("sectors.rs", "within_signs", "Coincide::Sectors", 1),
     (
         "slit.rs",
