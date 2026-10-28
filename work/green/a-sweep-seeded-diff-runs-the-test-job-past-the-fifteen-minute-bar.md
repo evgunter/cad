@@ -152,11 +152,13 @@ into two package-group jobs, to be re-measured with the queue included.
 - **Measured on that PR's own TIER=all runs**, which include sweep in
   `kernel`. The single-job TIER=all `test` had a median of 27.6 (build
   19.9, n=15).
-  - Run 40718652598: `app` 12.2 min (build 9.7), `kernel` 12.8 (build 9.6).
-  - Run 40721475134, the final head: `app` 12.6 (build 10.2), `kernel`
-    **18.8** (build 13.6). Every kernel step ran about 1.5× slower (default
-    ε 1.5 against 0.9, extra ε 3.0 against 1.8), which points to the
-    runner, but it is still over the bar.
-- **Still open.** One run under 15 is not a measurement of the bar. This
+  - Four runs of the same split. `kernel` took 12.8 (40718652598), then
+    18.8, 18.9 and 19.1 (40721475134, 40727293903, 40729179399), with
+    build 13.3–13.8, default ε 1.5 and extra ε 3.1. `app` took 12.2–12.6
+    (build 9.7–10.2).
+  - So about 19 min is the kernel shard's typical time at TIER=all, and
+    the 12.8 run was a fast runner. The kernel shard is the long one, and
+    it is over the bar.
+- **Still open.** This
   closes when a sweep-seeding PR's `test (kernel)` measures under 15 min
   over several runs after #5941 merges.
