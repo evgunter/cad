@@ -1825,8 +1825,8 @@ impl NurbsCurve3<Interval> {
         if !(lo < hi && start <= lo && hi <= end) {
             return None;
         }
-        let first = self.knots_f64_interim().span_at(lo)?.index();
-        let last = self.knots_f64_interim().span_at(hi)?.index();
+        let (s0, s1) = self.knot_values().locate(Interval::from_bounds(lo, hi))?;
+        let (first, last) = (s0.span().index(), s1.span().index());
         let at = |x: f64| Interval::from_bounds(x, x);
         let mut out = Vec::new();
         for index in first..=last {

@@ -739,13 +739,33 @@ impl<T: Decide + CertifiedBounds> Candidate<'_, '_, T> {
         let mut b = admitted(&mut *self.region, true, self.ib, self.y, self.cb);
         if self.strict
             && let Some((p, q)) = coincidence(self.x, self.ca, &a, self.y, self.cb, &b)
-            && self.region.placed(false, self.ia, self.x, p)
-            && self.region.placed(true, self.ib, self.y, q)
+            && Self::placed(&mut *self.region, false, self.ia, self.x, p)
+            && Self::placed(&mut *self.region, true, self.ib, self.y, q)
         {
             a.push(p);
             b.push(q);
         }
         (a, b)
+    }
+
+    /// Whether the point door places `(u, v)` of window `index` on its
+    /// face — in the window, for a window that is its face.
+    fn placed(
+        region: &mut RegionMemo,
+        side_b: bool,
+        index: usize,
+        w: &Window<'_, T>,
+        (u, v): (f64, f64),
+    ) -> bool {
+        match w.region {
+            Region::Whole => w.u.0 <= u && u <= w.u.1 && w.v.0 <= v && v <= w.v.1,
+            Region::Trimmed => matches!(
+                region.station(side_b, index, w, (u, v)),
+                Some(
+                    FaceContainment::In | FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_)
+                )
+            ),
+        }
     }
 }
 
@@ -2179,26 +2199,6 @@ impl RegionMemo {
             .stations
             .entry((side_b, index, u.to_bits(), v.to_bits()))
             .or_insert_with(|| station_region(w.body, w.face, (u, v), self.band))
-    }
-
-    /// Whether the point door places `(u, v)` of window `index` on its
-    /// face — in the window, for a window that is its face.
-    fn placed<T: Decide + CertifiedBounds>(
-        &mut self,
-        side_b: bool,
-        index: usize,
-        w: &Window<'_, T>,
-        (u, v): (f64, f64),
-    ) -> bool {
-        match w.region {
-            Region::Whole => w.u.0 <= u && u <= w.u.1 && w.v.0 <= v && v <= w.v.1,
-            Region::Trimmed => matches!(
-                self.station(side_b, index, w, (u, v)),
-                Some(
-                    FaceContainment::In | FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_)
-                )
-            ),
-        }
     }
 
     /// How many readings of a face's region the answer rests on: cells

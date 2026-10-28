@@ -1902,14 +1902,14 @@ pub(crate) fn monotone(
     // G = JᵀJ and its square root R; L = R⁻¹Jᵀ has orthonormal rows and
     // L·J = R.
     let (g11, g12, g22) = (a.dot(a), a.dot(b), b.dot(b));
-    let det = g11 * g22 - g12 * g12;
+    let det = g11 * g22 - g12.powi(2);
     if !(det.is_finite() && det > 0.0) {
         return false;
     }
     let sd = det.sqrt();
     let k = (g11 + g22 + 2.0 * sd).sqrt();
     let (r11, r12, r22) = ((g11 + sd) / k, g12 / k, (g22 + sd) / k);
-    let rdet = r11 * r22 - r12 * r12;
+    let rdet = r11 * r22 - r12.powi(2);
     if !(rdet.is_finite() && rdet > 0.0) {
         return false;
     }
