@@ -546,7 +546,7 @@ fn the_measure_verb_vocabulary_is_stable() {
 #[test]
 fn the_fourth_verbs_two_refusals_are_stable() {
     use crate::tags::{measure_unavailable_at_tag, node_error_tag};
-    use pncad::document::{ClearanceRefusal, MeasureUnavailableAt, NodeErrorKind};
+    use pncad::document::{ClearanceRefusal, EngineRefusal, MeasureUnavailableAt, NodeErrorKind};
 
     let absent = MeasureUnavailableAt::NeedsEnclosure {
         verb: "min_clearance",
@@ -564,16 +564,16 @@ fn the_fourth_verbs_two_refusals_are_stable() {
     // only ones this carrier's producer can build — all cross as one
     // tag.
     let refused = |r| NodeErrorKind::MeasureClearanceRefused(r);
-    let empty = refused(ClearanceRefusal::EmptyScope);
-    let unpaired = refused(ClearanceRefusal::NoAdmittedPair);
-    let unsupported = refused(ClearanceRefusal::Unsupported {
+    let empty = refused(ClearanceRefusal::Engine(EngineRefusal::EmptyScope));
+    let unpaired = refused(ClearanceRefusal::Engine(EngineRefusal::NoAdmittedPair));
+    let unsupported = refused(ClearanceRefusal::Engine(EngineRefusal::Unsupported {
         carrier: "a free-form face",
         face: FaceKey::default(),
-    });
-    let poison = refused(ClearanceRefusal::PoisonEnclosure {
+    }));
+    let poison = refused(ClearanceRefusal::Engine(EngineRefusal::PoisonEnclosure {
         a: FaceKey::default(),
         b: FaceKey::default(),
-    });
+    }));
     for e in [&empty, &unpaired, &unsupported, &poison] {
         assert_eq!(
             node_error_tag(e.class()),

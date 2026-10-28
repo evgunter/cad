@@ -280,7 +280,7 @@ impl PointLever {
 /// point decision reads its arm here: the march's states, the Hermite's
 /// ends, refinement's chord midpoint ([`march::decide_transversality`])
 /// and the at-rest plane × NURBS check ([`crate::plane_nurbs_limbs`]), as
-/// does [`crate::dihedral_side`]'s spline face. A seam's spline face
+/// does [`crate::dihedral_side()`]'s spline face. A seam's spline face
 /// ([`crate::classify_seam`]) brackets its arm instead, between a
 /// certified lower bound read off curvature bounds near the point
 /// ([`crate::NurbsLane::chart_arm`]) and the reach.

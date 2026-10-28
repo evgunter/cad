@@ -75,7 +75,7 @@
 //!    the two axis-bisector planes; parallel axes ⇒ line pair / tangent
 //!    line / empty; skew axes or unequal radii ⇒ typed rung-3 refusal.
 //! 6. cylinder × sphere — built by the section value
-//!    ([`crate::pair_section`]) over its pose: the coaxial pose, its
+//!    ([`crate::pair_section()`]) over its pose: the coaxial pose, its
 //!    axis-to-centre distance decided Zero by its margin, is two
 //!    circles, the tangent circle as classification data, or empty.
 //! 7. [`sphere_sphere_section`] — the radical-plane `Circle`; either

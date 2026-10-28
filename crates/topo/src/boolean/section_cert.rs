@@ -1735,7 +1735,7 @@ fn sphere_sphere<T: Decide>(c1: Point3<T>, r1: T, c2: Point3<T>, r2: T, band: Ba
     }
 }
 
-/// **A pair the section value builds** ([`geom_brep::pair_section`]),
+/// **A pair the section value builds** ([`geom_brep::pair_section()`]),
 /// classified from it, its first surface `F`: a tangency it decided is a
 /// [`Touch`] at the point where the section is one point and R-tan
 /// otherwise; a pose question undecided, a closed-form count that

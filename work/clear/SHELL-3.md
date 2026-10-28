@@ -1,12 +1,15 @@
 ---
 id: SHELL-3
 kind: unit
-title: the clearance engine's body-level half moves into topo behind interval — one engine, two consumers
-status: open
+title: the clearance engine's body-level half moves into topo — one engine, two consumers
+status: closed
 opened: 2026-09-04
 refs: [shell-curved-clearance-consumer, 1725, 1737]
 priority: P0
 cost: H
+branch: clear/shell-3-engine-into-topo
+closed: 2026-10-28
+pr: 5909
 ---
 
 
@@ -50,3 +53,19 @@ What moves, in shape:
 
 At `Interval` the M10-5/M10-6 suites and goldens are the differential.
 Dispatch waits for INTENT's E (#5811), which edits these sites.
+
+## Closed (2026-10-28, #5909)
+
+- **What moved.** The engine's body-level half is `topo::clearance`, in
+  every build. Its door is `Side<T>`, generic over
+  `Decide + CertifiedBounds`, with interval arithmetic inside.
+  `cell_region` and `station_region` are generic too.
+- **What stayed.** Witness verification stays in `editor-core`, reached
+  through a verifier callback. `ClearanceRefusal` is split:
+  `topo::clearance::EngineRefusal` holds the engine's arms, wrapped by
+  `editor-core`'s `ClearanceRefusal`.
+- **No behaviour change.** The M10-5/M10-6 goldens and
+  `m10_6_certifying_keys.txt` held.
+- **Review.** A single FULL review read APPROVE-WITH-FIXES, and its fix
+  pass was read and accepted by the orchestrator. Its class findings
+  are on CLEAR's and CLEARTAIL's slates.
