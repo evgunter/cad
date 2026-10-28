@@ -2322,8 +2322,8 @@ pub enum TraceDecision {
     /// sphere pose's reach past a tangent pose ([`SsiError::PairTangent`]
     /// is its verdict).
     CylinderSphereTangency,
-    /// `ssi_st_tangency`: the sphere × torus pair's gap from a tangent
-    /// pose ([`SsiError::PairTangent`] is its verdict).
+    /// `st_critical_gap`, `st_coaxial_tube`: the sphere × torus pose's
+    /// critical gap from a tangent pose ([`SsiError::PairTangent`] is its verdict).
     SphereTorusTangency,
     /// `cs_coaxial`: whether the sphere's centre lies on the cylinder's
     /// axis.
@@ -2588,7 +2588,7 @@ const CYLINDER_SPHERE_TANGENCY: SizedDecision = SizedDecision {
     no_size: None,
 };
 
-/// The sphere × torus tangency decision (`ssi_st_tangency`), as
+/// The sphere × torus tangency decision (`st_critical_gap`), as
 /// [`CYLINDER_SPHERE_TANGENCY`].
 const SPHERE_TORUS_TANGENCY: SizedDecision = SizedDecision {
     lever: "separate the sphere and the torus, or move one so they are clearly not tangent",
@@ -2606,9 +2606,9 @@ pub enum TangentPair {
     /// when coaxial with `r = R`, at one point off-axis, where the pair
     /// still crosses elsewhere, as Viviani's figure-eight does.
     CylinderSphere,
-    /// Sphere × torus (`ssi_st_tangency`): the sphere's radius is one of
-    /// `|dₖ − r|`, `dₖ + r`, `dₖ` its centre's distance from either point
-    /// of the torus's core circle in the centre's meridian plane. A
+    /// Sphere × torus (`st_critical_gap`, [`crate::SphereTorusPose`]):
+    /// the sphere's radius is `D + r` or `|D − r|`, `D` a critical
+    /// distance of its centre from the torus's core circle. A
     /// common normal at a common point passes through the sphere's
     /// centre and, being the torus's normal, through the core circle in
     /// that point's meridian plane, which then holds the centre.

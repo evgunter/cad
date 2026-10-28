@@ -472,10 +472,12 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
 ///
 /// Every other implemented pair serves every pose: plane×plane,
 /// plane×cylinder, plane×sphere, sphere×sphere, and the general-rung
-/// arms that march (cylinder×sphere, sphere×torus once its torus is
-/// shown a ring torus, plane×NURBS with plane×Approx over its fit, and
-/// NURBS×NURBS with every Approx pairing over its fits). An
-/// unimplemented pair answers [`route`] unchanged. The match is
+/// arms that march (cylinder×sphere and sphere×torus on their decided
+/// poses, plane×NURBS with plane×Approx over its fit, and NURBS×NURBS
+/// with every Approx pairing over its fits). Cylinder×torus and
+/// torus×torus are unimplemented and read their poses too, so a pose in
+/// the band escalates rather than answering the kind's routing. Every
+/// other unimplemented pair answers [`route`] unchanged. The match is
 /// exhaustive with no wildcard, as [`route`]'s is, so a kind added to
 /// the table is a compile-time visit here too.
 ///
