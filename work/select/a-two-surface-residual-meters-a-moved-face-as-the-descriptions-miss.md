@@ -52,6 +52,19 @@ mid-band probe is the in-band row of
 `sweep a_face_moved_off_its_edges_ends_as_their_incidence_read_at_rest`
 (which reads the pcurve and planar findings and leaves this one out).
 
+**At the import door** the same meter answers first. `freecad/cylinder.step`
+with its wall `#45 = CYLINDRICAL_SURFACE('',#46,0.5)` grown to radius 1
+refuses `Adoption` at the top rim `#21`, and its attempts never reach a
+chart rung:
+- `Intersection`: `ResidualExceeded { check: SurfaceResidual, margin: −3.75e-4 }`;
+- `TangentIntersection`: `ResidualExceeded { check: TangentParallel, margin: 1e-3 }`.
+
+It ends "the file is damaged", from the residual's table, not the
+incidence read's. Grown to `0.5000000055` (mid-band at ε 1e-9) the file
+imports. The import reaches the chart mint only through a
+`MappedCurve` candidate (a file that states a pcurve) and the plane ×
+spline rim (`crates/step-import/src/adopt.rs`).
+
 ## Repair shape (open)
 
 Read the carrier's incidence on each of the pair's surfaces before the
