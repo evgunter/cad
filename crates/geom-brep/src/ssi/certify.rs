@@ -1315,18 +1315,8 @@ pub(crate) fn chart_breaks(carrier: &KnotVector, pcurve: &KnotVector) -> Vec<f64
 /// The box chain covering a carrier: one padded box per span of its
 /// [`refined_net`], from the span's control hull (containment by the
 /// convex-hull property, positive weights making the rational basis a
-/// partition of unity).
+/// partition of unity), beside the box's axis and the span it hulls.
 fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
-    carrier: &NurbsCurve3<T>,
-) -> Vec<(Box3, Vec3<T>)> {
-    box_spans(carrier)
-        .into_iter()
-        .map(|(b, e, _)| (b, e))
-        .collect()
-}
-
-/// [`box_chain`], each box beside the carrier's parameter span it hulls.
-fn box_spans<T: Decide + Bounds + CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
 ) -> Vec<(Box3, Vec3<T>, (f64, f64))> {
     let mut out = Vec::new();
@@ -1427,7 +1417,7 @@ impl Rung {
 /// `None` when the chain is empty or broken, a definite structural
 /// refusal; [`Rung::refused`] where a box's transversality enclosure is.
 fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
-    chain: &[(Box3, Vec3<T>)],
+    chain: &[(Box3, Vec3<T>, (f64, f64))],
     s1: &Surface<T>,
     s2: &Surface<T>,
     radius: f64,
@@ -1439,7 +1429,7 @@ fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
     let mut worst = f64::INFINITY;
     let mut prev: Option<Box3> = None;
     let mut padded = Vec::with_capacity(chain.len());
-    for (raw, e) in chain.iter() {
+    for (raw, e, _) in chain.iter() {
         // The chain is built once (an O(n²) knot refinement) and padded
         // per ladder rung, which is a pure interval widening.
         let bx = raw.pad(radius);
@@ -1460,7 +1450,7 @@ fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
         }
     }
     let axis = |e: &Vec3<T>| dominant_axis([e.x, e.y, e.z].map(|c| 0.5 * (c.lo() + c.hi())));
-    let (Some((_, e0)), Some((_, e1))) = (chain.first(), chain.last()) else {
+    let (Some((_, e0, _)), Some((_, e1, _))) = (chain.first(), chain.last()) else {
         return None;
     };
     let one_arc = (worst > 0.0).then(|| {
@@ -1810,7 +1800,7 @@ pub(crate) fn tube_boxes<T: Decide + Bounds + CertifiedEnclosure>(
 ) -> Vec<Box3> {
     box_chain(carrier)
         .into_iter()
-        .map(|(b, _)| b.pad(radius))
+        .map(|(b, _, _)| b.pad(radius))
         .collect()
 }
 
@@ -1820,13 +1810,13 @@ pub(crate) fn tube_boxes<T: Decide + Bounds + CertifiedEnclosure>(
 /// padded by it, is not shown a graph ([`graph_margin`]). A box no wider
 /// than the rung is held by its padding, which halving its span does not
 /// narrow, so it is not named.
-pub(crate) fn coarse_tube_spans<T: Decide + Bounds + CertifiedEnclosure>(
-    carrier: &NurbsCurve3<T>,
-    s1: &Surface<T>,
-    s2: &Surface<T>,
+pub(crate) fn coarse_tube_spans(
+    carrier: &NurbsCurve3<f64>,
+    s1: &Surface<f64>,
+    s2: &Surface<f64>,
     radius: f64,
 ) -> Vec<RefusedSpan> {
-    box_spans(carrier)
+    box_chain(carrier)
         .into_iter()
         .filter(|(raw, e, _)| {
             raw.width() > radius
@@ -3009,7 +2999,7 @@ mod tests {
                 let chain = super::box_chain(&curve);
                 let worst = chain
                     .iter()
-                    .map(|(b, axis)| {
+                    .map(|(b, axis, _)| {
                         let leg = legs[usize::from(b.x.hi() > bend[0])];
                         (axis.x - leg[0])
                             .abs()
@@ -3216,14 +3206,14 @@ mod tests {
         };
         let at_f64: Vec<Box3> = super::box_chain(&curve)
             .into_iter()
-            .map(|(b, _)| b)
+            .map(|(b, _, _)| b)
             .collect();
         let at_f64 = misses(&at_f64);
         assert!(at_f64.is_empty(), "f64 chain missed {at_f64:?}");
         let at_interval: Vec<Box3> =
             super::box_chain(&curve.map_scalar(<Interval as geom_core::Real>::from_f64))
                 .into_iter()
-                .map(|(b, _)| b)
+                .map(|(b, _, _)| b)
                 .collect();
         let at_interval = misses(&at_interval);
         assert!(
