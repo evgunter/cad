@@ -2210,7 +2210,10 @@ enum ChartPoles {
 
 /// Whether a sphere chart latitude is a pole's, to the rounding of the
 /// chart's own evaluation: a meridian's image reaches `±π/2` at the
-/// pole vertex within a few ulps.
+/// pole vertex within a few ulps. `64ε` of latitude is a polar distance
+/// under `1.5e-14` rad, far inside the nearest a chord point off the
+/// pole can sit at any count `sizing::MAX_COUNT` admits, so no point off
+/// the pole reads as on it.
 fn at_pole(v: f64) -> bool {
     core::f64::consts::FRAC_PI_2 - v.abs() <= 64.0 * f64::EPSILON
 }
