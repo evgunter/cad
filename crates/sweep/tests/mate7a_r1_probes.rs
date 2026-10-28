@@ -455,8 +455,10 @@ fn an_arch_started_inside_the_stem_glues_to_the_same_volume() {
 /// but where the arch leaves the fork its core runs tangent to the
 /// stem's and its tube 8 mm inside the stem's, a near tube-circle
 /// tangency, and the accounting over the smaller torus's ball refuses
-/// `CellBudget` (as a cylinder × sphere pose near its node does,
-/// `work/sectrung/a-cylinder-sphere-march-near-its-node-costs-seconds-and-refuses-by-budget.md`).
+/// `CellBudget` at the compiled ε, and on the tube at 1e-6
+/// (`work/sectrung/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`),
+/// as a cylinder × sphere pose near its node does
+/// (`work/sectrung/a-cylinder-sphere-march-near-its-node-costs-seconds-and-refuses-by-budget.md`).
 /// This row pins that stop: it goes red the day the door carries the
 /// lily's pair.
 #[test]
@@ -489,7 +491,10 @@ fn the_lilys_tori_exhaust_the_doors_cell_budget() {
     };
     let got = geom_brep::torus_torus_ssi(&stem, &arch, domain, band);
     assert!(
-        matches!(got, Err(geom_brep::SsiError::CellBudget { .. })),
+        matches!(
+            got,
+            Err(geom_brep::SsiError::CellBudget { .. } | geom_brep::SsiError::TubeStraddles { .. })
+        ),
         "the door's stop on the lily's pair: {:?}",
         got.map(|o| o.branches.len())
     );
