@@ -103,6 +103,10 @@ The unit pins these rows:
 - a declared wedge-0 kiss holds;
 - a `clearance ≥ c` between scopes that share an edge reads Violated
   at 0, on the shared cell.
+- a large curved body certifies within the default budget, with the
+  cell-pair counts reported. Candidates: a long helical sweep, a full
+  torus, a big cylinder shell with a thin wall. A case that blows the
+  budget is a finding, not a re-tuned dial (Ev asked, #5866).
 
 It lands on the moved engine, after `SHELL-3`. The analytic arms can
 land before `window-of-refuses-an-untrimmed-iso-bounded-nurbs-patch`;
