@@ -104,7 +104,9 @@
 //!   pure REST contact leave no null pair, so they take the
 //!   no-crossings fallback, which keeps or drops whole shells; its
 //!   certificates answer a verified `Rest` pair as a touch
-//!   ([`Exempt::Rest`]).
+//!   ([`Exempt::Rest`]), and a settled one-carrier pair between two
+//!   shells that lie on each other by their `On` verdict
+//!   ([`OnDeferred`]).
 
 use geom_core::interval::Interval;
 use geom_core::{Band, Bounds, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3};
@@ -8159,6 +8161,7 @@ fn classify_shells<T: Decide + crate::props::AtRestPolicy>(
 
 /// The containment fallback (F8): no crossings — classify whole
 /// shells, keep per Eq. 15.1's sides, and assemble the typed result.
+#[allow(clippy::too_many_arguments)]
 fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     red: &mut BooleanReduction<T>,
