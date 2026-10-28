@@ -897,15 +897,24 @@ tiers".
   another builds is a kernel defect ([operations.operators]). Merging
   **never fuses two vertices into one**; the record carry rests on it.
 - **A seam is a property of a face**, not a place on its surface, and a
-  wall keeps the cuts its author wrote: the kernel adds none. A face
-  boundary sits at each authored junction where the result creases: a
-  loft at v-degree 1 cuts its walls at every section, one wall per
-  profile segment per slab between consecutive sections, each interior
-  section a ring of edges and each strut one straight edge per slab;
-  the finishing join then merges the slabs whose carriers coincide, as
-  it merges any faces. Whether a smooth joint the
-  kernel's own representation introduces is cut too is
-  [open.representation-joint].
+  wall keeps the cuts its author wrote; a spline wall is also cut
+  wherever its representation is not C¹ by structure, and that seam is
+  smooth. A face boundary sits at each authored junction where the
+  result creases: a loft at v-degree 1 cuts its walls at every section,
+  one wall per profile segment per slab between consecutive sections,
+  each interior section a ring of edges and each strut one straight
+  edge per slab; the finishing join then merges the slabs whose
+  carriers coincide, as it merges any faces.
+- **Every face chart and edge carrier is C¹ by its knot structure**
+  strictly inside its cell: it carries no interior knot of multiplicity
+  at least its degree (`KnotStructure::crease_runs` is empty), and
+  tier 3 checks that from the knots alone. Where a construction's
+  surface or curve is not C¹ by structure, the construction puts an
+  edge or a vertex there; the skin cuts an arc wall at each sub-arc
+  joint, so its sub-arc ceiling (`MAX_SUB_ARC`) is a construction
+  constant that sets topology. Import splits a foreign face or edge at
+  each such knot at its door. No reader of a face or edge carries a
+  crease arm.
 
 **The frontier is typed and named.** Every unbuilt case refuses with a
 message naming its own blocker ([failure.taxonomy], row 2), so the
@@ -2255,22 +2264,6 @@ some (a merge's glue, a split's ON verdict) back no record, and the
 `unproven-coincidence` lint is their only reader. Whether that record is
 part of the model's output, or lint evidence the pipeline should not be
 producing, is the question.
-
-### May a face carry a C⁰ knot its construction did not author? `[open.representation-joint]`
-
-A C⁰ knot is an interior knot of multiplicity at least the degree, read
-from the knots alone (`KnotStructure::crease_runs`). The skin writes an
-arc wider than `MAX_SUB_ARC` (about 95.6°, `sweep/src/skin.rs`) as
-rational-quadratic sub-arcs joined at a double knot, so a lofted circle's
-wall carries a C⁰ knot where the surface is geometrically smooth, and an
-imported face can carry one anywhere. Either every face chart and edge
-carrier is C¹ by its knot structure strictly inside the cell (the
-construction cuts at each such joint and a smooth seam stands there;
-import splits at its door; tier 3 checks `crease_runs` empty), or such a
-knot stays inside its face and every reader crosses it only span by
-span. The first makes topology depend on the representation constant;
-the second leaves, under [intrinsic.no-guess], a line inside the face
-that every reader needing C¹ of the parametrization refuses to cross.
 
 ### The sketch constraint solver: build or bind `[open.sketch-solver]`
 
