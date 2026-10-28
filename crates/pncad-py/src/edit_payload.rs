@@ -36,7 +36,7 @@
 //! that type's own door.
 
 use pncad::document::{
-    ConstraintId, ContentPin, EditError, FrameSite, FreeValue, HeldNodes, MateFault, RecipeNodeId,
+    ConstraintId, ContentPin, EditError, FreeValue, HeldNodes, MateFault, RecipeNodeId,
     VarName, VarRef,
 };
 use pncad::prelude::StableName;
@@ -241,14 +241,6 @@ impl EditPayload<'_> {
     };
 }
 
-/// The position a placement frame's site names: an explicit rule's
-/// listed placement.
-fn frame_index(at: FrameSite) -> Option<usize> {
-    match at {
-        FrameSite::Listed { index } => Some(index),
-    }
-}
-
 /// Flatten one edit refusal into its payload record.
 ///
 /// The match is EXHAUSTIVE with no wildcard arm: an arm added to
@@ -286,8 +278,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         | EditError::WorldIsUndeletable { node }
         | EditError::ConstraintOnNonPlacement { node }
         | EditError::SpaceMismatch { node, a: _, b: _ }
-        | EditError::PlacementRuleMismatch { node, shape: _ }
-        | EditError::EmptyPlacementList { node }
+        | EditError::IndicesUnrelated { node, a: _, b: _ }
         | EditError::UpdateOnNonInstance { node }
         | EditError::LabelUnchanged { node } => EditPayload {
             node: Some(node.id()),
@@ -515,6 +506,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             ..none
         },
         EditError::NotAFreeVar { var, door: _ }
+        | EditError::Index { var, fault: _ }
         | EditError::DefinitionCycle { var, through: _ }
         | EditError::DefinitionUnknownVarName { var, name: _ }
         | EditError::DefinitionUnresolvedVar { var, read: _ } => EditPayload {
@@ -694,14 +686,6 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         EditError::EmptyWitnessBulk => none,
         EditError::InvalidTolerance { value } => EditPayload {
             value: Some(*value),
-            ..none
-        },
-        // The frame's site crosses as its position: a step or a
-        // listed placement's index, none for an instance's own frame.
-        EditError::NonFinitePlacement { node, at }
-        | EditError::NonRigidPlacement { node, at, .. } => EditPayload {
-            node: Some(node.id()),
-            index: frame_index(*at),
             ..none
         },
         EditError::PlacementAxis { error: _ } => none,

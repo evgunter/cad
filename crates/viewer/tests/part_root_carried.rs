@@ -21,7 +21,7 @@ use std::sync::Arc;
 use crate::common;
 
 use pncad::document::{
-    CancelToken, Doc, DocEdit, DocRef, EvalOptions, Formula, Label, Node, NodeResult, PatternKind,
+    CancelToken, Doc, DocEdit, DocRef, EvalOptions, Formula, Label, Node, NodeResult,
     ProfileDoc, RecipeNodeId, content_pin, evaluate,
 };
 use pncad::geom_core::Tol;
@@ -405,46 +405,38 @@ fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
         crate::fixture::mated_instance(reference(&leg, tol)),
         tol,
     );
-    let (sub, pattern) = common::inserted(
-        &sub,
-        Node::Pattern {
-            input: legs.into(),
-            count: Formula::count(4),
-            kind: PatternKind::Linear {
-                direction: [common::scl(1e200), common::scl(0.0), common::scl(0.0)],
-                spacing: common::len(0.05),
-            },
-        },
-        tol,
+    // A row whose one slide overflows to infinity at every member.
+    let (sub, k) = crate::fixture::index(sub, "k", 4);
+    let (sub, pattern) = crate::fixture::family_of(
+        sub,
+        legs,
+        vec![(
+            pncad::document::Coord::Slide(pncad::document::TargetAxis::X),
+            Formula::mul(common::len(1e200), common::scl(1e200))
+                .expect("length times scalar is a length"),
+        )],
     );
     let (sub, _) = viewer::test_support::mated(
         &sub,
         cap,
         crate::fixture::rest(
             common::head(in_part(cap, (top_body, top_copy), CapEnd::Start)),
-            common::head(StableName {
-                kind: EntityKind::Face,
-                node: pattern,
-                path: vec![RoleSeg::Instance {
-                    i: 1,
-                    of: in_part(legs, (leg_body, leg_copy), CapEnd::End).name.into(),
-                }],
-            }),
+            common::head_at(
+                pattern,
+                crate::fixture::in_copy(
+                    pattern,
+                    k,
+                    1,
+                    in_part(legs, (leg_body, leg_copy), CapEnd::End),
+                ),
+            ),
         ),
         Vec::new(),
         tol,
     );
     // The world: the cap is the first placement the product door
-    // reads, then the legs, then the pattern's copy 1.
-    let (sub, copy) = common::inserted(
-        &sub,
-        Node::Part {
-            of: pattern.into(),
-            select: pncad::document::PartSelect::Instance(Formula::count(1)),
-        },
-        tol,
-    );
-    let (sub, _) = common::placed(&sub, copy, tol);
+    // reads, then the legs, then the family's members, which stand in
+    // the legs' space.
     store.save_at(&sub, "sub.pncad", tol).expect("stores");
     let mut assembly = Doc::empty_derived("partroot-carried-mate-asm", tol);
     let instance = common::insert_into(

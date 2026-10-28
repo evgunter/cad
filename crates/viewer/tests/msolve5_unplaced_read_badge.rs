@@ -11,77 +11,85 @@
 #![allow(clippy::panic)]
 
 use crate::common;
-use crate::common::{insert_into, len, scl};
+use crate::common::insert_into;
+use crate::fixture;
 
 use common::asm;
-use pncad::document::{DocumentId, Formula, Node, PatternKind, ProfileDoc};
+use pncad::document::{
+    BodyRead, DocumentId, Formula, Node, Operand, Placed, ProfileDoc, VarId, stand,
+};
 use pncad::geom_core::Tol;
 use pncad::workspace::Workspace;
 use viewer::session::{AtRestBadge, DocSession, SessionOp};
 
 /// The issue's document over the bench's parts: the shelf on the world,
-/// lifted clear of itself as the second copy of a pattern of it — a
-/// body no placement copies — a two-copy pattern of the lifted shelf
-/// with both copies placed, and the post placed by the seat mate read
+/// lifted clear of itself as the second member of a family of it in a
+/// space of its own — a body no world placement copies — a two-member
+/// family of the lifted shelf with both members placed in the world, and the post placed by the seat mate read
 /// AT the lifted body. Stored beside the bench's parts so the session's
 /// resolver finds them.
 fn read_below_pattern(bench: &asm::Bench, tol: Tol) -> std::path::PathBuf {
     let mut asm = ProfileDoc::empty(DocumentId::derive("msolve5-viewer"), tol);
     let post = insert_into(&mut asm, crate::fixture::mated_instance(bench.post), tol);
     let shelf = asm::instance_at(&mut asm, bench.shelf, [0.0; 3], &bench.opts(), tol);
-    let lift = insert_into(
-        &mut asm,
-        Node::Pattern {
-            input: shelf.into(),
-            count: Formula::count(2),
-            kind: PatternKind::Linear {
-                direction: [scl(0.0), scl(0.0), scl(1.0)],
-                spacing: len(0.1),
-            },
-        },
-        tol,
+    // The lift lives in a space of its own, which no placement reaches
+    // the world from: the lifted body is copied into the world only as
+    // the second family's members.
+    let room = insert_into(&mut asm, Node::Space, tol);
+    let room = Operand::Var(asm.output(room, 0).expect("a new space defines its space"));
+    let (doc, lifting) = fixture::index(asm, "lift", 2);
+    let (doc, lift) = fixture::insert(
+        doc,
+        Node::place(
+            BodyRead::plain(Operand::Node(shelf)),
+            room.clone(),
+            Placed::of(&doc, Vec::new(), fixture::slides_along(lifting, [0.0, 0.0, 1.0], 0.1))
+                .bundle(),
+        ),
     );
-    let lifted = insert_into(
-        &mut asm,
-        Node::Part {
-            of: lift.into(),
-            select: pncad::document::PartSelect::Instance(Formula::count(1)),
-        },
-        tol,
+    let (doc, lifted) = fixture::insert(
+        doc,
+        Node::place(
+            BodyRead::indexed(lift, vec![Formula::count(1)]),
+            room.clone(),
+            stand().bundle(),
+        ),
     );
     // The second copy clears the post and the first copy.
-    let pattern = insert_into(
-        &mut asm,
-        Node::Pattern {
-            input: lifted.into(),
-            count: Formula::count(2),
-            kind: PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(2.0 * asm::SHELF_LENGTH),
-            },
-        },
-        tol,
+    let (doc, stepping) = fixture::index(doc, "step", 2);
+    let (doc, pattern) = fixture::insert(
+        doc,
+        Node::place(
+            BodyRead::plain(Operand::Node(lifted)),
+            room,
+            Placed::of(
+                &doc,
+                Vec::new(),
+                fixture::slides_along(stepping, [1.0, 0.0, 0.0], 2.0 * asm::SHELF_LENGTH),
+            )
+            .bundle(),
+        ),
     );
-    // The world (A10): each of the pattern's two copies through a `Part`
-    // per copy.
+    // The world (A10): each of the family's two members copied in.
+    let mut asm = doc;
     for index in 0..2 {
-        let copy = insert_into(
+        insert_into(
             &mut asm,
-            Node::Part {
-                of: pattern.into(),
-                select: pncad::document::PartSelect::Instance(Formula::count(index)),
-            },
+            Node::place(
+                BodyRead::indexed(pattern, vec![Formula::count(index)]),
+                Operand::Var(VarId::WORLD),
+                stand().bundle(),
+            ),
             tol,
         );
-        asm = common::placed_read(&asm, copy.into(), tol).0;
     }
-    // The shelf's bottom as the lifted body names it: the instance's
-    // name, as the lift's second copy.
+    // The shelf's bottom as the lifted body names it: the member's
+    // name, as the lift's second member.
     let b = pncad::prelude::StableName {
         kind: pncad::prelude::EntityKind::Face,
         node: lift,
-        path: vec![pncad::prelude::RoleSeg::Instance {
-            i: 1,
+        path: vec![pncad::prelude::RoleSeg::Member {
+            at: vec![(lifting, 1)],
             of: pncad::prelude::NameRef::new(bench.shelf_bottom.clone()),
         }],
     };

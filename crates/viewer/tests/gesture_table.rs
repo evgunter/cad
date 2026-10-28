@@ -678,17 +678,16 @@ fn nothing_is_fenced_when_no_gesture_is_in_flight() {
 /// that draws the control — give the same answer, and the prune a
 /// gesture's commit runs cannot discard what it is holding.
 ///
-/// **The gesture here drags a node's slots, both kinds.** A pattern
-/// over the probed instance carries a continuous `Spacing`
-/// (`DocEdit::SetParam`) and a structural `Count`
-/// (`DocEdit::SetStructuralParam`) — the two of the three value-gesture
-/// edits that write into `doc.nodes` at all, and the ones the identity
-/// is actually about. Dragging a document variable instead would
-/// write only `doc.params`, which no display predicate reads, and every
-/// assertion below would hold for any implementation of them.
+/// **The gesture here drags a node's slot.** A read of one member of
+/// a row over the probed instance carries a structural index — the
+/// node slot the identity is actually about. Dragging a document
+/// variable instead would write only `doc.params`, which no display
+/// predicate reads, and every assertion below would hold for any
+/// implementation of them.
 ///
-/// The pattern places nothing (A10), so `drawn_targets` resolves the
-/// instance to its own copy.
+/// The row and the read stand in the instance's own space and place
+/// nothing (A10), so `drawn_targets` resolves the instance to its own
+/// copy.
 ///
 /// Where it goes red: give a value gesture an edit that changes the
 /// node graph and the identity block fails outright (`free_move_check`
@@ -703,6 +702,12 @@ fn nothing_is_fenced_when_no_gesture_is_in_flight() {
 /// when it was written, and the silence it described was ended by the
 /// third withdrawal kind.) Reversing the table's four rows fails the
 /// first block, at `BeginFreeMove`.
+/// A member read's index: the structural slot the gesture drags.
+const INDEX: SlotId = SlotId::Index {
+    seat: pncad::document::OperandSlot::Source,
+    k: 0,
+};
+
 #[test]
 fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
     let tol = Tol::witness();
@@ -719,18 +724,27 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
         outcome
     }
 
-    // A pattern over the probed instance: the slots a value gesture can
-    // open on in an assembly of bare instances. It places nothing
-    // (A10), so the instance's display state stays on its own copy.
-    let pattern = common::session_insert(
+    // A row over the probed instance, and a read of one of its members:
+    // the member's index is the node slot a value gesture can open on
+    // in an assembly of bare instances. Both stand in the instance's
+    // own space, so they place nothing in the world (A10) and the
+    // instance's display state stays on its own copy.
+    let family = common::session_insert(
         &mut session,
         SessionOp::AddPattern {
             input: post.into(),
-            count: 2,
+            count: 4,
             rule: PatternRuleSpec::Linear {
                 direction: scl3([1.0, 0.0, 0.0]),
                 spacing: len(0.03),
             },
+        },
+    );
+    let pattern = common::session_insert(
+        &mut session,
+        SessionOp::AddPart {
+            of: family,
+            select: viewer::session::PartSelectSpec::Instance(0),
         },
     );
     assert_eq!(
@@ -739,15 +753,13 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
         "the probe on the instance is drawn on the instance's own copy"
     );
 
-    // Both node-writing gesture doors, one after the other.
-    for slot in [SlotId::Spacing, SlotId::Count] {
+    // The node-writing gesture door.
+    {
+        let slot = INDEX;
         // The spaces the probe's admission reads are a landing's, so
         // the last edit lands before the drags open.
         session.pump();
-        let drag_to = match slot {
-            SlotId::Count => 3.0,
-            _ => 0.04,
-        };
+        let drag_to = 2.0;
         let probe = Frame::translation([0.0, 0.0, 0.011]);
 
         perform(
@@ -854,12 +866,9 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
         );
         // The door actually taken, so the claim above is executed
         // rather than described: a value gesture writes the value of
-        // the variable its slot reads (Q6), a count's as a spacing's.
+        // the variable its slot reads (Q6), a count's as a length's.
         assert!(
-            matches!(
-                (&outcome.committed[0], slot),
-                (DocEdit::SetVarValue { .. }, SlotId::Spacing | SlotId::Count)
-            ),
+            matches!(&outcome.committed[0], DocEdit::SetVarValue { .. }),
             "{slot:?} took an unexpected door: {:?}",
             outcome.committed[0]
         );

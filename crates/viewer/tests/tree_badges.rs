@@ -890,13 +890,13 @@ fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
 ///
 /// One document, built up: an intersect of two blocks that do not
 /// meet, first alone and then under a pattern; a
-/// split whose tool plane clears the block, with a `Part` reading its
-/// empty side; and a `Part` indexed past a pattern's count.
+/// split whose tool plane clears the block, with a pattern reading its
+/// empty side; and a member read indexed past a family's count.
 #[test]
 fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     use pncad::document::{
-        BooleanValue, Doc, Node, NodeErrorKind, PartSelect, PatternKind, ProfileProgram,
-        RecipeNodeId, SplitSide, ValuePayload,
+        BooleanValue, Doc, Node, NodeErrorKind, ProfileProgram, RecipeNodeId, SplitSide,
+        TargetAxis, ValuePayload,
     };
     use pncad::select::SplitHalf;
     use viewer::tree::{Emptiness, Readout};
@@ -964,18 +964,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
 
     // A consumer of the empty value: `EmptyOperand`.
     let pattern_of = |doc: &Doc<ProfileProgram>, input: pncad::document::Operand| {
-        common::inserted(
-            doc,
-            Node::Pattern {
-                input,
-                count: pncad::document::Formula::count(2),
-                kind: PatternKind::Linear {
-                    direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
-                    spacing: common::len(0.05),
-                },
-            },
-            tol,
-        )
+        common::row_of_copies(doc, input, 2, (TargetAxis::X, 0.05), tol)
     };
     let (doc, moved) = pattern_of(&doc, apart.into());
 
@@ -1018,27 +1007,9 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         tol,
     );
 
-    // A three-instance pattern, and a `Part` reading instance 3.
-    let (doc, pattern) = common::inserted(
-        &doc,
-        Node::Pattern {
-            input: far.into(),
-            count: pncad::document::Formula::count(3),
-            kind: PatternKind::Linear {
-                direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
-                spacing: common::len(0.05),
-            },
-        },
-        tol,
-    );
-    let (doc, past) = common::inserted(
-        &doc,
-        Node::Part {
-            of: pattern.into(),
-            select: PartSelect::Instance(pncad::document::Formula::count(3)),
-        },
-        tol,
-    );
+    // A three-member family, and a read of member 3.
+    let (doc, pattern) = common::row_of_copies(&doc, far, 3, (TargetAxis::X, 0.05), tol);
+    let (doc, past) = common::member_read(&doc, pattern, 3, tol);
 
     let (ev, rows) = run(&doc);
     assert!(
@@ -1089,7 +1060,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     assert_eq!(
         common::row_of(&rows, pattern).readout,
         None,
-        "a pattern's count is authored, and the refusal's words state it"
+        "a family's count is authored, and the refusal's words state it"
     );
     assert!(
         matches!(
@@ -1125,13 +1096,13 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     let raised = |id| match ev.node_error(id).map(|error| &error.kind) {
         Some(NodeErrorKind::EmptyOperand { .. }) => Some("EmptyOperand"),
         Some(NodeErrorKind::EmptyHalf { .. }) => Some("EmptyHalf"),
-        Some(NodeErrorKind::InstanceOutOfRange { .. }) => Some("InstanceOutOfRange"),
+        Some(NodeErrorKind::MemberOutOfRange { .. }) => Some("MemberOutOfRange"),
         _ => None,
     };
     let arms = [
         (moved, "EmptyOperand"),
         (above, "EmptyHalf"),
-        (past, "InstanceOutOfRange"),
+        (past, "MemberOutOfRange"),
     ];
     for (id, arm) in arms {
         assert_eq!(

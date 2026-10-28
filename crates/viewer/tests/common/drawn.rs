@@ -124,22 +124,27 @@ pub fn rest_on(
     super::commit_mate(session, proposal.op());
 }
 
-/// A duplicate's pattern's spacing: the step's length along
-/// `viewer::combine::STEP_DIRECTION`, which the door authors literal.
-pub fn spacing_of(session: &DocSession, pattern: RecipeNodeId) -> f64 {
-    use pncad::document::{Dimension, Expr, Node, PatternKind};
-    let Some(Node::Pattern {
-        kind: PatternKind::Linear { spacing, .. },
-        ..
-    }) = session.committed_doc().node(pattern)
-    else {
-        panic!("a duplicate is a linear pattern");
+/// A duplicate's step: the length of the slides its stepped placement
+/// moves the copy by, along `viewer::combine::STEP_DIRECTION`, which
+/// the door authors literal.
+pub fn spacing_of(session: &DocSession, copy: RecipeNodeId) -> f64 {
+    use pncad::document::{Coord, Expr, Node};
+    let doc = session.committed_doc();
+    let Some(Node::Place { constraints, .. }) = doc.node(copy) else {
+        panic!("a duplicate is a stepped placement");
     };
-    session
-        .committed_doc()
-        .written(&Expr::var(*spacing, Dimension::Length))
-        .literal_value()
-        .expect("the door authors a literal spacing")
+    constraints
+        .iter()
+        .filter_map(|c| c.value())
+        .filter(|value| matches!(value.coord, Coord::Slide(_)))
+        .map(|value| {
+            doc.written(&Expr::var(value.by, value.coord.dimension()))
+                .literal_value()
+                .expect("the door authors a literal step")
+                .powi(2)
+        })
+        .sum::<f64>()
+        .sqrt()
 }
 
 /// **A box of `size` split at half its height**, landed: the session,

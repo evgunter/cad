@@ -41,7 +41,7 @@ use std::f64::consts::FRAC_PI_2;
 
 use common::asm;
 use pncad::document::{
-    DocumentId, Frame, Node, PatternKind, ProfileDoc, RecipeNodeId, parse_formula,
+    DocumentId, Frame, ProfileDoc, RecipeNodeId,
 };
 use pncad::geom_core::{Point3, Tol};
 use pncad::select::face_frame;
@@ -778,14 +778,13 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
 /// A hide names the INSTANCE; the drawn scene is keyed by world
 /// placements; `display::drawn_targets` resolves one to the other.
 /// Hiding a patterned instance therefore hides every placed copy of the
-/// pattern — the pattern replicates the instance, and the display fact
+/// pattern — the family replicates the instance, and the display fact
 /// is the instance's. A free-move moves the picture of a shown space
-/// (DI5); the instance's own space is read by the pattern's copies,
+/// (DI5); the instance's own space is read by the family's members,
 /// which are placed into the world, so it is not shown and the probe
-/// refuses it, typed. The `Pattern`
-/// node itself still has no display identity (`NotAnInstance`), which
-/// is right: the instance is the thing with an identity a user hides or
-/// probes.
+/// refuses it, typed. The family's placement itself has no display
+/// identity (`NotAnInstance`), which is right: the instance is the
+/// thing with an identity a user hides or probes.
 ///
 /// The shape is the tour's flat-pack layout, where the original
 /// silent no-op was measured (`examples/r1_gallery_probe.rs`, which
@@ -794,42 +793,17 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
 fn r1_a_patterned_instance_hides_its_pattern_and_its_space_is_not_shown() {
     let tol = Tol::witness();
     let bench = asm::bench("r1pattern", tol);
-    let scope = std::collections::BTreeMap::new();
     let mut ws = Workspace::open(&bench.dir).expect("the store opens");
     let mut doc = ProfileDoc::empty(DocumentId::derive("r1-pattern-bench"), tol);
     // An instance in a space of its own, which the pattern reads.
     let instance = common::insert_into(&mut doc, crate::fixture::mated_instance(bench.post), tol);
     doc = crate::fixture::into_new_space(doc, instance).0;
-    let pattern = common::insert_into(
-        &mut doc,
-        Node::Pattern {
-            input: instance.into(),
-            count: parse_formula("3", &scope).expect("a count"),
-            kind: PatternKind::Linear {
-                direction: [
-                    parse_formula("0.0", &scope).expect("x"),
-                    parse_formula("1.0", &scope).expect("y"),
-                    parse_formula("0.0", &scope).expect("z"),
-                ],
-                spacing: parse_formula("50 mm", &scope).expect("a spacing"),
-            },
-        },
-        tol,
-    );
-    // The world (A10): each of the pattern's copies, projected and
-    // placed.
+    let (next, _, pattern) = crate::fixture::linear(doc, instance, [0.0, 1.0, 0.0], 0.05, 3);
+    doc = next;
+    // The world (A10): each of the family's members, read and placed.
     for index in 0..3 {
-        let copy = common::insert_into(
-            &mut doc,
-            Node::Part {
-                of: pattern.into(),
-                select: pncad::document::PartSelect::Instance(pncad::document::Formula::count(
-                    index,
-                )),
-            },
-            tol,
-        );
-        doc = common::placed_read(&doc, copy.into(), tol).0;
+        let (next, member) = common::member_read(&doc, pattern, index, tol);
+        doc = common::placed_read(&next, member.into(), tol).0;
     }
     let path = ws.create(&doc, tol).expect("the pattern assembly stores");
 
@@ -919,7 +893,7 @@ fn r1_a_patterned_instance_hides_its_pattern_and_its_space_is_not_shown() {
         "the patterned instance's space is shown through the pattern's copies"
     );
 
-    // The `Pattern` node itself refuses both: it is no instance.
+    // The family's placement itself refuses both: it is no instance.
     assert!(
         matches!(
             session

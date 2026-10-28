@@ -2020,8 +2020,8 @@ fn shell_refusal_tags_are_stable() {
 /// The split classes' words are shared with the other doors that
 /// publish the same fault by delegation, not by this table: the seam
 /// classes read [`crate::tags::resolve_fault_tag`], and
-/// `placement_rule_fault_tag` and `mate_fault_tag` read
-/// [`crate::tags::node_error_tag`] through the fault's class.
+/// `mate_fault_tag` reads [`crate::tags::node_error_tag`] through the
+/// fault's class.
 #[test]
 fn node_error_tags_are_the_published_words() {
     use crate::tags::node_error_tag;
@@ -2074,7 +2074,10 @@ fn node_error_tags_are_the_published_words() {
         EmptyOperand => "empty_operand",
         UnfinishedOperand => "unfinished_operand",
         EmptyHalf => "empty_half",
-        InstanceOutOfRange => "instance_out_of_range",
+        MemberOutOfRange => "member_out_of_range",
+        MemberRefused => "member_refused",
+        IndicesUnrelated => "indices_unrelated",
+        IndexCount => "index_count",
         DegenerateDirection => "degenerate_direction",
         NonFiniteDirection => "non_finite_direction",
         UnderflowedDirection => "underflowed_direction",
@@ -2085,15 +2088,6 @@ fn node_error_tags_are_the_published_words() {
         PoseDegenerate => "pose_degenerate",
         PoseScalar => "pose_scalar",
         CountOutOfRange => "count_out_of_range",
-        NegativeSpacing => "negative_spacing",
-        DegenerateSpacing => "degenerate_spacing",
-        DegenerateStep => "degenerate_step",
-        FullRangeStep => "full_range_step",
-        PlacementsUncertified => "placements_uncertified",
-        PlacementRuleCountSpelling => "placement_rule_mismatch",
-        PlacementRuleNoPlacements => "empty_placement_list",
-        PlacementRuleNonFiniteFrame => "non_finite_placement",
-        PlacementRuleNonRigidFrame => "non_rigid_placement",
         UnschedulableCycle => "unschedulable_cycle",
         Naming => "naming",
         UnionFoldStep => "union_fold_step",
@@ -2160,7 +2154,7 @@ fn node_error_tags_are_the_published_words() {
 #[test]
 fn inner_arm_tags_are_stable() {
     use crate::tags::{node_error_tag, node_inner_kind_tag};
-    use pncad::document::{NodeErrorKind, PlacementRuleFault};
+    use pncad::document::NodeErrorKind;
     use pncad::profile::ProfileError;
     use pncad::sweep::blend::{BlendError, BlendKind};
     use pncad::sweep::{ExtrudeError, RevolveError, TubeError};
@@ -2218,23 +2212,23 @@ fn inner_arm_tags_are_stable() {
         pair(&NodeErrorKind::UnschedulableCycle),
         ("unschedulable_cycle", None)
     );
-    // The fault's word is already the carrier's own (`kind` IS that
-    // discriminant), so the second word is the count mismatch's shape,
-    // as `EditError.inner_variant` publishes it, and a fault with no
-    // arms of its own has none.
+    // An index whose count refused: the second word is the expression
+    // refusal's own, as `EvalError.variant` publishes it.
     assert_eq!(
-        pair(&NodeErrorKind::PlacementRule(
-            PlacementRuleFault::CountSpelling {
-                shape: pncad::document::CountMismatch::ListedOnPattern,
-            }
-        )),
-        ("placement_rule_mismatch", Some("listed_on_pattern"))
+        pair(&NodeErrorKind::IndexCount {
+            index: pncad::document::VarId::new(2, 0),
+            source: pncad::document::EvalError::NonFiniteResult,
+        }),
+        ("index_count", Some("non_finite_result"))
     );
+    // A member that refused: its own refusal is a whole node refusal,
+    // read through `kind` rather than a second word.
     assert_eq!(
-        pair(&NodeErrorKind::PlacementRule(
-            PlacementRuleFault::NoPlacements
-        )),
-        ("empty_placement_list", None)
+        pair(&NodeErrorKind::MemberRefused {
+            at: vec![(pncad::document::VarId::new(2, 0), 3)],
+            source: Box::new(NodeErrorKind::UnschedulableCycle),
+        }),
+        ("member_refused", None)
     );
 }
 
@@ -2384,13 +2378,13 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &["node", "constraint"],
     );
     carries(
-        &E::PlacementRuleMismatch {
+        &E::IndicesUnrelated {
             node: sp(1),
-            shape: pncad::document::CountMismatch::ListedOnPattern,
+            a: Box::new(spv()),
+            b: Box::new(spv()),
         },
         &["node"],
     );
-    carries(&E::EmptyPlacementList { node: sp(1) }, &["node"]);
     carries(
         &E::LoftSectionCount {
             node: sp(1),
@@ -2398,13 +2392,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
             given: 2,
         },
         &["node", "count", "given"],
-    );
-    carries(
-        &E::NonFinitePlacement {
-            node: sp(1),
-            at: pncad::document::FrameSite::Listed { index: 0 },
-        },
-        &["node", "index"],
     );
     // The door's per-mate admission carries the solve's fault WHOLE
     // beside the mate: the one payload that crosses as a value.
@@ -2487,7 +2474,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(
         &E::UnknownSlot {
             id: sp(1),
-            slot: SlotId::Count,
+            slot: SlotId::VDegree,
         },
         &["node", "slot"],
     );
@@ -2501,7 +2488,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     );
     carries(
         &E::StructuralSlotNeedsStructuralEdit {
-            slot: SlotId::Count,
+            slot: SlotId::VDegree,
         },
         &["slot"],
     );
@@ -2560,7 +2547,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &E::SlotUnresolvedVar {
             var: spv(),
             node: sp(1),
-            slot: SlotId::Count,
+            slot: SlotId::VDegree,
         },
         &["node", "slot", "param"],
     );
@@ -2572,7 +2559,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &E::SlotUnknownVarName {
             name: param(),
             node: sp(1),
-            slot: SlotId::Count,
+            slot: SlotId::VDegree,
         },
         &["node", "slot", "param"],
     );
@@ -2580,7 +2567,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &E::SlotVarKind {
             var: Box::new(spv()),
             node: sp(1),
-            slot: SlotId::Count,
+            slot: SlotId::VDegree,
             found: pncad::document::VarKind::Count,
             expected: pncad::document::SlotKind::Is(pncad::document::VarKind::Length),
         },
@@ -2781,14 +2768,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
 
     // ---- scalars and addresses ----
     carries(&E::InvalidTolerance { value: -1.0 }, &["value"]);
-    carries(
-        &E::NonRigidPlacement {
-            node: sp(1),
-            at: pncad::document::FrameSite::Listed { index: 0 },
-            check: "transform_rigid_col0_unit",
-        },
-        &["node", "index"],
-    );
     carries(
         &E::PinUnchanged {
             node: sp(1),

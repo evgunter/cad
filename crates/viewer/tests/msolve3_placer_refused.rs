@@ -20,13 +20,12 @@ use crate::fixture;
 
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use pncad::document::{
-    CancelToken, Doc, DocEdit, DocumentId, EvalOptions, Evaluation, Formula, MateFault, MateSide,
-    Node, NodeErrorKind, NodeResult, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId,
+    CancelToken, Coord, Doc, DocumentId, EvalOptions, Evaluation, Formula, MateFault, MateSide,
+    Node, NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, TargetAxis, VarId,
     evaluate,
 };
 use pncad::geom_core::Tol;
-use pncad::prelude::StableName;
-use pncad::select::{CapEnd, EntityKind, RoleSeg};
+use pncad::select::CapEnd;
 use viewer::frame::Tone;
 use viewer::tree::{self, RowStatus};
 
@@ -56,17 +55,16 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
 
     let doc: Doc<ProfileProgram> = ProfileDoc::empty(DocumentId::derive("msolve3-view"), tol);
     let (doc, legs) = common::inserted(&doc, crate::fixture::mated_instance(leg), tol);
-    let (doc, pattern) = common::inserted(
-        &doc,
-        Node::Pattern {
-            input: legs.into(),
-            count: Formula::count(4),
-            kind: PatternKind::Linear {
-                direction: [common::scl(1e200), common::scl(0.0), common::scl(0.0)],
-                spacing: common::len(0.05),
-            },
-        },
-        tol,
+    // A row whose one slide overflows to infinity at every member.
+    let (doc, k) = fixture::index(doc, "k", 4);
+    let (doc, pattern) = fixture::family_of(
+        doc,
+        legs,
+        vec![(
+            Coord::Slide(TargetAxis::X),
+            Formula::mul(common::len(1e200), common::scl(1e200))
+                .expect("length times scalar is a length"),
+        )],
     );
     let (doc, cap) = common::inserted(&doc, fixture::mated_instance(top), tol);
     let (doc, _) = viewer::test_support::mated(
@@ -74,14 +72,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
         cap,
         fixture::rest(
             common::head(in_part(cap, top_body, CapEnd::Start)),
-            common::head(StableName {
-                kind: EntityKind::Face,
-                node: pattern,
-                path: vec![RoleSeg::Instance {
-                    i: 1,
-                    of: in_part(legs, leg_body, CapEnd::End).name.into(),
-                }],
-            }),
+            common::head_at(pattern, fixture::in_copy(pattern, k, 1, in_part(legs, leg_body, CapEnd::End))),
         ),
         Vec::new(),
         tol,
@@ -141,6 +132,7 @@ struct Copies {
     doc: Doc<ProfileProgram>,
     opts: EvalOptions,
     pattern: RecipeNodeId,
+    index: VarId,
     mate: RecipeNodeId,
 }
 
@@ -151,33 +143,17 @@ fn copies(label: &str, copy: u32, tol: Tol) -> Copies {
 
     let doc: Doc<ProfileProgram> = ProfileDoc::empty(DocumentId::derive(label), tol);
     let (doc, legs) = common::inserted(&doc, crate::fixture::mated_instance(leg), tol);
-    let (doc, pattern) = common::inserted(
-        &doc,
-        Node::Pattern {
-            input: legs.into(),
-            count: Formula::count(3),
-            kind: PatternKind::Linear {
-                direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
-                spacing: common::len(0.05),
-            },
-        },
-        tol,
-    );
+    let (doc, k) = fixture::index(doc, "k", 3);
+    let (doc, pattern) =
+        fixture::family_of(doc, legs, fixture::slides_along(k, [1.0, 0.0, 0.0], 0.05));
     let (doc, cap) = common::inserted(&doc, fixture::mated_instance(top), tol);
-    let named = StableName {
-        kind: EntityKind::Face,
-        node: pattern,
-        path: vec![RoleSeg::Instance {
-            i: copy,
-            of: in_part(legs, leg_body, CapEnd::End).name.into(),
-        }],
-    };
+    let named = fixture::in_copy(pattern, k, copy, in_part(legs, leg_body, CapEnd::End));
     let (doc, _) = viewer::test_support::mated(
         &doc,
         cap,
         fixture::rest(
             common::head(in_part(cap, top_body, CapEnd::Start)),
-            common::head(named),
+            common::head_at(pattern, named),
         ),
         Vec::new(),
         tol,
@@ -188,6 +164,7 @@ fn copies(label: &str, copy: u32, tol: Tol) -> Copies {
         doc,
         opts: with_resolver(store),
         pattern,
+        index: k,
         mate,
     }
 }
@@ -268,12 +245,7 @@ fn a_stranded_copy_blames_the_mate_and_not_the_pattern_it_stopped_at() {
     let s = copies("msolve3-view-dangling", 2, tol);
     let (doc, _) = common::edited(
         &s.doc,
-        DocEdit::SetStructuralParam {
-            node: s.pattern,
-            slot: SlotId::Count,
-            expr: Formula::count(2),
-            fresh: Vec::new(),
-        },
+        fixture::recount_edit(&s.doc, s.index, Formula::count(2)),
         tol,
     );
     let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &s.opts, tol);
@@ -326,12 +298,7 @@ fn a_pattern_of_no_copies_fails_beside_the_mate() {
     let s = copies("msolve3-view-dangling-zero", 1, tol);
     let (doc, _) = common::edited(
         &s.doc,
-        DocEdit::SetStructuralParam {
-            node: s.pattern,
-            slot: SlotId::Count,
-            expr: Formula::count(0),
-            fresh: Vec::new(),
-        },
+        fixture::recount_edit(&s.doc, s.index, Formula::count(0)),
         tol,
     );
     let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &s.opts, tol);
