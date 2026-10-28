@@ -3563,7 +3563,6 @@ prefix `polish/`; tag `(POLISH orchestrator)`; ab_band `10200-10299`.
 | `track-caller-fns-panic-inside-closures-in-topo-and-sweep` | 2026-10-25 | #[track_caller] fns in topo and sweep panic, or call a #[track_caller] helper, from inside a closure, so the panic reports the fn's own line |
 | `a-fold-step-reads-a-vertex-against-a-carrier-the-pass-never-judged` | 2026-10-26 | A union fold step reads an accumulation vertex against the joining member's carrier, a pair the pass never judged, so the union refuses in some member orders |
 | `main-red-the-lattice-discard-pin-moved-where-pred-5724-met-flush-5706` | 2026-10-26 | Main is red: the lattice corpus's bordered-discard pin moved where PRED's PR 5724 merged onto FLUSH's PR 5706; each passes alone |
-| `main-red-perf12-kitchen-sink-census-drops-a-curved-pair-after-restread` | 2026-10-27 | Main red: perf12's kitchen_sink census reads 28 findings, the curved pair (face 47, face 21) cleared since #5817, golden unblessed |
 | `main-reds-without-an-item-met-by-pcert-e1b` | 2026-10-27 | main reds with no item, met by PCERT E1b's round: the tier-1 census names validate_pseudomanifold, emit_union_borders' corner boss, and three sweep rows at 1e-6 (one builds a wrong volume) |
 | `the-tour-lily-ships-its-stem-as-two-pieces` | 2026-10-27 | The tour's lily ships its stem as two pieces although the glue now builds |
 
