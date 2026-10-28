@@ -546,6 +546,12 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
 /// edge curve's `Debug` the digest feeds. With that `Debug` written in
 /// main's shape every digest here reproduces main's value at all three
 /// ε rows, so nothing else moved.
+///
+/// RE-BLESSED when `Intersection`'s witness became its selector
+/// (`selector: Witness(p)` where it spelled `witness: p`), which changes
+/// the edge curve's `Debug` the digest feeds. With that `Debug` written in
+/// main's shape the digest reproduces main's value at all three ε rows,
+/// so nothing else moved.
 #[test]
 fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let (r, split) = cube_split_at(5.0);
@@ -566,7 +572,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0x95b6_b099_d57e_e9be,
+        got, 0x883a_4673_251b_8566,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }

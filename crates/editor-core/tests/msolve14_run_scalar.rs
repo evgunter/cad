@@ -1016,9 +1016,9 @@ fn run_at<T: editor_core::EvalScalar>(
 /// the order it first appears in, every byte fed (faults, spaces, the 36
 /// frames, the evaluations' tables and bodies) is main's at 1e-9.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0xeb0c_6bbd_39c6_1348),
-    (1e-6, 0x2c55_d6c3_d17f_2c75),
-    (1e-12, 0xd1ee_81d0_2190_463f),
+    (1e-9, 0xa595_8637_95cd_1629),
+    (1e-6, 0xa7ec_84bf_f2f0_24e6),
+    (1e-12, 0xb65f_8182_3f49_6c0e),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
@@ -1073,6 +1073,12 @@ fn each_seat_stands_on_what_it_is_seated_on() {
 /// RE-BLESSED for limb 2 for every carrier (PR 5728): check 2's turn
 /// moved from the edge's `Certificate` onto the edge, which changes the
 /// edge curve's `Debug` the digest feeds. With that `Debug` written in
+/// main's shape every digest here reproduces main's value at all three
+/// ε rows, so nothing else moved.
+///
+/// RE-BLESSED when `Intersection`'s witness became its selector
+/// (`selector: Witness(p)` where it spelled `witness: p`), which changes
+/// the edge curve's `Debug` the digest feeds. With that `Debug` written in
 /// main's shape every digest here reproduces main's value at all three
 /// ε rows, so nothing else moved.
 #[test]

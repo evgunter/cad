@@ -675,6 +675,12 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
 /// edge curve's `Debug` the digest feeds. With that `Debug` written in
 /// main's shape every digest here reproduces main's value at all three
 /// ε rows, so nothing else moved.
+///
+/// RE-BLESSED when `Intersection`'s witness became its selector
+/// (`selector: Witness(p)` where it spelled `witness: p`), which changes
+/// the edge curve's `Debug` the digest feeds. With that `Debug` written in
+/// main's shape the digest reproduces main's value at all three ε rows,
+/// so nothing else moved.
 #[test]
 fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let mut r = corpus::Recorder::new();
@@ -713,7 +719,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0xd44d_7ecb_0b12_30cf,
+        got, 0x53a4_d4cd_70d2_b713,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

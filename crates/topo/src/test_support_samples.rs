@@ -492,6 +492,14 @@ fn certify_errors() -> Vec<CertifyError> {
             },
         )),
         CertifyError::IntersectionSameSurface { key },
+        CertifyError::RowImage {
+            surface: key,
+            check: Some(geom_brep::PcurveCheck::MapResidual),
+        },
+        CertifyError::RowImage {
+            surface: key,
+            check: None,
+        },
         CertifyError::WrapOnNonPeriodic,
         // Both zero-span stories: a length a smaller tolerance decides,
         // and a span of no length, which none does.
