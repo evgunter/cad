@@ -1299,7 +1299,7 @@ fn strut_turn<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<bool, SplitJ
 }
 
 /// Kills every strut of the loop `l` ([`strut_turn`]) with the vertex at
-/// its tip ([`Body::kev`]), repeating until none is left, so a chain of
+/// its tip ([`Body::kev`](crate::construction::Construct::kev)), repeating until none is left, so a chain of
 /// struts goes from its tip back.
 fn kill_struts<T: Decide>(body: &mut Body<T>, l: LoopKey) -> Result<(), SplitJoinError> {
     loop {

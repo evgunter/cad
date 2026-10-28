@@ -62,8 +62,11 @@
 //! reversed parameterization (which would move bits).
 
 use std::collections::BTreeMap;
+use topo::construction::Construct;
 
-use topo::{Body, FaceKey, HalfEdgeKey, LoopKey, MefSite, MekrSite, MevSite, VertexKey};
+use topo::{Body, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
+
+use topo::construction::{MefSite, MekrSite, MevSite};
 
 use crate::adopt;
 use crate::entities::SolidSpec;

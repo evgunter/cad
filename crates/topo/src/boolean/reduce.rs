@@ -7787,7 +7787,7 @@ mod spline_face_rows {
         let surface = Surface::Nurbs(std::sync::Arc::new(patch));
         body.lifting_rechart_refusals_for_tests(|body| {
             body.set_face_surfaces_describing(
-                vec![crate::Rechart::new(surface, face, true)],
+                vec![crate::construction::Rechart::new(surface, face, true)],
                 &[],
                 tol,
             )
@@ -7899,7 +7899,7 @@ mod spline_face_rows {
         let seed = x.mvfs(at(0.2, 0.0), true).unwrap();
         let chord = x
             .mev_line(
-                crate::MevSite::Lone {
+                crate::construction::MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
                 at(1.4, 1.0),
@@ -7928,7 +7928,7 @@ mod spline_face_rows {
         let seed = x.mvfs(p, true).unwrap();
         let edge = x
             .mev_line(
-                crate::MevSite::Lone {
+                crate::construction::MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
                 q,
@@ -7963,7 +7963,7 @@ mod spline_face_rows {
         let seed = x.mvfs(Point3::origin() - dir * 0.5, true).unwrap();
         let edge = x
             .mev_line(
-                crate::MevSite::Lone {
+                crate::construction::MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
                 Point3::origin() + dir * 0.5,
@@ -8063,7 +8063,7 @@ mod spline_face_rows {
         let key = x
             .set_face_surface(
                 seed.face,
-                crate::FaceSurface::New {
+                crate::construction::FaceSurface::New {
                     surface: Surface::Plane {
                         origin: p,
                         normal: (q - p).cross(x_hat).normalize(),
@@ -8102,7 +8102,7 @@ mod spline_face_rows {
         };
         let edge = x
             .mev(
-                crate::MevSite::Lone {
+                crate::construction::MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
                 q,

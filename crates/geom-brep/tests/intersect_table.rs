@@ -101,7 +101,9 @@ fn route_inventory() {
         // Circle (sphere_sphere_section — the same algebra profile's
         // arc/arc carrier gate runs in 2-D).
         (Sphere, Sphere, Rung::Closed, true),
-        (Sphere, Torus, Rung::General, false),
+        // The ℝ³ implicit-pair march, the torus read through its
+        // quartic (`ssi::sphere_torus_ssi`).
+        (Sphere, Torus, Rung::General, true),
         (Sphere, Nurbs, Rung::General, false),
         (Torus, Torus, Rung::General, false),
         (Torus, Nurbs, Rung::General, false),
@@ -993,6 +995,7 @@ fn a_coaxial_tangency_is_classification_data_at_both_doors() {
         let err = geom_brep::ssi::cylinder_sphere_ssi(&cyl, &sph, domain, band())
             .expect_err("the marcher must refuse a tangency");
         let geom_brep::ssi::SsiError::PairTangent {
+            pair: geom_brep::ssi::TangentPair::CylinderSphere,
             verdict: geom_brep::recourse::Refused::Zero(classified),
         } = err
         else {

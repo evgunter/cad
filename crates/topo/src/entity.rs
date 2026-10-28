@@ -279,11 +279,11 @@ pub struct Face {
     /// `face_normal`'s tree-wide row is what stands against that.
     ///
     /// **Writers.** `mvfs` writes its caller's bit, and `mef`, `mfkrh`
-    /// and [`crate::Body::set_face_surface`] write the bit their
-    /// [`crate::FaceSurface`] spec resolves to
+    /// and [`crate::Body::set_face_surface`](crate::construction::Construct::set_face_surface) write the bit their
+    /// [`crate::construction::FaceSurface`] spec resolves to
     /// (`Body::resolve_face_surface`), so every construction that
     /// charts a face states or derives its bit through those doors. [`crate::Body::revert`] flips every
-    /// face of a body at once, and [`crate::Body::set_face_sense`]
+    /// face of a body at once, and [`crate::Body::set_face_sense`](crate::construction::Construct::set_face_sense)
     /// writes the bit on a chart that stands still. The test-only door
     /// [`crate::Body::flipped_face_sense_for_tests`] exercises the
     /// *incoherent* single-face flip.

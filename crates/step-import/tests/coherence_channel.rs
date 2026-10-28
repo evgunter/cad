@@ -40,6 +40,7 @@
 
 use crate::common;
 use crate::wild::{WILD_IMPORTS, wild};
+use topo::construction::Construct;
 
 use common::{
     FREECAD_FIXTURES, SOLID_FIXTURES, fixture, freecad_fixture, halfcap_fixture, own_import_options,

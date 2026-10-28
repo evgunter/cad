@@ -23,6 +23,7 @@
 
 use core::f64::consts::PI;
 use std::time::Instant;
+use topo::construction::Construct;
 
 use geom_core::{Point3, Tol, Vec3};
 use sweep::test_support::block;
@@ -287,7 +288,7 @@ fn r2_e2e_axial_door_names_one_solid_while_the_other_is_unmintable() {
     // Lifts RechartStrandsDescriptions: a cylinder the box face does not lie on is the unmintable neighbour.
     body.set_face_surface_unvouched_for_tests(
         victim,
-        topo::FaceSurface::New {
+        topo::construction::FaceSurface::New {
             surface: geom::Surface::Cylinder {
                 origin: Point3::new(10.5, 1.5, 0.0),
                 axis: Vec3::new(0.0, 0.0, 1.0),

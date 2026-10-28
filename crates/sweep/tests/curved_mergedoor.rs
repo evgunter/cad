@@ -30,9 +30,11 @@ use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::test_support::finished;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, Rechart};
 use topo::{
-    AtRestBody, Body, BooleanBody, FaceSurface, MergeCoplanarError, Rechart, SkippedMerge,
-    validate_closed, validate_geometric, validate_pseudomanifold,
+    AtRestBody, Body, BooleanBody, MergeCoplanarError, SkippedMerge, validate_closed,
+    validate_geometric, validate_pseudomanifold,
 };
 
 const BORE_R: f64 = 0.5;
@@ -382,8 +384,11 @@ fn d_prism_with_split_keys() -> (
                 .0
         };
         let (he1, he2) = (leaving(bottom), leaving(top));
-        body.mef_chord(topo::MefSite::Chords { he1, he2 }, Tol::witness())
-            .unwrap();
+        body.mef_chord(
+            topo::construction::MefSite::Chords { he1, he2 },
+            Tol::witness(),
+        )
+        .unwrap();
     };
     let (line_run, arc_run) = (&built.walls[0][0], &built.walls[0][1]);
     assert_eq!(line_run.segments, vec![0, 1], "the y = 0 side is one run");

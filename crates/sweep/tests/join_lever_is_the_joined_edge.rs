@@ -20,6 +20,7 @@ use geom_core::{Band, Point2, Point3, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::{brick, finished};
 use sweep::{ExtrudeSide, Extrusion, extrude};
+use topo::construction::Construct;
 use topo::{AtRestBody, Body, BooleanResult, EdgeKey, intersect};
 
 fn tol() -> Tol {

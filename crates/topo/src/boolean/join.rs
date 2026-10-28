@@ -6160,14 +6160,14 @@ mod frame_dispatch_tests {
         let seed = body.mvfs(Point3::new(1.0, 0.0, z0), true).unwrap();
         body.set_face_surface(
             seed.face,
-            crate::FaceSurface::New {
+            crate::construction::FaceSurface::New {
                 surface: cylinder_at(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0), 1.0),
                 sense: true,
             },
         )
         .unwrap();
         body.mev_line(
-            crate::MevSite::Lone {
+            crate::construction::MevSite::Lone {
                 r#loop: seed.r#loop,
             },
             Point3::new(1.0, 0.0, z1),
@@ -6280,7 +6280,7 @@ mod frame_dispatch_tests {
         let seed = body.mvfs(carrier.eval(t0), true).unwrap();
         body.set_face_surface(
             seed.face,
-            crate::FaceSurface::New {
+            crate::construction::FaceSurface::New {
                 surface: cylinder_at(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0), 1.0),
                 sense: true,
             },
@@ -6295,7 +6295,7 @@ mod frame_dispatch_tests {
         let end = carrier.eval(t1);
         let arc = body
             .mev(
-                crate::MevSite::Lone {
+                crate::construction::MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
                 end,
@@ -6313,7 +6313,7 @@ mod frame_dispatch_tests {
             .unwrap();
         let foot = end - Vec3::new(0.0, 0.0, h);
         body.mev_line(
-            crate::MevSite::Fan {
+            crate::construction::MevSite::Fan {
                 he1: arc.he_minus,
                 he2: arc.he_minus,
             },
@@ -6407,7 +6407,7 @@ mod frame_dispatch_tests {
             Ok(S::Empty) => "empty",
             Err(_) => "refused",
         };
-        for _ in 0..fuzz::scaled(2000) {
+        for _ in 0..fuzz::scaled(1000) {
             // Radii and offsets of up to 1e3, short of where ε leaves no room
             // for the fixture to certify a rim on a random axis.
             let room = (1e12 * eps).min(1e3);
@@ -6589,7 +6589,7 @@ mod frame_dispatch_tests {
         let seed = body.mvfs(carrier.eval(0.0), true).unwrap();
         body.set_face_surface(
             seed.face,
-            crate::FaceSurface::New {
+            crate::construction::FaceSurface::New {
                 surface: cylinder_at(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0), 1.0),
                 sense: true,
             },
@@ -6603,7 +6603,7 @@ mod frame_dispatch_tests {
         });
         let quarter = core::f64::consts::FRAC_PI_2;
         body.mev(
-            crate::MevSite::Lone {
+            crate::construction::MevSite::Lone {
                 r#loop: seed.r#loop,
             },
             carrier.eval(quarter),

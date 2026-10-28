@@ -12,6 +12,7 @@
 
 use geom::Curve3;
 use geom_core::{Band, Tol};
+use topo::construction::Construct;
 use topo::test_support::{CylFrame, cyl_wall_sheet};
 use topo::{Body, EdgeKey, FaceKey};
 

@@ -55,10 +55,9 @@ use geom_core::{
     RigidMotionError, Sign, Tol, UnitVec3, Vec3,
 };
 use profile::SegmentKind;
-use topo::{
-    Body, DihedralReading, EdgeKey, EulerOpError, FaceKey, FaceSurface, HalfEdgeKey, MefSite,
-    MevSite, SurfaceKey,
-};
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, MefSite, MevSite};
+use topo::{Body, DihedralReading, EdgeKey, EulerOpError, FaceKey, HalfEdgeKey, SurfaceKey};
 
 /// Where a copy of the sketch stands: its placement, then for a
 /// revolve's far copy the turn about the revolution axis.

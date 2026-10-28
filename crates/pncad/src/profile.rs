@@ -1,10 +1,11 @@
 //! 2-D profile authoring: loops, vertices, sketch planes, the PATHS
 //! authoring lattice, and the validation tiers — **curated**.
 //!
-//! Every other kernel crate is re-exported whole from the façade root
+//! The other kernel crates are re-exported whole from the façade root
 //! (`pub use mesh;`, `pub use sweep;`, …): they carry geometry, and a
 //! whole-crate re-export of geometry hands out nothing a caller should
-//! not have. `profile` is the exception, and this module is why.
+//! not have. `profile` is one exception, and this module is why; `topo`,
+//! whole but for its construction tier, is the other (`crate::topo`).
 //!
 //! # The boundary this module draws
 //!
