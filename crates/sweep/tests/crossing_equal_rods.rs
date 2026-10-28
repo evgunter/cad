@@ -18,17 +18,18 @@
 //! The germ runs along `A`'s ellipse edge inside `B`'s wall, so the join
 //! reads the walls' axes, finds them apart, and hands the germ to the
 //! edge-plane lane rather than the parallel pair's radical plane. That
-//! lane copies its edge on the edge's own side, which it does for a line
-//! or a circle and not for an ellipse
-//! (`cleave/the-edge-plane-lane-copies-no-ellipse-edge`): every op ends
-//! there, and the pins name that ending exactly, so a fix to it moves
-//! them.
-
+//! lane copies its edge on the edge's own side, the ellipse's own curve.
+//! Past the copy, at spins `(0, 0)` every op builds a sound body at its
+//! closed form, but its certified enclosure is wider than
+//! `differential`'s budget; at every other pose every op refuses
+//! `UnpairedLooseEnds`
+//! (`honejoin/the-edge-plane-lane-copies-no-ellipse-edge`). The pins
+//! name those endings exactly, so a fix to either moves them.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{FRAC_PI_2, PI};
 
-use crate::common::differential::outcome;
+use crate::common::differential::{VOLUME_CLAIM, outcome};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::test_support::{brick, finished};
 use topo::{AtRestBody, BooleanError, BooleanResult, SplitJoinError};
@@ -90,19 +91,43 @@ fn shared(x0: f64) -> f64 {
     f(1.0) - f(x0)
 }
 
-/// What the edge-plane lane's copy of `A`'s ellipse edge refuses
-/// (`chord_join::along_edge_spec`).
-const NO_ELLIPSE_COPY: &str = "a section segment along an edge whose carrier has no chord lane";
+/// How one op ends past the edge-plane lane's copy of `A`'s ellipse
+/// edge.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Ending {
+    /// A body passing tiers 2 and 3′, the at-rest certificate and the
+    /// legal-operand check, the closed form within its certified volume
+    /// enclosure ([`sound`]).
+    Builds,
+    /// The join's loose ends left unpaired.
+    LooseEnds,
+}
+
+/// Whether `bb` passes tiers 2 and 3′, the at-rest certificate and the
+/// legal-operand check (it unites with a far brick), with `volume`
+/// within its certified enclosure.
+fn sound(bb: &topo::BooleanBody<f64>, volume: f64, tol: Tol) -> bool {
+    let far = finished(
+        "the far brick",
+        brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol),
+        tol,
+    );
+    let m = topo::test_support::pinned_volume("the result", &bb.body, tol);
+    topo::validate_closed(&bb.body).is_ok()
+        && topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol).is_ok()
+        && topo::validate_geometric_certificate(&bb.body, tol).is_ok()
+        && topo::union(&bb.body, &far, tol).is_ok()
+        && (m.volume - volume).abs() <= VOLUME_CLAIM + m.volume_pad
+}
 
 /// The lines of the six ops at `(spin A, spin B, x0)` that do not end
-/// at the edge-plane lane's copy of the ellipse edge, each with what it
-/// did against its closed form.
-fn not_at_the_copy((sa, sb, x0): (f64, f64, f64)) -> Vec<String> {
+/// as `want`, each with what it did against its closed form.
+fn not_ending((sa, sb, x0): (f64, f64, f64), want: Ending) -> Vec<String> {
     let tol = Tol::witness();
     let (a, b) = (mitred(sa), crossing(sb, x0));
     let (va, vb, s) = (3.0 * PI, (3.0 - x0) * PI, shared(x0));
     let mut lines = Vec::new();
-    for (op, r, want) in [
+    for (op, r, volume) in [
         ("A ∪ B", topo::union(&a, &b, tol), va + vb - s),
         ("B ∪ A", topo::union(&b, &a, tol), va + vb - s),
         ("A ∩ B", topo::intersect(&a, &b, tol), s),
@@ -110,17 +135,19 @@ fn not_at_the_copy((sa, sb, x0): (f64, f64, f64)) -> Vec<String> {
         ("A ∖ B", topo::subtract(&a, &b, tol), va - s),
         ("B ∖ A", topo::subtract(&b, &a, tol), vb - s),
     ] {
-        let at_the_copy = matches!(
-            &r,
-            Err(BooleanError::Join(j)) if matches!(
-                j.error(),
-                SplitJoinError::SectionInvariant { what, .. } if what.starts_with(NO_ELLIPSE_COPY)
-            )
-        );
-        if !at_the_copy {
-            let line = outcome(r, want, tol);
+        let ending = match &r {
+            Err(BooleanError::Join(j))
+                if matches!(j.error(), SplitJoinError::UnpairedLooseEnds { .. }) =>
+            {
+                Some(Ending::LooseEnds)
+            }
+            Ok(BooleanResult::Body(bb)) if sound(bb, volume, tol) => Some(Ending::Builds),
+            _ => None,
+        };
+        if ending != Some(want) {
             lines.push(format!(
-                "spins ({sa}, {sb}), B from x = {x0} | {op} | {line}"
+                "spins ({sa}, {sb}), B from x = {x0} | {op} | {}",
+                outcome(r, volume, tol)
             ));
         }
     }
@@ -128,33 +155,38 @@ fn not_at_the_copy((sa, sb, x0): (f64, f64, f64)) -> Vec<String> {
 }
 
 /// **The crossing pair is not read as parallel**: at the row's pose
-/// every op in both orders ends at the edge-plane lane's copy of the
-/// ellipse edge, a kernel-invariant refusal on valid input that
-/// `cleave/the-edge-plane-lane-copies-no-ellipse-edge` owns, and none
-/// at the parallel pair's radical plane (`JoinDesync`). An op that
-/// builds, or refuses otherwise, moves this pin with that row.
+/// every op in both orders gets past the edge-plane lane's copy of the
+/// ellipse edge and refuses `UnpairedLooseEnds`, a refusal on valid
+/// input that `honejoin/the-edge-plane-lane-copies-no-ellipse-edge`
+/// owns, and none at the parallel pair's radical plane (`JoinDesync`).
+/// An op that builds, or refuses otherwise, moves this pin with that
+/// row.
 #[test]
-fn crossing_rods_end_at_the_ellipse_edge_copy() {
-    let moved = not_at_the_copy((0.4, 0.3, 0.2));
+fn crossing_rods_end_past_the_ellipse_edge_copy() {
+    let moved = not_ending((0.4, 0.3, 0.2), Ending::LooseEnds);
     assert!(
         moved.is_empty(),
-        "the-edge-plane-lane-copies-no-ellipse-edge: every op ends at the copy\n{}",
+        "the-edge-plane-lane-copies-no-ellipse-edge: every op leaves loose ends\n{}",
         moved.join("\n")
     );
 }
 
-/// [`crossing_rods_end_at_the_ellipse_edge_copy`] at two more spin
+/// [`crossing_rods_end_past_the_ellipse_edge_copy`] at two more spin
 /// pairs, both seam rulings at `±x` among them, and with `B` from
-/// `x = 0.5`.
+/// `x = 0.5`. With both seams at `±x`, every op builds.
 #[test]
-fn crossing_rods_end_at_the_ellipse_edge_copy_at_every_spin() {
-    let moved: Vec<String> = [(1.0, -0.7, 0.2), (0.0, 0.0, 0.2), (0.4, 0.3, 0.5)]
-        .into_iter()
-        .flat_map(not_at_the_copy)
-        .collect();
+fn crossing_rods_end_past_the_ellipse_edge_copy_at_every_spin() {
+    let moved: Vec<String> = [
+        ((1.0, -0.7, 0.2), Ending::LooseEnds),
+        ((0.0, 0.0, 0.2), Ending::Builds),
+        ((0.4, 0.3, 0.5), Ending::LooseEnds),
+    ]
+    .into_iter()
+    .flat_map(|(pose, want)| not_ending(pose, want))
+    .collect();
     assert!(
         moved.is_empty(),
-        "the-edge-plane-lane-copies-no-ellipse-edge: every op ends at the copy\n{}",
+        "the-edge-plane-lane-copies-no-ellipse-edge: each pose ends as pinned\n{}",
         moved.join("\n")
     );
 }

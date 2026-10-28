@@ -23,11 +23,9 @@
 //!   the two rim circles and the hole's wall resting on the plug's; the
 //!   differences give each operand back; the intersection is empty.
 //! - **tilted plug**: the plug tilted `θ` back in its hole, its rims
-//!   ellipses, the hole's wall resting on the plug's across them. The
-//!   intersections are empty and the differences give each operand
-//!   back; the union refuses
-//!   `GermEdgeCarrierUnsupported` at every pose
-//!   (`cleave/a-tilted-plug-union-refuses-at-the-germ-segment-and-section-copy-rosters`).
+//!   ellipses, the hole's wall resting on the plug's across them. As
+//!   plugged: the union is the slab again, the differences give each
+//!   operand back, and the intersections are empty.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -36,7 +34,7 @@ use core::f64::consts::PI;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::test_support::{brick, prism_on, sketch_from_axes};
 use topo::test_support::finished;
-use topo::{AtRestBody, Body, BooleanError, BooleanResult, Cell, RowCell};
+use topo::{AtRestBody, Body, BooleanResult, Cell, RowCell};
 
 /// The rod's radius.
 const R: f64 = 0.25;
@@ -118,8 +116,6 @@ enum Reading {
         face_pair_rows: usize,
     },
     Empty,
-    /// The germ join's typed refusal of an edge carrier it cannot pair.
-    GermEdgeRefused,
 }
 
 /// What one op is held to.
@@ -129,8 +125,6 @@ enum Want {
     Builds(f64),
     /// No body: the operands share no volume.
     Empty,
-    /// The germ join's typed refusal.
-    GermEdgeRefused,
 }
 
 /// The rows naming a face of each operand.
@@ -176,13 +170,6 @@ fn every_op(
         let label = format!("{label}, {op}");
         let truth = match want {
             Want::Builds(volume) => volume,
-            Want::GermEdgeRefused => {
-                assert!(
-                    matches!(out, Err(BooleanError::GermEdgeCarrierUnsupported { .. })),
-                    "{label}: the germ join refuses the edge carrier: {out:?}"
-                );
-                return Reading::GermEdgeRefused;
-            }
             Want::Empty => {
                 assert!(
                     matches!(out, Ok(BooleanResult::Empty)),
@@ -202,13 +189,17 @@ fn every_op(
             Ok(()),
             "{label}: tier 3"
         );
-        let m = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
-            .unwrap_or_else(|e| panic!("{label}: mass properties {e:?}"));
+        assert_eq!(
+            topo::validate_pseudomanifold(&out.body, &out.contacts, tol),
+            Ok(()),
+            "{label}: tier 3′"
+        );
+        let m = topo::test_support::pinned_volume(&label, &out.body, tol);
         assert!(
-            (m.enclosure.volume - truth).abs() <= m.enclosure.volume_pad + 1e-9 * truth,
+            (m.volume - truth).abs() <= m.volume_pad + 1e-9 * truth,
             "{label}: volume {} ± {} against the closed form {truth}",
-            m.enclosure.volume,
-            m.enclosure.volume_pad
+            m.volume,
+            m.volume_pad
         );
         // A legal operand: its union with a far unit brick builds and
         // holds the brick beside it.
@@ -315,9 +306,9 @@ fn a_plug_in_its_hole_reads_alike_at_every_pose() {
 }
 
 /// **tilted plug**: the plug tilted `0.3` rad and [`TILT`] back in its
-/// hole. The intersections are empty, each difference gives its operand
-/// back with its own faces and the six face-pair rows the plugged union
-/// records, and the union refuses `GermEdgeCarrierUnsupported`.
+/// hole. As plugged: the union is the slab's six faces with the six
+/// face-pair rows, each difference gives its operand back with its own
+/// faces and those rows, and the intersections are empty.
 #[test]
 fn a_tilted_plug_in_its_hole_reads_alike_at_every_pose() {
     let tol = Tol::witness();
@@ -329,12 +320,16 @@ fn a_tilted_plug_in_its_hole_reads_alike_at_every_pose() {
                 label,
                 &posed("the plug", &plug, map, tol),
                 &posed("the holed slab", &hole, map, tol),
-                (Want::GermEdgeRefused, [v_a, v_b]),
+                (Want::Builds(SLAB_VOLUME), [v_a, v_b]),
             )
         });
         assert_eq!(
-            reference[3..],
+            [reference[0], reference[3], reference[4]],
             [
+                Reading::Body {
+                    faces: 6,
+                    face_pair_rows: 6
+                },
                 Reading::Body {
                     faces: 4,
                     face_pair_rows: 6
@@ -344,8 +339,8 @@ fn a_tilted_plug_in_its_hole_reads_alike_at_every_pose() {
                     face_pair_rows: 6
                 },
             ],
-            "tilted {tilt}: each difference is its operand's faces, with the face pairs \
-             the plugged union records"
+            "tilted {tilt}: the union is the slab and each difference its operand's faces, \
+             with the face pairs the plugged union records"
         );
     }
 }
