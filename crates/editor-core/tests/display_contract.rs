@@ -2014,7 +2014,9 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
                 node: RecipeNodeId::new(0, tagged(10)),
                 index: editor_core::VarId::new(0, tagged(2)),
             }),
-            format!("the count of read 000000000002, an index node 00000000000a is repeated over, changed{tail}"),
+            format!(
+                "the count of read 000000000002, an index node 00000000000a is repeated over, changed{tail}"
+            ),
         ),
         (
             upstream(UpstreamCause::RecipeEdit {
