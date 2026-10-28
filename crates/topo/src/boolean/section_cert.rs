@@ -1368,15 +1368,16 @@ const PARALLEL_TORI_ORDER: &str = "section_torus_parallel_tori_order";
 /// `W`'s strands are the sheets `ρ = R ± √(r² − y²)` and the partner's
 /// over the heights both tubes span, joined where that span ends at a
 /// tube's top or bottom: two loops where one tube owns both ends, one
-/// loop of four strands otherwise. `W` is smooth but where the two
-/// tubes' ends stand level, a node at `(R, R₂)` where all four strands
-/// meet; the arm reads past it where it clears the triangle, and refuses
-/// R-tan where it does not, the carriers tangent there. A crossing of the
-/// meridian circles is transverse (the rows below decide it), so the
-/// section crosses `Π` square to it there and `W` passes from inside the
-/// triangle to outside. A loop of `W` meeting `Π` in `2k` points is
-/// therefore cut into arcs alternately inside and outside, and each arc
-/// inside closes with its mirror into one component: `k` components,
+/// loop of four strands otherwise. `W` is smooth except where a tube's
+/// end stands level with the other's: there it pinches at `(R, R₂)`, all
+/// four strands meeting at a level top or bottom, and `W` that one point
+/// at level slabs. The arm reads past the pinch where it clears the
+/// triangle by the pinch's neck, and refuses R-tan where it does not. A
+/// crossing of the meridian circles is transverse (the rows below decide
+/// it), so the section crosses `Π` square to it there and `W` passes from
+/// inside the triangle to outside. A loop of `W` meeting `Π` in `2k`
+/// points is therefore cut into arcs alternately inside and outside, and
+/// each arc inside closes with its mirror into one component: `k` components,
 /// each holding exactly one of every other point in the loop's cyclic
 /// order, its witness. A loop of `W` meeting no point of `Π` lies wholly
 /// inside the triangle or wholly outside, read at one height: inside,
@@ -1394,79 +1395,86 @@ fn torus_parallel_torus<T: Decide>(
 ) -> Section<T> {
     let side = a.cross(toward);
     let at = |x: T, y: T, z: T| c + toward * x + a * y + side * z;
-    // A level row (a tube's top against the other's top, bottom or
-    // bottom) left undecided stands within `δ = escalate + 2·slack` of
-    // level at every consumed pose. At heights within `δ` of the level
-    // end both tubes' sheets stand within `√(2·max(r, r₂)·δ)`, the neck,
-    // of `R` and `R₂`, so there `W` stays in the neck's ball about the
-    // node `(R, R₂)`; elsewhere the level row's verdict does not enter.
-    // The node clears the closed triangle when it stands beyond its far
-    // edge or below its near one by more than the neck: then every point
-    // `W` holds near the level end lies outside, no arc inside the
-    // triangle reaches it, and every reading of the end (which tube's
-    // sheets turn there, or none, the tubes apart) cuts the same arcs
-    // inside, each in the interior of one strand. Otherwise the node sits
-    // in or on the triangle within the neck: both tubes' level ends are
-    // points of both tori where both normals lie along the axes, a
-    // tangency.
-    let node_clear = || {
-        let delta = T::from_f64(band.escalate()) + slack * T::from_f64(2.0);
-        let neck = (T::from_f64(2.0) * r.max(r2) * delta).sqrt();
-        [
-            (
-                "section_torus_parallel_tori_node_beyond",
-                "section_torus_parallel_tori_node_beyond_floor",
-                e - (big_r + big_r2) - neck,
+    // A level row is one tube's top or bottom against the other's. Left
+    // pinched with datum `d`, its two ends stand within
+    // `δ = |d| + slack + escalate` of level at every consumed pose (the
+    // escalation covering the datum's rounding; a poisoned datum poisons
+    // `δ`, and the clearance below then refuses). Near the level ends a
+    // tube's sheets stand `√(2·rᵢ·t)` from its radius at depth `t` below
+    // its own end, so `W` stays near the node `(R, R₂)`. How near depends
+    // on the row's shape: the `neck` each branch passes `clears`, which
+    // decides the node's distance outside the closed triangle against it.
+    // Where it does not clear, a level end lies in or within the neck of
+    // the triangle: there both tori stand with their normals along the
+    // axes, a tangency, and the row's R-tan stands.
+    let node_off = (e - (big_r + big_r2)).max((big_r - big_r2).abs() - e);
+    let clears = |d: T, shape: T| {
+        let delta = d.abs() + slack + T::from_f64(band.escalate());
+        let neck = (T::from_f64(2.0) * shape * delta).sqrt();
+        matches!(
+            signs_across(
+                [(
+                    "section_torus_parallel_tori_node",
+                    "section_torus_parallel_tori_node_floor",
+                    node_off - neck,
+                )],
+                slack,
+                band,
             ),
-            (
-                "section_torus_parallel_tori_node_within",
-                "section_torus_parallel_tori_node_within_floor",
-                (big_r - big_r2).abs() - e - neck,
-            ),
-        ]
-        .into_iter()
-        .any(|row| matches!(signs_across([row], slack, band), Ok([true])))
+            Ok([true])
+        )
     };
+    // Slabs level: `W` spans only the `δ` of heights where one tube's top
+    // meets the other's bottom, its sheets at depths `t` and `δ − t` from
+    // their ends, so each edge of the triangle reads it within
+    // `√(2r·t) + √(2r₂·(δ − t)) ≤ √(2(r + r₂)·δ)` of the node. Clear by
+    // that, all of `W` lies outside: no section.
+    let slabs = r + r2 - h.abs();
     match signs_across(
         [(
             "section_torus_parallel_tori_slabs",
             "section_torus_parallel_tori_slabs_floor",
-            r + r2 - h.abs(),
+            slabs,
         )],
         slack,
         band,
     ) {
         Ok([true]) => {}
         Ok([false]) => return none(),
-        Err(_) if node_clear() => return none(),
+        Err(_) if clears(slabs, r + r2) => return none(),
         Err(tan) => return tan.into(),
     }
-    // Which tube owns the top and the bottom of the heights both span; at
-    // a level end clear of the triangle, the first, by the reading above.
-    let owns = |row: (&'static str, &'static str, T), level: bool| match signs_across(
-        [row],
+    // Which tube owns the top and the bottom of the heights both span. A
+    // level end: at the span's true end one tube's sheets have met, at its
+    // radius, and the other's stand within `√(2·rᵢ·δ)` of its own. Clear
+    // by `√(2·max(r, r₂)·δ)`, every strand ends there outside the
+    // triangle, each arc inside lies in one strand's interior, and any
+    // joining of the strands at that end cuts the same arcs: the arm
+    // takes the first tube's.
+    let owns = |name: [&'static str; 2], d: T, level: bool| match signs_across(
+        [(name[0], name[1], d)],
         slack,
         band,
     ) {
         Ok([first]) => Ok(first == level),
-        Err(_) if node_clear() => Ok(true),
+        Err(_) if clears(d, r.max(r2)) => Ok(true),
         Err(tan) => Err(tan),
     };
     let (own_top, own_bottom) = match (
         owns(
-            (
+            [
                 "section_torus_parallel_tori_top",
                 "section_torus_parallel_tori_top_floor",
-                h + r2 - r,
-            ),
+            ],
+            h + r2 - r,
             true,
         ),
         owns(
-            (
+            [
                 "section_torus_parallel_tori_bottom",
                 "section_torus_parallel_tori_bottom_floor",
-                h - r2 + r,
-            ),
+            ],
+            h - r2 + r,
             false,
         ),
     ) {
