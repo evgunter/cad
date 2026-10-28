@@ -383,3 +383,77 @@ fn a_plane_touching_a_bore_rim_splits_alike_under_either_normal() {
         }
     }
 }
+
+/// **Reviewer probe (PR 5951)**: the bore-rim touch of
+/// [`a_plane_touching_a_bore_rim_splits_alike_under_either_normal`] at
+/// 96 azimuths, three leans and both normals; every run that builds is
+/// held to the closed form and tier 3′, every refusal is listed.
+#[test]
+#[ignore = "reviewer probe"]
+fn review_probe_bore_rim_touch_sweep() {
+    let primitive =
+        |u: f64| 0.5 * (u * (1.0 - u * u).sqrt() + u.asin()) + (1.0 - u * u).powf(1.5) * 2.0 / 3.0;
+    let segment = primitive(1.0) - primitive(0.5);
+    let whole = 0.75 * PI;
+    let tube = sweep::test_support::finished("tube", revolved(SketchPlane::xy(), &TUBE), tol());
+    let y = Vec3::new(0.0, 1.0, 0.0);
+    let (mut runs, mut refused, mut wrong) = (0, Vec::new(), Vec::new());
+    for t in [0.05f64, 0.2, 0.5] {
+        let cap_side = t.tan() * (0.5 * whole - segment);
+        for i in 0..96 {
+            let az = 2.0 * PI * f64::from(i) / 96.0 + 0.0123 * f64::from(i % 3);
+            let d = Vec3::new(az.cos(), 0.0, az.sin());
+            let n = y * t.cos() - d * t.sin();
+            let p = Point3::new(0.5 * d.x, 1.0, 0.5 * d.z);
+            for s in [1.0, -1.0] {
+                runs += 1;
+                let label = format!("t {t}, azimuth {az}, s {s}");
+                let plane = topo::test_support::split_plane(p, n * s, tol());
+                let out = match topo::split(&tube, &plane, tol()) {
+                    Ok(o) => o,
+                    Err(e) => {
+                        refused.push(format!("{label}: {e:?}"));
+                        continue;
+                    }
+                };
+                let (mut v, mut pad) = ([0.0; 2], [0.0; 2]);
+                for (k, part) in [out.below, out.above].into_iter().enumerate() {
+                    let topo::SplitPart::Body(h) = part else {
+                        wrong.push(format!("{label}: side {k} empty"));
+                        continue;
+                    };
+                    let h = h.into_body();
+                    if let Err(e) =
+                        topo::validate_pseudomanifold(&h, &topo::ContactRecords::default(), tol())
+                    {
+                        wrong.push(format!("{label}: side {k} tier 3′ {e:?}"));
+                    }
+                    let vol = volume(&h);
+                    (v[k], pad[k]) = (vol.v, vol.pad);
+                }
+                let (cap, cap_pad) = if s > 0.0 {
+                    (v[1], pad[1])
+                } else {
+                    (v[0], pad[0])
+                };
+                if (cap - cap_side).abs() > cap_pad + 1e-9
+                    || (v[0] + v[1] - whole).abs() > pad[0] + pad[1] + 1e-9
+                {
+                    wrong.push(format!(
+                        "{label}: cap {cap} want {cap_side}, sum {}",
+                        v[0] + v[1]
+                    ));
+                }
+            }
+        }
+    }
+    eprintln!(
+        "runs {runs}; refused {}; wrong {}",
+        refused.len(),
+        wrong.len()
+    );
+    for r in refused.iter().chain(&wrong) {
+        eprintln!("  {r}");
+    }
+    assert!(wrong.is_empty());
+}

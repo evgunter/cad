@@ -116,3 +116,45 @@ fn a_grazed_rim_lands_whole_or_refuses_typed() {
         }
     }
 }
+
+/// **Reviewer probe (PR 5951)**: the bore's pinched `+z` landing holds
+/// tier 3′ on both sides with no contact record (a pinch's copies share
+/// the point key), and every row it records names the graze.
+#[test]
+#[ignore = "reviewer probe"]
+fn review_probe_the_pinched_bore_holds_tier_3_prime() {
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, 0.0));
+    let disc = vec![(Point2::new(1.0, 0.0), 1.0), (Point2::new(-1.0, 0.0), 1.0)];
+    let rod = finished("the rod", prism_on(plane, disc, 2.0, tol()), tol());
+    let block = finished(
+        "the block",
+        brick((-2.0, 2.0), (-2.0, 2.0), (0.0, 2.0), tol()),
+        tol(),
+    );
+    let bored: AtRestBody<f64> = match topo::subtract(&block, &rod, tol()) {
+        Ok(BooleanResult::Body(r)) => r.body,
+        other => panic!("the bore builds: {other:?}"),
+    };
+    for tilt in [0.3, 0.05, 1.0, 3.0] {
+        let len = (1.0f64 + tilt * tilt).sqrt();
+        let s = topo::split(
+            &bored,
+            &topo::test_support::split_plane(
+                Point3::new(1.0, 0.0, 0.0),
+                Vec3::new(1.0 / len, 0.0, tilt / len),
+                tol(),
+            ),
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("tilt {tilt}: {e:?}"));
+        eprintln!("tilt {tilt}: rows {:?}", s.coincidences);
+        for (k, b) in [s.above.body(), s.below.body()].into_iter().enumerate() {
+            let Some(b) = b else { continue };
+            assert_eq!(
+                topo::validate_pseudomanifold(b, &topo::ContactRecords::default(), tol()),
+                Ok(()),
+                "tilt {tilt} side {k}: tier 3′"
+            );
+        }
+    }
+}

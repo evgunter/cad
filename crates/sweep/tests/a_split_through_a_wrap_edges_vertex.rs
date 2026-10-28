@@ -676,3 +676,72 @@ fn a_boolean_through_a_strut_vertex_keeps_one_face_where_the_piece_goes_round() 
     }
     report(&failures, runs);
 }
+
+/// **Reviewer probe (PR 5951)**: the rim-tangent pose of
+/// [`a_plane_tangent_to_a_holes_rim_at_a_vertex_splits_sound`] at a
+/// dense set of leans `h` (negative: leaning away, the wall's section
+/// outside the block), both forms, windings, vertices and senses. Every
+/// build is held to tiers 1–3′ and the closed form; refusals are listed.
+#[test]
+#[ignore = "reviewer probe"]
+fn review_probe_hole_rim_tangent_dense() {
+    let builds: [(Build, &str); 2] = [
+        (holed_block, "one segment"),
+        (two_arc_holed_block, "two arcs"),
+    ];
+    let (mut runs, mut refused, mut failures) = (0, Vec::new(), Vec::new());
+    let hs = [
+        -2.0, -0.4, 0.05, 0.1, 0.25, 0.4, 0.7, 0.9, 0.99, 0.999, 1.0, 1.001, 1.01, 1.1, 1.3, 1.6,
+        3.0, 10.0,
+    ];
+    for (build, form) in builds {
+        for (phase, sweep) in [(0.0, TAU), (FRAC_PI_2, -TAU), (0.7, TAU)] {
+            let body = topo::test_support::finished("the body", build(phase, sweep), tol());
+            let (c, s) = (phase.cos(), phase.sin());
+            for (z, up) in [(0.0, 1.0), (HEIGHT, -1.0)] {
+                for h in hs {
+                    for sense in [1.0, -1.0] {
+                        let n = [sense * h * c, sense * h * s, sense * up];
+                        let plane = Plane {
+                            n,
+                            d: n[0] * c + n[1] * s + n[2] * z,
+                        };
+                        let split = topo::test_support::split_plane(
+                            Point3::new(c, s, z),
+                            Vec3::new(n[0], n[1], n[2]),
+                            tol(),
+                        );
+                        let what = format!(
+                            "{form}, phase {phase}, sweep {sweep}, z {z}, h {h}, sense {sense}"
+                        );
+                        runs += 1;
+                        match topo::split(&body, &split, tol()) {
+                            Ok(out) => {
+                                for (side, positive) in [(&out.above, true), (&out.below, false)] {
+                                    let (_, closed) =
+                                        closed_form(plane, phase, positive, true, 0.0);
+                                    if closed.abs() < 1e-12 && side.body().is_none() {
+                                        continue;
+                                    }
+                                    if let Err(e) = tangent_side(side.body(), closed, &what) {
+                                        failures.push(format!("{what}, positive {positive}: {e}"));
+                                    }
+                                }
+                            }
+                            Err(e) => refused.push(format!("{what}: {e:?}")),
+                        }
+                    }
+                }
+            }
+        }
+    }
+    eprintln!(
+        "runs {runs}; refused {}; failures {}",
+        refused.len(),
+        failures.len()
+    );
+    for r in refused.iter().chain(&failures) {
+        eprintln!("  {r}");
+    }
+    assert!(failures.is_empty());
+}
