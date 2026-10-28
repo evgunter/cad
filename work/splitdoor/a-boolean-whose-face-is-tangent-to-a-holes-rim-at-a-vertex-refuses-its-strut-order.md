@@ -2,11 +2,12 @@
 id: a-boolean-whose-face-is-tangent-to-a-holes-rim-at-a-vertex-refuses-its-strut-order
 kind: issue
 title: A boolean whose half-space face is tangent to a hole's rim at a vertex refuses at bool_strut_order: two germs along one tangent are not ordered by how they curve
-status: open
+status: dispatched
 opened: 2026-10-28
 priority: P1
 cost: M
 refs: [a-plane-tangent-to-a-holes-rim-at-a-vertex-refuses-its-germs-as-coincident, germ-orders-about-a-normal-have-two-homes]
+branch: splitdoor/boolean-strut-order
 ---
 
 Found by the sweep of `a-plane-tangent-to-a-holes-rim-at-a-vertex-refuses-its-germs-as-coincident`

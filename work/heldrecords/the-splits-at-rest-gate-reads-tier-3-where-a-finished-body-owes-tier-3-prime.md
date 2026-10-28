@@ -100,3 +100,7 @@ The order:
 3. The split records its own coincident edges, and the exemption comes out.
 4. W2's nesting, then C, D and E.
 5. Flip the gate and re-measure at three ε.
+
+## Moved (2026-10-28, SPLITDOOR)
+
+- Moved to HELDRECORDS (`work/heldrecords/`) by `git mv`, id and body unchanged: SPLITDOOR's seam cut put the records chain Ev ratified on PR 5967 on a track of its own (`work/README.md` Track size).

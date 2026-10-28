@@ -28,3 +28,7 @@ The curved slit (`a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs`) 
 ## Direction
 
 Decide whether the copies share one key (as the doc says) or the split returns the touch as a record; the doc and the code disagree today.
+
+## Moved (2026-10-28, SPLITDOOR)
+
+- Moved to HELDRECORDS (`work/heldrecords/`) by `git mv`, id and body unchanged: SPLITDOOR's seam cut put the records chain Ev ratified on PR 5967 on a track of its own (`work/README.md` Track size).
