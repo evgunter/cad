@@ -225,6 +225,8 @@ mod fix_loop_polygon_expr;
 mod fix_pattern_mate_crossing;
 #[path = "fork7_shared_is_named.rs"]
 mod fork7_shared_is_named;
+#[path = "g_family_review_rows.rs"]
+mod g_family_review_rows;
 #[path = "g_index_families.rs"]
 mod g_index_families;
 #[path = "g_ring_closure_measure.rs"]
@@ -577,12 +579,8 @@ mod r1_dual_probes;
 mod r1_m10_1_corruptions;
 #[path = "r1_m10_1_probes.rs"]
 mod r1_m10_1_probes;
-#[path = "r1_probes.rs"]
-mod r1_probes;
 #[path = "r2_cert3_coord_dump.rs"]
 mod r2_cert3_coord_dump;
-#[path = "r2_g_probes.rs"]
-mod r2_g_probes;
 #[path = "r2_keydiff.rs"]
 mod r2_keydiff;
 #[path = "r2_m10_2_probes.rs"]

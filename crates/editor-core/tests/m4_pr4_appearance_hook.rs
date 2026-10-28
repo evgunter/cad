@@ -682,3 +682,86 @@ fn suggestion_map_is_total_over_the_store() {
     assert_eq!(key.name, cap);
     assert_eq!(*offers, Vec::<editor_core::AppearanceKey>::new());
 }
+
+/// **A count read through a named variable** is the index's count too:
+/// `k = index(N)`, `N` a free count 3 -> 2, vanishes member 2's face name
+/// with the diagnosis the index's own count edit gives.
+#[test]
+fn a_named_count_shrinking_is_the_indexs_count() {
+    let (doc, ext) = block(
+        ProfileDoc::empty_derived("m4_pr4_appearance_hook", Tol::witness()),
+        (0.0, 1.0),
+        (0.0, 1.0),
+        1.0,
+    );
+    let n = editor_core::VarName::from_static("n");
+    let declare = |doc, count| {
+        step(
+            doc,
+            editor_core::DocEdit::DefineVar {
+                var: n.clone().into(),
+                def: editor_core::VarDecl::Free(editor_core::FreeVar::Count { value: count }),
+                fresh: Vec::new(),
+            },
+        )
+        .0
+    };
+    let doc = step(
+        doc,
+        editor_core::DocEdit::DeclareVar {
+            name: n.clone(),
+            def: editor_core::VarDecl::Free(editor_core::FreeVar::Count { value: 3 }),
+        },
+    )
+    .0;
+    let count = editor_core::Formula::var(
+        doc.var_named("n").expect("n is declared"),
+        editor_core::Dimension::Count,
+    );
+    let (doc, k) = crate::fixture::index_of(doc, "k", count, None);
+    let pitch =
+        editor_core::Formula::mul(crate::fixture::scalar_of(k), len(2.0)).expect("a length");
+    let (doc, pat) = crate::fixture::family_of(
+        doc,
+        ext,
+        vec![(editor_core::Coord::Slide(editor_core::TargetAxis::X), pitch)],
+    );
+    let ev = run(&doc);
+    let inst2_face = ev
+        .table_at(pat)
+        .unwrap()
+        .iter()
+        .find_map(|(n, _)| {
+            (n.kind == EntityKind::Face
+                && matches!(n.path.first(), Some(RoleSeg::Member { at, .. }) if at.as_slice() == [(k, 2)]))
+            .then(|| n.clone())
+        })
+        .expect("the family mints member-2 face names");
+    let doc = set(doc, inst2_face.clone(), red());
+    let prior_doc = doc.clone();
+    let prior_ev = run(&prior_doc);
+    let doc = declare(doc, 2);
+    let ev = rerun(&doc, &prior_ev);
+    assert_eq!(ev.appearance.losses.len(), 1);
+    let r = enrich_appearance_loss_with_prior(
+        RunCtx {
+            doc: &doc,
+            eval: &ev,
+        },
+        RunCtx {
+            doc: &prior_doc,
+            eval: &prior_ev,
+        },
+        &ev.appearance.losses[0],
+    );
+    let Resolution::Failed(f) = r else {
+        panic!("expected Failed, got {r:?}");
+    };
+    let ResolveError::Vanished { diagnosis, .. } = &f.error else {
+        panic!("expected Vanished, got {:?}", f.error);
+    };
+    assert!(
+        matches!(diagnosis, Diagnosis::IndexCount { node, index } if *node == pat && *index == k),
+        "{diagnosis:?}"
+    );
+}
