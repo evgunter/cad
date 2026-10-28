@@ -144,6 +144,7 @@ not (
   (binary_id(mesh::all) & (test(=lofted_circle::a_loft_of_two_circles_tessellates))) |
   (binary_id(editor-core::all) & (test(=m10_4_stackup_interval::a_foreign_verdict_or_box_refuses_typed))) |
   (binary_id(geom-brep) & (test(=props::quad::trimmed::tests::q6_a_chart_past_the_newton_cotes_window_refuses_typed) | test(=props::quad::trimmed::tests::q14_the_composite_arm_holds_a_closed_form_at_every_round) | test(=props::quad::trimmed::tests::q15_a_composite_face_short_of_its_caller_stops_at_the_wall) | test(=props::quad::trimmed::tests::q16_the_composite_arm_holds_an_independent_reference_across_knots) | test(=props::quad::trimmed::tests::q17_the_closure_gap_is_paid_over_the_column_below_the_trim))) |
+  (binary_id(geom-brep::all) & (test(=sphere_torus_ssi::the_teapots_handle_meets_each_belly_sphere_in_two_certified_loops) | test(=sphere_torus_ssi::a_thin_torus_and_a_sphere_crossing_its_tube_certify))) |
   (binary_id(sweep::all) & (test(=m6_loft_body::shape_iii_volume_matches_the_derived_closed_form) | test(=r1_area_gauge_probes::r1_e2e_gauge_is_silent_on_an_honest_body_through_the_public_door)))
 )
 """
