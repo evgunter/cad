@@ -759,3 +759,22 @@ close.
 touch-window fuzz seed (`0xdcf91059414eafd4`) to CPAIR's open row
 `a-touch-window-fuzz-seed-contradicts-the-dense-distance-at-1e-12`. It
 turned up in the lane's slow sets.
+
+## 2026-10-28 — the rim's exact image dispatched
+
+Lily wall 8's next stop is the rim's certification. `nurbs_pair_limbs`
+reads each chart's degree-1 image fitted through feet, though the rim is
+an exact `IsoArc` row of each wall. Filed as
+`a-rim-between-two-spline-walls-is-certified-against-a-fitted-image-not-its-exact-one`
+(P0, lily's blocker), and dispatched on `splice/rim-exact-image`.
+- The precedent is `plane_nurbs_incidence`'s `exact_arc_rim` arm, so
+  this is the same arm on the NURBS-pair lane, not a design fork.
+- SSIEDGE's fixed-schedule design row stays open for edges with no
+  exact image.
+- The ground is shared with `isotail`, `select` (edge_nurbs.rs,
+  certify.rs), `ssiedge`/`ssiarith`/`ssimarch` (ssi/certify.rs) and
+  `pcert`/`pctail` (pcurve_cache.rs). All of them are ready with no live
+  lane, so the seam is announced on the PR.
+- Letter H (a certificate's soundness), so a concurrent pair.
+- The brief binds the full slow sets of geom-brep, topo and sweep, plus
+  demo-tour's three ε rows, which CI does not run (lesson from PR 5868).
