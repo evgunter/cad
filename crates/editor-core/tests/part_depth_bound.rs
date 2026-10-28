@@ -430,13 +430,13 @@ fn below_the_top_a_documents_rows_are_the_ones_its_own_evaluation_produces() {
     let level = refused
         .carried_chain()
         .next()
-        .expect("the instance carries the part's failed root");
+        .expect("the instance carries the part's failed piece");
     let own = run(&mixed_doc, &opts);
     let at_the_top = failed(own.result(level.node));
     assert_eq!(
         drawn(level.refusal.kind()),
         drawn(at_the_top),
-        "the failed root the top carries is drawn as the part's own evaluation draws it"
+        "the failed piece the top carries is drawn as the part's own evaluation draws it"
     );
     assert_eq!(
         ev.part_evaluations, 3,
@@ -648,10 +648,10 @@ fn a_part_no_instance_asks_for_is_evaluated_and_its_failure_reaches_nothing() {
         let level = refused
             .carried_chain()
             .next()
-            .expect("the instance carries the holder's failed root");
+            .expect("the instance carries the holder's failed piece");
         assert!(
             ids.contains(&level.node),
-            "the holder's failed root is one of its instances"
+            "the holder's failed piece is one of its instances"
         );
         assert_eq!(
             drawn(level.refusal.kind()),
