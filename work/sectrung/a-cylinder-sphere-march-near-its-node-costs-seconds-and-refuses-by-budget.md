@@ -95,6 +95,4 @@ the same on main and on the branch (`r = 0.5`):
 At `d 0.1, R 0.599` and the default ε the tube is 2.34e-3 and no chain
 box holds it (`coarse_tube_spans` names none), while the branch accounts
 the same tube at 1e-6 on 477 boxes. So that budget is not a coarse box
-holding the tube (the class PR 5961 fixed): at the default ε the
-accounting spends its cells around a tube of the same radius on more
-boxes.
+holding the tube, the class PR 5961 fixed; its cause is unmeasured.
