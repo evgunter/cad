@@ -134,9 +134,13 @@
 //!    the gate. It then stopped at the maximal-faces precondition on
 //!    the POT, whose full revolve split its planar walls in two; a full
 //!    revolve sweeps them whole now (BAND, one wall per run), and the
-//!    join reaches the pot's sphere face meeting the handle's torus, a
-//!    meeting the Boolean cannot yet trace: `GermFrameUnsupported`,
-//!    pinned in wall 2.
+//!    join reaches the pot's sphere face meeting the handle's torus. The
+//!    section value builds that pair now: its pose decided once, its two
+//!    loops about the handle's tube marched and fitted, each germ matched
+//!    to its loop by foot. The join then stops where it stops for the
+//!    cylinder × sphere pair, at the segment, which has no lane for a
+//!    fitted loop off every edge yet: `CurvedBooleanUnsupported` on the
+//!    vessel's sphere face, pinned in wall 2.
 //!
 //!    spout ∪ pot used to be the same shape of refusal — cone × plane
 //!    — and it is not any more. A loft's walls are `Nurbs`, and the
@@ -156,9 +160,10 @@
 //!    pair the model does not care about and onto the meeting itself.
 //!    Wall 3 pins it and the note carries the payload.
 //!
-//!    Wall 2 is past the operand gate and past the maximal-faces
-//!    precondition, and stops where the vessel's sphere face meets the
-//!    handle's torus, which the Boolean cannot yet trace. **Both refusals arrive through the
+//!    Wall 2 is past the operand gate, the maximal-faces precondition
+//!    and the section, and stops at the segment the join cannot yet
+//!    lay along the vessel's sphere face where it meets the handle's
+//!    torus. **Both refusals arrive through the
 //!    DOCUMENT**: each join is a `Node::Union` that lowers to the
 //!    same kernel `union` and fails at `evaluate`, and what the note
 //!    quotes is that node's own carried refusal rather than a second
@@ -1499,15 +1504,24 @@ fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
     // precondition, on the VESSEL, whose full revolve minted split
     // planar walls; it sweeps them whole now (BAND, one wall per run),
     // so the request reaches the vessel's sphere face meeting the
-    // handle's torus and refuses there: the germ frame has no arm for
-    // that pair of kinds.
+    // handle's torus. The section value carries that pair's loops, and
+    // the join refuses at the segment along them: no lane lays a fitted
+    // loop off every edge yet.
     crate::walls::wall(
         "teapot",
         2,
         "join the handle to the vessel (union; both roots driven 11.2 mm past the \
          belly's inner wall — a real overlap, not a tangency)",
         join_outcome(ev, r.handle_union),
-        |e| matches!(e, BooleanError::GermFrameUnsupported { .. }),
+        |e| {
+            matches!(
+                e,
+                BooleanError::CurvedBooleanUnsupported {
+                    kind: SurfaceKind::Sphere,
+                    ..
+                }
+            )
+        },
         "make the teapot ONE solid: union the handle and the spout into the vessel, drop \
          walls 2 and 3, re-state the montage caption (which currently says four solids), \
          and RE-CUT THE HANDLE'S OVERSHOOT FIRST — at 0.5 rad its roots stand 11.2 mm \
