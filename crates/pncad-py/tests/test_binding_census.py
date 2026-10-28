@@ -3098,6 +3098,11 @@ NOT_BOUND = {
     "AssembleGather": INTERIOR,
     "assemble_gathers": INTERIOR,
     "Pieces": INTERIOR,
+    # What a body value carries from its source (records, findings,
+    # pieces, door census): Python reads a value's records through
+    # `Value.body` and its pieces as the bodies it holds, and the
+    # census through `run_checks`.
+    "Carry": INTERIOR,
     "run_checks_on": INTERIOR,
     # The registry with the coincidence door split off to run at rest,
     # for a frame that redraws on every edit: Python's `run_checks` is
@@ -4200,13 +4205,8 @@ MEMBERS_NOT_BOUND = {
     # and a pick (`Doc.pick`) reads one, so no piece is a value of its
     # own there.
     "Piece::bodies": INTERIOR,
-    "Piece::carried": INTERIOR,
-    "Piece::census": INTERIOR,
-    "Piece::censused": INTERIOR,
-    "Piece::contacts": INTERIOR,
+    "Piece::carry": INTERIOR,
     "Piece::family": INTERIOR,
-    "Piece::parts": INTERIOR,
-    "Piece::pieces": INTERIOR,
     "Piece::read": INTERIOR,
     "Piece::table": INTERIOR,
     # The document a report was taken of, which the kernel's `render`
