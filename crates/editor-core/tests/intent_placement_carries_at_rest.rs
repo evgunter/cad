@@ -301,4 +301,3 @@ fn a_parts_finding_crosses_a_pattern_of_its_instance_once() {
         "as the part's, through the instance: {reported:?}"
     );
 }
-
