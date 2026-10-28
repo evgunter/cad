@@ -7238,3 +7238,10 @@ Signed (WIRE orchestrator).
   - Closed: `a-tie-summed-seam-decline-…`.
   - `a-joined-set-over-two-tied-…` is back to open, with no D10-free witness yet. The review's gap (a non-transversal touch) and the line-group decline guard are noted on the row.
   - Merged at 50b65794a4; worktree removed.
+- 2026-10-28 (WIRE orchestrator) `wire-unionvertex` opened PR 5930 (head f1c3dffe9b).
+  - A union vertex group is one member corner's copies, recorded over the finished body. The order-dependent probe went from 1806 to 0. Published digests are identical; 51,688 bare-vertex size lines moved.
+  - It re-introduces `Rederived::by_fold` for fold `Tied` rows at member corners and for non-seam member edges.
+  - The witness runs all 24 member orders.
+  - The corner row was not taken: routing its tied rows through the corner rule refuses two building documents. Filed `a-unions-member-edge-group-size-reads-the-fold-steps-spelling` (P3, M).
+  - Answered the lane's D10 question: test documents may use existing Place nodes unchanged. The lane rule is amended.
+  - FULL review dispatched (`wire-unionvertex-rev`).
