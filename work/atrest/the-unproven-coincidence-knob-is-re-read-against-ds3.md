@@ -13,6 +13,6 @@ cost: M
 
 **What it would take to change.** Q4 is a decided question, so moving the knob to `Severity` is a design change for a designer pair and an `[ev]` PR (`memories/orchestration-model.md`), not a build. Two points the decision must weigh:
 - **Flush pairs.** A flush (`SameOriented`) row never quiets, so it never refuses. Yet a flag mate can still establish it. Is a flush pair at `Error` meant to be silent?
-- **Adjacency vacuity** (`a-gap-over-adjacent-cells-states-nothing-of-the-row`, P2). Some op rows (a blend's `BatteryTurn`/`BatteryJoint`, tangent and coaxial rows) name adjacent cells, so a `Gap = 0` over them holds by topology. At `Error`, a vacuous assertion would silence the row.
+- **Rows no `Gap = 0` says** (`a-gap-over-adjacent-cells-states-nothing-of-the-row`, P2, `needs_ev`). PR #5882 ruled that a `Gap = 0` quiets only rows that decided their two cells meet (DESIGN `[assertions.quiet]`, "says the same"). So tangency, coaxial, crossing-cylinder, Battery and profile rows are unquietable, and never refuse. At `Error` they would stay loud and silent at once, outside `[intent.checked]`, until some assertion can say what they decided.
 
-Blocked on #5882 merging.
+#5882 has merged (2026-10-28). This waits on the designer pair for the adjacency question, and both points go to one `[ev]` PR.
