@@ -28,14 +28,24 @@
 //!    bracket EXCLUDING the true separation and an `AtLeast` assertion
 //!    over it reading a certified `Violated` on a pair that holds.
 //! 2. The unary elaboration (D8): `min_clearance(body, body)` on one
-//!    body is the selection's self-clearance.
+//!    body. It was the selection's self-clearance over the pairs the
+//!    wedge rule kept; a clearance is metric now (E7, *Self-intersection
+//!    scope*), so the body meets itself and reads exactly 0, named on
+//!    the shared cell.
 //! 3. `drive::certifying_vector` moves the witness-vector key of every
 //!    assertion-carrying document (claim 1's "bit-identical keys" for
 //!    documents without `min_clearance`).
 //! 4. `report_key` omits the drive/MC config, so two different reports
 //!    over one (slice, box, ε, K) tuple share a key.
 //! 5. Row 1's three reds, as rows: a planted `Violated`, a planted
-//!    engine refusal (priced as refused mass), a budget overrun.
+//!    engine refusal, a budget overrun. The planted refusal was a wall
+//!    against itself (`NoAdmittedPair`), which SELFX retired: that wall
+//!    reads 0 now and its `AtLeast` bound refuses `WindowSuperset` by
+//!    name. The pricing that row carried — an engine refusal no smaller
+//!    box can change is refused mass under its own class — is pinned
+//!    with the refusals the engine still raises, beside the classifier
+//!    (`editor-core/src/drive.rs`,
+//!    `a_box_independent_clearance_refusal_is_terminal_refused_mass`).
 //! 6. The mixed priced/forced case and a band axis that splits.
 //! 7. A caption check: an enclosure that STRADDLES the bound is
 //!    `Unevaluated` at the node while `worst_case.lo < bound` — the

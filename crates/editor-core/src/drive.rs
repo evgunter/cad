@@ -2182,6 +2182,44 @@ mod tests {
         Band::linear(Tol::witness()).expect("the run's linear band")
     }
 
+    /// **An engine refusal under `min_clearance` that no smaller box can
+    /// change is refused mass under its own class, not a bisection to a
+    /// `Budget`**: the pricing the planted `NoAdmittedPair` row once
+    /// carried (`m10_6_r1_probes_interval`, row 5), re-pinned with the
+    /// refusals the engine still raises. A scope naming no face and a
+    /// carrier with no window are facts about the document; an enclosure
+    /// that did not evaluate may evaluate over a smaller box, so it
+    /// bisects.
+    #[test]
+    fn a_box_independent_clearance_refusal_is_terminal_refused_mass() {
+        use topo::clearance::MinSeparationRefusal as R;
+        let refused = |r: R| NodeErrorKind::MeasureClearanceRefused(r);
+        for r in [
+            R::EmptyScope,
+            R::Unsupported {
+                carrier: "an approximated face",
+                face: topo::FaceKey::default(),
+            },
+        ] {
+            let class = box_independent_measure_class(&refused(r.clone()));
+            assert_eq!(
+                class,
+                Some(MeasureRefusalClass::Clearance(r.clone())),
+                "{r:?}"
+            );
+            let reason = RefusalReason::MeasureRefused {
+                node: RecipeNodeId::new(0, 0),
+                class: class.unwrap(),
+            };
+            assert_eq!(reason.class(), ReasonClass::MeasureRefused, "{r:?}");
+        }
+        let poison = R::PoisonEnclosure {
+            a: topo::FaceKey::default(),
+            b: topo::FaceKey::default(),
+        };
+        assert_eq!(box_independent_measure_class(&refused(poison)), None);
+    }
+
     /// A tangency certificate of the line `(x, 0, z)`, `z ∈ [0, 1]`,
     /// between a cylinder of radius `r` about z (as `s1`) and a plane
     /// through the line tilted by `tilt` — at `Interval`, the driver's
