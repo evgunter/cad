@@ -194,7 +194,12 @@ fn denoted(
         .payload
         .output_body(side.output_body())
         .unwrap();
-    let point = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+    let point = |v| {
+        *body
+            .body()
+            .get_point(body.body().get_vertex(v).unwrap().point)
+            .unwrap()
+    };
     let mean = |vs: Vec<topo::VertexKey>| {
         let n = vs.len() as f64;
         let s = vs
@@ -208,25 +213,27 @@ fn denoted(
     let at = |key: &EntityKey| match *key {
         EntityKey::Vertex(v) => mean(vec![v]),
         EntityKey::Edge(e) => {
-            let he = body.get_edge(e).unwrap().he_plus;
+            let he = body.body().get_edge(e).unwrap().he_plus;
             mean(vec![
-                body.get_half_edge(he).unwrap().start,
-                body.half_edge_end(he).unwrap(),
+                body.body().get_half_edge(he).unwrap().start,
+                body.body().half_edge_end(he).unwrap(),
             ])
         }
         EntityKey::Face(f) => {
             let topo::LoopBoundary::Cycle { first } = body
-                .get_loop(body.get_face(f).unwrap().outer)
+                .body()
+                .get_loop(body.body().get_face(f).unwrap().outer)
                 .unwrap()
                 .boundary
             else {
                 panic!("a face with an empty outer loop")
             };
             mean(
-                body.loop_cycle(first)
+                body.body()
+                    .loop_cycle(first)
                     .unwrap()
                     .into_iter()
-                    .map(|he| body.get_half_edge(he).unwrap().start)
+                    .map(|he| body.body().get_half_edge(he).unwrap().start)
                     .collect(),
             )
         }
@@ -277,7 +284,10 @@ fn operand_edge(
 ) -> StableName {
     let body = ev.value(target).unwrap().payload.output_body(0).unwrap();
     let at = |v, q: [f64; 3]| {
-        let p = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+        let p = *body
+            .body()
+            .get_point(body.body().get_vertex(v).unwrap().point)
+            .unwrap();
         (p - Point3::new(q[0], q[1], q[2])).norm() < 1e-9
     };
     ev.table(ev.output_var(target, 0).unwrap())
@@ -288,10 +298,10 @@ fn operand_edge(
                 key: EntityKey::Edge(e),
                 ..
             }) => {
-                let he = body.get_edge(*e).unwrap().he_plus;
+                let he = body.body().get_edge(*e).unwrap().he_plus;
                 let (s, t) = (
-                    body.get_half_edge(he).unwrap().start,
-                    body.half_edge_end(he).unwrap(),
+                    body.body().get_half_edge(he).unwrap().start,
+                    body.body().half_edge_end(he).unwrap(),
                 );
                 ((at(s, a) && at(t, b)) || (at(s, b) && at(t, a))).then(|| n.clone())
             }
@@ -333,6 +343,7 @@ fn copies(
             panic!("a copy is one vertex: {n:?} {entry:?}")
         };
         let at = body
+            .body()
             .edges_of_vertex(*v)
             .unwrap()
             .into_iter()
@@ -490,7 +501,10 @@ fn operand_floor(ev: &Evaluation<f64>, target: RecipeNodeId) -> StableName {
             Entry::Unique(EntityRef {
                 key: EntityKey::Face(f),
                 ..
-            }) => match body.get_surface(body.get_face(*f).unwrap().surface) {
+            }) => match body
+                .body()
+                .get_surface(body.body().get_face(*f).unwrap().surface)
+            {
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if origin.y == 1.0 && normal.y == 1.0 =>
                 {
@@ -666,19 +680,24 @@ fn operand_face_on(
     let body = ev.value(target).unwrap().payload.output_body(0).unwrap();
     let boxed = |f: topo::FaceKey| {
         let topo::LoopBoundary::Cycle { first } = body
-            .get_loop(body.get_face(f).unwrap().outer)
+            .body()
+            .get_loop(body.body().get_face(f).unwrap().outer)
             .unwrap()
             .boundary
         else {
             return false;
         };
         let pts: Vec<_> = body
+            .body()
             .loop_cycle(first)
             .unwrap()
             .into_iter()
             .map(|he| {
-                let v = body.get_half_edge(he).unwrap().start;
-                *body.get_point(body.get_vertex(v).unwrap().point).unwrap()
+                let v = body.body().get_half_edge(he).unwrap().start;
+                *body
+                    .body()
+                    .get_point(body.body().get_vertex(v).unwrap().point)
+                    .unwrap()
             })
             .collect();
         let within = |q: f64, at: fn(&Point3<f64>) -> f64| {
@@ -696,7 +715,10 @@ fn operand_face_on(
             Entry::Unique(EntityRef {
                 key: EntityKey::Face(f),
                 ..
-            }) => match body.get_surface(body.get_face(*f).unwrap().surface) {
+            }) => match body
+                .body()
+                .get_surface(body.body().get_face(*f).unwrap().surface)
+            {
                 Some(geom::Surface::Plane { origin, normal, .. }) => {
                     let off = (p[0] - origin.x) * normal.x
                         + (p[1] - origin.y) * normal.y
@@ -1287,7 +1309,7 @@ fn assert_moat_split(
     let (below_table, below_body) = half(SplitHalf::Below);
     let (above_table, above_body) = half(SplitHalf::Above);
     for &p in touches {
-        let [corner] = named_vertices_at(cut_table, cut_body, p)[..] else {
+        let [corner] = named_vertices_at(cut_table, cut_body.body(), p)[..] else {
             panic!("the cut holds the touch at {p:?} as one vertex");
         };
         let want = StableName {
@@ -1298,12 +1320,12 @@ fn assert_moat_split(
             }],
         };
         assert_eq!(
-            named_vertices_at(below_table, below_body, p),
+            named_vertices_at(below_table, below_body.body(), p),
             vec![&want],
             "below: the touch at {p:?} is the cut's corner, held once"
         );
         assert!(
-            named_vertices_at(above_table, above_body, p).is_empty(),
+            named_vertices_at(above_table, above_body.body(), p).is_empty(),
             "above: the pocket wall's foot runs through {p:?} unbroken"
         );
     }

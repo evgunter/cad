@@ -88,7 +88,7 @@ use crate::enters::OutwardNormal;
 use crate::harmonic::harmonic_sup_scalar;
 
 /// The scalar's poison value (NaN at `f64`, NaI at the interval scalar).
-fn poison<T: Real>() -> T {
+pub(crate) fn poison<T: Real>() -> T {
     T::from_f64(f64::NAN)
 }
 

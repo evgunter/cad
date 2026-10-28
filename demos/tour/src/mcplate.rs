@@ -140,9 +140,9 @@ struct Sample {
 }
 
 /// The body a node evaluated to.
-fn body_at(ev: &Evaluation<f64>, id: RecipeNodeId) -> Body<f64> {
+fn body_at(ev: &Evaluation<f64>, id: RecipeNodeId, tol: Tol) -> Body<f64> {
     match &ev.value(id).expect("the node evaluated").payload {
-        ValuePayload::Body(b) => (**b).clone(),
+        ValuePayload::Body(b) => crate::world::in_its_space(b, tol),
         other => panic!("a hole extrude evaluates to a body, got {other:?}"),
     }
 }
@@ -204,8 +204,8 @@ fn replay(base: &Plate, samples: usize, config: &McConfig, tol: Tol) -> Vec<Samp
                 tol,
             );
             let holes = [
-                hole_circle(&body_at(&ev, base.holes[0])),
-                hole_circle(&body_at(&ev, base.holes[1])),
+                hole_circle(&body_at(&ev, base.holes[0], tol)),
+                hole_circle(&body_at(&ev, base.holes[1], tol)),
             ];
             let web = match ev.reading(&doc, base.web) {
                 Ok(Observed::Value(web)) => web,

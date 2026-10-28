@@ -2,12 +2,11 @@
 id: patterns-are-index-variables
 kind: issue
 title: Patterns are index variables: PatternKind, Node::Pattern, Node::PlacedUnion and Instance(i) retire into index(N), families and Member names; mirror is a construction; presets are the façade's
-status: parked
+status: dispatched
 opened: 2026-10-08
 priority: P0
 cost: H
 refs: [interference-at-rest-is-a-finding, a-placement-is-the-bundle-of-mates, intent-stage3-is-built]
-blocked_on: [an-operation-computes-in-a-frame-of-its-reads]
 design: true
 ---
 
@@ -145,3 +144,7 @@ Stage 3 PR G (`docs/INTENT-STAGE3-SPEC.md` §8, §0). It waits on D′3
 `explicit-placement-frames-hold-floats`, which ride with it, and it
 ends D′3's interim in which each body of a `Pattern` or `PlacedUnion`
 operand of a `⊔` is its own arrival.
+
+## §8 Q1, the ring: design fork (2026-10-28, INTENT)
+
+G's lane measured it (`crates/editor-core/tests/g_ring_closure_measure.rs` on `intent/g-patterns-are-index-variables` @ c871332e). The door proves a ring of N planar wedges only at N=4; at N=6/8/12 no side seat proves at any budget. A designer pair (blinding on `analysis/design-fork/intent-g-ring-closure`, fork-log row 207) converged in round 2. The symbolic tier learns angle arithmetic: a product of sines and cosines becomes a sum over the angles' sums and differences, with arguments reduced modulo a turn, run per node. Every seat of a `turn/N` ring then proves, the closing one included; a free step leaves only the closing seat a finding; nothing is refused. Ev approved it on PR 5905 (2026-10-28, "i agree with the idea"). `[repetition]`'s ring sentence is sharpened; `[coincidence.structural]` needs no change, since its polynomial-identity criterion already admits the tier knowing angle arithmetic. G builds the tier rule: measure its budget per node first (a 12-ring at the shipped 256 terms, and the die's different-axis chain), give it a per-rule table and a dial like rules A–D, and make `g_ring_closure_measure` the regression row (N ∈ {5,6,8,12} all proven; a free step leaves the closing seat alone unproven; a free member-angle literal leaves every seat unproven).

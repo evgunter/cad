@@ -2905,6 +2905,21 @@ NOT_BOUND = {
     # PROSE about a foreign prior, which `pncad.pyi`'s own paragraph
     # owns, not a missing binding for this payload.
     "Mispaired": INTERIOR,
+    # A body value and the frame it computed in (D10 `[placement.frame]`):
+    # Python reads a value's body as its `Body` handle, so the frame is
+    # never a value there; `in_space` and its argument (`Composing`) are
+    # the composing door export and the viewer's picture call, which
+    # Python reaches through `export_step`.
+    "Framed": INTERIOR,
+    "in_space": INTERIOR,
+    "Composing": INTERIOR,
+    # What an evaluation built, counted (debug builds only): a row's
+    # instrument, as `EvalOptions.parallel`'s schedule is.
+    "EvalCounters": INTERIOR,
+    # A second computing frame (`EvalOptions::computing_twist`): a test
+    # row's instrument, answer-preserving up to rounding, as
+    # `parallel` is, so no Python caller has a question it answers.
+    "ComputingTwist": INTERIOR,
     "NameTable": INTERIOR,
     "Operand": INTERIOR,
     # `BooleanError::CurvedPairUnsupported`'s SITE: which door refused
@@ -3199,11 +3214,13 @@ NOT_BOUND = {
     # top-level under rule 1. One verb, two refusals, and the lane
     # decides which of them a Python caller can ever see.
     "ClearanceRefusal": SHAPE,
-    # Its `Budget` and `Selection` payloads, curated beside it so a
-    # Rust consumer can read the arm it matched. They cross exactly as
-    # their carrier does — inside the one tag — and no `f64` evaluation
-    # reaches them for the same reason.
+    # Its `Engine` and `Selection` payloads, and the engine's `Budget`
+    # payload below them, curated beside it so a Rust consumer can read
+    # the arm it matched. They cross exactly as their carrier does —
+    # inside the one tag — and no `f64` evaluation reaches them for the
+    # same reason.
     "CellBudget": SHAPE,
+    "EngineRefusal": SHAPE,
     "SelectionRefusal": SHAPE,
     # B-FACE-FRAME IS GONE FROM THIS ROSTER, closed at
     # LIB-B-FACE-FRAME, and the id left `FAMILIES` with it. It cited
@@ -3855,6 +3872,7 @@ MEMBERS_BOUND_AS = {
     "ProductError::RootInvalid": "ProductError.variant",
     "ProductError::ProductInvalid": "ProductError.variant",
     "ProductError::ContactLineage": "ProductError.variant",
+    "ProductError::Frame": "ProductError.variant",
     "ReadbackError::Dangling": "ReadbackError.variant",
     "ReadbackError::NoCanonicalFrame": "ReadbackError.variant",
     "ReadbackError::NoCarrier": "ReadbackError.variant",
@@ -3875,6 +3893,7 @@ MEMBERS_BOUND_AS = {
     "SelectRefusal::NotALength": "SelectRefusal.reason",
     "SelectRefusal::BadValue": "SelectRefusal.reason",
     "SelectRefusal::Band": "SelectRefusal.reason",
+    "SelectRefusal::Frame": "SelectRefusal.reason",
     "SplitError::EmptyCut": "SplitError.variant",
     "SplitError::UnknownCutNode": "SplitError.variant",
     "SplitError::CutsTheWorld": "SplitError.variant",
@@ -4188,7 +4207,6 @@ MEMBERS_NOT_BOUND = {
     "Piece::censused": INTERIOR,
     "Piece::contacts": INTERIOR,
     "Piece::family": INTERIOR,
-    "Piece::motion": INTERIOR,
     "Piece::parts": INTERIOR,
     "Piece::pieces": INTERIOR,
     "Piece::read": INTERIOR,

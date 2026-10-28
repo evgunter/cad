@@ -66,6 +66,26 @@ pub struct FlatPart {
     /// the door groups its survivors by FACE, so the reference has to
     /// know the grouping too.
     pub owner: Vec<(usize, usize)>,
+    /// **The frame the part's mesh is in** (D10 `[placement.frame]`),
+    /// `None` for a body in its space's coordinates: the door reads a
+    /// ray into it, and so does this ([`FlatPart::local`]).
+    pub map: Option<pncad::geom_core::RigidMotion<f64>>,
+}
+
+impl FlatPart {
+    /// **`ray` read into the coordinates this part's mesh is in**, as the
+    /// door reads it (`editor_core::resolve::pick_face`): the rotation's
+    /// transpose about the frame's origin, so `t` is one parameter along
+    /// the ray as handed.
+    pub fn local(&self, ray: &Ray) -> Ray {
+        self.map.map_or(*ray, |map| {
+            let back = map.linear().transpose();
+            Ray {
+                origin: Point3::origin() + back * (ray.origin - map.origin()),
+                dir: back * ray.dir,
+            }
+        })
+    }
 }
 
 /// One admitted candidate, or one face of an answer: which part, which
@@ -111,6 +131,7 @@ impl FlatReference {
                     tree: Bvh::build(&boxes),
                     corners,
                     owner,
+                    map: editor_core::in_space(part),
                 }
             })
             .collect();
@@ -125,6 +146,7 @@ impl FlatReference {
     pub fn every(&self, ray: &Ray) -> Vec<FlatHit> {
         let mut hits = Vec::new();
         for (part, flat) in self.parts.iter().enumerate() {
+            let ray = &flat.local(ray);
             let mut items: Vec<usize> = flat.tree.ray(ray).into_iter().map(|c| c.item).collect();
             items.sort_unstable();
             for item in items {
@@ -205,12 +227,19 @@ pub fn too_wide(ray: &Ray, tri: &[Point3<f64>; 3]) -> Option<[f64; 3]> {
 // The two aims.
 // ---------------------------------------------------------------
 
+/// **A part's mesh positions where the part stands** in its space
+/// (`editor_core::in_space`): the mesh is in the body's own coordinates,
+/// and an aim is fired at where the picture draws it.
+pub fn standing(part: &editor_core::NodePick) -> Vec<Point3<f64>> {
+    pncad::export::pick_mesh_in_space(part).positions.clone()
+}
+
 /// The largest absolute coordinate of any position of any part — the
 /// scale both aims set their standoff by.
 pub fn extent(index: &PickIndex) -> f64 {
     let mut ext = 0.0f64;
     for part in index.parts() {
-        for p in &part.mesh().positions {
+        for p in standing(part) {
             ext = ext.max(p.x.abs()).max(p.y.abs()).max(p.z.abs());
         }
     }
@@ -231,12 +260,13 @@ pub fn tie_rays_for(index: &PickIndex) -> Vec<(Ray, f64)> {
     let mut targets = Vec::new();
     for part in index.parts() {
         let mesh = part.mesh();
+        let positions = standing(part);
         let stride = mesh.boundaries.len().div_ceil(40).max(1);
         for boundary in mesh.boundaries.iter().step_by(stride) {
             let pts: Vec<Point3<f64>> = boundary
                 .points
                 .iter()
-                .map(|&i| mesh.positions[i as usize])
+                .map(|&i| positions[i as usize])
                 .collect();
             if let Some(&first) = pts.first() {
                 targets.push(first);
@@ -267,7 +297,7 @@ pub struct Aim {
     pub part: usize,
     /// The vertex's position in that part's mesh.
     pub vertex: usize,
-    /// The vertex itself.
+    /// The vertex itself, where the part stands.
     pub at: Point3<f64>,
     pub dir: Vec3<f64>,
     /// The parameter the vertex is at along [`Self::ray`].
@@ -288,13 +318,13 @@ impl Aim {
 pub fn wide_aim(index: &PickIndex) -> impl Iterator<Item = Aim> + '_ {
     let reaches = [1.48, 3.0, 4.0 * extent(index).max(1e-3)];
     index.parts().iter().enumerate().flat_map(move |(part, p)| {
-        let positions = &p.mesh().positions;
+        let positions = standing(p);
         let stride = positions.len().div_ceil(1500).max(1);
         positions
-            .iter()
+            .into_iter()
             .enumerate()
             .step_by(stride)
-            .flat_map(move |(vertex, &at)| {
+            .flat_map(move |(vertex, at)| {
                 AXES.into_iter().flat_map(move |dir| {
                     reaches.into_iter().map(move |reach| Aim {
                         part,

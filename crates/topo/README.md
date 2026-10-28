@@ -25,6 +25,7 @@ feeds a decision, every walk is bounded.
 | Contact verification (Door 1) | `src/boolean/contact_verify.rs` (`rest_pair_verdict`), `src/boolean/carrier_eq.rs` (the kind-generalized carrier ladder), `src/boolean/plane_eq.rs` (its planar arm) |
 | Chart-region overlap (Door 2) | `src/chart_region.rs` (`chart_region_overlap`, `declared_pair_overlap`, `world_carrier`, `cylinder_pair_overlap`, `interior_witness`), `src/chart.rs`, `src/chart_iso.rs`, `src/pcurves.rs` |
 | Chart cells against a face's region | `src/cell_region.rs` (`cell_region`, `station_region`, `CellRegion`): a cell of a face's stored chart decided `Inside`, `Outside` or `Undecided` off the face's edges on their carriers and its point-in-face door; `src/pcurves.rs` (`loop_windings`) |
+| The clearance engine's body-level half | `src/clearance.rs` (`Side`, `Sweep`, `min_separation`, `Candidate`, `EngineRefusal`): carrier windows and the cell subdivision between two sets of faces, the `separation ≥ c` trichotomy with a caller's witness verifier, and the certified minimum-separation bracket |
 | Plane splitting | `src/splitting/` (`classify`, `neighborhood`, `rules`, `insert`, `order`, `join`, `finish`, `section`, `containment`), `src/chord_join.rs`, `src/ring_path.rs`, `src/null.rs` |
 | Booleans | `src/boolean/mod.rs` (reduction, classification, `ReductionContacts`, `BooleanInputs`, the glue), `records.rs` (`ContactRecords`, `Contact`), `reduce.rs`, `vtxfac.rs`, `sectors.rs` (a slit's tip read as its face's full turn, `SlitTips`), `recl.rs`, `tables.rs`, `insert.rs`, `join.rs`, `finish.rs`, `zip.rs`, `slit.rs` (an edge lying in one of the result's faces, parted as the material decides, a glued slit's two edges merged across the sliver between them, and a face closed across the strut a slit's two edges leave where the result drops both walls), `ops.rs`, `carrier_pair.rs`, `combine.rs`, `voids.rs`, `boxes.rs`, `contain.rs`, `solid_contain.rs`, `surface_group.rs`, `rim_wedge.rs` |
 | Instances, separation | `src/instance.rs` (disjoint graft), `src/separation.rs` (certified no-touch), `src/transform.rs` (rigid placement) |
@@ -115,9 +116,12 @@ side clears only
 - on a definitely-positive separation margin between certified reach boxes
   (`face_reach_in`), read along each world axis and then along the
   directions that turn with the pair: the axis between the two faces'
-  anchors, either face's normal where it is planar, and the offset from
+  anchors, either face's normal where it is planar, the offset from
   an axis or centre either face proposes to the other's nearest boundary
-  segment point (`census::depth_gap::toward`). Along these turned
+  segment point (`census::depth_gap::toward`), the normal of each arc's
+  chord in its conic's plane on either face's boundary, and the line
+  between the two faces' carrier axes or centres
+  (`census::depth_gap::across`). Along these turned
   directions only (`boolean::separating::apart_by`), not the world axes,
   a sphere face is taken to reach no further than its boundary at an
   end whose pole the face places definitely `Out`
@@ -652,12 +656,12 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    two-hemisphere ball's incidence structure, so a zero-volume lamina
    is a geometric defect, not a topological one. Global
    self-intersection / minimum clearance is the interval clearance
-   engine's: its body-level half — cell subdivision over
-   `Body<Interval>` — lives in `editor-core` today and moves into
-   `topo` (SHELL-3, ruled at #1737), with the
-   parameter-box outer half above it in `editor-core`, so a verb that
-   must certify a boundary embedded (`shell`'s cavity clone) runs the
-   same engine at a certifying scalar and refuses typed at the door.
+   engine's: its body-level half — cell subdivision over a `Body<T>`
+   at any certifying scalar, in interval arithmetic — is
+   `topo::clearance` (ruled at #1737), with the parameter-box outer
+   half above it in `editor-core`, so a verb that must certify a
+   boundary embedded (`shell`'s cavity clone) can run the same engine
+   at a certifying scalar and refuse typed at the door.
 
    A **finished body** (`AtRestBody`) passes tier 3′ against its own
    contact records: none, for a body that touches nothing, where the

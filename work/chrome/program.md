@@ -4,7 +4,7 @@ kind: program
 title: CHROME — viewer chrome and coverage
 status: ready
 opened: 2026-09-03
-area: gui
+group: gui/viewer
 prefix: chrome/
 tag: (CHROME orchestrator)
 ab_band: 1600-1699

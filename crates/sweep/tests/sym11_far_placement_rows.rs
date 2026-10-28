@@ -11,9 +11,9 @@
 //! ADOPTED FROM R2's review probe, which drove a body the table did not
 //! name at a magnitude between two that it did; they are what found the
 //! `(1e-9, 3.7e7)` cell below, where the bare lift refuses all three
-//! bodies and `Sym<f64>` builds all three with nothing disputed — the
-//! tier discharging identities the point channel could not, which no
-//! cell of the original table showed.
+//! bodies and `Sym<f64>` builds the stadium and the washer with nothing
+//! disputed — the tier discharging identities the point channel could
+//! not, which no cell of the original table showed.
 //!
 //! Driven at `Sym<f64>`, `Sym<Probe>` and `Sym<Interval>` inside a
 //! session so the receipt counts what the lane did, and at bare `f64`
@@ -182,11 +182,18 @@ const PLACEMENTS: [f64; 4] = [0.0, 1.0e6, 3.7e7, 1.0e9];
 ///   the count is `3`. It is the session's count of disputed theorems,
 ///   not a tally by body: each body driven alone disputes one there.
 /// - **At `(1e-9, 3.7e7)` the symbolic lanes BEAT the bare lift**: the
-///   bare `f64` run refuses all three bodies, and `Sym<f64>` builds all
-///   three with zero disputes. The tier discharged
+///   bare `f64` run refuses all three bodies, and `Sym<f64>` builds the
+///   stadium and the washer with zero disputes. The tier discharged
 ///   identities the point channel could not certify — which is the
 ///   whole point of the tier, and is why "the symbolic lane refuses
-///   wherever the bare lane does" would have been a false summary.
+///   wherever the bare lane does" would have been a false summary. The
+///   triangle is the exception, and an honest one: its side walls'
+///   lines are certified against their planes on the two ends' distances
+///   measured in certification arithmetic at every scalar (C2 limb 2),
+///   and at a point scalar those are the stored `f64` data, whose
+///   rounding at this placement leaves an end `1.18e-9` off its plane —
+///   inside the ambiguity band, so it escalates, and the tier's identity
+///   is read only at an exact witness.
 /// - **The certified lane's stadium claims nothing about its arcs.** It
 ///   is written through the fixture door, which holds no tolerance and
 ///   so registers none of the lowering's endpoint facts, and the sweep
@@ -219,12 +226,12 @@ const TABLE: [[Cell; 4]; 3] = [
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["EndpointEnd", "built", "built"], 0) },
     ],
     // ε = 1e-9 (the shipped default): the mechanism reaches the point
-    // lanes at 1e9, and at 3.7e7 the tier rescues the three bodies the
-    // bare lift refuses.
+    // lanes at 1e9, and at 3.7e7 the tier rescues two of the three
+    // bodies the bare lift refuses.
     [
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["MappedSource", "built", "built"], 0) },
-        Cell { bare: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 0), inexact: lane(["built", "built", "Rung3Escalated(HullValue)"], 0), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
         Cell { bare: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 0), inexact: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 3), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
     ],
     // ε = 1e-12: every placement off the origin disputes.
@@ -244,19 +251,34 @@ fn cell(d: f64) -> &'static Cell {
     &TABLE[eps_row(Tol::witness().eps())][placement]
 }
 
-/// `built`, or the certification CHECK a refusal named — the one thing
-/// about an outcome this file pins, because the sample index and the
-/// enclosure's digits in the rest of the message are a document's
-/// arithmetic and not its verdict.
+/// `built`, or the certification CHECK a refusal named — or, for a
+/// rung-3 limb refusal, which names no check, its variant and limb
+/// (`Rung3Escalated(HullValue)`) — the one thing about an outcome this
+/// file pins, because the sample index and the enclosure's digits in
+/// the rest of the message are a document's arithmetic and not its
+/// verdict.
 fn outcome(r: &Result<usize, String>) -> String {
+    let word = |t: &str| {
+        t.split(|c: char| !c.is_alphanumeric())
+            .next()
+            .map(str::to_owned)
+    };
+    let rung3 = |e: &str| {
+        let rest = e.split("AnalyticRung3(").nth(1)?;
+        let variant = word(rest)?;
+        Some(match rest.split("limb: ").nth(1).and_then(word) {
+            Some(limb) => format!("Rung3{variant}({limb})"),
+            None => format!("Rung3{variant}"),
+        })
+    };
     match r {
         Ok(_) => "built".to_owned(),
         Err(e) => e
             .split("check: ")
             .nth(1)
-            .and_then(|t| t.split(|c: char| !c.is_alphanumeric()).next())
-            .unwrap_or("refused")
-            .to_owned(),
+            .and_then(word)
+            .or_else(|| rung3(e))
+            .unwrap_or_else(|| "refused".to_owned()),
     }
 }
 

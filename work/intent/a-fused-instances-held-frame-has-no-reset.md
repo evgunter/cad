@@ -2,7 +2,7 @@
 id: a-fused-instances-held-frame-has-no-reset
 kind: issue
 title: viewer: a frame held on a loose instance that is then fused has no control to reset it
-status: open
+status: dispatched
 opened: 2026-10-18
 priority: P3
 cost: E

@@ -4,7 +4,6 @@ kind: issue
 title: validate tier 3 — face-boundary containment on curved surfaces (the last unmarked deferral in the not-yet-checked list)
 status: open
 opened: 2026-08-19
-github: 638
 refs: [226, 635, cone-holes-outside-their-face-are-subtracted-silently]
 priority: P1
 cost: H

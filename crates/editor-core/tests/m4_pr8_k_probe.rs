@@ -83,17 +83,13 @@ fn run_doc(d: &corpus::CorpusDoc) -> Vec<MarginSample> {
     let Some(result) = d.result else {
         return k_stats::take_samples();
     };
-    validate(body_of(&ev, result)).expect("tier 1");
-    validate_closed(body_of(&ev, result)).expect("closed");
+    validate(&body_of(&ev, result)).expect("tier 1");
+    validate_closed(&body_of(&ev, result)).expect("closed");
     let mut samples = k_stats::take_samples();
     // The finish (tier 3) runs between the two recording windows, so the
     // corpus holds what it held before the typed door: the evaluation,
     // tiers 1 and 2, and the measurement.
-    let body = topo::test_support::finished(
-        "body",
-        topo::Body::clone(body_of(&ev, result)),
-        Tol::witness(),
-    );
+    let body = topo::test_support::finished("body", body_of(&ev, result), Tol::witness());
     k_stats::start_recording();
     topo::mass_properties(
         &body,
@@ -481,20 +477,12 @@ fn probe_agrees_with_f64_bit_for_bit_over_the_corpus() {
         {
             let tol = Tol::witness();
             let mf = topo::mass_properties(
-                &topo::test_support::finished(
-                    "the measured body",
-                    topo::Body::clone(body_of(&ev_f, result)),
-                    tol,
-                ),
+                &topo::test_support::finished("the measured body", body_of(&ev_f, result), tol),
                 tol,
                 topo::test_support::pinned_resolution(tol),
             );
             let mp = topo::mass_properties(
-                &topo::test_support::finished(
-                    "the measured body",
-                    topo::Body::clone(body_of(&ev_p, result)),
-                    tol,
-                ),
+                &topo::test_support::finished("the measured body", body_of(&ev_p, result), tol),
                 tol,
                 topo::test_support::pinned_resolution(tol),
             );

@@ -4,7 +4,7 @@ kind: program
 title: CARVE — what a loft or sweep builds from its sections, and the bodies it builds that it should refuse
 status: ready
 opened: 2026-09-17
-area: kernel
+group: kernel/sweep/loft
 prefix: carve/
 tag: (CARVE orchestrator)
 ab_band: 5600-5699

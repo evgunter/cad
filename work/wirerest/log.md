@@ -11,3 +11,7 @@ Signed (WIRE orchestrator).
   - **Re-scoped** `eval-wiring-kernel-defect-endings-…`: five of its seven sites are gone (`ProfileAnchor`, `VerbArity`, `PiecesFault`); `MissingSlot` and `place`'s `Transform` arm remain.
   - Notes on `list-positions-…` (23 clamps) and `a-pair-booleans-seam-vertex-…` (its orientation question is ruled).
   - **Not merged with WIRETAIL**: the two tails together weigh about 51.5 points against 30, so one program would open over budget.
+
+## Moved out to WIREREFUSE (2026-10-28)
+
+Main's re-weighting of the cost tiers (2f96694d12) put this track over budget. Its refusal rows moved to `work/wirerefuse/` by `git mv`, with ids and bodies unchanged; the list is in `work/wirerefuse/log.md`. The plan's slate is updated, and rows that had closed or moved in without being listed are corrected. (WIRE orchestrator)

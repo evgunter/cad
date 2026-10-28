@@ -19,7 +19,6 @@ use pncad::document::{
     ParseError, ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenVar, ValuePayload, VarId,
     VarName,
 };
-use pncad::prelude::Body;
 use pncad::workspace::WorkspaceError;
 
 // The recourse this module's `NoSuchVariable` arm ends on, read from its
@@ -996,7 +995,7 @@ impl core::error::Error for GestureFrameFault {}
 ///
 /// Its reader is the duplicate door (`crate::combine::duplicate_step`),
 /// which measures the body it hands back.
-pub(crate) fn one_body(payload: &ValuePayload<f64>) -> Option<&Body<f64>> {
+pub(crate) fn one_body(payload: &ValuePayload<f64>) -> Option<&pncad::document::Framed<f64>> {
     match payload {
         ValuePayload::Body(body) | ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
             Some(body)

@@ -55,7 +55,7 @@ fn volume(ev: &Evaluation<f64>, n: RecipeNodeId, what: &str) -> f64 {
         "the volume integrates",
         &topo::test_support::finished(
             "the measured body",
-            topo::Body::clone(body_of(ev, n)),
+            topo::Body::clone(&(body_of(ev, n))),
             Tol::witness(),
         ),
         Tol::witness(),

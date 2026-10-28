@@ -2,10 +2,11 @@
 id: demo-tour-wall-8-no-longer-refuses-at-1e-12
 kind: issue
 title: demo-tour's tour_runs_green_at_eps_1e_12 is red on main: wall 8 (the loop lofted with circle sections) now tessellates, and its probe asks to be retired
-status: open
+status: closed
 opened: 2026-10-21
 priority: P1
 cost: E
+closed: 2026-10-28
 ---
 
 
@@ -31,3 +32,7 @@ so nothing caught it.
 Retire wall 8's probe and its findings entry, as the message says, and
 spell the annulus's lofted walls as `circle` if wall 5 has retired too.
 Check the default and 1e-6 rows as well.
+
+## Closed (2026-10-28, already fixed on main)
+
+PR 5519 (NURBS build C) retired wall 8 and kept it live: `demos/tour/src/klein.rs` records "Wall 8, RETIRED by #5499", and the loop must tessellate at the stop's δ. No probe for wall 8 remains in `walls.rs`'s retirement path. Closed by the TESS orchestrator at the 2026-10-28 pickup.

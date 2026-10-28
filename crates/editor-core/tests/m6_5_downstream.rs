@@ -124,9 +124,9 @@ fn an_every_edge_fillet_emits_a_full_name_table() {
     let ValuePayload::Body(body) = &v.payload else {
         panic!("a body")
     };
-    assert_eq!(body.faces().count(), 26);
-    assert_eq!(body.edges().count(), 48);
-    assert_eq!(body.vertices().count(), 24);
+    assert_eq!(body.body().faces().count(), 26);
+    assert_eq!(body.body().edges().count(), 48);
+    assert_eq!(body.body().vertices().count(), 24);
     assert_eq!(
         table.len(),
         26 + 48 + 24 + 1,

@@ -1,14 +1,16 @@
 //! **Every corpus placement places its body by the same bits** — the
 //! value channel of each `Node::Place` in the registry, pinned per node.
 //!
-//! The digest is the fixture's value channel (`value_digest_nodes`):
-//! the placed bodies' arena counts and every stored point, so a motion
-//! that moved one bit of one coordinate moves the word. A golden in the
+//! The digest is the fixture's value channel (`placed_body_digest`):
+//! the placed bodies' arena counts and every stored point where the
+//! copy stands, composed into its space through `in_space` (a copy is
+//! its source's body under its frame), so a motion that moved one bit
+//! of one coordinate moves the word. A golden in the
 //! ordinary sense: when one moves, the question is whether the new
 //! motion is right, never how to restore the old number.
 
 use crate::corpus;
-use crate::fixture::value_channel::value_digest_nodes;
+use crate::fixture::value_channel::placed_body_digest;
 use corpus::{eval, failures};
 use editor_core::Node;
 
@@ -91,6 +93,35 @@ use editor_core::Node;
 /// `turn/4`, its split's plane and its pattern's axis read off its faces
 /// (nine rows). Every other row held, across main's merge at
 /// `557e581a64` too.
+///
+/// **Read where each copy stands** (INTENT stage 3 E): a copy is its
+/// source's body under its frame, so the word digests the copy composed
+/// into its space through `in_space`. 118 of the 119 words held: each
+/// copy composes to the bits its rebuilt copy had. The tour die's last
+/// row (`1621`, the identity copy of the filleted die) moved. Against
+/// main (`b97c0195`, and again `cd5f9dee`), composed through `in_space`,
+/// 18 of its 108 points and 2 of its 68 carriers moved, and nothing
+/// else:
+/// - its 15 pip-floor points read `0.04999999999999993` where they read
+///   `0.04999999999999996`, four ulps further from `0.05`;
+/// - four points read `z = 0.5` where they read `0.49999999999999994`
+///   (one ulp closer), one of them a floor point;
+/// - a sphere carrier's and a torus carrier's centres read `z = 0.5`
+///   where they read `0.49999999999999994`.
+///
+/// So of its points four coordinates come closer and fifteen go
+/// further. The pips'
+/// union computes in its first pip's frame and reads every other pip
+/// through `relative` (an inverse and a composition) where each pip was
+/// rebuilt into the world, and the cut, both fillets and this copy
+/// carry that rounding: the union (`1603`) moves 35 of its 42 points
+/// (the floor, two `0.5`s, its `-0.13` and `1.13` faces exact in x and y
+/// and its `-0.13` face `-0.13000000000000012` in z where it read
+/// `-0.13000000000000003`; 16 coordinates closer, 21 further) and its
+/// sphere's centre; the cut and the first fillet (`1605`, `1609`) the
+/// floor, three `0.5`s and the sphere; the second fillet (`1613`) as
+/// this copy. Main's word here is
+/// `0xf44c58129da3f0a3`.
 ///
 /// `die_tool`'s two rows moved again when its master ball came to
 /// stand on the cube's corner frame by an axis mate whose slide and
@@ -260,7 +291,7 @@ const PINNED: &[(&str, u32, u64)] = &[
     ("die_composed_tour", 1448, 0x0f438d0c1168ff00),
     ("die_composed_tour", 1523, 0xe6e314c7e5f1b012),
     ("die_composed_tour", 1598, 0xa2bc43819236825f),
-    ("die_composed_tour", 1621, 0xf44c58129da3f0a3),
+    ("die_composed_tour", 1621, 0xf9dfe49c1f8fb48f),
     ("plate_param", 57, 0xabb2f540f547e688),
     ("plate_param", 71, 0xfa3a93f364562949),
     ("kiss_carry", 50, 0x88fe841c789d0440),
@@ -290,11 +321,21 @@ fn every_corpus_placement_places_its_body_by_the_pinned_bits() {
         let ev = eval::<f64>(&doc.doc);
         let bad = failures(&ev);
         assert!(bad.is_empty(), "{} failed to evaluate: {bad:?}", doc.name);
-        for (id, word, fed) in value_digest_nodes(&ev) {
-            if placements.contains(&id) {
-                assert!(fed > 0, "{} node {}: nothing was digested", doc.name, id);
-                got.push((doc.name, id.0.ordinal(), word));
-            }
+        for id in ev
+            .order
+            .iter()
+            .copied()
+            .filter(|id| placements.contains(id))
+        {
+            let digest = placed_body_digest(&ev, id);
+            assert!(
+                digest.is_some(),
+                "{} node {id}: a placement's value is one body",
+                doc.name
+            );
+            let (word, fed) = digest.unwrap_or_default();
+            assert!(fed > 0, "{} node {}: nothing was digested", doc.name, id);
+            got.push((doc.name, id.0.ordinal(), word));
         }
     }
     for (name, id, word) in &got {

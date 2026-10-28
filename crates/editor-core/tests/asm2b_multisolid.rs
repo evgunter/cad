@@ -145,7 +145,7 @@ fn row2_a_sub_assembly_instantiates_into_four_solids() {
     // The instance value itself is the multi-solid body — the lift's
     // whole content: one rigid map over N solids, not N maps.
     let solids_of = |node: RecipeNodeId| match ev.value(node).map(|v| &v.payload) {
-        Some(editor_core::ValuePayload::Body(b)) => b.solids().count(),
+        Some(editor_core::ValuePayload::Body(b)) => b.body().solids().count(),
         other => panic!("an instance's value is its copies, got {other:?}"),
     };
     assert_eq!(solids_of(a_ids[0]), 2, "each instance carries both solids");
@@ -308,7 +308,7 @@ fn row4_a_placement_moves_every_solid_of_a_multi_solid_instance() {
     let opts = with_resolver(store);
 
     let before = run(&doc, &opts);
-    let body0 = product(&doc, &before, Tol::witness()).expect("gathers");
+    let body0 = crate::fixture::product_in_world(&doc, &before, Tol::witness()).expect("gathers");
     let pin0 = content_pin(&doc, Tol::witness()).expect("pins");
 
     let moved = repinned(doc, ids[0], [7.0, 0.0, 0.0], &opts);
@@ -319,7 +319,7 @@ fn row4_a_placement_moves_every_solid_of_a_multi_solid_instance() {
     );
 
     let after = run(&moved, &opts);
-    let body1 = product(&moved, &after, Tol::witness()).expect("gathers");
+    let body1 = crate::fixture::product_in_world(&moved, &after, Tol::witness()).expect("gathers");
     assert_eq!(body1.solids().count(), 2, "both solids came along");
     assert_eq!(
         volume(&body0).to_bits(),

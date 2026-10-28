@@ -1720,3 +1720,5 @@ Signed (CLEAVE orchestrator).
 - 2026-10-27 — Dispatched:
   - the tangent crescent build together with the flush closed rim at the fate-cut limit, which shares its second-order reading at a tangent vertex, on `cleave/tangent-crescent-builds`;
   - the kept side in one place, ruled by [ev] 5780, on `cleave/kept-side-in-one-place`. (CLEAVE orchestrator)
+
+- 2026-10-27 — **Seam (ATREST):** `atrest/aligned-arc-or-curved-faces-that-abut-are-flush` touches `crates/topo/src/boolean/boxes.rs` in its docs only: the module docs' door list says `flush_at_rest`'s one `face_box` read now boxes cylinder and sphere faces beside the planar ones. It also adds `crates/topo/src/boolean/carrier_eq.rs` `exact_curved`, the cylinder and sphere kinds the undeclared ladder decides exactly, as the one home of that list for the census's curved aligned arm and its flush door; no behaviour moves.

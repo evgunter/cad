@@ -4,7 +4,6 @@ kind: issue
 title: dm1's last refusal is the banked rational-patch-flux lane — QuadratureBudget on a rational cylinder wall
 status: open
 opened: 2026-08-11
-github: 390
 refs: [327, 388, 1195, 1314, 1315]
 priority: P2
 cost: D

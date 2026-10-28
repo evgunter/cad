@@ -32,23 +32,23 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 /// Every output body of a node's value, with its body index.
 fn bodies_of(payload: &ValuePayload<f64>) -> Vec<(u32, &Body<f64>)> {
     match payload {
-        ValuePayload::Body(b) => vec![(0, &**b)],
-        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => vec![(0, &**body)],
+        ValuePayload::Body(b) => vec![(0, b.body())],
+        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => vec![(0, body.body())],
         ValuePayload::Boolean(BooleanValue::Empty) => vec![],
         ValuePayload::Split { above, below } => {
             let mut out = Vec::new();
             if let SplitSide::Body(b) = above {
-                out.push((0, &**b));
+                out.push((0, b.body()));
             }
             if let SplitSide::Body(b) = below {
-                out.push((1, &**b));
+                out.push((1, b.body()));
             }
             out
         }
         ValuePayload::Instances(v) => v
             .iter()
             .enumerate()
-            .map(|(i, b)| (u32::try_from(i).unwrap(), &**b))
+            .map(|(i, b)| (u32::try_from(i).unwrap(), b.body()))
             .collect(),
         ValuePayload::Profile(_)
         // Neither sink denotes a body, so neither offers an entity to

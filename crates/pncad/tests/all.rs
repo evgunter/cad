@@ -2447,7 +2447,7 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
         &pncad::topo::AtRestBody::validate(
             pncad::topo::Body::clone(
                 match &evaluated.value(body).expect("the plate evaluated").payload {
-                    ValuePayload::Body(b) => b,
+                    ValuePayload::Body(b) => b.body(),
                     other => panic!("expected a body, got {other:?}"),
                 },
             ),
@@ -2487,7 +2487,7 @@ fn the_persist_doors_round_trip_through_the_facade() {
         &pncad::topo::AtRestBody::validate(
             pncad::topo::Body::clone(
                 match &before.value(body_node).expect("the box evaluated").payload {
-                    pncad::document::ValuePayload::Body(b) => b,
+                    pncad::document::ValuePayload::Body(b) => b.body(),
                     other => panic!("expected a body, got {}", other.kind_name()),
                 },
             ),
@@ -2527,7 +2527,7 @@ fn the_persist_doors_round_trip_through_the_facade() {
                     .expect("the box re-evaluated")
                     .payload
                 {
-                    pncad::document::ValuePayload::Body(b) => b,
+                    pncad::document::ValuePayload::Body(b) => b.body(),
                     other => panic!("expected a body, got {}", other.kind_name()),
                 },
             ),
@@ -2998,7 +2998,7 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
         panic!("a union yields a body");
     };
     let volume = mass_properties(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body.as_ref()), Tol::witness())
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body.body()), Tol::witness())
             .expect("the measured body passes tier 3"),
         Tol::witness(),
         pinned_resolution(Tol::witness()),
@@ -3823,7 +3823,7 @@ fn asm2a_row1_two_instances_through_a_real_workspace() {
     // Solid order = placement order: instance 0 is at the origin, instance 1
     // ten units along +x.
     let x_of = |node| match ev.value(node).map(|v| &v.payload) {
-        Some(pncad::document::ValuePayload::Body(b)) => b
+        Some(pncad::document::ValuePayload::Body(b)) => standing(b)
             .vertex_points()
             .map(|(_, p)| p.x)
             .fold(f64::INFINITY, f64::min),
@@ -4367,6 +4367,7 @@ fn asm2b_row2_sub_assembly_through_a_real_workspace() {
     // and x = 10 (B's own spacing), instance 1's ten further along.
     let xs = |node| match ev.value(node).map(|v| &v.payload) {
         Some(pncad::document::ValuePayload::Body(b)) => {
+            let b = standing(b);
             assert_eq!(b.solids().count(), 2, "an instance carries both solids");
             let mut v: Vec<f64> = b.vertex_points().map(|(_, p)| p).map(|p| p.x).collect();
             v.sort_by(f64::total_cmp);
@@ -6933,8 +6934,11 @@ mod the_hollowed_box_through_the_facade {
             panic!("the shell's payload is not a body");
         };
         let props = pncad::topo::mass_properties(
-            &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body), Tol::witness())
-                .expect("the measured body passes tier 3"),
+            &pncad::topo::AtRestBody::validate(
+                pncad::topo::Body::clone(body.body()),
+                Tol::witness(),
+            )
+            .expect("the measured body passes tier 3"),
             Tol::witness(),
             crate::pinned_resolution(Tol::witness()),
         )
@@ -7200,4 +7204,185 @@ fn a_facade_slot_shares_an_unnamed_variable_only_once_it_is_named() {
     let shared = apply(&named, &second).expect("a named variable is shared");
     let b = shared.record.minted.expect("minted");
     assert_eq!(shared.doc.slot(b, SlotId::Distance), Some(x));
+}
+
+/// **Moving a document's only world placement moves no body bit and no
+/// measured bit, and moves the STEP bytes** (INTENT stage 3 E, D10
+/// `[placement.frame]` and `[placement.world]`, test 13). The box's copy
+/// is the box's own body under its frame, so moving it moves the frame
+/// and nothing computed in it: every node's body, the product's and a
+/// distance measured between the copy's two caps keep their bits. Export
+/// alone composes the frame into the world (`in_space`), so the STEP
+/// bytes are where the move shows.
+///
+/// *Breaks if* a placement maps its source's body (every bit of the copy
+/// and of the product moves), or export writes a body in its own frame
+/// (the STEP bytes stay put).
+#[test]
+fn moving_the_only_world_placement_moves_no_body_bit_and_moves_the_step_bytes() {
+    use pncad::document::{
+        Coord, Dimension, Formula, MeasurePrimitive, Node, SitedRef, TargetAxis, ValuePayload,
+    };
+    let (doc, _, body) = box_doc("e-world-move");
+    let placement = doc
+        .product()
+        .and_then(|var| doc.operation_of(var))
+        .expect("the copy is the product");
+    let cap = |end| pncad::prelude::StableName {
+        kind: pncad::select::EntityKind::Face,
+        node: body,
+        path: vec![pncad::select::RoleSeg::Cap(end)],
+    };
+    let (doc, measure) = insert(
+        doc,
+        Node::measure(&MeasurePrimitive::Distance {
+            a: SitedRef::new(placement, cap(pncad::select::CapEnd::Start)),
+            b: SitedRef::new(placement, cap(pncad::select::CapEnd::End)),
+        }),
+    );
+    let mut moved = pncad::document::stand();
+    moved.values = vec![
+        (Coord::Slide(TargetAxis::X), len(3.25)),
+        (Coord::Slide(TargetAxis::Y), len(-1.5)),
+        (Coord::Slide(TargetAxis::Z), len(0.75)),
+        (
+            Coord::Spin(Some(TargetAxis::X)),
+            Formula::literal(0.0, Dimension::Angle).unwrap(),
+        ),
+        (
+            Coord::Spin(Some(TargetAxis::Y)),
+            Formula::literal(0.0, Dimension::Angle).unwrap(),
+        ),
+        (
+            Coord::Spin(Some(TargetAxis::Z)),
+            Formula::literal(std::f64::consts::FRAC_1_SQRT_2, Dimension::Angle).unwrap(),
+        ),
+    ];
+    let elsewhere = applied(&doc, moved.write(placement)).doc;
+    // Every node's body bits, the product's and the measure's.
+    let bits = |doc: &pncad::document::ProfileDoc| {
+        let ev = pncad::document::evaluate::<f64>(
+            doc,
+            None,
+            &pncad::document::CancelToken::new(),
+            &pncad::document::EvalOptions::default(),
+            Tol::witness(),
+        );
+        let mut out: Vec<u64> = Vec::new();
+        for id in doc.ids() {
+            match ev.value(id).map(|v| &v.payload) {
+                Some(ValuePayload::Body(b)) => out.extend(
+                    b.body()
+                        .points()
+                        .flat_map(|(_, p)| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()]),
+                ),
+                Some(ValuePayload::Measure { value, .. }) => out.push(value.to_bits()),
+                _ => {}
+            }
+        }
+        let product =
+            pncad::document::product_recorded(doc, &ev, Tol::witness()).expect("the box gathers");
+        out.extend(
+            product
+                .body
+                .points()
+                .flat_map(|(_, p)| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()]),
+        );
+        let step =
+            pncad::export::export_document_step(&ev, doc, &StepOptions::default(), Tol::witness())
+                .expect("the box exports");
+        let measured = match ev.value(measure).map(|v| &v.payload) {
+            Some(ValuePayload::Measure { value, .. }) => *value,
+            other => panic!("the measure has a value: {other:?}"),
+        };
+        (out, step, measured)
+    };
+    let (here, here_step, here_measured) = bits(&doc);
+    let (there, there_step, there_measured) = bits(&elsewhere);
+    assert_eq!(here_measured, 1.5, "the caps stand the box's height apart");
+    assert_eq!(
+        here, there,
+        "moving the only world placement moves no body bit and no measured bit"
+    );
+    assert_ne!(here_step, there_step, "and it moves the STEP bytes");
+    assert_eq!(
+        here_measured.to_bits(),
+        there_measured.to_bits(),
+        "the distance between the copy's caps is the same bits"
+    );
+}
+
+/// **A copy where it stands in its space**: its body composed through
+/// the façade's read-out door ([`pncad::export::body_in_space`]), for a
+/// row that reads positions.
+fn standing(value: &pncad::document::Framed<f64>) -> pncad::topo::Body<f64> {
+    pncad::topo::Body::clone(
+        &pncad::export::body_in_space(value, Tol::witness())
+            .expect("a copy composes into its space"),
+    )
+}
+
+/// **A body far out builds and refuses to be read out** (INTENT stage 3
+/// E, R2's far-from-origin note): a block's copy turned and stood
+/// `1e17 ε` out (at least 1e7) builds, sharing its source's body under its frame, so nothing in
+/// the model maps it. The façade's read-out composes it into the world
+/// and re-certifies every edge there, which refuses at that distance:
+/// `body_in_space` answers `compose_refused`'s refusal, and so does a
+/// STEP export of the node. The viewer's picture, which moves the copy's
+/// tessellation on the CPU and certifies nothing, draws it
+/// (`work/intent/a-far-body-the-read-out-refuses-the-picture-draws.md`).
+#[test]
+fn a_far_turned_copy_builds_and_its_read_out_refuses_to_compose() {
+    use pncad::document::{Coord, Dimension, Formula, TargetAxis, ValuePayload};
+    let (doc, _, _) = box_doc("e-far-read-out");
+    let placement = doc
+        .product()
+        .and_then(|var| doc.operation_of(var))
+        .expect("the copy is the product");
+    let mut far = pncad::document::stand();
+    let turn = |r: f64| Formula::literal(r, Dimension::Angle).unwrap();
+    // Far enough that the composition's rounding outgrows the run's ε:
+    // the distance scales with it.
+    let d = (1.0e17 * Tol::witness().eps()).max(1.0e7);
+    far.values = vec![
+        (Coord::Slide(TargetAxis::X), len(d + 0.3)),
+        (Coord::Slide(TargetAxis::Y), len(-0.3 * d - 0.7)),
+        (Coord::Slide(TargetAxis::Z), len(0.2 * d + 0.1)),
+        (Coord::Spin(Some(TargetAxis::X)), turn(0.3)),
+        (
+            Coord::Spin(Some(TargetAxis::Y)),
+            turn(std::f64::consts::FRAC_1_SQRT_2),
+        ),
+        (Coord::Spin(Some(TargetAxis::Z)), turn(1.1)),
+    ];
+    let doc = applied(&doc, far.write(placement)).doc;
+    let ev = pncad::document::evaluate::<f64>(
+        &doc,
+        None,
+        &pncad::document::CancelToken::new(),
+        &pncad::document::EvalOptions::default(),
+        Tol::witness(),
+    );
+    let Some(ValuePayload::Body(copy)) = ev.value(placement).map(|v| &v.payload) else {
+        panic!(
+            "the far copy builds: {:?}",
+            ev.node_error(placement).map(|e| &e.kind)
+        );
+    };
+    let read = pncad::export::body_in_space::<f64>(copy, Tol::witness());
+    assert!(
+        read.is_err(),
+        "the read-out composes it into the world and re-certifies there, which refuses this far out"
+    );
+    let step = pncad::export::step_for_node(
+        &ev,
+        placement,
+        &pncad::step_export::StepOptions::default(),
+        Tol::witness(),
+    );
+    assert!(
+        matches!(step, Err(pncad::export::ExportError::Compose(_))),
+        "and so does the node's STEP export: {:?}",
+        step.as_ref().map(|_| ())
+    );
 }

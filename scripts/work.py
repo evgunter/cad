@@ -3,7 +3,7 @@
 enforces; this header says only what the contract does not.
 
     work.py lint                         every rule in work/README.md
-    work.py status [--program P]         the render, to stdout
+    work.py status [--program P]         the render, to stdout (P: an id, or a group)
     work.py render [--out PATH]          the render, to work/STATUS.md
     work.py new ID --kind K --title T [--program P] [--set key=value ...]
     work.py set ID key=value [key=value ...]
@@ -22,15 +22,8 @@ library, matching every other cheap tripwire under scripts/.
 WHAT LINT CANNOT SEE, stated because a disclosed blind spot is a work
 order. Ints in `blocked_on`, `refs` and `pr` are PR or issue numbers
 on GitHub and are not resolved AGAINST GITHUB — the tracker is version
-control and does not call out. One resolution is in the tree and is
-made: a migrated issue carries its number on the item that replaced it
-(`github:`), so a number in `blocked_on` that matches exactly one such
-item reaches the fired-trigger rule through it, as a warning rather
-than an error because the match is an inference (`work/README.md`).
-A number matching none, or two, stays unchecked. A `[ev]` PR title is
-likewise a GitHub fact; lint checks that `needs_ev` is a bare `true`,
-not that an open PR carries the flag (the PR is one `git log` away from
-the item). Territory globs are matched with
+control and does not call out; to have a blocker checked, name the
+item instead of the number. Territory globs are matched with
 `fnmatch`, where `*` crosses `/` — `crates/mesh/*` is the whole crate,
 which is what every territory in the tree means by it.
 """
@@ -88,7 +81,10 @@ RULING_STATUS = ("open", "closed")
 # There is no `closed`: a program that closes is DELETED in the sweep that
 # closes it, so a closed program is an ABSENT one and no status has to say so.
 PROGRAM_STATUS = ("ready", "active", "blocked")
-AREAS = ("kernel", "api", "gui", "infra")
+# A program's place in the hierarchy the board shows (work/README.md, "The
+# header"): `kernel/boolean/split`. The directories stay flat, so re-filing a
+# program edits one header line and no `work/<id>/` citation moves.
+GROUP_RE = re.compile(r"^[a-z0-9-]+(/[a-z0-9-]+)*$")
 
 # The priority bands (work/README.md, "Priority"). P0 is most urgent. A band
 # says WHAT to do, never WHEN: dispatch order is priority together with cost
@@ -102,17 +98,23 @@ PRIORITIES = ("P0", "P1", "P2", "P3", "P4")
 # in the item or obvious, M between the two, H getting it right is technically
 # hard. Whether a design question is open is a separate fact, the `design` flag,
 # because the two vary independently. The weights are what make one budget say
-# "about 6 hard rows or about 30 easy ones" in a single number.
+# "about 4 hard rows or about 30 easy ones" in a single number; they were set
+# from the measured effort of closed rows (analysis/cost-tiers/ on the
+# `analysis/cost-tier-effort` branch), H's including the follow-up rows a hard
+# row typically files. C, a chore, is priced 0 because chores are dispatched
+# only in bundles, never with an implementer of their own. X, extra hard, is a
+# row larger than any H, typically a feature that will grow into a program;
+# it carries its price by hand in `points:`, and only X does.
 #
 # D is LEGACY. The 2026-09-03 cut (docs/WORK-TRACKS-2026-09.md) defined it as
 # "a design question is open", but the README never said so and rows priced
 # before 2026-09-27 used it for middling effort too, so a `cost: D` on a row
 # opened before then means "M, and maybe design work": re-price it when you
 # touch the row. A row opened on or after LEGACY_D_UNTIL may not carry it.
-COSTS = ("E", "M", "H", "D")
-COST_WEIGHT = {"E": 1.0, "M": 2.5, "H": 5.0, "D": 2.5}
+COSTS = ("C", "E", "M", "H", "X", "D")
+COST_WEIGHT = {"C": 0, "E": 1, "M": 3, "H": 8, "D": 3}   # X: the row's own `points:`
 LEGACY_D_UNTIL = "2026-09-27"  # the first `opened:` date that refuses `cost: D`
-DEFAULT_BUDGET = 30            # points; 30 E, 12 M, or 6 H
+DEFAULT_BUDGET = 30            # points; 30 E, 10 M, or about 4 H
 UNPRICED_WEIGHT = COST_WEIGHT["M"]   # an unscored row is priced mid-range
 
 # A row counts against its track's budget only while it is DISPATCHABLE. A row
@@ -135,19 +137,16 @@ SCHEMA: dict[str, tuple[str, tuple[str, ...]]] = {
     "rides_with": ("ref", ("unit", "issue", "ruling")),
     "pr": ("int", ("unit", "issue", "ruling")),
     "branch": ("str", ("unit", "issue", "ruling")),
-    "needs_ev": ("flag", ("unit", "issue", "ruling", "program")),
-    "track": ("str", ("unit", "issue", "ruling")),
     "priority": ("enum:priority", ("unit", "issue", "ruling")),
     "cost": ("enum:cost", ("unit", "issue", "ruling")),
+    "points": ("int", ("unit", "issue", "ruling")),
     "design": ("flag", ("unit", "issue", "ruling")),
-    "github": ("int", ("unit", "issue", "ruling")),
-    "area": ("enum:area", ("program",)),
+    "group": ("group", ("program",)),
     "prefix": ("str", ("program",)),
     "tag": ("str", ("program",)),
     "ab_band": ("str", ("program",)),
     "paths": ("strlist", ("program",)),
     "keep_out": ("strlist", ("program",)),
-    "blocks": ("strlist", ("program",)),
     "budget": ("int", ("program",)),
 }
 REQUIRED = ("id", "kind", "title", "status", "opened")
@@ -399,8 +398,9 @@ def _check_type(item: Item, key: str, typ: str, value: object) -> list[str]:
         return [f"{w}: {x!r} is not a string" for x in value if not isinstance(x, str) or x == ""]
     if typ == "enum:kind":
         return [] if value in KINDS else [f"{w} must be one of {KINDS}"]
-    if typ == "enum:area":
-        return [] if value in AREAS else [f"{w} must be one of {AREAS}"]
+    if typ == "group":
+        return [] if isinstance(value, str) and GROUP_RE.match(value) else [
+            f"{w} must be lowercase segments joined by `/`, like `kernel/boolean`"]
     if typ == "enum:priority":
         return [] if value in PRIORITIES else [f"{w} must be one of {PRIORITIES}"]
     if typ == "enum:cost":
@@ -420,17 +420,26 @@ def _listed(item: Item, key: str) -> list[object]:
     return v if isinstance(v, list) else []
 
 
-def _load(rows: list[Item]) -> float:
+def _load(rows: list[Item]) -> int:
     """The weighted DISPATCHABLE load a slate is carrying, in budget points.
     An unpriced row is charged the middle weight rather than nothing, so a
     track cannot come in under budget by declining to price itself."""
-    total = 0.0
+    total = 0
     for r in rows:
         if r.status not in DISPATCHABLE:
             continue
-        c = r.get("cost")
-        total += COST_WEIGHT.get(str(c), UNPRICED_WEIGHT)
+        c, pts = r.get("cost"), r.get("points")
+        if c == "X" and isinstance(pts, int) and not isinstance(pts, bool):
+            total += pts
+        else:
+            total += COST_WEIGHT.get(str(c), UNPRICED_WEIGHT)
     return total
+
+
+def _path(p: Item) -> str:
+    """A program as the board names it: its group, then its id."""
+    g = p.get("group")
+    return f"{g}/{p.id}" if isinstance(g, str) and g else p.id
 
 
 def _budget(p: Item) -> int:
@@ -467,11 +476,9 @@ def _top_band(rows: list[Item]) -> str:
     return next((b for b, n in zip(PRIORITIES, counts, strict=True) if n), "—")
 
 
-def _say_fired(vs: list[object], resolves: dict[int, Item]) -> str:
-    """Fired blockers, named. An id prints as itself; a number prints as the
-    number AND the item it resolved to, so the reader can check the inference
-    rather than take it."""
-    return ", ".join(f"`{v}`" if isinstance(v, str) else f"#{v} (`{resolves[v].id}`)" for v in vs)
+def _say_fired(vs: list[str]) -> str:
+    """Fired blockers, named."""
+    return ", ".join(f"`{v}`" for v in vs)
 
 
 def _names(text: str, program_id: str) -> bool:
@@ -555,12 +562,6 @@ def lint(root: str, warnings: list[str] | None = None) -> list[str]:
     items, errors = load_tree(root)
     warns: list[str] = []
     by_id: dict[str, Item] = {}
-    # The migrated-issue map: `github: 1202` says this item is what GitHub
-    # issue 1202 became, which is the only thing in the tree that can turn a
-    # number in `blocked_on` back into a row. A number two rows both claim
-    # resolves to NEITHER — an ambiguous mapping is not a mapping — and is
-    # reported instead.
-    by_github: dict[int, list[Item]] = {}
     for it in items:
         # keys and types
         for key in it.fields:
@@ -580,6 +581,8 @@ def lint(root: str, warnings: list[str] | None = None) -> list[str]:
         # placement and naming
         stem = os.path.basename(it.path)[:-3]
         if it.kind == "program":
+            if it.get("group") is None:
+                errors.append(f"{it.path}: missing `group` (work/README.md, The header)")
             if stem != "program":
                 errors.append(f"{it.path}: kind program belongs only in program.md")
             elif it.id != it.program:
@@ -596,16 +599,6 @@ def lint(root: str, warnings: list[str] | None = None) -> list[str]:
                 errors.append(f"{it.path}: id `{it.id}` is already {by_id[it.id].path}")
             else:
                 by_id[it.id] = it
-        gh = it.get("github")
-        if isinstance(gh, int) and not isinstance(gh, bool):
-            by_github.setdefault(gh, []).append(it)
-    for gh, claimants in sorted(by_github.items()):
-        if len(claimants) > 1:
-            warns.append(f"{claimants[0].path}: `github` {gh} is claimed by "
-                         f"{', '.join(f'`{c.id}`' for c in claimants)} — one GitHub issue became one item, "
-                         f"and a number two rows both claim resolves to neither, so a `blocked_on: [{gh}]` "
-                         f"goes unchecked")
-    resolves = {gh: c[0] for gh, c in by_github.items() if len(c) == 1}
     programs = {it.id: it for it in items if it.kind == "program" and it.id}
     owned: dict[str, list[Item]] = defaultdict(list)
     for it in items:
@@ -627,7 +620,14 @@ def lint(root: str, warnings: list[str] | None = None) -> list[str]:
             errors.append(f"{it.path}: parked needs a non-empty `blocked_on`")
         if it.get("cost") == "D" and str(it.get("opened")) >= LEGACY_D_UNTIL:
             errors.append(f"{it.path}: `cost: D` is legacy (opened before {LEGACY_D_UNTIL} only) — "
-                          f"price the effort E, M or H, and set `design: true` if a design question is open")
+                          f"price the effort C, E, M, H or X, and set `design: true` if a design question is open")
+        if it.get("cost") == "X" and it.get("points") is None:
+            errors.append(f"{it.path}: `cost: X` is priced by hand — set `points:` and say why in the body")
+        if it.get("points") is not None and it.get("cost") != "X":
+            errors.append(f"{it.path}: `points:` prices only a `cost: X` row; every other cost has its fixed weight")
+        pts = it.get("points")
+        if isinstance(pts, int) and not isinstance(pts, bool) and pts < 0:
+            errors.append(f"{it.path}: `points:` must not be negative")
         if it.status == "deferred" and it.get("blocked_on"):
             errors.append(f"{it.path}: deferred is a ratified not-now, not a wait on a named trigger — "
                           f"a row with `blocked_on` is parked; cite the ratification in the body instead")
@@ -636,53 +636,33 @@ def lint(root: str, warnings: list[str] | None = None) -> list[str]:
             # else here objects and the row reads blocked forever.
             named = [v for v in _listed(it, "blocked_on")
                      if isinstance(v, str) and v in by_id and by_id[v].status == "closed"]
-            # An int reaches the rule only INFERRED, through `github:`: the
-            # author wrote a number, not a reference, and the tracker matched it
-            # to the item that number became. A true inference is still an
-            # inference, so it WARNS and names the row where a naming errors —
-            # `work/README.md` gives the reason. A number matching no `github:`,
-            # or two, stays unchecked, as every int did before. (GitHub numbers
-            # PRs and issues from one sequence per repo, so the number a row is
-            # parked on cannot be a PR number AND some other row's issue.)
-            inferred = [v for v in _listed(it, "blocked_on")
-                        if isinstance(v, int) and not isinstance(v, bool)
-                        and v in resolves and resolves[v].status == "closed"]
-            fired = named + inferred
-            if fired:
-                rest = [_fmt_ref(v) for v in _listed(it, "blocked_on") if v not in fired]
-                if named and not rest:
-                    errors.append(f"{it.path}: parked on {_say_fired(named, resolves)}, which is closed — "
+            if named:
+                rest = [_fmt_ref(v) for v in _listed(it, "blocked_on") if v not in named]
+                if not rest:
+                    errors.append(f"{it.path}: parked on {_say_fired(named)}, which is closed — "
                                   f"that trigger has fired and nothing else gates this row; "
                                   f"re-park it on what does, open it, or defer it")
-                elif named:
+                else:
                     # Still blocked, so the status is true and only the entry is stale.
-                    warns.append(f"{it.path}: parked on {_say_fired(named, resolves)}, which is closed — "
+                    warns.append(f"{it.path}: parked on {_say_fired(named)}, which is closed — "
                                  f"that trigger has fired; it still waits on {', '.join(rest)}, "
                                  f"so prune the fired entry")
-                if inferred:
-                    gate = "nothing else gates this row" if not rest else f"it still waits on {', '.join(rest)}"
-                    warns.append(f"{it.path}: parked on {_say_fired(inferred, resolves)}, which is closed — "
-                                 f"the number resolves through that item's `github:` and its trigger has fired; "
-                                 f"{gate}. Name the item instead of the number, then the rule reads it directly")
             # A blocker inherits the band of what waits on it (work/README.md,
             # Priority): the part of it that stands in the way is that band's
             # work, or the parked row is dispatched in its blocker's turn.
-            # A naming errors and a `github:` inference warns, as above; a
-            # program carries no band, and a band-less row has none to lend.
+            # A program carries no band, and a band-less row has none to lend.
             if str(it.get("priority")) in PRIORITIES:
                 for v in _listed(it, "blocked_on"):
-                    named_ref = isinstance(v, str) and v in by_id
-                    inferred_ref = isinstance(v, int) and not isinstance(v, bool) and v in resolves
-                    if not (named_ref or inferred_ref):
+                    if not (isinstance(v, str) and v in by_id):
                         continue
-                    b = by_id[v] if named_ref else resolves[v]
+                    b = by_id[v]
                     if b.status == "closed" or b.kind == "program" or _prio_key(b) <= _prio_key(it):
                         continue
-                    msg = (f"{it.path}: {it.get('priority')} row parked on {_say_fired([v], resolves)}, "
+                    msg = (f"{it.path}: {it.get('priority')} row parked on {_say_fired([v])}, "
                            f"which is {b.get('priority') or 'unbanded'} — a blocker inherits the band of what "
                            f"waits on it: re-band the blocker, split off the part that unblocks at "
                            f"{it.get('priority')} and re-park on that, or open this row")
-                    (errors if named_ref else warns).append(msg)
+                    errors.append(msg)
         # references
         for key in ("parent", "rides_with"):
             v = it.get(key)
@@ -774,12 +754,14 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
         if it.kind != "program":
             by_program[it.program].append(it)
     programs = sorted((it for it in items if it.kind == "program"),
-                      key=lambda p: (_board_key(by_program.get(p.id, [])), str(p.get("area")), p.id))
+                      key=lambda p: (_board_key(by_program.get(p.id, [])), _path(p)))
     live = [it for it in items if it.kind != "program" and it.status != "closed"]
     if only_program:
-        programs = [p for p in programs if p.id == only_program]
+        # a program's id or full path, or a group: the whole subtree under it
+        programs = [p for p in programs if only_program in (p.id, _path(p))
+                    or _path(p).startswith(only_program.rstrip("/") + "/")]
         if not programs:
-            raise Bail(f"no program `{only_program}`")
+            raise Bail(f"no program or group `{only_program}`")
 
     out: list[str] = []
     out.append("# Work status")
@@ -788,31 +770,16 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
                "`work/README.md` says how this file is produced and what each section means.")
     out.append("")
 
-    # Ev's queue
-    if not only_program:
-        queue = sorted((it for it in live if it.get("needs_ev") is not None), key=lambda i: (str(i.get("opened")), i.id))
-        out.append("## Waiting on Ev")
-        out.append("")
-        if queue:
-            out.append("| since | item | program | status | title |")
-            out.append("|---|---|---|---|---|")
-            for it in queue:
-                out.append(f"| {it.get('opened')} | `{it.id}` | {it.program or '—'} | {it.status} | {it.get('title')} |")
-        else:
-            out.append("Nothing.")
-        out.append("")
-
     # board
     out.append("## Programs")
     out.append("")
     bands = " | ".join(PRIORITIES)
-    out.append(f"| area | program | top | {bands} | load | status | open | spec | dispatched | review | parked | deferred | closed | on Ev |")
-    out.append("|---|---|---|" + "---|" * len(PRIORITIES) + "---|---|---|---|---|---|---|---|---|---|")
+    out.append(f"| program | top | {bands} | load | status | open | spec | dispatched | review | parked | deferred | closed |")
+    out.append("|---|---|" + "---|" * len(PRIORITIES) + "---|---|---|---|---|---|---|---|---|")
     totals = {b: 0 for b in PRIORITIES}
     for p in programs:
         rows = by_program.get(p.id, [])
         c = {s: sum(1 for r in rows if r.status == s) for s in ITEM_STATUS}
-        ev = sum(1 for r in rows if r.status != "closed" and r.get("needs_ev") is not None)
         # Band counts are over LIVE rows, whatever their status: a parked P0 is
         # still P0 work this track holds, and the status columns beside them
         # already say which rows are dispatchable.
@@ -821,12 +788,11 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
         for b in PRIORITIES:
             totals[b] += band[b]
         cells = " | ".join(str(band[b] or "") for b in PRIORITIES)
-        out.append(f"| {p.get('area') or '—'} | `{p.id}` | {_top_band(rows)} | {cells} | "
+        out.append(f"| `{_path(p)}` | {_top_band(rows)} | {cells} | "
                    f"{_fmt_load(rows, p)} | {p.status} | {c['open']} | {c['spec']} | "
-                   f"{c['dispatched']} | {c['review']} | {c['parked']} | {c['deferred']} | {c['closed']} | "
-                   f"{ev or ''} |")
-    out.append("| | **all programs** | | " + " | ".join(f"**{totals[b]}**" for b in PRIORITIES)
-               + " | | | | | | | | | | |")
+                   f"{c['dispatched']} | {c['review']} | {c['parked']} | {c['deferred']} | {c['closed']} |")
+    out.append("| **all programs** | | " + " | ".join(f"**{totals[b]}**" for b in PRIORITIES)
+               + " | | | | | | | | | |")
     out.append("")
     out.append("`P0`–`P4` count this program's LIVE rows in each band "
                "(`work/README.md`, Priority); a row is counted whatever its "
@@ -843,10 +809,10 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
     # per-program slates
     for p in programs:
         rows = [r for r in by_program.get(p.id, []) if r.status != "closed"]
-        out.append(f"## `{p.id}` — {p.get('title')}")
+        out.append(f"## `{_path(p)}` — {p.get('title')}")
         out.append("")
         meta = []
-        for key in ("area", "prefix", "tag", "ab_band"):
+        for key in ("prefix", "tag", "ab_band"):
             if p.get(key) is not None:
                 meta.append(f"{key} `{p.get(key)}`")
         if meta:
@@ -864,10 +830,9 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
         for r in sorted(rows, key=lambda i: (_prio_key(i), ITEM_STATUS.index(i.status) if i.status in ITEM_STATUS else 9, i.id)):
             blocked = ", ".join(_fmt_ref(b) for b in _listed(r, "blocked_on"))
             pr = f"#{r.get('pr')}" if r.get("pr") is not None else ""
-            ev = " **[ev]**" if r.get("needs_ev") is not None else ""
             cost = (r.get("cost") or "—") + (" +design" if r.get("design") is not None else "")
             out.append(f"| {r.get('priority') or '—'} | `{r.id}` | {r.kind} | {cost} | "
-                       f"{r.status}{ev} | {r.get('title')} | {blocked} | {pr} |")
+                       f"{r.status} | {r.get('title')} | {blocked} | {pr} |")
         out.append("")
 
     if only_program:
@@ -1130,17 +1095,17 @@ def _fixture(root: str) -> None:
     _write(root, "work/README.md", "contract\n")
     _write(root, "work/mesh/program.md",
            "---\nid: mesh\nkind: program\ntitle: S-MESH\nstatus: active\nopened: 2026-08-31\n"
-           "area: kernel\nprefix: mesh/\nab_band: 1200-1299\npaths: [crates/mesh/*]\n---\n")
+           "group: kernel\nprefix: mesh/\nab_band: 1200-1299\npaths: [crates/mesh/*]\n---\n")
     _write(root, "work/mesh/plan.md", "plan\n")
     _write(root, "work/mesh/log.md", "log\n")
     _write(root, "work/mesh/MESH-1.md",
            "---\nid: MESH-1\nkind: unit\ntitle: first\nstatus: review\nopened: 2026-09-01\npr: 1605\n"
            "blocked_on: [MESH-2, 1601]\n---\n\nbody\n")
     _write(root, "work/mesh/MESH-2.md",
-           "---\nid: MESH-2\nkind: issue\ntitle: second\nstatus: open\nopened: 2026-09-01\nneeds_ev: true\n---\n")
+           "---\nid: MESH-2\nkind: issue\ntitle: second\nstatus: open\nopened: 2026-09-01\nbranch: mesh/second\n---\n")
     _write(root, "work/topo/program.md",
            "---\nid: topo\nkind: program\ntitle: swept clean\nstatus: ready\nopened: 2026-08-01\n"
-           "area: kernel\nprefix: topo/\npaths: [crates/topo/*]\n---\n")
+           "group: kernel/shape\nprefix: topo/\npaths: [crates/topo/*]\n---\n")
     _write(root, "work/topo/T-1.md",
            "---\nid: T-1\nkind: unit\ntitle: done\nstatus: closed\nopened: 2026-08-01\nclosed: 2026-08-19\n---\n")
     _write(root, "work/issues/stray-thing.md",
@@ -1176,26 +1141,29 @@ def selftest() -> int:
         expect("clean fixture", lint(root, warns))
         expect("clean fixture (warnings)", warns)
         text = render(root, today=far)
-        for needle in ("## Waiting on Ev", "`MESH-2`", "`stray-thing`", "## Blocked", "MESH-2, #1601", "`topo`"):
+        for needle in ("`MESH-2`", "`stray-thing`", "## Blocked", "MESH-2, #1601", "`kernel/shape/topo`"):
             if needle not in text:
                 failures.append(f"render lacks {needle!r}")
         if "MESH-1" not in text.split("## Untouched")[1]:
             failures.append(f"render: fixture items committed 'today' should still be listed stale at +{STALE_DAYS + 5} days")
         p = render(root, only_program="mesh", today=far)
-        if "## Waiting on Ev" in p or "`topo`" in p:
+        if "## Blocked" in p or "`kernel/shape/topo`" in p:
             failures.append("--program render leaked whole-board sections")
+        if "`kernel/shape/topo`" not in render(root, only_program="kernel/shape", today=far) \
+                or "`kernel/mesh`" in render(root, only_program="kernel/shape", today=far):
+            failures.append("--program with a group should render exactly that subtree")
 
         # new / set round-trip, the CLI spelling included
-        if main(["--root", root, "new", "MESH-4", "--kind", "issue", "--title", "fourth", "--program", "mesh", "--set", "track=R", "--set", "opened=2026-09-03"]) != 0:
+        if main(["--root", root, "new", "MESH-4", "--kind", "issue", "--title", "fourth", "--program", "mesh", "--set", "branch=R", "--set", "opened=2026-09-03"]) != 0:
             failures.append("CLI `new` with --set fields failed")
-        elif _find(root, "MESH-4").get("track") != "R":
+        elif _find(root, "MESH-4").get("branch") != "R":
             failures.append("CLI `new` dropped its trailing assignments")
         os.remove(os.path.join(root, "work/mesh/MESH-4.md"))
-        rel = cmd_new(root, "MESH-3", "unit", "third", "mesh", ["track=R"])
+        rel = cmd_new(root, "MESH-3", "unit", "third", "mesh", ["branch=R"])
         expect("after new", lint(root))
-        cmd_set(root, "MESH-3", ["status=parked", "blocked_on=[MESH-1, 42]", "track="])
+        cmd_set(root, "MESH-3", ["status=parked", "blocked_on=[MESH-1, 42]", "branch="])
         it = _find(root, "MESH-3")
-        if it.get("blocked_on") != ["MESH-1", 42] or it.get("track") is not None or it.status != "parked":
+        if it.get("blocked_on") != ["MESH-1", 42] or it.get("branch") is not None or it.status != "parked":
             failures.append(f"set round-trip: {it.fields}")
         expect("after set", lint(root))
         os.remove(os.path.join(root, rel))
@@ -1212,8 +1180,7 @@ def selftest() -> int:
 
         # one mutation per rule, each restored
         cases: list[tuple[str, str, str, str]] = [
-            ("unknown key", "work/mesh/MESH-2.md", "needs_ev: true", "colour: red"),
-            ("needs_ev is a bare true", "work/mesh/MESH-2.md", "needs_ev: true", "needs_ev: 1700"),
+            ("unknown key", "work/mesh/MESH-2.md", "branch: mesh/second", "colour: red"),
             ("dangling ref", "work/mesh/MESH-1.md", "blocked_on: [MESH-2, 1601]", "blocked_on: [MESH-9]"),
             ("id vs file name", "work/mesh/MESH-1.md", "id: MESH-1", "id: MESH-7"),
             ("bad status", "work/mesh/MESH-1.md", "status: review", "status: landed"),
@@ -1221,6 +1188,8 @@ def selftest() -> int:
             ("parked needs blocker", "work/mesh/MESH-2.md", "status: open", "status: parked"),
             ("glob matches nothing", "work/mesh/program.md", "paths: [crates/mesh/*]", "paths: [crates/nope/*]"),
             ("prefix shape", "work/mesh/program.md", "prefix: mesh/", "prefix: mesh"),
+            ("group shape", "work/mesh/program.md", "group: kernel\n", "group: Kernel/\n"),
+            ("group required", "work/mesh/program.md", "group: kernel\n", ""),
             ("program field on a unit", "work/mesh/MESH-1.md", "pr: 1605", "prefix: x/"),
             ("nested yaml refused", "work/mesh/MESH-1.md", "pr: 1605", "pr:\n  - 1605"),
             ("unit outside a program", "work/issues/stray-thing.md", "kind: issue", "kind: unit"),
@@ -1241,11 +1210,11 @@ def selftest() -> int:
             ("closed before opened", "work/topo/T-1.md",
              "closed: 2026-08-19", "closed: 2026-07-31"),
             ("header fields fallen into the body", "work/mesh/MESH-2.md",
-             "needs_ev: true\n---\n", "needs_ev: true\n---\npriority: P3\ncost: E\n---\n"),
+             "branch: mesh/second\n---\n", "branch: mesh/second\n---\npriority: P3\ncost: E\n---\n"),
         ]
-        expectations = ["unknown key", "either `true` or absent", "no item", "must equal the file name", "must be one of",
+        expectations = ["unknown key", "no item", "must equal the file name", "must be one of",
                         "needs a `closed:` date", "non-empty `blocked_on`",
-                        "matches no tracked path", "must end in `/`", "not a field of kind unit",
+                        "matches no tracked path", "must end in `/`", "lowercase segments joined by `/`", "missing `group`", "not a field of kind unit",
                         "indented line", "only kind issue lives under",
                         "nothing else gates this row", "so prune the fired entry",
                         "cite the ratification in the body",
@@ -1266,7 +1235,7 @@ def selftest() -> int:
         expect("restored fixture", lint(root))
 
         # A blocker inherits the band of what waits on it: a naming of a
-        # lower-banded live blocker errors, a `github:` inference only warns,
+        # lower-banded live blocker errors, a number is not checked,
         # and a blocker at the parked row's band or above passes.
         m1, m2 = (os.path.join(root, f"work/mesh/MESH-{n}.md") for n in (1, 2))
         with open(m1, encoding="utf-8") as f:
@@ -1274,13 +1243,12 @@ def selftest() -> int:
         with open(m2, encoding="utf-8") as f:
             orig2 = f.read()
         parked_p0 = orig1.replace("status: review", "status: parked\npriority: P0")
-        _write(root, "work/mesh/MESH-2.md", orig2.replace("status: open", "status: open\npriority: P2\ngithub: 1601"))
+        _write(root, "work/mesh/MESH-2.md", orig2.replace("status: open", "status: open\npriority: P2"))
         _write(root, "work/mesh/MESH-1.md", parked_p0.replace("[MESH-2, 1601]", "[MESH-2]"))
         expect("a P0 parked on a P2 errors", lint(root), "a blocker inherits the band")
         _write(root, "work/mesh/MESH-1.md", parked_p0.replace("[MESH-2, 1601]", "[1601]"))
         warns = []
-        expect("a P0 parked on a P2 by number warns", lint(root, warns))
-        expect("  ... and the warning names the band", warns, "a blocker inherits the band")
+        expect("a P0 parked on a number is not checked", lint(root, warns) + warns)
         _write(root, "work/mesh/MESH-2.md", orig2.replace("status: open", "status: open\npriority: P0"))
         _write(root, "work/mesh/MESH-1.md", parked_p0.replace("[MESH-2, 1601]", "[MESH-2]"))
         expect("a P0 parked on a P0 passes", lint(root))
@@ -1290,6 +1258,20 @@ def selftest() -> int:
         o2 = open(os.path.join(root, "work/mesh/MESH-2.md"), encoding="utf-8").read()
         _write(root, "work/mesh/MESH-2.md", o2.replace("status: open", "status: open\ncost: D"))
         expect("legacy D on a row opened before the cut is clean", lint(root))
+        # the load: an unpriced row is charged as M, a chore nothing, and an X
+        # its own `points:`, which only an X may carry
+        for header, cell in (("", "| 3/30 |"), ("cost: C\n", "| 0/30 |"),
+                             ("cost: H\n", "| 8/30 |"), ("cost: X\npoints: 31\n", "| **31/30** |")):
+            _write(root, "work/mesh/MESH-2.md", o2.replace("status: open\n", "status: open\n" + header))
+            expect(f"load with {header!r} is clean", lint(root))
+            if cell not in render(root, today=far):
+                failures.append(f"render: load with {header!r} lacks {cell!r}")
+        _write(root, "work/mesh/MESH-2.md", o2.replace("status: open", "status: open\ncost: X"))
+        expect("X without points", lint(root), "set `points:`")
+        _write(root, "work/mesh/MESH-2.md", o2.replace("status: open", "status: open\ncost: H\npoints: 9"))
+        expect("points on a non-X row", lint(root), "prices only a `cost: X` row")
+        _write(root, "work/mesh/MESH-2.md", o2.replace("status: open", "status: open\ncost: X\npoints: -1"))
+        expect("negative points", lint(root), "must not be negative")
         _write(root, "work/mesh/MESH-2.md",
                o2.replace("opened: 2026-09-01", f"opened: {LEGACY_D_UNTIL}\ncost: M\ndesign: true"))
         expect("M with design on a new row is clean", lint(root))
@@ -1298,11 +1280,11 @@ def selftest() -> int:
         _write(root, "work/mesh/MESH-2.md", o2)
 
         # THE BOARD'S ORDER comes from the rows. With no banded row anywhere it
-        # falls back to area then id; a dispatchable P1 on topo puts it first,
+        # falls back to the program's path; a dispatchable P1 on topo puts it first,
         # and a parked P0 on mesh does not take the lead back from it.
         def board_order() -> list[str]:
             table = render(root, today=far).split("## Programs")[1].split("all programs")[0]
-            return [ln.split("`")[1] for ln in table.splitlines() if ln.startswith("| ") and "`" in ln]
+            return [ln.split("`")[1].rsplit("/", 1)[-1] for ln in table.splitlines() if ln.startswith("| ") and "`" in ln]
         if board_order() != ["mesh", "topo"]:
             failures.append(f"board order with one live slate: {board_order()}")
         _write(root, "work/topo/T-2.md",
@@ -1314,7 +1296,7 @@ def selftest() -> int:
         expect("board-order fixture", lint(root))
         if board_order() != ["topo", "mesh"]:
             failures.append(f"board order: a dispatchable P1 should lead a parked P0, got {board_order()}")
-        if "| kernel | `topo` | P1 |" not in render(root, today=far):
+        if "| `kernel/shape/topo` | P1 |" not in render(root, today=far):
             failures.append("render: `top` is not the best dispatchable band")
         os.remove(os.path.join(root, "work/topo/T-2.md"))
         _write(root, "work/mesh/MESH-2.md", o2)
@@ -1427,34 +1409,13 @@ def selftest() -> int:
         expect("a hand-written scalar reflist is reported, not a crash", lint(root, warns), "must be a list")
         _write(root, "work/mesh/MESH-1.md", orig1)
 
-        # the fired-trigger rule reaches an int through `github:` — and does it
-        # as a warning, because the number is matched to the row, not naming it
-        t1 = open(os.path.join(root, "work/topo/T-1.md"), encoding="utf-8").read()
-        _write(root, "work/topo/T-1.md", t1.replace("kind: unit", "kind: unit\ngithub: 855"))
-        _write(root, "work/mesh/MESH-1.md",
-               orig1.replace("status: review", "status: parked").replace("[MESH-2, 1601]", "[855]"))
-        warns = []
-        expect("a fired trigger named by number does not block", lint(root, warns))
-        expect("a fired trigger named by number warns", warns, "resolves through that item's `github:`")
-        # ... and only when the mapping is unambiguous
-        _write(root, "work/mesh/MESH-2.md", orig2.replace("needs_ev: true", "github: 855"))
-        warns = []
-        errs = lint(root, warns)
-        expect("an ambiguous number is not an error", errs)
-        expect("an ambiguous number resolves to neither", warns, "resolves to neither")
-        if any("github:`" in w for w in warns):
-            failures.append(f"an ambiguous number should not reach the fired-trigger rule: {warns}")
-        _write(root, "work/mesh/MESH-2.md", orig2)
-        _write(root, "work/topo/T-1.md", t1)
-        _write(root, "work/mesh/MESH-1.md", orig1)
-        expect("restored after the github cases", lint(root))
 
         # two open programs claiming one path: a warning naming both, and
         # silence once both keep_outs name the other
         mp = open(os.path.join(root, "work/mesh/program.md"), encoding="utf-8").read()
         _write(root, "work/verbs/program.md",
                "---\nid: verbs\nkind: program\ntitle: VERBS\nstatus: ready\nopened: 2026-09-01\n"
-               "area: kernel\nprefix: verbs/\npaths: [crates/mesh/*]\n---\n")
+               "group: kernel\nprefix: verbs/\npaths: [crates/mesh/*]\n---\n")
         _write(root, "work/verbs/plan.md", "plan\n")
         _write(root, "work/verbs/log.md", "log\n")
         warns = []
@@ -1468,7 +1429,7 @@ def selftest() -> int:
                 failures.append(f"the at-rest overlap report should still name it: {want!r} not in {rep!r}")
         _write(root, "work/verbs/program.md",
                "---\nid: verbs\nkind: program\ntitle: VERBS\nstatus: ready\nopened: 2026-09-01\n"
-               "area: kernel\nprefix: verbs/\npaths: [crates/mesh/*]\nkeep_out: [the mesh crate is S-MESH's until it cedes it]\n---\n")
+               "group: kernel\nprefix: verbs/\npaths: [crates/mesh/*]\nkeep_out: [the mesh crate is S-MESH's until it cedes it]\n---\n")
         warns = []
         expect("a one-sided record is not an error", lint(root, warns))
         progs = [it for it in load_tree(root)[0] if it.kind == "program"]
@@ -1519,7 +1480,7 @@ def selftest() -> int:
         mp2 = open(os.path.join(root, "work/mesh/program.md"), encoding="utf-8").read()
         _write(root, "work/verbs2/program.md",
                "---\nid: verbs2\nkind: program\ntitle: VERBS2\nstatus: ready\nopened: 2026-09-01\n"
-               "area: kernel\nprefix: verbs2/\npaths: [crates/mesh/*]\n---\n")
+               "group: kernel\nprefix: verbs2/\npaths: [crates/mesh/*]\n---\n")
         _write(root, "work/verbs2/plan.md", "plan\n")
         _write(root, "work/verbs2/log.md", "log\n")
         lines, mine = territory(root, "master" if _branch_exists(root, "master") else "main", "mesh/y")

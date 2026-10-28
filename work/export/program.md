@@ -4,12 +4,12 @@ kind: program
 title: EXPORT — the writing direction, and the refusal plumbing both exchange crates share
 status: ready
 opened: 2026-09-20
-area: kernel
+group: kernel/exchange
 prefix: export/
 tag: (EXPORT orchestrator)
 ab_band: 9200-9299
 paths: [crates/step-export/src/*]
-keep_out: [opened by EXCH's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - EXCH measured 44.5 budget points and was cut into tracks meant to run in PARALLEL (Ev, in chat: for these high priority tracks it is ideal to have several components that can be worked on in parallel), the siblings are EXCH EXPORT and they share their parent's territory by design - shared ground is legitimate by the README's 2026-09-20 rule and what is owed is awareness while a lane is LIVE, so run scripts/work.py territory on your branch and announce the seam in the PR rather than drawing a fence, CHART SSI and PCERT own the certification lanes the importer promotes into, TESS and CHORD own the mesh side of STL]
+keep_out: [opened by EXCH's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - EXCH measured 44.5 budget points and was cut into tracks meant to run in PARALLEL (Ev, in chat: for these high priority tracks it is ideal to have several components that can be worked on in parallel), the siblings are EXCH EXPORT and they share their parent's territory by design - shared ground is legitimate by the README's 2026-09-20 rule and what is owed is awareness while a lane is LIVE, so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled rather than drawing a fence, CHART SSI and PCERT own the certification lanes the importer promotes into, TESS and CHORD own the mesh side of STL]
 ---
 The writing direction and the plumbing the two exchange crates share,
 split from the recognition work EXCH keeps — the two need different

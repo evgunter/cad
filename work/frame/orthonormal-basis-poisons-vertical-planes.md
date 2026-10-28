@@ -4,7 +4,6 @@ kind: issue
 title: orthonormal_basis manufactures a poisoned (and for n.x!=0, unbounded) chart frame for every vertical plane under Interval
 status: closed
 opened: 2026-08-29
-github: 1157
 refs: [1116, 1143, 1146]
 priority: P0
 cost: H

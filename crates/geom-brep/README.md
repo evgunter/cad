@@ -24,7 +24,7 @@ escalated typed refusal, never a raw comparison.
 | Decisions | Lives in |
 |---|---|
 | C1 locus ladder | `crates/geom/src/curves.rs` (`Curve3`: Line, Circle, Ellipse, Spiric, Nurbs); `crates/geom-brep/src/intersect.rs` (`Rung`); `crates/geom-brep/src/intersect/conic_arc.rs` (the plane×cone parabola and hyperbola arcs) |
-| C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system,boundary,section,ends,pair,four}.rs` |
+| C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system,boundary,section,ends,pair,four}.rs`; `crates/geom-brep/src/intersect/section_bounds.rs` (the bounds a classified pair's section states, which retire the tube) |
 | C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` (storage, minting, branch walk); description form in `description.rs` |
 | C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions); for curve pairs `crates/geom-brep/src/curve_pair.rs` (`method`, `meet`) and `curve_pair/{span,pose,polish,walk}.rs` |
 | C6 structure certified for every member, values in the scalar, generic certification | `crates/geom-core/src/spline/`, `crates/geom/src/curves/fit.rs` |
@@ -74,10 +74,12 @@ Limbs 1 and 2 are owed by every carrier, of every kind, however it was
 minted. Limb 3 is owed unless the pair's section function, for this
 pose, states the two numbers the tube would prove: a lower bound on the
 sine of the surfaces' crossing angle over the carrier's stretch of the
-section, and the clearance of the ε over that sine around the stretch
-from every other piece of the two surfaces' ε-overlap (the section's
+section, and the clearance of the tube of radius 8ε over that sine
+around the stretch, out to 16ε over it, from every other piece of the
+two surfaces' ε-overlap (the section's
 other components, and any near-miss region where the surfaces approach
-without crossing). Limb 2 within ε of both surfaces then puts the
+without crossing) (`intersect::tube_bounds`, read by
+`edge_nurbs::analytic_rung3`). Limb 2 within ε of both surfaces then puts the
 carrier on the named component, which the witness mid-pin identifies.
 (1) On-locus residual at the fixed `CERT_SAMPLES` schedule: `|f(C(t))|`
 in metres for an analytic operand (`implicit.rs`); for a NURBS operand
@@ -104,8 +106,14 @@ its distance from the world origin,
 and on the cone a part the lever does not decide positive (one reaching
 the apex) reads `√|f|` instead: `f` is the product of the distances
 from the meridian half-plane's two generator lines, both on the implicit
-cone; the search's limbs do not
-yet, which is why their rung-3 arms are unretired. At a
+cone. The search's limbs convert the torus per span of the carrier
+too, bounding the residual its limb 1 reads,
+`m = F/(2r·(A + 2Rρ))` for the quartic `F = A² − 4R²ρ²` with
+`A = |q|² + R² − r²`, by `sup|F∘C|` over `2r` times
+`inf A∘C + √(inf A∘C² − sup F∘C)`, `A∘C` its own composite over the
+same spans and floored by `R² − r²` (`ssi::certify`); the cone has no
+such conversion at the search, which is why its rung-3 arms are
+unretired. At a
 parameter-family scalar the limb is decided by the scalar like any
 margin (E12): its symbolic identity is the residual of the carrier's own
 description against the operand, per span, with the carrier's parameter
@@ -213,7 +221,7 @@ certificate: what a dual measures is read against the input-identical
 re-derives the same certificate. An edge with an operand outside the
 tube's enclosure roster (`ssi::enclose::has_implicit_enclosure`) refuses
 the tube by naming that operand (`AnalyticRung3Refusal::NoTubeEnclosure`)
-once limb 2 holds. Each box, cut to the wall's knot rectangle (and to the
+once limb 2 holds and the pair's section states no bounds for the pose. Each box, cut to the wall's knot rectangle (and to the
 ℝ³ slab where a search clips to one), holds exactly one piece: two
 simple solutions on its boundary, or a stretch of its boundary on a
 side of the wall's domain that the boundary pass reads within ε of the
@@ -785,7 +793,7 @@ plane×cylinder, plane×cone (the parabola and hyperbola in closed form,
 each arc minted per window, `ConicBranch::arc`),
 declared-equal cylinder×cylinder, axis-aligned plane×torus (its
 axis-parallel pose off the axis the `Spiric`) (rung 2); cylinder×sphere,
-plane×NURBS and plane×`Approx`, NURBS×NURBS and every pairing of
+sphere×torus, plane×NURBS and plane×`Approx`, NURBS×NURBS and every pairing of
 `Approx` with NURBS or `Approx` (rung 3). The offset door reads
 plane×NURBS through `PlaneSection::branch_at` and NURBS×NURBS through
 `Section::branch_at`, each at the old edge's middle; the whole-section
@@ -794,8 +802,9 @@ The boolean reads one rung-3 arm, cylinder×sphere, through the section
 value (`pair_section`: the pair's pose decided once, its components,
 and its loops marched and fitted at `f64` where a join matches germs on
 them). `implemented` covers
-the whole operation. Every other pair refuses, most blocked on the cone
-and torus metres conversion (C2 limb 2).
+the whole operation. Every other pair refuses: the cone pairs blocked on
+the cone's metres conversion (C2 limb 2), the other torus pairs on their
+own arms' retirement.
 
 The same rule governs a curve against a face. A carrier span and a face
 meet through one exhaustive `(CurveKind, SurfaceKind)` table, in the

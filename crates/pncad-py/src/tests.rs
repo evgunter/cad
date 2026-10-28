@@ -546,7 +546,7 @@ fn the_measure_verb_vocabulary_is_stable() {
 #[test]
 fn the_fourth_verbs_two_refusals_are_stable() {
     use crate::tags::{measure_unavailable_at_tag, node_error_tag};
-    use pncad::document::{ClearanceRefusal, MeasureUnavailableAt, NodeErrorKind};
+    use pncad::document::{ClearanceRefusal, EngineRefusal, MeasureUnavailableAt, NodeErrorKind};
 
     let absent = MeasureUnavailableAt::NeedsEnclosure {
         verb: "min_clearance",
@@ -564,16 +564,16 @@ fn the_fourth_verbs_two_refusals_are_stable() {
     // only ones this carrier's producer can build — all cross as one
     // tag.
     let refused = |r| NodeErrorKind::MeasureClearanceRefused(r);
-    let empty = refused(ClearanceRefusal::EmptyScope);
-    let unpaired = refused(ClearanceRefusal::NoAdmittedPair);
-    let unsupported = refused(ClearanceRefusal::Unsupported {
+    let empty = refused(ClearanceRefusal::Engine(EngineRefusal::EmptyScope));
+    let unpaired = refused(ClearanceRefusal::Engine(EngineRefusal::NoAdmittedPair));
+    let unsupported = refused(ClearanceRefusal::Engine(EngineRefusal::Unsupported {
         carrier: "a free-form face",
         face: FaceKey::default(),
-    });
-    let poison = refused(ClearanceRefusal::PoisonEnclosure {
+    }));
+    let poison = refused(ClearanceRefusal::Engine(EngineRefusal::PoisonEnclosure {
         a: FaceKey::default(),
         b: FaceKey::default(),
-    });
+    }));
     for e in [&empty, &unpaired, &unsupported, &poison] {
         assert_eq!(
             node_error_tag(e.class()),
@@ -4815,6 +4815,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "export_error_tag",
         values: &[
             "body_invalid",
+            "compose_refused",
             "empty_boolean",
             "node_failed",
             "not_a_body",
@@ -5435,6 +5436,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "contact_lineage",
             "empty_product",
             "evaluation_of_another_document",
+            "frame_refused",
             "graft_refused",
             "product_invalid",
             "product_outside_world",
@@ -5659,6 +5661,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "bad_value",
             "face_unresolved",
+            "frame_refused",
             "in_band",
             "not_a_length",
             "not_a_plane",
@@ -6273,6 +6276,11 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One fact (INTENT-LITERALS C) at the edit door and outside it: a
     // formula reads a fresh-table entry its edit does not hold, or at
     // another kind.
+    // Two doors' own refusals, each with its own payload: the gather's
+    // frame refusing to compose (`ProductError::Frame`) and a
+    // selection's candidate refusing to read into its plane's frame
+    // (`SelectRefusal::Frame`). A coincidence of words, not one fact.
+    ("frame_refused", 2),
     ("fresh_kind", 2),
     ("fresh_unheld", 2),
     // Two: a resolution lands in the ambiguity band exactly as a
