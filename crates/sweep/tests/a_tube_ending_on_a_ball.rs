@@ -127,16 +127,13 @@ fn every_op_builds_at_its_closed_form() {
 }
 
 /// **A tilted tube builds**: its rim is no latitude of the ball's chart
-/// and crosses the seam meridians askew. Every op is sound at its closed
-/// form, read without a mesh: a sphere face bounded by a circle off its
-/// chart's latitudes has no tessellation lane
-/// (`work/tess/sphere-face-bounded-by-a-tilted-circle-has-no-tessellation-lane.md`).
+/// and crosses the seam meridians askew. Every op is sound, meshed and at
+/// its closed form: the sphere faces its rim bounds mesh through the
+/// trimmed lane's sphere arm.
 #[test]
 fn a_tilted_tube_builds_at_its_closed_form() {
-    let tol = Tol::witness();
     for (label, r, want) in runs("tilted", &Pose::new(0.7, 2.0, 0.5, 0.3)) {
-        let line = outcome(r, want, tol);
-        assert!(line.starts_with("OK SOUND"), "{label}: {line}");
+        assert_sound_and_meshed(&label, r, want, Tol::witness());
     }
 }
 
