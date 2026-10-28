@@ -104,8 +104,9 @@
 //! **Smooth edges and duplicates: the wall decides.** Neither carries
 //! a corner to read. A smooth edge (a curved face's seam along the
 //! plane) is unsigned: the seam, the cusp and the slit all classify
-//! smooth. A duplicate stands inside a sector of one face of 180° or
-//! more, which includes the straight sector a root inserted on a cap's
+//! smooth. A duplicate stands inside a sector of one face (of 180° or
+//! more, or at a cone's apex any sector its plane turns in), which
+//! includes the straight sector a root inserted on a cap's
 //! rim leaves where the plane grazes a cylinder's wall. Where the face
 //! (both faces, at a smooth edge) is a curved wall tangent to the plane,
 //! the plane grazes it, and the entry goes by the wall's material
@@ -249,7 +250,7 @@ pub(super) fn apply_rule_a<T: Decide>(
             VertexFace::Tangent(n_face) => n_face,
             VertexFace::Apex(apex) => {
                 let reading =
-                    apex_reading(plane, &apex, [rays[k], rays[(k + 1) % n]], extent, band)
+                    apex_reading(plane, &apex, [rays[k], rays[(k + 1) % n]], band)
                         .map_err(sliver)?;
                 if let WallReading::Grazed(_) = reading
                     && !apex.material_inside()
@@ -365,46 +366,44 @@ pub(super) fn apply_rule_a<T: Decide>(
     Ok(readings)
 }
 
+
 /// Rule (a) at a cone's apex, for the sub-sector between the entry rays
-/// `bounds` (an edge's chord, or an extremal ruling the walk subdivided
-/// at, `neighborhood::wide_entries`). A cone is never coplanar with the
-/// plane, and the apex has no tangent plane to be tangent with: the
-/// plane grazes the face where it holds a ruling the face's side along
-/// the plane is extremal at, and every such ruling is an entry's ray. So
-/// the sub-sector is grazed where the outward normal along either of its
-/// bounding rays is parallel to the plane's over the face's extent
-/// (`split_sector_coplanar`), and otherwise clear. The cone is straight
-/// along a ruling, so there is no bend to read past the first order: a
-/// graze's material side is the parallel normal's sense, and whether the
-/// cone bends into its material is its sense alone
-/// ([`ConeApex::material_inside`], the caller's).
+/// `bounds`: an edge's chord, or an extremal ruling the walk subdivided
+/// at (`neighborhood::wide_entries`, the apex lane's own). A cone is
+/// never coplanar with the plane, and the apex has no tangent plane: the
+/// plane grazes the face along a ruling where the face's side is
+/// extremal, and every such ruling is an entry's ray. At an extremal
+/// ruling `g` the plane's normal has no component round the axis, so the
+/// sine between it and the outward normal along `g` is `|n·ĝ|`, the
+/// quantity the walk read the entry's side by, levered at the same reach
+/// (the ray's length). So the sub-sector is grazed where the outward
+/// normal along either bounding ray is parallel to the plane's at that
+/// ray's reach (`split_sector_coplanar`) — exactly where the walk read
+/// that entry On — and otherwise clear. The cone is straight along a
+/// ruling, so there is no bend to read: a graze's material side is the
+/// parallel normal's sense, and whether the cone bends into its material
+/// is its sense alone ([`ConeApex::material_inside`], the caller's).
 fn apex_reading<T: Decide>(
     plane: &SplitPlane<T>,
     apex: &ConeApex<T>,
     bounds: [Vec3<T>; 2],
-    extent: T,
     band: Band,
 ) -> Result<WallReading<T>, Indeterminate> {
-    let mut clear = None;
-    for ray in bounds {
-        match geom_brep::normal_alignment(
+    let [first, second] = bounds.map(|ray| {
+        geom_brep::normal_alignment(
             "split_sector_coplanar",
             plane.normal.get(),
             apex.normal_along(ray),
-            extent,
+            ray.norm(),
             band,
-        )? {
-            NormalAlignment::Parallel(parallel) => {
-                return Ok(WallReading::Grazed(ParallelFace(parallel)));
-            }
-            NormalAlignment::Oblique(sine) => {
-                clear.get_or_insert(sine);
-            }
+        )
+    });
+    Ok(match (first?, second?) {
+        (NormalAlignment::Parallel(parallel), _) | (_, NormalAlignment::Parallel(parallel)) => {
+            WallReading::Grazed(ParallelFace(parallel))
         }
-    }
-    Ok(WallReading::Clear(clear.unwrap_or_else(|| {
-        unreachable!("a sub-sector has two bounding rays")
-    })))
+        (NormalAlignment::Oblique(sine), NormalAlignment::Oblique(_)) => WallReading::Clear(sine),
+    })
 }
 
 /// What rule (a) read of an entry's face against the split plane, for
@@ -488,9 +487,9 @@ pub(super) fn apply_rule_b<T: Decide>(
         let next = entries[(k + 1) % n].class;
         entries[k].class = match (prev.class, next) {
             (side @ (PlaneSide::Below | PlaneSide::Above), next) if next == side => {
-                // A duplicate stands inside one face's sector of 180° or
-                // more, so it has no edge to read: its face's wall
-                // decides, as both faces' walls do at a smooth edge.
+                // A duplicate stands inside one face's sector, with no
+                // edge to read: its own sub-sector's wall reading decides,
+                // as both faces' walls do at a smooth edge.
                 match entries[k].kind {
                     SectorEntryKind::WideBisector => {
                         wall_graze(body, vertex, &[(entries[k].he, readings[k])], side)?

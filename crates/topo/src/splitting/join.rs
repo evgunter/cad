@@ -424,6 +424,15 @@ fn leave_on<T: Decide>(
         .ok_or_else(|| corrupt_he(half))?
         .start;
     let out = geom_brep::implicit_outward_normal(wall, sense, vertex_point(body, start));
+    // A wall with no normal at the site (a cone's apex, where the half
+    // carries its germ instead) has no direction to leave it in.
+    let n = out.vec();
+    if n.x.is_poison() || n.y.is_poison() || n.z.is_poison() {
+        return Err(SplitJoinError::SectionInvariant {
+            face: he_face(body, half)?,
+            what: "a null-edge half at a point where its wall has no normal carries no germ",
+        });
+    }
     let heading = plane_normal.get().cross(out.vec());
     Ok(if above_set.contains_key(start) {
         heading
@@ -571,22 +580,20 @@ fn ruling_pairs<T: Decide>(
         lines.push((origin, dir.normalize()));
     }
     let off = |p: Point3<T>, (o, d): (Point3<T>, geom_core::Vec3<T>)| (p - o).cross(d).norm();
-    // The farthest crossing from the rulings' common origin: the reach
-    // over which a germ's angle from a ruling is read.
-    let reach = crossings
-        .iter()
-        .map(|c| (c.point - lines[0].0).norm())
-        .fold(T::zero(), T::max);
     let mut on: [Vec<&Crossing<T>>; 2] = [Vec::new(), Vec::new()];
     for c in crossings {
         let reading = match c.germ {
             // At the apex both rulings pass through the crossing: it lies
-            // on the ruling its section leaves along.
+            // on the ruling its section leaves along, its germ's sine from
+            // each levered at the face's farthest crossing from it.
             Some(germ) => decide_nonzero(
                 "split_join_ruling_germ",
                 Margin::levered(
                     germ.cross(lines[1].1).norm() - germ.cross(lines[0].1).norm(),
-                    reach,
+                    crossings
+                        .iter()
+                        .map(|o| (o.point - c.point).norm())
+                        .fold(T::zero(), T::max),
                 ),
                 band,
             ),

@@ -68,6 +68,8 @@ use geom::SurfaceKind;
 use geom_brep::OutwardNormal;
 use geom_core::{Band, Decide, Point3, Vec3};
 
+use crate::face_normal::ConePoint;
+
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::face_normal::face_outward_normal;
@@ -109,6 +111,10 @@ pub(crate) struct SectorFace<T: geom_core::Real> {
     pub at_vertex: VertexFace<T>,
     /// Which arm read it.
     pub carrier: SectorCarrier,
+    /// A cone face's vertex within the band of the cone's axis but not
+    /// at its apex ([`ConePoint::NearAxis`]): its tangent plane is read,
+    /// ill-conditioned, for a lane that reads it.
+    pub near_axis: bool,
 }
 
 /// **What a face is at a vertex.** Every arm but one has a tangent plane
@@ -186,34 +192,28 @@ impl<T: Decide> ConeApex<T> {
         OutwardNormal::from_chart(chart.normalize(), self.sense)
     }
 
-    /// How far the face's sweep turns from the ruling along `from` to the
-    /// one along `to`: `sin²α` times the sine of the azimuth between
-    /// them, signed the way the face's interior leaves a ruling `d`
-    /// (`n × d̂`, `n` the outward normal along it, the orbit convention).
-    /// Positive where `to` lies less than a half-turn into the sweep.
-    pub(crate) fn turn(&self, from: Vec3<T>, to: Vec3<T>) -> T {
-        let (f, t) = (from.normalize(), to.normalize());
-        let sweep = self.normal_along(f).vec().cross(f).dot(self.axis.cross(f));
-        f.cross(t).dot(self.axis) * T::one().copysign(sweep)
+    /// Which way round the axis the face's interior leaves the ruling
+    /// along `d` (`n × d̂`, `n` the outward normal along it: the orbit's
+    /// interior-left convention), as `±1` against `axis × d̂`. Constant
+    /// over the face's rulings.
+    pub(crate) fn sweep(&self, d: Vec3<T>) -> T {
+        let d = d.normalize();
+        T::one().copysign(self.normal_along(d).vec().cross(d).dot(self.axis.cross(d)))
     }
 
-    /// The face's ruling at azimuth `phi` about its axis, from the
-    /// orthonormal pair `(e1, e2)` square to it, on the nappe `nappe`
-    /// (`±1`, the sign of the ruling's component along the axis): a
-    /// unit direction out of the apex.
-    pub(crate) fn ruling(&self, (e1, e2): (Vec3<T>, Vec3<T>), nappe: T, phi: T) -> Vec3<T> {
-        let (s, c) = phi.sin_cos();
-        let (sin_a, cos_a) = self.half_angle.sin_cos();
-        self.axis * (cos_a * nappe) + (e1 * c + e2 * s) * sin_a
+    /// How far the face's sweep turns from the ruling along `from` to the
+    /// one along `to`, as the chord between their points a unit out from
+    /// the apex, signed by [`ConeApex::sweep`]: positive where `to` lies
+    /// less than a half-turn into the sweep.
+    pub(crate) fn turn(&self, from: Vec3<T>, to: Vec3<T>) -> T {
+        let (f, t) = (from.normalize(), to.normalize());
+        (t - f).norm().copysign(f.cross(t).dot(self.axis) * self.sweep(f))
     }
 
     /// Whether the face's material lies inside its cone: the outward
-    /// normal points off the axis exactly where the face's sense keeps
-    /// the chart normal ([`geom_brep::implicit_gradient`]'s cone arm
-    /// points off the axis on both nappes). Inside, the cone bends into
-    /// its material at every ruling, so a plane touching it along one
-    /// grazes it from outside; outside (a conical socket), the plane
-    /// leaves material on both sides of the contact.
+    /// normal points off the axis on both nappes exactly where the
+    /// face's sense keeps the chart normal. Inside, the cone bends into
+    /// its material along every ruling.
     pub(crate) const fn material_inside(&self) -> bool {
         self.sense
     }
@@ -253,7 +253,7 @@ pub(crate) enum SectorFaceError {
         kind: SurfaceKind,
     },
     /// A cone face's vertex lies in the band of the cone's axis
-    /// ([`crate::face_normal::cone_off_axis`] escalated): neither a
+    /// ([`crate::face_normal::cone_point`] escalated): neither a
     /// tangent plane nor the apex is decided.
     ApexUndecided {
         /// The cone face.
@@ -274,7 +274,7 @@ pub(crate) fn face_of<T: Decide>(body: &Body<T>, vertex: VertexKey, he: HalfEdge
 
 /// Resolves the sector CW-after `he` (`face(loop(mate(he)))`) to its
 /// face, what that face is at `vertex` (its outward normal there, or a
-/// cone's apex, decided by [`crate::face_normal::cone_off_axis`]), and
+/// cone's apex, decided by [`crate::face_normal::cone_point`]), and
 /// the carrier arm that read it.
 ///
 /// Named `resolve` rather than `sector_face`: the module is the noun,
@@ -311,6 +311,7 @@ pub(crate) fn resolve<T: Decide>(
     // the face alone.
     if let Some(normal) = face_outward_normal(body, face) {
         return Ok(SectorFace {
+            near_axis: false,
             face,
             at_vertex: VertexFace::Tangent(normal),
             carrier: SectorCarrier::Plane,
@@ -327,6 +328,7 @@ pub(crate) fn resolve<T: Decide>(
     };
     let charted = |chart, carrier| {
         Ok(SectorFace {
+            near_axis: false,
             face,
             at_vertex: VertexFace::Tangent(OutwardNormal::from_chart(chart, sense)),
             carrier,
@@ -344,6 +346,7 @@ pub(crate) fn resolve<T: Decide>(
             band,
         )?;
         return Ok(SectorFace {
+            near_axis: false,
             face,
             at_vertex: VertexFace::Tangent(normal),
             carrier: SectorCarrier::Spline(kind),
@@ -380,12 +383,20 @@ pub(crate) fn resolve<T: Decide>(
             u_ref,
         } => {
             let p = point();
-            match crate::face_normal::cone_off_axis(apex, axis, p, band) {
-                Ok(geom_core::Sign::Positive) => charted(
+            match crate::face_normal::cone_point(apex, axis, p, band) {
+                Ok(ConePoint::OffAxis) => charted(
                     geom_brep::implicit_gradient(s, p).normalize(),
                     SectorCarrier::Cone,
                 ),
-                Ok(geom_core::Sign::Zero | geom_core::Sign::Negative) => Ok(SectorFace {
+                Ok(ConePoint::NearAxis) => Ok(SectorFace {
+                    near_axis: true,
+                    ..charted(
+                        geom_brep::implicit_gradient(s, p).normalize(),
+                        SectorCarrier::Cone,
+                    )?
+                }),
+                Ok(ConePoint::Apex) => Ok(SectorFace {
+                    near_axis: false,
                     face,
                     at_vertex: VertexFace::Apex(ConeApex {
                         apex,

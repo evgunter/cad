@@ -501,15 +501,13 @@ pub(crate) fn apex_shape<T: Decide>(
     };
     let axis = apex.axis;
     let (unit_own, unit_next) = (dir_own.normalize(), dir_next.normalize());
-    let nappe = T::one().copysign(unit_next.dot(axis));
+    let nappe = unit_next.dot(axis);
     let sin_a = apex.half_angle.sin();
-    let tau = T::pi() * T::from_f64(2.0);
+    let tau = T::tau();
     // The sweep's frame: `e1` along the next bound's azimuth, `e2` the
     // way the interior leaves it.
     let e1 = (unit_next - axis * unit_next.dot(axis)).normalize();
-    let e2 = axis.cross(e1);
-    let into = apex.normal_along(unit_next).vec().cross(unit_next);
-    let e2 = e2 * T::one().copysign(into.dot(e2));
+    let e2 = axis.cross(e1) * apex.sweep(unit_next);
     // An azimuth in `(0, 2π]`.
     let azimuth = |d: Vec3<T>| {
         let a = d.dot(e2).atan2(d.dot(e1));
@@ -531,10 +529,6 @@ pub(crate) fn apex_shape<T: Decide>(
         w
     };
     let n_r = across - axis * across.dot(axis);
-    let none = || ApexShape {
-        arm,
-        rulings: Vec::new(),
-    };
     if decide(
         SECTOR_APEX_TILT,
         Margin::levered(n_r.norm() * sin_a, arm),
@@ -543,17 +537,36 @@ pub(crate) fn apex_shape<T: Decide>(
     .map_err(rung)?
         != Sign::Positive
     {
-        return Ok(none());
+        return Ok(ApexShape {
+            arm,
+            rulings: Vec::new(),
+        });
     }
-    let toward = azimuth(n_r);
-    let past = toward - T::pi();
-    let away = past.select_le_zero(past + tau, past);
+    // The apex lane's own extremal rulings, each turned onto the face's
+    // nappe: the line along a ruling of the other nappe holds this
+    // nappe's ruling opposite it in azimuth, the other extremum.
+    let [toward, away] = geom_brep::plane_cone_apex_extrema(&apex.surface(), across)
+        .unwrap_or_else(|| unreachable!("an apex reading's surface is a cone"))
+        .map(|g| g * T::one().copysign(g.dot(axis) * nappe));
+    let (psi_toward, psi_away) = (azimuth(toward), azimuth(away));
+    // In orbit order: from the own bound, the larger azimuth, first.
+    let later_first = psi_away - psi_toward;
+    let pick = |a: Vec3<T>, b: Vec3<T>| {
+        Vec3::new(
+            later_first.select_le_zero(a.x, b.x),
+            later_first.select_le_zero(a.y, b.y),
+            later_first.select_le_zero(a.z, b.z),
+        )
+    };
     let mut rulings = Vec::with_capacity(2);
-    for psi in [toward.max(away), toward.min(away)] {
+    for (g, psi) in [
+        (pick(toward, away), psi_toward.max(psi_away)),
+        (pick(away, toward), psi_toward.min(psi_away)),
+    ] {
         let from_next = decide(SECTOR_APEX_WINDOW, chord(psi), band).map_err(rung)?;
         let to_own = decide(SECTOR_APEX_WINDOW, chord(window - psi), band).map_err(rung)?;
         if from_next == Sign::Positive && to_own == Sign::Positive {
-            rulings.push(apex.ruling((e1, e2), nappe, psi));
+            rulings.push(g);
         }
     }
     Ok(ApexShape { arm, rulings })

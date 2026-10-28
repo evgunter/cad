@@ -65,7 +65,10 @@
 //! ruling strictly inside it instead ([`crate::sector_shape::apex_shape`]):
 //! between consecutive entries the side then changes at most once, which
 //! is what the run scan reads. Those entries are the walk's
-//! `WideBisector` duplicates, read like any other.
+//! `WideBisector` duplicates, up to two in one sector (a window over a
+//! half-turn holds both extrema), where a tangent plane's wide sector
+//! holds one; every reader of the array takes any number per sector
+//! (`insert`'s dangling struts, rule (b)'s duplicate rows).
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign, Vec3};
 use slotmap::SecondaryMap;
@@ -128,10 +131,10 @@ pub(super) fn sector_face<T: Decide>(
         | SectorFaceError::Unplaced { face, kind } => {
             SplitReduceError::CurvedBooleanUnsupported { face, kind }
         }
-        SectorFaceError::ApexUndecided { face, diag } => SplitReduceError::SliverSector {
+        SectorFaceError::ApexUndecided { face, diag } => SplitReduceError::ApexUndecided {
             vertex,
             face,
-            reading: SectorReading::Escalated(diag),
+            diag,
         },
     })?;
     match resolved.carrier {

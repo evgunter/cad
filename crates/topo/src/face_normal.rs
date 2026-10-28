@@ -349,29 +349,52 @@ fn face_nappe_or_double<T: Decide>(
     }
 }
 
-/// **Whether `p` stands definitely off a cone's axis** (`cone_off_axis`,
-/// its distance off the axis in metres): the one test of whether a point
-/// of a cone face has a tangent plane, for both of the crate's readers
-/// of one ([`cone_axis_clearance`] and [`crate::sector_face::resolve`]).
-/// The implicit gradient is `0/0` on the axis, and the apex is the axis
-/// point ON the surface, so a point of the surface within the band of
-/// the axis is the apex: `Positive` reads a tangent plane, `Zero` the
-/// apex. The test is the distance off the axis, not off the apex: on a
-/// cone of half-angle `α` it reads surface points up to `band / sin α`
-/// along the generator from the apex as the apex, which on a needle cone
-/// is a long way.
-pub(crate) fn cone_off_axis<T: Decide>(
+/// Where a point of a cone face stands against the cone's axis
+/// ([`cone_point`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ConePoint {
+    /// Definitely off the axis: the face has a tangent plane there.
+    OffAxis,
+    /// Within the band of the axis, but definitely not at the apex: the
+    /// gradient reads, ill-conditioned (on a needle cone this reaches
+    /// `band / sin α` along a generator).
+    NearAxis,
+    /// At the apex, to the band: the face has no tangent plane there.
+    Apex,
+}
+
+/// **Where `p` stands against a cone's axis**: its distance off the axis
+/// (`cone_off_axis`, metres), and where that is not definitely positive,
+/// its distance from the apex (`cone_at_apex`, metres). The one test of
+/// a point of a cone face for the crate's readers of a normal there
+/// ([`cone_axis_clearance`], which refuses both of the last two, and
+/// [`crate::sector_face::resolve`], which reads the apex as its rulings
+/// and only the apex). The implicit gradient is `0/0` on the axis, and
+/// the apex is the axis point ON the surface.
+///
+/// # Errors
+///
+/// The escalation of either reading.
+pub(crate) fn cone_point<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
     p: Point3<T>,
     band: Band,
-) -> Result<Sign, geom_core::Indeterminate> {
+) -> Result<ConePoint, geom_core::Indeterminate> {
     let q = p - apex;
     let radial = q - axis * q.dot(axis);
-    decide("cone_off_axis", Margin::norm3(radial), band)
+    // An off-axis reading in the band reads on: the apex test below
+    // decides whether the point is the apex or only near the axis.
+    if let Ok(Sign::Positive) = decide("cone_off_axis", Margin::norm3(radial), band) {
+        return Ok(ConePoint::OffAxis);
+    }
+    Ok(match decide("cone_at_apex", Margin::norm3(q), band)? {
+        Sign::Positive | Sign::Negative => ConePoint::NearAxis,
+        Sign::Zero => ConePoint::Apex,
+    })
 }
 
-/// [`cone_off_axis`] as the pierce door reads it: a point with no
+/// [`cone_point`] as the pierce door reads it: a point with no
 /// tangent plane, definitely or in band, has no normal to answer with
 /// ([`NormalAtError::AtConeApex`]).
 pub(crate) fn cone_axis_clearance<T: Decide>(
@@ -380,9 +403,11 @@ pub(crate) fn cone_axis_clearance<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<(), NormalAtError> {
-    match cone_off_axis(apex, axis, p, band) {
-        Ok(Sign::Positive) => Ok(()),
-        Ok(Sign::Zero | Sign::Negative) | Err(_) => Err(NormalAtError::AtConeApex { band }),
+    match cone_point(apex, axis, p, band) {
+        Ok(ConePoint::OffAxis) => Ok(()),
+        Ok(ConePoint::NearAxis | ConePoint::Apex) | Err(_) => {
+            Err(NormalAtError::AtConeApex { band })
+        }
     }
 }
 

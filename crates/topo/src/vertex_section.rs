@@ -205,10 +205,11 @@ fn skew<T: Decide>(normal: Vec3<T>, plane: SectionPlane<T>, at: Point3<T>) -> T 
 /// its ends; a fitted face has no implicit normal to read `ψ` from, and
 /// the section the join fits in it is certified at the fit's own
 /// resolution. At a cone's apex (decided as the sector walk decides it,
-/// [`crate::face_normal::cone_off_axis`]) the wall has no tangent plane,
+/// [`crate::face_normal::cone_point`]) the wall has no tangent plane,
 /// and a plane through the apex cuts the cone along rulings, which are
-/// minted straight, or meets it at the apex alone; a vertex in the band
-/// of the axis is read, and its sector's resolution refuses it.
+/// minted straight, or meets it at the apex alone. A vertex near the
+/// axis but not at the apex is read; one whose apex reading escalates
+/// is read, and its sector's resolution refuses it.
 ///
 /// The split's walk refuses a sphere's or a torus's sector
 /// (`neighborhood::sector_face`) because the split's gate refuses those
@@ -219,8 +220,8 @@ fn read_kind<T: Decide>(body: &Body<T>, face: FaceKey, at: Point3<T>, band: Band
     let f = crate::live::proven(&body.faces, face, EntityId::Face);
     match *body.face_surface_linked(face, f) {
         geom::Surface::Cone { apex, axis, .. } => !matches!(
-            crate::face_normal::cone_off_axis(apex, axis, at, band),
-            Ok(Sign::Zero | Sign::Negative)
+            crate::face_normal::cone_point(apex, axis, at, band),
+            Ok(crate::face_normal::ConePoint::Apex)
         ),
         geom::Surface::Cylinder { .. }
         | geom::Surface::Sphere { .. }

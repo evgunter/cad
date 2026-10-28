@@ -210,10 +210,11 @@ impl PlaneSide {
 pub enum SectorEntryKind {
     /// A real neighborhood edge, classified by its final vertex.
     Edge,
-    /// The duplicate entry of a wide (≥180°) sector, classified by the
-    /// sector's interior bisector direction (convex subdivision — see
-    /// the `neighborhood` module docs). Shares its half-edge with the
-    /// preceding [`SectorEntryKind::Edge`] entry.
+    /// A subdivision entry of one sector, classified by its direction: a
+    /// wide (≥180°) sector's interior bisector (convex subdivision), or, at
+    /// a cone's apex, each extremal ruling inside the sector, one or two at
+    /// any width (the `neighborhood` module docs). Shares its half-edge with
+    /// the sector's [`SectorEntryKind::Edge`] entry before it.
     WideBisector,
 }
 
@@ -246,8 +247,9 @@ pub struct NullEdgeRecord {
     /// The F9 side attribute (`above_end` = the end standing for the
     /// piece above the plane) — orientation as data.
     pub attr: NullEdge,
-    /// True for a dangling null edge (a wide same-side sector whose
-    /// bisector crossed — the strut case, either way round).
+    /// True for a dangling null edge (subdivision entries of one sector
+    /// that crossed where its bounds did not — the strut case, either way
+    /// round).
     pub dangling: bool,
 }
 
@@ -446,6 +448,29 @@ pub enum SplitReduceError {
         vertex: VertexKey,
         /// What fixed no corners.
         fault: SectionGermFault,
+    },
+    /// The plane crosses a cone face at its apex, which the walk read on
+    /// the plane, and the section table, asked for the rulings the plane
+    /// leaves the apex along, refused: it read the plane's section of
+    /// the cone as standing off the apex, or could not serve it.
+    ApexSection {
+        /// The apex vertex.
+        vertex: VertexKey,
+        /// The cone face.
+        face: FaceKey,
+        /// The table's refusal.
+        section: SplitJoinError,
+    },
+    /// A vertex of a cone face lies within the band of the cone's axis
+    /// ([`crate::face_normal::cone_point`] escalated): whether the
+    /// face has a tangent plane there or is at its apex is undecided.
+    ApexUndecided {
+        /// The vertex.
+        vertex: VertexKey,
+        /// The cone face.
+        face: FaceKey,
+        /// The escalation.
+        diag: Indeterminate,
     },
     /// A sector's bounding chord has **no finite length**: its
     /// components overflow the norm (past ~1e154), or one of them is
@@ -758,6 +783,18 @@ impl core::fmt::Display for SplitReduceError {
                 };
                 write!(f, "{what}. Recourse: {SPLIT_COINCIDENCE_RECOURSE}")
             }
+            Self::ApexSection { section, .. } => write!(
+                f,
+                "the split plane passes through the tip of a cone, and where it leaves the \
+                 cone there does not read ({section}). Recourse: \
+                 {SPLIT_COINCIDENCE_RECOURSE}"
+            ),
+            Self::ApexUndecided { diag, .. } => write!(
+                f,
+                "a corner of a cone face lies too near the cone's axis to say whether it is \
+                 the cone's tip ({}). Recourse: {SPLIT_COINCIDENCE_RECOURSE}",
+                diag.payload()
+            ),
             Self::NonFiniteSectorChord { .. } => write!(
                 f,
                 "a chord at a vertex has no finite length (a component overflows the norm \
