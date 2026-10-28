@@ -3832,31 +3832,37 @@ fn mint_refusal<T: Real>(
     surface: &Surface<T>,
     carrier: &Curve3<T>,
 ) -> CertifyError {
-    match e {
-        // A carrier not shown on its chart: its incidence,
-        // ended by its read (D3), decided or in band.
-        PcurveCertifyError::CarrierOffChart { why, margin, .. } => CertifyError::CarrierOffChart {
+    use crate::{IncidenceRead, OffMargin};
+    // A carrier not shown on its chart ends by its read (D3), decided or
+    // in band: the one classifier, so this map and every reader of the
+    // refusal agree.
+    if let Some(read) = IncidenceRead::of(&e) {
+        let why = match e {
+            PcurveCertifyError::CarrierOffChart { why, .. } => why,
+            _ => "the carrier's distance from the chart is past the band",
+        };
+        let off = |margin| CertifyError::CarrierOffChart {
             chart: surface.kind(),
             carrier: carrier.kind(),
             why,
             margin,
-        },
-        PcurveCertifyError::Escalated {
-            check: PcurveCheck::ChartIncidence,
-            cause,
-            ..
-        } => CertifyError::Escalated {
-            check: CertCheck::ChartIncidence,
-            sample: NOT_A_SAMPLE,
-            cause,
-        },
-        // The mint runs ONCE, before the schedule, so the
-        // sample field carries the not-a-sample sentinel:
-        // reporting `0` would name a schedule point that
-        // was never visited.
-        // The class reading is a lane choice (D3): in band
-        // it stays its own check, which ends "not yet", never
-        // the mint's defect.
+        };
+        return match read {
+            IncidenceRead::Off(margin) => off(margin.map(OffMargin::Past)),
+            IncidenceRead::AtPose(margin) => off(Some(OffMargin::InBand(margin))),
+            // The mint runs ONCE, before the schedule, so the sample
+            // field carries the not-a-sample sentinel: reporting `0`
+            // would name a schedule point that was never visited.
+            IncidenceRead::Undecided(cause) => CertifyError::Escalated {
+                check: CertCheck::ChartIncidence,
+                sample: NOT_A_SAMPLE,
+                cause,
+            },
+        };
+    }
+    match e {
+        // The class reading is a lane choice (D3): in band it stays its
+        // own check, which ends "not yet", never the mint's defect.
         PcurveCertifyError::Escalated {
             check: PcurveCheck::ChartClass,
             cause,
@@ -3866,9 +3872,8 @@ fn mint_refusal<T: Real>(
             sample: NOT_A_SAMPLE,
             cause,
         },
-        // The general lane's own reading where the lane
-        // choice sent the carrier: its capability gap,
-        // "not yet" as well.
+        // The general lane's own reading where the lane choice sent the
+        // carrier: its capability gap, "not yet" as well.
         PcurveCertifyError::Escalated {
             check: PcurveCheck::GeneralLane,
             cause,
@@ -3892,14 +3897,36 @@ fn mint_refusal<T: Real>(
             carrier,
             gap,
         },
-        // Every other refusal says the same thing: this
-        // (chart, carrier) pair has no certified chart
-        // image. That is a fact about the DESCRIPTION's
-        // geometry, and it is reported as one — not as
-        // `Unimplemented`, which means something else and
-        // would send the caller looking for a missing
-        // feature instead of a wrong locus.
-        _ => CertifyError::ChartImageUnavailable {
+        // Read above: an incidence refusal never reaches here.
+        PcurveCertifyError::CarrierOffChart { .. } => {
+            unreachable!("mint_refusal: IncidenceRead::of reads every CarrierOffChart")
+        }
+        // Every other refusal says the same thing: this (chart, carrier)
+        // pair has no certified chart image. That is a fact about the
+        // DESCRIPTION's geometry, and it is reported as one — not as
+        // `Unimplemented`, which means something else and would send the
+        // caller looking for a missing feature instead of a wrong locus.
+        PcurveCertifyError::UnsupportedChart { .. }
+        | PcurveCertifyError::ImageMismatch { .. }
+        | PcurveCertifyError::FittedLaneUnsupported { .. }
+        | PcurveCertifyError::SectorRefused { .. }
+        | PcurveCertifyError::IsoUnsupported { .. }
+        | PcurveCertifyError::ChartRow { .. }
+        | PcurveCertifyError::FittedLimb { .. }
+        | PcurveCertifyError::FittedCertificate { .. }
+        | PcurveCertifyError::CarrierDomain(_)
+        | PcurveCertifyError::CarrierEnclosure(_)
+        | PcurveCertifyError::FittedEscalated { .. }
+        | PcurveCertifyError::IntervalNotForward
+        | PcurveCertifyError::ChartWindingUnsupported
+        | PcurveCertifyError::ChannelKindMismatch { .. }
+        | PcurveCertifyError::WindingMismatch { .. }
+        | PcurveCertifyError::PlaceholderChart
+        | PcurveCertifyError::AzimuthPeriodExceeded
+        | PcurveCertifyError::PlacementTurnsExceeded
+        | PcurveCertifyError::TubePeriodExceeded
+        | PcurveCertifyError::ResidualExceeded { .. }
+        | PcurveCertifyError::Band(_) => CertifyError::ChartImageUnavailable {
             chart: surface.kind(),
             carrier: carrier.kind(),
         },

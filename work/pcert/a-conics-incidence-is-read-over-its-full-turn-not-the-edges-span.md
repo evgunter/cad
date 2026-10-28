@@ -8,8 +8,12 @@ opened: 2026-10-28
 
 
 
-Found by review lane b on PR 5889 (E1c); filed by E1c's fix pass, as the
-orchestrator ruled: pre-existing, not E1c's to fix.
+Found by review lane b on PR 5889 (E1c); filed by E1c's fix pass. The
+full-turn read is older than E1c on the sphere, cone and torus arms. On
+the plane arm E1c made it: before E1c the plane mint read no incidence
+and refused such an arc as a residual; since E1c it is the read's
+definite miss (measured below). The orchestrator left the repair out of
+E1c.
 
 ## What happens
 

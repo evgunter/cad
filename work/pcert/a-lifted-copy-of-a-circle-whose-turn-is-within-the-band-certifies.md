@@ -37,12 +37,17 @@ band. A rim of radius `1e3·zero` passes check 2 and refuses its copy on
 
 ## Disposition
 
-Closed as unreachable at the door. A circle whose half turn lies within
-the zero band has a whole turn of at most `2·zero`, inside the escalation
-band, so check 2 cannot show its span forward, at whatever radius: no
-such row is ever certified,
-and nothing downstream can read its uv lift. The readers that would
-care (chart_region's uv loops, trimming, the fundamental-domain readers)
-read certified caches only, so none was walked further. The envelope
-sweep's C4 assertion skips such rows, counts them (`Tally::vacuous`),
-and keeps a floor of 0.9 on the renamings it still checks.
+Closed as unreachable at the door, by measurement: the pinned row
+refuses the rim, its exact image and its lifted copy at check 2
+(`IntervalNotForward`) at `f64` and at `Interval`, at every ε row CI
+runs, before check 4 reads any term, so the lift the term cannot see is
+never certified there, and nothing downstream reads its uv lift. The readers
+that would care (chart_region's uv loops, trimming, the
+fundamental-domain readers) read certified caches only, so none was
+walked further.
+
+The envelope sweep's C4 assertion skips a row only where the term's own
+lever reads a whole period Zero (`π` times the azimuth's arm over the
+row's chart box, decided as the term is), counts those rows
+(`Tally::vacuous`), and keeps a floor of 0.9 on the renamings it still
+checks.

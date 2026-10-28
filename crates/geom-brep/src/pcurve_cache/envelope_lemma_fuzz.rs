@@ -1018,16 +1018,24 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize, tally: &mut Tally) -> Opti
     // alone, whatever else the draw moved. An exact image renamed by its
     // sphere's twin costs nothing.
     //
-    // Vacuous on a circle whose half turn is within the zero band: its
-    // copy a whole period over is the same point set to within the
-    // tolerance, the term, the offset past half a period levered at the
-    // azimuth's arm (the circle's radius), reads it Zero, and at the door
-    // check 2 refuses such a circle's span before check 4
+    // Vacuous where the term's own lever reads a whole period Zero: a
+    // copy one period over sits `π` past half a period, which the term
+    // levers at the azimuth's arm over the row's chart box, so where
+    // `π·arm` decides Zero the copy is the same point set to within the
+    // tolerance and no term can see it; at the door check 2 refuses such
+    // a circle's span before check 4
     // (`work/pcert/a-lifted-copy-of-a-circle-whose-turn-is-within-the-band-certifies.md`).
-    let turn_in_band = match carrier {
-        Curve3::Circle { radius, .. } => PI * radius <= band().zero(),
-        _ => false,
-    };
+    let turn_in_band =
+        super::chart_sup_arms_at(&surface, &stored.chart_box(t0, t1)).is_ok_and(|(arm_u, _)| {
+            matches!(
+                decide(
+                    "pcurve_envelope_term",
+                    Margin::of(arm_u.to_meters(PI)),
+                    band()
+                ),
+                Ok(Sign::Zero)
+            )
+        });
     if k != 0 && turn_in_band {
         tally.vacuous += 1;
     } else if k != 0 {
@@ -1627,6 +1635,100 @@ fn a_lifted_copy_of_a_circle_whose_turn_is_within_the_band_never_reaches_check_4
                 })
             ),
             "the lifted copy of a rim of radius {wide:e} refuses on FidelityU: {got:?}"
+        );
+    }
+}
+
+/// **The incidence terms read the carrier's own departure from its
+/// chart**, written down on carriers the mint images: each moved off the
+/// unit cylinder by less than the zero band, so its incidence read is on,
+/// and the one term that reads that move carries it, to a few ulps of
+/// the unit data, at `f64` and inside the `Interval` enclosure:
+///
+/// - a rim whose centre sits `d` off the axis: `Centre` is `d`;
+/// - a ruling `d` outside the wall: `Radius` is `d`;
+/// - a ruling leaning radially by `d` per metre over `[0, 1]`: `Line` is
+///   `d` (its radial rate over the span's reach).
+#[test]
+fn the_incidence_terms_read_the_carriers_departure() {
+    let d = 0.3 * band().zero();
+    let cyl = Surface::Cylinder {
+        origin: Point3::origin(),
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    let rows = [
+        (
+            EnvelopeTerm::Centre,
+            circle(
+                Point3::new(d, 0.0, 0.5),
+                Vec3::unit_z(),
+                1.0,
+                Vec3::unit_x(),
+            ),
+            (0.0, PI),
+        ),
+        (
+            EnvelopeTerm::Radius,
+            Curve3::Line {
+                origin: Point3::new(1.0 + d, 0.0, 0.0),
+                dir: Vec3::unit_z(),
+            },
+            (0.0, 1.0),
+        ),
+        (
+            EnvelopeTerm::Line,
+            Curve3::Line {
+                origin: Point3::new(1.0, 0.0, 0.0),
+                dir: Vec3::new(d, 0.0, 1.0),
+            },
+            (0.0, 1.0),
+        ),
+    ];
+    let lift = Interval::from_f64;
+    for (term, carrier, (t0, t1)) in rows {
+        let reach = t0.abs().max(t1.abs());
+        let (stored, _) = derive_harmonic(
+            &carrier,
+            &cyl,
+            super::Placement::over((t0, t1), &carrier, &cyl),
+            band(),
+        )
+        .unwrap_or_else(|e| panic!("{term:?}: the moved carrier images: {e}"));
+        let at_f64 = periodic_envelope(
+            channels_of(&stored),
+            &carrier,
+            carrier_harmonic(&carrier).unwrap(),
+            &cyl,
+            (t0, t1),
+            reach,
+            band(),
+        )
+        .unwrap();
+        // The data are of unit size, so the move itself rounds by a few
+        // ulps of 1.
+        let ulps = 8.0 * f64::EPSILON;
+        let read = at_f64.0[term.slot()];
+        assert!(
+            (read - d).abs() <= ulps,
+            "{term:?} reads {read:e} for a move of {d:e}"
+        );
+        let carrier_i = carrier.map_scalar(lift);
+        let at_iv = periodic_envelope(
+            channels_of(&lift_harmonic(&stored)),
+            &carrier_i,
+            carrier_harmonic(&carrier_i).unwrap(),
+            &cyl.map_scalar(lift),
+            (lift(t0), lift(t1)),
+            lift(reach),
+            band(),
+        )
+        .unwrap();
+        let enclosure = at_iv.0[term.slot()];
+        assert!(
+            enclosure.lo() <= d + ulps && enclosure.hi() >= d - ulps,
+            "{term:?} at Interval encloses the move {d:e}: {enclosure:?}"
         );
     }
 }
