@@ -79,10 +79,12 @@ every pose (`march_over_the_ball`). The symmetric poses' components
 carry the general rung's carrier, which `PairSection::carry` marches;
 `ClassCarrier::Unbuilt` is gone. Five of the germ row's six donut × donut placements certify (two loops
 at three, one at two), the sixth a tangency the gap decides and the door
-refuses before any rung; the lily's stem and arch tori meet in one
-certified loop per component the value lists
+refuses before any rung. The lily's stem and arch tori decide a
+transverse gap, but their tubes run 8 mm apart where the arch leaves
+the fork, and the door refuses `CellBudget` over the arch's ball
 (`crates/sweep/tests/mate7a_r1_probes.rs`
-`the_lilys_tori_meet_in_certified_loops_at_the_door`).
+`the_lilys_tori_exhaust_the_doors_cell_budget`, evidence on SECTRUNG's
+`a-cylinder-sphere-march-near-its-node-costs-seconds-and-refuses-by-budget`).
 
 A general pose still refuses at the section value
 (`RoutesToGeneralRung`): it has no closed-form count of its components,

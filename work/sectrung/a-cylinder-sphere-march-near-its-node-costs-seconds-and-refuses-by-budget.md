@@ -83,3 +83,11 @@ examine 3500–150000 cells, 1–20 s each in debug (`germ_row`, the slow
 set). So the cylinder × sphere shape holds for the torus pairs too: the
 cost is the accounting's, and nearer the tangency the refusal is typed
 but not cheap.
+
+The lily's stem and arch tori (`R = 5`, `r = 0.06` and `R = 1.1`,
+`r = 0.052`, axes parallel) are such a pose in a real scene: where the
+arch leaves the fork its core runs tangent to the stem's, its tube
+8 mm inside, and `torus_torus_ssi` over the arch's ball refuses
+`CellBudget` after about 14 s in debug
+(`crates/sweep/tests/mate7a_r1_probes.rs`
+`the_lilys_tori_exhaust_the_doors_cell_budget`, the pin).
