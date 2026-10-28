@@ -70,6 +70,8 @@ mod a_curved_keel_on_the_floor_refuses_its_slit_form;
 mod a_cylinder_split_just_off_its_rim_vertex;
 #[path = "a_face_across_a_wavy_corner.rs"]
 mod a_face_across_a_wavy_corner;
+#[path = "a_face_moved_off_its_edges_ends_as_their_incidence_read_at_rest.rs"]
+mod a_face_moved_off_its_edges_ends_as_their_incidence_read_at_rest;
 #[path = "a_face_off_the_tangent_ruling.rs"]
 mod a_face_off_the_tangent_ruling;
 #[path = "a_flank_touch_at_a_shared_corner.rs"]

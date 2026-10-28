@@ -2967,10 +2967,6 @@ fn own_close(margin: &geom_core::MarginDiag, lever: &'static str) -> &'static st
 /// corners, an exact construction.
 const PLANAR_CORNER: Unsized = Unsized::Defect;
 
-/// A flat face's edge on its plane: a residual of a carrier the kernel may
-/// have fitted.
-const PLANAR_BOUNDARY: Unsized = Unsized::Fit;
-
 /// The ring-torus convention `R − r > 0`: a size the user may intend, and
 /// the stored radii are what the lever edits.
 const RING_TORUS: SizedDecision = geom_brep::TorusConvention::Ring.sized();
@@ -4271,7 +4267,7 @@ impl fmt::Display for ValidationError {
             Self::PlanarBoundaryResidual { .. } => write!(
                 f,
                 "an edge of a flat face leaves that face's plane between its ends. {}",
-                PLANAR_BOUNDARY.recourse(RefusedArm::SignCertain(None), Reading::AtRest)
+                geom_brep::IncidenceRead::Off(None).ending(Reading::AtRest)
             ),
             Self::PlanarBoundaryEscalated { cause, .. } => write!(
                 f,
@@ -4279,7 +4275,7 @@ impl fmt::Display for ValidationError {
                     geom_core::undecided!("whether an edge of a flat face stays on its plane"),
                     ". {}"
                 ),
-                PLANAR_BOUNDARY.recourse(RefusedArm::Undecided(cause), Reading::AtRest)
+                geom_brep::IncidenceRead::Undecided(*cause).ending(Reading::AtRest)
             ),
             Self::SliverDihedral { check, cause, .. } => {
                 write!(f, "{}. {}", check.lead(), check.ending(cause))
@@ -12728,7 +12724,9 @@ mod tests {
                     edge,
                     cause: in_band,
                 },
-                KERNEL_LIMIT_RECOURSE.to_owned(),
+                "Recourse: the edge's curve is not shown on the face it bounds at this \
+                 tolerance: move the geometry so it lies clearly on that face"
+                    .to_owned(),
             ),
             (
                 "torus radii, in band",
