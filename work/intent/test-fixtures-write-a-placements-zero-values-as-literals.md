@@ -2,11 +2,14 @@
 id: test-fixtures-write-a-placements-zero-values-as-literals
 kind: issue
 title: test fixtures write a mate's or placement's zero values, and a split's zero phase, as literals that mint variables the design writes as the constant 0
-status: dispatched
+status: closed
 opened: 2026-10-21
 priority: P3
 cost: M
 refs: [the-tour-writes-a-mates-spin-as-a-literal-zero]
+pr: 5926
+branch: intent/cost-e-batch
+closed: 2026-10-28
 ---
 
 ## What
@@ -111,3 +114,24 @@ finds 34 hits in 17 files:
 Some of these are written values that the test later moves, and those
 stay. The Python direction components are untouched and still a
 neighbouring question.
+
+## The placement half (2026-10-28, PR 5926)
+
+One pass over `crates/` and `demos/`. A literal zero length or angle
+that is a `Coord` value, an argument of a placement or mate helper, or
+a transform's or sketch-on-face's angle or translation is now the
+constant `0`, and so are the two zero slides in `test_face_frame.py`.
+Kept as literals: the rows whose subject is that typed zeros are numbers,
+in `intent_s3_c_mates.rs` and `intent_s3_d_placements.rs`, and the
+wrong-dimension refusal in `combine_ops.rs`. The hit list and the
+blind spots are in PR 5926's body. Two goldens moved:
+
+- the msolve14 corpus digest, by id renumbering alone: with ids
+  rewritten to the order they first appear in, every byte it feeds is
+  main's;
+- the m10_6 certifying keys, by content: the neck's two unmoved slides
+  no longer read variables, so the rows that read those variables left
+  the vector.
+
+The direction components are untouched and are still the neighbouring
+question.

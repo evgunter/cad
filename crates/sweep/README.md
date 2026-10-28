@@ -24,7 +24,7 @@ chamfers) is registered in `docs/KERNEL-VERBS.md`; the canal blend is
 |---|---|
 | Extrude: translational sweep along the sketch normal; caps, walls, hole rings, rim upgrades | `crates/sweep/src/extrude.rs` |
 | Revolve: axis and angle conventions, partial wedge and full ring, seam meridians, the `tube_along_arc` torus door | `crates/sweep/src/revolve/` (`mod.rs`, `axis.rs`, `partial.rs`, `full.rs`, `chain.rs`, `surfaces.rs`, `upgrade.rs`, `tube.rs`) |
-| Loft and path sweep bodies: extrude's topology over NURBS walls | `crates/sweep/src/loft.rs` (`loft_body`, `loft_profiles`, `sweep_body`) |
+| Loft and path sweep bodies: extrude's topology over NURBS walls, slab by slab at v-degree 1 | `crates/sweep/src/loft.rs` (`loft_body`, `loft_profiles`, `sweep_body`, `slab_walls`) |
 | Skinned and swept NURBS surfaces (the definitional geometry, not an approximation) | `crates/sweep/src/skin.rs` |
 | The lowering every profile sweep shares: traversal order, carriers, cosurface decisions | `crates/sweep/src/swept.rs` |
 | The two blend doors, one per verb; each attaches its `BlendKind` once | `crates/sweep/src/fillet.rs`, `crates/sweep/src/chamfer.rs` |
@@ -242,6 +242,26 @@ and a partial revolve's run of on-axis segments is one axis edge. It
 stays in the profile, where `ProfileVertexRef` names it.
 Loft builds one wall per corresponding segment pair: across sections
 nothing declares two walls one surface, and the station pins the ruling.
+At v-degree 1 through three sections or more it builds one wall per
+segment per slab (the stretch between two consecutive sections): the
+skinned net's control rows are its sections, so slab `s`'s wall is rows
+`s` and `s + 1`, a single ruled span in `v`, and the loft is `k − 1`
+two-section lofts glued at the shared sections. A degree-1 wall through
+three sections or more is not C¹ at its interior sections by its knot
+structure, so the loft cuts there (DESIGN [topology]: "a wall keeps the
+cuts its author wrote: the kernel adds none, except where a face or edge
+carrier is not C¹ by its knot structure").
+Each interior section is a ring of edges on the placed sketch segments,
+the same carriers as the cap rims, described in the row of the slab wall
+below; each strut is one straight boundary column per slab. An arc
+whose row the other sections' sub-arc joints refine has no arc-rim image
+there, and the loft refuses it (`LoftError::SectionRim`, recourse
+v-degree 2;
+`work/isotail/a-loft-whose-arc-bulge-varies-per-section-refuses-its-arc-rim.md`).
+Slab walls lie on distinct spline surfaces, which no merge glues (a spline pair is
+outside the carrier ladder's inventory), so a translated polygon's slab
+walls stay distinct though coplanar. At v-degree 2 or more one wall
+spans every section, its sections interior knots of a smooth net.
 
 ## Blend vocabulary (BLEND-VOCAB-DESIGN V1–V4)
 

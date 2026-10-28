@@ -136,7 +136,7 @@ pub use edit::{
 };
 pub use eval::measure::{Observed, ObservedRefusal};
 pub use eval::{
-    At, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
+    At, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel, Carry,
     ComputingTwist, ContentBits, ContentKey, DirectionRefusal, Epoch, EvalCounters, EvalOptions,
     EvalOutcome, EvalScalar, Evaluation, Framed, NamingKey, NodeError, NodeErrorClass,
     NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault, Piece, Pieces,

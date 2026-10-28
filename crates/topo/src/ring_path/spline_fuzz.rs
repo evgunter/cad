@@ -1,0 +1,338 @@
+//! **The ring lane's parity across spline arcs, searched for a wrong
+//! answer** (shape 1: every sampled pair, the parity the membership
+//! oracle gives or none). Two families:
+//!
+//! - the carried loop itself: a cylinder × sphere section's fitted loop
+//!   (`geom_brep::PairSection::carry`), cut into one to three arcs with
+//!   their evidence of lying on the surfaces ([`SplineArc::of_section`]),
+//!   read on the cylinder against membership in the ball and on the
+//!   sphere against membership in the cylinder, between points clustered
+//!   from 1e-5 to 5e-2 off the loop;
+//! - islands on a cylinder bounded by two rulings and two tilted plane
+//!   sections, every edge an exact spline (a degree-one ruling, rational
+//!   quadratic arcs of the ellipses), whose extrema in height fall inside
+//!   the island's span, read between random points and, arriving on a
+//!   section arc's midpoint, against the side the path arrives from.
+
+test_utils::gated_to![
+    "crates/topo/src/ring_path.rs",
+    "crates/geom-brep/src/curve_pair.rs",
+    "crates/geom-brep/src/curve_pair/",
+    "crates/geom-brep/src/pair_section.rs",
+    "crates/geom/src/curves/nurbs.rs",
+    "crates/geom-core/src/spline/",
+    "crates/geom-core/src/predicate.rs",
+];
+
+use super::cone_islands::band;
+use super::*;
+use core::f64::consts::{FRAC_PI_2, PI};
+use geom_core::spline::KnotVector;
+use test_utils::fuzz::{self, Rng};
+
+/// The arcs of `net` cut at `cuts` (interior parameters, ascending), each
+/// a spline arc on `component`'s evidence.
+fn cut_into(component: &geom_brep::CarriedComponent<f64>, cuts: &[f64]) -> Vec<LoopArc<f64>> {
+    let geom::Curve3::Nurbs(net) = &component.carrier else {
+        panic!("a fitted component's carrier is a spline");
+    };
+    let mut rest = (**net).clone();
+    let mut pieces = Vec::new();
+    for &u in cuts {
+        let (head, tail) = rest.split_at(u).unwrap();
+        pieces.push(head);
+        rest = tail;
+    }
+    pieces.push(rest);
+    pieces
+        .into_iter()
+        .map(|piece| {
+            let span = piece.domain();
+            let curve = geom::Curve3::Nurbs(std::sync::Arc::new(piece));
+            LoopArc::Spline(SplineArc::of_section(component, &curve, span).unwrap())
+        })
+        .collect()
+}
+
+/// A unit vector square to `n`, drawn from `rng`.
+fn tangent(n: Vec3<f64>, rng: &mut Rng) -> Vec3<f64> {
+    let (a, b) = n.orthonormal_basis();
+    let t = rng.range(-PI, PI);
+    a * t.cos() + b * t.sin()
+}
+
+/// **No path across a carried loop's arcs reads a parity the membership
+/// oracle contradicts**, on the cylinder and on the sphere, over poses
+/// of one loop and two.
+#[test]
+fn a_path_across_a_carried_loop_reads_the_membership_parity() {
+    let mut rng = fuzz::start("ring_path::spline_fuzz::carried_loop");
+    let r = 0.5;
+    let cylinder = geom::Surface::Cylinder {
+        origin: Point3::origin(),
+        axis: Vec3::unit_z(),
+        radius: r,
+        u_ref: Vec3::unit_x(),
+    };
+    // One loop (centre on the wall), one wider than the wall, two loops.
+    let poses = [(0.5, 0.3), (0.2, 0.699), (0.1, 0.7)];
+    let (mut asked, mut decided) = (0usize, 0usize);
+    for (d, big) in poses {
+        let centre = Point3::new(d, 0.0, 0.0);
+        let sphere = geom::Surface::Sphere {
+            center: centre,
+            radius: big,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let geom_brep::SectionRead::Built(section) =
+            geom_brep::pair_section(&cylinder, &sphere, band()).unwrap()
+        else {
+            panic!("the value builds cylinder × sphere");
+        };
+        let carried = section
+            .carry(Some(geom_brep::SsiLane::marched()), band())
+            .unwrap();
+        for _ in 0..fuzz::scaled(2) {
+            // The loop's arcs, each component cut at up to two places.
+            let mut arcs = Vec::new();
+            for c in carried.components() {
+                let (lo, hi) = c.span;
+                let mut cuts: Vec<f64> = (0..rng.below(3))
+                    .map(|_| rng.range(lo + 0.05 * (hi - lo), hi - 0.05 * (hi - lo)))
+                    .collect();
+                cuts.sort_by(f64::total_cmp);
+                cuts.dedup_by(|a, b| (*a - *b).abs() < 0.01 * (hi - lo));
+                arcs.extend(cut_into(c, &cuts));
+            }
+            // Points on each surface a clustered distance off the loop.
+            let near = |rng: &mut Rng, on_sphere: bool| loop {
+                let c = &carried.components()[rng.below(carried.components().len())];
+                let p = c.carrier.eval(rng.range(c.span.0, c.span.1));
+                let off = rng.log_uniform(1e-5, 5e-2);
+                let q = if on_sphere {
+                    let n = (p - centre) / big;
+                    let moved = p + tangent(n, rng) * off - centre;
+                    centre + moved / moved.norm() * big
+                } else {
+                    let turn = rng.range(-PI, PI);
+                    let theta = p.y.atan2(p.x) + turn.cos() * off / r;
+                    Point3::new(r * theta.cos(), r * theta.sin(), p.z + turn.sin() * off)
+                };
+                // Membership decided well past the loop's rounding.
+                let margin = if on_sphere {
+                    q.x.hypot(q.y) - r
+                } else {
+                    (q - centre).norm() - big
+                };
+                if margin.abs() > 1e-8 {
+                    return (q, margin < 0.0);
+                }
+            };
+            for (on_sphere, surface) in [(false, &cylinder), (true, &sphere)] {
+                let quadric = Quadric::of(surface).unwrap();
+                let (a, ia) = near(&mut rng, on_sphere);
+                let (b, ib) = near(&mut rng, on_sphere);
+                let Ok(paths) = quadric.paths((a, b), band()) else {
+                    continue;
+                };
+                for path in paths {
+                    asked += 1;
+                    let got = path_parity(&path, &arcs, None, band());
+                    if let Ok(Some(got)) = got {
+                        decided += 1;
+                        assert_eq!(
+                            got,
+                            ia != ib,
+                            "d {d}, R {big}, on the {}: {a:?} → {b:?}; {}",
+                            if on_sphere { "sphere" } else { "cylinder" },
+                            fuzz::replay()
+                        );
+                    }
+                }
+            }
+        }
+    }
+    println!("[fuzz] carried loop: {decided} of {asked} paths decided");
+}
+
+/// The rational quadratic arcs of `e(θ) = c + U·cos θ + V·sin θ` over
+/// `[t0, t1]`, each spanning at most a quarter turn: exact.
+fn conic_arcs(
+    (c, u, v): (Point3<f64>, Vec3<f64>, Vec3<f64>),
+    (t0, t1): (f64, f64),
+) -> Vec<LoopArc<f64>> {
+    let n = ((t1 - t0) / FRAC_PI_2).ceil().max(1.0);
+    let step = (t1 - t0) / n;
+    let e = |t: f64| c + u * t.cos() + v * t.sin();
+    (0..n as usize)
+        .map(|i| {
+            let (a, b) = (t0 + step * i as f64, t0 + step * (i + 1) as f64);
+            let (m, w) = (0.5 * (a + b), (0.5 * step).cos());
+            let mid = c + (u * m.cos() + v * m.sin()) / w;
+            let net = geom::NurbsCurve3::new(
+                KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+                vec![e(a), mid, e(b)],
+                vec![1.0, w, 1.0],
+            )
+            .unwrap();
+            LoopArc::Spline(
+                SplineArc::on_by_construction(
+                    &geom::Curve3::Nurbs(std::sync::Arc::new(net)),
+                    (0.0, 1.0),
+                )
+                .unwrap(),
+            )
+        })
+        .collect()
+}
+
+/// A degree-one spline from `p` to `q`.
+fn ruling(p: Point3<f64>, q: Point3<f64>) -> LoopArc<f64> {
+    let net = geom::NurbsCurve3::new(
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        vec![p, q],
+        vec![1.0, 1.0],
+    )
+    .unwrap();
+    LoopArc::Spline(
+        SplineArc::on_by_construction(&geom::Curve3::Nurbs(std::sync::Arc::new(net)), (0.0, 1.0))
+            .unwrap(),
+    )
+}
+
+/// **No path across a random cylinder island bounded by splines reads a
+/// parity the membership oracle contradicts**, between points, and
+/// arriving on a section arc against the side it arrives from.
+#[test]
+fn a_path_across_a_spline_bounded_cylinder_island_reads_the_membership_parity() {
+    let mut rng = fuzz::start("ring_path::spline_fuzz::cylinder_island");
+    let r = 0.5;
+    let cylinder = geom::Surface::Cylinder {
+        origin: Point3::origin(),
+        axis: Vec3::unit_z(),
+        radius: r,
+        u_ref: Vec3::unit_x(),
+    };
+    let quadric = Quadric::of(&cylinder).unwrap();
+    let (mut asked, mut decided) = (0usize, 0usize);
+    for _ in 0..fuzz::scaled(12) {
+        let ta = rng.range(-2.5, 0.0);
+        let tb = ta + rng.range(0.4, 2.5);
+        // Two plane sections `z = h + a·cos θ + b·sin θ`, the upper above
+        // the lower over the span by at least a gap.
+        let (al, bl, hl) = (
+            rng.range(-0.3, 0.3),
+            rng.range(-0.3, 0.3),
+            rng.range(-0.5, 0.0),
+        );
+        let (au, bu) = (rng.range(-0.3, 0.3), rng.range(-0.3, 0.3));
+        let z = |h: f64, a: f64, b: f64, t: f64| h + a * t.cos() + b * t.sin();
+        let lowest_gap = (0..=200)
+            .map(|i| {
+                let t = ta + (tb - ta) * f64::from(i) / 200.0;
+                z(0.0, au, bu, t) - z(hl, al, bl, t)
+            })
+            .fold(f64::INFINITY, f64::min);
+        let hu = 0.05 - lowest_gap + rng.range(0.0, 0.6);
+        let section = |h: f64, a: f64, b: f64| {
+            (
+                Point3::new(0.0, 0.0, h),
+                Vec3::new(r, 0.0, a),
+                Vec3::new(0.0, r, b),
+            )
+        };
+        let (lower, upper) = (section(hl, al, bl), section(hu, au, bu));
+        let at =
+            |(c, u, v): (Point3<f64>, Vec3<f64>, Vec3<f64>), t: f64| c + u * t.cos() + v * t.sin();
+        let mut arcs = conic_arcs(lower, (ta, tb));
+        arcs.extend(conic_arcs(upper, (ta, tb)));
+        arcs.push(ruling(at(lower, ta), at(upper, ta)));
+        arcs.push(ruling(at(lower, tb), at(upper, tb)));
+        let inside = |p: Point3<f64>| {
+            let t = p.y.atan2(p.x);
+            let (lo, hi) = (z(hl, al, bl, t), z(hu, au, bu, t));
+            let m = [t - ta, tb - t, p.z - lo, hi - p.z]
+                .into_iter()
+                .fold(f64::INFINITY, f64::min);
+            (m.abs() > 1e-7).then_some(m > 0.0)
+        };
+        let point = |rng: &mut Rng| {
+            let t = rng.range(ta - 0.5, tb + 0.5);
+            let zz = rng.range(hl - 0.8, hu + 0.8);
+            Point3::new(r * t.cos(), r * t.sin(), zz)
+        };
+        for _ in 0..12 {
+            let (a, b) = (point(&mut rng), point(&mut rng));
+            let (Some(ia), Some(ib)) = (inside(a), inside(b)) else {
+                continue;
+            };
+            for path in quadric.paths((a, b), band()).unwrap_or_default() {
+                asked += 1;
+                if let Ok(Some(got)) = path_parity(&path, &arcs, None, band()) {
+                    decided += 1;
+                    assert_eq!(got, ia != ib, "{a:?} → {b:?}; {}", fuzz::replay());
+                }
+            }
+        }
+        // Arriving on the lower section's first arc at its midpoint: the
+        // parity before it says whether `w` lies on the side the path
+        // arrives from.
+        let first = (tb - ta) / ((tb - ta) / FRAC_PI_2).ceil().max(1.0);
+        let q = at(lower, ta + first / 2.0);
+        for _ in 0..4 {
+            let w = point(&mut rng);
+            let Some(iw) = inside(w) else {
+                continue;
+            };
+            for path in quadric.paths((w, q), band()).unwrap_or_default() {
+                let before = q - path.arrival * 1e-5;
+                let Some(ib) = inside(Point3::new(
+                    before.x / before.x.hypot(before.y) * r,
+                    before.y / before.x.hypot(before.y) * r,
+                    before.z,
+                )) else {
+                    continue;
+                };
+                asked += 1;
+                if let Ok(Some(got)) = path_parity(&path, &arcs, Some(0), band()) {
+                    decided += 1;
+                    assert_eq!(got, iw != ib, "{w:?} → {q:?} arriving; {}", fuzz::replay());
+                }
+            }
+        }
+    }
+    println!("[fuzz] cylinder islands: {decided} of {asked} paths decided");
+}
+
+/// **No spline arc is made without its evidence of lying on the
+/// surface**: [`spline_crossings`] reads meetings in space, which are
+/// crossings on the surface only for an arc on it, and an arc fifty bands
+/// off a cylinder reads hundreds of wrong parities in a few thousand
+/// paths (the dual review of PR 5894). So a closed-form arc's door makes
+/// none, and a section's arc is refused where its component holds no
+/// certificate.
+#[test]
+fn a_spline_arc_is_made_only_on_its_evidence() {
+    let net = geom::NurbsCurve3::new(
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        vec![Point3::new(0.5, 0.0, 0.0), Point3::new(0.0, 0.5, 0.0)],
+        vec![1.0, 1.0],
+    )
+    .unwrap();
+    let curve = geom::Curve3::Nurbs(std::sync::Arc::new(net));
+    assert!(
+        LoopArc::of(&curve, (0.0, 1.0)).is_none(),
+        "the closed-form door makes no spline arc"
+    );
+    let uncertified = geom_brep::CarriedComponent {
+        carrier: curve.clone(),
+        span: (0.0, 1.0),
+        closed: false,
+        certificate: None,
+    };
+    assert!(
+        SplineArc::of_section(&uncertified, &curve, (0.0, 1.0)).is_none(),
+        "a component with no certificate gives no spline arc"
+    );
+}

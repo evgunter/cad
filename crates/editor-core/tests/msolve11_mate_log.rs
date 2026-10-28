@@ -16,6 +16,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::Dimension;
 
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
@@ -24,7 +25,7 @@ use editor_core::{
     RoleSeg, SitedFace, SitedRef, StableName, TargetAxis, evaluate,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{ang, in_copy, insert, len, on_frame, scl};
+use fixture::{in_copy, insert, len, on_frame, scl};
 use geom_core::Tol;
 
 // ---- the scene ----
@@ -199,7 +200,7 @@ impl Scene {
             fixture::mate(self.block_edge(self.cap), self.copy_edge()),
             &[
                 (Coord::Slide(TargetAxis::Z), len(BLOCK_HEIGHT)),
-                (Coord::SPIN, ang(0.0)),
+                (Coord::SPIN, Formula::zero(Dimension::Angle)),
             ],
         );
     }
@@ -213,7 +214,7 @@ impl Scene {
             &[
                 (Coord::Slide(TargetAxis::X), len(x)),
                 (Coord::Slide(TargetAxis::Y), len(y)),
-                (Coord::SPIN, ang(0.0)),
+                (Coord::SPIN, Formula::zero(Dimension::Angle)),
             ],
         )
     }
@@ -310,7 +311,7 @@ fn each_decision_is_on_the_log_of_the_node_that_made_it() {
 /// the same allocation, and every op that runs mints a fresh one.
 fn reused_value(earlier: &Evaluation<f64>, later: &Evaluation<f64>, id: RecipeNodeId) -> bool {
     match (earlier.value(id), later.value(id)) {
-        (Some(a), Some(b)) => std::sync::Arc::ptr_eq(&a.contacts, &b.contacts),
+        (Some(a), Some(b)) => std::sync::Arc::ptr_eq(&a.carry.contacts, &b.carry.contacts),
         _ => false,
     }
 }

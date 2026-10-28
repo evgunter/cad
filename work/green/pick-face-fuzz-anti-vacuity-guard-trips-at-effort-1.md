@@ -6,7 +6,8 @@ status: open
 opened: 2026-09-08
 refs: [1617]
 priority: P3
-cost: E
+cost: C
+rides_with: pick-oracle-sweep-anti-vacuity-fails-one-seed-in-1300
 ---
 
 Filed by the S-MESH orchestrator from MESH-12's landing run (PR 1617, run
@@ -181,3 +182,8 @@ oracle disagreements.
 `d37f5dcd`) tripped it with seed `0x9c7901b099374603`; it reproduces
 locally at the default eps with `CAD_FUZZ_SEED=0x9c7901b099374603
 CAD_FUZZ_EFFORT=1`. That PR touches no picking code.
+
+## A passenger (2026-10-28, GREEN's cut)
+
+The same guard as `pick-oracle-sweep-anti-vacuity-fails-one-seed-in-1300`,
+which carries the fix (plant a hit in case 0); this row closes with it.

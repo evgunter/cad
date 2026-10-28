@@ -6,7 +6,8 @@ status: open
 opened: 2026-10-11
 refs: [5001, 5011]
 cost: M
-priority: P3
+priority: P0
+parent: pr-ci-wall-clock-root-cause-measured
 ---
 
 ## Measured

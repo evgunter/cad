@@ -17,6 +17,7 @@ use editor_core::{
     CapEnd, Coord, DocumentId, EvalOptions, Frame, MateFault, Node, Operand, Orientation, Placed,
     ProfileDoc, RecipeNodeId, RoleSeg, SignedAxis, StableName, TargetAxis,
 };
+use editor_core::{Dimension, Formula};
 use fixture::{head, head_at, insert, len, on_frame, solve};
 use geom_core::Tol;
 
@@ -95,8 +96,11 @@ fn hung_doc(tilt: f64, about: TargetAxis, orient: Orientation) -> (ProfileDoc, R
         mates: vec![mate],
         values: vec![
             (Coord::Slide(TargetAxis::X), len(10.0)),
-            (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::SPIN, fixture::ang(0.0)),
+            (
+                Coord::Slide(TargetAxis::Y),
+                Formula::zero(Dimension::Length),
+            ),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     };
     let (doc, _) = fixture::write_bundle(doc, placement, placed.bundle());
@@ -414,8 +418,8 @@ fn on_the_wall(orient: Orientation, slides: [TargetAxis; 2]) -> Hung {
         mates: vec![mate],
         values: slides
             .into_iter()
-            .map(|a| (Coord::Slide(a), len(0.0)))
-            .chain([(Coord::SPIN, fixture::ang(0.0))])
+            .map(|a| (Coord::Slide(a), Formula::zero(Dimension::Length)))
+            .chain([(Coord::SPIN, Formula::zero(Dimension::Angle))])
             .collect(),
     };
     let (doc, _) = fixture::write_bundle(doc, placement, placed.bundle());

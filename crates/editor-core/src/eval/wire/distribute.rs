@@ -68,7 +68,7 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
             body: super::read_body(results, node)?,
             table: super::read_table(value),
             records: super::operand_records(value, doc, tol),
-            pieces: value.pieces.clone(),
+            pieces: value.carry.pieces.clone(),
             seat: read,
             wraps: Vec::new(),
         })
@@ -155,8 +155,8 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
                 units.push(unit(
                     body,
                     Arc::clone(&piece.table),
-                    Arc::clone(&piece.contacts),
-                    piece.pieces.clone(),
+                    Arc::clone(&piece.carry.contacts),
+                    piece.carry.pieces.clone(),
                 ));
             }
         }
@@ -241,7 +241,7 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
             ValuePayload::Body(body) => (
                 body.clone(),
                 topo::BooleanResultKind::OperandA,
-                Arc::clone(&out.contacts),
+                Arc::clone(&out.carry.contacts),
             ),
             _ => unreachable!("a boolean of one piece makes a body or nothing"),
         };
@@ -285,19 +285,14 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
             .outputs
             .first()
             .map_or_else(names::empty, super::super::OutputNames::shared_table);
-        parts += out.parts;
+        parts += out.carry.parts;
         kinds.push(kind);
         pieces.push(Piece {
             read,
             bodies: vec![body],
             family: false,
-            parts: out.parts,
             table: Arc::clone(&table),
-            contacts: records,
-            carried: Arc::default(),
-            pieces: out.pieces.clone(),
-            census: out.census.clone(),
-            censused: out.censused,
+            carry: out.carry.clone().recording(records),
         });
         named.push((read, table, vec![keys]));
     }
@@ -314,26 +309,30 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
     let table = names::name_assemble(id, &named, &fused).map_err(NodeErrorKind::Naming)?;
     let frame = computing.map_or(crate::eval::Frame::Own, |first| first.frame().clone());
     let pieces = Arc::new(Pieces { by: id, pieces });
-    Ok(OpOut {
-        // What it made is the `⊔` of what each piece's boolean made, so
-        // the census of that `⊔` runs at this door, over the pieces
-        // made here ([`crate::product::Census`]).
-        census: Some(Arc::new(crate::product::Census::new(
-            id,
-            Arc::clone(&pieces),
-        ))),
-        censused: true,
+    // What it made is the `⊔` of what each piece's boolean made, so the
+    // census of that `⊔` runs at this door, over the pieces made here
+    // ([`crate::product::Census`]).
+    let census = Some(Arc::new(crate::product::Census::new(
+        id,
+        Arc::clone(&pieces),
+    )));
+    Ok(OpOut::plain(
+        ValuePayload::Boolean(BooleanValue::Body {
+            body: crate::eval::Framed::in_frame(Arc::new(fused), frame),
+            kind,
+            contacts: Arc::new(contacts),
+        }),
+        table,
+    )
+    .carrying(crate::eval::Carry {
+        parts,
         pieces: Some(pieces),
-        ..OpOut::plain(
-            ValuePayload::Boolean(BooleanValue::Body {
-                body: crate::eval::Framed::in_frame(Arc::new(fused), frame),
-                kind,
-                contacts: Arc::new(contacts),
-            }),
-            table,
-        )
-        .carrying(parts)
-        .with_coincidences(coincidences)
-        .citing(citing)
+        census,
+        censused: true,
+        // Its records ride the boolean's payload.
+        contacts: Arc::default(),
+        findings: Arc::default(),
     })
+    .with_coincidences(coincidences)
+    .citing(citing))
 }

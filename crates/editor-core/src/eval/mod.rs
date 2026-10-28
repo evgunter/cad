@@ -20,6 +20,7 @@
 //! dropped, and at `f64` the identity.
 
 mod anchor;
+mod carry;
 mod class;
 mod counters;
 mod framed;
@@ -40,6 +41,7 @@ pub(crate) use wire::{reference_body, resolve_name};
 
 pub use anchor::{CanonicalSegment, LoopAnchor, ProfileNaming, ProfilePieces, ProfileValue};
 pub(crate) use anchor::{derive_naming, validated_naming};
+pub use carry::Carry;
 pub use class::NodeErrorClass;
 pub use counters::EvalCounters;
 pub(crate) use framed::Frame;
@@ -560,29 +562,35 @@ impl NodeStanding {
         }
     }
 
-    /// The standing of a document ROOT, as a door whose subject is the
-    /// document's roots states it under its own stage word: `root`,
-    /// then the standing.
-    pub(crate) fn of_placement(self) -> PlacementStanding {
-        PlacementStanding(self)
+    /// The standing of a placement, as a door whose subjects are the
+    /// document's placements states it under its own stage word:
+    /// `placement`, then the standing.
+    pub(crate) fn of_placement(self) -> SubjectStanding {
+        SubjectStanding("placement", self)
+    }
+
+    /// The standing of the node the product slot reads, as the gather
+    /// states it: `the body the slot reads:`, then the standing.
+    pub(crate) fn of_read(self) -> SubjectStanding {
+        SubjectStanding("the body the slot reads:", self)
     }
 }
 
-/// [`NodeStanding::of_placement`]'s rendering: the one sentence for a
-/// placement with no value.
-pub(crate) struct PlacementStanding(NodeStanding);
+/// [`NodeStanding::of_placement`]'s and [`NodeStanding::of_read`]'s
+/// rendering: the one sentence for a subject with no value.
+pub(crate) struct SubjectStanding(&'static str, NodeStanding);
 
-impl crate::spoken::Say for PlacementStanding {
+impl crate::spoken::Say for SubjectStanding {
     fn say(
         &self,
         f: &mut core::fmt::Formatter<'_>,
         by: crate::spoken::Speaker<'_>,
     ) -> core::fmt::Result {
-        write!(f, "placement {}", crate::spoken::Said(&self.0, by))
+        write!(f, "{} {}", self.0, crate::spoken::Said(&self.1, by))
     }
 }
 
-impl core::fmt::Display for PlacementStanding {
+impl core::fmt::Display for SubjectStanding {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
@@ -809,19 +817,12 @@ pub struct NodeValue<T: Decide> {
     /// Rides the value, so memo reuse transfers names with geometry
     /// (the content key is the proof).
     outputs: Arc<[OutputNames]>,
-    /// The DECLARED CONTACT RECORDS the node's output body 0 carries
-    /// (ASM-R2b D-1's contacts channel; [`crate::eval::wire::OpOut`]
-    /// states the invariant). Empty for every op but instantiate — a
-    /// boolean's records ride its payload, and
-    /// `product::sources_of` is where the two homes
-    /// reconcile. Rides the value, so memo reuse transfers
-    /// declarations with the geometry they are keyed into.
-    pub contacts: Arc<topo::ContactRecords>,
-    /// The at-rest findings of the documents below (`ASSEMBLY.md` A5),
-    /// keyed in the same arena as `contacts` and filled at the same one
-    /// op. Rides the value, so memo reuse transfers them with the
-    /// geometry they are keyed into.
-    pub carried: Arc<crate::checks::at_rest::CarriedFindings>,
+    /// **What its body carries from its source** ([`Carry`]): its
+    /// records, the findings of the documents below, its pieces and
+    /// their door's census, and how many parts it is. Rides the value,
+    /// so memo reuse transfers them with the geometry they are keyed
+    /// into.
+    pub carry: Carry<T>,
     /// **The coincidences the node's op decided from values**
     /// ([`crate::coincide`]), in decision order, each cell named in the
     /// table of the input the decision read, so a row survives a later
@@ -835,39 +836,12 @@ pub struct NodeValue<T: Decide> {
     /// A [`topo::Backing::Decided`] names a row of
     /// [`Self::coincidences`].
     pub cited_inputs: Arc<[crate::coincide::CitedInput]>,
-    /// How many parts each of this value's output bodies is
-    /// (`crates/editor-core/ASSEMBLY.md`, A2 and A10): a document's
-    /// product is its roots, so an instantiation's bodies are as many
-    /// parts as the referenced document's root outputs, each counted at
-    /// its own `parts` — a sub-assembly's parts count through. Two root
-    /// outputs that are a split's two halves are two parts. The placers
-    /// (`Place`, `Pattern`) and `Part` carry the count through; every
-    /// other op builds a body of its own and counts 1, an explicit union
-    /// (the fuse) included. A body of several parts is an ordinary
-    /// operand (D10 `[operations.operators]`: `(p ⊔ q) − t` cuts both
-    /// pieces).
-    pub parts: usize,
     /// **A placement's solved motion** (D10): where its copy sits
     /// relative to its source, `None` for a copy the identity
     /// bundle places by no map and for every value that is no
     /// placement's. A carried
     /// pose reads it ([`crate::pose::PoseDef::Carried`]).
     pub motion: Option<geom_core::RigidMotion<T>>,
-    /// **The pieces its body holds** ([`Pieces`]): a `⊔`'s members, or
-    /// the pieces a copy or an instance carries from its source; `None`
-    /// for a body of no pieces.
-    pub pieces: Option<Arc<Pieces<T>>>,
-    /// **The census at the door that assembled its pieces**
-    /// ([`crate::product::Census`]): a `⊔`'s, or a cut's or a meet's
-    /// that kept its operand's pieces; the one a copy or a pick carries
-    /// from its source. Each door's census runs once, where a reader
-    /// first asks for its verdict, and every reader reads that one.
-    pub census: Option<Arc<crate::product::Census<T>>>,
-    /// **Whether a door already decided the meetings inside its body**:
-    /// a `⊔`'s value, an instance's copy (its part's census decided
-    /// them), and a copy, pick or projection of either. A census reading
-    /// such a body as one arrival discards what it finds inside it.
-    pub censused: bool,
     /// The node's verdict log (M4 PR 4, N5): every definite predicate
     /// decision made evaluating the node — those made before its
     /// content key (a profile's f64 precompute: the plane read, the
@@ -929,14 +903,9 @@ impl<T: Decide> NodeValue<T> {
         Self {
             payload: out.payload,
             outputs: out.outputs.into(),
-            contacts: out.contacts,
-            carried: out.carried,
+            carry: out.carry,
             coincidences: out.coincidences,
             cited_inputs: out.cited_inputs,
-            parts: out.parts,
-            pieces: out.pieces,
-            census: out.census,
-            censused: out.censused,
             verdicts: Arc::new(Vec::new()),
             escalations: Arc::new(Vec::new()),
             motion: None,
@@ -963,17 +932,12 @@ impl NodeValue<f64> {
         Self {
             payload: ValuePayload::Boolean(BooleanValue::Empty),
             outputs: vec![OutputNames::new(Arc::new(table), Arc::new(groups))].into(),
-            contacts: Arc::new(topo::ContactRecords::default()),
-            carried: Arc::new(crate::checks::at_rest::CarriedFindings::default()),
+            carry: Carry::default(),
             coincidences: Arc::new([]),
             cited_inputs: Arc::new([]),
-            parts: 1,
             verdicts: Arc::new(verdicts),
             escalations: Arc::new(vec![]),
             motion: None,
-            pieces: None,
-            census: None,
-            censused: false,
             witness: WitnessSlot::default(),
             content_key: ContentKey(0),
             naming_key: NamingKey(0),
@@ -1332,24 +1296,12 @@ pub struct Piece<T: Decide> {
     pub bodies: Vec<Framed<T>>,
     /// Whether it is a family, whatever its count.
     pub family: bool,
-    /// The parts it delivers ([`NodeValue::parts`]).
-    pub parts: usize,
     /// Its names, indexing `bodies` by position: the member's own.
     pub table: Arc<crate::names::NameTable>,
-    /// Its own contact records, keyed in `bodies[0]`'s arena: what the
-    /// census at the `⊔`'s door carries for it.
-    pub contacts: Arc<topo::ContactRecords>,
-    /// The mate bookkeeping those records travel with.
-    pub carried: Arc<crate::checks::at_rest::CarriedFindings>,
-    /// The pieces it holds in turn: a member that is itself a `⊔`, or a
-    /// copy of one.
-    pub pieces: Option<Arc<Pieces<T>>>,
-    /// The census of the door that assembled those pieces, as the
-    /// member's value carries it ([`NodeValue::census`]).
-    pub census: Option<Arc<crate::product::Census<T>>>,
-    /// Whether a door already decided the meetings inside it
-    /// ([`NodeValue::censused`]).
-    pub censused: bool,
+    /// What it carries from its member ([`Carry`]): its records,
+    /// keyed in `bodies[0]`'s arena, what the census at the `⊔`'s door
+    /// carries for it, its own pieces and their door's census.
+    pub carry: Carry<T>,
 }
 
 impl<T: Decide> Pieces<T> {
@@ -1411,8 +1363,8 @@ pub struct NodeError {
 /// **An evaluation refusal, carried into a document-layer
 /// vocabulary** ([`crate::Refusal`]) — [`MateFault::PlacerRefused`](crate::MateFault),
 /// [`EditError::PlacementAxis`](crate::EditError),
-/// [`PartFault::PartRootFailed`](crate::PartFault) and
-/// [`PartFault::PartRootPoisoned`](crate::PartFault) hold one.
+/// [`PartFault::PartProductFailed`](crate::PartFault) and
+/// [`PartFault::PartProductPoisoned`](crate::PartFault) hold one.
 pub type NodeRefusal = crate::refusal::Refusal<NodeErrorKind>;
 
 impl NodeRefusal {
@@ -2098,8 +2050,8 @@ pub enum NodeErrorKind {
 // edit door's rule arms forward the same impl).
 //
 // The one exception is a CARRIED refusal: another node's refusal, with
-// its own recourse, held as a `NodeRefusal` (`PartFault::PartRootFailed`
-// and `PartRootPoisoned`, `MateFault::PlacerRefused`). It is not this refusal's payload, so it is
+// its own recourse, held as a `NodeRefusal` (`PartFault::PartProductFailed`
+// and `PartProductPoisoned`, `MateFault::PlacerRefused`). It is not this refusal's payload, so it is
 // never rendered inside this sentence, which names that node and points
 // at it; it is drawn as its own line, read off
 // [`NodeErrorKind::carried_chain`].
@@ -2539,8 +2491,8 @@ impl NodeErrorKind {
     /// that raised it and the refusal itself — the exception written
     /// over this type's `Display`, as a value.
     ///
-    /// Two arms carry one. A part whose root failed carries that root's
-    /// refusal, and one whose root was poisoned carries the refusal of
+    /// Two arms carry one. A part whose product failed carries the failed
+    /// node's refusal, and one whose product was poisoned carries the refusal of
     /// the node that poisoned it, in the REFERENCED document's id space; a mate whose
     /// placer's own row cannot state its refusal carries the placer's,
     /// in the mate's document. One step only: a surface reads the whole
@@ -2569,7 +2521,7 @@ impl NodeErrorKind {
 }
 
 /// **Which document a carried refusal's node is in.** A node number
-/// means nothing without it: a part's root is numbered in the part.
+/// means nothing without it: a part's node is numbered in the part.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CarriedIn<'a> {
     /// The document whose evaluation raised the outermost refusal.
@@ -4341,15 +4293,10 @@ where
             result: NodeResult::Ok(NodeValue {
                 payload: out.payload,
                 outputs: out.outputs.into(),
-                contacts: out.contacts,
-                carried: out.carried,
+                carry: out.carry,
                 coincidences: out.coincidences,
                 cited_inputs: out.cited_inputs,
-                parts: out.parts,
                 motion: out.motion,
-                pieces: out.pieces,
-                census: out.census,
-                censused: out.censused,
                 verdicts: Arc::new(recorded.verdicts),
                 escalations,
                 witness: WitnessSlot {},
@@ -6173,6 +6120,10 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::CapVertex => 6,
         S::LoftWall => 45,
         S::LoftSeam => 46,
+        S::LoftSlabWall => 53,
+        S::LoftSlabSeam => 54,
+        S::LoftSectionEdge => 55,
+        S::LoftSectionVertex => 56,
         S::Band => 7,
         S::BandRim => 8,
         S::BandRimPi => 9,
@@ -6340,6 +6291,28 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
             for v in vs {
                 pv(h, *v);
             }
+        }
+        RoleSeg::LoftSlabWall(s, es) => {
+            h.write_u64(u64::from(*s));
+            h.write_u64(es.len() as u64);
+            for e in es {
+                pe(h, *e);
+            }
+        }
+        RoleSeg::LoftSlabSeam(s, vs) => {
+            h.write_u64(u64::from(*s));
+            h.write_u64(vs.len() as u64);
+            for v in vs {
+                pv(h, *v);
+            }
+        }
+        RoleSeg::LoftSectionEdge(s, e) => {
+            h.write_u64(u64::from(*s));
+            pe(h, *e);
+        }
+        RoleSeg::LoftSectionVertex(s, v) => {
+            h.write_u64(u64::from(*s));
+            pv(h, *v);
         }
         RoleSeg::Band(r) => {
             run(h, r);

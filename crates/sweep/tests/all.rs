@@ -206,6 +206,8 @@ mod bool6r1_probes_interval;
 mod carved_sphere_operand;
 #[path = "cell_region_bodies.rs"]
 mod cell_region_bodies;
+#[path = "clearance_reads_an_iso_bounded_wall.rs"]
+mod clearance_reads_an_iso_bounded_wall;
 #[path = "cone_join_lane.rs"]
 mod cone_join_lane;
 #[path = "cone_operand_rows.rs"]
@@ -220,6 +222,8 @@ mod curved_edge_corpus;
 mod curved_edge_ray_probes;
 #[path = "cylinder_sphere_frame.rs"]
 mod cylinder_sphere_frame;
+#[path = "degree1_loft_slabs.rs"]
+mod degree1_loft_slabs;
 #[path = "four_crossings_on_one_section_circle.rs"]
 mod four_crossings_on_one_section_circle;
 #[path = "general_circle_octant_dual.rs"]

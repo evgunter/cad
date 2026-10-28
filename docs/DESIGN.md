@@ -897,7 +897,8 @@ tiers".
   another builds is a kernel defect ([operations.operators]). Merging
   **never fuses two vertices into one**; the record carry rests on it.
 - **A seam is a property of a face**, not a place on its surface, and a
-  wall keeps the cuts its author wrote: the kernel adds none.
+  wall keeps the cuts its author wrote: the kernel adds none, except
+  where a face or edge carrier is not C¹ by its knot structure.
 
 **The frontier is typed and named.** Every unbuilt case refuses with a
 message naming its own blocker ([failure.taxonomy], row 2), so the

@@ -7,6 +7,7 @@
 #![allow(clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use pncad::document::{Dimension, Formula};
 use viewer::session::BooleanSpec;
 
 use pncad::document::{Doc, DocEdit, Label, Node, ProfileProgram, RecipeNodeId, SlotId};
@@ -310,7 +311,7 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
             input: block.into(),
             translation: len3([0.005, 0.007, 0.003]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
         "moved",
     );
@@ -345,7 +346,7 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
             },
             loops: vec![common::rectangle_loop([0.0, 0.0], 0.005, 0.005)],
             distance: len(0.005),
-            spin: ang(0.0),
+            spin: Formula::zero(Dimension::Angle),
         },
         "boss",
     );

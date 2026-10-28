@@ -1000,15 +1000,15 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::PartPinMismatch => resolve_fault_tag(&ResolveFault::PinMismatch),
         C::PartEpsilonSeam => resolve_fault_tag(&ResolveFault::EpsilonSeam),
         C::PartUnresolved => resolve_fault_tag(&ResolveFault::Unresolved),
-        C::PartRootFailed => "part_root_failed",
-        C::PartRootPoisoned => "part_root_poisoned",
-        C::PartRootFailureUnrecorded => "part_root_failure_unrecorded",
+        C::PartProductFailed => "part_product_failed",
+        C::PartProductPoisoned => "part_product_poisoned",
+        C::PartProductFailureUnrecorded => "part_product_failure_unrecorded",
         C::PartProduct => "part_product",
         C::PartReferenceCycle => "part_reference_cycle",
         C::PartDepthExceeded => "part_depth_exceeded",
         C::PartNotEntered => "part_not_entered",
         // The mate solve's refusals tag per FAULT, the way
-        // the root invariants do — an overconstrained bundle, a lever
+        // the part faults above do — an overconstrained bundle, a lever
         // that cannot be formed and a pose that did not evaluate carry
         // different recourses, so a caller
         // branches on which one fired, not on "a mate failed".
@@ -1680,6 +1680,7 @@ pub fn loft_fault_tag(fault: &LoftFault) -> &'static str {
     match fault {
         LoftFault::TooFewSections { .. } => "too_few_sections",
         LoftFault::EmptyStation { .. } => "empty_station",
+        LoftFault::StationInFirstPlane { .. } => "station_in_first_plane",
         LoftFault::DegreeOutOfRange { .. } => "degree_out_of_range",
     }
 }
@@ -1695,6 +1696,7 @@ pub fn loft_error_tag(err: &LoftError) -> &'static str {
         LoftError::Pcurve(_) => "pcurve",
         LoftError::SeamStructure { .. } => "seam_structure",
         LoftError::SectionStructure => "section_structure",
+        LoftError::SectionRim { .. } => "section_rim",
         LoftError::PlacementNotFinite { .. } => "placement_not_finite",
         LoftError::SectionNotFinite { .. } => "section_not_finite",
         LoftError::ReversedStacking { .. } => "reversed_stacking",
@@ -2278,14 +2280,14 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
     match err.kind() {
         K::EvaluationOfAnotherDocument => "evaluation_of_another_document",
         K::UnknownNode => "unknown_node",
-        K::RootFailed => "root_failed",
-        K::RootPoisoned => "root_poisoned",
+        K::ReadFailed => "read_failed",
+        K::ReadPoisoned => "read_poisoned",
         K::EmptyProduct => "empty_product",
         K::StrandedProduct => "stranded_product",
         K::ProductOutsideWorld => "product_outside_world",
         K::Frame => "frame_refused",
         K::Graft => "graft_refused",
-        K::RootInvalid => "root_invalid",
+        K::PieceInvalid => "piece_invalid",
         K::ProductInvalid => "product_invalid",
         K::ContactLineage => "contact_lineage",
     }
@@ -2547,6 +2549,7 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::EpsilonSeam { .. } => "epsilon_seam",
         InlineError::PartCarriesMetadata { .. } => "part_carries_metadata",
         InlineError::VarNameConflict { .. } => "var_name_conflict",
+        InlineError::UnreadPose { .. } => "unread_pose",
         InlineError::UnresolvedVarCrossesCut { .. } => "unresolved_var_crosses_cut",
         InlineError::InstanceBodyNameReferenced { .. } => "instance_body_name_referenced",
         InlineError::StrandedPartName { .. } => "stranded_part_name",
@@ -2709,7 +2712,7 @@ pub fn hit_test_error_tag(err: &HitTestError) -> &'static str {
 /// failed node at one of them branches on it at every one. The
 /// export, resolution, product and checks doors keep the words they
 /// shipped with (`unknown_node`/`node_failed`/`poisoned`, `target_*`,
-/// `unknown_node`/`root_*`, `root_without_value`) and map the same
+/// `unknown_node`/`piece_*`, `placement_without_value`) and map the same
 /// standing onto them; the evaluation door reads this map except for
 /// its own `unknown_node` and `poisoned` ([`eval_reason_tag`]).
 ///
@@ -2893,7 +2896,7 @@ pub fn resolve_indeterminate_tag(cause: &ResolveIndeterminate) -> &'static str {
 /// carries the gather's own prose.
 pub fn checks_error_tag(err: &ChecksError) -> &'static str {
     match err {
-        ChecksError::Root { .. } => "root_without_value",
+        ChecksError::Placement { .. } => "placement_without_value",
         ChecksError::Band { .. } => "band",
         // Named for the FACT, as `product_unavailable` is: the pair is
         // not a pair. It mirrors `ProductError`'s own arm, and the two
