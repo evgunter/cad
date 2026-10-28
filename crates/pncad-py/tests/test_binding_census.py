@@ -3891,6 +3891,7 @@ MEMBERS_BOUND_AS = {
     "SelectRefusal::NotALength": "SelectRefusal.reason",
     "SelectRefusal::BadValue": "SelectRefusal.reason",
     "SelectRefusal::Band": "SelectRefusal.reason",
+    "SelectRefusal::Frame": "SelectRefusal.reason",
     "SplitError::EmptyCut": "SplitError.variant",
     "SplitError::UnknownCutNode": "SplitError.variant",
     "SplitError::CutsTheWorld": "SplitError.variant",

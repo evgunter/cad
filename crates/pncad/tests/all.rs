@@ -7192,8 +7192,8 @@ fn standing(value: &pncad::document::Framed<f64>) -> pncad::topo::Body<f64> {
 }
 
 /// **A body far out builds and refuses to be read out** (INTENT stage 3
-/// E, R2's far-from-origin note): a block's copy turned and stood near
-/// 1e7 builds, sharing its source's body under its frame, so nothing in
+/// E, R2's far-from-origin note): a block's copy turned and stood
+/// `1e17 ε` out (at least 1e7) builds, sharing its source's body under its frame, so nothing in
 /// the model maps it. The façade's read-out composes it into the world
 /// and re-certifies every edge there, which refuses at that distance:
 /// `body_in_space` answers `compose_refused`'s refusal, and so does a
@@ -7210,10 +7210,13 @@ fn a_far_turned_copy_builds_and_its_read_out_refuses_to_compose() {
         .expect("the copy is the product");
     let mut far = pncad::document::stand();
     let turn = |r: f64| Formula::literal(r, Dimension::Angle).unwrap();
+    // Far enough that the composition's rounding outgrows the run's ε:
+    // the distance scales with it.
+    let d = (1.0e17 * Tol::witness().eps()).max(1.0e7);
     far.values = vec![
-        (Coord::Slide(TargetAxis::X), len(1.0e7 + 0.3)),
-        (Coord::Slide(TargetAxis::Y), len(-3.0e6 - 0.7)),
-        (Coord::Slide(TargetAxis::Z), len(2.0e6 + 0.1)),
+        (Coord::Slide(TargetAxis::X), len(d + 0.3)),
+        (Coord::Slide(TargetAxis::Y), len(-0.3 * d - 0.7)),
+        (Coord::Slide(TargetAxis::Z), len(0.2 * d + 0.1)),
         (Coord::Spin(Some(TargetAxis::X)), turn(0.3)),
         (
             Coord::Spin(Some(TargetAxis::Y)),
