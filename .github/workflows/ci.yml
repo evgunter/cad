@@ -187,7 +187,7 @@ jobs:
             kernel="--workspace"
             for p in "${app[@]}"; do kernel+=" --exclude $p"; apps+=" -p $p"; done
           else
-            for p in $(echo "$scope" | sed 's/-p //g'); do
+            for p in ${scope//-p /}; do
               case " ${app[*]} " in *" $p "*) apps+=" -p $p" ;; *) kernel+=" -p $p" ;; esac
             done
             # test-utils alone is not worth a runner of its own.
