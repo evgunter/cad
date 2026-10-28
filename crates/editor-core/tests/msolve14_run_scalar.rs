@@ -2436,3 +2436,13 @@ fn r1_clearance_answers_alike_in_either_order() {
     }
     assert!(apart.is_empty(), "the order decides: {apart:#?}");
 }
+
+#[test]
+fn r1_per_label_digests() {
+    for (label, doc, opts) in corpus() {
+        let mut h = Fnv::new();
+        h.feed(label.as_bytes());
+        solve_digest(&mut h, &doc, &opts);
+        eprintln!("R1LABEL {label} {:#018x}", h.0);
+    }
+}
