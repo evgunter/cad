@@ -42,3 +42,7 @@ advisory and never gates; it reads the naming record and the body's
 counts (a hole sealed or made blind, a void removed, a solid absorbed or
 removed). The ruling's item is
 `work/band/a-concave-fill-and-a-whole-shell-inside-a-bands-region.md`.
+
+## Slate triage (2026-10-28, INTENT)
+
+Moved from `work/intent/` by `git mv`, id and body unchanged: residue of INTENT's D10 build that belongs to COINCIDE's charter (the coincidence door and its lint). INTENT keeps D10's core (G and its riders, the stage-3 umbrellas, the carry, the refactor rows, the roots rename); Ev asked for INTENT's slate to be cut to its charter and its residue handed on (in chat, 2026-10-28).
