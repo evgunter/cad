@@ -143,7 +143,7 @@ fn kept<'e>(
     node: RecipeNodeId,
 ) -> &'e editor_core::Product<f64> {
     ev.value(node)
-        .and_then(|value| value.census.as_ref())
+        .and_then(|value| value.carry.census.as_ref())
         .expect("the door keeps its census")
         .verdict(doc, Tol::witness())
         .expect("the census runs")
@@ -407,7 +407,7 @@ fn seat(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
 /// The reads `node`'s value holds pieces by, in order.
 fn piece_reads(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<VarId> {
     ev.value(node)
-        .and_then(|v| v.pieces.as_ref())
+        .and_then(|v| v.carry.pieces.as_ref())
         .map(|p| p.pieces.iter().map(|piece| piece.read).collect())
         .unwrap_or_default()
 }
@@ -1106,7 +1106,7 @@ fn a_kept_verdict_is_reused_only_with_its_cone() {
     let _ = said(&base, &first);
     let kept = |ev: &Evaluation<f64>| {
         ev.value(both)
-            .and_then(|value| value.census.clone())
+            .and_then(|value| value.carry.census.clone())
             .expect("the `⊔` keeps its census")
     };
 

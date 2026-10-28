@@ -311,7 +311,7 @@ fn each_decision_is_on_the_log_of_the_node_that_made_it() {
 /// the same allocation, and every op that runs mints a fresh one.
 fn reused_value(earlier: &Evaluation<f64>, later: &Evaluation<f64>, id: RecipeNodeId) -> bool {
     match (earlier.value(id), later.value(id)) {
-        (Some(a), Some(b)) => std::sync::Arc::ptr_eq(&a.contacts, &b.contacts),
+        (Some(a), Some(b)) => std::sync::Arc::ptr_eq(&a.carry.contacts, &b.carry.contacts),
         _ => false,
     }
 }
