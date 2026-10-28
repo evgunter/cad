@@ -45,11 +45,21 @@ fn ball(r: f64, c: Vec3<f64>) -> AtRestBody<f64> {
     finished("the ball", b, Tol::witness())
 }
 
+/// [`assert_solid`], then a mesh at δ = 1e-2 that `check_mesh` passes:
+/// the sphere faces a tilted circle bounds mesh through the trimmed
+/// lane's sphere arm.
+fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
+    assert_solid(label, body, expected);
+    let mesh = mesh::tessellate(body, 1e-2, Tol::witness())
+        .unwrap_or_else(|e| panic!("{label}: tessellate, got {e:?}"));
+    mesh::validate::check_mesh(&mesh).unwrap_or_else(|e| panic!("{label}: the mesh: {e:?}"));
+}
+
 /// Every tier of validation, then the volume against `expected` through
 /// the kernel's mass properties — closed-form on every face here, so
 /// the slack is rounding's and a wrong arc (the complement of a cap
 /// selected) misses by the cap's own volume.
-fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
+fn assert_solid(label: &str, body: &Body<f64>, expected: f64) {
     assert_eq!(topo::validate(body), Ok(()), "{label}: validate");
     assert_eq!(
         topo::validate_closed(body),
@@ -484,7 +494,18 @@ fn a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed() {
         let out = run(BooleanOp::Union, &a, &b)
             .unwrap_or_else(|e| panic!("δ {d}: the near-pole section refused: {e:?}"));
         let body = &out.body().unwrap_or_else(|| panic!("δ {d}: empty")).body;
-        assert_body(&format!("δ {d}"), body, expected);
+        assert_solid(&format!("δ {d}"), body, expected);
+        let drawn = mesh::tessellate(body, 1e-2, Tol::witness());
+        assert!(
+            matches!(
+                &drawn,
+                Err(mesh::TessellateError::UnsupportedCurve { note, .. })
+                    if note.contains("nearer a chart pole than the sphere arm's lattice resolves")
+            ),
+            "δ {d}: the section passes the pole nearer than the sphere arm's lattice \
+             resolves and refuses typed by that name, got {:?}",
+            drawn.map(|m| m.positions.len())
+        );
     }
     let (a, b) = pair(0.0);
     let out = run(BooleanOp::Union, &a, &b);

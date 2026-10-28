@@ -180,6 +180,7 @@ pub(crate) fn compute_chords(
             bounds,
             n,
         )?;
+        let n = sphere_arm_tighten(body, ek, (t0, t1), delta, n)?;
         let (vs, ve) = edge_vertices(body, ek)?;
         let start_id = *vids.get(&vs).ok_or(TessellateError::MissingEntity {
             what: "start vertex",
@@ -604,15 +605,134 @@ fn general_uv_speeds(
 
 /// The deviation target an edge's own carrier is chorded at: δ, or
 /// [`crate::trimmed::UNPROVED_HEADROOM`]·δ when either adjacent face is
-/// a trimmed cylinder — the lane whose theorem is not yet written sizes
-/// its lattice at that headroom, and its trim polygon is these chords.
+/// a trimmed cylinder or a trimmed sphere — the arms whose theorem is
+/// not yet written size their lattice at that headroom, and their trim
+/// polygon is these chords.
 fn edge_target(body: &Body<f64>, ek: EdgeKey, delta: f64) -> Result<f64, TessellateError> {
     for fk in adjacent_faces(body, ek)? {
-        if crate::trimmed::is_trimmed_cylinder(body, fk)? {
+        if crate::trimmed::sizes_at_headroom(body, fk)? {
             return Ok(delta * crate::trimmed::UNPROVED_HEADROOM);
         }
     }
     Ok(delta)
+}
+
+/// **Adjacent-sphere-arm tightening**: for each side whose face the
+/// trimmed lane's sphere arm meshes, raise `n` until every chord's UV
+/// step fits inside that face's lattice steps,
+/// `n ≥ ⌈s_u·Δt/h_u⌉` and `⌈s_v·Δt/h_v⌉`, with `(h_u, h_v)` the arm's
+/// own ([`crate::trimmed::sphere_lattice_steps`]) and `(s_u, s_v)` the
+/// half-edge image's per-axis speed bounds ([`sphere_uv_speeds`]). A
+/// chord's UV step is at most its speed bound times its parameter
+/// step, so no boundary chord spans more than one lattice step in
+/// either direction — the curved lanes' rule that rims are chorded at
+/// the face's grid step, on a lattice the boundary does not run along.
+fn sphere_arm_tighten(
+    body: &Body<f64>,
+    ek: EdgeKey,
+    params: (f64, f64),
+    delta: f64,
+    mut n: usize,
+) -> Result<usize, TessellateError> {
+    let span = params.1 - params.0;
+    let sides = sides_of(body, ek)?;
+    for side in [sides.plus, sides.minus] {
+        let (hek, fk) = (side.half_edge, side.face);
+        let surface = crate::tessellate::face_surface(body, fk)?;
+        if !crate::trimmed::takes_sphere_arm(body, fk, surface)? {
+            continue;
+        }
+        let (hu, hv) = crate::trimmed::sphere_lattice_steps(body, fk, surface, delta)?;
+        let Some(cache) = body.pcurve(hek) else {
+            return Err(TessellateError::UnsupportedCurve {
+                edge: ek,
+                note: "trimmed sphere face half-edge carries no stored pcurve cache — \
+                       without one the chord schedule has no UV step bound",
+            });
+        };
+        let (su, sv) = sphere_uv_speeds(cache.pcurve(), params, ek, hv)?;
+        n = n.max(ceil_count(su * span, hu)?).max(ceil_count(sv * span, hv)?);
+    }
+    Ok(n)
+}
+
+/// Per-axis speed bounds `(sup|u′|, sup|v′|)` of a sphere chart image
+/// over `[t₀, t₁]`, for the two forms a sphere face's circles carry.
+///
+/// - **Harmonic** (a parallel or a meridian):
+///   `|P′| = |−pa·sin t + pb·cos t + pl|`, so per axis
+///   `√(pa² + pb²) + |pl|`.
+/// - **Projected circle** `p(t) = c + a·cos t + b·sin t` in the chart
+///   frame (`z` on the axis), with `u = atan2(y, x)` and
+///   `v = atan2(z, ρ)`, `ρ = √(x² + y²)`: `u′ = (x·y′ − y·x′)/ρ²` and
+///   `v′ = p′·ê_v/|p|`, so `|u′| ≤ |p′|/ρ` and `|v′| ≤ |p′|/|p|`, on any
+///   point, on the sphere or off it. `sup|p′|²` is the largest
+///   eigenvalue of the Gram matrix of `(a, b)`; `|p|²` is
+///   `K + 2(c·a)·cos t + 2(c·b)·sin t + ½(|a|² − |b|²)·cos 2t + (a·b)·sin 2t`
+///   with `K = |c|² + ½(|a|² + |b|²)`, bounded below by `K` less its two
+///   harmonics' amplitudes; and `ρ² = |p|² − z²` with `z`'s range over
+///   the interval closed form ([`crate::trimmed::harmonic_range`]). On
+///   an exact circle of the sphere `|p|` is the radius `r` and `ρ` is
+///   `r·cos v`, so the bounds read `ρ_c/r` and `ρ_c/(r·cos v)`, and
+///   the second is attained where the arc turns in latitude.
+///
+/// **A projected arc nearer a pole than
+/// [`crate::trimmed::NEAR_POLE_ROW_SHARE`] of the row step `h_v`
+/// refuses typed** (`ρ/|p| ≤ sin(share·h_v)` somewhere on it): the
+/// azimuth speed grows as `1/cos v` toward a pole, and a uniform chord
+/// schedule on a circle that close is as fine everywhere as at its
+/// closest approach.
+///
+/// The deck map moves an image by a translation and a sign, which no
+/// speed sees. A spline carrier's projected image, or any other form,
+/// refuses typed: the arm meshes circle-bounded faces.
+pub(crate) fn sphere_uv_speeds(
+    pcurve: &Pcurve<f64>,
+    params: (f64, f64),
+    ek: EdgeKey,
+    hv: f64,
+) -> Result<(f64, f64), TessellateError> {
+    let refuse = |note| TessellateError::UnsupportedCurve { edge: ek, note };
+    match pcurve {
+        Pcurve::Harmonic { u, v } => {
+            let (_, pa, pb, pl) = geom_brep::harmonic_form_of(*u, *v);
+            Ok((
+                pa.x.hypot(pb.x) + pl.x.abs(),
+                pa.y.hypot(pb.y) + pl.y.abs(),
+            ))
+        }
+        Pcurve::Projected(image) => {
+            let geom_brep::FramedCarrier::Circle { centre, a, b, .. } = image.carrier() else {
+                return Err(refuse(
+                    "trimmed sphere face bounded by the projected image of a spline carrier — \
+                     the sphere arm bounds the UV speed of a circle's image only",
+                ));
+            };
+            let (c, a, b) = (*centre, *a, *b);
+            let (aa, bb, ab) = (a.dot(a), b.dot(b), a.dot(b));
+            let speed_sq = 0.5 * (aa + bb) + (0.5 * (aa - bb)).hypot(ab);
+            let p_sq_min = 0.5f64.mul_add(aa + bb, c.dot(c))
+                - 2.0 * c.dot(a).hypot(c.dot(b))
+                - (0.5 * (aa - bb)).hypot(ab);
+            let (z_lo, z_hi) = crate::trimmed::harmonic_range(c.z, a.z, b.z, params);
+            let rho_sq_min = p_sq_min - z_lo.abs().max(z_hi.abs()).powi(2);
+            let nearest = (crate::trimmed::NEAR_POLE_ROW_SHARE * hv).sin();
+            if !(rho_sq_min > p_sq_min * nearest * nearest && speed_sq.is_finite()) {
+                return Err(refuse(
+                    "trimmed sphere face bounded by a tilted circle whose arc passes nearer a \
+                     chart pole than the sphere arm's lattice resolves — a uniform chord \
+                     schedule that follows its image there is that fine everywhere \
+                     (`work/tess/a-tilted-circle-within-a-lattice-row-of-a-sphere-pole-refuses.md`)",
+                ));
+            }
+            let speed = speed_sq.sqrt();
+            Ok((speed / rho_sq_min.sqrt(), speed / p_sq_min.sqrt()))
+        }
+        _ => Err(refuse(
+            "trimmed sphere face half-edge carries an image that is neither harmonic nor a \
+             projected circle — no sphere mint produces one",
+        )),
+    }
 }
 
 /// The radius of a circle carrier (caller guarantees the variant).

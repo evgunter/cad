@@ -175,15 +175,171 @@ const MAX_GRID_RETRIES: usize = 6;
 /// the fix is the theorem, not a retuned factor.
 pub(crate) const UNPROVED_HEADROOM: f64 = 0.5;
 
-/// Whether face `fk` is a trimmed cylinder: a cylinder face the
-/// dispatch ([`crate::tessellate::lane_of`]) routes to this lane.
-pub(crate) fn is_trimmed_cylinder(body: &Body<f64>, fk: FaceKey) -> Result<bool, TessellateError> {
+/// **How near a pole a tilted circle may pass on the sphere arm**, as a
+/// share of the lattice's row step `h_v`. **Structural** (it caps
+/// allocation, as `sizing::MAX_COUNT` does).
+///
+/// A circle's image turns in azimuth at up to `ρ_c/(r·cos v)`, so the
+/// uniform chord schedule that keeps its UV steps within the lattice's
+/// (`chords::sphere_arm_tighten`) grows as the inverse of the arc's
+/// closest approach to a pole. An arc one row from the pole asks about
+/// as many chords as the lattice has columns per row; this share lets
+/// it ask sixteen times that, and an arc nearer still refuses typed
+/// rather than allocate a boundary finer than the face's whole lattice
+/// (`work/tess/a-tilted-circle-within-a-lattice-row-of-a-sphere-pole-refuses.md`).
+pub(crate) const NEAR_POLE_ROW_SHARE: f64 = 1.0 / 16.0;
+
+/// Whether face `fk` is meshed by one of this lane's two analytic arms,
+/// the trimmed cylinder or the trimmed sphere: the faces whose lattice
+/// and boundary chords size at [`UNPROVED_HEADROOM`]
+/// (`chords::edge_target`).
+pub(crate) fn sizes_at_headroom(body: &Body<f64>, fk: FaceKey) -> Result<bool, TessellateError> {
     let surface = crate::tessellate::face_surface(body, fk)?;
-    Ok(matches!(surface, Surface::Cylinder { .. })
-        && crate::tessellate::lane_of(body, fk, surface)? == crate::tessellate::Lane::Trimmed)
+    Ok(match surface {
+        Surface::Cylinder { .. } => {
+            crate::tessellate::lane_of(body, fk, surface)? == crate::tessellate::Lane::Trimmed
+        }
+        Surface::Sphere { .. } => takes_sphere_arm(body, fk, surface)?,
+        _ => false,
+    })
 }
 
-/// The per-chart data of the two constructing lanes (module docs):
+/// Whether the sphere face `fk` is the sphere arm's: the dispatch routes
+/// it here for a tilted circle ([`has_tilted_circle`]), and no conic or
+/// B-spline carrier bounds it (those still refuse at the chart roster,
+/// [`trim_frontier`]).
+pub(crate) fn takes_sphere_arm(
+    body: &Body<f64>,
+    fk: FaceKey,
+    surface: &Surface<f64>,
+) -> Result<bool, TessellateError> {
+    Ok(matches!(surface, Surface::Sphere { .. })
+        && !has_trim_carrier(body, fk)?
+        && has_tilted_circle(body, fk)?)
+}
+
+/// Does this face's outer loop carry a circle tilted against the face's
+/// chart — one whose stored image is the chart's inverse of the carrier
+/// ([`Pcurve::Projected`]) rather than an iso line's closed form? On a
+/// sphere that is every circle that is neither a parallel nor a
+/// meridian, and it is the structural mark the dispatch routes on.
+pub(crate) fn has_tilted_circle(body: &Body<f64>, fk: FaceKey) -> Result<bool, TessellateError> {
+    let face = body
+        .get_face(fk)
+        .ok_or(TessellateError::MissingEntity { what: "face" })?;
+    Ok(crate::walk::loop_half_edges(body, face.outer, fk)?
+        .into_iter()
+        .any(|(hek, _, _)| {
+            body.pcurve(hek)
+                .is_some_and(|c| matches!(c.pcurve(), Pcurve::Projected(_)))
+        }))
+}
+
+/// **The trimmed sphere's lattice steps** `(h_u, h_v)`, in radians of
+/// azimuth and latitude: the curved lane's sphere steps
+/// ([`crate::sizing::sphere_grid_steps`]) at [`UNPROVED_HEADROOM`]·δ,
+/// over the face's own latitude window ([`sphere_widest_cos`]). The
+/// chord pass reads the same steps to bound each boundary chord's UV
+/// step (`chords::sphere_arm_tighten`), so the lattice and the trim
+/// polygon are sized from one value.
+pub(crate) fn sphere_lattice_steps(
+    body: &Body<f64>,
+    fk: FaceKey,
+    surface: &Surface<f64>,
+    delta: f64,
+) -> Result<(f64, f64), TessellateError> {
+    let Surface::Sphere {
+        center,
+        radius,
+        axis,
+        ..
+    } = *surface
+    else {
+        return Err(TessellateError::MissingEntity {
+            what: "sphere arm on a non-sphere surface",
+        });
+    };
+    let widest = sphere_widest_cos(body, fk, center, axis, radius)?;
+    #[cfg(test)]
+    let scale = tests::SPHERE_STEP_SCALE.with(std::cell::Cell::get);
+    #[cfg(not(test))]
+    let scale = 1.0;
+    let (hu, hv) =
+        crate::sizing::sphere_grid_steps(delta * UNPROVED_HEADROOM, radius, widest);
+    Ok((hu * scale, hv * scale))
+}
+
+/// The cosine of a trimmed sphere face's latitude nearest the equator,
+/// from its boundary circles' own latitude ranges: each circle's height
+/// along the axis is `c + a·cos t + b·sin t` in its parameter, whose
+/// range over the edge's interval is closed form ([`harmonic_range`]).
+/// A tilted circle's latitude is not monotone between its ends, so the
+/// vertices alone (the curved lane's `sizing::sphere_face_widest_cos`)
+/// do not bound it.
+fn sphere_widest_cos(
+    body: &Body<f64>,
+    fk: FaceKey,
+    center: Point3<f64>,
+    axis: geom_core::Vec3<f64>,
+    radius: f64,
+) -> Result<f64, TessellateError> {
+    let face = body
+        .get_face(fk)
+        .ok_or(TessellateError::MissingEntity { what: "face" })?;
+    let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+    for (ek, _) in crate::walk::loop_edges(body, face.outer, fk)? {
+        let curve = body
+            .get_edge(ek)
+            .and_then(|e| body.get_curve_geom(e.curve))
+            .and_then(|g| g.certified())
+            .ok_or(TessellateError::MissingEntity { what: "edge curve" })?;
+        let Curve3::Circle { center: cc, .. } = *curve.carrier() else {
+            return Err(TessellateError::UnsupportedCurve {
+                edge: ek,
+                note: "a trimmed sphere face bounded by an edge that is not a circle — \
+                       the sphere arm sizes its lattice from its circles' latitude ranges",
+            });
+        };
+        let height = |p: Point3<f64>| (p - center).dot(axis);
+        let c = height(cc);
+        let a = height(curve.carrier().eval(0.0)) - c;
+        let b = height(curve.carrier().eval(core::f64::consts::FRAC_PI_2)) - c;
+        let (z0, z1) = harmonic_range(c, a, b, curve.params());
+        lo = lo.min(z0);
+        hi = hi.max(z1);
+    }
+    if lo.is_nan() || hi.is_nan() || lo > hi {
+        return Err(TessellateError::MissingEntity {
+            what: "trimmed sphere face latitude window",
+        });
+    }
+    Ok(if lo <= 0.0 && hi >= 0.0 {
+        1.0
+    } else {
+        let s = (lo.abs().min(hi.abs()) / radius).min(1.0);
+        (1.0 - s * s).sqrt()
+    })
+}
+
+/// The range of `c + a·cos t + b·sin t` over `[t0, t1]`: the ends, and
+/// `c ± √(a² + b²)` where the interval may hold the phase of either
+/// extremum ([`geom::periodic_window_may_hold`]).
+pub(crate) fn harmonic_range(c: f64, a: f64, b: f64, (t0, t1): (f64, f64)) -> (f64, f64) {
+    use core::f64::consts::{PI, TAU};
+    let at = |t: f64| c + a * t.cos() + b * t.sin();
+    let (e0, e1) = (at(t0), at(t1));
+    let (mut lo, mut hi) = (e0.min(e1), e0.max(e1));
+    let (m, tau) = (a.hypot(b), b.atan2(a));
+    if geom::periodic_window_may_hold((tau, tau), (t0, t1), TAU) {
+        hi = c + m;
+    }
+    if geom::periodic_window_may_hold((tau + PI, tau + PI), (t0, t1), TAU) {
+        lo = c - m;
+    }
+    (lo, hi)
+}
+
+/// The per-chart data of the constructing arms (module docs):
 /// which certificate each emitted triangle checks, and which pcurve
 /// forms the trim walk accepts.
 enum Lane {
@@ -193,6 +349,14 @@ enum Lane {
         origin: Point3<f64>,
         axis: geom_core::Vec3<f64>,
         radius: f64,
+    },
+    /// The sphere arm (harmonic and projected pcurves, the ball-convexity
+    /// certificate `cert::cert_sphere`), with its lattice steps
+    /// ([`sphere_lattice_steps`]).
+    Sphere {
+        center: Point3<f64>,
+        radius: f64,
+        steps: (f64, f64),
     },
     /// The M7 trimmed-NURBS lane (closed-form pcurve images, Hessian
     /// interpolation certificate — `crate::nurbs_cert`; since
@@ -279,27 +443,19 @@ pub(crate) fn tessellate_trimmed(
             let patch = grid.patch();
             Lane::Nurbs { grid, patch }
         }
+        Surface::Sphere { center, radius, .. } if takes_sphere_arm(body, fk, surface)? => {
+            Lane::Sphere {
+                center,
+                radius,
+                steps: sphere_lattice_steps(body, fk, surface, tol.delta)?,
+            }
+        }
         _ => return Err(trim_frontier(body, fk, face.outer)?),
     };
     let creases = match (&lane, surface.spline_chart()) {
         (Lane::Nurbs { grid, .. }, Some(chart)) => Creases::of(grid, chart, fk)?,
         _ => None,
     };
-    // NO CHART SINGULARITY REACHES THIS LANE, checked where the lane
-    // is chosen. The emit pass keeps `curved`'s duplicate-id skip
-    // without `curved`'s pole-fan hazard (#678) only because of this:
-    // a repeated boundary id here is never a pole pair. The fact is
-    // `walk`'s — `Chart::poles()` is empty for a cylinder and a NURBS
-    // face has no `Chart` at all — so it can move without a line
-    // changing in this file, which is exactly why it is asserted here
-    // rather than written down (D2 addendum row 5).
-    debug_assert!(
-        crate::walk::Chart::of(surface).is_none_or(|c| c.poles().is_empty()),
-        "face {fk:?}: the trimmed lane took a chart with a pole, so the \
-         duplicate-id skip in the emit pass may be collapsing a pole fan — see \
-         curved::pole_columns, issue #678"
-    );
-
     // The UV polygon: per half-edge, the pcurve evaluated at the
     // shared chord parameters (each traversal contributes all but its
     // last point; ids stay the shared 3-D chord ids).
@@ -309,6 +465,22 @@ pub(crate) fn tessellate_trimmed(
         return Err(TessellateError::MissingEntity {
             what: "degenerate trimmed boundary",
         });
+    }
+    // THE ONE CHART WITH POLES is the sphere's, and its polygon is the
+    // shape `sphere_polygon_shape` admits, so the duplicate-id skip in
+    // the emit pass never collapses a pole fan (#678). Every other arm's
+    // chart has none — `Chart::poles()` is empty for a cylinder and a
+    // NURBS face has no `Chart` at all — and that fact is `walk`'s, so
+    // it is asserted here rather than written down (D2 addendum row 5).
+    if matches!(lane, Lane::Sphere { .. }) {
+        sphere_polygon_shape(body, fk, face.outer, &polygon)?;
+    } else {
+        debug_assert!(
+            crate::walk::Chart::of(surface).is_none_or(|c| c.poles().is_empty()),
+            "face {fk:?}: the trimmed lane took a chart with a pole outside its sphere \
+             arm, so the duplicate-id skip in the emit pass may be collapsing a pole fan \
+             — see curved::pole_columns, issue #678"
+        );
     }
 
     // Grid sizing: cylinder — sagitta-tight in u at
@@ -369,6 +541,28 @@ pub(crate) fn tessellate_trimmed(
                 lattice_metric(std::iter::once(aspect)),
             )
         }
+        // The sphere: the steps the chord pass bounded this face's
+        // boundary UV steps by (`sphere_lattice_steps`), over the trim
+        // box. The CDT runs in the chart's own metric at the box's mid
+        // latitude, `(u·cos v, v)` to the nearest power of two: there a
+        // small face's boundary circle is near round, so every ear on it
+        // has the face's interior points in its circumcircle and the CDT
+        // cuts none. An ear on a boundary chain is the triangle of three
+        // consecutive chord points, which the neighbour across that chain
+        // may cut too: the two would be one triangle twice, and their
+        // diagonal an edge of four.
+        Lane::Sphere {
+            steps: (hu, hv), ..
+        } => (
+            uniform_candidates(
+                (u0, u1),
+                (v0, v1),
+                ceil_count(u1 - u0, hu)?,
+                ceil_count(v1 - v0, hv)?,
+            ),
+            None,
+            lattice_metric(std::iter::once(1.0 / (0.5 * (v0 + v1)).cos())),
+        ),
         Lane::Nurbs { ref grid, .. } => {
             let (mut cand, stats) = per_cell_candidates(
                 grid,
@@ -1018,6 +1212,10 @@ impl TrimmedFace<'_> {
                     cert::cert_cylinder(origin, axis, radius, tri),
                     cert::position_scale(origin, tri),
                 ),
+                Lane::Sphere { center, radius, .. } => (
+                    cert::cert_sphere(center, radius, tri),
+                    cert::position_scale(center, tri),
+                ),
                 // TESS-SPAN: the certificate of the cell(s) covering
                 // the triangle's UV box — one band's cells in `v`, since
                 // rows land on the `v` cuts, but possibly several in `u`,
@@ -1139,6 +1337,70 @@ impl TrimmedFace<'_> {
 /// cylinder arm's `debug_assert` asks.
 fn id_repeats_apart(polygon: &[(f64, f64, u32)]) -> bool {
     !crate::walk::ids_at_two_uvs(polygon.iter().copied()).is_empty()
+}
+
+/// **The sphere arm's poles.** A pole the loop passes through is a
+/// vertex where two meridians meet, and the polygon holds it ONCE: each
+/// traversal contributes all but its last point, so the pole enters at
+/// the outgoing meridian's azimuth and the incoming meridian's last
+/// chord is the polygon side from its last interior point to it. The
+/// UV region that side cuts off maps onto the pole, so the triangles
+/// beside it are a fan about the pole with no repeated id and no
+/// dropped triangle, each certified in 3-D by `cert::cert_sphere`.
+///
+/// Refused typed, each a shape this arm does not mesh:
+/// - a point past a pole (`|v| > π/2` beyond rounding): an edge whose
+///   image runs through a pole mid-edge;
+/// - a side turning more than 3π/2 in azimuth: the loop winds about a
+///   pole inside the face (its image does not close in the chart), or
+///   meets one at a wedge that wide;
+/// - a mesh id at two UV locations: a seam traversed twice, the second
+///   ingredient of #678's pole fan.
+fn sphere_polygon_shape(
+    body: &Body<f64>,
+    fk: FaceKey,
+    lk: topo::LoopKey,
+    polygon: &[(f64, f64, u32)],
+) -> Result<(), TessellateError> {
+    use core::f64::consts::{FRAC_PI_2, PI};
+    let refuse = |note| -> Result<(), TessellateError> {
+        let edge = crate::walk::loop_half_edges(body, lk, fk)?
+            .into_iter()
+            .find(|&(hek, _, _)| {
+                body.pcurve(hek)
+                    .is_some_and(|c| matches!(c.pcurve(), Pcurve::Projected(_)))
+            })
+            .map(|(_, ek, _)| ek)
+            .ok_or(TessellateError::MissingEntity {
+                what: "sphere arm face without a tilted circle",
+            })?;
+        Err(TessellateError::UnsupportedCurve { edge, note })
+    };
+    if polygon
+        .iter()
+        .any(|&(_, v, _)| v.abs() > FRAC_PI_2 * (1.0 + 4.0 * f64::EPSILON))
+    {
+        return refuse(
+            "trimmed sphere face whose boundary image runs past a chart pole mid-edge — \
+             the sphere arm meets a pole only at a loop vertex",
+        );
+    }
+    let n = polygon.len();
+    if (0..n).any(|i| (polygon[(i + 1) % n].0 - polygon[i].0).abs() > 1.5 * PI) {
+        return refuse(
+            "trimmed sphere face whose loop winds about a chart pole (or meets one at a \
+             wedge wider than 3π/2) — the sphere arm meshes a face that holds no pole \
+             inside it (`work/tess/a-trimmed-sphere-face-holding-a-pole-inside-it-refuses`)",
+        );
+    }
+    if id_repeats_apart(polygon) {
+        return refuse(
+            "trimmed sphere face whose loop visits one mesh vertex at two chart \
+             locations (a seam traversed twice) — the shape issue #678's pole fan needs, \
+             which the sphere arm does not mesh",
+        );
+    }
+    Ok(())
 }
 
 /// The uniform interior grid candidates of the cylinder lane: the trim
@@ -1717,6 +1979,15 @@ mod tests {
     };
     use spade::{ConstrainedDelaunayTriangulation, Triangulation};
     use topo::FaceKey;
+
+    thread_local! {
+        /// A factor on the sphere arm's lattice steps, 1 in every
+        /// shipped build: the end-to-end refusal row coarsens the arm
+        /// with it to reach `CertificateExceeded` through the real call
+        /// path. `cfg(test)` only.
+        pub(crate) static SPHERE_STEP_SCALE: std::cell::Cell<f64> =
+            const { std::cell::Cell::new(1.0) };
+    }
 
     /// **The MAJOR-1 backstop's end-to-end guard**: a face left with a
     /// sliver above δ refuses typed [`TessellateError::CertificateExceeded`]

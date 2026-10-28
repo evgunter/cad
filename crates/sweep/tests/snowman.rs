@@ -58,9 +58,7 @@ fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
     assert_solid(label, body, expected);
 }
 
-/// [`assert_body`] short of the mesh, for a body carrying a sphere face
-/// a tilted circle bounds, which has no tessellation lane
-/// (`work/tess/sphere-face-bounded-by-a-tilted-circle-has-no-tessellation-lane.md`).
+/// [`assert_body`] short of the mesh.
 fn assert_solid(label: &str, body: &Body<f64>, expected: f64) {
     assert_eq!(topo::validate(body), Ok(()), "{label}: validate");
     assert_eq!(
@@ -634,9 +632,8 @@ fn a_spun_snowman_builds_under_every_boolean() {
 /// volume is `∬ (√(1 − y² − z²) − ½) dy dz` over the bar's square
 /// section, integrated here in `z` in closed form and in `y` by
 /// Simpson's rule. The sphere faces left are bounded by circles tilted
-/// against the ball's chart, which the tessellator does not draw yet
-/// (`work/tess/sphere-face-bounded-by-a-tilted-circle-has-no-tessellation-lane.md`),
-/// so the rows stop at the exact volume and the three tiers.
+/// against the ball's chart, and mesh through the trimmed lane's sphere
+/// arm.
 #[test]
 fn a_bar_through_a_ball_builds_under_every_boolean() {
     let a = ball(R1, 0.0);
@@ -673,33 +670,7 @@ fn a_bar_through_a_ball_builds_under_every_boolean() {
         ("ball ∖ bar", BooleanOp::Subtract, &a, &bar, va - shared),
         ("bar ∖ ball", BooleanOp::Subtract, &bar, &a, vb - shared),
     ] {
-        let body = run(op, x, y);
-        assert_eq!(topo::validate(&body), Ok(()), "{label}: validate");
-        assert_eq!(
-            topo::validate_closed(&body),
-            Ok(()),
-            "{label}: validate_closed"
-        );
-        assert_eq!(
-            topo::validate_geometric(&body, Tol::witness()),
-            Ok(()),
-            "{label}: validate_geometric"
-        );
-        let p = topo::mass_properties(
-            &body,
-            Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
-        )
-        .unwrap_or_else(|e| panic!("{label}: mass properties, got {e:?}"));
-        assert_eq!(
-            p.enclosure.volume_pad, 0.0,
-            "{label}: closed-form faces only"
-        );
-        assert!(
-            (p.enclosure.volume - expected).abs() <= 1e-9 * expected.max(1.0),
-            "{label}: volume {} against the slice integral {expected}",
-            p.enclosure.volume
-        );
+        assert_body(label, &run(op, x, y), expected);
     }
 }
 
@@ -929,8 +900,8 @@ fn tilted_slab(tilt: f64, s: f64) -> AtRestBody<f64> {
 }
 
 /// Every op in both orders of `x` (volume `vx`) and `y` (`vy`), whose
-/// common part is `meet`, against the closed forms. Each result carries
-/// a tilted circle ([`assert_solid`]).
+/// common part is `meet`, against the closed forms ([`assert_body`]).
+/// Each result carries a tilted circle.
 fn assert_every_op(
     label: &str,
     (x, vx): (&AtRestBody<f64>, f64),
@@ -946,7 +917,7 @@ fn assert_every_op(
         (BooleanOp::Subtract, y, x, vy - meet),
     ] {
         let name = format!("{label}, ε {}: {op:?}", Tol::witness().eps());
-        assert_solid(&name, &run(op, p, q), want);
+        assert_body(&name, &run(op, p, q), want);
     }
 }
 
@@ -1695,7 +1666,7 @@ fn a_plane_through_a_caps_conventional_vertex_cuts_as_elsewhere() {
                 panic!("{label}: builds: {r:?}")
             };
             let b = &bb.body;
-            assert_solid(&label, b, half);
+            assert_body(&label, b, half);
             topo::validate_pseudomanifold(b, &bb.contacts, tol)
                 .unwrap_or_else(|e| panic!("{label}: tier 3′: {e:?}"));
             let c = &bb.contacts;
