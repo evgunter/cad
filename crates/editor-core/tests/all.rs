@@ -227,6 +227,8 @@ mod fix_loop_polygon_expr;
 mod fix_pattern_mate_crossing;
 #[path = "fork7_shared_is_named.rs"]
 mod fork7_shared_is_named;
+#[path = "g_ring_closure_measure.rs"]
+mod g_ring_closure_measure;
 #[path = "gap_reads_a_cell_against_a_round_face.rs"]
 mod gap_reads_a_cell_against_a_round_face;
 #[path = "gap_reads_vertex_and_edge_cells.rs"]
