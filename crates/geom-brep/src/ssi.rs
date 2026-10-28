@@ -2943,8 +2943,13 @@ fn finish_r3(
 ) -> Result<SsiBranch, SsiError> {
     use system::LocalSystem as _;
     let march_tol = seam_tol(ctx.tol, band)?;
-    let (carrier, cert) =
-        refine::refine_by_certificate(sys, trace.states.clone(), ctx, band, |states, limbs| {
+    let widest = certify::SSI_TUBE_RADIUS_MAX * domain.extent;
+    let (carrier, cert) = refine::refine_for_tube(
+        sys,
+        trace.states.clone(),
+        ctx,
+        band,
+        |states, limbs| {
             let points: Vec<Point3<f64>> = states.iter().map(|s| sys.point(s)).collect();
             let (carrier, _, _) = fit_branch(&points, None)?;
             let cert = certify::certify_located(
@@ -2958,7 +2963,20 @@ fn finish_r3(
                 limbs,
             )?;
             Ok((carrier, cert))
-        })?;
+        },
+        |(carrier, cert)| {
+            let SsiTube::Spatial { radius } = cert.tube else {
+                return None;
+            };
+            let up = 2.0 * radius;
+            let spans = if up > widest {
+                Vec::new()
+            } else {
+                certify::coarse_tube_spans(carrier, a, b, up)
+            };
+            Some((radius, spans))
+        },
+    )?;
     let params = carrier.domain();
     let carrier = Curve3::Nurbs(std::sync::Arc::new(carrier));
     let witness = carrier.mid_point(params.0, params.1);

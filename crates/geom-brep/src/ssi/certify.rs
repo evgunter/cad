@@ -1319,6 +1319,16 @@ pub(crate) fn chart_breaks(carrier: &KnotVector, pcurve: &KnotVector) -> Vec<f64
 fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
 ) -> Vec<(Box3, Vec3<T>)> {
+    box_spans(carrier)
+        .into_iter()
+        .map(|(b, e, _)| (b, e))
+        .collect()
+}
+
+/// [`box_chain`], each box beside the carrier's parameter span it hulls.
+fn box_spans<T: Decide + Bounds + CertifiedEnclosure>(
+    carrier: &NurbsCurve3<T>,
+) -> Vec<(Box3, Vec3<T>, (f64, f64))> {
     let mut out = Vec::new();
     // A refused insertion chain returns an EMPTY chain, which limb 3
     // reads as a definite refusal (no box, so nothing banked).
@@ -1368,7 +1378,7 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
         // that rung as unprobed ([`tube_margin`]).
         let t = carrier.deriv(T::from_f64(0.5 * (a + b)));
         let n = t.norm();
-        out.push((bx, t / n));
+        out.push((bx, t / n, (a, b)));
     }
     out
 }
@@ -1801,6 +1811,28 @@ pub(crate) fn tube_boxes<T: Decide + Bounds + CertifiedEnclosure>(
     box_chain(carrier)
         .into_iter()
         .map(|(b, _)| b.pad(radius))
+        .collect()
+}
+
+/// **The spans that hold an ℝ³ tube below the rung `radius`**
+/// ([`super::refine::refine_for_tube`]): the carrier's parameter
+/// intervals whose chain box ([`box_chain`]) is wider than `radius` and,
+/// padded by it, is not shown a graph ([`graph_margin`]). A box no wider
+/// than the rung is held by its padding, which halving its span does not
+/// narrow, so it is not named.
+pub(crate) fn coarse_tube_spans<T: Decide + Bounds + CertifiedEnclosure>(
+    carrier: &NurbsCurve3<T>,
+    s1: &Surface<T>,
+    s2: &Surface<T>,
+    radius: f64,
+) -> Vec<RefusedSpan> {
+    box_spans(carrier)
+        .into_iter()
+        .filter(|(raw, e, _)| {
+            raw.width() > radius
+                && !tube_margin(graph_margin(s1, s2, raw.pad(radius), *e)).is_some_and(|m| m > 0.0)
+        })
+        .map(|(_, _, (lo, hi))| RefusedSpan { lo, hi })
         .collect()
 }
 

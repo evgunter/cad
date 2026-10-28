@@ -13,6 +13,12 @@
 //! locus, kept only inside the domain, so it is a candidate like any
 //! marched state, and the certificate decides it.
 //!
+//! A certified ℝ³ branch is refined again where its uniqueness tube is
+//! held narrow by its samples ([`refine_for_tube`]): limb 3 takes one
+//! rung for the whole chain, so a box whose span is long against the
+//! locus's turning sets the tube everywhere, and the accounting pays for
+//! it over the whole domain.
+//!
 //! The neighbours are halved with the refused gap because the
 //! interpolating cubic's value over a gap moves with the samples beside
 //! it: halving the refused gap alone leaves an abrupt change of spacing
@@ -53,7 +59,7 @@ use geom::NurbsCurve3;
 use geom_core::linalg::svd::Svd;
 use geom_core::{Band, Margin, MarginDiag, Point3};
 
-use super::certify::{Limbs, Located, SsiLimb};
+use super::certify::{Limbs, Located, RefusedSpan, SsiLimb};
 use super::march::{
     MarchContext, TransversalityData, decide_transversality, newton_refine, within,
 };
@@ -207,33 +213,16 @@ where
                 return Err(error);
             }
         }
-        let points: Vec<Point3<f64>> = states.iter().map(|s| sys.point(s)).collect();
         // The fit just read these same points, so this does not refuse.
-        let Ok(params) = NurbsCurve3::<f64>::chord_parameters(&points) else {
+        let Some(halved) = halve_spans(sys, &states, &at.spans, ctx, band)? else {
             return Err(error);
         };
-        let hit: Vec<bool> = params
-            .windows(2)
-            .map(|t| at.spans.iter().any(|r| r.lo <= t[1] && r.hi >= t[0]))
-            .collect();
-        let (mut in_band, mut unsettled, mut off_domain) = (0usize, 0usize, 0usize);
-        let mut finer = Vec::with_capacity(2 * states.len());
-        for (i, pair) in states.windows(2).enumerate() {
-            finer.push(pair[0]);
-            let selected =
-                hit[i] || (i > 0 && hit[i - 1]) || hit.get(i + 1).copied().unwrap_or(false);
-            if !selected {
-                continue;
-            }
-            match halve(sys, &pair[0], &pair[1], ctx, band) {
-                Halving::Settled(mid) => finer.push(mid),
-                Halving::InBand(_) => in_band += 1,
-                Halving::Unsettled => unsettled += 1,
-                Halving::OffDomain => off_domain += 1,
-                Halving::Tangent(tangent) => return Err(tangent),
-            }
-        }
-        finer.extend(states.last().copied());
+        let Halved {
+            finer,
+            in_band,
+            unsettled,
+            off_domain,
+        } = halved;
         let stop = if finer.len() == states.len() {
             Some(RefineStop::NothingToHalve {
                 in_band,
@@ -267,6 +256,130 @@ where
         });
         before = Some(at.refusal.residual);
         states = finer;
+    }
+}
+
+/// `states` with the gaps `spans` meet halved, one gap on each side of
+/// them with them (module docs), and what each selected gap's midpoint
+/// did.
+struct Halved<const N: usize> {
+    finer: Vec<[f64; N]>,
+    in_band: usize,
+    unsettled: usize,
+    off_domain: usize,
+}
+
+/// **The gaps between `states` that `spans` meet, halved** ([`Halved`]),
+/// the spans read on the chord parameters a fit of `states` takes.
+/// `None` where those parameters refuse.
+///
+/// # Errors
+///
+/// The transversality decision's refusal where a selected midpoint does
+/// not settle and the surfaces are near tangent there.
+fn halve_spans<const M: usize, const N: usize, S>(
+    sys: &S,
+    states: &[[f64; N]],
+    spans: &[RefusedSpan],
+    ctx: &MarchContext<N>,
+    band: Band,
+) -> Result<Option<Halved<N>>, SsiError>
+where
+    S: LocalSystem<M, N> + TransversalityData<N>,
+{
+    let points: Vec<Point3<f64>> = states.iter().map(|s| sys.point(s)).collect();
+    let Ok(params) = NurbsCurve3::<f64>::chord_parameters(&points) else {
+        return Ok(None);
+    };
+    let hit: Vec<bool> = params
+        .windows(2)
+        .map(|t| spans.iter().any(|r| r.lo <= t[1] && r.hi >= t[0]))
+        .collect();
+    let (mut in_band, mut unsettled, mut off_domain) = (0usize, 0usize, 0usize);
+    let mut finer = Vec::with_capacity(2 * states.len());
+    for (i, pair) in states.windows(2).enumerate() {
+        finer.push(pair[0]);
+        let selected = hit[i] || (i > 0 && hit[i - 1]) || hit.get(i + 1).copied().unwrap_or(false);
+        if !selected {
+            continue;
+        }
+        match halve(sys, &pair[0], &pair[1], ctx, band) {
+            Halving::Settled(mid) => finer.push(mid),
+            Halving::InBand(_) => in_band += 1,
+            Halving::Unsettled => unsettled += 1,
+            Halving::OffDomain => off_domain += 1,
+            Halving::Tangent(tangent) => return Err(tangent),
+        }
+    }
+    finer.extend(states.last().copied());
+    Ok(Some(Halved {
+        finer,
+        in_band,
+        unsettled,
+        off_domain,
+    }))
+}
+
+/// **Refinement for the tube** (C3): `states` refined by
+/// [`refine_by_certificate`], then again where the certificate's
+/// uniqueness tube is held narrow by the samples rather than the locus.
+///
+/// Limb 3 takes the widest ladder rung over which every box of the
+/// carrier's chain is a graph, so one box whose span is long against the
+/// locus's turning holds the whole tube to its rung, and the
+/// exhaustiveness accounting then subdivides the whole shell to that
+/// rung. Where `coarse` names the spans whose boxes refuse the next rung
+/// up while wider than it (so halving them narrows the box, which a
+/// narrower rung's padding cannot), their gaps are halved and the
+/// branch certified again; the finer carrier is kept where its tube is
+/// wider. It stops where `coarse` names nothing, nothing halves, the
+/// step budget would be passed, or the finer carrier's tube is no wider
+/// or does not certify: the carrier it keeps is certified either way.
+///
+/// # Errors
+///
+/// [`refine_by_certificate`]'s, on `states`.
+pub(crate) fn refine_for_tube<const M: usize, const N: usize, S, C>(
+    sys: &S,
+    states: Vec<[f64; N]>,
+    ctx: &MarchContext<N>,
+    band: Band,
+    mut certify: impl FnMut(&[[f64; N]], Limbs) -> Result<C, Located>,
+    coarse: impl Fn(&C) -> Option<(f64, Vec<RefusedSpan>)>,
+) -> Result<C, SsiError>
+where
+    S: LocalSystem<M, N> + TransversalityData<N>,
+{
+    let mut fitted: Vec<[f64; N]> = Vec::new();
+    let mut best = refine_by_certificate(sys, states, ctx, band, |s, limbs| {
+        fitted = s.to_vec();
+        certify(s, limbs)
+    })?;
+    loop {
+        let Some((radius, spans)) = coarse(&best) else {
+            return Ok(best);
+        };
+        if spans.is_empty() {
+            return Ok(best);
+        }
+        let Ok(Some(Halved { finer, .. })) = halve_spans(sys, &fitted, &spans, ctx, band) else {
+            return Ok(best);
+        };
+        if finer.len() == fitted.len() || finer.len() - 1 > ctx.max_steps {
+            return Ok(best);
+        }
+        let mut refit: Vec<[f64; N]> = Vec::new();
+        let Ok(next) = refine_by_certificate(sys, finer, ctx, band, |s, limbs| {
+            refit = s.to_vec();
+            certify(s, limbs)
+        }) else {
+            return Ok(best);
+        };
+        if !coarse(&next).is_some_and(|(wider, _)| wider > radius) {
+            return Ok(best);
+        }
+        best = next;
+        fitted = refit;
     }
 }
 

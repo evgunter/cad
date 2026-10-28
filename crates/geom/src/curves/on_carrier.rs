@@ -17,7 +17,10 @@
 //!   point lies up to `(1 + a/b)·d` from a point `d` off the ellipse;
 //! - a spiric oval: [`Curve3::param_near`]'s angle, then Gauss–Newton;
 //! - a spline: the best of the caller's seed and a few samples on each
-//!   knot span, then Gauss–Newton, held to the domain.
+//!   knot span, then Gauss–Newton, held to the domain; and Gauss–Newton
+//!   from each end of the domain, the smallest gap kept. A closed
+//!   spline's two ends are one point, so a descent held at one end
+//!   continues from the other.
 //!
 //! A closed kind's angle is read relative to the seed's direction, or to
 //! its opposite where the point lies definitely behind it, so an
@@ -332,7 +335,15 @@ impl<T: Decide> Curve3<T> {
                         }
                     }
                 }
-                return self.polish(q, best, Some((lo, hi)));
+                let domain = Some((lo, hi));
+                let mut foot = self.polish(q, best, domain);
+                for end in [lo, hi] {
+                    let f = self.polish(q, self.foot_at(q, end), domain);
+                    if smaller(f.gap, foot.gap) {
+                        foot = f;
+                    }
+                }
+                return foot;
             }
         };
         let at = self.foot_at(q, seed);

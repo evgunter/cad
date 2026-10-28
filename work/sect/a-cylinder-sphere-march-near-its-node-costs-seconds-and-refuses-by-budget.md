@@ -68,3 +68,16 @@ at-rest gate's re-certification. Cutting the chord from the loop
 (`chord_join::cut_arc`) rather than carrying the whole loop with an
 interval took a segment from 18 s to 3.5 s; the fixture's 54 runs still
 take 3–120 s each in debug (8–80 s per pose on CI).
+
+## At ε 1e-12 the accounting scans every tube box per cell (2026-10-28)
+
+`pair_section::a_seated_loop_is_the_loop_point_for_point` at
+`CAD_TOLERANCE_EPS=1e-12` takes 472 s alone in debug on main (477 s
+with `sect/near-node-at-1e-6`), against 86 s at the default ε; a lane
+that killed it read it as a hang. Sampled by `gdb` two minutes in, the
+test thread sits in `PairSection::carry` → `march_cylinder_sphere` →
+`exhaust::account_r3` → `SweepDuty::accounts`, whose
+`tubes.iter().any(|t| cell.contained_in(*t))` reads every tube box for
+every cell. The march's samples are spaced as `ε^¼`, so at 1e-12 a
+branch holds about 5.6 times the default ε's boxes (2460 at the
+default ε at `d 0.2, R 0.699`), and each cell pays them all.

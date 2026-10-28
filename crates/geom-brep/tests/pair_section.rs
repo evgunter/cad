@@ -279,6 +279,44 @@ fn a_radius_not_definitely_positive_is_degenerate_on_every_reading() {
     }
 }
 
+/// **A radius in the band escalates by its name**, in either order: a
+/// sphere `2.865·zero` in radius whose centre lies that far outside the
+/// wall, so it touches it, reads its radius undecided before any reach
+/// or girdle (the fuzzer's pose 1562 at ε = 1e-6, where the retired
+/// guard, which never read the radius, called it a touch); and a
+/// cylinder that thin.
+#[test]
+fn a_radius_in_the_band_escalates_by_its_name() {
+    let z = band().zero();
+    let (r, small) = (0.190_833_873_299_757_15, 2.865_155_564_080_179_6 * z);
+    for (label, cyl, sph, want, predicate) in [
+        (
+            "sphere",
+            cylinder(r),
+            sphere(r + small, small),
+            geom_brep::SectionRadius::Sphere,
+            "cs_sphere_radius",
+        ),
+        (
+            "cylinder",
+            cylinder(small),
+            sphere(0.4, 0.3),
+            geom_brep::SectionRadius::Cylinder,
+            "cs_cylinder_radius",
+        ),
+    ] {
+        for (a, b) in [(&cyl, &sph), (&sph, &cyl)] {
+            match geom_brep::pair_section(a, b, band()) {
+                Err(SectionError::RadiusEscalated { radius, diag }) => {
+                    assert_eq!(radius, want, "{label}");
+                    assert_eq!(diag.predicate, Some(predicate), "{label}");
+                }
+                other => panic!("{label}: expected its radius escalated, got {other:?}"),
+            }
+        }
+    }
+}
+
 /// **The general rung carries through its door**: the lone loop marched
 /// over the sphere's box at `f64`, one closed fitted component with its
 /// certificate, the witness's foot on it; without the door the carrying
@@ -686,7 +724,10 @@ fn no_pose_off_the_band_moves_from_the_retired_formulas() {
             3 => (off - r).abs() + b.zero() * 0.5,
             _ => 0.05 + 2.0 * g.unit(),
         };
-        if big <= 0.0 || (off > b.zero() * 0.999 && off < b.escalate() * 1.001) {
+        // The retired formulas read a radius decided positive; one in the
+        // band escalates by its name instead
+        // ([`a_radius_in_the_band_escalates_by_its_name`]).
+        if big <= b.escalate() * 1.001 || (off > b.zero() * 0.999 && off < b.escalate() * 1.001) {
             continue;
         }
         let c = origin + axis * g.range(-1.0, 1.0) + square_to(axis) * off;

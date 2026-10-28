@@ -78,3 +78,39 @@ equals the cylinder radius. The section value calls it `Tangent` where
 the retired formulas said `Touch`. Pin it as a deterministic row beside
 the fix, or as the sampler's boundary if a sphere that small falls
 outside the formulas' domain.
+
+## Closed
+
+Two kernel defects, neither the honest behaviour at 1e-6; fixed at the
+root (branch `sect/near-node-at-1e-6`).
+
+- **The cell budget**: limb 3 takes one rung for the whole chain, and
+  at 1e-6 the march's samples (spaced as `ε^¼`) leave chain boxes up to
+  3.4e-2 wide where the surfaces cross at a small angle near the far
+  ruling. At `d 0.2, R 0.699` every rung down to 3.4e-4 read a zero
+  graph margin, the tube was 1.7e-4 (5.5e-3 at the default ε), and
+  `account_r3` spent its 200000 cells. `ssi::refine::refine_for_tube`
+  now halves the gaps whose box is wider than the next rung up and not
+  a graph there, and keeps the finer carrier where its tube is wider:
+  the pose certifies at 5.5e-3 on 508 boxes at 1e-6.
+- **The in-band site** (`d 0.2, R 0.71, θ 4.27`): `Curve3::foot` on the
+  closed fitted loop, seeded at its start, kept the seed (gap 2.99e-3,
+  nearer than any span sample) and polished it against the domain's
+  start, while the true foot lay at `t = 0.9991` across the seam, 3.3e-7
+  away; the piece walk then read a piece 9.56e-6 off. The foot now
+  polishes from each end of the domain as well.
+- **The fuzz counterexample** (pose 1562): its sphere radius 2.87e-6
+  lies in the 1e-6 band, and the section escalates it by name
+  (`RadiusEscalated { radius: Sphere }`, `cs_sphere_radius`), which the
+  retired guard never read. The sampler now keeps radii above the band,
+  and `pair_section::a_radius_in_the_band_escalates_by_its_name` pins
+  the pose.
+- `pair_section::a_seated_loop_is_the_loop_point_for_point` failed at
+  1e-6 the same way (`CellBudget` at `d 0.2, R 0.699`) and is green.
+  At 1e-12 it does not hang: it takes 472 s alone on main and 477 s on
+  the branch, in `account_r3`'s tube scan (evidence added to
+  `a-cylinder-sphere-march-near-its-node-costs-seconds-and-refuses-by-budget`).
+
+Filed: `work/issues/a-closed-splines-projection-stops-at-its-start-short-of-the-seam.md`,
+`work/ssimarch/the-chart-and-pair-tubes-are-held-by-their-coarsest-box.md`,
+`work/ciw/the-slow-tests-a-diff-adds-run-at-the-default-eps-only.md`.

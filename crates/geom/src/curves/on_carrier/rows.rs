@@ -183,3 +183,46 @@ fn a_thin_ellipses_foot_reads_the_distance_not_its_unit_image() {
         "an ellipse's foot is a stationary point"
     );
 }
+
+/// **A closed spline's foot crosses its seam**: a point on the loop just
+/// short of the domain's end, seeded at its start (the same point), and
+/// one just past the start seeded at the end. The seed lies nearer than
+/// any span sample, and its descent is held at the end it stands on, so
+/// the foot is found from the other end, on the carrier.
+#[test]
+fn a_closed_splines_foot_crosses_its_seam() {
+    let c = Curve3::Nurbs(std::sync::Arc::new(
+        crate::NurbsCurve3::new(
+            geom_core::spline::KnotVector::clamped(
+                vec![0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0],
+                2,
+            )
+            .unwrap(),
+            vec![
+                Point3::new(1.0, 0.0, 0.0),
+                Point3::new(1.0, 1.0, 0.0),
+                Point3::new(-1.0, 1.0, 0.0),
+                Point3::new(-1.0, -1.0, 0.0),
+                Point3::new(1.0, -1.0, 0.0),
+                Point3::new(1.0, 0.0, 0.0),
+            ],
+            vec![1.0; 6],
+        )
+        .unwrap(),
+    ));
+    for (t, seed) in [(0.99, 0.0), (0.01, 1.0)] {
+        let q = c.eval(t);
+        let foot = c.foot(q, seed);
+        assert!(
+            foot.gap() < ZERO,
+            "t {t} from {seed}: foot at {} gap {:e}",
+            foot.t(),
+            foot.gap()
+        );
+        assert_eq!(
+            name(c.on_carrier(q, seed, band())),
+            "on",
+            "t {t} from {seed}"
+        );
+    }
+}
