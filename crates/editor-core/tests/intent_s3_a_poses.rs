@@ -1022,7 +1022,7 @@ fn a_revolves_axis_output_is_the_axis_its_body_turns_about() {
         .into_iter()
         .find_map(|c| c.mate().map(|m| m.to))
         .expect("the ring");
-    let ((o1, d1), (o2, d2)) = (axis_of(port.into()), axis_of(read));
+    let ((o1, d1), (o2, d2)) = (axis_of(port), axis_of(read));
     let slack = 8.0 * f64::EPSILON * 4.0;
     assert!(d1.cross(d2).norm() <= slack, "{d1:?} against {d2:?}");
     let off = |o: geom_core::Point3<f64>, at: geom_core::Point3<f64>, d: geom_core::Vec3<f64>| {

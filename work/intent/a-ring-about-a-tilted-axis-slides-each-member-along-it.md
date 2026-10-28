@@ -8,8 +8,8 @@ opened: 2026-10-28
 
 
 Found building G (`patterns-are-index-variables`), by the tilted-axis
-probes `mate1_r1_probes::r1_oblique_circular_axis_with_a_non_identity_group_frame`
-and `mate1r2_probes::r2_oblique_circular_seat_at_a_pinned_world_frame`.
+probes `mate1_r1_probes::r1_off_origin_circular_axis_with_a_non_identity_group_frame`
+and `mate1r2_probes::r2_off_origin_circular_seat_at_a_pinned_world_frame`.
 
 `circular_pattern` (`crates/pncad/src/pattern.rs:111`) writes a ring as
 one `Axis` mate, a spin `scalar(k)·step` and a slide of zero along the
@@ -26,16 +26,20 @@ the member along the ring's axis to hold it at zero. The members then
 stand on a helix, not a ring, and nothing refuses. The function's docs
 say the axis must run along `along`, and nothing checks it.
 
-The two probes now build their rings with a second, `Point` mate at the
-axis frame's origin (`fixture::circular_pivot`): the bundle leaves the
-spin alone, the solve's `Revolute` subgroup, and each member is the last
-turned about the axis's line.
+A second, `Point` mate at the axis frame's origin would leave the spin
+alone (the `Revolute` subgroup), but the solve refuses an `Axis` and a
+`Point` mate together as `Overconstrained` (`free: 0`): the bundle rule
+counts the freedom they share twice. So no bundle in today's vocabulary
+holds a ring about such an axis, short of a slide written per member.
+The two probes, which met it with an axis tilted off every target axis,
+now ring an axis along z that misses the origin, which keeps their
+composition-order attack.
 
 ## Repair shape
 
-The façade writes a ring's slide so it holds whatever the axis: a
-`Point` mate on the axis, as the fixture does, or a slide measured
-along the mated direction. Either changes what `circular_pattern`,
+The vocabulary says a ring about any axis: a slide measured along the
+mated direction (the chart's own), or an `Axis` and a `Point` mate
+admitted together where the point lies on the axis. Either changes what `circular_pattern`,
 `bolt_circle`, the viewer's ring and pncad-py's `Node.circular_pattern`
 take (the point, or no `along`). Until then, an axis no target axis
 runs along is refused at the façade, not built as a helix.

@@ -145,16 +145,6 @@ struct Rigid {
 }
 
 impl Rigid {
-    const IDENTITY: Rigid = Rigid {
-        r: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
-        t: [0.0, 0.0, 0.0],
-    };
-    fn translation(t: [f64; 3]) -> Rigid {
-        Rigid {
-            r: Rigid::IDENTITY.r,
-            t,
-        }
-    }
     /// Rotation by `angle` about the axis through `origin` along the
     /// (unnormalized) direction `d` — Rodrigues, written here.
     fn rotation_about_axis(origin: [f64; 3], d: [f64; 3], angle: f64) -> Rigid {
@@ -216,10 +206,10 @@ fn leg_frame() -> Frame {
     .as_frame()
 }
 
-// ---- P1: hand-derived seat at F ≠ identity, oblique axis ----
+// ---- P1: a seat at F ≠ identity, an axis off the origin ----
 
-/// PROBE (claim 1): a CIRCULAR family about an OBLIQUE axis (direction
-/// (1,1,1), origin (1,0,0), step 2π/5), with the leg pinned to the
+/// PROBE (claim 1): a CIRCULAR family about an axis that misses the
+/// origin (direction z, through (1,0,0), step 2π/5), with the leg pinned to the
 /// world at a rotation+translation, and one top seated on copy 1 and
 /// another on copy 0. The axis is read off the placed leg, so it is
 /// authored in the leg's own coordinates (the document's line carried
@@ -233,7 +223,7 @@ fn leg_frame() -> Frame {
 /// *Breaks if* the member's turn is composed inside `F` rather than
 /// outside it, or about the wrong line.
 #[test]
-fn r2_oblique_circular_seat_at_a_pinned_world_frame() {
+fn r2_off_origin_circular_seat_at_a_pinned_world_frame() {
     let mut store = PartStore::default();
     let (leg_ref, leg_body) = store.insert_part(leg_part("r2-obl-leg"), Tol::witness());
     let (top_ref, top_body) = store.insert_part(leg_part("r2-obl-top"), Tol::witness());
@@ -244,13 +234,13 @@ fn r2_oblique_circular_seat_at_a_pinned_world_frame() {
     let unturn = |v: [f64; 3]| mv(transpose(f.r), v);
     let own_origin = unturn([1.0 - f.t[0], 0.0 - f.t[1], 0.0 - f.t[2]]);
     let axis =
-        crate::mate1_member_vocab::axis_with(&doc, leg, own_origin, unturn([1.0, 1.0, 1.0]), &o);
+        crate::mate1_member_vocab::axis_with(&doc, leg, own_origin, unturn([0.0, 0.0, 1.0]), &o);
     let theta = 2.0 * core::f64::consts::PI / 5.0;
-    let (doc, k, pattern) = crate::fixture::circular_pivot(doc, leg, axis, theta, 3);
+    let (doc, k, pattern) = crate::fixture::circular(doc, leg, (axis, TargetAxis::Z), theta, 3);
     let mut doc = doc;
     let mut tops = Vec::new();
     for member in [0, 1] {
-        let (next, top) = insert(doc, fixture::mated_instance(top_ref.clone()));
+        let (next, top) = insert(doc, fixture::mated_instance(top_ref));
         let (next, mate) = seat(
             next,
             in_copy(pattern, k, member, in_part(leg, leg_body, CapEnd::End)),
@@ -279,7 +269,7 @@ fn r2_oblique_circular_seat_at_a_pinned_world_frame() {
     // The seat's values are charted on the space's axes (D′2), so what
     // the turn carries is the seated plane: its normal (each top's
     // `z`) and its offset.
-    let want = Rigid::rotation_about_axis([1.0, 0.0, 0.0], [1.0, 1.0, 1.0], theta).compose(on0);
+    let want = Rigid::rotation_about_axis([1.0, 0.0, 0.0], [0.0, 0.0, 1.0], theta).compose(on0);
     let z = |r: Rigid| [r.r[0][2], r.r[1][2], r.r[2][2]];
     let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
     assert!(

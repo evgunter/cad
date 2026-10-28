@@ -1227,50 +1227,6 @@ pub fn circular(
     (doc, k, ring)
 }
 
-/// **A ring about any axis**: [`circular`] with the free slide the
-/// `Axis` mate leaves pinned by a second, `Point` mate equating the
-/// frame's origin read off the copy with the frame's origin read off
-/// `input`, so the bundle leaves the spin alone and each member is the
-/// last turned `step` about the axis's line. [`circular`]'s slide along
-/// a target axis keeps a member on that line only where the axis runs
-/// along a target axis. `axis` is a frame's `z` read.
-pub fn circular_pivot(
-    doc: ProfileDoc,
-    input: RecipeNodeId,
-    axis: editor_core::pose::RoleRead<editor_core::Operand>,
-    step: f64,
-    count: i64,
-) -> (ProfileDoc, VarId, RecipeNodeId) {
-    let name = fresh_index_name(&doc);
-    let (doc, k) = index(doc, &name, count);
-    let origin = editor_core::Operand::Pose(Box::new(editor_core::pose::PoseDef::Slide {
-        pose: editor_core::pose::RoleRead {
-            read: axis.read.clone(),
-            role: Some(editor_core::pose::PoseRole::Origin),
-        },
-        along: axis.clone(),
-        by: Formula::zero(editor_core::Dimension::Length),
-    }));
-    let axis = axis_operand(axis);
-    let spin = Formula::mul(scalar_of(k), ang(step)).expect("an angle");
-    let target = space(&doc, input);
-    let read = body_read(&doc, input.into());
-    let placed = editor_core::Placed::of(
-        &doc,
-        vec![mate(axis.clone(), axis), mate(origin.clone(), origin)],
-        vec![(editor_core::Coord::SPIN, spin)],
-    );
-    let (doc, ring) = insert(
-        doc,
-        Node::place(
-            editor_core::BodyRead::plain(read),
-            editor_core::Operand::Var(target),
-            placed.bundle(),
-        ),
-    );
-    (doc, k, ring)
-}
-
 /// **A row of `count` copies of `input` along `dir`, the first one
 /// `spacing` on** (D10 `[repetition]`), under a fresh index: member `k`
 /// slid `(scalar(k) + 1)·spacing`, so no member stands where `input`
