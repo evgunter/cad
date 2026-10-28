@@ -17,9 +17,10 @@
 //!   constraints, their alignments and sides, and a profile's step ids
 //!   are all fields;
 //! - **the named variables, labels and ε agree**, a named variable
-//!   matched by its name and a definition read with the ids it reads as
-//!   their images (a named variable's by its name, an anonymous one's
-//!   by its place in the definition that reads it);
+//!   matched by its name and a definition — a scalar's or a pose's —
+//!   read with the ids it reads as their images (a named variable's by
+//!   its name, an anonymous one's by its place in the definition that
+//!   reads it);
 //! - **the placements keep their document order**: the product's copies
 //!   are gathered in it. Order across other node kinds is not compared:
 //!   a split collapses its cut into a part and inline appends what it
@@ -360,9 +361,25 @@ pub fn same_up_to_ids(
             .iter()
             .filter_map(|(id, name)| {
                 let held = d.var(*id)?;
-                let shown = match held.def().defined() {
-                    Some(defined) => format!("{:?} {:?}", held.kind(), d.written(defined)),
-                    None => format!("{held:?}"),
+                let shown = match held.def() {
+                    editor_core::var::VarDef::Defined(defined) => {
+                        format!("{:?} {:?}", held.kind(), d.written(defined))
+                    }
+                    editor_core::var::VarDef::Pose(def) => {
+                        let written = def.try_map(
+                            &mut |_, &read| {
+                                Ok::<_, std::convert::Infallible>(d.written_operand(read))
+                            },
+                            &mut |slot, &scalar| {
+                                Ok(editor_core::Formula::from(d.written(
+                                    &editor_core::Expr::var(scalar, slot.dimension()),
+                                )))
+                            },
+                        );
+                        let Ok(written) = written;
+                        format!("{:?} {written:?}", held.kind())
+                    }
+                    _ => format!("{held:?}"),
                 };
                 let shown = match through {
                     Some(vars) => renamed(&shown, (&ids, &constraint_ids), &step_ids, vars),

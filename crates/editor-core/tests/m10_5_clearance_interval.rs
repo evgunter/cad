@@ -88,9 +88,12 @@
 //! door's: two selections whose only candidate pairs the wedge rule
 //! drops. Rows below cover
 //! `Budget(Pairs)`,
-//! `Budget(Depth)`, `Selection` (two shapes), `Unsupported`,
-//! `NotADistance` and `EmptyScope`; `NothingCertified` is covered by the
-//! adopted probe suites, and `NoAdmittedPair` by M10-6's own suite.
+//! `Budget(Depth)`, `Selection` (two shapes), `NotADistance` and
+//! `EmptyScope`; `NothingCertified` is covered by the adopted probe
+//! suites, `NoAdmittedPair` by M10-6's own suite, and `Unsupported` at
+//! the engine (`topo/tests/clearance_windows_on_a_spline_chart.rs`): a
+//! loft's walls, the one free-form face these fixtures build, now have
+//! windows.
 //! FIVE refusal shapes have NO row, and the reason
 //! is the same for each: they are not reachable on any document these
 //! fixtures can build.
@@ -245,7 +248,16 @@ pub(crate) fn slid_by(
 
 /// A copy of `input` slid by `by` along its own +x ([`slid_by`]).
 fn translated(r: &mut Recorder, input: RecipeNodeId, by: Formula) -> RecipeNodeId {
-    slid_by(r, input, input, [by, len(0.0), len(0.0)])
+    slid_by(
+        r,
+        input,
+        input,
+        [
+            by,
+            Formula::zero(Dimension::Length),
+            Formula::zero(Dimension::Length),
+        ],
+    )
 }
 
 /// A prism over a literal polygon, extruded a literal depth.
@@ -1210,14 +1222,14 @@ fn the_query_door_refuses_a_bound_that_is_not_a_distance() {
     }
 }
 
-/// **The refusal arms that had no row.** A sliver and a poison
-/// enclosure are not reachable on any fixture this suite can build (the
-/// module door says why), so what is pinned here is the two that ARE:
-/// the resolution floor, and an unsupported carrier.
+/// **A loft's walls have windows.** Each wall is bounded by its chart's
+/// own isos, so it is the whole patch and the engine answers about it:
+/// the loft's faces stand at least 0.1 apart wherever they do not meet.
+/// The refusal of a NURBS face the engine has no window for (trimmed,
+/// or bounded off its isos) is pinned at the engine
+/// (`topo/tests/clearance_windows_on_a_spline_chart.rs`).
 #[test]
-fn the_unsupported_carrier_arm_refuses_naming_the_class() {
-    // A loft's walls are free-form patches, which the window door
-    // admits no chart for.
+fn a_lofts_walls_have_windows_and_its_clearance_holds() {
     let mut r = Recorder::new();
     declare(&mut r, "place", 0.0);
     let mut profiles = Vec::new();
@@ -1255,19 +1267,9 @@ fn the_unsupported_carrier_arm_refuses_naming_the_class() {
         0.1,
         Tol::witness(),
     );
-    match report.verdict() {
-        ClearanceVerdict::Refused(ClearanceRefusal::Engine(EngineRefusal::Unsupported {
-            carrier,
-            ..
-        })) => {
-            println!("[unsupported] {carrier}");
-        }
-        // A loft that does not build at the interval scalar refuses at
-        // the selection instead, which is the other honest answer and
-        // is not this row's subject.
-        ClearanceVerdict::Refused(ClearanceRefusal::Selection(e)) => {
-            println!("[unsupported] the loft did not build at Interval: {e}");
-        }
-        other => panic!("expected a typed refusal, got {other:?}"),
-    }
+    assert_eq!(
+        report.verdict(),
+        &ClearanceVerdict::Holds,
+        "the loft's faces clear 0.1"
+    );
 }

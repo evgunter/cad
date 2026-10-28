@@ -20,6 +20,7 @@
 #![allow(clippy::panic)]
 
 use crate::fixture;
+use editor_core::Dimension;
 
 use editor_core::{
     CapEnd, Coord, DocumentId, EntityKind, Entry, EvalOptions, Evaluation, Formula, MateFault,
@@ -27,7 +28,7 @@ use editor_core::{
     ProductError, ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, StableName, TargetAxis,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{ang, insert, len, on_frame, run, scl};
+use fixture::{insert, len, on_frame, run, scl};
 use geom_core::Tol;
 
 // ---- the scene ----
@@ -153,7 +154,7 @@ fn seat(
         &[
             (Coord::Slide(TargetAxis::X), len(1.0)),
             (Coord::Slide(TargetAxis::Y), len(1.0)),
-            (Coord::SPIN, ang(0.0)),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     )
 }

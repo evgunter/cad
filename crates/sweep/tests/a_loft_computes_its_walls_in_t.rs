@@ -54,7 +54,7 @@ fn pole<T: Real>(wall: &geom::NurbsSurface<T>, iu: usize, iv: usize) -> usize {
 fn arc_wall<T: geom_core::spline::SpanLocate>(lofted: &Lofted<T>) -> geom::NurbsSurface<T> {
     let face = lofted
         .body
-        .get_face(lofted.side_faces[0][1])
+        .get_face(lofted.side_faces[0][1][0])
         .expect("a built face");
     match lofted
         .body
@@ -338,8 +338,9 @@ fn an_enclosure_reaching_an_infinity_refuses_as_not_finite() {
 ///   wide bulge or from rounding alone, so an arc section refuses at the
 ///   carrier's door (`CarrierWeightNotAPoint`, until C6's S4/S5);
 /// - three sections at v-degree 1 put their middle parameter in the
-///   knot vector: the fit encloses over a wide one (C6 S5c), and the
-///   wall's carrier refuses it at its door (`CarrierKnotNotAPoint`,
+///   skin's knot vector: the fit encloses over a wide one (C6 S5c), and
+///   the skinned wall's carrier refuses it at its door, before any slab
+///   is cut (`CarrierKnotNotAPoint`,
 ///   until C6's S5z).
 #[test]
 fn what_a_carrier_cannot_hold_refuses_typed_at_interval() {
@@ -388,10 +389,13 @@ fn what_a_carrier_cannot_hold_refuses_typed_at_interval() {
 /// **Point inputs keep the lifted `f64` skin.** Where every input to
 /// the skin is a point, the loft at `Interval` is the `f64` loft lifted,
 /// bit for bit: an arc section (lifted from `f64`, so its sweep is a
-/// point), and three sections at v-degree 1, whose interior knot is a
-/// computed parameter. That is the status quo, not an enclosure claim
-/// over a box: the family is one member. Widening one section of the
-/// second loft refuses (`what_a_carrier_cannot_hold_refuses_typed_at_interval`).
+/// point), and four sections at v-degree 2, whose walls' interior v knot
+/// is the mean of two computed parameters. That is the status quo, not
+/// an enclosure claim over a box: the family is one member. Widening an
+/// interior section's parameter refuses at the skin's carrier door
+/// (`what_a_carrier_cannot_hold_refuses_typed_at_interval`). At v-degree
+/// 1 the body's walls are one slab each and carry no interior knot, so
+/// that case lofts at degree 2 and its walls are checked to carry one.
 #[test]
 fn point_inputs_loft_as_the_lifted_f64_skin_at_interval() {
     use geom_core::Interval;
@@ -405,23 +409,42 @@ fn point_inputs_loft_as_the_lifted_f64_skin_at_interval() {
             "an arc section",
             vec![section(0.2), section(0.2)],
             vec![0.0, 1.0],
+            1,
         ),
         (
-            "three sections at v-degree 1",
-            vec![quad(1.2), quad(1.3), quad(1.2)],
-            vec![0.0, 1.0, 2.0],
+            "four sections at v-degree 2",
+            vec![quad(1.2), quad(1.3), quad(1.25), quad(1.2)],
+            vec![0.0, 1.0, 2.0, 3.0],
+            2,
         ),
     ];
-    for (what, sections, zs) in cases {
+    for (what, sections, zs, degree) in cases {
         let places: Vec<SketchPlane<f64>> = zs.iter().map(|z| at_height(*z)).collect();
-        let nominal =
-            loft_body::<f64>(&sections, &places, 1, Tol::witness()).expect("the f64 loft builds");
+        let nominal = loft_body::<f64>(&sections, &places, degree, Tol::witness())
+            .expect("the f64 loft builds");
+        if zs.len() > degree + 1 {
+            // The case's hypothesis: the body's walls carry the computed
+            // interior knot.
+            let face = nominal
+                .body
+                .get_face(nominal.side_faces[0][0][0])
+                .expect("a built face");
+            let Some(Surface::Nurbs(net)) = nominal.body.get_surface(face.surface) else {
+                panic!("{what}: a lofted wall is a NURBS surface")
+            };
+            let knots = net.knot_values_v();
+            let (lo, hi) = knots.domain();
+            assert!(
+                knots.values().iter().any(|k| *k > lo && *k < hi),
+                "{what}: the wall carries an interior v knot"
+            );
+        }
         let lifted: Vec<Vec<ProfileLoop<Interval>>> = sections.into_iter().map(lift).collect();
         let lifted_places: Vec<SketchPlane<Interval>> = zs
             .iter()
             .map(|z| at_height(Interval::from_f64(*z)))
             .collect();
-        let enclosed = loft_body::<Interval>(&lifted, &lifted_places, 1, Tol::witness())
+        let enclosed = loft_body::<Interval>(&lifted, &lifted_places, degree, Tol::witness())
             .unwrap_or_else(|e| panic!("{what}: the point loft builds at Interval: {e:?}"));
         assert_eq!(
             points(&enclosed.section_params),
@@ -537,12 +560,13 @@ fn make_compatible_at_interval_runs_the_knot_algebra_homogeneous() {
     }
 }
 
-/// The wall poles of every face a loft built, in face order, as bits of
-/// their value channel.
+/// The wall poles, weights and knots of every face a loft built, in face
+/// order, as bits of their value channel.
 fn wall_bits<T: geom_core::spline::SpanLocate>(lofted: &Lofted<T>) -> Vec<u64> {
     lofted
         .side_faces
         .iter()
+        .flatten()
         .flatten()
         .flat_map(|f| {
             let face = lofted.body.get_face(*f).expect("a built face");
@@ -556,6 +580,8 @@ fn wall_bits<T: geom_core::spline::SpanLocate>(lofted: &Lofted<T>) -> Vec<u64> {
                     .iter()
                     .flat_map(|p| [p.x, p.y, p.z])
                     .chain(n.weights().iter().copied())
+                    .chain(n.knot_values_u().values().iter().copied())
+                    .chain(n.knot_values_v().values().iter().copied())
                     .map(|x| x.value_channel().to_bits())
                     .collect::<Vec<_>>(),
                 other => panic!("a lofted wall is a NURBS surface, got {other:?}"),
@@ -614,7 +640,7 @@ fn wall_values<T: geom_core::spline::SpanLocate, R>(
     f: impl Fn(T) -> R,
 ) -> Vec<R> {
     let mut out = Vec::new();
-    for face in lofted.side_faces.iter().flatten() {
+    for face in lofted.side_faces.iter().flatten().flatten() {
         let face = lofted.body.get_face(*face).expect("a built face");
         match lofted
             .body
@@ -782,6 +808,7 @@ fn a_placement_in_t_stays_a_function_of_its_parameter() {
     let moved: Vec<[f64; 4]> = swept
         .side_faces
         .iter()
+        .flatten()
         .flatten()
         .flat_map(|f| {
             let face = swept.body.get_face(*f).expect("a built face");

@@ -2232,7 +2232,11 @@ class Node:
         (slides along and spins about the first section's own axes, in
         the order written). Order is data. The loft lies in its first
         section's coordinates. `v_degree` is a count
-        (`Formula.count`); `DocEdit.set_members` re-points the sections'
+        (`Formula.count`), and sets the faces too: at 1 through three
+        sections or more the loft is one wall per profile segment per
+        slab between two consecutive sections, each interior section a
+        ring of edges; at 2 or more one wall per segment spans every
+        section. `DocEdit.set_members` re-points the sections'
         profiles, one per section (else `loft_section_count`), and
         `DocEdit.set_loft_sections` writes them whole with their
         stations."""
@@ -3369,7 +3373,8 @@ class DocEdit:
         same kernel checks: `slot_var_kind` for a section that is not a
         profile, `slot_dimension_mismatch` for a station move of the
         wrong dimension, `loft_shape` (`fault`: `too_few_sections`,
-        `empty_station`, `degree_out_of_range`). A node that is not a
+        `empty_station`, `station_in_first_plane`,
+        `degree_out_of_range`). A node that is not a
         loft refuses `set_loft_sections_on_non_loft`."""
 
     @staticmethod
@@ -4069,8 +4074,9 @@ class Doc:
         node the document does not hold; a port the live node's
         signature does not have raises ValueError."""
     def slot(self, node: NodeId, slot: str) -> Var | None:
-        """The variable a node's slot reads, or None for a node or a
-        slot the document does not hold. Every slot reads one: a value
+        """The variable a node's slot reads, at an operand its read, or
+        None for a node or a slot the document does not hold. Every
+        slot reads one: a value
         written there is its own anonymous variable, and passing the
         handle to another slot is how two slots share it."""
     def var_name(self, var: Var) -> VarName | None:
@@ -4396,6 +4402,10 @@ class SegTag:
     CapVertex: Final[SegTag]
     LoftWall: Final[SegTag]
     LoftSeam: Final[SegTag]
+    LoftSlabWall: Final[SegTag]
+    LoftSlabSeam: Final[SegTag]
+    LoftSectionEdge: Final[SegTag]
+    LoftSectionVertex: Final[SegTag]
     Band: Final[SegTag]
     BandRim: Final[SegTag]
     BandRimPi: Final[SegTag]

@@ -328,9 +328,10 @@ pub use editor_core::{
     NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue,
     PoseValue, SplitSide, StepTurns, ValuePayload, evaluate,
 };
-// The pieces a body holds (`NodeValue::pieces`): what a `⊔` grafted,
-// each by its read, which a pick reads one of.
-pub use editor_core::{Piece, Pieces};
+// What a body value carries from its source (`NodeValue::carry`), and
+// the pieces it holds: what a `⊔` grafted, each by its read, which a
+// pick reads one of.
+pub use editor_core::{Carry, Piece, Pieces};
 
 // Persistence: the doors, verbatim.
 // `save`/`load` speak `ProfileDoc` + `DocEdit` — exactly this module's
