@@ -19,9 +19,8 @@
 //! ground and is not read here
 //! (`work/select/a-two-surface-residual-meters-a-moved-face-as-the-descriptions-miss.md`).
 //!
-//! A flat face's corner stays the exact construction's residual
-//! (`PLANAR_CORNER`): its plane is cached from those same corners, so it
-//! is read here only to be present.
+//! The planar tier reads the moved side's four corners and four edges,
+//! and every one of those findings ends as its read too.
 //!
 //! Read at `f64` and at `Interval`.
 
@@ -118,36 +117,28 @@ enum Miss {
     InBand,
 }
 
-/// The incidence reads among `errors`, each with its rendered finding:
-/// the pcurve tier's, the edge certificate's, and the planar boundary's.
-/// Asserts no pcurve row ends as its image's residual.
+/// The incidence reads among `errors` ([`ValidationError::incidence_read`],
+/// the one map), each with its rendered finding. Asserts no pcurve row
+/// ends as its image's residual.
 fn incidence_findings(what: &str, errors: &[ValidationError]) -> Vec<(IncidenceRead, String)> {
     let mut reads = Vec::new();
     for e in errors {
-        let read = match e {
-            ValidationError::Pcurve {
-                finding: PcurveMintError::Certify { error, .. },
-            } => {
-                assert!(
-                    !matches!(
-                        error,
-                        PcurveCertifyError::ResidualExceeded {
-                            check: geom_brep::PcurveCheck::MapResidual,
-                            ..
-                        }
-                    ),
-                    "{what}: a stored row ends as its image's residual: {e:?}"
-                );
-                IncidenceRead::of(error)
-            }
-            ValidationError::EdgeCertification { error, .. } => error.incidence_read(),
-            ValidationError::PlanarBoundaryResidual { .. } => Some(IncidenceRead::Off(None)),
-            ValidationError::PlanarBoundaryEscalated { cause, .. } => {
-                Some(IncidenceRead::Undecided(*cause))
-            }
-            _ => None,
-        };
-        if let Some(read) = read {
+        if let ValidationError::Pcurve {
+            finding: PcurveMintError::Certify { error, .. },
+        } = e
+        {
+            assert!(
+                !matches!(
+                    error,
+                    PcurveCertifyError::ResidualExceeded {
+                        check: geom_brep::PcurveCheck::MapResidual,
+                        ..
+                    }
+                ),
+                "{what}: a stored row ends as its image's residual: {e:?}"
+            );
+        }
+        if let Some(read) = e.incidence_read() {
             reads.push((read, e.to_string()));
         }
     }
@@ -249,17 +240,25 @@ fn check<T: Decide + AtRestPolicy + Bounds + CertifiedBounds>() {
                 }
             }
             if face == "a box's side plane" {
-                let planar = errors.iter().filter(|e| {
-                    matches!(
+                let count =
+                    |is: fn(&ValidationError) -> bool| errors.iter().filter(|e| is(e)).count();
+                assert_eq!(
+                    count(|e| matches!(
                         e,
                         ValidationError::PlanarBoundaryResidual { .. }
                             | ValidationError::PlanarBoundaryEscalated { .. }
-                    )
-                });
-                assert_eq!(
-                    planar.count(),
+                    )),
                     4,
                     "{what}: the planar tier reads each of the side's four edges"
+                );
+                assert_eq!(
+                    count(|e| matches!(
+                        e,
+                        ValidationError::PlanarFaceResidual { .. }
+                            | ValidationError::PlanarFaceEscalated { .. }
+                    )),
+                    4,
+                    "{what}: the planar tier reads each of the side's four corners"
                 );
             }
         }

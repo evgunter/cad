@@ -390,9 +390,7 @@ use core::ops::ControlFlow;
 use std::borrow::Cow;
 
 use geom::{NetState, Surface};
-use geom_brep::recourse::{
-    Reading, Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass, Unsized,
-};
+use geom_brep::recourse::{Reading, Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use geom_brep::{
     CertCheck, CertifyError, DihedralClass, MaterialPairing, MaterialWedge,
     classify_material_pairing,
@@ -2962,11 +2960,6 @@ fn own_close(margin: &geom_core::MarginDiag, lever: &'static str) -> &'static st
     if margin.is_invalid() { DEFECT } else { lever }
 }
 
-/// A flat face's corner on its plane: a residual (it passes only at zero)
-/// of a stored vertex against the plane the kernel caches from those same
-/// corners, an exact construction.
-const PLANAR_CORNER: Unsized = Unsized::Defect;
-
 /// The ring-torus convention `R − r > 0`: a size the user may intend, and
 /// the stored radii are what the lever edits.
 const RING_TORUS: SizedDecision = geom_brep::TorusConvention::Ring.sized();
@@ -4121,6 +4114,38 @@ fn classify_census_cause(cause: &CensusUnsupportedCause) -> (Cow<'static, str>, 
 // report needs. A nested refusal renders through its classifier above,
 // never whole.
 impl ValidationError {
+    /// **The incidence read this finding ends by** (D3), or `None` for a
+    /// finding of anything else: an edge's certificate or a stored row
+    /// refused by its carrier's incidence read
+    /// ([`geom_brep::IncidenceRead::of`]), and the planar tier's corner
+    /// and boundary readings of a flat face, a definite miss as `Off`
+    /// and a reading in band as `Undecided`. The one map from these
+    /// findings to their read: their `Display` ends by it, and so does
+    /// every reader that classifies them.
+    #[must_use]
+    pub fn incidence_read(&self) -> Option<geom_brep::IncidenceRead> {
+        use geom_brep::IncidenceRead;
+        match self {
+            Self::PlanarFaceResidual { .. } | Self::PlanarBoundaryResidual { .. } => {
+                Some(IncidenceRead::Off(None))
+            }
+            Self::PlanarFaceEscalated { cause, .. }
+            | Self::PlanarBoundaryEscalated { cause, .. } => Some(IncidenceRead::Undecided(*cause)),
+            Self::EdgeCertification { error, .. } => error.incidence_read(),
+            Self::Pcurve {
+                finding: crate::pcurves::PcurveMintError::Certify { error, .. },
+            } => IncidenceRead::of(error),
+            _ => None,
+        }
+    }
+
+    /// The at-rest ending of a finding [`Self::incidence_read`] reads.
+    fn incidence_ending(&self) -> String {
+        self.incidence_read()
+            .map(|read| read.ending(Reading::AtRest))
+            .unwrap_or_else(|| unreachable!("incidence_ending: a finding with no incidence read"))
+    }
+
     /// Whether this is one of tier 3's check-11 verdicts
     /// ([`ValidationError::JoinableVertexAtRest`],
     /// [`ValidationError::JoinUndecidedAtRest`]).
@@ -4254,28 +4279,28 @@ impl fmt::Display for ValidationError {
             Self::PlanarFaceResidual { .. } => write!(
                 f,
                 "a corner of a flat face lies off that face's plane. {}",
-                PLANAR_CORNER.recourse(RefusedArm::SignCertain(None), Reading::AtRest)
+                self.incidence_ending()
             ),
-            Self::PlanarFaceEscalated { cause, .. } => write!(
+            Self::PlanarFaceEscalated { .. } => write!(
                 f,
                 concat!(
                     geom_core::undecided!("whether a corner of a flat face lies on its plane"),
                     ". {}"
                 ),
-                PLANAR_CORNER.recourse(RefusedArm::Undecided(cause), Reading::AtRest)
+                self.incidence_ending()
             ),
             Self::PlanarBoundaryResidual { .. } => write!(
                 f,
                 "an edge of a flat face leaves that face's plane between its ends. {}",
-                geom_brep::IncidenceRead::Off(None).ending(Reading::AtRest)
+                self.incidence_ending()
             ),
-            Self::PlanarBoundaryEscalated { cause, .. } => write!(
+            Self::PlanarBoundaryEscalated { .. } => write!(
                 f,
                 concat!(
                     geom_core::undecided!("whether an edge of a flat face stays on its plane"),
                     ". {}"
                 ),
-                geom_brep::IncidenceRead::Undecided(*cause).ending(Reading::AtRest)
+                self.incidence_ending()
             ),
             Self::SliverDihedral { check, cause, .. } => {
                 write!(f, "{}. {}", check.lead(), check.ending(cause))
@@ -12710,7 +12735,9 @@ mod tests {
                     vertex,
                     cause: in_band,
                 },
-                DEFECT.to_owned(),
+                "Recourse: the edge's curve is not shown on the face it bounds at this \
+                 tolerance: move the geometry so it lies clearly on that face"
+                    .to_owned(),
             ),
             (
                 "corner off its plane",
