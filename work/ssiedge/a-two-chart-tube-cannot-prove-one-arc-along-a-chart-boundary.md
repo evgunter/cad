@@ -57,6 +57,15 @@ of both. Options include proving over uncut boxes against the charts'
 own extension, or reading a domain face that holds the carrier as a
 face the arc runs along rather than one it crosses. Either way the
 section's accounting has to bank the same region the proof reads.
+A question, not a fix (SPLICE orchestrator): when the arc is a shared
+boundary row of both charts, is limb 3's one-arc question answerable
+from that structure rather than from a box search? C5's "topology
+decides first" rung is the echo. Each chart's certified `IsoArc` image
+already states that the carrier is that chart's boundary row over the
+edge's span. Unasked: whether that, with the two charts' transversality
+along it, is enough to show that no other arc of the pair's locus lies in
+the tube's region.
+
 Until then every rim between two spline walls that is a boundary row
 of either refuses at limb 3. That covers every loft or sweep body grafted
 on another at a shared section.
