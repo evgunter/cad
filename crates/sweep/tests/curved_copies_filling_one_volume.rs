@@ -715,3 +715,171 @@ fn pins_stacked_end_to_end_reach_no_witness_search() {
         "coincident copies' walls reach the search and are found: {copies:?}"
     );
 }
+
+/// **Copies that overlap on one carrier are never read clear, and copies
+/// that only abut are never read as interference** (the review's probes,
+/// ported). Each overlapping pair below shares material, so the census
+/// reports an interference or leaves the pair uncleared: wedges and
+/// lunes straddling a seam or a joint, reflex pieces against each other,
+/// a half-height wedge sharing part of a ruling, a hemisphere against a
+/// lune across the equator, a cut ball against a hemisphere, a rod
+/// inside a tube's wall, a tube over a tube by half, and pins or half
+/// pins overlapping by `1000·ε`. Each abutting pair shares only
+/// boundary: a rod in a tube or inside its hole, pins stacked or
+/// overlapping by less than the band, half pins stacked and spun, half
+/// cylinders side by side, a reflex wedge and its complement. Red if a
+/// flush or apart reading hides an overlap, or reads an abutment as one.
+#[test]
+fn overlaps_are_never_read_clear_and_abutments_never_interfere() {
+    let eps = Tol::witness().eps();
+    let full = Revolution::Full;
+    let half = Revolution::Partial(PI);
+    let quarter = Revolution::Partial(FRAC_PI_2);
+    let reflex = Revolution::Partial(1.5 * PI);
+    let rest = |b: &Body<f64>, at| placed(b, spun(at));
+    let lift = |b: &Body<f64>, dy: f64, at: f64| {
+        placed(b, moved(Vec3::new(0.0, dy, 0.0)).compose(spun(at)).unwrap())
+    };
+    let (pin, tube) = (cylinder(1.0, full), rect(0.5, 1.0, 0.0, 1.0, full));
+    let overlapping = [
+        (
+            "quarter wedge over the seam",
+            two(
+                &rest(&pin, 0.0),
+                &rest(&cylinder(1.0, quarter), -FRAC_PI_2 / 2.0),
+            ),
+        ),
+        (
+            "quarter wedge over the joint",
+            two(
+                &rest(&pin, 0.0),
+                &rest(&cylinder(1.0, quarter), PI - FRAC_PI_2 / 2.0),
+            ),
+        ),
+        (
+            "reflex wedges a half turn apart",
+            two(
+                &rest(&cylinder(1.0, reflex), 0.0),
+                &rest(&cylinder(1.0, reflex), PI),
+            ),
+        ),
+        (
+            "a quarter inside a reflex wedge",
+            two(
+                &rest(&cylinder(1.0, reflex), 0.0),
+                &rest(&cylinder(1.0, quarter), 0.5),
+            ),
+        ),
+        (
+            "half-height wedge on a ruling",
+            two(
+                &rest(&cylinder(1.0, half), 0.0),
+                &rest(&cylinder(0.5, quarter), 0.0),
+            ),
+        ),
+        (
+            "reflex lune and a half lune",
+            two(&rest(&lune(reflex), 0.0), &rest(&lune(half), PI)),
+        ),
+        (
+            "reflex lunes a half turn apart",
+            two(&rest(&lune(reflex), 0.0), &rest(&lune(reflex), PI)),
+        ),
+        (
+            "hemisphere and a lune",
+            two(&rest(&hemisphere(true), 0.0), &rest(&lune(quarter), 0.4)),
+        ),
+        (
+            "cut ball and a hemisphere",
+            two(&rest(&cut_ball(), 0.0), &rest(&hemisphere(false), 0.7)),
+        ),
+        (
+            "a rod in a tube's wall",
+            two(
+                &rest(&pin, 0.0),
+                &rest(&rect(1.0, 2.0, 0.0, 1.0, full), 0.7),
+            ),
+        ),
+        (
+            "a tube over a tube by half",
+            two(&rest(&tube, 0.0), &lift(&tube, 0.5, 0.3)),
+        ),
+        (
+            "pins over by 1000 eps",
+            two(&rest(&pin, 0.0), &lift(&pin, 1.0 - 1000.0 * eps, 0.3)),
+        ),
+        (
+            "half pins over by 1000 eps",
+            two(
+                &rest(&cylinder(1.0, half), 0.0),
+                &lift(&cylinder(1.0, half), 1.0 - 1000.0 * eps, 0.0),
+            ),
+        ),
+    ];
+    for (label, body) in &overlapping {
+        let (recorded, _) = at_rest(body);
+        let held = recorded
+            .findings
+            .iter()
+            .any(|f| topo::census_uncleared_solids(body, f).is_some());
+        assert!(
+            held,
+            "{label}: an overlap is never clear: {:?}",
+            recorded.findings
+        );
+    }
+    let abutting = [
+        (
+            "rod in a tube",
+            two(
+                &rest(&pin, 0.0),
+                &rest(&rect(1.0, 2.0, 0.0, 1.0, full), 0.7),
+            ),
+        ),
+        (
+            "rod in a tube's hole",
+            two(
+                &rest(&rect(0.0, 0.5, 0.0, 1.0, full), 0.0),
+                &rest(&rect(1.0, 2.0, 0.0, 1.0, full), 0.7),
+            ),
+        ),
+        ("pins stacked", two(&rest(&pin, 0.0), &lift(&pin, 1.0, 0.3))),
+        (
+            "pins over by 0.5 eps",
+            two(&rest(&pin, 0.0), &lift(&pin, 1.0 - 0.5 * eps, 0.3)),
+        ),
+        (
+            "pins over by 3 eps",
+            two(&rest(&pin, 0.0), &lift(&pin, 1.0 - 3.0 * eps, 0.3)),
+        ),
+        (
+            "half pins stacked, spun",
+            two(
+                &rest(&cylinder(1.0, half), 0.0),
+                &lift(&cylinder(1.0, half), 1.0, 1.0),
+            ),
+        ),
+        (
+            "half cylinders side by side",
+            two(
+                &rest(&cylinder(1.0, half), 0.0),
+                &rest(&cylinder(1.0, half), PI),
+            ),
+        ),
+        (
+            "reflex wedge and complement",
+            two(
+                &rest(&cylinder(1.0, reflex), 0.0),
+                &rest(&cylinder(1.0, quarter), 1.5 * PI),
+            ),
+        ),
+    ];
+    for (label, body) in &abutting {
+        let (recorded, _) = at_rest(body);
+        assert!(
+            interference(body, &recorded.findings).is_empty(),
+            "{label}: an abutment is no interference: {:?}",
+            recorded.findings
+        );
+    }
+}

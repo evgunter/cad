@@ -581,7 +581,8 @@ pub struct CensusTrace {
     pub backstop: SweepPairs,
     /// The curved aligned arm's pairs (`curved_same_side_pairs`): those
     /// that reached the faces' reading, accepted where their interiors
-    /// meet.
+    /// meet. A pair it certifies apart is examined and not accepted, and
+    /// a cylinder pair apart by its axial spans alone is neither.
     /// Not among `CensusTrace::sweeps`, which the differential suites
     /// walk: it counts what the arm costs, not a candidate set they pin.
     pub aligned: SweepPairs,
@@ -10794,11 +10795,7 @@ fn shared_interior_witness<T: Decide>(
             false
         }
     };
-    let edges = |f| {
-        crate::boolean::solid_contain::face_edges(body, f)
-            .map(|edges| edges.into_iter().map(|e| e.edge).collect::<BTreeSet<_>>())
-            .unwrap_or_default()
-    };
+    let edges = |f| edge_set(body, f).unwrap_or_default();
     let (edges_a, edges_b) = (edges(fa), edges(fb));
     for (x, y, edges) in [(fa, fb, &edges_a), (fb, fa, &edges_b)] {
         let corners = face_vertices(body, x)
@@ -10843,45 +10840,45 @@ fn shared_interior_witness<T: Decide>(
 }
 
 /// **Whether two faces on one carrier, facing the same way, share
-/// interior**, for faces whose boundaries carry
-/// arcs or lie on a curved carrier (Door 1 decided the carrier Zero,
-/// `SameOriented`). Each edge of either face is cut at every meeting
-/// with the other face's boundary: each point meeting with each of its
-/// edges ([`geom_brep::curve_pair::meet`], which returns the spans'
-/// complete set of point meetings and shared runs, or refuses), and
-/// each of its vertices that reads on the edge, which cuts a shared run
-/// at its ends. The midpoint of each piece is placed in the other face
-/// ([`meets_at`]): inside, or on its boundary with the two cones sharing
-/// material, is a meeting (`Ok(true)`).
+/// interior**, for faces whose boundaries carry arcs or lie on a curved
+/// carrier (Door 1 decided the carrier Zero, `SameOriented`). Each edge
+/// of either face is cut at its own ends, at each point meeting with
+/// each edge of the other face ([`geom_brep::curve_pair::meet`], which
+/// returns two spans' complete set of point meetings and shared runs, or
+/// refuses), at the ends of each shared run (the ends of either span
+/// that lie on the other, read with the run), and at each of the other
+/// face's vertices that reads on it. The midpoint of each piece is
+/// placed in the other face ([`meets_at`]): inside, or on its boundary
+/// with the two cones sharing material, is a meeting (`Ok(true)`).
 ///
 /// **Why no meeting found is a certificate (`Ok(false)`).** Write `R`
 /// for the two interiors' intersection, open on the carrier. A piece
 /// meets the other face's boundary nowhere but along a shared run, and
 /// it is connected, so off a run it lies wholly inside the other face
-/// or wholly out of it, and its midpoint says which. With no piece
-/// inside, each face's boundary misses the other's interior: its points
-/// are pieces held out or on a run, and the meetings, which lie on the
-/// other boundary. So a point of `A`'s interior in the closure of `R`
-/// is in `B`, and not on `B`'s boundary, so in `R`: `R` is closed in
-/// each interior as well as open, a union of components of each. A
-/// component `C` of `A`'s interior inside `R` is then a component of
-/// `B`'s as well. Unless it is the whole carrier, its frontier is a
-/// curve on both boundaries. The point meetings are finite, so the
-/// frontier runs along a shared run, where both faces hold `C` on one
-/// side: a piece there places on the run with the cones sharing
-/// material. So with no piece inside and every run's cones apart, `R` is
-/// empty. No face is assumed connected. A seam lies inside its own face,
-/// so its pieces are only further probes.
+/// or wholly out of it, and its midpoint says which; a piece whose
+/// midpoint the band cannot part from an end (`pm_census_arc_piece`) is
+/// that end's point, read Zero, and one in the escalation gap leaves the
+/// pair unread. With no piece inside, each face's boundary misses the
+/// other's interior: its points are pieces held out or on a run, and
+/// the cuts, which are meetings on the other boundary or the edge's own
+/// ends (themselves on pieces' closures). So a point of `A`'s interior in
+/// the closure of `R` is in `B`, and not on `B`'s boundary, so in `R`:
+/// `R` is closed in each interior as well as open, a union of components
+/// of each. A component `C` of `A`'s interior inside `R` is then a
+/// component of `B`'s as well. Unless it is the carrier less finitely
+/// many points, its frontier is a curve on both boundaries; the point
+/// meetings are finite, so the frontier runs along a shared run, where
+/// both faces hold `C` on one side and a piece there places on the run
+/// with the cones sharing material. No face is assumed connected. A seam
+/// lies inside its own face, so its pieces are only further probes.
 ///
 /// A tangent meeting is a cut like any other, and the pieces on either
-/// side of it are read at their midpoints, a finite distance from it.
-/// Two meetings the reader cannot part by more than the band refuse
-/// ([`geom_brep::curve_pair::meet`]'s stretches), and a piece lying
-/// within the band of the other's boundary along its length places in
-/// the band: either is unread, never `Ok(false)`. Two crossings the
-/// reader merges into one touch, their lens within the band's zero,
-/// are that touch here too: the certificate inherits the reader's
-/// merge, and certifies interiors apart only up to that zero.
+/// side of it are read at their midpoints. Two meetings the reader
+/// cannot part by more than the band refuse (`meet`'s stretches), and a
+/// piece within the band of the other's boundary along its length
+/// places in the band: either is unread. Two crossings the reader merges
+/// into one touch, their lens within the band's zero, are that touch
+/// here too: the certificate holds up to that zero.
 ///
 /// Unread: [`InteriorsUnread::Undecided`] where a reading escalated, and
 /// [`InteriorsUnread::Unbuilt`] where an edge is not read, the meeting
@@ -10902,11 +10899,7 @@ fn arc_interiors_meet<T: Decide>(
         }
     };
     let spans = |f| -> Result<Vec<_>, InteriorsUnread> {
-        let edges = crate::boolean::solid_contain::face_edges(body, f)
-            .map_err(|_| InteriorsUnread::Unbuilt)?
-            .into_iter()
-            .map(|e| e.edge)
-            .collect::<BTreeSet<_>>();
+        let edges = edge_set(body, f).ok_or(InteriorsUnread::Unbuilt)?;
         if edges.is_empty() {
             return Err(InteriorsUnread::Unbuilt);
         }
@@ -10932,6 +10925,20 @@ fn arc_interiors_meet<T: Decide>(
                     for m in &met.points {
                         cuts_a[i].push(x.at(m.on_a));
                         cuts_b[j].push(y.at(m.on_b));
+                    }
+                    if met.shared.is_some() {
+                        // A shared run's ends are the ends of either span
+                        // that lie on the other: each is a cut.
+                        for (on, from, cuts) in [(&x, &y, &mut cuts_a[i]), (&y, &x, &mut cuts_b[j])]
+                        {
+                            for (end, near) in run_ends(on, from) {
+                                match on.contact(end, near, band) {
+                                    Ok(Some(hit)) => cuts.push(on.at(hit)),
+                                    Ok(None) => {}
+                                    Err(_) => note(InteriorsUnread::Undecided, &mut unread),
+                                }
+                            }
+                        }
                     }
                 }
                 Err(refusal) => note(
@@ -10997,6 +11004,20 @@ fn arc_interiors_meet<T: Decide>(
         }
     }
     unread.map_or(Ok(false), Err)
+}
+
+/// The points of `from`'s ends, each with `on`'s middle parameter to
+/// seed its foot there; none for a span with no ends.
+fn run_ends<T: Decide>(on: &CarrierSpan<'_, T>, from: &CarrierSpan<'_, T>) -> Vec<(Point3<T>, T)> {
+    use geom_brep::curve_pair::SpanEnd;
+    if !from.ended() {
+        return Vec::new();
+    }
+    let (t0, t1) = on.params();
+    let near = geom::mid_param(t0, t1);
+    [SpanEnd::Start, SpanEnd::Stop]
+        .map(|end| (from.carrier().eval(from.end(end)), near))
+        .to_vec()
 }
 
 /// **`cuts` put in order along `curve`** ([`arc_interiors_meet`]), each
@@ -20486,6 +20507,101 @@ mod arc_interiors {
                     assert_eq!(faces, Ok(true), "{at}: known, the witness search");
                 }
             }
+        }
+    }
+
+    /// Two pieces, each its own lamina, read both ways by both readings.
+    fn pair(
+        a: (Point3<f64>, f64, (f64, f64)),
+        b: (Point3<f64>, f64, (f64, f64)),
+    ) -> [Result<bool, InteriorsUnread>; 4] {
+        let mut body = Body::<f64>::new();
+        let fa = add_piece(&mut body, a.0, a.1, a.2);
+        let fb = add_piece(&mut body, b.0, b.1, b.2);
+        let geo = snapshot(&body);
+        [
+            face_interiors_meet(&body, &geo, fa, fb, band()),
+            arc_interiors_meet(&body, &geo, fa, fb, band()),
+            face_interiors_meet(&body, &geo, fb, fa, band()),
+            arc_interiors_meet(&body, &geo, fb, fa, band()),
+        ]
+    }
+
+    /// **Pieces of one circle that overlap read as a meeting, and pieces
+    /// that only abut read apart**, either order and by either reading
+    /// (the review's probes): identical halves, a reflex piece against a
+    /// half or a turned reflex piece, a half against a quarter or an
+    /// inner sub-run of its own arc and the reverse, pieces straddling a
+    /// vertex, a small circle's nearly full disc inside a half, and a
+    /// nearly full disc against a half; against a reflex piece and its
+    /// complement and two quarters sharing an end. Red if a shared run,
+    /// a run inside another or a vertex on a run hides an overlap.
+    #[test]
+    fn overlapping_pieces_meet_and_abutting_pieces_are_apart() {
+        let (c, _, _, v) = frame();
+        for (label, a, b, meet) in [
+            (
+                "identical halves",
+                (c, 1.0, (0.0, PI)),
+                (c, 1.0, (0.0, PI)),
+                true,
+            ),
+            (
+                "reflex and half",
+                (c, 1.0, (0.0, 1.5 * PI)),
+                (c, 1.0, (PI, 2.0 * PI)),
+                true,
+            ),
+            (
+                "reflex and reflex turned",
+                (c, 1.0, (0.0, 1.5 * PI)),
+                (c, 1.0, (PI, 2.5 * PI)),
+                true,
+            ),
+            (
+                "half and quarter",
+                (c, 1.0, (0.0, PI)),
+                (c, 1.0, (0.0, 0.5 * PI)),
+                true,
+            ),
+            (
+                "half and inner run",
+                (c, 1.0, (0.0, PI)),
+                (c, 1.0, (0.25 * PI, 0.75 * PI)),
+                true,
+            ),
+            (
+                "straddling a vertex",
+                (c, 1.0, (0.0, PI)),
+                (c, 1.0, (-0.25 * PI, 0.25 * PI)),
+                true,
+            ),
+            (
+                "small disc inside",
+                (c, 1.0, (0.0, PI)),
+                (c + v * 0.5, 0.3, (0.0, 2.0 * PI - 0.01)),
+                true,
+            ),
+            (
+                "nearly full and half",
+                (c, 1.0, (0.0, 2.0 * PI - 0.01)),
+                (c, 1.0, (PI, 2.0 * PI)),
+                true,
+            ),
+            (
+                "reflex and complement",
+                (c, 1.0, (0.0, 1.5 * PI)),
+                (c, 1.0, (1.5 * PI, 2.0 * PI)),
+                false,
+            ),
+            (
+                "quarters sharing an end",
+                (c, 1.0, (0.0, 0.5 * PI)),
+                (c, 1.0, (0.5 * PI, PI)),
+                false,
+            ),
+        ] {
+            assert_eq!(pair(a, b), [Ok(meet); 4], "{label}");
         }
     }
 
