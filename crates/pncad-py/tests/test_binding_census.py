@@ -613,7 +613,7 @@ BOUND_AS = {
     "PlaneRelation": "Coincidence.relation",
     "Unreplayed": "Coincidence.residual",
     # A finding's subject crosses as its three attributes, each `None`
-    # for the arm it is not: `root` and `output_ix`, or `node`.
+    # for the arm it is not: `placement` and `output_ix`, or `node`.
     "FindingSubject": "CheckFinding.node",
     # The door's module: its one question, asked of a node, is
     # `Evaluation.coincidences`.
@@ -734,15 +734,16 @@ BOUND_AS = {
     # `PartFault`'s arms and the `ResolveFault` classification inside
     # them cross as `EvaluationError.kind` tags — `part_no_resolver`,
     # `part_pin_mismatch`, `part_epsilon_seam`, `part_unresolved`,
-    # `part_root_failed`, `part_root_poisoned`,
-    # `part_root_failure_unrecorded`, `part_product`,
+    # `part_product_failed`, `part_product_poisoned`,
+    # `part_product_failure_unrecorded`, `part_product`,
     # `part_reference_cycle`, `part_depth_exceeded`, `part_not_entered` —
     # the same flattening `NodeErrorKind` gets above. They left the
     # `gap` roster at LIB-G18a, when the resolver parameter made them
     # reachable: the tags existed before it, and `part_no_resolver` was
     # the only one an evaluation could produce. The refusal a failed
-    # part root, or a poisoned root's failed ancestor, CARRIES crosses
-    # as the exception's `__cause__`, an `EvaluationError` of its own.
+    # node a part's product reads, or a poisoned one's failed
+    # ancestor, CARRIES crosses as the exception's `__cause__`, an
+    # `EvaluationError` of its own.
     "PartFault": "EvaluationError.kind",
     "PartResolver": "Workspace",
     # The read-back doors, which hang off the evaluation because a
@@ -1371,9 +1372,9 @@ BOUND_AS = {
     "PlacementRuleFault": "EditError.variant",
     "ProductReadFault": "EditError.inner_variant",
     "Pick": "PickRead",
-    # What a `RootInvalid` refusal lists, one per failing source body;
-    # the arm crosses as its tag word, its first failing root as
-    # `node`, and every root, output and finding in its message.
+    # What a `PieceInvalid` refusal lists, one per failing source body;
+    # the arm crosses as its tag word, its first failing piece as
+    # `node`, and every piece, output and finding in its message.
     "SourceFinding": "ProductError.node",
     "RAD": "rad",
     "RecipeNodeId": "NodeId",
@@ -3214,11 +3215,13 @@ NOT_BOUND = {
     # top-level under rule 1. One verb, two refusals, and the lane
     # decides which of them a Python caller can ever see.
     "ClearanceRefusal": SHAPE,
-    # Its `Budget` and `Selection` payloads, curated beside it so a
-    # Rust consumer can read the arm it matched. They cross exactly as
-    # their carrier does — inside the one tag — and no `f64` evaluation
-    # reaches them for the same reason.
+    # Its `Engine` and `Selection` payloads, and the engine's `Budget`
+    # payload below them, curated beside it so a Rust consumer can read
+    # the arm it matched. They cross exactly as their carrier does —
+    # inside the one tag — and no `f64` evaluation reaches them for the
+    # same reason.
     "CellBudget": SHAPE,
+    "EngineRefusal": SHAPE,
     "SelectionRefusal": SHAPE,
     # B-FACE-FRAME IS GONE FROM THIS ROSTER, closed at
     # LIB-B-FACE-FRAME, and the id left `FAMILIES` with it. It cited
@@ -3563,9 +3566,9 @@ MEMBERS_BOUND_AS = {
     "InterferenceFinding::overlap": ("InterferenceFinding.faces", "InterferenceFinding.unlocalized"),
     "InterferenceFinding::quiet": "InterferenceFinding.quiet_by",
     # --- a one-of subject spelled as its arms' attributes ---------
-    # A finding is about one root output or one node; Python reads the
+    # A finding is about one placement output or one node; Python reads the
     # subject as three attributes, `None` for the arm it is not.
-    "CheckFinding::subject": ("CheckFinding.root", "CheckFinding.output_ix", "CheckFinding.node"),
+    "CheckFinding::subject": ("CheckFinding.placement", "CheckFinding.output_ix", "CheckFinding.node"),
     # --- a continuous arm spelled per dimension -------------------
     # A continuous free variable or value carries its dimension; Python
     # builds one per dimension, so the arm is the three constructors.
@@ -3615,7 +3618,7 @@ MEMBERS_BOUND_AS = {
     "CheckEvidence::ChartCoherenceUnexamined": "CheckEvidence.variant",
     "CheckEvidence::ChartCoherenceUnavailable": "CheckEvidence.variant",
     "CheckEvidence::UnprovenCoincidence": "CheckEvidence.variant",
-    "ChecksError::Root": "ChecksError.variant",
+    "ChecksError::Placement": "ChecksError.variant",
     "ChecksError::Band": "ChecksError.variant",
     "ChecksError::EvaluationOfAnotherDocument": "ChecksError.variant",
     "ChecksError::Product": "ChecksError.variant",
@@ -3862,12 +3865,11 @@ MEMBERS_BOUND_AS = {
     "PersistError::ToleranceConflict": "PersistError.variant",
     "PersistError::ToleranceInvalid": "PersistError.variant",
     "ProductError::EvaluationOfAnotherDocument": "ProductError.variant",
-    "ProductError::Root": "ProductError.variant",
     "ProductError::EmptyProduct": "ProductError.variant",
     "ProductError::StrandedProduct": "ProductError.variant",
     "ProductError::ProductOutsideWorld": "ProductError.variant",
     "ProductError::Graft": "ProductError.variant",
-    "ProductError::RootInvalid": "ProductError.variant",
+    "ProductError::PieceInvalid": "ProductError.variant",
     "ProductError::ProductInvalid": "ProductError.variant",
     "ProductError::ContactLineage": "ProductError.variant",
     "ProductError::Frame": "ProductError.variant",
@@ -4181,6 +4183,12 @@ ARMS_SPELLED_BY_A_PROPERTY = {
     "CheckEvidence::CarriedCoincidence": "CheckEvidence.carried_coincidence",
     "CheckEvidence::AtRest": "CheckEvidence.at_rest",
     "AtRestEvidence::Carried": "AtRestEvidence.carried",
+    # A FIELD getter that shares the arm's word by accident: `read` is
+    # the slot's read a stranded or outside-world refusal carries. The
+    # `Read` arm itself crosses as the tag word (`variant ==
+    # "read_failed"`, `"read_poisoned"`, `"unknown_node"`), with its
+    # node as `node`.
+    "ProductError::Read": "ProductError.read",
 }
 
 #: Members with no Python spelling at all, by family — `NOT_BOUND`'s three
