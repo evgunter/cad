@@ -3018,13 +3018,13 @@ impl DocSession {
         let origin = nominals(doc, what, origin, Dimension::Length)?;
         let direction = nominals(doc, what, direction, Dimension::Scalar)?;
         let at = frame_along(origin, direction, what, self.tol)?;
-        let root = crate::world::read_output(doc, body)
+        let construction = crate::world::read_output(doc, body)
             .filter(|&(node, _)| matches!(doc.node(node), Some(Node::Place { .. })))
             .and_then(|(node, _)| {
                 crate::world::construction_of_space(doc, node).filter(|&r| r != node)
             })
-            .map(|root| body_of(doc, root));
-        let body = root.as_ref().unwrap_or(body);
+            .map(|construction| body_of(doc, construction));
+        let body = construction.as_ref().unwrap_or(body);
         // `frame_off` takes a placed copy's frame in the copy's own
         // coordinates and carries it by the copy's motion; the numbers
         // are in its space's, so they are carried back first.
@@ -3478,7 +3478,7 @@ impl DocSession {
 
     /// **The one door an edit enters the document through**: apply,
     /// record, re-evaluate — and reconcile the display state against
-    /// what the document alone says: a free-move frame whose root is
+    /// what the document alone says: a free-move frame whose space is
     /// gone is discarded (see `display`'s module docs for why discard
     /// and not zero), and a hide the picture can no longer honour is
     /// dropped, each reported on the outcome with the fault that caused

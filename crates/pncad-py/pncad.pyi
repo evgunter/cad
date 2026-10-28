@@ -246,9 +246,10 @@ class EvaluationError(PncadError):
     rather than a fault — which split half, which entity kind — is a
     different question and is not this attribute's.
 
-    A refusal that CARRIES another node's refusal — `part_root_failed`,
-    a part whose world placement failed, `part_root_poisoned`, a part
-    whose world placement never ran because a node upstream of it failed,
+    A refusal that CARRIES another node's refusal — `part_product_failed`,
+    a part whose product reads a node that failed, `part_product_poisoned`,
+    a part whose product reads a node that never ran because a node
+    upstream of it failed,
     and `mate_side_unevaluated`, a mate whose pose did not evaluate —
     names the node that failed and points at it, and
     never quotes it. The carried refusal is `__cause__`: an
@@ -911,13 +912,13 @@ class NodePickError(PncadError):
 class ChecksError(PncadError):
     """The advisory-check registry could not RUN.
 
-    `variant` is `root_without_value` (a placement produced no value in
+    `variant` is `placement_without_value` (a placement produced no value in
     this evaluation — checks are defined over copies that evaluated, and
     a report over a partial one would claim more than was checked),
     `band` (the tolerance forms no band), `evaluation_of_another
     _document` (the evaluation is not an evaluation of this document —
     DI3, refused before any check runs) or `product_unavailable` (the
-    placements gather into no product, so the registry has no subject
+    document's product did not gather, so the registry has no subject
     for a check that reads one). `node` names the placement on the first arm and
     is `None` on the others. Its message names each node as the
     evaluation's own document holds it, the gather's included.
@@ -936,7 +937,7 @@ class CheckRefusal(PncadError):
     caller did not ask to be refused on — no resident defaults to
     `Error`, a finding an assertion quiets never refuses, and nor does
     one the at-rest check could not look at. `findings` is every
-    refusing finding, in report order, and the message speaks each root
+    refusing finding, in report order, and the message speaks each placement
     from the document the checks ran over."""
 
     findings: list[CheckFinding]
@@ -6650,7 +6651,7 @@ class ChecksConfig:
     ambient state, nothing persisted.
 
     `expected_components` is the connectedness resident's
-    acknowledgment record — `(root, output_ix, expected)` triples,
+    acknowledgment record — `(placement, output_ix, expected)` triples,
     keyed by the same pair a finding is attributed to. A list, not a
     dict, because a node/index pair is not a Python key (the
     `SplitOutcome.node_map` spelling); a subject stated twice is
@@ -6834,7 +6835,7 @@ class Coincidence:
 
 class CheckFinding:
     """One finding of one check on one subject: a copy a placement
-    defines, attributed as `(root, output_ix)` with `root` the placement,
+    defines, attributed as `(placement, output_ix)`,
     a node of the document (`node`) — the node that decided an unproven
     coincidence — two copies the at-rest census found touching with no
     mate between them (`copies`), or the body a census at rest was
@@ -6845,7 +6846,7 @@ class CheckFinding:
     A REPORT about geometry, not a verdict on the program: holding one
     changes nothing. `subject_body` resolves the attribution back to
     the body it names; `str()` renders it the way the library renders
-    a finding, recourse included, each root spoken (kind, label and
+    a finding, recourse included, each placement spoken (kind, label and
     tag) from the document the checks ran over — the one the
     evaluation is of. `repr()` keeps the full id. Two findings are
     equal when they are the same finding over the same document;
@@ -6854,16 +6855,16 @@ class CheckFinding:
     @property
     def check(self) -> CheckId: ...
     @property
-    def root(self) -> NodeId | None:
-        """The root whose value carries the subject body; `None` for
+    def placement(self) -> NodeId | None:
+        """The placement whose value carries the subject body; `None` for
         any other subject."""
     @property
     def output_ix(self) -> int | None:
-        """Which output body of that root; `None` for any other
+        """Which output body of that placement's value; `None` for any other
         subject."""
     @property
     def node(self) -> NodeId | None:
-        """The node the finding is about, root or not; `None` for any
+        """The node the finding is about, placement or not; `None` for any
         other subject."""
     @property
     def census(self) -> Var | None:
@@ -6894,7 +6895,7 @@ class ChecksReport:
     `skipped` is why this is a report and not a list — "checked and
     fine" and "not checked" are different answers, and an empty
     `findings` read without `skipped` confuses them. `len(report)`
-    counts findings. `str()` speaks each root from the document the
+    counts findings. `str()` speaks each placement from the document the
     checks ran over, the one the evaluation is of: a label set after
     `evaluate` shows on the next evaluation's report, not this one's.
     Two reports are equal when they hold the same findings and skips
@@ -6926,11 +6927,11 @@ def run_checks(
 
     `evaluation` must be an evaluation OF `doc` that ran to completion:
     subjects are the copies the document's placements define, so a
-    placement that failed or was poisoned refuses `root_without_value`
+    placement that failed or was poisoned refuses `placement_without_value`
     rather than reporting over a partial evaluation.
 
     Expectations are TWO-DIRECTIONAL — an `expected_components` entry
-    no subject consumed (a vanished body, a dead root, a mistyped key)
+    no subject consumed (a vanished body, a dead placement, a mistyped key)
     comes back as a `stale_expectation` finding, because a stale
     acknowledgment must not read as "checked and fine".
 
@@ -6954,13 +6955,13 @@ def enforce_checks(
     in report order."""
 
 def subject_body(
-    evaluation: Evaluation, root: NodeId, output_ix: int
+    evaluation: Evaluation, placement: NodeId, output_ix: int
 ) -> Optional[Body]:
     """The body a finding's attribution names, in this evaluation.
 
     Walks the same enumeration `run_checks` does, so a finding
     produced from this evaluation always resolves. `None` where the
-    root has no value, denotes no body, or has no output at that index
+    placement has no value, denotes no body, or has no output at that index
     — exactly the attributions a `stale_expectation` finding names,
     which is what makes that `None` an answer and not a failure.
 

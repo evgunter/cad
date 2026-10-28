@@ -2,7 +2,7 @@
 //! passes through.**
 //!
 //! `names::verbatim_edge` is the one statement of N1's pass-through set
-//! that the product's two-roots check and the mate member walk follow.
+//! that the recipe walks (refactor, coincidence, the mate member walk) follow.
 //! What actually passes names through is the evaluator's decision
 //! (`eval::wire`), and the compiler holds nothing between the two: a
 //! node whose evaluation hands its input's names on unchanged compiles
