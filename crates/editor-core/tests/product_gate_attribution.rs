@@ -181,7 +181,7 @@ fn in_every_assemble(ev: &mut Evaluation<f64>, was: &Arc<Body<f64>>, now: &Arc<B
         let NodeResult::Ok(value) = result else {
             continue;
         };
-        let Some(pieces) = value.pieces.as_mut() else {
+        let Some(pieces) = value.carry.pieces.as_mut() else {
             continue;
         };
         for piece in &mut Arc::make_mut(pieces).pieces {
@@ -192,11 +192,12 @@ fn in_every_assemble(ev: &mut Evaluation<f64>, was: &Arc<Body<f64>>, now: &Arc<B
             }
         }
         if value
+            .carry
             .census
             .as_ref()
             .is_some_and(|census| census.node == id)
         {
-            value.census = Some(Arc::new(editor_core::product::Census::new(
+            value.carry.census = Some(Arc::new(editor_core::product::Census::new(
                 id,
                 Arc::clone(pieces),
             )));

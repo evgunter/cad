@@ -1737,7 +1737,7 @@ pub(crate) fn carried_coincidences<T: Decide>(
 ) -> Vec<at_rest::CarriedCoincidenceRows> {
     let mut rows = Vec::new();
     for value in ev.order.iter().filter_map(|&node| ev.value(node)) {
-        at_rest::once_per_part_row(&mut rows, value.carried.coincidences.iter().cloned());
+        at_rest::once_per_part_row(&mut rows, value.carry.findings.coincidences.iter().cloned());
     }
     rows
 }
@@ -2114,7 +2114,7 @@ fn at_rest<P: crate::ProfilePayload, T: at_rest::LocalizeLane>(
 ///
 /// The two halves travel TOGETHER because a body without its
 /// declarations is a different subject from the one the check flagged.
-/// A record set has two homes — [`crate::eval::NodeValue::contacts`]
+/// A record set has two homes — [`crate::Carry::contacts`]
 /// for an instantiate's carried D-1 declarations, `BooleanValue::
 /// contacts` for a boolean's own — and reconciling those two is
 /// precisely what [`product::sources_of`] exists to do; it builds the

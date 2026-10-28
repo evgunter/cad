@@ -816,6 +816,8 @@ mod intent_loft_set_sections;
 mod intent_part_census_seam;
 #[path = "intent_part_split_half.rs"]
 mod intent_part_split_half;
+#[path = "intent_placement_carries_at_rest.rs"]
+mod intent_placement_carries_at_rest;
 #[path = "intent_s2_a_outputs.rs"]
 mod intent_s2_a_outputs;
 #[path = "intent_s2_b_reads.rs"]

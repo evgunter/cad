@@ -329,7 +329,7 @@ pub use editor_core::{
     NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue,
     PoseValue, SplitSide, StepTurns, ValuePayload, evaluate,
 };
-// The pieces a body holds (`NodeValue::pieces`): what a `⊔` grafted,
+// The pieces a body holds (`Carry::pieces`): what a `⊔` grafted,
 // each by its read, which a pick reads one of.
 pub use editor_core::{Piece, Pieces};
 
