@@ -107,3 +107,9 @@ Built in two steps. `SHELL-3` moves the engine with the generic door
 signature, with `Sym` still answering `None`. This row's unit then
 turns `Sym` on, deletes the refusal and the trait, and replays each
 leaf on its verdict's lane.
+
+## Scope added (CLEAR orchestrator, 2026-10-28, from PR #5909's review)
+
+- When `MinClearanceLane` goes, narrow `NodeErrorKind::MeasureClearanceRefused`'s carrier to what the measure door can raise. SHELL-3 split the refusal into `topo::clearance::EngineRefusal` and editor-core's `ClearanceRefusal`, but left the carrier wide.
+- Add a row that runs the generic door at a `T` other than `Interval`. Today none does, and at `Interval` `from_computed` and `from_f64` coincide.
+- The `clearance.rs:1588` references and the "written at Interval concretely" paragraph above describe the code before SHELL-3. The engine is now `topo::clearance`, with a generic door.
