@@ -39,8 +39,11 @@
 //! Every function is **conservative or refused**: a widened enclosure
 //! costs a refusal, never a wrong answer, and any structural surprise
 //! (unsupported kind, malformed net, zero-touching divisor) yields
-//! [`Interval::refused`], which fails every downstream test. There is
-//! no path here that narrows an enclosure on a value branch.
+//! [`Interval::refused`], which fails every downstream test. An
+//! enclosure is narrowed only by meeting it with another enclosure of
+//! the same quantity (the torus arm's mean-value and direct forms of
+//! one `g`), and a branch on a value only ever refuses (the torus's
+//! `A` not shown positive).
 //!
 //! # The M6-2 seam: generic scalars in, enclosures out
 //!
@@ -422,6 +425,17 @@ pub(crate) fn implicit_gradient_enclosure<T: CertifiedBounds>(
 /// `q = p − c`, `h = q·â`, the radial vector `w = q − âh` formed
 /// itself (the cylinder arm's reason), `A = |q|² + R² − r²` and
 /// `F = A² − 4R²|w|²`.
+///
+/// `ρ² = |q − âh|²` reads the stored `f64` axis as unit, as limb 1's
+/// `implicit_residual` does. Limb 2's composite
+/// (`geom_core::spline::compose`'s torus arm) spells it
+/// `|q|² − (q·a)²/|a|²`, the axis normalized exactly in the ring. The
+/// two must differ: over a box, `|q|² − h²` subtracts two enclosures of
+/// one `q` and adds twice the axial square to the width, while a
+/// composite's coefficients are thin, so there the identity costs only
+/// rounding. They agree
+/// up to `(1 − |â|²)·h²`, a few ulps of `h²` for an axis normalized in
+/// `f64`, as the cylinder's two spellings do.
 struct Quartic {
     h: Interval,
     w: [Interval; 3],
@@ -500,6 +514,26 @@ impl Quartic {
 pub(crate) const fn has_implicit_enclosure(kind: geom::SurfaceKind) -> bool {
     use geom::SurfaceKind as K;
     matches!(kind, K::Plane | K::Sphere | K::Cylinder | K::Torus)
+}
+
+/// Whether the tube can enclose `surface` at all: its kind is in
+/// [`has_implicit_enclosure`]'s roster and, for a torus, it is shown
+/// inside its ring convention, since a spindle or horn torus's `A`
+/// reaches zero and both enclosures refuse there.
+pub(crate) fn tube_encloses<T: geom_core::Decide>(
+    surface: &Surface<T>,
+    band: geom_core::Band,
+) -> bool {
+    match *surface {
+        Surface::Torus {
+            major_radius,
+            minor_radius,
+            ..
+        } => {
+            crate::torus_convention::TorusRefusal::require(major_radius, minor_radius, band).is_ok()
+        }
+        _ => has_implicit_enclosure(surface.kind()),
+    }
 }
 
 /// `(∇f₁ × ∇f₂)·e` over `b` — **the uniqueness-tube quantity** (module
@@ -648,10 +682,16 @@ pub(super) fn torus_meters_sup(f: Interval, a: Interval, major: f64, minor: f64)
     (f / (Interval::point(2.0 * minor) * Interval::point(lever))).mag()
 }
 
-/// A lower bound in meters on the same residual's magnitude:
-/// `|F| / (2r·(2A + r²))`, since `2Rρ ≤ A + r²`; `0` where nothing is
-/// certified.
+/// A lower bound in meters on the same residual's magnitude where `A`
+/// is enclosed positive: `|F| / (2r·(2A + r²))`, since
+/// `0 < A + 2Rρ ≤ 2A + r²` (`2Rρ ≤ R² + ρ² ≤ A + r²`). `0` where nothing
+/// is certified, and where `A` may be zero or negative (a spindle torus
+/// near its centre), since `A + 2Rρ` may then be negative and larger in
+/// magnitude than `2A + r²`.
 pub(super) fn torus_meters_floor(f: Interval, a: Interval, minor: f64) -> f64 {
+    if !(a.is_certified() && a.lo() > 0.0) {
+        return 0.0;
+    }
     let r = Interval::point(minor);
     zero_free_lower_bound(f / (Interval::point(2.0) * r * (Interval::point(2.0) * a + r.sqr())))
 }
@@ -2742,7 +2782,7 @@ pub(super) mod tests {
 
     /// A torus `(centre, axis, R, r)`, its axis normalized in `f64` and so
     /// not exactly unit.
-    fn torus(c: [f64; 3], a: [f64; 3], big: f64, small: f64) -> Surface<f64> {
+    pub(in crate::ssi) fn torus(c: [f64; 3], a: [f64; 3], big: f64, small: f64) -> Surface<f64> {
         let axis = Vec3::new(a[0], a[1], a[2]).normalize();
         let u_ref = axis.cross(Vec3::new(0.3, -0.7, 0.2)).normalize();
         Surface::Torus {
@@ -2755,7 +2795,7 @@ pub(super) mod tests {
     }
 
     /// The torus point at `(u, v)`: `u` about the axis, `v` about the tube.
-    fn on_torus(s: &Surface<f64>, u: f64, v: f64) -> Point3<f64> {
+    pub(in crate::ssi) fn on_torus(s: &Surface<f64>, u: f64, v: f64) -> Point3<f64> {
         let Surface::Torus {
             center,
             axis,
@@ -2791,8 +2831,10 @@ pub(super) mod tests {
     }
 
     /// **The torus enclosures hold every point they claim**, counterexample
-    /// search over thin and fat tori on tilted axes and boxes from 1e-4 to
-    /// a third of the tube: at sampled points of each box the residual's
+    /// search over thin, fat, horn and spindle tori on tilted axes and
+    /// boxes from 1e-4 to a third of the tube (a ring torus's enclosures
+    /// never refuse; a spindle's may, and are read only where they do
+    /// not): at sampled points of each box the residual's
     /// point enclosure meets the box's (an unsound mean-value term or a
     /// gradient that is not `g`'s own misses it), a box holding a surface
     /// point keeps zero (exclusion there would lose a section), and the
@@ -2803,7 +2845,8 @@ pub(super) mod tests {
         let mut rng = fuzz::start("torus enclosure");
         for _ in 0..fuzz::scaled(200) {
             let small = rng.log_uniform(1e-3, 1.0);
-            let big = small * rng.range(1.2, 30.0);
+            let big = small * rng.range(0.5, 30.0);
+            let ring = big > 1.01 * small;
             let c = [
                 rng.range(-1.0, 1.0),
                 rng.range(-1.0, 1.0),
@@ -2819,10 +2862,11 @@ pub(super) mod tests {
             let enc = implicit_enclosure(&t, b);
             let grad = implicit_gradient_enclosure(&t, b);
             let ctx = format!("{t:?} over {b:?}: {enc:?}; {}", fuzz::replay());
-            assert!(
-                enc.is_certified() && grad.iter().all(|g| g.is_certified()),
-                "{ctx}"
-            );
+            let certified = enc.is_certified() && grad.iter().all(|g| g.is_certified());
+            assert!(certified || !ring, "a ring torus never refuses: {ctx}");
+            if !certified {
+                continue;
+            }
             if b.x.contains(on.x) && b.y.contains(on.y) && b.z.contains(on.z) {
                 assert!(enc.contains(0.0), "a box on the surface keeps zero: {ctx}");
             }
@@ -2837,6 +2881,9 @@ pub(super) mod tests {
                     at.lo() <= enc.hi() && enc.lo() <= at.hi(),
                     "g at {p:?} is {at:?}, outside {ctx}"
                 );
+                if !ring {
+                    continue;
+                }
                 let step = 1e-6 * small;
                 let g_at = implicit_gradient_enclosure(&t, Box3::between(p, p));
                 for (k, e) in [Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()]
@@ -2859,10 +2906,12 @@ pub(super) mod tests {
         }
     }
 
-    /// **Limb 2's torus conversion is tight and sound at a point.** With
-    /// `F` and `A` enclosed at one point near a torus (thin to fat,
-    /// tilted, within a tenth of the tube), [`super::torus_meters_sup`]
-    /// is the meters residual to within 10⁻⁶ of it, and
+    /// **Limb 2's torus conversion is sound at a point, and tight on a
+    /// ring torus.** With `F` and `A` enclosed at one point near a torus
+    /// (thin to fat, horn and spindle included, tilted, within a tenth of
+    /// the tube), [`super::torus_meters_sup`] never falls under the meters
+    /// residual and [`super::torus_meters_floor`] never rises over it; on
+    /// a ring torus `R ≥ 1.2r` the bound is the residual to within 10⁻⁶ and
     /// [`super::torus_meters_floor`] lies between 0.4 of it and it.
     /// Dividing by `A` alone would read twice the residual, and the
     /// global `2r(R² − r²)` up to `4R/(R − r)` times it.
@@ -2872,7 +2921,7 @@ pub(super) mod tests {
         let mut rng = fuzz::start("torus meters conversion");
         for _ in 0..fuzz::scaled(500) {
             let small = rng.log_uniform(1e-3, 1.0);
-            let big = small * rng.range(1.2, 30.0);
+            let big = small * rng.range(0.5, 30.0);
             let c = [
                 rng.range(-1.0, 1.0),
                 rng.range(-1.0, 1.0),
@@ -2895,13 +2944,102 @@ pub(super) mod tests {
             let floor = super::torus_meters_floor(f, a, small);
             let ctx = format!("{t:?} at {p:?}: residual {m:e}; {}", fuzz::replay());
             assert!(
-                sup >= m * (1.0 - 1e-6) && sup <= m * (1.0 + 1e-6),
-                "bound {sup:e}: {ctx}"
+                sup.is_nan() || sup >= m * (1.0 - 1e-6),
+                "bound {sup:e} under the residual: {ctx}"
             );
             assert!(
-                floor <= m * (1.0 + 1e-6) && floor >= 0.4 * m,
-                "floor {floor:e}: {ctx}"
+                floor <= m * (1.0 + 1e-6),
+                "floor {floor:e} over the residual: {ctx}"
             );
+            if big >= 1.2 * small {
+                assert!(sup <= m * (1.0 + 1e-6), "bound {sup:e} loose: {ctx}");
+                assert!(floor >= 0.4 * m, "floor {floor:e} loose: {ctx}");
+            }
+        }
+    }
+
+    /// **A spindle torus's floor stays under its residual where `A` is
+    /// negative**, at its centre: `R = 0.75`, `r = 1`, `A = R² − r² < 0`
+    /// while `2A + r² > 0`.
+    #[test]
+    fn a_spindle_toruss_floor_stays_under_its_residual() {
+        let t = torus([0.0; 3], [0.0, 0.0, 1.0], 0.75, 1.0);
+        let a = Interval::point(0.0) + super::torus_a_shift(0.75, 1.0);
+        let floor = super::torus_meters_floor(a.sqr(), a, 1.0);
+        let m = implicit_residual(&t, Point3::origin()).abs();
+        assert!(floor <= m, "floor {floor} over the residual {m}");
+    }
+
+    /// **The torus enclosures hold adversarial boxes**, counterexample
+    /// search on ring tori from barely ring (`R/r` within 5 % of 1) to
+    /// thin (`R/r` up to 60), boxes from 10⁻⁷ of the torus to twice it,
+    /// placed at the centre, along the axis, at the inner equator and
+    /// anywhere about: each corner's point enclosures meet the box's.
+    #[test]
+    fn a_torus_enclosure_holds_adversarial_boxes() {
+        use test_utils::fuzz;
+        let mut rng = fuzz::start("torus adversarial boxes");
+        for it in 0..fuzz::scaled(500) {
+            let small = rng.log_uniform(1e-3, 3.0);
+            let big = small
+                * match it % 3 {
+                    0 => rng.range(1.0005, 1.05),
+                    1 => rng.range(20.0, 60.0),
+                    _ => rng.range(1.001, 30.0),
+                };
+            let t = torus(
+                [
+                    rng.range(-2.0, 2.0),
+                    rng.range(-2.0, 2.0),
+                    rng.range(-2.0, 2.0),
+                ],
+                [
+                    rng.range(-1.0, 1.0),
+                    rng.range(-1.0, 1.0),
+                    rng.range(-1.0, 1.0),
+                ],
+                big,
+                small,
+            );
+            let Surface::Torus { center, axis, .. } = t else {
+                unreachable!("a torus")
+            };
+            let e = axis.cross(Vec3::new(0.3, -0.7, 0.2)).normalize();
+            let jitter = |rng: &mut fuzz::Rng, s: f64| {
+                Vec3::new(rng.range(-s, s), rng.range(-s, s), rng.range(-s, s))
+            };
+            let ctr = match it % 4 {
+                0 => center + jitter(&mut rng, 0.01 * small),
+                1 => center + axis * rng.range(-2.0 * small, 2.0 * small),
+                2 => center + e * (big - small) + jitter(&mut rng, 0.1 * small),
+                _ => center + jitter(&mut rng, 1.3 * (big + small)),
+            };
+            let b = Box3::around(ctr, (big + small) * rng.log_uniform(1e-7, 2.0));
+            let (enc, grad) = (
+                implicit_enclosure(&t, b),
+                implicit_gradient_enclosure(&t, b),
+            );
+            let ctx = format!("{t:?} over {b:?}; {}", fuzz::replay());
+            assert!(enc.is_certified(), "a ring torus never refuses: {ctx}");
+            for k in 0..8 {
+                let p = Point3::new(
+                    if k & 1 == 0 { b.x.lo() } else { b.x.hi() },
+                    if k & 2 == 0 { b.y.lo() } else { b.y.hi() },
+                    if k & 4 == 0 { b.z.lo() } else { b.z.hi() },
+                );
+                let at = implicit_enclosure(&t, Box3::between(p, p));
+                let ga = implicit_gradient_enclosure(&t, Box3::between(p, p));
+                assert!(
+                    at.lo() <= enc.hi() && enc.lo() <= at.hi(),
+                    "at {p:?}: {ctx}"
+                );
+                for j in 0..3 {
+                    assert!(
+                        ga[j].lo() <= grad[j].hi() && grad[j].lo() <= ga[j].hi(),
+                        "∇g axis {j} at {p:?}: {ctx}"
+                    );
+                }
+            }
         }
     }
 

@@ -3846,21 +3846,10 @@ mod tests {
         (at, sup, spans, floors)
     }
 
-    fn a_torus(c: [f64; 3], a: [f64; 3], big: f64, small: f64) -> geom::Surface<f64> {
-        use geom_core::{Point3, Vec3};
-        let axis = Vec3::new(a[0], a[1], a[2]).normalize();
-        geom::Surface::Torus {
-            center: Point3::new(c[0], c[1], c[2]),
-            axis,
-            major_radius: big,
-            minor_radius: small,
-            u_ref: axis.cross(Vec3::new(0.3, -0.7, 0.2)).normalize(),
-        }
-    }
-
     /// **Limb 2's torus conversion bounds every sampled residual**,
     /// counterexample search: cubic carriers whose controls lie on a
-    /// torus (thin to fat, tilted) displaced by up to a tenth of the
+    /// torus (thin to fat, horn and spindle, tilted; a span the
+    /// conversion refuses reads `NaN`, which bounds nothing) displaced by up to a tenth of the
     /// tube, read over eight spans. Each span's bound holds the meters
     /// residual `implicit_residual` at points sampled in it, and each
     /// break's floor is no more than the residual there: a conversion
@@ -3868,6 +3857,7 @@ mod tests {
     #[test]
     #[allow(clippy::unwrap_used)]
     fn a_torus_carriers_limb_two_holds_its_sampled_residual() {
+        use crate::ssi::enclose::tests::{on_torus, torus};
         use geom::NurbsCurve3;
         use geom_core::spline::KnotVector;
         use geom_core::{Point3, Vec3};
@@ -3875,45 +3865,30 @@ mod tests {
         let mut rng = fuzz::start("torus limb 2");
         for _ in 0..fuzz::scaled(40) {
             let small = rng.log_uniform(1e-3, 1.0);
-            let big = small * rng.range(1.2, 30.0);
+            let big = small * rng.range(0.5, 30.0);
             let c = [
                 rng.range(-1.0, 1.0),
                 rng.range(-1.0, 1.0),
                 rng.range(-1.0, 1.0),
             ];
-            let torus = a_torus(
+            let torus = torus(
                 c,
                 [rng.range(-1.0, 1.0), rng.range(-1.0, 1.0), 0.6],
                 big,
                 small,
             );
-            let geom::Surface::Torus {
-                center,
-                axis,
-                u_ref,
-                ..
-            } = torus
-            else {
-                unreachable!("a torus")
-            };
-            let e2 = axis.cross(u_ref);
             let (u0, v0) = (rng.range(0.0, 6.3), rng.range(0.0, 6.3));
             let (du, dv) = (rng.range(-0.6, 0.6), rng.range(-2.0, 2.0));
             let lift = small * rng.log_uniform(1e-9, 0.1);
             let points: Vec<Point3<f64>> = (0..6)
                 .map(|i| {
                     let s = f64::from(i) / 5.0;
-                    let (u, v) = (u0 + du * s, v0 + dv * s);
-                    let radial = u_ref * u.cos() + e2 * u.sin();
                     let off = Vec3::new(
                         rng.range(-1.0, 1.0),
                         rng.range(-1.0, 1.0),
                         rng.range(-1.0, 1.0),
                     );
-                    center
-                        + radial * (big + small * v.cos())
-                        + axis * (small * v.sin())
-                        + off * lift
+                    on_torus(&torus, u0 + du * s, v0 + dv * s) + off * lift
                 })
                 .collect();
             let knots = KnotVector::clamped(
@@ -3925,7 +3900,10 @@ mod tests {
             let cuts: Vec<f64> = (1..8).map(|k| f64::from(k) / 8.0).collect();
             let (at, sup, spans, floors) = torus_readings(&carrier, &torus, &cuts);
             let ctx = format!("{torus:?}, lift {lift:e}: {}", fuzz::replay());
-            assert!(sup.is_finite(), "{ctx}");
+            assert!(
+                sup.is_finite() || big <= small,
+                "a ring torus's bound: {ctx}"
+            );
             let residual =
                 |t: f64| crate::implicit::implicit_residual(&torus, carrier.eval(t)).abs();
             let slack = |x: f64| x * (1.0 + 1e-9) + 1e-15 * big;
@@ -3934,7 +3912,7 @@ mod tests {
                     let t = at[j] + (at[j + 1] - at[j]) * f64::from(k) / 16.0;
                     let m = residual(t);
                     assert!(
-                        m <= slack(*span),
+                        span.is_nan() || m <= slack(*span),
                         "span {j} at {t}: residual {m:e} over its bound {span:e}; {ctx}"
                     );
                 }

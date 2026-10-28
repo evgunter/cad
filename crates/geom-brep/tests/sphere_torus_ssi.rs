@@ -8,25 +8,15 @@ use geom::Surface;
 use geom_brep::ssi::{self, SsiDomain, SsiError, TangentPair};
 use geom_core::{Point3, Vec3};
 
+use crate::shared::surf;
 use crate::shared::tol::band;
 
 fn sphere(c: [f64; 3], r: f64) -> Surface<f64> {
-    Surface::Sphere {
-        center: Point3::new(c[0], c[1], c[2]),
-        radius: r,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
-    }
+    surf::sphere_at(c, r)
 }
 
 fn torus(c: [f64; 3], big: f64, small: f64) -> Surface<f64> {
-    Surface::Torus {
-        center: Point3::new(c[0], c[1], c[2]),
-        axis: Vec3::unit_z(),
-        major_radius: big,
-        minor_radius: small,
-        u_ref: Vec3::unit_x(),
-    }
+    surf::torus_at(c, big, small)
 }
 
 /// The teapot's handle torus: axis `+z` through `(5/64, 4/64, 0)`,
@@ -161,4 +151,29 @@ fn the_sphere_torus_door_refuses_any_other_pair() {
     }
     let got = ssi::cylinder_sphere_ssi(&s, &t, about_handle(), band());
     assert!(matches!(got, Err(SsiError::WrongLane { .. })), "{got:?}");
+}
+
+/// **A torus outside its ring convention refuses at the door**, as
+/// `route_pose` refuses its pose: a spindle (`r > R`) and a horn
+/// (`r = R`) torus, whose `|q|² + R² − r²` reaches zero, which the
+/// torus's enclosures divide by.
+#[test]
+fn a_spindle_or_horn_torus_refuses_at_the_door() {
+    let s = sphere([0.5, 0.0, 0.0], 0.3);
+    let domain = SsiDomain {
+        center: Point3::origin(),
+        half_extent: 2.0,
+        extent: 2.0,
+        floor_scale: 1.0,
+    };
+    for (name, t) in [
+        ("spindle", torus([0.0; 3], 0.5, 0.8)),
+        ("horn", torus([0.0; 3], 0.6, 0.6)),
+    ] {
+        let got = ssi::sphere_torus_ssi(&s, &t, domain, band());
+        assert!(
+            matches!(got, Err(SsiError::DegenerateTorus(_))),
+            "{name}: {got:?}"
+        );
+    }
 }

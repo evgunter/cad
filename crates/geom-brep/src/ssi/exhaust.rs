@@ -77,7 +77,9 @@ use geom_core::interval::max_bound;
 use geom_core::{Interval, Point3, SizedPass, SupSpeed, Vec3};
 
 use super::SsiError;
-use super::enclose::{Box3, NurbsBoxes, UvWindow, implicit_enclosure, refused_box};
+use super::enclose::{
+    Box3, NurbsBoxes, UvWindow, has_implicit_enclosure, implicit_enclosure, refused_box,
+};
 use super::four::{Box4, PairBoxes};
 use crate::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision, defect_ending};
 
@@ -963,18 +965,18 @@ fn sweep_r3(
     floor: SweepFloor<Box3>,
     duty: SweepDuty<'_, Box3>,
 ) -> Result<(SweepTally, Vec<Point3<f64>>), SsiError> {
+    if !(has_implicit_enclosure(s1.kind()) && has_implicit_enclosure(s2.kind())) {
+        return Err(SsiError::WrongLane {
+            expected: "two surfaces of kinds the ℝ³ enclosures have arms for",
+        });
+    }
     sweep(floor, duty, |cell| {
         let e1 = implicit_enclosure(s1, cell);
         let e2 = implicit_enclosure(s2, cell);
         if !e1.is_certified() || !e2.is_certified() {
-            // The lane gates (`cylinder_sphere_ssi`'s and
-            // `sphere_torus_ssi`'s `WrongLane`) admit only kinds in the
-            // enclosure roster (`enclose::has_implicit_enclosure`), and
-            // the cylinder × sphere pose refuses a radius not definitely
-            // positive before any sweep (`CylinderSpherePose::decide`),
-            // so this arm is the defence behind both. A gate that admits
-            // a kind outside the roster must revisit this sentence, or
-            // the arm starts blaming a radius for a missing arm.
+            // Both kinds are in the roster (above), so a refused
+            // enclosure is a degenerate operand, behind the doors' own
+            // radius and ring-convention decisions.
             return Err(SsiError::UnsupportedCertificate {
                 what: "a degenerate operand — a sphere, cylinder or torus tube of \
                        zero radius, or a torus whose |q|² + R² − r² reaches zero (a \

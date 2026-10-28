@@ -366,6 +366,12 @@ pub enum SsiError {
         /// Whose radius.
         radius: crate::SectionRadius,
     },
+    /// A torus operand is not shown inside its ring convention (its tube
+    /// radius positive and smaller than its ring's): refused at the door,
+    /// as [`crate::intersect::route_pose`] refuses its pose. The torus's
+    /// enclosures divide by `|q|² + R² − r²`, which a spindle or horn
+    /// torus reaches zero in.
+    DegenerateTorus(crate::torus_convention::TorusRefusal),
     /// An operand's stored datum is not a finite number, so the operand
     /// describes no surface. Refused at the door, as that operand's own
     /// fault, before any sweep or march reads it.
@@ -827,6 +833,19 @@ impl core::fmt::Display for SsiError {
                 "ssi: {} reads no, so the pair has no section to trace",
                 radius.subject()
             ),
+            Self::DegenerateTorus(refusal) => match &refusal.verdict {
+                crate::torus_convention::TorusVerdict::Undecided(diag) => write!(
+                    f,
+                    concat!("ssi: {}", geom_core::undecided!(), ": {}"),
+                    refusal.convention.subject(),
+                    diag.payload()
+                ),
+                crate::torus_convention::TorusVerdict::Refused(verdict) => write!(
+                    f,
+                    "ssi: {}, so the pair has no section to trace",
+                    refusal.convention.refused("the torus's", *verdict)
+                ),
+            },
             Self::OperandNotFinite { operand, datum } => write!(
                 f,
                 "ssi: the {operand}'s {datum} is not a finite number, so it describes no \
@@ -1294,7 +1313,7 @@ impl SsiError {
             PoseRefusal::Undecided {
                 decision: CsDecision::WallReach | CsDecision::NearReach | CsDecision::FarReach,
                 diag,
-            } => TraceDecision::PairTangency.escalated(diag),
+            } => TangentPair::CylinderSphere.decision().escalated(diag),
         }
     }
 
@@ -1316,6 +1335,15 @@ impl SsiError {
             Self::RadiusNotPositive { radius } => radius
                 .sized()
                 .recourse(RefusedArm::SignCertain(None), reading),
+            Self::DegenerateTorus(refusal) => {
+                let arm = match &refusal.verdict {
+                    crate::torus_convention::TorusVerdict::Undecided(diag) => {
+                        RefusedArm::Undecided(diag)
+                    }
+                    crate::torus_convention::TorusVerdict::Refused(verdict) => verdict.arm(),
+                };
+                refusal.convention.sized().recourse(arm, reading)
+            }
             Self::Escalated { decision, cause } => {
                 SsiDecision::Trace(*decision).ending(cause, reading)
             }
@@ -2260,7 +2288,7 @@ pub enum TraceDecision {
     /// `cs_wall_reach`, `cs_near_reach`, `cs_far_reach`: the cylinder ×
     /// sphere pose's reach past a tangent pose ([`SsiError::PairTangent`]
     /// is its verdict).
-    PairTangency,
+    CylinderSphereTangency,
     /// `ssi_st_tangency`: the sphere × torus pair's gap from a tangent
     /// pose ([`SsiError::PairTangent`] is its verdict).
     SphereTorusTangency,
@@ -2301,8 +2329,8 @@ impl TraceDecision {
             Self::BranchOpenEnd => "the traced branch has left the domain's slab",
             Self::ClosureReturn => "the trace has come back to its start",
             Self::ClosureTangent => "the trace came back to its start running the way it left",
-            Self::PairTangency => "the sphere and the cylinder are tangent",
-            Self::SphereTorusTangency => "the sphere and the torus are tangent",
+            Self::CylinderSphereTangency => TangentPair::CylinderSphere.question(),
+            Self::SphereTorusTangency => TangentPair::SphereTorus.question(),
             Self::PairCoaxial => "the sphere's centre lies on the cylinder's axis",
             Self::PairRadius(radius) => radius.subject(),
             Self::BoundarySection => "the wall's boundary lies on the plane",
@@ -2337,8 +2365,8 @@ impl TraceDecision {
                 crate::certify::recourse(CertCheck::TransversalityArm, arm, at)
             }
             Self::Transversality => crate::certify::recourse(CertCheck::Transversality, arm, at),
-            Self::PairTangency => PAIR_TANGENCY.recourse(arm, at),
-            Self::SphereTorusTangency => SPHERE_TORUS_TANGENCY.recourse(arm, at),
+            Self::CylinderSphereTangency => TangentPair::CylinderSphere.sized().recourse(arm, at),
+            Self::SphereTorusTangency => TangentPair::SphereTorus.sized().recourse(arm, at),
             Self::PairCoaxial => PAIR_COAXIAL.recourse(arm, at),
             Self::PairRadius(radius) => radius.sized().recourse(arm, at),
             Self::StepProgress | Self::ClosureTangent | Self::BranchOpenEnd
@@ -2514,7 +2542,7 @@ const STEP_SCALE: SizedDecision = SizedDecision {
 /// The cylinder × sphere pose's tangency (`cs_wall_reach`,
 /// `cs_near_reach`, `cs_far_reach`): the reach past a tangent pose,
 /// which passes either way decided.
-const PAIR_TANGENCY: SizedDecision = SizedDecision {
+const CYLINDER_SPHERE_TANGENCY: SizedDecision = SizedDecision {
     lever: "separate the sphere and the cylinder, or move one so they are clearly not tangent",
     size: "near-tangency",
     passes: SizedPass::Positive,
@@ -2523,10 +2551,10 @@ const PAIR_TANGENCY: SizedDecision = SizedDecision {
 };
 
 /// The sphere × torus tangency decision (`ssi_st_tangency`), as
-/// [`PAIR_TANGENCY`].
+/// [`CYLINDER_SPHERE_TANGENCY`].
 const SPHERE_TORUS_TANGENCY: SizedDecision = SizedDecision {
     lever: "separate the sphere and the torus, or move one so they are clearly not tangent",
-    ..PAIR_TANGENCY
+    ..CYLINDER_SPHERE_TANGENCY
 };
 
 /// **Which analytic pair a pre-rung tangency gap is about**
@@ -2558,9 +2586,25 @@ impl TangentPair {
         }
     }
 
+    /// The pair's tangency question, as its escalation asks it.
+    fn question(self) -> &'static str {
+        match self {
+            Self::CylinderSphere => "the sphere and the cylinder are tangent",
+            Self::SphereTorus => "the sphere and the torus are tangent",
+        }
+    }
+
+    /// The decision an in-band reading of the pair's gap escalates as.
+    fn decision(self) -> TraceDecision {
+        match self {
+            Self::CylinderSphere => TraceDecision::CylinderSphereTangency,
+            Self::SphereTorus => TraceDecision::SphereTorusTangency,
+        }
+    }
+
     fn sized(self) -> &'static SizedDecision {
         match self {
-            Self::CylinderSphere => &PAIR_TANGENCY,
+            Self::CylinderSphere => &CYLINDER_SPHERE_TANGENCY,
             Self::SphereTorus => &SPHERE_TORUS_TANGENCY,
         }
     }
@@ -2718,6 +2762,15 @@ pub fn sphere_torus_ssi(
     finite_operand("sphere", sphere)?;
     finite_operand("torus", torus)?;
     domain.check()?;
+    if let Surface::Torus {
+        major_radius,
+        minor_radius,
+        ..
+    } = *torus
+    {
+        crate::torus_convention::TorusRefusal::require(major_radius, minor_radius, band)
+            .map_err(SsiError::DegenerateTorus)?;
+    }
     let (
         &Surface::Sphere {
             center: c,
@@ -2761,7 +2814,7 @@ pub fn sphere_torus_ssi(
                 verdict: Refused::Zero(crate::recourse::Classified { margin, band }),
             });
         }
-        Err(diag) => return Err(TraceDecision::SphereTorusTangency.escalated(diag)),
+        Err(diag) => return Err(TangentPair::SphereTorus.decision().escalated(diag)),
     }
     implicit_pair_r3(a, b, domain, band)
 }
@@ -3555,7 +3608,7 @@ mod ending_tests {
                 "{error:?}"
             );
         }
-        let pair = escalated(TraceDecision::PairTangency).ending(Reading::Build);
+        let pair = escalated(TraceDecision::CylinderSphereTangency).ending(Reading::Build);
         assert_eq!(
             pair,
             SsiError::PairTangent {
@@ -3618,7 +3671,7 @@ mod ending_tests {
             TraceDecision::BranchOpenEnd,
             TraceDecision::ClosureReturn,
             TraceDecision::ClosureTangent,
-            TraceDecision::PairTangency,
+            TraceDecision::CylinderSphereTangency,
             TraceDecision::SphereTorusTangency,
             TraceDecision::BoundarySection,
         ] {
@@ -4092,7 +4145,7 @@ mod ending_tests {
     }
 
     /// How many arms [`SsiError`] has: [`arm`]'s numbering.
-    const ARMS: usize = 46;
+    const ARMS: usize = 47;
 
     /// Each arm's number. No wildcard: a new arm does not compile until
     /// it is numbered, and [`each_ssi_ending_is_its_decisions`] then
@@ -4145,6 +4198,7 @@ mod ending_tests {
             SsiError::SeedOutsideTube { .. } => 43,
             SsiError::CarrierEnclosure(_) => 44,
             SsiError::RadiusNotPositive { .. } => 45,
+            SsiError::DegenerateTorus(_) => 46,
         }
     }
 
@@ -4202,6 +4256,13 @@ mod ending_tests {
                 SsiError::RadiusNotPositive {
                     radius: crate::SectionRadius::Sphere,
                 },
+            ),
+            (
+                "torus",
+                SsiError::DegenerateTorus(crate::torus_convention::TorusRefusal {
+                    convention: crate::torus_convention::TorusConvention::Ring,
+                    verdict: crate::torus_convention::TorusVerdict::Refused(zero),
+                }),
             ),
             (
                 "operand",
