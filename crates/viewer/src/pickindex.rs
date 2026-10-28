@@ -73,7 +73,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use pncad::document::{
     Doc, Evaluation, Frame, NodeStanding, ProfileProgram, RecipeNodeId, Said, Say, Speaker, VarId,
 };
-use pncad::geom_core::{Point3, Tol};
+use pncad::geom_core::{Affine3, Point3, Tol};
 use pncad::prelude::StableName;
 use pncad::select::{
     HitTestError, NameLookupError, NodePick, NodePickError, PickHit, PickMemo, PickTarget, Ray,
@@ -1219,6 +1219,7 @@ impl PickIndex {
                 mesh: part.mesh(),
                 ids,
                 probe: display.moved_placements.get(&part.node()).copied(),
+                placed: in_space_of(part),
             });
         }
         if parts.is_empty() {
@@ -1302,14 +1303,20 @@ impl PickIndex {
         // origin at the world's — so the merge below orders the batches
         // as drawn, which is display, not logic.
         let mut unmoved: BTreeMap<Option<VarId>, Vec<PickTarget<'_>>> = BTreeMap::new();
-        for part in self
-            .parts
-            .iter()
-            .filter(visible)
-            .filter(|part| !display.moved_placements.contains_key(&part.node()))
-        {
-            let space = self.spaces.get(&part.node()).copied();
-            unmoved.entry(space).or_default().push(part.target());
+        // A part drawn under a probe is its own group, picked by the
+        // ray carried back through the probe's display map. A part's own
+        // frame is the kernel's door's to read ([`pick_face`] reads the
+        // ray into each target's frame), so copies in one space are one
+        // batch the kernel orders.
+        let mut mapped: Vec<(Affine3<f64>, &NodePick)> = Vec::new();
+        for part in self.parts.iter().filter(visible) {
+            match probed(display, part) {
+                None => {
+                    let space = self.spaces.get(&part.node()).copied();
+                    unmoved.entry(space).or_default().push(part.target());
+                }
+                Some(map) => mapped.push((map, part)),
+            }
         }
         // Every group's whole answer, in group order: the unmoved
         // batches, the world's first, then the moved instances. A
@@ -1319,20 +1326,8 @@ impl PickIndex {
         for targets in unmoved.values() {
             candidates.extend(group_answer(pick_face(eval, targets, ray))?);
         }
-        for (&node, frame) in &display.moved_placements {
-            if display.hidden_placements.contains(&node) {
-                continue;
-            }
-            let targets: Vec<PickTarget<'_>> = self
-                .parts
-                .iter()
-                .filter(|part| part.node() == node)
-                .map(NodePick::target)
-                .collect();
-            if targets.is_empty() {
-                continue;
-            }
-            let map = frame.affine::<f64>();
+        for (map, part) in mapped {
+            let targets = [part.target()];
             let inverse = map.inverse();
             let local = Ray {
                 origin: inverse.transform_point(ray.origin),
@@ -1530,7 +1525,7 @@ impl PickIndex {
         let Some(boundary) = mesh.boundaries.get(id.boundary) else {
             return Vec::new();
         };
-        let place = placement(display, id.node);
+        let place = placement(display, part);
         boundary
             .points
             .iter()
@@ -1855,7 +1850,7 @@ impl PickIndex {
         for (rank, part) in bodies.iter().enumerate() {
             let (node, body) = (part.node(), part.body());
             let mesh = part.mesh();
-            let place = placement(display, node);
+            let place = placement(display, part);
             for id in self.edges_in(node, body) {
                 let Some(boundary) = mesh.boundaries.get(id.boundary) else {
                     continue;
@@ -2176,7 +2171,7 @@ fn own_crossing(
     } else {
         vec![chords.on_chord([from, to])]
     };
-    let place = placement(display, part.node());
+    let place = placement(display, part);
     let corner = |index: u32| mesh.positions.get(index as usize).copied().map(&place);
     Some(
         triangles
@@ -2212,16 +2207,47 @@ struct Candidate {
 /// One home for the displacement, because a highlight drawn at the
 /// tessellated placement while the picture draws the probed one is a
 /// mark on empty space.
-fn placement(display: &DisplayView, node: RecipeNodeId) -> impl Fn(Point3<f64>) -> Point3<f64> {
-    let map = display
-        .moved_placements
-        .get(&node)
-        .copied()
-        .map(|frame: Frame| frame.affine::<f64>());
+fn placement(display: &DisplayView, part: &NodePick) -> impl Fn(Point3<f64>) -> Point3<f64> {
+    let map = drawn(display, part);
     move |point| match &map {
         Some(map) => map.transform_point(point),
         None => point,
     }
+}
+
+/// **Where a drawn part's tessellation is drawn**: its body's frame
+/// composed into its space ([`pncad::document::in_space`], the picture's
+/// one composing door), then the free-move probe frame the display view
+/// puts the owning instance under. `None` where it is under neither,
+/// so a part computed in its space's coordinates is drawn as tessellated.
+fn drawn(display: &DisplayView, part: &NodePick) -> Option<Affine3<f64>> {
+    let placed = in_space_of(part);
+    let probe = display
+        .moved_placements
+        .get(&part.node())
+        .copied()
+        .map(|frame: Frame| frame.affine::<f64>());
+    match (probe, placed) {
+        (None, placed) => placed,
+        (Some(probe), None) => Some(probe),
+        (Some(probe), Some(placed)) => Some(probe * placed),
+    }
+}
+
+/// **The free-move probe frame a part's instance is drawn under**, if
+/// the display view puts it under one: a display map, not the model's.
+fn probed(display: &DisplayView, part: &NodePick) -> Option<Affine3<f64>> {
+    display
+        .moved_placements
+        .get(&part.node())
+        .copied()
+        .map(|frame: Frame| frame.affine::<f64>())
+}
+
+/// The part's frame in its space, `None` where its body is in its
+/// space's coordinates already.
+fn in_space_of(part: &NodePick) -> Option<Affine3<f64>> {
+    pncad::document::in_space(part).map(|map| map.to_affine())
 }
 
 /// **The one drawn edge's own nearest segment**, or `None` when no

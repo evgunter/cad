@@ -124,7 +124,7 @@ fn micro(x: f64) -> i64 {
 fn geometry(ev: &Evaluation<f64>, id: RecipeNodeId, e: &Entry) -> String {
     let body = body_of(ev, id);
     let at = |v| {
-        let p = point(body, v);
+        let p = point(&body, v);
         (micro(p.x), micro(p.y), micro(p.z))
     };
     let keys: Vec<EntityKey> = match e {
@@ -136,12 +136,12 @@ fn geometry(ev: &Evaluation<f64>, id: RecipeNodeId, e: &Entry) -> String {
         .map(|k| match k {
             EntityKey::Vertex(v) => format!("{:?}", at(v)),
             EntityKey::Edge(e) => {
-                let mut s = ends(body, e).map(at);
+                let mut s = ends(&body, e).map(at);
                 s.sort_unstable();
                 format!("{s:?}")
             }
             EntityKey::Face(f) => {
-                let mut s: Vec<_> = face_vertices(body, f).into_iter().map(at).collect();
+                let mut s: Vec<_> = face_vertices(&body, f).into_iter().map(at).collect();
                 s.sort_unstable();
                 format!("face {s:?}")
             }

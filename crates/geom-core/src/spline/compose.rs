@@ -1017,6 +1017,39 @@ pub fn implicit_composite(
     Ok(form)
 }
 
+/// `|C(t) − c|² + shift` along a 3-D curve, in rational Bernstein form:
+/// numerator `S + shift·W²` (`S` the squared-distance channel of
+/// [`implicit_composite`]'s sphere arm), denominator `W²`. Built from
+/// the same data as a composite of that curve, it shares its spans and
+/// breaks; at `shift = R² − r²` it is the torus quartic's `A`.
+///
+/// # Errors
+///
+/// [`ComposeError::DimensionMismatch`] unless `data.dims() == 3`.
+pub fn squared_distance_composite(
+    data: &CurveCertData<'_>,
+    center: &[f64; 3],
+    shift: Interval,
+) -> Result<CompositeForm, ComposeError> {
+    if data.dims() != 3 {
+        return Err(ComposeError::DimensionMismatch {
+            dims: data.dims(),
+            expected: 3,
+        });
+    }
+    let w = data.weight_channel();
+    let g = [
+        data.shifted_channel(0, center[0]),
+        data.shifted_channel(1, center[1]),
+        data.shifted_channel(2, center[2]),
+    ];
+    let w2 = ch_mul(&w, &w);
+    Ok(CompositeForm {
+        num: ch_add(&sum_of_squares(&g), &ch_scale_left(shift, &w2)),
+        den: w2,
+    })
+}
+
 /// The product of two coordinate splines `x_i(t)·x_j(t)` in rational
 /// Bernstein form: numerator `A_i·A_j` (weighted, unshifted channels),
 /// denominator `W²`.

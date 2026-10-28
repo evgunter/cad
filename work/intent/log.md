@@ -969,5 +969,30 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
 
     Both went to lane `session_01VyvYnLzWE3bejGhz8K91pr` (`intent/value-chart-main-reds`). It explains the 21 before any re-pin.
   - **E (#5811)** is still in its lane.
+- 2026-10-27 — **Seam (RESTREAD, `restread/arm1-third-face-directions`):** `editor-core` `intent_s5_b_interference::an_undecided_pair_beside_the_press_fit_keeps_it_loud` is re-fixtured a second time. Its rule is unchanged (an undecided pair outside the overlap's faces keeps the finding loud), and the press fit, its `AtMost` assertion and the test's two assertions are as they were; only its witness of "undecided" moved. The census's arm 1 now also reads the line between two carriers' axes, which parts the old side hole (5e-4 clear of the pin) from the pin's wall. The hole now sits 1.5 of the census's box pads (`sweep_pad`) clear on the diagonal: the line between the axes reads that gap, but it is less than the two faces' pads, so the pair stays undecided by the pads rather than for want of a direction. No open row decides it: the pads are what the at-rest gap clears past (`sweep` `cross_solid_apart::a_rod_between_the_pads_refuses` pins the same reading), so the witness holds until the pads themselves change. The D10 hold is untouched. (RESTREAD lane)
 - 2026-10-27 — **Seam (CLEAR):** CLEAR is active again. Its P0 `SHELL-3` moves `clearance.rs`'s body-level half (`window_of`, the sweep, `verify_witness`, `min_separation`) into `topo` behind `interval`. E (#5811) edits exactly those sites (`framed_of`, `windows_of`, `verify_witness`), so CLEAR lands nothing in `clearance.rs` until E merges. After the move, framing stays in `editor-core`'s outer half: the engine in `topo` takes two bodies already read into one frame. Any later INTENT change to how a clearance question is framed stays editor-core-side. (CLEAR orchestrator)
 - 2026-10-27 — **Seam (ATREST):** `atrest/an-instance-carries-its-parts-coincidences` touches this program's ground. `crates/pncad/src/document.rs`: re-exports `CarriedCoincidence` and `CarriedCoincidenceRows` beside the other carried types.
+- 2026-10-28 06:20 —
+  - **E (#5811) merged** as `6f1c805c25`, with row `PR-5811.md` (concurrent H, tally 0, no MAJOR either side). Both reviews were APPROVE-WITH-FIXES; the fix pass was read and accepted by the orchestrator at `36e7cdbc`. The orchestrator then merged main over a `.config/nextest.toml` slow-set conflict (3-way, both sides' changes kept).
+  - **Rulings in the course of E:**
+    - Python's read-outs compose through façade doors in `pncad/src/export.rs` that call `in_space`. pncad-py only calls them, and the gate keeps pncad-py out. This reads DESIGN `[placement.world]`'s "export" as covering a façade read-out that never re-enters the model.
+    - The computing frame is the first `Own` operand, else the first listed. This is a conditioning choice inside `[placement.frame]` ("chosen so its arithmetic is well conditioned"), applied uniformly, including clearance and the Sym replay.
+    - Both were reported to Ev in chat; neither needed an `[ev]` PR.
+  - **Closed** E; pruned it from the carry, G and `intent-stage3-is-built`.
+  - **Dispatched in parallel** (spec §12 steps 5 and 7), each told the other's session and to announce the `wire_place` / `product.rs` / `eval/parts.rs` seam:
+    - the carry (`a-placement-carries-its-sources-at-rest-result`, lane `session_01VyvYnH6cxt24s9KQbXyS5q`, single FULL review);
+    - G (`patterns-are-index-variables`, lane `session_01VyvYnHiHL3dyLBmh7MATGP`, dual H). G measures §8 Q1 (does a ring close structurally) first and reports before building on it.
+  - **Hazard the E lane hit:** two worktrees sharing one `CARGO_TARGET_DIR` silently cross-use artifacts, since cargo's fingerprints are path-relative. Briefs now forbid it. A memory for it is Ev's call (asked).
+- 2026-10-28 08:00 —
+  - **Ring fork done:** Ev approved on #5905 ("i agree with the idea"). The `[coincidence.structural]` sentence was dropped, on Ev's reading that the existing criterion already admits a tier that knows angle arithmetic; `[repetition]`'s ring sentence is sharpened. Fork-log row 207. G builds the tier rule, measuring its budget per node first.
+  - **Slate cut to D10's core** (Ev, in chat): 19 residue rows moved by `git mv`, ids unchanged, each with a dated `## Slate triage` note:
+    - census → ATREST (6);
+    - viewer geometry → VGEOM (3);
+    - authoring doors → DOORS (2);
+    - construction space → CHROME (1);
+    - names → REFS (4);
+    - lies-on and the consumed-feature lint → COINCIDE (2);
+    - the Python space-mismatch → BIND (1).
+  - **Other tracker fixes:** priorities set on the rows that had none. `main-red-edit-rs-folds-a-face-sense-by-hand` closed as a duplicate of #5849's fix.
+  - **INTENT keeps:** G and its riders, the stage-3 umbrellas, the carry, the two refactor pose-definition rows, the roots rename, the fixture literals, the cost-E tail, and the design rows `an-unread-body-is-no-finding` and `split-widens-…`.
+  - **Parallel lanes dispatched beside G and the carry:** the roots rename (`session_01VyvYnM85PzUjzS8KDPp1vG`, single STYLE), the refactor pose-definition rows (`session_01VyvYnKNiPxav6Gp55TVhep`, single FULL), and a cost-E batch (`session_01VyvYnKZwLAT9fCrXvcoSL9`, single STYLE: loft station, fused-instance frame, pick cross-check, fixture zero literals).

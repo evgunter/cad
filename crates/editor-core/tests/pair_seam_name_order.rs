@@ -172,9 +172,9 @@ fn seam_sigs(
     };
     // The one coordinate a planar face holds constant, unmapped.
     let plane = |f: topo::FaceKey| -> String {
-        let pts: Vec<[f64; 3]> = face_vertices(body, f)
+        let pts: Vec<[f64; 3]> = face_vertices(&body, f)
             .into_iter()
-            .map(|v| sym.unapply(point(body, v).to_array()))
+            .map(|v| sym.unapply(point(&body, v).to_array()))
             .collect();
         for (axis, i) in [('x', 0), ('y', 1), ('z', 2)] {
             if pts.iter().all(|q| (q[i] - pts[0][i]).abs() < 1e-9) {
@@ -206,7 +206,7 @@ fn seam_sigs(
         let EntityKey::Edge(edge) = r.key else {
             panic!("an edge row holds an edge: {n:?}");
         };
-        let (f0, f1) = topo::readback::edge_sides(body, edge).unwrap().faces();
+        let (f0, f1) = topo::readback::edge_sides(&body, edge).unwrap().faces();
         let mut beside = [base(&face_name(f0)), base(&face_name(f1))];
         beside.sort();
         assert_eq!(
@@ -214,9 +214,9 @@ fn seam_sigs(
             [(**a).clone(), (**b).clone()],
             "{n:?}: the seam's sides are not the parents of the faces beside it"
         );
-        let mut ends: Vec<String> = ends(body, edge)
+        let mut ends: Vec<String> = ends(&body, edge)
             .iter()
-            .map(|&v| at(point(body, v)))
+            .map(|&v| at(point(&body, v)))
             .collect();
         ends.sort();
         let mut sides: Vec<(String, bool, Vec<char>)> = [f0, f1]

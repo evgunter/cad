@@ -71,7 +71,6 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use geom_core::Decide;
-use topo::Body;
 
 use crate::ProfileDoc;
 use crate::checks::at_rest::PartRow;
@@ -106,7 +105,8 @@ pub(crate) const MAX_DEPTH: usize = 1024;
 /// nodes it names. Instantiation adds its own instance to the route;
 /// nothing below is re-read.
 pub(crate) struct PartValue<T: Decide> {
-    pub body: Arc<Body<T>>,
+    /// The product body, in the frame the part's product computed in.
+    pub body: super::Framed<T>,
     pub names: Arc<NameTable>,
     /// The pieces the product holds ([`super::Pieces`]), in the part's
     /// frame: what a pick of one piece of an instance reads.
@@ -146,7 +146,7 @@ pub(crate) struct PartValue<T: Decide> {
 impl<T: Decide> Clone for PartValue<T> {
     fn clone(&self) -> Self {
         Self {
-            body: Arc::clone(&self.body),
+            body: self.body.clone(),
             names: Arc::clone(&self.names),
             pieces: self.pieces.clone(),
             contacts: Arc::clone(&self.contacts),
@@ -507,6 +507,7 @@ fn product_recourse(kind: crate::product::ProductErrorKind) -> ProductRecourse {
         | K::RootInvalid
         | K::ProductInvalid => ProductRecourse::Carried,
         K::ContactLineage
+        | K::Frame
         | K::EvaluationOfAnotherDocument
         | K::UnknownNode
         | K::RootFailed
@@ -535,6 +536,10 @@ pub(crate) struct PartStore<'a, T: Decide> {
     /// Whether the run binds every variable a symbol
     /// ([`super::EvalOptions::symbols`]), inherited for the same reason.
     symbols: bool,
+    /// The second computing frame ([`super::EvalOptions::computing_twist`]),
+    /// inherited so a part's constructions turn too (each by its own
+    /// node's [`super::ComputingTwist::for_node`]).
+    twist: Option<super::ComputingTwist>,
     rows: Rows<T>,
     /// How many referenced documents this store's descents evaluated,
     /// at every depth — the D-3 sharing evidence. A counter, not a
@@ -555,6 +560,7 @@ impl<'a, T: Decide> PartStore<'a, T> {
             eps_bits: tol.eps().to_bits(),
             boolean_sweep,
             symbols: false,
+            twist: None,
             rows: BTreeMap::new(),
             evaluations: 0,
         }
@@ -564,6 +570,12 @@ impl<'a, T: Decide> PartStore<'a, T> {
     /// `symbols`.
     pub(crate) fn with_symbols(self, symbols: bool) -> Self {
         Self { symbols, ..self }
+    }
+
+    /// The store, its parts evaluated in the run's second computing
+    /// frame ([`super::EvalOptions::computing_twist`]).
+    pub(crate) fn with_twist(self, twist: Option<super::ComputingTwist>) -> Self {
+        Self { twist, ..self }
     }
 }
 
@@ -748,6 +760,11 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
             symbols: self.symbols,
             // The reference's own pin already says which version this is.
             pin: false,
+            // Inherited: a part's constructions compute in frames of
+            // their own too, each its node's variation of the twist
+            // (`ComputingTwist::for_node`), so its product is gathered
+            // over operands turned apart.
+            computing_twist: self.twist,
         };
         let evaluation =
             super::evaluate_nested::<T>(doc, cancel, &opts, Reached(reached), &doc_ref.pin, tol);
@@ -869,7 +886,7 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
             door_rows: Arc::new(door_rows),
             parts,
             pieces,
-            body: Arc::new(product.body.into_body()),
+            body: super::Framed::in_frame(Arc::new(product.body.into_body()), product.frame),
             names: Arc::new(product.names),
             contacts: Arc::new(product.contacts),
             coincidences: Arc::new(product.coincidences),

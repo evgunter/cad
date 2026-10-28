@@ -190,6 +190,14 @@ pub(crate) struct Study {
 /// pad 1546/1324 -> 1546/1260. `symbolic` holds. Measured identical with
 /// a written fraction of a turn read as its rounded radian, so exact
 /// turns move none of these.
+///
+/// Re-taken on INTENT stage 3 E (a copy is its source's body under its
+/// frame), identical at all three ε rows: the plate 1253 -> 1105 and the
+/// bracket 1625 -> 1477, 148 each, the decisions of their copies' maps
+/// and re-certification, which no longer run. The annulus, the link and
+/// the pad held; none refuses a registration or disputes a theorem.
+/// Over main's merge at `1f851964` (plate 1249, bracket 1621) the same
+/// 148 each: the plate 1101 and the bracket 1473.
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
@@ -203,7 +211,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // the door, and the plate refuses nowhere the bisection
             // reaches.
             without_the_registry: None,
-            symbolic: [1249, 1249, 1249],
+            symbolic: [1101, 1101, 1101],
             at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
         },
         Study {
@@ -260,7 +268,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // How many the tier reaches depends on the order the
             // variables' symbols sort in
             // (`work/rules/sym-tier-reach-depends-on-symbol-order`).
-            symbolic: [1621, 1621, 1621],
+            symbolic: [1473, 1473, 1473],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {

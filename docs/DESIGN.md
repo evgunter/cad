@@ -1283,7 +1283,9 @@ declared `within` the other, which is implied when its count reads the
 other; a reader of two unrelated indices refuses. `Count` arithmetic is
 exact and includes `mod`, so a relation between a ring's neighbours is
 one statement (`assert(gap(c[k].r, c[(k + 1) mod N].l) = −b)`), while a
-ring stepped by `turn/N` closes by construction and needs none. There
+ring stepped by `turn/N` whose member spans its step meets each
+neighbour, the last the first among them, structurally
+([coincidence.structural]), and needs none. There
 is no list literal: an irregular family is its members written out,
 each saying where it is. A definer that refuses at one index refuses
 the whole family, naming the index; a read whose index leaves the

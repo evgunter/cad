@@ -4,7 +4,6 @@ kind: issue
 title: tour - hollow tube scene
 status: closed
 opened: 2026-08-25
-github: 986
 refs: [960]
 closed: 2026-09-04
 ---

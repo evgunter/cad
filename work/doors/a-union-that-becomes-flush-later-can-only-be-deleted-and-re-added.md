@@ -47,7 +47,7 @@ that shape. The candidate answers are the ones EDIT weighed on the
 a narrow edit that attaches a declaration to a live `Boolean`/`Union`,
 or a viewer seat that replaces the node through a splice. Both reopen
 DM6, so this goes to EDIT and Ev with a designer weighing before
-anything is built. `needs_ev` is not set yet.
+anything is built.
 
 ## Declaring a contact on a live boolean (2026-09-30)
 

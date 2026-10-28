@@ -4,7 +4,7 @@ kind: issue
 title: Limb 2 through the Taylor enclosing net costs 1-6 ms per circle and 8-73 ms per spiric edge in release; curved boolean rows run about ten times slower
 status: open
 opened: 2026-10-25
-priority: P1
+priority: P2
 cost: M
 parent: closed-form-edge-carriers-pass-on-samples-with-no-stated-bound-between-them
 ---

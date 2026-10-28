@@ -757,7 +757,7 @@ fn volume(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> f64 {
         "mass properties",
         &topo::test_support::finished(
             "the measured body",
-            topo::Body::clone(crate::corpus::body_of(ev, id)),
+            topo::Body::clone(&(crate::corpus::body_of(ev, id))),
             Tol::witness(),
         ),
         Tol::witness(),
@@ -775,6 +775,7 @@ fn vertex_bits(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> Vec<[u64;
         other => panic!("not a body: {other:?} / {:?}", ev.node_error(id)),
     };
     let mut bits: Vec<[u64; 3]> = body
+        .body()
         .points()
         .map(|(_, p)| p.to_array().map(f64::to_bits))
         .collect();

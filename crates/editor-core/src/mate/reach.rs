@@ -146,7 +146,18 @@ pub use geom::SurfaceKind;
 /// [`ReachRefusal::FaceUnbounded`], [`ReachRefusal::MalformedBody`],
 /// [`ReachRefusal::NoExtent`].
 pub fn part_reach<T: Decide>(body: &Body<T>) -> Result<T, ReachRefusal> {
-    body_reach(body)?.ok_or(ReachRefusal::NoExtent)
+    part_reach_from(body, Point3::origin())
+}
+
+/// [`part_reach`] about `about` rather than the body's own origin: a
+/// framed body's reach in its space, `about` being its space's origin
+/// in the body's coordinates.
+///
+/// # Errors
+///
+/// As [`part_reach`].
+pub fn part_reach_from<T: Decide>(body: &Body<T>, about: Point3<T>) -> Result<T, ReachRefusal> {
+    reach_from(body, about)?.ok_or(ReachRefusal::NoExtent)
 }
 
 /// **An upper bound on the distance from the body's own origin to any
@@ -165,7 +176,11 @@ pub fn part_reach<T: Decide>(body: &Body<T>) -> Result<T, ReachRefusal> {
 /// surface key resolves to nothing, which is a fault of the body and
 /// not of this table.
 pub fn body_reach<T: Decide>(body: &Body<T>) -> Result<Option<T>, ReachRefusal> {
-    let origin = Point3::<T>::origin();
+    reach_from(body, Point3::origin())
+}
+
+/// [`body_reach`] about `origin`.
+fn reach_from<T: Decide>(body: &Body<T>, origin: Point3<T>) -> Result<Option<T>, ReachRefusal> {
     let mut reach: Option<T> = None;
     for (key, face) in body.faces() {
         let Some(surface) = body.get_surface(face.surface) else {

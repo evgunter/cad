@@ -5099,12 +5099,12 @@ pub(crate) fn seam_region<T: Decide>(
 }
 
 /// **Whether a face's flux is read by the certified quadrature** rather
-/// than a closed form: a plane bounded by a spiric or a rational spline
-/// rim on any loop (its vector area is an elliptic integral, or a
-/// rational one: [`curved_rim`]), a curved face other than a cone
-/// trimmed by an ellipse, a spiric or a spline (a cone's closed form
-/// reads any boundary's vector area), and a described spline face
-/// whatever bounds it. Structural, on the surface and carrier kinds,
+/// than a closed form: a plane or a cone bounded by a spiric or a
+/// rational spline rim on any loop (the boundary's vector area its
+/// closed form reads is an elliptic integral, or a rational one:
+/// [`curved_rim`]), a curved face other than a cone trimmed by an
+/// ellipse, a spiric or a spline, and a described spline face whatever
+/// bounds it. Structural, on the surface and carrier kinds,
 /// never a runtime fallback: [`face_flux_about`] dispatches on it and
 /// [`shell_reference`] reads it.
 fn takes_quadrature<'a, T: Decide + 'a>(
@@ -5113,7 +5113,7 @@ fn takes_quadrature<'a, T: Decide + 'a>(
 ) -> bool {
     let carriers = || carriers.clone();
     match surface {
-        Surface::Plane { .. } => carriers().any(curved_rim),
+        Surface::Plane { .. } | Surface::Cone { .. } => carriers().any(curved_rim),
         _ => {
             surface.spline_chart().is_some()
                 || (!matches!(surface, Surface::Cone { .. }) && carriers().any(trims))
@@ -6898,6 +6898,19 @@ pub trait AtRestPolicy: Decide {
         >,
     >;
 
+    /// **A certified lower bound on a spline chart's arm at `p` over
+    /// `reach`, at this scalar, or `None` where none is read here** — the
+    /// lower end of the bracket the boolean's seam reading levers a spline
+    /// face's normal over ([`geom_brep::NurbsLane::chart_arm`],
+    /// [`geom_brep::classify_seam`]). It is read from certified curvature
+    /// bounds, at the certifying scalars alone; a dual answers `None`, and
+    /// the seam reads smooth or escalates, never transverse.
+    fn spline_chart_arm(
+        chart: &geom::NurbsSurface<Self>,
+        p: geom_core::Point3<Self>,
+        reach: Self,
+    ) -> Option<f64>;
+
     /// **This scalar's section lane, or `None` where it is not
     /// derived here** — the offset door's plane × spline-wall
     /// section and the plane's root along a spline edge
@@ -7095,6 +7108,14 @@ impl AtRestPolicy for f64 {
         Some(geom_brep::NurbsLane::certified().chart_meetings(carrier, params, chart, band))
     }
 
+    fn spline_chart_arm(
+        chart: &geom::NurbsSurface<Self>,
+        p: geom_core::Point3<Self>,
+        reach: Self,
+    ) -> Option<f64> {
+        geom_brep::NurbsLane::certified().chart_arm(chart, p, reach)
+    }
+
     /// The march is written here.
     fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
         Some(crate::offset_derive::SectionLane::f64())
@@ -7230,6 +7251,14 @@ impl AtRestPolicy for geom_core::Probe {
         Some(geom_brep::NurbsLane::certified().chart_meetings(carrier, params, chart, band))
     }
 
+    fn spline_chart_arm(
+        chart: &geom::NurbsSurface<Self>,
+        p: geom_core::Point3<Self>,
+        reach: Self,
+    ) -> Option<f64> {
+        geom_brep::NurbsLane::certified().chart_arm(chart, p, reach)
+    }
+
     /// The march is written at `f64` alone.
     fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
         None
@@ -7361,6 +7390,14 @@ impl AtRestPolicy for geom_core::interval::Interval {
         >,
     > {
         Some(geom_brep::NurbsLane::certified().chart_meetings(carrier, params, chart, band))
+    }
+
+    fn spline_chart_arm(
+        chart: &geom::NurbsSurface<Self>,
+        p: geom_core::Point3<Self>,
+        reach: Self,
+    ) -> Option<f64> {
+        geom_brep::NurbsLane::certified().chart_arm(chart, p, reach)
     }
 
     /// The march is written at `f64` alone.
@@ -7503,6 +7540,14 @@ where
         >,
     > {
         Some(geom_brep::NurbsLane::certified().chart_meetings(carrier, params, chart, band))
+    }
+
+    fn spline_chart_arm(
+        chart: &geom::NurbsSurface<Self>,
+        p: geom_core::Point3<Self>,
+        reach: Self,
+    ) -> Option<f64> {
+        geom_brep::NurbsLane::certified().chart_arm(chart, p, reach)
     }
 
     /// The march is written at `f64` alone.
@@ -7661,6 +7706,15 @@ where
             geom_brep::curve_face::spline_face::SplineFaceRefusal,
         >,
     > {
+        None
+    }
+
+    /// A dual does not certify (DL1), so it reads no certified bound.
+    fn spline_chart_arm(
+        _chart: &geom::NurbsSurface<Self>,
+        _p: geom_core::Point3<Self>,
+        _reach: Self,
+    ) -> Option<f64> {
         None
     }
 

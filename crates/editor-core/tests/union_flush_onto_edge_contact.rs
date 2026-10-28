@@ -40,7 +40,7 @@ fn volume(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> f64 {
         "the union has mass",
         &topo::test_support::finished(
             "the measured body",
-            topo::Body::clone(body_of(ev, id)),
+            topo::Body::clone(&(body_of(ev, id))),
             Tol::witness(),
         ),
         Tol::witness(),

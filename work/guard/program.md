@@ -4,7 +4,7 @@ kind: program
 title: GUARD — the gate harness: the shared readers and the selftests
 status: ready
 opened: 2026-09-11
-area: infra
+group: infra/ci
 prefix: guard/
 tag: (GUARD orchestrator)
 ab_band: 3600-3699

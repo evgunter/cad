@@ -875,7 +875,7 @@ fn inline_moves_a_landing_under_a_world_value_with_its_instance() {
     // The world's vertices, sorted: a re-pin re-composes the pose, so
     // the copy stands where it stood to the rounding of that one step.
     let world = |doc: &ProfileDoc, o: &EvalOptions| {
-        let body = editor_core::product(doc, &fixture::run(doc, o), Tol::witness())
+        let body = crate::fixture::product_in_world(doc, &fixture::run(doc, o), Tol::witness())
             .expect("the world gathers");
         let mut points: Vec<[f64; 3]> =
             body.vertex_points().map(|(_, p)| [p.x, p.y, p.z]).collect();
@@ -1450,7 +1450,8 @@ fn a_part_inlined_twice_lands_at_the_composed_pose() {
     let own = match fixture::run(&part, &EvalOptions::default()).result(body) {
         Some(NodeResult::Ok(v)) => match &v.payload {
             editor_core::ValuePayload::Body(b) => sorted(
-                b.vertex_points()
+                b.body()
+                    .vertex_points()
                     .map(|(_, p)| Vec3::new(p.x, p.y, p.z))
                     .collect(),
             ),
@@ -1479,7 +1480,7 @@ fn a_part_inlined_twice_lands_at_the_composed_pose() {
             .unwrap_or_else(|e| panic!("inline {level} lands: {e}"))
             .doc;
     }
-    let product = editor_core::product(
+    let product = crate::fixture::product_in_world(
         &doc,
         &fixture::run(&doc, &EvalOptions::default()),
         Tol::witness(),

@@ -1741,6 +1741,7 @@ fn a_part_whose_ids_do_not_pair_with_its_patches_is_refused() {
                 mesh: part.mesh(),
                 ids,
                 probe: None,
+                placed: None,
             }],
             delta(),
         );
@@ -1761,7 +1762,8 @@ fn a_part_whose_ids_do_not_pair_with_its_patches_is_refused() {
             &[viewer::scene::ScenePart {
                 mesh: part.mesh(),
                 ids: &[],
-                probe: None
+                probe: None,
+                placed: None,
             }],
             delta()
         )

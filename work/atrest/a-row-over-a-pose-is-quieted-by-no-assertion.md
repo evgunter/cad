@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-27
 priority: P3
 cost: M
-needs_ev: true
 ---
 
 A split's ON row (`DecisionSite::SplitOn`, `crates/topo/src/splitting/mod.rs`

@@ -303,6 +303,7 @@ pub fn select_refusal_tag(err: &pncad::select::SelectRefusal) -> &'static str {
         R::InBand { .. } => "in_band",
         R::TiedDisagrees { .. } => "tied_disagrees",
         R::Unreadable { .. } => "unreadable",
+        R::Frame { .. } => "frame_refused",
         R::NotAPlane { .. } => "not_a_plane",
         R::FaceUnresolved { .. } => "face_unresolved",
         R::NotALength { .. } => "not_a_length",
@@ -2264,6 +2265,7 @@ pub fn export_error_tag(err: &pncad::export::ExportError) -> &'static str {
         E::NotABody { .. } => "not_a_body",
         E::EmptyBoolean { .. } => "empty_boolean",
         E::BodyInvalid { .. } => "body_invalid",
+        E::Compose(_) => "compose_refused",
         E::Step(_) => "step_refused",
         E::Product(inner) => product_error_tag(inner),
     }
@@ -2281,6 +2283,7 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
         K::EmptyProduct => "empty_product",
         K::StrandedProduct => "stranded_product",
         K::ProductOutsideWorld => "product_outside_world",
+        K::Frame => "frame_refused",
         K::Graft => "graft_refused",
         K::RootInvalid => "root_invalid",
         K::ProductInvalid => "product_invalid",
