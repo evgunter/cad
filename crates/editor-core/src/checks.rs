@@ -341,10 +341,11 @@ pub struct ChecksConfig {
     /// Turning it on is one field, and `Off` is VISIBLY off
     /// ([`ChecksReport::skipped`]).
     pub chart_coherence: Advisory,
-    /// [`CheckId::UnprovenCoincidence`]'s severity — [`Advisory`]: an
-    /// assertion quiets an at-rest contact ([`at_rest`]'s contact rule),
-    /// and nothing yet quiets an operation's row or a flush pair, so
-    /// `Error` is unrepresentable. A per-run choice and never a
+    /// [`CheckId::UnprovenCoincidence`]'s severity — [`Advisory`], so
+    /// `Error` is unrepresentable. An assertion quiets a row, an
+    /// operation's or an at-rest one, under [`at_rest`]'s contact rule,
+    /// and a row none could quiet never refuses
+    /// ([`CheckEvidence::never_refuses`]). A per-run choice and never a
     /// document's: turning it off removes reports, never changes a body
     /// (DS3).
     pub unproven_coincidence: Advisory,
@@ -514,6 +515,11 @@ pub enum CheckEvidence {
             crate::coincide::Residual,
             crate::coincide::Recourse,
         )>,
+        /// Whether an assertion could quiet the row
+        /// ([`at_rest::contact_quietable`]): it decided what a `Gap = 0`
+        /// says, and a `Gap` over its two cells reads zero. A row no
+        /// assertion could quiet never refuses ([`Self::never_refuses`]).
+        quietable: bool,
     },
     /// An overlap of two arrivals' material at rest, quiet or loud
     /// ([`at_rest::InterferenceFinding`]).
@@ -554,16 +560,18 @@ impl CheckEvidence {
 
     /// **Whether this finding is outside what the document can yet say**
     /// (CHECKS DS6): a pair the census could not look at
-    /// ([`Self::could_not_look`]), or an overlap no assertion could
-    /// quiet ([`at_rest::InterferenceFinding::quietable`]): one the
-    /// kernel could not intersect, or one whose bounding faces offer no
-    /// pair an assertion the quieting rule accepts could be written
-    /// over. Loud, and refused
-    /// by [`enforce_checks`] at no severity: a refusal there would have
-    /// no recourse but changing geometry.
+    /// ([`Self::could_not_look`]), an overlap no assertion could quiet
+    /// ([`at_rest::InterferenceFinding::quietable`]): one the kernel
+    /// could not intersect, or one whose bounding faces offer no pair an
+    /// assertion the quieting rule accepts could be written over; or a
+    /// coincidence no assertion could quiet
+    /// ([`at_rest::contact_quietable`]). Loud, and refused by
+    /// [`enforce_checks`] at no severity: a refusal there would have no
+    /// recourse but changing geometry.
     #[must_use]
     pub fn never_refuses(&self) -> bool {
         match self {
+            Self::UnprovenCoincidence { quietable, .. } => !quietable,
             Self::Interference { finding } => !finding.quietable,
             Self::CarriedInterference { finding } => !finding.finding.quietable,
             Self::CarriedCoincidence { finding } => finding.finding.evidence.never_refuses(),
@@ -1631,12 +1639,21 @@ pub struct DoorFindings {
 
 /// One row set: the subject its findings are reported against, the
 /// node whose decision the door proves it at, and its rows in decision
-/// order, each with the assertion that quiets it, if one does.
-pub(crate) type DoorRows = (
-    FindingSubject,
-    RecipeNodeId,
-    Vec<(crate::coincide::NamedCoincidence, Option<RecipeNodeId>)>,
-);
+/// order.
+pub(crate) type DoorRows = (FindingSubject, RecipeNodeId, Vec<DoorRow>);
+
+/// **One row the door is asked about**, with what the contact half of
+/// the quieting rule says of it in the evaluation that decided it.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct DoorRow {
+    /// The row.
+    pub row: crate::coincide::NamedCoincidence,
+    /// The assertion that quiets it ([`at_rest::quiet_contact`]), if one
+    /// does.
+    pub quiet: Option<RecipeNodeId>,
+    /// Whether one could ([`at_rest::contact_quietable`]).
+    pub quietable: bool,
+}
 
 /// **The rows the `unproven-coincidence` resident asks the door
 /// about** (D10): every evaluated node's rows, in evaluation order then
@@ -1644,10 +1661,10 @@ pub(crate) type DoorRows = (
 /// product and on each other `⊔` it carries
 /// ([`crate::Product::assembles`]), in their order; each
 /// under the subject it is reported against — the node that decided it,
-/// or the two copies the census found in contact. An at-rest row is
-/// quiet under the contact half of the quieting rule
-/// ([`at_rest::quiet_contact`]), read here, where the evaluation the
-/// census ran in is in hand.
+/// or the two copies the census found in contact. Every row, a node's
+/// or an at-rest one, is quiet under the contact half of the quieting
+/// rule ([`at_rest::quiet_contact`]), read here, where the evaluation
+/// that decided it is in hand.
 pub(crate) fn door_rows<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
@@ -1683,12 +1700,19 @@ pub(crate) fn door_rows<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         doc.operation_of(a.var)
             .unwrap_or_else(|| unreachable!("a gathered copy is a live placement's output"))
     };
+    let judged = |row: &crate::coincide::NamedCoincidence| DoorRow {
+        row: row.clone(),
+        quiet: at_rest::quiet_contact(doc, ev, row, tol),
+        quietable: at_rest::contact_quietable(doc, ev, row, tol),
+    };
     ev.order
         .iter()
         .filter_map(|&node| {
             ev.value(node).map(|value| {
-                let rows = value.coincidences.iter().map(|r| (r.clone(), None));
-                (node, rows.collect::<Vec<_>>())
+                (
+                    node,
+                    value.coincidences.iter().map(judged).collect::<Vec<_>>(),
+                )
             })
         })
         .filter(|(_, rows)| !rows.is_empty())
@@ -1698,7 +1722,7 @@ pub(crate) fn door_rows<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
             (
                 FindingSubject::Copies { a, b },
                 at_rest_node(a),
-                vec![(r.row.clone(), at_rest::quiet_contact(doc, ev, &r.row, tol))],
+                vec![judged(&r.row)],
             )
         }))
         .collect()
@@ -1729,7 +1753,7 @@ fn door_findings<P: crate::ProfilePayload>(
 ) -> Result<Vec<CheckFinding>, crate::coincide::Canceled> {
     let named: Vec<Vec<crate::coincide::NamedCoincidence>> = rows
         .iter()
-        .map(|(_, _, rows)| rows.iter().map(|(row, _)| row.clone()).collect())
+        .map(|(_, _, rows)| rows.iter().map(|asked| asked.row.clone()).collect())
         .collect();
     let nodes: Vec<(RecipeNodeId, &[crate::coincide::NamedCoincidence])> = rows
         .iter()
@@ -1742,9 +1766,9 @@ fn door_findings<P: crate::ProfilePayload>(
         let unproven: Vec<_> = rows
             .iter()
             .zip(proofs)
-            .filter_map(|((row, quiet), proof)| match proof {
+            .filter_map(|(asked, proof)| match proof {
                 crate::coincide::Proof::Unproven { residual, recourse } => {
-                    Some((row, residual, recourse, *quiet))
+                    Some((&asked.row, residual, recourse, asked))
                 }
                 crate::coincide::Proof::Structural(_) => None,
             })
@@ -1784,7 +1808,7 @@ fn door_findings<P: crate::ProfilePayload>(
             })
             .collect();
         let mut at: Vec<Option<usize>> = vec![None; unproven.len()];
-        for (i, (row, residual, recourse, quiet)) in unproven.iter().enumerate() {
+        for (i, (row, residual, recourse, asked)) in unproven.iter().enumerate() {
             if parents[i].is_some() {
                 continue;
             }
@@ -1797,8 +1821,9 @@ fn door_findings<P: crate::ProfilePayload>(
                     residual: Box::new(residual.clone()),
                     recourse: *recourse,
                     restated: Vec::new(),
+                    quietable: asked.quietable,
                 },
-                quiet: *quiet,
+                quiet: asked.quiet,
             });
         }
         for (i, (row, residual, recourse, _)) in unproven.iter().enumerate() {
