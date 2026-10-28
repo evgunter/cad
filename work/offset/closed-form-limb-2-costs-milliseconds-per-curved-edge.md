@@ -141,3 +141,43 @@ on every `Sym<Interval>` read, before the margin's numeric channel is
 asked. Built only where the numeric channel does not already decide
 the margin, it would cost nothing on the reads that clear on their
 enclosure.
+
+**PR 5885's cost pass (2026-10-28).** Profiled (callgrind) on the turn
+row, the zone-reach row, the agreement-gate row and the stackup row.
+Before, the turn row was 8,100 certifications and 6,167 first-round
+composites at 36.6 spans each, 57% building the net and 41% composing,
+with interval multiplication at 45% of the total. Four cuts landed:
+
+- **A first reading on dyadic spans** (`pcurve_cache::limb2_quick`,
+  C2 in `crates/geom-brep/README.md`). A curved closed form is read on
+  the dyadic spans of its angle parameter, each a single degree-12
+  Bézier segment enclosed alone (`carrier_net::framed_span_net`, its
+  net factored through the span's `α`/`β` Bernstein rows) and composed
+  alone. Uncleared spans are halved locally. A span may reach past the
+  window, and one past it that does not clear is read again within it.
+  The reading only passes; everything else goes to the rounds unchanged,
+  so every refusal is still the rounds'. A span's reading is keyed on
+  the carrier, the operand, the chart and the span, never the window,
+  so edges sharing a carrier share its spans. On the turn row,
+  6,912 reads compute 170 spans.
+- **A Bernstein row squared once per mirror pair**
+  (`compose::bern_square_row`), and no weight square for the plane's
+  form. Bit for bit the same.
+- **A one-signed interval product read on two corners**
+  (`DInterval::signed_corners`). Bit for bit the four-corner fold.
+- **Two quadratic scans out of the rounds**: `Knots::value_at`'s linear
+  search, and the per-part scan for an uncertified control. Bit for bit
+  the same.
+
+**What remains slow.**
+`editor-core::all m10_4_stackup_interval::a_foreign_verdict_or_box_refuses_typed`
+took 1.43 s on CI (2.1 s before) and stays in the slow set. Its reads are at
+`Sym<Interval>`, where the box's spread keeps the first reading from
+clearing, so limb 2's rounds decide, as before: 48 reads, 80 rounds,
+the net (47%) and the composite (50%) rebuilt for every round. The
+cut not taken: the rounds re-expand every span every round, where a
+span the round did not cut could keep its rows (bit for bit, since a
+span's rows read only its own ends; its joint hull is re-formed).
+
+The `Sym::free_identity` eager build above is not where this row's
+time goes.
