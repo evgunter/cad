@@ -476,6 +476,9 @@ fn two_arc_holed_block(phase: f64, sweep: f64) -> Body<f64> {
     extruded(vec![square, RawLoop::new([arc(phase), arc(phase + PI)])])
 }
 
+/// A body built from a vertex phase and a sweep.
+type Build = fn(f64, f64) -> Body<f64>;
+
 /// **A plane tangent to a hole's rim at a vertex**: the poses of
 /// [`POSES`] that touch the rim there (`β = 0`), through the bottom
 /// vertex and the top one, both senses of each normal, either winding,
@@ -484,7 +487,7 @@ fn two_arc_holed_block(phase: f64, sweep: f64) -> Body<f64> {
 /// block's prism under the plane less the hole's.
 #[test]
 fn a_plane_tangent_to_a_holes_rim_at_a_vertex_splits_sound() {
-    let builds: [(fn(f64, f64) -> Body<f64>, &str); 2] = [
+    let builds: [(Build, &str); 2] = [
         (holed_block, "one segment"),
         (two_arc_holed_block, "two arcs"),
     ];
