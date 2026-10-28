@@ -6,7 +6,7 @@
 //! node decided from values that the coincidence door,
 //! [`crate::coincide::prove`], does not prove structural), and the
 //! at-rest check (D10 `[assertions]`: what the census at each `⊔`
-//! found between its arrivals, [`at_rest`]).
+//! found between its arrivals, [`mod@at_rest`]).
 //!
 //! A check is a **pure analysis over a finished evaluation** producing
 //! findings — no declaration vocabulary, no verify table, and by
@@ -343,7 +343,7 @@ pub struct ChecksConfig {
     pub chart_coherence: Advisory,
     /// [`CheckId::UnprovenCoincidence`]'s severity — [`Advisory`], so
     /// `Error` is unrepresentable. An assertion quiets a row, an
-    /// operation's or an at-rest one, under [`at_rest`]'s contact rule,
+    /// operation's or an at-rest one, under [`mod@at_rest`]'s contact rule,
     /// and a row none could quiet never refuses
     /// ([`CheckEvidence::never_refuses`]). A per-run choice and never a
     /// document's: turning it off removes reports, never changes a body

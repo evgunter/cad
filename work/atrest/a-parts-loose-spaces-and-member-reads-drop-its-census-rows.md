@@ -59,3 +59,7 @@ itself: a space other than the world (a `new_space()`, or a
 construction's own) is census-checked nowhere. The first half above is
 restated as that: no space but the world is checked, at the seam or
 before it. The member-read half stands as written.
+
+## Slate triage (2026-10-28, INTENT)
+
+Moved from `work/intent/` by `git mv`, id and body unchanged: residue of INTENT's D10 build that belongs to ATREST's charter (at-rest census work; ATREST's stage 5 C makes the census a check at each `⊔`, the same door). INTENT keeps D10's core (G and its riders, the stage-3 umbrellas, the carry, the refactor rows, the roots rename); Ev asked for INTENT's slate to be cut to its charter and its residue handed on (in chat, 2026-10-28).

@@ -3,6 +3,7 @@ id: the-viewer-composes-a-copy-on-the-cpu-not-the-gpu
 kind: issue
 title: The viewer composes a copy's frame into its mesh on the CPU at scene build, where §6 asked for a GPU multiply
 status: open
+priority: P3
 opened: 2026-10-27
 ---
 
@@ -24,3 +25,7 @@ or an instance attribute) and the positions are uploaded once per
 tessellation, or §6 is restated to the CPU composition with its reason
 (one `f64` rounding beneath the probe, the same as an undisplaced part
 takes).
+
+## Slate triage (2026-10-28, INTENT)
+
+Moved from `work/intent/` by `git mv`, id and body unchanged: residue of INTENT's D10 build that belongs to VGEOM's charter (viewer geometry and display). INTENT keeps D10's core (G and its riders, the stage-3 umbrellas, the carry, the refactor rows, the roots rename); Ev asked for INTENT's slate to be cut to its charter and its residue handed on (in chat, 2026-10-28).

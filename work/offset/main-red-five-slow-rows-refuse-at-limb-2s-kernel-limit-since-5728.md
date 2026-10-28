@@ -1,0 +1,62 @@
+---
+id: main-red-five-slow-rows-refuse-at-limb-2s-kernel-limit-since-5728
+kind: issue
+title: Main red: five slow-set rows refuse at 1e-12 as limb 2's KernelLimit since PR 5728, and the torus support plate refuses NoOffsetBound at 1e-6
+status: open
+opened: 2026-10-28
+priority: P0
+cost: M
+---
+
+
+Found by nightly triage 2026-10-28, run
+[40637814390](https://github.com/evgunter/cad/actions/runs/40637814390)
+(main `a1cfd1cfdb`), job `full suite (every eps row, slow set included)`.
+All five rows are in the slow set, so only the nightly runs them.
+
+## What
+
+At `CAD_TOLERANCE_EPS=1e-12` five rows unwrap a build that now refuses
+as limb 2's kernel limit, `AnalyticRung3(KernelLimit { .. })`:
+
+| row | operand | bound | extent |
+|---|---|---|---|
+| `mesh` `perf1_torus_sizing::torus_sizing_sweep_is_sound_tight_and_on_the_ideal` (`crates/mesh/tests/perf1_torus_sizing.rs:61`) | Torus | 1.75e-11 | 2.24 |
+| `sweep` `band_turn_overrun_oracles::leaning_prisms_match_the_slab_oracle_over_leans_setbacks_and_scales` (`crates/sweep/src/test_support.rs:712`, "the fixture's profile extrudes") | Plane | 1.08e-12 | 2000 |
+| `sweep` `reach_split_gate_azimuth::every_cut_clear_of_a_partial_turn_sphere_face_splits` (`crates/sweep/tests/reach_split_gate_azimuth.rs:120`) | Sphere | 3.35e-12 | 1734 |
+| `sweep` `reach_split_gate_pose::a_cut_clear_of_the_face_splits_in_every_pose` (`crates/sweep/tests/reach_split_gate_pose.rs:122`) | Sphere | 3.35e-12 | 2236 |
+| `sweep` `operand_gate_support_plates::plates_at_the_exact_support_of_a_frustum_and_a_torus_are_right_at_every_op` (`crates/sweep/src/test_support.rs:316`) | Cone | 1.76e-12 | 1131 |
+
+The last row is also red at `1e-6`, with a different refusal:
+`AnalyticRung3(NoOffsetBound { operand: Torus, why: "its metre lever is
+not positive: it reaches the cone's apex or other nappe, or a spindle
+torus's inner sheet" })`.
+
+## Where it came from
+
+Bisected on a clean checkout: all five 1e-12 rows and the 1e-6 row pass
+at `b8974faabc^1` and fail at `b8974faabc`, the merge of PR 5728
+(`offset/limb2-for-every-carrier`). PR 5728's body lists the 1e-12
+refusals Ev accepted (fork row 203: thin tori with R/r ≥ 20, edges of
+1 km or more, "a few 700–1000 m rows") and re-pins the rows it ran.
+These five were not re-pinned: they are slow-set rows outside its gate.
+
+## What closing it takes
+
+For each row, decide whether the refusal is one of the accepted kernel
+limits (then re-pin it as that refusal, fail-loud, citing the follow-up
+row it waits on: `the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding`,
+`the-closed-form-net-builder-rounds-at-a-km-radius-not-at-the-span`) or
+a regression. Two readings need care:
+
+- `perf1_torus_sizing` is a unit-scale torus (extent 2.24), not a far
+  placement or a km-scale edge.
+- The 1e-6 `NoOffsetBound` on the torus plate is not a kernel limit at
+  all; "its metre lever is not positive" on a plate at a torus's exact
+  support reads as a wrong refusal until shown otherwise.
+
+Reproduce: `CAD_TOLERANCE_EPS=1e-12 cargo nextest run -p sweep -p mesh
+--ignore-default-filter -E 'test(/^perf1_torus_sizing::torus_sizing_sweep/)
+| test(/^band_turn_overrun_oracles::leaning_prisms/) |
+test(/^reach_split_gate_(azimuth|pose)::(every_cut_clear|a_cut_clear)/) |
+test(/^operand_gate_support_plates::plates_at/)'`.
