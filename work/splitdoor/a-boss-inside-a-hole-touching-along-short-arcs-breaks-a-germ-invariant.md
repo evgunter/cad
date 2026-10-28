@@ -4,6 +4,8 @@ kind: issue
 title: A boss inside a hole, tangent, with short arcs either side of the touch: the union refuses ClassificationInvariant
 status: open
 opened: 2026-10-28
+priority: P1
+cost: M
 ---
 
 
@@ -36,3 +38,7 @@ t3p=false`; which findings it fails on is unmeasured), the reading
 An invariant breach is a bug report, not a typed refusal of an
 unsupported shape: the union is two solids touching along a coincident
 run, which tier 3′ represents.
+
+## Slate triage (2026-10-28, SPLITDOOR)
+
+- Banded P1, priced M: a legal union refuses with a kernel invariant (`ClassificationInvariant`) rather than a typed frontier, on verb breadth beyond the everyday shapes; `work/README.md` Priority.
