@@ -49,31 +49,23 @@ use topo::BooleanOp;
 type Results<T> = BTreeMap<RecipeNodeId, NodeResult<T>>;
 
 /// An op's product: the payload, its eagerly-emitted name table (N4;
-/// emission lives in the wire layer, spec D4), and the DECLARED CONTACT
-/// RECORDS the value carries (ASM-R2b D-1).
+/// emission lives in the wire layer, spec D4), and what its body
+/// carries from its source ([`super::Carry`]).
 ///
-/// # The contacts channel (D-1)
-///
-/// Declared records are keyed in the op's OUTPUT BODY 0 arena. Only
-/// [`wire_instantiate_part`] fills the field, carrying the referenced
-/// part's records across the document seam. A boolean's records ride
-/// its payload instead ([`BooleanValue::Body::contacts`]);
-/// `product::sources_of` is the one place the two homes reconcile.
-///
-/// **Invariant**: a multi-output op (`Split`, `Pattern`) never fills
-/// this field — "output body 0" would be a lie for its other bodies.
+/// The records a carry holds are keyed in the op's OUTPUT BODY 0 arena,
+/// or each member's of a family, whose members share one arena. A
+/// boolean's own records ride its payload instead
+/// ([`BooleanValue::Body::contacts`]); `product::sources_of` is the one
+/// place the two homes reconcile. A split never fills them: "output
+/// body 0" would be a lie for its other half.
 pub(crate) struct OpOut<T: Decide> {
     pub payload: ValuePayload<T>,
     /// Each output's names, by port (`NodeValue::outputs`): one for an
     /// op with one body output, a split's two halves apart; the
     /// fragment groups beside them empty for an op that forms none.
     pub outputs: Vec<super::OutputNames>,
-    pub contacts: Arc<topo::ContactRecords>,
-    /// The at-rest findings of the documents below; same arena, same
-    /// one op.
-    pub carried: Arc<crate::checks::at_rest::CarriedFindings>,
-    /// How many parts each output body is (`NodeValue::parts`).
-    pub parts: usize,
+    /// What its body carries (`NodeValue::carry`).
+    pub carry: super::Carry<T>,
     /// The coincidences the op decided from values, named in its
     /// inputs' tables (`NodeValue::coincidences`).
     pub coincidences: Arc<[crate::coincide::NamedCoincidence]>,
@@ -82,30 +74,18 @@ pub(crate) struct OpOut<T: Decide> {
     pub cited_inputs: Arc<[crate::coincide::CitedInput]>,
     /// A placement's solved motion (`NodeValue::motion`).
     pub motion: Option<RigidMotion<T>>,
-    /// The pieces its body holds (`NodeValue::pieces`).
-    pub pieces: Option<Arc<super::Pieces<T>>>,
-    /// The census of the door that assembled them (`NodeValue::census`).
-    pub census: Option<Arc<crate::product::Census<T>>>,
-    /// Whether a door already decided its meetings
-    /// (`NodeValue::censused`).
-    pub censused: bool,
 }
 
 impl<T: Decide> OpOut<T> {
-    /// An op that carries no part's records — every op but instantiate.
+    /// An op that carries nothing from a source: a body of its own.
     fn plain(payload: ValuePayload<T>, names: Arc<NameTable>) -> Self {
         Self {
             payload,
             outputs: vec![super::OutputNames::new(names, Arc::default())],
-            contacts: Arc::new(topo::ContactRecords::default()),
-            carried: Arc::new(crate::checks::at_rest::CarriedFindings::default()),
-            parts: 1,
+            carry: super::Carry::default(),
             coincidences: Arc::new([]),
             cited_inputs: Arc::new([]),
             motion: None,
-            pieces: None,
-            census: None,
-            censused: false,
         }
     }
 
@@ -142,10 +122,10 @@ impl<T: Decide> OpOut<T> {
         Ok(self.with_coincidences(named))
     }
 
-    /// This output, each body of it `parts` parts: a placer's or a
-    /// projection's output carries its input's count through.
-    fn carrying(self, parts: usize) -> Self {
-        Self { parts, ..self }
+    /// This output carrying `carry` from its source: a copy's, a
+    /// projection's, a pick's.
+    fn carrying(self, carry: super::Carry<T>) -> Self {
+        Self { carry, ..self }
     }
 }
 
@@ -895,73 +875,42 @@ where
             });
         }
     }
-    // The copy shares the part's product body under its own map
-    // ([`place`]).
-    let placed = place(&part.body, map.as_ref())?;
-    let table =
-        names::name_copy(id, &part.names, &[placed.body()]).map_err(NodeErrorKind::Naming)?;
-    // ASM-R2b D-1: the part's OWN contact records survive
-    // instantiation with their cells UNCHANGED, because the copy is the
-    // part's body itself. Re-deriving them from the placed geometry is the
-    // scan-to-bless move F1 bans. Each record cites the part's record
-    // it is, through this instance ([`crate::coincide::CitedInput::Part`]).
-    // The census findings ride unchanged for the same reason. The door
-    // rows ride unjudged for another: they are the part's, named in its
-    // document, and judged over it where a report asks. What is added to
-    // each row here is its first hop, this instance
-    // ([`crate::checks::at_rest::PartRow::through`]).
-    let carried = crate::checks::at_rest::CarriedFindings {
-        interference: part
-            .interference
-            .iter()
-            .map(|row| {
-                let (route, pinned, _) = row.through(id);
-                crate::checks::at_rest::CarriedInterference {
-                    route,
-                    pin: pinned.pin,
-                    finding: pinned.finding,
-                }
-            })
-            .collect(),
-        at_rest: part
-            .at_rest
-            .iter()
-            .map(|row| {
-                let (route, pinned, held) = row.through(id);
-                crate::checks::at_rest::CarriedAtRestFinding {
-                    route,
-                    pin: pinned.pin,
-                    finding: pinned.finding,
-                    held,
-                }
-            })
-            .collect(),
-        coincidences: part
-            .door_rows
-            .iter()
-            .map(|row| {
-                let (route, pinned, _) = row.through(id);
-                (route, pinned).into()
-            })
-            .collect(),
-    };
-    Ok(OpOut {
-        payload: ValuePayload::Body(placed),
-        outputs: vec![super::OutputNames::new(table, Arc::default())],
-        contacts: Arc::new(part.contacts.carried_from(0)),
-        carried: Arc::new(carried),
-        parts: part.parts,
-        // The part's own rows ride `carried`, proven over the part's
-        // document where a report asks.
-        coincidences: Arc::new([]),
-        cited_inputs: Arc::new([crate::coincide::CitedInput::Part(*doc_ref)]),
-        pieces: moved_pieces(part.pieces.as_ref(), map.as_ref())?,
-        // The part's census decided the meetings inside its product,
-        // and its records ride `contacts`: no door here holds them.
-        census: None,
-        censused: true,
-        motion: None,
-    })
+    // ASM-R2b D-1: the part's product is the source, and its copy
+    // carries what any copy carries ([`copy_of`]): its records with
+    // their cells UNCHANGED, because the copy is the part's body itself
+    // (re-deriving them from the placed geometry is the scan-to-bless
+    // move F1 bans), each citing the part's record it is through this
+    // instance ([`crate::coincide::CitedInput::Part`]); and the part's
+    // findings, each routed through this instance
+    // ([`crate::checks::at_rest::PartRow::through`]). The part's census
+    // decided the meetings inside its product: no door here holds them.
+    copy_of(
+        id,
+        (&part.body, &part.names),
+        &part.carry_through(id),
+        map.as_ref(),
+    )
+    .map(|out| out.citing(vec![crate::coincide::CitedInput::Part(*doc_ref)]))
+}
+
+/// **A placement's copy of one body** (D10 `[placement.placement]`):
+/// `source` shared under `map`, named as the source names it
+/// ([`names::name_copy`]), carrying `carry` where the copy stands, its
+/// records each citing the source's record it is, as the copy's input
+/// 0. A copy is never rebuilt.
+fn copy_of<T: Decide>(
+    id: RecipeNodeId,
+    (source, table): (&super::Framed<T>, &NameTable),
+    carry: &super::Carry<T>,
+    map: Option<&RigidMotion<T>>,
+) -> OpResult<T> {
+    let copy = place(source, map)?;
+    let table = names::name_copy(id, table, &[copy.body()]).map_err(NodeErrorKind::Naming)?;
+    let records = Arc::new(carry.contacts.carried_from(0));
+    Ok(
+        OpOut::plain(ValuePayload::Body(copy), table)
+            .carrying(carry.moved(map)?.recording(records)),
+    )
 }
 
 /// **A rigid placement of `body`**: its body shared, its frame moved by
@@ -1015,6 +964,7 @@ fn operand_records<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> Arc<topo::ContactRecords> {
     value
+        .carry
         .census
         .as_ref()
         .and_then(|census| census.records(doc, tol))
@@ -1023,11 +973,11 @@ fn operand_records<T: Decide + topo::AtRestPolicy>(
 
 /// The contact records `value` holds for its output body 0: a
 /// boolean's own, or those the value's channel carries
-/// ([`OpOut::contacts`]).
+/// ([`super::Carry::contacts`]).
 fn records_of<T: Decide>(value: &super::NodeValue<T>) -> Arc<topo::ContactRecords> {
     match &value.payload {
         ValuePayload::Boolean(BooleanValue::Body { contacts, .. }) => Arc::clone(contacts),
-        _ => Arc::clone(&value.contacts),
+        _ => Arc::clone(&value.carry.contacts),
     }
 }
 
@@ -2604,23 +2554,24 @@ fn wire_mirror<T: Decide + topo::AtRestPolicy>(
         .project(0)
         .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
     names::check_total(&table, &image, 0).map_err(NodeErrorKind::Naming)?;
-    let contacts = match &value.payload {
-        ValuePayload::Boolean(BooleanValue::Body { contacts, .. }) => Arc::clone(contacts),
-        _ => Arc::clone(&value.contacts),
-    };
-    Ok(OpOut {
-        contacts: Arc::new(contacts.carried_from(0)),
-        carried: Arc::clone(&value.carried),
-        ..OpOut::plain(
-            ValuePayload::Body(super::Framed::in_frame(
-                Arc::new(image),
-                body.frame().clone(),
-            )),
-            Arc::new(table),
-        )
-        .carrying(value.parts)
-        .citing(vec![crate::coincide::CitedInput::Read(read)])
+    Ok(OpOut::plain(
+        ValuePayload::Body(super::Framed::in_frame(
+            Arc::new(image),
+            body.frame().clone(),
+        )),
+        Arc::new(table),
+    )
+    .carrying(super::Carry {
+        contacts: Arc::new(records_of(value).carried_from(0)),
+        findings: Arc::clone(&value.carry.findings),
+        parts: value.carry.parts,
+        // An image is a construction: it holds no pieces, and no door
+        // decided the meetings inside it.
+        pieces: None,
+        census: None,
+        censused: false,
     })
+    .citing(vec![crate::coincide::CitedInput::Read(read)]))
 }
 
 /// **The projection node** (DM3): ONE body out of a pattern's copies,
@@ -2668,7 +2619,11 @@ fn wire_part<T: Decide>(
         .project(index)
         .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
     names::check_total(&table, body.body(), 0).map_err(NodeErrorKind::Naming)?;
-    Ok(OpOut::plain(ValuePayload::Body(body), Arc::new(table)).carrying(value.parts))
+    // A member carries what every member of its family carries.
+    Ok(OpOut {
+        cited_inputs: Arc::clone(&value.cited_inputs),
+        ..OpOut::plain(ValuePayload::Body(body), Arc::new(table)).carrying(value.carry.clone())
+    })
 }
 
 /// **The instance of `of`'s `Instances` value the count in `slot`
@@ -2797,13 +2752,13 @@ fn pick_of<T: Decide>(
     (results, vals): (&Results<T>, &SlotValues<T>),
 ) -> Result<(RecipeNodeId, u32, super::NodeValue<T>), NodeErrorKind> {
     let value = value_of(results, placement)?;
-    let mut pieces = value.pieces.as_ref();
+    let mut pieces = value.carry.pieces.as_ref();
     let mut reached: Option<&super::Piece<T>> = None;
     for (at, &step) in pick.of.iter().enumerate() {
         let piece = pieces
             .and_then(|held| held.piece(step))
             .ok_or(NodeErrorKind::NoSuchPiece { pick: var, at })?;
-        pieces = piece.pieces.as_ref();
+        pieces = piece.carry.pieces.as_ref();
         reached = Some(piece);
     }
     let Some(piece) = reached else {
@@ -2836,12 +2791,15 @@ fn pick_of<T: Decide>(
         super::NodeValue {
             payload: ValuePayload::Body(body),
             outputs: Arc::new([super::OutputNames::new(Arc::new(table), Arc::default())]),
-            contacts: Arc::default(),
-            carried: Arc::default(),
-            parts: piece.parts,
-            pieces: piece.pieces.clone(),
-            census: piece.census.clone(),
-            censused: piece.censused,
+            // Its records cite inputs of the member's own, which the
+            // copy does not name, so it carries none: a piece whose
+            // door kept a census carries the touches inside it there,
+            // and one with none (an instance's piece) carries no
+            // records at all.
+            carry: super::Carry {
+                contacts: Arc::default(),
+                ..piece.carry.clone()
+            },
             ..value.clone()
         },
     ))
@@ -2909,8 +2867,6 @@ fn projected<T: Decide>(
         super::NodeValue {
             payload: ValuePayload::Body(body),
             outputs: Arc::new([names]),
-            contacts: Arc::default(),
-            carried: Arc::default(),
             ..value.clone()
         },
     ))
@@ -3405,7 +3361,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 let projected = reads_projected(node, &[(slot, read)], doc, (results, vals))?;
                 let results = projected.as_ref().unwrap_or(results);
                 let pieces = match op {
-                    BooleanOp::Intersect if value_of(results, at)?.pieces.is_some() => Some(
+                    BooleanOp::Intersect if value_of(results, at)?.carry.pieces.is_some() => Some(
                         Arc::new(distribute::Operand::read(results, at, read, doc, tol)?),
                     ),
                     _ => None,
@@ -4028,13 +3984,10 @@ pub(crate) const PLANE_NORMAL_ROLE: &str = "plane normal";
 /// [`unit()`]).
 pub(crate) const AXIS_DIRECTION_ROLE: &str = "axis direction";
 
-/// **A placement's copy** (D10 `[placement.placement]`): its source's
-/// body, shared, under its source's frame moved by the solved map (the
-/// copies ruling), one body (or, until patterns are index variables, a
-/// pattern's family whole), named as the source names it
-/// ([`names::name_copy`]), carrying the source's records, census
-/// decisions and pieces, the pieces moved by the same map. A copy is
-/// never rebuilt.
+/// **A placement** (D10 `[placement.placement]`): the copy of its
+/// source's one body ([`copy_of`]), or, until patterns are index
+/// variables, of a pattern's family whole, each member placed by the one
+/// map and carrying what each member carries.
 fn wire_place<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     (of, read, results): (RecipeNodeId, crate::VarId, &Results<T>),
@@ -4042,24 +3995,23 @@ fn wire_place<T: Decide + topo::AtRestPolicy>(
 ) -> OpResult<T> {
     let value = value_of(results, of)?;
     let citing = vec![crate::coincide::CitedInput::Read(read)];
-    let (body, contacts) = match &value.payload {
+    let carry = value.carry.clone().recording(records_of(value));
+    let body = match &value.payload {
         ValuePayload::Boolean(BooleanValue::Empty) => {
             return Ok(OpOut::plain(
                 ValuePayload::Boolean(BooleanValue::Empty),
                 names::empty(),
             ));
         }
-        ValuePayload::Boolean(BooleanValue::Body { body, contacts, .. }) => {
-            (body, Arc::clone(contacts))
-        }
-        ValuePayload::Body(body) => (body, Arc::clone(&value.contacts)),
+        ValuePayload::Boolean(BooleanValue::Body { body, .. }) | ValuePayload::Body(body) => body,
         ValuePayload::Instances(bodies) => {
             let bodies = place_each(bodies, map)?;
             let placed: Vec<&Body<T>> = bodies.iter().map(super::Framed::body).collect();
             let table =
                 names::name_copy(id, &read_table(value), &placed).map_err(NodeErrorKind::Naming)?;
+            let records = Arc::new(carry.contacts.carried_from(0));
             return Ok(OpOut::plain(ValuePayload::Instances(bodies), table)
-                .carrying(value.parts)
+                .carrying(carry.moved(map)?.recording(records))
                 .citing(citing));
         }
         _ => return Err(wrong_operand(value, of, super::phrase::BODY_OR_INSTANCES)),
@@ -4067,50 +4019,9 @@ fn wire_place<T: Decide + topo::AtRestPolicy>(
     let table = read_table(value)
         .project(0)
         .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
-    let copy = place(body, map)?;
-    let table = names::name_copy(id, &table, &[copy.body()]).map_err(NodeErrorKind::Naming)?;
-    Ok(OpOut {
-        contacts: Arc::new(contacts.carried_from(0)),
-        carried: Arc::clone(&value.carried),
-        pieces: moved_pieces(value.pieces.as_ref(), map)?,
-        // A placement moves its source and re-mints no key, so the
-        // census its source's door kept keys this copy too.
-        census: value.census.clone(),
-        censused: value.censused,
-        ..OpOut::plain(ValuePayload::Body(copy), table)
-            .carrying(value.parts)
-            .citing(citing)
-    })
-}
-
-/// **A value's pieces, moved by `map`** with the value: every piece at
-/// every depth stands where its holder stands, so `map` composes onto
-/// each piece's frame. `None` where there are no pieces.
-pub(super) fn moved_pieces<T: Decide>(
-    pieces: Option<&Arc<super::Pieces<T>>>,
-    map: Option<&RigidMotion<T>>,
-) -> Result<Option<Arc<super::Pieces<T>>>, NodeErrorKind> {
-    let Some(pieces) = pieces else {
-        return Ok(None);
-    };
-    let Some(map) = map else {
-        return Ok(Some(Arc::clone(pieces)));
-    };
-    let moved = pieces
-        .pieces
-        .iter()
-        .map(|piece| {
-            Ok(super::Piece {
-                bodies: place_each(&piece.bodies, Some(map))?,
-                pieces: moved_pieces(piece.pieces.as_ref(), Some(map))?,
-                ..piece.clone()
-            })
-        })
-        .collect::<Result<Vec<_>, NodeErrorKind>>()?;
-    Ok(Some(Arc::new(super::Pieces {
-        by: pieces.by,
-        pieces: moved,
-    })))
+    // A placement moves its source and re-mints no key, so the census
+    // its source's door kept keys this copy too.
+    copy_of(id, (body, &table), &carry, map).map(|out| out.citing(citing))
 }
 
 /// **The assemble** (`⊔`, D10 `[operations.operators]`): each member
@@ -4159,8 +4070,12 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
             ValuePayload::Boolean(BooleanValue::Body { body, contacts, .. }) => {
                 (vec![body.clone()], false, Arc::clone(contacts))
             }
-            ValuePayload::Body(body) => (vec![body.clone()], false, Arc::clone(&value.contacts)),
-            ValuePayload::Instances(bodies) => (bodies.clone(), true, Arc::default()),
+            ValuePayload::Body(body) => {
+                (vec![body.clone()], false, Arc::clone(&value.carry.contacts))
+            }
+            ValuePayload::Instances(bodies) => {
+                (bodies.clone(), true, Arc::clone(&value.carry.contacts))
+            }
             _ => return Err(wrong_operand(value, of, super::phrase::BODY_OR_INSTANCES)),
         };
         let table = read_table(value);
@@ -4173,9 +4088,10 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
             bridges.push(keys);
         }
         // A member's own records ride the piece it is, re-keyed through
-        // its graft, citing the member by its read.
+        // its graft (each member's of a family), citing the member by its
+        // read.
         let input = u32::try_from(citing.len()).unwrap_or(u32::MAX);
-        if let Some(keys) = bridges.first() {
+        for keys in &bridges {
             crate::product::carry_contacts(
                 &fused,
                 &mut contacts,
@@ -4185,26 +4101,26 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
             .map_err(|what| NodeErrorKind::Naming(names::NamingError::Emission { what }))?;
         }
         citing.push(crate::coincide::CitedInput::Read(read));
-        parts += value.parts;
+        parts += value.carry.parts;
         pieces.push(super::Piece {
             read,
             bodies,
             family,
-            parts: value.parts,
             table: Arc::clone(&table),
-            contacts: Arc::clone(&records),
-            carried: Arc::clone(&value.carried),
-            pieces: value.pieces.clone(),
-            census: value.census.clone(),
-            censused: value.censused,
+            carry: value.carry.clone().recording(Arc::clone(&records)),
         });
         named.push((read, table, bridges));
     }
     let table = names::name_assemble(id, &named, &fused).map_err(NodeErrorKind::Naming)?;
     let frame = computing.map_or(super::Frame::Own, |first| first.frame().clone());
     let pieces = Arc::new(super::Pieces { by: id, pieces });
-    Ok(OpOut {
+    Ok(OpOut::plain(
+        ValuePayload::Body(super::Framed::in_frame(Arc::new(fused), frame)),
+        table,
+    )
+    .carrying(super::Carry {
         contacts: Arc::new(contacts),
+        parts,
         // The census at this door, over its pieces: run where a reader
         // first asks for its verdict ([`crate::product::Census`]).
         census: Some(Arc::new(crate::product::Census::new(
@@ -4213,13 +4129,9 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
         ))),
         censused: true,
         pieces: Some(pieces),
-        ..OpOut::plain(
-            ValuePayload::Body(super::Framed::in_frame(Arc::new(fused), frame)),
-            table,
-        )
-        .carrying(parts)
-        .citing(citing)
+        findings: Arc::default(),
     })
+    .citing(citing))
 }
 
 /// **What `node`'s slots read as written** ([`crate::Doc::slot_expansion`]),
@@ -4387,7 +4299,13 @@ fn wire_pattern<T: crate::mate::SolveScalar + topo::AtRestPolicy>(
     let bodies: Vec<&Body<T>> = instances.iter().map(super::Framed::body).collect();
     let table =
         names::name_pattern(id, &read_table(value), n, master.len(), &bodies).map_err(naming)?;
-    Ok(OpOut::plain(ValuePayload::Instances(instances), table).carrying(value.parts))
+    // Each member is a copy of the master and carries what it carries,
+    // its records citing the master's inputs as the master's do.
+    Ok(OpOut {
+        cited_inputs: Arc::clone(&value.cited_inputs),
+        ..OpOut::plain(ValuePayload::Instances(instances), table)
+            .carrying(value.carry.of_members().recording(records_of(value)))
+    })
 }
 
 /// The group boolean (GROUP-BOOLEAN-DESIGN, ratified A′): one

@@ -464,7 +464,7 @@ fn a_measure_on_a_product_evaluates() {
     );
     let ev = run(&doc, &with_resolver(store));
     assert_eq!(
-        ev.value(instance).map(|v| v.parts),
+        ev.value(instance).map(|v| v.carry.parts),
         Some(2),
         "the stand is a product"
     );

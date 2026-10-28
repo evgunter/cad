@@ -1017,3 +1017,8 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
     - #5926, the cost-E batch (single STYLE plus a fix pass). It closes the loft station, the pick cross-check and the fixture zero literals; `a-fused-instances-held-frame-has-no-reset` was closed in the PR because its premise is false.
   - **Filed from #5926:** `a-value-edit-never-re-asks-the-door-checks-that-read-values` (P3). A `SetVarValue` that brings a value-reading door check false is admitted, and evaluation refuses it. Pinned by `a_value_edit_to_a_zero_slide_is_refused_at_evaluation`.
   - **Still in flight:** the carry (#5903, FULL review), and G (merging rule H, then a dual H review).
+- 2026-10-28 14:15 — **The carry merged (#5903)** after a single FULL review (APPROVE-WITH-FIXES, no MAJOR) and a fix pass:
+  - a row pins `Carry::moved`, killing the unmoved-pieces mutant;
+  - the Carry fields are spelled out;
+  - the docs say which copy paths go through which door.
+  - **Filed:** `a-mirror-of-an-assemble-reports-its-findings-twice` (P2: a mirror double-counts, a pick drops an instance piece's records, and the cure is one copy door) and, on ATREST, the `checks.rs:1709` panic (P1). ATREST's census chain is released. The tour last ran green on the pre-fix head; hosted CI's change filter skips demos for this diff.
