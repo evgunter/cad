@@ -4756,12 +4756,10 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::GermEdgeCarrierUnsupported { operand, .. } => write!(
                 f,
-                "an edge of each solid runs from one shared point to another, and the \
-                 Boolean can tell whether two such edges are one curve only when both \
-                 are lines or circles, or both lie where the same plane meets the same \
-                 cylinder or cone, each edge's two faces on the other's two surfaces; here \
-                 neither holds, and the {} operand's edge is no line or circle. Recourse: move the \
-                 parts so those edges do not run together",
+                "an edge of each solid runs between the same two points, and the Boolean \
+                 reads two such edges as one curve only when both are lines or circles, or \
+                 both lie where one plane meets one cylinder or cone; the {} operand's edge \
+                 is neither. Recourse: move the parts so those edges do not run together",
                 operand_word(*operand),
             ),
             // No operand is named, for the same reason as above: some
