@@ -1282,7 +1282,7 @@ fn every_arm_and_term_is_load_bearing_in_a_pinned_sweep() {
 /// sweep's are. Returned with the row: its `Centre` term's lower end at
 /// `Interval`, which the row that pins the witness reads.
 fn zero_winding_axis_circle(chart: &Surface<f64>, floors: f64) -> (Row, f64) {
-    let (rho, reach) = (AXIS_RHO, TAU);
+    let (rho, reach) = (axis_rho(), TAU);
     // On the chart: the cone's rim at its own height, the near-horn
     // torus's inner equator.
     let h = match *chart {
@@ -1391,19 +1391,19 @@ fn a_zero_winding_axis_circles_centre_off_the_axis_is_load_bearing() {
     }
 }
 
-/// The radius of [`zero_winding_axis_circle`]'s circle: inside the band,
-/// so its winding, metered at its own radius, reads Zero.
-const AXIS_RHO: f64 = 2.5e-10;
+/// The radius of [`zero_winding_axis_circle`]'s circle: a quarter of the
+/// band's zero at the run's ε, so its winding, metered at its own
+/// radius, reads Zero at every ε row.
+fn axis_rho() -> f64 {
+    0.25 * band().zero()
+}
 
 /// The charts [`zero_winding_axis_circle`] is drawn on, with the arm each
-/// selects: a cone narrow enough that a rim of [`AXIS_RHO`] sits clear
-/// of the apex's sliver (its height `ρ/tan α` a hundred radii up), and
+/// selects: a cone narrow enough that a rim of [`axis_rho`] sits clear
+/// of the apex's sliver (its height `ρ/tan α` a hundred radii up, two
+/// and a half times the band's escalation), and
 /// a near-horn torus whose inner equator is that rim.
 fn axis_charts() -> [(Surface<f64>, &'static str); 2] {
-    assert!(
-        AXIS_RHO < band().zero(),
-        "the rim's radius is inside the band"
-    );
     [
         (
             Surface::Cone {
@@ -1418,7 +1418,7 @@ fn axis_charts() -> [(Surface<f64>, &'static str); 2] {
             Surface::Torus {
                 center: Point3::origin(),
                 axis: Vec3::unit_z(),
-                major_radius: 1.5 + AXIS_RHO,
+                major_radius: 1.5 + axis_rho(),
                 minor_radius: 1.5,
                 u_ref: Vec3::unit_x(),
             },

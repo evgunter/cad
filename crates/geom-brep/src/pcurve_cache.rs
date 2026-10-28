@@ -8876,6 +8876,45 @@ fn farthest_over_span<T: Real>(
     })
 }
 
+/// **The mint's incidence read alone** (D3), for a door that meters an
+/// image it was handed rather than one the mint derived (a description's
+/// stated image, a stored one restated at rest): whether `carrier` lies
+/// on `surface`'s chart over `[t0, t1]`, read as [`chart_image`] reads it
+/// before it images, so a carrier off its face ends as that read and
+/// never as the residual's meter. A spline chart's images are
+/// description-driven and read nothing here.
+///
+/// # Errors
+///
+/// The read's refusal: [`PcurveCertifyError::CarrierOffChart`] for a
+/// definite miss or a pose, [`PcurveCertifyError::Escalated`]
+/// ([`PcurveCheck::ChartIncidence`]) in band.
+pub(crate) fn read_incidence<T: Decide>(
+    carrier: &Curve3<T>,
+    t0: T,
+    t1: T,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<(), PcurveCertifyError> {
+    if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
+        return Ok(());
+    }
+    if let Curve3::Nurbs(net) = carrier {
+        return match net_incidence(net, Some((t0, t1)), surface, band)? {
+            Incidence::Off(margin) => Err(OffChart("the spline carrier does not lie on the chart")
+                .with_margin(OffMargin::Past(margin), surface, carrier)),
+            Incidence::On => Ok(()),
+        };
+    }
+    incidence::incident(
+        carrier,
+        surface,
+        Placement::over((t0, t1), carrier, surface),
+        band,
+    )
+    .map(|_| ())
+}
+
 /// The incidence test of a spline carrier: [`chart_incidence`]'s, at
 /// [`INCIDENCE_SAMPLES`] points of the edge's interval `span`, or of
 /// the knot domain where none is given: the net past the edge's ends is
@@ -10451,16 +10490,36 @@ fn incidence_over_span<T: Decide>(
     let (farthest, reach) = farthest_over_span(surface, span, at);
     // The distance is computed from coordinates rounded at the samples'
     // reach, after a move into the carrier's frame that rounded by
-    // `slack` (`incidence::anchored`), so it is decided less that
-    // rounding: the lower bound of the exact distance. A carrier on the
-    // chart then reads Zero wherever it sits, and a miss is decided off
-    // only past its rounding. A miss inside the rounding (a placement
-    // whose own ulp passes the band) is not shown off here; the image it
-    // gets is measured by its certificate.
+    // `slack` (`incidence::anchored`): together the rounding `c`. It is
+    // decided less that rounding, on a lower bound of the exact
+    // distance, so a carrier on the chart reads Zero wherever it sits
+    // and a miss is decided off only past its rounding. A miss inside
+    // the rounding (a placement whose own ulp passes the band) is not
+    // shown off here; the image it gets is measured by its certificate.
+    //
+    // The charge is `2c · far / (far + zero)`, a multiple of the
+    // distance rather than `c` alone: a distance the symbolic tier
+    // proves identically zero over a parameter box (`geom_core::sym`)
+    // must stay a zero form once charged, or the box lane reads the
+    // enclosure and escalates a theorem. It is the lower bound all the
+    // same. A definite off reading has `charged ≥ escalate`, so
+    // `far ≥ escalate ≥ zero`, the fraction is at least a half and the
+    // charge at least `c`: `charged ≤ far − c`. On the chart `far ≤ c`:
+    // if `c ≥ zero` the charge is at least `far` and `charged ≤ 0`;
+    // otherwise `charged ≤ far < zero`. Either way it reads Zero.
+    //
+    // It is written as the distance times one factor, so an interval
+    // enclosure `[a, b]` of the distance is charged at `a` for its lower
+    // end and at `b` for its upper, rather than pairing `b` with the
+    // charge at `a`; and clamped at zero (`max(0, 0)` is a zero form
+    // too), so an on reading's enclosure does not straddle a negative
+    // escalation.
     let charged = if farthest.is_poison() {
         farthest
     } else {
-        (farthest - slack - rounding_charge(T::from_f64(2.0) * reach)).max(T::zero())
+        let c = slack + rounding_charge(T::from_f64(2.0) * reach);
+        let zero = T::from_f64(band.zero());
+        (farthest * (T::one() - T::from_f64(2.0) * c / (farthest + zero))).max(T::zero())
     };
     match geom_core::k_stats::decide_reported(name, Margin::of(charged), band)
         .map_err(incidence_escalated)?

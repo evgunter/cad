@@ -177,7 +177,13 @@ fn check<T: Decide + AtRestPolicy + Bounds>() {
             other => panic!("{lane}, {what}: the mint reads the arc off its face: {other:?}"),
         };
         assert!(
-            matches!(refusal, CertifyError::CarrierOffChart { margin: None, .. }),
+            matches!(
+                refusal,
+                CertifyError::CarrierOffChart {
+                    margin: Some(geom_brep::OffMargin::Past(_)),
+                    ..
+                }
+            ),
             "{lane}, {what}: {refusal:?}"
         );
         assert_eq!(

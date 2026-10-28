@@ -1398,3 +1398,132 @@ fn a_carrier_on_its_face_is_read_on_it_far_out_and_on_a_long_axis() {
         }
     }
 }
+
+/// **A stored chart edge re-certified on its chart moved ends as its
+/// incidence read** (D3): the image the edge stores is metered against
+/// the chart only after the carrier's incidence on it is read, as the
+/// mint reads it, so a stored row whose chart no longer holds its curve
+/// is read off, or not shown on, the face, never metered as a residual.
+/// A rim on a cylinder, a circle on a plane and a polar circle on a
+/// sphere, each chart moved half a metre (the definite miss: the stored
+/// culprit at rest, the damaged file at import) and mid-band (the
+/// lever), re-certified with and without the stored image stated.
+#[test]
+fn a_stored_chart_edge_on_a_moved_chart_ends_as_its_incidence_read() {
+    use geom_brep::recourse::Reading;
+    use geom_brep::{CertCheck, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, StatedImage};
+    use geom_core::FileCoincidence;
+    let b = band();
+    let mid = 0.5 * (b.zero() + b.escalate());
+    type Moved = Box<dyn Fn(f64) -> Surface<f64>>;
+    let rows: [(&str, Surface<f64>, Curve3<f64>, Moved); 3] = [
+        (
+            "a cylinder's rim",
+            Surface::Cylinder {
+                origin: Point3::origin(),
+                axis: Vec3::unit_z(),
+                radius: 1.0,
+                u_ref: Vec3::unit_x(),
+            },
+            coaxial(0.5, 1.0),
+            Box::new(|d| Surface::Cylinder {
+                origin: Point3::origin(),
+                axis: Vec3::unit_z(),
+                radius: 1.0 + d,
+                u_ref: Vec3::unit_x(),
+            }),
+        ),
+        (
+            "a circle in a plane",
+            Surface::Plane {
+                origin: Point3::origin(),
+                normal: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+            },
+            coaxial(0.0, 1.0),
+            Box::new(|d| Surface::Plane {
+                origin: Point3::new(0.0, 0.0, d),
+                normal: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+            }),
+        ),
+        (
+            "a sphere's polar circle",
+            Surface::Sphere {
+                center: Point3::origin(),
+                radius: 5.0,
+                axis: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+            },
+            coaxial(3.0, 4.0),
+            Box::new(|d| Surface::Sphere {
+                center: Point3::origin(),
+                radius: 5.0 + d,
+                axis: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+            }),
+        ),
+    ];
+    let (t0, t1) = (0.0, 2.0);
+    for (what, surface, carrier, moved) in rows {
+        let (keys, lookup) = crate::shared::surf::table(vec![surface.clone()]);
+        let edge = EdgeCurve::certify(
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::chart(keys[0]),
+                carrier: carrier.clone(),
+                param_start: t0,
+                param_end: t1,
+            },
+            carrier.eval(t0),
+            carrier.eval(t1),
+            &lookup,
+            1.0,
+            b,
+            geom_brep::NurbsLane::certified(),
+        )
+        .unwrap();
+        let stored = StatedImage {
+            surface: keys[0],
+            pcurve: geom_brep::chart_pcurve_over(&carrier, t0, t1, &surface, b).unwrap(),
+        };
+        for (off, definite) in [(0.5, true), (mid, false)] {
+            let chart = moved(off);
+            for stated in [None, Some(&stored)] {
+                let at = format!(
+                    "{what} on its chart moved {off:e} (stated: {})",
+                    stated.is_some()
+                );
+                let err = edge
+                    .recertify_stated(
+                        carrier.eval(t0),
+                        carrier.eval(t1),
+                        |_| Some(chart.clone()),
+                        1.0,
+                        b,
+                        geom_brep::NurbsLane::certified(),
+                        stated,
+                    )
+                    .expect_err(&at);
+                assert_eq!(
+                    err.decision().map(|(check, _)| check),
+                    Some(CertCheck::ChartIncidence),
+                    "{at}: the incidence read, never the residual's meter: {err:?}"
+                );
+                let rest = err.ending(Reading::AtRest).unwrap();
+                let import = err.ending(FileCoincidence::new(1e-6)).unwrap();
+                if definite {
+                    assert_eq!(rest, geom_core::KERNEL_OR_FILE_DEFECT_ENDING, "{at}");
+                    assert_eq!(import, geom_core::DAMAGED_FILE_ENDING, "{at}");
+                } else {
+                    for ending in [&rest, &import] {
+                        assert!(
+                            ending.contains(geom_brep::recourse::INCIDENCE_UNSHOWN.lever)
+                                && !ending.contains("defect"),
+                            "{at}: {ending}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+}

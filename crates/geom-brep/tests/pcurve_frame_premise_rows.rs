@@ -34,14 +34,9 @@ fn dense_sup(p: &Pcurve<f64>, s: &Surface<f64>, c: &Curve3<f64>, t0: f64, t1: f6
 }
 
 /// Certify at the interval scalar (the box lane: no schedule) and at
-/// f64 (the point lane: schedule as cross-check); report both, and the
-/// dense residual of the f64 image.
-fn run(name: &str, s: &Surface<f64>, c: &Curve3<f64>, t0: f64, t1: f64) -> (bool, bool, f64, f64) {
-    run_named(name, s, c, t0, t1).0
-}
-
-/// [`run`], with whether the interval refusal (if any) names the
-/// frame's own term.
+/// f64 (the point lane: schedule as cross-check); report both, the
+/// dense residual of the f64 image, and whether the interval refusal
+/// (if any) names the frame's own term.
 fn run_named(
     name: &str,
     s: &Surface<f64>,
