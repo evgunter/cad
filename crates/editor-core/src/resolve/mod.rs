@@ -2035,15 +2035,13 @@ fn border_delta<T: Decide>(
 /// seam name of its own (a `Seam` edge zipped along the piece's line)
 /// is not the parent's descendant by that descent and is not counted.
 ///
-/// Two TIED parents share one base. Where the emitter groups by parent
+/// Two TIED parents share one base. The emitter groups by parent
 /// ENTITY — a face or an edge by the operand entity it descends from,
-/// a seam edge by its two parents' entities, a split face by its face
-/// and side — each forms its own group, the tie lane gives their
-/// members' rows one set of names, and each group is counted on its
-/// own: `was` and `now` are one parent's group, never the tie's sum.
-/// Where it groups by parent NAMES — a pair boolean's seam vertex by
-/// its parents' names — tied parents' pieces land in one group, no one
-/// parent's count is on record, and the rung declines.
+/// a seam edge by its two parents' entities, a joined edge by the
+/// operand edges it lies along, a split face by its face and side — so
+/// each forms its own group, the tie lane gives their members' rows one
+/// set of names, and each group is counted on its own: `was` and `now`
+/// are one parent's group, never the tie's sum.
 ///
 /// `now == 0` says no entity of the node's output is in that group:
 /// none descends from the parent there by the emitter's descent, or — for a split, whose group
@@ -2056,8 +2054,7 @@ fn border_delta<T: Decide>(
 /// changing — and the current count differs. It declines, to the
 /// evidence-free fallback, when the name has no fragment tail, when
 /// either run has no value at the minting node, when the prior record
-/// holds no group under the base, when a group under the base was
-/// formed by tied parents' names or the groups a tie shares a base
+/// holds no group under the base, when the groups a tie shares a base
 /// among are not all one size (there is then no one parent's count to
 /// state), when a union's record cannot be read in its published space
 /// or two of one fold step's bases publish as one, when either count
