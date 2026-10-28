@@ -383,6 +383,8 @@ pose_rows! {
         2 => [Projected, Projected, Join, Join, Join, Join];
     a_ball_across_a_cylinder_wall_turned_chart:
         3 => [Projected, Sphere, Sphere, Sphere, Projected, Sphere];
+    a_ball_across_a_cylinder_wall_wider_than_the_wall:
+        4 => [Projected, Sphere, Join, Join, Join, Join];
     a_ball_across_a_cylinder_wall_in_two_loops:
         5 => [Projected, Ring, Sphere, Projected, Projected, Ring];
     a_ball_across_a_cylinder_wall_in_two_loops_turned:
@@ -391,34 +393,6 @@ pose_rows! {
         7 => [Sphere, Sphere, Join, Join, Join, Join];
     a_ball_across_a_cylinder_wall_r_0_1_across_the_rim:
         8 => [Join, Join, Join, Join, Projected, Join];
-}
-
-#[test]
-fn a_ball_across_a_cylinder_wall_wider_than_the_wall() {
-    // Pinned red since PR 5872: at ε = 1e-6 the cylinder × sphere march
-    // runs out of its cell budget near the node
-    // (`work/sect/main-red-cylinder-sphere-section-runs-out-of-cells-near-the-node-at-1e-6`).
-    test_utils::pinned_red::row(
-        geom_core::Tol::witness().eps(),
-        &[1e-6],
-        "the ball wider than the wall",
-        &[
-            "one loop, ball wider than the wall, A ∪ B: refused GermSectionUnbuilt { a_face: FaceKey(3v1), a_kind: Cylinder, b_face: FaceKey(1v1), b_kind: Sphere, why: March(CellBudget { budget: 200000 }) }",
-        ],
-        || {
-            builds_sound_or_refuses_past_the_join(
-                4,
-                [
-                    Door::Projected,
-                    Door::Sphere,
-                    Door::Join,
-                    Door::Join,
-                    Door::Join,
-                    Door::Join,
-                ],
-            );
-        },
-    );
 }
 
 /// A site's place on its loop of the analytic section, read off the
@@ -453,22 +427,6 @@ fn place(pose: &Pose, p: Point3<f64>) -> (i8, f64, f64) {
 /// consumed (one segment per pair record).
 #[test]
 fn every_segment_joins_neighbouring_sites_along_its_loop() {
-    // Pinned red since PR 5872: at ε = 1e-6 the cylinder × sphere march runs
-    // out of its cell budget near the node
-    // (`work/sect/main-red-cylinder-sphere-section-runs-out-of-cells-near-the-node-at-1e-6`).
-    test_utils::pinned_red::row(
-        geom_core::Tol::witness().eps(),
-        &[1e-6],
-        "the segments along each loop",
-        &[
-            "one loop, ball wider than the wall, A ∪ B: the matcher refused GermSectionUnbuilt { a_face: FaceKey(3v1), a_kind: Cylinder, b_face: FaceKey(1v1), b_kind: Sphere, why: March(CellBudget { budget: 200000 }) }",
-        ],
-        every_segment_joins_neighbouring_sites_along_its_loop_row,
-    );
-}
-
-/// The row [`every_segment_joins_neighbouring_sites_along_its_loop`] runs, under its pin.
-fn every_segment_joins_neighbouring_sites_along_its_loop_row() {
     let tol = Tol::witness();
     for pose in poses().into_iter().filter(|p| p.drum.cut.is_none()) {
         let (a, b) = pose.operands();

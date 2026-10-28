@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-19
 priority: P1
 cost: M
-design: true
 ---
 
 
@@ -82,3 +81,22 @@ Measurement only: `split` gated each side at tier 3′ against the records the s
 5. Flip the gate, then re-measure at three ε, including the unfiltered editor-core suite at 1e-12.
 
 Cone-apex instances (pit apex-only touch, partial lobes, near-axial at 1e-12) were seen by PR 5956's review and belong to A–E above.
+
+## Decided (2026-10-28, Ev on PR 5967)
+
+All three of the designer pair's converged recommendations, as recommended:
+
+1. **A finished body carries its records, at every door.** `AtRestBody` holds its contact records. Every door carries its operand's records through its own lineage, adds the records of the coincidences it decided, and gates each result at tier 3′. Caller-side `carry_contacts` goes away.
+2. **The split's own touches.**
+   - Crossings a cut mints on two edges recorded as one locus share one point key.
+   - Coincident edges an op mints, straight or curved, are recorded, citing a `SplitOn` row.
+3. **`census.rs` `ee_collinear_lane`'s shared-bounds exemption retires**, once the split and the Boolean's pinch and slit lanes emit those records.
+
+`crates/topo/README.md` tier 3 states 1 and 2.
+
+The order:
+1. The type and door change.
+2. The split takes records in, and crossings share keys.
+3. The split records its own coincident edges, and the exemption comes out.
+4. W2's nesting, then C, D and E.
+5. Flip the gate and re-measure at three ε.

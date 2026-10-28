@@ -483,8 +483,10 @@ fn a_small_tilted_seam_crosses_the_wall_on_the_quartic_arm() {
 /// certifies that the ARC meets `B`'s boundary nowhere strictly inside
 /// its span, so its ends place it and the sweep answers. The two tubes'
 /// coplanar start caps are one plane by margin and glue, so the op
-/// itself stops later, at the join's germ frame: past the plane × torus
-/// germ pairs, at a torus × torus pair, which has no arm.
+/// itself stops later, in the join: past the plane × torus germ pairs, a
+/// torus × torus pair, coaxial, whose section is two parallels in closed
+/// form, matched by foot, and refused at the join's segment arm, which
+/// has none for the pair.
 #[test]
 fn a_coaxial_seam_on_the_torus_is_placed_by_its_arc() {
     let tol = Tol::witness();
@@ -525,13 +527,12 @@ fn a_coaxial_seam_on_the_torus_is_placed_by_its_arc() {
         assert!(
             matches!(
                 r,
-                Err(BooleanError::GermFrameUnsupported {
-                    a_kind: geom::SurfaceKind::Torus,
-                    b_kind: geom::SurfaceKind::Torus,
+                Err(BooleanError::CurvedBooleanUnsupported {
+                    kind: geom::SurfaceKind::Torus,
                     ..
                 })
             ),
-            "{op}: the join's torus × torus germ frame: {r:?}"
+            "{op}: the join's torus × torus segment: {r:?}"
         );
     }
 }
