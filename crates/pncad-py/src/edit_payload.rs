@@ -36,8 +36,8 @@
 //! that type's own door.
 
 use pncad::document::{
-    ConstraintId, ContentPin, EditError, FreeValue, HeldNodes, MateFault, RecipeNodeId,
-    VarName, VarRef,
+    ConstraintId, ContentPin, EditError, FreeValue, HeldNodes, MateFault, RecipeNodeId, VarName,
+    VarRef,
 };
 use pncad::prelude::StableName;
 use pncad::select::EntityKind;
@@ -526,7 +526,8 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
                 count: Some(*have),
                 ..none
             },
-            pncad::document::LoftFault::EmptyStation { section } => EditPayload {
+            pncad::document::LoftFault::EmptyStation { section }
+            | pncad::document::LoftFault::StationInFirstPlane { section } => EditPayload {
                 node: Some(node.id()),
                 index: Some(*section),
                 ..none

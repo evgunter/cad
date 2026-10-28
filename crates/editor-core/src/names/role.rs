@@ -1213,6 +1213,20 @@ pub enum RoleSeg {
     /// A loft seam: the wall–wall edge through the vertices the skin
     /// paired, one per section, in section order.
     LoftSeam(Vec<ProfileVertexRef>),
+    /// A wall of a loft built one per slab (v-degree 1 through three
+    /// sections or more): the slab, counted from the start section, and
+    /// the pieces the skin paired into it at the slab's two sections.
+    LoftSlabWall(u32, Vec<ProfileEdgeRef>),
+    /// A seam of a loft built one per slab: the slab, and the vertices
+    /// it joins at the slab's two sections.
+    LoftSlabSeam(u32, Vec<ProfileVertexRef>),
+    /// An edge of an interior section's ring, between two slabs' walls:
+    /// the section, counted from the start section, and the piece it
+    /// lies on there.
+    LoftSectionEdge(u32, ProfileEdgeRef),
+    /// A vertex of an interior section: the section, and the profile
+    /// vertex it lies on there.
+    LoftSectionVertex(u32, ProfileVertexRef),
 
     // ---- Revolve (M2 band/pole/seam taxonomy) ----
     /// A wall (band) face swept from a run of profile pieces on one
@@ -1860,6 +1874,10 @@ macro_rules! locator_seg {
             | $crate::names::RoleSeg::CapVertex(..)
             | $crate::names::RoleSeg::LoftWall(_)
             | $crate::names::RoleSeg::LoftSeam(_)
+            | $crate::names::RoleSeg::LoftSlabWall(..)
+            | $crate::names::RoleSeg::LoftSlabSeam(..)
+            | $crate::names::RoleSeg::LoftSectionEdge(..)
+            | $crate::names::RoleSeg::LoftSectionVertex(..)
             | $crate::names::RoleSeg::Band(_)
             | $crate::names::RoleSeg::BandRim(_)
             | $crate::names::RoleSeg::BandRimPi(_)
@@ -2163,6 +2181,15 @@ impl RoleSeg {
             R::LoftSeam(vs) => {
                 R::LoftSeam(vs.iter().map(|v| w.vertex(*v)).collect::<Result<_, _>>()?)
             }
+            R::LoftSlabWall(s, es) => {
+                R::LoftSlabWall(*s, es.iter().map(|e| w.edge(*e)).collect::<Result<_, _>>()?)
+            }
+            R::LoftSlabSeam(s, vs) => R::LoftSlabSeam(
+                *s,
+                vs.iter().map(|v| w.vertex(*v)).collect::<Result<_, _>>()?,
+            ),
+            R::LoftSectionEdge(s, e) => R::LoftSectionEdge(*s, w.edge(*e)?),
+            R::LoftSectionVertex(s, v) => R::LoftSectionVertex(*s, w.vertex(*v)?),
             R::Band(run) => R::Band(run.try_map(|e| w.edge(e))?),
             R::BandRim(v) => R::BandRim(w.vertex(*v)?),
             R::BandRimPi(v) => R::BandRimPi(w.vertex(*v)?),
@@ -2418,6 +2445,10 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::CapVertex(..)
             | $crate::names::RoleSeg::LoftWall(_)
             | $crate::names::RoleSeg::LoftSeam(_)
+            | $crate::names::RoleSeg::LoftSlabWall(..)
+            | $crate::names::RoleSeg::LoftSlabSeam(..)
+            | $crate::names::RoleSeg::LoftSectionEdge(..)
+            | $crate::names::RoleSeg::LoftSectionVertex(..)
             | $crate::names::RoleSeg::Band(_)
             | $crate::names::RoleSeg::BandRim(_)
             | $crate::names::RoleSeg::BandRimPi(_)

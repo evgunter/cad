@@ -5604,14 +5604,19 @@ mod properties_pane_tests {
     /// instance's — is `tests/assembly_display.rs`'s row.)
     #[test]
     fn a_held_face_on_a_copy_a_feature_re_points_stays_held() {
-        use crate::test_support::{ang, len, scl};
+        use crate::test_support::{len, scl};
+        use pncad::document::{Dimension, Formula};
         let (mut driven, top) = Driven::holding_the_top_cap();
         driven.select(Selection::Face(top));
         driven.perform(SessionOp::AddTransform {
             input: extrude().into(),
-            translation: [len(0.05), len(0.0), len(0.0)],
+            translation: [
+                len(0.05),
+                Formula::zero(Dimension::Length),
+                Formula::zero(Dimension::Length),
+            ],
             rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         });
         let [held, ..] = driven.held();
         assert_ne!(

@@ -245,7 +245,10 @@ fn every_cut_mints_exactly_its_straddling_member_edges() {
     // it on one side and its constraint on the other cannot carry it
     // and refuses: every straddle an accepted cut leaves is a member
     // edge, recorded.
-    assert!(seen.refused > 0, "no cut refused: the underqualified head is unexercised");
+    assert!(
+        seen.refused > 0,
+        "no cut refused: the underqualified head is unexercised"
+    );
     assert_eq!(
         seen.straddling_mates, seen.crossings,
         "an accepted cut left a straddling constraint that is no member edge"

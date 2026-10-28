@@ -16,13 +16,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::Dimension;
 
 use editor_core::{
     CapEnd, Coord, DocumentId, EvalOptions, Formula, Frame, MateRef, MateSide, Node, NodeErrorKind,
     ProfileDoc, RecipeNodeId, TargetAxis, VarId,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{ang, in_copy, insert, len, on_frame, run, solve};
+use fixture::{in_copy, insert, len, on_frame, run, solve};
 use geom_core::Tol;
 
 // ---- Substrate (the shared resolver, `fixture::resolver`) ----
@@ -87,7 +88,7 @@ fn seat(
         &[
             (Coord::Slide(TargetAxis::X), len(slide[0])),
             (Coord::Slide(TargetAxis::Y), len(slide[1])),
-            (Coord::SPIN, ang(0.0)),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     );
     (doc, mate)

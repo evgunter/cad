@@ -125,8 +125,8 @@ pub use dihedral_side::{
     chart_normal_at, dihedral_side, regular_jet,
 };
 pub use edge_nurbs::{
-    AnalyticRung3Refusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal,
-    IncidenceRefusal, KERNEL_LIMIT_EXTENT_FACTOR, KERNEL_LIMIT_ROUNDING_FACTOR,
+    AnalyticRung3Refusal, ArcRimRefusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault,
+    CarrierDomainRefusal, KERNEL_LIMIT_EXTENT_FACTOR, KERNEL_LIMIT_ROUNDING_FACTOR,
     PlaneNurbsIncidence, PlaneNurbsLimbs, PlaneNurbsRefusal, Rung3Limb, analytic_edge_limbs,
     analytic_rung3, arc_rim_candidates, arc_rim_measured, first_within, is_analytic,
     nurbs_pair_limbs, pick_arc_rim, plane_nurbs_incidence, plane_nurbs_limbs, probe_pick,
@@ -185,8 +185,9 @@ pub use offset_fit::{
 pub use offset_fit_lane::{OFFSET_FIT_DOOR_HOLDERS, OffsetFitLane, ScalarList};
 pub use pair_section::{
     CarriedComponent, CarriedSection, CarryError, ClassCarrier, ComponentShape, CsDecision,
-    CsStance, CylinderSpherePose, FittedCarrier, PairSection, PoseRefusal, SectionComponent,
-    SectionRead, SiteFoot, SiteRefusal, SsiLane, ZeroKind, ZeroVerdict, pair_section, square_part,
+    CsStance, CylinderSpherePose, FittedCarrier, PairSection, PoseRefusal, Seated,
+    SectionComponent, SectionRead, SiteFoot, SiteRefusal, SsiLane, ZeroKind, ZeroVerdict,
+    pair_section, square_part,
 };
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,

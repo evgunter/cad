@@ -115,7 +115,10 @@ fn diagnosis_corpus_is_golden() {
         "error: NodeGone",
         "error: Ambiguous",
     ]) {
-        assert!(format!("{res:?}").contains(shape), "{label}: not {shape}: {res:?}");
+        assert!(
+            format!("{res:?}").contains(shape),
+            "{label}: not {shape}: {res:?}"
+        );
     }
     assert_eq!(
         digest(&rows),

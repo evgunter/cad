@@ -2,12 +2,13 @@
 id: the-world-still-speaks-of-roots
 kind: issue
 title: Under the world the kernel still names placements roots: CheckFinding.root, ChecksError::Root, PartRoot*, ProductError::Root*, "part root" wording
-status: review
+status: closed
 priority: P2
 opened: 2026-10-08
 refs: [assemble-is-an-operator-and-the-product-is-a-slot]
 pr: 5919
 branch: intent/world-not-roots
+closed: 2026-10-28
 ---
 
 

@@ -102,3 +102,4 @@ Signed: (CARVE orchestrator)
 - **`min-separation-tightening-crosses-the-drive`'s designers
   dispatched.** The row asked for them to wait until E landed. The
   blinding byte was drawn at dispatch this time (analysis branch).
+- 2026-10-28 — **NURBSWIN merges (#5927)** with this commit last. The orchestrator read and accepted the fix pass at `2cef54df49`. Pruned the fired blocker on CARVE's `self-overlapping-spines-build-and-validate`.

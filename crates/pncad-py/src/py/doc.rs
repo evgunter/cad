@@ -2073,10 +2073,11 @@ impl Doc {
         }
     }
 
-    /// **The variable a node's slot reads** (`Doc::slot`), or `None`
-    /// for a node or a slot the document does not hold. Every slot
-    /// reads one: a value written there is its own anonymous variable,
-    /// and passing the handle to another slot is how two slots share it.
+    /// **The variable a node's slot reads** (`Doc::slot`): an
+    /// expression slot's variable or an operand's read, or `None` for a
+    /// node or a slot the document does not hold. Every slot reads one:
+    /// a value written there is its own anonymous variable, and passing
+    /// the handle to another slot is how two slots share it.
     fn slot(&self, node: &NodeId, slot: &str) -> PyResult<Option<Var>> {
         Ok(self
             .inner
@@ -2098,10 +2099,13 @@ impl Doc {
     /// reads the recipe as written and decides nothing.
     fn recognise(&self, placement: &NodeId) -> Option<Recognised> {
         pncad::pattern::recognise(&self.inner, placement.0).map(|r| Recognised {
-            index: Var::of(&self.inner, match &r {
-                pncad::pattern::Recognised::Linear { index, .. }
-                | pncad::pattern::Recognised::Circular { index, .. } => *index,
-            }),
+            index: Var::of(
+                &self.inner,
+                match &r {
+                    pncad::pattern::Recognised::Linear { index, .. }
+                    | pncad::pattern::Recognised::Circular { index, .. } => *index,
+                },
+            ),
             inner: r,
         })
     }
@@ -2377,9 +2381,7 @@ fn ring_axis(
 /// The node a pattern writer authored. Every argument's dimension is
 /// read at the boundary first, so a refusal here is a product the
 /// writer cannot form.
-fn pattern_node(
-    authored: Result<d::AuthoredNode, d::DimensionError>,
-) -> PyResult<Node> {
+fn pattern_node(authored: Result<d::AuthoredNode, d::DimensionError>) -> PyResult<Node> {
     authored
         .map(|inner| Node { inner })
         .map_err(|err| pyo3::exceptions::PyValueError::new_err(err.to_string()))
@@ -2743,7 +2745,11 @@ impl Node {
     /// reverses the produced surface's v-direction. The loft lies in
     /// its first section's coordinates. `v_degree` is the v-direction
     /// interpolation degree, a COUNT (structural material, D3), so it
-    /// crosses as `Formula.count` and not as a continuous literal.
+    /// crosses as `Formula.count` and not as a continuous literal. It
+    /// sets the faces too: at degree 1 through three sections or more
+    /// the loft is one wall per profile segment per slab between two
+    /// consecutive sections, each interior section a ring of edges; at 2
+    /// or more one wall per segment spans every section.
     ///
     /// The degree is the node's `VDegree` slot —
     /// `DocEdit.bind_v_degree_param` is what makes it a named,

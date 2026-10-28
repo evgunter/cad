@@ -192,6 +192,121 @@ fn face_across(label: &str) -> (Parts, ProfileDoc, [RecipeNodeId; 3], MateRef) {
 
 // ---- the seam ----
 
+/// **A kept mate's target written in place crosses split; the same
+/// target named refuses**. `face_across`'s `m` reads the top's upper cap through a pose: written
+/// in place it is re-authored over the instance's copy, named it is no
+/// read the crossing walk carries, and `k` is severed from the cut.
+///
+/// *Breaks if* the anonymous target stops crossing, or the named one
+/// is admitted without its pose being carried.
+#[test]
+fn a_kept_mates_named_target_is_severed_where_its_written_one_crosses() {
+    for named in [false, true] {
+        let label = if named {
+            "p2-face-named-to"
+        } else {
+            "p2-face-written-to"
+        };
+        let (p, doc, [base, top, k], m) = face_across(label);
+        let o = p.opts();
+        let doc = if named {
+            let to = fixture::constraint(&doc, m).to;
+            step(
+                doc,
+                DocEdit::RenameVar {
+                    var: to.into(),
+                    name: Some(editor_core::VarName::from_static("seat_plane")),
+                },
+            )
+            .0
+        } else {
+            doc
+        };
+        if named {
+            match split_err(&doc, &[base, top], label, &o) {
+                SplitError::SeveredEdge {
+                    consumer,
+                    consumer_is_cut: false,
+                    ..
+                } => assert_eq!(consumer.id(), k, "{label}: the kept mate's placement"),
+                other => panic!("{label}: expected SeveredEdge, got {other:?}"),
+            }
+        } else {
+            split(&doc, &[base, top], label, &o);
+        }
+    }
+}
+
+/// **A named number a kept mate's target slides by, and a cut node
+/// reads, is one variable on both sides** (`UncutVarReference`): the
+/// pose's numbers are its reader's reads, so the split refuses rather
+/// than move the number and leave the kept mate reading none.
+///
+/// *Breaks if* a pose's numbers stop counting as its reader's reads.
+#[test]
+fn a_named_number_a_kept_mates_target_and_a_cut_node_read_refuses() {
+    let label = "p2-face-shared-number";
+    let p = parts(label);
+    let o = p.opts();
+    let gap = || {
+        editor_core::Formula::named(
+            editor_core::VarName::from_static("gap"),
+            editor_core::Dimension::Length,
+        )
+    };
+    let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+    let (doc, _) = step(
+        doc,
+        DocEdit::DeclareVar {
+            name: editor_core::VarName::from_static("gap"),
+            def: editor_core::VarDecl::defined(len(0.0)),
+        },
+    );
+    let (doc, k) = insert(doc, fixture::mated_instance(p.top));
+    let (doc, base) = pinned_at(doc, p.base, [4.0, 0.0, 0.0], &o);
+    let (doc, top) = insert(doc, fixture::mated_instance(p.top));
+    let (doc, _seat) = seated(doc, top, head(p.top_cap(top)), head(p.base_cap(base)));
+    let mut rest = fixture::rest(head(p.top_cap(k)), head(p.top_upper_cap(top)));
+    rest.to = editor_core::Operand::Pose(Box::new(editor_core::pose::PoseDef::Slide {
+        pose: rest.to.clone().into(),
+        along: editor_core::pose::RoleRead {
+            read: rest.to.clone(),
+            role: Some(editor_core::pose::PoseRole::Normal),
+        },
+        by: gap(),
+    }));
+    let (doc, _) = fixture::constrain_at(doc, k, rest);
+    let (doc, profile) = fixture::on_frame(
+        doc,
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![fixture::square(9.0, 0.0, 0.5)],
+    );
+    let (doc, extrude) = insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: gap(),
+        },
+    );
+    let mut ids = cut(&doc, &[base, top]);
+    ids.extend([profile, extrude]);
+    match editor_core::split(
+        &doc,
+        &ids,
+        DocumentId::derive(&format!("{label}-part")),
+        Tol::witness(),
+        o.resolver.as_ref(),
+    ) {
+        Err(SplitError::UncutVarReference { var, kept_node, .. }) => {
+            assert_eq!(var.name().map(editor_core::VarName::as_str), Some("gap"));
+            assert_eq!(kept_node.id(), k, "the kept mate's placement reads it");
+        }
+        other => panic!("expected UncutVarReference, got {other:?}"),
+    }
+}
+
 /// **A valued mate whose target reads a mate-placed copy crosses
 /// split, and stands where it stood** (D′2). The kept constraint `m`
 /// reads the top — placed by its mate, not pinned — through its head

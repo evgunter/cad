@@ -52,6 +52,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::AuthoredNode;
+use editor_core::{Dimension, Formula};
 use std::collections::BTreeSet;
 
 use crate::corpus;
@@ -147,9 +148,15 @@ fn stacked_blocks() -> (ProfileDoc, EvalOptions) {
             fixture::head_at(base, in_part(base, base_body, CapEnd::End)),
         ),
         &[
-            (Coord::Slide(TargetAxis::X), len(0.0)),
-            (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::SPIN, fixture::ang(0.0)),
+            (
+                Coord::Slide(TargetAxis::X),
+                Formula::zero(Dimension::Length),
+            ),
+            (
+                Coord::Slide(TargetAxis::Y),
+                Formula::zero(Dimension::Length),
+            ),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     );
     (doc, opts)
@@ -210,10 +217,13 @@ fn evaluated() -> Vec<Sample> {
             // `Member` (D10 `[repetition]`); the row is read through it,
             // as the member's own table holds it.
             let heads = || {
-                tables.iter().flat_map(|t| t.iter()).map(|(n, _)| match n.path.as_slice() {
-                    [editor_core::RoleSeg::Member { of, .. }] if n.node == id => (**of).clone(),
-                    _ => n.clone(),
-                })
+                tables
+                    .iter()
+                    .flat_map(|t| t.iter())
+                    .map(|(n, _)| match n.path.as_slice() {
+                        [editor_core::RoleSeg::Member { of, .. }] if n.node == id => (**of).clone(),
+                        _ => n.clone(),
+                    })
             };
             out.push(Sample {
                 doc: name,

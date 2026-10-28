@@ -599,32 +599,25 @@ impl ProductError {
 /// body's arena (ASM-R2b D-1). This function is the ONE place the
 /// channel's two homes reconcile: a boolean's records ride its payload
 /// (the `BooleanBody` contract, which predates the channel), every
-/// other op's ride [`crate::eval::NodeValue::contacts`]. Downstream
+/// other op's ride its carry ([`crate::Carry::contacts`]). Downstream
 /// therefore never asks which op put records where.
 ///
 /// A placement reads one `Body`, so the product of a document whose one
 /// placement reads a split's `above` port is that one half, and one
 /// reading a `Part` of a pattern is that one copy.
 pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<T>>> {
-    let carried = || Arc::clone(&value.contacts);
+    // The records and findings a body carries are keyed in its arena,
+    // and every member of a family shares one ([`crate::Carry`]).
+    let carried = || Arc::clone(&value.carry.contacts);
     let none = || Arc::new(ContactRecords::default());
-    // The carried findings ride the value's own channel, filled at the
-    // instantiate op alone. They are keyed in the same arena as
-    // `value.contacts`, so they travel with exactly the arm that
-    // travels those records — and nowhere else, because a body 0 that
-    // is not the instantiated one has no part's findings to carry.
-    let rows = || Arc::clone(&value.carried);
+    let rows = || Arc::clone(&value.carry.findings);
     let norows = || Arc::new(crate::checks::at_rest::CarriedFindings::default());
     match &value.payload {
         ValuePayload::Body(body) => Some(vec![(0, body.clone(), carried(), rows())]),
         ValuePayload::Boolean(BooleanValue::Body { body, contacts, .. }) => {
-            Some(vec![(0, body.clone(), Arc::clone(contacts), norows())])
+            Some(vec![(0, body.clone(), Arc::clone(contacts), rows())])
         }
         ValuePayload::Boolean(BooleanValue::Empty) => Some(Vec::new()),
-        // Multi-output ops carry no records (the `OpOut` invariant):
-        // "output body 0" names nothing here, so there is no home to
-        // read from and none is invented.
-        //
         // Cannot refuse: an instance list is minted by the pattern op,
         // which refuses any index `names::output_body` does not fit, or
         // by `Placeable::map`, which rebuilds an existing list one body
@@ -637,7 +630,7 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
                     let ix = crate::names::output_body(i).unwrap_or_else(|e| {
                         unreachable!("instance {i} outlived its minting op's index refusal: {e}")
                     });
-                    (ix, body.clone(), none(), norows())
+                    (ix, body.clone(), carried(), rows())
                 })
                 .collect(),
         ),
@@ -812,7 +805,7 @@ pub struct Product<T: Decide> {
     /// an instance of this document carries, so a pick reads one piece
     /// of it.
     pub pieces: Option<Arc<crate::eval::Pieces<T>>>,
-    /// How many parts the product is ([`crate::NodeValue::parts`]).
+    /// How many parts the product is ([`crate::Carry::parts`]).
     pub parts: usize,
 }
 
@@ -993,7 +986,7 @@ pub fn assemble_gathers<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
             // source's.
             let census = evaluation
                 .value(id)
-                .and_then(|value| value.census.as_ref())
+                .and_then(|value| value.carry.census.as_ref())
                 .filter(|census| census.node == id)?;
             Some(AssembleGather {
                 var,
@@ -1029,7 +1022,7 @@ pub struct AssembleGather<T: Decide> {
 }
 
 /// **The census at a door that assembled pieces**, kept on its value
-/// ([`crate::NodeValue::census`]; D10 `[assertions]`, "The census is
+/// ([`crate::Carry::census`]; D10 `[assertions]`, "The census is
 /// each `⊔`'s door"): its pieces grafted side by side, gated, and
 /// censused one group per arrival ([`topo::record_at_rest`],
 /// `flush_at_rest`), each piece's records carried and each touch
@@ -1146,12 +1139,14 @@ fn census_of<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
             unreachable!("a member's table keyed by its read stays a table: {e:?}")
         }));
         // A piece whose own door censused it brings that door's
-        // records, the touches inside it among them.
-        let contacts = piece
+        // records, the touches inside it among them; each member of a
+        // family carries what its family carries.
+        let carry = &piece.carry;
+        let contacts = carry
             .census
             .as_ref()
             .and_then(|census| census.records(doc, tol))
-            .unwrap_or_else(|| Arc::clone(&piece.contacts));
+            .unwrap_or_else(|| Arc::clone(&carry.contacts));
         for (i, body) in piece.bodies.iter().enumerate() {
             let ix = if piece.family {
                 crate::names::output_body(i).unwrap_or_else(|e| {
@@ -1166,23 +1161,15 @@ fn census_of<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
                 ix,
                 body: body.clone(),
                 table: Arc::clone(&keyed),
-                contacts: if piece.family {
-                    Arc::default()
-                } else {
-                    Arc::clone(&contacts)
-                },
-                rows: if piece.family {
-                    Arc::default()
-                } else {
-                    Arc::clone(&piece.carried)
-                },
-                censused: !piece.family && piece.censused,
+                contacts: Arc::clone(&contacts),
+                rows: Arc::clone(&carry.findings),
+                censused: carry.censused,
             });
         }
     }
     let mut product = gather_sources(doc, tol, sources)?;
     product.pieces = Some(Arc::clone(pieces));
-    product.parts = pieces.pieces.iter().map(|piece| piece.parts).sum();
+    product.parts = pieces.pieces.iter().map(|piece| piece.carry.parts).sum();
     Ok(product)
 }
 
@@ -1214,7 +1201,8 @@ fn gather<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         return Err(ProductError::StrandedProduct { read: var });
     }
     let value = evaluation.usable(node).map_err(ProductError::Read)?;
-    let mut product = match value.census.as_ref().filter(|census| census.node == node) {
+    let carry = &value.carry;
+    let mut product = match carry.census.as_ref().filter(|census| census.node == node) {
         // A door that assembled pieces: its own census, as it kept it.
         Some(census) => census.verdict(doc, tol)?.fresh(),
         None => {
@@ -1227,7 +1215,7 @@ fn gather<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
                 .flatten()
                 .map(SplitHalf::output_body);
             // A copy of a door's body brings the records that door kept.
-            let kept = value
+            let kept = carry
                 .census
                 .as_ref()
                 .and_then(|census| census.records(doc, tol));
@@ -1245,12 +1233,12 @@ fn gather<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
                     table: Arc::clone(&table),
                     contacts: kept.clone().unwrap_or(contacts),
                     rows,
-                    censused: value.censused,
+                    censused: carry.censused,
                 })
                 .collect();
             let mut product = gather_sources(doc, tol, sources)?;
-            product.pieces = value.pieces.clone();
-            product.parts = value.parts;
+            product.pieces = carry.pieces.clone();
+            product.parts = carry.parts;
             product
         }
     };
@@ -1508,7 +1496,7 @@ struct Source<T: Decide> {
     contacts: Arc<ContactRecords>,
     rows: Arc<crate::checks::at_rest::CarriedFindings>,
     /// Whether a door already decided the meetings inside it
-    /// ([`crate::NodeValue::censused`]).
+    /// ([`crate::Carry::censused`]).
     censused: bool,
 }
 

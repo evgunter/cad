@@ -418,8 +418,8 @@ fn bolted(label: &str) -> Bolted {
         bolt,
         p.bolt_foot(bolt),
         p.slab_top(slab),
-        len(0.0),
-        (x, len(4.0), ang(0.0)),
+        Formula::zero(Dimension::Length),
+        (x, len(4.0), Formula::zero(Dimension::Angle)),
     );
     let (doc, k) = fixture::index(doc, "k", 3);
     let slide = Formula::mul(fixture::scalar_of(k), named(spacing(), Dimension::Length))
@@ -566,7 +566,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         bolts[0],
         p.bolt_foot(bolts[0]),
         p.slab_top(slab),
-        len(0.0),
+        Formula::zero(Dimension::Length),
         at(1.0, 1.0, 0.0),
     );
     let (doc, _) = seat(
@@ -574,7 +574,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         bolts[1],
         p.bolt_foot(bolts[1]),
         p.slab_top(slab),
-        len(0.0),
+        Formula::zero(Dimension::Length),
         at(5.0, 1.0, 0.3),
     );
     out.push(("seats", doc, p.opts()));
@@ -671,7 +671,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         top,
         p.bolt_foot(top),
         p.slab_top(slab),
-        len(0.0),
+        Formula::zero(Dimension::Length),
         at(x, y, 0.0),
     );
     let (doc, third) = insert(doc, fixture::mated_instance(p.bolt));
@@ -680,7 +680,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         third,
         p.bolt_foot(third),
         p.bolt_head(top),
-        len(0.0),
+        Formula::zero(Dimension::Length),
         at(x, y, 0.0),
     );
     out.push(("pinned-chain", doc, p.opts()));
@@ -694,7 +694,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         bolts[0],
         p.bolt_foot(bolts[0]),
         p.slab_top(slab),
-        len(0.0),
+        Formula::zero(Dimension::Length),
         at(1.0, 1.0, 0.0),
     );
     let (doc, _) = seat(
@@ -702,7 +702,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         bolts[1],
         p.bolt_foot(bolts[1]),
         p.slab_top(slab),
-        len(0.0),
+        Formula::zero(Dimension::Length),
         at(4.0, 1.0, 0.0),
     );
     // The third stands over the second: a seat's values are read from
@@ -712,7 +712,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         bolts[2],
         p.bolt_foot(bolts[2]),
         p.bolt_head(bolts[1]),
-        len(0.0),
+        Formula::zero(Dimension::Length),
         at(4.0, 1.0, 0.0),
     );
     out.push(("chain", doc, p.opts()));
@@ -1002,18 +1002,16 @@ fn run_at<T: editor_core::EvalScalar>(
 /// `0x132e_b1b7_811d_4fd3`): with each copy rebuilt at `place` as
 /// before E, this branch reads main's word at 1e-9 exactly.
 ///
-/// Re-taken for G (`patterns-are-index-variables`): `patterned-bolt`'s
-/// bolts are a family, one placement over an index, where they were a
-/// `Pattern`'s copies, so its document is another document. Compared
-/// against main (`0217fb09`) label by label at 1e-9, every other
-/// label's word is main's bit for bit (`seats`, `coaxial-slide-spin`,
-/// `overconstrained`, `standoff`, `pinned-chain`, `chain`, `shaft`);
-/// `patterned-bolt`'s alone moved, `0x5d25_c2a0_4ecf_5a9c` →
-/// `0xcc06_7466_9142_3ed7`.
+/// And, all three rows, when the corpus's seats came to write a zero
+/// standoff and a zero spin as the constant `0` rather than a literal
+/// (`[variables.literals]`): fewer variables mint, so the ids the digest
+/// feeds renumber, and nothing else moved: with each id rewritten to
+/// the order it first appears in, every byte fed (faults, spaces, the 36
+/// frames, the evaluations' tables and bodies) is main's at 1e-9.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x1703_8d6a_7d03_29cd),
-    (1e-6, 0xa35b_8458_f343_5ef7),
-    (1e-12, 0xbe88_829e_0b8d_8360),
+    (1e-9, 0xeb0c_6bbd_39c6_1348),
+    (1e-6, 0x2c55_d6c3_d17f_2c75),
+    (1e-12, 0xd1ee_81d0_2190_463f),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
@@ -1570,7 +1568,7 @@ fn slid_bolt(label: &str) -> Slid {
         bolts[0],
         p.bolt_foot(bolts[0]),
         p.slab_top(slab),
-        len(0.0),
+        Formula::zero(Dimension::Length),
         (
             named(slide(), Dimension::Length),
             len(3.0),
@@ -1739,7 +1737,7 @@ fn a_tilted_plane_slid_within_itself_leaves_the_map_thin() {
         &[
             (Coord::Slide(TargetAxis::X), len(x)),
             (Coord::Slide(TargetAxis::Y), len(y)),
-            (Coord::SPIN, ang(0.0)),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     );
     let opts = p.opts();

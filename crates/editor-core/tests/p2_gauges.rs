@@ -188,7 +188,7 @@ pub(crate) fn seat_edits(
         values: vec![
             (Coord::Slide(TargetAxis::X), len(at[0])),
             (Coord::Slide(TargetAxis::Y), len(at[1])),
-            (Coord::SPIN, ang(0.0)),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     };
     let edits = fixture::bundle_edits(&doc, placement, placed.bundle());
@@ -481,11 +481,11 @@ fn an_inserted_instance_sits_at_the_origin_and_a_constraint_places_a_loose_one_r
     );
     let typed: Vec<(Coord, Formula)> = TargetAxis::ALL
         .into_iter()
-        .map(|axis| (Coord::Slide(axis), len(0.0)))
+        .map(|axis| (Coord::Slide(axis), Formula::zero(Dimension::Length)))
         .chain(
             TargetAxis::ALL
                 .into_iter()
-                .map(|axis| (Coord::Spin(Some(axis)), ang(0.0))),
+                .map(|axis| (Coord::Spin(Some(axis)), Formula::zero(Dimension::Angle))),
         )
         .collect();
     let pin = editor_core::Placed::of(&doc, Vec::new(), typed).write(base);

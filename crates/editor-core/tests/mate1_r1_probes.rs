@@ -12,6 +12,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::Dimension;
 
 use editor_core::{
     CapEnd, DocEdit, DocumentId, EntityKind, EvalOptions, Formula, Frame, MateRef, MateSide, Node,
@@ -19,8 +20,8 @@ use editor_core::{
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
-    ang, constrain, head, in_copy, insert, insert_pinned, len, mated_instance, on_frame, plane,
-    rest, run, solve,
+    constrain, head, in_copy, insert, insert_pinned, len, mated_instance, on_frame, plane, rest,
+    run, solve,
 };
 use geom_core::Tol;
 
@@ -501,7 +502,7 @@ fn r1_pattern_free_solves_are_bit_identical() {
                     head(b_part.cap(b, CapEnd::End)),
                 )],
                 values: vec![
-                    (editor_core::Coord::SPIN, ang(0.0)),
+                    (editor_core::Coord::SPIN, Formula::zero(Dimension::Angle)),
                     (
                         editor_core::Coord::Slide(editor_core::TargetAxis::X),
                         len(0.25),

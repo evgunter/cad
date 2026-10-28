@@ -334,7 +334,20 @@ fn family_value<T: Decide>(
         }
         None => (ValuePayload::Family, Arc::from([])),
     };
-    let parts = members.members.iter().map(|(_, value)| value.parts).sum();
+    // A family carries what its members carry (each a copy of one
+    // source, so the first's records and findings are every member's),
+    // as many parts as its members are together, and no pieces.
+    let carry = super::Carry {
+        parts: members
+            .members
+            .iter()
+            .map(|(_, value)| value.carry.parts)
+            .sum(),
+        ..members
+            .members
+            .first()
+            .map_or_else(super::Carry::default, |(_, value)| value.carry.of_members())
+    };
     let coincidences: Vec<crate::coincide::NamedCoincidence> = members
         .members
         .iter()
@@ -353,15 +366,10 @@ fn family_value<T: Decide>(
     Ok(NodeValue {
         payload,
         outputs,
-        contacts: Arc::default(),
-        carried: Arc::default(),
+        carry,
         coincidences: coincidences.into(),
         cited_inputs: Arc::from([]),
-        parts,
         motion: None,
-        pieces: None,
-        census: None,
-        censused: false,
         members: Some(Arc::new(members)),
         verdicts: Arc::new(verdicts),
         escalations: Arc::new(escalations),

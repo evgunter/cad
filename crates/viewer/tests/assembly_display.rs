@@ -1667,3 +1667,58 @@ fn a_document_replacement_takes_all_display_state_and_reports_none_of_it() {
          chrome rather than to the user"
     );
 }
+
+/// **A frame on a space whose copies a placed product fuses goes at
+/// the edit, saying so.** The shelf and post_b share a space with a
+/// frame held on it; placing a union of the two reads that space's
+/// bodies, so the space is no longer shown and the frame is dropped,
+/// rather than kept on copies whose sections can no longer offer the
+/// probe that resets it (each refuses `FusedGeometry`).
+#[test]
+fn a_frame_whose_copies_are_fused_goes_saying_so() {
+    let tol = Tol::witness();
+    let bench = asm::bench("fmfuse", tol);
+    let union = asm::store_union(&bench, &[bench.shelf_i, bench.post_b], tol);
+    let mut session = asm::open_bench(&bench, tol);
+    asm::unpin(&mut session, bench.shelf_i);
+    common::commit_mate(
+        &mut session,
+        asm::seat_op(&bench, bench.post_b, asm::own_space_seat_values()),
+    );
+    session.pump();
+    let space = display::free_move_check(session.doc(), session.space_evaluation(), bench.post_b)
+        .expect("the mated post is in the shelf's space");
+    commit_frame(&mut session, bench.post_b);
+    assert!(session.display().free_move_of(space).is_some());
+
+    let outcome = session.perform(SessionOp::Duplicate {
+        input: union.into(),
+        beside: None,
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    for instance in [bench.shelf_i, bench.post_b] {
+        assert!(
+            matches!(
+                display::display_check(session.doc(), instance),
+                Err(AdmissionFault::FusedGeometry { .. })
+            ),
+            "the placed union fuses {instance:?}"
+        );
+    }
+    let [withdrawn] = &outcome.withdrawn.superseded[..] else {
+        panic!(
+            "the edit drops the space's frame: {:?}",
+            outcome.withdrawn.superseded
+        )
+    };
+    assert_eq!(withdrawn.instance, bench.post_b);
+    assert!(
+        matches!(
+            &withdrawn.cause,
+            AdmissionFault::NotShown { space: left, .. } if left.id() == space
+        ),
+        "the cause names the space the fuse reads: {}",
+        withdrawn.cause
+    );
+    assert!(session.display().free_move_of(space).is_none());
+}

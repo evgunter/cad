@@ -254,7 +254,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             },
             loops: vec![],
             distance: len(0.01),
-            spin: common::ang(0.0),
+            spin: Formula::zero(Dimension::Angle),
         },
         SessionOp::AddProfile { loops: vec![] },
         SessionOp::AddExtrude {
@@ -280,9 +280,9 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         },
         SessionOp::AddTransform {
             input: node.into(),
-            translation: len3([0.0; 3]),
+            translation: common::no_translation(),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: common::ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
         SessionOp::AddPattern {
             input: node.into(),

@@ -293,6 +293,21 @@ this rule, and so do profile pieces:
   rims and vertices belong to one section, and are named by that section's own
   locators. If a value edit changes which pieces pair, the old wall's name
   vanishes; it does not follow `k` to the new pairing.
+  A loft at v-degree 1 through three sections or more is one wall per
+  segment per slab (`crates/sweep/README.md`, "Walls"), so its roles carry
+  the slab or section they sit at, counted from the start section: a wall
+  (`LoftSlabWall`) holds its slab and the locators of the pieces it joins
+  at the slab's two sections, as a seam (`LoftSlabSeam`) holds its slab and
+  two vertex locators; an interior section's ring edge
+  (`LoftSectionEdge`) and vertex (`LoftSectionVertex`) hold the section and
+  that section's own locator. The slab or section is what tells two walls
+  of one segment apart, since two sections may be drawn by the same steps.
+  Counting from the start section is a positional PLACEHOLDER: inserting or
+  deleting an earlier section renames every later slab and ring. These
+  names are to key on each section's input identity instead
+  (`work/tess/loft-slab-and-section-names-are-positional.md`).
+  Setting the degree slot to 1 or from 1 changes the walls the body has,
+  so the names of the other degree's walls vanish.
 - **Swept walls over a run.** Extrude and revolve build one wall per run of
   profile pieces on one carrier (`crates/sweep/README.md`, "Walls"). The
   wall's role-path segment (`Lateral` for extrude, `Band` for revolve) holds
@@ -309,7 +324,8 @@ this rule, and so do profile pieces:
   `AxisEdge`: `Lateral([p0, p1])` covers `Lateral([p0])`, so a selection made before a station was inserted
   is offered the run wall, and an edit that breaks a run offers its pieces'
   walls. A `LoftWall` holds one locator per section of ONE wall, not a set
-  of walls, so it has no constituents in that view.
+  of walls, so it has no constituents in that view, and neither has a
+  `LoftSlabWall`.
 
 **N2 — Split discriminators are covariant margined predicates.** When one source
 yields n fragments, `Fragment(Qualifier)` follows the parent-bearing segment.

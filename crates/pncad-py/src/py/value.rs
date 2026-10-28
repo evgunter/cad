@@ -1081,7 +1081,7 @@ impl Value {
     pub(crate) fn of(node_value: &d::NodeValue<f64>, node: NodeId) -> Self {
         Self {
             payload: node_value.payload.clone(),
-            contacts: Arc::clone(&node_value.contacts),
+            contacts: Arc::clone(&node_value.carry.contacts),
             node,
             members: node_value.members.as_ref().map_or_else(Vec::new, |family| {
                 family

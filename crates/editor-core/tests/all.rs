@@ -235,6 +235,8 @@ mod gap_reads_a_cell_against_a_round_face;
 mod gap_reads_vertex_and_edge_cells;
 #[path = "reach_slab_cut_sector_side.rs"]
 mod reach_slab_cut_sector_side;
+#[path = "refactor_pose_definitions.rs"]
+mod refactor_pose_definitions;
 #[path = "refusal_concision.rs"]
 mod refusal_concision;
 #[path = "refusal_concision_at_rest.rs"]
@@ -814,6 +816,8 @@ mod intent_loft_set_sections;
 mod intent_part_census_seam;
 #[path = "intent_part_split_half.rs"]
 mod intent_part_split_half;
+#[path = "intent_placement_carries_at_rest.rs"]
+mod intent_placement_carries_at_rest;
 #[path = "intent_s2_a_outputs.rs"]
 mod intent_s2_a_outputs;
 #[path = "intent_s2_b_reads.rs"]

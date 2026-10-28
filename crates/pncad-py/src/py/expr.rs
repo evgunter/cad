@@ -828,9 +828,7 @@ pub(crate) fn eval_err(
         E::UnresolvedVar { var }
         | E::OutputRead { var }
         | E::DefinitionRefused { var, .. }
-        | E::IndexOutsideMember { var } => {
-            (text(&var_text(var)), none(), none(), none())
-        }
+        | E::IndexOutsideMember { var } => (text(&var_text(var)), none(), none(), none()),
         E::VarKindMismatch { var, bound, read } => {
             (text(&var_text(var)), dim(*read), dim(*bound), none())
         }

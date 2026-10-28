@@ -6915,6 +6915,7 @@ fn axial_carrier<T: Decide>(
                     });
             Span { lo, hi }
         },
+        crate::boolean::boxes::SpanBox::point,
     )
 }
 

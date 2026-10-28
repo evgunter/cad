@@ -527,7 +527,11 @@ impl InterferenceFinding {
             faces,
             unlocalized,
             quiet_by: finding.quiet.map(NodeId),
-            quiet_at: finding.quiet_at.iter().map(|&(k, at)| (var(k), at)).collect(),
+            quiet_at: finding
+                .quiet_at
+                .iter()
+                .map(|&(k, at)| (var(k), at))
+                .collect(),
             quietable: finding.quietable,
         })
     }

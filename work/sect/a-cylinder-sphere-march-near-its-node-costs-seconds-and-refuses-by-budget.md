@@ -55,3 +55,16 @@ refinement concentrates where the loops pass close). Measuring which of
 `account_r3`'s seeding and accounting phases holds the time is the
 first step. Cost M: one new decided row and its pin, or a change inside
 the accounting with its meters.
+
+## The chord's certificate costs as much again (SECT step 1b, 2026-10-28)
+
+Measured on `sect/cylinder-sphere-chord` (PR 5894), debug build: each
+carried chord is certified at the edge door by `analytic_rung3`, whose
+limb 2 composes the chord's whole net (`pcurve_cache::limb2_offset_sup`):
+about 0.75 s per operand for a 265-point arc, 0.55–1.6 s per chord over
+the fixture's poses (the dual review's range). Nothing bounds it: the
+fitted loop's density sets the net, and a union pays it again at the
+at-rest gate's re-certification. Cutting the chord from the loop
+(`chord_join::cut_arc`) rather than carrying the whole loop with an
+interval took a segment from 18 s to 3.5 s; the fixture's 54 runs still
+take 3–120 s each in debug (8–80 s per pose on CI).

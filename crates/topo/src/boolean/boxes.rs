@@ -552,22 +552,29 @@ pub(crate) enum AxialCarrier<T> {
     /// A conic arc's axial image over its certified span, already
     /// entered into the reading lane's spans ([`axial_carrier`]).
     Conic(Span<T>),
+    /// A spline's control points, already entered into the reading
+    /// lane's boxes: the locus lies in their convex hull, so its axial
+    /// image lies in theirs.
+    Hull(Vec<SpanBox<T>>),
 }
 
 /// [`EdgeBoxRule`] as an axial span reads it: the one map from a rule
 /// to an [`AxialCarrier`], the conic arm's axial image computed by the
 /// lane (`conic`), which reads `geom`'s directional door at its own
 /// scalar — the certified bracket door on the bracket lane, the
-/// carrier's own arithmetic on the census's. No axial-span closed form
-/// is written for the spiric, and an edge with no sound box claims
-/// nothing: both are [`AxialCarrier::Unclaimable`].
+/// carrier's own arithmetic on the census's. A spline's is its control
+/// points, each entered into the lane's boxes (`enter`). No axial-span
+/// closed form is written for the spiric, and an edge with no sound box
+/// claims nothing: both are [`AxialCarrier::Unclaimable`].
 pub(crate) fn axial_carrier<'c, T: Real, S>(
     rule: EdgeBoxRule<'c, T>,
     conic: impl FnOnce(&ConicArc<'c, T>) -> Span<S>,
+    enter: impl Fn(Point3<T>) -> SpanBox<S>,
 ) -> AxialCarrier<S> {
     match rule {
-        EdgeBoxRule::NoSoundBox | EdgeBoxRule::ControlHull(_) | EdgeBoxRule::Spiric { .. } => {
-            AxialCarrier::Unclaimable
+        EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric { .. } => AxialCarrier::Unclaimable,
+        EdgeBoxRule::ControlHull(net) => {
+            AxialCarrier::Hull(net.control().iter().map(|&p| enter(p)).collect())
         }
         EdgeBoxRule::Chord => AxialCarrier::Chord,
         EdgeBoxRule::ConicAmplitude(arc) => AxialCarrier::Conic(conic(&arc)),
@@ -592,6 +599,9 @@ pub(crate) fn edge_axial_span<T: Real>(
         AxialCarrier::Unclaimable => chord.widen(poison_value::<T>()),
         AxialCarrier::Chord => chord,
         AxialCarrier::Conic(arc) => arc.hull(chord),
+        AxialCarrier::Hull(points) => points
+            .iter()
+            .fold(chord, |hull, p| hull.hull(along(p, origin))),
     }
 }
 
@@ -1939,6 +1949,7 @@ pub(crate) fn face_box<T: Decide + Bounds>(
                     let axial = axial_carrier(
                         edge_box_rule(body.edge_curve_linked(ek, e).certified()),
                         conic,
+                        bracket_point,
                     );
                     grow(edge_axial_span(
                         &origin,
@@ -2251,8 +2262,8 @@ fn boundary_hull<T: Decide + Bounds>(
 ///   prunes every face the net's hull does not reach, which is sound
 ///   because the crossing lanes read a spline edge against every face
 ///   it does reach: the curve × face table's ring-composite arm at a
-///   plane, a typed refusal at a lane with no arm. No axial projection
-///   is written for it ([`AxialCarrier::Unclaimable`]).
+///   plane, a typed refusal at a lane with no arm. Its axial image is
+///   its control points' ([`AxialCarrier::Hull`]).
 /// - [`NoSoundBox`](Self::NoSoundBox) — an edge whose carrier is null
 ///   scaffolding. Nothing is certified about the locus, so nothing is
 ///   claimed; the chord is NOT a bound.
@@ -2571,6 +2582,53 @@ pub(crate) mod tests {
 
     use super::*;
     use crate::boolean::conic_oracle::exact::Dd;
+
+    /// **A spline edge's axial span from its control points holds the
+    /// curve** ([`AxialCarrier::Hull`]): random clamped nets of degree one
+    /// to three, rational with weights from 0.02 to 50, a random axis and
+    /// sub-interval, the curve's height along the axis sampled inside the
+    /// span to 1e-12 (a counterexample search; seed logged).
+    #[test]
+    fn a_hull_axial_span_holds_the_curve() {
+        use geom_core::spline::KnotVector;
+        let mut rng = test_utils::fuzz::start("boxes::tests::a_hull_axial_span_holds_the_curve");
+        for _ in 0..test_utils::fuzz::scaled(400) {
+            let p = 1 + rng.below(3);
+            let n = p + 1 + rng.below(5);
+            let mut k = vec![0.0; p + 1];
+            let mut ks: Vec<f64> = (0..n - p - 1).map(|_| rng.range(0.05, 0.95)).collect();
+            ks.sort_by(f64::total_cmp);
+            k.extend(ks);
+            k.extend(vec![1.0; p + 1]);
+            let ctl: Vec<_> = (0..n)
+                .map(|_| Point3::new(rng.range(-1., 1.), rng.range(-1., 1.), rng.range(-1., 1.)))
+                .collect();
+            let w: Vec<f64> = (0..n).map(|_| rng.log_uniform(0.02, 50.0)).collect();
+            let Ok(net) = geom::NurbsCurve3::new(KnotVector::clamped(k, p).unwrap(), ctl, w) else {
+                continue;
+            };
+            let ax =
+                Vec3::new(rng.range(-1., 1.), rng.range(-1., 1.), rng.range(-1., 1.)).normalize();
+            let o = Point3::origin();
+            let (a, b) = (rng.range(0., 0.5), rng.range(0.5, 1.));
+            let span = edge_axial_span(
+                &SpanBox::point(o),
+                &SpanBox::vector(ax),
+                &AxialCarrier::Hull(net.control().iter().map(|&q| SpanBox::point(q)).collect()),
+                (&SpanBox::point(net.eval(a)), &SpanBox::point(net.eval(b))),
+            );
+            for i in 0..=200 {
+                let h = (net.eval(a + (b - a) * f64::from(i) / 200.) - o).dot(ax);
+                assert!(
+                    span.lo - 1e-12 <= h && h <= span.hi + 1e-12,
+                    "{h} outside [{}, {}]; {}",
+                    span.lo,
+                    span.hi,
+                    test_utils::fuzz::replay()
+                );
+            }
+        }
+    }
     use crate::entity::LoopBoundary;
     use crate::euler::{FaceSurface, MefSite, MevSite};
     use geom::Curve3;

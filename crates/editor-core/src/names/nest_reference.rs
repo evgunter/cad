@@ -133,6 +133,10 @@ pub(super) enum RoleSeg {
 
     LoftWall(Vec<ProfileEdgeRef>),
     LoftSeam(Vec<ProfileVertexRef>),
+    LoftSlabWall(u32, Vec<ProfileEdgeRef>),
+    LoftSlabSeam(u32, Vec<ProfileVertexRef>),
+    LoftSectionEdge(u32, ProfileEdgeRef),
+    LoftSectionVertex(u32, ProfileVertexRef),
 
     Band(PieceRun),
     BandRim(ProfileVertexRef),

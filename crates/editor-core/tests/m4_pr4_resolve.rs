@@ -951,7 +951,11 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         | RoleSeg::SplitBody
         | RoleSeg::SectionFace
         | RoleSeg::LoftWall(_)
-        | RoleSeg::LoftSeam(_) => false,
+        | RoleSeg::LoftSeam(_)
+        | RoleSeg::LoftSlabWall(..)
+        | RoleSeg::LoftSlabSeam(..)
+        | RoleSeg::LoftSectionEdge(..)
+        | RoleSeg::LoftSectionVertex(..) => false,
     })
 }
 

@@ -244,7 +244,7 @@ struct Named {
 /// carrier; for a measure its value; for an assertion its verdict whole.
 #[derive(Debug)]
 enum Reading {
-    Refused { class: String, whole: String },
+    Refused { whole: String },
     Bodies(Vec<BTreeMap<String, Named>>),
     Measure(f64),
     Verdict(String),
@@ -257,11 +257,9 @@ fn reading(ev: &Evaluation<f64>, node: RecipeNodeId) -> Option<Reading> {
         other => {
             return Some(match ev.node_error(node) {
                 Some(e) => Reading::Refused {
-                    class: format!("{:?}", e.kind.class()),
                     whole: masked(&format!("{:?}", e.kind)),
                 },
                 None => Reading::Refused {
-                    class: format!("{:?}", core::mem::discriminant(other)),
                     whole: masked(&format!("{other:?}")),
                 },
             });

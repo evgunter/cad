@@ -2520,13 +2520,21 @@ impl<P> Doc<P> {
         }
     }
 
-    /// **The variable a node's slot reads** (VARIABLES-DESIGN VR4), or
-    /// `None` if the node is gone or does not carry the slot.
+    /// **The variable a node's slot reads** (VARIABLES-DESIGN VR4): an
+    /// expression slot's variable, or an operand's read; `None` if the
+    /// node is gone or does not carry the slot.
     pub fn slot(&self, node: RecipeNodeId, slot: SlotId) -> Option<VarId>
     where
         P: crate::ProfilePayload,
     {
-        self.nodes.get(&node)?.expr(slot).copied()
+        let node = self.nodes.get(&node)?;
+        match slot {
+            SlotId::Operand(at) => node
+                .operand_rows()
+                .into_iter()
+                .find_map(|(there, read)| (there == at).then_some(read)),
+            slot => node.expr(slot).copied(),
+        }
     }
 
     /// **The free variable a node's slot reads**, or `None` where the

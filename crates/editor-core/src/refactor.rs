@@ -73,6 +73,20 @@
 //! holds ([`InlineError::VarNameConflict`]): two variables are never
 //! one because their values agree (VR1).
 //!
+//! A pose is such a variable, read by the slot that reads it, and so is
+//! each pose and number it is defined over; a selection under a pose is
+//! not, and crosses with its body. No door declares a pose, so one
+//! crosses as a selection does: written again at its first carried
+//! reader, its faces re-selected on the carried bodies and its numbers
+//! read as the target holds them, and named there as it was named. A
+//! named number a pose on one side and a node on the other read refuses
+//! [`SplitError::UncutVarReference`]. A named pose read on both sides
+//! never gets that far: a pose reads the faces of the bodies it is
+//! defined over, so a kept reader in their space reads the cut and
+//! refuses as a severed read ([`SplitError::SeveredEdge`]), and the
+//! edit door admits no reader in another space
+//! ([`EditError::SpaceMismatch`]).
+//!
 //! A space is read as a variable is. Every read of a space is an edge
 //! to the node that defines it, though it reaches no operation
 //! ([`Doc::read_ports`]). A `new_space()` goes where its readers go: one
@@ -663,20 +677,14 @@ fn remap_with_selects(
             }),
         },
     };
-    // A selection read crosses with its reader when its body does:
-    // the remapped node keeps the source id, and the insert reads it as
-    // the selection authored afresh in the target (or as the one an
-    // earlier reader carried).
-    let anonymous_pose = |var: VarId| {
-        source.var_name(var).is_none()
-            && matches!(
-                source.var(var).map(crate::Var::def),
-                Some(crate::var::VarDef::Pose(_))
-            )
-    };
+    // A selection read crosses with its reader when its body does, and
+    // a pose read with its reader: the remapped node keeps the source
+    // id, and the insert reads it as the variable authored afresh in
+    // the target (or as the one an earlier reader carried).
+    let pose = |var: VarId| pose_def(source, var).is_some();
     let rd = |slot: crate::OperandSlot, var: VarId| match source.selection(var) {
         Some(select) => rd_output(slot, select.body).map(|_| var),
-        None if anonymous_pose(var) => Ok(var),
+        None if pose(var) => Ok(var),
         None => rd_output(slot, var),
     };
     let carried = remap_node(node, &rd)?;
@@ -719,10 +727,12 @@ fn remap_with_selects(
         ))
     };
     for (slot, var) in node.operand_rows() {
-        if anonymous_pose(var) {
-            // A pose written in place crosses as its definition, each
-            // read in it carried as the read itself would be and each
-            // number re-pointed at the variables the target holds.
+        if pose(var) {
+            // A pose crosses as the one an earlier reader carried, or as
+            // its definition, each read in it carried as the read itself
+            // would be, a pose not yet carried written again in place,
+            // and each number re-pointed at the variables the target
+            // holds.
             let mut leaf = |leaf: VarId| -> Result<Option<crate::Operand>, RemapMiss> {
                 if let Some(&held) = vars.map.get(&leaf) {
                     return Ok(Some(crate::Operand::Var(held)));
@@ -730,7 +740,7 @@ fn remap_with_selects(
                 if source.selection(leaf).is_some() {
                     return reselected(slot, leaf).map(Some);
                 }
-                if anonymous_pose(leaf) {
+                if pose(leaf) {
                     return Ok(None);
                 }
                 rd_output(slot, leaf).map(|carried| Some(crate::Operand::Var(carried)))
@@ -758,7 +768,7 @@ fn remap_with_selects(
             };
             selects.insert(
                 var,
-                rewritten_pose_with(source, var, &mut leaf, &mut scalar)?,
+                rewritten_pose_with(source, var, &mut leaf, &mut scalar, true)?,
             );
             continue;
         }
@@ -786,9 +796,12 @@ fn remap_with_selects(
     Ok((carried, selects))
 }
 
-/// **Each selection a carried edit minted stands for its source**, in
-/// read order, and a named one takes its name across: `from` the
-/// source's reads, `to` the target's at the same places.
+/// **Each selection and pose a carried edit minted stands for its
+/// source**, in read order, a pose's own reads with it, and a named one
+/// takes its name across: `from` the source's reads, `to` the target's
+/// at the same places. The walk is preorder, a pose before the reads
+/// under it, so the renames are recorded in the order the source's
+/// definitions are written.
 fn name_selections(
     source: &ProfileDoc,
     target: &mut Recording<'_, ProfileProgram>,
@@ -796,9 +809,29 @@ fn name_selections(
     from: impl IntoIterator<Item = VarId>,
     to: impl IntoIterator<Item = VarId>,
 ) -> Result<(), EditError> {
-    for (from, to) in from.into_iter().zip(to) {
-        if source.selection(from).is_none() || vars.map.contains_key(&from) {
+    let mut pairs: Vec<(VarId, VarId)> = from.into_iter().zip(to).collect();
+    pairs.reverse();
+    while let Some((from, to)) = pairs.pop() {
+        if vars.map.contains_key(&from) {
             continue;
+        }
+        match (pose_def(source, from), pose_def(target.doc(), to).cloned()) {
+            (Some(from_def), Some(to_def)) => {
+                let to_reads = to_def.reads();
+                let inner: Vec<(VarId, VarId)> = from_def
+                    .reads()
+                    .into_iter()
+                    .filter_map(|(at, &r, _, _)| {
+                        to_reads
+                            .iter()
+                            .find(|(there, ..)| *there == at)
+                            .map(|&(_, &t, _, _)| (r, t))
+                    })
+                    .collect();
+                pairs.extend(inner.into_iter().rev());
+            }
+            _ if source.selection(from).is_some() => {}
+            _ => continue,
         }
         vars.map.insert(from, to);
         if let Some(name) = source.var_name(from) {
@@ -1366,6 +1399,14 @@ pub enum InlineError {
         /// The name.
         name: crate::doc::VarName,
     },
+    /// The referenced document holds a named pose nothing in it reads.
+    /// No door declares a pose: one crosses with the first spliced edit
+    /// that reads it, and this one has none, so inline refuses rather
+    /// than drop it.
+    UnreadPose {
+        /// The pose, spoken from the referenced document.
+        var: SpokenVar,
+    },
     /// The referenced document's spliced recipe reads a variable that
     /// document no longer holds (a deleted one, legal there by VR7):
     /// the host has no variable to point the reader at.
@@ -1480,6 +1521,15 @@ impl core::fmt::Display for InlineError {
                  document's crosses as a variable of its own. {}",
                 Recourse(&format!(
                     "rename the {name} of one of the two documents (RenameVar), then inline"
+                ))
+            ),
+            Self::UnreadPose { var } => write!(
+                f,
+                "inline: the referenced document holds the pose {var}, which nothing in it \
+                 reads, and a pose crosses only with a reader. {}",
+                Recourse(&format!(
+                    "in the referenced document, read {var} or delete it (DeleteVar), point this \
+                     instance at that version (UpdateReference), then inline"
                 ))
             ),
             Self::UnresolvedVarCrossesCut { var, node } => write!(
@@ -2184,14 +2234,35 @@ fn remap_node(
 /// The variables a node's slots and payload read. The expressions no
 /// slot addresses count too: a measured bound reading a variable is
 /// exactly as much a reason to carry that variable into a split part
-/// as an extrude's distance is.
+/// as an extrude's distance is. A pose the node reads is a variable it
+/// reads, and so is each pose and number that pose is defined over;
+/// the selections and outputs under it cross with their bodies.
 fn node_var_reads(doc: &ProfileDoc, node: &Node<ProfileProgram>) -> BTreeSet<VarId> {
+    let is_pose = |var: VarId| pose_def(doc, var).is_some();
     // A reader of a defined variable reads what its definition reads.
     let mut through: BTreeSet<VarId> = BTreeSet::new();
     let mut frontier: Vec<VarId> = node.exprs().into_iter().copied().collect();
+    frontier.extend(
+        node.operand_rows()
+            .into_iter()
+            .map(|(_, var)| var)
+            .filter(|&var| is_pose(var)),
+    );
     while let Some(var) = frontier.pop() {
-        if through.insert(var) {
-            frontier.extend(doc.definition_reads(var));
+        if !through.insert(var) {
+            continue;
+        }
+        match pose_def(doc, var) {
+            Some(def) => {
+                frontier.extend(
+                    def.reads()
+                        .into_iter()
+                        .map(|(_, &r, _, _)| r)
+                        .filter(|&r| is_pose(r)),
+                );
+                frontier.extend(def.scalars().into_iter().map(|(_, &s)| s));
+            }
+            None => frontier.extend(doc.definition_reads(var)),
         }
     }
     through
@@ -2327,10 +2398,9 @@ impl<'s> VarCarry<'s> {
             VarDef::Pick(_) => {
                 unreachable!("a pick crosses with its reader, minted by the target's insert")
             }
-            VarDef::Pose(_) => unreachable!(
-                "the carry declares variables slots read, and no slot reads a pose: a pose \
-                 read crosses no cut (its reader's remap misses, `RemapMiss::Read`)"
-            ),
+            VarDef::Pose(_) => {
+                unreachable!("a pose crosses with its reader, minted by the target's insert")
+            }
         }
     }
 
@@ -3115,13 +3185,13 @@ pub fn split(
     // The named variables that move, declared in the PARENT's
     // definition order — its declaration order, a definition after what
     // it reads — so the part lists them as the parent's author did. An
-    // anonymous one crosses with the first carried edit that reads it
-    // (`VarCarry`).
+    // anonymous one, and a pose, crosses with the first carried edit
+    // that reads it (`VarCarry`).
     let mut vars = VarCarry::new(doc);
     for id in doc
         .definition_order()
         .into_iter()
-        .filter(|id| moving.contains(id))
+        .filter(|id| moving.contains(id) && pose_def(doc, *id).is_none())
     {
         if let Some(name) = doc.var_name(id) {
             vars.declare(&mut part, id, name.clone())
@@ -3656,27 +3726,32 @@ fn rewritten_pose<P, E>(
     var: VarId,
     leaf: &mut impl FnMut(VarId) -> Result<Option<crate::Operand>, E>,
 ) -> Result<crate::Operand, E> {
-    rewritten_pose_with(doc, var, leaf, &mut |formula| Ok(formula))
+    rewritten_pose_with(doc, var, leaf, &mut |formula| Ok(formula), false)
 }
 
 /// [`rewritten_pose`] with each scalar's written formula mapped by
-/// `scalar` — a carry's, re-pointing the named variables it reads.
+/// `scalar` — a carry's, re-pointing the named variables it reads —
+/// and, where `named`, each named pose `leaf` does not answer for
+/// written in place too: a carry's, whose target holds no such pose
+/// yet.
 fn rewritten_pose_with<P, E>(
     doc: &Doc<P>,
     var: VarId,
     leaf: &mut impl FnMut(VarId) -> Result<Option<crate::Operand>, E>,
     scalar: &mut impl FnMut(Formula) -> Result<Formula, E>,
+    named: bool,
 ) -> Result<crate::Operand, E> {
     if let Some(operand) = leaf(var)? {
         return Ok(operand);
     }
     match doc.var(var).map(crate::Var::def) {
-        Some(crate::var::VarDef::Pose(def)) if doc.var_name(var).is_none() => {
+        Some(crate::var::VarDef::Pose(def)) if named || doc.var_name(var).is_none() => {
             // `try_map` calls the two closures one after the other, never
             // together, so the one `scalar` is lent to each in turn.
             let scalar = std::cell::RefCell::new(scalar);
-            let mut read =
-                |_, &r: &VarId| rewritten_pose_with(doc, r, leaf, &mut **scalar.borrow_mut());
+            let mut read = |_, &r: &VarId| {
+                rewritten_pose_with(doc, r, leaf, &mut **scalar.borrow_mut(), named)
+            };
             let written = def.try_map(&mut read, &mut |slot, &s| {
                 (scalar.borrow_mut())(Formula::from(
                     doc.written(&crate::Expr::var(s, slot.dimension())),
@@ -3686,6 +3761,11 @@ fn rewritten_pose_with<P, E>(
         }
         _ => Ok(doc.written_operand(var)),
     }
+}
+
+/// `var`'s definition, where `doc` holds it as a pose.
+fn pose_def<P>(doc: &Doc<P>, var: VarId) -> Option<&crate::pose::PoseDef> {
+    doc.var(var).and_then(|held| held.def().pose())
 }
 
 fn selection_kind<P>(doc: &Doc<P>, var: VarId) -> crate::VarKind {
@@ -3874,9 +3954,15 @@ pub fn inline(
         .unwrap_or_else(|| unreachable!("a space defines its space"));
     // Every part variable crosses as an id the host mints, never one
     // it holds: a named one declared here, refusing a name the host
-    // holds whatever either's value; an anonymous one with the first
-    // spliced edit that reads it (`VarCarry`).
+    // holds whatever either's value; an anonymous one, and a pose,
+    // with the first spliced edit that reads it (`VarCarry`).
     let mut vars = VarCarry::new(&part);
+    let read: BTreeSet<VarId> = part
+        .ids()
+        .iter()
+        .filter_map(|&id| part.node(id))
+        .flat_map(|node| node_var_reads(&part, node))
+        .collect();
     for id in part.definition_order() {
         let Some(name) = part.var_name(id) else {
             continue;
@@ -3884,8 +3970,17 @@ pub fn inline(
         if doc.var_named(name.as_str()).is_some() {
             return Err(InlineError::VarNameConflict { name: name.clone() });
         }
-        // An output crosses with its node (`carry`).
+        // An output crosses with its node (`carry`), and a pose with
+        // its first reader.
         if part.var(id).is_some_and(|var| var.def().output().is_some()) {
+            continue;
+        }
+        if pose_def(&part, id).is_some() {
+            if !read.contains(&id) {
+                return Err(InlineError::UnreadPose {
+                    var: part.spoken_var(id),
+                });
+            }
             continue;
         }
         vars.declare(&mut current, id, name.clone())
