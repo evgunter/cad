@@ -172,3 +172,18 @@ row) in the same PR, and re-measures what each row runs after the stop.
 - The two run concurrently: the doors are in `ssi`/`pair_section`, the
   teapot lane in the join's carried lane and `ring_path`; the seam is
   `pair_section::torus`, which each lane announces.
+## 2026-10-28 — the near-node main red fixed (PR 5961)
+
+- `main-red-cylinder-sphere-section-runs-out-of-cells-near-the-node-at-1e-6`
+  closed by PR 5961: an R3 branch whose uniqueness tube its coarse chain
+  boxes hold narrow is refined again (`ssi::refine::refine_for_tube`, the
+  coarse spans read by `certify::coarse_tube_spans` on the tube ladder),
+  keeping a finer carrier only where its tube is wider; a closed spline's
+  foot polishes from both ends across its seam. Tier: **single FULL**
+  (one Opus reviewer); the fix pass took all ten items, and the
+  orchestrator's delta read found the ladder's "next rung up" preserved
+  (`filter(r > radius).last()` over a descending ladder equals the old
+  `2 · radius`). The four `pinned_red` rows main added at 1e-6 come out,
+  since they pass. The near-node cost residue (`CellBudget` at the default
+  ε, unmeasured cause) stays on SECTRUNG's
+  `a-cylinder-sphere-march-near-its-node-costs-seconds-and-refuses-by-budget`.

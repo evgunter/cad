@@ -118,8 +118,8 @@ use geom_core::spline::algebra::{dehomogenize, domain_grid_points, range_grid_po
 use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface, tensor};
 use geom_core::spline::{KnotVector, RingRefinement};
 use geom_core::{
-    Band, Bounds, CertifiedEnclosure, Decide, Decided, Indeterminate, Interval, Margin, Point3,
-    Real, Sign, Vec3,
+    Band, Bounds, CertifiedBounds, CertifiedEnclosure, Decide, Decided, Indeterminate, Interval,
+    Margin, Point3, Real, Sign, Vec3,
 };
 
 use crate::certify::CertCheck;
@@ -1315,10 +1315,10 @@ pub(crate) fn chart_breaks(carrier: &KnotVector, pcurve: &KnotVector) -> Vec<f64
 /// The box chain covering a carrier: one padded box per span of its
 /// [`refined_net`], from the span's control hull (containment by the
 /// convex-hull property, positive weights making the rational basis a
-/// partition of unity).
+/// partition of unity), beside the box's axis and the span it hulls.
 fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
-) -> Vec<(Box3, Vec3<T>)> {
+) -> Vec<(Box3, Vec3<T>, (f64, f64))> {
     let mut out = Vec::new();
     // A refused insertion chain returns an EMPTY chain, which limb 3
     // reads as a definite refusal (no box, so nothing banked).
@@ -1368,7 +1368,7 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
         // that rung as unprobed ([`tube_margin`]).
         let t = carrier.deriv(T::from_f64(0.5 * (a + b)));
         let n = t.norm();
-        out.push((bx, t / n));
+        out.push((bx, t / n, (a, b)));
     }
     out
 }
@@ -1402,6 +1402,20 @@ impl Rung {
     }
 }
 
+/// **One padded chain box's graph margin** for an analytic pair: the
+/// zero-free reading ([`tube_margin`]) of `(∇f₁ × ∇f₂)·e` over `bx`
+/// ([`graph_margin`]); `None` where the enclosure is refused. Limb 3's
+/// probe and the coarse-span reading ([`coarse_tube_spans`]) read a box
+/// by it.
+fn box_graph_margin<T: CertifiedBounds>(
+    s1: &Surface<T>,
+    s2: &Surface<T>,
+    bx: Box3,
+    e: Vec3<T>,
+) -> Option<f64> {
+    tube_margin(graph_margin(s1, s2, bx, e))
+}
+
 /// Limb 3's **enclosure probe** for an analytic pair: the graph
 /// criterion in ℝ³ over a box chain of the given radius, and, where the
 /// margin is zero-free, the one-arc proof over the chain cut to `slab`
@@ -1417,7 +1431,7 @@ impl Rung {
 /// `None` when the chain is empty or broken, a definite structural
 /// refusal; [`Rung::refused`] where a box's transversality enclosure is.
 fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
-    chain: &[(Box3, Vec3<T>)],
+    chain: &[(Box3, Vec3<T>, (f64, f64))],
     s1: &Surface<T>,
     s2: &Surface<T>,
     radius: f64,
@@ -1429,7 +1443,7 @@ fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
     let mut worst = f64::INFINITY;
     let mut prev: Option<Box3> = None;
     let mut padded = Vec::with_capacity(chain.len());
-    for (raw, e) in chain.iter() {
+    for (raw, e, _) in chain.iter() {
         // The chain is built once (an O(n²) knot refinement) and padded
         // per ladder rung, which is a pure interval widening.
         let bx = raw.pad(radius);
@@ -1442,7 +1456,7 @@ fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
         }
         prev = Some(bx);
         padded.push(bx);
-        let Some(m) = tube_margin(graph_margin(s1, s2, bx, *e)) else {
+        let Some(m) = box_graph_margin(s1, s2, bx, *e) else {
             return Some(Rung::refused(SsiTube::Spatial { radius }));
         };
         if m < worst {
@@ -1450,7 +1464,7 @@ fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
         }
     }
     let axis = |e: &Vec3<T>| dominant_axis([e.x, e.y, e.z].map(|c| 0.5 * (c.lo() + c.hi())));
-    let (Some((_, e0)), Some((_, e1))) = (chain.first(), chain.last()) else {
+    let (Some((_, e0, _)), Some((_, e1, _))) = (chain.first(), chain.last()) else {
         return None;
     };
     let one_arc = (worst > 0.0).then(|| {
@@ -1818,7 +1832,33 @@ pub(crate) fn tube_boxes<T: Decide + Bounds + CertifiedEnclosure>(
 ) -> Vec<Box3> {
     box_chain(carrier)
         .into_iter()
-        .map(|(b, _)| b.pad(radius))
+        .map(|(b, _, _)| b.pad(radius))
+        .collect()
+}
+
+/// **The spans that hold an ℝ³ tube at the rung `radius`**
+/// ([`super::refine::refine_for_tube`]): with `up` the ladder's next
+/// rung above `radius` ([`tube_ladder`] over `extent` and `band`), the
+/// carrier's parameter intervals whose chain box ([`box_chain`]) is wider
+/// than `up` and, padded by it, is not shown a graph
+/// ([`box_graph_margin`]). A box no wider than the rung is held by its
+/// padding, which halving its span does not narrow, so it is not named.
+/// Empty where `radius` is the ladder's widest rung.
+pub(crate) fn coarse_tube_spans(
+    carrier: &NurbsCurve3<f64>,
+    (s1, s2): (&Surface<f64>, &Surface<f64>),
+    radius: f64,
+    (extent, band): (f64, Band),
+) -> Vec<RefusedSpan> {
+    let Some(up) = tube_ladder(extent, band).filter(|r| *r > radius).last() else {
+        return Vec::new();
+    };
+    box_chain(carrier)
+        .into_iter()
+        .filter(|(raw, e, _)| {
+            raw.width() > up && !box_graph_margin(s1, s2, raw.pad(up), *e).is_some_and(|m| m > 0.0)
+        })
+        .map(|(_, _, (lo, hi))| RefusedSpan { lo, hi })
         .collect()
 }
 
@@ -3031,7 +3071,7 @@ mod tests {
                 let chain = super::box_chain(&curve);
                 let worst = chain
                     .iter()
-                    .map(|(b, axis)| {
+                    .map(|(b, axis, _)| {
                         let leg = legs[usize::from(b.x.hi() > bend[0])];
                         (axis.x - leg[0])
                             .abs()
@@ -3238,14 +3278,14 @@ mod tests {
         };
         let at_f64: Vec<Box3> = super::box_chain(&curve)
             .into_iter()
-            .map(|(b, _)| b)
+            .map(|(b, _, _)| b)
             .collect();
         let at_f64 = misses(&at_f64);
         assert!(at_f64.is_empty(), "f64 chain missed {at_f64:?}");
         let at_interval: Vec<Box3> =
             super::box_chain(&curve.map_scalar(<Interval as geom_core::Real>::from_f64))
                 .into_iter()
-                .map(|(b, _)| b)
+                .map(|(b, _, _)| b)
                 .collect();
         let at_interval = misses(&at_interval);
         assert!(
