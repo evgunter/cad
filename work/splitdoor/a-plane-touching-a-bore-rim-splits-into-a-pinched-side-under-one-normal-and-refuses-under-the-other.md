@@ -2,13 +2,14 @@
 id: a-plane-touching-a-bore-rim-splits-into-a-pinched-side-under-one-normal-and-refuses-under-the-other
 kind: issue
 title: a plane touching a tube's bore rim at one point splits into a pinched side under one normal and refuses NotAlternating under the other
-status: review
+status: closed
 opened: 2026-10-07
 priority: P1
 refs: [a-rim-touching-split-escalates-on-the-side-of-plane-band, split-sides-are-not-finished-bodies]
 cost: M
 pr: 5951
 branch: splitdoor/hole-rim-tangent-germs
+closed: 2026-10-28
 ---
 
 
@@ -105,3 +106,10 @@ insertion order rather than by the alternation round them), so the
 seam residue may be a crossing-run pairing case at the seam. Ordering
 each run by the crossing before it (`join.rs` `touch_order`) does not
 clear it: `a = 0`, `s = −1` still refuses alike.
+
+## Closed (2026-10-28, PR 5951)
+
+The row's two refusals (`NotAlternating` under one normal, the pinched side under the other) are
+gone: 191 of 192 poses build, every side passing tier 3′. The one left, the seam azimuth under
+`s = −1`, refuses for another cause and is its own row,
+`a-plane-touching-a-bore-rim-at-its-seam-refuses-a-stated-interval-zero-in-the-join`.
