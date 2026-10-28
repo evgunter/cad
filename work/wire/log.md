@@ -7196,3 +7196,10 @@ Signed (WIRE orchestrator).
 - 2026-10-28 (WIRE orchestrator) Dispatched two lanes:
   - `wire-unionrecord` (wire/union-tied-groups-record-their-own-count): `a-unions-tied-groups-go-to-the-fold-though-formed-per-parent`. It decides whether to record or fold; FULL review.
   - `wire-tiewitness` (wire/tie-summed-decline-witnessed): the tie-summed decline witness and the split Seam/SetPiece tie witness, tests only; STYLE review.
+- 2026-10-28 (WIRE orchestrator) `wire-tiewitness` opened PR 5891 (head fc5bf60b1f), tests only.
+  - A tied pair seam group's own count is pinned; it goes red with name-only keys.
+  - The split `Joined::Seam` tie witness is built; it goes red with `(slot, name)`.
+  - The redundant assertion is dropped.
+  - The end-to-end tie-summed decline turns out unreachable: `group_resized` returns at `fragment_base` before reading the record, and neither `record_by_name` site leaves a fragment-tailed row. A proposal to retire `record_by_name` is on the row.
+  - `SetPiece` is still unwitnessed. Both rows stay open with findings.
+  - Review dispatched (`wire-tiewitness-rev`).
