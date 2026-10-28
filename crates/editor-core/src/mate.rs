@@ -23,7 +23,7 @@
 //! pose ([`mate_coset`]), and the mates of one placement fold by exact
 //! coset intersection — [`coset`], whose table is the spec's binding
 //! one. A mate declares no contact: where the copies it places touch
-//! is the at-rest census's to record ([`crate::assemble`]).
+//! is the at-rest census's to record ([`mod@crate::checks::at_rest`]).
 
 use crate::eval::NodeRefusal;
 use crate::node::RecipeNodeId;

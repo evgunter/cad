@@ -1,7 +1,7 @@
 ---
 id: wiretail
 kind: program
-title: WIRETAIL — WIRE's P3 and P4 tail: the selection vocabulary's missing atoms, refusal recourse and kind-mirror hygiene
+title: WIRETAIL — WIRE's P3 and P4 tail: the selection vocabulary's missing atoms, label and kind-mirror hygiene, and at-rest gating repeated per consumer
 status: ready
 opened: 2026-10-17
 group: api/names

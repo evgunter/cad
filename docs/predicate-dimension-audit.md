@@ -1158,7 +1158,7 @@ Flagged, NOT fixed here (dispositions):
   than picking a side. Carried as `decide_flagged(.., "F16")`.
 
 - **F17** (added by M10-5, the clearance engine)
-  `editor-core/src/clearance.rs` `clearance_margin` and
+  `topo/src/clearance.rs` `clearance_margin` and
   `self_intersection_gap`: the two compares the E7 inner subdivision
   makes. Both comparands are `d − c`, the interval enclosure of the
   Euclidean separation between two geometry-domain cells minus the

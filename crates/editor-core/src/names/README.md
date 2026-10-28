@@ -760,18 +760,17 @@ the current run, the diagnosis is `GroupResized { node, was, now, cutters }`.
   record it keeps beside the table (`names::FragmentGroups`, not persisted),
   not re-derived from the names. It counts the distinct entities of the node's
   output descended from the parent within the group by the emitter's own
-  descent, however each is spelled: an undivided pass-through, an N3 `Merged`
-  survivor, and at a union the published entities a fold step's group descends
-  to, followed by entity through every later step. A piece a later step
-  re-mints under a seam name of its own is not a descendant by that descent and
-  is not counted. An edge piece's group is its line's: every edge the node
+  descent, however each is spelled: an undivided pass-through or an N3
+  `Merged` survivor. At a union, a face or seam group is formed over the
+  finished body, one per parent (or pair of parents); any other group counts
+  the published entities a fold step's group descends to, followed through
+  every later step. A piece a later step re-mints under a seam name of its own
+  is not a descendant by that descent and is not counted. An edge piece's group is its line's: every edge the node
   holds on the line from an operand edge, whichever parent edge on the line it
   descends from, whole or in pieces, counted together. Two tied parents that
-  share a base are two groups, each
-  counted on its own, where the emitter groups by parent entity; where it
-  groups by parent names (a pair boolean's seam vertices) their pieces share
-  one group and the rung declines. That is a statement about two recorded
-  groups, not a claimed flip.
+  share a base are two groups, each counted on its own: the emitter groups by
+  parent entity everywhere. That is a statement about two recorded groups, not
+  a claimed flip.
 - *The cutters.* `cutters` (`GroupCutters`, `resolve::group_cutters`) reads the
   minting node's two tables for the seam rows on the group's parent (a face
   group's seam edges, an edge group's seam and crossing vertices), matched on

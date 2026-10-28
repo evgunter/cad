@@ -66,7 +66,7 @@ pub enum MeasurePrimitive<R = SitedRef> {
     /// ([`crate::eval::ValuePayload::MeasureUnavailable`]): a station
     /// pair found by a point-scalar search is an upper bound on the
     /// minimum and not the minimum. At `Interval` over a leaf the value
-    /// IS `clearance::min_separation`'s bracket.
+    /// IS `topo::clearance::min_separation`'s bracket.
     MinClearance {
         /// The first selection.
         a: R,
@@ -309,7 +309,7 @@ impl core::fmt::Display for MeasureUnavailableAt {
 /// call site rather than a quietly degraded answer.
 ///
 /// The engine that computes it is the interval lane's
-/// (`clearance::min_separation`) and so is the only `Some`.
+/// (`topo::clearance::min_separation`) and so is the only `Some`.
 pub trait MinClearanceLane: geom_core::Real {
     /// The minimum separation between two resolved selections, or
     /// `None` when this scalar cannot carry an enclosure.
@@ -341,6 +341,23 @@ pub struct MinClearanceOperand<'b, T: geom_core::Real> {
     /// The faces in scope: every face of the body for a body-kind
     /// reference, the one face for a face-kind reference.
     pub faces: Vec<topo::entity::FaceKey>,
+}
+
+impl<'b, T: geom_core::Real> MinClearanceOperand<'b, T> {
+    /// The operand as the engine's side: the body and its faces, without
+    /// the address.
+    pub fn side(&self) -> topo::clearance::Side<'b, T> {
+        topo::clearance::Side {
+            body: self.body,
+            faces: self.faces.clone(),
+        }
+    }
+
+    /// Whether two operands read one body: the same output of the same
+    /// node. The engine's wedge rule applies between them exactly then.
+    pub fn same_body(&self, other: &Self) -> bool {
+        self.at == other.at && self.index == other.index
+    }
 }
 
 /// A point scalar has no enclosure to answer with. The whole content of
@@ -391,22 +408,23 @@ impl MinClearanceLane for geom_core::Interval {
         a: &MinClearanceOperand<'_, Self>,
         b: &MinClearanceOperand<'_, Self>,
     ) -> Option<Result<Self, crate::clearance::ClearanceRefusal>> {
-        fn side<'b>(
-            o: &MinClearanceOperand<'b, geom_core::Interval>,
-        ) -> crate::clearance::MinSepSelection<'b> {
-            crate::clearance::MinSepSelection {
-                at: o.at,
-                index: o.index,
-                body: o.body,
-                faces: o.faces.clone(),
-            }
-        }
+        // **The engine decides no cell on this path** (it takes no band).
+        // This door runs inside an evaluation, and every funnel row a cell
+        // verdict records lands in that leaf's census, while the `f64`
+        // witness build asks none — so the two builds would differ
+        // `0 -> N` on every box and the leaf would refuse `flip_crossing`
+        // (`work/clear/min-separation-tightening-crosses-the-drive.md`).
+        // For the same reason the pair budget is the engine's small
+        // default: a drive of a few hundred leaves pays this search a few
+        // hundred times.
         Some(
-            crate::clearance::min_separation(
-                &side(a),
-                &side(b),
-                crate::clearance::MinSeparationConfig::default(),
+            topo::clearance::min_separation(
+                &a.side(),
+                &b.side(),
+                a.same_body(b),
+                topo::clearance::MinSeparationConfig::default(),
             )
+            .map_err(crate::clearance::ClearanceRefusal::Engine)
             .map(|m| m.enclosure()),
         )
     }
@@ -417,12 +435,12 @@ impl MinClearanceLane for geom_core::Interval {
 /// deviation D3; issue `symbolic-tier-and-clearance-engine`).
 ///
 /// Every other lane the tier composes with is scalar-generic and runs
-/// at `Sym<T>` unaltered. This one is not: `clearance`'s engine
-/// is written at [`geom_core::Interval`] concretely — its selection type
-/// borrows a `&Body<Interval>` and its inner subdivision is spelled in
-/// that type — so the door cannot be handed a `Body<Sym<Interval>>`, and
-/// stripping one would need a scalar remap of a whole body, which no
-/// door in `topo` offers today.
+/// at `Sym<T>` unaltered. This one does not yet: the engine's door
+/// ([`topo::clearance::min_separation`]) reads a `Body<T>` at any
+/// certifying scalar, but this lane does not call it, because the
+/// bracket's way back into `Sym` — each end a fresh unknown through
+/// [`geom_core::Real::from_computed`] — is not written
+/// (`work/clear/symbolic-tier-and-clearance-engine.md`).
 ///
 /// `None` is therefore the honest answer, and it behaves exactly as the
 /// point scalars' `None` does: `min_clearance` refuses TYPED at this
@@ -474,7 +492,7 @@ impl AssertionRelation {
 /// reads it: no gate consults it, no op takes it as an operand, and no
 /// product or export changes shape because of it. That is structural
 /// rather than promised — an assertion node denotes no body, so the
-/// root gather skips it exactly as it skips a declaration, and its
+/// product gather skips it exactly as it skips a declaration, and its
 /// value payload is not an admissible operand for any op in the
 /// vocabulary. A `Violated` verdict is therefore a fact a REPORT reads:
 /// an assertion checks and never places (D10).
@@ -584,7 +602,7 @@ pub enum UnevaluatedReason {
 /// **What it bought, and where.** The clearance SWEEP's windows are
 /// cut and its cells dropped. The path that raises
 /// [`UnevaluatedReason::WindowSuperset`] is
-/// `min_clearance -> clearance::min_separation`, and **no window on
+/// `min_clearance -> topo::clearance::min_separation`, and **no window on
 /// that path is tightened at all**: minting a description inside an
 /// evaluation records the boundary walk's funnel rows in the leaf's
 /// census while the `f64` witness build never walks, so every leaf of

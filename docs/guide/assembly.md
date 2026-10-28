@@ -983,13 +983,13 @@ try:
     run_checks(doc, evaluate(doc))
     raise AssertionError("expected a typed refusal")
 except ChecksError as refusal:
-    assert refusal.variant == "root_without_value"
+    assert refusal.variant == "placement_without_value"
     assert refusal.node == post_i
 try:
     product(doc, evaluate(doc))
     raise AssertionError("expected a typed refusal")
 except ProductError as refusal:
-    assert refusal.variant == "root_poisoned"
+    assert refusal.variant == "read_poisoned"
     assert refusal.through == post_i
 ```
 

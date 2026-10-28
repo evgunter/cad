@@ -1026,7 +1026,7 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
         Err(refusal) => assert!(
             matches!(
                 refusal,
-                editor_core::ProductError::Root(editor_core::NodeStanding::Poisoned {
+                editor_core::ProductError::Read(editor_core::NodeStanding::Poisoned {
                     through,
                     ..
                 }) if through == mate.placement
@@ -1288,7 +1288,7 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
     use editor_core::ProductError;
 
     let cases = vec![
-        ProductError::RootInvalid {
+        ProductError::PieceInvalid {
             findings: vec![editor_core::SourceFinding {
                 node: RecipeNodeId::new(0, tagged(3)),
                 output: 1,
@@ -1315,12 +1315,12 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
     ];
     let expected: [&[&str]; 3] = [
         &[
-            "product: 1 placement not valid at rest:",
-            "\n  placement 000000000003 output 1: a solid encloses negative volume, so it is \
+            "product: 1 piece not valid at rest:",
+            "\n  piece 000000000003 output 1: a solid encloses negative volume, so it is \
              inside-out",
         ],
         &["the product reads", "a body that is gone"],
-        &["the kernel could not graft placement 000000000005's body: the band's "],
+        &["the kernel could not graft piece 000000000005's body: the band's "],
     ];
     for (error, needles) in cases.into_iter().zip(expected) {
         let msg = error.to_string();
@@ -1330,7 +1330,7 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
         }
         for guts in [
             "{",
-            "RootInvalid",
+            "PieceInvalid",
             "SourceFinding",
             "NegativeVolume",
             "ProductError",
@@ -1654,8 +1654,8 @@ fn cylinder_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 /// refuses it. What the census leaves undecidable between
 /// the two copies rides the finding as evidence and is never refused on
 /// its own: a disc against the other copy's wall, two carriers meeting
-/// along the rim, and the two half-bands, one of each copy, that share a
-/// seam ruling and no interior.
+/// along the rim. The two half-bands, one of each copy, that share a seam
+/// ruling and no interior are certified apart, and ride it no longer.
 ///
 /// Red if the copies read as could-not-look again (a refusal, or a
 /// finding with no same-side evidence), or if the undecidable pairs stop
@@ -1710,8 +1710,8 @@ fn copies_of_one_cylinder_filling_one_volume_are_one_interference() {
         let undecided = count(|e| matches!(e, topo::ValidationError::CensusUndecidable { .. }));
         assert_eq!(
             (same_side, undecided, finding.evidence.len()),
-            (1, 10, 11),
-            "{label}: one decided pair, and the rim and seam pairs riding it: {:?}",
+            (1, 8, 9),
+            "{label}: one decided pair, and the rim pairs riding it: {:?}",
             finding.evidence
         );
     }
