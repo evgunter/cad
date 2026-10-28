@@ -1387,8 +1387,15 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // The curved kinds the extent scan leaves: every torus,
         // cylinder and cone face's pairs, certified per pair by the
         // section certificate or refused typed.
-        section_extent_pass(a, b, &red.sections, &red.rest_contacts, band)?;
-        return fallback(op, &mut red, a, b, &glued, band, tol)
+        let deferred = section_extent_pass(
+            a,
+            b,
+            &red.sections,
+            &red.rest_contacts,
+            &red.coincident,
+            band,
+        )?;
+        return fallback(op, &mut red, a, b, &glued, deferred, band, tol)
             .map(|result| Joined::Answered(Box::new(result)));
     }
 
@@ -2128,13 +2135,19 @@ impl Exempt<'_> {
 /// refusal ([`BooleanError::FallbackExtentUnsupported`]) naming the
 /// pair's curved face. A verified `Rest` pair (`rest`, [`Exempt::Rest`])
 /// is answered without its section.
+///
+/// A refusing pair the reduction settled one carrier (`settled`) is
+/// deferred rather than raised: its section is the carrier's patch the
+/// two faces share, not a curve, and the fallback answers it where both
+/// faces' shells read `On` each other ([`OnDeferred::answered`]).
 fn section_extent_pass<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     sections: &super::section_table::SectionTable<T>,
     rest: &[(FaceKey, FaceKey)],
+    settled: &[super::SettledPair],
     band: Band,
-) -> Result<(), BooleanError> {
+) -> Result<OnDeferred, BooleanError> {
     let pairs = section_pairs(
         a,
         b,
@@ -2145,18 +2158,61 @@ fn section_extent_pass<T: Decide + Bounds + crate::props::AtRestPolicy>(
         |_, _| false,
         true,
     )?;
-    match pairs
-        .iter()
-        .find_map(|p| p.verdict.as_ref().err().map(|r| (p, *r)))
-    {
-        None => Ok(()),
-        Some((p, refusal)) => {
-            let (operand, face, ..) = p.named();
-            Err(BooleanError::FallbackExtentUnsupported {
-                operand,
-                face,
-                what: refusal.what(),
+    let mut deferred = Vec::new();
+    for p in &pairs {
+        let Err(refusal) = p.verdict else {
+            continue;
+        };
+        let (operand, face, ..) = p.named();
+        let refusal = BooleanError::FallbackExtentUnsupported {
+            operand,
+            face,
+            what: refusal.what(),
+        };
+        if settled.iter().any(|q| q.a == p.a_face && q.b == p.b_face) {
+            deferred.push((p.a_face, p.b_face, refusal));
+        } else {
+            return Err(refusal);
+        }
+    }
+    Ok(OnDeferred(deferred))
+}
+
+/// **The section pass's refusals on settled one-carrier pairs**, each
+/// `(A face, B face, refusal)` in arena order, held for the fallback's
+/// shell verdicts.
+#[derive(Debug, Default)]
+struct OnDeferred(Vec<(FaceKey, FaceKey, BooleanError)>);
+
+impl OnDeferred {
+    /// Each deferred pair answered, or the first one's refusal. A pair
+    /// is answered where its A face's shell reads `On` its B face's
+    /// shell and back ([`super::shell_witness::check_mutual`] has run):
+    /// every witness of both lies on the other boundary and every face
+    /// of each is settled one carrier with a face of the other, so no
+    /// point of either shell stands off the other boundary, and no part
+    /// of the patch the pair shares is a region the probe sides wrongly.
+    /// Eq. 15.3 keeps one copy of the one surface. A shell read to a
+    /// side has points off the other boundary, which the patch may
+    /// separate onto both sides, and its pair keeps the refusal.
+    fn answered<T: Real>(
+        self,
+        [(a, a_sides), (b, b_sides)]: [(&Body<T>, &[super::shell_witness::Verdict]); 2],
+    ) -> Result<(), BooleanError> {
+        let on = |body: &Body<T>, sides: &[super::shell_witness::Verdict], f: FaceKey| {
+            body.get_face(f).is_some_and(|face| {
+                sides
+                    .iter()
+                    .any(|&(s, v)| s == face.shell && matches!(v, ShellVerdict::On { .. }))
             })
+        };
+        match self
+            .0
+            .into_iter()
+            .find(|(fa, fb, _)| !(on(a, a_sides, *fa) && on(b, b_sides, *fb)))
+        {
+            None => Ok(()),
+            Some((.., refusal)) => Err(refusal),
         }
     }
 }
@@ -2244,6 +2300,7 @@ pub(crate) fn no_crossings_certificates(
             b,
             &super::section_table::SectionTable::default(),
             no_rest,
+            &[],
             band,
         )?;
     }
@@ -8108,6 +8165,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a_pristine: &Body<T>,
     b_pristine: &Body<T>,
     decls: &Glue<T>,
+    deferred: OnDeferred,
     band: Band,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
@@ -8125,6 +8183,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
         [(&red.a, &a_sides), (&red.b, &b_sides)],
         [a_pristine, b_pristine],
     )?;
+    deferred.answered([(&red.a, &a_sides), (&red.b, &b_sides)])?;
     let a_keep = kept_shells(op, Operand::A, &a_sides);
     let b_keep = kept_shells(op, Operand::B, &b_sides);
 
