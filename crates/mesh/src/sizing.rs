@@ -18,7 +18,7 @@
 //!   lanes do not land there: the NURBS lane spends its
 //!   `nurbs_cert::LATTICE_SHARE` of δ on its lattice (its sliver lands
 //!   at δ, its lattice cells at an eighth of it), and the trimmed
-//!   cylinder, which has no theorem, sizes at
+//!   cylinder and trimmed sphere, which have no theorem, size at
 //!   `trimmed::UNPROVED_HEADROOM` of δ.
 //! - a **step** — an increment in a *parameter* (a curve parameter, a
 //!   chart angle, a UV coordinate), always `f64`. Steps come from a
@@ -80,7 +80,7 @@
 //! of δ is a typed choice nothing has measured as the coarsest
 //! (`work/tess/the-nurbs-lattice-share-is-not-chosen-by-measurement.md`).
 //! The lanes without a theorem say so at their call sites: the trimmed
-//! cylinder sizes at `trimmed::UNPROVED_HEADROOM` of δ, and a cone face
+//! cylinder and sphere size at `trimmed::UNPROVED_HEADROOM` of δ, and a cone face
 //! whose side carries a point keeps the lattice `curved::grid_counts`
 //! names.
 //!
@@ -741,8 +741,11 @@ pub(crate) fn torus_grid_steps(target: f64, major: f64, minor: f64) -> (f64, f64
 /// second copy of the threshold. That rule is total on circle
 /// carriers (`|n · axis| > 0.5` splits rim from meridian, every
 /// direction falling on one side), so nothing refuses HERE: a circle
-/// on a torus or a sphere that is neither iso-curve — a Villarceau
-/// circle, an oblique small circle — is refused by the face door
+/// on a sphere that is neither iso-curve and stores its projected image
+/// routes its face to the trimmed lane's sphere arm, which this
+/// function answers `None` for; any other non-iso circle on a torus or
+/// a sphere — a Villarceau circle, an oblique small circle with no
+/// stored image — is refused by the face door
 /// (`geom_brep::props::require_iso_rectangle`, through
 /// [`crate::curved`]) before any grid is built on the face, and a
 /// whole-body refusal is what a mis-tightened count on such an edge

@@ -127,11 +127,14 @@ pub enum TessellateError {
     /// B-spline carrier (legal rational carriers meter through the
     /// quotient-rule sagitta arm of `chords`), a trimmed face on a
     /// chart whose TRIMMED-TESSELLATION lane is not written
-    /// (cone/sphere/torus — those charts mint stored pcurves, but the
-    /// written trimmed lane's geometry is the cylinder chart's), or a
-    /// trimmed face missing its stored pcurve caches. The
-    /// conic-on-cylinder case is a CONSTRUCTION lane (`trimmed`), not
-    /// a refusal.
+    /// (cone/torus, and a sphere bounded by anything but circles —
+    /// those charts mint stored pcurves, but the written trimmed lane's
+    /// geometry is the cylinder chart's and the circle-bounded
+    /// sphere's), a trimmed sphere face whose shape that arm does not
+    /// mesh (a pole inside it, a tilted circle passing a pole nearer
+    /// than its lattice resolves), or a trimmed face missing its stored
+    /// pcurve caches. The conic-on-cylinder and tilted-circle-on-sphere
+    /// cases are CONSTRUCTION lanes (`trimmed`), not refusals.
     UnsupportedCurve {
         /// The offending edge.
         edge: EdgeKey,
@@ -194,9 +197,10 @@ pub enum TessellateError {
     /// uncertified mesh is never shipped. Each lane sizes its worst
     /// triangle at δ by its theorem (`crates/mesh/README.md`
     /// `[mesh.sizing]`), so this is a kernel defect, a triangle outside
-    /// what its lane's theorem covers (the trimmed cylinder's beside a
-    /// trim chord, which sizes at `trimmed::UNPROVED_HEADROOM` for that
-    /// reason), or degenerate geometry.
+    /// what its lane's theorem covers (the trimmed cylinder's or
+    /// sphere's beside a trim chord, which size at
+    /// `trimmed::UNPROVED_HEADROOM` for that reason), or degenerate
+    /// geometry.
     CertificateExceeded {
         /// The face whose patch failed.
         face: FaceKey,

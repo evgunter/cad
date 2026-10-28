@@ -2082,7 +2082,11 @@ fn seamed_lantern(lantern: Body<f64>, tol: Tol) -> Result<Body<f64>, BooleanErro
     let mut body = finished("lily_lantern", lantern, tol);
     for k in 0..3 {
         let turn = Affine3::rotation_about_axis(zc, axis, f64::from(k) * 2.0 * PI / 3.0);
-        let ball = ball::<f64>(turn.transform_point(WALL7_BALL_CENTER), WALL7_BALL_RADIUS, tol);
+        let ball = ball::<f64>(
+            turn.transform_point(WALL7_BALL_CENTER),
+            WALL7_BALL_RADIUS,
+            tol,
+        );
         body = pncad::topo::subtract(&body, &finished("a tepal seam's ball", ball, tol), tol)?
             .body()
             .expect("the carve leaves the lantern")

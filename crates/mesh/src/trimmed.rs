@@ -16,8 +16,10 @@
 //!
 //! # Chart scope, stated
 //!
-//! Two charts construct here: **cylinder** (M5 PR 11 — the tiltedcut
-//! walls; every split cylinder wall) and, since M7's montage
+//! Three charts construct here: **cylinder** (M5 PR 11 — the tiltedcut
+//! walls; every split cylinder wall), **sphere** (a sphere face a
+//! circle tilted against its chart bounds — the sphere pairs, a ball
+//! cut by a tilted plane, the oblique fillet corners) and, since M7's montage
 //! skin-scenes unit, **described NURBS** (the loft/sweep
 //! walls — the frontier this header used to call "the banked
 //! trimmed-NURBS lane", now promoted; NURBS faces route here
@@ -36,9 +38,20 @@
 //! interior-column `Intersection` image, and nothing else on this
 //! head). The first three are closed forms of the image; `General` is
 //! a spline, sized from its own differenced control net
-//! (`crate::chords::general_uv_speeds`) rather than a formula. Conic
-//! trims on
-//! cone/sphere/torus charts refuse typed naming that frontier (their
+//! (`crate::chords::general_uv_speeds`) rather than a formula.
+//!
+//! The sphere arm's faces are bounded by circles: parallels and
+//! meridians carry their `Harmonic` image, and a tilted circle its
+//! `Projected` one, the chart's inverse of the carrier, which the walk
+//! reads exactly. The chord pass bounds each image's UV step by the
+//! arm's lattice steps from a closed form for the circle's
+//! `(u′(t), v′(t))` (`crate::chords::sphere_uv_speeds`), and its
+//! certificate is the ball-convexity one (`cert::cert_sphere`), in 3-D.
+//! A pole the loop passes is a side of the trim polygon
+//! ([`sphere_polygon_shape`]); a face holding a pole inside it, and a
+//! tilted circle passing a pole nearer than the arm's lattice resolves
+//! ([`NEAR_POLE_ROW_SHARE`]), refuse typed. Conic and B-spline trims
+//! on cone/sphere/torus charts refuse typed naming that frontier (their
 //! pcurves mint since M6-3; the trimmed-lane geometry for them is
 //! unwritten). A **fitted** (rung-3) chart image still refuses typed
 //! on every chart: the chord pass has no certified UV chord-step
@@ -173,6 +186,13 @@ const MAX_GRID_RETRIES: usize = 6;
 /// factor is what keeps that refusal rare, and it is a debt
 /// (`work/tess/the-trimmed-cylinder-lane-has-no-worst-triangle-theorem.md`):
 /// the fix is the theorem, not a retuned factor.
+///
+/// The sphere arm reads it the same way and for the same reason, at its
+/// lattice steps ([`sphere_lattice_steps`]) and its edges' chords: its
+/// cells are the curved lane's sphere cells, whose theorem
+/// (`sizing::sphere_grid_steps`) does not cover a CDT triangle beside a
+/// trim chord the lattice did not place
+/// (`work/tess/the-trimmed-sphere-arm-has-no-worst-triangle-theorem.md`).
 pub(crate) const UNPROVED_HEADROOM: f64 = 0.5;
 
 /// **How near a pole a tilted circle may pass on the sphere arm**, as a
@@ -186,7 +206,7 @@ pub(crate) const UNPROVED_HEADROOM: f64 = 0.5;
 /// as many chords as the lattice has columns per row; this share lets
 /// it ask sixteen times that, and an arc nearer still refuses typed
 /// rather than allocate a boundary finer than the face's whole lattice
-/// (`work/tess/a-tilted-circle-within-a-lattice-row-of-a-sphere-pole-refuses.md`).
+/// (`work/tess/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`).
 pub(crate) const NEAR_POLE_ROW_SHARE: f64 = 1.0 / 16.0;
 
 /// Whether face `fk` is meshed by one of this lane's two analytic arms,
@@ -264,8 +284,7 @@ pub(crate) fn sphere_lattice_steps(
     let scale = tests::SPHERE_STEP_SCALE.with(std::cell::Cell::get);
     #[cfg(not(test))]
     let scale = 1.0;
-    let (hu, hv) =
-        crate::sizing::sphere_grid_steps(delta * UNPROVED_HEADROOM, radius, widest);
+    let (hu, hv) = crate::sizing::sphere_grid_steps(delta * UNPROVED_HEADROOM, radius, widest);
     Ok((hu * scale, hv * scale))
 }
 
@@ -896,9 +915,9 @@ impl TrimmedFace<'_> {
         // incident to a vertex this walk placed at two distinct UV
         // locations, used more than twice inside ONE patch, is the
         // non-manifold state the duplicate-id drop in `emit` is claimed
-        // never to produce. This lane's only source of such a vertex
-        // is the full-2π seam double-traversal — no chart singularity
-        // reaches it — so on every other face the set is empty and the
+        // never to produce. This lane's sources of such a vertex are the
+        // cylinder's full-2π seam double-traversal and the sphere arm's
+        // pole sides, so on every other face the set is empty and the
         // census returns on one branch.
         let patch = Patch {
             interior,
@@ -1185,17 +1204,18 @@ impl TrimmedFace<'_> {
             }
             // A triangle with two corners on one mesh vertex is
             // degenerate in 3-D. Dropping it is `curved`'s idiom, and
-            // there it collapses a pole fan (#678); here the drop is
-            // all it is, because neither ingredient of that fan
-            // reaches this lane — no chart singularity, and no
-            // repeated id at two UV locations with a single interior
-            // column between them.
+            // there it collapses a pole fan (#678). On the sphere arm
+            // it does the same at a pole side; elsewhere the drop is all
+            // it is, because neither ingredient of that fan reaches the
+            // lane — no chart singularity, and no repeated id at two UV
+            // locations with a single interior column between them.
             //
             // WHAT IS ASSERTED, AND WHERE THE COVER STOPS. The chart
-            // half is checked at the lane choice, which runs for BOTH
-            // lanes. The INGREDIENT half — a repeated id with a single
+            // half is checked at the lane choice, which runs for every
+            // arm. The INGREDIENT half — a repeated id with a single
             // interior column between the entries — is checked at the
-            // cylinder arm's `nu`, and this emit pass also runs for
+            // cylinder arm's `nu`, kept off by the sphere arm's
+            // `pole_side_columns`, and this emit pass also runs for
             // NURBS, where there is no `nu`: the candidates come from
             // the cell grid rather than a uniform division, so the
             // "single interior column" has no analogue to test. That
@@ -1625,7 +1645,8 @@ fn trim_frontier(
                 edge: ek,
                 note: "conic/B-spline/spiric trim on a plane/cone/sphere/torus chart — \
                        the only trimmed-face tessellation lanes written are the \
-                       cylinder chart's and the NURBS chart's; the remaining analytic \
+                       cylinder chart's, the NURBS chart's and the sphere chart's for \
+                       circle-bounded faces; the remaining analytic \
                        charts have no trimmed lane (the spiric-bounded torus wall and \
                        plane cap of a hollowed partial revolve land here: \
                        `work/issues/trimmed-tessellation-lacks-torus-and-plane-arms.md`)",
@@ -1838,9 +1859,9 @@ fn trim_polygon(
     }
     let mut out = Vec::new();
     for (k, trav) in travs.iter().enumerate() {
-        let (&last, rest) = trav
-            .split_last()
-            .ok_or(TessellateError::MissingEntity { what: "edge chords" })?;
+        let (&last, rest) = trav.split_last().ok_or(TessellateError::MissingEntity {
+            what: "edge chords",
+        })?;
         out.extend_from_slice(rest);
         let next = travs[(k + 1) % travs.len()][0];
         #[allow(clippy::float_cmp)]
@@ -2071,8 +2092,8 @@ impl Creases {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::{
-        ChordPass, Creases, FixedVertexHandle, SpadePoint, TessellateError, chain_creases,
-        ChartPoles, id_repeats_apart, trim_polygon,
+        ChartPoles, ChordPass, Creases, FixedVertexHandle, SpadePoint, TessellateError,
+        chain_creases, id_repeats_apart, trim_polygon,
     };
     use spade::{ConstrainedDelaunayTriangulation, Triangulation};
     use topo::FaceKey;
@@ -2416,7 +2437,16 @@ mod tests {
             let grid = crate::nurbs_cert::face_cells(&bounds, fk).unwrap();
             assert_eq!(grid.creases(), (&[0.5][..], &[][..]), "face {fk:?}");
             let c = Creases::of(grid, chart, fk).unwrap();
-            let polygon = trim_polygon(&body, fk, face.outer, &chords, true, c.as_ref(), ChartPoles::None).unwrap();
+            let polygon = trim_polygon(
+                &body,
+                fk,
+                face.outer,
+                &chords,
+                true,
+                c.as_ref(),
+                ChartPoles::None,
+            )
+            .unwrap();
             let (_, v0, v1) = polygon
                 .iter()
                 .fold((0, f64::MAX, f64::MIN), |(n, lo, hi), p| {
@@ -2479,5 +2509,120 @@ mod tests {
         // self-touch) is not this shape either.
         let none = [(0.0, 0.0, 7u32), (0.0, 0.0, 8), (2.0, 0.0, 9)];
         assert!(!id_repeats_apart(&none), "distinct ids are not a repeat");
+    }
+
+    /// Two unit balls 1.4 apart along `x`, poles on `y`, unioned: the
+    /// radical circle is tilted against both charts, so each ball keeps
+    /// sphere faces the sphere arm meshes.
+    fn tilted_sphere_pair() -> topo::Body<f64> {
+        use geom_core::{Tol, Vec3};
+        let tol = Tol::witness();
+        let ball = |c: Vec3<f64>| {
+            sweep::test_support::finished(
+                "the ball",
+                sweep::test_support::ball_poled_y(1.0, c, tol),
+                tol,
+            )
+        };
+        topo::boolean::union(
+            &ball(Vec3::new(0.0, 0.0, 0.0)),
+            &ball(Vec3::new(1.4, 0.0, 0.0)),
+            tol,
+        )
+        .expect("the pair unions")
+        .body()
+        .expect("a body")
+        .body
+        .clone()
+        .into_body()
+    }
+
+    /// **The sphere arm's chord-step bound, pinned.** On every boundary
+    /// chord of every face the arm meshes, the image's UV step is within
+    /// the arm's lattice steps `(h_u, h_v)` (`chords::sphere_arm_tighten`
+    /// on `chords::sphere_uv_speeds`), and on the worst chord it is more
+    /// than half of them: the radical circle of this pair turns in
+    /// latitude at `cos v = 0.7`, where its azimuth speed attains the
+    /// bound `ρ_c/(r·cos v)`, so the bound is what sets the schedule
+    /// there. A schedule at twice the step breaks the first assertion.
+    #[test]
+    fn the_sphere_arms_boundary_chords_step_within_its_lattice() {
+        use std::collections::HashMap;
+        let body = tilted_sphere_pair();
+        let delta = 1e-2;
+        let mut positions = Vec::new();
+        let mut vids = HashMap::new();
+        for (vk, p) in body.vertex_points() {
+            #[allow(clippy::cast_possible_truncation)]
+            vids.insert(vk, positions.len() as u32);
+            positions.push(p);
+        }
+        let mut bounds = crate::nurbs_cert::FaceBounds::new();
+        let chords: ChordPass =
+            crate::chords::compute_chords(&body, delta, &vids, &mut positions, &mut bounds)
+                .unwrap();
+        let (mut faces, mut worst) = (0, 0.0f64);
+        for (fk, face) in body.faces() {
+            let surface = body.get_surface(face.surface).unwrap();
+            if !super::takes_sphere_arm(&body, fk, surface).unwrap() {
+                continue;
+            }
+            faces += 1;
+            let (hu, hv) = super::sphere_lattice_steps(&body, fk, surface, delta).unwrap();
+            for (hek, ek, _) in crate::walk::loop_half_edges(&body, face.outer, fk).unwrap() {
+                let image = body.pcurve(hek).unwrap().pcurve();
+                let uv: Vec<_> = chords.params[&ek].iter().map(|&t| image.eval(t)).collect();
+                for w in uv.windows(2) {
+                    let (du, dv) = ((w[1].x - w[0].x).abs(), (w[1].y - w[0].y).abs());
+                    assert!(
+                        du <= hu * (1.0 + 1e-9) && dv <= hv * (1.0 + 1e-9),
+                        "face {fk:?} edge {ek:?}: a chord steps ({du}, {dv}) in UV, past the \
+                         lattice's ({hu}, {hv})"
+                    );
+                    worst = worst.max(du / hu).max(dv / hv);
+                }
+            }
+        }
+        assert!(faces > 0, "the pair has sphere-arm faces");
+        assert!(
+            worst > 0.5,
+            "the worst boundary chord steps {worst} of a lattice step: the bound does not \
+             set the schedule, so this row cannot see it loosened"
+        );
+    }
+
+    /// **An over-δ triangle on the sphere arm refuses typed through
+    /// `crate::tessellate`.** The arm's lattice and boundary steps are
+    /// scaled four-fold (`SPHERE_STEP_SCALE`, test-only), so its cells
+    /// deviate by about sixteen times the share of δ they were sized at,
+    /// and the per-triangle certificate refuses the face
+    /// `CertificateExceeded`; at scale one the same body meshes. The face
+    /// map runs on rayon, so the switch is set inside a one-thread pool,
+    /// on the worker that runs the face.
+    #[test]
+    fn an_over_delta_sphere_arm_triangle_refuses_typed() {
+        use geom_core::Tol;
+        let body = tilted_sphere_pair();
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(1)
+            .build()
+            .expect("a one-thread pool");
+        let (coarse, sized) = pool.install(|| {
+            SPHERE_STEP_SCALE.with(|s| s.set(4.0));
+            let coarse = crate::tessellate(&body, 1e-2, Tol::witness());
+            SPHERE_STEP_SCALE.with(|s| s.set(1.0));
+            (coarse, crate::tessellate(&body, 1e-2, Tol::witness()))
+        });
+        assert!(
+            matches!(
+                coarse,
+                Err(TessellateError::CertificateExceeded { bound, requested, .. })
+                    if bound > requested
+            ),
+            "steps scaled four-fold: the face refuses typed, got {:?}",
+            coarse.map(|m| m.patches.len())
+        );
+        let mesh = sized.expect("at the arm's own steps the body meshes");
+        crate::validate::check_mesh(&mesh).expect("and the mesh checks");
     }
 }

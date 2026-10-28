@@ -21,10 +21,16 @@
 //!   `h` the face's grid step in the edge's own direction —
 //!   `sizing::grid_boundary_step` names each surface's `h` and says
 //!   what refuses.
-//! - Unproved headroom: an edge of a trimmed cylinder face (the one
-//!   lane without its theorem, `trimmed::UNPROVED_HEADROOM`) is chorded
-//!   at that headroom's share of δ, so the lane's trim polygon is the
-//!   one its lattice was sized beside.
+//! - Unproved headroom: an edge of a trimmed cylinder or trimmed sphere
+//!   face (the two arms without their theorem,
+//!   `trimmed::UNPROVED_HEADROOM`) is chorded at that headroom's share
+//!   of δ, so the arm's trim polygon is the one its lattice was sized
+//!   beside.
+//! - Adjacent-sphere-arm tightening: a trimmed sphere face's lattice
+//!   runs in the chart, which its tilted circles cross, so each such
+//!   face adds `n ≥ ⌈s_u·Δt/h_u⌉` and `⌈s_v·Δt/h_v⌉` from closed-form
+//!   speed bounds of the half-edge's image and the arm's lattice steps
+//!   ([`sphere_arm_tighten`]).
 //! - Adjacent-NURBS tightening (M7, the trimmed-NURBS lane): the same
 //!   shape with a hull-derived Hessian — a described NURBS face
 //!   certifies through `crate::nurbs_cert`'s anisotropic bound, which
@@ -50,18 +56,20 @@
 //! An adjacent face reaches a chord count only through the
 //! tightenings above (not the crease joints, which round a count
 //! already tightened): the `Circle` arm's
-//! `sizing::grid_boundary_step`, the headroom target ([`edge_target`])
-//! and [`nurbs_tighten`]. Each reads the face through
-//! `tessellate::face_surface`, and the first two through the dispatch
-//! itself (`tessellate::lane_of`), so a face tightens an edge only for
-//! the lane that will mesh it. **Nothing in the tree checks that these
-//! are the only three**: a fourth caller compiles green, and it would
-//! be a fourth way for a neighbour to enter the count.
+//! `sizing::grid_boundary_step`, the headroom target ([`edge_target`]),
+//! [`nurbs_tighten`] and [`sphere_arm_tighten`]. Each reads the face
+//! through `tessellate::face_surface`, and all but `nurbs_tighten`
+//! through the dispatch itself (`tessellate::lane_of`), so a face
+//! tightens an edge only for the lane that will mesh it. **Nothing in
+//! the tree checks that these are the only four**: a fifth caller
+//! compiles green, and it would be a fifth way for a neighbour to enter
+//! the count.
 //!
 //! With that door held, chord points are a pure function of (carrier +
 //! interval, endpoint points, adjacent surface parameters, an adjacent
-//! cone face's largest rim radius, whether an adjacent cylinder face is
-//! trimmed, δ).
+//! cone face's largest rim radius, whether an adjacent cylinder or
+//! sphere face is trimmed, an adjacent trimmed sphere face's latitude
+//! window and the half-edge's image on it, δ).
 //!
 //! Polyline endpoints are the topology vertices' points **bitwise**
 //! (never `carrier(t₀)`, which is only within ε of them) so every
@@ -651,7 +659,9 @@ fn sphere_arm_tighten(
             });
         };
         let (su, sv) = sphere_uv_speeds(cache.pcurve(), params, ek, hv)?;
-        n = n.max(ceil_count(su * span, hu)?).max(ceil_count(sv * span, hv)?);
+        n = n
+            .max(ceil_count(su * span, hu)?)
+            .max(ceil_count(sv * span, hv)?);
     }
     Ok(n)
 }
@@ -696,10 +706,7 @@ pub(crate) fn sphere_uv_speeds(
     match pcurve {
         Pcurve::Harmonic { u, v } => {
             let (_, pa, pb, pl) = geom_brep::harmonic_form_of(*u, *v);
-            Ok((
-                pa.x.hypot(pb.x) + pl.x.abs(),
-                pa.y.hypot(pb.y) + pl.y.abs(),
-            ))
+            Ok((pa.x.hypot(pb.x) + pl.x.abs(), pa.y.hypot(pb.y) + pl.y.abs()))
         }
         Pcurve::Projected(image) => {
             let geom_brep::FramedCarrier::Circle { centre, a, b, .. } = image.carrier() else {
@@ -722,7 +729,7 @@ pub(crate) fn sphere_uv_speeds(
                     "trimmed sphere face bounded by a tilted circle whose arc passes nearer a \
                      chart pole than the sphere arm's lattice resolves — a uniform chord \
                      schedule that follows its image there is that fine everywhere \
-                     (`work/tess/a-tilted-circle-within-a-lattice-row-of-a-sphere-pole-refuses.md`)",
+                     (`work/tess/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`)",
                 ));
             }
             let speed = speed_sq.sqrt();

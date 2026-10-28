@@ -87,7 +87,7 @@ enum Want {
     Draws,
     /// `SOUND`, and the mesher refuses a sphere face whose tilted circle
     /// passes a chart pole nearer than the sphere arm's lattice resolves
-    /// (`work/tess/a-tilted-circle-within-a-lattice-row-of-a-sphere-pole-refuses.md`).
+    /// (`work/tess/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`).
     NearPole,
     /// A typed refusal the predicate accepts.
     Refuses(fn(&BooleanError) -> bool),

@@ -140,8 +140,10 @@ fn a_tilted_tube_builds_at_its_closed_form() {
 /// **A rim inside one ball face holes it.** Tilted far enough, the rim
 /// crosses neither seam meridian, so the ball face keeps it as a ring.
 /// The sphere arm measures a face over every loop, so every op builds
-/// sound at its closed form, read without a mesh as the tilted tube's
-/// are (`sphere-face-with-a-hole-has-no-closed-form`, closed by PR 4573).
+/// sound at its closed form (`sphere-face-with-a-hole-has-no-closed-form`,
+/// closed by PR 4573), read without a mesh: the mesher has no lane for a
+/// curved face with a ring
+/// (`work/tess/valid-ringed-torus-faces-build-but-cannot-be-meshed.md`).
 #[test]
 fn a_rim_inside_one_ball_face_holes_it() {
     let tol = Tol::witness();
