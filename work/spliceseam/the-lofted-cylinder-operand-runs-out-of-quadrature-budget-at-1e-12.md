@@ -34,3 +34,13 @@ measuring the bare lofted cylinder before any op runs
 Either the operand's quadrature reaches the 1e-12 target, or the row takes the operand's volume from its closed form (`2π`) at ε rows where the quadrature refuses typed, saying so.
 
 Moved from SPLICE to SPLICESEAM on 2026-10-28, by `git mv` in SPLICE's split along its seams (Track size; Ev, in chat, 2026-10-28).
+
+## 2026-10-28 — pinned on main (GREEN, `green/full-suite-pins`)
+
+Nightly run 40637814390 (main `a1cfd1cfdb`), `full suite`; re-run on main `91c83c38`. Still red at 1e-12, with a new message: the operand's measurement
+now reads `the measurement did not meet its resolution: it stopped at
+`wall`` (`crates/topo/src/lib.rs`), not `QuadratureBudget`. The row is
+pinned at 1e-12 on `the operand measures: the measurement did not meet
+its resolution`; the pin goes red the day the row passes.
+
+Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured. Known behind the 1e-12 pin: whether the far union's wrong volume (`spliceseam/main-red-the-lofted-cylinders-far-union-builds-the-wrong-volume-at-1e-6`) also holds at 1e-12.

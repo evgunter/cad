@@ -306,12 +306,7 @@ jobs:
       - name: gates (scripts/gates)
         run: |
           rc=0
-          for g in scripts/gates/*.sh; do
-            case "$(basename "$g")" in lib.sh) continue ;; esac
-            echo "::group::$g"
-            bash "$g" || { echo "::error::$g failed"; rc=1; }
-            echo "::endgroup::"
-          done
+          scripts/run-gates.sh || rc=1
           python3 scripts/payload-rung-sweep.py --check || rc=1
           exit $rc
       - uses: dtolnay/rust-toolchain@stable

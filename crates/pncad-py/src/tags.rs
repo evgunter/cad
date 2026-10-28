@@ -2448,6 +2448,10 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::MeridianFreeCurvedFace { .. } => "meridian_free_curved_face",
         TessellateError::SingleColumnCurvedFace { .. } => "single_column_curved_face",
         TessellateError::Band { .. } => "tolerance_band_unformable",
+        TessellateError::TrimLoopOrientation { .. } => "trim_loop_orientation",
+        TessellateError::FoldedTriangle { .. } => "folded_triangle",
+        TessellateError::BoundaryEar { .. } => "boundary_ear",
+        TessellateError::SphereTrimShape { .. } => "sphere_trim_shape",
     }
 }
 
@@ -2963,6 +2967,9 @@ pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'
         S::CarrierLadder => "carrier_ladder",
         S::TangentWitness => "tangent_witness",
         S::CoaxialSphere => "coaxial_sphere",
+        S::SphereOnTorusAxis => "sphere_on_torus_axis",
+        S::CoaxialCylinderTorus => "coaxial_cylinder_torus",
+        S::CoaxialTori => "coaxial_tori",
         S::CrossingCylinders => "crossing_cylinders",
         S::SplitOn => "split_on",
         S::BatteryTurn => "battery_turn",

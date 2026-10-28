@@ -1326,6 +1326,10 @@ mod scope_walks {
     /// still panics, naming the door, rather than becoming an error
     /// return.
     #[test]
+    #[cfg_attr(
+        feature = "per-op-postcondition",
+        ignore = "pinned red: work/topo/two-topo-rows-assume-the-default-build-under-the-per-op-scalpel"
+    )]
     #[should_panic(expected = "offset_planes_together postcondition: result is not tier-1 valid")]
     fn the_door_panics_on_an_out_of_scope_malformed_solid() {
         let (mut body, first, second) = two_boxes();

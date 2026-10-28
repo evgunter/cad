@@ -53,7 +53,7 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
-use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, certifying_vector, drive};
+use editor_core::drive::{DriveConfig, VerdictVector, certifying_vector, drive};
 use editor_core::report::{MassBasis, MassBudget};
 use editor_core::{
     AssertionRelation, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit,
@@ -454,38 +454,6 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
     (r.doc, measure)
 }
 
-/// The lane a registered document is driven on.
-///
-/// The symbolic identity tier (ERROR-DESIGN E12) is the shipped default
-/// and every document here takes it — except the ones whose measure is
-/// a `min_clearance`, whose engine has no lane at the tier
-/// (`DriveRefusal::SymbolicClearanceUnsupported`; the deviation is issue
-/// `symbolic-tier-and-clearance-engine`). Those fall back to the numeric-only replay, which keeps their
-/// recorded budgets real rows rather than skipped ones.
-///
-/// The fallback is driven by the DRIVER'S OWN refusal rather than by a
-/// list of document names here: a name list would go stale the first
-/// time a fixture grew a clearance measure, and the refusal is exactly
-/// the fact being reacted to.
-fn drive_registered(
-    doc: &ProfileDoc,
-    analyzed: &editor_core::analysis::AnalyzedBox,
-    tol: Tol,
-) -> Result<editor_core::drive::ParamBoxVerdict, editor_core::DriveRefusal> {
-    match drive(doc, analyzed, &DriveConfig::default(), tol) {
-        Err(editor_core::DriveRefusal::SymbolicClearanceUnsupported { .. }) => drive(
-            doc,
-            analyzed,
-            &DriveConfig {
-                symbolic: SymbolicDials::off(),
-                ..DriveConfig::default()
-            },
-            tol,
-        ),
-        other => other,
-    }
-}
-
 /// **ROW 1.** Every assertion of every registered document holds over
 /// every certified leaf, and the unresolved mass stays inside the
 /// recorded budget.
@@ -497,7 +465,12 @@ fn every_registered_assertion_holds_over_the_certified_leaves_within_budget() {
             .find(|b| b.document == entry.name)
             .unwrap_or_else(|| panic!("{} has no recorded budget", entry.name));
         let analyzed = analyzed_box(&entry.doc, &AnalysisPolicy::default());
-        let verdict = match drive_registered(&entry.doc, &analyzed, Tol::witness()) {
+        let verdict = match drive(
+            &entry.doc,
+            &analyzed,
+            &DriveConfig::default(),
+            Tol::witness(),
+        ) {
             Ok(v) => v,
             // **The degenerate document, handled rather than skipped.**
             // A document whose parameters declare no distribution has
@@ -585,27 +558,19 @@ fn every_registered_assertion_holds_over_the_certified_leaves_within_budget() {
         let nodes = assertions_of(&entry.doc);
         assert!(!nodes.is_empty(), "{} carries no assertion", entry.name);
         for leaf in verdict.certified() {
-            let opts = EvalOptions {
-                param_box: Some(std::sync::Arc::new(leaf.box_.clone())),
-                ..EvalOptions::default()
-            };
-            let ev: editor_core::Evaluation<geom_core::Interval> =
-                evaluate(&entry.doc, None, &CancelToken::new(), &opts, Tol::witness());
             for &node in &nodes {
-                let verdict = match ev.result(node) {
-                    Some(NodeResult::Ok(v)) => match &v.payload {
-                        ValuePayload::Assertion(verdict) => verdict.clone(),
-                        other => panic!(
-                            "{}: assertion node {} evaluated to a {}",
-                            entry.name,
-                            node.0,
-                            other.kind_name()
-                        ),
-                    },
-                    other => panic!(
-                        "{}: assertion node {} did not evaluate over a certified leaf: {other:?}",
+                // On the lane the drive certified the leaf on.
+                let Some(verdict) = editor_core::drive::assertion_at(
+                    &entry.doc,
+                    node,
+                    &leaf.box_,
+                    verdict.symbolic(),
+                    Tol::witness(),
+                ) else {
+                    panic!(
+                        "{}: assertion node {} did not evaluate over a certified leaf",
                         entry.name, node.0
-                    ),
+                    );
                 };
                 match &verdict {
                     AssertionVerdict::Holds { .. } => {}
@@ -768,11 +733,9 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
     // And the RENDERING says so in words, which is what a consumer
     // actually meets.
     let analyzed = forced;
-    // The band fixture is a `min_clearance` document (its measure is
-    // the neck's), so it takes the numeric lane — see
-    // [`drive_registered`].
     let band = band_placement();
-    let verdict = drive_registered(&band, &analyzed, Tol::witness()).expect("the nominal builds");
+    let verdict = drive(&band, &analyzed, &DriveConfig::default(), Tol::witness())
+        .expect("the nominal builds");
     let rendered = MassBudget::of(verdict.accounting(), &analyzed).render(&band);
     assert!(
         rendered.contains("FORCED, not priced"),

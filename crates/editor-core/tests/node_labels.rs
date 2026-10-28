@@ -1154,7 +1154,6 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
 /// the tag, and a node the line already names reads `this …`.
 #[test]
 fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
-    use editor_core::clearance::{ClearanceRefusal, SelectionRefusal};
     use editor_core::{
         MateFault, MateRef, NodeErrorKind, NodeRefusal, PoseRefusal, Speaker, spoken_by,
     };
@@ -1163,28 +1162,6 @@ fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
     let doc = set_label(doc, body, Some("base plate"));
     let t = tag(body.0.digest());
     let spoken = format!("Extrude \"base plate\" ({t})");
-
-    // A clearance refusal inside a measure's failure speaks its node
-    // through the frame (`said_payload`).
-    let measured = NodeErrorKind::MeasureClearanceRefused(ClearanceRefusal::Selection(
-        SelectionRefusal::NoSuchBody {
-            node: body,
-            index: 3,
-        },
-    ));
-    assert_eq!(
-        spoken_by(&measured, &doc),
-        format!(
-            "the clearance engine refused `selection` ({spoken}'s value carries no body at \
-             index 3)"
-        )
-    );
-    assert!(
-        measured
-            .to_string()
-            .contains(&format!("(node {t}'s value carries no body at index 3)")),
-        "{measured}"
-    );
 
     // A pose refusal names the placement it is about once.
     let placement = PoseRefusal::OtherSpace {

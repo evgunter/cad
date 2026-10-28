@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-19
 priority: P1
 cost: M
+design: true
 ---
 
 
@@ -46,3 +47,38 @@ A second witness: `a-hole-in-an-elliptic-section-keeps-a-face-of-its-own-that-ti
 
 - Re-banded P2 → P1: the Boolean pays tier 3′ at its door and the split does not, so the split ships finished bodies 3′ refuses: a special case that should be handled uniformly, P1 by `work/README.md` Priority.
 - Moved to SPLITDOOR (`work/splitdoor/`) by `git mv`, id and body unchanged: the P1 track opened for split and boolean shapes that refuse, or ship a side their own gate fails, where a uniform reading would build: the split door's tier-3′ bar, tangent and pinch poses, and the curved-carrier lanes that read lines and circles only. SPLITDOOR holds its witnesses (the curved slit, the elliptic hole, the bore rim). CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## Measured (2026-10-28, SPLITDOOR, branch `splitdoor/split-gate-3prime` fefc1eea99)
+
+Measurement only: `split` gated each side at tier 3′ against the records the split returns.
+
+- Rows run: debug, the ten crates that depend on topo, `--no-fail-fast`. The 1e-9, 1e-6 and 1e-12 rows are complete (8619 tests each). editor-core was filtered to its split, corpus and pinch tests (1715): 1e-9 and 1e-6 are complete, 1e-12 was cut short at about 1100.
+- Movers: 20 + 7 at 1e-9, 18 + 7 at 1e-6, 25 at 1e-12 (the second figure in each is editor-core).
+
+**Premise corrections.**
+- `split` returns no per-side contact records. `SplitResult` holds only its pinches' `Coincidence` verdicts. Records exist only through the caller's `carry_contacts(operand_records, …)`, and the door takes an `AtRestBody`, which carries none.
+- The Boolean door does not pay tier 3′ either. Its result meets tier 3 without the census (`BooleanBody` docs; parked on `work/reachhold/boolean-door-runs-the-census-over-its-result.md`). So this row's "the Boolean already pays it" is false today; the bar is DESIGN's for every finished body.
+
+**Movers by cause:**
+- **A. The operand's own records never reach the gate.** Sides are sound: `divided_cell_carry` and `one_record_carry` already pass tier 3′ with the carried records.
+  - Payloads: `UnrecordedContact` of every kind; `CensusUndecidable MayOverlap` on a curved rod.
+  - Tests: `divided_cell_carry` ×4, `one_record_carry` ×3, `review_4730_divided_carry_probes`, `census::split_wedge_tests`, sweep `a_carried_record_no_reading_covers` ×2.
+  - Fix shape: the door takes the operand's records (or a finished body that carries them) and gates each side against what `carry_contacts` lands.
+- **B. The split's own touches go unrecorded.** Filed as `the-splits-own-pinch-and-cut-copies-take-two-point-keys-and-no-record`.
+- **W1. Curved slit, all three ε.** Matches its witness (missing record or one curve entry).
+- **W2. Elliptic hole, all three ε.** Matches its witness. It is NOT a records problem: the side is wrong-shaped, and needs the nesting fix.
+- **W3. Bore rim: no mover.** No suite test reaches it.
+- **C. The census cannot settle a curved edge-edge count**, on sliver, graze, near-seam and apex poses. `CensusUnsupported` NotCertifiable. Filed on ATREST: `the-census-cannot-settle-a-curved-edge-edge-count-on-a-splits-sliver-sides`.
+- **D. The census escalates in band, but the split types it as the kernel's `ResultNotAtRest`.** Filed: `a-split-side-whose-census-escalates-in-band-refuses-as-not-at-rest`.
+- **E. 1e-12 only: several solids' curved faces lie within reach.** `CensusUndecidable MayOverlap`. This is the cross-solid curved census lane that also keeps the Boolean off tier 3′ (REACHHOLD's row).
+  - Tests: `split_seam_vanishing_tilt`, and `wedge_end_doors::a_cut_turned_about_the_ruling_refuses_before_the_chord` (6 poses go Ok → Err).
+  - That second test passes only because it accepts any `Err(_)`.
+
+**Order.** "Records first, then the gate" does not hold: only W1 is a records fix.
+1. Change the door to take the operand's records (A). This is a door-signature question, so `design: true`.
+2. B and W1.
+3. W2's nesting.
+4. C, D and E, each fixed or typed and parked.
+5. Flip the gate, then re-measure at three ε, including the unfiltered editor-core suite at 1e-12.
+
+Cone-apex instances (pit apex-only touch, partial lobes, near-axial at 1e-12) were seen by PR 5956's review and belong to A–E above.

@@ -171,6 +171,16 @@ Measured on main itself at the default ε:
 - **`perf12_census_goldens::the_at_rest_census_verdicts_are_goldened_bit_exact`:** drifts from line 13 at every ε. The new lines are `CoincidentWedgesOverlap` findings (`work/restread/main-red-coincident-wedges-overlap-refuses-flush-copies.md`). PR 5742 re-blesses all three ε files at its own reading, for the same reason.
 - **`r2_m10_di_probes::assemble_census_door_matches_f64_at_dual64`:** the divergence set gains `heat_sink`, reading `["heat_sink", "kitchen_sink", "cut_cylinder"]` against `["kitchen_sink", "cut_cylinder"]`. It reads the same on PR 5742, which leaves it.
 
+## 2026-10-28 — the nightly `--all-features` job holds `ray_wall_margin_twins` out
+
+`nightly.yml`'s `suite under --all-features (default eps)` job (GREEN,
+PR 5962) excludes
+`ray_wall_margin_twins::the_wall_arms_margins_scale_linearly_with_the_model`
+through its `HELD_OUT_TESTS` nextest filter, because it is this row's
+`k-lint (dev-probe)` red. Whoever fixes that test also drops the
+`HELD_OUT_TESTS` filter (the env and the `-E "not (…)"` it feeds) from
+that job in the same PR, so the job runs it again.
+
 ## 2026-10-28 (later) — the rest pinned, not fixed (GREEN, `green/slow-set-reds-pins`)
 
 Under the GREEN orchestrator's rule, the reds left after PR 5952 are
@@ -206,3 +216,7 @@ reproduce command.
 **Still not this row's:** `e6` ×2 (ISOTAIL), `perf12` (RESTREAD), and the
 rows #5935 pins. `revalue` ×7, `docm9` ×5 and `intent_s2_c_world` are
 PR 5952's.
+
+With `ray_wall_margin_twins` pinned, `nightly.yml`'s `--all-features`
+job runs it again: the `HELD_OUT_TESTS` filter is dropped in the same PR,
+as the section above asks.

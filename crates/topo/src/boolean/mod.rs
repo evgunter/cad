@@ -2720,6 +2720,11 @@ pub enum SectionUnbuilt {
     },
     /// The march refused.
     March(geom_brep::SsiError),
+    /// The pair's general-rung door is unbuilt, as the note says.
+    Unbuilt(&'static str),
+    /// The classification does not tell the section's components apart
+    /// at the germ's site, as the note says.
+    Untold(&'static str),
     /// A closed loop of the section could not be opened at its first
     /// site: the knot edit refused.
     Seat(geom_core::spline::KnotAlgebraError),
@@ -2739,6 +2744,12 @@ impl core::fmt::Display for SectionUnbuilt {
                  {scalar}. Recourse: run the operation at f64"
             ),
             Self::March(e) => write!(f, "{}", e.render(geom_brep::recourse::Reading::Build)),
+            Self::Unbuilt(why) => write!(f, "{why}"),
+            Self::Untold(why) => write!(
+                f,
+                "{why}, so the germ's component is not named. Recourse: none in this \
+                 operation; the pair's lane is not built"
+            ),
             Self::Seat(e) => write!(
                 f,
                 "the section's closed loop could not be opened at its first site ({e})"
@@ -2979,11 +2990,16 @@ pub enum BooleanError {
     /// Where both operands' edges leave a vertex pair along the germ and
     /// the reduction paired their far ends, the join reads them as one
     /// segment only for lines and circles, which meet a line or circle
-    /// tangent to them at the site nowhere else. A conic or spline can
-    /// meet such a partner again, so the paired ends do not make the two
-    /// edges one, and nothing here reads whether they are.
+    /// tangent to them at the site nowhere else, and for two sections of
+    /// one plane and one cylinder or cone, the faces either side of each
+    /// edge on carriers the glue door verified one with the other's. Any
+    /// other conic or spline can meet such a partner again, so the paired
+    /// ends do not make the two edges one, and nothing here reads whether
+    /// they are.
     GermEdgeCarrierUnsupported {
-        /// The operand whose edge is neither a line nor a circle.
+        /// The first operand, A before B, whose edge is neither a line nor
+        /// a circle, where the two edges are not sections of one plane
+        /// and one cylinder or cone.
         operand: Operand,
         /// The edge: the operand's own, its split pieces' root.
         edge: EdgeKey,
@@ -4751,10 +4767,10 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::GermEdgeCarrierUnsupported { operand, .. } => write!(
                 f,
-                "an edge of each solid runs from one shared point to another, and the \
-                 Boolean can tell whether two such edges are one curve only when both \
-                 are lines or circles; the {} operand's is not. Recourse: move the \
-                 parts so those edges do not run together",
+                "an edge of each solid runs between the same two points, and the Boolean \
+                 reads two such edges as one curve only when both are lines or circles, or \
+                 both lie where one plane meets one cylinder or cone; the {} operand's edge \
+                 is neither. Recourse: move the parts so those edges do not run together",
                 operand_word(*operand),
             ),
             // No operand is named, for the same reason as above: some
@@ -6268,7 +6284,13 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             touching,
         } = sectors::pair_search(&a_sectors, &b_sectors, band)?;
         if op == BooleanOp::Union {
-            sectors::crescent_refusal([&a, &b], [&a_sectors, &b_sectors], &touching, band)?;
+            sectors::crescent_refusal(
+                [&a, &b],
+                [&a_sectors, &b_sectors],
+                &touching,
+                &contacts,
+                band,
+            )?;
         }
         // The layering beside a partner along the face reads no sector
         // pair on one plane: it refuses before `recl_sectors` reads one.

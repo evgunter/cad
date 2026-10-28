@@ -83,3 +83,22 @@ arch (`crates/sweep/tests/mate7a_r1_probes.rs`
 `a_stem_window_reaching_over_a_loop_does_not_glue`) puts the stem's seams
 across the arch's tube, and both unions refuse `GermFrameUnsupported`
 on the two tube walls (torus × torus, axes parallel and apart).
+
+## Torus germs refuse at the section value (2026-10-28)
+
+`each-torus-pair-decides-tangency-on-one-pose` put the three torus pairs
+in the section table, so a torus germ inside both faces no longer
+reaches the frame: a general cylinder × torus or torus × torus pose
+refuses `GermSectionUnbuilt` (`Refused(RoutesToGeneralRung)`) at the
+join, and a section of more than two components, or two the value
+cannot tell apart at a site (the square wall, parallel tori, a sphere
+cutting both tube circles), refuses `GermSectionUnbuilt` (`Untold`) at
+the reduction's germ mint. A coaxial torus pair carries its parallels
+and stops at the join's segment arm (`CurvedBooleanUnsupported`). The
+radial hole's pin is now
+`germ_radial_hole.rs` `a_radial_hole_through_the_tube_stops_at_the_germ_mint`,
+the lily's `mate7a_r1_probes.rs`
+`a_stem_window_reaching_over_a_loop_does_not_glue`. What a frame row
+for these pairs owes now is a site reading that tells their components
+apart, and the door rows' carriers.
+

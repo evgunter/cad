@@ -87,6 +87,7 @@ pub mod offset;
 pub mod offset_fit;
 pub mod offset_fit_lane;
 pub mod offset_meters;
+pub mod order;
 pub mod pair_section;
 pub mod patch_bound;
 pub mod pcurve;
@@ -153,8 +154,9 @@ pub use implicit::{
     conic_cone_harmonics, conic_cone_residual, conic_cylinder_harmonics, conic_quadric_residual,
     conic_residual_extremes, conic_sphere_harmonics, conic_torus_harmonics, conic_torus_implicit,
     conic_torus_jet, conic_torus_residual, curvature_lever_arm, implicit_gradient,
-    implicit_hessian_form, implicit_max_normal_curvature, implicit_outward_normal,
-    implicit_residual, min_radius_of_curvature, min_radius_of_curvature_toward,
+    implicit_graph_acceleration, implicit_hessian_form, implicit_max_normal_curvature,
+    implicit_outward_normal, implicit_residual, min_radius_of_curvature,
+    min_radius_of_curvature_toward,
 };
 pub use intersect::{
     ConeCylinderSection, ConicArcError, ConicBranch, EqualCylinderSection, OpenConic,
@@ -184,10 +186,12 @@ pub use offset_fit::{
 };
 pub use offset_fit_lane::{OFFSET_FIT_DOOR_HOLDERS, OffsetFitLane, ScalarList};
 pub use pair_section::{
-    CarriedComponent, CarriedSection, CarryError, ClassCarrier, ComponentShape, CsDecision,
-    CsStance, CylinderSpherePose, FittedCarrier, PairSection, PoseRefusal, Seated,
-    SectionComponent, SectionRead, SiteFoot, SiteRefusal, SsiLane, ZeroKind, ZeroVerdict,
-    pair_section, square_part,
+    AxisPose, CarriedComponent, CarriedSection, CarryError, ClassCarrier, Coincident,
+    ComponentShape, CsDecision, CsStance, CtStance, CylinderSpherePose, CylinderTorusPose,
+    FittedCarrier, Gap, PairPose, PairSection, PoseRefusal, Ring, Seated, SectionComponent,
+    SectionDecision, SectionRead, SiteFoot, SiteRefusal, SphereTorusPose, SquareWall, SsiLane,
+    StStance, TorusGap, TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, ZeroKind,
+    ZeroVerdict, axis_pose, line_tilt, pair_section, square_part,
 };
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
