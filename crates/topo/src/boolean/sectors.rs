@@ -87,8 +87,9 @@ pub(super) enum Reach<T: geom_core::Real> {
     /// ([`ConicBend`]), which [`pierce_side`] reads where the tangent lies in
     /// a plane face.
     Conic {
-        /// The edge's extent ([`geom_brep::edge_extent`]): no longer
-        /// than its arc, so a point at that arc length lies on the edge.
+        /// The edge's extent from below ([`geom_brep::edge_extent_inf`]):
+        /// no longer than its arc, so a point at that arc length lies on
+        /// the edge.
         extent: T,
         /// The edge's bend at the base vertex.
         bend: ConicBend<T>,
@@ -505,9 +506,9 @@ pub(super) fn orbit_corners<T: Decide>(
         );
     }
     // The outgoing direction of an orbit half-edge, scaled to the
-    // edge's honest extent: the chord for a `Line` carrier, the
+    // edge's extent from below: the chord for a `Line` carrier, the
     // carrier's outgoing tangent at the base vertex scaled by
-    // `edge_extent` for every curved one, a spline's included (its
+    // `edge_extent_inf` for every curved one, a spline's included (its
     // chord is not where it leaves).
     let chord = move |he: HalfEdgeKey| -> (Vec3<T>, Reach<T>) {
         let end = body.proven_half_edge_end(he);
@@ -6105,7 +6106,7 @@ mod tests {
             radius: 1.0,
             u_ref: -bend,
         };
-        let extent = geom_brep::edge_extent(&carrier, 0.0, span, 2.0 * (span / 2.0).sin());
+        let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span, 2.0 * (span / 2.0).sin());
         let tangent = carrier.deriv(0.0);
         let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
         (tangent.normalize() * extent, Reach::Conic { extent, bend })
@@ -6225,7 +6226,7 @@ mod tests {
                         let samples = 4000;
                         let param = |i: usize| span * i as f64 / samples as f64;
                         let chord = flat.eval(span).distance(base);
-                        let extent = geom_brep::edge_extent(&flat, 0.0, span, chord);
+                        let extent = geom_brep::edge_extent_inf(&flat, 0.0, span, chord);
                         // The witness the derivation names, found
                         // independently: the sample at arc length
                         // `l = min(max(extent, b·span), cap)`, `b` the
@@ -6364,7 +6365,7 @@ mod tests {
             chord > 1e4 * b.zero() && far < b.zero(),
             "the arc is long beside the band (chord {chord:e}) and its far end in it ({far:e})"
         );
-        let extent = geom_brep::edge_extent(&carrier, 0.0, span, chord);
+        let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span, chord);
         let bend = ConicBend::of(&carrier, carrier.deriv(0.0), carrier.deriv2(0.0), span);
         let dir = carrier.deriv(0.0).normalize() * extent;
         assert_eq!(

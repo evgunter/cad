@@ -14,3 +14,6 @@ The reading errs in the safe direction: a short edge between large planes refuse
 
 Found by the U-lever review (PR 5204, finding m2); grep `\* ?extent\b|extent ?\*` over `crates/*/src` for siblings.
 
+## The edge extent's new home (OFFSET, 2026-10-27)
+
+`geom_brep::edge_extent` no longer exists (OFFSET, PR 5875). Its home is `geom_brep::extent`, beside the reach family, as three functions: `edge_extent_inf` (≤ the edge's diameter `D`: the chord, the minor-axis folds and the sampled pairs; the lever of a reading whose Zero only refuses), `edge_extent_sup` (≥ `D`; a reading whose Zero is acted on and whose definite signs only refuse) and `edge_reach_from` (the edge's farthest distance from a point of it; a reading that acts on every sign, read from that point). `offset_derive::section_closed`'s plane pair still reads the edge's extent from below (its Zero refuses, its Positive certifies the crossing); the torus's axis fork and the cone and cylinder's parallelism now read `edge_extent_sup`, since they act on their Zero.
