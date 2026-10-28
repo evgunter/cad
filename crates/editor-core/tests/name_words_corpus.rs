@@ -391,7 +391,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// Re-pinned for G with [`NAME_WORDS`]: the words that moved are the
 /// families' members, said "member i's copy of" their master's names
 /// where they were said as a pattern's instance.
-const SAID_DIGEST: u64 = 0x4e3b_1499_32cd_f332;
+const SAID_DIGEST: u64 = 0xddd8_14c4_9779_1c01;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

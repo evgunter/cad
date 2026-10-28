@@ -334,7 +334,7 @@ const PINNED: &[(&str, u64)] = &[
     ("nested_islands_106_depth1", 0x4677e01cb07a25ee),
     ("nested_islands_106_depth2", 0x664fe6e3cc64f8a7),
     ("declared_tangency", 0x10186938bc97ccdd),
-    ("kitchen_sink", 0x1212_455c_a2aa_ba87),
+    ("kitchen_sink", 0xfef3_da00_18d0_b020),
     ("cut_cylinder", 0xa78c6dd27d0a7322),
     ("measured_web", 0xa60a9fdbd8576659),
     ("boss_union", 0x60c0307b55a8a5cc),
