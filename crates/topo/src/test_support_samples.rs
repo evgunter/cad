@@ -144,6 +144,16 @@ fn chart_region_errors() -> Vec<ChartRegionError> {
         ChartRegionError::MissingCache {
             half_edge: HalfEdgeKey::default(),
         },
+        ChartRegionError::TrimOffFace {
+            face,
+            half_edge: HalfEdgeKey::default(),
+            refusal: geom_brep::PcurveCertifyError::CarrierOffChart {
+                chart: geom::SurfaceKind::Plane,
+                carrier: geom::CurveKind::Circle,
+                why: "the carrier's points are not on the plane",
+                margin: None,
+            },
+        },
         ChartRegionError::ArmUnbounded { chart: "sphere" },
         ChartRegionError::SeamBranch,
         ChartRegionError::PeriodFold,
