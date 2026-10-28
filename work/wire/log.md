@@ -7213,3 +7213,8 @@ Signed (WIRE orchestrator).
   - MINORs: fixture copies (U profile, prism, a private run, twin prong fixtures).
   - A fix pass shared them through `fixture` and corrected the row.
   - Merged at df2462ff36. Both rows stay open, with the `record(.., Parent::Elsewhere)` proposal for joined sets on the tie-summed row.
+- 2026-10-28 (WIRE orchestrator) `wire-unionrecord` opened PR 5902 (head e2888ac188).
+  - A union records its tied parents' face and seam groups with `record`; `Rederived`/`by_fold` are deleted.
+  - Dump over 11,648 union evaluations: 0 rows and 0 sizes moved; 101 tied bases are now recorded as the union's own.
+  - The witness passes on base too: no document was found where the fold and the union's own count differ.
+  - Filed `doctail/a-unions-seam-piece-on-a-divided-parent-diagnoses-as-cascade`. FULL review dispatched (`wire-unionrecord-rev`).
