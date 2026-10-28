@@ -370,9 +370,9 @@ fn vanished_loss_with_prior_enriches_diagnosis_and_tombstone() {
     };
     assert_eq!(*name, inst2_face);
     // The count is the index's, a definition and no slot of the
-    // family: the edit that took the name is a recipe edit.
+    // family: what took the name is the index's count.
     assert!(
-        matches!(diagnosis, Diagnosis::RecipeEdit { .. }),
+        matches!(diagnosis, Diagnosis::IndexCount { node, .. } if *node == pat),
         "{diagnosis:?}"
     );
     let t = last_good.as_ref().expect("the prior run resolved the name");

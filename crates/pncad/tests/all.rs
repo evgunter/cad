@@ -1834,7 +1834,7 @@ fn squashed_with_offsets(code: &str) -> (String, Vec<usize>) {
 /// source-scanning guards below all read this one list;
 /// `the_boundary_guard_scans_every_facade_source_file` pins it
 /// against the directory, so a new module cannot arrive unguarded.
-const FACADE_SOURCES: [(&str, &str); 12] = [
+const FACADE_SOURCES: [(&str, &str); 13] = [
     ("lib.rs", include_str!("../src/lib.rs")),
     ("analysis.rs", include_str!("../src/analysis.rs")),
     ("prelude.rs", include_str!("../src/prelude.rs")),
@@ -1844,6 +1844,7 @@ const FACADE_SOURCES: [(&str, &str); 12] = [
     ("authoring.rs", include_str!("../src/authoring.rs")),
     ("export.rs", include_str!("../src/export.rs")),
     ("guide.rs", include_str!("../src/guide.rs")),
+    ("pattern.rs", include_str!("../src/pattern.rs")),
     ("tolerance.rs", include_str!("../src/tolerance.rs")),
     ("topo.rs", include_str!("../src/topo.rs")),
     ("workspace.rs", include_str!("../src/workspace.rs")),
