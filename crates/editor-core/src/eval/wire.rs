@@ -849,7 +849,7 @@ where
 /// PRODUCT, and hand back a body-denoting value: the product's body,
 /// shared, under its frame moved by the instance's map. The copy is an
 /// ordinary `Body` value — one solid or N, under ONE rigid map — so the
-/// root gather and the export door consume it with no new arms.
+/// product gather and the export door consume it with no new arms.
 fn wire_instantiate_part<T>(
     id: RecipeNodeId,
     doc_ref: &crate::ident::DocRef,

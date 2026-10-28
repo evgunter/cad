@@ -127,3 +127,4 @@ Signed: (CARVE orchestrator)
   - the loop-duplication and budget-triple refactor, which goes ahead of it because the self-intersection build changes the same loop;
   - `min-separation-tightening-crosses-the-drive`;
   - then `SHELL-4`.
+- 2026-10-28 — **NURBSWIN merges (#5927)** with this commit last. The orchestrator read and accepted the fix pass at `2cef54df49`. Pruned the fired blocker on CARVE's `self-overlapping-spines-build-and-validate`.

@@ -3008,6 +3008,7 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
         | P::TubeStraddles { .. }
         | P::TubeNotOneArc { .. }
         | P::Escalated { .. }
+        | P::ArcRim(_)
         | P::ReportedTransversalityPoisoned(_)
         | P::ChartSpeed(_)
         | P::CarrierEnclosure(_)) => unreachable!(
@@ -3688,7 +3689,7 @@ mod limb2_quick {
     }
 
     /// Whether the first reading is taken: always, but under a test's
-    /// [`without`].
+    /// `without`.
     pub(super) fn enabled() -> bool {
         #[cfg(test)]
         {

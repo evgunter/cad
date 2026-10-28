@@ -7,6 +7,7 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::{Dimension, Formula};
 
 use common::asm;
 use common::{ang, len, scl};
@@ -439,9 +440,13 @@ fn a_pattern_copy_over_a_transform_is_an_instance_pick() {
         &mut session,
         SessionOp::AddTransform {
             input: bench.post_b.into(),
-            translation: [len(0.0), len(0.0), len(0.0)],
+            translation: [
+                Formula::zero(Dimension::Length),
+                Formula::zero(Dimension::Length),
+                Formula::zero(Dimension::Length),
+            ],
             rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
     );
     session.pump();

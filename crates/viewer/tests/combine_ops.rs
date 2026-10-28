@@ -28,7 +28,9 @@ use test_utils::refusal::tagged;
 use viewer::session::BooleanSpec;
 
 use common::drawn::spacing_of;
-use common::{ang, body_volume, len, len3, near, scl3, session_insert, shape};
+use common::{
+    ang, body_volume, len, len3, near, no_translation, scl3, session_insert, shape, translation,
+};
 use pncad::document::BooleanValue;
 use pncad::document::SplitSide;
 use pncad::document::{
@@ -80,7 +82,7 @@ fn two_boxes(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) {
             input: raw_b.into(),
             translation: len3(OFFSET),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
     );
     (session, a, b)
@@ -179,9 +181,9 @@ fn a_three_pick_union_commits_one_union_of_three_spelled_members() {
         &mut session,
         SessionOp::AddTransform {
             input: raw_c.into(),
-            translation: len3([0.0, 0.05, 0.0]),
+            translation: translation([0.0, 0.05, 0.0]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
     );
     let mut tools = Tools::new();
@@ -411,9 +413,9 @@ fn a_feature_re_points_each_placement_of_its_target() {
         &mut session,
         SessionOp::AddTransform {
             input: body.into(),
-            translation: len3([0.0, 0.0, A[2] * 4.0]),
+            translation: translation([0.0, 0.0, A[2] * 4.0]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
     );
     assert_eq!(
@@ -427,7 +429,7 @@ fn a_feature_re_points_each_placement_of_its_target() {
         input: body.into(),
         translation: len3(OFFSET),
         rotation_axis: scl3([0.0, 0.0, 1.0]),
-        rotation_angle: ang(0.0),
+        rotation_angle: Formula::zero(Dimension::Angle),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(
@@ -651,9 +653,9 @@ fn several_bodies_are_not_one_body_at_a_seat() {
             },
             SessionOp::AddTransform {
                 input: wrong.into(),
-                translation: len3([0.0; 3]),
+                translation: no_translation(),
                 rotation_axis: scl3([0.0, 0.0, 1.0]),
-                rotation_angle: ang(0.0),
+                rotation_angle: Formula::zero(Dimension::Angle),
             },
             SessionOp::AddSplit {
                 target: wrong.into(),
@@ -767,7 +769,7 @@ fn the_transform_door_places_a_body_with_values() {
         input: body.into(),
         translation: [ang(0.0), len(0.0), len(0.0)],
         rotation_axis: scl3([0.0, 0.0, 1.0]),
-        rotation_angle: ang(0.0),
+        rotation_angle: Formula::zero(Dimension::Angle),
     });
     assert!(
         matches!(
@@ -1206,9 +1208,9 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
         },
         SessionOp::AddTransform {
             input: body.into(),
-            translation: len3([0.0; 3]),
+            translation: no_translation(),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
         SessionOp::AddPattern {
             input: body.into(),
@@ -1271,9 +1273,9 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
         },
         SessionOp::AddTransform {
             input: plane.into(),
-            translation: len3([0.0; 3]),
+            translation: no_translation(),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
         SessionOp::AddPattern {
             input: plane.into(),
@@ -1474,7 +1476,11 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
 
     let mut transform = TransformTool::new();
     assert!(matches!(
-        transform.op(len3([0.0; 3]), scl3([0.0, 0.0, 1.0]), ang(0.0)),
+        transform.op(
+            no_translation(),
+            scl3([0.0, 0.0, 1.0]),
+            Formula::zero(Dimension::Angle)
+        ),
         Err(SeatError::Empty {
             seat: Seat::TransformBody
         })
@@ -1699,9 +1705,9 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
             },
             Seat::TransformBody => SessionOp::AddTransform {
                 input: filled(Seat::TransformBody).into(),
-                translation: len3([0.0; 3]),
+                translation: no_translation(),
                 rotation_axis: scl3([0.0, 0.0, 1.0]),
-                rotation_angle: ang(0.0),
+                rotation_angle: Formula::zero(Dimension::Angle),
             },
             Seat::PartInstance => SessionOp::AddPart {
                 of: filled(Seat::PartInstance),
@@ -1997,9 +2003,9 @@ fn a_tool_closes_on_its_own_committed_edit() {
             ToolKind::Transform,
             SessionOp::AddTransform {
                 input: (RecipeNodeId::new(0, tagged(1))).into(),
-                translation: len3([0.0; 3]),
+                translation: no_translation(),
                 rotation_axis: scl3([0.0, 0.0, 1.0]),
-                rotation_angle: ang(0.0),
+                rotation_angle: Formula::zero(Dimension::Angle),
             },
         ),
         (
@@ -2426,9 +2432,9 @@ fn a_split_half_is_read_by_its_port_at_a_body_seat() {
         &mut session,
         SessionOp::AddTransform {
             input: pncad::document::Operand::output(split, SplitHalf::Below.port()),
-            translation: len3([0.0; 3]),
+            translation: no_translation(),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
     );
     let doc = session.committed_doc();
@@ -2669,9 +2675,9 @@ fn a_duplicates_copy_moves_on_its_own() {
         &mut session,
         SessionOp::AddTransform {
             input: copy.into(),
-            translation: len3([0.0, A[1] * 3.0, 0.0]),
+            translation: translation([0.0, A[1] * 3.0, 0.0]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
     );
     assert_eq!(
@@ -2835,7 +2841,13 @@ fn a_body_seat_reads_a_split_half_by_its_port() {
     let mut tool = TransformTool::new();
     tool.pick(&doc, split);
     assert!(tool.seats().awaits_half(0));
-    let op = |tool: &TransformTool| tool.op(len3([0.0; 3]), scl3([0.0, 0.0, 1.0]), ang(0.0));
+    let op = |tool: &TransformTool| {
+        tool.op(
+            no_translation(),
+            scl3([0.0, 0.0, 1.0]),
+            Formula::zero(Dimension::Angle),
+        )
+    };
     assert!(matches!(
         op(&tool),
         Err(SeatError::HalfUnchosen {
@@ -2941,9 +2953,9 @@ fn a_moved_copy(tol: Tol, lift: f64) -> (DocSession, RecipeNodeId, [f64; 2]) {
         &mut session,
         SessionOp::AddTransform {
             input: copy.into(),
-            translation: len3([0.0, lift, 0.0]),
+            translation: translation([0.0, lift, 0.0]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
     );
     session.pump();
@@ -3319,7 +3331,7 @@ fn a_duplicate_is_not_measured_off_a_picture_older_than_the_document() {
         &mut session,
         SessionOp::AddTransform {
             input: extrude.into(),
-            translation: len3([0.0; 3]),
+            translation: no_translation(),
             rotation_axis: scl3([0.0, 1.0, 0.0]),
             rotation_angle: ang(core::f64::consts::FRAC_PI_2),
         },
@@ -3385,9 +3397,9 @@ fn a_union_across_two_flush_contacts_lands_as_one_action() {
         &mut session,
         SessionOp::AddTransform {
             input: raw.into(),
-            translation: len3([0.0, 0.0, CHANNEL_DROP]),
+            translation: translation([0.0, 0.0, CHANNEL_DROP]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
     );
     let channelled = session_insert(
@@ -3406,9 +3418,9 @@ fn a_union_across_two_flush_contacts_lands_as_one_action() {
         &mut session,
         SessionOp::AddTransform {
             input: raw_boss.into(),
-            translation: len3([0.0, 0.0, common::BOSS_BLOCK[2]]),
+            translation: translation([0.0, 0.0, common::BOSS_BLOCK[2]]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
     );
     session.pump();
@@ -3529,9 +3541,9 @@ fn a_body_read_by_variable_lands_and_a_selection_refuses_typed() {
             body: Box::new(body.into()),
             names: Vec::new(),
         },
-        translation: len3([0.0, 0.0, 0.0]),
+        translation: no_translation(),
         rotation_axis: scl3([0.0, 0.0, 1.0]),
-        rotation_angle: ang(0.0),
+        rotation_angle: Formula::zero(Dimension::Angle),
     });
     assert!(
         matches!(refused.refusal, Some(Refusal::NotABodyRead { .. })),
@@ -3559,9 +3571,9 @@ fn taking_over_one_half_of_a_split_leaves_the_other() {
         &mut session,
         SessionOp::AddTransform {
             input: below,
-            translation: len3([0.0, 0.0, -0.02]),
+            translation: translation([0.0, 0.0, -0.02]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
     );
     let doc = session.committed_doc();

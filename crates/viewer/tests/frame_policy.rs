@@ -806,7 +806,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
                 findings: vec![CheckFinding {
                     check: CheckId::Connectedness,
                     subject: editor_core::FindingSubject::Output {
-                        root: RecipeNodeId::new(0, tagged(3)),
+                        placement: RecipeNodeId::new(0, tagged(3)),
                         output_ix: 0,
                     },
                     evidence: CheckEvidence::Connectedness {
@@ -1616,7 +1616,7 @@ fn the_checks_badge_is_a_control_and_the_rest_are_labels() {
         findings: vec![CheckFinding {
             check: CheckId::Connectedness,
             subject: editor_core::FindingSubject::Output {
-                root: RecipeNodeId::new(0, tagged(3)),
+                placement: RecipeNodeId::new(0, tagged(3)),
                 output_ix: 0,
             },
             evidence: CheckEvidence::Connectedness {
@@ -2048,7 +2048,7 @@ fn the_status_line_renders_two_tied_faces_as_two_different_phrases() {
 }
 
 #[test]
-fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
+fn the_agreement_check_compares_faces_and_ignores_answers_nobody_asked_for() {
     let tol = Tol::witness();
     let (session, _) = plate_session(tol);
     let index = plate_index(&session);
@@ -2059,8 +2059,9 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
         )
         .expect("no refusal")
         .expect("a hit");
+    let face = face_of(&hit);
     let id = *index
-        .ids_of(&hit.name)
+        .ids_of_target(&face)
         .first()
         .expect("the picked face is drawn");
 
@@ -2071,7 +2072,7 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
             &DisplayView::none(),
             Some(&answer(7, id)),
             Some(7),
-            Ok(std::slice::from_ref(&hit.name))
+            Ok(std::slice::from_ref(&face))
         ),
         None
     );
@@ -2114,7 +2115,7 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
         &DisplayView::none(),
         Some(&answer(7, IdMap::NOTHING)),
         Some(7),
-        Ok(std::slice::from_ref(&hit.name)),
+        Ok(std::slice::from_ref(&face)),
     ) else {
         panic!("nothing vs a face is a disagreement");
     };
@@ -2122,7 +2123,7 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
         report.from_gpu,
         idpass::IdAnswer::Refused(PatchNameFault::Nothing)
     );
-    assert_eq!(report.from_ray, vec![hit.name.clone()]);
+    assert_eq!(report.from_ray, vec![face.clone()]);
     assert!(report.to_string().contains("disagree"));
 
     // **A certified tie the id pass chose inside is NOT a
@@ -2133,9 +2134,8 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
     let others: Vec<_> = index
         .ids()
         .ids()
-        .filter_map(|any| index.name_of(any).ok())
-        .filter(|name| **name != hit.name)
-        .cloned()
+        .filter_map(|any| index.face_of(any).ok())
+        .filter(|other| *other != face)
         .collect();
     let second = others
         .first()
@@ -2143,10 +2143,10 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
         .clone();
     let outside = others
         .iter()
-        .find(|name| **name != second)
+        .find(|other| **other != second)
         .expect("the plate draws a third face")
         .clone();
-    let tied = [hit.name.clone(), second];
+    let tied = [face.clone(), second];
     assert_eq!(
         idpass::compare(
             &index,
@@ -2158,7 +2158,10 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
         None,
         "the id pass named one of the tied faces, which is agreement"
     );
-    let outside_id = *index.ids_of(&outside).first().expect("that face is drawn");
+    let outside_id = *index
+        .ids_of_target(&outside)
+        .first()
+        .expect("that face is drawn");
     let Some(idpass::IdNews::Disagreement(report)) = idpass::compare(
         &index,
         &DisplayView::none(),
@@ -2268,7 +2271,11 @@ fn an_edge_hover_is_not_a_disagreement_because_the_face_is_what_is_compared() {
         .ids_of_target(face)
         .first()
         .expect("the face under the cursor is drawn");
-    let named: Vec<StableName> = faces.iter().map(|face| face.name.clone()).collect();
+    let hover = FaceSelection {
+        name: edge.name.clone(),
+        node: edge.node,
+        body: edge.body,
+    };
 
     // The defect, pinned: the hover's name against the patch's.
     assert!(
@@ -2277,7 +2284,7 @@ fn an_edge_hover_is_not_a_disagreement_because_the_face_is_what_is_compared() {
             &DisplayView::none(),
             Some(&answer(7, id)),
             Some(7),
-            Ok(std::slice::from_ref(&edge.name))
+            Ok(std::slice::from_ref(&hover))
         )
         .is_some(),
         "an edge name against a patch name is two questions, and the check cannot know it"
@@ -2289,21 +2296,20 @@ fn an_edge_hover_is_not_a_disagreement_because_the_face_is_what_is_compared() {
             &DisplayView::none(),
             Some(&answer(7, id)),
             Some(7),
-            Ok(&named)
+            Ok(&faces)
         ),
         None,
         "the face under the cursor is what the id buffer named"
     );
 }
 
-/// **A twin copy's face wears the same name** (D′3: a copy carries
-/// its source's names as they are): two copies of one body both wear
-/// the body's names, so an id answer on the other copy names the same
-/// face by name, and the name-keyed cross-check agrees where the two
-/// copies are two faces of the world. Which copy a pick is on is its
-/// node (`work/intent/the-pick-cross-check-cannot-tell-two-copies-of-one-body-apart.md`).
+/// **A twin copy's face wears the same name, and the cross-check
+/// tells the copies apart** (D′3: a copy carries its source's names as
+/// they are): an id on the left copy beside a ray on the right one is
+/// two faces of the world under one name, so it is a disagreement, and
+/// its sentence says which copy each side is on.
 #[test]
-fn a_twin_copys_face_wears_the_same_name() {
+fn a_twin_copys_face_wears_the_same_name_and_the_cross_check_tells_the_copies_apart() {
     let tol = Tol::witness();
     let (doc, left, right) = two_placements(tol);
     let mut session = DocSession::inline(doc, tol);
@@ -2317,8 +2323,11 @@ fn a_twin_copys_face_wears_the_same_name() {
         .expect("no refusal")
         .expect("the right placement is hit");
     assert_eq!(hit.node, right);
-    let drawn = index.ids_of(&hit.name);
-    assert_eq!(drawn.len(), 2, "both copies wear the body's name");
+    assert_eq!(
+        index.ids_of(&hit.name).len(),
+        2,
+        "both copies wear the body's name"
+    );
     let left_hit = index
         .pick(
             session.evaluation().expect("landed"),
@@ -2331,19 +2340,45 @@ fn a_twin_copys_face_wears_the_same_name() {
         left_hit.name, hit.name,
         "the same face of the body, on the left copy"
     );
-    for id in drawn {
-        assert_eq!(
-            idpass::compare(
-                &index,
-                &DisplayView::none(),
-                Some(&answer(3, *id)),
-                Some(3),
-                Ok(std::slice::from_ref(&hit.name))
-            ),
-            None,
-            "an id on either copy agrees by name"
-        );
-    }
+    let (on_right, on_left) = (face_of(&hit), face_of(&left_hit));
+    let [right_id] = index.ids_of_target(&on_right)[..] else {
+        panic!("the right copy draws the face once");
+    };
+    let [left_id] = index.ids_of_target(&on_left)[..] else {
+        panic!("the left copy draws the face once");
+    };
+    let ray = std::slice::from_ref(&on_right);
+    assert_eq!(
+        idpass::compare(
+            &index,
+            &DisplayView::none(),
+            Some(&answer(3, right_id)),
+            Some(3),
+            Ok(ray)
+        ),
+        None,
+        "an id on the copy the ray hit agrees"
+    );
+    let Some(idpass::IdNews::Disagreement(report)) = idpass::compare(
+        &index,
+        &DisplayView::none(),
+        Some(&answer(3, left_id)),
+        Some(3),
+        Ok(ray),
+    ) else {
+        panic!("an id on the other copy is a disagreement");
+    };
+    assert_eq!(report.from_gpu, idpass::IdAnswer::Named(on_left));
+    assert_eq!(report.from_ray, vec![on_right]);
+    let sentence = report.to_string();
+    let (gpu, ray) = sentence
+        .split_once(", ray ")
+        .expect("the sentence says both sides");
+    assert_ne!(
+        gpu.trim_start_matches("picking paths disagree at the cursor: id buffer "),
+        ray,
+        "the two sides are said apart, by their copies: {sentence}"
+    );
 }
 
 fn face_of(hit: &pncad::select::PickHit) -> FaceSelection {
