@@ -1344,10 +1344,15 @@ fn a_zero_count_is_a_family_of_no_member_and_a_negative_one_refuses() {
             assert!(
                 matches!(
                     eval.result(pattern),
-                    Some(pncad::document::NodeResult::Failed(pncad::document::NodeError {
-                        kind: pncad::document::NodeErrorKind::IndexCountOutOfRange { count: -3, .. },
-                        ..
-                    }))
+                    Some(pncad::document::NodeResult::Failed(
+                        pncad::document::NodeError {
+                            kind: pncad::document::NodeErrorKind::IndexCountOutOfRange {
+                                count: -3,
+                                ..
+                            },
+                            ..
+                        }
+                    ))
                 ),
                 "a family of count {count} refuses typed: {:?}",
                 eval.result(pattern)
