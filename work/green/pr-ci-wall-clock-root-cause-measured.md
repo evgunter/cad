@@ -247,12 +247,15 @@ moves the median most.
 - **Taken: split `test` into two shards** (green/latency-test-shards).
   - On that PR's own TIER=all runs, against a single-job TIER=all median
     of 27.6:
-    - 40718652598: `test (app)` 12.2 min, `test (kernel)` 12.8;
-    - 40721475134, the final head: app 12.6, kernel 18.8. Every kernel
-      step was about 1.5× slower, so a slow runner is the likely reason.
-  - If the closure tier halves the same way (about −8 min on `test`),
-    the replayed window's median goes from 23.1 to about 15.3, and the
-    p90 stays near 30, held by `demos`.
+    - `test (app)`: 12.2–12.6 min over four runs;
+    - `test (kernel)`: 12.8 once (40718652598, a fast runner), then 18.8,
+      18.9 and 19.1 (40721475134, 40727293903, 40729179399). Kernel is
+      the long shard, at about 19.
+  - At TIER=all that is −8.5 min on `test`, not the −15 the first run
+    suggested. If the closure tier gains similarly (−5 to −8 on `test`),
+    the replayed window's median goes from 23.1 to 15–18, and the p90
+    stays near 30, held by `demos`. Rebalancing the shards is on
+    `test-shards-build-the-kernel-libraries-twice`.
   - That is a projection. This row closes only when the alarm's own
     statistic, over a fresh 24 h after merge, is under 20.
 - **Declined: moving the tour's 1e-12 row to the nightly.** It is worth
