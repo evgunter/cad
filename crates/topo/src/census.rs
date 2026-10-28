@@ -10722,11 +10722,16 @@ fn planar_interiors_meet<T: Decide>(
 }
 
 /// **Whether two faces on one carrier, facing the same way, share
-/// interior**, either answer certified: [`planar_interiors_meet`] where
-/// both are planar polygons; elsewhere the witness search
-/// ([`shared_interior_witness`]), then, where it finds none, the reading
-/// of every edge's pieces between its meetings with the other boundary
-/// ([`arc_interiors_meet`]).
+/// interior**: [`planar_interiors_meet`] where both are planar polygons;
+/// elsewhere the witness search ([`shared_interior_witness`]) answers
+/// first, and where it finds no meeting the reading of every edge's
+/// pieces between its meetings with the other boundary
+/// ([`arc_interiors_meet`]) decides. `Ok(false)` is a certificate on
+/// either path. `Ok(true)` is not, inside the band: the witness search
+/// reads two crossings it parts, and their cones, as shared interior,
+/// so a lens between two crossings shallower than the zero reads `true`
+/// (`work/atrest/an-in-band-lens-reads-as-shared-interior.md`), loud
+/// rather than silent.
 fn face_interiors_meet<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -10761,9 +10766,11 @@ struct SharedInterior;
 /// - where it lies on the other's boundary too and the two faces' cones
 ///   there share an open sector ([`cones_meet`]).
 ///
-/// Every probe is a sufficient witness and none is necessary, so a
-/// search that finds none is unread here, and [`arc_interiors_meet`]
-/// decides the pair: [`InteriorsUnread::Undecided`]
+/// Every probe is a sufficient witness up to the band, and none is
+/// necessary: a crossing the meeting reader parts holds two cones that
+/// share a sector however shallow the lens beside it, so a lens within
+/// the band reads as a meeting here. A search that finds none is unread
+/// here, and [`arc_interiors_meet`] decides the pair: [`InteriorsUnread::Undecided`]
 /// where a reading escalated (the escalations are dropped with the
 /// search, as [`planar_interiors_meet`] drops its own), and
 /// [`InteriorsUnread::Unbuilt`] otherwise. A cone at a vertex the face
@@ -10836,7 +10843,7 @@ fn shared_interior_witness<T: Decide>(
 }
 
 /// **Whether two faces on one carrier, facing the same way, share
-/// interior, either answer certified**, for faces whose boundaries carry
+/// interior**, for faces whose boundaries carry
 /// arcs or lie on a curved carrier (Door 1 decided the carrier Zero,
 /// `SameOriented`). Each edge of either face is cut at every meeting
 /// with the other face's boundary: each point meeting with each of its
@@ -20386,22 +20393,20 @@ mod arc_interiors {
     /// centre, against the lower half of the one `2r + gap` along `v`
     /// from it: where `gap` is negative the arcs cross twice about
     /// `√(−gap·r)` apart, where it is zero they touch.
-    /// The faces' reading, and the reading of pieces alone
-    /// ([`arc_interiors_meet`]), which must agree where both decide.
-    fn read(r: f64, gap: f64) -> Result<bool, InteriorsUnread> {
+    /// The faces' reading and the reading of pieces alone
+    /// ([`arc_interiors_meet`]), the second arc's circle `2r − depth` from
+    /// the first's along `v`, so they cross twice about a lens `depth`
+    /// deep.
+    fn read(r: f64, depth: f64) -> [Result<bool, InteriorsUnread>; 2] {
         let (c, _, _, v) = frame();
         let mut body = Body::<f64>::new();
         let a = add_piece(&mut body, c, r, (0.0, PI));
-        let b = add_piece(&mut body, c + v * (2.0 * r + gap), r, (PI, 2.0 * PI));
+        let b = add_piece(&mut body, c + v * (2.0 * r - depth), r, (PI, 2.0 * PI));
         let geo = snapshot(&body);
-        let (faces, pieces) = (
+        [
             face_interiors_meet(&body, &geo, a, b, band()),
             arc_interiors_meet(&body, &geo, a, b, band()),
-        );
-        if let (Ok(x), Ok(y)) = (faces, pieces) {
-            assert_eq!(x, y, "the two readings at gap {gap:e}");
-        }
-        pieces.or(faces)
+        ]
     }
 
     /// **Two arcs crossing twice a few escalation widths apart are read
@@ -20413,11 +20418,8 @@ mod arc_interiors {
     /// the certificate inherits that reading and certifies the interiors
     /// apart, the at-tolerance flush; at one width the lens is `0.0025ε`
     /// and the reading is flush or unread at every ε. A lens past the
-    /// zero, in the band or past it, is never read apart: the reader
-    /// parts the crossings only where the arc between them stands
-    /// definitely off the other, and the piece between them then places
-    /// inside or in the band. Arcs that touch at a point, or stand apart,
-    /// are certified apart.
+    /// zero is never read apart. Arcs that touch at a point, or stand
+    /// apart, are certified apart.
     #[test]
     fn arcs_crossing_twice_near_a_tangency_are_never_read_apart() {
         let tol = Tol::witness();
@@ -20426,26 +20428,65 @@ mod arc_interiors {
         let r = 1000.0 * width;
         for k in [1.0, 2.0, 5.0, 20.0, 40.0, 100.0, 400.0] {
             let depth = (k * width) * (k * width) / (4.0 * r);
-            let read = read(r, -depth);
             let ratio = depth / zero;
-            if ratio > 1.0 {
-                assert_ne!(
-                    read,
-                    Ok(false),
-                    "crossings {k} widths apart, lens {ratio}·zero deep"
-                );
-            }
-            if k == 1.0 {
-                assert_ne!(
-                    read,
-                    Ok(true),
-                    "crossings one width apart, lens {ratio}·zero deep"
-                );
+            for read in read(r, depth) {
+                if ratio > 1.0 {
+                    assert_ne!(
+                        read,
+                        Ok(false),
+                        "crossings {k} widths apart, lens {ratio}·zero"
+                    );
+                }
+                if k == 1.0 {
+                    assert_ne!(
+                        read,
+                        Ok(true),
+                        "crossings one width apart, lens {ratio}·zero"
+                    );
+                }
             }
         }
-        assert_eq!(read(r, -0.01 * r), Ok(true), "a lens past the band");
-        assert_eq!(read(r, 0.0), Ok(false), "a touch at a point");
-        assert_eq!(read(r, 0.1 * r), Ok(false), "apart");
+        assert_eq!(read(r, 0.01 * r), [Ok(true); 2], "a lens past the band");
+        assert_eq!(read(r, 0.0), [Ok(false); 2], "a touch at a point");
+        assert_eq!(read(r, -0.1 * r), [Ok(false); 2], "apart");
+    }
+
+    /// **A lens at every depth across the band, on arcs of 20, 100 and
+    /// 1000 widths' radius.** Past the zero no reading certifies the
+    /// interiors apart, and past the band both find the meeting. The
+    /// reading of pieces finds none inside the band: its piece between
+    /// the crossings places in the band. **Known, not correct:** the
+    /// faces' reading runs the witness search first, which finds the
+    /// crossings and reads their cones apart past the band, so it reads
+    /// a lens shallower than the zero as shared interior at every radius
+    /// here but the smallest lens on the smallest arc
+    /// (`work/atrest/an-in-band-lens-reads-as-shared-interior.md`). That
+    /// errs loud, an interference and never a clear; this row goes red
+    /// when it is fixed, and is turned then.
+    #[test]
+    fn a_lens_across_the_band_is_never_read_apart() {
+        let tol = Tol::witness();
+        let (zero, escalate) = (band().zero(), band().escalate());
+        for rw in [20.0, 100.0, 1000.0] {
+            let r = rw * tol.k() * tol.eps();
+            for de in [0.05, 0.3, 0.9, 1.1, 2.0, 5.0, 9.0, 11.0, 50.0] {
+                let depth = de * tol.eps();
+                let [faces, pieces] = read(r, depth);
+                let at = format!("a lens {de}ε deep on an arc of {rw} widths");
+                if depth > zero {
+                    assert_ne!(faces, Ok(false), "{at}: the faces' reading");
+                    assert_ne!(pieces, Ok(false), "{at}: the reading of pieces");
+                }
+                if depth > escalate {
+                    assert_eq!([faces, pieces], [Ok(true); 2], "{at}");
+                } else {
+                    assert_eq!(pieces, Err(InteriorsUnread::Undecided), "{at}: pieces");
+                }
+                if depth < zero && !(rw == 20.0 && de == 0.05) {
+                    assert_eq!(faces, Ok(true), "{at}: known, the witness search");
+                }
+            }
+        }
     }
 
     /// **Halves of one disc sharing a diameter are certified apart**, and
