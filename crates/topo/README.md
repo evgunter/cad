@@ -367,11 +367,11 @@ The backstop's containment arm decides the nested-instance class by a
 material test — a nested placement sharing no material clears; an
 instance with a vertex inside another's material is
 `ValidationError::InstanceInterference`, a face of each on one plane,
-facing the same way and sharing interior, is
+cylinder or sphere, facing the same way and sharing interior, is
 `ValidationError::SameSideInterference`, and a touch whose local
 analysis decides the two materials meet there is
 `ValidationError::TouchInterference` — and no declaration admits an
-interference. Between two copies at rest the editor's gate reads those
+interference. Between two copies at rest the at-rest check reads those
 verdicts, a pierce, a same-side crossing and two coincident edges'
 overlapping wedges as interference evidence (ASSEMBLY A5
 *Interference.*), quieted by a one-sided `Gap` assertion at the overlap,
@@ -1068,8 +1068,9 @@ of an edge lying in a face of its own solid (`edge_in_own_face`, by
 `rest::judge`); arm 2's touches between two solids
 (`TouchSite::verdict`, by `rest::judge`); and every point where one
 solid touches itself, its whole link there (`sweep_self_touch_points`,
-by `rest::one_material`), a link holding a curved face or edge left
-unread. Every other use of a face's normal in the coincidence sweeps is
+by `rest::one_material`), a link holding a curved face, a face with a
+curved edge held at its corner, a planar face with a spline edge, or a
+point tied inside a curved edge, left unread. Every other use of a face's normal in the coincidence sweeps is
 sense-invariant.
 
 **Confirmed pairs.** Every face-pair rung (`Declared::confine` around the

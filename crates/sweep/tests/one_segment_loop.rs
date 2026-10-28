@@ -24,6 +24,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{PI, TAU};
+use topo::construction::Construct;
 
 use geom_brep::EdgeDescription;
 use geom_core::{Arc2, Bounds, Interval, Point2, Real, Tol};
@@ -1153,7 +1154,7 @@ fn a_moved_closed_walls_wrap_edge_is_a_row_of_its_fit() {
     let wall_key = body
         .set_face_surface_unvouched_for_tests(
             wall,
-            topo::FaceSurface::New {
+            topo::construction::FaceSurface::New {
                 surface: geom::Surface::Nurbs(std::sync::Arc::new(tube)),
                 sense: true,
             },

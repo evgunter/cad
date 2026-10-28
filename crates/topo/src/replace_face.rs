@@ -90,14 +90,14 @@
 //! closed-form inverse anchored at the endpoint's old parameter
 //! (`Curve3::param_near` — line, circle, ellipse, spiric), and a spline
 //! carrier's Newton foot from the same anchor
-//! (`geom_brep::NurbsLane::carrier_foot`, read off
-//! [`crate::AtRestPolicy::nurbs_lane`]). What refuses is
+//! (`geom_brep::SplineFoot::carrier_foot`, read off
+//! [`crate::AtRestPolicy::spline_foot`]). What refuses is
 //! [`ReplaceFaceError::VertexDisagreement`] (the point the read names
 //! is not the corner), [`ReplaceFaceError::ReanchorPastCarrierEnd`] (the
 //! corner lies past the carrier's end),
 //! [`ReplaceFaceError::ReanchorInconclusive`] (Newton did not converge)
 //! and [`ReplaceFaceError::NurbsLaneUnsupported`] (the scalar holds no
-//! lane, or no section lane for a spline edge's section or root).
+//! spline foot, or no section lane for a spline edge's section or root).
 //!
 //! # The carrier lanes
 //!
@@ -540,9 +540,10 @@ pub enum ReplaceFaceError<T: Real> {
         error: geom::ProjectionInconclusive,
     },
     /// An edge ending at a moved vertex rides a spline carrier, and the
-    /// scalar the door ran at holds no NURBS lane to read its foot
-    /// point with ([`crate::AtRestPolicy::nurbs_lane`] answers `None` —
-    /// a dual, DL1). A fact about the scalar, not the body.
+    /// scalar the door ran at holds no spline foot to read its foot
+    /// point with ([`crate::AtRestPolicy::spline_foot`] answers `None`),
+    /// or a spline edge's section or root needs the section lane the
+    /// scalar does not hold. A fact about the scalar, not the body.
     NurbsLaneUnsupported {
         /// The edge whose carrier needs the lane.
         edge: EdgeKey,
@@ -731,7 +732,7 @@ pub enum ReplaceFaceError<T: Real> {
         source: PcurveMintError,
     },
     /// The join the public offset doors end with
-    /// ([`Body::join_edges`]) refused on the offset body. The body is
+    /// ([`Body::join_edges`](crate::construction::Construct::join_edges)) refused on the offset body. The body is
     /// untouched.
     Join {
         /// Why the join refused.
@@ -745,7 +746,7 @@ pub enum ReplaceFaceError<T: Real> {
     /// reaches this, on a solid the call moved or one it did not. On a
     /// closed operand it is a kernel defect. A tier-1 finding is one
     /// always: under debug assertions it panics naming the door
-    /// ([`crate::Surgery::close_gated`]) instead of arriving here, and
+    /// ([`crate::construction::Surgery::close_gated`]) instead of arriving here, and
     /// with them off it arrives here ahead of the tier-2 findings.
     ResultNotClosed {
         /// The validator's report.
@@ -1693,7 +1694,7 @@ pub fn offset_corner_arms_for_tests<T: Decide + crate::props::AtRestPolicy>(
 }
 
 /// What a public offset door did to the body's topology: the joins it
-/// ended with ([`Body::join_edges`], `docs/DESIGN.md`, maximal edges),
+/// ended with ([`Body::join_edges`](crate::construction::Construct::join_edges), `docs/DESIGN.md`, maximal edges),
 /// in the order made, each killed `vertex` and `gone` edge held by
 /// `kept`. Empty where the moved body held no joinable vertex.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -1747,7 +1748,7 @@ impl OffsetOutcome {
 /// The join an offset door ends with where `join` is set, on its staged
 /// body before it is adopted, over the vertices `within` holds: the
 /// door's own scope, so a vertex of an entity the call does not write
-/// is neither joined nor read ([`Body::join_edges_within`]). The
+/// is neither joined nor read ([`Body::join_edges_within`](crate::construction::Construct::join_edges_within)). The
 /// staging is the door's, so a refusal discards the half-joined clone
 /// with it.
 pub(crate) fn staged_join<T: Decide + crate::props::AtRestPolicy>(
@@ -2048,12 +2049,12 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
         }
         let rooted = |v| corners.rooted.contains(&v);
         if plan.ends.is_none() {
-            read_ends(plan, &moved, None, band, tol, T::nurbs_lane())?;
+            read_ends(plan, &moved, None, band, tol, T::spline_foot())?;
             pair_over_its_span(plan, band)?;
         } else if rooted(plan.start) || rooted(plan.end) {
             // A transported edge whose corner a root placed ends there.
             let seeds = (plan.spec.param_start, plan.spec.param_end);
-            read_ends(plan, &moved, Some(seeds), band, tol, T::nurbs_lane())?;
+            read_ends(plan, &moved, Some(seeds), band, tol, T::spline_foot())?;
         }
     }
     // ---- Decide: the apex window again, on the boundary as derived. ----
@@ -2112,7 +2113,7 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
     }
 
     // ---- Decide: the incident edges that only need re-anchoring. ----
-    let anchored = plan_reanchors(body, &boundary, &corners, band, tol, T::nurbs_lane())?;
+    let anchored = plan_reanchors(body, &boundary, &corners, band, tol, T::spline_foot())?;
 
     // ---- Mutation, on a clone (infallible decisions are done). ----
     //
@@ -2635,7 +2636,7 @@ fn plan_edge<'s, T: Decide>(
         let held = body.get_surface(other_key).unwrap_or_else(|| {
             dangling_link(EntityId::Edge(edge), "face", GeomRef::Surface(other_key))
         });
-        let extent = geom_brep::edge_extent(
+        let extent = geom_brep::edge_extent_inf(
             &old_carrier,
             t0,
             t1,
@@ -3064,7 +3065,7 @@ fn plan_between_moved<'w, 's, T: Decide>(
             apex_pair: None,
         });
     }
-    let extent = geom_brep::edge_extent(old, t0, t1, old.eval(t0).distance(old.eval(t1)));
+    let extent = geom_brep::edge_extent_inf(old, t0, t1, old.eval(t0).distance(old.eval(t1)));
     derive_edge(
         (edge, start, end, sides),
         (curve, &description, (t0, t1)),
@@ -3479,7 +3480,7 @@ pub(crate) fn offset_rechart<T: Real>(
 
 /// **The points move first, then one re-chart**: every group in
 /// `moved` moves onto its new point, and then every chart moves in ONE
-/// [`Body::set_face_surfaces_describing`] with every spec, which so
+/// [`Body::set_face_surfaces_describing`](crate::construction::Construct::set_face_surfaces_describing) with every spec, which so
 /// certifies each at the endpoints the offset leaves it. One call,
 /// because an edge between two moving charts certifies on neither pair
 /// of mixed charts; a spec names a chart by the key its face wears now.
@@ -3616,7 +3617,7 @@ type Reanchored<T> = (EdgeKey, EdgeCurveSpec<T>, Option<T>);
 /// images — is re-anchored.
 ///
 /// A spline carrier's parameter is a foot point read through
-/// `nurbs_lane` ([`crate::AtRestPolicy::nurbs_lane`]); a scalar holding
+/// `spline_foot` ([`crate::AtRestPolicy::spline_foot`]); a scalar holding
 /// none refuses with [`ReplaceFaceError::NurbsLaneUnsupported`]. A
 /// move through an edge's far end is refused with the distance its
 /// corner's chart moved by ([`ReplaceFaceError::ReanchorCollapse`]).
@@ -3629,7 +3630,7 @@ fn plan_reanchors<T: Decide>(
     corners: &Corners<T>,
     band: Band,
     tol: Tol,
-    nurbs_lane: Option<geom_brep::NurbsLane<T>>,
+    spline_foot: Option<geom_brep::SplineFoot<T>>,
 ) -> Result<Vec<Reanchored<T>>, ReplaceFaceError<T>> {
     let moved = corners.moved_points();
     let on_boundary: std::collections::BTreeSet<EdgeKey> = boundary.iter().copied().collect();
@@ -3762,13 +3763,13 @@ fn plan_reanchors<T: Decide>(
                 None => {
                     let (t_new, clamped_at) = match &carrier {
                         Curve3::Nurbs(spline) => {
-                            let lane =
-                                nurbs_lane.ok_or(ReplaceFaceError::NurbsLaneUnsupported {
+                            let foot =
+                                spline_foot.ok_or(ReplaceFaceError::NurbsLaneUnsupported {
                                     edge,
                                     scalar: T::NAME,
                                 })?;
                             let (t, at) =
-                                carrier_foot(lane, spline, point, t_old).map_err(|error| {
+                                carrier_foot(foot, spline, point, t_old).map_err(|error| {
                                     ReplaceFaceError::ReanchorInconclusive { edge, error }
                                 })?;
                             let (lo, hi) = spline.domain();
@@ -3793,11 +3794,11 @@ fn plan_reanchors<T: Decide>(
                         // The end the clamp stopped at is the edge's FAR end
                         // when the move ran through the whole edge, read off
                         // the feet of the edge's own two ends.
-                        let (Curve3::Nurbs(spline), Some(lane)) = (&carrier, nurbs_lane) else {
-                            unreachable!("only the spline lane clamps")
+                        let (Curve3::Nurbs(spline), Some(foot)) = (&carrier, spline_foot) else {
+                            unreachable!("only the spline foot clamps")
                         };
                         let foot_of = |t: T| {
-                            lane.carrier_foot(spline, carrier.eval(t), t)
+                            foot.carrier_foot(spline, carrier.eval(t), t)
                                 .map(|p| p.t)
                                 .map_err(|error| ReplaceFaceError::ReanchorInconclusive {
                                     edge,
@@ -3991,7 +3992,7 @@ struct Incident<T: Real> {
 /// section's own domain ([`derive_edge`]), the whole curve its root is
 /// isolated over.
 fn corner_arm<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> T {
-    geom_brep::edge_extent(carrier, t0, t1, carrier.eval(t0).distance(carrier.eval(t1)))
+    geom_brep::edge_extent_inf(carrier, t0, t1, carrier.eval(t0).distance(carrier.eval(t1)))
 }
 
 /// **Whether the distance `gap`, in metres, is within ε**
@@ -4019,12 +4020,12 @@ fn gap_within_eps<T: Decide>(gap: T, tol: Tol, band: Band) -> Result<bool, Repla
 /// at an end, where it is the carrier's held end knot (the value
 /// `corner_of_root`'s short root enters too).
 fn carrier_foot<T: Decide>(
-    lane: geom_brep::NurbsLane<T>,
+    foot: geom_brep::SplineFoot<T>,
     carrier: &NurbsCurve3<T>,
     point: Point3<T>,
     seed: T,
 ) -> Result<(T, f64), geom::ProjectionInconclusive> {
-    let foot = lane.carrier_foot(carrier, point, seed)?;
+    let foot = foot.carrier_foot(carrier, point, seed)?;
     let ((lo, hi), (held_lo, held_hi)) = (carrier.domain(), carrier.knot_values().domain());
     let at = if foot.t == lo {
         held_lo
@@ -4543,7 +4544,7 @@ fn read_ends<T: Decide>(
     seeds: Option<(T, T)>,
     band: Band,
     tol: Tol,
-    nurbs_lane: Option<geom_brep::NurbsLane<T>>,
+    spline_foot: Option<geom_brep::SplineFoot<T>>,
 ) -> Result<(), ReplaceFaceError<T>> {
     let edge = plan.edge;
     let at = |v: VertexKey| {
@@ -4557,7 +4558,7 @@ fn read_ends<T: Decide>(
     let span = plan.spec.param_end - plan.spec.param_start;
     let (t0, t1) = match carrier {
         Curve3::Nurbs(spline) => {
-            let lane = nurbs_lane.ok_or(ReplaceFaceError::NurbsLaneUnsupported {
+            let lane = spline_foot.ok_or(ReplaceFaceError::NurbsLaneUnsupported {
                 edge,
                 scalar: T::NAME,
             })?;
@@ -5878,7 +5879,7 @@ mod from_computed_rows {
             .unwrap();
             let point = Point3::new(x, S::from_f64(0.125), S::zero());
             let (t, _) = carrier_foot(
-                geom_brep::NurbsLane::certified(),
+                geom_brep::SplineFoot::certified(),
                 &segment,
                 point,
                 S::from_f64(0.5),
@@ -5917,7 +5918,7 @@ mod from_computed_rows {
             .unwrap();
             let point = Point3::new(S::from_f64(5.0), S::from_f64(0.125), S::zero());
             let (t, _) = carrier_foot(
-                geom_brep::NurbsLane::certified(),
+                geom_brep::SplineFoot::certified(),
                 &segment,
                 point,
                 S::from_f64(0.5),

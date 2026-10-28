@@ -8,6 +8,7 @@
 
 use crate::common;
 use geom_core::{Band, Point3, Tol, Vec3};
+use topo::construction::Construct;
 use topo::{
     AtRestBody, Backing, BooleanBody, BooleanResult, Cell, ContactKind, ContactRecords, union,
     validate_pseudomanifold,
@@ -743,9 +744,9 @@ fn a_real_touch_on_a_substituted_face_lands_on_its_substitute() {
         let (he1, he2) = (starting(ends[0].0), starting(ends[1].0));
         let chord = body
             .mef(
-                topo::MefSite::Chords { he1, he2 },
+                topo::construction::MefSite::Chords { he1, he2 },
                 common::line(ends[0].1, ends[1].1),
-                topo::FaceSurface::Inherit,
+                topo::construction::FaceSurface::Inherit,
                 tol(),
             )
             .expect("the chord cuts the top");

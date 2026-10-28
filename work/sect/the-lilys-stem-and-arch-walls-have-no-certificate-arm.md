@@ -2,8 +2,9 @@
 id: the-lilys-stem-and-arch-walls-have-no-certificate-arm
 kind: issue
 title: The lily's stem glue builds through the join and refuses at the interior-loop guard: two tori with parallel axes apart have no section-certificate arm
-status: open
+status: closed
 opened: 2026-10-12
+closed: 2026-10-27
 priority: P0
 cost: M
 ---
@@ -50,3 +51,26 @@ Lily wall 1. Two tube arcs glued end to end on a shared disc is an ordinary join
 ## Moved to SECT (2026-10-25)
 
 From ORBIT. Moved by `git mv` in the chat-approved refold (2026-10-25) that put the torus pairs with the section-first join they are built on. Lily wall 1's torus × torus pair is a section-certificate arm for a torus pair, beside SECT's torus germ frames (teapot wall 2); the two are one torus-pair thread on the section object.
+
+## Closed
+
+**Correcting "Measured" above:** the two tube walls do meet. Their
+spine circles are internally tangent at the fork, and either side of it
+the arch's tube leaves the stem's through its inner wall: two loops,
+mirror images across the weld plane, each outside one face's window
+(the arch's side lies past the stem's 22°; the stem's side lies before
+the arch's start). What never meets is the faces.
+
+Built the general arm: `boolean/section_cert.rs` `torus_parallel_torus`,
+two tori on parallel axes at any offset and height. It lists every
+component of the carriers' section with a witness; the faces' windows
+clear the lily's pair (each of its two loops, mirror images across the
+weld plane, stands outside one face), not the carriers. Lily wall 1
+builds: `stem ∪ arch` and `arch ∪ stem` are one shell of the two tubes'
+volume, `stem ∩ arch` is empty and each difference gives back its first
+operand (`mate7a_r1_probes::p1_wall1_glues_the_stem_into_one_body`).
+Rows: `section_cert_parallel_tori_rows`. Filed: level tubes' node
+(`work/secttail/level-tubes-of-parallel-tori-refuse-at-the-node.md`), the cone
+sibling and ball separation for tilted poses (both `work/secttail/`), and the
+tour's two-piece stem
+(`work/issues/the-tour-lily-ships-its-stem-as-two-pieces.md`).

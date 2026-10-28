@@ -17,8 +17,9 @@
 use super::search_kit::band;
 use super::*;
 use crate::boolean::ops;
+use crate::construction::{FaceSurface, MefSite, MevSite};
 use crate::test_support_fixtures::{CylFrame, brick, cyl_wall_sheet};
-use crate::{Body, FaceKey, FaceSurface, MefSite, MevSite, Operand};
+use crate::{Body, FaceKey, Operand};
 use core::f64::consts::{PI, TAU};
 use geom::{Curve3, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
@@ -338,9 +339,10 @@ fn a_parallel_axis_cylinder_every_class() {
 /// **R-reach**: a torus against an oblique cylinder (the backstop's
 /// tilted rod,
 /// `union-backstop-catches-a-suspect-body-from-a-tilted-rod-in-a-half-donut`)
-/// and a non-coaxial torus; a cone against a non-coaxial torus and a
+/// and a tilted torus; a cone against a non-coaxial torus and a
 /// spline. (A cone against an oblique cylinder or a tilted or
-/// parallel-axis cone is the ruling charts', `section_cert_cone_pair_rows`.)
+/// parallel-axis cone is the ruling charts', `section_cert_cone_pair_rows`;
+/// a torus on a parallel axis is `section_cert_parallel_tori_rows`'.)
 #[test]
 fn intractable_poses_refuse_on_reach() {
     let rod = cylinder(
@@ -349,10 +351,14 @@ fn intractable_poses_refuse_on_reach() {
         0.15,
     );
     assert!(matches!(classify(&donut(), &rod), Section::Intractable));
-    assert!(matches!(
-        classify(&donut(), &torus(p(1.0, 0.0, 0.0), 2.0, 0.5)),
-        Section::Intractable
-    ));
+    let tilted = Surface::Torus {
+        center: p(1.0, 0.0, 0.0),
+        axis: v(0.0, (0.5f64).sin(), (0.5f64).cos()),
+        major_radius: 2.0,
+        minor_radius: 0.5,
+        u_ref: Vec3::unit_x(),
+    };
+    assert!(matches!(classify(&donut(), &tilted), Section::Intractable));
     let cone = Surface::Cone {
         apex: p(0.0, 0.0, 3.0),
         axis: Vec3::unit_z(),
@@ -615,7 +621,7 @@ fn sphere_pairs_every_class() {
     );
     // Viviani's pinch: tangent.
     let s = classify(&ball, &cylinder(p(0.5, 0.0, -2.0), Vec3::unit_z(), 0.5));
-    assert_eq!(tangent(&s), "section_sphere_cylinder_girdle");
+    assert_eq!(tangent(&s), "cs_far_reach");
 }
 
 // -------------------------------------------------------------------
@@ -788,21 +794,13 @@ fn a_touch_is_the_centre_of_every_loop_its_margin_admits() {
         ("ball deep in a wall", 1.0, 0.02, 0.98),
     ] {
         let wall = cylinder(origin, Vec3::unit_z(), rc);
-        let t = touch_both_ways(
-            &sphere(p(e, 0.0, 0.0), rho),
-            &wall,
-            "section_sphere_cylinder_reach",
-        );
+        let t = touch_both_ways(&sphere(p(e, 0.0, 0.0), rho), &wall, "cs_near_reach");
         assert!(
             (t.at - p(rc, 0.0, 0.0)).norm() < 1e-12,
             "{label}: tangent at {:?}",
             t.at
         );
-        let t = touch_both_ways(
-            &sphere(p(e, 0.0, 0.0), rho + push),
-            &wall,
-            "section_sphere_cylinder_reach",
-        );
+        let t = touch_both_ways(&sphere(p(e, 0.0, 0.0), rho + push), &wall, "cs_near_reach");
         centres(label, &t, &ball_wall_loop(rc, e, rho + push));
     }
     // Skew walls outside one another, square and 5.7° apart.
@@ -838,10 +836,7 @@ fn pinches_and_undecided_tangencies_are_not_touches() {
     let pl = plane(p(0.0, 0.0, 1.0 - in_sliver()), Vec3::unit_z());
     assert_eq!(tangent(&classify(&ball, &pl)), "section_sphere_plane_reach");
     let girdle = cylinder(p(0.5, 0.0, -2.0), Vec3::unit_z(), 0.5);
-    assert_eq!(
-        tangent(&classify(&ball, &girdle)),
-        "section_sphere_cylinder_girdle"
-    );
+    assert_eq!(tangent(&classify(&ball, &girdle)), "cs_far_reach");
     let fat = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 1.0);
     let inner = cylinder(p(0.0, 0.8, 0.0), Vec3::unit_x(), 0.2);
     assert_eq!(
@@ -860,7 +855,7 @@ fn pinches_and_undecided_tangencies_are_not_touches() {
     let off = 0.3 * band().zero();
     assert_eq!(
         tangent(&classify(&sphere(p(off, 0.0, 0.0), 1.0), &fat)),
-        "section_sphere_cylinder_reach"
+        "cs_wall_reach"
     );
     assert_eq!(
         tangent(&classify(&ball, &sphere(p(off, 0.0, 0.0), 1.0 - off))),
@@ -1296,6 +1291,7 @@ pub(super) fn scan(
     ops::section_pairs(
         a,
         b,
+        &crate::boolean::section_table::SectionTable::default(),
         band(),
         ops::SectionPath::Crossings,
         ops::Exempt::Nothing,
@@ -1507,6 +1503,7 @@ pub(super) fn scan_b(
     ops::section_pairs(
         a,
         b,
+        &crate::boolean::section_table::SectionTable::default(),
         band(),
         ops::SectionPath::Crossings,
         ops::Exempt::Nothing,
@@ -1992,7 +1989,7 @@ fn chain_sheet(
             },
         )
         .unwrap();
-    let mut edges: Vec<crate::MevCreated> = Vec::new();
+    let mut edges: Vec<crate::construction::MevCreated> = Vec::new();
     for i in 0..n {
         let site = match edges.last() {
             None => MevSite::Lone {
@@ -2384,33 +2381,42 @@ fn notched_chart(du: f64, dv: f64, corner: bool) -> (Vec<(f64, f64)>, (f64, f64)
 /// `s` by `π/8` each way.
 #[test]
 fn a_small_notch_in_a_torus_face_reads_out_at_every_size() {
-    let eps = Tol::witness().eps();
-    let mut bad = Vec::new();
-    let a = PI / 4.0;
-    for ring in RINGS {
-        let rho = ring.0 + ring.1 * a.cos();
-        for s in notch_sizes() {
-            let (du, dv) = (s / rho, s / ring.1);
-            for (what, du, dv, corner) in [
-                ("L", du, dv, true),
-                ("U", du, dv, false),
-                ("thin deep L", du, PI / 8.0, true),
-                ("thin wide L", PI / 8.0, dv, true),
-            ] {
-                let (corners, centre) = notched_chart(du, dv, corner);
-                let (body, face) = torus_sheet(ring, &corners);
-                let got = door(&body, face, torus_at(ring, centre));
-                if !matches!(got, Ok(Some(FaceContainment::Out))) {
-                    bad.push(format!("ring {ring:?}, {what} notch {s:e} m: {got:?}"));
+    // Pinned to limb 2's kernel limit at ε = 1e-12: the torus composite's conditioning
+    // (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+    test_utils::kernel_limit::pinned_row(
+        geom_core::Tol::witness().eps(),
+        &[1e-12],
+        "a_small_notch_in_a_torus_face_reads_out_at_every_size",
+        || {
+            let eps = Tol::witness().eps();
+            let mut bad = Vec::new();
+            let a = PI / 4.0;
+            for ring in RINGS {
+                let rho = ring.0 + ring.1 * a.cos();
+                for s in notch_sizes() {
+                    let (du, dv) = (s / rho, s / ring.1);
+                    for (what, du, dv, corner) in [
+                        ("L", du, dv, true),
+                        ("U", du, dv, false),
+                        ("thin deep L", du, PI / 8.0, true),
+                        ("thin wide L", PI / 8.0, dv, true),
+                    ] {
+                        let (corners, centre) = notched_chart(du, dv, corner);
+                        let (body, face) = torus_sheet(ring, &corners);
+                        let got = door(&body, face, torus_at(ring, centre));
+                        if !matches!(got, Ok(Some(FaceContainment::Out))) {
+                            bad.push(format!("ring {ring:?}, {what} notch {s:e} m: {got:?}"));
+                        }
+                    }
                 }
             }
-        }
-    }
-    assert!(
-        bad.is_empty(),
-        "ε {eps:e}: {} cells answer other than Out:\n{}",
-        bad.len(),
-        bad.join("\n")
+            assert!(
+                bad.is_empty(),
+                "ε {eps:e}: {} cells answer other than Out:\n{}",
+                bad.len(),
+                bad.join("\n")
+            );
+        },
     );
 }
 
@@ -2421,28 +2427,38 @@ fn a_small_notch_in_a_torus_face_reads_out_at_every_size() {
 /// that root past the band ([`parallel_leg_resolves`]) it refuses typed.
 #[test]
 fn a_torus_rectangle_trims_on_every_ring() {
-    let a = PI / 4.0;
-    for ring in RINGS {
-        let (body, face) = torus_sheet(ring, &[(0.0, -a), (2.0 * a, -a), (2.0 * a, a), (0.0, a)]);
-        assert_eq!(
-            door(&body, face, torus_at(ring, (a, 0.0))).unwrap(),
-            Some(FaceContainment::In),
-            "ring {ring:?}: the centre"
-        );
-        let past = door(&body, face, torus_at(ring, (2.0 * a + 0.1, 0.0)));
-        if parallel_leg_resolves(ring) {
-            assert_eq!(
-                past.unwrap(),
-                Some(FaceContainment::Out),
-                "ring {ring:?}: past the window"
-            );
-        } else {
-            assert!(
-                matches!(past, Err(crate::ContainError::RayExhausted)),
-                "ring {ring:?}: past the window: {past:?}"
-            );
-        }
-    }
+    // Pinned to limb 2's kernel limit at ε = 1e-12: the torus composite's conditioning
+    // (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+    test_utils::kernel_limit::pinned_row(
+        geom_core::Tol::witness().eps(),
+        &[1e-12],
+        "a_torus_rectangle_trims_on_every_ring",
+        || {
+            let a = PI / 4.0;
+            for ring in RINGS {
+                let (body, face) =
+                    torus_sheet(ring, &[(0.0, -a), (2.0 * a, -a), (2.0 * a, a), (0.0, a)]);
+                assert_eq!(
+                    door(&body, face, torus_at(ring, (a, 0.0))).unwrap(),
+                    Some(FaceContainment::In),
+                    "ring {ring:?}: the centre"
+                );
+                let past = door(&body, face, torus_at(ring, (2.0 * a + 0.1, 0.0)));
+                if parallel_leg_resolves(ring) {
+                    assert_eq!(
+                        past.unwrap(),
+                        Some(FaceContainment::Out),
+                        "ring {ring:?}: past the window"
+                    );
+                } else {
+                    assert!(
+                        matches!(past, Err(crate::ContainError::RayExhausted)),
+                        "ring {ring:?}: past the window: {past:?}"
+                    );
+                }
+            }
+        },
+    );
 }
 
 /// **A gap anywhere in a torus face's boundary refuses.** The rectangle
@@ -2603,81 +2619,90 @@ fn a_small_notch_in_a_cone_face_reads_out_at_every_size() {
 /// the other way.
 #[test]
 fn the_smallest_notch_never_reads_in() {
-    let tol = Tol::witness();
-    let s = 1.5 * tol.k() * tol.eps();
-    let mut bad = Vec::new();
-    let (mut outs, mut ins) = (0, 0);
-    let mut door_reads = |what: String,
-                          [notch, out, inside]: [Result<Option<FaceContainment>, crate::ContainError>;
-                              3]| {
-        if !matches!(notch, Err(crate::ContainError::Escalated { .. })) {
-            bad.push(format!("{what}: the notch reads {notch:?}"));
-        }
-        match out {
-            Ok(Some(FaceContainment::Out)) => outs += 1,
-            Err(crate::ContainError::Escalated { .. }) => {}
-            other => bad.push(format!("{what}: past the notch reads {other:?}")),
-        }
-        match inside {
-            Ok(Some(FaceContainment::In)) => ins += 1,
-            Err(crate::ContainError::Escalated { .. }) => {}
-            other => bad.push(format!("{what}: inside the notch's corner reads {other:?}")),
-        }
-    };
-    for ring in RINGS {
-        let (du, dv) = (s / (ring.0 + ring.1), s / ring.1);
-        let (w, a) = (PI / 2.0, PI / 4.0);
-        let corners = [
-            (0.0, -a),
-            (w, -a),
-            (w, -dv),
-            (w - du, -dv),
-            (w - du, 0.0),
-            (0.0, 0.0),
-        ];
-        let (body, face) = torus_sheet(ring, &corners);
-        door_reads(
-            format!("ring {ring:?}"),
-            [
-                (w - 0.5 * du, -0.5 * dv),
-                (w - 0.5 * du, 2.0 * dv),
-                (w - 3.0 * du, -3.0 * dv),
-            ]
-            .map(|at| door(&body, face, torus_at(ring, at))),
-        );
-    }
-    let w = PI / 4.0;
-    for (h0, h1) in FRUSTA {
-        let (dh, dt) = (s / 2f64.sqrt(), s / h1);
-        let (body, face) = cone_sheet(
-            cone_at(h0, 0.0),
-            &[
-                Step::Arc(h0, 0.0, w),
-                Step::Line(cone_at(h1 - dh, w)),
-                Step::Arc(h1 - dh, w, w - dt),
-                Step::Line(cone_at(h1, w - dt)),
-                Step::Arc(h1, w - dt, 0.0),
-            ],
-        );
-        door_reads(
-            format!("frustum {h0}..{h1}"),
-            [
-                (h1 - 0.5 * dh, w - 0.5 * dt),
-                (h1 + 2.0 * dh, w - 0.5 * dt),
-                (h1 - 3.0 * dh, w - 3.0 * dt),
-            ]
-            .map(|(h, u)| door(&body, face, cone_at(h, u))),
-        );
-    }
-    assert!(
-        outs > 0 && ins > 0,
-        "no definite side: {outs} Out, {ins} In"
-    );
-    assert!(
-        bad.is_empty(),
-        "notch {s:e} m at ε {:e}:\n{}",
-        tol.eps(),
-        bad.join("\n")
+    // Pinned to limb 2's kernel limit at ε = 1e-12: the torus composite's conditioning
+    // (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+    test_utils::kernel_limit::pinned_row(
+        geom_core::Tol::witness().eps(),
+        &[1e-12],
+        "the_smallest_notch_never_reads_in",
+        || {
+            let tol = Tol::witness();
+            let s = 1.5 * tol.k() * tol.eps();
+            let mut bad = Vec::new();
+            let (mut outs, mut ins) = (0, 0);
+            let mut door_reads = |what: String,
+                                  [notch, out, inside]: [Result<Option<FaceContainment>, crate::ContainError>;
+                                      3]| {
+                if !matches!(notch, Err(crate::ContainError::Escalated { .. })) {
+                    bad.push(format!("{what}: the notch reads {notch:?}"));
+                }
+                match out {
+                    Ok(Some(FaceContainment::Out)) => outs += 1,
+                    Err(crate::ContainError::Escalated { .. }) => {}
+                    other => bad.push(format!("{what}: past the notch reads {other:?}")),
+                }
+                match inside {
+                    Ok(Some(FaceContainment::In)) => ins += 1,
+                    Err(crate::ContainError::Escalated { .. }) => {}
+                    other => bad.push(format!("{what}: inside the notch's corner reads {other:?}")),
+                }
+            };
+            for ring in RINGS {
+                let (du, dv) = (s / (ring.0 + ring.1), s / ring.1);
+                let (w, a) = (PI / 2.0, PI / 4.0);
+                let corners = [
+                    (0.0, -a),
+                    (w, -a),
+                    (w, -dv),
+                    (w - du, -dv),
+                    (w - du, 0.0),
+                    (0.0, 0.0),
+                ];
+                let (body, face) = torus_sheet(ring, &corners);
+                door_reads(
+                    format!("ring {ring:?}"),
+                    [
+                        (w - 0.5 * du, -0.5 * dv),
+                        (w - 0.5 * du, 2.0 * dv),
+                        (w - 3.0 * du, -3.0 * dv),
+                    ]
+                    .map(|at| door(&body, face, torus_at(ring, at))),
+                );
+            }
+            let w = PI / 4.0;
+            for (h0, h1) in FRUSTA {
+                let (dh, dt) = (s / 2f64.sqrt(), s / h1);
+                let (body, face) = cone_sheet(
+                    cone_at(h0, 0.0),
+                    &[
+                        Step::Arc(h0, 0.0, w),
+                        Step::Line(cone_at(h1 - dh, w)),
+                        Step::Arc(h1 - dh, w, w - dt),
+                        Step::Line(cone_at(h1, w - dt)),
+                        Step::Arc(h1, w - dt, 0.0),
+                    ],
+                );
+                door_reads(
+                    format!("frustum {h0}..{h1}"),
+                    [
+                        (h1 - 0.5 * dh, w - 0.5 * dt),
+                        (h1 + 2.0 * dh, w - 0.5 * dt),
+                        (h1 - 3.0 * dh, w - 3.0 * dt),
+                    ]
+                    .map(|(h, u)| door(&body, face, cone_at(h, u))),
+                );
+            }
+            assert!(
+                outs > 0 && ins > 0,
+                "no definite side: {outs} Out, {ins} In"
+            );
+            assert!(
+                bad.is_empty(),
+                "notch {s:e} m at ε {:e}:\n{}",
+                tol.eps(),
+                bad.join("\n")
+            );
+        },
     );
 }
 
@@ -3016,8 +3041,9 @@ fn a_plane_touch_near_the_top_parallel_stands_on_both_carriers() {
 
 /// **A ball touching a wall from inside, nearly coaxial, stands its
 /// touch on both carriers** (`Touch::at`'s contract): the ball of
-/// radius `ρc − e` about a centre `e` off the wall's axis, `e` from 10ε
-/// to 1e3ε, about 16 axes spread over the sphere, the wall's origin at
+/// radius `ρc − e` about a centre `e` off the wall's axis, `e` from
+/// twice the band's escalation threshold (a centre the pose decides off
+/// the axis, `cs_coaxial`) to 1e3ε, about 16 axes spread over the sphere, the wall's origin at
 /// the ball or 1e3 along the axis, at ×1e-3, ×1 and ×1e3, both operand
 /// orders. `at` is read on the ruling through the centre's part square
 /// to the axis, of norm `e`: it stands within ε of each carrier, plus 8
@@ -3036,7 +3062,7 @@ fn a_ball_touching_a_wall_near_its_axis_stands_on_both_carriers() {
             centre: base,
             radius: 2.0 * scale,
         };
-        let mut touches = 0;
+        let (mut touches, mut poses) = (0, 0);
         for i in 0..16 {
             let z = 1.0 - (f64::from(i) + 0.5) / 8.0;
             let phi = 2.4 * f64::from(i);
@@ -3048,7 +3074,14 @@ fn a_ball_touching_a_wall_near_its_axis_stands_on_both_carriers() {
                 let o = base - d * far;
                 let wall = Partner::Wall(o, d, rc);
                 let ulps = 8.0 * f64::EPSILON * (far + 2.0 * scale);
-                for e in [10.0, 100.0, 1e3].map(|k| k * eps) {
+                // The ball's radius `ρc − e` must stay definitely positive:
+                // a radius the band cannot tell from zero is a degenerate
+                // operand, which the pose refuses rather than touches.
+                for e in [2.0 * band.escalate(), 100.0 * eps, 1e3 * eps]
+                    .into_iter()
+                    .filter(|&e| rc - e > 2.0 * band.escalate())
+                {
+                    poses += 1;
                     let ball = Partner::Sphere(base + q * e, rc - e);
                     let label = format!("×{scale:e}, axis {i}, origin {far:e} along, e {e:e}");
                     for section in [
@@ -3073,7 +3106,8 @@ fn a_ball_touching_a_wall_near_its_axis_stands_on_both_carriers() {
                 }
             }
         }
-        assert_eq!(touches, 192, "×{scale:e}: every pose a touch");
+        assert!(touches >= 128, "×{scale:e}: {touches} touches");
+        assert_eq!(touches, poses * 2, "×{scale:e}: every pose a touch");
     }
 }
 

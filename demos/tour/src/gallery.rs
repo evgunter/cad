@@ -116,28 +116,29 @@ fn write_one(dir: &Path, name: &str, doc: &ProfileDoc, tol: Tol) {
 /// finding ships a picture that is wrong in a way only the badge
 /// explains. The die shipped exactly that for as long as this exporter
 /// has existed: two bodies in its product, one sitting on the other, the pips
-/// filled in and the outer faces z-fighting (#1162 diagnosed it; its
-/// separation resident is what reports it). Writing the count here
+/// filled in and the outer faces z-fighting (#1162 diagnosed it; the
+/// at-rest check is what reports it). Writing the count here
 /// means the next one is noticed when it is WRITTEN rather than when
 /// someone opens the file and wonders what they are looking at.
 ///
 /// A count, never a verdict: the registry reports, it does not gate
 /// (`editor_core::checks`), and the scenes that report today —
-/// `checks`, whose finding is its subject, and the teapot, four solids
-/// the operand gate cannot join — are no reason to refuse their files.
+/// `checks`, whose finding is its subject, the teapot, four solids
+/// the operand gate cannot join, and the chain, whose joints no mate
+/// declares — are no reason to refuse their files.
 fn advisory(doc: &ProfileDoc, tol: Tol) -> String {
     let evaluation = evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
     match run_checks(doc, &evaluation, &ChecksConfig::default(), tol) {
         Err(error) => format!(" — the check registry refused: {}", error.spoken(doc)),
         Ok(report) if report.findings.is_empty() => String::new(),
         Ok(report) => {
-            let separation = report
+            let at_rest = report
                 .findings
                 .iter()
-                .filter(|finding| finding.check == CheckId::Separation)
+                .filter(|finding| finding.check == CheckId::AtRest)
                 .count();
             format!(
-                " — {} finding(s), {separation} of them separation",
+                " — {} finding(s), {at_rest} of them at rest",
                 report.findings.len()
             )
         }
@@ -166,9 +167,9 @@ mod tests {
         doc: ProfileDoc,
         /// World placements. One, unless the scene has a reason.
         placements: usize,
-        /// The separation findings the advisory registry reports, and
-        /// why.
-        separation: usize,
+        /// The at-rest findings the advisory registry reports, loud and
+        /// quiet, and why.
+        at_rest: usize,
         /// The product's shape, where a row's `why` makes a claim
         /// about it: pinned so the claim goes red when the document
         /// changes under it.
@@ -212,7 +213,7 @@ mod tests {
                 name: "bracket",
                 doc: crate::bracket::gallery_document(tol),
                 placements: 1,
-                separation: 0,
+                at_rest: 0,
                 product: None,
                 why: "one placement: the extrude, split, its corner piece kept and that piece's \
                       chords chamfered; the offcuts live in the scene's wall probe, not in the \
@@ -222,16 +223,16 @@ mod tests {
                 name: "checks",
                 doc: crate::checks::gallery_document(tol),
                 placements: 1,
-                separation: 0,
+                at_rest: 0,
                 product: None,
                 why: "one placement; its connectedness finding is the scene's own subject \
-                      and is not a separation one",
+                      and is not an at-rest one",
             },
             Shape {
                 name: "ring",
                 doc: crate::ring::gallery_document(tol),
                 placements: 1,
-                separation: 0,
+                at_rest: 0,
                 product: None,
                 why: "one revolve, one placement",
             },
@@ -239,7 +240,7 @@ mod tests {
                 name: "diefillet",
                 doc: crate::diefillet::gallery_document(tol),
                 placements: 1,
-                separation: 0,
+                at_rest: 0,
                 product: None,
                 why: "the composed die alone — the blank is a narration body and \
                       nothing places it, which is what this row guards",
@@ -248,7 +249,7 @@ mod tests {
                 name: "heatsink",
                 doc: crate::heatsink::gallery_document(tol),
                 placements: 1,
-                separation: 0,
+                at_rest: 0,
                 product: None,
                 why: "one placement, and nothing in the document interpenetrates: the base \
                       is rounded by a Fillet, the fin group is a PlacedUnion, and a \
@@ -259,26 +260,27 @@ mod tests {
                 name: "teapot",
                 doc: crate::teapot::gallery_document(tol),
                 placements: 4,
-                separation: 2,
+                at_rest: 42,
                 product: None,
                 why: concat!(
                     "FOUR placements, because the teapot is four solids and the operand ",
-                    "gate has no arm for either join. TWO findings over the six ",
-                    "pairs, and the check denies a BOX certificate rather than ",
-                    "asserting an overlap: handle/vessel and spout/vessel are the ",
-                    "scene's own two walls, real interpenetrations a boolean would ",
-                    "have to take. The four pairs it says nothing about are the ones ",
-                    "the box rule PROVED apart, the lifted lid's two among them: its ",
-                    "dome is boxed by its latitude zone, not the whole ball. ",
-                    "No mate is authored, so nothing declares ",
-                    "the gap the render shows",
+                    "gate has no arm for either join. FORTY-TWO at-rest findings, all ",
+                    "loud and none refusing: ONE interference, the handle's torus ",
+                    "standing in the vessel's sphere, unlocalised because the ",
+                    "intersection cannot take it; FORTY-ONE could-not-look, the face ",
+                    "pairs where a curved face of one part is within reach of the ",
+                    "other (the spout's walls in the vessel among them) and the ",
+                    "contacts the census met but no door recorded. The lifted lid's ",
+                    "pairs are the ones the box rule PROVED apart: its dome is boxed ",
+                    "by its latitude zone, not the whole ball. No mate is authored, ",
+                    "so nothing declares the gap the render shows",
                 ),
             },
             Shape {
                 name: "impeller",
                 doc: crate::impeller::gallery_document(tol),
                 placements: 1,
-                separation: 0,
+                at_rest: 0,
                 // The 24-gon hub's 26 faces, and each blade's three
                 // outer walls plus its top and bottom.
                 product: Some(Product {
@@ -292,7 +294,7 @@ mod tests {
                 name: "plate",
                 doc: crate::plate::gallery_document(tol),
                 placements: 1,
-                separation: 0,
+                at_rest: 0,
                 product: Some(Product {
                     solids: 1,
                     faces: 6,
@@ -312,7 +314,7 @@ mod tests {
                 name: "chain",
                 doc: crate::chain::gallery_document(tol),
                 placements: 10,
-                separation: 13,
+                at_rest: 10,
                 // Each bar a six-face box; each pin a cylinder wall in
                 // two halves and its two caps.
                 product: Some(Product {
@@ -324,9 +326,15 @@ mod tests {
                     "copies: one bar extrude, each link placed against its parent, is ",
                     "four copies, each its own output with its own names; the target ",
                     "stands in the world because the tip measure reads it beside the ",
-                    "tip pin's copy. THIRTEEN findings, all separation: each pin stands ",
-                    "in the bar ends it joins, the bars meet at the joints, the target ",
-                    "stands on the tip pin at nominal, and no mate declares a joint",
+                    "tip pin's copy. TEN at-rest findings, all interference and none ",
+                    "could-not-look, because the pins are separate extrudes rather ",
+                    "than bores: each pin shares a half-disc of material with every ",
+                    "bar end it stands in — the base pin with bar 1, joint pin k = 2..4 ",
+                    "with bars k-1 and k, the tip pin with bar 4 — and the target, standing ",
+                    "where the tip pin does at nominal, with bar 4 and wholly with the ",
+                    "tip pin (that one unlocalised, the two boundaries coinciding). ",
+                    "The bars' end caps only touch at the joints and are no at-rest finding. ",
+                    "No mate declares a joint",
                 ),
             },
         ];
@@ -367,19 +375,32 @@ mod tests {
                         error.spoken(&shape.doc)
                     )
                 });
-            let separation = report
+            let at_rest = report
                 .findings
                 .iter()
-                .filter(|finding| finding.check == CheckId::Separation)
+                .filter(|finding| finding.check == CheckId::AtRest)
                 .count();
             assert_eq!(
-                separation,
-                shape.separation,
-                "{}: separation findings ({}) — {}",
+                at_rest,
+                shape.at_rest,
+                "{}: at-rest findings ({}) — {}",
                 shape.name,
                 shape.why,
                 report.spoken(&shape.doc)
             );
+            // What a scene reports at rest is an overlap no assertion
+            // could quiet or a pair it could not look at, outside what
+            // its document can yet say, so it refuses at no severity
+            // (CHECKS DS6): the teapot's handle in its vessel and the
+            // chain's pins in its bars included.
+            let error = ChecksConfig {
+                at_rest: pncad::document::Severity::Error,
+                ..ChecksConfig::default()
+            };
+            let refused = pncad::document::enforce_checks(&report, &error)
+                .err()
+                .map(|refusal| refusal.findings.len());
+            assert_eq!(refused, None, "{}: refused at Error", shape.name);
         }
     }
 

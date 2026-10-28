@@ -984,7 +984,7 @@ mod tests {
             let seed = body.mvfs(carrier.eval(0.0), true).unwrap();
             body.set_face_surface(
                 seed.face,
-                crate::FaceSurface::New {
+                crate::construction::FaceSurface::New {
                     surface: surface.clone(),
                     sense: true,
                 },
@@ -997,7 +997,7 @@ mod tests {
                 u_ref: Vec3::unit_x(),
             });
             body.mev(
-                crate::MevSite::Lone {
+                crate::construction::MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
                 carrier.eval(t1),

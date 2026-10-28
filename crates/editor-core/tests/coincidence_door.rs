@@ -24,7 +24,7 @@ use topo::{DecisionSite, Relation};
 fn unproven(doc: &ProfileDoc, ev: &Evaluation<f64>) -> Vec<editor_core::CheckFinding> {
     let cfg = ChecksConfig {
         connectedness: Severity::Off,
-        separation: Advisory::Off,
+        at_rest: Severity::Off,
         chart_coherence: Advisory::Off,
         unproven_coincidence: Advisory::Warn,
         ..ChecksConfig::default()

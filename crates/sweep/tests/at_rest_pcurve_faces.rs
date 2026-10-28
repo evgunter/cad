@@ -1,7 +1,9 @@
 //! **Tier 3's pcurve pass on a torus wall** (C4): a strut no torus
-//! holds is a refusal tier 3 and the mint name, and, the strut being
-//! scaffolding (the modeler's declaration), it ends in the modeler's
-//! lever (D3, E1b); a stored row stated over
+//! holds is a refusal tier 3 and the mint name, and, a definite miss
+//! of a pair the kernel built, it ends as the kernel's defect at the
+//! build door and as the stored culprit's at rest, though the strut is
+//! scaffolding (a declaration, which no ending reads; D3); a stored row
+//! stated over
 //! more of its carrier than the edge spans is refused, on a complete
 //! face and a half-minted one alike; and a face bounded by a Villarceau
 //! arc mints.
@@ -28,8 +30,10 @@ use geom_brep::{EdgeCurveSpec, Pcurve, PcurveCache, PcurveCertifyError};
 use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
 use sweep::test_support::revolved_about_y;
+use topo::construction::Construct;
+use topo::construction::MevSite;
 use topo::pcurves::validate_pcurves;
-use topo::{Body, FaceKey, HalfEdgeKey, MevSite, PcurveMintError};
+use topo::{Body, FaceKey, HalfEdgeKey, PcurveMintError};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -128,25 +132,19 @@ fn line_strut(body: &mut Body<f64>, he: HalfEdgeKey) {
     strut(body, he, end, EdgeCurveSpec::line_between(p, end));
 }
 
-/// A scaffold strut off the torus: declared, and its refusal reads the
-/// modeler's lever at the build door and at rest, with no defect.
+/// A strut off the torus: its refusal is the kernel's defect at the build
+/// door and the stored culprit's at rest, declared scaffold though it is.
 fn off_chart(e: &PcurveMintError) -> bool {
-    let PcurveMintError::Certify {
-        error: PcurveCertifyError::CarrierOffChart { .. },
-        authority,
-        ..
-    } = e
-    else {
-        return false;
-    };
-    let lever = |text: &str| {
-        text.contains("Recourse: move the declared curve onto the face it bounds")
-            && !text.contains("defect")
-            && !text.contains("repair the body")
-    };
-    authority.is_declared()
-        && lever(&e.to_string())
-        && lever(&topo::ValidationError::Pcurve { finding: e.clone() }.to_string())
+    matches!(
+        e,
+        PcurveMintError::Certify {
+            error: PcurveCertifyError::CarrierOffChart { margin: None, .. },
+            ..
+        }
+    ) && e.to_string().ends_with(geom_core::KERNEL_DEFECT_ENDING)
+        && topo::ValidationError::Pcurve { finding: e.clone() }
+            .to_string()
+            .ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING)
 }
 
 /// Tier 3's findings and the wall's mint, with the oblique strut at
@@ -597,9 +595,9 @@ fn a_torus_face_bounded_by_a_villarceau_arc_mints_on_either_family() {
         let he2 = half_edge_at(&body, face, inner);
         let made = body
             .mef(
-                topo::MefSite::Chords { he1, he2 },
+                topo::construction::MefSite::Chords { he1, he2 },
                 spec,
-                topo::FaceSurface::Inherit,
+                topo::construction::FaceSurface::Inherit,
                 tol(),
             )
             .unwrap_or_else(|e| panic!("family {family}: the Villarceau split refuses: {e}"));
@@ -633,7 +631,7 @@ fn profile_cap(body: &Body<f64>) -> geom_brep::SurfaceKey {
 }
 
 /// A straight strut on the torus wall from a corner in the profile plane,
-/// lying in that plane: DECLARED (a scaffold, the modeler's), or DERIVED
+/// lying in that plane: DECLARED (a scaffold), or DERIVED
 /// (described as a chart image of the profile cap, which it lies on, so
 /// its edge certifies while its row on the torus wall cannot).
 fn in_plane_strut(declared: bool) -> (Body<f64>, FaceKey) {
@@ -667,66 +665,63 @@ fn in_plane_strut(declared: bool) -> (Body<f64>, FaceKey) {
     (body, wall)
 }
 
-/// **A strut off its face ends by who placed it, at every door** (D3,
-/// E1b R1/R2): the one map (`geom_brep::IncidenceRead::ending`) the
-/// build Display and the at-rest reason read alike. The same line strut on
-/// the torus wall, declared (a scaffold) and derived (a chart image of the
-/// profile cap it lies on):
+/// **A strut off its face ends by the door, whoever placed it** (D3, D4
+/// ¶1 (iv)): the one map (`geom_brep::IncidenceRead::ending`) the build
+/// Display and the at-rest reason read alike. The same line strut on the
+/// torus wall, declared (a scaffold) and derived (a chart image of the
+/// profile cap it lies on), definitely off the wall:
 ///
-/// - the stamp on the mint's refusal is the edge's own authority;
-/// - at the build door (`topo::mint_pcurves_of`), a declared strut reads
-///   the modeler's lever, with no "defect" and no "repair the body", and a
-///   derived one the kernel's; so does the mint's refusal wrapped by hand
-///   in `sweep::ExtrudeError::Pcurve`, the variant a sweep builder returns
-///   it in (its Display carries the mint's text; this is not a refusal of
-///   an extrude);
-/// - at rest (tier 3's finding), the same.
+/// - at the build door (`topo::mint_pcurves_of`), the kernel's defect, as
+///   in the mint's refusal wrapped by hand in `sweep::ExtrudeError::Pcurve`,
+///   the variant a sweep builder returns it in (its Display carries the
+///   mint's text; this is not a refusal of an extrude);
+/// - at rest (tier 3's finding), the stored culprit's;
+/// - declared and derived alike, word for word.
 ///
-/// A render that drops the authority (every strut read as derived) reds
-/// the declared arm at the build door.
+/// A kernel build's miss read as a lever reds the build row.
 #[test]
-fn a_strut_off_its_face_ends_by_who_placed_it_at_every_door() {
+fn a_strut_off_its_face_ends_by_the_door_whoever_placed_it() {
+    let mut texts = Vec::new();
     for declared in [true, false] {
         let (mut body, wall) = in_plane_strut(declared);
         let findings = validate_pcurves(&body, band());
         let [finding] = findings.as_slice() else {
             panic!("declared {declared}: {findings:?}")
         };
-        let PcurveMintError::Certify {
-            error, authority, ..
-        } = finding
-        else {
-            panic!("declared {declared}: {finding:?}")
-        };
         assert!(
-            matches!(error, PcurveCertifyError::CarrierOffChart { .. }),
-            "declared {declared}: {error:?}"
+            matches!(
+                finding,
+                PcurveMintError::Certify {
+                    error: PcurveCertifyError::CarrierOffChart { margin: None, .. },
+                    ..
+                }
+            ),
+            "declared {declared}: {finding:?}"
         );
-        assert_eq!(authority.is_declared(), declared);
         let minted = topo::mint_pcurves_of(&mut body, &[wall], tol()).unwrap_err();
         assert_eq!(&minted, finding, "the mint and tier 3 refuse alike");
         let built = minted.to_string();
         let wrapped = sweep::ExtrudeError::Pcurve(minted.clone()).to_string();
         let at_rest = topo::ValidationError::Pcurve { finding: minted }.to_string();
-        for (door, text) in [
-            ("build", &built),
-            ("ExtrudeError::Pcurve wrapping", &wrapped),
-            ("rest", &at_rest),
+        for (door, text, culprit) in [
+            ("build", &built, geom_core::KERNEL_DEFECT_ENDING),
+            (
+                "ExtrudeError::Pcurve wrapping",
+                &wrapped,
+                geom_core::KERNEL_DEFECT_ENDING,
+            ),
+            ("rest", &at_rest, geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
         ] {
-            if declared {
-                assert!(
-                    text.contains("Recourse: move the declared curve onto the face it bounds"),
-                    "{door}: {text}"
-                );
-                for word in ["defect", "repair the body", "loosen", "tighten"] {
-                    assert!(!text.contains(word), "{door}: {word}: {text}");
-                }
-            } else {
-                assert!(
-                    !text.contains("declared curve") && text.contains("defect"),
-                    "{door}: {text}"
-                );
-            }
+            assert!(
+                text.ends_with(culprit),
+                "declared {declared} at {door}: {text}"
+            );
+            assert!(
+                !text.contains("Recourse"),
+                "declared {declared} at {door}: {text}"
+            );
         }
+        texts.push([built, wrapped, at_rest]);
     }
+    assert_eq!(texts[0], texts[1], "who placed the strut moves no ending");
 }

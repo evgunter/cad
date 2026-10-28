@@ -1069,8 +1069,7 @@ const SPLIT_FRACTION: f64 = 0.618_033_988_749_895;
 /// describing door with [`chord_redescriptions`], which states the
 /// merged members where they land. So the parent's certificate is
 /// re-derived here through [`geom_brep::EdgeCurve::recertify`] — the
-/// door `split_edge` itself certifies through, not tier 3's
-/// lane-holding `recertify_via`, which admits a strictly wider class — and
+/// door `split_edge` and tier 3 certify through — and
 /// ASSERTED rather than filtered on, over every edge this is asked
 /// about: all of them where [`split_edge_candidates`] builds the list,
 /// and the edges up to the first splittable one where
@@ -1100,6 +1099,7 @@ fn split_site(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> Option<(f64, EdgeCur
         |k| body.get_surface(k).cloned(),
         crate::edge_wedge_reach(body, edge)?,
         band,
+        geom_brep::NurbsLane::certified(),
     ) {
         panic!("edge {edge:?} carries a carrier its own endpoints left: {error:?}");
     }
@@ -1158,8 +1158,8 @@ fn kev_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
 /// A describing kill's list: each merged member with its spec.
 type Redescriptions = Vec<(EdgeKey, EdgeCurveSpec<f64>)>;
 
-/// What this walk hands [`Body::kev_describing`] when it kills `he`:
-/// every merged member ([`Body::kev_merged_members`]), re-described as
+/// What this walk hands [`Body::kev_describing`](crate::construction::Construct::kev_describing) when it kills `he`:
+/// every merged member ([`Body::kev_merged_members`](crate::construction::Construct::kev_merged_members)), re-described as
 /// the straight chord between the endpoints the merge gives it — or,
 /// where the merge closes it onto one point, the canonical self-loop
 /// circle there ([`EdgeCurveSpec::self_loop_circle_at`], what
@@ -1168,7 +1168,7 @@ type Redescriptions = Vec<(EdgeKey, EdgeCurveSpec<f64>)>;
 /// **Why every member and not only the ones that need it.** On the
 /// counter lattice two distinct vertices never share a point, so a
 /// member's stored carrier, pinned to the dying vertex's point, never
-/// describes it at the survivor's: the keys-only [`Body::kev`] names
+/// describes it at the survivor's: the keys-only [`Body::kev`](crate::construction::Construct::kev) names
 /// every certified member here
 /// ([`crate::EulerOpError::MergeRebasesCarriers`]). Re-describing them
 /// is the walk speaking as the modeler, which is what a describing kill
@@ -1189,7 +1189,7 @@ fn chord_redescriptions(
 }
 
 /// [`chord_redescriptions`] over a body that need not be valid: `None`
-/// where [`Body::kev_merged_members`] refuses. Its caller is
+/// where [`Body::kev_merged_members`](crate::construction::Construct::kev_merged_members) refuses. Its caller is
 /// `review_d18`'s kill through either door.
 pub(crate) fn try_chord_redescriptions(
     body: &Body<f64>,
@@ -1213,7 +1213,7 @@ fn chord_of(member: &MergedMember<f64>) -> (EdgeKey, EdgeCurveSpec<f64>) {
 
 /// **The keys-only kill under fuzz.** Every edge this walk mints is
 /// certified, so a kill with a non-empty merged fan has a certified
-/// member and [`Body::kev`] must refuse it, naming every member in orbit
+/// member and [`Body::kev`](crate::construction::Construct::kev) must refuse it, naming every member in orbit
 /// order ([`crate::EulerOpError::MergeRebasesCarriers`]); a kill with
 /// an empty fan it must take. Asked on a clone, beside the describing
 /// kill the walk applies — the shape [`assert_run_site_refuses`] has for
@@ -1235,7 +1235,7 @@ fn assert_keys_only_kill_answers(body: &Body<f64>, he: HalfEdgeKey, members: &[M
 /// **The describing kill's unlisted-member gate under fuzz.** The walk
 /// lists every merged member, so this draws a subset to leave unlisted
 /// — at least one, from the lattice counter, so a replayed stream
-/// draws the same — and asks [`Body::kev_describing`] on a clone.
+/// draws the same — and asks [`Body::kev_describing`](crate::construction::Construct::kev_describing) on a clone.
 /// Oracle: each unlisted member's stored carrier re-certified at the
 /// endpoints the merge gives it, straight through
 /// [`geom_brep::EdgeCurve::recertify`]; the first that fails, in orbit
@@ -1278,6 +1278,7 @@ fn assert_unlisted_members_answer_to_the_gate(
                     |k| body.get_surface(k).cloned(),
                     crate::edge_wedge_reach(body, m.edge).expect("the walk mints no null edge"),
                     band,
+                    geom_brep::NurbsLane::certified(),
                 )
                 .is_err()
         })
@@ -1384,7 +1385,14 @@ fn carrier_is_coherent(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> bool {
         return false;
     };
     curve
-        .recertify(*p0, *p1, |k| body.get_surface(k).cloned(), reach, band)
+        .recertify(
+            *p0,
+            *p1,
+            |k| body.get_surface(k).cloned(),
+            reach,
+            band,
+            geom_brep::NurbsLane::certified(),
+        )
         .is_ok()
 }
 

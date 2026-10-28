@@ -1,8 +1,9 @@
 //! **A cylinder wall crossing a sphere off the cylinder's axis**: the
 //! germ pair's section is a space quartic, one loop or two, and the
-//! join's matcher reads it through the transverse frame
-//! (`topo::boolean::join`'s `cs_transverse_frame`): a centre and an axis
-//! each loop turns about once.
+//! join's matcher reads it through the operation's section table
+//! (`topo::boolean::section_table`): each germ's site by its foot on
+//! the marched and fitted loop it lies on, its partner the next foot
+//! along that loop in the direction the germ leaves.
 //!
 //! Two families of poses, each under ∪, ∩ and both differences in both
 //! operand orders:
@@ -287,7 +288,7 @@ fn at_the_lane_door(e: &BooleanError) -> bool {
 }
 
 /// **Every run builds SOUND or stops at the lane door**, never at the
-/// germ frame, in the join's own kernel-bug words, or on a wrong body.
+/// matcher, in the join's own kernel-bug words, or on a wrong body.
 /// Each run's `outcome` line is printed, so the rows double as a
 /// battery.
 #[test]
@@ -340,7 +341,8 @@ fn place(pose: &Pose, p: Point3<f64>) -> (i8, f64, f64) {
 
 /// **Every segment joins two neighbouring sites along their loop**, and
 /// every arc between neighbours is one segment: the matcher's pairing,
-/// read through the frame, against the loops' own order. Every germ is
+/// by foot parameter on the section's fitted loops, against the analytic
+/// loops' own order. Every germ is
 /// consumed (one segment per pair record).
 #[test]
 fn every_segment_joins_neighbouring_sites_along_its_loop() {

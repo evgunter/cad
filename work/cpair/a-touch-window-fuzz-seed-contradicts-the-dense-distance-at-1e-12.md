@@ -37,3 +37,14 @@ passes drew other seeds and passed. No merge in the window touched
 `curve_pair/pose/window/`, so this is the fuzzer drawing into the
 same defect, not a regression. Pin both seeds as deterministic rows
 beside the fix.
+
+## 2026-10-27 — another seed (SPLICE, PR 5868's slow-set run)
+
+Default suite run (the row loops its own ε rows), PR 5868 at `833da0303`,
+which does not touch `curve_pair`: `ε 0.000000000001: 2 readings
+contradicted`, reproduce with `CAD_FUZZ_SEED=0xdcf91059414eafd4
+CAD_FUZZ_EFFORT=1`. Draw 7, f64: `Recedes` read on two windows
+`(-2.142e-7, -2.117e-7)` (away false) and `(1.139e-6, 1.141e-6)` (away
+true), against a Circle of radius 477.40 centred at
+`(-160.017, -381.167, 1.259)`, axis `(0.00135, 0.00227, 0.99999)`, and the
+point b `(105.656, 48.066)`.

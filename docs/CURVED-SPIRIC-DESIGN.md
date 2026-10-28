@@ -271,7 +271,7 @@ the list below is the non-test set), and what each costs a spiric:
 | parameter of an on-carrier point | `curves.rs:Curve3::param_near` | **closed form**: in the meridian half-plane the point is `w = (ρ − R, h)` with `h = (p − c)·a`, `ρ = |p − c − a·h|`, and `v = near + atan2(w × w_near, w · w_near)` with `w_near = (r cos near, r sin near)` — the circle arm's anchored difference form verbatim; `Ellipse`/`Nurbs` answer `None`, the spiric need not |
 | foot point / projection | `geom/src/curves/projection.rs:Projection3::project` | Newton from a seed — the same machine the ellipse and the spline use; a root-find, as it is for them |
 | certified boxes | `geom/src/curves/boxes.rs:{circle,ellipse,nurbs}_arc_aabb`; consumer `topo/src/boolean/boxes.rs:EdgeBoxRule` | conservative closed form: per axis, `n·d ± m·[√((R−r)²−d²), √((R+r)²−d²)] + a·r·[−1, 1]` (sign per branch) through `Brk` (already has `sqrt_nonneg`); exact extremes need a 1-D root of a transcendental — not needed, C10 admits conservative supersets |
-| attachment / tier-3 certification | `geom-brep/src/certify.rs:run_checks` (`Intersection`: `Surface{1,2}Residual`, `WitnessMidpoint`, `Transversality`, `ParamSpan`) | as for `Circle`/`Ellipse`: residual **zero by construction**; no C2 hull limb is owed (C2's three limbs are for FITTED carriers); `edge_extent`'s sag arm needs a `min speed·span` — `r·Δv` from §3.2 |
+| attachment / tier-3 certification | `geom-brep/src/certify.rs:run_checks` (`Intersection`: `Surface{1,2}Residual`, `WitnessMidpoint`, `Transversality`, `ParamSpan`) | as for `Circle`/`Ellipse`: C2's limbs 1 and 2, limb 2 read through the carrier's enclosing net (`carrier_net`) at `edge_nurbs::analytic_edge_limbs`; `extent.rs:{edge_extent_inf, edge_extent_sup}`'s spiric arms read the minor-circle fold, the oval's diagonal and the rate bound of §3.2 |
 | exact meters composite (C9 ring) | `geom-brep/src/ssi/enclose.rs:implicit_enclosure` | **unavailable for a torus** (poison) — needed only by fitted certificates, not by an exact carrier |
 | pcurves (per half-edge cache) | `geom-brep/src/pcurve_cache.rs:{Pcurve, chart_pcurve, run_fitted_checks}`; mint `topo/src/pcurves.rs:chart_mints` | **new form needed.** Plane cap: image `(±√(ρ²−d²), r sin v)` in the cap frame — one sqrt channel, not in `span{1, cos, sin, t}`. Torus wall: `(u(v), v)`, `u = atan2(±√(ρ²−d²), d)` — the meridional channel is the parameter itself, the azimuth channel transcendental. `chart_pcurve`'s torus arm refuses a line or ellipse as off the chart (`CarrierOffChart`), and a spiric reaches `spiric_chart_pcurve` before that arm; `run_fitted_checks` → `ssi::certify_rung3` → torus poison. Q3 |
 | chord tessellation | `mesh/src/chords.rs:compute_chords` (per-kind step: `sagitta_step`, `ellipse_step`, `nurbs_chord_count`) | closed-form `sup|C″|` bound: `|C″| ≤ r + (rρ_max + r²)/f_min + r²ρ_max²/f_min³`, `f_min = √((R−r)²−d²)` — the ellipse's curvature-bound pattern; `trimmed.rs:trim_polygon` consumes the pcurve |
@@ -337,7 +337,7 @@ Torus)` arm half-implemented forever. Cost: one refusal rename, S.
 minor_radius, offset: d, side: ± }`, parameter `v`. Costs: the ~60
 non-test dispatch arms of §4 (most one-line typed refusals or
 delegations; the load-bearing ones are `eval`/`deriv`/`deriv2`/
-`param_near`, `boxes`, `certify.rs:edge_extent`, `mesh/chords.rs`,
+`param_near`, `boxes`, `extent.rs:edge_extent_{inf,sup}`, `mesh/chords.rs`,
 `transform`, `step-export`), one new exact `Pcurve` variant (Q3(i))
 with its certification arm in `pcurve_cache.rs` and mint arm in
 `topo/src/pcurves.rs`, the kind-changing arm in `mint_carrier` with
@@ -477,7 +477,7 @@ and decide Q5 explicitly rather than by omission.**
 ## 8. PR shape and pre-log (if Q1 = (b))
 
 - **PR-1 — the kind.** `Curve3::Spiric` + evaluators + `param_near`
-  + boxes + `edge_extent` + transform/lift + chord step + STEP policy
+  + boxes + `edge_extent_{inf,sup}` + transform/lift + chord step + STEP policy
   + every kind-table arm (typed refusals where no closed form is
   owed) + the exact `Pcurve` variant on plane and torus charts +
   `mint_carrier`'s kind-changing arm with its named predicates +

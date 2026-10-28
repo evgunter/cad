@@ -392,35 +392,23 @@ fn the_donuts_corner_bar_refuses_at_its_end_square() {
 }
 
 /// **The lily's stem glue passes the chord, undeclared, in both member
-/// orders, and stops at the interior-loop guard**: its germ pair is the
-/// stem's weld cap against the arch's tube wall, whose section is the
-/// arch's meridian circle on both sides. Past the join, the section
-/// certificate is asked about the stem's tube wall against the arch's,
-/// two tori whose axes are parallel and apart, a pose it has no arm for
-/// (`work/sect/the-lilys-stem-and-arch-walls-have-no-certificate-arm.md`).
-/// No declaration is read.
+/// orders, and builds**: its germ pair is the stem's weld cap against
+/// the arch's tube wall, whose section is the arch's meridian circle on
+/// both sides. Past the join, the section certificate reads the stem's
+/// tube wall against the arch's (two tori whose axes are parallel and
+/// apart) as two loops, each outside one face's window, and the union is
+/// one shell. No declaration is read.
 #[test]
-fn the_lilys_stem_glue_passes_the_chord_to_the_interior_loop_guard() {
-    let (s, a) = (
-        crate::mate7a_r1_probes::stem(),
-        crate::mate7a_r1_probes::arch(),
-    );
+fn the_lilys_stem_glue_passes_the_chord_and_builds() {
+    let Some(s) = crate::mate7a_r1_probes::stem() else {
+        return;
+    };
+    let a = crate::mate7a_r1_probes::arch();
     for (label, x, y) in [("stem ∪ arch", &s, &a), ("arch ∪ stem", &a, &s)] {
-        let r = topo::union(x, y, Tol::witness());
-        assert!(
-            matches!(
-                &r,
-                Err(BooleanError::CurvedPairUnsupported {
-                    op: Some(BooleanOp::Union),
-                    site: topo::PairRefusalSite::InteriorLoopGuard,
-                    kind: geom::SurfaceKind::Torus,
-                    other_kind: geom::SurfaceKind::Torus,
-                    ..
-                })
-            ),
-            "{label}: {:?}",
-            r.err()
-        );
+        let r =
+            topo::union(x, y, Tol::witness()).unwrap_or_else(|e| panic!("{label} builds: {e:?}"));
+        let shells = r.body().map(|b| b.body.shells().count());
+        assert_eq!(shells, Some(1), "{label}: one stem");
     }
 }
 

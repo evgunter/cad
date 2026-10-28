@@ -30,3 +30,85 @@ no per-pair stopgap lane is built elsewhere. Rows dispatchable: 10, for
 rung-3 arm that klein wall 3 and teapot wall 3 need. Step 4 of this
 plan mentioned it only as a sentence. Agreed in chat that SECT should
 get its own orchestrator rather than SPLICE taking these rows.
+
+## 2026-10-27 — picked up
+
+(SECT orchestrator) Track claimed, status `ready` → `active`. INTENT E
+(`booleans-glue-on-zero`) closed 2026-10-10, so the section door's
+coincidence seam the plan names is no longer a wait: E's record exists
+and moves to the door with the frame's retirement. First dispatches:
+
+- **Step 1's open choices to the designer pair** (one Opus, one Fable,
+  `docs/prompts/designer.md`): the section object's type and home, its
+  certificate's rung per kind pair, and the door's coincidence/tangency
+  seam with E's record, as the brief for
+  `cylinder-sphere-germ-pair-has-no-join-lane` (and its two riders)
+  finds them open. Converged and inside fork row 100 → the brief is
+  written from it; a split → an `[ev]` PR.
+- **`the-lilys-stem-and-arch-walls-have-no-certificate-arm`** (P0 M) to
+  an implementer now: a section-certificate arm in `section_cert.rs`,
+  which does not wait on the section object. Review tier: single FULL
+  (a certificate deciding a pair clear is a soundness claim a read
+  cannot believe on its own).
+
+- 2026-10-27 — **C5 torus survey** (read-only lane). Every torus pair but
+  plane × torus is `Rung::General`, `implemented: false` at `route`
+  (`geom_brep::intersect`), "blocked on the torus's exact meters
+  conversion"; the section certificate (`section_cert` `torus_pair`)
+  already classifies every torus × sphere pose and the coaxial,
+  parallel and square torus × cylinder poses, so the certificate runs
+  ahead of C5. The block is real in code (`ssi/certify.rs`
+  `composite_form` refuses a torus; so does `ssi/enclose.rs`
+  `implicit_enclosure`, which exhaustiveness reads), but its stated
+  reason ("certification arithmetic does not take a root") is stale:
+  `Certification::sqrt` exists. **Teapot wall 2's critical path is
+  therefore CHARTTAIL's `torus-certificate-runs-root-free-through-its-quartic`**
+  (P2 H, designed in fork row 30, waits on no ruling) plus a torus SSI
+  door; by the blocker-inherits-the-band rule it is P0 work. Whether
+  SECT claims it (budget) or it is re-banded in place is decided once
+  step 1's design is in, since the section object fixes how C5's torus
+  arms are read. Teapot's pose: torus axis +z square to the pot's +y,
+  through neither centre (no closed form). Lily's: parallel axes in
+  one plane, offset `R₁ − R₂`, spines internally tangent at the fork,
+  so "clear" holds only within the faces' windows (sent to the lily lane).
+
+- 2026-10-27 — **Step 1's design converged.** The two designers (blinding
+  record on `analysis/design-fork/the-section-object`) reached one final
+  state inside fork row 100: a section value in `geom_brep`, built by the
+  only kind dispatch, and a per-operation table in `topo::boolean` read
+  by the glue records, the guard, the germ mint and the join. They
+  differed only in sequencing. One kept the cs frames reading the table
+  until step 3; the other retires them in 1a through foot-parameter
+  matching. I took the retirement: it removes two of the five offset
+  computations and is what the pinned matcher test exercises. No `[ev]`
+  PR, and no fork-log row, since nothing went to Ev. Both designers
+  proposed re-wording the ratified row ("once per surface pair"; name
+  `section_cert::classify` under "kind dispatch only in C5"). I read both
+  as elaborations of row 100, not changes to it, and wrote them into the
+  1a row. Step 1 is split:
+  `the-section-of-a-surface-pair-is-one-object` (1a, P0 H, dispatched,
+  dual concurrent review) and the lane row as 1b, parked on it. The two
+  riders ride 1a. `in-band-…` is decided: escalate. The tangency row now
+  counts five offset computations.
+
+- 2026-10-27 — **`the-lilys-stem-and-arch-walls-have-no-certificate-arm` closed** by PR 5869 (`torus_parallel_torus`, the general parallel-axis tori arm): lily wall 1 builds, both union orders one shell at the Pappus volume, ∩ and the differences too. Review: single FULL (a certified-clear verdict is a soundness claim), APPROVE-WITH-FIXES, no MAJOR; soundness held under a 1,100-pose fuzz against an independent chart trace; the fix pass landed the reviewer's two rows, stated the bare-margin invariants at their sites, moved the chart trace into `search_kit` and the decided insertion sort into `splitting::order`, and filed `circle-pair-crossing-is-spelled-three-times` (P1 E) here and three P2/P3 rows on SECTTAIL. Merged over an inherited red (`demos (tour + wild)`, the tour gallery's chain scene, #5853's), filed on ATREST as `the-tour-gallery-pin-reads-the-chains-old-could-not-look-count`.
+
+- 2026-10-27 — **Claimed `torus-certificate-runs-root-free-through-its-quartic`** from CHARTTAIL, re-banded P0 (teapot wall 2 waits on it). Dispatched to an implementer on `sect/torus-certificate`. Review: single FULL, because the arms are certificate soundness and a read cannot carry the bound. It goes to a dual if the diff reaches the shared composite machinery beyond the torus arms. First route pair: sphere × torus.
+
+- 2026-10-28 — **Step 1a merges** (PR 5872, `the-section-of-a-surface-pair-is-one-object` and both riders closed; 1b, `cylinder-sphere-germ-pair-has-no-join-lane`, is open). Review: dual concurrent (H), both APPROVE-WITH-FIXES, 0 MAJOR. Both reviewers ran as remote cloud sessions because local disk could not hold two builds. Row `docs/dual-review-log/rows/PR-5872.md`. The fix pass is in that row. My delta read caught a foot cache keyed by bare `HalfEdgeKey` across both operands' arenas. It is unreachable today, now keyed `{side, he, pair}` and pinned by a red-first probe. **Classes** recorded for later steps:
+  - a cache or table keyed by an arena key must name its body;
+  - the cs march near the node costs seconds and refuses by budget (`a-cylinder-sphere-march-near-its-node-costs-seconds-…`);
+  - C5's kind dispatch is spelled in `route`, `route_pose`, `serves` and the value (`the-c5-kind-dispatch-is-spelled-twice`).
+
+  Rows filed by the lane: those two, `section-arms-off-the-value-read-radii-unguarded`, and `the-recording-scalar-has-no-ssi-lane` (P3).
+
+- 2026-10-28 — **`torus-certificate-runs-root-free-through-its-quartic` closed** by PR 5886. The torus arms of `implicit_enclosure`, `implicit_gradient_enclosure` and limb 2 use the root-free mean-value form of `g = F/(4rA)`, chosen on the measurement: the quartic as written overran the 200k cell budget, and the factored √ form was about 2× worse on a tilted axis. `sphere_torus_ssi` is retired first: both teapot spheres meet the handle torus in two certified loops in both orders, and `route` answers sphere × torus at rung 3. Teapot wall 2 still stops at the join's germ frame, which is the section object's work.
+  - **Review:** single FULL, APPROVE-WITH-FIXES, one MINOR (executed). The break floor was unsound for `A < 0` on a spindle torus, and was reachable because the door skipped the ring check `route_pose` makes. The fix floors at 0 unless `A > 0`; the ring check now sits at the door and at the edge certificate (`SsiError::DegenerateTorus`). Soundness held under 20k adversarial boxes and 600 carriers, and every too-loose mutation went red.
+  - **Merge:** main was merged over step 1a. Cylinder × sphere keeps its decided pose, and both march through the shared `implicit_pair_r3`.
+  - **Rows filed:** cylinder × torus and torus × torus at rung 3 (P0: the torus germ frame row waits on both); cone × torus and tilted plane × torus (P2); and SPIRICARM's spline-trimmed torus volume lane.
+  - **Class:** a door's contract must equal its route's (the ring check lived in `route_pose` only).
+- 2026-10-28 — **Step 1b dispatched** (`cylinder-sphere-germ-pair-has-no-join-lane`, branch `sect/cylinder-sphere-chord`). The lane is a section datum per side, from the table. The chord is a sub-arc of the carried component, with `Pcurve::Projected` and `analytic_rung3` at the edge door. Island closure uses one reader (`path_island_winding`), gaining a spline arm in `LoopArc` and the cylinder in `ring_path::Quadric`. Review: dual concurrent (H), because the lane builds bodies. **Decided here (an elaboration, reversible):** a closed fitted component is *seated* once at its first site in match order (knot insertion to full multiplicity, then rotation, then re-certified), so no chord straddles the carrier's seam. Periodic NURBS in `geom` was the alternative. It is a representation change for every curve consumer, and seating does not rule it out later; one step-1 designer leaned seat. Reopen it as a fork if seating proves unsound.
+
+- 2026-10-28 — **PR 5886 merged** (the torus certificate, sphere × torus at rung 3). It took two main merges: once conflicting with no CI run, and once on a slow-set conflict resolved as main's file plus this branch's one line. **The cylinder × torus and torus × torus rung-3 rows go to the designer pair first** (blinding record `analysis/design-fork/torus-pair-tangency`). Both rows name the same open question: how the door decides a pose is not transverse when the pair has no closed-form scalar gap like the sphere's. That must also settle how `pair_section`, the SSI doors and `section_cert`'s torus classifiers share the decision.
+
+- 2026-10-28 — **The torus-pair tangency question converged** (two designers; record `analysis/design-fork/torus-pair-tangency`). Every torus pair decides "not transverse" on one pose value's **critical gap**, `min |D − (ρ₁ ± ρ₂)|` over the critical values of the spine-to-spine distance (offset duality), by a certified 1-D sweep. The symmetric closed forms move from `section_cert` into the value. The designers differed only on the sweep: 1-D over the core angle against 2-D over the torus chart with a separately named tube-circle arm. I took the 1-D form, which covers the tube-circle tangency without a special arm; that tangency is a required Zero row. One designer proposed a C5 sentence stating the principle; that would bind future work, so it is put to Ev, not written. Unit `each-torus-pair-decides-tangency-on-one-pose` (P0 H, dual) is dispatched. The cylinder × torus and torus × torus door rows are parked on it. Sphere × torus's double tangency decision (the 5886 door against `section_cert`) closes inside the unit.

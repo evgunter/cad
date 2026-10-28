@@ -448,6 +448,194 @@ fn the_l_split_chain_reports_no_naming_failure() {
     }
 }
 
+/// **A chord of a tied face is named per candidate** (N4, NS3). The
+/// plane x = 3 crosses both prongs of [`fixture::u_cutter_tie`], so each
+/// of its two tied caps is crossed once in each candidate. Each chord
+/// is the whole section line across its face: the bare `SectionEdge`,
+/// which the two candidates' chords tie under. Whether the plane crosses
+/// the other candidate is outside the chord's cell, so it cannot
+/// qualify it.
+#[test]
+fn a_tied_faces_undivided_chords_tie_under_the_bare_name() {
+    let (doc, sub) = fixture::u_cutter_tie(ProfileDoc::empty_derived("lib_g14", Tol::witness()));
+    let tool = plane_on(&doc, sub, [3.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: sub.into(),
+            tool,
+        },
+    );
+    let ev = run(&doc);
+    let tied_faces: Vec<&StableName> = ties(table(&ev, sub))
+        .into_iter()
+        .filter(|(n, _)| n.kind == EntityKind::Face)
+        .map(|(n, _)| n)
+        .collect();
+    assert_eq!(
+        tied_faces.len(),
+        2,
+        "the two caps' prong pieces tie: {tied_faces:?}"
+    );
+    for h in [SplitHalf::Above, SplitHalf::Below] {
+        let t = crate::fixture::half(&ev, split, h);
+        for face in &tied_faces {
+            let chords: Vec<(&StableName, &Entry)> = t
+                .iter()
+                .filter(|(n, _)| {
+                    matches!(n.path.first(), Some(RoleSeg::SectionEdge { face: f }) if **f == **face)
+                })
+                .collect();
+            let [(name, Entry::Tied(c))] = chords.as_slice() else {
+                panic!("{h:?}: the chords of {face:?} are one tie: {chords:#?}");
+            };
+            assert_eq!(c.len(), 2, "{h:?}: one chord per candidate: {name:?}");
+            assert_eq!(
+                name.path.len(),
+                1,
+                "{h:?}: an undivided chord is bare: {name:?}"
+            );
+        }
+    }
+}
+
+/// The face name `t` ties whose spelling holds `role`, of the two
+/// [`fixture::u_cutter_tie`]'s subtract ties: its floor's `Cap(Start)`
+/// or its ceiling's `Cap(End)`.
+fn tied_cap<'t>(t: &'t NameTable, role: &str) -> &'t StableName {
+    let caps: Vec<&StableName> = ties(t)
+        .into_iter()
+        .filter(|(n, _)| n.kind == EntityKind::Face && format!("{n:?}").contains(role))
+        .map(|(n, _)| n)
+        .collect();
+    let [cap] = caps.as_slice() else {
+        panic!("one tied {role} face: {caps:?}");
+    };
+    cap
+}
+
+/// The `Seam` rows of `t` one of whose sides' spellings holds `side`'s.
+fn seams_citing<'t>(t: &'t NameTable, side: &StableName) -> Vec<(&'t StableName, &'t Entry)> {
+    let side = format!("{side:?}");
+    t.iter()
+        .filter(|(n, _)| match n.path.first() {
+            Some(RoleSeg::Seam { a, b }) => {
+                format!("{a:?}").contains(&side) || format!("{b:?}").contains(&side)
+            }
+            _ => false,
+        })
+        .collect()
+}
+
+/// `seams` are two rows, one per other side, each the bare `Seam`
+/// tied over two candidates.
+fn bare_ties_of_two(what: &str, seams: &[(&StableName, &Entry)]) {
+    assert_eq!(seams.len(), 2, "{what}: one row per other side: {seams:#?}");
+    for (name, entry) in seams {
+        assert_eq!(
+            name.path.len(),
+            1,
+            "{what}: an undivided seam is bare: {name:?}"
+        );
+        assert!(
+            matches!(entry, Entry::Tied(c) if c.len() == 2),
+            "{what}: one seam per candidate, tied: {name:?} => {entry:?}"
+        );
+    }
+}
+
+/// **A pair boolean's seam of a tied face is named per candidate** (N4,
+/// NS3). The block C, x ∈ [3, 3.5], cuts down through both prongs of
+/// [`fixture::u_cutter_tie`]'s floor, so each of C's two walls meets
+/// each candidate of the tied floor along one undivided seam: the bare
+/// `Seam`, tied over the two candidates. Whether C meets the other
+/// candidate is outside a seam's cell, so it cannot qualify it.
+#[test]
+fn a_pair_booleans_seams_of_a_tied_face_tie_under_the_bare_name() {
+    let (doc, sub) = fixture::u_cutter_tie(ProfileDoc::empty_derived("lib_g14", Tol::witness()));
+    let (doc, c) = block(doc, (0.0, 0.5), (0.0, 3.0), 1.5);
+    let (doc, c) = slid(doc, sub, c, [3.0, 0.5, -0.25]);
+    let (doc, cut) = insert(
+        doc,
+        Node::Subtract {
+            from: sub.into(),
+            tool: c.into(),
+        },
+    );
+    let ev = run(&doc);
+    let floor = tied_cap(table(&ev, sub), "Cap(Start)");
+    bare_ties_of_two("cut", &seams_citing(table(&ev, cut), floor));
+}
+
+/// **A union's seam of a tied face is named per candidate** (N4, NS3):
+/// the block D, x ∈ [3, 3.5], stands on both prongs of the tied floor,
+/// so each of D's two walls meets each candidate along one undivided
+/// seam, as the pair boolean's do.
+#[test]
+fn a_unions_seams_of_a_tied_face_tie_under_the_bare_name() {
+    let (doc, sub) = fixture::u_cutter_tie(ProfileDoc::empty_derived("lib_g14", Tol::witness()));
+    let (doc, d) = block(doc, (0.0, 0.5), (0.0, 3.0), 1.0);
+    let (doc, d) = slid(doc, sub, d, [3.0, 0.5, 0.5]);
+    let (doc, union) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![sub.into(), d.into()]),
+        },
+    );
+    let ev = run(&doc);
+    let floor = tied_cap(table(&ev, sub), "Cap(Start)");
+    bare_ties_of_two("union", &seams_citing(table(&ev, union), floor));
+}
+
+/// **A split's plane parent holds every candidate it merged, so its
+/// seams are pieces of one seam** (N2). A slot between the prongs
+/// through the top parts the block above z = 3 in two, one tied ceiling
+/// in each. The plane z = 3 holds both ceilings, and the plane links
+/// every face holding a section into one parent, `Merged` of the
+/// section and the ceiling, held as two faces. Each meets the wall
+/// x = 4 along one edge joined over the section's chords and its
+/// ceiling's rim: two pieces of one parent's seam, told apart by their
+/// ends, however the candidates each piece holds differ.
+#[test]
+fn a_split_plane_parents_joined_seams_are_pieces_of_one_seam() {
+    let (doc, sub) = fixture::u_cutter_tie(ProfileDoc::empty_derived("lib_g14", Tol::witness()));
+    let (doc, slot) = block(doc, (0.0, 5.0), (0.0, 0.5), 3.0);
+    let (doc, slot) = slid(doc, sub, slot, [-0.5, 1.75, 2.0]);
+    let (doc, parted) = insert(
+        doc,
+        Node::Subtract {
+            from: sub.into(),
+            tool: slot.into(),
+        },
+    );
+    let tool = plane_on_frame(&doc, parted, [0.0, 0.0, 3.0], [0.0, 0.0, 1.0]);
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: parted.into(),
+            tool,
+        },
+    );
+    let ev = run(&doc);
+    let ceiling = tied_cap(table(&ev, sub), "Cap(End)");
+    let t = crate::fixture::half(&ev, split, SplitHalf::Above);
+    let seams: Vec<_> = seams_citing(t, ceiling)
+        .into_iter()
+        .filter(|(n, _)| format!("{n:?}").contains("Merged"))
+        .collect();
+    assert_eq!(seams.len(), 2, "one row per piece: {seams:#?}");
+    for (name, entry) in &seams {
+        assert!(
+            matches!(entry, Entry::Unique(_))
+                && matches!(
+                    name.path.as_slice(),
+                    [RoleSeg::Seam { .. }, RoleSeg::Fragment(_)]
+                ),
+            "a piece of the plane parent's seam, by its ends: {name:?} => {entry:?}"
+        );
+    }
+}
+
 // ---- #380: the emitter payload reaches the NODE-level prose. ----
 
 /// `NamingError`'s own `Display` landed separately (#516); what this

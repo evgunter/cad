@@ -766,9 +766,9 @@ the current run, the diagnosis is `GroupResized { node, was, now, cutters }`.
   descends from, whole or in pieces, counted together. Two tied parents that
   share a base are two groups, each
   counted on its own, where the emitter groups by parent entity; where it
-  groups by parent names (the seam lanes) their pieces share one group and the
-  rung declines. That is a statement about two recorded groups, not a claimed
-  flip.
+  groups by parent names (a pair boolean's seam vertices) their pieces share
+  one group and the rung declines. That is a statement about two recorded
+  groups, not a claimed flip.
 - *The cutters.* `cutters` (`GroupCutters`, `resolve::group_cutters`) reads the
   minting node's two tables for the seam rows on the group's parent (a face
   group's seam edges, an edge group's seam and crossing vertices), matched on

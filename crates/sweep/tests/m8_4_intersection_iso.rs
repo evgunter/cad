@@ -33,7 +33,9 @@ use geom_core::{Point2, Point3, Vec3};
 use profile::SketchPlane;
 use profile::test_support::bulge_loop;
 use std::sync::Arc;
-use topo::{Body, FaceSurface, Pcurve, PcurveMintError};
+use topo::construction::Construct;
+use topo::construction::FaceSurface;
+use topo::{Body, Pcurve, PcurveMintError};
 
 /// The integral mixed prism (`recognize_pins`'s `offset_square_prism`,
 /// natively built): exactly-planar `y = ±1` walls, bowed `x = ±1`

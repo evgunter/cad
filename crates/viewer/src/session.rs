@@ -57,12 +57,12 @@ use std::sync::Arc;
 
 use pncad::document::pose::{PoseRole, RoleRead};
 use pncad::document::{
-    Assembly, AssemblyError, AuthoredNode, CheckId, ChecksConfig, ChecksReport, Dimension,
-    DimensionError, Doc, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Formula,
-    Frame, FreeValue, FreeVar, HeldNodes, Label, LoopProgram, Maintenance, Node, Operand,
-    OperandSlot, PartResolver, PatternKind, ProductError, ProfileProgram, RecipeNodeId, Recorded,
-    Recording, SlotId, StepId, Subject, VarId, VarName, apply, assemble_gathered,
-    cascade_delete_order, parse_formula, product_recorded, run_checks_at_rest_on,
+    AuthoredNode, CheckId, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc, DocEdit,
+    DocRef, DocumentId, EditError, EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar,
+    HeldNodes, Label, LoopProgram, Maintenance, Node, Operand, OperandSlot, PartResolver,
+    PatternKind, ProductError, ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId,
+    Subject, VarId, VarName, apply, cascade_delete_order, parse_formula, product_recorded,
+    run_checks_at_rest_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -608,10 +608,8 @@ impl core::fmt::Debug for Derived {
 /// forgotten at the other.
 ///
 /// The gather's outcome is one `Result`: a refusal carries nothing
-/// the gather would have produced, so no A5 verdict and no body can
+/// the gather would have produced, so no at-rest badge and no body can
 /// sit beside a gather refusal. That is all the shape rules out.
-/// [`Gathered`] can still spell pairs only `land` keeps out — a
-/// `Certified` badge with no body, a `Refused` one with a body.
 struct LandedRun {
     evaluation: Arc<Evaluation<f64>>,
     /// The resolver [`LandedRun::evaluation`] resolved through.
@@ -648,10 +646,10 @@ struct LandedRun {
 }
 
 /// What a gather that succeeded left the landing ([`LandedRun::gather`]'s
-/// `Ok`): the A5 verdict taken over the product, and the product's body
-/// where the gate did not consume it.
+/// `Ok`): the at-rest badge read off the checks report, and the
+/// product's body.
 struct Gathered {
-    /// The A5 at-rest verdict for this pair ([`DocSession::at_rest`]);
+    /// The at-rest badge for this pair ([`DocSession::at_rest`]);
     /// `None` where [`AtRestBadge`] says none is taken.
     at_rest: Option<AtRestBadge>,
     /// **The aggregate the landing's own gather produced**, kept so
@@ -659,43 +657,11 @@ struct Gathered {
     /// second time ([`DocSession::landed_body`]). Written once, by
     /// `land`.
     ///
-    /// `None` when the A5 gate CONSUMED it. The gate takes the product
-    /// by value, and its refusal is the one exit that does not hand
-    /// the body back (a certification returns it on `Assembly`).
-    /// Nothing is cloned to close that gap: on this lane's measurement
-    /// a body clone is 2.7% of a gather but is paid per LANDING, while
-    /// the gather it would save is paid per opened document — the
-    /// wrong trade for an edit session. The display fit gathers its
-    /// own, on the fit worker ([`DocSession::fit_request`]'s
-    /// `Ungathered`).
-    ///
-    /// **What those numbers are load-bearing for, and why they carry
-    /// no guard.** They chose between two designs that are both
-    /// CORRECT — gather again where it is wanted, or clone at every
-    /// gate — so nothing here breaks if the ratio drifts; what would
-    /// break is the TRADE, and a trade is re-decided by re-measuring,
-    /// not by a failing assertion. A wall-clock guard in the gate
-    /// would be a flake rather than a witness, and a scheduled
-    /// re-measure would be a standing chore over a number no
-    /// behaviour reads.
-    ///
-    /// Half of it is re-taken anyway, and by someone else: the gather
-    /// column of `editor-core/tests/m4_pr8_latency.rs` (`gather_ms`)
-    /// runs on the nightly register, so the 87 ms side has a standing
-    /// witness this crate does not maintain. What has none is the
-    /// clone denominator — nothing in the tree times a `Body::clone`.
-    ///
-    /// **What this file's rows do and do not guard.**
     /// `viewer/tests/landing_gathers.rs` counts the gathers of every
     /// path that must not pay one, so a change that made
     /// [`DocSession::landed_body`] gather, or that stopped `land`
-    /// keeping the body, reds there. It does NOT see the doors:
-    /// restoring [`crate::scene::fit_delta`]'s or [`crate::scene::scene_of_body`]'s old
-    /// pair-taking signatures reds nothing, because those gathers
-    /// would run inside `scene` where no row counts. Re-measure before
-    /// changing the shape; do not trust the figures to have stayed
-    /// true.
-    body: Option<Arc<Body<f64>>>,
+    /// keeping the body, reds there.
+    body: Arc<Body<f64>>,
 }
 
 /// Exhaustive by destructuring, through [`Gathered`] too; the shared
@@ -706,11 +672,10 @@ struct Gathered {
 /// here is a verdict ABOUT that pair. The gather renders as the arm it
 /// took: its refusal as `fault`, or what it left as `at_rest` and
 /// `body`. `checks` is a `Vec` per finding and is carried as its two
-/// counts; `body` is a gathered aggregate and is carried as its
-/// presence, which is whether the gate left it. Both render as
-/// SUMMARIES — two counts, and the elision `Some(<Body>)` — so neither
-/// can be read as the field's own value; `finish_non_exhaustive` here
-/// is about the `_` arms and says nothing about them.
+/// counts; `body` is a gathered aggregate and is carried as the elision
+/// `<Body>`. Both render as SUMMARIES, so neither can be read as the
+/// field's own value; `finish_non_exhaustive` here is about the `_`
+/// arms and says nothing about them.
 impl core::fmt::Debug for LandedRun {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self {
@@ -725,9 +690,9 @@ impl core::fmt::Debug for LandedRun {
         let mut out = f.debug_struct("LandedRun");
         out.field("generation", generation);
         match gather {
-            Ok(Gathered { at_rest, body }) => out
+            Ok(Gathered { at_rest, body: _ }) => out
                 .field("at_rest", at_rest)
-                .field("body", &body.as_ref().map(|_| format_args!("<Body>"))),
+                .field("body", &format_args!("<Body>")),
             Err(fault) => out.field("fault", fault),
         };
         out.field("files", files);
@@ -746,37 +711,52 @@ impl core::fmt::Debug for LandedRun {
     }
 }
 
-/// The A5 at-rest verdict for the landed pair — a mated document's
-/// declarations run through the kernel's own verification door
-/// (`assemble`), once per landed evaluation, so a committed mate's
-/// class verdict does not die at the commit: a `Tangent` that solves
-/// green still shows the gate refusing it, and an unrecorded contact
-/// between instances surfaces on the draw path instead of waiting for
-/// an export.
+/// **The at-rest badge for the landed pair**: the at-rest check's
+/// findings over the landed product and every `⊔` beside it, counted
+/// (`CheckId::AtRest` in the landing's checks report). Nothing at rest
+/// refuses, so the badge says what the check found: overlaps between
+/// copies, loud and quiet, and the findings the census could not look at.
 ///
-/// Taken only when the gate ran: an assembly-shaped document (one
-/// holding at least one `InstantiatePart`) whose product gathered. A
-/// part document's tiers are not this badge's subject, and the gate's
-/// cost is not spent where it answers nothing the badges do not
-/// already say. A gather refusal, of any class, leaves no product for
-/// the gate to judge, so it takes no badge: it is
-/// [`DocSession::product_fault`]'s, and `frame::badge_site` routes it.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum AtRestBadge {
-    /// The gate certified the assembled product, and how many overlaps
-    /// between copies it reported, loud and quiet.
-    Certified {
-        /// The interference findings no assertion quiets.
-        loud: usize,
-        /// The interference findings an assertion quiets.
-        quiet: usize,
-    },
-    /// The gate's own refusal of the product it judged, in its own
-    /// rendering, never a sentence composed here.
-    Refused {
-        /// The typed refusal's `Display`.
-        message: String,
-    },
+/// Taken only for an assembly-shaped document (one holding at least
+/// one `InstantiatePart`) whose product gathered and whose checks ran.
+/// A part document's tiers are not this badge's subject. A gather
+/// refusal, of any class, leaves no product to read, so it takes no
+/// badge: it is [`DocSession::product_fault`]'s, and
+/// `frame::badge_site` routes it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AtRestBadge {
+    /// The interference findings no assertion quiets.
+    pub loud: usize,
+    /// The interference findings an assertion quiets.
+    pub quiet: usize,
+    /// The findings the census could not look at, which nothing quiets.
+    pub could_not_look: usize,
+}
+
+impl AtRestBadge {
+    /// The badge `report`'s at-rest findings make.
+    #[must_use]
+    pub fn of(report: &ChecksReport) -> Self {
+        let mut badge = Self {
+            loud: 0,
+            quiet: 0,
+            could_not_look: 0,
+        };
+        for finding in report
+            .findings
+            .iter()
+            .filter(|f| f.check == CheckId::AtRest)
+        {
+            if finding.evidence.could_not_look() {
+                badge.could_not_look += 1;
+            } else if finding.quiet.is_some() {
+                badge.quiet += 1;
+            } else {
+                badge.loud += 1;
+            }
+        }
+        badge
+    }
 }
 
 /// What happened to a result the seam handed back.
@@ -1098,7 +1078,7 @@ impl DocSession {
         self.derived.landed.as_ref()?.gather.as_ref().err()
     }
 
-    /// The A5 at-rest verdict for the landed pair ([`AtRestBadge`]),
+    /// The at-rest badge for the landed pair ([`AtRestBadge`]),
     /// when [`AtRestBadge`] says one is taken. `None` otherwise, and
     /// before anything lands.
     pub fn at_rest(&self) -> Option<&AtRestBadge> {
@@ -1154,25 +1134,11 @@ impl DocSession {
     /// work has filed against this probe. A read that a background
     /// thread cannot make is a read that forecloses its own future.
     ///
-    /// `None` has three causes and they are not the same question:
-    /// nothing has landed; the gather REFUSED, so no product exists
-    /// ([`DocSession::product_fault`] says so); or the gather
-    /// succeeded and the A5 gate consumed the body in refusing
-    /// ([`Gathered::body`] carries that case). A caller that needs a
-    /// body in the third case gathers one for itself and pays for it
-    /// where the payment is visible — [`crate::scene::product_of_evaluation`]
-    /// is that door.
+    /// `None` has two causes and they are not the same question:
+    /// nothing has landed, or the gather REFUSED, so no product exists
+    /// ([`DocSession::product_fault`] says so).
     pub fn landed_body(&self) -> Option<&Body<f64>> {
-        Some(
-            self.derived
-                .landed
-                .as_ref()?
-                .gather
-                .as_ref()
-                .ok()?
-                .body
-                .as_ref()?,
-        )
+        Some(&self.derived.landed.as_ref()?.gather.as_ref().ok()?.body)
     }
 
     /// The advisory-check report for the landed pair — findings in
@@ -1440,19 +1406,14 @@ impl DocSession {
         // **ONE gather, feeding all four of the landing's consumers.**
         // Computed HERE because here is the one place a result becomes
         // the session's, so it cannot be run twice or skipped — and
-        // ONCE because the ORDER below is what makes one enough: the
-        // product's own verdict reads the refusal, the registry
-        // BORROWS the product, and the A5 badge CONSUMES it last.
-        //
-        // The fourth consumer is the SESSION, which keeps the body for
-        // the display fit ([`Gathered::body`]) — and it is why the
-        // sentence that used to end this paragraph ("nothing after the
-        // badge wants a product") no longer holds. Nothing is cloned
-        // for it either: it takes what the gate did not eat.
+        // ONCE: the product's own verdict reads the refusal, the
+        // registry BORROWS the product, the at-rest badge reads the
+        // registry's report, and the SESSION keeps the body for the
+        // display fit ([`Gathered::body`]).
         let doc: &Doc<ProfileProgram> = &self.requested_doc;
         let cfg = ChecksConfig::default();
         // Whether the document is assembly-shaped is a fact about its
-        // nodes: the `Ok` arm reads it for the gate, and the part-file
+        // nodes: the `Ok` arm reads it for the badge, and the part-file
         // scan below reads it too.
         let assembly_shaped = assembly_shaped(doc);
         let (gather, checks) = match product_recorded(doc, &done.evaluation, self.tol) {
@@ -1473,26 +1434,19 @@ impl DocSession {
                     self.tol,
                 )
                 .ok();
-                // **The gate is still last, and still the only
-                // consumer** (DOCM-5's order). What changed is that
-                // the body it does not consume is kept rather than
-                // dropped: a certification hands the aggregate back on
-                // `Assembly`, and a document with no gate to run never
-                // gave it away.
-                let (at_rest, body) = if assembly_shaped {
-                    let (verdict, kept) = badge(doc, assemble_gathered(product, self.tol));
-                    (Some(verdict), kept)
-                } else {
-                    (None, Some(Arc::new(product.body.into_body())))
-                };
+                let at_rest = checks
+                    .as_ref()
+                    .filter(|_| assembly_shaped)
+                    .map(|(report, _)| AtRestBadge::of(report));
+                let body = Arc::new(product.body.into_body());
                 (Ok(Gathered { at_rest, body }), checks)
             }
             Err(fault) => {
                 // **The product's own verdict.** The gather is the only
                 // thing that answers "is this document's product well
                 // formed", so every class of refusal is kept here; which
-                // channel reports which is `frame::badge_site`'s. The
-                // gate never ran, so no A5 badge is taken.
+                // channel reports which is `frame::badge_site`'s. There
+                // is no product to read, so no at-rest badge is taken.
                 //
                 // A refusal that `ProductErrorKind::means_no_body`
                 // reads as an absence is the one the registry still
@@ -1968,14 +1922,7 @@ impl DocSession {
     /// here is where that shape is known.
     /// [`crate::evalseam::FitSubject::Landed`] hands on the body the
     /// landing already gathered — an `Arc` clone, per
-    /// [`DocSession::landed_body`]. `Ungathered` is the third `None`
-    /// cause that accessor names: the gather succeeded and the A5 gate
-    /// consumed the body in refusing, so there is a product to be had
-    /// and nobody holding it. That arm names the pair rather than
-    /// gathering from it, and the gather is paid on the fit worker —
-    /// which is why this is a getter again and not a spelled-out
-    /// choice at the call site: neither arm costs this thread
-    /// anything.
+    /// [`DocSession::landed_body`] — so this costs this thread nothing.
     ///
     /// `None` before anything lands, and for a landing whose gather
     /// REFUSED ([`DocSession::product_fault`]) — a document with no
@@ -1988,13 +1935,7 @@ impl DocSession {
         let run = self.derived.landed.as_ref()?;
         let subject = match &run.gather {
             Err(_) => return None,
-            Ok(Gathered {
-                body: Some(body), ..
-            }) => crate::evalseam::FitSubject::Landed(Arc::clone(body)),
-            Ok(Gathered { body: None, .. }) => crate::evalseam::FitSubject::Ungathered {
-                doc: Arc::clone(&run.doc),
-                evaluation: Arc::clone(&run.evaluation),
-            },
+            Ok(Gathered { body, .. }) => crate::evalseam::FitSubject::Landed(Arc::clone(body)),
         };
         Some(crate::evalseam::FitRequest {
             generation: run.generation,
@@ -4449,9 +4390,9 @@ fn moves_copies(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
 }
 
 /// Whether a document is assembly-shaped — one of the two conditions
-/// [`AtRestBadge`] names for taking an A5 badge: a document that
-/// instantiates no part declares no cross-instance rest and has
-/// nothing for the gate to answer about.
+/// [`AtRestBadge`] names for taking an at-rest badge: a document that
+/// instantiates no part has no cross-instance rest for the badge to
+/// answer about.
 fn assembly_shaped(doc: &Doc<ProfileProgram>) -> bool {
     doc.ids()
         .iter()
@@ -4490,42 +4431,6 @@ fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
         | Node::Assemble { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. } => false,
-    }
-}
-
-/// One A5 verdict as the badge that shows it — the gate's own
-/// vocabulary either way: a certification with its overlap counts, or
-/// the typed refusal with its nodes spoken from `doc`, the landed
-/// document the gate judged — **and the aggregate the gate hands back
-/// with it**.
-///
-/// The gate CONSUMES the product it judges. A certification returns
-/// the same body on its `Assembly` and a refusal returns nothing, so
-/// the body is an `Option` here for the same reason
-/// [`Gathered::body`] is one, and this is the one place that fact is
-/// read off the gate's own result type.
-fn badge(
-    doc: &Doc<ProfileProgram>,
-    verdict: Result<Assembly<f64>, AssemblyError>,
-) -> (AtRestBadge, Option<Arc<Body<f64>>>) {
-    match verdict {
-        Ok(assembly) => (
-            AtRestBadge::Certified {
-                loud: assembly.interference.iter().filter(|f| f.is_loud()).count(),
-                quiet: assembly
-                    .interference
-                    .iter()
-                    .filter(|f| !f.is_loud())
-                    .count(),
-            },
-            Some(Arc::new(assembly.body)),
-        ),
-        Err(refusal) => (
-            AtRestBadge::Refused {
-                message: refusal.spoken(doc),
-            },
-            None,
-        ),
     }
 }
 

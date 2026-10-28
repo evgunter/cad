@@ -13,6 +13,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{FRAC_PI_2, PI};
+use topo::construction::Construct;
 
 use geom::Curve3;
 use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};

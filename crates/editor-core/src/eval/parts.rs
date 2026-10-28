@@ -74,7 +74,7 @@ use geom_core::Decide;
 use topo::Body;
 
 use crate::ProfileDoc;
-use crate::assembly::PartRow;
+use crate::checks::at_rest::PartRow;
 use crate::ident::DocRef;
 use crate::names::NameTable;
 use crate::node::RecipeNodeId;
@@ -115,19 +115,27 @@ pub(crate) struct PartValue<T: Decide> {
     /// The at-rest census's rows the product's records cite
     /// ([`crate::Product::coincidences`]), named in the part's
     /// document.
-    pub coincidences: Arc<Vec<crate::assembly::AtRestRow>>,
+    pub coincidences: Arc<Vec<crate::checks::at_rest::AtRestRow>>,
     /// The product's inputs its carried records cite
     /// ([`crate::Product::cited_inputs`]).
     pub cited_inputs: Arc<Vec<crate::coincide::CitedInput>>,
-    /// **The part's own at-rest census verdict** ([`crate::assembly::SeamVerdict`]),
-    /// its own rows first and then those it carried up: the overlaps
-    /// between its copies, reported and never refused, as its gate
-    /// reports them.
-    pub interference:
-        Arc<Vec<PartRow<crate::assembly::Pinned<crate::checks::at_rest::InterferenceFinding>>>>,
+    /// **The part's own at-rest census verdict**, its own rows first and
+    /// then those it carried up: the overlaps between its copies,
+    /// reported and never refused, as its own at-rest check reads them
+    /// (`checks::at_rest::reading`).
+    pub interference: Arc<
+        Vec<PartRow<crate::checks::at_rest::Pinned<crate::checks::at_rest::InterferenceFinding>>>,
+    >,
     /// The census findings its gate refuses, its own first: inner
     /// at-rest health is the outermost gate's business.
-    pub at_rest: Arc<Vec<PartRow<crate::assembly::Pinned<crate::assembly::AtRestFinding>>>>,
+    pub at_rest:
+        Arc<Vec<PartRow<crate::checks::at_rest::Pinned<crate::checks::at_rest::AtRestEvidence>>>>,
+    /// **The rows its coincidence door owes an answer about**, its own
+    /// first and then those it carried up, each with the document it is
+    /// of: unproven, since the door's replay runs at rest, over that
+    /// document, when a report asks (`checks::DoorJob`).
+    pub door_rows:
+        Arc<Vec<PartRow<crate::checks::at_rest::Pinned<crate::checks::at_rest::DocRows>>>>,
     /// How many parts the referenced document's product is: its
     /// placements' copies ([`crate::product::Product::solid_copies`]),
     /// each counted at its own value's `parts`, so a sub-assembly's
@@ -146,6 +154,7 @@ impl<T: Decide> Clone for PartValue<T> {
             cited_inputs: Arc::clone(&self.cited_inputs),
             interference: Arc::clone(&self.interference),
             at_rest: Arc::clone(&self.at_rest),
+            door_rows: Arc::clone(&self.door_rows),
             parts: self.parts,
         }
     }
@@ -703,7 +712,7 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
     /// label reaches them.
     fn evaluate_entered(
         &mut self,
-        doc: &ProfileDoc,
+        doc: &Arc<ProfileDoc>,
         doc_ref: DocRef,
         reached: Rows<T>,
         cancel: &super::CancelToken,
@@ -763,10 +772,48 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
         // one row set.
         let parts = product.parts;
         let pieces = product.pieces.clone();
-        // The part's own verdict on what its census found, judged as its
-        // gate judges it, so the document instantiating it reports each
-        // finding once, as the part's (`assembly::seam_verdict`).
-        let seam = crate::assembly::seam_verdict(&product, tol);
+        // Its door rows, quiet as its own assertions quiet them, and
+        // those its parts carried up; proven where a report asks.
+        let own = crate::checks::door_rows(
+            &**doc,
+            &evaluation,
+            &crate::checks::Subject::Product(&product),
+            tol,
+        );
+        let door_rows = (!own.is_empty())
+            .then(|| {
+                PartRow::unspoken(
+                    doc_ref.id,
+                    crate::checks::at_rest::Pinned {
+                        pin: doc_ref.pin,
+                        finding: crate::checks::at_rest::DocRows {
+                            doc: crate::checks::at_rest::PinnedDoc::new(Arc::clone(doc)),
+                            sets: own.into(),
+                        },
+                    },
+                )
+            })
+            .into_iter()
+            .chain(
+                crate::checks::carried_coincidences(&evaluation)
+                    .into_iter()
+                    .map(|row| {
+                        PartRow::below(
+                            &**doc,
+                            row.route,
+                            crate::checks::at_rest::Pinned {
+                                pin: row.pin,
+                                finding: row.rows,
+                            },
+                            Arc::default(),
+                        )
+                    }),
+            )
+            .collect();
+        // The part's own verdict on what its census found, read as its
+        // own at-rest check reads it, so the document instantiating it
+        // reports each finding once, as the part's.
+        let seam = crate::checks::at_rest::reading(&product, tol);
         Ok(PartValue {
             interference: Arc::new(
                 seam.interference
@@ -774,7 +821,7 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                     .map(|finding| {
                         PartRow::unspoken(
                             doc_ref.id,
-                            crate::assembly::Pinned {
+                            crate::checks::at_rest::Pinned {
                                 pin: doc_ref.pin,
                                 finding,
                             },
@@ -784,7 +831,7 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                         PartRow::below(
                             doc,
                             row.route,
-                            crate::assembly::Pinned {
+                            crate::checks::at_rest::Pinned {
                                 pin: row.pin,
                                 finding: row.finding,
                             },
@@ -794,13 +841,13 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                     .collect(),
             ),
             at_rest: Arc::new(
-                seam.refused
+                seam.could_not_look
                     .into_iter()
                     .map(|finding| {
                         PartRow::own(
                             doc,
                             doc_ref.id,
-                            crate::assembly::Pinned {
+                            crate::checks::at_rest::Pinned {
                                 pin: doc_ref.pin,
                                 finding,
                             },
@@ -810,7 +857,7 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                         PartRow::below(
                             doc,
                             row.route,
-                            crate::assembly::Pinned {
+                            crate::checks::at_rest::Pinned {
                                 pin: row.pin,
                                 finding: row.finding,
                             },
@@ -819,6 +866,7 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                     }))
                     .collect(),
             ),
+            door_rows: Arc::new(door_rows),
             parts,
             pieces,
             body: Arc::new(product.body.into_body()),
@@ -890,7 +938,7 @@ pub(crate) fn instantiated<P>(doc: &crate::Doc<P>, id: RecipeNodeId) -> Option<D
 /// parts it instantiates.
 struct Entered<T: Decide> {
     doc_ref: DocRef,
-    doc: ProfileDoc,
+    doc: Arc<ProfileDoc>,
     /// Its `InstantiatePart` references in document order, repeats
     /// included; `next` is how far the descent has read them.
     refs: Vec<DocRef>,
@@ -933,7 +981,7 @@ impl<T: Decide> Entered<T> {
         };
         Ok(Self {
             doc_ref: *doc_ref,
-            doc,
+            doc: Arc::new(doc),
             refs,
             next: 0,
             reached: BTreeMap::new(),

@@ -24,6 +24,7 @@ use geom_brep::{EdgeCurve, EdgeCurveSpec};
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point3, Vec3};
+use topo::construction::Construct;
 
 /// A gentle cubic advancing steadily in `+x` — the shape a fitted SSI
 /// carrier has.
@@ -61,6 +62,7 @@ fn a_nurbs_carrier_under_a_conventional_description_still_refuses() {
         |_| None,
         1.0,
         Band::linear(Tol::witness()).unwrap(),
+        geom_brep::NurbsLane::certified(),
     )
     .expect_err("conventional-description Nurbs carriers do not certify");
     let msg = format!("{err}");
@@ -138,7 +140,7 @@ fn body_with_rung3_edge() -> Rung3Scaffold {
     let sph = body
         .set_face_surface(
             seed.face,
-            topo::FaceSurface::New {
+            topo::construction::FaceSurface::New {
                 surface: Surface::Sphere {
                     center: Point3::new(0.0, 0.0, 0.0),
                     radius: 1.0,
@@ -153,7 +155,7 @@ fn body_with_rung3_edge() -> Rung3Scaffold {
     let cyl = body
         .set_face_surface(
             anchor.face,
-            topo::FaceSurface::New {
+            topo::construction::FaceSurface::New {
                 surface: Surface::Cylinder {
                     origin: Point3::new(0.03, 0.0, 0.0),
                     axis: Vec3::new(0.0, 0.0, 1.0),
@@ -167,7 +169,7 @@ fn body_with_rung3_edge() -> Rung3Scaffold {
     let mid = h0 + (h1 - h0) * 0.5;
     let made = body
         .mev(
-            topo::MevSite::Lone {
+            topo::construction::MevSite::Lone {
                 r#loop: seed.r#loop,
             },
             p1,
@@ -321,7 +323,7 @@ fn a_rational_carrier_splits_with_a_metered_interiority() {
     let sph = body
         .set_face_surface(
             seed.face,
-            topo::FaceSurface::New {
+            topo::construction::FaceSurface::New {
                 surface: Surface::Sphere {
                     center: Point3::new(0.0, 0.0, 0.0),
                     radius: 1.0,
@@ -336,7 +338,7 @@ fn a_rational_carrier_splits_with_a_metered_interiority() {
     let plane = body
         .set_face_surface(
             anchor.face,
-            topo::FaceSurface::New {
+            topo::construction::FaceSurface::New {
                 surface: Surface::Plane {
                     origin: Point3::new(0.0, 0.0, 0.0),
                     normal: Vec3::new(0.0, 0.0, 1.0),
@@ -349,7 +351,7 @@ fn a_rational_carrier_splits_with_a_metered_interiority() {
     let mid = h0 + (h1 - h0) * 0.5;
     let made = body
         .mev(
-            topo::MevSite::Lone {
+            topo::construction::MevSite::Lone {
                 r#loop: seed.r#loop,
             },
             p1,
@@ -424,7 +426,7 @@ fn a_rational_carrier_splits_with_a_metered_interiority() {
     let sph2 = body2
         .set_face_surface(
             seed2.face,
-            topo::FaceSurface::New {
+            topo::construction::FaceSurface::New {
                 surface: Surface::Sphere {
                     center: Point3::new(0.0, 0.0, 0.0),
                     radius: 1.0,
@@ -439,7 +441,7 @@ fn a_rational_carrier_splits_with_a_metered_interiority() {
     let plane2 = body2
         .set_face_surface(
             anchor2.face,
-            topo::FaceSurface::New {
+            topo::construction::FaceSurface::New {
                 surface: Surface::Plane {
                     origin: Point3::new(0.0, 0.0, 0.0),
                     normal: Vec3::new(0.0, 0.0, 1.0),
@@ -451,7 +453,7 @@ fn a_rational_carrier_splits_with_a_metered_interiority() {
         .unwrap();
     let made2 = body2
         .mev(
-            topo::MevSite::Lone {
+            topo::construction::MevSite::Lone {
                 r#loop: seed2.r#loop,
             },
             p1,

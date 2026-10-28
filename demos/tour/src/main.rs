@@ -255,9 +255,9 @@ impl SceneBody {
     /// the records the at-rest census wrote for the touches between
     /// its copies (A5's at-rest door).
     ///
-    /// Its tier-3′ verdict is taken by the at-rest gate —
-    /// `pncad::document::assemble`, in the scene — which reads the
-    /// census together with the records the gather wrote; the plain
+    /// Its tier-3′ verdict is taken by the at-rest check —
+    /// `CheckId::AtRest`, run in the scene — which reads the census
+    /// together with the records the gather wrote; the plain
     /// `validate_pseudomanifold` call below sees the body alone. So
     /// this door REPORTS what the plain call said and leaves the
     /// verdict to the scene, which asserts it.
@@ -906,10 +906,15 @@ fn walk_tour(visit: &mut dyn FnMut(&TourStop), work: &std::path::Path, tol: Tol)
     println!(
         "\n-- the fairy lantern (Calochortus pulchellus): a plant, at the kernel's frontier --"
     );
-    for stop in lily::stops(tol) {
-        visit(&stop);
+    match lily::stem_frontier(tol) {
+        None => {
+            for stop in lily::stops(tol) {
+                visit(&stop);
+            }
+            lily::wall_probes::<f64>(tol);
+        }
+        Some(frontier) => println!("   {frontier}"),
     }
-    lily::wall_probes::<f64>(tol);
 
     println!(
         "\n-- the same bud, rounded (VERBS-ARMS-2: three CURVED support pairs in one \

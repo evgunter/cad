@@ -63,3 +63,67 @@ pub(super) fn matched(candidates: &[Vec<usize>]) -> bool {
     let mut owner = std::collections::BTreeMap::new();
     (0..candidates.len()).all(|w| augment(w, candidates, &mut owner, &mut Vec::new()))
 }
+
+/// The root of `x`'s set in a union-find forest over a trace's cells,
+/// halving the path on the way.
+pub(super) fn find(parent: &mut [usize], mut x: usize) -> usize {
+    while parent[x] != x {
+        parent[x] = parent[parent[x]];
+        x = parent[x];
+    }
+    x
+}
+
+/// Joins the sets of cells `x` and `y`.
+pub(super) fn join(parent: &mut [usize], x: usize, y: usize) {
+    let (x, y) = (find(parent, x), find(parent, y));
+    parent[x] = y;
+}
+
+/// Each active cell's component, numbered in cell order, and how many
+/// there are.
+pub(super) fn label(parent: &mut [usize], active: &[bool]) -> (Vec<Option<usize>>, usize) {
+    let mut index = std::collections::BTreeMap::new();
+    let comp = (0..active.len())
+        .map(|k| {
+            active[k].then(|| {
+                let root = find(parent, k);
+                let next = index.len();
+                *index.entry(root).or_insert(next)
+            })
+        })
+        .collect();
+    (comp, index.len())
+}
+
+/// The components crossing the cells within `reach` of cell `(i, j)` on
+/// a chart of `nu` columns, periodic, and `nv` rows (cell `j·nu + i`),
+/// the rows periodic too where `wrap` is set.
+pub(super) fn near_cells(
+    comp: &[Option<usize>],
+    (nu, nv): (usize, usize),
+    (i, j): (isize, isize),
+    reach: isize,
+    wrap: bool,
+) -> Vec<usize> {
+    let mut out = Vec::new();
+    for dj in -reach..=reach {
+        let jj = j + dj;
+        let jj = if wrap {
+            jj.rem_euclid(nv as isize)
+        } else if (0..nv as isize).contains(&jj) {
+            jj
+        } else {
+            continue;
+        };
+        for di in -reach..=reach {
+            let ii = (i + di).rem_euclid(nu as isize);
+            if let Some(c) = comp[jj as usize * nu + ii as usize]
+                && !out.contains(&c)
+            {
+                out.push(c);
+            }
+        }
+    }
+    out
+}

@@ -95,12 +95,57 @@ is a root of a polynomial, which no polynomial composite carries, so
 the conversion is a per-span lever instead: a scalar bound on the
 carrier's distance from the axis, whose one square root is of a bound,
 in the scalar's own outward-rounded arithmetic. The edge certificate
-reads it per part of the carrier's knot spans, at
-`pcurve_cache::projected::net_offset_sup`; the search's limbs do not
-yet, which is why their rung-3 arms are unretired. Where the bound does
+reads it per part of the carrier's knot spans, through one reader for
+every carrier (`pcurve_cache::limb2_offset_sup`): the carrier's net
+(`carrier_net::framed_carrier_net`: a spline is its own net, a closed
+form its enclosing net), framed at each operand in the scalar's
+arithmetic (C9's backend at the numeric channel), so the bound rounds at the part's own scale and never at
+its distance from the world origin,
+and on the cone a part the lever does not decide positive (one reaching
+the apex) reads `√|f|` instead: `f` is the product of the distances
+from the meridian half-plane's two generator lines, both on the implicit
+cone. The search's limbs convert the torus per span of the carrier
+too, bounding the residual its limb 1 reads,
+`m = F/(2r·(A + 2Rρ))` for the quartic `F = A² − 4R²ρ²` with
+`A = |q|² + R² − r²`, by `sup|F∘C|` over `2r` times
+`inf A∘C + √(inf A∘C² − sup F∘C)`, `A∘C` its own composite over the
+same spans and floored by `R² − r²` (`ssi::certify`); the cone has no
+such conversion at the search, which is why its rung-3 arms are
+unretired. At a
+parameter-family scalar the limb is decided by the scalar like any
+margin (E12): its symbolic identity is the residual of the carrier's own
+description against the operand, per span, with the carrier's parameter
+left free, formed by the limb from the operands' own values, and its
+numeric channel is the composite's enclosure `[floor, upper]`; an
+identity certifies every member of the box at every parameter of the
+carrier. A curved closed form is read first on the dyadic spans of
+its angle parameter (multiples of `τ/2ᵈ`), each enclosed alone at a
+higher Taylor degree and composed alone, an uncleared span halved
+into its dyadic halves (`pcurve_cache::limb2_quick`). A span may
+reach past the edge's ends, since a bound over a span holding a piece
+of the window bounds that piece. A span past them that still halves
+its bound keeps halving, its halves past the ends dropped; one whose
+halving no longer halves its bound is read again clipped to the ends,
+and halved clipped from then on. That reading only passes, and only on
+cleared parts that cover the edge's outer ends with no gap; a span it
+cannot halve further ends it. Where it does not pass, the rounds below
+read the carrier as though it had not been taken, and every refusal is
+theirs. A span's reading is a function of the carrier, the operand,
+the chart (a cone's nappe, taken from the window's middle) and the
+span, so edges sharing a carrier, an operand and a nappe read their
+shared spans once. Where the bound does
 not clear the band, the composite's uncleared spans are halved round by
 round, each piece cut from its Bézier segment's own row so no cut
-compounds another's width: the limb passes once the bound clears;
+compounds another's width, and the rounds stop (`round_floored`) once
+the bound is within the stop's factor (`ROUND_FLOOR_FACTOR`, 16) of the
+net's own rounding (`CarrierNet::rounding`, its
+controls' width before any span's remainder, which no halving
+removes), that width is itself that factor above the band, and a
+round no longer halves the bound (the rounding is the whole net's, not
+the window's parts', so the stop can end the rounds early: a cost in
+liveness, never in soundness, since every stop reads the lowest hull):
+the limb passes once the bound
+clears;
 refuses on the composite's certified value at a break where that lies
 past the band's zero, since no bound over a span holding the break can
 clear; and otherwise refuses on the lowest bound any round reached
@@ -109,7 +154,39 @@ own units: `SSI_HULL_WORK` spans recomputed over the rounds,
 `SSI_HULL_CUTS` breaks added) — so a first composite already over
 `SSI_HULL_WORK` spans is never subdivided and refuses on its first
 hull, and a later round whose bound is NaN stops on the lowest certified
-bound before it rather than escalating. Against an analytic operand
+bound before it rather than escalating. At a point scalar, limb 2's
+reading is an upper bound, and an upper bound shows no miss: a bound that ends above the band with no
+measured miss past it refuses as a kernel approximation limit
+([tolerance.recourse]; `AnalyticRung3Refusal::KernelLimit`), carrying the bound, the extent it was read over
+and the carrier's own enclosure width there, so the one story can name
+the input's extent where the bound is near that width (within
+`KERNEL_LIMIT_ROUNDING_FACTOR`, a constant of the story's own, not the
+stop's) and the width is
+the extent's own rounding, and claims no cause otherwise; it is never
+an ambiguity of the input and never a definite miss. Only the measured
+value at a break refuses as a miss. A line against a plane is distant
+from it by a function affine along it, whose sup is at an end, so a
+reading that neither clears nor shows a miss there is decided on the
+two ends' measured distances, `(p − o)·n` over `|n|` in certification
+arithmetic at every scalar (the data and the ends' parameters lifted
+through their certified brackets), read by whether an end's enclosure
+excludes zero. An end whose floor is above zero is a measured,
+certified non-zero distance: within the zero band it passes, a floor
+past `Kε` is a miss, and otherwise — in the ambiguity band or
+straddling its edge — it escalates on that measured value (`Escalated`
+on `HullValue`), the input ambiguous at the tolerance. An end whose
+floor is at or below zero (it cannot exclude the carrier lying on the
+plane) passes if its upper end is within the band, and otherwise is
+only an upper bound, which says nothing about the input: it adds
+nothing to the composite's stall, which is the verdict (the kernel
+limit at a point scalar, `Stalled` at an enclosure one). Both ends
+passing certify the edge; a miss, then an escalation, refuses. At an enclosure scalar a bound that
+stalls is undecided at that input (`AnalyticRung3Refusal::Stalled`),
+and over a parameter box the drive bisects it (E6); the refusal carries
+the enclosure and claims no cause and no terminality. A floor measured
+inside the band is not a stall: it escalates on the measured value, the
+classifier's terminal bit kept. Against
+an analytic operand
 the value at a break is limb 1's residual, a measured miss: at the edge
 certificate it is the carrier's distance from the surface, bounded
 below by `|f|` over an upper bound on the factor that divides it to
@@ -122,7 +199,7 @@ connected piece of the solution set in a box ends on the box's boundary
 at two points. The solution set in the chain is one arc, and it spans
 the carrier; the proof is the same at every door, a search's and an
 edge's at rest. For a carrier between two analytic surfaces the three
-limbs are the edge certificate's own (`edge_nurbs::analytic_rung3`,
+limbs are the edge certificate's own (`edge_nurbs::analytic_edge_limbs`,
 through the scalar's certified lane): limb 2 against each operand, its
 distance from that surface over the edge's interval, whatever faces
 store pcurve rows (a planar face stores none), which implies limb 1;
@@ -714,14 +791,18 @@ plane×cylinder, plane×cone (the parabola and hyperbola in closed form,
 each arc minted per window, `ConicBranch::arc`),
 declared-equal cylinder×cylinder, axis-aligned plane×torus (its
 axis-parallel pose off the axis the `Spiric`) (rung 2); cylinder×sphere,
-plane×NURBS and plane×`Approx`, NURBS×NURBS and every pairing of
+sphere×torus, plane×NURBS and plane×`Approx`, NURBS×NURBS and every pairing of
 `Approx` with NURBS or `Approx` (rung 3). The offset door reads
 plane×NURBS through `PlaneSection::branch_at` and NURBS×NURBS through
 `Section::branch_at`, each at the old edge's middle; the whole-section
-readings a boolean takes are their `all()`, which no boolean reads yet
-(no boolean reads a rung-3 arm). `implemented` covers
-the whole operation. Every other pair refuses, most blocked on the cone
-and torus metres conversion (C2 limb 2).
+readings a boolean takes are their `all()`, which no boolean reads yet.
+The boolean reads one rung-3 arm, cylinder×sphere, through the section
+value (`pair_section`: the pair's pose decided once, its components,
+and its loops marched and fitted at `f64` where a join matches germs on
+them). `implemented` covers
+the whole operation. Every other pair refuses: the cone pairs blocked on
+the cone's metres conversion (C2 limb 2), the other torus pairs on their
+own arms' retirement.
 
 The same rule governs a curve against a face. A carrier span and a face
 meet through one exhaustive `(CurveKind, SurfaceKind)` table, in the

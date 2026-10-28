@@ -3113,12 +3113,9 @@ fn spline_interior<T: Decide + crate::props::AtRestPolicy>(
         edge: edge_key,
         band,
     };
-    let (true, Some(lane)) = (
-        geom_brep::curve_face::route(curve.carrier().kind(), kind).implemented,
-        T::nurbs_lane(),
-    ) else {
+    if !geom_brep::curve_face::route(curve.carrier().kind(), kind).implemented {
         return Err(unbuilt());
-    };
+    }
     let surface = y
         .get_face(face)
         .and_then(|f| y.get_surface(f.surface))
@@ -3131,27 +3128,28 @@ fn spline_interior<T: Decide + crate::props::AtRestPolicy>(
         .ok_or(BooleanError::ClassificationInvariant {
             what: "spline face: the table routed a face with no spline chart",
         })?;
-    let found = lane
-        .chart_meetings(curve.carrier(), curve.params(), chart, band)
-        .or_else(|refusal| {
-            Err(match refusal {
-                SplineFaceRefusal::Escalated(diag) => BooleanError::Escalated {
-                    decision: BooleanDecision::Crossing(CrossingDecision::OnEdge),
-                    diag,
-                },
-                SplineFaceRefusal::Unsettled(why) => BooleanError::SplineCrossingUnsettled {
-                    operand: x_is,
-                    edge: x
-                        .split_root(edge_key, |_| false)
-                        .map_err(BooleanError::SplitLineage)?,
-                    face,
-                    face_of: x_is.other(),
-                    why,
-                },
-                SplineFaceRefusal::Unread(_) => unbuilt(),
-                SplineFaceRefusal::Fault(what) => BooleanError::ClassificationInvariant { what },
-            })
-        })?;
+    let Some(found) = T::spline_chart_meetings(curve.carrier(), curve.params(), chart, band) else {
+        return Err(unbuilt());
+    };
+    let found = found.or_else(|refusal| {
+        Err(match refusal {
+            SplineFaceRefusal::Escalated(diag) => BooleanError::Escalated {
+                decision: BooleanDecision::Crossing(CrossingDecision::OnEdge),
+                diag,
+            },
+            SplineFaceRefusal::Unsettled(why) => BooleanError::SplineCrossingUnsettled {
+                operand: x_is,
+                edge: x
+                    .split_root(edge_key, |_| false)
+                    .map_err(BooleanError::SplitLineage)?,
+                face,
+                face_of: x_is.other(),
+                why,
+            },
+            SplineFaceRefusal::Unread(_) => unbuilt(),
+            SplineFaceRefusal::Fault(what) => BooleanError::ClassificationInvariant { what },
+        })
+    })?;
     for m in found {
         let esc_y = |e| esc(e, x_is.other(), face);
         if let Some((at, margin)) =
@@ -3444,7 +3442,7 @@ fn interior<T: Decide>(
 /// ([`crate::stands::inward`], about each face's outward normal at `p`)
 /// are definitely opposed (`bool_touch_sheets_part`, the cosine levered
 /// at the longer of the two faces' reaches from their edges,
-/// [`crate::wedge_reach`]). The two
+/// [`crate::wedge_reach()`]). The two
 /// faces are tangent sheets (the cover), so each leaves `p` along their
 /// common tangent plane, across the edges there; opposed, they meet
 /// nowhere else near `p`, and the meeting is a touch of the two
@@ -4010,7 +4008,7 @@ enum SpanVerdict<T: geom_core::Real> {
 
 /// **A spline span against a plane face**: the crossings strictly inside
 /// the span, ascending, by the curve × face table's ring-composite arm
-/// ([`geom_brep::NurbsLane::surface_crossings`]), read through the
+/// ([`crate::props::AtRestPolicy::spline_face_crossings`]), read through the
 /// scalar's certified lane. A spiric span, or a scalar with no certified
 /// lane, has no arm.
 ///
@@ -4039,11 +4037,13 @@ fn spline_plane_crossings<T: crate::props::AtRestPolicy>(
             what: "planar lane: the face's plane does not resolve",
         })?;
     let arm = route(curve.carrier().kind(), surface.kind());
-    let (geom::Curve3::Nurbs(net), true, Some(lane)) = (
-        curve.carrier(),
-        arm.door == Door::SplineComposite && arm.implemented,
-        T::nurbs_lane(),
-    ) else {
+    let crossings = match curve.carrier() {
+        geom::Curve3::Nurbs(net) if arm.door == Door::SplineComposite && arm.implemented => {
+            T::spline_face_crossings(net, curve.params(), surface, band)
+        }
+        _ => None,
+    };
+    let Some(crossings) = crossings else {
         return Err(BooleanError::EdgeCarrierUnsupported {
             operand: x_is,
             edge: root()?,
@@ -4052,26 +4052,25 @@ fn spline_plane_crossings<T: crate::props::AtRestPolicy>(
             site: super::EdgeCarrierSite::PlanarCrossing,
         });
     };
-    lane.surface_crossings(net, curve.params(), surface, band)
-        .or_else(|refusal| {
-            Err(match refusal {
-                CompositeRefusal::Escalated(diag) => BooleanError::Escalated {
-                    decision: BooleanDecision::Crossing(CrossingDecision::OnEdge),
-                    diag,
-                },
-                CompositeRefusal::Unsettled(why) => BooleanError::SplineCrossingUnsettled {
-                    operand: x_is,
-                    edge: root()?,
-                    face,
-                    face_of: x_is.other(),
-                    why,
-                },
-                CompositeRefusal::Unread(_) => BooleanError::ClassificationInvariant {
-                    what: "planar lane: a built spline carrier's composite against a plane \
+    crossings.or_else(|refusal| {
+        Err(match refusal {
+            CompositeRefusal::Escalated(diag) => BooleanError::Escalated {
+                decision: BooleanDecision::Crossing(CrossingDecision::OnEdge),
+                diag,
+            },
+            CompositeRefusal::Unsettled(why) => BooleanError::SplineCrossingUnsettled {
+                operand: x_is,
+                edge: root()?,
+                face,
+                face_of: x_is.other(),
+                why,
+            },
+            CompositeRefusal::Unread(_) => BooleanError::ClassificationInvariant {
+                what: "planar lane: a built spline carrier's composite against a plane \
                            did not form",
-                },
-            })
+            },
         })
+    })
 }
 
 /// The curved-wall crossing route: solve the certified roots — a
@@ -7788,7 +7787,7 @@ mod spline_face_rows {
         let surface = Surface::Nurbs(std::sync::Arc::new(patch));
         body.lifting_rechart_refusals_for_tests(|body| {
             body.set_face_surfaces_describing(
-                vec![crate::Rechart::new(surface, face, true)],
+                vec![crate::construction::Rechart::new(surface, face, true)],
                 &[],
                 tol,
             )
@@ -7900,7 +7899,7 @@ mod spline_face_rows {
         let seed = x.mvfs(at(0.2, 0.0), true).unwrap();
         let chord = x
             .mev_line(
-                crate::MevSite::Lone {
+                crate::construction::MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
                 at(1.4, 1.0),
@@ -7929,7 +7928,7 @@ mod spline_face_rows {
         let seed = x.mvfs(p, true).unwrap();
         let edge = x
             .mev_line(
-                crate::MevSite::Lone {
+                crate::construction::MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
                 q,
@@ -7964,7 +7963,7 @@ mod spline_face_rows {
         let seed = x.mvfs(Point3::origin() - dir * 0.5, true).unwrap();
         let edge = x
             .mev_line(
-                crate::MevSite::Lone {
+                crate::construction::MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
                 Point3::origin() + dir * 0.5,
@@ -8064,7 +8063,7 @@ mod spline_face_rows {
         let key = x
             .set_face_surface(
                 seed.face,
-                crate::FaceSurface::New {
+                crate::construction::FaceSurface::New {
                     surface: Surface::Plane {
                         origin: p,
                         normal: (q - p).cross(x_hat).normalize(),
@@ -8103,7 +8102,7 @@ mod spline_face_rows {
         };
         let edge = x
             .mev(
-                crate::MevSite::Lone {
+                crate::construction::MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
                 q,

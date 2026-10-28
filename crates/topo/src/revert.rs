@@ -489,7 +489,7 @@ mod tests {
         plane
             .set_face_surface(
                 seed.face,
-                crate::FaceSurface::New {
+                crate::construction::FaceSurface::New {
                     surface: geom::Surface::Plane {
                         origin: geom_core::Point3::new(0.0, 0.0, 0.0),
                         normal: geom_core::Vec3::unit_z(),
@@ -501,7 +501,7 @@ mod tests {
             .unwrap();
         plane
             .mev_line(
-                crate::MevSite::Lone {
+                crate::construction::MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
                 geom_core::Point3::new(1.0, 0.0, 0.0),
@@ -616,9 +616,9 @@ mod tests {
     /// surface and the face is read first.
     #[test]
     fn revert_panics_naming_a_chart_images_dangling_surface() {
+        use crate::construction::{FaceSurface, MevSite};
         use crate::entity::GeomRef;
         use crate::review_d18::ROW_FOUR;
-        use crate::{FaceSurface, MevSite};
         use geom::{Curve3, Surface};
         use geom_brep::EdgeCurveSpec;
         use geom_core::{Point3, Vec3};
@@ -687,7 +687,7 @@ mod tests {
     /// carries, byte for byte, and the involution restores the bits.
     #[test]
     fn revert_mirrors_a_plane_chart_image_and_its_certificate_survives() {
-        use crate::{FaceSurface, MevSite};
+        use crate::construction::{FaceSurface, MevSite};
         use geom::{Curve3, Surface};
         use geom_brep::EdgeCurveSpec;
         use geom_brep::certify::{CertCheck, CertifyError};
@@ -774,7 +774,14 @@ mod tests {
         // is the defect, and the meter says so where it always did.
         assert!(
             matches!(
-                source.recertify(start, end, surfaces, 1.0, band),
+                source.recertify(
+                    start,
+                    end,
+                    surfaces,
+                    1.0,
+                    band,
+                    geom_brep::NurbsLane::certified()
+                ),
                 Err(CertifyError::ResidualExceeded {
                     check: CertCheck::ChartResidual,
                     sample: 1,
@@ -784,7 +791,14 @@ mod tests {
             "the source's image is wrong on the reverted plane"
         );
         let rerun = mirrored
-            .recertify(start, end, surfaces, 1.0, band)
+            .recertify(
+                start,
+                end,
+                surfaces,
+                1.0,
+                band,
+                geom_brep::NurbsLane::certified(),
+            )
             .expect("the mirrored image certifies on the reverted plane");
         assert_eq!(
             format!("{rerun:?}"),

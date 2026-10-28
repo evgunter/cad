@@ -185,7 +185,10 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
                  it reduces an outline to one"
             ),
         };
-        let bridge = self.mekr_chord(crate::MekrSite::EmptyRing { target, ring }, tol)?;
+        let bridge = self.mekr_chord(
+            crate::construction::MekrSite::EmptyRing { target, ring },
+            tol,
+        )?;
         self.kev(bridge.he_plus)?;
         Ok(())
     }

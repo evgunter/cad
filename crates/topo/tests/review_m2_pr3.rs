@@ -19,10 +19,11 @@ use geom::Surface;
 use geom_brep::{EdgeDescriptionSpec, MappedCurve, MappedSource, SketchSegment, newell_plane};
 use geom_core::Tol;
 use geom_core::{Affine3, Arc2, Band, Decide, Point2, Point3, Vec3};
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, MefSite, MevSite};
 use topo::{
-    BadArgument, Body, EdgeCurveSpec, EdgeDescription, EntityId, EulerOpError, FaceSurface,
-    GeomRef, MefSite, MevSite, SurfaceKey, ValidationError, validate, validate_closed,
-    validate_geometric,
+    BadArgument, Body, EdgeCurveSpec, EdgeDescription, EntityId, EulerOpError, GeomRef, SurfaceKey,
+    ValidationError, validate, validate_closed, validate_geometric,
 };
 
 use crate::common;
@@ -46,8 +47,11 @@ fn eps() -> f64 {
 
 /// The prism build, generic over the scalar lane. Sketch triangle
 /// a(0,0) b(1,0) c(0.3,0.8) placed at identity, extruded along +z by 1.
-fn triangle_prism<T: Decide + topo::AtRestPolicy>()
--> (Body<T>, topo::MvfsCreated, [topo::MefCreated; 4]) {
+fn triangle_prism<T: Decide + topo::AtRestPolicy>() -> (
+    Body<T>,
+    topo::construction::MvfsCreated,
+    [topo::construction::MefCreated; 4],
+) {
     let sp = |x: f64, y: f64| Point2::new(x, y).map(T::from_f64);
     let wp = common::identity_map::<T>;
     let (sa, sb, sc) = (sp(0.0, 0.0), sp(1.0, 0.0), sp(0.3, 0.8));
@@ -266,18 +270,14 @@ fn e2e_prism_dual_lane_matches_f64() {
         Ok(())
     );
     assert_eq!(validate_geometric(&f, Tol::witness()), Ok(()));
-    let fr: Vec<f64> = f
-        .curves()
-        .map(|(_, c)| c.certified().unwrap().certificate().max_residual)
-        .collect();
-    let dr: Vec<f64> = d
-        .curves()
-        .map(|(_, c)| c.certified().unwrap().certificate().max_residual.value)
-        .collect();
-    assert_eq!(fr.len(), dr.len());
-    for (a, b) in fr.iter().zip(&dr) {
-        assert_eq!(a.to_bits(), b.to_bits());
-    }
+    // The dual's edges carry no certificate (DL3), and their intervals are
+    // the vertices' own; what each edge computes at its scalar — its
+    // carrier, the carrier at its interval's middle, and check 2's turn —
+    // is the f64 build's, value channel for value channel.
+    let fc = topo::test_support::computed_edge_channels(&f, |x| x);
+    let dc = topo::test_support::computed_edge_channels(&d, |x| x.value);
+    assert!(!fc.is_empty(), "the row compares edges");
+    assert_eq!(fc, dc);
 }
 
 // =====================================================================
@@ -489,7 +489,11 @@ fn survives_surface_swap_behind_intersection_edges_detected_at_rest() {
 /// The two-face lamina through one segment (both faces bounded by the
 /// two A–B edges) — the minimal body whose dihedral is controlled
 /// entirely by two set_face_surface calls.
-fn lamina() -> (Body<f64>, topo::MvfsCreated, topo::MefCreated) {
+fn lamina() -> (
+    Body<f64>,
+    topo::construction::MvfsCreated,
+    topo::construction::MefCreated,
+) {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(Point3::origin(), true).unwrap();
     let seg = body

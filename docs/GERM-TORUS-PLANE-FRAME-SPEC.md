@@ -195,7 +195,9 @@ main):
 
 What the facing test needs of a frame is a centre and an axis about
 which each loop of the section turns strictly monotonically
-(`cs_transverse_frame`'s docs, `join.rs` :2719). A numeric tracer
+(the argument the cylinder × sphere transverse frame made, retired with
+that frame by SECT step 1a: the pair now matches by foot parameter on
+its section). A numeric tracer
 (marching squares on the implicit section in the plane) read each loop's
 turn about a candidate centre:
 
@@ -242,8 +244,8 @@ order, through the table's own `geom_brep::plane_torus_section`:
 - **The meridian circles** are circles.
 - **The concentric circles** share their centre and axis. The facing
   test reads only `â·((p − c₀) × ṗ)`, and sliding `c₀` along `â` leaves
-  it unchanged, so one frame serves both loops. This is `cs_pair_frame`'s
-  argument.
+  it unchanged, so one frame serves both loops. This was the cylinder ×
+  sphere coaxial frame's argument (that frame retired in SECT step 1a).
 - **The spiric ovals** turn strictly monotonically about `k_σ`, which
   lies inside them. The proof's one home is `join::pt_germ_frame`'s
   doc. The meridian circles are its case `d = 0`.
@@ -689,8 +691,9 @@ Rows run in-crate, against `pair_section_frame_at` and
   is the obligation's pin.
 - **Q2 Where the general pose refuses** (answered: at the frame). A
   frame exists for two loops round the axis (§1.2's proof), and the
-  cylinder × sphere arm serves a frame for a quartic and refuses at the
-  dispatch (`cs_transverse_frame`). Here no later door can use the
+  cylinder × sphere arm served a frame for a quartic and refused at the
+  dispatch (its frame retired in SECT step 1a; the pair now reads its
+  section). Here no later door can use the
   frame: the table routes the quartic to the general rung and no carrier
   holds it. So the first door that reads the table owns the refusal, as
   the cone's hyperbola refuses at its frame. The proof is kept for the
@@ -716,7 +719,9 @@ Rows run in-crate, against `pair_section_frame_at` and
   cone's). Answered on the cone spec's Q4 argument: a lever is sound if
   it bounds the consumed region, and the face's reach does.
 - **Q6 The same loop question on the cylinder × sphere coaxial pair**
-  (answered by measurement: not live). `cs_pair_frame` serves one frame
+  (answered by measurement: not live; the frame retired in SECT step 1a,
+  and the pair now matches by foot parameter on its two circles). The
+  coaxial frame served one frame
   for two circles, and nothing in the frame stops `nearer_along` ranking
   across them where both lie on one face pair. Measured in U-T1 on a
   `0.5` rod (`germ_pair::cyl`) through a ball centred on its axis, at
