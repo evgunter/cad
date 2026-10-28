@@ -7,10 +7,13 @@
 //! to the member's values and every definition reaching them bound again
 //! ([`crate::Doc::bind_member`]), and over the results with each
 //! operation it reads as a member replaced by that member
-//! ([`overlay`]). A family it reads whole — at a member seat of a
-//! `union`, `intersect` or `assemble`, or through an indexed read — is
-//! left whole. A member that refuses refuses the family, naming the
-//! member.
+//! ([`overlay`]). A seat that reads a family whole — a member seat of
+//! a `union`, `intersect` or `assemble`, or an indexed read
+//! ([`crate::repetition::takes_whole`]) — and a selection naming its
+//! members read the family the member stands for
+//! ([`super::NodeValue::whole`]), so one operation may read a family
+//! plainly at one seat and whole at another. A member that refuses
+//! refuses the family, naming the member.
 //!
 //! A family of bodies holds its members' bodies as an `Instances`
 //! payload, one per member in index order, named `Member { at, of }`
@@ -19,7 +22,7 @@
 //! member's whole value ([`Members`]), which is what a reader of one
 //! member reads, and what the memo serves a member from.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use geom_core::Decide;
@@ -90,7 +93,9 @@ impl<T: Decide> Members<T> {
 /// # Errors
 ///
 /// [`NodeErrorKind::IndexCount`] where an index's count does not
-/// evaluate. A count below zero gives no value, as zero does.
+/// evaluate, and [`NodeErrorKind::IndexCountOutOfRange`] where it
+/// evaluates below zero or past `u32::MAX`. A count of zero gives no
+/// value.
 fn tuples<P: crate::ProfilePayload, T: Decide>(
     doc: &Doc<P>,
     env: &crate::expr::VarEnv<T>,
@@ -104,8 +109,16 @@ fn tuples<P: crate::ProfilePayload, T: Decide>(
     };
     let count = crate::expr::eval_count(&def.count, env)
         .map_err(|source| NodeErrorKind::IndexCount { index, source })?;
+    let admits = 0..=i64::from(u32::MAX);
+    if !admits.contains(&count) {
+        return Err(NodeErrorKind::IndexCountOutOfRange {
+            index,
+            count,
+            admits,
+        });
+    }
     let mut out = Vec::new();
-    for value in 0..count.max(0) {
+    for value in 0..count {
         let mut at = env.clone();
         doc.bind_member(&mut at, &[(index, value)]);
         for rest in tuples(doc, &at, inner)? {
@@ -115,46 +128,31 @@ fn tuples<P: crate::ProfilePayload, T: Decide>(
     Ok(out)
 }
 
-/// **The operations `id` reads as a family whole**: through a member
-/// seat of a `union`, `intersect` or `assemble`, an indexed read, or a
-/// selection naming the family's members.
-/// The overlay leaves each of them whole.
-fn read_whole<P: crate::ProfilePayload>(doc: &Doc<P>, id: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
-    let Some(node) = doc.node(id) else {
-        return BTreeSet::new();
-    };
-    let mut whole: BTreeSet<RecipeNodeId> = node
-        .operand_rows()
-        .into_iter()
-        .filter(|&(seat, _)| crate::repetition::takes_whole(node, seat))
-        .flat_map(|(_, var)| doc.read_ports(var))
-        .map(|(at, _)| at)
-        .collect();
-    whole.extend(crate::repetition::selected_whole(doc, id));
-    whole
-}
-
 /// **`results` at one member**: each family a member of whose stands
-/// at `bound` replaced by that member, but the families `whole` names.
+/// at `bound` replaced by that member, which keeps the family for the
+/// seats that read it whole ([`super::NodeValue::whole`]).
 fn overlay<T: Decide>(
     results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
     bound: &BTreeMap<VarId, u32>,
-    whole: &BTreeSet<RecipeNodeId>,
 ) -> BTreeMap<RecipeNodeId, NodeResult<T>> {
     results
         .iter()
         .map(|(&id, result)| {
             let member = match result {
-                NodeResult::Ok(value) if !whole.contains(&id) => value
+                NodeResult::Ok(value) => value
                     .members
                     .as_ref()
-                    .and_then(|members| members.bound_at(bound)),
+                    .and_then(|members| members.bound_at(bound))
+                    .map(|member| NodeValue {
+                        family: Some(Arc::new(value.clone())),
+                        ..member.clone()
+                    }),
                 _ => None,
             };
             // A failed operation stands as the nearest failed ancestor
             // of whatever reads it, which is all a reader asks of it.
             let result = match (member, result) {
-                (Some(member), _) => NodeResult::Ok(member.clone()),
+                (Some(member), _) => NodeResult::Ok(member),
                 (None, NodeResult::Ok(value)) => NodeResult::Ok(value.clone()),
                 (None, NodeResult::Failed(_)) => NodeResult::Poisoned { through: id },
                 (None, NodeResult::Poisoned { through }) => {
@@ -199,7 +197,6 @@ pub(super) fn eval_family<T: Decide>(
         Ok(values) => values,
         Err(kind) => return fail(kind),
     };
-    let whole = read_whole(doc, id);
     let prior_members = prior.and_then(|p| p.members.as_ref());
     let mut members = Vec::with_capacity(values.len());
     let mut reused = true;
@@ -207,7 +204,11 @@ pub(super) fn eval_family<T: Decide>(
         let at: Vec<(VarId, i64)> = chain.iter().copied().zip(value.iter().copied()).collect();
         let narrow: Vec<u32> = value
             .iter()
-            .map(|&v| u32::try_from(v).unwrap_or_else(|_| unreachable!("a count is within u32")))
+            .map(|&v| {
+                u32::try_from(v).unwrap_or_else(|_| {
+                    unreachable!("an admitted count is within u32 (`IndexCountOutOfRange`)")
+                })
+            })
             .collect();
         let bound: BTreeMap<VarId, u32> =
             chain.iter().copied().zip(narrow.iter().copied()).collect();
@@ -225,7 +226,7 @@ pub(super) fn eval_family<T: Decide>(
                 pass_two: op_env.lane.pass_two,
             },
         };
-        let over = overlay(results, &bound, &whole);
+        let over = overlay(results, &bound);
         let prior_member = prior_members.and_then(|m| m.at(&narrow));
         let step = eval_member(&member_env, &over, prior_member, &member_op_env, &at);
         reused &= step.reused;
@@ -330,20 +331,21 @@ fn family_value<T: Decide>(
         }
         None => (ValuePayload::Family, Arc::from([])),
     };
-    // A family carries what its members carry (each a copy of one
-    // source, so the first's records and findings are every member's),
-    // as many parts as its members are together, and no pieces.
-    let carry = super::Carry {
-        parts: members
+    // A family carries its members' carries together, each member's
+    // as its own: every member is evaluated on its own, so its records
+    // are keyed in its own arena, a boolean member's riding its payload.
+    let carry = super::Carry::of_family(
+        members
             .members
             .iter()
-            .map(|(_, value)| value.carry.parts)
-            .sum(),
-        ..members
-            .members
-            .first()
-            .map_or_else(super::Carry::default, |(_, value)| value.carry.of_members())
-    };
+            .map(|(_, value)| {
+                value
+                    .carry
+                    .clone()
+                    .recording(super::wire::records_of(value))
+            })
+            .collect(),
+    );
     let coincidences: Vec<crate::coincide::NamedCoincidence> = members
         .members
         .iter()
@@ -367,6 +369,7 @@ fn family_value<T: Decide>(
         cited_inputs: Arc::from([]),
         motion: None,
         members: Some(Arc::new(members)),
+        family: None,
         verdicts: Arc::new(verdicts),
         escalations: Arc::new(escalations),
         witness: super::WitnessSlot {},

@@ -938,7 +938,7 @@ fn operand_records<T: Decide + topo::AtRestPolicy>(
 /// The contact records `value` holds for its output body 0: a
 /// boolean's own, or those the value's channel carries
 /// ([`super::Carry::contacts`]).
-fn records_of<T: Decide>(value: &super::NodeValue<T>) -> Arc<topo::ContactRecords> {
+pub(super) fn records_of<T: Decide>(value: &super::NodeValue<T>) -> Arc<topo::ContactRecords> {
     match &value.payload {
         ValuePayload::Boolean(BooleanValue::Body { contacts, .. }) => Arc::clone(contacts),
         _ => Arc::clone(&value.carry.contacts),
@@ -1045,22 +1045,29 @@ fn read_body<T: Decide>(
 }
 
 /// **The body a resolved name lives in**: [`read_body`] for a value of
-/// one body, else the output body the name's row indexes — copy `i` of
-/// a pattern's instances — since a selection
-/// names an entity of one body of the value it reads.
+/// one body, else the output body the name's row indexes — member `i`
+/// of a family — since a selection names an entity of one body of the
+/// value it reads; `whole` where the name is of one of a family's
+/// members ([`super::NodeValue::whole`]).
 pub(super) fn read_named_body<T: Decide>(
     results: &Results<T>,
     input: RecipeNodeId,
     body: u32,
+    whole: bool,
 ) -> Result<super::Framed<T>, NodeErrorKind> {
     let v = value_of(results, input)?;
+    let v = if whole { v.whole() } else { v };
     match placeable_operand(v, input) {
         Ok(Placeable::Instances(bodies)) => usize::try_from(body)
             .ok()
             .and_then(|k| bodies.get(k))
             .cloned()
             .ok_or_else(|| wrong_operand(v, input, super::family::BODY)),
-        _ => read_body(results, input),
+        Ok(Placeable::Body(b)) => Ok(b),
+        Err(NodeErrorKind::WrongOperand { .. }) => {
+            Err(wrong_operand(v, input, super::family::BODY))
+        }
+        Err(other) => Err(other),
     }
 }
 
@@ -2009,8 +2016,14 @@ fn select<T: Decide, K: names::interrogate::Denoted>(
         return Err(NodeErrorKind::UnresolvedRead { slot, var });
     };
     let at = super::read_at(doc, slot, selection.body)?;
-    let table = &read_table(value_of(results, at)?);
-    resolve_selection(doc, table, slot, var, at)
+    let value = value_of(results, at)?;
+    // A selection naming a family's members reads the family whole.
+    let value = if crate::repetition::names_members(doc, selection) {
+        value.whole()
+    } else {
+        value
+    };
+    resolve_selection(doc, &read_table(value), slot, var, at)
 }
 
 /// **A singleton selection `var`, evaluated at the kind its variable
@@ -2084,7 +2097,14 @@ pub(crate) fn resolve_name<P: crate::ProfilePayload, T: Decide>(
         }
     }
     let at = super::read_at(doc, slot, read)?;
-    let table = read_table(value_of(results, at)?);
+    let value = value_of(results, at)?;
+    // A name of one of a family's members reads the family whole.
+    let value = if crate::repetition::names_a_member(name, at) {
+        value.whole()
+    } else {
+        value
+    };
+    let table = read_table(value);
     let ent = match name.kind {
         names::EntityKind::Face => entity(ladder::resolve_key::<topo::FaceKey, P>(
             name, doc, read, &table, refuse,
@@ -2520,6 +2540,7 @@ fn wire_mirror<T: Decide + topo::AtRestPolicy>(
         pieces: None,
         census: None,
         censused: false,
+        members: None,
     })
     .citing(vec![crate::coincide::CitedInput::Read(read)]))
 }
@@ -2659,7 +2680,7 @@ fn reads_projected<T: Decide>(
             .is_some_and(crate::BodyRead::is_indexed)
         {
             let family = super::read_at(doc, seat, var)?;
-            let value = value_of(results, family)?;
+            let value = value_of(results, family)?.whole();
             let ValuePayload::Instances(instances) = &value.payload else {
                 return Err(wrong_operand(value, family, super::family::INSTANCES));
             };
@@ -2726,18 +2747,18 @@ fn pick_of<T: Decide>(
         });
     }
     let bodies = &piece.bodies;
-    let (body, table) = if indexed {
+    let (body, table, member_carry) = if indexed {
         let (body, index) = instance_of(placement, bodies, vals, SlotId::Index { seat, k: 0 })?;
         let table = piece
             .table
             .project(index)
             .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
-        (body, table)
+        (body, table, piece.carry.member(index as usize))
     } else {
         let Some(body) = bodies.first() else {
             unreachable!("a piece that is a body holds one")
         };
-        (body.clone(), piece.table.as_ref().clone())
+        (body.clone(), piece.table.as_ref().clone(), &piece.carry)
     };
     names::check_total(&table, body.body(), 0).map_err(NodeErrorKind::Naming)?;
     Ok((
@@ -2753,7 +2774,7 @@ fn pick_of<T: Decide>(
             // records at all.
             carry: super::Carry {
                 contacts: Arc::default(),
-                ..piece.carry.clone()
+                ..member_carry.clone()
             },
             ..value.clone()
         },
@@ -3325,9 +3346,16 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     node: at,
                     framed: body.clone(),
                     table: Arc::new(table),
-                    // A family's records are the family's, not one
-                    // member's: a member read whole cites none.
-                    records: Arc::default(),
+                    // Each member's own records, keyed in its arena:
+                    // those its door's census kept, else its own.
+                    records: {
+                        let carry = value.carry.member(i);
+                        carry
+                            .census
+                            .as_ref()
+                            .and_then(|census| census.records(doc, tol))
+                            .unwrap_or_else(|| Arc::clone(&carry.contacts))
+                    },
                     pieces: None,
                 })
             })
@@ -3342,7 +3370,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 let at = super::read_at(doc, slot, read)?;
                 let projected = reads_projected(node, &[(slot, read)], doc, (results, vals))?;
                 let results = projected.as_ref().unwrap_or(results);
-                let value = value_of(results, at)?;
+                let value = value_of(results, at)?.whole();
                 // A family spelled as one read is its every member
                 // (D10 `[repetition]`).
                 if value.members.is_some() && !member.is_member() {
@@ -3378,7 +3406,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             }
             let read = &family.read;
             let at = super::read_at(doc, O::Members, *read)?;
-            whole(*read, at, value_of(results, at)?)?
+            whole(*read, at, value_of(results, at)?.whole())?
         }
     };
     // The node's own read: the space a fold step's rows are read in.
@@ -4003,9 +4031,8 @@ pub(crate) const PLANE_NORMAL_ROLE: &str = "plane normal";
 pub(crate) const AXIS_DIRECTION_ROLE: &str = "axis direction";
 
 /// **A placement** (D10 `[placement.placement]`): the copy of its
-/// source's one body ([`copy_of`]), or, until patterns are index
-/// variables, of a pattern's family whole, each member placed by the one
-/// map and carrying what each member carries.
+/// source's one body ([`copy_of`]), or of a family read whole, each
+/// member placed by the one map and carrying its own carry.
 fn wire_place<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     (of, read, results): (RecipeNodeId, crate::VarId, &Results<T>),
@@ -4027,9 +4054,20 @@ fn wire_place<T: Decide + topo::AtRestPolicy>(
             let placed: Vec<&Body<T>> = bodies.iter().map(super::Framed::body).collect();
             let table =
                 names::name_copy(id, &read_table(value), &placed).map_err(NodeErrorKind::Naming)?;
+            // Each member's records cite the placement's one read.
+            let moved = carry.moved(map)?;
+            let members = moved.members.as_ref().map(|members| {
+                members
+                    .iter()
+                    .map(|member| {
+                        let records = Arc::new(member.contacts.carried_from(0));
+                        member.clone().recording(records)
+                    })
+                    .collect()
+            });
             let records = Arc::new(carry.contacts.carried_from(0));
             return Ok(OpOut::plain(ValuePayload::Instances(bodies), table)
-                .carrying(carry.moved(map)?.recording(records))
+                .carrying(super::Carry { members, ..moved }.recording(records))
                 .citing(citing));
         }
         _ => return Err(wrong_operand(value, of, super::phrase::BODY_OR_INSTANCES)),
@@ -4063,7 +4101,7 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
     let operands: Vec<&super::Framed<T>> = members
         .iter()
         .filter_map(|&(of, _, results)| value_of(results, of).ok())
-        .flat_map(|value| match &value.payload {
+        .flat_map(|value| match &value.whole().payload {
             ValuePayload::Boolean(BooleanValue::Body { body, .. }) | ValuePayload::Body(body) => {
                 vec![body]
             }
@@ -4080,7 +4118,8 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
     let mut citing: Vec<crate::coincide::CitedInput> = Vec::with_capacity(members.len());
     let mut parts = 0;
     for &(of, read, results) in members {
-        let value = value_of(results, of)?;
+        // Every seat of an assemble takes a family whole.
+        let value = value_of(results, of)?.whole();
         let (bodies, family, records) = match &value.payload {
             ValuePayload::Boolean(BooleanValue::Empty) => {
                 return Err(NodeErrorKind::EmptyOperand { input: of });
@@ -4096,6 +4135,15 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
             }
             _ => return Err(wrong_operand(value, of, super::phrase::BODY_OR_INSTANCES)),
         };
+        // Each member of a family brings its own records, keyed in its
+        // own arena.
+        let records_at = |i: usize| {
+            if family {
+                Arc::clone(&value.carry.member(i).contacts)
+            } else {
+                Arc::clone(&records)
+            }
+        };
         let table = read_table(value);
         let mut bridges = Vec::with_capacity(bodies.len());
         for body in &bodies {
@@ -4109,11 +4157,11 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
         // its graft (each member's of a family), citing the member by its
         // read.
         let input = u32::try_from(citing.len()).unwrap_or(u32::MAX);
-        for keys in &bridges {
+        for (i, keys) in bridges.iter().enumerate() {
             crate::product::carry_contacts(
                 &fused,
                 &mut contacts,
-                &records.carried_from(input),
+                &records_at(i).carried_from(input),
                 keys,
             )
             .map_err(|what| NodeErrorKind::Naming(names::NamingError::Emission { what }))?;
@@ -4148,6 +4196,7 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
         censused: true,
         pieces: Some(pieces),
         findings: Arc::default(),
+        members: None,
     })
     .citing(citing))
 }

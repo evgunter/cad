@@ -577,8 +577,12 @@ mod r1_dual_probes;
 mod r1_m10_1_corruptions;
 #[path = "r1_m10_1_probes.rs"]
 mod r1_m10_1_probes;
+#[path = "r1_probes.rs"]
+mod r1_probes;
 #[path = "r2_cert3_coord_dump.rs"]
 mod r2_cert3_coord_dump;
+#[path = "r2_g_probes.rs"]
+mod r2_g_probes;
 #[path = "r2_keydiff.rs"]
 mod r2_keydiff;
 #[path = "r2_m10_2_probes.rs"]

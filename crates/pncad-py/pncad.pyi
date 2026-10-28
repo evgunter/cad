@@ -3163,17 +3163,26 @@ definitions it reads may hold: a definition past it refuses
 
 class Recognised:
     """A placement read back as the pattern it is (`Doc.recognise`): a
-    row (`kind == "linear"`, its `steps`) or a ring
-    (`kind == "circular"`, its `step`), under `index`."""
+    row (`kind == "linear"`, its `steps`), a grid (`kind == "grid"`,
+    `steps` along `index` and `inner_steps` along `inner_index`) or a
+    ring (`kind == "circular"`, its `step`), under `index`."""
 
     @property
-    def kind(self) -> Literal["linear", "circular"]: ...
+    def kind(self) -> Literal["linear", "grid", "circular"]: ...
     @property
-    def index(self) -> Var: ...
+    def index(self) -> Var:
+        """The index: a grid's outer."""
+    @property
+    def inner_index(self) -> Var | None:
+        """A grid's inner index; None for a row or a ring."""
     @property
     def steps(self) -> list[tuple[Literal["x", "y", "z"], Formula]]:
-        """A row's slides, each axis and its pitch per member; empty
-        for a ring."""
+        """A row's slides, or a grid's along its outer index, each axis
+        and its pitch per member; empty for a ring."""
+    @property
+    def inner_steps(self) -> list[tuple[Literal["x", "y", "z"], Formula]]:
+        """A grid's slides along its inner index; empty for a row or a
+        ring."""
     @property
     def step(self) -> Formula | None:
         """A ring's turn per member; None for a row."""
@@ -4041,10 +4050,10 @@ class Doc:
     def recognise(self, placement: NodeId) -> Recognised | None:
         """What pattern `placement` is, for display: a row where it is
         a placement under exactly one index with no mate whose every
-        non-zero value is a slide a multiple of the index, a ring where
-        it has one mate and its spin is that multiple. None for any
-        other node. It reads the recipe as written and decides
-        nothing."""
+        non-zero value is a slide a multiple of the index, a grid where
+        it is under two and slides along each, a ring where it has one
+        mate and its spin is that multiple. None for any other node. It
+        reads the recipe as written and decides nothing."""
     def var_name(self, var: Var) -> VarName | None:
         """The name this document holds for `var`, or None — for an
         anonymous variable, or one the document no longer holds."""

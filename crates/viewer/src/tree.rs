@@ -1075,6 +1075,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::CountOutOfRange { .. }
         | NodeErrorKind::IndicesUnrelated { .. }
         | NodeErrorKind::IndexCount { .. }
+        | NodeErrorKind::IndexCountOutOfRange { .. }
         | NodeErrorKind::UnschedulableCycle
         | NodeErrorKind::Shell(_)
         | NodeErrorKind::ShellLaneUnsupported { .. }

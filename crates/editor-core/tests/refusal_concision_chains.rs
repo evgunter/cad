@@ -798,7 +798,7 @@ test_utils::f6_variants! {
         Boolean, Transform, Mirror, Motion, Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
         ToleranceConflict, ParamBox, Seed, WrongOperand, EmptyOperand,
         UnfinishedOperand, EmptyHalf, MemberOutOfRange, MemberRefused, IndicesUnrelated,
-        IndexCount, NoSuchPiece, PieceShape,
+        IndexCount, IndexCountOutOfRange, NoSuchPiece, PieceShape,
         DegenerateDirection, NonFiniteDirection, UnderflowedDirection, Band, MissingSlot,
         Escalated, MeasureEscalated, PlacementAxisEscalated, PoseDirectionEscalated,
         PoseRead, PoseDegenerate, PoseScalar, CountOutOfRange, UnschedulableCycle,
@@ -1247,6 +1247,7 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         | NodeErrorKind::PoseDirectionEscalated { .. }
         | NodeErrorKind::PoseDegenerate { .. }
         | NodeErrorKind::CountOutOfRange { .. }
+        | NodeErrorKind::IndexCountOutOfRange { .. }
         | NodeErrorKind::UnschedulableCycle
         | NodeErrorKind::UnionFoldStep { .. }
         | NodeErrorKind::ShellLaneUnsupported { .. }
@@ -1871,6 +1872,14 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             "PoseDegenerate",
             NodeErrorKind::PoseDegenerate {
                 construction: editor_core::pose::PoseConstruction::Meet,
+            },
+        ),
+        row(
+            "IndexCountOutOfRange",
+            NodeErrorKind::IndexCountOutOfRange {
+                index: editor_core::VarId::new(0, tagged(2)),
+                count: -3,
+                admits: 0..=i64::from(u32::MAX),
             },
         ),
         row(

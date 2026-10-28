@@ -9,9 +9,9 @@
 //! member `scalar(k)·pitch`; a ring is an `Axis` mate spun
 //! `scalar(k)·step`; a grid is two indices, one within the other.
 //!
-//! [`recognise`] reads a placement under one index whose values are a
-//! multiple of that index back as the row or ring it is, for a form to
-//! show. It reads the recipe as written and never decides anything: a
+//! [`recognise`] reads a placement whose values are multiples of the
+//! indices it reaches back as the row, grid or ring it is, for a form
+//! to show. It reads the recipe as written and never decides anything: a
 //! placement it does not recognise is a placement like any other.
 
 use editor_core::{
@@ -166,6 +166,14 @@ pub enum Recognised {
         /// Each slide's axis and its step per member.
         steps: Vec<(TargetAxis, Formula)>,
     },
+    /// A grid: two indices, the inner within the outer, each slide a
+    /// multiple of one of them, no mate.
+    Grid {
+        /// The outer index and its slides' axes and steps per member.
+        outer: (VarId, Vec<(TargetAxis, Formula)>),
+        /// The inner index and its slides' axes and steps per member.
+        inner: (VarId, Vec<(TargetAxis, Formula)>),
+    },
     /// A ring: one mate, its spin a multiple of the index.
     Circular {
         /// The index.
@@ -191,38 +199,52 @@ fn step_of(doc: &ProfileDoc, formula: &Formula, index: VarId) -> Option<Formula>
     })
 }
 
-/// **What pattern `placement` is**, where it is one placement under
-/// exactly one index whose values are each zero or a multiple of the
-/// index: a row where it has no mate and every such value is a slide,
-/// a ring where it has one mate and its spin is the multiple. `None`
-/// for any other placement.
+/// **What pattern `placement` is**, where it is one placement whose
+/// values are each zero or a multiple of one index it reaches: a row
+/// where it reaches one index, has no mate and every such value is a
+/// slide; a grid where it reaches two, has no mate, and slides along
+/// each; a ring where it reaches one, has one mate and its spin is the
+/// multiple. `None` for any other placement.
 #[must_use]
 pub fn recognise(doc: &ProfileDoc, placement: RecipeNodeId) -> Option<Recognised> {
     let Some(Node::Place { constraints, .. }) = doc.node(placement) else {
         return None;
     };
     let reached = doc.node_reach(placement);
-    let &[index] = reached.chain()? else {
-        return None;
-    };
+    let chain = reached.chain()?;
     let mates = constraints.iter().filter(|c| c.mate().is_some()).count();
-    let mut steps = Vec::new();
+    let mut steps: Vec<Vec<(TargetAxis, Formula)>> = vec![Vec::new(); chain.len()];
     let mut spin = None;
     for value in constraints.iter().filter_map(|c| c.value()) {
         let written = doc.written(&editor_core::Expr::var(value.by, value.coord.dimension()));
         if written.is_zero() {
             continue;
         }
-        let step = step_of(doc, &written, index)?;
+        let (at, step) = chain
+            .iter()
+            .enumerate()
+            .find_map(|(at, &index)| Some((at, step_of(doc, &written, index)?)))?;
         match value.coord {
-            Coord::Slide(axis) if mates == 0 => steps.push((axis, step)),
+            Coord::Slide(axis) if mates == 0 => steps[at].push((axis, step)),
             Coord::Spin(None) if mates == 1 && spin.is_none() => spin = Some(step),
             _ => return None,
         }
     }
-    match (mates, spin) {
-        (0, None) if !steps.is_empty() => Some(Recognised::Linear { index, steps }),
-        (1, Some(step)) if steps.is_empty() => Some(Recognised::Circular { index, step }),
+    match (chain, mates, spin) {
+        (&[index], 0, None) if !steps[0].is_empty() => Some(Recognised::Linear {
+            index,
+            steps: steps.swap_remove(0),
+        }),
+        (&[outer, inner], 0, None) if steps.iter().all(|s| !s.is_empty()) => {
+            let inner_steps = steps.swap_remove(1);
+            Some(Recognised::Grid {
+                outer: (outer, steps.swap_remove(0)),
+                inner: (inner, inner_steps),
+            })
+        }
+        (&[index], 1, Some(step)) if steps[0].is_empty() => {
+            Some(Recognised::Circular { index, step })
+        }
         _ => None,
     }
 }

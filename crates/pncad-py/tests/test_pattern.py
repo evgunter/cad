@@ -412,6 +412,27 @@ class TestTheReadSide(unittest.TestCase):
         self.assertEqual(seen.steps, [])
         self.assertEqual(seen.step.dimension, "angle")
 
+    def test_a_grid_is_recognised_as_a_grid(self):
+        doc = Doc()
+        cube = box(doc)
+        i = index(doc, "i", 2)
+        j = index(doc, "j", 3, within=i)
+        grid = doc.insert(
+            Node.grid(
+                (i, "x", Formula.length_in(PITCH, m)),
+                (j, "y", Formula.length_in(PITCH, m)),
+                cube,
+                doc.space(cube),
+            )
+        )
+        seen = doc.recognise(grid)
+        self.assertEqual(seen.kind, "grid")
+        self.assertEqual(doc.var_name(seen.index), VarName("i"))
+        self.assertEqual(doc.var_name(seen.inner_index), VarName("j"))
+        self.assertEqual([axis for axis, _ in seen.steps], ["x"])
+        self.assertEqual([axis for axis, _ in seen.inner_steps], ["y"])
+        self.assertIsNone(seen.step)
+
     def test_the_member_read_is_a_read(self):
         """Deleting the row a member read reads is accepted, says the
         read it strands, and leaves the reader refusing until

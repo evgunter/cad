@@ -2094,19 +2094,22 @@ impl Doc {
     /// **What pattern `placement` is**, for display
     /// (`pncad::pattern::recognise`): a row where it is a placement
     /// under exactly one index with no mate whose every non-zero value
-    /// is a slide a multiple of the index, a ring where it has one mate
-    /// and its spin is that multiple. `None` for any other node. It
-    /// reads the recipe as written and decides nothing.
+    /// is a slide a multiple of the index, a grid where it is under two
+    /// and slides along each, a ring where it has one mate and its spin
+    /// is that multiple. `None` for any other node. It reads the recipe
+    /// as written and decides nothing.
     fn recognise(&self, placement: &NodeId) -> Option<Recognised> {
-        pncad::pattern::recognise(&self.inner, placement.0).map(|r| Recognised {
-            index: Var::of(
-                &self.inner,
-                match &r {
-                    pncad::pattern::Recognised::Linear { index, .. }
-                    | pncad::pattern::Recognised::Circular { index, .. } => *index,
-                },
-            ),
-            inner: r,
+        pncad::pattern::recognise(&self.inner, placement.0).map(|r| {
+            let (index, within) = match &r {
+                pncad::pattern::Recognised::Linear { index, .. }
+                | pncad::pattern::Recognised::Circular { index, .. } => (*index, None),
+                pncad::pattern::Recognised::Grid { outer, inner } => (outer.0, Some(inner.0)),
+            };
+            Recognised {
+                index: Var::of(&self.inner, index),
+                inner_index: within.map(|var| Var::of(&self.inner, var)),
+                inner: r,
+            }
         })
     }
 
@@ -2388,46 +2391,61 @@ fn pattern_node(authored: Result<d::AuthoredNode, d::DimensionError>) -> PyResul
 }
 
 /// **A placement read back as the pattern it is** (`Doc.recognise`):
-/// a row (`kind == "linear"`, its `steps`) or a ring
-/// (`kind == "circular"`, its `step`), under `index`.
+/// a row (`kind == "linear"`, its `steps`), a grid (`kind == "grid"`,
+/// `steps` along `index` and `inner_steps` along `inner_index`) or a
+/// ring (`kind == "circular"`, its `step`), under `index`.
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct Recognised {
     inner: pncad::pattern::Recognised,
     index: Var,
+    inner_index: Option<Var>,
 }
 
 #[pymethods]
 impl Recognised {
-    /// `"linear"` or `"circular"`.
+    /// `"linear"`, `"grid"` or `"circular"`.
     #[getter]
     fn kind(&self) -> &'static str {
         match self.inner {
             pncad::pattern::Recognised::Linear { .. } => "linear",
+            pncad::pattern::Recognised::Grid { .. } => "grid",
             pncad::pattern::Recognised::Circular { .. } => "circular",
         }
     }
 
-    /// The index.
+    /// The index: a grid's outer.
     #[getter]
     fn index(&self) -> Var {
         self.index
     }
 
-    /// A row's slides, each axis (`"x"`, `"y"`, `"z"`) and its pitch per
-    /// member; empty for a ring.
+    /// A grid's inner index; `None` for a row or a ring.
+    #[getter]
+    fn inner_index(&self) -> Option<Var> {
+        self.inner_index
+    }
+
+    /// A row's slides, or a grid's along its outer index, each axis
+    /// (`"x"`, `"y"`, `"z"`) and its pitch per member; empty for a ring.
     #[getter]
     fn steps(&self) -> Vec<(&'static str, super::expr::Formula)> {
         match &self.inner {
-            pncad::pattern::Recognised::Linear { steps, .. } => steps
-                .iter()
-                .map(|(axis, pitch)| {
-                    (
-                        super::mate::axis_word(*axis),
-                        super::expr::Formula(pitch.clone()),
-                    )
-                })
-                .collect(),
+            pncad::pattern::Recognised::Linear { steps, .. }
+            | pncad::pattern::Recognised::Grid {
+                outer: (_, steps), ..
+            } => slides(steps),
             pncad::pattern::Recognised::Circular { .. } => Vec::new(),
+        }
+    }
+
+    /// A grid's slides along its inner index; empty for a row or a ring.
+    #[getter]
+    fn inner_steps(&self) -> Vec<(&'static str, super::expr::Formula)> {
+        match &self.inner {
+            pncad::pattern::Recognised::Grid {
+                inner: (_, steps), ..
+            } => slides(steps),
+            _ => Vec::new(),
         }
     }
 
@@ -2438,13 +2456,30 @@ impl Recognised {
             pncad::pattern::Recognised::Circular { step, .. } => {
                 Some(super::expr::Formula(step.clone()))
             }
-            pncad::pattern::Recognised::Linear { .. } => None,
+            pncad::pattern::Recognised::Linear { .. } | pncad::pattern::Recognised::Grid { .. } => {
+                None
+            }
         }
     }
 
     fn __repr__(&self) -> String {
         format!("Recognised.{}({})", self.kind(), self.index.__repr__())
     }
+}
+
+/// Slides as Python reads them: each axis word and its pitch.
+fn slides(
+    steps: &[(editor_core::TargetAxis, editor_core::Formula)],
+) -> Vec<(&'static str, super::expr::Formula)> {
+    steps
+        .iter()
+        .map(|(axis, pitch)| {
+            (
+                super::mate::axis_word(*axis),
+                super::expr::Formula(pitch.clone()),
+            )
+        })
+        .collect()
 }
 
 /// **The loop programs an `outline` argument spells** — ONE

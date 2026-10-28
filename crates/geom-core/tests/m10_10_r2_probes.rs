@@ -330,9 +330,11 @@ fn r2_half_pi_folds_only_the_exact_form() {
     for (name, mk) in theorems {
         assert_sound_theorem(name, how_f64(mk), 1.0e-15);
     }
-    // Rule H's two: `cos(4π/5)` is `−cos(π/5)`, one first-octant atom,
-    // and `cos(π + φ)` is `−cos φ` by angle addition.
-    let angle_sums: [(&str, fn() -> Sym<f64>); 2] = [
+    // Rule H's: `cos(4π/5)` is `−cos(π/5)`, one first-octant atom;
+    // `cos(π + φ)` is `−cos φ` by angle addition; and `cos(φ + π/2)` is
+    // `−sin φ`, whose split reads `sin(π/2) ≠ 0`, so the sign of the
+    // split's `sin φ·sin qπ` term is what proves it.
+    let angle_sums: [(&str, fn() -> Sym<f64>); 4] = [
         ("cos(π/5) + cos(4π/5)", || {
             (pi() / Sym::from_f64(5.0)).sin_cos().1
                 + (pi() * Sym::from_f64(4.0) / Sym::from_f64(5.0)).sin_cos().1
@@ -340,6 +342,14 @@ fn r2_half_pi_folds_only_the_exact_form() {
         ("cos(π + atan x) + cos(atan x)", || {
             let x = p("x", 0.3);
             (pi() + x.atan()).sin_cos().1 + x.atan().sin_cos().1
+        }),
+        ("cos(atan x + π/2) + sin(atan x)", || {
+            let x = p("x", 0.3);
+            (x.atan() + pi() / Sym::from_f64(2.0)).sin_cos().1 + x.atan().sin_cos().0
+        }),
+        ("sin(atan x + π/2) − cos(atan x)", || {
+            let x = p("x", 0.3);
+            (x.atan() + pi() / Sym::from_f64(2.0)).sin_cos().0 - x.atan().sin_cos().1
         }),
     ];
     for (name, mk) in angle_sums {

@@ -102,6 +102,8 @@ pub enum NodeErrorClass {
     IndicesUnrelated,
     /// [`NodeErrorKind::IndexCount`].
     IndexCount,
+    /// [`NodeErrorKind::IndexCountOutOfRange`].
+    IndexCountOutOfRange,
     /// [`NodeErrorKind::NoSuchPiece`].
     NoSuchPiece,
     /// [`NodeErrorKind::PieceShape`].
@@ -245,6 +247,7 @@ impl NodeErrorKind {
             Self::MemberRefused { .. } => C::MemberRefused,
             Self::IndicesUnrelated { .. } => C::IndicesUnrelated,
             Self::IndexCount { .. } => C::IndexCount,
+            Self::IndexCountOutOfRange { .. } => C::IndexCountOutOfRange,
             Self::NoSuchPiece { .. } => C::NoSuchPiece,
             Self::PieceShape { .. } => C::PieceShape,
             Self::DegenerateDirection { .. } => C::DegenerateDirection,
@@ -383,6 +386,7 @@ mod tests {
         MemberRefused,
         IndicesUnrelated,
         IndexCount,
+        IndexCountOutOfRange,
         NoSuchPiece,
         PieceShape,
         DegenerateDirection,
@@ -602,6 +606,11 @@ mod tests {
             C::IndexCount => K::IndexCount {
                 index: crate::VarId::new(2, 0),
                 source: EvalError::NonFiniteResult,
+            },
+            C::IndexCountOutOfRange => K::IndexCountOutOfRange {
+                index: crate::VarId::new(2, 0),
+                count: -1,
+                admits: 0..=i64::from(u32::MAX),
             },
             C::NoSuchPiece => K::NoSuchPiece {
                 pick: crate::VarId::new(2, 0),

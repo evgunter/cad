@@ -193,43 +193,18 @@ pub(crate) fn names_members<P>(doc: &Doc<P>, select: &crate::var::Select) -> boo
     let Some(at) = doc.operation_of(select.body) else {
         return false;
     };
-    !select.names.is_empty()
-        && select.names.iter().all(|name| {
-            name.node == at
-                && matches!(
-                    name.path.first(),
-                    Some(crate::names::RoleSeg::Member { .. })
-                )
-        })
+    !select.names.is_empty() && select.names.iter().all(|name| names_a_member(name, at))
 }
 
-/// **The families the operation `id` reads whole through a selection
-/// naming their members** ([`names_members`]), through every definition
-/// its reads reach.
-pub(crate) fn selected_whole<P: crate::ProfilePayload>(
-    doc: &Doc<P>,
-    id: RecipeNodeId,
-) -> BTreeSet<RecipeNodeId> {
-    let Some(node) = doc.node(id) else {
-        return BTreeSet::new();
-    };
-    let mut stack: Vec<VarId> = node.exprs().into_iter().copied().collect();
-    stack.extend(node.operand_rows().into_iter().map(|(_, var)| var));
-    let mut seen = BTreeSet::new();
-    let mut out = BTreeSet::new();
-    while let Some(var) = stack.pop() {
-        if !seen.insert(var) {
-            continue;
-        }
-        match doc.var(var).map(crate::Var::def) {
-            Some(VarDef::Select(select)) if names_members(doc, select) => {
-                out.extend(doc.operation_of(select.body));
-            }
-            Some(VarDef::Output { .. } | VarDef::Free(_) | VarDef::Index(_)) | None => {}
-            Some(_) => stack.extend(doc.definition_reads(var)),
-        }
-    }
-    out
+/// Whether `name` names an entity of one of the members of the family
+/// the operation `at` defines: headed at `at` under a `Member`
+/// qualifier.
+pub(crate) fn names_a_member(name: &crate::names::StableName, at: RecipeNodeId) -> bool {
+    name.node == at
+        && matches!(
+            name.path.first(),
+            Some(crate::names::RoleSeg::Member { .. })
+        )
 }
 
 /// Whether `node` reads the variable at `seat` as a family whole: a

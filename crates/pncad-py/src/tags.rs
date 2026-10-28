@@ -935,11 +935,13 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::CountOutOfRange => "count_out_of_range",
         // Repetition (D10 `[repetition]`): a read outside a family's
         // members, a member that refused, two indices one reader cannot
-        // order, and an index whose count did not evaluate.
+        // order, and an index whose count did not evaluate or evaluated
+        // outside the counts an index holds.
         C::MemberOutOfRange => "member_out_of_range",
         C::MemberRefused => "member_refused",
         C::IndicesUnrelated => "indices_unrelated",
         C::IndexCount => "index_count",
+        C::IndexCountOutOfRange => "index_count_out_of_range",
         C::UnschedulableCycle => "unschedulable_cycle",
         C::Naming => "naming",
         C::UnionFoldStep => "union_fold_step",
@@ -1068,6 +1070,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::MemberRefused { .. } => None,
         NodeErrorKind::IndicesUnrelated { .. } => None,
         NodeErrorKind::IndexCount { source, .. } => Some(eval_error_tag(source)),
+        NodeErrorKind::IndexCountOutOfRange { .. } => None,
         NodeErrorKind::DegenerateDirection { .. } => None,
         NodeErrorKind::NonFiniteDirection { .. } => None,
         NodeErrorKind::UnderflowedDirection { .. } => None,

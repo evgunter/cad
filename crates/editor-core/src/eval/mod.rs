@@ -845,6 +845,11 @@ pub struct NodeValue<T: Decide> {
     /// for a node evaluated once per value of the indices it reaches
     /// ([`members`]); `None` for every other node.
     pub members: Option<Arc<members::Members<T>>>,
+    /// **The family a member stands for**, in one member's view of its
+    /// family ([`members`]): what a seat that reads the family whole
+    /// reads ([`Self::whole`]). `None` on every value an evaluation
+    /// keeps.
+    pub family: Option<Arc<NodeValue<T>>>,
     /// The node's verdict log (M4 PR 4, N5): every definite predicate
     /// decision made evaluating the node — those made before its
     /// content key (a profile's f64 precompute: the plane read, the
@@ -896,6 +901,14 @@ impl<T: Decide> NodeValue<T> {
     pub(crate) fn output(&self, port: u8) -> Option<&OutputNames> {
         self.outputs.get(usize::from(port))
     }
+
+    /// **This value read whole**: in a member's view of its family, the
+    /// family; else this. A seat that takes a family whole
+    /// ([`crate::repetition::takes_whole`]) and a selection naming its
+    /// members read it so.
+    pub(crate) fn whole(&self) -> &Self {
+        self.family.as_deref().unwrap_or(self)
+    }
 }
 
 impl<T: Decide> NodeValue<T> {
@@ -910,6 +923,7 @@ impl<T: Decide> NodeValue<T> {
             coincidences: out.coincidences,
             cited_inputs: out.cited_inputs,
             members: None,
+            family: None,
             verdicts: Arc::new(Vec::new()),
             escalations: Arc::new(Vec::new()),
             motion: None,
@@ -943,6 +957,7 @@ impl NodeValue<f64> {
             escalations: Arc::new(vec![]),
             motion: None,
             members: None,
+            family: None,
             witness: WitnessSlot::default(),
             content_key: ContentKey(0),
             naming_key: NamingKey(0),
@@ -1665,6 +1680,17 @@ pub enum NodeErrorKind {
         /// Why its count did not evaluate.
         source: EvalError,
     },
+    /// **An index's count evaluated outside the counts an index holds**:
+    /// below zero, or past the largest member index the evaluator reads
+    /// into a `u32`.
+    IndexCountOutOfRange {
+        /// The index.
+        index: crate::VarId,
+        /// The evaluated count.
+        count: i64,
+        /// The counts an index admits, both ends included.
+        admits: core::ops::RangeInclusive<i64>,
+    },
     /// A pick ([`crate::VarDef::Pick`]) whose path names no piece of
     /// its copy: the source no longer holds that piece, or never did.
     /// Unresolved, typed, never re-pointed.
@@ -2218,6 +2244,18 @@ impl crate::spoken::Say for NodeErrorKind {
                     by.read(*index)
                 )
             }
+            Self::IndexCountOutOfRange {
+                index,
+                count,
+                admits,
+            } => write!(
+                f,
+                "the count of index {} evaluated to {count}, and an index holds {} to {} \
+                 members. Recourse: make it evaluate within that range",
+                by.read(*index),
+                admits.start(),
+                admits.end()
+            ),
             // Every role word is already a complete noun phrase for
             // the vector (the `*_ROLE` constants are where they are
             // written), so the sentence names the role and nothing
@@ -4288,6 +4326,7 @@ where
                 cited_inputs: out.cited_inputs,
                 motion: out.motion,
                 members: None,
+                family: None,
                 verdicts: Arc::new(recorded.verdicts),
                 escalations,
                 witness: WitnessSlot {},
