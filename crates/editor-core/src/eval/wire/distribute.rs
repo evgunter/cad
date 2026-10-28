@@ -329,7 +329,9 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
         pieces: Some(pieces),
         census,
         censused: true,
-        ..crate::eval::Carry::default()
+        // Its records ride the boolean's payload.
+        contacts: Arc::default(),
+        findings: Arc::default(),
     })
     .with_coincidences(coincidences)
     .citing(citing))

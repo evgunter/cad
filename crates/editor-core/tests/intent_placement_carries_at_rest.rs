@@ -301,3 +301,39 @@ fn a_parts_finding_crosses_a_pattern_of_its_instance_once() {
         "as the part's, through the instance: {reported:?}"
     );
 }
+
+/// **A pick of a moved copy stands where the copy stands.** `a ⊔ c`
+/// is slid 7 along y; a pick of its `a` piece, assembled beside a
+/// fresh block at the origin, is clear of it, so the at-rest check
+/// reports nothing.
+///
+/// *Breaks if* a copy's pieces are carried unmoved, so the pick stands
+/// on the fresh block and overlaps it.
+#[test]
+fn a_pick_of_a_moved_copy_stands_with_it() {
+    let doc = doc("carry-moved-pick");
+    let (doc, a) = block(doc, [0.0; 2], 0.5, 1.0);
+    let (doc, a) = put(doc, fixture::stood(a));
+    let (doc, c) = beside(doc, a, [3.0, 0.0, 0.0], 0.5, 1.0);
+    let (doc, c) = put(doc, fixture::stood(c));
+    let (doc, outer) = assembled(doc, &[a, c]);
+    let (doc, placed) = fixture::slid(doc, outer, outer, [0.0, 7.0, 0.0]);
+    let piece = doc.output(a, 0).expect("the copy defines its body");
+    let (doc, picked) = put(
+        doc,
+        fixture::stood(editor_core::BodyRead::plain(Operand::pick(
+            Operand::Node(placed),
+            vec![piece],
+        ))),
+    );
+    let (doc, fresh) = block(doc, [0.0; 2], 0.5, 1.0);
+    let (doc, fresh) = put(doc, fixture::stood(fresh));
+    let (doc, both) = assembled(doc, &[picked, fresh]);
+    let doc = set_product(&doc, both);
+    let ev = run(&doc, &EvalOptions::default());
+    let reported = at_rest(&doc, &ev);
+    assert!(
+        reported.is_empty(),
+        "the picked piece stands 7 off, clear of the fresh block: {reported:?}"
+    );
+}

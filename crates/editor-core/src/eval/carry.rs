@@ -9,10 +9,13 @@
 //! their door's census. A copy shares its source's body
 //! ([`super::Framed::moved`]) and so keeps every key, so the one thing
 //! a placement changes in what it carries is where the pieces stand
-//! ([`Carry::moved`]). Every placement takes it through that door — a
-//! placement, an instance, a pattern's members, a pick of one piece —
-//! so a meeting its source's door decided is decided nowhere else, and
-//! is reported once, as the source's.
+//! ([`Carry::moved`]). A placement's copy of one body and an instance's
+//! take it through that one door (`wire::copy_of`), and a placement of
+//! a family through `Carry::moved` beside it. A pattern's members, a
+//! projection of one, and a pick of one piece carry their source's
+//! carry by hand, and a mirror builds its own; one door for all of
+//! them is `work/intent/a-mirror-of-an-assemble-reports-its-findings-twice.md`'s
+//! cure.
 
 use std::sync::Arc;
 

@@ -2565,7 +2565,11 @@ fn wire_mirror<T: Decide + topo::AtRestPolicy>(
         contacts: Arc::new(records_of(value).carried_from(0)),
         findings: Arc::clone(&value.carry.findings),
         parts: value.carry.parts,
-        ..super::Carry::default()
+        // An image is a construction: it holds no pieces, and no door
+        // decided the meetings inside it.
+        pieces: None,
+        census: None,
+        censused: false,
     })
     .citing(vec![crate::coincide::CitedInput::Read(read)]))
 }
@@ -2788,8 +2792,10 @@ fn pick_of<T: Decide>(
             payload: ValuePayload::Body(body),
             outputs: Arc::new([super::OutputNames::new(Arc::new(table), Arc::default())]),
             // Its records cite inputs of the member's own, which the
-            // copy does not name: the meetings inside it are its door's
-            // and its census's, and it carries those.
+            // copy does not name, so it carries none: a piece whose
+            // door kept a census carries the touches inside it there,
+            // and one with none (an instance's piece) carries no
+            // records at all.
             carry: super::Carry {
                 contacts: Arc::default(),
                 ..piece.carry.clone()
@@ -4123,7 +4129,7 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
         ))),
         censused: true,
         pieces: Some(pieces),
-        ..super::Carry::default()
+        findings: Arc::default(),
     })
     .citing(citing))
 }
