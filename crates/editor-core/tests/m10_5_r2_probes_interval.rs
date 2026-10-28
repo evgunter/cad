@@ -300,6 +300,7 @@ fn at_least(c: f64, config: ClearanceConfig) -> ClearanceQuery<'static> {
         config,
         oracle: &NoTangents,
         resolver: None,
+        symbolic: editor_core::drive::SymbolicDials::default(),
     }
 }
 
@@ -310,6 +311,7 @@ fn strict(config: ClearanceConfig) -> ClearanceQuery<'static> {
         config,
         oracle: &NoTangents,
         resolver: None,
+        symbolic: editor_core::drive::SymbolicDials::default(),
     }
 }
 
@@ -897,6 +899,7 @@ fn the_accelerator_changes_no_verdict_on_the_comb() {
                 },
                 oracle: &Constant,
                 resolver: None,
+                symbolic: editor_core::drive::SymbolicDials::default(),
             },
         );
         assert_eq!(
@@ -933,6 +936,7 @@ fn no_tangents_forfeits_the_pruning_and_nothing_else_on_the_comb() {
                 },
                 oracle: &NoTangents,
                 resolver: None,
+                symbolic: editor_core::drive::SymbolicDials::default(),
             },
         );
         assert_eq!(off.serialize(), forfeited.serialize(), "at c = {c}");
@@ -970,6 +974,7 @@ fn a_lying_oracle_is_indistinguishable_at_the_seam() {
             },
             oracle: &AlwaysDecreasing,
             resolver: None,
+            symbolic: editor_core::drive::SymbolicDials::default(),
         },
     );
     assert_eq!(

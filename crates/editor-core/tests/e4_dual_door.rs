@@ -91,7 +91,6 @@ where
         + editor_core::eval::ContentBits
         + editor_core::analysis::AxisScalar
         + editor_core::analysis::SeedScalar
-        + editor_core::MinClearanceLane
         + editor_core::mate::SolveScalar
         + editor_core::ProfileLane
         + editor_core::checks::at_rest::LocalizeLane,
@@ -118,7 +117,6 @@ where
         + editor_core::eval::ContentBits
         + editor_core::analysis::AxisScalar
         + editor_core::analysis::SeedScalar
-        + editor_core::MinClearanceLane
         + editor_core::mate::SolveScalar
         + editor_core::ProfileLane
         + editor_core::checks::at_rest::LocalizeLane,
@@ -141,7 +139,6 @@ where
         + editor_core::eval::ContentBits
         + editor_core::analysis::AxisScalar
         + editor_core::analysis::SeedScalar
-        + editor_core::MinClearanceLane
         + editor_core::mate::SolveScalar
         + editor_core::ProfileLane
         + editor_core::checks::at_rest::LocalizeLane,

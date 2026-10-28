@@ -227,7 +227,7 @@ fn a_cusp_loft_passes_with_its_nurbs_seam_unjudged_by_kind() {
     );
     let marks = topo::contact_marks(&built.body, Tol::witness()).expect("valid");
     assert_eq!(
-        marks.get(built.seam_edges[0][2]),
+        marks.get(built.seam_edges[0][2][0]),
         Some(&ContactMark::Unmarked),
         "the cusp seam is unjudged by kind"
     );
@@ -325,7 +325,7 @@ fn a_loft_whose_sections_disagree_passes_with_the_seam_unjudged_by_kind() {
         );
         let marks = topo::contact_marks(&built.body, Tol::witness()).expect("valid");
         assert_eq!(
-            marks.get(built.seam_edges[0][j]),
+            marks.get(built.seam_edges[0][j][0]),
             Some(&ContactMark::Unmarked)
         );
     }

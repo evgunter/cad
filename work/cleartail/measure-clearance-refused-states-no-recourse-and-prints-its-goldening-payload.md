@@ -44,3 +44,12 @@ to the geometry — or in the kernel-defect ending for
 `WitnessUnverified`, which the enum's own docs call unreachable. Keep
 `name` and `payload` for the goldening form. Then drop the rows'
 admissions.
+
+## Narrowed (SYMCLEAR, 2026-10-28)
+
+`NodeErrorKind::MeasureClearanceRefused` now carries
+`topo::clearance::MinSeparationRefusal`, the four arms its door can
+raise: `Unsupported`, `PoisonEnclosure`, `EmptyScope`,
+`NoAdmittedPair`. The other seven rows and the `NotADistance` and
+`Budget` admissions are gone, and the census rows are
+`MeasureClearanceRefused/<arm>`.

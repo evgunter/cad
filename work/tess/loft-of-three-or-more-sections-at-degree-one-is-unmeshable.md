@@ -2,10 +2,13 @@
 id: loft-of-three-or-more-sections-at-degree-one-is-unmeshable
 kind: issue
 title: A degree-1 loft of three or more sections refuses to mesh at its interior section crease, polygon profile included
-status: open
+status: closed
 opened: 2026-10-23
 priority: P0
 cost: M
+closed: 2026-10-28
+pr: 5923
+branch: tess/degree1-loft-slabs
 ---
 
 
@@ -85,3 +88,13 @@ Two designers weighed it over three reconciliation rounds. Both measured in scra
   - `work/measuredoor/tier-3-refuses-a-carrier-with-an-interior-c0-knot`;
   - `work/tesslattice/the-crease-arms-retire-once-no-carrier-carries-a-c0-knot`.
 - **Also filed:** `work/coincide/the-carrier-ladder-cannot-read-a-spline-carrier-so-coincident-spline-faces-never-merge`.
+
+## Closed (2026-10-28, PR 5923)
+
+At v-degree 1 through k ≥ 3 sections, the loft (and `sweep_body`) now cuts its walls at every section. That gives one single-span wall per segment per slab, a ring of edges at each interior section, and one straight strut per slab.
+- **Measured:** every loft on this row's grid (n = 3..9, three spacings, square and circle) meshes at δ = 1e-2 and 2e-3 and passes `check_mesh`, and its mesh volume matches the closed form.
+- **Tiers:** tiers 2, 3 and 3′ pass.
+- **Unchanged:** degree ≥ 2 and two-section lofts are byte-identical to main.
+- **Reviewed:** single FULL review, APPROVE-WITH-FIXES; the fix pass addressed every finding.
+- **New refusal:** an interior arc row refined by its neighbours' sub-arc joints refuses typed with its recourse, as evidence on `work/isotail/a-loft-whose-arc-bulge-varies-per-section-refuses-its-arc-rim`.
+- **Moved off this row:** the slab names' positional placeholder is `work/refs/loft-slab-and-section-names-are-positional` (P1, open). The rest of the crease work is carried by the four rows the Ruled section names.
