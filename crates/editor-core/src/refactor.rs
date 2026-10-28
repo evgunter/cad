@@ -3946,7 +3946,10 @@ pub fn inline(
             }
         }
     }
-    let mut host_reads = read_map.clone();
+    // A name's `Member` indices are the part's declared variables, mapped
+    // by the carry beside its outputs.
+    let names_map = vars.with_indices(&read_map);
+    let mut host_reads = names_map.clone();
     for var in doc.definition_order() {
         host_reads.entry(var).or_insert(var);
     }
@@ -4044,7 +4047,7 @@ pub fn inline(
     // refusal below — never an auto-pick.
     for (at, record) in part.appearance().iter() {
         let name = &at.name;
-        let key = remap_name(name, &node_map, &step_map, &read_map)
+        let key = remap_name(name, &node_map, &step_map, &names_map)
             .map_err(|missing| InlineError::stranded(&part, name, missing))?;
         let body = read_map.get(&at.at).copied().ok_or_else(|| {
             InlineError::stranded(&part, name, RemapError::Unmapped(Unmapped::Read(at.at)))
@@ -4133,7 +4136,7 @@ pub fn inline(
     // name, CHECKED.
     for crossing in &interface.crossings {
         let InterfaceCrossing::Mate { inner, .. } = crossing;
-        remap_name(inner, &node_map, &step_map, &read_map)
+        remap_name(inner, &node_map, &step_map, &names_map)
             .map_err(|missing| InlineError::stranded(&part, inner, missing))?;
     }
     // A body read of the instance's copy, as the new placement's: the

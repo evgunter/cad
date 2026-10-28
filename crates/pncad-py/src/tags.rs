@@ -857,9 +857,9 @@ pub fn band_field_tag(field: &BandField) -> &'static str {
 /// is that value's own word at every other door that publishes it, by
 /// delegation: the instantiation seam's classes read
 /// [`resolve_fault_tag`], whose fieldless fault a class names; and
-/// [`placement_rule_fault_tag`] and [`mate_fault_tag`] read the words
-/// written here, through the class their fault projects to, because a
-/// class cannot name a fault that carries a payload.
+/// [`mate_fault_tag`] reads the words written here, through the class
+/// its fault projects to, because a class cannot name a fault that
+/// carries a payload.
 pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
     use NodeErrorClass as C;
     match class {
@@ -1010,14 +1010,11 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
 ///   half, an entity kind, a carrier kind, a verb): the second word
 ///   answers "which fault", and what a value-valued field answers is
 ///   the payload question, whose home is an attribute of its own;
-/// * an arm whose own tag is ALREADY the payload's — `Mate`, `Part`
-///   and `PlacementRule` split into one [`NodeErrorClass`] per fault,
-///   worded as [`mate_fault_tag`], [`resolve_fault_tag`] and
-///   [`placement_rule_fault_tag`] word it, so the fine word is on the
-///   wire under the carrier's name and moving it here would move a
-///   shipped `kind` value. `PlacementRule`'s count mismatch is the one
-///   such fault with arms of its own, and its shape is the second word
-///   here ([`placement_rule_inner_tag`]), as the edit door publishes it;
+/// * an arm whose own tag is ALREADY the payload's — `Mate` and `Part`
+///   split into one [`NodeErrorClass`] per fault, worded as
+///   [`mate_fault_tag`] and [`resolve_fault_tag`] word it, so the fine
+///   word is on the wire under the carrier's name and moving it here
+///   would move a shipped `kind` value;
 /// * `WitnessBifurcation`, whose payload is the branch solver's
 ///   telemetry record: the arm is not constructed before the M6
 ///   solver, and the façade curates the record's discriminant
@@ -1224,7 +1221,10 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::ConstraintOnNonPlacement { .. } => None,
         EditError::SpaceMismatch { .. } => None,
         EditError::UnknownConstraint { .. } => None,
-        EditError::Index { .. } => None,
+        EditError::Index { fault, .. } => Some(match fault {
+            pncad::document::IndexFault::CountNotCount { .. } => "count_not_count",
+            pncad::document::IndexFault::WithinNoIndex => "within_no_index",
+        }),
         EditError::IndicesUnrelated { .. } => None,
         EditError::UpdateOnNonInstance { .. } => None,
         EditError::PinUnchanged { .. } => None,

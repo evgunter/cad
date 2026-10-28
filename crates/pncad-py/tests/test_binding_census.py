@@ -1109,10 +1109,8 @@ BOUND_AS = {
     # and its `StationMove`s.
     "LoftSection": "Node.loft",
     "PinRefusal": "EditError.variant",
-    # What a frame fails to be a placement: the edit door spreads it
-    # into arms of its own, so its discriminant crosses as
-    # `EditError.variant` (`non_finite_placement`,
-    # `non_rigid_placement`).
+    # What a frame fails to be a placement crosses as the refusal of
+    # the door that met it, on `EditError.variant`.
     "FrameFault": "EditError.variant",
     # THE SHELL DOOR'S OWN REFUSAL, curated at `pncad::document`
     # beside the two `CheckEvidence` arms that carry it, and its
@@ -1357,6 +1355,9 @@ BOUND_AS = {
     # member they place.
     "Index": "VarDecl.index",
     "MemberAt": "Value.members",
+    # Why an index is refused as declared crosses at the carrier's
+    # second word (`count_not_count`, `within_no_index`).
+    "IndexFault": "EditError.inner_variant",
     "all_bodies": "Evaluation.all_bodies",
     "all_edges": "Evaluation.all_edges",
     "all_faces": "Evaluation.all_faces",
@@ -3470,7 +3471,6 @@ MEMBERS_BOUND_AS = {
     # --- an interference finding's overlap and quieting assertion ---
     "InterferenceFinding::overlap": ("InterferenceFinding.faces", "InterferenceFinding.unlocalized"),
     "InterferenceFinding::quiet": "InterferenceFinding.quiet_by",
-    "InterferenceFinding::quiet_at": "InterferenceFinding.quiet_at",
     # --- a one-of subject spelled as its arms' attributes ---------
     # A finding is about one root output or one node; Python reads the
     # subject as three attributes, `None` for the arm it is not.

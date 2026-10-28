@@ -475,10 +475,15 @@ fn a3a_a_cut_taking_the_union_but_not_its_members_severs_the_union() {
 }
 
 /// **A3(b).** The reverse: a cut taking the slab whose bundle holds
-/// the mate, the block and the copies below the union, and leaving
-/// the union, is the kept union's severed read.
+/// the mate, the block, the family and the member copies below the
+/// union, and leaving the union. Each member copy is a world placement
+/// at the identity, so the kept union's reads cross onto the instance's
+/// copies of them, and no cut node is read by the remainder.
+///
+/// *Breaks if* the kept union keeps reading a cut placement, or the
+/// split refuses a read the part's world carries.
 #[test]
-fn a3b_a_cut_taking_the_members_but_not_the_union_severs_the_union() {
+fn a3b_a_cut_taking_the_members_but_not_the_union_crosses_onto_the_instance() {
     let s = scene_with("msolve13-a3b", false);
     let (doc, pattern, k, [t1, t2]) = s.lifts(s.doc.clone());
     let cap1 = s.copy_cap(pattern, k, 0);
@@ -490,21 +495,22 @@ fn a3b_a_cut_taking_the_members_but_not_the_union_severs_the_union() {
     );
     let (doc, _) = place(doc, union, &s.opts);
     let (doc, _) = seat(doc, s.base1, s.base_cap(s.base1), head_at(t1, cap1));
-    let err = split_of(
-        &s,
-        &doc,
-        &[s.base1, s.top, pattern, t1, t2],
-        "msolve13-a3b-part",
-    )
-    .expect_err("the kept union reads the cut placements");
-    assert!(
-        matches!(
-            &err,
-            SplitError::SeveredEdge { consumer, consumer_is_cut: false, .. }
-                if *consumer == doc.spoken(union)
-        ),
-        "{err:?}"
-    );
+    let cut = [s.base1, s.top, pattern, t1, t2];
+    let out = split_of(&s, &doc, &cut, "msolve13-a3b-part")
+        .unwrap_or_else(|e| panic!("the kept union's reads cross: {e}"));
+    let Some(Node::Union { members }) = out.remainder.node(union) else {
+        panic!("the union is kept")
+    };
+    let editor_core::Bodies::Spelled(reads) = members else {
+        panic!("the union keeps its spelled reads")
+    };
+    for read in reads {
+        let at = out
+            .remainder
+            .operation_of(read.read)
+            .expect("each read is of a live operation");
+        assert!(!cut.contains(&at), "the kept union reads the cut {at:?}");
+    }
 }
 
 /// **A3(c).** A kept constraint — the second slab's seat — whose

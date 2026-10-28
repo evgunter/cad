@@ -246,15 +246,17 @@ class TestTheRefusalsAreTyped(unittest.TestCase):
         which is declared within a variable that is no index."""
         doc = Doc()
         doc.apply(DocEdit.declare_var(VarName("n"), FreeVar.count(2)))
-        for decl, label in (
-            (VarDecl.index(Formula.length_in(2, m)), "a length count"),
-            (VarDecl.index(2, within=VarName("n")), "within a count"),
+        for decl, inner, found in (
+            (VarDecl.index(Formula.length_in(2, m)), "count_not_count", "length"),
+            (VarDecl.index(2, within=VarName("n")), "within_no_index", None),
         ):
-            with self.subTest(case=label):
+            with self.subTest(case=inner):
                 with self.assertRaises(EditError) as caught:
                     doc.apply(DocEdit.declare_var(VarName("q"), decl))
                 self.assertEqual(caught.exception.variant, "index")
+                self.assertEqual(caught.exception.inner_variant, inner)
                 self.assertEqual(caught.exception.param, "q")
+                self.assertEqual(caught.exception.found, found)
 
     def test_two_unrelated_indices_meet_in_no_reader(self):
         doc = Doc()

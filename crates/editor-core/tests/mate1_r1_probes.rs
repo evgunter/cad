@@ -281,14 +281,17 @@ fn apply(f: Frame, p: [f64; 3]) -> [f64; 3] {
 }
 
 /// The seat point, carried two independent ways to the same world
-/// point. The solve puts the top at `W_top`; the seat stands the top's
-/// origin on the copy's `(0, 0, 1)`, so `W_top·(0,0,0)` must equal
-/// `O_i ∘ F ∘ (0,0,1)`, where `O_i` is recomputed here by Rodrigues
-/// about an OBLIQUE axis that misses the origin. This is the
-/// composition-order attack: `O_i ∘ F` and `F ∘ O_i` differ badly for
-/// this pair, as the row asserts. The axis is read off the placed leg,
-/// so it is authored in the leg's own coordinates — the document's line
-/// carried back through `F` — and the line it reads is the document's.
+/// point. Two tops are seated, one on copy 0 and one on copy 2; each
+/// seat stands its top's origin on its copy's `(0, 0, 1)`. Copy 2 is
+/// copy 0 turned twice the step about the OBLIQUE axis, a line of the
+/// document that misses the origin, so the second top's origin must be
+/// the first's turned by Rodrigues about that line. The leg's world
+/// pose is a rotation and a translation, so a turn composed inside `F`
+/// rather than outside it moves the second seat off. The axis is read
+/// off the placed leg, so it is authored in the leg's own coordinates —
+/// the document's line carried back through `F` — and the line it reads
+/// is the document's. Where copy 0 stands is the ring's chart
+/// (`mate/value.rs`), not this probe's question.
 ///
 /// *Breaks if* the copy's turn is composed inside `F` rather than
 /// outside it, or about the wrong line.
@@ -315,54 +318,42 @@ fn r1_oblique_circular_axis_with_a_non_identity_group_frame() {
         unturn(f, axis_dir),
         &o,
     );
-    // Member 0 seated where the leg stands ([`crate::fixture::ring_seat`]).
-    let at = crate::fixture::ring_seat(f, axis_dir, 2);
-    let (doc, k, pattern) =
-        crate::fixture::circular_from(doc, leg, (axis, TargetAxis::Z), at, theta, 3);
-    let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
-    let (doc, mate) = seat(
-        doc,
-        top,
-        &top_part,
-        |n| in_copy(pattern, k, 2, n),
-        &leg_part,
-        leg,
-    );
+    let (doc, k, pattern) = crate::fixture::circular(doc, leg, (axis, TargetAxis::Z), theta, 3);
+    let mut doc = doc;
+    let mut seated = Vec::new();
+    for member in [0, 2] {
+        let (next, top) = insert(doc, fixture::mated_instance(top_part.doc_ref.clone()));
+        let (next, mate) = seat(
+            next,
+            top,
+            &top_part,
+            |n| in_copy(pattern, k, member, n),
+            &leg_part,
+            leg,
+        );
+        doc = next;
+        seated.push((top, mate));
+    }
 
     let poses = solve(&doc, &o, Tol::witness());
-    assert_eq!(
-        poses.fault(mate.placement),
-        None,
-        "the oblique circular seat solves"
-    );
-    let world = poses.placement(&doc, top).expect("the top places");
-
-    // Independent: the copy's (0,0,1) in the master's part
-    // coordinates, carried by F into document coordinates, then
-    // rotated twice about the oblique axis (copy index 2).
-    let seat_master = apply(f, [0.0, 0.0, 1.0]);
-    let expected_seat = rodrigues(axis_origin, axis_dir, theta * 2.0, seat_master);
-    // The solve's answer for the same point: the top's own origin.
-    let got_seat = apply(world, [0.0, 0.0, 0.0]);
-
-    // Order-of-composition falsifier: F ∘ O_i rather than O_i ∘ F.
-    let wrong_order = apply(
-        f,
-        rodrigues(axis_origin, axis_dir, theta * 2.0, [0.0, 0.0, 1.0]),
-    );
-    let differs = (0..3)
-        .map(|k| (wrong_order[k] - expected_seat[k]).abs())
-        .fold(0.0_f64, f64::max);
-    assert!(
-        differs > 1e-3,
-        "the probe is only meaningful if the two composition orders differ: {differs}"
-    );
-
+    let seat_of = |(top, mate): (RecipeNodeId, MateRef)| {
+        assert_eq!(
+            poses.fault(mate.placement),
+            None,
+            "the oblique circular seat solves"
+        );
+        apply(
+            poses.placement(&doc, top).expect("the top places"),
+            [0.0, 0.0, 0.0],
+        )
+    };
+    let (first, second) = (seat_of(seated[0]), seat_of(seated[1]));
+    let expected = rodrigues(axis_origin, axis_dir, theta * 2.0, first);
     for k in 0..3 {
         assert!(
-            (got_seat[k] - expected_seat[k]).abs() < 1e-9,
-            "the seat point disagrees on coordinate {k}:\n got      {got_seat:?}\n \
-             expected {expected_seat:?}\n (wrong order would be {wrong_order:?})"
+            (second[k] - expected[k]).abs() < 1e-9,
+            "the seat point disagrees on coordinate {k}:\n got      {second:?}\n \
+             expected {expected:?}"
         );
     }
 }
@@ -418,8 +409,8 @@ fn r1_no_mate_can_give_one_copy_a_pose_apart_from_its_siblings() {
     assert_eq!(poses.relative(leg), Some(Frame::IDENTITY));
 
     // And a constraint on the family is the family's: one between two
-    // of its members reads the family's own copy, which no placement
-    // may read.
+    // of its members has no side on a copy the family places from, so
+    // the door refuses it as a mate not on the copy.
     let bad = editor_core::apply(
         &doc,
         &DocEdit::AddConstraint {
@@ -434,7 +425,13 @@ fn r1_no_mate_can_give_one_copy_a_pose_apart_from_its_siblings() {
         Tol::witness(),
     );
     assert!(
-        matches!(bad, Err(editor_core::EditError::WouldCycle { .. })),
+        matches!(
+            bad,
+            Err(editor_core::EditError::MateRefused {
+                fault: editor_core::MateFault::NotOnTheCopy { .. },
+                ..
+            })
+        ),
         "a member's pose is never its own: {:?}",
         bad.err()
     );

@@ -218,18 +218,20 @@ fn leg_frame() -> Frame {
 
 // ---- P1: hand-derived seat at F ≠ identity, oblique axis ----
 
-/// PROBE (claim 1): a CIRCULAR pattern about an OBLIQUE axis (direction
+/// PROBE (claim 1): a CIRCULAR family about an OBLIQUE axis (direction
 /// (1,1,1), origin (1,0,0), step 2π/5), with the leg pinned to the
-/// world at a rotation+translation, and the top seated on copy 1. The
-/// plane the seat pins is composed by hand in this file: copy 1's end
-/// cap is the leg's `z = 1` plane under `O₁ ∘ F`, with `O₁` this file's
-/// own Rodrigues — the copy's offset acts in document coordinates,
-/// outside the leg's world frame. The axis is read off the placed leg,
-/// so it is authored in the leg's own coordinates (the document's line
-/// carried back through `F`), and the line it reads is the document's.
-/// The top's own `z` axis is that cap's normal and its start cap
-/// (through its own origin) lies in that plane. The solver's output is
-/// never read into the expectation.
+/// world at a rotation+translation, and one top seated on copy 1 and
+/// another on copy 0. The axis is read off the placed leg, so it is
+/// authored in the leg's own coordinates (the document's line carried
+/// back through `F`), and the line it reads is the document's. Copy 1
+/// is copy 0 turned by the step about that line in document
+/// coordinates, so the plane the top on copy 1 is seated in is the one
+/// the top on copy 0 is seated in under the turn, composed here by
+/// Rodrigues; where member 0 stands is the ring's chart
+/// (`mate/value.rs`) and not this probe's question.
+///
+/// *Breaks if* the member's turn is composed inside `F` rather than
+/// outside it, or about the wrong line.
 #[test]
 fn r2_oblique_circular_seat_at_a_pinned_world_frame() {
     let mut store = PartStore::default();
@@ -244,45 +246,56 @@ fn r2_oblique_circular_seat_at_a_pinned_world_frame() {
     let axis =
         crate::mate1_member_vocab::axis_with(&doc, leg, own_origin, unturn([1.0, 1.0, 1.0]), &o);
     let theta = 2.0 * core::f64::consts::PI / 5.0;
-    // Member 0 seated where the leg stands ([`crate::fixture::ring_seat`]).
-    let at = crate::fixture::ring_seat(leg_frame(), [1.0, 1.0, 1.0], 2);
-    let (doc, k, pattern) =
-        crate::fixture::circular_from(doc, leg, (axis, TargetAxis::Z), at, theta, 3);
-    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
-    let (doc, mate) = seat(
-        doc,
-        in_copy(pattern, k, 1, in_part(leg, leg_body, CapEnd::End)),
-        in_part(top, top_body, CapEnd::Start),
-        [0.0, 0.0],
-        true,
-        false,
-    );
-    assert_eq!(mate.placement, top, "the mate places the top");
+    let (doc, k, pattern) = crate::fixture::circular(doc, leg, (axis, TargetAxis::Z), theta, 3);
+    let mut doc = doc;
+    let mut tops = Vec::new();
+    for member in [0, 1] {
+        let (next, top) = insert(doc, fixture::mated_instance(top_ref.clone()));
+        let (next, mate) = seat(
+            next,
+            in_copy(pattern, k, member, in_part(leg, leg_body, CapEnd::End)),
+            in_part(top, top_body, CapEnd::Start),
+            [0.0, 0.0],
+            true,
+            false,
+        );
+        assert_eq!(mate.placement, top, "the mate places the top");
+        doc = next;
+        tops.push(top);
+    }
 
     let poses = solve(&doc, &o, Tol::witness());
-    assert_eq!(
-        poses.fault(top),
-        None,
-        "the mate solves: {:?}",
-        poses.fault(top)
-    );
-    assert_eq!(poses.space(top), Some(VarId::WORLD));
-
-    let o1 = Rigid::rotation_about_axis([1.0, 0.0, 0.0], [1.0, 1.0, 1.0], theta);
-    let cap = o1.compose(f).compose(Rigid::translation([0.0, 0.0, 1.0]));
-    let normal = [cap.r[0][2], cap.r[1][2], cap.r[2][2]];
+    for &top in &tops {
+        assert_eq!(
+            poses.fault(top),
+            None,
+            "the mate solves: {:?}",
+            poses.fault(top)
+        );
+        assert_eq!(poses.space(top), Some(VarId::WORLD));
+    }
+    let placed = |top| Rigid::from_frame(poses.placement(&doc, top).expect("the top places"));
+    let (on0, on1) = (placed(tops[0]), placed(tops[1]));
+    // The seat's values are charted on the space's axes (D′2), so what
+    // the turn carries is the seated plane: its normal (each top's
+    // `z`) and its offset.
+    let want = Rigid::rotation_about_axis([1.0, 0.0, 0.0], [1.0, 1.0, 1.0], theta).compose(on0);
+    let z = |r: Rigid| [r.r[0][2], r.r[1][2], r.r[2][2]];
     let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-    let got = Rigid::from_frame(poses.placement(&doc, top).expect("the top places"));
-    let z = [got.r[0][2], got.r[1][2], got.r[2][2]];
     assert!(
-        z.iter().zip(normal).all(|(a, b)| (a - b).abs() <= 1e-12),
-        "the top's z is copy 1's cap normal, hand-derived:\n got      {z:?}\n expected {normal:?}"
+        z(on1)
+            .iter()
+            .zip(z(want))
+            .all(|(a, b)| (a - b).abs() <= 1e-12),
+        "the top on copy 1 faces as the top on copy 0 turned:\n got      {:?}\n expected {:?}",
+        z(on1),
+        z(want)
     );
     assert!(
-        (dot(normal, got.t) - dot(normal, cap.t)).abs() <= 1e-12,
-        "the top's start cap lies in copy 1's end cap plane: {:?} against {:?}",
-        got.t,
-        cap.t
+        (dot(z(want), on1.t) - dot(z(want), want.t)).abs() <= 1e-12,
+        "the top on copy 1 lies in copy 0's seat plane turned: {:?} against {:?}",
+        on1.t,
+        want.t
     );
 }
 

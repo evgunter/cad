@@ -506,11 +506,18 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             ..none
         },
         EditError::NotAFreeVar { var, door: _ }
-        | EditError::Index { var, fault: _ }
         | EditError::DefinitionCycle { var, through: _ }
         | EditError::DefinitionUnknownVarName { var, name: _ }
         | EditError::DefinitionUnresolvedVar { var, read: _ } => EditPayload {
             param: var.name(),
+            ..none
+        },
+        EditError::Index { var, fault } => EditPayload {
+            param: var.name(),
+            found: match fault {
+                pncad::document::IndexFault::CountNotCount { found } => Some(dim(*found)),
+                pncad::document::IndexFault::WithinNoIndex => None,
+            },
             ..none
         },
         EditError::LoftShape { node, fault } => match fault {

@@ -2378,6 +2378,22 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &["node", "constraint"],
     );
     carries(
+        &E::Index {
+            var: spv(),
+            fault: pncad::document::IndexFault::CountNotCount {
+                found: Dimension::Length,
+            },
+        },
+        &["param", "found"],
+    );
+    carries(
+        &E::Index {
+            var: spv(),
+            fault: pncad::document::IndexFault::WithinNoIndex,
+        },
+        &["param"],
+    );
+    carries(
         &E::IndicesUnrelated {
             node: sp(1),
             a: Box::new(spv()),
@@ -4723,7 +4739,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "edit_inner_variant_tag",
-        values: &[],
+        values: &["count_not_count", "within_no_index"],
         // `mate_fault_tag` once: the per-mate admission forwards the
         // solve's fault whole.
         delegates: &[
