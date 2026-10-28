@@ -1023,7 +1023,7 @@ impl TrimmedFace<'_> {
         // triangles (`work/tesslie/two-faces-cutting-one-ear-of-a-shared-chord-chain-leave-a-four-use-edge.md`).
         // A pseudomanifold edge, four faces each using a segment once,
         // reads one use per patch here and is not this.
-        if segment_reused(self.polygon, &patch.census_ids(self.shared)) {
+        if segment_reused(self.polygon, &patch.triangles) {
             return Err(TessellateError::ChordSegmentReused { face: fk });
         }
         #[cfg(debug_assertions)]
@@ -1520,8 +1520,10 @@ impl TrimmedFace<'_> {
 
 /// Whether a patch uses a boundary chord segment of `polygon` more often
 /// than the polygon walks it: the census [`TrimmedFace::attempt`] runs on
-/// every accepted patch.
-fn segment_reused(polygon: &[(f64, f64, u32)], triangles: &[[u32; 3]]) -> bool {
+/// every accepted patch. A boundary segment joins two shared ids, so
+/// only triangle edges between two [`PatchVertex::Shared`] corners are
+/// read, with no renumbered copy of the patch.
+fn segment_reused(polygon: &[(f64, f64, u32)], triangles: &[[PatchVertex; 3]]) -> bool {
     let key = |a: u32, b: u32| (a.min(b), a.max(b));
     let n = polygon.len();
     let mut walked: HashMap<(u32, u32), usize> = HashMap::new();
@@ -1534,6 +1536,9 @@ fn segment_reused(polygon: &[(f64, f64, u32)], triangles: &[[u32; 3]]) -> bool {
     let mut used: HashMap<(u32, u32), usize> = HashMap::new();
     for t in triangles {
         for (a, b) in [(t[0], t[1]), (t[1], t[2]), (t[2], t[0])] {
+            let (PatchVertex::Shared(a), PatchVertex::Shared(b)) = (a, b) else {
+                continue;
+            };
             if let Some(&w) = walked.get(&key(a, b)) {
                 let u = used.entry(key(a, b)).or_default();
                 *u += 1;
