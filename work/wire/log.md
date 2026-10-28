@@ -7231,3 +7231,10 @@ Signed (WIRE orchestrator).
 - 2026-10-28 (WIRE orchestrator) Dispatched two lanes, both with FULL review.
   - `wire-unionvertex` (wire/union-vertex-groups-from-the-finished-body): union vertex group sizes come from the finished body, not the fold steps' spelling. Takes the member-corner tied-fold row if it falls out of the same pass.
   - `wire-joinedsets` (wire/joined-sets-record-per-candidate): joined sets record per candidate, and `record_by_name`/`tie_summed` are retired or their docs made exact. Also the joined set over two tied operand edges. D10 constructs are kept out of fixtures.
+- 2026-10-28 (WIRE orchestrator) PR 5916 (`wire-joinedsets`) is reviewed and merged.
+  - Joined sets record per candidate. Seam vertices record no group, since they are always bare.
+  - `record_by_name` and `tie_summed` are deleted. Dump: no table moved; only the count-1 seam-vertex groups went.
+  - The FULL review found no code defect. I fixed its MINORs myself, as docs only: the stale README group-size clause, the groups.rs wrap and the closed row's "would answer".
+  - Closed: `a-tie-summed-seam-decline-…`.
+  - `a-joined-set-over-two-tied-…` is back to open, with no D10-free witness yet. The review's gap (a non-transversal touch) and the line-group decline guard are noted on the row.
+  - Merged at 50b65794a4; worktree removed.

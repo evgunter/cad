@@ -2,7 +2,7 @@
 id: a-joined-set-over-two-tied-operand-edges-loses-its-operand
 kind: issue
 title: A pair boolean's joined edge over two operand edges one tie names takes a bare From name with no operand, and its vertex refuses
-status: dispatched
+status: open
 opened: 2026-10-20
 priority: P3
 cost: M
