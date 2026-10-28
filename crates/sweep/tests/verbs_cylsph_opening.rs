@@ -176,6 +176,37 @@ fn both_poses_take_the_same_door() {
     assert_eq!(doors[0], "CurvedBooleanUnsupported", "{doors:?}");
 }
 
+/// **No coaxial pose builds, in either operand order, any op, either
+/// pose**: the section door decides the circles a coincidence, which the
+/// join does not build until the door records it, so every op refuses
+/// at the join's lane dispatch.
+#[test]
+fn coaxial_poses_build_nothing() {
+    let c = cyl(1.0, -2.0, 2.0);
+    for (r, z) in [(1.5, 0.0), (1.2, 0.3), (1.05, -0.5), (1.8, 1.0)] {
+        let s = ball_at(r, Vec3::new(0., 0., z));
+        for (c, s) in [(c.clone(), s.clone()), (posed(&c), posed(&s))] {
+            let (c, s) = (
+                finished("c", c, Tol::witness()),
+                finished("s", s, Tol::witness()),
+            );
+            for (x, y) in [(&c, &s), (&s, &c)] {
+                for got in [
+                    topo::union(x, y, Tol::witness()),
+                    topo::intersect(x, y, Tol::witness()),
+                    topo::subtract(x, y, Tol::witness()),
+                ] {
+                    assert!(
+                        matches!(got, Err(BooleanError::CurvedBooleanUnsupported { .. })),
+                        "R {r} z {z}: {:?}",
+                        got.err()
+                    );
+                }
+            }
+        }
+    }
+}
+
 /// **The non-coaxial transversal pose crosses, passes the germ frame
 /// and the join, and refuses at the result gate's volume.** The
 /// crossing that used to keep the pierce door is certified now by the

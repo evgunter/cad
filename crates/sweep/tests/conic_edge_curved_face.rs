@@ -316,17 +316,26 @@ fn refusals(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Vec<topo::BooleanError>
 /// (bounded by the rim's arcs) could not place.
 #[test]
 fn a_rim_crossing_reaches_the_join() {
-    use topo::BooleanError as E;
+    use crate::cylinder_sphere_frame::{Door, door};
     let a = drum_lower();
-    let past_the_join = |e: &E| crate::cylinder_sphere_frame::door(e).is_some();
-    for (label, b) in [
-        ("ball r 0.2 at (0.5, 0, 0.35)", ball(0.2, [0.5, 0.0, 0.35])),
-        ("ball r 0.1 at (0.45, 0, 0.3)", ball(0.1, [0.45, 0.0, 0.3])),
+    // Each op's door, ∪ ∩ ∖ with the drum first: `cylinder_sphere_frame`'s
+    // pins for the same balls.
+    for (label, b, doors) in [
+        (
+            "ball r 0.2 at (0.5, 0, 0.35)",
+            ball(0.2, [0.5, 0.0, 0.35]),
+            [Door::Sphere, Door::Join, Door::Join],
+        ),
+        (
+            "ball r 0.1 at (0.45, 0, 0.3)",
+            ball(0.1, [0.45, 0.0, 0.3]),
+            [Door::Join, Door::Join, Door::Projected],
+        ),
     ] {
         let (_, accepted) = rim_pairs(label, &a, &b);
         assert!(accepted > 0, "{label}: the rim's crossings are accepted");
-        for e in refusals(&a, &b) {
-            assert!(past_the_join(&e), "{label}: got {e:?}");
+        for (e, pinned) in refusals(&a, &b).into_iter().zip(doors) {
+            assert_eq!(door(&e), Some(pinned), "{label}: got {e:?}");
         }
     }
     for (label, b) in [

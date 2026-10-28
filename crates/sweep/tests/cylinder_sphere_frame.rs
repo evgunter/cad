@@ -20,7 +20,11 @@
 //! join ([`Door`]): the join cuts both sides' chords from the section's
 //! carried loop, and every run stops downstream of it, at the result
 //! gate's volume or at the spline edge join. [`door`] is the one reading
-//! of those doors the other cylinder × sphere rows share.
+//! of those doors the other cylinder × sphere rows share. The turned-chart
+//! pose's ops close a carried chord's ring-lane island on the drum's wall,
+//! and the two-loop poses' on the ball (`IslandClosing::Carried`), so the
+//! path reading of a spline-bounded island is reached through the public
+//! ops here; `topo::ring_path::spline_fuzz` searches its answers.
 //! The matched segments are checked against the analytic loops, where
 //! every segment joins two sites that are neighbours along their loop.
 //!

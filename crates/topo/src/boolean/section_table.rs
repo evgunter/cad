@@ -34,8 +34,8 @@ use std::cell::{OnceCell, RefCell};
 use std::collections::BTreeMap;
 
 use geom_brep::{
-    CarriedComponent, CarriedSection, CarryError, PairSection, SectionError, SiteFoot, SiteRefusal,
-    SsiLane,
+    CarriedComponent, CarriedSection, CarryError, PairSection, Seated, SectionError, SiteFoot,
+    SiteRefusal, SsiLane,
 };
 use geom_core::{Band, Indeterminate, Real};
 
@@ -55,9 +55,6 @@ struct Held<T: Real> {
     /// ([`SectionTable::seated`]).
     seated: OnceCell<Vec<OnceCell<Seated<T>>>>,
 }
-
-/// One component's seating, held ([`SectionTable::seated`]).
-type Seated<T> = Result<CarriedComponent<T>, CarryError>;
 
 /// **The table's key**: A's surface, then B's. Both are keys of their
 /// own body's arena, and the two arenas reuse keys, so the order is the
@@ -217,10 +214,14 @@ impl<T: geom_core::Decide> SectionTable<T> {
     /// **Component `k` of the pair's carried section, seated**
     /// ([`PairSection::seat`]) at its parameter `at`, on the first ask
     /// for that component, and held for the operation: every chord cut
-    /// from the component reads the one seated carrier, so the component
-    /// is opened once, at the first site the join cuts a chord from, and
-    /// both operands' chords cut the same bits. `None` where the table
-    /// holds no section for the pair.
+    /// from the component reads the one seated carrier, so both
+    /// operands' chords cut the same bits. `None` where the table holds
+    /// no section for the pair.
+    ///
+    /// **`at` is the component's seat, the same on every ask**: the join
+    /// reads it once per component, from the section and its sites alone
+    /// (`join::carried_seats`), before any chord is cut, so the seat held
+    /// is the one every later ask names, whichever segment asks first.
     pub(crate) fn seated(
         &self,
         a: (&Body<T>, FaceKey),

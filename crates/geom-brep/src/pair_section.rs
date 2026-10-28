@@ -820,8 +820,9 @@ pub struct SsiLane<T: Real> {
     seat: fn(&CylinderSpherePose<T>, &CarriedComponent<T>, T, Band) -> Seated<T>,
 }
 
-/// What one seating answers: the component opened at the parameter.
-type Seated<T> = Result<CarriedComponent<T>, CarryError>;
+/// What one seating answers: the component opened at the parameter
+/// ([`PairSection::seat`]).
+pub type Seated<T> = Result<CarriedComponent<T>, CarryError>;
 
 /// What one march of a pose answers: its fitted branches.
 type Marched<T> = Result<Vec<FittedCarrier<T>>, SsiError>;
@@ -886,8 +887,33 @@ fn seat_at(
     if at <= lo || at >= hi {
         return Ok(component.clone());
     }
-    let (before, after) = net.split_at(at).map_err(CarryError::Seat)?;
-    let seated = rotated(&after, &before, hi - lo).map_err(CarryError::Seat)?;
+    // A seat so near the carrier's start (its end, the same point) that
+    // the piece before it has no knot room of its own is the start
+    // already, where it is within the band of it
+    // (**`ssi_seat_at_the_start`**); one past the band is a knot edit
+    // that refused.
+    let seated = match net
+        .split_at(at)
+        .and_then(|(before, after)| rotated(&after, &before, hi - lo))
+    {
+        Ok(seated) => seated,
+        Err(e) => {
+            let p = net.eval(at);
+            let near = [lo, hi].into_iter().any(|end| {
+                geom_core::k_stats::decide(
+                    "ssi_seat_at_the_start",
+                    Margin::norm3(p - net.eval(end)),
+                    band,
+                )
+                .map_or(true, |s| s == Sign::Zero)
+            });
+            return if near {
+                Ok(component.clone())
+            } else {
+                Err(CarryError::Seat(e))
+            };
+        }
+    };
     let (a, b) = pose.operands();
     let certificate = crate::ssi::certify_rung3(
         &seated,

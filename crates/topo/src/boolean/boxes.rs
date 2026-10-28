@@ -2582,6 +2582,53 @@ pub(crate) mod tests {
 
     use super::*;
     use crate::boolean::conic_oracle::exact::Dd;
+
+    /// **A spline edge's axial span from its control points holds the
+    /// curve** ([`AxialCarrier::Hull`]): random clamped nets of degree one
+    /// to three, rational with weights from 0.02 to 50, a random axis and
+    /// sub-interval, the curve's height along the axis sampled inside the
+    /// span to 1e-12 (a counterexample search; seed logged).
+    #[test]
+    fn a_hull_axial_span_holds_the_curve() {
+        use geom_core::spline::KnotVector;
+        let mut rng = test_utils::fuzz::start("boxes::tests::a_hull_axial_span_holds_the_curve");
+        for _ in 0..test_utils::fuzz::scaled(400) {
+            let p = 1 + rng.below(3);
+            let n = p + 1 + rng.below(5);
+            let mut k = vec![0.0; p + 1];
+            let mut ks: Vec<f64> = (0..n - p - 1).map(|_| rng.range(0.05, 0.95)).collect();
+            ks.sort_by(f64::total_cmp);
+            k.extend(ks);
+            k.extend(vec![1.0; p + 1]);
+            let ctl: Vec<_> = (0..n)
+                .map(|_| Point3::new(rng.range(-1., 1.), rng.range(-1., 1.), rng.range(-1., 1.)))
+                .collect();
+            let w: Vec<f64> = (0..n).map(|_| rng.log_uniform(0.02, 50.0)).collect();
+            let Ok(net) = geom::NurbsCurve3::new(KnotVector::clamped(k, p).unwrap(), ctl, w) else {
+                continue;
+            };
+            let ax =
+                Vec3::new(rng.range(-1., 1.), rng.range(-1., 1.), rng.range(-1., 1.)).normalize();
+            let o = Point3::origin();
+            let (a, b) = (rng.range(0., 0.5), rng.range(0.5, 1.));
+            let span = edge_axial_span(
+                &SpanBox::point(o),
+                &SpanBox::vector(ax),
+                &AxialCarrier::Hull(net.control().iter().map(|&q| SpanBox::point(q)).collect()),
+                (&SpanBox::point(net.eval(a)), &SpanBox::point(net.eval(b))),
+            );
+            for i in 0..=200 {
+                let h = (net.eval(a + (b - a) * f64::from(i) / 200.) - o).dot(ax);
+                assert!(
+                    span.lo - 1e-12 <= h && h <= span.hi + 1e-12,
+                    "{h} outside [{}, {}]; {}",
+                    span.lo,
+                    span.hi,
+                    test_utils::fuzz::replay()
+                );
+            }
+        }
+    }
     use crate::entity::LoopBoundary;
     use crate::euler::{FaceSurface, MefSite, MevSite};
     use geom::Curve3;
