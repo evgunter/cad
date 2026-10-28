@@ -818,6 +818,8 @@ mod intent_part_census_seam;
 mod intent_part_split_half;
 #[path = "intent_placement_carries_at_rest.rs"]
 mod intent_placement_carries_at_rest;
+#[path = "zz_review_probes_5903.rs"]
+mod zz_review_probes_5903;
 #[path = "intent_s2_a_outputs.rs"]
 mod intent_s2_a_outputs;
 #[path = "intent_s2_b_reads.rs"]
