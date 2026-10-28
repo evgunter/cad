@@ -101,3 +101,16 @@ Signed: (CARVE orchestrator)
 - **`min-separation-tightening-crosses-the-drive`'s designers
   dispatched.** The row asked for them to wait until E landed. The
   blinding byte was drawn at dispatch this time (analysis branch).
+
+## 2026-10-28 — SHELL-3's review
+
+- **The PR is #5909.** CI was green at the frozen head `4a4f7f211`.
+- **The full review read APPROVE-WITH-FIXES.** It found no behaviour change: the moved bodies differ from the base only in the lift and the renames, and every clearance golden and certifying key held.
+  - It found three MINORs: the topo README, a doc deferral in `drive.rs` with no schedule behind it, and an M5 PR 11 ledger sentence that is now false.
+  - Its style lane asked for the midpoint to have one home, for the two band inputs to become one, for topo's prose about editor-core's census to move to editor-core, for the verifier contract to be stated, and for a `same_body` row that can go red.
+  - All of that is in the implementer's fix pass.
+- **Class findings filed:**
+  - `the-bound-walk-and-min-separation-duplicate-one-frontier-loop` (P1);
+  - `the-clearance-budget-pair-is-spelled-three-times` (P1);
+  - `the-clearance-sliver-rule-lives-in-one-of-its-two-consumers` (P4, on CLEARTAIL).
+- **Scope added to the symbolic row:** narrowing `MeasureClearanceRefused`'s carrier, and a row that runs the generic door at a non-`Interval` `T`.
