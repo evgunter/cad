@@ -47,6 +47,21 @@ pub(crate) fn plate(
     radius_sigma: f64,
     tol: Tol,
 ) -> (ProfileDoc, editor_core::VarId, RecipeNodeId) {
+    let p = plate_with_holes(spacing_half_width, radius_sigma, tol);
+    (p.doc, p.measure, p.assertion)
+}
+
+/// [`plate`], with the two holes' nodes named beside it.
+pub(crate) struct Plate {
+    pub(crate) doc: ProfileDoc,
+    pub(crate) measure: editor_core::VarId,
+    pub(crate) assertion: RecipeNodeId,
+    /// Each hole's solid, in the plate's space.
+    pub(crate) holes: [RecipeNodeId; 2],
+}
+
+/// [`plate`], returning its holes too.
+pub(crate) fn plate_with_holes(spacing_half_width: f64, radius_sigma: f64, tol: Tol) -> Plate {
     let mut r = Recorder::new();
     let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
         r.push(DocEdit::DeclareVar {
@@ -163,5 +178,10 @@ pub(crate) fn plate(
         relation: editor_core::AssertionRelation::AtLeast,
     });
     let measure = fixture::assertion_value(&r.doc, assertion);
-    (r.doc, measure, assertion)
+    Plate {
+        doc: r.doc,
+        measure,
+        assertion,
+        holes: [hole_a, hole_b],
+    }
 }

@@ -298,32 +298,6 @@ impl core::fmt::Display for MeasureUnavailableAt {
     }
 }
 
-/// **A scalar that can carry a `min_clearance` answer** — the third
-/// lane seam, beside [`crate::analysis::AxisScalar`] (the box axis in)
-/// and [`crate::analysis::SeedScalar`] (the derivative seed in).
-///
-/// [`Self::min_separation`] answers the bracket as a value of `Self`,
-/// or `None` when this scalar has no such value. The trio share one
-/// shape on purpose: a per-scalar CAPABILITY, expressed at compile time
-/// behind a scalar-free door, whose `None` is a typed refusal at the
-/// call site rather than a quietly degraded answer.
-///
-/// The engine that computes it is the interval lane's
-/// (`topo::clearance::min_separation`) and so is the only `Some`.
-pub trait MinClearanceLane: geom_core::Real {
-    /// The minimum separation between two resolved selections, or
-    /// `None` when this scalar cannot carry an enclosure.
-    ///
-    /// # Errors
-    ///
-    /// The engine's own typed refusal
-    /// ([`crate::clearance::ClearanceRefusal`]), carried unaltered.
-    fn min_separation(
-        a: &MinClearanceOperand<'_, Self>,
-        b: &MinClearanceOperand<'_, Self>,
-    ) -> Option<Result<Self, crate::clearance::ClearanceRefusal>>;
-}
-
 /// One side of a [`MeasurePrimitive::MinClearance`], resolved: the body
 /// the reference landed in, where it was read, and the faces its entity
 /// kind selects.
@@ -357,106 +331,6 @@ impl<'b, T: geom_core::Real> MinClearanceOperand<'b, T> {
     /// node. The engine's wedge rule applies between them exactly then.
     pub fn same_body(&self, other: &Self) -> bool {
         self.at == other.at && self.index == other.index
-    }
-}
-
-/// A point scalar has no enclosure to answer with. The whole content of
-/// the trait, at the lane where it bites.
-impl MinClearanceLane for f64 {
-    fn min_separation(
-        _a: &MinClearanceOperand<'_, Self>,
-        _b: &MinClearanceOperand<'_, Self>,
-    ) -> Option<Result<Self, crate::clearance::ClearanceRefusal>> {
-        None
-    }
-}
-
-/// The recording scalar is `f64` with a sink attached, so it carries
-/// exactly what `f64` carries — here, nothing.
-#[cfg(feature = "probe")]
-impl MinClearanceLane for geom_core::Probe {
-    fn min_separation(
-        _a: &MinClearanceOperand<'_, Self>,
-        _b: &MinClearanceOperand<'_, Self>,
-    ) -> Option<Result<Self, crate::clearance::ClearanceRefusal>> {
-        None
-    }
-}
-
-/// **A dual does not certify** (the D1 ruling, unmoved). Its value
-/// channel is whatever it is built over, and a `Dual<Interval>`'s
-/// enclosure would be a certified answer arriving through a type E9
-/// and D1 keep out of the certifying lanes — so the whole family
-/// answers `None`, and a document measured for sensitivities reports
-/// the same typed absence a plain f64 build does.
-impl<T> MinClearanceLane for geom_core::Dual<T>
-where
-    geom_core::Dual<T>: geom_core::Real,
-{
-    fn min_separation(
-        _a: &MinClearanceOperand<'_, Self>,
-        _b: &MinClearanceOperand<'_, Self>,
-    ) -> Option<Result<Self, crate::clearance::ClearanceRefusal>> {
-        None
-    }
-}
-
-/// The interval lane, and the only one that answers: the engine's own
-/// bracket, at the shipped dials.
-impl MinClearanceLane for geom_core::Interval {
-    fn min_separation(
-        a: &MinClearanceOperand<'_, Self>,
-        b: &MinClearanceOperand<'_, Self>,
-    ) -> Option<Result<Self, crate::clearance::ClearanceRefusal>> {
-        // **The engine decides no cell on this path** (it takes no band).
-        // This door runs inside an evaluation, and every funnel row a cell
-        // verdict records lands in that leaf's census, while the `f64`
-        // witness build asks none — so the two builds would differ
-        // `0 -> N` on every box and the leaf would refuse `flip_crossing`
-        // (`work/clear/min-separation-tightening-crosses-the-drive.md`).
-        // For the same reason the pair budget is the engine's small
-        // default: a drive of a few hundred leaves pays this search a few
-        // hundred times.
-        Some(
-            topo::clearance::min_separation(
-                &a.side(),
-                &b.side(),
-                a.same_body(b),
-                topo::clearance::MinSeparationConfig::default(),
-            )
-            .map_err(crate::clearance::ClearanceRefusal::Engine)
-            .map(|m| m.enclosure()),
-        )
-    }
-}
-
-/// **The symbolic tier has no clearance lane, and the absence is a
-/// DISCLOSED limitation rather than a design position** (E12's unit,
-/// deviation D3; issue `symbolic-tier-and-clearance-engine`).
-///
-/// Every other lane the tier composes with is scalar-generic and runs
-/// at `Sym<T>` unaltered. This one does not yet: the engine's door
-/// ([`topo::clearance::min_separation`]) reads a `Body<T>` at any
-/// certifying scalar, but this lane does not call it, because the
-/// bracket's way back into `Sym` — each end a fresh unknown through
-/// [`geom_core::Real::from_computed`] — is not written
-/// (`work/clear/symbolic-tier-and-clearance-engine.md`).
-///
-/// `None` is therefore the honest answer, and it behaves exactly as the
-/// point scalars' `None` does: `min_clearance` refuses TYPED at this
-/// lane, naming it, instead of reporting a number it did not compute. A
-/// document carrying that measure drives with the symbolic tier off
-/// (`DriveConfig::symbolic.enabled = false`) and says so; nothing
-/// silently degrades.
-impl<T: MinClearanceLane> MinClearanceLane for geom_core::Sym<T>
-where
-    geom_core::Sym<T>: geom_core::Real,
-{
-    fn min_separation(
-        _a: &MinClearanceOperand<'_, Self>,
-        _b: &MinClearanceOperand<'_, Self>,
-    ) -> Option<Result<Self, crate::clearance::ClearanceRefusal>> {
-        None
     }
 }
 

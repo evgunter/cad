@@ -77,11 +77,10 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use geom::Surface;
-use geom_core::interval::Interval;
 use geom_core::k_stats::decide;
 use geom_core::{Band, Margin, Point3, Sign, Tol};
 use topo::Body;
-use topo::clearance::{BoundVerdict, Candidate, Side, Sweep};
+use topo::clearance::{BoundVerdict, Side, Stations, Sweep};
 use topo::entity::FaceKey;
 
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox};
@@ -898,6 +897,19 @@ pub fn clearance_with(
     b: &Selection,
     query: &ClearanceQuery<'_>,
 ) -> ClearanceReport {
+    clearance_on(doc, leaf, a, b, query, crate::eval::LeafLane::Numeric)
+}
+
+/// [`clearance_with`] with the leaf replayed on `lane`: the lane a
+/// drive certified it on, for [`clearance_over`].
+fn clearance_on(
+    doc: &Doc<ProfileProgram>,
+    leaf: &ParamBox,
+    a: &Selection,
+    b: &Selection,
+    query: &ClearanceQuery<'_>,
+    lane: crate::eval::LeafLane,
+) -> ClearanceReport {
     let c = query.bound.c();
     if !c.is_finite() || c < 0.0 {
         // Not a distance. Refused at the door: subdividing against a
@@ -923,88 +935,125 @@ pub fn clearance_with(
         resolver: query.resolver.cloned(),
         ..lane_opts()
     };
-    let ev: Evaluation<Interval> = evaluate(doc, None, &CancelToken::new(), &opts, query.tol);
+    let replayed = Replayed {
+        doc,
+        queried: &queried,
+        a,
+        b,
+        query,
+        band,
+    };
+    crate::eval::read_leaf_with(doc, &opts, lane, query.tol, replayed)
+}
 
-    if let Some((a, b)) = doc.across_spaces(a.at, b.at) {
-        return ClearanceReport::refused(ClearanceRefusal::Selection(
-            SelectionRefusal::AcrossSpaces { a, b },
-        ));
-    }
-    // The two selections are in one space: the question is asked in the
-    // frame `[placement.frame]` conditions on (`Framed::computing_among`:
-    // the selection in its space's coordinates, else the first), each
-    // body read into it through `relative`.
-    let (framed_a, framed_b) = match (framed_of(&ev, a), framed_of(&ev, b)) {
-        (Ok(fa), Ok(fb)) => (fa, fb),
-        (Err(r), _) | (_, Err(r)) => return ClearanceReport::refused(r),
-    };
-    let computing = crate::eval::Framed::computing_among([framed_a, framed_b])
-        .unwrap_or_else(|| unreachable!("two operands"));
-    let read = |framed: &crate::eval::Framed<Interval>, node: RecipeNodeId| {
-        computing.read_in(framed, query.tol).map_err(|kind| {
-            ClearanceRefusal::Selection(SelectionRefusal::Frame {
-                node,
-                refusal: crate::NodeRefusal::from(kind),
+/// The clearance question over one leaf's replay, at the replay's
+/// scalar.
+struct Replayed<'q> {
+    doc: &'q Doc<ProfileProgram>,
+    queried: &'q ParamBox,
+    a: &'q Selection,
+    b: &'q Selection,
+    query: &'q ClearanceQuery<'q>,
+    band: Band,
+}
+
+impl crate::eval::AtLeaf for Replayed<'_> {
+    type Out = ClearanceReport;
+
+    fn at<T: geom_core::Decide + topo::AtRestPolicy>(self, ev: &Evaluation<T>) -> ClearanceReport {
+        let Self {
+            doc,
+            queried,
+            a,
+            b,
+            query,
+            band,
+        } = self;
+        let engine = T::clearance_lane()
+            .unwrap_or_else(|| unreachable!("a leaf replays at a scalar the engine answers at"));
+        if let Some((a, b)) = doc.across_spaces(a.at, b.at) {
+            return ClearanceReport::refused(ClearanceRefusal::Selection(
+                SelectionRefusal::AcrossSpaces { a, b },
+            ));
+        }
+        // The two selections are in one space: the question is asked in
+        // the frame `[placement.frame]` conditions on
+        // (`Framed::computing_among`: the selection in its space's
+        // coordinates, else the first), each body read into it through
+        // `relative`.
+        let (framed_a, framed_b) = match (framed_of(ev, a), framed_of(ev, b)) {
+            (Ok(fa), Ok(fb)) => (fa, fb),
+            (Err(r), _) | (_, Err(r)) => return ClearanceReport::refused(r),
+        };
+        let computing = crate::eval::Framed::computing_among([framed_a, framed_b])
+            .unwrap_or_else(|| unreachable!("two operands"));
+        let read = |framed: &crate::eval::Framed<T>, node: RecipeNodeId| {
+            computing.read_in(framed, query.tol).map_err(|kind| {
+                ClearanceRefusal::Selection(SelectionRefusal::Frame {
+                    node,
+                    refusal: crate::NodeRefusal::from(kind),
+                })
             })
-        })
-    };
-    let (body_a, body_b) = match (read(framed_a, a.at), read(framed_b, b.at)) {
-        (Ok(ba), Ok(bb)) => (ba, bb),
-        (Err(r), _) | (_, Err(r)) => return ClearanceReport::refused(r),
-    };
-    // Each selection's names resolve, then its faces are read into
-    // windows, the first selection whole before the second.
-    let windows = |sel: &Selection, body| {
-        let faces = faces_of(&ev, sel, body)?;
-        Ok::<_, ClearanceRefusal>(Side { body, faces }.windows()?)
-    };
-    let windows_a = match windows(a, &body_a) {
-        Ok(w) => w,
-        Err(r) => return ClearanceReport::refused(r),
-    };
-    // The SAME-BODY rule, not the same-selection one: two scopes of one
-    // body can name one face twice, and a face is never at a distance
-    // from itself.
-    let same_body = a.at == b.at && a.body == b.body;
-    let windows_b = if a == b {
-        windows_a.clone()
-    } else {
-        match windows(b, &body_b) {
+        };
+        let (body_a, body_b) = match (read(framed_a, a.at), read(framed_b, b.at)) {
+            (Ok(ba), Ok(bb)) => (ba, bb),
+            (Err(r), _) | (_, Err(r)) => return ClearanceReport::refused(r),
+        };
+        // Each selection's names resolve, then its faces are read into
+        // windows, the first selection whole before the second.
+        let windows = |sel: &Selection, body| {
+            let faces = faces_of(ev, sel, body)?;
+            Ok::<_, ClearanceRefusal>(engine.windows(&Side { body, faces })?)
+        };
+        let windows_a = match windows(a, &body_a) {
             Ok(w) => w,
             Err(r) => return ClearanceReport::refused(r),
-        }
-    };
+        };
+        // The SAME-BODY rule, not the same-selection one: two scopes of
+        // one body can name one face twice, and a face is never at a
+        // distance from itself.
+        let same_body = a.at == b.at && a.body == b.body;
+        let windows_b = if a == b {
+            windows_a.clone()
+        } else {
+            match windows(b, &body_b) {
+                Ok(w) => w,
+                Err(r) => return ClearanceReport::refused(r),
+            }
+        };
 
-    let sweep = Sweep {
-        bound: query.bound,
-        band,
-        max_cell_depth: query.config.max_cell_depth,
-        max_cell_pairs: query.config.max_cell_pairs,
-    };
-    let report = sweep.run(&windows_a, &windows_b, same_body, |candidate| {
-        verify_witness(
-            doc,
-            &queried,
-            (a, b),
-            candidate,
-            (query.bound, band),
-            query.resolver,
-            query.tol,
-        )
-    });
-    let verdict = match report.verdict {
-        BoundVerdict::Holds => ClearanceVerdict::Holds,
-        BoundVerdict::Violated(geometry) => ClearanceVerdict::Violated(Box::new(Violation {
-            param: witness_point(&queried),
-            geometry,
-        })),
-        BoundVerdict::Refused(r) => ClearanceVerdict::Refused(r.into()),
-    };
-    ClearanceReport {
-        verdict,
-        receipt: report.receipt,
-        widths: report.widths,
-        decided: report.decided,
+        let sweep = Sweep {
+            bound: query.bound,
+            band,
+            max_cell_depth: query.config.max_cell_depth,
+            max_cell_pairs: query.config.max_cell_pairs,
+        };
+        let report = engine.sweep(&sweep, &windows_a, &windows_b, same_body, |candidate| {
+            let faces = candidate.faces();
+            verify_witness(
+                doc,
+                queried,
+                (a, b),
+                (faces, || engine.on_face_stations(candidate)),
+                (query.bound, band),
+                query.resolver,
+                query.tol,
+            )
+        });
+        let verdict = match report.verdict {
+            BoundVerdict::Holds => ClearanceVerdict::Holds,
+            BoundVerdict::Violated(geometry) => ClearanceVerdict::Violated(Box::new(Violation {
+                param: witness_point(queried),
+                geometry,
+            })),
+            BoundVerdict::Refused(r) => ClearanceVerdict::Refused(r.into()),
+        };
+        ClearanceReport {
+            verdict,
+            receipt: report.receipt,
+            widths: report.widths,
+            decided: report.decided,
+        }
     }
 }
 
@@ -1060,9 +1109,13 @@ pub fn clearance_over(
         });
         return fold;
     }
+    // On the drive's own lane (`ParamBoxVerdict::symbolic`), as every
+    // certified-leaf consumer replays: a leaf the drive certified at the
+    // symbolic tier can carry a node a numeric replay refuses.
+    let lane = verdict.lane();
     for leaf in verdict.certified() {
         let CertifiedLeaf { box_, .. } = leaf;
-        let report = clearance_with(doc, box_, a, b, query);
+        let report = clearance_on(doc, box_, a, b, query, lane);
         let mass = box_.mass(analyzed);
         fold.mass.price(&report.verdict, mass);
         fold.receipt = fold.receipt.plus(report.receipt);
@@ -1322,10 +1375,10 @@ fn framed_of<'e, T: geom_core::Decide>(
 
 /// The faces a selection names in `body`, the selection's body in the
 /// frame the question is asked in.
-fn faces_of(
-    ev: &Evaluation<Interval>,
+fn faces_of<T: geom_core::Decide>(
+    ev: &Evaluation<T>,
     sel: &Selection,
-    body: &Body<Interval>,
+    body: &Body<T>,
 ) -> Result<Vec<FaceKey>, ClearanceRefusal> {
     let refuse = ClearanceRefusal::Selection;
     Ok(match &sel.faces {
@@ -1397,12 +1450,11 @@ fn verify_witness(
     doc: &Doc<ProfileProgram>,
     leaf: &ParamBox,
     (sel_a, sel_b): (&Selection, &Selection),
-    candidate: Candidate<'_, '_, Interval>,
+    ((face_a, face_b), stations): ((FaceKey, FaceKey), impl FnOnce() -> (Stations, Stations)),
     (bound, band): (ClearanceBound, Band),
     resolver: Option<&Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
 ) -> Result<GeometryWitness, String> {
-    let (face_a, face_b) = candidate.faces();
     let mid: BTreeMap<VarId, BoxAxis> = leaf
         .axes()
         .iter()
@@ -1478,7 +1530,7 @@ fn verify_witness(
     // `WitnessUnverified`, which is the honest answer for a cell the
     // interval pass proved violating whose face material, if any, sits
     // between stations, or whose stations the door does not place.
-    let (lattice_a, lattice_b) = candidate.on_face_stations();
+    let (lattice_a, lattice_b) = stations();
     let mut best: Option<Station> = None;
     for &(au, av) in &lattice_a {
         let pa = sa.eval(au, av);

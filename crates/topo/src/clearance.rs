@@ -581,12 +581,14 @@ pub struct Candidate<'s, 'b, T: Real> {
     region: &'s mut RegionMemo,
 }
 
-impl<T: Decide + CertifiedBounds> Candidate<'_, '_, T> {
+impl<T: Real> Candidate<'_, '_, T> {
     /// The two faces, the first side's then the second's.
     pub fn faces(&self) -> (FaceKey, FaceKey) {
         (self.x.face, self.y.face)
     }
+}
 
+impl<T: Decide + CertifiedBounds> Candidate<'_, '_, T> {
     /// **The stations of each cell its face's point door places on the
     /// face**, the first side's then the second's, each a `(u, v)` of
     /// its face's stored chart.
@@ -1913,6 +1915,230 @@ fn split<T: Real>(
             },
         )
     })
+}
+
+// ------------------------------------------------------ the lane door
+
+/// **The engine's door, as a value the document layer takes rather
+/// than a trait a scalar implements**: [`crate::QuadLane`]'s shape, for
+/// its reason. The layers above it stay generic over every evaluation
+/// scalar and read the door off [`crate::AtRestPolicy::clearance_lane`],
+/// the per-scalar policy home, refusing typed where it answers `None`.
+///
+/// Holding one is the statement that the scalar may certify: the one
+/// constructor ([`ClearanceLane::certified`]) is bounded on
+/// [`CertifiedBounds`], since every door it holds lifts what it reads
+/// through [`Interval::from_certified`] (this module's header). A
+/// scalar without that right cannot write the value:
+///
+/// ```compile_fail,E0599
+/// use geom_core::Dual64;
+/// use topo::ClearanceLane;
+/// let _ = ClearanceLane::<Dual64>::certified();
+/// ```
+///
+/// The code is `E0599` for [`crate::QuadLane`]'s reason, and stable
+/// rustdoc verifies only that the block fails to build.
+#[derive(Clone, Copy)]
+#[allow(clippy::type_complexity)]
+pub struct ClearanceLane<T: Decide> {
+    /// [`Side::windows`] (`wiring_rows` pins the pointer).
+    windows: for<'b> fn(&Side<'b, T>) -> Result<Windows<'b, T>, EngineRefusal>,
+    /// [`Sweep::run`], with the verifier's witness kept by the caller
+    /// ([`ClearanceLane::sweep`]).
+    bound_sweep: fn(
+        &Sweep,
+        &Windows<'_, T>,
+        &Windows<'_, T>,
+        bool,
+        &mut dyn FnMut(Candidate<'_, '_, T>) -> Result<(), String>,
+    ) -> BoundReport<()>,
+    /// [`Candidate::on_face_stations`].
+    face_stations: fn(Candidate<'_, '_, T>) -> (Stations, Stations),
+    /// [`min_separation`].
+    min_separation: fn(
+        &Side<'_, T>,
+        &Side<'_, T>,
+        bool,
+        MinSeparationConfig,
+    ) -> Result<MinSeparation, EngineRefusal>,
+}
+
+impl<T: Decide + CertifiedBounds> ClearanceLane<T> {
+    /// The certified engine: the whole inventory of this door, and the
+    /// only constructor there is.
+    #[must_use]
+    pub const fn certified() -> Self {
+        Self {
+            windows: Self::windows_of,
+            bound_sweep: Self::sweep_of,
+            face_stations: Self::stations_of,
+            min_separation: min_separation::<T>,
+        }
+    }
+
+    fn windows_of<'b>(side: &Side<'b, T>) -> Result<Windows<'b, T>, EngineRefusal> {
+        side.windows()
+    }
+
+    fn sweep_of(
+        sweep: &Sweep,
+        wa: &Windows<'_, T>,
+        wb: &Windows<'_, T>,
+        same_body: bool,
+        verify: &mut dyn FnMut(Candidate<'_, '_, T>) -> Result<(), String>,
+    ) -> BoundReport<()> {
+        sweep.run(wa, wb, same_body, verify)
+    }
+
+    fn stations_of(candidate: Candidate<'_, '_, T>) -> (Stations, Stations) {
+        candidate.on_face_stations()
+    }
+}
+
+impl<T: Decide> ClearanceLane<T> {
+    /// [`Side::windows`], at this lane.
+    ///
+    /// # Errors
+    ///
+    /// [`Side::windows`]'s own.
+    pub fn windows<'b>(self, side: &Side<'b, T>) -> Result<Windows<'b, T>, EngineRefusal> {
+        (self.windows)(side)
+    }
+
+    /// [`Sweep::run`], at this lane: the verdict, receipt and widths are
+    /// the sweep's, and the witness is the first one `verify` answered.
+    pub fn sweep<W>(
+        self,
+        sweep: &Sweep,
+        wa: &Windows<'_, T>,
+        wb: &Windows<'_, T>,
+        same_body: bool,
+        mut verify: impl FnMut(Candidate<'_, '_, T>) -> Result<W, String>,
+    ) -> BoundReport<W> {
+        let mut witness = None;
+        let report = (self.bound_sweep)(sweep, wa, wb, same_body, &mut |candidate| {
+            verify(candidate).map(|w| witness = Some(w))
+        });
+        let verdict = match report.verdict {
+            BoundVerdict::Holds => BoundVerdict::Holds,
+            BoundVerdict::Refused(r) => BoundVerdict::Refused(r),
+            BoundVerdict::Violated(()) => BoundVerdict::Violated(
+                witness.unwrap_or_else(|| unreachable!("the sweep stops at the verifier's `Ok`")),
+            ),
+        };
+        BoundReport {
+            verdict,
+            receipt: report.receipt,
+            widths: report.widths,
+            decided: report.decided,
+        }
+    }
+
+    /// [`Candidate::on_face_stations`], at this lane.
+    pub fn on_face_stations(self, candidate: Candidate<'_, '_, T>) -> (Stations, Stations) {
+        (self.face_stations)(candidate)
+    }
+
+    /// [`min_separation`], at this lane, with its bracket re-entered as
+    /// a value of `T`: the hull of `T::from_computed` of each end. At
+    /// `Interval` that is [`MinSeparation::enclosure`]; at a symbolic
+    /// scalar each end is its own unknown, so two measures with equal
+    /// brackets are never proved equal.
+    ///
+    /// # Errors
+    ///
+    /// [`min_separation`]'s own.
+    pub fn min_separation(
+        self,
+        a: &Side<'_, T>,
+        b: &Side<'_, T>,
+        same_body: bool,
+        config: MinSeparationConfig,
+    ) -> Result<T, EngineRefusal> {
+        let m = (self.min_separation)(a, b, same_body, config)?;
+        Ok(geom_core::SpanLocate::enclosure_hull(
+            T::from_computed(m.lo),
+            T::from_computed(m.hi),
+        ))
+    }
+}
+
+/// **The door's WIRING**: which function each field of
+/// [`ClearanceLane::certified`] holds. Why a wiring row compares
+/// pointers rather than outputs: `certified_enclosure_impl_census`'s
+/// module doc.
+#[cfg(test)]
+mod wiring_rows {
+    use super::{ClearanceLane, min_separation};
+
+    /// `Ok(())` when every field holds its door; otherwise the name of
+    /// the first field that does not.
+    fn holds_the_certified_clearance_lane<T: super::Decide + geom_core::CertifiedBounds>()
+    -> Result<(), &'static str> {
+        let lane = ClearanceLane::<T>::certified();
+        if !std::ptr::fn_addr_eq(lane.windows, ClearanceLane::<T>::windows_of as fn(_) -> _) {
+            return Err("windows is not `Side::windows`");
+        }
+        if !std::ptr::fn_addr_eq(
+            lane.bound_sweep,
+            ClearanceLane::<T>::sweep_of as fn(_, _, _, _, _) -> _,
+        ) {
+            return Err("bound_sweep is not `Sweep::run`");
+        }
+        if !std::ptr::fn_addr_eq(
+            lane.face_stations,
+            ClearanceLane::<T>::stations_of as fn(_) -> _,
+        ) {
+            return Err("face_stations is not `Candidate::on_face_stations`");
+        }
+        if !std::ptr::fn_addr_eq(
+            lane.min_separation,
+            min_separation::<T> as fn(_, _, _, _) -> _,
+        ) {
+            return Err("min_separation is not `min_separation`");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn f64_is_wired_to_the_certified_clearance_lane() {
+        assert_eq!(
+            holds_the_certified_clearance_lane::<f64>(),
+            Ok(()),
+            "`ClearanceLane::<f64>::certified()` holds something other than the engine"
+        );
+    }
+
+    /// The symbolic tier holds the base scalar's doors: the same
+    /// pointers, instantiated at `Sym<f64>`.
+    #[test]
+    fn sym_over_f64_is_wired_to_the_certified_clearance_lane() {
+        assert_eq!(
+            holds_the_certified_clearance_lane::<geom_core::Sym<f64>>(),
+            Ok(()),
+            "`ClearanceLane::<Sym<f64>>::certified()` holds something other than the engine"
+        );
+    }
+
+    #[cfg(feature = "probe")]
+    #[test]
+    fn probe_is_wired_to_the_certified_clearance_lane() {
+        assert_eq!(
+            holds_the_certified_clearance_lane::<geom_core::Probe>(),
+            Ok(()),
+            "`ClearanceLane::<Probe>::certified()` holds something other than the engine"
+        );
+    }
+
+    #[test]
+    fn interval_is_wired_to_the_certified_clearance_lane() {
+        assert_eq!(
+            holds_the_certified_clearance_lane::<geom_core::interval::Interval>(),
+            Ok(()),
+            "`ClearanceLane::<Interval>::certified()` holds something other than the engine"
+        );
+    }
 }
 
 #[cfg(test)]

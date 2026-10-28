@@ -693,9 +693,13 @@ BOUNDS_ALLOWLIST=(
   # `window_of` and `boundary_of` (the lifts), `RegionMemo::ask` and
   # `station` (the two doors above, memoized), `Candidate`'s block and
   # `admitted` (a verifier's on-face stations), `Sweep::run` and
-  # `min_separation` (the two walks).
+  # `min_separation` (the two walks). 9 -> 11 (SYMCLEAR): the door value
+  # `ClearanceLane::certified`, whose block forms the four doors above
+  # into its fn-pointer fields exactly as `QuadLane::certified` forms
+  # `quad_lane`'s, and its wiring helper, as `QuadLane`'s is; neither
+  # reads a bracket, so it is the same plumbing at the same door.
   'crates/topo/src/cell_region.rs 3 M5 PR 11, the certified-quadrature plumbing'
-  'crates/topo/src/clearance.rs 9 M5 PR 11, the certified-quadrature plumbing'
+  'crates/topo/src/clearance.rs 11 M5 PR 11, the certified-quadrature plumbing'
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
   # 15 -> 17: `chain_turns` is predicate 4's loop moved out of
   # `run_battery_for` whole (its junction-end pick the one bracket read,

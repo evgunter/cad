@@ -53,7 +53,7 @@ use crate::fixture;
 use std::collections::BTreeMap;
 
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box, sample_offset};
-use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, certifying_vector, drive};
+use editor_core::drive::{DriveConfig, VerdictVector, certifying_vector, drive};
 use editor_core::mc::{McConfig, monte_carlo};
 use editor_core::report::{Dials, report_key};
 use editor_core::{
@@ -66,26 +66,12 @@ use topo::clearance::{MinSeparationConfig, Side, min_separation};
 
 use fixture::{Recorder, len};
 
-/// The clearance engine has no lane at the symbolic identity tier
-/// (ERROR-DESIGN E12; `DriveRefusal::SymbolicClearanceUnsupported`, and
-/// the deviation is issue `symbolic-tier-and-clearance-engine`), so every drive over a `min_clearance`
-/// document asks for the numeric-only replay BY NAME. It is a disclosed
-/// limitation of the tier, not a property of these fixtures: with the
-/// tier on the driver refuses this document up front rather than
-/// certifying leaves whose clearance measure was never computed.
 /// A variable as the free mass doors' refusals speak it.
 fn sp(name: &'static str) -> editor_core::SpokenVar {
     editor_core::SpokenVar::new(
         editor_core::VarId::new(0, 0),
         Some(editor_core::VarName::from_static(name)),
     )
-}
-
-fn numeric_lane() -> DriveConfig {
-    DriveConfig {
-        symbolic: SymbolicDials::off(),
-        ..DriveConfig::default()
-    }
 }
 
 fn name(n: &'static str) -> VarName {
@@ -240,8 +226,8 @@ fn the_certifying_filter_changes_a_pre_m10_6_documents_drive() {
          if they do not, this fixture no longer exercises the filter"
     );
 
-    let verdict =
-        drive(&doc, &analyzed, &numeric_lane(), Tol::witness()).expect("the nominal builds");
+    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness())
+        .expect("the nominal builds");
     assert!(
         !verdict.certified().is_empty(),
         "the ε-scaled box certifies"
@@ -598,7 +584,7 @@ fn report_key_tells_the_dials_that_move_a_report_apart() {
         "two different dials produce two different reports"
     );
     let box_ = one_axis(&doc, "place", half());
-    let drive_cfg = numeric_lane();
+    let drive_cfg = DriveConfig::default();
     let mc_a = McConfig {
         samples: 128,
         seed: 1,
@@ -749,7 +735,7 @@ fn the_typed_absence_names_its_verb_scalar_and_door() {
         reason: editor_core::MeasureUnavailableAt::NeedsEnclosure {
             verb: "min_clearance",
             scalar: "f64",
-            door: "clearance::min_separation",
+            door: "topo::ClearanceLane",
         },
         dim: Dimension::Length,
     };
@@ -757,7 +743,7 @@ fn the_typed_absence_names_its_verb_scalar_and_door() {
         unreachable!()
     };
     let sentence = reason.to_string();
-    for part in ["min_clearance", "f64", "clearance::min_separation"] {
+    for part in ["min_clearance", "f64", "topo::ClearanceLane"] {
         assert!(
             sentence.contains(part),
             "the reason a Python caller is handed must name {part}: {sentence}"

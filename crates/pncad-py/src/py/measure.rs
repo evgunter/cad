@@ -41,9 +41,9 @@
 //! a typed ABSENCE and not a failure, which is why an assertion over
 //! such a measure reports `Unevaluated` rather than being poisoned.
 //!
-//! The engine's own refusal (`ClearanceRefusal`) is therefore not
-//! reachable from Python at all: the only lane that computes a bracket
-//! is the interval one, and the binding does not evaluate there. It
+//! The engine's own refusal (`EngineRefusal`) is therefore not
+//! reachable from Python at all: only a certifying scalar holds the
+//! engine's door, and the binding does not evaluate at one. It
 //! would arrive as `EvaluationError` with
 //! `kind == "measure_clearance_refused"` the day Python gains a
 //! certified scalar, and it should gain its spelling in the unit that

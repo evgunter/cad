@@ -6960,6 +6960,18 @@ pub trait AtRestPolicy: Decide {
     /// scalar. `None` leaves a face–face pair unread.
     fn region_lane() -> Option<crate::RegionLane<Self>>;
 
+    /// **This scalar's clearance engine, or `None` where it does not
+    /// answer** — the ONE seam the `Some` comes from, read by the
+    /// `min_clearance` measure and the document-level clearance query.
+    ///
+    /// The engine's answer is a certified bracket, so `None` at a scalar
+    /// without certification rights (DL1) is the same fact as
+    /// [`AtRestPolicy::shell_door`]'s. At `f64` it is the census
+    /// question as well: the witness build would answer by a search
+    /// whose rows the interval leaf does not ask
+    /// (`work/clear/min-separation-tightening-crosses-the-drive.md`).
+    fn clearance_lane() -> Option<crate::ClearanceLane<Self>>;
+
     /// The at-rest gate over a body ([`crate::validate_geometric`] at
     /// certifying scalars; absent at duals, and the outcome says
     /// which).
@@ -7139,6 +7151,10 @@ impl AtRestPolicy for f64 {
         Some(crate::RegionLane::certified())
     }
 
+    fn clearance_lane() -> Option<crate::ClearanceLane<Self>> {
+        None
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -7284,6 +7300,10 @@ impl AtRestPolicy for geom_core::Probe {
         Some(crate::RegionLane::certified())
     }
 
+    fn clearance_lane() -> Option<crate::ClearanceLane<Self>> {
+        None
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -7422,6 +7442,10 @@ impl AtRestPolicy for geom_core::interval::Interval {
 
     fn region_lane() -> Option<crate::RegionLane<Self>> {
         Some(crate::RegionLane::certified())
+    }
+
+    fn clearance_lane() -> Option<crate::ClearanceLane<Self>> {
+        Some(crate::ClearanceLane::certified())
     }
 
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
@@ -7575,6 +7599,10 @@ where
 
     fn region_lane() -> Option<crate::RegionLane<Self>> {
         Some(crate::RegionLane::certified())
+    }
+
+    fn clearance_lane() -> Option<crate::ClearanceLane<Self>> {
+        Some(crate::ClearanceLane::certified())
     }
 
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
@@ -7742,6 +7770,10 @@ where
     }
 
     fn region_lane() -> Option<crate::RegionLane<Self>> {
+        None
+    }
+
+    fn clearance_lane() -> Option<crate::ClearanceLane<Self>> {
         None
     }
 

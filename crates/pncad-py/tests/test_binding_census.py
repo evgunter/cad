@@ -1460,7 +1460,7 @@ BOUND_AS = {
     # They cross exactly as their carrier does — flattened to the tag
     # `EvaluationError.kind` answers, the `NodeErrorKind` row's shape
     # one level in. An `f64` evaluation cannot produce either today,
-    # which is the same sentence `ClearanceRefusal` carries one
+    # which is the same sentence `EngineRefusal` carries one
     # roster down: the LANE decides.
     "ParamBoxError": "EvaluationError.kind",
     "SeedError": "EvaluationError.kind",
@@ -3195,12 +3195,10 @@ NOT_BOUND = {
     # as `EvaluationError.kind == "measure_clearance_refused"`
     # (`src/tags.rs`), which is this bullet's ordinary shape. What is
     # NOT ordinary is that no Python evaluation can produce one: the
-    # refusal's only producer on the measure path is
-    # `impl MinClearanceLane for geom_core::Interval` (the leaf-level
-    # query engine refuses with it too, and the façade does not carry
-    # that engine at all), and the binding
-    # evaluates at `f64` alone (`src/py/value.rs`), so the SCALAR is
-    # what gates it. That is the box's and the seed's
+    # refusal's only producer on the measure path is the
+    # `topo::ClearanceLane` door, which only a certifying scalar holds,
+    # and the binding evaluates at `f64` alone (`src/py/value.rs`), so
+    # the SCALAR is what gates it. That is the box's and the seed's
     # sentence above arriving on the refusal side: the door starts
     # answering differently exactly when Python gains a non-`f64`
     # evaluation, and it should gain its spelling in the unit that
@@ -3213,15 +3211,12 @@ NOT_BOUND = {
     # `min_clearance` WITH, so it is reachable today and is bound
     # top-level under rule 1. One verb, two refusals, and the lane
     # decides which of them a Python caller can ever see.
-    "ClearanceRefusal": SHAPE,
-    # Its `Engine` and `Selection` payloads, and the engine's `Budget`
-    # payload below them, curated beside it so a Rust consumer can read
-    # the arm it matched. They cross exactly as their carrier does —
-    # inside the one tag — and no `f64` evaluation reaches them for the
+    "EngineRefusal": SHAPE,
+    # Its `Budget` payload, curated beside it so a Rust consumer can
+    # read the arm it matched. It crosses exactly as its carrier does —
+    # inside the one tag — and no `f64` evaluation reaches it for the
     # same reason.
     "CellBudget": SHAPE,
-    "EngineRefusal": SHAPE,
-    "SelectionRefusal": SHAPE,
     # B-FACE-FRAME IS GONE FROM THIS ROSTER, closed at
     # LIB-B-FACE-FRAME, and the id left `FAMILIES` with it. It cited
     # exactly ONE name here — `face_carrier_kind` — which is now in
@@ -3304,10 +3299,10 @@ NOT_BOUND = {
     #     refusal flattened to a tag no `f64` evaluation can raise.
     #
     #     (2026-09-24, PR #3188: `MinClearanceRefusal` is deleted — the
-    #     measure path carries the engine's own `ClearanceRefusal` — and
-    #     its entry is now `ClearanceRefusal`'s, with the two payloads
-    #     curated beside it, `CellBudget` and `SelectionRefusal`, all
-    #     three `SHAPE` for the same reason.)
+    #     measure path carries the engine's own refusal — and
+    #     its entry is now the engine's `EngineRefusal`, with its
+    #     payload `CellBudget` curated beside it, both `SHAPE` for the
+    #     same reason.)
     #
     # THE CHARTER NAMED A SPELLING THIS FILE HAD ALREADY TAKEN. The
     # analysis lane's `MeasureUnavailable` bound at LIB-B-DISTRIBUTIONS

@@ -654,7 +654,7 @@ pub enum RefusalReason {
 pub enum MeasureRefusalClass {
     /// The clearance engine refused, with its own refusal
     /// ([`NodeErrorKind::MeasureClearanceRefused`]).
-    Clearance(crate::clearance::ClearanceRefusal),
+    Clearance(topo::clearance::EngineRefusal),
 }
 
 impl MeasureRefusalClass {
@@ -1232,28 +1232,6 @@ pub enum DriveRefusal {
     /// answers this document completely, and saying so is more useful
     /// than returning a one-leaf verdict that looks like an analysis.
     NothingVaries,
-    /// **The symbolic tier and the clearance engine do not compose**
-    /// (E12's unit, deviation D3; issue `symbolic-tier-and-clearance-engine`).
-    ///
-    /// `min_clearance` answers with an enclosure computed by
-    /// [`topo::clearance`]'s engine, and the symbolic lane does not hand
-    /// it the leaf replay's `Body<Sym<Interval>>`:
-    /// [`crate::measure::MinClearanceLane`] answers `None` at `Sym`. The
-    /// lane therefore has no clearance answer at all.
-    ///
-    /// Refused up front rather than degraded: the trait's honest `None`
-    /// reads downstream as the typed absence
-    /// [`crate::eval::ValuePayload::MeasureUnavailable`], which is a
-    /// VALUE, so the leaf would certify with the clearance measure
-    /// silently missing from it. That is precisely the quiet degradation
-    /// this kernel refuses, so the drive says so instead. The recourse
-    /// is in the message: drive this document with
-    /// [`SymbolicDials::off`].
-    SymbolicClearanceUnsupported {
-        /// The measure node whose primitive has no lane, spoken from
-        /// the driven document.
-        node: SpokenNode,
-    },
 }
 
 impl core::fmt::Display for DriveRefusal {
@@ -1267,12 +1245,6 @@ impl core::fmt::Display for DriveRefusal {
             Self::NothingVaries => f.write_str(
                 "no parameter of this document declares a distribution, so the analyzed box has \
                  no varying axis — the nominal build is the whole answer",
-            ),
-            Self::SymbolicClearanceUnsupported { node } => write!(
-                f,
-                "{node} is a `min_clearance`, whose engine has no lane at the symbolic \
-                 identity tier — drive with `DriveConfig {{ symbolic: SymbolicDials::off(), .. }}` \
-                 to get the numeric-only answer, or measure a closed form"
             ),
         }
     }
@@ -1316,13 +1288,6 @@ pub fn drive(
     let root = ParamBox::of(analyzed);
     if root.varying().next().is_none() {
         return Err(DriveRefusal::NothingVaries);
-    }
-    if config.symbolic.enabled
-        && let Some(node) = clearance_measure(doc)
-    {
-        return Err(DriveRefusal::SymbolicClearanceUnsupported {
-            node: doc.spoken(node),
-        });
     }
 
     // The WITNESS build: the document at its nominals, at f64. Its
@@ -1532,19 +1497,6 @@ pub fn drive(
     })
 }
 
-/// The first `Measure` node reading a `min_clearance` primitive, if
-/// the document has one ([`DriveRefusal::SymbolicClearanceUnsupported`]).
-fn clearance_measure(doc: &Doc<ProfileProgram>) -> Option<RecipeNodeId> {
-    doc.ids().iter().copied().find(|&id| {
-        matches!(
-            doc.node(id),
-            Some(Node::Measure {
-                primitive: crate::measure::MeasurePrimitive::MinClearance { .. }
-            })
-        )
-    })
-}
-
 /// The evaluation options every pass of a drive uses: sequential
 /// (leaf-level parallelism is the driver's, and nesting a rayon scope
 /// per leaf inside one buys nothing), and no memo.
@@ -1559,12 +1511,7 @@ fn clearance_measure(doc: &Doc<ProfileProgram>) -> Option<RecipeNodeId> {
 /// The SCALAR is the other half of "the way this driver certified it",
 /// and it does not ride here: it rides on the verdict
 /// ([`ParamBoxVerdict::symbolic`]) and reaches a consumer through
-/// `crate::eval::replay_leaf`. The clearance engine is the one consumer
-/// that does not take it — the `min_clearance` lane answers `None` at
-/// `Sym` — which is why a document carrying a `min_clearance`
-/// measure refuses the symbolic tier up front
-/// ([`DriveRefusal::SymbolicClearanceUnsupported`]) rather than
-/// certifying leaves the engine could not then read.
+/// `crate::eval::replay_leaf`.
 pub(crate) fn lane_opts() -> EvalOptions {
     // `EvalOptions::default()` already mints an epoch; minting a second
     // one to overwrite it burnt a process-global counter per leaf, and
@@ -2200,43 +2147,34 @@ pub fn assertion_at(
 /// that a smaller box would have certified. So the terminal classes are
 /// enumerated, and every refusal not listed bisects.
 ///
-/// The clearance arm matches every [`ClearanceRefusal`] arm, but its
-/// carrier's one producer — `topo::clearance::min_separation`, through
-/// [`MinClearanceLane`]'s interval impl — refuses with four of the
-/// engine's: `EmptyScope`, `NoAdmittedPair`, `Unsupported` and
-/// `PoisonEnclosure`. The other seven are classed by what they mean, so
-/// the match stays exhaustive and an arm added to either enum does not
+/// The clearance arm matches every [`EngineRefusal`] arm, but its
+/// carrier's one producer, `topo::clearance::min_separation`, refuses
+/// with four of them: `EmptyScope`, `NoAdmittedPair`, `Unsupported` and
+/// `PoisonEnclosure`. The other three are classed by what they mean, so
+/// the match stays exhaustive and an arm added to the enum does not
 /// compile unclassed.
 ///
-/// [`ClearanceRefusal`]: crate::clearance::ClearanceRefusal
-/// [`MinClearanceLane`]: crate::measure::MinClearanceLane
+/// [`EngineRefusal`]: topo::clearance::EngineRefusal
 fn box_independent_measure_class(kind: &NodeErrorKind) -> Option<MeasureRefusalClass> {
     match kind {
         NodeErrorKind::MeasureClearanceRefused(r) => {
-            use crate::clearance::{ClearanceRefusal as C, EngineRefusal as E};
-            let engine = || Some(MeasureRefusalClass::Clearance(r.clone()));
+            use topo::clearance::EngineRefusal as E;
             match r {
                 // Reached: which faces are in scope, whether the two
                 // scopes pair at all, and whether the carrier has an
                 // implementation are decided by the document's own
                 // topology and the engine's support table, not by the box.
-                C::Engine(E::EmptyScope | E::NoAdmittedPair | E::Unsupported { .. }) => engine(),
-                // Not reached from `min_separation`. The bound and the
-                // run's tolerance are fixed for the whole drive, so no
-                // sub-box changes them either.
-                C::NotADistance { .. } | C::ToleranceHasNoBand => engine(),
+                E::EmptyScope | E::NoAdmittedPair | E::Unsupported { .. } => {
+                    Some(MeasureRefusalClass::Clearance(r.clone()))
+                }
                 // Reached: an enclosure that did not evaluate over this
                 // box (NaI, or empty) may evaluate over a smaller one, so
                 // nothing proves it box-independent.
-                C::Engine(E::PoisonEnclosure { .. }) => None,
+                E::PoisonEnclosure { .. } => None,
                 // Not reached from `min_separation`. Each is a function
-                // of the box — a budget, an in-band decision, a witness,
-                // a certified leaf, or a selection read at one leaf's
-                // replay (a node that did not build there) — and can
-                // differ over a smaller one.
-                C::Engine(E::Budget(_) | E::Sliver { .. } | E::WitnessUnverified { .. })
-                | C::Selection(_)
-                | C::NothingCertified { .. } => None,
+                // of the box (a budget, an in-band decision, a witness)
+                // and can differ over a smaller one.
+                E::Budget(_) | E::Sliver { .. } | E::WitnessUnverified { .. } => None,
             }
         }
         _ => None,

@@ -980,6 +980,52 @@ fn a_driver_certified_leaf_carries_the_certificate() {
     assert!(fold.mass.refused.is_empty());
 }
 
+/// **A leaf is replayed on the lane the drive certified it on.** The
+/// two-hole plate at `1e3·ε` of its real study certifies in one leaf
+/// only with the symbolic tier on (`m10_10_the_plate_needs_no_door`),
+/// so its `Interval` replay is not the build the leaf's verdict is
+/// about. The fold over that leaf answers the holes' clearance; the
+/// same leaf asked on the numeric replay (`clearance_with`, the replay
+/// the fold used before it read the verdict's lane) does not hold.
+#[test]
+fn the_fold_replays_a_leaf_on_the_drives_own_lane() {
+    let tol = Tol::witness();
+    let s = 1.0e3 * tol.eps();
+    let plate = crate::m10_7_plate::plate_with_holes(5.0e-5 * s, 1.0e-5 * s, tol);
+    let analyzed = analyzed_box(&plate.doc, &AnalysisPolicy::default());
+    let verdict = drive(
+        &plate.doc,
+        &analyzed,
+        &DriveConfig {
+            max_depth: 0,
+            max_leaves: 1,
+            ..DriveConfig::default()
+        },
+        tol,
+    )
+    .expect("the plate builds at its nominal");
+    let [leaf] = verdict.certified() else {
+        panic!(
+            "the tier certifies the whole box in one leaf: {}",
+            verdict.serialize()
+        );
+    };
+    let [a, b] = plate.holes.map(Selection::body_of);
+    let query = ClearanceQuery::at_least(0.3e-3, tol);
+    let fold = clearance_over(&plate.doc, &analyzed, &verdict, &a, &b, &query);
+    assert_eq!(
+        fold.verdict,
+        ClearanceVerdict::Holds,
+        "the holes clear 0.3 mm over the leaf, read on its own lane"
+    );
+    let numeric = clearance_with(&plate.doc, &leaf.box_, &a, &b, &query);
+    assert_ne!(
+        *numeric.verdict(),
+        ClearanceVerdict::Holds,
+        "the numeric replay of a symbolic-tier leaf is not the build it certified"
+    );
+}
+
 // --------------------------------------------------- the honest limit
 
 /// **The measured cost curve, executed rather than described.**
