@@ -962,14 +962,14 @@ class TestAssemblyRefusals(BenchWorkspace):
         ev = evaluate(doc)
         with self.assertRaises(pncad.ProductError) as gather:
             product(doc, ev)
-        self.assertEqual(gather.exception.variant, "root_failed")
+        self.assertEqual(gather.exception.variant, "read_failed")
         self.assertIsNotNone(gather.exception.node)
         with self.assertRaises(pncad.ChecksError) as checks:
             run_checks(doc, ev)
-        self.assertEqual(checks.exception.variant, "root_without_value")
+        self.assertEqual(checks.exception.variant, "placement_without_value")
         self.assertEqual(checks.exception.node, gather.exception.node)
 
-    def test_a_gather_refusal_speaks_its_root_from_the_evaluated_document(self):
+    def test_a_gather_refusal_speaks_its_piece_from_the_evaluated_document(self):
         doc = Doc("no-resolver-labelled")
         lonely = self.pinned(doc, self.post_ref)
         doc.apply(DocEdit.set_label(lonely, "lonely post"))
@@ -981,7 +981,7 @@ class TestAssemblyRefusals(BenchWorkspace):
         for door in (product, pncad.product_named):
             with self.assertRaises(pncad.ProductError) as gather:
                 door(doc, ev)
-            self.assertEqual(gather.exception.variant, "root_failed")
+            self.assertEqual(gather.exception.variant, "read_failed")
             self.assertIn('InstantiatePart "lonely post" (', str(gather.exception))
             self.assertEqual(gather.exception.node, lonely)
 

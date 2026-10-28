@@ -19,7 +19,7 @@ refusal the status line draws that is not an `EditError`.)
 `viewer::session::Refusal` (`crates/viewer/src/session/refuse.rs`) has
 25 arms. `crates/viewer/tests/refusal_concision_edits.rs` holds only
 `Refusal::Edit` to `test_utils::refusal::problems`, and
-`crates/viewer/tests/part_root_carried.rs` only the part-root lines; no
+`crates/viewer/tests/part_product_carried.rs` only the part-product lines; no
 suite renders the other 24 arms through `problems`, so none of them is
 checked for the budget, a stage prefix, a `Debug` struct, an arena key
 or a recourse.
