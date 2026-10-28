@@ -31,8 +31,8 @@ mean. Each one needs its miss probability at `CAD_FUZZ_EFFORT=1` measured
 (or argued) before it is called safe.
 
 - `crates/editor-core/tests/review_gui1_r1.rs`, `random_integer_rays_match_the_exact_oracle`: `hits_seen > 0`. **Fixed** (planted case 0), in the PR that filed this row.
-- `crates/mesh/src/nurbs_cert_fuzz.rs`, `cert10_the_fold_never_exceeds_the_whole_net_hull`: `strict > trials`, `saw_high_mult`. **Being fixed** under `cert10-strict-gap-floor-gates-on-a-varying-seed`.
-- `crates/mesh/src/nurbs_cert_fuzz.rs`, `r1_random_rational_soundness_sweep`: `worst > 0.5`. **Being fixed** in the same PR as cert10.
+- `crates/mesh/src/nurbs_cert_fuzz.rs`, `cert10_the_fold_never_exceeds_the_whole_net_hull`: `strict > trials`, `saw_high_mult`. **Fixed** (split onto a pinned draw) under `cert10-strict-gap-floor-gates-on-a-varying-seed`, PR 5944.
+- `crates/mesh/src/nurbs_cert_fuzz.rs`, `r1_random_rational_soundness_sweep`: `worst > 0.5`. **Left, with a reason** (PR 5944): each trial meets the floor on its own (60 of 60 above 0.5 at seed 1001, minimum 0.88), so a red needs every trial to miss at once.
 - `crates/geom/tests/curves/review_m5_pr3_attack.rs`, `f4_removal_bound_contains_realized_error_lossy_and_adversarial_weights`: `checked >= WANTED && multi >= 1`.
 - `crates/geom/tests/surfaces/review_m5_pr3_attack.rs`, `f4_surface_removal_bound_honest_u_and_v`: `successes >= QUOTA`.
 - `crates/geom-core/src/spline/blossom.rs`, `the_thin_step_reads_the_general_products_to_the_bit`: `above > 0`.
