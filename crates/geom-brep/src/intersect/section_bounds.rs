@@ -559,7 +559,6 @@ fn control_hulls<T: CertifiedBounds>(
     params: (T, T),
 ) -> Option<Vec<Box3>> {
     let (lo, hi) = (Bounds::lo(params.0), Bounds::hi(params.1));
-    let knots = carrier.knots_f64_interim().knots();
     let p = carrier.degree();
     let homogeneous: Vec<([Interval; 3], Interval)> = carrier
         .control()
@@ -570,15 +569,20 @@ fn control_hulls<T: CertifiedBounds>(
             (scale(point(*c), w), w)
         })
         .collect();
+    // Each span is the gap between two consecutive knot runs; its window
+    // ends at the last knot of the first run.
+    let runs: Vec<(T, usize)> = carrier.knot_values().runs().collect();
+    let mut last = 0_usize;
     let mut hulls = Vec::new();
-    for s in p..knots.len().saturating_sub(p + 1) {
-        let (a, b) = (knots[s], knots[s + 1]);
-        if !(a < b && b >= lo && a <= hi) {
+    for pair in runs.windows(2) {
+        let ((a, ma), (b, mb)) = (pair[0], pair[1]);
+        last += ma;
+        let s = last - 1;
+        if !(Bounds::hi(b) >= lo && Bounds::lo(a) <= hi) || s < p {
             continue;
         }
         let window = homogeneous.get(s - p..=s)?;
-        let bezier = knots[s + 1 - p..=s].iter().all(|&k| k == a)
-            && knots[s + 1..=s + p].iter().all(|&k| k == b);
+        let bezier = ma >= p && mb >= p;
         let pieces = if bezier { PIECES } else { 1 };
         for j in 0..pieces {
             let net: Vec<([Interval; 3], Interval)> = if bezier {
@@ -602,12 +606,12 @@ fn control_hulls<T: CertifiedBounds>(
                     return None;
                 }
                 let c = pw.map(|x| x / w);
-                let b = Box3 {
+                let corner = Box3 {
                     x: c[0],
                     y: c[1],
                     z: c[2],
                 };
-                hull = Some(hull.map_or(b, |h| h.hull(b)));
+                hull = Some(hull.map_or(corner, |h| h.hull(corner)));
             }
             let hull = hull?;
             if ![hull.x, hull.y, hull.z].iter().all(|i| i.is_certified()) {
@@ -666,7 +670,7 @@ fn miranda(a: Quadric, b: Quadric, at: [Interval; 3], reach: f64) -> bool {
     // `u = Gᵀ(GGᵀ)⁻¹`, at `f64`: a preconditioner, so any choice is sound.
     let d = |x: [f64; 3], y: [f64; 3]| x[0] * y[0] + x[1] * y[1] + x[2] * y[2];
     let (g11, g12, g22) = (d(g[0], g[0]), d(g[0], g[1]), d(g[1], g[1]));
-    let det = g11 * g22 - g12 * g12;
+    let det = g11 * g22 - g12.powi(2);
     if !(det.is_finite() && det > 0.0) {
         return false;
     }

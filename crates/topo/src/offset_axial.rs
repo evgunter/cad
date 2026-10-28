@@ -762,10 +762,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
         // own domain's ends are the ends, each metered against its
         // moved corner.
         let arc_ends = match (&carrier, cone_and_cap(ca, cb)) {
-            (Curve3::Nurbs(net), Some(_)) if !held => {
-                let (lo, hi) = net.domain();
-                Some((T::from_f64(lo), T::from_f64(hi)))
-            }
+            (Curve3::Nurbs(net), Some(_)) if !held => Some(net.knot_values().domain()),
             _ => None,
         };
         let read = |t_old: T, v: VertexKey, q: Point3<T>, p: Point3<T>| {

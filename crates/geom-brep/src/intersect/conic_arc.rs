@@ -78,10 +78,11 @@
 //! the two ends, and the ends are metered: a window whose ends pass the
 //! meter has every point within it.
 
+use core::num::NonZeroUsize;
 use geom::{Curve3, NurbsCurve3};
+
 use geom_core::{
-    Band, Decided, Indeterminate, KnotVector, Margin, MarginDiag, Point3, Real, Sign, SplineError,
-    Vec3,
+    Band, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, SplineError, Vec3,
 };
 
 use crate::dihedral::{decide, decide_reported};
@@ -519,17 +520,23 @@ impl<T: Decide> ConicBranch<T> {
         };
         let mut control = vec![spans[0].ends.0];
         let mut weights = vec![T::one()];
-        let mut knots = vec![0.0; 3];
+        // The knots `0, 1, …, spans`, ends of multiplicity three and
+        // interior ones double, counted up in `T`.
+        let mut at = T::zero();
+        let three = NonZeroUsize::MIN.saturating_add(2);
+        let mut runs = vec![(at, three)];
         for (i, span) in spans.iter().enumerate() {
             control.extend([span.shoulder, span.ends.1]);
             weights.extend([span.weight, T::one()]);
-            #[allow(clippy::cast_precision_loss)] // a span count far below 2⁵³
-            let k = (i + 1) as f64;
-            knots.extend(if i + 1 == spans.len() {
-                vec![k; 3]
-            } else {
-                vec![k; 2]
-            });
+            at = at + T::one();
+            runs.push((
+                at,
+                if i + 1 == spans.len() {
+                    three
+                } else {
+                    NonZeroUsize::MIN.saturating_add(1)
+                },
+            ));
         }
         if control
             .iter()
@@ -538,10 +545,7 @@ impl<T: Decide> ConicBranch<T> {
         {
             return Err(ConicArcError::NotFinite);
         }
-        let knots = geom_core::spline::Knots::from(
-            KnotVector::clamped(knots, 2).map_err(ConicArcError::Carrier)?,
-        )
-        .lift(T::from_f64);
+        let knots = geom_core::spline::Knots::new(runs, 2).map_err(ConicArcError::Carrier)?;
         let curve = NurbsCurve3::new(knots, control, weights).map_err(ConicArcError::Carrier)?;
         Ok(Curve3::Nurbs(std::sync::Arc::new(curve)))
     }

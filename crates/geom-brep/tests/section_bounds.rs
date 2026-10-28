@@ -281,11 +281,13 @@ fn plane_by_sphere_states_a_circle_and_a_near_tangent_one() {
 fn plane_by_cone_states_its_hyperbola_parabola_and_a_near_apex_arc() {
     let band = band();
     let alpha = core::f64::consts::FRAC_PI_6;
-    // The axis-parallel plane `x = d` at a stand-off of 0.3 and of 1e-4
-    // (near the apex), on either nappe.
+    // The axis-parallel plane `x = d` at a stand-off of 0.3 and of
+    // `1e5·ε` (near the apex at the stretch's pad's scale), on either
+    // nappe.
+    let near = 1e5 * band.zero();
     for (d, windows) in [
         (0.3, [(-0.5, 0.8), (-0.01, 6.0)]),
-        (1e-4, [(-2e-4, 3e-4), (1e-5, 0.5)]),
+        (near, [(-2.0 * near, 3.0 * near), (0.1 * near, 0.5)]),
     ] {
         let n = Vec3::unit_x();
         let q = p(d, 0.0, 0.0);
@@ -390,9 +392,9 @@ fn a_torus_section_states_nothing() {
 }
 
 /// **A second overlap component inside the tube owes it, and refuses.**
-/// The plane `x = δ` at `sin θ = 1e-5` from tangent to the unit cylinder
-/// cuts its two generators `2·sin θ` apart, inside `ε/sin θ` of each
-/// other at the run's ε: the section states nothing for the one
+/// The plane `x = δ` at `sin θ = √ε/2` from tangent to the unit cylinder
+/// cuts its two generators `2·sin θ = √ε` apart, inside `ε/sin θ = 2√ε`
+/// of each other: the section states nothing for the one
 /// generator, and the edge refuses on the tube it still owes. On the
 /// flat cone `α = 1.55` the plane `x = 2e-5` beside the apex cuts a
 /// hyperbola whose two branches' vertices stand `2d/tan α` apart, inside
@@ -404,7 +406,7 @@ fn a_torus_section_states_nothing() {
 fn a_second_component_inside_the_tube_owes_it_and_refuses() {
     let band = band();
     let eps = band.zero();
-    let s = 1e-5_f64;
+    let s = 0.5 * eps.sqrt();
     let delta = (1.0 - s * s).sqrt();
     let wall = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 1.0);
     let cut = plane(p(delta, 0.0, 0.0), Vec3::unit_x());

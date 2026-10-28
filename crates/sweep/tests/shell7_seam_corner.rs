@@ -26,7 +26,7 @@ use geom::{Curve3, Surface};
 use geom_core::{Point2, Vec3};
 use profile::test_support::bulge_loop;
 use sweep::Revolution;
-use topo::{Body, ReplaceFaceError, ShellError};
+use topo::{Body, ReplaceFaceError};
 
 use super::common::shell_operands::vessel;
 use super::shell7_common::*;
@@ -794,13 +794,11 @@ fn a_partial_two_arc_torus_hollows_to_its_measured_volume() {
     );
 }
 
-/// **A three-quarter-turn cone frustum hollows**
-/// (`work/shelf/partial-cone-frustum-three-quarter-turn-refuses-edge-disagreement.md`):
-/// the cavity moves the meridian caps off the axis, so each wall/cap
-/// edge's moved section is a hyperbola, minted as the moved pair's arc
-/// between the moved corners, where the generator's two ends used to
-/// disagree by more than a millimetre; it rests because the plane×cone
-/// section states the bounds that retire its tube. The hollow passes
+/// **A three-quarter-turn cone frustum hollows**: the cavity moves the
+/// meridian caps off the axis, so each wall/cap edge's moved section is
+/// a hyperbola, minted as the moved pair's arc between the moved
+/// corners; it rests because the plane×cone section states the bounds
+/// that retire its tube. The hollow passes
 /// tier 3 and measures the operand less the reflex wedge's cavity
 /// ([`frustum_wedge_cavity`]).
 #[test]
