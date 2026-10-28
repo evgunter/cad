@@ -2,10 +2,11 @@
 id: main-red-cylinder-sphere-section-runs-out-of-cells-near-the-node-at-1e-6
 kind: issue
 title: Main red: the cylinder x sphere section exhausts its cell budget near the node at eps 1e-6 (pair_section x2, cylinder_sphere_frame x2) since PR 5872
-status: open
+status: dispatched
 opened: 2026-10-28
 priority: P0
 cost: M
+branch: sect/near-node-at-1e-6
 ---
 
 

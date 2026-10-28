@@ -409,9 +409,9 @@ fn cavity_census() -> Vec<String> {
 fn no_spline_or_spiric_operand_builds_wrong() {
     // Pinned red, two ways. At ε = 1e-6 the lofted cylinder's far union
     // builds a volume 3.2e-5 off its closed form
-    // (`work/splice/main-red-the-lofted-cylinders-far-union-builds-the-wrong-volume-at-1e-6`); at
+    // (`work/spliceseam/main-red-the-lofted-cylinders-far-union-builds-the-wrong-volume-at-1e-6`); at
     // 1e-12 the bare operand's measurement stops at its wall
-    // (`work/splice/the-lofted-cylinder-operand-runs-out-of-quadrature-budget-at-1e-12`).
+    // (`work/spliceseam/the-lofted-cylinder-operand-runs-out-of-quadrature-budget-at-1e-12`).
     // Each pin goes red the day its row passes.
     let eps = geom_core::Tol::witness().eps();
     let says = if test_utils::kernel_limit::at_row(eps, &[1e-6]) {

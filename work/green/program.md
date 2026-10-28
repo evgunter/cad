@@ -23,4 +23,18 @@ The slate is the latency work (P0), the main reds on infra ground
 guards that turn unrelated PRs red, tests red on main under a
 configuration no row runs, gate self-tests no job runs.
 
+**A red is greened, not fixed, here** (the user, in chat, 2026-10-28:
+*"as the infra orchestrator, it is more centrally your job to make
+things that are currently red go back to green, though if this
+requires any actual work to fix then it should be done instead by
+pinning the failure or otherwise disabling the test and filing a row
+to actually fix it on the appropriate program"*). An explained,
+deliberate move is re-blessed. Anything else is pinned at what main
+produces (or `#[ignore]`d with the row it waits on), and the fix row
+goes on the program that owns the code that moved, with the bisected
+merge and a reproduce command. The point is scope, not speed (the
+user: *"less 'fast' and more 'without having to get into the weeds on
+a bunch of different programs'"*): GREEN reads a red far enough to name
+its merge and its owner, and the owner works out the cause.
+
 Charter and order: `work/green/plan.md`; narrative in `work/green/log.md`.

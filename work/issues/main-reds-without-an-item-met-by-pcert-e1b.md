@@ -33,7 +33,7 @@ Filed together, to be split by whoever picks them up.
     (`spline_spiric_operands.rs:293`): "lofted cylinder / far / O ∪ B:
     builds V = 7.283217721708709, the closed form gives
     7.283185307179586". **A wrong build, not a refusal**, so P1. The open
-    `work/splice/the-lofted-cylinder-operand-runs-out-of-quadrature-budget-at-1e-12.md`
+    `work/spliceseam/the-lofted-cylinder-operand-runs-out-of-quadrature-budget-at-1e-12.md`
     is the 1e-12 quadrature refusal, a different failure.
   - `operand_gate_pose::an_approx_cap_clear_of_a_bar_reads_alike_at_every_pose`
     (`operand_gate_pose.rs:197`): "ε 1e-6, identity, ∪: the cap clears
@@ -54,6 +54,6 @@ still builds the wrong volume at 1e-6 (`lofted cylinder / far / O ∪ B:
 builds V = 7.283217721708709`, closed form `7.283185307179586`). It is
 pinned at 1e-6 on that text, citing this file, and at 1e-12 on its
 operand measurement
-(`work/splice/the-lofted-cylinder-operand-runs-out-of-quadrature-budget-at-1e-12`).
+(`work/spliceseam/the-lofted-cylinder-operand-runs-out-of-quadrature-budget-at-1e-12`).
 The 1e-6 case is split out to its owner as
-`work/splice/main-red-the-lofted-cylinders-far-union-builds-the-wrong-volume-at-1e-6`.
+`work/spliceseam/main-red-the-lofted-cylinders-far-union-builds-the-wrong-volume-at-1e-6`.
