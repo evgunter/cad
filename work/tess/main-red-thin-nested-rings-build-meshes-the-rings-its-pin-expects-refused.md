@@ -5,7 +5,8 @@ title: Main red (nightly): thin_nested_rings_build's w = 1e-3 rings now mesh at 
 status: open
 opened: 2026-10-26
 priority: P1
-refs: [a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta]
+refs: [a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta, a-thin-nested-rings-row-pins-untriangulated-where-the-mesh-now-meshes]
+cost: E
 ---
 
 
