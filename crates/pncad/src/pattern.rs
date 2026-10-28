@@ -25,7 +25,11 @@ pub type AuthoredNode = editor_core::AuthoredNode;
 /// **The declaration of `name = index(count)`**, `within` another index
 /// or none (D10 `[repetition]`).
 #[must_use]
-pub fn index_decl(name: VarName, count: Formula, within: Option<&VarName>) -> DocEdit<ProfileProgram> {
+pub fn index_decl(
+    name: VarName,
+    count: Formula,
+    within: Option<&VarName>,
+) -> DocEdit<ProfileProgram> {
     DocEdit::DeclareVar {
         name,
         def: VarDecl::Index {
@@ -179,9 +183,9 @@ fn step_of(doc: &ProfileDoc, formula: &Formula, index: VarId) -> Option<Formula>
         let (factor, step) = (formula.child(a)?, formula.child(b)?);
         let mut reads = Vec::new();
         step.var_reads(&mut reads);
-        let free = reads.iter().all(|&(var, _)| {
-            doc.var(var).and_then(|v| v.def().index()).is_none()
-        });
+        let free = reads
+            .iter()
+            .all(|&(var, _)| doc.var(var).and_then(|v| v.def().index()).is_none());
         (factor.bit_eq(&k) && free && Formula::mul(k.clone(), step.clone()).ok()?.bit_eq(formula))
             .then(|| step.clone())
     })

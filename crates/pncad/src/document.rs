@@ -114,12 +114,12 @@ pub use editor_core::{SketchOutcome, SketchedOnFace, sketch_on_face};
 // placement's constraints are addressed by their `ConstraintId`.
 // Repetition is an index (D10 `[repetition]`): `k = index(N)` is a
 // `VarDecl::Index`, a family's member is named under `Member { at }`.
-pub use editor_core::{Index, IndexFault, MemberAt};
 pub use editor_core::{
     Axis3, Bodies, BodyRead, ConstraintId, InputFault, ListFault, LoftSection, MintId, Node,
     Operand, OperandSlot, OutputPort, PortKind, RecipeNodeId, SlotId, SlotKind, StationMove,
     TubeWindow, VectorSlot,
 };
+pub use editor_core::{Index, IndexFault, MemberAt};
 
 // How a sentence names a node: the kind noun and tag a person reads, the
 // speaker a refusal holding bare ids is said by, the nodes a door kept
@@ -400,8 +400,8 @@ pub use editor_core::gathers_on_this_thread;
 // carries the product's stable names — what an instance's own names
 // are minted from.
 pub use editor_core::{
-    AxisRefusal, Frame, FrameFault, PartFault, PartResolver, ResolveFailure,
-    ResolveFault, product_named,
+    AxisRefusal, Frame, FrameFault, PartFault, PartResolver, ResolveFailure, ResolveFault,
+    product_named,
 };
 
 // Mates: a placement's constraints (`Constraint`, addressed by a

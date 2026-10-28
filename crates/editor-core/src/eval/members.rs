@@ -22,12 +22,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-use geom_core::{Decide, Tol};
+use geom_core::Decide;
 
 use super::memo::KeyHasher;
 use super::{
-    ContentKey, EvalScalar, NamingKey, NodeError, NodeErrorKind, NodeResult, NodeStep, NodeValue,
-    ValuePayload, tag,
+    ContentKey, NamingKey, NodeError, NodeErrorKind, NodeResult, NodeStep, NodeValue, ValuePayload,
+    tag,
 };
 use crate::doc::Doc;
 use crate::node::RecipeNodeId;
@@ -167,9 +167,11 @@ fn overlay<T: Decide>(
 }
 
 /// **The node `id`, evaluated once per member** of the indices `chain`
-/// it reaches, its value the family of them.
+/// it reaches, its value the family of them; `eval_member` evaluates
+/// it at one member's environment, results, prior value, lane and
+/// index values.
 #[allow(clippy::too_many_arguments)] // eval_node's inputs, and the chain
-pub(super) fn eval_family<T>(
+pub(super) fn eval_family<T: Decide>(
     doc: &Doc<ProfileProgram>,
     env: &crate::expr::VarEnv<T>,
     id: RecipeNodeId,
@@ -177,11 +179,14 @@ pub(super) fn eval_family<T>(
     results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
     prior: Option<&NodeValue<T>>,
     op_env: &super::wire::OpEnv<'_, T>,
-    tol: Tol,
-) -> NodeStep<T>
-where
-    T: EvalScalar,
-{
+    eval_member: impl Fn(
+        &crate::expr::VarEnv<T>,
+        &BTreeMap<RecipeNodeId, NodeResult<T>>,
+        Option<&NodeValue<T>>,
+        &super::wire::OpEnv<'_, T>,
+        &[(VarId, i64)],
+    ) -> NodeStep<T>,
+) -> NodeStep<T> {
     let fail = |kind| NodeStep {
         result: NodeResult::Failed(NodeError {
             node: id,
@@ -222,16 +227,7 @@ where
         };
         let over = overlay(results, &bound, &whole);
         let prior_member = prior_members.and_then(|m| m.at(&narrow));
-        let step = super::eval_node(
-            doc,
-            &member_env,
-            id,
-            &over,
-            prior_member,
-            &member_op_env,
-            &at,
-            tol,
-        );
+        let step = eval_member(&member_env, &over, prior_member, &member_op_env, &at);
         reused &= step.reused;
         match step.result {
             NodeResult::Ok(value) => members.push((narrow, value)),

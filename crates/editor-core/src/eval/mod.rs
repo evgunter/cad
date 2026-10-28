@@ -3884,7 +3884,18 @@ where
             reused: false,
         },
         Some(crate::repetition::Reached::Chain(chain)) if !chain.is_empty() => {
-            members::eval_family(doc, env, id, chain, results, prior, op_env, tol)
+            members::eval_family(
+                doc,
+                env,
+                id,
+                chain,
+                results,
+                prior,
+                op_env,
+                |env, results, prior, op_env, at| {
+                    eval_node(doc, env, id, results, prior, op_env, at, tol)
+                },
+            )
         }
         _ => eval_node(doc, env, id, results, prior, op_env, &[], tol),
     }

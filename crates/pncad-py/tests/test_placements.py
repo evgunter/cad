@@ -18,7 +18,6 @@ from pncad import (
     Bulge,
     Coord,
     Doc,
-    EditError,
     Formula,
     Frame,
     FrameError,

@@ -104,7 +104,11 @@ fn patterned(doc: ProfileDoc, source: RecipeNodeId, pitch: f64) -> (ProfileDoc, 
     let (doc, k) = fixture::index(doc, &name, 2);
     let target = fixture::space(&doc, source);
     let read = fixture::body_read(&doc, source.into());
-    let placed = editor_core::Placed::of(&doc, Vec::new(), fixture::slides_along(k, [1.0, 0.0, 0.0], pitch));
+    let placed = editor_core::Placed::of(
+        &doc,
+        Vec::new(),
+        fixture::slides_along(k, [1.0, 0.0, 0.0], pitch),
+    );
     put(
         doc,
         Node::place(

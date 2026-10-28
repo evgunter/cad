@@ -85,7 +85,12 @@ impl Apart {
     /// The pairs `pairs`, each read in ascending order.
     #[must_use]
     pub fn of(pairs: impl IntoIterator<Item = (usize, usize)>) -> Self {
-        Self(pairs.into_iter().map(|(a, b)| (a.min(b), a.max(b))).collect())
+        Self(
+            pairs
+                .into_iter()
+                .map(|(a, b)| (a.min(b), a.max(b)))
+                .collect(),
+        )
     }
 
     /// Whether members `a` and `b` are certified apart.
