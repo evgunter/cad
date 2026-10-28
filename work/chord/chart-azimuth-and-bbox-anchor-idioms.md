@@ -4,7 +4,6 @@ kind: issue
 title: Two three-line idioms with no home - chart-frame azimuth of a direction, and the bbox-centre conditioning anchor
 status: open
 opened: 2026-08-31
-github: 1402
 refs: [881, 1389]
 priority: P1
 cost: E

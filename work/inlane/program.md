@@ -4,12 +4,12 @@ kind: program
 title: INLANE — every carrier's values in the lane scalar: the skin, the loft's sections, the profile lift
 status: ready
 opened: 2026-10-11
-area: kernel
+group: kernel/symbolic
 prefix: inlane/
 tag: (INLANE orchestrator)
 ab_band: 13000-13099
 paths: [crates/sweep/src/skin.rs]
-keep_out: [opened 2026-10-11 by INTENT's split (Ev approved the division in chat 2026-10-11, and placed this track below INTENT's) - the rows moved by git mv with ids and bodies unchanged, the skin unit was dispatched by INTENT and its lane reports to the INTENT orchestrator until it merges, the loft and skin files are shared ground with CARVE, CARVEREST and CARVETAIL by design and the profile lift with WIRE, NURBS owns the carrier types' held values, so run scripts/work.py territory on your branch and announce the seam in the PR]
+keep_out: [opened 2026-10-11 by INTENT's split (Ev approved the division in chat 2026-10-11, and placed this track below INTENT's) - the rows moved by git mv with ids and bodies unchanged, the skin unit was dispatched by INTENT and its lane reports to the INTENT orchestrator until it merges, the loft and skin files are shared ground with CARVE, CARVEREST and CARVETAIL by design and the profile lift with WIRE, NURBS owns the carrier types' held values, so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled]
 ---
 
 D10 says every carrier is the function its code computes of the

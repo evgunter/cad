@@ -50,8 +50,8 @@ the body with its `file:line` citations, and commit it on your branch;
 ## Asking Ev
 
 Anything that needs Ev — a design fork, a ruling, a ratification, a
-question — is a PR titled `[ev] ...`, and the `work/` item that asked
-sets `needs_ev: true` ("Ev's channel" in `work/README.md`).
+question — is a PR titled `[ev] ...` ("Ev's channel" in
+`work/README.md`).
 
 - **A design fork is weighed first** by one Opus and one Fable
   designer (`docs/prompts/designer.md`), reconciled until the
@@ -71,8 +71,7 @@ sets `needs_ev: true` ("Ev's channel" in `work/README.md`).
   promptly.
 - **No status scaffolding in the diff** (Ev, 2026-09-21): "proposed",
   "pending sign-off" or "awaits ratification" only has to come out
-  again before merging. The title, the PR body and `needs_ev:` carry
-  the status; the text carries its content.
+  again before merging. The title and the PR body carry the status; the text carries its content.
 - A file move or other reshuffle with no design implication is not a
   question (Ev, PR 1916, 2026-09-05: "you don't need to ask me about
   moving things around, unless it has design implications"); do it and

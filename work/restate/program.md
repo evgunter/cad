@@ -4,7 +4,7 @@ kind: program
 title: RESTATE — the describing contract of the Euler doors: how a door that moves or mints an edge says what it lies on, and which pcurve rows it keeps, re-mints or drops
 status: ready
 opened: 2026-10-26
-area: kernel
+group: kernel/topo/euler
 prefix: restate/
 tag: (RESTATE orchestrator)
 ab_band: 16600-16699

@@ -4,7 +4,6 @@ kind: issue
 title: The circle loci in general form: TangentLocus as a curve carrier with tangent_at, the certified side as data, wedge routing run on the locus, banked with the kissing arm
 status: parked
 opened: 2026-08-23
-github: 974
 refs: [971, 967]
 priority: P1
 cost: H

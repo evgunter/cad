@@ -4,12 +4,12 @@ kind: program
 title: BANDMETER — the blend surgery's ring, cap and strip meters reading wider than they need
 status: ready
 opened: 2026-10-26
-area: kernel
+group: kernel/sweep/blend
 prefix: bandmeter/
 tag: (BANDMETER orchestrator)
 ab_band: 18000-18099
 paths: [crates/sweep/src/blend/surgery.rs, crates/sweep/src/blend/open/*]
-keep_out: [opened 2026-10-26 by BAND's priority-seam split (work/README.md Track size) when BAND measured about 100 points against 30 - BAND keeps the P2 slate and the P4 residue, BANDRULE the shapes the band-feature rule would build, BANDREACH predicate 2's reach meter and support screen, all four share crates/sweep/src/blend by design, so run scripts/work.py territory on your branch and announce the seam in the PR]
+keep_out: [opened 2026-10-26 by BAND's priority-seam split (work/README.md Track size) when BAND measured about 100 points against 30 - BAND keeps the P2 slate and the P4 residue, BANDRULE the shapes the band-feature rule would build, BANDREACH predicate 2's reach meter and support screen, all four share crates/sweep/src/blend by design, so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled]
 ---
 
 **The surgery's meters, P3.** Before it carves, the blend surgery

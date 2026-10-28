@@ -4,7 +4,6 @@ kind: issue
 title: topo — two shared cores still hosted inside one half, finish and plane_crossing_lane
 status: open
 opened: 2026-08-20
-github: 695
 refs: [690, S5, S173]
 priority: P1
 cost: H

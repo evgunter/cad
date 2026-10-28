@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-14
 priority: P2
 cost: M
-needs_ev: true
 ---
 
 (Split out at Ev's request on `[ev]` PR 5134, 2026-10-14: "it might make sense for 'can imports reach otherwise unreachable invalid states' / 'when/how are imports validated' to be a separate design question (basically the same question just came up on another PR)". Filed by the ENCL orchestrator; EXCH owns adoption, D7.)

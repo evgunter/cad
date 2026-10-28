@@ -4,7 +4,6 @@ kind: issue
 title: decoration_seam.rs's header says the ssi::enclose crossing is pinned by no row; enclose.rs's own decoration_seam module pins it
 status: open
 opened: 2026-09-04
-track: W
 priority: P3
 cost: E
 ---
