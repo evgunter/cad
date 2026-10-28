@@ -69,7 +69,10 @@ fn review_r1_an_exact_charts_tube_is_about_the_rim() {
     let ann_in = ring(turn, [(0.5, 0.0), (2.0, 0.0)]);
     let ann_row = ring(turn, [(1.0, 0.0), (2.0, 0.0)]);
     let interior = nurbs_pair_limbs(&rim(), params, &cyl_in, &ann_in, 1.0, band());
-    assert!(interior.is_ok(), "the rim inside both charts certifies: {interior:?}");
+    assert!(
+        interior.is_ok(),
+        "the rim inside both charts certifies: {interior:?}"
+    );
     for (what, a, b) in [
         ("cylinder × annulus row", &cyl_in, &ann_row),
         ("annulus row × cylinder", &ann_row, &cyl_in),
