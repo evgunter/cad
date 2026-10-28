@@ -280,8 +280,8 @@ fn the_admitted_torus_lane_stops_at_the_section_pass() {
              the section pass: {err:?}"
         );
     };
-    // The tangency sentence (R-tan): the coincident tube circles are the
-    // torus × torus classification's zero nesting margin.
+    // The tangency sentence (R-tan): the torus pair's pose decides the
+    // two tori one surface, and no component count is certified.
     assert!(
         what.contains("tangent or near-tangent carriers"),
         "the pass refuses the coincident pair as a tangency: {what}"

@@ -1298,6 +1298,35 @@ impl core::fmt::Display for SsiError {
 impl std::error::Error for SsiError {}
 
 impl SsiError {
+    /// The march's refusal of a sphere × torus pose that was not decided:
+    /// the sphere's radius decided not positive, the torus outside its
+    /// ring convention, or a pose question in the band. Two tori decided
+    /// one reach no march door; a pose that says so is handed the wrong
+    /// lane.
+    #[must_use]
+    pub fn of_torus_pose(refusal: crate::TorusPoseRefusal) -> Self {
+        use crate::{TorusPoseRefusal, TorusQuestion};
+        match refusal {
+            TorusPoseRefusal::Radius {
+                radius,
+                verdict: Err(cause),
+            } => TraceDecision::PairRadius(radius).escalated(cause),
+            TorusPoseRefusal::Radius { radius, .. } => Self::RadiusNotPositive { radius },
+            TorusPoseRefusal::Torus(t) => Self::DegenerateTorus(t),
+            TorusPoseRefusal::Coincident => Self::WrongLane {
+                expected: "two distinct surfaces, not two tori decided one",
+            },
+            TorusPoseRefusal::Undecided {
+                question: TorusQuestion::Symmetry,
+                diag,
+            } => TraceDecision::SphereTorusCoaxial.escalated(diag),
+            TorusPoseRefusal::Undecided {
+                question: TorusQuestion::Gap,
+                diag,
+            } => TangentPair::SphereTorus.decision().escalated(diag),
+        }
+    }
+
     /// The march's refusal of a cylinder × sphere pose that was not
     /// decided: a radius decided not positive, or a pose question in the
     /// band.
@@ -2293,12 +2322,15 @@ pub enum TraceDecision {
     /// sphere pose's reach past a tangent pose ([`SsiError::PairTangent`]
     /// is its verdict).
     CylinderSphereTangency,
-    /// `ssi_st_tangency`: the sphere × torus pair's gap from a tangent
-    /// pose ([`SsiError::PairTangent`] is its verdict).
+    /// `st_critical_gap`, `st_coaxial_tube`: the sphere × torus pose's
+    /// critical gap from a tangent pose ([`SsiError::PairTangent`] is its verdict).
     SphereTorusTangency,
     /// `cs_coaxial`: whether the sphere's centre lies on the cylinder's
     /// axis.
     PairCoaxial,
+    /// `st_coaxial`: whether the sphere's centre lies on the torus's
+    /// axis.
+    SphereTorusCoaxial,
     /// `cs_cylinder_radius`, `cs_sphere_radius`: whether an operand's
     /// radius is positive ([`SsiError::RadiusNotPositive`] is its
     /// verdict).
@@ -2336,6 +2368,7 @@ impl TraceDecision {
             Self::CylinderSphereTangency => TangentPair::CylinderSphere.question(),
             Self::SphereTorusTangency => TangentPair::SphereTorus.question(),
             Self::PairCoaxial => "the sphere's centre lies on the cylinder's axis",
+            Self::SphereTorusCoaxial => "the sphere's centre lies on the torus's axis",
             Self::PairRadius(radius) => radius.subject(),
             Self::BoundarySection => "the wall's boundary lies on the plane",
         }
@@ -2372,6 +2405,7 @@ impl TraceDecision {
             Self::CylinderSphereTangency => TangentPair::CylinderSphere.sized().recourse(arm, at),
             Self::SphereTorusTangency => TangentPair::SphereTorus.sized().recourse(arm, at),
             Self::PairCoaxial => PAIR_COAXIAL.recourse(arm, at),
+            Self::SphereTorusCoaxial => SPHERE_TORUS_COAXIAL.recourse(arm, at),
             Self::PairRadius(radius) => radius.sized().recourse(arm, at),
             Self::StepProgress | Self::ClosureTangent | Self::BranchOpenEnd
                 if cause.margin.is_invalid() =>
@@ -2558,7 +2592,7 @@ const CYLINDER_SPHERE_TANGENCY: SizedDecision = SizedDecision {
     no_size: None,
 };
 
-/// The sphere × torus tangency decision (`ssi_st_tangency`), as
+/// The sphere × torus tangency decision (`st_critical_gap`), as
 /// [`CYLINDER_SPHERE_TANGENCY`].
 const SPHERE_TORUS_TANGENCY: SizedDecision = SizedDecision {
     lever: "separate the sphere and the torus, or move one so they are clearly not tangent",
@@ -2576,9 +2610,9 @@ pub enum TangentPair {
     /// when coaxial with `r = R`, at one point off-axis, where the pair
     /// still crosses elsewhere, as Viviani's figure-eight does.
     CylinderSphere,
-    /// Sphere × torus (`ssi_st_tangency`): the sphere's radius is one of
-    /// `|dₖ − r|`, `dₖ + r`, `dₖ` its centre's distance from either point
-    /// of the torus's core circle in the centre's meridian plane. A
+    /// Sphere × torus (`st_critical_gap`, [`crate::SphereTorusPose`]):
+    /// the sphere's radius is `D + r` or `|D − r|`, `D` a critical
+    /// distance of its centre from the torus's core circle. A
     /// common normal at a common point passes through the sphere's
     /// centre and, being the torus's normal, through the core circle in
     /// that point's meridian plane, which then holds the centre.
@@ -2626,6 +2660,12 @@ const PAIR_COAXIAL: SizedDecision = SizedDecision {
     passes: SizedPass::Positive,
     side: RefusedSide::Lever,
     no_size: None,
+};
+
+/// The sphere × torus coaxiality (`st_coaxial`), as [`PAIR_COAXIAL`].
+const SPHERE_TORUS_COAXIAL: SizedDecision = SizedDecision {
+    lever: "move the sphere's centre onto the torus's axis, or clearly off it",
+    ..PAIR_COAXIAL
 };
 
 /// `surface`, the door's `operand`, refused when one of its stored data
@@ -2761,68 +2801,47 @@ pub fn sphere_torus_ssi(
     domain: SsiDomain,
     band: Band,
 ) -> Result<SsiOutcome, SsiError> {
-    const EXPECTED: &str = "a sphere and a torus in ℝ³ on their implicit pair";
+    let wrong = || SsiError::WrongLane {
+        expected: "a sphere and a torus in ℝ³ on their implicit pair",
+    };
     let (sphere, torus) = match (a, b) {
         (Surface::Sphere { .. }, Surface::Torus { .. }) => (a, b),
         (Surface::Torus { .. }, Surface::Sphere { .. }) => (b, a),
-        _ => return Err(SsiError::WrongLane { expected: EXPECTED }),
+        _ => return Err(wrong()),
     };
     finite_operand("sphere", sphere)?;
     finite_operand("torus", torus)?;
     domain.check()?;
-    if let Surface::Torus {
-        major_radius,
-        minor_radius,
-        ..
-    } = *torus
-    {
-        crate::torus_convention::TorusRefusal::require(major_radius, minor_radius, band)
-            .map_err(SsiError::DegenerateTorus)?;
-    }
-    let (
-        &Surface::Sphere {
-            center: c,
-            radius: rs,
-            ..
-        },
-        &Surface::Torus {
-            center,
-            axis,
-            major_radius: big,
-            minor_radius: small,
-            ..
-        },
-    ) = (sphere, torus)
-    else {
-        return Err(SsiError::WrongLane { expected: EXPECTED });
-    };
-    // The centre's distances from the two core-circle points in its
-    // meridian plane (`TangentPair::SphereTorus`).
-    let q = c - center;
-    let h = q.dot(axis);
-    let rho = (q - axis * h).norm();
-    let tangency = [rho - big, rho + big]
-        .into_iter()
-        .map(|d| d.hypot(h))
-        .flat_map(|d| [(d - small).abs(), d + small])
-        .map(|reach| (reach - rs.abs()).abs())
-        .fold(f64::INFINITY, Real::min);
-    match crate::dihedral::decide_reported("ssi_st_tangency", geom_core::Margin::of(tangency), band)
-    {
-        Ok(geom_core::Decided {
-            sign: geom_core::Sign::Positive | geom_core::Sign::Negative,
-            ..
-        }) => {}
-        Ok(geom_core::Decided {
-            sign: geom_core::Sign::Zero,
-            margin,
-        }) => {
-            return Err(SsiError::PairTangent {
-                pair: TangentPair::SphereTorus,
-                verdict: Refused::Zero(crate::recourse::Classified { margin, band }),
-            });
-        }
-        Err(diag) => return Err(TangentPair::SphereTorus.decision().escalated(diag)),
+    let pose = crate::SphereTorusPose::decide(a, b, band)
+        .ok_or_else(wrong)?
+        .map_err(SsiError::of_torus_pose)?;
+    march_sphere_torus(&pose, domain, band)
+}
+
+/// **The ℝ³ march of a decided sphere × torus pose** over `domain`, in
+/// the order the pose was asked of: only past a transverse gap, as
+/// [`march_cylinder_sphere`].
+///
+/// # Errors
+///
+/// [`sphere_torus_ssi`]'s, but the pose's own.
+pub fn march_sphere_torus(
+    pose: &crate::SphereTorusPose<f64>,
+    domain: SsiDomain,
+    band: Band,
+) -> Result<SsiOutcome, SsiError> {
+    let (a, b) = pose.operands();
+    finite_operand("sphere", pose.sphere())?;
+    finite_operand("torus", pose.torus())?;
+    domain.check()?;
+    if let Some(zero) = pose.tangency() {
+        return Err(SsiError::PairTangent {
+            pair: TangentPair::SphereTorus,
+            verdict: Refused::Zero(crate::recourse::Classified {
+                margin: zero.margin,
+                band,
+            }),
+        });
     }
     implicit_pair_r3(a, b, domain, band)
 }
@@ -3681,6 +3700,7 @@ mod ending_tests {
             TraceDecision::ClosureTangent,
             TraceDecision::CylinderSphereTangency,
             TraceDecision::SphereTorusTangency,
+            TraceDecision::SphereTorusCoaxial,
             TraceDecision::BoundarySection,
         ] {
             let error = escalated(decision);

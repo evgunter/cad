@@ -802,13 +802,49 @@ sphere×torus, plane×NURBS and plane×`Approx`, NURBS×NURBS and every pairing 
 plane×NURBS through `PlaneSection::branch_at` and NURBS×NURBS through
 `Section::branch_at`, each at the old edge's middle; the whole-section
 readings a boolean takes are their `all()`, which no boolean reads yet.
-The boolean reads one rung-3 arm, cylinder×sphere, through the section
-value (`pair_section`: the pair's pose decided once, its components,
-and its loops marched and fitted at `f64` where a join matches germs on
-them). `implemented` covers
-the whole operation. Every other pair refuses: the cone pairs blocked on
-the cone's metres conversion (C2 limb 2), the other torus pairs on their
-own arms' retirement.
+The boolean reads two rung-3 arms, cylinder×sphere and sphere×torus,
+through the section value (`pair_section`: the pair's pose decided
+once, its components, and its loops marched and fitted at `f64` where a
+join matches germs on them). The value builds cylinder×torus and
+torus×torus too, as classification: each torus pair's pose
+(`SphereTorusPose`, `CylinderTorusPose`, `TorusTorusPose`) guards its
+operands, reads the partner's symmetry on the section certificate's
+lever and pivot margins over the torus's own ball `|x − c| ≤ R + r`
+(which holds the whole section, so no face's extent enters a value
+keyed by surface pair; the smaller ball for two tori), and decides the
+**critical gap**, the one place a torus pair's tangency is decided. A
+sphere, a cylinder and a torus are the points at distance `ρ` from a
+spine (a point, a line, a core circle), and two of them are tangent
+exactly where a critical value of the spine-to-spine distance equals
+`ρ₁ + ρ₂` or `|ρ₁ − ρ₂|`. A coaxial partner's spine distance is
+constant, and its gap is the closed-form tube row read across the
+coaxial slack. A sphere's spine is a point, whose critical distances
+from the core circle are its two meridian ones, so its gap is closed
+form too, read across its rounding. Every other pose's is a certified
+sweep of the torus's core angle (`pair_section::gap`), two tori's on
+either core, the second where the first escalates, so the verdict does
+not depend on the order: a cell clears where the distance `D` stands
+past the band from both levels (it moves at most `R·w` over a cell) or
+where `D²` is smooth and monotone on it (a Taylor bound on `(D²)′` with
+a bound on `(D²)‴`); a turn of `D` whose window bound reads within the
+zero band, or the least distance and `|ρ₁ − ρ₂|` both within it (the
+tube-circle tangency), is `Zero`; anything else at the floor escalates.
+Each margin is a length, less its rounding: a slope's sign is certified
+on `(D²)′` shrunk by its own rounding before anything divides it, so a
+slope within its rounding of zero reads no sign however small `D` is,
+and what is left, over the most `D` reaches, bounds the sine of the
+crossing, levered by the core radius. Where the core crosses a torus
+partner's axis `D` has a kink, and no cell holding one clears on its
+slope: a tangency on a kink always escalates, unless it is the least
+distance at the level `|ρ₁ − ρ₂|`. Over a transverse gap
+the symmetric poses (coaxial, parallel, square) list their components
+in closed form, the coaxial ones as circles; a general sphere × torus
+pose is the sphere arm's, marched; a general cylinder or torus pose
+routes to the general rung, whose doors are unbuilt
+(`RoutesToGeneralRung`). `implemented` covers the whole operation.
+Every other pair refuses: the cone pairs blocked on the cone's metres
+conversion (C2 limb 2), cylinder×torus and torus×torus on their doors'
+retirement.
 
 The same rule governs a curve against a face. A carrier span and a face
 meet through one exhaustive `(CurveKind, SurfaceKind)` table, in the
