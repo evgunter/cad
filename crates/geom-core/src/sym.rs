@@ -1087,6 +1087,9 @@ mod signed;
 /// `q · atan(X)`.
 #[path = "sym/trig.rs"]
 mod trig;
+/// Rule H, angle sums: the canonical `sin`/`cos` argument and the
+/// product rewrite over it.
+mod turn;
 
 use form::{Form, Poly, powi_form, within};
 pub use memo::{DriveMemo, MemoSize};
@@ -1740,6 +1743,16 @@ pub struct SymRules {
     /// `early`; the `sqrt` atoms it mints are rule A's shape, so it
     /// pays off with `early_ab`.
     pub trig_of_atan: bool,
+    /// **H — ANGLE SUMS, exact** ([`turn`]): in the early walk every
+    /// `sin`/`cos` atom is minted over a canonical argument — its
+    /// rational-turn part `q·π` split off by angle addition and read
+    /// off the first octant, the rest's sign normalised — and a
+    /// product of two such atoms of one class is rewritten as `sin`/
+    /// `cos` of the sum and difference of their arguments, per node.
+    /// Unconditional: every rewrite is an identity of the reals and no
+    /// value is read. It is what closes a ring turned by `k · turn/N`
+    /// for an `N` whose `cos(turn/N)` is irrational. Needs `early`.
+    pub angle_sum: bool,
     /// **E — the quotient's COMMON FACTOR** ([`quotient`]): in the
     /// early walk every form has the monomial its numerator and
     /// denominator share divided out, and a numerator that is a
@@ -1918,6 +1931,7 @@ impl SymRules {
             early: true,
             early_ab: true,
             trig_of_atan: true,
+            angle_sum: true,
             common_factor: true,
             manifest_sign: true,
             canonical_root: true,
@@ -1965,6 +1979,7 @@ impl SymRules {
             early: true,
             early_ab: true,
             trig_of_atan: true,
+            angle_sum: true,
             common_factor: true,
             manifest_sign: true,
             canonical_root: true,
@@ -1987,6 +2002,7 @@ impl SymRules {
             early: false,
             early_ab: false,
             trig_of_atan: false,
+            angle_sum: false,
             common_factor: false,
             manifest_sign: false,
             canonical_root: false,
@@ -2020,6 +2036,7 @@ impl SymRules {
             pythagoras: false,
             early_ab: false,
             trig_of_atan: false,
+            angle_sum: false,
             common_factor: false,
             manifest_sign: false,
             canonical_root: false,
@@ -2070,6 +2087,7 @@ impl SymRules {
     pub const fn without_rule_e() -> Self {
         Self {
             common_factor: false,
+            angle_sum: false,
             manifest_sign: false,
             canonical_root: false,
             // Read as a conjunction with `canonical_root`, so they say the
@@ -2114,6 +2132,19 @@ impl SymRules {
     pub const fn without_root_quotient() -> Self {
         Self {
             root_quotient: false,
+            ..Self::shipped()
+        }
+    }
+
+    /// **The shipped set with rule H SHUT** — every `sin`/`cos` atom
+    /// keyed on the argument form the walk arrived with and no product
+    /// of them rewritten: the differential every claim about what rule
+    /// H costs and what it buys is measured against
+    /// ([`Self::angle_sum`]).
+    #[must_use]
+    pub const fn without_angle_sum() -> Self {
+        Self {
+            angle_sum: false,
             ..Self::shipped()
         }
     }
@@ -2190,6 +2221,7 @@ impl SymRules {
             early: self.early && mask.early,
             early_ab: self.early_ab && mask.early_ab,
             trig_of_atan: self.trig_of_atan && mask.trig_of_atan,
+            angle_sum: self.angle_sum && mask.angle_sum,
             common_factor: self.common_factor && mask.common_factor,
             manifest_sign: self.manifest_sign && mask.manifest_sign,
             canonical_root: self.canonical_root && mask.canonical_root,
@@ -3538,9 +3570,22 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
             }
             atom1(node.op, sess)
         }
-        // Rule D (early walk only): `sin`/`cos` of `q · atan(X)` in
-        // closed form; any other argument shape keeps the atom.
-        SymOp::Sin | SymOp::Cos if early && sess.rules.trig_of_atan && !a.poisoned => {
+        // Rule H (early walk only): `sin`/`cos` over the canonical
+        // argument, rule D's closed form asked of its rest; where it
+        // does not fit, rule D (early walk only): `sin`/`cos` of `q ·
+        // atan(X)` in closed form; any other argument shape keeps the
+        // atom.
+        SymOp::Sin | SymOp::Cos
+            if early && (sess.rules.angle_sum || sess.rules.trig_of_atan) && !a.poisoned =>
+        {
+            if sess.rules.angle_sum
+                && let Some(f) = turn::mint(node.op, a, sess)
+            {
+                return Some(f);
+            }
+            if !sess.rules.trig_of_atan {
+                return atom1(node.op, sess);
+            }
             #[cfg(feature = "sym-profile-testing")]
             let t0 = profile::clock();
             let folded = trig::fold(node.op, a, sess);
@@ -3929,6 +3974,17 @@ fn form_in(
             // From here the form is SHARED (`Arc`), so that a form the
             // reduction's memo and rule E hand back unchanged is one
             // allocation in the walk memo and the reduction memo alike.
+            // Rule H's product rewrite, before the A/B reduction, which
+            // then finds no `sin` square it has not already met.
+            let combined = if early && sess.rules.angle_sum {
+                combined.map(|f| {
+                    turn::linearise(&f, sess)
+                        .filter(|g| within(budget, g))
+                        .unwrap_or(f)
+                })
+            } else {
+                combined
+            };
             let combined = combined.map(Arc::new);
             let combined = if early && sess.rules.early_ab {
                 combined.map(|f| {
@@ -6157,14 +6213,16 @@ mod tests {
     }
 
     /// The documented limits, pinned as limits: no factoring past the
-    /// quotient, and no trigonometric identity beyond rule B. `sin(2θ)
-    /// − 2·sinθ·cosθ` is not the zero form — `sin(2θ)` is an atom of
-    /// another argument and nothing relates it to the pair — and with
-    /// the rules OFF the Pythagorean pair is not either, which is what
-    /// makes `SymRules::none` the pre-algebra tier.
+    /// quotient, and with rule H shut no trigonometric identity beyond
+    /// rule B. `sin(2θ) − 2·sinθ·cosθ` is not the zero form there —
+    /// `sin(2θ)` is an atom of another argument and nothing relates it
+    /// to the pair (rule H's product rewrite does:
+    /// `angle_addition_is_a_theorem_under_rule_h`) — and with the rules
+    /// OFF the Pythagorean pair is not either, which is what makes
+    /// `SymRules::none` the pre-algebra tier.
     #[test]
     fn the_opaque_atoms_are_opaque() {
-        let (_, counts) = with_session(budget(), || {
+        let (_, counts) = with_session_rules(budget(), SymRules::without_angle_sum(), || {
             let x = p("w", 3.0);
             let (s, c) = x.sin_cos();
             let (s2, _) = (x + x).sin_cos();
@@ -6265,6 +6323,200 @@ mod tests {
             "a constant decision needs no numeric fallback"
         );
         assert_eq!(counts.symbolic, 3);
+    }
+
+    /// `sin`/`cos` of `num/den` of a turn, the way a spin reads an exact
+    /// fraction ([`crate::Turns`]).
+    fn turned(num: i64, den: u64) -> (Sym<f64>, Sym<f64>) {
+        let t = crate::Angle::from_turns(crate::Turns::new(num, den).expect("a fraction"));
+        t.sin_cos()
+    }
+
+    /// **Rule H, angle addition**: `cos a cos b − sin a sin b` is
+    /// `cos(a + b)` and `sin a cos b + cos a sin b` is `sin(a + b)` as
+    /// theorems, and so is the double angle `sin 2a = 2 sin a cos a`, at
+    /// symbolic angles; with the rule shut all three are
+    /// numeric.
+    #[test]
+    fn angle_addition_is_a_theorem_under_rule_h() {
+        let rows = |rules| {
+            with_session_rules(budget(), rules, || {
+                let (a, b) = (p("a", 0.3), p("b", 1.1));
+                let ((sa, ca), (sb, cb)) = (a.sin_cos(), b.sin_cos());
+                let (s, c) = (a + b).sin_cos();
+                let (s2, _) = (a + a).sin_cos();
+                [
+                    decides_zero(ca * cb - sa * sb - c),
+                    decides_zero(sa * cb + ca * sb - s),
+                    decides_zero(s2 - Sym::from_f64(2.0) * sa * ca),
+                ]
+            })
+        };
+        let (on, counts) = rows(SymRules::shipped());
+        assert_eq!((on, counts.symbolic), ([true; 3], 3), "{counts:?}");
+        let (_, off) = rows(SymRules::without_angle_sum());
+        assert_eq!((off.symbolic, off.numeric), (0, 3), "{off:?}");
+    }
+
+    /// The members `k` of a ring of `n` whose step `k/n → (k + 1)/n`
+    /// is NOT proved symbolically, for both coordinates, with the
+    /// session's receipt.
+    fn ring_unproved(n: u64, rules: SymRules) -> (Vec<i64>, SymCounts) {
+        with_session_rules(budget(), rules, || {
+            let r = p("r", 2.0);
+            let (s1, c1) = turned(1, n);
+            let symbolic = || session_counts().map_or(0, |c| c.symbolic);
+            let mut unproved = Vec::new();
+            for k in 0..i64::try_from(n).unwrap() {
+                let (sk, ck) = turned(k, n);
+                let (sn, cn) = turned(k + 1, n);
+                let (x, y) = (r * ck, r * sk);
+                let before = symbolic();
+                decides_zero(c1 * x - s1 * y - r * cn);
+                decides_zero(s1 * x + c1 * y - r * sn);
+                if symbolic() - before != 2 {
+                    unproved.push(k);
+                }
+            }
+            unproved
+        })
+    }
+
+    /// **Rule H, a ring's neighbours**: member `k`'s point at `k/N` of a
+    /// turn, turned by `1/N`, is member `k + 1`'s, as a theorem for every
+    /// `k`, the closing member's included, though `cos(turn/N)` is
+    /// irrational for all but `N ∈ {1, 2, 3, 4, 6}`. Shut, a ring of 5 or
+    /// of 12 leaves members numeric.
+    #[test]
+    fn a_rings_neighbours_are_theorems_under_rule_h() {
+        for n in [5, 6, 7, 8, 10, 12, 16] {
+            let (unproved, counts) = ring_unproved(n, SymRules::shipped());
+            assert!(unproved.is_empty(), "N = {n}: {unproved:?} {counts:?}");
+        }
+        for n in [5, 12] {
+            let (unproved, _) = ring_unproved(n, SymRules::without_angle_sum());
+            assert!(!unproved.is_empty(), "N = {n} shut proves every member");
+        }
+    }
+
+    /// **What rule H does not reach** (its module docs): a ring of 9's
+    /// members at a third and two thirds of a turn, whose cosine `−1/2`
+    /// is folded to the rational before the tier sees it, so the product
+    /// it stood in is not rewritten and the step needs the relation
+    /// `cos(π/9) − cos(2π/9) = sin(π/18)` between constant atoms. Red
+    /// when the tier reaches it.
+    #[test]
+    fn a_ring_member_at_a_rational_cosine_beside_irrational_steps_is_numeric() {
+        let (unproved, counts) = ring_unproved(9, SymRules::shipped());
+        assert_eq!(unproved, [3, 6], "{counts:?}");
+    }
+
+    /// **Rule H's canonical constant**: two spellings of one irrational
+    /// value — `sin(π/3)` and `cos(π/6)`, `cos(7π/5)` and `−cos(2π/5)` —
+    /// are one atom, and `cos(π/6)²` folds to `3/4`.
+    #[test]
+    fn spellings_of_one_constant_angle_are_one_atom_under_rule_h() {
+        let (out, counts) = with_session_rules(budget(), SymRules::shipped(), || {
+            let pi = <Sym<f64> as Real>::pi;
+            let lit = Sym::from_f64;
+            let c6 = (pi() / lit(6.0)).cos();
+            [
+                decides_zero((pi() / lit(3.0)).sin() - c6),
+                decides_zero(
+                    (pi() * lit(7.0) / lit(5.0)).cos() + (pi() * lit(2.0) / lit(5.0)).cos(),
+                ),
+                decides_zero(c6 * c6 - lit(0.75)),
+            ]
+        });
+        assert_eq!((out, counts.symbolic), ([true; 3], 3), "{counts:?}");
+    }
+
+    /// **Rule H proves no false angle sum**: `cos a cos b − sin a sin b`
+    /// against `cos(a − b)`, and member 10 of a ring of 12 against the
+    /// whole turn, are not the zero form.
+    #[test]
+    fn rule_h_proves_no_false_angle_sum() {
+        let (out, counts) = with_session_rules(budget(), SymRules::shipped(), || {
+            let (a, b) = (p("a", 0.3), p("b", 1.1));
+            let ((sa, ca), (sb, cb)) = (a.sin_cos(), b.sin_cos());
+            let r = p("r", 2.0);
+            let (s1, c1) = turned(1, 12);
+            let (sk, ck) = turned(10, 12);
+            [
+                decides_zero(ca * cb - sa * sb - (a - b).cos()),
+                decides_zero(ck * (r * c1) - sk * (r * s1) - r),
+            ]
+        });
+        assert_eq!((out, counts.symbolic), ([false; 2], 0), "{counts:?}");
+    }
+
+    /// MEASUREMENT (rule H's budget): a chain of `m` rotations about
+    /// alternating axes, `Rz(t₀)·Rx(t₁)·Rz(t₂)·…` applied to a point,
+    /// against the same chain with `Rz(t₀)` written as two rotations by
+    /// half of it: a product of `m` atoms of one class is up to
+    /// `2^(m−1)` terms. Prints, per `m` and per budget, each
+    /// coordinate's verdict, the receipt and the time.
+    #[test]
+    #[ignore = "measurement: cargo nextest run -p geom-core --run-ignored only measure_rule_h_turn_chain --no-capture"]
+    fn measure_rule_h_turn_chain() {
+        type V = [Sym<f64>; 3];
+        type Pair = (Sym<f64>, Sym<f64>);
+        fn rz((s, c): Pair, v: V) -> V {
+            [c * v[0] - s * v[1], s * v[0] + c * v[1], v[2]]
+        }
+        fn rx((s, c): Pair, v: V) -> V {
+            [v[0], c * v[1] - s * v[2], s * v[1] + c * v[2]]
+        }
+        for symbolic in [false, true] {
+            for max_terms in [256, 4096] {
+                for m in 2..=8u64 {
+                    let b = SymBudget {
+                        max_terms,
+                        max_degree: 128,
+                    };
+                    let t0 = std::time::Instant::now();
+                    let (out, counts) = with_session_rules(b, SymRules::shipped(), || {
+                        let theta = |i: u64| p(&format!("t{i}"), 0.1 + 0.2 * i as f64);
+                        let angle = |i: u64| -> Pair {
+                            if symbolic {
+                                theta(i).sin_cos()
+                            } else {
+                                turned(1, 5 + i)
+                            }
+                        };
+                        let half = |i: u64| -> Pair {
+                            if symbolic {
+                                (theta(i) / Sym::from_f64(2.0)).sin_cos()
+                            } else {
+                                turned(1, 2 * (5 + i))
+                            }
+                        };
+                        let chain = |first: &dyn Fn(V) -> V| {
+                            let mut v: V = [p("x", 1.0), p("y", 2.0), p("z", 3.0)];
+                            for i in (1..m).rev() {
+                                v = if i % 2 == 0 {
+                                    rz(angle(i), v)
+                                } else {
+                                    rx(angle(i), v)
+                                };
+                            }
+                            first(v)
+                        };
+                        let one = chain(&|v| rz(angle(0), v));
+                        let two = chain(&|v| rz(half(0), rz(half(0), v)));
+                        [0, 1, 2].map(|i| decides_zero(one[i] - two[i]))
+                    });
+                    println!(
+                        "chain {} m = {m} terms {max_terms}: {out:?} symbolic {} numeric {} frozen {} {:.3} s",
+                        if symbolic { "symbolic" } else { "constant" },
+                        counts.symbolic,
+                        counts.numeric,
+                        counts.frozen,
+                        t0.elapsed().as_secs_f64()
+                    );
+                }
+            }
+        }
     }
 
     /// **Rule B**: the Pythagorean pair of ONE argument form is the zero
@@ -7075,7 +7327,9 @@ mod tests {
             ]
         });
         assert_eq!(rows, ["proven"; 6], "{counts:?}");
-        let (rows, _) = with_session(budget(), || {
+        // Rule H shut: with it, both rows are angle sums and theorems
+        // (`m10_10_r2_probes`' `r2_half_pi_folds_only_the_exact_form`).
+        let (rows, _) = with_session_rules(budget(), SymRules::without_angle_sum(), || {
             let pi = Sym::<f64>::pi();
             let x = p("x", 0.3);
             // A value-equal spelling on the other side keeps each row
