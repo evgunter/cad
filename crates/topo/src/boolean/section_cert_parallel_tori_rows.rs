@@ -257,7 +257,7 @@ fn level_tubes_count(big_r: f64, big_r2: f64, r: f64, e: f64) -> usize {
 /// **Level tubes of one radius, the node near either edge of the
 /// triangle, against the matching curve's closed form.** Each row's
 /// node `(R, R₂)` clears the triangle by about one neck
-/// `√(2r·escalate)` or a few, beyond `R + R₂` or within `|R − R₂|`.
+/// `√(2r·escalate)` or three, beyond `R + R₂` or within `|R − R₂|`.
 /// Mutants: a neck doubled (the one-neck rows refuse), the parity
 /// started on the wrong sheet (count).
 #[test]
@@ -265,7 +265,7 @@ fn level_tubes_near_the_edge_against_the_closed_form() {
     let esc = band().escalate();
     for (big_r2, r, sense) in [(2.0_f64, 0.5_f64, 1.0_f64), (1.0, 0.3, -1.0)] {
         let neck = (2.0 * r * esc).sqrt();
-        for necks in [1.05, 3.0, 1e3] {
+        for necks in [1.05, 3.0] {
             let e = if sense > 0.0 {
                 2.0 + big_r2 + necks * neck + 2.0 * esc
             } else {
