@@ -137,3 +137,28 @@ directory, in sequence:
 ## Ev's answer (#5011, 2026-10-14)
 
 Ev took (A): a PR whose diff seeds geom-core, geom, geom-brep or topo gets a 25-min bar, and every other PR keeps 15 min. NURBS merged it at b8c3aa52. Ev also asked for a build-time investigation, which landed #5104 (−335 s median build hosted). `needs_ev` is cleared. What stays open is the deferred split of `test` into two package-group jobs, to be re-measured with the queue included, against nightly 61's `PR CI latency (alarm)` (median 32.6 min, p90 52.1 over 256 PR runs). (CIW orchestrator)
+
+## The test split, measured (2026-10-28)
+
+The seeded slow set no longer runs per PR (`demote-unearned-tests`): its
+step's median is 0.02 min over the 146 `test` jobs in the 24 h to
+10-28 05:30Z. What was left open here was the deferred split of `test`
+into two package-group jobs, to be re-measured with the queue included.
+- **The queue.** Every job's queue has a median of 0.0 min and a p90 of
+  0.1 in that window, so the cost that deferred the split is gone.
+- **The split** (green/latency-test-shards): `test (kernel)` and
+  `test (app)` (verbs, editor-core, pncad, pncad-py, viewer) each build
+  and run their half of the scope.
+- **Measured on that PR's own TIER=all runs**, which include sweep in
+  `kernel`. The single-job TIER=all `test` had a median of 27.6 (build
+  19.9, n=15).
+  - Four runs of the same split. `kernel` took 12.8 (40718652598), then
+    18.8, 18.9 and 19.1 (40721475134, 40727293903, 40729179399), with
+    build 13.3–13.8, default ε 1.5 and extra ε 3.1. `app` took 12.2–12.6
+    (build 9.7–10.2).
+  - So about 19 min is the kernel shard's typical time at TIER=all, and
+    the 12.8 run was a fast runner. The kernel shard is the long one, and
+    it is over the bar.
+- **Still open.** This
+  closes when a sweep-seeding PR's `test (kernel)` measures under 15 min
+  over several runs after #5941 merges.

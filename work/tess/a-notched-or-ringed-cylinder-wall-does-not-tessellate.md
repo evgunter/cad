@@ -4,6 +4,8 @@ kind: issue
 title: A cylinder wall notched by rulings and an arc, or carrying a hole, builds and measures but does not tessellate
 status: open
 opened: 2026-10-02
+priority: P2
+cost: H
 ---
 
 

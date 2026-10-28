@@ -661,6 +661,12 @@ fn ruling_pairs<T: Decide>(
 /// reads the order cyclically, so where the cycle starts changes no
 /// pair.
 ///
+/// **The touches.** A run of crossings at one point is where the section
+/// touches the face's boundary, and [`touch_order`] orders it by the
+/// alternation round it. The hole-rim and bore-rim tangent splits
+/// reach it from inside (`a_split_through_a_wrap_edges_vertex.rs`,
+/// `split_across_a_revolve_seam.rs`).
+///
 /// **Unpinned**: no shipped fixture reaches [`ConicCrossingsCase::Grazing`]
 /// or [`ConicCrossingsCase::NotAlternating`]; both are typed and read
 /// here only.
@@ -715,11 +721,12 @@ fn conic_pairs<T: Decide>(
         (w[a] - w[b]) * conic.tangent((w[a] + w[b]) * T::from_f64(0.5)).norm()
     };
     let n = crossings.len();
-    let order = super::order::sort_along(n, |a, b| gap(&walk, a, b), band).map_err(escalate)?;
+    let runs = super::order::sort_along_runs(n, |a, b| gap(&walk, a, b), band).map_err(escalate)?;
+    let order = runs.concat();
     let (lo, hi) = (order[0], order[n - 1]);
     let mut across = walk.clone();
     across[lo] = across[lo] + T::tau();
-    let order = if decide(
+    let runs = if decide(
         "split_join_line_gap",
         Margin::of(gap(&across, lo, hi)),
         band,
@@ -746,10 +753,11 @@ fn conic_pairs<T: Decide>(
         }
         let mut cycled = order;
         cycled.rotate_left(k);
-        super::order::group_coincident(cycled, |a, b| gap(&walk, a, b), band).map_err(escalate)?
+        super::order::coincident_runs(cycled, |a, b| gap(&walk, a, b), band).map_err(escalate)?
     } else {
-        order
+        runs
     };
+    let order = touch_order(&runs, |i| crossings[i].down);
     let down = |k: usize| crossings[order[k % n]].down;
     if (0..n).any(|k| down(k) == down(k + 1)) {
         return Err(refuse(ConicCrossingsCase::NotAlternating));
@@ -764,6 +772,42 @@ fn conic_pairs<T: Decide>(
             )
         })
         .collect())
+}
+
+/// A cycle of crossings along a section, from its `runs` at one point
+/// each, with each run of two or more put in the order its context
+/// fixes. A run is where the section touches the face's boundary: from
+/// inside, the arc arriving ends before the one leaving begins (exits
+/// first); from outside, the section enters the face and leaves it
+/// there, an arc of no length (entries first). Entries and exits
+/// alternate round the section, so the sense of the crossing before a
+/// run says which it is. The cycle is read from a run of one crossing;
+/// where there is none, every crossing a touch, each run is read as a
+/// touch from inside, the one of the two that leaves the face an arc of
+/// the section. A run that cannot alternate keeps its order, for the
+/// caller's alternation check to refuse.
+fn touch_order(runs: &[Vec<usize>], down: impl Fn(usize) -> bool) -> Vec<usize> {
+    let Some(lone) = runs.iter().position(|run| run.len() == 1) else {
+        return runs
+            .iter()
+            .flat_map(|run| {
+                let mut run = run.clone();
+                run.sort_by_key(|&i| down(i));
+                run
+            })
+            .collect();
+    };
+    let mut prev = runs[lone][0];
+    let mut order = vec![prev];
+    for k in 1..runs.len() {
+        let mut run = runs[(lone + k) % runs.len()].clone();
+        while !run.is_empty() {
+            let j = run.iter().position(|&i| down(i) != down(prev)).unwrap_or(0);
+            prev = run.remove(j);
+            order.push(prev);
+        }
+    }
+    order
 }
 
 /// The sweep state.
@@ -1438,6 +1482,37 @@ mod tests {
                 entity: EntityId::Loop(_)
             })
         ));
+    }
+
+    /// **A touch is ordered by the crossing before it.** Crossings `0..`
+    /// with `down` (an entry) as given; each case's runs are listed
+    /// with the touch's pair in insertion order against the answer.
+    #[test]
+    fn a_touch_alternates_with_the_crossing_before_it() {
+        let down = [true, false, true, false];
+        let d = |i: usize| down[i];
+        // Inside: an entry, then the touch (exit 1 and entry 2 at one
+        // point, inserted entry first), then the exit.
+        assert_eq!(
+            touch_order(&[vec![0], vec![2, 1], vec![3]], d),
+            [0, 1, 2, 3]
+        );
+        // Outside: an exit, then the touch (entry 0 and exit 3), then
+        // the entry; the touch takes its entry first.
+        assert_eq!(
+            touch_order(&[vec![1], vec![3, 0], vec![2]], d),
+            [1, 0, 3, 2]
+        );
+        // The cycle starts at a lone crossing wherever it lies.
+        assert_eq!(
+            touch_order(&[vec![3, 0], vec![2], vec![1]], d),
+            [2, 1, 0, 3]
+        );
+        // Every crossing a touch: each from inside, exits first.
+        assert_eq!(touch_order(&[vec![0, 1], vec![2, 3]], d), [1, 0, 3, 2]);
+        // A run of two entries cannot alternate: it keeps its insertion
+        // order, for the caller to refuse.
+        assert_eq!(touch_order(&[vec![1], vec![2, 0]], d), [1, 2, 0]);
     }
 }
 

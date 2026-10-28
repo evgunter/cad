@@ -547,14 +547,8 @@ impl std::error::Error for ChartRegionError {}
 /// let _ = RegionLane::<Dual64>::certified();
 /// ```
 ///
-/// The code is `E0599` and not [`chart_region_overlap`]'s `E0277`,
-/// because the two are refused at different places: a free function's
-/// bound is an unsatisfied trait obligation on the call (`E0277`),
-/// while `certified` is an associated function that EXISTS on
-/// `RegionLane<Dual64>` and whose `impl` block's bounds are not met
-/// (`E0599`, read off `rustc` on the snippet). Stable rustdoc verifies
-/// only that the block fails to build (`geom_core::spline::hull`'s
-/// rule), so the code beside the fence is a statement and not a check.
+/// Why the code is `E0599`, and what the fence does not check:
+/// [`crate::QuadLane`]'s paragraph.
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
 pub struct RegionLane<T: Decide> {

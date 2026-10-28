@@ -627,9 +627,7 @@ fn tangent_side(arm_gate: bool) -> Result<(), BooleanError> {
         &[p, Point3::new(1.0, 0.0, 0.0), Point3::new(0.0, 1.0, 0.0)],
         Tol::witness(),
     );
-    let accel = |s: &geom::Surface<f64>| {
-        -geom_brep::implicit_hessian_form(s, p, d) / geom_brep::implicit_gradient(s, p).dot(n.vec())
-    };
+    let accel = |s| geom_brep::implicit_graph_acceleration(s, p, d, n.vec());
     let arm = if arm_gate {
         D
     } else {
@@ -1173,9 +1171,7 @@ fn tangent_side_of(side: f64) -> Result<(), BooleanError> {
         &[p, Point3::new(1.0, 0.0, 0.0), Point3::new(0.0, 1.0, 0.0)],
         Tol::witness(),
     );
-    let accel = |s: &geom::Surface<f64>| {
-        -geom_brep::implicit_hessian_form(s, p, d) / geom_brep::implicit_gradient(s, p).dot(n.vec())
-    };
+    let accel = |s| geom_brep::implicit_graph_acceleration(s, p, d, n.vec());
     let arm = (2.0 * D / (accel(&ball) - accel(&floor)).abs()).sqrt();
     let read = DeclarationRead::Spent(GlueClass::Tangent);
     tangent_relative_side(&ball, &floor, n, p, d, arm, read, band()).map(|_| ())
@@ -2903,6 +2899,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "LeverArm::SectorCurving",
         1,
     ),
+    ("sectors.rs", "within_half_turn", "Coincide::Sectors", 1),
     ("sectors.rs", "within_signs", "Coincide::Sectors", 1),
     (
         "slit.rs",

@@ -2,10 +2,11 @@
 id: cert10-strict-gap-floor-gates-on-a-varying-seed
 kind: issue
 title: nurbs_cert_fuzz's cert10 strict-gap floor gates hosted CI over a per-run varying seed and fails at some seeds
-status: open
+status: closed
 opened: 2026-09-05
 priority: P3
 cost: E
+closed: 2026-10-28
 ---
 
 
@@ -33,3 +34,38 @@ Reported by the `topo/d261-reader-collapse` lane in its PR body
 ## Re-homed at S-MESH's exit (2026-09-16)
 
 Moved from `work/mesh/` to S-TINT (test-suite integrity: a seed-varying hosted gate and grep-only sentinels) when S-MESH closed (`docs/S-MESH-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Closed (2026-10-28)
+
+**The witness no longer reds.** At `CAD_FUZZ_SEED=0x3f9f92d266ab512c` today's
+main draws 160 strict of 300, against the floor of 60. The red was the
+discard drift the 2026-09-11 generator fix removed: degree-1 directions
+had been drawn knotted, and `compared` was not asserted. Over 1000 varying
+seeds at effort 1, the strict count ran 112..=197 (mean 153, sd 14), with
+no red. So today the floor sits about 6.5 sd below the mean.
+
+**Shape, per discipline §8: the test mixed shape 1 and shape 3, so it
+is split.** The test asserted three things:
+
+- the inequality `fold <= whole` per channel, which is a counterexample
+  search;
+- `compared == trials`, a per-draw property that every drawn net is
+  bounded;
+- `strict > trials` and `saw_high_mult`, which are coverage witnesses
+  nobody can write down.
+
+The first two stay in `cert10_the_fold_never_exceeds_the_whole_net_hull`,
+on a varying seed with the effort dial. A refused draw is now a panic at
+its trial rather than a `continue` plus a count. The coverage floors move
+to `cert10_a_pinned_draw_makes_the_gap_strict_at_high_multiplicity`, on
+`fuzz::pinned` with a fixed 60 trials (173 strict, multiplicity >= 2
+drawn). Both share one `cert10_sweep` body. The pinned row costs about
+0.1 s.
+
+**Sibling in the same file, left as is:**
+`r1_random_rational_soundness_sweep`'s `worst > 0.5` is the same form,
+but it is met per trial rather than per sweep. At seed 1001, all 60
+trials had a truth/bound ratio above 0.5 (minimum 0.88), and 37 of 37
+varying seeds reported `worst` = 1.000000. A red would need all 60 trials
+below 0.5 at once. Splitting it would double a slow-set row (about 30 s in
+debug) to guard against that, so it stays.

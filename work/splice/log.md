@@ -838,6 +838,22 @@ under `docs/DESIGN-FORK-PROTOCOL.md`, blinded (byte 123) on
 `analysis/design-fork/limb-three-boundary`. No lane is dispatched
 until they are reconciled.
 
+## 2026-10-28 — PR 5938 (the tube's side tripwire) merges
+
+A single FULL review: APPROVE-WITH-FIXES, with no MAJOR (row `PR-5938`).
+The two-chart tube now names its `Undecided` as `AlongSide` or
+`EndOnSides`, as a rename of a failed walk only. The reviewer's probes
+up to ε/4 inside the row never reached an `Ok`. The single-chart twin
+stays `Undecided`: past PR 4012's side arm, its in-band readings are
+indeterminate.
+
+Lily's sweep row pins `TubeNotOneArc { AlongSide }`. The structural
+rim (PR 5959, in flight) is what moves her past it. With limb 3 stubbed
+she stops at the interior-loop guard, and the first pair it refuses is
+Plane × NURBS (GERMTAIL's `nurbs-plane-section-has-no-component-arm`,
+P3), before the NURBS × NURBS arm
+(`no-certificate-excludes-a-closed-loop-interior-to-two-spline-faces`,
+P1, filed here). Both are routed once the structural rim lands.
 ## 2026-10-28 — limb 3's fork reconciled; to Ev
 
 Three rounds. The designers converged:
@@ -866,3 +882,30 @@ carrier, and a structural selector is certified per surface, owing no
 limb 3. Fork-log row 208 is completed: B's first recommendation, as
 converged. Next is the boundary-row recovery in the boolean's
 `describe_edges` and the split's `finish`, which SPLICE takes.
+
+## 2026-10-28 — lily's next stop filed on SELECT; the tori red closes
+
+`select/the-boolean-recovers-no-structural-selector-for-a-rim-known-in-advance`
+is filed at P0. It needs SELECT's unit 1, the selector type, and SELECT
+has nothing dispatched. Ev was asked whether to start a SELECT
+orchestrator or have SPLICE take the units. SECT fixed the tori main
+red in PR 5925, so its issue file is closed.
+
+## 2026-10-28 — SPLICE splits along its seams
+
+The load was 91/30. Ev asked whether to split the track, keeping in
+SPLICE the threads its orchestrator should continue. It split four ways,
+by mechanism, with the rows moved by `git mv`, ids kept and a dated
+Moved note on each:
+- **SPLICE** (20/30 plus the structural-rim row in flight): lily wall
+  8's path. The limb-3 rows, lily at 1e-6, the census main red.
+- **SPLICECARRIER** (20/30, 5 rows): a NURBS carrier has no parameter
+  inverse. The join, the split parameter (teapot wall 3), the two flush
+  readings, the touch floor.
+- **SPLICEFACE** (26/30, 10 rows): a spline face read on its own sheet.
+  End placement, a foot no one placed, closed seams and poles, creases
+  (klein wall 3's G1 joint), the curved-face dispatch, the zero-speed
+  projection, the held pierce.
+- **SPLICESEAM** (25/30, 13 rows): the seam reader's residue after PR
+  5868, and the doors that still read a spline by kind.
+The three new tracks are `ready`, with no orchestrator.

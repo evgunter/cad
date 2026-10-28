@@ -2067,6 +2067,35 @@ fn wall<T, E: core::fmt::Debug>(
     crate::walls::wall("lily", n, what, outcome, pinned, retire);
 }
 
+/// The lantern carved with its three tepal seams: wall 7's ball, and
+/// the same ball turned a third and two thirds of a turn about the
+/// lantern's axis through its zone sphere's centre, subtracted in turn.
+/// Each seam's section is a circle tilted against the zone's chart.
+fn seamed_lantern(lantern: Body<f64>, tol: Tol) -> Result<Body<f64>, BooleanError> {
+    let (zc, axis) = lantern
+        .faces()
+        .find_map(|(_, f)| match lantern.get_surface(f.surface) {
+            Some(&pncad::topo::Surface::Sphere { center, axis, .. }) => Some((center, axis)),
+            _ => None,
+        })
+        .expect("the lantern's zone sphere");
+    let mut body = finished("lily_lantern", lantern, tol);
+    for k in 0..3 {
+        let turn = Affine3::rotation_about_axis(zc, axis, f64::from(k) * 2.0 * PI / 3.0);
+        let ball = ball::<f64>(
+            turn.transform_point(WALL7_BALL_CENTER),
+            WALL7_BALL_RADIUS,
+            tol,
+        );
+        body = pncad::topo::subtract(&body, &finished("a tepal seam's ball", ball, tol), tol)?
+            .body()
+            .expect("the carve leaves the lantern")
+            .body
+            .clone();
+    }
+    Ok(body.into_body())
+}
+
 /// Where wall 7 stops: the carve itself, or drawing what it built.
 #[derive(Debug)]
 #[allow(dead_code)] // the payloads are read through `Debug` in the wall's report
@@ -2286,10 +2315,16 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    lantern's axis — the plane is tilted against the zone's polar
     //    axis — the join selects the section's arcs by the side of the
     //    run they leave on, and the carved zone measures by
-    //    Gauss–Bonnet. So the CARVE builds, and what refuses is drawing
-    //    it: the mesher has no lane for a sphere face bounded by a
-    //    circle tilted against its chart
-    //    (`work/tess/sphere-face-bounded-by-a-tilted-circle-has-no-tessellation-lane.md`).
+    //    Gauss–Bonnet. So the CARVE builds, and one seam draws: the
+    //    trimmed lane's sphere arm meshes a sphere face bounded by a
+    //    circle tilted against its chart (this module's
+    //    `verbs_gate_r1_probes`). The three seams are the same ball
+    //    turned a third of a turn about the lantern's axis
+    //    ([`seamed_lantern`]), and the seam a third of a turn round meets
+    //    neither of the zone's seam meridians: its section lies inside
+    //    one half-band, which keeps it as a ring, and the mesher has no
+    //    lane for a curved face with a ring
+    //    (`work/tess/valid-ringed-torus-faces-build-but-cannot-be-meshed.md`).
     //    The payload is quoted rather than described, the wall-7
     //    lesson about reading a locus off a comment instead of a dump.
     //
@@ -2305,10 +2340,10 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    re-scope) and 9 (VERBS-SPHSPH, the sphere × sphere germ lane)
     //    — the ruling that put it there is M9-5's, and the demand
     //    signal is this probe.
-    // The carve builds; drawing it is what refuses. The carve runs at
-    // the walls' own scalar, so its decisions record under the probe
-    // scalar like every other wall's; the mesher is an f64 door, so
-    // what it draws is the f64 carve, as a user's would be.
+    // The carves build; drawing the three is what refuses. One carve
+    // runs at the walls' own scalar, so its decisions record under the
+    // probe scalar like every other wall's; the mesher is an f64 door,
+    // so what it draws is the f64 carve, as a user's would be.
     let carve = |lantern: &AtRestBody<S>| {
         pncad::topo::subtract(
             lantern,
@@ -2322,34 +2357,21 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     };
     wall(
         7,
-        "carve a tepal seam into the lantern and draw it (sphere x sphere by \
-         geometry; the seam's section is tilted against the zone's chart)",
-        carve(lant).map_err(Wall7::Carve).and_then(|carved| {
-            let body: &Body<S> = &carved.body().expect("the carve leaves the lantern").body;
-            let drawn = match (body as &dyn core::any::Any).downcast_ref::<Body<f64>>() {
-                Some(b) => b.clone(),
-                None => {
-                    let lantern = plant::<f64>(tol)
-                        .into_iter()
-                        .find(|p| p.name == "lily_lantern")
-                        .expect("named lily piece")
-                        .body;
-                    let ball = ball::<f64>(WALL7_BALL_CENTER, WALL7_BALL_RADIUS, tol);
-                    let carved = pncad::topo::subtract(
-                        &finished("lily_lantern", lantern, tol),
-                        &finished("the wall-7 ball", ball, tol),
-                        tol,
-                    )
-                    .map_err(Wall7::Carve)?;
-                    Body::clone(&carved.body().expect("the carve leaves the lantern").body)
-                }
-            };
-            pncad::mesh::tessellate(&drawn, 2e-3, tol).map_err(Wall7::Draw)
+        "carve the lantern's three tepal seams and draw it (sphere x sphere by \
+         geometry; each seam's section is tilted against the zone's chart)",
+        carve(lant).map_err(Wall7::Carve).and_then(|_| {
+            let lantern = plant::<f64>(tol)
+                .into_iter()
+                .find(|p| p.name == "lily_lantern")
+                .expect("named lily piece")
+                .body;
+            let seamed = seamed_lantern(lantern, tol).map_err(Wall7::Carve)?;
+            pncad::mesh::tessellate(&seamed, 2e-3, tol).map_err(Wall7::Draw)
         }),
         |e| {
             matches!(
                 e,
-                Wall7::Draw(pncad::mesh::TessellateError::UnsupportedCurvedShape { .. })
+                Wall7::Draw(pncad::mesh::TessellateError::RingOnCurvedFace { .. })
             )
         },
         "give the lanterns their three tepal seams",
@@ -2379,7 +2401,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    each wall's exact boundary-row image. Limb 3's two-chart tube is
     //    cut to the walls' domains, and the rim ends at a corner of each
     //    and runs along a boundary row of each, so no one arc is proved
-    //    (`work/ssiedge/a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary`).
+    //    (`work/splice/a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary`).
     //    The flush reading along the two bodies' NURBS edges is behind
     //    that (`work/splice/a-unions-flush-reading-cannot-follow-a-nurbs-carrier`).
     let sheath = {
@@ -4061,14 +4083,35 @@ mod verbs_gate_r1_probes {
                 "{label}: volume {got} against the lens oracle {want}"
             );
         }
-        let draw = pncad::mesh::tessellate(&carved, 2e-3, tol);
-        println!("wall-7 probe: drawing the carve answers {draw:?}");
+        // One seam draws: its section crosses the zone's seam meridians,
+        // and the trimmed lane's sphere arm meshes the faces it bounds.
+        let draw = pncad::mesh::tessellate(&carved, 2e-3, tol)
+            .unwrap_or_else(|e| panic!("the carve draws, got {e:?}"));
+        pncad::mesh::validate::check_mesh(&draw)
+            .unwrap_or_else(|e| panic!("the carve's mesh checks, got {e:?}"));
+        let carved_area = pncad::topo::mass_properties(
+            &crate::booleans::at_rest(&carved, tol),
+            tol,
+            crate::printed(),
+        )
+        .expect("the carve's area integrates")
+        .enclosure
+        .surface_area
+        .f();
+        pncad::mesh::validate::check_volume(&draw, va - lens, carved_area, 2e-3)
+            .unwrap_or_else(|e| panic!("the carve's mesh encloses the carve, got {e:?}"));
+        // All three do not: the seam a third of a turn round lies inside
+        // one half-band of the zone, a ring of that face.
+        let seamed = super::seamed_lantern(lant.clone().into_body(), tol)
+            .unwrap_or_else(|e| panic!("the three seams carve, got {e:?}"));
+        let drawn = pncad::mesh::tessellate(&seamed, 2e-3, tol);
         assert!(
             matches!(
-                draw,
-                Err(pncad::mesh::TessellateError::UnsupportedCurvedShape { .. })
+                drawn,
+                Err(pncad::mesh::TessellateError::RingOnCurvedFace { .. })
             ),
-            "the carve's tilted-circle face has no tessellation lane — got {draw:?}"
+            "the seamed lantern's ringed zone face has no tessellation lane — got {:?}",
+            drawn.map(|m| m.positions.len())
         );
     }
 

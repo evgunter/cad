@@ -2,10 +2,11 @@
 id: main-red-two-tori-subtract-refuses-on-tangent-carriers-not-on-no-section-classification
 kind: issue
 title: main red: germ_torus_doors' two-tori row refuses its subtract on tangent or near-tangent carriers, where it pins 'has no section classification'
-status: open
+status: closed
 opened: 2026-10-28
 priority: P1
 cost: E
+closed: 2026-10-28
 ---
 
 Found by SPLICE's rim-exact-image lane while running sweep's full slow
@@ -36,3 +37,7 @@ its branch name ties it to tori; the lane did not read its diff. Then decide whe
 refusal is the right one for two tori that do not cross, and re-pin or
 fix accordingly.
 
+
+## Closed
+
+Fixed by SECT, PR 5925 (`f56c009fca`). SECT bisected the red to its PR 5869, not 5886: the parallel-tori arm refused the donut pair on an exact tie in its own construction. The kernel is fixed and the row is re-pinned to its honest R-loop classification. `germ_torus_doors::subtract_and_intersect_refuse_where_union_does` is green on main.
