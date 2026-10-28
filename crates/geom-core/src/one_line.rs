@@ -67,6 +67,8 @@ pub struct OnOneLine<T> {
     pub hi: T,
     /// The rounding the ends carry ([`crate::rounding_charge`]).
     pub noise: T,
+    /// The first interval as read, its ends in the order given.
+    pub a: (T, T),
     /// The second interval as read, its ends in the order given (`lo`
     /// and `hi` are its overlap with the first): for
     /// [`on_one_line`](fn@on_one_line), `b`'s ends' projections
@@ -84,6 +86,7 @@ impl<T: Real> OnOneLine<T> {
             lo: a.0.min(a.1).max(b.0.min(b.1)),
             hi: a.0.max(a.1).min(b.0.max(b.1)),
             noise,
+            a,
             b,
         }
     }
@@ -105,9 +108,23 @@ impl<T: Real> OnOneLine<T> {
     /// The gap past the charge: positive where the intervals lie apart
     /// by more than their rounding, so no point of one comes within it
     /// of the other (module docs). A caller decides it on its own row.
+    ///
+    /// Where they overlap it is negative by the overlap's DEPTH, the
+    /// lesser run from one interval's lower end to the other's upper
+    /// end, not by its length: an interval that is a point (a span
+    /// across the axis) inside the other reads how deep inside it lies,
+    /// where its overlap's length is zero at every depth.
     #[must_use]
     pub fn apart(&self) -> T {
-        T::zero() - self.extent() - self.noise
+        self.gap() - self.noise
+    }
+
+    /// The signed gap between the intervals, before the charge
+    /// ([`Self::apart`]).
+    fn gap(&self) -> T {
+        let (a_lo, a_hi) = (self.a.0.min(self.a.1), self.a.0.max(self.a.1));
+        let (b_lo, b_hi) = (self.b.0.min(self.b.1), self.b.0.max(self.b.1));
+        (b_lo - a_hi).max(a_lo - b_hi)
     }
 }
 
@@ -212,7 +229,7 @@ mod rows {
         );
     }
 
-    /// Each of `lo`, `hi` and the extent of `got` lies within its charge
+    /// Each of `lo`, `hi`, the extent and the gap of `got` lies within its charge
     /// of the enclosure `real` of the same real quantity; returns the
     /// largest share of the charge any of them spends.
     fn holds(got: super::OnOneLine<f64>, real: super::OnOneLine<Interval>) -> f64 {
@@ -221,6 +238,7 @@ mod rows {
             ("lo", got.lo, real.lo),
             ("hi", got.hi, real.hi),
             ("extent", got.extent(), real.extent()),
+            ("gap", got.gap(), real.gap()),
         ] {
             assert!(
                 v - got.noise <= e.lo() && e.hi() <= v + got.noise,
@@ -233,10 +251,10 @@ mod rows {
         spent
     }
 
-    /// **The ends and the extent carry their rounding within the charge.**
-    /// Against the same reading at `Interval`, an enclosure of the real
-    /// projections of the same `f64` points, each of `lo`, `hi` and the
-    /// extent lies within `noise` of every real value it stands for, over
+    /// **The ends, the extent and the gap carry their rounding within the
+    /// charge.** Against the same reading at `Interval`, an enclosure of
+    /// the real projections of the same `f64` points, each of `lo`, `hi`,
+    /// the extent and the gap lies within `noise` of every real value it stands for, over
     /// segments drawn at every scale and offset from the origin, half of
     /// them near each other wherever they lie (the charge's tightest
     /// regime: it is at the spans' own scale, not the origin's). Red where
@@ -282,6 +300,38 @@ mod rows {
             worst = worst.max(holds(got, real));
         }
         tight(worst);
+    }
+
+    /// **An overlap reads its depth, not its length.** A span across the
+    /// axis projects to a point; one metre inside a three-metre span its
+    /// overlap is zero long, and the gap reads it a metre deep, so the
+    /// pair reads definitely not apart rather than at the gap's zero.
+    #[test]
+    fn a_point_inside_the_other_span_reads_how_deep_it_lies() {
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        let across = on_one_line(
+            x,
+            (Point3::new(0.0, 0.0, 0.0), Point3::new(3.0, 0.0, 0.0)),
+            (Point3::new(1.0, 1.5, 0.0), Point3::new(1.0, 3.0, 0.0)),
+            0.0,
+        );
+        assert_eq!(across.extent(), 0.0, "the overlap is a point");
+        assert_eq!(
+            across.apart(),
+            -1.0 - across.noise,
+            "the gap is the point's depth inside the span, past the charge"
+        );
+        let beyond = on_one_line(
+            x,
+            (Point3::new(0.0, 0.0, 0.0), Point3::new(3.0, 0.0, 0.0)),
+            (Point3::new(4.0, 1.5, 0.0), Point3::new(4.0, 3.0, 0.0)),
+            0.0,
+        );
+        assert_eq!(
+            beyond.apart(),
+            1.0 - beyond.noise,
+            "apart, the gap is the distance between the spans"
+        );
     }
 
     /// **The charge is at the spans' own scale, wherever they lie.** Two
