@@ -133,7 +133,7 @@ pub fn spacing_of(session: &DocSession, copy: RecipeNodeId) -> f64 {
     let Some(Node::Place { constraints, .. }) = doc.node(copy) else {
         panic!("a duplicate is a stepped placement");
     };
-    constraints
+    let slides: Vec<f64> = constraints
         .iter()
         .filter_map(|c| c.value())
         .filter(|value| matches!(value.coord, Coord::Slide(_)))
@@ -141,10 +141,12 @@ pub fn spacing_of(session: &DocSession, copy: RecipeNodeId) -> f64 {
             doc.written(&Expr::var(value.by, value.coord.dimension()))
                 .literal_value()
                 .expect("the door authors a literal step")
-                .powi(2)
         })
-        .sum::<f64>()
-        .sqrt()
+        .collect();
+    match slides[..] {
+        [one] => one.abs(),
+        _ => slides.iter().map(|s| s * s).sum::<f64>().sqrt(),
+    }
 }
 
 /// **A box of `size` split at half its height**, landed: the session,

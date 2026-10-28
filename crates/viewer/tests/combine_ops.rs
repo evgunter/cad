@@ -33,8 +33,8 @@ use pncad::document::BooleanValue;
 use pncad::document::SplitSide;
 use pncad::document::{
     Axis3, Dimension, DimensionError, Doc, DocEdit, EditError, Expr, Formula, LoopProgram, Node,
-    NodeError, NodeErrorKind, NodeResult, NodeStanding, Operand, OperandSlot, PartSelect,
-    PatternKind, ProfileProgram, RecipeNodeId, SlotId,
+    NodeError, NodeErrorKind, NodeResult, NodeStanding, Operand, OperandSlot, ProfileProgram,
+    RecipeNodeId, SlotId,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
@@ -3109,7 +3109,7 @@ fn a_duplicate_keeps_the_notes_promise() {
 }
 
 /// **A body whose value is several bodies is refused, typed** — a
-/// placement of a pattern's copies, which are several bodies again. The body seat refuses it
+/// placement of a family, which is several bodies again. The body seat refuses it
 /// by the kind of the variable it defines, before the duplicate door
 /// asks its value.
 #[test]
