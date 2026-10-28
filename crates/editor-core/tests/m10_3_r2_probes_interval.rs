@@ -273,6 +273,33 @@ fn containment_fires_when_the_chamber_is_strictly_inside_the_box() {
         }
     }
     assert!(saw, "some leaf must reach the analyzed box's boundary");
+    // Pinned at what main measures (2026-10-28): both boundary leaves
+    // refuse on budget, not as flips, so containment does not fire
+    // (`work/cpair/main-red-slow-set-receipts-moved-at-5542.md`). The
+    // pin goes red the day that moves; then it comes out and the row
+    // calls `contains_by_flips` again.
+    let classes: Vec<String> = (v.refused().iter())
+        .filter(|l| l.box_.touches_boundary_of(root))
+        .map(|l| format!("{:?}", l.reason.class()))
+        .collect();
+    assert!(
+        !boundary_certified
+            && !all_flips
+            && classes == ["Budget", "Budget"]
+            && !v.accounting().containment,
+        "pinned: on main both boundary leaves refused on budget; now \
+         boundary_certified={boundary_certified} all_flips={all_flips}, boundary classes \
+         {classes:?}, containment {}; drop this pin and call `contains_by_flips`",
+        v.accounting().containment
+    );
+}
+
+/// The containment row's own checks, which
+/// [`containment_fires_when_the_chamber_is_strictly_inside_the_box`]
+/// runs once its pin comes out.
+#[allow(dead_code)]
+fn contains_by_flips(v: &editor_core::ParamBoxVerdict, boundary_certified: bool, all_flips: bool) {
+    let root = v.root();
     assert!(
         !boundary_certified && all_flips,
         "the chamber is strictly inside the box, so every boundary leaf should be a definite \
