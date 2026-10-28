@@ -67,7 +67,7 @@ non-unit creased net, so this is disclosure. The fix this row takes
 (per-span reading on the integral arm, or the crease as a constraint)
 should cover both degrees.
 
-## Weighed (2026-10-28, design-fork row 208)
+## Weighed (2026-10-28, design-fork row 209)
 
 Two designers weighed it over three reconciliation rounds. Both measured in scratch copies.
 - **The refusal is two doors deep.** With the patch-bound gate opened on both arms, a 3- or 4-section square loft at degree 1 refuses next at the chord pass. Its wall–wall strut is a degree-1 B-spline through the section corners (knots `[0,0,0.3387…,1,1]`), which `chords::nurbs_chord_count` refuses as "a C⁰ polyline". With that door opened too, the loft meshes at n = 3 and 4, δ ∈ {1e-1, 1e-2, 1e-3}, and no third door fires. A unit sized to the patch bound alone does not close this row.

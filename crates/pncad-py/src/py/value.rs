@@ -1388,7 +1388,7 @@ impl Evaluation {
             Ok(node_value) => {
                 return Ok(Value {
                     payload: node_value.payload.clone(),
-                    contacts: Arc::clone(&node_value.contacts),
+                    contacts: Arc::clone(&node_value.carry.contacts),
                     node: *node,
                 });
             }

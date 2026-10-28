@@ -870,7 +870,7 @@ fn an_instances_record_cites_the_parts_record() {
     let ev = run(&outer, &with_resolver(store));
     let value = ev.value(instances[0]).expect("the instance evaluates");
     assert_eq!(
-        value.contacts.rows()[0].cites,
+        value.carry.contacts.rows()[0].cites,
         topo::Cites::one(topo::Backing::Carried {
             input: 0,
             record: 0
