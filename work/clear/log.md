@@ -130,3 +130,10 @@ Signed: (CARVE orchestrator)
 - 2026-10-28 — **NURBSWIN merges (#5927)** with this commit last. The orchestrator read and accepted the fix pass at `2cef54df49`. Pruned the fired blocker on CARVE's `self-overlapping-spines-build-and-validate`.
 - 2026-10-28 — **SELFX dispatched** (P0, `self-intersection-drops-every-vertex-sharing-face-pair-globally`) as a local lane on `clear/selfx`, spec `docs/SELFX-SPEC.md`. Review: DUAL, concurrent pair (H), on a frozen head (`docs/DUAL-REVIEW-PROTOCOL.md`). Its class letter is H.
 - 2026-10-28 — **SELFX in review.** PR #5955 is green at `91109e84ac`. The DUAL concurrent pair runs as two cloud sessions (R1 `session_018u3gVGWkWwvU2JyhiPsRje`, R2 `session_018u3gVJQa1Ftewruzok4tLu`), with identical briefs and the frozen head pinned in each. The lane deferred the second-order (cusp) arm, as the spec allows: a cusp seam refuses typed, and the arm is filed. Departure is band-level: a crossing confined within ε of a shared edge is not seen. That claim is put to both reviewers.
+- 2026-10-28 — **SELFX dual review, adjudicated as a union.**
+  - **R1: APPROVE-WITH-FIXES.** MAJOR: the rows assert `certified >= 1`, so with cross-face pairs dropped and the self pairs kept, the loft and helix rows stay green (executed).
+  - **R2: NOT-MERGEABLE-AS-IS.** MAJOR: `present_chart` clips in edge order with a re-centred wrap. On a periodic face crossing its seam, one order discards most of the face, and departure certified a pierced pair at depth 0 (unit-level evidence, executed).
+  - Both found the band-sliver claim stated beyond the code, the `FaceKey::default()` fallback, and stale headers. Each found minors the other did not; the tally lives in the row file.
+  - **Fix pass** sent to the SELFX lane.
+  - **Filed:** `departure-presents-no-curved-shared-edge` (P1/H). It is a capability gap that fails closed, and it gates SHELL-4 on curved cavities. Also filed `an-analytic-face-may-cover-its-carrier-more-than-once` (P2).
+  - After the fix pass, a focused single review of the presentation fix runs before merge, given that a soundness MAJOR was fixed.
