@@ -3,6 +3,7 @@ id: a-pose-defined-split-tool-names-no-tool-cell
 kind: issue
 title: A split whose tool is a pose definition has no tool node, so a tool-cell coincidence row cannot be named
 status: review
+priority: P2
 branch: intent/refactor-pose-definitions
 opened: 2026-10-10
 ---

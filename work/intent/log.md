@@ -983,3 +983,16 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
     - the carry (`a-placement-carries-its-sources-at-rest-result`, lane `session_01VyvYnH6cxt24s9KQbXyS5q`, single FULL review);
     - G (`patterns-are-index-variables`, lane `session_01VyvYnHiHL3dyLBmh7MATGP`, dual H). G measures §8 Q1 (does a ring close structurally) first and reports before building on it.
   - **Hazard the E lane hit:** two worktrees sharing one `CARGO_TARGET_DIR` silently cross-use artifacts, since cargo's fingerprints are path-relative. Briefs now forbid it. A memory for it is Ev's call (asked).
+- 2026-10-28 08:00 —
+  - **Ring fork done:** Ev approved on #5905 ("i agree with the idea"). The `[coincidence.structural]` sentence was dropped, on Ev's reading that the existing criterion already admits a tier that knows angle arithmetic; `[repetition]`'s ring sentence is sharpened. Fork-log row 207. G builds the tier rule, measuring its budget per node first.
+  - **Slate cut to D10's core** (Ev, in chat): 19 residue rows moved by `git mv`, ids unchanged, each with a dated `## Slate triage` note:
+    - census → ATREST (6);
+    - viewer geometry → VGEOM (3);
+    - authoring doors → DOORS (2);
+    - construction space → CHROME (1);
+    - names → REFS (4);
+    - lies-on and the consumed-feature lint → COINCIDE (2);
+    - the Python space-mismatch → BIND (1).
+  - **Other tracker fixes:** priorities set on the rows that had none. `main-red-edit-rs-folds-a-face-sense-by-hand` closed as a duplicate of #5849's fix.
+  - **INTENT keeps:** G and its riders, the stage-3 umbrellas, the carry, the two refactor pose-definition rows, the roots rename, the fixture literals, the cost-E tail, and the design rows `an-unread-body-is-no-finding` and `split-widens-…`.
+  - **Parallel lanes dispatched beside G and the carry:** the roots rename (`session_01VyvYnM85PzUjzS8KDPp1vG`, single STYLE), the refactor pose-definition rows (`session_01VyvYnKNiPxav6Gp55TVhep`, single FULL), and a cost-E batch (`session_01VyvYnKZwLAT9fCrXvcoSL9`, single STYLE: loft station, fused-instance frame, pick cross-check, fixture zero literals).
