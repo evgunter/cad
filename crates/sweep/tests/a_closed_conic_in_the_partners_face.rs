@@ -20,7 +20,8 @@
 //!   ring, and a boss over a hole whose ring lies inside its rim;
 //! - a boss over a hole or a pocket, by pose: tangent to its rim inside
 //!   or outside, apart, concentric, each read alike in the two-arc form,
-//!   and the tangent poses turned;
+//!   and the tangent poses turned; and tangent inside with short arcs
+//!   either side of the tip, whose union is one shell pinched along them;
 //! - a plug in the bore of an annulus standing on a plate;
 //! - two equal coaxial cylinders stacked end to end;
 //! - a tube whose rim lies inside one face of a ball;
@@ -28,7 +29,8 @@
 //!
 //! Every row runs ∪, ∩ and both differences in both operand orders, and
 //! each run is read through `differential::outcome` (tiers 2 and 3′, the
-//! certificate, the legal operand, the closed-form volume) and meshed.
+//! certificate, the legal operand, the closed-form volume) and meshed;
+//! a mesh along the short arcs' pinch holds four triangles at an edge.
 //! The ∩ of two solids meeting only in a face is empty. Two rows pin
 //! what is not built yet, refused typed: the union of a boss over a hole
 //! tangent inside its rim, and a closed edge in a cylinder or a cone
@@ -1001,70 +1003,270 @@ fn one_segment_ellipse_rims_tangent_outside_refuse_the_union_typed() {
     }
 }
 
-/// **Short arcs at a crescent's tip**: the first pose of
-/// [`a_boss_over_a_hole_by_pose`], through, each rim four arcs with
-/// vertices at the tangent point and either side of it, at azimuth
-/// `±1e-5` on the boss and `±3e-5` on the hole, so that the short arcs
-/// each side are about `3e-6` m long and lie within the band of each
-/// other. Their far ends are a vertex pair where the long arcs leave
-/// each other at about `2e-5` rad, which the crescent reading, levered
-/// at the short arcs, reads as one tangent: every union refuses
-/// `TangentCrescentUnsupported`. The true union is one shell, and the
-/// boolean builds it with that reading off
-/// (`work/cleave/a-crescent-refusal-fires-where-short-arcs-carry-the-section.md`).
-/// The intersection is empty and the differences keep the operands. At
-/// ε 1e-6 and 1e-12 the profile itself escalates on the short arcs.
-#[test]
-fn short_arcs_at_a_crescents_tip_refuse_the_union() {
-    let arcs = |cx: f64, r: f64, s: f64| -> ProfileLoop<f64> {
-        let rest = (TAU - 2.0 * s) / 2.0;
-        let mut az = -s;
-        let mut loop_ = Vec::new();
-        for sweep in [s, s, rest, rest] {
-            loop_.push((
-                Point2::new(cx + r * az.cos(), r * az.sin()),
-                Segment::Arc(Arc2 {
-                    centre: Point2::new(cx, 0.0),
-                    radius: r,
-                    sweep,
-                }),
-            ));
-            az += sweep;
+/// A rim of radius `r` about `(cx, 0)` with vertices at the azimuths
+/// `az`, ascending within one turn, its arcs running between them.
+fn arcs_at(cx: f64, r: f64, az: &[f64]) -> ProfileLoop<f64> {
+    rim_about((cx, 0.0), r, az)
+}
+
+/// How a short-arc pose's union reads ([`short_arcs_at_a_crescents_tip`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Tip {
+    /// `SOUND` in one shell at the closed form; ∩ empty and both
+    /// differences `SOUND` alike.
+    Built,
+    /// `TangentCrescentUnsupported`.
+    Crescent,
+    /// The profile escalates on its short arcs.
+    Unprofiled,
+    /// `Escalated { decision: Crossing(OnEdge) }`.
+    OnEdge,
+    /// `Escalated { decision: Coincidence(Sectors, _) }`.
+    Sectors,
+    /// `CurvedPierceUnsupported`.
+    Pierce,
+    /// `ResultVolumeImplausible` on `vol(A ∪ B) ≤ vol(A) + vol(B)`.
+    Backstop,
+}
+
+/// What `r` reads as a [`Tip`] other than [`Tip::Built`].
+fn refused_as(r: &Result<BooleanResult<f64>, BooleanError>) -> Option<Tip> {
+    use topo::BooleanDecision::{Coincidence, Crossing};
+    Some(match r.as_ref().err()? {
+        BooleanError::TangentCrescentUnsupported { .. } => Tip::Crescent,
+        BooleanError::Escalated {
+            decision: Crossing(topo::CrossingDecision::OnEdge),
+            ..
+        } => Tip::OnEdge,
+        BooleanError::Escalated {
+            decision: Coincidence(topo::Coincide::Sectors, _),
+            ..
+        } => Tip::Sectors,
+        BooleanError::CurvedPierceUnsupported { .. } => Tip::Pierce,
+        BooleanError::ResultVolumeImplausible { which, .. }
+            if which.starts_with("vol(A ∪ B) ≤") =>
+        {
+            Tip::Backstop
         }
-        RawLoop::new(loop_)
-    };
-    let square: ProfileLoop<f64> = RawLoop::polygon([
-        Point2::new(-1.0, -1.0),
-        Point2::new(1.0, -1.0),
-        Point2::new(1.0, 1.0),
-        Point2::new(-1.0, 1.0),
-    ]);
-    let profile = |loops| Profile::new(SketchPlane::<f64>::xy(), loops).validate(tol());
-    for loops in [
-        vec![arcs(0.0, 0.3, 1e-5)],
-        vec![square.clone(), arcs(0.2, 0.1, 3e-5)],
-    ] {
-        if let Err(e) = profile(loops) {
-            assert!(
-                format!("{e:?}").starts_with("Escalated"),
-                "the profile: {e:?}"
-            );
-            return;
+        _ => return None,
+    })
+}
+
+/// A short-arc pose's union held to its closed form `want`: `SOUND`
+/// (tiers 2 and 3′, the certificate, the closed-form volume) in one
+/// shell, the pinned volume at the closed form. The boss's wall and the
+/// hole's meet along the run of short arcs, as do the floor over the
+/// hole and the plate's top, so its mesh holds four triangles at an
+/// edge only there: within `run.1` of `run.0`, the tip, on the plane
+/// `z = 0`. Every other edge is used twice, in opposite directions.
+fn united_at_the_run(
+    row: &str,
+    r: Result<BooleanResult<f64>, BooleanError>,
+    want: f64,
+    run: (Point3<f64>, f64),
+) {
+    let b = r
+        .as_ref()
+        .ok()
+        .and_then(BooleanResult::body)
+        .unwrap_or_else(|| panic!("{row}: {:?}", r.as_ref().map(|_| "empty")));
+    assert_eq!(census(&b.body)[0], 1, "{row}: shells");
+    let v = topo::test_support::pinned_volume(row, &b.body, tol()).volume;
+    assert!((v - want).abs() < 1e-7, "{row}: volume {v} against {want}");
+    let m = mesh::tessellate(&b.body, 5e-3, tol()).unwrap_or_else(|e| panic!("{row}: {e:?}"));
+    match mesh::validate::check_mesh(&m) {
+        Ok(()) | Err(mesh::validate::MeshError::NonManifoldEdge { .. }) => {}
+        Err(e) => panic!("{row}: mesh {e:?}"),
+    }
+    let mut uses = std::collections::BTreeMap::<(u32, u32), (u32, i64)>::new();
+    for t in m.patches.iter().flat_map(|p| &p.triangles) {
+        for k in 0..3 {
+            let (a, b) = (t[k], t[(k + 1) % 3]);
+            let e = uses.entry((a.min(b), a.max(b))).or_default();
+            e.0 += 1;
+            e.1 += if a < b { 1 } else { -1 };
         }
     }
-    let boss = fin("the boss", extruded(vec![arcs(0.0, 0.3, 1e-5)], 0.0, 1.0));
-    let holed = fin(
-        "the holed plate",
-        extruded(vec![square, arcs(0.2, 0.1, 3e-5)], -0.5, 0.5),
-    );
+    let on_run = |i: u32| {
+        let p = m.positions[i as usize];
+        (p - run.0).norm() <= run.1
+    };
+    let mut pinched = 0;
+    for ((a, b), (count, balance)) in uses {
+        assert_eq!(balance, 0, "{row}: mesh edge ({a}, {b}) winds one way");
+        match count {
+            2 => {}
+            4 if on_run(a) && on_run(b) => pinched += 1,
+            _ => panic!(
+                "{row}: mesh edge {:?}–{:?} used {count} times",
+                m.positions[a as usize], m.positions[b as usize]
+            ),
+        }
+    }
+    assert!(pinched > 0, "{row}: no mesh edge along the run");
+    let line = outcome(r, want, tol());
+    assert!(line.starts_with("OK SOUND"), "{row}: {line}");
+}
+
+/// **Short arcs at a crescent's tip**: the boss `r = 0.3` over the
+/// through hole `r = 0.1` about `(0.2, 0)` of
+/// [`a_boss_over_a_hole_by_pose`], tangent inside at `(0.3, 0)`, each
+/// rim cut by vertices at azimuth `±s` on the boss and `±3s` on the hole
+/// (or one side of the tip only, or with no vertex at the tip), and at
+/// π. The cuts either side of the tip are one point within the band, so
+/// the arcs between them lie on each other: the section runs along
+/// them, and the long arcs leave their far ends at an angle of about
+/// `2s` that the short arcs' length cannot resolve but the long arcs'
+/// can. The union is one shell (`boolean::sectors` `coincident_run`).
+/// Where only one side of the tip is cut, the other side is a true
+/// crescent at the tip and the union refuses
+/// `TangentCrescentUnsupported`; where only one rim is cut, the crossing
+/// layer escalates on the cut vertex against the other rim's arc.
+///
+/// Each rim cut at `±s` alone has a reflex long arc between its two
+/// cuts; its profile escalates at every ε, so a reflex arc never reaches
+/// the reading as a run here (`coincident_run` admits arcs of at most a
+/// half-turn).
+///
+/// The unions by ε (default, 1e-6, 1e-12), `A ∪ B` then `B ∪ A`. At
+/// ε 1e-6 `B ∪ A` of the `s = 1e-4` poses meets the volume backstop
+/// within an ulp of `vol(A) + vol(B)`
+/// (`work/measuredoor/a-union-at-its-operands-sum-meets-the-volume-backstop-by-an-ulp.md`).
+#[test]
+fn short_arcs_at_a_crescents_tip() {
+    use Tip::{Backstop, Built, Crescent, OnEdge, Pierce, Sectors, Unprofiled};
+    let p = PI;
+    type Row = (&'static str, [f64; 4], [f64; 4], [[Tip; 2]; 3]);
+    let tip = |s: f64| [-s, 0.0, s, PI];
+    let span = |s: f64| [-s, s, PI, f64::NAN];
+    let rows: [Row; 11] = [
+        (
+            "both, s = 1e-5",
+            tip(1e-5),
+            tip(3e-5),
+            [[Built; 2], [Unprofiled; 2], [Unprofiled; 2]],
+        ),
+        (
+            "both, s = 1e-6",
+            tip(1e-6),
+            tip(3e-6),
+            [[Built; 2], [Unprofiled; 2], [Sectors; 2]],
+        ),
+        (
+            "both, s = 1e-4",
+            tip(1e-4),
+            tip(3e-4),
+            [[Unprofiled; 2], [Built, Backstop], [Pierce; 2]],
+        ),
+        (
+            "no vertex at the tip",
+            span(1e-5),
+            span(3e-5),
+            [[Built; 2], [Unprofiled; 2], [Pierce; 2]],
+        ),
+        (
+            "no vertex at the tip, s = 1e-4",
+            span(1e-4),
+            span(3e-4),
+            [[Unprofiled; 2], [Built, Backstop], [Pierce; 2]],
+        ),
+        (
+            "the boss's spans the tip",
+            span(1e-5),
+            tip(3e-5),
+            [[Built; 2], [Unprofiled; 2], [Pierce; 2]],
+        ),
+        (
+            "the hole's spans the tip",
+            tip(1e-5),
+            span(3e-5),
+            [[Built; 2], [Unprofiled; 2], [Unprofiled; 2]],
+        ),
+        (
+            "two cuts, each rim's long arc reflex",
+            [-1e-5, 1e-5, f64::NAN, f64::NAN],
+            [-3e-5, 3e-5, f64::NAN, f64::NAN],
+            [[Unprofiled; 2], [Unprofiled; 2], [Unprofiled; 2]],
+        ),
+        (
+            "one side",
+            [0.0, 1e-5, p, f64::NAN],
+            [0.0, 3e-5, p, f64::NAN],
+            [[Crescent; 2], [Unprofiled; 2], [Unprofiled; 2]],
+        ),
+        (
+            "the boss's only",
+            tip(1e-5),
+            [0.0, p, f64::NAN, f64::NAN],
+            [[OnEdge; 2], [Unprofiled; 2], [Unprofiled; 2]],
+        ),
+        (
+            "the hole's only",
+            [0.0, p, f64::NAN, f64::NAN],
+            tip(3e-5),
+            [[OnEdge; 2], [Unprofiled; 2], [Pierce; 2]],
+        ),
+    ];
+    let row_at = match tol().eps() {
+        1e-6 => 1,
+        1e-12 => 2,
+        _ => 0,
+    };
     let (vb, vh) = (0.09 * PI, 2.0 - 0.005 * PI);
-    for (op, r, want) in every_op_both_orders(&boss, &holed, (vb, vh, 0.0), tol()) {
-        let reads = match op {
-            "A ∪ B" | "B ∪ A" => Reads::Crescent,
-            "A ∩ B" | "B ∩ A" => Reads::Empty,
-            _ => Reads::Sound(1),
-        };
-        reads_as(&format!("short arcs: {op}"), r, want, reads);
+    for (pose, boss_az, hole_az, by_eps) in rows {
+        let [want_ab, want_ba] = by_eps[row_at];
+        let cut = |az: [f64; 4]| az.into_iter().filter(|a| !a.is_nan()).collect::<Vec<_>>();
+        let (boss_rim, hole_rim) = (
+            arcs_at(0.0, 0.3, &cut(boss_az)),
+            arcs_at(0.2, 0.1, &cut(hole_az)),
+        );
+        let profiles = [vec![boss_rim.clone()], vec![square(), hole_rim.clone()]];
+        if profiles.into_iter().any(|loops| {
+            Profile::new(SketchPlane::<f64>::xy(), loops)
+                .validate(tol())
+                .is_err()
+        }) {
+            assert_eq!(
+                [want_ab, want_ba],
+                [Unprofiled; 2],
+                "{pose}: the profile escalates"
+            );
+            continue;
+        }
+        assert_ne!(want_ab, Unprofiled, "{pose}: the profile validates");
+        let cut = boss_az
+            .iter()
+            .filter(|a| a.abs() < 1.0)
+            .fold(0.0, |m: f64, a| m.max(a.abs()));
+        let run = (Point3::new(0.3, 0.0, 0.0), 2.0 * 0.3 * cut);
+        let boss = fin("the boss", extruded(vec![boss_rim], 0.0, 1.0));
+        let holed = fin(
+            "the holed plate",
+            extruded(vec![square(), hole_rim], -0.5, 0.5),
+        );
+        for (op, r, want) in every_op_both_orders(&boss, &holed, (vb, vh, 0.0), tol()) {
+            let row = format!("{pose}: {op}");
+            let reads = match op {
+                "A ∪ B" => want_ab,
+                "B ∪ A" => want_ba,
+                _ if [want_ab, want_ba].contains(&Built) => Built,
+                _ => continue,
+            };
+            if reads != Built {
+                assert_eq!(
+                    refused_as(&r),
+                    Some(reads),
+                    "{row}: {:?}",
+                    r.map(|_| "a body")
+                );
+                continue;
+            }
+            match op {
+                "A ∩ B" | "B ∩ A" => reads_as(&row, r, want, Reads::Empty),
+                "A ∖ B" | "B ∖ A" => reads_as(&row, r, want, Reads::Sound(1)),
+                _ => united_at_the_run(&row, r, want, run),
+            }
+        }
     }
 }
 
@@ -1196,4 +1398,98 @@ fn a_puck_and_its_rounding_ring_unite() {
     let puck = fin("the puck", extruded(vec![circle(0.0, 0.0, a, 0.0)], 0.0, r));
     let quarter = PI * r * r / 4.0 * TAU * (a + 4.0 * r / (3.0 * PI));
     both_unions("the rounded puck", &puck, &ring, PI * a * a * r + quarter);
+}
+
+/// A rim of radius `r` about `c` with vertices at the azimuths `az`,
+/// ascending within one turn, its arcs running between them.
+fn rim_about(c: (f64, f64), r: f64, az: &[f64]) -> ProfileLoop<f64> {
+    RawLoop::new(az.iter().enumerate().map(|(k, &a)| {
+        let next = az.get(k + 1).copied().unwrap_or(az[0] + TAU);
+        (
+            Point2::new(c.0 + r * a.cos(), c.1 + r * a.sin()),
+            Segment::Arc(Arc2 {
+                centre: Point2::new(c.0, c.1),
+                radius: r,
+                sweep: next - a,
+            }),
+        )
+    }))
+}
+
+/// **Short arcs at a crescent's tip, turned and at the finest band**:
+/// the pose of [`short_arcs_at_a_crescents_tip`] at `s = 3e-7`, whose
+/// cuts either side of the tip lie within the band at ε 1e-12 too, so
+/// the skip in `boolean::sectors` `crescent` is read there (that row's
+/// table builds nothing at 1e-12), with the tip turned to azimuth `φ`.
+/// Every union is one shell at the closed form, `SOUND`; with the skip
+/// off, the unturned ones refuse `TangentCrescentUnsupported`. At ε 1e-6
+/// the profile escalates on the short arcs.
+///
+/// The rims swapped, the boss `r = 0.1` inside the hole `r = 0.3`,
+/// tangent there, the boss and the plate only touch, along the run;
+/// their union refuses `ClassificationInvariant` as `main` does
+/// (`work/splitdoor/a-boss-inside-a-hole-touching-along-short-arcs-breaks-a-germ-invariant.md`).
+#[test]
+fn short_arcs_at_a_turned_tip_at_the_finest_band() {
+    let s = 3e-7;
+    let coarse = tol().eps() == 1e-6;
+    for phi in [0.0, 0.7, 2.0] {
+        for (pose, rb, rh, cb, ch, kb, kh, tip) in [
+            ("inside", 0.3, 0.1, 0.0, 0.2, 1.0, 3.0, true),
+            (
+                "inside, no vertex at the tip",
+                0.3,
+                0.1,
+                0.0,
+                0.2,
+                1.0,
+                3.0,
+                false,
+            ),
+            ("swapped", 0.1, 0.3, 0.2, 0.0, 3.0, 1.0, true),
+        ] {
+            let az = |k: f64| {
+                let mut az = vec![phi - k * s, phi + k * s, phi + PI];
+                if tip {
+                    az.insert(1, phi);
+                }
+                az
+            };
+            let at = |d: f64| (d * phi.cos(), d * phi.sin());
+            let boss_rim = rim_about(at(cb), rb, &az(kb));
+            let hole_rim = rim_about(at(ch), rh, &az(kh));
+            let profiled = [vec![boss_rim.clone()], vec![square(), hole_rim.clone()]]
+                .into_iter()
+                .all(|loops| {
+                    Profile::new(SketchPlane::<f64>::xy(), loops)
+                        .validate(tol())
+                        .is_ok()
+                });
+            assert_eq!(profiled, !coarse, "{pose}, φ = {phi}: the profile");
+            if coarse {
+                continue;
+            }
+            let (vb, vh) = (PI * rb * rb, 2.0 - 0.5 * PI * rh * rh);
+            let tip = Point3::new(at(cb).0 + rb * phi.cos(), at(cb).1 + rb * phi.sin(), 0.0);
+            let run = (tip, 2.0 * rb * kb * s);
+            let boss = fin("the boss", extruded(vec![boss_rim], 0.0, 1.0));
+            let holed = fin(
+                "the holed plate",
+                extruded(vec![square(), hole_rim], -0.5, 0.5),
+            );
+            for (op, r, want) in every_op_both_orders(&boss, &holed, (vb, vh, 0.0), tol()) {
+                let row = format!("{pose}, φ = {phi}: {op}");
+                match op {
+                    "A ∩ B" | "B ∩ A" => reads_as(&row, r, want, Reads::Empty),
+                    "A ∖ B" | "B ∖ A" => reads_as(&row, r, want, Reads::Sound(1)),
+                    _ if pose == "swapped" => assert!(
+                        matches!(r, Err(BooleanError::ClassificationInvariant { .. })),
+                        "{row}: {:?}",
+                        r.map(|_| "a body")
+                    ),
+                    _ => united_at_the_run(&row, r, want, run),
+                }
+            }
+        }
+    }
 }
