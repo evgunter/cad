@@ -20,8 +20,10 @@
 //! edge-plane lane rather than the parallel pair's radical plane. That
 //! lane copies its edge on the edge's own side, the ellipse's own curve.
 //! Past the copy, at spins `(0, 0)` every op builds a sound body at its
-//! closed form, but its certified enclosure is wider than
-//! `differential`'s budget; at every other pose every op refuses
+//! closed form, but above ε = 1e-12 its certified enclosure is wider
+//! than `differential`'s budget (to `1.1e-5` m³ at ε = 1e-9, `5.7e-5`
+//! at 1e-6), so it is judged against [`PAD_CEILING`]; at every other
+//! pose every op refuses
 //! `UnpairedLooseEnds`
 //! (`honejoin/the-edge-plane-lane-copies-no-ellipse-edge`). The pins
 //! name those endings exactly, so a fix to either moves them.
@@ -29,7 +31,9 @@
 
 use core::f64::consts::{FRAC_PI_2, PI};
 
-use crate::common::differential::{VOLUME_CLAIM, outcome};
+use crate::common::differential::{
+    VOLUME_PAD_BUDGET, Verdict, judged_within, outcome,
+};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::test_support::{brick, finished};
 use topo::{AtRestBody, BooleanError, BooleanResult, SplitJoinError};
@@ -95,29 +99,11 @@ fn shared(x0: f64) -> f64 {
 /// edge.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Ending {
-    /// A body passing tiers 2 and 3′, the at-rest certificate and the
-    /// legal-operand check, the closed form within its certified volume
-    /// enclosure ([`sound`]).
+    /// A body `differential` judges `SOUND` against an enclosure no
+    /// wider than [`PAD_CEILING`].
     Builds,
     /// The join's loose ends left unpaired.
     LooseEnds,
-}
-
-/// Whether `bb` passes tiers 2 and 3′, the at-rest certificate and the
-/// legal-operand check (it unites with a far brick), with `volume`
-/// within its certified enclosure.
-fn sound(bb: &topo::BooleanBody<f64>, volume: f64, tol: Tol) -> bool {
-    let far = finished(
-        "the far brick",
-        brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol),
-        tol,
-    );
-    let m = topo::test_support::pinned_volume("the result", &bb.body, tol);
-    topo::validate_closed(&bb.body).is_ok()
-        && topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol).is_ok()
-        && topo::validate_geometric_certificate(&bb.body, tol).is_ok()
-        && topo::union(&bb.body, &far, tol).is_ok()
-        && (m.volume - volume).abs() <= VOLUME_CLAIM + m.volume_pad
 }
 
 /// The lines of the six ops at `(spin A, spin B, x0)` that do not end
@@ -135,19 +121,19 @@ fn not_ending((sa, sb, x0): (f64, f64, f64), want: Ending) -> Vec<String> {
         ("A ∖ B", topo::subtract(&a, &b, tol), va - s),
         ("B ∖ A", topo::subtract(&b, &a, tol), vb - s),
     ] {
-        let ending = match &r {
-            Err(BooleanError::Join(j))
-                if matches!(j.error(), SplitJoinError::UnpairedLooseEnds { .. }) =>
-            {
-                Some(Ending::LooseEnds)
-            }
-            Ok(BooleanResult::Body(bb)) if sound(bb, volume, tol) => Some(Ending::Builds),
-            _ => None,
+        let loose = matches!(
+            &r,
+            Err(BooleanError::Join(j)) if matches!(j.error(), SplitJoinError::UnpairedLooseEnds { .. })
+        );
+        let (ending, line) = if loose {
+            (Some(Ending::LooseEnds), outcome(r, volume, tol))
+        } else {
+            let j = judged_within(r, Some(volume), tol, PAD_CEILING);
+            ((j.verdict == Verdict::Sound).then_some(Ending::Builds), j.line)
         };
         if ending != Some(want) {
             lines.push(format!(
-                "spins ({sa}, {sb}), B from x = {x0} | {op} | {}",
-                outcome(r, volume, tol)
+                "spins ({sa}, {sb}), B from x = {x0} | {op} | {line}"
             ));
         }
     }
@@ -224,13 +210,12 @@ fn the_shared_closed_form_agrees_with_a_slicing() {
     }
 }
 
-/// The widest certified volume enclosure (`volume_pad`, m³) a review
-/// row below accepts at any ε the suite runs: measured at review of PR
-/// 5940 (2026-10-28) at most `5.7e-5` for the rods and `4.3e-4` for the
-/// halves (ε = 1e-6), `1.1e-5` and `6.6e-6` at 1e-9. Wider than
-/// `differential::VOLUME_PAD_BUDGET`, which these bodies do not meet
-/// above ε = 1e-12, so [`sound`] alone (no pad bound) passes a body
-/// whose enclosure has widened without limit.
+/// The widest certified volume enclosure (`volume_pad`, m³) these
+/// bodies are judged against at any ε the suite runs, in place of
+/// `differential::VOLUME_PAD_BUDGET`, which they do not meet above
+/// ε = 1e-12: measured at review of PR 5940 (2026-10-28) at most
+/// `5.7e-5` for the rods and `4.3e-4` for the halves (ε = 1e-6),
+/// `1.1e-5` and `6.6e-6` at 1e-9.
 const PAD_CEILING: f64 = 1e-3;
 
 /// How far the enclosure's midpoint may sit from the closed form, m³:
@@ -238,35 +223,25 @@ const PAD_CEILING: f64 = 1e-3;
 /// 1e-6) and under `1e-7` everywhere else.
 const MIDPOINT: f64 = 1e-5;
 
-/// `r` built a body passing tiers 2 and 3′, the at-rest certificate
-/// and the legal-operand check ([`sound`]), whose enclosure is no wider
-/// than [`PAD_CEILING`] and whose midpoint lies within [`MIDPOINT`] of
-/// `want`; at ε ≤ 1e-12 `differential` judges it `SOUND` with its own
-/// pad budget. The failing line otherwise.
+/// `r` judged `SOUND` against [`PAD_CEILING`], its enclosure's midpoint
+/// within [`MIDPOINT`] of `want`, and at ε ≤ 1e-12 its enclosure within
+/// `differential`'s own budget. The failing line otherwise.
 fn held(
     what: &str,
     r: Result<BooleanResult<f64>, BooleanError>,
     want: f64,
     tol: Tol,
 ) -> Option<String> {
-    use crate::common::differential::{Verdict, judged};
-    let Ok(BooleanResult::Body(bb)) = &r else {
-        return Some(format!("{what} | {}", outcome(r, want, tol)));
-    };
-    let m = topo::test_support::pinned_volume(what, &bb.body, tol);
-    let bounded =
-        sound(bb, want, tol) && m.volume_pad <= PAD_CEILING && (m.volume - want).abs() <= MIDPOINT;
-    let (v, pad) = (m.volume, m.volume_pad);
-    let j = judged(r, Some(want), tol);
-    let tight = tol.eps() > 1e-12 || j.verdict == Verdict::Sound;
-    (!(bounded && tight)).then(|| format!("{what} | v={v} pad={pad:e} want={want} | {}", j.line))
+    let j = judged_within(r, Some(want), tol, PAD_CEILING);
+    let midpoint = j.volume.is_some_and(|v| (v - want).abs() <= MIDPOINT);
+    let tight = tol.eps() > 1e-12 || j.pad.is_some_and(|pad| pad <= VOLUME_PAD_BUDGET);
+    (!(j.verdict == Verdict::Sound && midpoint && tight)).then(|| format!("{what} | {}", j.line))
 }
 
 /// **At spins `(0, 0)` the six ops hold their closed forms to a
 /// bounded enclosure** (review of PR 5940): what
 /// [`crossing_rods_end_past_the_ellipse_edge_copy_at_every_spin`] reads
-/// as `Builds` through [`sound`], whose volume check widens with the
-/// enclosure, held here to [`PAD_CEILING`] and [`MIDPOINT`].
+/// as `Builds`, held here to [`MIDPOINT`] as well.
 #[test]
 fn crossing_rods_at_rest_spins_hold_a_bounded_enclosure() {
     let tol = Tol::witness();

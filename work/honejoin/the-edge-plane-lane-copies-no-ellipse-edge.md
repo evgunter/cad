@@ -94,7 +94,9 @@ source edge's own. Measured on that branch at ε = 1e-9, 1e-6 and
 - spins `(0, 0)`, `B` from `x = 0.2`: every op in both orders builds,
   passing tiers 2 and 3′, the at-rest certificate and the
   legal-operand check, the closed form inside the certified enclosure,
-  whose pad (to `1.1e-5` m³) is over `differential`'s `1e-7` budget;
+  whose pad is over `differential`'s `1e-7` budget above ε = 1e-12
+  (to `1.1e-5` m³ at ε = 1e-9, `5.7e-5` at 1e-6), so the pins judge it
+  against a stated ceiling (`PAD_CEILING`, `1e-3`);
 - spins `(0.4, 0.3)` and `(1.0, −0.7)` from `x = 0.2`, and `(0.4, 0.3)`
   from `x = 0.5`: every op refuses `Join(UnpairedLooseEnds { count: 4 })`.
 

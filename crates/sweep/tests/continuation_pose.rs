@@ -43,6 +43,13 @@ const TILT: f64 = PI / 3.0;
 /// The slab: `x ∈ [−3, 3]`, `y ∈ [−1, 1]`, `z ∈ [0, 1]`.
 const SLAB: [(f64, f64); 3] = [(-3.0, 3.0), (-1.0, 1.0), (0.0, 1.0)];
 const SLAB_VOLUME: f64 = 12.0;
+/// The widest certified volume enclosure (`volume_pad`, m³) a result is
+/// read against its closed form through: measured on PR 5940
+/// (2026-10-28) at most `1.4e-6` at ε = 1e-9, `1.2e-5` at 1e-6 and
+/// `5.0e-10` at 1e-12, all at the tilted plug's ellipse-bounded faces,
+/// where `differential::VOLUME_PAD_BUDGET` (`1e-7`) does not hold above
+/// 1e-12. A pad past it is a quadrature that widened, not a pass.
+const PAD_CEILING: f64 = 1e-4;
 
 /// The rigid poses the scene is turned through, together: the identity
 /// and three turns about each world axis and about a skew one, all
@@ -193,6 +200,11 @@ fn every_op(
         );
         let m = topo::test_support::pinned_volume(&label, &out.body, tol);
         assert!(
+            m.volume_pad <= PAD_CEILING,
+            "{label}: the volume enclosure ± {} is wider than {PAD_CEILING}",
+            m.volume_pad
+        );
+        assert!(
             (m.volume - truth).abs() <= m.volume_pad + 1e-9 * truth,
             "{label}: volume {} ± {} against the closed form {truth}",
             m.volume,
@@ -207,18 +219,22 @@ fn every_op(
         );
         let joined = topo::union(&out.body, &far, tol)
             .unwrap_or_else(|e| panic!("{label}: ∪ a far brick: {e:?}"));
-        let j = topo::mass_properties(
+        let j = topo::test_support::pinned_volume(
+            &format!("{label}: ∪ a far brick"),
             &joined.body().expect("not empty").body,
             tol,
-            topo::test_support::pinned_resolution(tol),
-        )
-        .unwrap_or_else(|e| panic!("{label}: ∪ a far brick: mass properties {e:?}"));
+        );
         assert!(
-            (j.enclosure.volume - (truth + 1.0)).abs()
-                <= j.enclosure.volume_pad + 1e-9 * (truth + 1.0),
+            j.volume_pad <= PAD_CEILING,
+            "{label}: ∪ a far brick: the volume enclosure ± {} is wider than {PAD_CEILING}",
+            j.volume_pad
+        );
+        assert!(
+            (j.volume - (truth + 1.0)).abs()
+                <= j.volume_pad + 1e-9 * (truth + 1.0),
             "{label}: ∪ a far brick: volume {} ± {} against {}",
-            j.enclosure.volume,
-            j.enclosure.volume_pad,
+            j.volume,
+            j.volume_pad,
             truth + 1.0
         );
         Reading::Body {
