@@ -858,3 +858,11 @@ has no NURBS×NURBS arm and refuses spline pairs. SPLICE files that row.
 SELECT owns the selector type (unit 1) and import's recovery (unit 6).
 The boolean-recovery unit is in no program's list yet. SPLICE takes it
 once Ev rules, and asks SELECT's blessing on the PR.
+
+## 2026-10-28 — Ev approves the limb-3 re-wording (PR 5933)
+
+Ev: "nice catch, sounds good!". C2 now opens on a witness-selected
+carrier, and a structural selector is certified per surface, owing no
+limb 3. Fork-log row 208 is completed: B's first recommendation, as
+converged. Next is the boundary-row recovery in the boolean's
+`describe_edges` and the split's `finish`, which SPLICE takes.
