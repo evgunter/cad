@@ -222,3 +222,36 @@ fn missing_pcurve_caches_refuse_typed() {
         other => panic!("expected the typed missing-cache refusal, got {other:?}"),
     }
 }
+
+/// **A trimmed wall whose `sense` disagrees with its loops refuses
+/// `TrimLoopOrientation`.** The loop runs interior-left about the face's
+/// outward normal, so on the cylinder chart its polygon runs
+/// counter-clockwise exactly when `sense` is true. Flipping the bit of
+/// the tilted half's trimmed wall alone (an inside-out face, the
+/// discriminating input `flipped_face_sense_for_tests` exists for)
+/// leaves the polygon counter-clockwise against a reversed face: meshed,
+/// its triangles would wind inward. It refuses instead, naming the face.
+#[test]
+fn a_wall_wound_against_its_sense_refuses_typed() {
+    let (above, _) = halves();
+    let wall = above
+        .faces()
+        .find(|(_, f)| {
+            matches!(
+                above.get_surface(f.surface),
+                Some(geom::Surface::Cylinder { .. })
+            )
+        })
+        .map(|(k, _)| k)
+        .expect("the trimmed wall");
+    let flipped = above
+        .flipped_face_sense_for_tests(wall)
+        .expect("a live face");
+    match mesh::tessellate(&flipped, 0.01, Tol::witness()) {
+        Err(mesh::TessellateError::TrimLoopOrientation { face }) => assert_eq!(face, wall),
+        other => panic!(
+            "the inside-out wall refuses typed, got {:?}",
+            other.map(|_| ())
+        ),
+    }
+}

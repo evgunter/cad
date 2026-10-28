@@ -4089,7 +4089,16 @@ mod verbs_gate_r1_probes {
             .unwrap_or_else(|e| panic!("the carve draws, got {e:?}"));
         pncad::mesh::validate::check_mesh(&draw)
             .unwrap_or_else(|e| panic!("the carve's mesh checks, got {e:?}"));
-        pncad::mesh::validate::check_volume(&draw, va - lens, 2e-3)
+        let carved_area = pncad::topo::mass_properties(
+            &crate::booleans::at_rest(&carved, tol),
+            tol,
+            crate::printed(),
+        )
+        .expect("the carve's area integrates")
+        .enclosure
+        .surface_area
+        .f();
+        pncad::mesh::validate::check_volume(&draw, va - lens, carved_area, 2e-3)
             .unwrap_or_else(|e| panic!("the carve's mesh encloses the carve, got {e:?}"));
         // All three do not: the seam a third of a turn round lies inside
         // one half-band of the zone, a ring of that face.

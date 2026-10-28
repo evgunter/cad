@@ -47,9 +47,9 @@ to 4e-3, the pole-strut slab at 4e-2, and a slab tilted −20° at 2e-2.
 **Why no patch sees it alone.** The four-use edge is the ear's
 DIAGONAL, and each patch uses it twice: the ear on one side, its
 neighbour triangle on the other, as any interior edge. A per-patch
-count of segment uses does not see it. The pass added that census too
-(`trimmed::segment_reused`, refusing `ChordSegmentReused`), and it
-fired on none of the 17.
+count of segment uses does not see it. The first fix pass added that
+census too; it fired on none of the 17, its mutant survived, and the
+second pass deleted it with its variant.
 
 **What ships (the cure).** A curved face on an analytic arm (trimmed
 cylinder or sphere) keeps no ear. A kept triangle on three consecutive

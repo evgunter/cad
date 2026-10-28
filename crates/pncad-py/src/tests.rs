@@ -5973,7 +5973,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "boundary_ear",
             "certificate_exceeded",
-            "chord_segment_reused",
             "empty_loop",
             "folded_triangle",
             "invalid_chordal_tolerance",

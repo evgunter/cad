@@ -31,7 +31,7 @@ use topo::{AtRestBody, BooleanError, BooleanResult};
 use crate::common::differential::outcome;
 use crate::common::oracles::{ball_lens as lens, ball_volume, cap_volume};
 
-use Want::{Draws, Folds, Refuses, Unmeshed};
+use Want::{Budget, Draws, Folds, Refuses};
 
 /// A `y`-poled ball of radius `r` turned by `turn`, then moved to `c`.
 fn placed(r: f64, turn: Affine3<f64>, c: Vec3<f64>) -> AtRestBody<f64> {
@@ -89,10 +89,11 @@ enum Want {
     /// beside it near a chart pole
     /// (`work/tess/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`).
     Folds,
-    /// `SOUND`, and not meshed in this suite: the tilted circle passes so
-    /// near a chart pole that its uniform chord schedule asks millions of
-    /// chords (under `sizing::MAX_COUNT`, minutes in a debug build).
-    Unmeshed,
+    /// `SOUND`, and the mesher refuses at once: the tilted circle passes
+    /// so near a chart pole that its uniform chord schedule asks one edge
+    /// for more chords than the sphere arm's budget
+    /// (`SphereTrimShape { ChordBudget }`).
+    Budget,
     /// A typed refusal the predicate accepts.
     Refuses(fn(&BooleanError) -> bool),
 }
@@ -121,9 +122,7 @@ fn check(
             let m = mesh::tessellate(&bb.body, 5e-3, tol)
                 .unwrap_or_else(|e| panic!("{label}: the mesh: {e:?}"));
             mesh::validate::check_mesh(&m).unwrap_or_else(|e| panic!("{label}: the mesh: {e:?}"));
-            mesh::validate::check_volume(&m, volume, 5e-3)
-                .unwrap_or_else(|e| panic!("{label}: the mesh encloses the body, got {e:?}"));
-            crate::common::differential::assert_outward(label, &bb.body, &m);
+            crate::common::differential::assert_meshed_geometry(label, &bb.body, &m, 5e-3);
         }
         Folds => {
             let drawn = mesh::tessellate(&bb.body, 5e-3, tol);
@@ -133,7 +132,20 @@ fn check(
                 drawn.map(|m| m.positions.len())
             );
         }
-        Unmeshed => {}
+        Budget => {
+            let drawn = mesh::tessellate(&bb.body, 5e-3, tol);
+            assert!(
+                matches!(
+                    &drawn,
+                    Err(mesh::TessellateError::SphereTrimShape {
+                        cause: mesh::types::SphereTrimCause::ChordBudget,
+                        ..
+                    })
+                ),
+                "{label}: the chord-budget refusal, got {:?}",
+                drawn.map(|m| m.positions.len())
+            );
+        }
         Refuses(_) => unreachable!(),
     }
     let v = topo::test_support::pinned_volume("the measured body", &bb.body, tol).volume;
@@ -397,8 +409,8 @@ fn two_trimmed_spheres_build() {
 /// schedule the circle asks near the pole draws the unit ball's
 /// remnant in three ops and folds a triangle over the chord beside the
 /// pole in the other three, which refuse typed ([`Want::Folds`]). At
-/// `10⁻⁷` the schedule asks millions of chords, and the suite does not
-/// mesh it ([`Want::Unmeshed`]).
+/// `10⁻⁷` the schedule asks one edge for more chords than the sphere
+/// arm's budget, and the mesher refuses at once ([`Want::Budget`]).
 /// The distances are band-relative (at `ε = 10⁻⁶` the `10⁻⁵` circle's
 /// crossings read the meridian's half in the escalation gap), so the
 /// other ε rows stand down.
@@ -436,7 +448,7 @@ fn a_trimmed_face_cut_beside_its_pole_builds() {
             } else if delta > 1e-6 {
                 [Folds, Folds, Folds, Draws, Draws, Draws]
             } else {
-                [Unmeshed; 6]
+                [Budget; 6]
             },
         );
     }

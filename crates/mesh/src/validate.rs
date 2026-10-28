@@ -231,18 +231,6 @@ pub fn signed_volume(mesh: &Mesh) -> f64 {
     six_v / 6.0
 }
 
-/// Total area of the mesh's triangles.
-pub fn surface_area(mesh: &Mesh) -> f64 {
-    mesh.patches
-        .iter()
-        .flat_map(|p| p.triangles.iter())
-        .map(|tri| {
-            let [a, b, c] = tri.map(|i| mesh.positions[i as usize]);
-            0.5 * (b - a).cross(c - a).norm()
-        })
-        .sum()
-}
-
 /// A mesh whose enclosed volume misses the body's ([`check_volume`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct VolumeMismatch {
@@ -250,22 +238,32 @@ pub struct VolumeMismatch {
     pub mesh: f64,
     /// The body's volume the mesh was checked against.
     pub expected: f64,
-    /// The largest miss the chordal deficit allows: `δ ·`
-    /// [`surface_area`].
+    /// The largest miss the chordal deficit allows: `δ ·` the body's
+    /// surface area.
     pub bound: f64,
 }
 
-/// Whether the mesh encloses `volume`, the body's own (its mass
-/// properties), to within its chordal deficit. Every triangle of a mesh
-/// tessellated at `delta` lies within `delta` of the surface it stands
-/// for, so the region between the two is no thicker than `delta` over
-/// the mesh's own area: `|signed_volume − volume| ≤ delta · area`. What
-/// this sees that [`check_mesh`] cannot is GEOMETRY — a face meshed as
-/// its complement, or wound inward, is a closed manifold mesh whose
+/// Whether the mesh encloses `volume`, the body's own, to within its
+/// chordal deficit, read off the body's own surface `area` (both from
+/// its mass properties, never from the mesh).
+///
+/// THE ARGUMENT. Every triangle of a mesh tessellated at `delta` is
+/// certified within `delta` of the surface it stands for, so along each
+/// surface normal the mesh and the surface are at most `delta` apart,
+/// on one side or the other. The region between them is therefore no
+/// thicker than `delta` over the surface, and the enclosed volumes
+/// differ by at most `delta · area` (to first order in `delta` times the
+/// surface's curvature, which the certified meshes here keep far below
+/// one). The bound is the body's area, not the mesh's: a mesh with
+/// spurious area (a folded or doubled face) must not loosen its own
+/// check.
+///
+/// What this sees that [`check_mesh`] cannot is GEOMETRY: a face meshed
+/// as its complement, or wound inward, is a closed manifold mesh whose
 /// volume misses by a face's worth.
-pub fn check_volume(mesh: &Mesh, volume: f64, delta: f64) -> Result<(), VolumeMismatch> {
+pub fn check_volume(mesh: &Mesh, volume: f64, area: f64, delta: f64) -> Result<(), VolumeMismatch> {
     let got = signed_volume(mesh);
-    let bound = delta * surface_area(mesh);
+    let bound = delta * area;
     if (got - volume).abs() <= bound {
         Ok(())
     } else {

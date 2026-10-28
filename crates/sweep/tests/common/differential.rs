@@ -406,9 +406,7 @@ pub fn assert_sound_and_meshed(
     let mesh = mesh::tessellate(&bb.body, 5e-3, tol)
         .unwrap_or_else(|e| panic!("{label}: the mesh: {e:?}"));
     mesh::validate::check_mesh(&mesh).unwrap_or_else(|e| panic!("{label}: the mesh: {e:?}"));
-    mesh::validate::check_volume(&mesh, want, 5e-3)
-        .unwrap_or_else(|e| panic!("{label}: the mesh encloses the body, got {e:?}"));
-    assert_outward(label, &bb.body, &mesh);
+    assert_meshed_geometry(label, &bb.body, &mesh, 5e-3);
     let line = outcome(r, want, tol);
     assert!(line.starts_with("OK SOUND"), "{label}: {line}");
 }
@@ -898,6 +896,32 @@ pub fn nt_poly_volume(poly: &NtPoly) -> f64 {
         / 6.0
 }
 
+/// The body's mass properties at the pinned resolution: its volume and
+/// its surface area, read off the B-rep.
+pub fn body_props(body: &Body<f64>) -> topo::MassProperties<f64> {
+    topo::test_support::pinned_volume(
+        "the meshed body",
+        &sweep::test_support::at_rest(body, Tol::witness()),
+        Tol::witness(),
+    )
+}
+
+/// [`body_props`]' volume.
+pub fn body_volume(body: &Body<f64>) -> f64 {
+    body_props(body).volume
+}
+
+/// **The mesh's geometry, against the body's.** Its volume within the
+/// chordal deficit of the body's, both read off the B-rep
+/// (`mesh::validate::check_volume`), and every sphere- and
+/// cylinder-face triangle wound outward ([`assert_outward`]).
+pub fn assert_meshed_geometry(label: &str, body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) {
+    let p = body_props(body);
+    mesh::validate::check_volume(mesh, p.volume, p.surface_area, delta)
+        .unwrap_or_else(|e| panic!("{label}: the mesh encloses the body, got {e:?}"));
+    assert_outward(label, body, mesh);
+}
+
 /// **Every sphere- and cylinder-face triangle of `mesh` winds outward.**
 /// A triangle's normal, as the mesh winds it, must point the way its
 /// face's outward normal does at its centroid: off the sphere's centre,
@@ -905,7 +929,10 @@ pub fn nt_poly_volume(poly: &NtPoly) -> f64 {
 /// triangle folded over the chord beside it, or a face meshed inside
 /// out, is a closed manifold mesh that [`mesh::validate::check_mesh`]
 /// passes; this is the geometry it does not read. Faces on other
-/// surfaces are not read.
+/// surfaces are not read. It spells the outward direction itself rather
+/// than calling the mesher's `TrimmedFace::outward` on purpose: it is
+/// the independent oracle the mesher's census is checked against, and
+/// it reads every face the mesh has, curved-lane faces included.
 pub fn assert_outward(label: &str, body: &Body<f64>, mesh: &mesh::Mesh) {
     for patch in &mesh.patches {
         let face = body.get_face(patch.face).expect("the patch's face");

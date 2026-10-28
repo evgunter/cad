@@ -438,14 +438,11 @@ fn the_oblique_corners_mesh() {
             .unwrap_or_else(|e| panic!("{name} at r {r}: the mesh, got {e:?}"));
         mesh::validate::check_mesh(&mesh)
             .unwrap_or_else(|e| panic!("{name} at r {r}: the mesh checks, got {e:?}"));
-        let volume = topo::test_support::pinned_volume(
-            "the filleted body",
-            &sweep::test_support::at_rest(&f.body, Tol::witness()),
-            Tol::witness(),
-        )
-        .volume;
-        mesh::validate::check_volume(&mesh, volume, 5e-3)
-            .unwrap_or_else(|e| panic!("{name} at r {r}: the mesh encloses the body, got {e:?}"));
-        crate::common::differential::assert_outward(&format!("{name} at r {r}"), &f.body, &mesh);
+        crate::common::differential::assert_meshed_geometry(
+            &format!("{name} at r {r}"),
+            &f.body,
+            &mesh,
+            5e-3,
+        );
     }
 }

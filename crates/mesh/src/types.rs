@@ -535,12 +535,12 @@ pub enum TessellateError {
     /// or sphere) winds against the face's orientation: the loop runs
     /// interior-left about the face's outward normal, so its polygon in
     /// the chart runs counter-clockwise exactly when `sense` is true,
-    /// and one that does not bounds the face's complement. On the
-    /// sphere chart it also answers when no choice of azimuth across the
-    /// loop's poles makes the polygon the face's own region (its
-    /// equal-area shoelace `∮ u d(sin v)` inside `(0, 4π)` with the
-    /// sign the sense asks). Meshing it would ship the complement, or
-    /// the face wound inward, as a closed manifold mesh, so it refuses.
+    /// and one that does not bounds the face's complement. Meshing it
+    /// would ship the complement, or the face wound inward, as a closed
+    /// manifold mesh, so it refuses. A valid body does not reach it (the
+    /// sphere arm's pole placement, `trimmed::choose_pole_azimuths`,
+    /// refuses its own scope limits as [`Self::SphereTrimShape`]); a
+    /// face whose `sense` disagrees with its loops does.
     TrimLoopOrientation {
         /// The face whose trim polygon was refused.
         face: FaceKey,
@@ -554,16 +554,6 @@ pub enum TessellateError {
     /// refuses it.
     FoldedTriangle {
         /// The face whose patch folds.
-        face: FaceKey,
-    },
-    /// One patch uses one boundary chord segment twice: the face cut an
-    /// ear of a chord chain it shares with another face (the triangle on
-    /// three consecutive chord points), so that segment's two uses are
-    /// both this face's, and the neighbour that cuts the same ear leaves
-    /// an edge of four triangles. A pseudomanifold edge where four faces
-    /// each use a segment once is a different shape and is not this.
-    ChordSegmentReused {
-        /// The face whose patch reuses the segment.
         face: FaceKey,
     },
     /// A trimmed face on an analytic chart keeps an ear of its boundary
@@ -620,6 +610,18 @@ pub enum SphereTrimCause {
     /// closed-form azimuth speed bound `|p′|/ρ` is unbounded on it: no
     /// chord schedule is sized, because none is bounded.
     ThroughPole,
+    /// The loop passes its chart poles at more junctions than the arm
+    /// searches the runs between them for (`trimmed::MAX_POLE_JUNCTIONS`).
+    PoleJunctions,
+    /// No placement of the loop's runs between its poles a whole turn
+    /// either way bounds a region of the face's orientation with an
+    /// area inside the sphere's, or two placements tie.
+    PoleAzimuth,
+    /// The sphere's tightening asks one edge for more chords than the
+    /// arm's per-edge budget (`trimmed::MAX_SPHERE_EDGE_CHORDS`): a
+    /// tilted circle passing near a chart pole, whose uniform schedule is
+    /// as fine everywhere as at its closest approach.
+    ChordBudget,
 }
 
 impl SphereTrimCause {
@@ -630,6 +632,9 @@ impl SphereTrimCause {
             Self::PoleInside => "pole_inside",
             Self::SeamTwice => "seam_twice",
             Self::ThroughPole => "through_pole",
+            Self::PoleJunctions => "pole_junctions",
+            Self::PoleAzimuth => "pole_azimuth",
+            Self::ChordBudget => "chord_budget",
         }
     }
 }
@@ -837,12 +842,6 @@ impl core::fmt::Display for TessellateError {
                  it and is wound against the face in 3-D — the mesh would be \
                  closed and wrong, so it is refused; a finer δ may clear it",
             ),
-            Self::ChordSegmentReused { .. } => f.write_str(
-                "tessellate: a face's patch uses one boundary chord segment twice, \
-                 cutting an ear of a chord chain it shares with another face — the \
-                 two faces would meet in an edge of four triangles; a different δ \
-                 may clear it",
-            ),
             Self::BoundaryEar { .. } => f.write_str(
                 "tessellate: a trimmed face's patch keeps a triangle on three \
                  consecutive boundary chord points after its retries — the face \
@@ -866,6 +865,20 @@ impl core::fmt::Display for TessellateError {
                     SphereTrimCause::ThroughPole => {
                         "a tilted circle of its boundary passes so near a chart pole \
                          that its image's azimuth speed has no bound to size chords by"
+                    }
+                    SphereTrimCause::PoleJunctions => {
+                        "its loop passes the chart's poles at more junctions than the \
+                         arm searches"
+                    }
+                    SphereTrimCause::PoleAzimuth => {
+                        "no placement of its loop's runs between the chart's poles \
+                         bounds a region of the face's orientation and area"
+                    }
+                    SphereTrimCause::ChordBudget => {
+                        "a tilted circle of its boundary passes so near a chart pole \
+                         that chording it asks more points of one edge than the arm's \
+                         budget; re-pose the sphere so its chart poles are away from \
+                         its circles"
                     }
                 };
                 write!(

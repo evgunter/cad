@@ -56,6 +56,10 @@ defined:
   the criterion it stands in for.
 - **termination:** `trimmed::MAX_GRID_RETRIES` decides when to stop and
   refuse, and never changes a mesh's shape.
+- **work:** `trimmed::MAX_SPHERE_EDGE_CHORDS` (2¹⁶) is the chords the
+  trimmed sphere's tightening may ask of one edge before it refuses
+  typed. It keeps one face's CDT at about a second in release, and its
+  measurement is stated where it is defined.
 - **certificate resolution:** `geom_brep::patch_bound::RATIONAL_CERT_SPLITS`
   sets how tight the rational bound is.
 

@@ -51,16 +51,18 @@
 //! ([`sphere_polygon_shape`]), and each run of the loop between two
 //! poles is placed a whole turn where its equal-area shoelace says the
 //! face is ([`choose_pole_azimuths`]). A face holding a pole inside it,
-//! and a tilted circle passing so near a pole that its chord schedule
-//! would be finer than the whole sphere's lattice
-//! (`chords::sphere_arm_tighten`), refuse typed
+//! a loop whose runs between poles cannot be placed, and a tilted circle
+//! passing so near a pole that its chord schedule asks one edge for more
+//! than the arm's budget ([`MAX_SPHERE_EDGE_CHORDS`],
+//! `chords::sphere_arm_tighten`), refuse typed
 //! ([`TessellateError::SphereTrimShape`]). On both analytic arms a trim
 //! polygon wound against the face refuses typed
 //! ([`TessellateError::TrimLoopOrientation`]), a triangle folded over
 //! the chord beside it is dropped and rebuilt or refuses
-//! ([`TessellateError::FoldedTriangle`]), and a patch using a chord
-//! segment more often than its polygon walks it refuses
-//! ([`TessellateError::ChordSegmentReused`]). Conic and B-spline trims
+//! ([`TessellateError::FoldedTriangle`]), and a triangle on three
+//! consecutive boundary points (an ear of a chain the neighbour may cut
+//! too) is split by its centroid and rebuilt, or refuses
+//! ([`TessellateError::BoundaryEar`]). Conic and B-spline trims
 //! on cone/sphere/torus charts refuse typed naming that frontier (their
 //! pcurves mint since M6-3; the trimmed-lane geometry for them is
 //! unwritten). A **fitted** (rung-3) chart image still refuses typed
@@ -179,11 +181,23 @@ use crate::types::{SphereTrimCause, TessellateError};
 
 /// Retry budget for the rebuild loop (module docs). **Termination.**
 ///
-/// One round budget covers both retry kinds — the grid-on-constraint
-/// drops and the certificate-driven refinement — and it is a
-/// typed-refusal backstop rather than a tuning knob: exhausting it
-/// raises [`TessellateError`], it never coarsens or accepts a mesh.
+/// One round budget covers all four retry kinds — the grid-on-constraint
+/// drops, the certificate-driven refinement, the fold drops and the ear
+/// splits — and it is a typed-refusal backstop rather than a tuning
+/// knob: exhausting it raises [`TessellateError`], it never coarsens or
+/// accepts a mesh. The loop reads it through [`last_attempt`].
 const MAX_GRID_RETRIES: usize = 6;
+
+/// The retry loop's last attempt: [`MAX_GRID_RETRIES`], or under
+/// `cfg(test)` an override a row sets to reach an exhaustion refusal
+/// through the real call path (`tests::LAST_ATTEMPT`).
+fn last_attempt() -> usize {
+    #[cfg(test)]
+    if let Some(k) = tests::LAST_ATTEMPT.with(std::cell::Cell::get) {
+        return k;
+    }
+    MAX_GRID_RETRIES
+}
 
 /// **The trimmed cylinder's unproved headroom**: the lane sizes its
 /// lattice, and the chord pass chords this face's edges
@@ -214,6 +228,21 @@ pub(crate) const UNPROVED_HEADROOM: f64 = 0.5;
 /// **Structural** (it bounds a search, as `sizing::MAX_COUNT` bounds an
 /// allocation).
 const MAX_POLE_JUNCTIONS: usize = 4;
+
+/// **The sphere arm's per-edge chord budget**, `2^16`. **Work**: it
+/// bounds what one face's CDT is asked to hold, as `sizing::MAX_COUNT`
+/// bounds an allocation. A tilted circle passing a chart pole at polar
+/// distance `d` asks about `ρ_c·Δt/(r·d·h_u)` chords of its edge
+/// (`chords::sphere_arm_tighten`), and every one enters the face's CDT.
+/// Measured in release on the tilted pair of unit balls (PR 5920's
+/// second fix pass): 3.7·10⁴ boundary points mesh in 0.2–0.3 s, and
+/// 5.7·10⁵ take 18–62 s per attempt, ending folded either way. The
+/// budget keeps one face's boundary under about 10⁵ points, about a
+/// second; an edge asking more refuses `SphereTrimShape { ChordBudget }`
+/// at once. It is a count, not a share of the lattice, so a coarser δ
+/// (which asks fewer chords) never refuses where a finer one meshes. A
+/// circle far from the poles reaches it only at a δ about `10⁻⁹·r`.
+pub(crate) const MAX_SPHERE_EDGE_CHORDS: usize = 1 << 16;
 
 /// Whether face `fk` is meshed by one of this lane's two analytic arms,
 /// the trimmed cylinder or the trimmed sphere: the faces whose lattice
@@ -264,7 +293,8 @@ pub(crate) fn has_tilted_circle(body: &Body<f64>, fk: FaceKey) -> Result<bool, T
 /// **The trimmed sphere's lattice steps** `(h_u, h_v)`, in radians of
 /// azimuth and latitude: the curved lane's sphere steps
 /// ([`crate::sizing::sphere_grid_steps`]) at [`UNPROVED_HEADROOM`]·δ,
-/// over the face's own latitude window ([`sphere_widest_cos`]). The
+/// over the face's own latitude window
+/// ([`crate::sizing::sphere_face_widest_cos`]). The
 /// chord pass reads the same steps to bound each boundary chord's UV
 /// step (`chords::sphere_arm_tighten`), so the lattice and the trim
 /// polygon are sized from one value.
@@ -274,76 +304,18 @@ pub(crate) fn sphere_lattice_steps(
     surface: &Surface<f64>,
     delta: f64,
 ) -> Result<(f64, f64), TessellateError> {
-    let Surface::Sphere {
-        center,
-        radius,
-        axis,
-        ..
-    } = *surface
-    else {
+    let Surface::Sphere { radius, .. } = *surface else {
         return Err(TessellateError::MissingEntity {
             what: "sphere arm on a non-sphere surface",
         });
     };
-    let widest = sphere_widest_cos(body, fk, center, axis, radius)?;
+    let widest = crate::sizing::sphere_face_widest_cos(body, fk, surface)?;
     #[cfg(test)]
     let scale = tests::SPHERE_STEP_SCALE.with(std::cell::Cell::get);
     #[cfg(not(test))]
     let scale = 1.0;
     let (hu, hv) = crate::sizing::sphere_grid_steps(delta * UNPROVED_HEADROOM, radius, widest);
     Ok((hu * scale, hv * scale))
-}
-
-/// The cosine of a trimmed sphere face's latitude nearest the equator,
-/// from its boundary circles' own latitude ranges: each circle's height
-/// along the axis is `c + a·cos t + b·sin t` in its parameter, whose
-/// range over the edge's interval is closed form ([`harmonic_range`]).
-/// A tilted circle's latitude is not monotone between its ends, so the
-/// vertices alone (the curved lane's `sizing::sphere_face_widest_cos`)
-/// do not bound it.
-fn sphere_widest_cos(
-    body: &Body<f64>,
-    fk: FaceKey,
-    center: Point3<f64>,
-    axis: geom_core::Vec3<f64>,
-    radius: f64,
-) -> Result<f64, TessellateError> {
-    let face = body
-        .get_face(fk)
-        .ok_or(TessellateError::MissingEntity { what: "face" })?;
-    let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
-    for (ek, _) in crate::walk::loop_edges(body, face.outer, fk)? {
-        let curve = body
-            .get_edge(ek)
-            .and_then(|e| body.get_curve_geom(e.curve))
-            .and_then(|g| g.certified())
-            .ok_or(TessellateError::MissingEntity { what: "edge curve" })?;
-        let Curve3::Circle { center: cc, .. } = *curve.carrier() else {
-            return Err(TessellateError::UnsupportedCurve {
-                edge: ek,
-                note: "a trimmed sphere face bounded by an edge that is not a circle — \
-                       the sphere arm sizes its lattice from its circles' latitude ranges",
-            });
-        };
-        let height = |p: Point3<f64>| (p - center).dot(axis);
-        let c = height(cc);
-        let a = height(curve.carrier().eval(0.0)) - c;
-        let b = height(curve.carrier().eval(core::f64::consts::FRAC_PI_2)) - c;
-        let (z0, z1) = harmonic_range(c, a, b, curve.params());
-        lo = lo.min(z0);
-        hi = hi.max(z1);
-    }
-    if lo.is_nan() || hi.is_nan() || lo > hi {
-        return Err(TessellateError::MissingEntity {
-            what: "trimmed sphere face latitude window",
-        });
-    }
-    Ok(if lo <= 0.0 && hi >= 0.0 {
-        1.0
-    } else {
-        let s = (lo.abs().min(hi.abs()) / radius).min(1.0);
-        (1.0 - s.powi(2)).sqrt()
-    })
 }
 
 /// The range of `c + a·cos t + b·sin t` over `[t0, t1]`: the ends, and
@@ -605,9 +577,8 @@ pub(crate) fn tessellate_trimmed(
         // the CDT does not cut it. An ear on a boundary chain is the
         // triangle of three consecutive chord points, which the
         // neighbour across that chain may cut too. That is a steer, not
-        // a guarantee: what holds the line is the segment census in
-        // `attempt`, which refuses a patch that uses a chord segment
-        // more often than its polygon walks it.
+        // a guarantee: what holds the line is the ear cure in `attempt`,
+        // which splits any ear the CDT keeps by its centroid.
         Lane::Sphere {
             steps: (hu, hv), ..
         } => (
@@ -681,7 +652,7 @@ pub(crate) fn tessellate_trimmed(
         shared,
         tol,
     };
-    for attempt in 0..=MAX_GRID_RETRIES {
+    for attempt in 0..=last_attempt() {
         // THIS ATTEMPT's columns, cleared at its FIRST line: a
         // discarded attempt's triangles must not contribute to numbers
         // that describe the mesh the face exits on, and every path out
@@ -921,7 +892,7 @@ impl TrimmedFace<'_> {
         let (crossings, mut split_offender) = self.constrain_boundary(&mut at, dropped)?;
         split_offender |= self.chain_crease_lines(&mut at, dropped)?;
         if split_offender {
-            if attempt == MAX_GRID_RETRIES {
+            if attempt == last_attempt() {
                 return Err(TessellateError::Triangulation { face: fk });
             }
             return Ok(Next::Rebuild);
@@ -946,7 +917,7 @@ impl TrimmedFace<'_> {
         // An ear the retry budget does not clear refuses typed
         // (`work/tesslie/two-faces-cutting-one-ear-of-a-shared-chord-chain-leave-a-four-use-edge.md`).
         if !ears.is_empty() {
-            if attempt == MAX_GRID_RETRIES {
+            if attempt == last_attempt() {
                 return Err(TessellateError::BoundaryEar { face: fk });
             }
             candidates.extend(ears);
@@ -962,7 +933,7 @@ impl TrimmedFace<'_> {
         match folded {
             (_, true) => return Err(TessellateError::FoldedTriangle { face: fk }),
             (grid, false) if !grid.is_empty() => {
-                if attempt == MAX_GRID_RETRIES {
+                if attempt == last_attempt() {
                     return Err(TessellateError::FoldedTriangle { face: fk });
                 }
                 dropped.extend(grid);
@@ -983,7 +954,7 @@ impl TrimmedFace<'_> {
         // set stays valid); a refinement point landing exactly on a
         // constraint is caught by the same intermediate-vertex
         // classification as any candidate.
-        if !refine.is_empty() && !measure.worst.is_nan() && attempt < MAX_GRID_RETRIES {
+        if !refine.is_empty() && !measure.worst.is_nan() && attempt < last_attempt() {
             candidates.extend(refine);
             return Ok(Next::Rebuild);
         }
@@ -1015,17 +986,6 @@ impl TrimmedFace<'_> {
             interior,
             triangles,
         };
-        // THE SEGMENT CENSUS, in release: each boundary chord segment
-        // bounds the face once per time the polygon walks it (twice on
-        // a full-2π seam), so a patch using one more often than that has
-        // cut an ear of a chain it shares with another face, and the
-        // neighbour that cuts the same ear leaves an edge of four
-        // triangles (`work/tesslie/two-faces-cutting-one-ear-of-a-shared-chord-chain-leave-a-four-use-edge.md`).
-        // A pseudomanifold edge, four faces each using a segment once,
-        // reads one use per patch here and is not this.
-        if segment_reused(self.polygon, &patch.triangles) {
-            return Err(TessellateError::ChordSegmentReused { face: fk });
-        }
         #[cfg(debug_assertions)]
         {
             let identified =
@@ -1061,16 +1021,52 @@ impl TrimmedFace<'_> {
         dropped: &HashSet<usize>,
     ) -> Result<Cdt, TessellateError> {
         let fk = self.fk;
-        let mut cdt: ConstrainedDelaunayTriangulation<SpadePoint<f64>> =
-            ConstrainedDelaunayTriangulation::new();
+        // BULK-LOADED, not inserted one by one. Incremental insertion
+        // along a dense boundary chain is quadratic in the flips it
+        // cascades (a tilted circle near a sphere pole asks tens of
+        // thousands of chord points, and their insertion took seconds per
+        // attempt while constraining and emitting took milliseconds);
+        // spade's bulk loader is `O(n log n)` and exact on the same
+        // predicates. It drops duplicate positions keeping the first, as
+        // `insert` answers the existing handle, so the duplicates are
+        // dropped here first, by the same equality (`-0.0 == 0.0`), and
+        // each input reads its handle off its unique position's index:
+        // the loader keeps the input order.
+        let inputs: Vec<(f64, f64)> = self
+            .polygon
+            .iter()
+            .map(|&(u, v, _)| (u, v))
+            .chain(
+                candidates
+                    .iter()
+                    .enumerate()
+                    .filter(|(k, _)| !dropped.contains(k))
+                    .map(|(_, &p)| p),
+            )
+            .collect();
+        let key = |x: f64| if x == 0.0 { 0u64 } else { x.to_bits() };
+        let mut unique: Vec<SpadePoint<f64>> = Vec::with_capacity(inputs.len());
+        let mut index_of: HashMap<(u64, u64), usize> = HashMap::with_capacity(inputs.len());
+        let mut handle_of: Vec<FixedVertexHandle> = Vec::with_capacity(inputs.len());
+        for &(u, v) in &inputs {
+            let p = self.cdt_point(u, v);
+            let next = unique.len();
+            let i = *index_of.entry((key(p.x), key(p.y))).or_insert(next);
+            if i == next {
+                unique.push(p);
+            }
+            handle_of.push(FixedVertexHandle::from_index(i));
+        }
+        let Ok(cdt) =
+            ConstrainedDelaunayTriangulation::<SpadePoint<f64>>::bulk_load_cdt(unique, Vec::new())
+        else {
+            return Err(TessellateError::Triangulation { face: fk });
+        };
         let mut meta: Vec<(f64, f64, Slot)> = Vec::new();
         let mut handles = Vec::with_capacity(self.polygon.len());
         let mut on_crease = Vec::new();
         let mut walk = Walk::new();
-        for &(u, v, id) in self.polygon {
-            let Ok(h) = cdt.insert(self.cdt_point(u, v)) else {
-                return Err(TessellateError::Triangulation { face: fk });
-            };
+        for (&(u, v, id), &h) in self.polygon.iter().zip(&handle_of) {
             walk.enter(&mut meta, h, (u, v, Slot::Boundary(id)), id);
             handles.push(h);
             if let Some(c) = self.creases {
@@ -1078,13 +1074,11 @@ impl TrimmedFace<'_> {
             }
         }
         let pinches = Pinches::of(&walk, fk);
-        for (k, &(u, v)) in candidates.iter().enumerate() {
-            if dropped.contains(&k) {
-                continue;
-            }
-            let Ok(h) = cdt.insert(self.cdt_point(u, v)) else {
-                return Err(TessellateError::Triangulation { face: fk });
-            };
+        let kept = candidates
+            .iter()
+            .enumerate()
+            .filter(|(k, _)| !dropped.contains(k));
+        for ((k, &(u, v)), &h) in kept.zip(&handle_of[self.polygon.len()..]) {
             if h.index() == meta.len() {
                 meta.push((u, v, Slot::Grid(k)));
             }
@@ -1376,10 +1370,7 @@ impl TrimmedFace<'_> {
                             .any(|&b| at_places[2].iter().any(|&c| consecutive(a, b, c)))
                     })
                 {
-                    ears.push((
-                        (uv[0][0] + uv[1][0] + uv[2][0]) / 3.0,
-                        (uv[0][1] + uv[1][1] + uv[2][1]) / 3.0,
-                    ));
+                    ears.push(uv_centroid(&uv));
                 }
             }
             if self.outward(centroid).is_some_and(|n| normal.dot(n) <= 0.0) {
@@ -1500,10 +1491,7 @@ impl TrimmedFace<'_> {
                 measure.worst = bound;
             }
             if refine_lane && verdict == cert::Verdict::Exceeded {
-                refine.push((
-                    (uv[0][0] + uv[1][0] + uv[2][0]) / 3.0,
-                    (uv[0][1] + uv[1][1] + uv[2][1]) / 3.0,
-                ));
+                refine.push(uv_centroid(&uv));
             }
             triangles.push(if flip { [ids[0], ids[2], ids[1]] } else { ids });
         }
@@ -1518,37 +1506,14 @@ impl TrimmedFace<'_> {
     }
 }
 
-/// Whether a patch uses a boundary chord segment of `polygon` more often
-/// than the polygon walks it: the census [`TrimmedFace::attempt`] runs on
-/// every accepted patch. A boundary segment joins two shared ids, so
-/// only triangle edges between two [`PatchVertex::Shared`] corners are
-/// read, with no renumbered copy of the patch.
-fn segment_reused(polygon: &[(f64, f64, u32)], triangles: &[[PatchVertex; 3]]) -> bool {
-    let key = |a: u32, b: u32| (a.min(b), a.max(b));
-    let n = polygon.len();
-    let mut walked: HashMap<(u32, u32), usize> = HashMap::new();
-    for i in 0..n {
-        let (a, b) = (polygon[i].2, polygon[(i + 1) % n].2);
-        if a != b {
-            *walked.entry(key(a, b)).or_default() += 1;
-        }
-    }
-    let mut used: HashMap<(u32, u32), usize> = HashMap::new();
-    for t in triangles {
-        for (a, b) in [(t[0], t[1]), (t[1], t[2]), (t[2], t[0])] {
-            let (PatchVertex::Shared(a), PatchVertex::Shared(b)) = (a, b) else {
-                continue;
-            };
-            if let Some(&w) = walked.get(&key(a, b)) {
-                let u = used.entry(key(a, b)).or_default();
-                *u += 1;
-                if *u > w {
-                    return true;
-                }
-            }
-        }
-    }
-    false
+/// A triangle's centroid in UV: the point both the ear cure and the
+/// certificate refinement insert, strictly inside the triangle and so
+/// inside the trim polygon.
+fn uv_centroid(uv: &[[f64; 2]; 3]) -> (f64, f64) {
+    (
+        (uv[0][0] + uv[1][0] + uv[2][0]) / 3.0,
+        (uv[0][1] + uv[1][1] + uv[2][1]) / 3.0,
+    )
 }
 
 /// Whether any mesh id appears at two DIFFERENT UV locations in the
@@ -2051,7 +2016,7 @@ fn trim_polygon(
         trav_edges.push(he.edge);
     }
     if let ChartPoles::Kept { sense } = poles {
-        choose_pole_azimuths(&mut travs, sense, fk)?;
+        choose_pole_azimuths(&mut travs, &trav_edges, sense, fk)?;
     }
     flatten_traversals(&travs, &trav_edges, poles != ChartPoles::None)
 }
@@ -2066,22 +2031,41 @@ fn flatten_traversals(
     edges: &[EdgeKey],
     keep_poles: bool,
 ) -> Result<(TrimPolygon, Vec<EdgeKey>), TessellateError> {
-    let (mut out, mut out_edges) = (Vec::new(), Vec::new());
-    for (k, trav) in travs.iter().enumerate() {
-        let (&last, rest) = trav.split_last().ok_or(TessellateError::MissingEntity {
+    if travs.iter().any(Vec::is_empty) {
+        return Err(TessellateError::MissingEntity {
             what: "edge chords",
-        })?;
-        out.extend_from_slice(rest);
-        out_edges.extend(core::iter::repeat_n(edges[k], rest.len()));
-        let next = travs[(k + 1) % travs.len()][0];
-        #[allow(clippy::float_cmp)]
-        if keep_poles && last.2 == next.2 && at_pole(last.1) && (last.0, last.1) != (next.0, next.1)
-        {
-            out.push(last);
-            out_edges.push(edges[k]);
-        }
+        });
     }
-    Ok((out, out_edges))
+    Ok(flat_points(travs, keep_poles, |_| 0.0)
+        .map(|(k, p)| (p, edges[k]))
+        .unzip())
+}
+
+/// [`flatten_traversals`]' points, each with its traversal's index, with
+/// traversal `k`'s azimuths moved by `du(k)`: the one walk both the
+/// polygon and [`choose_pole_azimuths`]' placements read. Every
+/// traversal is non-empty (the caller's check).
+fn flat_points<'a>(
+    travs: &'a [Vec<(f64, f64, u32)>],
+    keep_poles: bool,
+    du: impl Fn(usize) -> f64 + Copy + 'a,
+) -> impl Iterator<Item = (usize, (f64, f64, u32))> + 'a {
+    let m = travs.len();
+    (0..m).flat_map(move |k| {
+        let shift = move |q: usize, (u, v, id): (f64, f64, u32)| (u + du(q), v, id);
+        let trav = &travs[k];
+        let last = shift(k, trav[trav.len() - 1]);
+        let next = shift((k + 1) % m, travs[(k + 1) % m][0]);
+        #[allow(clippy::float_cmp)]
+        let pole = keep_poles
+            && last.2 == next.2
+            && at_pole(last.1)
+            && (last.0, last.1) != (next.0, next.1);
+        trav[..trav.len() - 1]
+            .iter()
+            .map(move |&p| (k, shift(k, p)))
+            .chain(pole.then_some((k, last)))
+    })
 }
 
 /// **The azimuth of each run of a sphere arm loop between its poles.**
@@ -2109,27 +2093,44 @@ fn flatten_traversals(
 /// The first run keeps its lift; each other run is tried at `−2π`, `0`
 /// and `+2π`. A loop with fewer than two pole junctions has no run to
 /// place: its one run closes through a vertex the lift is continuous
-/// at. One with more than [`MAX_POLE_JUNCTIONS`] refuses typed.
+/// at. These are SCOPE limits on valid bodies, not defects, and refuse
+/// [`TessellateError::SphereTrimShape`]: more than
+/// [`MAX_POLE_JUNCTIONS`] junctions (`PoleJunctions`), and no placement
+/// fitting the window or two tying (`PoleAzimuth`), each naming the
+/// first traversal of the run that could not be placed.
 fn choose_pole_azimuths(
     travs: &mut [Vec<(f64, f64, u32)>],
+    edges: &[EdgeKey],
     sense: bool,
     fk: FaceKey,
 ) -> Result<(), TessellateError> {
-    use core::f64::consts::TAU;
-    let refuse = TessellateError::TrimLoopOrientation { face: fk };
+    use core::f64::consts::{PI, TAU};
     let m = travs.len();
+    if travs.iter().any(Vec::is_empty) {
+        return Err(TessellateError::MissingEntity {
+            what: "edge chords",
+        });
+    }
     let junctions: Vec<usize> = (0..m)
-        .filter(|&k| match (travs[k].last(), travs[(k + 1) % m].first()) {
-            (Some(&last), Some(&next)) => last.2 == next.2 && at_pole(last.1),
-            _ => false,
+        .filter(|&k| {
+            let (last, next) = (travs[k][travs[k].len() - 1], travs[(k + 1) % m][0]);
+            last.2 == next.2 && at_pole(last.1)
         })
         .collect();
     let j = junctions.len();
     if j < 2 {
         return Ok(());
     }
+    let refuse = |k: usize, cause| TessellateError::SphereTrimShape {
+        face: fk,
+        edge: edges[k],
+        cause,
+    };
     if j > MAX_POLE_JUNCTIONS {
-        return Err(refuse);
+        return Err(refuse(
+            junctions[MAX_POLE_JUNCTIONS],
+            SphereTrimCause::PoleJunctions,
+        ));
     }
     // Run `s` of traversal `k`: the junctions before it, cyclically, so
     // the traversals after the last junction close onto run 0.
@@ -2148,37 +2149,37 @@ fn choose_pole_azimuths(
         let turns = digit as f64 - 1.0;
         turns * TAU
     };
-    let placed = |placement: usize| -> Vec<Vec<(f64, f64, u32)>> {
-        travs
-            .iter()
-            .enumerate()
-            .map(|(k, trav)| {
-                let du = shift(placement, run[k]);
-                trav.iter().map(|&(u, v, id)| (u + du, v, id)).collect()
-            })
-            .collect()
-    };
     let want = if sense { 1.0 } else { -1.0 };
-    let no_edges = vec![EdgeKey::default(); m];
     let mut best: Option<(f64, usize)> = None;
     let mut tied = false;
     for placement in 0..placements {
-        let (polygon, _) = flatten_traversals(&placed(placement), &no_edges, true)?;
-        let n = polygon.len();
-        let (mut area2, mut pole_len) = (0.0, 0.0);
-        for i in 0..n {
-            let (a, b) = (polygon[i], polygon[(i + 1) % n]);
+        let run = &run;
+        let mut points =
+            flat_points(travs, true, move |k| shift(placement, run[k])).map(|(_, p)| p);
+        let Some(first) = points.next() else {
+            return Err(TessellateError::MissingEntity {
+                what: "edge chords",
+            });
+        };
+        let (mut area2, mut pole_len, mut a) = (0.0, 0.0, first);
+        for b in points.chain(core::iter::once(first)) {
             area2 += a.0 * b.1.sin() - b.0 * a.1.sin();
             if a.2 == b.2 && at_pole(a.1) {
                 pole_len += (b.0 - a.0).abs();
             }
+            a = b;
         }
         let area = want * 0.5 * area2;
         if !(area > 0.0 && area < 2.0 * TAU) {
             continue;
         }
+        // THE TIE TOLERANCE IS HALF A TURN. Two placements that both fit
+        // differ by whole turns on some run, so their pole sides' total
+        // lengths differ by a multiple of `2π` or not at all; rounding
+        // moves them by ulps of `π`. Anything between separates a tie
+        // from a difference, and `π` sits midway.
         match best {
-            Some((len, _)) if (pole_len - len).abs() <= 1e-9 * (1.0 + len) => tied = true,
+            Some((len, _)) if (pole_len - len).abs() < PI => tied = true,
             Some((len, _)) if pole_len > len => {}
             _ => {
                 best = Some((pole_len, placement));
@@ -2186,15 +2187,18 @@ fn choose_pole_azimuths(
             }
         }
     }
+    let unplaced = refuse((junctions[0] + 1) % m, SphereTrimCause::PoleAzimuth);
     let Some((_, placement)) = best else {
-        return Err(refuse);
+        return Err(unplaced);
     };
     if tied {
-        return Err(refuse);
+        return Err(unplaced);
     }
-    let chosen = placed(placement);
-    for (trav, placed) in travs.iter_mut().zip(chosen) {
-        *trav = placed;
+    for (k, trav) in travs.iter_mut().enumerate() {
+        let du = shift(placement, run[k]);
+        for p in trav.iter_mut() {
+            p.0 += du;
+        }
     }
     Ok(())
 }
@@ -2436,6 +2440,10 @@ mod tests {
         /// path. `cfg(test)` only.
         pub(crate) static SPHERE_STEP_SCALE: std::cell::Cell<f64> =
             const { std::cell::Cell::new(1.0) };
+        /// The retry loop's last attempt, when a row sets it
+        /// (`super::last_attempt`). `cfg(test)` only.
+        pub(crate) static LAST_ATTEMPT: std::cell::Cell<Option<usize>> =
+            const { std::cell::Cell::new(None) };
     }
 
     /// **The MAJOR-1 backstop's end-to-end guard**: a face left with a
@@ -2960,7 +2968,10 @@ mod tests {
         // `π(4r + d)(2r − d)²/12`.
         let pi = core::f64::consts::PI;
         let volume = 2.0 * 4.0 / 3.0 * pi - pi * 5.4 * 0.6f64.powi(2) / 12.0;
-        crate::validate::check_volume(&mesh, volume, 1e-2).expect("and it encloses the body");
+        // Its area: two spheres less the cap each loses, `2πrh` at
+        // `h = 1 − 0.7`.
+        let area = 8.0 * pi - 2.0 * 2.0 * pi * 0.3;
+        crate::validate::check_volume(&mesh, volume, area, 1e-2).expect("and it encloses the body");
     }
 
     /// **`harmonic_range` reads an extremum inside the interval.** A
@@ -3106,5 +3117,221 @@ mod tests {
             with_poles >= 2,
             "both balls' remnants pass both poles: {with_poles}"
         );
+    }
+
+    /// The tilted cylinder halves of `m5_pr11_trimmed` at radius `r`: a
+    /// cylinder of height 2.5 split by a plane tilted 0.3 rad, whose
+    /// trimmed walls take the cylinder arm.
+    fn tilted_cylinder_above(r: f64) -> topo::Body<f64> {
+        use geom_core::{Point2, Point3, Tol, Vec3};
+        let lp = profile::test_support::bulge_loop(vec![
+            (Point2::new(-r, 0.0), 1.0),
+            (Point2::new(r, 0.0), 1.0),
+        ]);
+        let disc = profile::Profile::new(profile::SketchPlane::xy(), vec![lp])
+            .validate(Tol::witness())
+            .unwrap();
+        let cylinder = sweep::extrude(
+            &disc,
+            sweep::Extrusion::Distance {
+                depth: 2.5,
+                side: sweep::ExtrudeSide::Along,
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .body;
+        let cylinder = topo::test_support::finished("the cylinder", cylinder, Tol::witness());
+        let plane = topo::test_support::split_plane(
+            Point3::new(0.0, 0.0, 1.25),
+            Vec3::new(0.3f64.sin(), 0.0, 0.3f64.cos()),
+            Tol::witness(),
+        );
+        let result = topo::splitting::split(&cylinder, &plane, Tol::witness()).unwrap();
+        let topo::splitting::SplitPart::Body(above) = &result.above else {
+            panic!("material above the cut");
+        };
+        topo::Body::clone(above)
+    }
+
+    /// **An ear the retry budget leaves refuses `BoundaryEar`.** The
+    /// wide tilted cylinder's trimmed wall keeps ears on its ellipse
+    /// chain at some δ of the review's sweep, which the ear cure splits
+    /// on the next attempt. With the loop's last attempt set to the first
+    /// (`LAST_ATTEMPT`, test-only) there is no next attempt, so the
+    /// face refuses typed; with the budget as shipped every δ meshes.
+    /// Set on a one-thread pool's worker, which runs the faces.
+    #[test]
+    fn an_ear_the_budget_leaves_refuses_typed() {
+        use geom_core::Tol;
+        let body = tilted_cylinder_above(5.0);
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(1)
+            .build()
+            .expect("a one-thread pool");
+        let (refused, meshed) = pool.install(|| {
+            let (mut refused, mut meshed) = (0, 0);
+            for k in 0..20 {
+                let delta = 5.0 * 5e-2 * (3e-4f64 / 5e-2).powf(f64::from(k) / 19.0);
+                LAST_ATTEMPT.with(|a| a.set(Some(0)));
+                let first = crate::tessellate(&body, delta, Tol::witness());
+                LAST_ATTEMPT.with(|a| a.set(None));
+                if matches!(first, Err(TessellateError::BoundaryEar { .. })) {
+                    refused += 1;
+                    let m = crate::tessellate(&body, delta, Tol::witness())
+                        .unwrap_or_else(|e| panic!("δ {delta:e}: at the shipped budget, {e:?}"));
+                    crate::validate::check_mesh(&m).expect("and it checks");
+                    meshed += 1;
+                }
+            }
+            (refused, meshed)
+        });
+        assert!(refused > 0, "some δ keeps an ear on its first attempt");
+        assert_eq!(refused, meshed);
+    }
+
+    /// Twelve distinct edge keys (a brick's), for rows that check which
+    /// edge a refusal names.
+    fn twelve_edge_keys() -> Vec<topo::EdgeKey> {
+        let brick: topo::Body<f64> = sweep::test_support::brick(
+            (0.0, 1.0),
+            (0.0, 1.0),
+            (0.0, 1.0),
+            geom_core::Tol::witness(),
+        );
+        brick.edges().map(|(k, _)| k).collect()
+    }
+
+    /// **`sphere_polygon_shape` refuses each shape it names, at the edge
+    /// that shows it.** Unit rows on the trim polygon: no body of the
+    /// suite reaches these (the kernel's balls meet their poles at
+    /// loop vertices), so the polygons are written out.
+    #[test]
+    fn the_sphere_shapes_refuse_by_cause_at_their_edge() {
+        use crate::types::SphereTrimCause;
+        let half_pi = core::f64::consts::FRAC_PI_2;
+        let fk = FaceKey::default();
+        let keys = twelve_edge_keys();
+        #[allow(clippy::cast_possible_truncation)]
+        let e = |i: u64| keys[i as usize];
+        let cause = |poly: &[(f64, f64, u32)]| {
+            let edges: Vec<_> = (0..poly.len() as u64).map(e).collect();
+            match super::sphere_polygon_shape(fk, poly, &edges) {
+                Err(TessellateError::SphereTrimShape { edge, cause, .. }) => Some((edge, cause)),
+                Ok(()) => None,
+                Err(other) => panic!("not a shape refusal: {other:?}"),
+            }
+        };
+        let square = [(0.0, 0.0, 1), (1.0, 0.0, 2), (1.0, 1.0, 3), (0.0, 1.0, 4)];
+        assert_eq!(cause(&square), None, "a plain quad is the arm's");
+        let past = [
+            (0.0, 0.0, 1),
+            (1.0, 0.0, 2),
+            (1.0, half_pi + 1e-6, 3),
+            (0.0, 1.0, 4),
+        ];
+        assert_eq!(cause(&past), Some((e(2), SphereTrimCause::PastPole)));
+        let around = [(0.0, 0.0, 1), (1.0, 0.0, 2), (6.0, 0.5, 3), (0.0, 1.0, 4)];
+        assert_eq!(cause(&around), Some((e(1), SphereTrimCause::PoleInside)));
+        let seam = [
+            (0.0, 0.0, 1),
+            (1.0, 0.0, 2),
+            (1.0, 1.0, 3),
+            (0.5, 0.5, 1),
+            (0.0, 1.0, 4),
+        ];
+        assert_eq!(cause(&seam), Some((e(0), SphereTrimCause::SeamTwice)));
+    }
+
+    /// **A projected circle through the chart's pole has no azimuth
+    /// bound** (`chords::projected_circle_speeds` answers `None`, which
+    /// `sphere_uv_speeds` refuses as `SphereTrimShape { ThroughPole }`):
+    /// the unit great circle in the `xz` plane passes `z = ±1`, where
+    /// `ρ = 0`. Tilted off the pole it answers finite bounds.
+    #[test]
+    fn a_circle_through_the_pole_has_no_azimuth_bound() {
+        use geom_core::Vec3;
+        let (o, x, z) = (
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        assert_eq!(
+            crate::chords::projected_circle_speeds((o, x, z), (0.0, core::f64::consts::TAU)),
+            None
+        );
+        let tilted = Vec3::new(0.0, 0.6, 0.8);
+        let (su, sv) =
+            crate::chords::projected_circle_speeds((o, x, tilted), (0.0, core::f64::consts::TAU))
+                .expect("a circle clear of the pole is bounded");
+        assert!(su.is_finite() && sv.is_finite() && su >= 1.0 && sv > 0.0);
+    }
+
+    /// **`choose_pole_azimuths` refuses its scope limits by cause.** Runs
+    /// between pole junctions: two traversals each from pole to pole
+    /// place by area; six junctions are past the search; and a loop whose
+    /// every placement's area misses the window refuses `PoleAzimuth`.
+    #[test]
+    fn the_pole_placement_refuses_its_scope_limits_by_cause() {
+        use crate::types::SphereTrimCause;
+        let half_pi = core::f64::consts::FRAC_PI_2;
+        let fk = FaceKey::default();
+        let edges = twelve_edge_keys();
+        // A half band: up the meridian u = 0 from the south pole (id 1)
+        // to the north (id 2), down u = −π, the far run lifted a turn
+        // off at +π. The placement moves it back.
+        let meridian = |u: f64, up: bool| -> Vec<(f64, f64, u32)> {
+            let mut v: Vec<_> = (0..=8)
+                .map(|k| (u, -half_pi + core::f64::consts::PI * f64::from(k) / 8.0, 0))
+                .collect();
+            if !up {
+                v.reverse();
+            }
+            let n = v.len();
+            v[0].2 = if up { 1 } else { 2 };
+            v[n - 1].2 = if up { 2 } else { 1 };
+            for (k, p) in v.iter_mut().enumerate().take(n - 1).skip(1) {
+                #[allow(clippy::cast_possible_truncation)]
+                let id = 10 + k as u32 + if up { 0 } else { 100 };
+                p.2 = id;
+            }
+            v
+        };
+        let mut band = vec![meridian(0.0, true), meridian(core::f64::consts::PI, false)];
+        super::choose_pole_azimuths(&mut band, &edges, false, fk)
+            .expect("the band places, wound clockwise for `sense: false`");
+        assert!(
+            band[1].iter().all(|p| p.0 == core::f64::consts::PI),
+            "already in the window"
+        );
+        let mut lifted = vec![meridian(0.0, true), meridian(core::f64::consts::PI, false)];
+        super::choose_pole_azimuths(&mut lifted, &edges, true, fk)
+            .expect("the band places, wound counter-clockwise for `sense: true`");
+        assert!(
+            lifted[1].iter().all(|p| p.0 == -core::f64::consts::PI),
+            "the far run moves a turn"
+        );
+        let mut many: Vec<_> = (0..6)
+            .map(|k| meridian(f64::from(k) * 0.5, k % 2 == 0))
+            .collect();
+        assert!(matches!(
+            super::choose_pole_azimuths(&mut many, &edges, true, fk),
+            Err(TessellateError::SphereTrimShape {
+                cause: SphereTrimCause::PoleJunctions,
+                ..
+            })
+        ));
+        // Runs four turns apart: every placement's area is past 4π.
+        let mut wide = vec![
+            meridian(0.0, true),
+            meridian(-8.0 * core::f64::consts::PI, false),
+        ];
+        assert!(matches!(
+            super::choose_pole_azimuths(&mut wide, &edges, true, fk),
+            Err(TessellateError::SphereTrimShape {
+                cause: SphereTrimCause::PoleAzimuth,
+                ..
+            })
+        ));
     }
 }

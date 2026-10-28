@@ -61,10 +61,12 @@ fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
             .unwrap_or_else(|e| panic!("{label}, δ {delta}: tessellate, got {e:?}"));
         mesh::validate::check_mesh(&mesh)
             .unwrap_or_else(|e| panic!("{label}, δ {delta}: the mesh: {e:?}"));
-        mesh::validate::check_volume(&mesh, expected, delta).unwrap_or_else(|e| {
-            panic!("{label}, δ {delta}: the mesh encloses the body, got {e:?}")
-        });
-        crate::common::differential::assert_outward(&format!("{label}, δ {delta}"), body, &mesh);
+        crate::common::differential::assert_meshed_geometry(
+            &format!("{label}, δ {delta}"),
+            body,
+            &mesh,
+            delta,
+        );
     }
 }
 
@@ -493,6 +495,14 @@ fn a_tilted_split_of_a_sphere_body_refuses_at_the_reduce() {
 /// `NoGeneralLane { gap: LaneGap::Pose }`); splitting
 /// such an arc at the pole is the join's
 /// (`work/reach/tilted-section-through-a-chart-pole-is-not-split-at-the-pole.md`).
+///
+/// **What the mesher answers** (measured in release, PR 5920's second
+/// fix pass; `work/tess/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`):
+/// at 1e-4 and 1e-5 the circle's chord schedule near the pole asks
+/// more than the sphere arm's per-edge budget at δ = 1e-2, and refuses
+/// `ChordBudget` at once; at 3e-4 it is under the budget and folds a
+/// triangle beside the pole (`FoldedTriangle`, 0.2 s in release), which
+/// is not meshed here.
 #[test]
 fn a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed() {
     let c = Vec3::new(2.0, 2.0, 0.5);
@@ -508,13 +518,20 @@ fn a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed() {
             .unwrap_or_else(|e| panic!("δ {d}: the near-pole section refused: {e:?}"));
         let body = &out.body().unwrap_or_else(|| panic!("δ {d}: empty")).body;
         assert_solid(&format!("δ {d}"), body, expected);
-        // Built, not meshed: the uniform chord schedule the circle asks
-        // near the pole takes about 26 s in a debug build at 3e-4 and folds
-        // a triangle over the chord beside the pole, which refuses typed
-        // (`FoldedTriangle`), minutes at 1e-4, and millions of chords at
-        // 1e-5. `spheres_crossing_off_every_edge::a_trimmed_face_cut_beside_its_pole_builds`
-        // pins the fold refusal at a cost the suite affords
-        // (`work/tess/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`).
+        if d < 2e-4 {
+            let drawn = mesh::tessellate(body, 1e-2, Tol::witness());
+            assert!(
+                matches!(
+                    &drawn,
+                    Err(mesh::TessellateError::SphereTrimShape {
+                        cause: mesh::types::SphereTrimCause::ChordBudget,
+                        ..
+                    })
+                ),
+                "δ {d}: the near-pole schedule is past the arm's chord budget, got {:?}",
+                drawn.map(|m| m.positions.len())
+            );
+        }
     }
     let (a, b) = pair(0.0);
     let out = run(BooleanOp::Union, &a, &b);
@@ -561,7 +578,34 @@ fn a_section_near_a_pole_meshes_at_every_delta() {
         let m = mesh::tessellate(body, delta, Tol::witness())
             .unwrap_or_else(|e| panic!("δ {delta}: the pair meshes, got {e:?}"));
         mesh::validate::check_mesh(&m).unwrap_or_else(|e| panic!("δ {delta}: {e:?}"));
-        mesh::validate::check_volume(&m, expected, delta)
-            .unwrap_or_else(|e| panic!("δ {delta}: the mesh encloses the body, got {e:?}"));
+        crate::common::differential::assert_meshed_geometry(&format!("δ {delta}"), body, &m, delta);
     }
+}
+
+/// **A circle 1e-3 from the pole meshes at δ 1e-2 and folds at 4e-2.**
+/// The near-pole pair of
+/// [`a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed`]
+/// at `d = 1e-3`: at δ 1e-2 the sphere arm meshes it, enclosing the body
+/// and wound outward; at 4e-2 a triangle beside the pole folds over the
+/// chord with no grid corner to drop (its three corners are boundary
+/// points), and it refuses `FoldedTriangle`
+/// (`work/tess/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`).
+#[test]
+fn a_circle_near_the_pole_folds_at_a_coarse_delta() {
+    let c = Vec3::new(2.0, 2.0, 0.5);
+    let s = 0.7f64 + 1e-3;
+    let lean = Vec3::new(1.4 * (1.0 - s * s).sqrt(), 1.4 * s, 0.0);
+    let out = run(BooleanOp::Union, &ball(1.0, c), &ball(1.0, c + lean)).expect("the pair unions");
+    let body = &out.body().expect("a body").body;
+    let expected = 2.0 * ball_volume(1.0) - lens_volume(1.0, 1.0, 1.4);
+    let m = mesh::tessellate(body, 1e-2, Tol::witness()).expect("δ 1e-2 meshes");
+    mesh::validate::check_mesh(&m).expect("and checks");
+    crate::common::differential::assert_meshed_geometry("d 1e-3, δ 1e-2", body, &m, 1e-2);
+    assert!((expected - crate::common::differential::body_volume(body)).abs() < 1e-9 * expected);
+    let coarse = mesh::tessellate(body, 4e-2, Tol::witness());
+    assert!(
+        matches!(&coarse, Err(mesh::TessellateError::FoldedTriangle { .. })),
+        "δ 4e-2: the boundary-only fold refuses typed, got {:?}",
+        coarse.map(|m| m.positions.len())
+    );
 }

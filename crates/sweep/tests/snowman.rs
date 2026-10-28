@@ -55,9 +55,7 @@ fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
         Ok(()),
         "{label}: a closed manifold mesh"
     );
-    mesh::validate::check_volume(&m, expected, 1e-3)
-        .unwrap_or_else(|e| panic!("{label}: the mesh encloses the body, got {e:?}"));
-    crate::common::differential::assert_outward(label, body, &m);
+    crate::common::differential::assert_meshed_geometry(label, body, &m, 1e-3);
     assert_solid(label, body, expected);
 }
 
@@ -1093,10 +1091,13 @@ fn a_slab_cutting_a_cap_off_a_pole_strut_carve_builds() {
             cap_volume(0.5, 0.0075),
         );
     }
-    // PR 5920's review found triangles folded over the chord beside the
-    // cut at δ 2.5e-4 (faces of the carve less the first slab). The
-    // mesher drops a fold's grid corners and rebuilds; every triangle
-    // winds outward and the mesh encloses the body.
+    // PR 5920's first review saw triangles folded over the chord beside
+    // the cut at δ 2.5e-4 (faces of the carve less the first slab). This
+    // row does not pin that fold: with the mesher's winding census off it
+    // stays green, the fold no longer arising here. What it pins is the
+    // cut's geometry at a fine δ: every triangle wound outward and the
+    // mesh enclosing the body's volume. The fold pins are the tilted
+    // pair's (`tilted_sphere_pair::assert_body` at δ 2e-2 and 4e-2).
     let cut = run(
         BooleanOp::Subtract,
         &carve,
@@ -1106,9 +1107,13 @@ fn a_slab_cutting_a_cap_off_a_pole_strut_carve_builds() {
     let m = mesh::tessellate(&cut, 2.5e-4, tol)
         .unwrap_or_else(|e| panic!("the strut cut at δ 2.5e-4: tessellates, got {e:?}"));
     assert_eq!(mesh::validate::check_mesh(&m), Ok(()));
-    mesh::validate::check_volume(&m, v_cut, 2.5e-4)
-        .unwrap_or_else(|e| panic!("the strut cut at δ 2.5e-4: encloses the body, got {e:?}"));
-    crate::common::differential::assert_outward("the strut cut at δ 2.5e-4", &cut, &m);
+    crate::common::differential::assert_meshed_geometry(
+        "the strut cut at δ 2.5e-4",
+        &cut,
+        &m,
+        2.5e-4,
+    );
+    assert!((crate::common::differential::body_volume(&cut) - v_cut).abs() <= 1e-9 * v_cut);
 }
 
 /// **A pole-to-pole cut**: the unit ball's half-disc revolved by 4
@@ -1282,9 +1287,12 @@ fn a_cut_ends_at_the_nearest_of_several_boundary_hits() {
                 Ok(()),
                 "lat {lat}, δ {delta}: a closed manifold mesh"
             );
-            mesh::validate::check_volume(&m, cap_volume(1.0, 0.001), delta).unwrap_or_else(|e| {
-                panic!("lat {lat}, δ {delta}: the mesh encloses the cap, got {e:?}")
-            });
+            crate::common::differential::assert_meshed_geometry(
+                &format!("lat {lat}, δ {delta}"),
+                &cap,
+                &m,
+                delta,
+            );
         }
     }
 }
