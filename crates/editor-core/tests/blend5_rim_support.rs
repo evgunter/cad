@@ -147,9 +147,10 @@ fn trims(ev: &Evaluation<f64>, id: RecipeNodeId) -> Vec<(RimSupport, Surface<f64
     let body = corpus::body_of(ev, id);
     t.iter()
         .filter_map(|(n, _)| match n.path.first() {
-            Some(RoleSeg::BandTrim { support, .. }) => {
-                Some((*support, support_surface(body, edge_of(t, "a trim arc", n))))
-            }
+            Some(RoleSeg::BandTrim { support, .. }) => Some((
+                *support,
+                support_surface(&body, edge_of(t, "a trim arc", n)),
+            )),
             _ => None,
         })
         .collect()
@@ -375,7 +376,7 @@ fn a_seam_split_rim_gives_all_its_arcs_one_pair_of_roles() {
                 .filter_map(|m| match m.path.first() {
                     Some(RoleSeg::BandTrim { support, .. }) => Some((
                         *support,
-                        support_surface_key(body, edge_of(t, "a trim arc", n)),
+                        support_surface_key(&body, edge_of(t, "a trim arc", n)),
                     )),
                     _ => None,
                 })

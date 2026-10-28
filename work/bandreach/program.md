@@ -9,7 +9,7 @@ prefix: bandreach/
 tag: (BANDREACH orchestrator)
 ab_band: 17900-17999
 paths: [crates/sweep/src/blend/reach.rs, crates/sweep/src/blend/battery.rs]
-keep_out: [opened 2026-10-26 by BAND's priority-seam split (work/README.md Track size) when BAND measured about 100 points against 30 - BAND keeps the P2 slate and the P4 residue, BANDRULE the shapes the band-feature rule would build, BANDMETER the surgery's ring cap and strip meters, all four share crates/sweep/src/blend by design and CARVEREST holds battery.rs's chain walk and corner readers, so run scripts/work.py territory on your branch and announce the seam in the PR]
+keep_out: [opened 2026-10-26 by BAND's priority-seam split (work/README.md Track size) when BAND measured about 100 points against 30 - BAND keeps the P2 slate and the P4 residue, BANDRULE the shapes the band-feature rule would build, BANDMETER the surgery's ring cap and strip meters, all four share crates/sweep/src/blend by design and CARVEREST holds battery.rs's chain walk and corner readers, so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled]
 ---
 
 **Predicate 2's over-refusals, P3.** Predicate 2 asks whether a

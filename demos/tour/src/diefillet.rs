@@ -385,7 +385,7 @@ pub fn source_bodies(tol: Tol) -> (Body<f64>, Body<f64>) {
     let cube = cube_node(&mut a, tol);
     let pipped = pipped_node(&mut a, cube, tol);
     let ev = eval(&a.doc, tol);
-    (body_at(&ev, cube), body_at(&ev, pipped))
+    (body_at(&ev, cube, tol), body_at(&ev, pipped, tol))
 }
 
 /// Builds the die document, materializing each blend's edge set
@@ -468,10 +468,12 @@ fn build(tol: Tol) -> Die {
 /// The recipe's bodies at any tour scalar — the scene's geometry is
 /// the EVALUATION now, so this is where the generic lives (the
 /// `heatsink` precedent).
-fn body_at<S: Scalar>(ev: &Evaluation<S>, id: RecipeNodeId) -> Body<S> {
+fn body_at<S: Scalar>(ev: &Evaluation<S>, id: RecipeNodeId, tol: Tol) -> Body<S> {
     match &ev.value(id).expect("the node evaluated").payload {
-        ValuePayload::Body(b) => (**b).clone(),
-        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => (**body).clone(),
+        ValuePayload::Body(b) => crate::world::in_its_space(b, tol),
+        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
+            crate::world::in_its_space(body, tol)
+        }
         other => panic!("expected a body, got {other:?}"),
     }
 }
@@ -595,7 +597,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         "AdjacentKinds(Plane, Sphere) is exactly the 21 pip rims, two arcs each"
     );
 
-    let blank = body_at(&ev, die.blank);
+    let blank = body_at(&ev, die.blank, tol);
     let vol = pncad::topo::mass_properties(
         &crate::booleans::at_rest(&blank, tol),
         tol,
@@ -615,7 +617,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         blank.vertices().count(),
     );
     assert_eq!((f, e, v), (26, 48, 24));
-    let pipped = body_at(&ev, die.pipped);
+    let pipped = body_at(&ev, die.pipped, tol);
     let pip_vol = pncad::topo::mass_properties(
         &crate::booleans::at_rest(&pipped, tol),
         tol,
@@ -624,7 +626,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     .unwrap()
     .enclosure
     .volume;
-    let composed = body_at(&ev, die.composed);
+    let composed = body_at(&ev, die.composed, tol);
     let comp = pncad::topo::mass_properties(
         &crate::booleans::at_rest(&composed, tol),
         tol,

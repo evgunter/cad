@@ -476,6 +476,17 @@ fn both_sweeps_evaluate_in_one_document() {
 /// edge curve's `Debug` the digest feeds. With that `Debug` written in
 /// main's shape every digest here reproduces main's value at all three
 /// ε rows, so nothing else moved.
+///
+/// RE-BLESSED, `kitchen_sink` only, for INTENT stage 3 E: the digest
+/// feeds each body where it stands, composed through `in_space`, and
+/// every other row held main's value. The kitchen sink's turned copy
+/// (node 171) composes one map where it was rebuilt by two, and one of
+/// its planes' normals reads `-0.0` where it read `0.0` in x, and so
+/// does the product `⊔` (node 284), which reads that copy through its
+/// map; every point, curve and face holds main's bits (measured over
+/// main's merge at `1f851964`). Re-taken over main's merge at
+/// `cd5f9dee`, whose word is `0x2cab_0c2d_cbd8_4ea8`: with each copy
+/// rebuilt at `place` as before E, this branch reads main's word.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
@@ -483,7 +494,7 @@ fn the_sweep_documents_evaluate_to_their_committed_digests() {
         ("corner_table", 0xa74f_a96b_430e_f942),
         ("cut_cylinder", 0x0286_358d_ae09_89ce),
         ("boss_union", 0xd935_06ea_7cc4_142f),
-        ("kitchen_sink", 0x2cab_0c2d_cbd8_4ea8),
+        ("kitchen_sink", 0xb9d6_6c7a_4ef8_a76c),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
@@ -623,12 +634,12 @@ fn a_revolve_over_an_on_axis_edge_mints_no_wall_for_it() {
     // five faces; a degenerate wall from the on-axis edge would be more.
     let body = body_of(&ev, solid);
     assert_eq!(
-        topo::query::all_faces(body).len(),
+        topo::query::all_faces(&body).len(),
         5,
         "three of the four segments minted a wall, each curved one split at the seam"
     );
     let mut tori = 0;
-    for face in topo::query::all_faces(body) {
+    for face in topo::query::all_faces(&body) {
         let carrier = body
             .get_face(face)
             .and_then(|f| body.get_surface(f.surface))
@@ -714,8 +725,8 @@ fn the_memo_never_serves_a_sweep_a_stale_spelling() {
     );
     let ev3 = memo_eval(&doc, Some(&ev2));
     assert!(failures(&ev3).is_empty(), "{:?}", failures(&ev3));
-    let ra = cylinder_walls(body_of(&ev3, a))[0].1;
-    let rb = cylinder_walls(body_of(&ev3, b))[0].1;
+    let ra = cylinder_walls(&(body_of(&ev3, a)))[0].1;
+    let rb = cylinder_walls(&(body_of(&ev3, b)))[0].1;
     assert_eq!(
         ra, R,
         "A is the literal {R}; a memo-served A would follow `r`"
@@ -818,7 +829,7 @@ fn a_chain_arcs_radius_spelling_moves_the_profiles_key() {
     let (doc, _, peg) = extruded(doc, vec![circle_loop(param("r"))]);
     let ev1 = memo_eval(&doc, None);
     assert!(failures(&ev1).is_empty(), "{:?}", failures(&ev1));
-    let walls = cylinder_walls(body_of(&ev1, a));
+    let walls = cylinder_walls(&(body_of(&ev1, a)));
     assert_eq!(
         walls.len(),
         1,
@@ -858,7 +869,7 @@ fn a_chain_arcs_radius_spelling_moves_the_profiles_key() {
         format!("{:?}", body_of(&ev1, peg)),
         "the memo-served peg is the peg"
     );
-    let walls = cylinder_walls(body_of(&ev2, a));
+    let walls = cylinder_walls(&(body_of(&ev2, a)));
     assert_eq!(
         walls.len(),
         1,
@@ -928,7 +939,7 @@ fn assert_two_arcs_at_their_own_radii(
             "identity"
         }
     );
-    let mut radii: Vec<f64> = cylinder_walls(body_of(&ev, chain))
+    let mut radii: Vec<f64> = cylinder_walls(&(body_of(&ev, chain)))
         .into_iter()
         .map(|(_, r)| r)
         .collect();
@@ -1042,7 +1053,7 @@ fn one_declared_radius_decides_equal_radii_at_the_germ_as_its_kernel_twin_does()
         "the measured body",
         &topo::test_support::finished(
             "the measured body",
-            topo::Body::clone(body_of(&ev, union)),
+            topo::Body::clone(&(body_of(&ev, union))),
             tol(),
         ),
         tol(),

@@ -418,6 +418,10 @@ pub struct ScenePart<'a> {
     /// both facts, so a part cannot be displaced without being marked
     /// or marked without being displaced.
     pub probe: Option<Frame>,
+    /// **The body's frame in its space**, where it is not the identity:
+    /// what [`pncad::document::in_space`] answers for the part's body,
+    /// applied to the positions at build, in `f64`, beneath the probe.
+    pub placed: Option<Affine3<f64>>,
 }
 
 impl<'a> ScenePart<'a> {
@@ -427,6 +431,7 @@ impl<'a> ScenePart<'a> {
             mesh,
             ids,
             probe: None,
+            placed: None,
         }
     }
 }
@@ -586,7 +591,12 @@ impl SceneMesh {
             // The probe's display map, applied in f64 BEFORE the f32
             // cast: the displaced picture takes the same one rounding
             // step an undisplaced one does.
-            let map: Option<Affine3<f64>> = part.probe.map(|frame| frame.affine());
+            let map: Option<Affine3<f64>> =
+                match (part.probe.map(|frame| frame.affine()), part.placed) {
+                    (None, placed) => placed,
+                    (Some(probe), None) => Some(probe),
+                    (Some(probe), Some(placed)) => Some(probe * placed),
+                };
             let flag = if part.probe.is_some() {
                 probe_parts += 1;
                 Self::FLAG_PROBE
@@ -864,7 +874,32 @@ fn no_product(error: ProductError, doc: &Doc<ProfileProgram>) -> SceneError {
 pub fn product_body(doc: &Doc<ProfileProgram>, tol: Tol) -> Result<Body<f64>, SceneError> {
     let cancel = CancelToken::new();
     let evaluation = evaluate::<f64>(doc, None, &cancel, &EvalOptions::default(), tol);
-    product(doc, &evaluation, tol).map_err(|error| no_product(error, doc))
+    let product = pncad::document::product_recorded(doc, &evaluation, tol)
+        .map_err(|error| no_product(error, doc))?;
+    product_in_world(product, doc, tol).map_err(|error| no_product(error, doc))
+}
+
+/// **A gathered product as the picture draws it**: its body in the
+/// world's coordinates, composed through the façade's read-out door
+/// (`pncad::export::product_body_in_space`), the product's own frame
+/// being the one its gather computed in. Every reader of a product's
+/// body for display — the scene and the session's display fit — reads
+/// it here, so none draws the computing frame.
+///
+/// # Errors
+///
+/// The door's [`ProductError::Frame`] refusal.
+pub fn product_in_world(
+    product: pncad::document::Product<f64>,
+    doc: &Doc<ProfileProgram>,
+    tol: Tol,
+) -> Result<Body<f64>, ProductError> {
+    let composed = match pncad::export::product_body_in_space(&product, doc, tol) {
+        Ok(std::borrow::Cow::Owned(body)) => Some(body),
+        Ok(std::borrow::Cow::Borrowed(_)) => None,
+        Err(error) => return Err(error),
+    };
+    Ok(composed.unwrap_or_else(|| product.body.into_body()))
 }
 
 /// **Gather the product of a pair the landing did not keep one for.**

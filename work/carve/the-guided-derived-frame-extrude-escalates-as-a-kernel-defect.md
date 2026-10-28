@@ -38,3 +38,13 @@ The row now pins this refusal under the guided lift. The two rungs differ:
 - **A0 alone (`const_fold`):** **nothing frozen**. The document reaches the boss's side plane and refuses at `newell_plane_residual` (clause 1, an invalid margin), as the row always said.
 
 So the [0, 0.32] enclosure appears only on the rung that freezes. The first thing to read is whether the endpoint residual's enclosure comes from a frozen form's numeric fallback. If so, the defect is the freeze reaching an attachment gate as an enclosure this wide, not the frame.
+
+## No longer reached under INTENT E
+
+Since stage 3 E (`intent/e-operation-frame-of-reads`) a copy shares its
+source's body under its frame, so the derived-frame document's boss is
+never rebuilt over the box and the endpoint certification that
+escalated over `[0, 0.32]` does not run:
+`m10_derived_frame_interval::m10_the_derived_frames_refusal_is_not_a_freeze`
+now reads no refusal on the plain tier. The kernel's escalation itself
+is unmeasured by any document now.

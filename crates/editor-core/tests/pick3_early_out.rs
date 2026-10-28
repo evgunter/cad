@@ -80,7 +80,7 @@ fn cube(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
 
 fn mesh_of(ev: &Evaluation<f64>, node: RecipeNodeId) -> Mesh {
     let body: &Body<f64> = match &ev.value(node).expect("extrude evaluates").payload {
-        ValuePayload::Body(b) => b,
+        ValuePayload::Body(b) => b.body(),
         other => panic!("extrude payload is a body, got {}", other.kind_name()),
     };
     mesh::tessellate(body, 0.1, Tol::witness()).expect("box tessellates")

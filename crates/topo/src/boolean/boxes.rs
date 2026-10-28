@@ -3673,8 +3673,9 @@ pub(crate) mod tests {
     ///   planar-only corpus does not reach (the hull is the box) and a
     ///   curved reach box reaches once arm 1 has proved its face's
     ///   pairs apart, where it costs probes, never a wrong clear.
-    ///   And `flush_at_rest`'s `face_box` read, a tree over the planar
-    ///   faces whose overlapping boxes are the flush candidates.
+    ///   And `flush_at_rest`'s `face_box` read, a tree over the planar,
+    ///   cylinder and sphere faces whose overlapping boxes are the flush
+    ///   candidates.
     ///   **Prunes**: a loose box only adds candidates, each read
     ///   exactly; a box tighter than its face would drop a flush pair.
     /// - `census/depth_gap.rs` — arm 1's depth-gap clear: one

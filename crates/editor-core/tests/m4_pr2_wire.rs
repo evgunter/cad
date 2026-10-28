@@ -72,13 +72,13 @@ fn revolve_wires_its_axis_through_the_sketch_plane() {
     let ValuePayload::Body(body) = &ev.value(rev).expect("revolve evaluated").payload else {
         panic!("expected body");
     };
-    assert_eq!(validate(body), Ok(()));
-    assert_eq!(validate_closed(body), Ok(()));
+    assert_eq!(validate(body.body()), Ok(()));
+    assert_eq!(validate_closed(body.body()), Ok(()));
     let vol = topo::test_support::pinned_volume(
         "the measured body",
         &topo::test_support::finished(
             "the measured body",
-            topo::Body::clone(&**body),
+            topo::Body::clone(body.body()),
             Tol::witness(),
         ),
         Tol::witness(),
@@ -96,12 +96,12 @@ fn rotational_placement_wires_and_preserves_volume() {
     let ValuePayload::Body(body) = &ev.value(moved).unwrap().payload else {
         panic!("expected body");
     };
-    assert_eq!(validate(body), Ok(()));
-    assert_eq!(validate_closed(body), Ok(()));
+    assert_eq!(validate(body.body()), Ok(()));
+    assert_eq!(validate_closed(body.body()), Ok(()));
     let m = topo::mass_properties(
         &topo::test_support::finished(
             "the measured body",
-            topo::Body::clone(&**body),
+            topo::Body::clone(body.body()),
             Tol::witness(),
         ),
         Tol::witness(),
@@ -133,13 +133,13 @@ fn linear_pattern_evaluates_instances_as_data() {
     };
     assert_eq!(instances.len(), 3);
     for (i, inst) in instances.iter().enumerate() {
-        assert_eq!(validate(inst), Ok(()));
+        assert_eq!(validate(inst.body()), Ok(()));
         assert_eq!(
             topo::test_support::pinned_volume(
                 "the measured body",
                 &topo::test_support::finished(
                     "the measured body",
-                    topo::Body::clone(&**inst),
+                    topo::Body::clone(inst.body()),
                     Tol::witness()
                 ),
                 Tol::witness()
@@ -148,7 +148,7 @@ fn linear_pattern_evaluates_instances_as_data() {
             1.0
         ); // dyadic exact
         // Instance i sits at x offset 2i exactly (translation-only).
-        let min_x = inst
+        let min_x = crate::fixture::in_space(inst)
             .points()
             .map(|(_, p)| p.x)
             .fold(f64::INFINITY, f64::min);
@@ -200,13 +200,13 @@ fn circular_pattern_rotates_about_an_axis_read_off_the_body() {
     };
     assert_eq!(instances.len(), 4);
     for inst in instances {
-        assert_eq!(validate(inst), Ok(()));
+        assert_eq!(validate(inst.body()), Ok(()));
         assert!(
             (topo::test_support::pinned_volume(
                 "the measured body",
                 &topo::test_support::finished(
                     "the measured body",
-                    topo::Body::clone(&**inst),
+                    topo::Body::clone(inst.body()),
                     Tol::witness()
                 ),
                 Tol::witness()
@@ -655,7 +655,7 @@ fn a_non_finite_pattern_direction_places_its_instances_at_the_interval_scalar() 
     };
     assert_eq!(instances.len(), 3);
     for (i, inst) in instances.iter().enumerate() {
-        let min_x = inst
+        let min_x = crate::fixture::in_space(inst)
             .points()
             .map(|(_, p)| geom_core::Bounds::lo(p.x))
             .fold(f64::INFINITY, f64::min);

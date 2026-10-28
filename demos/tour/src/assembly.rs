@@ -594,9 +594,9 @@ fn bundle(doc: &ProfileDoc, placement: RecipeNodeId) -> Vec<Constraint> {
 }
 
 /// The one body an instance defines: a copy of its part's product.
-fn instance_body(ev: &Evaluation<f64>, instance: RecipeNodeId, what: &str) -> Arc<Body<f64>> {
+fn instance_body(ev: &Evaluation<f64>, instance: RecipeNodeId, what: &str, tol: Tol) -> Body<f64> {
     match &ev.value(instance).expect("the instance evaluates").payload {
-        ValuePayload::Body(body) => Arc::clone(body),
+        ValuePayload::Body(body) => crate::world::in_its_space(body, tol),
         other => panic!("{what} is a {}, not an instance's copy", other.kind_name()),
     }
 }
@@ -1253,7 +1253,7 @@ fn poses(
         );
         placed_as_composed(ws, stand, bench, &ev, degrees.to_radians(), tol);
         far_post_solved(&doc, stand, &with_store(ws), degrees.to_radians(), tol);
-        shelf_stays_on_the_pivot(&ev, stand, degrees);
+        shelf_stays_on_the_pivot(&ev, stand, degrees, tol);
         let (gathered, _) = product_of(&doc, &ev, tol);
         let volume = pncad::topo::mass_properties(
             &crate::booleans::at_rest(&gathered, tol),
@@ -1327,8 +1327,9 @@ fn placed_as_composed(
         let own = points(&part_product_body(
             &run(&part, &EvalOptions::default(), tol),
             &part,
+            tol,
         ));
-        let placed = points(&instance_body(ev, instance, what));
+        let placed = points(&instance_body(ev, instance, what, tol));
         assert_eq!(
             own.len(),
             placed.len(),
@@ -1392,8 +1393,8 @@ fn far_post_solved(doc: &ProfileDoc, stand: &Stand, opts: &EvalOptions, swing: f
 /// The turntable turns the bench about the shelf's centre, which is
 /// the point of the pivot: the mean of the shelf's eight corners — its
 /// centroid in plan — stays on [`PIVOT`] at every swing.
-fn shelf_stays_on_the_pivot(ev: &Evaluation<f64>, stand: &Stand, degrees: f64) {
-    let corners = points(&instance_body(ev, stand.shelf_i, "the shelf"));
+fn shelf_stays_on_the_pivot(ev: &Evaluation<f64>, stand: &Stand, degrees: f64, tol: Tol) {
+    let corners = points(&instance_body(ev, stand.shelf_i, "the shelf", tol));
     let n = corners.len() as f64;
     let centre = [0, 1].map(|k| corners.iter().map(|p| p[k]).sum::<f64>() / n);
     assert!(
@@ -1403,10 +1404,10 @@ fn shelf_stays_on_the_pivot(ev: &Evaluation<f64>, stand: &Stand, degrees: f64) {
 }
 
 /// A part document's product body: its one placement's value.
-fn part_product_body(ev: &Evaluation<f64>, part: &ProfileDoc) -> Arc<Body<f64>> {
+fn part_product_body(ev: &Evaluation<f64>, part: &ProfileDoc, tol: Tol) -> Body<f64> {
     let (placement, _) = placed_body(part);
     match &ev.value(placement).expect("the part evaluates").payload {
-        ValuePayload::Body(body) => Arc::clone(body),
+        ValuePayload::Body(body) => crate::world::in_its_space(body, tol),
         other => panic!("a part's placement is a {}, not a body", other.kind_name()),
     }
 }

@@ -60,9 +60,8 @@ pub enum SectionVerdict {
         what: &'static str,
     },
     /// The moved pair meets in a plane×cone parabola or hyperbola, whose
-    /// arc is a rational-quadratic NURBS carrier (`geom_brep`'s C1) that
-    /// has no certificate on a cone yet: the uniqueness tube has no cone
-    /// enclosure.
+    /// arc is a rational-quadratic NURBS carrier (`geom_brep`'s C1) this
+    /// door does not mint.
     OpenConic {
         /// The conic.
         conic: geom_brep::OpenConic,
@@ -89,7 +88,7 @@ impl core::fmt::Display for SectionVerdict {
             Self::Unsupported { what } => f.write_str(what),
             Self::OpenConic { conic } => write!(
                 f,
-                "the moved surfaces meet in {}, an arc that cannot yet be certified on a cone",
+                "the moved surfaces meet in {}, an arc this offset cannot yet carry",
                 conic.named()
             ),
         }

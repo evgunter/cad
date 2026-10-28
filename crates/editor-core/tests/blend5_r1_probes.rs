@@ -203,7 +203,7 @@ fn role_below_the_mouth(mouth: (f64, f64), top: (f64, f64)) -> RimSupport {
         .iter()
         .filter_map(|(n, _)| match n.path.first() {
             Some(RoleSeg::BandTrim { support, .. }) => {
-                Some((arc_height(body, edge_of(t, "a trim arc", n)), *support))
+                Some((arc_height(&body, edge_of(t, "a trim arc", n)), *support))
             }
             _ => None,
         })
