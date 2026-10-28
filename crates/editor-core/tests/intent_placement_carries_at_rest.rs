@@ -96,16 +96,30 @@ fn assembled_family(doc: ProfileDoc, family: RecipeNodeId) -> (ProfileDoc, Recip
 }
 
 /// Two copies of `source` along x, `pitch` apart: a family over an
-/// index, member `k` slid `scalar(k)·pitch` (D10 `[repetition]`).
+/// index, member `k` slid `scalar(k)·pitch` (D10 `[repetition]`), in
+/// `source`'s space. Inserted plainly: the rows name their product, so
+/// no world `⊔` gathers the family beside it.
 fn patterned(doc: ProfileDoc, source: RecipeNodeId, pitch: f64) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, _, family) = fixture::linear(doc, source, [1.0, 0.0, 0.0], pitch, 2);
-    (doc, family)
+    let name = fixture::fresh_index_name(&doc);
+    let (doc, k) = fixture::index(doc, &name, 2);
+    let target = fixture::space(&doc, source);
+    let read = fixture::body_read(&doc, source.into());
+    let placed = editor_core::Placed::of(&doc, Vec::new(), fixture::slides_along(k, [1.0, 0.0, 0.0], pitch));
+    put(
+        doc,
+        Node::place(
+            editor_core::BodyRead::plain(read),
+            Operand::Var(target),
+            placed.bundle(),
+        ),
+    )
 }
 
 /// Member `i` of `family`, read by an indexed read and placed where it
-/// stands.
+/// stands, inserted plainly as [`patterned`] is.
 fn member(doc: ProfileDoc, family: RecipeNodeId, i: i64) -> (ProfileDoc, RecipeNodeId) {
-    fixture::member(doc, family, i)
+    let node = fixture::member_node(&doc, family, vec![editor_core::Formula::count(i)]);
+    put(doc, node)
 }
 
 /// `a ⊔ a'`: two world blocks overlapping in general position.
