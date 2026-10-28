@@ -202,7 +202,10 @@ Green on the fix, measured locally at the default ε:
   `m10_3_driver_interval::a_planted_flip…`;
 - `docm9_range` ×5, after the notch fixture moved (below);
 - `profile`, `geom-core`, `topo` and `geom-brep` at `--profile ci`;
-- `m10_bulge` ×2, re-pinned: `segment_gap` 0/6 → 0/2.
+- `m10_bulge` ×2, re-pinned: `segment_gap` 0/6 → 0/2;
+- the fast-set rows that count those readings, re-pinned in the same PR
+  (`kstats_bracket_rows`, `asm2a_instantiate`, `m10_8`, `m4_pr6`, the
+  `m10_6` cert keys).
 
 **docm9's notch.** Its seed held two real `segment_gap` flips below the
 crossing, at h = (1 − √2)/2 and h = −1/2. The rows' subject is the
@@ -217,8 +220,7 @@ A new row pins the gap's flip from the old nominal. Filed on CPAIR:
   - the slab's forms go from main Plain/Decision 992 to 976
     (`m10_sym_profile` ×2);
   - m10_6's planted_flip: main certifies 0 of it, the fix certifies 0.5 with
-    flip_crossing 0.5;
-  - the m10_6 cert keys.
+    flip_crossing 0.5.
 
   These rows need a re-bless at the reading after this fix, each move
   explained. Their stored values also carry drift from other merges
