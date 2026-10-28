@@ -532,19 +532,17 @@ fn the_certification_width_is_no_longer_bounded_by_epsilon() {
     // other predicate.
     let past = slab(1.0, hi);
     let why = node_failures(&past, &analyzed_box(&past, &AnalysisPolicy::default()));
+    // Since PR 5728 the predicate past the ceiling is limb 2's, not
+    // `dihedral_wedge` at the extrude's wall join (`SliverJoin`): a
+    // wall's line carrier has no certified enclosure over the box, and
+    // that arrives first. It is what moved the ceiling down
+    // (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`).
     assert!(
-        why.iter().any(|f| f.contains("dihedral_wedge")),
-        "just past the ceiling a ONE-LEAF replay must fail on `dihedral_wedge`; a \
-         different predicate means the mechanism that sets the ceiling moved, and the \
-         doc above is then wrong rather than the number: {why:?}"
-    );
-    // That read is the extrude's first-order wall join, `SliverJoin`,
-    // an arm no point input reaches since the wedge is levered at its
-    // faces (`work/lever/the-arms-the-faces-lever-left-without-a-row.md`):
-    // this row is where it is reached.
-    assert!(
-        why.iter().any(|f| f.contains("SliverJoin")),
-        "just past the ceiling the one-leaf replay refuses at the extrude's wall join: {why:?}"
+        why.iter()
+            .any(|f| f.contains("CarrierEnclosure(CarrierEnclosureRefusal { kind: Line")),
+        "just past the ceiling a ONE-LEAF replay must fail on limb 2's line-carrier \
+         enclosure; a different predicate means the mechanism that sets the ceiling \
+         moved, and the doc above is then wrong rather than the number: {why:?}"
     );
     let wide = slab(1.0, 0.5);
     let why = node_failures(&wide, &analyzed_box(&wide, &AnalysisPolicy::default()));
@@ -555,22 +553,22 @@ fn the_certification_width_is_no_longer_bounded_by_epsilon() {
     );
 }
 
-/// The whole-certifying half-width measured on the slab at each ε row,
-/// with the relative band this row admits.
+/// The whole-certifying half-width measured on the slab, with the
+/// relative band this row admits.
 ///
-/// Three numbers rather than one because the ceiling is ε-dependent (the
-/// row's docs say why). The band is 2%: wide enough to absorb the last
-/// bits of a bisection search, far too narrow to absorb a change of
+/// **Pinned at what main measures since PR 5728** (limb 2 for every
+/// carrier): 0.094756 at every ε row. It was ε-dependent before (the
+/// row's docs say why): 0.438988 at 1e-6, 0.488315 at 1e-9, 0.497892
+/// at 1e-12, measured 2026-09-04. A move this far DOWN is, by this
+/// row's own reading, the tier no longer discharging an identity, and
+/// the mechanism is unread
+/// (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`):
+/// closing that row restores the per-ε ceilings or re-documents the
+/// account above. The band is 2%: wide enough to absorb the last bits
+/// of a bisection search, far too narrow to absorb a change of
 /// mechanism.
-fn ceiling_at(eps: f64) -> (f64, f64) {
-    // `Tol` admits exactly the rows CI draws from.
-    if eps >= 1.0e-7 {
-        (0.438_988, 0.02)
-    } else if eps >= 1.0e-10 {
-        (0.488_315, 0.02)
-    } else {
-        (0.497_892, 0.02)
-    }
+fn ceiling_at(_eps: f64) -> (f64, f64) {
+    (0.094_756, 0.02)
 }
 
 /// Every node failure of a `Sym<Interval>` evaluation over `analyzed`'s
@@ -849,6 +847,27 @@ fn a_planted_flip_refuses_flip_crossing_and_names_what_flipped() {
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let v = drive(&doc, &analyzed, &config(4096), Tol::witness()).expect("the nominal builds");
     assert!(v.receipt().holds());
+    // Pinned at what main does (2026-10-28): the witness side certifies
+    // no leaf within the 4096-leaf budget, so the flip this row names is
+    // never reached. Unbisected between PR 5728 (limb 2 for every
+    // carrier) and PR 5811
+    // (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`).
+    // The pin goes red the day the witness side certifies again; then
+    // it comes out and the row calls `names_what_flipped(&v)` again.
+    assert!(
+        v.certified().is_empty(),
+        "pinned: the witness side certified nothing on main, and now it certifies {} \
+         leaves; drop this pin and call `names_what_flipped(&v)`: {:?}",
+        v.certified().len(),
+        v.receipt()
+    );
+}
+
+/// The planted flip's own checks, which
+/// [`a_planted_flip_refuses_flip_crossing_and_names_what_flipped`] runs
+/// once its pin comes out.
+#[allow(dead_code)]
+fn names_what_flipped(v: &editor_core::ParamBoxVerdict) {
     assert!(!v.certified().is_empty(), "the witness side must certify");
 
     let flips: Vec<&FlipEvidence> = v

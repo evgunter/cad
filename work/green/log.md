@@ -67,3 +67,40 @@ Review tiers, chosen at dispatch:
 - gate trust: orchestrator's read for the seed and pick-guard fixes
   (mechanical, with witness seeds), STYLE review for the two new
   nightly rows.
+
+## 2026-10-28 — two lanes landed; a coupling with OFFSET
+
+- **tess-lint** (#5942, orchestrator's read: the diff was tracker-only).
+  The gate was already green: #5717 re-cut the baseline on 10-26 and
+  folded the 31 findings unread. The lane read all 31 after the fact
+  and attributed each to a deliberate model change (#3657, #4193,
+  #4209/#4121/#4926, #5568, #5722), the bound change #4984 or #5531's
+  documented sizing trade; no kernel finding. Two moves stay
+  unattributed (`teapotspout`'s total fall, `tiltedcut_above` face 3);
+  neither is a finding. Also closed TESSSIZE's twopeg row.
+- **small reds** (#5943, orchestrator's read: one doc-comment fix).
+  Nightly 74's rustdoc red was already fixed by #5917; the lane found a
+  fourth link that #5894 added after the nightly and fixed it.
+  `tilted_cut_upper` was already re-blessed by #5818 (cause #5734).
+  Class worth keeping in mind: with no per-PR rustdoc pass (the latency
+  cut's choice), every broken doc link reaches the nightly first. That
+  is a deliberate trade, and the latency lane must not undo it.
+- **Coupling with OFFSET's #5935** (raised by the user): it bisects some
+  editor-core M10 and 1e-12 KernelLimit reds to #5728 and re-pins them.
+  `main-reds-editor-core-slow-set-and-the-k-probe-sweep` names several of
+  the same tests (`m10_3_driver_interval`, `m10_9_pins_interval`,
+  `sym11`'s `two_hole_plate`). The slow-set lane was told to leave
+  #5728's reds to #5935 and to say which tests both PRs touch. A note
+  is on OFFSET's log. Band difference noted, not resolved here: #5935
+  bands its main reds P2 (interval ground), GREEN's slow-set row is P1
+  (a week-long red nightly hides new regressions).
+
+## 2026-10-28 — a red is greened, not fixed, here
+
+The user set GREEN's posture on main reds (`program.md`): get them
+green without going into the weeds on other programs, by re-blessing an explained move, or by pinning the failure
+(or `#[ignore]`ing it with the row it waits on) and filing the fix on
+the owning program. No kernel work in a GREEN lane. The slow-set lane
+and the gate-trust lane (for the `--all-features` reds) were told the
+same day. This also settles the band question above: the slow-set row
+stays P1, since greening main is this track's central job.
