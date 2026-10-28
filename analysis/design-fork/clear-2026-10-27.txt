@@ -6,3 +6,9 @@ drawn: 2026-10-27T16:3xZ, od -An -tu1 of one /dev/urandom byte
 byte: 77 (odd)
 mapping: Fable = A, Opus = B (both forks)
 protocol: 1c2a49c3
+
+fork: minsep (work/clear/min-separation-tightening-crosses-the-drive.md)
+drawn: 2026-10-28T07:0xZ, od -An -N1 -tu1 /dev/urandom, at dispatch (before any report)
+byte: 66
+mapping: Opus = A, Fable = B
+protocol: 1c2a49c3
