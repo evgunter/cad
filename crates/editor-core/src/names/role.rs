@@ -620,7 +620,7 @@ macro_rules! wrapped_edge_of {
         match $seg {
             RoleSeg::From { of: n, .. }
             | RoleSeg::SplitFragment { parent: n, .. }
-            | RoleSeg::Instance { of: n, .. } => Some(n),
+            | RoleSeg::Member { of: n, .. } => Some(n),
             _ => None,
         }
     };
@@ -1537,16 +1537,22 @@ pub enum RoleSeg {
         hole: u32,
     },
 
-    // ---- Pattern ----
-    /// Instance `i` of the pattern's master (i is the D8-structural
-    /// index — A8/N1; `of` is the master entity's name).
-    Instance {
-        /// The structural instance index.
-        i: u32,
-        /// The master entity this instance copy corresponds to.
+    // ---- Repetition ----
+    /// **A family's member** (D10 `[repetition]`): the entity `of` as
+    /// the member at `at` holds it.
+    Member {
+        /// Each index the family reaches, outermost first, at the
+        /// member's value.
+        at: MemberAt,
+        /// The member's own name of the entity.
         of: NameRef,
     },
 }
+
+/// **Where a member stands in its family** ([`RoleSeg::Member`]): each
+/// index the family reaches, outermost first, by its variable, at the
+/// member's value.
+pub type MemberAt = Vec<(VarId, u32)>;
 
 /// **The band face swept from the profile piece `piece`** on the
 /// revolve at `node` (in a full revolve's wire case, a curved wall's
@@ -1690,7 +1696,7 @@ pub(crate) fn read_edge(seg: &RoleSeg) -> Option<VarId> {
         | RoleSeg::Inner(_)
         | RoleSeg::Rim(_)
         | RoleSeg::HoleRim { .. }
-        | RoleSeg::Instance { .. } => None,
+        | RoleSeg::Member { .. } => None,
     }
 }
 
@@ -1700,14 +1706,6 @@ pub(crate) fn read_edge(seg: &RoleSeg) -> Option<VarId> {
 /// the input's names come through.
 #[derive(Debug)]
 pub(crate) enum VerbatimEdge<'a> {
-    /// The one body of `of` that `select` names, projected: a
-    /// [`Node::Part`](crate::node::Node::Part).
-    Selected {
-        /// The read of the pattern's copies.
-        of: crate::VarId,
-        /// Which body of it.
-        select: &'a crate::node::PartSelect,
-    },
     /// The entities of the split target the split leaves intact: a
     /// [`Node::Split`](crate::node::Node::Split). Which ones those are
     /// is the geometry's answer, not the recipe's: a walk that holds a
@@ -1756,17 +1754,15 @@ pub(crate) enum VerbatimEdge<'a> {
 ///
 /// What the compiler cannot hold — that this classification agrees
 /// with what the evaluator actually passes through (`eval::wire`'s
-/// `wire_part`, `wire_split`) — is held at runtime by
+/// `wire_split`) — is held at runtime by
 /// `tests/names_verbatim_edge_evaluator.rs`, per edge over an evaluated
-/// corpus: a `Selected` node publishes only names headed by other
-/// nodes, an `Intact` one publishes both kinds, and a `None` node heads
-/// every row itself. Every node kind the corpus can evaluate is sampled
+/// corpus: an `Intact` node publishes both kinds, and a `None` node
+/// heads every row itself. Every node kind the corpus can evaluate is sampled
 /// with rows, except the kinds that publish none at all, which that
 /// suite names and holds at zero.
 pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEdge<'_>> {
     use crate::node::Node;
     match node {
-        Node::Part { of, select } => Some(VerbatimEdge::Selected { of: *of, select }),
         Node::Split { target, .. } => Some(VerbatimEdge::Intact {
             target: target.read,
         }),
@@ -1792,10 +1788,8 @@ pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEd
         | Node::Union { .. }
         | Node::Intersect { .. }
         | Node::Assemble { .. }
-        | Node::Pattern { .. }
         | Node::World
         | Node::Space
-        | Node::PlacedUnion { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. } => None,
     }
@@ -2248,8 +2242,8 @@ impl RoleSeg {
                 of: rewrite_ref(of, w)?,
                 hole: *hole,
             },
-            R::Instance { i, of } => R::Instance {
-                i: *i,
+            R::Member { at, of } => R::Member {
+                at: at.clone(),
                 of: rewrite_ref(of, w)?,
             },
         })
@@ -2437,7 +2431,7 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::Inner(_)
             | $crate::names::RoleSeg::Rim(_)
             | $crate::names::RoleSeg::HoleRim { .. }
-            | $crate::names::RoleSeg::Instance { .. }
+            | $crate::names::RoleSeg::Member { .. }
     };
 }
 

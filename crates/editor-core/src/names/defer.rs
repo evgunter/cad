@@ -56,7 +56,7 @@ use crate::node::RecipeNodeId;
 ///
 /// B1 (ratified, #512): a tie PROPAGATES — naming a tie is fine (N2);
 /// only *referencing* one is `Ambiguous`. This mirrors the three
-/// emitters that already do it (`name_pattern`, `name_in_part`,
+/// emitters that already do it (`name_family`, `name_in_part`,
 /// `graft_names`), so a tie anywhere in an operand table no longer
 /// refuses the whole downstream op.
 #[derive(Clone)]

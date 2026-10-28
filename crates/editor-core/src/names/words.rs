@@ -467,7 +467,7 @@ enum Wrap<'n> {
     Part(&'n Qualifier),
     Split,
     ToolCopy,
-    Instance(u32),
+    Member(&'n super::role::MemberAt),
     Cut,
 }
 
@@ -521,7 +521,7 @@ fn walk<'n>(name: &'n StableName, by: Speaker<'_>) -> Walk<'n> {
             }
             CarriedAs::Split => Some(Step::Wrap(Wrap::Split)),
             CarriedAs::ToolCopy => Some(Step::Wrap(Wrap::ToolCopy)),
-            CarriedAs::Instance(i) => Some(Step::Wrap(Wrap::Instance(i))),
+            CarriedAs::Member(at) => Some(Step::Wrap(Wrap::Member(at))),
             CarriedAs::Cut => Some(Step::Wrap(Wrap::Cut)),
         });
         at = of;
@@ -664,10 +664,22 @@ fn prefix(wrap: &Wrap<'_>) -> String {
     match wrap {
         Wrap::Split => "the split's part of ".to_owned(),
         Wrap::ToolCopy => "the split's copy of ".to_owned(),
-        Wrap::Instance(i) => format!("instance {i}'s copy of "),
+        Wrap::Member(at) => format!("member {}'s copy of ", member_values(at)),
         Wrap::Cut => "the surviving part of ".to_owned(),
         Wrap::Part(Qualifier::Borders(_) | Qualifier::Keeps(_) | Qualifier::Ends(_)) => {
             "the part of ".to_owned()
+        }
+    }
+}
+
+/// A member's index values as its name says them: the one value of a
+/// one-index family, a tuple of several.
+fn member_values(at: &super::role::MemberAt) -> String {
+    match at.as_slice() {
+        [(_, value)] => value.to_string(),
+        values => {
+            let values: Vec<String> = values.iter().map(|(_, v)| v.to_string()).collect();
+            format!("({})", values.join(", "))
         }
     }
 }
@@ -1006,8 +1018,11 @@ fn role<'n, 's>(
         }
         RoleSeg::SplitFragment { parent } => vec![text("the split's part of "), cites.one(parent)],
         RoleSeg::OnToolVertex { of } => vec![text("the split's copy of "), cites.one(of)],
-        RoleSeg::Instance { of, i } => {
-            vec![text(format!("instance {i}'s copy of ")), cites.one(of)]
+        RoleSeg::Member { of, at } => {
+            vec![
+                text(format!("member {}'s copy of ", member_values(at))),
+                cites.one(of),
+            ]
         }
         RoleSeg::BandCut(of) => vec![text("the surviving part of "), cites.one(of)],
         RoleSeg::Fragment(q) => {
@@ -1360,15 +1375,15 @@ mod tests {
             name(
                 EntityKind::Face,
                 OP,
-                vec![RoleSeg::Instance {
-                    i,
+                vec![RoleSeg::Member {
+                    at: vec![(crate::VarId::new(9, 9), i)],
                     of: NameRef::new(n),
                 }],
             )
         });
         assert_eq!(
             said(&deep),
-            "instance 2's copy of instance 1's copy of instance 0's copy of the end cap of node \
+            "member 2's copy of member 1's copy of member 0's copy of the end cap of node \
              000000000001"
         );
     }

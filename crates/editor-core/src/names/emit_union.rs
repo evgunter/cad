@@ -4351,8 +4351,8 @@ mod tests {
         let fold_name = |i: u64| StableName {
             kind: EntityKind::Vertex,
             node: m.union,
-            path: vec![RoleSeg::Instance {
-                i: u32::try_from(i).unwrap(),
+            path: vec![RoleSeg::Member {
+                at: vec![(crate::VarId::new(9, 9), u32::try_from(i).unwrap())],
                 of: NameRef::new(tied.clone()),
             }],
         };
@@ -4448,8 +4448,8 @@ mod tests {
         for (i, v) in [v0, v1].into_iter().enumerate() {
             let fold = vertex(
                 tied.union,
-                vec![RoleSeg::Instance {
-                    i: u32::try_from(i).unwrap(),
+                vec![RoleSeg::Member {
+                    at: vec![(crate::VarId::new(9, 9), u32::try_from(i).unwrap())],
                     of: NameRef::new(tie.clone()),
                 }],
             );

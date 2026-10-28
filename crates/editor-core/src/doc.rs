@@ -1292,6 +1292,10 @@ impl<P> Doc<P> {
         let mut reads = Vec::new();
         match self.vars.get(&var).map(Var::def) {
             Some(VarDef::Defined(expr)) => expr.var_reads(&mut reads),
+            Some(VarDef::Index(index)) => {
+                index.count.var_reads(&mut reads);
+                reads.extend(index.within.map(|within| (within, Dimension::Count)));
+            }
             Some(VarDef::Select(select)) => return vec![select.body],
             Some(VarDef::Pick(pick)) => return vec![pick.placement],
             Some(VarDef::Pose(def)) => {
@@ -1322,7 +1326,7 @@ impl<P> Doc<P> {
             // after everything it reads.
             if !matches!(
                 self.vars.get(&ids[at]).map(Var::def),
-                Some(VarDef::Defined(_) | VarDef::Pose(_))
+                Some(VarDef::Defined(_) | VarDef::Pose(_) | VarDef::Index(_))
             ) {
                 continue;
             }
@@ -1990,7 +1994,7 @@ impl<P> Doc<P> {
                 }
                 None
             }
-            VarDef::Free(_) | VarDef::Defined(_) => None,
+            VarDef::Free(_) | VarDef::Defined(_) | VarDef::Index(_) => None,
         };
         if let Some(at) = at
             && !out.contains(&at)
@@ -2019,7 +2023,7 @@ impl<P> Doc<P> {
                 .reads()
                 .into_iter()
                 .find_map(|(_, &read, _, _)| self.unresolved_read(read)),
-            VarDef::Free(_) | VarDef::Defined(_) => Some(var),
+            VarDef::Free(_) | VarDef::Defined(_) | VarDef::Index(_) => Some(var),
         }
     }
 
@@ -2639,7 +2643,8 @@ impl<P> Doc<P> {
                 crate::VarDef::Output { .. }
                 | crate::VarDef::Select(_)
                 | crate::VarDef::Pose(_)
-                | crate::VarDef::Pick(_) => None,
+                | crate::VarDef::Pick(_)
+                | crate::VarDef::Index(_) => None,
             }
         })
     }
@@ -2705,9 +2710,39 @@ impl<P> Doc<P> {
                     .insert(id, crate::EvalError::OutputRead { var: id });
                 env.written.insert(id);
             }
+            // An index has a value in one member's evaluation alone
+            // ([`Self::bind_member`]).
+            if var.def().index().is_some() {
+                env.bindings.remove(&id);
+                env.refused
+                    .insert(id, crate::EvalError::IndexOutsideMember { var: id });
+            }
         }
         for id in self.definition_order() {
             self.bind_definition(id, env);
+        }
+    }
+
+    /// **`env` at one member** (D10 `[repetition]`): each index of `at`
+    /// bound to its value, and every definition reaching one of them
+    /// bound again over those values, in definition order.
+    pub(crate) fn bind_member<T: Decide>(&self, env: &mut VarEnv<T>, at: &[(VarId, i64)])
+    where
+        P: crate::ProfilePayload,
+    {
+        for &(index, value) in at {
+            env.refused.remove(&index);
+            env.bindings.insert(index, ParamValue::Count(value));
+        }
+        let mut reach = crate::repetition::Reach::new(self);
+        for id in self.definition_order() {
+            if self.vars.get(&id).and_then(|v| v.def().defined()).is_none() {
+                continue;
+            }
+            let reached = reach.of_var(id);
+            if at.iter().any(|(index, _)| reached.contains(index)) {
+                self.bind_definition(id, env);
+            }
         }
     }
 
@@ -2740,7 +2775,11 @@ impl<P> Doc<P> {
                 env.bindings.insert(id, bound);
                 // The form rides beside the value: a rotation by this
                 // variable reads its sine and cosine from it.
-                if let Some(turns) = expr.constant_turns(|v| env.turns.get(&v).copied()) {
+                let counts = |v| match env.bindings.get(&v) {
+                    Some(ParamValue::Count(n)) => Some(*n),
+                    _ => None,
+                };
+                if let Some(turns) = expr.constant_turns(|v| env.turns.get(&v).copied(), counts) {
                     env.turns.insert(id, turns);
                 }
             }
@@ -3239,7 +3278,7 @@ impl<'d, P> SpaceWalk<'d, P> {
             VarDef::Pick(pick) => self.var(pick.placement),
             // A pose is in the first space it reaches.
             VarDef::Pose(_) => self.reached_all([var]).first().copied(),
-            VarDef::Free(_) | VarDef::Defined(_) => None,
+            VarDef::Free(_) | VarDef::Defined(_) | VarDef::Index(_) => None,
         }
     }
 
@@ -3265,8 +3304,6 @@ impl<'d, P> SpaceWalk<'d, P> {
                 self.var(*selection)
             }
             Node::Shell { open, .. } => self.var(*open),
-            Node::Pattern { input, .. } | Node::PlacedUnion { input, .. } => self.var(*input),
-            Node::Part { of, .. } => self.var(*of),
             // A construction is in the space it defines; nothing else
             // reads a body or defines a space.
             _ => self.own.get(&id).copied(),

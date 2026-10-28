@@ -155,7 +155,7 @@ use crate::names::{
     StableName,
 };
 use crate::node::{
-    AuthoredNode, InterfaceCrossing, InterfaceRecord, Node, PatternKind, RecipeNodeId, StepId,
+    AuthoredNode, InterfaceCrossing, InterfaceRecord, Node, RecipeNodeId, StepId,
 };
 use crate::part::{PartResolver, ResolveFailure};
 use crate::persist::{PersistError, content_pin};
@@ -1607,6 +1607,7 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::FreshKind { .. }
             | EditError::FreshUnread { .. }
             | EditError::VarKindFixed { .. }
+            | EditError::Index { .. }
             | EditError::NotAFreeVar { .. }
             | EditError::VarIsAnOutput { .. }
             | EditError::DefinitionCycle { .. }
@@ -1646,10 +1647,6 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::SpaceMismatch { .. }
             | EditError::ConstraintOnNonPlacement { .. }
             | EditError::UnknownConstraint { .. }
-            | EditError::PlacementRuleMismatch { .. }
-            | EditError::EmptyPlacementList { .. }
-            | EditError::NonFinitePlacement { .. }
-            | EditError::NonRigidPlacement { .. }
             | EditError::PlacementAxis { .. }
             | EditError::UpdateOnNonInstance { .. }
             | EditError::PinUnchanged { .. }
@@ -1927,27 +1924,6 @@ enum RemapMiss {
     },
 }
 
-/// Rewrites a placement rule's id references: the circular rule's axis
-/// read is the only one the vocabulary carries (a linear rule is pure
-/// expressions, an explicit rule pure frames). Shared by both
-/// placement-rule nodes so their seam behavior cannot drift apart.
-///
-/// # Errors
-///
-/// The first [`RemapMiss`].
-fn remap_rule(
-    kind: &PatternKind,
-    rd: &dyn Fn(crate::OperandSlot, VarId) -> Result<VarId, RemapMiss>,
-) -> Result<PatternKind, RemapMiss> {
-    Ok(match kind {
-        PatternKind::Linear { .. } | PatternKind::Explicit(_) => kind.clone(),
-        PatternKind::Circular { axis, step } => PatternKind::Circular {
-            axis: axis.try_map(|axis| rd(crate::OperandSlot::Axis, *axis))?,
-            step: *step,
-        },
-    })
-}
-
 /// Rewrites a node payload's reads through `rd`, for insertion into
 /// the other document.
 /// `InstantiatePart`'s document reference crosses verbatim: it
@@ -2100,22 +2076,6 @@ fn remap_node(
         // constraint reading it names no id.
         Node::World => Node::World,
         Node::Space => Node::Space,
-        Node::Pattern { input, count, kind } => Node::Pattern {
-            input: rd(crate::OperandSlot::Input, *input)?,
-            count: *count,
-            kind: remap_rule(kind, rd)?,
-        },
-        // The selector is payload with no id in it (a half, or an
-        // index expression); only the edge remaps.
-        Node::Part { of, select } => Node::Part {
-            of: rd(crate::OperandSlot::Of, *of)?,
-            select: select.clone(),
-        },
-        Node::PlacedUnion { input, count, kind } => Node::PlacedUnion {
-            input: rd(crate::OperandSlot::Input, *input)?,
-            count: *count,
-            kind: remap_rule(kind, rd)?,
-        },
         // The reference crosses verbatim (the function's docs say why),
         // and its bundle as a placement's does.
         Node::InstantiatePart {
@@ -2263,6 +2223,20 @@ impl<'s> VarCarry<'s> {
                         )
                     });
                 VarDecl::Defined(formula)
+            }
+            VarDef::Index(index) => {
+                let read = |var: VarId| self.reader(anonymous, var, Dimension::Count);
+                let count = Formula::from(&index.count)
+                    .substitute_vars(&mut |var| Some(self.reader(anonymous, var, kind_of(self.source, var)?)))
+                    .unwrap_or_else(|fault| {
+                        unreachable!(
+                            "a reader re-pointed at its own kind keeps every dimension: {fault}"
+                        )
+                    });
+                VarDecl::Index {
+                    count,
+                    within: index.within.map(read),
+                }
             }
             VarDef::Output { .. } => {
                 unreachable!("an output crosses with its node, minted by the target's insert")
@@ -2593,19 +2567,14 @@ pub fn split(
     // it is, and a name of a body a cut world `Place` copies, which
     // that placement's copy carries verbatim. The copy holds the names its
     // body minted, those a transform below it carried whole (N1's
-    // `Whole` edge), and a pattern copy's names where a part picks that
-    // copy: the name's own `Instance` index against the pick's, at the
-    // document's values, as the member walk judges a pick
-    // (`mate::member`). That match is positional and interim: it
-    // retires with `[ev]` #4341's `Member` keys. A split half's pick is
-    // not followed, since which half holds a split's name is the
-    // geometry's answer. A name of material no cut world placement
-    // places, or two do, names nothing the instance carries.
-    let env = doc.var_env::<f64>();
+    // `Whole` edge), and a family member's, by the member its `Member`
+    // segment names, which no value decides. A split half's pick is not
+    // followed, since which half holds a split's name is the geometry's
+    // answer. A name of material no cut world placement places, or two
+    // do, names nothing the instance carries.
     // With `body`, the copy is the one a cut placement makes of that body
-    // (a selection's): the placement copies it, or a `Part` that picks a
-    // copy out of it (the gate's copy rule, `assembly::copy_face`), and
-    // the walk follows the name from there to its minting node. The
+    // (a selection's): the placement copies it (the gate's copy rule,
+    // `assembly::copy_face`), and the name heads there. The
     // answer is the placement, and whether the part's product wraps the
     // name under it.
     let home = |name: &StableName, body: Option<RecipeNodeId>| -> Option<(RecipeNodeId, bool)> {
@@ -2618,51 +2587,13 @@ pub fn split(
         {
             return world(name.node).then_some((name.node, false));
         }
-        let copy_of_name = match name.path.first() {
-            Some(RoleSeg::Instance { i, .. }) => Some(i64::from(*i)),
-            _ => None,
-        };
         let holds = |placed: Option<RecipeNodeId>, body: Option<RecipeNodeId>| -> bool {
-            let mut picked: Option<i64> = None;
-            let mut at = match (placed, body) {
+            let at = match (placed, body) {
                 (placed, None) => placed,
                 (Some(node), Some(body)) if node == body => Some(node),
-                (Some(node), Some(body)) => {
-                    match doc.node(node).and_then(crate::names::verbatim_edge) {
-                        Some(crate::names::VerbatimEdge::Selected {
-                            of,
-                            select: crate::node::PartSelect::Instance(index),
-                        }) if doc.operation_of(of) == Some(body) => {
-                            picked = crate::expr::eval_var_count(*index, &env).ok();
-                            picked.map(|_| body)
-                        }
-                        _ => None,
-                    }
-                }
-                (None, Some(_)) => None,
+                (Some(_) | None, Some(_)) => None,
             };
-            while let Some(node) = at {
-                if node == name.node {
-                    return picked.is_none_or(|k| copy_of_name == Some(k));
-                }
-                at = match doc.node(node).and_then(crate::names::verbatim_edge) {
-                    Some(crate::names::VerbatimEdge::Selected {
-                        of,
-                        select: crate::node::PartSelect::Instance(index),
-                    }) if picked.is_none() => {
-                        picked = crate::expr::eval_var_count(*index, &env).ok();
-                        picked.and_then(|_| doc.operation_of(of))
-                    }
-                    Some(
-                        crate::names::VerbatimEdge::Selected { .. }
-                        | crate::names::VerbatimEdge::Intact { .. }
-                        | crate::names::VerbatimEdge::Reflected { .. }
-                        | crate::names::VerbatimEdge::Copied { .. },
-                    )
-                    | None => None,
-                };
-            }
-            false
+            at == Some(name.node)
         };
         // A name read at a cut placement's own copy is its source's, as
         // the copy carries it: walked from that source.

@@ -2786,7 +2786,7 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<(&'a Stabl
             | RoleSeg::SectionEdge { face: n }
             | RoleSeg::SplitFragment { parent: n }
             | RoleSeg::OnToolVertex { of: n }
-            | RoleSeg::Instance { of: n, i: _ }
+            | RoleSeg::Member { of: n, at: _ }
             // The fillet vocabulary (M6-5): every argument is the
             // SOURCE entity the blend was born for — derivation, not
             // discrimination.

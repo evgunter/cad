@@ -230,7 +230,11 @@ fn eval_pose_as<T: crate::mate::SolveScalar>(
     let value = match held.def() {
         VarDef::Output { node, port } => output(doc, results, admits, *node, *port, env, tol)?,
         VarDef::Pose(def) => definition(doc, results, slot, def, env, tol)?,
-        VarDef::Free(_) | VarDef::Defined(_) | VarDef::Select(_) | VarDef::Pick(_) => {
+        VarDef::Free(_)
+        | VarDef::Defined(_)
+        | VarDef::Select(_)
+        | VarDef::Pick(_)
+        | VarDef::Index(_) => {
             return Err(NodeErrorKind::UnresolvedRead { slot, var });
         }
     };
@@ -763,7 +767,7 @@ fn walk<T: Decide>(
             out.push(PoseWord::Tag(w::OUTPUT));
             out.push(port_word(Some((*node, *port))));
         }
-        Some(VarDef::Free(_) | VarDef::Defined(_) | VarDef::Pick(_)) | None => {
+        Some(VarDef::Free(_) | VarDef::Defined(_) | VarDef::Pick(_) | VarDef::Index(_)) | None => {
             out.push(PoseWord::Tag(w::OUTPUT));
             out.push(port_word(None));
         }

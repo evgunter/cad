@@ -19,17 +19,12 @@
 //! through the kernel's n-ary door (`topo::nary_boolean`), which judges
 //! the member pairs and folds the members; this layer names the
 //! judgements and the steps it returns ([`fold_members`]).
-//!
-//! **The placement-rule arithmetic.** [`SteppedOperands`] and
-//! [`stepped_rule_map`] are the ONE spelling of "where does a pattern
-//! put instance `i`"; a linear rule's direction is decided under
-//! [`PATTERN_DIRECTION_ROLE`] inside its constructor.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use geom_core::{
-    Affine3, Band, Decide, OrthoAxis, Point2, Point3, RigidMotion, Sign, Tol, UnitVec3,
+    Band, Decide, OrthoAxis, Point2, Point3, RigidMotion, Sign, Tol, UnitVec3,
     UnitVec3Error, Vec2, Vec3,
 };
 use sweep::{Revolution, RevolveAxis};
@@ -42,7 +37,7 @@ use super::slots::{self, SlotValues};
 use super::{BooleanValue, NodeErrorKind, NodeResult, PoseValue, SplitSide, ValuePayload};
 use crate::decision::Decision;
 use crate::names::{self, NameTable, SplitHalf};
-use crate::node::{Axis3, Node, PatternKind, RecipeNodeId, SlotId};
+use crate::node::{Axis3, Node, RecipeNodeId, SlotId};
 use crate::program::ProfileProgram;
 use topo::BooleanOp;
 
@@ -552,36 +547,6 @@ where
         Node::World | Node::Space => {
             unreachable!("a space is scheduled nowhere (`eval::schedule`)")
         }
-        Node::Pattern { input, kind, .. } => {
-            let input = at(O::Input, *input)?;
-            let rule = RuleEnv {
-                doc,
-                written: &written(doc, id),
-                params: env.lane.params,
-                unprojected,
-            };
-            wire_pattern(id, input, kind, &rule, results, vals, tol)
-        }
-        // No `id`: the projection mints no description and no name, so
-        // nothing it produces is stamped or keyed by this node.
-        Node::Part { of, select: _ } => wire_part(at(O::Of, *of)?, results, vals),
-        // The rule gate, FIRST, through the node's own door (the one
-        // `apply` reads): a bad placement list refuses with its own
-        // name rather than downstream as a separation or rigidity
-        // refusal. Hand-built-document backstop.
-        Node::PlacedUnion { input, kind, .. } => match node.placement_rule_fault(tol) {
-            Some(fault) => Err(NodeErrorKind::PlacementRule(fault)),
-            None => {
-                let input = at(O::Input, *input)?;
-                let rule = RuleEnv {
-                    doc,
-                    written: &written(doc, id),
-                    params: env.lane.params,
-                    unprojected,
-                };
-                wire_placed_union(id, input, kind, &rule, results, vals, tol)
-            }
-        },
         Node::Measure { primitive } => {
             let each = project_each(&body_rows(node, doc))?;
             let at = |reference: usize| {
@@ -1161,17 +1126,6 @@ enum Placeable<T: Decide> {
     Instances(Vec<super::Framed<T>>),
 }
 
-impl<T: Decide> Placeable<T> {
-    /// The bodies, in value order — one for a body, the list for
-    /// instances — so a placer that walks its master reads one shape.
-    fn bodies(&self) -> &[super::Framed<T>] {
-        match self {
-            Self::Body(b) => core::slice::from_ref(b),
-            Self::Instances(bs) => bs,
-        }
-    }
-}
-
 /// The operand of a placer, read off its evaluated value: one body
 /// (a `Body` value or a boolean's non-empty result), or an `Instances`
 /// value taken whole. Everything else refuses typed naming both
@@ -1209,12 +1163,6 @@ pub(crate) const DECISION_WORDS: &[(&str, &str)] = &[
     (
         "revolve_full_vs_partial",
         "whether the revolve makes a full turn",
-    ),
-    (PATTERN_SPACING, "whether the pattern spacing is positive"),
-    (PATTERN_STEP, "whether the pattern step is zero"),
-    (
-        PATTERN_STEP_TURN,
-        "how many whole turns the pattern step holds",
     ),
 ];
 
@@ -1303,17 +1251,6 @@ pub(crate) fn need_angle<T: Decide>(
     slot: SlotId,
 ) -> Result<geom_core::Angle<T>, NodeErrorKind> {
     slots::angle(vals, slot).ok_or(NodeErrorKind::MissingSlot { slot })
-}
-
-/// A named `[Expr; 3]` slot family of an evaluated node, as a vector
-/// ([`need_scalar`]'s backstop, on the family's x component). Shared
-/// with the mate solve for the same reason.
-pub(crate) fn need_vec3<T: Decide>(
-    vals: &SlotValues<T>,
-    f: impl Fn(Axis3) -> SlotId,
-) -> Result<Vec3<T>, NodeErrorKind> {
-    let slot = f(Axis3::X);
-    slots::vec3(vals, f).ok_or(NodeErrorKind::MissingSlot { slot })
 }
 
 /// **A slot the node declares, as its evaluated value.**
@@ -2623,54 +2560,6 @@ fn wire_mirror<T: Decide + topo::AtRestPolicy>(
     })
 }
 
-/// **The projection node** (DM3): ONE body out of a pattern's copies,
-/// as the `Body` value every consumer already takes. Any value but
-/// `Instances` refuses `WrongOperand`: a single body is NOT its own
-/// instance 0, since nothing is several bodies until a node says so
-/// (D3).
-///
-/// The body handed on is the instance's own `Arc`. The table is the
-/// input's PROJECTED onto it ([`NameTable::project`]): the selected
-/// body's rows re-keyed to body 0, names verbatim, no segment added.
-/// So a selector spelled against the input's rows resolves here
-/// unchanged, and one for another instance refuses as absent, never
-/// re-anchored. `check_total` re-checks that the projection dropped
-/// nothing the body still has.
-fn wire_part<T: Decide>(
-    of: RecipeNodeId,
-    results: &Results<T>,
-    vals: &SlotValues<T>,
-) -> OpResult<T> {
-    let value = value_of(results, of)?;
-    let (body, index) = match &value.payload {
-        ValuePayload::Instances(instances) => {
-            let index = slots::count(vals, SlotId::Instance).ok_or(NodeErrorKind::MissingSlot {
-                slot: SlotId::Instance,
-            })?;
-            // The index is into the value's FLAT list (`j·M + i`, the
-            // layout `wire_pattern` fixes). A count past u32 is the
-            // pattern's own emission bug, refused before any index is
-            // judged against it.
-            let count = names::output_body(instances.len()).map_err(NodeErrorKind::Naming)?;
-            // A negative index and one past the end fail the same way.
-            let ix = u32::try_from(index).ok().filter(|i| *i < count).ok_or(
-                NodeErrorKind::InstanceOutOfRange {
-                    input: of,
-                    index,
-                    count: instances.len(),
-                },
-            )?;
-            (instances[ix as usize].clone(), ix)
-        }
-        _ => return Err(wrong_operand(value, of, super::family::INSTANCES)),
-    };
-    let table = read_table(value)
-        .project(index)
-        .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
-    names::check_total(&table, body.body(), 0).map_err(NodeErrorKind::Naming)?;
-    Ok(OpOut::plain(ValuePayload::Body(body), Arc::new(table)).carrying(value.parts))
-}
-
 /// **The instance of `of`'s `Instances` value the count in `slot`
 /// picks**, with its index. The index is into the value's FLAT list
 /// (`j·M + i`, the layout `wire_pattern` fixes); a negative index and
@@ -2685,13 +2574,13 @@ fn instance_of<T: Decide>(
 ) -> Result<(super::Framed<T>, u32), NodeErrorKind> {
     let index = slots::count(vals, slot).ok_or(NodeErrorKind::MissingSlot { slot })?;
     let count = names::output_body(instances.len()).map_err(NodeErrorKind::Naming)?;
-    let ix = u32::try_from(index).ok().filter(|i| *i < count).ok_or(
-        NodeErrorKind::InstanceOutOfRange {
+    let ix = u32::try_from(index)
+        .ok()
+        .filter(|i| *i < count)
+        .ok_or(NodeErrorKind::MemberOutOfRange {
             input: of,
-            index,
-            count: instances.len(),
-        },
-    )?;
+            at: vec![index],
+        })?;
     Ok((instances[ix as usize].clone(), ix))
 }
 
@@ -4008,10 +3897,6 @@ fn nary_refused(refusal: topo::NaryRefusal) -> NodeErrorKind {
 /// ([`topo::NaryRefusal::VerdictsDisagree`]).
 const UNION_VERDICTS_DISAGREE: &str = "a union's pairwise judgements glue one accumulation face to one member face under two relations";
 
-/// The role word a stepped rule's LINEAR direction is normalized
-/// under, inside [`SteppedOperands::linear`].
-const PATTERN_DIRECTION_ROLE: &str = "pattern direction";
-
 /// The role word a frame's authored +x direction is normalized under
 /// ([`frame_axes`]).
 pub(crate) const FRAME_X_ROLE: &str = "frame x axis";
@@ -4222,26 +4107,8 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
     })
 }
 
-/// **What `node`'s slots read as written** ([`crate::Doc::slot_expansion`]),
-/// for a refusal that proposes a re-spelling of one: a slot the node
-/// does not carry reads as nothing a proposal could build on.
-pub(crate) fn written<P: crate::ProfilePayload>(
-    doc: &crate::doc::Doc<P>,
-    node: RecipeNodeId,
-) -> impl Fn(SlotId) -> crate::Formula + '_ {
-    move |slot| {
-        doc.slot_expansion(node, slot).unwrap_or_else(|| {
-            unreachable!("a refusal proposes a re-spelling of {slot:?}, a slot {node} carries")
-        })
-    }
-}
-
 mod distribute;
 pub(crate) mod pose;
-mod stepped;
-pub(crate) use stepped::{
-    PATTERN_SPACING, PATTERN_STEP, PATTERN_STEP_TURN, SteppedOperands, stepped_rule_map,
-};
 
 /// **The full-turn decision**: the sign of `|angle| − whole`, `whole`
 /// a whole number of turns, read by the revolve's full-or-partial
@@ -4267,238 +4134,6 @@ fn escalated(decision: Decision) -> impl FnOnce(geom_core::Indeterminate) -> Nod
     }
 }
 
-/// [`stepped_rule_map`] behind the evaluation's slot reads, which stay
-/// INSIDE so a rule's operands are demanded only when a step uses
-/// them: placement 0 is the identity and reads none. A listed rule
-/// refuses as `listed`, the mismatch it is on the caller's node.
-/// What a stepped rule reads beyond its own slots: the document its
-/// circular axis is read in, at the lane's parameters, and the rule's
-/// written formulas.
-struct RuleEnv<'a, T: Decide> {
-    doc: &'a crate::doc::Doc<ProfileProgram>,
-    written: &'a dyn Fn(SlotId) -> crate::Formula,
-    params: &'a crate::expr::VarEnv<T>,
-    /// The results before the reader's own split ports were projected,
-    /// which the pose evaluator projects for its own reads.
-    unprojected: &'a Results<T>,
-}
-
-fn stepped_map<T: crate::mate::SolveScalar>(
-    kind: &PatternKind,
-    rule: &RuleEnv<'_, T>,
-    listed: crate::node::CountMismatch,
-    i: i64,
-    vals: &SlotValues<T>,
-    tol: Tol,
-) -> Result<RigidMotion<T>, NodeErrorKind> {
-    let ops = match kind {
-        // An explicit rule's frames ARE the maps.
-        PatternKind::Explicit(_) => {
-            return Err(NodeErrorKind::PlacementRule(
-                crate::node::PlacementRuleFault::CountSpelling { shape: listed },
-            ));
-        }
-        _ if i == 0 => return Ok(RigidMotion::identity()),
-        PatternKind::Linear { .. } => SteppedOperands::linear(
-            need_vec3(vals, SlotId::Direction)?,
-            need_scalar(vals, SlotId::Spacing)?,
-            &crate::node::Axis3::ALL.map(|axis| (rule.written)(SlotId::Direction(axis))),
-            band(tol)?,
-        )?,
-        PatternKind::Circular { axis, .. } => {
-            let PoseValue::Axis(line) = pose::eval_pose(
-                rule.doc,
-                rule.unprojected,
-                crate::OperandSlot::Axis,
-                *axis,
-                rule.params,
-                tol,
-            )?
-            else {
-                unreachable!("the door admits an axis alone at a circular rule's axis")
-            };
-            SteppedOperands::circular(
-                line.foot(),
-                line.dir(),
-                need_angle(vals, SlotId::Step)?,
-                &(rule.written)(SlotId::Step),
-                band(tol)?,
-            )?
-        }
-    };
-    stepped_rule_map(&ops, i)
-}
-
-/// **The pattern node**: a stepped rule over its input's value,
-/// shape-preserving — a body or an `Instances` value is the MASTER,
-/// placed whole — yielding `Instances`.
-///
-/// **The layout, placement-major** (D9): output body `j·M + i` is
-/// placement `j` of the master's body `i`, `M` the master's body count
-/// (`flat_body_index` in `names::emit`, which the name table is keyed by too).
-/// Placement 0 is the master's own bodies verbatim; every master name
-/// wraps `Instance(j)` per placement (A8/N1).
-#[allow(clippy::too_many_arguments)] // the doc resolves the rule's axis
-fn wire_pattern<T: crate::mate::SolveScalar + topo::AtRestPolicy>(
-    id: RecipeNodeId,
-    input: RecipeNodeId,
-    kind: &PatternKind,
-    rule: &RuleEnv<'_, T>,
-    results: &Results<T>,
-    vals: &SlotValues<T>,
-    tol: Tol,
-) -> OpResult<T> {
-    // A pattern's count is its structural SLOT; the edit door refuses
-    // an explicit placement list, and this is the hand-built backstop.
-    if kind.placements().is_some() {
-        return Err(NodeErrorKind::PlacementRule(
-            crate::node::PlacementRuleFault::CountSpelling {
-                shape: crate::node::CountMismatch::ListedOnPattern,
-            },
-        ));
-    }
-    let value = value_of(results, input)?;
-    let placeable = placeable_operand(value, input)?;
-    let master = placeable.bodies();
-    let n = slots::count(vals, SlotId::Count).ok_or(NodeErrorKind::MissingSlot {
-        slot: SlotId::Count,
-    })?;
-    if n < 1 {
-        return Err(NodeErrorKind::CountOutOfRange {
-            slot: SlotId::Count,
-            count: n,
-            admits: 1..=i64::MAX,
-        });
-    }
-    let naming = NodeErrorKind::Naming;
-    // Each instance shares the master's bodies under its own map.
-    let mut instances: Vec<super::Framed<T>> = master.to_vec();
-    for j in 1..n {
-        let map = stepped_map(
-            kind,
-            rule,
-            crate::node::CountMismatch::ListedOnPattern,
-            j,
-            vals,
-            tol,
-        )?;
-        instances.extend(place_each(master, Some(&map))?);
-    }
-    let bodies: Vec<&Body<T>> = instances.iter().map(super::Framed::body).collect();
-    let table =
-        names::name_pattern(id, &read_table(value), n, master.len(), &bodies).map_err(naming)?;
-    Ok(OpOut::plain(ValuePayload::Instances(instances), table).carrying(value.parts))
-}
-
-/// The group boolean (GROUP-BOOLEAN-DESIGN, ratified A′): one
-/// prototype, a placement rule, ONE body out.
-///
-/// Three steps, in this order and no other:
-///
-/// 1. **The maps**, in placement order (D9) — a stepped rule's per-index
-///    map ([`stepped_map`], shared with the pattern node), or the
-///    listed frames verbatim.
-/// 2. **The certificate**, BEFORE anything is built: one
-///    [`topo::Separation`] over the prototype, queried per placement
-///    pair. Disjointness is certified, never declared — the graft door
-///    asserts nothing about its operands — so an unproved arrangement
-///    refuses typed rather than shipping interpenetrating solids.
-/// 3. **The lowering**: `graft_disjoint_all_keyed` per placed copy, in
-///    placement order, into one aggregate. No seam happens, so no new
-///    kernel naming record.
-///
-/// Every placement is MAPPED, including index 0: an explicit rule need
-/// not make it the identity.
-#[allow(clippy::too_many_arguments)] // the doc resolves the rule's axis
-fn wire_placed_union<T: crate::mate::SolveScalar + geom_core::Bounds + topo::AtRestPolicy>(
-    id: RecipeNodeId,
-    input: RecipeNodeId,
-    kind: &PatternKind,
-    rule: &RuleEnv<'_, T>,
-    results: &Results<T>,
-    vals: &SlotValues<T>,
-    tol: Tol,
-) -> OpResult<T> {
-    let body = read_body(results, input)?;
-    let maps: Vec<RigidMotion<T>> = match kind.placements() {
-        // Listed frames are literal: each is admitted at the decided
-        // door.
-        Some(frames) => {
-            let band = band(tol)?;
-            frames
-                .iter()
-                .map(|f| {
-                    RigidMotion::check_rigid(&f.affine::<T>(), band).map_err(NodeErrorKind::Motion)
-                })
-                .collect::<Result<_, _>>()?
-        }
-        None => {
-            let n = slots::count(vals, SlotId::Count).ok_or(NodeErrorKind::MissingSlot {
-                slot: SlotId::Count,
-            })?;
-            if n < 1 {
-                return Err(NodeErrorKind::CountOutOfRange {
-                    slot: SlotId::Count,
-                    count: n,
-                    admits: 1..=i64::MAX,
-                });
-            }
-            (0..n)
-                .map(|i| {
-                    stepped_map(
-                        kind,
-                        rule,
-                        crate::node::CountMismatch::ListedWithCount,
-                        i,
-                        vals,
-                        tol,
-                    )
-                })
-                .collect::<Result<_, _>>()?
-        }
-    };
-    // It computes in its prototype's frame: each map, stated in the
-    // space, read into it through `relative`.
-    let maps: Vec<RigidMotion<T>> = maps
-        .iter()
-        .map(|map| {
-            let copy = place(&body, Some(map))?;
-            Ok(body
-                .relative(&copy)
-                .map_err(NodeErrorKind::Motion)?
-                .unwrap_or_else(RigidMotion::identity))
-        })
-        .collect::<Result<_, NodeErrorKind>>()?;
-    let affines: Vec<Affine3<T>> = maps.iter().map(|m| m.to_affine()).collect();
-    topo::Separation::of(body.body(), tol)
-        .map_err(NodeErrorKind::Boolean)?
-        .certify(&affines)
-        .map_err(|topo::PlacementsMeet { i, j }| NodeErrorKind::PlacementsUncertified { i, j })?;
-    let mut fused = topo::Body::new();
-    let mut bridges: Vec<topo::GraftKeys> = Vec::with_capacity(maps.len());
-    for map in &maps {
-        super::counters::rigid_map();
-        let placed = transform_rigid(body.body(), map, tol).map_err(NodeErrorKind::Transform)?;
-        // Every placement MINTS its own solids: the copies are certified
-        // apart, so each is a piece of its own, and a body of N solids
-        // is a boolean operand like any other.
-        let keys =
-            topo::graft_disjoint_all_keyed(&mut fused, &placed).map_err(NodeErrorKind::Boolean)?;
-        bridges.push(keys);
-    }
-    // Instance(i) wrapping (A8/N1), re-keyed onto the ONE output body
-    // through each instance's graft bridge.
-    let master = read_table(value_of(results, input)?);
-    let table =
-        names::name_placed_union(id, &master, &bridges, &fused).map_err(NodeErrorKind::Naming)?;
-    Ok(OpOut::plain(
-        ValuePayload::Body(super::Framed::in_frame(
-            Arc::new(fused),
-            body.frame().clone(),
-        )),
-        table,
-    ))
-}
 
 // ---------------------------------------------------------------------
 // The definitional §10.3/§10.4 nodes
@@ -4689,76 +4324,6 @@ mod loop_coordinates_tests {
             ),
             "one loop past u32::MAX is refused"
         );
-    }
-}
-
-#[cfg(test)]
-mod stepped_operand_tests {
-    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-
-    use super::{NodeErrorKind, PATTERN_DIRECTION_ROLE, SteppedOperands, stepped_rule_map, unit};
-    use crate::Formula;
-    use crate::expr::{VarEnv, eval};
-    use geom_core::{Affine3, Band, Tol, Vec3};
-
-    fn band() -> Band {
-        Band::linear(Tol::witness()).unwrap()
-    }
-
-    fn scalar(v: f64) -> Formula {
-        Formula::scalar(v).unwrap()
-    }
-
-    fn value(e: &Formula) -> f64 {
-        eval::<f64>(e, &VarEnv::default()).unwrap()
-    }
-
-    /// **The negative spacing's recourse, followed.** The refusal
-    /// spells the authored direction negated; parsed back and written
-    /// in with the spacing made positive, it steps every copy to the
-    /// translation the negative spacing names, bit for bit up to the
-    /// sign of a zero component (a zero literal is spelled `0.0`, and
-    /// `p + 0.0` is `p + -0.0` for every coordinate but `-0.0`).
-    #[test]
-    fn the_reversed_direction_steps_where_the_negative_spacing_did() {
-        let sum = Formula::add(scalar(0.1), scalar(0.2)).unwrap();
-        for authored in [
-            [scalar(1.0), scalar(0.0), scalar(0.0)],
-            [scalar(3.0), scalar(4.0), scalar(0.0)],
-            [scalar(-0.3), sum, scalar(1.9)],
-        ] {
-            let direction = Vec3::new(
-                value(&authored[0]),
-                value(&authored[1]),
-                value(&authored[2]),
-            );
-            let Err(NodeErrorKind::NegativeSpacing { reversed, .. }) =
-                SteppedOperands::linear(direction, -4.25, &authored, band())
-            else {
-                panic!("a negative spacing refuses for {authored:?}");
-            };
-            let unit_dir = unit(direction, PATTERN_DIRECTION_ROLE, band()).unwrap();
-            let mirrored = |i: i64| Affine3::translation(unit_dir.get() * (-4.25 * i as f64));
-            let written = reversed
-                .clone()
-                .map(|e| e.expect("the negation is within the expression bound"));
-            let back = Vec3::new(value(&written[0]), value(&written[1]), value(&written[2]));
-            let followed =
-                SteppedOperands::linear(back, 4.25, &written, band()).expect("the recourse builds");
-            let bits = |c: [f64; 12]| c.map(|v| (v + 0.0).to_bits());
-            for i in 1..6 {
-                assert_eq!(
-                    bits(mirrored(i).components()),
-                    bits(
-                        stepped_rule_map(&followed, i)
-                            .unwrap()
-                            .to_affine()
-                            .components()
-                    ),
-                    "copy {i} of {reversed:?} lands where the negative spacing put it"
-                );
-            }
-        }
     }
 }
 

@@ -72,6 +72,7 @@ pub mod refusal;
 /// leaf-mass histogram, and the one content-key cache. Every report
 /// in it is derived from a drive.
 pub mod report;
+pub mod repetition;
 pub mod resolve;
 pub mod sentence;
 pub mod spoken;
@@ -140,7 +141,7 @@ pub use eval::{
     ComputingTwist, ContentBits, ContentKey, DirectionRefusal, Epoch, EvalCounters, EvalOptions,
     EvalOutcome, EvalScalar, Evaluation, Framed, NamingKey, NodeError, NodeErrorClass,
     NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault, Piece, Pieces,
-    PoseValue, ProfileLane, ProfilePieces, SplitSide, StepTurns, ValuePayload, evaluate,
+    PoseValue, ProfileLane, ProfilePieces, SplitSide, ValuePayload, evaluate,
 };
 pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
@@ -190,10 +191,9 @@ pub use names::{
     leaf_role, meridian_vertex, role_leaf, select, select_where, vertex_position,
 };
 pub use node::{
-    AuthoredNode, Axis3, ConstraintId, CountMismatch, InputFault, InterfaceCrossing,
-    InterfaceRecord, ListFault, LoftSection, Node, OutputPort, PartSelect, PatternKind,
-    PlacementRuleFault, PortKind, RecipeNodeId, SitedFace, SitedRef, SlotId, StationMove, StepArg,
-    StepId, TubeWindow, VectorSlot,
+    AuthoredNode, Axis3, ConstraintId, InputFault, InterfaceCrossing, InterfaceRecord, ListFault,
+    LoftSection, Node, OutputPort, PortKind, RecipeNodeId, SitedFace, SitedRef, SlotId,
+    StationMove, StepArg, StepId, TubeWindow, VectorSlot,
 };
 pub use operand::{Bodies, BodyRead, Operand, OperandSlot, SlotKind};
 pub use parse::{ParseError, VarNameFault, VarNameReason, parse_formula};
@@ -203,7 +203,7 @@ pub use persist::{
     load, save,
 };
 pub use persist::{NonFiniteSite, OutputFault, ProgramFault, SelectionBodyFault, SnapshotError};
-pub use placement::{AxisRefusal, Frame, FrameFault, FrameSite};
+pub use placement::{AxisRefusal, Frame, FrameFault};
 #[cfg(debug_assertions)]
 pub use product::gathers_on_this_thread;
 pub use product::{
@@ -242,6 +242,7 @@ pub use step_handle::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
 };
 pub use var::{
+    Index,
     FreshEntry, Pick, Select, SelectionCount, SelectionFault, Var, VarDecl, VarDef, VarId, VarKind,
     VarRef, WrittenDef,
 };

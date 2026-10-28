@@ -86,8 +86,8 @@ pub enum OpGroup {
     /// fenced by the ratified verb-vocabulary decision
     /// (`crates/sweep/README.md`, settled ground).
     Fillet,
-    /// Pattern.
-    Pattern,
+    /// Repetition: a family's member (D10 `[repetition]`).
+    Repetition,
     /// Shell (the hollowing verb's cavity, rim and hole-rim roles).
     /// Its outer wall speaks as [`SegTag::From`], which groups under
     /// [`OpGroup::Shared`]: the tag names the SHAPE (an entity carried
@@ -180,7 +180,7 @@ seg_tags! {
     Rim,
     HoleRim,
     // Pattern
-    Instance,
+    Member,
 }
 
 /// The end/side discriminator a role segment can carry — the closed,
@@ -264,7 +264,7 @@ impl SegTag {
             RoleSeg::Inner(..) => Self::Inner,
             RoleSeg::Rim(..) => Self::Rim,
             RoleSeg::HoleRim { .. } => Self::HoleRim,
-            RoleSeg::Instance { .. } => Self::Instance,
+            RoleSeg::Member { .. } => Self::Member,
         }
     }
 
@@ -311,7 +311,7 @@ impl SegTag {
             | Self::BandCut
             | Self::BandSlit => OpGroup::Fillet,
             Self::Inner | Self::Rim | Self::HoleRim => OpGroup::Shell,
-            Self::Instance => OpGroup::Pattern,
+            Self::Member => OpGroup::Repetition,
         }
     }
 }
@@ -367,7 +367,7 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::Inner(_)
         | RoleSeg::Rim(_)
         | RoleSeg::HoleRim { .. }
-        | RoleSeg::Instance { .. } => None,
+        | RoleSeg::Member { .. } => None,
     }
 }
 
@@ -398,8 +398,8 @@ struct Args<'a> {
 /// it.
 ///
 /// **Only NAMES.** [`RoleSeg::From`] contributes its `of` and not its
-/// `read`, exactly as [`RoleSeg::Instance`] contributes its `of` and not
-/// its `i`: a bare [`crate::VarId`] is not a name and a walk over names
+/// `read`, exactly as [`RoleSeg::Member`] contributes its `of` and not
+/// its `at`: a bare [`crate::VarId`] is not a name and a walk over names
 /// cannot see it. The consumers that need the read — the content key,
 /// the re-map, and `derivation_nodes` — reach it through
 /// [`crate::names::read_edge`], which is where "which segments carry a
@@ -436,7 +436,7 @@ fn name_args(seg: &RoleSeg) -> Args<'_> {
             edge: n,
             support: _,
         }
-        | RoleSeg::Instance { of: n, i: _ } => seq(vec![n]),
+        | RoleSeg::Member { of: n, at: _ } => seq(vec![n]),
         RoleSeg::Crossing {
             edge,
             face,

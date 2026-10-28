@@ -5,7 +5,6 @@ use sweep::blend::BlendKind;
 
 use super::{NodeErrorKind, PartFault};
 use crate::mate::MateFault;
-use crate::node::PlacementRuleFault;
 use crate::part::ResolveFault;
 
 /// Which arm of [`NodeErrorKind`] refused, without the payload.
@@ -95,8 +94,14 @@ pub enum NodeErrorClass {
     UnfinishedOperand,
     /// [`NodeErrorKind::EmptyHalf`].
     EmptyHalf,
-    /// [`NodeErrorKind::InstanceOutOfRange`].
-    InstanceOutOfRange,
+    /// [`NodeErrorKind::MemberOutOfRange`].
+    MemberOutOfRange,
+    /// [`NodeErrorKind::MemberRefused`].
+    MemberRefused,
+    /// [`NodeErrorKind::IndicesUnrelated`].
+    IndicesUnrelated,
+    /// [`NodeErrorKind::IndexCount`].
+    IndexCount,
     /// [`NodeErrorKind::NoSuchPiece`].
     NoSuchPiece,
     /// [`NodeErrorKind::PieceShape`].
@@ -121,28 +126,6 @@ pub enum NodeErrorClass {
     PoseScalar,
     /// [`NodeErrorKind::CountOutOfRange`].
     CountOutOfRange,
-    /// [`NodeErrorKind::NegativeSpacing`].
-    NegativeSpacing,
-    /// [`NodeErrorKind::DegenerateSpacing`].
-    DegenerateSpacing,
-    /// [`NodeErrorKind::DegenerateStep`].
-    DegenerateStep,
-    /// [`NodeErrorKind::FullRangeStep`].
-    FullRangeStep,
-    /// [`NodeErrorKind::PlacementsUncertified`].
-    PlacementsUncertified,
-    /// [`NodeErrorKind::PlacementRule`] carrying
-    /// [`PlacementRuleFault::CountSpelling`].
-    PlacementRuleCountSpelling,
-    /// [`NodeErrorKind::PlacementRule`] carrying
-    /// [`PlacementRuleFault::NoPlacements`].
-    PlacementRuleNoPlacements,
-    /// [`NodeErrorKind::PlacementRule`] carrying
-    /// [`PlacementRuleFault::NonFiniteFrame`].
-    PlacementRuleNonFiniteFrame,
-    /// [`NodeErrorKind::PlacementRule`] carrying
-    /// [`PlacementRuleFault::NonRigidFrame`].
-    PlacementRuleNonRigidFrame,
     /// [`NodeErrorKind::UnschedulableCycle`].
     UnschedulableCycle,
     /// [`NodeErrorKind::Naming`].
@@ -258,7 +241,10 @@ impl NodeErrorKind {
             Self::EmptyOperand { .. } => C::EmptyOperand,
             Self::UnfinishedOperand { .. } => C::UnfinishedOperand,
             Self::EmptyHalf { .. } => C::EmptyHalf,
-            Self::InstanceOutOfRange { .. } => C::InstanceOutOfRange,
+            Self::MemberOutOfRange { .. } => C::MemberOutOfRange,
+            Self::MemberRefused { .. } => C::MemberRefused,
+            Self::IndicesUnrelated { .. } => C::IndicesUnrelated,
+            Self::IndexCount { .. } => C::IndexCount,
             Self::NoSuchPiece { .. } => C::NoSuchPiece,
             Self::PieceShape { .. } => C::PieceShape,
             Self::DegenerateDirection { .. } => C::DegenerateDirection,
@@ -274,12 +260,6 @@ impl NodeErrorKind {
             Self::PoseDegenerate { .. } => C::PoseDegenerate,
             Self::PoseScalar { .. } => C::PoseScalar,
             Self::CountOutOfRange { .. } => C::CountOutOfRange,
-            Self::NegativeSpacing { .. } => C::NegativeSpacing,
-            Self::DegenerateSpacing => C::DegenerateSpacing,
-            Self::DegenerateStep => C::DegenerateStep,
-            Self::FullRangeStep { .. } => C::FullRangeStep,
-            Self::PlacementsUncertified { .. } => C::PlacementsUncertified,
-            Self::PlacementRule(fault) => C::of_placement_rule(fault),
             Self::UnschedulableCycle => C::UnschedulableCycle,
             Self::Naming(_) => C::Naming,
             Self::UnionFoldStep { .. } => C::UnionFoldStep,
@@ -316,19 +296,6 @@ impl NodeErrorKind {
 }
 
 impl NodeErrorClass {
-    /// The class of the node refusal that carries a placement-rule
-    /// fault. Every door that publishes the fault reads it through this
-    /// class, so the fault has one word wherever it is refused.
-    #[must_use]
-    pub fn of_placement_rule(fault: &PlacementRuleFault) -> Self {
-        match fault {
-            PlacementRuleFault::CountSpelling { .. } => Self::PlacementRuleCountSpelling,
-            PlacementRuleFault::NoPlacements => Self::PlacementRuleNoPlacements,
-            PlacementRuleFault::NonFiniteFrame { .. } => Self::PlacementRuleNonFiniteFrame,
-            PlacementRuleFault::NonRigidFrame { .. } => Self::PlacementRuleNonRigidFrame,
-        }
-    }
-
     /// The class of the node refusal that carries a mate fault. Every
     /// door that publishes the fault reads it through this class, so
     /// the fault has one word wherever it is refused.
@@ -412,7 +379,10 @@ mod tests {
         EmptyOperand,
         UnfinishedOperand,
         EmptyHalf,
-        InstanceOutOfRange,
+        MemberOutOfRange,
+        MemberRefused,
+        IndicesUnrelated,
+        IndexCount,
         NoSuchPiece,
         PieceShape,
         DegenerateDirection,
@@ -425,15 +395,6 @@ mod tests {
         PoseDegenerate,
         PoseScalar,
         CountOutOfRange,
-        NegativeSpacing,
-        DegenerateSpacing,
-        DegenerateStep,
-        FullRangeStep,
-        PlacementsUncertified,
-        PlacementRuleCountSpelling,
-        PlacementRuleNoPlacements,
-        PlacementRuleNonFiniteFrame,
-        PlacementRuleNonRigidFrame,
         UnschedulableCycle,
         Naming,
         UnionFoldStep,
@@ -626,10 +587,21 @@ mod tests {
                 input: n(3),
                 half: crate::SplitHalf::Above,
             },
-            C::InstanceOutOfRange => K::InstanceOutOfRange {
+            C::MemberOutOfRange => K::MemberOutOfRange {
                 input: n(3),
-                index: 7,
-                count: 4,
+                at: vec![7],
+            },
+            C::MemberRefused => K::MemberRefused {
+                at: vec![(crate::VarId::new(2, 0), 3)],
+                source: Box::new(K::UnschedulableCycle),
+            },
+            C::IndicesUnrelated => K::IndicesUnrelated {
+                a: crate::VarId::new(2, 0),
+                b: crate::VarId::new(3, 0),
+            },
+            C::IndexCount => K::IndexCount {
+                index: crate::VarId::new(2, 0),
+                source: EvalError::NonFiniteResult,
             },
             C::NoSuchPiece => K::NoSuchPiece {
                 pick: crate::VarId::new(2, 0),
@@ -670,42 +642,10 @@ mod tests {
                 source: EvalError::NonFiniteResult,
             },
             C::CountOutOfRange => K::CountOutOfRange {
-                slot: crate::node::SlotId::Count,
+                slot: crate::node::SlotId::Stations,
                 count: 0,
                 admits: 1..=i64::MAX,
             },
-            C::NegativeSpacing => K::NegativeSpacing {
-                spacing: geom_core::MarginDiag::value(-4.0),
-                reversed: [-1.0, 0.0, 0.0]
-                    .map(|v| crate::Formula::literal(v, crate::expr::Dimension::Scalar).ok()),
-            },
-            C::DegenerateSpacing => K::DegenerateSpacing,
-            C::DegenerateStep => K::DegenerateStep,
-            C::FullRangeStep => K::FullRangeStep {
-                step: crate::Formula::angle_in(400.0, quantity::DEG).expect("a literal angle"),
-                evaluated: None,
-                turns: crate::StepTurns::Within(
-                    crate::Formula::angle_in(40.0, quantity::DEG).expect("a literal angle"),
-                ),
-            },
-            C::PlacementsUncertified => K::PlacementsUncertified { i: 0, j: 1 },
-            C::PlacementRuleCountSpelling => {
-                K::PlacementRule(crate::PlacementRuleFault::CountSpelling {
-                    shape: crate::CountMismatch::ListedOnPattern,
-                })
-            }
-            C::PlacementRuleNoPlacements => {
-                K::PlacementRule(crate::PlacementRuleFault::NoPlacements)
-            }
-            C::PlacementRuleNonFiniteFrame => {
-                K::PlacementRule(crate::PlacementRuleFault::NonFiniteFrame { index: 2 })
-            }
-            C::PlacementRuleNonRigidFrame => {
-                K::PlacementRule(crate::PlacementRuleFault::NonRigidFrame {
-                    index: 2,
-                    check: "transform_rigid_col0_unit",
-                })
-            }
             C::UnschedulableCycle => K::UnschedulableCycle,
             C::Naming => K::Naming(crate::NamingError::Emission {
                 what: "a cap face with no profile loop behind it",

@@ -51,9 +51,6 @@ macro_rules! name_free_node {
             | $crate::node::Node::Place { .. }
             | $crate::node::Node::World
             | $crate::node::Node::Space
-            | $crate::node::Node::Pattern { .. }
-            | $crate::node::Node::Part { .. }
-            | $crate::node::Node::PlacedUnion { .. }
             | $crate::node::Node::Measure { .. }
             | $crate::node::Node::Assertion { .. }
     };
@@ -376,8 +373,6 @@ pub enum SlotId {
     /// A revolve's axis point component, in its profile's 2-D
     /// coordinates (Length).
     Origin(Axis3),
-    /// A linear pattern's direction component (Scalar).
-    Direction(Axis3),
     /// An extrude's distance (Length).
     Distance,
     /// A fillet's constant blend radius (Length).
@@ -454,20 +449,6 @@ pub enum SlotId {
         /// Which constraint of the placement: the value.
         constraint: ConstraintId,
     },
-    /// A linear pattern's instance spacing (Length).
-    Spacing,
-    /// A circular pattern's angular step (Angle).
-    Step,
-    /// A pattern's instance count — the STRUCTURAL slot (spec D3/A8:
-    /// Count-typed, edited only via `SetStructuralParam`).
-    Count,
-    /// A [`crate::Node::Part`]'s INSTANCE INDEX into a pattern's
-    /// value — STRUCTURAL (Count-typed, edited only via
-    /// `SetStructuralParam`): which body the projection selects is
-    /// structure, not a continuous quantity. Its own slot rather than
-    /// a reuse of [`SlotId::Count`]: a panel that spelled an index
-    /// "count" would be lying about it.
-    Instance,
     /// A loft's / sweep's v-direction interpolation degree (Book
     /// §10.3) — STRUCTURAL: changing it changes the produced
     /// surface's knot vector, so it is Count-typed like every other
@@ -486,8 +467,8 @@ pub enum SlotId {
     Operand(crate::OperandSlot),
     /// Index `k` of the indexed read at body seat `seat`
     /// ([`crate::BodyRead`], REFERENCES DM3): a `Count`, so STRUCTURAL
-    /// (which member is read is structure, as [`SlotId::Instance`]'s
-    /// index is). A plain read carries no index slot.
+    /// (which member is read is structure). A plain read carries no
+    /// index slot.
     Index {
         /// The body seat whose read it indexes.
         seat: crate::OperandSlot,
@@ -546,8 +527,6 @@ pub enum SlotId {
 pub enum VectorSlot {
     /// A revolve's axis point ([`SlotId::Origin`]).
     Origin,
-    /// A linear pattern's direction ([`SlotId::Direction`]).
-    Direction,
 }
 
 impl VectorSlot {
@@ -556,7 +535,6 @@ impl VectorSlot {
     pub fn slot(self, axis: Axis3) -> SlotId {
         match self {
             Self::Origin => SlotId::Origin(axis),
-            Self::Direction => SlotId::Direction(axis),
         }
     }
 
@@ -565,7 +543,6 @@ impl VectorSlot {
     pub fn label(self) -> String {
         match self {
             Self::Origin => "origin".to_owned(),
-            Self::Direction => "direction".to_owned(),
         }
     }
 
@@ -611,17 +588,12 @@ impl SlotId {
             | Self::ShellThickness
             | Self::TubeMajorRadius
             | Self::TubeMinorRadius
-            | Self::TubeWall
-            | Self::Spacing => Dimension::Length,
-            Self::Direction(_) => Dimension::Scalar,
+            | Self::TubeWall => Dimension::Length,
             Self::RevolveAngle
             | Self::AxisHeading
-            | Self::Step
             | Self::TubeWindowStart
             | Self::TubeWindowEnd => Dimension::Angle,
-            Self::Count | Self::VDegree | Self::Stations | Self::Instance | Self::Index { .. } => {
-                Dimension::Count
-            }
+            Self::VDegree | Self::Stations | Self::Index { .. } => Dimension::Count,
             Self::StationSlide { .. } => Dimension::Length,
             Self::StationSpin { .. } => Dimension::Angle,
             Self::ValueSlide { .. } => Dimension::Length,
@@ -700,10 +672,6 @@ impl SlotId {
             Self::TubeWindowStart => "tube window start".to_owned(),
             Self::TubeWindowEnd => "tube window end".to_owned(),
             Self::TubeWall => "tube wall".to_owned(),
-            Self::Spacing => "spacing".to_owned(),
-            Self::Step => "angular step".to_owned(),
-            Self::Count => "count".to_owned(),
-            Self::Instance => "instance".to_owned(),
             Self::VDegree => "v degree".to_owned(),
             Self::Stations => "stations".to_owned(),
             Self::Operand(operand) => operand.label(),
@@ -721,7 +689,7 @@ impl SlotId {
             Self::ValueSlide { .. } => String::from("slide value"),
             Self::ValueSpin { .. } => String::from("spin value"),
             // Every component variant answered above.
-            Self::Origin(_) | Self::Direction(_) => self.component().map_or_else(
+            Self::Origin(_) => self.component().map_or_else(
                 || String::from("component"),
                 |(family, axis)| format!("{} {}", family.label(), axis.label()),
             ),
@@ -737,7 +705,6 @@ impl SlotId {
     pub fn component(self) -> Option<(VectorSlot, Axis3)> {
         match self {
             Self::Origin(axis) => Some((VectorSlot::Origin, axis)),
-            Self::Direction(axis) => Some((VectorSlot::Direction, axis)),
             Self::Distance
             | Self::Radius
             | Self::ChamferDistance
@@ -749,10 +716,6 @@ impl SlotId {
             | Self::TubeWindowStart
             | Self::TubeWindowEnd
             | Self::TubeWall
-            | Self::Spacing
-            | Self::Step
-            | Self::Count
-            | Self::Instance
             | Self::VDegree
             | Self::Stations
             | Self::Operand(_)
@@ -1112,55 +1075,6 @@ pub(crate) fn find_row<K: PartialEq, E>(rows: Vec<(K, E)>, key: K) -> Option<E> 
         .map(|(_, expr)| expr)
 }
 
-/// A pattern's replication rule (F4: LinearPattern/CircularPattern;
-/// the count lives on [`Node::Pattern`] as the structural slot).
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-#[serde(bound = "")]
-pub enum PatternKind<S: Slot = crate::VarId> {
-    /// Instances stepped along a direction.
-    Linear {
-        /// Step direction components, Scalar ([`SlotId::Direction`]).
-        direction: [S; 3],
-        /// Distance between instances, Length ([`SlotId::Spacing`]): a
-        /// size, positive, since the direction says which way the
-        /// copies step.
-        spacing: S,
-    },
-    /// Instances stepped around an axis read.
-    Circular {
-        /// The axis revolved about ([`crate::OperandSlot::Axis`]): an
-        /// `Axis` read, or a frame's axis read through its role.
-        axis: crate::pose::RoleRead<S::Read>,
-        /// Angular step between instances ([`SlotId::Step`]), signed
-        /// by the right-hand rule about the axis, nonzero and within a
-        /// turn.
-        step: S,
-    },
-    /// Instances at ABSOLUTE frames, listed (GROUP-BOOLEAN-DESIGN,
-    /// ratified A′): the rule vocabulary's non-parametric member, for
-    /// the placements no linear or circular step generates — the die's
-    /// twenty-one pip locations, say.
-    ///
-    /// **The list IS the count.** Order is data and the index is
-    /// D8-structural (it is what `RoleSeg::Instance` indexes), so
-    /// appending a placement changes no existing index. A node carrying
-    /// this rule has NO [`SlotId::Count`] slot: the number of
-    /// placements has exactly one spelling, and the
-    /// two-sources-of-truth state is refused at the edit door rather
-    /// than reconciled there.
-    Explicit(Vec<crate::placement::Frame>),
-}
-
-/// **Which body of a pattern's copies a [`Node::Part`] selects**
-/// (`crates/editor-core/REFERENCES.md` DM3).
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-pub enum PartSelect<S = crate::VarId> {
-    /// The `i`-th instance of an `Instances` value — a Count-typed
-    /// STRUCTURAL slot ([`SlotId::Instance`]).
-    Instance(S),
-}
-
 /// **The `Expr`s a node carries OUTSIDE its slots**, in deterministic
 /// order — `None` for the nodes that carry none, which is every node
 /// but [`Node::Assertion`].
@@ -1214,9 +1128,6 @@ macro_rules! expr_table {
             | Node::Place { .. }
             | Node::World
             | Node::Space
-            | Node::Pattern { .. }
-            | Node::Part { .. }
-            | Node::PlacedUnion { .. }
             | Node::InstantiatePart { .. }
             | Node::Measure { .. }) => $other,
         }
@@ -1535,109 +1446,6 @@ impl AssertionBoundFault {
     /// **E10's agreement itself, stated once.**
     pub(crate) fn against(measured: Dimension, bound: Dimension) -> Option<Self> {
         (measured != bound).then_some(Self { measured, bound })
-    }
-}
-
-/// What makes a placement-rule node's rule unusable
-/// ([`Node::placement_rule_fault`]) — one vocabulary for the edit
-/// door, the persist re-check and the evaluation backstop.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum PlacementRuleFault {
-    /// The rule and the count slot would answer "how many placements"
-    /// two different ways: an `Explicit` rule paired with a count, a
-    /// stepped rule without one, or an `Explicit` rule on
-    /// [`Node::Pattern`] (whose count is a non-optional field).
-    CountSpelling {
-        /// Which of the three it is.
-        shape: CountMismatch,
-    },
-    /// An `Explicit` rule listing NO placements. The list is the
-    /// count, so this is the explicit rule's `count < 1`.
-    NoPlacements,
-    /// A placement frame with a non-finite coordinate.
-    NonFiniteFrame {
-        /// Its index in the placement list.
-        index: usize,
-    },
-    /// A placement frame that is not definitely a rigid motion at
-    /// tolerance — a mirror among them ([`crate::placement::FrameFault::NotRigid`]).
-    NonRigidFrame {
-        /// Its index in the placement list.
-        index: usize,
-        /// The rigidity check that refused.
-        check: &'static str,
-    },
-}
-
-// The ONE prose vocabulary for this fault set — every door that
-// renders a `PlacementRuleFault` (the evaluation backstop, the edit
-// door's rule arms) FORWARDS this rendering rather than restating the
-// fault in its own words.
-impl core::fmt::Display for PlacementRuleFault {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::CountSpelling { .. } => f.write_str(
-                "the placement rule and the count slot disagree about how many placements \
-                 there are",
-            ),
-            Self::NoPlacements => f.write_str(
-                "the placement list is empty — a group needs at least one placement, exactly \
-                 as a stepped rule needs a count of at least 1",
-            ),
-            // The frame clause is the frame rule's own
-            // ([`crate::placement::FrameFault`]); this arm supplies
-            // only the subject, so the sentence a reader sees about a
-            // frame is the same one wherever the frame was refused.
-            Self::NonFiniteFrame { index } => {
-                write!(
-                    f,
-                    "placement {index} {}",
-                    crate::placement::FrameFault::NonFinite
-                )
-            }
-            Self::NonRigidFrame { index, check } => write!(
-                f,
-                "placement {index} {}",
-                crate::placement::FrameFault::NotRigid { check }
-            ),
-        }
-    }
-}
-
-/// Which of the two answers to "how many placements" a placement-rule
-/// node gives twice ([`PlacementRuleFault::CountSpelling`]).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CountMismatch {
-    /// A [`Node::PlacedUnion`] with a listed rule and a count: the list
-    /// is the count.
-    ListedWithCount,
-    /// A [`Node::PlacedUnion`] with a stepped rule and no count.
-    SteppedWithoutCount,
-    /// A [`Node::Pattern`] with a listed rule: its count is a field it
-    /// always carries.
-    ListedOnPattern,
-}
-
-/// Where a placement-rule node keeps its count.
-#[derive(Clone, Copy)]
-enum CountSlot {
-    /// A field the node always carries ([`Node::Pattern`]).
-    Field,
-    /// An optional slot, filled or not ([`Node::PlacedUnion`]).
-    Optional { present: bool },
-}
-
-impl<S: Slot> PatternKind<S> {
-    /// The listed placements when this rule carries its own, `None` for
-    /// the parametric rules (whose count is the structural slot).
-    ///
-    /// The one door every count question goes through, so "how many
-    /// instances" is never answered two ways.
-    pub fn placements(&self) -> Option<&[crate::placement::Frame]> {
-        match self {
-            PatternKind::Explicit(frames) => Some(frames),
-            PatternKind::Linear { .. } | PatternKind::Circular { .. } => None,
-        }
     }
 }
 
@@ -2018,84 +1826,6 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// nothing and defines one `Space`, a coordinate system no
     /// construction is written in, which placements place into.
     Space,
-    /// **A pattern of an upstream value** with a STRUCTURAL
-    /// Count-typed index expression (spec D3/A8; N1 `Instance(i)`
-    /// will index it): the input is the MASTER, placed WHOLE at every
-    /// placement. It takes the same operand a [`Node::Place`] does
-    /// (`eval::wire`'s `placeable_operand`), but it is not
-    /// shape-preserving the way a placement is — the value is
-    /// `Instances` whatever the master was: N bodies for a one-body
-    /// master, N·M placement-major for an `Instances` master of M.
-    Pattern {
-        /// The master replicated: a body, a boolean's non-empty
-        /// result, or an `Instances` value placed whole.
-        input: S::Read,
-        /// Instance count — the structural slot ([`SlotId::Count`]).
-        count: S,
-        /// The replication rule.
-        kind: PatternKind<S>,
-    },
-    /// **One body out of a pattern's copies**
-    /// (`crates/editor-core/REFERENCES.md` DM3): the `i`-th instance of
-    /// an `Instances` value, as a `Body` value every body-consuming
-    /// node takes — "subtract instance 3 of that pattern". A split's
-    /// halves need no such node: each is a port of the split, read
-    /// like any other output.
-    ///
-    /// A projection, not an operation: the selected body is the
-    /// instance's own (the same `Arc`, no clone, no re-stamp), and the
-    /// node's name table is the input's table restricted to that body
-    /// with every name VERBATIM — a pass-through, contributing no role
-    /// segment, so every selector already
-    /// spelled against that instance resolves here unchanged.
-    ///
-    /// Because it moves nothing and renames nothing, it is a
-    /// pass-through of A11's member walk too
-    /// ([`crate::mate::member_of`]): a mate read at one, or below
-    /// one, stands on the same member the pattern's copy does.
-    ///
-    /// A pattern of a pattern does NOT need this projection — a
-    /// placer takes an `Instances` value whole — so a `Part` between
-    /// two patterns is a user saying WHICH copy to replicate, a
-    /// different document from the nest without it.
-    Part {
-        /// The copies read.
-        of: S::Read,
-        /// Which body of it.
-        select: PartSelect<S>,
-    },
-    /// **The group boolean** (GROUP-BOOLEAN-DESIGN, ratified A′): ONE
-    /// prototype, a placement rule, ONE BODY OUT — the union of the
-    /// prototype placed at each placement.
-    ///
-    /// A Pattern that fuses, and deliberately NOT a [`PatternKind`] of
-    /// [`Node::Pattern`]: Pattern's N-bodies-unfused output contract
-    /// stays untouched, because forking a node's RESULT TYPE on a
-    /// variant is the silent-dispatch trap D3 forbids. What the two
-    /// share is the rule vocabulary and the naming: per-instance
-    /// discrimination is the ratified `RoleSeg::Instance { i, of }`
-    /// (A8/N1) verbatim, so the vocabulary does not grow and
-    /// "instance 7's cavity face" is one selector row.
-    ///
-    /// Disjointness is CERTIFIED, never declared: one
-    /// [`topo::Separation`] over the prototype, queried per placement
-    /// pair, and the union lowers through the existing
-    /// `graft_disjoint_all_keyed` door — no new kernel op, no new
-    /// kernel naming record. The certificate is sufficient-not-
-    /// necessary, so a BVH-touching-but-genuinely-disjoint arrangement
-    /// refuses honestly rather than passing on a guess.
-    PlacedUnion {
-        /// The prototype placed at every placement.
-        input: S::Read,
-        /// Placement count — the structural slot ([`SlotId::Count`]) —
-        /// present exactly for the PARAMETRIC rules. `Explicit` carries
-        /// its own placements and derives the count from them, so the
-        /// slot is ABSENT there rather than inert: one number, one
-        /// spelling (the edit door refuses the mismatched states).
-        count: Option<S>,
-        /// The placement rule.
-        kind: PatternKind<S>,
-    },
     /// An instance of another document's product (ASSEMBLY-DESIGN
     /// A2/A3, ASM-2A D-1): a LEAF — its material crosses the document
     /// seam rather than arriving from an upstream node, so it reads
@@ -2238,37 +1968,6 @@ const fn axis_arity<E, const N: usize>(_: &[E; N]) {
     }
 }
 
-/// **THE slot table of a placement rule**, shared by [`Node::Pattern`]
-/// and [`Node::PlacedUnion`] — one rule vocabulary, one slot mapping,
-/// so the two nodes cannot drift apart on what a slot means.
-///
-/// `$count` is the node's count expression when it holds one (an
-/// `Option` of it, borrowed either way); a stepped rule lists it
-/// first. `Explicit` carries listed placements rather than a rule
-/// ([`PatternKind::placements`]), so it has no count slot (the list's
-/// length IS the count) and no expressions (the frames are structural
-/// data, D8). A stepped rule with no count is a node
-/// [`Node::placement_rule_fault`] refuses, not a node with a count
-/// slot nothing can read.
-macro_rules! rule_rows {
-    ($count:expr, $kind:expr, $out:expr) => {{
-        let kind = $kind;
-        if kind.placements().is_none()
-            && let Some(count) = $count
-        {
-            $out.push((SlotId::Count, count));
-        }
-        match kind {
-            PatternKind::Linear { direction, spacing } => {
-                axis_rows!(SlotId::Direction, direction, $out);
-                $out.push((SlotId::Spacing, spacing));
-            }
-            PatternKind::Circular { step, .. } => $out.push((SlotId::Step, step)),
-            PatternKind::Explicit(_) => {}
-        }
-    }};
-}
-
 /// The rows both tube kinds share: the reference direction, the two
 /// radii, then whatever the window carries ([`window_rows`]). The
 /// hollow kind appends its wall after them.
@@ -2399,26 +2098,6 @@ macro_rules! node_rows {
                 constraints,
             } => $out.extend(constraints.$rows()),
             Node::World | Node::Space => {}
-            // A pattern's count is a field, so it is always there; a
-            // placed union's is an `Option`, and a rule missing the
-            // count it needs carries no count SLOT either — the
-            // mismatch is `PlacementRuleFault::CountSpelling`, refused
-            // at both doors, and not a slot address that answers
-            // nothing.
-            Node::Pattern {
-                input: _,
-                count,
-                kind,
-            } => rule_rows!(Some(count), kind, $out),
-            Node::PlacedUnion {
-                input: _,
-                count,
-                kind,
-            } => rule_rows!(count, kind, $out),
-            Node::Part {
-                of: _,
-                select: PartSelect::Instance(index),
-            } => $out.push((S::Instance, index)),
             Node::Split { target, tool: _ } => index_rows!(O::Target, target, $rows, $out),
             Node::Mirror { body, plane: _ } => index_rows!(O::Body, body, $rows, $out),
             Node::Subtract { from, tool } => {
@@ -2476,12 +2155,6 @@ impl<P: crate::program::SlotPayload<S>, S: Slot> Node<P, S> {
     /// the edit door lowers and checks, a document's read queries ask,
     /// and a split or an inline re-points readers through.
     ///
-    /// **Its edge**: a placement-rule node's count under a rule that
-    /// takes none (`CountMismatch`) is held by no slot and no payload,
-    /// and this walk does not reach it. No document holds one: the
-    /// edit door refuses it (`EditError::PlacementRuleMismatch`) and so
-    /// does the load door (`PlacementRuleFault::CountSpelling`), so no
-    /// stored reader is there to lower, check or re-point.
     pub(crate) fn exprs(&self) -> Vec<&S> {
         expr_table!(self, core::convert::identity, rest => rest
             .rows()
@@ -2605,23 +2278,6 @@ impl<P> Node<P> {
             | Node::Assemble {
                 members,
             } => members.rows().into_iter().map(|(o, r)| (o, r.read)).collect(),
-            Node::Part { of, select: _ } => vec![(O::Of, *of)],
-            Node::Pattern {
-                input,
-                count: _,
-                kind,
-            }
-            | Node::PlacedUnion {
-                input,
-                count: _,
-                kind,
-            } => {
-                let mut v = vec![(O::Input, *input)];
-                if let PatternKind::Circular { axis, step: _ } = kind {
-                    v.push((O::Axis, axis.read));
-                }
-                v
-            }
         }
     }
 
@@ -2719,23 +2375,6 @@ impl<P> Node<P> {
                     .into_iter()
                     .map(|(o, r)| (o, &mut r.read))
                     .collect()
-            }
-            Node::Part { of, select: _ } => vec![(O::Of, of)],
-            Node::Pattern {
-                input,
-                count: _,
-                kind,
-            }
-            | Node::PlacedUnion {
-                input,
-                count: _,
-                kind,
-            } => {
-                let mut v = vec![(O::Input, input)];
-                if let PatternKind::Circular { axis, step: _ } = kind {
-                    v.push((O::Axis, &mut axis.read));
-                }
-                v
             }
         }
     }
@@ -2928,48 +2567,6 @@ impl<S> TubeWindow<S> {
     }
 }
 
-impl<S: Slot> PatternKind<S> {
-    /// **This rule in another slot form** ([`Node::try_map_slots`]'s
-    /// rule).
-    ///
-    /// # Errors
-    ///
-    /// The first refusal of `f` or `read`.
-    pub fn try_map_slots<S2: Slot, E>(
-        &self,
-        f: &mut impl FnMut(&S) -> Result<S2, E>,
-        read: &mut impl FnMut(crate::OperandSlot, &S::Read) -> Result<S2::Read, E>,
-    ) -> Result<PatternKind<S2>, E> {
-        Ok(match self {
-            PatternKind::Linear { direction, spacing } => PatternKind::Linear {
-                direction: map_array(direction, f)?,
-                spacing: f(spacing)?,
-            },
-            PatternKind::Circular { axis, step } => PatternKind::Circular {
-                axis: axis.try_map(|axis| read(crate::OperandSlot::Axis, axis))?,
-                step: f(step)?,
-            },
-            PatternKind::Explicit(frames) => PatternKind::Explicit(frames.clone()),
-        })
-    }
-}
-
-impl<S> PartSelect<S> {
-    /// **This selection in another slot form** ([`Node::try_map_slots`]'s
-    /// rule).
-    ///
-    /// # Errors
-    ///
-    /// `f`'s first.
-    pub fn try_map_slots<S2, E>(
-        &self,
-        f: &mut impl FnMut(&S) -> Result<S2, E>,
-    ) -> Result<PartSelect<S2>, E> {
-        Ok(match self {
-            PartSelect::Instance(index) => PartSelect::Instance(f(index)?),
-        })
-    }
-}
 
 /// **One port of an operation's output signature** (D10, Operations):
 /// the variable the operation defines there ([`crate::VarDef::Output`]),
@@ -3042,8 +2639,6 @@ impl<P, S: Slot> Node<P, S> {
                 OutputPort::of("above", VarKind::Body),
                 OutputPort::of("below", VarKind::Body),
             ],
-            Self::Pattern { .. } => vec![OutputPort::of("bodies", VarKind::Bodies)],
-            // One port of its reads' shape, however many it copies.
             // One copy, of its source's shape.
             Self::Place { .. } => vec![OutputPort {
                 name: "copy",
@@ -3061,9 +2656,7 @@ impl<P, S: Slot> Node<P, S> {
             | Self::Subtract { .. }
             | Self::Union { .. }
             | Self::Intersect { .. }
-            | Self::Assemble { .. }
-            | Self::Part { .. }
-            | Self::PlacedUnion { .. } => vec![BODY],
+            | Self::Assemble { .. } => vec![BODY],
             Self::Assertion { .. } => Vec::new(),
         }
     }
@@ -3202,20 +2795,6 @@ impl<P, S: Slot> Node<P, S> {
             },
             Node::World => Node::World,
             Node::Space => Node::Space,
-            Node::Pattern { input, count, kind } => Node::Pattern {
-                input: read(O::Input, input)?,
-                count: f(count)?,
-                kind: kind.try_map_slots(f, read)?,
-            },
-            Node::Part { of, select } => Node::Part {
-                of: read(O::Of, of)?,
-                select: select.try_map_slots(f)?,
-            },
-            Node::PlacedUnion { input, count, kind } => Node::PlacedUnion {
-                input: read(O::Input, input)?,
-                count: count.as_ref().map(&mut *f).transpose()?,
-                kind: kind.try_map_slots(f, read)?,
-            },
             Node::InstantiatePart {
                 doc_ref,
                 interface,
@@ -3275,9 +2854,6 @@ impl<P, S: Slot> Node<P, S> {
             | Node::Fillet { .. }
             | Node::Chamfer { .. }
             | Node::Shell { .. }
-            | Node::Pattern { .. }
-            | Node::Part { .. }
-            | Node::PlacedUnion { .. }
             | Node::InstantiatePart { .. }
             | Node::World
             | Node::Space
@@ -3358,14 +2934,6 @@ impl<P, S: Slot> Node<P, S> {
         match self {
             Node::Split { tool, .. } => vec![(O::Tool, tool.role)],
             Node::Mirror { plane, .. } => vec![(O::Plane, plane.role)],
-            Node::Pattern {
-                kind: PatternKind::Circular { axis, .. },
-                ..
-            }
-            | Node::PlacedUnion {
-                kind: PatternKind::Circular { axis, .. },
-                ..
-            } => vec![(O::Axis, axis.role)],
             _ => Vec::new(),
         }
     }
@@ -3380,17 +2948,6 @@ impl<P, S: Slot> Node<P, S> {
         match (self, seat) {
             (Node::Split { tool, .. }, O::Tool) => Some(&mut tool.role),
             (Node::Mirror { plane, .. }, O::Plane) => Some(&mut plane.role),
-            (
-                Node::Pattern {
-                    kind: PatternKind::Circular { axis, .. },
-                    ..
-                }
-                | Node::PlacedUnion {
-                    kind: PatternKind::Circular { axis, .. },
-                    ..
-                },
-                O::Axis,
-            ) => Some(&mut axis.role),
             _ => None,
         }
     }
@@ -3517,99 +3074,6 @@ pub(crate) fn assertion_reads<P>(
 /// The construction doors, in either slot form: a node built from
 /// authored formulas is what an edit carries, and the door lowers it.
 impl<P, S: Slot> Node<P, S> {
-    /// What is wrong with this node's placement rule, if anything, with
-    /// its frames admitted at `tol` — the ONE door the edit gate, the
-    /// persist re-check and the evaluation backstop all read, so the
-    /// three can never diverge on what a usable rule is. `None` for
-    /// every non-placement node.
-    pub fn placement_rule_fault(&self, tol: geom_core::Tol) -> Option<PlacementRuleFault> {
-        if let Some(shape) = self.count_mismatch() {
-            return Some(PlacementRuleFault::CountSpelling { shape });
-        }
-        // A stepped rule with its count has nothing more to check.
-        let frames = self.placement_rule()?.1.placements()?;
-        // The list IS the count, so an EMPTY list is the explicit
-        // rule's `count < 1` — refused for the same reason
-        // `CountOutOfRange` refuses a stepped rule's zero, rather
-        // than quietly denoting an empty body (LIB-PLACEDUNION review
-        // MAJOR-1).
-        if frames.is_empty() {
-            return Some(PlacementRuleFault::NoPlacements);
-        }
-        // A6 parity: a listed frame is held to exactly what a
-        // placement's literal step is held to, because it is held to
-        // it by the same predicate — `Frame::admission_fault`, whose
-        // home is the frame. This arm says only WHICH frame in the list
-        // answered. Checked HERE so the refusal lands at the edit door
-        // with the best diagnostics, not at the kernel's rigidity
-        // re-check downstream.
-        frames
-            .iter()
-            .enumerate()
-            .find_map(|(index, frame)| match frame.admission_fault(tol)? {
-                crate::placement::FrameFault::NonFinite => {
-                    Some(PlacementRuleFault::NonFiniteFrame { index })
-                }
-                crate::placement::FrameFault::NotRigid { check } => {
-                    Some(PlacementRuleFault::NonRigidFrame { index, check })
-                }
-            })
-    }
-
-    /// Which answer to "how many placements" this node gives twice, if
-    /// it gives one twice. `None` for every non-placement node.
-    fn count_mismatch(&self) -> Option<CountMismatch> {
-        let (slot, kind) = self.placement_rule()?;
-        match (slot, kind.placements().is_some()) {
-            (CountSlot::Field, true) => Some(CountMismatch::ListedOnPattern),
-            (CountSlot::Optional { present: true }, true) => Some(CountMismatch::ListedWithCount),
-            (CountSlot::Optional { present: false }, false) => {
-                Some(CountMismatch::SteppedWithoutCount)
-            }
-            (CountSlot::Field | CountSlot::Optional { present: true }, false)
-            | (CountSlot::Optional { present: false }, true) => None,
-        }
-    }
-
-    /// Where this node keeps its count, and its rule, if it is a
-    /// placement-rule node.
-    fn placement_rule(&self) -> Option<(CountSlot, &PatternKind<S>)> {
-        match self {
-            // Pattern's count is a non-optional field, so it always
-            // "has" one — which is why an explicit list there is
-            // always a second answer to the same question.
-            Node::Pattern { kind, .. } => Some((CountSlot::Field, kind)),
-            Node::PlacedUnion { count, kind, .. } => Some((
-                CountSlot::Optional {
-                    present: count.is_some(),
-                },
-                kind,
-            )),
-            Node::Profile(..)
-            | Node::Extrude { .. }
-            | Node::Revolve { .. }
-            | Node::Tube { .. }
-            | Node::HollowTube { .. }
-            | Node::Loft { .. }
-            | Node::Sweep { .. }
-            | Node::Fillet { .. }
-            | Node::Chamfer { .. }
-            | Node::Shell { .. }
-            | Node::Split { .. }
-            | Node::Mirror { .. }
-            | Node::Subtract { .. }
-            | Node::Union { .. }
-            | Node::Intersect { .. }
-            | Node::Assemble { .. }
-            | Node::Place { .. }
-            | Node::World
-            | Node::Space
-            | Node::Part { .. }
-            | Node::InstantiatePart { .. }
-            | Node::Measure { .. }
-            | Node::Assertion { .. } => None,
-        }
-    }
 
     /// The [`StableName`]s this payload REFERENCES — an instance's
     /// interface crossings' `outer`s; a
@@ -3783,36 +3247,6 @@ impl<P, S: Slot> Node<P, S> {
             constraints,
         }
     }
-
-    /// Builds a [`Node::PlacedUnion`] with a PARAMETRIC rule (linear
-    /// or circular) and its structural count.
-    ///
-    /// `None` for an [`PatternKind::Explicit`] rule: that rule brings
-    /// its own placements, so pairing it with a count is the
-    /// two-sources-of-truth state — [`Node::placed_union_at`] is its
-    /// door. (The edit door refuses the same state on a hand-built
-    /// value, so this is the convenient refusal, not the only one.)
-    pub fn placed_union(input: impl Into<S::Read>, count: S, kind: PatternKind<S>) -> Option<Self> {
-        kind.placements().is_none().then_some(Node::PlacedUnion {
-            input: input.into(),
-            count: Some(count),
-            kind,
-        })
-    }
-
-    /// Builds a [`Node::PlacedUnion`] over LISTED absolute frames — the
-    /// count is the list's length, so there is no count slot to
-    /// disagree with it.
-    pub fn placed_union_at(
-        input: impl Into<S::Read>,
-        placements: Vec<crate::placement::Frame>,
-    ) -> Self {
-        Node::PlacedUnion {
-            input: input.into(),
-            count: None,
-            kind: PatternKind::Explicit(placements),
-        }
-    }
 }
 
 impl<P> Node<P, crate::Formula> {
@@ -3850,9 +3284,6 @@ impl<P> Node<P, crate::Formula> {
             | Node::Assemble { .. }
             | Node::World
             | Node::Space
-            | Node::Pattern { .. }
-            | Node::Part { .. }
-            | Node::PlacedUnion { .. }
             | Node::Place { .. }
             | Node::InstantiatePart { .. }
             | Node::Assertion { .. } => Vec::new(),
@@ -3974,14 +3405,6 @@ where
                 Node::Place { constraints: b, .. } | Node::InstantiatePart { constraints: b, .. },
             ) => {
                 if a.len() != b.len() || !a.iter().zip(b).all(|(x, y)| x.bit_eq(y)) {
-                    return false;
-                }
-            }
-            (Node::Pattern { kind: a, .. }, Node::Pattern { kind: b, .. })
-            | (Node::PlacedUnion { kind: a, .. }, Node::PlacedUnion { kind: b, .. }) => {
-                if let (Some(fa), Some(fb)) = (a.placements(), b.placements())
-                    && !(fa.len() == fb.len() && fa.iter().zip(fb).all(|(x, y)| x.bit_eq(y)))
-                {
                     return false;
                 }
             }

@@ -394,30 +394,6 @@ impl FrameFault {
     }
 }
 
-/// **Which frame of a node a placement refusal is about** — the subject
-/// a door names beside the [`FrameFault`] sentence.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FrameSite {
-    /// Listed placement `index` of an explicit placement rule.
-    Listed {
-        /// Its index in the placement list.
-        index: usize,
-    },
-}
-
-impl FrameSite {
-    /// The frame this site names on `node`, as a sentence's subject. A
-    /// step reads as a user counts, from one, as [`crate::SlotId::label`]
-    /// numbers a chain's steps; a listed placement reads by its index,
-    /// the one an instance's name carries.
-    #[must_use]
-    pub fn subject(self, node: &crate::SpokenNode) -> String {
-        match self {
-            Self::Listed { index } => format!("placement {index} of {node}"),
-        }
-    }
-}
-
 impl Default for Frame {
     fn default() -> Self {
         Self::IDENTITY
