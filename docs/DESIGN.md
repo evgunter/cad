@@ -899,9 +899,11 @@ tiers".
 - **A seam is a property of a face**, not a place on its surface, and a
   wall keeps the cuts its author wrote: the kernel adds none. A face
   boundary sits at each authored junction where the result creases: a
-  loft at v-degree 1 is one wall per profile segment per slab between
-  consecutive sections, each interior section is a ring of edges, and
-  each strut is one straight edge per slab. Whether a smooth joint the
+  loft at v-degree 1 cuts its walls at every section, one wall per
+  profile segment per slab between consecutive sections, each interior
+  section a ring of edges and each strut one straight edge per slab;
+  the finishing join then merges the slabs whose carriers coincide, as
+  it merges any faces. Whether a smooth joint the
   kernel's own representation introduces is cut too is
   [open.representation-joint].
 
