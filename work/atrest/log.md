@@ -291,3 +291,11 @@ Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `cra
 - 2026-10-27 23:59Z (orchestrator): **#5884's lens-depth answer is in.** At 1e-12, Ok(false) appears only for lenses ≤ 0.0056ε, inside the zero band. No Ok(false) appears with a deeper lens, so there is no false flush. The k = 1 row is restored as flush-or-unread, and the bounds-allowlist red is fixed at `b0d6040c`, CI green.
   - Tier: dual, letter M, byte 192 (23:58:12Z), mod 3 = 0, so HOLDOUT: two reviewers, R1 `session_018u3gVH6DQpXmJTXkJCGqDd` and R2 `session_018u3gVH8HwJn2iaBCKNuPYm`, dispatched together on frozen `b0d6040c` with identical briefs.
 - 2026-10-28 00:04Z (orchestrator): **#5882 merged** at `dffb772b`, head `ee11b641`, CI green. That is the P0 `an-assertion-quiets-an-operations-unproven-row`. The row is sequential, tallied 0. Main's changes since its base were disjoint (`section_cert`, the lily demo), and `nextest.toml` merged cleanly. The lane is archived.
+- 2026-10-28 00:50Z (orchestrator): **The chain-scene pin is #5888**, head `0f450205`.
+  - All 10 findings are true interference, checked by a closed form of box against cylinder that is independent of the census, plus `point_in_solid`:
+    - 9 half-disc overlaps 0.4 mm deep;
+    - the target coincident with the tip pin, 0.8 mm deep, `Unlocalized`.
+  - No other pair of the 45 shares volume, and the bars' end-cap contacts are no at-rest finding.
+  - So it is a stale pin (196 → 10), not a P0.
+  - Tier: orchestrator's read, as a mechanical re-pin of an independently verified count. Merge on green.
+  - The item's "the links interlock" framing was wrong: the bars butt end to end.
