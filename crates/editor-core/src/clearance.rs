@@ -1065,8 +1065,8 @@ pub fn clearance_over(
         let report = clearance_with(doc, box_, a, b, query);
         let mass = box_.mass(analyzed);
         fold.mass.price(&report.verdict, mass);
-        fold.receipt.add(report.receipt);
-        fold.widths.fold(report.widths);
+        fold.receipt = fold.receipt.plus(report.receipt);
+        fold.widths = fold.widths.plus(report.widths);
         fold.decided += report.decided;
         fold.verdict = combine(fold.verdict, report.verdict.clone());
         fold.leaves.push(LeafAnswer {
@@ -1397,7 +1397,7 @@ fn verify_witness(
     doc: &Doc<ProfileProgram>,
     leaf: &ParamBox,
     (sel_a, sel_b): (&Selection, &Selection),
-    candidate: &mut Candidate<'_, '_, Interval>,
+    candidate: Candidate<'_, '_, Interval>,
     (bound, band): (ClearanceBound, Band),
     resolver: Option<&Arc<dyn crate::part::PartResolver>>,
     tol: Tol,

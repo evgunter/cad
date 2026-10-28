@@ -454,22 +454,25 @@ impl CellReceipt {
         );
     }
 
-    /// Folds another query's receipt in. The identity is additive: a
-    /// sum of forests is a forest.
+    /// This receipt with another query's folded in. The identity is
+    /// additive: a sum of forests is a forest.
     ///
     /// # Panics
     ///
     /// When either receipt has `outside > discharged`.
-    pub fn add(&mut self, other: Self) {
+    #[must_use]
+    pub fn plus(self, other: Self) -> Self {
         self.check_outside_is_a_sub_count();
         other.check_outside_is_a_sub_count();
-        self.candidates += other.candidates;
-        self.discharged += other.discharged;
-        self.violated += other.violated;
-        self.refused += other.refused;
-        self.splits += other.splits;
-        self.outside += other.outside;
-        self.abandoned += other.abandoned;
+        Self {
+            candidates: self.candidates + other.candidates,
+            discharged: self.discharged + other.discharged,
+            violated: self.violated + other.violated,
+            refused: self.refused + other.refused,
+            splits: self.splits + other.splits,
+            outside: self.outside + other.outside,
+            abandoned: self.abandoned + other.abandoned,
+        }
     }
 }
 
@@ -511,15 +514,18 @@ impl DischargeWidths {
         self.narrowest = Some(self.narrowest.map_or(diameter, |w: f64| w.min(diameter)));
     }
 
-    /// Folds another query's widths in.
-    pub fn fold(&mut self, other: Self) {
+    /// These widths with another query's folded in.
+    #[must_use]
+    pub fn plus(self, other: Self) -> Self {
+        let mut out = self;
         if let Some(w) = other.widest {
-            self.widest = Some(self.widest.map_or(w, |x: f64| x.max(w)));
+            out.widest = Some(out.widest.map_or(w, |x: f64| x.max(w)));
         }
         if let Some(w) = other.narrowest {
-            self.narrowest = Some(self.narrowest.map_or(w, |x: f64| x.min(w)));
+            out.narrowest = Some(out.narrowest.map_or(w, |x: f64| x.min(w)));
         }
-        self.deepest = self.deepest.max(other.deepest);
+        out.deepest = out.deepest.max(other.deepest);
+        out
     }
 }
 
@@ -611,9 +617,9 @@ impl<T: Decide + CertifiedBounds> Candidate<'_, '_, T> {
     /// the question is per (window, station), and asking it inside a
     /// loop over pairs would ask the second side's nine questions once
     /// per admitted station of the first.
-    pub fn on_face_stations(&mut self) -> (Stations, Stations) {
-        let a = admitted(self.region, false, self.ia, self.x, self.ca);
-        let b = admitted(self.region, true, self.ib, self.y, self.cb);
+    pub fn on_face_stations(self) -> (Stations, Stations) {
+        let a = admitted(&mut *self.region, false, self.ia, self.x, self.ca);
+        let b = admitted(&mut *self.region, true, self.ib, self.y, self.cb);
         (a, b)
     }
 }
@@ -682,7 +688,7 @@ impl Sweep {
     ) -> BoundReport<W>
     where
         T: Decide + CertifiedBounds,
-        F: FnMut(&mut Candidate<'_, '_, T>) -> Result<W, String>,
+        F: FnMut(Candidate<'_, '_, T>) -> Result<W, String>,
     {
         let (wa, wb) = (&wa.of[..], &wb.of[..]);
         let c = self.bound.c();
@@ -811,7 +817,7 @@ impl Sweep {
                     widths.discharged_at(da.max(db));
                 };
                 let mut candidate = |region: &mut RegionMemo| {
-                    verify(&mut Candidate {
+                    verify(Candidate {
                         x,
                         ca: pair.a,
                         ia: task.i,
