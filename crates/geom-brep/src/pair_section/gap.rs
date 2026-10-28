@@ -37,7 +37,8 @@
 //! distance). A cell clears when every branch either
 //!
 //! - stands past the band from both levels over the whole cell
-//!   (`|D(m) − L| − R·w` definitely positive), or
+//!   (`|D(m) − L| − R·w` definitely positive, or, where `G` is smooth,
+//!   the range of `D` its Taylor bound gives clear of both levels), or
 //! - is smooth on it and monotone (`|G′(m)| − |G″(m)|·w − |G‴|·w²/2`
 //!   positive, read as the least `|D′|` it bounds), so it holds no
 //!   critical point: `G′ = 2D·D′` vanishes at every critical point of the
@@ -340,6 +341,19 @@ impl<T: Decide> Sweep<'_, T> {
         let Some(third) = self.third(r, reach) else {
             return Cell::Open(r);
         };
+        // `D` over the cell from `G`'s Taylor bound, which stays tight
+        // where `D` is small and `R·w` is not.
+        let g = r.d.powi(2);
+        let swing =
+            r.g1.abs() * w + r.g2.abs() * w.powi(2) / two + third * w.powi(3) / T::from_f64(6.0);
+        let (d_lo, d_hi) = ((g - swing).max(T::zero()).sqrt(), (g + swing).sqrt());
+        let apart = |level: T| (level - d_hi).max(d_lo - level);
+        if self.positive(
+            self.rows.clear,
+            Margin::of(apart(self.levels[0]).min(apart(self.levels[1]))),
+        ) {
+            return Cell::Clear;
+        }
         // The least `|G′|` over the cell, as the least `|D′|` it bounds.
         let least = r.g1.abs() - r.g2.abs() * w - third * w.powi(2) / two;
         if self.positive(
