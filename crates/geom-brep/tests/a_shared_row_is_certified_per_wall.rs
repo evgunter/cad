@@ -562,3 +562,144 @@ fn a_shared_row_between_tangent_walls_refuses_as_not_transverse() {
         "tangent walls are not definitely transverse along the row: {got:?}"
     );
 }
+
+// ---- review r1 (PR 5959) counterexample rows: each is red at 52b56438 ----
+
+fn k2() -> KnotVector {
+    KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap()
+}
+
+/// The floor `z = 0` over `[0, 1]²` (degree 2 along `y`), the line
+/// `x = 1` on it (its `u = 1` side), and an upright on that line whose top
+/// row is `(lean, y, h(y))`, `h(y) = (y - y*)²`: at `y*` the upright's
+/// ruling lies in `z = 0`, so the walls are tangent there.
+fn tangent_at(ys: f64, lean: f64) -> (Pair, Curve3<f64>, [Pcurve<f64>; 2]) {
+    let p = |x, y, z| Point3::new(x, y, z);
+    let floor = Surface::Nurbs(Arc::new(
+        NurbsSurface::new(
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            k2(),
+            [0.0, 1.0]
+                .into_iter()
+                .flat_map(|x| [0.0, 0.5, 1.0].map(|y| p(x, y, 0.0)))
+                .collect(),
+            vec![1.0; 6],
+        )
+        .unwrap(),
+    ));
+    let h = [ys * ys, ys * ys - ys, (1.0 - ys) * (1.0 - ys)];
+    let mut control = Vec::new();
+    for (j, y) in [0.0, 0.5, 1.0].into_iter().enumerate() {
+        control.push(p(1.0, y, 0.0));
+        control.push(p(lean, y, h[j]));
+    }
+    let upright = Surface::Nurbs(Arc::new(
+        NurbsSurface::new(
+            k2(),
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            control,
+            vec![1.0; 6],
+        )
+        .unwrap(),
+    ));
+    let line = Curve3::Nurbs(Arc::new(
+        NurbsCurve3::new(
+            k2(),
+            vec![p(1.0, 0.0, 0.0), p(1.0, 0.5, 0.0), p(1.0, 1.0, 0.0)],
+            vec![1.0; 3],
+        )
+        .unwrap(),
+    ));
+    let images = [
+        Pcurve::IsoLine {
+            p0: geom_core::Point2::new(1.0, 0.0),
+            pl: geom_core::Vec2::new(0.0, 1.0),
+        },
+        Pcurve::IsoLine {
+            p0: geom_core::Point2::new(0.0, 0.0),
+            pl: geom_core::Vec2::new(1.0, 0.0),
+        },
+    ];
+    (Pair::of(floor, upright), line, images)
+}
+
+/// **Claim 2 (class a).** Walls tangent between the transversality
+/// samples (`y* = 0.19`, between 0.125 and 0.25) or at an end (never
+/// sampled). With `lean = 0` the upright folds back over the floor and its
+/// ruling at `y*` lies inside both charts: a second branch of the pair, a
+/// unit long, crossing the rim. The witness lane refuses every case (its
+/// tube's crossing-angle bound); the shared row certifies all but the
+/// sampled one, and D2's question recovers it.
+#[test]
+fn r1_a_shared_row_between_walls_tangent_off_the_samples_refuses() {
+    for (ys, lean) in [(0.19, 0.0), (0.19, 2.0), (0.0, 0.0), (1.0, 0.0), (0.5, 0.0)] {
+        let (pair, line, images) = tangent_at(ys, lean);
+        let witness = pair.certify(CurveSelector::Witness(line.eval(0.5)), &line, (0.0, 1.0));
+        assert!(witness.is_err(), "y* = {ys}: the witness lane refuses");
+        let got = pair.certify(shared(&pair, images), &line, (0.0, 1.0));
+        assert!(
+            got.is_err(),
+            "y* = {ys}, lean {lean}: walls tangent on the row certify as a transverse shared row"
+        );
+    }
+}
+
+/// **Claims 3 and (c).** A floor creased along its interior column
+/// `u = ½`, one sheet folded up to within `0.1 ε` of the upright `x = ½`:
+/// the certifier, which (unlike recovery) admits an interior row, reads
+/// one span's derivative at the crease, so its verdict depends on which
+/// side the hugging sheet is on. Mirror images must get one verdict.
+#[test]
+fn r1_a_creased_interior_row_reads_one_verdict_for_mirror_images() {
+    let p = |x, y, z| Point3::new(x, y, z);
+    let upright = bilinear([
+        p(0.5, 0.0, 0.0),
+        p(0.5, 0.0, 1.0),
+        p(0.5, 1.0, 0.0),
+        p(0.5, 1.0, 1.0),
+    ]);
+    let line = Curve3::Nurbs(Arc::new(
+        NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            vec![p(0.5, 0.0, 0.0), p(0.5, 1.0, 0.0)],
+            vec![1.0, 1.0],
+        )
+        .unwrap(),
+    ));
+    let images = [
+        Pcurve::IsoLine {
+            p0: geom_core::Point2::new(0.5, 0.0),
+            pl: geom_core::Vec2::new(0.0, 1.0),
+        },
+        Pcurve::IsoLine {
+            p0: geom_core::Point2::new(0.0, 0.0),
+            pl: geom_core::Vec2::new(1.0, 0.0),
+        },
+    ];
+    let s = 0.1 * eps();
+    let verdict = |left_up: bool| {
+        let col = |x: f64, z: f64| [p(x, 0.0, z), p(x, 1.0, z)];
+        let rows = if left_up {
+            [col(0.5 - s, 1.0), col(0.5, 0.0), col(1.0, 0.0)]
+        } else {
+            [col(0.0, 0.0), col(0.5, 0.0), col(0.5 + s, 1.0)]
+        };
+        let creased = Surface::Nurbs(Arc::new(
+            NurbsSurface::new(
+                KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap(),
+                KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+                rows.iter().flatten().copied().collect(),
+                vec![1.0; 6],
+            )
+            .unwrap(),
+        ));
+        let pair = Pair::of(creased, upright.clone());
+        pair.certify(shared(&pair, images.clone()), &line, (0.0, 1.0))
+            .is_ok()
+    };
+    assert_eq!(
+        verdict(false),
+        verdict(true),
+        "the crease's verdict depends on the span read"
+    );
+}
