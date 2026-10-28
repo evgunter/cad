@@ -269,10 +269,12 @@ fn dump_the_rows_for_the_mpmath_oracle() {
     }
 }
 
-/// **Tangencies refuse R-tan, naming the margin.** `K` tangent to the
+/// **Tangencies refuse R-tan, on the critical gap.** `K` tangent to the
 /// strip's top or bottom edge over the parallel, and tangent to a tube
-/// circle from outside or from inside. Mutant: answer a decided-`Zero`
-/// margin as either side, and the row goes red.
+/// circle from outside or from inside: each a critical value of the
+/// distance from the core to the wall's axis at the wall's radius off the
+/// tube's. Mutant: answer a decided-`Zero` gap as either side, and the
+/// row goes red.
 #[test]
 fn square_wall_tangencies_refuse() {
     let donut = ring(2.0, 0.5);
@@ -280,22 +282,22 @@ fn square_wall_tangencies_refuse() {
         (
             "tangent to the top edge",
             (1.0, 0.3, 0.2),
-            "section_torus_square_wall_top",
+            "ct_critical_gap",
         ),
         (
             "tangent to the bottom edge",
             (1.0, -0.3, 0.2),
-            "section_torus_square_wall_bottom",
+            "ct_critical_gap",
         ),
         (
             "touching T₊ from outside",
             (2.7, 0.0, 0.2),
-            "section_torus_square_wall_tube",
+            "ct_critical_gap",
         ),
         (
             "touching T₊ from inside",
             (2.3, 0.0, 0.2),
-            "section_torus_square_wall_tube",
+            "ct_critical_gap",
         ),
     ] {
         let w = wall(k);
@@ -374,44 +376,47 @@ fn a_wall_touching_a_strip_edge_beyond_the_parallel_answers() {
     );
 }
 
-/// **The square reading's lever is the reach's: a tilt just inside the
-/// band at a long reach answers, one just outside refuses on reach.** A
-/// reach of radius `50` about the origin puts the lever at
-/// `2·(|pivot| + 50)`, the pivot the wall axis's point nearest the
-/// origin. A tilt worth `0.6` of the band's Zero there reads square and
-/// answers as the untilted wall does; one worth `1.5` of it is undecided
-/// and is no pose an arm claims. Mutants: lever the tilt by half or a
-/// millionth of that (the outside row answers), or by twice it (the
-/// inside row refuses).
+/// **The square reading's lever is the torus's ball: a tilt just inside
+/// the band answers, one just outside refuses on reach.** The section
+/// value reads the tilt over the ball `|x| ≤ R + r` about the torus's
+/// centre, which holds every section of it, whatever reach the
+/// certificate hands it: the lever is `2·(|pivot| + R + r)`, the pivot
+/// the wall axis's point nearest the centre. A tilt worth `0.6` of the
+/// band's Zero there reads square and answers as the untilted wall does,
+/// read over a reach of `50` or of `1`; one worth `1.5` of it is no pose
+/// an arm claims. Mutants: lever the tilt by half or a millionth of that
+/// (the outside row answers), or by twice it (the inside row refuses).
 #[test]
-fn the_square_reading_is_levered_by_the_reach() {
+fn the_square_reading_is_levered_by_the_tori_ball() {
     let donut = ring(2.0, 0.5);
     let k = (0.15, 0.1, 0.2);
-    let reach = Reach {
-        centre: p(0.0, 0.0, 0.0),
-        radius: 50.0,
-    };
     // The untilted axis passes `(0, e, z0)` along `x`, its point nearest
     // the origin; a tilt of `1e-10` and less moves it by far less than
     // the band.
-    let lever = 2.0 * (f64::hypot(k.0, k.1) + reach.radius);
+    let lever = 2.0 * (f64::hypot(k.0, k.1) + 2.5);
     let tilt = |of_zero: f64| of_zero * band().zero() / lever;
-    answers_within(
-        "a tilt 0.6 of the band's Zero",
-        &donut,
-        &wall_along(v(1.0, 0.0, tilt(0.6)), k),
-        &[ON_WALL; 4],
-        reach,
-    );
-    let outside = wall_along(v(1.0, 0.0, tilt(1.5)), k);
-    for sec in [
-        classify(&donut.surface(), &outside.surface(), reach, band()),
-        classify(&outside.surface(), &donut.surface(), reach, band()),
-    ] {
-        assert!(
-            matches!(sec, Section::Intractable),
-            "a tilt 1.5 of the band's Zero: {sec:?}"
+    for radius in [50.0, 1.0] {
+        let reach = Reach {
+            centre: p(0.0, 0.0, 0.0),
+            radius,
+        };
+        answers_within(
+            "a tilt 0.6 of the band's Zero",
+            &donut,
+            &wall_along(v(1.0, 0.0, tilt(0.6)), k),
+            &[ON_WALL; 4],
+            reach,
         );
+        let outside = wall_along(v(1.0, 0.0, tilt(1.5)), k);
+        for sec in [
+            classify(&donut.surface(), &outside.surface(), reach, band()),
+            classify(&outside.surface(), &donut.surface(), reach, band()),
+        ] {
+            assert!(
+                matches!(sec, Section::Intractable),
+                "a tilt 1.5 of the band's Zero: {sec:?}"
+            );
+        }
     }
 }
 

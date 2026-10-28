@@ -49,7 +49,9 @@
 //!   end and definitely positive at the other (or the reverse), so a
 //!   critical point lies inside, and the window's bound on `|D − L|` is
 //!   decided `Zero`. The window is centred where `D′` changes sign, found
-//!   by bisection, and sized so its second-order bound fits the band;
+//!   by bisection across the open cell padded by half its width each
+//!   side (a turn on a cut lies inside both neighbours' reach), and sized
+//!   so its second-order bound fits the band;
 //! - **the least distance**: the spine distance's global minimum is
 //!   always a critical value, and no larger than `D` anywhere, so `D(m)`
 //!   and the level `|ρ₁ − ρ₂|` both within the zero band decide it. This
@@ -74,7 +76,7 @@ const GAP_CELLS: usize = 1 << 14;
 /// The bisection steps that place a sign change of `D′` in its cell.
 const GAP_BISECTIONS: u32 = 64;
 /// The window sizes a turn is tried at, each half the last.
-const GAP_WINDOWS: u32 = 4;
+const GAP_WINDOWS: u32 = 32;
 
 /// **A torus's core circle**, swept by its angle: `center + R·(cos φ·u +
 /// sin φ·v)`, `u` and `v` unit and square to each other and to the axis.
@@ -159,34 +161,56 @@ pub enum Gap<T: Real> {
     },
 }
 
-/// One branch of the spine distance read at one angle.
+/// One branch of the spine distance read at one angle: `D`, and the
+/// squared distance `G = D²`'s first two derivatives there, in metres
+/// squared per radian.
 #[derive(Clone, Copy)]
 struct Reading<T: Real> {
-    /// `D`.
     d: T,
-    /// `D′`, metres per radian.
-    slope: T,
+    g1: T,
+    g2: T,
+    /// `|p − c|` for the point and the circle, `D` for the line: what
+    /// `G‴`'s bound reads.
+    reach: T,
     /// The core point's distance from the partner circle's axis.
     kink: Option<T>,
 }
 
+/// `⟨Πw, Πw⟩`'s first two derivatives along the core, `w = p − o` and
+/// `Π` the projection square to `axis` (none for a point): `(S, S′, S″)`.
+fn squared<T: Real>(w: Vec3<T>, dp: Vec3<T>, ddp: Vec3<T>, axis: Option<Vec3<T>>) -> [T; 3] {
+    let flat = |v: Vec3<T>| match axis {
+        Some(a) => a.cross(v.cross(a)),
+        None => v,
+    };
+    let (w, dp, ddp) = (flat(w), flat(dp), flat(ddp));
+    let two = T::from_f64(2.0);
+    [w.dot(w), two * w.dot(dp), two * (dp.dot(dp) + w.dot(ddp))]
+}
+
 fn read<T: Real>(core: Core<T>, spine: Spine<T>, far: bool, phi: T) -> Reading<T> {
     let (p, dp) = (core.point(phi), core.velocity(phi));
+    let ddp = core.center - p;
     match spine {
         Spine::Point(c) => {
-            let off = p - c;
-            let d = off.norm();
+            let [g, g1, g2] = squared(p - c, dp, ddp, None);
+            let d = g.sqrt();
             Reading {
                 d,
-                slope: off.dot(dp) / d,
+                g1,
+                g2,
+                reach: d,
                 kink: None,
             }
         }
         Spine::Line { origin, axis } => {
-            let (off, d) = super::square_part(p - origin, axis);
+            let [g, g1, g2] = squared(p - origin, dp, ddp, Some(axis));
+            let d = g.sqrt();
             Reading {
                 d,
-                slope: off.dot(dp) / d,
+                g1,
+                g2,
+                reach: d,
                 kink: None,
             }
         }
@@ -195,17 +219,23 @@ fn read<T: Real>(core: Core<T>, spine: Spine<T>, far: bool, phi: T) -> Reading<T
             axis,
             radius,
         } => {
+            // `G = |w|² ∓ 2R₂ρ + R₂²`, `ρ = √S` the distance from the
+            // circle's axis: `ρ′ = S′/2ρ`, `ρ″ = S″/2ρ − S′²/4ρ³`.
             let w = p - center;
+            let [n, n1, n2] = squared(w, dp, ddp, None);
+            let [s0, s1, s2] = squared(w, dp, ddp, Some(axis));
+            let rho = s0.sqrt();
+            let two = T::from_f64(2.0);
+            let r1 = s1 / (two * rho);
+            let r2 = s2 / (two * rho) - s1.powi(2) / (T::from_f64(4.0) * rho.powi(3));
+            let sigma = if far { T::one() } else { -T::one() };
             let h = w.dot(axis);
-            let (perp, rho) = super::square_part(w, axis);
-            let across = if far { rho + radius } else { rho - radius };
-            let d = (across.powi(2) + h.powi(2)).sqrt();
-            // `∇D` is `(across·ê + h·a) / D`, `ê` the unit part of `w`
-            // square to the axis.
-            let grad = (perp / rho * across + axis * h) / d;
+            let across = rho + sigma * radius;
             Reading {
-                d,
-                slope: grad.dot(dp),
+                d: (across.powi(2) + h.powi(2)).sqrt(),
+                g1: n1 + two * sigma * radius * r1,
+                g2: n2 + two * sigma * radius * r2,
+                reach: n.sqrt(),
                 kink: Some(rho),
             }
         }
@@ -238,32 +268,40 @@ impl<T: Decide> Sweep<'_, T> {
         matches!(decide(name, m, self.band), Ok(Sign::Positive))
     }
 
-    /// `D″`'s bound over a window `reach` metres of core about a reading,
-    /// where the window is smooth.
-    fn bend(&self, r: Reading<T>, reach: T) -> Option<T> {
+    /// **`G‴`'s bound over a window `reach` metres of core about a
+    /// reading**, where `G` is smooth there: `None` where the window may
+    /// hold a kink. With `|p′| = |p″| = |p‴| = R` and `p′·p″ = 0`,
+    /// `⟨Πw, Πw⟩‴ = 2(3⟨Πp′, Πp″⟩ + ⟨Πw, Πp‴⟩)` is at most
+    /// `2R(3R + |Πw|)`, and for the circle `ρ‴`, from `ρ = √S`, at most
+    /// `(3R² + ρR)/ρ + 3R(R² + ρR)/ρ² + 3R³/ρ²` over `ρ ≥ ρ_lo`.
+    fn third(&self, r: Reading<T>, reach: T) -> Option<T> {
         let big = self.core.radius;
-        if !self.positive(self.rows.smooth, Margin::of(r.d - reach)) {
-            return None;
-        }
-        let mut least = r.d - reach;
-        if let Some(rho) = r.kink {
-            if !self.positive(self.rows.smooth, Margin::of(rho - reach)) {
-                return None;
+        let (two, three) = (T::from_f64(2.0), T::from_f64(3.0));
+        let far = r.reach + reach;
+        match (self.spine, r.kink) {
+            (Spine::Circle { radius, .. }, Some(rho)) => {
+                if !self.positive(self.rows.smooth, Margin::of(rho - reach)) {
+                    return None;
+                }
+                let lo = rho - reach;
+                let rho3 = (three * big.powi(2) + lo * big) / lo
+                    + three * big * (big.powi(2) + lo * big) / lo.powi(2)
+                    + three * big.powi(3) / lo.powi(2);
+                // `|w|²‴ = 2w·p‴`, the other terms vanishing on a circle.
+                Some(two * far * big + two * radius * rho3)
             }
-            least = least.min(rho - reach);
+            _ => Some(two * big * (three * big + far)),
         }
-        Some(big + big.powi(2) / least)
     }
 
-    /// The sign `D′` reads definitely at `phi`, if it reads one.
+    /// The sign `D′` reads definitely at `phi`, if it reads one: `G′/2D`,
+    /// the cosine between the core's tangent and the spine's normal
+    /// levered by the core radius.
     fn turn(&self, far: bool, phi: T) -> Option<Sign> {
         let r = read(self.core, self.spine, far, phi);
         let big = self.core.radius;
-        match decide(
-            self.rows.turn,
-            Margin::levered(r.slope / big, big),
-            self.band,
-        ) {
+        let cos = r.g1 / (T::from_f64(2.0) * r.d * big);
+        match decide(self.rows.turn, Margin::levered(cos, big), self.band) {
             Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),
             Ok(Sign::Zero) | Err(_) => None,
         }
@@ -271,6 +309,7 @@ impl<T: Decide> Sweep<'_, T> {
 
     fn cell(&self, far: bool, (lo, m, hi): (T, T, T), w: T) -> Cell<T> {
         let big = self.core.radius;
+        let two = T::from_f64(2.0);
         let reach = big * w;
         let r = read(self.core, self.spine, far, m);
         if self.positive(
@@ -292,30 +331,37 @@ impl<T: Decide> Sweep<'_, T> {
                 at: self.core.point(m),
             });
         }
-        let Some(bend) = self.bend(r, reach) else {
+        let Some(third) = self.third(r, reach) else {
             return Cell::Open(r);
         };
+        // The least `|G′|` over the cell, as the least `|D′|` it bounds.
+        let least = r.g1.abs() - r.g2.abs() * w - third * w.powi(2) / two;
         if self.positive(
             self.rows.monotone,
-            Margin::levered((r.slope.abs() - bend * w) / big, big),
+            Margin::levered(least / (two * (r.d + reach) * big), big),
         ) {
             return Cell::Clear;
         }
+        // Read across the cell padded by half its width each side, so a
+        // turn on a cut between two cells is inside the window of each.
+        let (lo, hi) = (lo - w, hi + w);
         match (self.turn(far, lo), self.turn(far, hi)) {
             (Some(a), Some(b)) if a != b => self
-                .turn_window(far, (lo, hi))
+                .turn_window(far, (lo, hi), w)
                 .map_or(Cell::Open(r), Cell::Tangent),
             _ => Cell::Open(r),
         }
     }
 
     /// **A turn of `D` inside `[lo, hi]`**, whose ends read `D′` of
-    /// opposite signs: the sign change bisected, and windows about it
-    /// read until one decides the gap `Zero` with its own ends turning.
-    fn turn_window(&self, far: bool, (lo, hi): (T, T)) -> Option<Gap<T>> {
+    /// opposite signs: the sign change bisected, and windows about it, of
+    /// half-width `w` and each half the last, read until one decides the
+    /// gap `Zero` with its own ends turning. `G` over a window is its
+    /// Taylor bound about the turn, its value read back through `√`.
+    fn turn_window(&self, far: bool, (lo, hi): (T, T), w: T) -> Option<Gap<T>> {
         let big = self.core.radius;
-        let two = T::from_f64(2.0);
-        let slope = |phi: T| read(self.core, self.spine, far, phi).slope;
+        let (two, six) = (T::from_f64(2.0), T::from_f64(6.0));
+        let slope = |phi: T| read(self.core, self.spine, far, phi).g1;
         let (mut a, mut b) = (lo, hi);
         let at_lo = slope(lo);
         for _ in 0..GAP_BISECTIONS {
@@ -326,17 +372,17 @@ impl<T: Decide> Sweep<'_, T> {
         }
         let mid = (a + b) / two;
         let r = read(self.core, self.spine, far, mid);
-        let guess = self.bend(r, T::zero())?;
-        // `bend·h²/2` at half the zero band: `h` in radians, `bend` in
-        // metres per radian squared.
-        let mut h = (T::from_f64(self.band.zero()) / guess).sqrt();
+        let g = r.d.powi(2);
+        let mut h = w;
         for _ in 0..GAP_WINDOWS {
-            if let Some(bend) = self.bend(r, big * h) {
+            if let Some(third) = self.third(r, big * h) {
                 let (left, right) = (self.turn(far, mid - h), self.turn(far, mid + h));
                 if matches!((left, right), (Some(x), Some(y)) if x != y) {
+                    let swing =
+                        r.g1.abs() * h + r.g2.abs() * h.powi(2) / two + third * h.powi(3) / six;
+                    let (d_lo, d_hi) = ((g - swing).max(T::zero()).sqrt(), (g + swing).sqrt());
                     for level in self.levels {
-                        let bound =
-                            (r.d - level).abs() + r.slope.abs() * h + bend * h.powi(2) / two;
+                        let bound = (d_lo - level).abs().max((d_hi - level).abs());
                         if let Ok(Decided {
                             sign: Sign::Zero,
                             margin,

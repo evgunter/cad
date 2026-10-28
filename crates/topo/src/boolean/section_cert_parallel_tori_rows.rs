@@ -184,7 +184,7 @@ fn level_tubes_of_one_radius_refuse_as_a_tangency() {
         &torus(p(0.0, 0.0, 0.0), 2.0, 0.5),
         &torus(p(1.0, 0.0, 0.0), 2.0, 0.5),
     );
-    assert_eq!(tangent(&s), "section_torus_parallel_tori_top");
+    assert_eq!(tangent(&s), "tt_critical_gap");
 }
 
 /// The lily's stem torus, and its arch torus at the given offset `e`
@@ -290,7 +290,7 @@ fn the_lilys_pair_either_side_of_its_tangencies() {
     let [stem, arch] = lily(3.9 + 0.008, 0.0);
     assert_eq!(
         tangent(&classify_lily(&stem, &arch)),
-        "section_torus_parallel_tori_nest",
+        "tt_critical_gap",
         "the meridian circles tangent at the fork refuse R-tan"
     );
     let [stem, arch] = lily(3.9, 0.2);
@@ -302,7 +302,7 @@ fn the_lilys_pair_either_side_of_its_tangencies() {
     let [stem, arch] = lily(3.9, 0.112);
     assert_eq!(
         tangent(&classify_lily(&stem, &arch)),
-        "section_torus_parallel_tori_slabs",
+        "tt_critical_gap",
         "slabs touching refuse R-tan"
     );
 }
@@ -341,43 +341,45 @@ fn the_lilys_pair_clears_only_on_windows_that_miss_its_loops() {
     );
 }
 
-/// **The first row read across a nonzero slack: a tilt within the band
-/// widens the nest row.** The partner's near tube circle stands `10 ε`
+/// **A tilt within the band routes parallel, and the gap reads the
+/// operands as they stand.** The partner's near tube circle stands `n ε`
 /// past internally tangent to the torus's outer one
-/// (`d − |r − r₂| = 10 ε`). With the axes exactly parallel the nest row
-/// decides and the pair has one loop; tilted by `ε / 100` the pose still
-/// routes parallel, and the turn onto the torus axis swings the partner
-/// across the reach by more than that margin, so the nest row's floor
-/// reads Zero and the pair refuses R-tan naming it. Both offsets are in
-/// band units, so the row reads alike at every ε. Mutant: the reach and
-/// nest rows read bare of the slack (the tilted pose answers one loop).
+/// (`d − |r − r₂| = n ε`). At `30 ε`, exactly parallel or tilted by
+/// `ε / 100` (which the lever over the partner's ball reads parallel), the
+/// pair has one loop; at `3 ε` the critical gap is in the band and both
+/// refuse R-tan on it. Both offsets are in band units, so the rows read
+/// alike at every ε. Mutants: the tilt levered by a reach the value does
+/// not hold (the tilted pose refuses on reach), the gap read bare of the
+/// band (the `3 ε` pose answers).
 #[test]
-fn a_tilt_within_the_band_widens_the_nest_row() {
+fn a_tilt_within_the_band_routes_parallel_and_the_gap_reads_the_operands() {
     let eps = geom_core::Tol::witness().eps();
     let reach = Reach {
         centre: p(0.0, 0.0, 0.0),
         radius: 6.0,
     };
     let f = torus(p(0.0, 0.0, 0.0), 2.0, 0.5);
-    let tilted = |t: f64| Surface::Torus {
-        center: p(3.2 + 10.0 * eps, 0.0, 0.0),
+    let partner = |n: f64, t: f64| Surface::Torus {
+        center: p(3.2 + n * eps, 0.0, 0.0),
         axis: Vec3::new(t.sin(), 0.0, t.cos()),
         major_radius: 1.0,
         minor_radius: 0.3,
         u_ref: Vec3::new(t.cos(), 0.0, -t.sin()),
     };
-    assert_eq!(
-        parts(&super::classify(&f, &tilted(0.0), reach, band()))
-            .0
-            .len(),
-        1,
-        "exactly parallel: one loop"
-    );
-    assert_eq!(
-        tangent(&super::classify(&f, &tilted(eps / 100.0), reach, band())),
-        "section_torus_parallel_tori_nest_floor",
-        "tilted within the band: the nest row's floor straddles"
-    );
+    for t in [0.0, eps / 100.0] {
+        assert_eq!(
+            parts(&super::classify(&f, &partner(30.0, t), reach, band()))
+                .0
+                .len(),
+            1,
+            "tilted by {t}: one loop"
+        );
+        assert!(
+            tangent(&super::classify(&f, &partner(3.0, t), reach, band()))
+                .starts_with("tt_critical_gap"),
+            "tilted by {t}: the gap in the band"
+        );
+    }
 }
 
 /// **With an event on the pair, the lily's two loops refuse R-undec
