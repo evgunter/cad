@@ -2648,6 +2648,16 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                     halves.entry(h.edge).or_default().push(he);
                 }
                 if let Ok(rows) = crate::pcurves::loop_lift(body, lk) {
+                    if lk == f.outer {
+                        out.extent = extent_of(rows.iter().map(|row| {
+                            let (t0, t1) = row.row.params();
+                            let end = |t: T| {
+                                let q = row.pcurve.eval(t);
+                                [Interval::from_certified(q.x), Interval::from_certified(q.y)]
+                            };
+                            (monotone_line(&row.pcurve), [end(t0), end(t1)])
+                        }));
+                    }
                     for row in rows {
                         let (t0, t1) = row.row.params();
                         let lift = |t: T| {
@@ -2702,6 +2712,58 @@ fn boundary_of<T: Decide + CertifiedBounds>(
         });
     }
     Aabb::from_points(pts).map(|b| (b, out))
+}
+
+/// **The face's own extent in its chart** ([`Boundary::extent`]): the
+/// hull, on each axis, of the outer loop's lifted chain at its rows'
+/// ends. A hull of ends is the hull of the curve only where the curve
+/// does not bulge past them, so every row must be a coordinate line
+/// whose moving coordinate is monotone ([`monotone_line`]); otherwise
+/// `None`, and no reader may take the face's extent as known.
+///
+/// Each row comes as whether it is such a line, and its two ends' chart
+/// points `[u, v]`.
+fn extent_of(rows: impl Iterator<Item = (bool, [[Interval; 2]; 2])>) -> Option<[(f64, f64); 2]> {
+    let mut hull = [(f64::INFINITY, f64::NEG_INFINITY); 2];
+    for (line, ends) in rows {
+        if !line {
+            return None;
+        }
+        for end in ends {
+            for (h, c) in hull.iter_mut().zip(end) {
+                if !c.is_certified() {
+                    return None;
+                }
+                *h = (h.0.min(c.lo()), h.1.max(c.hi()));
+            }
+        }
+    }
+    hull.iter().all(|h| h.0 <= h.1).then_some(hull)
+}
+
+/// Whether a chart image is a coordinate line along which the moving
+/// coordinate is monotone: a line or an iso arc, which move it
+/// linearly, or a harmonic whose moving channel is an angle or a free
+/// channel with no harmonic term (`c + l·t`). A free channel with one
+/// (`c + a·cos t + b·sin t + l·t`) can turn back, so it is not.
+fn monotone_line<T: CertifiedBounds>(p: &Pcurve<T>) -> bool {
+    let zero = |x: T| {
+        let i = Interval::from_certified(x);
+        i.is_certified() && i.lo() == 0.0 && i.hi() == 0.0
+    };
+    let moves_monotone = |ch: &Channel<T>| match *ch {
+        Channel::Angle { .. } => true,
+        Channel::Free { a, b, .. } => zero(a) && zero(b),
+    };
+    match p {
+        Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => iso_of(p).is_some(),
+        Pcurve::Harmonic { u, v } => match iso_of(p) {
+            Some((Axis::U, _, _)) => moves_monotone(v),
+            Some((Axis::V, _, _)) => moves_monotone(u),
+            None => false,
+        },
+        _ => false,
+    }
 }
 
 /// A coordinate line's held axis, its value, and whether its moving

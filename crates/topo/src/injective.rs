@@ -73,6 +73,15 @@ pub(crate) const CORNER: &str = "self_intersection_corner";
 /// The funnel site of a vertex at a cone's apex: its distance from the
 /// apex, metres. `Zero` is the apex.
 pub(crate) const APEX: &str = "self_intersection_apex";
+/// The funnel site of a cone face's nappe: a vertex's signed height
+/// along the axis from the apex, metres. Its sign is the nappe.
+pub(crate) const NAPPE: &str = "self_intersection_nappe";
+/// The funnel site of a presentation clipped to a shared line: the
+/// rectangle's extent across the line times the chart's speed across it
+/// (an upper bound, `rect_jet`'s), metres. `Zero` reads the strip as
+/// holding no point of the face off the line — the arm's one ε
+/// concession ([`present_chart`]).
+pub(crate) const SLIVER: &str = "self_intersection_sliver";
 /// The funnel site of a wedge-0/2π shared edge: the length of the sum of
 /// the two faces' unit outward normals at the shared side's middle,
 /// times the ball's reach, metres. `Zero` is opposed normals.
@@ -94,6 +103,32 @@ pub(crate) enum Axis {
     U,
     /// The second.
     V,
+}
+
+impl Axis {
+    /// This axis's range of a rectangle `(u, v)`.
+    fn of<R: Copy>(self, (u, v): (R, R)) -> R {
+        match self {
+            Self::U => u,
+            Self::V => v,
+        }
+    }
+
+    /// The other axis.
+    fn other(self) -> Self {
+        match self {
+            Self::U => Self::V,
+            Self::V => Self::U,
+        }
+    }
+
+    /// Its index in a `[u, v]` pair.
+    fn index(self) -> usize {
+        match self {
+            Self::U => 0,
+            Self::V => 1,
+        }
+    }
 }
 
 /// A use of an edge whose chart image is a coordinate line.
@@ -133,12 +168,21 @@ pub(crate) struct Rim {
 }
 
 /// **A face's boundary, lifted**: its sense, its edges with their chart
-/// images, its vertices.
+/// images, its vertices, and its own extent in its chart.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Boundary {
     pub(crate) sense: bool,
     pub(crate) edges: Vec<Rim>,
     pub(crate) vertices: BTreeMap<VertexKey, Point3<Interval>>,
+    /// **The face's own extent on each chart axis**, `[u, v]`: the hull
+    /// of its outer loop's lift ([`crate::pcurves::loop_lift`]), one
+    /// continuous chain, so on a periodic axis it is the face's span on
+    /// ONE sheet and not wrapped. Exact as a hull: it is read only where
+    /// every row of the loop is a coordinate line whose moving coordinate
+    /// is monotone, so no row bulges past its ends. A span a whole turn
+    /// wide (a wrapping loop) is every value of the axis. `None` where
+    /// the loop has no lift or a row is not such a line.
+    pub(crate) extent: Option<[(f64, f64); 2]>,
 }
 
 impl Boundary {
@@ -450,7 +494,7 @@ fn lift(v: Vec3<f64>) -> Vec3<Interval> {
 fn arc_enclosure(c: &Curve3<Interval>, t: (f64, f64)) -> Point3<Interval> {
     match c {
         Curve3::Nurbs(n) => n.span_enclosure(t.0, t.1).unwrap_or_else(|| {
-            let line = Interval::from_bounds(f64::NEG_INFINITY, f64::INFINITY);
+            let line = whole_line();
             Point3::new(line, line, line)
         }),
         _ => c.eval(iv(t)),
@@ -463,10 +507,7 @@ fn arc_enclosure(c: &Curve3<Interval>, t: (f64, f64)) -> Point3<Interval> {
 /// hodograph door does not read is the whole line.
 fn arc_deriv(c: &Curve3<Interval>, t: (f64, f64)) -> Vec3<Interval> {
     match c {
-        Curve3::Nurbs(n) => n.span_deriv(t.0, t.1).unwrap_or_else(|| {
-            let line = Interval::from_bounds(f64::NEG_INFINITY, f64::INFINITY);
-            Vec3::new(line, line, line)
-        }),
+        Curve3::Nurbs(n) => n.span_deriv(t.0, t.1).unwrap_or_else(|| whole_space()),
         _ => c.deriv(iv(t)),
     }
 }
@@ -484,8 +525,7 @@ fn rect_jet(
 ) -> (Vec3<Interval>, Vec3<Interval>, Vec3<Interval>) {
     match s {
         Surface::Nurbs(net) => net.rect_jet(u, v).unwrap_or_else(|| {
-            let line = Interval::from_bounds(f64::NEG_INFINITY, f64::INFINITY);
-            let whole = Vec3::new(line, line, line);
+            let whole = whole_space();
             (whole, whole, whole)
         }),
         _ => {
@@ -780,8 +820,15 @@ fn along(u: &Use, iso: Iso) -> Option<Interval> {
 }
 
 /// Whether `want` lies in the union of `ranges`, each moved by whole
-/// turns where the axis is periodic.
+/// turns where the axis is periodic. Its ends are taken a few ulps in:
+/// a line placed by whole turns ([`wrap`]) is rounded outward, which is
+/// no gap in the edge.
 fn covered(want: (f64, f64), ranges: &[Interval], periodic: bool) -> bool {
+    let slack = |x: f64| 4.0 * f64::EPSILON * x.abs().max(1.0);
+    let want = (want.0 + slack(want.0), want.1 - slack(want.1));
+    if want.0 > want.1 {
+        return true;
+    }
     if ranges.iter().any(|r| r.lo() <= want.0 && want.1 <= r.hi()) {
         return true;
     }
@@ -853,9 +900,207 @@ fn unread(edge: usize, near_edges: &[usize]) -> Unpresented {
     }
 }
 
+/// **Which sheet of each periodic axis the face lies on in a cell.**
+enum Sheets {
+    /// The cell meets no copy of the face's extent: it holds none of
+    /// the face.
+    Missed,
+    /// The cell meets two or more copies: the face enters it more than
+    /// once, which one rectangle does not present.
+    Several,
+    /// Per axis, `[u, v]`.
+    On([Sheet; 2]),
+}
+
+/// The face's sheet on one axis of a cell.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Sheet {
+    /// No sheet to choose: the axis is not periodic, or the face spans a
+    /// whole turn of it.
+    Free,
+    /// The one copy of the face's extent the cell meets.
+    Copy(f64, f64),
+    /// The face's extent is unknown: nothing on this axis is placed.
+    Unknown,
+    /// An axis that is not periodic, where the face's extent is known:
+    /// lines are where they are, and the face lies within it.
+    Within(f64, f64),
+}
+
+/// **The face's sheet in `cell`, per periodic axis**: the copy of its
+/// own extent ([`Boundary::extent`]) moved by whole turns that the cell
+/// meets. Read once from the face, so every line of it is placed on the
+/// same sheet ([`placed`]) whatever order its edges are read in. A face
+/// whose extent is unknown leaves the sheet unknown: a line on that
+/// axis then has no placement and the face is not presented there. On
+/// an axis that is not periodic the extent still says what the cell
+/// holds.
+///
+/// A cell MEETS a copy where their overlap has width. One that only
+/// touches it, along the copy's end line, holds the face's points
+/// there on its own boundary — and the closed cell beside it holds
+/// them too, with width, and is paired as this one is. So a cell
+/// meeting no copy with width holds none of the face this pair must
+/// read.
+fn sheets(
+    surface: &Surface<Interval>,
+    extent: Option<[(f64, f64); 2]>,
+    cell: ((f64, f64), (f64, f64)),
+) -> Sheets {
+    let mut on = [Sheet::Free; 2];
+    let Some(extent) = extent else {
+        for axis in [Axis::U, Axis::V] {
+            if periodic(surface, axis) {
+                on[axis.index()] = Sheet::Unknown;
+            }
+        }
+        return Sheets::On(on);
+    };
+    for axis in [Axis::U, Axis::V] {
+        let (lo, hi) = extent[axis.index()];
+        let (clo, chi) = axis.of(cell);
+        // A few ulps of the turn: the shifted copies are rounded.
+        let slack = 8.0 * f64::EPSILON * TURN.max(lo.abs()).max(hi.abs());
+        let meets = |(a, b): (f64, f64)| b.min(chi) - a.max(clo) > slack;
+        if !periodic(surface, axis) {
+            if !meets((lo, hi)) {
+                return Sheets::Missed;
+            }
+            on[axis.index()] = Sheet::Within(lo, hi);
+            continue;
+        }
+        if hi - lo >= TURN - slack {
+            continue;
+        }
+        #[allow(clippy::cast_precision_loss)]
+        let copies: Vec<(f64, f64)> = (-2i32..=2)
+            .map(|k| (lo + f64::from(k) * TURN, hi + f64::from(k) * TURN))
+            .filter(|&c| meets(c))
+            .collect();
+        match copies.as_slice() {
+            [] => return Sheets::Missed,
+            [one] => on[axis.index()] = Sheet::Copy(one.0, one.1),
+            _ => return Sheets::Several,
+        }
+    }
+    Sheets::On(on)
+}
+
+/// **Where an edge's line lies in a cell's chart**: on a periodic axis,
+/// on the face's sheet ([`sheets`]), or, for a face spanning a whole
+/// turn, the copy nearest the cell — the only one in it, as no cell is
+/// wider than a turn. `None` on a periodic axis whose sheet is unknown.
+fn placed(
+    surface: &Surface<Interval>,
+    iso: Iso,
+    sheet: [Sheet; 2],
+    (lo, hi): (f64, f64),
+) -> Option<Interval> {
+    if !periodic(surface, iso.held) {
+        return Some(iso.at);
+    }
+    match sheet[iso.held.index()] {
+        Sheet::Copy(a, b) => Some(wrap(iso.at, geom::mid_param(a, b))),
+        Sheet::Free | Sheet::Within(..) => Some(wrap(iso.at, geom::mid_param(lo, hi))),
+        Sheet::Unknown => None,
+    }
+}
+
+/// **Whether a cell every near line puts on its non-face side holds
+/// none of the face.** No near line crosses the cell and every other
+/// edge is clear of its ball, so the cell holds no boundary: it is
+/// wholly in the face or wholly out. It is out where one of the lines
+/// TOUCHES it — the cell's points beside the line are then on its
+/// non-face side — along an edge that covers the cell's whole side, so
+/// the edge, not its end, is what the cell is beside. A line apart from
+/// the cell says nothing: the face may come back between them.
+fn vacuous(
+    b: &Boundary,
+    surface: &Surface<Interval>,
+    cell: ((f64, f64), (f64, f64)),
+    outside: &[(Side, Interval, usize)],
+) -> bool {
+    outside.iter().any(|&(side, line, ei)| {
+        let (lo, hi) = side.axis().of(cell);
+        let slack = |x: f64| 4.0 * f64::EPSILON * x.abs().max(1.0);
+        let touches = match side {
+            Side::XLo | Side::YLo => line.lo() <= hi + slack(hi),
+            Side::XHi | Side::YHi => line.hi() >= lo - slack(lo),
+        };
+        let axis = side.axis().other();
+        touches
+            && edge_ranges(b, &[ei], side.axis())
+                .is_some_and(|r| covered(axis.of(cell), &r, periodic(surface, axis)))
+    })
+}
+
+/// The ranges the uses of `edges` holding `held` run over on the other
+/// axis: a whole turn's image covers everything.
+fn edge_ranges(b: &Boundary, edges: &[usize], held: Axis) -> Option<Vec<Interval>> {
+    let mut out = Vec::new();
+    for &ei in edges {
+        let e = b.edges.get(ei)?;
+        for u in &e.uses {
+            let iso = u.iso?;
+            if iso.held != held {
+                continue;
+            }
+            if iso.full {
+                out.push(whole_line());
+            } else {
+                out.push(along(u, iso)?);
+            }
+        }
+    }
+    Some(out)
+}
+
+/// **A cone face's nappe**: `true` where its vertices off the apex stand
+/// on the axis's positive side. Every vertex whose signed height is
+/// decided must agree — a face across the apex is on both nappes and has
+/// no one implicit — and one must be decided.
+fn nappe(b: &Boundary, apex: Point3<Interval>, axis: Vec3<Interval>, band: Band) -> Option<bool> {
+    let mut signs = b
+        .vertices
+        .values()
+        .filter_map(|&q| sign_of((q - apex).dot(axis), NAPPE, band));
+    let first = signs.next()?;
+    signs.all(|s| s == first).then_some(first == Sign::Positive)
+}
+
+/// The whole line, as an interval: what a reading no door bounds is.
+pub(crate) fn whole_line() -> Interval {
+    Interval::from_bounds(f64::NEG_INFINITY, f64::INFINITY)
+}
+
+/// Every vector: [`whole_line`] on each axis.
+fn whole_space() -> Vec3<Interval> {
+    let line = whole_line();
+    Vec3::new(line, line, line)
+}
+
 /// The chart presentation: the cell's own rectangle, clipped by the iso
 /// lines of the boundary edges near it. An iso-bounded NURBS face's
 /// cells lie in its domain, whose boundary lines are its edges.
+///
+/// **What a presentation must be, and why it is read in this order.**
+/// The rectangle must hold every point of the face in the cell: a
+/// SUPERSET is sound (every claim departure makes over it covers more
+/// points than the face has), a subset is not. So:
+///
+/// - Every line is read against the CELL, never against a rectangle an
+///   earlier line clipped, and on a periodic axis every line is placed
+///   on the one sheet of the face's own extent the cell meets
+///   ([`sheets`]). No line's reading depends on another's, so the
+///   result does not depend on the order of [`Boundary::edges`].
+/// - A line the cell lies on the face side of bounds it there; two
+///   bounds on one side must be one line, and a low bound above a high
+///   one is a face that re-enters the cell (a slot), which a rectangle
+///   does not present.
+/// - A cell holds none of the face ([`Presentation::Vacuous`]) only
+///   when it misses the face's extent, or every near line puts it on its
+///   non-face side and one of them touches it along an edge that covers
+///   its side ([`vacuous`]).
 fn present_chart<'a>(
     piece: &Piece<'a>,
     near_edges: &[usize],
@@ -863,13 +1108,31 @@ fn present_chart<'a>(
     band: Band,
 ) -> Result<Presentation<'a>, Unpresented> {
     let b = piece.boundary;
-    let (mut x, mut y) = (piece.u, piece.v);
-    let mut clips: Vec<Clip> = Vec::new();
-    let mut outside: Vec<(Side, Interval, Vec<usize>)> = Vec::new();
-    let range = |axis: Axis, x: (f64, f64), y: (f64, f64)| match axis {
-        Axis::U => x,
-        Axis::V => y,
+    let cell = (piece.u, piece.v);
+    let sheet = if piece.whole {
+        [Sheet::Free; 2]
+    } else {
+        match sheets(piece.surface, b.extent, cell) {
+            Sheets::Missed => return Ok(Presentation::Vacuous),
+            Sheets::Several => return Err(Unpresented::Local),
+            Sheets::On(s) => s,
+        }
     };
+    // The face lies within its extent's copy: the rectangle starts as the
+    // cell clipped to it, a superset of the face in the cell still.
+    let within = |axis: Axis| {
+        let (lo, hi) = axis.of(cell);
+        match sheet[axis.index()] {
+            Sheet::Copy(a, b) | Sheet::Within(a, b) => (lo.max(a), hi.min(b)),
+            Sheet::Free | Sheet::Unknown => (lo, hi),
+        }
+    };
+    let (mut x, mut y) = (within(Axis::U), within(Axis::V));
+    let mut clips: Vec<Clip> = Vec::new();
+    let mut outside: Vec<(Side, Interval, usize)> = Vec::new();
+    // Whether some near line has the cell on its face side: then no
+    // line it lies outside of can say the cell holds none of the face.
+    let mut inside = false;
     for &ei in &piece.local.edges {
         let Some(e) = b.edges.get(ei) else {
             return Err(Unpresented::Local);
@@ -889,55 +1152,42 @@ fn present_chart<'a>(
             let Some(iso) = u.iso else {
                 return Err(unread(ei, near_edges));
             };
-            let (lo, hi) = range(iso.held, x, y);
+            let (lo, hi) = iso.held.of(cell);
             if piece.whole {
                 // The line is a bound of the exact knot domain.
                 let exact = |b: f64| iso.at.lo() == b && iso.at.hi() == b;
-                if exact(lo) {
-                    clips.push(Clip {
-                        side: Side::of(iso.held, true),
-                        at: iso.at,
-                        edges: vec![ei],
-                        collapsed: None,
-                    });
-                } else if exact(hi) {
-                    clips.push(Clip {
-                        side: Side::of(iso.held, false),
-                        at: iso.at,
-                        edges: vec![ei],
-                        collapsed: None,
-                    });
+                for (bound, low) in [(lo, true), (hi, false)] {
+                    if exact(bound) {
+                        clips.push(Clip {
+                            side: Side::of(iso.held, low),
+                            at: iso.at,
+                            edges: vec![ei],
+                            collapsed: None,
+                        });
+                    }
                 }
                 continue;
             }
             let Some(sigma) = face_side(u, iso, b.sense) else {
                 return Err(unread(ei, near_edges));
             };
-            let line = if periodic(piece.surface, iso.held) {
-                wrap(iso.at, geom::mid_param(lo, hi))
-            } else {
-                iso.at
+            // A line on a periodic axis whose sheet is unknown has no
+            // place, at any depth.
+            let Some(line) = placed(piece.surface, iso, sheet, (lo, hi)) else {
+                return Err(Unpresented::Structural);
             };
             let side = Side::of(iso.held, sigma > 0.0);
             if (sigma > 0.0 && line.lo() >= hi) || (sigma < 0.0 && line.hi() <= lo) {
-                outside.push((side, line, vec![ei]));
+                outside.push((side, line, ei));
                 continue;
             }
+            inside = true;
             // A line the cell stops short of bounds nothing in it, unless
             // the gap is no wider than the cell: then the rectangle is
             // widened to it, a superset still, so a side lies on it.
             let reach = hi - lo;
             if (sigma > 0.0 && line.hi() < lo - reach) || (sigma < 0.0 && line.lo() > hi + reach) {
                 continue;
-            }
-            let r = if sigma > 0.0 {
-                (line.lo(), hi)
-            } else {
-                (lo, line.hi())
-            };
-            match iso.held {
-                Axis::U => x = r,
-                Axis::V => y = r,
             }
             clips.push(Clip {
                 side,
@@ -946,6 +1196,57 @@ fn present_chart<'a>(
                 collapsed: None,
             });
         }
+    }
+    if !inside && !outside.is_empty() {
+        return if vacuous(b, piece.surface, cell, &outside) {
+            Ok(Presentation::Vacuous)
+        } else {
+            Err(Unpresented::Local)
+        };
+    }
+    // Lines on one side merge when they hold one common value; two
+    // different lines on one side do not bound a face the clip reads.
+    let mut merged: Vec<Clip> = Vec::new();
+    for side in [Side::XLo, Side::XHi, Side::YLo, Side::YHi] {
+        let on: Vec<&Clip> = clips.iter().filter(|c| c.side == side).collect();
+        let Some(first) = on.first() else {
+            continue;
+        };
+        let common_lo = on
+            .iter()
+            .map(|c| c.at.lo())
+            .fold(f64::NEG_INFINITY, f64::max);
+        let common_hi = on.iter().map(|c| c.at.hi()).fold(f64::INFINITY, f64::min);
+        if common_lo > common_hi {
+            return Err(Unpresented::Local);
+        }
+        let hull = Interval::from_bounds(
+            on.iter().map(|c| c.at.lo()).fold(first.at.lo(), f64::min),
+            on.iter().map(|c| c.at.hi()).fold(first.at.hi(), f64::max),
+        );
+        merged.push(Clip {
+            side,
+            at: hull,
+            edges: on.iter().flat_map(|c| c.edges.iter().copied()).collect(),
+            collapsed: None,
+        });
+    }
+    // The rectangle: the cell, its sides moved to the lines, outward.
+    for c in &merged {
+        if piece.whole {
+            continue;
+        }
+        match c.side {
+            Side::XLo => x.0 = c.at.lo(),
+            Side::XHi => x.1 = c.at.hi(),
+            Side::YLo => y.0 = c.at.lo(),
+            Side::YHi => y.1 = c.at.hi(),
+        }
+    }
+    if x.0 > x.1 || y.0 > y.1 {
+        // A low line above a high one: the face leaves the cell and
+        // comes back into it, which no one rectangle presents.
+        return Err(Unpresented::Local);
     }
     // A cone's apex is a collapsed side of its chart.
     if let Surface::Cone { apex, axis, .. } = piece.surface {
@@ -959,17 +1260,9 @@ fn present_chart<'a>(
             ) {
                 continue;
             }
-            // The face's nappe: the sign of the slant coordinate at its
-            // vertices off the apex.
-            let nappe = b
-                .vertices
-                .values()
-                .map(|&q| (q - *apex).dot(*axis))
-                .find_map(|h| sign_of(h, APEX, band));
-            let Some(nappe) = nappe else {
+            let Some(lo) = nappe(b, *apex, *axis, band) else {
                 return Err(Unpresented::Local);
             };
-            let lo = nappe == Sign::Positive;
             if (lo && y.1 <= 0.0) || (!lo && y.0 >= 0.0) {
                 return Ok(Presentation::Vacuous);
             }
@@ -981,33 +1274,29 @@ fn present_chart<'a>(
             } else {
                 (y.0, y.1.min(0.0))
             };
-            clips.push(Clip {
-                side: Side::of(Axis::V, lo),
-                at: at(0.0),
-                edges: Vec::new(),
-                collapsed: Some(v),
-            });
-        }
-    }
-    // Lines on one side merge; two different lines on one side do not
-    // bound a face the clip reads.
-    let mut merged: Vec<Clip> = Vec::new();
-    for c in clips {
-        match merged.iter_mut().find(|m| m.side == c.side) {
-            Some(m) if m.at.lo() <= c.at.hi() && c.at.lo() <= m.at.hi() => {
-                m.edges.extend(c.edges);
-                m.collapsed = m.collapsed.or(c.collapsed);
+            let side = Side::of(Axis::V, lo);
+            match merged.iter_mut().find(|m| m.side == side) {
+                Some(m) if m.at.lo() <= 0.0 && 0.0 <= m.at.hi() => m.collapsed = Some(v),
+                Some(_) => return Err(Unpresented::Local),
+                None => merged.push(Clip {
+                    side,
+                    at: at(0.0),
+                    edges: Vec::new(),
+                    collapsed: Some(v),
+                }),
             }
-            Some(_) => return Err(Unpresented::Local),
-            None => merged.push(c),
         }
     }
-    if x.0 > x.1 || y.0 > y.1 {
-        return Ok(Presentation::Vacuous);
-    }
-    // A rectangle clipped to within the band of a shared line holds no
-    // point of the face off it: its extent across, in metres, is decided
-    // zero.
+    // A rectangle clipped to within the band of a shared line is read as
+    // holding no point of the face off that line: its extent across, in
+    // metres, is decided zero (`self_intersection_sliver`).
+    //
+    // **That is an ε concession, and it is the only one this arm
+    // makes.** Any coincidence it misses lies within the strip, so
+    // within ε of the shared edge's image in ℝ³. It is asymmetric with
+    // the distance test: two cells that do NOT touch and come as close
+    // read `Violated`, or refuse, while here, beside a shared edge, the
+    // same approach reads certified.
     for c in &merged {
         let on_shared = c.edges.iter().all(|e| near_edges.contains(e)) && !c.edges.is_empty();
         if !on_shared {
@@ -1018,59 +1307,24 @@ fn present_chart<'a>(
             Axis::V => (y.1 - y.0, rect_jet(piece.surface, x, y).1),
         };
         let width = at(across) * at(lever.norm().hi());
-        if matches!(decide(ON_SHARED, Margin::of(width), band), Ok(Sign::Zero)) {
+        if matches!(decide(SLIVER, Margin::of(width), band), Ok(Sign::Zero)) {
             return Ok(Presentation::Vacuous);
         }
     }
-    let edge_ranges = |edges: &[usize], held: Axis| -> Option<Vec<Interval>> {
-        let mut out = Vec::new();
-        for &ei in edges {
-            let e = b.edges.get(ei)?;
-            for u in &e.uses {
-                let iso = u.iso?;
-                if iso.held != held {
-                    continue;
-                }
-                if iso.full {
-                    out.push(Interval::from_bounds(f64::NEG_INFINITY, f64::INFINITY));
-                } else {
-                    out.push(along(u, iso)?);
-                }
-            }
-        }
-        Some(out)
-    };
     // Every clip's side must be the edges' own: an edge that ends inside
     // the cell leaves the face free to wrap round its end.
-    let other = |axis: Axis| match axis {
-        Axis::U => (y, periodic(piece.surface, Axis::V)),
-        Axis::V => (x, periodic(piece.surface, Axis::U)),
-    };
     for c in &merged {
         if c.collapsed.is_some() || piece.whole {
             continue;
         }
-        let (want, per) = other(c.side.axis());
-        let Some(ranges) = edge_ranges(&c.edges, c.side.axis()) else {
+        let axis = c.side.axis().other();
+        let want = axis.of((x, y));
+        let Some(ranges) = edge_ranges(b, &c.edges, c.side.axis()) else {
             return Err(Unpresented::Local);
         };
-        if !covered(want, &ranges, per) {
+        if !covered(want, &ranges, periodic(piece.surface, axis)) {
             return Err(Unpresented::Local);
         }
-    }
-    // A cell wholly past an edge's line holds none of the face, when the
-    // line across it is the edge's; past a line it is not, the face may
-    // wrap round the edge's end.
-    if !outside.is_empty() {
-        let read = outside.iter().any(|(side, _, edges)| {
-            let (want, per) = other(side.axis());
-            edge_ranges(edges, side.axis()).is_some_and(|ranges| covered(want, &ranges, per))
-        });
-        return if read {
-            Ok(Presentation::Vacuous)
-        } else {
-            Err(Unpresented::Local)
-        };
     }
     // Two lines on different axes meet at a corner of the face; the
     // clipped quadrant is the face there only where the corner is
@@ -1289,6 +1543,12 @@ fn present_plane<'a>(
             let d = [cell_u - p.x, cell_v - p.y];
             let x = (d[0] * a[0] + d[1] * a[1]) / len2;
             let y = (d[0] * bv[0] + d[1] * bv[1]) / len2;
+            // Wholly on the edge's non-face side holds none of the face:
+            // every vertex and every other edge is clear of the cell's
+            // ball, so the plane's disk inside the ball meets the
+            // boundary only in a whole chord of this edge, and the
+            // disk's half off the face side is all outside the face. The
+            // cell lies in that half.
             if y.hi() <= 0.0 {
                 return Ok(Presentation::Vacuous);
             }
@@ -1606,18 +1866,13 @@ fn implicit_of(piece: &Piece<'_>, band: Band) -> Option<Implicit> {
             ..
         } => {
             let (sin, cos) = half_angle.sin_cos();
-            let nappe = piece
-                .boundary
-                .vertices
-                .values()
-                .map(|&q| (q - apex).dot(axis))
-                .find_map(|h| sign_of(h, APEX, band))?;
+            let positive = nappe(piece.boundary, apex, axis, band)?;
             Implicit::Cone {
                 apex,
                 axis,
                 cos,
                 sin,
-                nappe: at(if nappe == Sign::Positive { 1.0 } else { -1.0 }),
+                nappe: at(if positive { 1.0 } else { -1.0 }),
             }
         }
         _ => return None,
@@ -1955,5 +2210,454 @@ mod rows {
             ),
             "a periodic range through the seam"
         );
+    }
+}
+
+/// **Presentations, read directly**: a face built by hand, its local
+/// edges named, and what [`present_chart`] / [`present_plane`] make of a
+/// cell. Each row names the failure it catches.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod presentation_rows {
+    use super::*;
+    use geom_core::Tol;
+
+    const ALPHA: f64 = 0.2;
+    const BETA: f64 = 4.0;
+
+    fn iv0(x: f64) -> Interval {
+        Interval::from_bounds(x, x)
+    }
+
+    fn p2((u, v): (f64, f64)) -> Point2<Interval> {
+        Point2::new(iv0(u), iv0(v))
+    }
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn vertex(n: u64) -> VertexKey {
+        slotmap::KeyData::from_ffi((1u64 << 32) | n).into()
+    }
+
+    fn edge(n: u64) -> EdgeKey {
+        slotmap::KeyData::from_ffi((1u64 << 32) | n).into()
+    }
+
+    fn origin() -> Point3<Interval> {
+        Point3::new(iv0(0.0), iv0(0.0), iv0(0.0))
+    }
+
+    fn cylinder() -> Surface<Interval> {
+        Surface::Cylinder {
+            origin: origin(),
+            axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            radius: iv0(1.0),
+            u_ref: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+        }
+    }
+
+    /// An edge of one use, from `a` to `b` in its loop, whose chart image
+    /// holds `held` at `at`.
+    fn rim(n: u64, ends: [u64; 2], held: Axis, at: f64, a: (f64, f64), b: (f64, f64)) -> Rim {
+        Rim {
+            key: edge(n),
+            arc: Some((
+                Curve3::Line {
+                    origin: origin(),
+                    dir: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+                },
+                (iv0(0.0), iv0(1.0)),
+            )),
+            ends: ends.map(vertex),
+            uses: vec![Use {
+                plus: true,
+                image: Some([p2(a), p2(b)]),
+                iso: Some(Iso {
+                    held,
+                    at: iv0(at),
+                    full: false,
+                }),
+            }],
+        }
+    }
+
+    /// **The face across its chart's seam**: a cylinder strip over
+    /// `u ∈ [β, α + 2π]`, `v ∈ [0, 1]`, its loop counter-clockwise about
+    /// the outward normal. The `α` edge's image is stored on the stored
+    /// sheet (`u = α`), the rest on the lifted one — so a reading that
+    /// wraps a line toward whatever it last clipped lands it on the
+    /// wrong sheet. `alpha_first` puts the `α` edge first in
+    /// [`Boundary::edges`].
+    fn seam_strip(alpha_first: bool) -> Boundary {
+        let top = ALPHA + TURN;
+        let mut edges = vec![
+            rim(1, [1, 2], Axis::U, ALPHA, (ALPHA, 0.0), (ALPHA, 1.0)),
+            rim(2, [2, 3], Axis::V, 1.0, (top, 1.0), (BETA, 1.0)),
+            rim(3, [3, 4], Axis::U, BETA, (BETA, 1.0), (BETA, 0.0)),
+            rim(4, [4, 1], Axis::V, 0.0, (BETA, 0.0), (top, 0.0)),
+        ];
+        if !alpha_first {
+            edges.reverse();
+        }
+        Boundary {
+            sense: true,
+            edges,
+            vertices: BTreeMap::new(),
+            extent: Some([(BETA, top), (0.0, 1.0)]),
+        }
+    }
+
+    /// What a presentation came to, without its borrow.
+    #[derive(Debug, PartialEq)]
+    enum Read {
+        Vacuous,
+        Of((f64, f64), (f64, f64)),
+        Local,
+        Structural,
+        Collapsed,
+    }
+
+    fn read(p: Result<Presentation<'_>, Unpresented>) -> Read {
+        match p {
+            Ok(Presentation::Vacuous) => Read::Vacuous,
+            Ok(Presentation::Of(q)) => Read::Of(q.x, q.y),
+            Err(Unpresented::Local) => Read::Local,
+            Err(Unpresented::Structural) => Read::Structural,
+            Err(Unpresented::Collapsed(_)) => Read::Collapsed,
+        }
+    }
+
+    fn chart(
+        surface: &Surface<Interval>,
+        b: &Boundary,
+        local: &[usize],
+        u: (f64, f64),
+        v: (f64, f64),
+    ) -> Read {
+        let local = Local {
+            edges: local.to_vec(),
+            vertices: Vec::new(),
+        };
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface,
+            whole: false,
+            boundary: b,
+            u,
+            v,
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        read(present_chart(&piece, &[], &[], band()))
+    }
+
+    /// Every local edge of [`seam_strip`] in the given edge order.
+    fn all(n: usize) -> Vec<usize> {
+        (0..n).collect()
+    }
+
+    /// **MAJOR-A's case, both orders.** A cell spanning the whole turn
+    /// meets the strip on both sides of the seam: no one rectangle
+    /// presents it, in either order of the edges — never the sliver
+    /// `(0, α)` that left `[β, 2π]` unread.
+    #[test]
+    fn a_cell_across_the_seam_is_not_presented_in_either_order() {
+        let s = cylinder();
+        for alpha_first in [true, false] {
+            let b = seam_strip(alpha_first);
+            assert_eq!(
+                chart(&s, &b, &all(4), (0.0, TURN), (0.0, 1.0)),
+                Read::Local,
+                "alpha first: {alpha_first}"
+            );
+        }
+    }
+
+    /// The half turn the strip's long part lies in is presented whole,
+    /// `[β, α + 2π] ⊇ [β, 2π]`, the same in both orders; the slice by
+    /// the seam reads the short part; the gap between them holds none
+    /// of the face.
+    #[test]
+    fn each_side_of_the_seam_presents_its_own_part_in_both_orders() {
+        let s = cylinder();
+        let half = core::f64::consts::PI;
+        for alpha_first in [true, false] {
+            let b = seam_strip(alpha_first);
+            match chart(&s, &b, &all(4), (half, TURN), (0.0, 1.0)) {
+                Read::Of(x, _) => assert!(
+                    x.0 <= BETA && TURN <= x.1,
+                    "the long part [β, 2π] is held: {x:?} (alpha first: {alpha_first})"
+                ),
+                other => panic!("the long part is presented, got {other:?}"),
+            }
+            match chart(
+                &s,
+                &b,
+                &[usize::from(!alpha_first) * 3],
+                (0.0, 0.1),
+                (0.3, 0.7),
+            ) {
+                Read::Of(x, _) => {
+                    assert!(x.0 <= 0.0 && 0.1 <= x.1 && x.1 <= ALPHA + 1e-12, "{x:?}")
+                }
+                other => panic!("the short part is presented, got {other:?}"),
+            }
+            assert_eq!(
+                chart(&s, &b, &all(4), (1.0, 3.0), (0.0, 1.0)),
+                Read::Vacuous,
+                "the gap (α, β) holds none of the strip"
+            );
+        }
+    }
+
+    /// A face whose extent is unknown has no sheet: a line on its
+    /// periodic axis is not placed, so the face is not presented there
+    /// rather than read on a guessed sheet.
+    #[test]
+    fn a_seam_line_without_the_faces_extent_is_not_placed() {
+        let s = cylinder();
+        let mut b = seam_strip(true);
+        b.extent = None;
+        assert_eq!(
+            chart(&s, &b, &[0], (0.0, 0.1), (0.3, 0.7)),
+            Read::Structural
+        );
+    }
+
+    /// **A slot**: a face over `u ∈ [0, 3]` with a hole across
+    /// `u ∈ [1, 1.5]`, `v ∈ [0.2, 0.8]`. A cell past the hole's left
+    /// line and beside its right one is on the face: it must not read
+    /// vacuous off the left line (the defect the old `outside` branch
+    /// had). Inside the hole, touching both lines, it is vacuous; past
+    /// the left line with a gap between, it is not decided.
+    fn slot() -> Boundary {
+        // The hole's loop runs clockwise about the outward normal.
+        Boundary {
+            sense: true,
+            edges: vec![
+                rim(1, [1, 2], Axis::U, 1.0, (1.0, 0.2), (1.0, 0.8)),
+                rim(2, [3, 4], Axis::U, 1.5, (1.5, 0.8), (1.5, 0.2)),
+            ],
+            vertices: BTreeMap::new(),
+            extent: Some([(0.0, 3.0), (0.0, 1.0)]),
+        }
+    }
+
+    #[test]
+    fn a_cell_past_one_side_of_a_slot_is_read_by_the_other() {
+        let s = cylinder();
+        let b = slot();
+        assert_eq!(
+            chart(&s, &b, &[0, 1], (1.6, 2.0), (0.3, 0.7)),
+            Read::Of((1.5, 2.0), (0.3, 0.7)),
+            "beside the right line, the face side: presented from it"
+        );
+        assert_eq!(
+            chart(&s, &b, &[0, 1], (1.0, 1.4), (0.3, 0.7)),
+            Read::Vacuous,
+            "inside the hole, touching its left line"
+        );
+        assert_eq!(
+            chart(&s, &b, &[0], (1.2, 1.4), (0.3, 0.7)),
+            Read::Local,
+            "apart from the only line it lies past: not decided"
+        );
+        assert_eq!(
+            chart(&s, &b, &[0, 1], (0.5, 2.5), (0.3, 0.7)),
+            Read::Local,
+            "the face leaves the cell and comes back: no one rectangle"
+        );
+    }
+
+    /// **`face_side`**: the face lies left of its boundary about the
+    /// outward normal; the sense flips it.
+    #[test]
+    fn face_side_reads_the_loop_and_the_sense() {
+        let iso = |held, at| Iso {
+            held,
+            at: iv0(at),
+            full: false,
+        };
+        let up = Use {
+            plus: true,
+            image: Some([p2((1.0, 0.0)), p2((1.0, 1.0))]),
+            iso: None,
+        };
+        assert_eq!(
+            face_side(&up, iso(Axis::U, 1.0), true),
+            Some(-1.0),
+            "v rising at u = 1: face below u"
+        );
+        assert_eq!(
+            face_side(&up, iso(Axis::U, 1.0), false),
+            Some(1.0),
+            "reversed sense"
+        );
+        let east = Use {
+            plus: true,
+            image: Some([p2((0.0, 0.0)), p2((1.0, 0.0))]),
+            iso: None,
+        };
+        assert_eq!(
+            face_side(&east, iso(Axis::V, 0.0), true),
+            Some(1.0),
+            "u rising at v = 0: face above v"
+        );
+        let back = Use {
+            plus: false,
+            ..east
+        };
+        assert_eq!(
+            face_side(&back, iso(Axis::V, 0.0), true),
+            Some(-1.0),
+            "run backward"
+        );
+        let flat = Use {
+            plus: true,
+            image: Some([p2((0.0, 0.0)), p2((0.0, 0.0))]),
+            iso: None,
+        };
+        assert_eq!(
+            face_side(&flat, iso(Axis::V, 0.0), true),
+            None,
+            "no direction, no side"
+        );
+    }
+
+    /// **`convex`**: the strip's corner where its right line meets its
+    /// bottom one is convex; the same two lines read with the right one
+    /// as a LOW clip are not.
+    #[test]
+    fn convex_reads_a_corner_the_edges_leave_into() {
+        let b = seam_strip(true);
+        let clip = |side, i: usize| Clip {
+            side,
+            at: iv0(0.0),
+            edges: vec![i],
+            collapsed: None,
+        };
+        assert!(convex(&b, &clip(Side::XHi, 0), &clip(Side::YLo, 3)));
+        assert!(!convex(&b, &clip(Side::XLo, 0), &clip(Side::YLo, 3)));
+    }
+
+    /// **`zero_of`**: the sides on the shared cell. One shared line is a
+    /// side, two on different axes a corner, a shared vertex at the
+    /// corner of two unshared lines a point, and two shared lines on one
+    /// axis are not one zero set.
+    #[test]
+    fn zero_of_reads_sides_corners_and_points() {
+        let b = seam_strip(true);
+        let clip = |side, i: usize| Clip {
+            side,
+            at: iv0(0.0),
+            edges: vec![i],
+            collapsed: None,
+        };
+        let right = clip(Side::XHi, 0);
+        let bottom = clip(Side::YLo, 3);
+        let clips = [right, bottom];
+        assert!(matches!(
+            zero_of(&b, &clips, &[0], &[]),
+            Ok(Zero::Side(Side::XHi))
+        ));
+        assert!(matches!(
+            zero_of(&b, &clips, &[0, 3], &[]),
+            Ok(Zero::Corner(Side::XHi, Side::YLo))
+        ));
+        assert!(matches!(
+            zero_of(&b, &clips, &[], &[vertex(1)]),
+            Ok(Zero::Point(Side::XHi, Side::YLo))
+        ));
+        assert!(matches!(zero_of(&b, &clips, &[], &[]), Ok(Zero::None)));
+        let left = clip(Side::XLo, 2);
+        assert!(zero_of(&b, &[clip(Side::XHi, 0), left], &[0, 2], &[]).is_err());
+    }
+
+    /// **`present_plane`**: one line edge presents the half plane on its
+    /// face side, its side zero where the edge is shared; a cell wholly
+    /// past the line holds none of the face.
+    #[test]
+    fn a_plane_presents_the_face_side_of_its_one_edge() {
+        let plane = Surface::Plane {
+            origin: origin(),
+            normal: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            u_ref: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+        };
+        // The edge from (0, 0) to (4, 0), run forward: the face above it.
+        let b = Boundary {
+            sense: true,
+            edges: vec![Rim {
+                key: edge(1),
+                arc: Some((
+                    Curve3::Line {
+                        origin: origin(),
+                        dir: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+                    },
+                    (iv0(0.0), iv0(4.0)),
+                )),
+                ends: [vertex(1), vertex(2)],
+                uses: vec![Use {
+                    plus: true,
+                    image: None,
+                    iso: None,
+                }],
+            }],
+            vertices: BTreeMap::new(),
+            extent: None,
+        };
+        let local = Local {
+            edges: vec![0],
+            vertices: Vec::new(),
+        };
+        let piece = |u, v| Piece {
+            face: FaceKey::default(),
+            surface: &plane,
+            whole: false,
+            boundary: &b,
+            u,
+            v,
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        match present_plane(&piece((1.0, 2.0), (-0.5, 0.5)), &[0], &[], band()) {
+            Ok(Presentation::Of(q)) => {
+                assert!(
+                    matches!(q.zero, Zero::Side(Side::YLo)),
+                    "the shared edge is the zero side"
+                );
+                assert_eq!(q.y.0, 0.0, "clipped to the edge's line");
+            }
+            _ => panic!("a cell across the edge is presented"),
+        }
+        assert!(matches!(
+            present_plane(&piece((1.0, 2.0), (-0.5, -0.1)), &[0], &[], band()),
+            Ok(Presentation::Vacuous)
+        ));
+    }
+
+    /// **`edge_piece`**: the hull of an edge's parameters whose points the
+    /// boxes may hold, narrowed to them from both ends.
+    #[test]
+    fn edge_piece_narrows_to_the_parameters_the_boxes_hold() {
+        let line = Curve3::Line {
+            origin: origin(),
+            dir: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+        };
+        let bx = |a: f64, b: f64| {
+            Point3::new(
+                Interval::from_bounds(a, b),
+                Interval::from_bounds(-0.1, 0.1),
+                Interval::from_bounds(-0.1, 0.1),
+            )
+        };
+        let (a, b) = edge_piece(&line, (iv0(0.0), iv0(10.0)), false, &[bx(2.0, 3.0)]).unwrap();
+        assert!(
+            a <= 2.0 && 3.0 <= b,
+            "every held parameter kept: ({a}, {b})"
+        );
+        assert!(1.5 < a && b < 3.5, "and narrowed to them: ({a}, {b})");
+        assert!(edge_piece(&line, (iv0(0.0), iv0(10.0)), false, &[bx(20.0, 30.0)]).is_none());
     }
 }

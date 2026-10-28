@@ -505,3 +505,117 @@ fn a_big_thin_walled_cylinder_shell_certifies_within_the_default_budget() {
     let report = injective(&body, None, BUDGET);
     assert_holds("the thin shell", &report, n, 1);
 }
+
+// ------------------------------------------- a face across its seam
+
+/// **A cylinder face across its chart's seam, pierced by a planar face
+/// it shares an edge with, never `Holds`.** The wall is the unit
+/// cylinder over `u ∈ [β, α + 2π]`, `β = 4`, `α = 0.2`, so its chart
+/// window crosses `u = 0`. A planar flap hangs off its `α` strut along
+/// the chord toward the ruling at `u = 5` and past it: the flap crosses
+/// the wall there, a coincidence of two points of M on no cell the two
+/// faces share.
+///
+/// The wall and the flap touch on the strut, so the pair is a
+/// departure question. A presentation that read the wall's lines in
+/// the order they come, and wrapped each toward the rectangle the last
+/// one left, presented the wall as the sliver `(0, α)` and certified the
+/// pair at its root — `Holds` over a body that crosses itself. The wall
+/// is presented on the one sheet of its own span a cell meets, and a
+/// cell that meets two is split, so the crossing is reached.
+#[test]
+fn a_seam_crossing_cylinder_pierced_by_a_face_on_its_edge_never_holds() {
+    use geom_brep::EdgeCurveSpec;
+    use topo::construction::{Construct, FaceSurface, MefSite, MevSite};
+    use topo::test_support::{CylFrame, CylKey, cyl_wall_sheet_keyed, plane, set_sheet_sense};
+
+    let (alpha, beta) = (0.2, 4.0);
+    let frame = CylFrame::canonical(1.0);
+    let mut body = Body::<f64>::new();
+    let (wall, _) = cyl_wall_sheet_keyed(
+        &mut body,
+        frame,
+        CylKey::Bare,
+        (beta, alpha + TAU),
+        (0.0, 1.0),
+        tol(),
+    );
+    topo::mint_pcurves(&mut body, tol()).unwrap();
+    set_sheet_sense(&mut body, wall, true, tol());
+
+    // The `α` strut, and its half-edge on the wall's twin across it.
+    let at = |u: f64, v: f64| frame.at::<f64>(u, v);
+    let vertex_at = |body: &Body<f64>, p: Point3<f64>| {
+        body.vertices()
+            .find(|(_, x)| (*body.get_point(x.point).unwrap() - p).norm() < 1e-12)
+            .unwrap()
+            .0
+    };
+    let (s_lo, s_hi) = (vertex_at(&body, at(alpha, 0.0)), vertex_at(&body, at(alpha, 1.0)));
+    let on_wall = |body: &Body<f64>, he| body.get_loop(body.get_half_edge(he).unwrap().parent_loop).unwrap().face == wall;
+    let strut = body
+        .edges()
+        .find(|(_, e)| {
+            let ends = [
+                body.get_half_edge(e.he_plus).unwrap().start,
+                body.get_half_edge(e.he_minus).unwrap().start,
+            ];
+            ends.contains(&s_lo) && ends.contains(&s_hi)
+        })
+        .unwrap()
+        .1
+        .clone();
+    let h_s = [strut.he_plus, strut.he_minus]
+        .into_iter()
+        .find(|&he| !on_wall(&body, he))
+        .unwrap();
+    let h = body.get_half_edge(h_s).unwrap().clone();
+    let s0 = h.start;
+    let h_next = h.next;
+    let s1 = body.get_half_edge(h_next).unwrap().start;
+    let point = |body: &Body<f64>, v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+    let (q0, q1) = (point(&body, s0), point(&body, s1));
+    // The flap's far side: the chord from the strut toward the ruling at
+    // `u = 5`, carried 1.3 times as far, at each end's height.
+    let past = |q: Point3<f64>| {
+        let toward = at(5.0, q.z);
+        q + (toward - q) * 1.3
+    };
+    let (a0, a1) = (past(q0), past(q1));
+
+    let strut1 = body
+        .mev_line(MevSite::Fan { he1: h_next, he2: h_next }, a1, tol())
+        .unwrap();
+    let strut0 = body.mev_line(MevSite::Fan { he1: h_s, he2: h_s }, a0, tol()).unwrap();
+    let flap = body
+        .mef(
+            MefSite::Chords {
+                he1: strut0.he_minus,
+                he2: strut1.he_minus,
+            },
+            EdgeCurveSpec::line_between(a0, a1),
+            FaceSurface::New {
+                surface: plane(&[a0, q0, q1, a1], tol()),
+                sense: true,
+            },
+            tol(),
+        )
+        .unwrap()
+        .face;
+    topo::mint_pcurves(&mut body, tol()).unwrap();
+
+    let report = injective(&body, Some(vec![wall, flap]), BUDGET);
+    println!(
+        "[selfx] the seam-crossing wall and its flap: {:?} {:?}",
+        report.verdict, report.receipt
+    );
+    assert!(
+        !matches!(report.verdict, BoundVerdict::Holds),
+        "the flap crosses the wall at u = 5: {:?} {:?}",
+        report.verdict,
+        report.receipt
+    );
+    if let BoundVerdict::Violated(w) = &report.verdict {
+        assert!(w.d < 1e-9, "a coincidence: {w:?}");
+    }
+}

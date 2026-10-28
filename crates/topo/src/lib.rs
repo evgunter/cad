@@ -372,8 +372,8 @@ pub mod test_support {
         cyl_wall_sheet_keyed, declined_cube, describe_as_intersections, drill_hole,
         every_chord_stated_as_its_pair, face_facing, fresh_keyed_body, geometric_cube, holed_block,
         identity_map, kill_under_a_null_strut, line, mapped_cube, plane, plane_every_face,
-        plant_disc_face, plant_ring_face, prism, prism_ops, prism_z, split_plane, straddle_seat,
-        wedge_on_a_block_top,
+        plant_disc_face, plant_ring_face, prism, prism_ops, prism_z, set_sheet_sense, split_plane,
+        straddle_seat, wedge_on_a_block_top,
     };
     pub use crate::test_support_impl::ArenaCounts;
 
