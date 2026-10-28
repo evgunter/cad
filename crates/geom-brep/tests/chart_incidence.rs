@@ -507,16 +507,13 @@ fn a_rim_at_the_apex_height_refuses_as_not_shown_with_its_margin() {
 /// - a rim whose height sits in the apex's sliver
 ///   (`pcurve_cone_chart_nappe`, `cone_conic_incidence`): the pose the
 ///   in-band Zero names, so the pose lever, though it may lie on the cone;
-/// - a near-round ellipse 10 m off the sphere and off the torus: definitely
-///   off, the kernel's defect at a build, whatever its roundness (review
-///   on PR 5844). Today the kind gate refuses it by kind; once E1c reads
-///   incidence first it is the incidence test's definite miss, the same
-///   ending.
+/// - a near-round ellipse 10 m off the sphere and off the torus: the
+///   incidence test's definite miss, the kernel's defect at a build,
+///   whatever its roundness (review on PR 5844).
 ///
 /// The Villarceau tangent's parts, a class reading at `K ≤ 3`, are
-/// pinned in `pcurve_villarceau`. A tiny ellipse within ε of the sphere,
-/// which the kind gate still calls off, is E1c's row
-/// (`work/pcert/plane-and-cylinder-mints-meter-incidence-as-a-residual.md`).
+/// pinned in `pcurve_villarceau`; a tiny ellipse within ε of the sphere
+/// or the torus, in `a_tiny_ellipse_within_eps_of_the_sphere_or_torus_is_not_yet`.
 #[test]
 fn only_an_incidence_reading_ends_as_one() {
     use geom_brep::OffMargin;
@@ -1010,6 +1007,229 @@ fn a_carrier_ends_its_incidence_at_the_edge_certificate_by_the_door() {
                         );
                     }
                 }
+            }
+        }
+    }
+}
+
+/// The circle of `radius` about the point `h` up `axis`, ⊥ to it.
+fn coaxial(h: f64, radius: f64) -> Curve3<f64> {
+    Curve3::Circle {
+        center: Point3::new(0.0, 0.0, h),
+        axis: Vec3::unit_z(),
+        radius,
+        u_ref: Vec3::unit_x(),
+    }
+}
+
+/// Each class arm a circle of the wrong radius passes (its plane ⊥ the
+/// axis, centred on it), and the plane's and the cylinder's mints, with
+/// the circle's distance from the face `d`: (row, face, carrier).
+fn wrong_radius_rows(d: f64) -> Vec<(&'static str, Surface<f64>, Curve3<f64>)> {
+    let alpha = 0.5_f64;
+    vec![
+        (
+            "a sphere's polar circle",
+            Surface::Sphere {
+                center: Point3::origin(),
+                radius: 1.0,
+                axis: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+            },
+            coaxial(0.6, 0.8 + d),
+        ),
+        (
+            "a cone's rim",
+            cone(alpha),
+            coaxial(1.0, alpha.tan() + d / alpha.cos()),
+        ),
+        (
+            "a torus's parallel",
+            Surface::Torus {
+                center: Point3::origin(),
+                axis: Vec3::unit_z(),
+                major_radius: 2.0,
+                minor_radius: 0.5,
+                u_ref: Vec3::unit_x(),
+            },
+            coaxial(0.0, 2.5 + d),
+        ),
+        (
+            "a cylinder's rim",
+            Surface::Cylinder {
+                origin: Point3::origin(),
+                axis: Vec3::unit_z(),
+                radius: 1.0,
+                u_ref: Vec3::unit_x(),
+            },
+            coaxial(0.5, 1.0 + d),
+        ),
+        (
+            "a circle in a plane",
+            Surface::Plane {
+                origin: Point3::origin(),
+                normal: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+            },
+            coaxial(d, 0.7),
+        ),
+    ]
+}
+
+/// `chart_pcurve`'s refusal at `f64` and at `Interval`.
+fn at_both_lanes(
+    carrier: &Curve3<f64>,
+    surface: &Surface<f64>,
+) -> [(&'static str, PcurveCertifyError); 2] {
+    let lift = Interval::from_f64;
+    [
+        (
+            "f64",
+            chart_pcurve(carrier, surface, band())
+                .map(|_| ())
+                .unwrap_err(),
+        ),
+        (
+            "Interval",
+            chart_pcurve(&carrier.map_scalar(lift), &surface.map_scalar(lift), band())
+                .map(|_| ())
+                .unwrap_err(),
+        ),
+    ]
+}
+
+/// **A circle every class gate passes, off the face by its radius, ends
+/// as its incidence read at the mint, at every door** (D3, D4 ¶1 (iv)).
+/// The sphere's polar circle, the cone's rim and the torus's parallel
+/// read the carrier's plane and centre, not its radius, and the plane's
+/// and the cylinder's mints image any carrier; each reads incidence
+/// first. Half a metre off, the read is the definite miss: the kernel's
+/// defect at a build, the stored culprit at rest, the damaged file at
+/// the import door whatever the file's ε_in. Mid-band off, it is not
+/// shown on the face: the geometry's lever at every door, never a
+/// defect. A mint that images the carrier before reading it ends the
+/// first `Ok` and the second as the residual's defect; both red here.
+#[test]
+fn a_wrong_radius_circle_on_each_class_arm_ends_as_its_incidence_read() {
+    use geom_brep::OffMargin;
+    use geom_brep::recourse::{INCIDENCE_UNSHOWN, ReadAt, Reading};
+    use geom_core::FileCoincidence;
+    let doors = |what: &str| {
+        [
+            (ReadAt::Run(Reading::Build), geom_core::KERNEL_DEFECT_ENDING),
+            (
+                ReadAt::Run(Reading::AtRest),
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
+            (
+                ReadAt::File(FileCoincidence::new(1e-6)),
+                geom_core::DAMAGED_FILE_ENDING,
+            ),
+            (
+                ReadAt::File(FileCoincidence::new(10.0)),
+                geom_core::DAMAGED_FILE_ENDING,
+            ),
+        ]
+        .map(|(at, culprit)| (format!("{what} at {at:?}"), at, culprit))
+    };
+    for (row, surface, carrier) in wrong_radius_rows(0.5) {
+        for (lane, err) in at_both_lanes(&carrier, &surface) {
+            let what = format!("{row} half a metre off ({lane})");
+            assert!(
+                matches!(&err, PcurveCertifyError::CarrierOffChart { margin, .. }
+                    if !matches!(margin, Some(OffMargin::InBand(_)))),
+                "{what}: the definite miss: {err:?}"
+            );
+            for (door, at, culprit) in doors(&what) {
+                assert_eq!(err.ending(at).as_deref(), Some(culprit), "{door}");
+            }
+        }
+    }
+    let mid = 0.5 * (band().zero() + band().escalate());
+    for (row, surface, carrier) in wrong_radius_rows(mid) {
+        for (lane, err) in at_both_lanes(&carrier, &surface) {
+            let what = format!("{row} mid-band off ({lane})");
+            assert!(
+                matches!(
+                    err,
+                    PcurveCertifyError::Escalated {
+                        check: geom_brep::PcurveCheck::ChartIncidence,
+                        ..
+                    }
+                ),
+                "{what}: not shown on the face: {err:?}"
+            );
+            for (door, at, _) in doors(&what) {
+                let ending = err.ending(at).expect("an incidence read ends");
+                assert!(
+                    ending.contains(INCIDENCE_UNSHOWN.lever) && !ending.contains("defect"),
+                    "{door}: {ending}"
+                );
+            }
+        }
+    }
+}
+
+/// **An ellipse within ε of the sphere or the torus is no carrier the
+/// incidence test shows off** (D3; the review probes on PR 5844): the
+/// kind gate reads incidence first, and an ellipse not shown off is a
+/// class reading, "not yet" until its lane is written, never the
+/// definite miss. The ellipse has semi-axes `a = √(0.2·ε)` and `a/2` in
+/// the tangent plane at the sphere's pole, set at mid-sagitta, and the
+/// same at the torus's outer equator. Its far, near-round twin is the
+/// definite miss (`only_an_incidence_reading_ends_as_one`).
+#[test]
+fn a_tiny_ellipse_within_eps_of_the_sphere_or_torus_is_not_yet() {
+    use geom_brep::recourse::Reading;
+    let e = eps();
+    let a = (0.2 * e).sqrt();
+    let rows = [
+        (
+            "the sphere",
+            Surface::Sphere {
+                center: Point3::origin(),
+                radius: 1.0,
+                axis: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+            },
+            Curve3::Ellipse {
+                center: Point3::new(0.0, 0.0, 1.0 - a * a / 4.0),
+                axis: Vec3::unit_z(),
+                semi_u: a,
+                semi_v: 0.5 * a,
+                u_ref: Vec3::unit_x(),
+            },
+        ),
+        (
+            "the torus",
+            Surface::Torus {
+                center: Point3::origin(),
+                axis: Vec3::unit_z(),
+                major_radius: 2.0,
+                minor_radius: 0.5,
+                u_ref: Vec3::unit_x(),
+            },
+            Curve3::Ellipse {
+                center: Point3::new(2.5 - 0.05 * e, 0.0, 0.0),
+                axis: Vec3::unit_x(),
+                semi_u: (0.05 * e).sqrt(),
+                semi_v: 0.5 * (0.05 * e).sqrt(),
+                u_ref: Vec3::unit_z(),
+            },
+        ),
+    ];
+    for (face, surface, ellipse) in rows {
+        for (lane, err) in at_both_lanes(&ellipse, &surface) {
+            assert!(
+                matches!(err, PcurveCertifyError::NoGeneralLane { .. }),
+                "{face} ({lane}): a class reading: {err:?}"
+            );
+            for reading in [Reading::Build, Reading::AtRest] {
+                let ending = err.ending(reading).expect("a class reading ends");
+                assert!(
+                    ending.starts_with(geom_core::NOT_YET_ENDING) && !ending.contains("defect"),
+                    "{face} ({lane}) {reading:?}: {ending}"
+                );
             }
         }
     }
