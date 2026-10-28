@@ -279,6 +279,44 @@ fn a_radius_not_definitely_positive_is_degenerate_on_every_reading() {
     }
 }
 
+/// **A radius in the band escalates by its name**, in either order: a
+/// sphere `2.865·zero` in radius whose centre lies that far outside the
+/// wall, so it touches it, reads its radius undecided before any reach
+/// or girdle (the fuzzer's pose 1562 at ε = 1e-6, where the retired
+/// guard, which never read the radius, called it a touch); and a
+/// cylinder that thin.
+#[test]
+fn a_radius_in_the_band_escalates_by_its_name() {
+    let z = band().zero();
+    let (r, small) = (0.190_833_873_299_757_15, 2.865_155_564_080_179_6 * z);
+    for (label, cyl, sph, want, predicate) in [
+        (
+            "sphere",
+            cylinder(r),
+            sphere(r + small, small),
+            geom_brep::SectionRadius::Sphere,
+            "cs_sphere_radius",
+        ),
+        (
+            "cylinder",
+            cylinder(small),
+            sphere(0.4, 0.3),
+            geom_brep::SectionRadius::Cylinder,
+            "cs_cylinder_radius",
+        ),
+    ] {
+        for (a, b) in [(&cyl, &sph), (&sph, &cyl)] {
+            match geom_brep::pair_section(a, b, band()) {
+                Err(SectionError::RadiusEscalated { radius, diag }) => {
+                    assert_eq!(radius, want, "{label}");
+                    assert_eq!(diag.predicate, Some(predicate), "{label}");
+                }
+                other => panic!("{label}: expected its radius escalated, got {other:?}"),
+            }
+        }
+    }
+}
+
 /// **The general rung carries through its door**: the lone loop marched
 /// over the sphere's box at `f64`, one closed fitted component with its
 /// certificate, the witness's foot on it; without the door the carrying
@@ -686,7 +724,10 @@ fn no_pose_off_the_band_moves_from_the_retired_formulas() {
             3 => (off - r).abs() + b.zero() * 0.5,
             _ => 0.05 + 2.0 * g.unit(),
         };
-        if big <= 0.0 || (off > b.zero() * 0.999 && off < b.escalate() * 1.001) {
+        // The retired formulas read a radius decided positive; one in the
+        // band escalates by its name instead
+        // ([`a_radius_in_the_band_escalates_by_its_name`]).
+        if big <= b.escalate() * 1.001 || (off > b.zero() * 0.999 && off < b.escalate() * 1.001) {
             continue;
         }
         let c = origin + axis * g.range(-1.0, 1.0) + square_to(axis) * off;
@@ -746,23 +787,6 @@ fn turns_once(ts: &[f64], period: f64) -> bool {
 /// once. Marches: in the slow set.
 #[test]
 fn two_loops_keep_their_sites_and_order_near_the_node() {
-    // Pinned red since PR 5872: at ε = 1e-6 the cylinder × sphere section
-    // runs out of cells, or reads a site in the band, near the node
-    // (`work/sect/main-red-cylinder-sphere-section-runs-out-of-cells-near-the-node-at-1e-6`).
-    test_utils::pinned_red::row(
-        geom_core::Tol::witness().eps(),
-        &[1e-6],
-        "the near-node march",
-        &[
-            "d 0.2, R 0.71, θ 4.2723826090701555: Escalated(Indeterminate { margin: MarginDiag(Value(9.557317660834139e-6, None, ZeroWord(0)))",
-            "predicate: Some(\"curve_carrier_piece_clear\")",
-        ],
-        two_loops_keep_their_sites_and_order_near_the_node_row,
-    );
-}
-
-/// The row [`two_loops_keep_their_sites_and_order_near_the_node`] runs, under its pin.
-fn two_loops_keep_their_sites_and_order_near_the_node_row() {
     let r = 0.5;
     for (d, big) in [(0.1, 0.7), (0.2, 0.71), (0.2, 0.701)] {
         let (cyl, sph) = (cylinder(r), sphere(d, big));
@@ -799,20 +823,6 @@ fn two_loops_keep_their_sites_and_order_near_the_node_row() {
 /// Marches: in the slow set.
 #[test]
 fn one_loop_keeps_its_order_near_the_node() {
-    // Pinned red since PR 5872: at ε = 1e-6 the cylinder × sphere section
-    // runs out of cells, or reads a site in the band, near the node
-    // (`work/sect/main-red-cylinder-sphere-section-runs-out-of-cells-near-the-node-at-1e-6`).
-    test_utils::pinned_red::row(
-        geom_core::Tol::witness().eps(),
-        &[1e-6],
-        "the near-node march",
-        &["d 0.2, R 0.699: March(CellBudget { budget: 200000 })"],
-        one_loop_keeps_its_order_near_the_node_row,
-    );
-}
-
-/// The row [`one_loop_keeps_its_order_near_the_node`] runs, under its pin.
-fn one_loop_keeps_its_order_near_the_node_row() {
     let r = 0.5;
     for (d, big) in [(0.5, 0.3), (0.2, 0.69), (0.2, 0.699)] {
         let (cyl, sph) = (cylinder(r), sphere(d, big));
