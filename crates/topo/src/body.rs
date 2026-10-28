@@ -775,7 +775,7 @@ impl<T: Real> Body<T> {
     /// - **A refusal that distinguishes the hops.**
     ///   `offset_together::scope_of_moves` names the caller's own
     ///   stale face key on hop 1 and panics naming the face's `shell`
-    ///   link on hop 2; [`Body::kfmrh`](crate::Body::kfmrh) does it
+    ///   link on hop 2; [`Body::kfmrh`](crate::construction::Construct::kfmrh) does it
     ///   twice, the same way.
     ///   `offset_together::scope_walks::the_two_hops_answer_differently`
     ///   reds on either way of collapsing `scope_of_moves`'s two.
@@ -898,7 +898,7 @@ impl<T: Real> Body<T> {
     /// Deliberately NOT a construction operator. Legitimate writers
     /// keep the two orientation encodings coherent: constructors state
     /// the honest bit with the chart they give the face
-    /// ([`crate::FaceSurface`] — the loop winding is already the
+    /// ([`crate::construction::FaceSurface`] — the loop winding is already the
     /// material-true one, so a concave wall's `false` agrees with it),
     /// and [`Body::revert`] flips *every* face of a body at once. Flipping a single face makes the body
     /// **inside-out at that
@@ -1671,13 +1671,9 @@ impl<T: Real> Body<T> {
         }
     }
 
-    /// Attaches the element of the joint into `half_edge`, returning the
-    /// one it replaced — [`Body::attach_pcurve`]'s companion, under the
-    /// same trust posture: the tier-3 pcurve pass re-decides every joint
-    /// ([`crate::pcurves::validate_pcurves`]). The element is stored in
-    /// its canonical form ([`JointElement::canonical`]: a reset's
-    /// azimuth periods dropped).
-    pub fn attach_joint(
+    /// The door [`Construct::attach_joint`](crate::construction::Construct::attach_joint) forwards to;
+    /// documented there.
+    pub(crate) fn attach_joint(
         &mut self,
         half_edge: HalfEdgeKey,
         element: JointElement,
@@ -1685,22 +1681,9 @@ impl<T: Real> Body<T> {
         self.joints.insert(half_edge, element.canonical())
     }
 
-    /// Attaches a **certified** pcurve cache to `half_edge`, returning
-    /// the row it replaced.
-    ///
-    /// The argument's type is the guarantee: a [`PcurveCache`] cannot
-    /// be built except through certification, so no uncertified pcurve
-    /// can enter a body through this door (or any other). What this
-    /// door cannot check is *coherence with this body* — that the cache
-    /// was certified against THIS half-edge's carrier, THIS face's
-    /// surface, and a branch consistent with its loop. That is the
-    /// tier-3 pcurve pass's job ([`crate::pcurves::validate_pcurves`]),
-    /// which re-derives all three and never consults the stored
-    /// certificate.
-    ///
-    /// The ordinary producer is [`crate::pcurves::mint_pcurves`], which
-    /// the splitting lane runs on every side it mints.
-    pub fn attach_pcurve(
+    /// The door [`Construct::attach_pcurve`](crate::construction::Construct::attach_pcurve) forwards to;
+    /// documented there.
+    pub(crate) fn attach_pcurve(
         &mut self,
         half_edge: HalfEdgeKey,
         cache: PcurveCache<T>,
@@ -1708,18 +1691,15 @@ impl<T: Real> Body<T> {
         self.pcurves.insert(half_edge, cache)
     }
 
-    /// Removes and returns `half_edge`'s stored pcurve cache —
-    /// [`Body::attach_pcurve`]'s inverse (same trust posture: the
-    /// tier-3 pcurve pass owns coherence, and a curved face left
-    /// missing a row fails it loudly). Consumers of caches refuse
-    /// typed on absence; nothing re-derives a branch silently.
-    pub fn detach_pcurve(&mut self, half_edge: HalfEdgeKey) -> Option<PcurveCache<T>> {
+    /// The door [`Construct::detach_pcurve`](crate::construction::Construct::detach_pcurve) forwards to;
+    /// documented there.
+    pub(crate) fn detach_pcurve(&mut self, half_edge: HalfEdgeKey) -> Option<PcurveCache<T>> {
         self.pcurves.remove(half_edge)
     }
 
-    /// Removes and returns the element of the joint into `half_edge` —
-    /// [`Body::attach_joint`]'s inverse.
-    pub fn detach_joint(&mut self, half_edge: HalfEdgeKey) -> Option<JointElement> {
+    /// The door [`Construct::detach_joint`](crate::construction::Construct::detach_joint) forwards to;
+    /// documented there.
+    pub(crate) fn detach_joint(&mut self, half_edge: HalfEdgeKey) -> Option<JointElement> {
         self.joints.remove(half_edge)
     }
 
@@ -1803,11 +1783,11 @@ mod tests {
         );
         let null = body
             .mev_null(
-                crate::MevSite::Fan {
+                crate::construction::MevSite::Fan {
                     he1: t.hes_a[0],
                     he2: t.hes_a[0],
                 },
-                crate::NewVertexSide::Above,
+                crate::construction::NewVertexSide::Above,
             )
             .unwrap();
         let null_edge = body.get_half_edge(null.he_plus).unwrap().edge;
@@ -2264,7 +2244,7 @@ mod tests {
     }
 
     /// **A `Closed` walk proves `next(first)` resolves.** This is the
-    /// property [`Body::kef`] consumes: it takes `b = next(he)` as
+    /// property [`Body::kef`](crate::construction::Construct::kef) consumes: it takes `b = next(he)` as
     /// proven by `loop_cycle(he)` succeeding rather than checking it,
     /// then passes `b` to a helper that announces on a dead key.
     ///
@@ -2344,7 +2324,7 @@ mod tests {
             );
             assert_eq!(
                 site.unwrap().mev_site(),
-                crate::MevSite::Fan {
+                crate::construction::MevSite::Fan {
                     he1: first,
                     he2: first
                 },

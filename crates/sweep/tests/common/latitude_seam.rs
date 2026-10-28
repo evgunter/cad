@@ -33,10 +33,11 @@ use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, Pcu
 use geom_core::{Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
 use sweep::test_support::{corners, revolved_about_y};
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, MefSite, MevSite};
 use topo::readback::vertex_point;
 use topo::{
-    Body, EdgeKey, FaceKey, FaceSurface, HalfEdgeKey, MefSite, MevSite, SurfaceKey, VertexKey,
-    VoidContainment, VoidEvidence,
+    Body, EdgeKey, FaceKey, HalfEdgeKey, SurfaceKey, VertexKey, VoidContainment, VoidEvidence,
 };
 
 use super::charts::hollow_moves;

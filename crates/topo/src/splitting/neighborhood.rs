@@ -438,7 +438,7 @@ mod tests {
         let mut body = p.body;
         body.set_face_surface(
             face,
-            crate::FaceSurface::New {
+            crate::construction::FaceSurface::New {
                 surface: geom::Surface::Sphere {
                     center: geom_core::Point3::new(0.0, 0.0, 0.0),
                     radius: 2.0,

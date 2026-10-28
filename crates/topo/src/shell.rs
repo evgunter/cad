@@ -84,7 +84,7 @@
 //!    wall — while each void's DILATED twin faces outward: it is the
 //!    outer boundary of the thin wall around that void. Each operand
 //!    void and its twin therefore move out of the operand's solid into
-//!    a solid of their own ([`Body::move_shells_to_new_solid`]), paired
+//!    a solid of their own ([`Body::move_shells_to_new_solid`](crate::construction::Construct::move_shells_to_new_solid)), paired
 //!    off the graft map — structurally, never by a containment probe.
 //!    For `k` voids the result holds `k + 1` solids and `2(k + 1)`
 //!    shells, and every operand shell survives under its key. A
@@ -632,7 +632,7 @@ pub enum ShellError<T: Real> {
         /// The two neighbouring stations that disagree.
         stations: geom_brep::MixedStations,
     },
-    /// The join the shell ends with ([`crate::Body::join_edges`])
+    /// The join the shell ends with ([`crate::Body::join_edges`](crate::construction::Construct::join_edges))
     /// refused on the assembled body.
     Join {
         /// Why the join refused, typed and keyless.
@@ -1119,7 +1119,7 @@ pub struct ShellNaming {
     pub thickened: Vec<(SolidKey, ShellKey)>,
     /// What the construction retired, result keys.
     pub dead: ShellRetired,
-    /// The joins the shell ended with ([`crate::Body::join_edges`]), in
+    /// The joins the shell ended with ([`crate::Body::join_edges`](crate::construction::Construct::join_edges)), in
     /// the order made. Every row above stays as the construction wrote
     /// it, `dead` included: a join's `vertex` and `gone` are then dead
     /// but listed here, not there, and its `kept` covers what `gone` did

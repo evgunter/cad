@@ -848,6 +848,11 @@ E1c waits on the answer.
   - Sealing the construction tier is split out to E1d2 (the orchestrator's call: inherent methods travel with `Body`, so re-export curation alone cannot seal them).
   - Filed `policy-lane-origin-callers-outlives-the-sealed-construction-tier` and `stored-contradiction-at-a-build-still-tells-the-lever-story`.
 - 2026-10-27 — **Sequencing: E1d is split.** The implementer found that topo's Euler operators and setters are inherent methods on `Body`, so curating pncad's re-export cannot hide them. `pncad::profile`'s doc names the same limit. E1d lands the endings, and a new unit E1d2 seals the tier: a pub trait `topo::construction::Construct`, with the inherent methods made `pub(crate)` (the `profile` precedent). Until E1d2 lands, an external `set_edge_curve` miss reads as a kernel defect; no product code calls it. The alternative, sealing inside E1d, was rejected: the churn (about 160 files importing the trait) would bury the endings E1c waits on.
+- 2026-10-27 — **E1d2 (`pcert/seal-construction`): topo's construction tier is sealed.**
+  - The doors are behind `topo::construction::Construct` (inherent `pub(crate)`), and their vocabulary lives in `topo::construction`.
+  - `pncad::topo` is the glob minus that tier. Kernel crates import the trait.
+  - The source walk counts the sealed doors (`construction_tier`), so the tier-1 and pcurve-posture censuses still range over them.
+  - Seam logged on `work/lib/log.md`.
 - 2026-10-27 — E1d (PR 5844) merged: an incidence refusal ends by the door that reads it (Ev's ruling, PR 5838). E1b's authority routing is out, and `EdgeAuthority` is provenance only. `IncidenceRead::of` is the one classifier, `ending(at)` the one map and `is_definite` the one policy. Their endings:
   - a definite miss is the kernel's defect at a build, the stored culprit at rest, and the damaged file at import (no ε_in);
   - a read in band ends in its lever at every door;

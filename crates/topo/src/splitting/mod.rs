@@ -42,7 +42,7 @@
 //!    operand is ill-conditioned at this ε). Verdicts are cached per
 //!    vertex (one predicate site, one evaluation per vertex).
 //! 3. **Crossing insertion**: edges whose cached endpoint verdicts are
-//!    strictly opposite are split by [`crate::Body::split_edge`] at the
+//!    strictly opposite are split by [`crate::Body::split_edge`](crate::construction::Construct::split_edge) at the
 //!    interpolated carrier parameter — the crossing goes through the
 //!    certified lane (the `split_edge_param_interior` trilean plus full
 //!    child re-certification), never a raw interpolation trusted blind.
@@ -55,7 +55,7 @@
 //!    via the F3 primitive [`geom_brep::enters_material`] and rule (b)
 //!    per the F4 adjudication ([`rules`] — the derivation lives there).
 //! 5. **Null-edge insertion** (`insert`): one
-//!    [`crate::Body::mev_null`] per corner of the section at the
+//!    [`crate::Body::mev_null`](crate::construction::Construct::mev_null) per corner of the section at the
 //!    vertex, hung as the tree the corners make (a star of one per
 //!    ABOVE-run where the runs lie apart; deeper where runs nest),
 //!    orientation recorded as F9 **data**

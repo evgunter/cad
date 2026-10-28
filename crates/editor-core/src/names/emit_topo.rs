@@ -5444,6 +5444,7 @@ mod tests {
     )]
 
     use super::*;
+    use topo::construction::Construct;
 
     use crate::names::emit_sweep::name_extrude;
     use crate::node::RecipeNodeId;
@@ -5508,7 +5509,7 @@ mod tests {
             .expect("mvfs births a lone vertex");
         let edge = body
             .mev_line(
-                topo::MevSite::Lone {
+                topo::construction::MevSite::Lone {
                     r#loop: born.r#loop,
                 },
                 Point3::from_array(q),
@@ -7299,6 +7300,7 @@ mod track_cover {
     //! with its vertex anywhere, its candidates in either order, reads
     //! the same cover.
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+    use topo::construction::Construct;
 
     use std::f64::consts::TAU;
 
@@ -7328,18 +7330,18 @@ mod track_cover {
         let e = if (t1 - t0 - TAU).abs() < 1e-12 {
             let made = body
                 .mef(
-                    topo::MefSite::Lone {
+                    topo::construction::MefSite::Lone {
                         r#loop: born.r#loop,
                     },
                     spec,
-                    topo::FaceSurface::Inherit,
+                    topo::construction::FaceSurface::Inherit,
                     tol,
                 )
                 .unwrap();
             made.edge
         } else {
             body.mev(
-                topo::MevSite::Lone {
+                topo::construction::MevSite::Lone {
                     r#loop: born.r#loop,
                 },
                 c.eval(t1),
@@ -8098,6 +8100,7 @@ mod rim_holding_rows {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use geom_core::{Point2, Point3, Tol, Vec3};
+    use topo::construction::Construct;
     use topo::{Body, EdgeKey, FaceKey};
 
     use super::{chord_within, rim_holding, rims_between};
@@ -8215,7 +8218,7 @@ mod rim_holding_rows {
         let spec = geom_brep::EdgeCurveSpec::arc_of_circle(c.clone(), t0, t1).unwrap();
         let e = body
             .mev(
-                topo::MevSite::Lone {
+                topo::construction::MevSite::Lone {
                     r#loop: born.r#loop,
                 },
                 c.eval(t1),
@@ -8239,7 +8242,7 @@ mod rim_holding_rows {
         let born = body.mvfs(p, true).unwrap();
         let e = body
             .mev_line(
-                topo::MevSite::Lone {
+                topo::construction::MevSite::Lone {
                     r#loop: born.r#loop,
                 },
                 q,

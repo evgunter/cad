@@ -17,8 +17,9 @@
 use super::search_kit::band;
 use super::*;
 use crate::boolean::ops;
+use crate::construction::{FaceSurface, MefSite, MevSite};
 use crate::test_support_fixtures::{CylFrame, brick, cyl_wall_sheet};
-use crate::{Body, FaceKey, FaceSurface, MefSite, MevSite, Operand};
+use crate::{Body, FaceKey, Operand};
 use core::f64::consts::{PI, TAU};
 use geom::{Curve3, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
@@ -1988,7 +1989,7 @@ fn chain_sheet(
             },
         )
         .unwrap();
-    let mut edges: Vec<crate::MevCreated> = Vec::new();
+    let mut edges: Vec<crate::construction::MevCreated> = Vec::new();
     for i in 0..n {
         let site = match edges.last() {
             None => MevSite::Lone {

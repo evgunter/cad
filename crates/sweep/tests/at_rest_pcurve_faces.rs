@@ -30,8 +30,10 @@ use geom_brep::{EdgeCurveSpec, Pcurve, PcurveCache, PcurveCertifyError};
 use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
 use sweep::test_support::revolved_about_y;
+use topo::construction::Construct;
+use topo::construction::MevSite;
 use topo::pcurves::validate_pcurves;
-use topo::{Body, FaceKey, HalfEdgeKey, MevSite, PcurveMintError};
+use topo::{Body, FaceKey, HalfEdgeKey, PcurveMintError};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -593,9 +595,9 @@ fn a_torus_face_bounded_by_a_villarceau_arc_mints_on_either_family() {
         let he2 = half_edge_at(&body, face, inner);
         let made = body
             .mef(
-                topo::MefSite::Chords { he1, he2 },
+                topo::construction::MefSite::Chords { he1, he2 },
                 spec,
-                topo::FaceSurface::Inherit,
+                topo::construction::FaceSurface::Inherit,
                 tol(),
             )
             .unwrap_or_else(|e| panic!("family {family}: the Villarceau split refuses: {e}"));

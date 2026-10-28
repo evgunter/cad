@@ -43,6 +43,7 @@ use sweep::test_support::{
     rod_creases, rod_d_profile_at, rod_d_profile_of_length_at, rod_section_cut, rod_with_flat,
 };
 use sweep::{Extrusion, extrude};
+use topo::construction::Construct;
 use topo::query;
 use topo::splitting::{SplitPart, split};
 use topo::{Body, EdgeKey, FaceKey, VertexKey, validate_geometric};

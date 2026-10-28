@@ -1229,7 +1229,7 @@ pub(crate) struct OpsRingBridge {
     /// outer.
     pub outer: LoopKey,
     /// The bridge edge. Both of its halves lie in
-    /// [`OpsRingBridge::outer`], which is the shape [`Body::kemr`]
+    /// [`OpsRingBridge::outer`], which is the shape [`Body::kemr`](crate::construction::Construct::kemr)
     /// requires of its two arguments.
     pub bridge: MekrResult,
 }
@@ -1239,7 +1239,7 @@ pub(crate) struct OpsRingBridge {
 /// operator, so genus and shell count are unchanged and the body still
 /// validates.
 ///
-/// **The shape [`Body::kemr`] needs, which no other fixture here
+/// **The shape [`Body::kemr`](crate::construction::Construct::kemr) needs, which no other fixture here
 /// presents.** `kemr` takes two halves of ONE edge lying in ONE loop;
 /// every edge of [`crate::test_support_fixtures::declined_cube`], [`ops_holed_box`] and [`ops_genus2`]
 /// borders two distinct faces, so its halves sit in two loops and
@@ -1306,7 +1306,7 @@ pub(crate) struct OpsStrutCube {
     pub outer: LoopKey,
     /// The pendant edge. Its two halves lie in
     /// [`OpsStrutCube::outer`] and are **adjacent** there, which is the
-    /// shape whose [`Body::kemr`] leaves an EMPTY ring side and
+    /// shape whose [`Body::kemr`](crate::construction::Construct::kemr) leaves an EMPTY ring side and
     /// therefore runs one splice rather than two.
     pub strut: MevCreated,
 }

@@ -24,6 +24,7 @@ use geom::Surface;
 use geom_core::{Point2, Point3, RigidMotion, Tol, Vec2, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
+use topo::construction::Construct;
 use topo::{
     Body, FaceContainment, FaceKey, SolidContainment, curved_face_containment, point_in_solid,
 };

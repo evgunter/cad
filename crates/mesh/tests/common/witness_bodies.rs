@@ -11,7 +11,9 @@ use geom::{Curve3, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::Tol;
 use geom_core::{Point3, Vec3};
-use topo::{Body, FaceKey, FaceSurface, MefSite, MevSite};
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, MefSite, MevSite};
+use topo::{Body, FaceKey};
 
 /// The arc of `circle` from parameter `t0` to `t1`, as the scaffolding
 /// spec the Euler doors certify against the arc's own endpoints.
