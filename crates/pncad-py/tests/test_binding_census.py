@@ -3768,6 +3768,7 @@ MEMBERS_BOUND_AS = {
     "InlineError::EpsilonSeam": "InlineError.variant",
     "InlineError::PartCarriesMetadata": "InlineError.variant",
     "InlineError::VarNameConflict": "InlineError.variant",
+    "InlineError::UnreadPose": "InlineError.variant",
     "InlineError::UnresolvedVarCrossesCut": "InlineError.variant",
     "InlineError::InstanceBodyNameReferenced": "InlineError.variant",
     "InlineError::StrandedPartName": "InlineError.variant",
