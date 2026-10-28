@@ -231,34 +231,145 @@ fn top_at(body: &Body<f64>, z: f64) -> FaceKey {
         .expect("a level face at z")
 }
 
-/// **A disc narrower than the span is pierced or refused, never read
-/// clear**: a disc of radius `2e-4` planted in a brick's top, its
-/// stored origin 42 m off, crossed at its centre by an edge whose span
-/// is millimetres long. Both ends read `Out` past the disc, and its
-/// boundary is a circle, which the span's clearance is not read
-/// against.
-#[test]
-fn a_disc_narrower_than_the_span_is_not_read_clear() {
-    use crate::test_support_fixtures::{brick, plant_disc_face};
+/// The half-disc cap `x² + y² ≤ 1`, `y ≥ 0` of the plane `z = 1`: the
+/// unit circle's arc from `(1, 0, 1)` through `+y` to `(−1, 0, 1)`, an
+/// intersection of a cylinder with the plane, closed by its chord, built
+/// through the public operators ([`crate::test_support_fixtures::arc_cap`]
+/// at `T`). Returns the body and the cap face.
+fn half_disc<T: Decide + crate::props::AtRestPolicy>() -> (Body<T>, FaceKey) {
+    use crate::construction::{FaceSurface, MefSite, MevSite};
+    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
     let tol = Tol::witness();
-    let mut body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
-    let host = top_at(&body, 1.0);
-    let at = body
-        .half_edges()
-        .find(|(_, h)| body.get_loop(h.parent_loop).unwrap().face == host)
-        .map(|(k, _)| k)
+    let lift = |x: f64, y: f64, z: f64| Point3::new(x, y, z).map(T::from_f64);
+    let (centre, axis, u_ref) = (
+        lift(0.0, 0.0, 1.0),
+        Vec3::new(T::zero(), T::zero(), T::one()),
+        Vec3::new(T::one(), T::zero(), T::zero()),
+    );
+    let carrier = geom::Curve3::Circle {
+        center: centre,
+        axis,
+        radius: T::one(),
+        u_ref,
+    };
+    let (p0, p1) = (lift(1.0, 0.0, 1.0), lift(-1.0, 0.0, 1.0));
+    let mut body = Body::<T>::new();
+    let seed = body.mvfs(p0, true).unwrap();
+    let plane = body.add_surface(geom::Surface::Plane {
+        origin: centre,
+        normal: axis,
+        u_ref,
+    });
+    let wall = body.add_surface(geom::Surface::Cylinder {
+        origin: centre,
+        axis,
+        radius: T::one(),
+        u_ref,
+    });
+    let arc = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            p1,
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    pair: SurfacePair::new(wall, plane),
+                    witness: lift(0.0, 1.0, 1.0),
+                },
+                carrier,
+                param_start: T::zero(),
+                param_end: T::pi(),
+            },
+            tol,
+        )
         .unwrap();
-    let radius = 2e-4;
-    let disc = plant_disc_face(&mut body, at, Point3::new(0.5, 0.5, 1.0), radius, tol);
-    let got = far_read(
-        body,
-        disc.face,
-        level_ends((0.25, 0.75), 0.5 + 0.5 * radius),
+    let cap = body
+        .mef(
+            MefSite::Chords {
+                he1: arc.he_minus,
+                he2: arc.he_plus,
+            },
+            EdgeCurveSpec::line_between(p1, p0),
+            FaceSurface::Shared {
+                key: plane,
+                sense: true,
+            },
+            tol,
+        )
+        .unwrap();
+    (body, cap.face)
+}
+
+/// The [`half_disc`] cap at `T`, its stored origin moved to
+/// `(30, 30, 1)`, read against the grazing edge [`level_ends`] `(x, y)`
+/// at ε = 1e-12: what the pair found, and the predicates its
+/// escalations name. The cap is planar and bounded by an arc, so it is
+/// no polygon.
+fn half_disc_read<T: Decide + crate::props::AtRestPolicy>(
+    x: (f64, f64),
+    y: f64,
+) -> (Found, Vec<&'static str>) {
+    let band = Band::new(1e-12, 1e-11).unwrap();
+    let (mut body, cap) = half_disc::<T>();
+    move_origin(
+        &mut body,
+        cap,
+        Point3::new(30.0, 30.0, 1.0).map(T::from_f64),
     );
-    assert!(
-        matches!(got, Found::Pierce | Found::Refused),
-        "the crossing inside the disc read clear: {got:?}"
-    );
+    let pair = Pair::new(&body, cap, level_ends(x, y).map(|p| p.map(T::from_f64)));
+    assert!(!pair.f().polygon, "the cap is no polygon");
+    let errors = pair.read(band);
+    let rows = errors
+        .iter()
+        .filter_map(|e| match e {
+            ValidationError::CensusEscalated { cause } => cause.predicate,
+            _ => None,
+        })
+        .collect();
+    (found(&errors), rows)
+}
+
+/// **A crossing far from a face's curved edge is read a pierce at both
+/// scalars**: the [`half_disc`] cap crossed at `(0, 0.5)`, half a metre
+/// from its arc and from its chord. Both ends of the millimetre span
+/// read `In`, and the arc's clearance from the span's middle passes the
+/// span's half-length and its reach.
+#[test]
+fn a_crossing_far_from_a_curved_edge_is_a_pierce() {
+    for (scalar, (got, rows)) in [
+        ("f64", half_disc_read::<f64>((-0.25, 0.25), 0.5)),
+        ("Interval", half_disc_read::<Interval>((-0.25, 0.25), 0.5)),
+    ] {
+        assert_eq!(got, Found::Pierce, "{scalar}: refused by {rows:?}");
+    }
+}
+
+/// **A span grazing a face's curved edge, or crossing it, is never read
+/// clear**: the [`half_disc`] cap crossed under its arc's top `(0, 1)`,
+/// `5e-12` inside it (in the band), and `4e-7` inside, where the
+/// millimetre span crosses the arc twice: its ends stand `Out` past the
+/// arc, which falls `8e-7` within a millimetre of the top. Neither span
+/// clears the arc, so the half-span's reading, which straddles the band,
+/// refuses each (never a containment refusal, which would leave the
+/// clearance unread).
+#[test]
+fn a_span_grazing_or_crossing_a_curved_edge_is_not_read_clear() {
+    for (what, y) in [("grazing", 1.0 - 5e-12), ("crossing", 1.0 - 4e-7)] {
+        for (scalar, (got, rows)) in [
+            ("f64", half_disc_read::<f64>((-0.25, 0.25), y)),
+            ("Interval", half_disc_read::<Interval>((-0.25, 0.25), y)),
+        ] {
+            assert!(
+                got == Found::Refused
+                    && !rows.is_empty()
+                    && rows
+                        .iter()
+                        .all(|r| *r == "pm_census_ef_pierce_span_straddle"),
+                "{what}, {scalar}: read {got:?}, refused by {rows:?}"
+            );
+        }
+    }
 }
 
 /// **A span standing off the plane past the band is not read clear**: a
@@ -463,6 +574,7 @@ fn a_spans_reach_counts_the_band_and_the_slope() {
         let half = height * band.zero() / lever / 2.0;
         let mut errors = Vec::new();
         let read = span_clear(
+            pair.body,
             &pair.geo,
             &pair.e,
             pair.f(),
@@ -516,6 +628,7 @@ fn a_span_overhanging_its_edges_start_is_read_over_the_overhang() {
         let lever = T::from_f64(1e-13);
         let mut errors = Vec::new();
         let read = span_clear(
+            pair.body,
             &pair.geo,
             &pair.e,
             pair.f(),
