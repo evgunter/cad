@@ -890,3 +890,21 @@ Ev declined a SELECT orchestrator, since SELECT has one P0 and no P1:
 
 Dispatched on `splice/structural-rim`. Letter H (a type every two-surface
 edge reads), so a concurrent pair.
+## 2026-10-28 — SPLICE splits along its seams
+
+The load was 91/30. Ev asked whether to split the track, keeping in
+SPLICE the threads its orchestrator should continue. It split four ways,
+by mechanism, with the rows moved by `git mv`, ids kept and a dated
+Moved note on each:
+- **SPLICE** (20/30 plus the structural-rim row in flight): lily wall
+  8's path. The limb-3 rows, lily at 1e-6, the census main red.
+- **SPLICECARRIER** (20/30, 5 rows): a NURBS carrier has no parameter
+  inverse. The join, the split parameter (teapot wall 3), the two flush
+  readings, the touch floor.
+- **SPLICEFACE** (26/30, 10 rows): a spline face read on its own sheet.
+  End placement, a foot no one placed, closed seams and poles, creases
+  (klein wall 3's G1 joint), the curved-face dispatch, the zero-speed
+  projection, the held pierce.
+- **SPLICESEAM** (25/30, 13 rows): the seam reader's residue after PR
+  5868, and the doors that still read a spline by kind.
+The three new tracks are `ready`, with no orchestrator.
