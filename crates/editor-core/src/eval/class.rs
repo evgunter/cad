@@ -846,7 +846,7 @@ mod tests {
                 source: EvalError::NonFiniteResult,
             },
             C::MeasureClearanceRefused => {
-                K::MeasureClearanceRefused(topo::clearance::EngineRefusal::Unsupported {
+                K::MeasureClearanceRefused(topo::clearance::MinSeparationRefusal::Unsupported {
                     carrier: "an approximated face",
                     face: topo::FaceKey::default(),
                 })

@@ -85,6 +85,24 @@ fn eval_over<T: editor_core::EvalScalar>(
     evaluate(doc, None, &CancelToken::new(), &opts, Tol::witness())
 }
 
+/// The assertion's verdict over a certified leaf, replayed on the lane
+/// the drive certified it on ([`editor_core::drive::assertion_at`]).
+fn on_lane(
+    doc: &ProfileDoc,
+    verdict: &editor_core::drive::ParamBoxVerdict,
+    leaf: &editor_core::drive::CertifiedLeaf,
+    assertion: RecipeNodeId,
+) -> AssertionVerdict<geom_core::Interval> {
+    editor_core::drive::assertion_at(
+        doc,
+        assertion,
+        &leaf.box_,
+        verdict.symbolic(),
+        Tol::witness(),
+    )
+    .expect("an assertion node has a verdict over a certified leaf")
+}
+
 fn assertion_verdict<T: geom_core::Decide>(
     ev: &editor_core::Evaluation<T>,
     node: RecipeNodeId,
@@ -535,8 +553,7 @@ fn a_bound_straddled_within_the_band_reads_holds_while_the_stackup_reads_under()
     eprintln!("{}", budget.render(&doc));
     let mut seen = Vec::new();
     for leaf in verdict.certified() {
-        let ev = eval_over::<geom_core::Interval>(&doc, Some(leaf.box_.clone()));
-        seen.push(assertion_verdict(&ev, assertion));
+        seen.push(on_lane(&doc, &verdict, leaf, assertion));
     }
     // The enclosure straddles the bound by a few ulps — inside the
     // coincidence band `(−ε, ε)` — so the funnel classifies the margin
@@ -784,9 +801,7 @@ fn a_planted_violated_reads_violated_over_a_certified_leaf() {
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
     assert!(!verdict.certified().is_empty());
-    let leaf = &verdict.certified()[0];
-    let ev = eval_over::<geom_core::Interval>(&doc, Some(leaf.box_.clone()));
-    let v = assertion_verdict(&ev, assertion);
+    let v = on_lane(&doc, &verdict, &verdict.certified()[0], assertion);
     assert!(matches!(v, AssertionVerdict::Violated { .. }), "{v:?}");
 }
 
@@ -799,9 +814,7 @@ fn the_at_least_arm_that_read_the_carriers_end_now_refuses_by_name() {
     let (doc, assertion) = neck(0.5, 9, uniform());
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
-    let leaf = &verdict.certified()[0];
-    let ev = eval_over::<geom_core::Interval>(&doc, Some(leaf.box_.clone()));
-    match assertion_verdict(&ev, assertion) {
+    match on_lane(&doc, &verdict, &verdict.certified()[0], assertion) {
         AssertionVerdict::Unevaluated {
             reason:
                 UnevaluatedReason::WindowSuperset {
@@ -830,9 +843,7 @@ fn equal_over_min_clearance_answers_only_off_the_faces_end() {
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
         let verdict =
             drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
-        let leaf = &verdict.certified()[0];
-        let ev = eval_over::<geom_core::Interval>(&doc, Some(leaf.box_.clone()));
-        assertion_verdict(&ev, assertion)
+        on_lane(&doc, &verdict, &verdict.certified()[0], assertion)
     };
     let below = at(0.3);
     assert!(
@@ -1222,10 +1233,9 @@ fn the_bracket_walk_through_the_public_doors() {
 
     eprintln!("== assertions over the certified leaves");
     for leaf in verdict.certified() {
-        let ev = eval_over::<geom_core::Interval>(&doc, Some(leaf.box_.clone()));
         let (a, b) = (
-            assertion_verdict(&ev, web_ok),
-            assertion_verdict(&ev, clear_ok),
+            on_lane(&doc, &verdict, leaf, web_ok),
+            on_lane(&doc, &verdict, leaf, clear_ok),
         );
         assert_eq!(a.holds(), Some(true), "{a:?}");
         assert_eq!(b.holds(), Some(true), "{b:?}");
@@ -1421,8 +1431,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
     );
     assert!(report.worst_case.lo < bound, "the caption's premise");
     for leaf in verdict.certified() {
-        let lev = eval_over::<geom_core::Interval>(&r.doc, Some(leaf.box_.clone()));
-        let v = assertion_verdict(&lev, assertion);
+        let v = on_lane(&r.doc, &verdict, leaf, assertion);
         eprintln!("stop 2: the assertion node over the certified leaf: {v:?}");
         assert!(
             matches!(v, AssertionVerdict::Holds { .. }),

@@ -97,7 +97,7 @@ use crate::var::VarId;
 /// widths and the engine's refusals.
 pub use topo::clearance::{
     CLEARANCE_MARGIN, CellBudget, CellReceipt, ClearanceBound, DEFAULT_MAX_CELL_DEPTH,
-    DischargeWidths, EngineRefusal, SELF_INTERSECTION_GAP,
+    DischargeWidths, EngineRefusal, MinSeparationRefusal, SELF_INTERSECTION_GAP,
 };
 
 /// The whole-query cell-pair budget: how many cell pairs one clearance
@@ -209,13 +209,14 @@ impl MonotoneOracle for NoTangents {
 }
 
 /// **How one clearance question is asked**: the bound, the run's
-/// tolerance, the dials, and the accelerator seam.
+/// tolerance, the dials, the accelerator seam, the part resolver and
+/// the tier the leaf was certified at.
 ///
-/// One value rather than four arguments, because these four travel
-/// together everywhere — the per-leaf door, the driver-level fold and
-/// the witness verification all take the same four, and a caller that
-/// got them out of step between two calls would be comparing two
-/// different questions' answers.
+/// One value rather than six arguments, because these travel together
+/// everywhere — the per-leaf door, the driver-level fold and the
+/// witness verification all take the same ones, and a caller that got
+/// them out of step between two calls would be comparing two different
+/// questions' answers.
 pub struct ClearanceQuery<'a> {
     /// Which question ([`ClearanceBound`]).
     pub bound: ClearanceBound,
@@ -234,11 +235,17 @@ pub struct ClearanceQuery<'a> {
     /// at its scalar (`ASSEMBLY.md` A11 (5)), so a face frame's pose
     /// encloses over the box like any other geometry.
     pub resolver: Option<&'a Arc<dyn crate::part::PartResolver>>,
+    /// **The tier the leaf was certified at**, which is the lane it is
+    /// replayed on ([`crate::drive::ParamBoxVerdict::symbolic`]): a leaf
+    /// the symbolic tier certified can carry a node a numeric replay
+    /// refuses. [`clearance_over`] reads it off the verdict instead.
+    pub symbolic: crate::drive::SymbolicDials,
 }
 
 impl ClearanceQuery<'_> {
     /// The plain `separation ≥ c` question at the shipped dials, with
-    /// no accelerator.
+    /// no accelerator, over a leaf a default drive certified
+    /// ([`crate::drive::DriveConfig::default`]'s tier).
     pub fn at_least(c: f64, tol: Tol) -> Self {
         Self {
             bound: ClearanceBound::AtLeast(c),
@@ -246,6 +253,7 @@ impl ClearanceQuery<'_> {
             config: ClearanceConfig::default(),
             oracle: &NoTangents,
             resolver: None,
+            symbolic: crate::drive::SymbolicDials::default(),
         }
     }
 
@@ -257,6 +265,7 @@ impl ClearanceQuery<'_> {
             config: ClearanceConfig::default(),
             oracle: &NoTangents,
             resolver: None,
+            symbolic: crate::drive::SymbolicDials::default(),
         }
     }
 }
@@ -270,6 +279,13 @@ impl<'a> ClearanceQuery<'a> {
             resolver: Some(resolver),
             ..self
         }
+    }
+
+    /// The same question over a leaf certified at `symbolic`'s tier:
+    /// a drive's own, [`crate::drive::ParamBoxVerdict::symbolic`].
+    #[must_use]
+    pub fn certified_at(self, symbolic: crate::drive::SymbolicDials) -> Self {
+        Self { symbolic, ..self }
     }
 }
 
@@ -494,10 +510,10 @@ impl ClearanceRefusal {
     }
 
     /// The payload a sentence quotes: [`Self::payload`], but a
-    /// selection's refusal in words, its nodes said by `by`.
-    pub(crate) fn said_payload(&self, by: crate::spoken::Speaker<'_>) -> String {
+    /// selection's refusal in words, its nodes said by their tags.
+    pub(crate) fn said_payload(&self) -> String {
         match self {
-            Self::Selection(r) => crate::spoken::Said(r, by).to_string(),
+            Self::Selection(r) => crate::spoken::Said(r, crate::spoken::Speaker::TAG).to_string(),
             _ => self.payload(),
         }
     }
@@ -561,8 +577,7 @@ pub enum SelectionRefusal {
     },
 }
 
-// Memoized inside `NodeErrorKind::MeasureClearanceRefused`, so it holds
-// ids, said by the speaker of the frame that hands it out.
+// It holds ids, said by whichever speaker renders it.
 impl crate::spoken::Say for SelectionRefusal {
     fn say(
         &self,
@@ -795,12 +810,7 @@ impl ClearanceReport {
                 }
             }
             ClearanceVerdict::Refused(r) => {
-                let _ = writeln!(
-                    s,
-                    "REFUSED ({}): {}",
-                    r.name(),
-                    r.said_payload(crate::spoken::Speaker::TAG)
-                );
+                let _ = writeln!(s, "REFUSED ({}): {}", r.name(), r.said_payload());
             }
         }
         let r = self.receipt;
@@ -846,7 +856,9 @@ impl ClearanceReport {
 /// everywhere in the leaf's parameter box?
 ///
 /// The caller iterates leaves; [`clearance_over`] is the convenience
-/// that folds a whole [`ParamBoxVerdict`].
+/// that folds a whole [`ParamBoxVerdict`]. The leaf is replayed at the
+/// default drive's tier; a leaf certified at another is asked through
+/// [`clearance_with`] with [`ClearanceQuery::certified_at`].
 pub fn clearance(
     doc: &Doc<ProfileProgram>,
     leaf: &ParamBox,
@@ -897,11 +909,10 @@ pub fn clearance_with(
     b: &Selection,
     query: &ClearanceQuery<'_>,
 ) -> ClearanceReport {
-    clearance_on(doc, leaf, a, b, query, crate::eval::LeafLane::Numeric)
+    clearance_on(doc, leaf, a, b, query, query.symbolic.lane())
 }
 
-/// [`clearance_with`] with the leaf replayed on `lane`: the lane a
-/// drive certified it on, for [`clearance_over`].
+/// [`clearance_with`] with the leaf replayed on `lane`.
 fn clearance_on(
     doc: &Doc<ProfileProgram>,
     leaf: &ParamBox,
@@ -960,7 +971,11 @@ struct Replayed<'q> {
 impl crate::eval::AtLeaf for Replayed<'_> {
     type Out = ClearanceReport;
 
-    fn at<T: geom_core::Decide + topo::AtRestPolicy>(self, ev: &Evaluation<T>) -> ClearanceReport {
+    fn at<T: geom_core::Decide + topo::AtRestPolicy>(
+        self,
+        ev: &Evaluation<T>,
+        engine: topo::ClearanceLane<T>,
+    ) -> ClearanceReport {
         let Self {
             doc,
             queried,
@@ -969,8 +984,6 @@ impl crate::eval::AtLeaf for Replayed<'_> {
             query,
             band,
         } = self;
-        let engine = T::clearance_lane()
-            .unwrap_or_else(|| unreachable!("a leaf replays at a scalar the engine answers at"));
         if let Some((a, b)) = doc.across_spaces(a.at, b.at) {
             return ClearanceReport::refused(ClearanceRefusal::Selection(
                 SelectionRefusal::AcrossSpaces { a, b },
@@ -1109,9 +1122,7 @@ pub fn clearance_over(
         });
         return fold;
     }
-    // On the drive's own lane (`ParamBoxVerdict::symbolic`), as every
-    // certified-leaf consumer replays: a leaf the drive certified at the
-    // symbolic tier can carry a node a numeric replay refuses.
+    // On the drive's own lane, whatever the query's `symbolic` says.
     let lane = verdict.lane();
     for leaf in verdict.certified() {
         let CertifiedLeaf { box_, .. } = leaf;

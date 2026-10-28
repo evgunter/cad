@@ -548,27 +548,19 @@ fn every_registered_assertion_holds_over_the_certified_leaves_within_budget() {
         let nodes = assertions_of(&entry.doc);
         assert!(!nodes.is_empty(), "{} carries no assertion", entry.name);
         for leaf in verdict.certified() {
-            let opts = EvalOptions {
-                param_box: Some(std::sync::Arc::new(leaf.box_.clone())),
-                ..EvalOptions::default()
-            };
-            let ev: editor_core::Evaluation<geom_core::Interval> =
-                evaluate(&entry.doc, None, &CancelToken::new(), &opts, Tol::witness());
             for &node in &nodes {
-                let verdict = match ev.result(node) {
-                    Some(NodeResult::Ok(v)) => match &v.payload {
-                        ValuePayload::Assertion(verdict) => verdict.clone(),
-                        other => panic!(
-                            "{}: assertion node {} evaluated to a {}",
-                            entry.name,
-                            node.0,
-                            other.kind_name()
-                        ),
-                    },
-                    other => panic!(
-                        "{}: assertion node {} did not evaluate over a certified leaf: {other:?}",
+                // On the lane the drive certified the leaf on.
+                let Some(verdict) = editor_core::drive::assertion_at(
+                    &entry.doc,
+                    node,
+                    &leaf.box_,
+                    verdict.symbolic(),
+                    Tol::witness(),
+                ) else {
+                    panic!(
+                        "{}: assertion node {} did not evaluate over a certified leaf",
                         entry.name, node.0
-                    ),
+                    );
                 };
                 match &verdict {
                     AssertionVerdict::Holds { .. } => {}

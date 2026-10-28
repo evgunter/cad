@@ -419,6 +419,7 @@ fn query(c: f64, config: ClearanceConfig) -> ClearanceQuery<'static> {
         config,
         oracle: &NoTangents,
         resolver: None,
+        symbolic: editor_core::drive::SymbolicDials::default(),
     }
 }
 
@@ -857,6 +858,7 @@ fn gap_run(
         },
         oracle,
         resolver: None,
+        symbolic: editor_core::drive::SymbolicDials::default(),
     };
     clearance_with(doc, &box_of(doc, "gap"), sa, sb, &q)
 }
@@ -906,6 +908,7 @@ fn pruning_restricts_the_box_to_the_facet_it_names() {
         },
         oracle,
         resolver: None,
+        symbolic: editor_core::drive::SymbolicDials::default(),
     };
     let on = clearance_with(
         &doc,
@@ -996,9 +999,10 @@ fn a_driver_certified_leaf_carries_the_certificate() {
 /// two-hole plate at `1e3·ε` of its real study certifies in one leaf
 /// only with the symbolic tier on (`m10_10_the_plate_needs_no_door`),
 /// so its `Interval` replay is not the build the leaf's verdict is
-/// about. The fold over that leaf answers the holes' clearance; the
-/// same leaf asked on the numeric replay (`clearance_with`, the replay
-/// the fold used before it read the verdict's lane) does not hold.
+/// about. The fold over that leaf answers the holes' clearance, and so
+/// does the per-leaf door asked at the drive's tier; the same leaf on
+/// the numeric replay (the replay both used before they read a lane)
+/// does not hold.
 #[test]
 fn the_fold_replays_a_leaf_on_the_drives_own_lane() {
     let tol = Tol::witness();
@@ -1030,7 +1034,26 @@ fn the_fold_replays_a_leaf_on_the_drives_own_lane() {
         ClearanceVerdict::Holds,
         "the holes clear 0.3 mm over the leaf, read on its own lane"
     );
-    let numeric = clearance_with(&plate.doc, &leaf.box_, &a, &b, &query);
+    let numeric = clearance_with(
+        &plate.doc,
+        &leaf.box_,
+        &a,
+        &b,
+        &ClearanceQuery::at_least(0.3e-3, tol)
+            .certified_at(editor_core::drive::SymbolicDials::off()),
+    );
+    assert_eq!(
+        *clearance_with(
+            &plate.doc,
+            &leaf.box_,
+            &a,
+            &b,
+            &query.certified_at(verdict.symbolic())
+        )
+        .verdict(),
+        ClearanceVerdict::Holds,
+        "the per-leaf door at the drive's tier answers as the fold does"
+    );
     assert_ne!(
         *numeric.verdict(),
         ClearanceVerdict::Holds,
@@ -1259,13 +1282,15 @@ fn a_lofts_walls_have_windows_and_its_clearance_holds() {
     });
     let doc = r.doc;
     let sel = Selection::body_of(loft);
-    let report = clearance(
+    // On the numeric lane by name: at the symbolic tier this loft does
+    // not build (work/pctail/loft-builds-at-interval-and-refuses-a-rational-column-at-sym.md).
+    let report = clearance_with(
         &doc,
         &box_of(&doc, "place"),
         &sel,
         &sel,
-        0.1,
-        Tol::witness(),
+        &ClearanceQuery::at_least(0.1, Tol::witness())
+            .certified_at(editor_core::drive::SymbolicDials::off()),
     );
     assert_eq!(
         report.verdict(),

@@ -48,9 +48,8 @@ admissions.
 ## Narrowed (SYMCLEAR, 2026-10-28)
 
 `NodeErrorKind::MeasureClearanceRefused` now carries
-`topo::clearance::EngineRefusal`, not `ClearanceRefusal`, so the arms
-this row covers are seven: `Sliver`, `Budget`, `Unsupported`,
-`PoisonEnclosure`, `EmptyScope`, `NoAdmittedPair`, `WitnessUnverified`.
-The `Selection`, `NothingCertified`, `NotADistance` and
-`ToleranceHasNoBand` rows and the `NotADistance` admission are gone,
-and the census rows are `MeasureClearanceRefused/<arm>`.
+`topo::clearance::MinSeparationRefusal`, the four arms its door can
+raise: `Unsupported`, `PoisonEnclosure`, `EmptyScope`,
+`NoAdmittedPair`. The other seven rows and the `NotADistance` and
+`Budget` admissions are gone, and the census rows are
+`MeasureClearanceRefused/<arm>`.

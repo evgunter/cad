@@ -41,7 +41,7 @@
 //! and a certified leaf, and the answer a document-layer consumer wants
 //! from it comes through the `min_clearance` MEASURE, which is document
 //! state and is carried by [`crate::document`] — together with the
-//! engine's refusal vocabulary (`EngineRefusal` and its payload),
+//! engine's refusal vocabulary (`MinSeparationRefusal`),
 //! because that is what the measure refuses with. The engine's doors
 //! are not.
 

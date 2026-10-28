@@ -99,11 +99,37 @@ pub fn cell_region<T: Decide + CertifiedBounds>(
     else {
         return CellRegion::Undecided;
     };
-    let surface = stored.map_scalar(Interval::from_certified);
+    cell_region_lifted(
+        body,
+        face,
+        (stored, &stored.map_scalar(Interval::from_certified)),
+        u,
+        v,
+        band,
+    )
+}
+
+/// [`cell_region`] with the face's stored carrier and its lift in hand,
+/// for a caller that asks many cells of one face.
+///
+/// The station is placed at `T` only for a cell already decided clear
+/// of the boundary: the clear tests read its lift, which at `T` is the
+/// lift of the station evaluated at `T`, bound for bound, so a cell that
+/// stops there never builds a value of `T`.
+pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
+    body: &Body<T>,
+    face: FaceKey,
+    (stored, surface): (&Surface<T>, &Surface<Interval>),
+    u: (f64, f64),
+    v: (f64, f64),
+    band: Band,
+) -> CellRegion {
     let span = |(lo, hi): (f64, f64)| Interval::from_bounds(lo, hi);
-    let point = |(lo, hi): (f64, f64)| T::from_computed(geom::mid_param(lo, hi));
-    let at = stored.eval(point(u), point(v));
-    let station = at.map(Interval::from_certified);
+    let mid = |(lo, hi): (f64, f64)| geom::mid_param(lo, hi);
+    let station = surface.eval(
+        <Interval as geom_core::Real>::from_computed(mid(u)),
+        <Interval as geom_core::Real>::from_computed(mid(v)),
+    );
     let reach = (surface.eval(span(u), span(v)) - station).norm();
     let clear = |row: &'static str, distance: Interval| {
         matches!(
@@ -111,11 +137,12 @@ pub fn cell_region<T: Decide + CertifiedBounds>(
             Ok(Sign::Positive)
         )
     };
-    if !(clear_of_singular(&surface, station, &clear)
+    if !(clear_of_singular(surface, station, &clear)
         && clear_of_boundary(body, face, station, &clear))
     {
         return CellRegion::Undecided;
     }
+    let at = stored.eval(T::from_computed(mid(u)), T::from_computed(mid(v)));
     match place(body, face, stored, at, band) {
         Some(FaceContainment::In) => CellRegion::Inside,
         Some(FaceContainment::Out) => CellRegion::Outside,

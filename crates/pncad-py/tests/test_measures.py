@@ -24,7 +24,7 @@ refusals a Python caller can ever see. `min_clearance` is answered by
 an engine whose value is an ENCLOSURE, and the binding evaluates at
 `f64` alone — a point scalar, with nowhere to put one. So
 `MeasureUnavailableAt` is reachable here and is exercised below, while
-the engine's own `EngineRefusal` is not reachable: its one producer
+the engine's own `MinSeparationRefusal` is not reachable: its one producer
 on the measure path is the `topo::ClearanceLane` door, which only a
 certifying scalar holds, and the binding does not evaluate at one. That refusal's tag and prose are
 pinned in Rust instead (`src/tests.rs`).

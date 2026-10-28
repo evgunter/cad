@@ -648,7 +648,11 @@ BOUNDS_ALLOWLIST=(
   # read outward (`undecided_refused`, at `T: Bounds` alone): a bracket
   # REPORTED, never branched on. The walk beneath it
   # (`SignCertificate::continued`) stays plain `Decide`.
-  'crates/topo/src/props.rs 13 M5 PR 11, the certified-quadrature plumbing'
+  # 13 -> 14 (SYMCLEAR): `impl AtRestPolicy for Sym<T>` adds
+  # `T: AtRestPolicy` beside its `T: CertifiedBounds`, so the symbolic
+  # arm of `clearance_lane` answers exactly where its base scalar's
+  # does. It asks the base's policy and reads no bracket.
+  'crates/topo/src/props.rs 14 M5 PR 11, the certified-quadrature plumbing'
   # quad_lane.rs 14 -> 15: `closed_form` re-derives a closed-form
   # face's flux at the interval scalar, lifting the face's geometry
   # through `Interval::from_certified` (`Decide + CertifiedBounds`), and
@@ -689,7 +693,10 @@ BOUNDS_ALLOWLIST=(
   # branched on. `cell_region.rs` 3: `cell_region` and `station_region`,
   # whose station is placed at `T` by the point-in-face doors and whose
   # ball is lifted, and `clear_of_boundary`, which lifts the boundary it
-  # clears. `clearance.rs` 10: `Side::windows` (the windows),
+  # clears. 3 -> 4 (SYMCLEAR): `cell_region_lifted`, `cell_region`'s
+  # body taking the carrier's lift in hand, so the sweep lifts each
+  # window once and places a station at `T` only for a cell already
+  # clear of the boundary. `clearance.rs` 10: `Side::windows` (the windows),
   # `window_of`, `boundary_of` and `iso_bounded_domain` (the lifts:
   # the last reads a NURBS face's boundary images at `T` and lifts their
   # ends), `RegionMemo::ask` and
@@ -700,7 +707,7 @@ BOUNDS_ALLOWLIST=(
   # into its fn-pointer fields exactly as `QuadLane::certified` forms
   # `quad_lane`'s, and its wiring helper, as `QuadLane`'s is; neither
   # reads a bracket, so it is the same plumbing at the same door.
-  'crates/topo/src/cell_region.rs 3 M5 PR 11, the certified-quadrature plumbing'
+  'crates/topo/src/cell_region.rs 4 M5 PR 11, the certified-quadrature plumbing'
   'crates/topo/src/clearance.rs 12 M5 PR 11, the certified-quadrature plumbing'
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
   # 15 -> 17: `chain_turns` is predicate 4's loop moved out of

@@ -41,7 +41,7 @@
 //! a typed ABSENCE and not a failure, which is why an assertion over
 //! such a measure reports `Unevaluated` rather than being poisoned.
 //!
-//! The engine's own refusal (`EngineRefusal`) is therefore not
+//! The engine's own refusal (`MinSeparationRefusal`) is therefore not
 //! reachable from Python at all: only a certifying scalar holds the
 //! engine's door, and the binding does not evaluate at one. It
 //! would arrive as `EvaluationError` with

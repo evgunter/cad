@@ -65,8 +65,10 @@ pub enum MeasurePrimitive<R = SitedRef> {
     /// value at all and says so
     /// ([`crate::eval::ValuePayload::MeasureUnavailable`]): a station
     /// pair found by a point-scalar search is an upper bound on the
-    /// minimum and not the minimum. At `Interval` over a leaf the value
-    /// IS `topo::clearance::min_separation`'s bracket.
+    /// minimum and not the minimum. At `Interval`, and at the symbolic
+    /// tier over it, the value over a leaf IS
+    /// `topo::clearance::min_separation`'s bracket (at the tier, each end
+    /// re-entered as a computed value).
     MinClearance {
         /// The first selection.
         a: R,

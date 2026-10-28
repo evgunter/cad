@@ -230,7 +230,7 @@ impl<'v, T: geom_core::Decide> Neck<'v, T> {
         a: usize,
         b: usize,
         config: MinSeparationConfig,
-    ) -> Result<topo::clearance::MinSeparation, topo::clearance::EngineRefusal>
+    ) -> Result<topo::clearance::MinSeparation, topo::clearance::MinSeparationRefusal>
     where
         T: geom_core::CertifiedBounds,
     {
@@ -373,11 +373,11 @@ fn the_interval_value_is_the_engine_bracket_re_derived() {
 /// holds, and the bracket comes back as two computed values hulled:
 /// bit-identical to the interval run's numbers, and a fresh unknown,
 /// so two asks of one neck are two values the tier cannot prove equal.
-/// A re-entry through `from_f64` would be a literal, and two equal
-/// brackets one node.
+/// A re-entry through `from_f64` would mint the same literal for each
+/// end of both asks, so the two hulls would be one node.
 #[test]
 fn the_engines_door_runs_at_the_symbolic_scalar_and_re_enters_computed() {
-    use geom_core::{Interval, SpanLocate, Sym};
+    use geom_core::{Interval, Sym};
     let f = dumbbell();
     let budget = geom_core::SymBudget {
         max_terms: editor_core::drive::DEFAULT_SYM_MAX_TERMS,
@@ -408,11 +408,6 @@ fn the_engines_door_runs_at_the_symbolic_scalar_and_re_enters_computed() {
             v.value.repr_bits(),
             numeric.repr_bits(),
             "{n} ask: the symbolic bracket's numbers are the interval run's"
-        );
-        assert_eq!(
-            v.plain_constant(),
-            None,
-            "{n} ask: the bracket re-enters as computed, not as a literal"
         );
     }
     assert_ne!(
@@ -510,13 +505,14 @@ fn the_drive_certifies_and_the_assertion_holds_over_the_certified_leaves() {
         verdict.refused().len()
     );
     for leaf in verdict.certified() {
-        let ev = eval_over::<geom_core::Interval>(&doc, Some(leaf.box_.clone()));
-        let Some(NodeResult::Ok(a)) = ev.result(assertion) else {
-            panic!("the assertion evaluated over a certified leaf");
-        };
-        let ValuePayload::Assertion(verdict) = &a.payload else {
-            panic!("an assertion node carries a verdict");
-        };
+        let verdict = editor_core::drive::assertion_at(
+            &doc,
+            assertion,
+            &leaf.box_,
+            verdict.symbolic(),
+            Tol::witness(),
+        )
+        .expect("the assertion evaluated over a certified leaf, on its lane");
         assert_eq!(
             verdict.holds(),
             Some(true),

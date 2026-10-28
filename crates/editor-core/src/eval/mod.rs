@@ -2019,7 +2019,7 @@ pub enum NodeErrorKind {
     },
     /// The clearance engine refused a `min_clearance` measurement: its
     /// own typed refusal (E7's refusal vocabulary), carried unaltered.
-    MeasureClearanceRefused(topo::clearance::EngineRefusal),
+    MeasureClearanceRefused(topo::clearance::MinSeparationRefusal),
     /// An `Assertion`'s bound is dimensioned differently from the
     /// measure it constrains — comparing metres with radians is a
     /// document fault, refused rather than compared.
@@ -2936,14 +2936,19 @@ pub(crate) mod leaf {
 
     /// **A consumer that reads a leaf's replay at the scalar its lane
     /// runs**, for a read [`LeafRequest`] does not name: the clearance
-    /// query, which hands the replay's bodies to the engine's generic
-    /// door ([`topo::AtRestPolicy::clearance_lane`]).
+    /// query, which hands the replay's bodies to the engine's door.
     pub(crate) trait AtLeaf {
         /// What the read answers.
         type Out;
 
-        /// The read, over the leaf's replay at `T`.
-        fn at<T: geom_core::Decide + topo::AtRestPolicy>(self, ev: &Evaluation<T>) -> Self::Out;
+        /// The read, over the leaf's replay at `T`, with the clearance
+        /// engine's door at `T`: every leaf lane is a certifying
+        /// scalar, so the door is held rather than asked for.
+        fn at<T: geom_core::Decide + topo::AtRestPolicy>(
+            self,
+            ev: &Evaluation<T>,
+            clearance: topo::ClearanceLane<T>,
+        ) -> Self::Out;
     }
 
     /// **Replays one leaf on `lane` and hands the replay to `read`**:
@@ -2960,13 +2965,13 @@ pub(crate) mod leaf {
             LeafLane::Numeric => {
                 let ev: Evaluation<geom_core::Interval> =
                     evaluate(doc, None, &CancelToken::new(), opts, tol);
-                read.at(&ev)
+                read.at(&ev, topo::ClearanceLane::certified())
             }
             LeafLane::Symbolic(budget, rules, retry) => {
                 let (out, _) = geom_core::sym::with_session_retry(budget, rules, retry, || {
                     let ev: Evaluation<geom_core::Sym<geom_core::Interval>> =
                         evaluate(doc, None, &CancelToken::new(), opts, tol);
-                    read.at(&ev)
+                    read.at(&ev, topo::ClearanceLane::certified())
                 });
                 out
             }

@@ -654,7 +654,7 @@ pub enum RefusalReason {
 pub enum MeasureRefusalClass {
     /// The clearance engine refused, with its own refusal
     /// ([`NodeErrorKind::MeasureClearanceRefused`]).
-    Clearance(topo::clearance::EngineRefusal),
+    Clearance(topo::clearance::MinSeparationRefusal),
 }
 
 impl MeasureRefusalClass {
@@ -2146,35 +2146,22 @@ pub fn assertion_at(
 /// under the symptom's name. A class wrongly made terminal costs a leaf
 /// that a smaller box would have certified. So the terminal classes are
 /// enumerated, and every refusal not listed bisects.
-///
-/// The clearance arm matches every [`EngineRefusal`] arm, but its
-/// carrier's one producer, `topo::clearance::min_separation`, refuses
-/// with four of them: `EmptyScope`, `NoAdmittedPair`, `Unsupported` and
-/// `PoisonEnclosure`. The other three are classed by what they mean, so
-/// the match stays exhaustive and an arm added to the enum does not
-/// compile unclassed.
-///
-/// [`EngineRefusal`]: topo::clearance::EngineRefusal
 fn box_independent_measure_class(kind: &NodeErrorKind) -> Option<MeasureRefusalClass> {
     match kind {
         NodeErrorKind::MeasureClearanceRefused(r) => {
-            use topo::clearance::EngineRefusal as E;
+            use topo::clearance::MinSeparationRefusal as E;
             match r {
-                // Reached: which faces are in scope, whether the two
-                // scopes pair at all, and whether the carrier has an
-                // implementation are decided by the document's own
-                // topology and the engine's support table, not by the box.
+                // Which faces are in scope, whether the two scopes pair
+                // at all, and whether the carrier has an implementation
+                // are decided by the document's own topology and the
+                // engine's support table, not by the box.
                 E::EmptyScope | E::NoAdmittedPair | E::Unsupported { .. } => {
                     Some(MeasureRefusalClass::Clearance(r.clone()))
                 }
-                // Reached: an enclosure that did not evaluate over this
-                // box (NaI, or empty) may evaluate over a smaller one, so
-                // nothing proves it box-independent.
+                // An enclosure that did not evaluate over this box (NaI,
+                // or empty) may evaluate over a smaller one, so nothing
+                // proves it box-independent.
                 E::PoisonEnclosure { .. } => None,
-                // Not reached from `min_separation`. Each is a function
-                // of the box (a budget, an in-band decision, a witness)
-                // and can differ over a smaller one.
-                E::Budget(_) | E::Sliver { .. } | E::WitnessUnverified { .. } => None,
             }
         }
         _ => None,

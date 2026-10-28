@@ -251,14 +251,14 @@ fn the_certifying_filter_changes_a_pre_m10_6_documents_drive() {
     // here is zero and the mass is unmoved; the KEYS still moved.
     let mut straddled = 0usize;
     for leaf in verdict.certified() {
-        let ev: editor_core::Evaluation<geom_core::Interval> =
-            eval_over(&doc, Some(leaf.box_.clone()));
-        let Some(NodeResult::Ok(v)) = ev.result(assertion) else {
-            panic!("the assertion node evaluated over a certified leaf");
-        };
-        let ValuePayload::Assertion(av) = &v.payload else {
-            panic!("an assertion node's value is a verdict");
-        };
+        let av = editor_core::drive::assertion_at(
+            &doc,
+            assertion,
+            &leaf.box_,
+            verdict.symbolic(),
+            Tol::witness(),
+        )
+        .expect("the assertion node evaluated over a certified leaf, on its lane");
         if matches!(av, AssertionVerdict::Unevaluated { .. }) {
             straddled += 1;
         }

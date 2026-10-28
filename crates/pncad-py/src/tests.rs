@@ -537,7 +537,7 @@ fn the_measure_verb_vocabulary_is_stable() {
 /// `MeasureUnavailableAt` is what the `f64` lane answers a
 /// `min_clearance` with, and the binding evaluates at `f64` — so it is
 /// reachable from Python and `tests/test_measures.py` reaches it
-/// through a real document. `EngineRefusal` is the clearance engine's
+/// through a real document. `MinSeparationRefusal` is the clearance engine's
 /// own, and its ONLY producer on the measure path is the
 /// `topo::ClearanceLane` door, which `f64` does not hold; no Python
 /// evaluation reaches it, because the binding evaluates at `f64`. So
@@ -545,7 +545,7 @@ fn the_measure_verb_vocabulary_is_stable() {
 #[test]
 fn the_fourth_verbs_two_refusals_are_stable() {
     use crate::tags::{measure_unavailable_at_tag, node_error_tag};
-    use pncad::document::{EngineRefusal, MeasureUnavailableAt, NodeErrorKind};
+    use pncad::document::{MeasureUnavailableAt, MinSeparationRefusal, NodeErrorKind};
 
     let absent = MeasureUnavailableAt::NeedsEnclosure {
         verb: "min_clearance",
@@ -559,17 +559,16 @@ fn the_fourth_verbs_two_refusals_are_stable() {
     // rather than handing back a worse number.
     assert!(absent.to_string().contains("topo::ClearanceLane"));
 
-    // The four arms `topo::clearance::min_separation` refuses with — the
-    // only ones this carrier's producer can build — all cross as one
-    // tag.
+    // The four arms `topo::clearance::min_separation` refuses with
+    // all cross as one tag.
     let refused = |r| NodeErrorKind::MeasureClearanceRefused(r);
-    let empty = refused(EngineRefusal::EmptyScope);
-    let unpaired = refused(EngineRefusal::NoAdmittedPair);
-    let unsupported = refused(EngineRefusal::Unsupported {
+    let empty = refused(MinSeparationRefusal::EmptyScope);
+    let unpaired = refused(MinSeparationRefusal::NoAdmittedPair);
+    let unsupported = refused(MinSeparationRefusal::Unsupported {
         carrier: "an approximated face",
         face: FaceKey::default(),
     });
-    let poison = refused(EngineRefusal::PoisonEnclosure {
+    let poison = refused(MinSeparationRefusal::PoisonEnclosure {
         a: FaceKey::default(),
         b: FaceKey::default(),
     });

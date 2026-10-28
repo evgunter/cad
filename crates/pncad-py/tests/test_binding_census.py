@@ -1461,7 +1461,7 @@ BOUND_AS = {
     # They cross exactly as their carrier does — flattened to the tag
     # `EvaluationError.kind` answers, the `NodeErrorKind` row's shape
     # one level in. An `f64` evaluation cannot produce either today,
-    # which is the same sentence `EngineRefusal` carries one
+    # which is the same sentence `MinSeparationRefusal` carries one
     # roster down: the LANE decides.
     "ParamBoxError": "EvaluationError.kind",
     "SeedError": "EvaluationError.kind",
@@ -3217,12 +3217,7 @@ NOT_BOUND = {
     # `min_clearance` WITH, so it is reachable today and is bound
     # top-level under rule 1. One verb, two refusals, and the lane
     # decides which of them a Python caller can ever see.
-    "EngineRefusal": SHAPE,
-    # Its `Budget` payload, curated beside it so a Rust consumer can
-    # read the arm it matched. It crosses exactly as its carrier does —
-    # inside the one tag — and no `f64` evaluation reaches it for the
-    # same reason.
-    "CellBudget": SHAPE,
+    "MinSeparationRefusal": SHAPE,
     # B-FACE-FRAME IS GONE FROM THIS ROSTER, closed at
     # LIB-B-FACE-FRAME, and the id left `FAMILIES` with it. It cited
     # exactly ONE name here — `face_carrier_kind` — which is now in
@@ -3305,10 +3300,15 @@ NOT_BOUND = {
     #     refusal flattened to a tag no `f64` evaluation can raise.
     #
     #     (2026-09-24, PR #3188: `MinClearanceRefusal` is deleted — the
-    #     measure path carries the engine's own refusal — and
-    #     its entry is now the engine's `EngineRefusal`, with its
-    #     payload `CellBudget` curated beside it, both `SHAPE` for the
-    #     same reason.)
+    #     measure path carries the engine's own `ClearanceRefusal` — and
+    #     its entry is now `ClearanceRefusal`'s, with the two payloads
+    #     curated beside it, `CellBudget` and `SelectionRefusal`, all
+    #     three `SHAPE` for the same reason.)
+    #
+    #     (2026-10-28, SYMCLEAR: the measure path carries
+    #     `MinSeparationRefusal`, the four arms its door can raise, and
+    #     the entry is now that type's alone; `ClearanceRefusal`,
+    #     `SelectionRefusal` and `CellBudget` are no longer carried.)
     #
     # THE CHARTER NAMED A SPELLING THIS FILE HAD ALREADY TAKEN. The
     # analysis lane's `MeasureUnavailable` bound at LIB-B-DISTRIBUTIONS
@@ -3322,9 +3322,8 @@ NOT_BOUND = {
     # THE GATE, MEASURED, and it is not the one B-DISTRIBUTIONS found:
     # every name this family owns is curated in
     # `crates/pncad/src/document.rs`, which carries NO `cfg`. The limit is a
-    # LANE — see the `ClearanceRefusal` entry — and it bites one
-    # refusal, with the two payloads curated beside it, out of the
-    # family's whole surface.
+    # LANE — see the `MinSeparationRefusal` entry — and it bites one
+    # refusal out of the family's whole surface.
     #
     # WHAT THIS FILE COULD NOT SEE, in both directions. `Node::Measure`
     # and `Node::Assertion` are ARMS of `Node`, which rule 1 accounts
@@ -3471,7 +3470,7 @@ NOT_BOUND = {
     # WHAT WOULD MAKE THIS ROW STOP BEING HONEST, in `EvalOutcome`'s
     # shape: a Python surface that evaluates at a certified scalar. On
     # that day these are doors a caller can reach and every one of them
-    # owes a spelling or a `gap:`. `ClearanceRefusal`'s entry two
+    # owes a spelling or a `gap:`. `MinSeparationRefusal`'s entry two
     # screens up is the same sentence from the refusal side, and it is
     # the sharper statement of it: the LANE is what gates.
     "BoxAxis": SHAPE,

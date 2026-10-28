@@ -31,6 +31,11 @@
 //! [`role_walk_set`], the measurement door's sign walk ([`measure_to`]),
 //! stopped at the round the validator's own decision is complete, and
 //! hands back the [`SignCertificate`] a caller continues to the number.
+//!
+//! The file is also the per-scalar POLICY home: [`AtRestPolicy`], which
+//! says for each scalar which at-rest gates it runs and which injected
+//! doors it holds, beside two of those door values ([`QuadLane`],
+//! [`ShellDoor`]).
 
 use core::fmt;
 
@@ -6476,12 +6481,8 @@ impl<T: Decide> QuadLane<T> {
 /// let _ = ShellDoor::<Dual64>::certified();
 /// ```
 ///
-/// The code is `E0599` for [`QuadLane`]'s reason: `certified` EXISTS on
-/// `ShellDoor<Dual64>` and its `impl` block's bounds are not met, which
-/// `rustc` reports as "the associated function exists … but its trait
-/// bounds were not satisfied". Stable rustdoc verifies only that the
-/// block fails to build, so the code beside the fence is a statement
-/// and not a check.
+/// Why the code is `E0599`, and what the fence does not check:
+/// [`QuadLane`]'s paragraph.
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
 pub struct ShellDoor<T: Decide> {
@@ -6732,15 +6733,19 @@ mod wiring_rows {
 /// bounds admit; this trait only decides which scalars'
 /// evaluation-service gates consult them.
 ///
-/// The trait also carries the four INJECTED DOORS whose presence is a
+/// The trait also carries the nine INJECTED DOORS whose presence is a
 /// per-scalar fact, for the same reason it carries the gates: it is
 /// the per-scalar policy home. [`AtRestPolicy::offset_fit_lane`] is
 /// the offset fit's, [`AtRestPolicy::fitted_lane`] is the fitted
 /// pcurve derivations', [`AtRestPolicy::spline_foot`] is the spline
-/// re-anchor's, and [`AtRestPolicy::shell_door`] is the hollowing
-/// verb's; each answers `None` for its own reason — a derivation
-/// written at some scalars, or certification rights (DL1) — and the doc
-/// on each method says which. The edge door is not one of them: it is
+/// re-anchor's, [`AtRestPolicy::section_lane`] and
+/// [`AtRestPolicy::ssi_lane`] are the two marches', [`AtRestPolicy::shell_door`]
+/// is the hollowing verb's, [`AtRestPolicy::quad_lane`] the
+/// quadrature's, [`AtRestPolicy::region_lane`] the chart-region
+/// doors', and [`AtRestPolicy::clearance_lane`] the clearance engine's;
+/// each answers `None` for its own reason — a derivation written at
+/// some scalars, certification rights (DL1), or a value only an
+/// enclosure can hold — and the doc on each method says which. The edge door is not one of them: it is
 /// two functions every scalar implements ([`AtRestPolicy::attach_edge`],
 /// [`AtRestPolicy::reattach_edge`]), and the scalar names what its
 /// edges carry ([`geom_core::Real::Carries`]). What a reader gets from the
@@ -6773,9 +6778,7 @@ pub trait AtRestPolicy: Decide {
     /// as the per-scalar policy that cut leaves standing): the door
     /// itself is a value the passes take as a parameter, and this is
     /// the one place each scalar's answer is written. The same holds
-    /// of the fitted-pcurve, spline-foot and shell doors beside it
-    /// ([`AtRestPolicy::fitted_lane`], [`AtRestPolicy::spline_foot`],
-    /// [`AtRestPolicy::shell_door`]) — four doors, one policy, no trait
+    /// of every door beside it — nine doors, one policy, no trait
     /// apiece.
     fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>>;
 
@@ -6964,11 +6967,15 @@ pub trait AtRestPolicy: Decide {
     /// answer** — the ONE seam the `Some` comes from, read by the
     /// `min_clearance` measure and the document-level clearance query.
     ///
-    /// The engine's answer is a certified bracket, so `None` at a scalar
-    /// without certification rights (DL1) is the same fact as
-    /// [`AtRestPolicy::shell_door`]'s. At `f64` it is the census
-    /// question as well: the witness build would answer by a search
-    /// whose rows the interval leaf does not ask
+    /// The engine's answer is a BRACKET on a minimum over a box, so the
+    /// door answers at the enclosure scalars and wherever the symbolic
+    /// tier wraps one. `None` at a dual is certification rights (DL1),
+    /// as [`AtRestPolicy::shell_door`]'s is. `None` at `f64` and at the
+    /// recording scalar is not a right but a shape: a point build
+    /// evaluates one parameter point, where the engine's walk would
+    /// answer an upper bound on the minimum found by search, not the
+    /// minimum, and that value would sit in the witness build beside
+    /// a leaf's bracket as if the two were one quantity
     /// (`work/clear/min-separation-tightening-crosses-the-drive.md`).
     fn clearance_lane() -> Option<crate::ClearanceLane<Self>>;
 
@@ -7498,6 +7505,7 @@ impl<T> AtRestPolicy for geom_core::Sym<T>
 where
     geom_core::Sym<T>: Decide + geom_core::Bounds,
     T: geom_core::CertifiedBounds,
+    T: AtRestPolicy,
 {
     /// The fit is derived at `f64` only. The tier changes how a margin
     /// DECIDES, not which derivations exist, so wrapping a scalar
@@ -7601,8 +7609,11 @@ where
         Some(crate::RegionLane::certified())
     }
 
+    /// Exactly where the base scalar's engine answers: the tier
+    /// changes how a margin decides, not whether a bracket has
+    /// somewhere to go.
     fn clearance_lane() -> Option<crate::ClearanceLane<Self>> {
-        Some(crate::ClearanceLane::certified())
+        T::clearance_lane().map(|_| crate::ClearanceLane::certified())
     }
 
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
