@@ -401,13 +401,19 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// main's merge at `1f851964`). Re-taken over main's merge at
 /// `cd5f9dee`, whose word is `0x2cab_0c2d_cbd8_4ea8`: with each copy
 /// rebuilt at `place` as before E, this branch reads main's word.
+///
+/// RE-BLESSED when `Intersection`'s witness became its selector
+/// (`selector: Witness(p)` where it spelled `witness: p`), which changes
+/// the edge curve's `Debug` the digest feeds. With that `Debug` written in
+/// main's shape every digest here reproduces main's value at all three
+/// ε rows, so nothing else moved.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x0286_358d_ae09_89ce_u64),
-        ("part_select", 0x8aa1_95af_2c83_4e37),
-        ("kitchen_sink", 0xb9d6_6c7a_4ef8_a76c),
+        ("cut_cylinder", 0x863c_8c78_7943_b812_u64),
+        ("part_select", 0x9b81_0409_f601_07a3),
+        ("kitchen_sink", 0xb6b1_c6b3_0f18_31c8),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
