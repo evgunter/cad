@@ -16,6 +16,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::Dimension;
 
 use editor_core::{
     CapEnd, Coord, DocEdit, DocumentId, EvalOptions, Formula, Frame, MateRef, MateSide, Node,
@@ -115,7 +116,7 @@ fn seat(
         &[
             (Coord::Slide(TargetAxis::X), len(slide[0])),
             (Coord::Slide(TargetAxis::Y), len(slide[1])),
-            (Coord::SPIN, ang(0.0)),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     );
     (doc, mate)

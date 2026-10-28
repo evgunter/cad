@@ -206,6 +206,8 @@ mod bool6r1_probes_interval;
 mod carved_sphere_operand;
 #[path = "cell_region_bodies.rs"]
 mod cell_region_bodies;
+#[path = "clearance_reads_an_iso_bounded_wall.rs"]
+mod clearance_reads_an_iso_bounded_wall;
 #[path = "cone_join_lane.rs"]
 mod cone_join_lane;
 #[path = "cone_operand_rows.rs"]

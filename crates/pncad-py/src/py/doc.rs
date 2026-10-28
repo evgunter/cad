@@ -2057,10 +2057,11 @@ impl Doc {
         }
     }
 
-    /// **The variable a node's slot reads** (`Doc::slot`), or `None`
-    /// for a node or a slot the document does not hold. Every slot
-    /// reads one: a value written there is its own anonymous variable,
-    /// and passing the handle to another slot is how two slots share it.
+    /// **The variable a node's slot reads** (`Doc::slot`): an
+    /// expression slot's variable or an operand's read, or `None` for a
+    /// node or a slot the document does not hold. Every slot reads one:
+    /// a value written there is its own anonymous variable, and passing
+    /// the handle to another slot is how two slots share it.
     fn slot(&self, node: &NodeId, slot: &str) -> PyResult<Option<Var>> {
         Ok(self
             .inner

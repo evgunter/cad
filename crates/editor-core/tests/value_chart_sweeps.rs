@@ -8,6 +8,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::Dimension;
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     CapEnd, Coord, DocumentId, EvalOptions, Formula, Frame, Node, Operand, Orientation, Placed,
@@ -152,7 +153,7 @@ fn up_x(t: f64) -> [f64; 3] {
 #[test]
 fn a_rest_written_with_one_slide_refuses_at_the_door() {
     let x = |v| (Coord::Slide(TargetAxis::X), len(v));
-    let sp = (Coord::SPIN, fixture::ang(0.0));
+    let sp = (Coord::SPIN, Formula::zero(Dimension::Angle));
     for t in [0.0, 0.5] {
         for direction in [false, true] {
             let got = on_floor(
@@ -203,7 +204,7 @@ fn std_values_for(o: Orientation) -> Vec<(Coord, Formula)> {
         .zip([10.0, 0.0])
         .map(|(a, by)| (Coord::Slide(a), len(by)))
         .collect();
-    v.push((Coord::SPIN, fixture::ang(0.0)));
+    v.push((Coord::SPIN, Formula::zero(Dimension::Angle)));
     v
 }
 
