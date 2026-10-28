@@ -874,3 +874,19 @@ is filed at P0. It needs SELECT's unit 1, the selector type, and SELECT
 has nothing dispatched. Ev was asked whether to start a SELECT
 orchestrator or have SPLICE take the units. SECT fixed the tori main
 red in PR 5925, so its issue file is closed.
+
+## 2026-10-28 — SPLICE takes the structural selector's lily slice
+
+Ev declined a SELECT orchestrator, since SELECT has one P0 and no P1:
+"you can take it yourself if you like".
+- `select/the-boolean-recovers-no-structural-selector-for-a-rim-known-in-advance`
+  moves to SPLICE (P0).
+- SPLICE builds the slice of SELECT's unit 1 (the selector type, with
+  per-surface certification) that it needs: the boundary-row structural
+  selector and the boolean's recovery.
+- SELECT's umbrella row
+  (`onpair-has-no-incidence-lane-on-a-spline-adjacent-pair`) and its
+  other units stay SELECT's.
+
+Dispatched on `splice/structural-rim`. Letter H (a type every two-surface
+edge reads), so a concurrent pair.
