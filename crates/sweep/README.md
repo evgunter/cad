@@ -250,8 +250,12 @@ two-section lofts glued at the shared sections (DESIGN [topology]: a
 face boundary sits at each authored junction where the result creases).
 Each interior section is a ring of edges on the placed sketch segments,
 the same carriers as the cap rims, described in the row of the slab wall
-below; each strut is one straight boundary column per slab. Slab walls
-lie on distinct spline surfaces, which no merge glues (a spline pair is
+below; each strut is one straight boundary column per slab. An arc
+whose row the other sections' sub-arc joints refine has no arc-rim image
+there, and the loft refuses it (`LoftError::SectionRim`, recourse
+v-degree 2;
+`work/isotail/a-loft-whose-arc-bulge-varies-per-section-refuses-its-arc-rim.md`).
+Slab walls lie on distinct spline surfaces, which no merge glues (a spline pair is
 outside the carrier ladder's inventory), so a translated polygon's slab
 walls stay distinct though coplanar. At v-degree 2 or more one wall
 spans every section, its sections interior knots of a smooth net.

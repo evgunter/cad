@@ -56,10 +56,12 @@
 //! giving `sense = true` on every wall, holes and concave arcs
 //! included (unlike a cylinder chart, the skinned chart's normal
 //! FOLLOWS the traversal; there is no unconditionally-radial frame to
-//! fight). The bottom cap and the bottom lamina's rims read section
-//! 0's normal and the top cap and the far rims read section `k − 1`'s,
-//! both of which the fold has decided against their slab's
-//! displacement; the fold's margins are not read again.
+//! fight). Every rim reads the normal of the section it lies in: the
+//! bottom cap and its rims read section 0's, the top cap and its rims
+//! section `k − 1`'s, and an interior section's ring its own
+//! (`assemble`'s `rim_spec`). The fold has decided each of those normals
+//! against the displacement of the slab or slabs it bounds, and its
+//! margins are not read again.
 //!
 //! # Scalar posture (C6)
 //!
@@ -154,8 +156,14 @@ pub struct Lofted<T: Real> {
     /// (`[0] = 0`, `[k − 1] = 1`) instead of dropped with the
     /// geometry, so "what spacing did the skin choose for my
     /// sections?" is answered by the result rather than re-derived by
-    /// hand. Every wall agrees on it: the sections are planar
-    /// cross-sections of the whole loft at these values.
+    /// hand. It is the SKIN's parameter: every skinned wall
+    /// (`LoftGeometry.walls`) agrees on it, and section `i` is that
+    /// wall's iso row `v = section_params[i]`. The body's walls carry
+    /// it only where each wall spans every section (v-degree ≥ 2, or
+    /// two sections). At v-degree 1 through `k ≥ 3` sections each body
+    /// wall is one slab on its own `v ∈ [0, 1]` (`side_faces`), so no
+    /// body wall holds these values as knots. They still say where
+    /// along the stack the skin put each section.
     ///
     /// This is a re-read of what the kernel chose, not a measurement
     /// — the produced surface IS the definition (DESIGN Q8), so no
@@ -217,10 +225,23 @@ pub enum LoftError {
         /// The section whose placement it is.
         section: usize,
     },
-    /// An interior section's rim found no image on the row of the slab
-    /// wall below it: an arc rim the arc-rim pick does not hold
-    /// (`None`, unreachable from the skin's own rows) or holds only
-    /// in band (`Some`).
+    /// An interior section's rim found no image on the row `v = 1` of the
+    /// slab wall below it (degree 1 through `k ≥ 3` sections only).
+    ///
+    /// `None`: no arc-rim image holds the rim. Ordinary input reaches
+    /// this. An arc segment's wall carries every section's sub-arc
+    /// structure at once, so where the sections' arcs split into
+    /// different numbers of sub-arcs (a bulge that varies enough across
+    /// the sections), an arc with fewer sub-arcs reaches its row refined
+    /// at the others' joints. The arc-rim class describes only a row with
+    /// the arc's own uniform sub-arc knots, so it does not describe that
+    /// row. The same class refuses a cap rim of a two-section loft at
+    /// the pcurve mint
+    /// (`work/isotail/a-loft-whose-arc-bulge-varies-per-section-refuses-its-arc-rim.md`).
+    /// Recourse: loft at v-degree 2 or more, whose walls span every
+    /// section, so the interior section is no rim.
+    ///
+    /// `Some`: the pick was undecided in band.
     SectionRim {
         /// The section.
         section: usize,
@@ -327,9 +348,10 @@ impl fmt::Display for LoftError {
                 source: None,
             } => write!(
                 f,
-                "loft section {section}'s rim is not an arc rim of the wall below it (kernel \
-                 bug, not an input fault). Recourse: loft at v-degree 2 or more, whose walls \
-                 span every section"
+                "loft section {section}'s arc rim has no image on the degree-1 wall below it: \
+                 the sections' arcs split into different numbers of sub-arcs, so this one \
+                 reaches its row refined, which the arc-rim class does not describe. \
+                 Recourse: loft at v-degree 2 or more, whose walls span every section"
             ),
             Self::SectionRim {
                 section,
@@ -857,7 +879,12 @@ fn slab_walls<T: geom_core::spline::SpanLocate>(
 }
 
 /// What a one-segment loop's sweep through every slab minted
-/// (`assemble`'s `full_turn`), slab by slab in stacking order.
+/// (`assemble`'s `full_turn`), slab by slab in stacking order: the top
+/// slab's [`crate::swept::FullTurn`] continued down through each slab
+/// below. Like a `FullTurn` it keeps the ends of what was swept (the far
+/// rim's kept half, the near rim's half in the wall, the near face), here of the whole
+/// stack, and it lists a wall, a strut and a rim per slab where a
+/// `FullTurn` holds one of each.
 struct SlabTurn {
     /// The top rim's plus half, kept by the loop the turn was built in.
     far_kept: topo::HalfEdgeKey,
@@ -871,6 +898,12 @@ struct SlabTurn {
     struts: Vec<EdgeKey>,
     /// The rim at each slab boundary, bottom (`0`) to top (`slabs`).
     rims: Vec<EdgeKey>,
+}
+
+impl crate::swept::NearFace for SlabTurn {
+    fn near_face(&self) -> FaceKey {
+        self.near_face
+    }
 }
 
 /// Re-describes the rim `edge` an interior section `section` laid, the
@@ -951,7 +984,6 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
         return Err(LoftError::SectionStructure);
     };
     let (bplace, tplace) = (place_bottom.placement(), place_top.placement());
-    let n_bottom = place_bottom.normal().get();
 
     // ---- The walls, one per segment per slab ([`slab_walls`]). Slab
     // boundary `b ∈ 0 ..= slabs` sits at section `at(b)`. ----
@@ -1126,7 +1158,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
                 r#loop: seed.r#loop,
             },
             qs[1],
-            placed_segment_spec(&outer[0], bplace, n_bottom, qs[0], qs[1], tol),
+            rim_spec(0, 0, 0, qs[0], qs[1]),
             tol,
         )?;
         hes.push(first.he_plus);
@@ -1138,7 +1170,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
                     he2: prev.he_minus,
                 },
                 qs[j],
-                placed_segment_spec(&outer[j - 1], bplace, n_bottom, qs[j - 1], qs[j], tol),
+                rim_spec(0, 0, j - 1, qs[j - 1], qs[j]),
                 tol,
             )?;
             hes.push(m.he_plus);
@@ -1149,7 +1181,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
                 he1: prev.he_minus,
                 he2: first.he_plus,
             },
-            placed_segment_spec(&outer[n - 1], bplace, n_bottom, qs[n - 1], qs[0], tol),
+            rim_spec(0, 0, n - 1, qs[n - 1], qs[0]),
             bottom_cap,
             tol,
         )?;
@@ -1170,10 +1202,14 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
         let hq = &bq[li];
         let m = segs.len();
         if profile::is_full_turn(segs) {
-            let (ring, _) = crate::swept::plant_hole_ring(&mut body, anchor, tq[li][0], tol)?;
-            let disc = crate::swept::transient_disc(bottom_surface);
-            let turn = full_turn(&mut body, li, ring, disc)?;
-            body.kfmrh(bottom_face, turn.near_face)?;
+            let (turn, ()) = crate::swept::full_turn_hole(
+                &mut body,
+                anchor,
+                tq[li][0],
+                bottom_face,
+                tol,
+                |b, ring, disc| Ok::<_, LoftError>((full_turn(b, li, ring, disc)?, ())),
+            )?;
             bases.push(vec![turn.near_in_wall]);
             early[li] = Some(turn);
             continue;
@@ -1183,7 +1219,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
         let first = body.mev(
             MevSite::Lone { r#loop: ring },
             hq[1],
-            placed_segment_spec(&segs[0], bplace, n_bottom, hq[0], hq[1], tol),
+            rim_spec(0, li, 0, hq[0], hq[1]),
             tol,
         )?;
         hole_hes.push(first.he_plus);
@@ -1195,7 +1231,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
                     he2: prev.he_minus,
                 },
                 hq[j],
-                placed_segment_spec(&segs[j - 1], bplace, n_bottom, hq[j - 1], hq[j], tol),
+                rim_spec(0, li, j - 1, hq[j - 1], hq[j]),
                 tol,
             )?;
             hole_hes.push(mv.he_plus);
@@ -1206,7 +1242,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
                 he1: prev.he_minus,
                 he2: first.he_plus,
             },
-            placed_segment_spec(&segs[m - 1], bplace, n_bottom, hq[m - 1], hq[0], tol),
+            rim_spec(0, li, m - 1, hq[m - 1], hq[0]),
             crate::swept::transient_disc(bottom_surface),
             tol,
         )?;

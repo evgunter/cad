@@ -348,6 +348,24 @@ fn the_walls_struts_and_rings_are_one_per_slab() {
                     matches!(c.carrier(), Curve3::Line { .. } | Curve3::Circle { .. }),
                     "{what}: section {s}'s rim {rim:?} is its placed sketch segment"
                 );
+                // Described in the row `v = 1` of the wall BELOW it. The
+                // slab above holds the rim too, on its row `v = 0`, so a
+                // description there would also certify; this pins the
+                // choice (one-segment loops included).
+                let chart = c.description().chart().unwrap_or_else(|| {
+                    panic!("{what}: section {s}'s rim {rim:?} is a chart image")
+                });
+                assert_eq!(
+                    chart.surface,
+                    body.get_face(below).unwrap().surface,
+                    "{what}: section {s}'s rim {rim:?} is described in the wall below it"
+                );
+                let (t0, t1) = c.params();
+                assert_eq!(
+                    chart.pcurve.eval(0.5 * (t0 + t1)).y,
+                    1.0,
+                    "{what}: section {s}'s rim {rim:?} lies on the row v = 1"
+                );
             }
         }
         let (v, e, f) = (
@@ -439,4 +457,50 @@ fn a_degree_one_path_sweep_is_one_wall_per_slab() {
         (v - got).abs() <= pad + 1e-9 * got,
         "path sweep: mesh volume {v} vs integrated {got} ± {pad}"
     );
+}
+
+/// **An arc whose sub-arc count differs across the sections refuses
+/// typed at degree 1, and lofts at degree 2.** The arc wall carries every
+/// section's sub-arc structure, so the narrow interior arc reaches its
+/// row refined at the wide arcs' joints, which the arc-rim class does
+/// not describe
+/// (`work/isotail/a-loft-whose-arc-bulge-varies-per-section-refuses-its-arc-rim.md`).
+/// The refusal names the section and carries no escalation; its
+/// recourse, degree 2, builds the same sections.
+#[test]
+fn an_interior_arc_refined_by_its_neighbours_refuses_typed() {
+    let corners = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
+    // A square whose +x side is an arc of bulge `b` (a line at 0).
+    let section = |b: f64| -> Section {
+        let chain = (0..4)
+            .map(|i| {
+                let (x, y) = corners[i];
+                (Point2::new(x, y), if i == 1 { b } else { 0.0 })
+            })
+            .collect();
+        vec![bulge_loop(chain)]
+    };
+    let cases: [(&[f64], usize); 3] = [
+        (&[1.0, 0.2, 1.0], 1),
+        (&[1.0, 0.2, 0.0, 0.7, 1.0], 1),
+        (&[0.0, 1.0, 0.3, 0.0], 2),
+    ];
+    for (bulges, section_at) in cases {
+        let sections: Vec<Section> = bulges.iter().map(|&b| section(b)).collect();
+        #[allow(clippy::cast_precision_loss)]
+        let zs: Vec<f64> = (0..bulges.len()).map(|i| i as f64).collect();
+        let places = stacked_at(&zs);
+        match loft_body::<f64>(&sections, &places, 1, tol()) {
+            Err(sweep::LoftError::SectionRim {
+                section,
+                source: None,
+            }) => assert_eq!(section, section_at, "{bulges:?}: the refused section"),
+            other => panic!(
+                "{bulges:?}: degree 1 refuses at the refined arc rim, got {:?}",
+                other.map(|_| ())
+            ),
+        }
+        loft_body::<f64>(&sections, &places, 2, tol())
+            .unwrap_or_else(|e| panic!("{bulges:?}: the recourse, degree 2, builds: {e}"));
+    }
 }
