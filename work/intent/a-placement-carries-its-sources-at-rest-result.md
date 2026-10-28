@@ -2,12 +2,11 @@
 id: a-placement-carries-its-sources-at-rest-result
 kind: unit
 title: A placement carries its source body's at-rest result (contact records and census decisions) with its copy, at every placement
-status: parked
+status: dispatched
 opened: 2026-10-19
 priority: P1
 cost: M
 refs: [each-space-runs-its-census-between-arrivals, a-part-drops-its-census-findings-at-the-seam]
-blocked_on: [an-operation-computes-in-a-frame-of-its-reads]
 ---
 
 **Sequencing:** `docs/INTENT-STAGE3-SPEC.md` §12 ("Sequencing: the seat and census units"), step 5. Parked on D′3 (`assemble-is-an-operator-and-the-product-is-a-slot`), which makes a placement copy one source body and an instance copy its part's product, and on E's core (`an-operation-computes-in-a-frame-of-its-reads`), since both rewrite the value `wire_place` defines and the carry rides on E's `Framed`. It shares `product.rs`, `eval/wire.rs` `wire_place` and `eval/parts.rs` `PartValue` with both.
