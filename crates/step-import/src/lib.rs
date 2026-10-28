@@ -935,7 +935,7 @@ fn gate(body: &topo::Body<f64>, solid: Option<u64>, tol: Tol) -> Result<(), Step
 /// The gate returns the certificate its check 7 decided on: each
 /// solid's SIGN, certified per solid and assembled over the whole face
 /// arena, one read of each face, and `StepImport::Solid` carries it
-/// held apart from the body ([`topo::SignCertificate::detach`]), for its
+/// with the body as one value ([`topo::CertifiedBody`]), for its
 /// reader to measure through. The verdicts are the gate's, verbatim.
 ///
 /// **What the import as a whole pays is more than this gate.** Where

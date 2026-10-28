@@ -24,3 +24,7 @@ Found by `a-symmetric-parts-seam-is-not-walked-as-one-construction` (PR 5616, 20
 - **any entity inside a part** (`InPart`). The part's profile lives in the part's document, which the walk does not hold; only the name-alone relations apply there. A mate whose wall face should state the struts and cap vertices on the other copy's wall therefore states only its rims.
 
 All of this is sound, since nothing is proven falsely, but it leaves rows unproven. Extending the cases needs closure rules per minter, and, for parts, a way to reach the part's pieces: the resolver, or pieces published with the instance.
+
+## Slate triage (2026-10-28, INTENT)
+
+Moved from `work/intent/` by `git mv`, id and body unchanged: residue of INTENT's D10 build that belongs to COINCIDE's charter (the coincidence door and its lint). INTENT keeps D10's core (G and its riders, the stage-3 umbrellas, the carry, the refactor rows, the roots rename); Ev asked for INTENT's slate to be cut to its charter and its residue handed on (in chat, 2026-10-28).

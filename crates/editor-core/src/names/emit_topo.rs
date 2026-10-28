@@ -2558,10 +2558,12 @@ fn name_boolean_edges<T: Decide>(
     let mut out = Vec::with_capacity(seam_groups.len() + groups.len() + joined_sets.len());
     for (set, edges) in joined_sets {
         let (base, from_tie) = set_name(node, &set, a, b)?;
-        rec.record_by_name(
+        // Keyed by the operand edges themselves, so a tied set's group
+        // is one candidate's.
+        rec.record(
             &base,
             edges.iter().map(|&e| ent(0, EntityKey::Edge(e))).collect(),
-            from_tie,
+            Parent::Elsewhere,
         );
         out.push(EdgeGroup {
             base,
@@ -3258,13 +3260,13 @@ fn name_boolean_vertices<T: Decide>(
         held.push((sides.into_iter().flatten().collect(), c.held));
     }
     name_corner_copies(t, tie, held, corner_walls)?;
+    // A seam vertex is never qualified, so it forms no fragment group.
     for (seg, (from_tie, verts)) in groups {
         let base = name1(EntityKind::Vertex, node, seg);
         let ents: Vec<_> = verts
             .iter()
             .map(|&v| ent(0, EntityKey::Vertex(v)))
             .collect();
-        rec.record_by_name(&base, ents.clone(), from_tie);
         mint_candidates(t, tie, from_tie, base, ents)?;
     }
     Ok(())

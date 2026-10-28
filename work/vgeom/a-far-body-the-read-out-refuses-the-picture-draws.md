@@ -3,6 +3,7 @@ id: a-far-body-the-read-out-refuses-the-picture-draws
 kind: issue
 title: A body far out builds, its read-out and STEP export refuse to compose it, and the viewer draws it uncertified
 status: open
+priority: P3
 opened: 2026-10-27
 ---
 
@@ -31,3 +32,7 @@ rebuilt in the world at `place`, where the same certification ran. The question
 is whether the picture should refuse too: draw only what the read-out
 would certify, or mark a part drawn without a certificate. It is a
 question about the picture's contract, not E's frames.
+
+## Slate triage (2026-10-28, INTENT)
+
+Moved from `work/intent/` by `git mv`, id and body unchanged: residue of INTENT's D10 build that belongs to VGEOM's charter (viewer geometry and display). INTENT keeps D10's core (G and its riders, the stage-3 umbrellas, the carry, the refactor rows, the roots rename); Ev asked for INTENT's slate to be cut to its charter and its residue handed on (in chat, 2026-10-28).

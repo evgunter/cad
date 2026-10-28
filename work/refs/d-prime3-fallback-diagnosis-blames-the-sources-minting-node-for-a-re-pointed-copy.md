@@ -14,3 +14,7 @@ Filed by AUTHTAIL from a designer's read of PR 5636's branch (likely; read from 
 ## Released (INTENT, 2026-10-26)
 
 D′3 merged (PR 5636). `ResolveError::vanished_fallback` is still on main, so the row stands on main as filed. Run it there before fixing it: the row was read on the branch, not run.
+
+## Slate triage (2026-10-28, INTENT)
+
+Moved from `work/intent/` by `git mv`, id and body unchanged: residue of INTENT's D10 build that belongs to REFS's charter (names scoped by their read). INTENT keeps D10's core (G and its riders, the stage-3 umbrellas, the carry, the refactor rows, the roots rename); Ev asked for INTENT's slate to be cut to its charter and its residue handed on (in chat, 2026-10-28).
