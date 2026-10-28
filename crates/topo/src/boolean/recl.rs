@@ -2694,7 +2694,7 @@ mod tests {
             };
             let one = crate::boolean::verify_declared_contacts(a.0, b.0, &decls, band)
                 .expect("the door verifies the declaration");
-            let declared = GluedPairs::build(&decls, one, a.0, b.0, band)
+            let declared = GluedPairs::build(&decls, one, a.0, b.0, Default::default(), band)
                 .expect("the declared faces' extents read");
             let (sa, sb) = (corner(a.1), corner(b.1));
             resolve_edge_edge(
