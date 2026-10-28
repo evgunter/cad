@@ -1006,17 +1006,7 @@ fn one_segment_ellipse_rims_tangent_outside_refuse_the_union_typed() {
 /// A rim of radius `r` about `(cx, 0)` with vertices at the azimuths
 /// `az`, ascending within one turn, its arcs running between them.
 fn arcs_at(cx: f64, r: f64, az: &[f64]) -> ProfileLoop<f64> {
-    RawLoop::new(az.iter().enumerate().map(|(k, &a)| {
-        let next = az.get(k + 1).copied().unwrap_or(az[0] + TAU);
-        (
-            Point2::new(cx + r * a.cos(), r * a.sin()),
-            Segment::Arc(Arc2 {
-                centre: Point2::new(cx, 0.0),
-                radius: r,
-                sweep: next - a,
-            }),
-        )
-    }))
+    rim_about((cx, 0.0), r, az)
 }
 
 /// How a short-arc pose's union reads ([`short_arcs_at_a_crescents_tip`]).
@@ -1360,4 +1350,96 @@ fn a_puck_and_its_rounding_ring_unite() {
     let puck = fin("the puck", extruded(vec![circle(0.0, 0.0, a, 0.0)], 0.0, r));
     let quarter = PI * r * r / 4.0 * TAU * (a + 4.0 * r / (3.0 * PI));
     both_unions("the rounded puck", &puck, &ring, PI * a * a * r + quarter);
+}
+
+/// A rim of radius `r` about `c` with vertices at the azimuths `az`,
+/// ascending within one turn, its arcs running between them.
+fn rim_about(c: (f64, f64), r: f64, az: &[f64]) -> ProfileLoop<f64> {
+    RawLoop::new(az.iter().enumerate().map(|(k, &a)| {
+        let next = az.get(k + 1).copied().unwrap_or(az[0] + TAU);
+        (
+            Point2::new(c.0 + r * a.cos(), c.1 + r * a.sin()),
+            Segment::Arc(Arc2 {
+                centre: Point2::new(c.0, c.1),
+                radius: r,
+                sweep: next - a,
+            }),
+        )
+    }))
+}
+
+/// **Short arcs at a crescent's tip, turned and at the finest band**:
+/// the pose of [`short_arcs_at_a_crescents_tip`] at `s = 3e-7`, whose
+/// cuts either side of the tip lie within the band at ε 1e-12 too, so
+/// the skip in `boolean::sectors` `crescent` is read there (that row's
+/// table builds nothing at 1e-12), with the tip turned to azimuth `φ`.
+/// Every union is one shell at the closed form, `SOUND`; with the skip
+/// off, the unturned ones refuse `TangentCrescentUnsupported`. At ε 1e-6
+/// the profile escalates on the short arcs.
+///
+/// The rims swapped, the boss `r = 0.1` inside the hole `r = 0.3`,
+/// tangent there, the boss and the plate only touch, along the run;
+/// their union refuses `ClassificationInvariant` as `main` does
+/// (`work/splitdoor/a-boss-inside-a-hole-touching-along-short-arcs-breaks-a-germ-invariant.md`).
+#[test]
+fn short_arcs_at_a_turned_tip_at_the_finest_band() {
+    let s = 3e-7;
+    let coarse = tol().eps() == 1e-6;
+    for phi in [0.0, 0.7, 2.0] {
+        for (pose, rb, rh, cb, ch, kb, kh, tip) in [
+            ("inside", 0.3, 0.1, 0.0, 0.2, 1.0, 3.0, true),
+            (
+                "inside, no vertex at the tip",
+                0.3,
+                0.1,
+                0.0,
+                0.2,
+                1.0,
+                3.0,
+                false,
+            ),
+            ("swapped", 0.1, 0.3, 0.2, 0.0, 3.0, 1.0, true),
+        ] {
+            let az = |k: f64| {
+                let mut az = vec![phi - k * s, phi + k * s, phi + PI];
+                if tip {
+                    az.insert(1, phi);
+                }
+                az
+            };
+            let at = |d: f64| (d * phi.cos(), d * phi.sin());
+            let boss_rim = rim_about(at(cb), rb, &az(kb));
+            let hole_rim = rim_about(at(ch), rh, &az(kh));
+            let profiled = [vec![boss_rim.clone()], vec![square(), hole_rim.clone()]]
+                .into_iter()
+                .all(|loops| {
+                    Profile::new(SketchPlane::<f64>::xy(), loops)
+                        .validate(tol())
+                        .is_ok()
+                });
+            assert_eq!(profiled, !coarse, "{pose}, φ = {phi}: the profile");
+            if coarse {
+                continue;
+            }
+            let (vb, vh) = (PI * rb * rb, 2.0 - 0.5 * PI * rh * rh);
+            let boss = fin("the boss", extruded(vec![boss_rim], 0.0, 1.0));
+            let holed = fin(
+                "the holed plate",
+                extruded(vec![square(), hole_rim], -0.5, 0.5),
+            );
+            for (op, r, want) in every_op_both_orders(&boss, &holed, (vb, vh, 0.0), tol()) {
+                let row = format!("{pose}, φ = {phi}: {op}");
+                match op {
+                    "A ∩ B" | "B ∩ A" => reads_as(&row, r, want, Reads::Empty),
+                    "A ∖ B" | "B ∖ A" => reads_as(&row, r, want, Reads::Sound(1)),
+                    _ if pose == "swapped" => assert!(
+                        matches!(r, Err(BooleanError::ClassificationInvariant { .. })),
+                        "{row}: {:?}",
+                        r.map(|_| "a body")
+                    ),
+                    _ => united_at_the_run(&row, r, want),
+                }
+            }
+        }
+    }
 }
