@@ -64,6 +64,15 @@ witness is pinned in `crates/sweep/tests/snowman.rs`,
 `a_cut_ends_at_the_nearest_of_several_boundary_hits`, at δ 4e-2, 2e-2,
 1e-2, 5e-3 and 4e-3.
 
+**What the cure moved.** It reaches every trimmed cylinder and sphere
+face, not only the witnesses: the second review counted it firing on 60
+trimmed-cylinder faces of
+`m5_pr11_trimmed::a_wide_tilted_cylinder_meshes_at_every_delta`, all
+of which still mesh watertight within the chordal volume bound. The D9
+goldens did not move with it. They moved with the same pass's
+bulk-loaded CDT (8 of 40 body/δ pairs, every one a trimmed body), and
+the tour's frames are re-rendered for both (`[render]`).
+
 **What is left.** The NURBS arm and the curved lane still may keep an
 ear, and the planar lane cuts them by design. A face pair where neither
 side is an analytic trimmed face (curved lane against planar, say) is
