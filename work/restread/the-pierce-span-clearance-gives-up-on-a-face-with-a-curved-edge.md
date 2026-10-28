@@ -2,10 +2,12 @@
 id: the-pierce-span-clearance-gives-up-on-a-face-with-a-curved-edge
 kind: issue
 title: The edge-face pierce span's boundary clearance gives up on a face with a curved edge, and a wide crossing enclosure there escalates
-status: open
+status: review
 opened: 2026-10-27
 priority: P1
 cost: M
+pr: 5900
+branch: restread/pierce-span-curved-edge
 ---
 
 Found by the fix pass on `restread/curved-edge-in-face` (the cleared
