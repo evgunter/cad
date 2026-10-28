@@ -38,9 +38,10 @@ pub struct Carry<T: Decide> {
     /// part's, keyed in the same arena as `contacts`.
     pub findings: Arc<crate::checks::at_rest::CarriedFindings>,
     /// How many parts its body is (`crates/editor-core/ASSEMBLY.md`, A2
-    /// and A10): a document's product is its roots, so an instance's
-    /// body is as many parts as the referenced product's copies, each
-    /// counted at its own `parts`. The placers and `Part` carry the
+    /// and A10): a document's product is its pieces, so an instance's
+    /// body is as many parts as the referenced document's piece outputs,
+    /// each counted at its own `parts`; two piece outputs that are a
+    /// split's two halves are two parts. The placers and `Part` carry the
     /// count through; every other op builds a body of its own and counts
     /// 1, an explicit union included. A body of several parts is an
     /// ordinary operand (D10 `[operations.operators]`: `(p ⊔ q) − t`

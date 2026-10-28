@@ -562,29 +562,35 @@ impl NodeStanding {
         }
     }
 
-    /// The standing of a document ROOT, as a door whose subject is the
-    /// document's roots states it under its own stage word: `root`,
-    /// then the standing.
-    pub(crate) fn of_placement(self) -> PlacementStanding {
-        PlacementStanding(self)
+    /// The standing of a placement, as a door whose subjects are the
+    /// document's placements states it under its own stage word:
+    /// `placement`, then the standing.
+    pub(crate) fn of_placement(self) -> SubjectStanding {
+        SubjectStanding("placement", self)
+    }
+
+    /// The standing of the node the product slot reads, as the gather
+    /// states it: `the body the slot reads:`, then the standing.
+    pub(crate) fn of_read(self) -> SubjectStanding {
+        SubjectStanding("the body the slot reads:", self)
     }
 }
 
-/// [`NodeStanding::of_placement`]'s rendering: the one sentence for a
-/// placement with no value.
-pub(crate) struct PlacementStanding(NodeStanding);
+/// [`NodeStanding::of_placement`]'s and [`NodeStanding::of_read`]'s
+/// rendering: the one sentence for a subject with no value.
+pub(crate) struct SubjectStanding(&'static str, NodeStanding);
 
-impl crate::spoken::Say for PlacementStanding {
+impl crate::spoken::Say for SubjectStanding {
     fn say(
         &self,
         f: &mut core::fmt::Formatter<'_>,
         by: crate::spoken::Speaker<'_>,
     ) -> core::fmt::Result {
-        write!(f, "placement {}", crate::spoken::Said(&self.0, by))
+        write!(f, "{} {}", self.0, crate::spoken::Said(&self.1, by))
     }
 }
 
-impl core::fmt::Display for PlacementStanding {
+impl core::fmt::Display for SubjectStanding {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
@@ -1357,8 +1363,8 @@ pub struct NodeError {
 /// **An evaluation refusal, carried into a document-layer
 /// vocabulary** ([`crate::Refusal`]) — [`MateFault::PlacerRefused`](crate::MateFault),
 /// [`EditError::PlacementAxis`](crate::EditError),
-/// [`PartFault::PartRootFailed`](crate::PartFault) and
-/// [`PartFault::PartRootPoisoned`](crate::PartFault) hold one.
+/// [`PartFault::PartProductFailed`](crate::PartFault) and
+/// [`PartFault::PartProductPoisoned`](crate::PartFault) hold one.
 pub type NodeRefusal = crate::refusal::Refusal<NodeErrorKind>;
 
 impl NodeRefusal {
@@ -2044,8 +2050,8 @@ pub enum NodeErrorKind {
 // edit door's rule arms forward the same impl).
 //
 // The one exception is a CARRIED refusal: another node's refusal, with
-// its own recourse, held as a `NodeRefusal` (`PartFault::PartRootFailed`
-// and `PartRootPoisoned`, `MateFault::PlacerRefused`). It is not this refusal's payload, so it is
+// its own recourse, held as a `NodeRefusal` (`PartFault::PartProductFailed`
+// and `PartProductPoisoned`, `MateFault::PlacerRefused`). It is not this refusal's payload, so it is
 // never rendered inside this sentence, which names that node and points
 // at it; it is drawn as its own line, read off
 // [`NodeErrorKind::carried_chain`].
@@ -2485,8 +2491,8 @@ impl NodeErrorKind {
     /// that raised it and the refusal itself — the exception written
     /// over this type's `Display`, as a value.
     ///
-    /// Two arms carry one. A part whose root failed carries that root's
-    /// refusal, and one whose root was poisoned carries the refusal of
+    /// Two arms carry one. A part whose product failed carries the failed
+    /// node's refusal, and one whose product was poisoned carries the refusal of
     /// the node that poisoned it, in the REFERENCED document's id space; a mate whose
     /// placer's own row cannot state its refusal carries the placer's,
     /// in the mate's document. One step only: a surface reads the whole
@@ -2515,7 +2521,7 @@ impl NodeErrorKind {
 }
 
 /// **Which document a carried refusal's node is in.** A node number
-/// means nothing without it: a part's root is numbered in the part.
+/// means nothing without it: a part's node is numbered in the part.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CarriedIn<'a> {
     /// The document whose evaluation raised the outermost refusal.

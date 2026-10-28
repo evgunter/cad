@@ -25,8 +25,8 @@ use editor_core::UnitSym;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::clearance::{
     CellBudget, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal, ClearanceReport,
-    ClearanceVerdict, FaceScope, NoTangents, Selection, clearance, clearance_over, clearance_with,
-    self_intersection,
+    ClearanceVerdict, EngineRefusal, FaceScope, NoTangents, Selection, clearance, clearance_over,
+    clearance_with, self_intersection,
 };
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
@@ -527,7 +527,10 @@ fn a_partial_revolve_band_reports_its_phantom_turn() {
         ClearanceVerdict::Refused(ClearanceRefusal::Selection(s)) => {
             println!("[r1] interval_lane_skipped_revolve_did_not_build: {s}");
         }
-        ClearanceVerdict::Refused(ClearanceRefusal::Unsupported { carrier, face }) => {
+        ClearanceVerdict::Refused(ClearanceRefusal::Engine(EngineRefusal::Unsupported {
+            carrier,
+            face,
+        })) => {
             println!("[r1] interval_lane_skipped_unsupported: {carrier} at {face:?}");
         }
         ClearanceVerdict::Violated(v) => {
@@ -662,8 +665,9 @@ fn degenerate_queries_land_in_an_arm_with_a_holding_receipt() {
         assert!(
             matches!(
                 starved.verdict(),
-                ClearanceVerdict::Refused(ClearanceRefusal::Budget(CellBudget::Pairs { .. }))
-                    | ClearanceVerdict::Violated(_)
+                ClearanceVerdict::Refused(ClearanceRefusal::Engine(EngineRefusal::Budget(
+                    CellBudget::Pairs { .. }
+                ))) | ClearanceVerdict::Violated(_)
             ),
             "pairs = {pairs}: {}",
             starved.serialize()
@@ -718,7 +722,7 @@ fn degenerate_queries_land_in_an_arm_with_a_holding_receipt() {
     assert!(
         matches!(
             vacuous.verdict(),
-            ClearanceVerdict::Refused(ClearanceRefusal::EmptyScope)
+            ClearanceVerdict::Refused(ClearanceRefusal::Engine(EngineRefusal::EmptyScope))
         ),
         "{}",
         vacuous.serialize()

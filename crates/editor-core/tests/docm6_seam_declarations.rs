@@ -713,10 +713,10 @@ fn a_parts_product_refusal_says_the_parts_label_where_the_outer_document_holds_t
     let (fault, _) = part_fault(error);
     // The part's product is its placement's copy, and the placement
     // reads a body that is gone: its root failed.
-    let editor_core::PartFault::PartRootFailed { node, .. } = fault else {
-        panic!("the part's root fails: {fault:?}");
+    let editor_core::PartFault::PartProductFailed { node, .. } = fault else {
+        panic!("the part's piece fails: {fault:?}");
     };
-    assert_eq!(*node, block, "the failed root is the stranded placement");
+    assert_eq!(*node, block, "the failed piece is the stranded placement");
     let in_outer = error.spoken(&outer, &ev);
     assert!(
         in_outer.contains(&format!("Place \"inner block\" ({t})"))

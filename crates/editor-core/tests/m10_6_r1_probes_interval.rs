@@ -50,9 +50,7 @@ use crate::fixture;
 use std::collections::BTreeMap;
 
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
-use editor_core::clearance::{
-    ClearanceQuery, MinSepSelection, MinSeparationConfig, Selection, clearance_over, min_separation,
-};
+use editor_core::clearance::{ClearanceQuery, Selection, clearance_over};
 use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, drive};
 use editor_core::mc::{McConfig, monte_carlo};
 use editor_core::report::{Dials, MassBasis, MassBudget, leaf_histogram, report_key};
@@ -64,6 +62,7 @@ use editor_core::{
     VarName, evaluate,
 };
 use geom_core::{Bounds, Tol};
+use topo::clearance::{MinSeparationConfig, Side, min_separation};
 
 use fixture::{Recorder, len};
 
@@ -342,18 +341,16 @@ fn a_convex_pair_brackets_the_built_gap_at_every_budget() {
     let all = |body: &topo::Body<geom_core::Interval>| body.faces().map(|(k, _)| k).collect();
     for pairs in [0usize, 1, 3, 64, 512] {
         let m = min_separation(
-            &MinSepSelection {
-                at: a,
-                index: 0,
+            &Side {
                 body: ba.body(),
                 faces: all(ba.body()),
             },
-            &MinSepSelection {
-                at: b,
-                index: 0,
+            &Side {
                 body: bb.body(),
                 faces: all(bb.body()),
             },
+            // Body 0 of node `a` against body 0 of node `b`.
+            a == b,
             MinSeparationConfig {
                 max_cell_pairs: pairs,
                 ..MinSeparationConfig::default()
@@ -409,13 +406,11 @@ fn min_clearance_of_a_body_against_itself_is_the_selections_self_clearance() {
         panic!("a body")
     };
     let faces: Vec<_> = body.body().faces().map(|(k, _)| k).collect();
-    let sel = || MinSepSelection {
-        at: solid,
-        index: 0,
+    let sel = || Side {
         body: body.body(),
         faces: faces.clone(),
     };
-    let m = min_separation(&sel(), &sel(), MinSeparationConfig::default()).expect("admitted");
+    let m = min_separation(&sel(), &sel(), true, MinSeparationConfig::default()).expect("admitted");
     eprintln!(
         "dumbbell self-clearance: {}",
         m.serialize().replace('\n', " | ")

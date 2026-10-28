@@ -25,3 +25,6 @@ copy; `product::gather_sources`). The kernel's census has no group
 scope, so it still computes there and the door discards it; deleting
 the computation is this unit's.
 
+## Slate triage (2026-10-28, INTENT)
+
+Moved from `work/intent/` by `git mv`, id and body unchanged: residue of INTENT's D10 build that belongs to ATREST's charter (at-rest census work; ATREST's stage 5 C makes the census a check at each `⊔`, the same door). INTENT keeps D10's core (G and its riders, the stage-3 umbrellas, the carry, the refactor rows, the roots rename); Ev asked for INTENT's slate to be cut to its charter and its residue handed on (in chat, 2026-10-28).

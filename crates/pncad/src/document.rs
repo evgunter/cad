@@ -149,16 +149,17 @@ pub use editor_core::{Label, LabelFault};
 // `UnevaluatedReason::MeasureUnavailable` and
 // `NodeErrorKind::MeasureClearanceRefused` CARRY, so a consumer who can
 // name the outer type and not the inner one can see that there is a
-// reason and never read it. `CellBudget` and `SelectionRefusal` are
-// `ClearanceRefusal`'s own `Budget` and `Selection` payloads, one rung
-// further down, for the same reason.
+// reason and never read it. `EngineRefusal` and `SelectionRefusal` are
+// `ClearanceRefusal`'s own `Engine` and `Selection` payloads, one rung
+// further down, and `CellBudget` is the engine's `Budget` payload, one
+// rung below that, for the same reason.
 // `SitedFace` is a mate's head — a `SitedRef` whose name is a
 // `FaceName`, so a mate whose head names an edge does not compile —
 // and `FaceName`/`NotAFaceName` are the type that makes that true and
 // the refusal its one constructor answers with. A caller authoring a
 // mate needs all three: the constructor is the door, and its refusal
 // is what a caller who read a name out of a file has to handle.
-pub use editor_core::clearance::{CellBudget, ClearanceRefusal, SelectionRefusal};
+pub use editor_core::clearance::{CellBudget, ClearanceRefusal, EngineRefusal, SelectionRefusal};
 pub use editor_core::{
     ASSERT_BOUND, AssertionRelation, AssertionVerdict, FaceName, MeasureOutcome, MeasurePrimitive,
     MeasureUnavailableAt, MeasureVerb, Measured, NotAFaceName, Observed, ObservedRefusal,
@@ -514,7 +515,7 @@ pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update
 // or evaluation); `enforce_checks` is the one refusing path, and the
 // CALLER chooses where to gate on it. Deliberately NOT in the prelude
 // (prelude membership is corpus-measured).
-// `subject_body` resolves a root-output finding's (root, output_ix) attribution
+// `subject_body` resolves a placement-output finding's (placement, output_ix) attribution
 // back to the flagged body and the declarations its producer minted
 // for it, in the same evaluation.
 // `run_checks_on` is the registry over a `Subject` the caller gathered

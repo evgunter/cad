@@ -218,13 +218,13 @@ pub enum PartFault {
         /// The resolver's diagnosis.
         message: String,
     },
-    /// The referenced document evaluated, but one of its PRODUCT ROOTS
+    /// The referenced document evaluated, but a node its PRODUCT reads
     /// failed — the ordinary "my part is broken, why?" path.
     ///
     /// The nested [`super::Evaluation`] dies with the resolution that
     /// produced it, so a caller can never be sent to look at it: the
-    /// root's own refusal travels here instead, typed and unaltered. A
-    /// root that is itself an instantiate node carries
+    /// node's own refusal travels here instead, typed and unaltered. A
+    /// node that is itself an instantiate node carries
     /// [`super::NodeErrorKind::Part`] in turn, so a part inside a part
     /// is a chain of these however many documents deep, and every
     /// level keeps the reference it crossed.
@@ -233,26 +233,26 @@ pub enum PartFault {
     /// that is another node's refusal, in another document, with its
     /// own recourse, and it is drawn as its own line (the exception
     /// written over [`super::NodeErrorKind`]'s `Display`).
-    PartRootFailed {
-        /// The failing root, in the REFERENCED document's id space.
+    PartProductFailed {
+        /// The failing node, in the REFERENCED document's id space.
         node: RecipeNodeId,
-        /// That root's own refusal.
+        /// That node's own refusal.
         refusal: super::NodeRefusal,
         /// The part's nodes this fault names, as the pinned part holds
         /// them ([`PartFault::held`]).
         held: Arc<HeldNodes>,
     },
-    /// The referenced document evaluated, but one of its PRODUCT ROOTS
+    /// The referenced document evaluated, but a node its PRODUCT reads
     /// never ran: a node upstream of it inside the part failed. The
     /// part's typical broken shape — a transform or a boolean over the
     /// node that failed.
     ///
     /// `through` is the node the author repairs, so its refusal is the
-    /// one carried, as [`Self::PartRootFailed`] carries a failed
-    /// root's; `root` says which of the part's roots it cost.
-    PartRootPoisoned {
-        /// The poisoned root, in the REFERENCED document's id space.
-        root: RecipeNodeId,
+    /// one carried, as [`Self::PartProductFailed`] carries a failed
+    /// node's; `node` says which node the part's product reads it cost.
+    PartProductPoisoned {
+        /// The poisoned node, in the REFERENCED document's id space.
+        node: RecipeNodeId,
         /// Its nearest failed ancestor, in the same id space.
         through: RecipeNodeId,
         /// That ancestor's own refusal.
@@ -261,12 +261,12 @@ pub enum PartFault {
         /// them ([`PartFault::held`]).
         held: Arc<HeldNodes>,
     },
-    /// The product door named a node as failed — a failed root, or a
-    /// poisoned root's failed ancestor — and the evaluation it read
+    /// The product door named a node as failed — a failed node, or a
+    /// poisoned node's failed ancestor — and the evaluation it read
     /// holds no failure there. The two disagree about one node, so this
     /// is a kernel bug, reported typed rather than as a failure with no
     /// cause.
-    RootFailureUnrecorded {
+    PartProductFailureUnrecorded {
         /// The node the product door named as failed, in the
         /// REFERENCED document's id space.
         node: RecipeNodeId,
@@ -275,7 +275,7 @@ pub enum PartFault {
         held: Arc<HeldNodes>,
     },
     /// The referenced document has no product for a reason that is not
-    /// a failed or poisoned root (no body-denoting root, an invalid
+    /// a failed or poisoned node (a product with no body, an invalid
     /// gather, a name collision).
     ///
     /// The gather's refusal crosses whole, its ids the part's: its
@@ -316,7 +316,7 @@ pub enum PartFault {
 
 impl PartFault {
     /// **The refusal this fault carries, when it carries one**: a
-    /// failed root, or a poisoned root's failed ancestor, and that
+    /// failed node, or a poisoned node's failed ancestor, and that
     /// node's own refusal, in the referenced document's id space ([`super::NodeErrorKind::carried`]). Exhaustive, for the
     /// reason [`crate::MateFault::carried`] states.
     #[must_use]
@@ -328,12 +328,12 @@ impl PartFault {
     /// [`PartFault::carried`], with the part's nodes the fault holds.
     pub(crate) fn carried_held(&self) -> Option<(RecipeNodeId, &super::NodeRefusal, &HeldNodes)> {
         match self {
-            Self::PartRootFailed {
+            Self::PartProductFailed {
                 node,
                 refusal,
                 held,
             } => Some((*node, refusal, &**held)),
-            Self::PartRootPoisoned {
+            Self::PartProductPoisoned {
                 through,
                 refusal,
                 held,
@@ -341,7 +341,7 @@ impl PartFault {
             } => Some((*through, refusal, &**held)),
             Self::NoResolver
             | Self::Unresolved { .. }
-            | Self::RootFailureUnrecorded { .. }
+            | Self::PartProductFailureUnrecorded { .. }
             | Self::PartProduct { .. }
             | Self::ReferenceCycle { .. }
             | Self::DepthExceeded
@@ -358,9 +358,9 @@ impl PartFault {
     #[must_use]
     pub fn held(&self) -> Option<&HeldNodes> {
         match self {
-            Self::PartRootFailed { held, .. }
-            | Self::PartRootPoisoned { held, .. }
-            | Self::RootFailureUnrecorded { held, .. }
+            Self::PartProductFailed { held, .. }
+            | Self::PartProductPoisoned { held, .. }
+            | Self::PartProductFailureUnrecorded { held, .. }
             | Self::PartProduct { held, .. } => Some(&**held),
             Self::NoResolver
             | Self::Unresolved { .. }
@@ -404,7 +404,7 @@ impl PartFault {
                 ),
                 ResolveFault::Unresolved => write!(f, "the reference did not resolve: {message}"),
             },
-            Self::PartRootFailed { node, .. } => {
+            Self::PartProductFailed { node, .. } => {
                 let node = by.node(*node);
                 write!(
                     f,
@@ -412,17 +412,17 @@ impl PartFault {
                     InThePart(format_args!("repair {node}")),
                 )
             }
-            Self::PartRootPoisoned { root, through, .. } => {
+            Self::PartProductPoisoned { node, through, .. } => {
                 let through = by.node(*through);
                 write!(
                     f,
-                    "the part's {through} failed and poisoned its root, {}, so the part has \
-                     no body. {}",
-                    by.node(*root),
+                    "the part's {through} failed and poisoned {}, which its product reads, so \
+                     the part has no body. {}",
+                    by.node(*node),
                     InThePart(format_args!("repair {through}")),
                 )
             }
-            Self::RootFailureUnrecorded { node, .. } => {
+            Self::PartProductFailureUnrecorded { node, .. } => {
                 let node = by.node(*node);
                 write!(
                     f,
@@ -529,7 +529,7 @@ enum ProductRecourse {
 }
 
 /// [`ProductRecourse`] by the gather's class. A nested evaluation runs
-/// its own document to completion, and the failed and poisoned roots
+/// its own document to completion, and the failed and poisoned nodes
 /// cross as their own arms, so the classes it cannot reach end in the
 /// kernel-defect recourse.
 fn product_recourse(kind: crate::product::ProductErrorKind) -> ProductRecourse {
@@ -539,14 +539,14 @@ fn product_recourse(kind: crate::product::ProductErrorKind) -> ProductRecourse {
         | K::StrandedProduct
         | K::ProductOutsideWorld
         | K::Graft
-        | K::RootInvalid
+        | K::PieceInvalid
         | K::ProductInvalid => ProductRecourse::Carried,
         K::ContactLineage
         | K::Frame
         | K::EvaluationOfAnotherDocument
         | K::UnknownNode
-        | K::RootFailed
-        | K::RootPoisoned => ProductRecourse::KernelDefect,
+        | K::ReadFailed
+        | K::ReadPoisoned => ProductRecourse::KernelDefect,
     }
 }
 
@@ -1058,7 +1058,7 @@ impl<T: Decide> Entered<T> {
 /// Turns the referenced document's product refusal into a fault that
 /// still NAMES its cause.
 ///
-/// A failed root, and a poisoned root's failed ancestor, hold their
+/// A failed node, and a poisoned node's failed ancestor, hold their
 /// refusal in the nested evaluation, which is local to the resolution
 /// and cannot be reached from the caller. So the evaluation is taken
 /// here by value and the failure is moved out of it: the fault carries
@@ -1080,16 +1080,16 @@ fn product_fault<T: Decide>(
     // over `part`, recording what it names, and once holding them.
     type Arm = Box<dyn Fn(Arc<HeldNodes>) -> PartFault>;
     let unrecorded = |node: RecipeNodeId| -> Arm {
-        Box::new(move |held| PartFault::RootFailureUnrecorded { node, held })
+        Box::new(move |held| PartFault::PartProductFailureUnrecorded { node, held })
     };
     let mut refusal_at = |failed: RecipeNodeId| match evaluation.nodes.remove(&failed) {
         Some(super::NodeResult::Failed(failure)) => Ok(super::NodeRefusal::from(failure.kind)),
         _ => Err(failed),
     };
     let arm: Arm = match error {
-        crate::product::ProductError::Root(NodeStanding::Failed { node }) => {
+        crate::product::ProductError::Read(NodeStanding::Failed { node }) => {
             match refusal_at(node) {
-                Ok(refusal) => Box::new(move |held| PartFault::PartRootFailed {
+                Ok(refusal) => Box::new(move |held| PartFault::PartProductFailed {
                     node,
                     refusal: refusal.clone(),
                     held,
@@ -1097,10 +1097,10 @@ fn product_fault<T: Decide>(
                 Err(failed) => unrecorded(failed),
             }
         }
-        crate::product::ProductError::Root(NodeStanding::Poisoned { node, through }) => {
+        crate::product::ProductError::Read(NodeStanding::Poisoned { node, through }) => {
             match refusal_at(through) {
-                Ok(refusal) => Box::new(move |held| PartFault::PartRootPoisoned {
-                    root: node,
+                Ok(refusal) => Box::new(move |held| PartFault::PartProductPoisoned {
+                    node,
                     through,
                     refusal: refusal.clone(),
                     held,
