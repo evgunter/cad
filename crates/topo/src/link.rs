@@ -1472,7 +1472,9 @@ fn fan<T: Real>(
     let b = outward.cross(a);
     let s = T::from_f64(core::f64::consts::FRAC_1_SQRT_2);
     let back = T::from_f64(-1.0);
-    let turns = [
+    // Eight turns, so each wedge's half-angle is π/8: the array's type
+    // and the rim's factor change together.
+    let turns: [Vec3<T>; 8] = [
         a,
         (a + b) * s,
         b,
@@ -1482,8 +1484,7 @@ fn fan<T: Real>(
         b * back,
         (a - b) * s,
     ];
-    let half_angle = core::f64::consts::PI / turns.len() as f64;
-    let radius = reach * T::from_f64(1.01 / half_angle.cos());
+    let radius = reach * T::from_f64(1.01) / T::from_f64(core::f64::consts::FRAC_PI_8).cos();
     let rim: Vec<Point3<T>> = turns
         .iter()
         .take(if half {
