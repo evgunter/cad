@@ -56,3 +56,25 @@ should not sample, or a decision the section should take another way.
 Reproduce: `CAD_TOLERANCE_EPS=1e-6 cargo nextest run -p geom-brep -p
 sweep --ignore-default-filter -E 'test(/^pair_section::(one_loop_keeps|two_loops_keep)/)
 | test(/^cylinder_sphere_frame::(a_ball_across|every_segment_joins)/)'`.
+
+## A fuzz counterexample in the same file, at 1e-6
+
+This PR's gate (head `cb9ff6a2`, docs-only diff) drew a counterexample
+from `pair_section::no_pose_off_the_band_moves_from_the_retired_formulas`
+(`crates/geom-brep/tests/pair_section.rs:586`), a fuzzer that is in the
+PR set at 1e-6:
+
+    pose 1562 (off 1.9083673845532123e-1, r 0.19083387329975715,
+    R 0.0000028651555640801796)
+      left: (Tangent, false)
+     right: (Touch, false)
+
+It reproduces locally with `CAD_TOLERANCE_EPS=1e-6
+CAD_FUZZ_SEED=0xf68fbbf2328f612f CAD_FUZZ_EFFORT=1 cargo nextest run -p
+geom-brep --ignore-default-filter -E
+'test(no_pose_off_the_band_moves_from_the_retired_formulas)'`. The pose is
+a near-degenerate sphere (R ≈ 2.9e-6, about 3ε) whose offset almost
+equals the cylinder radius. The section value calls it `Tangent` where
+the retired formulas said `Touch`. Pin it as a deterministic row beside
+the fix, or as the sampler's boundary if a sphere that small falls
+outside the formulas' domain.
