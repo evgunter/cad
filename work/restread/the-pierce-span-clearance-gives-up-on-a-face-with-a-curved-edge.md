@@ -6,6 +6,7 @@ status: review
 opened: 2026-10-27
 priority: P1
 cost: M
+pr: 5900
 branch: restread/pierce-span-curved-edge
 ---
 
