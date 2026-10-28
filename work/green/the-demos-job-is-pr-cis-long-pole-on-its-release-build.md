@@ -61,3 +61,44 @@ before one is chosen:
   (`demos-row-skips-kernel-changes-to-doors-the-tour-calls`).
 
 The 20-min alarm threshold stays as it is.
+
+## Measured, 2026-10-28 (GREEN latency lane)
+
+Over the 186 completed PR runs in the 24 h to 10-28 05:30Z, `demos` ran
+in 54 (median 28.7 min, p90 29.8). It was the last job to finish in 44,
+all of them over 20 min. `demos tour suite` has a median of 27.2.
+
+**The release build, split.** Two full logs (jobs 122320999843 and
+122193702486):
+
+| job | kernel and its deps | `demo-tour`'s own units | whole build | tests |
+|---|---|---|---|---|
+| 122320999843 | 8.6 min | 13.7 min | 22m15s | 310 s |
+| 122193702486 | 9.3 min | 14.0 min | 23m16s | 331 s |
+
+The kernel part runs from the build's start to `Compiling demo-tour`;
+the tour part runs from there to `Finished`. The tour's own units are
+the bin, the bin's test harness (32k lines of `src/`, compiled twice) and
+ten integration-test binaries.
+
+**Declined: moving `tour_runs_green_at_eps_1e_12` to the nightly.**
+- In three jobs it ran 310, 331 and 310 s. The next-longest rows ran
+  245, 170 and 239 s, so the suite's wall would fall by 1–2.7 min, on
+  the ~29% of runs that run `demos`.
+- Replayed over the window, `demos` −5 min moves the alarm's median
+  from 23.1 to 22.9.
+- The row is the tour's one row with unshared PR catches
+  (`work/ciw/demote-unearned-tests.md`: "`_at_eps_1e_12` stays, because
+  every PR red of the other two was also its red"). Ev's demotion bar
+  keeps such a row per-PR, and this payoff does not argue for an
+  exception.
+
+**What remains.** The `test` split (green/latency-test-shards) takes the
+median off `test`. `demos` then holds the p90 at about 29 when it runs,
+which is past the 25-min deep-kernel bar. The lever is the tour's own
+14 min of build: two copies of the 32k-line bin and ten test binaries,
+each instantiating the kernel's generics in release. The candidates to
+measure, with `cargo build --timings` on a hosted run, are:
+- fold the integration-test binaries into one `all` binary, as the
+  kernel crates did (`autotests = false`);
+- move the bin's unit tests out of `src/`, so the bin is compiled once.
