@@ -263,8 +263,9 @@ fn values_of(t: &Surface<f64>, partner: &Surface<f64>) -> Vec<f64> {
 /// tangent line there, its radius the tube's. Moved off by `δ` in the
 /// second tube's radius (the level `|r₁ − r₂|` stands `δ` from the
 /// cores' least distance, `0`): within the zero band the gap is still
-/// Zero, inside the ambiguity band it escalates, a few escalation
-/// widths out it is transverse. Mutants: the least-distance reading
+/// Zero, inside the ambiguity band it escalates, a few escalation widths
+/// out it never reads tangent, and `0.1` mm out it is transverse at every
+/// band. Mutants: the least-distance reading
 /// dropped (the touch reads in band, `D` not smooth there), or decided on
 /// `D` alone (every `δ` reads Zero).
 #[test]
@@ -286,12 +287,24 @@ fn the_tube_circle_tangency_decides_zero() {
         (0.0, Some(true)),
         (0.25 * b.zero(), Some(true)),
         (0.5 * (b.zero() + b.escalate()), None),
-        (4.0 * b.escalate(), Some(false)),
+        (1e-4, Some(false)),
     ] {
         for (what, partner) in [("bend", bend(0.5 + delta)), ("pipe", pipe(0.5 + delta))] {
             for (x, y) in [(&first, &partner), (&partner, &first)] {
                 assert_eq!(gap_of(x, y), want, "{what} at δ = {delta:e}");
             }
+        }
+    }
+    // A few escalation widths out the joint is transverse or escalates:
+    // where `D` passes the level the cores run side by side, `(D²)′` is
+    // second order in the offset, and at a tight band it stands inside
+    // its own rounding (at `ε = 1e-12`, `4·escalate` reads no slope).
+    for partner in [
+        bend(0.5 + 4.0 * b.escalate()),
+        pipe(0.5 + 4.0 * b.escalate()),
+    ] {
+        for (x, y) in [(&first, &partner), (&partner, &first)] {
+            assert_ne!(gap_of(x, y), Some(true), "4·escalate out read tangent");
         }
     }
     // The tangent pipe stands square to the torus axis: the section value
@@ -339,7 +352,7 @@ fn a_sphere_on_the_core_is_tangent_along_a_circle() {
 /// **A G1 pipe joint read in a generic frame** (review R1): the cores
 /// touch with one tangent, so the least distance is `0` and the gap is
 /// `|r₁ − r₂|`. In the band (`δ` of `3` and `5` zero bands) it never reads
-/// transverse, in either order; a joint `2e-8` off at a 600 m scale,
+/// transverse, in either order; a joint two escalation widths off at a 600 m scale,
 /// definitely transverse, never reads tangent. The joint is built on the
 /// first torus's core and checked against the oracle: the review's own
 /// first frame, read literally, stands `4.06e-6` apart (its cores do not
@@ -398,7 +411,12 @@ fn a_generic_frame_pipe_joint_reads_no_definite_verdict_in_band() {
             0.3581603935179129,
         ],
         600.0,
-        150.0 - 2e-8,
+        150.0 - 2.0 * band().escalate(),
+    );
+    let gap = oracle_gap(&values_of(&a, &b), [150.0, 150.0 - 2.0 * band().escalate()]);
+    assert!(
+        gap >= band().escalate(),
+        "the far joint is transverse: {gap:e}"
     );
     for (x, y) in [(&a, &b), (&b, &a)] {
         assert_ne!(

@@ -137,10 +137,13 @@
 //!    join reaches the pot's sphere face meeting the handle's torus. The
 //!    section value builds that pair now: its pose decided once, its two
 //!    loops about the handle's tube marched and fitted, each germ matched
-//!    to its loop by foot. The join then stops where it stops for the
-//!    cylinder × sphere pair, at the segment, which has no lane for a
-//!    fitted loop off every edge yet: `CurvedBooleanUnsupported` on the
-//!    vessel's sphere face, pinned in wall 2.
+//!    to its loop by foot, and each closed loop seated at its first site,
+//!    so the segment lays them off the edges and the union builds. The
+//!    result then fails its own validation: its volume is not computed,
+//!    the vessel's sphere face now trimmed by a conic loop that no
+//!    sphere-chart quadrature reads yet (`ResultInvalid` with
+//!    `VolumeUncomputable` from `QuadratureUnsupported`), pinned in wall
+//!    2.
 //!
 //!    spout ∪ pot used to be the same shape of refusal — cone × plane
 //!    — and it is not any more. A loft's walls are `Nurbs`, and the
@@ -1504,9 +1507,10 @@ fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
     // precondition, on the VESSEL, whose full revolve minted split
     // planar walls; it sweeps them whole now (BAND, one wall per run),
     // so the request reaches the vessel's sphere face meeting the
-    // handle's torus. The section value carries that pair's loops, and
-    // the join refuses at the segment along them: no lane lays a fitted
-    // loop off every edge yet.
+    // handle's torus. The section value carries that pair's loops, the
+    // segment lays them, and the union builds; its result's volume is not
+    // computed (a conic trim on the sphere's chart has no quadrature yet),
+    // so the result is invalid.
     crate::walls::wall(
         "teapot",
         2,
@@ -1516,10 +1520,10 @@ fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
         |e| {
             matches!(
                 e,
-                BooleanError::CurvedBooleanUnsupported {
-                    kind: SurfaceKind::Sphere,
-                    ..
-                }
+                BooleanError::ResultInvalid { errors } if errors.iter().any(|v| matches!(
+                    v,
+                    pncad::topo::ValidationError::VolumeUncomputable { .. }
+                ))
             )
         },
         "make the teapot ONE solid: union the handle and the spout into the vessel, drop \

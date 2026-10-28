@@ -4118,9 +4118,7 @@ pub(crate) struct IslandReading<T: Real> {
 }
 
 impl<T: Decide> IslandReading<T> {
-    /// The reading of the run `h1 → h2` closed by `closing`; an
-    /// escalation where `q` is not decided off a cone's apex or a
-    /// torus's axis.
+    /// [`Self::closed_by`] with no spline arc.
     #[cfg(test)]
     pub(crate) fn new(
         body: &Body<T>,
@@ -4132,8 +4130,10 @@ impl<T: Decide> IslandReading<T> {
         Self::closed_by(body, face, run, (closing, None), band)
     }
 
-    /// [`Self::new`] closed by a chord whose arc, where it is a spline,
-    /// is `arc` ([`path_island_winding_closed_by`]).
+    /// The reading of the run `h1 → h2` closed by `closing`, whose arc,
+    /// where it is a spline, is `arc` ([`path_island_winding_closed_by`]);
+    /// an escalation where `q` is not decided off a cone's apex or a
+    /// torus's axis.
     pub(crate) fn closed_by(
         body: &Body<T>,
         face: FaceKey,

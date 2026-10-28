@@ -3289,18 +3289,18 @@ class TestTeapot(unittest.TestCase):
         # handle's torus is on the union's kind roster, and PAST the
         # maximal-faces precondition, since a full revolve sweeps the
         # vessel's planar walls whole, and PAST the section: the
-        # sphere x torus pair's loops are carried and its germs matched
-        # on them. Dead where the join lays the segment along the
-        # vessel's sphere face: no lane lays a fitted loop off every
-        # edge yet. Pinned by the refusal's arm, not a sentence of its
-        # text.
+        # sphere x torus pair's loops are carried, its germs matched on
+        # them and its closed loops seated, so the union builds. Dead at
+        # the result's validation: its volume is not computed, the
+        # vessel's sphere face trimmed by a conic loop no sphere-chart
+        # quadrature reads yet. Pinned by the refusal's arm, not a
+        # sentence of its text.
         self.assertFalse(ev.succeeded(handle_join))
         with self.assertRaises(EvaluationError) as caught:
             ev.value(handle_join)
         refusal = caught.exception
         self.assertEqual(refusal.kind, "boolean")
-        self.assertEqual(refusal.inner_kind, "curved_boolean_unsupported")
-        self.assertIn("sphere face", str(refusal))
+        self.assertEqual(refusal.inner_kind, "result_invalid")
 
         # spout union vessel: PAST the pair rung, because a loft's
         # walls are Nurbs and that arm exists — and dead where the

@@ -56,7 +56,7 @@ fn loft_walls_store_exact_iso_pcurves() {
         }
     }
     for faces in &lofted.side_faces {
-        for &f in faces {
+        for &f in faces.iter().flatten() {
             let face = body.get_face(f).expect("face resolves");
             let cycle = match face_outer_cycle(body, face) {
                 Some(c) => c,
