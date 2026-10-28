@@ -266,9 +266,9 @@ pub(crate) fn section_door<T: Decide + Bounds>(
             Some(Ok(section)) => section.coincidence(),
             Some(Err(_)) | None => None,
         };
-        if let (true, Some(zero)) = (recorded, coincidence) {
-            let (relation, site) = coincidence_site(zero.decision);
-            rows.push(row((fa, fb), relation, site, zero.margin));
+        if let (true, Some((decided, margin))) = (recorded, coincidence) {
+            let (relation, site) = coincidence_site(decided);
+            rows.push(row((fa, fb), relation, site, margin));
         }
     }
     Ok((table.finish(), rows))
@@ -276,22 +276,14 @@ pub(crate) fn section_door<T: Decide + Bounds>(
 
 /// **The record a coincidence the section value decided is kept as**:
 /// the relation it decides and its own site.
-fn coincidence_site(
-    decision: geom_brep::SectionDecision,
-) -> (crate::Relation, crate::DecisionSite) {
+fn coincidence_site(decided: geom_brep::Coincident) -> (crate::Relation, crate::DecisionSite) {
     use crate::{DecisionSite as Site, Relation};
-    use geom_brep::{CsDecision, SectionDecision as D};
-    match decision {
-        D::CylinderSphere(CsDecision::Coaxial) => (Relation::OnCarrier, Site::CoaxialSphere),
-        D::SphereTorusCoaxial => (Relation::OnCarrier, Site::SphereOnTorusAxis),
-        D::CylinderTorusCoaxial => (Relation::Coaxial, Site::CoaxialCylinderTorus),
-        D::TorusTorusCoaxial => (Relation::Coaxial, Site::CoaxialTori),
-        D::CylinderSphere(CsDecision::WallReach | CsDecision::NearReach | CsDecision::FarReach)
-        | D::TorusTangency(_) => unreachable!(
-            "`{}` decides a tangency, and the section lists only coincidences among its \
-             coincidence records",
-            decision.name()
-        ),
+    use geom_brep::Coincident as C;
+    match decided {
+        C::CylinderSphere => (Relation::OnCarrier, Site::CoaxialSphere),
+        C::SphereTorus => (Relation::OnCarrier, Site::SphereOnTorusAxis),
+        C::CylinderTorus => (Relation::Coaxial, Site::CoaxialCylinderTorus),
+        C::TorusTorus => (Relation::Coaxial, Site::CoaxialTori),
     }
 }
 

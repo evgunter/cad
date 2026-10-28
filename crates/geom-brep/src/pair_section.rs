@@ -394,9 +394,8 @@ impl<T: Decide> CylinderSpherePose<T> {
     pub fn tangency(&self) -> Option<ZeroVerdict> {
         let tangent = |decision: CsDecision, d: Decided| {
             (d.sign == Sign::Zero).then_some(ZeroVerdict {
-                decision: SectionDecision::CylinderSphere(decision),
+                decision: SectionDecision::Tangency(decision.name()),
                 margin: d.margin,
-                kind: ZeroKind::Tangency,
             })
         };
         match self.stance {
@@ -428,20 +427,41 @@ pub enum ZeroKind {
     Tangency,
 }
 
-/// **Which decision a `Zero` verdict was decided on.**
+/// **A coincident pose a section decided** (D10), by its site: the
+/// record its consumer keeps.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Coincident {
+    /// `cs_coaxial`: the sphere's centre on the cylinder's axis.
+    CylinderSphere,
+    /// `st_coaxial`: the sphere's centre on the torus's axis.
+    SphereTorus,
+    /// `section_axes_offset`: the cylinder's axis on the torus's.
+    CylinderTorus,
+    /// `section_axes_offset`: the second torus's axis on the first's.
+    TorusTorus,
+}
+
+impl Coincident {
+    /// The decision's K-funnel name.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::CylinderSphere => CsDecision::Coaxial.name(),
+            Self::SphereTorus => "st_coaxial",
+            Self::CylinderTorus | Self::TorusTorus => "section_axes_offset",
+        }
+    }
+}
+
+/// **Which decision a `Zero` verdict was decided on**, by what it means.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SectionDecision {
-    /// A cylinder × sphere pose question.
-    CylinderSphere(CsDecision),
-    /// `st_coaxial`: the sphere's centre on the torus's axis.
-    SphereTorusCoaxial,
-    /// `section_axes_offset`: the cylinder's axis on the torus's.
-    CylinderTorusCoaxial,
-    /// `section_axes_offset`: the second torus's axis on the first's.
-    TorusTorusCoaxial,
-    /// A torus pair's tangency, by the row that decided it: the critical
-    /// gap's, or a coaxial pose's closed-form tube row.
-    TorusTangency(&'static str),
+    /// A coincident pose.
+    Coincidence(Coincident),
+    /// A tangency, by the row that decided it: a cylinder × sphere
+    /// reach, a torus pair's critical gap, or a coaxial pose's
+    /// closed-form tube row.
+    Tangency(&'static str),
 }
 
 impl SectionDecision {
@@ -449,10 +469,17 @@ impl SectionDecision {
     #[must_use]
     pub const fn name(self) -> &'static str {
         match self {
-            Self::CylinderSphere(d) => d.name(),
-            Self::SphereTorusCoaxial => "st_coaxial",
-            Self::CylinderTorusCoaxial | Self::TorusTorusCoaxial => "section_axes_offset",
-            Self::TorusTangency(row) => row,
+            Self::Coincidence(c) => c.name(),
+            Self::Tangency(row) => row,
+        }
+    }
+
+    /// What the decision means.
+    #[must_use]
+    pub const fn kind(self) -> ZeroKind {
+        match self {
+            Self::Coincidence(_) => ZeroKind::Coincidence,
+            Self::Tangency(_) => ZeroKind::Tangency,
         }
     }
 }
@@ -460,12 +487,10 @@ impl SectionDecision {
 /// One `Zero` verdict that chose the section's arm.
 #[derive(Clone, Copy, Debug)]
 pub struct ZeroVerdict {
-    /// The decision.
+    /// The decision, and what it means.
     pub decision: SectionDecision,
     /// Its margin.
     pub margin: MarginDiag,
-    /// What it means.
-    pub kind: ZeroKind,
 }
 
 /// Whether a component is a curve or one point.
@@ -678,9 +703,8 @@ fn cylinder_sphere<T: Decide>(pose: CylinderSpherePose<T>) -> PairSection<T> {
     let components = match pose.stance {
         CsStance::Coaxial { coaxial, wall } => {
             decided.push(ZeroVerdict {
-                decision: SectionDecision::CylinderSphere(CsDecision::Coaxial),
+                decision: SectionDecision::Coincidence(Coincident::CylinderSphere),
                 margin: coaxial,
-                kind: ZeroKind::Coincidence,
             });
             match wall.sign {
                 // Both factors are definitely positive: `R − r` by the
@@ -770,12 +794,12 @@ impl<T: Decide> PairSection<T> {
     }
 
     /// The coincidence among [`Self::decided`], where the arm stands on
-    /// one: the record its consumer keeps.
-    pub fn coincidence(&self) -> Option<ZeroVerdict> {
-        self.decided
-            .iter()
-            .copied()
-            .find(|z| z.kind == ZeroKind::Coincidence)
+    /// one, with its margin: the record its consumer keeps.
+    pub fn coincidence(&self) -> Option<(Coincident, MarginDiag)> {
+        self.decided.iter().find_map(|z| match z.decision {
+            SectionDecision::Coincidence(c) => Some((c, z.margin)),
+            SectionDecision::Tangency(_) => None,
+        })
     }
 
     /// The tangency among [`Self::decided`], where the arm stands on one.
@@ -783,7 +807,7 @@ impl<T: Decide> PairSection<T> {
         self.decided
             .iter()
             .copied()
-            .find(|z| z.kind == ZeroKind::Tangency)
+            .find(|z| z.decision.kind() == ZeroKind::Tangency)
     }
 
     /// **The component the site `p` lies on**, by the classification

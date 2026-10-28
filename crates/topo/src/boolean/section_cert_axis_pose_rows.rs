@@ -100,6 +100,8 @@ fn tori(e: f64, tilt: f64, m: f64, b: Band) -> (Section<f64>, (f64, f64)) {
     let z = zero();
     let t2 = tori_pose(e * z, tilt * z, m * z);
     let donut = torus(p(0.0, 0.0, 0.0), 2.0, 0.5);
+    // The classifier takes a reach for every pair; two tori read their
+    // own ball and not this one, so it is the donut's, the rows' lever.
     let reach = Reach {
         centre: p(0.0, 0.0, 0.0),
         radius: BALL,
@@ -204,12 +206,7 @@ fn parallel_rows(past: f64) -> [(&'static str, Section<f64>); 3] {
     // its tilt levered over the donut's ball from the pivot `(e, 0, 0)`.
     let e = 2.7 + gap;
     let pin = cylinder(p(e, 0.0, 0.0), tilted(swing / (e + BALL)), 0.2);
-    let torus_pin = classify(
-        &torus(p(0.0, 0.0, 0.0), 2.0, 0.5),
-        &pin,
-        one(p(e, 0.0, 0.0)),
-        band(),
-    );
+    let torus_pin = super::section_cert_rows::classify(&torus(p(0.0, 0.0, 0.0), 2.0, 0.5), &pin);
     // A wall of radius 0.2 standing `gap` off the cone's axis.
     let e = 0.2 + gap;
     let wall = cylinder(p(e, 0.0, 0.0), tilted(swing), 0.2);

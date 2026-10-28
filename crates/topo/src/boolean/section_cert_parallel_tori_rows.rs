@@ -13,7 +13,7 @@
     clippy::float_cmp
 )]
 
-use super::search_kit::{band, join, label, matched, near_cells};
+use super::search_kit::{join, label, matched, near_cells};
 use super::section_cert_rows::{IN, OUT, at, classify, on_both, p, tangent, torus};
 use super::*;
 use core::f64::consts::TAU;
@@ -201,20 +201,6 @@ fn lily(e: f64, h: f64) -> [Surface<f64>; 2] {
     ]
 }
 
-/// The lily's reach: the ball about its fork.
-fn classify_lily(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
-    let a = 22f64.to_radians();
-    super::classify(
-        f,
-        g,
-        Reach {
-            centre: p(-5.0 + 5.0 * a.cos(), 0.0, 5.0 * a.sin()),
-            radius: 2.0,
-        },
-        band(),
-    )
-}
-
 /// **The lily's wall 1 pair: two loops, mirror images across the plane
 /// of the axes, which is the weld plane.** Near the fork the arch's tube
 /// (`0.052`) stands nested in the stem's (`0.060`); either side of it the
@@ -230,7 +216,7 @@ fn the_lilys_tube_walls_meet_in_two_mirror_loops_off_the_weld_plane() {
     };
     let weld_normal = Vec3::new(-(22f64.to_radians().sin()), 0.0, 22f64.to_radians().cos());
     for (f, g, order) in [(&stem, &arch, "stem, arch"), (&arch, &stem, "arch, stem")] {
-        let s = classify_lily(f, g);
+        let s = classify(f, g);
         let (ps, single) = parts(&s);
         assert_eq!(ps.len(), 2, "{order}: two loops: {s:?}");
         assert!(!single, "{order}: two components are never single");
@@ -264,7 +250,7 @@ fn the_lilys_tube_walls_meet_in_two_mirror_loops_off_the_weld_plane() {
 #[test]
 fn the_lilys_pair_either_side_of_its_tangencies() {
     let [stem, arch] = lily(3.9 + 0.02, 0.0);
-    let s = classify_lily(&stem, &arch);
+    let s = classify(&stem, &arch);
     let (ps, single) = parts(&s);
     let a = 22f64.to_radians();
     let weld_normal = Vec3::new(-a.sin(), 0.0, a.cos());
@@ -289,19 +275,15 @@ fn the_lilys_pair_either_side_of_its_tangencies() {
     );
     let [stem, arch] = lily(3.9 + 0.008, 0.0);
     assert_eq!(
-        tangent(&classify_lily(&stem, &arch)),
+        tangent(&classify(&stem, &arch)),
         "tt_critical_gap",
         "the meridian circles tangent at the fork refuse R-tan"
     );
     let [stem, arch] = lily(3.9, 0.2);
-    assert_eq!(
-        parts(&classify_lily(&stem, &arch)).0.len(),
-        0,
-        "slabs apart"
-    );
+    assert_eq!(parts(&classify(&stem, &arch)).0.len(), 0, "slabs apart");
     let [stem, arch] = lily(3.9, 0.112);
     assert_eq!(
-        tangent(&classify_lily(&stem, &arch)),
+        tangent(&classify(&stem, &arch)),
         "tt_critical_gap",
         "slabs touching refuse R-tan"
     );
@@ -317,7 +299,7 @@ fn the_lilys_pair_either_side_of_its_tangencies() {
 #[test]
 fn the_lilys_pair_clears_only_on_windows_that_miss_its_loops() {
     let [stem, arch] = lily(3.9, 0.0);
-    let s = classify_lily(&stem, &arch);
+    let s = classify(&stem, &arch);
     let a = 22f64.to_radians();
     let weld_normal = Vec3::new(-a.sin(), 0.0, a.cos());
     let fork = p(-5.0 + 5.0 * a.cos(), 0.0, 5.0 * a.sin());
@@ -354,10 +336,6 @@ fn the_lilys_pair_clears_only_on_windows_that_miss_its_loops() {
 #[test]
 fn a_tilt_within_the_band_routes_parallel_and_the_gap_reads_the_operands() {
     let eps = geom_core::Tol::witness().eps();
-    let reach = Reach {
-        centre: p(0.0, 0.0, 0.0),
-        radius: 6.0,
-    };
     let f = torus(p(0.0, 0.0, 0.0), 2.0, 0.5);
     let partner = |n: f64, t: f64| Surface::Torus {
         center: p(3.2 + n * eps, 0.0, 0.0),
@@ -368,15 +346,12 @@ fn a_tilt_within_the_band_routes_parallel_and_the_gap_reads_the_operands() {
     };
     for t in [0.0, eps / 100.0] {
         assert_eq!(
-            parts(&super::classify(&f, &partner(30.0, t), reach, band()))
-                .0
-                .len(),
+            parts(&classify(&f, &partner(30.0, t))).0.len(),
             1,
             "tilted by {t}: one loop"
         );
         assert!(
-            tangent(&super::classify(&f, &partner(3.0, t), reach, band()))
-                .starts_with("tt_critical_gap"),
+            tangent(&classify(&f, &partner(3.0, t))).starts_with("tt_critical_gap"),
             "tilted by {t}: the gap in the band"
         );
     }
@@ -391,7 +366,7 @@ fn a_tilt_within_the_band_routes_parallel_and_the_gap_reads_the_operands() {
 #[test]
 fn an_evented_lily_pair_clears_only_by_its_witnesses() {
     let [stem, arch] = lily(3.9, 0.0);
-    let s = classify_lily(&stem, &arch);
+    let s = classify(&stem, &arch);
     assert_eq!(
         certify(&s, true, |_| Sheet::Not, at(IN, IN)),
         Err(Refusal::Undecided),

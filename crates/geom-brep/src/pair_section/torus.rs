@@ -18,9 +18,11 @@
 //!
 //! A coaxial partner is a coincidence (D10), recorded; its spine distance
 //! is constant, so its gap is the closed-form tube rows, read across the
-//! slack the coaxial reading admitted. Every other pose's gap is the
-//! sweep, on the operands as they stand. A coincident torus pair is
-//! refused as a coincidence before any gap.
+//! slack the coaxial reading admitted. A sphere off the axis has a
+//! closed-form gap too, its centre's two meridian distances from the core
+//! ([`SphereTorusPose`]). Every other pose's gap is the sweep, on the
+//! operands as they stand, two tori's on either core ([`TorusTorusPose`]).
+//! A coincident torus pair is refused as a coincidence before any gap.
 //!
 //! # The components
 //!
@@ -37,16 +39,15 @@
 use geom::{Curve3, Surface};
 use geom_core::k_stats::decide_reported;
 use geom_core::{
-    Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3,
+    Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec2, Vec3,
+    rounding_charge,
 };
 
 use super::gap::{Core, Gap, GapRows, Spine, critical_gap};
-use super::torus_arms::{
-    self, ArmRefusal, Part, Pinch, SphereMeridian, SphereParts, SquareWall, hypot,
-};
+use super::torus_arms::{self, ArmRefusal, Pinch, SphereMeridian, SphereParts, SquareWall};
 use super::{
-    ClassCarrier, ComponentShape, PairPose, PairSection, SectionComponent, SectionDecision, Sides,
-    TANGENT_COMPONENT, ZeroKind, ZeroVerdict, line_tilt, square_part,
+    ClassCarrier, Coincident, ComponentShape, PairPose, PairSection, SectionComponent,
+    SectionDecision, Sides, TANGENT_COMPONENT, ZeroVerdict, line_tilt, square_part,
 };
 use crate::ExtentBall;
 use crate::intersect::{SectionError, SectionRadius, decide_across_reported};
@@ -281,7 +282,14 @@ impl<T: Real> Ring<T> {
 
     /// The ball holding the torus, and so every section of it.
     fn ball(self) -> ExtentBall<T> {
-        ExtentBall::new(self.center, self.big_r + self.r)
+        ExtentBall::of_torus(self.center, self.big_r, self.r)
+    }
+
+    /// The size of the torus's coordinates: its centre's distance from
+    /// the origin and its reach from it, what a reading's rounding is a
+    /// charge of.
+    fn size(self) -> T {
+        (self.center - Point3::origin()).norm() + self.big_r + self.r
     }
 
     /// The parallel of radius `rho` at height `z`.
@@ -314,58 +322,29 @@ fn radius_guard<T: Decide>(
     }
 }
 
-/// The gap rows of one pair.
-const fn gap_rows(
-    gap: &'static str,
-    [clear, monotone, smooth, turn, floor, straddle]: [&'static str; 6],
-) -> GapRows {
-    GapRows {
-        gap,
-        clear,
-        monotone,
-        smooth,
-        turn,
-        floor,
-        straddle,
-    }
-}
-
-/// The sphere × torus gap's rows.
-pub(super) const ST_GAP: GapRows = gap_rows(
-    "st_critical_gap",
-    [
-        "st_critical_gap_clear",
-        "st_critical_gap_monotone",
-        "st_critical_gap_smooth",
-        "st_critical_gap_turn",
-        "st_critical_gap_floor",
-        "st_critical_gap_straddle",
-    ],
-);
 /// The cylinder × torus gap's rows.
-pub(super) const CT_GAP: GapRows = gap_rows(
-    "ct_critical_gap",
-    [
-        "ct_critical_gap_clear",
-        "ct_critical_gap_monotone",
-        "ct_critical_gap_smooth",
-        "ct_critical_gap_turn",
-        "ct_critical_gap_floor",
-        "ct_critical_gap_straddle",
-    ],
-);
+pub(super) const CT_GAP: GapRows = GapRows {
+    gap: "ct_critical_gap",
+    clear: "ct_critical_gap_clear",
+    monotone: "ct_critical_gap_monotone",
+    smooth: "ct_critical_gap_smooth",
+    turn: "ct_critical_gap_turn",
+    floor: "ct_critical_gap_floor",
+    straddle: "ct_critical_gap_straddle",
+};
 /// The torus × torus gap's rows.
-pub(super) const TT_GAP: GapRows = gap_rows(
-    "tt_critical_gap",
-    [
-        "tt_critical_gap_clear",
-        "tt_critical_gap_monotone",
-        "tt_critical_gap_smooth",
-        "tt_critical_gap_turn",
-        "tt_critical_gap_floor",
-        "tt_critical_gap_straddle",
-    ],
-);
+pub(super) const TT_GAP: GapRows = GapRows {
+    gap: "tt_critical_gap",
+    clear: "tt_critical_gap_clear",
+    monotone: "tt_critical_gap_monotone",
+    smooth: "tt_critical_gap_smooth",
+    turn: "tt_critical_gap_turn",
+    floor: "tt_critical_gap_floor",
+    straddle: "tt_critical_gap_straddle",
+};
+/// The sphere × torus gap's row: the closed form's, read across its
+/// rounding.
+const ST_GAP: [&str; 2] = ["st_critical_gap", "st_critical_gap_floor"];
 
 /// The note a cylinder × torus component carries while its door is
 /// unbuilt.
@@ -421,23 +400,22 @@ impl<T: Real> TorusGap<T> {
         match self {
             Self::Transverse => None,
             Self::Tangent { row, margin, .. } => Some(ZeroVerdict {
-                decision: SectionDecision::TorusTangency(row),
+                decision: SectionDecision::Tangency(row),
                 margin,
-                kind: ZeroKind::Tangency,
             }),
         }
     }
 }
 
-/// A coaxial pose's closed-form gap: the tube rows decided, each `Zero`
-/// a tangency along a parallel.
-fn closed_gap<T: Real>(row: &'static str, (sign, margin): (Sign, MarginDiag)) -> TorusGap<T> {
+/// A closed-form gap: a row decided across its slack, `Zero` a tangency
+/// (at `at`, where one point reads it, else along a parallel).
+fn closed_gap<T: Real>(
+    row: &'static str,
+    (sign, margin): (Sign, MarginDiag),
+    at: Option<Point3<T>>,
+) -> TorusGap<T> {
     match sign {
-        Sign::Zero => TorusGap::Tangent {
-            row,
-            margin,
-            at: None,
-        },
+        Sign::Zero => TorusGap::Tangent { row, margin, at },
         Sign::Positive | Sign::Negative => TorusGap::Transverse,
     }
 }
@@ -482,7 +460,7 @@ fn crossing_parallels<T: Real>(
 ) -> (Vec<SectionComponent<T>>, Sides<T>) {
     let [big_r, r] = [ring.big_r, ring.r];
     let (dx, dz) = (x2 - big_r, z2);
-    let dist = hypot(dx, dz);
+    let dist = Vec2::new(dx, dz).norm();
     let along = (dist.powi(2) + (r - r2) * (r + r2)) / (dist + dist);
     let half = ((r - along) * (r + along)).sqrt();
     let (ux, uz) = (dx / dist, dz / dist);
@@ -527,26 +505,15 @@ fn tangent_component<T: Real>(touch: Option<Point3<T>>, winds: [bool; 2]) -> Sec
     }
 }
 
-/// Parts in (torus, partner) order as components in the order asked,
-/// each carrying `carrier`.
-fn components<T: Real>(
-    parts: Vec<Part<T>>,
+/// An arm's loops, listed in (torus, partner) order, in the order asked.
+fn in_order<T: Real>(
+    mut loops: Vec<SectionComponent<T>>,
     torus_first: bool,
-    carrier: &ClassCarrier<T>,
 ) -> Vec<SectionComponent<T>> {
-    parts
-        .into_iter()
-        .map(|p| SectionComponent {
-            shape: ComponentShape::Loop,
-            winds: if torus_first {
-                [p.torus, p.partner]
-            } else {
-                [p.partner, p.torus]
-            },
-            witness: p.witness,
-            carrier: carrier.clone(),
-        })
-        .collect()
+    for c in &mut loops {
+        c.winds = order(torus_first, c.winds);
+    }
+    loops
 }
 
 /// `[on_torus, on_partner]` in the order asked.
@@ -596,7 +563,8 @@ impl<T: Decide> SphereTorusPose<T> {
     /// **Decides the pose of `a` and `b`**, a sphere and a torus in either
     /// order. In order: `st_sphere_radius` and the ring convention;
     /// `st_coaxial`, the centre's distance from the torus axis; then the
-    /// coaxial tube row (`st_coaxial_tube`) or the critical gap's sweep.
+    /// coaxial tube row (`st_coaxial_tube`) or the closed-form critical
+    /// gap (`st_critical_gap`).
     ///
     /// # Errors
     ///
@@ -619,29 +587,37 @@ impl<T: Decide> SphereTorusPose<T> {
         Some((|| {
             radius_guard("st_sphere_radius", SectionRadius::Sphere, radius, band)?;
             let ring = ring?;
-            let (_, s) = square_part(center - ring.center, ring.axis);
+            let q = center - ring.center;
+            let (perp, s) = square_part(q, ring.axis);
             let coaxial =
                 decide_reported("st_coaxial", Margin::of(s), band).map_err(undecided_symmetry)?;
+            let h = q.dot(ring.axis);
             let (stance, gap) = if coaxial.sign == Sign::Zero {
-                // The centre's distance from every core point, and the
-                // sphere against the tube circle at it.
-                let ca = (center - ring.center).dot(ring.axis);
-                let d = hypot(ring.big_r, ca);
+                // The centre's distance from every core point as the
+                // coaxial reading has it, and the sphere against the tube
+                // circle there, read across the offset `s` the reading
+                // dropped: each core point's true distance is within `s`
+                // of it.
+                let d = Vec2::new(ring.big_r, h).norm();
                 let cut = (d + ring.r - radius).min(radius - (d - ring.r).abs());
-                let tube = decide_reported("st_coaxial_tube", Margin::of(cut), band)
-                    .map(|t| (t.sign, t.margin))
-                    .map_err(undecided_gap)?;
+                let tube = decide_across_reported(
+                    ["st_coaxial_tube", "st_coaxial_tube_floor"],
+                    cut,
+                    s + rounding_charge(ring.size() + radius + d),
+                    band,
+                )
+                .map_err(undecided_gap)?;
                 (
                     StStance::Coaxial {
                         coaxial: coaxial.margin,
                         tube,
                     },
-                    closed_gap("st_coaxial_tube", tube),
+                    closed_gap("st_coaxial_tube", tube, None),
                 )
             } else {
                 (
                     StStance::Apart,
-                    swept(ring, Spine::Point(center), [ring.r, radius], &ST_GAP, band)?,
+                    sphere_gap(ring, (perp, s, h), radius, band)?,
                 )
             };
             Ok(Self {
@@ -703,6 +679,35 @@ impl<T: Decide> SphereTorusPose<T> {
     }
 }
 
+/// **The sphere × torus gap in closed form**: the sphere's centre stands
+/// `ρ = s` from the torus axis and `h` along it, so the core circle's
+/// critical distances from it are the two meridian ones, `√((ρ ∓ R)² +
+/// h²)`, to the core points in its half-plane and opposite (the sweep's
+/// one-variable `D` has its critical points there and nowhere else). The
+/// gap is the least of their distances from the levels `r + r_s` and
+/// `|r − r_s|`, read across its rounding (the coordinates' size). A
+/// `Zero` is read at the core point whose distance it was.
+fn sphere_gap<T: Decide>(
+    ring: Ring<T>,
+    (perp, rho, h): (Vec3<T>, T, T),
+    radius: T,
+    band: Band,
+) -> Result<TorusGap<T>, TorusPoseRefusal> {
+    let levels = [ring.r + radius, (ring.r - radius).abs()];
+    let of = |d: T| (d - levels[0]).abs().min((d - levels[1]).abs());
+    let (near, far) = (
+        of(Vec2::new(rho - ring.big_r, h).norm()),
+        of(Vec2::new(rho + ring.big_r, h).norm()),
+    );
+    let gap = near.min(far);
+    let size = ring.size() + radius + rho + h.abs();
+    let read =
+        decide_across_reported(ST_GAP, gap, rounding_charge(size), band).map_err(undecided_gap)?;
+    let side = (near - far).select_le_zero(T::one(), T::zero() - T::one());
+    let at = ring.center + perp / rho * (ring.big_r * side);
+    Ok(closed_gap(ST_GAP[0], read, Some(at)))
+}
+
 /// The sphere × torus section over its decided pose.
 pub(super) fn sphere_torus<T: Decide>(
     pose: SphereTorusPose<T>,
@@ -714,9 +719,8 @@ pub(super) fn sphere_torus<T: Decide>(
     let (components, sides) = match pose.stance {
         StStance::Coaxial { coaxial, tube } => {
             decided.push(ZeroVerdict {
-                decision: SectionDecision::SphereTorusCoaxial,
+                decision: SectionDecision::Coincidence(Coincident::SphereTorus),
                 margin: coaxial,
-                kind: ZeroKind::Coincidence,
             });
             let winds = order(torus_first, [true, false]);
             match tube.0 {
@@ -757,10 +761,7 @@ pub(super) fn sphere_torus<T: Decide>(
                                 row: "st_component_side",
                             })
                         }
-                        SphereParts::Parts(parts) => (
-                            components(parts, torus_first, &ClassCarrier::General),
-                            Sides::One,
-                        ),
+                        SphereParts::Parts(parts) => (in_order(parts, torus_first), Sides::One),
                     }
                 }
                 TorusGap::Tangent { .. } => {
@@ -886,7 +887,7 @@ impl<T: Decide> CylinderTorusPose<T> {
                             coaxial: margin,
                             wall,
                         },
-                        closed_gap(WALL, wall),
+                        closed_gap(WALL, wall, None),
                     )
                 }
                 AxisPose::Parallel { e, toward, slack } => {
@@ -961,7 +962,6 @@ pub(super) fn cylinder_torus<T: Decide>(
     let ring = pose.ring;
     let torus_first = !pose.cylinder_first;
     let (c, a, radii, rc) = (ring.center, ring.axis, ring.radii(), pose.radius);
-    let unbuilt = ClassCarrier::Unbuilt(CT_DOOR);
     let mut decided = Vec::new();
     let tangent = |touch| {
         (
@@ -972,9 +972,8 @@ pub(super) fn cylinder_torus<T: Decide>(
     let (components, sides) = match (pose.stance, pose.gap) {
         (CtStance::Coaxial { coaxial, wall }, _) => {
             decided.push(ZeroVerdict {
-                decision: SectionDecision::CylinderTorusCoaxial,
+                decision: SectionDecision::Coincidence(Coincident::CylinderTorus),
                 margin: coaxial,
-                kind: ZeroKind::Coincidence,
             });
             let winds = order(torus_first, [true, true]);
             match wall.0 {
@@ -1013,7 +1012,7 @@ pub(super) fn cylinder_torus<T: Decide>(
             // mirror images across the torus's plane; two `(0,1)` loops
             // are mirror images across the plane of the axes.
             let sides = match parts.first() {
-                Some(p) if parts.len() == 2 && p.partner => Sides::Plane {
+                Some(p) if parts.len() == 2 && p.winds[1] => Sides::Plane {
                     origin: c,
                     normal: a,
                     row: "ct_component_side",
@@ -1025,7 +1024,7 @@ pub(super) fn cylinder_torus<T: Decide>(
                 },
                 _ => Sides::One,
             };
-            (components(parts, torus_first, &unbuilt), sides)
+            (in_order(parts, torus_first), sides)
         }
         (CtStance::Parallel { e, toward, slack }, TorusGap::Tangent { .. }) => {
             let touch = match torus_arms::parallel_cylinder_arm(
@@ -1052,7 +1051,7 @@ pub(super) fn cylinder_torus<T: Decide>(
             } else {
                 Sides::One
             };
-            (components(parts, torus_first, &unbuilt), sides)
+            (in_order(parts, torus_first), sides)
         }
         (CtStance::Square(_) | CtStance::General, TorusGap::Tangent { .. }) => tangent(None),
         (CtStance::General, TorusGap::Transverse) => {
@@ -1119,7 +1118,7 @@ impl<T: Decide> TorusTorusPose<T> {
     /// **Decides the pose of two tori**: both ring conventions; the axis
     /// pose of the second over the smaller ball; a coaxial pair's
     /// coincidence (`tt_coincident`) and its tube rows, or the critical
-    /// gap's sweep of the first core against the second.
+    /// gap's sweep on either core.
     ///
     /// # Errors
     ///
@@ -1133,16 +1132,16 @@ impl<T: Decide> TorusTorusPose<T> {
         Some((|| {
             let (r1, r2) = (ra?, rb?);
             // Both balls hold the section: the smaller is the tighter
-            // reach.
-            let pick = (r1.big_r + r1.r) - (r2.big_r + r2.r);
-            let ball = ExtentBall::new(
-                Point3::new(
-                    pick.select_le_zero(r1.center.x, r2.center.x),
-                    pick.select_le_zero(r1.center.y, r2.center.y),
-                    pick.select_le_zero(r1.center.z, r2.center.z),
-                ),
-                (r1.big_r + r1.r).min(r2.big_r + r2.r),
-            );
+            // reach, and where the comparison is not decided either
+            // serves.
+            let ball = match geom_core::k_stats::decide(
+                "tt_smaller_ball",
+                Margin::of((r2.big_r + r2.r) - (r1.big_r + r1.r)),
+                band,
+            ) {
+                Ok(Sign::Negative) => r2.ball(),
+                Ok(Sign::Positive | Sign::Zero) | Err(_) => r1.ball(),
+            };
             let (c2, a2) = (r2.center, r2.axis);
             // The centre's height is read off `c2` itself, which the turn
             // onto the torus axis lifts by its station from the pivot
@@ -1163,7 +1162,7 @@ impl<T: Decide> TorusTorusPose<T> {
                         (Sign::Zero, _) => return Err(TorusPoseRefusal::Coincident),
                         (Sign::Positive | Sign::Negative, _) => {}
                     }
-                    let d = hypot(r2.big_r - r1.big_r, z2);
+                    let d = Vec2::new(r2.big_r - r1.big_r, z2).norm();
                     let mut tube = None;
                     for (row, m) in [
                         (TUBE_REACH, r1.r + r2.r - d),
@@ -1187,18 +1186,15 @@ impl<T: Decide> TorusTorusPose<T> {
                             coaxial: margin,
                             tube,
                         },
-                        closed_gap(row, tube),
+                        closed_gap(row, tube, None),
                     )
                 }
                 AxisPose::Parallel { e, toward, slack } => (
                     TtStance::Parallel { e, toward, slack },
-                    swept(r1, circle(r2), [r1.r, r2.r], &TT_GAP, band)?,
+                    torus_gap([r1, r2], band)?,
                 ),
                 AxisPose::Undecided(diag) => return Err(undecided_symmetry(diag)),
-                AxisPose::Other => (
-                    TtStance::General,
-                    swept(r1, circle(r2), [r1.r, r2.r], &TT_GAP, band)?,
-                ),
+                AxisPose::Other => (TtStance::General, torus_gap([r1, r2], band)?),
             };
             Ok(Self {
                 first: a.clone(),
@@ -1244,6 +1240,20 @@ fn floor_of(row: &'static str) -> &'static str {
     }
 }
 
+/// **The torus × torus gap, read on either core**: the critical values
+/// of the distance between two core circles are the same whichever is
+/// swept, so each sweep's verdict is a certificate of the pair's, and
+/// the two never disagree. The first core is swept against the second;
+/// where that escalates, the second against the first, and only both
+/// escalating escalates (on the first's reading). The verdict therefore
+/// does not depend on the order the pair was asked in: an order whose
+/// first sweep decides finds what the other order's sweeps find, one of
+/// them deciding.
+fn torus_gap<T: Decide>([a, b]: [Ring<T>; 2], band: Band) -> Result<TorusGap<T>, TorusPoseRefusal> {
+    swept(a, circle(b), [a.r, b.r], &TT_GAP, band)
+        .or_else(|first| swept(b, circle(a), [b.r, a.r], &TT_GAP, band).map_err(|_| first))
+}
+
 fn circle<T: Real>(ring: Ring<T>) -> Spine<T> {
     Spine::Circle {
         center: ring.center,
@@ -1262,9 +1272,8 @@ pub(super) fn torus_torus<T: Decide>(
     let (components, sides) = match (pose.stance, pose.gap) {
         (TtStance::Coaxial { coaxial, tube }, _) => {
             decided.push(ZeroVerdict {
-                decision: SectionDecision::TorusTorusCoaxial,
+                decision: SectionDecision::Coincidence(Coincident::TorusTorus),
                 margin: coaxial,
-                kind: ZeroKind::Coincidence,
             });
             match tube.0 {
                 Sign::Positive => {
@@ -1292,10 +1301,7 @@ pub(super) fn torus_torus<T: Decide>(
             } else {
                 Sides::One
             };
-            (
-                components(parts, true, &ClassCarrier::Unbuilt(TT_DOOR)),
-                sides,
-            )
+            (parts, sides)
         }
         (TtStance::Parallel { .. } | TtStance::General, TorusGap::Tangent { .. }) => {
             (vec![tangent_component(None, [false, false])], Sides::One)

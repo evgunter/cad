@@ -456,10 +456,6 @@ fn a_pipe_along_the_cores_tangent_places_its_folds_within_the_band() {
             big_r,
             r,
         };
-        let reach = Reach {
-            centre: c,
-            radius: 1.5 * (big_r + r),
-        };
         for delta in [3.0 * eps, 1e3 * eps, 1e-7 * r, 1e-5 * r, 1e-3 * r, 0.1 * r] {
             let (dy, dz) = (delta * 0.75f64.sqrt(), delta * 0.5);
             let o = p(c.x + 1.3 * big_r, c.y + big_r + dy, c.z + dz);
@@ -470,7 +466,7 @@ fn a_pipe_along_the_cores_tangent_places_its_folds_within_the_band() {
                 rc: r,
             };
             let what = format!("R {big_r}, δ {delta:e}");
-            let parts = match classify(&ring.surface(), &wall.surface(), reach, band()) {
+            let parts = match super::section_cert_rows::classify(&ring.surface(), &wall.surface()) {
                 Section::Tangent("section_torus_square_wall_fold_drift") => {
                     drifting += 1;
                     continue;

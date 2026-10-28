@@ -8,19 +8,11 @@
 //! touch readings run.
 
 use geom_core::k_stats::decide;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec2, Vec3};
 
+use super::torus::{CT_DOOR, TT_DOOR};
+use super::{ClassCarrier, ComponentShape, SectionComponent};
 use crate::intersect::decide_across;
-
-/// **One component a closed-form arm lists**: whether it winds about the
-/// torus and about the partner (it is essential there), and one point of
-/// it in closed form, where the arm names one.
-#[derive(Clone, Copy, Debug)]
-pub(super) struct Part<T: Real> {
-    pub(super) torus: bool,
-    pub(super) partner: bool,
-    pub(super) witness: Option<Point3<T>>,
-}
 
 /// **Why an arm did not count the section.**
 #[derive(Clone, Copy, Debug)]
@@ -115,26 +107,39 @@ pub fn signs_across<T: Decide, const N: usize>(
     })
 }
 
-/// `(x² + y²)^½`.
-pub(super) fn hypot<T: Real>(x: T, y: T) -> T {
-    (x.powi(2) + y.powi(2)).sqrt()
+/// **One loop a closed-form arm lists**: whether it winds about the
+/// torus and about the partner (it is essential there), in that order
+/// (the pose puts them in the order the section was asked of), one point
+/// of it where the arm names one, and the pair's carrier.
+fn arm_loop<T: Real>(
+    [torus, partner]: [bool; 2],
+    witness: Option<Point3<T>>,
+    carrier: &ClassCarrier<T>,
+) -> SectionComponent<T> {
+    SectionComponent {
+        shape: ComponentShape::Loop,
+        winds: [torus, partner],
+        witness,
+        carrier: carrier.clone(),
+    }
 }
 
-fn lone<T: Real>(witness: Point3<T>) -> Vec<Part<T>> {
-    vec![Part {
-        torus: false,
-        partner: false,
-        witness: Some(witness),
-    }]
+/// One inessential loop through `witness`.
+fn lone<T: Real>(witness: Point3<T>, carrier: &ClassCarrier<T>) -> Vec<SectionComponent<T>> {
+    vec![arm_loop([false, false], Some(witness), carrier)]
 }
 
-fn essential_pair<T: Real>(torus: bool, partner: bool) -> Vec<Part<T>> {
-    let c = Part {
-        torus,
-        partner,
-        witness: None,
-    };
-    vec![c, c]
+/// Two loops, each essential as `winds` says.
+fn essential_pair<T: Real>(
+    winds: [bool; 2],
+    carrier: &ClassCarrier<T>,
+) -> Vec<SectionComponent<T>> {
+    vec![arm_loop(winds, None, carrier); 2]
+}
+
+/// The cylinder × torus arms' carrier while the door is unbuilt.
+fn cylinder_carrier<T: Real>() -> ClassCarrier<T> {
+    ClassCarrier::Unbuilt(CT_DOOR)
 }
 
 // ---------------------------------------------------------------------
@@ -166,7 +171,7 @@ impl<T: Real> SphereMeridian<T> {
         let w = cs - c;
         let ca = w.dot(a);
         let (perp, s) = super::square_part(w, a);
-        let dist = |x: T| hypot(x, ca);
+        let dist = |x: T| Vec2::new(x, ca).norm();
         Self {
             c,
             a,
@@ -227,10 +232,13 @@ pub(super) fn sphere_arm<T: Decide>(
             let (ex, ey) = ((m.s - sigma * big_r) / d, m.ca / d);
             let along = (d.powi(2) + r.powi(2) - rho.powi(2)) / (d + d);
             let half = ((r - along) * (r + along)).sqrt();
-            SphereParts::Parts(lone(m.at(
-                sigma * big_r + ex * along - ey * half,
-                ey * along + ex * half,
-            )))
+            SphereParts::Parts(lone(
+                m.at(
+                    sigma * big_r + ex * along - ey * half,
+                    ey * along + ex * half,
+                ),
+                &ClassCarrier::General,
+            ))
         }
     })
 }
@@ -243,7 +251,7 @@ pub(super) enum SphereParts<T: Real> {
     /// `Π`.
     AroundTube,
     /// Every other count, each part listed.
-    Parts(Vec<Part<T>>),
+    Parts(Vec<SectionComponent<T>>),
 }
 
 /// **Where a sphere tangent to the tube circle `T_σ` the pinch names
@@ -327,7 +335,7 @@ pub(super) fn parallel_cylinder_arm<T: Decide>(
     toward: Vec3<T>,
     rc: T,
     band: Band,
-) -> Result<Vec<Part<T>>, Pinch> {
+) -> Result<Vec<SectionComponent<T>>, Pinch> {
     let (rho_min, rho_max) = ((e - rc).abs(), e + rc);
     let (lo, hi) = (big_r - r, big_r + r);
     let [min_over_lo, min_under_hi, max_over_lo, max_under_hi] = signs_across(
@@ -364,15 +372,21 @@ pub(super) fn parallel_cylinder_arm<T: Decide>(
         match (min_over_lo, min_under_hi, max_over_lo, max_under_hi) {
             // The whole ρ-range inside the tube's shadow: two loops, each
             // encircling the cylinder.
-            (true, true, true, true) => essential_pair(false, true),
+            (true, true, true, true) => essential_pair([false, true], &cylinder_carrier()),
             // Wholly inside the hole, or wholly outside the torus.
             (_, _, false, _) | (_, false, _, _) => Vec::new(),
             // Across both bounds: two `(0,1)` loops on the torus.
-            (false, true, true, false) => essential_pair(true, false),
+            (false, true, true, false) => essential_pair([true, false], &cylinder_carrier()),
             // Across the inner bound only: the null loop at θ = 0.
-            (false, true, true, true) => lone(c + toward * rho_max + a * height(rho_max)),
+            (false, true, true, true) => lone(
+                c + toward * rho_max + a * height(rho_max),
+                &cylinder_carrier(),
+            ),
             // Across the outer bound only: the null loop at θ = π.
-            (true, true, true, false) => lone(c + toward * (e - rc) + a * height(rho_min)),
+            (true, true, true, false) => lone(
+                c + toward * (e - rc) + a * height(rho_min),
+                &cylinder_carrier(),
+            ),
         },
     )
 }
@@ -453,7 +467,7 @@ pub(super) fn parallel_torus_arm<T: Decide>(
     (e, slack): (T, T),
     toward: Vec3<T>,
     band: Band,
-) -> Result<Vec<Part<T>>, Pinch> {
+) -> Result<Vec<SectionComponent<T>>, Pinch> {
     let side = a.cross(toward);
     let at = |x: T, y: T, z: T| c + toward * x + a * y + side * z;
     let [meet] = signs_across(
@@ -519,7 +533,7 @@ pub(super) fn parallel_torus_arm<T: Decide>(
     for (xa, far1) in [(big_r, false), (-big_r, true)] {
         for (xb, far2) in [(e + big_r2, false), (e - big_r2, true)] {
             let (dx, dy) = (xb - xa, h);
-            let d = hypot(dx, dy);
+            let d = Vec2::new(dx, dy).norm();
             if signs_across(
                 [
                     (
@@ -580,11 +594,8 @@ pub(super) fn parallel_torus_arm<T: Decide>(
         }
     }
     let mut parts = Vec::new();
-    let component = |w: Point3<T>| Part {
-        torus: false,
-        partner: false,
-        witness: Some(w),
-    };
+    let carrier = ClassCarrier::Unbuilt(TT_DOOR);
+    let component = |w: Point3<T>| arm_loop([false, false], Some(w), &carrier);
     for (strands, mut points) in loops.iter().zip(on_pi) {
         if points.is_empty() {
             let Strand {
@@ -810,7 +821,7 @@ pub(super) fn square_cylinder_arm<T: Decide>(
     wall: &SquareWall<T>,
     rc: T,
     band: Band,
-) -> Result<Vec<Part<T>>, ArmRefusal> {
+) -> Result<Vec<SectionComponent<T>>, ArmRefusal> {
     let &SquareWall {
         d,
         across,
@@ -861,7 +872,7 @@ fn square_folds<T: Decide>(
     for plus in [true, false] {
         let sigma = if plus { T::one() } else { -T::one() };
         let dy = e - sigma * big_r;
-        let dist = hypot(dy, z0);
+        let dist = Vec2::new(dy, z0).norm();
         let [cut] = signs(
             [(
                 "section_torus_square_wall_tube",
@@ -938,21 +949,21 @@ fn lifts<T: Real>(
     (y, z, rho): (T, T, T),
     [torus, partner]: [bool; 2],
     at: impl Fn(T, T, T) -> Point3<T>,
-) -> [Part<T>; 2] {
+) -> [SectionComponent<T>; 2] {
     let t = ((rho - y) * (rho + y)).sqrt();
-    [t, -t].map(|t| Part {
-        torus,
-        partner,
-        witness: Some(at(y, z, t)),
-    })
+    [t, -t].map(|t| arm_loop([torus, partner], Some(at(y, z, t)), &cylinder_carrier()))
 }
 
-fn through<T: Real>(f: Fold<T>, torus: bool, at: impl Fn(T, T, T) -> Point3<T>) -> Part<T> {
-    Part {
-        torus,
-        partner: false,
-        witness: Some(at(f.y, f.z, T::zero())),
-    }
+fn through<T: Real>(
+    f: Fold<T>,
+    torus: bool,
+    at: impl Fn(T, T, T) -> Point3<T>,
+) -> SectionComponent<T> {
+    arm_loop(
+        [torus, false],
+        Some(at(f.y, f.z, T::zero())),
+        &cylinder_carrier(),
+    )
 }
 
 /// **`K` inside the open strip**: the sheets are two loops over all of
@@ -974,7 +985,7 @@ fn inside_strip<T: Decide>(
     folds: &[Fold<T>],
     at: impl Fn(T, T, T) -> Point3<T> + Copy,
     band: Band,
-) -> Result<Vec<Part<T>>, ArmRefusal> {
+) -> Result<Vec<SectionComponent<T>>, ArmRefusal> {
     let mut parts = Vec::new();
     for outer in [true, false] {
         let on = |plus: bool| -> Vec<Fold<T>> {
@@ -1019,7 +1030,7 @@ fn across_strip<T: Decide>(
     folds: &[Fold<T>],
     at: impl Fn(T, T, T) -> Point3<T> + Copy,
     band: Band,
-) -> Result<Vec<Part<T>>, ArmRefusal> {
+) -> Result<Vec<SectionComponent<T>>, ArmRefusal> {
     let [big_r, r] = ring;
     if top != bottom {
         let m = if top { r - (z0 - rc) } else { z0 + rc + r };

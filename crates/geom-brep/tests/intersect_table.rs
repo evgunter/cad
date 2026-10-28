@@ -1057,11 +1057,10 @@ fn coaxiality_is_decided_by_the_measured_distance() {
     ] {
         let s = cs_section(&cyl, &sph).unwrap();
         assert_eq!(s.components().len(), 2, "{label}");
-        let zero = s.coincidence().expect("the coaxiality is recorded");
-        assert_eq!(zero.decision.name(), "cs_coaxial", "{label}");
-        let geom_core::ErrorTextReading::Value(d) = zero.margin.diagnostic_f64_for_error_text()
-        else {
-            panic!("{label}: the distance is a value: {zero:?}");
+        let (decided, margin) = s.coincidence().expect("the coaxiality is recorded");
+        assert_eq!(decided.name(), "cs_coaxial", "{label}");
+        let geom_core::ErrorTextReading::Value(d) = margin.diagnostic_f64_for_error_text() else {
+            panic!("{label}: the distance is a value: {margin:?}");
         };
         assert!(d.abs() < 1e-12, "{label}: the coaxial margin {d}");
     }

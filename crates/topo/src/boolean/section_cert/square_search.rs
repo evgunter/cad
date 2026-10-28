@@ -556,7 +556,7 @@ fn square_pose_at(
     // levered over the torus's own ball, as the section value reads it.
     let lever = geom_brep::pair_section::torus::lever(
         foot,
-        geom_brep::ExtentBall::new(ring.c, ring.big_r + ring.r),
+        geom_brep::ExtentBall::of_torus(ring.c, ring.big_r, ring.r),
     );
     let tilt = if rng.unit() < 0.3 {
         band().zero() / lever * rng.range(1e-6f64.ln(), 0.25f64.ln()).exp()

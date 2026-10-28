@@ -6,8 +6,8 @@
 
 use geom::{Curve3, Surface};
 use geom_brep::{
-    CarryError, ClassCarrier, ComponentShape, PairSection, SectionError, SectionRead, SsiError,
-    SsiLane, ZeroKind,
+    CarryError, ClassCarrier, Coincident, ComponentShape, PairSection, SectionError, SectionRead,
+    SsiError, SsiLane, ZeroKind,
 };
 use geom_core::{Band, Point3, Tol, Vec3};
 
@@ -58,10 +58,10 @@ fn on_both(p: Point3<f64>, a: &Surface<f64>, b: &Surface<f64>, what: &str) {
 fn the_coaxial_pose_is_two_circles_and_records_its_coincidence() {
     let (cyl, sph) = (cylinder(1.0), sphere(0.0, 2.0));
     let section = built(&cyl, &sph);
-    let zero = section.coincidence().expect("the coaxiality is recorded");
+    let (decided, _) = section.coincidence().expect("the coaxiality is recorded");
     assert_eq!(
-        (zero.decision.name(), zero.kind),
-        ("cs_coaxial", ZeroKind::Coincidence)
+        (decided.name(), decided),
+        ("cs_coaxial", Coincident::CylinderSphere)
     );
     assert!(section.tangency().is_none(), "no tangency");
     assert_eq!(section.components().len(), 2, "two circles");
@@ -147,7 +147,7 @@ fn a_tangency_is_classification_data_and_does_not_carry() {
         let section = built(&cyl, &sph);
         let zero = section.tangency().expect("a tangency");
         assert_eq!(
-            (zero.decision.name(), zero.kind),
+            (zero.decision.name(), zero.decision.kind()),
             (decision, ZeroKind::Tangency),
             "{label}"
         );

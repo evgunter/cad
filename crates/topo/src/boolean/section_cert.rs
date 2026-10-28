@@ -218,7 +218,9 @@
 //!
 //! # What the arms say (component structure per kind pair)
 //!
-//! - **Torus × plane, torus × sphere** (one classification). In the
+//! - **Torus × plane, torus × sphere** (one classification, the
+//!   sphere's read in the section value, [`geom_brep::SphereTorusPose`],
+//!   the plane's here). In the
 //!   meridian plane `Π` holding the axis and the plane's normal (or the
 //!   sphere's centre), let `T₊`, `T₋` be the tube circles at the near
 //!   and far core points. The section has roots at `u' = 0` iff the
@@ -229,14 +231,21 @@
 //!   when the partner separates `T₊` from `T₋`, else none. A
 //!   two-component section is therefore always essential.
 //! - **Torus × coaxial {cylinder, torus}**: parallels, essential on both.
+//!
+//! Every torus pair but the plane and the cone is the section value's
+//! ([`geom_brep::pair_section()`]): its pose decided once, the critical
+//! gap read before any count, and its components classified by these
+//! arms there, read here by [`of_pair_section`]. The parallel- and
+//! square-axis cylinder, the parallel-axis torus and the sphere below
+//! are those arms.
 //! - **Torus × parallel-axis torus** (axis offset `e`): mirror-symmetric
 //!   across the plane `Π` of the axes. Each loop of the curve matching
 //!   the two meridian circles' heights meets `Π` in `2k` points, the
 //!   crossings of the tori's meridian circles there, and carries `k`
 //!   components, each witnessed at one of them; a loop meeting `Π`
 //!   nowhere carries two mirror components or none, read at one height
-//!   ([`torus_parallel_torus`]). Tube tops or bottoms level with each
-//!   other are R-tan.
+//!   (the section value's arm, read through [`geom_brep::TorusTorusPose`]).
+//!   Tube tops or bottoms level with each other are R-tan.
 //! - **Torus × parallel-axis cylinder** (axis offset `e`): with
 //!   `ρ ∈ [|e − ρc|, e + ρc]` against `[R − r, R + r]`, inside gives two
 //!   loops encircling the cylinder, across one bound a single null loop
@@ -252,7 +261,8 @@
 //!   tube circles. Or it is one of a mirror pair over a run with no such
 //!   point: essential on the wall for `K` inside the strip, else null
 //!   there and winding about the tube iff the run crosses the strip.
-//!   Every component carries a witness ([`torus_square_cylinder`]).
+//!   Every component carries a witness (the section value's arm, read
+//!   through [`geom_brep::CylinderTorusPose`]).
 //! - **Cylinder × cylinder** (common-perpendicular offset `δ₀`):
 //!   `|δ₀| + r_min < r_max` gives two loops encircling the thinner
 //!   axis; `|r₁ − r₂| < |δ₀| < r₁ + r₂` a single null saddle loop,
@@ -1752,13 +1762,18 @@ pub(super) fn of_pair_section<T: Decide>(
     use geom_brep::{ComponentShape, SectionError};
     let section = match read {
         Ok(section) => section,
+        // Every row the value decides goes through `k_stats`, which names
+        // the predicate it escalates; one with no name is the value's
+        // door itself.
         Err(SectionError::Escalated(diag)) => {
-            return Section::Tangent(diag.predicate.unwrap_or("cs_pose"));
+            return Section::Tangent(diag.predicate.unwrap_or("pair_section"));
         }
         Err(SectionError::Pinched { predicate }) => return Section::Tangent(predicate),
         Err(SectionError::Unordered { predicate }) => return Section::Unordered(predicate),
         // Two surfaces decided one share a carrier: no component count
-        // is certified, as at a tangency.
+        // is certified, as at a tangency. Of the pairs the value builds,
+        // only two tori are decided one, on `tt_coincident`
+        // (`geom_brep::TorusTorusPose`).
         Err(SectionError::CoincidentSurfaces) => return Section::Tangent("tt_coincident"),
         Err(_) => return Section::Intractable,
     };

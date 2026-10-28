@@ -79,7 +79,9 @@ fn donut() -> Surface<f64> {
 }
 
 /// The rows' reach: a ball of diameter [`LEVER`] about the origin,
-/// where every row's torus and walls stand.
+/// where every row's torus and walls stand. A torus pair's section value
+/// reads its own ball and not this one (`geom_brep::pair_section::torus`),
+/// so it serves the rows of every pair alike.
 pub(super) fn classify(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
     super::classify(
         f,
@@ -1437,17 +1439,6 @@ fn a_lone_vertex_ring_refuses_the_pair() {
 // The lever's pivot: the same carrier line, whatever its stored origin
 // -------------------------------------------------------------------
 
-/// The classification of a torus pair whose region is the ball
-/// `(centre, radius)`: the overlap box's centre and half-diagonal.
-pub(super) fn classify_near(
-    f: &Surface<f64>,
-    g: &Surface<f64>,
-    centre: Point3<f64>,
-    radius: f64,
-) -> Section<f64> {
-    super::classify(f, g, super::Reach { centre, radius }, band())
-}
-
 /// A carrier line through `through` with direction `d`, stored with its
 /// origin `far` metres along `d` from there.
 fn far_cylinder(through: Point3<f64>, d: Vec3<f64>, radius: f64, far: f64) -> Surface<f64> {
@@ -1469,7 +1460,7 @@ fn far_cylinder(through: Point3<f64>, d: Vec3<f64>, radius: f64, far: f64) -> Su
 fn a_far_origin_does_not_move_a_pins_offset() {
     let tilt = 1.9e-10;
     let pin = far_cylinder(p(2.7 - 8e-8, 0.0, 0.0), v(tilt, 0.0, 1.0), 0.2, 1000.0);
-    let s = classify_near(&donut(), &pin, p(2.5, 0.0, 0.0), 2.5);
+    let s = classify(&donut(), &pin);
     match &s {
         Section::Components { parts, .. } => {
             assert!(!parts.is_empty(), "a true scrape loop cleared as apart")
@@ -1493,7 +1484,7 @@ fn a_far_origin_does_not_move_a_pins_offset() {
 fn a_far_origin_does_not_make_a_wall_coaxial() {
     let tilt = 1.5e-10;
     let wall = cylinder(p(0.0, 0.0, 1000.0), v(-tilt, 0.0, -1.0), 2.5 - 1e-7);
-    let s = classify_near(&donut(), &wall, p(0.0, 0.0, 0.0), 3.0);
+    let s = classify(&donut(), &wall);
     if let Section::Components { parts, .. } = &s {
         assert!(
             !(parts.len() == 2 && parts.iter().all(|c| c.essential_f && c.essential_g)),

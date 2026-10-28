@@ -1,52 +1,73 @@
 //! **The critical gap of a torus pair** (module docs of
 //! [`super`], the torus poses): whether the two surfaces are tangent,
 //! read on their spines by a certified sweep of the torus's core angle.
+//! It serves the pairs whose critical values have no closed form, a
+//! cylinder's or a torus's partner; a sphere's spine is a point, whose
+//! critical values against a core circle are its two meridian distances
+//! ([`super::torus`]).
 //!
 //! # Offset duality
 //!
-//! A sphere, a cylinder and a torus are each the points at distance `ρ`
-//! from a spine: a point, a line, a core circle. Two such surfaces are
-//! tangent exactly where a critical value of the distance between a
-//! point of one spine and a point of the other equals `ρ₁ + ρ₂` or
-//! `|ρ₁ − ρ₂|`: at a common point the normal of each passes through its
-//! spine's nearest point, so the two feet and the point are collinear,
-//! which is the critical-point condition of the spine distance. The gap
-//! is how far the critical values stand from those two levels.
+//! A cylinder and a torus are each the points at distance `ρ` from a
+//! spine: a line, a core circle. Two such surfaces are tangent exactly
+//! where a critical value of the distance between a point of one spine
+//! and a point of the other equals `ρ₁ + ρ₂` or `|ρ₁ − ρ₂|`: at a common
+//! point the normal of each passes through its spine's nearest point, so
+//! the two feet and the point are collinear, which is the critical-point
+//! condition of the spine distance. The gap is how far the critical
+//! values stand from those two levels.
 //!
 //! The first spine is the torus's core circle, swept by its angle `φ`.
 //! At each point `p(φ)` the spine distance is critical along the second
-//! spine at its foot (a point, the line's foot, or the circle's nearest
-//! and farthest points in `p`'s meridian half-plane), so its critical
-//! values are those of the one-variable functions `D(φ) = |p(φ) − q(φ)|`,
-//! one per branch of the foot, at their critical points. The circle's
-//! feet are unique off its axis; where the core crosses that axis every
-//! point of the circle is a foot, `D` has a kink, and a critical value can
-//! sit on the kink itself.
+//! spine at its foot (the line's foot, or the circle's nearest and
+//! farthest points in `p`'s meridian half-plane), so its critical values
+//! are those of the one-variable functions `D(φ) = |p(φ) − q(φ)|`, one
+//! per branch of the foot, at their critical points. The circle's feet
+//! are unique off its axis; where the core crosses that axis every point
+//! of the circle is a foot, `D` has a kink, and a critical value can sit
+//! on the kink itself.
 //!
 //! # The sweep
 //!
 //! The turn is cut into cells. On a cell of half-width `w` about `m`,
 //! `D` moves by at most `R·w` (the spine distance is 1-Lipschitz in
 //! space and `p` moves at the core's speed `R`, kinks included). The
-//! squared distance `G = D²` is smooth off the kinks (a point's and a
-//! line's are trigonometric polynomials, a circle's `|w|² ∓ 2R₂ρ + R₂²`
-//! with `ρ` the distance from its axis), so its slope over the cell is
-//! bounded by Taylor's theorem: `G′(m)` and `G″(m)` read at the point,
-//! and a bound on `|G‴|` over the cell from `|p′| = |p″| = |p‴| = R`
-//! (and, for the circle, `ρ` bounded below over the cell, the kink's
-//! distance). A cell clears when every branch either
+//! squared distance `G = D²` is smooth off the kinks (a line's is a
+//! trigonometric polynomial, a circle's `|w|² ∓ 2R₂ρ + R₂²` with `ρ` the
+//! distance from its axis), so its slope over the cell is bounded by
+//! Taylor's theorem: `G′(m)` and `G″(m)` read at the point, and a bound
+//! on `|G‴|` over the cell from `|p′| = |p″| = |p‴| = R` (and, for the
+//! circle, `ρ` bounded below over the cell, the kink's distance). A cell
+//! clears when every branch either
 //!
 //! - stands past the band from both levels over the whole cell
 //!   (`|D(m) − L| − R·w` definitely positive, or, where `G` is smooth,
 //!   the range of `D` its Taylor bound gives clear of both levels), or
-//! - is smooth on it and monotone (`|G′(m)| − |G″(m)|·w − |G‴|·w²/2`
-//!   positive, read as the least `|D′|` it bounds), so it holds no
-//!   critical point: `G′ = 2D·D′` vanishes at every critical point of the
-//!   spine distance, its zeros included.
+//! - is smooth on it and monotone, so it holds no critical point:
+//!   `G′ = 2D·D′` vanishes at every critical point of the spine
+//!   distance, its zeros included.
 //!
 //! Every cell clearing is a certified [`Gap::Transverse`]: a critical
 //! point of the spine distance lies in some cell, where neither test can
 //! pass unless its value stands past the band.
+//!
+//! # The scale of each margin
+//!
+//! Every margin is a length decided at its own scale, and carries the
+//! rounding of the reading it is made of ([`Rounding`]):
+//!
+//! - a value test reads `D` against a level, metres of spine distance,
+//!   less `D`'s rounding;
+//! - a slope test reads `G′/2R = (p − q)·t̂`, the offset's component
+//!   along the core's unit tangent `t̂`: `G′ = 2(p − q)·p′` (the foot's
+//!   own variation drops out, the envelope theorem), and `R` is the
+//!   core's speed. The monotone test reads its Taylor lower bound over
+//!   the cell, `|G′(m)| − |G″(m)|·w − |G‴|·w²/2`, and a turn the sign of
+//!   `G′` at a window's end, each shrunk toward zero by the rounding of
+//!   `G′` and `G″`. Nothing is divided by `D`: where the spine distance
+//!   is small its tangential component is smaller still, so near a
+//!   touching pair of spines no slope reads past the band and the cell
+//!   falls to the value tests and the least distance.
 //!
 //! [`Gap::Tangent`] is decided two ways, each a critical value within
 //! the zero band of a level:
@@ -65,15 +86,27 @@
 //!   is the tube-circle tangency (equal minor radii, cores touching),
 //!   where `D′` reads no sign.
 //!
+//! The margin a `Zero` reports is the bound on the gap that was decided:
+//! the window's `|D − L|` bound, or `max(D(m), |ρ₁ − ρ₂|)`, which bounds
+//! `|D_min − |ρ₁ − ρ₂||` from above since `0 ≤ D_min ≤ D(m)`. The gap
+//! itself is not known closer than that.
+//!
+//! A critical value on a kink is never read by a turn (no window about
+//! it is smooth), and reads `Zero` only where it is the least distance
+//! and the level is `|ρ₁ − ρ₂|`: any other tangency on a kink escalates.
+//!
 //! Any other cell is split, down to a floor where it stands within a
 //! quarter band of the core, or until the cell budget is spent: there it
-//! escalates on its reading of the gap ([`floor_refusal`]). A Zero found
-//! anywhere outranks an escalation found elsewhere; the walk is finished
-//! before it escalates.
+//! escalates on its reading of the gap ([`Sweep::floor_refusal`]). Below
+//! the budget a Zero found anywhere outranks an escalation found
+//! elsewhere, since a floor cell's escalation is held while the walk
+//! goes on; the cell that spends the budget escalates at once, on the
+//! held escalation if there is one, without reading the cells left.
 
 use geom_core::k_stats::{decide, decide_reported, gate_rejection, straddle};
 use geom_core::{
     Band, Decide, Decided, Indeterminate, Margin, Point3, Real, Sign, SizedPass, Vec3,
+    rounding_charge,
 };
 
 /// The cells the first cut makes of the turn.
@@ -122,8 +155,6 @@ impl<T: Real> Core<T> {
 /// distance from. Axes are unit.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Spine<T: Real> {
-    /// A sphere's centre.
-    Point(Point3<T>),
     /// A cylinder's axis.
     Line { origin: Point3<T>, axis: Vec3<T> },
     /// A torus's core circle.
@@ -132,6 +163,17 @@ pub(crate) enum Spine<T: Real> {
         axis: Vec3<T>,
         radius: T,
     },
+}
+
+impl<T: Real> Spine<T> {
+    /// The spine's anchor and the most its points stand from it in a
+    /// reading: what the reading's coordinates are made of.
+    fn anchor(self) -> (Point3<T>, T) {
+        match self {
+            Self::Line { origin, .. } => (origin, T::zero()),
+            Self::Circle { center, radius, .. } => (center, radius),
+        }
+    }
 }
 
 /// The rows a sweep decides on, each a pair's own name.
@@ -143,7 +185,7 @@ pub(crate) struct GapRows {
     pub(crate) clear: &'static str,
     /// A cell's branch is monotone.
     pub(crate) monotone: &'static str,
-    /// A cell's branch is smooth: off the spine and off the kinks.
+    /// A cell's branch is smooth: off the kinks.
     pub(crate) smooth: &'static str,
     /// The sign of `D′` at a cell's or a window's end.
     pub(crate) turn: &'static str,
@@ -161,30 +203,63 @@ pub enum Gap<T: Real> {
     /// A critical value stands within the zero band of a level: the
     /// surfaces are tangent.
     Tangent {
-        /// The verdict's margin.
+        /// The verdict's margin: the bound on the gap that was decided
+        /// `Zero` (module docs).
         margin: geom_core::MarginDiag,
         /// The core point the critical value was read at.
         at: Point3<T>,
     },
 }
 
+/// **The rounding a reading carries**, a first-order estimate in the
+/// `f64` lane's sense ([`rounding_charge`]): bounds on how far `D`, `G′`
+/// and `G″` as evaluated stand from their values in real arithmetic at
+/// the same angle.
+///
+/// A reading is made of coordinates of size `s`, the core's centre and
+/// radius and the spine's anchor and radius, so the offset `w = p − o`
+/// carries a charge of `s` (the sine and cosine, the core point, the
+/// difference). `D = |Πw|` carries that and its own root. `G′ = 2Πw·Πp′`
+/// carries it levered by `|p′| = R`, and its own product of size
+/// `2R·|w|`; `G″ = 2(|Πp′|² + Πw·Πp″)` the same with `|p″| = R`. A
+/// circle's branch adds `2R₂` times the rounding of `ρ′` and `ρ″`, whose
+/// quotients by `ρ` grow as the core nears the circle's axis: at a kink
+/// no slope reads at all.
+#[derive(Clone, Copy)]
+struct Rounding<T> {
+    d: T,
+    g1: T,
+    g2: T,
+}
+
 /// One branch of the spine distance read at one angle: `D`, and the
 /// squared distance `G = D²`'s first two derivatives there, in metres
-/// squared per radian.
+/// squared per radian, with their rounding.
 #[derive(Clone, Copy)]
 struct Reading<T: Real> {
     d: T,
     g1: T,
     g2: T,
-    /// `|p − c|` for the point and the circle, `D` for the line: what
-    /// `G‴`'s bound reads.
+    /// `|p − c|` for the circle, `D` for the line: what `G‴`'s bound
+    /// reads.
     reach: T,
-    /// The core point's distance from the partner circle's axis.
+    /// The core point's distance from the partner circle's axis, less
+    /// its rounding.
     kink: Option<T>,
+    err: Rounding<T>,
+}
+
+impl<T: Real> Reading<T> {
+    /// The rounding of `G = D²` and of its Taylor swing over `w`.
+    fn swing_rounding(&self, w: T) -> T {
+        let two = T::from_f64(2.0);
+        two * self.d * self.err.d + self.err.g1 * w + self.err.g2 * w.powi(2) / two
+    }
 }
 
 /// `⟨Πw, Πw⟩`'s first two derivatives along the core, `w = p − o` and
-/// `Π` the projection square to `axis` (none for a point): `(S, S′, S″)`.
+/// `Π` the projection square to `axis` (none for the whole space):
+/// `(S, S′, S″)`.
 fn squared<T: Real>(w: Vec3<T>, dp: Vec3<T>, ddp: Vec3<T>, axis: Option<Vec3<T>>) -> [T; 3] {
     let flat = |v: Vec3<T>| match axis {
         Some(a) => a.cross(v.cross(a)),
@@ -198,18 +273,16 @@ fn squared<T: Real>(w: Vec3<T>, dp: Vec3<T>, ddp: Vec3<T>, axis: Option<Vec3<T>>
 fn read<T: Real>(core: Core<T>, spine: Spine<T>, far: bool, phi: T) -> Reading<T> {
     let (p, dp) = (core.point(phi), core.velocity(phi));
     let ddp = core.center - p;
+    let big = core.radius;
+    let (two, four) = (T::from_f64(2.0), T::from_f64(4.0));
+    let (anchor, spread) = spine.anchor();
+    let size =
+        (core.center - Point3::origin()).norm() + big + (anchor - Point3::origin()).norm() + spread;
+    // The charges of the offset's own products (module docs, `Rounding`).
+    let e_w = rounding_charge(size);
+    let e1 = rounding_charge(four * big * size);
+    let e2 = rounding_charge(two * big * (big + two * size));
     match spine {
-        Spine::Point(c) => {
-            let [g, g1, g2] = squared(p - c, dp, ddp, None);
-            let d = g.sqrt();
-            Reading {
-                d,
-                g1,
-                g2,
-                reach: d,
-                kink: None,
-            }
-        }
         Spine::Line { origin, axis } => {
             let [g, g1, g2] = squared(p - origin, dp, ddp, Some(axis));
             let d = g.sqrt();
@@ -219,6 +292,11 @@ fn read<T: Real>(core: Core<T>, spine: Spine<T>, far: bool, phi: T) -> Reading<T
                 g2,
                 reach: d,
                 kink: None,
+                err: Rounding {
+                    d: e_w + rounding_charge(d),
+                    g1: e1,
+                    g2: e2,
+                },
             }
         }
         Spine::Circle {
@@ -232,18 +310,30 @@ fn read<T: Real>(core: Core<T>, spine: Spine<T>, far: bool, phi: T) -> Reading<T
             let [n, n1, n2] = squared(w, dp, ddp, None);
             let [s0, s1, s2] = squared(w, dp, ddp, Some(axis));
             let rho = s0.sqrt();
-            let two = T::from_f64(2.0);
             let r1 = s1 / (two * rho);
-            let r2 = s2 / (two * rho) - s1.powi(2) / (T::from_f64(4.0) * rho.powi(3));
+            let r2 = s2 / (two * rho) - s1.powi(2) / (four * rho.powi(3));
+            // `ρ`'s rounding, and its quotients' through `|S′| ≤ 2ρR`.
+            let e_rho = e_w + rounding_charge(rho);
+            let e_r1 = (e1 / two + big * e_rho) / rho + rounding_charge(r1.abs());
+            let e_r2 = e2 / (two * rho)
+                + s2.abs() * e_rho / (two * rho.powi(2))
+                + (big * e1 + T::from_f64(3.0) * big.powi(2) * e_rho) / rho.powi(2)
+                + rounding_charge(r2.abs());
             let sigma = if far { T::one() } else { -T::one() };
             let h = w.dot(axis);
             let across = rho + sigma * radius;
+            let d = (across.powi(2) + h.powi(2)).sqrt();
             Reading {
-                d: (across.powi(2) + h.powi(2)).sqrt(),
+                d,
                 g1: n1 + two * sigma * radius * r1,
                 g2: n2 + two * sigma * radius * r2,
                 reach: n.sqrt(),
-                kink: Some(rho),
+                kink: Some(rho - e_rho),
+                err: Rounding {
+                    d: e_rho + e_w + rounding_charge(d),
+                    g1: e1 + two * radius * e_r1,
+                    g2: e2 + two * radius * e_r2,
+                },
             }
         }
     }
@@ -252,6 +342,11 @@ fn read<T: Real>(core: Core<T>, spine: Spine<T>, far: bool, phi: T) -> Reading<T
 /// The least of `|D − L|` over the two levels.
 fn nearest<T: Real>(d: T, levels: [T; 2]) -> T {
     (d - levels[0]).abs().min((d - levels[1]).abs())
+}
+
+/// `x` shrunk toward zero by `by`, zero where `x ± by` holds it.
+fn shrunk<T: Real>(x: T, by: T) -> T {
+    (x - by).max(T::zero()) + (x + by).min(T::zero())
 }
 
 /// One sweep's frame: what it reads and at which band.
@@ -273,6 +368,12 @@ enum Cell<T: Real> {
 impl<T: Decide> Sweep<'_, T> {
     fn positive(&self, name: &'static str, m: Margin<T>) -> bool {
         matches!(decide(name, m, self.band), Ok(Sign::Positive))
+    }
+
+    /// A slope in metres squared per radian as the offset's tangential
+    /// component it is (module docs, the scale of each margin).
+    fn tangential(&self, slope: T) -> Margin<T> {
+        Margin::levered_inv(slope, T::from_f64(2.0) * self.core.radius)
     }
 
     /// **`G‴`'s bound over a window `reach` metres of core about a
@@ -301,14 +402,15 @@ impl<T: Decide> Sweep<'_, T> {
         }
     }
 
-    /// The sign `D′` reads definitely at `phi`, if it reads one: `G′/2D`,
-    /// the cosine between the core's tangent and the spine's normal
-    /// levered by the core radius.
+    /// The sign `D′` reads definitely at `phi`, if it reads one: `G′`'s,
+    /// as the offset's tangential component shrunk by its rounding.
     fn turn(&self, far: bool, phi: T) -> Option<Sign> {
         let r = read(self.core, self.spine, far, phi);
-        let big = self.core.radius;
-        let cos = r.g1 / (T::from_f64(2.0) * r.d * big);
-        match decide(self.rows.turn, Margin::levered(cos, big), self.band) {
+        match decide(
+            self.rows.turn,
+            self.tangential(shrunk(r.g1, r.err.g1)),
+            self.band,
+        ) {
             Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),
             Ok(Sign::Zero) | Err(_) => None,
         }
@@ -321,7 +423,7 @@ impl<T: Decide> Sweep<'_, T> {
         let r = read(self.core, self.spine, far, m);
         if self.positive(
             self.rows.clear,
-            Margin::of(nearest(r.d, self.levels) - reach),
+            Margin::of(nearest(r.d, self.levels) - reach - r.err.d),
         ) {
             return Cell::Clear;
         }
@@ -330,7 +432,7 @@ impl<T: Decide> Sweep<'_, T> {
             margin,
         }) = decide_reported(
             self.rows.gap,
-            Margin::of(r.d.max(self.levels[1])),
+            Margin::of((r.d + r.err.d).max(self.levels[1])),
             self.band,
         ) {
             return Cell::Tangent(Gap::Tangent {
@@ -344,8 +446,10 @@ impl<T: Decide> Sweep<'_, T> {
         // `D` over the cell from `G`'s Taylor bound, which stays tight
         // where `D` is small and `R·w` is not.
         let g = r.d.powi(2);
-        let swing =
-            r.g1.abs() * w + r.g2.abs() * w.powi(2) / two + third * w.powi(3) / T::from_f64(6.0);
+        let swing = r.g1.abs() * w
+            + r.g2.abs() * w.powi(2) / two
+            + third * w.powi(3) / T::from_f64(6.0)
+            + r.swing_rounding(w);
         let (d_lo, d_hi) = ((g - swing).max(T::zero()).sqrt(), (g + swing).sqrt());
         let apart = |level: T| (level - d_hi).max(d_lo - level);
         if self.positive(
@@ -354,12 +458,10 @@ impl<T: Decide> Sweep<'_, T> {
         ) {
             return Cell::Clear;
         }
-        // The least `|G′|` over the cell, as the least `|D′|` it bounds.
-        let least = r.g1.abs() - r.g2.abs() * w - third * w.powi(2) / two;
-        if self.positive(
-            self.rows.monotone,
-            Margin::levered(least / (two * (r.d + reach) * big), big),
-        ) {
+        // The least `|G′|` over the cell, as the least tangential
+        // component of the offset it is.
+        let least = r.g1.abs() - r.err.g1 - (r.g2.abs() + r.err.g2) * w - third * w.powi(2) / two;
+        if self.positive(self.rows.monotone, self.tangential(least)) {
             return Cell::Clear;
         }
         // Read across the cell padded by half its width each side, so a
@@ -398,8 +500,10 @@ impl<T: Decide> Sweep<'_, T> {
             if let Some(third) = self.third(r, big * h) {
                 let (left, right) = (self.turn(far, mid - h), self.turn(far, mid + h));
                 if matches!((left, right), (Some(x), Some(y)) if x != y) {
-                    let swing =
-                        r.g1.abs() * h + r.g2.abs() * h.powi(2) / two + third * h.powi(3) / six;
+                    let swing = r.g1.abs() * h
+                        + r.g2.abs() * h.powi(2) / two
+                        + third * h.powi(3) / six
+                        + r.swing_rounding(h);
                     let (d_lo, d_hi) = ((g - swing).max(T::zero()).sqrt(), (g + swing).sqrt());
                     for level in self.levels {
                         let bound = (d_lo - level).abs().max((d_hi - level).abs());
@@ -422,12 +526,13 @@ impl<T: Decide> Sweep<'_, T> {
     }
 
     /// **The escalation of a cell no test settled**: the gap read over the
-    /// cell, `|D(m) − L| ∓ R·w` for the nearer level. Bounds that straddle
-    /// the band escalate as one straddle; bounds both decided `Zero` stand
-    /// for a critical value no reading certified, a `Zero` the gap cannot
-    /// pass.
+    /// cell, `|D(m) − L| ∓ (R·w + its rounding)` for the nearer level.
+    /// Bounds that straddle the band escalate as one straddle; bounds both
+    /// decided `Zero` stand for a critical value no reading certified, a
+    /// `Zero` the gap cannot pass.
     fn floor_refusal(&self, r: Reading<T>, reach: T) -> Indeterminate {
         let near = nearest(r.d, self.levels);
+        let reach = reach + r.err.d;
         let bound = |m: T| decide_reported(self.rows.gap, Margin::of(m), self.band);
         match (bound(near - reach), bound(near + reach)) {
             (Err(e), _) | (_, Err(e)) => e,
@@ -465,7 +570,7 @@ pub(crate) fn critical_gap<T: Decide>(
     };
     let branches: &[bool] = match spine {
         Spine::Circle { .. } => &[false, true],
-        Spine::Point(_) | Spine::Line { .. } => &[false],
+        Spine::Line { .. } => &[false],
     };
     let two = T::from_f64(2.0);
     let piece = T::tau() / T::from_f64(GAP_START as f64);

@@ -814,15 +814,24 @@ spine (a point, a line, a core circle), and two of them are tangent
 exactly where a critical value of the spine-to-spine distance equals
 `ρ₁ + ρ₂` or `|ρ₁ − ρ₂|`. A coaxial partner's spine distance is
 constant, and its gap is the closed-form tube row read across the
-coaxial slack; every other pose's is a certified sweep of the torus's
-core angle (`pair_section::gap`): a cell clears where the distance `D`
-stands past the band from both levels (it moves at most `R·w` over a
-cell) or where `D²` is smooth and monotone on it (a Taylor bound on
-`(D²)′` with a bound on `(D²)‴`); a turn of `D` whose window bound
-reads within the zero band, or the least distance and `|ρ₁ − ρ₂|` both
-within it (the tube-circle tangency), is `Zero`; anything else at the
-floor escalates. Where the core crosses a torus partner's axis `D` has a
-kink, and no cell holding one clears on its slope. Over a transverse gap
+coaxial slack. A sphere's spine is a point, whose critical distances
+from the core circle are its two meridian ones, so its gap is closed
+form too, read across its rounding. Every other pose's is a certified
+sweep of the torus's core angle (`pair_section::gap`), two tori's on
+either core, the second where the first escalates, so the verdict does
+not depend on the order: a cell clears where the distance `D` stands
+past the band from both levels (it moves at most `R·w` over a cell) or
+where `D²` is smooth and monotone on it (a Taylor bound on `(D²)′` with
+a bound on `(D²)‴`); a turn of `D` whose window bound reads within the
+zero band, or the least distance and `|ρ₁ − ρ₂|` both within it (the
+tube-circle tangency), is `Zero`; anything else at the floor escalates.
+Each margin is a length at its own scale, less its rounding: a slope is
+read as `(D²)′/2R`, the offset's component along the core's tangent,
+never divided by `D`, so near touching spines no slope decides and the
+value tests and the least distance do. Where the core crosses a torus
+partner's axis `D` has a kink, and no cell holding one clears on its
+slope: a tangency on a kink always escalates, unless it is the least
+distance at the level `|ρ₁ − ρ₂|`. Over a transverse gap
 the symmetric poses (coaxial, parallel, square) list their components
 in closed form, the coaxial ones as circles; a general sphere × torus
 pose is the sphere arm's, marched; a general cylinder or torus pose
