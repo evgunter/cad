@@ -2037,18 +2037,13 @@ pub(super) fn crescent_refusal<T: Decide>(
             continue;
         }
         let arm = sa.arm.min(sb.arm);
-        let carried = |a_start: bool, b_start: bool| {
-            coincident_run(
-                [
-                    (bodies[0], sectors[0], sa, a_start),
-                    (bodies[1], sectors[1], sb, b_start),
-                ],
-                contacts,
-                band,
-            )
+        let corner = |k: usize, sector| Corner {
+            body: bodies[k],
+            sectors: sectors[k],
+            sector,
         };
         if !direction_sense(sa.normal.vec(), sb.normal.vec(), arm, band)?
-            && crescent(sa, sb, &carried, band)?
+            && crescent(corner(0, sa), corner(1, sb), contacts, band)?
         {
             return Err(BooleanError::TangentCrescentUnsupported {
                 a_face: sa.face,
@@ -2085,8 +2080,8 @@ fn bound_bend<T: Decide>(reach: Reach<T>) -> Option<(Vec3<T>, T)> {
 /// read the pair touching. Two bounds that part at their own reach
 /// leave the site at an angle the arm is too short to resolve; where
 /// the corners' other edges run on together from the site
-/// ([`coincident_run`], `carried`), the section closes that wedge and
-/// the pair reads none.
+/// ([`coincident_run`]), the section closes that wedge and the pair
+/// reads none.
 ///
 /// The verdict is the second-order term's sign at the vertex, read off
 /// the two carriers' point curvatures, which is exact as a claim that
@@ -2101,11 +2096,12 @@ fn bound_bend<T: Decide>(reach: Reach<T>) -> Option<(Vec3<T>, T)> {
 /// section certifies no bend, and refuses as
 /// [`geom_brep::conic_bend_side`] does.
 fn crescent<T: Decide>(
-    a: &BoolSector<T>,
-    b: &BoolSector<T>,
-    carried: &dyn Fn(bool, bool) -> Result<bool, BooleanError>,
+    ca: Corner<'_, T>,
+    cb: Corner<'_, T>,
+    contacts: &super::ReductionContacts,
     band: Band,
 ) -> Result<bool, BooleanError> {
+    let (a, b) = (ca.sector, cb.sector);
     let arm = a.arm.min(b.arm);
     let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
     for (a_start, da, ra) in [(true, a.start, a.start_reach), (false, a.end, a.end_reach)] {
@@ -2150,7 +2146,9 @@ fn crescent<T: Decide>(
                 continue;
             }
             let l = la.min(lb);
-            if carried(a_start, b_start)? && !parallel_same(da, db, l, band)? {
+            if coincident_run((ca, a_start), (cb, b_start), contacts, band)?
+                && !parallel_same(da, db, l, band)?
+            {
                 continue;
             }
             let opened = (kb - ka).dot(u) * l.powi(2) / (T::one() + T::one());
@@ -2167,21 +2165,34 @@ fn crescent<T: Decide>(
 /// **Whether the section runs on from a vertex pair along the other
 /// edges of the two corners whose bounds [`crescent`] reads**: the edge
 /// across each corner from the bound it reads (`start`, or the end),
-/// both lines or circles, leaving the site tangent to each other at
-/// their own reach, their far ends a vertex pair the reduction recorded.
-/// Two such edges are one curve within the band: a line or circle
-/// through both ends of another, tangent to it at one, departs from it
-/// by no more than that tangency allows over its length. The section
-/// carried along that run reaches the pair from both sides, so where the
-/// two read bounds part at their own reach, the region between them is
-/// a wedge the run's loops close, not a crescent narrowing to the site.
-/// A closed edge, whose far end is the site, carries nothing past it.
+/// each a line or an arc of at most a half-turn ([`far_edge`]), their
+/// far ends a vertex pair the reduction recorded, their departure
+/// directions parallel levered at the shorter reach `L`.
+///
+/// Such edges lie on each other within the band. Two such arcs through
+/// one pair of points `P`, `Q` (chord `c`, a line the arc of zero turn)
+/// meeting at `P` at an angle `θ` turn by `α`, `α + θ` off the chord,
+/// each `α ≤ π/2`, and the arc turning `α` off the chord stands
+/// `(c/2)·tan(α/2)` from it at mid-chord, so they part by at most
+/// `(c/4)·sec²(α/2)·θ ≤ c·θ/2` to first order. An arc's reach is no
+/// shorter than its chord, so `L ≥ c`, and the parallel reading's
+/// Zero, `θ·L` within the band, bounds that parting by half the band,
+/// on top of the band the vertex pair stands within. Past a half-turn
+/// the parting grows as `4R²θ/c`, which the reach does not bound, so a
+/// longer arc carries no run.
+///
+/// The section carried along the run reaches the pair from both sides,
+/// so where the two read bounds part at their own reach, the region
+/// between them is a wedge the run's loops close, not a crescent
+/// narrowing to the site. A closed edge, whose far end is the site,
+/// carries nothing past it.
 fn coincident_run<T: Decide>(
-    sides: [CornerBound<'_, T>; 2],
+    a: (Corner<'_, T>, bool),
+    b: (Corner<'_, T>, bool),
     contacts: &super::ReductionContacts,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let [Some(a), Some(b)] = [far_edge(sides[0])?, far_edge(sides[1])?] else {
+    let [Some(a), Some(b)] = [far_edge(a.0, a.1, band)?, far_edge(b.0, b.1, band)?] else {
         return Ok(false);
     };
     Ok(contacts
@@ -2191,31 +2202,41 @@ fn coincident_run<T: Decide>(
         && parallel_same(a.dir, b.dir, a.reach.min(b.reach), band)?)
 }
 
-/// A bound [`crescent`] reads: the operand's body, its sectors at the
-/// site, the sector, and whether the bound is the sector's `start`.
-type CornerBound<'s, T> = (&'s Body<T>, &'s [BoolSector<T>], &'s BoolSector<T>, bool);
+/// A corner [`crescent`] reads: one operand's body, its sectors at the
+/// site, and the sector.
+#[derive(Clone, Copy)]
+struct Corner<'s, T: geom_core::Real> {
+    body: &'s Body<T>,
+    sectors: &'s [BoolSector<T>],
+    sector: &'s BoolSector<T>,
+}
 
-/// An open line or circle leaving a site ([`far_edge`]).
+/// A line or an arc of at most a half-turn leaving a site
+/// ([`far_edge`]).
 struct RunEdge<T: geom_core::Real> {
     /// Its unit direction at the site.
     dir: Vec3<T>,
-    /// Its reach from the site, in metres.
+    /// Its reach from the site, in metres, no shorter than its chord.
     reach: T,
     /// Its far end's site.
     far: Vec<VertexKey>,
 }
 
-/// The edge across the corner from the bound a [`CornerBound`] names,
-/// where it is an open line or circle ([`coincident_run`]).
+/// The edge across `corner` from its `start` bound (or its end), where
+/// it is an open line or an arc of at most a half-turn
+/// ([`within_half_turn`], [`coincident_run`]).
 fn far_edge<T: Decide>(
-    (body, sectors, s, start): CornerBound<'_, T>,
+    corner: Corner<'_, T>,
+    start: bool,
+    band: Band,
 ) -> Result<Option<RunEdge<T>>, BooleanError> {
-    let corner = |o: &&BoolSector<T>| o.he == s.he && o.face == s.face;
+    let (body, s) = (corner.body, corner.sector);
+    let same = |o: &&BoolSector<T>| o.he == s.he && o.face == s.face;
     let (he, bound) = if start {
-        let bound = sectors.iter().filter(corner).find(|o| o.end_edge());
+        let bound = corner.sectors.iter().filter(same).find(|o| o.end_edge());
         (s.he, bound.map(|o| (o.end, o.end_reach)))
     } else {
-        let bound = sectors.iter().filter(corner).find(|o| o.start_edge());
+        let bound = corner.sectors.iter().filter(same).find(|o| o.start_edge());
         (
             body.proven_orbit_step(s.he),
             bound.map(|o| (o.start, o.start_reach)),
@@ -2226,19 +2247,42 @@ fn far_edge<T: Decide>(
     };
     let half = proven(&body.half_edges, he, EntityId::HalfEdge);
     let far = body.proven_half_edge_end(he);
-    if far == half.start
-        || !matches!(
-            germ_curve(body, half.edge)?.carrier(),
-            geom::Curve3::Line { .. } | geom::Curve3::Circle { .. }
-        )
-    {
+    if far == half.start {
         return Ok(None);
+    }
+    match germ_curve(body, half.edge)?.carrier() {
+        geom::Curve3::Line { .. } => {}
+        geom::Curve3::Circle { .. } => {
+            let chord = body.resolve_vertex_point(far, Proven)
+                - body.resolve_vertex_point(half.start, Proven);
+            if !within_half_turn(dir, chord, band)? {
+                return Ok(None);
+            }
+        }
+        _ => return Ok(None),
     }
     Ok(Some(RunEdge {
         dir,
         reach: reach.length(),
         far: site_of(body, far)?,
     }))
+}
+
+/// Whether an arc leaving its start along `dir` and ending `chord` off
+/// it turns at most a half-turn: the chord leaves ahead of `dir`, the
+/// angle between them being half the arc's turn. Decided as a length;
+/// in band it escalates.
+fn within_half_turn<T: Decide>(
+    dir: Vec3<T>,
+    chord: Vec3<T>,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let ahead = Margin::of(dir.normalize().dot(chord));
+    Ok(
+        decide("bool_sector_run_ahead", ahead, band).map_err(|diag| {
+            BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
+        })? == Sign::Positive,
+    )
 }
 
 /// A sector bound's side code against a face's PLANE ([`side_code`]
@@ -6889,6 +6933,30 @@ mod tests {
 
     /// The generic pair search on two orthogonal quarter-sector fans:
     /// records carry transition codes.
+    /// An arc short of a half-turn carries a run and a reflex one does
+    /// not, at a chord as short as the crescent's short arcs: a reflex
+    /// arc through both ends of another, tangent to it within the band
+    /// at its reach, parts from it by up to `4R²θ/c` across the turn.
+    #[test]
+    fn only_an_arc_of_at_most_a_half_turn_carries_a_run() {
+        use core::f64::consts::{PI, TAU};
+        let r = 0.1;
+        for (turn, carries) in [
+            (0.3, true),
+            (PI - 0.01, true),
+            (PI + 0.01, false),
+            (TAU - 1e-3, false),
+        ] {
+            let dir = Vec3::new(0.0, 1.0, 0.0);
+            let far = Vec3::new(r - r * turn.cos(), r * turn.sin(), 0.0);
+            assert_eq!(
+                within_half_turn(dir, far, band()).unwrap(),
+                carries,
+                "an arc of turn {turn}"
+            );
+        }
+    }
+
     #[test]
     fn pair_search_generic_crossing() {
         // A-sector in the xy-plane (normal +z), sweeping +x → +y CCW

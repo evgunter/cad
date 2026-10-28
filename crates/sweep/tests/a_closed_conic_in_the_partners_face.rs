@@ -1056,9 +1056,15 @@ fn refused_as(r: &Result<BooleanResult<f64>, BooleanError>) -> Option<Tip> {
 /// (tiers 2 and 3′, the certificate, the closed-form volume) in one
 /// shell, the pinned volume at the closed form. The boss's wall and the
 /// hole's meet along the run of short arcs, as do the floor over the
-/// hole and the plate's top, so its mesh may hold four triangles at an
-/// edge there.
-fn united_at_the_run(row: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f64) {
+/// hole and the plate's top, so its mesh holds four triangles at an
+/// edge only there: within `run.1` of `run.0`, the tip, on the plane
+/// `z = 0`. Every other edge is used twice, in opposite directions.
+fn united_at_the_run(
+    row: &str,
+    r: Result<BooleanResult<f64>, BooleanError>,
+    want: f64,
+    run: (Point3<f64>, f64),
+) {
     let b = r
         .as_ref()
         .ok()
@@ -1069,9 +1075,35 @@ fn united_at_the_run(row: &str, r: Result<BooleanResult<f64>, BooleanError>, wan
     assert!((v - want).abs() < 1e-7, "{row}: volume {v} against {want}");
     let m = mesh::tessellate(&b.body, 5e-3, tol()).unwrap_or_else(|e| panic!("{row}: {e:?}"));
     match mesh::validate::check_mesh(&m) {
-        Ok(()) | Err(mesh::validate::MeshError::NonManifoldEdge { count: 4, .. }) => {}
+        Ok(()) | Err(mesh::validate::MeshError::NonManifoldEdge { .. }) => {}
         Err(e) => panic!("{row}: mesh {e:?}"),
     }
+    let mut uses = std::collections::BTreeMap::<(u32, u32), (u32, i64)>::new();
+    for t in m.patches.iter().flat_map(|p| &p.triangles) {
+        for k in 0..3 {
+            let (a, b) = (t[k], t[(k + 1) % 3]);
+            let e = uses.entry((a.min(b), a.max(b))).or_default();
+            e.0 += 1;
+            e.1 += if a < b { 1 } else { -1 };
+        }
+    }
+    let on_run = |i: u32| {
+        let p = m.positions[i as usize];
+        (p - run.0).norm() <= run.1
+    };
+    let mut pinched = 0;
+    for ((a, b), (count, balance)) in uses {
+        assert_eq!(balance, 0, "{row}: mesh edge ({a}, {b}) winds one way");
+        match count {
+            2 => {}
+            4 if on_run(a) && on_run(b) => pinched += 1,
+            _ => panic!(
+                "{row}: mesh edge {:?}–{:?} used {count} times",
+                m.positions[a as usize], m.positions[b as usize]
+            ),
+        }
+    }
+    assert!(pinched > 0, "{row}: no mesh edge along the run");
     let line = outcome(r, want, tol());
     assert!(line.starts_with("OK SOUND"), "{row}: {line}");
 }
@@ -1091,6 +1123,11 @@ fn united_at_the_run(row: &str, r: Result<BooleanResult<f64>, BooleanError>, wan
 /// `TangentCrescentUnsupported`; where only one rim is cut, the crossing
 /// layer escalates on the cut vertex against the other rim's arc.
 ///
+/// Each rim cut at `±s` alone has a reflex long arc between its two
+/// cuts; its profile escalates at every ε, so a reflex arc never reaches
+/// the reading as a run here (`coincident_run` admits arcs of at most a
+/// half-turn).
+///
 /// The unions by ε (default, 1e-6, 1e-12), `A ∪ B` then `B ∪ A`. At
 /// ε 1e-6 `B ∪ A` of the `s = 1e-4` poses meets the volume backstop
 /// within an ulp of `vol(A) + vol(B)`
@@ -1102,7 +1139,7 @@ fn short_arcs_at_a_crescents_tip() {
     type Row = (&'static str, [f64; 4], [f64; 4], [[Tip; 2]; 3]);
     let tip = |s: f64| [-s, 0.0, s, PI];
     let span = |s: f64| [-s, s, PI, f64::NAN];
-    let rows: [Row; 10] = [
+    let rows: [Row; 11] = [
         (
             "both, s = 1e-5",
             tip(1e-5),
@@ -1144,6 +1181,12 @@ fn short_arcs_at_a_crescents_tip() {
             tip(1e-5),
             span(3e-5),
             [[Built; 2], [Unprofiled; 2], [Unprofiled; 2]],
+        ),
+        (
+            "two cuts, each rim's long arc reflex",
+            [-1e-5, 1e-5, f64::NAN, f64::NAN],
+            [-3e-5, 3e-5, f64::NAN, f64::NAN],
+            [[Unprofiled; 2], [Unprofiled; 2], [Unprofiled; 2]],
         ),
         (
             "one side",
@@ -1191,6 +1234,11 @@ fn short_arcs_at_a_crescents_tip() {
             continue;
         }
         assert_ne!(want_ab, Unprofiled, "{pose}: the profile validates");
+        let cut = boss_az
+            .iter()
+            .filter(|a| a.abs() < 1.0)
+            .fold(0.0, |m: f64, a| m.max(a.abs()));
+        let run = (Point3::new(0.3, 0.0, 0.0), 2.0 * 0.3 * cut);
         let boss = fin("the boss", extruded(vec![boss_rim], 0.0, 1.0));
         let holed = fin(
             "the holed plate",
@@ -1216,7 +1264,7 @@ fn short_arcs_at_a_crescents_tip() {
             match op {
                 "A ∩ B" | "B ∩ A" => reads_as(&row, r, want, Reads::Empty),
                 "A ∖ B" | "B ∖ A" => reads_as(&row, r, want, Reads::Sound(1)),
-                _ => united_at_the_run(&row, r, want),
+                _ => united_at_the_run(&row, r, want, run),
             }
         }
     }
@@ -1422,6 +1470,8 @@ fn short_arcs_at_a_turned_tip_at_the_finest_band() {
                 continue;
             }
             let (vb, vh) = (PI * rb * rb, 2.0 - 0.5 * PI * rh * rh);
+            let tip = Point3::new(at(cb).0 + rb * phi.cos(), at(cb).1 + rb * phi.sin(), 0.0);
+            let run = (tip, 2.0 * rb * kb * s);
             let boss = fin("the boss", extruded(vec![boss_rim], 0.0, 1.0));
             let holed = fin(
                 "the holed plate",
@@ -1437,7 +1487,7 @@ fn short_arcs_at_a_turned_tip_at_the_finest_band() {
                         "{row}: {:?}",
                         r.map(|_| "a body")
                     ),
-                    _ => united_at_the_run(&row, r, want),
+                    _ => united_at_the_run(&row, r, want, run),
                 }
             }
         }
