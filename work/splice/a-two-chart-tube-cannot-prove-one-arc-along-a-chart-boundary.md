@@ -134,3 +134,12 @@ already states that the carrier is that chart's boundary row over the
 edge's span. Unasked: whether that, with the two charts' transversality
 along it, is enough to show that no other arc of the pair's locus lies
 in the tube's region.
+
+## Named, not answered (2026-10-28)
+
+The walk's `Undecided` for this shape now refuses by name
+(`the-two-chart-tube-refuses-a-carrier-along-a-chart-side-undecided`):
+`OneArcRefusal::AlongSide { chart }` for a carrier along a chart's
+domain side, `EndOnSides { sides }` for an end on two or more domain
+sides at once. That changes the payload, not the reach: no row the
+shape refused now certifies.

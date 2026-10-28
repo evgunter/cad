@@ -545,16 +545,37 @@ pub(crate) fn heaviest(axes: &[usize], w: impl Fn(usize) -> f64) -> usize {
 ///   start, the last box's its end ([`reaches_end`]); `ends` holds each
 ///   end's state and the coordinate the carrier runs most along there.
 ///
+/// A walk or end reading that resolves nothing is named where the
+/// carrier's shape says why, and is [`Shortfall::Undecided`] otherwise:
+/// - [`Shortfall::AlongSide`] where `along` names the chart whose image
+///   lies along a side of its domain, read off the image by the caller
+///   ([`super::one_arc::along_side`]);
+/// - else [`Shortfall::EndOnSides`] at an end's box where that end lies
+///   on two or more of `domain`'s sides ([`sides_at`]).
+///
 /// # Errors
 ///
 /// The first [`Shortfall`] met, boxes in order, then links in order,
 /// then the start and the end.
 pub(crate) fn one_arc_pair<T: CertifiedBounds>(
     pair: &PairBoxes<'_, T>,
-    (boxes, domain): (&[Box4], Box4),
+    (boxes, domain, along): (&[Box4], Box4, Option<u32>),
     ends: [([f64; 4], usize); 2],
     eps: f64,
 ) -> Result<(), Shortfall> {
+    let end_box = boxes.len().saturating_sub(1);
+    let named = |s: Shortfall, at: usize| {
+        let on = [(0, ends[0]), (end_box, ends[1])]
+            .iter()
+            .filter(|&&(i, _)| i == at)
+            .map(|&(_, (x, _))| sides_at(pair, domain, x, eps))
+            .max()
+            .unwrap_or(0);
+        match super::one_arc::side_named(s, along) {
+            Shortfall::Undecided if on >= 2 => Shortfall::EndOnSides(on),
+            s => s,
+        }
+    };
     let cut = boxes
         .iter()
         .map(|b| b.meet(domain))
@@ -566,7 +587,7 @@ pub(crate) fn one_arc_pair<T: CertifiedBounds>(
             Some(v) if v.len() == 2 => roots.push(v),
             #[allow(clippy::cast_possible_truncation)]
             Some(v) => return Err(Shortfall::Count(v.len() as u32)),
-            None => return Err(Shortfall::Undecided),
+            None => return Err(named(Shortfall::Undecided, roots.len())),
         }
     }
     (1..cut.len()).try_for_each(|k| {
@@ -583,8 +604,24 @@ pub(crate) fn one_arc_pair<T: CertifiedBounds>(
     else {
         return Err(Shortfall::Undecided);
     };
-    reaches_end(pair, (first, r0), ends[0], eps)?;
-    reaches_end(pair, (last, r1), ends[1], eps)
+    reaches_end(pair, (first, r0), ends[0], eps).map_err(|s| named(s, 0))?;
+    reaches_end(pair, (last, r1), ends[1], eps).map_err(|s| named(s, end_box))
+}
+
+/// How many sides of `domain` the state `x` lies on, each read within
+/// the end box [`reaches_end`] looks in: `eps/8` metres at each axis's
+/// chart speed.
+#[allow(clippy::cast_possible_truncation)]
+fn sides_at<T: CertifiedBounds>(
+    pair: &PairBoxes<'_, T>,
+    domain: Box4,
+    x: [f64; 4],
+    eps: f64,
+) -> u32 {
+    let near = |k: usize, side: f64| (x[k] - side).abs() <= eps / 8.0 / pair.speeds[k];
+    (0..4)
+        .filter(|&k| near(k, domain.0[k].0) || near(k, domain.0[k].1))
+        .count() as u32
 }
 
 /// The graph margin over a box: the determinant of `F`'s Jacobian, each
@@ -661,7 +698,7 @@ mod tests {
         eps: f64,
     ) -> Result<(), Shortfall> {
         let domain = Box4::of_charts(a, b);
-        one_arc_pair(&boxed(a, b), (&[domain], domain), ends, eps)
+        one_arc_pair(&boxed(a, b), (&[domain], domain, None), ends, eps)
     }
 
     /// The walls `x = 0`, `(u, v) ↦ (0, u, v)`, and `y = ½`,
@@ -709,6 +746,68 @@ mod tests {
             spans((&a, &b), past, 1e-9),
             Err(Shortfall::Short),
             "a carrier overrunning the arc refuses as short"
+        );
+    }
+
+    /// **An end at a corner of a chart refuses by name.** The walls
+    /// `(u, v) ↦ (0, u, v)` and `(u, v) ↦ (u − ½, 2v − ½, 2v − ½)` cross on
+    /// the first's diagonal `u₁ = v₁`, from its corner `(0, 0)` to its
+    /// corner `(1, 1)`: each end's root lies on two faces of the box at
+    /// once, where neither face's walk isolates it. The walk is undecided
+    /// at every ε, and names the two sides the end lies on.
+    #[test]
+    fn an_end_at_a_charts_corner_refuses_by_its_sides() {
+        let (a, b) = (
+            bilinear(|i, j| [0.0, i, j]),
+            bilinear(|i, j| [i - 0.5, 2.0 * j - 0.5, 2.0 * j - 0.5]),
+        );
+        let ends = [([0.0, 0.0, 0.5, 0.25], 1), ([1.0, 1.0, 0.5, 0.75], 1)];
+        for eps in [1e-6, 1e-9, 1e-12] {
+            assert_eq!(
+                spans((&a, &b), ends, eps),
+                Err(Shortfall::EndOnSides(2)),
+                "the start lies on the first chart's u and v sides at ε = {eps:e}"
+            );
+        }
+    }
+
+    /// **A carrier along a chart's side refuses by name, and only where
+    /// the walk is undecided.** The wall `(u, v) ↦ (0, u, v)` and the
+    /// floor `(u, v) ↦ (2v − 1, u, 0)` meet along the wall's `v = 0` row,
+    /// the state `(s, 0, s, ½)`: a face of the box holds the whole locus.
+    /// Told the wall's image lies along a side, the undecided walk names
+    /// it; told nothing, it stays undecided. The crossing of
+    /// [`an_end_on_a_domain_side_is_reached_by_the_root_there`]'s walls,
+    /// told the same, still proves its arc: a proof is never named away.
+    #[test]
+    fn a_carrier_along_a_charts_side_refuses_by_name() {
+        let (wall, floor) = (
+            bilinear(|i, j| [0.0, i, j]),
+            bilinear(|i, j| [2.0 * j - 1.0, i, 0.0]),
+        );
+        let domain = Box4::of_charts(&wall, &floor);
+        let ends = [([0.25, 0.0, 0.25, 0.5], 0), ([0.75, 0.0, 0.75, 0.5], 0)];
+        for eps in [1e-6, 1e-9, 1e-12] {
+            let walk =
+                |along| one_arc_pair(&boxed(&wall, &floor), (&[domain], domain, along), ends, eps);
+            assert_eq!(
+                walk(None),
+                Err(Shortfall::Undecided),
+                "unnamed at ε = {eps:e}"
+            );
+            assert_eq!(
+                walk(Some(0)),
+                Err(Shortfall::AlongSide(0)),
+                "named at ε = {eps:e}"
+            );
+        }
+        let (a, b) = walls();
+        let domain = Box4::of_charts(&a, &b);
+        let ends = [([0.5, 0.0, 0.5, 0.25], 3), ([0.5, 1.0, 0.5, 0.75], 3)];
+        assert_eq!(
+            one_arc_pair(&boxed(&a, &b), (&[domain], domain, Some(0)), ends, 1e-9),
+            Ok(()),
+            "a proved arc stays proved"
         );
     }
 

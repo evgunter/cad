@@ -1624,7 +1624,17 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
             u: surface.knots_u_f64_interim().domain(),
             v: surface.knots_v_f64_interim().domain(),
         };
+        // Named only past the side arm, which `one_arc` reads first. A
+        // refused speed reads the side exactly.
+        let whole = UvWindow::new(domain.u.0, domain.u.1, domain.v.0, domain.v.1);
+        let h = |u: bool| {
+            let s = whole.map_or(f64::NAN, |w| boxes.speed_sup(w, u));
+            let h = band.zero() / 8.0 / s;
+            if h.is_finite() { h } else { 0.0 }
+        };
+        let along = super::one_arc::along_side(pcurve, domain, (h(true), h(false))).then_some(0);
         one_arc(boxes, (n, p0), (domain, band), pcurve, &probed, ends)
+            .map_err(|s| super::one_arc::side_named(s, along))
     });
     #[allow(clippy::cast_possible_truncation)]
     Ok(Some(Rung {
@@ -1762,7 +1772,16 @@ fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
             (state(t), dominant(&pair, e))
         });
         let domain = Box4::of_charts(na.surface(), nb.surface());
-        one_arc_pair(&pair, (&boxes, domain), ends, band.zero())
+        let rect = |k: usize| UvRect {
+            u: domain.0[2 * k],
+            v: domain.0[2 * k + 1],
+        };
+        let h = |k: usize| band.zero() / 8.0 / speeds[k];
+        let along = [pa, pb].iter().zip(0u32..).find_map(|(p, k)| {
+            let k = k as usize;
+            super::one_arc::along_side(p, rect(k), (h(2 * k), h(2 * k + 1))).then_some(k as u32)
+        });
+        one_arc_pair(&pair, (&boxes, domain, along), ends, band.zero())
     });
     #[allow(clippy::cast_possible_truncation)]
     Some(Rung {
@@ -1833,6 +1852,23 @@ pub enum OneArcRefusal {
     /// it, sit on a corner, or lie below the walk's resolution. The
     /// cause carries the escalation as the funnel recorded it.
     Undecided(Indeterminate),
+    /// The carrier's image on a chart lies along a side of that chart's
+    /// domain, a boundary row or column: the locus runs on a face of
+    /// every box of the chain rather than crossing it, so no box's
+    /// boundary walk isolates its roots. Definite, read off the image.
+    AlongSide {
+        /// The chart: `0` the first operand's (the wall's, on the
+        /// single-chart tube), `1` the second's.
+        chart: u32,
+    },
+    /// An end of the carrier lies on this many sides of the two charts'
+    /// domains at once, on an edge or corner where those sides meet, and
+    /// the end box's walk isolates no root there. Definite, read off the
+    /// end's state.
+    EndOnSides {
+        /// How many domain sides the end lies on.
+        sides: u32,
+    },
 }
 
 impl core::fmt::Display for OneArcRefusal {
@@ -1859,6 +1895,20 @@ impl core::fmt::Display for OneArcRefusal {
             Self::Undecided(_) => {
                 "a box's boundary walk resolved no count: a solution tangent to it, on a \
                  corner, or below the walk's resolution"
+            }
+            Self::AlongSide { chart } => {
+                return write!(
+                    f,
+                    "the carrier lies along a boundary row of chart {chart}'s domain: the \
+                     locus runs on a face of every box, where no root is isolated"
+                );
+            }
+            Self::EndOnSides { sides } => {
+                return write!(
+                    f,
+                    "an end of the carrier lies on {sides} domain sides at once, where no \
+                     face's walk isolates its root"
+                );
             }
         })
     }
@@ -1937,6 +1987,8 @@ fn limb_three<T: Decide>(
         Shortfall::Count(solutions) => OneArcRefusal::Count { solutions },
         Shortfall::Unlinked => OneArcRefusal::Unlinked,
         Shortfall::Short => OneArcRefusal::Short,
+        Shortfall::AlongSide(chart) => OneArcRefusal::AlongSide { chart },
+        Shortfall::EndOnSides(sides) => OneArcRefusal::EndOnSides { sides },
         // The walk read no margin it could classify, and the funnel
         // records that as it records any unreadable one; an unreadable
         // margin never classifies positive.

@@ -108,6 +108,47 @@ pub(crate) enum Shortfall {
     Short,
     /// A walk resolved no count, or a linking or end reading no sign.
     Undecided,
+    /// [`Self::Undecided`] where the carrier's image on chart `k` (`0`
+    /// the first, or the only one; `1` the second) lies along a side of its domain
+    /// ([`along_side`]): the locus runs on a face of every box rather
+    /// than crossing it, so no root on that face is isolated.
+    AlongSide(u32),
+    /// [`Self::Undecided`] at an end box where the carrier's end lies on
+    /// this many sides of the charts' domains at once: its root sits on
+    /// their shared edge or corner, which no face's walk isolates.
+    EndOnSides(u32),
+}
+
+/// Whether the chart image `pcurve` lies along a side of `domain`: every
+/// control point's `u` within `within.0` of one `u` side, or every one's
+/// `v` within `within.1` of one `v` side, each bracket whole. Its weights
+/// are positive, so the image lies in its control points' hull, as near
+/// the side. `within` is the end box's half-width in chart units, `eps/8`
+/// metres at each axis's chart speed: the image is on the side as an end
+/// reads it.
+pub(crate) fn along_side<T: Bounds>(
+    pcurve: &NurbsCurve2<T>,
+    domain: UvRect,
+    within: (f64, f64),
+) -> bool {
+    let on = |read: fn(&Point2<T>) -> T, (lo, hi): (f64, f64), h: f64| {
+        [lo, hi].into_iter().any(|side| {
+            pcurve.control().iter().all(|p| {
+                let c = read(p);
+                (c.lo() - side).abs() <= h && (c.hi() - side).abs() <= h
+            })
+        })
+    };
+    on(|p| p.x, domain.u, within.0) || on(|p| p.y, domain.v, within.1)
+}
+
+/// `shortfall`, named where it is [`Shortfall::Undecided`] and `along`
+/// names the chart whose image lies along a side of its domain.
+pub(crate) fn side_named(shortfall: Shortfall, along: Option<u32>) -> Shortfall {
+    match (shortfall, along) {
+        (Shortfall::Undecided, Some(k)) => Shortfall::AlongSide(k),
+        (s, _) => s,
+    }
 }
 
 /// The point interval at `x`.
