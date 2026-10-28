@@ -563,6 +563,10 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
         .iter()
         .position(|&e| (eps / e - 1.0).abs() < 1.0e-3)
         .unwrap_or_else(|| panic!("no measured row at eps = {eps:e}: measure one and add it"));
+    // A moved count is a measurement, so every study's is gathered and
+    // the row names them all at once; a refusal, a refused registration
+    // or a disputed theorem stops the row where it is found.
+    let mut moved: Vec<String> = Vec::new();
     for study in measured_studies(tol) {
         let name = study.name;
         let doc = (study.at)(study.certifies_at * eps);
@@ -581,12 +585,12 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
                  (`work/pcert/fillet-meridian-radius-term-is-registered-only`): {refusal:?}"
             ),
         }
-        assert_eq!(
-            counts.symbolic, study.symbolic[row],
-            "{name} at eps={eps:e}: the tier proves a DIFFERENT number of decisions than \
-             the measurement — a changed fold rule, a registrant that stopped discharging, \
-             or a re-cut document. Decide which before re-baselining: {counts:?}"
-        );
+        if counts.symbolic != study.symbolic[row] {
+            moved.push(format!(
+                "{name}: {} symbolic, measured {}: {counts:?}",
+                counts.symbolic, study.symbolic[row]
+            ));
+        }
         assert_eq!(
             counts.registrations_refused, 0,
             "{name} at eps={eps:e}: a registration was refused on a real document — at \
@@ -603,6 +607,13 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
              raise has already been answered by the panic that did not happen: {counts:?}"
         );
     }
+    assert!(
+        moved.is_empty(),
+        "at eps={eps:e} the tier proves a DIFFERENT number of decisions than the \
+         measurement — a changed fold rule, a registrant that stopped discharging, or a \
+         re-cut document. Decide which before re-baselining:\n{}",
+        moved.join("\n")
+    );
 }
 
 /// **WHAT THE REGISTRY BUYS**, as a differential in decisions and
