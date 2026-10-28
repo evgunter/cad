@@ -2071,6 +2071,7 @@ fn tie<T: Decide>(vertex: VertexKey) -> ReplaceFaceError<T> {
 /// from the operand, its position taken from the corner solves. The
 /// caller reads both endpoints back onto it and meters the result, and
 /// meters its midpoint against both moved surfaces.
+#[allow(clippy::too_many_arguments)] // the mint's own inputs, the section read once at the gate
 fn mint_carrier<T: Decide>(
     edge: EdgeKey,
     old: &Curve3<T>,
@@ -2522,7 +2523,12 @@ fn uncertified_arc<T: Decide + crate::props::AtRestPolicy>(
             continue;
         };
         let (t0, t1) = (spec.param_start, spec.param_end);
-        let reach = crate::wedge_reach(body, crate::edge_faces(body, arc.edge), &spec.carrier, (t0, t1));
+        let reach = crate::wedge_reach(
+            body,
+            crate::edge_faces(body, arc.edge),
+            &spec.carrier,
+            (t0, t1),
+        );
         let surfaces = |k: SurfaceKey| {
             arc.sides
                 .iter()

@@ -641,7 +641,13 @@ fn miranda(a: Quadric, b: Quadric, at: V3, reach: f64) -> bool {
         (g[0] * g22 - g[1] * g12) / det,
         (g[1] * g11 - g[0] * g12) / det,
     ]
-    .map(|v| Vec3::new(Interval::point(v.x), Interval::point(v.y), Interval::point(v.z)));
+    .map(|v| {
+        Vec3::new(
+            Interval::point(v.x),
+            Interval::point(v.y),
+            Interval::point(v.z),
+        )
+    });
     let len = |v: V3| v.norm_squared().sqrt();
     let side = 0.99 * reach / (len(u[0]).hi() + len(u[1]).hi());
     if !(side.is_finite() && side > 0.0) {
@@ -649,8 +655,8 @@ fn miranda(a: Quadric, b: Quadric, at: V3, reach: f64) -> bool {
     }
     let off = at - c;
     let span = Interval::from_bounds(-side, side);
-    let radius = (len(off) + Interval::point(side) * len(u[0]) + Interval::point(side) * len(u[1]))
-        .sqr();
+    let radius =
+        (len(off) + Interval::point(side) * len(u[0]) + Interval::point(side) * len(u[1])).sqr();
     for (i, q) in [a, b].into_iter().enumerate() {
         let (value, grad) = (q.value(c), q.grad(c));
         let curve = Interval::point(q.hess()) * radius;

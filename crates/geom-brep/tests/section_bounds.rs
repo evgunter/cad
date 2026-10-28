@@ -394,8 +394,18 @@ fn general_poses_state_floors_under_the_section() {
     let plus = (a1 + a2).normalize();
     let minus = (a2 - a1).normalize();
     for (what, dir, scale, window) in [
-        ("the (â₁ + â₂) ellipse", plus, r / (0.5 * beta).sin(), (-1.2, 0.3)),
-        ("the (â₂ − â₁) ellipse", minus, r / (0.5 * beta).cos(), (0.2, 1.3)),
+        (
+            "the (â₁ + â₂) ellipse",
+            plus,
+            r / (0.5 * beta).sin(),
+            (-1.2, 0.3),
+        ),
+        (
+            "the (â₂ − â₁) ellipse",
+            minus,
+            r / (0.5 * beta).cos(),
+            (0.2, 1.3),
+        ),
     ] {
         let carrier = mapped_arc(
             window,
@@ -413,7 +423,12 @@ fn general_poses_state_floors_under_the_section() {
         |x, y| Vec3::new(r * x, r * y, -(n.x * r * x + n.y * r * y) / n.z),
         p(0.0, 0.0, q.z + (n.x * q.x + n.y * q.y) / n.z),
     );
-    encloses("an off-axis tilted plane×cylinder", &carrier, &plane(q, n), &wall);
+    encloses(
+        "an off-axis tilted plane×cylinder",
+        &carrier,
+        &plane(q, n),
+        &wall,
+    );
 
     let band = band();
     let alpha = core::f64::consts::FRAC_PI_6;
@@ -434,7 +449,12 @@ fn general_poses_state_floors_under_the_section() {
     let (from, to) = (on_section(-0.6), on_section(0.4));
     let branch = section.branch_at(from, band).expect("a branch");
     let arc = branch.arc(from, to, band).expect("an arc");
-    encloses("a tilted plane×cone hyperbola", &nurbs(&arc), &plane(q, n), &cone(alpha));
+    encloses(
+        "a tilted plane×cone hyperbola",
+        &nurbs(&arc),
+        &plane(q, n),
+        &cone(alpha),
+    );
 }
 
 /// **The torus rows owe the tube**: a plane×torus section states no
@@ -560,7 +580,9 @@ fn a_stretch_nearing_the_apex_owes_the_tube_by_the_moat() {
     let alpha = core::f64::consts::FRAC_PI_4;
     let d = 1.1 * band.escalate();
     let section = open(alpha, p(d, 0.0, 0.0), Vec3::unit_x(), band);
-    let branch = section.branch_at(p(d, 0.0, 2.0), band).expect("the upper branch");
+    let branch = section
+        .branch_at(p(d, 0.0, 2.0), band)
+        .expect("the upper branch");
     let at_height = |z: f64| {
         let rho = z * alpha.tan();
         vertical_point(alpha, d, (rho * rho - d * d).sqrt(), 1.0)
@@ -632,7 +654,10 @@ fn over_a_box_the_bounds_hold_for_every_member_or_are_not_stated() {
         };
         let got = tube_bounds(&lifted, params, &cut, &wall, band);
         if states {
-            assert!(got.is_ok(), "width {width:e}: the bounds are stated, got {got:?}");
+            assert!(
+                got.is_ok(),
+                "width {width:e}: the bounds are stated, got {got:?}"
+            );
         } else {
             assert_eq!(
                 got,

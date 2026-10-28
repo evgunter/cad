@@ -32,7 +32,7 @@ use super::common::shell_operands::vessel;
 use super::shell7_common::*;
 use crate::common::charts::{charts, hollow_moves};
 use crate::common::latitude_seam::{ring_on_cap, ring_on_wall};
-use crate::common::oracles::frustum_wedge_cavity;
+use crate::common::oracles::{frustum_wedge_cavity, frustum_wedge_cavity_area};
 use crate::common::stations::construction_state;
 use crate::common::torus_walls::{assert_hollow_volume, disc_cut_volume};
 use sweep::test_support::finished;
@@ -819,6 +819,25 @@ fn a_three_quarter_turn_cone_frustum_hollows() {
         "the three-quarter frustum",
         &hollow,
         turn / core::f64::consts::TAU * frustum - frustum_wedge_cavity(r0, r1, h, turn, t),
+    );
+    // The boundary's area, the cavity's cone cap bounded by the
+    // hyperbolic arcs read through the certified rim lane about its apex.
+    let tol = tol();
+    let measured = topo::test_support::pinned_volume(
+        "props",
+        &topo::test_support::finished("the measured body", topo::Body::clone(&hollow), tol),
+        tol,
+    );
+    let area = frustum_wedge_cavity_area(r0, r1, h, turn, 0.0)
+        + frustum_wedge_cavity_area(r0, r1, h, turn, t);
+    println!(
+        "[measured] the three-quarter frustum: area {} oracle {area} pad {:e}",
+        measured.surface_area, measured.area_pad
+    );
+    assert!(
+        (measured.surface_area - area).abs() <= measured.area_pad + 1e-12 * area,
+        "the three-quarter frustum's boundary is {area}, got {}",
+        measured.surface_area
     );
 }
 

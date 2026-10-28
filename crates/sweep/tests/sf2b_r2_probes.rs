@@ -7,7 +7,7 @@ use core::f64::consts::PI;
 
 use crate::common::approx::band;
 use crate::common::bulge;
-use crate::common::oracles::{frustum_wedge_cavity, volume_slack};
+use crate::common::oracles::{frustum_wedge_cavity, frustum_wedge_cavity_area, volume_slack};
 use geom::Surface;
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
@@ -261,6 +261,22 @@ fn r2_a_conical_wedge_hollows_with_hyperbolic_meridian_edges() {
             (measured.volume - want).abs() <= volume_slack(&measured, want),
             "conical wedge {what}: the wall's closed form is {want}, got {}",
             measured.volume
+        );
+        // The area: the operand's boundary and the cavity's, whose cone
+        // face and moved caps are bounded by the hyperbolic arcs (the
+        // cone cap through the certified rim lane about its apex).
+        let area = frustum_wedge_cavity_area(r0, r1, h, turn, 0.0)
+            + frustum_wedge_cavity_area(r0, r1, h, turn, T);
+        println!(
+            "[r2] conical wedge {what}: area {} want {area} delta {:e} pad {:e}",
+            measured.surface_area,
+            measured.surface_area - area,
+            measured.area_pad
+        );
+        assert!(
+            (measured.surface_area - area).abs() <= measured.area_pad + 1e-12 * area,
+            "conical wedge {what}: the boundary's closed form is {area}, got {}",
+            measured.surface_area
         );
     }
     let refusal = |r1: f64, turn: f64| {

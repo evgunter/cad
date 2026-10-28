@@ -74,8 +74,9 @@ Limbs 1 and 2 are owed by every carrier, of every kind, however it was
 minted. Limb 3 is owed unless the pair's section function, for this
 pose, states the two numbers the tube would prove: a lower bound on the
 sine of the surfaces' crossing angle over the carrier's stretch of the
-section, and the clearance of the ε over that sine around the stretch
-from every other piece of the two surfaces' ε-overlap (the section's
+section, and the clearance of the tube of radius 8ε over that sine
+around the stretch, out to 16ε over it, from every other piece of the
+two surfaces' ε-overlap (the section's
 other components, and any near-miss region where the surfaces approach
 without crossing) (`intersect::tube_bounds`, read by
 `edge_nurbs::analytic_rung3`). Limb 2 within ε of both surfaces then puts the

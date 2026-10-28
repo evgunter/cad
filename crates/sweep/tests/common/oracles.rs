@@ -382,6 +382,35 @@ pub fn frustum_wedge_cavity(r0: f64, r1: f64, h: f64, turn: f64, t: f64) -> f64 
     simpson(&area, t, h - t)
 }
 
+/// **The boundary area of [`frustum_wedge_cavity`]'s cavity** (at `t = 0`,
+/// the operand's own): with `A(z)` that oracle's section area,
+///
+/// - the cone face projects along the axis onto `A(t) − A(h − t)` (the
+///   sections are nested as the radius falls or rises), and its normal
+///   makes `π/2 − α` with the axis, so its area is that over `sin α`,
+///   `tan α = |r1 − r0|/h`;
+/// - the moved discs are `A(t)` and `A(h − t)`;
+/// - each moved cap is the strip from the caps' crossing line, `t·cot γ`
+///   along it from the axis's foot, out to the moved cone,
+///   `∫(√(R² − t²) − t·cot γ) dz` (a reflex turn's crossing line stands
+///   behind the axis, `−t·cot γ` along it, and `cot γ < 0` there).
+pub fn frustum_wedge_cavity_area(r0: f64, r1: f64, h: f64, turn: f64, t: f64) -> f64 {
+    let k = (r1 - r0) / h;
+    let gamma = 0.5 * turn;
+    let radius = |z: f64| r0 + k * z - t * k.hypot(1.0);
+    let section = |z: f64| {
+        let r = radius(z);
+        r * r * (gamma - (t / r).asin()) + t * t / gamma.tan() - t * (r * r - t * t).sqrt()
+    };
+    let strip = |z: f64| {
+        let r = radius(z);
+        (r * r - t * t).sqrt() - t / gamma.tan()
+    };
+    let sin_a = k.abs() / k.hypot(1.0);
+    let (bottom, top) = (section(t), section(h - t));
+    (bottom - top).abs() / sin_a + bottom + top + 2.0 * simpson(&strip, t, h - t)
+}
+
 /// The volume of a ball of radius `r`.
 pub fn ball_volume(r: f64) -> f64 {
     4.0 / 3.0 * PI * r.powi(3)
