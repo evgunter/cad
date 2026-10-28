@@ -135,6 +135,15 @@ edge's span. Unasked: whether that, with the two charts' transversality
 along it, is enough to show that no other arc of the pair's locus lies
 in the tube's region.
 
+## Named, not answered (2026-10-28)
+
+The walk's `Undecided` for this shape now refuses by name
+(`the-two-chart-tube-refuses-a-carrier-along-a-chart-side-undecided`):
+`OneArcRefusal::AlongSide { chart }` for a carrier along a chart's
+domain side, `EndOnSides { sides }` for an end on two or more domain
+sides at once. That changes the payload, not the reach: no row the
+shape refused now certifies.
+
 ## Narrowed (2026-10-28)
 
 A rim that is a row on both walls' chart boundaries no longer reaches
@@ -151,10 +160,9 @@ Of the two owed rows:
   `a_rim_on_both_walls_rows_is_a_certified_shared_row`.
 - **The tube's image** stays unguardable, for the reason this row gives:
   every exact chart image is a boundary row, and a witness along one
-  refuses here, so no exact chart reaches `Ok` in the witness lane.
+  refuses here (`AlongSide`), so no exact chart reaches `Ok` in the witness lane.
 
 What stays open is the witness lane's: a rim that is a boundary row of
 one wall only (a graft of one body's section across the other's
 interior), and shape 2's end on two charts' sides. Neither has a
 consumer today.
-

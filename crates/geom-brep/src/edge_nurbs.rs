@@ -3000,6 +3000,8 @@ mod tests {
             OneArcRefusal::Unlinked,
             OneArcRefusal::Short,
             OneArcRefusal::Undecided(undecided),
+            OneArcRefusal::AlongSide { chart: 1 },
+            OneArcRefusal::EndOnSides { sides: 4 },
         ] {
             let refusal = PlaneNurbsRefusal::TubeNotOneArc { rungs: 20, cause };
             for reading in [Reading::Build, Reading::AtRest] {

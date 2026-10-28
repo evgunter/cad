@@ -1302,6 +1302,10 @@ mod join_door {
     /// (`validate::TIER1_DERIVATIONS`) are the same at every `k`, where
     /// a kill outside the join's scope adds a walk per vertex.
     #[test]
+    #[cfg_attr(
+        feature = "per-op-postcondition",
+        ignore = "pinned red: work/topo/two-topo-rows-assume-the-default-build-under-the-per-op-scalpel"
+    )]
     fn a_join_sweeps_tier_1_once_however_many_it_joins() {
         type Door = fn(&mut Body<f64>, [crate::FaceKey; 2]) -> usize;
         // Every face of the solid, as the simultaneous doors require:

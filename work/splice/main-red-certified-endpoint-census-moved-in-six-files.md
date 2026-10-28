@@ -1,7 +1,7 @@
 ---
 id: main-red-certified-endpoint-census-moved-in-six-files
 kind: issue
-title: Main red: the certified endpoint census moved in six files (PRs 5855, 5868, 5886, 5728); seven new reads outside an is_certified function
+title: Main red: the certified endpoint census moved in nine files (PRs 5855, 5868, 5886, 5728, 5897, 5909, 5927); 27 new reads sit outside an is_certified function
 status: open
 opened: 2026-10-28
 priority: P0
@@ -47,3 +47,33 @@ reads are OFFSET's.
 
 Reproduce: `cargo nextest run -p geom-core --ignore-default-filter -E
 'test(every_production_endpoint_read_is_counted_and_dispositioned)'`.
+
+## 2026-10-28 — pinned on main (GREEN, `green/full-suite-pins`)
+
+Nightly run 40637814390 (main `a1cfd1cfdb`), `full suite`; re-run on main `91c83c38`. Three more files moved after the nightly, attributed the same way
+(each file swapped to each merge that touched it):
+
+| file | roster | live | moved by |
+|---|---|---|---|
+| `crates/geom-brep/src/intersect/section_bounds.rs` | absent | (13, 13) | PR 5897 (`offset/tube-exemption-by-pair`) |
+| `crates/topo/src/clearance.rs` | absent | (17, 0), then (20, 3) | PR 5909 (`clear/shell-3-engine-into-topo`), then PR 5927 (`clear/nurbswin`) |
+| `crates/geom/src/surfaces/nurbs.rs` | absent | (4, 1) | PR 5927 |
+
+The roster now holds main's counts. Where every read sits in a function
+that asks (`krawczyk.rs`, `ssi/enclose.rs`, `intersect/section_bounds.rs`)
+the count is re-blessed. Where reads sit outside one (`spline_face.rs` +3,
+`offset_meters.rs` +2, `pcurve_cache.rs` +1, `spline/blossom.rs` +1,
+`surfaces/nurbs.rs` +3, `topo/src/clearance.rs` +17) the entry is pinned
+with a note naming this row. Closing it dispositions each of those reads
+and replaces each note. The `clearance.rs` and `surfaces/nurbs.rs` reads
+are CLEAR's.
+
+Today's count: nine files moved, and 27 of the new reads sit outside a
+function that asks (`spline_face.rs` 3, `offset_meters.rs` 2,
+`pcurve_cache.rs` 1, `spline/blossom.rs` 1, `surfaces/nurbs.rs` 3,
+`topo/src/clearance.rs` 17). **Closing this row owes the notes too**:
+each of those six roster entries in `certified_endpoint_census.rs` now
+carries a "pinned red at main's count since PR …" note naming this row.
+Whoever argues a read safe (or makes it ask) replaces that note with the
+argument; the census checks the counts, not the notes, so a stale note
+does not go red by itself.

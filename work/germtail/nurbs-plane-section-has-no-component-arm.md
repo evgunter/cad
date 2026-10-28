@@ -33,3 +33,17 @@ argument on the spline: a certified count of the section's components
 bump × clamp row in `crates/sweep/tests/germ_interior_oval.rs`
 (`a_nurbs_graze_behind_crossings_is_refused_on_every_op`) pins the
 join refusal and goes red that day.
+
+## A consumer (2026-10-28, SPLICE)
+
+Lily's sweep row (`crates/sweep/tests/a_sheath_grafted_on_its_blade.rs`
+`a_sheath_on_its_blade_unions_past_the_shared_rim`) reaches this arm
+once its rim certifies: with limb 3 temporarily stubbed to pass, blade ∪
+sheath refuses `CurvedPairUnsupported { site: InteriorLoopGuard,
+operand: B, kind: Nurbs, other_kind: Plane }` at ε 1e-9, 1e-6 and
+1e-12, every pair evented. Each body's base cap is a plane that the
+other body's walls stand on along their rim, so the plane touches the
+net and W0 cannot part them. The NURBS × NURBS pairs behind it refuse
+the same way
+(`splice/no-certificate-excludes-a-closed-loop-interior-to-two-spline-faces`).
+So "costs nothing today" holds only until SPLICE's rim certifies.

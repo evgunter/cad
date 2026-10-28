@@ -128,6 +128,10 @@ and moves to the door with the frame's retirement. First dispatches:
   - an undecided nearness must escalate, never fold into a verdict (my delta read caught one);
   - a surface pair's section is carried in operand order (P3, filed).
 
+- 2026-10-28 — **The torus poses merge** (PR 5924, `each-torus-pair-decides-tangency-on-one-pose` closed). Every torus pair decides tangency on one critical gap, and sphere × torus is back on main's closed form. The cylinder × torus and torus × torus door rows are open. Teapot wall 2's union now builds and is refused at validation (`VolumeUncomputable`, a conic trim on the sphere chart, which is SPIRICARM's volume lane).
+  - **Review:** dual concurrent (H). Both reviewers were NOT-MERGEABLE on one bilateral MAJOR, by execution: f64 rounding in G′ divided by D ≈ 0 made in-band poses read Transverse, and a transverse joint read Tangent. Both confirmation passes then APPROVE on `e42da4cecb`. Row `docs/dual-review-log/rows/PR-5924.md`.
+  - **Classes:** a margin that is divided must carry its own rounding first; a certifying sweep's premise must reach generic frames, grid-aligned critical points and scale.
+  - **Filed:** SECTRUNG `the-torus-gaps-rounding-charge-is-first-order-and-reads-the-world-origin` (P2).
 - 2026-10-28 — **Split on Ev's request in chat.** SECT was over its budget, and SECTTAIL was at 27/30.
   - **SECTARMS** (new, P0-led, 22 points) takes the section object's remaining transverse arms: NURBS × cone/sphere, the cone frames, skew cylinders and the walk order.
   - **SECTSITE** (new, P1, 16 points) takes the closed edge in a curved face and the C5 plane × torus / cone × cylinder residue (U-H1, D10-held).
@@ -135,3 +139,16 @@ and moves to the door with the frame's retirement. First dispatches:
   - Points are at the tracker's current weights (E 1, M 3, H 8).
   - **SECT keeps** the torus-pair thread it is driving (teapot wall 2, the torus poses and their two doors), the new P0 main red, and two follow-ups its context makes cheap. The budget override is dropped.
   - All rows moved by `git mv`, ids unchanged. **Main red** `main-red-cylinder-sphere-section-runs-out-of-cells-near-the-node-at-1e-6` (nightly, ε 1e-6, slow-set rows from PR 5872) is dispatched on `sect/near-node-at-1e-6`.
+
+## 2026-10-28 — GREEN pinned four rows on `main-red-cylinder-sphere-section-runs-out-of-cells-near-the-node-at-1e-6`
+
+GREEN's full-suite pins (PR 5958, `green/full-suite-pins`) pin the four
+rows that row names at ε 1e-6, with `test_utils::pinned_red::row`, each
+on main's exact stop: `pair_section::one_loop_keeps_its_order_near_the_node`,
+`pair_section::two_loops_keep_their_sites_and_order_near_the_node`,
+`cylinder_sphere_frame::a_ball_across_a_cylinder_wall_wider_than_the_wall`
+(written out of `pose_rows!` to carry its pin) and
+`cylinder_sphere_frame::every_segment_joins_neighbouring_sites_along_its_loop`.
+A pin goes red the day its row passes, so the fix on
+`sect/near-node-at-1e-6` removes the four pins (and restores the macro
+row) in the same PR, and re-measures what each row runs after the stop.

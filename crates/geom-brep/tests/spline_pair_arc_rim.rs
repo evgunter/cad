@@ -11,10 +11,10 @@
 //! where the exact image's certificate passes.
 //!
 //! An exact image is a boundary row, and limb 3's tube refuses a rim on a
-//! chart's boundary row undecided
+//! chart's boundary row by name, [`OneArcRefusal::AlongSide`]
 //! (`work/splice/a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary.md`),
 //! so no row here reaches `Ok` through an exact chart. The rows read
-//! which limb refused: limb 3's undecided walk says limbs 1 and 2
+//! which limb refused: limb 3's refusal along the row says limbs 1 and 2
 //! cleared on the exact image, and [`ArcRimRefusal::Refused`] that they
 //! fell back to the fitted image and refused there.
 
@@ -103,16 +103,15 @@ fn limbs(
     nurbs_pair_limbs(carrier, params, a, b, 1.0, band())
 }
 
-/// Whether `got` refused at limb 3's one-arc walk, undecided: the
-/// tube's reading of a rim on a chart's boundary row, which only limbs 1
-/// and 2 cleared reach.
-fn tube_undecided(got: &Limbs) -> bool {
+/// Whether `got` refused at limb 3 because the rim lies along chart
+/// `chart`'s boundary row, which only limbs 1 and 2 cleared reach.
+fn tube_along_row(got: &Limbs, chart: u32) -> bool {
     matches!(
         got,
         Err(PlaneNurbsRefusal::TubeNotOneArc {
-            cause: OneArcRefusal::Undecided(_),
+            cause: OneArcRefusal::AlongSide { chart: c },
             ..
-        })
+        }) if *c == chart
     )
 }
 
@@ -141,7 +140,7 @@ fn a_rim_on_both_walls_rows_reads_past_the_fitted_images_miss() {
     ] {
         let got = limbs(&carrier, params, a, b);
         assert!(
-            tube_undecided(&got),
+            tube_along_row(&got, 0),
             "{what}: limbs 1 and 2 clear on the exact images: {got:?}"
         );
     }
@@ -265,12 +264,12 @@ fn a_closed_ring_reads_the_arc_its_rim_lies_on() {
     let carrier = rim(1.0);
     let clear = limbs(&carrier, (0.5, 1.5), &a, &b);
     assert!(
-        tube_undecided(&clear),
+        tube_along_row(&clear, 0),
         "a rim clear of the seam reads its row: {clear:?}"
     );
     let shifted = limbs(&carrier, (0.5 + tau, 1.5 + tau), &a, &b);
     assert!(
-        tube_undecided(&shifted),
+        tube_along_row(&shifted, 0),
         "and a turn on, the same row: {shifted:?}"
     );
     let across = limbs(&carrier, (-0.2, 0.4), &a, &b);
@@ -285,9 +284,10 @@ fn a_closed_ring_reads_the_arc_its_rim_lies_on() {
 /// fitted chart's chord miss, quadratic in the span, stays inside the
 /// band. Inside both rings it certifies through the fitted images. With
 /// it on the annulus' `v = 0` row, that chart reads its exact image and
-/// the tube is built about its polyline: the walk holds the rim on a face
-/// of every box and is undecided. A tube about any other locus finds no
-/// solution in its boxes and refuses `Count` instead.
+/// the tube is built about its polyline: the rim lies on a face of every
+/// box, and the tube refuses along the annulus' row, the chart it is in
+/// each order. A tube about any other locus finds no solution in its
+/// boxes and refuses `Count` instead.
 #[test]
 fn an_exact_charts_tube_is_about_the_rim() {
     let span = 0.03 * (crate::shared::tol::eps() / 1e-6).sqrt();
@@ -301,14 +301,39 @@ fn an_exact_charts_tube_is_about_the_rim() {
         "the rim inside both rings certifies: {interior:?}"
     );
     let row = annulus(1, TURN);
-    for (what, a, b) in [
-        ("cylinder × annulus row", &inside_cylinder, &row),
-        ("annulus row × cylinder", &row, &inside_cylinder),
+    for (what, a, b, chart) in [
+        ("cylinder × annulus row", &inside_cylinder, &row, 1),
+        ("annulus row × cylinder", &row, &inside_cylinder, 0),
     ] {
         let got = limbs(&carrier, params, a, b);
         assert!(
-            tube_undecided(&got),
+            tube_along_row(&got, chart),
             "{what}: the tube about the exact image holds the rim on its face: {got:?}"
         );
     }
+}
+
+/// **A rim ending on both charts' sides refuses by them.** The unit rim
+/// inside both rings, each ring turning only the `√ε`-scaled span of
+/// [`an_exact_charts_tube_is_about_the_rim`], whose interior rim
+/// certifies: here the rim runs the whole turn, so each of its ends
+/// lies on a `u` side of both charts at once, where the end box's walk
+/// isolates no root. The tube names the two sides rather than reading
+/// undecided.
+#[test]
+fn a_rim_ending_on_both_charts_sides_refuses_by_them() {
+    let turn = 0.03 * (crate::shared::tol::eps() / 1e-6).sqrt();
+    let inside_cylinder = ring(1, turn, [(1.0, -1.0), (1.0, 1.0)], |_| 1.0);
+    let inside_annulus = ring(1, turn, [(0.5, 0.0), (2.0, 0.0)], |_| 1.0);
+    let got = limbs(&rim(1.0), (0.0, turn), &inside_cylinder, &inside_annulus);
+    assert!(
+        matches!(
+            got,
+            Err(PlaneNurbsRefusal::TubeNotOneArc {
+                cause: OneArcRefusal::EndOnSides { sides: 2 },
+                ..
+            })
+        ),
+        "each end lies on a u side of both charts: {got:?}"
+    );
 }

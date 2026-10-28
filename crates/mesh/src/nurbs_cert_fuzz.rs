@@ -181,9 +181,66 @@ fn r1_random_rational_soundness_sweep() {
 /// nets, which is the form the claim is actually made in. Integral
 /// only, because the rational arm has always been a fold and has
 /// no whole-net counterpart to be tighter than.
+///
+/// A counterexample search: the seed varies and the count rides the
+/// effort dial. Its coverage floors live in
+/// [`cert10_a_pinned_draw_makes_the_gap_strict_at_high_multiplicity`].
 #[test]
 fn cert10_the_fold_never_exceeds_the_whole_net_hull() {
     let mut rng = fuzz::start("nurbs_cert::cert10_fold_vs_whole_net");
+    let tally = cert10_sweep(&mut rng, fuzz::scaled(60));
+    println!(
+        "cert10 fold-vs-whole-net: {} strict of {} comparisons",
+        tally.strict, tally.compared
+    );
+}
+
+/// **The sweep's generator reaches what the inequality rests on** —
+/// strict gaps, and interior multiplicity >= 2, where the fold's window
+/// coverage is tight. An inequality nothing makes strict is a tautology,
+/// and a sweep that never leaves multiplicity 1 never challenges the
+/// coverage premise.
+///
+/// A coverage witness too long to write out, so the seed is pinned: it
+/// is a fixture identifier, and the trial count is fixed rather than on
+/// the effort dial so the fixture is the same at every effort. Over 1000
+/// varying seeds at 60 trials the strict count ran 112..=197 (mean 153,
+/// sd 14) against the floor of 60; this seed draws 173.
+#[test]
+fn cert10_a_pinned_draw_makes_the_gap_strict_at_high_multiplicity() {
+    let mut rng = fuzz::pinned("nurbs_cert::cert10_coverage", 0x6365_7274_3130);
+    let trials = 60;
+    let tally = cert10_sweep(&mut rng, trials);
+    println!(
+        "cert10 coverage: {} strict of {} comparisons, high multiplicity drawn: {}",
+        tally.strict, tally.compared, tally.saw_high_mult
+    );
+    assert!(
+        tally.saw_high_mult,
+        "the draw never reached an interior multiplicity >= 2, so the fold's window \
+         coverage went unchallenged where it is tight — {}",
+        fuzz::replay()
+    );
+    assert!(
+        tally.strict > trials,
+        "the draw must produce STRICT gaps: {} strict of {} comparisons — {}",
+        tally.strict,
+        tally.compared,
+        fuzz::replay()
+    );
+}
+
+struct Cert10Tally {
+    strict: usize,
+    compared: usize,
+    saw_high_mult: bool,
+}
+
+/// `trials` random integral nets, each asserting fold <= whole-net hull
+/// per channel. Every drawn net must be bounded by both readings: a
+/// refused draw would shrink the sample a floor is written against, so
+/// it is a failure here rather than a skip.
+fn cert10_sweep(rng: &mut fuzz::Rng, trials: usize) -> Cert10Tally {
     /// Interior multiplicities are drawn up to `p - 1`, the C¹
     /// gate's ceiling — NOT left at 1. That is where the fold's
     /// coverage premise is TIGHT: a cell window is
@@ -196,15 +253,8 @@ fn cert10_the_fold_never_exceeds_the_whole_net_hull() {
     /// `check_direction` still admits, which is exactly the case a
     /// multiplicity-1 generator never reaches.
     fn mk(r: &mut fuzz::Rng, p: usize) -> KnotVector {
-        // A DEGREE-1 DIRECTION IS DRAWN SINGLE-SPAN, because it admits
-        // no interior knot at all (`check_direction`'s Degree1Crease).
-        // The old spelling said that in a comment and then drew one
-        // anyway — `m` fell to 1 at `p == 1` instead of to 0 — so every
-        // net with a knotted degree-1 direction was refused by
-        // `whole_net_bound` and dropped by the `continue` below.
-        // Measured 2026-09-11: that was 44% of all trials (every skip
-        // this sweep took), and the floor below counted them as if they
-        // had been compared.
+        // A degree-1 direction is drawn single-span: it admits no
+        // interior knot at all (`check_direction`'s Degree1Crease).
         let spans = if p >= 2 { 1 + r.below(4) } else { 1 };
         let mut k = vec![0.0; p + 1];
         for i in 1..spans {
@@ -218,15 +268,16 @@ fn cert10_the_fold_never_exceeds_the_whole_net_hull() {
         k.extend(vec![1.0; p + 1]);
         KnotVector::clamped(k, p).unwrap()
     }
-    let mut strict = 0usize;
-    let mut compared = 0usize;
-    let mut saw_high_mult = false;
-    let trials = fuzz::scaled(60);
-    for _ in 0..trials {
+    let mut tally = Cert10Tally {
+        strict: 0,
+        compared: 0,
+        saw_high_mult: false,
+    };
+    for trial in 0..trials {
         let (pu, pv) = (1 + rng.below(3), 1 + rng.below(3));
-        let kv_u = mk(&mut rng, pu);
-        let kv_v = mk(&mut rng, pv);
-        saw_high_mult |= kv_u.interior_knots().any(|(_, m)| m >= 2)
+        let kv_u = mk(rng, pu);
+        let kv_v = mk(rng, pv);
+        tally.saw_high_mult |= kv_u.interior_knots().any(|(_, m)| m >= 2)
             || kv_v.interior_knots().any(|(_, m)| m >= 2);
         let (nu, nv) = (kv_u.control_count(), kv_v.control_count());
         let control: Vec<Point3<f64>> = (0..nu * nv)
@@ -239,13 +290,20 @@ fn cert10_the_fold_never_exceeds_the_whole_net_hull() {
             })
             .collect();
         let w = vec![1.0; control.len()];
-        let Ok(s) = NurbsSurface::new(kv_u, kv_v, control, w) else {
-            continue;
-        };
+        let s = NurbsSurface::new(kv_u, kv_v, control, w).unwrap_or_else(|e| {
+            panic!(
+                "trial {trial} (degree {pu}x{pv}): the generator drew a net \
+                 NurbsSurface::new refuses: {e:?} — {}",
+                fuzz::replay()
+            )
+        });
         let (Some(whole), Some(fold)) = (whole_net_bound(&s), fold_bound(&s)) else {
-            continue;
+            panic!(
+                "trial {trial} (degree {pu}x{pv}): `whole_net_bound` or `fold_bound` \
+                 refused a drawn net — {}",
+                fuzz::replay()
+            );
         };
-        compared += 1;
         for (what, f, w) in [
             ("muu", fold.muu, whole.muu),
             ("muv", fold.muv, whole.muv),
@@ -253,63 +311,17 @@ fn cert10_the_fold_never_exceeds_the_whole_net_hull() {
             ("mu1", fold.mu1, whole.mu1),
             ("mv1", fold.mv1, whole.mv1),
         ] {
+            tally.compared += 1;
             assert!(
                 f <= w,
-                "the fold EXCEEDED the whole-net hull on {what}: {f:.17e} > \
-                 {w:.17e} — {}",
+                "trial {trial}: the fold EXCEEDED the whole-net hull on {what}: \
+                 {f:.17e} > {w:.17e} — {}",
                 fuzz::replay()
             );
             if f < w {
-                strict += 1;
+                tally.strict += 1;
             }
         }
     }
-    // COVERAGE FLOOR, three halves now. An inequality nothing ever
-    // makes strict is a tautology; a sweep that never leaves
-    // multiplicity 1 never challenges the coverage premise the
-    // inequality rests on; and a sweep that DISCARDS most of its own
-    // draws is not the sweep its floor is written against.
-    //
-    // THE DISCARD IS THE ONE THAT BIT. Every `continue` above is a
-    // trial that contributes nothing to `strict` while still counting
-    // toward `trials`, so the floor silently tightened as the discard
-    // rate rose — and nothing measured that rate. At 44% discarded the
-    // floor was asking for 60 strict comparisons out of the ~165 that
-    // actually ran while reporting 300, and a bad draw crossed it
-    // (`0xdcc78227f392d565`: 24 trials compared, 59 strict, reported as
-    // "of 300"). Both are fixed here: the generator no longer draws
-    // nets the bounds refuse, and `compared` is asserted rather than
-    // assumed, so a future drift reds loudly instead of shrinking the
-    // sample in silence.
-    assert_eq!(
-        compared,
-        trials,
-        "{} of {trials} trials produced no bound, so this sweep measured less than \
-         it claims: the generator draws nets `whole_net_bound` or `fold_bound` \
-         refuses, and the floor below is written against the full count — {}",
-        trials - compared,
-        fuzz::replay()
-    );
-    assert!(
-        saw_high_mult,
-        "the sweep never drew an interior multiplicity >= 2, so the fold's window \
-         coverage went unchallenged where it is tight — {}",
-        fuzz::replay()
-    );
-    // The denominator is `compared * 5`, the comparisons this run
-    // PERFORMED — never `trials * 5`, which is what it would have
-    // performed had nothing been discarded. They are equal only
-    // because the assert above makes them so; spelling it from
-    // `compared` keeps the number true if that ever changes.
-    assert!(
-        strict > trials,
-        "the sweep must keep producing STRICT gaps: {strict} strict of {} \
-         comparisons — {}",
-        compared * 5,
-        fuzz::replay()
-    );
-    println!(
-        "cert10 fold-vs-whole-net: {strict} strict of {} comparisons",
-        compared * 5
-    );
+    tally
 }

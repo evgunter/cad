@@ -84,8 +84,9 @@ fn blade(
 /// refuses the pair of B's spline wall and A's cap plane
 /// (`CurvedPairUnsupported { site: InteriorLoopGuard }`, measured at ε
 /// 1e-9, 1e-6 and 1e-12 on 2026-10-28). Before the shared row, the rim's
-/// witness refused at limb 3 (`PlaneNurbs(TubeNotOneArc { Undecided })`):
-/// the two-chart tube cannot prove one arc along a chart's boundary row.
+/// witness refused at limb 3 (`PlaneNurbs(TubeNotOneArc { AlongSide })`,
+/// before that `Undecided`): the two-chart tube cannot prove one arc
+/// along a chart's boundary row.
 /// Before the exact images, limb 2 refused on the fitted image's 9.0e-6 m
 /// miss; before the seam's spline entry, the seam's dihedral arm
 /// (`Escalated { LeverArm(Seam), "dihedral_arm" }`); before the spline
