@@ -679,6 +679,8 @@ pub struct Candidate<'s, 'b, T: Real> {
     /// Two scopes that meet: the cell they meet on, and its station on
     /// each face.
     meeting: Option<(SharedCell, Stations, Stations)>,
+    /// The strict question, whose witness is a coincidence.
+    strict: bool,
 }
 
 impl<T: Decide + CertifiedBounds> Candidate<'_, '_, T> {
@@ -713,12 +715,28 @@ impl<T: Decide + CertifiedBounds> Candidate<'_, '_, T> {
     /// For a meeting ([`Self::meeting`]) the stations are the shared
     /// cell's own: its vertex's chart point on each face, or, for one
     /// face in both scopes, the same stations on both sides.
+    ///
+    /// **Under the strict question each side gains one station more**,
+    /// where it can: a violation there is a coincidence, which a lattice
+    /// almost never holds, so the lattice's closest pair is carried by
+    /// Gauss–Newton toward a common point of the two cells
+    /// ([`coincidence`]) and offered when both its ends are placed on
+    /// their faces. It is a candidate like any station: the verifier
+    /// decides it.
     pub fn on_face_stations(self) -> (Stations, Stations) {
         if let Some((_, a, b)) = self.meeting {
             return (a, b);
         }
-        let a = admitted(&mut *self.region, false, self.ia, self.x, self.ca);
-        let b = admitted(&mut *self.region, true, self.ib, self.y, self.cb);
+        let mut a = admitted(&mut *self.region, false, self.ia, self.x, self.ca);
+        let mut b = admitted(&mut *self.region, true, self.ib, self.y, self.cb);
+        if self.strict
+            && let Some((p, q)) = coincidence(self.x, self.ca, &a, self.y, self.cb, &b)
+            && self.region.placed(false, self.ia, self.x, p)
+            && self.region.placed(true, self.ib, self.y, q)
+        {
+            a.push(p);
+            b.push(q);
+        }
         (a, b)
     }
 }
@@ -892,7 +910,7 @@ impl Sweep {
                     Ok(Sign::Zero) if self.bound.zero_discharges() => receipt.discharged += 1,
                     _ => {
                         receipt.violated += 1;
-                        let stations = meeting_stations(x, y, sh, cell);
+                        let stations = meeting_stations(x, y, sh, cell, self.band);
                         match verify(Candidate {
                             x,
                             ca: a,
@@ -902,6 +920,7 @@ impl Sweep {
                             ib: j,
                             region: &mut region,
                             meeting: Some((cell, stations.0, stations.1)),
+                            strict: false,
                         }) {
                             Ok(w) => {
                                 violation = Some(w);
@@ -937,7 +956,12 @@ impl Sweep {
                 k,
                 i,
                 j,
-                pair: CellPair { a, b, depth: 0 },
+                pair: CellPair {
+                    a,
+                    b,
+                    depth: 0,
+                    fresh: true,
+                },
             });
         }
 
@@ -968,6 +992,9 @@ impl Sweep {
                 };
                 let pair = task.pair;
                 deepest = deepest.max(pair.depth);
+                let trace = std::env::var_os("SELFX_TRACE").is_some();
+                let t0 = std::time::Instant::now();
+                if trace { eprintln!("[task] d={} {:?}/{:?} a={:?}x{:?} b={:?}x{:?}", pair.depth, x.face, y.face, pair.a.u, pair.a.v, pair.b.u, pair.b.v); }
                 // **Off the face, before anything is enclosed.** A cell
                 // decided outside its face is a leaf, and the discharge
                 // is VACUOUS: no separation is measured, nothing is
@@ -981,6 +1008,7 @@ impl Sweep {
                     receipt.outside += 1;
                     continue;
                 }
+                if trace { eprintln!("[time] region {:?}", t0.elapsed()); }
                 let discharge = |receipt: &mut CellReceipt, widths: &mut DischargeWidths| {
                     receipt.discharged += 1;
                     let da = diameter(&cell_box(&pair.a.enc));
@@ -1004,7 +1032,12 @@ impl Sweep {
                 if injective {
                     let same = x.face == y.face;
                     let meet = same && injective::rects_meet((pair.a.u, pair.a.v), (pair.b.u, pair.b.v));
-                    let near = if meet || sh.is_empty() {
+                    // Two cells whose enclosures are disjoint hold no
+                    // common point, of M or of space: the enclosures are
+                    // rigorous, so this selects the distance test and
+                    // decides nothing it would not.
+                    let apart = separation(&pair.a.enc, &pair.b.enc).lo() > 0.0;
+                    let near = if meet || sh.is_empty() || apart {
                         None
                     } else {
                         let la = locals.get(false, task.i, x, pair.a, self.band);
@@ -1012,6 +1045,7 @@ impl Sweep {
                         let near = Near::of(sh, &la, &lb);
                         (!near.is_empty()).then_some((near, la, lb))
                     };
+                    if trace { eprintln!("[time] near {:?} meet={meet} near={}", t0.elapsed(), near.is_some()); }
                     if meet || near.is_some() {
                         let outcome = if meet {
                             let hull = (
@@ -1046,6 +1080,9 @@ impl Sweep {
                                 first_refusal.get_or_insert(r);
                             }
                             Outcome::Split { arm, shared } => {
+                                if pair.depth >= 36 && std::env::var_os("SELFX_DEEP").is_some() {
+                                    eprintln!("[deep] d={} {:?}/{:?} {arm:?} {shared:?} a={:?}x{:?} b={:?}x{:?}", pair.depth, x.face, y.face, pair.a.u, pair.a.v, pair.b.u, pair.b.v);
+                                }
                                 let refuse = |receipt: &mut CellReceipt,
                                               first: &mut Option<EngineRefusal>,
                                               r: EngineRefusal| {
@@ -1093,7 +1130,10 @@ impl Sweep {
                                             k: task.k,
                                             i: task.i,
                                             j: task.j,
-                                            pair,
+                                            pair: CellPair {
+                                                fresh: true,
+                                                ..pair
+                                            },
                                         }));
                                     }
                                     None => refuse(
@@ -1119,6 +1159,7 @@ impl Sweep {
                         ib: task.j,
                         region,
                         meeting: None,
+                        strict: !self.bound.zero_discharges(),
                     })
                 };
                 match decide(self.bound.predicate(), Margin::of(margin), self.band) {
@@ -1156,17 +1197,20 @@ impl Sweep {
                         // narrow: it needs ONE pair of points. So an
                         // indeterminate cell pair is offered to the
                         // verifier before it is split, at the two
-                        // places a probe is worth its cost — the root,
-                        // where a contact or an overlap shows up
-                        // immediately, and the depth floor, where the
-                        // alternative is a refusal.
+                        // places a probe is worth its cost — the root of
+                        // the subtree the distance test decides (a
+                        // candidate's root, or the first pair below a
+                        // touching one), where a contact or an overlap
+                        // shows up immediately, and the depth floor,
+                        // where the alternative is a refusal.
                         //
                         // It only ever ADDS violations, each confirmed
                         // by the verifier: a probe that finds nothing
                         // changes no answer, so no `Holds` can rest on
                         // it. That is what keeps it an exhibit rather
                         // than a sample.
-                        let probe_here = pair.depth == 0 || pair.depth >= self.max_cell_depth;
+                        let probe_here = (pair.fresh && std::env::var_os("SELFX_NOPROBE").is_none()) || pair.depth >= self.max_cell_depth;
+                        if std::env::var_os("SELFX_TRACE").is_some() { eprintln!("[ind] d={} fresh={} probe={probe_here} {:?}/{:?}", pair.depth, pair.fresh, x.face, y.face); }
                         if probe_here && let Ok(w) = candidate(&mut region) {
                             receipt.violated += 1;
                             violation = Some(w);
@@ -1257,15 +1301,112 @@ impl Sweep {
     }
 }
 
+/// **A common point of two cells, sought**: Gauss–Newton on
+/// `S_a(p) − S_b(q)` from the closest pair of the two station lattices,
+/// each step the least-norm one (`J` is 3×4) with a vanishing damping
+/// term, every iterate clamped into its cell. `None` where there is no
+/// lattice or the search ends no closer than it began. It chooses a
+/// candidate and decides nothing: the `f64` reading of the carriers'
+/// enclosures it walks on is a heuristic's.
+fn coincidence<T: Real>(
+    x: &Window<'_, T>,
+    ca: Cell,
+    sa: &[(f64, f64)],
+    y: &Window<'_, T>,
+    cb: Cell,
+    sb: &[(f64, f64)],
+) -> Option<((f64, f64), (f64, f64))> {
+    let mid = |i: Interval| geom::mid_param(i.lo(), i.hi());
+    let at = |x: f64| Interval::from_bounds(x, x);
+    let jet = |s: &Surface<Interval>, (u, v): (f64, f64)| {
+        let j = s.jet(at(u), at(v));
+        (j.point.map(mid), j.du.map(mid), j.dv.map(mid))
+    };
+    let point = |s: &Surface<Interval>, uv| jet(s, uv).0;
+    let mut best: Option<(f64, (f64, f64), (f64, f64))> = None;
+    for &p in sa {
+        let pa = point(&x.surface, p);
+        for &q in sb {
+            let d = (pa - point(&y.surface, q)).norm();
+            if best.is_none_or(|(e, _, _)| d < e) {
+                best = Some((d, p, q));
+            }
+        }
+    }
+    let (start, mut p, mut q) = best?;
+    let clamp = |(u, v): (f64, f64), c: Cell| (u.clamp(c.u.0, c.u.1), v.clamp(c.v.0, c.v.1));
+    let mut gap = start;
+    for _ in 0..32 {
+        let (pa, au, av) = jet(&x.surface, p);
+        let (pb, bu, bv) = jet(&y.surface, q);
+        let f = pa - pb;
+        gap = f.norm();
+        if !gap.is_finite() || gap == 0.0 {
+            break;
+        }
+        // M = J·Jᵀ, damped; y = M⁻¹f; δ = −Jᵀy.
+        let cols = [au, av, -bu, -bv];
+        let mut m = [[0.0f64; 3]; 3];
+        for c in cols {
+            let c = [c.x, c.y, c.z];
+            for (r, row) in m.iter_mut().enumerate() {
+                for (k, slot) in row.iter_mut().enumerate() {
+                    *slot += c[r] * c[k];
+                }
+            }
+        }
+        let trace = m[0][0] + m[1][1] + m[2][2];
+        for (r, row) in m.iter_mut().enumerate() {
+            row[r] += 1e-12 * trace;
+        }
+        let Some(yv) = solve3(m, [f.x, f.y, f.z]) else {
+            break;
+        };
+        let yv = Vec3::new(yv[0], yv[1], yv[2]);
+        let step = |c: Vec3<f64>| -c.dot(yv);
+        p = clamp((p.0 + step(au), p.1 + step(av)), ca);
+        q = clamp((q.0 - step(bu), q.1 - step(bv)), cb);
+    }
+    let (pa, _, _) = jet(&x.surface, p);
+    let (pb, _, _) = jet(&y.surface, q);
+    gap = gap.min((pa - pb).norm());
+    ((pa - pb).norm() < start && gap.is_finite()).then_some((p, q))
+}
+
+/// `m·y = r` for a 3×3 `m`, by Cramer's rule; `None` where `m` is
+/// singular in `f64`.
+fn solve3(m: [[f64; 3]; 3], r: [f64; 3]) -> Option<[f64; 3]> {
+    let det = |m: [[f64; 3]; 3]| {
+        m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
+            - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+            + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0])
+    };
+    let d = det(m);
+    if !(d.is_finite() && d != 0.0) {
+        return None;
+    }
+    let column = |k: usize| {
+        let mut n = m;
+        for (row, &x) in n.iter_mut().zip(&r) {
+            row[k] = x;
+        }
+        det(n) / d
+    };
+    Some([column(0), column(1), column(2)])
+}
+
 /// **The stations of the cell two scopes meet on**: a shared vertex's
-/// chart point on each face, read off each face's own boundary images;
-/// for one face, one of its vertices on both sides. Empty where no image
-/// carries the vertex, which leaves the verifier nothing to confirm.
+/// chart point on each face, read off each face's own boundary images,
+/// or, where no image carries it, its carrier's closed chart inverse
+/// ([`Surface::chart_point`]); for one face, one of its vertices on both
+/// sides. Empty where neither reads it, which leaves the verifier
+/// nothing to confirm.
 fn meeting_stations<T: Real>(
     x: &Window<'_, T>,
     y: &Window<'_, T>,
     shared: &Shared,
     cell: SharedCell,
+    band: Band,
 ) -> (Stations, Stations) {
     let vertex = match cell {
         SharedCell::Face(_) => x.boundary.vertices.keys().next().copied(),
@@ -1284,6 +1425,12 @@ fn meeting_stations<T: Real>(
                 let p = image.get(end)?;
                 let mid = |i: Interval| geom::mid_param(i.lo(), i.hi());
                 Some(vec![(mid(p.x), mid(p.y))])
+            })
+            .or_else(|| {
+                let p = *w.boundary.vertices.get(&v)?;
+                let uv = w.surface.chart_point(p, band).ok()?.uv;
+                let mid = |i: Interval| geom::mid_param(i.lo(), i.hi());
+                Some(vec![(mid(uv.x), mid(uv.y))])
             })
             .unwrap_or_default()
     };
@@ -1741,7 +1888,12 @@ pub fn min_separation<T: Decide + CertifiedBounds>(
             k: 0,
             i: *i,
             j: *j,
-            pair: CellPair { a, b, depth: 0 },
+            pair: CellPair {
+                a,
+                b,
+                depth: 0,
+                fresh: false,
+            },
         });
     }
     let mut receipt = CellReceipt {
@@ -1979,6 +2131,24 @@ impl RegionMemo {
             .or_insert_with(|| station_region(w.body, w.face, (u, v), self.band))
     }
 
+    /// Whether the point door places `(u, v)` of window `index` on its
+    /// face — in the window, for a window that is its face.
+    fn placed<T: Decide + CertifiedBounds>(
+        &mut self,
+        side_b: bool,
+        index: usize,
+        w: &Window<'_, T>,
+        (u, v): (f64, f64),
+    ) -> bool {
+        match w.region {
+            Region::Whole => w.u.0 <= u && u <= w.u.1 && w.v.0 <= v && v <= w.v.1,
+            Region::Trimmed => matches!(
+                self.station(side_b, index, w, (u, v)),
+                Some(FaceContainment::In | FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_))
+            ),
+        }
+    }
+
     /// How many readings of a face's region the answer rests on: cells
     /// decided `Inside` or `Outside`, and witness stations a point door
     /// placed.
@@ -2034,12 +2204,16 @@ fn full_latitude() -> (f64, f64) {
 ///   enclosure is the window.
 /// - **Cylinder**: `v` is the axial coordinate, affine, and takes the
 ///   boundary's range; `u` is the azimuth and takes the whole turn.
-/// - **Cone**: `v` is the slant arc length from the apex, affine along
-///   each generator, so its extremes are on the boundary — and there
-///   `|v| = ‖p − apex‖`, which is why the window is the symmetric range
-///   around the apex rather than a signed one. That admits the mirror
-///   nappe: loose, and sound, because it is a superset. `u` takes the
-///   whole turn.
+/// - **Cone**: `v` is the signed slant arc length from the apex, and
+///   `(p − apex)·axis = v·cos α`, so `v` is an affine function of
+///   position with no critical point on the carrier but the apex: it
+///   takes the boundary's range of that projection over `cos α`, widened
+///   to the apex's `0`, which a face may hold inside it. A window
+///   symmetric about the apex would hold the mirror
+///   nappe, and on it halving `u` never narrows the enclosure (each
+///   azimuth's generator meets its opposite's), so no subdivision could
+///   decide anything. `u` takes the whole turn; a cone whose `cos α`
+///   straddles zero has no finite window.
 /// - **Sphere**: latitude has an interior extremum (a cap's boundary is
 ///   one circle while the region reaches the pole), so both coordinates
 ///   take their canonical ranges.
@@ -2098,9 +2272,14 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
             u_ref,
         } => superset(along(*origin, *u_ref), along(*origin, normal.cross(*u_ref))),
         Surface::Cylinder { origin, axis, .. } => superset(full_turn(), along(*origin, *axis)),
-        Surface::Cone { apex, .. } => {
-            let reach = (extent - *apex).norm().hi();
-            superset(full_turn(), (-reach, reach))
+        Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } => {
+            let slant = (extent - *apex).dot(*axis) / half_angle.cos();
+            superset(full_turn(), (slant.lo().min(0.0), slant.hi().max(0.0)))
         }
         Surface::Sphere { .. } => superset(full_turn(), full_latitude()),
         Surface::Torus { .. } => superset(full_turn(), full_turn()),
@@ -2470,6 +2649,9 @@ struct CellPair {
     a: Cell,
     b: Cell,
     depth: u32,
+    /// The root of a subtree the distance test decides: a candidate's
+    /// root, or the child of a touching pair. The exhibit arm probes it.
+    fresh: bool,
 }
 
 /// One entry of a walk's frontier: which candidate pair it belongs to,
@@ -2560,11 +2742,13 @@ fn split<T: Real>(
                 a: pair.a,
                 b: first,
                 depth,
+                fresh: false,
             },
             CellPair {
                 a: pair.a,
                 b: second,
                 depth,
+                fresh: false,
             },
         )
     } else {
@@ -2573,11 +2757,13 @@ fn split<T: Real>(
                 a: first,
                 b: pair.b,
                 depth,
+                fresh: false,
             },
             CellPair {
                 a: second,
                 b: pair.b,
                 depth,
+                fresh: false,
             },
         )
     })
@@ -2603,7 +2789,12 @@ fn split_self<T: Real>(pair: CellPair, w: &Window<'_, T>) -> Option<[CellPair; 3
         (on((lo, mid), cell.v), on((mid, hi), cell.v))
     };
     let depth = pair.depth + 1;
-    let of = |a, b| CellPair { a, b, depth };
+    let of = |a, b| CellPair {
+        a,
+        b,
+        depth,
+        fresh: false,
+    };
     Some([of(p, p), of(p, q), of(q, q)])
 }
 

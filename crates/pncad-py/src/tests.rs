@@ -560,12 +560,11 @@ fn the_fourth_verbs_two_refusals_are_stable() {
     // rather than handing back a worse number.
     assert!(absent.to_string().contains("clearance::min_separation"));
 
-    // The four arms `clearance::min_separation` refuses with — the
+    // The three arms `clearance::min_separation` refuses with — the
     // only ones this carrier's producer can build — all cross as one
     // tag.
     let refused = |r| NodeErrorKind::MeasureClearanceRefused(r);
     let empty = refused(ClearanceRefusal::Engine(EngineRefusal::EmptyScope));
-    let unpaired = refused(ClearanceRefusal::Engine(EngineRefusal::NoAdmittedPair));
     let unsupported = refused(ClearanceRefusal::Engine(EngineRefusal::Unsupported {
         carrier: "an approximated face",
         face: FaceKey::default(),
@@ -574,22 +573,20 @@ fn the_fourth_verbs_two_refusals_are_stable() {
         a: FaceKey::default(),
         b: FaceKey::default(),
     }));
-    for e in [&empty, &unpaired, &unsupported, &poison] {
+    for e in [&empty, &unsupported, &poison] {
         assert_eq!(
             node_error_tag(e.class()),
             "measure_clearance_refused",
             "{e}"
         );
     }
-    // The prose is pinned on the two arms whose rendering is a
-    // sentence. `Unsupported` and `PoisonEnclosure` print their faces
-    // as `FaceKey` `Debug` — the defect
+    // The prose is pinned on the arm whose rendering is a sentence.
+    // `Unsupported` and `PoisonEnclosure` print their faces as `FaceKey`
+    // `Debug` — the defect
     // work/props/props-refusal-prose-outgrows-the-viewer.md owns — and
     // `reads_as_prose` does not look for an arena key, so a pin there
     // would pass and prove nothing.
-    for e in [&empty, &unpaired] {
-        assert!(crate::errors::reads_as_prose(&e.to_string()), "{e}");
-    }
+    assert!(crate::errors::reads_as_prose(&empty.to_string()), "{empty}");
 }
 
 /// LIB-B-MEASURES: an assertion's three relations, and the symbols a

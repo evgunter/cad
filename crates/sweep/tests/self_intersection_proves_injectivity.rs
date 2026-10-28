@@ -1,0 +1,444 @@
+//! **Self-intersection proves the boundary injective** (ERROR-DESIGN's
+//! *Self-intersection scope*): the engine examines every face pair, a
+//! face against itself included, decides a touching cell pair by a local
+//! certificate and a non-touching one by distance.
+//!
+//! Each row runs `topo::clearance`'s sweep on a built body at the strict
+//! bound, one body against itself, and names the failure it goes red
+//! under:
+//!
+//! - a 370° flat ribbon wall is `Violated` — red if a normal-cone rule
+//!   (its normals are all one vector) replaced the monotone arm;
+//! - the carvetail fold is `Violated`, its witness at `v ≈ ½`;
+//! - a cone, a pyramid and an embedded triangle loft `Hold`, every pair
+//!   examined and the touching ones certified — red if the global drop
+//!   of vertex-sharing pairs returned;
+//! - a declared wedge-0 kiss refuses typed, naming the second-order arm
+//!   and the kiss;
+//! - `clearance ≥ c` between scopes sharing an edge is `Violated` at 0,
+//!   on the shared cell, and their minimum separation is `[0, 0]`;
+//! - large curved bodies certify within the default budget, their
+//!   cell-pair counts printed.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use core::f64::consts::TAU;
+
+use geom::{NurbsCurve3, Surface};
+use geom_core::k_stats::decide;
+use geom_core::{Band, Margin, Point2, Point3, Sign, Tol};
+use profile::{Open, Profile, ProfileLoop, RawLoop, SketchPlane, Start};
+use sweep::test_support::revolved_about_y;
+use sweep::{Revolution, extrude, loft_body, revolve, sweep_body};
+use topo::clearance::{
+    BoundReport, BoundVerdict, Candidate, CertificateArm, ClearanceBound, DEFAULT_MAX_CELL_DEPTH,
+    CLEARANCE_MARGIN, EngineRefusal, MinSeparationConfig, SharedCell, Side,
+    Sweep, min_separation,
+};
+use topo::{Body, FaceKey};
+
+use crate::common::{normal_start_place, quad, to_offset};
+use crate::revolve_common::{axis_y, donut_profile, validated};
+
+/// The default whole-query budget the document door runs at
+/// (`editor_core::clearance::DEFAULT_MAX_CELL_PAIRS`).
+const BUDGET: usize = 65_536;
+
+fn tol() -> Tol {
+    Tol::witness()
+}
+
+fn band() -> Band {
+    Band::linear(tol()).unwrap()
+}
+
+/// A verified witness: two faces, a point on each, their distance.
+#[derive(Debug, Clone, Copy)]
+struct Witness {
+    a: FaceKey,
+    b: FaceKey,
+    pa: Point3<f64>,
+    pb: Point3<f64>,
+    d: f64,
+}
+
+fn surface(body: &Body<f64>, f: FaceKey) -> Surface<f64> {
+    body.get_surface(body.get_face(f).unwrap().surface)
+        .unwrap()
+        .clone()
+}
+
+/// **The witness check**: the closest pair of the two cells' on-face
+/// stations, evaluated afresh on the stored surfaces, decided at the
+/// bound's own site.
+fn verify(
+    body: &Body<f64>,
+    bound: ClearanceBound,
+) -> impl FnMut(Candidate<'_, '_, f64>) -> Result<Witness, String> + '_ {
+    move |candidate| {
+        let (fa, fb) = candidate.faces();
+        let (sa, sb) = (surface(body, fa), surface(body, fb));
+        let (la, lb) = candidate.on_face_stations();
+        let mut best: Option<Witness> = None;
+        for &(au, av) in &la {
+            let pa = sa.eval(au, av);
+            for &(bu, bv) in &lb {
+                let pb = sb.eval(bu, bv);
+                let d = (pa - pb).norm();
+                if best.is_none_or(|w| d < w.d) {
+                    best = Some(Witness {
+                        a: fa,
+                        b: fb,
+                        pa,
+                        pb,
+                        d,
+                    });
+                }
+            }
+        }
+        let w = best.ok_or("no station")?;
+        let definite = match decide(bound.predicate(), Margin::of(w.d - bound.c()), band()) {
+            Ok(Sign::Negative) => true,
+            Ok(Sign::Zero) => !bound.zero_discharges(),
+            _ => false,
+        };
+        if definite {
+            Ok(w)
+        } else {
+            Err(format!("the closest station pair is {} apart", w.d))
+        }
+    }
+}
+
+/// **The injectivity question** over `faces` of `body` (every face when
+/// `None`), at the default depth and `budget`.
+fn injective(body: &Body<f64>, faces: Option<Vec<FaceKey>>, budget: usize) -> BoundReport<Witness> {
+    let faces = faces.unwrap_or_else(|| body.faces().map(|(k, _)| k).collect());
+    let side = Side { body, faces };
+    let windows = side.windows().expect("every face has a window");
+    let sweep = Sweep {
+        bound: ClearanceBound::StrictlyPositive,
+        band: band(),
+        max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+        max_cell_pairs: budget,
+    };
+    let report = sweep.run(
+        &windows,
+        &windows,
+        true,
+        verify(body, ClearanceBound::StrictlyPositive),
+    );
+    assert!(report.receipt.holds(), "the receipt adds up: {:?}", report.receipt);
+    report
+}
+
+/// A face pair count: every unordered pair, a face against itself
+/// included.
+fn pairs(n: usize) -> usize {
+    n * (n + 1) / 2
+}
+
+/// **Holds, every pair examined, and the touching ones certified**: the
+/// receipt has a root for every face pair the tree admits, and at least
+/// `certified` touching pairs discharged by a local certificate.
+fn assert_holds(what: &str, report: &BoundReport<Witness>, faces: usize, certified: usize) {
+    let r = report.receipt;
+    println!("[selfx] {what}: {:?} {r:?} {:?}", report.verdict, report.widths);
+    assert!(matches!(report.verdict, BoundVerdict::Holds), "{what} is embedded: {r:?}");
+    assert!(
+        r.candidates <= pairs(faces) && r.candidates >= faces,
+        "{what}: every face against itself, and the pairs the tree admits: {r:?}"
+    );
+    assert!(
+        r.certified >= certified,
+        "{what}: the touching pairs are certified, not dropped: {r:?}"
+    );
+}
+
+// ------------------------------------------------------------ fixtures
+
+/// A helix of `turns` revolutions, radius 1, `pitch` per revolution,
+/// interpolated through 32 points a turn.
+fn helix(turns: f64, pitch: f64) -> NurbsCurve3<f64> {
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let n = ((32.0 * turns).ceil() as usize).max(32);
+    let pts: Vec<Point3<f64>> = (0..=n)
+        .map(|k| {
+            let s = f64::from(u32::try_from(k).unwrap()) / f64::from(u32::try_from(n).unwrap());
+            let a = TAU * turns * s;
+            Point3::new(a.cos(), a.sin(), pitch * turns * s)
+        })
+        .collect();
+    NurbsCurve3::<f64>::interpolate(&pts, 3).unwrap()
+}
+
+/// The wall of a sweep whose centre point is highest.
+fn top_wall(lofted: &sweep::Lofted<f64>) -> FaceKey {
+    let centre = |f: FaceKey| {
+        let s = surface(&lofted.body, f);
+        let Surface::Nurbs(net) = &s else {
+            panic!("a swept wall is NURBS")
+        };
+        let ((u0, u1), (v0, v1)) = (net.knot_values_u().domain(), net.knot_values_v().domain());
+        s.eval(0.5 * (u0 + u1), 0.5 * (v0 + v1))
+    };
+    lofted.side_faces[0]
+        .iter()
+        .copied()
+        .max_by(|&a, &b| centre(a).z.total_cmp(&centre(b).z))
+        .unwrap()
+}
+
+// ---------------------------------------------------------- the rows
+
+/// **A 370° flat ribbon reads `Violated`.** A thin rectangle swept 370°
+/// round a planar circle: its top wall is one NURBS face, flat, every
+/// normal the same vector, lying over itself across the last 10°. A
+/// normal-cone rule would discharge that face against itself at the
+/// root; the monotone arm cannot, since the wall turns through 370°, so
+/// the face splits until its two passes over the overlap are cells that
+/// do not touch, and the distance test finds them coincident.
+#[test]
+fn a_370_degree_flat_ribbon_reads_violated() {
+    let path = helix(370.0 / 360.0, 0.0);
+    let place = normal_start_place(&path);
+    let profile = quad([(-0.1, -0.02), (0.1, -0.02), (0.1, 0.02), (-0.1, 0.02)]);
+    let swept = sweep_body::<f64>(&profile, place, &path, 48, 3, tol())
+        .expect("the ribbon sweeps");
+    let wall = top_wall(&swept);
+    let report = injective(&swept.body, Some(vec![wall]), BUDGET);
+    println!("[selfx] ribbon: {:?} {:?}", report.verdict, report.receipt);
+    let BoundVerdict::Violated(w) = report.verdict else {
+        panic!("the ribbon overlaps itself: {:?}", report.verdict)
+    };
+    assert_eq!((w.a, w.b), (wall, wall), "one wall against itself");
+    let azimuth = |p: Point3<f64>| p.y.atan2(p.x).to_degrees();
+    for p in [w.pa, w.pb] {
+        assert!(
+            (-1.0..=11.0).contains(&azimuth(p)),
+            "the witness lies where the wall passes twice: {w:?}"
+        );
+    }
+    assert!(
+        report.receipt.splits > 0,
+        "the wall against itself was not discharged at its root: {:?}",
+        report.receipt
+    );
+}
+
+/// **The carvetail fold reads `Violated`, its witness at `v ≈ ½`.** Two
+/// pentagons lofted at `v_degree = 1`; joint 1 turns +170° in one
+/// section and −170° in the other, so the seam between walls 0 and 1
+/// passes through wedge 0 at `v = ½`, where wall 1 lies along wall 0
+/// and crosses it. The two walls share that seam, so the pair is the
+/// one the global drop never examined.
+#[test]
+fn the_carvetail_fold_reads_violated_at_its_middle_station() {
+    let pent = |pts: [(f64, f64); 5]| vec![ProfileLoop::polygon(pts.iter().map(|&(x, y)| Point2::new(x, y)))];
+    let sections = [
+        pent([(0.0, 0.0), (2.0, 0.0), (0.03, 0.347), (-2.0, 1.0), (-2.0, -1.0)]),
+        pent([(0.0, 0.0), (2.0, 0.0), (0.03, -0.347), (3.0, -3.0), (3.0, 3.0)]),
+    ];
+    let places = [0.0, 1.0].map(|z| SketchPlane::xy_at(Point3::new(0.0, 0.0, z)));
+    let lofted = loft_body::<f64>(&sections, &places, 1, tol()).expect("the fold lofts");
+    // Walls 0 and 1: the two whose boundary holds the seam over (2, 0).
+    let on_seam = |f: FaceKey| {
+        let s = surface(&lofted.body, f);
+        let Surface::Nurbs(net) = &s else {
+            return false;
+        };
+        let ((u0, u1), (v0, _)) = (net.knot_values_u().domain(), net.knot_values_v().domain());
+        [u0, u1].iter().any(|&u| {
+            let p = s.eval(u, v0);
+            (p.x - 2.0).abs() < 1e-9 && p.y.abs() < 1e-9
+        })
+    };
+    let walls: Vec<FaceKey> = lofted.side_faces[0].iter().copied().filter(|&f| on_seam(f)).collect();
+    assert_eq!(walls.len(), 2, "two walls share the seam at (2, 0)");
+    let report = injective(&lofted.body, Some(walls.clone()), BUDGET);
+    println!("[selfx] fold: {:?} {:?}", report.verdict, report.receipt);
+    let BoundVerdict::Violated(w) = report.verdict else {
+        panic!("the fold crosses itself: {:?}", report.verdict)
+    };
+    assert!(walls.contains(&w.a) && walls.contains(&w.b), "{w:?}");
+    for p in [w.pa, w.pb] {
+        assert!((p.z - 0.5).abs() < 0.05, "the witness is at the fold's station: {w:?}");
+    }
+}
+
+/// **A cone holds**: the triangle `(0,0) (1,0) (0,1)` revolved a full
+/// turn about `y` — two half-cones sharing their two meridians and the
+/// apex, each sharing a half rim with the base disc.
+#[test]
+fn a_revolved_cone_holds() {
+    let profile = validated(vec![ProfileLoop::polygon(
+        [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)].map(|(x, y)| Point2::new(x, y)),
+    )]);
+    let body = revolve(&profile, axis_y(), Revolution::Full, tol()).unwrap().body;
+    for (k, f) in body.faces() {
+        eprintln!("[selfx-debug] {k:?} {:?}", body.get_surface(f.surface));
+    }
+    let n = body.faces().count();
+    let report = injective(&body, None, BUDGET);
+    assert_holds("the cone", &report, n, 1);
+}
+
+/// **A pyramid holds**: a square base and an apex — four planar faces
+/// meeting at the apex, two of each pair of opposite ones sharing only
+/// that vertex.
+#[test]
+fn a_pyramid_holds() {
+    use topo::test_support::meeting::{Pose, posed_pyramid};
+    let at_rest = posed_pyramid(
+        &[[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]],
+        [0.5, 0.5, 0.8],
+        &Pose::rest(),
+        tol(),
+    );
+    let body = at_rest.into_body();
+    let n = body.faces().count();
+    let report = injective(&body, None, BUDGET);
+    assert_holds("the pyramid", &report, n, 1);
+}
+
+/// **An embedded triangle loft holds**: every wall shares a seam with
+/// both others and a rim with each cap.
+#[test]
+fn an_embedded_triangle_loft_holds() {
+    let tri = |s: f64, turn: f64| {
+        let p = |a: f64| Point2::new(s * (a + turn).cos(), s * (a + turn).sin());
+        vec![ProfileLoop::polygon([0.0, TAU / 3.0, 2.0 * TAU / 3.0].map(p))]
+    };
+    let sections = [tri(1.0, 0.0), tri(0.6, 0.3)];
+    let places = [0.0, 1.0].map(|z| SketchPlane::xy_at(Point3::new(0.0, 0.0, z)));
+    let lofted = loft_body::<f64>(&sections, &places, 1, tol()).expect("the triangles loft");
+    let n = lofted.body.faces().count();
+    let report = injective(&lofted.body, None, BUDGET);
+    assert_holds("the triangle loft", &report, n, 1);
+}
+
+/// **A declared wedge-0 kiss refuses typed**: the lune between the
+/// internally tangent circles `(0,1) r 1` and `(0,2) r 2`, `.cusp()` at
+/// the kiss, extruded. The two walls meet along the kiss strut with
+/// their outward normals opposed, which only the second-order arm
+/// reads; it is not built, so the strut refuses, named.
+#[test]
+fn a_declared_wedge_0_kiss_refuses_naming_the_second_order_arm() {
+    let lune: ProfileLoop<f64> = Open
+        .at(Point2::new(0.0, 4.0))
+        .angle(-core::f64::consts::FRAC_PI_2, tol())
+        .unwrap()
+        .line(2.0, tol())
+        .unwrap()
+        .turn(core::f64::consts::FRAC_PI_2, tol())
+        .unwrap()
+        .tangent_arc_to(Point2::new(0.0, 0.0), tol())
+        .unwrap()
+        .cusp()
+        .tangent_arc_to(Start, tol())
+        .unwrap()
+        .into();
+    let profile = Profile::new(SketchPlane::xy(), vec![lune]).validate(tol()).unwrap();
+    let body = extrude(&profile, to_offset(1.0), tol()).unwrap().body;
+    let report = injective(&body, None, BUDGET);
+    println!("[selfx] kiss: {:?} {:?}", report.verdict, report.receipt);
+    match report.verdict {
+        BoundVerdict::Refused(EngineRefusal::Uncertified {
+            shared: SharedCell::Edge(e),
+            arm: CertificateArm::SecondOrder,
+            ..
+        }) => {
+            let he = body.get_edge(e).unwrap().he_plus;
+            let p = *body
+                .get_point(body.get_vertex(body.get_half_edge(he).unwrap().start).unwrap().point)
+                .unwrap();
+            assert!(p.x.abs() < 1e-9 && p.y.abs() < 1e-9, "the refusal names the kiss: {p:?}");
+        }
+        other => panic!("the kiss refuses at the second-order arm: {other:?}"),
+    }
+}
+
+/// **`clearance ≥ c` between scopes that share an edge is violated at
+/// 0, on the shared cell**: two walls of an extruded square, each its
+/// own scope. Their minimum separation is `[0, 0]`, naming the edge.
+#[test]
+fn clearance_between_scopes_sharing_an_edge_is_violated_at_zero() {
+    let profile = Profile::new(SketchPlane::xy(), quad([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]))
+        .validate(tol())
+        .unwrap();
+    let built = extrude(&profile, to_offset(1.0), tol()).unwrap();
+    let walls = built.side_faces();
+    let (fa, fb) = (walls[0][0], walls[0][1]);
+    let side = |f| Side {
+        body: &built.body,
+        faces: vec![f],
+    };
+    let (sa, sb) = (side(fa), side(fb));
+    let (wa, wb) = (sa.windows().unwrap(), sb.windows().unwrap());
+    let bound = ClearanceBound::AtLeast(0.1);
+    let sweep = Sweep {
+        bound,
+        band: band(),
+        max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+        max_cell_pairs: BUDGET,
+    };
+    let mut met = None;
+    let report = sweep.run(&wa, &wb, true, |candidate| {
+        met = candidate.meeting();
+        verify(&built.body, bound)(candidate)
+    });
+    assert!(report.receipt.holds(), "{:?}", report.receipt);
+    let BoundVerdict::Violated(w) = report.verdict else {
+        panic!("two walls sharing an edge are 0 apart: {:?}", report.verdict)
+    };
+    assert!(w.d < 1e-12, "the witness is at 0: {w:?}");
+    assert!(matches!(met, Some(SharedCell::Edge(_))), "named on the shared edge: {met:?}");
+    assert_eq!(CLEARANCE_MARGIN, bound.predicate());
+    let m = min_separation(&sa, &sb, true, MinSeparationConfig::default()).unwrap();
+    assert_eq!((m.lo(), m.window_hi()), (0.0, 0.0), "{}", m.render());
+    let meets = m.meets().expect("the scopes meet");
+    assert!(matches!(meets.shared, SharedCell::Edge(_)), "{meets:?}");
+}
+
+// ---------------------------------------------- large curved bodies
+
+/// **A full torus certifies by kind**: one face, `R = 2 > r = 1/2`.
+#[test]
+fn a_full_torus_certifies_by_kind() {
+    let body = revolve(&validated(vec![donut_profile()]), axis_y(), Revolution::Full, tol())
+        .unwrap()
+        .body;
+    let report = injective(&body, None, BUDGET);
+    println!("[selfx] torus: {:?} {:?}", report.verdict, report.receipt);
+    assert!(matches!(report.verdict, BoundVerdict::Holds));
+    assert!(report.receipt.by_kind >= 1, "{:?}", report.receipt);
+}
+
+/// **A long helical sweep certifies within the default budget**: a
+/// square tube two turns round a helix of pitch 0.4, its four walls
+/// sharing helical seams.
+#[test]
+fn a_long_helical_sweep_certifies_within_the_default_budget() {
+    let path = helix(2.0, 0.4);
+    let place = normal_start_place(&path);
+    let profile = quad([(-0.08, -0.08), (0.08, -0.08), (0.08, 0.08), (-0.08, 0.08)]);
+    let swept = sweep_body::<f64>(&profile, place, &path, 65, 3, tol()).expect("the helix sweeps");
+    let n = swept.body.faces().count();
+    let report = injective(&swept.body, None, BUDGET);
+    assert_holds("the helical sweep", &report, n, 1);
+}
+
+/// **A big thin-walled cylinder shell**: the tube `r ∈ [0.96, 1]`, two
+/// high, revolved a full turn — two walls 0.04 apart that share
+/// nothing, and two annular caps.
+#[test]
+fn a_big_thin_walled_cylinder_shell_certifies_within_the_default_budget() {
+    let p = |x, y| (Point2::new(x, y), 0.0);
+    let body = revolved_about_y(
+        vec![p(0.96, 0.0), p(1.0, 0.0), p(1.0, 2.0), p(0.96, 2.0)],
+        Revolution::Full,
+        tol(),
+    );
+    let n = body.faces().count();
+    let report = injective(&body, None, BUDGET);
+    assert_holds("the thin shell", &report, n, 1);
+}

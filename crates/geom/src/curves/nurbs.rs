@@ -1741,6 +1741,88 @@ impl<T: geom_core::CertifiedBounds> NurbsCurve3<T> {
     }
 }
 
+impl NurbsCurve3<Interval> {
+    /// **The first derivative over the parameter range `lo..hi`**,
+    /// enclosed: `C′(t)` at every `t` in it.
+    ///
+    /// On each knot span the range meets, the homogeneous coordinates
+    /// `(w·P, w)` are restricted to the meet — the Bernstein coefficients
+    /// of exactly that piece — and the degree times their differences
+    /// over the meet's span are the Bernstein coefficients of the
+    /// homogeneous derivative, so the hulls enclose `A`, `A′`, `w` and
+    /// `w′`; `C′ = (A′·w − A·w′)/w²` follows in interval arithmetic with
+    /// every restricted weight certified positive. [`Self::deriv`] at a
+    /// wide interval runs the basis recurrence on it instead and can
+    /// enclose a span's derivative by the whole line.
+    ///
+    /// `None` for a range with no extent, one past the domain, a
+    /// restriction the blossom door refuses, and a weight not certified
+    /// positive.
+    pub fn span_deriv(&self, lo: f64, hi: f64) -> Option<Vec3<Interval>> {
+        use geom_core::Bounds as _;
+        let (start, end) = self.domain();
+        if !(lo < hi && start <= lo && hi <= end) {
+            return None;
+        }
+        let first = self.knots_f64_interim().span_at(lo)?.index();
+        let last = self.knots_f64_interim().span_at(hi)?.index();
+        let at = |x: f64| Interval::from_bounds(x, x);
+        let hull = |a: Vec3<Interval>, b: Vec3<Interval>| {
+            Vec3::new(
+                a.x.enclosure_hull(b.x),
+                a.y.enclosure_hull(b.y),
+                a.z.enclosure_hull(b.z),
+            )
+        };
+        let mut acc: Option<Vec3<Interval>> = None;
+        for index in first..=last {
+            let Some(win) = self.span(index) else {
+                continue;
+            };
+            let values = self.knot_values().values();
+            let a = lo.max(values.get(index)?.lo());
+            let b = hi.min(values.get(index + 1)?.hi());
+            if !(a < b) {
+                continue;
+            }
+            let p = win.degree();
+            let ends = (at(a), at(b));
+            let homogeneous = |k: usize| {
+                let i = win.first_control() + k;
+                let (w, q) = (self.weights()[i], self.control()[i]);
+                [w * q.x, w * q.y, w * q.z, w]
+            };
+            let mut net = vec![[Interval::zero(); 4]; p + 1];
+            for c in 0..4 {
+                let row: Vec<Interval> = (0..=p).map(|k| homogeneous(k)[c]).collect();
+                let restricted = win.span().with_window(&row)?.restrict(ends).ok()?;
+                for (slot, x) in net.iter_mut().zip(restricted) {
+                    slot[c] = x;
+                }
+            }
+            let fold = |it: &mut dyn Iterator<Item = [Interval; 4]>| {
+                it.reduce(|x, y| [0, 1, 2, 3].map(|c| x[c].enclosure_hull(y[c])))
+            };
+            let h = fold(&mut net.iter().copied())?;
+            #[allow(clippy::cast_precision_loss)]
+            let scale = at(p as f64) / (at(b) - at(a));
+            let hd = if p == 0 {
+                [Interval::zero(); 4]
+            } else {
+                fold(&mut (0..p).map(|k| [0, 1, 2, 3].map(|c| (net[k + 1][c] - net[k][c]) * scale)))?
+            };
+            let w = h[3];
+            if !(w.is_certified() && w.lo() > 0.0) {
+                return None;
+            }
+            let (aa, ad) = (Vec3::new(h[0], h[1], h[2]), Vec3::new(hd[0], hd[1], hd[2]));
+            let piece = (ad * w - aa * hd[3]) * (at(1.0) / w.powi(2));
+            acc = Some(acc.map_or(piece, |x| hull(x, piece)));
+        }
+        acc
+    }
+}
+
 impl<T: geom_core::CertifiedBounds> NurbsCurve2<T> {
     /// [`NurbsCurve3::certified_coords`] at two channels: `[x, y]` channels
     /// of certification enclosures, through the same bracket seam and the same

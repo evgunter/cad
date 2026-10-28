@@ -436,6 +436,40 @@ fn lift(v: Vec3<f64>) -> Vec3<Interval> {
     v.map(at)
 }
 
+/// **`C′` over the parameter piece `t`**, enclosed: a spline edge's off
+/// its restricted hodograph ([`geom::NurbsCurve3::span_deriv`]), any
+/// other carrier's by its closed form at the interval. A piece the
+/// hodograph door does not read is the whole line.
+fn arc_deriv(c: &Curve3<Interval>, t: (f64, f64)) -> Vec3<Interval> {
+    match c {
+        Curve3::Nurbs(n) => n.span_deriv(t.0, t.1).unwrap_or_else(|| {
+            let line = Interval::from_bounds(f64::NEG_INFINITY, f64::INFINITY);
+            Vec3::new(line, line, line)
+        }),
+        _ => c.deriv(iv(t)),
+    }
+}
+
+/// **`(S_u, S_v, S_uv)` over the chart rectangle `u × v`**, enclosed: a
+/// spline chart's off its restricted net
+/// ([`geom::NurbsSurface::rect_jet`]), an analytic carrier's by its
+/// closed forms at the two intervals. A spline rectangle with no extent
+/// on an axis, or one the net door does not read, is the whole line,
+/// which decides nothing.
+fn rect_jet(s: &Surface<Interval>, u: (f64, f64), v: (f64, f64)) -> (Vec3<Interval>, Vec3<Interval>, Vec3<Interval>) {
+    match s {
+        Surface::Nurbs(net) => net.rect_jet(u, v).unwrap_or_else(|| {
+            let line = Interval::from_bounds(f64::NEG_INFINITY, f64::INFINITY);
+            let whole = Vec3::new(line, line, line);
+            (whole, whole, whole)
+        }),
+        _ => {
+            let j = s.jet(iv(u), iv(v));
+            (j.du, j.dv, j.duv)
+        }
+    }
+}
+
 fn unit(v: Vec3<f64>) -> Option<Vec3<f64>> {
     let n = v.norm();
     (n.is_finite() && n > 0.0).then(|| v * (1.0 / n))
@@ -584,8 +618,8 @@ enum Unpresented {
     /// A null edge's vertex: the chart collapses there.
     Collapsed(VertexKey),
     /// The cell holds more boundary than a presentation reads; a smaller
-    /// one may not.
-    Local,
+    /// one may not. The reason, for a trace.
+    Local(&'static str),
 }
 
 impl<'a> Presented<'a> {
@@ -613,7 +647,22 @@ impl<'a> Presented<'a> {
 
     /// `(Φ_x, Φ_y, Φ_xy)` over the rectangle.
     fn jet(&self) -> (Vec3<Interval>, Vec3<Interval>, Vec3<Interval>) {
-        let (u, v) = self.chart(iv(self.x), iv(self.y));
+        self.jet_on(self.x, self.y)
+    }
+
+    /// `(Φ_x, Φ_y, Φ_xy)` over `x × y`. On a spline chart a side, with
+    /// no extent across, reads the whole rectangle's, which holds it.
+    fn jet_on(&self, x: (f64, f64), y: (f64, f64)) -> (Vec3<Interval>, Vec3<Interval>, Vec3<Interval>) {
+        if let Map::Chart = self.map {
+            let flat = !(x.0 < x.1 && y.0 < y.1);
+            let (x, y) = if flat && matches!(self.surface, Surface::Nurbs(_)) {
+                (self.x, self.y)
+            } else {
+                (x, y)
+            };
+            return rect_jet(self.surface, x, y);
+        }
+        let (u, v) = self.chart(iv(x), iv(y));
         let j = self.surface.jet(u, v);
         match self.map {
             Map::Chart => (j.du, j.dv, j.duv),
@@ -709,6 +758,9 @@ fn along(u: &Use, iso: Iso) -> Option<Interval> {
 /// Whether `want` lies in the union of `ranges`, each moved by whole
 /// turns where the axis is periodic.
 fn covered(want: (f64, f64), ranges: &[Interval], periodic: bool) -> bool {
+    if ranges.iter().any(|r| r.lo() <= want.0 && want.1 <= r.hi()) {
+        return true;
+    }
     let near = geom::mid_param(want.0, want.1);
     let mut rs: Vec<(f64, f64)> = ranges
         .iter()
@@ -773,7 +825,7 @@ fn unread(edge: usize, near_edges: &[usize]) -> Unpresented {
     if near_edges.contains(&edge) {
         Unpresented::Structural
     } else {
-        Unpresented::Local
+        Unpresented::Local("L1")
     }
 }
 
@@ -796,7 +848,7 @@ fn present_chart<'a>(
     };
     for &ei in &piece.local.edges {
         let Some(e) = b.edges.get(ei) else {
-            return Err(Unpresented::Local);
+            return Err(Unpresented::Local("L2"));
         };
         if e.arc.is_none() {
             if piece.whole {
@@ -847,6 +899,13 @@ fn present_chart<'a>(
                 outside.push((side, line, vec![ei]));
                 continue;
             }
+            // A line the cell stops short of bounds nothing in it, unless
+            // the gap is no wider than the cell: then the rectangle is
+            // widened to it, a superset still, so a side lies on it.
+            let reach = hi - lo;
+            if (sigma > 0.0 && line.hi() < lo - reach) || (sigma < 0.0 && line.lo() > hi + reach) {
+                continue;
+            }
             let r = if sigma > 0.0 {
                 (line.lo(), hi)
             } else {
@@ -884,11 +943,14 @@ fn present_chart<'a>(
                 .map(|&q| (q - *apex).dot(*axis))
                 .find_map(|h| sign_of(h, APEX, band));
             let Some(nappe) = nappe else {
-                return Err(Unpresented::Local);
+                return Err(Unpresented::Local("L3"));
             };
             let lo = nappe == Sign::Positive;
             if (lo && y.1 <= 0.0) || (!lo && y.0 >= 0.0) {
                 return Ok(Presentation::Vacuous);
+            }
+            if (lo && y.0 > 0.0) || (!lo && y.1 < 0.0) {
+                continue;
             }
             y = if lo { (y.0.max(0.0), y.1) } else { (y.0, y.1.min(0.0)) };
             clips.push(Clip {
@@ -908,12 +970,29 @@ fn present_chart<'a>(
                 m.edges.extend(c.edges);
                 m.collapsed = m.collapsed.or(c.collapsed);
             }
-            Some(_) => return Err(Unpresented::Local),
+            Some(_) => return Err(Unpresented::Local("L4")),
             None => merged.push(c),
         }
     }
     if x.0 > x.1 || y.0 > y.1 {
         return Ok(Presentation::Vacuous);
+    }
+    // A rectangle clipped to within the band of a shared line holds no
+    // point of the face off it: its extent across, in metres, is decided
+    // zero.
+    for c in &merged {
+        let on_shared = c.edges.iter().all(|e| near_edges.contains(e)) && !c.edges.is_empty();
+        if !on_shared {
+            continue;
+        }
+        let (across, lever) = match c.side.axis() {
+            Axis::U => (x.1 - x.0, rect_jet(piece.surface, x, y).0),
+            Axis::V => (y.1 - y.0, rect_jet(piece.surface, x, y).1),
+        };
+        let width = at(across) * at(lever.norm().hi());
+        if matches!(decide(ON_SHARED, Margin::of(width), band), Ok(Sign::Zero)) {
+            return Ok(Presentation::Vacuous);
+        }
     }
     let edge_ranges = |edges: &[usize], held: Axis| -> Option<Vec<Interval>> {
         let mut out = Vec::new();
@@ -945,10 +1024,13 @@ fn present_chart<'a>(
         }
         let (want, per) = other(c.side.axis());
         let Some(ranges) = edge_ranges(&c.edges, c.side.axis()) else {
-            return Err(Unpresented::Local);
+            return Err(Unpresented::Local("L5"));
         };
         if !covered(want, &ranges, per) {
-            return Err(Unpresented::Local);
+            if std::env::var_os("SELFX_DEBUG").is_some() {
+                eprintln!("    L6: side={:?} at={:?} want={want:?} per={per} ranges={ranges:?} isos={:?}", c.side, c.at, c.edges.iter().map(|&i| b.edges[i].uses.iter().map(|u| (u.iso, u.image)).collect::<Vec<_>>()).collect::<Vec<_>>());
+            }
+            return Err(Unpresented::Local("L6"));
         }
     }
     // A cell wholly past an edge's line holds none of the face, when the
@@ -956,12 +1038,12 @@ fn present_chart<'a>(
     for (side, _, edges) in &outside {
         let (want, per) = other(side.axis());
         let Some(ranges) = edge_ranges(edges, side.axis()) else {
-            return Err(Unpresented::Local);
+            return Err(Unpresented::Local("L7"));
         };
         if covered(want, &ranges, per) {
             return Ok(Presentation::Vacuous);
         }
-        return Err(Unpresented::Local);
+        return Err(Unpresented::Local("L8"));
     }
     // Two lines on different axes meet at a corner of the face; the
     // clipped quadrant is the face there only where the corner is
@@ -974,12 +1056,15 @@ fn present_chart<'a>(
                     continue;
                 }
                 if !convex(b, c, d) {
-                    return Err(Unpresented::Local);
+                    return Err(Unpresented::Local("L9"));
                 }
             }
         }
     }
     let zero = zero_of(b, &merged, near_edges, near_vertices)?;
+    if std::env::var_os("SELFX_DEBUG").is_some() {
+        eprintln!("    clips: {:?} local.v={:?} local.e={:?} near_e={near_edges:?} near_v={near_vertices:?} verts={:?}", merged.iter().map(|c| (c.side, c.at, c.edges.clone(), c.collapsed)).collect::<Vec<_>>(), piece.local.vertices, piece.local.edges, b.vertices.keys().collect::<Vec<_>>());
+    }
     Ok(Presentation::Of(Presented {
         surface: piece.surface,
         map: Map::Chart,
@@ -1052,9 +1137,16 @@ fn zero_of(
     near_edges: &[usize],
     near_vertices: &[VertexKey],
 ) -> Result<Zero, Unpresented> {
+    // The shared cell holds its edges' ends.
+    let shared_vertex = |v: &VertexKey| {
+        near_vertices.contains(v)
+            || near_edges
+                .iter()
+                .any(|&i| b.edges.get(i).is_some_and(|e| e.ends.contains(v)))
+    };
     let on_shared = |c: &Clip| {
         if let Some(v) = c.collapsed {
-            near_vertices.contains(&v)
+            shared_vertex(&v)
         } else {
             !c.edges.is_empty() && c.edges.iter().all(|e| near_edges.contains(e))
         }
@@ -1092,9 +1184,9 @@ fn zero_of(
                     }
                 }
             }
-            Err(Unpresented::Local)
+            Err(Unpresented::Local("L10"))
         }
-        _ => Err(Unpresented::Local),
+        _ => Err(Unpresented::Local("L11")),
     }
 }
 
@@ -1122,7 +1214,7 @@ fn present_plane<'a>(
         let zero = if near_vertices.is_empty() {
             Zero::None
         } else {
-            return Err(Unpresented::Local);
+            return Err(Unpresented::Local("L12"));
         };
         return Ok(Presentation::Of(Presented {
             surface: piece.surface,
@@ -1132,22 +1224,37 @@ fn present_plane<'a>(
             zero,
         }));
     }
-    // A line edge's chart image, in traversal order.
+    // A line edge's chart image, in traversal order: its two ends read
+    // into the plane's affine chart.
+    let Surface::Plane {
+        origin,
+        normal,
+        u_ref,
+    } = *piece.surface
+    else {
+        return Err(Unpresented::Structural);
+    };
+    let v_ref = normal.cross(u_ref);
+    let chart = |p: Point3<Interval>| {
+        let d = p - origin;
+        Point2::new(d.dot(u_ref), d.dot(v_ref))
+    };
     let segment = |ei: usize| -> Result<(Point2<Interval>, Point2<Interval>), Unpresented> {
-        let e = b.edges.get(ei).ok_or(Unpresented::Local)?;
-        let line = matches!(e.arc, Some((Curve3::Line { .. }, _)));
-        let u = e.uses.first().ok_or(Unpresented::Local)?;
-        let [p, q] = u.image.ok_or_else(|| unread(ei, near_edges))?;
-        if !line || e.uses.len() != 1 {
+        let e = b.edges.get(ei).ok_or(Unpresented::Local("L13"))?;
+        let Some((carrier @ Curve3::Line { .. }, (t0, t1))) = &e.arc else {
             return Err(unread(ei, near_edges));
-        }
+        };
+        let [u] = e.uses.as_slice() else {
+            return Err(unread(ei, near_edges));
+        };
+        let (p, q) = (chart(carrier.eval(*t0)), chart(carrier.eval(*t1)));
         Ok(if u.plus { (p, q) } else { (q, p) })
     };
     let rot = |a: [Interval; 2]| [-a[1] * at(s), a[0] * at(s)];
     match edges.as_slice() {
         [e] => {
             if !piece.local.vertices.is_empty() {
-                return Err(Unpresented::Local);
+                return Err(Unpresented::Local("L14"));
             }
             let (p, q) = segment(*e)?;
             let a = [q.x - p.x, q.y - p.y];
@@ -1162,7 +1269,7 @@ fn present_plane<'a>(
             let len = len2.sqrt();
             let inside = (x * len).min((at(1.0) - x) * len);
             if sign_of(inside, SPAN, band) != Some(Sign::Positive) {
-                return Err(Unpresented::Local);
+                return Err(Unpresented::Local("L15"));
             }
             let zero = if near_edges.contains(e) {
                 Zero::Side(Side::YLo)
@@ -1183,13 +1290,13 @@ fn present_plane<'a>(
         }
         [e1, e2] => {
             let (Some(r1), Some(r2)) = (b.edges.get(*e1), b.edges.get(*e2)) else {
-                return Err(Unpresented::Local);
+                return Err(Unpresented::Local("L16"));
             };
             let Some(&vtx) = r1.ends.iter().find(|v| r2.ends.contains(v)) else {
-                return Err(Unpresented::Local);
+                return Err(Unpresented::Local("L17"));
             };
             if piece.local.vertices.iter().any(|&w| w != vtx) {
-                return Err(Unpresented::Local);
+                return Err(Unpresented::Local("L18"));
             }
             let (p1, q1) = segment(*e1)?;
             let (p2, q2) = segment(*e2)?;
@@ -1211,7 +1318,7 @@ fn present_plane<'a>(
             if sign_of(lean(n1, bv), CORNER, band) != Some(Sign::Positive)
                 || sign_of(lean(n2, a), CORNER, band) != Some(Sign::Positive)
             {
-                return Err(Unpresented::Local);
+                return Err(Unpresented::Local("L19"));
             }
             let det = a[0] * bv[1] - a[1] * bv[0];
             let d = [cell_u - o.x, cell_v - o.y];
@@ -1225,7 +1332,7 @@ fn present_plane<'a>(
             if sign_of((at(1.0) - x) * la, SPAN, band) != Some(Sign::Positive)
                 || sign_of((at(1.0) - y) * lb, SPAN, band) != Some(Sign::Positive)
             {
-                return Err(Unpresented::Local);
+                return Err(Unpresented::Local("L20"));
             }
             let z1 = near_edges.contains(e1);
             let z2 = near_edges.contains(e2);
@@ -1248,7 +1355,7 @@ fn present_plane<'a>(
                 zero,
             }))
         }
-        _ => Err(Unpresented::Local),
+        _ => Err(Unpresented::Local("L21")),
     }
 }
 
@@ -1360,6 +1467,17 @@ impl Psi {
     }
 }
 
+/// `ψ∘Φ` over `x × y` in its centred form: its value at the middle, and
+/// the gradient's enclosure over the image times the half-spans.
+/// Tight where the plain enclosure of a slanted image's box is not.
+fn centred(psi: &Psi, p: &Presented<'_>, x: (f64, f64), y: (f64, f64)) -> Option<Interval> {
+    let (xm, ym) = (geom::mid_param(x.0, x.1), geom::mid_param(y.0, y.1));
+    let middle = psi.value(p.image((xm, xm), (ym, ym)))?;
+    let (fx, fy, _) = p.jet_on(x, y);
+    let grad = psi.gradient(p.image(x, y));
+    Some(middle + grad.dot(fx) * iv((x.0 - xm, x.1 - xm)) + grad.dot(fy) * iv((y.0 - ym, y.1 - ym)))
+}
+
 /// **The sign `ψ∘Φ` takes on the presentation's rectangle less its zero
 /// sides**, decided, or `None`.
 ///
@@ -1375,7 +1493,17 @@ impl Psi {
 /// separator, which vanishes on the shared edge by construction.
 fn sign_on(psi: &Psi, p: &Presented<'_>, band: Band) -> Option<Sign> {
     let checked = !matches!(psi, Psi::Graph { .. });
-    let zero_on = |b: Point3<Interval>| !checked || psi.value(b).is_some_and(|v| is_zero(v, band));
+    let side_of = |s: Side| {
+        let b = p.bound(s);
+        match s.axis() {
+            Axis::U => ((b, b), p.y),
+            Axis::V => (p.x, (b, b)),
+        }
+    };
+    let zero_on = |s: Side| {
+        let (x, y) = side_of(s);
+        !checked || centred(psi, p, x, y).is_some_and(|v| is_zero(v, band))
+    };
     let (fx, fy, fxy) = p.jet();
     let image = p.whole();
     let grad = psi.gradient(image);
@@ -1384,23 +1512,23 @@ fn sign_on(psi: &Psi, p: &Presented<'_>, band: Band) -> Option<Sign> {
         Axis::V => grad.dot(fy) * at(p.span(Axis::V)),
     };
     match p.zero {
-        Zero::None => sign_of(psi.value(image)?, DEPARTURE, band),
+        Zero::None => sign_of(centred(psi, p, p.x, p.y)?, DEPARTURE, band),
         Zero::Side(s) => {
-            if !zero_on(p.side(s)) {
+            if !zero_on(s) {
                 return None;
             }
             sign_of(across(s.axis()) * at(s.into()), DEPARTURE, band)
         }
         Zero::Corner(s, t) => {
             let n = psi.linear()?;
-            if !(zero_on(p.side(s)) && zero_on(p.side(t))) {
+            if !(zero_on(s) && zero_on(t)) {
                 return None;
             }
             let g = n.dot(fxy) * at(p.span(Axis::U) * p.span(Axis::V) * s.into() * t.into());
             sign_of(g, DEPARTURE, band)
         }
         Zero::Point(s, t) => {
-            if !zero_on(p.corner(s, t)) {
+            if checked && !psi.value(p.corner(s, t)).is_some_and(|v| is_zero(v, band)) {
                 return None;
             }
             let a = sign_of(across(s.axis()) * at(s.into()), DEPARTURE, band)?;
@@ -1468,6 +1596,27 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     let (ex, ey) = (near.side(false), near.side(true));
     let px = present(x, &ex, &near.vertices, band);
     let py = present(y, &ey, &near.vertices, band);
+    let tiny = std::env::var_os("SELFX_TINY").is_none() || ((x.u.1 - x.u.0) < 0.013 && (x.v.1 - x.v.0) < 0.013 && x.u.0 < 0.1);
+    if std::env::var_os("SELFX_DEBUG").is_some() && tiny {
+        let show = |p: &Result<Presentation<'_>, Unpresented>| match p {
+            Ok(Presentation::Vacuous) => "vacuous".to_owned(),
+            Ok(Presentation::Of(q)) => format!("of x={:?} y={:?} zero={:?} map={}", q.x, q.y, q.zero, matches!(q.map, Map::Chart)),
+            Err(e) => format!("{e:?}"),
+        };
+        let s1 = |sep: &Piece<'_>, other: &Result<Presentation<'_>, Unpresented>| match (implicit_of(sep, band), other) {
+            (Some(imp), Ok(Presentation::Of(p))) => {
+                let psi = Psi::Carrier(imp);
+                let (fx, fy, _) = p.jet();
+                let image = p.whole();
+                let grad = psi.gradient(image);
+                format!("sign={:?} value={:?} gx={:?} gy={:?} side={:?}", sign_on(&psi, p, band), psi.value(image), grad.dot(fx), grad.dot(fy),
+                    match p.zero { Zero::Side(s) => psi.value(p.side(s)), _ => None })
+            }
+            _ => "n/a".to_owned(),
+        };
+        eprintln!("[dep] {:?}/{:?} near={near:?} cell x={:?}x{:?} y={:?}x{:?}\n  px={} \n  py={}\n  s1(x|y)={}\n  s1(y|x)={}",
+            x.face, y.face, x.u, x.v, y.u, y.v, show(&px), show(&py), s1(x, &py), s1(y, &px));
+    }
     for p in [&px, &py] {
         if let Err(Unpresented::Collapsed(v)) = p {
             return Outcome::Refuse(EngineRefusal::CollapsedChart {
@@ -1506,6 +1655,20 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
         (Some(a), Some(b)) => a == flip(b),
         _ => false,
     };
+    if std::env::var_os("SELFX_DEBUG").is_some() && tiny {
+        let arc = near.edges.first().and_then(|&(i, _)| x.boundary.edges.get(i)).map(|e| format!("{:?}", e.arc.as_ref().map(|a| core::mem::discriminant(&a.0))));
+        let p2 = plane_through(x, near, qx, qy);
+        let g3 = graph_of(x, near, qx, qy, band);
+        eprintln!("  arc={arc:?} s2={:?} signs={:?} s3={:?} signs={:?}", p2.is_some(), p2.map(|p| (sign_on(&p, qx, band), sign_on(&p, qy, band))), g3.map(|g| match g { Psi::Graph{slope, ..} => format!("{slope:?}"), _ => String::new() }), g3.map(|p| (sign_on(&p, qx, band), sign_on(&p, qy, band))));
+        if let Some(psi) = p2 {
+            for (n, q) in [("qx", qx), ("qy", qy)] {
+                let (fx, fy, _) = q.jet();
+                let g = psi.gradient(q.whole());
+                let side = match q.zero { Zero::Side(sd) => { let b = q.bound(sd); let (xx, yy) = match sd.axis() { Axis::U => ((b, b), q.y), Axis::V => (q.x, (b, b)) }; centred(&psi, q, xx, yy) }, _ => None };
+                eprintln!("    {n} x={:?} y={:?} zero={:?} gx={:?} gy={:?} side={:?}", q.x, q.y, q.zero, g.dot(fx), g.dot(fy), side);
+            }
+        }
+    }
     if let Some(psi) = plane_through(x, near, qx, qy)
         && opposite(&psi)
     {
@@ -1567,51 +1730,77 @@ fn plane_through(x: &Piece<'_>, near: &Near, px: &Presented<'_>, py: &Presented<
 }
 
 /// The piece of the shared edge whose points can lie in the two
-/// presented images: the hull of the parameter pieces whose enclosure
-/// meets either image, by bisection. A closed conic's piece may run
-/// through its seam.
+/// presented images: a hull of parameters holding every one whose point
+/// the images' boxes may hold. A coarse pass finds the pieces that meet
+/// either box — through its seam, on a closed conic, the complement of
+/// the widest run that meets neither — and the hull's two ends are then
+/// narrowed by bisection toward the first and last parameter that still
+/// meets. Each end only moves inward past pieces decided to meet
+/// neither box, so the hull keeps every parameter it must.
 fn edge_piece(
     carrier: &Curve3<Interval>,
     span: (Interval, Interval),
     closed: bool,
     boxes: &[Point3<Interval>],
 ) -> Option<(f64, f64)> {
-    const DEPTH: u32 = 24;
+    const COARSE: usize = 64;
+    const DEPTH: u32 = 20;
     let (t0, t1) = (span.0.lo(), span.1.hi());
-    let mut kept: Vec<(f64, f64)> = Vec::new();
-    let mut stack = vec![(t0, t1, 0u32)];
-    while let Some((a, b, depth)) = stack.pop() {
-        let enc = carrier.eval(Interval::from_bounds(a, b));
-        if !boxes.iter().any(|&bx| overlap(enc, bx)) {
-            continue;
-        }
-        let m = geom::mid_param(a, b);
-        if depth >= DEPTH || !(a < m && m < b) {
-            kept.push((a, b));
-        } else {
-            stack.push((m, b, depth + 1));
-            stack.push((a, m, depth + 1));
-        }
+    let width = t1 - t0;
+    if !(width.is_finite() && width > 0.0) {
+        return None;
     }
-    kept.sort_by(|p, q| p.0.total_cmp(&q.0));
-    let (first, last) = (*kept.first()?, *kept.last()?);
+    let meets = |a: f64, b: f64| {
+        let enc = carrier.eval(Interval::from_bounds(a.min(b), a.max(b)));
+        boxes.iter().any(|&bx| overlap(enc, bx))
+    };
+    #[allow(clippy::cast_precision_loss)]
+    let at_k = |k: usize| t0 + width * (k as f64) / (COARSE as f64);
+    let hit: Vec<bool> = (0..COARSE).map(|k| meets(at_k(k), at_k(k + 1))).collect();
+    let first = hit.iter().position(|&h| h)?;
+    let last = hit.iter().rposition(|&h| h)?;
     let conic = matches!(carrier, Curve3::Circle { .. } | Curve3::Ellipse { .. });
-    if closed && conic && first.0 <= t0 && last.1 >= t1 {
-        // Through the seam: the complement of the widest gap.
-        let mut widest = (0.0, None);
-        for w in kept.windows(2) {
-            if let [p, q] = w {
-                let gap = q.0 - p.1;
-                if gap > widest.0 {
-                    widest = (gap, Some((p.1, q.0)));
-                }
+    // The run of pieces, in order, the hull spans: `(start, count)`,
+    // cyclic through the seam on a closed conic.
+    let (start, count) = if closed && conic && first == 0 && last == COARSE - 1 {
+        // The widest cyclic run of misses; the hull is its complement.
+        let mut best = (0usize, 0usize);
+        for s in 0..COARSE {
+            if hit[s] {
+                continue;
+            }
+            let run = (0..COARSE).take_while(|&k| !hit[(s + k) % COARSE]).count();
+            if run > best.1 {
+                best = (s, run);
             }
         }
-        if let (_, Some((gap_lo, gap_hi))) = widest {
-            return Some((gap_hi, gap_lo + (t1 - t0)));
+        if best.1 == 0 {
+            return Some((t0, t1));
         }
-    }
-    Some((first.0, last.1))
+        ((best.0 + best.1) % COARSE, COARSE - best.1)
+    } else {
+        (first, last - first + 1)
+    };
+    // Piece `k` of the run, unwrapped past the seam by one period.
+    let piece = |k: usize| {
+        let i = start + k;
+        let shift = if i >= COARSE { width } else { 0.0 };
+        (at_k(i % COARSE) + shift, at_k(i % COARSE + 1) + shift)
+    };
+    let narrow = |(mut a, mut b): (f64, f64), from_left: bool| -> f64 {
+        for _ in 0..DEPTH {
+            let m = geom::mid_param(a, b);
+            if !(a < m && m < b) {
+                break;
+            }
+            let (near, far) = if from_left { ((a, m), (m, b)) } else { ((m, b), (a, m)) };
+            (a, b) = if meets(near.0, near.1) { near } else { far };
+        }
+        if from_left { a } else { b }
+    };
+    let lo = narrow(piece(0), true);
+    let hi = narrow(piece(count - 1), false);
+    (lo < hi).then_some((lo, hi))
 }
 
 /// **The shared edge's graph**: one shared edge, projected onto the
@@ -1635,15 +1824,23 @@ fn graph_of(
         *span,
         e.ends[0] == e.ends[1],
         &[px.whole(), py.whole()],
-    )?;
+    );
+    let dbg = std::env::var_os("SELFX_DEBUG").is_some();
+    if dbg {
+        eprintln!("    graph: span={span:?} piece={piece:?} boxes={:?} {:?}", px.whole(), py.whole());
+    }
+    let piece = piece?;
     let middle = at(geom::mid_param(piece.0, piece.1));
     let t = unit(vmid(carrier.deriv(middle)))?;
     let q0 = pmid(carrier.eval(middle));
     let (hx, hy) = (heading(px, q0)?, heading(py, q0)?);
     let m = unit(perp(hx, t) - perp(hy, t))?;
     let (t, m) = (lift(t), lift(m));
-    let d = carrier.deriv(iv(piece));
+    let d = arc_deriv(carrier, piece);
     let advance = t.dot(d);
+    if dbg {
+        eprintln!("    graph: t={t:?} m={m:?} d={d:?} advance={advance:?}");
+    }
     if sign_of(advance * at(piece.1 - piece.0), GRAPH, band) != Some(Sign::Positive) {
         return None;
     }
@@ -1717,8 +1914,8 @@ pub(crate) fn monotone(surface: &Surface<Interval>, u: (f64, f64), v: (f64, f64)
     let (i11, i12, i22) = (r22 / rdet, -r12 / rdet, r11 / rdet);
     let l1 = lift(a * i11 + b * i12);
     let l2 = lift(a * i12 + b * i22);
-    let j = surface.jet(iv(u), iv(v));
-    let (su, sv) = (j.du * at(du), j.dv * at(dv));
+    let (ju, jv, _) = rect_jet(surface, u, v);
+    let (su, sv) = (ju * at(du), jv * at(dv));
     let (m11, m12, m21, m22) = (l1.dot(su), l1.dot(sv), l2.dot(su), l2.dot(sv));
     let half = at(0.5);
     let p12 = (m12 + m21) * half;

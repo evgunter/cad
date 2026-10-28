@@ -48,19 +48,21 @@
 //! reports a COINCIDENCE and never a signed penetration depth; that
 //! gap is scoped in `work/curved/signed-penetration-depth.md`.
 //!
-//! [`ClearanceVerdict::Refused`] is typed, in eleven classes rather
-//! than the spec's two. Seven are the engine's ([`EngineRefusal`],
+//! [`ClearanceVerdict::Refused`] is typed, in fourteen classes rather
+//! than the spec's two. Nine are the engine's ([`EngineRefusal`],
 //! carried as [`ClearanceRefusal::Engine`]): a terminal sliver (the
 //! driver's rule shape — the deciding enclosure sits wholly inside the
 //! funnel's band, so refinement provably cannot move it), a named
 //! budget, a carrier with no admitted window, an enclosure that did not
-//! evaluate, a scope that names nothing, a pairing the wedge rule
-//! empties, and a witness the `f64` rebuild would not confirm. Four are
-//! this module's: a selection that does not resolve, a fold over a
-//! drive that certified nothing, a bound that is not a distance, and a
-//! tolerance the funnel cannot band. Each type carries the argument for
-//! each of its arms; five of them have no row in any suite and the
-//! suite's own module door says which and why.
+//! evaluate, a scope that names nothing, a witness the `f64` rebuild
+//! would not confirm, and the injectivity question's three — a touching
+//! pair no local certificate discharged, a collapsed spline chart, a
+//! torus not decided a ring. Five are this module's: a selection that
+//! does not resolve, a fold over a drive that certified nothing, a bound
+//! that is not a distance, a tolerance the funnel cannot band, and a
+//! pair with a recorded contact. Each type carries the argument for
+//! each of its arms; the suite's own module door says which have no
+//! row and why.
 //!
 //! The minimum-separation question ([`topo::clearance::min_separation`])
 //! is asked by the `min_clearance` measure from inside an evaluation,
@@ -444,8 +446,8 @@ impl PartialEq for GeometryWitness {
 pub enum ClearanceRefusal {
     /// The engine refused ([`EngineRefusal`]): a sliver, a budget, a
     /// carrier with no admitted window, an enclosure that did not
-    /// evaluate, a scope naming no face, a pairing the wedge rule
-    /// empties, or a witness the `f64` rebuild would not confirm.
+    /// evaluate, a scope naming no face, a witness the `f64` rebuild
+    /// would not confirm, or one of the injectivity question's own.
     Engine(EngineRefusal),
     /// The selection itself could not be read.
     Selection(SelectionRefusal),
@@ -471,6 +473,17 @@ pub enum ClearanceRefusal {
     /// The run's tolerance admits no linear band, so nothing here can be
     /// classified at all.
     ToleranceHasNoBand,
+    /// The injectivity question over a body that carries a contact
+    /// record between two cells of the scope: the record says the two
+    /// cells' interiors meet, so the boundary is not injective there by
+    /// declaration. Refused until the hand-off to CONTACT-DESIGN's
+    /// records is designed, naming the record's two cells.
+    RecordedContact {
+        /// The record's first cell.
+        a: topo::Cell,
+        /// Its second.
+        b: topo::Cell,
+    },
 }
 
 impl From<EngineRefusal> for ClearanceRefusal {
@@ -491,6 +504,7 @@ impl ClearanceRefusal {
             Self::NothingCertified { refused_leaves } => format!("refused_leaves={refused_leaves}"),
             Self::NotADistance { c } => format!("{:016x}", c.to_bits()),
             Self::ToleranceHasNoBand => String::new(),
+            Self::RecordedContact { a, b } => format!("{a:?}/{b:?}"),
         }
     }
 
@@ -512,6 +526,7 @@ impl ClearanceRefusal {
             Self::NothingCertified { .. } => "nothing_certified",
             Self::NotADistance { .. } => "not_a_distance",
             Self::ToleranceHasNoBand => "tolerance_has_no_band",
+            Self::RecordedContact { .. } => "recorded_contact",
         }
     }
 }
@@ -706,7 +721,7 @@ impl ClearanceReport {
         let _ = writeln!(
             s,
             "receipt candidates={} discharged={} violated={} refused={} splits={} \
-             abandoned={} outside={} holds={}",
+             abandoned={} outside={} certified={} by_kind={} holds={}",
             r.candidates,
             r.discharged,
             r.violated,
@@ -714,6 +729,8 @@ impl ClearanceReport {
             r.splits,
             r.abandoned,
             r.outside,
+            r.certified,
+            r.by_kind,
             r.holds()
         );
         match &self.verdict {
@@ -807,9 +824,17 @@ impl ClearanceReport {
         let r = self.receipt;
         let _ = writeln!(
             s,
-            "  {} candidate pair(s); {} discharged ({} of them vacuously, off the face), \
-             {} violated, {} refused, {} split, {} abandoned",
-            r.candidates, r.discharged, r.outside, r.violated, r.refused, r.splits, r.abandoned
+            "  {} candidate pair(s); {} discharged ({} of them vacuously, off the face, {} by \
+             a local certificate, {} by kind), {} violated, {} refused, {} split, {} abandoned",
+            r.candidates,
+            r.discharged,
+            r.outside,
+            r.certified,
+            r.by_kind,
+            r.violated,
+            r.refused,
+            r.splits,
+            r.abandoned
         );
         let _ = writeln!(
             s,
@@ -860,14 +885,15 @@ pub fn clearance(
 }
 
 /// **Global self-intersection freedom over one certified leaf** (E7's
-/// census made global and parametric): every NON-ADJACENT pair of the
-/// selection's faces certified strictly positive separation.
+/// census made global and parametric): the selection's boundary is
+/// injective, ERROR-DESIGN's *Self-intersection scope*.
 ///
-/// Adjacent pairs are excluded exactly per the wedge rule — two faces
-/// sharing a vertex (which every edge-sharing pair does) meet, and
-/// their separation is legitimately zero; deciding that pair here would
-/// report the body's own construction as a defect. Their business is
-/// the wedge predicates', at the vertex.
+/// Every pair of the selection's faces is examined, a face against
+/// itself included. A face on an analytic carrier is injective by its
+/// kind; two cells that share no point of the boundary are certified at
+/// strictly positive distance; two that do are certified by a local
+/// certificate or refuse typed, naming the two faces, the shared cell
+/// and the arm ([`topo::clearance::Sweep::run`]).
 pub fn self_intersection(
     doc: &Doc<ProfileProgram>,
     leaf: &ParamBox,
@@ -882,10 +908,10 @@ pub fn self_intersection(
 ///
 /// `a` and `b` may name the same selection, which is what makes this
 /// one engine rather than two: a query against itself pairs each face
-/// with each LATER face of the same body and drops the adjacent pairs,
-/// and a cross query pairs the two selections' faces without an
-/// adjacency rule (two faces of different bodies are never adjacent in
-/// the wedge sense — no vertex is shared).
+/// with itself and each later face of the same body. The strict bound
+/// over one body is the injectivity question; every other question is
+/// metric, and two scopes of one body that meet are at distance 0 on
+/// the cell they share.
 ///
 /// The verdict combines the pairs' outcomes in one fixed order: a
 /// definite violation outranks a refusal, which outranks `Holds`. A
@@ -963,9 +989,15 @@ pub fn clearance_with(
         Err(r) => return ClearanceReport::refused(r),
     };
     // The SAME-BODY rule, not the same-selection one: two scopes of one
-    // body can name one face twice, and a face is never at a distance
-    // from itself.
+    // body share their faces' edges and vertices, and can name one face
+    // twice.
     let same_body = a.at == b.at && a.body == b.body;
+    if same_body && query.bound == ClearanceBound::StrictlyPositive {
+        let scope = |sel: &Selection| faces_of(&ev, sel, &body_a).unwrap_or_default();
+        if let Some((x, y)) = recorded_contact(&ev, a, &body_a, &scope(a), &scope(b)) {
+            return ClearanceReport::refused(ClearanceRefusal::RecordedContact { a: x, b: y });
+        }
+    }
     let windows_b = if a == b {
         windows_a.clone()
     } else {
@@ -1352,6 +1384,52 @@ fn faces_of(
             out
         }
     })
+}
+
+/// **A contact record between the two scopes**: the first record of the
+/// selection's body whose one cell bounds a face of one scope and whose
+/// other bounds a face of the other. The records are a body 0's
+/// (`crate::product::sources_of`'s reconciliation: a boolean's ride its
+/// payload, every other op's the value's channel).
+fn recorded_contact(
+    ev: &Evaluation<Interval>,
+    sel: &Selection,
+    body: &Body<Interval>,
+    fa: &[FaceKey],
+    fb: &[FaceKey],
+) -> Option<(topo::Cell, topo::Cell)> {
+    use crate::eval::{BooleanValue, ValuePayload};
+    if sel.body != 0 {
+        return None;
+    }
+    let value = ev.value(sel.at)?;
+    let records = match &value.payload {
+        ValuePayload::Boolean(BooleanValue::Body { contacts, .. }) => Arc::clone(contacts),
+        _ => Arc::clone(&value.contacts),
+    };
+    let loop_face = |he| {
+        body.get_half_edge(he)
+            .and_then(|h| body.get_loop(h.parent_loop))
+            .map(|l| l.face)
+    };
+    let faces = |c: topo::Cell| -> Vec<FaceKey> {
+        match c {
+            topo::Cell::Face(f) => vec![f],
+            topo::Cell::Edge(e) => body
+                .get_edge(e)
+                .map(|e| [e.he_plus, e.he_minus].into_iter().filter_map(loop_face).collect())
+                .unwrap_or_default(),
+            topo::Cell::Vertex(v) => body
+                .half_edges()
+                .filter(|(_, h)| h.start == v)
+                .filter_map(|(he, _)| loop_face(he))
+                .collect(),
+        }
+    };
+    let meets = |c: topo::Cell, scope: &[FaceKey]| faces(c).iter().any(|f| scope.contains(f));
+    records
+        .cell_pairs()
+        .find(|&(x, y)| (meets(x, fa) && meets(y, fb)) || (meets(x, fb) && meets(y, fa)))
 }
 
 /// The leaf's own midpoint, as offsets — the parameter witness.

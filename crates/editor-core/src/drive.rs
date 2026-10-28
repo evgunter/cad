@@ -618,14 +618,14 @@ pub enum RefusalReason {
     Budget(BudgetKind),
     /// **A measure could not be taken, for a reason the BOX cannot
     /// change** (M10-6, R1's MINOR-6): a selection that names the wrong
-    /// kind of entity, a pairing the wedge rule empties, a carrier the
-    /// engine does not support.
+    /// kind of entity, a scope naming no face, a carrier the engine does
+    /// not support.
     ///
     /// These are facts about the DOCUMENT, not about the parameter
     /// values, so every sub-box inherits them exactly. Before this
     /// class they fell to the catch-all `Bisect` and the driver split
     /// its way through the whole leaf budget re-deriving the same
-    /// refusal — a measured >60 s on a `NoAdmittedPair` fixture — and
+    /// refusal — a measured >60 s on a pairing fixture — and
     /// then priced the mass as `Budget`, which named the symptom
     /// instead of the cause. Refusing terminally is both faster and
     /// truer: the mass is refused under its own class, and the class
@@ -1759,8 +1759,7 @@ fn classify_replay<T: geom_core::Decide>(
         };
         // (1) **Box-independent measure refusals are TERMINAL** (M10-6,
         // R1's MINOR-6). A selection naming the wrong kind of entity,
-        // or a pairing the wedge rule empties, is a fact about the
-        // document: every sub-box inherits it exactly, so refining
+        // or a scope naming no face, is a fact about the document: every sub-box inherits it exactly, so refining
         // re-derives the same refusal until the budget runs out and
         // then prices the mass `Budget`, naming the symptom. The
         // classes listed in `box_independent_measure_class` are the
@@ -2202,11 +2201,10 @@ pub fn assertion_at(
 ///
 /// The clearance arm matches every [`ClearanceRefusal`] arm, but its
 /// carrier's one producer — `topo::clearance::min_separation`, through
-/// [`MinClearanceLane`]'s interval impl — refuses with four of the
-/// engine's: `EmptyScope`, `NoAdmittedPair`, `Unsupported` and
-/// `PoisonEnclosure`. The other seven are classed by what they mean, so
-/// the match stays exhaustive and an arm added to either enum does not
-/// compile unclassed.
+/// [`MinClearanceLane`]'s interval impl — refuses with three of the
+/// engine's: `EmptyScope`, `Unsupported` and `PoisonEnclosure`. The
+/// others are classed by what they mean, so the match stays exhaustive
+/// and an arm added to either enum does not compile unclassed.
 ///
 /// [`ClearanceRefusal`]: crate::clearance::ClearanceRefusal
 /// [`MinClearanceLane`]: crate::measure::MinClearanceLane
@@ -2220,7 +2218,7 @@ fn box_independent_measure_class(kind: &NodeErrorKind) -> Option<MeasureRefusalC
                 // scopes pair at all, and whether the carrier has an
                 // implementation are decided by the document's own
                 // topology and the engine's support table, not by the box.
-                C::Engine(E::EmptyScope | E::NoAdmittedPair | E::Unsupported { .. }) => engine(),
+                C::Engine(E::EmptyScope | E::Unsupported { .. }) => engine(),
                 // Not reached from `min_separation`. The bound and the
                 // run's tolerance are fixed for the whole drive, so no
                 // sub-box changes them either.
@@ -2234,9 +2232,17 @@ fn box_independent_measure_class(kind: &NodeErrorKind) -> Option<MeasureRefusalC
                 // a certified leaf, or a selection read at one leaf's
                 // replay (a node that did not build there) — and can
                 // differ over a smaller one.
-                C::Engine(E::Budget(_) | E::Sliver { .. } | E::WitnessUnverified { .. })
+                C::Engine(
+                    E::Budget(_)
+                    | E::Sliver { .. }
+                    | E::WitnessUnverified { .. }
+                    | E::Uncertified { .. }
+                    | E::CollapsedChart { .. }
+                    | E::TorusNotRing { .. },
+                )
                 | C::Selection(_)
-                | C::NothingCertified { .. } => None,
+                | C::NothingCertified { .. }
+                | C::RecordedContact { .. } => None,
             }
         }
         _ => None,
