@@ -22,7 +22,7 @@ Filed together, to be split by whoever picks them up.
   a surgery scope nor appear on this test's allowlist:
   [`…/crates/topo/src/props.rs::validate_pseudomanifold`]". The
   2026-10-24 entry in
-  `work/tcost/main-reds-editor-core-slow-set-and-the-k-probe-sweep.md`
+  `work/green/main-reds-editor-core-slow-set-and-the-k-probe-sweep.md`
   was a different door (`join_edges`).
 - **editor-core, at the default ε and 1e-6:**
   `emit_union_borders::the_corner_boss_logs_its_corner_alike_in_every_order_and_every_pair_boolean`

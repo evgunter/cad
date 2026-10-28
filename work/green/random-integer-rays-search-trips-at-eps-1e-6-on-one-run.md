@@ -4,8 +4,9 @@ kind: issue
 title: review_gui1_r1::random_integer_rays_match_the_exact_oracle failed once at eps = 1e-6 on a commit that passed it before and after
 status: open
 opened: 2026-09-09
-priority: P1
-cost: H
+priority: P3
+cost: C
+rides_with: pick-oracle-sweep-anti-vacuity-fails-one-seed-in-1300
 ---
 
 
@@ -106,3 +107,15 @@ the row fails "no draw hit the cube — generator shape broke" at that
 seed at ε 1e-6 AND at the default ε, deterministically. So it is the
 anti-vacuity floor bolted onto a varying seed (the shape-1/shape-3 mix
 `test_utils::fuzz` warns against), not an ε effect.
+
+## Re-banded P1 → P3, and made a passenger (2026-10-28, GREEN's cut)
+
+Rides with `pick-oracle-sweep-anti-vacuity-fails-one-seed-in-1300`,
+whose fix plants a hit so the `hits_seen > 0` guard can no longer fire
+on a draw. The lane that lands that fix owes this row its verdict: with
+the guard structural, the only seed-flippable failure left is an oracle
+disagreement, which would be a live picking bug (P0, on the crate's
+program). Three CI reds of this test on record name the guard
+(`pick-face-fuzz-anti-vacuity-guard-trips-at-effort-1`, two instances,
+one in the same `test (eps = 1e-6, 2/2)` shard) and none names the
+oracle, so P3 until a red says otherwise.

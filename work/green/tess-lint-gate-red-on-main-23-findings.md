@@ -4,7 +4,7 @@ kind: issue
 title: the nightly k-lint (release-budget) tessellation-budget gate is red on main with 23 findings against the 2026-10-02 baseline, and nothing has read them
 status: open
 opened: 2026-10-15
-priority: P3
+priority: P1
 cost: M
 ---
 
