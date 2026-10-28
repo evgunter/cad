@@ -2469,7 +2469,7 @@ impl Recognised {
 
 /// Slides as Python reads them: each axis word and its pitch.
 fn slides(
-    steps: &[(editor_core::TargetAxis, editor_core::Formula)],
+    steps: &[(pncad::document::TargetAxis, pncad::document::Formula)],
 ) -> Vec<(&'static str, super::expr::Formula)> {
     steps
         .iter()

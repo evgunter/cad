@@ -1306,14 +1306,15 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
     assert!(session.committed_doc().bit_eq(&doc), "and nothing changed");
 }
 
-/// **The authored path admits a non-positive count, and the family has
-/// no member** — the door does not judge the count: the form declines
-/// to offer a count below one, and the op vocabulary is not narrowed to
-/// what the form offers, because the index's count can be written to
-/// the same number afterwards. An index of no value is a family of no
-/// member, which evaluates.
+/// **The authored path admits any count, and the evaluation judges it**
+/// — the door does not judge the count: the form declines to offer a
+/// count below one, and the op vocabulary is not narrowed to what the
+/// form offers, because the index's count can be written to the same
+/// number afterwards. A count of zero is a family of no member, which
+/// evaluates; a count below zero refuses typed on the family's own
+/// badge (`IndexCountOutOfRange`).
 #[test]
-fn a_non_positive_count_is_a_family_of_no_member() {
+fn a_zero_count_is_a_family_of_no_member_and_a_negative_one_refuses() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
@@ -1331,13 +1332,27 @@ fn a_non_positive_count_is_a_family_of_no_member() {
         );
         session.pump();
         let eval = session.evaluation().expect("the inline seam landed");
-        let members = eval
-            .value(pattern)
-            .unwrap_or_else(|| panic!("a family of count {count} evaluates"))
-            .members
-            .as_ref()
-            .map_or(0, |members| members.members.len());
-        assert_eq!(members, 0, "a family of count {count} has no member");
+        if count == 0 {
+            let members = eval
+                .value(pattern)
+                .unwrap_or_else(|| panic!("a family of count {count} evaluates"))
+                .members
+                .as_ref()
+                .map_or(0, |members| members.members.len());
+            assert_eq!(members, 0, "a family of count {count} has no member");
+        } else {
+            assert!(
+                matches!(
+                    eval.result(pattern),
+                    Some(pncad::document::NodeResult::Failed(pncad::document::NodeError {
+                        kind: pncad::document::NodeErrorKind::IndexCountOutOfRange { count: -3, .. },
+                        ..
+                    }))
+                ),
+                "a family of count {count} refuses typed: {:?}",
+                eval.result(pattern)
+            );
+        }
     }
 }
 
