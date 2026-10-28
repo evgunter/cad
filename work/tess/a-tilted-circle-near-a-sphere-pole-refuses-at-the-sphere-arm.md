@@ -4,6 +4,8 @@ kind: issue
 title: a sphere face whose tilted circle passes near a chart pole refuses at the trimmed lane's sphere arm
 status: open
 opened: 2026-10-28
+priority: P3
+cost: M
 ---
 
 

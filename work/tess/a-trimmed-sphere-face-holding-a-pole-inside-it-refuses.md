@@ -4,6 +4,8 @@ kind: issue
 title: a trimmed sphere face that holds a chart pole inside it, or visits a vertex at two chart locations off a pole, refuses at the sphere arm
 status: open
 opened: 2026-10-28
+priority: P3
+cost: M
 ---
 
 
