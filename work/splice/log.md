@@ -837,3 +837,20 @@ the operands already state. One Opus and one Fable designer weigh it
 under `docs/DESIGN-FORK-PROTOCOL.md`, blinded (byte 123) on
 `analysis/design-fork/limb-three-boundary`. No lane is dispatched
 until they are reconciled.
+
+## 2026-10-28 — PR 5938 (the tube's side tripwire) merges
+
+A single FULL review: APPROVE-WITH-FIXES, with no MAJOR (row `PR-5938`).
+The two-chart tube now names its `Undecided` as `AlongSide` or
+`EndOnSides`, as a rename of a failed walk only. The reviewer's probes
+up to ε/4 inside the row never reached an `Ok`. The single-chart twin
+stays `Undecided`: past PR 4012's side arm, its in-band readings are
+indeterminate.
+
+Lily's sweep row pins `TubeNotOneArc { AlongSide }`. The structural
+rim (PR 5959, in flight) is what moves her past it. With limb 3 stubbed
+she stops at the interior-loop guard, and the first pair it refuses is
+Plane × NURBS (GERMTAIL's `nurbs-plane-section-has-no-component-arm`,
+P3), before the NURBS × NURBS arm
+(`no-certificate-excludes-a-closed-loop-interior-to-two-spline-faces`,
+P1, filed here). Both are routed once the structural rim lands.
