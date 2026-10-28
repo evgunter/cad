@@ -8572,6 +8572,8 @@ mod tests {
             OneArcRefusal::Unlinked,
             OneArcRefusal::Short,
             undecided,
+            OneArcRefusal::AlongSide { chart: 0 },
+            OneArcRefusal::EndOnSides { sides: 2 },
         ] {
             let analytic = CertifyError::AnalyticRung3(AnalyticRung3Refusal::TubeNotOneArc {
                 rungs: 3,
