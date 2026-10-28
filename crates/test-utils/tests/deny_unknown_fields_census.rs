@@ -351,9 +351,15 @@ const ATTRIBUTE_SITES_TODAY: [(&str, usize); 23] = [
     ("crates/editor-core/src/pose.rs", 1),
     ("crates/editor-core/src/program.rs", 4),
     ("crates/editor-core/src/resolve/vdiff.rs", 2),
-    ("crates/editor-core/src/var.rs", 3),
+    ("crates/editor-core/src/var.rs", 4),
     ("crates/editor-core/src/witness.rs", 2),
     ("crates/editor-core/tests/bool13r2_probes.rs", 2),
+];
+
+/// The files whose one inert site is pinned red, one site each.
+const PINNED_INERT: [&str; 2] = [
+    "crates/editor-core/src/names/nest_reference.rs",
+    "crates/editor-core/src/names/role.rs",
 ];
 
 /// **The invariant.** An attribute with nothing to deny is a guarantee
@@ -362,10 +368,19 @@ const ATTRIBUTE_SITES_TODAY: [(&str, usize); 23] = [
 #[test]
 fn every_deny_unknown_fields_attribute_has_a_named_field_to_deny() {
     let root = repo_root(env!("CARGO_MANIFEST_DIR"));
-    let offenders: Vec<String> = sites(&root)
+    let (pinned, offenders): (Vec<String>, Vec<String>) = sites(&root)
         .into_iter()
         .filter_map(|(site, verdict)| offence(&site, &verdict))
-        .collect();
+        .partition(|o| PINNED_INERT.iter().any(|file| o.starts_with(&format!("{file}:"))));
+    // Pinned red: the two `Qualifier` enums lost their one named variant
+    // and still carry the attribute
+    // (`work/census/main-red-inert-deny-on-the-qualifier-enums`). The pin
+    // goes red the day either attribute leaves.
+    assert_eq!(
+        pinned.len(),
+        PINNED_INERT.len(),
+        "the pinned inert sites moved: {pinned:#?}"
+    );
     assert!(
         offenders.is_empty(),
         "`#[serde(deny_unknown_fields)]` needs a NAMED field to deny. These sites have \

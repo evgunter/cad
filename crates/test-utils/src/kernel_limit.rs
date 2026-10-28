@@ -201,7 +201,7 @@ pub fn pinned_row_at(
 /// The row `f` run under a pin: at a pinned ε its panic message must
 /// satisfy `holds`.
 #[track_caller]
-fn stops_on(
+pub(crate) fn stops_on(
     eps: f64,
     refused_at: &[f64],
     what: &str,

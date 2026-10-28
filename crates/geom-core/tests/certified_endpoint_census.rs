@@ -298,11 +298,18 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          refuses one in a span",
     ),
     ("crates/geom-brep/src/curve_face/composite.rs", 9, 9, ""),
-    ("crates/geom-brep/src/curve_face/spline_face.rs", 5, 5, ""),
+    (
+        "crates/geom-brep/src/curve_face/spline_face.rs",
+        10,
+        7,
+        "pinned red at main's count since PR 5855: the new reads are not yet \
+         dispositioned (`work/splice/main-red-certified-endpoint-census-moved-in-six-files`)",
+    ),
+    ("crates/geom-brep/src/intersect/section_bounds.rs", 13, 13, ""),
     (
         "crates/geom-brep/src/krawczyk.rs",
-        2,
-        1,
+        5,
+        4,
         "the remainder is `midpoints`, the real matrix whose inverse `Y` \
          preconditions the operator: any `Y` keeps the test sound, so a midpoint \
          read off an enclosure that does not certify can cost a proof and never \
@@ -319,9 +326,10 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/offset_meters.rs",
+        9,
         7,
-        7,
-        "the mignitude and the curvature join refuse by name",
+        "the mignitude and the curvature join refuse by name. Pinned red at main's count since PR 5868: the new \
+         reads are not yet dispositioned (`work/splice/main-red-certified-endpoint-census-moved-in-six-files`)",
     ),
     (
         "crates/geom-brep/src/patch_bound.rs",
@@ -335,7 +343,13 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          non-finite mean, so a refused input still yields a finite centre and the \
          reach about it reports the trouble",
     ),
-    ("crates/geom-brep/src/pcurve_cache.rs", 2, 2, ""),
+    (
+        "crates/geom-brep/src/pcurve_cache.rs",
+        3,
+        2,
+        "pinned red at main's count since PR 5728: the new reads are not yet \
+         dispositioned (`work/splice/main-red-certified-endpoint-census-moved-in-six-files`)",
+    ),
     ("crates/geom-brep/src/pcurve_cache/projected.rs", 2, 2, ""),
     ("crates/geom-brep/src/props/bracket.rs", 4, 4, ""),
     (
@@ -432,8 +446,8 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi/enclose.rs",
-        12,
-        12,
+        19,
+        19,
         "`Box3`'s disjointness, containment, centre, split, reach meet and intersection all refuse \
          by name, and \
          so does the mignitude (`zero_free_lower_bound`, 4)",
@@ -492,6 +506,13 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          and `mag`",
     ),
     ("crates/geom-core/src/spline/algebra.rs", 1, 1, ""),
+    (
+        "crates/geom-core/src/spline/blossom.rs",
+        1,
+        0,
+        "pinned red at main's count since PR 5728: the new reads are not yet \
+         dispositioned (`work/splice/main-red-certified-endpoint-census-moved-in-six-files`)",
+    ),
     ("crates/geom-core/src/spline/compose/tensor.rs", 4, 4, ""),
     (
         "crates/geom-core/src/sym/signed.rs",
@@ -504,7 +525,21 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          construction",
     ),
     ("crates/geom/src/curves/second_derivative.rs", 1, 1, ""),
+    (
+        "crates/geom/src/surfaces/nurbs.rs",
+        4,
+        1,
+        "pinned red at main's count since PR 5927: the new reads are not yet \
+         dispositioned (`work/splice/main-red-certified-endpoint-census-moved-in-six-files`)",
+    ),
     ("crates/mesh/src/chords.rs", 2, 2, ""),
+    (
+        "crates/topo/src/clearance.rs",
+        20,
+        3,
+        "pinned red at main's count since PRs 5909 and 5927: the new reads are not yet \
+         dispositioned (`work/splice/main-red-certified-endpoint-census-moved-in-six-files`)",
+    ),
     (
         "crates/topo/src/props.rs",
         5,
