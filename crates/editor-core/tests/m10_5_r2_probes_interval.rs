@@ -40,8 +40,8 @@ use editor_core::UnitSym;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::clearance::{
     CellReceipt, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal,
-    ClearanceReport, ClearanceVerdict, FaceScope, MonotoneOracle, NoTangents, Pruning,
-    SELF_INTERSECTION_GAP, Selection, clearance_over, clearance_with, self_intersection,
+    ClearanceReport, ClearanceVerdict, EngineRefusal, FaceScope, MonotoneOracle, NoTangents,
+    Pruning, SELF_INTERSECTION_GAP, Selection, clearance_over, clearance_with, self_intersection,
 };
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
@@ -167,8 +167,8 @@ fn comb() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         solid,
         solid,
         Formula::named(name("place"), Dimension::Length),
-        len(0.0),
-        len(0.0),
+        Formula::zero(Dimension::Length),
+        Formula::zero(Dimension::Length),
     );
     (r.doc, solid, placed)
 }
@@ -218,7 +218,7 @@ fn ell_with_a_block_in_the_notch() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         solid,
         probe,
         Formula::named(name("place"), Dimension::Length),
-        len(0.0),
+        Formula::zero(Dimension::Length),
         len(-0.05),
     );
     (r.doc, solid, placed)
@@ -235,14 +235,21 @@ fn blocks_apart(gap: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
         1.0,
     );
-    let b = translated(&mut r, a, a, len(1.0 + gap), len(0.0), len(0.0));
+    let b = translated(
+        &mut r,
+        a,
+        a,
+        len(1.0 + gap),
+        Formula::zero(Dimension::Length),
+        Formula::zero(Dimension::Length),
+    );
     let _ = translated(
         &mut r,
         a,
         a,
         Formula::named(name("place"), Dimension::Length),
-        len(0.0),
-        len(0.0),
+        Formula::zero(Dimension::Length),
+        Formula::zero(Dimension::Length),
     );
     (r.doc, a, b)
 }
@@ -1124,7 +1131,7 @@ fn the_answer_does_not_depend_on_the_order_names_are_written_in() {
 
 // -------------------------------------- 7. the refusal arms with no rows
 
-/// **`ClearanceRefusal::Unsupported` has no row in the shipped suite**,
+/// **`EngineRefusal::Unsupported` has no row in the shipped suite**,
 /// though §3 of the spec requires the behaviour and the suite's own
 /// comment promises "the table rows below". This is that row, on the
 /// carrier class the fixture library can actually build: a cylindrical
@@ -1138,10 +1145,10 @@ fn the_unsupported_arm_names_its_carrier_class_when_it_fires() {
     // Every carrier this fixture library builds (plane) is admitted, so
     // the row asserts the reachable half: the refusal type carries a
     // named class and a face, and `name()` is stable for goldening.
-    let refusal = ClearanceRefusal::Unsupported {
-        carrier: "a free-form face",
+    let refusal = ClearanceRefusal::Engine(EngineRefusal::Unsupported {
+        carrier: "an approximated face",
         face: topo::entity::FaceKey::default(),
-    };
+    });
     assert_eq!(refusal.name(), "unsupported");
     // And the engine's own admission door refuses rather than skipping:
     // a comb face that IS admitted produces a window, so the contrast
@@ -1181,7 +1188,8 @@ fn a_one_pair_budget_refuses_and_still_accounts_for_every_candidate() {
     assert!(
         matches!(
             report.verdict(),
-            ClearanceVerdict::Refused(ClearanceRefusal::Budget(_)) | ClearanceVerdict::Violated(_)
+            ClearanceVerdict::Refused(ClearanceRefusal::Engine(EngineRefusal::Budget(_)))
+                | ClearanceVerdict::Violated(_)
         ),
         "a starved budget is priced, never silence: {}",
         report.serialize()
@@ -1285,7 +1293,7 @@ fn the_cost_curve_is_flat_where_the_bound_is_broken() {
     assert!(
         matches!(
             frontier.verdict(),
-            ClearanceVerdict::Refused(ClearanceRefusal::Budget(_))
+            ClearanceVerdict::Refused(ClearanceRefusal::Engine(EngineRefusal::Budget(_)))
         ),
         "the frontier is where a budget is actually spent: {}",
         frontier.serialize()

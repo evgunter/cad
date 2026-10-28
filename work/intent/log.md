@@ -983,3 +983,37 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
     - the carry (`a-placement-carries-its-sources-at-rest-result`, lane `session_01VyvYnH6cxt24s9KQbXyS5q`, single FULL review);
     - G (`patterns-are-index-variables`, lane `session_01VyvYnHiHL3dyLBmh7MATGP`, dual H). G measures §8 Q1 (does a ring close structurally) first and reports before building on it.
   - **Hazard the E lane hit:** two worktrees sharing one `CARGO_TARGET_DIR` silently cross-use artifacts, since cargo's fingerprints are path-relative. Briefs now forbid it. A memory for it is Ev's call (asked).
+- 2026-10-28 08:00 —
+  - **Ring fork done:** Ev approved on #5905 ("i agree with the idea"). The `[coincidence.structural]` sentence was dropped, on Ev's reading that the existing criterion already admits a tier that knows angle arithmetic; `[repetition]`'s ring sentence is sharpened. Fork-log row 207. G builds the tier rule, measuring its budget per node first.
+  - **Slate cut to D10's core** (Ev, in chat): 19 residue rows moved by `git mv`, ids unchanged, each with a dated `## Slate triage` note:
+    - census → ATREST (6);
+    - viewer geometry → VGEOM (3);
+    - authoring doors → DOORS (2);
+    - construction space → CHROME (1);
+    - names → REFS (4);
+    - lies-on and the consumed-feature lint → COINCIDE (2);
+    - the Python space-mismatch → BIND (1).
+  - **Other tracker fixes:** priorities set on the rows that had none. `main-red-edit-rs-folds-a-face-sense-by-hand` closed as a duplicate of #5849's fix.
+  - **INTENT keeps:** G and its riders, the stage-3 umbrellas, the carry, the two refactor pose-definition rows, the roots rename, the fixture literals, the cost-E tail, and the design rows `an-unread-body-is-no-finding` and `split-widens-…`.
+  - **Parallel lanes dispatched beside G and the carry:** the roots rename (`session_01VyvYnM85PzUjzS8KDPp1vG`, single STYLE), the refactor pose-definition rows (`session_01VyvYnKNiPxav6Gp55TVhep`, single FULL), and a cost-E batch (`session_01VyvYnKZwLAT9fCrXvcoSL9`, single STYLE: loft station, fused-instance frame, pick cross-check, fixture zero literals).
+- 2026-10-28 10:15 —
+  - **Roots rename naming ruling:** product errors name a gather source a **piece** (`ProductError::Piece`, `PieceFailed/PiecePoisoned/PieceInvalid`; Python `piece_*`). "Source" is D10's ratified word for a placement's source (`[placement.placement]`), and `⊔` "keeps its operands as separate pieces"; a bare slot read is the product's one piece. No ratified text moves.
+  - #5919 (roots rename) and #5915 (refactor pose definitions) are in single review.
+  - Filed `a-construction-is-called-the-root-of-its-own-space` (P3), the second sense of "root" the rename left.
+  - The 10-28 nightly triage lane is `session_01VyvYnLhN6A3wRdBEuKhm5g`.
+- 2026-10-28 10:40 —
+  - **Nightly triage 10-28 (#5917) merged** on the orchestrator's read. It fixed nine rustdoc links: the job had hidden every crate's errors behind the first crate that failed, so future triages run the full `scripts/doc-gate.sh`.
+  - **Filed P0 main reds:**
+    - two on OFFSET from PR 5728 (five slow rows at limb 2's kernel limit; three M10 interval pins). Whether the torus refusals are among those Ev accepted on 5728 is left open in the item, for OFFSET and Ev;
+    - one on SECT (the cyl×sphere march runs out of cells near the node at 1e-6, plus a fuzz counterexample that reds geom-brep PRs at random);
+    - one on SPLICE (the certified-endpoint census in six files).
+  - **Duplicate closed:** `issues/main-red-perf12-kitchen-sink-…`; RESTREAD's row is kept.
+  - **Correction:** the scalar dual-corpus red stays P3. The README's bands make no main red P0 by itself (an f64/Interval disagreement at 1e-12 is interval ground), so triage briefs stop saying "main reds are P0".
+  - **#5919 roots rename:** STYLE review APPROVE-WITH-FIXES. The orchestrator refined the piece ruling: the arm raised for the node the slot reads is `ProductError::Read`, since a `⊔` is not its own piece; `PieceInvalid` keeps "piece". The fix pass is sent.
+- 2026-10-28 12:40 —
+  - **Merged:**
+    - #5919, the roots rename (single STYLE, fixes read). It closes `the-world-still-speaks-of-roots`.
+    - #5915, refactor pose definitions (single FULL; `Doc::slot` now answers operand reads, and pncad-py calls it plainly). It closes `refactor-remaps-no-pose-definition` and `a-pose-defined-split-tool-names-no-tool-cell`.
+    - #5926, the cost-E batch (single STYLE plus a fix pass). It closes the loft station, the pick cross-check and the fixture zero literals; `a-fused-instances-held-frame-has-no-reset` was closed in the PR because its premise is false.
+  - **Filed from #5926:** `a-value-edit-never-re-asks-the-door-checks-that-read-values` (P3). A `SetVarValue` that brings a value-reading door check false is admitted, and evaluation refuses it. Pinned by `a_value_edit_to_a_zero_slide_is_refused_at_evaluation`.
+  - **Still in flight:** the carry (#5903, FULL review), and G (merging rule H, then a dual H review).

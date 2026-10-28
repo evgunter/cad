@@ -8,7 +8,7 @@
 //!    document still builds, and the assertion over it reports E10's
 //!    third state carrying that reason.
 //! 2. At the INTERVAL scalar the value IS the engine's bracket —
-//!    re-derived here by calling `clearance::min_separation` directly,
+//!    re-derived here by calling `topo::clearance::min_separation` directly,
 //!    so the row would fail if the evaluation path computed anything
 //!    else.
 //! 3. The bracket is BUDGET-HONEST: a smaller budget widens it and
@@ -41,16 +41,16 @@ use crate::fixture;
 use std::collections::BTreeMap;
 
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
-use editor_core::clearance::{MinSepSelection, MinSeparationConfig, min_separation};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::stackup::stackup;
 use editor_core::{
     AssertionRelation, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit,
-    EvalOptions, Formula, FreeVar, LoopProgram, MeasurePrimitive, MeasureUnavailableAt, Node,
-    NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, UnevaluatedReason, UnitSym,
-    ValuePayload, VarName, evaluate,
+    EvalOptions, Formula, FreeVar, LoopProgram, MeasurePrimitive, MeasureUnavailableAt,
+    MinClearanceOperand, Node, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef,
+    UnevaluatedReason, UnitSym, ValuePayload, VarName, evaluate,
 };
 use geom_core::{Bounds, Tol};
+use topo::clearance::{MinSeparationConfig, min_separation};
 
 use fixture::{Recorder, len};
 
@@ -141,8 +141,8 @@ fn dumbbell() -> Dumbbell {
         solid,
         [
             Formula::named(name("place"), Dimension::Length),
-            len(0.0),
-            len(0.0),
+            Formula::zero(Dimension::Length),
+            Formula::zero(Dimension::Length),
         ],
     );
     let measured = r.measure(
@@ -224,13 +224,29 @@ impl<'v> Neck<'v> {
         }
     }
 
-    fn side(&self, which: usize) -> MinSepSelection<'_> {
-        MinSepSelection {
+    /// One wall of the neck, as the measure resolves a face-kind
+    /// reference: the placed node's body 0, and that one face.
+    fn operand(&self, which: usize) -> MinClearanceOperand<'_, geom_core::Interval> {
+        MinClearanceOperand {
             at: self.at,
             index: 0,
             body: self.body,
             faces: vec![self.faces[which]],
         }
+    }
+
+    /// The engine's bracket between two walls, asked the way the
+    /// measure's interval lane asks it: the sides AND the same-body
+    /// question through the operands' own doors, so a row here reds when
+    /// the measure's derivation of either does.
+    fn ask(
+        &self,
+        a: usize,
+        b: usize,
+        config: MinSeparationConfig,
+    ) -> Result<topo::clearance::MinSeparation, topo::clearance::EngineRefusal> {
+        let (a, b) = (self.operand(a), self.operand(b));
+        min_separation(&a.side(), &b.side(), a.same_body(&b), config)
     }
 }
 
@@ -312,7 +328,7 @@ fn a_point_scalar_has_no_min_clearance_value_and_the_assertion_says_why() {
 /// **Row 2**: at the interval scalar the value IS the engine's bracket.
 ///
 /// Re-derived rather than compared to a recorded number: the row calls
-/// `clearance::min_separation` itself, over the bodies the same
+/// `topo::clearance::min_separation` itself, over the bodies the same
 /// evaluation produced, and requires the two to agree bit for bit. A
 /// path that computed the measure some other way — a sampled pair, a
 /// midpoint distance, a second engine — fails here.
@@ -330,7 +346,8 @@ fn the_interval_value_is_the_engine_bracket_re_derived() {
 
     // The same question, asked of the engine directly.
     let neck = Neck::of(&ev, &f);
-    let direct = min_separation(&neck.side(0), &neck.side(1), MinSeparationConfig::default())
+    let direct = neck
+        .ask(0, 1, MinSeparationConfig::default())
         .expect("the neck pair is admitted");
     assert_eq!(value.lo().to_bits(), direct.lo().to_bits());
     assert_eq!(value.hi().to_bits(), direct.window_hi().to_bits());
@@ -358,15 +375,16 @@ fn the_budget_narrows_the_bracket_and_never_falsifies_it() {
     let neck = Neck::of(&ev, &f);
     let mut widths = Vec::new();
     for pairs in [2usize, 32, 512] {
-        let m = min_separation(
-            &neck.side(0),
-            &neck.side(1),
-            MinSeparationConfig {
-                max_cell_pairs: pairs,
-                ..MinSeparationConfig::default()
-            },
-        )
-        .expect("the neck pair is admitted");
+        let m = neck
+            .ask(
+                0,
+                1,
+                MinSeparationConfig {
+                    max_cell_pairs: pairs,
+                    ..MinSeparationConfig::default()
+                },
+            )
+            .expect("the neck pair is admitted");
         assert!(
             m.lo() <= NECK_GAP && NECK_GAP <= m.window_hi(),
             "budget {pairs}: [{}, {}] must enclose {NECK_GAP}",
@@ -394,15 +412,16 @@ fn the_budget_narrows_the_bracket_and_never_falsifies_it() {
         widths.push(m.window_hi() - m.lo());
         // The goldening form is exact bits and is stable across
         // repeats: the same query twice is the same text.
-        let again = min_separation(
-            &neck.side(0),
-            &neck.side(1),
-            MinSeparationConfig {
-                max_cell_pairs: pairs,
-                ..MinSeparationConfig::default()
-            },
-        )
-        .expect("the neck pair is admitted");
+        let again = neck
+            .ask(
+                0,
+                1,
+                MinSeparationConfig {
+                    max_cell_pairs: pairs,
+                    ..MinSeparationConfig::default()
+                },
+            )
+            .expect("the neck pair is admitted");
         assert_eq!(m.serialize(), again.serialize());
     }
     assert!(
@@ -481,12 +500,17 @@ fn the_symbolic_tier_refuses_a_clearance_measure_by_its_spoken_node() {
 /// so the only candidate is dropped and there is no separation to
 /// enclose. The minimum over an empty set is `+∞`, and reporting that
 /// as a clearance would be a number no geometry backs.
+///
+/// The row is also what holds the measure's same-body derivation
+/// (`MinClearanceOperand::same_body`): the wedge rule applies only to a
+/// same-body pairing, and a derivation that answered `false` here would
+/// admit the face against itself and answer a bracket.
 #[test]
 fn a_pairing_the_wedge_rule_empties_refuses_typed() {
     let f = dumbbell();
     let ev = eval_over::<geom_core::Interval>(&f.doc, Some(leaf(&f.doc)));
     let neck = Neck::of(&ev, &f);
-    match min_separation(&neck.side(0), &neck.side(0), MinSeparationConfig::default()) {
+    match neck.ask(0, 0, MinSeparationConfig::default()) {
         Err(r) => assert_eq!(r.name(), "no_admitted_pair", "{r:?}"),
         Ok(m) => panic!("a face against itself has no pair: {}", m.serialize()),
     }

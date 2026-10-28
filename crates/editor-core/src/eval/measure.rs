@@ -47,7 +47,7 @@
 //! It is the primitive the table's own escape clause names: there is no
 //! closed form for the minimum distance between two trimmed regions, so
 //! its answer comes from the E7 subdivision engine
-//! (`clearance::min_separation`) as a certified BRACKET, and
+//! (`topo::clearance::min_separation`) as a certified BRACKET, and
 //! the value is computed in the node's wiring — where the bodies are —
 //! rather than here. The wiring (`wire::wire_measure`) intercepts that
 //! primitive before this dispatch is consulted, and the arm below says

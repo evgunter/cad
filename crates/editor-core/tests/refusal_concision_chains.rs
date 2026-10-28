@@ -196,16 +196,17 @@ pub(crate) const FILED_DECLARE: &[&str] = &[];
 /// The rows that render a key or a hex id, by exact row id and the
 /// exact span, each filed with its owner.
 pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
-    // `ClearanceRefusal::payload` (`editor-core/src/clearance.rs`) is
-    // the goldening form, and this arm prints it: faces as `FaceKey`
-    // `Debug`, a bound as its bits, a budget as its `Debug`.
+    // `EngineRefusal::payload` (`topo/src/clearance.rs`), which
+    // `ClearanceRefusal::payload` delegates to, is the goldening form, and
+    // this arm prints it: faces as `FaceKey` `Debug`, a budget as its
+    // `Debug`; the editor's own `NotADistance` prints its bound as bits.
     Admission {
-        row: "MeasureClearanceRefused/Unsupported",
+        row: "MeasureClearanceRefused/Engine/Unsupported",
         span: "FaceKey(null)",
         filed: "work/clear/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
     },
     Admission {
-        row: "MeasureClearanceRefused/PoisonEnclosure",
+        row: "MeasureClearanceRefused/Engine/PoisonEnclosure",
         span: "FaceKey(null)/FaceKey(null)",
         filed: "work/clear/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
     },
@@ -215,7 +216,7 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
         filed: "work/clear/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
     },
     Admission {
-        row: "MeasureClearanceRefused/Budget",
+        row: "MeasureClearanceRefused/Engine/Budget",
         span: "Depth { max_cell_depth: 24 }",
         filed: "work/clear/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
     },
@@ -315,17 +316,17 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ProfileReplay/Path/ZeroDirection",
     "ProfileReplay/Transition",
     // work/clear/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md
-    "MeasureClearanceRefused/Budget",
-    "MeasureClearanceRefused/EmptyScope",
-    "MeasureClearanceRefused/NoAdmittedPair",
+    "MeasureClearanceRefused/Engine/Budget",
+    "MeasureClearanceRefused/Engine/EmptyScope",
+    "MeasureClearanceRefused/Engine/NoAdmittedPair",
+    "MeasureClearanceRefused/Engine/PoisonEnclosure",
+    "MeasureClearanceRefused/Engine/Sliver",
+    "MeasureClearanceRefused/Engine/Unsupported",
+    "MeasureClearanceRefused/Engine/WitnessUnverified",
     "MeasureClearanceRefused/NotADistance",
     "MeasureClearanceRefused/NothingCertified",
-    "MeasureClearanceRefused/PoisonEnclosure",
     "MeasureClearanceRefused/Selection",
-    "MeasureClearanceRefused/Sliver",
     "MeasureClearanceRefused/ToleranceHasNoBand",
-    "MeasureClearanceRefused/Unsupported",
-    "MeasureClearanceRefused/WitnessUnverified",
     // work/profiletail/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     "Profile/InconsistentArc",
     // work/honeword/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
@@ -776,7 +777,7 @@ fn every_node_refusal_renders_within_the_budget() {
     }
 }
 
-use editor_core::clearance::ClearanceRefusal;
+use editor_core::clearance::{ClearanceRefusal, EngineRefusal};
 use editor_core::{
     BifurcationKind, Diagnosis, EvalError, ParamBoxError, PlacementRuleFault, ResolveError,
     SeedError,
@@ -1069,8 +1070,16 @@ test_utils::f6_variants! {
 test_utils::f6_variants! {
     /// `ClearanceRefusal`'s arms, for the `MeasureClearanceRefused/` rows.
     const CLEARANCE_REFUSAL: ClearanceRefusal = [
-        Sliver, Budget, Unsupported, Selection, PoisonEnclosure, NothingCertified, NotADistance,
-        EmptyScope, ToleranceHasNoBand, NoAdmittedPair, WitnessUnverified,
+        Engine, Selection, NothingCertified, NotADistance, ToleranceHasNoBand,
+    ];
+}
+
+test_utils::f6_variants! {
+    /// `EngineRefusal`'s arms, for the `MeasureClearanceRefused/Engine/`
+    /// rows.
+    const ENGINE_REFUSAL: EngineRefusal = [
+        Sliver, Budget, Unsupported, PoisonEnclosure, EmptyScope, NoAdmittedPair,
+        WitnessUnverified,
     ];
 }
 
@@ -1089,6 +1098,7 @@ const ROSTERS: &[(&str, &[&str])] = {
         ("Diagnosis", DIAGNOSIS.identifiers()),
         ("BifurcationKind", BIFURCATION_KIND.identifiers()),
         ("ClearanceRefusal", CLEARANCE_REFUSAL.identifiers()),
+        ("EngineRefusal", ENGINE_REFUSAL.identifiers()),
         (
             "NamingError",
             crate::display_contract::NAMING_ERROR.identifiers(),
@@ -1185,7 +1195,17 @@ fn forward(kind: &NodeErrorKind) -> Forward {
             welded(levels)
         }
         NodeErrorKind::WitnessBifurcation(e) => one("BifurcationKind", &e.kind),
-        NodeErrorKind::MeasureClearanceRefused(e) => one("ClearanceRefusal", e),
+        NodeErrorKind::MeasureClearanceRefused(e) => {
+            let mut levels = vec![level("ClearanceRefusal", e)];
+            match e {
+                ClearanceRefusal::Engine(engine) => levels.push(level("EngineRefusal", engine)),
+                ClearanceRefusal::Selection(_)
+                | ClearanceRefusal::NothingCertified { .. }
+                | ClearanceRefusal::NotADistance { .. }
+                | ClearanceRefusal::ToleranceHasNoBand => {}
+            }
+            welded(levels)
+        }
         // Labelled by the standing each carries, the names the filed
         // rows cite them by.
         NodeErrorKind::MeasureRefUnreadable { error, .. } => Forward::Welded {
@@ -1443,7 +1463,7 @@ fn drawn_lines(kind: NodeErrorKind) -> Vec<String> {
 }
 
 /// **Every line a carried refusal draws fits where it is drawn.** A
-/// part whose root failed and a mate whose pose did not evaluate each
+/// part whose piece failed and a mate whose pose did not evaluate each
 /// name that node and point at it; the refusal they carry is drawn as
 /// its own line, one per document level, and never inside theirs.
 ///
@@ -1494,7 +1514,7 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
         .to_owned();
     let part = |node: u64, refusal: NodeErrorKind| NodeErrorKind::Part {
         doc_ref: doc_ref(),
-        fault: PartFault::PartRootFailed {
+        fault: PartFault::PartProductFailed {
             held: Default::default(),
             node: RecipeNodeId::new(0, tagged(node)),
             refusal: refusal.into(),
@@ -4994,24 +5014,27 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         ));
     }
     {
-        use editor_core::clearance::{CellBudget, SelectionRefusal};
+        use editor_core::clearance::{CellBudget, EngineRefusal, SelectionRefusal};
+        let engine = |refusal| ClearanceRefusal::Engine(refusal);
         for (n, refusal) in [
             (
-                "Sliver",
-                ClearanceRefusal::Sliver {
+                "Engine/Sliver",
+                engine(EngineRefusal::Sliver {
                     predicate: "clearance_pair_separation",
-                },
+                }),
             ),
             (
-                "Budget",
-                ClearanceRefusal::Budget(CellBudget::Depth { max_cell_depth: 24 }),
+                "Engine/Budget",
+                engine(EngineRefusal::Budget(CellBudget::Depth {
+                    max_cell_depth: 24,
+                })),
             ),
             (
-                "Unsupported",
-                ClearanceRefusal::Unsupported {
-                    carrier: "a free-form face",
+                "Engine/Unsupported",
+                engine(EngineRefusal::Unsupported {
+                    carrier: "an approximated face",
                     face: FaceKey::default(),
-                },
+                }),
             ),
             (
                 "Selection",
@@ -5021,25 +5044,28 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
                 }),
             ),
             (
-                "PoisonEnclosure",
-                ClearanceRefusal::PoisonEnclosure {
+                "Engine/PoisonEnclosure",
+                engine(EngineRefusal::PoisonEnclosure {
                     a: FaceKey::default(),
                     b: FaceKey::default(),
-                },
+                }),
             ),
             (
                 "NothingCertified",
                 ClearanceRefusal::NothingCertified { refused_leaves: 12 },
             ),
             ("NotADistance", ClearanceRefusal::NotADistance { c: -1.0 }),
-            ("EmptyScope", ClearanceRefusal::EmptyScope),
+            ("Engine/EmptyScope", engine(EngineRefusal::EmptyScope)),
             ("ToleranceHasNoBand", ClearanceRefusal::ToleranceHasNoBand),
-            ("NoAdmittedPair", ClearanceRefusal::NoAdmittedPair),
             (
-                "WitnessUnverified",
-                ClearanceRefusal::WitnessUnverified {
+                "Engine/NoAdmittedPair",
+                engine(EngineRefusal::NoAdmittedPair),
+            ),
+            (
+                "Engine/WitnessUnverified",
+                engine(EngineRefusal::WitnessUnverified {
                     what: "the f64 rebuild found the pair clear of the bound".to_owned(),
-                },
+                }),
             ),
         ] {
             rows.push(row(
@@ -5110,7 +5136,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ));
     }
-    // A part's root failure carries the part's own node refusal, typed,
+    // A part's piece failure carries the part's own node refusal, typed,
     // and its sentence never renders it: the carried refusal is its own
     // line ([`every_carried_refusal_draws_within_the_budget_at_every_line`]).
     //
@@ -5121,16 +5147,16 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
     let parts = [
         ("NoResolver", PartFault::NoResolver),
         (
-            "PartRootFailed",
-            PartFault::PartRootFailed {
+            "PartProductFailed",
+            PartFault::PartProductFailed {
                 held: Default::default(),
                 node: RecipeNodeId::new(0, tagged(7)),
                 refusal: NodeErrorKind::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
             },
         ),
         (
-            "PartRootFailed(part)",
-            PartFault::PartRootFailed {
+            "PartProductFailed(part)",
+            PartFault::PartProductFailed {
                 held: Default::default(),
                 node: RecipeNodeId::new(0, tagged(7)),
                 refusal: NodeErrorKind::Part {
@@ -5141,17 +5167,17 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "PartRootPoisoned",
-            PartFault::PartRootPoisoned {
+            "PartProductPoisoned",
+            PartFault::PartProductPoisoned {
                 held: Default::default(),
-                root: RecipeNodeId::new(0, tagged(8)),
+                node: RecipeNodeId::new(0, tagged(8)),
                 through: RecipeNodeId::new(0, tagged(7)),
                 refusal: NodeErrorKind::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
             },
         ),
         (
-            "RootFailureUnrecorded",
-            PartFault::RootFailureUnrecorded {
+            "PartProductFailureUnrecorded",
+            PartFault::PartProductFailureUnrecorded {
                 held: Default::default(),
                 node: RecipeNodeId::new(0, tagged(7)),
             },
@@ -5268,8 +5294,8 @@ fn part_products_forwarding() -> Vec<(String, NodeErrorKind)> {
     };
     [
         (
-            "Part/PartProduct(RootInvalid)",
-            ProductError::RootInvalid {
+            "Part/PartProduct(PieceInvalid)",
+            ProductError::PieceInvalid {
                 findings: vec![SourceFinding {
                     node: RecipeNodeId::new(0, tagged(3)),
                     output: 0,
@@ -5890,7 +5916,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
         CheckFinding {
             check: CheckId::Connectedness,
             subject: editor_core::FindingSubject::Output {
-                root: RecipeNodeId::new(0, tagged(4)),
+                placement: RecipeNodeId::new(0, tagged(4)),
                 output_ix: 0,
             },
             evidence,
@@ -6008,7 +6034,7 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
     let finding = |check, evidence| CheckFinding {
         check,
         subject: editor_core::FindingSubject::Output {
-            root: RecipeNodeId::new(0, tagged(4)),
+            placement: RecipeNodeId::new(0, tagged(4)),
             output_ix: 0,
         },
         evidence,

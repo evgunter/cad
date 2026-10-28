@@ -167,6 +167,8 @@ mod props_sphere_circle_loop;
 mod props_sphere_pole_side;
 #[path = "r2_probe_sphere_polar.rs"]
 mod r2_probe_sphere_polar;
+#[path = "section_bounds.rs"]
+mod section_bounds;
 #[path = "section_reads_at_the_reach.rs"]
 mod section_reads_at_the_reach;
 
@@ -268,6 +270,8 @@ mod span_meter_dim_twins;
 mod sphere_torus_ssi;
 #[path = "spline_pair_any_carrier.rs"]
 mod spline_pair_any_carrier;
+#[path = "spline_pair_arc_rim.rs"]
+mod spline_pair_arc_rim;
 #[path = "ssi_limb3_one_arc.rs"]
 mod ssi_limb3_one_arc;
 #[path = "stored_span_winding_bound.rs"]

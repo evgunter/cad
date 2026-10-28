@@ -25,8 +25,8 @@ use editor_core::UnitSym;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::clearance::{
     CellBudget, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal, ClearanceReport,
-    ClearanceVerdict, FaceScope, NoTangents, Selection, clearance, clearance_over, clearance_with,
-    self_intersection,
+    ClearanceVerdict, EngineRefusal, FaceScope, NoTangents, Selection, clearance, clearance_over,
+    clearance_with, self_intersection,
 };
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
@@ -117,7 +117,16 @@ fn blocks(gap: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         1.0,
     );
     let by = Formula::add(len(1.0), param("gap")).expect("a length");
-    let b = translated(&mut r, a, a, [by, len(0.0), len(0.0)]);
+    let b = translated(
+        &mut r,
+        a,
+        a,
+        [
+            by,
+            Formula::zero(Dimension::Length),
+            Formula::zero(Dimension::Length),
+        ],
+    );
     (r.doc, a, b)
 }
 
@@ -264,7 +273,16 @@ fn l_plate_and_floating_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Reci
         1.0,
     );
     let up = Formula::add(len(1.5), param("lift")).expect("a length");
-    let floated = translated(&mut r, plate, block, [len(0.0), len(0.0), up]);
+    let floated = translated(
+        &mut r,
+        plate,
+        block,
+        [
+            Formula::zero(Dimension::Length),
+            Formula::zero(Dimension::Length),
+            up,
+        ],
+    );
     (r.doc, plate, block, floated)
 }
 
@@ -395,7 +413,16 @@ fn bumped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         profile: profile.into(),
         distance: len(1.0),
     });
-    let placed = translated(&mut r, solid, solid, [param("place"), len(0.0), len(0.0)]);
+    let placed = translated(
+        &mut r,
+        solid,
+        solid,
+        [
+            param("place"),
+            Formula::zero(Dimension::Length),
+            Formula::zero(Dimension::Length),
+        ],
+    );
     (r.doc, solid, placed)
 }
 
@@ -503,8 +530,8 @@ fn a_partial_revolve_band_reports_its_phantom_turn() {
         block,
         block,
         [
-            len(0.0),
-            len(0.0),
+            Formula::zero(Dimension::Length),
+            Formula::zero(Dimension::Length),
             Formula::add(len(-0.2), param("place")).expect("a length"),
         ],
     );
@@ -527,7 +554,10 @@ fn a_partial_revolve_band_reports_its_phantom_turn() {
         ClearanceVerdict::Refused(ClearanceRefusal::Selection(s)) => {
             println!("[r1] interval_lane_skipped_revolve_did_not_build: {s}");
         }
-        ClearanceVerdict::Refused(ClearanceRefusal::Unsupported { carrier, face }) => {
+        ClearanceVerdict::Refused(ClearanceRefusal::Engine(EngineRefusal::Unsupported {
+            carrier,
+            face,
+        })) => {
             println!("[r1] interval_lane_skipped_unsupported: {carrier} at {face:?}");
         }
         ClearanceVerdict::Violated(v) => {
@@ -594,7 +624,16 @@ fn a_partial_revolve_about_z_is_the_control_for_the_hulled_band() {
         revolve,
         &fixture::axes_at([0.0; 3], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
     );
-    let placed = translated(&mut r, block, block, [len(0.0), param("place"), len(0.0)]);
+    let placed = translated(
+        &mut r,
+        block,
+        block,
+        [
+            Formula::zero(Dimension::Length),
+            param("place"),
+            Formula::zero(Dimension::Length),
+        ],
+    );
     let (sq, sb) = (Selection::body_of(quarter), Selection::body_of(placed));
     let started = std::time::Instant::now();
     let report = clearance(
@@ -662,8 +701,9 @@ fn degenerate_queries_land_in_an_arm_with_a_holding_receipt() {
         assert!(
             matches!(
                 starved.verdict(),
-                ClearanceVerdict::Refused(ClearanceRefusal::Budget(CellBudget::Pairs { .. }))
-                    | ClearanceVerdict::Violated(_)
+                ClearanceVerdict::Refused(ClearanceRefusal::Engine(EngineRefusal::Budget(
+                    CellBudget::Pairs { .. }
+                ))) | ClearanceVerdict::Violated(_)
             ),
             "pairs = {pairs}: {}",
             starved.serialize()
@@ -718,7 +758,7 @@ fn degenerate_queries_land_in_an_arm_with_a_holding_receipt() {
     assert!(
         matches!(
             vacuous.verdict(),
-            ClearanceVerdict::Refused(ClearanceRefusal::EmptyScope)
+            ClearanceVerdict::Refused(ClearanceRefusal::Engine(EngineRefusal::EmptyScope))
         ),
         "{}",
         vacuous.serialize()
@@ -880,7 +920,7 @@ fn channel_and_slider(place_half: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeI
         [
             Formula::add(len(1.0), param("place")).expect("a length"),
             len(1.0),
-            len(0.0),
+            Formula::zero(Dimension::Length),
         ],
     );
     (r.doc, channel, placed)
@@ -1152,7 +1192,11 @@ fn what_the_sound_prism_rows_hand_to_the_funnel() {
         &mut r,
         dumbbell,
         dumbbell,
-        [param("place"), len(0.0), len(0.0)],
+        [
+            param("place"),
+            Formula::zero(Dimension::Length),
+            Formula::zero(Dimension::Length),
+        ],
     );
     let report = self_intersection(
         &r.doc,

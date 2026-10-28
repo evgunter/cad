@@ -2,13 +2,14 @@
 //! section's arc over a window is a rational-quadratic `Curve3::Nurbs`,
 //! weights `(1, w, 1)` per span, on both surfaces to rounding, with `w`
 //! the closed form's, and limb 2 certifies it on the cone through the
-//! analytic rung-3 lane, whose tube has no cone enclosure.
+//! analytic rung-3 lane, where the pair's section states the bounds that
+//! retire the tube (C2).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, NurbsCurve3, Surface};
+use geom_brep::Reach;
 use geom_brep::intersect::{OpenConic, PlaneConeSection, SPAN_WEIGHT_MAX, plane_cone_section};
-use geom_brep::{AnalyticRung3Refusal, Reach};
 use geom_core::{Point3, Vec3};
 
 use crate::shared::tol::band;
@@ -370,11 +371,13 @@ fn a_window_off_the_branch_refuses() {
     );
 }
 
-/// **Limb 2 certifies the arc on the cone and on the plane, and the tube
-/// refuses the cone by name** (C2): the analytic rung-3 lane raises
-/// `NoTubeEnclosure` only once limb 2 holds against both operands.
+/// **Limb 2 certifies the arc on the cone and on the plane, and the
+/// section's bounds retire the tube** (C2): the plane×cone section states
+/// the crossing angle's floor over each window and the clearance of the
+/// tube it buys, so the analytic rung-3 lane owes no tube, which has no
+/// cone enclosure.
 #[test]
-fn limb_two_certifies_the_arc_and_the_tube_names_the_cone() {
+fn limb_two_certifies_the_arc_and_the_sections_bounds_retire_the_tube() {
     let alpha = core::f64::consts::FRAC_PI_6;
     let d = 0.3;
     let n = Vec3::unit_x();
@@ -394,15 +397,10 @@ fn limb_two_certifies_the_arc_and_the_tube_names_the_cone() {
         let curve = nurbs(&arc);
         let got =
             geom_brep::analytic_rung3(curve, curve.domain(), &plane(q, n), &cone(alpha), band());
-        assert!(
-            matches!(
-                got,
-                Err(AnalyticRung3Refusal::NoTubeEnclosure {
-                    operand: geom::SurfaceKind::Cone,
-                    ..
-                })
-            ),
-            "({y0}, {y1}): limb 2 holds and the tube names the cone, got {got:?}"
+        assert_eq!(
+            got,
+            Ok(()),
+            "({y0}, {y1}): limb 2 holds and the tube is retired"
         );
     }
 }

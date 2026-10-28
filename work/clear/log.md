@@ -52,6 +52,7 @@ Signed: (CARVE orchestrator)
   E's branch, but E is still under dual review, so its head is not
   stable. Designers run in the meantime (`plan.md`).
 
+- 2026-10-28 — **SHELL-3 merges (#5909)** with this commit last. The orchestrator read and accepted the fix pass at `8cb7116401`. Unparked: `SHELL-4`, `symbolic-tier-and-clearance-engine` and `min-separation-tightening-crosses-the-drive`. Pruned the fired `SHELL-3` entry on CARVE's `self-overlapping-spines-build-and-validate`.
 ## 2026-10-27 — designers on the symbolic tier and on self-intersection
 
 - **The symbolic tier: decided, with no `[ev]`.** Each designer was
@@ -101,3 +102,4 @@ Signed: (CARVE orchestrator)
 - **`min-separation-tightening-crosses-the-drive`'s designers
   dispatched.** The row asked for them to wait until E landed. The
   blinding byte was drawn at dispatch this time (analysis branch).
+- 2026-10-28 — **NURBSWIN merges (#5927)** with this commit last. The orchestrator read and accepted the fix pass at `2cef54df49`. Pruned the fired blocker on CARVE's `self-overlapping-spines-build-and-validate`.

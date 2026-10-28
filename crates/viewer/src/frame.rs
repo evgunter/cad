@@ -2447,7 +2447,9 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
         .iter()
         .map(|finding| {
             let node = match finding.subject {
-                FindingSubject::Output { root, .. } => crate::world::seat_of(landed, root),
+                FindingSubject::Output { placement, .. } => {
+                    crate::world::seat_of(landed, placement)
+                }
                 FindingSubject::Node(node) => node,
                 // An overlap's row is the earlier copy's, as a contact's
                 // is; the findings beside it are the `⊔`'s whose census
@@ -2544,9 +2546,9 @@ enum BadgeSite {
 /// **The local policy is the three the feature tree owns.**
 /// [`crate::tree::RowStatus`] has exactly three non-`Ok` states —
 /// `Failed`, `Poisoned`, `Unevaluated` — and
-/// [`ProductErrorKind::RootFailed`], [`ProductErrorKind::RootPoisoned`]
+/// [`ProductErrorKind::ReadFailed`], [`ProductErrorKind::ReadPoisoned`]
 /// and [`ProductErrorKind::UnknownNode`] — the classes of
-/// [`ProductError::Root`], by the placement's standing — are those same
+/// [`ProductError::Read`], by the read's standing — are those same
 /// three states seen from the gather.
 /// [`ProductErrorKind::StrandedProduct`] is the first of them seen
 /// from the recipe: a product read whose body is gone reads nothing,
@@ -2585,8 +2587,8 @@ enum BadgeSite {
 /// catches.
 fn badge_site(kind: ProductErrorKind) -> BadgeSite {
     match kind {
-        ProductErrorKind::RootFailed
-        | ProductErrorKind::RootPoisoned
+        ProductErrorKind::ReadFailed
+        | ProductErrorKind::ReadPoisoned
         | ProductErrorKind::UnknownNode => BadgeSite::FeatureTree,
         ProductErrorKind::EvaluationOfAnotherDocument
         | ProductErrorKind::EmptyProduct
@@ -2594,7 +2596,7 @@ fn badge_site(kind: ProductErrorKind) -> BadgeSite {
         | ProductErrorKind::ProductOutsideWorld
         | ProductErrorKind::Frame
         | ProductErrorKind::Graft
-        | ProductErrorKind::RootInvalid
+        | ProductErrorKind::PieceInvalid
         | ProductErrorKind::ProductInvalid
         | ProductErrorKind::ContactLineage => {
             if kind.means_no_body() {
@@ -3074,12 +3076,12 @@ pub fn version_offer(kind: &NodeErrorKind, files: &PartFiles) -> Option<VersionO
             ResolveFault::EpsilonSeam | ResolveFault::Unresolved => None,
         },
         // The reference resolved, or was never tried: the pin is not
-        // what failed. A part root failing on a mismatch of its OWN
+        // what failed. A part whose product fails on a mismatch of its OWN
         // references is repaired in that part, not here.
         PartFault::NoResolver
-        | PartFault::PartRootFailed { .. }
-        | PartFault::PartRootPoisoned { .. }
-        | PartFault::RootFailureUnrecorded { .. }
+        | PartFault::PartProductFailed { .. }
+        | PartFault::PartProductPoisoned { .. }
+        | PartFault::PartProductFailureUnrecorded { .. }
         | PartFault::PartProduct { .. }
         | PartFault::ReferenceCycle { .. }
         | PartFault::DepthExceeded
@@ -3457,18 +3459,18 @@ mod tests {
         for (quiet, site) in [
             (ProductError::EmptyProduct, BadgeSite::NotAFault),
             (
-                ProductError::Root(NodeStanding::Failed { node }),
+                ProductError::Read(NodeStanding::Failed { node }),
                 BadgeSite::FeatureTree,
             ),
             (
-                ProductError::Root(NodeStanding::Poisoned {
+                ProductError::Read(NodeStanding::Poisoned {
                     node,
                     through: RecipeNodeId::new(0, test_utils::refusal::tagged(1)),
                 }),
                 BadgeSite::FeatureTree,
             ),
             (
-                ProductError::Root(NodeStanding::NotEvaluated { node }),
+                ProductError::Read(NodeStanding::NotEvaluated { node }),
                 BadgeSite::FeatureTree,
             ),
         ] {
@@ -3491,7 +3493,7 @@ mod tests {
         for kind in [
             ProductErrorKind::EvaluationOfAnotherDocument,
             ProductErrorKind::Graft,
-            ProductErrorKind::RootInvalid,
+            ProductErrorKind::PieceInvalid,
             ProductErrorKind::ProductInvalid,
             ProductErrorKind::ContactLineage,
         ] {
@@ -3542,13 +3544,13 @@ mod tests {
         let left_to_the_tree = [
             ProductErrorKind::EvaluationOfAnotherDocument,
             ProductErrorKind::UnknownNode,
-            ProductErrorKind::RootFailed,
-            ProductErrorKind::RootPoisoned,
+            ProductErrorKind::ReadFailed,
+            ProductErrorKind::ReadPoisoned,
             ProductErrorKind::EmptyProduct,
             ProductErrorKind::StrandedProduct,
             ProductErrorKind::ProductOutsideWorld,
             ProductErrorKind::Graft,
-            ProductErrorKind::RootInvalid,
+            ProductErrorKind::PieceInvalid,
             ProductErrorKind::ProductInvalid,
             ProductErrorKind::ContactLineage,
         ]
@@ -3556,8 +3558,8 @@ mod tests {
         .filter(|kind| badge_site(*kind) == BadgeSite::FeatureTree)
         // The row state each class reaches the pane as.
         .map(|kind| match kind {
-            ProductErrorKind::RootFailed => 0,
-            ProductErrorKind::RootPoisoned => 1,
+            ProductErrorKind::ReadFailed => 0,
+            ProductErrorKind::ReadPoisoned => 1,
             ProductErrorKind::UnknownNode => 2,
             other => unreachable!("{other:?} is not a class the tree draws"),
         })
@@ -3958,9 +3960,9 @@ mod tests {
                 ResolveFault::EpsilonSeam => 2,
                 ResolveFault::Unresolved => 3,
             },
-            PartFault::PartRootFailed { .. } => 4,
-            PartFault::PartRootPoisoned { .. } => 5,
-            PartFault::RootFailureUnrecorded { .. } => 6,
+            PartFault::PartProductFailed { .. } => 4,
+            PartFault::PartProductPoisoned { .. } => 5,
+            PartFault::PartProductFailureUnrecorded { .. } => 6,
             PartFault::PartProduct { .. } => 7,
             PartFault::ReferenceCycle { .. } => 8,
             PartFault::DepthExceeded => 9,
@@ -3970,7 +3972,7 @@ mod tests {
 
     /// **Only a pin that no longer holds offers the accept**, over one
     /// witness of every [`PartFault`] arm, naming the part by the file
-    /// the scan found. The part-root arms carry a NESTED pin mismatch:
+    /// the scan found. The part-product arms carry a NESTED pin mismatch:
     /// that pin is the part's own reference, repaired in the part, so
     /// it offers nothing here. Red if any other arm offers, or the
     /// offer names another part.
@@ -3993,18 +3995,18 @@ mod tests {
             unresolved(ResolveFault::PinMismatch),
             unresolved(ResolveFault::EpsilonSeam),
             unresolved(ResolveFault::Unresolved),
-            PartFault::PartRootFailed {
+            PartFault::PartProductFailed {
                 held: Default::default(),
                 node: RecipeNodeId::new(0, test_utils::refusal::tagged(7)),
                 refusal: nested(),
             },
-            PartFault::PartRootPoisoned {
+            PartFault::PartProductPoisoned {
                 held: Default::default(),
-                root: RecipeNodeId::new(0, test_utils::refusal::tagged(8)),
+                node: RecipeNodeId::new(0, test_utils::refusal::tagged(8)),
                 through: RecipeNodeId::new(0, test_utils::refusal::tagged(7)),
                 refusal: nested(),
             },
-            PartFault::RootFailureUnrecorded {
+            PartFault::PartProductFailureUnrecorded {
                 held: Default::default(),
                 node: RecipeNodeId::new(0, test_utils::refusal::tagged(7)),
             },

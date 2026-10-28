@@ -264,7 +264,7 @@ import-as-assembly-document is not implemented. Export writes each
 positive shell as its own `MANIFOLD_SOLID_BREP`; assembly structure and
 contact records are not exported.
 
-## Relative freedom and product roots
+## Relative freedom and the product
 
 **A9 — Relative freedom is component structure.** Two copies are
 relatively unconstrained exactly when they lie in different connected

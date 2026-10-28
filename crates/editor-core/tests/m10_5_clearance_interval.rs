@@ -82,13 +82,18 @@
 //!
 //! # Which refusal arms have a row, and which cannot
 //!
-//! `ClearanceRefusal` has ELEVEN arms since M10-6 (`NoAdmittedPair`
-//! joined, for the minimum-separation door: two selections whose only
-//! candidate pairs the wedge rule drops). Rows below cover
+//! A clearance refusal is one of ELEVEN classes: seven the engine
+//! raises (`EngineRefusal`, inside `ClearanceRefusal::Engine`) and four
+//! the document door does. `NoAdmittedPair` is the minimum-separation
+//! door's: two selections whose only candidate pairs the wedge rule
+//! drops. Rows below cover
 //! `Budget(Pairs)`,
-//! `Budget(Depth)`, `Selection` (two shapes), `Unsupported`,
-//! `NotADistance` and `EmptyScope`; `NothingCertified` is covered by the
-//! adopted probe suites, and `NoAdmittedPair` by M10-6's own suite.
+//! `Budget(Depth)`, `Selection` (two shapes), `NotADistance` and
+//! `EmptyScope`; `NothingCertified` is covered by the adopted probe
+//! suites, `NoAdmittedPair` by M10-6's own suite, and `Unsupported` at
+//! the engine (`topo/tests/clearance_windows_on_a_spline_chart.rs`): a
+//! loft's walls, the one free-form face these fixtures build, now have
+//! windows.
 //! FIVE refusal shapes have NO row, and the reason
 //! is the same for each: they are not reachable on any document these
 //! fixtures can build.
@@ -108,7 +113,7 @@
 //!   definite.
 //!
 //! Absence of a row is not evidence the arm is dead code — each is
-//! constructed at exactly one site in `clearance.rs` and reachable in
+//! constructed at exactly one site of the engine or the door and reachable in
 //! principle — but it IS a gap, stated here rather than papered over.
 //!
 //! The basename carries `interval` because the suite's subject is the
@@ -123,8 +128,8 @@ use editor_core::UnitSym;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::clearance::{
     CellBudget, CellReceipt, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal,
-    ClearanceReport, ClearanceVerdict, FaceScope, MonotoneOracle, NoTangents, Pruning, Selection,
-    clearance, clearance_over, clearance_with, self_intersection,
+    ClearanceReport, ClearanceVerdict, EngineRefusal, FaceScope, MonotoneOracle, NoTangents,
+    Pruning, Selection, clearance, clearance_over, clearance_with, self_intersection,
 };
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
@@ -243,7 +248,16 @@ pub(crate) fn slid_by(
 
 /// A copy of `input` slid by `by` along its own +x ([`slid_by`]).
 fn translated(r: &mut Recorder, input: RecipeNodeId, by: Formula) -> RecipeNodeId {
-    slid_by(r, input, input, [by, len(0.0), len(0.0)])
+    slid_by(
+        r,
+        input,
+        input,
+        [
+            by,
+            Formula::zero(Dimension::Length),
+            Formula::zero(Dimension::Length),
+        ],
+    )
 }
 
 /// A prism over a literal polygon, extruded a literal depth.
@@ -511,9 +525,9 @@ fn a_starved_cell_budget_refuses_typed() {
     );
     let report = clearance_with(&doc, &box_of(&doc, "place"), &sel, &sel, &q);
     match report.verdict() {
-        ClearanceVerdict::Refused(ClearanceRefusal::Budget(CellBudget::Pairs {
-            max_cell_pairs,
-        })) => assert_eq!(*max_cell_pairs, 1),
+        ClearanceVerdict::Refused(ClearanceRefusal::Engine(EngineRefusal::Budget(
+            CellBudget::Pairs { max_cell_pairs },
+        ))) => assert_eq!(*max_cell_pairs, 1),
         other => panic!("expected a priced budget refusal, got {other:?}"),
     }
     let r = report.receipt();
@@ -536,9 +550,9 @@ fn a_starved_cell_depth_refuses_on_its_own_axis() {
     );
     let report = clearance_with(&doc, &box_of(&doc, "place"), &sel, &sel, &q);
     match report.verdict() {
-        ClearanceVerdict::Refused(ClearanceRefusal::Budget(CellBudget::Depth {
-            max_cell_depth,
-        })) => assert_eq!(*max_cell_depth, 0),
+        ClearanceVerdict::Refused(ClearanceRefusal::Engine(EngineRefusal::Budget(
+            CellBudget::Depth { max_cell_depth },
+        ))) => assert_eq!(*max_cell_depth, 0),
         other => panic!("expected a depth refusal, got {other:?}"),
     }
     assert!(report.receipt().holds());
@@ -1068,7 +1082,7 @@ fn the_cost_curve_is_measured_at_both_ends() {
     let fr = frontier.receipt();
     assert!(fr.holds());
     match frontier.verdict() {
-        ClearanceVerdict::Refused(ClearanceRefusal::Budget(_)) => {}
+        ClearanceVerdict::Refused(ClearanceRefusal::Engine(EngineRefusal::Budget(_))) => {}
         other => panic!("expected the frontier to exhaust its budget, got {other:?}"),
     }
     let frontier_cells = fr.discharged + fr.violated + fr.refused;
@@ -1157,19 +1171,19 @@ fn the_query_door_refuses_a_bound_that_is_not_a_distance() {
         faces: FaceScope::Named(Vec::new()),
     };
     match clearance(&doc, &leaf, &empty, &sel, 0.2, Tol::witness()).verdict() {
-        ClearanceVerdict::Refused(ClearanceRefusal::EmptyScope) => {}
+        ClearanceVerdict::Refused(ClearanceRefusal::Engine(EngineRefusal::EmptyScope)) => {}
         other => panic!("expected EmptyScope, got {other:?}"),
     }
 }
 
-/// **The refusal arms that had no row.** A sliver and a poison
-/// enclosure are not reachable on any fixture this suite can build (the
-/// module door says why), so what is pinned here is the two that ARE:
-/// the resolution floor, and an unsupported carrier.
+/// **A loft's walls have windows.** Each wall is bounded by its chart's
+/// own isos, so it is the whole patch and the engine answers about it:
+/// the loft's faces stand at least 0.1 apart wherever they do not meet.
+/// The refusal of a NURBS face the engine has no window for (trimmed,
+/// or bounded off its isos) is pinned at the engine
+/// (`topo/tests/clearance_windows_on_a_spline_chart.rs`).
 #[test]
-fn the_unsupported_carrier_arm_refuses_naming_the_class() {
-    // A loft's walls are free-form patches, which the window door
-    // admits no chart for.
+fn a_lofts_walls_have_windows_and_its_clearance_holds() {
     let mut r = Recorder::new();
     declare(&mut r, "place", 0.0);
     let mut profiles = Vec::new();
@@ -1207,16 +1221,9 @@ fn the_unsupported_carrier_arm_refuses_naming_the_class() {
         0.1,
         Tol::witness(),
     );
-    match report.verdict() {
-        ClearanceVerdict::Refused(ClearanceRefusal::Unsupported { carrier, .. }) => {
-            println!("[unsupported] {carrier}");
-        }
-        // A loft that does not build at the interval scalar refuses at
-        // the selection instead, which is the other honest answer and
-        // is not this row's subject.
-        ClearanceVerdict::Refused(ClearanceRefusal::Selection(e)) => {
-            println!("[unsupported] the loft did not build at Interval: {e}");
-        }
-        other => panic!("expected a typed refusal, got {other:?}"),
-    }
+    assert_eq!(
+        report.verdict(),
+        &ClearanceVerdict::Holds,
+        "the loft's faces clear 0.1"
+    );
 }
