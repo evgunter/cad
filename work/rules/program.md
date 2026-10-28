@@ -4,12 +4,12 @@ kind: program
 title: RULES — the tier's rules and receipts: where a fold's reach depends on order or spelling, and what a receipt cannot say
 status: ready
 opened: 2026-10-06
-area: kernel
+group: kernel/symbolic
 prefix: rules/
 tag: (RULES orchestrator)
 ab_band: 10900-10999
 paths: []
-keep_out: [opened by SYM's 2026-10-06 priority-seam cut (Ev, in chat, 2026-10-06, on the split put to Ev 2026-10-02) per work/README.md Track size - SYM measured 45 budget points against 30 and kept its P0 and P1 rows, the siblings are SYM DECIDE TIER and RULES and they share their parent's territory by design - shared ground is legitimate by the README's 2026-09-20 rule and what is owed is awareness while a lane is LIVE, so run scripts/work.py territory on your branch and announce the seam in the PR rather than drawing a fence, crates/geom-core/src/sym.rs and sym/* are SYM's paths and every row here lands there by announced seam, DECIDE owns the decision door and the read and TIER owns the frontier the cost and the header prose - a row here that turns out to be one of theirs moves by git mv]
+keep_out: [opened by SYM's 2026-10-06 priority-seam cut (Ev, in chat, 2026-10-06, on the split put to Ev 2026-10-02) per work/README.md Track size - SYM measured 45 budget points against 30 and kept its P0 and P1 rows, the siblings are SYM DECIDE TIER and RULES and they share their parent's territory by design - shared ground is legitimate by the README's 2026-09-20 rule and what is owed is awareness while a lane is LIVE, so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled rather than drawing a fence, crates/geom-core/src/sym.rs and sym/* are SYM's paths and every row here lands there by announced seam, DECIDE owns the decision door and the read and TIER owns the frontier the cost and the header prose - a row here that turns out to be one of theirs moves by git mv]
 ---
 
 **The symbolic tier's own consistency, seen from its rules and its

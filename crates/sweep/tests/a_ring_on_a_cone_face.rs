@@ -13,6 +13,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_6};
+use topo::construction::Construct;
 
 use crate::revolve_common::{axis_y, validated};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};

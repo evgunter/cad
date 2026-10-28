@@ -87,6 +87,8 @@ mod asm_upd_pin_update;
 mod assemble_one_local_battery;
 #[path = "atrest_carried_coincidence.rs"]
 mod atrest_carried_coincidence;
+#[path = "atrest_operation_rows_quiet.rs"]
+mod atrest_operation_rows_quiet;
 #[path = "band_joined_rim_names.rs"]
 mod band_joined_rim_names;
 #[path = "band_planar_cut_off_names.rs"]
@@ -798,6 +800,8 @@ mod intent_dprime1_target_space;
 mod intent_dprime2_mates_read_geometry;
 #[path = "intent_dprime3_assemble_product_slot.rs"]
 mod intent_dprime3_assemble_product_slot;
+#[path = "intent_e_operation_frame_of_reads.rs"]
+mod intent_e_operation_frame_of_reads;
 #[path = "intent_literals_a_definitions.rs"]
 mod intent_literals_a_definitions;
 #[path = "intent_literals_b_door.rs"]
@@ -854,6 +858,8 @@ mod intent_vars_3_readers;
 mod review_s5b_r2_probes;
 #[path = "run_wall_offers.rs"]
 mod run_wall_offers;
+#[path = "split_joined_keys_tie.rs"]
+mod split_joined_keys_tie;
 #[path = "union_flush_fuses.rs"]
 mod union_flush_fuses;
 #[path = "union_member_orders_decide_alike.rs"]

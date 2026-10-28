@@ -105,10 +105,10 @@ const PROFILE_LOG: usize = PRE_PASS + LANE_OP;
 /// identity bundle, which the fold places by no map, deciding nothing.
 const PLACEMENT_LOG: usize = 0;
 /// Each instance's own op: its pin, values on the world's axes composed
-/// as a motion (reading no pose and deciding no margin), then placement
-/// and validation of the placed body; that validation re-certifies the
-/// box's edges, where limb 2's distance bound (`ssi_hull_sup`, C2) adds 24 = 12 box edges × 2 operands to the 456 it held before.
-const INSTANCE_LOG: usize = 480;
+/// as a motion (reading no pose and deciding no margin). The copy shares
+/// the part's product body under that motion, so it builds and decides
+/// nothing.
+const INSTANCE_LOG: usize = 0;
 
 /// Two instances, both pinned to the world, so both ops do the same
 /// work. `o` reaches the part they copy.
@@ -160,9 +160,9 @@ fn the_instantiate_log_is_schedule_independent() {
 
 /// **A part inside a part**: two nested part evaluations, shielded. The
 /// outer instantiate nodes' logs are their own op's — equal to each
-/// other and to the same document under the parallel schedule — and
-/// larger than a leaf's instantiate log, because the placed body is
-/// the middle assembly's two solids.
+/// other and to the same document under the parallel schedule — and,
+/// like a leaf's, empty: a copy of the middle assembly's two solids
+/// shares them and decides nothing.
 #[test]
 fn a_part_inside_a_part_keeps_the_outer_log_its_own_under_both_schedules() {
     let mut store = PartStore::default();
@@ -177,10 +177,7 @@ fn a_part_inside_a_part_keeps_the_outer_log_its_own_under_both_schedules() {
     let seq = logs(&run(&top, &opts), &top_ids);
     assert_eq!(seq[0], seq[1], "the two outer instances differ: {seq:?}");
     assert_eq!(
-        // Twice INSTANCE_LOG: two placed solids' validations, each
-        // 24 = 12 box edges × 2 operands of limb 2 over the 456 before.
-        seq[0],
-        960,
+        seq[0], INSTANCE_LOG,
         "the outer op's own log over a two-solid part, and its pin's"
     );
     let par = logs(

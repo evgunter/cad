@@ -4,7 +4,6 @@ kind: issue
 title: mesh: one-element grid axes drop the other axis' computed schedule — the issue-685 class, beyond the cone
 status: open
 opened: 2026-09-01
-github: 1513
 refs: [685, 1507, 678]
 priority: P0
 cost: H

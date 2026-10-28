@@ -4,7 +4,7 @@ kind: program
 title: SHELL — shell, offset and transform
 status: ready
 opened: 2026-09-03
-area: kernel
+group: kernel/shell-offset
 prefix: shell/
 tag: (SHELL orchestrator)
 ab_band: 2300-2399

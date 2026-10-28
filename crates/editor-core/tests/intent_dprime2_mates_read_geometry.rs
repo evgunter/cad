@@ -23,7 +23,7 @@ use editor_core::pose::PoseDef;
 use editor_core::{
     BodyRead, CapEnd, Coord, Dimension, DocEdit, DocumentId, EvalOptions, FlattenError, FreeValue,
     FreeVar, Node, Operand, PartResolver, Placed, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
-    TargetAxis, VarName, flatten, inline, product,
+    TargetAxis, VarName, flatten, inline,
 };
 use fixture::{head, head_at, insert, len, on_frame, run, solve, step};
 use geom_core::Tol;
@@ -257,7 +257,8 @@ fn inline_keeps_a_variable_driving() {
         "the new placement holds the instance's bundle as written"
     );
     let bounds = |doc: &ProfileDoc, o: &EvalOptions| {
-        let body = product(doc, &run(doc, o), Tol::witness()).expect("gathers");
+        let body =
+            crate::fixture::product_in_world(doc, &run(doc, o), Tol::witness()).expect("gathers");
         let pts: Vec<[f64; 3]> = body.points().map(|(_, p)| [p.x, p.y, p.z]).collect();
         let lo = pts.iter().fold([f64::INFINITY; 3], |m, p| {
             [m[0].min(p[0]), m[1].min(p[1]), m[2].min(p[2])]
@@ -345,8 +346,12 @@ fn flatten_folds_the_identity_and_refuses_the_rest_typed() {
         "the part's placement takes the target"
     );
     let volume = |doc: &ProfileDoc| {
-        let body =
-            product(doc, &run(doc, &EvalOptions::default()), Tol::witness()).expect("gathers");
+        let body = crate::fixture::product_in_world(
+            doc,
+            &run(doc, &EvalOptions::default()),
+            Tol::witness(),
+        )
+        .expect("gathers");
         let measured = topo::test_support::finished("the product", body, Tol::witness());
         topo::test_support::pinned_volume("mass", &measured, Tol::witness()).volume
     };

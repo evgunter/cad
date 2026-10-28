@@ -32,8 +32,10 @@ fn vertices(doc: &ProfileDoc, node: RecipeNodeId) -> Vec<[f64; 3]> {
         panic!("{node} evaluates: {:?}", ev.result(node));
     };
     let body = match &value.payload {
-        ValuePayload::Body(b) => b.clone(),
-        ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. }) => body.clone(),
+        ValuePayload::Body(b) => crate::fixture::in_space(b),
+        ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. }) => {
+            crate::fixture::in_space(body)
+        }
         other => panic!("{node} is a body: {other:?}"),
     };
     let mut points: Vec<[f64; 3]> = body
@@ -743,7 +745,7 @@ fn vertex_bounds<T: editor_core::EvalScalar>(
         panic!("{node} evaluates: {:?}", ev.result(node));
     };
     let body = match &value.payload {
-        ValuePayload::Body(b) => b.clone(),
+        ValuePayload::Body(b) => crate::fixture::in_space(b),
         other => panic!("{node} is a body: {other:?}"),
     };
     let mut points: Vec<[(f64, f64); 3]> = body
@@ -921,7 +923,7 @@ fn read_copy<T: editor_core::EvalScalar>(
         panic!("{node} evaluates: {:?}", ev.result(node));
     };
     let bodies = match &value.payload {
-        ValuePayload::Body(b) => std::slice::from_ref(b),
+        ValuePayload::Body(b) => vec![crate::fixture::in_space(b)],
         other => panic!("{node} is a placement: {other:?}"),
     };
     let mut points: Vec<[(f64, f64); 3]> = bodies

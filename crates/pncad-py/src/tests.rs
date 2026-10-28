@@ -3503,6 +3503,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
         }),
         recourse: pncad::document::coincide::Recourse::OneConstruction,
         restated: Vec::new(),
+        quietable: false,
     };
     // One fold row reported with it: the payload counts it.
     let unproven = {
@@ -3510,6 +3511,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
             row,
             residual,
             recourse,
+            quietable,
             ..
         } = &unproven
         else {
@@ -3524,6 +3526,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
             residual: residual.clone(),
             recourse: *recourse,
             restated: vec![(fold, (**residual).clone(), *recourse)],
+            quietable: *quietable,
         }
     };
     carries(&unproven, &["reason", "relation", "site", "restated"]);
@@ -4412,6 +4415,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "germ_frame_unsupported",
             "germ_section_open_conic",
             "germ_section_spiric",
+            "germ_section_unbuilt",
             "graft_recertify",
             "held_pierce_unbuilt",
             "inside_out_operand",
@@ -4811,6 +4815,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "export_error_tag",
         values: &[
             "body_invalid",
+            "compose_refused",
             "empty_boolean",
             "node_failed",
             "not_a_body",
@@ -5431,6 +5436,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "contact_lineage",
             "empty_product",
             "evaluation_of_another_document",
+            "frame_refused",
             "graft_refused",
             "product_invalid",
             "product_outside_world",
@@ -5655,6 +5661,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "bad_value",
             "face_unresolved",
+            "frame_refused",
             "in_band",
             "not_a_length",
             "not_a_plane",
@@ -6269,6 +6276,11 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One fact (INTENT-LITERALS C) at the edit door and outside it: a
     // formula reads a fresh-table entry its edit does not hold, or at
     // another kind.
+    // Two doors' own refusals, each with its own payload: the gather's
+    // frame refusing to compose (`ProductError::Frame`) and a
+    // selection's candidate refusing to read into its plane's frame
+    // (`SelectRefusal::Frame`). A coincidence of words, not one fact.
+    ("frame_refused", 2),
     ("fresh_kind", 2),
     ("fresh_unheld", 2),
     // Two: a resolution lands in the ambiguity band exactly as a

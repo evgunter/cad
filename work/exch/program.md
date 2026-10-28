@@ -4,7 +4,7 @@ kind: program
 title: EXCH — exchange: STEP and STL
 status: ready
 opened: 2026-09-03
-area: kernel
+group: kernel/exchange
 prefix: exch/
 tag: (EXCH orchestrator)
 ab_band: 2100-2199

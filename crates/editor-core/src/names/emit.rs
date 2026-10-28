@@ -1158,7 +1158,7 @@ pub(crate) fn flat_body_index(placement: u32, per: u32, body: u32) -> Result<u32
 
 /// Wraps a pattern master's table per structural placement index
 /// (A8/N1 `Instance(j)`): placement `j` holds the master's keys
-/// verbatim (`transform_rigid` key-stability).
+/// verbatim (a copy is its source's body under its frame).
 ///
 /// **The wrapping is uniform** (ASM-2K D-2): `Instance(j)` wraps EVERY
 /// name of the master, whatever the master's body holds. A master with
@@ -1186,7 +1186,7 @@ pub(crate) fn name_pattern<T: geom_core::Real>(
     master: &NameTable,
     n: i64,
     per: usize,
-    instances: &[Arc<Body<T>>],
+    instances: &[&Body<T>],
 ) -> Result<Arc<NameTable>, NamingError> {
     let per = output_body(per)?;
     // An operand table read WHOLE seals here, exactly as one read an
@@ -1313,7 +1313,8 @@ pub(crate) fn name_placed_union<T: geom_core::Real>(
 /// copying node, since the copy is that node's output; a family's rows,
 /// body rows included, pass through whole.
 ///
-/// Keys hold verbatim, because `transform_rigid` is key-stable.
+/// Keys hold verbatim, because a copy is its source's body under its
+/// frame.
 pub(crate) fn name_copy<T: geom_core::Real>(
     node: RecipeNodeId,
     source: &NameTable,
@@ -1812,9 +1813,12 @@ mod pattern_tests {
         (body, t)
     }
 
-    /// The pattern's instance bodies for a master and a z-step —
-    /// `wire_pattern`'s own shape: instance 0 verbatim, the rest
-    /// through the key-stable placement door.
+    /// The pattern's instance bodies for a master and a z-step, each
+    /// built apart where it stands: instance 0 verbatim, the rest moved
+    /// by the key-stable rigid map (`topo::transform_rigid`), which
+    /// keeps every key these rows read. (`wire_pattern` itself builds
+    /// none of these: an instance shares its master's body under its own
+    /// frame.)
     fn instances(master: &Body<f64>, n: i64, step: f64) -> Vec<Arc<Body<f64>>> {
         (0..n)
             .map(|i| {
@@ -1844,8 +1848,14 @@ mod pattern_tests {
         let n = 3_i64;
         let bodies = instances(&master_body, n, 5.0);
         let node = RecipeNodeId::new(0, test_utils::refusal::tagged(9));
-        let t =
-            name_pattern(node, &master, n, 1, &bodies).expect("a multi-solid master is admitted");
+        let t = name_pattern(
+            node,
+            &master,
+            n,
+            1,
+            &bodies.iter().map(AsRef::as_ref).collect::<Vec<_>>(),
+        )
+        .expect("a multi-solid master is admitted");
 
         let times = usize::try_from(n).unwrap();
         assert_eq!(t.len(), master.len() * times, "census: N × the master's");
@@ -1886,7 +1896,14 @@ mod pattern_tests {
         let (n, step) = (3_i64, 5.0);
         let bodies = instances(&master_body, n, step);
         let node = RecipeNodeId::new(0, test_utils::refusal::tagged(9));
-        let t = name_pattern(node, &master, n, 1, &bodies).expect("admitted");
+        let t = name_pattern(
+            node,
+            &master,
+            n,
+            1,
+            &bodies.iter().map(AsRef::as_ref).collect::<Vec<_>>(),
+        )
+        .expect("admitted");
 
         let mut checked = 0;
         for i in 0..n {
@@ -1944,7 +1961,7 @@ mod pattern_tests {
             &master,
             2,
             1,
-            &[Arc::new(body)],
+            &[&body],
         )
         .expect_err("a row past the master's body count must refuse");
         assert!(
@@ -1987,7 +2004,14 @@ mod pattern_tests {
             }
         }
         let node = RecipeNodeId::new(0, test_utils::refusal::tagged(9));
-        let t = name_pattern(node, &master, n, per, &bodies).expect("admitted");
+        let t = name_pattern(
+            node,
+            &master,
+            n,
+            per,
+            &bodies.iter().map(AsRef::as_ref).collect::<Vec<_>>(),
+        )
+        .expect("admitted");
         assert_eq!(t.len(), master.len() * 3, "census: N × the master's");
         for j in 0..n {
             let ju = u32::try_from(j).unwrap();
@@ -2025,6 +2049,7 @@ mod display_tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use geom_core::{Band, MarginDiag};
+    use topo::construction::Construct;
 
     use super::*;
     use crate::eval::NodeErrorKind;
@@ -2052,7 +2077,7 @@ mod display_tests {
                 .mvfs(geom_core::Point3::new(x, 0.0, 0.0), true)
                 .expect("mvfs births a solid, shell, face and lone vertex");
             body.mev_line(
-                topo::MevSite::Lone {
+                topo::construction::MevSite::Lone {
                     r#loop: born.r#loop,
                 },
                 geom_core::Point3::new(x + 1.0, 0.0, 0.0),
@@ -3043,6 +3068,7 @@ mod conventional_vertex_tests {
     };
     use crate::node::StepId;
     use profile::PieceRole;
+    use topo::construction::Construct;
 
     const NODE: RecipeNodeId = RecipeNodeId::new(0, 7);
 
@@ -3091,7 +3117,7 @@ mod conventional_vertex_tests {
             .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
             .expect("mvfs births a solid, shell, face and lone vertex");
         body.mef_chord(
-            topo::MefSite::Lone {
+            topo::construction::MefSite::Lone {
                 r#loop: born.r#loop,
             },
             geom_core::Tol::witness(),
@@ -3128,7 +3154,7 @@ mod conventional_vertex_tests {
             .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
             .expect("mvfs births a solid, shell, face and lone vertex");
         body.mev_line(
-            topo::MevSite::Lone {
+            topo::construction::MevSite::Lone {
                 r#loop: born.r#loop,
             },
             geom_core::Point3::new(1.0, 0.0, 0.0),

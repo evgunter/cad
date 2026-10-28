@@ -6804,10 +6804,10 @@ pub trait AtRestPolicy: Decide {
     /// through `crate::policy_lane`: the transform
     /// ([`crate::transform_rigid`]); the Euler surface's attachment gate,
     /// which every door that mints or re-describes an edge runs — the
-    /// new-edge mints ([`Body::mev`], [`Body::mef`], [`Body::mekr`] and
-    /// the ring doors), [`Body::set_edge_curve`], [`Body::split_edge`]
-    /// and [`Body::kev_describing`]'s list; the re-chart
-    /// ([`Body::set_face_surfaces_describing`]); the re-basing gate of a
+    /// new-edge mints ([`Body::mev`](crate::construction::Construct::mev), [`Body::mef`](crate::construction::Construct::mef), [`Body::mekr`](crate::construction::Construct::mekr) and
+    /// the ring doors), [`Body::set_edge_curve`](crate::construction::Construct::set_edge_curve), [`Body::split_edge`](crate::construction::Construct::split_edge)
+    /// and [`Body::kev_describing`](crate::construction::Construct::kev_describing)'s list; the re-chart
+    /// ([`Body::set_face_surfaces_describing`](crate::construction::Construct::set_face_surfaces_describing)); the re-basing gate of a
     /// fan `mev` and of the kill doors' merge; and a graft's bridge.
     ///
     /// Certification is a property of the scalar's type (C2): a
@@ -6898,6 +6898,19 @@ pub trait AtRestPolicy: Decide {
         >,
     >;
 
+    /// **A certified lower bound on a spline chart's arm at `p` over
+    /// `reach`, at this scalar, or `None` where none is read here** — the
+    /// lower end of the bracket the boolean's seam reading levers a spline
+    /// face's normal over ([`geom_brep::NurbsLane::chart_arm`],
+    /// [`geom_brep::classify_seam`]). It is read from certified curvature
+    /// bounds, at the certifying scalars alone; a dual answers `None`, and
+    /// the seam reads smooth or escalates, never transverse.
+    fn spline_chart_arm(
+        chart: &geom::NurbsSurface<Self>,
+        p: geom_core::Point3<Self>,
+        reach: Self,
+    ) -> Option<f64>;
+
     /// **This scalar's section lane, or `None` where it is not
     /// derived here** — the offset door's plane × spline-wall
     /// section and the plane's root along a spline edge
@@ -6906,6 +6919,14 @@ pub trait AtRestPolicy: Decide {
     /// corner needs it refuses at any other scalar by name
     /// ([`crate::ReplaceFaceError::NurbsLaneUnsupported`]).
     fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>>;
+
+    /// **This scalar's general-rung march door, or `None` where it is not
+    /// derived here** — the boolean's section table carries a section on
+    /// the general rung through it ([`geom_brep::PairSection::carry`]).
+    /// The ℝ³ march is written at `f64` alone, so that arm answers
+    /// `Some`; a join whose germs ride such a section refuses at any
+    /// other scalar by name ([`geom_brep::CarryError::NoLane`]).
+    fn ssi_lane() -> Option<geom_brep::SsiLane<Self>>;
 
     /// **This scalar's shell door, or `None` where it may not form the
     /// call** — the ONE seam the `Some` comes from, read by the verb
@@ -7087,9 +7108,22 @@ impl AtRestPolicy for f64 {
         Some(geom_brep::NurbsLane::certified().chart_meetings(carrier, params, chart, band))
     }
 
+    fn spline_chart_arm(
+        chart: &geom::NurbsSurface<Self>,
+        p: geom_core::Point3<Self>,
+        reach: Self,
+    ) -> Option<f64> {
+        geom_brep::NurbsLane::certified().chart_arm(chart, p, reach)
+    }
+
     /// The march is written here.
     fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
         Some(crate::offset_derive::SectionLane::f64())
+    }
+
+    /// The march is written here.
+    fn ssi_lane() -> Option<geom_brep::SsiLane<Self>> {
+        Some(geom_brep::SsiLane::marched())
     }
 
     /// The decide-with-escalation lane certifies, so it runs the door.
@@ -7217,8 +7251,22 @@ impl AtRestPolicy for geom_core::Probe {
         Some(geom_brep::NurbsLane::certified().chart_meetings(carrier, params, chart, band))
     }
 
+    fn spline_chart_arm(
+        chart: &geom::NurbsSurface<Self>,
+        p: geom_core::Point3<Self>,
+        reach: Self,
+    ) -> Option<f64> {
+        geom_brep::NurbsLane::certified().chart_arm(chart, p, reach)
+    }
+
     /// The march is written at `f64` alone.
     fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
+        None
+    }
+
+    /// The march is written at `f64` alone, as the section lane's
+    /// above.
+    fn ssi_lane() -> Option<geom_brep::SsiLane<Self>> {
         None
     }
 
@@ -7344,8 +7392,21 @@ impl AtRestPolicy for geom_core::interval::Interval {
         Some(geom_brep::NurbsLane::certified().chart_meetings(carrier, params, chart, band))
     }
 
+    fn spline_chart_arm(
+        chart: &geom::NurbsSurface<Self>,
+        p: geom_core::Point3<Self>,
+        reach: Self,
+    ) -> Option<f64> {
+        geom_brep::NurbsLane::certified().chart_arm(chart, p, reach)
+    }
+
     /// The march is written at `f64` alone.
     fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
+        None
+    }
+
+    /// The march is written at `f64` alone.
+    fn ssi_lane() -> Option<geom_brep::SsiLane<Self>> {
         None
     }
 
@@ -7481,8 +7542,21 @@ where
         Some(geom_brep::NurbsLane::certified().chart_meetings(carrier, params, chart, band))
     }
 
+    fn spline_chart_arm(
+        chart: &geom::NurbsSurface<Self>,
+        p: geom_core::Point3<Self>,
+        reach: Self,
+    ) -> Option<f64> {
+        geom_brep::NurbsLane::certified().chart_arm(chart, p, reach)
+    }
+
     /// The march is written at `f64` alone.
     fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
+        None
+    }
+
+    /// The march is written at `f64` alone.
+    fn ssi_lane() -> Option<geom_brep::SsiLane<Self>> {
         None
     }
 
@@ -7635,8 +7709,22 @@ where
         None
     }
 
+    /// A dual does not certify (DL1), so it reads no certified bound.
+    fn spline_chart_arm(
+        _chart: &geom::NurbsSurface<Self>,
+        _p: geom_core::Point3<Self>,
+        _reach: Self,
+    ) -> Option<f64> {
+        None
+    }
+
     /// The march is written at `f64` alone.
     fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
+        None
+    }
+
+    /// The march is written at `f64` alone.
+    fn ssi_lane() -> Option<geom_brep::SsiLane<Self>> {
         None
     }
 

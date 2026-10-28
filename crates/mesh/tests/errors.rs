@@ -4,6 +4,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use topo::construction::Construct;
 
 use common::*;
 use geom_core::Tol;
@@ -379,7 +380,8 @@ fn the_single_column_refusal_prescribes_a_second_column_only_where_one_can_exist
 fn two_faces_refusing_differently_report_the_first_in_arena_order() {
     use geom::Surface;
     use geom_core::{Point3, Vec3};
-    use topo::{Body, FaceKey, FaceSurface};
+    use topo::construction::FaceSurface;
+    use topo::{Body, FaceKey};
 
     fn poison(body: &mut Body<f64>, which: usize, surface: Surface<f64>) -> FaceKey {
         let (fk, face) = body.faces().nth(which).expect("a face at that index");

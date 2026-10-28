@@ -51,7 +51,10 @@ endpoint and its placed carrier are each widened by the box
 independently, so the on-carrier check encloses `[0, 2·width]` and
 escalates; a box narrower than the band places. A mate solved at the
 box's scalar meets the same refusal at the mated instance, pinned by
-`msolve14_run_scalar::a2_over_a_wide_box_the_bolts_refusal_is_the_placement_doors`.
+`msolve14_run_scalar::a2_over_a_wide_box_the_bolts_refusal_is_the_placement_doors` (since INTENT E
+`a2_over_a_wide_box_the_bolt_builds_its_copy_unbuilt`: a copy is its
+source's body under its frame and is not re-certified, so the mated
+copy builds).
 
 No instance is needed for it: a plain `Transform` over a plain extrude,
 its translation boxed at `gap ± 0.25`, refuses

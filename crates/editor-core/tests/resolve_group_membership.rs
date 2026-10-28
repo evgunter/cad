@@ -28,7 +28,7 @@ use editor_core::{
     Node, ProfileDoc, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlotId, StableName,
     evaluate,
 };
-use fixture::{insert, len, step};
+use fixture::{insert, len, prism, step};
 use geom_core::Tol;
 
 fn run(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
@@ -38,18 +38,6 @@ fn run(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evalua
         &CancelToken::new(),
         &EvalOptions::default(),
         Tol::witness(),
-    )
-}
-
-/// A prism: the polygon `pts` on its own xy, extruded `dz`.
-fn prism(doc: ProfileDoc, pts: Vec<(f64, f64)>, dz: f64) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = insert(doc, Node::Profile(crate::fixture::desc(vec![pts])));
-    insert(
-        doc,
-        Node::Extrude {
-            profile: p.into(),
-            distance: len(dz),
-        },
     )
 }
 
@@ -239,37 +227,15 @@ fn vanished(
         .collect()
 }
 
-/// **Two tied parents, each cut in two, are two groups of two.**
-///
-/// A 4×4×4 block minus a U-shaped cutter whose two prongs cross one
-/// wall: the cutter's caps leave two congruent prong faces each, an N2
-/// tie. A bar across both prongs cuts each tied face in two; sliding
-/// the bar up out of the cavity (it still cuts the block's top) leaves
-/// them whole. The emitter formed one group per tied face, two members
-/// each, and one member each after the slide: 2 → 1. The spelling
-/// counts the tie lane's merged rows, one group of four: 4 → 2.
-/// The tie fixture: a 4×4×4 block minus a U-shaped cutter whose two
-/// prongs cross one wall — the cutter's caps leave two congruent prong
-/// faces each, an N2 tie — cut again by a bar across both prongs,
-/// placed against the block. Answers (doc, the first cut, the bar's
-/// placement, the second cut).
-fn tied_prongs_cut() -> (ProfileDoc, RecipeNodeId, Placed, RecipeNodeId) {
+/// The tie fixture: a 4×4×4 block minus a U-shaped `cutter` profile
+/// (extruded 2, one up the block) whose two prongs cross one wall — the
+/// cutter's caps leave two congruent prong faces each, an N2 tie — cut
+/// again by a bar across both prongs, placed against the block.
+/// Answers (doc, the first cut, the bar's placement, the second cut).
+fn tied_prongs_cut(cutter: &[(f64, f64)]) -> (ProfileDoc, RecipeNodeId, Placed, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("group-membership-tie", Tol::witness());
     let (doc, a) = block(doc, (0.0, 4.0), (0.0, 4.0), 4.0);
-    let (doc, u) = prism(
-        doc,
-        vec![
-            (2.0, 1.0),
-            (6.0, 1.0),
-            (6.0, 3.0),
-            (2.0, 3.0),
-            (2.0, 2.5),
-            (5.0, 2.5),
-            (5.0, 1.5),
-            (2.0, 1.5),
-        ],
-        2.0,
-    );
+    let (doc, u) = prism(doc, cutter.to_vec(), 2.0);
     let (doc, u) = crate::fixture::slid(doc, a, u, [0.0, 0.0, 1.0]);
     let (doc, sub) = insert(
         doc,
@@ -290,9 +256,18 @@ fn tied_prongs_cut() -> (ProfileDoc, RecipeNodeId, Placed, RecipeNodeId) {
     (doc, sub, tr, cut)
 }
 
+/// **Two tied parents, each cut in two, are two groups of two.**
+///
+/// A 4×4×4 block minus a U-shaped cutter whose two prongs cross one
+/// wall: the cutter's caps leave two congruent prong faces each, an N2
+/// tie. A bar across both prongs cuts each tied face in two; sliding
+/// the bar up out of the cavity (it still cuts the block's top) leaves
+/// them whole. The emitter formed one group per tied face, two members
+/// each, and one member each after the slide: 2 → 1. The spelling
+/// counts the tie lane's merged rows, one group of four: 4 → 2.
 #[test]
 fn two_tied_parents_each_cut_in_two_are_two_groups_of_two() {
-    let (doc, _, tr, cut) = tied_prongs_cut();
+    let (doc, _, tr, cut) = tied_prongs_cut(&fixture::U_CUTTER);
     let ev1 = run(&doc, None);
     let doc2 = moved(doc.clone(), &tr, [0.0, 0.0, 3.2]);
     let ev2 = run(&doc2, Some(&ev1));
@@ -321,10 +296,68 @@ fn two_tied_parents_each_cut_in_two_are_two_groups_of_two() {
     }
 }
 
-/// The ladder's evidence-free fallback at `node`: every rung declined.
-fn fallback(node: RecipeNodeId) -> Diagnosis {
-    Diagnosis::RecipeEdit {
-        edit: editor_core::RecipeEditRef::NodeChanged { node },
+/// [`fixture::U_CUTTER`] with each prong forked into two tines where
+/// [`tied_prongs_cut`]'s bar crosses it, so each of the bar's walls
+/// seams each tied cap in two chords.
+const TINED_U_CUTTER: [(f64, f64); 16] = [
+    (2.0, 1.0),
+    (6.0, 1.0),
+    (6.0, 3.0),
+    (2.0, 3.0),
+    (2.0, 2.8),
+    (3.5, 2.8),
+    (3.5, 2.7),
+    (2.0, 2.7),
+    (2.0, 2.5),
+    (5.0, 2.5),
+    (5.0, 1.5),
+    (2.0, 1.5),
+    (2.0, 1.3),
+    (3.5, 1.3),
+    (3.5, 1.2),
+    (2.0, 1.2),
+];
+
+/// **A tied parent's seam group counts its own pieces.**
+///
+/// [`tied_prongs_cut`] over [`TINED_U_CUTTER`]: each wall of the bar seams each tied cap in two
+/// chords, one per tine, and the seam lanes group them by the two
+/// parents' entities, so each candidate's two chords are one group of
+/// two. Sliding the bar up out of the cavity takes them all: 2 → 0 for
+/// every fragment, where the tie's sum would read 4 → 0.
+#[test]
+fn a_tied_parents_seam_group_counts_its_own_pieces() {
+    let (doc, sub, tr, cut) = tied_prongs_cut(&TINED_U_CUTTER);
+    let ev1 = run(&doc, None);
+    let doc2 = moved(doc.clone(), &tr, [0.0, 0.0, 3.2]);
+    let ev2 = run(&doc2, Some(&ev1));
+    let tied = ev1.table_at(sub).expect("the first cut evaluates");
+    let is_tied = |side: &StableName| match side.path.as_slice() {
+        [RoleSeg::From { of, .. }] => matches!(tied.lookup(of), Some(Entry::Tied(_))),
+        _ => false,
+    };
+    let rows = vanished((&doc2, &ev2), (&doc, &ev1), cut, |n, _| {
+        n.kind == EntityKind::Edge
+            && matches!(n.path.first(), Some(RoleSeg::Seam { a, b }) if is_tied(a) || is_tied(b))
+    });
+    // Two walls of the bar, across two caps, of two candidates, in two
+    // pieces each.
+    assert_eq!(
+        rows.len(),
+        16,
+        "the bar's walls seam each tied cap in two pieces: {rows:?}"
+    );
+    for (n, d) in rows {
+        assert_eq!(
+            d,
+            Diagnosis::GroupResized {
+                node: cut,
+                was: 2,
+                now: 0,
+                cutters: GroupCutters::NotSeamBounded,
+            },
+            "{n:?}"
+        );
     }
 }
 
@@ -559,43 +592,42 @@ fn a_unions_group_resized_at_any_fold_step_reads_two_to_one() {
     }
 }
 
-/// **A seam group tied parents share has no one parent's count.**
+/// **A seam of a tied parent is one candidate's group.**
 ///
-/// The seam lanes group a seam edge by its two faces' NAMES, so the bar
-/// crossing the two tied prong faces makes one group of the pieces of
-/// both. The record marks it, and the rung declines for its vanished
-/// fragments rather than state the tie's sum as a group's size.
+/// The seam lanes group a seam edge by its two parents' entities, so
+/// the bar crossing the two tied prong faces seams each candidate on
+/// its own: each seam is the bare name, tied over the candidates (N4).
+/// [`a_tied_parents_seam_group_counts_its_own_pieces`] reads such a
+/// group's count.
 #[test]
-fn a_seam_group_tied_parents_share_is_not_counted() {
-    let (doc, sub, tr, cut) = tied_prongs_cut();
-    let ev1 = run(&doc, None);
-    let doc2 = moved(doc.clone(), &tr, [0.0, 0.0, 3.2]);
-    let ev2 = silent(run(&doc2, Some(&ev1)));
-    let ev1 = silent(ev1);
+fn a_tied_parents_seams_are_bare() {
+    let (doc, sub, _, cut) = tied_prongs_cut(&fixture::U_CUTTER);
+    let ev = run(&doc, None);
     // A seam a side of which is one of the first cut's TIED rows, as the
     // second cut carries it in.
-    let tied = ev1.table_at(sub).expect("the first cut evaluates");
+    let tied = ev.table_at(sub).expect("the first cut evaluates");
     let is_tied = |side: &StableName| match side.path.as_slice() {
         [RoleSeg::From { of, .. }] => matches!(tied.lookup(of), Some(Entry::Tied(_))),
         _ => false,
     };
-    let rows = vanished((&doc, &ev2), (&doc, &ev1), cut, |n, _| {
-        match n.path.first() {
-            Some(RoleSeg::Seam { a, b }) => is_tied(a) || is_tied(b),
-            _ => false,
-        }
-    });
+    let cites_a_tie = |n: &StableName| match n.path.first() {
+        Some(RoleSeg::Seam { a, b }) => is_tied(a) || is_tied(b),
+        _ => false,
+    };
+    let seams: Vec<_> = ev
+        .table_at(cut)
+        .expect("the second cut evaluates")
+        .iter()
+        .filter(|(n, _)| cites_a_tie(n))
+        .collect();
     assert!(
-        !rows.is_empty(),
-        "no tied seam fragment vanished, so the row pins nothing"
+        !seams.is_empty(),
+        "the bar seams no tied face, so the row pins nothing"
     );
-    // With no flip and no edit in evidence, the fallback: the rung
-    // declined.
-    for (n, d) in rows {
-        assert_eq!(
-            d,
-            fallback(cut),
-            "{n:?}: a tie-summed seam group was counted"
+    for (n, e) in &seams {
+        assert!(
+            n.path.len() == 1 && matches!(e, Entry::Tied(c) if c.len() == 2),
+            "a tied parent's seam is the bare name, one edge per candidate: {n:?} => {e:?}"
         );
     }
 }
@@ -673,7 +705,7 @@ fn a_union_group_a_later_step_partly_swallows_names_what_is_published() {
 #[test]
 fn a_tie_carried_through_a_later_fold_step_counts_one_parent() {
     for order in [[0usize, 1, 2], [1, 0, 2], [0, 2, 1]] {
-        let (doc, sub, tr, _) = tied_prongs_cut();
+        let (doc, sub, tr, _) = tied_prongs_cut(&fixture::U_CUTTER);
         let (doc, far) = block_on(doc, tr.target, (20.0, 21.0), (0.0, 1.0), 0.0, 1.0);
         let m = [sub, tr.placement, far];
         let (doc, u) = insert(

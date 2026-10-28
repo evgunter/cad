@@ -4,7 +4,6 @@ kind: issue
 title: props_quad_face_extent trusts a caller-supplied perimeter that is sometimes not an upper bound - 10 of 333 corpus returns violate it
 status: open
 opened: 2026-08-31
-github: 1368
 refs: [1366]
 priority: P3
 cost: M

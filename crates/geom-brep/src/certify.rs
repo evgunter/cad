@@ -2421,6 +2421,8 @@ pub struct NurbsLane<T: Real> {
         Point3<T>,
     )
         -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive>,
+    /// [`NurbsLane::chart_arm`] at `T`.
+    chart_arm: fn(&geom::NurbsSurface<T>, Point3<T>, T) -> Option<f64>,
 }
 
 impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
@@ -2436,7 +2438,21 @@ impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
             composite: Self::composite_crossings,
             spline_face: Self::spline_face_meetings,
             surface_foot: geom::NurbsSurface::project,
+            chart_arm: Self::certified_chart_arm,
         }
+    }
+
+    /// [`crate::offset_meters::chart_arm`] at `T`, read where every
+    /// control coordinate, weight and knot of the chart, the point and the
+    /// reach are each one point at `T`. A wider value is a set of charts or
+    /// points, whose cells this door does not enclose, so it reads as
+    /// poison and no arm is read.
+    fn certified_chart_arm(chart: &geom::NurbsSurface<T>, p: Point3<T>, reach: T) -> Option<f64> {
+        let point = |x: T| match x.certified_bracket() {
+            Some((lo, hi)) if lo == hi => lo,
+            _ => f64::NAN,
+        };
+        crate::offset_meters::chart_arm(&chart.map_scalar(point), p.map(point), point(reach))
     }
 
     /// [`crate::curve_face::composite::crossings`], each scalar crossed
@@ -2528,6 +2544,23 @@ impl<T: Real> NurbsLane<T> {
         point: Point3<T>,
     ) -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive> {
         (self.surface_foot)(surface, point)
+    }
+
+    /// **A certified lower bound on `chart`'s length scale at `p`, over
+    /// `reach`** (`crate::offset_meters`' `chart_arm`, which names its
+    /// slack): the largest radius within `reach` over which a certified
+    /// bound on the curvature of the chart's cells stays at most its
+    /// reciprocal. The true arm lies between it and `reach`, and
+    /// [`crate::classify_seam`] brackets a spline face's arm between the
+    /// two, so the slack, which has no bound, costs an escalation and never
+    /// a class.
+    ///
+    /// `None` where no bound is read: a chart the patch bound refuses, a
+    /// C⁰ crease within `reach`, an unbounded curvature at `p` (a pole),
+    /// or data wider than a point at `T`.
+    #[must_use]
+    pub fn chart_arm(self, chart: &geom::NurbsSurface<T>, p: Point3<T>, reach: T) -> Option<f64> {
+        (self.chart_arm)(chart, p, reach)
     }
 
     /// The lane's limbs for a declared carrier of any kind on a plane ×
@@ -3202,90 +3235,6 @@ pub enum DraftedIntersection<T: Real> {
     Kept(EdgeDescriptionSpec<T>),
     /// The chord drawn between the edge's ends: a spec of its own.
     Chord(EdgeCurveSpec<T>),
-}
-
-/// The honest spatial **extent** of an edge's own point set — the lever
-/// arm of a reading consumed along the edge (D4 ¶1): a corner's
-/// departure, a section re-derived over the edge, the spline lanes'
-/// transversality and uniqueness tube. Never the wedge between the
-/// edge's two faces, which is levered at the faces' extent
-/// ([`crate::folded_lever_arm`]'s `reach`).
-///
-/// # Derivation (the lever-arm rationale)
-///
-/// The extent an angular defect accumulates over is the **diameter of
-/// the edge's point set** — the farthest distance between two of its
-/// points. For open edges the chord `|end − start|` is that diameter
-/// (exactly, for lines and for circular arcs up to a half period). But
-/// for closed and near-closed edges the chord collapses to ~0 while the
-/// true extent stays the carrier's diameter — folding the raw chord in
-/// turned a full-period 90° rim into "definitely Smooth" (a definite
-/// wrong answer) and made tier 3's dihedral pass vacuous on self-loops.
-///
-/// Per carrier kind, this returns a **certified lower bound** on the
-/// point-set diameter (a lower bound is the safe direction: a smaller
-/// arm escalates more, never definitely misclassifies):
-///
-/// - **Line** — the chord (exact).
-/// - **Ellipse** (semi-axes a > b, span Δt): `max(chord,
-///   b·(1 − cos(Δt/2)))` — the circle fold at the MINOR semi-axis. A
-///   lower bound because the ellipse is the image of the radius-b
-///   circle (same parameter θ) under a one-axis expansion by a/b ≥ 1,
-///   which never shrinks a distance — so the ellipse arc's point-set
-///   diameter dominates the b-circle arc's, and the circle bound below
-///   applies to that circle verbatim.
-/// - **Circle** (radius r, span Δt = t₁ − t₀): `max(chord,
-///   r·(1 − cos(Δt/2)))`. The second term is the arc's sagitta-style
-///   bulge height, an even, branch-free function of Δt with the two
-///   properties the fold needs: it never exceeds the true diameter
-///   (for |Δt| ≤ π, `1 − cos(u) ≤ 2·sin(u)` on `u ∈ [0, π/2]`, i.e.
-///   `tan(u/2) ≤ 2`, so it is below the chord's own `2r·sin(Δt/2)`;
-///   for |Δt| ∈ (π, τ] it is ≤ 2r, the diameter), and at closure
-///   (Δt → τ, chord → 0) it reaches the full carrier diameter `2r` —
-///   the honest extent of a full-period rim. The winding bound
-///   (|Δt| ≤ τ, [`CertifyError::WindingExceeded`]) keeps the cosine in
-///   its honest range.
-/// - **Spiric** (minor radius r, span Δv): `max(chord,
-///   r·(1 − cos(Δv/2)))` — the circle fold at the MINOR radius. A
-///   lower bound because in the `(m, axis)` plane the spiric is the
-///   image of the minor circle `(r cos v, r sin v)` under
-///   `(x, y) ↦ (g(x), y)`, `g(x) = √((R + x)² − d²)`, whose derivative
-///   `g′ = ρ/f ≥ 1` never shrinks a distance — so the spiric arc's
-///   point-set diameter dominates the r-circle arc's, and the circle
-///   bound below applies to that circle verbatim.
-/// - **Nurbs** — the chord: the distance between two of the edge's
-///   points, so a lower bound on its point-set diameter whatever the
-///   spline — a fitted branch the zip mints, or a loft's or a sweep's
-///   seam or section edge on a boolean operand. It collapses toward
-///   zero on a closed or nearly closed spline edge, and there a smaller
-///   arm only escalates more (the safe direction), never definitely
-///   misclassifies.
-///
-/// Total and comparison-free (`max` is the [`Real`] lattice operation).
-pub fn edge_extent<T: Real>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
-    match *carrier {
-        Curve3::Circle { radius, .. } => {
-            let half_span = (t1 - t0) * T::from_f64(0.5);
-            chord.max(radius * (T::one() - half_span.cos()))
-        }
-        // The smaller semi-axis / the minor radius is the certified
-        // direction (doc above): the ellipse and the spiric each dominate
-        // that circle pointwise, so both take the circle fold at that
-        // radius. The ellipse's semi-axes carry no order and no sign
-        // (`Conic`), so its radius is the smaller MAGNITUDE — `minor`
-        // itself for a frame stored in the ordinary order.
-        Curve3::Ellipse { semi_u, semi_v, .. } => {
-            let half_span = (t1 - t0) * T::from_f64(0.5);
-            chord.max(
-                geom::Curve3::semi_axes_by_size(semi_u, semi_v).1 * (T::one() - half_span.cos()),
-            )
-        }
-        Curve3::Spiric { minor_radius, .. } => {
-            let half_span = (t1 - t0) * T::from_f64(0.5);
-            chord.max(minor_radius * (T::one() - half_span.cos()))
-        }
-        Curve3::Line { .. } | Curve3::Nurbs(_) => chord,
-    }
 }
 
 /// Folds a residual into the running max and classifies it: must be
@@ -4348,7 +4297,7 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
     // The spline lanes lever their transversality and size their
     // uniqueness tube at the edge's own extent, beside the analytic
     // arms' faces' `reach`.
-    let extent = edge_extent(&spec.carrier, t0, t1, start.distance(end));
+    let extent = crate::edge_extent_inf(&spec.carrier, t0, t1, start.distance(end));
     // ---- Intersection, plane × NURBS only (M7-8), over a carrier of
     // any kind: the whole declare-and-check certificate (C2's three
     // limbs, limbs 1–2 reading the carrier through the
@@ -4774,6 +4723,12 @@ mod wiring_rows {
             geom::NurbsSurface::<T>::project as fn(_, _) -> _,
         ) {
             return Err("surface_foot is not `NurbsSurface::project`");
+        }
+        if !std::ptr::fn_addr_eq(
+            lane.chart_arm,
+            NurbsLane::<T>::certified_chart_arm as fn(_, _, _) -> _,
+        ) {
+            return Err("chart_arm is not `NurbsLane::certified_chart_arm`");
         }
         Ok(())
     }

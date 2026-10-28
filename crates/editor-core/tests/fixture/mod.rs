@@ -2606,6 +2606,37 @@ pub fn pole(node: RecipeNodeId, vertex: ProfileVertexRef) -> StableName {
     vname(node, RoleSeg::Pole(vertex))
 }
 
+/// **A prism**: the polygon `pts` in its profile's own xy, extruded
+/// `dz`.
+pub fn prism(doc: ProfileDoc, pts: Vec<(f64, f64)>, dz: f64) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, profile) = insert(doc, Node::Profile(desc(vec![pts])));
+    insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(dz),
+        },
+    )
+}
+
+/// The symmetric U cutter's profile ([`u_cutter_tie`]): a bar x 5..6
+/// with two congruent prongs, y 1..1.5 and 2.5..3, reaching to x = 2.
+pub const U_CUTTER: [(f64, f64); 8] = [
+    (2.0, 1.0),
+    (6.0, 1.0),
+    (6.0, 3.0),
+    (2.0, 3.0),
+    (2.0, 2.5),
+    (5.0, 2.5),
+    (5.0, 1.5),
+    (2.0, 1.5),
+];
+
+/// **The symmetric U cutter alone**: [`U_CUTTER`] extruded 2, unplaced.
+pub fn u_cutter(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
+    prism(doc, U_CUTTER.to_vec(), 2.0)
+}
+
 /// **The symmetric U cutter, whose subtract table holds an N2 tie** —
 /// a 4x4x4 block with a U-shaped prism cut through it, the U's two
 /// arms congruent so nothing covariant discriminates the faces they
@@ -2631,29 +2662,7 @@ pub fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
             distance: len(4.0),
         },
     );
-    let (doc, u_profile) = on_frame(
-        doc,
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![
-            (2.0, 1.0),
-            (6.0, 1.0),
-            (6.0, 3.0),
-            (2.0, 3.0),
-            (2.0, 2.5),
-            (5.0, 2.5),
-            (5.0, 1.5),
-            (2.0, 1.5),
-        ]],
-    );
-    let (doc, cutter) = insert(
-        doc,
-        Node::Extrude {
-            profile: u_profile.into(),
-            distance: len(2.0),
-        },
-    );
+    let (doc, cutter) = u_cutter(doc);
     // The cutter, a construction of its own, placed against the block
     // one up its height.
     let (doc, cutter) = against(
@@ -2880,9 +2889,9 @@ pub fn left_to_right(
     let body = crate::corpus::body_of(ev, node);
     let t = table(ev, node);
     let least_x = |n: &StableName| {
-        face_vertices(body, face_of(t, "a fragment", n))
+        face_vertices(&body, face_of(t, "a fragment", n))
             .into_iter()
-            .map(|v| point(body, v).x)
+            .map(|v| point(&body, v).x)
             .fold(f64::INFINITY, f64::min)
     };
     names.sort_by(|a, b| least_x(a).total_cmp(&least_x(b)));
@@ -3615,4 +3624,47 @@ pub fn frame_seat(
     y: f64,
 ) -> editor_core::Mate<Formula> {
     mate(top, slid_across(base, x, y))
+}
+
+/// **A body value where it stands in its space**: its body composed
+/// through [`editor_core::in_space`], for a row that reads positions in
+/// the space the value is in. A value computed in its space's
+/// coordinates is its body as built.
+///
+/// # Panics
+///
+/// If the kernel refuses the composition.
+pub fn in_space<T: geom_core::Decide + topo::AtRestPolicy>(
+    value: &editor_core::Framed<T>,
+) -> Body<T> {
+    match editor_core::in_space(value) {
+        None => value.body().clone(),
+        Some(map) => topo::transform_rigid(value.body(), &map, Tol::witness())
+            .expect("a body composes into its space"),
+    }
+}
+
+/// **The document's product where it stands in the world**: the gather
+/// ([`editor_core::product_recorded`]) composed through
+/// [`editor_core::in_space`], for a row that reads positions in the
+/// world.
+///
+/// # Errors
+///
+/// The gather's own refusal.
+///
+/// # Panics
+///
+/// If the kernel refuses the composition.
+pub fn product_in_world(
+    doc: &ProfileDoc,
+    ev: &Evaluation<f64>,
+    tol: Tol,
+) -> Result<Body<f64>, editor_core::ProductError> {
+    let product = editor_core::product_recorded(doc, ev, tol)?;
+    Ok(match editor_core::in_space(&product) {
+        None => product.body.into_body(),
+        Some(map) => topo::transform_rigid(&product.body, &map, tol)
+            .expect("a product composes into the world"),
+    })
 }

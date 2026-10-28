@@ -836,6 +836,14 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
 /// join the vector's contents. With those rows stripped, both
 /// documents' vectors give the keys held before (144 rows on
 /// `min_clearance_neck`, 24 on `plain_distance`).
+///
+/// `min_clearance_neck`'s two keys moved, and not the filter
+/// (`dropped=1` held, `plain_distance` unmoved), when E made a copy its
+/// source's body under its frame (D10 `[placement.frame]`): the neck's
+/// placed copy is no longer mapped by `transform_rigid`, so that map's
+/// decisions left the vector's rows. Rebuilding each copy as before
+/// puts back exactly the keys E's parent held, and again over main's
+/// merge at `cd5f9dee` the keys main holds.
 #[test]
 fn the_certifying_filter_moves_the_witness_key_and_the_move_is_goldened() {
     let doc = min_clearance_neck();

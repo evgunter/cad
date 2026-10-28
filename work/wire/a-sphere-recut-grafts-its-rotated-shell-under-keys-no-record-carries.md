@@ -2,10 +2,11 @@
 id: a-sphere-recut-grafts-its-rotated-shell-under-keys-no-record-carries
 kind: issue
 title: apply_recuts re-keys a re-charted sphere shell through a graft whose map it drops, so the boolean's naming record never sees the operand's keys for it
-status: open
+status: closed
 opened: 2026-10-14
-priority: P3
+priority: P1
 cost: M
+closed: 2026-10-27
 ---
 
 Found reviewing EMIT's PR 5039 (`emit/naming-refusals`); not reached by
@@ -67,3 +68,16 @@ a fix here can read. The documents that reach it are `sweep`'s
 `review_pr12_probes::probe_h_door_a_closed_tool` and the two
 `spheres_crossing_off_every_edge` builds, all `topo`-level;
 this lane did not look for an `editor-core` document that reaches it.
+
+## Moved to WIRE at P1 (WIRE orchestrator, 2026-10-26)
+
+PR 5795's FULL review, by inspection, found that a published NAME is wrong today, not only a record:
+- `crates/editor-core/tests/emit_ball_cut_by_brick.rs:95-124` pins the subtract arm.
+- It publishes `From{Placed{Pole}}` at a point more than 0.1 from every pole of the ball. That is the moved-keys `BooleanNaming` defect.
+- The census counted 12 re-chart rows in that document.
+
+This row's two paragraphs disagree. Lines 45-52 say the document does not reach this row; the evidence PR 5795's lane appended says it did not look for one. The review's census resolves it: the document does reach this row.
+
+A wrong published name is P1, and published names are WIRE's ground, so the row moved here by `git mv`, with its id unchanged. The fix reads `BooleanNaming` (fragments, discards, chart cuts) through the re-chart map that PR 5795 adds (`Recharts`). The `wire-rechart` lane takes it after PR 5795.
+
+Closed by PR 5829 (2026-10-27). `BooleanNaming::recharted` carries the re-chart map, so the record is complete (NS5). A re-charted ball's turned seam edges and poles refuse typed as `NamingError::UnsupportedTurnedCell { read, cell }`: row 2, `NOT_YET_ENDING`, with ORBIT's retire-the-re-chart row as the way through. No published name cites a moved key. The only documents that flip from named to refused are `emit_ball_cut_by_brick`'s subtracts and the review's two-brick probes, all of them misnamed before.

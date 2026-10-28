@@ -315,3 +315,4 @@ Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `cra
   - F1: the in-band lens is owned and filed P2.
   - CI is green but skipped `demos`, so the lane runs `demos/tour` and `demos/wild` before the row and merge.
   - **Lesson:** a census change must run the demos locally. CI's change filter skips them, which is how #5853's chain pin went red unseen.
+- 2026-10-28 (implementer): **`the-tour-gallery-pin-reads-the-chains-old-could-not-look-count` closed.** The chain's 10 at-rest findings since #5853 are all TRUE interference. Each pin is a separate extrude sharing a half-disc with every bar end it stands in (9 pairs); the target also coincides with the tip pin (1 pair). This was checked by the closed form and by `point_in_solid` at depth 0.4 mm (0.8 mm for target × tip pin). The bar end-cap contacts only touch and stay unreported at rest. `gallery.rs` re-pinned from 196 could-not-look to 10 interference.

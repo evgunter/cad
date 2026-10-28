@@ -4,7 +4,7 @@ kind: program
 title: HONEROOT — the boolean's root doors and sector readers: P3 certification gaps in their margins
 status: ready
 opened: 2026-10-26
-area: kernel
+group: kernel/boolean/curved
 prefix: honeroot/
 tag: (HONEROOT orchestrator)
 ab_band: 9920-9939

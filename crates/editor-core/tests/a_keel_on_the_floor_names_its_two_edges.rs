@@ -69,16 +69,23 @@ fn a_keel_on_the_floor_names_its_two_edges_apart() {
         // The two edges along the keel `y = 2, z = 0`.
         let on_keel = |p: &geom_core::Point3<f64>| (p.y - 2.0).abs() < 1e-9 && p.z.abs() < 1e-9;
         let keel: Vec<topo::EdgeKey> = body
+            .body()
             .edges()
             .map(|(e, _)| e)
             .filter(|&e| {
-                let he = body.get_edge(e).unwrap().he_plus;
+                let he = body.body().get_edge(e).unwrap().he_plus;
                 [
-                    body.get_half_edge(he).unwrap().start,
-                    body.half_edge_end(he).unwrap(),
+                    body.body().get_half_edge(he).unwrap().start,
+                    body.body().half_edge_end(he).unwrap(),
                 ]
                 .iter()
-                .all(|&v| on_keel(body.get_point(body.get_vertex(v).unwrap().point).unwrap()))
+                .all(|&v| {
+                    on_keel(
+                        body.body()
+                            .get_point(body.body().get_vertex(v).unwrap().point)
+                            .unwrap(),
+                    )
+                })
             })
             .collect();
         let [a, b] = keel[..] else {

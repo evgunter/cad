@@ -31,7 +31,7 @@ use super::role::{
     EntityKind, NameRef, Qualifier, RoleSeg, RunLine, Sense, SplitHalf, StableName, edge_line,
 };
 use super::seam_pair;
-use super::table::{Candidate, EntityKey, EntityRef, Entry, NameTable};
+use super::table::{EntityKey, EntityRef, Entry, NameTable};
 use crate::node::RecipeNodeId;
 use geom_core::Tol;
 
@@ -432,12 +432,14 @@ impl SplitMerges {
     }
 }
 
-/// The parents a split's edge group descends from, each as the operand
-/// entities it is (N2: a parent is a set of entities, never a name).
-/// Tied parents spelled alike stay apart, so each candidate's pieces
-/// are named among themselves and an undivided one keeps the bare name
-/// (N4).
-type Parents = BTreeSet<BTreeSet<EntityKey>>;
+/// **The parents a group of pieces descends from, each as the operand
+/// entities it is** (N2: a parent is a set of entities, never a name).
+/// Every pass that groups pieces by the name they are spelled from keys
+/// the group by these beside the name: tied parents spelled alike stay
+/// apart, so each candidate's pieces are named among themselves and an
+/// undivided one keeps the bare name (N4). A merged parent is the set of
+/// its operand entities, which no candidate number spells.
+pub(super) type ParentEntities<K> = BTreeSet<BTreeSet<K>>;
 
 /// The tool plane, as a split `node` names it: the bare `SectionFace`.
 fn plane_name(node: RecipeNodeId) -> StableName {
@@ -901,7 +903,7 @@ enum Joined {
     Seam {
         name: StableName,
         tied: bool,
-        parents: Parents,
+        parents: ParentEntities<EntityKey>,
     },
 }
 
@@ -1038,7 +1040,7 @@ fn split_join_seam<T: Decide>(
     kept: EdgeKey,
     target_node: RecipeNodeId,
     target_table: &NameTable,
-) -> Result<Option<(StableName, bool, Parents)>, NamingError> {
+) -> Result<Option<(StableName, bool, ParentEntities<EntityKey>)>, NamingError> {
     let Some(body) = sides
         .iter()
         .map(|s| s.body)
@@ -1106,8 +1108,8 @@ fn name_split_edges_vertices<T: Decide>(
     let copy_to_original: BTreeMap<VertexKey, VertexKey> =
         naming.vertex_pairs.iter().copied().collect();
     // (side, base, parents) → (from a tie, the side's edges under it).
-    let mut edge_groups: BTreeMap<(usize, StableName, Parents), (bool, Vec<EdgeKey>)> =
-        BTreeMap::new();
+    type GroupKey = (usize, StableName, ParentEntities<EntityKey>);
+    let mut edge_groups: BTreeMap<GroupKey, (bool, Vec<EdgeKey>)> = BTreeMap::new();
     // Every live edge's operand root, once, on both sides.
     let mut root_of: BTreeMap<EdgeKey, EdgeKey> = BTreeMap::new();
     for sb in sides {
@@ -2384,16 +2386,16 @@ fn name_boolean_edges<T: Decide>(
             },
         )
     };
-    // Group value: (descends-from-a-tie, edges). Two tied operand
-    // faces answer to ONE name, so their seam chords land in one
-    // group — the widening B1 asks for, not a collision.
+    // (the two sides' names, their parents) → (descends from a tie, the
+    // one operand both faces descend from, edges).
     type SeamGroup = (bool, Option<topo::Operand>, Vec<EdgeKey>);
-    let mut seam_groups: BTreeMap<(NameRef, NameRef), SeamGroup> = BTreeMap::new();
+    type SeamKey = (NameRef, NameRef, ParentEntities<OpSide<FaceKey>>);
+    let mut seam_groups: BTreeMap<SeamKey, SeamGroup> = BTreeMap::new();
     // Each side's name → the operand faces it holds, which the vertex
     // pass reads a side's operand off.
     let mut side_holds: SideHolds = BTreeMap::new();
-    // One name pair is one seam, so its edges agree on whether both
-    // faces are one operand's; a pair that disagrees is two seams
+    // One pair of parents is one seam, so its edges agree on whether
+    // both faces are one operand's; a pair that disagrees is two seams
     // spelled alike, which the group cannot hold.
     let mut add_seam = |fa: SeamSide,
                         fb: SeamSide,
@@ -2407,9 +2409,14 @@ fn name_boolean_edges<T: Decide>(
             held.sort_unstable();
             held.dedup();
         }
-        let slot = seam_groups
-            .entry((fa.name, fb.name))
-            .or_insert((false, one, Vec::new()));
+        let parents = BTreeSet::from([
+            fa.holds.iter().copied().collect(),
+            fb.holds.iter().copied().collect(),
+        ]);
+        let slot =
+            seam_groups
+                .entry((fa.name, fb.name, parents))
+                .or_insert((false, one, Vec::new()));
         if slot.1 != one {
             return Err(NamingError::UnsupportedSeamSides {
                 edge: e,
@@ -2566,12 +2573,12 @@ fn name_boolean_edges<T: Decide>(
             lone: Lone::Whole,
         });
     }
-    for ((fa, fb), (from_tie, one, edges)) in seam_groups {
+    for ((fa, fb, _), (from_tie, one, edges)) in seam_groups {
         let base = name1(EntityKind::Edge, node, RoleSeg::Seam { a: fa, b: fb });
-        rec.record_by_name(
+        rec.record(
             &base,
             edges.iter().map(|&e| ent(0, EntityKey::Edge(e))).collect(),
-            from_tie,
+            Parent::Elsewhere,
         );
         out.push(EdgeGroup {
             base,
@@ -2866,7 +2873,6 @@ fn name_boolean_vertices<T: Decide>(
         (
             name1(EntityKind::Vertex, node, side.wrap(a, b, u.name)),
             u.tied,
-            u.candidate,
             parent,
             side,
         )
@@ -2879,14 +2885,15 @@ fn name_boolean_vertices<T: Decide>(
     // from, the operand keys read there, and the result vertices that
     // are it: several where the boolean leaves several at one corner
     // (null copies, and the zip's copies per cone,
-    // `BooleanNaming::cone_splits`). A tied name's candidates are
-    // corners apart, wherever they lie.
+    // `BooleanNaming::cone_splits`). Keyed by the operand vertex it is
+    // as well as its name, so a tied name's candidates are corners
+    // apart, wherever they lie.
     struct Corner {
         parent: Parent,
-        sides: BTreeSet<OpSide<VertexKey>>,
         held: CornerCopies,
     }
-    let mut corners: BTreeMap<(StableName, Candidate), Corner> = BTreeMap::new();
+    let mut corners: BTreeMap<(StableName, ParentEntities<OpSide<VertexKey>>), Corner> =
+        BTreeMap::new();
     for (v, _) in body.vertices() {
         // A vertex that is one of an operand's own vertices is that
         // vertex (N2), read at every operand key the boolean leaves at
@@ -2917,19 +2924,17 @@ fn name_boolean_vertices<T: Decide>(
         {
             identity = Some(identity_of(side, u));
         }
-        if let Some((name, tied, candidate, parent, side)) = identity {
+        if let Some((name, tied, parent, side)) = identity {
             let at = corners
-                .entry((name.clone(), candidate))
+                .entry((name.clone(), BTreeSet::from([BTreeSet::from([side])])))
                 .or_insert_with(|| Corner {
                     parent,
-                    sides: BTreeSet::new(),
                     held: CornerCopies {
                         name,
                         tied,
                         copies: Vec::new(),
                     },
                 });
-            at.sides.insert(side);
             at.held.tied |= tied;
             at.held.copies.push((v, ent(0, EntityKey::Vertex(v))));
             continue;
@@ -3247,10 +3252,10 @@ fn name_boolean_vertices<T: Decide>(
         slot.1.push(v);
     }
     let mut held = Vec::with_capacity(corners.len());
-    for c in corners.into_values() {
+    for ((_, sides), c) in corners {
         let members = c.held.copies.iter().map(|&(_, e)| e).collect();
         rec.record(&c.held.name, members, c.parent);
-        held.push((c.sides, c.held));
+        held.push((sides.into_iter().flatten().collect(), c.held));
     }
     name_corner_copies(t, tie, held, corner_walls)?;
     for (seg, (from_tie, verts)) in groups {
@@ -5439,6 +5444,7 @@ mod tests {
     )]
 
     use super::*;
+    use topo::construction::Construct;
 
     use crate::names::emit_sweep::name_extrude;
     use crate::node::RecipeNodeId;
@@ -5503,7 +5509,7 @@ mod tests {
             .expect("mvfs births a lone vertex");
         let edge = body
             .mev_line(
-                topo::MevSite::Lone {
+                topo::construction::MevSite::Lone {
                     r#loop: born.r#loop,
                 },
                 Point3::from_array(q),
@@ -6765,7 +6771,7 @@ mod split_edge_lineage {
         };
         let table = ev.table_at(ext).expect("the extrude's table");
         let out = topo::split(
-            &topo::test_support::finished("the extrude", (**body).clone(), Tol::witness()),
+            &topo::test_support::finished("the extrude", body.body().clone(), Tol::witness()),
             &SplitPlane {
                 origin: PoseValue::plane_foot(normal, offset),
                 normal,
@@ -6929,7 +6935,7 @@ mod wavy_loft {
         let ValuePayload::Body(body) = &value.payload else {
             panic!("a body");
         };
-        body
+        body.body()
     }
 
     fn carrier(body: &Body<f64>, e: EdgeKey) -> &geom::Curve3<f64> {
@@ -7083,11 +7089,18 @@ mod wavy_loft {
             .payload
             .output_body(0)
             .expect("the placed box");
+        // Where the placed box stands: its body is its source's, in its
+        // own coordinates, under its frame (D10 `[placement.frame]`).
+        let plane = block
+            .body()
+            .get_face(*pierced)
+            .and_then(|f| block.body().get_surface(f.surface));
         assert!(
             matches!(
-                block.get_face(*pierced).and_then(|f| block.get_surface(f.surface)),
+                plane,
                 Some(geom::Surface::Plane { origin, normal, .. })
-                    if (origin.x - 1.0).abs() < 1e-9 && normal.x.abs() > 1.0 - 1e-9
+                    if (block.point_in_space(*origin).x - 1.0).abs() < 1e-9
+                        && block.vec_in_space(*normal).x.abs() > 1.0 - 1e-9
             ),
             "the pierced face is the box's face x = 1"
         );
@@ -7213,17 +7226,18 @@ mod edge_pieces_of_one_line_tie {
         // The two half circles of the top rim, and a table holding only
         // the vertex rows, where their pieces are minted.
         let top_rim: Vec<topo::EdgeKey> = body
+            .body()
             .edges()
             .map(|(e, _)| e)
             .filter(|&e| {
-                let (v0, v1) = super::edge_ends(body, e);
-                let z = |v| super::vertex_point(body, v).z;
+                let (v0, v1) = super::edge_ends(body.body(), e);
+                let z = |v| super::vertex_point(body.body(), v).z;
                 v0 != v1 && (z(v0) - 1.0).abs() < 1e-9 && (z(v1) - 1.0).abs() < 1e-9
             })
             .collect();
         assert_eq!(top_rim.len(), 2, "the rim is two half circles: {top_rim:?}");
         let ends = |e| {
-            let (v0, v1) = super::edge_ends(body, e);
+            let (v0, v1) = super::edge_ends(body.body(), e);
             let mut vs = [v0, v1];
             vs.sort();
             vs
@@ -7270,7 +7284,15 @@ mod edge_pieces_of_one_line_tie {
         let mut pieces = EdgePieces::default();
         let mut tie = TieRows::default();
         for (base, e) in [(&p1, top_rim[0]), (&p2, top_rim[1])] {
-            name_edge_pieces(&mut pieces, &t, false, base, (body, 0), &[e], Lone::Piece);
+            name_edge_pieces(
+                &mut pieces,
+                &t,
+                false,
+                base,
+                (body.body(), 0),
+                &[e],
+                Lone::Piece,
+            );
         }
         pieces.mint(&mut t, &mut tie).unwrap();
         tie.flush(&mut t).unwrap();
@@ -7294,6 +7316,7 @@ mod track_cover {
     //! with its vertex anywhere, its candidates in either order, reads
     //! the same cover.
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+    use topo::construction::Construct;
 
     use std::f64::consts::TAU;
 
@@ -7323,18 +7346,18 @@ mod track_cover {
         let e = if (t1 - t0 - TAU).abs() < 1e-12 {
             let made = body
                 .mef(
-                    topo::MefSite::Lone {
+                    topo::construction::MefSite::Lone {
                         r#loop: born.r#loop,
                     },
                     spec,
-                    topo::FaceSurface::Inherit,
+                    topo::construction::FaceSurface::Inherit,
                     tol,
                 )
                 .unwrap();
             made.edge
         } else {
             body.mev(
-                topo::MevSite::Lone {
+                topo::construction::MevSite::Lone {
                     r#loop: born.r#loop,
                 },
                 c.eval(t1),
@@ -8093,6 +8116,7 @@ mod rim_holding_rows {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use geom_core::{Point2, Point3, Tol, Vec3};
+    use topo::construction::Construct;
     use topo::{Body, EdgeKey, FaceKey};
 
     use super::{chord_within, rim_holding, rims_between};
@@ -8210,7 +8234,7 @@ mod rim_holding_rows {
         let spec = geom_brep::EdgeCurveSpec::arc_of_circle(c.clone(), t0, t1).unwrap();
         let e = body
             .mev(
-                topo::MevSite::Lone {
+                topo::construction::MevSite::Lone {
                     r#loop: born.r#loop,
                 },
                 c.eval(t1),
@@ -8234,7 +8258,7 @@ mod rim_holding_rows {
         let born = body.mvfs(p, true).unwrap();
         let e = body
             .mev_line(
-                topo::MevSite::Lone {
+                topo::construction::MevSite::Lone {
                     r#loop: born.r#loop,
                 },
                 q,
@@ -8527,16 +8551,18 @@ mod rim_holding_rows {
             panic!("the loft is a body");
         };
         let splines: Vec<EdgeKey> = body
+            .body()
             .edges()
             .map(|(k, _)| k)
             .filter(|&k| {
-                topo::query::edge_carrier_kind(body, k) == Some(topo::query::CurveKind::Nurbs)
+                topo::query::edge_carrier_kind(body.body(), k)
+                    == Some(topo::query::CurveKind::Nurbs)
             })
             .collect();
         assert!(splines.len() >= 2, "the loft has spline edges: {splines:?}");
         let lines: Vec<EdgeCarrier<f64>> = splines
             .iter()
-            .map(|&k| EdgeCarrier::of_edge(body, k).unwrap())
+            .map(|&k| EdgeCarrier::of_edge(body.body(), k).unwrap())
             .collect();
         assert!(
             lines.iter().all(|l| matches!(l, EdgeCarrier::Unread)),
@@ -8549,7 +8575,7 @@ mod rim_holding_rows {
         );
         let kept = sets_per_line(
             0..splines.len(),
-            |&i| EdgeCarrier::of_edge(body, splines[i]).map(Some),
+            |&i| EdgeCarrier::of_edge(body.body(), splines[i]).map(Some),
             bnd,
         )
         .unwrap();

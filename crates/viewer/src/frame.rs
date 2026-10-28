@@ -2592,6 +2592,7 @@ fn badge_site(kind: ProductErrorKind) -> BadgeSite {
         | ProductErrorKind::EmptyProduct
         | ProductErrorKind::StrandedProduct
         | ProductErrorKind::ProductOutsideWorld
+        | ProductErrorKind::Frame
         | ProductErrorKind::Graft
         | ProductErrorKind::RootInvalid
         | ProductErrorKind::ProductInvalid

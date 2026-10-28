@@ -52,7 +52,9 @@ use geom::SurfaceKind;
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Band, Point3, Tol, Vec3};
-use topo::{Body, FaceSurface, MefSite, MevSite};
+use topo::Body;
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, MefSite, MevSite};
 
 fn z_axis() -> Vec3<f64> {
     Vec3::new(0.0, 0.0, 1.0)

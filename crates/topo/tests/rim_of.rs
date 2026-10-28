@@ -18,8 +18,10 @@
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Point3, Tol, Vec3};
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, MefSite, MevSite};
 use topo::query::rim_of;
-use topo::{Body, CurveKind, EdgeKey, FaceSurface, MefSite, MevSite, RimBreak, RimError, query};
+use topo::{Body, CurveKind, EdgeKey, RimBreak, RimError, query};
 
 use crate::common;
 

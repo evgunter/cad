@@ -50,7 +50,10 @@ pub fn corners(session: &mut DocSession, node: RecipeNodeId) -> Vec<[f64; 3]> {
     let ValuePayload::Body(body) = &value.payload else {
         panic!("{node:?} is a body, not {:?}", value.payload)
     };
-    let mut points: Vec<[f64; 3]> = body.points().map(|(_, p)| p.to_array()).collect();
+    let mut points: Vec<[f64; 3]> = crate::fixture::in_space(body)
+        .points()
+        .map(|(_, p)| p.to_array())
+        .collect();
     points.sort_by(|a, b| a.partial_cmp(b).expect("finite points"));
     points
 }

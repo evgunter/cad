@@ -199,7 +199,7 @@ fn face_on(ev: &Evaluation<f64>, node: RecipeNodeId, p: [f64; 3], n: [f64; 3]) -
         ValuePayload::Body(b) => b.clone(),
         other => panic!("expected a body, got {other:?}"),
     };
-    face_of(ev, node, &body, 0, p, n)
+    face_of(ev, node, &crate::fixture::in_space(&body), 0, p, n)
 }
 
 /// [`face_on`] on one half of `split`, read off the split's own value:
@@ -221,7 +221,14 @@ fn half_face_on(
     let editor_core::SplitSide::Body(body) = side else {
         panic!("{half:?} holds material")
     };
-    face_of(ev, split, body, half.output_body(), p, n)
+    face_of(
+        ev,
+        split,
+        &crate::fixture::in_space(body),
+        half.output_body(),
+        p,
+        n,
+    )
 }
 
 /// The face of output `index` of `node`, a plane through `p` facing `n`.
@@ -458,8 +465,10 @@ fn a_patterns_instances_are_two_constructions_of_one_minted_face() {
 /// The name of `node`'s edge between two points.
 fn edge_named(ev: &Evaluation<f64>, node: RecipeNodeId, a: [f64; 3], b: [f64; 3]) -> StableName {
     let body = match &ev.value(node).expect("the node evaluated").payload {
-        ValuePayload::Body(b) => b.clone(),
-        ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. }) => body.clone(),
+        ValuePayload::Body(b) => crate::fixture::in_space(b),
+        ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. }) => {
+            crate::fixture::in_space(body)
+        }
         other => panic!("expected a body, got {other:?}"),
     };
     let point = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
@@ -1353,7 +1362,7 @@ fn a_profile_junction_on_one_carrier_refuses_at_the_door() {
 /// The names of `node`'s edges with both ends at height `z`.
 fn rim_named(ev: &Evaluation<f64>, node: RecipeNodeId, z: f64) -> Vec<StableName> {
     let body = match &ev.value(node).expect("the node evaluated").payload {
-        ValuePayload::Body(b) => b.clone(),
+        ValuePayload::Body(b) => crate::fixture::in_space(b),
         other => panic!("expected a body, got {other:?}"),
     };
     let height = |v| body.get_point(body.get_vertex(v).unwrap().point).unwrap().z;

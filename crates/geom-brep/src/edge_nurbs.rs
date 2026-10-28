@@ -1372,7 +1372,8 @@ pub fn is_analytic<T: Real>(surface: &Surface<T>) -> bool {
 ///   enclosure of `(∇f₁ × ∇f₂)·e` excludes zero, so the solution set in
 ///   the chain is one arc and it spans the carrier over `params`. An
 ///   operand outside the tube's enclosure roster
-///   (`ssi::enclose::has_implicit_enclosure`) refuses here, by name,
+///   (`ssi::enclose::tube_encloses`: a kind without an arm, or a torus
+///   not shown inside its ring convention) refuses here, by name,
 ///   before any box is probed.
 ///
 /// Both read the carrier cut to `params` (its bracket's outer ends, so
@@ -1411,25 +1412,29 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
             band,
         )?;
     }
-    if let Some(operand) = [s1.kind(), s2.kind()]
+    if let Some(operand) = [s1, s2]
         .into_iter()
-        .find(|&k| !crate::ssi::enclose::has_implicit_enclosure(k))
+        .find(|s| !crate::ssi::enclose::tube_encloses(s, band))
     {
-        return Err(AnalyticRung3Refusal::NoTubeEnclosure { operand });
+        return Err(AnalyticRung3Refusal::NoTubeEnclosure {
+            operand: operand.kind(),
+        });
     }
+    let carrier = Curve3::Nurbs(std::sync::Arc::new(piece.clone()));
+    let (p0, p1) = piece.knot_values().domain();
     crate::ssi::certify::certify_branch(
-        &Curve3::Nurbs(std::sync::Arc::new(piece.clone())),
-        piece.knot_values().domain(),
+        &carrier,
+        (p0, p1),
         crate::ssi::certify::Lane::AtRest {
             a: &SsiOperand::Analytic(s1),
             b: &SsiOperand::Analytic(s2),
             pcurve_a: None,
             pcurve_b: None,
         },
-        // The tube's extent, from the object being certified: the
-        // piece's control-net diameter (a closed carrier's chord says
-        // nothing about its size).
-        carrier_diameter(&piece),
+        // The tube's extent, from the object being certified, as limb 3
+        // reads it everywhere: from below, since its transversality is
+        // the definite verdict it acts on.
+        crate::edge_extent_inf(&carrier, p0, p1, piece.eval(p0).distance(piece.eval(p1))),
         band,
         crate::ssi::certify::Limbs::Tube,
         &mut crate::ssi::certify::Refused::default(),
@@ -2235,21 +2240,6 @@ fn kernel_limit_ending(bound: f64, width: f64, extent: f64) -> String {
             geom_core::KERNEL_LIMIT_RECOURSE
         )
     }
-}
-
-/// The control-net diameter of a carrier, in metres — a convexity fact
-/// (the hull property), not an evaluation.
-fn carrier_diameter<T: geom_core::Real>(carrier: &NurbsCurve3<T>) -> T {
-    let mut ctl = carrier.control().iter();
-    let Some(first) = ctl.next() else {
-        return T::zero();
-    };
-    let (mut lo, mut hi) = (*first, *first);
-    for p in ctl {
-        lo = geom_core::Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z));
-        hi = geom_core::Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z));
-    }
-    (hi - lo).norm()
 }
 
 /// What [`chart_image`] reads of a carrier: its evaluator, the `f64`
