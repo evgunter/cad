@@ -136,6 +136,14 @@ E1c.
 - `topo::chart_region`'s plane site maps an incidence refusal to
   `ChartRegionError::TrimOffFace`, which the at-rest classifier ends by
   the read (`classify_chart_region`).
+- The read is taken in the chart's own frame (`incidence::anchored`):
+  the carrier and the chart are moved so the anchor is the origin, and
+  the axis is made unit. So the read is the distance from the surface
+  the chart denotes, at the carrier's own size. A read where the carrier
+  sat read its own rounding far out as distance: an exact rim 1e7 m out
+  was off at 1e-12. It levered an axis's length defect by the height: a
+  ruling up an axis long by δ, inside the at-rest margin, was off at
+  1e-6.
 - `ChartResidual` is unchanged and meters the image's own fidelity.
 - Rows:
   - `sweep::an_arc_off_a_plane_or_cylinder_face_ends_as_its_incidence_read`:
@@ -149,6 +157,7 @@ E1c.
   - `chart_incidence::a_tiny_ellipse_within_eps_of_the_sphere_or_torus_is_not_yet`:
     the review's tiny ellipse, in its E1c shape.
   - `pcurve_spiric::a_plane_or_torus_off_the_oval_is_read_off_at_the_mint`.
+  - `chart_incidence::a_carrier_on_its_face_is_read_on_it_far_out_and_on_a_long_axis`.
 - The import door is read by the door rule (`ending(FileCoincidence)`).
   A real STEP file's miss still refuses earlier, at the description
   ladder's meters; that is EXCH's, as E1d recorded.

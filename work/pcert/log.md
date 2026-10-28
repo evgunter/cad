@@ -866,5 +866,5 @@ E1c waits on the answer.
   - The spiric's plane cap and torus wall read it too (a sweep hit). `topo::chart_region`'s plane site ends an incidence refusal by the read (`TrimOffFace`).
   - A carrier off its face ends by E1d's door rule, never `ChartResidual`.
   - Moves: E1b's `set_edge_curve` and Euler-chord rows now refuse `CarrierOffChart`; `m10_bulge` pins `pcurve_cylinder_chart_incident` 16/4 and `pcurve_line_chart_incident` 18/4.
-  - `sym_thin_strip` `frozen` 168 → 96 at every ε (a work meter; verdicts, decisions and the sym/num split unmoved). Skipping only the plane read restores 168.
+  - The read is taken in the chart's own frame: the anchor at the origin and the axis unit. A read where the carrier sits misread an exact rim 1e7 m out as off at 1e-12 (a kernel defect), and a ruling high up an axis long by δ (inside the at-rest margin) as off at 1e-6. E1d's sphere, cone and torus reads had the same flaw.
   - Closed `plane-and-cylinder-mints-meter-incidence-as-a-residual`. The cylinder meridian arm's `pcurve_chart_radial_moving` tie-break, which E2 re-reads, now sits behind the read.
