@@ -6065,7 +6065,7 @@ fn check_node_inputs<P: crate::ProfilePayload>(
     id: RecipeNodeId,
     node: &Node<P>,
 ) -> Result<(), EditError> {
-    let Some(fault) = node.input_fault() else {
+    let Some(fault) = node.input_fault(doc) else {
         return Ok(());
     };
     let subject = written(doc, id, node);
@@ -9060,7 +9060,7 @@ mod tests {
             },
             DocEdit::SetStructuralParam {
                 node: id,
-                slot: crate::node::SlotId::Count,
+                slot: crate::node::SlotId::Stations,
                 expr: crate::Formula::count(1),
                 fresh: Vec::new(),
             },

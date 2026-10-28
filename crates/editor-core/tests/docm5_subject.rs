@@ -644,28 +644,13 @@ fn slab(doc: ProfileDoc, dz: f64) -> (ProfileDoc, RecipeNodeId) {
 #[test]
 fn the_registry_split_is_measured_at_a_pinned_point() {
     let tol = Tol::witness();
-    let entry = corpus::documents()
-        .into_iter()
-        .find(|d| d.name == "heat_sink")
-        .expect("the corpus carries the heat sink");
-    let doc = editor_core::apply(
-        &entry.doc,
-        &editor_core::DocEdit::DefineVar {
-            var: editor_core::VarName::from_static("fins").into(),
-            def: editor_core::VarDecl::Free(editor_core::FreeVar::Count { value: 160 }),
-            fresh: Vec::new(),
-        },
-        tol,
-    )
-    .expect("the fin count is a document parameter")
-    .doc;
-    let doc = corpus::place_pattern_to(doc, 160);
+    let doc = corpus::heatsink::placed_fins(160);
     let ev: Evaluation<f64> = corpus::eval(&doc);
     let product = product_recorded(&doc, &ev, tol).expect("the heat sink gathers");
     assert_eq!(
         (product.body.solids().count(), product.body.faces().count()),
-        (161, 991),
-        "the point the registry split is measured at"
+        (161, 966),
+        "the point the registry split is measured at: the base and 160 fins, six faces each"
     );
 }
 

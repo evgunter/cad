@@ -1299,15 +1299,16 @@ pub enum InputFault {
     /// one member read by index is a `Body`, spelled in a list.
     IndexedFamily,
     /// An indexed read carries a number of indices other than its
-    /// family's rank. Every family a node defines today is one flat list
-    /// (a pattern of patterns lists its copies `j·M + i`), so its rank is
-    /// one; DM3's `xs[i, j]` waits on a family keyed by two indices
-    /// (`work/intent/an-indexed-read-of-rank-two-has-no-family.md`).
+    /// family's rank: a family is keyed by the indices its definer
+    /// reaches (D10 `[repetition]`), and `xs[i, j]` writes one value per
+    /// index, outer first. A body that is no family has rank zero.
     IndexRank {
         /// The body seat whose read it is.
         seat: crate::OperandSlot,
         /// How many indices it carries.
         found: usize,
+        /// How many indices the family it reads is keyed by.
+        rank: usize,
     },
 }
 
@@ -1320,10 +1321,10 @@ impl core::fmt::Display for InputFault {
                 "the family argument carries an index — a family argument reads every member, \
                  and one member read by index is a body, spelled in a list",
             ),
-            Self::IndexRank { seat, found } => write!(
+            Self::IndexRank { seat, found, rank } => write!(
                 f,
-                "the read at its {seat} carries {found} indices — every family is one flat \
-                 list, read by one count"
+                "the read at its {seat} carries {found} indices, and the family it reads is \
+                 keyed by {rank} — a member is read by one value per index, outer first"
             ),
         }
     }
@@ -1341,6 +1342,8 @@ pub enum ListFault {
         seat: crate::OperandSlot,
         /// How many indices it carries.
         found: usize,
+        /// How many indices the family it reads is keyed by.
+        rank: usize,
     },
 }
 
@@ -1350,7 +1353,7 @@ impl InputFault {
     pub fn list_fault(self) -> ListFault {
         match self {
             Self::IndexedFamily => ListFault::IndexedFamily,
-            Self::IndexRank { seat, found } => ListFault::IndexRank { seat, found },
+            Self::IndexRank { seat, found, rank } => ListFault::IndexRank { seat, found, rank },
         }
     }
 }
@@ -1359,7 +1362,7 @@ impl From<ListFault> for InputFault {
     fn from(fault: ListFault) -> Self {
         match fault {
             ListFault::IndexedFamily => Self::IndexedFamily,
-            ListFault::IndexRank { seat, found } => Self::IndexRank { seat, found },
+            ListFault::IndexRank { seat, found, rank } => Self::IndexRank { seat, found, rank },
         }
     }
 }
@@ -2409,12 +2412,12 @@ impl<P> Node<P> {
     /// the operation answers it), a list's length is evaluation's, and a
     /// selection's designation form is the selection's own
     /// ([`crate::SelectionFault`]).
-    pub fn input_fault(&self) -> Option<InputFault>
+    pub fn input_fault(&self, doc: &crate::doc::Doc<P>) -> Option<InputFault>
     where
         P: crate::ProfilePayload,
     {
-        // An indexed read carries its family's rank of indices (one, for
-        // every family a node defines today), and a family argument none.
+        // An indexed read carries its family's rank of indices, and a
+        // family argument none.
         if let Node::Union { members, .. } | Node::Intersect { members, .. } = self
             && let crate::Bodies::Family(read) = members
             && read.is_member()
@@ -2422,9 +2425,14 @@ impl<P> Node<P> {
             return Some(InputFault::IndexedFamily);
         }
         self.body_reads().into_iter().find_map(|(seat, read)| {
-            (read.at.len() > 1).then_some(InputFault::IndexRank {
+            if !read.is_member() {
+                return None;
+            }
+            let rank = doc.var_reach(read.read).chain().map_or(0, <[VarId]>::len);
+            (read.at.len() != rank).then_some(InputFault::IndexRank {
                 seat,
                 found: read.at.len(),
+                rank,
             })
         })
     }

@@ -633,12 +633,21 @@ fn remap_with_selects(
     // in a body that reaches an instance (spelled in ids the source
     // never minted), carried verbatim: the carried instance's copy
     // carries it as the source's did.
+    // A name's `Member` indices are declared variables the carry has
+    // mapped, read beside the outputs.
+    let reads_and_indices: ReadMap = out_map
+        .iter()
+        .chain(vars.map.iter().filter(|&(&var, _)| {
+            source.var(var).is_some_and(|held| held.def().index().is_some())
+        }))
+        .map(|(&from, &to)| (from, to))
+        .collect();
     let carried_name = |n: &StableName, body: VarId| -> Result<StableName, RemapMiss> {
         remap_name_keeping(
             n,
             node_map,
             step_map,
-            out_map,
+            &reads_and_indices,
             (source, source.reaches_instance(body)),
         )
         .map_err(|missing| RemapMiss::Name {
@@ -1883,6 +1892,12 @@ impl SegRewrite for Remapping<'_> {
 
     fn read(&mut self, r: VarId) -> Result<VarId, Self::Error> {
         Ok(self.2.get(&r).copied().ok_or(Unmapped::Read(r))?)
+    }
+
+    // An index is declared, not an output; the carry maps it beside
+    // the reads ([`remap_with_selects`]).
+    fn index(&mut self, index: VarId) -> Result<VarId, Self::Error> {
+        Ok(self.2.get(&index).copied().ok_or(Unmapped::Read(index))?)
     }
 }
 

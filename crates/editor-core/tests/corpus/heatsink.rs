@@ -73,8 +73,9 @@ pub fn document() -> CorpusDoc {
         "k",
         Formula::named(VarName::from_static("fins"), Dimension::Count),
     );
-    let fins = r.copies(
+    let fins = r.copies_in(
         fin,
+        base,
         vec![
             (
                 Coord::Slide(TargetAxis::X),
@@ -109,3 +110,57 @@ pub fn document() -> CorpusDoc {
         bump_root: fin,
     }
 }
+
+/// **The heat sink's base and `fins` fins, each in the world, unfused**:
+/// the base placed at the identity and the fins one placement into the
+/// world over `k = index(fins)`, slid as [`document`] slides them, so the
+/// product is the base and every fin, each its own solid, every fin
+/// overlapping the base by `1/16`. The subject the registry split is
+/// measured over (`m4_pr8_latency`), whose size
+/// `docm5_subject::the_registry_split_is_measured_at_a_pinned_point`
+/// pins.
+pub fn placed_fins(fins: i64) -> editor_core::ProfileDoc {
+    let mut r = Recorder::new();
+    let base_p = r.profile(
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (3.0, 0.0), (3.0, 1.0), (0.0, 1.0)]],
+    );
+    let base = r.insert(Node::Extrude {
+        profile: base_p.into(),
+        distance: len(0.25),
+    });
+    let fin_p = r.profile(
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
+            (0.25, 0.125),
+            (0.4375, 0.125),
+            (0.4375, 0.875),
+            (0.25, 0.875),
+        ]],
+    );
+    let fin = r.insert(Node::Extrude {
+        profile: fin_p.into(),
+        distance: len(0.8125),
+    });
+    r.place_part(base);
+    let k = r.index("k", Formula::count(fins));
+    let values = editor_core::Placed::of(
+        &r.doc,
+        Vec::new(),
+        vec![
+            (
+                Coord::Slide(TargetAxis::X),
+                Formula::mul(crate::fixture::scalar_of(k), len(PITCH)).expect("a length"),
+            ),
+            (Coord::Slide(TargetAxis::Z), len(FOOT)),
+        ],
+    )
+    .values;
+    r.in_world_by(fin, values);
+    r.doc
+}
+

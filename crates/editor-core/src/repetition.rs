@@ -7,7 +7,9 @@
 //! takes a family whole — a `union`'s, an `intersect`'s or an
 //! `assemble`'s member, or an indexed read `xs[i, j]`, whose own index
 //! expressions are slots — reaches nothing through the family it reads:
-//! the family is its operand, not its repetition.
+//! the family is its operand, not its repetition. So does a selection
+//! whose names say which member they name (`Member { at, of }`, the
+//! family's own table): it reads the family whole.
 //!
 //! The indices one reader reaches are a chain: each within the one
 //! before it, outermost first ([`Reach::order`]). An index is within
@@ -85,6 +87,7 @@ impl<'d, P: crate::ProfilePayload> Reach<'d, P> {
                 }
             }
             Some(VarDef::Output { node, .. }) => out = self.of_node(*node),
+            Some(VarDef::Select(select)) if names_members(doc, select) => {}
             Some(VarDef::Defined(_) | VarDef::Pose(_) | VarDef::Select(_) | VarDef::Pick(_)) => {
                 for read in doc.definition_reads(var) {
                     out.extend(self.of_var(read));
@@ -179,6 +182,50 @@ impl<'d, P: crate::ProfilePayload> Reach<'d, P> {
         }
         false
     }
+}
+
+/// **Whether `select` names members of the family it reads**: every
+/// name headed at the body's operation under a `Member` qualifier, the
+/// family's own spelling of one member's entity. Such a selection reads
+/// the family whole; one whose names are a member's own is read at each
+/// member by a reader evaluated per member.
+pub(crate) fn names_members<P>(doc: &Doc<P>, select: &crate::var::Select) -> bool {
+    let Some(at) = doc.operation_of(select.body) else {
+        return false;
+    };
+    !select.names.is_empty()
+        && select.names.iter().all(|name| {
+            name.node == at && matches!(name.path.first(), Some(crate::names::RoleSeg::Member { .. }))
+        })
+}
+
+/// **The families the operation `id` reads whole through a selection
+/// naming their members** ([`names_members`]), through every definition
+/// its reads reach.
+pub(crate) fn selected_whole<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    id: RecipeNodeId,
+) -> BTreeSet<RecipeNodeId> {
+    let Some(node) = doc.node(id) else {
+        return BTreeSet::new();
+    };
+    let mut stack: Vec<VarId> = node.exprs().into_iter().copied().collect();
+    stack.extend(node.operand_rows().into_iter().map(|(_, var)| var));
+    let mut seen = BTreeSet::new();
+    let mut out = BTreeSet::new();
+    while let Some(var) = stack.pop() {
+        if !seen.insert(var) {
+            continue;
+        }
+        match doc.var(var).map(crate::Var::def) {
+            Some(VarDef::Select(select)) if names_members(doc, select) => {
+                out.extend(doc.operation_of(select.body));
+            }
+            Some(VarDef::Output { .. } | VarDef::Free(_) | VarDef::Index(_)) | None => {}
+            Some(_) => stack.extend(doc.definition_reads(var)),
+        }
+    }
+    out
 }
 
 /// Whether `node` reads the variable at `seat` as a family whole: a

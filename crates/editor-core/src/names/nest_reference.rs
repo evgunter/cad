@@ -220,8 +220,8 @@ pub(super) enum RoleSeg {
         hole: u32,
     },
 
-    Instance {
-        i: u32,
+    Member {
+        at: Vec<(crate::VarId, u32)>,
         of: NameRef,
     },
 }

@@ -1955,7 +1955,7 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
         // log replays through the doors and is covered by them; the
         // snapshot beside it is not, so the rule is asked here, of the
         // same function, in this door's vocabulary.
-        if let Some(fault) = node.input_fault() {
+        if let Some(fault) = node.input_fault(doc) {
             return Err(SnapshotError::InputList {
                 node: doc.spoken(id),
                 fault: fault.list_fault(),

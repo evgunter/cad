@@ -1959,6 +1959,17 @@ pub(crate) trait SegRewrite {
     fn read(&mut self, r: VarId) -> Result<VarId, Self::Error> {
         Ok(r)
     }
+
+    /// An index of a [`RoleSeg::Member`] — a bare variable id the
+    /// member's values are of, which a rewrite of the document's id
+    /// space has to move too; its value is the recipe's, and crosses.
+    ///
+    /// # Errors
+    ///
+    /// The rewriter's own.
+    fn index(&mut self, index: VarId) -> Result<VarId, Self::Error> {
+        Ok(index)
+    }
 }
 
 /// What a rewrite does with a name a segment carries.
@@ -2010,6 +2021,10 @@ impl<'s, W: SegRewrite> Deep<'_, 's, W> {
 
     fn read(&mut self, r: VarId) -> Result<VarId, Stopped<'s, W::Error>> {
         self.w.read(r).map_err(Stopped::Refused)
+    }
+
+    fn index(&mut self, index: VarId) -> Result<VarId, Stopped<'s, W::Error>> {
+        self.w.index(index).map_err(Stopped::Refused)
     }
 }
 
@@ -2243,7 +2258,10 @@ impl RoleSeg {
                 hole: *hole,
             },
             R::Member { at, of } => R::Member {
-                at: at.clone(),
+                at: at
+                    .iter()
+                    .map(|&(index, value)| w.index(index).map(|index| (index, value)))
+                    .collect::<Result<_, _>>()?,
                 of: rewrite_ref(of, w)?,
             },
         })

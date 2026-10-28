@@ -19,7 +19,7 @@ use editor_core::{
     CapEnd, Diagnosis, Dimension, DimensionError, DocRef, DocumentId, EditError, EntityKind,
     EvalError, FreeValue, HitTestError, InterrogateError, LeverRefusal, Maintenance, MateFault,
     MateRef, MeshPickError, MetaVersionError, NamingError, NodeErrorKind, NodePickError,
-    ParseError, PartFault, PlacementRuleFault, ProgramFault, ReachRefusal, RecipeNodeId,
+    ParseError, PartFault, ProgramFault, ReachRefusal, RecipeNodeId,
     RecordedProgramError, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, SelectRefusal,
     SlotId, SnapshotError, StableName, StepArg, StepId, StepIdFault, StepSegmentsError,
     UnnamedEntity, VarName,
@@ -1022,10 +1022,7 @@ test_utils::f6_variants! {
         ProductRead,
         PickPath,
         ConstraintNotMinted,
-        PlacementNonFinite,
-        PlacementNonRigid,
         MateRefused,
-        PlacementRule,
         InputList,
         AssertionBound,
         ObservedRead,
@@ -1072,11 +1069,9 @@ fn a_node_refusal_names_its_slot_by_its_label() {
 /// `Debug` dump.
 ///
 /// The payload-carrying arms forward their payload's own `Display`
-/// (`PlacementRuleFault`, `InputFault`, `MetaVersionError`) rather
-/// than restating it, and the
-/// two placement-frame arms forward the frame rule's clause — so each
-/// case below asks for the payload's words, which is what proves the
-/// forwarding happened.
+/// (`InputFault`, `MetaVersionError`) rather than restating it — so
+/// each case below asks for the payload's words, which is what proves
+/// the forwarding happened.
 #[test]
 fn snapshot_error_display_names_its_content_not_its_struct() {
     // The node a document holds, labelled, and one it does not.
@@ -1426,28 +1421,6 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
-            SnapshotError::PlacementNonFinite {
-                node: held(5, "PlacedUnion"),
-                at: editor_core::FrameSite::Listed { index: 0 },
-            },
-            vec![
-                "placement 0 of PlacedUnion 000000000005",
-                "non-finite coordinate",
-            ],
-        ),
-        (
-            SnapshotError::PlacementNonRigid {
-                node: held(5, "PlacedUnion"),
-                at: editor_core::FrameSite::Listed { index: 0 },
-                check: "transform_rigid_col01_orth",
-            },
-            vec![
-                "placement 0 of PlacedUnion 000000000005",
-                "not definitely rigid",
-                "may shear",
-            ],
-        ),
-        (
             SnapshotError::MateRefused {
                 node: held(5, "Place"),
                 constraint: editor_core::ConstraintId(editor_core::MintId::new(
@@ -1471,13 +1444,6 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 "equates an `on` pose of kind plane with a `to` pose of kind frame; a mate's two poses \
                  are of one kind",
             ],
-        ),
-        (
-            SnapshotError::PlacementRule {
-                node: held(5, "Pattern"),
-                fault: PlacementRuleFault::NoPlacements,
-            },
-            vec!["Pattern 000000000005: ", "placement list is empty"],
         ),
         (
             SnapshotError::InputList {
@@ -1977,7 +1943,7 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
 fn the_path_and_upstream_scopes_state_which_one_answered() {
     use editor_core::{RecipeEditRef, UpstreamCause};
     use geom_core::predicate::Sign;
-    let count = SlotId::Count.label();
+    let count = SlotId::Stations.label();
     let path = [
         (
             Diagnosis::PredicateFlip {
@@ -1992,7 +1958,7 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
         (
             Diagnosis::StructuralParam {
                 node: RecipeNodeId::new(0, tagged(9)),
-                param: SlotId::Count,
+                param: SlotId::Stations,
             },
             format!(
                 "a structural parameter changed on the derivation path: slot {count} of node 000000000009"
@@ -2031,7 +1997,7 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
         (
             upstream(UpstreamCause::StructuralParam {
                 node: RecipeNodeId::new(0, tagged(10)),
-                param: SlotId::Count,
+                param: SlotId::Stations,
             }),
             format!("a structural parameter changed: slot {count} of node 00000000000a{tail}"),
         ),

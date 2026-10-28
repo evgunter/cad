@@ -24,7 +24,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::NodeStanding;
-use editor_core::{NodeError, NodeErrorKind, RecipeNodeId, StepTurns};
+use editor_core::{NodeError, NodeErrorKind, RecipeNodeId};
 use test_utils::refusal::Admission;
 use test_utils::refusal::tagged;
 
@@ -272,13 +272,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "MissingInput",
     "ParamBox/AxisUnrepresentable",
     "ParamBox/UnknownParam",
-    // work/wirehold/placement-rule-refusals-state-no-recourse.md
-    "InstanceOutOfRange",
-    "PlacementsUncertified",
-    "PlacementRule/CountSpelling",
-    "PlacementRule/NoPlacements",
-    "PlacementRule/NonFiniteFrame",
-    "PlacementRule/NonRigidFrame",
     // work/wire/wire-refusals-short-of-the-shape-guard.md
     "ShellLaneUnsupported",
     "ToleranceConflict",
@@ -778,7 +771,7 @@ fn every_node_refusal_renders_within_the_budget() {
 
 use editor_core::clearance::ClearanceRefusal;
 use editor_core::{
-    BifurcationKind, Diagnosis, EvalError, ParamBoxError, PlacementRuleFault, ResolveError,
+    BifurcationKind, Diagnosis, EvalError, ParamBoxError, ResolveError,
     SeedError,
 };
 
@@ -789,6 +782,8 @@ test_utils::f6_variants! {
         UnresolvedVar,
         OutputRead,
         DefinitionRefused,
+        IndexOutsideMember,
+        ModByNonPositive,
         VarKindMismatch,
         CountExprInContinuousEval,
         ContinuousExprInCountEval,
@@ -810,16 +805,6 @@ test_utils::f6_variants! {
 }
 
 test_utils::f6_variants! {
-    /// `PlacementRuleFault`'s arms, for the `PlacementRule/` rows.
-    const PLACEMENT_RULE_FAULT: PlacementRuleFault = [
-        CountSpelling,
-        NoPlacements,
-        NonFiniteFrame,
-        NonRigidFrame,
-    ];
-}
-
-test_utils::f6_variants! {
     /// `ResolveError`'s arms, for the `SelectResolve/` rows.
     const RESOLVE_ERROR: ResolveError = [Vanished, Ambiguous, ReadGone, NodeGone];
 }
@@ -832,11 +817,11 @@ test_utils::f6_variants! {
         Expr, Profile, ProfileReplay, ProfileLaneReplay, Extrude, Revolve, Tube, Split, Blend,
         Boolean, Transform, Mirror, Motion, Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
         ToleranceConflict, ParamBox, Seed, WrongOperand, EmptyOperand,
-        UnfinishedOperand, EmptyHalf, InstanceOutOfRange, NoSuchPiece, PieceShape,
+        UnfinishedOperand, EmptyHalf, MemberOutOfRange, MemberRefused, IndicesUnrelated,
+        IndexCount, NoSuchPiece, PieceShape,
         DegenerateDirection, NonFiniteDirection, UnderflowedDirection, Band, MissingSlot,
         Escalated, MeasureEscalated, PlacementAxisEscalated, PoseDirectionEscalated,
-        PoseRead, PoseDegenerate, PoseScalar, CountOutOfRange, NegativeSpacing, DegenerateSpacing,
-        DegenerateStep, FullRangeStep, PlacementsUncertified, PlacementRule, UnschedulableCycle,
+        PoseRead, PoseDegenerate, PoseScalar, CountOutOfRange, UnschedulableCycle,
         Naming, UnionFoldStep, Shell, ShellLaneUnsupported,
         WitnessBifurcation, Part, Mate,
         SpaceMismatch, CrossingUnverified, MeasureRefUnreadable, MeasureNonFinite,
@@ -1084,7 +1069,6 @@ const ROSTERS: &[(&str, &[&str])] = {
         ("EvalError", EVAL_ERROR.identifiers()),
         ("ParamBoxError", PARAM_BOX_ERROR.identifiers()),
         ("SeedError", SEED_ERROR.identifiers()),
-        ("PlacementRuleFault", PLACEMENT_RULE_FAULT.identifiers()),
         ("ResolveError", RESOLVE_ERROR.identifiers()),
         ("Diagnosis", DIAGNOSIS.identifiers()),
         ("BifurcationKind", BIFURCATION_KIND.identifiers()),
@@ -1167,10 +1151,10 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         NodeErrorKind::Expr { source, .. }
         | NodeErrorKind::PoseScalar { source, .. }
         | NodeErrorKind::MeasureNonFinite { source }
-        | NodeErrorKind::PayloadExpr { source, .. } => one("EvalError", source),
+        | NodeErrorKind::PayloadExpr { source, .. }
+        | NodeErrorKind::IndexCount { source, .. } => one("EvalError", source),
         NodeErrorKind::ParamBox { source } => one("ParamBoxError", source),
         NodeErrorKind::Seed { source } => one("SeedError", source),
-        NodeErrorKind::PlacementRule(e) => one("PlacementRuleFault", e),
         NodeErrorKind::Naming(e) => one("NamingError", e),
         NodeErrorKind::SelectResolve { error, .. } => {
             let mut levels = vec![level("ResolveError", error)];
@@ -1260,6 +1244,7 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         | NodeErrorKind::Mate(_)
         | NodeErrorKind::SpaceMismatch { .. } => Forward::Unwelded(UNWELDED_HELD),
         NodeErrorKind::Part { .. }
+        | NodeErrorKind::MemberRefused { .. }
         | NodeErrorKind::Transform(_)
         | NodeErrorKind::Mirror(_)
         | NodeErrorKind::Motion(_) => Forward::Unwelded(UNWELDED_PLACEMENT),
@@ -1270,7 +1255,8 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         | NodeErrorKind::WrongOperand { .. }
         | NodeErrorKind::EmptyOperand { .. }
         | NodeErrorKind::EmptyHalf { .. }
-        | NodeErrorKind::InstanceOutOfRange { .. }
+        | NodeErrorKind::MemberOutOfRange { .. }
+        | NodeErrorKind::IndicesUnrelated { .. }
         | NodeErrorKind::NoSuchPiece { .. }
         | NodeErrorKind::PieceShape { .. }
         | NodeErrorKind::DegenerateDirection { .. }
@@ -1283,11 +1269,6 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         | NodeErrorKind::PoseDirectionEscalated { .. }
         | NodeErrorKind::PoseDegenerate { .. }
         | NodeErrorKind::CountOutOfRange { .. }
-        | NodeErrorKind::NegativeSpacing { .. }
-        | NodeErrorKind::DegenerateSpacing
-        | NodeErrorKind::DegenerateStep
-        | NodeErrorKind::FullRangeStep { .. }
-        | NodeErrorKind::PlacementsUncertified { .. }
         | NodeErrorKind::UnschedulableCycle
         | NodeErrorKind::UnionFoldStep { .. }
         | NodeErrorKind::ShellLaneUnsupported { .. }
@@ -1784,11 +1765,27 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
-            "InstanceOutOfRange",
-            NodeErrorKind::InstanceOutOfRange {
+            "MemberOutOfRange",
+            NodeErrorKind::MemberOutOfRange {
                 input: RecipeNodeId::new(0, tagged(3)),
-                index: 7,
-                count: 4,
+                at: vec![7, 2],
+            },
+        ),
+        row(
+            "IndicesUnrelated",
+            NodeErrorKind::IndicesUnrelated {
+                a: editor_core::VarId::new(0, tagged(2)),
+                b: editor_core::VarId::new(0, tagged(4)),
+            },
+        ),
+        row(
+            "MemberRefused",
+            NodeErrorKind::MemberRefused {
+                at: vec![(editor_core::VarId::new(0, tagged(2)), 0)],
+                source: Box::new(NodeErrorKind::EmptyHalf {
+                    input: RecipeNodeId::new(0, tagged(3)),
+                    half: editor_core::SplitHalf::Above,
+                }),
             },
         ),
         row(
@@ -1905,59 +1902,6 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
                 count: -1,
                 admits: 0..=i64::MAX,
             },
-        ),
-        row(
-            "NegativeSpacing",
-            NodeErrorKind::NegativeSpacing {
-                spacing: geom_core::MarginDiag::value(-4.0),
-                reversed: ["-1.0", "0.0", "0.0"].map(|text| Some(formula(text))),
-            },
-        ),
-        row("DegenerateSpacing", NodeErrorKind::DegenerateSpacing),
-        row("DegenerateStep", NodeErrorKind::DegenerateStep),
-        row(
-            "FullRangeStep(whole)",
-            NodeErrorKind::FullRangeStep {
-                step: formula("360 deg"),
-                evaluated: None,
-                turns: StepTurns::Whole,
-            },
-        ),
-        row(
-            "FullRangeStep(whole, evaluated)",
-            NodeErrorKind::FullRangeStep {
-                step: formula("720 deg * scalar(blades)"),
-                evaluated: Some(geom_core::MarginDiag::value(12.566370614359172)),
-                turns: StepTurns::Whole,
-            },
-        ),
-        row(
-            "FullRangeStep(within)",
-            NodeErrorKind::FullRangeStep {
-                step: formula("760 deg"),
-                evaluated: None,
-                turns: StepTurns::Within(formula("40 deg")),
-            },
-        ),
-        row(
-            "FullRangeStep(within, evaluated)",
-            NodeErrorKind::FullRangeStep {
-                step: formula("360 deg / scalar(blades) - 400 deg"),
-                evaluated: Some(geom_core::MarginDiag::value(-6.632251157578452)),
-                turns: StepTurns::Within(formula("360 deg / scalar(blades) - 400 deg + 360 deg")),
-            },
-        ),
-        row(
-            "FullRangeStep(unresolved)",
-            NodeErrorKind::FullRangeStep {
-                step: formula("1e20 rad"),
-                evaluated: None,
-                turns: StepTurns::Unresolved,
-            },
-        ),
-        row(
-            "PlacementsUncertified",
-            NodeErrorKind::PlacementsUncertified { i: 0, j: 1 },
         ),
         row("UnschedulableCycle", NodeErrorKind::UnschedulableCycle),
         row(
@@ -4371,11 +4315,11 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
 }
 
 /// The editor-core payloads `NodeErrorKind` forwards: expressions,
-/// analysis seeds, placement rules, naming, the name ladder.
+/// analysis seeds, naming, the name ladder.
 fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     use editor_core::{
         Diagnosis, Dimension, EntityKind, EvalError, NamingError, ParamBoxError,
-        PlacementRuleFault, RecipeEditRef, ResolveError, RimShare, SeedError, SlotId, StableName,
+        RecipeEditRef, ResolveError, RimShare, SeedError, SlotId, StableName,
         TieWitness, VarName,
     };
     use geom_core::Sign;
@@ -4430,6 +4374,13 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                 EvalError::CountToScalarOutOfRange(1 << 60),
             ),
             ("NonFiniteResult", EvalError::NonFiniteResult),
+            (
+                "IndexOutsideMember",
+                EvalError::IndexOutsideMember {
+                    var: editor_core::VarId::new(0, tagged(7)),
+                },
+            ),
+            ("ModByNonPositive", EvalError::ModByNonPositive(0)),
             // No node raises it — a lowered document holds no authored
             // leaf, so a node's expression never reaches it — but a formula
             // evaluated outside a document does, and it renders through the
@@ -4500,26 +4451,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                     editor_core::VarId::new(0, tagged(7)),
                     Some(VarName::from_static("width")),
                 ),
-            },
-        ),
-    ];
-    let placement = [
-        (
-            "CountSpelling",
-            PlacementRuleFault::CountSpelling {
-                shape: editor_core::CountMismatch::ListedOnPattern,
-            },
-        ),
-        ("NoPlacements", PlacementRuleFault::NoPlacements),
-        (
-            "NonFiniteFrame",
-            PlacementRuleFault::NonFiniteFrame { index: 2 },
-        ),
-        (
-            "NonRigidFrame",
-            PlacementRuleFault::NonRigidFrame {
-                index: 2,
-                check: "transform_rigid_col0_unit",
             },
         ),
     ];
@@ -4790,7 +4721,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                 "Vanished(StructuralParam)",
                 vanished(Diagnosis::StructuralParam {
                     node: at,
-                    param: SlotId::Count,
+                    param: SlotId::Stations,
                 }),
             ),
             (
@@ -4875,12 +4806,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     }
     for (n, source) in seed {
         rows.push(row(&format!("Seed/{n}"), NodeErrorKind::Seed { source }));
-    }
-    for (n, e) in placement {
-        rows.push(row(
-            &format!("PlacementRule/{n}"),
-            NodeErrorKind::PlacementRule(e),
-        ));
     }
     for (n, e) in naming {
         rows.push(row(&format!("Naming/{n}"), NodeErrorKind::Naming(e)));
@@ -6003,6 +5928,7 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
         evidence: Vec::new(),
         overlap,
         quiet: None,
+        quiet_at: Vec::new(),
         quietable: true,
     };
     let finding = |check, evidence| CheckFinding {
@@ -6508,13 +6434,4 @@ fn decode(literal: &str) -> String {
         }
     }
     out
-}
-
-/// `text` parsed as the formula a refusal carries, `blades` a count.
-fn formula(text: &str) -> editor_core::Formula {
-    let names = std::collections::BTreeMap::from([(
-        editor_core::VarName::new("blades").expect("a name"),
-        editor_core::Dimension::Count,
-    )]);
-    editor_core::parse_formula(text, &names).expect("the formula parses")
 }

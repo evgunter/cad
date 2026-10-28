@@ -187,8 +187,6 @@ mod edit_one_predicate;
 mod edit_pair_apply_names;
 #[path = "edit_placement_corpus_bits.rs"]
 mod edit_placement_corpus_bits;
-#[path = "edit_placement_type.rs"]
-mod edit_placement_type;
 #[path = "edit_planar_carve.rs"]
 mod edit_planar_carve;
 #[path = "edit_recorded_notation.rs"]
@@ -548,8 +546,6 @@ mod parallel_node_map_probe;
 mod part_depth_bound;
 #[path = "parts_entered_before_the_map.rs"]
 mod parts_entered_before_the_map;
-#[path = "pattern_spacing_and_step.rs"]
-mod pattern_spacing_and_step;
 #[path = "perf12_census_bvh_diff.rs"]
 mod perf12_census_bvh_diff;
 #[path = "perf12_census_goldens.rs"]
@@ -564,8 +560,6 @@ mod pierce_ring_engraving;
 mod pirad_wire;
 #[path = "place_mate_frame_offset.rs"]
 mod place_mate_frame_offset;
-#[path = "placedunion_wire.rs"]
-mod placedunion_wire;
 #[path = "product_gate_attribution.rs"]
 mod product_gate_attribution;
 #[path = "props_verdict_shapes.rs"]

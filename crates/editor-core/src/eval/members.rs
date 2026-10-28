@@ -106,18 +106,22 @@ fn tuples<P: crate::ProfilePayload, T: Decide>(
 }
 
 /// **The operations `id` reads as a family whole**: through a member
-/// seat of a `union`, `intersect` or `assemble`, or an indexed read.
+/// seat of a `union`, `intersect` or `assemble`, an indexed read, or a
+/// selection naming the family's members.
 /// The overlay leaves each of them whole.
 fn read_whole<P: crate::ProfilePayload>(doc: &Doc<P>, id: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
     let Some(node) = doc.node(id) else {
         return BTreeSet::new();
     };
-    node.operand_rows()
+    let mut whole: BTreeSet<RecipeNodeId> = node
+        .operand_rows()
         .into_iter()
         .filter(|&(seat, _)| crate::repetition::takes_whole(node, seat))
         .flat_map(|(_, var)| doc.read_ports(var))
         .map(|(at, _)| at)
-        .collect()
+        .collect();
+    whole.extend(crate::repetition::selected_whole(doc, id));
+    whole
 }
 
 /// **`results` at one member**: each family a member of whose stands

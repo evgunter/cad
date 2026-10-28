@@ -919,7 +919,7 @@ impl<T: Decide> NodeValue<T> {
     /// [`NodeValue::outputs`], private to the evaluator. Everything
     /// outside it reads a table by the variable that holds its body
     /// ([`Evaluation::table`]).
-    fn output(&self, port: u8) -> Option<&OutputNames> {
+    pub(crate) fn output(&self, port: u8) -> Option<&OutputNames> {
         self.outputs.get(usize::from(port))
     }
 }
