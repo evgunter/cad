@@ -321,13 +321,6 @@ fn two_tied_parents_each_cut_in_two_are_two_groups_of_two() {
     }
 }
 
-/// The ladder's evidence-free fallback at `node`: every rung declined.
-fn fallback(node: RecipeNodeId) -> Diagnosis {
-    Diagnosis::RecipeEdit {
-        edit: editor_core::RecipeEditRef::NodeChanged { node },
-    }
-}
-
 /// `ev` with every node's verdict log emptied: the flip lanes then have
 /// nothing to diff.
 fn silent(mut ev: Evaluation<f64>) -> Evaluation<f64> {
@@ -559,14 +552,16 @@ fn a_unions_group_resized_at_any_fold_step_reads_two_to_one() {
     }
 }
 
-/// **A seam group tied parents share has no one parent's count.**
+/// **A seam of a tied parent is one candidate's group, so the rung is
+/// never asked for a tie's sum.**
 ///
-/// The seam lanes group a seam edge by its two faces' NAMES, so the bar
-/// crossing the two tied prong faces makes one group of the pieces of
-/// both. The record marks it, and the rung declines for its vanished
-/// fragments rather than state the tie's sum as a group's size.
+/// The seam lanes group a seam edge by its two parents' entities, so
+/// the bar crossing the two tied prong faces seams each candidate on
+/// its own: each seam is the bare name, tied over the candidates (N4).
+/// Sliding the bar off the prongs takes those rows away whole; no
+/// fragment of a tied seam vanishes for the group-size rung to count.
 #[test]
-fn a_seam_group_tied_parents_share_is_not_counted() {
+fn a_tied_parents_seams_are_bare_so_no_fragment_of_them_vanishes() {
     let (doc, sub, tr, cut) = tied_prongs_cut();
     let ev1 = run(&doc, None);
     let doc2 = moved(doc.clone(), &tr, [0.0, 0.0, 3.2]);
@@ -579,25 +574,28 @@ fn a_seam_group_tied_parents_share_is_not_counted() {
         [RoleSeg::From { of, .. }] => matches!(tied.lookup(of), Some(Entry::Tied(_))),
         _ => false,
     };
-    let rows = vanished((&doc, &ev2), (&doc, &ev1), cut, |n, _| {
-        match n.path.first() {
-            Some(RoleSeg::Seam { a, b }) => is_tied(a) || is_tied(b),
-            _ => false,
-        }
-    });
+    let cites_a_tie = |n: &StableName| match n.path.first() {
+        Some(RoleSeg::Seam { a, b }) => is_tied(a) || is_tied(b),
+        _ => false,
+    };
+    let seams: Vec<_> = ev1
+        .table_at(cut)
+        .expect("the second cut evaluates")
+        .iter()
+        .filter(|(n, _)| cites_a_tie(n))
+        .collect();
     assert!(
-        !rows.is_empty(),
-        "no tied seam fragment vanished, so the row pins nothing"
+        !seams.is_empty(),
+        "the bar seams no tied face, so the row pins nothing"
     );
-    // With no flip and no edit in evidence, the fallback: the rung
-    // declined.
-    for (n, d) in rows {
-        assert_eq!(
-            d,
-            fallback(cut),
-            "{n:?}: a tie-summed seam group was counted"
+    for (n, e) in &seams {
+        assert!(
+            n.path.len() == 1 && matches!(e, Entry::Tied(c) if c.len() == 2),
+            "a tied parent's seam is the bare name, one edge per candidate: {n:?} => {e:?}"
         );
     }
+    let rows = vanished((&doc, &ev2), (&doc, &ev1), cut, |n, _| cites_a_tie(n));
+    assert!(rows.is_empty(), "a tied seam's fragment vanished: {rows:?}");
 }
 
 /// **A union names what its later fold steps left of a group.**

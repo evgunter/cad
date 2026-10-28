@@ -294,6 +294,18 @@ pub mod test_support {
 
     use crate::body::Body;
 
+    /// The at-rest window's reasons for an incidence refusal, one per
+    /// read (`validate::incidence_reasons`): a test outside this crate
+    /// reads them rather than copying their words.
+    pub mod incidence_reasons {
+        /// Decided off its face.
+        pub const OFF: &str = crate::validate::incidence_reasons::OFF;
+        /// Read within the band at a pose.
+        pub const AT_POSE: &str = crate::validate::incidence_reasons::AT_POSE;
+        /// The incidence reading landed in the band.
+        pub const UNSHOWN: &str = crate::validate::incidence_reasons::UNSHOWN;
+    }
+
     /// **The resolution the suites' pinned numbers are stated at**:
     /// [`crate::Settle::Resolution`] of 1024·ε of mean boundary
     /// displacement. A test that reads a volume or an area as a number,
@@ -1204,13 +1216,13 @@ pub use boolean::{
     NaryEnd, NaryJudgement, NaryMember, NaryOp, NaryRefusal, NaryRun, NaryStep, NodeWhy,
     NullEdgePairRecord, Operand, OperandKeys, OperandRecords, PairFace, PairRefusalSite, PairSite,
     PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung,
-    PointInSolidError, ReductionContacts, RefusedRow, SectorRead, SectorRung, SelfCheck,
-    SettleError, Settler, Settling, ShellOrientation, SideCode, SlitFaceGap, SlitLineGap,
-    SolidContainment, SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy,
-    SweepTrace, TorusConvention, UncutFace, UnreadNeighbourhood, UnreadPartner, VeContact,
-    VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
-    boolean_op_with, boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words,
-    face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
+    PointInSolidError, ReductionContacts, RefusedRow, SectionUnbuilt, SectorRead, SectorRung,
+    SelfCheck, SettleError, Settler, Settling, ShellOrientation, SideCode, SlitFaceGap,
+    SlitLineGap, SolidContainment, SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace,
+    SweepStrategy, SweepTrace, TorusConvention, UncutFace, UnreadNeighbourhood, UnreadPartner,
+    VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact,
+    WallRung, boolean_op_with, boolean_reduce, carrier_eq, contfp, curved_face_containment,
+    decision_words, face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
     is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge, nary_boolean,
     oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of, rest_locus,
     subtract, tangent_pair_relation, union,

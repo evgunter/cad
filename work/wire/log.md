@@ -7092,7 +7092,103 @@ Signed (WIRE orchestrator).
     - the new fold-step refusal routes (coincident twins on the face, touch agreement);
     - vocabulary; line_of_several's one-thing case, and one line-naming home.
   - A state sync is owed so the README's work/wire path exists on main.
+- 2026-10-26 (WIRE orchestrator) The pairflush fix-pass lane got a security flag for 'irreversible local destruction'. Its transcript shows rm -rf only of its own build target, logs, probe files and scratch copy, all lane-owned and deleted as the standing rules require. Nothing else was touched; the orchestrator checkout is clean. Removed the merged norank worktree and its logs.
 - 2026-10-26 — **Seam (CLEAVE):** the row-cell door check (`rows_name_input_cells`, at `boolean_op_with`'s exit) left PR 5753, on the CLEAVE orchestrator's ruling. It is parked on `cleave/rows-name-input-cells-guard` (commit e14e5f7355) and waits for `a-re-charted-operands-rows-may-name-cells-the-re-chart-minted`. The reason: main still builds the re-chart's rows, 72 cells across four `sweep` tests (two per-PR, two nightly), so the check cannot land green before that row is fixed. The row's new Acceptance section makes landing the check its close. (CLEAVE implementer)
 - 2026-10-26 — **Seam (CLEAVE):** PR 5753 merged and closed `a-fold-steps-ring-tie-row-names-a-pierce-vertex-its-operand-does-not-hold`. `held-out-goes-once-the-ring-tie-row-is-fixed` was parked on it and is now open: nothing else gates it. (CLEAVE orchestrator)
+- 2026-10-26 (WIRE orchestrator) The orchestrator read PR 5778's fix pass.
+  - Coincident flush edges cannot disagree: both read On via vtxfac, argued in the doc.
+  - There is one line_name / sense_along_line helper, and no shortcuts.
+  - The grouped record's size reads now move in some member orders. That class is already on main (1803 vertex names), so it is filed (`a-unions-vertex-group-size-reads-the-fold-steps-spelling`) rather than blocking.
+  - Main's P0 had cleared, and CI is green. Merged at 7eb29ffbe0.
+  - The pair-flush row and the wirerest twin-helper row are closed. The 5705 rule is now built at every door.
+- 2026-10-26 (WIRE orchestrator) CLEAVE's split moved two WIRE-filed P1 rows back to WIRE (meet-row minting cell; re-chart rows), and unparked held_out because the ring-tie fix landed in 5753. Dispatched `wire-meetrow` (spell/EdgeSplits) and `wire-rechart` (through_the_join, then held_out), split by function within ops.rs. Priced the group-size row P3/M.
+- 2026-10-26 (WIRE orchestrator) `wire-rechart` opened PR 5795 (head 5c38d62542).
+  - Recharts maps re-charted cells to the input shell's LEAST face, so Meet and OnCarrier keep their relation. Other relations refuse typed.
+  - CLEAVE's door check is cherry-picked; there is a moved-keys witness; held_out is deleted.
+  - The full suites were not run locally (disk).
+  - A FULL review (`wire-rechart-rev`) is dispatched. It presses whether 'least face' is a mint/storage-order choice, and whether the BooleanNaming blind spot misnames anything today.
+- 2026-10-26 (WIRE orchestrator) `wire-meetrow` opened PR 5798 (head 6d2203440a).
+  - EdgeSplit carries the minting cell `by`, and spell or input_read widen to it. Coincidence goes from `third` to `more: [Option;3]`.
+  - The witness is `Held::unfixed` counts on flush_onto_an_edge (red on base). The named pinch tests were already green after 5753's ring tie.
+  - Filed the residual two-spelling row on the flush pair (P3). The lane filed a CLEAVE row (in-face minted vertex).
+  - The FULL review waits for disk: 5795's reviewer is building.
+- 2026-10-26 (WIRE orchestrator) PR 5795 FULL review: approve with fixes. Builds and goldens are unchanged, and the base reds are identical.
+  - MAJOR-1: 'least face' picks by build order. Ruling: option (a), name every face of the input shell. This needs Coincidence's wider `more` from PR 5798, so 5798 merges first.
+  - MAJOR-2: OnCarrier face rows pass onto the least lune as face pairs, against coincidence.rs's meet invariant.
+  - The door check is cfg(debug) with a bare assert; per D9 it must run in release with row-4's why.
+  - Pre-existing and wrong today: emit_ball_cut_by_brick publishes a pole name nowhere near a pole. The ORBIT row moves to WIRE at P1, and rechart takes it next.
+  - PR 5798's FULL review is dispatched.
+- 2026-10-27 (WIRE orchestrator) PR 5798 FULL review: the code is sound.
+  - MAJOR: the witness is green on the real merge base be2b7a1, because #5545 (CLEAVE fate-cut) already spells the flush case with Vertex@m0. The lane's red was on an older base.
+  - Lane told to measure whether the row is live on current main. If it is, witness a live case. If not, close the row as fixed by #5545 and keep only what 5795 needs (Coincidence `more`), plus `by` if it still widens something.
+  - The 5795 conflict and its hidden `third: None` compile break are noted for whichever PR lands second.
+- 2026-10-27 (WIRE orchestrator) The container restarted. Both lanes (meetrow fix pass, rechart fix pass) were stopped and resumed. Worktrees and targets survived. Disk is at 7 GB free.
+- 2026-10-27 (WIRE orchestrator) PR 5795 fix pass, items 2–5, at 7e097a6f71, gate ok green.
+  - New variant RechartedRowUnstated; the face-pair refusal follows an exhaustive states_a_point.
+  - The door check runs in release as unreachable! with row-4's why.
+  - Item 1 (the face-set reading) is built on wire/re-chart-rows-on-more over 5798's `more`. Census: 806 two-face shells, 1676 set meets, 0 refusals.
+  - Item 1 lands after 5798 merges. 5795 waits for it; it is not merged with the least-face reading.
+- 2026-10-27 (WIRE orchestrator) PR 5798's fix pass found the row live on main: the minting cell was missing from about 2,900 topo rows and about 1,050 editor-core rows. The new witness, glued blocks with a pyramid out a corner, was confirmed red on main by the orchestrator. Merged at bfc6f1ddbc; row closed. 5795's lane is landing the face-set reading on `more`. Pre-existing reds reported by the lane: fused_into_live_cells, the corner_boss logs and revalue_boss_union (main).
+- 2026-10-27 (WIRE orchestrator) PR 5820 (corner-boss main-red) was read by the orchestrator: a test-helper fix, from crossed merges of 5753 and 5636. Merged and the row is closed.
+- 2026-10-27 (WIRE orchestrator) The orchestrator read PR 5795's item 1, the face-set reading on 5798's `more`. Merged at 423a53eddc; the re-chart row and held_out row are closed. The stale side branch wire/re-chart-rows-on-more (9d51114e8a) is left on the remote: the lane's delete push failed, and deleting another branch is outside this session's push scope. Next: the sphere re-key P1 row, to the rechart lane.
+- 2026-10-27 (WIRE orchestrator) **Self-inflicted:** a main merge into wire/orchestrator conflicted on the sphere re-key row (my move against 5795's appended evidence). My chained command piped the merge through tail, which hid its exit code, so the conflict markers were committed. They were fixed in the next commit, before any PR. **Rule for this branch:** a merge step is `git merge … || exit 1` followed by a marker grep, never piped.
+- 2026-10-27 (WIRE orchestrator) Ruling for the sphere re-key row: re-charted faces read as their shell's faces, and re-charted seam edges and poles refuse typed as row 2 (Unsupported*, NOT_YET_ENDING), pointing at ORBIT's retire-the-re-chart row. A wrong name is worse than a loud refusal, BORDERS already recommended this interim, and NS2 has no true form. The lane measures flips first; any corpus or python flip goes to Ev before landing.
+- 2026-10-27 (WIRE orchestrator) `wire-rechart` opened PR 5829 (head 49a7fc083c).
+  - BooleanNaming carries Recharts, and refuse_turned_cells gives UnsupportedTurnedCell (row 2).
+  - The face reading was argued dead and not built.
+  - Measured flips: only emit_ball_cut_by_brick's two subtracts; no corpus, python or tour flips.
+  - An ATREST row was filed. A FULL review (`wire-rechartname-rev`) is dispatched; it tries to break the dead-face argument.
+- 2026-10-27 (WIRE orchestrator) PR 5829 FULL review: MERGEABLE. The dead-face argument held (a two-brick band is caught by its turned meridian), and only the expected flips occur. A small fix pass is sent: KilledSplits lineage, the redundant step guard, operand and key in the message, test specificity, Recharts::contains. The stale BORDERS sentence is annotated.
+- 2026-10-27 (WIRE orchestrator) The orchestrator read PR 5829's fix pass: one chase_edge_until with the KilledSplits hops, one GraftInverse, the redundant step guard dropped, the read and key in the message, and the test asserting Cell::Edge. Merged at cfa35248b8; sphere re-key row closed.
+- 2026-10-27 (WIRE orchestrator) Two prose-census main reds, both from this session's merges:
+  - RechartedRowUnstated's Debug relation (5795), filed twice as P0/P1.
+  - UnsupportedTurnedCell's untypeable local keys (5829).
+  Fixed directly in PR 5851 (Relation::noun; render the variant's cell field), with local census, concision and display runs green; the rows are closed in the PR.
+  **Class note:** a new error variant's Display must pass pncad-py's prose_census (slow set). Lanes adding a variant run `-p pncad-py -E 'test(/prose_census/)' --run-ignored all`.
+- 2026-10-27 (WIRE orchestrator) PR 5851 is green and merged at 66bfc1c6d7. Main's two prose-census reds are fixed, and both rows are closed in the PR.
+- 2026-10-27 (WIRE orchestrator) Dispatched the last two P2 rows.
+  - `wire-splitchords`: key the split's chord groups per candidate. Ruling: NS3 locality and N4's 'undivided candidates stay bare' settle it, no fork.
+  - `wire-seamselect`: seam (and other N0-set) SegPats match as sets. Ruling: N3 and NS1(a).
+  WIRE is at 35/30 load because of re-homed and filed P3s; these two P2s take it down.
+- 2026-10-27 (WIRE orchestrator) `wire-seamselect` opened PR 5854 (head 67830ffe91).
+  - Seam, Merged, EdgeCrossing, BandFace and BandCross/BandSlit's band match as sets via bipartite matching. all_match memoizes per (pattern, name).
+  - The two witnesses are red on base, and the positional wording was unsigned agent text.
+  - A review (`wire-seamselect-rev`) is dispatched; the lane ran python only in CI.
+- 2026-10-27 (WIRE orchestrator) PR 5854 review: mergeable.
+  - Kuhn matching is correct, the address memo is sound, and positional tags are unchanged. Python 944 OK. Three witnesses are red on base.
+  - Fix pass sent: the junction-run sibling (NamePat::path over a sorted Seam run, the same class one level up) to fix or file; the re-authoring test must assert that the flip happens; the stale audit doc; reuse nest.rs's address().
+- 2026-10-27 (WIRE orchestrator) PR 5854's fix pass was read by the orchestrator: junction runs now match as a set, the flip premise is asserted, and nest's address() is reused. Merged; row closed. The 7 revalue_corpus failures the lanes saw locally are on INTENT's main-red list.
+- 2026-10-27 (WIRE orchestrator) `wire-splitchords` opened PR 5857 (head 8103315fe3).
+  - Split chord groups are keyed by parents' operand-entity sets. The witness is u_cutter_tie, via the shared fixture that places with `against`: using a placement in a fixture is not editing D10 ground, so that is accepted.
+  - A table dump over 210 split tests shows them identical apart from the witness.
+  - The lane filed the seam-group sibling row (P2).
+  - A FULL review (`wire-splitchords-rev`) is dispatched.
 
 - 2026-10-26 — seam from ATREST (stage 5 C, `the-at-rest-census-is-a-check`, branch `atrest/the-at-rest-census-is-a-check`): `product.rs`: `AssembleGather::gather` holds a `ProductRefusal`; doc lines naming the gate and `Separation` restated; `eval/*` paths re-spelled.
+- 2026-10-27 (WIRE orchestrator) PR 5857 FULL review: MERGEABLE. A 217-test dump shows identical tables apart from the witness, and the witness is red on base. Merged; the split-chords row is closed. The sibling seam-groups row gained the review's measurement (the pair arm misnames today) and the key-reconciliation notes.
+- 2026-10-27 (WIRE orchestrator) Dispatched `wire-seamgroups` (wire/seam-groups-keyed-by-candidate). The pair and union seam groups are keyed per candidate, with one 'per candidate' spelling across split, corner and seam passes, plus Seam/SetPiece split witnesses.
+- 2026-10-27 (WIRE orchestrator) WIRE was at 34/30. Moved two P3 rows to WIREREST (three-names K=1.5 calibration, identical-twin coincidence rows); no path citations. WIRE comes back under budget once the seam-groups row closes.
+- 2026-10-27 (WIRE orchestrator) Dispatched `wire-throughwalk` (wire/through-names-are-walked): walkers see Through's names and are made exhaustive; Sense::other_half computes a complement.
+- 2026-10-27 (WIRE orchestrator) `wire-throughwalk` opened PR 5870 (head cf2a3cb9a8).
+  - embedded walks Through names as partners, and name_args and embedded are exhaustively destructured.
+  - other_half returns Option; None refuses Unwalked::Misplaced, because it would otherwise rest on two independent decisions agreeing.
+  - Departure accepted: select classifies the sense rather than walking it, since a pattern has no sense axis.
+  - A residue row was filed. Review dispatched (`wire-throughwalk-rev`).
+- 2026-10-27 (WIRE orchestrator) PR 5870 review: mergeable. The Include-walk consumers are unchanged, other_half's None cannot be reached by a legal split, and the witness is red on base. Merged; row closed. Two MINORs and the nits were appended to the residue row.
+- 2026-10-27 (WIRE orchestrator) `wire-seamgroups` opened PR 5876 (head eec1685386).
+  - One ParentEntities key now serves split, pair seam, union seam and the pair corner.
+  - Pair and union witnesses are red on base. The split Seam/SetPiece witnesses were unbuildable and are filed.
+  - The dump shows 643 tests emitting tables and 7 differing, all tie conversions.
+  - A FULL review (`wire-seamgroups-rev`) is dispatched. Also freed 7 GB of stale review scratch.
+- 2026-10-27 — **Seam (ATREST):** `atrest/an-instance-carries-its-parts-coincidences` touches this program's ground. `eval/wire.rs`: `wire_instantiate_part` fills the new `CarriedFindings::coincidences` (each part row with this instance as its first hop).
+- 2026-10-27 — **Seam (ATREST):** `atrest/an-assertion-quiets-an-operations-unproven-row` touches this program's ground. `eval/wire.rs`: `select_one` resolves its one name through the new `resolve_name` (the ladder, at the name's kind), and `wire_measure` reads a reference's body through the new `reference_body`; both `pub(crate)`, re-exported from `eval`, and read by the quieting rule's `checks::at_rest::contact_quietable` so a row's cell resolves as a measure's reference does. `ladder::live`/`resolve_key` take any `Doc<P: ProfilePayload>`. No refusal changes.
+- 2026-10-28 (WIRE orchestrator) PR 5876 review: mergeable, no BLOCKER or MAJOR.
+  - The keys are exactly the candidate partition at all four sites. The reviewer's own dump agrees: only tie conversions move.
+  - Witnesses are red on base, and the union key is shown to matter alone.
+  - MINOR: the PR body credited the README clause to PR 4221. It came from PR 3184, an agent's commit with no Ev ruling, so the reword stands. The body is corrected.
+  - MINOR: the tie-summed decline lost its end-to-end witness. Filed `a-tie-summed-seam-decline-has-no-end-to-end-witness` (P3, E).
+  - NITs: Debug-string matching in the new test helpers; ParentEntities is singleton-shaped at four of its six sites.
+  - Merged at eec1685386; row closed; worktree removed.
+- 2026-10-28 (WIRE orchestrator) Budget: main's merge plus the priced PR 5876 rows put WIRE at 35/30.
+  - Priced: split tie-witness row E; union fold row M.
+  - Moved to WIRETAIL (P3, 5 points): `the-older-missing-rule-naming-variants-lack-the-unsupported-prefix` and `a-body-value-consumed-by-k-nodes-is-gated-at-rest-k-times`. The measuredoor citation is repointed.

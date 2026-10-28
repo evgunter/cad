@@ -326,12 +326,15 @@ mod tests {
                     "copies: one bar extrude, each link placed against its parent, is ",
                     "four copies, each its own output with its own names; the target ",
                     "stands in the world because the tip measure reads it beside the ",
-                    "tip pin's copy. TEN at-rest findings: each bar is a solid box and ",
-                    "each pin passes through the bar ends it joins, so nine bar-pin ",
-                    "pairs overlap (the last bar with the target pin among them), each ",
-                    "bounded by its faces, and the tip pin and the target pin, whose ",
-                    "boundaries do not cross, are an overlap the kernel could not ",
-                    "bound. No mate declares a joint",
+                    "tip pin's copy. TEN at-rest findings, all interference and none ",
+                    "could-not-look, because the pins are separate extrudes rather ",
+                    "than bores: each pin shares a half-disc of material with every ",
+                    "bar end it stands in — the base pin with bar 1, joint pin k = 2..4 ",
+                    "with bars k-1 and k, the tip pin with bar 4 — and the target, standing ",
+                    "where the tip pin does at nominal, with bar 4 and wholly with the ",
+                    "tip pin (that one unlocalised, the two boundaries coinciding). ",
+                    "The bars' end caps only touch at the joints and are no at-rest finding. ",
+                    "No mate declares a joint",
                 ),
             },
         ];
@@ -385,10 +388,11 @@ mod tests {
                 shape.why,
                 report.spoken(&shape.doc)
             );
-            // What a scene reports at rest is an overlap the kernel could
-            // not intersect or a pair it could not look at, outside what
+            // What a scene reports at rest is an overlap no assertion
+            // could quiet or a pair it could not look at, outside what
             // its document can yet say, so it refuses at no severity
-            // (CHECKS DS6): the teapot's handle in its vessel included.
+            // (CHECKS DS6): the teapot's handle in its vessel and the
+            // chain's pins in its bars included.
             let error = ChecksConfig {
                 at_rest: pncad::document::Severity::Error,
                 ..ChecksConfig::default()
