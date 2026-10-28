@@ -61,10 +61,10 @@ zip. PR 4364 merged 2026-10-09T21:06Z.
 | pri | item | cost | status | title |
 |---|---|---|---|---|
 | P0 | `main-red-cylinder-sphere-section-runs-out-of-cells-near-the-node-at-1e-6` | M | dispatched | The cs section exhausts its cell budget near the node at ε 1e-6 since PR 5872 |
-| P0 | `each-torus-pair-decides-tangency-on-one-pose` | H | dispatched | One pose per torus pair, the critical gap |
-| P0 | `torus-germ-pairs-have-no-section-frame` | H +design | open | Torus walls against a sphere, cylinder or torus reach the join with no section (teapot wall 2) |
-| P0 | `cylinder-torus-rung-three-arm-is-unretired` | M | parked | The cylinder × torus door over a Positive gap |
-| P0 | `torus-torus-rung-three-arm-is-unretired` | M | parked | The torus × torus door over a Positive gap |
+| P0 | `each-torus-pair-decides-tangency-on-one-pose` | H | closed (PR 5924) | One pose per torus pair, the critical gap |
+| P0 | `torus-germ-pairs-have-no-section-frame` | H +design | dispatched (sphere half) | Torus walls against a sphere, cylinder or torus reach the join with no section (teapot wall 2) |
+| P0 | `cylinder-torus-rung-three-arm-is-unretired` | M | dispatched | The cylinder × torus door over a Positive gap |
+| P0 | `torus-torus-rung-three-arm-is-unretired` | M | dispatched | The torus × torus door over a Positive gap |
 | P1 | `a-cylinder-face-re-homes-its-rings-on-a-chart-that-reads-no-spline-chord` | M | open | A cylinder face holding a bystander ring re-homes it on a chart that reads no spline chord |
 | P1 | `circle-pair-crossing-is-spelled-three-times` | E | open | "Two circles cross transversally" is decided three times |
 

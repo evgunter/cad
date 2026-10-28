@@ -152,3 +152,23 @@ on main's exact stop: `pair_section::one_loop_keeps_its_order_near_the_node`,
 A pin goes red the day its row passes, so the fix on
 `sect/near-node-at-1e-6` removes the four pins (and restores the macro
 row) in the same PR, and re-measures what each row runs after the stop.
+
+## 2026-10-28 — PR 5924 merged; the doors and teapot wall 2 dispatched
+
+- **PR 5924 merged** (`each-torus-pair-decides-tangency-on-one-pose`, head
+  b3ecfab, CI green; dual concurrent review, both confirmation passes
+  APPROVE, its row `docs/dual-review-log/rows/PR-5924.md`). Lane reclaimed.
+- **Dispatched `sect-torusdoors`** (branch `sect/torus-doors`): the two door
+  rows `cylinder-torus-rung-three-arm-is-unretired` and
+  `torus-torus-rung-three-arm-is-unretired` as one unit (H), since both
+  owe the same march domain. Tier: **dual concurrent** — a certified rung-3
+  march over a new domain, where a soundness slip is silent.
+- **Dispatched `sect-teapot2`** (branch `sect/teapot-wall-2`): the sphere ×
+  torus half of `torus-germ-pairs-have-no-section-frame`. The row carries
+  `design: true`, so the lane measures and shapes first and stops with a
+  problem statement if a fork shows (telling components apart at a site;
+  the torus face's spline ring path); the designer pair then runs before
+  any build. Tier: **dual concurrent** (H, join-side architecture).
+- The two run concurrently: the doors are in `ssi`/`pair_section`, the
+  teapot lane in the join's carried lane and `ring_path`; the seam is
+  `pair_section::torus`, which each lane announces.

@@ -2,7 +2,7 @@
 id: cylinder-torus-rung-three-arm-is-unretired
 kind: issue
 title: Cylinder × torus routes to rung 3 and refuses: no ℝ³ implicit-pair door or pose classification for the pair
-status: open
+status: dispatched
 opened: 2026-10-27
 priority: P0
 cost: M
