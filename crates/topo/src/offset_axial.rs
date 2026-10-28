@@ -701,7 +701,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
 
     // ---- Decide: every edge's carrier and description. ----
     let mut specs: Vec<(EdgeKey, EdgeCurveSpec<T>)> = Vec::new();
-    let mut conic_arcs: Vec<ConicArc<T>> = Vec::new();
+    let mut conic_arcs: Vec<(EdgeKey, geom_brep::OpenConic)> = Vec::new();
     for (edge, edge_data) in body.edges() {
         if !scope.holds_edge(edge) {
             continue;
@@ -780,11 +780,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
         if arc_ends.is_some()
             && let Some(ConeCapSection::Conic(section)) = cone_sections.get(&edge)
         {
-            conic_arcs.push(ConicArc {
-                edge,
-                conic: section.conic(),
-                sides: [(ca.old_key, ca.new.clone()), (cb.old_key, cb.new.clone())],
-            });
+            conic_arcs.push((edge, section.conic()));
         }
         let (t0, t1) = match arc_ends {
             Some((lo, hi)) => (
@@ -902,7 +898,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
         )?);
     }
     crate::replace_face::move_points_then_rechart(&mut work, &moved, charts, &specs, tol)
-        .map_err(|error| uncertified_arc(body, error, &conic_arcs, &specs, band))?;
+        .map_err(|error| uncertified_arc(error, &conic_arcs))?;
     // Every edge OF THE SCOPE was re-described, and the charts here DO
     // mint pcurve rows (a cylinder, a cone and a sphere all do), so this
     // pass is load-bearing rather than the planar door's inert one. It
@@ -2476,82 +2472,37 @@ fn mint_carrier<T: Decide>(
     }
 }
 
-/// An arc this door minted on a cone: its edge, its conic, and the
-/// moved surfaces its description's pair names.
-struct ConicArc<T: Real> {
-    edge: EdgeKey,
-    conic: geom_brep::OpenConic,
-    sides: [(SurfaceKey, Surface<T>); 2],
-}
-
 /// A re-chart refused because an arc this door minted on a cone does not
-/// certify, read as the door's own refusal: its tube is retired only
-/// where the plane×cone section states the bounds (C2), and a cone has
-/// no tube enclosure otherwise, so no other edge of this door refuses
-/// so ([`ReplaceFaceError::TogetherConicArc`]). The re-chart's refusal
-/// names no edge, so each arc is certified alone, against its moved
-/// pair, and the first that refuses on the cone's tube is named.
-fn uncertified_arc<T: Decide + crate::props::AtRestPolicy>(
-    body: &Body<T>,
+/// certify, read as the door's own refusal: the re-chart names the edge
+/// whose re-description does not certify, and an arc's tube is retired
+/// only where the plane×cone section states the bounds (C2) — a cone has
+/// no tube enclosure otherwise — so the arc it names refuses as
+/// [`ReplaceFaceError::TogetherConicArc`]. Any other refusal stands.
+fn uncertified_arc<T: Real>(
     error: ReplaceFaceError<T>,
-    arcs: &[ConicArc<T>],
-    specs: &[(EdgeKey, EdgeCurveSpec<T>)],
-    band: Band,
+    arcs: &[(EdgeKey, geom_brep::OpenConic)],
 ) -> ReplaceFaceError<T> {
-    let tube = |e: &geom_brep::CertifyError| {
-        matches!(
-            e,
-            geom_brep::CertifyError::AnalyticRung3(
-                geom_brep::AnalyticRung3Refusal::NoTubeEnclosure {
-                    operand: geom::SurfaceKind::Cone,
-                },
-            )
-        )
-    };
     let ReplaceFaceError::Op {
-        error: crate::EulerOpError::Certification { error: refused },
+        error:
+            crate::EulerOpError::RechartFalsifies {
+                edge,
+                error:
+                    geom_brep::CertifyError::AnalyticRung3(
+                        geom_brep::AnalyticRung3Refusal::NoTubeEnclosure {
+                            operand: geom::SurfaceKind::Cone,
+                        },
+                    ),
+                ..
+            },
         ..
     } = &error
     else {
         return error;
     };
-    if !tube(refused) {
-        return error;
+    match arcs.iter().find(|(arc, _)| arc == edge) {
+        Some(&(edge, conic)) => ReplaceFaceError::TogetherConicArc { edge, conic },
+        None => error,
     }
-    for arc in arcs {
-        let Some((_, spec)) = specs.iter().find(|(e, _)| *e == arc.edge) else {
-            continue;
-        };
-        let (t0, t1) = (spec.param_start, spec.param_end);
-        let reach = crate::wedge_reach(
-            body,
-            crate::edge_faces(body, arc.edge),
-            &spec.carrier,
-            (t0, t1),
-        );
-        let surfaces = |k: SurfaceKey| {
-            arc.sides
-                .iter()
-                .find(|(key, _)| *key == k)
-                .map(|(_, s)| s.clone())
-        };
-        if let Err(e) = crate::policy_lane::certify(
-            crate::policy_lane::Origin::Callers,
-            spec.clone(),
-            spec.carrier.eval(t0),
-            spec.carrier.eval(t1),
-            surfaces,
-            reach,
-            band,
-        ) && tube(&e)
-        {
-            return ReplaceFaceError::TogetherConicArc {
-                edge: arc.edge,
-                conic: arc.conic,
-            };
-        }
-    }
-    error
 }
 
 /// The cone wall and the plane parallel to the axis of an edge between

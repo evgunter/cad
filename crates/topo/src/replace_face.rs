@@ -697,7 +697,9 @@ pub enum ReplaceFaceError<T: Real> {
     /// (`geom_brep::intersect::Unstated`: its stretch at the apex's
     /// height, the overlap not clear of its tube, no section point
     /// certified beside it, or a box too wide for any of these) is
-    /// refused here, once the attach layer's certificate says so.
+    /// refused here, read off the re-chart's refusal of that edge
+    /// (`EulerOpError::RechartFalsifies` with the cone's
+    /// `NoTubeEnclosure`).
     TogetherConicArc {
         /// The edge.
         edge: EdgeKey,
