@@ -223,3 +223,100 @@ fn the_shared_closed_form_agrees_with_a_slicing() {
         );
     }
 }
+
+/// The widest certified volume enclosure (`volume_pad`, m³) a review
+/// row below accepts at any ε the suite runs: measured at review of PR
+/// 5940 (2026-10-28) at most `5.7e-5` for the rods and `4.3e-4` for the
+/// halves (ε = 1e-6), `1.1e-5` and `6.6e-6` at 1e-9. Wider than
+/// `differential::VOLUME_PAD_BUDGET`, which these bodies do not meet
+/// above ε = 1e-12, so [`sound`] alone (no pad bound) passes a body
+/// whose enclosure has widened without limit.
+const PAD_CEILING: f64 = 1e-3;
+
+/// How far the enclosure's midpoint may sit from the closed form, m³:
+/// measured at review at most `1.4e-6` (the rods' intersection, ε =
+/// 1e-6) and under `1e-7` everywhere else.
+const MIDPOINT: f64 = 1e-5;
+
+/// `r` built a body passing tiers 2 and 3′, the at-rest certificate
+/// and the legal-operand check ([`sound`]), whose enclosure is no wider
+/// than [`PAD_CEILING`] and whose midpoint lies within [`MIDPOINT`] of
+/// `want`; at ε ≤ 1e-12 `differential` judges it `SOUND` with its own
+/// pad budget. The failing line otherwise.
+fn held(
+    what: &str,
+    r: Result<BooleanResult<f64>, BooleanError>,
+    want: f64,
+    tol: Tol,
+) -> Option<String> {
+    use crate::common::differential::{Verdict, judged};
+    let Ok(BooleanResult::Body(bb)) = &r else {
+        return Some(format!("{what} | {}", outcome(r, want, tol)));
+    };
+    let m = topo::test_support::pinned_volume(what, &bb.body, tol);
+    let bounded =
+        sound(bb, want, tol) && m.volume_pad <= PAD_CEILING && (m.volume - want).abs() <= MIDPOINT;
+    let (v, pad) = (m.volume, m.volume_pad);
+    let j = judged(r, Some(want), tol);
+    let tight = tol.eps() > 1e-12 || j.verdict == Verdict::Sound;
+    (!(bounded && tight)).then(|| format!("{what} | v={v} pad={pad:e} want={want} | {}", j.line))
+}
+
+/// **At spins `(0, 0)` the six ops hold their closed forms to a
+/// bounded enclosure** (review of PR 5940): what
+/// [`crossing_rods_end_past_the_ellipse_edge_copy_at_every_spin`] reads
+/// as `Builds` through [`sound`], whose volume check widens with the
+/// enclosure, held here to [`PAD_CEILING`] and [`MIDPOINT`].
+#[test]
+fn crossing_rods_at_rest_spins_hold_a_bounded_enclosure() {
+    let tol = Tol::witness();
+    let x0 = 0.2;
+    let (a, b) = (mitred(0.0), crossing(0.0, x0));
+    let (va, vb, s) = (3.0 * PI, (3.0 - x0) * PI, shared(x0));
+    let bad: Vec<String> = [
+        ("A ∪ B", topo::union(&a, &b, tol), va + vb - s),
+        ("B ∪ A", topo::union(&b, &a, tol), va + vb - s),
+        ("A ∩ B", topo::intersect(&a, &b, tol), s),
+        ("B ∩ A", topo::intersect(&b, &a, tol), s),
+        ("A ∖ B", topo::subtract(&a, &b, tol), va - s),
+        ("B ∖ A", topo::subtract(&b, &a, tol), vb - s),
+    ]
+    .into_iter()
+    .filter_map(|(op, r, want)| held(op, r, want, tol))
+    .collect();
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
+
+/// **The rod cut by `z = x` and glued back is the rod** (review of PR
+/// 5940): the two halves' rims are one plane section of one cylinder,
+/// so the germ join reads them as one segment
+/// (`sectors::same_construction`), at two spins and in both orders
+/// (six unions at three spins took about 240 s in debug at review).
+/// The halves' intersection and differences are not this row's: they
+/// refuse `FallbackExtentUnsupported` upstream of the join.
+#[test]
+fn a_rod_cut_obliquely_and_glued_back_is_the_rod() {
+    let tol = Tol::witness();
+    let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), -PI / 4.0);
+    let slab = brick((-50.0, 50.0), (-50.0, 50.0), (-100.0, 0.0), tol);
+    let under = finished(
+        "the half-space under z = x",
+        topo::transform_rigid(&slab, &geom_core::test_support::rigid(&tilt, tol), tol).unwrap(),
+        tol,
+    );
+    let mut bad = Vec::new();
+    for spin in [0.0, 1.0] {
+        let upper = mitred(spin);
+        let lower = match topo::intersect(&rod(spin, (-3.0, 3.0)), &under, tol) {
+            Ok(BooleanResult::Body(b)) => b.body,
+            other => panic!("the lower half builds: {other:?}"),
+        };
+        for (op, r) in [
+            ("U ∪ L", topo::union(&upper, &lower, tol)),
+            ("L ∪ U", topo::union(&lower, &upper, tol)),
+        ] {
+            bad.extend(held(&format!("spin {spin}, {op}"), r, 6.0 * PI, tol));
+        }
+    }
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+}

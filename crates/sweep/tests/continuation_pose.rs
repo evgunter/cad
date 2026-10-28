@@ -341,3 +341,88 @@ fn a_tilted_plug_in_its_hole_reads_alike_at_every_pose() {
         );
     }
 }
+
+/// **spun plug** (review of PR 5940): the plug cut from the rod spun
+/// `1` rad about its own axis, back in the hole the unspun rod drilled.
+/// The rims are one ellipse on each side, but the plug's vertices sit
+/// elsewhere on it than the hole's, so the sweep splits each rim at the
+/// other's vertices before the germ join reads the pieces as one
+/// segment (`sectors::same_construction`). Read as plugged.
+#[test]
+fn a_spun_tilted_plug_in_its_hole_reads_as_plugged() {
+    let tol = Tol::witness();
+    let tilt: f64 = 0.3;
+    let (s, c) = tilt.sin_cos();
+    let spin = Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.5), Vec3::new(s, 0.0, c), 1.0);
+    let slab = finished("the slab", brick(SLAB[0], SLAB[1], SLAB[2], tol), tol);
+    let rod0 = finished("the rod", rod(tilt, tol), tol);
+    let rod1 = posed("the spun rod", &rod0, &spin, tol);
+    let body = |what: &str, out| match out {
+        Ok(BooleanResult::Body(b)) => b.body,
+        other => panic!("{what}: {other:?}"),
+    };
+    let plug = body("slab ∩ spun rod", topo::intersect(&slab, &rod1, tol));
+    let hole = body("slab ∖ rod", topo::subtract(&slab, &rod0, tol));
+    let v_a = plug_volume(tilt);
+    let got = every_op(
+        "spun plug, identity",
+        &plug,
+        &hole,
+        (Want::Builds(SLAB_VOLUME), [v_a, SLAB_VOLUME - v_a]),
+    );
+    assert_eq!(
+        [got[0], got[3], got[4]],
+        [
+            Reading::Body {
+                faces: 6,
+                face_pair_rows: 6
+            },
+            Reading::Body {
+                faces: 4,
+                face_pair_rows: 6
+            },
+            Reading::Body {
+                faces: 8,
+                face_pair_rows: 6
+            },
+        ],
+        "spun plug: the union is the slab and each difference its operand's faces"
+    );
+}
+
+/// **proud plug** (review of PR 5940): the tilted plug standing half a
+/// unit proud of the slab's top. Only the bottom rims run together
+/// (one plane section on each side, `sectors::same_construction`); the
+/// hole's top rim lies in the plug's wall. The union is the slab with
+/// the stub on it, the differences give each operand back, and the
+/// intersections are empty.
+#[test]
+fn a_proud_tilted_plug_unites_to_the_slab_and_its_stub() {
+    let tol = Tol::witness();
+    let tilt = 0.3;
+    let slab = finished("the slab", brick(SLAB[0], SLAB[1], SLAB[2], tol), tol);
+    let tall = finished(
+        "the tall slab",
+        brick(SLAB[0], SLAB[1], (0.0, 1.5), tol),
+        tol,
+    );
+    let rod0 = finished("the rod", rod(tilt, tol), tol);
+    let body = |what: &str, out| match out {
+        Ok(BooleanResult::Body(b)) => b.body,
+        other => panic!("{what}: {other:?}"),
+    };
+    let plug = body("tall ∩ rod", topo::intersect(&tall, &rod0, tol));
+    let hole = body("slab ∖ rod", topo::subtract(&slab, &rod0, tol));
+    let (v_a, v_b) = (1.5 * plug_volume(tilt), SLAB_VOLUME - plug_volume(tilt));
+    let got = every_op(
+        "proud plug, identity",
+        &plug,
+        &hole,
+        (Want::Builds(v_a + v_b), [v_a, v_b]),
+    );
+    assert!(
+        matches!(got[0], Reading::Body { faces: 9, .. }),
+        "proud plug: the union's faces, as measured at review: {:?}",
+        got[0]
+    );
+}
