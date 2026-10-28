@@ -6268,7 +6268,13 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             touching,
         } = sectors::pair_search(&a_sectors, &b_sectors, band)?;
         if op == BooleanOp::Union {
-            sectors::crescent_refusal([&a, &b], [&a_sectors, &b_sectors], &touching, band)?;
+            sectors::crescent_refusal(
+                [&a, &b],
+                [&a_sectors, &b_sectors],
+                &touching,
+                &contacts,
+                band,
+            )?;
         }
         // The layering beside a partner along the face reads no sector
         // pair on one plane: it refuses before `recl_sectors` reads one.

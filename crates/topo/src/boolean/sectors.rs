@@ -2025,6 +2025,7 @@ pub(super) fn crescent_refusal<T: Decide>(
     bodies: [&Body<T>; 2],
     sectors: [&[BoolSector<T>]; 2],
     touching: &[(usize, usize)],
+    contacts: &super::ReductionContacts,
     band: Band,
 ) -> Result<(), BooleanError> {
     let what = "a sector's face has no carrier";
@@ -2036,7 +2037,18 @@ pub(super) fn crescent_refusal<T: Decide>(
             continue;
         }
         let arm = sa.arm.min(sb.arm);
-        if !direction_sense(sa.normal.vec(), sb.normal.vec(), arm, band)? && crescent(sa, sb, band)?
+        let carried = |a_start: bool, b_start: bool| {
+            coincident_run(
+                [
+                    (bodies[0], sectors[0], sa, a_start),
+                    (bodies[1], sectors[1], sb, b_start),
+                ],
+                contacts,
+                band,
+            )
+        };
+        if !direction_sense(sa.normal.vec(), sb.normal.vec(), arm, band)?
+            && crescent(sa, sb, &carried, band)?
         {
             return Err(BooleanError::TangentCrescentUnsupported {
                 a_face: sa.face,
@@ -2069,6 +2081,13 @@ fn bound_bend<T: Decide>(reach: Reach<T>) -> Option<(Vec3<T>, T)> {
 /// bisector reads no bend, and a pair holding one reads no crescent.
 /// Equal bends (one circle bounding both) read none.
 ///
+/// The shared direction is read at the sector arm, as [`pair_search`]
+/// read the pair touching. Two bounds that part at their own reach
+/// leave the site at an angle the arm is too short to resolve; where
+/// the corners' other edges run on together from the site
+/// ([`coincident_run`], `carried`), the section closes that wedge and
+/// the pair reads none.
+///
 /// The verdict is the second-order term's sign at the vertex, read off
 /// the two carriers' point curvatures, which is exact as a claim that
 /// the crescent exists: near enough the vertex that term dominates
@@ -2084,12 +2103,13 @@ fn bound_bend<T: Decide>(reach: Reach<T>) -> Option<(Vec3<T>, T)> {
 fn crescent<T: Decide>(
     a: &BoolSector<T>,
     b: &BoolSector<T>,
+    carried: &dyn Fn(bool, bool) -> Result<bool, BooleanError>,
     band: Band,
 ) -> Result<bool, BooleanError> {
     let arm = a.arm.min(b.arm);
     let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
-    for (da, ra) in [(a.start, a.start_reach), (a.end, a.end_reach)] {
-        for (db, rb) in [(b.start, b.start_reach), (b.end, b.end_reach)] {
+    for (a_start, da, ra) in [(true, a.start, a.start_reach), (false, a.end, a.end_reach)] {
+        for (b_start, db, rb) in [(true, b.start, b.start_reach), (false, b.end, b.end_reach)] {
             let (Some((ka, la)), Some((kb, lb))) = (bound_bend(ra), bound_bend(rb)) else {
                 continue;
             };
@@ -2130,6 +2150,9 @@ fn crescent<T: Decide>(
                 continue;
             }
             let l = la.min(lb);
+            if carried(a_start, b_start)? && !parallel_same(da, db, l, band)? {
+                continue;
+            }
             let opened = (kb - ka).dot(u) * l.powi(2) / (T::one() + T::one());
             if decide("bool_sector_crescent", Margin::of(opened), band).map_err(escalate)?
                 == Sign::Positive
@@ -2139,6 +2162,83 @@ fn crescent<T: Decide>(
         }
     }
     Ok(false)
+}
+
+/// **Whether the section runs on from a vertex pair along the other
+/// edges of the two corners whose bounds [`crescent`] reads**: the edge
+/// across each corner from the bound it reads (`start`, or the end),
+/// both lines or circles, leaving the site tangent to each other at
+/// their own reach, their far ends a vertex pair the reduction recorded.
+/// Two such edges are one curve within the band: a line or circle
+/// through both ends of another, tangent to it at one, departs from it
+/// by no more than that tangency allows over its length. The section
+/// carried along that run reaches the pair from both sides, so where the
+/// two read bounds part at their own reach, the region between them is
+/// a wedge the run's loops close, not a crescent narrowing to the site.
+/// A closed edge, whose far end is the site, carries nothing past it.
+fn coincident_run<T: Decide>(
+    sides: [CornerBound<'_, T>; 2],
+    contacts: &super::ReductionContacts,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let [Some(a), Some(b)] = [far_edge(sides[0])?, far_edge(sides[1])?] else {
+        return Ok(false);
+    };
+    Ok(contacts
+        .vv
+        .iter()
+        .any(|c| a.far.contains(&c.a) && b.far.contains(&c.b))
+        && parallel_same(a.dir, b.dir, a.reach.min(b.reach), band)?)
+}
+
+/// A bound [`crescent`] reads: the operand's body, its sectors at the
+/// site, the sector, and whether the bound is the sector's `start`.
+type CornerBound<'s, T> = (&'s Body<T>, &'s [BoolSector<T>], &'s BoolSector<T>, bool);
+
+/// An open line or circle leaving a site ([`far_edge`]).
+struct RunEdge<T: geom_core::Real> {
+    /// Its unit direction at the site.
+    dir: Vec3<T>,
+    /// Its reach from the site, in metres.
+    reach: T,
+    /// Its far end's site.
+    far: Vec<VertexKey>,
+}
+
+/// The edge across the corner from the bound a [`CornerBound`] names,
+/// where it is an open line or circle ([`coincident_run`]).
+fn far_edge<T: Decide>(
+    (body, sectors, s, start): CornerBound<'_, T>,
+) -> Result<Option<RunEdge<T>>, BooleanError> {
+    let corner = |o: &&BoolSector<T>| o.he == s.he && o.face == s.face;
+    let (he, bound) = if start {
+        let bound = sectors.iter().filter(corner).find(|o| o.end_edge());
+        (s.he, bound.map(|o| (o.end, o.end_reach)))
+    } else {
+        let bound = sectors.iter().filter(corner).find(|o| o.start_edge());
+        (
+            body.proven_orbit_step(s.he),
+            bound.map(|o| (o.start, o.start_reach)),
+        )
+    };
+    let Some((dir, reach)) = bound else {
+        return Ok(None);
+    };
+    let half = proven(&body.half_edges, he, EntityId::HalfEdge);
+    let far = body.proven_half_edge_end(he);
+    if far == half.start
+        || !matches!(
+            germ_curve(body, half.edge)?.carrier(),
+            geom::Curve3::Line { .. } | geom::Curve3::Circle { .. }
+        )
+    {
+        return Ok(None);
+    }
+    Ok(Some(RunEdge {
+        dir,
+        reach: reach.length(),
+        far: site_of(body, far)?,
+    }))
 }
 
 /// A sector bound's side code against a face's PLANE ([`side_code`]
