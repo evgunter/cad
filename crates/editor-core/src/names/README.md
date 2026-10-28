@@ -757,13 +757,12 @@ the current run, the diagnosis is `GroupResized { node, was, now, cutters }`.
   record it keeps beside the table (`names::FragmentGroups`, not persisted),
   not re-derived from the names. It counts the distinct entities of the node's
   output descended from the parent within the group by the emitter's own
-  descent, however each is spelled: an undivided pass-through, an N3 `Merged`
-  survivor, and at a union the faces or seam edges it groups over its finished
-  body, one parent's or one pair of parents' each, and for its other groups
-  the published entities a fold step's group descends to, followed by entity
-  through every later step. A piece a later step
-  re-mints under a seam name of its own is not a descendant by that descent and
-  is not counted. An edge piece's group is its line's: every edge the node
+  descent, however each is spelled: an undivided pass-through or an N3
+  `Merged` survivor. At a union, a face or seam group is formed over the
+  finished body, one per parent (or pair of parents); any other group counts
+  the published entities a fold step's group descends to, followed through
+  every later step. A piece a later step re-mints under a seam name of its own
+  is not a descendant by that descent and is not counted. An edge piece's group is its line's: every edge the node
   holds on the line from an operand edge, whichever parent edge on the line it
   descends from, whole or in pieces, counted together. Two tied parents that
   share a base are two groups, each

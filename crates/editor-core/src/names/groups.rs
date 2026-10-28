@@ -68,7 +68,8 @@ struct Group {
     /// Whether the emitter formed this group by NAME over a tied
     /// parent ([`GroupRecord::record_by_name`]): tied parents share
     /// names, so their members may share the group and no one parent's
-    /// count is on record.
+    /// count is on record. Only a pair boolean's seam vertices and its
+    /// joined edge sets are formed so.
     tie_summed: bool,
     /// Whether the group is one parent's share of a LINE's group: the
     /// edges a node holds on one line (N2), whichever parent edge on it
@@ -107,8 +108,9 @@ impl GroupRecord {
     }
 
     /// Records a group the emitter formed by parent NAMES, so that
-    /// tied parents' pieces share it (see [`Group::tie_summed`]).
-    /// `tied` says whether any parent was tied.
+    /// tied parents' pieces share it (see [`Group::tie_summed`]): a pair
+    /// boolean's seam vertex or joined edge set. `tied` says whether any
+    /// parent was tied.
     pub(crate) fn record_by_name(
         &mut self,
         base: &StableName,
