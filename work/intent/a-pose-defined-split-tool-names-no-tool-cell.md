@@ -2,7 +2,7 @@
 id: a-pose-defined-split-tool-names-no-tool-cell
 kind: issue
 title: A split whose tool is a pose definition has no tool node, so a tool-cell coincidence row cannot be named
-status: open
+status: dispatched
 priority: P2
 opened: 2026-10-10
 ---

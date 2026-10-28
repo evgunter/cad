@@ -995,4 +995,4 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
     - the Python space-mismatch → BIND (1).
   - **Other tracker fixes:** priorities set on the rows that had none. `main-red-edit-rs-folds-a-face-sense-by-hand` closed as a duplicate of #5849's fix.
   - **INTENT keeps:** G and its riders, the stage-3 umbrellas, the carry, the two refactor pose-definition rows, the roots rename, the fixture literals, the cost-E tail, and the design rows `an-unread-body-is-no-finding` and `split-widens-…`.
-  - **Parallel lanes dispatched beside G and the carry:** the roots rename, the refactor pose-definition rows, and a cost-E batch (loft station, fused-instance frame, pick cross-check, fixture zero literals).
+  - **Parallel lanes dispatched beside G and the carry:** the roots rename (`session_01VyvYnM85PzUjzS8KDPp1vG`, single STYLE), the refactor pose-definition rows (`session_01VyvYnKNiPxav6Gp55TVhep`, single FULL), and a cost-E batch (`session_01VyvYnKZwLAT9fCrXvcoSL9`, single STYLE: loft station, fused-instance frame, pick cross-check, fixture zero literals).

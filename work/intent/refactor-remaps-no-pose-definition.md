@@ -2,7 +2,7 @@
 id: refactor-remaps-no-pose-definition
 kind: issue
 title: Split and inline refuse a document whose node reads a pose definition (RemapMiss::Read)
-status: open
+status: dispatched
 priority: P2
 opened: 2026-10-10
 ---
