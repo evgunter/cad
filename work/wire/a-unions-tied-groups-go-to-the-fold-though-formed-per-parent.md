@@ -2,7 +2,7 @@
 id: a-unions-tied-groups-go-to-the-fold-though-formed-per-parent
 kind: issue
 title: A union leaves its tied parents' face and seam groups to the fold, though it forms them per parent now
-status: open
+status: dispatched
 opened: 2026-10-27
 priority: P3
 cost: M

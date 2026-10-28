@@ -7192,3 +7192,7 @@ Signed (WIRE orchestrator).
 - 2026-10-28 (WIRE orchestrator) Budget: main's merge plus the priced PR 5876 rows put WIRE at 35/30.
   - Priced: split tie-witness row E; union fold row M.
   - Moved to WIRETAIL (P3, 5 points): `the-older-missing-rule-naming-variants-lack-the-unsupported-prefix` and `a-body-value-consumed-by-k-nodes-is-gated-at-rest-k-times`. The measuredoor citation is repointed.
+- 2026-10-28 (WIRE orchestrator) PR 5887 (state sync) merged.
+- 2026-10-28 (WIRE orchestrator) Dispatched two lanes:
+  - `wire-unionrecord` (wire/union-tied-groups-record-their-own-count): `a-unions-tied-groups-go-to-the-fold-though-formed-per-parent`. It decides whether to record or fold; FULL review.
+  - `wire-tiewitness` (wire/tie-summed-decline-witnessed): the tie-summed decline witness and the split Seam/SetPiece tie witness, tests only; STYLE review.
