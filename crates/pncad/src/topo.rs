@@ -19,10 +19,15 @@
 //!
 //! Everything else in `topo` comes through whole, so the façade stays
 //! closed over error payloads (`EulerOpError` and its `BadArgument` and
-//! `RechartDoor` included). The modules that hold only the tier's own
-//! vocabulary are shadowed below by private empty modules: an item
-//! declared in a module takes precedence over a glob import of the same
-//! name, and a private one does not resolve from outside.
+//! `RechartDoor` included). The tier's modules are shadowed below by
+//! private empty modules: `construction`, every module it re-exports the
+//! tier's vocabulary from, and `movefac`, which holds tier doors and
+//! no public item. An item declared in a module takes precedence over a
+//! glob import of the same name, and a private one does not resolve
+//! from outside. Those modules also hold names the façade does carry:
+//! topo's root re-exports them, so they arrive through the glob all the
+//! same (`EulerOpError`, `BadArgument` and `RechartDoor` from `euler`,
+//! `CurveGeom` from `null`).
 //!
 //! ```compile_fail,E0603
 //! // The tier's trait is not reachable through the façade.
@@ -51,8 +56,7 @@
 
 pub use ::topo::*;
 
-// The construction tier and the modules that hold only its vocabulary
-// (module docs).
+// The construction tier's modules (module docs).
 mod attach {}
 mod construction {}
 mod euler {}
