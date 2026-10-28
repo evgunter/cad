@@ -114,8 +114,8 @@ fn the_f64_seam_answers_every_public_door() {
     // edges with the box's side planes derive as their sections, its
     // corners are the side planes' roots along them, and the body then
     // refuses at the surface swap's re-certification: each section is
-    // the fit's own window edge, along which the plane × NURBS tube
-    // proves no single arc and says so
+    // the fit's own window edge, where the plane × NURBS tube proves no
+    // single arc
     // (`work/ssiedge/a-plane-section-along-a-fits-window-edge-proves-no-one-arc.md`).
     // That refusal is named so a change to the LANE absence cannot hide
     // behind it.
@@ -128,13 +128,13 @@ fn the_f64_seam_answers_every_public_door() {
                     error: geom_brep::CertifyError::PlaneNurbs(
                         geom_brep::PlaneNurbsRefusal::TubeNotOneArc {
                             rungs: 20,
-                            cause: geom_brep::ssi::OneArcRefusal::AlongSide { chart: 0 },
+                            cause: geom_brep::ssi::OneArcRefusal::Undecided(why),
                         }
                     ),
                     ..
                 },
                 ..
-            })
+            }) if why.predicate == Some("ssi_tube_one_arc")
         )
     };
     let (mut fresh, cap) = box_with_approx_cap(d, 1e-9);

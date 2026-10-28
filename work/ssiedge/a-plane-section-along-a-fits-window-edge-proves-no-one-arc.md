@@ -65,14 +65,16 @@ Re-run by name at `CAD_TOLERANCE_EPS=1e-6` on main `8dc4a60767` by the FUSE curv
 
 CONTACTHOLD's nightly-red lane built `sweep`'s `all` binary on both sides of `108b06955d`, the merge of PR 4472 (`shell/fitted-corners`). At ε 1e-6, `r1_lane0_e2e::the_f64_seam_answers_every_public_door` passes at its first parent `cb4172aa9f` and fails at the merge, with this row's `TubeNotOneArc { rungs: 15, cause: Undecided(..) }` refusal. It is still red in the 2026-10-19 nightly (run 39205007024).
 
-## 2026-10-28 — refused by name
+## 2026-10-28 — measured on the side, left undecided
 
-The chart tube now names this refusal
-(`splice/the-two-chart-tube-refuses-a-carrier-along-a-chart-side-undecided`):
-the section's image in the fit's chart lies within the end box of the
-fit's side (1e-17 to 2e-16 off it), so `one_arc`'s `Undecided` reads
-`TubeNotOneArc { rungs: 20, cause: AlongSide { chart: 0 } }` at ε 1e-9
-and 1e-12, and the 1e-6 red reads `rungs: 15` with the same cause. The
-reach is unchanged: "a refusal that names the window edge rather than an
-undecided margin" is done; the one-arc proof is not. Under PR 5933's
-reading the section is the fit's row, a structural selector's curve.
+SPLICE's tube-tripwire lane
+(`splice/the-two-chart-tube-refuses-a-carrier-along-a-chart-side-undecided`)
+measured this section's image in the fit's chart within 1e-17 to 2e-16
+of the fit's side, so it lies along the window edge as the two-chart
+tube's new `AlongSide` refusal reads one. The chart tube does not take
+that name: past its side arm, an `Undecided` may come from the arm's
+own in-band readings (`Reading::Refused | Beyond`, a missing side
+reader, `Near::Unknown`), which are indeterminate, and naming it would
+report them as sign-certain. The payload here stays `Undecided`.
+"A refusal that names the window edge" therefore needs the side arm to
+say which of its readings refused; the one-arc proof is still open.
