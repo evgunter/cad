@@ -21,6 +21,7 @@
 #![allow(clippy::print_stdout)]
 
 use crate::common;
+use topo::construction::Construct;
 
 use common::witness_bodies::{keyway, oblique_lens};
 use common::*;

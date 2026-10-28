@@ -4,7 +4,6 @@ kind: issue
 title: the tracked seqgen proptest-regressions corpus is orphaned by the row's file move and never replayed
 status: open
 opened: 2026-09-06
-track: P
 refs: [S69, 2014]
 priority: P3
 cost: E

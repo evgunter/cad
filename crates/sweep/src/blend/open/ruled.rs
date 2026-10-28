@@ -66,7 +66,9 @@
 
 use geom::Surface;
 use geom_core::{Bounds, Decide, Real, Tol};
-use topo::{Body, EdgeKey, EntityId, FaceKey, FaceSurface, MefSite, VertexKey};
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, MefSite};
+use topo::{Body, EdgeKey, EntityId, FaceKey, VertexKey};
 
 use super::end_face::{CapSliver, CutRims, EndCut, cut_off, end_rims, fold_sliver};
 use crate::blend::BlendError;

@@ -7,10 +7,11 @@
 use crate::common;
 use common::{brick, describe_as_intersections, finished, geometric_cube, line};
 use geom_core::{Point3, Tol, Vec3};
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, MefSite};
 use topo::{
     AtRestBody, Backing, Body, BooleanBody, BooleanResult, CarryRefusal, Cell, Cited, Cites,
-    Contact, ContactRecords, FaceKey, FaceSurface, MefSite, Surface, ValidationError, union,
-    validate_pseudomanifold,
+    Contact, ContactRecords, FaceKey, Surface, ValidationError, union, validate_pseudomanifold,
 };
 
 fn tol() -> Tol {

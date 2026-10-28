@@ -30,7 +30,9 @@ use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
-use topo::{Body, FaceSurface, MefSite, MevSite};
+use topo::Body;
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, MefSite, MevSite};
 
 // ---------------------------------------------------------------
 // D9: an INDEPENDENT byte digest (claim 4)

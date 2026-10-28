@@ -18,7 +18,9 @@ use geom_core::{Point2, Point3, Vec3};
 use profile::SketchPlane;
 use profile::test_support::bulge_loop;
 use std::sync::Arc;
-use topo::{Body, FaceSurface, Pcurve};
+use topo::construction::Construct;
+use topo::construction::FaceSurface;
+use topo::{Body, Pcurve};
 
 fn offset_square_prism() -> Body<f64> {
     let square = || -> sweep::Section {

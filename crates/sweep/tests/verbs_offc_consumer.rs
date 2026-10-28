@@ -39,11 +39,13 @@
 
 use std::sync::Arc;
 use sweep::ExtrudeSide;
+use topo::construction::Construct;
 
 use geom::{NurbsSurface, Surface};
 use geom_core::{Affine3, Tol, Vec3};
 use sweep::test_support::finished;
-use topo::{Body, FaceKey, FaceSurface};
+use topo::construction::FaceSurface;
+use topo::{Body, FaceKey};
 
 use crate::common;
 use common::approx::{approx_walls, band, box_with_approx_cap, moved_box, prism, unit_box};

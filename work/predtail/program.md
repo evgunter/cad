@@ -4,12 +4,12 @@ kind: program
 title: PREDTAIL — one numeric fact, decided in several places: PRED's parked P1 rows and its P3/P4 tail
 status: ready
 opened: 2026-10-25
-area: kernel
+group: kernel/boolean/one-home
 prefix: predtail/
 tag: (PREDTAIL orchestrator)
 ab_band: 14600-14699
 paths: []
-keep_out: [opened 2026-10-25 by PRED's priority-seam cut (PRED measured 39.5 budget points against 30 after its re-census) and joined on 2026-10-26 by PRED itself, which was handed back blocked with two parked P1 rows - every row moved with its id and body unchanged - like PRED this program claims no paths because its rows are classes across crates, so run scripts/work.py territory on your branch and announce the seam - the two band rows are almost entirely test code across every kernel crate, with about 21 editor-core test sites that INTENT's units may churn - the contact_verify home of the ordering row and of the parked contact_verify row, and the editor-core mate sites of the pair row, sit on D10 stage 4 and stage 3 ground, which the refactor hold covers (d10-one-way-to-say-intent-is-unbuilt) - the parked cone-nappe row reaches PCERT's pcurve_cache.rs and CHARTTAIL's chart_region.rs and waits on PR 5500, crates/geom-brep/src/props/* and certify.rs are PROPS' and crates/topo/src/boolean/* is shared with the boolean programs, so a unit there announces the seam]
+keep_out: [opened 2026-10-25 by PRED's priority-seam cut (PRED measured 39.5 budget points against 30 after its re-census) and joined on 2026-10-26 by PRED itself, which was handed back blocked with two parked P1 rows - every row moved with its id and body unchanged - like PRED this program claims no paths because its rows are classes across crates, so run scripts/work.py territory on your branch and announce the seam where the changes are coupled - the two band rows are almost entirely test code across every kernel crate, with about 21 editor-core test sites that INTENT's units may churn - the contact_verify home of the ordering row and of the parked contact_verify row, and the editor-core mate sites of the pair row, sit on D10 stage 4 and stage 3 ground, which the refactor hold covers (d10-one-way-to-say-intent-is-unbuilt) - the parked cone-nappe row reaches PCERT's pcurve_cache.rs and CHARTTAIL's chart_region.rs and waits on PR 5500, crates/geom-brep/src/props/* and certify.rs are PROPS' and crates/topo/src/boolean/* is shared with the boolean programs, so a unit there announces the seam where the changes are coupled]
 ---
 
 The class the 2026-08 scan named and nobody owned: **one numeric fact,

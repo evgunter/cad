@@ -46,3 +46,15 @@ would have to become a statement about the arm's existence rather than
 its pose. The natural time is step 3 of `plan.md`, when the
 classifier's arms move into the value and `route_pose`'s pose reading
 moves with them.
+
+## Evidence: sphere × torus answers ahead of its consumers (2026-10-28)
+
+From the review of PR 5886 (`sect/torus-certificate`). That PR flips
+`route(Sphere, Torus)` to `implemented: true`, because
+`ssi::sphere_torus_ssi` certifies the pair, but `pair_section` has no
+sphere × torus arm. `topo::replace_face` and `shell` pass the route gate
+for a sphere × torus neighbour, then refuse at `section_closed` with
+`SectionVerdict::Unsupported`. Before the flip they refused
+`NeighborPairUnroutable`. The refusal is vaguer, and no wrong body comes
+of it. The `implemented` flag answers per kind ahead of the consumers
+that read it, which is this row's two-dispatch shape again.

@@ -8,6 +8,7 @@
 
 use std::collections::HashMap;
 use sweep::ExtrudeSide;
+use topo::construction::Construct;
 
 use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec3};

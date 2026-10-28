@@ -2,12 +2,11 @@
 id: a-classified-pairs-section-states-the-bounds-that-retire-the-tube
 kind: unit
 title: Conic build unit 3: a classified pair's section function states the crossing-angle floor and the overlap clearance for its pose, and the certificate owes no tube where it does
-status: parked
+status: spec
 opened: 2026-10-25
 priority: P0
 cost: M
 parent: offset-lane-has-no-conic-carrier
-blocked_on: [edge-extent-reads-a-steep-nurbs-arcs-chord-four-to-ten-times-short]
 ---
 
 
@@ -17,6 +16,15 @@ arc by its chord, up to ten times short of its diameter, which can read
 a Positive margin as a definite Zero in the stand-in, coincidence and
 tangency predicates that consume it. It waits until that arm is a true
 bound on the arc.
+
+**Un-parked (2026-10-27).** The edge extent is now two true bounds,
+`geom_brep::edge_extent_inf` and `geom_brep::edge_extent_sup`, and each
+consumer levers at the side its acted-on verdict needs: a reading that
+acts on a Zero (the wedge, the census's corners, the rest locus's ball,
+the contact verifier, the fate cut's corner) at the bound from above, a
+certificate's transversality, tube and roots at the bound from below
+(`edge-extent-reads-a-steep-nurbs-arcs-chord-four-to-ten-times-short`'s
+`## Closed`).
 
 Ev's ruling on PR 5652, C2 of `crates/geom-brep/README.md`: limb 3 is
 owed unless the pair's section function states, for the pose, (a) a

@@ -13,6 +13,7 @@
 
 use crate::common;
 use geom_core::Tol;
+use topo::construction::Construct;
 use topo::props::mass_properties;
 use topo::validate::{ValidationError, validate_geometric};
 

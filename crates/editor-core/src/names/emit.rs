@@ -2049,6 +2049,7 @@ mod display_tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use geom_core::{Band, MarginDiag};
+    use topo::construction::Construct;
 
     use super::*;
     use crate::eval::NodeErrorKind;
@@ -2076,7 +2077,7 @@ mod display_tests {
                 .mvfs(geom_core::Point3::new(x, 0.0, 0.0), true)
                 .expect("mvfs births a solid, shell, face and lone vertex");
             body.mev_line(
-                topo::MevSite::Lone {
+                topo::construction::MevSite::Lone {
                     r#loop: born.r#loop,
                 },
                 geom_core::Point3::new(x + 1.0, 0.0, 0.0),
@@ -3067,6 +3068,7 @@ mod conventional_vertex_tests {
     };
     use crate::node::StepId;
     use profile::PieceRole;
+    use topo::construction::Construct;
 
     const NODE: RecipeNodeId = RecipeNodeId::new(0, 7);
 
@@ -3115,7 +3117,7 @@ mod conventional_vertex_tests {
             .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
             .expect("mvfs births a solid, shell, face and lone vertex");
         body.mef_chord(
-            topo::MefSite::Lone {
+            topo::construction::MefSite::Lone {
                 r#loop: born.r#loop,
             },
             geom_core::Tol::witness(),
@@ -3152,7 +3154,7 @@ mod conventional_vertex_tests {
             .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
             .expect("mvfs births a solid, shell, face and lone vertex");
         body.mev_line(
-            topo::MevSite::Lone {
+            topo::construction::MevSite::Lone {
                 r#loop: born.r#loop,
             },
             geom_core::Point3::new(1.0, 0.0, 0.0),

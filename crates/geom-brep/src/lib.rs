@@ -80,6 +80,7 @@ mod krawczyk;
 pub mod ladder;
 pub mod locus;
 pub mod mapped;
+pub(crate) mod memo;
 pub mod newell;
 pub mod nurbs_iso;
 pub mod offset;
@@ -104,8 +105,7 @@ pub use carrier_net::CarrierEnclosureRefusal;
 pub use certify::{
     CERT_SAMPLES, CertCheck, Certificate, CertifiedTurn, CertifyError, DraftedIntersection,
     EdgeCurve, EdgeCurveSpec, ForwardReading, IntersectionDraft, MintedEdge, NurbsLane, SplineFoot,
-    StatedImage, StatedSpan, WindingReading, edge_extent, folded_parallelism, sample_param,
-    schedule_param,
+    StatedImage, StatedSpan, WindingReading, folded_parallelism, sample_param, schedule_param,
 };
 pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side};
 pub use description::{
@@ -115,10 +115,10 @@ pub use dihedral::{
     DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DIHEDRAL_ARM_NOUN, DihedralClass, DihedralReading,
     MATERIAL_PAIRING, MATERIAL_PAIRING_CLAUSE, MaterialPairing, MaterialWedge, MixedStations,
     MustCarryDescription, MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, PairRefusal,
-    RestLocus, SecondOrder, SecondOrderWalk, SmoothJoin, Station, StationHook, classify_dihedral,
-    classify_material_pairing, classify_material_pairing_as, folded_lever_arm, interior_stations,
-    material_kappa_rel, must_carry_description, must_carry_over_edge, reask_chart, reask_pair,
-    second_order_walk, tangent_second_order,
+    RestLocus, SeamEscalation, SeamFace, SecondOrder, SecondOrderWalk, SmoothJoin, Station,
+    StationHook, classify_dihedral, classify_material_pairing, classify_material_pairing_as,
+    classify_seam, folded_lever_arm, interior_stations, material_kappa_rel, must_carry_description,
+    must_carry_over_edge, reask_chart, reask_pair, second_order_walk, tangent_second_order,
 };
 pub use dihedral_side::{
     CreaseReading, EdgeHalf, EdgeWalk, FaceSide, SideEscalation, SideFace, SideRole,
@@ -137,7 +137,10 @@ pub use enters::{
     ParallelSense, ReferenceNormal, WallBend, WallBendError, bends_into_material, enters_material,
     enters_material_order2, enters_material_reported, normal_alignment,
 };
-pub use extent::{ExtentBall, Reach, control_net_reach};
+pub use extent::{
+    ExtentBall, LeverBounds, Reach, control_net_reach, edge_extent_inf, edge_extent_sup,
+    edge_reach_bounds, edge_reach_from,
+};
 pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 /// The ring-torus convention's one home is `geom` (below this crate, so
 /// the spiric carrier's constructor reads it too); re-exported so the
@@ -210,9 +213,10 @@ pub use ssi::{
     ExhaustivenessRefusal, FloorFault, FloorKind, FloorRefusal, PlaneSection, ReachBound,
     SSI_FIT_DEGREE, SSI_FLOOR, SSI_MAX_STEPS, Section, SectionReading, SectionRoot,
     SettlingRefusal, SsiBoundaryContact, SsiBranch, SsiCertificate, SsiDecision, SsiDomain,
-    SsiError, SsiLimb, SsiOperand, SsiOutcome, SsiTube, StepFault, StepperMode, TraceDecision,
-    TubeDegeneracy, boundary_section, certify_rung3, cylinder_sphere_ssi, idealized_trace_r3,
-    march_cylinder_sphere, plane_nurbs_ssi, trace_plane_nurbs_uncertified,
+    SsiError, SsiLimb, SsiOperand, SsiOutcome, SsiTube, StepFault, StepperMode, TangentPair,
+    TraceDecision, TubeDegeneracy, boundary_section, certify_rung3, cylinder_sphere_ssi,
+    idealized_trace_r3, march_cylinder_sphere, plane_nurbs_ssi, sphere_torus_ssi,
+    trace_plane_nurbs_uncertified,
 };
 pub use tangent::{
     TangentJet, TangentSpanBounds, tangent_certificate_lane, tangent_jet, tangent_span_bounds,

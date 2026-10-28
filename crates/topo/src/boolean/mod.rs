@@ -2371,7 +2371,7 @@ impl<T: Real> BooleanReduction<T> {
     /// ([`crate::surgery`]).
     ///
     /// **Guardless, and this is one of the two sites in the crate
-    /// where it has to be.** A [`crate::Surgery`] would borrow
+    /// where it has to be.** A [`crate::construction::Surgery`] would borrow
     /// `self.a` for the scope's whole span, and the join takes the
     /// WHOLE reduction — both bodies, the contacts, the null-edge
     /// records — so the guard and the call cannot both exist. What

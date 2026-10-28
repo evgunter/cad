@@ -28,6 +28,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::halfcap_fixture as fixture;
+use topo::construction::Construct;
 
 use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, import_step};

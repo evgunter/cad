@@ -21,8 +21,9 @@ use super::section_cert_rows::{
 };
 use super::*;
 use crate::boolean::ops;
+use crate::construction::{FaceSurface, MefSite, MevSite};
 use crate::test_support_fixtures::brick;
-use crate::{Body, FaceKey, FaceSurface, MefSite, MevSite};
+use crate::{Body, FaceKey};
 use core::f64::consts::{FRAC_1_SQRT_2, FRAC_PI_4, PI, TAU};
 use geom::{Curve3, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};

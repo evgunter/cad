@@ -9,6 +9,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use topo::construction::Construct;
 
 use common::{brick, finished, prism_z};
 use geom_core::Decide;
@@ -645,7 +646,7 @@ fn brick_with_cone_face_at(x: (f64, f64)) -> (topo::Body<f64>, topo::FaceKey) {
     // Lifts RechartStrandsDescriptions: the relabelled cone is the operand gate's input, its box read off the brick.
     b.set_face_surface_unvouched_for_tests(
         face,
-        topo::FaceSurface::New {
+        topo::construction::FaceSurface::New {
             surface: geom::Surface::Cone {
                 apex,
                 axis: Vec3::new(1.0, 0.0, 0.0),
@@ -772,7 +773,7 @@ fn a_placeholder_nurbs_wall_is_refused_at_rest() {
     // Lifts RechartStrandsDescriptions: the NURBS wall is the at-rest gate's input; its edges are not the row.
     b.set_face_surface_unvouched_for_tests(
         face,
-        topo::FaceSurface::New {
+        topo::construction::FaceSurface::New {
             surface: geom::Surface::Nurbs(std::sync::Arc::new(geom::NurbsSurface::placeholder())),
             sense: true,
         },

@@ -858,6 +858,8 @@ mod intent_vars_3_readers;
 mod review_s5b_r2_probes;
 #[path = "run_wall_offers.rs"]
 mod run_wall_offers;
+#[path = "split_joined_keys_tie.rs"]
+mod split_joined_keys_tie;
 #[path = "union_flush_fuses.rs"]
 mod union_flush_fuses;
 #[path = "union_member_orders_decide_alike.rs"]

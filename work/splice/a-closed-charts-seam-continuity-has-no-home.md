@@ -30,3 +30,14 @@ rim on it would escalate. The fix is a seam-continuity reading beside
 `crease_runs` (the end tangents' alignment, decided, per direction). The
 door then reads a C¹ seam's one normal, and that row's assertion turns
 into a side.
+
+## The seam reading inherits it (SPLICE, 2026-10-27)
+
+`geom_brep::classify_seam` reads a spline face's normal through the same
+`chart_normal_at`, so a seam read on a closed chart's closure line (a wrap
+edge's own reading, where both domain ends meet) escalates
+`SeamEscalation::Crease`, which `topo`'s describer words as
+`EdgeUndescribed { failure: Crease }`, C¹ closure or not. A rim arc's own
+witness does not land there: its image (`Pcurve::IsoArc`) lies within one
+period of the chart, so the middle of its interval is on the closure line
+only where the edge is the closure row itself.

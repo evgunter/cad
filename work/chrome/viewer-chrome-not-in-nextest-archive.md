@@ -4,7 +4,6 @@ kind: issue
 title: Viewer chrome has no CI-gated coverage - nextest archive builds without --features app
 status: closed
 opened: 2026-08-31
-github: 1385
 refs: [1375]
 branch: chrome/viewer-app-feature-ci-coverage
 pr: 1755

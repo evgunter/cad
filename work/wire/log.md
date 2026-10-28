@@ -7192,3 +7192,8 @@ Signed (WIRE orchestrator).
 - 2026-10-28 (WIRE orchestrator) Budget: main's merge plus the priced PR 5876 rows put WIRE at 35/30.
   - Priced: split tie-witness row E; union fold row M.
   - Moved to WIRETAIL (P3, 5 points): `the-older-missing-rule-naming-variants-lack-the-unsupported-prefix` and `a-body-value-consumed-by-k-nodes-is-gated-at-rest-k-times`. The measuredoor citation is repointed.
+- 2026-10-28 (`wire-tiewitness`) Tests only.
+  - Pinned a tied pair seam group's own count, 2 → 0, which reads 4 with the name-only key.
+  - Witnessed the split's `Joined::Seam` key with a vertical split of a pocketed U-tie. It goes red on revert.
+  - Argued that the `record_by_name` tie-summed decline cannot be reached, and measured it: zero `sizes() == None` across the suite.
+  - `SetPiece` has no witness; what was tried is on its row. Both rows stay open.

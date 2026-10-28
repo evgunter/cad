@@ -1,7 +1,7 @@
 //! **The document layer's curated surface**.
 //!
-//! The façade re-exports the KERNEL crates wholesale (`pncad::topo`,
-//! `pncad::sweep`, …): they are geometry, and a consumer that reaches
+//! The façade re-exports the KERNEL crates wholesale (`pncad::sweep`,
+//! …; `pncad::topo` whole but for its construction tier): they are geometry, and a consumer that reaches
 //! past the prelude into them finds nothing that outlives the value it
 //! is holding. The document layer is different — its arena keys
 //! (`EntityRef`, `EntityKey`, and the `topo` keys they wrap) are

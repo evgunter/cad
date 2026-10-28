@@ -4,7 +4,7 @@ kind: program
 title: META — the tracker and the process instruments
 status: ready
 opened: 2026-09-04
-area: infra
+group: infra
 prefix: meta/
 tag: (META orchestrator)
 ab_band: 2800-2899

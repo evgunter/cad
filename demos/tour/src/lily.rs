@@ -156,8 +156,8 @@ use pncad::sweep::{
     revolve, revolved_caps, sweep_body, tube_along_arc,
 };
 use pncad::topo::{
-    AtRestBody, Body, BooleanBody, BooleanDecision, BooleanError, ContactRecords, EdgeKey,
-    LeverArm, Operand,
+    AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, EdgeDescribeFailure, EdgeKey,
+    EulerOpError, Operand,
 };
 
 use crate::booleans::{check, expect_seamed, finished, try_union};
@@ -2372,11 +2372,14 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    seam: no crossing inside it, its start on the cap being its end
     //    vertex's meeting. Each NURBS seam of one body is read against the
     //    other's NURBS walls by the spline-face arm, a seam's end at a tip
-    //    being its end vertex's meeting. It still refuses, at the result:
-    //    the shared rim, a seam between the two bodies' NURBS walls, is
-    //    re-described through the dihedral of its two surfaces, which has
-    //    no reading on a spline surface
-    //    (`work/splice/the-results-seam-between-two-spline-walls-is-read-by-no-dihedral`).
+    //    being its end vertex's meeting. At the result, the shared rim,
+    //    a seam between the two bodies' NURBS walls, reads transverse off
+    //    each wall's chart. It still refuses where that seam is described
+    //    as the walls' intersection: the NURBS pair's limb 2 reads a
+    //    degree-1 image of the rim derived from feet, which misses the
+    //    walls between them by a definite margin, where each wall's own
+    //    description holds the rim as an exact boundary row
+    //    (`work/ssiedge/plane-nurbs-certificate-bound-does-not-refine-with-eps`).
     //    The flush reading along the two bodies' NURBS edges is behind
     //    that (`work/splice/a-unions-flush-reading-cannot-follow-a-nurbs-carrier`).
     let sheath = {
@@ -2408,21 +2411,21 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         8,
         "graft the leaf's sheath onto its blade at their shared section",
         crate::booleans::try_union(leaf_a, &sheath, tol),
-        // The SITE is the claim: the result's seam, its arm read through a
-        // dihedral with no reading on a spline wall, so no value. If this
-        // ever refuses elsewhere, the sentence above is wrong and must be
-        // re-derived before it is believed. `LeverArm::Seam` is raised by
-        // one door, the seam re-description's, so the decision and its
-        // predicate pin the site; the refusal names no edge and no face, so
-        // the probe cannot tell this seam from another seam of the result
-        // read the same way.
+        // The SITE is the claim: the result's seam, described as the
+        // walls' `Intersection`, whose certification refuses. The cause
+        // moves with ε: at 1e-9 and 1e-12 the image limb's definite miss
+        // (`PlaneNurbs(Limb { ImageMiss })`, 4.5e-6 m), at 1e-6 the pair's
+        // transversality read in band at a sample. If this ever refuses
+        // elsewhere, the sentence above is wrong and must be re-derived
+        // before it is believed.
         |e| {
             matches!(
                 e,
-                BooleanError::Escalated {
-                    decision: BooleanDecision::LeverArm(LeverArm::Seam),
-                    diag,
-                } if diag.predicate == Some("dihedral_arm") && diag.margin.is_invalid()
+                BooleanError::EdgeUndescribed {
+                    failure: EdgeDescribeFailure::Intersection,
+                    cause: Some(cause),
+                    ..
+                } if matches!(**cause, EulerOpError::Certification { .. })
             )
         },
         "grow the leaves out of the stem instead of standing them beside it",

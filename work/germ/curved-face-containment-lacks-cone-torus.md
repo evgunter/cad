@@ -4,7 +4,6 @@ kind: issue
 title: curved_face_containment has no cone or torus arm while point_in_solid now answers both kinds
 status: closed
 opened: 2026-09-01
-github: 1484
 refs: [1464, 1425]
 priority: P0
 cost: H

@@ -5,7 +5,6 @@ title: loft_body refuses at degree ≥ 2 on generic parameterizations: pcurve_ca
 status: closed
 closed: 2026-10-23
 opened: 2026-08-30
-github: 1316
 refs: [1314]
 priority: P0
 cost: H

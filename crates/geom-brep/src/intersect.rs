@@ -93,14 +93,16 @@
 //! something a caller can influence):
 //!
 //! - **plane × NURBS** — the ℝ⁴ parametric×parametric trace (3×4 SVD).
-//! - **cylinder × sphere** — the ℝ³ implicit-pair march (2×3 SVD).
+//! - **cylinder × sphere** and **sphere × torus** — the ℝ³ implicit-pair
+//!   march (2×3 SVD).
 //!
-//! Both go through `geom_brep::ssi`, which marches (untrusted), fits
+//! Each goes through `geom_brep::ssi`, which marches (untrusted), fits
 //! (PR 4), certifies all three C2 limbs, and proves the domain
 //! exhausted or refuses typed. Every other rung-3 arm keeps its typed
-//! refusal and now **cites the trace shape it would use** and what is
-//! actually missing — which is, for most of them, not the trace but the
-//! exact meters conversion of their C9 composite.
+//! refusal and **cites the trace shape it would use** and what is
+//! actually missing: for the cone pairs, the meters conversion of the
+//! cone's composite; for the other torus pairs, the arm's own
+//! retirement.
 //!
 //! Tangential outcomes (`TangentLine` variants) are **classification
 //! data**, not constructible edges: a pair whose transversality margin
@@ -115,7 +117,7 @@ use geom_core::{Band, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, 
 use crate::dihedral::{
     decide, decide_magnitude, decide_magnitude_reported, decide_nonzero, decide_reported,
 };
-use crate::extent::Reach;
+use crate::extent::{LeverBounds, Reach};
 use crate::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use crate::torus_convention::TorusRefusal;
 use geom_core::Decide;
@@ -265,9 +267,8 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
                    classification data, not a carrier; no production consumer takes \
                    it yet) (plane_torus_section); everything tilted — the bitangent \
                    Villarceau pair included — routes to the general rung with the \
-                   ℝ³ IMPLICIT-PAIR trace shape, blocked on the torus's exact \
-                   meters conversion (arms retire one at a time, each with its \
-                   proof)",
+                   ℝ³ IMPLICIT-PAIR trace shape, whose tilted plane×torus arm has \
+                   not retired (arms retire one at a time, each with its proof)",
         },
         // ---- Rung 1, the COAXIAL configuration only: two closed-form
         // Circles, one per nappe. Every other pose keeps its
@@ -281,11 +282,9 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
                    tangency sub-case exists, a coaxial cylinder always cuts \
                    transversally; a tilted cylinder and a parallel-but-OFFSET one \
                    both cut a QUARTIC and route to the general rung, whose \
-                   cone×cylinder arm has not retired — the cone's meters composite \
-                   needs a certified root, which certification arithmetic does not \
-                   take, so its \
-                   certificate, not its trace, is what is missing (arms retire one \
-                   at a time, each with its proof)",
+                   cone×cylinder arm has not retired — the cone's composite has no \
+                   meters conversion, so its certificate, not its trace, is what is \
+                   missing (arms retire one at a time, each with its proof)",
         },
         // ---- Rung 3, IMPLEMENTED (M5 PR 7): the ℝ³ implicit-pair
         // march. Both operands' C9 composites convert to meters
@@ -310,9 +309,10 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             rung: Rung::General,
             implemented: false,
             note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
-                   trace shape (the general-rung marcher); blocked on the torus's exact \
-                   meters conversion, as plane×torus's tilted residue still is (that \
-                   pair's exact-degenerate half closed in VERBS-C5ARMS)",
+                   trace shape (the general-rung marcher), whose cylinder×torus arm has \
+                   not retired (arms retire one at a time, each with its proof), as \
+                   plane×torus's tilted residue has not (that pair's exact-degenerate \
+                   half closed in VERBS-C5ARMS)",
         },
         (Cone, Cone) => PairRoute {
             rung: Rung::General,
@@ -333,22 +333,25 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             rung: Rung::General,
             implemented: false,
             note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
-                   trace shape (the general-rung marcher), blocked on both operands' \
-                   exact meters conversions",
+                   trace shape (the general-rung marcher), blocked on the cone's exact \
+                   meters conversion",
         },
+        // ---- Rung 3, IMPLEMENTED: the ℝ³ implicit-pair march, the
+        // torus read through its quartic. ----
         (Sphere, Torus) | (Torus, Sphere) => PairRoute {
             rung: Rung::General,
-            implemented: false,
-            note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
-                   trace shape (the general-rung marcher), blocked on the torus's exact \
-                   meters conversion",
+            implemented: true,
+            note: "marched in ℝ³ on the IMPLICIT PAIR and fitted, with the full \
+                   three-limb certificate and in-op exhaustiveness \
+                   (geom_brep::ssi::sphere_torus_ssi), the torus read through its \
+                   quartic; a torus outside its ring convention is refused as a shape",
         },
         (Torus, Torus) => PairRoute {
             rung: Rung::General,
             implemented: false,
             note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
-                   trace shape (the general-rung marcher), blocked on the torus's exact \
-                   meters conversion",
+                   trace shape (the general-rung marcher), whose torus×torus arm has not \
+                   retired (arms retire one at a time, each with its proof)",
         },
         // ---- Rung 3, IMPLEMENTED (M5 PR 7): the ℝ⁴ trace. The
         // plane and the wall are both charts, so the state is
@@ -469,9 +472,9 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
 ///
 /// Every other implemented pair serves every pose: plane×plane,
 /// plane×cylinder, plane×sphere, sphere×sphere, and the general-rung
-/// arms that march (cylinder×sphere, plane×NURBS with plane×Approx
-/// over its fit, and NURBS×NURBS with every Approx pairing over its
-/// fits). An
+/// arms that march (cylinder×sphere, sphere×torus once its torus is
+/// shown a ring torus, plane×NURBS with plane×Approx over its fit, and
+/// NURBS×NURBS with every Approx pairing over its fits). An
 /// unimplemented pair answers [`route`] unchanged. The match is
 /// exhaustive with no wildcard, as [`route`]'s is, so a kind added to
 /// the table is a compile-time visit here too.
@@ -526,6 +529,8 @@ pub fn route_pose<T: Decide>(
         (Plane, Torus) => plane_torus_section(a, b, extent, band).map(drop),
         (Torus, Plane) => plane_torus_section(b, a, extent, band).map(drop),
         (Cone, Cylinder) => cone_cylinder_section(a, b, extent, band).map(drop),
+        (Sphere, Torus) => ring_torus(b, band),
+        (Torus, Sphere) => ring_torus(a, band),
         (Cylinder, Cone) => cone_cylinder_section(b, a, extent, band).map(drop),
         (Cylinder, Sphere) | (Sphere, Cylinder) => {
             match crate::CylinderSpherePose::decide(a, b, band) {
@@ -552,9 +557,9 @@ pub fn route_pose<T: Decide>(
         | (Nurbs | Approx, Nurbs | Approx) => Ok(()),
         // Unimplemented at the kind level: `route`'s answer stands.
         (Cylinder, Torus | Nurbs)
-        | (Torus, Cylinder | Cone | Sphere | Torus | Nurbs)
+        | (Torus, Cylinder | Cone | Torus | Nurbs)
         | (Cone, Cone | Sphere | Torus | Nurbs)
-        | (Sphere, Cone | Torus | Nurbs)
+        | (Sphere, Cone | Nurbs)
         | (Nurbs, Cylinder | Cone | Sphere | Torus)
         | (Approx, Cylinder | Cone | Sphere | Torus)
         | (Cylinder | Cone | Sphere | Torus, Approx) => Ok(()),
@@ -589,6 +594,22 @@ pub fn route_pose<T: Decide>(
             | SectionError::UnequalRadii),
         ) => Err(e),
     }
+}
+
+/// `torus` shown inside its ring convention, the one guard the marching
+/// sphere × torus arm reads a pose by ([`TorusRefusal::require`]).
+fn ring_torus<T: Decide>(torus: &Surface<T>, band: Band) -> Result<(), SectionError> {
+    let Surface::Torus {
+        major_radius,
+        minor_radius,
+        ..
+    } = *torus
+    else {
+        return Err(SectionError::WrongLane {
+            expected: "a torus in the sphere × torus arm's torus seat",
+        });
+    };
+    TorusRefusal::require(major_radius, minor_radius, band).map_err(SectionError::DegenerateTorus)
 }
 
 // ---------------------------------------------------------------------
@@ -2677,8 +2698,8 @@ pub fn plane_torus_section<T: Decide>(
                                 why: "an axis-parallel plane at or past the torus's inner \
                                       equator cuts a node, one folded loop or nothing — not \
                                       the two ovals the spiric carries — and the pair's \
-                                      general-rung arm has not retired, blocked on the \
-                                      torus's exact meters conversion",
+                                      general-rung arm has not retired (arms retire one at \
+                                      a time, each with its proof)",
                             });
                         }
                     }
@@ -2754,8 +2775,7 @@ pub fn plane_torus_section<T: Decide>(
                           (Villarceau) two-circle configuration is deliberately \
                           unclassified, a third classification no consumer \
                           configuration reaches — and the pair's general-rung arm \
-                          has not retired, blocked on the torus's exact meters \
-                          conversion (arms retire one at a time, each with its \
+                          has not retired (arms retire one at a time, each with its \
                           proof)",
                 }),
             }
@@ -2809,6 +2829,16 @@ pub enum ConeCylinderSection<T: Real> {
 /// `d ± θ·extent` of each other across the region, `d` the apex's
 /// distance from the cylinder's axis and `θ` the tilt
 /// `coc_axes_parallel` admits, and `coc_coaxial` decides that sum.
+///
+/// **A caller that knows the extent only from both sides hands both**
+/// ([`LeverBounds`]; a plain length is exact), and each row reads the
+/// side on which a wrong length only refuses. The rows that act on
+/// their Zero, `coc_axes_parallel` and `coc_coaxial`'s swing
+/// (`separation_range` over the extent), read the bound from above: a
+/// longer arm only reads more tilt and more swing. The rows that act on
+/// a Positive, the three convention guards and `coc_station_reach`'s
+/// admission, read the bound from below: a longer arm would certify a
+/// guard and admit a station the region does not reach.
 ///
 /// 1. `coc_cylinder_radius` — margin `R` (meters): the arm states both
 ///    circles at exactly that radius, so it must be a positive length.
@@ -2864,9 +2894,11 @@ pub enum ConeCylinderSection<T: Real> {
 pub fn cone_cylinder_section<T: Decide>(
     cone: &Surface<T>,
     cyl: &Surface<T>,
-    extent: T,
+    extent: impl Into<LeverBounds<T>>,
     band: Band,
 ) -> Result<ConeCylinderSection<T>, SectionError> {
+    let extent = extent.into();
+    let (below, above) = (extent.below(), extent.above());
     let wrong = || SectionError::WrongLane {
         expected: "cone×cylinder (cone first)",
     };
@@ -2941,9 +2973,7 @@ pub fn cone_cylinder_section<T: Decide>(
              azimuth zero is not decided",
         ),
     ] {
-        match decide(name, Margin::levered(margin, extent), band)
-            .map_err(SectionError::Escalated)?
-        {
+        match decide(name, Margin::levered(margin, below), band).map_err(SectionError::Escalated)? {
             Sign::Positive => {}
             Sign::Zero | Sign::Negative => return Err(SectionError::DegenerateOperand { what }),
         }
@@ -2951,7 +2981,7 @@ pub fn cone_cylinder_section<T: Decide>(
 
     match decide(
         "coc_axes_parallel",
-        Margin::levered(a.cross(b).norm(), extent),
+        Margin::levered(a.cross(b).norm(), above),
         band,
     )
     .map_err(SectionError::Escalated)?
@@ -2962,8 +2992,7 @@ pub fn cone_cylinder_section<T: Decide>(
                 pair: "cone×cylinder",
                 why: "a cylinder tilted off the cone's axis cuts a QUARTIC, not a \
                       circle, and the pair's general-rung arm has not retired — the \
-                      cone's meters composite needs a certified root, which \
-                      certification arithmetic does not take (arms retire one at a \
+                      cone's composite has no meters conversion (arms retire one at a \
                       time, each with its proof)",
             });
         }
@@ -2980,7 +3009,7 @@ pub fn cone_cylinder_section<T: Decide>(
     // cross-section, `R·(1 − cos θ) ≤ R·sin²θ`. The swing is that range's
     // reach from `d`, plus the turn.
     let d = (apex - o).reject_from(b).norm();
-    let (near, far) = separation_range((apex, a), (o, b), extent);
+    let (near, far) = separation_range((apex, a), (o, b), above);
     let swing = (far - d).abs().max((d - near).abs()) + big_r * a.cross(b).norm().powi(2);
     match decide_across(["coc_coaxial", "coc_coaxial_floor"], d, swing, band)
         .map_err(SectionError::Escalated)?
@@ -3002,12 +3031,8 @@ pub fn cone_cylinder_section<T: Decide>(
             // instead: inside it the position error is O(ε·extent),
             // which is what makes the zero-residual claim above a claim
             // about the arm and not about the fixture.
-            match decide(
-                "coc_station_reach",
-                Margin::of(extent - station.abs()),
-                band,
-            )
-            .map_err(SectionError::Escalated)?
+            match decide("coc_station_reach", Margin::of(below - station.abs()), band)
+                .map_err(SectionError::Escalated)?
             {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => {
@@ -3033,9 +3058,8 @@ pub fn cone_cylinder_section<T: Decide>(
             pair: "cone×cylinder",
             why: "a cylinder parallel to the cone's axis but OFF it cuts a QUARTIC, \
                   not a circle, and the pair's general-rung arm has not retired — the \
-                  cone's meters composite needs a certified root, which certification \
-                  arithmetic does not take (arms retire one at a time, each with its \
-                  proof)",
+                  cone's composite has no meters conversion (arms retire one at a time, \
+                  each with its proof)",
         }),
     }
 }

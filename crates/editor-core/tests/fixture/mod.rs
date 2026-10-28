@@ -2606,6 +2606,37 @@ pub fn pole(node: RecipeNodeId, vertex: ProfileVertexRef) -> StableName {
     vname(node, RoleSeg::Pole(vertex))
 }
 
+/// **A prism**: the polygon `pts` in its profile's own xy, extruded
+/// `dz`.
+pub fn prism(doc: ProfileDoc, pts: Vec<(f64, f64)>, dz: f64) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, profile) = insert(doc, Node::Profile(desc(vec![pts])));
+    insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(dz),
+        },
+    )
+}
+
+/// The symmetric U cutter's profile ([`u_cutter_tie`]): a bar x 5..6
+/// with two congruent prongs, y 1..1.5 and 2.5..3, reaching to x = 2.
+pub const U_CUTTER: [(f64, f64); 8] = [
+    (2.0, 1.0),
+    (6.0, 1.0),
+    (6.0, 3.0),
+    (2.0, 3.0),
+    (2.0, 2.5),
+    (5.0, 2.5),
+    (5.0, 1.5),
+    (2.0, 1.5),
+];
+
+/// **The symmetric U cutter alone**: [`U_CUTTER`] extruded 2, unplaced.
+pub fn u_cutter(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
+    prism(doc, U_CUTTER.to_vec(), 2.0)
+}
+
 /// **The symmetric U cutter, whose subtract table holds an N2 tie** —
 /// a 4x4x4 block with a U-shaped prism cut through it, the U's two
 /// arms congruent so nothing covariant discriminates the faces they
@@ -2631,29 +2662,7 @@ pub fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
             distance: len(4.0),
         },
     );
-    let (doc, u_profile) = on_frame(
-        doc,
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![
-            (2.0, 1.0),
-            (6.0, 1.0),
-            (6.0, 3.0),
-            (2.0, 3.0),
-            (2.0, 2.5),
-            (5.0, 2.5),
-            (5.0, 1.5),
-            (2.0, 1.5),
-        ]],
-    );
-    let (doc, cutter) = insert(
-        doc,
-        Node::Extrude {
-            profile: u_profile.into(),
-            distance: len(2.0),
-        },
-    );
+    let (doc, cutter) = u_cutter(doc);
     // The cutter, a construction of its own, placed against the block
     // one up its height.
     let (doc, cutter) = against(
