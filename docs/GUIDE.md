@@ -1756,8 +1756,9 @@ let NodeResult::Ok(value) = ev.result(plate).expect("the node is live") else {
 let ValuePayload::Body(body) = &value.payload else {
     panic!("an extrude yields a body");
 };
-// An evaluated value holds the body as built; the measurement reads it finished.
-let body = AtRestBody::validate(Body::clone(body), tol).map_err(|errors| format!("not a finished body: {errors:?}"))?;
+// An evaluated value holds the body as built, in its own coordinates
+// (`Framed::body`); the measurement reads it finished.
+let body = AtRestBody::validate(Body::clone(body.body()), tol).map_err(|errors| format!("not a finished body: {errors:?}"))?;
 let props = mass_properties(&body, tol, Settle::Resolution(Length::from_meters(1e-6)))?.met()?;
 let expected = 4.0 * 2.0 * 0.5 - core::f64::consts::PI * 0.25 * 0.25 * 0.5;
 assert!((props.volume - expected).abs() < 1e-9);
@@ -1927,7 +1928,7 @@ let volume = |ev: &Evaluation<f64>, node: RecipeNodeId| {
     let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else {
         panic!("a union yields a body");
     };
-    let body = AtRestBody::validate(Body::clone(body), tol).expect("a finished body");
+    let body = AtRestBody::validate(Body::clone(body.body()), tol).expect("a finished body");
     mass_properties(&body, tol, Settle::Resolution(Length::from_meters(1e-6))).expect("mass properties").met().expect("mass properties").volume
 };
 

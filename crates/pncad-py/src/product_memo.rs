@@ -162,20 +162,30 @@ pub fn checks_report(
     }
 }
 
-/// **`product`'s body**: the memoized product's aggregate body.
+/// **`product`'s body**: the memoized product's aggregate body, as it
+/// stands in the world ([`pncad::export::product_body_in_space`]).
 pub fn body(
     memo: &ProductMemo,
     doc: &d::ProfileDoc,
     evaluation: &d::Evaluation<f64>,
     tol: Tol,
 ) -> Result<topo::Body<f64>, d::ProductError> {
-    memo.with(doc, evaluation, tol, |product| {
-        topo::Body::clone(&product.body)
-    })
+    memo.with(doc, evaluation, tol, |product| standing(product, doc, tol))?
 }
 
-/// **`product_named`'s body**: the aggregate and the names its entities
-/// answer to, in the product's own table order.
+/// The product's body composed into the world through the façade's
+/// read-out door, which builds the gather's `Frame` refusal itself.
+fn standing(
+    product: &d::Product<f64>,
+    doc: &d::ProfileDoc,
+    tol: Tol,
+) -> Result<topo::Body<f64>, d::ProductError> {
+    pncad::export::product_body_in_space(product, doc, tol).map(std::borrow::Cow::into_owned)
+}
+
+/// **`product_named`'s body**: the aggregate as it stands in the world
+/// and the names its entities answer to, in the product's own table
+/// order.
 pub fn body_and_names(
     memo: &ProductMemo,
     doc: &d::ProfileDoc,
@@ -183,9 +193,9 @@ pub fn body_and_names(
     tol: Tol,
 ) -> Result<(topo::Body<f64>, Vec<pncad::prelude::StableName>), d::ProductError> {
     memo.with(doc, evaluation, tol, |product| {
-        (
-            topo::Body::clone(&product.body),
+        Ok((
+            standing(product, doc, tol)?,
             product.names.iter().map(|(name, _)| name.clone()).collect(),
-        )
-    })
+        ))
+    })?
 }

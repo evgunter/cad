@@ -236,7 +236,15 @@ struct Tally {
 /// (four times the scene's extent) grew with the copy, from 27 to
 /// 27.196. The rays and the refusals are unchanged; no genuine crossing
 /// is refused.
-const PINNED: (usize, usize, usize, usize) = (392_112, 131_691, 26_058, 8_292);
+///
+/// It moved for INTENT stage 3 E (a copy's mesh is its body's in its own
+/// coordinates, and the door reads each ray into the part's frame), from
+/// `(392112, 131691, 26058, 8292)`: each aim is fired at a vertex where
+/// its part stands, and a ray read into a turned copy's frame rounds
+/// its grazes differently, so 348 fewer grazes (347 before main's
+/// slides moved `kitchen_sink`'s copy); the rays and the refusals
+/// unchanged. No genuine crossing is refused.
+const PINNED: (usize, usize, usize, usize) = (392_112, 131_343, 26_058, 8_292);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let reference = FlatReference::of(index);
@@ -247,6 +255,7 @@ fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
         let mut best: Option<(f64, Option<[f64; 3]>)> = None;
         let mut refused_here = 0usize;
         for flat in &reference.parts {
+            let ray = flat.local(&ray);
             for cand in flat.tree.ray(&ray) {
                 let tri = &flat.corners[cand.item];
                 let cross = crossing(&ray, tri);

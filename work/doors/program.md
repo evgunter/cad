@@ -4,12 +4,12 @@ kind: program
 title: DOORS — the viewer's authoring doors: the halves of AUTHOR's ruled node shapes, the picture of a thing being authored, and the authoring chrome's hygiene
 status: ready
 opened: 2026-10-02
-area: gui
+group: gui/author
 prefix: doors/
 tag: (DOORS orchestrator)
 ab_band: 10600-10699
 paths: [crates/viewer/src/pane/create.rs, crates/viewer/src/forms.rs, crates/viewer/src/drafts.rs, crates/viewer/src/idpass.rs, crates/viewer/src/session.rs, crates/viewer/src/session/author.rs, crates/viewer/src/session/refuse.rs, crates/viewer/src/tree.rs, crates/viewer/src/sketch.rs, crates/viewer/src/seats.rs, crates/viewer/src/pane/viewport.rs, crates/viewer/src/marks.rs, crates/viewer/src/props.rs, crates/viewer/src/widgets.rs]
-keep_out: [opened 2026-10-02 at AUTHOR's exit (Ev, in chat) as the half of AUTHOR's cut that waited on kernel rows, and joined on 2026-10-26 by AUTHTAIL (AUTHOR's other successor on the same files) - every row moved with its id and body unchanged, a viewer half of a kernel row rides its kernel unit rather than reaching across - CLEAR holds clearance-refusal-names-one-face-twice-across-bodies, and most of AUTHTAIL's rows wait on INTENT's D′3 (PR 5636, assemble-is-an-operator-and-the-product-is-a-slot) which edits tools.rs world.rs and repoint, so the takeover rule those rows share is INTENT's spec sentence first, the viewer's reported defects and its entrenching architecture are CHROME's, app.rs session.rs pane/create.rs pane/viewport.rs and marks.rs stay shared with CHROME VIEW VSEAM and VGEOM, so run scripts/work.py territory on your branch and announce the seam in the PR]
+keep_out: [opened 2026-10-02 at AUTHOR's exit (Ev, in chat) as the half of AUTHOR's cut that waited on kernel rows, and joined on 2026-10-26 by AUTHTAIL (AUTHOR's other successor on the same files) - every row moved with its id and body unchanged, a viewer half of a kernel row rides its kernel unit rather than reaching across - CLEAR holds clearance-refusal-names-one-face-twice-across-bodies, and most of AUTHTAIL's rows wait on INTENT's D′3 (PR 5636, assemble-is-an-operator-and-the-product-is-a-slot) which edits tools.rs world.rs and repoint, so the takeover rule those rows share is INTENT's spec sentence first, the viewer's reported defects and its entrenching architecture are CHROME's, app.rs session.rs pane/create.rs pane/viewport.rs and marks.rs stay shared with CHROME VIEW VSEAM and VGEOM, so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled]
 ---
 
 **The doors a person needs to author geometry without leaving the

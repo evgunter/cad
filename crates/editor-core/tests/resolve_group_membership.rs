@@ -740,6 +740,129 @@ fn a_tie_carried_through_a_later_fold_step_counts_one_parent() {
     }
 }
 
+/// **A union's seam of a tied parent counts that parent's pieces.**
+///
+/// [`fixture::u_cutter_tie`]'s tied floors, a block D in one prong's
+/// mouth whose wall meets that floor along one seam, and a post across
+/// the seam. Lifting the post leaves the seam whole: 2 → 1.
+#[test]
+fn a_unions_seam_of_a_tied_parent_counts_its_pieces() {
+    let (doc, sub) = crate::fixture::u_cutter_tie(ProfileDoc::empty_derived(
+        "group-membership-union-tied-seam",
+        Tol::witness(),
+    ));
+    let (doc, d) = block_on(doc, sub, (3.5, 4.5), (0.75, 1.75), 0.5, 1.0);
+    let (doc, body) = block(doc, (0.0, 0.4), (0.0, 0.1), 0.9);
+    let at = [3.3, 1.2, 0.5];
+    let (doc, placement) = crate::fixture::slid(doc, sub, body, at);
+    let post = Placed {
+        placement,
+        target: sub,
+        body,
+        at,
+    };
+    let (doc, u) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![
+                sub.into(),
+                d.into(),
+                post.placement.into(),
+            ]),
+        },
+    );
+    let ev1 = run(&doc, None);
+    let doc2 = moved(doc.clone(), &post, [0.0, 0.0, 0.6]);
+    let ev2 = silent(run(&doc2, Some(&ev1)));
+    let ev1 = silent(ev1);
+    // The seams on the tied floor, as the union publishes them.
+    let floor = crate::fixture::out(&doc, sub);
+    let on_floor = |side: &StableName| {
+        matches!(side.path.first(), Some(RoleSeg::From { read, .. }) if *read == floor)
+            && ev1
+                .table_at(sub)
+                .and_then(|t| match side.path.first() {
+                    Some(RoleSeg::From { of, .. }) => t.lookup(of),
+                    _ => None,
+                })
+                .is_some_and(|e| matches!(e, Entry::Tied(_)))
+    };
+    let rows = vanished(
+        (&doc2, &ev2),
+        (&doc, &ev1),
+        u,
+        |n, _| matches!(n.path.first(), Some(RoleSeg::Seam { a, b }) if on_floor(a) || on_floor(b)),
+    );
+    assert_eq!(
+        rows.len(),
+        2,
+        "both pieces of the tied floor's seam vanish: {rows:#?}"
+    );
+    for (n, d) in rows {
+        assert!(
+            matches!(d, Diagnosis::GroupResized { node, was: 2, now: 1, .. } if node == u),
+            "{n:?}: {d:?}"
+        );
+    }
+}
+
+/// **Two tied groups that resize unequally have no one parent's count.**
+///
+/// [`fixture::u_cutter_tie`]'s tied floors, each divided by a bar of its
+/// own; lifting the second bar leaves its floor whole while the first
+/// stays divided. The union's two tied face groups go from 2 and 2 to 2
+/// and 1, so the rung declines and the doc-diff lane names the edit, in
+/// either member order. (Read through the fold, the latest step spells
+/// only the floor it divided, and the answer would hang on the order.)
+#[test]
+fn tied_groups_that_resize_unequally_decline_in_every_member_order() {
+    for swap in [false, true] {
+        let (doc, sub) = crate::fixture::u_cutter_tie(ProfileDoc::empty_derived(
+            "group-membership-union-unequal-tie",
+            Tol::witness(),
+        ));
+        let mut doc = doc;
+        let mut bars = Vec::new();
+        for y in [0.9, 2.4] {
+            let (d, body) = block(doc, (0.0, 0.2), (0.0, 0.7), 0.9);
+            let at = [2.9, y, 0.5];
+            let (d, placement) = crate::fixture::slid(d, sub, body, at);
+            doc = d;
+            bars.push(Placed {
+                placement,
+                target: sub,
+                body,
+                at,
+            });
+        }
+        let mut order = vec![bars[0].placement, bars[1].placement];
+        if swap {
+            order.reverse();
+        }
+        let members = std::iter::once(sub).chain(order).map(Into::into).collect();
+        let (doc, u) = insert(
+            doc,
+            Node::Union {
+                members: editor_core::Bodies::Spelled(members),
+            },
+        );
+        let ev1 = run(&doc, None);
+        let doc2 = moved(doc.clone(), &bars[1], [0.0, 0.0, 0.6]);
+        let ev2 = silent(run(&doc2, Some(&ev1)));
+        let ev1 = silent(ev1);
+        let rows = vanished((&doc2, &ev2), (&doc, &ev1), u, |n, _| {
+            n.kind == EntityKind::Face
+        });
+        assert!(!rows.is_empty(), "swap {swap}: no floor fragment vanished");
+        for (n, d) in rows {
+            assert!(
+                matches!(d, Diagnosis::RecipeEdit { .. }),
+                "swap {swap}: unequal tied groups decline to the edit, not a count: {n:?}: {d:?}"
+            );
+        }
+    }
+}
+
 /// Wall `segment` of the block `node` extruded (`block`'s profile runs
 /// counter-clockwise from `(x0, y0)`: wall 0 is y = y0, 1 is x = x1, 2
 /// is y = y1, 3 is x = x0).

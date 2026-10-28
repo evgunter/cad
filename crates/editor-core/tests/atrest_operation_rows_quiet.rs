@@ -340,8 +340,9 @@ fn pinched(id: &str, normal: [f64; 3]) -> (ProfileDoc, RecipeNodeId, RecipeNodeI
 /// The name of `node`'s planar face on the plane through `p` with
 /// normal `n`.
 fn face_through(ev: &Evaluation<f64>, node: RecipeNodeId, p: [f64; 3], n: [f64; 3]) -> StableName {
+    // Where the body stands: `p` is in its space's coordinates.
     let body = match &ev.value(node).expect("the node evaluated").payload {
-        ValuePayload::Body(b) => b.clone(),
+        ValuePayload::Body(b) => crate::fixture::in_space(b),
         other => panic!("expected a body, got {other:?}"),
     };
     crate::fixture::table(ev, node)
@@ -349,7 +350,7 @@ fn face_through(ev: &Evaluation<f64>, node: RecipeNodeId, p: [f64; 3], n: [f64; 
         .find_map(|(name, entry)| match entry {
             Entry::Unique(r) => match r.key {
                 EntityKey::Face(f) => {
-                    let pose = topo::readback::face_pose(&*body, f).ok()?;
+                    let pose = topo::readback::face_pose(&body, f).ok()?;
                     let (o, a) = (pose.origin, pose.axis);
                     let across = (a.y * n[2] - a.z * n[1]).abs()
                         + (a.z * n[0] - a.x * n[2]).abs()
@@ -443,7 +444,7 @@ fn a_blends_turn_is_quieted_by_no_gap_and_never_refuses() {
     let (doc, the_box) = block(doc, (0.0, 2.0), (0.0, 1.5), 1.0);
     let ev = run(&doc);
     let body = match &ev.value(the_box).expect("the box evaluated").payload {
-        ValuePayload::Body(b) => b.clone(),
+        ValuePayload::Body(b) => crate::fixture::in_space(b),
         other => panic!("expected a body, got {other:?}"),
     };
     let height = |v| body.get_point(body.get_vertex(v).unwrap().point).unwrap().z;
@@ -490,7 +491,7 @@ fn a_blends_turn_is_quieted_by_no_gap_and_never_refuses() {
             let EntityKey::Edge(e) = ent.key else {
                 panic!("an edge: {ent:?}")
             };
-            let body = ev.read_body(*input, ent.body).unwrap().unwrap();
+            let body = ev.read_body(*input, ent.body).unwrap().unwrap().body();
             let he = body.get_edge(e).unwrap().he_plus;
             [
                 body.get_half_edge(he).unwrap().start,

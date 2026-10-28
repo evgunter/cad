@@ -181,9 +181,9 @@ fn p3_totality_holds_for_a_triangular_prism() {
     let editor_core::ValuePayload::Body(body) = &v.payload else {
         panic!("a body")
     };
-    assert_eq!(body.faces().count(), 20);
-    assert_eq!(body.edges().count(), 36);
-    assert_eq!(body.vertices().count(), 18);
+    assert_eq!(body.body().faces().count(), 20);
+    assert_eq!(body.body().edges().count(), 36);
+    assert_eq!(body.body().vertices().count(), 18);
     let table = table_of(&ev, blank);
     assert_eq!(table.len(), 20 + 36 + 18 + 1, "every entity named");
     for (name, _) in table.iter() {

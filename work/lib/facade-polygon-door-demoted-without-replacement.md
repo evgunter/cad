@@ -4,7 +4,6 @@ kind: issue
 title: API gap — the facade polygon door was demoted with no replacement scheduled; 11 demo call sites route around it
 status: closed
 opened: 2026-08-20
-github: 759
 closed: 2026-09-08
 ---
 

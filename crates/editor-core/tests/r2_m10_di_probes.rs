@@ -291,12 +291,12 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
                     }
                     ValuePayload::Body(b) => {
                         d.u64(14);
-                        d.body(b);
+                        d.body(b.body());
                     }
                     ValuePayload::Boolean(BooleanValue::Empty) => d.u64(15),
                     ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
                         d.u64(16);
-                        d.body(body);
+                        d.body(body.body());
                     }
                     ValuePayload::Split { above, below } => {
                         d.u64(17);
@@ -305,7 +305,7 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
                                 SplitSide::Empty => d.u64(0),
                                 SplitSide::Body(b) => {
                                     d.u64(1);
-                                    d.body(b);
+                                    d.body(b.body());
                                 }
                             }
                         }
@@ -314,7 +314,7 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
                         d.u64(18);
                         d.u64(bodies.len() as u64);
                         for b in bodies {
-                            d.body(b);
+                            d.body(b.body());
                         }
                     }
                     // The measured quantity IS a lane value, so it is
@@ -571,8 +571,8 @@ fn direct_validation_door_behavior_at_dual64() {
     // runs and answers. That door is the `_structural` twin: the composed
     // entry carries the +V invariant's certified bound and cannot be
     // called at a dual at all.
-    let direct = topo::validate_geometric_structural(body, tol);
-    let policy = <Dual64 as topo::AtRestPolicy>::gate_at_rest(body, tol);
+    let direct = topo::validate_geometric_structural(&body, tol);
+    let policy = <Dual64 as topo::AtRestPolicy>::gate_at_rest(&body, tol);
     assert_eq!(
         policy,
         Ok(topo::AtRestOutcome::NotRunAtThisScalar),
@@ -589,7 +589,7 @@ fn direct_validation_door_behavior_at_dual64() {
         // NURBS wall and says so as `VolumeUncomputable` rather than
         // passing it unbounded. Nothing else the battery consults refuses
         // this body.
-        let verdict = topo::validate_geometric_structural(body_n, tol);
+        let verdict = topo::validate_geometric_structural(&body_n, tol);
         assert!(
             matches!(&verdict, Err(errs) if !errs.is_empty() && errs.iter().all(|e| matches!(
                 e,

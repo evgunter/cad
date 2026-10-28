@@ -335,8 +335,8 @@ fn min_separation_brackets_a_curved_pair_at_every_budget() {
         MinSepSelection {
             at: node,
             index: 0,
-            body,
-            faces: body.faces().map(|(k, _)| k).collect(),
+            body: body.body(),
+            faces: body.body().faces().map(|(k, _)| k).collect(),
         }
     };
     let mut widths = Vec::new();

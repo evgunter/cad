@@ -2,11 +2,14 @@
 id: an-operation-computes-in-a-frame-of-its-reads
 kind: issue
 title: D10 stage 3 PR E: an operation computes in a frame that is a function of its reads, never the world's (D9); a body value is Framed (its body shared by Arc, one map); an operation over operands in one space computes in its first operand's frame and reads the rest through relative; export and the viewer's drawing compose through one door
-status: dispatched
+status: closed
 opened: 2026-10-09
 priority: P0
 cost: H
+branch: intent/e-operation-frame-of-reads
+pr: 5811
 refs: [intent-stage3-is-built, each-space-computes-in-its-earliest-members-frame]
+closed: 2026-10-28
 ---
 
 **Spec:** `docs/INTENT-STAGE3-SPEC.md` §6, restated against main at `4a4bb23608`; where this body and §6 differ, §6 governs. No design question is open: the copies ruling (orchestrator, 2026-10-20, `work/intent/log.md`) answered §6 Q1, PR 5547 answered Q2 and built the rider, and PR 5494 (`[placement.world]`) answered Q3. E's core waits on D′3 (`assemble-is-an-operator-and-the-product-is-a-slot`): its operation over copies needs each operand to be one body in one space, and it rewrites the value D′3 leaves `wire_place` defining.

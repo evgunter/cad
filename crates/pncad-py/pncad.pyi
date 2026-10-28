@@ -649,7 +649,9 @@ class SelectRefusal(PncadError):
     own typed refusal, crossing under its own name.
 
     `reason` is `in_band`, `tied_disagrees`, `unreadable`,
-    `not_a_plane`, `face_unresolved`, `not_a_length`, `bad_value`,
+    `frame_refused` (a candidate's body could not be read into the
+    frame of the plane it is measured from), `not_a_plane`,
+    `face_unresolved`, `not_a_length`, `bad_value`,
     `band`, `read_not_an_output` (`Evaluation.resolve` asked in a read
     that is no body output, so no table to ask), or `node_not_held`
     (`Evaluation.resolve` at a node handle the document no longer
