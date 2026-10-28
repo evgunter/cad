@@ -155,7 +155,7 @@ use geom_brep::Pcurve;
 use geom_core::Point3;
 use spade::handles::FixedVertexHandle;
 use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation};
-use topo::{Body, FaceKey};
+use topo::{Body, EdgeKey, FaceKey};
 
 use crate::cert;
 use crate::chords::ChordPass;
@@ -163,7 +163,7 @@ use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, NurbsFaceBound, face_cells, l
 use crate::planar::{Crossings, Pinches, Walk, classify_faces, edge_key, shoelace2};
 use crate::sizing::{SizingTols, ceil_count, sagitta_step};
 use crate::tessellate::{Patch, PatchVertex};
-use crate::types::TessellateError;
+use crate::types::{SphereTrimCause, TessellateError};
 
 /// Retry budget for the rebuild loop (module docs). **Termination.**
 ///
@@ -195,19 +195,13 @@ const MAX_GRID_RETRIES: usize = 6;
 /// (`work/tess/the-trimmed-sphere-arm-has-no-worst-triangle-theorem.md`).
 pub(crate) const UNPROVED_HEADROOM: f64 = 0.5;
 
-/// **How near a pole a tilted circle may pass on the sphere arm**, as a
-/// share of the lattice's row step `h_v`. **Structural** (it caps
-/// allocation, as `sizing::MAX_COUNT` does).
-///
-/// A circle's image turns in azimuth at up to `ρ_c/(r·cos v)`, so the
-/// uniform chord schedule that keeps its UV steps within the lattice's
-/// (`chords::sphere_arm_tighten`) grows as the inverse of the arc's
-/// closest approach to a pole. An arc one row from the pole asks about
-/// as many chords as the lattice has columns per row; this share lets
-/// it ask sixteen times that, and an arc nearer still refuses typed
-/// rather than allocate a boundary finer than the face's whole lattice
-/// (`work/tess/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`).
-pub(crate) const NEAR_POLE_ROW_SHARE: f64 = 1.0 / 16.0;
+/// The most pole junctions a sphere arm loop may pass for
+/// [`choose_pole_azimuths`] to try every `2π` placement of the runs
+/// between them: `3^(J−1)` placements, 27 at four. A half-band remnant
+/// passes two; a loop past four refuses typed rather than search.
+/// **Structural** (it bounds a search, as `sizing::MAX_COUNT` bounds an
+/// allocation).
+const MAX_POLE_JUNCTIONS: usize = 4;
 
 /// Whether face `fk` is meshed by one of this lane's two analytic arms,
 /// the trimmed cylinder or the trimmed sphere: the faces whose lattice
@@ -480,11 +474,11 @@ pub(crate) fn tessellate_trimmed(
     // last point; ids stay the shared 3-D chord ids).
     let nurbs_chart = matches!(lane, Lane::Nurbs { .. });
     let poles = if matches!(lane, Lane::Sphere { .. }) {
-        ChartPoles::Kept
+        ChartPoles::Kept { sense: face.sense }
     } else {
         ChartPoles::None
     };
-    let polygon = trim_polygon(
+    let (polygon, polygon_edges) = trim_polygon(
         body,
         fk,
         face.outer,
@@ -498,6 +492,22 @@ pub(crate) fn tessellate_trimmed(
             what: "degenerate trimmed boundary",
         });
     }
+    // THE ORIENTATION THE LOOP PROMISES, checked rather than read. The
+    // loop runs interior-left about the face's outward normal, and an
+    // analytic chart's normal `∂u × ∂v` is the surface's outward one,
+    // so the polygon runs counter-clockwise in the chart exactly when
+    // `sense` is true. The emit pass winds its triangles by the
+    // polygon's own shoelace; a polygon that contradicts the sense
+    // bounds the face's complement, and winding by it would ship that
+    // complement as a closed manifold mesh — so it refuses here. A
+    // spline chart's winding is not checked: the NURBS arm keeps the
+    // emit pass's reading.
+    if !nurbs_chart {
+        let poly2: Vec<[f64; 2]> = polygon.iter().map(|&(u, v, _)| [u, v]).collect();
+        if (shoelace2(&poly2) > 0.0) != face.sense {
+            return Err(TessellateError::TrimLoopOrientation { face: fk });
+        }
+    }
     // THE ONE CHART WITH POLES is the sphere's, and its polygon is the
     // shape `sphere_polygon_shape` admits, so the duplicate-id skip in
     // the emit pass never collapses a pole fan (#678). Every other arm's
@@ -505,7 +515,7 @@ pub(crate) fn tessellate_trimmed(
     // NURBS face has no `Chart` at all — and that fact is `walk`'s, so
     // it is asserted here rather than written down (D2 addendum row 5).
     if matches!(lane, Lane::Sphere { .. }) {
-        sphere_polygon_shape(body, fk, face.outer, &polygon)?;
+        sphere_polygon_shape(fk, &polygon, &polygon_edges)?;
     } else {
         debug_assert!(
             crate::walk::Chart::of(surface).is_none_or(|c| c.poles().is_empty()),
@@ -1390,56 +1400,49 @@ fn id_repeats_apart(polygon: &[(f64, f64, u32)]) -> bool {
 ///   the loop winds about a pole inside the face (its image does not
 ///   close in the chart);
 /// - a mesh id at two UV locations off a pole: a seam traversed twice.
+///
+/// Each refusal is [`TessellateError::SphereTrimShape`] naming its
+/// [`SphereTrimCause`] and the edge the offending point or side comes
+/// from (`edges[i]` is point `i`'s, and side `i` runs from point `i`).
+///
+/// The constants are argued where they stand: `4ε` relative past `π/2`
+/// is the rounding of an `atan2` at a pole (a few ulps), so a meridian's
+/// endpoint does not read as past it; `3π/2` is past any side a chord
+/// pass can make between two lattice columns (`sphere_arm_tighten`
+/// holds every chord to one `h_u ≤ π/4`), and short of the `2π` a
+/// winding side spans, so it separates the two with room either way.
 fn sphere_polygon_shape(
-    body: &Body<f64>,
     fk: FaceKey,
-    lk: topo::LoopKey,
     polygon: &[(f64, f64, u32)],
+    edges: &[EdgeKey],
 ) -> Result<(), TessellateError> {
     use core::f64::consts::{FRAC_PI_2, PI};
-    let refuse = |note| -> Result<(), TessellateError> {
-        let edge = crate::walk::loop_half_edges(body, lk, fk)?
-            .into_iter()
-            .find(|&(hek, _, _)| {
-                body.pcurve(hek)
-                    .is_some_and(|c| matches!(c.pcurve(), Pcurve::Projected(_)))
-            })
-            .map(|(_, ek, _)| ek)
-            .ok_or(TessellateError::MissingEntity {
-                what: "sphere arm face without a tilted circle",
-            })?;
-        Err(TessellateError::UnsupportedCurve { edge, note })
+    let refuse = |i: usize, cause| -> Result<(), TessellateError> {
+        Err(TessellateError::SphereTrimShape {
+            face: fk,
+            edge: edges[i],
+            cause,
+        })
     };
-    if polygon
+    if let Some(i) = polygon
         .iter()
-        .any(|&(_, v, _)| v.abs() > FRAC_PI_2 * (1.0 + 4.0 * f64::EPSILON))
+        .position(|&(_, v, _)| v.abs() > FRAC_PI_2 * (1.0 + 4.0 * f64::EPSILON))
     {
-        return refuse(
-            "trimmed sphere face whose boundary image runs past a chart pole mid-edge — \
-             the sphere arm meets a pole only at a loop vertex",
-        );
+        return refuse(i, SphereTrimCause::PastPole);
     }
     let n = polygon.len();
-    if (0..n).any(|i| {
+    if let Some(i) = (0..n).find(|&i| {
         let (a, b) = (polygon[i], polygon[(i + 1) % n]);
         !(a.2 == b.2 && at_pole(a.1)) && (b.0 - a.0).abs() > 1.5 * PI
     }) {
-        return refuse(
-            "trimmed sphere face whose loop winds about a chart pole — the sphere arm \
-             meshes a face that holds no pole inside it \
-             (`work/tess/a-trimmed-sphere-face-holding-a-pole-inside-it-refuses.md`)",
-        );
+        return refuse(i, SphereTrimCause::PoleInside);
     }
     let apart = crate::walk::ids_at_two_uvs(polygon.iter().copied());
-    if polygon
+    if let Some(i) = polygon
         .iter()
-        .any(|&(_, v, id)| apart.contains(&id) && !at_pole(v))
+        .position(|&(_, v, id)| apart.contains(&id) && !at_pole(v))
     {
-        return refuse(
-            "trimmed sphere face whose loop visits one mesh vertex at two chart \
-             locations off a pole (a seam traversed twice), which the sphere arm \
-             does not mesh",
-        );
+        return refuse(i, SphereTrimCause::SeamTwice);
     }
     Ok(())
 }
@@ -1671,6 +1674,9 @@ fn trim_frontier(
 /// approximating surface takes too (it meshes on its fit, and the fit
 /// is a NURBS chart), so every "NURBS chart" below means "NURBS or
 /// approximating chart".
+///
+/// Beside the polygon, the edge each point's traversal walks: a refusal
+/// of the polygon's shape names the edge that shows it.
 fn trim_polygon(
     body: &Body<f64>,
     fk: FaceKey,
@@ -1679,7 +1685,7 @@ fn trim_polygon(
     nurbs_chart: bool,
     creases: Option<&Creases>,
     poles: ChartPoles,
-) -> Result<Vec<(f64, f64, u32)>, TessellateError> {
+) -> Result<(Vec<(f64, f64, u32)>, Vec<EdgeKey>), TessellateError> {
     let lp = body
         .get_loop(lk)
         .ok_or(TessellateError::MissingEntity { what: "loop" })?;
@@ -1702,6 +1708,7 @@ fn trim_polygon(
         })
         .unwrap_or_default();
     let mut travs: Vec<Vec<(f64, f64, u32)>> = Vec::with_capacity(cycle.len());
+    let mut trav_edges: Vec<EdgeKey> = Vec::with_capacity(cycle.len());
     for hek in cycle {
         let image = lifted.remove(&hek);
         let he = body
@@ -1856,32 +1863,167 @@ fn trim_polygon(
                 .map(|(k, &(u, v))| (u, v, ids[if forward { k } else { n - 1 - k }]))
                 .collect(),
         );
+        trav_edges.push(he.edge);
     }
-    let mut out = Vec::new();
+    if let ChartPoles::Kept { sense } = poles {
+        choose_pole_azimuths(&mut travs, sense, fk)?;
+    }
+    flatten_traversals(&travs, &trav_edges, poles != ChartPoles::None)
+}
+
+/// The traversals joined into one polygon: each contributes all but its
+/// last point, and with `keep_poles` its last point too where that is a
+/// pole the next traversal leaves from another azimuth, so the pole is a
+/// side of the polygon ([`sphere_polygon_shape`]). Beside it, the edge
+/// each point's traversal walks.
+fn flatten_traversals(
+    travs: &[Vec<(f64, f64, u32)>],
+    edges: &[EdgeKey],
+    keep_poles: bool,
+) -> Result<(Vec<(f64, f64, u32)>, Vec<EdgeKey>), TessellateError> {
+    let (mut out, mut out_edges) = (Vec::new(), Vec::new());
     for (k, trav) in travs.iter().enumerate() {
         let (&last, rest) = trav.split_last().ok_or(TessellateError::MissingEntity {
             what: "edge chords",
         })?;
         out.extend_from_slice(rest);
+        out_edges.extend(core::iter::repeat_n(edges[k], rest.len()));
         let next = travs[(k + 1) % travs.len()][0];
         #[allow(clippy::float_cmp)]
-        if poles == ChartPoles::Kept
+        if keep_poles
             && last.2 == next.2
             && at_pole(last.1)
             && (last.0, last.1) != (next.0, next.1)
         {
             out.push(last);
+            out_edges.push(edges[k]);
         }
     }
-    Ok(out)
+    Ok((out, out_edges))
+}
+
+/// **The azimuth of each run of a sphere arm loop between its poles.**
+///
+/// The loop's lift (`topo::Body::loop_lift`) carries each image where
+/// the chain places it, and the chain is continuous in the chart at
+/// every vertex but a pole: every azimuth is the pole, so the run that
+/// leaves it may sit `2πk` from where the region is. A run placed one
+/// turn off makes the polygon bound the face's complement plus the cap
+/// past the pole (a half-band remnant whose far seam meridian lands at
+/// `+π` for `−π`), and nothing in the chart says so locally.
+///
+/// What says so is the AREA. A polygon on the chart bounds the region
+/// whose area is its equal-area shoelace `A = ½ Σ (u_i w_{i+1} −
+/// u_{i+1} w_i)` with `w = sin v` (times `r²`), and a face holding no
+/// pole has an area in `(0, 4π)` with the sign the loop's orientation
+/// gives it — positive exactly when `sense`, the chart's normal being
+/// the sphere's outward one. Moving a run from one pole to the other by
+/// `2π` moves `A` by `±2π·(w_N − w_S) = ±4π`, so exactly one placement
+/// of each such run lands in the window. A run from a pole back to the
+/// same pole moves `A` by nothing; among placements that tie on area the
+/// one with the shortest pole sides is taken (a longer one doubles back
+/// across the pole), and a tie there too refuses typed.
+///
+/// The first run keeps its lift; each other run is tried at `−2π`, `0`
+/// and `+2π`. A loop with fewer than two pole junctions has no run to
+/// place: its one run closes through a vertex the lift is continuous
+/// at. One with more than [`MAX_POLE_JUNCTIONS`] refuses typed.
+fn choose_pole_azimuths(
+    travs: &mut [Vec<(f64, f64, u32)>],
+    sense: bool,
+    fk: FaceKey,
+) -> Result<(), TessellateError> {
+    use core::f64::consts::TAU;
+    let refuse = TessellateError::TrimLoopOrientation { face: fk };
+    let m = travs.len();
+    let junctions: Vec<usize> = (0..m)
+        .filter(|&k| match (travs[k].last(), travs[(k + 1) % m].first()) {
+            (Some(&last), Some(&next)) => last.2 == next.2 && at_pole(last.1),
+            _ => false,
+        })
+        .collect();
+    let j = junctions.len();
+    if j < 2 {
+        return Ok(());
+    }
+    if j > MAX_POLE_JUNCTIONS {
+        return Err(refuse);
+    }
+    // Run `s` of traversal `k`: the junctions before it, cyclically, so
+    // the traversals after the last junction close onto run 0.
+    let run: Vec<usize> = (0..m)
+        .map(|k| junctions.iter().filter(|&&p| p < k).count() % j)
+        .collect();
+    #[allow(clippy::cast_possible_truncation)]
+    let placements = 3usize.pow((j - 1) as u32);
+    let shift = |placement: usize, s: usize| -> f64 {
+        if s == 0 {
+            return 0.0;
+        }
+        #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+        let digit = (placement / 3usize.pow((s - 1) as u32)) % 3;
+        #[allow(clippy::cast_precision_loss)]
+        let turns = digit as f64 - 1.0;
+        turns * TAU
+    };
+    let placed = |placement: usize| -> Vec<Vec<(f64, f64, u32)>> {
+        travs
+            .iter()
+            .enumerate()
+            .map(|(k, trav)| {
+                let du = shift(placement, run[k]);
+                trav.iter().map(|&(u, v, id)| (u + du, v, id)).collect()
+            })
+            .collect()
+    };
+    let want = if sense { 1.0 } else { -1.0 };
+    let no_edges = vec![EdgeKey::default(); m];
+    let mut best: Option<(f64, usize)> = None;
+    let mut tied = false;
+    for placement in 0..placements {
+        let (polygon, _) = flatten_traversals(&placed(placement), &no_edges, true)?;
+        let n = polygon.len();
+        let (mut area2, mut pole_len) = (0.0, 0.0);
+        for i in 0..n {
+            let (a, b) = (polygon[i], polygon[(i + 1) % n]);
+            area2 += a.0 * b.1.sin() - b.0 * a.1.sin();
+            if a.2 == b.2 && at_pole(a.1) {
+                pole_len += (b.0 - a.0).abs();
+            }
+        }
+        let area = want * 0.5 * area2;
+        if !(area > 0.0 && area < 2.0 * TAU) {
+            continue;
+        }
+        match best {
+            Some((len, _)) if (pole_len - len).abs() <= 1e-9 * (1.0 + len) => tied = true,
+            Some((len, _)) if pole_len > len => {}
+            _ => {
+                best = Some((pole_len, placement));
+                tied = false;
+            }
+        }
+    }
+    let Some((_, placement)) = best else {
+        return Err(refuse);
+    };
+    if tied {
+        return Err(refuse);
+    }
+    let chosen = placed(placement);
+    for (trav, placed) in travs.iter_mut().zip(chosen) {
+        *trav = placed;
+    }
+    Ok(())
 }
 
 /// Whether [`trim_polygon`] keeps a pole the loop passes as a side of
 /// the polygon: the sphere arm's chart has poles, and no other arm's
-/// does.
+/// does. `sense` is the face's, which places the runs between the
+/// poles ([`choose_pole_azimuths`]).
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ChartPoles {
-    Kept,
+    Kept { sense: bool },
     None,
 }
 
@@ -2446,7 +2588,8 @@ mod tests {
                 c.as_ref(),
                 ChartPoles::None,
             )
-            .unwrap();
+            .unwrap()
+            .0;
             let (_, v0, v1) = polygon
                 .iter()
                 .fold((0, f64::MAX, f64::MIN), |(n, lo, hi), p| {

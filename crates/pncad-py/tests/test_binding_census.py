@@ -3960,6 +3960,10 @@ MEMBERS_BOUND_AS = {
     "TessellateError::MeridianFreeCurvedFace": "TessellateError.variant",
     "TessellateError::SingleColumnCurvedFace": "TessellateError.variant",
     "TessellateError::Band": "TessellateError.variant",
+    "TessellateError::TrimLoopOrientation": "TessellateError.variant",
+    "TessellateError::FoldedTriangle": "TessellateError.variant",
+    "TessellateError::ChordSegmentReused": "TessellateError.variant",
+    "TessellateError::SphereTrimShape": "TessellateError.variant",
     "UpdateError::NoSuchReference": "UpdateError.variant",
     "UpdateError::AlreadyPinned": "UpdateError.variant",
     # The one door that reports MANY faults at once, so the word rides

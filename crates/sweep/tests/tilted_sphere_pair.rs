@@ -501,11 +501,13 @@ fn a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed() {
         assert!(
             matches!(
                 &drawn,
-                Err(mesh::TessellateError::UnsupportedCurve { note, .. })
-                    if note.contains("nearer a chart pole than the sphere arm's lattice resolves")
+                Err(mesh::TessellateError::SphereTrimShape {
+                    cause: mesh::types::SphereTrimCause::NearPole,
+                    ..
+                })
             ),
-            "δ {d}: the section passes the pole nearer than the sphere arm's lattice \
-             resolves and refuses typed by that name, got {:?}",
+            "δ {d}: the section's chord schedule would be finer than the whole sphere's \
+             lattice, and the mesher refuses typed by that cause, got {:?}",
             drawn.map(|m| m.positions.len())
         );
     }

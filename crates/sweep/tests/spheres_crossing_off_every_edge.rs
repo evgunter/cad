@@ -86,7 +86,8 @@ enum Want {
     /// `SOUND`, and the body meshes and checks.
     Draws,
     /// `SOUND`, and the mesher refuses a sphere face whose tilted circle
-    /// passes a chart pole nearer than the sphere arm's lattice resolves
+    /// passes so near a chart pole that its chord schedule would be finer
+    /// than the whole sphere's lattice
     /// (`work/tess/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`).
     NearPole,
     /// A typed refusal the predicate accepts.
@@ -125,8 +126,10 @@ fn check(
             assert!(
                 matches!(
                     &drawn,
-                    Err(mesh::TessellateError::UnsupportedCurve { note, .. })
-                        if note.contains("nearer a chart pole than the sphere arm's lattice resolves")
+                    Err(mesh::TessellateError::SphereTrimShape {
+                        cause: mesh::types::SphereTrimCause::NearPole,
+                        ..
+                    })
                 ),
                 "{label}: the near-pole refusal, got {:?}",
                 drawn.map(|m| m.positions.len())
@@ -391,8 +394,10 @@ fn two_trimmed_spheres_build() {
 /// `δ` builds, `10⁻⁷` included: the arc's pcurve beside the pole is the
 /// projected image (C4), whose sector pieces refine toward the pole and
 /// certify while the arc stays clear of it, and every op's volume holds.
-/// The circle passes the pole far nearer than the sphere arm's lattice
-/// row, so the mesher refuses the face typed ([`Want::NearPole`]).
+/// At `10⁻³` the mesher draws every op; at `10⁻⁵` and `10⁻⁷` the
+/// circle's uniform chord schedule would be finer than the whole
+/// sphere's lattice, so the mesher refuses the face typed
+/// ([`Want::NearPole`]).
 /// The distances are band-relative (at `ε = 10⁻⁶` the `10⁻⁵` circle's
 /// crossings read the meridian's half in the escalation gap), so the
 /// other ε rows stand down.
@@ -425,7 +430,7 @@ fn a_trimmed_face_cut_beside_its_pole_builds() {
                 ball_volume(r),
                 lens(1.0, r, 1.0),
             ),
-            [NearPole; 6],
+            [if delta >= 1e-3 { Draws } else { NearPole }; 6],
         );
     }
 }

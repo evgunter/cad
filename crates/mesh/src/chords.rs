@@ -658,10 +658,25 @@ fn sphere_arm_tighten(
                        without one the chord schedule has no UV step bound",
             });
         };
-        let (su, sv) = sphere_uv_speeds(cache.pcurve(), params, ek, hv)?;
-        n = n
-            .max(ceil_count(su * span, hu)?)
-            .max(ceil_count(sv * span, hv)?);
+        let (su, sv) = sphere_uv_speeds(cache.pcurve(), params, ek, fk)?;
+        let asked = ceil_count(su * span, hu)?.max(ceil_count(sv * span, hv)?);
+        // THE CAP IS THE ARM'S OWN LATTICE. A uniform schedule on an arc
+        // passing near a pole is as fine everywhere as at its closest
+        // approach, so an arc at polar distance `d` asks about
+        // `ρ_c·Δt/(r·d·h_u)` chords. Past the point count of the whole
+        // sphere's lattice at these steps, `⌈2π/h_u⌉·⌈π/h_v⌉`, one edge
+        // would be a finer boundary than any face of this sphere has
+        // interior: that refuses typed rather than allocate it.
+        let lattice = ceil_count(core::f64::consts::TAU, hu)?
+            .saturating_mul(ceil_count(core::f64::consts::PI, hv)?);
+        if asked > lattice {
+            return Err(TessellateError::SphereTrimShape {
+                face: fk,
+                edge: ek,
+                cause: crate::types::SphereTrimCause::NearPole,
+            });
+        }
+        n = n.max(asked);
     }
     Ok(n)
 }
@@ -686,12 +701,16 @@ fn sphere_arm_tighten(
 ///   `r·cos v`, so the bounds read `ρ_c/r` and `ρ_c/(r·cos v)`, and
 ///   the second is attained where the arc turns in latitude.
 ///
-/// **A projected arc nearer a pole than
-/// [`crate::trimmed::NEAR_POLE_ROW_SHARE`] of the row step `h_v`
-/// refuses typed** (`ρ/|p| ≤ sin(share·h_v)` somewhere on it): the
-/// azimuth speed grows as `1/cos v` toward a pole, and a uniform chord
-/// schedule on a circle that close is as fine everywhere as at its
-/// closest approach.
+/// **How near a pole an arc may pass is decided by what its schedule
+/// asks.** The azimuth bound grows as `1/ρ` toward a pole, and the
+/// uniform schedule [`sphere_arm_tighten`] sizes from it is as fine
+/// everywhere as at the arc's closest approach: `⌈s_u·Δt/h_u⌉` chords,
+/// which [`ceil_count`] refuses typed (`ResolutionOverflow`) past
+/// `sizing::MAX_COUNT`, the allocation cap every count in the crate is
+/// held to. Only where the bound itself fails — `ρ² ≤ 0` on the arc's
+/// closed-form lower bound, an arc through or numerically on the pole —
+/// is there no count to ask, and that refuses
+/// [`SphereTrimCause::ThroughPole`].
 ///
 /// The deck map moves an image by a translation and a sign, which no
 /// speed sees. A spline carrier's projected image, or any other form,
@@ -700,7 +719,7 @@ pub(crate) fn sphere_uv_speeds(
     pcurve: &Pcurve<f64>,
     params: (f64, f64),
     ek: EdgeKey,
-    hv: f64,
+    fk: topo::FaceKey,
 ) -> Result<(f64, f64), TessellateError> {
     let refuse = |note| TessellateError::UnsupportedCurve { edge: ek, note };
     match pcurve {
@@ -723,14 +742,12 @@ pub(crate) fn sphere_uv_speeds(
                 - (0.5 * (aa - bb)).hypot(ab);
             let (z_lo, z_hi) = crate::trimmed::harmonic_range(c.z, a.z, b.z, params);
             let rho_sq_min = p_sq_min - z_lo.abs().max(z_hi.abs()).powi(2);
-            let nearest = (crate::trimmed::NEAR_POLE_ROW_SHARE * hv).sin();
-            if !(rho_sq_min > p_sq_min * nearest.powi(2) && speed_sq.is_finite()) {
-                return Err(refuse(
-                    "trimmed sphere face bounded by a tilted circle whose arc passes nearer a \
-                     chart pole than the sphere arm's lattice resolves — a uniform chord \
-                     schedule that follows its image there is that fine everywhere \
-                     (`work/tess/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`)",
-                ));
+            if !(rho_sq_min > 0.0 && speed_sq.is_finite()) {
+                return Err(TessellateError::SphereTrimShape {
+                    face: fk,
+                    edge: ek,
+                    cause: crate::types::SphereTrimCause::ThroughPole,
+                });
             }
             let speed = speed_sq.sqrt();
             Ok((speed / rho_sq_min.sqrt(), speed / p_sq_min.sqrt()))
