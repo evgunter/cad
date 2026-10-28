@@ -131,9 +131,11 @@
 //! stands beside it, and [`geom_brep::plane_cone_section`]'s generator
 //! pair when the moved plane holds the moved apex, the line the old
 //! edge's middle stands nearer. Beside the apex the cone's section is a
-//! hyperbola, a NURBS arc whose uniqueness tube has no cone enclosure
-//! yet, so the door refuses that edge at its gate, before any corner is
-//! solved ([`ReplaceFaceError::TogetherConicArc`]). The kind is the
+//! hyperbola, and the edge is its exact rational-quadratic arc between
+//! the moved corners, on the branch the old edge's middle stands beside
+//! ([`geom_brep::ConicBranch::arc`]); it rests where the plane×cone
+//! section states the bounds that retire its tube, and an arc that does
+//! not certify refuses as [`ReplaceFaceError::TogetherConicArc`]. The kind is the
 //! section's, whatever the old carrier's was: a cavity's cap offset off
 //! the axis turns a meridian circle into a spiric, and the lift that
 //! puts it back turns the spiric into a circle. The old carrier
@@ -172,10 +174,10 @@
 //! `TogetherNotAxial`'s oblique-plane arm; `TogetherEdgeDisagreement`
 //! (`sf2b_r1_probes`); the window's no-forward-window refusal
 //! (`sf2b_r1_probes::r1p2`'s sliver wedge, whose moved meridian planes
-//! cross outside the shrunk wall); the gate's open-conic refusal,
-//! [`ReplaceFaceError::TogetherConicArc`] (`sf2b_r2_probes`'s quarter-
-//! and 1/12-turn conical wedges, `shell7_seam_corner`'s three-quarter-
-//! turn cone frustum).
+//! cross outside the shrunk wall, and `sf2b_r2_probes`'s 1/12-turn
+//! conical wedge, whose moved caps cross outside the shrunk top disc);
+//! the apex corner of a whole cone's wedge, read as a pole beside two
+//! moved caps, as `TogetherEdgeDisagreement` (`sf2b_r2_probes`).
 //!
 //! **A hand-made operand, or the door called directly:** the
 //! no-profile-constraint refusal (a wedge's axis edge split by
@@ -230,9 +232,13 @@
 //! mutation that keeps the old azimuth reaches it on the klein elbow)
 //! and its in-plane extrusion refusal (an extrude's vector never lies
 //! in its own sketch plane), and the window's one-point refusal (a
-//! door-built edge has two distinct ends), and the anchor's undecided
+//! door-built edge has two distinct ends), the anchor's undecided
 //! tie-break (a fresh carrier's frame would have to put the old point
-//! within the band of a quarter turn from its old parameter).
+//! within the band of a quarter turn from its old parameter), and the
+//! open-conic refusal, [`ReplaceFaceError::TogetherConicArc`], with
+//! the hyperbola arm's own refusals (every door-built hyperbolic arc's
+//! stretch stands clear of the moved apex's height, and its corners are
+//! on its branch).
 //!
 //! **The lift's rows**, the door run on a cavity it built: the klein
 //! elbow opened at both caps and at one (`verbs_shell`), the lune
@@ -692,6 +698,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
 
     // ---- Decide: every edge's carrier and description. ----
     let mut specs: Vec<(EdgeKey, EdgeCurveSpec<T>)> = Vec::new();
+    let mut conic_arcs: Vec<(EdgeKey, geom_brep::OpenConic)> = Vec::new();
     for (edge, edge_data) in body.edges() {
         if !scope.holds_edge(edge) {
             continue;
@@ -769,6 +776,13 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
                 param_on(&carrier, t_old, q, p, edge, band)
             }
         };
+        if arc_ends.is_some()
+            && let Some((cone, cap)) = cone_and_cap(ca, cb)
+            && let ConeCapSection::Conic(section) =
+                cone_cap_section(edge, cone, cap, (&old_carrier, (t0_old, t1_old)), band)?
+        {
+            conic_arcs.push((edge, section.conic()));
+        }
         let (t0, t1) = match arc_ends {
             Some((lo, hi)) => (
                 end_agrees(&carrier, lo, p_start, edge, band)?,
@@ -884,7 +898,8 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
             &m.faces,
         )?);
     }
-    crate::replace_face::move_points_then_rechart(&mut work, &moved, charts, &specs, tol)?;
+    crate::replace_face::move_points_then_rechart(&mut work, &moved, charts, &specs, tol)
+        .map_err(|error| uncertified_arc(error, &conic_arcs))?;
     // Every edge OF THE SCOPE was re-described, and the charts here DO
     // mint pcurve rows (a cylinder, a cone and a sphere all do), so this
     // pass is load-bearing rather than the planar door's inert one. It
@@ -2449,6 +2464,35 @@ fn mint_carrier<T: Decide>(
         _ => Err(refuse(
             "an edge between two different surfaces whose curve is neither a line nor a circle",
         )),
+    }
+}
+
+/// A re-chart refused because an arc this door minted on a cone does not
+/// certify, read as the door's own refusal: its tube is retired only
+/// where the plane×cone section states the bounds (C2), and a cone has
+/// no tube enclosure otherwise, so no other edge of this door refuses
+/// so ([`ReplaceFaceError::TogetherConicArc`]).
+fn uncertified_arc<T: Real>(
+    error: ReplaceFaceError<T>,
+    arcs: &[(EdgeKey, geom_brep::OpenConic)],
+) -> ReplaceFaceError<T> {
+    match (&error, arcs.first()) {
+        (
+            ReplaceFaceError::Op {
+                error:
+                    crate::EulerOpError::Certification {
+                        error:
+                            geom_brep::CertifyError::AnalyticRung3(
+                                geom_brep::AnalyticRung3Refusal::NoTubeEnclosure {
+                                    operand: geom::SurfaceKind::Cone,
+                                },
+                            ),
+                    },
+                ..
+            },
+            Some(&(edge, conic)),
+        ) => ReplaceFaceError::TogetherConicArc { edge, conic },
+        _ => error,
     }
 }
 

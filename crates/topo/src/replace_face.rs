@@ -687,12 +687,15 @@ pub enum ReplaceFaceError<T: Real> {
         /// Which shape it is.
         what: &'static str,
     },
-    /// **An edge the axial door would carry along an open conic.** A cone
-    /// wall's section with a plane parallel to the axis that stands off
-    /// the moved apex is a hyperbola, minted as a rational-quadratic
-    /// NURBS arc (`geom_brep`'s C1) whose uniqueness tube has no cone
-    /// enclosure yet, so no body carrying it certifies. Refused at the
-    /// door's gate, before any corner is solved.
+    /// **An edge the axial door carries along an open conic that does not
+    /// certify.** A cone wall's section with a plane parallel to the axis
+    /// that stands off the moved apex is a hyperbola, minted as a
+    /// rational-quadratic NURBS arc (`geom_brep`'s C1) between the moved
+    /// corners. Its uniqueness tube has no cone enclosure, so it rests
+    /// only where the plane×cone section states the bounds that retire
+    /// the tube (C2); an arc whose pose does not (its stretch at the
+    /// apex's height, or the overlap not clear of its tube) is refused
+    /// here, once the attach layer's certificate says so.
     TogetherConicArc {
         /// The edge.
         edge: EdgeKey,
@@ -947,8 +950,8 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             Self::TogetherConicArc { conic, .. } => write!(
                 f,
                 "an edge of the body would follow the offset along {}, where the moved flat \
-                 face cuts the cone off its axis, and that arc cannot yet be certified on a \
-                 cone. {NOT_YET_ENDING}",
+                 face cuts the cone off its axis, and that arc cannot be certified on the \
+                 cone so near its apex. {NOT_YET_ENDING}",
                 conic.named()
             ),
             Self::DegenerateTorus { refusal, .. } => refusal.fmt(f),

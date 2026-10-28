@@ -194,31 +194,32 @@ fn r2_per_chart_door_on_a_mirror_nappe_cone() {
 /// ([`frustum_wedge_cavity`]). At a 1/12 turn the moved caps' crossing
 /// line, `T/sin 15°` from the axis, leaves the shrunk top disc (radius
 /// `R(h − T) ≈ 0.025`): the cavity is not the operand's shape, and the
-/// door refuses the edge that would run backwards.
+/// door refuses the edge that would run backwards. A wedge of the whole
+/// cone refuses at its apex corner.
 #[test]
 fn r2_a_conical_wedge_hollows_with_hyperbolic_meridian_edges() {
     let tol = Tol::witness();
     let (r0, r1, h) = (4.0 / 64.0, 2.0 / 64.0, 8.0 / 64.0);
-    let wedge = |turn: f64| {
+    let wedge = |r1: f64, turn: f64| {
+        let mut meridian = vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(r0, 0.0), 0.0),
+            (Point2::new(r1, h), 0.0),
+        ];
+        if r1 > 0.0 {
+            meridian.push((Point2::new(0.0, h), 0.0));
+        }
         topo::test_support::finished(
             "body",
-            revolved(
-                bulge_loop(vec![
-                    (Point2::new(0.0, 0.0), 0.0),
-                    (Point2::new(r0, 0.0), 0.0),
-                    (Point2::new(r1, h), 0.0),
-                    (Point2::new(0.0, h), 0.0),
-                ]),
-                Revolution::Partial(turn),
-            ),
+            revolved(bulge_loop(meridian), Revolution::Partial(turn)),
             tol,
         )
     };
-    for (what, turn) in [
-        ("a quarter turn", PI / 2.0),
-        ("a third of a turn", 2.0 * PI / 3.0),
+    for (what, r1, turn) in [
+        ("a quarter turn", r1, PI / 2.0),
+        ("a third of a turn", r1, 2.0 * PI / 3.0),
     ] {
-        let body = wedge(turn);
+        let body = wedge(r1, turn);
         let topo::Shelled { body: hollow, .. } = topo::shell(
             &finished("the operand", topo::Body::clone(&body.clone()), tol),
             T,
@@ -262,18 +263,33 @@ fn r2_a_conical_wedge_hollows_with_hyperbolic_meridian_edges() {
             measured.volume
         );
     }
-    let err = topo::shell(
-        &finished("the operand", topo::Body::clone(&wedge(PI / 6.0)), tol),
-        T,
-        tol,
-    )
-    .expect_err("the 1/12 turn's cavity is not the operand's shape");
-    let topo::ShellError::Face { error, .. } = &err else {
-        panic!("conical wedge a 1/12 turn: expected the axial door's refusal, got {err}");
+    let refusal = |r1: f64, turn: f64| {
+        let err = topo::shell(
+            &finished("the operand", topo::Body::clone(&wedge(r1, turn)), tol),
+            T,
+            tol,
+        )
+        .expect_err("the door refuses");
+        let topo::ShellError::Face { error, .. } = err else {
+            panic!("expected the axial door's refusal, got {err}");
+        };
+        *error
     };
+    let got = refusal(r1, PI / 6.0);
     assert!(
-        matches!(**error, topo::ReplaceFaceError::TogetherAxialEdge { .. }),
-        "conical wedge a 1/12 turn: an edge with no forward span, got {error}"
+        matches!(got, topo::ReplaceFaceError::TogetherAxialEdge { .. }),
+        "conical wedge a 1/12 turn: an edge with no forward span, got {got}"
+    );
+    // A wedge of the whole cone, its apex in the body: the apex corner,
+    // between the cone and both moved caps, is read as the axis's pole
+    // and kept on the axis, `T/sin 45°` off the caps' crossing line where
+    // it belongs, and the edges meeting it disagree
+    // (`work/offset/a-cone-wedges-apex-corner-beside-two-moved-caps-is-read-as-a-pole.md`).
+    let got = refusal(0.0, PI / 2.0);
+    assert!(
+        matches!(got, topo::ReplaceFaceError::TogetherEdgeDisagreement { gap, .. }
+            if (gap - T / (PI / 4.0).sin()).abs() <= 1e-9),
+        "conical wedge of the whole cone: the apex corner stands T/sin 45° off, got {got}"
     );
 }
 

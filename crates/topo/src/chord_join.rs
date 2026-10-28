@@ -425,9 +425,8 @@ pub enum SplitJoinError {
     },
     /// The plane cuts a cone face in a parabola or a hyperbola. The
     /// table serves either in closed form and mints its arcs per window
-    /// as rational-quadratic NURBS (`geom_brep`'s C1), but such a chord
-    /// on a cone has no certificate yet (the uniqueness tube has no cone
-    /// enclosure), so the face is not divided along it.
+    /// as rational-quadratic NURBS (`geom_brep`'s C1), but the split
+    /// does not carry such a chord, so the face is not divided along it.
     OpenConicChord {
         /// The face being divided.
         face: FaceKey,
@@ -788,8 +787,8 @@ impl core::fmt::Display for SplitJoinError {
             }
             Self::OpenConicChord { conic, .. } => write!(
                 f,
-                "the plane cuts the cone face along {}, an arc that cannot yet be \
-                 certified on a cone. Recourse: tilt the plane so it cuts the cone all the \
+                "the plane cuts the cone face along {}, an arc the split cannot yet \
+                 divide a face along. Recourse: tilt the plane so it cuts the cone all the \
                  way round",
                 conic.named()
             ),
