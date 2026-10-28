@@ -28,7 +28,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_brep::recourse::{INCIDENCE_UNSHOWN, Reading};
+use geom_brep::recourse::INCIDENCE_UNSHOWN;
 use geom_brep::{IncidenceRead, PcurveCertifyError};
 use geom_core::{Bounds, CertifiedBounds, Decide, Interval, Point2, Tol, Vec2, Vec3};
 use profile::SketchPlane;
