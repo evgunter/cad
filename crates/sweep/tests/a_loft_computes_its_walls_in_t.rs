@@ -54,7 +54,7 @@ fn pole<T: Real>(wall: &geom::NurbsSurface<T>, iu: usize, iv: usize) -> usize {
 fn arc_wall<T: geom_core::spline::SpanLocate>(lofted: &Lofted<T>) -> geom::NurbsSurface<T> {
     let face = lofted
         .body
-        .get_face(lofted.side_faces[0][1])
+        .get_face(lofted.side_faces[0][1][0])
         .expect("a built face");
     match lofted
         .body
@@ -544,6 +544,7 @@ fn wall_bits<T: geom_core::spline::SpanLocate>(lofted: &Lofted<T>) -> Vec<u64> {
         .side_faces
         .iter()
         .flatten()
+        .flatten()
         .flat_map(|f| {
             let face = lofted.body.get_face(*f).expect("a built face");
             match lofted
@@ -614,7 +615,7 @@ fn wall_values<T: geom_core::spline::SpanLocate, R>(
     f: impl Fn(T) -> R,
 ) -> Vec<R> {
     let mut out = Vec::new();
-    for face in lofted.side_faces.iter().flatten() {
+    for face in lofted.side_faces.iter().flatten().flatten() {
         let face = lofted.body.get_face(*face).expect("a built face");
         match lofted
             .body
@@ -782,6 +783,7 @@ fn a_placement_in_t_stays_a_function_of_its_parameter() {
     let moved: Vec<[f64; 4]> = swept
         .side_faces
         .iter()
+        .flatten()
         .flatten()
         .flat_map(|f| {
             let face = swept.body.get_face(*f).expect("a built face");

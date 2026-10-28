@@ -220,6 +220,8 @@ mod curved_edge_corpus;
 mod curved_edge_ray_probes;
 #[path = "cylinder_sphere_frame.rs"]
 mod cylinder_sphere_frame;
+#[path = "degree1_loft_slabs.rs"]
+mod degree1_loft_slabs;
 #[path = "four_crossings_on_one_section_circle.rs"]
 mod four_crossings_on_one_section_circle;
 #[path = "general_circle_octant_dual.rs"]
