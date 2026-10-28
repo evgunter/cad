@@ -8997,6 +8997,12 @@ pub fn chart_iso_family<T: Decide>(
 /// [`chart_pcurve`]'s harmonic arms, answering the image together with
 /// the structure selections that produced it ([`Derivation`]) — the
 /// one body both the mint and check 4's re-derivation run.
+///
+/// **Every arm reads incidence first** (D3): whether the carrier lies on
+/// the chart is read by the chart's incidence test
+/// ([`incidence::incident`]) before any class or kind gate reads it, and
+/// every arm images, or takes the general lane, only behind the witness
+/// that test returns ([`incidence::Incident`]).
 fn derive_class<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
@@ -9015,9 +9021,8 @@ fn derive_class<T: Decide>(
             normal,
             u_ref,
         } => {
-            // D3: whether the carrier lies on the plane is read first, by
-            // the chart's incidence test; the affine chart then images any
-            // carrier the test does not show off it, exactly.
+            // The affine chart images exactly any carrier the test does not
+            // show off the plane.
             incidence::incident(carrier, surface, place, band)?;
             // Affine chart: the coefficients map through one by one.
             let v_ref = normal.cross(u_ref);
@@ -9039,10 +9044,6 @@ fn derive_class<T: Decide>(
             radius,
             u_ref,
         } => {
-            // D3: whether the carrier lies on the chart is read first,
-            // by the chart's incidence test, before any class or kind
-            // gate reads it; every arm below images, or takes the
-            // general lane, only behind it (`incidence::Incident`).
             let shown = incidence::incident(carrier, surface, place, band)?;
             let cv = axis.cross(u_ref);
             let radial = |v: Vec3<T>| v - axis * v.dot(axis);
@@ -9155,10 +9156,6 @@ fn derive_class<T: Decide>(
             half_angle,
             u_ref,
         } => {
-            // D3: whether the carrier lies on the chart is read first,
-            // by the chart's incidence test, before any class or kind
-            // gate reads it; every arm below images, or takes the
-            // general lane, only behind it (`incidence::Incident`).
             let shown = incidence::incident(carrier, surface, place, band)?;
             let c_ha = half_angle.cos();
             let cv = axis.cross(u_ref);
@@ -9183,7 +9180,7 @@ fn derive_class<T: Decide>(
                     // apex, so where the parameter starts moves nothing.
                     let (r_ref, h_sign, anchored) =
                         match decide("pcurve_cone_chart_nappe", Margin::of(h0), band)
-                            .map_err(|cause| incidence::general_lane(shown, Some(cause)))?
+                            .map_err(incidence::undecided(shown))?
                         {
                             Sign::Positive => (radial(w), Nappe::Pos, true),
                             Sign::Negative => (radial(w), Nappe::Neg, true),
@@ -9194,7 +9191,7 @@ fn derive_class<T: Decide>(
                                     band,
                                     "F13",
                                 )
-                                .map_err(|cause| incidence::general_lane(shown, Some(cause)))?
+                                .map_err(incidence::undecided(shown))?
                                 {
                                     Decided {
                                         sign: Sign::Positive,
@@ -9275,11 +9272,11 @@ fn derive_class<T: Decide>(
                         Margin::of(harmonic_sup_scalar(aa, ba)),
                         band,
                     )
-                    .map_err(|cause| incidence::general_lane(shown, Some(cause)))?
+                    .map_err(incidence::undecided(shown))?
                     {
                         Sign::Zero => {
                             decide("pcurve_cone_chart_centered", Margin::norm3(w_r), band)
-                                .map_err(|cause| incidence::general_lane(shown, Some(cause)))?
+                                .map_err(incidence::undecided(shown))?
                         }
                         tilted @ (Sign::Positive | Sign::Negative) => tilted,
                     };
@@ -9301,7 +9298,7 @@ fn derive_class<T: Decide>(
                         Margin::of(h),
                         band,
                     )
-                    .map_err(|cause| incidence::general_lane(shown, Some(cause)))?
+                    .map_err(incidence::undecided(shown))?
                     {
                         Decided {
                             sign: Sign::Positive,
@@ -9345,7 +9342,7 @@ fn derive_class<T: Decide>(
                             Margin::over_lever(orient, rho),
                             band,
                         )
-                        .map_err(|cause| incidence::general_lane(shown, Some(cause)))?,
+                        .map_err(incidence::undecided(shown))?,
                     );
                     let alpha = place.phase(
                         Along::Azimuth,
@@ -9427,7 +9424,7 @@ fn derive_class<T: Decide>(
                         Margin::over_lever(orient, ra.norm()),
                         band,
                     )
-                    .map_err(|cause| incidence::general_lane(shown, Some(cause)))?
+                    .map_err(incidence::undecided(shown))?
                     {
                         Decided {
                             sign: Sign::Positive,
@@ -9508,10 +9505,6 @@ fn derive_class<T: Decide>(
             axis,
             u_ref,
         } => {
-            // D3: whether the carrier lies on the chart is read first,
-            // by the chart's incidence test, before any class or kind
-            // gate reads it; every arm below images, or takes the
-            // general lane, only behind it (`incidence::Incident`).
             let shown = incidence::incident(carrier, surface, place, band)?;
             // Only circles are the sphere's classes: a bounded surface
             // holds no line, and its plane sections are circles. A line or
@@ -9532,7 +9525,7 @@ fn derive_class<T: Decide>(
                 Margin::of(harmonic_sup_scalar(aa, ba)),
                 band,
             )
-            .map_err(|cause| incidence::general_lane(shown, Some(cause)))?
+            .map_err(incidence::undecided(shown))?
             {
                 Sign::Zero => {
                     // POLAR-circle class: a,b ⊥ axis, and the centre on
@@ -9543,7 +9536,7 @@ fn derive_class<T: Decide>(
                     // `h`, so near a pole an on-sphere circle tilted
                     // inside the first band fails the second.
                     match decide("pcurve_sphere_chart_centered", Margin::norm3(w_r), band)
-                        .map_err(|cause| incidence::general_lane(shown, Some(cause)))?
+                        .map_err(incidence::undecided(shown))?
                     {
                         Sign::Zero => {}
                         Sign::Positive | Sign::Negative => {
@@ -9557,7 +9550,7 @@ fn derive_class<T: Decide>(
                             Margin::over_lever(orient, radius),
                             band,
                         )
-                        .map_err(|cause| incidence::general_lane(shown, Some(cause)))?,
+                        .map_err(incidence::undecided(shown))?,
                     );
                     let alpha = place.phase(
                         Along::Azimuth,
@@ -9585,11 +9578,11 @@ fn derive_class<T: Decide>(
                     // test decides.
                     let coax = Margin::over_lever(form.a.cross(form.b).dot(axis), radius);
                     let meridian = decide("pcurve_sphere_chart_meridian", coax, band)
-                        .map_err(|cause| incidence::general_lane(shown, Some(cause)))?;
+                        .map_err(incidence::undecided(shown))?;
                     let centred = match meridian {
                         Sign::Zero => {
                             decide("pcurve_sphere_chart_centered", Margin::norm3(w), band)
-                                .map_err(|cause| incidence::general_lane(shown, Some(cause)))?
+                                .map_err(incidence::undecided(shown))?
                         }
                         Sign::Positive | Sign::Negative => meridian,
                     };
@@ -9605,7 +9598,7 @@ fn derive_class<T: Decide>(
                     // is structurally nonzero.
                     let use_a =
                         match decide("pcurve_sphere_chart_pole_frame", Margin::norm3(a_r), band)
-                            .map_err(|cause| incidence::general_lane(shown, Some(cause)))?
+                            .map_err(incidence::undecided(shown))?
                         {
                             Sign::Positive | Sign::Negative => true,
                             Sign::Zero => false,
@@ -9630,7 +9623,7 @@ fn derive_class<T: Decide>(
                         Margin::of(sigma_margin),
                         band,
                     )
-                    .map_err(|cause| incidence::general_lane(shown, Some(cause)))?
+                    .map_err(incidence::undecided(shown))?
                     {
                         Decided {
                             sign: sign @ (Sign::Positive | Sign::Negative),
@@ -9742,10 +9735,6 @@ fn derive_class<T: Decide>(
             minor_radius,
             u_ref,
         } => {
-            // D3: whether the carrier lies on the chart is read first,
-            // by the chart's incidence test, before any class or kind
-            // gate reads it; every arm below images, or takes the
-            // general lane, only behind it (`incidence::Incident`).
             let shown = incidence::incident(carrier, surface, place, band)?;
             let cv = axis.cross(u_ref);
             // A bounded surface holds no line, and a torus's plane
@@ -9767,7 +9756,7 @@ fn derive_class<T: Decide>(
                 Margin::of(harmonic_sup_scalar(aa, ba)),
                 band,
             )
-            .map_err(|cause| incidence::general_lane(shown, Some(cause)))?
+            .map_err(incidence::undecided(shown))?
             {
                 Sign::Zero => {
                     // PARALLEL: centred on the axis, checked. Failing it,
@@ -9777,7 +9766,7 @@ fn derive_class<T: Decide>(
                     // `δ²/2r`, so a definite offset can sit on the
                     // chart within the band. The incidence test decides.
                     match decide("pcurve_torus_chart_centered", Margin::norm3(w_r), band)
-                        .map_err(|cause| incidence::general_lane(shown, Some(cause)))?
+                        .map_err(incidence::undecided(shown))?
                     {
                         Sign::Zero => {}
                         Sign::Positive | Sign::Negative => {
@@ -9792,7 +9781,7 @@ fn derive_class<T: Decide>(
                             Margin::over_lever(orient, rho),
                             band,
                         )
-                        .map_err(|cause| incidence::general_lane(shown, Some(cause)))?,
+                        .map_err(incidence::undecided(shown))?,
                     );
                     let alpha = place.phase(
                         Along::Azimuth,
@@ -9829,7 +9818,7 @@ fn derive_class<T: Decide>(
                     // the class gate.
                     let coax = Margin::over_lever(form.a.cross(form.b).dot(axis), minor_radius);
                     match decide("pcurve_torus_chart_meridian", coax, band)
-                        .map_err(|cause| incidence::general_lane(shown, Some(cause)))?
+                        .map_err(incidence::undecided(shown))?
                     {
                         Sign::Zero => {}
                         // Oblique circles DO lie on a torus (the
@@ -9865,7 +9854,7 @@ fn derive_class<T: Decide>(
                         Margin::over_lever(ba * a_rad - b_r.dot(rad) * aa, tube.length()),
                         band,
                     )
-                    .map_err(|cause| incidence::general_lane(shown, Some(cause)))?
+                    .map_err(incidence::undecided(shown))?
                     {
                         Decided {
                             sign: sign @ (Sign::Positive | Sign::Negative),
@@ -10632,8 +10621,8 @@ mod incidence {
                 "the carrier's points are not on the plane",
             ),
             _ => unreachable!(
-                "incident: a spline chart has no closed-form mint, and a spline or spiric carrier \
-                 takes its own test"
+                "incident: a spline chart has no closed-form mint, and a spline carrier takes \
+                 its own test (`net_incidence`)"
             ),
         };
         match chart_incidence(name, carrier, surface, slack, band)? {
@@ -10668,6 +10657,12 @@ mod incidence {
             .with_margin(super::OffMargin::Past(margin), surface, carrier)),
             Incidence::On => Ok(()),
         }
+    }
+
+    /// [`general_lane`] for a class reading that landed in band: the
+    /// refusal every class gate's in-band read takes.
+    pub(super) fn undecided(shown: Incident) -> impl Fn(Indeterminate) -> Underived {
+        move |cause| general_lane(shown, Some(cause))
     }
 
     /// **The general lane, behind the incidence test** (D3's lane
@@ -13391,8 +13386,9 @@ mod escape_tests {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod iso_family {
     //! **[`chart_iso_family`]'s cylinder arm**: a ruling is `U`, a rim
-    //! `V`, an oblique line no family, and a line whose tilt off the
-    //! axis is in the band refuses — the mint's tie-break takes the
+    //! `V`, an oblique section no family; a line tilted off the wall is
+    //! refused by its incidence read, and one whose tilt off the axis is
+    //! in the band refuses undecided — the mint's tie-break takes the
     //! ruling's form there, which no family may be read off.
     use super::{IsoFamily, IsoFamilyRefusal, chart_iso_family};
     use geom::{Curve3, Surface};
