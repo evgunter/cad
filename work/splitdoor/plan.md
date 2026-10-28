@@ -1,6 +1,6 @@
 # SPLITDOOR — the plan
 
-No orchestrator yet. Live state is `work/splitdoor/log.md`'s tail and the
+An orchestrator holds the track (since 2026-10-28). Live state is `work/splitdoor/log.md`'s tail and the
 item files beside this plan.
 
 Branch prefix **`splitdoor/`**; away-channel tag `(SPLITDOOR orchestrator)`.
