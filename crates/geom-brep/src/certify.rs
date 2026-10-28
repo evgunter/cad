@@ -1025,7 +1025,7 @@ impl CertifyError {
             } => (CertCheck::GeneralLane, RefusedArm::SignCertain(None)),
             Self::CarrierOffChart { margin, .. } => (
                 CertCheck::ChartIncidence,
-                crate::IncidenceRead::of_margin(*margin).arm(),
+                RefusedArm::SignCertain(margin.map(crate::OffMargin::diag)),
             ),
             Self::OnPairArcRim { iso, limb, bound } => {
                 match iso.and_then(crate::pcurve_cache::PcurveCheck::incidence_limb) {
@@ -1080,14 +1080,14 @@ impl CertifyError {
     /// which every incidence refusal reaches it through, and is the one
     /// reading of it [`Self::ending`] and a door's classification share.
     #[must_use]
-    pub fn incidence_read(&self) -> Option<crate::IncidenceRead<'_>> {
+    pub fn incidence_read(&self) -> Option<crate::IncidenceRead> {
         match self {
             Self::CarrierOffChart { margin, .. } => Some(crate::IncidenceRead::of_margin(*margin)),
             Self::Escalated {
                 check: CertCheck::ChartIncidence,
                 cause,
                 ..
-            } => Some(crate::IncidenceRead::Undecided(cause)),
+            } => Some(crate::IncidenceRead::Undecided(*cause)),
             // The test's residual decided past the band: a definite miss,
             // read as the pcurve layer's (`IncidenceRead::of`) reads it.
             // Its margin is the residual, not a pose's height, so it is
@@ -8054,7 +8054,7 @@ mod tests {
                     crate::IncidenceRead::Off(None),
                     crate::IncidenceRead::Off(Some(MarginDiag::value(5e-9))),
                     crate::IncidenceRead::AtPose(MarginDiag::value(5e-9)),
-                    crate::IncidenceRead::Undecided(cause),
+                    crate::IncidenceRead::Undecided(*cause),
                 ] {
                     for file in [wide, narrow] {
                         let door = read.ending(file);

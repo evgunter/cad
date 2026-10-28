@@ -3696,7 +3696,7 @@ pub(crate) mod incidence_reasons {
 }
 
 /// The reason [`incidence_reasons`] gives `read`.
-fn incidence_reason(read: geom_brep::IncidenceRead<'_>) -> &'static str {
+fn incidence_reason(read: geom_brep::IncidenceRead) -> &'static str {
     use geom_brep::IncidenceRead as R;
     match read {
         R::Off(_) => incidence_reasons::OFF,
@@ -4012,16 +4012,6 @@ pub(crate) fn classify_point_in_solid(
 }
 
 fn classify_chart_region(e: &ChartRegionError) -> (Cow<'static, str>, Cow<'static, str>) {
-    // A plane trim edge's incidence refusal reads its reason from the one
-    // table and ends by the one map, at rest.
-    if let ChartRegionError::TrimOffFace { refusal, .. } = e
-        && let Some(read) = geom_brep::IncidenceRead::of(refusal)
-    {
-        return (
-            incidence_reason(read).into(),
-            read.ending(Reading::AtRest).into(),
-        );
-    }
     let (why, recourse): (&'static str, &'static str) = match e {
         ChartRegionError::ChartDivergence { .. } => (
             "the two faces lie on separately described surfaces, which the check cannot \
@@ -4077,12 +4067,14 @@ fn classify_chart_region(e: &ChartRegionError) -> (Cow<'static, str>, Cow<'stati
         ChartRegionError::MissingCache { .. } | ChartRegionError::Corrupt => {
             ("a face's stored boundary is incomplete", DEFECT)
         }
-        // Built only with an incidence read (`chart_region::loop_uv_polygon`),
-        // read above; a refusal without one would be the image's own.
-        ChartRegionError::TrimOffFace { .. } => (
-            "a flat face's boundary edge has no image on its plane",
-            DEFECT,
-        ),
+        // A plane trim edge's incidence read: its reason from the one
+        // table, its ending by the one map, at rest.
+        ChartRegionError::TrimOffFace { read, .. } => {
+            return (
+                incidence_reason(*read).into(),
+                read.ending(Reading::AtRest).into(),
+            );
+        }
     };
     (why.into(), recourse.into())
 }

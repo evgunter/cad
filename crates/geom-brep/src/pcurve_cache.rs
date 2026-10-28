@@ -2366,7 +2366,7 @@ impl PcurveCertifyError {
             // the read's ([`Self::ending`], [`IncidenceRead::ending`]).
             Self::CarrierOffChart { margin, .. } => (
                 PcurveCheck::ChartIncidence,
-                IncidenceRead::of_margin(*margin).arm(),
+                RefusedArm::SignCertain(margin.map(OffMargin::diag)),
             ),
             Self::NoGeneralLane {
                 gap: LaneGap::Unwritten,
@@ -9985,8 +9985,8 @@ impl OffMargin {
 /// **How a carrier's incidence on its chart was read**: the one
 /// classifier every door's incidence ending matches on
 /// ([`IncidenceRead::of`], [`IncidenceRead::ending`]).
-#[derive(Clone, Copy, Debug)]
-pub enum IncidenceRead<'a> {
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum IncidenceRead {
     /// Decided off the chart: past the band, or with no margin to quote.
     Off(Option<geom_core::MarginDiag>),
     /// A band-decided Zero at a degenerate pose ([`OffMargin::InBand`]):
@@ -9995,24 +9995,24 @@ pub enum IncidenceRead<'a> {
     AtPose(geom_core::MarginDiag),
     /// The incidence test landed in the band
     /// ([`PcurveCheck::ChartIncidence`] escalated).
-    Undecided(&'a Indeterminate),
+    Undecided(Indeterminate),
 }
 
-impl<'a> IncidenceRead<'a> {
+impl IncidenceRead {
     /// **The one incidence classifier**: the read a refusal carries, or
     /// `None` for a refusal of anything else. Every reader of an incidence
     /// refusal reads it here (the edge certificate's through
     /// [`crate::CertifyError::incidence_read`], which agrees arm for arm),
     /// and decides definite or in band by [`Self::is_definite`].
     #[must_use]
-    pub fn of(error: &'a PcurveCertifyError) -> Option<Self> {
+    pub fn of(error: &PcurveCertifyError) -> Option<Self> {
         match error {
             PcurveCertifyError::CarrierOffChart { margin, .. } => Some(Self::of_margin(*margin)),
             PcurveCertifyError::Escalated {
                 check: PcurveCheck::ChartIncidence,
                 cause,
                 ..
-            } => Some(Self::Undecided(cause)),
+            } => Some(Self::Undecided(*cause)),
             // The test's residual decided past the band: a definite miss
             // with no margin carried.
             PcurveCertifyError::ResidualExceeded {
@@ -10035,11 +10035,11 @@ impl<'a> IncidenceRead<'a> {
 
     /// The refused arm the read carries.
     #[must_use]
-    pub fn arm(self) -> RefusedArm<'a> {
-        match self {
+    pub fn arm(&self) -> RefusedArm<'_> {
+        match *self {
             Self::Off(margin) => RefusedArm::SignCertain(margin),
             Self::AtPose(m) => RefusedArm::SignCertain(Some(m)),
-            Self::Undecided(cause) => RefusedArm::Undecided(cause),
+            Self::Undecided(ref cause) => RefusedArm::Undecided(cause),
         }
     }
 
@@ -10058,7 +10058,7 @@ impl<'a> IncidenceRead<'a> {
             RefusedArm::Zero(crate::recourse::Classified { margin, .. }) => {
                 IncidenceRead::AtPose(margin).ending(at)
             }
-            RefusedArm::Undecided(cause) => IncidenceRead::Undecided(cause).ending(at),
+            RefusedArm::Undecided(cause) => IncidenceRead::Undecided(*cause).ending(at),
             RefusedArm::Straddle => crate::recourse::INCIDENCE_UNSHOWN.recourse(arm, at),
         }
     }
@@ -12790,7 +12790,7 @@ mod tests {
             ),
             (
                 RefusedArm::Undecided(&cause),
-                IncidenceRead::Undecided(&cause).ending(Reading::Build),
+                IncidenceRead::Undecided(cause).ending(Reading::Build),
             ),
             (
                 RefusedArm::Straddle,

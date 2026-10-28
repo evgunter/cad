@@ -244,17 +244,18 @@ pub enum ChartRegionError {
         what: &'static str,
     },
     /// A plane face's trim edge, imaged on demand, refused on its
-    /// incidence on the plane (`geom_brep::IncidenceRead::of`): decided
-    /// off it, read at a pose, or undecided. It ends by the one map
-    /// (`geom_brep::IncidenceRead::ending`) at a build, the reading every
-    /// region query of a body is.
+    /// incidence on the plane: decided off it, read at a pose, or
+    /// undecided. It carries that read, which each reader ends at its own
+    /// door by the one map (`geom_brep::IncidenceRead::ending`; at rest,
+    /// the validator's classifier); its `Display` ends at rest, the ending
+    /// true at every door.
     TrimOffFace {
         /// The face whose loop refused.
         face: FaceKey,
         /// The half-edge whose carrier was read.
         half_edge: HalfEdgeKey,
-        /// The image's refusal, verbatim.
-        refusal: geom_brep::PcurveCertifyError,
+        /// The image's incidence read.
+        read: geom_brep::IncidenceRead,
     },
     /// A minting chart's stored cache is absent — the body must
     /// re-mint before region queries (the `props.rs` posture); only
@@ -406,19 +407,20 @@ impl core::fmt::Display for ChartRegionError {
                  is the named exclusion and has neither, so it waits on the curved \
                  region lane"
             ),
-            Self::TrimOffFace { refusal, .. } => match geom_brep::IncidenceRead::of(refusal) {
-                Some(read) => write!(
-                    f,
-                    "chart-region: an edge of a plane face {}. {}",
-                    if read.is_definite() {
-                        "does not lie on the face's plane"
-                    } else {
-                        "is not shown on the face's plane"
-                    },
-                    read.ending(geom_brep::recourse::Reading::Build)
-                ),
-                None => write!(f, "chart-region: {refusal}"),
-            },
+            // The at-rest ending holds at every door: a read in band ends
+            // in its lever at each, and a definite miss names the kernel or
+            // the file it was read from, either of which is the culprit
+            // wherever this is reported.
+            Self::TrimOffFace { read, .. } => write!(
+                f,
+                "chart-region: an edge of a plane face {}. {}",
+                if read.is_definite() {
+                    "does not lie on the face's plane"
+                } else {
+                    "is not shown on the face's plane"
+                },
+                read.ending(geom_brep::recourse::Reading::AtRest)
+            ),
             Self::MissingCache { half_edge } => write!(
                 f,
                 "chart-region: half-edge {half_edge:?} has no stored pcurve cache on \
@@ -2614,14 +2616,13 @@ fn loop_uv_polygon<T: Decide + Bounds>(
                 .map_err(|refusal| {
                     // An incidence refusal ends by its read (D3); any
                     // other is a carrier the affine chart has no image of.
-                    if geom_brep::IncidenceRead::of(&refusal).is_some() {
-                        ChartRegionError::TrimOffFace {
+                    match geom_brep::IncidenceRead::of(&refusal) {
+                        Some(read) => ChartRegionError::TrimOffFace {
                             face,
                             half_edge: he,
-                            refusal,
-                        }
-                    } else {
-                        refuse("no closed-form chart image for this carrier kind")
+                            read,
+                        },
+                        None => refuse("no closed-form chart image for this carrier kind"),
                     }
                 })?;
             pcurve_entry(&pcurve, t0, t1, forward).map_err(refuse)?
@@ -3890,14 +3891,7 @@ mod tests {
             ChartRegionErrorKind::TrimOffFace => ChartRegionError::TrimOffFace {
                 face: FaceKey::default(),
                 half_edge: HalfEdgeKey::default(),
-                refusal: geom_brep::PcurveCertifyError::CarrierOffChart {
-                    chart: geom::SurfaceKind::Plane,
-                    carrier: geom::CurveKind::Line,
-                    why: "the line's points are not on the plane",
-                    margin: Some(geom_brep::OffMargin::InBand(geom_core::MarginDiag::value(
-                        4e-10,
-                    ))),
-                },
+                read: geom_brep::IncidenceRead::AtPose(geom_core::MarginDiag::value(4e-10)),
             },
             ChartRegionErrorKind::MissingCache => ChartRegionError::MissingCache {
                 half_edge: HalfEdgeKey::default(),
