@@ -224,6 +224,13 @@ impl<P: crate::ProfilePayload> Doc<P> {
             })
     }
 
+    /// Whether the document declares an index: where it declares none,
+    /// nothing repeats.
+    #[must_use]
+    pub fn declares_index(&self) -> bool {
+        self.vars.values().any(|v| v.def().index().is_some())
+    }
+
     /// **The indices `var` reaches**, ordered outermost first
     /// ([`Reach`]).
     #[must_use]
@@ -236,5 +243,30 @@ impl<P: crate::ProfilePayload> Doc<P> {
     #[must_use]
     pub fn node_reach(&self, id: RecipeNodeId) -> Reached {
         Reach::new(self).node(id)
+    }
+
+    /// **Every operation reading two indices neither of which is within
+    /// the other**, in id order, with the two (D10 `[repetition]`): what
+    /// the edit door refuses and the evaluation refuses typed.
+    #[must_use]
+    pub fn indices_faults(&self) -> Vec<(RecipeNodeId, VarId, VarId)> {
+        // A document that declares no two indices has no such reader.
+        let indices = self
+            .vars
+            .values()
+            .filter(|v| v.def().index().is_some())
+            .take(2)
+            .count();
+        if indices < 2 {
+            return Vec::new();
+        }
+        let mut reach = Reach::new(self);
+        self.ids()
+            .into_iter()
+            .filter_map(|id| match reach.node(id) {
+                Reached::Unrelated(a, b) => Some((id, a, b)),
+                Reached::Chain(_) => None,
+            })
+            .collect()
     }
 }

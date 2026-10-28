@@ -403,20 +403,25 @@ fn contact_cells(row: &crate::coincide::NamedCoincidence) -> Option<[(VarId, Sta
 /// relation, the `Gap`'s two selections and the bound it holds at.
 struct HoldingGap<'a, T> {
     id: RecipeNodeId,
+    /// The member of the assertion's family it is, for an assertion
+    /// whose reads reach an index (D10 `[assertions]`, "Families");
+    /// empty for any other.
+    at: crate::names::MemberAt,
     relation: AssertionRelation,
     outer: VarId,
     inner: VarId,
     bound: &'a T,
 }
 
-/// Every [`HoldingGap`] of `doc` in `evaluation`, in document order. It
-/// reads verdicts only: an assertion that did not evaluate, or does not
-/// hold, is none of them.
+/// Every [`HoldingGap`] of `doc` in `evaluation`, in document order, an
+/// assertion whose reads reach an index once per member, each member by
+/// its own verdict. It reads verdicts only: an assertion that did not
+/// evaluate, or does not hold, is none of them.
 fn holding_gaps<'a, P, T: Decide>(
     doc: &'a Doc<P>,
     evaluation: &'a Evaluation<T>,
 ) -> impl Iterator<Item = HoldingGap<'a, T>> + 'a {
-    doc.ids().into_iter().filter_map(move |id| {
+    doc.ids().into_iter().flat_map(move |id| {
         let Some(Node::Assertion {
             value, relation, ..
         }) = doc.node(id)
@@ -432,19 +437,60 @@ fn holding_gaps<'a, P, T: Decide>(
         else {
             return None;
         };
-        let Some(ValuePayload::Assertion(AssertionVerdict::Holds { bound, .. })) =
-            evaluation.value(id).map(|v| &v.payload)
-        else {
-            return None;
+        let value = evaluation.value(id)?;
+        let members: Vec<(crate::names::MemberAt, &'a ValuePayload<T>)> = match &value.members {
+            Some(family) => family
+                .members
+                .iter()
+                .map(|(values, member)| (family.member_at(values), &member.payload))
+                .collect(),
+            None => vec![(Vec::new(), &value.payload)],
         };
-        Some(HoldingGap {
-            id,
-            relation: *relation,
-            outer: *outer,
-            inner: *inner,
-            bound,
-        })
+        Some(members.into_iter().filter_map(move |(at, payload)| {
+            let ValuePayload::Assertion(AssertionVerdict::Holds { bound, .. }) = payload else {
+                return None;
+            };
+            Some(HoldingGap {
+                id,
+                at,
+                relation: *relation,
+                outer: *outer,
+                inner: *inner,
+                bound,
+            })
+        }))
     })
+    .flatten()
+}
+
+/// **The name a selection holds, as the member at `at` reads it**: the
+/// selection's own name where its body reaches no index of `at`, else
+/// that name wrapped in the `Member` segment its family's table puts
+/// round it, at the values of `at` for the indices the body reaches.
+fn member_name<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    body: VarId,
+    name: &StableName,
+    at: &crate::names::MemberAt,
+) -> StableName {
+    let Some(chain) = doc.var_reach(body).chain().map(<[VarId]>::to_vec) else {
+        return name.clone();
+    };
+    let values: Option<crate::names::MemberAt> = chain
+        .iter()
+        .map(|index| at.iter().find(|(held, _)| held == index).copied())
+        .collect();
+    match (values, doc.operation_of(body)) {
+        (Some(values), Some(family)) if !values.is_empty() => StableName {
+            kind: name.kind,
+            node: family,
+            path: vec![crate::names::RoleSeg::Member {
+                at: values,
+                of: crate::names::NameRef::new(name.clone()),
+            }],
+        },
+        _ => name.clone(),
+    }
 }
 
 /// **The name a read holds, of a name a `⊔` keyed by that read**: a
@@ -540,6 +586,10 @@ pub struct InterferenceFinding {
     pub overlap: Overlap,
     /// The assertion that quiets it, or `None` when it is loud.
     pub quiet: Option<RecipeNodeId>,
+    /// The member of `quiet`'s family that quiets it, for an assertion
+    /// whose reads reach an index (D10 `[assertions]`, "Families"):
+    /// each member quiets its own finding. Empty for any other.
+    pub quiet_at: crate::names::MemberAt,
     /// Whether an assertion the quieting rule accepts could quiet it,
     /// asked of the rule itself ([`localize`]): the overlap is bounded;
     /// every verdict it carries lies on it (`covered`, which no
@@ -577,6 +627,9 @@ impl InterferenceFinding {
 pub struct GapAssertion {
     /// The assertion.
     pub assertion: RecipeNodeId,
+    /// The member of its family it is, empty for an assertion reaching
+    /// no index.
+    pub at: crate::names::MemberAt,
     /// The `Gap`'s outer face: its copy's index in
     /// [`Product::copies`], and the face in the aggregate.
     outer: (usize, FaceKey),
@@ -606,7 +659,7 @@ pub(crate) const AT_REST_QUIET_CENTRED: &str = "at_rest_quiet_centred";
 /// It reads the assertion's verdict in `evaluation` and never its
 /// measure's value, and evaluates nothing: an assertion that did not
 /// evaluate, or does not hold, is simply not a candidate.
-pub(crate) fn gap_assertions<P, T: Decide>(
+pub(crate) fn gap_assertions<P: crate::ProfilePayload, T: Decide>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     aggregate: &Body<T>,
@@ -617,11 +670,12 @@ pub(crate) fn gap_assertions<P, T: Decide>(
     let Ok(band) = Band::linear(tol) else {
         return Vec::new();
     };
-    let face_of = |var: VarId| -> Option<(usize, FaceKey)> {
+    let face_of = |var: VarId, at: &crate::names::MemberAt| -> Option<(usize, FaceKey)> {
         let select = doc.selection(var)?;
         let [name] = select.names.as_slice() else {
             return None;
         };
+        let name = &member_name(doc, select.body, name, at);
         // The selection reads the copy, by the copy's own name; the
         // product's `⊔` keys that name by the copy it read.
         let entry = names.lookup(name).or_else(|| {
@@ -651,7 +705,8 @@ pub(crate) fn gap_assertions<P, T: Decide>(
         {
             continue;
         }
-        let (Some(outer), Some(inner)) = (face_of(gap.outer), face_of(gap.inner)) else {
+        let (Some(outer), Some(inner)) = (face_of(gap.outer, &gap.at), face_of(gap.inner, &gap.at))
+        else {
             continue;
         };
         if outer.0 == inner.0 || !opposed(aggregate, outer.1, inner.1, band) {
@@ -659,6 +714,7 @@ pub(crate) fn gap_assertions<P, T: Decide>(
         }
         out.push(GapAssertion {
             assertion: gap.id,
+            at: gap.at,
             outer,
             inner,
         });
@@ -832,6 +888,7 @@ fn unlocalized_at_lane<T: Decide>(
         evidence,
         overlap: Overlap::Unlocalized(Unlocalized::Lane),
         quiet: None,
+        quiet_at: Vec::new(),
         quietable: false,
     }]
 }
@@ -1243,13 +1300,17 @@ fn localize(
     tol: Tol,
 ) -> Vec<InterferenceFinding> {
     let copy_ref = |i: usize| copy_ref(&product.copies[i]);
-    let finding = |overlap, quiet, quietable| InterferenceFinding {
-        a: copy_ref(a),
-        b: copy_ref(b),
-        evidence: evidence.clone(),
-        overlap,
-        quiet,
-        quietable,
+    let finding = |overlap, quiet: Option<(RecipeNodeId, crate::names::MemberAt)>, quietable| {
+        let (quiet, quiet_at) = quiet.map_or((None, Vec::new()), |(id, at)| (Some(id), at));
+        InterferenceFinding {
+            a: copy_ref(a),
+            b: copy_ref(b),
+            evidence: evidence.clone(),
+            overlap,
+            quiet,
+            quiet_at,
+            quietable,
+        }
     };
     let unlocalized = |why| vec![finding(Overlap::Unlocalized(why), None, false)];
     let result = match intersection(product, a, b, tol) {
@@ -1301,7 +1362,7 @@ fn localize(
         faces.sort();
         faces.dedup();
         let quietable = covered(component)
-            && (matches!(verdict, Quiet::By(_))
+            && (matches!(verdict, Quiet::By(..))
                 || (matches!(verdict, Quiet::Loud)
                     && could_quiet(
                         product,
@@ -1314,10 +1375,10 @@ fn localize(
                     )));
         out.push(match verdict {
             Quiet::Loud => finding(Overlap::Bounded { faces }, None, quietable),
-            Quiet::By(assertion) if covered(component) => {
-                finding(Overlap::Bounded { faces }, Some(assertion), quietable)
+            Quiet::By(assertion, at) if covered(component) => {
+                finding(Overlap::Bounded { faces }, Some((assertion, at)), quietable)
             }
-            Quiet::By(_) => finding(Overlap::Bounded { faces }, None, quietable),
+            Quiet::By(..) => finding(Overlap::Bounded { faces }, None, quietable),
             Quiet::Refused(refusal) => finding(
                 Overlap::Unlocalized(Unlocalized::Containment { refusal }),
                 None,
@@ -1428,8 +1489,8 @@ fn components<T: Decide>(
 enum Quiet {
     /// No assertion quiets it.
     Loud,
-    /// This assertion quiets it.
-    By(RecipeNodeId),
+    /// This assertion, as its member at these values, quiets it.
+    By(RecipeNodeId, crate::names::MemberAt),
     /// An assertion whose faces bound it could not be checked against
     /// it, and none quiets it: the kernel could not bound the overlap
     /// against the carriers.
@@ -1468,7 +1529,7 @@ fn quiet_verdicts(
             .iter()
             .enumerate()
             .filter(|(_, c)| c.sources.contains(&g.outer) && c.sources.contains(&g.inner))
-            .filter(|(i, _)| !matches!(verdicts[*i], Quiet::By(_)))
+            .filter(|(i, _)| !matches!(verdicts[*i], Quiet::By(..)))
             .map(|(i, _)| i)
             .collect();
         if bounded.is_empty() {
@@ -1481,7 +1542,9 @@ fn quiet_verdicts(
             .map(|sets| sets.into_iter().flatten().collect::<BTreeSet<usize>>());
         for i in bounded {
             match &outside {
-                Ok(crossed) if !crossed.contains(&i) => verdicts[i] = Quiet::By(g.assertion),
+                Ok(crossed) if !crossed.contains(&i) => {
+                    verdicts[i] = Quiet::By(g.assertion, g.at.clone());
+                }
                 Ok(_) => {}
                 Err(refusal) => {
                     if matches!(verdicts[i], Quiet::Loud) {

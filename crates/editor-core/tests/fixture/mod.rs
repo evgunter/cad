@@ -90,6 +90,17 @@ pub fn run(doc: &editor_core::ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
     ev
 }
 
+/// **`doc` evaluated over `prior`**: what the memo reuses by key.
+pub fn run_with_prior(doc: &editor_core::ProfileDoc, prior: &Evaluation<f64>) -> Evaluation<f64> {
+    evaluate::<f64>(
+        doc,
+        Some(prior),
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
+}
+
 /// **Every placement whose bundle holds a mate**, in document order:
 /// the placements mated to other copies.
 pub fn constrained(doc: &ProfileDoc) -> Vec<RecipeNodeId> {

@@ -1608,6 +1608,7 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::FreshUnread { .. }
             | EditError::VarKindFixed { .. }
             | EditError::Index { .. }
+            | EditError::IndicesUnrelated { .. }
             | EditError::NotAFreeVar { .. }
             | EditError::VarIsAnOutput { .. }
             | EditError::DefinitionCycle { .. }

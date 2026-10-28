@@ -3620,9 +3620,11 @@ where
     };
     // Which indices each node reaches, read once off the recipe: a node
     // reaching any is evaluated once per member of them ([`members`]).
-    let chains: BTreeMap<RecipeNodeId, crate::repetition::Reached> = {
+    let chains: BTreeMap<RecipeNodeId, crate::repetition::Reached> = if doc.declares_index() {
         let mut reach = crate::repetition::Reach::new(doc);
         sched.order.iter().map(|&id| (id, reach.node(id))).collect()
+    } else {
+        BTreeMap::new()
     };
     let mut nodes: BTreeMap<RecipeNodeId, NodeResult<T>> = BTreeMap::new();
     let mut recomputed = 0usize;

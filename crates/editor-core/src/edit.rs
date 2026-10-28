@@ -2725,6 +2725,16 @@ pub enum EditError {
         /// The kind the definition holds.
         offered: VarKind,
     },
+    /// **A reader of two indices neither of which is within the other**
+    /// (D10 `[repetition]`): they meet in no reader.
+    IndicesUnrelated {
+        /// The reader.
+        node: SpokenNode,
+        /// One index.
+        a: Box<SpokenVar>,
+        /// The other.
+        b: Box<SpokenVar>,
+    },
     /// **An index refused as declared** (D10 `[repetition]`): its count
     /// is no `Count`, or what it is declared within is no index.
     Index {
@@ -3426,6 +3436,11 @@ impl EditError {
         match &mut again {
             Self::UnknownSlot { id, slot: _ } => {
                 *id = id.respoken(doc);
+            }
+            Self::IndicesUnrelated { node, a, b } => {
+                *node = node.respoken(doc);
+                **a = a.respoken(doc);
+                **b = b.respoken(doc);
             }
             Self::ProfileProgramRefused { node, refusal: _ }
             | Self::SelectionShape {
@@ -4239,6 +4254,17 @@ impl EditError {
                      writes, and a variable with no name goes when nothing reads it"
                 )?;
                 tail.recourse(f, format_args!("read the entry, or drop it from the table"))
+            }
+            Self::IndicesUnrelated { node, a, b } => {
+                write!(
+                    f,
+                    "{node} reads the indices {a} and {b}, and neither is within the other, so \
+                     they meet in no reader"
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("declare one within the other, or read one of them here"),
+                )
             }
             Self::Index { var, fault } => {
                 match fault {
@@ -7085,6 +7111,21 @@ fn door<P: Clone + crate::ProfilePayload, T>(
                 b: new.spoken_space(b),
             });
         }
+    }
+    // D10 `[repetition]`, on EVERY arm: two indices meet in one reader
+    // only when one is within the other. An edit that leaves a reader of
+    // two unrelated indices refuses, naming the first in id order that
+    // the document before did not hold.
+    if let Some((node, a, b)) = new
+        .indices_faults()
+        .into_iter()
+        .find(|fault| !doc.indices_faults().contains(fault))
+    {
+        return Err(EditError::IndicesUnrelated {
+            node: spoken_before_else_after(doc, &new, node),
+            a: Box::new(new.spoken_var(a)),
+            b: Box::new(new.spoken_var(b)),
+        });
     }
     // VR2, on EVERY arm: an anonymous variable has one reader, so the
     // edit that gave it a second, or cleared the name two share, refuses
