@@ -861,3 +861,11 @@ E1c waits on the answer.
   - E1c is widened to the sphere/cone/torus class arms and the sphere/torus ellipse kind gates;
   - E1d2 seals topo's construction tier.
   Next: E1d2 → E1c → E1e → E2 → E3 → E4.
+- 2026-10-28 — E1d2 (PR 5881) merged: topo's construction tier is sealed.
+  - Its 46 doors are crate-private inherent methods of `Body`, public only through `topo::construction::Construct`, which is where they are documented.
+  - `pncad::topo` is the topo glob, with the tier's modules shadowed. The shadow set is derived from `construction.rs`.
+  - Pins that go red when a door is made public: the three `compile_fail` doctests; the façade row, which scans topo's root and every unshadowed public module for a `pub use` that carries a tier name or globs through a shadow; and `every_construction_door_is_a_crate_private_body_method`.
+  - `DOORS_MEASURED` is 72.
+  - The spec types stay nameable because `EdgeCurve::{mint, certify, …}` take and return them.
+  - Review tier: single FULL review (the move is mechanical, but whether the seal is complete had to be probed from outside). 0 MAJOR; fix list K1–K5 (the pins could not see a door made public; the tier's docs had dropped out of rustdoc). The orchestrator read the fixes.
+- 2026-10-28 — E1c (PR 5889) dispatched at review tier dual, class H (the incidence read across five charts). The concurrent pair reads frozen head 6c29a7e439, scope c591ab53c7..6c29a7e439.
