@@ -1650,17 +1650,18 @@ fn cylinder_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 /// and moved off the origin. The copies' discs, bounded by an arc, and
 /// their walls, on two keys, each lie on one carrier facing the same way
 /// sharing interior: the finding carries the `SameSideInterference`. Its
-/// overlap is unlocalized, since the intersection refuses the coincident
-/// copies, so it is loud and unquietable, and stage 5's check never
-/// refuses it. What the census leaves undecidable between
+/// overlap is bounded by the copies' intersection, the one cylinder. It
+/// is loud, and unquietable, since no face of one copy opposes a face of
+/// the other for a gap to hold over, so stage 5's check never refuses
+/// it. What the census leaves undecidable between
 /// the two copies rides the finding as evidence and is never refused on
 /// its own: a disc against the other copy's wall, two carriers meeting
 /// along the rim. The two half-bands, one of each copy, that share a seam
 /// ruling and no interior are certified apart, and ride it no longer.
 ///
 /// Red if the copies read as could-not-look again (a refusal, or a
-/// finding with no same-side evidence), or if the undecidable pairs stop
-/// riding the decided pair.
+/// finding with no same-side evidence), if the overlap goes unbounded,
+/// or if the undecidable pairs stop riding the decided pair.
 #[test]
 fn copies_of_one_cylinder_filling_one_volume_are_one_interference() {
     let tilted = editor_core::Frame::rotate_then_translate(
@@ -1690,19 +1691,12 @@ fn copies_of_one_cylinder_filling_one_volume_are_one_interference() {
         let [finding] = &interference[..] else {
             panic!("{label}: one interference: {interference:?}");
         };
-        // The overlap is not bounded: the intersection that localizes it
-        // refuses two coincident curved copies
-        // (`work/atrest/coincident-curved-copies-overlap-is-unlocalized.md`).
-        // So no assertion could quiet it, and the check never refuses it:
-        // loud and unquietable.
         assert!(
-            matches!(
-                finding.overlap,
-                editor_core::Overlap::Unlocalized(editor_core::Unlocalized::Refused { .. })
-            ) && finding.is_loud()
+            matches!(finding.overlap, editor_core::Overlap::Bounded { .. })
+                && finding.is_loud()
                 && !finding.quietable
                 && !finding.refusable(),
-            "{label}: loud and unquietable, its overlap unlocalized: {finding:?}"
+            "{label}: bounded, loud and unquietable: {finding:?}"
         );
         let count = |f: fn(&topo::ValidationError) -> bool| {
             finding.evidence.iter().filter(|&e| f(e)).count()
