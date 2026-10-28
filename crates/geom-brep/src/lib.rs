@@ -87,6 +87,7 @@ pub mod offset;
 pub mod offset_fit;
 pub mod offset_fit_lane;
 pub mod offset_meters;
+pub mod order;
 pub mod pair_section;
 pub mod patch_bound;
 pub mod pcurve;

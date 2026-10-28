@@ -96,6 +96,7 @@ use geom_core::{
 
 use super::SplitPlane;
 use crate::validate::decide;
+use geom_brep::order::insertion_sort_by;
 
 /// The exact-order band (module docs; identical to profile's).
 ///
@@ -296,29 +297,6 @@ pub(super) fn sort_indices_by_point<T: Decide>(
         )
     })?;
     Ok(order)
-}
-
-/// **A decided insertion sort**: `xs` sorted by `after(a, b)`, whether
-/// `a` stands strictly after `b`, asked of each element against its
-/// predecessors until one does not. Stable: elements no verdict puts
-/// apart keep their insertion order. The first `Err` stops the sort and
-/// comes back.
-///
-/// # Errors
-///
-/// `after`'s first.
-pub(crate) fn insertion_sort_by<X, E>(
-    xs: &mut [X],
-    mut after: impl FnMut(&X, &X) -> Result<bool, E>,
-) -> Result<(), E> {
-    for i in 1..xs.len() {
-        let mut j = i;
-        while j > 0 && after(&xs[j - 1], &xs[j])? {
-            xs.swap(j - 1, j);
-            j -= 1;
-        }
-    }
-    Ok(())
 }
 
 /// One planar face's crossings ordered along its section line, from
