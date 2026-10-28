@@ -2,7 +2,7 @@
 id: the-pick-cross-check-cannot-tell-two-copies-of-one-body-apart
 kind: issue
 title: The viewer's pick cross-check reads a face by name, and two copies of one body wear the same names
-status: open
+status: dispatched
 opened: 2026-10-23
 priority: P3
 cost: E

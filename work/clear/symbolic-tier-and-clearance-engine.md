@@ -98,7 +98,7 @@ over `Real`, and the engine was the exception.
   - `AtRestPolicy::clearance_lane() -> Option<ClearanceLane<Self>>` is `Some` at `Interval` and at `Sym<T: CertifiedBounds>`, and `None` at `f64`, `Probe` and `Dual`.
   - `editor_core::measure::MinClearanceLane` is deleted, following H5's ruling 3 on PR 2701 and LANE-1/LANE-2.
   - The bracket re-enters `T` as the hull of `T::from_computed(lo)` and `T::from_computed(hi)`: the same bits at `Interval`, a fresh unknown at `Sym`.
-  - Whether `f64` answers is one policy line. That is where `min-separation-tightening-crosses-the-drive`'s ruling lands.
+  - Whether `f64` answers is one policy line. It stays `None`; `min-separation-tightening-crosses-the-drive`'s `## Decided` explains why the census question does not land there.
 - **Deleted:** `DriveRefusal::SymbolicClearanceUnsupported` and the drive's up-front check. The M10-6 suites stop naming `SymbolicDials::off()`. `the_symbolic_tier_refuses_a_clearance_measure_by_its_spoken_node` becomes a positive pin: the tier on, and the bracket bit-identical to the numeric run.
 - **Also closed by this row:** `clearance-replays-a-leaf-off-the-verdicts-lane`.
 
