@@ -231,7 +231,7 @@ fn volume(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> f64 {
         "closed-form mass properties",
         &topo::test_support::finished(
             "the measured body",
-            topo::Body::clone(corpus::body_of(&ev, node)),
+            topo::Body::clone(&(corpus::body_of(&ev, node))),
             tol(),
         ),
         tol(),
@@ -245,8 +245,8 @@ fn volume(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> f64 {
 fn strut_at(doc: &editor_core::ProfileDoc, rod: RecipeNodeId, name: &StableName) -> (f64, f64) {
     let ev = fixture::run(doc, &EvalOptions::default());
     let body = corpus::body_of(&ev, rod);
-    let [a, b] = ends(body, edge_of(table(&ev, rod), "strut", name));
-    let (pa, pb) = (point(body, a), point(body, b));
+    let [a, b] = ends(&body, edge_of(table(&ev, rod), "strut", name));
+    let (pa, pb) = (point(&body, a), point(&body, b));
     assert!(
         (pa.x - pb.x).abs() < 1e-12 && (pa.y - pb.y).abs() < 1e-12,
         "a strut edge runs along z: {pa:?} and {pb:?}"
@@ -269,10 +269,10 @@ fn corners_of(
     let ev = fixture::run(doc, &EvalOptions::default());
     let body = corpus::body_of(&ev, node);
     let mut out: Vec<(f64, f64, f64)> =
-        fixture::face_vertices(body, fixture::face_of(table(&ev, node), "wall", name))
+        fixture::face_vertices(&body, fixture::face_of(table(&ev, node), "wall", name))
             .into_iter()
             .map(|v| {
-                let p = point(body, v);
+                let p = point(&body, v);
                 (p.x, p.y, p.z)
             })
             .collect();

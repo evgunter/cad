@@ -285,6 +285,10 @@ pub enum Unreplayed {
     /// re-run), and every row of a document of a payload the evaluator
     /// does not read.
     NotReplayed,
+    /// The replay could not read one cell's body into the frame the
+    /// carrier verdict is decided in (D10 `[placement.frame]`): the
+    /// relative map overflowed, or the kernel refused the mapped body.
+    Frame,
 }
 
 impl fmt::Display for Unreplayed {
@@ -303,6 +307,10 @@ impl fmt::Display for Unreplayed {
                  no part"
             }
             Self::NotReplayed => "the row is not replayed with every variable a symbol",
+            Self::Frame => {
+                "the replay with every variable a symbol could not read one cell's body into \
+                 the frame its carriers are decided in"
+            }
         })
     }
 }

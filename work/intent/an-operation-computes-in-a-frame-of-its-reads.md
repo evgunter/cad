@@ -2,10 +2,12 @@
 id: an-operation-computes-in-a-frame-of-its-reads
 kind: issue
 title: D10 stage 3 PR E: an operation computes in a frame that is a function of its reads, never the world's (D9); a body value is Framed (its body shared by Arc, one map); an operation over operands in one space computes in its first operand's frame and reads the rest through relative; export and the viewer's drawing compose through one door
-status: dispatched
+status: review
 opened: 2026-10-09
 priority: P0
 cost: H
+branch: intent/e-operation-frame-of-reads
+pr: 5811
 refs: [intent-stage3-is-built, each-space-computes-in-its-earliest-members-frame]
 ---
 

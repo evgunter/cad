@@ -105,7 +105,7 @@ fn a_thick_wall_bump_builds_below_half_the_side_and_refuses_at_it() {
                 assert!(t < cup::L / 2.0, "t={t} must not build");
                 let b = topo::test_support::finished(
                     "b",
-                    topo::Body::clone(body_of(&ev, shell)),
+                    topo::Body::clone(&(body_of(&ev, shell))),
                     Tol::witness(),
                 );
                 let m = topo::mass_properties(
@@ -255,7 +255,7 @@ fn a_thickness_only_edit_moves_the_content_key_and_the_memo() {
     );
     let body = topo::test_support::finished(
         "body",
-        topo::Body::clone(body_of(&with_prior, shell)),
+        topo::Body::clone(&(body_of(&with_prior, shell))),
         Tol::witness(),
     );
     let m = topo::mass_properties(

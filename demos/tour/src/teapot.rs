@@ -1033,7 +1033,7 @@ fn wall_one_pot(tol: Tol) -> Body<f64> {
         &EvalOptions::default(),
         tol,
     );
-    body_at(&ev, hollow)
+    body_at(&ev, hollow, tol)
 }
 
 /// **This scene's recipe, as a document the GUI can open** — the same
@@ -1079,12 +1079,12 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
 }
 
 /// The body a node evaluated to.
-fn body_at(ev: &Evaluation<f64>, id: RecipeNodeId) -> Body<f64> {
+fn body_at(ev: &Evaluation<f64>, id: RecipeNodeId, tol: Tol) -> Body<f64> {
     let value = ev
         .value(id)
         .unwrap_or_else(|| panic!("node {id:?} evaluated to a body, got {}", describe(ev, id)));
     match &value.payload {
-        ValuePayload::Body(b) => (**b).clone(),
+        ValuePayload::Body(b) => crate::world::in_its_space(b, tol),
         other => panic!("expected a body, got {other:?}"),
     }
 }
@@ -1467,9 +1467,11 @@ fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String, Option<Census>)> {
         .into_iter()
         .map(|(what, node)| {
             let census = ev.value(node).and_then(|v| match &v.payload {
-                ValuePayload::Body(b) => {
-                    Some((b.vertices().count(), b.edges().count(), b.faces().count()))
-                }
+                ValuePayload::Body(b) => Some((
+                    b.body().vertices().count(),
+                    b.body().edges().count(),
+                    b.body().faces().count(),
+                )),
                 _ => None,
             });
             (what, describe(&ev, node), census)
@@ -1574,7 +1576,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     let (r, ev) = evaluated(tol);
 
     // ---- the vessel, before the wall ----
-    let bellied = body_at(&ev, r.bellied);
+    let bellied = body_at(&ev, r.bellied, tol);
     assert_eq!(
         (
             bellied.vertices().count(),
@@ -1711,7 +1713,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     );
 
     // ---- the sealed hollow: the document's own value ----
-    let pot = body_at(&ev, r.pot);
+    let pot = body_at(&ev, r.pot, tol);
     let (pv, pe, pf) = (
         pot.vertices().count(),
         pot.edges().count(),
@@ -1794,10 +1796,10 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     // SAME operand and the SAME wall through the same node kind; what
     // separates them is the open list, which is empty for one and the
     // mouth's name for the other.
-    let cup = body_at(&ev, r.cup);
+    let cup = body_at(&ev, r.cup, tol);
 
     // ---- the lid ----
-    let plain_lid = body_at(&ev, r.plain_lid);
+    let plain_lid = body_at(&ev, r.plain_lid, tol);
     assert_eq!(
         (
             plain_lid.vertices().count(),
@@ -1857,7 +1859,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     // The radius is per REQUEST rather than per edge, and each later
     // rim's seam-piece identities are re-read against the
     // partially-carved body.
-    let rolled = body_at(&ev, r.lid);
+    let rolled = body_at(&ev, r.lid, tol);
     assert_eq!(
         (
             rolled.vertices().count(),
@@ -2177,7 +2179,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     // The observed turn, REPORTED — the note quotes it and nothing
     // gates on it.
     let (sin_t, cos_t) = spout_turn().sin_cos();
-    let spout = body_at(&ev, r.spout);
+    let spout = body_at(&ev, r.spout, tol);
 
     // **Two references, and only one of them is this body's.**
     //
@@ -2321,7 +2323,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
 
     // ---- the handle ----
     let sweep = 2.0 * (FRAC_PI_2 + HANDLE_OVER);
-    let handle = body_at(&ev, r.handle);
+    let handle = body_at(&ev, r.handle, tol);
     let v_handle = sweep * HANDLE_R * PI * HANDLE_TUBE * HANDLE_TUBE;
     let a_handle = sweep * HANDLE_R * 2.0 * PI * HANDLE_TUBE + 2.0 * PI * HANDLE_TUBE * HANDLE_TUBE;
     let handle_props = pncad::topo::mass_properties(

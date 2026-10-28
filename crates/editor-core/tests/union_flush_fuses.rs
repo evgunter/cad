@@ -44,7 +44,7 @@ fn a_union_of_two_flush_placements_of_one_prototype_fuses() {
         "the fused body has mass",
         &topo::test_support::finished(
             "the measured body",
-            topo::Body::clone(body_of(&ev, union)),
+            topo::Body::clone(&(body_of(&ev, union))),
             Tol::witness(),
         ),
         Tol::witness(),
@@ -169,7 +169,7 @@ fn a_member_flush_under_a_merged_wall_fuses() {
         "the fused body has mass",
         &topo::test_support::finished(
             "the measured body",
-            topo::Body::clone(body_of(&ev, union)),
+            topo::Body::clone(&(body_of(&ev, union))),
             Tol::witness(),
         ),
         Tol::witness(),
@@ -427,7 +427,7 @@ fn a_contact_against_a_merged_cap_glues_in_every_order() {
             "mass",
             &topo::test_support::finished(
                 "the measured body",
-                topo::Body::clone(body_of(&ev, union)),
+                topo::Body::clone(&(body_of(&ev, union))),
                 Tol::witness(),
             ),
             Tol::witness(),
@@ -457,7 +457,7 @@ fn a_stack_of_resting_slabs_builds() {
         "the stack has mass",
         &topo::test_support::finished(
             "the measured body",
-            topo::Body::clone(body_of(&ev, union)),
+            topo::Body::clone(&(body_of(&ev, union))),
             Tol::witness(),
         ),
         Tol::witness(),

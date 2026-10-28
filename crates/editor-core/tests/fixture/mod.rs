@@ -2889,9 +2889,9 @@ pub fn left_to_right(
     let body = crate::corpus::body_of(ev, node);
     let t = table(ev, node);
     let least_x = |n: &StableName| {
-        face_vertices(body, face_of(t, "a fragment", n))
+        face_vertices(&body, face_of(t, "a fragment", n))
             .into_iter()
-            .map(|v| point(body, v).x)
+            .map(|v| point(&body, v).x)
             .fold(f64::INFINITY, f64::min)
     };
     names.sort_by(|a, b| least_x(a).total_cmp(&least_x(b)));
@@ -3624,4 +3624,47 @@ pub fn frame_seat(
     y: f64,
 ) -> editor_core::Mate<Formula> {
     mate(top, slid_across(base, x, y))
+}
+
+/// **A body value where it stands in its space**: its body composed
+/// through [`editor_core::in_space`], for a row that reads positions in
+/// the space the value is in. A value computed in its space's
+/// coordinates is its body as built.
+///
+/// # Panics
+///
+/// If the kernel refuses the composition.
+pub fn in_space<T: geom_core::Decide + topo::AtRestPolicy>(
+    value: &editor_core::Framed<T>,
+) -> Body<T> {
+    match editor_core::in_space(value) {
+        None => value.body().clone(),
+        Some(map) => topo::transform_rigid(value.body(), &map, Tol::witness())
+            .expect("a body composes into its space"),
+    }
+}
+
+/// **The document's product where it stands in the world**: the gather
+/// ([`editor_core::product_recorded`]) composed through
+/// [`editor_core::in_space`], for a row that reads positions in the
+/// world.
+///
+/// # Errors
+///
+/// The gather's own refusal.
+///
+/// # Panics
+///
+/// If the kernel refuses the composition.
+pub fn product_in_world(
+    doc: &ProfileDoc,
+    ev: &Evaluation<f64>,
+    tol: Tol,
+) -> Result<Body<f64>, editor_core::ProductError> {
+    let product = editor_core::product_recorded(doc, ev, tol)?;
+    Ok(match editor_core::in_space(&product) {
+        None => product.body.into_body(),
+        Some(map) => topo::transform_rigid(&product.body, &map, tol)
+            .expect("a product composes into the world"),
+    })
 }

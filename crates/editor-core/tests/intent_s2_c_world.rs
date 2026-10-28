@@ -72,6 +72,18 @@ const FILES: [&str; 5] = [
 /// point nearest the origin, so its halves' section points moved at the
 /// rounding level, its word count kept. Main reds this row with the same
 /// value; D′3 carries the re-pin, and moves no product.
+/// Since INTENT E the gather computes in its first source's frame, so
+/// each row digests the product composed into the world through
+/// `in_space`, and 33 of the 35 rows held. The tour die and its
+/// committed file moved, their counts kept. The die's product is its
+/// last copy's body (`1621`), and against main (`b97c0195`, and again
+/// `cd5f9dee`, whose die row reads `ca0b8371cb38e973`) it moves exactly
+/// as `edit_placement_corpus_bits` says that copy moves: 18 of its 108
+/// points (the 15 pip-floor points four ulps further from `0.05`, and
+/// four `z` coordinates reading `0.5` where they read
+/// `0.49999999999999994`) and 2 of its 68 carriers (a sphere's and a
+/// torus's centres, the same `z`), because the pips' union computes in
+/// its first pip's frame and reads every other pip through `relative`.
 const PRE_C: [(&str, &str); 35] = [
     ("die", "18a00a4411472694/532"),
     ("corner_table", "1b26e7ae1ba4a066/100"),
@@ -95,7 +107,7 @@ const PRE_C: [(&str, &str); 35] = [
     ("symmetric_plate", "4988a8ebeaf80d66/52"),
     ("loft_prism", "36c0de6a313e3a66/28"),
     ("die_composed", "182b02846757307e/88"),
-    ("die_composed_tour", "ca0b8371cb38e973/328"),
+    ("die_composed_tour", "b70c1bbdaed3e0e1/328"),
     ("plate_param", "fd7b71fa51270532/88"),
     ("kiss_carry", "9efdca7b404d4e52/85"),
     ("tube_ring", "c342379c65eab6d1/10"),
@@ -105,7 +117,7 @@ const PRE_C: [(&str, &str); 35] = [
     ("reshaped_rod", "128f9facfb4a7626/52"),
     (FILES[0], "8853ddff30bcec28/154"),
     (FILES[1], "e426662d8439569d/82"),
-    (FILES[2], "ca0b8371cb38e973/328"),
+    (FILES[2], "b70c1bbdaed3e0e1/328"),
     (FILES[3], "07c4e18f181e9b69/16"),
     (FILES[4], "fd7b71fa51270532/88"),
 ];
@@ -151,7 +163,7 @@ fn documents() -> Vec<(String, ProfileDoc)> {
 /// fed, or the refusal's class.
 fn product_row(doc: &ProfileDoc) -> String {
     let ev = corpus::eval::<f64>(doc);
-    match product(doc, &ev, Tol::witness()) {
+    match crate::fixture::product_in_world(doc, &ev, Tol::witness()) {
         Ok(body) => {
             let (word, fed) = body_digest(&body);
             format!("{word:016x}/{fed}")
@@ -277,7 +289,7 @@ fn a_measured_and_asserted_block_placed_is_the_product() {
     };
     assert_eq!(
         body_digest(&body),
-        body_digest(own),
+        body_digest(own.body()),
         "the product is the measured block's body"
     );
 }
@@ -670,7 +682,10 @@ fn a_posed_placement_moves_its_copy_and_its_records_rigidly() {
         .expect("a quarter turn about +z");
 
     let digest = |doc: &ProfileDoc| {
-        body_digest(&product(doc, &ev(doc), Tol::witness()).expect("the world gathers"))
+        body_digest(
+            &crate::fixture::product_in_world(doc, &ev(doc), Tol::witness())
+                .expect("the world gathers"),
+        )
     };
     let (unposed, _) = place(doc.clone(), union);
     let (posed, _) = place_by_values(doc.clone(), union, &pose);
@@ -694,8 +709,11 @@ fn a_posed_placement_moves_its_copy_and_its_records_rigidly() {
     };
     let moved_run = ev(&moved);
     let (at_pose, transformed) = (
-        points(&product(&posed, &ev(&posed), Tol::witness()).expect("the world gathers")),
-        points(corpus::body_of(&moved_run, by)),
+        points(
+            &crate::fixture::product_in_world(&posed, &ev(&posed), Tol::witness())
+                .expect("the world gathers"),
+        ),
+        points(&(corpus::body_of(&moved_run, by))),
     );
     assert_eq!(
         at_pose.iter().map(|(k, _)| *k).collect::<Vec<_>>(),
@@ -720,9 +738,15 @@ fn a_posed_placement_moves_its_copy_and_its_records_rigidly() {
             gathered.contacts
         );
     };
+    // Where the product stands in the world: the gather computes in its
+    // first source's frame.
+    let world = match editor_core::in_space(&gathered) {
+        None => topo::Body::clone(&gathered.body),
+        Some(map) => topo::transform_rigid(&gathered.body, &map, Tol::witness())
+            .expect("the product composes into the world"),
+    };
     let at = |key| {
-        gathered
-            .body
+        world
             .vertex_points()
             .find(|&(k, _)| k == key)
             .map(|(_, p)| [p.x, p.y, p.z])
@@ -799,7 +823,7 @@ fn inline_carries_a_reader_of_an_instance_whose_part_places_at_a_pose() {
         else {
             panic!("the boolean is a body")
         };
-        body_digest(body)
+        body_digest(body.body())
     };
     assert_eq!(
         body(&ev(&inlined.doc)),

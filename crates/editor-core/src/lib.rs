@@ -137,10 +137,10 @@ pub use edit::{
 pub use eval::measure::{Observed, ObservedRefusal};
 pub use eval::{
     At, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
-    ContentBits, ContentKey, DirectionRefusal, Epoch, EvalOptions, EvalOutcome, EvalScalar,
-    Evaluation, NamingKey, NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult,
-    NodeStanding, NodeValue, PartFault, Piece, Pieces, PoseValue, ProfileLane, ProfilePieces,
-    SplitSide, StepTurns, ValuePayload, evaluate,
+    ComputingTwist, ContentBits, ContentKey, DirectionRefusal, Epoch, EvalCounters, EvalOptions,
+    EvalOutcome, EvalScalar, Evaluation, Framed, NamingKey, NodeError, NodeErrorClass,
+    NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault, Piece, Pieces,
+    PoseValue, ProfileLane, ProfilePieces, SplitSide, StepTurns, ValuePayload, evaluate,
 };
 pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
@@ -158,11 +158,11 @@ pub use formula::{Formula, FreshFault, LowerFault, NameFault};
 pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
 pub use label::{Label, LabelFault};
 pub use mate::{
-    Constraint, ConstraintKind, Coord, Coset, FrameMove, LeverRefusal, Mate, MateFault, MateRef,
-    MateSide, Member, NoChartWhy, OVERCONSTRAINED_RECOURSE, Orientation, PinRefusal, Placed,
-    Placing, PoseRefusal, PoseSymmetry, ReachRefusal, SignedAxis, SlideAxes, SolvedPoses, Subgroup,
-    SubgroupFamily, TargetAxis, UNPINNED_RECOURSE, Unobservable, Value, corner_frame,
-    corner_frame_in, head_face, head_of, member_of, member_reading, moved_frame,
+    Composing, Constraint, ConstraintKind, Coord, Coset, FrameMove, LeverRefusal, Mate, MateFault,
+    MateRef, MateSide, Member, NoChartWhy, OVERCONSTRAINED_RECOURSE, Orientation, PinRefusal,
+    Placed, Placing, PoseRefusal, PoseSymmetry, ReachRefusal, SignedAxis, SlideAxes, SolvedPoses,
+    Subgroup, SubgroupFamily, TargetAxis, UNPINNED_RECOURSE, Unobservable, Value, corner_frame,
+    corner_frame_in, head_face, head_of, in_space, member_of, member_reading, moved_frame,
     relative_freedom_components, solve_document, stand, unobservable,
 };
 pub use mc::{

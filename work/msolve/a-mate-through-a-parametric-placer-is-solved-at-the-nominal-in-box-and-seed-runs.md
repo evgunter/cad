@@ -142,5 +142,7 @@ and a checked offset's frame are read in the run that binds them.
 Over a box wide enough to matter, the mated instance's body meets
 `topo`'s rigid-transform certification refusal, as a `Transform` node
 over the same box does (pinned by
-`a2_over_a_wide_box_the_bolts_refusal_is_the_placement_doors`; evidence
-added to `work/topotail/a-boxed-rotation-refuses-not-rigid-at-every-placer.md`).
+`a2_over_a_wide_box_the_bolts_refusal_is_the_placement_doors`, since
+INTENT E `a2_over_a_wide_box_the_bolt_builds_its_copy_unbuilt`: a copy
+is its source's body under its frame and is not re-certified, so the
+mated copy builds; evidence added to `work/topotail/a-boxed-rotation-refuses-not-rigid-at-every-placer.md`).

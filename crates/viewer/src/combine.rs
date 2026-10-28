@@ -1275,9 +1275,11 @@ pub fn duplicate_step(
     }
     .ok_or_else(|| DuplicateFault::NotOneBody { input: spoken() })?;
     let measured = |chord: f64| {
-        pncad::mesh::tessellate(body, chord, tol).map_err(|error| DuplicateFault::Unmeasured {
-            input: spoken(),
-            error,
+        pncad::mesh::tessellate(body.body(), chord, tol).map_err(|error| {
+            DuplicateFault::Unmeasured {
+                input: spoken(),
+                error,
+            }
         })
     };
     let floor = measured(crate::scene::SCALE_PROBE_DELTA)?;
@@ -1293,7 +1295,13 @@ pub fn duplicate_step(
     }
     let chord = scale * MEASURE_CHORD;
     let mesh = measured(chord)?;
-    let width = width_along(&mesh.positions, STEP_DIRECTION)
+    // The step is stated in the body's space; the body is measured in
+    // its own frame, along that heading read into it.
+    let heading = body
+        .heading_in_own(Vec3::from_array(STEP_DIRECTION))
+        .map_err(|_| DuplicateFault::NoExtent { input: spoken() })?
+        .to_array();
+    let width = width_along(&mesh.positions, heading)
         .filter(|w| w.is_finite() && *w > 0.0)
         .ok_or_else(|| DuplicateFault::NoExtent { input: spoken() })?;
     Ok((width + 2.0 * (chord + tol.eps())) * (1.0 + DUPLICATE_GAP))

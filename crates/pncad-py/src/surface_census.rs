@@ -647,6 +647,7 @@ fn options_doors() -> Vec<Roster> {
         seed: _,
         symbols: _,
         pin: _,
+        computing_twist: _,
     } = &eval;
 
     vec![
@@ -774,6 +775,15 @@ fn options_doors() -> Vec<Roster> {
                                  record by, and that report is not bound (the certified \
                                  analysis half's open decision); with no reader of the pin \
                                  here, the switch would buy a canonicalization per run",
+                    },
+                ),
+                (
+                    "computing_twist",
+                    Spelling::NotBound {
+                        would_be: &["computing_twist"],
+                        reason: "answer-preserving up to the rounding of the frames and \
+                                 test-facing, as `parallel` is: the kernel's row that holds \
+                                 the computing frame no part of meaning compares both",
                     },
                 ),
             ],
