@@ -242,3 +242,18 @@ moves the median most.
 - The replay assumes that shortening a job moves nothing else, which
   holds while the queue is empty.
 - Cancelled runs' job-minutes are not counted in the load figure.
+
+**Levers, 2026-10-28.**
+- **Taken: split `test` into two shards** (green/latency-test-shards).
+  - On that PR's own TIER=all run: `test (app)` 12.2 min and
+    `test (kernel)` 12.8, against a single-job TIER=all median of 27.6.
+  - If the closure tier halves the same way (about −8 min on `test`),
+    the replayed window's median goes from 23.1 to about 15.3, and the
+    p90 stays near 30, held by `demos`.
+  - That is a projection. This row closes only when the alarm's own
+    statistic, over a fresh 24 h after merge, is under 20.
+- **Declined: moving the tour's 1e-12 row to the nightly.** It is worth
+  0.2 min of the median, and it is the tour's one row with an earned PR
+  catch. See `the-demos-job-is-pr-cis-long-pole-on-its-release-build`.
+- **Remains: `demos`.** It is 28.7 min whenever a diff touches `demos/`
+  (29% of runs), and nearly all of that is the tour's release build.

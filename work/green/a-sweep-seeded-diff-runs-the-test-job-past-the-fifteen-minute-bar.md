@@ -2,12 +2,13 @@
 id: a-sweep-seeded-diff-runs-the-test-job-past-the-fifteen-minute-bar
 kind: issue
 title: A diff that seeds sweep runs the per-PR test job for over 21 minutes, past the 15-minute bar
-status: open
+status: closed
 opened: 2026-10-11
 refs: [5001, 5011]
 cost: M
 priority: P0
 parent: pr-ci-wall-clock-root-cause-measured
+closed: 2026-10-28
 ---
 
 ## Measured
@@ -137,3 +138,21 @@ directory, in sequence:
 ## Ev's answer (#5011, 2026-10-14)
 
 Ev took (A): a PR whose diff seeds geom-core, geom, geom-brep or topo gets a 25-min bar, and every other PR keeps 15 min. NURBS merged it at b8c3aa52. Ev also asked for a build-time investigation, which landed #5104 (−335 s median build hosted). `needs_ev` is cleared. What stays open is the deferred split of `test` into two package-group jobs, to be re-measured with the queue included, against nightly 61's `PR CI latency (alarm)` (median 32.6 min, p90 52.1 over 256 PR runs). (CIW orchestrator)
+
+## Closed (2026-10-28)
+
+The seeded slow set no longer runs per PR (`demote-unearned-tests`): its
+step's median is 0.02 min over the 146 `test` jobs in the 24 h to
+10-28 05:30Z. What was left open here was the deferred split of `test`
+into two package-group jobs, to be re-measured with the queue included.
+- **The queue.** Every job's queue has a median of 0.0 min and a p90 of
+  0.1 in that window, so the cost that deferred the split is gone.
+- **The split** (green/latency-test-shards): `test (kernel)` and
+  `test (app)` (verbs, editor-core, pncad, pncad-py, viewer) each build
+  and run their half of the scope.
+- **Measured on that PR's own TIER=all run** (40718652598): `app` 12.2 min
+  (build 9.7), `kernel` 12.8 (build 9.6). The single-job TIER=all `test`
+  had a median of 27.6 (build 19.9, n=15).
+- A deep-kernel PR's `test` job is therefore under the 15-min bar on the
+  TIER=all scope. The closure tier is measured by the nightly's alarm
+  after merge (`pr-ci-wall-clock-root-cause-measured`).
