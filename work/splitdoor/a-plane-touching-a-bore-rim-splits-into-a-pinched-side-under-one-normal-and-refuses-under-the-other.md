@@ -96,3 +96,10 @@ azimuths at the cap side's closed form, `tan t ∫∫ (0.5 − d·x) dA` over
 the annulus where `d·x < 0.5`. The seam azimuth `a = 0` under `s = −1`
 still refuses, `Join(Euler(Certification { StatedInterval { refused:
 Forward(Decided(Zero(..))) } }))`: unmeasured.
+
+The same refusal is what the hole-rim tangent poses produced in PR
+5951's review under its mutant M3 (the join's touch-point runs read in
+insertion order rather than by the alternation round them), so the
+seam residue may be a crossing-run pairing case at the seam. Ordering
+each run by the crossing before it (`join.rs` `touch_order`) does not
+clear it: `a = 0`, `s = −1` still refuses alike.

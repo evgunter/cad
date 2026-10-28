@@ -2441,6 +2441,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "SectionGermsUnordered(Singular)",
+            R::SectionGermsUnordered {
+                vertex,
+                fault: topo::SectionGermFault::Singular,
+            },
+        ),
+        (
             "SectionGermsUnordered(Alternation)",
             R::SectionGermsUnordered {
                 vertex,

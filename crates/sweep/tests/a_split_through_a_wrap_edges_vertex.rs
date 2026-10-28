@@ -407,6 +407,23 @@ fn split_family(
                                         )
                                         .map_err(|e| format!("below: {e}"))
                                     })
+                                    .and_then(|()| {
+                                        // A plane touching the rim at the vertex: tier 3′.
+                                        if beta != 0.0 {
+                                            return Ok(());
+                                        }
+                                        [out.above.body(), out.below.body()]
+                                            .into_iter()
+                                            .flatten()
+                                            .try_for_each(|b| {
+                                                topo::validate_pseudomanifold(
+                                                    b,
+                                                    &topo::ContactRecords::default(),
+                                                    tol(),
+                                                )
+                                                .map_err(|e| format!("tier 3′: {e:?}"))
+                                            })
+                                    })
                             }
                             Err(e) if near && in_band(&e) => Ok(()),
                             Err(e) => Err(format!("the split: {e:?}")),
@@ -476,6 +493,45 @@ fn two_arc_holed_block(phase: f64, sweep: f64) -> Body<f64> {
     extruded(vec![square, RawLoop::new([arc(phase), arc(phase + PI)])])
 }
 
+/// **The per-PR row of the tangent poses**: the two-arc hole split
+/// through its vertex at `(1, 0, 0)` by the round pose leaning onto it
+/// (`h = 0.4`), both senses, each side at all three tiers, tier 3′ and
+/// its closed-form volume. The order of the two germs leaving the vertex
+/// along one tangent decides this pose's corners; read the other way
+/// round, it does not build.
+#[test]
+fn a_plane_tangent_to_a_two_arc_holes_rim_splits_sound() {
+    let body = topo::test_support::finished("the body", two_arc_holed_block(0.0, TAU), tol());
+    let mut failures = Vec::new();
+    for sense in [1.0, -1.0] {
+        let n = [sense * 0.4, 0.0, sense];
+        let plane = Plane { n, d: n[0] };
+        let split = topo::test_support::split_plane(
+            Point3::new(1.0, 0.0, 0.0),
+            Vec3::new(n[0], n[1], n[2]),
+            tol(),
+        );
+        let what = format!("sense {sense}");
+        match topo::split(&body, &split, tol()) {
+            Ok(out) => {
+                for (side, positive) in [(&out.above, true), (&out.below, false)] {
+                    let (_, closed) = closed_form(plane, 0.0, positive, true, 0.0);
+                    if let Err(e) = tangent_side(
+                        side.body(),
+                        closed,
+                        (Point3::new(1.0, 0.0, 0.0), positive == (sense < 0.0)),
+                        &what,
+                    ) {
+                        failures.push(format!("{what}, positive {positive}: {e}"));
+                    }
+                }
+            }
+            Err(e) => failures.push(format!("{what}: the split: {e:?}")),
+        }
+    }
+    report(&failures, 2);
+}
+
 /// A body built from a vertex phase and a sweep.
 type Build = fn(f64, f64) -> Body<f64>;
 
@@ -519,7 +575,12 @@ fn a_plane_tangent_to_a_holes_rim_at_a_vertex_splits_sound() {
                                 for (side, positive) in [(&out.above, true), (&out.below, false)] {
                                     let (_, closed) =
                                         closed_form(plane, phase, positive, true, 0.0);
-                                    if let Err(e) = tangent_side(side.body(), closed, &what) {
+                                    if let Err(e) = tangent_side(
+                                        side.body(),
+                                        closed,
+                                        (Point3::new(c, s, z), positive == (sense < 0.0)),
+                                        &what,
+                                    ) {
                                         failures.push(format!("{what}, positive {positive}: {e}"));
                                     }
                                 }
@@ -535,15 +596,26 @@ fn a_plane_tangent_to_a_holes_rim_at_a_vertex_splits_sound() {
 }
 
 /// One side of [`a_plane_tangent_to_a_holes_rim_at_a_vertex_splits_sound`]:
-/// all three tiers, tier 3′, and its volume against `closed`.
+/// all three tiers, tier 3′, its volume against `closed`, and its
+/// vertices on the touch point: two on the side that keeps the horns
+/// between the trace and the rim (the hole's side of the trace), which
+/// meet there with its row, else one.
 fn tangent_side(
     body: Option<&topo::AtRestBody<f64>>,
     closed: f64,
+    (touch, horns): (Point3<f64>, bool),
     what: &str,
 ) -> Result<(), String> {
     let Some(b) = body else {
         return Err(format!("no body where {closed} is kept"));
     };
+    let at_touch = b
+        .vertex_points()
+        .filter(|(_, p)| p.distance(touch) <= tol().eps())
+        .count();
+    if at_touch != 1 + usize::from(horns) {
+        return Err(format!("{at_touch} vertices on the touch point"));
+    }
     topo::validate(b).map_err(|e| format!("tier 1: {e:?}"))?;
     topo::validate_closed(b).map_err(|e| format!("tier 2: {e:?}"))?;
     topo::validate_geometric(b, tol()).map_err(|e| format!("tier 3: {e:?}"))?;

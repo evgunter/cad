@@ -31,7 +31,9 @@
 //! with the next. The topology decides what it can: a germ beside an
 //! entry the plane holds lies along that entry, and the two germs either
 //! side of one such entry are ordered with no reading. Only germs of
-//! different sectors are ordered by reading their directions.
+//! different sectors are ordered by reading their directions, and two
+//! that leave along one tangent by reading, one order down, how each
+//! face's section curves off it in the plane.
 //!
 //! # Minting
 //!
@@ -138,7 +140,7 @@ pub(super) fn above_runs(entries: &[SectorEntry]) -> Vec<AboveRun> {
 /// half-turn (`split_germ_order`), each levered at the shortest reach it
 /// reads. Two germs of different sectors that a reading puts on one line
 /// leave the vertex along one tangent, and are ordered one order down
-/// (`germ_curving`): by which way each face's section curves off that
+/// (`curving`): by which way each face's section curves off that
 /// tangent in the plane. Two that curve alike there too are a
 /// coincidence to the tolerance.
 ///
@@ -147,7 +149,8 @@ pub(super) fn above_runs(entries: &[SectorEntry]) -> Vec<AboveRun> {
 /// [`SplitReduceError::SectionGermsEscalated`] where a reading lands in
 /// the band; [`SplitReduceError::SectionGermsUnordered`] where a germ has
 /// no line, two germs of different sectors lie on one line and curve
-/// alike, or the order read does not alternate starts and ends.
+/// alike or a face's curvature there does not read, or the order read
+/// does not alternate starts and ends.
 fn section_chords<T: Decide>(
     body: &Body<T>,
     normal: Vec3<T>,
@@ -193,13 +196,17 @@ fn section_chords<T: Decide>(
     let order = |diag| escalated(SectionGermReading::Order, diag);
     let point = body.resolve_vertex_point(vertex, Proven);
     // How far cut `c`'s face's section curves off the tangent `t`
-    // toward `across`, the plane's quarter turn of `t`.
+    // toward `across`, the plane's quarter turn of `t`. Poison where the
+    // surface is singular at the vertex (as at a cone's apex) or the
+    // plane is tangent to it there, which refuses.
     let section_bend = |c: usize, t: Vec3<T>, across: Vec3<T>| -> Result<T, SplitReduceError> {
         let (face, _, _) = sector_face(body, vertex, entries[cuts[c]].he, band)?;
         let surface = body.face_surface_linked(face, proven(&body.faces, face, EntityId::Face));
-        Ok(geom_brep::implicit_graph_acceleration(
-            surface, point, t, across,
-        ))
+        let bend = geom_brep::implicit_graph_acceleration(surface, point, t, across);
+        if bend.is_poison() {
+            return Err(unordered(SectionGermFault::Singular));
+        }
+        Ok(bend)
     };
     // Whether germ `b`, tied with germ `a` along `a`'s tangent, curves
     // counterclockwise of it about `normal` (Positive) or clockwise.
