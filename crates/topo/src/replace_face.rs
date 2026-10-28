@@ -693,9 +693,11 @@ pub enum ReplaceFaceError<T: Real> {
     /// rational-quadratic NURBS arc (`geom_brep`'s C1) between the moved
     /// corners. Its uniqueness tube has no cone enclosure, so it rests
     /// only where the plane×cone section states the bounds that retire
-    /// the tube (C2); an arc whose pose does not (its stretch at the
-    /// apex's height, or the overlap not clear of its tube) is refused
-    /// here, once the attach layer's certificate says so.
+    /// the tube (C2); an arc whose pose states none
+    /// (`geom_brep::intersect::Unstated`: its stretch at the apex's
+    /// height, the overlap not clear of its tube, no section point
+    /// certified beside it, or a box too wide for any of these) is
+    /// refused here, once the attach layer's certificate says so.
     TogetherConicArc {
         /// The edge.
         edge: EdgeKey,
@@ -950,8 +952,8 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             Self::TogetherConicArc { conic, .. } => write!(
                 f,
                 "an edge of the body would follow the offset along {}, where the moved flat \
-                 face cuts the cone off its axis, and that arc cannot be certified on the \
-                 cone so near its apex. {NOT_YET_ENDING}",
+                 face cuts the cone off its axis, and the section states no bound that \
+                 certifies that arc there. {NOT_YET_ENDING}",
                 conic.named()
             ),
             Self::DegenerateTorus { refusal, .. } => refusal.fmt(f),

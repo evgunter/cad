@@ -567,6 +567,8 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
     let chart_of = |face: FaceKey| chart_row.get(face).map(|&i| &charts[i].1);
 
     // ---- Decide: every moved cone/cap edge's section reads. ----
+    let mut cone_sections: std::collections::BTreeMap<EdgeKey, ConeCapSection<T>> =
+        std::collections::BTreeMap::new();
     //
     // A cone wall's section with a plane parallel to the axis is a
     // generator pair where the plane holds the moved apex, and a
@@ -595,7 +597,8 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
                 what: "it has no curve to move",
             });
         };
-        cone_cap_section(edge, cone, cap, (curve.carrier(), curve.params()), band)?;
+        let section = cone_cap_section(edge, cone, cap, (curve.carrier(), curve.params()), band)?;
+        cone_sections.insert(edge, section);
     }
 
     // ---- Decide: every corner, before anything is written. ----
@@ -698,7 +701,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
 
     // ---- Decide: every edge's carrier and description. ----
     let mut specs: Vec<(EdgeKey, EdgeCurveSpec<T>)> = Vec::new();
-    let mut conic_arcs: Vec<(EdgeKey, geom_brep::OpenConic)> = Vec::new();
+    let mut conic_arcs: Vec<ConicArc<T>> = Vec::new();
     for (edge, edge_data) in body.edges() {
         if !scope.holds_edge(edge) {
             continue;
@@ -749,6 +752,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
                 (t0_old, t1_old),
                 (p_start, p_end),
                 (ca, cb),
+                cone_sections.get(&edge),
                 &frame,
                 band,
             )?
@@ -774,11 +778,13 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
             }
         };
         if arc_ends.is_some()
-            && let Some((cone, cap)) = cone_and_cap(ca, cb)
-            && let ConeCapSection::Conic(section) =
-                cone_cap_section(edge, cone, cap, (&old_carrier, (t0_old, t1_old)), band)?
+            && let Some(ConeCapSection::Conic(section)) = cone_sections.get(&edge)
         {
-            conic_arcs.push((edge, section.conic()));
+            conic_arcs.push(ConicArc {
+                edge,
+                conic: section.conic(),
+                sides: [(ca.old_key, ca.new.clone()), (cb.old_key, cb.new.clone())],
+            });
         }
         let (t0, t1) = match arc_ends {
             Some((lo, hi)) => (
@@ -896,7 +902,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
         )?);
     }
     crate::replace_face::move_points_then_rechart(&mut work, &moved, charts, &specs, tol)
-        .map_err(|error| uncertified_arc(error, &conic_arcs))?;
+        .map_err(|error| uncertified_arc(body, error, &conic_arcs, &specs, band))?;
     // Every edge OF THE SCOPE was re-described, and the charts here DO
     // mint pcurve rows (a cylinder, a cone and a sphere all do), so this
     // pass is load-bearing rather than the planar door's inert one. It
@@ -2071,6 +2077,7 @@ fn mint_carrier<T: Decide>(
     old_span: (T, T),
     (p_start, p_end): (Point3<T>, Point3<T>),
     charts: (&MovedChart<T>, &MovedChart<T>),
+    cone_section: Option<&ConeCapSection<T>>,
     frame: &Frame<T>,
     band: Band,
 ) -> Result<Curve3<T>, ReplaceFaceError<T>> {
@@ -2232,7 +2239,11 @@ fn mint_carrier<T: Decide>(
     // hyperbola, and the edge is its arc between the moved corners on
     // the branch the old edge's middle stands beside, minted exactly. ----
     if let Some((cone, cap)) = cone_and_cap(ca, cb) {
-        let (l1, l2) = match cone_cap_section(edge, cone, cap, (old, old_span), band)? {
+        let section = match cone_section {
+            Some(section) => section.clone(),
+            None => cone_cap_section(edge, cone, cap, (old, old_span), band)?,
+        };
+        let (l1, l2) = match section {
             ConeCapSection::Generators(l1, l2) => (l1, l2),
             ConeCapSection::Conic(section) => {
                 let conic = |error: geom_brep::ConicArcError| match error {
@@ -2464,33 +2475,77 @@ fn mint_carrier<T: Decide>(
     }
 }
 
+/// An arc this door minted on a cone: its edge, its conic, and the
+/// moved surfaces its description's pair names.
+struct ConicArc<T: Real> {
+    edge: EdgeKey,
+    conic: geom_brep::OpenConic,
+    sides: [(SurfaceKey, Surface<T>); 2],
+}
+
 /// A re-chart refused because an arc this door minted on a cone does not
 /// certify, read as the door's own refusal: its tube is retired only
 /// where the plane×cone section states the bounds (C2), and a cone has
 /// no tube enclosure otherwise, so no other edge of this door refuses
-/// so ([`ReplaceFaceError::TogetherConicArc`]).
-fn uncertified_arc<T: Real>(
+/// so ([`ReplaceFaceError::TogetherConicArc`]). The re-chart's refusal
+/// names no edge, so each arc is certified alone, against its moved
+/// pair, and the first that refuses on the cone's tube is named.
+fn uncertified_arc<T: Decide + crate::props::AtRestPolicy>(
+    body: &Body<T>,
     error: ReplaceFaceError<T>,
-    arcs: &[(EdgeKey, geom_brep::OpenConic)],
+    arcs: &[ConicArc<T>],
+    specs: &[(EdgeKey, EdgeCurveSpec<T>)],
+    band: Band,
 ) -> ReplaceFaceError<T> {
-    match (&error, arcs.first()) {
-        (
-            ReplaceFaceError::Op {
-                error:
-                    crate::EulerOpError::Certification {
-                        error:
-                            geom_brep::CertifyError::AnalyticRung3(
-                                geom_brep::AnalyticRung3Refusal::NoTubeEnclosure {
-                                    operand: geom::SurfaceKind::Cone,
-                                },
-                            ),
-                    },
-                ..
-            },
-            Some(&(edge, conic)),
-        ) => ReplaceFaceError::TogetherConicArc { edge, conic },
-        _ => error,
+    let tube = |e: &geom_brep::CertifyError| {
+        matches!(
+            e,
+            geom_brep::CertifyError::AnalyticRung3(
+                geom_brep::AnalyticRung3Refusal::NoTubeEnclosure {
+                    operand: geom::SurfaceKind::Cone,
+                },
+            )
+        )
+    };
+    let ReplaceFaceError::Op {
+        error: crate::EulerOpError::Certification { error: refused },
+        ..
+    } = &error
+    else {
+        return error;
+    };
+    if !tube(refused) {
+        return error;
     }
+    for arc in arcs {
+        let Some((_, spec)) = specs.iter().find(|(e, _)| *e == arc.edge) else {
+            continue;
+        };
+        let (t0, t1) = (spec.param_start, spec.param_end);
+        let reach = crate::wedge_reach(body, crate::edge_faces(body, arc.edge), &spec.carrier, (t0, t1));
+        let surfaces = |k: SurfaceKey| {
+            arc.sides
+                .iter()
+                .find(|(key, _)| *key == k)
+                .map(|(_, s)| s.clone())
+        };
+        if let Err(e) = crate::policy_lane::certify(
+            crate::policy_lane::Origin::Callers,
+            spec.clone(),
+            spec.carrier.eval(t0),
+            spec.carrier.eval(t1),
+            surfaces,
+            reach,
+            band,
+        ) && tube(&e)
+        {
+            return ReplaceFaceError::TogetherConicArc {
+                edge: arc.edge,
+                conic: arc.conic,
+            };
+        }
+    }
+    error
 }
 
 /// The cone wall and the plane parallel to the axis of an edge between
@@ -2508,6 +2563,7 @@ fn cone_and_cap<'c, T: Real>(
 
 /// **The moved cone wall's section with its moved cap**, read over the
 /// old edge's span.
+#[derive(Clone)]
 enum ConeCapSection<T: Real> {
     /// The generator pair the moved cap cuts where it holds the moved
     /// apex.
@@ -2648,6 +2704,24 @@ fn latitude_circle<T: Real>(
     }
 }
 
+/// The parameter `t` of an end of `carrier`, metered against the
+/// moved corner `p` it was minted to: [`param_on`]'s agreement read on
+/// an end that needs no reading.
+fn end_agrees<T: Decide>(
+    carrier: &Curve3<T>,
+    t: T,
+    p: Point3<T>,
+    edge: EdgeKey,
+    band: Band,
+) -> Result<T, ReplaceFaceError<T>> {
+    let gap = carrier.eval(t).distance(p);
+    match decide("offset_axial_edge_agreement", Margin::of(gap), band) {
+        Ok(Sign::Zero) => Ok(t),
+        Ok(_) => Err(ReplaceFaceError::TogetherEdgeDisagreement { edge, gap }),
+        Err(source) => Err(ReplaceFaceError::Escalated { source }),
+    }
+}
+
 /// The moved endpoint's parameter on the moved carrier, with the point
 /// VERIFIED onto it — the check that two independent corner solves
 /// agree about the edge between them.
@@ -2673,24 +2747,6 @@ fn latitude_circle<T: Real>(
 /// of metre distances). An equal pair keeps the old parameter, as `q`
 /// then stands a quarter turn from both and neither read is near its
 /// cut; an undecided one escalates.
-/// The parameter `t` of an end of `carrier`, metered against the
-/// moved corner `p` it was minted to: [`param_on`]'s agreement read on
-/// an end that needs no reading.
-fn end_agrees<T: Decide>(
-    carrier: &Curve3<T>,
-    t: T,
-    p: Point3<T>,
-    edge: EdgeKey,
-    band: Band,
-) -> Result<T, ReplaceFaceError<T>> {
-    let gap = carrier.eval(t).distance(p);
-    match decide("offset_axial_edge_agreement", Margin::of(gap), band) {
-        Ok(Sign::Zero) => Ok(t),
-        Ok(_) => Err(ReplaceFaceError::TogetherEdgeDisagreement { edge, gap }),
-        Err(source) => Err(ReplaceFaceError::Escalated { source }),
-    }
-}
-
 fn param_on<T: Decide>(
     carrier: &Curve3<T>,
     t_old: T,

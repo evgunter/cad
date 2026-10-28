@@ -365,9 +365,13 @@ pub fn ball_in_box(r: f64, c: (f64, f64, f64), b: [(f64, f64); 3]) -> f64 {
 /// `½∫(√(R² − a² sin² ψ) − a cos ψ)² dψ`
 /// `= R²(γ − asin(t/R)) + t²·cot γ − t·√(R² − t²)` (the substitution
 /// `u = a sin ψ` takes the cross term to `∫√(R² − u²) du` over `|u| ≤ t`).
-/// A reflex turn moves the complement's wedge out by the same rule, and
-/// `π − γ` for `γ` gives the same expression. Stacked over
-/// `[t, h − t]`.
+/// A reflex turn's cavity is the disc less the complement's wedge, of
+/// half-angle `γ' = π − γ`, moved out by `t`: rays from its apex
+/// `t/sin γ'` behind the axis meet the disc at
+/// `√(R² − a'² sin² ψ) + a' cos ψ`, so the cavity's area is
+/// `πR² − (R²(γ' + asin(t/R)) + t²·cot γ' + t·√(R² − t²))`, which is the
+/// expression above in `γ` since `π − γ' = γ` and `cot γ' = −cot γ`.
+/// Stacked over `[t, h − t]`.
 pub fn frustum_wedge_cavity(r0: f64, r1: f64, h: f64, turn: f64, t: f64) -> f64 {
     let k = (r1 - r0) / h;
     let gamma = 0.5 * turn;

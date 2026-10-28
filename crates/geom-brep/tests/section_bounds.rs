@@ -369,6 +369,74 @@ fn equal_cylinders_state_their_ellipse_away_from_the_crossing() {
     );
 }
 
+/// **At general poses the stated floor lies under the section's own
+/// sin θ.** Each carrier is an exact arc of its pair's section (to
+/// rounding), short enough that its floor reads within a few percent of
+/// the truth, so a floor lifted past the truth anywhere along it is
+/// caught by [`encloses`]' dense sampling:
+///
+/// - two equal cylinders whose axes cross at `β = π/3` (`k = 1/2`), on
+///   both bisector ellipses — `x = R cos φ/sin(β/2)` along `(â₁ + â₂)`'s
+///   unit, or `R cos φ/cos(β/2)` along `(â₂ − â₁)`'s, and `z = R sin φ` —
+///   where the two leans `1 ∓ k` differ;
+/// - an off-axis plane tilted across a cylinder, whose ellipse is the
+///   circle's image under the plane's height map;
+/// - a plane tilted past the cone's generator, cutting a hyperbola.
+#[test]
+fn general_poses_state_floors_under_the_section() {
+    let r = 0.5;
+    let beta = core::f64::consts::FRAC_PI_3;
+    let (a1, a2) = (Vec3::unit_x(), Vec3::new(beta.cos(), beta.sin(), 0.0));
+    let (c1, c2) = (
+        cylinder(p(0.0, 0.0, 0.0), a1, r),
+        cylinder(p(0.0, 0.0, 0.0), a2, r),
+    );
+    let plus = (a1 + a2).normalize();
+    let minus = (a2 - a1).normalize();
+    for (what, dir, scale, window) in [
+        ("the (â₁ + â₂) ellipse", plus, r / (0.5 * beta).sin(), (-1.2, 0.3)),
+        ("the (â₂ − â₁) ellipse", minus, r / (0.5 * beta).cos(), (0.2, 1.3)),
+    ] {
+        let carrier = mapped_arc(
+            window,
+            |x, z| dir * (scale * x) + Vec3::unit_z() * (r * z),
+            p(0.0, 0.0, 0.0),
+        );
+        encloses(&format!("oblique cylinders, {what}"), &carrier, &c1, &c2);
+    }
+
+    let wall = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), r);
+    let n = Vec3::new(-0.7, 0.3, 1.0);
+    let q = p(0.1, 0.05, 0.2);
+    let carrier = mapped_arc(
+        (-0.4, 0.6),
+        |x, y| Vec3::new(r * x, r * y, -(n.x * r * x + n.y * r * y) / n.z),
+        p(0.0, 0.0, q.z + (n.x * q.x + n.y * q.y) / n.z),
+    );
+    encloses("an off-axis tilted plane×cylinder", &carrier, &plane(q, n), &wall);
+
+    let band = band();
+    let alpha = core::f64::consts::FRAC_PI_6;
+    let phi = 1.2_f64;
+    let n = Vec3::new(phi.sin(), 0.0, phi.cos());
+    let q = p(0.0, 0.0, 4.0);
+    let section = open(alpha, q, n, band);
+    assert_eq!(section.conic(), OpenConic::Hyperbola);
+    let on_section = |azimuth: f64| {
+        let g = Vec3::new(
+            alpha.sin() * azimuth.cos(),
+            alpha.sin() * azimuth.sin(),
+            alpha.cos(),
+        );
+        let apex = p(0.0, 0.0, 1.0);
+        apex + g * ((q - apex).dot(n) / g.dot(n))
+    };
+    let (from, to) = (on_section(-0.6), on_section(0.4));
+    let branch = section.branch_at(from, band).expect("a branch");
+    let arc = branch.arc(from, to, band).expect("an arc");
+    encloses("a tilted plane×cone hyperbola", &nurbs(&arc), &plane(q, n), &cone(alpha));
+}
+
 /// **The torus rows owe the tube**: a plane×torus section states no
 /// bounds.
 #[test]
@@ -394,14 +462,9 @@ fn a_torus_section_states_nothing() {
 /// **A second overlap component inside the tube owes it, and refuses.**
 /// The plane `x = δ` at `sin θ = √ε/2` from tangent to the unit cylinder
 /// cuts its two generators `2·sin θ = √ε` apart, inside `ε/sin θ = 2√ε`
-/// of each other: the section states nothing for the one
-/// generator, and the edge refuses on the tube it still owes. On the
-/// flat cone `α = 1.55` the plane `x = 2e-5` beside the apex cuts a
-/// hyperbola whose two branches' vertices stand `2d/tan α` apart, inside
-/// `ε/sin θ` at a band of zero `1e-6` (pinned to the row's scale, so
-/// that the section is still minted past the escalation): the section
-/// states nothing, and the edge refuses naming the cone, which no tube
-/// encloses.
+/// of each other: the other generator's overlap stands in the tube's
+/// moat, so the section states nothing for the one generator, by the
+/// moat, and the edge refuses on the tube it still owes.
 #[test]
 fn a_second_component_inside_the_tube_owes_it_and_refuses() {
     let band = band();
@@ -418,9 +481,13 @@ fn a_second_component_inside_the_tube_owes_it_and_refuses() {
         eps / s
     );
     let got = tube_bounds(&carrier, carrier.domain(), &cut, &wall, band);
-    assert!(
-        matches!(got, Err(Unstated::Pose(_))),
-        "the near-tangent cylinder states nothing, got {got:?}"
+    assert_eq!(
+        got,
+        Err(Unstated::Pose(
+            "the ε-overlap may reach the tube's moat (another component of the section, \
+             or a near miss of the two surfaces)"
+        )),
+        "the near-tangent cylinder states nothing, by the moat"
     );
     let got = geom_brep::analytic_rung3(&carrier, carrier.domain(), &cut, &wall, band);
     assert!(
@@ -432,7 +499,18 @@ fn a_second_component_inside_the_tube_owes_it_and_refuses() {
         ),
         "the near-tangent cylinder's generator refuses on the tube, got {got:?}"
     );
+}
 
+/// **A stretch reaching the apex's height owes the tube, and refuses.**
+/// On the flat cone `α = 1.4`, the plane `x = 5e-5` beside the apex, at a
+/// band of zero `1e-6` (pinned to the row's scale: the one pose of its
+/// sweep near the apex where limb 2 still holds and the section is still
+/// minted past the escalation), the arc's vertex stands `d/tan α ≈ 9e-6`
+/// above the apex, under the stretch's pad: the padded stretch straddles
+/// the apex's height, so the section states nothing, and the edge
+/// refuses naming the cone, which no tube encloses.
+#[test]
+fn a_stretch_at_the_apex_height_owes_the_tube_and_refuses() {
     let wide = Band::new(1e-6, 1e-5).unwrap();
     let (alpha, d) = (1.4_f64, 5e-5_f64);
     let section = open(alpha, p(d, 0.0, 0.0), Vec3::unit_x(), wide);
@@ -449,9 +527,12 @@ fn a_second_component_inside_the_tube_owes_it_and_refuses() {
     let arc = nurbs(&arc);
     let (q, n) = (p(d, 0.0, 0.0), Vec3::unit_x());
     let got = tube_bounds(&arc, arc.domain(), &plane(q, n), &cone(alpha), wide);
-    assert!(
-        matches!(got, Err(Unstated::Pose(why)) if why.contains("apex")),
-        "the flat cone beside its apex states nothing, got {got:?}"
+    assert_eq!(
+        got,
+        Err(Unstated::Pose(
+            "the carrier's stretch reaches the height of the cone's apex"
+        )),
+        "the flat cone beside its apex states nothing"
     );
     let got = geom_brep::analytic_rung3(&arc, arc.domain(), &plane(q, n), &cone(alpha), wide);
     assert_eq!(
@@ -460,6 +541,49 @@ fn a_second_component_inside_the_tube_owes_it_and_refuses() {
             operand: geom::SurfaceKind::Cone
         }),
         "the edge owes the tube and refuses naming the cone"
+    );
+}
+
+/// **A stretch that nears the apex, clear of its height, owes the tube
+/// by the moat.** The plane `x = d` just past the band's escalation
+/// beside the apex of `α = π/4`, and the arc from the height `45ε` above
+/// it to `200ε`: the stretch's pad (`32ε/s₀ ≈ 32ε`) keeps clear of the
+/// apex's height and the crossing angle's floor holds (`sin θ ≈ 0.8` at
+/// the padded stretch's lowest height, `≈ 13ε`), but the cone's factor
+/// `m = 2|z|·sin α`, floored at that lowest height, is under what the
+/// moat needs at `w = 8ε/s` (`m·3ε > 64ε²/s²`, `|z| ≳ 24ε` here). Read at
+/// the stretch's highest height instead, `m` would clear it.
+#[test]
+fn a_stretch_nearing_the_apex_owes_the_tube_by_the_moat() {
+    let band = band();
+    let eps = band.zero();
+    let alpha = core::f64::consts::FRAC_PI_4;
+    let d = 1.1 * band.escalate();
+    let section = open(alpha, p(d, 0.0, 0.0), Vec3::unit_x(), band);
+    let branch = section.branch_at(p(d, 0.0, 2.0), band).expect("the upper branch");
+    let at_height = |z: f64| {
+        let rho = z * alpha.tan();
+        vertical_point(alpha, d, (rho * rho - d * d).sqrt(), 1.0)
+    };
+    let arc = nurbs(
+        &branch
+            .arc(at_height(45.0 * eps), at_height(200.0 * eps), band)
+            .expect("an arc"),
+    );
+    let got = tube_bounds(
+        &arc,
+        arc.domain(),
+        &plane(p(d, 0.0, 0.0), Vec3::unit_x()),
+        &cone(alpha),
+        band,
+    );
+    assert_eq!(
+        got,
+        Err(Unstated::Pose(
+            "the ε-overlap may reach the tube's moat (another component of the section, \
+             or a near miss of the two surfaces)"
+        )),
+        "the stretch nearing the apex fails the moat"
     );
 }
 
@@ -507,6 +631,16 @@ fn over_a_box_the_bounds_hold_for_every_member_or_are_not_stated() {
             ),
         };
         let got = tube_bounds(&lifted, params, &cut, &wall, band);
-        assert_eq!(got.is_ok(), states, "width {width:e}: {got:?}");
+        if states {
+            assert!(got.is_ok(), "width {width:e}: the bounds are stated, got {got:?}");
+        } else {
+            assert_eq!(
+                got,
+                Err(Unstated::Pose(
+                    "no point of the section is certified within the moat of the carrier's point"
+                )),
+                "width {width:e}"
+            );
+        }
     }
 }

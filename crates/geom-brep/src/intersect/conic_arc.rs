@@ -225,6 +225,10 @@ pub enum ConicArcError {
     EmptyWindow,
     /// The closed form read a value that is not finite.
     NotFinite,
+    /// The hyperbolic window's span weight was not read at or under
+    /// [`SPAN_WEIGHT_MAX`] within the halvings any finite window needs
+    /// (an infinite or unreadable `cosh` of its half span).
+    SpansUnsettled,
     /// The NURBS constructor refused the minted net.
     Carrier(SplineError),
 }
@@ -250,6 +254,11 @@ impl core::fmt::Display for ConicArcError {
             ),
             Self::EmptyWindow => write!(f, "the window's two ends are one point of the section"),
             Self::NotFinite => write!(f, "the open conic's closed form read a non-finite value"),
+            Self::SpansUnsettled => write!(
+                f,
+                "the open conic's window is too long for its spans' weight to be read: its \
+                 half span's cosh is not finite"
+            ),
             Self::Carrier(e) => write!(f, "the open conic's arc refused as a NURBS curve: {e}"),
         }
     }
@@ -459,7 +468,8 @@ impl<T: Decide> ConicBranch<T> {
     /// [`ConicArcError::WindowOffSection`] where an end stands off the
     /// branch, [`ConicArcError::EmptyWindow`] where the ends are one
     /// point, [`ConicArcError::Escalated`] where either is in the band,
-    /// [`ConicArcError::NotFinite`] and [`ConicArcError::Carrier`].
+    /// [`ConicArcError::NotFinite`], [`ConicArcError::SpansUnsettled`]
+    /// and [`ConicArcError::Carrier`].
     pub fn arc(
         &self,
         from: Point3<T>,
@@ -488,9 +498,8 @@ impl<T: Decide> ConicBranch<T> {
                 // scalar cannot place halves once more, which costs a
                 // span and never exactness.
                 let mut weight = (e1 / e0 + e0 / e1) / T::from_f64(2.0);
-                let mut halvings = 0_u32;
-                while halvings < MAX_HALVINGS
-                    && !matches!(
+                let settled = |weight: T| {
+                    matches!(
                         decide(
                             "pn_conic_span_weight",
                             Margin::of(weight - T::from_f64(SPAN_WEIGHT_MAX)),
@@ -498,7 +507,12 @@ impl<T: Decide> ConicBranch<T> {
                         ),
                         Ok(Sign::Zero | Sign::Negative)
                     )
-                {
+                };
+                let mut halvings = 0_u32;
+                while !settled(weight) {
+                    if halvings == MAX_HALVINGS {
+                        return Err(ConicArcError::SpansUnsettled);
+                    }
                     weight = ((weight + T::one()) / T::from_f64(2.0)).sqrt();
                     halvings += 1;
                 }
@@ -551,9 +565,12 @@ impl<T: Decide> ConicBranch<T> {
     }
 }
 
-/// The most halvings a hyperbolic window takes: `2³²` spans of weight
-/// `√2` cover `|t₁ − t₀|` past any finite window's.
-const MAX_HALVINGS: u32 = 32;
+/// The most halvings a hyperbolic window takes: a window whose ends'
+/// `E = e^{t/2}` are finite has `|t₁ − t₀| < 1420`, and `2¹⁶` spans of
+/// weight `√2` cover `2¹⁶·2·acosh √2 > 10⁵` of `t`. A weight still not
+/// read at or under `√2` past them is not a finite window's
+/// ([`ConicArcError::SpansUnsettled`]).
+const MAX_HALVINGS: u32 = 16;
 
 /// The window's ends `given` against the branch's points `read` at their
 /// heights: each within the band of its own, and the two apart.
