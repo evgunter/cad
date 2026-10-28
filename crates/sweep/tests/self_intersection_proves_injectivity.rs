@@ -551,8 +551,16 @@ fn a_seam_crossing_cylinder_pierced_by_a_face_on_its_edge_never_holds() {
             .unwrap()
             .0
     };
-    let (s_lo, s_hi) = (vertex_at(&body, at(alpha, 0.0)), vertex_at(&body, at(alpha, 1.0)));
-    let on_wall = |body: &Body<f64>, he| body.get_loop(body.get_half_edge(he).unwrap().parent_loop).unwrap().face == wall;
+    let (s_lo, s_hi) = (
+        vertex_at(&body, at(alpha, 0.0)),
+        vertex_at(&body, at(alpha, 1.0)),
+    );
+    let on_wall = |body: &Body<f64>, he| {
+        body.get_loop(body.get_half_edge(he).unwrap().parent_loop)
+            .unwrap()
+            .face
+            == wall
+    };
     let strut = body
         .edges()
         .find(|(_, e)| {
@@ -584,9 +592,18 @@ fn a_seam_crossing_cylinder_pierced_by_a_face_on_its_edge_never_holds() {
     let (a0, a1) = (past(q0), past(q1));
 
     let strut1 = body
-        .mev_line(MevSite::Fan { he1: h_next, he2: h_next }, a1, tol())
+        .mev_line(
+            MevSite::Fan {
+                he1: h_next,
+                he2: h_next,
+            },
+            a1,
+            tol(),
+        )
         .unwrap();
-    let strut0 = body.mev_line(MevSite::Fan { he1: h_s, he2: h_s }, a0, tol()).unwrap();
+    let strut0 = body
+        .mev_line(MevSite::Fan { he1: h_s, he2: h_s }, a0, tol())
+        .unwrap();
     let flap = body
         .mef(
             MefSite::Chords {

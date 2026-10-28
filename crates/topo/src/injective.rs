@@ -174,14 +174,16 @@ pub(crate) struct Boundary {
     pub(crate) sense: bool,
     pub(crate) edges: Vec<Rim>,
     pub(crate) vertices: BTreeMap<VertexKey, Point3<Interval>>,
-    /// **The face's own extent on each chart axis**, `[u, v]`: the hull
-    /// of its outer loop's lift ([`crate::pcurves::loop_lift`]), one
-    /// continuous chain, so on a periodic axis it is the face's span on
-    /// ONE sheet and not wrapped. Exact as a hull: it is read only where
-    /// every row of the loop is a coordinate line whose moving coordinate
-    /// is monotone, so no row bulges past its ends. A span a whole turn
-    /// wide (a wrapping loop) is every value of the axis. `None` where
-    /// the loop has no lift or a row is not such a line.
+    /// **The hull of the face's outer loop on each chart axis**, `[u, v]`:
+    /// its lift ([`crate::pcurves::loop_lift`]) is one continuous chain,
+    /// so on a periodic axis the hull is on ONE sheet, not wrapped. Exact
+    /// as a hull: it is read only where every row of the loop is a
+    /// coordinate line whose moving coordinate is monotone, so no row
+    /// bulges past its ends. It is the FACE's extent only where the loop
+    /// does not wrap a periodic axis — then the face is the loop's inside
+    /// — and a reader that finds it a whole turn wide reads nothing of it
+    /// ([`sheets`]). `None` where the loop has no lift or a row is not
+    /// such a line.
     pub(crate) extent: Option<[(f64, f64); 2]>,
 }
 
@@ -267,11 +269,7 @@ impl Shared {
     /// The cell the two scopes meet on: an edge where they share one,
     /// else a vertex.
     pub(crate) fn cell(&self, x: &Boundary) -> Option<SharedCell> {
-        self.edges
-            .first()
-            .and_then(|&(i, _)| x.edges.get(i))
-            .map(|e| SharedCell::Edge(e.key))
-            .or_else(|| self.vertices.first().map(|&v| SharedCell::Vertex(v)))
+        named_cell(&self.edges, &self.vertices, x)
     }
 
     /// A vertex the two faces share, if any: an end of a shared edge
@@ -282,6 +280,21 @@ impl Shared {
             .and_then(|&(i, _)| x.edges.get(i))
             .map(|e| e.ends[0])
             .or_else(|| self.vertices.first().copied())
+    }
+}
+
+/// **The one rule a shared cell is named by**: its first edge, by its key
+/// in the first face's boundary, else its first vertex; `None` where
+/// there is neither, or the edge index does not resolve. The choice of
+/// FIRST names the refusal; it decides nothing.
+fn named_cell(
+    edges: &[(usize, usize)],
+    vertices: &[VertexKey],
+    x: &Boundary,
+) -> Option<SharedCell> {
+    match edges.first() {
+        Some(&(i, _)) => x.edges.get(i).map(|e| SharedCell::Edge(e.key)),
+        None => vertices.first().map(|&v| SharedCell::Vertex(v)),
     }
 }
 
@@ -348,18 +361,10 @@ impl Near {
         self.edges.is_empty() && self.vertices.is_empty()
     }
 
-    /// The cell a refusal names.
-    fn cell(&self, x: &Boundary) -> SharedCell {
-        match (self.edges.first(), self.vertices.first()) {
-            (Some(&(i, _)), _) => x
-                .edges
-                .get(i)
-                .map_or(SharedCell::Face(FaceKey::default()), |e| {
-                    SharedCell::Edge(e.key)
-                }),
-            (None, Some(&v)) => SharedCell::Vertex(v),
-            (None, None) => SharedCell::Face(FaceKey::default()),
-        }
+    /// The cell a refusal names: [`Shared::cell`]'s rule, over the cells
+    /// both pieces are near.
+    fn cell(&self, x: &Boundary) -> Option<SharedCell> {
+        named_cell(&self.edges, &self.vertices, x)
     }
 
     /// The near edges on one side, as indices into that face's boundary.
@@ -450,7 +455,7 @@ pub(crate) fn certify_self(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band
         [_] => departure(x, y, near, band, false),
         _ => Outcome::Split {
             arm: CertificateArm::Departure,
-            shared: near.cell(x.boundary),
+            shared: near.cell(x.boundary).unwrap_or(SharedCell::Face(x.face)),
         },
     }
 }
@@ -956,20 +961,28 @@ fn sheets(
         }
         return Sheets::On(on);
     };
+    // **An outer loop that wraps a periodic axis bounds nothing.** The
+    // face is not the inside of it: a band lies between it and a ring, a
+    // polar cap between it and the pole. Its hull says nothing of the
+    // face on either axis, and the face spans every value of the axis
+    // it wraps, so no axis has a sheet to choose.
+    let wraps = [Axis::U, Axis::V].into_iter().any(|axis| {
+        let (lo, hi) = extent[axis.index()];
+        periodic(surface, axis) && hi - lo >= TURN - turn_slack(lo, hi)
+    });
+    if wraps {
+        return Sheets::On(on);
+    }
     for axis in [Axis::U, Axis::V] {
         let (lo, hi) = extent[axis.index()];
         let (clo, chi) = axis.of(cell);
-        // A few ulps of the turn: the shifted copies are rounded.
-        let slack = 8.0 * f64::EPSILON * TURN.max(lo.abs()).max(hi.abs());
+        let slack = turn_slack(lo, hi);
         let meets = |(a, b): (f64, f64)| b.min(chi) - a.max(clo) > slack;
         if !periodic(surface, axis) {
             if !meets((lo, hi)) {
                 return Sheets::Missed;
             }
             on[axis.index()] = Sheet::Within(lo, hi);
-            continue;
-        }
-        if hi - lo >= TURN - slack {
             continue;
         }
         #[allow(clippy::cast_precision_loss)]
@@ -984,6 +997,12 @@ fn sheets(
         }
     }
     Sheets::On(on)
+}
+
+/// A few ulps of a turn: copies of an extent shifted by whole turns are
+/// rounded.
+fn turn_slack(lo: f64, hi: f64) -> f64 {
+    8.0 * f64::EPSILON * TURN.max(lo.abs()).max(hi.abs())
 }
 
 /// **Where an edge's line lies in a cell's chart**: on a periodic axis,
@@ -1382,29 +1401,34 @@ fn convex(b: &Boundary, c: &Clip, d: &Clip) -> bool {
             None
         }
     };
-    let common = |c: &Clip, d: &Clip| -> Option<VertexKey> {
-        c.edges.iter().find_map(|&i| {
-            let e = b.edges.get(i)?;
-            d.edges.iter().find_map(|&j| {
-                let f = b.edges.get(j)?;
-                e.ends.iter().find(|v| f.ends.contains(v)).copied()
-            })
-        })
-    };
-    let Some(v) = common(c, d) else {
-        // No corner: the two lines cross where neither edge reaches,
-        // which the span check has already refused.
-        return true;
-    };
-    let ok = |c: &Clip, d: &Clip| -> bool {
-        // An edge of `d` leaves `v` along `c`'s held axis, toward `c`'s
-        // face side.
-        d.edges
+    // EVERY vertex the two clips' edges share is a corner of the face:
+    // two edges that meet twice (round a periodic chart) make two, and
+    // each must be convex.
+    let ends = |c: &Clip| -> BTreeSet<VertexKey> {
+        c.edges
             .iter()
-            .filter_map(|&j| away(j, v))
-            .all(|s| s * c.side.into() > 0.0)
+            .filter_map(|&i| b.edges.get(i))
+            .flat_map(|e| e.ends)
+            .collect()
     };
-    ok(c, d) && ok(d, c)
+    let corners: Vec<VertexKey> = ends(c).intersection(&ends(d)).copied().collect();
+    // No corner: the two lines cross where neither edge reaches, which
+    // the span check has already refused.
+    let ok = |c: &Clip, d: &Clip, v: VertexKey| -> bool {
+        // Every edge of `d` at `v` leaves it along `c`'s held axis, toward
+        // `c`'s face side; one whose direction is not decided fails.
+        let at_v: Vec<usize> = d
+            .edges
+            .iter()
+            .copied()
+            .filter(|&j| b.edges.get(j).is_some_and(|e| e.ends.contains(&v)))
+            .collect();
+        !at_v.is_empty()
+            && at_v
+                .iter()
+                .all(|&j| away(j, v).is_some_and(|s| s * c.side.into() > 0.0))
+    };
+    corners.iter().all(|&v| ok(c, d, v) && ok(d, c, v))
 }
 
 /// The sides of a presentation the separator vanishes on: the clips
@@ -1453,17 +1477,23 @@ fn zero_of(
         ([c], []) => Ok(Zero::Side(c.side)),
         ([c, d], []) if c.side.axis() != d.side.axis() => Ok(Zero::Corner(c.side, d.side)),
         ([], [v]) => {
+            // The ONE corner of two clips the vertex is: a second pair
+            // holding it too would leave the point ambiguous.
+            let mut corners = Vec::new();
             for (i, c) in clips.iter().enumerate() {
                 for d in clips.iter().skip(i + 1) {
                     if c.side.axis() != d.side.axis()
                         && ends_of(c).contains(v)
                         && ends_of(d).contains(v)
                     {
-                        return Ok(Zero::Point(c.side, d.side));
+                        corners.push(Zero::Point(c.side, d.side));
                     }
                 }
             }
-            Err(Unpresented::Local)
+            match corners.as_slice() {
+                [one] => Ok(*one),
+                _ => Err(Unpresented::Local),
+            }
         }
         _ => Err(Unpresented::Local),
     }
@@ -1790,7 +1820,11 @@ fn centred(psi: &Psi, p: &Presented<'_>, x: (f64, f64), y: (f64, f64)) -> Option
 ///   two derivatives along the rectangle's axes away from it.
 ///
 /// A side is zero by decision (`ON_SHARED`), except under the graph
-/// separator, which vanishes on the shared edge by construction.
+/// separator, which vanishes on its one shared edge by construction —
+/// and only there. A zero side's edges are that edge, so a side needs
+/// no reading; a corner POINT is a shared vertex, which need not lie on
+/// the edge, and a graph's value there is not read, so the graph
+/// separator answers nothing at a point.
 fn sign_on(psi: &Psi, p: &Presented<'_>, band: Band) -> Option<Sign> {
     let checked = !matches!(psi, Psi::Graph { .. });
     let side_of = |s: Side| {
@@ -1828,7 +1862,7 @@ fn sign_on(psi: &Psi, p: &Presented<'_>, band: Band) -> Option<Sign> {
             sign_of(g, DEPARTURE, band)
         }
         Zero::Point(s, t) => {
-            if checked && !psi.value(p.corner(s, t)).is_some_and(|v| is_zero(v, band)) {
+            if !checked || !psi.value(p.corner(s, t)).is_some_and(|v| is_zero(v, band)) {
                 return None;
             }
             let a = sign_of(across(s.axis()) * at(s.into()), DEPARTURE, band)?;
@@ -1883,7 +1917,7 @@ fn implicit_of(piece: &Piece<'_>, band: Band) -> Option<Implicit> {
 /// with the other presented, a plane through straight shared edges, the
 /// shared edge's graph.
 fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -> Outcome {
-    let shared = near.cell(x.boundary);
+    let shared = near.cell(x.boundary).unwrap_or(SharedCell::Face(x.face));
     let split = Outcome::Split {
         arm: CertificateArm::Departure,
         shared,
@@ -1891,12 +1925,9 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     let (ex, ey) = (near.side(false), near.side(true));
     let px = present(x, &ex, &near.vertices, band);
     let py = present(y, &ey, &near.vertices, band);
-    for p in [&px, &py] {
+    for (p, face) in [(&px, x.face), (&py, y.face)] {
         if let Err(Unpresented::Collapsed(v)) = p {
-            return Outcome::Refuse(EngineRefusal::CollapsedChart {
-                face: x.face,
-                vertex: *v,
-            });
+            return Outcome::Refuse(EngineRefusal::CollapsedChart { face, vertex: *v });
         }
     }
     if matches!(px, Ok(Presentation::Vacuous)) || matches!(py, Ok(Presentation::Vacuous)) {
@@ -2423,6 +2454,25 @@ mod presentation_rows {
         assert_eq!(
             chart(&s, &b, &[0], (0.0, 0.1), (0.3, 0.7)),
             Read::Structural
+        );
+    }
+
+    /// **A band**: a face whose outer loop is one whole-turn circle at
+    /// `v = 0` (the rest of it lies between that loop and a ring). The
+    /// loop's hull is `v = 0` alone, which is not the face's extent: a
+    /// cell above it holds the face and must not read vacuous off it.
+    #[test]
+    fn a_wrapping_outer_loop_bounds_nothing() {
+        let s = cylinder();
+        let b = Boundary {
+            sense: true,
+            edges: Vec::new(),
+            vertices: BTreeMap::new(),
+            extent: Some([(0.0, TURN), (0.0, 0.0)]),
+        };
+        assert_eq!(
+            chart(&s, &b, &[], (1.0, 2.0), (0.5, 1.0)),
+            Read::Of((1.0, 2.0), (0.5, 1.0))
         );
     }
 
