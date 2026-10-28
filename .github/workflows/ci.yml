@@ -179,9 +179,9 @@ jobs:
           # THE TEST SHARDS. The test job's build is the per-PR floor and is
           # throughput-bound on one 4-core runner, so its scope is split in
           # two and each half builds and runs on its own runner: `app` is
-          # sweep and the members above it, `kernel` the rest. A half the
-          # scope leaves empty is not run.
-          app=(sweep verbs editor-core pncad pncad-py viewer)
+          # editor-core and the members above it, `kernel` the rest. A half
+          # the scope leaves empty is not run.
+          app=(verbs editor-core pncad pncad-py viewer)
           kernel=""; apps=""
           if [ "$scope" = --workspace ]; then
             kernel="--workspace"
