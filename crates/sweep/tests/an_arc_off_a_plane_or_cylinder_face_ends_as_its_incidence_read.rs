@@ -192,7 +192,7 @@ fn check<T: Decide + AtRestPolicy + Bounds>() {
         );
         let at_rest = ValidationError::EdgeCertification {
             edge: EdgeKey::default(),
-            error: refusal.clone(),
+            error: refusal,
         }
         .to_string();
         assert!(
