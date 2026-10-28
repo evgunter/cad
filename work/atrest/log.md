@@ -309,3 +309,9 @@ Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `cra
     - F5: enforce the meet/contact coupling at run ends.
   - My brief's census path was wrong (`crates/topo/src/census.rs`).
   - Blind coding: inputs `analysis/dual-review/pr-5884-coding` @ `5a710ae4`, byte 130.
+- 2026-10-28 04:30Z (orchestrator): **#5884's fix pass** (`623240b2`) was read and accepted.
+  - F2 makes `flush_pairs` one loop over planes, cylinders and spheres, with every unread outcome loud. F3, the rod in a tube, now reads flush.
+  - F4: step-import is 296/296 at three ε, and its corpus golden is unchanged.
+  - F1: the in-band lens is owned and filed P2.
+  - CI is green but skipped `demos`, so the lane runs `demos/tour` and `demos/wild` before the row and merge.
+  - **Lesson:** a census change must run the demos locally. CI's change filter skips them, which is how #5853's chain pin went red unseen.
