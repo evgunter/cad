@@ -2,10 +2,11 @@
 id: the-splits-at-rest-gate-reads-tier-3-where-a-finished-body-owes-tier-3-prime
 kind: issue
 title: The split's at-rest gate reads tier 3, where a finished body owes tier 3′: a curved one-end slit ships Ok and tier 3′ refuses it
-status: open
+status: dispatched
 opened: 2026-10-19
 priority: P1
 cost: M
+branch: splitdoor/split-gate-3prime
 ---
 
 

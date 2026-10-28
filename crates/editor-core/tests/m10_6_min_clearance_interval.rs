@@ -55,20 +55,6 @@ use topo::clearance::{MinSeparationConfig, min_separation};
 
 use fixture::{Recorder, len};
 
-/// The clearance engine has no lane at the symbolic identity tier
-/// (ERROR-DESIGN E12; `DriveRefusal::SymbolicClearanceUnsupported`, and
-/// the deviation is issue `symbolic-tier-and-clearance-engine`), so every drive over a `min_clearance`
-/// document asks for the numeric-only replay BY NAME. It is a disclosed
-/// limitation of the tier, not a property of these fixtures: with the
-/// tier on the driver refuses this document up front rather than
-/// certifying leaves whose clearance measure was never computed.
-fn numeric_lane() -> DriveConfig {
-    DriveConfig {
-        symbolic: SymbolicDials::off(),
-        ..DriveConfig::default()
-    }
-}
-
 /// The true minimum separation between the neck walls, by construction.
 const NECK_GAP: f64 = 0.4;
 
@@ -192,14 +178,14 @@ struct Dumbbell {
 ///
 /// It exists so the rows can ask the engine the same question the
 /// measure asks it, without either of them going through the other.
-struct Neck<'v> {
-    body: &'v topo::Body<geom_core::Interval>,
+struct Neck<'v, T: geom_core::Decide> {
+    body: &'v topo::Body<T>,
     at: RecipeNodeId,
     faces: [topo::entity::FaceKey; 2],
 }
 
-impl<'v> Neck<'v> {
-    fn of(ev: &'v editor_core::Evaluation<geom_core::Interval>, f: &Dumbbell) -> Self {
+impl<'v, T: geom_core::Decide> Neck<'v, T> {
+    fn of(ev: &'v editor_core::Evaluation<T>, f: &Dumbbell) -> Self {
         let Some(NodeResult::Ok(value)) = ev.result(f.placed) else {
             panic!("the placed body evaluated");
         };
@@ -227,7 +213,7 @@ impl<'v> Neck<'v> {
 
     /// One wall of the neck, as the measure resolves a face-kind
     /// reference: the placed node's body 0, and that one face.
-    fn operand(&self, which: usize) -> MinClearanceOperand<'_, geom_core::Interval> {
+    fn operand(&self, which: usize) -> MinClearanceOperand<'_, T> {
         MinClearanceOperand {
             at: self.at,
             index: 0,
@@ -245,9 +231,29 @@ impl<'v> Neck<'v> {
         a: usize,
         b: usize,
         config: MinSeparationConfig,
-    ) -> Result<topo::clearance::MinSeparation, topo::clearance::EngineRefusal> {
+    ) -> Result<topo::clearance::MinSeparation, topo::clearance::MinSeparationRefusal>
+    where
+        T: geom_core::CertifiedBounds,
+    {
         let (a, b) = (self.operand(a), self.operand(b));
         min_separation(&a.side(), &b.side(), a.same_body(&b), config)
+    }
+
+    /// The neck's bracket through this scalar's door value, as the
+    /// measure asks it.
+    fn bracket(&self) -> T
+    where
+        T: topo::AtRestPolicy,
+    {
+        let lane = T::clearance_lane().expect("a certifying scalar holds the engine's door");
+        let (a, b) = (self.operand(0), self.operand(1));
+        lane.min_separation(
+            &a.side(),
+            &b.side(),
+            a.same_body(&b),
+            MinSeparationConfig::default(),
+        )
+        .expect("the neck pair is admitted")
     }
 }
 
@@ -301,7 +307,7 @@ fn a_point_scalar_has_no_min_clearance_value_and_the_assertion_says_why() {
             let MeasureUnavailableAt::NeedsEnclosure { verb, scalar, door } = reason;
             assert_eq!(*verb, "min_clearance");
             assert_eq!(*scalar, "f64");
-            assert_eq!(*door, "clearance::min_separation");
+            assert_eq!(*door, "topo::ClearanceLane");
         }
         other => panic!("expected a typed absence, got a {}", other.kind_name()),
     }
@@ -314,7 +320,7 @@ fn a_point_scalar_has_no_min_clearance_value_and_the_assertion_says_why() {
         }) => {
             // The prose names the door rather than a number: a reader
             // is told where the answer lives.
-            assert!(format!("{why}").contains("clearance::min_separation"));
+            assert!(format!("{why}").contains("topo::ClearanceLane"));
         }
         other => panic!("expected E10's third state, got {other:?}"),
     }
@@ -360,6 +366,55 @@ fn the_interval_value_is_the_engine_bracket_re_derived() {
         "[{}, {}] must enclose the built gap {NECK_GAP}",
         value.lo(),
         value.hi()
+    );
+}
+
+/// **The engine's door at the symbolic scalar.** The leaf replay's
+/// `Body<Sym<Interval>>` goes to the same door value the interval lane
+/// holds, and the bracket comes back as two computed values hulled:
+/// bit-identical to the interval run's numbers, and a fresh unknown,
+/// so two asks of one neck are two values the tier cannot prove equal.
+/// A re-entry through `from_f64` would mint the same literal for each
+/// end of both asks, so the two hulls would be one node.
+#[test]
+fn the_engines_door_runs_at_the_symbolic_scalar_and_re_enters_computed() {
+    use geom_core::{Interval, Sym};
+    let f = dumbbell();
+    let budget = geom_core::SymBudget {
+        max_terms: editor_core::drive::DEFAULT_SYM_MAX_TERMS,
+        max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
+    };
+    let numeric = {
+        let ev = eval_over::<Interval>(&f.doc, Some(leaf(&f.doc)));
+        let neck = Neck::of(&ev, &f);
+        let direct = neck
+            .ask(0, 1, MinSeparationConfig::default())
+            .expect("the neck pair is admitted")
+            .enclosure();
+        let lane = neck.bracket();
+        assert_eq!(
+            lane.repr_bits(),
+            direct.repr_bits(),
+            "at Interval the door's re-entry is the engine's enclosure, bit for bit"
+        );
+        lane
+    };
+    let ((first, second), _) = geom_core::sym::with_session(budget, || {
+        let ev = eval_over::<Sym<Interval>>(&f.doc, Some(leaf(&f.doc)));
+        let neck = Neck::of(&ev, &f);
+        (neck.bracket(), neck.bracket())
+    });
+    for (n, v) in [("first", first), ("second", second)] {
+        assert_eq!(
+            v.value.repr_bits(),
+            numeric.repr_bits(),
+            "{n} ask: the symbolic bracket's numbers are the interval run's"
+        );
+    }
+    assert_ne!(
+        first.node(),
+        second.node(),
+        "two asks with equal brackets are two unknowns, never one node"
     );
 }
 
@@ -443,7 +498,7 @@ fn the_drive_certifies_and_the_assertion_holds_over_the_certified_leaves() {
     let f = dumbbell();
     let (doc, assertion) = (f.doc, f.assertion);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &numeric_lane(), Tol::witness())
+    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness())
         .expect("the witness build succeeds");
     assert!(
         !verdict.certified().is_empty(),
@@ -451,13 +506,14 @@ fn the_drive_certifies_and_the_assertion_holds_over_the_certified_leaves() {
         verdict.refused().len()
     );
     for leaf in verdict.certified() {
-        let ev = eval_over::<geom_core::Interval>(&doc, Some(leaf.box_.clone()));
-        let Some(NodeResult::Ok(a)) = ev.result(assertion) else {
-            panic!("the assertion evaluated over a certified leaf");
-        };
-        let ValuePayload::Assertion(verdict) = &a.payload else {
-            panic!("an assertion node carries a verdict");
-        };
+        let verdict = editor_core::drive::assertion_at(
+            &doc,
+            assertion,
+            &leaf.box_,
+            verdict.symbolic(),
+            Tol::witness(),
+        )
+        .expect("the assertion evaluated over a certified leaf, on its lane");
         assert_eq!(
             verdict.holds(),
             Some(true),
@@ -466,32 +522,53 @@ fn the_drive_certifies_and_the_assertion_holds_over_the_certified_leaves() {
     }
 }
 
-/// With the symbolic tier on, the driver refuses the dumbbell up front
-/// and speaks the clearance measure from the driven document.
+/// **The symbolic tier drives a clearance measure**: the dumbbell
+/// certifies with the tier on, and the certified worst case of its
+/// `min_clearance` is bit-identical to the numeric run's. The leaf
+/// replays at `Sym<Interval>` hand the engine's door that body, and the
+/// tier changes how a margin decides, never a bracket.
 #[test]
-fn the_symbolic_tier_refuses_a_clearance_measure_by_its_spoken_node() {
+fn the_symbolic_tier_certifies_a_clearance_measure_bit_identical_to_the_numeric_run() {
     let f = dumbbell();
-    let (doc, _) = fixture::step(
-        f.doc,
-        DocEdit::SetLabel {
-            node: f.measure,
-            label: Some(editor_core::Label::new("neck gap").expect("a valid label")),
-        },
-    );
-    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let refusal = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness())
-        .expect_err("the symbolic tier has no clearance lane");
-    let editor_core::DriveRefusal::SymbolicClearanceUnsupported { node } = &refusal else {
-        panic!("expected SymbolicClearanceUnsupported, got {refusal:?}");
+    let analyzed = analyzed_box(&f.doc, &AnalysisPolicy::default());
+    let worst = |symbolic: SymbolicDials| {
+        let config = DriveConfig {
+            symbolic,
+            ..DriveConfig::default()
+        };
+        let verdict =
+            drive(&f.doc, &analyzed, &config, Tol::witness()).expect("the witness build succeeds");
+        assert!(
+            !verdict.certified().is_empty(),
+            "the ε-scaled box certifies at least one leaf (tier on: {}); refused: {}",
+            symbolic.enabled,
+            verdict.refused().len()
+        );
+        let report = stackup(
+            &f.doc,
+            crate::fixture::output(&f.doc, f.measure),
+            &analyzed,
+            &verdict,
+            None,
+            true,
+            None,
+            Tol::witness(),
+        )
+        .expect("the report builds");
+        let w = report.worst_case;
+        (
+            verdict.certified().len(),
+            w.leaves,
+            w.lo.to_bits(),
+            w.hi.to_bits(),
+        )
     };
-    assert_eq!(*node, doc.spoken(f.measure));
-    assert!(
-        refusal.to_string().starts_with(&format!(
-            "Measure \"neck gap\" ({}) is a `min_clearance`, whose engine has no lane at \
-             the symbolic identity tier",
-            test_utils::refusal::tag(f.measure.0.digest())
-        )),
-        "{refusal}"
+    let on = worst(SymbolicDials::default());
+    assert!(on.1 > 0, "the tier-on worst case reads certified leaves");
+    assert_eq!(
+        on,
+        worst(SymbolicDials::off()),
+        "(certified leaves, worst-case leaves, lo bits, hi bits) with the tier on, against off"
     );
 }
 
@@ -588,8 +665,8 @@ fn a_selection_that_is_not_a_body_or_a_face_refuses_at_the_door() {
 fn a_stackup_over_a_min_clearance_forfeits_its_advisory_columns_and_still_gates() {
     let f = dumbbell();
     let analyzed = analyzed_box(&f.doc, &AnalysisPolicy::default());
-    let verdict =
-        drive(&f.doc, &analyzed, &numeric_lane(), Tol::witness()).expect("the nominal builds");
+    let verdict = drive(&f.doc, &analyzed, &DriveConfig::default(), Tol::witness())
+        .expect("the nominal builds");
     assert!(!verdict.certified().is_empty(), "the box certifies");
     let report = stackup(
         &f.doc,
@@ -618,7 +695,7 @@ fn a_stackup_over_a_min_clearance_forfeits_its_advisory_columns_and_still_gates(
             assert_eq!(why.verb(), "min_clearance");
             let said = why.to_string();
             assert!(
-                said.contains("clearance::min_separation"),
+                said.contains("topo::ClearanceLane"),
                 "the forfeit names the door that can answer: {said}"
             );
         }

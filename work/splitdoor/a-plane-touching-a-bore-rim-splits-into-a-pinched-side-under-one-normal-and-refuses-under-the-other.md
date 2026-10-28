@@ -2,11 +2,14 @@
 id: a-plane-touching-a-bore-rim-splits-into-a-pinched-side-under-one-normal-and-refuses-under-the-other
 kind: issue
 title: a plane touching a tube's bore rim at one point splits into a pinched side under one normal and refuses NotAlternating under the other
-status: open
+status: closed
 opened: 2026-10-07
 priority: P1
 refs: [a-rim-touching-split-escalates-on-the-side-of-plane-band, split-sides-are-not-finished-bodies]
 cost: M
+pr: 5951
+branch: splitdoor/hole-rim-tangent-germs
+closed: 2026-10-28
 ---
 
 
@@ -79,3 +82,34 @@ sweep that found it ran 96 azimuths, `2πi/96 + 0.0123·(i mod 3)`.
 - Re-banded P3 → P1: one plane refuses under one normal and ships sides tier 3′ refuses under the other: verb breadth beyond the everyday shapes (a split or boolean that refuses, or ships a body its own gate fails, on a legal input), P1 by `work/README.md` Priority.
 - Priced `M`, the effort the body describes.
 - Moved to SPLITDOOR (`work/splitdoor/`) by `git mv`, id and body unchanged: the P1 track opened for split and boolean shapes that refuse, or ship a side their own gate fails, where a uniform reading would build: the split door's tier-3′ bar, tangent and pinch poses, and the curved-carrier lanes that read lines and circles only. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## Measured on `splitdoor/hole-rim-tangent-germs` (2026-10-28)
+
+On `origin/main` the row's pose no longer refuses as above: at ε = 1e-9
+all 192 runs (the 96 azimuths, both normals) refuse
+`Reduce(SectionGermsUnordered { Coincident })`, the cap's trace and the
+bore wall's section leaving `P` along one tangent
+(`a-plane-tangent-to-a-holes-rim-at-a-vertex-refuses-its-germs-as-coincident`).
+With that branch's two changes (the germs ordered by how their sections
+curve, and `conic_pairs` taking a touch point's exits first), `s = +1`
+builds at all 96 azimuths and `s = −1` at 95, every side passing tier 3′
+with no contact records; `split_across_a_revolve_seam.rs`
+`a_plane_touching_a_bore_rim_splits_alike_under_either_normal` pins six
+azimuths at the cap side's closed form, `tan t ∫∫ (0.5 − d·x) dA` over
+the annulus where `d·x < 0.5`. The seam azimuth `a = 0` under `s = −1`
+still refuses, `Join(Euler(Certification { StatedInterval { refused:
+Forward(Decided(Zero(..))) } }))`: unmeasured.
+
+The same refusal is what the hole-rim tangent poses produced in PR
+5951's review under its mutant M3 (the join's touch-point runs read in
+insertion order rather than by the alternation round them), so the
+seam residue may be a crossing-run pairing case at the seam. Ordering
+each run by the crossing before it (`join.rs` `touch_order`) does not
+clear it: `a = 0`, `s = −1` still refuses alike.
+
+## Closed (2026-10-28, PR 5951)
+
+The row's two refusals (`NotAlternating` under one normal, the pinched side under the other) are
+gone: 191 of 192 poses build, every side passing tier 3′. The one left, the seam azimuth under
+`s = −1`, refuses for another cause and is its own row,
+`a-plane-touching-a-bore-rim-at-its-seam-refuses-a-stated-interval-zero-in-the-join`.

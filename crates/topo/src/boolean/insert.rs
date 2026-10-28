@@ -443,6 +443,7 @@ pub(super) fn plan_null_pairs<T: Decide>(
                     read: w.sb,
                 },
                 contacts,
+                declared,
                 band,
             )
         })

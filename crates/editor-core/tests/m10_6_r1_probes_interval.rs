@@ -51,7 +51,7 @@ use std::collections::BTreeMap;
 
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::clearance::{ClearanceQuery, Selection, clearance_over};
-use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, drive};
+use editor_core::drive::{DriveConfig, VerdictVector, drive};
 use editor_core::mc::{McConfig, monte_carlo};
 use editor_core::report::{Dials, MassBasis, MassBudget, leaf_histogram, report_key};
 use editor_core::stackup::stackup;
@@ -65,20 +65,6 @@ use geom_core::{Bounds, Tol};
 use topo::clearance::{MinSeparationConfig, Side, min_separation};
 
 use fixture::{Recorder, len};
-
-/// The clearance engine has no lane at the symbolic identity tier
-/// (ERROR-DESIGN E12; `DriveRefusal::SymbolicClearanceUnsupported`, and
-/// the deviation is issue `symbolic-tier-and-clearance-engine`), so every drive over a `min_clearance`
-/// document asks for the numeric-only replay BY NAME. It is a disclosed
-/// limitation of the tier, not a property of these fixtures: with the
-/// tier on the driver refuses this document up front rather than
-/// certifying leaves whose clearance measure was never computed.
-fn numeric_lane() -> DriveConfig {
-    DriveConfig {
-        symbolic: SymbolicDials::off(),
-        ..DriveConfig::default()
-    }
-}
 
 fn name(n: &'static str) -> VarName {
     VarName::from_static(n)
@@ -97,6 +83,24 @@ fn eval_over<T: editor_core::EvalScalar>(
         ..EvalOptions::default()
     };
     evaluate(doc, None, &CancelToken::new(), &opts, Tol::witness())
+}
+
+/// The assertion's verdict over a certified leaf, replayed on the lane
+/// the drive certified it on ([`editor_core::drive::assertion_at`]).
+fn on_lane(
+    doc: &ProfileDoc,
+    verdict: &editor_core::drive::ParamBoxVerdict,
+    leaf: &editor_core::drive::CertifiedLeaf,
+    assertion: RecipeNodeId,
+) -> AssertionVerdict<geom_core::Interval> {
+    editor_core::drive::assertion_at(
+        doc,
+        assertion,
+        &leaf.box_,
+        verdict.symbolic(),
+        Tol::witness(),
+    )
+    .expect("an assertion node has a verdict over a certified leaf")
 }
 
 fn assertion_verdict<T: geom_core::Decide>(
@@ -503,7 +507,7 @@ fn uniform() -> Distribution {
 fn the_shipped_witness_vector_drops_the_assertion_row_for_any_assertion_document() {
     let (doc, _, _) = web_plate(1.0, uniform());
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &numeric_lane(), Tol::witness()).expect("builds");
+    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
     let witness = eval_over::<f64>(&doc, None);
     let full = VerdictVector::of(&witness);
     let shipped = verdict.witness_vector();
@@ -547,7 +551,7 @@ fn a_bound_straddled_within_the_band_reads_holds_while_the_stackup_reads_under()
         uniform(),
     );
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &numeric_lane(), Tol::witness()).expect("builds");
+    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
     assert!(
         !verdict.certified().is_empty(),
         "the ε-scaled box certifies"
@@ -556,8 +560,7 @@ fn a_bound_straddled_within_the_band_reads_holds_while_the_stackup_reads_under()
     eprintln!("{}", budget.render(&doc));
     let mut seen = Vec::new();
     for leaf in verdict.certified() {
-        let ev = eval_over::<geom_core::Interval>(&doc, Some(leaf.box_.clone()));
-        seen.push(assertion_verdict(&ev, assertion));
+        seen.push(on_lane(&doc, &verdict, leaf, assertion));
     }
     // The enclosure straddles the bound by a few ulps — inside the
     // coincidence band `(−ε, ε)` — so the funnel classifies the margin
@@ -632,7 +635,7 @@ fn report_key_tells_two_budgets_apart() {
         &analyzed,
         &DriveConfig {
             max_leaves: 4,
-            ..numeric_lane()
+            ..DriveConfig::default()
         },
         Tol::witness(),
     )
@@ -642,7 +645,7 @@ fn report_key_tells_two_budgets_apart() {
         &analyzed,
         &DriveConfig {
             max_leaves: 4096,
-            ..numeric_lane()
+            ..DriveConfig::default()
         },
         Tol::witness(),
     )
@@ -655,11 +658,11 @@ fn report_key_tells_two_budgets_apart() {
     let slice = 7u128;
     let starved_cfg = DriveConfig {
         max_leaves: 4,
-        ..numeric_lane()
+        ..DriveConfig::default()
     };
     let full_cfg = DriveConfig {
         max_leaves: 4096,
-        ..numeric_lane()
+        ..DriveConfig::default()
     };
     let k_starved = report_key(
         "verdict",
@@ -803,11 +806,9 @@ fn neck_related(
 fn a_planted_violated_reads_violated_over_a_certified_leaf() {
     let (doc, assertion) = neck_related(0.3, 9, uniform(), AssertionRelation::AtMost);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &numeric_lane(), Tol::witness()).expect("builds");
+    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
     assert!(!verdict.certified().is_empty());
-    let leaf = &verdict.certified()[0];
-    let ev = eval_over::<geom_core::Interval>(&doc, Some(leaf.box_.clone()));
-    let v = assertion_verdict(&ev, assertion);
+    let v = on_lane(&doc, &verdict, &verdict.certified()[0], assertion);
     assert!(matches!(v, AssertionVerdict::Violated { .. }), "{v:?}");
 }
 
@@ -819,10 +820,8 @@ fn a_planted_violated_reads_violated_over_a_certified_leaf() {
 fn the_at_least_arm_that_read_the_carriers_end_now_refuses_by_name() {
     let (doc, assertion) = neck(0.5, 9, uniform());
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &numeric_lane(), Tol::witness()).expect("builds");
-    let leaf = &verdict.certified()[0];
-    let ev = eval_over::<geom_core::Interval>(&doc, Some(leaf.box_.clone()));
-    match assertion_verdict(&ev, assertion) {
+    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
+    match on_lane(&doc, &verdict, &verdict.certified()[0], assertion) {
         AssertionVerdict::Unevaluated {
             reason:
                 UnevaluatedReason::WindowSuperset {
@@ -849,10 +848,9 @@ fn equal_over_min_clearance_answers_only_off_the_faces_end() {
     let at = |bound| {
         let (doc, assertion) = neck_related(bound, 9, uniform(), AssertionRelation::Equal);
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-        let verdict = drive(&doc, &analyzed, &numeric_lane(), Tol::witness()).expect("builds");
-        let leaf = &verdict.certified()[0];
-        let ev = eval_over::<geom_core::Interval>(&doc, Some(leaf.box_.clone()));
-        assertion_verdict(&ev, assertion)
+        let verdict =
+            drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
+        on_lane(&doc, &verdict, &verdict.certified()[0], assertion)
     };
     let below = at(0.3);
     assert!(
@@ -885,7 +883,7 @@ fn a_wall_against_itself_reads_zero_and_its_at_least_bound_refuses_by_name() {
         &analyzed,
         &DriveConfig {
             max_leaves: 64,
-            ..numeric_lane()
+            ..DriveConfig::default()
         },
         Tol::witness(),
     )
@@ -929,7 +927,7 @@ fn a_wide_box_over_a_copy_certifies_whole() {
         &analyzed,
         &DriveConfig {
             max_leaves: 64,
-            ..numeric_lane()
+            ..DriveConfig::default()
         },
         Tol::witness(),
     )
@@ -999,7 +997,8 @@ fn a_mixed_document_is_forced_by_its_band_alone_and_split_band_masses_refuse_typ
         }
         other => panic!("{other:?}"),
     }
-    let verdict = drive(&r.doc, &analyzed, &numeric_lane(), Tol::witness()).expect("builds");
+    let verdict =
+        drive(&r.doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
     let budget = MassBudget::of(verdict.accounting(), &analyzed);
     eprintln!("mixed:\n{}\n{}", budget.render(&r.doc), budget.serialize());
     assert!(budget.render(&r.doc).contains("FORCED, not priced: lift"));
@@ -1149,7 +1148,7 @@ fn the_bracket_walk_through_the_public_doors() {
         },
     );
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &numeric_lane(), tol).expect("builds");
+    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), tol).expect("builds");
     eprintln!("== drive\n{}", verdict.render(&doc, &analyzed));
     assert!(
         !verdict.certified().is_empty(),
@@ -1247,10 +1246,9 @@ fn the_bracket_walk_through_the_public_doors() {
 
     eprintln!("== assertions over the certified leaves");
     for leaf in verdict.certified() {
-        let ev = eval_over::<geom_core::Interval>(&doc, Some(leaf.box_.clone()));
         let (a, b) = (
-            assertion_verdict(&ev, web_ok),
-            assertion_verdict(&ev, clear_ok),
+            on_lane(&doc, &verdict, leaf, web_ok),
+            on_lane(&doc, &verdict, leaf, clear_ok),
         );
         assert_eq!(a.holds(), Some(true), "{a:?}");
         assert_eq!(b.holds(), Some(true), "{b:?}");
@@ -1280,7 +1278,7 @@ fn the_bracket_walk_through_the_public_doors() {
         },
     );
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &numeric_lane(), tol).expect("builds");
+    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), tol).expect("builds");
     let budget = MassBudget::of(verdict.accounting(), &analyzed);
     eprintln!("== band budget\n{}", budget.render(&doc));
     assert!(matches!(budget.basis, MassBasis::Forced { .. }));
@@ -1433,7 +1431,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
     });
 
     let analyzed = analyzed_box(&r.doc, &AnalysisPolicy::default());
-    let verdict = drive(&r.doc, &analyzed, &numeric_lane(), tol).expect("builds");
+    let verdict = drive(&r.doc, &analyzed, &DriveConfig::default(), tol).expect("builds");
     assert!(!verdict.certified().is_empty());
     let report =
         stackup(&r.doc, measure, &analyzed, &verdict, None, true, None, tol).expect("stackup");
@@ -1446,8 +1444,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
     );
     assert!(report.worst_case.lo < bound, "the caption's premise");
     for leaf in verdict.certified() {
-        let lev = eval_over::<geom_core::Interval>(&r.doc, Some(leaf.box_.clone()));
-        let v = assertion_verdict(&lev, assertion);
+        let v = on_lane(&r.doc, &verdict, leaf, assertion);
         eprintln!("stop 2: the assertion node over the certified leaf: {v:?}");
         assert!(
             matches!(v, AssertionVerdict::Holds { .. }),

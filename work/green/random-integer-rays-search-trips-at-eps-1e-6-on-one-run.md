@@ -2,11 +2,12 @@
 id: random-integer-rays-search-trips-at-eps-1e-6-on-one-run
 kind: issue
 title: review_gui1_r1::random_integer_rays_match_the_exact_oracle failed once at eps = 1e-6 on a commit that passed it before and after
-status: open
+status: closed
 opened: 2026-09-09
 priority: P3
 cost: C
 rides_with: pick-oracle-sweep-anti-vacuity-fails-one-seed-in-1300
+closed: 2026-10-28
 ---
 
 
@@ -119,3 +120,29 @@ program). Three CI reds of this test on record name the guard
 (`pick-face-fuzz-anti-vacuity-guard-trips-at-effort-1`, two instances,
 one in the same `test (eps = 1e-6, 2/2)` shard) and none names the
 oracle, so P3 until a red says otherwise.
+
+## Closed (2026-10-28): it was the guard
+
+**Verdict: the 2026-09-09 red was the anti-vacuity guard, not the
+oracle.** The archived log was still retained, and it settles the
+question. The run is PR 2268's CI run `34385213731` (the second run of
+`ca64828d9`), job `test (eps = 1e-6, 2/2)`, job id `102581338874`:
+
+```
+panicked at crates/editor-core/tests/review_gui1_r1.rs:498:5:
+    no draw hit the cube — generator shape broke; reproduce with CAD_FUZZ_SEED=0xe8f689ecc59918bc CAD_FUZZ_EFFORT=1
+```
+
+So this row is a fifth instance of the guard and closes with
+`pick-oracle-sweep-anti-vacuity-fails-one-seed-in-1300`, which planted a
+hit in case 0. That seed passes after the fix at `CAD_TOLERANCE_EPS=1e-6`.
+
+**The oracle half was checked too, for today's tree.** The generator's
+whole input space is 7³ · 5³ = 42 875 integer `(o, d)` pairs. Eight seeds
+at `CAD_FUZZ_EFFORT=1000` and ε = 1e-6 drew 960 000 rays, and every one
+agreed with the exact oracle. The chance that any single pair went undrawn
+is (1 − 1/42875)^960000 ≈ e^-22, so the whole space was covered. Four
+seeds at effort 1000 at ε = 1e-12, and four more at the default ε,
+were green as well. **Blind spot:** this covers today's picking code. It
+cannot prove what the oracle comparison would have said on `ca64828d9`'s
+tree, but the archived message makes that question moot for this red.

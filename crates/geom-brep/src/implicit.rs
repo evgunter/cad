@@ -468,6 +468,23 @@ pub fn implicit_hessian_form<T: Real>(s: &Surface<T>, p: Point3<T>, d: Vec3<T>) 
     }
 }
 
+/// How fast `s` leaves the line through `p` along the unit tangent
+/// `d`, toward the unit `across` (perpendicular to `d`): the second
+/// derivative `−dᵀ(∇²F)d / (∇F·across)` of the surface's graph over
+/// the plane normal to `across`, at unit speed along `d`. Equally, the
+/// acceleration along `across` of the curve the plane spanned by `d`
+/// and `across` cuts from `s` (differentiate `F(c(t)) = 0` twice). A
+/// graph only where `∇F·across` is bounded away from zero; poison in,
+/// poison out.
+pub fn implicit_graph_acceleration<T: Real>(
+    s: &Surface<T>,
+    p: Point3<T>,
+    d: Vec3<T>,
+    across: Vec3<T>,
+) -> T {
+    T::zero() - implicit_hessian_form(s, p, d) / implicit_gradient(s, p).dot(across)
+}
+
 /// The trace of [`implicit_hessian_form`]'s Hessian restricted to the
 /// tangent plane at `p`, `tr H − n̂ᵀHn̂` with `n̂` the unit gradient: over
 /// `|∇F|`, the sum of the principal curvatures, signed against the

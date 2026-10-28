@@ -21,14 +21,11 @@ gives the goldening form, then `said_payload`, which is
 `ClearanceRefusal::payload`'s machine channel for every arm but
 `Selection` (`crates/editor-core/src/clearance.rs:577`, `payload` at `:674`). So:
 
-- **No arm states a recourse.** All fourteen rows are on
+- **No arm states a recourse.** All eleven rows are on
   `FILED_NO_RECOURSE` (`crates/editor-core/tests/refusal_concision_chains.rs:258`) under a comment citing this file: `Sliver`,
   `Budget`, `Unsupported`, `Selection`, `PoisonEnclosure`,
   `NothingCertified`, `NotADistance`, `EmptyScope`,
-  `ToleranceHasNoBand`, `WitnessUnverified`, and SELFX's `Uncertified`,
-  `CollapsedChart`, `TorusNotRing` and `RecordedContact` (SELFX retired
-  `NoAdmittedPair`). The four SELFX arms print their faces, edge and
-  vertex as keys too, each span admitted beside the others.
+  `ToleranceHasNoBand`, `NoAdmittedPair`, `WitnessUnverified`.
 - **The payload is the goldening form.** `Unsupported` and
   `PoisonEnclosure` print faces as `FaceKey` `Debug`, `NotADistance`
   prints the bound's bits (`bff0000000000000` for −1), and `Budget`
@@ -47,3 +44,12 @@ to the geometry — or in the kernel-defect ending for
 `WitnessUnverified`, which the enum's own docs call unreachable. Keep
 `name` and `payload` for the goldening form. Then drop the rows'
 admissions.
+
+## Narrowed (SYMCLEAR, 2026-10-28)
+
+`NodeErrorKind::MeasureClearanceRefused` now carries
+`topo::clearance::MinSeparationRefusal`, the arms its door can raise:
+`Unsupported`, `PoisonEnclosure`, `EmptyScope` (SELFX retired the
+fourth, `NoAdmittedPair`: scopes that meet read 0). The other seven rows and the `NotADistance` and
+`Budget` admissions are gone, and the census rows are
+`MeasureClearanceRefused/<arm>`.
