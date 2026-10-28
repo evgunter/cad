@@ -54,9 +54,15 @@ bare name before it reads the record, and neither site leaves a
   non-periodic carrier that cannot happen. Each member of the set
   overlaps both edges, so the member covering the first edge's start
   runs past that edge's end and holds it whole, which makes the first
-  edge `JoinedCover::One`. Only a closed carrier escapes this (two arcs
-  overlapping at both ends). Even there the set is keyed by operand
-  edges, so one candidate's count is on record.
+  edge `JoinedCover::One`. A closed carrier escapes this argument:
+  two arcs that overlap at both ends could give one set two result
+  edges. That case is unbuilt. The review tried 7 disc-minus-slot
+  variants and got no `Merged` edge. Still untried is a lateral face
+  merged across two coaxial coincident cylinders. If such a tied set
+  were reached, its rung would decline when it need not. The set is
+  keyed by operand edges, so its members are one candidate's. But
+  `record_by_name(.., from_tie)` stores `tie_summed = true`, so
+  `line_counts` (`groups.rs`) returns `None` for it.
 
 Measured as well. The editor-core suite ran without its interval and
 m10 slow rows, about 2,700 tests, with `record_by_name` and
@@ -66,7 +72,11 @@ m10 slow rows, about 2,700 tests, with `record_by_name` and
 
 So `Group::tie_summed` is never read by a rung that answers. Proposed,
 not done (src): record joined sets with `record(.., Parent::Elsewhere)`,
-since they are keyed per candidate already. Then retire
+since they are keyed per candidate already. That is also the fix for the
+closed-carrier case above. `Group::tie_summed`'s doc (`groups.rs`) is
+false at the joined-set site: it says tied parents' members may share
+the group, but that group is keyed per candidate. Fix the doc with the
+proposal. Then retire
 `record_by_name` and `tie_summed`, or keep them with
 `group_resized`'s doc saying the rung never reaches such a group.
 `emit_union`'s one call passes `tied = false` and is

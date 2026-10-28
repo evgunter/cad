@@ -13,33 +13,11 @@
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, EntityKind, Entry, EvalOptions, Evaluation, NameTable, Node, ProfileDoc,
-    RecipeNodeId, RoleSeg, SplitHalf, StableName, evaluate,
+    Bodies, EntityKind, Entry, EvalOptions, NameTable, Node, ProfileDoc, RecipeNodeId, RoleSeg,
+    SplitHalf, StableName,
 };
-use fixture::{insert, len, plane_on_frame, slid, table};
+use fixture::{insert, plane_on_frame, prism, slid, table};
 use geom_core::Tol;
-
-fn run(doc: &ProfileDoc) -> Evaluation<f64> {
-    evaluate::<f64>(
-        doc,
-        None,
-        &CancelToken::new(),
-        &EvalOptions::default(),
-        Tol::witness(),
-    )
-}
-
-/// A prism: the polygon `pts` on its own xy, extruded `dz`.
-fn prism(doc: ProfileDoc, pts: Vec<(f64, f64)>, dz: f64) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = insert(doc, Node::Profile(fixture::desc(vec![pts])));
-    insert(
-        doc,
-        Node::Extrude {
-            profile: p.into(),
-            distance: len(dz),
-        },
-    )
-}
 
 /// **The U-cutter tie with a pocket under its prongs, split at x = 3.**
 ///
@@ -62,20 +40,7 @@ fn pocketed_prongs_split() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)],
         4.0,
     );
-    let (doc, u) = prism(
-        doc,
-        vec![
-            (2.0, 1.0),
-            (6.0, 1.0),
-            (6.0, 3.0),
-            (2.0, 3.0),
-            (2.0, 2.5),
-            (5.0, 2.5),
-            (5.0, 1.5),
-            (2.0, 1.5),
-        ],
-        2.0,
-    );
+    let (doc, u) = fixture::u_cutter(doc);
     let (doc, u) = slid(doc, a, u, [0.0, 0.0, 1.0]);
     let (doc, pocket) = prism(
         doc,
@@ -86,7 +51,7 @@ fn pocketed_prongs_split() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, tool) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![u.into(), pocket.into()]),
+            members: Bodies::Spelled(vec![u.into(), pocket.into()]),
         },
     );
     let (doc, sub) = insert(
@@ -127,10 +92,12 @@ fn seams_beside_a_merge<'t>(
         .collect()
 }
 
+/// **Each tied floor's joined seam beside the merged section is its
+/// own group: the bare name, tied over the two candidates.**
 #[test]
 fn a_tied_faces_joined_seam_beside_the_merge_is_the_bare_name() {
     let (doc, sub, split) = pocketed_prongs_split();
-    let ev = run(&doc);
+    let ev = fixture::run(&doc, &EvalOptions::default());
     let tied: Vec<&StableName> = table(&ev, sub)
         .iter()
         .filter(|(n, e)| n.kind == EntityKind::Face && matches!(e, Entry::Tied(c) if c.len() == 2))
