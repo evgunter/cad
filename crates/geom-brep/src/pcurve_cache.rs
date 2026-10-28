@@ -3008,7 +3008,7 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
         | P::TubeStraddles { .. }
         | P::TubeNotOneArc { .. }
         | P::Escalated { .. }
-        | P::ArcRimEscalated { .. }
+        | P::ArcRim(_)
         | P::ReportedTransversalityPoisoned(_)
         | P::ChartSpeed(_)
         | P::CarrierEnclosure(_)) => unreachable!(

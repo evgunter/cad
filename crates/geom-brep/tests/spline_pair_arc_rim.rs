@@ -6,22 +6,27 @@
 //!
 //! The walls are rings of revolution about `z`: a cylinder and a flat
 //! annulus meeting at right angles along their shared unit circle, the
-//! `v = 0` row of each. The degree-1 image fitted through that rim's
-//! feet misses it by 5.3e-5 m at a break, past the band at every
-//! ε; the exact image's envelope is a few ulps.
+//! `v = 0` row of each. Measured 2026-10-28 at ε 1e-9: the degree-1 image
+//! fitted through the whole rim's feet misses it by 5.3e-5 m at a break,
+//! where the exact image's certificate passes.
 //!
-//! Every row here reaches limb 3 or refuses before it, and the tube
-//! refuses a rim on both charts' boundary
+//! An exact image is a boundary row, and limb 3's tube refuses a rim on a
+//! chart's boundary row undecided
 //! (`work/ssiedge/a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary.md`),
-//! so the rows read which limb refused: a fitted limb 1 or 2 is the
-//! fitted image's verdict, limb 3 says limbs 1 and 2 cleared.
+//! so no row here reaches `Ok` through an exact chart. The rows read
+//! which limb refused: limb 3's undecided walk says limbs 1 and 2
+//! cleared on the exact image, and [`ArcRimRefusal::Refused`] that they
+//! fell back to the fitted image and refused there.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::shared::tol::band;
 use geom::{Curve3, NurbsSurface};
 use geom_brep::edge_nurbs::sub_arc_joint;
-use geom_brep::{PcurveCheck, PlaneNurbsLimbs, PlaneNurbsRefusal, SsiLimb, nurbs_pair_limbs};
+use geom_brep::ssi::OneArcRefusal;
+use geom_brep::{
+    ArcRimRefusal, PcurveCheck, PlaneNurbsLimbs, PlaneNurbsRefusal, SsiLimb, nurbs_pair_limbs,
+};
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Vec3};
 
@@ -98,24 +103,25 @@ fn limbs(
     nurbs_pair_limbs(carrier, params, a, b, 1.0, band())
 }
 
-/// Whether `got` cleared limbs 1 and 2: it certified, or refused at the
-/// tube.
-fn past_incidence(got: &Limbs) -> bool {
+/// Whether `got` refused at limb 3's one-arc walk, undecided: the
+/// tube's reading of a rim on a chart's boundary row, which only limbs 1
+/// and 2 cleared reach.
+fn tube_undecided(got: &Limbs) -> bool {
     matches!(
         got,
-        Ok(_)
-            | Err(PlaneNurbsRefusal::TubeNotOneArc { .. } | PlaneNurbsRefusal::TubeStraddles { .. })
+        Err(PlaneNurbsRefusal::TubeNotOneArc {
+            cause: OneArcRefusal::Undecided(_),
+            ..
+        })
     )
 }
 
-/// The refusing limb of a fitted limb-1 or limb-2 refusal, definite or
-/// undecided.
-fn fitted_limb(got: &Limbs) -> Option<SsiLimb> {
+/// The exact image's refusing check and the fitted limb, where `got`
+/// fell back to a chart's fitted image and refused there.
+fn fell_back(got: &Limbs) -> Option<(Option<PcurveCheck>, SsiLimb)> {
     match got {
-        Err(PlaneNurbsRefusal::Limb { limb, .. } | PlaneNurbsRefusal::Escalated { limb, .. })
-            if *limb != SsiLimb::Tube =>
-        {
-            Some(*limb)
+        Err(PlaneNurbsRefusal::ArcRim(ArcRimRefusal::Refused { iso, limb, .. })) => {
+            Some((*iso, *limb))
         }
         _ => None,
     }
@@ -135,7 +141,7 @@ fn a_rim_on_both_walls_rows_reads_past_the_fitted_images_miss() {
     ] {
         let got = limbs(&carrier, params, a, b);
         assert!(
-            past_incidence(&got),
+            tube_undecided(&got),
             "{what}: limbs 1 and 2 clear on the exact images: {got:?}"
         );
     }
@@ -156,10 +162,10 @@ fn flat(h: f64) -> NurbsSurface<f64> {
 }
 
 /// **A chart with no exact image falls back to its fitted image.** The
-/// cylinder holds the rim as its row; the flat chart holds it inside,
-/// where the fitted image's chord misses it by `≈ 1.8e-4` m. The lane
-/// refuses on that chart's fitted limb, in both orders, whichever side
-/// reads exactly.
+/// cylinder holds the rim as its row; the flat chart holds it inside, so
+/// no candidate holds it there, and its fitted image's chord misses it
+/// (1.8e-4 m at ε 1e-9, measured 2026-10-28). The lane refuses on that
+/// chart's fitted limb, carrying that no image held, in both orders.
 #[test]
 fn the_chart_with_no_exact_image_reads_its_fitted_one() {
     let (carrier, params) = (rim(1.0), (0.0, TURN));
@@ -170,7 +176,7 @@ fn the_chart_with_no_exact_image_reads_its_fitted_one() {
     ] {
         let got = limbs(&carrier, params, a, b);
         assert!(
-            fitted_limb(&got).is_some(),
+            matches!(fell_back(&got), Some((None, _))),
             "{what}: the flat chart's fitted image refuses: {got:?}"
         );
     }
@@ -211,8 +217,8 @@ fn an_image_its_certificate_refuses_is_not_read() {
     );
     let got = limbs(&carrier, params, &bent, &annulus(2, TURN));
     assert!(
-        fitted_limb(&got).is_some(),
-        "the bent cylinder's fitted image refuses: {got:?}"
+        matches!(fell_back(&got), Some((Some(_), _))),
+        "the bent cylinder's fitted image refuses, past its image's refusal: {got:?}"
     );
 }
 
@@ -225,10 +231,10 @@ fn an_exact_image_that_escalates_escalates() {
     let carrier = rim(1.0 + 0.5 * (b.zero() + b.escalate()));
     let got = limbs(&carrier, (0.0, TURN), &cylinder(1, TURN), &annulus(1, TURN));
     let Err(
-        e @ PlaneNurbsRefusal::ArcRimEscalated {
+        e @ PlaneNurbsRefusal::ArcRim(ArcRimRefusal::Escalated {
             check: PcurveCheck::MapResidual,
             ..
-        },
+        }),
     ) = &got
     else {
         panic!("the pick escalates at the cylinder's row: {got:?}");
@@ -259,17 +265,50 @@ fn a_closed_ring_reads_the_arc_its_rim_lies_on() {
     let carrier = rim(1.0);
     let clear = limbs(&carrier, (0.5, 1.5), &a, &b);
     assert!(
-        past_incidence(&clear),
+        tube_undecided(&clear),
         "a rim clear of the seam reads its row: {clear:?}"
     );
     let shifted = limbs(&carrier, (0.5 + tau, 1.5 + tau), &a, &b);
     assert!(
-        past_incidence(&shifted),
+        tube_undecided(&shifted),
         "and a turn on, the same row: {shifted:?}"
     );
     let across = limbs(&carrier, (-0.2, 0.4), &a, &b);
     assert!(
-        !past_incidence(&across),
+        matches!(fell_back(&across), Some((None, _))),
         "a rim across the seam reads no single arc of the row: {across:?}"
     );
+}
+
+/// **An exact chart's tube is built about the rim.** A short edge of the
+/// unit rim, clear of every `u` boundary, its span `√ε`-scaled so the
+/// fitted chart's chord miss, quadratic in the span, stays inside the
+/// band. Inside both rings it certifies through the fitted images. With
+/// it on the annulus' `v = 0` row, that chart reads its exact image and
+/// the tube is built about its polyline: the walk holds the rim on a face
+/// of every box and is undecided. A tube about any other locus finds no
+/// solution in its boxes and refuses `Count` instead.
+#[test]
+fn an_exact_charts_tube_is_about_the_rim() {
+    let span = 0.03 * (crate::shared::tol::eps() / 1e-6).sqrt();
+    let params = (0.5, 0.5 + span);
+    let carrier = rim(1.0);
+    let inside_cylinder = ring(1, TURN, [(1.0, -1.0), (1.0, 1.0)], |_| 1.0);
+    let inside_annulus = ring(1, TURN, [(0.5, 0.0), (2.0, 0.0)], |_| 1.0);
+    let interior = limbs(&carrier, params, &inside_cylinder, &inside_annulus);
+    assert!(
+        interior.is_ok(),
+        "the rim inside both rings certifies: {interior:?}"
+    );
+    let row = annulus(1, TURN);
+    for (what, a, b) in [
+        ("cylinder × annulus row", &inside_cylinder, &row),
+        ("annulus row × cylinder", &row, &inside_cylinder),
+    ] {
+        let got = limbs(&carrier, params, a, b);
+        assert!(
+            tube_undecided(&got),
+            "{what}: the tube about the exact image holds the rim on its face: {got:?}"
+        );
+    }
 }

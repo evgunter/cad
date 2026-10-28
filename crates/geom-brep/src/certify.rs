@@ -693,68 +693,11 @@ pub enum CertifyError {
     /// 2 refusal bounds it through the lane's own image of it on a
     /// spline wall ([`crate::edge_nurbs::PlaneNurbsRefusal::Limb`]).
     PlaneNurbs(crate::edge_nurbs::PlaneNurbsRefusal),
-    /// `OnPair` of a plane and a spline wall over an ARC rim: the arc
-    /// rim's exact image did not certify against the wall
-    /// ([`crate::plane_nurbs_incidence`]), definitely, and the
-    /// certificate through the carrier's fitted image refused too. Both
-    /// causes are carried: the check of the exact image's certificate
-    /// that refused, and the fitted path's limb with its bound — an
-    /// upper bound on the miss, which the fitted image's bent foot path
-    /// inflates on an arc, never the miss itself. The refusal reads as
-    /// the exact image's check where it names one
-    /// ([`crate::pcurve_cache::PcurveCheck::incidence_limb`]), and as the
-    /// fitted limb otherwise. (A fitted path that refused before
-    /// bounding refuses as the lane's own, [`CertifyError::PlaneNurbs`];
-    /// an exact image that escalated, as [`CertifyError::Escalated`].)
-    OnPairArcRim {
-        /// The check of the exact arc-rim image's certificate that
-        /// refused definitely (a stated image, or a picked one that held
-        /// at the pick's probe), `None` where no image was in hand — no
-        /// candidate held the carrier at the probe: a rim off the wall,
-        /// or a partial one, whose full-row images part from it there —
-        /// or the refusal was no check's.
-        iso: Option<crate::pcurve_cache::PcurveCheck>,
-        /// The fitted path's refusing limb.
-        limb: crate::ssi::SsiLimb,
-        /// Its bound.
-        bound: geom_core::MarginDiag,
-    },
     /// `Intersection` of two analytic surfaces: C2's limbs (the
     /// carrier's distance from each operand, for every carrier kind, and
     /// the uniqueness tube, for a spline carrier) refused, carrying
     /// their own verdict ([`crate::analytic_edge_limbs`]).
     AnalyticRung3(crate::edge_nurbs::AnalyticRung3Refusal),
-}
-
-/// What an arc rim's exact image said, in the words of
-/// [`CertifyError::OnPairArcRim`]'s refusal.
-fn exact_arc_rim_words(iso: Option<crate::pcurve_cache::PcurveCheck>) -> &'static str {
-    use crate::pcurve_cache::PcurveCheck as C;
-    match iso {
-        None => "no image along a boundary row of its wall holds it",
-        Some(C::MapResidual) => {
-            "its exact image along a boundary row of its wall misses it by more than the \
-             tolerance at a sample"
-        }
-        Some(C::Envelope | C::EnvelopeTerm(_)) => {
-            "the bound on its exact boundary-row image's miss between samples exceeds the \
-             tolerance"
-        }
-        Some(C::ParamSpan) => concat!(
-            "its exact image along a boundary row of its wall does not run forward over a clear ",
-            length_noun!()
-        ),
-        Some(
-            C::ChartWinding
-            | C::ChartClass
-            | C::GeneralLane
-            | C::ImageIdentity
-            | C::AzimuthPeriod
-            | C::TubePeriod
-            | C::ChartIncidence
-            | C::Sector,
-        ) => "its exact boundary-row image's certificate refused it",
-    }
 }
 
 /// The certification check an arc rim's exact image's `check` restates
@@ -898,19 +841,14 @@ impl core::fmt::Display for CertifyError {
                 };
                 write!(f, " definitely exceeds the tolerance band ({claim}, D4 ¶2)")
             }
+            // An arc rim's refusal is told in its own words: the plane
+            // lane's `OnPair` reads one as well as the `Intersection` lanes.
+            Self::PlaneNurbs(refusal @ crate::edge_nurbs::PlaneNurbsRefusal::ArcRim(_)) => {
+                write!(f, "{refusal}")
+            }
             Self::PlaneNurbs(refusal) => {
                 write!(f, "the spline Intersection lane refused — {refusal}")
             }
-            Self::OnPairArcRim { iso, limb, bound } => write!(
-                f,
-                "an arc rim's incidence on its spline wall did not certify: {}, and the check \
-                 through its fitted image refused too — {}",
-                exact_arc_rim_words(*iso),
-                crate::edge_nurbs::PlaneNurbsRefusal::Limb {
-                    limb: *limb,
-                    margin: *bound
-                }
-            ),
             Self::AnalyticRung3(refusal) => write!(
                 f,
                 "the analytic Intersection's rung-3 certificate refused — {refusal}"
@@ -1027,14 +965,6 @@ impl CertifyError {
                 CertCheck::ChartIncidence,
                 crate::IncidenceRead::of_margin(*margin).arm(),
             ),
-            Self::OnPairArcRim { iso, limb, bound } => {
-                match iso.and_then(crate::pcurve_cache::PcurveCheck::incidence_limb) {
-                    // The exact image's check: its certificate carries
-                    // no margin past its verdict.
-                    Some(exact) => (exact.check(), RefusedArm::SignCertain(None)),
-                    None => (limb.check(), RefusedArm::SignCertain(Some(*bound))),
-                }
-            }
             Self::PlaneNurbs(refusal) => return refusal.decision(),
             Self::AnalyticRung3(refusal) => return refusal.decision(),
             Self::UnresolvedSurface { .. }
@@ -2395,7 +2325,7 @@ pub struct NurbsLane<T: Real> {
         Band,
     ) -> Result<
         crate::edge_nurbs::PlaneNurbsIncidence<T>,
-        crate::edge_nurbs::IncidenceRefusal,
+        crate::edge_nurbs::PlaneNurbsRefusal,
     >,
     /// [`crate::curve_face::composite::crossings`] at `T`, its scalars
     /// crossed by their certified enclosures.
@@ -2587,7 +2517,7 @@ impl<T: Real> NurbsLane<T> {
         wall: &Surface<T>,
         stated: Option<&crate::pcurve_cache::Pcurve<T>>,
         band: Band,
-    ) -> Result<crate::edge_nurbs::PlaneNurbsIncidence<T>, crate::edge_nurbs::IncidenceRefusal>
+    ) -> Result<crate::edge_nurbs::PlaneNurbsIncidence<T>, crate::edge_nurbs::PlaneNurbsRefusal>
     {
         (self.incidence)(carrier, params, plane, wall, stated, band)
     }
@@ -3417,11 +3347,13 @@ fn from_plane_nurbs(e: crate::edge_nurbs::PlaneNurbsRefusal) -> CertifyError {
             sample: NOT_A_SAMPLE,
             cause,
         },
-        P::ArcRimEscalated { check, cause } => CertifyError::Escalated {
-            check: arc_rim_check(check),
-            sample: NOT_A_SAMPLE,
-            cause,
-        },
+        P::ArcRim(crate::edge_nurbs::ArcRimRefusal::Escalated { check, cause }) => {
+            CertifyError::Escalated {
+                check: arc_rim_check(check),
+                sample: NOT_A_SAMPLE,
+                cause,
+            }
+        }
         P::ReportedTransversalityPoisoned(cause) => CertifyError::Escalated {
             check: CertCheck::PlaneNurbsReportedTransversality,
             sample: NOT_A_SAMPLE,
@@ -4347,23 +4279,7 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
         let stated = stated.filter(|s| s.surface == *wall_key).map(|s| &s.pcurve);
         let incidence = lane
             .incidence(&spec.carrier, (t0, t1), plane, wall, stated, band)
-            .map_err(|e| match e {
-                crate::edge_nurbs::IncidenceRefusal::Lane(e) => from_plane_nurbs(e),
-                crate::edge_nurbs::IncidenceRefusal::ArcRim { iso, limb, bound } => {
-                    CertifyError::OnPairArcRim {
-                        iso: iso.and_then(|iso| iso.refused_check()),
-                        limb,
-                        bound,
-                    }
-                }
-                crate::edge_nurbs::IncidenceRefusal::ArcRimEscalated { check, cause } => {
-                    CertifyError::Escalated {
-                        check: arc_rim_check(check),
-                        sample: NOT_A_SAMPLE,
-                        cause,
-                    }
-                }
-            })?;
+            .map_err(from_plane_nurbs)?;
         max_residual = max_residual
             .max(incidence.on_locus_max.abs())
             .max(incidence.hull_sup.abs());
@@ -5130,11 +5046,13 @@ mod tests {
                 "length",
                 "length",
                 vec![
-                    CertifyError::OnPairArcRim {
-                        iso: Some(crate::pcurve_cache::PcurveCheck::ParamSpan),
-                        limb: crate::ssi::SsiLimb::HullSupChart,
-                        bound: MarginDiag::value(5e-6),
-                    }
+                    CertifyError::PlaneNurbs(crate::edge_nurbs::PlaneNurbsRefusal::ArcRim(
+                        crate::edge_nurbs::ArcRimRefusal::Refused {
+                            iso: Some(crate::pcurve_cache::PcurveCheck::ParamSpan),
+                            limb: crate::ssi::SsiLimb::HullSupChart,
+                            bound: MarginDiag::value(5e-6),
+                        },
+                    ))
                     .to_string(),
                 ],
             ),

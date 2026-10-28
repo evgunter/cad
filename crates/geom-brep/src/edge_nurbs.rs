@@ -220,17 +220,10 @@ pub enum PlaneNurbsRefusal {
         /// The classifier's diagnostic.
         cause: Indeterminate,
     },
-    /// An arc rim's exact image on one of the two charts escalated, at
-    /// the pick ([`pick_arc_rim`], its map residual at the probe) or in
-    /// its certificate. The undecided reading is the rim's, and the
-    /// fitted image does not make it definite (D4 ¶3), as
-    /// [`IncidenceRefusal::ArcRimEscalated`] on the plane lane.
-    ArcRimEscalated {
-        /// The exact image's check that escalated.
-        check: crate::pcurve_cache::PcurveCheck,
-        /// The classifier's diagnostic.
-        cause: Indeterminate,
-    },
+    /// An arc rim's exact image on a chart did not certify it
+    /// ([`ArcRimRefusal`]), on the plane lane's wall or either chart of
+    /// the pair lane.
+    ArcRim(ArcRimRefusal),
     /// The reported transversality — the minimum sine over interior
     /// samples that each decided transverse — came out poisoned. No
     /// geometry and no tolerance reaches it, so it is a kernel defect.
@@ -251,6 +244,147 @@ pub enum PlaneNurbsRefusal {
         /// The refused class, named.
         what: &'static str,
     },
+}
+
+/// **Why an arc rim's exact image on a spline chart did not certify it**,
+/// on either lane that reads one ([`plane_nurbs_incidence`],
+/// [`nurbs_pair_limbs`]), by the one policy both follow:
+///
+/// - an exact image that escalates, at the pick or in its certificate,
+///   refuses with that escalation, and the fitted image does not make it
+///   definite (D4 ¶3, the pcurve mint's rule too);
+/// - one that refuses definitely, or a rim no candidate holds, reads the
+///   chart's fitted image, and where that image's certificate refuses at
+///   a limb with its bound, both causes are carried. That bound is an
+///   upper bound on the miss, which the fitted image's bent foot path
+///   inflates on an arc, never the miss itself. A fitted path that
+///   refused before bounding refuses as itself.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(
+    feature = "test-support",
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(ArcRimRefusalKind), derive(strum::EnumIter), doc(hidden))
+)]
+pub enum ArcRimRefusal {
+    /// The exact image refused definitely and the fitted image's
+    /// certificate refused at a limb.
+    Refused {
+        /// The check of the exact image's certificate that refused, `None`
+        /// where no image was in hand (no candidate held the carrier at
+        /// the pick's probe: a rim off the chart, or a partial one whose
+        /// full-row images part from it there) or the refusal was no
+        /// check's.
+        iso: Option<crate::pcurve_cache::PcurveCheck>,
+        /// The fitted path's refusing limb.
+        limb: SsiLimb,
+        /// Its bound.
+        bound: MarginDiag,
+    },
+    /// The exact image escalated, at the pick ([`pick_arc_rim`], its map
+    /// residual at the probe) or in its certificate.
+    Escalated {
+        /// The exact image's check that escalated.
+        check: crate::pcurve_cache::PcurveCheck,
+        /// The classifier's diagnostic.
+        cause: Indeterminate,
+    },
+}
+
+impl ArcRimRefusal {
+    /// The decision this refusal is a refused arm of. A definite refusal
+    /// reads as the exact image's check where that names an incidence
+    /// limb ([`crate::pcurve_cache::PcurveCheck::incidence_limb`]), its
+    /// certificate carrying no margin past its verdict, and as the fitted
+    /// limb with its bound otherwise; an escalation reads as the exact
+    /// image's check, undecided.
+    #[must_use]
+    pub fn decision(&self) -> (CertCheck, RefusedArm<'_>) {
+        match self {
+            Self::Refused { iso, limb, bound } => {
+                match iso.and_then(crate::pcurve_cache::PcurveCheck::incidence_limb) {
+                    Some(exact) => (exact.check(), RefusedArm::SignCertain(None)),
+                    None => (limb.check(), RefusedArm::SignCertain(Some(*bound))),
+                }
+            }
+            Self::Escalated { check, cause } => (
+                crate::certify::arc_rim_check(*check),
+                RefusedArm::Undecided(cause),
+            ),
+        }
+    }
+}
+
+impl core::fmt::Display for ArcRimRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Refused { iso, limb, bound } => write!(
+                f,
+                "an arc rim's incidence on its spline wall did not certify: {}, and the check \
+                 through its fitted image refused too — {}",
+                exact_arc_rim_words(*iso),
+                PlaneNurbsRefusal::Limb {
+                    limb: *limb,
+                    margin: *bound
+                }
+            ),
+            Self::Escalated { check, cause } => write!(
+                f,
+                "an arc rim's exact image along a boundary row of its wall escalated at its \
+                 {check:?} check: {}",
+                cause.payload()
+            ),
+        }
+    }
+}
+
+/// What an arc rim's exact image said, in [`ArcRimRefusal::Refused`]'s
+/// words.
+fn exact_arc_rim_words(iso: Option<crate::pcurve_cache::PcurveCheck>) -> &'static str {
+    use crate::pcurve_cache::PcurveCheck as C;
+    match iso {
+        None => "no image along a boundary row of its wall holds it",
+        Some(C::MapResidual) => {
+            "its exact image along a boundary row of its wall misses it by more than the \
+             tolerance at a sample"
+        }
+        Some(C::Envelope | C::EnvelopeTerm(_)) => {
+            "the bound on its exact boundary-row image's miss between samples exceeds the \
+             tolerance"
+        }
+        Some(C::ParamSpan) => concat!(
+            "its exact image along a boundary row of its wall does not run forward over a clear ",
+            crate::certify::length_noun!()
+        ),
+        Some(
+            C::ChartWinding
+            | C::ChartClass
+            | C::GeneralLane
+            | C::ImageIdentity
+            | C::AzimuthPeriod
+            | C::TubePeriod
+            | C::ChartIncidence
+            | C::Sector,
+        ) => "its exact boundary-row image's certificate refused it",
+    }
+}
+
+/// A chart's fitted-image refusal `fitted`, after its exact image refused
+/// definitely where `exact` is `Some` ([`ArcRimRefusal`]'s policy): a
+/// limb's refusal carries both causes; any other stands as itself.
+fn after_exact(
+    fitted: PlaneNurbsRefusal,
+    exact: Option<Option<crate::pcurve_cache::PcurveCheck>>,
+) -> PlaneNurbsRefusal {
+    match (fitted, exact) {
+        (PlaneNurbsRefusal::Limb { limb, margin }, Some(iso)) => {
+            PlaneNurbsRefusal::ArcRim(ArcRimRefusal::Refused {
+                iso,
+                limb,
+                bound: margin,
+            })
+        }
+        (fitted, _) => fitted,
+    }
 }
 
 /// What [`PlaneNurbsRefusal::PcurveFit`] states, and the pcurve mint's
@@ -407,10 +541,7 @@ impl PlaneNurbsRefusal {
             // and this refusal is its decided verdict.
             Self::TubeStraddles { verdict, .. } => (CertCheck::TransversalityTube, verdict.arm()),
             Self::Escalated { limb, cause } => (limb.check(), RefusedArm::Undecided(cause)),
-            Self::ArcRimEscalated { check, cause } => (
-                crate::certify::arc_rim_check(*check),
-                RefusedArm::Undecided(cause),
-            ),
+            Self::ArcRim(refusal) => return Some(refusal.decision()),
             Self::ReportedTransversalityPoisoned(cause) => (
                 CertCheck::PlaneNurbsReportedTransversality,
                 RefusedArm::Undecided(cause),
@@ -524,14 +655,7 @@ impl core::fmt::Display for PlaneNurbsRefusal {
             Self::Escalated { limb, cause } => {
                 write!(f, "{} escalated: {}", limb.name(), cause.payload())
             }
-            Self::ArcRimEscalated { check, cause } => core::fmt::Display::fmt(
-                &crate::certify::CertifyError::Escalated {
-                    check: crate::certify::arc_rim_check(*check),
-                    sample: crate::certify::NOT_A_SAMPLE,
-                    cause: *cause,
-                },
-                f,
-            ),
+            Self::ArcRim(refusal) => write!(f, "{refusal}"),
             Self::TubeNotOneArc { rungs, cause } => write!(
                 f,
                 "the tube was not proved to hold one arc spanning the carrier at {rungs} rungs; \
@@ -1056,41 +1180,6 @@ pub fn first_within<C, T: Decide>(
     deferred.map_or(Ok(None), Err)
 }
 
-/// What [`plane_nurbs_incidence`] refused.
-#[derive(Clone, Debug, PartialEq)]
-pub enum IncidenceRefusal {
-    /// The lane's own refusal, with its measured bound.
-    Lane(PlaneNurbsRefusal),
-    /// An arc rim whose exact image did not certify, and whose fitted
-    /// image's certificate then refused too: why the exact image did
-    /// not certify, and the fitted path's refusing limb with its bound.
-    /// That bound is an upper bound on the miss, which on an arc rim the
-    /// fitted image's bent foot path inflates — never the miss itself.
-    /// A fitted path that refused before bounding is
-    /// [`IncidenceRefusal::Lane`].
-    ArcRim {
-        /// The exact image's certificate's definite refusal (of the
-        /// stated image, or of the picked one); `None` where no image
-        /// was in hand: no candidate held the carrier at the probe.
-        iso: Option<crate::pcurve_cache::PcurveCertifyError>,
-        /// The fitted path's refusing limb.
-        limb: crate::ssi::SsiLimb,
-        /// Its bound.
-        bound: MarginDiag,
-    },
-    /// The arc rim's exact image escalated, at the pick
-    /// ([`pick_arc_rim`], its map residual at the probe) or in its
-    /// certificate. The undecided reading is the rim's, and the fitted
-    /// path does not make it definite (D4 ¶3), the pcurve mint's rule
-    /// too: an escalated candidate outranks every definite fall-through.
-    ArcRimEscalated {
-        /// The exact image's check that escalated.
-        check: crate::pcurve_cache::PcurveCheck,
-        /// The classifier's diagnostic.
-        cause: Indeterminate,
-    },
-}
-
 /// **Incidence alone on a plane × NURBS pair**: [`plane_nurbs_limbs`]'
 /// limbs 1 and 2 and nothing about how the two surfaces meet — no
 /// normal-angle sweep and no uniqueness tube. It is `OnPair`'s
@@ -1114,10 +1203,8 @@ pub enum IncidenceRefusal {
 ///   ([`arc_rim_measured`]). Its one limit is **an `f64` read**: the
 ///   row's weight pattern is read on the `f64` value channel.
 ///
-///   An exact image that ESCALATES, at the pick or in its certificate,
-///   refuses with that escalation
-///   ([`IncidenceRefusal::ArcRimEscalated`]). One that refuses
-///   definitely, or a rim no candidate holds, reads the fitted path
+///   Where it does not certify, [`ArcRimRefusal`]'s policy decides: an
+///   escalation refuses, and a definite refusal reads the fitted path
 ///   below, a sound certificate of its own.
 /// - **Any other carrier**: the carrier's fitted chart image
 ///   ([`chart_image`], from the same fixed schedule of foot points as
@@ -1130,13 +1217,11 @@ pub enum IncidenceRefusal {
 ///
 /// # Errors
 ///
-/// [`IncidenceRefusal::Lane`]: the analytic side not a plane, a
-/// placeholder or non-spline wall, a foot that will not converge, an
-/// image that will not fit, and either limb's refusal with its measured
-/// bound. [`IncidenceRefusal::ArcRim`]: a circle carrier whose exact
-/// image and fitted image both refuse, carrying both.
-/// [`IncidenceRefusal::ArcRimEscalated`]: a circle carrier whose exact
-/// image escalated.
+/// [`PlaneNurbsRefusal`]: the analytic side not a plane, a placeholder
+/// or non-spline wall, a foot that will not converge, an image that will
+/// not fit, and either limb's refusal with its measured bound;
+/// [`PlaneNurbsRefusal::ArcRim`] for a circle carrier whose exact image
+/// did not certify, by [`ArcRimRefusal`]'s policy.
 pub fn plane_nurbs_incidence<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     carrier: &Curve3<T>,
     params: (T, T),
@@ -1144,18 +1229,18 @@ pub fn plane_nurbs_incidence<T: Decide + Bounds + geom_core::CertifiedEnclosure>
     wall: &Surface<T>,
     stated: Option<&Pcurve<T>>,
     band: Band,
-) -> Result<PlaneNurbsIncidence<T>, IncidenceRefusal> {
+) -> Result<PlaneNurbsIncidence<T>, PlaneNurbsRefusal> {
     use crate::ssi::certify::IncidenceOperand;
     let Some(chart) = wall.spline_chart() else {
-        return Err(IncidenceRefusal::Lane(PlaneNurbsRefusal::Unsupported {
+        return Err(PlaneNurbsRefusal::Unsupported {
             what: "the wall of this lane is a spline chart",
-        }));
+        });
     };
-    plane_lane_door(plane, chart).map_err(IncidenceRefusal::Lane)?;
+    plane_lane_door(plane, chart)?;
     let exact = match carrier {
         Curve3::Circle { .. } => Some(
             exact_arc_rim(carrier, params, wall, stated, band)
-                .map_err(|(check, cause)| IncidenceRefusal::ArcRimEscalated { check, cause })?,
+                .map_err(PlaneNurbsRefusal::ArcRim)?,
         ),
         _ => None,
     };
@@ -1168,7 +1253,7 @@ pub fn plane_nurbs_incidence<T: Decide + Bounds + geom_core::CertifiedEnclosure>
             band,
             &mut crate::ssi::certify::Refused::default(),
         )
-        .map_err(|e| IncidenceRefusal::Lane(refusal(e)))?;
+        .map_err(refusal)?;
         return Ok(PlaneNurbsIncidence {
             on_locus_max: on_locus.max(c.max_residual),
             hull_sup: hull.max(c.envelope),
@@ -1176,36 +1261,28 @@ pub fn plane_nurbs_incidence<T: Decide + Bounds + geom_core::CertifiedEnclosure>
     }
     // The carrier's fitted chart image alone: the wall's grid and chart
     // speeds are the tube's, which incidence does not ask.
-    let fitted = || {
-        let eval = |t| carrier.eval(t);
-        let (domain, ends) = crate::carrier_net::carrier_span(carrier, params);
-        let pcurve = chart_image(Schedule::new(&eval, domain, ends), chart, |_, _| Ok(()))?;
-        crate::ssi::certify::incidence_limbs(
-            carrier,
-            params,
-            &[
-                IncidenceOperand::Analytic(plane),
-                IncidenceOperand::Chart(chart, &pcurve),
-            ],
-            band,
-            &mut crate::ssi::certify::Refused::default(),
-        )
-        .map_err(refusal)
-    };
-    match (fitted(), exact) {
-        (Ok((on_locus_max, hull_sup)), _) => Ok(PlaneNurbsIncidence {
-            on_locus_max,
-            hull_sup,
-        }),
-        (Err(PlaneNurbsRefusal::Limb { limb, margin }), Some(Err(iso))) => {
-            Err(IncidenceRefusal::ArcRim {
-                iso,
-                limb,
-                bound: margin,
-            })
-        }
-        (Err(fitted), _) => Err(IncidenceRefusal::Lane(fitted)),
-    }
+    let eval = |t| carrier.eval(t);
+    let (domain, ends) = crate::carrier_net::carrier_span(carrier, params);
+    let fitted =
+        chart_image(Schedule::new(&eval, domain, ends), chart, |_, _| Ok(())).and_then(|pcurve| {
+            crate::ssi::certify::incidence_limbs(
+                carrier,
+                params,
+                &[
+                    IncidenceOperand::Analytic(plane),
+                    IncidenceOperand::Chart(chart, &pcurve),
+                ],
+                band,
+                &mut crate::ssi::certify::Refused::default(),
+            )
+            .map_err(refusal)
+        });
+    let (on_locus_max, hull_sup) =
+        fitted.map_err(|e| after_exact(e, exact.and_then(Result::err)))?;
+    Ok(PlaneNurbsIncidence {
+        on_locus_max,
+        hull_sup,
+    })
 }
 
 /// **An arc rim's exact image on a chart, and its certificate**: `stated`
@@ -1213,13 +1290,13 @@ pub fn plane_nurbs_incidence<T: Decide + Bounds + geom_core::CertifiedEnclosure>
 /// [`pick_arc_rim`]'s. The one home of that reading for every lane
 /// that meters a circle carrier against a spline chart
 /// ([`plane_nurbs_incidence`], [`nurbs_pair_limbs`]). `Ok(Err)` is a
-/// definite refusal, the certificate's (`Some`) or the pick's finding no
-/// candidate (`None`).
+/// definite refusal: the certificate's refusing check (`None` where the
+/// refusal was no check's), or the pick's finding no candidate (`None`).
 ///
 /// # Errors
 ///
-/// The check that escalated and its diagnostic, where the pick (its map
-/// residual at the probe) or the certificate escalated.
+/// [`ArcRimRefusal::Escalated`] where the pick (its map residual at the
+/// probe) or the certificate escalated.
 #[allow(clippy::type_complexity)]
 fn exact_arc_rim<T: Decide>(
     carrier: &Curve3<T>,
@@ -1228,8 +1305,8 @@ fn exact_arc_rim<T: Decide>(
     stated: Option<&Pcurve<T>>,
     band: Band,
 ) -> Result<
-    Result<crate::pcurve_cache::PcurveCache<T>, Option<crate::pcurve_cache::PcurveCertifyError>>,
-    (crate::pcurve_cache::PcurveCheck, Indeterminate),
+    Result<crate::pcurve_cache::PcurveCache<T>, Option<crate::pcurve_cache::PcurveCheck>>,
+    ArcRimRefusal,
 > {
     use crate::pcurve_cache::{PcurveCache, PcurveCertifyError as E, PcurveCheck};
     let image = match stated {
@@ -1237,16 +1314,24 @@ fn exact_arc_rim<T: Decide>(
         None => match pick_arc_rim(carrier, (t0, t1 - t0), wall, band) {
             Ok(Some(image)) => image,
             Ok(None) => return Ok(Err(None)),
-            Err(cause) => return Err((PcurveCheck::MapResidual, cause)),
+            Err(cause) => {
+                return Err(ArcRimRefusal::Escalated {
+                    check: PcurveCheck::MapResidual,
+                    cause,
+                });
+            }
         },
     };
     match PcurveCache::certify(image, t0, t1, carrier, wall, band) {
         Ok(cache) => Ok(Ok(cache)),
-        Err(E::Escalated { check, cause, .. }) => Err((check, cause)),
+        Err(E::Escalated { check, cause, .. }) => Err(ArcRimRefusal::Escalated { check, cause }),
         // No `IsoArc` check runs an SSI decision; were one to, it
         // escalates the envelope it bounds.
-        Err(E::FittedEscalated { cause, .. }) => Err((PcurveCheck::Envelope, cause)),
-        Err(refused) => Ok(Err(Some(refused))),
+        Err(E::FittedEscalated { cause, .. }) => Err(ArcRimRefusal::Escalated {
+            check: PcurveCheck::Envelope,
+            cause,
+        }),
+        Err(refused) => Ok(Err(refused.refused_check())),
     }
 }
 
@@ -1268,9 +1353,9 @@ fn exact_arc_rim<T: Decide>(
 /// certifies ([`exact_arc_rim`], [`plane_nurbs_incidence`]'s reading,
 /// the image picked from the chart's own boundary rows by
 /// [`pick_arc_rim`]): its certificate's sampled residual and envelope.
-/// A chart whose pick finds no candidate, or whose image's certificate
-/// refuses definitely, reads its fitted image's limbs; one whose pick or
-/// certificate escalates refuses with that escalation. Every reading of
+/// Where it does not certify, [`ArcRimRefusal`]'s policy decides, as on
+/// the plane lane: an escalation refuses, and a definite refusal reads
+/// the chart's fitted image's limbs. Every reading of
 /// limbs 1 and 2 bounds the carrier's distance from the chart from
 /// above, so an exact image's certified bound and a fitted image's
 /// refusal never disagree on which side of the band the carrier lies:
@@ -1285,8 +1370,8 @@ fn exact_arc_rim<T: Decide>(
 /// [`PlaneNurbsRefusal`], whose vocabulary this lane shares: a foot that
 /// will not converge, an image that will not fit, a sample whose two
 /// charts are not definitely transverse, an exact image that escalated
-/// ([`PlaneNurbsRefusal::ArcRimEscalated`]), and a limb's refusal with
-/// its measured bound.
+/// ([`PlaneNurbsRefusal::ArcRim`]), and a limb's refusal with its
+/// measured bound.
 pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     carrier: &Curve3<T>,
     params: (T, T),
@@ -1361,32 +1446,50 @@ pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         exact_chart_image(carrier, params, (b, &pcurve_b), band)?,
     );
     // Limbs 1 and 2 on each chart: an exact image's certificate where
-    // one certified, the fitted image's limbs otherwise.
+    // one certified, the fitted image's limbs otherwise. No row reaches
+    // an `Ok` through an exact chart, whose rim lies on a boundary row
+    // and refuses at limb 3
+    // (`work/ssiedge/a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary.md`),
+    // so the exact certificate's numbers here are unguardable until that
+    // row lands: zeroing them turns no row red.
     let (mut on_locus_max, mut hull_sup) = (T::zero(), T::zero());
     for (chart, fitted, exact) in [(a, &pcurve_a, &exact_a), (b, &pcurve_b, &exact_b)] {
         let (on_locus, hull) = match exact {
-            Some((cache, _)) => (
+            Some(Ok((cache, _))) => (
                 cache.certificate().max_residual,
                 cache.certificate().envelope,
             ),
-            None => crate::ssi::certify::incidence_limbs(
+            _ => crate::ssi::certify::incidence_limbs(
                 carrier,
                 params,
                 &[crate::ssi::certify::IncidenceOperand::Chart(chart, fitted)],
                 band,
                 &mut crate::ssi::certify::Refused::default(),
             )
-            .map_err(refusal)?,
+            .map_err(|e| {
+                let iso = match exact {
+                    Some(Err(iso)) => Some(*iso),
+                    _ => None,
+                };
+                after_exact(refusal(e), iso)
+            })?,
         };
         on_locus_max = on_locus_max.max(on_locus);
         hull_sup = hull_sup.max(hull);
     }
     // Limb 3 alone, its tube about the image each chart's limb 2 read.
-    fn tube_image<'a, C, T: Real>(
-        exact: &'a Option<(C, NurbsCurve2<T>)>,
+    // The choice is unguardable on the same terms as the limbs above: the
+    // exact image's polyline and the fitted feet agree to the foot's
+    // precision, and no exact chart reaches `Ok`.
+    #[allow(clippy::type_complexity)]
+    fn tube_image<'a, C, I, T: Real>(
+        exact: &'a Option<Result<(C, NurbsCurve2<T>), I>>,
         fitted: &'a NurbsCurve2<T>,
     ) -> &'a NurbsCurve2<T> {
-        exact.as_ref().map_or(fitted, |(_, polyline)| polyline)
+        match exact {
+            Some(Ok((_, polyline))) => polyline,
+            _ => fitted,
+        }
     }
     let cert = crate::ssi::certify::certify_branch(
         carrier,
@@ -1413,11 +1516,12 @@ pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     })
 }
 
-/// **A circle carrier's exact image on a spline chart**, where one
-/// certifies ([`exact_arc_rim`], the chart taken as its wall), with the
-/// polyline limb 3's tube is built about. `None` for any other carrier,
-/// and for a circle no candidate holds or whose image's certificate
-/// refuses definitely: the chart reads its fitted image.
+/// **A circle carrier's exact image on a spline chart** ([`exact_arc_rim`],
+/// the chart taken as its wall): `Ok(cache, polyline)` where it
+/// certifies, with the polyline limb 3's tube is built about, and the
+/// refusing check where it refuses definitely ([`ArcRimRefusal`]'s
+/// policy sends the chart to its fitted image). `None` for any other
+/// carrier.
 ///
 /// The polyline runs through the image's points at the fitted image's
 /// knots, `Q(tₖ) = E(tₖ)`, each read at `T`. The image is the segment
@@ -1425,7 +1529,9 @@ pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 /// over a knot span it lies in the hull of its two ends: inside the
 /// span's window, which is what the tube padded about `Q` proves over.
 /// The polyline shares the fitted image's knots, so the two charts'
-/// windows pair span for span.
+/// windows pair span for span. That reading needs the fitted image to be
+/// degree 1 with a knot per control point ([`PXN_IMAGE_DEGREE`]), which is
+/// checked.
 ///
 /// The image lies on the chart's own knot rectangle: the pick reads its
 /// candidates off the rectangle's boundary rows, and the certificate
@@ -1433,38 +1539,62 @@ pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 /// closed chart's seam lies on no single arc of a row, so it has no
 /// exact image here and reads its fitted one.
 ///
+/// The chart is cloned into a [`Surface`] for the pick and the
+/// certificate, which read a surface; the lane holds the chart alone.
+///
 /// # Errors
 ///
-/// [`PlaneNurbsRefusal::ArcRimEscalated`] where the pick or the
-/// certificate escalated; [`PlaneNurbsRefusal::PcurveFit`] where the
-/// polyline will not form (no row reaches it: the fitted image's knots
-/// and a point per run always do).
+/// [`ArcRimRefusal::Escalated`] where the pick or the certificate
+/// escalated; [`PlaneNurbsRefusal::Unsupported`] where the fitted image
+/// is not the degree-1 polyline the tube's reading needs.
 #[allow(clippy::type_complexity)]
 fn exact_chart_image<T: Decide>(
     carrier: &Curve3<T>,
     params: (T, T),
     (chart, fitted): (&NurbsSurface<T>, &NurbsCurve2<T>),
     band: Band,
-) -> Result<Option<(crate::pcurve_cache::PcurveCache<T>, NurbsCurve2<T>)>, PlaneNurbsRefusal> {
+) -> Result<
+    Option<
+        Result<
+            (crate::pcurve_cache::PcurveCache<T>, NurbsCurve2<T>),
+            Option<crate::pcurve_cache::PcurveCheck>,
+        >,
+    >,
+    PlaneNurbsRefusal,
+> {
     if !matches!(carrier, Curve3::Circle { .. }) {
         return Ok(None);
     }
     let wall = Surface::Nurbs(std::sync::Arc::new(chart.clone()));
     let cache = match exact_arc_rim(carrier, params, &wall, None, band) {
         Ok(Ok(cache)) => cache,
-        Ok(Err(_)) => return Ok(None),
-        Err((check, cause)) => return Err(PlaneNurbsRefusal::ArcRimEscalated { check, cause }),
+        Ok(Err(iso)) => return Ok(Some(Err(iso))),
+        Err(e) => return Err(PlaneNurbsRefusal::ArcRim(e)),
     };
     let knots = fitted.knot_values();
+    if knots.degree() != 1 || knots.runs().count() != fitted.control().len() {
+        return Err(PlaneNurbsRefusal::Unsupported {
+            what: EXACT_TUBE_NEEDS_A_POLYLINE,
+        });
+    }
     let control = knots
         .runs()
         .map(|(t, _)| cache.pcurve().eval(t))
         .collect::<Vec<_>>();
     let weights = vec![T::one(); control.len()];
-    let polyline = NurbsCurve2::new(knots.clone(), control, weights)
-        .map_err(|_| PlaneNurbsRefusal::PcurveFit)?;
-    Ok(Some((cache, polyline)))
+    let polyline = NurbsCurve2::new(knots.clone(), control, weights).map_err(|_| {
+        PlaneNurbsRefusal::Unsupported {
+            what: EXACT_TUBE_NEEDS_A_POLYLINE,
+        }
+    })?;
+    Ok(Some(Ok((cache, polyline))))
 }
+
+/// [`exact_chart_image`]'s refusal where the fitted image is no degree-1
+/// polyline with a knot per control point.
+const EXACT_TUBE_NEEDS_A_POLYLINE: &str = "the tube about an exact arc-rim image is the polyline \
+     through it at the fitted image's knots, which needs that image to be degree 1 with a knot per \
+     control point";
 
 /// Whether `surface` is an analytic operand: one with an implicit form
 /// and a chart frame, which the analytic rung-3 certificate reads

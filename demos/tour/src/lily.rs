@@ -2376,9 +2376,9 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    a seam between the two bodies' NURBS walls, reads transverse off
     //    each wall's chart. It still refuses where that seam is described
     //    as the walls' intersection: limbs 1 and 2 read the rim through
-    //    each wall's exact boundary-row image, and limb 3's two-chart
-    //    tube, cut to the walls' domains, holds the rim on a face of
-    //    every box and proves no one arc along it
+    //    each wall's exact boundary-row image. Limb 3's two-chart tube is
+    //    cut to the walls' domains, and the rim ends at a corner of each
+    //    and runs along a boundary row of each, so no one arc is proved
     //    (`work/ssiedge/a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary`).
     //    The flush reading along the two bodies' NURBS edges is behind
     //    that (`work/splice/a-unions-flush-reading-cannot-follow-a-nurbs-carrier`).
@@ -2413,9 +2413,10 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         crate::booleans::try_union(leaf_a, &sheath, tol),
         // The SITE is the claim: the result's seam, described as the
         // walls' `Intersection`, whose certification refuses. The cause
-        // moves with ε: at 1e-9 the tube's crossing bound straddles zero
-        // (`PlaneNurbs(TubeStraddles)`), at 1e-6 the pair's
-        // transversality read in band at a sample. If this ever refuses
+        // moves with ε. Measured 2026-10-28: at 1e-9 the tube's crossing
+        // bound straddles zero (`PlaneNurbs(TubeStraddles)`); at 1e-6 the
+        // pair's transversality reads in band at a sample; at 1e-12 the
+        // tour stands the lily walls down before this one. If this ever refuses
         // elsewhere, the sentence above is wrong and must be re-derived
         // before it is believed.
         |e| {
