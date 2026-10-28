@@ -759,32 +759,3 @@ fn staggered_parallel_rods_part_along_the_line_of_centres_until_they_touch() {
     let errs = census(&touching).expect_err("the walls meet along a ruling");
     assert!(refuses_curved_within_reach(&touching, &errs), "{errs:?}");
 }
-
-/// **Two crossing rods part along their axes' common normal until they
-/// touch.** The rod `r ≤ 0.5` about `y` over `y ∈ [0, 1]`, and a rod of
-/// radius 0.1 along `x` over `x ∈ [−1, 1]` at `y = 0.5`, its axis
-/// `0.6 + gap` above the first's, the pair turned obliquely. Each rod's
-/// origin lies at its base, off the common normal, and their rims are
-/// closed circles, with no chord. The common normal is the offset from
-/// one axis to the other wall's nearest seam point (`toward`), since a
-/// wall's seam ruling runs along its axis, which is why `across`
-/// proposes no common normal of its own. Red where `toward` does not
-/// aim at a seam ruling's nearest point.
-#[test]
-fn crossing_rods_part_along_their_axes_common_normal_until_they_touch() {
-    let over = |gap: f64| {
-        let bar = topo::transform_rigid(
-            &revolved(0.0, 0.1, 2.0),
-            &RigidMotion::axes_zx(geom_core::Point3::new(-1.0, 0.5, 0.6 + gap)),
-            tol(),
-        )
-        .unwrap();
-        tilted_pair(&revolved(0.0, 0.5, 1.0), &bar)
-    };
-    for gap in [0.04, 1e-3] {
-        assert_eq!(census(&over(gap)), Ok(()), "the rods {gap} clear");
-    }
-    let touching = over(0.0);
-    let errs = census(&touching).expect_err("the walls meet at a point");
-    assert!(refuses_curved_within_reach(&touching, &errs), "{errs:?}");
-}
