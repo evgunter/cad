@@ -1008,10 +1008,17 @@ fn run_at<T: editor_core::EvalScalar>(
 /// feeds renumber, and nothing else moved: with each id rewritten to
 /// the order it first appears in, every byte fed (faults, spaces, the 36
 /// frames, the evaluations' tables and bodies) is main's at 1e-9.
+/// Re-taken for G (`patterns-are-index-variables`): `patterned-bolt`'s
+/// bolts are a family, one placement over an index, where they were a
+/// `Pattern`'s copies, so its document is another document. Compared
+/// against main (`aeba4ae8`) label by label at all three ε, every
+/// other label's word is main's bit for bit (`seats`,
+/// `coaxial-slide-spin`, `overconstrained`, `standoff`, `pinned-chain`,
+/// `chain`, `shaft`); `patterned-bolt`'s alone moved.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0xeb0c_6bbd_39c6_1348),
-    (1e-6, 0x2c55_d6c3_d17f_2c75),
-    (1e-12, 0xd1ee_81d0_2190_463f),
+    (1e-9, 0x7691_1d18_51c0_4da3),
+    (1e-6, 0x32e0_70da_f7e6_9adf),
+    (1e-12, 0x6c6f_5536_7714_7ef2),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
