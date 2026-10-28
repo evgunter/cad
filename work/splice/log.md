@@ -778,3 +778,41 @@ an exact `IsoArc` row of each wall. Filed as
 - Letter H (a certificate's soundness), so a concurrent pair.
 - The brief binds the full slow sets of geom-brep, topo and sweep, plus
   demo-tour's three ε rows, which CI does not run (lesson from PR 5868).
+
+## 2026-10-28 — PR 5907 (the rim's exact image) merges; lily reaches limb 3
+
+Letter H, a concurrent pair frozen at `c40a01aa44`. Both reviewers:
+APPROVE-WITH-FIXES, no MAJOR, so nothing is tallied (row `PR-5907`).
+Both re-derived the mixed certificate's containment and found it sound,
+and both found that the fallback launders nothing.
+
+The reviewers disagreed on a fact: does a rim interior to both charts
+certify at limb 3? The lane settled it by measurement. Limb 3's
+`TubeNotOneArc{Undecided}` is decided by where the carrier lies against
+the domain-cut box, in two shapes:
+1. an arc along a chart's boundary row;
+2. a carrier ending on both charts' domain sides.
+Span, ε and the sub-arc count only decide whether the carrier reaches
+limb 3 at all.
+
+**Lily wall 8:** limbs 1–2 now pass on the exact images, so she reaches
+limb 3. She has both shapes, and shape 2 (her end on a corner of both
+charts) fires first.
+- Shape 1 is `ssiedge/a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary`,
+  re-derived in this PR.
+- Shape 2 overlaps `nurbs/a-pair-walk-end-at-a-domain-corner-refuses-undecided`,
+  a P4 that says it has no consumer. Lily is one.
+- Both stand between lily and limb 3. The routing is the orchestrator's
+  next step.
+
+Filed by the lane:
+- `ssiedge/a-tube-whose-graph-margin-straddles-zero-refuses-as-a-decided-zero`
+  (P1): undecided is read as decided. This is lily's tour stop at default ε.
+- `splice/lily-wall-8-at-1e-6-reads-the-rims-crossing-angle-in-band` (P1).
+- `issues/main-red-two-tori-subtract-refuses-on-tangent-carriers-not-on-no-section-classification`.
+  SECT bisected it to its own PR 5869 (not 5886) and is fixing it on
+  `sect/two-tori-subtract-red`. Its PR moves the row into `work/sect/`.
+
+The lane also gave both lanes one `ArcRimRefusal`, behind one mapping
+door. The orchestrator re-ran the arc-rim, any-carrier and on-pair rows
+at three ε, and the exact-never-used mutation reds 5 of 6 rows.
