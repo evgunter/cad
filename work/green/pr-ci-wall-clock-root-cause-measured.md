@@ -245,8 +245,11 @@ moves the median most.
 
 **Levers, 2026-10-28.**
 - **Taken: split `test` into two shards** (green/latency-test-shards).
-  - On that PR's own TIER=all run: `test (app)` 12.2 min and
-    `test (kernel)` 12.8, against a single-job TIER=all median of 27.6.
+  - On that PR's own TIER=all runs, against a single-job TIER=all median
+    of 27.6:
+    - 40718652598: `test (app)` 12.2 min, `test (kernel)` 12.8;
+    - 40721475134, the final head: app 12.6, kernel 18.8. Every kernel
+      step was about 1.5× slower, so a slow runner is the likely reason.
   - If the closure tier halves the same way (about −8 min on `test`),
     the replayed window's median goes from 23.1 to about 15.3, and the
     p90 stays near 30, held by `demos`.
