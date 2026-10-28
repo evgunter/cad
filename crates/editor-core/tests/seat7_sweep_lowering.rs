@@ -483,7 +483,10 @@ fn both_sweeps_evaluate_in_one_document() {
 /// (node 171) composes one map where it was rebuilt by two, and one of
 /// its planes' normals reads `-0.0` where it read `0.0` in x, and so
 /// does the product `⊔` (node 284), which reads that copy through its
-/// map; every point, curve and face holds main's bits.
+/// map; every point, curve and face holds main's bits (measured over
+/// main's merge at `1f851964`). Re-taken over main's merge at
+/// `cd5f9dee`, whose word is `0x2cab_0c2d_cbd8_4ea8`: with each copy
+/// rebuilt at `place` as before E, this branch reads main's word.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
@@ -491,7 +494,7 @@ fn the_sweep_documents_evaluate_to_their_committed_digests() {
         ("corner_table", 0xa74f_a96b_430e_f942),
         ("cut_cylinder", 0x0286_358d_ae09_89ce),
         ("boss_union", 0xd935_06ea_7cc4_142f),
-        ("kitchen_sink", 0x2cab_0c2d_cbd8_4ea8),
+        ("kitchen_sink", 0xb9d6_6c7a_4ef8_a76c),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

@@ -1004,11 +1004,14 @@ fn run_at<T: editor_core::EvalScalar>(
 /// off the mapped body); and of the evaluations only `pinned-chain`'s
 /// moved, three copies of copies by up to 1.8e-15 at 7, 8 and 16 of
 /// their points, each composing one map where it was rebuilt link by
-/// link.
+/// link. Re-taken over main's merge at `cd5f9dee` (main's three words
+/// `0xd5ec_4277_864d_1dcf`, `0x35c1_08d4_5569_8e4e` and
+/// `0x132e_b1b7_811d_4fd3`): with each copy rebuilt at `place` as
+/// before E, this branch reads main's word at 1e-9 exactly.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0xd5ec_4277_864d_1dcf),
-    (1e-6, 0x35c1_08d4_5569_8e4e),
-    (1e-12, 0x132e_b1b7_811d_4fd3),
+    (1e-9, 0x1b2d_48e7_2dce_64ba),
+    (1e-6, 0x9c64_e122_2cde_2239),
+    (1e-12, 0xb126_9c4f_16e2_eb54),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the

@@ -75,12 +75,15 @@ const FILES: [&str; 5] = [
 /// Since INTENT E the gather computes in its first source's frame, so
 /// each row digests the product composed into the world through
 /// `in_space`, and 33 of the 35 rows held. The tour die and its
-/// committed file moved, their counts kept: its 15 pip-floor points
-/// read four ulps from where they read,
-/// because the pips' union computes in its first pip's frame and reads
-/// every other pip through `relative` (`edit_placement_corpus_bits`
-/// says the same of its last copy). Over main's merge at `1f851964`,
-/// whose die row reads `ca0b8371cb38e973`, the same points move it.
+/// committed file moved, their counts kept. The die's product is its
+/// last copy's body (`1621`), and against main (`b97c0195`, and again
+/// `cd5f9dee`, whose die row reads `ca0b8371cb38e973`) it moves exactly
+/// as `edit_placement_corpus_bits` says that copy moves: 18 of its 108
+/// points (the 15 pip-floor points four ulps further from `0.05`, and
+/// four `z` coordinates reading `0.5` where they read
+/// `0.49999999999999994`) and 2 of its 68 carriers (a sphere's and a
+/// torus's centres, the same `z`), because the pips' union computes in
+/// its first pip's frame and reads every other pip through `relative`.
 const PRE_C: [(&str, &str); 35] = [
     ("die", "18a00a4411472694/532"),
     ("corner_table", "1b26e7ae1ba4a066/100"),

@@ -98,16 +98,29 @@ use editor_core::Node;
 /// source's body under its frame, so the word digests the copy composed
 /// into its space through `in_space`. 118 of the 119 words held: each
 /// copy composes to the bits its rebuilt copy had. The tour die's last
-/// row (`1621`, the identity copy of the filleted die) moved: its 15
-/// pip-floor points read `0.04999999999999993` where they read
-/// `0.04999999999999996` (four ulps): the pips' union computes in its
-/// first pip's frame and reads every other pip through `relative`, an
-/// inverse and a composition where each pip was rebuilt into the world
-/// before, and the cut, both fillets and this copy carry that rounding.
-/// Over main's merge at `1f851964` (whose word here is
-/// `0xf44c58129da3f0a3`) the same fifteen points move it, and a dump of
-/// the corpus composed through `in_space` against `1f851964` differs
-/// at those points alone.
+/// row (`1621`, the identity copy of the filleted die) moved. Against
+/// main (`b97c0195`, and again `cd5f9dee`), composed through `in_space`,
+/// 18 of its 108 points and 2 of its 68 carriers moved, and nothing
+/// else:
+/// - its 15 pip-floor points read `0.04999999999999993` where they read
+///   `0.04999999999999996`, four ulps further from `0.05`;
+/// - four points read `z = 0.5` where they read `0.49999999999999994`
+///   (one ulp closer), one of them a floor point;
+/// - a sphere carrier's and a torus carrier's centres read `z = 0.5`
+///   where they read `0.49999999999999994`.
+/// So of its points four coordinates come closer and fifteen go
+/// further. The pips'
+/// union computes in its first pip's frame and reads every other pip
+/// through `relative` (an inverse and a composition) where each pip was
+/// rebuilt into the world, and the cut, both fillets and this copy
+/// carry that rounding: the union (`1603`) moves 35 of its 42 points
+/// (the floor, two `0.5`s, its `-0.13` and `1.13` faces exact in x and y
+/// and its `-0.13` face `-0.13000000000000012` in z where it read
+/// `-0.13000000000000003`; 16 coordinates closer, 21 further) and its
+/// sphere's centre; the cut and the first fillet (`1605`, `1609`) the
+/// floor, three `0.5`s and the sphere; the second fillet (`1613`) as
+/// this copy. Main's word here is
+/// `0xf44c58129da3f0a3`.
 ///
 /// `die_tool`'s two rows moved again when its master ball came to
 /// stand on the cube's corner frame by an axis mate whose slide and
