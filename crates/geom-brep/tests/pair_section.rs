@@ -746,6 +746,23 @@ fn turns_once(ts: &[f64], period: f64) -> bool {
 /// once. Marches: in the slow set.
 #[test]
 fn two_loops_keep_their_sites_and_order_near_the_node() {
+    // Pinned red since PR 5872: at ε = 1e-6 the cylinder × sphere section
+    // runs out of cells, or reads a site in the band, near the node
+    // (`work/sect/main-red-cylinder-sphere-section-runs-out-of-cells-near-the-node-at-1e-6`).
+    test_utils::pinned_red::row(
+        geom_core::Tol::witness().eps(),
+        &[1e-6],
+        "the near-node march",
+        &[
+            "d 0.2, R 0.71, θ 4.2723826090701555: Escalated(Indeterminate { margin: MarginDiag(Value(9.557317660834139e-6, None, ZeroWord(0)))",
+            "predicate: Some(\"curve_carrier_piece_clear\")",
+        ],
+        two_loops_keep_their_sites_and_order_near_the_node_row,
+    );
+}
+
+/// The row [`two_loops_keep_their_sites_and_order_near_the_node`] runs, under its pin.
+fn two_loops_keep_their_sites_and_order_near_the_node_row() {
     let r = 0.5;
     for (d, big) in [(0.1, 0.7), (0.2, 0.71), (0.2, 0.701)] {
         let (cyl, sph) = (cylinder(r), sphere(d, big));
@@ -782,6 +799,20 @@ fn two_loops_keep_their_sites_and_order_near_the_node() {
 /// Marches: in the slow set.
 #[test]
 fn one_loop_keeps_its_order_near_the_node() {
+    // Pinned red since PR 5872: at ε = 1e-6 the cylinder × sphere section
+    // runs out of cells, or reads a site in the band, near the node
+    // (`work/sect/main-red-cylinder-sphere-section-runs-out-of-cells-near-the-node-at-1e-6`).
+    test_utils::pinned_red::row(
+        geom_core::Tol::witness().eps(),
+        &[1e-6],
+        "the near-node march",
+        &["d 0.2, R 0.699: March(CellBudget { budget: 200000 })"],
+        one_loop_keeps_its_order_near_the_node_row,
+    );
+}
+
+/// The row [`one_loop_keeps_its_order_near_the_node`] runs, under its pin.
+fn one_loop_keeps_its_order_near_the_node_row() {
     let r = 0.5;
     for (d, big) in [(0.5, 0.3), (0.2, 0.69), (0.2, 0.699)] {
         let (cyl, sph) = (cylinder(r), sphere(d, big));

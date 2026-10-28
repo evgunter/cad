@@ -139,3 +139,16 @@ and moves to the door with the frame's retirement. First dispatches:
   - Points are at the tracker's current weights (E 1, M 3, H 8).
   - **SECT keeps** the torus-pair thread it is driving (teapot wall 2, the torus poses and their two doors), the new P0 main red, and two follow-ups its context makes cheap. The budget override is dropped.
   - All rows moved by `git mv`, ids unchanged. **Main red** `main-red-cylinder-sphere-section-runs-out-of-cells-near-the-node-at-1e-6` (nightly, ε 1e-6, slow-set rows from PR 5872) is dispatched on `sect/near-node-at-1e-6`.
+
+## 2026-10-28 — GREEN pinned four rows on `main-red-cylinder-sphere-section-runs-out-of-cells-near-the-node-at-1e-6`
+
+GREEN's full-suite pins (PR 5958, `green/full-suite-pins`) pin the four
+rows that row names at ε 1e-6, with `test_utils::pinned_red::row`, each
+on main's exact stop: `pair_section::one_loop_keeps_its_order_near_the_node`,
+`pair_section::two_loops_keep_their_sites_and_order_near_the_node`,
+`cylinder_sphere_frame::a_ball_across_a_cylinder_wall_wider_than_the_wall`
+(written out of `pose_rows!` to carry its pin) and
+`cylinder_sphere_frame::every_segment_joins_neighbouring_sites_along_its_loop`.
+A pin goes red the day its row passes, so the fix on
+`sect/near-node-at-1e-6` removes the four pins (and restores the macro
+row) in the same PR, and re-measures what each row runs after the stop.

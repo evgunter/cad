@@ -47,3 +47,22 @@ re-baseline of its own, on the boolean's ground.
 One cyclic-order door serves both lanes, ties reported to the caller,
 with one set of K names, and the predicate audit's rows for both point
 at it.
+
+## A third rule for one tie (2026-10-28, SPLITDOOR `splitdoor/hole-rim-tangent-germs`)
+
+Two germs along one direction now meet three different rules:
+
+- `splitting/insert.rs` `section_chords` orders them one order down
+  (`curving`): each face's section curvature off the shared tangent,
+  `geom_brep::implicit_graph_acceleration`, differenced and read by
+  `geom_brep::enters_material_order2`; an exact zero refuses
+  `Coincident`, a singular face `Singular`.
+- `boolean/vtxfac.rs` `germ_order` breaks the tie by the partners'
+  nesting (`tie_breaks_after`: the germ whose run's other germ lies
+  nearer clockwise comes after, so the chords nest).
+- `boolean/insert.rs` `strut_order` refuses it (`bool_strut_order`
+  through `decide_nonzero`), which a boolean tangent to a hole's rim at
+  a vertex reaches
+  (`work/splitdoor/a-boolean-whose-face-is-tangent-to-a-holes-rim-at-a-vertex-refuses-its-strut-order.md`).
+
+One door would also have to say which of these a tie means.

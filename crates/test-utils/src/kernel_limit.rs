@@ -185,7 +185,7 @@ pub fn pinned_row_at(
     what: &str,
     f: impl FnOnce() + std::panic::UnwindSafe,
 ) {
-    stops_on(
+    crate::pinned_red::stops_on(
         eps,
         refused_at,
         what,
@@ -196,28 +196,4 @@ pub fn pinned_row_at(
             message.contains(debug) || message.contains(display)
         },
     );
-}
-
-/// The row `f` run under a pin: at a pinned ε its panic message must
-/// satisfy `holds`.
-#[track_caller]
-fn stops_on(
-    eps: f64,
-    refused_at: &[f64],
-    what: &str,
-    pin: &str,
-    f: impl FnOnce() + std::panic::UnwindSafe,
-    holds: impl FnOnce(&str) -> bool,
-) {
-    if !at_row(eps, refused_at) {
-        f();
-        return;
-    }
-    match crate::panic_capture::caught(f) {
-        Some(message) => assert!(
-            holds(&message),
-            "{what}: pinned to stop on {pin} at ε = {eps:e}, it stopped otherwise: {message}"
-        ),
-        None => panic!("{what}: pinned to stop on {pin} at ε = {eps:e}, and it passed"),
-    }
 }
