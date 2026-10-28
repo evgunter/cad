@@ -2717,7 +2717,7 @@ fn bool_planar_chord_spec<T: Decide>(
 
 /// **A carried chord** ([`JoinLane::Carried`]): the arc of the
 /// component's carrier from `u1`'s site to `u2`'s, the way the section
-/// leaves `u1` (`chord_arc_leave_germ`, levered at the section's scale),
+/// leaves `u1` (`chord_carried_leave`, levered at the section's scale),
 /// described as the intersection of the divided face's surface and this
 /// body's copy of the partner's. A site's parameter is its foot on the
 /// carrier, read on it. A closed component is seated at its first site
@@ -2788,7 +2788,7 @@ fn carried_chord_spec<T: Decide>(
     }
     let along = leave.dir.dot(tangent) / tangent.norm();
     let up = match decide(
-        "chord_arc_leave_germ",
+        "chord_carried_leave",
         Margin::levered(along, ctx.lever),
         band,
     )

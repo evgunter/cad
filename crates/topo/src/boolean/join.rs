@@ -334,9 +334,9 @@ fn face_surface<T: geom_core::Real>(
 /// segment along an edge of both solids takes none of, and, for a
 /// segment whose two ends are one record, the germ's own loop of the
 /// pair's section ([`germ_section_frame`]). A segment inside a face of
-/// each operand on a pair the operation's section table holds takes no
-/// kind arm: `carried` names the component of the carried section its
-/// germ's branch names, which its chords are arcs of.
+/// each operand on a pair the operation's section table carries on a
+/// fitted component takes no kind arm: `carried` names that component,
+/// the one its germ's branch names, which its chords are arcs of.
 struct SegmentPair<T: geom_core::Real> {
     a: (crate::geometry::SurfaceKey, geom::Surface<T>),
     b: (crate::geometry::SurfaceKey, geom::Surface<T>),
@@ -358,10 +358,17 @@ impl<T: Decide> SegmentPair<T> {
             owned(face_surface(&red.a, germ.a_face)?),
             owned(face_surface(&red.b, germ.b_face)?),
         );
+        // A closed-form component (the coaxial pair's circles) is a
+        // coincidence the section door decided, which the join does not
+        // build until the door records it: only a fitted component is
+        // carried.
         let carried = match seg.lane {
             SegmentLane::AlongEdge => None,
             SegmentLane::Section => match germ_section(red, germ)? {
-                Some(section) => Some(branch_component(germ.branch, section)?),
+                Some(section) => {
+                    let k = branch_component(germ.branch, section)?;
+                    section.components()[k].certificate.is_some().then_some(k)
+                }
                 None => None,
             },
         };

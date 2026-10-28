@@ -1,7 +1,7 @@
 ---
 id: a-projected-boundary-on-an-analytic-chart-has-no-volume-lane
 kind: issue
-title: A curved face bounded by a spline chord (its pcurve a Projected image on an analytic chart) has no volume lane: the measure refuses QuadratureUnsupported, so every cylinder x sphere boolean that builds refuses at the result gate
+title: A cylinder or sphere face bounded by a spline chord (its pcurve a Projected image on the analytic chart) has no volume lane, so every cylinder x sphere boolean that builds refuses at the result gate
 status: open
 opened: 2026-10-28
 priority: P1
@@ -30,24 +30,28 @@ ResultInvalid { errors: [VolumeUncomputable { solid, source: Face { face,
   PROJECTED image, ...) — its Green-form boundary integral is not wired" } } }] }
 ```
 
-A sphere face that holds a section loop as a ring refuses one step
-earlier on the same ground, in `topo::props::face_flux_about` (the ring gate before the
-face lanes): the sphere reads rings only where circles bound it
+That is the cylinder's arm. A sphere face bounded by a chord refuses
+in the same function before it, on the kind: the lane's chart-normal
+flux algebra is the cylinder's (`what: "conic trim on a
+cone/sphere/torus chart — ..."`). And a sphere face that holds a
+section loop as a ring refuses one step earlier still, in
+`topo::props::face_flux_about` (the ring gate before the face lanes):
+the sphere reads rings only where circles bound it
 (`MassPropsError::RingOnCurvedFace`).
 
 `crates/sweep/tests/cylinder_sphere_frame.rs` pins where each of its
-54 runs ends: 24 at the face lane above (`Door::Volume`), 4 at the
-ring gate (`Door::Ring`, the two-loop poses' `B ∪ A` and `B ∖ A`), and
-the other 26 earlier, at the spline edge join
-(`splice/joining-a-spline-carrier-is-unbuilt`), which reach this door
-next.
+54 runs ends: 14 at the cylinder's arm (`Door::Projected`), 10 at the
+sphere's (`Door::Sphere`), 4 at the ring gate (`Door::Ring`, the
+two-loop poses' `B ∪ A` and `B ∖ A`), and the other 26 earlier, at the
+spline edge join (`splice/joining-a-spline-carrier-is-unbuilt`), which
+reach this door next.
 
 ## What it needs
 
 A Green-form boundary integral over a projected image on an analytic
-chart (cylinder and sphere first): the image is `ψ(C(t))`, the chart
-map of a spline carrier, so the integrand has no closed form in the
-image's own channels and the lane needs a certified quadrature of it
-over the carrier's knot spans, as the fitted lanes on a spline chart
-have. The rows go SOUND against the fixture's volume oracle once it
+chart, the cylinder's and the sphere's first (the sphere a lane of its
+own, with its rings): the image is `ψ(C(t))`, the chart map of a
+spline carrier, so the integrand has no closed form in the image's own
+channels and the lane needs a certified quadrature of it over the
+carrier's knot spans, as the fitted lanes on a spline chart have. The rows go SOUND against the fixture's volume oracle once it
 lands and the join does.

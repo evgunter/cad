@@ -100,14 +100,16 @@ fn a_germ_along_a_curved_edge_refuses_at_the_germ_frame() {
     }
 }
 
-/// **A ring run holding a spline edge refuses before any closing winds
-/// it**: the planar closing, whose chord winding has no row for a
-/// spline; the wall closing, whose chart has no closed-form image of
-/// one; and the quadric closing, whose loop arcs carry none. The run is
-/// the arc alone, closed by its chord. The refusal precedes any reading
-/// of the face, so the sheet's plane face stands for the wall and the
-/// quadric too: reverted, each closing answers its own way instead
-/// (`SectionInvariant` on the plane, `RingIslandUnread` on the others).
+/// **A ring run holding a spline edge refuses before a chart-bound
+/// closing winds it**: the planar closing, whose chord winding has no
+/// row for a spline, and the wall closing, whose chart has no
+/// closed-form image of one. The run is the arc alone, closed by its
+/// chord. The refusal precedes any reading of the face, so the sheet's
+/// plane face stands for the wall too: reverted, each closing answers its
+/// own way instead (`SectionInvariant` on the plane, `RingIslandUnread`
+/// on the wall). The quadric closing reads a spline loop arc
+/// (`ring_path::LoopArc::Spline`), so it passes the run and reads the
+/// face, which is no quadric.
 #[test]
 fn a_ring_run_along_a_spline_edge_refuses_at_the_ring_run() {
     let (body, edge) = arc_sheet(1.0, 1.0);
@@ -118,7 +120,6 @@ fn a_ring_run_along_a_spline_edge_refuses_at_the_ring_run() {
             "planar",
             IslandClosing::Planar(Vec3::new(0.0, 0.0, 1.0), &chord),
         ),
-        ("quadric", IslandClosing::Quadric(&chord)),
         (
             "wall",
             IslandClosing::Wall((
@@ -136,5 +137,29 @@ fn a_ring_run_along_a_spline_edge_refuses_at_the_ring_run() {
                 &format!("{name} closing, operand {operand:?}"),
             );
         }
+    }
+    for operand in [Operand::A, Operand::B] {
+        let got = ring_run_ccw(
+            (&body, operand),
+            face,
+            (he, he),
+            IslandClosing::Quadric(&chord),
+            band(),
+        );
+        let unread = match &got {
+            Err(BooleanError::Join(join)) => matches!(
+                join.error(),
+                crate::chord_join::SplitJoinError::RingIslandUnread {
+                    kind: geom::SurfaceKind::Plane,
+                    ..
+                }
+            ),
+            _ => false,
+        };
+        assert!(
+            unread,
+            "quadric closing, operand {operand:?}: the spline run is read, the plane face is not \
+             a quadric: {got:?}"
+        );
     }
 }

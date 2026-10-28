@@ -101,7 +101,9 @@ chord straddles the carrier's seam. Islands close by the chord on every
 curved face (`RingClosure::Chord`): `ring_path::Quadric` reads a
 cylinder, and `LoopArc::Spline` reads a spline arc through the
 curve-pair table. The 54 pinned runs now pass the join and stop past
-it: 24 at the result gate's volume on a projected boundary and 4 at its
-ring gate on a sphere
-(`spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane`),
-26 at the spline edge join (`splice/joining-a-spline-carrier-is-unbuilt`).
+it: 28 at the result gate's volume on a face the chords bound (the
+cylinder's projected image, the sphere's lane, the sphere's ring gate:
+`spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane`)
+and 26 at the spline edge join (`splice/joining-a-spline-carrier-is-unbuilt`).
+A coaxial pair's circles are a coincidence the door decided, and keep
+their refusal at the join until the door records them.

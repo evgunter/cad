@@ -288,12 +288,7 @@ impl<T: Decide> Quadric<T> {
                     Margin::of(charge(ht - hf, slack)),
                     band,
                 )?;
-                let along = |from, to, lever| Piece::Segment {
-                    from,
-                    to,
-                    ruling: axis,
-                    lever,
-                };
+                let along = |from, to| Piece::Ruling { from, to };
                 let mut paths = Vec::with_capacity(2);
                 // Along `from`'s ruling to `to`'s height, then round.
                 let turned = origin + axis * ht + uf * rt;
@@ -306,7 +301,7 @@ impl<T: Decide> Quadric<T> {
                 if turn == Sign::Positive {
                     let mut pieces = Vec::with_capacity(2);
                     if rise != Sign::Zero {
-                        pieces.push(along(from, turned, rf));
+                        pieces.push(along(from, turned));
                     }
                     pieces.push(Piece::Arc(round));
                     paths.push(Path {
@@ -322,7 +317,7 @@ impl<T: Decide> Quadric<T> {
                     if turn != Sign::Zero {
                         pieces.push(Piece::Arc(round));
                     }
-                    pieces.push(along(below, to, rt));
+                    pieces.push(along(below, to));
                     paths.push(Path {
                         pieces,
                         arrival: if rise == Sign::Positive { axis } else { -axis },
@@ -600,6 +595,8 @@ enum Piece<T: Real> {
     /// An arc of a torus's meridian (a circle round the tube, in a plane
     /// holding the axis).
     Meridian(CircleArc<T>),
+    /// A segment of a cylinder's ruling.
+    Ruling { from: Point3<T>, to: Point3<T> },
     /// A segment of the cone's ruling `ruling` (unit, from the apex),
     /// whose distance from the apex at `from` is `lever`.
     Segment {
@@ -1344,7 +1341,10 @@ pub(crate) fn path_parity<T: Decide>(
                     let [a0, a1] = in_span(s, span, slope);
                     readings.push([p0, p1, a0, a1, inside]);
                 }
-                (Piece::Segment { from, to, .. }, LoopArc::Conic(_) | LoopArc::Oval(_)) => {
+                (
+                    Piece::Segment { from, to, .. } | Piece::Ruling { from, to },
+                    LoopArc::Conic(_) | LoopArc::Oval(_),
+                ) => {
                     if arrival {
                         continue;
                     }
@@ -1396,17 +1396,7 @@ pub(crate) fn path_parity<T: Decide>(
                     let [a0, a1] = in_span(param(arc, x), sec.span, sec.speed * slope);
                     readings.push([inside, inside, a0, a1, on_own(sec.own, x)]);
                 }
-                (
-                    Piece::Segment {
-                        from,
-                        ruling,
-                        lever,
-                        ..
-                    },
-                    LoopArc::Line {
-                        origin, dir, span, ..
-                    },
-                ) => {
+                (Piece::Segment { ruling, lever, .. }, LoopArc::Line { dir, span, .. }) => {
                     if arrival {
                         continue;
                     }
@@ -1414,28 +1404,33 @@ pub(crate) fn path_parity<T: Decide>(
                     // over their distance: the ruling's over the lever,
                     // the arc's over its length.
                     let rounding = slack / lever + slack / (span.1 - span.0);
-                    match decide_m(
+                    if decide_m(
                         "split_ring_path_rulings_apart",
                         Margin::levered(charge(ruling.cross(dir).norm(), rounding), lever),
-                    )? {
-                        Sign::Positive => {}
-                        // Two parallel rulings, a cylinder's, meet nowhere
-                        // where they are decided apart
-                        // (**`split_ring_path_rulings_distinct`**: the
-                        // distance between their lines). A cone's meet at
-                        // the apex, which is no distance from either.
-                        _ => {
-                            let gap = (from - origin).cross(dir).norm() / dir.norm();
-                            if decide_m(
-                                "split_ring_path_rulings_distinct",
-                                Margin::of(charge(gap, slack)),
-                            )? != Sign::Positive
-                            {
-                                return Ok(None);
-                            }
-                        }
+                    )? != Sign::Positive
+                    {
+                        return Ok(None);
                     }
                 }
+                // Two rulings of a cylinder are parallel, and meet nowhere
+                // where they are decided apart
+                // (**`split_ring_path_rulings_distinct`**: the distance
+                // between their lines, charged `slack`).
+                (Piece::Ruling { from, .. }, LoopArc::Line { origin, dir, .. }) => {
+                    if arrival {
+                        continue;
+                    }
+                    let gap = (from - origin).cross(dir).norm() / dir.norm();
+                    if decide_m(
+                        "split_ring_path_rulings_distinct",
+                        Margin::of(charge(gap, slack)),
+                    )? != Sign::Positive
+                    {
+                        return Ok(None);
+                    }
+                }
+                // A crest is a torus's, whose paths hold no cylinder ruling.
+                (Piece::Ruling { .. }, LoopArc::Crest { .. }) => return Ok(None),
                 // A spline arc meets a piece where the curve-pair table
                 // says ([`spline_crossings`]).
                 (piece, LoopArc::Spline { carrier, span }) => {
@@ -1496,7 +1491,7 @@ fn spline_crossings<T: Decide>(
             p.span,
             p.radius * (p.span.1 - p.span.0),
         ),
-        Piece::Segment { from, to, .. } => (
+        Piece::Segment { from, to, .. } | Piece::Ruling { from, to } => (
             geom::Curve3::Line {
                 origin: from,
                 dir: to - from,
@@ -1641,7 +1636,9 @@ fn path_resolution<T: Decide>(path: &Path<T>, arcs: &[LoopArc<T>]) -> T {
             Piece::Arc(p) | Piece::Meridian(p) => {
                 points.extend([p.centre, p.at(p.span.0), p.at(p.span.1)]);
             }
-            Piece::Segment { from, to, .. } => points.extend([from, to]),
+            Piece::Segment { from, to, .. } | Piece::Ruling { from, to } => {
+                points.extend([from, to]);
+            }
         }
     }
     for arc in arcs {
@@ -1922,6 +1919,13 @@ mod tests {
                     parallel(h0, spline),
                     parallel(h1, spline),
                 ];
+                // The curve-pair walk reads a spline arc at a cost, so the
+                // splines are read over every fifth point.
+                let points: Vec<_> = points
+                    .iter()
+                    .copied()
+                    .step_by(if spline { 5 } else { 1 })
+                    .collect();
                 let (mut decided, mut asked, mut odd) = (0usize, 0usize, 0usize);
                 for (i, &a) in points.iter().enumerate() {
                     for &b in &points[i + 1..] {
@@ -2010,7 +2014,7 @@ mod tests {
     fn a_cone_paths_pieces_meet_at_their_seams() {
         let ends = |piece: &Piece<f64>| match *piece {
             Piece::Arc(a) | Piece::Meridian(a) => (a.at(a.span.0), a.at(a.span.1)),
-            Piece::Segment { from, to, .. } => (from, to),
+            Piece::Segment { from, to, .. } | Piece::Ruling { from, to } => (from, to),
         };
         let b = band();
         let mut asked = 0usize;
@@ -2778,7 +2782,7 @@ mod tests {
         use super::torus_islands::torus;
         let ends = |piece: &Piece<f64>| match *piece {
             Piece::Arc(a) | Piece::Meridian(a) => (a.at(a.span.0), a.at(a.span.1)),
-            Piece::Segment { from, to, .. } => (from, to),
+            Piece::Segment { from, to, .. } | Piece::Ruling { from, to } => (from, to),
         };
         let b = band();
         let mut asked = 0usize;

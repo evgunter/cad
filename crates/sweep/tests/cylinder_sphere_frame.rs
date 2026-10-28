@@ -19,7 +19,8 @@
 //! legal operand, the volume) or refuses at its pinned door past the
 //! join ([`Door`]): the join cuts both sides' chords from the section's
 //! carried loop, and every run stops downstream of it, at the result
-//! gate's volume or at the spline edge join.
+//! gate's volume or at the spline edge join. [`door`] is the one reading
+//! of those doors the other cylinder × sphere rows share.
 //! The matched segments are checked against the analytic loops, where
 //! every segment joins two sites that are neighbours along their loop.
 //!
@@ -279,13 +280,18 @@ fn run(
 /// **Where a run that does not build stops**, past the join: every
 /// door is downstream of the chord lane, and none is this lane's.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Door {
-    /// The result gate's volume: a face bounded by a chord, whose pcurve
-    /// is a projected image with no harmonic form on its analytic chart
+pub(crate) enum Door {
+    /// The result gate's volume on a cylinder face bounded by a chord:
+    /// its pcurve is a projected image with no harmonic form on the
+    /// analytic chart
     /// (`work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md`).
-    Volume,
-    /// The result gate's volume: a sphere face holding a ring, which the
-    /// sphere's lane reads only where circles bound it (the same row).
+    Projected,
+    /// The result gate's volume on a sphere face bounded by a chord: the
+    /// curved-cut face lane's flux algebra is the cylinder's (the same
+    /// row).
+    Sphere,
+    /// The result gate's volume on a sphere face holding a ring, which
+    /// the sphere reads only where circles bound it (the same row).
     Ring,
     /// The edge join: two chords meeting at a valence-2 vertex on one
     /// spline carrier (`work/splice/joining-a-spline-carrier-is-unbuilt.md`).
@@ -293,16 +299,24 @@ enum Door {
 }
 
 /// The door `e` is, where it is one of [`Door`]'s.
-fn door(e: &BooleanError) -> Option<Door> {
+pub(crate) fn door(e: &BooleanError) -> Option<Door> {
     use geom_brep::PropsError;
     use topo::{MassPropsError, ValidationError};
     match e {
         BooleanError::ResultInvalid { errors } => match errors.as_slice() {
             [ValidationError::VolumeUncomputable { source, .. }] => match source {
                 MassPropsError::Face {
-                    source: PropsError::QuadratureUnsupported { .. },
+                    source: PropsError::QuadratureUnsupported { what },
                     ..
-                } => Some(Door::Volume),
+                } if what.starts_with("curved-cut face half-edge carries a pcurve with no harmonic form") => {
+                    Some(Door::Projected)
+                }
+                MassPropsError::Face {
+                    source: PropsError::QuadratureUnsupported { what },
+                    ..
+                } if what.starts_with("conic trim on a cone/sphere/torus chart") => {
+                    Some(Door::Sphere)
+                }
                 MassPropsError::RingOnCurvedFace { .. } => Some(Door::Ring),
                 _ => None,
             },
@@ -354,15 +368,24 @@ macro_rules! pose_rows {
 }
 
 pose_rows! {
-    a_ball_across_a_cylinder_wall_centre_on_the_wall: 0 => [Volume, Volume, Join, Join, Join, Join];
-    a_ball_across_a_cylinder_wall_centre_inside: 1 => [Join, Join, Join, Join, Volume, Join];
-    a_ball_across_a_cylinder_wall_centre_outside: 2 => [Volume, Volume, Join, Join, Join, Join];
-    a_ball_across_a_cylinder_wall_turned_chart: 3 => [Volume, Volume, Volume, Volume, Volume, Volume];
-    a_ball_across_a_cylinder_wall_wider_than_the_wall: 4 => [Volume, Volume, Join, Join, Join, Join];
-    a_ball_across_a_cylinder_wall_in_two_loops: 5 => [Volume, Ring, Volume, Volume, Volume, Ring];
-    a_ball_across_a_cylinder_wall_in_two_loops_turned: 6 => [Volume, Ring, Volume, Volume, Volume, Ring];
-    a_ball_across_a_cylinder_wall_r_0_2_across_the_rim: 7 => [Volume, Volume, Join, Join, Join, Join];
-    a_ball_across_a_cylinder_wall_r_0_1_across_the_rim: 8 => [Join, Join, Join, Join, Volume, Join];
+    a_ball_across_a_cylinder_wall_centre_on_the_wall:
+        0 => [Projected, Sphere, Join, Join, Join, Join];
+    a_ball_across_a_cylinder_wall_centre_inside:
+        1 => [Join, Join, Join, Join, Projected, Join];
+    a_ball_across_a_cylinder_wall_centre_outside:
+        2 => [Projected, Projected, Join, Join, Join, Join];
+    a_ball_across_a_cylinder_wall_turned_chart:
+        3 => [Projected, Sphere, Sphere, Sphere, Projected, Sphere];
+    a_ball_across_a_cylinder_wall_wider_than_the_wall:
+        4 => [Projected, Sphere, Join, Join, Join, Join];
+    a_ball_across_a_cylinder_wall_in_two_loops:
+        5 => [Projected, Ring, Sphere, Projected, Projected, Ring];
+    a_ball_across_a_cylinder_wall_in_two_loops_turned:
+        6 => [Projected, Ring, Sphere, Projected, Projected, Ring];
+    a_ball_across_a_cylinder_wall_r_0_2_across_the_rim:
+        7 => [Sphere, Sphere, Join, Join, Join, Join];
+    a_ball_across_a_cylinder_wall_r_0_1_across_the_rim:
+        8 => [Join, Join, Join, Join, Projected, Join];
 }
 
 /// A site's place on its loop of the analytic section, read off the
