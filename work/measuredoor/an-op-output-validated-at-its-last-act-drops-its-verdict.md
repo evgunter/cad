@@ -41,7 +41,7 @@ No other op in `topo`, `sweep` or `geom-brep` validates its output:
   (`BooleanBody.body`, `crates/topo/src/boolean/ops.rs:191`; the split's
   parts through `gate_at_rest_kept`, `crates/topo/src/splitting/mod.rs:1163`).
 - The sweep verbs (extrude, revolve, loft, the sweeps) do not run tier 3.
-  Their callers gate (`work/wire/a-body-value-consumed-by-k-nodes-is-gated-at-rest-k-times.md`).
+  Their callers gate (`work/wiretail/a-body-value-consumed-by-k-nodes-is-gated-at-rest-k-times.md`).
 
 ### What it would buy
 
