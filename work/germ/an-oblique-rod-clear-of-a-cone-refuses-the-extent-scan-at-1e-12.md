@@ -59,3 +59,11 @@ TINT has no orchestrator and will not get one soon, so a row left there is not f
 ## 2026-10-19 — red since the row landed
 
 CONTACTHOLD's nightly-red lane ran it at `7e9d9c8cfe`, the merge of PR 4522 (`germ/cone-pairs-general-pose`), which added it. The row fails there at 1e-6 and at 1e-12 with the refusal above. It is absent at the merge's first parent, so it has been red at those ε since it landed. Still red in the 2026-10-19 nightly (run 39205007024).
+
+## 2026-10-28 — pinned on main (GREEN, `green/full-suite-pins`)
+
+Nightly run 40637814390 (main `a1cfd1cfdb`), `full suite`; re-run on main `91c83c38`. Still red at 1e-6 and 1e-12 with the same refusal. The row is pinned
+at both on `a rod clear, ∪: wanted Body`; it goes red the day the row
+passes.
+
+Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured.

@@ -30,3 +30,12 @@ Over the one box that is the whole domain, `face_roots` gives `None` and `one_ar
 ## What is open
 
 A corner root needs a reading of its own. On the edge where the two faces meet, two coordinates are held, which leaves three equations in two unknowns: overdetermined, so no square Krawczyk test applies there either. The reading could be the edge's own: a root certified on the edge, by a least-squares or one-equation-dropped test whose third residual is then checked. Or the walk could count a root on a shared edge once, rather than failing on both faces. Whether this is worth building waits on a consumer; no current row reaches a corner end.
+
+## Named, not answered (2026-10-28)
+
+The walk's `Undecided` for this shape now refuses by name
+(`the-two-chart-tube-refuses-a-carrier-along-a-chart-side-undecided`):
+`OneArcRefusal::AlongSide { chart }` for a carrier along a chart's
+domain side, `EndOnSides { sides }` for an end on two or more domain
+sides at once. That changes the payload, not the reach: no row the
+shape refused now certifies.

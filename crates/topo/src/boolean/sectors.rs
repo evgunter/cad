@@ -1199,13 +1199,10 @@ pub(super) fn tangent_lump<T: Decide>(
 /// **The per-direction second-order side** of a declared-`Tangent`
 /// sector pair: which side of the OTHER face's material does the
 /// sector's carrier lie on along direction `d` from the tie point —
-/// the relative graph-over-the-shared-tangent-plane acceleration
-/// `z″ = −d̂ᵀ(∇²F)d̂ / (∇F·n̂_ref)` differenced across the two
-/// carriers (the implicit-function graph over the plane normal to
-/// `n̂_ref`, whose denominator carries the sign when a carrier's
-/// gradient opposes `n̂_ref`, and which is a graph only where that
-/// denominator is bounded away from zero — the declared tangency's
-/// first-order tie), classified through the existing second-order
+/// each carrier's graph acceleration over the shared tangent plane
+/// toward `n̂_ref` ([`geom_brep::implicit_graph_acceleration`]; a graph
+/// there by the declared tangency's first-order tie), differenced
+/// across the two carriers and classified through the existing second-order
 /// trilean (rows `tangent_sector_order2{,_arm}`). `On` is the honest
 /// exact-zero: the direction rides the tangency locus (a curve on
 /// either carrier along it separates at no order this kernel
@@ -1224,10 +1221,7 @@ pub(super) fn tangent_relative_side<T: Decide>(
 ) -> Result<SideCode, BooleanError> {
     let n_ref = other_outward.vec();
     let d_hat = d.normalize();
-    let graph_accel = |s: &geom::Surface<T>| {
-        let g = geom_brep::implicit_gradient(s, p);
-        T::zero() - geom_brep::implicit_hessian_form(s, p, d_hat) / g.dot(n_ref)
-    };
+    let graph_accel = |s| geom_brep::implicit_graph_acceleration(s, p, d_hat, n_ref);
     let rel_accel = graph_accel(sector_surface) - graph_accel(other_surface);
     match geom_brep::enters_material_order2(
         n_ref * rel_accel,
@@ -6777,10 +6771,7 @@ mod tests {
             &[p, Point3::new(1.0, 0.0, 0.0), Point3::new(0.0, 1.0, 0.0)],
             Tol::witness(),
         );
-        let accel = |s: &geom::Surface<f64>| {
-            -geom_brep::implicit_hessian_form(s, p, d)
-                / geom_brep::implicit_gradient(s, p).dot(n.vec())
-        };
+        let accel = |s| geom_brep::implicit_graph_acceleration(s, p, d, n.vec());
         let arm = (2.0 * mid / (accel(&ball) - accel(&floor)).abs()).sqrt();
         let err = tangent_relative_side(
             &ball,

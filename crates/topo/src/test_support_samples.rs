@@ -440,6 +440,14 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
             rungs: 20,
             cause: geom_brep::ssi::OneArcRefusal::Unlinked,
         },
+        PlaneNurbsRefusal::TubeNotOneArc {
+            rungs: 16,
+            cause: geom_brep::ssi::OneArcRefusal::AlongSide { chart: 0 },
+        },
+        PlaneNurbsRefusal::TubeNotOneArc {
+            rungs: 16,
+            cause: geom_brep::ssi::OneArcRefusal::EndOnSides { sides: 2 },
+        },
         PlaneNurbsRefusal::ReportedTransversalityPoisoned(diag()),
         PlaneNurbsRefusal::ChartSpeed(geom_brep::ChartSpeedRefusal::Zero {
             axis: geom_brep::ChartAxis::U,

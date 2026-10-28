@@ -28,3 +28,27 @@ fix row exists on the owning program, naming the bisected merge, the
 old and new values and the reproduce command. Done when the nightly's
 full-suite job is green, or every row left red is named with the open
 PR that greens it.
+
+## 2026-10-28 — the full-suite pins (`green/full-suite-pins`)
+
+Nightly 74's 141 failing rows are 60 tests. Taken out:
+
+- the slow-set row's 25 (`main-reds-editor-core-slow-set-and-the-k-probe-sweep`:
+  docm9 ×5, m10_3 planted flip, m10_3_r2, m10_6, m10_9 pad and registry,
+  m10_sym ×2, revalue ×7, sym11, sym_9 ×2, intent_s2_c_world,
+  m4_pr3_names_ci, perf12_census_goldens);
+- PR 5935's eight (since merged): m10_3 certification width, m10_4_r1,
+  m10_9 no-registrant, perf1_torus_sizing, band_turn_overrun leaning
+  prisms, operand_gate_support_plates, reach_split_gate azimuth and pose;
+- two that main had greened by `91c83c38`: `an_annular_tube_through_a_plate::thin_nested_rings_build`
+  (PR 5911) and `germ_torus_doors::subtract_and_intersect_refuse_where_union_does` (PR 5925).
+
+The other 25 are greened on this branch: 20 pinned at what main
+produces, 3 disabled (two `ignore`d, one fuzz's 1e-12 band dropped), 2
+re-blessed (census arrivals). Each cites
+its fix row; the PR body has the table. Filed:
+`offset/main-red-two-review-4781-rows-refuse-at-limb-2s-kernel-limit-since-5728`
+and `spliceseam/main-red-the-lofted-cylinders-far-union-builds-the-wrong-volume-at-1e-6`.
+
+Remaining: the slow-set row's 25 (its own lane), and whatever tonight's
+nightly shows that this branch's base did not carry.

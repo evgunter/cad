@@ -2,12 +2,13 @@
 id: pick-face-fuzz-anti-vacuity-guard-trips-at-effort-1
 kind: issue
 title: review_gui1_r1's random-ray oracle sweep asserts "some draw hit the cube" over 120 integer rays at effort 1 — a probabilistic guard that reds CI on a bad seed
-status: open
+status: closed
 opened: 2026-09-08
 refs: [1617]
 priority: P3
 cost: C
 rides_with: pick-oracle-sweep-anti-vacuity-fails-one-seed-in-1300
+closed: 2026-10-28
 ---
 
 Filed by the S-MESH orchestrator from MESH-12's landing run (PR 1617, run
@@ -187,3 +188,11 @@ CAD_FUZZ_EFFORT=1`. That PR touches no picking code.
 
 The same guard as `pick-oracle-sweep-anti-vacuity-fails-one-seed-in-1300`,
 which carries the fix (plant a hit in case 0); this row closes with it.
+
+## Closed (2026-10-28)
+
+Closed with `pick-oracle-sweep-anti-vacuity-fails-one-seed-in-1300`,
+whose fix makes case 0 a planted hit through the cube's centre. All four
+seeds recorded here (`0x2870e278e5a1ef24`, `0x1a9e0f26198e881b`,
+`0xf30b717118986019`, `0x9c7901b099374603`) failed before the change and
+pass after it at effort 1. The evidence is in that row's closing section.
