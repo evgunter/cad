@@ -10499,24 +10499,6 @@ mod incidence {
     };
     use geom_core::Band;
 
-    #[cfg(test)]
-    thread_local! {
-        static UNREAD: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
-    }
-
-    /// **`f` with the incidence test unread**, for a row about what
-    /// check 4 does with an image whose carrier is off the chart: the
-    /// image a derivation gives such a carrier is a stored row whose
-    /// carrier has moved since, which no mint now writes but check 4 can
-    /// still meet. Test builds only.
-    #[cfg(test)]
-    pub(crate) fn unread<R>(f: impl FnOnce() -> R) -> R {
-        UNREAD.set(true);
-        let out = f();
-        UNREAD.set(false);
-        out
-    }
-
     /// The carrier's incidence test on its chart did not show it off the
     /// chart. Built only by [`incident`].
     #[derive(Clone, Copy, Debug)]
@@ -10620,7 +10602,7 @@ mod incidence {
     ) -> Result<Incident, PcurveCertifyError> {
         let tested = Incident { _tested: () };
         #[cfg(test)]
-        if super::mutants::skip_incidence() || UNREAD.get() {
+        if super::mutants::skip_incidence() {
             return Ok(tested);
         }
         // Read in the chart's own frame, so a sample's distance carries
@@ -11957,17 +11939,13 @@ mod tests {
         }
     }
 
-    /// The term [`EnvelopeTerms::first_over`] names for a carrier or an
-    /// image moved by `100·ε` in one respect — what a refused check 4
-    /// carries on a periodic chart. Read with the incidence test unread:
-    /// check 4's own re-derivation reads a carrier off the chart off it
-    /// first, so the envelope's terms are this arithmetic's row.
+    /// The term [`EnvelopeTerms::first_over`] names for an image moved by
+    /// `100·ε` in one respect — what a refused check 4 carries on a
+    /// periodic chart.
     fn named_term(stored: &Pcurve<f64>, carrier: &Curve3<f64>, s: &Surface<f64>) -> EnvelopeTerm {
         let form = carrier_harmonic(carrier).unwrap();
-        let terms = super::incidence::unread(|| {
-            periodic_envelope(channels_of(stored), carrier, form, s, (0.0, PI), PI, band())
-        })
-        .unwrap();
+        let terms = periodic_envelope(channels_of(stored), carrier, form, s, (0.0, PI), PI, band())
+            .unwrap();
         terms
             .first_over(band())
             .unwrap_or_else(|| panic!("no term over the band alone: {:?}", terms.0))
@@ -11979,9 +11957,9 @@ mod tests {
     /// band, yet its fidelity term levers the drift by the window's
     /// reach from the origin, and refuses definitely. At rest that
     /// refusal ends in the kernel-limit recourse and claims only that
-    /// the certificate cannot show the image; a rim off the axis by
-    /// `100·ε`, whose sample residual is the miss itself, ends in the
-    /// defect ending.
+    /// the certificate cannot show the image; the row stored for the rim,
+    /// certified against the rim moved off the axis by `100·ε`, whose
+    /// sample residual is the miss itself, ends in the defect ending.
     #[test]
     fn a_refused_envelope_reads_as_a_bound_at_rest() {
         use crate::recourse::{Reading, defect_ending};
@@ -12027,14 +12005,15 @@ mod tests {
             loose.to_string().contains("the certificate cannot show"),
             "{loose}"
         );
+        // The rim moved off the axis by 100·ε: the mint reads it off the
+        // cylinder (D3), and the row stored for the rim, certified
+        // against it, is refused by its samples, which read the miss.
         let off = rim(Point3::new(100.0 * Tol::witness().eps(), 0.0, 0.0));
-        // The mint reads the rim off the cylinder first (D3); the image a
-        // derivation would give it is a stored row whose carrier moved.
         assert!(matches!(
             chart_pcurve(&off, &cyl, band()),
             Err(PcurveCertifyError::CarrierOffChart { .. })
         ));
-        let image = super::incidence::unread(|| chart_pcurve(&off, &cyl, band())).unwrap();
+        let image = chart_pcurve(&carrier, &cyl, band()).unwrap();
         let miss = PcurveCache::certify(image, 0.0, PI, &off, &cyl, band())
             .map(|_| ())
             .expect_err("a rim off the axis by 100·ε refuses");
@@ -12055,73 +12034,24 @@ mod tests {
         );
     }
 
-    /// **A refused envelope names the incidence that failed.** Each row
-    /// moves the carrier off the cylinder, or the stored image off the
-    /// one derived from it, in exactly one respect, and the term the
-    /// refusal carries is that respect's.
+    /// **A refused envelope names the fidelity that failed.** Each row
+    /// moves the stored image off the one derived from the rim in exactly
+    /// one respect, and the term the refusal carries is that respect's.
+    /// (A carrier moved off the cylinder past the band is read off it by
+    /// check 4's own re-derivation first; its terms in band are the
+    /// envelope sweep's, `envelope_lemma_fuzz`.)
     #[test]
-    fn a_refused_envelope_names_the_incidence_that_failed() {
+    fn a_refused_envelope_names_the_fidelity_that_failed() {
         let r = 0.5;
         let cyl = cylinder(r);
         let d = 100.0 * Tol::witness().eps();
-        let rim = |center: Point3<f64>, axis: Vec3<f64>, radius: f64| Curve3::Circle {
-            center,
-            axis,
-            radius,
-            u_ref: Vec3::unit_x(),
-        };
-        // Each carrier is off the cylinder, so the mint reads it off (or
-        // in the sliver) first (D3); its image is a stored row whose
-        // carrier moved, derived with the test unread.
-        let own = |carrier: &Curve3<f64>| {
-            super::incidence::unread(|| chart_pcurve(carrier, &cyl, band())).unwrap()
-        };
-        // `b` short of `a`'s quarter turn by `d`, `a` on the chart: the
-        // turning pair off the class circle, the radius's own term.
-        let squashed = Curve3::Ellipse {
+        let carrier = Curve3::Circle {
             center: Point3::origin(),
             axis: Vec3::unit_z(),
-            semi_u: r,
-            semi_v: r - d,
+            radius: r,
             u_ref: Vec3::unit_x(),
         };
-        let rows = [
-            (
-                rim(Point3::new(d, 0.0, 0.0), Vec3::unit_z(), r),
-                EnvelopeTerm::Centre,
-            ),
-            (
-                rim(Point3::origin(), Vec3::unit_z(), r + d),
-                EnvelopeTerm::Radius,
-            ),
-            (squashed, EnvelopeTerm::Radius),
-            // A radial slope over the band reads as a moving carrier;
-            // one inside the escalation band takes the meridian (the
-            // D9 tie-break) and lands in the line's own term.
-            (
-                Curve3::Line {
-                    origin: Point3::new(r, 0.0, 0.0),
-                    dir: Vec3::new(2.0 * Tol::witness().eps(), 0.0, 1.0),
-                },
-                EnvelopeTerm::Line,
-            ),
-        ];
-        for (carrier, term) in rows {
-            let read = chart_pcurve(&carrier, &cyl, band());
-            assert!(
-                read.as_ref()
-                    .err()
-                    .is_some_and(|e| IncidenceRead::of(e).is_some()),
-                "the mint reads {carrier:?} by its incidence: {read:?}"
-            );
-            assert_eq!(
-                named_term(&own(&carrier), &carrier, &cyl),
-                term,
-                "{carrier:?}"
-            );
-        }
-        let carrier = rim(Point3::origin(), Vec3::unit_z(), r);
-        let good = own(&carrier);
+        let good = chart_pcurve(&carrier, &cyl, band()).unwrap();
         for (stored, term) in [
             (bumped(&good, d, [0.0; 4]), EnvelopeTerm::FidelityU),
             (
@@ -12171,51 +12101,41 @@ mod tests {
         );
     }
 
-    /// A circle in a plane holding the cylinder's axis is no carrier of
-    /// the cylinder: the mint reads it off first. With the test unread
-    /// (a stored row whose carrier moved), its radial parts are parallel,
-    /// so the derivation decides it MOVING with a zero winding — the one
-    /// moving class whose image does not turn. The envelope still bounds
-    /// the residual of that image, and refuses.
+    /// A small circle in the plane tangent to the wall, which holds the
+    /// axis, of radius `√(R·ε)/2`: it leaves the wall by its sagitta,
+    /// `ε/8`, so the mint's incidence read admits it, and its radial
+    /// part moves without winding, so the derivation decides it MOVING
+    /// with a zero winding — the one moving class whose image does not
+    /// turn. The envelope bounds the residual of that image.
     #[test]
     fn a_moving_carrier_with_no_winding_is_still_bounded() {
         let r = 0.5;
         let cyl = cylinder(r);
         let carrier = Curve3::Circle {
             center: Point3::new(r, 0.0, 0.0),
-            axis: Vec3::unit_y(),
-            radius: 0.1,
-            u_ref: Vec3::unit_x(),
+            axis: Vec3::unit_x(),
+            radius: 0.5 * (r * band().zero()).sqrt(),
+            u_ref: Vec3::unit_y(),
         };
         let place = super::Placement::own(&carrier, &cyl);
-        // The mint reads the circle off the cylinder first (D3); the image
-        // a derivation gives it is a stored row whose carrier moved.
-        assert!(matches!(
-            derive_harmonic(&carrier, &cyl, place, band()),
-            Err(PcurveCertifyError::CarrierOffChart { .. })
-        ));
-        let (image, derivation) =
-            super::incidence::unread(|| derive_harmonic(&carrier, &cyl, place, band())).unwrap();
+        let (image, derivation) = derive_harmonic(&carrier, &cyl, place, band()).unwrap();
         assert!(
             matches!(derivation, Derivation::CylinderMoving { beta: 0 }),
             "{derivation:?}"
         );
         let form = carrier_harmonic(&carrier).unwrap();
-        let envelope = super::incidence::unread(|| {
-            periodic_envelope(
-                channels_of(&image),
-                &carrier,
-                form,
-                &cyl,
-                (0.0, PI),
-                PI,
-                band(),
-            )
-        })
+        let envelope = periodic_envelope(
+            channels_of(&image),
+            &carrier,
+            form,
+            &cyl,
+            (0.0, PI),
+            PI,
+            band(),
+        )
         .unwrap()
         .total();
         assert!(envelope >= true_sup(&image, &cyl, &carrier, 0.0, PI));
-        assert!(PcurveCache::certify(image, 0.0, PI, &carrier, &cyl, band()).is_err());
     }
 
     /// The chart-derivation pins across the frontier's two flips

@@ -1282,14 +1282,14 @@ fn every_arm_and_term_is_load_bearing_in_a_pinned_sweep() {
 /// sweep's are. Returned with the row: its `Centre` term's lower end at
 /// `Interval`, which the row that pins the witness reads.
 fn zero_winding_axis_circle(chart: &Surface<f64>, floors: f64) -> (Row, f64) {
-    super::incidence::unread(|| zero_winding_axis_circle_unread(chart, floors))
-}
-
-/// The circle lies off its chart (a cone's rim or a torus's parallel only
-/// at its own radius), so the mint reads it off first; the row reads the
-/// image a derivation gives it, as a stored row whose carrier moved.
-fn zero_winding_axis_circle_unread(chart: &Surface<f64>, floors: f64) -> (Row, f64) {
-    let (rho, h, reach) = (0.25 * band().zero(), 1.0, TAU);
+    let (rho, reach) = (AXIS_RHO, TAU);
+    // On the chart: the cone's rim at its own height, the near-horn
+    // torus's inner equator.
+    let h = match *chart {
+        Surface::Cone { half_angle, .. } => rho / half_angle.tan(),
+        Surface::Torus { .. } => 0.0,
+        _ => unreachable!("zero_winding_axis_circle: a cone or a torus"),
+    };
     let on_axis = circle(
         Point3::new(0.0, 0.0, h),
         Vec3::unit_z(),
@@ -1391,15 +1391,25 @@ fn a_zero_winding_axis_circles_centre_off_the_axis_is_load_bearing() {
     }
 }
 
+/// The radius of [`zero_winding_axis_circle`]'s circle: inside the band,
+/// so its winding, metered at its own radius, reads Zero.
+const AXIS_RHO: f64 = 2.5e-10;
+
 /// The charts [`zero_winding_axis_circle`] is drawn on, with the arm each
-/// selects.
+/// selects: a cone narrow enough that a rim of [`AXIS_RHO`] sits clear
+/// of the apex's sliver (its height `ρ/tan α` a hundred radii up), and
+/// a near-horn torus whose inner equator is that rim.
 fn axis_charts() -> [(Surface<f64>, &'static str); 2] {
+    assert!(
+        AXIS_RHO < band().zero(),
+        "the rim's radius is inside the band"
+    );
     [
         (
             Surface::Cone {
                 apex: Point3::origin(),
                 axis: Vec3::unit_z(),
-                half_angle: 0.4,
+                half_angle: 0.01,
                 u_ref: Vec3::unit_x(),
             },
             "cone rim, zero winding",
@@ -1408,7 +1418,7 @@ fn axis_charts() -> [(Surface<f64>, &'static str); 2] {
             Surface::Torus {
                 center: Point3::origin(),
                 axis: Vec3::unit_z(),
-                major_radius: 2.0,
+                major_radius: 1.5 + AXIS_RHO,
                 minor_radius: 1.5,
                 u_ref: Vec3::unit_x(),
             },
