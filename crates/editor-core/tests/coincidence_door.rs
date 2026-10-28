@@ -2520,3 +2520,33 @@ fn unproven_findings(
         })
         .collect()
 }
+
+/// rv5915 probe: the pinch split under several pose tools; print proofs.
+#[test]
+fn rv5915_pinch_under_pose_tools() {
+    let notched = [(0.0, 0.0), (8.0, 0.0), (8.0, 2.0), (7.0, 1.0), (6.0, 1.0), (5.0, 2.0), (4.0, 1.0), (3.0, 2.0), (0.0, 2.0)];
+    for shape in ["frame", "slide", "slide-named"] {
+        let doc = ProfileDoc::empty_derived(&format!("rv-pinch-{shape}"), Tol::witness());
+        let (doc, p) = on_frame(doc, [0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![notched.to_vec()]);
+        let (doc, prism) = insert(doc, Node::Extrude { profile: p.into(), distance: len(1.0) });
+        let tool = if shape == "frame" {
+            crate::fixture::plane_on_frame(&doc, prism, [0.0, 1.0, 0.0], [0.0, 1.0, 0.0])
+        } else {
+            crate::fixture::plane_on(&doc, prism, [0.0, 1.0, 0.0], [0.0, 1.0, 0.0])
+        };
+        let (doc, split) = insert(doc, Node::Split { target: prism.into(), tool });
+        let doc = if shape == "slide-named" {
+            let Some(Node::Split { tool, .. }) = doc.node(split).cloned() else { panic!() };
+            crate::fixture::step(doc, editor_core::DocEdit::RenameVar { var: tool.read.into(), name: Some(editor_core::VarName::from_static("cut")) }).0
+        } else { doc };
+        let Some(Node::Split { tool, .. }) = doc.node(split).cloned() else { panic!() };
+        eprintln!("{shape}: tool def {:?}", doc.var(tool.read).map(|v| v.def().clone()));
+        let ev = run(&doc);
+        let rows = rows(&ev, split);
+        let proofs = proofs(&doc, split, &rows);
+        eprintln!("{shape}: {} rows; cells1 {:?}; proofs {proofs:?}", rows.len(), rows.iter().map(|r| r.cells[1].clone()).collect::<Vec<_>>());
+        assert_eq!(rows.len(), 2, "{shape}");
+        for r in &rows { assert_eq!(r.cells[1], NamedCell::Tool { input: tool.read, role: tool.role }, "{shape}"); }
+        eprintln!("RV {shape}: structural {}", proofs.iter().filter(|p| matches!(p, editor_core::coincide::Proof::Structural(_))).count());
+    }
+}
