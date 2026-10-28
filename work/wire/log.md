@@ -7224,3 +7224,7 @@ Signed (WIRE orchestrator).
   - Fix pass sent to the lane.
   - Filed `wirerest/the-judgement-naming-fault-seam-refuses-other-tests-unions` (P4, E) for a pre-existing threaded-cargo-test flake.
 - 2026-10-28 (WIRE orchestrator) PR 5902 fix pass: the unequal-tied-groups witness is red on base, the PR body is corrected, and the docs are fixed. Merged at e341b9d915; row closed; worktree removed.
+- 2026-10-28 (WIRE orchestrator) Main re-weighted the cost tiers (2f96694d12: E 1, M 3, H 8), which put WIREREST at 37/30 and WIRETAIL at 34/30.
+  - Split on the refusal seam into the new track WIREREFUSE (ab_band 18200–18299): five rows from WIREREST and four from WIRETAIL, by `git mv`. Nothing cited their paths.
+  - Corrected both plans' slates: closed flush-helper rows dropped; moved-in rows listed.
+  - Loads: WIRE 29, WIREREST 26, WIRETAIL 24, WIREREFUSE 21, WIREHOLD 23.
