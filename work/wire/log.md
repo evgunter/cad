@@ -7245,3 +7245,6 @@ Signed (WIRE orchestrator).
   - The corner row was not taken: routing its tied rows through the corner rule refuses two building documents. Filed `a-unions-member-edge-group-size-reads-the-fold-steps-spelling` (P3, M).
   - Answered the lane's D10 question: test documents may use existing Place nodes unchanged. The lane rule is amended.
   - FULL review dispatched (`wire-unionvertex-rev`).
+- 2026-10-28 (WIRE orchestrator) PR 5930 FULL review: mergeable. The witness is red on current main (16 of 24 orders) and no other diagnosis changed (probe).
+  - MINORs: `by_fold` takes any Fragment-tailed kept vertex, not just fold-tied member corners; "0 disagreements" has no guard; the witness doc is wrong about which orders fail; the `group_resized` docs are stale; the member-edge row's numbers are pre-5916.
+  - Fix pass sent.
