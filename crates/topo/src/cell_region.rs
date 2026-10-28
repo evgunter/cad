@@ -31,10 +31,18 @@
 //! door places on the boundary or does not read, a refusal of either
 //! door. Every one of those keeps the cell, which is the direction a
 //! subdivision consumer's looseness has to run.
+//!
+//! Both doors read a body at any certifying scalar `T`. The station is
+//! evaluated at `T`, its chart point entering as
+//! [`Real::from_computed`](geom_core::Real::from_computed), and the
+//! point-in-face doors place it at `T`. The ball is interval
+//! arithmetic: the carrier, the station and every boundary feature are
+//! lifted through [`Interval::from_certified`], which keeps every bound
+//! at `T = Interval`.
 
 use geom::Surface;
 use geom_core::interval::Interval;
-use geom_core::{Band, Margin, Point3, Sign};
+use geom_core::{Band, CertifiedBounds, Decide, Margin, Point3, Sign};
 
 use crate::Body;
 use crate::boolean::{FaceContainment, contfp, curved_face_containment};
@@ -78,25 +86,24 @@ pub enum CellRegion {
 /// the chart [`Surface::eval`] reads. A face or a surface that does
 /// not resolve, a loop that does not walk, and a carrier with no point
 /// door are all [`CellRegion::Undecided`].
-pub fn cell_region(
-    body: &Body<Interval>,
+pub fn cell_region<T: Decide + CertifiedBounds>(
+    body: &Body<T>,
     face: FaceKey,
     u: (f64, f64),
     v: (f64, f64),
     band: Band,
 ) -> CellRegion {
-    let Some(surface) = body
+    let Some(stored) = body
         .get_face(face)
         .and_then(|f| body.get_surface(f.surface))
     else {
         return CellRegion::Undecided;
     };
+    let surface = stored.map_scalar(Interval::from_certified);
     let span = |(lo, hi): (f64, f64)| Interval::from_bounds(lo, hi);
-    let point = |(lo, hi): (f64, f64)| {
-        let mid = geom::mid_param(lo, hi);
-        Interval::from_bounds(mid, mid)
-    };
-    let station = surface.eval(point(u), point(v));
+    let point = |(lo, hi): (f64, f64)| T::from_computed(geom::mid_param(lo, hi));
+    let at = stored.eval(point(u), point(v));
+    let station = at.map(Interval::from_certified);
     let reach = (surface.eval(span(u), span(v)) - station).norm();
     let clear = |row: &'static str, distance: Interval| {
         matches!(
@@ -104,12 +111,12 @@ pub fn cell_region(
             Ok(Sign::Positive)
         )
     };
-    if !(clear_of_singular(surface, station, &clear)
+    if !(clear_of_singular(&surface, station, &clear)
         && clear_of_boundary(body, face, station, &clear))
     {
         return CellRegion::Undecided;
     }
-    match place(body, face, surface, station, band) {
+    match place(body, face, stored, at, band) {
         Some(FaceContainment::In) => CellRegion::Inside,
         Some(FaceContainment::Out) => CellRegion::Outside,
         Some(FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_)) | None => {
@@ -123,8 +130,8 @@ pub fn cell_region(
 /// [`crate::curved_face_containment`] on a curved carrier. `None` for
 /// a face or a surface that does not resolve, a door that refuses, and
 /// a curved door's unread remainder.
-pub fn station_region(
-    body: &Body<Interval>,
+pub fn station_region<T: Decide + CertifiedBounds>(
+    body: &Body<T>,
     face: FaceKey,
     (u, v): (f64, f64),
     band: Band,
@@ -132,15 +139,15 @@ pub fn station_region(
     let surface = body
         .get_face(face)
         .and_then(|f| body.get_surface(f.surface))?;
-    let station = surface.eval(Interval::from_bounds(u, u), Interval::from_bounds(v, v));
+    let station = surface.eval(T::from_computed(u), T::from_computed(v));
     place(body, face, surface, station, band)
 }
 
-fn place(
-    body: &Body<Interval>,
+fn place<T: Decide>(
+    body: &Body<T>,
     face: FaceKey,
-    surface: &Surface<Interval>,
-    station: Point3<Interval>,
+    surface: &Surface<T>,
+    station: Point3<T>,
     band: Band,
 ) -> Option<FaceContainment> {
     match *surface {
@@ -173,8 +180,8 @@ fn clear_of_singular(
 
 /// Is every vertex of `face`, and every edge of it that is not a seam,
 /// decided clear of the ball?
-fn clear_of_boundary(
-    body: &Body<Interval>,
+fn clear_of_boundary<T: Decide + CertifiedBounds>(
+    body: &Body<T>,
     face: FaceKey,
     station: Point3<Interval>,
     clear: &dyn Fn(&'static str, Interval) -> bool,
@@ -190,7 +197,7 @@ fn clear_of_boundary(
     let vertex_clear = |vertex| {
         body.get_vertex(vertex)
             .and_then(|x| body.get_point(x.point))
-            .is_some_and(|p| clear(VERTEX, (*p - station).norm()))
+            .is_some_and(|p| clear(VERTEX, (p.map(Interval::from_certified) - station).norm()))
     };
     for &lk in core::iter::once(&f.outer).chain(&f.rings) {
         let Some(l) = body.get_loop(lk) else {
@@ -229,15 +236,17 @@ fn clear_of_boundary(
             let Some(curve) = geom.certified() else {
                 continue;
             };
-            let cleared =
-                arc_distance_floor(curve.carrier(), curve.params(), station).is_some_and(|floor| {
-                    let row = match floor {
-                        ArcFloor::Segment(_) => SEGMENT,
-                        ArcFloor::Conic { .. } => CONIC,
-                        ArcFloor::Ball { .. } => BALL,
-                    };
-                    floor.clears(|d| clear(row, d))
-                });
+            let carrier = curve.carrier().map_scalar(Interval::from_certified);
+            let (t0, t1) = curve.params();
+            let params = (Interval::from_certified(t0), Interval::from_certified(t1));
+            let cleared = arc_distance_floor(&carrier, params, station).is_some_and(|floor| {
+                let row = match floor {
+                    ArcFloor::Segment(_) => SEGMENT,
+                    ArcFloor::Conic { .. } => CONIC,
+                    ArcFloor::Ball { .. } => BALL,
+                };
+                floor.clears(|d| clear(row, d))
+            });
             if !cleared {
                 return false;
             }

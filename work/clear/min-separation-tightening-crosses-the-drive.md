@@ -2,11 +2,10 @@
 id: min-separation-tightening-crosses-the-drive
 kind: issue
 title: min_separation cannot mint a chart boundary: the walk's rows are recorded on one lane only and every drive leaf refuses
-status: parked
+status: open
 opened: 2026-09-13
 priority: P1
 cost: M
-blocked_on: [SHELL-3]
 ---
 
 

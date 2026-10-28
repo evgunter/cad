@@ -3214,11 +3214,13 @@ NOT_BOUND = {
     # top-level under rule 1. One verb, two refusals, and the lane
     # decides which of them a Python caller can ever see.
     "ClearanceRefusal": SHAPE,
-    # Its `Budget` and `Selection` payloads, curated beside it so a
-    # Rust consumer can read the arm it matched. They cross exactly as
-    # their carrier does — inside the one tag — and no `f64` evaluation
-    # reaches them for the same reason.
+    # Its `Engine` and `Selection` payloads, and the engine's `Budget`
+    # payload below them, curated beside it so a Rust consumer can read
+    # the arm it matched. They cross exactly as their carrier does —
+    # inside the one tag — and no `f64` evaluation reaches them for the
+    # same reason.
     "CellBudget": SHAPE,
+    "EngineRefusal": SHAPE,
     "SelectionRefusal": SHAPE,
     # B-FACE-FRAME IS GONE FROM THIS ROSTER, closed at
     # LIB-B-FACE-FRAME, and the id left `FAMILIES` with it. It cited
