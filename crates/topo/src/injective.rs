@@ -355,6 +355,11 @@ pub(crate) enum Outcome {
     },
     /// No arm can hold at any depth: refused now, typed.
     Refuse(EngineRefusal),
+    /// The two faces meet at wedge 0 or 2π on the shared edge, which
+    /// only the second-order arm reads.
+    Cusp {
+        shared: SharedCell,
+    },
 }
 
 /// **The analytic carrier's own injectivity**: every analytic carrier
@@ -434,6 +439,20 @@ fn pmid(p: Point3<Interval>) -> Point3<f64> {
 
 fn lift(v: Vec3<f64>) -> Vec3<Interval> {
     v.map(at)
+}
+
+/// **`C` over the parameter piece `t`**, enclosed: a spline edge's by
+/// its restricted net ([`geom::NurbsCurve3::span_enclosure`]), any other
+/// carrier's by its closed form at the interval. A piece the net door
+/// does not read is the whole space.
+fn arc_enclosure(c: &Curve3<Interval>, t: (f64, f64)) -> Point3<Interval> {
+    match c {
+        Curve3::Nurbs(n) => n.span_enclosure(t.0, t.1).unwrap_or_else(|| {
+            let line = Interval::from_bounds(f64::NEG_INFINITY, f64::INFINITY);
+            Point3::new(line, line, line)
+        }),
+        _ => c.eval(iv(t)),
+    }
 }
 
 /// **`C′` over the parameter piece `t`**, enclosed: a spline edge's off
@@ -600,13 +619,22 @@ struct Presented<'a> {
     x: (f64, f64),
     y: (f64, f64),
     zero: Zero,
+    /// The rectangle's jet and image, read once.
+    cache: Cache,
+}
+
+/// What a presentation reads of its whole rectangle, once.
+#[derive(Default)]
+struct Cache {
+    jet: std::cell::OnceCell<(Vec3<Interval>, Vec3<Interval>, Vec3<Interval>)>,
+    image: std::cell::OnceCell<Point3<Interval>>,
 }
 
 /// What presenting a face in a cell came to.
 enum Presentation<'a> {
     /// The face has no point in the cell.
     Vacuous,
-    Of(Presented<'a>),
+    Of(Box<Presented<'a>>),
 }
 
 /// Why a face is not presented in a cell.
@@ -618,8 +646,8 @@ enum Unpresented {
     /// A null edge's vertex: the chart collapses there.
     Collapsed(VertexKey),
     /// The cell holds more boundary than a presentation reads; a smaller
-    /// one may not. The reason, for a trace.
-    Local(&'static str),
+    /// one may not.
+    Local,
 }
 
 impl<'a> Presented<'a> {
@@ -642,12 +670,12 @@ impl<'a> Presented<'a> {
     }
 
     fn whole(&self) -> Point3<Interval> {
-        self.image(self.x, self.y)
+        *self.cache.image.get_or_init(|| self.image(self.x, self.y))
     }
 
     /// `(Φ_x, Φ_y, Φ_xy)` over the rectangle.
     fn jet(&self) -> (Vec3<Interval>, Vec3<Interval>, Vec3<Interval>) {
-        self.jet_on(self.x, self.y)
+        *self.cache.jet.get_or_init(|| self.jet_on(self.x, self.y))
     }
 
     /// `(Φ_x, Φ_y, Φ_xy)` over `x × y`. On a spline chart a side, with
@@ -655,11 +683,9 @@ impl<'a> Presented<'a> {
     fn jet_on(&self, x: (f64, f64), y: (f64, f64)) -> (Vec3<Interval>, Vec3<Interval>, Vec3<Interval>) {
         if let Map::Chart = self.map {
             let flat = !(x.0 < x.1 && y.0 < y.1);
-            let (x, y) = if flat && matches!(self.surface, Surface::Nurbs(_)) {
-                (self.x, self.y)
-            } else {
-                (x, y)
-            };
+            if flat && matches!(self.surface, Surface::Nurbs(_)) {
+                return self.jet();
+            }
             return rect_jet(self.surface, x, y);
         }
         let (u, v) = self.chart(iv(x), iv(y));
@@ -687,15 +713,6 @@ impl<'a> Presented<'a> {
         match axis {
             Axis::U => self.x.1 - self.x.0,
             Axis::V => self.y.1 - self.y.0,
-        }
-    }
-
-    /// The image of one side.
-    fn side(&self, side: Side) -> Point3<Interval> {
-        let b = self.bound(side);
-        match side.axis() {
-            Axis::U => self.image((b, b), self.y),
-            Axis::V => self.image(self.x, (b, b)),
         }
     }
 
@@ -825,7 +842,7 @@ fn unread(edge: usize, near_edges: &[usize]) -> Unpresented {
     if near_edges.contains(&edge) {
         Unpresented::Structural
     } else {
-        Unpresented::Local("L1")
+        Unpresented::Local
     }
 }
 
@@ -848,7 +865,7 @@ fn present_chart<'a>(
     };
     for &ei in &piece.local.edges {
         let Some(e) = b.edges.get(ei) else {
-            return Err(Unpresented::Local("L2"));
+            return Err(Unpresented::Local);
         };
         if e.arc.is_none() {
             if piece.whole {
@@ -943,7 +960,7 @@ fn present_chart<'a>(
                 .map(|&q| (q - *apex).dot(*axis))
                 .find_map(|h| sign_of(h, APEX, band));
             let Some(nappe) = nappe else {
-                return Err(Unpresented::Local("L3"));
+                return Err(Unpresented::Local);
             };
             let lo = nappe == Sign::Positive;
             if (lo && y.1 <= 0.0) || (!lo && y.0 >= 0.0) {
@@ -970,7 +987,7 @@ fn present_chart<'a>(
                 m.edges.extend(c.edges);
                 m.collapsed = m.collapsed.or(c.collapsed);
             }
-            Some(_) => return Err(Unpresented::Local("L4")),
+            Some(_) => return Err(Unpresented::Local),
             None => merged.push(c),
         }
     }
@@ -1024,26 +1041,25 @@ fn present_chart<'a>(
         }
         let (want, per) = other(c.side.axis());
         let Some(ranges) = edge_ranges(&c.edges, c.side.axis()) else {
-            return Err(Unpresented::Local("L5"));
+            return Err(Unpresented::Local);
         };
         if !covered(want, &ranges, per) {
-            if std::env::var_os("SELFX_DEBUG").is_some() {
-                eprintln!("    L6: side={:?} at={:?} want={want:?} per={per} ranges={ranges:?} isos={:?}", c.side, c.at, c.edges.iter().map(|&i| b.edges[i].uses.iter().map(|u| (u.iso, u.image)).collect::<Vec<_>>()).collect::<Vec<_>>());
-            }
-            return Err(Unpresented::Local("L6"));
+            return Err(Unpresented::Local);
         }
     }
     // A cell wholly past an edge's line holds none of the face, when the
-    // line across it is the edge's.
-    for (side, _, edges) in &outside {
-        let (want, per) = other(side.axis());
-        let Some(ranges) = edge_ranges(edges, side.axis()) else {
-            return Err(Unpresented::Local("L7"));
+    // line across it is the edge's; past a line it is not, the face may
+    // wrap round the edge's end.
+    if !outside.is_empty() {
+        let read = outside.iter().any(|(side, _, edges)| {
+            let (want, per) = other(side.axis());
+            edge_ranges(edges, side.axis()).is_some_and(|ranges| covered(want, &ranges, per))
+        });
+        return if read {
+            Ok(Presentation::Vacuous)
+        } else {
+            Err(Unpresented::Local)
         };
-        if covered(want, &ranges, per) {
-            return Ok(Presentation::Vacuous);
-        }
-        return Err(Unpresented::Local("L8"));
     }
     // Two lines on different axes meet at a corner of the face; the
     // clipped quadrant is the face there only where the corner is
@@ -1056,22 +1072,20 @@ fn present_chart<'a>(
                     continue;
                 }
                 if !convex(b, c, d) {
-                    return Err(Unpresented::Local("L9"));
+                    return Err(Unpresented::Local);
                 }
             }
         }
     }
     let zero = zero_of(b, &merged, near_edges, near_vertices)?;
-    if std::env::var_os("SELFX_DEBUG").is_some() {
-        eprintln!("    clips: {:?} local.v={:?} local.e={:?} near_e={near_edges:?} near_v={near_vertices:?} verts={:?}", merged.iter().map(|c| (c.side, c.at, c.edges.clone(), c.collapsed)).collect::<Vec<_>>(), piece.local.vertices, piece.local.edges, b.vertices.keys().collect::<Vec<_>>());
-    }
-    Ok(Presentation::Of(Presented {
+    Ok(Presentation::Of(Box::new(Presented {
         surface: piece.surface,
         map: Map::Chart,
         x,
         y,
         zero,
-    }))
+        cache: Cache::default(),
+    })))
 }
 
 /// Whether the face is the quadrant two clips cut at the vertex their
@@ -1184,9 +1198,9 @@ fn zero_of(
                     }
                 }
             }
-            Err(Unpresented::Local("L10"))
+            Err(Unpresented::Local)
         }
-        _ => Err(Unpresented::Local("L11")),
+        _ => Err(Unpresented::Local),
     }
 }
 
@@ -1214,15 +1228,16 @@ fn present_plane<'a>(
         let zero = if near_vertices.is_empty() {
             Zero::None
         } else {
-            return Err(Unpresented::Local("L12"));
+            return Err(Unpresented::Local);
         };
-        return Ok(Presentation::Of(Presented {
+        return Ok(Presentation::Of(Box::new(Presented {
             surface: piece.surface,
             map: Map::Chart,
             x: piece.u,
             y: piece.v,
             zero,
-        }));
+            cache: Cache::default(),
+        })));
     }
     // A line edge's chart image, in traversal order: its two ends read
     // into the plane's affine chart.
@@ -1240,7 +1255,7 @@ fn present_plane<'a>(
         Point2::new(d.dot(u_ref), d.dot(v_ref))
     };
     let segment = |ei: usize| -> Result<(Point2<Interval>, Point2<Interval>), Unpresented> {
-        let e = b.edges.get(ei).ok_or(Unpresented::Local("L13"))?;
+        let e = b.edges.get(ei).ok_or(Unpresented::Local)?;
         let Some((carrier @ Curve3::Line { .. }, (t0, t1))) = &e.arc else {
             return Err(unread(ei, near_edges));
         };
@@ -1254,7 +1269,7 @@ fn present_plane<'a>(
     match edges.as_slice() {
         [e] => {
             if !piece.local.vertices.is_empty() {
-                return Err(Unpresented::Local("L14"));
+                return Err(Unpresented::Local);
             }
             let (p, q) = segment(*e)?;
             let a = [q.x - p.x, q.y - p.y];
@@ -1269,14 +1284,14 @@ fn present_plane<'a>(
             let len = len2.sqrt();
             let inside = (x * len).min((at(1.0) - x) * len);
             if sign_of(inside, SPAN, band) != Some(Sign::Positive) {
-                return Err(Unpresented::Local("L15"));
+                return Err(Unpresented::Local);
             }
             let zero = if near_edges.contains(e) {
                 Zero::Side(Side::YLo)
             } else {
                 Zero::None
             };
-            Ok(Presentation::Of(Presented {
+            Ok(Presentation::Of(Box::new(Presented {
                 surface: piece.surface,
                 map: Map::Affine {
                     o: [p.x, p.y],
@@ -1286,17 +1301,18 @@ fn present_plane<'a>(
                 x: (x.lo(), x.hi()),
                 y: (0.0, y.hi()),
                 zero,
-            }))
+                cache: Cache::default(),
+            })))
         }
         [e1, e2] => {
             let (Some(r1), Some(r2)) = (b.edges.get(*e1), b.edges.get(*e2)) else {
-                return Err(Unpresented::Local("L16"));
+                return Err(Unpresented::Local);
             };
             let Some(&vtx) = r1.ends.iter().find(|v| r2.ends.contains(v)) else {
-                return Err(Unpresented::Local("L17"));
+                return Err(Unpresented::Local);
             };
             if piece.local.vertices.iter().any(|&w| w != vtx) {
-                return Err(Unpresented::Local("L18"));
+                return Err(Unpresented::Local);
             }
             let (p1, q1) = segment(*e1)?;
             let (p2, q2) = segment(*e2)?;
@@ -1318,7 +1334,7 @@ fn present_plane<'a>(
             if sign_of(lean(n1, bv), CORNER, band) != Some(Sign::Positive)
                 || sign_of(lean(n2, a), CORNER, band) != Some(Sign::Positive)
             {
-                return Err(Unpresented::Local("L19"));
+                return Err(Unpresented::Local);
             }
             let det = a[0] * bv[1] - a[1] * bv[0];
             let d = [cell_u - o.x, cell_v - o.y];
@@ -1332,7 +1348,7 @@ fn present_plane<'a>(
             if sign_of((at(1.0) - x) * la, SPAN, band) != Some(Sign::Positive)
                 || sign_of((at(1.0) - y) * lb, SPAN, band) != Some(Sign::Positive)
             {
-                return Err(Unpresented::Local("L20"));
+                return Err(Unpresented::Local);
             }
             let z1 = near_edges.contains(e1);
             let z2 = near_edges.contains(e2);
@@ -1343,7 +1359,7 @@ fn present_plane<'a>(
                 (false, false) if near_vertices.contains(&vtx) => Zero::Point(Side::XLo, Side::YLo),
                 (false, false) => Zero::None,
             };
-            Ok(Presentation::Of(Presented {
+            Ok(Presentation::Of(Box::new(Presented {
                 surface: piece.surface,
                 map: Map::Affine {
                     o: [o.x, o.y],
@@ -1353,9 +1369,10 @@ fn present_plane<'a>(
                 x: (0.0, x.hi()),
                 y: (0.0, y.hi()),
                 zero,
-            }))
+                cache: Cache::default(),
+            })))
         }
-        _ => Err(Unpresented::Local("L21")),
+        _ => Err(Unpresented::Local),
     }
 }
 
@@ -1473,8 +1490,9 @@ impl Psi {
 fn centred(psi: &Psi, p: &Presented<'_>, x: (f64, f64), y: (f64, f64)) -> Option<Interval> {
     let (xm, ym) = (geom::mid_param(x.0, x.1), geom::mid_param(y.0, y.1));
     let middle = psi.value(p.image((xm, xm), (ym, ym)))?;
-    let (fx, fy, _) = p.jet_on(x, y);
-    let grad = psi.gradient(p.image(x, y));
+    let whole = x == p.x && y == p.y;
+    let (fx, fy, _) = if whole { p.jet() } else { p.jet_on(x, y) };
+    let grad = psi.gradient(if whole { p.whole() } else { p.image(x, y) });
     Some(middle + grad.dot(fx) * iv((x.0 - xm, x.1 - xm)) + grad.dot(fy) * iv((y.0 - ym, y.1 - ym)))
 }
 
@@ -1596,27 +1614,6 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     let (ex, ey) = (near.side(false), near.side(true));
     let px = present(x, &ex, &near.vertices, band);
     let py = present(y, &ey, &near.vertices, band);
-    let tiny = std::env::var_os("SELFX_TINY").is_none() || ((x.u.1 - x.u.0) < 0.013 && (x.v.1 - x.v.0) < 0.013 && x.u.0 < 0.1);
-    if std::env::var_os("SELFX_DEBUG").is_some() && tiny {
-        let show = |p: &Result<Presentation<'_>, Unpresented>| match p {
-            Ok(Presentation::Vacuous) => "vacuous".to_owned(),
-            Ok(Presentation::Of(q)) => format!("of x={:?} y={:?} zero={:?} map={}", q.x, q.y, q.zero, matches!(q.map, Map::Chart)),
-            Err(e) => format!("{e:?}"),
-        };
-        let s1 = |sep: &Piece<'_>, other: &Result<Presentation<'_>, Unpresented>| match (implicit_of(sep, band), other) {
-            (Some(imp), Ok(Presentation::Of(p))) => {
-                let psi = Psi::Carrier(imp);
-                let (fx, fy, _) = p.jet();
-                let image = p.whole();
-                let grad = psi.gradient(image);
-                format!("sign={:?} value={:?} gx={:?} gy={:?} side={:?}", sign_on(&psi, p, band), psi.value(image), grad.dot(fx), grad.dot(fy),
-                    match p.zero { Zero::Side(s) => psi.value(p.side(s)), _ => None })
-            }
-            _ => "n/a".to_owned(),
-        };
-        eprintln!("[dep] {:?}/{:?} near={near:?} cell x={:?}x{:?} y={:?}x{:?}\n  px={} \n  py={}\n  s1(x|y)={}\n  s1(y|x)={}",
-            x.face, y.face, x.u, x.v, y.u, y.v, show(&px), show(&py), s1(x, &py), s1(y, &px));
-    }
     for p in [&px, &py] {
         if let Err(Unpresented::Collapsed(v)) = p {
             return Outcome::Refuse(EngineRefusal::CollapsedChart {
@@ -1655,20 +1652,6 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
         (Some(a), Some(b)) => a == flip(b),
         _ => false,
     };
-    if std::env::var_os("SELFX_DEBUG").is_some() && tiny {
-        let arc = near.edges.first().and_then(|&(i, _)| x.boundary.edges.get(i)).map(|e| format!("{:?}", e.arc.as_ref().map(|a| core::mem::discriminant(&a.0))));
-        let p2 = plane_through(x, near, qx, qy);
-        let g3 = graph_of(x, near, qx, qy, band);
-        eprintln!("  arc={arc:?} s2={:?} signs={:?} s3={:?} signs={:?}", p2.is_some(), p2.map(|p| (sign_on(&p, qx, band), sign_on(&p, qy, band))), g3.map(|g| match g { Psi::Graph{slope, ..} => format!("{slope:?}"), _ => String::new() }), g3.map(|p| (sign_on(&p, qx, band), sign_on(&p, qy, band))));
-        if let Some(psi) = p2 {
-            for (n, q) in [("qx", qx), ("qy", qy)] {
-                let (fx, fy, _) = q.jet();
-                let g = psi.gradient(q.whole());
-                let side = match q.zero { Zero::Side(sd) => { let b = q.bound(sd); let (xx, yy) = match sd.axis() { Axis::U => ((b, b), q.y), Axis::V => (q.x, (b, b)) }; centred(&psi, q, xx, yy) }, _ => None };
-                eprintln!("    {n} x={:?} y={:?} zero={:?} gx={:?} gy={:?} side={:?}", q.x, q.y, q.zero, g.dot(fx), g.dot(fy), side);
-            }
-        }
-    }
     if let Some(psi) = plane_through(x, near, qx, qy)
         && opposite(&psi)
     {
@@ -1679,8 +1662,8 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     {
         return Outcome::Certified;
     }
-    if let Some(refusal) = cusp(x, y, near, qx, qy, band) {
-        return Outcome::Refuse(refusal);
+    if let Some(shared) = cusp(x, near, qx, qy, y.boundary.sense, band) {
+        return Outcome::Cusp { shared };
     }
     split
 }
@@ -1751,7 +1734,7 @@ fn edge_piece(
         return None;
     }
     let meets = |a: f64, b: f64| {
-        let enc = carrier.eval(Interval::from_bounds(a.min(b), a.max(b)));
+        let enc = arc_enclosure(carrier, (a.min(b), a.max(b)));
         boxes.iter().any(|&bx| overlap(enc, bx))
     };
     #[allow(clippy::cast_precision_loss)]
@@ -1824,12 +1807,7 @@ fn graph_of(
         *span,
         e.ends[0] == e.ends[1],
         &[px.whole(), py.whole()],
-    );
-    let dbg = std::env::var_os("SELFX_DEBUG").is_some();
-    if dbg {
-        eprintln!("    graph: span={span:?} piece={piece:?} boxes={:?} {:?}", px.whole(), py.whole());
-    }
-    let piece = piece?;
+)?;
     let middle = at(geom::mid_param(piece.0, piece.1));
     let t = unit(vmid(carrier.deriv(middle)))?;
     let q0 = pmid(carrier.eval(middle));
@@ -1838,9 +1816,6 @@ fn graph_of(
     let (t, m) = (lift(t), lift(m));
     let d = arc_deriv(carrier, piece);
     let advance = t.dot(d);
-    if dbg {
-        eprintln!("    graph: t={t:?} m={m:?} d={d:?} advance={advance:?}");
-    }
     if sign_of(advance * at(piece.1 - piece.0), GRAPH, band) != Some(Sign::Positive) {
         return None;
     }
@@ -1853,15 +1828,15 @@ fn graph_of(
 
 /// **A wedge-0/2π shared edge**: the faces' outward normals opposed at
 /// the middle of the side each presents on it. The second-order arm that
-/// would read it is not built, so it refuses typed.
+/// would read it is not built.
 fn cusp(
     x: &Piece<'_>,
-    y: &Piece<'_>,
     near: &Near,
     px: &Presented<'_>,
     py: &Presented<'_>,
+    y_sense: bool,
     band: Band,
-) -> Option<EngineRefusal> {
+) -> Option<SharedCell> {
     let [(i, _)] = near.edges.as_slice() else {
         return None;
     };
@@ -1869,18 +1844,12 @@ fn cusp(
         return None;
     };
     let nx = px.normal_at(sx, x.boundary.sense)?;
-    let ny = py.normal_at(sy, y.boundary.sense)?;
+    let ny = py.normal_at(sy, y_sense)?;
     let gap = lift(nx + ny).norm() * x.ball.reach();
     if !matches!(decide(CUSP, Margin::of(gap), band), Ok(Sign::Zero)) {
         return None;
     }
-    let edge = x.boundary.edges.get(*i)?.key;
-    Some(EngineRefusal::Uncertified {
-        a: x.face,
-        b: y.face,
-        shared: SharedCell::Edge(edge),
-        arm: CertificateArm::SecondOrder,
-    })
+    Some(SharedCell::Edge(x.boundary.edges.get(*i)?.key))
 }
 
 // ----------------------------------------------------- the monotone arm

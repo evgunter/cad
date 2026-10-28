@@ -274,9 +274,6 @@ fn a_revolved_cone_holds() {
         [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)].map(|(x, y)| Point2::new(x, y)),
     )]);
     let body = revolve(&profile, axis_y(), Revolution::Full, tol()).unwrap().body;
-    for (k, f) in body.faces() {
-        eprintln!("[selfx-debug] {k:?} {:?}", body.get_surface(f.surface));
-    }
     let n = body.faces().count();
     let report = injective(&body, None, BUDGET);
     assert_holds("the cone", &report, n, 1);

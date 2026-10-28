@@ -142,6 +142,14 @@ pub const SELF_INTERSECTION_GAP: &str = "self_intersection_gap";
 /// evaluation carries information at `f64`.
 pub const DEFAULT_MAX_CELL_DEPTH: u32 = 40;
 
+/// **How deep a touching pair read at wedge 0 or 2π splits before it
+/// refuses**, naming the second-order arm. Above it the pair splits like
+/// any uncertified one, so the cells it holds away from the edge are
+/// still decided — the walk is breadth-first, and a violation there is
+/// reported first; past it the cells at the edge stop multiplying along
+/// it. A recorded run dial.
+pub const CUSP_DEPTH: u32 = 10;
+
 /// The whole-query cell-pair budget of ONE [`min_separation`] query.
 ///
 /// A recorded run dial. The bracket a budget buys is honest at any
@@ -992,9 +1000,6 @@ impl Sweep {
                 };
                 let pair = task.pair;
                 deepest = deepest.max(pair.depth);
-                let trace = std::env::var_os("SELFX_TRACE").is_some();
-                let t0 = std::time::Instant::now();
-                if trace { eprintln!("[task] d={} {:?}/{:?} a={:?}x{:?} b={:?}x{:?}", pair.depth, x.face, y.face, pair.a.u, pair.a.v, pair.b.u, pair.b.v); }
                 // **Off the face, before anything is enclosed.** A cell
                 // decided outside its face is a leaf, and the discharge
                 // is VACUOUS: no separation is measured, nothing is
@@ -1008,7 +1013,6 @@ impl Sweep {
                     receipt.outside += 1;
                     continue;
                 }
-                if trace { eprintln!("[time] region {:?}", t0.elapsed()); }
                 let discharge = |receipt: &mut CellReceipt, widths: &mut DischargeWidths| {
                     receipt.discharged += 1;
                     let da = diameter(&cell_box(&pair.a.enc));
@@ -1045,7 +1049,6 @@ impl Sweep {
                         let near = Near::of(sh, &la, &lb);
                         (!near.is_empty()).then_some((near, la, lb))
                     };
-                    if trace { eprintln!("[time] near {:?} meet={meet} near={}", t0.elapsed(), near.is_some()); }
                     if meet || near.is_some() {
                         let outcome = if meet {
                             let hull = (
@@ -1070,6 +1073,21 @@ impl Sweep {
                         } else {
                             unreachable!("a touching pair meets or is near")
                         };
+                        let outcome = match outcome {
+                            Outcome::Cusp { shared } if pair.depth >= CUSP_DEPTH => {
+                                Outcome::Refuse(EngineRefusal::Uncertified {
+                                    a: x.face,
+                                    b: y.face,
+                                    shared,
+                                    arm: CertificateArm::SecondOrder,
+                                })
+                            }
+                            Outcome::Cusp { shared } => Outcome::Split {
+                                arm: CertificateArm::SecondOrder,
+                                shared,
+                            },
+                            other => other,
+                        };
                         match outcome {
                             Outcome::Certified => {
                                 discharge(&mut receipt, &mut widths);
@@ -1079,10 +1097,8 @@ impl Sweep {
                                 receipt.refused += 1;
                                 first_refusal.get_or_insert(r);
                             }
+                            Outcome::Cusp { .. } => unreachable!("read as a split or a refusal above"),
                             Outcome::Split { arm, shared } => {
-                                if pair.depth >= 36 && std::env::var_os("SELFX_DEEP").is_some() {
-                                    eprintln!("[deep] d={} {:?}/{:?} {arm:?} {shared:?} a={:?}x{:?} b={:?}x{:?}", pair.depth, x.face, y.face, pair.a.u, pair.a.v, pair.b.u, pair.b.v);
-                                }
                                 let refuse = |receipt: &mut CellReceipt,
                                               first: &mut Option<EngineRefusal>,
                                               r: EngineRefusal| {
@@ -1121,7 +1137,7 @@ impl Sweep {
                                 let split = if itself {
                                     split_self(pair, x).map(|[p, q, r]| vec![p, q, r])
                                 } else {
-                                    split(pair, x, y).map(|(p, q)| vec![p, q])
+                                    split_by(pair, x, y, Axes::Metric).map(|(p, q)| vec![p, q])
                                 };
                                 match split {
                                     Some(children) => {
@@ -1209,8 +1225,7 @@ impl Sweep {
                         // changes no answer, so no `Holds` can rest on
                         // it. That is what keeps it an exhibit rather
                         // than a sample.
-                        let probe_here = (pair.fresh && std::env::var_os("SELFX_NOPROBE").is_none()) || pair.depth >= self.max_cell_depth;
-                        if std::env::var_os("SELFX_TRACE").is_some() { eprintln!("[ind] d={} fresh={} probe={probe_here} {:?}/{:?}", pair.depth, pair.fresh, x.face, y.face); }
+                        let probe_here = pair.fresh || pair.depth >= self.max_cell_depth;
                         if probe_here && let Ok(w) = candidate(&mut region) {
                             receipt.violated += 1;
                             violation = Some(w);
@@ -1253,7 +1268,11 @@ impl Sweep {
                             }));
                             continue;
                         }
-                        match split(pair, x, y) {
+                        // The injectivity question halves a cell along its
+                        // length in metres; every other question keeps the
+                        // relative rule its receipts were taken under.
+                        let axes = if injective { Axes::Metric } else { Axes::Relative };
+                        match split_by(pair, x, y, axes) {
                             Some((lo, hi)) => {
                                 receipt.splits += 1;
                                 next.push(Task {
@@ -1323,7 +1342,9 @@ fn coincidence<T: Real>(
         (j.point.map(mid), j.du.map(mid), j.dv.map(mid))
     };
     let point = |s: &Surface<Interval>, uv| jet(s, uv).0;
-    let mut best: Option<(f64, (f64, f64), (f64, f64))> = None;
+    // The closest pair so far: its distance and its two stations.
+    type Pair = (f64, (f64, f64), (f64, f64));
+    let mut best: Option<Pair> = None;
     for &p in sa {
         let pa = point(&x.surface, p);
         for &q in sb {
@@ -2333,8 +2354,9 @@ const APPROXIMATED: &str = "an approximated face";
 ///   velocity is an exact zero); the moving one is read as the interval
 ///   the image evaluates to, since an edge's parameter span need not be
 ///   a point;
-/// - each image's end meets the next one's start, as intervals, so the
-///   images chain into one closed curve on the domain's boundary;
+/// - each image's end meets the next one's start, as intervals within
+///   a few ulps of their magnitude, so the images chain into one closed
+///   curve on the domain's boundary;
 /// - that curve winds once. Its shoelace is the winding times the
 ///   domain's area, so the interval quotient of the two encloses an
 ///   integer, and it is admitted only where that enclosure isolates
@@ -2398,8 +2420,15 @@ fn iso_bounded_domain<T: Decide + CertifiedBounds>(
         let forward = crate::pcurves::is_plus(body, row.half_edge);
         path.push(if forward { [a, b] } else { [b, a] });
     }
+    // Two ends meet where their enclosures overlap within a few ulps:
+    // an image's end is its chart point evaluated at a parameter
+    // (`p0 + pl·t`), whose rounding can leave the joint an ulp apart.
     let meet = |p: Interval, q: Interval| {
-        p.is_certified() && q.is_certified() && p.lo() <= q.hi() && q.lo() <= p.hi()
+        let slack = |x: Interval| 4.0 * f64::EPSILON * x.lo().abs().max(x.hi().abs()).max(1.0);
+        p.is_certified()
+            && q.is_certified()
+            && p.lo() - slack(p) <= q.hi()
+            && q.lo() - slack(q) <= p.hi()
     };
     let closes = path
         .iter()
@@ -2483,7 +2512,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
         ..Boundary::default()
     };
     let mut halves: BTreeMap<EdgeKey, Vec<HalfEdgeKey>> = BTreeMap::new();
-    let mut images: BTreeMap<HalfEdgeKey, ([Point2<Interval>; 2], Option<(Axis, Interval, bool)>)> =
+    let mut images: BTreeMap<HalfEdgeKey, ([Point2<Interval>; 2], Option<IsoImage>)> =
         BTreeMap::new();
     for &lk in core::iter::once(&f.outer).chain(&f.rings) {
         let l = body.get_loop(lk)?;
@@ -2553,12 +2582,16 @@ fn boundary_of<T: Decide + CertifiedBounds>(
     Aabb::from_points(pts).map(|b| (b, out))
 }
 
+/// A coordinate line's held axis, its value, and whether its moving
+/// coordinate is an angle ([`iso_of`]).
+type IsoImage = (Axis, Interval, bool);
+
 /// **A chart image that is a coordinate line, by variant**: which
 /// coordinate it holds, the value, and whether its moving coordinate is
 /// an angle. The held coordinate is exact structure — a velocity, or a
 /// harmonic channel's three coefficients, that lift to the point zero —
 /// so no zero is decided here.
-fn iso_of<T: CertifiedBounds>(p: &Pcurve<T>) -> Option<(Axis, Interval, bool)> {
+fn iso_of<T: CertifiedBounds>(p: &Pcurve<T>) -> Option<IsoImage> {
     let zero = |x: T| {
         let i = Interval::from_certified(x);
         i.is_certified() && i.lo() == 0.0 && i.hi() == 0.0
@@ -2713,14 +2746,52 @@ fn split<T: Real>(
     x: &Window<'_, T>,
     y: &Window<'_, T>,
 ) -> Option<(CellPair, CellPair)> {
+    split_by(pair, x, y, Axes::Relative)
+}
+
+/// How a split chooses the axis it halves.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Axes {
+    /// The axis of greatest relative width against the root window: the
+    /// distance test's rule ([`split`]).
+    Relative,
+    /// The axis of greatest extent in metres at the cell's centre: a
+    /// touching pair's, whose certificates fail on what the surface does
+    /// along its length, not across a narrow strip.
+    Metric,
+}
+
+/// The axis `cell` of `root` is halved on: `true` for `v`.
+fn split_axis<T: Real>(cell: Cell, root: &Window<'_, T>, axes: Axes) -> bool {
+    let (ru, rv) = match axes {
+        Axes::Relative => cell.relative(root),
+        Axes::Metric => {
+            let at = |(lo, hi): (f64, f64)| {
+                let m = geom::mid_param(lo, hi);
+                Interval::from_bounds(m, m)
+            };
+            let j = root.surface.jet(at(cell.u), at(cell.v));
+            let len = |d: Vec3<Interval>, span: (f64, f64)| d.norm().hi() * (span.1 - span.0);
+            (len(j.du, cell.u), len(j.dv, cell.v))
+        }
+    };
+    rv.total_cmp(&ru) == core::cmp::Ordering::Greater
+}
+
+/// [`split`], with the axis chosen by `axes`.
+fn split_by<T: Real>(
+    pair: CellPair,
+    x: &Window<'_, T>,
+    y: &Window<'_, T>,
+    axes: Axes,
+) -> Option<(CellPair, CellPair)> {
     let da = diameter(&cell_box(&pair.a.enc));
     let db = diameter(&cell_box(&pair.b.enc));
     // `total_cmp` so the choice stays total on a poison diameter;
     // strictly-greater keeps the tie on the first cell.
     let split_b = db.total_cmp(&da) == core::cmp::Ordering::Greater;
     let (cell, root) = if split_b { (pair.b, y) } else { (pair.a, x) };
-    let (ru, rv) = cell.relative(root);
-    let axis_v = rv.total_cmp(&ru) == core::cmp::Ordering::Greater;
+    let axis_v = split_axis(cell, root, axes);
     let (lo, hi) = if axis_v { cell.v } else { cell.u };
     let mid = geom::mid_param(lo, hi);
     if !(lo < mid && mid < hi) {
@@ -2769,14 +2840,13 @@ fn split<T: Real>(
     })
 }
 
-/// **A cell paired with itself, split**: the cell halved by the split
-/// rule's axis choice, and the three pairs of its halves — each against
-/// itself and the two against each other. `None` where the axis cannot
-/// be bisected.
+/// **A cell paired with itself, split**: the cell halved on its
+/// metrically longer axis ([`Axes::Metric`]), and the three pairs of its
+/// halves — each against itself and the two against each other. `None`
+/// where the axis cannot be bisected.
 fn split_self<T: Real>(pair: CellPair, w: &Window<'_, T>) -> Option<[CellPair; 3]> {
     let cell = pair.a;
-    let (ru, rv) = cell.relative(w);
-    let axis_v = rv.total_cmp(&ru) == core::cmp::Ordering::Greater;
+    let axis_v = split_axis(cell, w, Axes::Metric);
     let (lo, hi) = if axis_v { cell.v } else { cell.u };
     let mid = geom::mid_param(lo, hi);
     if !(lo < mid && mid < hi) {
