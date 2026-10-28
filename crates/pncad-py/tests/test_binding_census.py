@@ -613,7 +613,7 @@ BOUND_AS = {
     "PlaneRelation": "Coincidence.relation",
     "Unreplayed": "Coincidence.residual",
     # A finding's subject crosses as its three attributes, each `None`
-    # for the arm it is not: `root` and `output_ix`, or `node`.
+    # for the arm it is not: `placement` and `output_ix`, or `node`.
     "FindingSubject": "CheckFinding.node",
     # The door's module: its one question, asked of a node, is
     # `Evaluation.coincidences`.
@@ -734,8 +734,8 @@ BOUND_AS = {
     # `PartFault`'s arms and the `ResolveFault` classification inside
     # them cross as `EvaluationError.kind` tags — `part_no_resolver`,
     # `part_pin_mismatch`, `part_epsilon_seam`, `part_unresolved`,
-    # `part_root_failed`, `part_root_poisoned`,
-    # `part_root_failure_unrecorded`, `part_product`,
+    # `part_product_failed`, `part_product_poisoned`,
+    # `part_product_failure_unrecorded`, `part_product`,
     # `part_reference_cycle`, `part_depth_exceeded`, `part_not_entered` —
     # the same flattening `NodeErrorKind` gets above. They left the
     # `gap` roster at LIB-G18a, when the resolver parameter made them
@@ -3563,9 +3563,9 @@ MEMBERS_BOUND_AS = {
     "InterferenceFinding::overlap": ("InterferenceFinding.faces", "InterferenceFinding.unlocalized"),
     "InterferenceFinding::quiet": "InterferenceFinding.quiet_by",
     # --- a one-of subject spelled as its arms' attributes ---------
-    # A finding is about one root output or one node; Python reads the
+    # A finding is about one placement output or one node; Python reads the
     # subject as three attributes, `None` for the arm it is not.
-    "CheckFinding::subject": ("CheckFinding.root", "CheckFinding.output_ix", "CheckFinding.node"),
+    "CheckFinding::subject": ("CheckFinding.placement", "CheckFinding.output_ix", "CheckFinding.node"),
     # --- a continuous arm spelled per dimension -------------------
     # A continuous free variable or value carries its dimension; Python
     # builds one per dimension, so the arm is the three constructors.
@@ -3615,7 +3615,7 @@ MEMBERS_BOUND_AS = {
     "CheckEvidence::ChartCoherenceUnexamined": "CheckEvidence.variant",
     "CheckEvidence::ChartCoherenceUnavailable": "CheckEvidence.variant",
     "CheckEvidence::UnprovenCoincidence": "CheckEvidence.variant",
-    "ChecksError::Root": "ChecksError.variant",
+    "ChecksError::Placement": "ChecksError.variant",
     "ChecksError::Band": "ChecksError.variant",
     "ChecksError::EvaluationOfAnotherDocument": "ChecksError.variant",
     "ChecksError::Product": "ChecksError.variant",

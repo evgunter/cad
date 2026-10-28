@@ -199,7 +199,7 @@ fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_resident
     // Where connectedness runs, it reads the evaluation and answers
     // first, through either spelling: its own refusal of the failed
     // placement comes before the subject's.
-    let standing = ChecksError::Root(NodeStanding::Failed { node: placement });
+    let standing = ChecksError::Placement(NodeStanding::Failed { node: placement });
     assert_eq!(
         run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect_err("the registry refuses"),
         standing
@@ -416,7 +416,7 @@ fn a_root_without_a_value_refuses_as_the_registrys_own_precondition() {
         "and the gather refuses this pair too, so the two arms compete"
     );
     match run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect_err("refuses") {
-        ChecksError::Root(standing) => assert_eq!(standing.node(), root),
+        ChecksError::Placement(standing) => assert_eq!(standing.node(), root),
         other => panic!("expected the registry's own precondition, got {other}"),
     }
 }

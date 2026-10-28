@@ -966,7 +966,7 @@ class TestAssemblyRefusals(BenchWorkspace):
         self.assertIsNotNone(gather.exception.node)
         with self.assertRaises(pncad.ChecksError) as checks:
             run_checks(doc, ev)
-        self.assertEqual(checks.exception.variant, "root_without_value")
+        self.assertEqual(checks.exception.variant, "placement_without_value")
         self.assertEqual(checks.exception.node, gather.exception.node)
 
     def test_a_gather_refusal_speaks_its_root_from_the_evaluated_document(self):

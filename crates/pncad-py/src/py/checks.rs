@@ -221,9 +221,9 @@ impl ChecksConfig {
     /// of the default pass at `Warn`, the chart-coherence examination
     /// `Off`, nothing expected, nothing refused.
     ///
-    /// `expected_components` is a list of `(root, output_ix,
+    /// `expected_components` is a list of `(placement, output_ix,
     /// expected)` triples — the connectedness resident's
-    /// acknowledgment record, keyed by the same `(root, output_ix)`
+    /// acknowledgment record, keyed by the same `(placement, output_ix)`
     /// pair a finding is attributed to. It is an ordered list rather
     /// than a dict because a `NodeId` pair is not a Python key: the
     /// entries are read in order and never looked up by one id (the
@@ -242,10 +242,10 @@ impl ChecksConfig {
         at_rest: Severity,
     ) -> PyResult<Self> {
         let mut expected: BTreeMap<(d::RecipeNodeId, u32), u32> = BTreeMap::new();
-        for (NodeId(root), output_ix, count) in expected_components.unwrap_or_default() {
-            if expected.insert((root, output_ix), count).is_some() {
+        for (NodeId(placement), output_ix, count) in expected_components.unwrap_or_default() {
+            if expected.insert((placement, output_ix), count).is_some() {
                 return Err(PyValueError::new_err(format!(
-                    "expected_components states subject (node {root}, output {output_ix}) twice"
+                    "expected_components states subject (node {placement}, output {output_ix}) twice"
                 )));
             }
         }
@@ -297,7 +297,7 @@ impl ChecksConfig {
         self.0
             .expected_components
             .iter()
-            .map(|((root, output_ix), count)| (NodeId(*root), *output_ix, *count))
+            .map(|((placement, output_ix), count)| (NodeId(*placement), *output_ix, *count))
             .collect()
     }
 
@@ -596,7 +596,7 @@ impl CheckEvidence {
 }
 
 /// One finding of one check on one subject: a copy a placement defines,
-/// attributed as `(root, output_ix)` with `root` the placement; a node
+/// attributed as `(placement, output_ix)`; a node
 /// of the document (`node`) — the node that decided an unproven
 /// coincidence; two copies (`copies`); or the body a census at rest
 /// was taken over (`census`). Whichever it is not answers `None`.
@@ -606,7 +606,7 @@ impl CheckEvidence {
 /// caller's `Severity` and the caller's `enforce_checks` call.
 ///
 /// `str()` renders it the way the library renders a finding, recourse
-/// included, each root spoken (kind, label and tag) from the document
+/// included, each placement spoken (kind, label and tag) from the document
 /// the checks ran over, the one the evaluation is of; `repr()` keeps
 /// the full id. Two findings are equal when they are the same finding
 /// over the same document; labels are not compared.
@@ -627,19 +627,19 @@ impl CheckFinding {
         check_id(self.finding.check)
     }
 
-    /// The root whose value carries the subject body; `None` for any
+    /// The placement whose value carries the subject body; `None` for any
     /// other subject.
     #[getter]
-    fn root(&self) -> Option<NodeId> {
+    fn placement(&self) -> Option<NodeId> {
         match self.finding.subject {
-            d::FindingSubject::Output { root, .. } => Some(NodeId(root)),
+            d::FindingSubject::Output { placement, .. } => Some(NodeId(placement)),
             d::FindingSubject::Node(_)
             | d::FindingSubject::Copies { .. }
             | d::FindingSubject::Census { .. } => None,
         }
     }
 
-    /// Which output body of that root — 0 for a single-body root;
+    /// Which output body of that placement's value — 0 for a single body;
     /// `None` for any other subject.
     #[getter]
     fn output_ix(&self) -> Option<u32> {
@@ -651,7 +651,7 @@ impl CheckFinding {
         }
     }
 
-    /// The node the finding is about, root or not; `None` for any
+    /// The node the finding is about, placement or not; `None` for any
     /// other subject.
     #[getter]
     fn node(&self) -> Option<NodeId> {
@@ -711,7 +711,7 @@ impl CheckFinding {
     }
 
     /// The finding as the library renders one: its subject, then the
-    /// kernel's own story, each root spoken from the document the
+    /// kernel's own story, each placement spoken from the document the
     /// checks ran over. The recourse is in that story; nothing is
     /// appended here.
     fn __str__(&self) -> String {
@@ -726,8 +726,11 @@ impl CheckFinding {
 
     fn __repr__(&self) -> String {
         let subject = match self.finding.subject {
-            d::FindingSubject::Output { root, output_ix } => {
-                format!("root {}, output {output_ix}", root.full())
+            d::FindingSubject::Output {
+                placement,
+                output_ix,
+            } => {
+                format!("placement {}, output {output_ix}", placement.full())
             }
             d::FindingSubject::Node(node) => format!("node {}", node.full()),
             d::FindingSubject::Census { read } => format!("census {read}"),
@@ -808,7 +811,7 @@ impl CarriedCoincidence {
 /// fine" and "not checked" are different answers, and a caller reading
 /// an empty `findings` without reading `skipped` has confused them.
 ///
-/// `str()` speaks each root from the document the checks ran over, the
+/// `str()` speaks each placement from the document the checks ran over, the
 /// one the evaluation is of, so a label set after `evaluate` shows on
 /// the next evaluation's report. Two reports are equal when they hold
 /// the same findings and skips over the same document; labels are not
@@ -818,7 +821,7 @@ impl CarriedCoincidence {
 pub(crate) struct ChecksReport {
     report: d::ChecksReport,
     /// The document the checks ran over, the evaluation's own: the
-    /// report's root ids are spelled in it, so its human form speaks
+    /// report's placement ids are spelled in it, so its human form speaks
     /// from it and from no other.
     doc: Arc<d::ProfileDoc>,
 }
@@ -857,7 +860,7 @@ impl ChecksReport {
         self.report.findings.len()
     }
 
-    /// The report, each root spoken from the document the checks ran
+    /// The report, each placement spoken from the document the checks ran
     /// over.
     fn __str__(&self) -> String {
         self.report.spoken(&*self.doc)
@@ -896,7 +899,7 @@ fn checks_err_saying(py: Python<'_>, err: &d::ChecksError, message: String) -> P
     // arrives here as a compile error rather than as a silently
     // unprojected payload.
     let node = match err {
-        d::ChecksError::Root(standing) => Py::new(py, NodeId(standing.node()))
+        d::ChecksError::Placement(standing) => Py::new(py, NodeId(standing.node()))
             .map(|v| v.into_any())
             .unwrap_or_else(|_| py.None()),
         // A tolerance that forms no band, a gather that yields no
@@ -932,7 +935,7 @@ fn checks_err_saying(py: Python<'_>, err: &d::ChecksError, message: String) -> P
 /// `evaluation` must be an evaluation OF `doc`, and one that ran to
 /// completion: subjects are the copies the document's placements
 /// define, so a placement that failed, was poisoned, or was cut short
-/// refuses `root_without_value` rather than reporting over a partial
+/// refuses `placement_without_value` rather than reporting over a partial
 /// evaluation.
 ///
 /// The residents:
@@ -1042,12 +1045,12 @@ pub(crate) fn enforce_checks(
 }
 
 /// The door from a finding's attribution back to its subject: the body
-/// at `(root, output_ix)` in this evaluation.
+/// at `(placement, output_ix)` in this evaluation.
 ///
 /// A finding names a subject and this resolves it, against the same
 /// enumeration `run_checks` walks — so a finding's attribution always
 /// resolves in the evaluation it was produced from. `None` where the
-/// root has no value, denotes no body, or has no output at that index:
+/// placement has no value, denotes no body, or has no output at that index:
 /// exactly the attributions a `stale_expectation` finding names, which
 /// is what makes that arm's `None` an answer rather than a failure.
 ///
@@ -1070,14 +1073,14 @@ pub(crate) fn enforce_checks(
 pub(crate) fn subject_body(
     py: Python<'_>,
     evaluation: &Evaluation,
-    root: &NodeId,
+    placement: &NodeId,
     output_ix: u32,
 ) -> PyResult<Option<Body>> {
-    d::subject_body(&evaluation.inner, root.0, output_ix)
+    d::subject_body(&evaluation.inner, placement.0, output_ix)
         .map(|(body, contacts)| {
             pncad::export::body_in_space(&body, Tol::witness())
                 .map(|body| Body::recorded(body, contacts))
-                .map_err(|err| crate::py::value::compose_err(py, *root, &err))
+                .map_err(|err| crate::py::value::compose_err(py, *placement, &err))
         })
         .transpose()
 }

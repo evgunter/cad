@@ -1132,8 +1132,8 @@ fn every_door_keeps_its_word_for_each_standing() {
         ),
         (
             "checks",
-            |s| checks_error_tag(&ChecksError::Root(s)),
-            ["root_without_value"; 4],
+            |s| checks_error_tag(&ChecksError::Placement(s)),
+            ["placement_without_value"; 4],
         ),
     ];
     for (door, tag, words) in doors {
@@ -2104,9 +2104,9 @@ fn node_error_tags_are_the_published_words() {
         PartPinMismatch => "part_pin_mismatch",
         PartEpsilonSeam => "part_epsilon_seam",
         PartUnresolved => "part_unresolved",
-        PartRootFailed => "part_root_failed",
-        PartRootPoisoned => "part_root_poisoned",
-        PartRootFailureUnrecorded => "part_root_failure_unrecorded",
+        PartProductFailed => "part_product_failed",
+        PartProductPoisoned => "part_product_poisoned",
+        PartProductFailureUnrecorded => "part_product_failure_unrecorded",
         PartProduct => "part_product",
         PartReferenceCycle => "part_reference_cycle",
         PartDepthExceeded => "part_depth_exceeded",
@@ -3335,10 +3335,12 @@ fn check_registry_tags_are_stable() {
     use pncad::document::{CheckEvidence, ChecksError, RecipeNodeId, ShellClassifyError};
 
     assert_eq!(
-        checks_error_tag(&ChecksError::Root(pncad::document::NodeStanding::Failed {
-            node: RecipeNodeId::new(0, 3)
-        })),
-        "root_without_value"
+        checks_error_tag(&ChecksError::Placement(
+            pncad::document::NodeStanding::Failed {
+                node: RecipeNodeId::new(0, 3)
+            }
+        )),
+        "placement_without_value"
     );
     assert_eq!(
         checks_error_tag(&ChecksError::Product {
@@ -4532,8 +4534,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "band",
             "evaluation_of_another_document",
+            "placement_without_value",
             "product_unavailable",
-            "root_without_value",
         ],
         delegates: &[],
     },
@@ -5183,10 +5185,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "part_no_resolver",
             "part_not_entered",
             "part_product",
+            "part_product_failed",
+            "part_product_failure_unrecorded",
+            "part_product_poisoned",
             "part_reference_cycle",
-            "part_root_failed",
-            "part_root_failure_unrecorded",
-            "part_root_poisoned",
             "payload_expr",
             "piece_shape",
             "placement_rule_mismatch",

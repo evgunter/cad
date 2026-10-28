@@ -301,14 +301,14 @@ class TestTheResolutionRefusals(CorpusCase):
 
     THREE arms are exercised here — `part_no_resolver` (the class
     above), `part_pin_mismatch` and `part_unresolved` — and three more
-    below: `part_root_failed`, by `TestAPartWhoseRootFails`, whose
+    below: `part_product_failed`, by `TestAPartWhoseRootFails`, whose
     part's root is an instance that fails on its own;
-    `part_root_poisoned`, by it one level down and by
+    `part_product_poisoned`, by it one level down and by
     `TestAPartWhoseRootIsPoisoned`; and `part_product` by
     `TestAPartWithAnEmptyWorld`. The rest of the family is typed and
     tagged but UNREACHED from Python today, each for its own reason, and
     none of them is singled out: `part_epsilon_seam` needs a stored document recording a different
-    ε; `part_root_failure_unrecorded` and `part_not_entered` are
+    ε; `part_product_failure_unrecorded` and `part_not_entered` are
     kernel bugs no document reaches; `part_reference_cycle` needs an instantiate node
     pointing back up its own chain — and an honest store cannot hold
     one at all, since a cycle with valid pins wants a content hash
@@ -398,9 +398,9 @@ class TestTheResolutionRefusals(CorpusCase):
 class TestAPartWhoseRootFails(unittest.TestCase):
     """A part whose own product refuses because its root failed, one
     document down and two: the bracket's root is an instance of the
-    boss, a placement that fails on its own (`part_root_failed`), and
+    boss, a placement that fails on its own (`part_product_failed`), and
     the boss's root is poisoned through its extrude
-    (`part_root_poisoned`).
+    (`part_product_poisoned`).
 
     The instance's message is its own short sentence: it names the
     part's failed node and points at it, and never quotes that node's
@@ -457,7 +457,7 @@ class TestAPartWhoseRootFails(unittest.TestCase):
     def test_the_part_refusal_is_short_and_its_cause_is_typed(self):
         bracket_root, instance = self.bracket_root, self.instance
         refusal = failures(evaluate(self.assembly, resolver=self.store))[instance]
-        self.assertEqual(refusal.kind, "part_root_failed")
+        self.assertEqual(refusal.kind, "part_product_failed")
         text = str(refusal)
         self.assertLessEqual(len(text.split()), self.BUDGET, text)
         self.assertEqual(
@@ -473,7 +473,7 @@ class TestAPartWhoseRootFails(unittest.TestCase):
         # bracket's label and never the assembly's for the same id.
         bracket_refusal = refusal.__cause__
         self.assertIsInstance(bracket_refusal, pncad.EvaluationError)
-        self.assertEqual(bracket_refusal.kind, "part_root_poisoned")
+        self.assertEqual(bracket_refusal.kind, "part_product_poisoned")
         self.assertEqual(bracket_refusal.node, bracket_root)
         self.assertTrue(
             str(bracket_refusal).startswith(f"{seat} failed: "), str(bracket_refusal)
@@ -546,7 +546,7 @@ class TestAPartWithAnEmptyWorld(unittest.TestCase):
 
 
 class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
-    """`part_root_poisoned`, reached: a part whose extrude refuses and
+    """`part_product_poisoned`, reached: a part whose extrude refuses and
     whose one placed copy of it never runs.
 
     The instance names the part's placement and points at the extrude, the
@@ -584,9 +584,9 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
 
     def test_the_instance_carries_the_failure_that_poisoned_the_root(self):
         refusal = failures(evaluate(self.assembly, resolver=self.store))[self.instance]
-        self.assertEqual(refusal.kind, "part_root_poisoned")
+        self.assertEqual(refusal.kind, "part_product_poisoned")
         text = str(refusal)
-        self.assertIn(f"its root, Place {tag(self.placed)}", text)
+        self.assertIn(f"poisoned Place {tag(self.placed)}, which its product reads", text)
         self.assertIn(f"repair Extrude {tag(self.extrude)}", text)
 
         cause = refusal.__cause__
@@ -642,10 +642,10 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
         instance = assembly.insert(Node.instantiate_part(bracket_ref, assembly.world))
 
         refusal = failures(evaluate(assembly, resolver=self.store))[instance]
-        self.assertEqual(refusal.kind, "part_root_poisoned")
+        self.assertEqual(refusal.kind, "part_product_poisoned")
         middle = refusal.__cause__
         self.assertIsInstance(middle, pncad.EvaluationError)
-        self.assertEqual(middle.kind, "part_root_poisoned")
+        self.assertEqual(middle.kind, "part_product_poisoned")
         self.assertEqual((middle.node, middle.document), (inner, bracket_ref))
         last = middle.__cause__
         self.assertIsInstance(last, pncad.EvaluationError)
@@ -749,7 +749,7 @@ class TestNestingPastTheBound(unittest.TestCase):
             f"the interpreter survives the descent: {child.stderr[-2000:]}",
         )
         said = json.loads(child.stdout)
-        self.assertEqual(said["top"], "part_root_failed")
+        self.assertEqual(said["top"], "part_product_failed")
         self.assertEqual(
             said["causes"],
             LINKED_CAUSES,

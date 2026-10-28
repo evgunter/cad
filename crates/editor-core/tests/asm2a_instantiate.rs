@@ -1047,7 +1047,7 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
     let ev = run(&doc, &opts);
     let fault = part_fault(&ev, ids[0]);
     match &fault {
-        PartFault::PartRootFailed { node, refusal, .. } => {
+        PartFault::PartProductFailed { node, refusal, .. } => {
             assert_eq!(
                 *node, inner_root,
                 "the failing placement is named: the instance itself"
@@ -1066,7 +1066,7 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
                 "the root's refusal travels typed, with the reference it crossed: {refusal:?}"
             );
         }
-        other => panic!("expected PartRootFailed, got {other:?}"),
+        other => panic!("expected PartProductFailed, got {other:?}"),
     }
     let rendered = fault.to_string();
     assert!(
@@ -1170,16 +1170,16 @@ fn a_poisoned_root_carries_the_failure_that_poisoned_it() {
     let ev = run(&doc, &with_resolver(store));
 
     let fault = part_fault(&ev, ids[0]);
-    let PartFault::PartRootPoisoned {
-        root,
+    let PartFault::PartProductPoisoned {
+        node,
         through,
         refusal,
         ..
     } = &fault
     else {
-        panic!("expected PartRootPoisoned, got {fault:?}");
+        panic!("expected PartProductPoisoned, got {fault:?}");
     };
-    assert_eq!((*root, *through), (placed, extrude), "both nodes are named");
+    assert_eq!((*node, *through), (placed, extrude), "both nodes are named");
     assert!(
         matches!(refusal.kind(), NodeErrorKind::Expr { .. }),
         "the extrude's refusal travels typed: {refusal:?}"
@@ -1275,18 +1275,18 @@ fn a_poisoned_root_two_documents_down_chains_to_the_failing_node() {
     let ev = run(&doc, &opts);
 
     let fault = part_fault(&ev, ids[0]);
-    let PartFault::PartRootFailed { node, refusal, .. } = &fault else {
-        panic!("expected PartRootFailed, got {fault:?}");
+    let PartFault::PartProductFailed { node, refusal, .. } = &fault else {
+        panic!("expected PartProductFailed, got {fault:?}");
     };
     assert_eq!(
         *node, inner,
-        "the bracket's failed root is its instance, a placement in its own right"
+        "the failed node the bracket's product reads is its instance, a placement in its own right"
     );
     assert!(
         matches!(refusal.kind(), NodeErrorKind::Part {
-            fault: PartFault::PartRootPoisoned { root, through, .. }, ..
-        } if (*root, *through) == (part_root, extrude)),
-        "the carried refusal is the inner instance's own poisoned root: {refusal:?}"
+            fault: PartFault::PartProductPoisoned { node, through, .. }, ..
+        } if (*node, *through) == (part_root, extrude)),
+        "the carried refusal is the inner instance's own poisoned node: {refusal:?}"
     );
     let bracket_line = own_line(&bracket, inner, &opts);
     let levels: Vec<_> = failure(&ev, ids[0])

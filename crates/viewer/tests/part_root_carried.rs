@@ -318,7 +318,9 @@ fn a_poisoned_part_root_draws_the_failure_that_poisoned_it() {
     );
     let (root, failed) = (broken.spoken(broken_root), broken.spoken(extrude));
     assert!(
-        carried[0].line.contains(&format!("its root, {root}"))
+        carried[0]
+            .line
+            .contains(&format!("poisoned {root}, which its product reads"))
             && carried[0].line.contains(&format!("repair {failed}")),
         "the broken part's line names the root it cost and points at the node that failed: \
          {}",

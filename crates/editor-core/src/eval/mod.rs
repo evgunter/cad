@@ -1411,8 +1411,8 @@ pub struct NodeError {
 /// **An evaluation refusal, carried into a document-layer
 /// vocabulary** ([`crate::Refusal`]) — [`MateFault::PlacerRefused`](crate::MateFault),
 /// [`EditError::PlacementAxis`](crate::EditError),
-/// [`PartFault::PartRootFailed`](crate::PartFault) and
-/// [`PartFault::PartRootPoisoned`](crate::PartFault) hold one.
+/// [`PartFault::PartProductFailed`](crate::PartFault) and
+/// [`PartFault::PartProductPoisoned`](crate::PartFault) hold one.
 pub type NodeRefusal = crate::refusal::Refusal<NodeErrorKind>;
 
 impl NodeRefusal {
@@ -2098,8 +2098,8 @@ pub enum NodeErrorKind {
 // edit door's rule arms forward the same impl).
 //
 // The one exception is a CARRIED refusal: another node's refusal, with
-// its own recourse, held as a `NodeRefusal` (`PartFault::PartRootFailed`
-// and `PartRootPoisoned`, `MateFault::PlacerRefused`). It is not this refusal's payload, so it is
+// its own recourse, held as a `NodeRefusal` (`PartFault::PartProductFailed`
+// and `PartProductPoisoned`, `MateFault::PlacerRefused`). It is not this refusal's payload, so it is
 // never rendered inside this sentence, which names that node and points
 // at it; it is drawn as its own line, read off
 // [`NodeErrorKind::carried_chain`].

@@ -1494,7 +1494,7 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
         .to_owned();
     let part = |node: u64, refusal: NodeErrorKind| NodeErrorKind::Part {
         doc_ref: doc_ref(),
-        fault: PartFault::PartRootFailed {
+        fault: PartFault::PartProductFailed {
             held: Default::default(),
             node: RecipeNodeId::new(0, tagged(node)),
             refusal: refusal.into(),
@@ -5121,16 +5121,16 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
     let parts = [
         ("NoResolver", PartFault::NoResolver),
         (
-            "PartRootFailed",
-            PartFault::PartRootFailed {
+            "PartProductFailed",
+            PartFault::PartProductFailed {
                 held: Default::default(),
                 node: RecipeNodeId::new(0, tagged(7)),
                 refusal: NodeErrorKind::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
             },
         ),
         (
-            "PartRootFailed(part)",
-            PartFault::PartRootFailed {
+            "PartProductFailed(part)",
+            PartFault::PartProductFailed {
                 held: Default::default(),
                 node: RecipeNodeId::new(0, tagged(7)),
                 refusal: NodeErrorKind::Part {
@@ -5141,17 +5141,17 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "PartRootPoisoned",
-            PartFault::PartRootPoisoned {
+            "PartProductPoisoned",
+            PartFault::PartProductPoisoned {
                 held: Default::default(),
-                root: RecipeNodeId::new(0, tagged(8)),
+                node: RecipeNodeId::new(0, tagged(8)),
                 through: RecipeNodeId::new(0, tagged(7)),
                 refusal: NodeErrorKind::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
             },
         ),
         (
-            "RootFailureUnrecorded",
-            PartFault::RootFailureUnrecorded {
+            "ProductFailureUnrecorded",
+            PartFault::ProductFailureUnrecorded {
                 held: Default::default(),
                 node: RecipeNodeId::new(0, tagged(7)),
             },
@@ -5890,7 +5890,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
         CheckFinding {
             check: CheckId::Connectedness,
             subject: editor_core::FindingSubject::Output {
-                root: RecipeNodeId::new(0, tagged(4)),
+                placement: RecipeNodeId::new(0, tagged(4)),
                 output_ix: 0,
             },
             evidence,
@@ -6008,7 +6008,7 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
     let finding = |check, evidence| CheckFinding {
         check,
         subject: editor_core::FindingSubject::Output {
-            root: RecipeNodeId::new(0, tagged(4)),
+            placement: RecipeNodeId::new(0, tagged(4)),
             output_ix: 0,
         },
         evidence,

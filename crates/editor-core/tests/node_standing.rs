@@ -195,7 +195,7 @@ fn every_standing_renders_one_way_through_every_door() {
     ] {
         let checks = run_checks(&placed, &eval, &ChecksConfig::default(), Tol::witness())
             .expect_err("a placement with no value refuses the registry");
-        assert_eq!(checks, ChecksError::Root(standing));
+        assert_eq!(checks, ChecksError::Placement(standing));
         speaks(
             "the checks registry",
             "checks: placement ",
@@ -295,7 +295,7 @@ fn the_checks_placement_refusal_names_the_node_the_repair_is_at() {
         .expect_err("a poisoned placement refuses the registry");
     assert_eq!(
         refusal,
-        ChecksError::Root(NodeStanding::Poisoned {
+        ChecksError::Placement(NodeStanding::Poisoned {
             node: placement,
             through: s.failed
         })
@@ -321,7 +321,7 @@ fn the_checks_placement_refusal_names_the_node_the_repair_is_at() {
     let standing = NodeStanding::Failed { node: placement };
     let refusal = run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness())
         .expect_err("a failed placement refuses the registry");
-    assert_eq!(refusal, ChecksError::Root(standing));
+    assert_eq!(refusal, ChecksError::Placement(standing));
     speaks(
         "the checks registry",
         "checks: placement ",

@@ -1000,9 +1000,9 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::PartPinMismatch => resolve_fault_tag(&ResolveFault::PinMismatch),
         C::PartEpsilonSeam => resolve_fault_tag(&ResolveFault::EpsilonSeam),
         C::PartUnresolved => resolve_fault_tag(&ResolveFault::Unresolved),
-        C::PartRootFailed => "part_root_failed",
-        C::PartRootPoisoned => "part_root_poisoned",
-        C::PartRootFailureUnrecorded => "part_root_failure_unrecorded",
+        C::PartProductFailed => "part_product_failed",
+        C::PartProductPoisoned => "part_product_poisoned",
+        C::PartProductFailureUnrecorded => "part_product_failure_unrecorded",
         C::PartProduct => "part_product",
         C::PartReferenceCycle => "part_reference_cycle",
         C::PartDepthExceeded => "part_depth_exceeded",
@@ -2709,7 +2709,7 @@ pub fn hit_test_error_tag(err: &HitTestError) -> &'static str {
 /// failed node at one of them branches on it at every one. The
 /// export, resolution, product and checks doors keep the words they
 /// shipped with (`unknown_node`/`node_failed`/`poisoned`, `target_*`,
-/// `unknown_node`/`root_*`, `root_without_value`) and map the same
+/// `unknown_node`/`root_*`, `placement_without_value`) and map the same
 /// standing onto them; the evaluation door reads this map except for
 /// its own `unknown_node` and `poisoned` ([`eval_reason_tag`]).
 ///
@@ -2893,7 +2893,7 @@ pub fn resolve_indeterminate_tag(cause: &ResolveIndeterminate) -> &'static str {
 /// carries the gather's own prose.
 pub fn checks_error_tag(err: &ChecksError) -> &'static str {
     match err {
-        ChecksError::Root { .. } => "root_without_value",
+        ChecksError::Placement { .. } => "placement_without_value",
         ChecksError::Band { .. } => "band",
         // Named for the FACT, as `product_unavailable` is: the pair is
         // not a pair. It mirrors `ProductError`'s own arm, and the two

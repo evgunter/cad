@@ -1092,7 +1092,7 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
         format!("{plate} failed, so it has no value — fix the node's own failure")
     );
     assert_eq!(
-        ChecksError::Root(failed).spoken(&doc),
+        ChecksError::Placement(failed).spoken(&doc),
         format!(
             "checks: placement {plate} failed, so it has no value — fix the node's own failure"
         )

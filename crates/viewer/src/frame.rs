@@ -2447,7 +2447,9 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
         .iter()
         .map(|finding| {
             let node = match finding.subject {
-                FindingSubject::Output { root, .. } => crate::world::seat_of(landed, root),
+                FindingSubject::Output { placement, .. } => {
+                    crate::world::seat_of(landed, placement)
+                }
                 FindingSubject::Node(node) => node,
                 // An overlap's row is the earlier copy's, as a contact's
                 // is; the findings beside it are the `⊔`'s whose census
@@ -3077,9 +3079,9 @@ pub fn version_offer(kind: &NodeErrorKind, files: &PartFiles) -> Option<VersionO
         // what failed. A part root failing on a mismatch of its OWN
         // references is repaired in that part, not here.
         PartFault::NoResolver
-        | PartFault::PartRootFailed { .. }
-        | PartFault::PartRootPoisoned { .. }
-        | PartFault::RootFailureUnrecorded { .. }
+        | PartFault::PartProductFailed { .. }
+        | PartFault::PartProductPoisoned { .. }
+        | PartFault::ProductFailureUnrecorded { .. }
         | PartFault::PartProduct { .. }
         | PartFault::ReferenceCycle { .. }
         | PartFault::DepthExceeded
@@ -3958,9 +3960,9 @@ mod tests {
                 ResolveFault::EpsilonSeam => 2,
                 ResolveFault::Unresolved => 3,
             },
-            PartFault::PartRootFailed { .. } => 4,
-            PartFault::PartRootPoisoned { .. } => 5,
-            PartFault::RootFailureUnrecorded { .. } => 6,
+            PartFault::PartProductFailed { .. } => 4,
+            PartFault::PartProductPoisoned { .. } => 5,
+            PartFault::ProductFailureUnrecorded { .. } => 6,
             PartFault::PartProduct { .. } => 7,
             PartFault::ReferenceCycle { .. } => 8,
             PartFault::DepthExceeded => 9,
@@ -3993,18 +3995,18 @@ mod tests {
             unresolved(ResolveFault::PinMismatch),
             unresolved(ResolveFault::EpsilonSeam),
             unresolved(ResolveFault::Unresolved),
-            PartFault::PartRootFailed {
+            PartFault::PartProductFailed {
                 held: Default::default(),
                 node: RecipeNodeId::new(0, test_utils::refusal::tagged(7)),
                 refusal: nested(),
             },
-            PartFault::PartRootPoisoned {
+            PartFault::PartProductPoisoned {
                 held: Default::default(),
-                root: RecipeNodeId::new(0, test_utils::refusal::tagged(8)),
+                node: RecipeNodeId::new(0, test_utils::refusal::tagged(8)),
                 through: RecipeNodeId::new(0, test_utils::refusal::tagged(7)),
                 refusal: nested(),
             },
-            PartFault::RootFailureUnrecorded {
+            PartFault::ProductFailureUnrecorded {
                 held: Default::default(),
                 node: RecipeNodeId::new(0, test_utils::refusal::tagged(7)),
             },

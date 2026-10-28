@@ -157,14 +157,14 @@ impl CheckId {
     ///
     /// The one definition of that, and the reason the registry can
     /// decide whether to gather AT ALL before it does: connectedness
-    /// reads the evaluation per root and needs no product, so a run
+    /// reads the evaluation per placement and needs no product, so a run
     /// with only connectedness enabled has nothing to gather for.
     pub fn reads_subject(self) -> bool {
         match self {
             Self::Connectedness => false,
             // Each census rides the gathered product.
             Self::AtRest => true,
-            // The examination is over one body at rest, read per root
+            // The examination is over one body at rest, read per placement
             // output exactly as connectedness is; no product, nothing
             // to gather.
             Self::ChartCoherence => false,
@@ -313,7 +313,7 @@ pub struct ChecksConfig {
     /// I1(0b) charter).
     pub connectedness: Severity,
     /// The expected component count per subject, keyed by
-    /// `(root, output_ix)`; a missing key means 1. This is the
+    /// `(placement, output_ix)`; a missing key means 1. This is the
     /// resident's acknowledgment mechanism: a deliberately disjoint
     /// body is EXPECTED disjoint, stated as data, and stays clean.
     pub expected_components: BTreeMap<(RecipeNodeId, u32), u32>,
@@ -440,7 +440,7 @@ pub enum CheckEvidence {
         errors: Vec<topo::ValidationError>,
     },
     /// An expectation with no subject: `expected_components` carries
-    /// an entry at this `(root, output_ix)` and no evaluated subject
+    /// an entry at this `(placement, output_ix)` and no evaluated subject
     /// consumed it — the body vanished (a boolean may have consumed
     /// the whole part) or the key names no placement output. Expectations
     /// are two-directional: an entry that binds nothing is stale, not
@@ -598,20 +598,20 @@ pub struct CheckFinding {
 }
 
 /// **What a finding is about.** A body check's subject is a
-/// body-denoting root output; the unproven-coincidence check's is the
-/// node that decided the row, root or not, which denotes no one body.
+/// body-denoting placement output; the unproven-coincidence check's is the
+/// node that decided the row, placement or not, which denotes no one body.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum FindingSubject {
-    /// A root output, named as `(root, output_ix)`, which
+    /// A placement output, named as `(placement, output_ix)`, which
     /// [`subject_body`] resolves.
     Output {
-        /// The root whose value carries the subject body.
-        root: RecipeNodeId,
-        /// Which output body of that root (multi-output ops; 0 for a
-        /// single-body root).
+        /// The placement whose value carries the subject body.
+        placement: RecipeNodeId,
+        /// Which output body of that placement's value (0 for a single
+        /// body).
         output_ix: u32,
     },
-    /// A node of the document, root or not.
+    /// A node of the document, placement or not.
     Node(RecipeNodeId),
     /// The body a census at rest was taken over, by the read it is: a
     /// `⊔`'s output, or the body the product slot reads.
@@ -639,8 +639,8 @@ fn copy_said(copy: crate::checks::at_rest::CopyRef, by: crate::spoken::Speaker<'
 }
 
 // One story, one recourse, in one place, through the document layer's
-// one sink ([`crate::finding`]), each root said by the speaker the
-// finding is said by. The subject is the finding's (root, output)
+// one sink ([`crate::finding`]), each placement said by the speaker the
+// finding is said by. The subject is the finding's (placement, output)
 // attribution. Five arms end in a recourse the story already
 // carries, so `recourse` answers "" ("already told") there:
 // - Unsupported forwards its payload's `Display`, recourse included.
@@ -715,8 +715,16 @@ impl SaidFinding<'_> {
         let Self(finding, by) = *self;
         match finding.subject {
             FindingSubject::Node(node) => write!(f, "{}", by.node_as(node, "node")),
-            FindingSubject::Output { root, output_ix } => {
-                write!(f, "{} output {}", by.node_as(root, "placement"), output_ix)
+            FindingSubject::Output {
+                placement,
+                output_ix,
+            } => {
+                write!(
+                    f,
+                    "{} output {}",
+                    by.node_as(placement, "placement"),
+                    output_ix
+                )
             }
             FindingSubject::Census { read } => f.write_str(&by.read(read)),
             FindingSubject::Copies { a, b } => {
@@ -972,7 +980,7 @@ fn interference_words(
     }
 }
 
-/// A finding and the speaker its roots are said by: the one shape the
+/// A finding and the speaker its placements are said by: the one shape the
 /// sink composes.
 #[derive(Clone, Copy)]
 struct SaidFinding<'a>(&'a CheckFinding, crate::spoken::Speaker<'a>);
@@ -983,7 +991,7 @@ impl crate::spoken::Say for CheckFinding {
     }
 }
 
-/// The sentence where no document is at hand: each root by its tag.
+/// The sentence where no document is at hand: each placement by its tag.
 impl fmt::Display for CheckFinding {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
@@ -1005,14 +1013,14 @@ fn say_findings(
 /// because "checked and fine" and "not checked" are different answers.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ChecksReport {
-    /// The document the checks were run over: its roots' ids are
+    /// The document the checks were run over: its placements' ids are
     /// spelled in it, so it is the one document the report's human
     /// form speaks from ([`ChecksReport::spoken`]).
     pub document: crate::DocumentId,
     /// Findings in deterministic order (D9): each resident's own
-    /// findings by root-list position then output index, residents in
-    /// registry order. NOT one global sort — root 5's connectedness
-    /// finding precedes root 1's at-rest finding, because each
+    /// findings by placement-list position then output index, residents in
+    /// registry order. NOT one global sort — placement 5's connectedness
+    /// finding precedes placement 1's at-rest finding, because each
     /// resident appends its own pass in sequence, and the coincidence
     /// door's are settled into the place its pass holds
     /// ([`ChecksReport::settle`]).
@@ -1051,7 +1059,7 @@ impl crate::spoken::Say for ChecksReport {
     }
 }
 
-/// The sentence where no document is at hand: each root by its tag.
+/// The sentence where no document is at hand: each placement by its tag.
 impl fmt::Display for ChecksReport {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
@@ -1081,7 +1089,7 @@ impl ChecksReport {
         self.findings.splice(door.at..door.at, door.findings);
     }
 
-    /// **The speaker for this report's roots**: each as `doc` holds it
+    /// **The speaker for this report's placements**: each as `doc` holds it
     /// now. A frame that draws the findings one at a time says each
     /// through it ([`crate::spoken::Said`]).
     ///
@@ -1103,7 +1111,7 @@ impl ChecksReport {
     }
 
     /// **The report as the frame holding the checked document says
-    /// it**: each root as `doc` holds it now.
+    /// it**: each placement as `doc` holds it now.
     ///
     /// # Panics
     ///
@@ -1119,11 +1127,11 @@ impl ChecksReport {
 /// not that a check fired.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ChecksError {
-    /// A root has no value in this evaluation, and its standing says
+    /// A placement has no value in this evaluation, and its standing says
     /// why and where the repair is — the [`crate::product()`] posture:
-    /// checks are defined over roots that evaluated, and a report over
+    /// checks are defined over placements that evaluated, and a report over
     /// a partial evaluation would claim more than was checked.
-    Root(NodeStanding),
+    Placement(NodeStanding),
     /// The run's tolerance cannot form a band.
     Band {
         /// The band construction failure.
@@ -1142,7 +1150,7 @@ pub enum ChecksError {
         /// The document the handed evaluation or subject is of.
         found: crate::ident::DocumentId,
     },
-    /// The document's roots did not gather into a product, so a
+    /// The document's product did not gather, so a
     /// resident that reads the subject has none. The gather's own
     /// refusal, forwarded — this layer has no second opinion about
     /// what a product is.
@@ -1179,7 +1187,7 @@ impl From<crate::ident::Mispaired> for ChecksError {
 impl crate::spoken::Say for ChecksError {
     fn say(&self, f: &mut fmt::Formatter<'_>, by: crate::spoken::Speaker<'_>) -> fmt::Result {
         match self {
-            Self::Root(standing) => {
+            Self::Placement(standing) => {
                 write!(
                     f,
                     "checks: {}",
@@ -1213,7 +1221,7 @@ impl fmt::Display for ChecksError {
 
 impl ChecksError {
     /// **The refusal as the frame holding the checked document says
-    /// it**: each node, a root's or the gather's, as `doc` holds it now
+    /// it**: each node, a placement's or the gather's, as `doc` holds it now
     /// ([`crate::Doc::spoken`]).
     #[must_use]
     pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::Doc<P>) -> String {
@@ -1246,7 +1254,7 @@ impl crate::spoken::Say for CheckRefusal {
     }
 }
 
-/// The sentence where no document is at hand: each root by its tag.
+/// The sentence where no document is at hand: each placement by its tag.
 impl fmt::Display for CheckRefusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
@@ -1255,7 +1263,7 @@ impl fmt::Display for CheckRefusal {
 
 impl CheckRefusal {
     /// **The refusal as the frame holding the checked document says
-    /// it**: each root as `doc` holds it now.
+    /// it**: each placement as `doc` holds it now.
     ///
     /// # Panics
     ///
@@ -1265,7 +1273,7 @@ impl CheckRefusal {
         crate::spoken::Said(self, self.speaker(doc)).to_string()
     }
 
-    /// **The speaker for this refusal's roots**: each as `doc` holds it
+    /// **The speaker for this refusal's placements**: each as `doc` holds it
     /// now, under the guard [`ChecksReport::speaker`] states.
     ///
     /// # Panics
@@ -1364,15 +1372,15 @@ impl<T: Decide> Subject<'_, T> {
     }
 }
 
-/// Runs every configured check over `doc`'s evaluated roots and
+/// Runs every configured check over `doc`'s evaluated placements and
 /// returns the report. **Reports, never gates** (the
 /// [`crate::mixed_pins`] posture): nothing calls this from `apply`,
 /// from the load door, or from evaluation, and running it changes
 /// nothing — the evaluation is read, never rebuilt (DS3 by
 /// construction).
 ///
-/// Subjects are the body-denoting outputs of `doc.roots()`, each
-/// checked per `(root, output_ix)`. For the connectedness check, the
+/// Subjects are the body-denoting outputs of `doc.placements()`, each
+/// checked per `(placement, output_ix)`. For the connectedness check, the
 /// component count of a subject is its number of definitely-`Outer`
 /// shells ([`topo::classify_shells`]) — an internal void is boundary,
 /// not a component, at every tolerance row — compared EXACTLY (`!=`)
@@ -1385,7 +1393,7 @@ impl<T: Decide> Subject<'_, T> {
 /// Expectations are TWO-DIRECTIONAL: every
 /// [`ChecksConfig::expected_components`] entry must be consumed by a
 /// subject, and an entry no subject consumed — a vanished body (a
-/// boolean's honest ∅ result denotes zero subjects), a dead root, a
+/// boolean's honest ∅ result denotes zero subjects), a dead placement, a
 /// mistyped key — is its own finding
 /// ([`CheckEvidence::StaleExpectation`], appended after the subject
 /// findings in key order). The DEFAULT expectation binds only
@@ -1437,13 +1445,13 @@ pub fn run_checks<
 /// [`Subject::Product`] must have been gathered from that same
 /// document. Both go through [`crate::ident::mispaired`], the one
 /// predicate that spells the comparison, before any resident runs —
-/// because a resident reading `doc.roots()` against a foreign `ev`
-/// finds a value for every root and reports about the wrong geometry.
+/// because a resident reading `doc.placements()` against a foreign `ev`
+/// finds a value for every placement and reports about the wrong geometry.
 ///
 /// # Errors
 ///
 /// [`ChecksError::EvaluationOfAnotherDocument`] for a mispaired
-/// argument; [`ChecksError::Root`] and [`ChecksError::Band`], the
+/// argument; [`ChecksError::Placement`] and [`ChecksError::Band`], the
 /// registry's own preconditions; and [`ChecksError::Product`] when an
 /// enabled resident reads the subject and finds
 /// [`Subject::Unavailable`] — after the residents that read no subject
@@ -1853,22 +1861,25 @@ fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds + AtRestP
     // Entries not yet consumed by a subject; whatever remains after
     // the walk is stale (an expectation with no subject).
     let mut unconsumed = cfg.expected_components.clone();
-    for root in doc.placements() {
-        let value = ev.usable(root).map_err(ChecksError::Root)?;
+    for placement in doc.placements() {
+        let value = ev.usable(placement).map_err(ChecksError::Placement)?;
         let Some(sources) = product::sources_of(value) else {
             continue;
         };
         for (output_ix, body, _contacts, _rows) in sources {
-            unconsumed.remove(&(root, output_ix));
+            unconsumed.remove(&(placement, output_ix));
             // The shell door reads a finished body. Nothing upstream keeps a
-            // root's verdict in its value yet (F2 carries it), so the root is
+            // placement's verdict in its value yet (F2 carries it), so the placement is
             // gated here, once.
             let body = match T::gate_at_rest_kept(body.body().clone(), tol) {
                 Ok(body) => body,
                 Err(errors) => {
                     report.findings.push(CheckFinding {
                         check: CheckId::Connectedness,
-                        subject: FindingSubject::Output { root, output_ix },
+                        subject: FindingSubject::Output {
+                            placement,
+                            output_ix,
+                        },
                         evidence: CheckEvidence::NotAtRest { errors },
                         quiet: None,
                     });
@@ -1887,13 +1898,16 @@ fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds + AtRestP
                         .unwrap_or_else(|_| unreachable!("shell count {outer} exceeds u32"));
                     let expected = cfg
                         .expected_components
-                        .get(&(root, output_ix))
+                        .get(&(placement, output_ix))
                         .copied()
                         .unwrap_or(1);
                     if actual != expected {
                         report.findings.push(CheckFinding {
                             check: CheckId::Connectedness,
-                            subject: FindingSubject::Output { root, output_ix },
+                            subject: FindingSubject::Output {
+                                placement,
+                                output_ix,
+                            },
                             evidence: CheckEvidence::Connectedness { actual, expected },
                             quiet: None,
                         });
@@ -1911,7 +1925,10 @@ fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds + AtRestP
                 ) => {
                     report.findings.push(CheckFinding {
                         check: CheckId::Connectedness,
-                        subject: FindingSubject::Output { root, output_ix },
+                        subject: FindingSubject::Output {
+                            placement,
+                            output_ix,
+                        },
                         evidence: CheckEvidence::Escalated { source },
                         quiet: None,
                     });
@@ -1923,7 +1940,10 @@ fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds + AtRestP
                 ) => {
                     report.findings.push(CheckFinding {
                         check: CheckId::Connectedness,
-                        subject: FindingSubject::Output { root, output_ix },
+                        subject: FindingSubject::Output {
+                            placement,
+                            output_ix,
+                        },
                         evidence: CheckEvidence::Unsupported { source },
                         quiet: None,
                     });
@@ -1933,10 +1953,13 @@ fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds + AtRestP
     }
     // The reverse direction: every stated expectation must have found
     // its subject. BTreeMap iteration = key order (deterministic, D9).
-    for ((root, output_ix), expected) in unconsumed {
+    for ((placement, output_ix), expected) in unconsumed {
         report.findings.push(CheckFinding {
             check: CheckId::Connectedness,
-            subject: FindingSubject::Output { root, output_ix },
+            subject: FindingSubject::Output {
+                placement,
+                output_ix,
+            },
             evidence: CheckEvidence::StaleExpectation { expected },
             quiet: None,
         });
@@ -1972,15 +1995,18 @@ fn chart_coherence<P: crate::ProfilePayload, T: Decide + ChartCoherenceLane>(
     tol: Tol,
     report: &mut ChecksReport,
 ) -> Result<(), ChecksError> {
-    for root in doc.placements() {
-        let value = ev.usable(root).map_err(ChecksError::Root)?;
+    for placement in doc.placements() {
+        let value = ev.usable(placement).map_err(ChecksError::Placement)?;
         let Some(sources) = product::sources_of(value) else {
             continue;
         };
         for (output_ix, body, _contacts, _rows) in sources {
             let at = |evidence| CheckFinding {
                 check: CheckId::ChartCoherence,
-                subject: FindingSubject::Output { root, output_ix },
+                subject: FindingSubject::Output {
+                    placement,
+                    output_ix,
+                },
                 evidence,
                 quiet: None,
             };
@@ -2105,10 +2131,10 @@ fn at_rest<P: crate::ProfilePayload, T: at_rest::LocalizeLane>(
 }
 
 /// The door from a finding's attribution back to its subject: the body
-/// at `(root, output_ix)` in this evaluation, AND the declared contact
+/// at `(placement, output_ix)` in this evaluation, AND the declared contact
 /// records that body carries — the same enumeration the connectedness
 /// resident walks, so a [`CheckFinding`]'s attribution always resolves
-/// against the evaluation it was produced from. `None` when the root has no
+/// against the evaluation it was produced from. `None` when the placement has no
 /// value, denotes no body, or has no output at that index (exactly the
 /// attributions a [`CheckEvidence::StaleExpectation`] finding names).
 ///
@@ -2132,10 +2158,10 @@ fn at_rest<P: crate::ProfilePayload, T: at_rest::LocalizeLane>(
 /// rather than this door's silent narrowing.
 pub fn subject_body<T: Decide>(
     ev: &Evaluation<T>,
-    root: RecipeNodeId,
+    placement: RecipeNodeId,
     output_ix: u32,
 ) -> Option<(crate::eval::Framed<T>, Arc<ContactRecords>)> {
-    let sources = product::sources_of(ev.value(root)?)?;
+    let sources = product::sources_of(ev.value(placement)?)?;
     sources
         .into_iter()
         .find(|(ix, _, _, _)| *ix == output_ix)

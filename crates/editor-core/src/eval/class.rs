@@ -166,13 +166,13 @@ pub enum NodeErrorClass {
     /// [`NodeErrorKind::Part`] carrying [`PartFault::Unresolved`] with
     /// [`ResolveFault::Unresolved`].
     PartUnresolved,
-    /// [`NodeErrorKind::Part`] carrying [`PartFault::PartRootFailed`].
-    PartRootFailed,
-    /// [`NodeErrorKind::Part`] carrying [`PartFault::PartRootPoisoned`].
-    PartRootPoisoned,
+    /// [`NodeErrorKind::Part`] carrying [`PartFault::PartProductFailed`].
+    PartProductFailed,
+    /// [`NodeErrorKind::Part`] carrying [`PartFault::PartProductPoisoned`].
+    PartProductPoisoned,
     /// [`NodeErrorKind::Part`] carrying
-    /// [`PartFault::RootFailureUnrecorded`].
-    PartRootFailureUnrecorded,
+    /// [`PartFault::ProductFailureUnrecorded`].
+    PartProductFailureUnrecorded,
     /// [`NodeErrorKind::Part`] carrying [`PartFault::PartProduct`].
     PartProduct,
     /// [`NodeErrorKind::Part`] carrying [`PartFault::ReferenceCycle`].
@@ -293,9 +293,9 @@ impl NodeErrorKind {
                     ResolveFault::EpsilonSeam => C::PartEpsilonSeam,
                     ResolveFault::Unresolved => C::PartUnresolved,
                 },
-                PartFault::PartRootFailed { .. } => C::PartRootFailed,
-                PartFault::PartRootPoisoned { .. } => C::PartRootPoisoned,
-                PartFault::RootFailureUnrecorded { .. } => C::PartRootFailureUnrecorded,
+                PartFault::PartProductFailed { .. } => C::PartProductFailed,
+                PartFault::PartProductPoisoned { .. } => C::PartProductPoisoned,
+                PartFault::ProductFailureUnrecorded { .. } => C::PartProductFailureUnrecorded,
                 PartFault::PartProduct { .. } => C::PartProduct,
                 PartFault::ReferenceCycle { .. } => C::PartReferenceCycle,
                 PartFault::DepthExceeded => C::PartDepthExceeded,
@@ -444,9 +444,9 @@ mod tests {
         PartPinMismatch,
         PartEpsilonSeam,
         PartUnresolved,
-        PartRootFailed,
-        PartRootPoisoned,
-        PartRootFailureUnrecorded,
+        PartProductFailed,
+        PartProductPoisoned,
+        PartProductFailureUnrecorded,
         PartProduct,
         PartReferenceCycle,
         PartDepthExceeded,
@@ -741,18 +741,18 @@ mod tests {
                     message: "the resolver's own words".to_owned(),
                 })
             }
-            C::PartRootFailed => part(crate::PartFault::PartRootFailed {
+            C::PartProductFailed => part(crate::PartFault::PartProductFailed {
                 held: Default::default(),
                 node: n(7),
                 refusal: K::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
             }),
-            C::PartRootPoisoned => part(crate::PartFault::PartRootPoisoned {
+            C::PartProductPoisoned => part(crate::PartFault::PartProductPoisoned {
                 held: Default::default(),
-                root: n(8),
+                node: n(8),
                 through: n(7),
                 refusal: K::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
             }),
-            C::PartRootFailureUnrecorded => part(crate::PartFault::RootFailureUnrecorded {
+            C::PartProductFailureUnrecorded => part(crate::PartFault::ProductFailureUnrecorded {
                 node: n(7),
                 held: Default::default(),
             }),
