@@ -5,7 +5,11 @@
 //! bottom cap from section 0, top cap from section k−1, one NURBS wall
 //! per profile segment ([`crate::skin::LoftGeometry`]), wall–wall
 //! seams as the walls' `u ∈ {0, 1}` boundary iso-curves, struts swept
-//! per vertex. The three edge classes:
+//! per vertex. At v-degree 1 through `k ≥ 3` sections that wall is one
+//! per slab ([`fn@slab_walls`]): the body is `k − 1` such laminae swept
+//! one on the next, each interior section a ring of rims between two
+//! slabs' walls, each in the row `v = 1` of the wall below it. The three
+//! edge classes:
 //!
 //! - **Cap–wall rims** need no new GEOMETRY (item 6(ii)): the wall's
 //!   `v = 0` / `v = 1` iso IS the placed sketch segment (degree
@@ -324,7 +328,8 @@ impl fmt::Display for LoftError {
             } => write!(
                 f,
                 "loft section {section}'s rim is not an arc rim of the wall below it (kernel \
-                 bug, not an input fault)"
+                 bug, not an input fault). Recourse: loft at v-degree 2 or more, whose walls \
+                 span every section"
             ),
             Self::SectionRim {
                 section,

@@ -2231,7 +2231,11 @@ class Node:
         (slides along and spins about the first section's own axes, in
         the order written). Order is data. The loft lies in its first
         section's coordinates. `v_degree` is a count
-        (`Formula.count`); `DocEdit.set_members` re-points the sections'
+        (`Formula.count`), and sets the faces too: at 1 through three
+        sections or more the loft is one wall per profile segment per
+        slab between two consecutive sections, each interior section a
+        ring of edges; at 2 or more one wall per segment spans every
+        section. `DocEdit.set_members` re-points the sections'
         profiles, one per section (else `loft_section_count`), and
         `DocEdit.set_loft_sections` writes them whole with their
         stations."""
@@ -4395,6 +4399,10 @@ class SegTag:
     CapVertex: Final[SegTag]
     LoftWall: Final[SegTag]
     LoftSeam: Final[SegTag]
+    LoftSlabWall: Final[SegTag]
+    LoftSlabSeam: Final[SegTag]
+    LoftSectionEdge: Final[SegTag]
+    LoftSectionVertex: Final[SegTag]
     Band: Final[SegTag]
     BandRim: Final[SegTag]
     BandRimPi: Final[SegTag]

@@ -409,3 +409,34 @@ fn the_output_stage_merge_keeps_every_slab_wall() {
     );
     println!("degree-1 loft ∪ cube across two sections: {err:?}");
 }
+
+/// A path sweep shares the assembly: at v-degree 1 through five
+/// stations along a quarter arc it is one wall per segment per slab,
+/// at rest, and it meshes to the volume it integrates to.
+#[test]
+fn a_degree_one_path_sweep_is_one_wall_per_slab() {
+    let path = geom::NurbsCurve3::new(
+        geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+        vec![
+            geom_core::Point3::new(0.0, 0.0, 0.0),
+            geom_core::Point3::new(0.0, 0.0, 5.0),
+            geom_core::Point3::new(5.0, 0.0, 5.0),
+        ],
+        vec![1.0, core::f64::consts::FRAC_1_SQRT_2, 1.0],
+    )
+    .unwrap();
+    let section = Shape::Square.section(0.4);
+    let swept = sweep::sweep_body::<f64>(&section, profile::SketchPlane::xy(), &path, 5, 1, tol())
+        .unwrap_or_else(|e| panic!("the degree-1 sweep builds: {e}"));
+    assert!(
+        swept.side_faces[0].iter().all(|w| w.len() == 4),
+        "four slabs a segment"
+    );
+    at_rest(&swept.body, "path sweep");
+    let (got, pad) = volume(&swept.body);
+    let v = meshed_volume(&swept.body, 2e-3, "path sweep");
+    assert!(
+        (v - got).abs() <= pad + 1e-9 * got,
+        "path sweep: mesh volume {v} vs integrated {got} ± {pad}"
+    );
+}

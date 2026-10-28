@@ -6173,6 +6173,10 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::CapVertex => 6,
         S::LoftWall => 45,
         S::LoftSeam => 46,
+        S::LoftSlabWall => 53,
+        S::LoftSlabSeam => 54,
+        S::LoftSectionEdge => 55,
+        S::LoftSectionVertex => 56,
         S::Band => 7,
         S::BandRim => 8,
         S::BandRimPi => 9,
@@ -6340,6 +6344,28 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
             for v in vs {
                 pv(h, *v);
             }
+        }
+        RoleSeg::LoftSlabWall(s, es) => {
+            h.write_u64(u64::from(*s));
+            h.write_u64(es.len() as u64);
+            for e in es {
+                pe(h, *e);
+            }
+        }
+        RoleSeg::LoftSlabSeam(s, vs) => {
+            h.write_u64(u64::from(*s));
+            h.write_u64(vs.len() as u64);
+            for v in vs {
+                pv(h, *v);
+            }
+        }
+        RoleSeg::LoftSectionEdge(s, e) => {
+            h.write_u64(u64::from(*s));
+            pe(h, *e);
+        }
+        RoleSeg::LoftSectionVertex(s, v) => {
+            h.write_u64(u64::from(*s));
+            pv(h, *v);
         }
         RoleSeg::Band(r) => {
             run(h, r);

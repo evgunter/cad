@@ -2657,7 +2657,11 @@ impl Node {
     /// reverses the produced surface's v-direction. The loft lies in
     /// its first section's coordinates. `v_degree` is the v-direction
     /// interpolation degree, a COUNT (structural material, D3), so it
-    /// crosses as `Formula.count` and not as a continuous literal.
+    /// crosses as `Formula.count` and not as a continuous literal. It
+    /// sets the faces too: at degree 1 through three sections or more
+    /// the loft is one wall per profile segment per slab between two
+    /// consecutive sections, each interior section a ring of edges; at 2
+    /// or more one wall per segment spans every section.
     ///
     /// The degree is the node's `VDegree` slot —
     /// `DocEdit.bind_v_degree_param` is what makes it a named,
