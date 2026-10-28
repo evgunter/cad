@@ -6045,6 +6045,7 @@ fn curved_same_side_pairs<T: Decide>(
                 continue;
             };
             if apart {
+                if std::env::var("REVIEW_JCG").is_ok() { eprintln!("REVIEW axial-apart {fa:?} {fb:?} {:?} {:?}", surface(fa), surface(fb)); }
                 out.apart.push((fa, fb));
                 continue;
             }
@@ -6059,7 +6060,7 @@ fn curved_same_side_pairs<T: Decide>(
                     b: fb,
                     margin,
                 }),
-                Ok(false) => out.apart.push((fa, fb)),
+                Ok(false) => { if std::env::var("REVIEW_JCG").is_ok() { eprintln!("REVIEW read-apart {fa:?} {fb:?} {:?} {:?}", surface(fa), surface(fb)); } out.apart.push((fa, fb)) }
                 Err(_) => {}
             }
         }
