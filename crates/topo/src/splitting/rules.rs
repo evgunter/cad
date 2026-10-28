@@ -203,7 +203,15 @@ pub(super) fn apply_rule_a<T: Decide>(
         .map(|e| e.class == PlaneSide::On && e.kind == SectorEntryKind::Edge)
         .collect();
     for k in 0..n {
-        let (face, n_face, is_plane) = sector_face(body, vertex, entries[k].he, band)?;
+        let (face, mut n_face, is_plane) = sector_face(body, vertex, entries[k].he, band)?;
+        if std::env::var("ZZ_HACK").is_ok() && n_face.vec().x.is_poison() {
+            let fd = proven(&body.faces, face, EntityId::Face);
+            let surface = body.face_surface_linked(face, fd);
+            if let geom::Surface::Cone { apex, .. } = *surface {
+                let (_, d, _) = chord(body, vertex, entries[k].he)?;
+                n_face = geom_brep::OutwardNormal::from_chart(geom_brep::implicit_gradient(surface, apex + d.normalize()).normalize(), fd.sense);
+            }
+        }
         let refuse = |reading| SplitReduceError::SliverSector {
             vertex,
             face,

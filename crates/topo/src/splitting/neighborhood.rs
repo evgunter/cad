@@ -389,14 +389,17 @@ pub(super) fn classify_neighborhood_rays<T: Decide>(
         let next_he = orbit[(i + 1) % orbit.len()];
         let (_, dir_b, _) = chord(body, vertex, next_he)?;
         let (face, n_face, _) = sector_face(body, vertex, he, band)?;
-        let wide = wide_entry(
+        if std::env::var("ZZ_PROBE").is_ok() {
+            eprintln!("ZZ v={vertex:?} at {:?} face={face:?} he={he:?} next={next_he:?} a={dir_a:?} b={dir_b:?} n={:?} orbit={}", body.resolve_vertex_point(vertex, Proven), n_face.vec(), orbit.len());
+        }
+        let wide = if let Some(w) = std::env::var("ZZ_HACK").ok().and_then(|_| zz_apex(body, vertex, face, (dir_a, dir_b), he == next_he, plane.normal.get(), band)) { w? } else { wide_entry(
             (vertex, face),
             (dir_a, dir_b),
             n_face,
             he == next_he,
             plane.normal.get(),
             band,
-        )?;
+        )? };
         if let Some((bisector, arm, class)) = wide {
             entries.push(SectorEntry {
                 he,
@@ -498,4 +501,55 @@ mod spline_departure_rows {
         );
         assert!(bend.is_some(), "a curved edge carries its bend");
     }
+}
+
+#[allow(clippy::all, clippy::pedantic)]
+fn zz_apex<T: Decide>(
+    body: &Body<T>,
+    vertex: VertexKey,
+    face: FaceKey,
+    (dir_a, dir_b): (Vec3<T>, Vec3<T>),
+    full: bool,
+    n: Vec3<T>,
+    band: Band,
+) -> Option<Result<Option<(Vec3<T>, T, PlaneSide)>, SplitReduceError>> {
+    let lo = |x: T| -> f64 { *(&x as &dyn std::any::Any).downcast_ref::<f64>().unwrap() };
+    let fd = proven(&body.faces, face, EntityId::Face);
+    let sense = fd.sense;
+    let surface = body.face_surface_linked(face, fd);
+    let geom::Surface::Cone { apex, axis, .. } = *surface else { return None };
+    let p = body.resolve_vertex_point(vertex, Proven);
+    let q = p - apex;
+    let rad = q - axis * q.dot(axis);
+    if lo(rad.norm()) > 1e-6 { return None; }
+    let (a, b) = (dir_a.normalize(), dir_b.normalize());
+    let arm = dir_a.norm().min(dir_b.norm());
+    let nb = OutwardNormal::from_chart(geom_brep::implicit_gradient(surface, apex + b).normalize(), sense).vec();
+    let e1 = (b - axis * b.dot(axis)).normalize();
+    let e2 = axis.cross(e1);
+    let sigma = if lo(nb.cross(b).dot(e2)) > 0.0 { 1.0 } else { -1.0 };
+    let ea = a - axis * a.dot(axis);
+    let mut phia = lo(ea.dot(e2)).atan2(lo(ea.dot(e1))) * sigma;
+    if phia <= 1e-12 { phia += 2.0 * std::f64::consts::PI; }
+    let w = if full { 2.0 * std::f64::consts::PI } else { phia };
+    let h = b.dot(axis);
+    let rho = (b - axis * h).norm();
+    let (n1, n2) = (lo(n.dot(e1)), lo(n.dot(e2)) * sigma);
+    let pmax = n2.atan2(n1).rem_euclid(2.0 * std::f64::consts::PI);
+    let pmin = (pmax + std::f64::consts::PI).rem_euclid(2.0 * std::f64::consts::PI);
+    let inside: Vec<f64> = [pmax, pmin].into_iter().filter(|&x| x > 1e-9 && x < w - 1e-9).collect();
+    if std::env::var("ZZ_PROBE").is_ok() {
+        eprintln!("ZZAPEX w={w} pmax={pmax} pmin={pmin} inside={inside:?} sigma={sigma}");
+    }
+    let Some(&psi) = inside.first() else { return Some(Ok(None)); };
+    let f = T::from_f64;
+    let d = axis * h + (e1 * f(psi.cos()) + e2 * f(sigma * psi.sin())) * rho;
+    let g = d.dot(n);
+    let side = match decide("split_bisector_side", Margin::levered(g, arm), band) {
+        Ok(Sign::Negative) => PlaneSide::Below,
+        Ok(Sign::Positive) => PlaneSide::Above,
+        Ok(Sign::Zero) => PlaneSide::On,
+        Err(diag) => return Some(Err(SplitReduceError::SliverSector { vertex, face, reading: SectorReading::Escalated(diag) })),
+    };
+    Some(Ok(Some((d, arm, side))))
 }
