@@ -2216,6 +2216,12 @@ pub enum LoftFault {
     /// current values, carry the first section's plane exactly onto
     /// itself (a slide by nothing, a spin in the plane): it stands in
     /// that plane as an empty station does.
+    ///
+    /// Judged when a door writes the loft, on the values then. A value
+    /// edit (`SetVarValue`) that later brings a station there writes no
+    /// loft and is admitted; evaluation then refuses the loft
+    /// (`LoftError::DegenerateStacking`), and the next edit that writes
+    /// it refuses here.
     StationInFirstPlane {
         /// The section, in skin order (the first is `0`).
         section: usize,
@@ -6196,12 +6202,11 @@ fn check_payload_refs<P: crate::ProfilePayload>(
     Ok(())
 }
 
-/// **A loft's shape, as its data fixes it**: two sections or more,
-/// each after the first with a station that moves it, and a v degree
-/// in `1 ..= sections − 1` under the document's current values. A
-/// degree read off a variable that does not resolve is evaluation's to
-/// refuse. A station that moves its section by nothing (a slide of
-/// `0`) is degenerate by value, not by data, and is evaluation's too.
+/// **A loft's shape**: two sections or more, each after the first with
+/// a station that carries the first section's plane off itself, and a v
+/// degree in `1 ..= sections − 1`. The station and the degree are read
+/// under the document's current values ([`station_keeps_the_first_plane`]);
+/// a value that does not resolve is evaluation's to refuse.
 /// Asked of every loft a door writes ([`check_written_node`]) and
 /// after a slot edit of one ([`set_slot`]); `Ok` for any other node.
 fn check_loft_shape<P: crate::ProfilePayload>(

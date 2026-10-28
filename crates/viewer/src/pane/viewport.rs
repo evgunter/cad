@@ -2069,12 +2069,7 @@ mod tests {
             .iter()
             .map(|face| {
                 let by = pncad::document::Speaker::of(landed).within(eval);
-                format!(
-                    "{} on {} body {}",
-                    by.name(&face.name),
-                    by.node(face.node),
-                    face.body
-                )
+                idpass::SaidFace(by, face).to_string()
             })
             .collect();
         (unassigned, from_ray, spoken, news)

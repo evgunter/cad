@@ -62,6 +62,19 @@ pub fn no_translation() -> [Formula; 3] {
     std::array::from_fn(|_| Formula::zero(Dimension::Length))
 }
 
+/// A translation from its three components: each zero is the constant
+/// `0` and each other component a literal, so only the components
+/// written mint variables (`[variables.literals]`).
+pub fn translation(v: [f64; 3]) -> [Formula; 3] {
+    v.map(|c| {
+        if c == 0.0 {
+            Formula::zero(Dimension::Length)
+        } else {
+            len(c)
+        }
+    })
+}
+
 /// Three dimensionless literals — a normal, a direction, an axis.
 pub fn scl3(v: [f64; 3]) -> [Formula; 3] {
     [scl(v[0]), scl(v[1]), scl(v[2])]

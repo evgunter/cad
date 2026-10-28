@@ -28,7 +28,9 @@ use test_utils::refusal::tagged;
 use viewer::session::BooleanSpec;
 
 use common::drawn::spacing_of;
-use common::{ang, body_volume, len, len3, near, no_translation, scl3, session_insert, shape};
+use common::{
+    ang, body_volume, len, len3, near, no_translation, scl3, session_insert, shape, translation,
+};
 use pncad::document::BooleanValue;
 use pncad::document::SplitSide;
 use pncad::document::{
@@ -179,7 +181,7 @@ fn a_three_pick_union_commits_one_union_of_three_spelled_members() {
         &mut session,
         SessionOp::AddTransform {
             input: raw_c.into(),
-            translation: len3([0.0, 0.05, 0.0]),
+            translation: translation([0.0, 0.05, 0.0]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
             rotation_angle: Formula::zero(Dimension::Angle),
         },
@@ -411,7 +413,7 @@ fn a_feature_re_points_each_placement_of_its_target() {
         &mut session,
         SessionOp::AddTransform {
             input: body.into(),
-            translation: len3([0.0, 0.0, A[2] * 4.0]),
+            translation: translation([0.0, 0.0, A[2] * 4.0]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
             rotation_angle: Formula::zero(Dimension::Angle),
         },
@@ -2673,7 +2675,7 @@ fn a_duplicates_copy_moves_on_its_own() {
         &mut session,
         SessionOp::AddTransform {
             input: copy.into(),
-            translation: len3([0.0, A[1] * 3.0, 0.0]),
+            translation: translation([0.0, A[1] * 3.0, 0.0]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
             rotation_angle: Formula::zero(Dimension::Angle),
         },
@@ -2951,7 +2953,7 @@ fn a_moved_copy(tol: Tol, lift: f64) -> (DocSession, RecipeNodeId, [f64; 2]) {
         &mut session,
         SessionOp::AddTransform {
             input: copy.into(),
-            translation: len3([0.0, lift, 0.0]),
+            translation: translation([0.0, lift, 0.0]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
             rotation_angle: Formula::zero(Dimension::Angle),
         },
@@ -3395,7 +3397,7 @@ fn a_union_across_two_flush_contacts_lands_as_one_action() {
         &mut session,
         SessionOp::AddTransform {
             input: raw.into(),
-            translation: len3([0.0, 0.0, CHANNEL_DROP]),
+            translation: translation([0.0, 0.0, CHANNEL_DROP]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
             rotation_angle: Formula::zero(Dimension::Angle),
         },
@@ -3416,7 +3418,7 @@ fn a_union_across_two_flush_contacts_lands_as_one_action() {
         &mut session,
         SessionOp::AddTransform {
             input: raw_boss.into(),
-            translation: len3([0.0, 0.0, common::BOSS_BLOCK[2]]),
+            translation: translation([0.0, 0.0, common::BOSS_BLOCK[2]]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
             rotation_angle: Formula::zero(Dimension::Angle),
         },
@@ -3569,7 +3571,7 @@ fn taking_over_one_half_of_a_split_leaves_the_other() {
         &mut session,
         SessionOp::AddTransform {
             input: below,
-            translation: len3([0.0, 0.0, -0.02]),
+            translation: translation([0.0, 0.0, -0.02]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
             rotation_angle: Formula::zero(Dimension::Angle),
         },

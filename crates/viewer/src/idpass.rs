@@ -386,15 +386,29 @@ impl Say for Disagreement {
     }
 }
 
-/// A face as the cross-check compares it: its name, and the copy it is
-/// drawn on, which is what tells two copies of one body apart.
+/// A face as the cross-check compares it, in words: its name, and the
+/// copy it is drawn on, by the copy's node, which is what tells two
+/// copies of one body apart. A body past a node's first is said by its
+/// index, the one word the picture has for it.
+pub(crate) struct SaidFace<'a>(pub(crate) Speaker<'a>, pub(crate) &'a FaceSelection);
+
+impl core::fmt::Display for SaidFace<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self(by, FaceSelection { name, node, body }) = *self;
+        write!(f, "{} on {}", by.name(name), by.node(*node))?;
+        if *body != 0 {
+            write!(f, ", body {body}")?;
+        }
+        Ok(())
+    }
+}
+
 fn say_face(
     f: &mut core::fmt::Formatter<'_>,
     by: Speaker<'_>,
     face: &FaceSelection,
 ) -> core::fmt::Result {
-    let FaceSelection { name, node, body } = face;
-    write!(f, "{} on {} body {body}", by.name(name), by.node(*node))
+    write!(f, "{}", SaidFace(by, face))
 }
 
 /// The sentence where no document is at hand: each node by its tag.
@@ -584,16 +598,17 @@ impl IdNews {
 /// whose name the naming layer refused ([`PatchNameFault::Unnamed`]),
 /// or an id no patch of this picture is drawn under (never assigned,
 /// [`PatchNameFault::Unassigned`], or assigned to a hidden placement's
-/// part, [`IdAnswer::Hidden`], which the index would otherwise name). `display` is the view the picture and
-/// the ray were both drawn and asked under, while the view in hand is
-/// the one the picture was drawn under
+/// part, [`IdAnswer::Hidden`], which the index would otherwise name).
+/// `display` is the view the picture and the ray were both drawn and
+/// asked under, while the view in hand is the one the picture was drawn
+/// under
 /// (`work/vnews/the-cursor-reads-the-display-view-in-hand-not-the-one-the-picture-was-drawn-under.md`
-/// is where it is not). Neither AGREES with any
-/// ray answer. Agreement is a shared face, and these have
-/// none, so silence here would claim an agreement nobody can check.
-/// Nor is either said anywhere else. This comparison is the id
-/// answer's only reader, so the notice is where each is said, with
-/// the id, which is what issue #1097 §4 asks an operator to record.
+/// is where it is not). Neither AGREES with any ray answer. Agreement
+/// is a shared face, and these have none, so silence here would claim
+/// an agreement nobody can check. Nor is either said anywhere else.
+/// This comparison is the id answer's only reader, so the notice is
+/// where each is said, with the id, which is what issue #1097 §4 asks
+/// an operator to record.
 /// The ray path's own brush with an unnamed face is a refusal, and
 /// beside a refusal only an undrawn id is said (above).
 ///

@@ -1012,8 +1012,9 @@ fn run_at<T: editor_core::EvalScalar>(
 /// And, all three rows, when the corpus's seats came to write a zero
 /// standoff and a zero spin as the constant `0` rather than a literal
 /// (`[variables.literals]`): fewer variables mint, so the ids the digest
-/// feeds renumber. The 36 solved frames are main's bit for bit (a digest
-/// of them alone, with no id fed, reads main's word at 1e-9).
+/// feeds renumber, and nothing else moved: with each id rewritten to
+/// the order it first appears in, every byte fed (faults, spaces, the 36
+/// frames, the evaluations' tables and bodies) is main's at 1e-9.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
     (1e-9, 0xeb0c_6bbd_39c6_1348),
     (1e-6, 0x2c55_d6c3_d17f_2c75),

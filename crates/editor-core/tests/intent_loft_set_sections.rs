@@ -439,6 +439,31 @@ fn set_members_on_a_loft_names_set_loft_sections() {
     );
 }
 
+/// The loft's evaluation, which is the skin's refusal of a degenerate
+/// stacking.
+fn assert_degenerate_stacking(doc: &ProfileDoc, loft: RecipeNodeId) {
+    let ev = editor_core::evaluate::<f64>(
+        doc,
+        None,
+        &editor_core::CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
+    assert!(
+        matches!(
+            ev.result(loft),
+            Some(NodeResult::Failed(editor_core::NodeError {
+                kind: editor_core::NodeErrorKind::Loft(sweep::LoftError::DegenerateStacking {
+                    slab: 0
+                }),
+                ..
+            }))
+        ),
+        "{:?}",
+        ev.result(loft)
+    );
+}
+
 /// **A station rounding leaves next to the first plane is the skin's to
 /// refuse**: two half turns about x compose, in `f64`, to a plane a
 /// rounding off the first, which the door's exact check admits and the
@@ -462,24 +487,53 @@ fn a_station_rounded_next_to_the_first_plane_is_refused_by_the_skin() {
             1,
         ),
     );
-    let ev = editor_core::evaluate::<f64>(
-        &doc,
-        None,
-        &editor_core::CancelToken::new(),
-        &EvalOptions::default(),
-        Tol::witness(),
-    );
-    assert!(
-        matches!(
-            ev.result(loft),
-            Some(NodeResult::Failed(editor_core::NodeError {
-                kind: editor_core::NodeErrorKind::Loft(sweep::LoftError::DegenerateStacking {
-                    slab: 0
-                }),
-                ..
-            }))
-        ),
-        "{:?}",
-        ev.result(loft)
+    assert_degenerate_stacking(&doc, loft);
+}
+
+/// **A value edit that brings a station's slide to 0 is admitted, and
+/// evaluation refuses the loft**: the door reads a station's values
+/// when it writes the loft, and `SetVarValue` writes no loft. The next
+/// edit that does write it (here its own degree, unchanged) refuses it
+/// at the door. Broken by a value edit that re-asks the loft's shape
+/// (this row then pins the wrong door), or by a skin that lofts the
+/// coincident section.
+#[test]
+fn a_value_edit_to_a_zero_slide_is_refused_at_evaluation() {
+    let (doc, _, loft) = two_section_loft();
+    let Some(Node::Loft { then, .. }) = doc.node(loft) else {
+        panic!("{loft} is a loft")
+    };
+    let [LoftSection { station, .. }] = &then[..] else {
+        panic!("one section after the first: {then:?}")
+    };
+    let [StationMove::Slide { by, .. }] = &station[..] else {
+        panic!("one slide: {station:?}")
+    };
+    let doc = doc
+        .apply(
+            &DocEdit::SetVarValue {
+                var: (*by).into(),
+                value: editor_core::FreeValue::Continuous(0.0),
+            },
+            Tol::witness(),
+        )
+        .expect("a value edit does not re-ask the loft's shape")
+        .doc;
+    assert_degenerate_stacking(&doc, loft);
+    let err = doc
+        .apply(
+            &DocEdit::SetStructuralParam {
+                node: loft,
+                slot: SlotId::VDegree,
+                expr: Formula::count(1),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+        )
+        .expect_err("a slot edit of the loft asks its shape");
+    assert_shape(
+        &err,
+        &LoftFault::StationInFirstPlane { section: 1 },
+        "SetStructuralParam after the value edit",
     );
 }
