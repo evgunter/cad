@@ -1056,9 +1056,12 @@ pub enum VerbatimKind {
 /// (`tests/names_verbatim_edge_evaluator.rs`). The match has no
 /// wildcard, so an edge kind added to `VerbatimEdge` does not compile
 /// until it is mirrored here.
-pub fn verbatim_kind<P>(node: &Node<P>) -> Option<VerbatimKind> {
+pub fn verbatim_kind<P: crate::ProfilePayload>(
+    doc: &crate::doc::Doc<P>,
+    id: crate::RecipeNodeId,
+) -> Option<VerbatimKind> {
     use crate::names::VerbatimEdge;
-    Some(match crate::names::verbatim_edge(node)? {
+    Some(match crate::names::verbatim_edge(doc, id, doc.node(id)?)? {
         VerbatimEdge::Intact { .. } => VerbatimKind::Intact,
         VerbatimEdge::Reflected { .. } => VerbatimKind::Reflected,
         VerbatimEdge::Copied { .. } => VerbatimKind::Copied,

@@ -164,7 +164,10 @@ pub(super) fn walk<P: crate::ProfilePayload>(
             // different body, not this one placed. (A union is the head
             // of every name it carries, so the walk meets it below, at
             // the head.)
-            match doc.node(at).and_then(crate::names::verbatim_edge) {
+            match doc
+                .node(at)
+                .and_then(|node| crate::names::verbatim_edge(doc, at, node))
+            {
                 Some(
                     VerbatimEdge::Intact { .. }
                     | VerbatimEdge::Reflected { .. }

@@ -426,9 +426,11 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
     // inserts and no document writes: a kind added to the vocabulary
     // that no corpus document holds owes an edge above. D′3's `⊔`
     // joined it: every assembly's product reads one.
+    // `Pattern`, `PlacedUnion` and `Part` retired with G: a pattern is a
+    // `Place` over an index, its member an indexed read.
     assert_eq!(
         kinds.len(),
-        23,
+        20,
         "a node kind the sweep does not reach: {kinds:?}"
     );
 }

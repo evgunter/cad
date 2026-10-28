@@ -196,9 +196,19 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// brings the run line's bare sense (above) beneath D′3's names: full
 /// total 343104 → 343208, the percentiles and scoped faces held. No
 /// outcome moved.
+///
+/// Lowered for G (`patterns-are-index-variables`): a family's members
+/// are named `Member { (k, i), of }` over their master's names, one
+/// segment, where a `Pattern`'s copies were `Instance(i)` over a gather
+/// and a `PlacedUnion`'s fused body wrapped each copy again, and a
+/// union of a family reads it once rather than once per copy. Scoped p99
+/// 45 → 43, total 47003 → 44546; full p99 122 → 121, total 343208 →
+/// 320999. Every number shrank; the documents that moved are the
+/// families' (`heat_sink`, `heat_sink_fins`, `kitchen_sink`, `die_tool`,
+/// `part_select`, per `lib_g16_corpus_name_digests`).
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
-    ("scoped faces", [16, 45, 57, 47_003]),
-    ("full", [19, 122, 196, 343_208]),
+    ("scoped faces", [16, 43, 57, 44_546]),
+    ("full", [19, 121, 196, 320_999]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -373,7 +383,11 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// `Borders` walls' reads under D′3's names.
 ///
 /// Measured again with [`NAME_WORDS`] over main's merge at `4c341b9225`.
-const SAID_DIGEST: u64 = 0xda87_4996_1194_12cf;
+///
+/// Re-pinned for G with [`NAME_WORDS`]: the words that moved are the
+/// families' members, said "member i's copy of" their master's names
+/// where they were said as a pattern's instance.
+const SAID_DIGEST: u64 = 0x4e3b_1499_32cd_f332;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

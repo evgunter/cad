@@ -351,10 +351,16 @@ fn sans_epsilon(t: &str) -> String {
 /// Measured again for D′3 over main's merge at `4c341b9225`, which
 /// brings the run line's bare sense (above) beneath D′3's names and ids;
 /// the ids-masked fence held.
+///
+/// Re-pinned for G (`patterns-are-index-variables`), the five families'
+/// documents alone (`heat_sink`, `heat_sink_fins`, `kitchen_sink`,
+/// `die_tool`, `part_select`), their names and persisted text: each is
+/// a placement over an index where it held a `Pattern` or a
+/// `PlacedUnion`. Every other document's row is main's.
 const PINNED: &[(&str, u64, u64)] = &[
     ("die", 0x874a19bb0c1cb210, 0xfe1f3779173f909d),
     ("corner_table", 0x1538f5150ad6647a, 0xde5c69b920f6fdea),
-    ("heat_sink", 0x17b608554ece6b1a, 0x03c4cf88e6b26717),
+    ("heat_sink", 0x79d3_af7f_048d_04c7, 0x42a2_7e9c_3a9d_dede),
     ("crossing_slots", 0x531c69e7e9ff59e6, 0xd0f6429faf4510be),
     ("nested_islands_105", 0xa3260846d5b40f15, 0xe9af7ac8f708e855),
     (
@@ -368,17 +374,17 @@ const PINNED: &[(&str, u64, u64)] = &[
         0x5c1219843db607a6,
     ),
     ("declared_tangency", 0x0e962063407e3b05, 0x0634581982b9dfd5),
-    ("kitchen_sink", 0xd9e863a801b598a6, 0xa38e2dd9cfad6dde),
+    ("kitchen_sink", 0x28ec_a7c5_aeee_b313, 0x4145_efac_4014_9bd0),
     ("cut_cylinder", 0x35a106126dc3aca0, 0xf746b3c7d6dda1f9),
     ("measured_web", 0x5f0b35b9a50ae2b4, 0xe039ab7aa5cad1da),
     ("boss_union", 0x25d270ae52dade43, 0x7311f8275a31e470),
     ("die_fillet", 0x8ddc8e8e4cc1cc18, 0x44273f0b972dadee),
     ("die_chamfer", 0x4d9e144d4e8be9b4, 0xed273f48cb5ca907),
     ("die_pips", 0x46ff4311b0616fbd, 0x5e8871c705b54729),
-    ("heat_sink_fins", 0x9c34cfa0fb53a7b7, 0x08d941cbe7d15871),
-    ("die_tool", 0x53f3bf4530d7e9a0, 0x9f9eab600b9852ea),
+    ("heat_sink_fins", 0x33cf_9cd2_a9d5_348e, 0xfac2_6885_ef93_a89f),
+    ("die_tool", 0x346c_da78_24bf_a878, 0x814d_4779_2822_0e71),
     ("face_sketch", 0x1a32703bef525f6b, 0x3a0976a80e3f9cbf),
-    ("part_select", 0x1e9dd41792e566e6, 0xececff8c053acde3),
+    ("part_select", 0xfc2d_3fc5_a314_fab7, 0xe6a1_919f_be71_88de),
     ("symmetric_plate", 0x4481fd1b6f905ec1, 0xd50cfd94a5cbf8ea),
     ("loft_prism", 0xf84090b7955f6cd0, 0x9d1660151c8302a0),
     ("die_composed", 0xec47aa7753cf019c, 0xc69608fcaa2c548d),

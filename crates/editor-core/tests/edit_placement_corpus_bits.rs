@@ -330,7 +330,7 @@ fn every_corpus_placement_places_its_body_by_the_pinned_bits() {
             let digest = placed_body_digest(&ev, id);
             assert!(
                 digest.is_some(),
-                "{} node {id}: a placement's value is one body",
+                "{} node {id}: a placement's value is a body or a family",
                 doc.name
             );
             let (word, fed) = digest.unwrap_or_default();

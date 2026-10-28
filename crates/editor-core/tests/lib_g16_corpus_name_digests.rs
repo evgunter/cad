@@ -318,26 +318,33 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// Measured again for D′3 over main's merge at `4c341b9225`, which
 /// brings the run line's bare sense (above) beneath D′3's names and ids;
 /// the ids-masked fence held.
+///
+/// Re-pinned for G (`patterns-are-index-variables`), the five families'
+/// documents alone (`heat_sink`, `heat_sink_fins`, `kitchen_sink`,
+/// `die_tool`, `part_select`): a family's members are named `Member {
+/// (k, i), of }` over their master's names, one segment, where a
+/// `Pattern`'s copies were `Instance(i)` and a `PlacedUnion`'s body
+/// wrapped each copy again. Every other document's table is main's.
 const PINNED: &[(&str, u64)] = &[
     ("die", 0x842c07a9245e3188),
     ("corner_table", 0x9f694f6348a96dd6),
-    ("heat_sink", 0xeeeabe6a91c38b94),
+    ("heat_sink", 0xa1d9_e282_7a43_ce45),
     ("crossing_slots", 0xe8dc66f2cb5166ab),
     ("nested_islands_105", 0x15d51d7c25dfe6df),
     ("nested_islands_106_depth1", 0x4677e01cb07a25ee),
     ("nested_islands_106_depth2", 0x664fe6e3cc64f8a7),
     ("declared_tangency", 0x10186938bc97ccdd),
-    ("kitchen_sink", 0x113fb901d7959ebc),
+    ("kitchen_sink", 0x1212_455c_a2aa_ba87),
     ("cut_cylinder", 0xa78c6dd27d0a7322),
     ("measured_web", 0xa60a9fdbd8576659),
     ("boss_union", 0x60c0307b55a8a5cc),
     ("die_fillet", 0xd97598cb5c09a14e),
     ("die_chamfer", 0x5cca19013fc9edde),
     ("die_pips", 0xf0816cf81d5e9447),
-    ("heat_sink_fins", 0xbbb376b7243edc3c),
-    ("die_tool", 0x56b5c42a5912cf36),
+    ("heat_sink_fins", 0xb4a7_785a_a697_7bd9),
+    ("die_tool", 0xe198_b7d8_af7e_a0f0),
     ("face_sketch", 0xd0c00189b535698d),
-    ("part_select", 0x45677885db8b9601),
+    ("part_select", 0xc004_f04b_3c3b_bbd7),
     ("symmetric_plate", 0xab53c12868591a5e),
     ("loft_prism", 0xae293089cc9c899a),
     ("die_composed", 0x790583813e1af47c),

@@ -209,7 +209,7 @@ fn evaluated() -> Vec<Sample> {
                 doc: name,
                 id,
                 kind: test_utils::f6::variant_identifier(node),
-                edge: verbatim_kind(node),
+                edge: verbatim_kind(&doc, id),
                 rows: tables.iter().map(|t| t.len()).sum(),
                 foreign: heads().find(|n| n.node != id).cloned(),
                 own: heads().find(|n| n.node == id).cloned(),

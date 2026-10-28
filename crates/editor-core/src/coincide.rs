@@ -1047,7 +1047,7 @@ fn side_copies<P: crate::ProfilePayload>(
 /// except a split's section face, which lies on the split's tool
 /// ([`plane`]), and a crossing vertex, read against the split's
 /// `Above` half ([`crossing`]). A carried segment names the entity in the read that
-/// segment says — a `From`'s own read, an `Instance`'s pattern input,
+/// segment says — a `From`'s own read, a `Member`'s family,
 /// a one-body operation's target — where the walk continues.
 ///
 /// # Errors
@@ -1083,7 +1083,7 @@ pub fn construction<P: crate::ProfilePayload>(
             continue;
         }
         while at != name.node {
-            read = match crate::names::verbatim_edge(node(at)?) {
+            read = match crate::names::verbatim_edge(doc, at, node(at)?) {
                 // A copy carries its source's names verbatim.
                 Some(VerbatimEdge::Copied {
                     source: Some(source),

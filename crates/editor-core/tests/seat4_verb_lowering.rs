@@ -558,12 +558,17 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// edge curve's `Debug` the digest feeds. With that `Debug` written in
 /// main's shape every digest here reproduces main's value at all three
 /// ε rows, so nothing else moved.
+///
+/// RE-BLESSED, `heat_sink` only, for G (`patterns-are-index-variables`):
+/// its fins are a family, one placement over an index read whole by the
+/// union, where they were a `Pattern`'s copies chained through unions,
+/// so the document and its names are other ones. No other row moved.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
         ("crossing_slots", 0x13f6_26db_b10e_0577_u64),
-        ("heat_sink", 0x38a3_e942_327a_45ea),
+        ("heat_sink", 0x0f4c_98d4_d36a_049a),
         ("kiss_carry", 0xafd8_5b4e_c535_9cc2),
     ] {
         let doc = corpus::documents()
