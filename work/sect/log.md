@@ -127,3 +127,11 @@ and moves to the door with the frame's retirement. First dispatches:
   - an arc a reader trusts on-surface must carry that evidence in its type, not by convention;
   - an undecided nearness must escalate, never fold into a verdict (my delta read caught one);
   - a surface pair's section is carried in operand order (P3, filed).
+
+- 2026-10-28 — **Split on Ev's request in chat.** SECT was over its budget, and SECTTAIL was at 27/30.
+  - **SECTARMS** (new, P0-led, 22 points) takes the section object's remaining transverse arms: NURBS × cone/sphere, the cone frames, skew cylinders and the walk order.
+  - **SECTSITE** (new, P1, 16 points) takes the closed edge in a curved face and the C5 plane × torus / cone × cylinder residue (U-H1, D10-held).
+  - **SECTRUNG** (new, P2/P3, 22 points) takes the C5 dispatch and rung-3 residue.
+  - Points are at the tracker's current weights (E 1, M 3, H 8).
+  - **SECT keeps** the torus-pair thread it is driving (teapot wall 2, the torus poses and their two doors), the new P0 main red, and two follow-ups its context makes cheap. The budget override is dropped.
+  - All rows moved by `git mv`, ids unchanged. **Main red** `main-red-cylinder-sphere-section-runs-out-of-cells-near-the-node-at-1e-6` (nightly, ε 1e-6, slow-set rows from PR 5872) is dispatched on `sect/near-node-at-1e-6`.
