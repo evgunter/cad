@@ -418,8 +418,8 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
         solid,
         [
             Formula::named(name("place"), Dimension::Length),
-            len(0.0),
-            len(0.0),
+            Formula::zero(Dimension::Length),
+            Formula::zero(Dimension::Length),
         ],
     );
     let measured = r.measure(
@@ -844,6 +844,13 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
 /// decisions left the vector's rows. Rebuilding each copy as before
 /// puts back exactly the keys E's parent held, and again over main's
 /// merge at `cd5f9dee` the keys main holds.
+///
+/// `min_clearance_neck`'s two keys moved, and not the filter
+/// (`dropped=1` held, `plain_distance` unmoved), when the neck's
+/// placement came to write its two unmoved slides as the constant `0`
+/// rather than as literals (`[variables.literals]`), the one change to
+/// that document: those slides no longer read variables, and the
+/// vector's rows carry what the placement reads.
 #[test]
 fn the_certifying_filter_moves_the_witness_key_and_the_move_is_goldened() {
     let doc = min_clearance_neck();
