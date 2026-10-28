@@ -51,22 +51,25 @@ exact image.
 `edge_nurbs::nurbs_pair_limbs` reads a circle carrier's limbs 1 and 2 on
 each chart through that chart's exact `IsoArc` image where one
 certifies. It takes the image from `exact_arc_rim`, now the one home it
-shares with `plane_nurbs_incidence`. It falls back to the chart's fitted
-image where no candidate holds or the certificate refuses definitely, and
-refuses `PlaneNurbsRefusal::ArcRimEscalated` where the pick or the
-certificate escalates. Limb 3's tube on an exact chart is built about a
-polyline through the exact image at the fitted image's knots
-(`exact_chart_image`).
+shares with `plane_nurbs_incidence`. Where the image does not certify,
+both lanes follow one policy, `ArcRimRefusal`'s: an escalation refuses
+(`PlaneNurbsRefusal::ArcRim(Escalated)`), and a definite refusal reads
+the chart's fitted image, whose limb refusal then carries both causes
+(`ArcRim(Refused)`). That replaces the plane lane's `IncidenceRefusal`
+and `CertifyError::OnPairArcRim`. Limb 3's tube on an exact chart is
+built about a polyline through the exact image at the fitted image's
+knots (`exact_chart_image`).
 
 Lily wall 8 moves past the rim's image miss at every ε that reaches it.
-It now stops at limb 3, whose two-chart tube cannot prove one arc along
-a boundary row of both charts. That row is filed as
-`ssiedge/a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary`.
-The tour's 1e-6 stop, the crossing angle at a sample, comes before any
-image limb and is filed as
-`splice/lily-wall-8-at-1e-6-reads-the-rims-crossing-angle-in-band`.
+She now stops at limb 3. Her rim ends at a corner of both charts and
+runs along a boundary row of each, and the two-chart tube's one-arc walk
+isolates a root at neither. That is filed as
+`ssiedge/a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary`,
+re-derived from measurements after the dual review. The tour's 1e-6
+stop, the crossing angle at a sample, comes before any image limb and is
+filed as `splice/lily-wall-8-at-1e-6-reads-the-rims-crossing-angle-in-band`.
 
-Witnesses: `geom-brep::all spline_pair_arc_rim::*` (five rows, at ε
+Witnesses: `geom-brep::all spline_pair_arc_rim::*` (six rows, at ε
 default, 1e-6 and 1e-12), and
 `sweep::all a_sheath_grafted_on_its_blade::a_sheath_on_its_blade_unions_past_the_shared_rim`
 (its doc re-derived).
