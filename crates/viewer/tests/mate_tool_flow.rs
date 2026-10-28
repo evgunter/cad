@@ -605,6 +605,7 @@ fn a_circular_pattern_copy_is_a_target_whose_rotation_is_applied_once() {
     let bench = asm::bench("matespun", tol);
     let mut session = asm::open_bench(&bench, tol);
     let pattern = spun_post(&mut session, &bench);
+    eprintln!("DEBUG ring: {:?}", session.evaluation().map(|e| e.result(pattern).map(|r| format!("{r:?}").chars().take(1500).collect::<String>())));
 
     // Copy 0 stands where post_b does (the rule's identity step), and
     // post_b draws it: its cap faces +z and is picked from above.

@@ -4573,6 +4573,20 @@ impl core::fmt::Debug for DocSession {
     }
 }
 
+/// **An axis read as a mate's operand**: a plain read as it is, and a
+/// read through a role (a frame's `z`) as the axis slid zero along
+/// itself, which is that axis.
+fn axis_operand(axis: RoleRead<Operand>) -> Operand {
+    match axis.role {
+        None => axis.read,
+        Some(_) => Operand::Pose(Box::new(pncad::document::pose::PoseDef::Slide {
+            pose: axis.clone(),
+            along: axis,
+            by: Formula::zero(Dimension::Length),
+        })),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::expect_used)]
@@ -4664,19 +4678,5 @@ mod tests {
                 test_utils::refusal::tag(instance.0.digest())
             )
         );
-    }
-}
-
-/// **An axis read as a mate's operand**: a plain read as it is, and a
-/// read through a role (a frame's `z`) as the axis slid zero along
-/// itself, which is that axis.
-fn axis_operand(axis: RoleRead<Operand>) -> Operand {
-    match axis.role {
-        None => axis.read,
-        Some(_) => Operand::Pose(Box::new(pncad::document::pose::PoseDef::Slide {
-            pose: axis.clone(),
-            along: axis,
-            by: Formula::zero(Dimension::Length),
-        })),
     }
 }

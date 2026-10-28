@@ -137,10 +137,12 @@ pub fn spacing_of(session: &DocSession, copy: RecipeNodeId) -> f64 {
         .iter()
         .filter_map(|c| c.value())
         .filter(|value| matches!(value.coord, Coord::Slide(_)))
-        .map(|value| {
-            doc.written(&Expr::var(value.by, value.coord.dimension()))
+        .map(|value| doc.written(&Expr::var(value.by, value.coord.dimension())))
+        .filter(|written| !written.is_zero())
+        .map(|written| {
+            written
                 .literal_value()
-                .expect("the door authors a literal step")
+                .unwrap_or_else(|| panic!("the door authors a literal step: {written:?}"))
         })
         .collect();
     match slides[..] {

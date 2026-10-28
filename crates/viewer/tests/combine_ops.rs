@@ -1310,13 +1310,14 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
     assert!(session.committed_doc().bit_eq(&doc), "and nothing changed");
 }
 
-/// **The authored path admits a non-positive count and the node
-/// refuses it**, typed, on its own badge — the division of labour the
-/// door states: the form declines to offer a count below one, and the
-/// op vocabulary is not narrowed to what the form offers, because the
-/// property panel can write the same number into the slot afterwards.
+/// **The authored path admits a non-positive count, and the family has
+/// no member** — the door does not judge the count: the form declines
+/// to offer a count below one, and the op vocabulary is not narrowed to
+/// what the form offers, because the index's count can be written to
+/// the same number afterwards. An index of no value is a family of no
+/// member, which evaluates.
 #[test]
-fn a_non_positive_count_refuses_at_the_node_not_at_the_door() {
+fn a_non_positive_count_is_a_family_of_no_member() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
@@ -1334,25 +1335,13 @@ fn a_non_positive_count_refuses_at_the_node_not_at_the_door() {
         );
         session.pump();
         let eval = session.evaluation().expect("the inline seam landed");
-        assert!(
-            eval.value(pattern).is_none(),
-            "a pattern of {count} instances does not evaluate to a value"
-        );
-        let badge = common::status_of(
-            &tree::rows(
-                session.committed_doc(),
-                Some(eval),
-                &viewer::parts::PartFiles::default(),
-            ),
-            pattern,
-        );
-        let RowStatus::Failed { message, .. } = badge else {
-            panic!("the tree badge carries the node's own refusal: {badge:?}");
-        };
-        assert!(
-            message.contains("count"),
-            "and the refusal names the count: {message}"
-        );
+        let members = eval
+            .value(pattern)
+            .unwrap_or_else(|| panic!("a family of count {count} evaluates"))
+            .members
+            .as_ref()
+            .map_or(0, |members| members.members.len());
+        assert_eq!(members, 0, "a family of count {count} has no member");
     }
 }
 
@@ -2858,11 +2847,9 @@ fn step_of(session: &DocSession, copy: RecipeNodeId) -> [f64; 3] {
             .iter()
             .filter_map(|c| c.value())
             .find(|value| value.coord == Coord::Slide(axis))
-            .map_or(0.0, |value| {
-                doc.written(&Expr::var(value.by, Dimension::Length))
-                    .literal_value()
-                    .expect("a literal slide")
-            })
+            .map(|value| doc.written(&Expr::var(value.by, Dimension::Length)))
+            .filter(|written| !written.is_zero())
+            .map_or(0.0, |written| written.literal_value().expect("a literal slide"))
     })
 }
 

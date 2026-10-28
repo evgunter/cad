@@ -59,7 +59,7 @@ Four things the guard does NOT see, named rather than summarised:
    a turntable and sets a crate on the shelf where Python pins it to
    the world. The guard would red if it compared recipes, and it
    does not compare recipes. (The flat-pack's placed family used to be
-   a third such difference; it is `Node.pattern` on both sides now.)
+   a third such difference; it is a row's members on both sides now.)
 3. Anything in `assembly.rs` outside its constant block, `layout_doc`
    and `stand_doc` — the tour's own assertions above all.
 4. A rename or a reformat in the tour, which reds this guard as a false
@@ -114,10 +114,10 @@ from pncad import CapEnd, Doc, DocEdit, DocRef, Formula, Frame, Node, SegTag, Wo
 from placing import placed, assemble_world_copies
 from measuring import pinned
 
-#: The layout's nodes: the post instance, its pattern and the shelf
-#: instance, then each pattern copy projected and placed, and the `⊔`
-#: of the world's copies the product slot reads.
-LAYOUT_NODES = 4 + 2 * PATTERN_COUNT
+#: The layout's nodes: the post instance, its row and the shelf
+#: instance, then each member of the row placed, and the `⊔` of the
+#: world's copies the product slot reads.
+LAYOUT_NODES = 4 + PATTERN_COUNT
 
 TOUR = Path(__file__).resolve().parents[3] / "demos" / "tour" / "src" / "assembly.rs"
 
@@ -245,9 +245,9 @@ class TestTheSeamIsCrossedOrRefused(CorpusCase):
         """The tour's flat-pack oracle, reproduced: one post instance
         placed PATTERN_COUNT ways, plus the shelf.
 
-        The family is a `Node.pattern` — the tour's own node — so its
-        value is PLURAL: one body per placement, each a whole post,
-        nothing fused. That is what the count below reads, and it is
+        The family is a row — the tour's own spelling — so its value is
+        PLURAL: one body per member, each a whole post, nothing
+        fused. That is what the count below reads, and it is
         the shape every row further down has to answer over.
         """
         store, docs = opened()
@@ -350,10 +350,9 @@ class TestTheResolutionRefusals(CorpusCase):
         refusals = failures(
             evaluate(docs["layout"], resolver=Workspace(str(directory)))
         )
-        # The post instance fails; the pattern over it, each copy
-        # projected out of the pattern, each copy's placement and the
-        # product's `⊔` are poisoned.
-        downstream = 2 + 2 * PATTERN_COUNT
+        # The post instance fails; the row over it, each member's
+        # placement and the product's `⊔` are poisoned.
+        downstream = 2 + PATTERN_COUNT
         self.assertEqual(
             [r.kind for r in refusals.values()],
             ["part_unresolved"] * (1 + downstream),
@@ -837,8 +836,8 @@ class TestTheMemoIsObservable(CorpusCase):
 
     def test_on_a_refusal_path_the_counters_undershoot_by_the_poisonings(self):
         """The no-resolver layout: two instantiate nodes RUN and fail,
-        and everything over them — the pattern, its projected copies
-        and their placements — is poisoned and never runs. So the sum is
+        and everything over them — the row and its members'
+        placements — is poisoned and never runs. So the sum is
         2 against every node in `order()` — and the difference is
         exactly the poisoning."""
         _, docs = opened()
@@ -1005,7 +1004,7 @@ class TestTheMemoServesWithoutTheSeamsGates(CorpusCase):
                 r.kind
                 for r in failures(evaluate(docs["layout"], resolver=gone)).values()
             ),
-            ["part_unresolved"] * (3 + 2 * PATTERN_COUNT),
+            ["part_unresolved"] * (3 + PATTERN_COUNT),
             "an evaluation that ASKS refuses the document that is not there",
         )
         memoized = evaluate(docs["layout"], resolver=gone, prior=before)
@@ -1062,7 +1061,7 @@ class TestTheResolverSnapshot(CorpusCase):
                 r.kind
                 for r in failures(evaluate(whole["layout"], resolver=gone)).values()
             ),
-            ["part_unresolved"] * (3 + 2 * PATTERN_COUNT),
+            ["part_unresolved"] * (3 + PATTERN_COUNT),
         )
         gone.create(whole["post"])
         self.assertEqual(
@@ -1095,8 +1094,8 @@ class TestTheSceneEvaluatesToWhatTheTourAsserts(CorpusCase):
         """
         store, docs = opened()
         evaluation = evaluate(docs["layout"], resolver=store)
-        # The posts' world copies: each pattern copy's placement.
-        posts = docs["layout"].placements()[2:]
+        # The posts' world copies: each member's placement.
+        posts = docs["layout"].placements()[3:]
         positions = [
             p
             for placed in posts
@@ -1127,11 +1126,11 @@ class TestTheSceneEvaluatesToWhatTheTourAsserts(CorpusCase):
         evaluation = evaluate(docs["layout"], resolver=store)
         read = sorted(
             tuple(round(c.meters, 9) for c in evaluation.face_frame(placed, cap).origin)
-            for placed in docs["layout"].placements()[2:]
+            for placed in docs["layout"].placements()[3:]
             for cap in evaluation.select(
                 placed,
                 bench_scene.cap_selector(
-                    CapEnd.End, [SegTag.Instance]
+                    CapEnd.End, [SegTag.Member]
                 ),
             )
         )
@@ -1261,7 +1260,7 @@ class TestTheSceneIsTheToursOwn(unittest.TestCase):
     def test_the_flat_packs_placement_literals_still_match_the_tour(self):
         """The layout's placements are literals at their call sites,
         read by nothing until this row: the post's rotation and offset,
-        the pattern's count and spacing, the shelf's offset."""
+        the row's count and pitch, the shelf's offset."""
         layout = self.body_of("layout_doc")
         placed = re.search(
             r"Coord::Spin\(Some\(TargetAxis::(\w)\)\),\s*crate::world::turn\((\d+),\s*(true|false)\),?\s*\)\];"
@@ -1280,10 +1279,10 @@ class TestTheSceneIsTheToursOwn(unittest.TestCase):
             "the post's flat-pack offset",
         )
 
-        count = re.search(r'count: pe\("(\d+)", &scope\)', layout)
+        count = re.search(r'index_decl\(\s*k\.clone\(\),\s*pe\("(\d+)", &scope\)', layout)
         self.assertIsNotNone(count, "layout_doc no longer authors its count inline")
         self.assertScene(int(count.group(1)), PATTERN_COUNT, "PATTERN_COUNT")
-        spacing = re.search(r'spacing: pe\("(\d+) mm", &scope\)', layout)
+        spacing = re.search(r'TargetAxis::Y, pe\("(\d+) mm", &scope\)', layout)
         self.assertIsNotNone(spacing, "layout_doc no longer authors its spacing in mm")
         self.assertScene(
             int(spacing.group(1)) / 1000.0, PATTERN_SPACING, "PATTERN_SPACING"

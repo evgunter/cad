@@ -199,10 +199,10 @@ fn edit_err_saying(py: Python<'_>, err: &d::EditError, message: String) -> PyErr
 /// `crate::tags`": the test is whether a kernel enum arm stands
 /// behind the refusal. Where one does, the refusal carries the kernel
 /// VALUE and the words are that enum's own maps', even though the raise
-/// site is here — `Node.placed_union`'s count-spelling refusal
-/// (`variant` and `inner_variant` both) and a `label=` text that is not
-/// a label (`label_fault_tag`) are the two cases, and forwarding the
-/// value is what keeps one map the only speller of its words. Where
+/// site is here — a `label=` text that is not a label
+/// (`label_fault_tag`) and a body `Doc.corner_frame` reads no frame off
+/// (`pin_refusal_tag`) are the cases, and forwarding the value is what
+/// keeps one map the only speller of its words. Where
 /// none does — a `serde_json` failure, a mate head or parameter name
 /// whose constructor refuses with one struct — the word is minted in
 /// `crate::tags`, where the tag inventory reads it.
@@ -3015,8 +3015,7 @@ impl Node {
     /// operand seat.
     ///
     /// The membership is data, so `DocEdit.set_members` rewrites it on
-    /// the live node. Not `Node.placed_union`, whose members are one
-    /// prototype under a placement rule.
+    /// the live node.
     ///
     /// Members whose faces a margin decides on one surface glue there,
     /// and the coincidence is recorded for the `unproven_coincidence`
@@ -4022,9 +4021,8 @@ impl FreeValue {
 /// `set_members`, `set_param`, `set_tolerance`, the
 /// variable doors (`declare_var` / `define_var` / `set_var_value`),
 /// `add_constraint`, `remove_constraint`, `update_reference`, `rebind`, and
-/// `bind_count_param` / `bind_instance_param` / `bind_v_degree_param`,
-/// the structural-slot edit narrowed to one named slot and a
-/// parameter reference.
+/// `bind_v_degree_param`, the structural-slot edit narrowed to one
+/// named slot and a parameter reference.
 ///
 /// **What is NOT here, and why each one is not.** The appearance and
 /// metadata four are the FAÇADE's answer rather than this module's:
@@ -4195,7 +4193,7 @@ impl DocEdit {
     /// afterwards, and the door that puts an EXPRESSION there: hand
     /// it `Doc.parse_formula("plate_t * 2")` and the slot is driven by a
     /// document parameter from then on, exactly as
-    /// `bind_count_param` drives a structural one.
+    /// `bind_v_degree_param` drives a structural one.
     ///
     /// **The slot is named by its WORD** — the same word
     /// `EditError.slot` answers in — so a refusal is an address a

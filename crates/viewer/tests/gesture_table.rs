@@ -728,25 +728,19 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
     // the member's index is the node slot a value gesture can open on
     // in an assembly of bare instances. Both stand in the instance's
     // own space, so they place nothing in the world (A10) and the
-    // instance's display state stays on its own copy.
-    let family = common::session_insert(
-        &mut session,
-        SessionOp::AddPattern {
-            input: post.into(),
-            count: 4,
-            rule: PatternRuleSpec::Linear {
-                direction: scl3([1.0, 0.0, 0.0]),
-                spacing: len(0.03),
-            },
-        },
-    );
-    let pattern = common::session_insert(
-        &mut session,
-        SessionOp::AddPart {
-            of: family,
-            select: viewer::session::PartSelectSpec::Instance(0),
-        },
-    );
+    // instance's display state stays on its own copy. No session door
+    // authors a member read that stays out of the world (the part door
+    // places its read), so the two are written into the bench's stored
+    // assembly and the bench reopened.
+    let doc = session.committed_doc().clone();
+    let (doc, k) = crate::fixture::index(doc, "k", 4);
+    let (doc, family) =
+        crate::fixture::family_of(doc, post, crate::fixture::slides_along(k, [1.0, 0.0, 0.0], 0.03));
+    let (doc, pattern) = crate::fixture::member(doc, family, 0);
+    let mut ws = pncad::workspace::Workspace::open(&bench.dir).expect("the workspace opens");
+    ws.resave(&doc, tol).expect("the assembly stores");
+    let mut session = common::asm::open_bench(&bench, tol);
+    session.pump();
     assert_eq!(
         viewer::display::drawn_targets(session.doc(), post),
         Ok(std::iter::once(bench.post_a).collect()),
