@@ -1283,7 +1283,9 @@ declared `within` the other, which is implied when its count reads the
 other; a reader of two unrelated indices refuses. `Count` arithmetic is
 exact and includes `mod`, so a relation between a ring's neighbours is
 one statement (`assert(gap(c[k].r, c[(k + 1) mod N].l) = −b)`), while a
-ring stepped by `turn/N` closes by construction and needs none. There
+ring stepped by `turn/N` whose member spans its step meets each
+neighbour, the last the first among them, structurally
+([coincidence.structural]), and needs none. There
 is no list literal: an irregular family is its members written out,
 each saying where it is. A definer that refuses at one index refuses
 the whole family, naming the index; a read whose index leaves the
@@ -1544,7 +1546,12 @@ coincidence is structural there when the kernel's own carrier-pair
 verdict, run on the two cells' symbolic carriers, or the margin that
 decided it, is zero as a polynomial in those symbols with exact
 rational coefficients: a theorem for every value at which the
-construction takes the decisions it took here (E12). The verdicts read
+construction takes the decisions it took here (E12). The symbols include
+the document's angles, read modulo a turn: a product of sines and
+cosines is a sum of sines and cosines of the angles' sums and
+differences, and the sine or cosine of a rational fraction of a turn
+folds where its value is rational, so two spins about one axis are one
+spin by their sum and N spins by `turn/N` are the identity. The verdicts read
 each kind modulo its own symmetry (a plane forgets in-plane motion and
 folds a shift along its normal into its offset; an axis forgets slide
 and spin along itself), so that reduction is written once, and a
