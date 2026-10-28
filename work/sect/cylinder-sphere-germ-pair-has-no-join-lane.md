@@ -1,13 +1,12 @@
 ---
 id: cylinder-sphere-germ-pair-has-no-join-lane
 kind: issue
-title: A transverse cylinder wall x sphere germ pair has its section frame and no chord lane at the join (CurvedBooleanUnsupported): its section is a space quartic, and every lane rides a plane
-status: parked
+title: A transverse cylinder wall x sphere germ pair has its section and its matching and no chord lane at the join (CurvedBooleanUnsupported): its section is a space quartic, and every lane rides a plane
+status: open
 opened: 2026-10-04
 priority: P0
 cost: H
 refs: [4025, skew-cylinder-germ-pair-has-no-section-frame]
-blocked_on: [the-section-of-a-surface-pair-is-one-object]
 ---
 
 Found by the cylinder × sphere frame lane (branch
