@@ -438,27 +438,116 @@ fn a_split_through_a_strut_vertex_keeps_one_face_where_the_piece_goes_round() {
 
 /// **A hole's wall reads the same**: the circle as a hole through the
 /// block `[-2, 2]² × [0, 2]`, its wall concave to the material, split
-/// through either vertex of its strut by every pose of [`POSES`] that
-/// crosses the near rim (`β ≠ 0`). The volumes are the block's prism
-/// under the plane less the hole's.
+/// through either vertex of its strut by every pose of [`POSES`]. The
+/// volumes are the block's prism under the plane less the hole's.
 ///
-/// A plane touching the hole's rim at the vertex (`β = 0`) refuses
-/// `SectionGermsUnordered { fault: Coincident }`, the two-arc hole
-/// alike
-/// (`work/cleave/a-plane-tangent-to-a-holes-rim-at-a-vertex-refuses-its-germs-as-coincident.md`).
+/// A plane touching the hole's rim at the vertex (`β = 0`) has material
+/// on both sides of its trace there: the trace on the cap and the wall's
+/// section leave the vertex along one tangent and are ordered by how
+/// they curve off it, and where the section also touches the far rim
+/// (the pinched pose) the wall's crossings at each touch are paired
+/// exits first.
 #[test]
 fn a_split_through_a_hole_walls_strut_vertex_keeps_one_face_where_the_piece_goes_round() {
-    let crossing: Vec<_> = POSES
-        .into_iter()
-        .filter(|&(_, beta, _)| beta != 0.0)
-        .collect();
     split_family(
         holed_block,
         true,
         [(0.0, -TAU), (FRAC_PI_2, TAU)],
-        &crossing,
+        &POSES,
         &[0.0],
     );
+}
+
+/// The square `[-2, 2]²` with a two-arc circle hole, its vertices at
+/// azimuth `phase` and its antipode, extruded.
+fn two_arc_holed_block(phase: f64, sweep: f64) -> Body<f64> {
+    let p = |x: f64, y: f64| Point2::new(x, y);
+    let square = RawLoop::polygon([p(-2.0, -2.0), p(2.0, -2.0), p(2.0, 2.0), p(-2.0, 2.0)]);
+    let arc = |at: f64| {
+        (
+            p(at.cos(), at.sin()),
+            Segment::Arc(Arc2 {
+                centre: p(0.0, 0.0),
+                radius: 1.0,
+                sweep: sweep / 2.0,
+            }),
+        )
+    };
+    extruded(vec![square, RawLoop::new([arc(phase), arc(phase + PI)])])
+}
+
+/// **A plane tangent to a two-arc hole's rim at a vertex**: the poses of
+/// [`POSES`] that touch the rim there (`β = 0`), through the bottom
+/// vertex and the top one, both senses of each normal, either winding.
+/// Each side holds at all three tiers and its volume is the closed
+/// form's: the block's prism under the plane less the hole's.
+#[test]
+fn a_plane_tangent_to_a_two_arc_holes_rim_at_a_vertex_splits_sound() {
+    let (mut runs, mut failures) = (0, Vec::new());
+    for (phase, sweep) in [(0.0, TAU), (FRAC_PI_2, -TAU)] {
+        let body =
+            topo::test_support::finished("the body", two_arc_holed_block(phase, sweep), tol());
+        let (c, s) = (phase.cos(), phase.sin());
+        for (z, up) in [(0.0, 1.0), (HEIGHT, -1.0)] {
+            for &(h, _, pose) in POSES.iter().filter(|&&(_, beta, _)| beta == 0.0) {
+                for sense in [1.0, -1.0] {
+                    let n = [sense * h * c, sense * h * s, sense * up];
+                    let plane = Plane {
+                        n,
+                        d: n[0] * c + n[1] * s + n[2] * z,
+                    };
+                    let split = topo::test_support::split_plane(
+                        Point3::new(c, s, z),
+                        Vec3::new(n[0], n[1], n[2]),
+                        tol(),
+                    );
+                    let what = format!(
+                        "phase {phase}, sweep {sweep}, vertex z = {z}: {pose}, sense {sense}"
+                    );
+                    runs += 1;
+                    let out = match topo::split(&body, &split, tol()) {
+                        Ok(out) => out,
+                        Err(e) => {
+                            failures.push(format!("{what}: the split: {e:?}"));
+                            continue;
+                        }
+                    };
+                    for (side, positive) in [(&out.above, true), (&out.below, false)] {
+                        let (_, closed) = closed_form(plane, phase, positive, true, 0.0);
+                        let Some(b) = side.body() else {
+                            failures.push(format!("{what}: no body where {closed} is kept"));
+                            continue;
+                        };
+                        let tiers = topo::validate(b)
+                            .map_err(|e| format!("tier 1: {e:?}"))
+                            .and_then(|()| {
+                                topo::validate_closed(b).map_err(|e| format!("tier 2: {e:?}"))
+                            })
+                            .and_then(|()| {
+                                topo::validate_geometric(b, tol())
+                                    .map_err(|e| format!("tier 3: {e:?}"))
+                            });
+                        if let Err(e) = tiers {
+                            failures.push(format!("{what}, positive {positive}: {e}"));
+                            continue;
+                        }
+                        let m = topo::test_support::pinned_volume(
+                            &what,
+                            &topo::test_support::finished("the side", Body::clone(b), tol()),
+                            tol(),
+                        );
+                        if (m.volume - closed).abs() > m.volume_pad + 1e-9 * closed {
+                            failures.push(format!(
+                                "{what}, positive {positive}: volume {} ± {}, closed form {closed}",
+                                m.volume, m.volume_pad
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    report(&failures, runs);
 }
 
 /// **A boolean against a half-space through the bottom vertex**: the

@@ -59,7 +59,7 @@ use geom_core::k_stats::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Real, Sign, Vec3};
 use slotmap::SecondaryMap;
 
-use super::neighborhood::EntryRay;
+use super::neighborhood::{EntryRay, sector_face};
 use super::{
     NullEdgeRecord, PlaneSide, SectionGermFault, SectionGermReading, SectorEntry, SectorEntryKind,
     SplitReduceError,
@@ -67,7 +67,7 @@ use super::{
 use crate::body::Body;
 use crate::entity::{EntityId, VertexKey};
 use crate::euler::{MevSite, RunSite};
-use crate::live::proven;
+use crate::live::{Proven, proven};
 use crate::null::NewVertexSide;
 use crate::validate::{decide, decide_nonzero};
 
@@ -137,15 +137,19 @@ pub(super) fn above_runs(entries: &[SectorEntry]) -> Vec<AboveRun> {
 /// (`split_germ_sense`), or its sine from another germ in the same
 /// half-turn (`split_germ_order`), each levered at the shortest reach it
 /// reads. Two germs of different sectors that a reading puts on one line
-/// are a coincidence to the tolerance.
+/// leave the vertex along one tangent, and are ordered one order down
+/// (`germ_curving`): by which way each face's section curves off that
+/// tangent in the plane. Two that curve alike there too are a
+/// coincidence to the tolerance.
 ///
 /// # Errors
 ///
 /// [`SplitReduceError::SectionGermsEscalated`] where a reading lands in
 /// the band; [`SplitReduceError::SectionGermsUnordered`] where a germ has
-/// no line, two germs of different sectors lie on one line, or the order
-/// read does not alternate starts and ends.
+/// no line, two germs of different sectors lie on one line and curve
+/// alike, or the order read does not alternate starts and ends.
 fn section_chords<T: Decide>(
+    body: &Body<T>,
     normal: Vec3<T>,
     hood: &Neighborhood<'_, T>,
     cuts: &[usize],
@@ -187,6 +191,35 @@ fn section_chords<T: Decide>(
         })
         .collect::<Result<Vec<_>, _>>()?;
     let order = |diag| escalated(SectionGermReading::Order, diag);
+    let point = body.resolve_vertex_point(vertex, Proven);
+    // How far cut `c`'s face's section curves off the tangent `t`
+    // toward `across`, the plane's quarter turn of `t`.
+    let section_bend = |c: usize, t: Vec3<T>, across: Vec3<T>| -> Result<T, SplitReduceError> {
+        let (face, _, _) = sector_face(body, vertex, entries[cuts[c]].he, band)?;
+        let surface = body.face_surface_linked(face, proven(&body.faces, face, EntityId::Face));
+        Ok(geom_brep::implicit_graph_acceleration(
+            surface, point, t, across,
+        ))
+    };
+    // Whether germ `b`, tied with germ `a` along `a`'s tangent, curves
+    // counterclockwise of it about `normal` (Positive) or clockwise.
+    let curving = |a: usize, b: usize, arm: T| -> Result<Sign, SplitReduceError> {
+        let t = germs[a].0;
+        let across = normal.cross(t);
+        let bend = section_bend(b, t, across)? - section_bend(a, t, across)?;
+        match geom_brep::enters_material_order2(
+            across * bend,
+            T::one(),
+            geom_brep::ReferenceNormal::of_split_germ(normal, t),
+            arm,
+            band,
+        ) {
+            Ok(geom_brep::EntersMaterial::Exits) => Ok(Sign::Positive),
+            Ok(geom_brep::EntersMaterial::Enters) => Ok(Sign::Negative),
+            Ok(geom_brep::EntersMaterial::Tangent) => Err(unordered(SectionGermFault::Coincident)),
+            Err(escalation) => Err(order(escalation.diag())),
+        }
+    };
     // Each germ's slot counterclockwise from germ 0: along it (0), the
     // open half-turn after it (1), opposite it (2), the half-turn back
     // to it (3).
@@ -233,18 +266,16 @@ fn section_chords<T: Decide>(
                 at = j;
                 break;
             }
-            if s % 2 == 0 {
-                return Err(unordered(SectionGermFault::Coincident));
-            }
             let (h, h_arm, _) = germs[members[0]];
-            let sine = Margin::levered(h.cross(g).dot(normal), g_arm.min(h_arm));
-            match decide("split_germ_order", sine, band).map_err(order)? {
-                Sign::Positive => {}
-                Sign::Negative => {
-                    at = j;
-                    break;
-                }
-                Sign::Zero => return Err(unordered(SectionGermFault::Coincident)),
+            let arm = g_arm.min(h_arm);
+            let sine = Margin::levered(h.cross(g).dot(normal), arm);
+            let sign = match decide("split_germ_order", sine, band).map_err(order)? {
+                Sign::Zero => curving(members[0], i, arm)?,
+                sign => sign,
+            };
+            if sign == Sign::Negative {
+                at = j;
+                break;
             }
         }
         groups.insert(at, (s, vec![i]));
@@ -311,7 +342,7 @@ pub(super) fn insert_null_edges<T: Decide>(
     let corners = match cuts[..] {
         [] => return Ok(()),
         [a, b] => vec![[a, b]],
-        _ => section_chords(normal, hood, &cuts, band)?,
+        _ => section_chords(body, normal, hood, &cuts, band)?,
     };
     let unordered = |fault| SplitReduceError::SectionGermsUnordered { vertex, fault };
     // Each corner as its arc after the anchor, `(p, q)`: the entries

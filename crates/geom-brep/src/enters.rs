@@ -275,6 +275,16 @@ impl<T: Real> ReferenceNormal<T> {
         Self(normal)
     }
 
+    /// The side of a **germ** of a splitting plane's section: `dir`,
+    /// in the plane whose normal is `normal`, turned a quarter
+    /// counterclockwise about it (`n̂ × d̂`), so Above is the side the
+    /// plane's counterclockwise turn leaves the germ to. Defined by the
+    /// operation, as the plane's own normal is.
+    #[must_use]
+    pub fn of_split_germ(normal: Vec3<T>, dir: Vec3<T>) -> Self {
+        Self(normal.normalize().cross(dir.normalize()))
+    }
+
     /// A **face's outward normal** as the reference side: Above is
     /// outside the face's material, Below is inside it. The sound
     /// widening (the sense bit was folded in when the

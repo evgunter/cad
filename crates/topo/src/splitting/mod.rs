@@ -139,7 +139,9 @@ pub enum SectionGermReading {
     /// (`split_germ_line`).
     Line,
     /// The order of two germs about the plane's normal
-    /// (`split_germ_side`, `split_germ_sense`, `split_germ_order`).
+    /// (`split_germ_side`, `split_germ_sense`, `split_germ_order`), or of
+    /// two along one tangent by how their sections curve off it
+    /// (`tangent_sector_order2`, `tangent_sector_order2_arm`).
     Order,
 }
 
@@ -152,7 +154,7 @@ pub enum SectionGermFault {
     /// the tolerance.
     NoLine,
     /// Two germs of different sectors lie along one direction, to the
-    /// tolerance.
+    /// tolerance, and their sections curve alike off it.
     Coincident,
     /// The germs as read do not alternate between the material's starts
     /// and ends. Argued to need faces within the tolerance of one

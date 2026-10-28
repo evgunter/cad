@@ -696,6 +696,25 @@ fn conic_pairs<T: Decide>(
     } else {
         order
     };
+    // A run of crossings at one point is where the section touches the
+    // face's boundary: the arc arriving there ends before the one
+    // leaving begins, so each run takes its exits first.
+    let mut order = order;
+    let mut start = 0;
+    for k in 1..=n {
+        if k == n
+            || decide(
+                "split_join_line_gap",
+                Margin::of(gap(&walk, order[k], order[k - 1])),
+                band,
+            )
+            .map_err(escalate)?
+                != Sign::Zero
+        {
+            order[start..k].sort_by_key(|&i| crossings[i].down);
+            start = k;
+        }
+    }
     let down = |k: usize| crossings[order[k % n]].down;
     if (0..n).any(|k| down(k) == down(k + 1)) {
         return Err(refuse(ConicCrossingsCase::NotAlternating));
