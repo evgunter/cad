@@ -3714,6 +3714,7 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         | E::TubeNotOneArc { .. }
         | E::TransversalityBand { .. }
         | E::PairTangent { .. }
+        | E::RadiusNotPositive { .. }
         | E::OperandNotFinite { .. }
         | E::ExhaustivenessInconclusive(_)
         | E::CellBudget { .. }

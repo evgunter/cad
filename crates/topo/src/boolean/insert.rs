@@ -492,6 +492,7 @@ pub(super) fn plan_null_pairs<T: Decide>(
         .zip(&loci)
         .map(|(r, &l)| {
             super::join::germ_branch(
+                &declared.sections,
                 (a_body, a_sectors[r.a].face),
                 (b_body, b_sectors[r.b].face),
                 l,
