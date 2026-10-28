@@ -32,6 +32,9 @@ to actually fix it on the appropriate program"*). An explained,
 deliberate move is re-blessed. Anything else is pinned at what main
 produces (or `#[ignore]`d with the row it waits on), and the fix row
 goes on the program that owns the code that moved, with the bisected
-merge and a reproduce command.
+merge and a reproduce command. The point is scope, not speed (the
+user: *"less 'fast' and more 'without having to get into the weeds on
+a bunch of different programs'"*): GREEN reads a red far enough to name
+its merge and its owner, and the owner works out the cause.
 
 Charter and order: `work/green/plan.md`; narrative in `work/green/log.md`.

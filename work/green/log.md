@@ -98,7 +98,7 @@ Review tiers, chosen at dispatch:
 ## 2026-10-28 — a red is greened, not fixed, here
 
 The user set GREEN's posture on main reds (`program.md`): get them
-green fast by re-blessing an explained move, or by pinning the failure
+green without going into the weeds on other programs, by re-blessing an explained move, or by pinning the failure
 (or `#[ignore]`ing it with the row it waits on) and filing the fix on
 the owning program. No kernel work in a GREEN lane. The slow-set lane
 and the gate-trust lane (for the `--all-features` reds) were told the
