@@ -7228,3 +7228,6 @@ Signed (WIRE orchestrator).
   - Split on the refusal seam into the new track WIREREFUSE (ab_band 18200–18299): five rows from WIREREST and four from WIRETAIL, by `git mv`. Nothing cited their paths.
   - Corrected both plans' slates: closed flush-helper rows dropped; moved-in rows listed.
   - Loads: WIRE 29, WIREREST 26, WIRETAIL 24, WIREREFUSE 21, WIREHOLD 23.
+- 2026-10-28 (WIRE orchestrator) Dispatched two lanes, both with FULL review.
+  - `wire-unionvertex` (wire/union-vertex-groups-from-the-finished-body): union vertex group sizes come from the finished body, not the fold steps' spelling. Takes the member-corner tied-fold row if it falls out of the same pass.
+  - `wire-joinedsets` (wire/joined-sets-record-per-candidate): joined sets record per candidate, and `record_by_name`/`tie_summed` are retired or their docs made exact. Also the joined set over two tied operand edges. D10 constructs are kept out of fixtures.
