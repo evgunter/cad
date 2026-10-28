@@ -1875,7 +1875,7 @@ FAMILIES: dict[str, str] = {
 #: (`Alignment`, `MateFrame`, `MatePrimitive`, `MateSide`,
 #: `AxisSense`, `SolvedPoses`, `Subgroup`, `MateFault`,
 #: `Maintenance`, `reading_edges`,
-#: `relative_freedom_components`, `solve_document`), instantiated parts (`PlacementRuleFault`),
+#: `relative_freedom_components`, `solve_document`), instantiated parts,
 #: split and inline (`split`, `inline`, `SplitOutcome`,
 #: `InlineOutcome`, `SplitError`, `InlineError`, `NodeMap`,
 #: `InterfaceRecord`, `InterfaceCrossing`) and the product
@@ -3248,7 +3248,7 @@ NOT_BOUND = {
     # mates and the solve, instantiated parts, split/inline, the
     # product — and every one of them is accounted for: name-for-name
     # in `pncad.pyi`, or in `BOUND_AS` because their Python shape
-    # differs (`NodeMap`, `PlacementRuleFault`, and `MateSide`, which
+    # differs (`NodeMap`, and `MateSide`, which
     # is both). The
     # positive form is `tests/test_assembly_author.py`.
     # B-CHECKS IS GONE FROM THIS ROSTER, closed at LIB-B-CHECKS, and
