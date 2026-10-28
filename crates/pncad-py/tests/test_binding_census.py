@@ -3221,11 +3221,14 @@ NOT_BOUND = {
     # decides which of them a Python caller can ever see.
     "ClearanceRefusal": SHAPE,
     # Its `Engine` and `Selection` payloads, and the engine's `Budget`
-    # payload below them, curated beside it so a Rust consumer can read
+    # and `Uncertified` payloads below them (`CellBudget`, `SharedCell`,
+    # `CertificateArm`), curated beside it so a Rust consumer can read
     # the arm it matched. They cross exactly as their carrier does —
     # inside the one tag — and no `f64` evaluation reaches them for the
     # same reason.
     "CellBudget": SHAPE,
+    "CertificateArm": SHAPE,
+    "SharedCell": SHAPE,
     "EngineRefusal": SHAPE,
     "SelectionRefusal": SHAPE,
     # B-FACE-FRAME IS GONE FROM THIS ROSTER, closed at

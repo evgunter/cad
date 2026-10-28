@@ -99,8 +99,8 @@ use crate::var::VarId;
 /// carry: the funnel sites, the depth dial, the bound, the receipt, the
 /// widths and the engine's refusals.
 pub use topo::clearance::{
-    CLEARANCE_MARGIN, CellBudget, CellReceipt, ClearanceBound, DEFAULT_MAX_CELL_DEPTH,
-    DischargeWidths, EngineRefusal, SELF_INTERSECTION_GAP,
+    CLEARANCE_MARGIN, CellBudget, CellReceipt, CertificateArm, ClearanceBound,
+    DEFAULT_MAX_CELL_DEPTH, DischargeWidths, EngineRefusal, SELF_INTERSECTION_GAP, SharedCell,
 };
 
 /// The whole-query cell-pair budget: how many cell pairs one clearance
