@@ -1728,8 +1728,7 @@ pub(crate) enum VerbatimEdge<'a> {
     },
     /// Every entity of the source, copied (D10 `[placement.placement]`):
     /// a [`Node::Place`](crate::node::Node::Place)'s copy of its
-    /// `source` (one copy: a family's adds a `Member` segment, so it is
-    /// no verbatim edge), or an instance's copy of its part's product, whose
+    /// `source`, or an instance's copy of its part's product, whose
     /// names are spelled in the part's ids and which no walk of this
     /// document follows (`source` is `None`). The copy's own body row
     /// is minted at the copying node.
@@ -1761,11 +1760,7 @@ pub(crate) enum VerbatimEdge<'a> {
 /// heads every row itself. Every node kind the corpus can evaluate is sampled
 /// with rows, except the kinds that publish none at all, which that
 /// suite names and holds at zero.
-pub(crate) fn verbatim_edge<'a, P: crate::ProfilePayload>(
-    doc: &crate::doc::Doc<P>,
-    id: crate::RecipeNodeId,
-    node: &'a crate::node::Node<P>,
-) -> Option<VerbatimEdge<'a>> {
+pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEdge<'_>> {
     use crate::node::Node;
     match node {
         Node::Split { target, .. } => Some(VerbatimEdge::Intact {
@@ -1775,9 +1770,6 @@ pub(crate) fn verbatim_edge<'a, P: crate::ProfilePayload>(
             body: body.read,
             plane,
         }),
-        // A family's copy wraps each name in its member's `Member`
-        // (D10 `[repetition]`), a segment of its own.
-        Node::Place { .. } if doc.node_reach(id).chain().is_none_or(|c| !c.is_empty()) => None,
         Node::Place { source, .. } => Some(VerbatimEdge::Copied {
             source: Some(source.read),
         }),

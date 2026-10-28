@@ -64,7 +64,11 @@ use topo::BooleanOp;
 /// joined, and the name says that read too ("joined at Union … from
 /// Place …"), and its claimed name says one more read by tag. Filed as
 /// `name-words-budget-grew-under-placed-copy-wrapping`.
-const OVER_BUDGET: &[(&str, usize)] = &[("NodeErrorKind::CrossingUnverified", 92)];
+///
+/// Lowered 92 → 80 by G (`patterns-are-index-variables`), which
+/// shortened the corpus's names ([`NAME_WORDS`]): the row's
+/// 90th-percentile name says fewer words, and the row renders 80.
+const OVER_BUDGET: &[(&str, usize)] = &[("NodeErrorKind::CrossingUnverified", 80)];
 
 /// **The rows whose own prose states its recourse in words the standard
 /// does not read as one** ("aim away from the shared edge" is marked;

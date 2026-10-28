@@ -22,7 +22,9 @@
 //! the walks would carry a name across wrongly. A split publishes its intact entities under their original minters and its
 //! cut faces under its own id, so it carries both. A copy (a placement's,
 //! or an instance's of its part's product) carries its source's names
-//! and, where it is one body, its own body row.
+//! and, where it is one body, its own body row. A family's copy carries
+//! them member by member: read whole, its table wraps each member's row
+//! in that member's `Member`, which this row reads through.
 //!
 //! **Why the head.** An op that re-mints by WRAPPING a foreign name
 //! inside a role argument (a blend's `FromTarget`, a boolean's
@@ -204,15 +206,23 @@ fn evaluated() -> Vec<Sample> {
             let node = doc.node(id).expect("an evaluated node is in its document");
             let _ = value;
             let tables = crate::fixture::tables(&ev, id);
-            let heads = || tables.iter().flat_map(|t| t.iter()).map(|(n, _)| n);
+            // A family's table read whole wraps each member's row in its
+            // `Member` (D10 `[repetition]`); the row is read through it,
+            // as the member's own table holds it.
+            let heads = || {
+                tables.iter().flat_map(|t| t.iter()).map(|(n, _)| match n.path.as_slice() {
+                    [editor_core::RoleSeg::Member { of, .. }] if n.node == id => (**of).clone(),
+                    _ => n.clone(),
+                })
+            };
             out.push(Sample {
                 doc: name,
                 id,
                 kind: test_utils::f6::variant_identifier(node),
-                edge: verbatim_kind(&doc, id),
+                edge: verbatim_kind(node),
                 rows: tables.iter().map(|t| t.len()).sum(),
-                foreign: heads().find(|n| n.node != id).cloned(),
-                own: heads().find(|n| n.node == id).cloned(),
+                foreign: heads().find(|n| n.node != id),
+                own: heads().find(|n| n.node == id),
             });
         }
     }
