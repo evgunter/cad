@@ -2,11 +2,12 @@
 id: SHELL-3
 kind: unit
 title: the clearance engine's body-level half moves into topo behind interval — one engine, two consumers
-status: open
+status: dispatched
 opened: 2026-09-04
 refs: [shell-curved-clearance-consumer, 1725, 1737]
 priority: P0
 cost: H
+branch: clear/shell-3-engine-into-topo
 ---
 
 
