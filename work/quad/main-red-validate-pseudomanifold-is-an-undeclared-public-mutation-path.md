@@ -40,4 +40,4 @@ Most likely an `ALLOWED` entry, with that reason, in
 `the_two_door_tables_cover_the_same_surface` wants the door in its
 table too. An earlier, different cause of the same row's red
 (`join_edges`) is recorded in
-`work/tcost/main-reds-editor-core-slow-set-and-the-k-probe-sweep.md`.
+`work/green/main-reds-editor-core-slow-set-and-the-k-probe-sweep.md`.

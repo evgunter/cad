@@ -21,7 +21,7 @@ pub fn box_about(c: f64) -> (f64, f64) {
 /// Every wall's poles, weights and v knots, in face order, through `f`.
 fn wall_values<T: SpanLocate, R>(lofted: &Lofted<T>, f: impl Fn(T) -> R) -> Vec<R> {
     let mut out = Vec::new();
-    for face in lofted.side_faces.iter().flatten() {
+    for face in lofted.side_faces.iter().flatten().flatten() {
         let face = lofted.body.get_face(*face).expect("a built face");
         match lofted
             .body
