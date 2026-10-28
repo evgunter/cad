@@ -168,3 +168,77 @@ The cache did not go cold. The rust-cache restore step took 9–15 s (median 12�
 Run lists come from `GET /repos/evgunter/cad/actions/workflows/ci.yml/runs?event=pull_request&created=<day>` with manual paging. The `gh` CLI was used for the bulk calls; these are the same REST endpoints as the GitHub MCP `actions_list` and `actions_get`. Job lists come from `/actions/runs/<id>/jobs?filter=latest`. Logs come from the GitHub MCP `get_job_logs`, because the proxy refuses the log-blob redirect for `gh`. The alarm's statistic was recomputed with the nightly's own selection and arithmetic, `.github/workflows/nightly.yml:661-698`.
 
 — CIW latency measurement lane, 2026-10-16
+
+## Measured, 2026-10-28 (GREEN latency lane)
+
+**Sample.** Every `pull_request` run of ci.yml created 10-26 00:00Z to
+10-28 14:57Z (692 runs). Job and step times come from
+`/actions/runs/<id>/jobs?filter=latest` for all 545 completed
+success/failure runs, not a sample. The alarm's window, recomputed with
+the nightly's arithmetic over the 24 h to 10-28 05:30Z, gives n=186,
+median 23.1, p90 30.9; nightly 74 printed n=183, median 23.1. The 24 h
+to 10-28 15:00Z read 20.2 (n=187), with more docs-tier runs in it.
+
+**Queueing is still not the cause.** Every job's queue (created →
+started) has a median of 0.0 min and a p90 of 0.1. Completed PR runs
+used 8,144 job-minutes, 28% of a 20-slot day. The pool touched 20
+concurrent jobs, and spent 24 min at 18 or more.
+
+**The critical job** (the last non-gate job to finish), over the 186
+runs:
+
+| job | last in | last in, of the 117 runs over 20 min | median duration | p90 |
+|---|---|---|---|---|
+| `test` | 98 | 73 | 21.4 | 27.0 |
+| `demos (tour + wild)` | 44 | 44 | 28.7 | 29.8 |
+| `lint` | 39 | 0 | 6.0 | 7.8 |
+| `python` | 5 | 0 | 11.6 | 12.5 |
+
+**By tier** (inferred from which jobs ran, as on 10-16): closure 70%
+(median wall 24.0), all 8% (30.3), docs/aux 22% (5.7). The 54 runs that
+ran `demos` have a median of 30.6; the 132 that did not have 19.5.
+
+**Inside `test`, the time is the build.** `build` has a median of 17.9
+min (closure 17.9, all 19.9) of the job's 21.4. The test steps
+have come down since 10-16: default ε 1.5, extra ε 0.8 (p90 3.6), the
+seeded slow set 0.02 (only the slow tests a diff spells, since
+`demote-unearned-tests`), doc-tests 0.2. One closure run's filter
+(40602920844, `atrest/…`): seeds editor-core, sweep, topo; scope 12
+crates. The test job is one 4-core runner, so its build is
+throughput-bound.
+
+**Inside `demos`, the time is the release build.** `demos tour suite`
+has a median of 27.2. One job (122505653664, run 40594053287) took
+`Finished release profile ... in 21m 44s`, then 86 tests in 310 s.
+The longest row was `tour_runs_green_at_eps_1e_12` at 310 s, then
+`gallery::...each_gallery_document_denotes_its_scene_or_says_why_not`
+at 245 s and `certified_cells_run_green_at_default_eps` at 204 s. Moving
+the 1e-12 row would have saved about 65 s in that run (the row
+reported 513 s against a next row of 156 s on 10-24).
+
+**What the levers are worth.** The run wall was replayed with chosen
+jobs shortened, over the same 186 runs. A run's wall moves by how much
+its last-finishing job's end moves.
+
+| lever | median | p90 |
+|---|---|---|
+| none | 23.1 | 30.9 |
+| `demos` −5 min | 22.9 | 27.9 |
+| `demos` off the critical path entirely | 20.4 | 27.8 |
+| `test` −3 min | 20.2 | 30.8 |
+| `test` −5 min | 18.3 | 30.8 |
+| `test` −5, `demos` −12 | 17.7 | 22.8 |
+| `test` −8, `demos` −12 | 15.0 | 20.3 |
+
+No `demos` lever alone brings the median under 20, and `test`'s build
+moves the median most.
+
+**Blind spots.**
+- The tier is inferred, as on 10-16.
+- The build's split between libraries and test binaries on today's tree
+  is not measured: the job log tool returns only the last 5000 lines.
+  The split quoted in `docs/CI-MINUTES-2026-08.md` (82% test binaries)
+  is from 09-03.
+- The replay assumes that shortening a job moves nothing else, which
+  holds while the queue is empty.
+- Cancelled runs' job-minutes are not counted in the load figure.
