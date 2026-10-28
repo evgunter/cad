@@ -2543,7 +2543,11 @@ impl OneArcRefusal {
         };
         let arm = match self {
             Self::Undecided(cause) => RefusedArm::Undecided(cause),
-            Self::Count { .. } | Self::Unlinked | Self::Short => RefusedArm::SignCertain(None),
+            Self::Count { .. }
+            | Self::Unlinked
+            | Self::Short
+            | Self::AlongSide { .. }
+            | Self::EndOnSides { .. } => RefusedArm::SignCertain(None),
         };
         (decision, arm)
     }

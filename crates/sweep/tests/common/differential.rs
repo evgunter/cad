@@ -428,6 +428,7 @@ pub fn assert_sound_and_meshed(
     let mesh = mesh::tessellate(&bb.body, 5e-3, tol)
         .unwrap_or_else(|e| panic!("{label}: the mesh: {e:?}"));
     mesh::validate::check_mesh(&mesh).unwrap_or_else(|e| panic!("{label}: the mesh: {e:?}"));
+    assert_meshed_geometry(label, &bb.body, &mesh, 5e-3);
     let line = outcome(r, want, tol);
     assert!(line.starts_with("OK SOUND"), "{label}: {line}");
 }
@@ -915,4 +916,72 @@ pub fn nt_poly_volume(poly: &NtPoly) -> f64 {
         })
         .sum::<f64>()
         / 6.0
+}
+
+/// The body's mass properties at the pinned resolution: its volume and
+/// its surface area, read off the B-rep.
+pub fn body_props(body: &Body<f64>) -> topo::MassProperties<f64> {
+    topo::test_support::pinned_volume(
+        "the meshed body",
+        &sweep::test_support::at_rest(body, Tol::witness()),
+        Tol::witness(),
+    )
+}
+
+/// [`body_props`]' volume.
+pub fn body_volume(body: &Body<f64>) -> f64 {
+    body_props(body).volume
+}
+
+/// **The mesh's geometry, against the body's.** Its volume within the
+/// chordal deficit of the body's, both read off the B-rep
+/// (`mesh::validate::check_volume`), and every sphere- and
+/// cylinder-face triangle wound outward ([`assert_outward`]).
+pub fn assert_meshed_geometry(label: &str, body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) {
+    let p = body_props(body);
+    mesh::validate::check_volume(mesh, p.volume, p.surface_area, delta)
+        .unwrap_or_else(|e| panic!("{label}: the mesh encloses the body, got {e:?}"));
+    assert_outward(label, body, mesh);
+}
+
+/// **Every sphere- and cylinder-face triangle of `mesh` winds outward.**
+/// A triangle's normal, as the mesh winds it, must point the way its
+/// face's outward normal does at its centroid: off the sphere's centre,
+/// or off the cylinder's axis, reversed on a `sense: false` face. A
+/// triangle folded over the chord beside it, or a face meshed inside
+/// out, is a closed manifold mesh that [`mesh::validate::check_mesh`]
+/// passes; this is the geometry it does not read. Faces on other
+/// surfaces are not read. It spells the outward direction itself rather
+/// than calling the mesher's `TrimmedFace::outward` on purpose: it is
+/// the independent oracle the mesher's census is checked against, and
+/// it reads every face the mesh has, curved-lane faces included.
+pub fn assert_outward(label: &str, body: &Body<f64>, mesh: &mesh::Mesh) {
+    for patch in &mesh.patches {
+        let face = body.get_face(patch.face).expect("the patch's face");
+        let radial = |p: Point3<f64>| match *body.get_surface(face.surface).expect("its surface") {
+            geom::Surface::Sphere { center, .. } => Some(p - center),
+            geom::Surface::Cylinder { origin, axis, .. } => {
+                let d = p - origin;
+                Some(d - axis * d.dot(axis))
+            }
+            _ => None,
+        };
+        for tri in &patch.triangles {
+            let [a, b, c] = tri.map(|i| mesh.positions[i as usize]);
+            let centroid = Point3::new(
+                (a.x + b.x + c.x) / 3.0,
+                (a.y + b.y + c.y) / 3.0,
+                (a.z + b.z + c.z) / 3.0,
+            );
+            let Some(out) = radial(centroid) else { break };
+            let out = if face.sense { out } else { -out };
+            let normal = (b - a).cross(c - a);
+            assert!(
+                normal.dot(out) > 0.0,
+                "{label}: face {:?} has a triangle {tri:?} wound against it (cosine {})",
+                patch.face,
+                normal.dot(out) / (normal.norm() * out.norm())
+            );
+        }
+    }
 }

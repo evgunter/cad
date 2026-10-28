@@ -537,43 +537,41 @@ fn the_measure_verb_vocabulary_is_stable() {
 /// `MeasureUnavailableAt` is what the `f64` lane answers a
 /// `min_clearance` with, and the binding evaluates at `f64` — so it is
 /// reachable from Python and `tests/test_measures.py` reaches it
-/// through a real document. `ClearanceRefusal` is the interval
-/// engine's own, and its ONLY producer on the measure path is
-/// `impl MinClearanceLane for geom_core::Interval`; no Python
-/// evaluation reaches it, because the binding evaluates at `f64` and the
-/// lane is what gates it. So this row is where the second one's tag and
-/// prose are pinned at all.
+/// through a real document. `MinSeparationRefusal` is the clearance engine's
+/// own, and its ONLY producer on the measure path is the
+/// `topo::ClearanceLane` door, which `f64` does not hold; no Python
+/// evaluation reaches it, because the binding evaluates at `f64`. So
+/// this row is where the second one's tag and prose are pinned at all.
 #[test]
 fn the_fourth_verbs_two_refusals_are_stable() {
     use crate::tags::{measure_unavailable_at_tag, node_error_tag};
-    use pncad::document::{ClearanceRefusal, EngineRefusal, MeasureUnavailableAt, NodeErrorKind};
+    use pncad::document::{MeasureUnavailableAt, MinSeparationRefusal, NodeErrorKind};
 
     let absent = MeasureUnavailableAt::NeedsEnclosure {
         verb: "min_clearance",
         scalar: "f64",
-        door: "clearance::min_separation",
+        door: "topo::ClearanceLane",
     };
     assert_eq!(measure_unavailable_at_tag(&absent), "needs_enclosure");
     assert_eq!(absent.verb(), "min_clearance");
     assert!(crate::errors::reads_as_prose(&absent.to_string()));
     // The recourse is IN the refusal: it names the door that answers
     // rather than handing back a worse number.
-    assert!(absent.to_string().contains("clearance::min_separation"));
+    assert!(absent.to_string().contains("topo::ClearanceLane"));
 
-    // The four arms `clearance::min_separation` refuses with — the
-    // only ones this carrier's producer can build — all cross as one
-    // tag.
+    // The four arms `topo::clearance::min_separation` refuses with
+    // all cross as one tag.
     let refused = |r| NodeErrorKind::MeasureClearanceRefused(r);
-    let empty = refused(ClearanceRefusal::Engine(EngineRefusal::EmptyScope));
-    let unpaired = refused(ClearanceRefusal::Engine(EngineRefusal::NoAdmittedPair));
-    let unsupported = refused(ClearanceRefusal::Engine(EngineRefusal::Unsupported {
+    let empty = refused(MinSeparationRefusal::EmptyScope);
+    let unpaired = refused(MinSeparationRefusal::NoAdmittedPair);
+    let unsupported = refused(MinSeparationRefusal::Unsupported {
         carrier: "an approximated face",
         face: FaceKey::default(),
-    }));
-    let poison = refused(ClearanceRefusal::Engine(EngineRefusal::PoisonEnclosure {
+    });
+    let poison = refused(MinSeparationRefusal::PoisonEnclosure {
         a: FaceKey::default(),
         b: FaceKey::default(),
-    }));
+    });
     for e in [&empty, &unpaired, &unsupported, &poison] {
         assert_eq!(
             node_error_tag(e.class()),
@@ -5974,8 +5972,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "tessellate_error_tag",
         values: &[
+            "boundary_ear",
             "certificate_exceeded",
             "empty_loop",
+            "folded_triangle",
             "invalid_chordal_tolerance",
             "meridian_free_curved_face",
             "missing_entity",
@@ -5986,9 +5986,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "rounding_unresolved",
             "self_touching_trim_loop",
             "single_column_curved_face",
+            "sphere_trim_shape",
             "step_not_positive",
             "tolerance_band_unformable",
             "triangulation",
+            "trim_loop_orientation",
             "unsupported_curve",
             "unsupported_curved_domain",
             "unsupported_curved_shape",
