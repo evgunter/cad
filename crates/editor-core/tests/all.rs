@@ -87,6 +87,8 @@ mod asm_upd_pin_update;
 mod assemble_one_local_battery;
 #[path = "atrest_carried_coincidence.rs"]
 mod atrest_carried_coincidence;
+#[path = "atrest_operation_rows_quiet.rs"]
+mod atrest_operation_rows_quiet;
 #[path = "band_joined_rim_names.rs"]
 mod band_joined_rim_names;
 #[path = "band_planar_cut_off_names.rs"]

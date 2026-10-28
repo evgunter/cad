@@ -36,6 +36,7 @@ pub(crate) use wire::{
 };
 
 pub(crate) use wire::unit as unit_direction;
+pub(crate) use wire::{reference_body, resolve_name};
 
 pub use anchor::{CanonicalSegment, LoopAnchor, ProfileNaming, ProfilePieces, ProfileValue};
 pub(crate) use anchor::{derive_naming, validated_naming};

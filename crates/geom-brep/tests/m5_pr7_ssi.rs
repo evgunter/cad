@@ -1880,45 +1880,14 @@ fn an_unaffordable_chart_seed_floor_refuses_the_cell_budget_typed() {
     });
 }
 
-/// **The ℝ³ sweep's refusal arm**: an operand whose certified implicit
-/// enclosure cannot be formed at all, so no cell can be excluded and
-/// the domain cannot be proved exhausted by any amount of refinement.
-///
-/// The fixture is a **zero-radius sphere** — a point, which the
-/// `Surface` enum admits (its radius is documented "positive by
-/// convention", and the convention is unchecked). The sphere's
-/// enclosure divides by `2r`, and the ring refuses a divisor that
-/// touches zero, so the very first cell's enclosure is refused.
-///
-/// **The refusal names the cause a caller can actually produce**, and
-/// the row pins that rather than the obligation alone: the only way
-/// into this arm is a degenerate INSTANCE of a supported kind, because
-/// `cylinder_sphere_ssi` refuses `WrongLane` for anything but a
-/// cylinder and a sphere — a kind with no implicit form at all never
-/// gets here. Pinning the text is also what keeps this row from
-/// passing on some other `UnsupportedCertificate`, of which the
-/// certificate stack has many.
-///
-/// **Which duty**: the **Seed** one. `cylinder_sphere_ssi` calls
-/// `seed_r3` before `account_r3`, the refusal arm lives in the closure
-/// the shared recursion runs under either duty, and the first cell's
-/// enclosure is refused — so the refusal arrives during seeding and accounting is
-/// never reached (instrumented). The Account-duty cell of this door
-/// has no row.
-///
-/// Without the arm the sweep does not go wrong quietly in one step: a
-/// refused enclosure excludes nothing, so every cell refines and
-/// **another door answers** — measured, on this fixture, the cell
-/// budget. The caller is then told the search was too big, when the
-/// truth is that this operand has no certificate at all and no budget
-/// would have helped. That is what this arm exists to prevent: not a
-/// wrong answer, a wrong DIAGNOSIS. The chart lane states the same duty
-/// one door over — see
-/// [`an_infinite_chart_speed_refuses_rather_than_receipting`], whose
-/// mint refuses a non-finite chart speed before the cell budget can
-/// answer in its place.
+/// **A zero-radius operand refuses at the pair's pose**, before any
+/// sweep: the pose guards both radii definitely positive
+/// (`cs_sphere_radius`), the section table's posture, so the march never
+/// meets a sphere that is a point. The fixture is a zero-radius sphere,
+/// which the `Surface` enum admits (its radius is "positive by
+/// convention", unchecked there).
 #[test]
-fn a_degenerate_r3_operand_refuses_the_enclosure_typed() {
+fn a_degenerate_r3_operand_refuses_at_the_pose() {
     let point_sphere = Surface::Sphere {
         center: Point3::new(0.0, 0.0, 0.0),
         radius: 0.0,
@@ -1927,35 +1896,22 @@ fn a_degenerate_r3_operand_refuses_the_enclosure_typed() {
     };
     let c = threaded_cylinder();
     match ssi::cylinder_sphere_ssi(&c, &point_sphere, slab(), band()) {
-        Err(ref err @ SsiError::UnsupportedCertificate { what }) => {
-            // The sweep's own arm, not one of the certificate stack's:
-            // this phrase appears at exactly one site in the kernel.
+        Err(
+            ref err @ SsiError::RadiusNotPositive {
+                radius: geom_brep::SectionRadius::Sphere,
+            },
+        ) => {
+            let shown = err.render(geom_brep::recourse::Reading::Build);
             assert!(
-                what.contains("ring-computable implicit enclosure"),
-                "the refusal must be the SWEEP's refusal arm: {what}"
-            );
-            assert!(what.contains("cannot be proved exhausted"), "{what}");
-            // The sentence must name a cause this door can deliver. A
-            // kind with no implicit form cannot reach the arm, so a
-            // message blaming one would send a reader hunting for an
-            // operand `WrongLane` already refused.
-            assert!(
-                what.contains("zero radius"),
-                "the refusal must name the producible cause: {what}"
+                shown.contains("whether a sphere's radius is positive"),
+                "{shown}"
             );
             assert!(
-                !what.contains("this surface kind has no"),
-                "the refusal must not blame a KIND its own door excludes: {what}"
+                shown.contains("make the sphere's radius clearly larger"),
+                "{shown}"
             );
-            assert!(format!("{err}").starts_with("ssi: "), "{err}");
         }
-        Err(other) => panic!("expected the enclosure refusal, got {other}"),
-        Ok(out) => panic!(
-            "SILENT: a domain no enclosure could be formed over returned Ok with {} \
-             branches and a receipt {:?}",
-            out.branches.len(),
-            out.exhaustiveness
-        ),
+        other => panic!("expected the pose's radius refusal, got {other:?}"),
     }
 }
 
@@ -2292,9 +2248,7 @@ fn an_internally_tangent_pair_refuses_without_denying_the_crossing() {
 /// Nothing downstream can then state the operation's own terms, so the
 /// mint refuses before the first division rather than letting the sweep run
 /// to its cell budget and answer in its place — the budget's sentence
-/// ("your search exceeded the budget") would be the wrong DIAGNOSIS,
-/// the substitution [`a_degenerate_r3_operand_refuses_the_enclosure_typed`]'s
-/// arm exists to prevent one lane over.
+/// ("your search exceeded the budget") would be the wrong DIAGNOSIS.
 ///
 /// The fixture is a net at `1e200` m: every input is finite, the
 /// derivative boxes are finite intervals, and their magnitudes overflow
@@ -2524,7 +2478,9 @@ fn the_ssi_predicates_reach_the_k_funnel() {
     let outcome = ssi::cylinder_sphere_ssi(&c, &s, d, band());
     let v = bracket.finish().verdicts;
     for name in [
-        "ssi_cs_tangency",
+        "cs_coaxial",
+        "cs_near_reach",
+        "cs_far_reach",
         "ssi_transversality",
         "ssi_step_progress",
         "ssi_on_locus",

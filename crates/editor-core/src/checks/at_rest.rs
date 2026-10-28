@@ -24,7 +24,8 @@
 //! and between whose carriers the overlap lies, which the kernel's
 //! boolean decides (`beyond`). **What quiets a contact**
 //! ([`quiet_contact`]): a holding `Gap = 0` between the row's two cells,
-//! at whatever dimension they are. Both read the assertion's verdict,
+//! at whatever dimension they are, an at-rest row's or an operation's
+//! alike. Both read the assertion's verdict,
 //! never its measure's value, and an assertion speaks for nothing but
 //! its own site: every other finding is loud.
 //!
@@ -200,40 +201,31 @@ fn could_not_look<T: Decide>(
 pub(crate) const AT_REST_QUIET_CONTACT_BOUND: &str = "at_rest_quiet_contact_bound";
 
 /// **The contact half of the quieting rule** (D10 `[assertions.quiet]`):
-/// the first assertion, in document order, that quiets `row`, an
-/// at-rest row of two cells, or `None` when the row stays loud.
+/// the first assertion, in document order, that quiets `row`, or `None`
+/// when the row stays loud.
 ///
-/// An assertion quiets a row when it relates a `Gap` read directly by
-/// `=` to a bound decided zero, its two selections are the row's two
-/// cells in either order, each its arrival's read (or a pick of the
-/// arrival's piece) and the cell's name there, and its verdict in
-/// `evaluation` is `Holds`. The cells may be
-/// of any dimension `Gap` admits. A flush pair
-/// ([`topo::Relation::SameOriented`]) is no contact, and no assertion
-/// quiets it. The rule matches cells, so another contact between the
-/// same two arrivals stays loud, and it reads verdicts only, so an
-/// assertion that failed or did not evaluate quiets nothing.
+/// One rule for every row the lint reads, an at-rest row's or an
+/// operation's: an at-rest row's cells are its arrivals', an
+/// operation's row's the deciding node's input reads' (`[operations]`,
+/// *Selections*), so a cell the result merged away is still selected
+/// on its operand.
+///
+/// An assertion quiets a row when the row decided what a `Gap = 0`
+/// says ([`contact_cells`]), and the assertion relates a `Gap` read
+/// directly by `=` to a bound decided zero, its two selections are the
+/// row's two cells in either order, each the cell's read (or a pick of
+/// that read's piece) and the cell's name there, and its verdict in
+/// `evaluation` is `Holds`. The rule matches cells, so another contact
+/// between the same two reads stays loud, and it reads verdicts only,
+/// so an assertion that failed or did not evaluate quiets nothing.
 pub(crate) fn quiet_contact<P, T: Decide>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     row: &crate::coincide::NamedCoincidence,
     tol: Tol,
 ) -> Option<RecipeNodeId> {
-    if row.relation == topo::Relation::SameOriented {
-        return None;
-    }
+    let [a, b] = contact_cells(row)?;
     let band = Band::linear(tol).ok()?;
-    let cell = |c: &crate::coincide::NamedCell| match c {
-        crate::coincide::NamedCell::Entity { input, name } => {
-            // The cell's name is the arrival's own.
-            Some((*input, keyed_by(name, *input).unwrap_or(name).clone()))
-        }
-        _ => None,
-    };
-    let [a, b] = match row.cells.as_slice() {
-        [a, b] => [cell(a)?, cell(b)?],
-        _ => return None,
-    };
     let selected = |var: VarId| {
         let select = doc.selection(var)?;
         let [name] = select.names.as_slice() else {
@@ -250,15 +242,15 @@ pub(crate) fn quiet_contact<P, T: Decide>(
         let (Some(o), Some(i)) = (selected(gap.outer), selected(gap.inner)) else {
             return None;
         };
-        let reads = |(body, name): &(VarId, StableName), (arrival, own): &(VarId, StableName)| {
-            if body == arrival {
+        let reads = |(body, name): &(VarId, StableName), (read, own): &(VarId, StableName)| {
+            if body == read {
                 return name == own;
             }
-            // A pick of the arrival's piece: the arrival's name for the
-            // cell is keyed by each `⊔` the pick's path walks through,
-            // by the read that piece entered it by.
+            // A pick of the read's piece: the read's name for the cell
+            // is keyed by each `⊔` the pick's path walks through, by the
+            // read that piece entered it by.
             doc.pick(*body).is_some_and(|pick| {
-                pick.placement == *arrival
+                pick.placement == *read
                     && pick
                         .of
                         .iter()
@@ -268,6 +260,141 @@ pub(crate) fn quiet_contact<P, T: Decide>(
         };
         ((reads(&o, &a) && reads(&i, &b)) || (reads(&o, &b) && reads(&i, &a))).then_some(gap.id)
     })
+}
+
+/// **Whether an assertion could quiet `row`** under the contact half
+/// ([`quiet_contact`]), in `evaluation`, asked of the rule itself: the
+/// row decided what a `Gap = 0` says, over two entity cells
+/// ([`contact_cells`]), and the `Gap` such an assertion reads, over
+/// those two cells resolved and read as the measure resolves and reads
+/// them ([`crate::eval::resolve_name`]), is decided zero in some role
+/// order at the site the rule decides its bound at. A cell the measure
+/// has no form for, a name that does not resolve, and a gap read
+/// non-zero are none of them: no `Gap = 0` over the row holds, so the
+/// finding never refuses (CHECKS DS6).
+pub(crate) fn contact_quietable<P: crate::ProfilePayload, T: Decide + topo::AtRestPolicy>(
+    doc: &Doc<P>,
+    evaluation: &Evaluation<T>,
+    row: &crate::coincide::NamedCoincidence,
+    tol: Tol,
+) -> bool {
+    let Ok(band) = Band::linear(tol) else {
+        return false;
+    };
+    let Some(cells) = contact_cells(row) else {
+        return false;
+    };
+    let mut reads = cells.iter().enumerate().map(|(i, (read, name))| {
+        let slot = crate::OperandSlot::Measured(
+            crate::measure::MeasureVerb::Gap,
+            u8::try_from(i).unwrap_or(u8::MAX),
+        );
+        let at = crate::eval::resolve_name(doc, &evaluation.nodes, slot, *read, name, |error| {
+            crate::eval::NodeErrorKind::SelectResolve {
+                slot,
+                var: *read,
+                reference: 0,
+                error,
+            }
+        })
+        .ok()?;
+        let body = crate::eval::reference_body(&evaluation.nodes, slot, *read, at).ok()?;
+        Some((body, at.1))
+    });
+    let (Some(Some((framed_a, ent_a))), Some(Some((framed_b, ent_b)))) = (reads.next(), reads.next())
+    else {
+        return false;
+    };
+    // The two cells are read as the measure reads its two references: in
+    // one computing frame (`Framed::computing_among`), the other read
+    // into it through `relative`. A frame that refuses to read is no
+    // `Gap = 0` either.
+    let Some(computing) = crate::eval::Framed::computing_among([framed_a, framed_b]) else {
+        return false;
+    };
+    let (Ok(body_a), Ok(body_b)) = (
+        computing.read_in(framed_a, tol),
+        computing.read_in(framed_b, tol),
+    ) else {
+        return false;
+    };
+    let a = crate::eval::measure::carrier_of(&body_a, ent_a);
+    let b = crate::eval::measure::carrier_of(&body_b, ent_b);
+    [(&a, &b), (&b, &a)].into_iter().any(|(outer, inner)| {
+        gap_sign(outer, inner, AT_REST_QUIET_CONTACT_BOUND, band) == Some(Sign::Zero)
+    })
+}
+
+/// **The sign a `Gap` assertion's measure reads over two carriers**,
+/// decided at `site`: the value the measure reports
+/// ([`crate::eval::measure::gap_value`]), `None` where it refuses or
+/// the decision does. Both halves of the quieting rule ask it of a pair
+/// an assertion could be written over.
+fn gap_sign<T: Decide>(
+    outer: &crate::eval::measure::Carrier<'_, T>,
+    inner: &crate::eval::measure::Carrier<'_, T>,
+    site: &'static str,
+    band: Band,
+) -> Option<Sign> {
+    let gap = crate::eval::measure::gap_value(outer, inner, band).ok()?;
+    decide(site, Margin::of(gap), band).ok()
+}
+
+/// **A row's two cells as the contact half reads them**: each entity
+/// cell's read and its name there, the arrival's own for an at-rest
+/// row, for a row that decided what a `Gap = 0` says. `None` for any
+/// other row.
+///
+/// D10 `[assertions.quiet]` quiets a finding only by an assertion that
+/// says the same, `= 0` for a contact. A `Gap = 0` says two cells meet,
+/// so it says what a row decided only where that is that its two cells
+/// meet. By the kinds of row the kernel decides:
+///
+/// | site | relation | a `Gap = 0` says it |
+/// |---|---|---|
+/// | `PlaneLadder`, `CarrierLadder` | `SameOpposite` (glue) | yes: one carrier, opposed, is contact |
+/// | `CensusAtRest` | `SameOpposite`, `OnCarrier` | yes: a contact between arrivals |
+/// | `VertexFusion` | `OnCarrier`, `Meet` of two cells | yes: a vertex on a cell, two cells sharing a point |
+/// | any | `SameOriented` | no: a flush pair is no contact (`[assertions]`) |
+/// | `TangentWitness` | `SurfaceTangent` | no: a tangency is more than meeting |
+/// | `CoaxialSphere` | `OnCarrier` | no: a sphere's centre on a cylinder's axis |
+/// | `CrossingCylinders` | `SameRadius`, `AxesMeet` | no |
+/// | `BatteryTurn` | `CommonFoot` | no |
+/// | `BatteryJoint` | `Tangent` | no |
+/// | `BatterySupportAxis` | `Coaxial` | no |
+/// | `SplitOn` | `OnCarrier`, over the tool | no: its second cell is a pose, no body's cell |
+/// | `ProfileJunction` | `SameOriented`, `Tangent`, over pieces | no |
+///
+/// A `Meet` of more than two cells, and a cell that is no body's (a
+/// tool, a profile piece), are no pair a `Gap` is written over.
+fn contact_cells(row: &crate::coincide::NamedCoincidence) -> Option<[(VarId, StableName); 2]> {
+    use topo::{DecisionSite as Site, Relation as R};
+    let says = match row.site {
+        Site::PlaneLadder | Site::CarrierLadder => row.relation == R::SameOpposite,
+        Site::CensusAtRest => matches!(row.relation, R::SameOpposite | R::OnCarrier),
+        Site::VertexFusion => matches!(row.relation, R::OnCarrier | R::Meet),
+        Site::TangentWitness
+        | Site::CoaxialSphere
+        | Site::CrossingCylinders
+        | Site::BatteryTurn
+        | Site::BatteryJoint
+        | Site::BatterySupportAxis
+        | Site::SplitOn
+        | Site::ProfileJunction => false,
+    };
+    if !says {
+        return None;
+    }
+    let cell = |c: &crate::coincide::NamedCell| match c {
+        crate::coincide::NamedCell::Entity { input, name } => {
+            Some((*input, keyed_by(name, *input).unwrap_or(name).clone()))
+        }
+        crate::coincide::NamedCell::Tool { .. } | crate::coincide::NamedCell::Piece { .. } => None,
+    };
+    match row.cells.as_slice() {
+        [a, b] => Some([cell(a)?, cell(b)?]),
+        _ => None,
+    }
 }
 
 /// **A holding assertion that reads a `Gap`'s output directly**, the
@@ -1218,7 +1345,7 @@ fn could_quiet(
     tol: Tol,
     crossings: &mut BTreeMap<FaceKey, Result<BTreeSet<usize>, String>>,
 ) -> bool {
-    use crate::eval::measure::{carrier_of, gap_value};
+    use crate::eval::measure::carrier_of;
     let Ok(band) = Band::linear(tol) else {
         return false;
     };
@@ -1245,9 +1372,9 @@ fn could_quiet(
     for &x in &from_a {
         for &y in &from_b {
             for (outer, inner) in [(x, y), (y, x)] {
-                let negative = gap_value(&carrier(outer), &carrier(inner), band).is_ok_and(|g| {
-                    decide(AT_REST_QUIET_BOUND, Margin::of(g), band) == Ok(Sign::Negative)
-                });
+                let negative =
+                    gap_sign(&carrier(outer), &carrier(inner), AT_REST_QUIET_BOUND, band)
+                        == Some(Sign::Negative);
                 if negative && opposed(body, outer, inner, band) {
                     candidates.push((outer, inner));
                 }
