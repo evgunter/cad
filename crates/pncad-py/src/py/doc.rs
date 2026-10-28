@@ -2057,15 +2057,21 @@ impl Doc {
         }
     }
 
-    /// **The variable a node's slot reads** (`Doc::slot`), or `None`
-    /// for a node or a slot the document does not hold. Every slot
-    /// reads one: a value written there is its own anonymous variable,
-    /// and passing the handle to another slot is how two slots share it.
+    /// **The variable a node's slot reads** (`Doc::slot`, and at an
+    /// operand its read), or `None` for a node or a slot the document
+    /// does not hold. Every slot reads one: a value written there is its
+    /// own anonymous variable, and passing the handle to another slot is
+    /// how two slots share it.
     fn slot(&self, node: &NodeId, slot: &str) -> PyResult<Option<Var>> {
-        Ok(self
-            .inner
-            .slot(node.0, slot_from_text(slot)?)
-            .map(|id| Var::of(&self.inner, id)))
+        let read = match slot_from_text(slot)? {
+            d::SlotId::Operand(at) => self.inner.node(node.0).and_then(|held| {
+                held.operand_rows()
+                    .into_iter()
+                    .find_map(|(there, var)| (there == at).then_some(var))
+            }),
+            other => self.inner.slot(node.0, other),
+        };
+        Ok(read.map(|id| Var::of(&self.inner, id)))
     }
 
     /// The name this document holds for `var`, or `None` — for an

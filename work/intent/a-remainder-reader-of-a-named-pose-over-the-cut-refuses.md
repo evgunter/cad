@@ -19,8 +19,10 @@ anonymous-only gate (`inline`, the `filter(|&side|
 doc.var_name(side).is_none())` over the host's mate sides, and
 `pose_leaves(doc, side).is_none()` beside it).
 
-Read from the code, not measured end to end. It refuses typed rather
-than stranding a read.
+Measured: `p2_face::a_kept_mates_named_target_is_severed_where_its_written_one_crosses`
+splits `face_across`'s scene with `m`'s target written in place (it
+crosses) and the same target renamed (`SeveredEdge`, naming `k`). It
+refuses typed rather than stranding a read.
 
 A sibling: an unread named pose over a cut body stays in the
 remainder, reading a selection of a body the remainder no longer

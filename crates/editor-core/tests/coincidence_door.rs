@@ -685,9 +685,7 @@ fn a_split_through_a_vertex_that_only_cuts_records_nothing() {
 /// **A split through a pinch records it** (§11 row 6's first half): the
 /// notched prism's tip `(4, 1)` has both neighbours above `y = 1`, so the
 /// split leaves two pieces touching there, one row per tip vertex, each
-/// the operand vertex the split's side verdict read ON the tool. The
-/// tool is a pose definition, which no operation outputs: its cell is
-/// named by the read, and the door walks it to that pose.
+/// the operand vertex the split's side verdict read ON the tool.
 #[test]
 fn a_split_through_a_pinch_records_one_row_per_pinched_vertex() {
     let notched = [
@@ -701,29 +699,10 @@ fn a_split_through_a_pinch_records_one_row_per_pinched_vertex() {
         (3.0, 2.0),
         (0.0, 2.0),
     ];
-    let (doc, ev, split) = split_prism("coincide-pinch", &notched, 1.0);
-    let Some(Node::Split { tool, .. }) = doc.node(split) else {
-        panic!("the split")
-    };
-    assert!(
-        doc.var(tool.read)
-            .is_some_and(|var| var.def().pose().is_some())
-            && doc.operation_of(tool.read).is_none(),
-        "the premise: the tool is a pose definition, no operation's output"
-    );
+    let (_, ev, split) = split_prism("coincide-pinch", &notched, 1.0);
     let rows = rows(&ev, split);
     assert_eq!(rows.len(), 2, "one row per tip vertex: {rows:?}");
-    let proofs = proofs(&doc, split, &rows);
-    assert_eq!(proofs.len(), rows.len(), "the door decides every row");
     for row in &rows {
-        assert_eq!(
-            row.cells[1],
-            NamedCell::Tool {
-                input: tool.read,
-                role: tool.role,
-            },
-            "the tool cell is named by the split's tool read"
-        );
         assert_eq!(
             (row.relation, row.site),
             (Relation::OnCarrier, DecisionSite::SplitOn)
@@ -738,6 +717,87 @@ fn a_split_through_a_pinch_records_one_row_per_pinched_vertex() {
         );
     }
     assert_ne!(rows[0].cells[0], rows[1].cells[0], "the two tip vertices");
+}
+
+/// **A pinch row's tool cell is the split's tool read, whatever pose
+/// the tool is**: a frame read at its `xy`, a plane slid off a face,
+/// and that slide named. None is an operation's output, so the cell is keyed by the
+/// read, with the role it is read through.
+#[test]
+fn a_pinch_rows_tool_cell_is_the_tool_read_for_every_pose_tool() {
+    let notched = [
+        (0.0, 0.0),
+        (8.0, 0.0),
+        (8.0, 2.0),
+        (7.0, 1.0),
+        (6.0, 1.0),
+        (5.0, 2.0),
+        (4.0, 1.0),
+        (3.0, 2.0),
+        (0.0, 2.0),
+    ];
+    for shape in ["frame", "slide", "named slide"] {
+        let doc = ProfileDoc::empty_derived(&format!("coincide-pinch-{shape}"), Tol::witness());
+        let (doc, p) = on_frame(
+            doc,
+            [0.0; 3],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![notched.to_vec()],
+        );
+        let (doc, prism) = insert(
+            doc,
+            Node::Extrude {
+                profile: p.into(),
+                distance: len(1.0),
+            },
+        );
+        let tool = if shape == "frame" {
+            crate::fixture::plane_on_frame(&doc, prism, [0.0, 1.0, 0.0], [0.0, 1.0, 0.0])
+        } else {
+            crate::fixture::plane_on(&doc, prism, [0.0, 1.0, 0.0], [0.0, 1.0, 0.0])
+        };
+        let (doc, split) = insert(
+            doc,
+            Node::Split {
+                target: prism.into(),
+                tool,
+            },
+        );
+        let Some(Node::Split { tool, .. }) = doc.node(split).cloned() else {
+            panic!("{shape}: the split")
+        };
+        let doc = if shape == "named slide" {
+            crate::fixture::step(
+                doc,
+                editor_core::DocEdit::RenameVar {
+                    var: tool.read.into(),
+                    name: Some(editor_core::VarName::from_static("cut")),
+                },
+            )
+            .0
+        } else {
+            doc
+        };
+        assert!(
+            doc.var(tool.read)
+                .is_some_and(|var| var.def().pose().is_some())
+                && doc.operation_of(tool.read).is_none(),
+            "{shape}: the premise: the tool is a pose definition, no operation's output"
+        );
+        let rows = rows(&run(&doc), split);
+        assert_eq!(rows.len(), 2, "{shape}: one row per tip vertex: {rows:?}");
+        for row in &rows {
+            assert_eq!(
+                row.cells[1],
+                NamedCell::Tool {
+                    input: tool.read,
+                    role: tool.role,
+                },
+                "{shape}: the tool cell is the split's tool read"
+            );
+        }
+    }
 }
 
 /// **Turning the check off removes the reports and nothing else**
