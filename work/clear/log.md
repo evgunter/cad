@@ -68,7 +68,7 @@ Signed: (CARVE orchestrator)
   each crossed on one or more points, and round 3 asked only about the
   metric doors' pairing rule. The converged design is on the row:
   embedding, departure and monotone certificates, second order at
-  cusps, and the pairing rule dropped. Fork-log row 203.
+  cusps, and the pairing rule dropped. Fork-log row 205.
   - What waits on Ev is the rewording of ERROR-DESIGN E7's scope
     clause: `[ev]` #5866, with `needs_ev` set on the row.
   - Class finding, both designers: the normal-cone rules, right-angle
