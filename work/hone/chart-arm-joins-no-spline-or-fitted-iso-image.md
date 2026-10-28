@@ -2,11 +2,10 @@
 id: chart-arm-joins-no-spline-or-fitted-iso-image
 kind: issue
 title: The curved join's Chart arm reads iso families off the analytic mint only: two pieces of one iso line on a spline chart, or of a fitted image, are left unjoined
-status: parked
+status: open
 opened: 2026-10-07
 priority: P2
 cost: H
-blocked_on: [a-tilted-plug-union-refuses-at-the-germ-segment-and-section-copy-rosters]
 ---
 
 ## The finding
@@ -59,3 +58,7 @@ now builds the union, the rod at its closed form, at spins 0, 0.4 and 1,
 in both orders, at ε = 1e-9, 1e-6 and 1e-12. The halves' intersection
 and differences refuse `FallbackExtentUnsupported`, upstream of the
 join. Measured on the review's branch; this row's status is unchanged.
+Un-parked by SPLITDOOR at PR 5940's merge (2026-10-28): its trigger closed, the oblique case now
+reaches this lane, and no REACHHOLD row for the NURBS crossing rung exists to re-park the spline
+half on. The design question above (family recorded at the mint, carrier identity for the oblique
+half) stands for whoever takes it.
