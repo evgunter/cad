@@ -80,6 +80,7 @@ mod krawczyk;
 pub mod ladder;
 pub mod locus;
 pub mod mapped;
+pub(crate) mod memo;
 pub mod newell;
 pub mod nurbs_iso;
 pub mod offset;

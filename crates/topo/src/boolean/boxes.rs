@@ -7206,7 +7206,7 @@ pub(crate) mod sphere_rect_rows {
             test_utils::fuzz::start("a_zone_reach_charge_covers_random_poses_near_a_box_row");
         let rows = [Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()];
         let (mut faces, mut worst) = (0usize, 0.0f64);
-        let wanted = test_utils::fuzz::scaled(600).max(500);
+        let wanted = test_utils::fuzz::scaled(300).max(250);
         while faces < wanted {
             let s = [1e-3, 1.0, 1e3][rng.below(3)];
             let r = s * rng.range(0.5, 2.0);

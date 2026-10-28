@@ -3232,6 +3232,10 @@ fn twin_span_hulls<T: geom_core::CertifiedBounds>(
     // and its span's, both bounds on `|f|` over the part; its floors are
     // read off its own controls (`projected::piece_controls`, whose
     // ratios are formed in the scalar).
+    let all_certified = twin_net
+        .control()
+        .iter()
+        .all(|c| c.x.is_certified() && c.y.is_certified() && c.z.is_certified());
     let coords = twin_net.certified_coords();
     let data = CurveCertData::new(
         twin_net.knots_f64_interim(),
@@ -3308,7 +3312,7 @@ fn twin_span_hulls<T: geom_core::CertifiedBounds>(
             } else {
                 boxed
             };
-            let ok = !uncertified(twin_net, range);
+            let ok = all_certified || !uncertified(twin_net, range);
             let f_sup = if ok { part.min(whole) } else { f64::NAN };
             let (rho_lo, z) = (lower(rho, ok), (lower(z.0, ok), upper(z.1, ok)));
             let point = |x: f64| geom_core::Interval::from_bounds(x, x);
@@ -3369,9 +3373,14 @@ fn twin_span_hulls<T: geom_core::CertifiedBounds>(
 /// apex root where its lever is not positive) and halved under limb 2's
 /// budget ([`projected::offset_rounds`]): a spline's rounds insert their
 /// breaks into its own net exactly, and a closed form's re-enclose the
-/// spans they cut, over [`closed_form_grid`]'s first breaks. No net
-/// past the window's outer ends is read for a closed form; a spline is
-/// read whole, its parts the window overlaps deciding.
+/// spans they cut, over [`closed_form_grid`]'s first breaks. No round
+/// reads a closed form's net past the window's outer ends; a spline is
+/// read whole, its parts the window overlaps deciding. A curved closed
+/// form is read first on its dyadic spans (`limb2_quick`), which may
+/// reach past the window's ends (a bound over a span holding a piece of
+/// the window bounds that piece); that reading passes only on cleared
+/// parts that cover the window's outer ends with no gap, and hands
+/// anything else to the rounds, so every refusal is the rounds'.
 ///
 /// The reading carries the size of the net it stopped on
 /// ([`projected::NetSize`]): the carrier's own enclosure width there,
@@ -3410,35 +3419,59 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
             ((lo, hi), closed_form_grid(carrier, lo, hi), 1)
         }
     };
-    let round_hull = |cuts: &[f64]| -> Result<
-        (projected::ProjectedHull, projected::NetSize),
-        PcurveCertifyError,
-    > {
-        let mut breaks: Vec<f64> = grid.iter().chain(cuts).copied().collect();
-        breaks.sort_by(f64::total_cmp);
-        breaks.dedup();
-        let net = crate::carrier_net::framed_carrier_net(carrier, domain, &breaks, &frame)
-            .map_err(PcurveCertifyError::CarrierEnclosure)?;
-        let curve = net.curve().ok_or(PcurveCertifyError::ImageMismatch {
-            image: PcurveKind::Projected,
-            why: "the carrier's net forms no curve",
-        })?;
-        let size = projected::NetSize {
-            width: net.width(),
-            rounding: net.rounding(),
-            extent: net.extent(),
+    let round_over =
+        |grid: &[f64],
+         cuts: &[f64]|
+         -> Result<(projected::ProjectedHull, projected::NetSize), PcurveCertifyError> {
+            let mut breaks: Vec<f64> = grid.iter().chain(cuts).copied().collect();
+            breaks.sort_by(f64::total_cmp);
+            breaks.dedup();
+            let net = crate::carrier_net::framed_carrier_net(carrier, domain, &breaks, &frame)
+                .map_err(PcurveCertifyError::CarrierEnclosure)?;
+            let curve = net.curve().ok_or(PcurveCertifyError::ImageMismatch {
+                image: PcurveKind::Projected,
+                why: "the carrier's net forms no curve",
+            })?;
+            let size = projected::NetSize {
+                width: net.width(),
+                rounding: net.rounding(),
+                extent: net.extent(),
+            };
+            let hull = projected::ProjectedHull {
+                pieces: Vec::new(),
+                spans: twin_span_hulls(&curve, &twin, &chart, per_span, net.cuts())?,
+            };
+            Ok((hull, size))
         };
-        let hull = projected::ProjectedHull {
-            pieces: Vec::new(),
-            spans: twin_span_hulls(&curve, &twin, &chart, per_span, net.cuts())?,
-        };
-        Ok((hull, size))
+    let round_hull = |cuts: &[f64]| round_over(&grid, cuts);
+    // A curved closed form is read first on its dyadic spans, each
+    // enclosed alone (`limb2_quick`); a reading that clears is the
+    // limb's, and anything else goes to the rounds below. Its parts
+    // all clear, so `offset_cleared`'s decisions (the window's ends
+    // located, a cone's or torus's lever per part) are taken only on a
+    // reading about to pass; where a lever then refuses, the rounds
+    // take those decisions again, so the trail shows them twice.
+    let quick = if limb2_quick::enabled() {
+        limb2_quick::read(carrier, domain, surface, &frame, &twin, &chart, band).and_then(
+            |(hull, size)| {
+                projected::offset_cleared(hull, size, window, &chart, &twin, band)
+                    .ok()
+                    .flatten()
+            },
+        )
+    } else {
+        None
     };
-    // The rounds read through limb 2's memo (`limb2_memo`): a round is
-    // a pure function of the key's inputs and its cuts.
-    let key = limb2_memo::Key::of(carrier, window, surface, band);
-    let hull = |cuts: &[f64]| limb2_memo::read(&key, cuts, || round_hull(cuts));
-    let mut read = projected::offset_rounds(hull, window, &chart, &twin, band)?;
+    let mut read = match quick {
+        Some(read) => read,
+        None => {
+            // The rounds read through limb 2's memo (`limb2_memo`): a
+            // round is a pure function of the key's inputs and its cuts.
+            let key = limb2_memo::Key::of(carrier, window, surface, band);
+            let hull = |cuts: &[f64]| limb2_memo::read(&key, cuts, || round_hull(cuts));
+            projected::offset_rounds(hull, window, &chart, &twin, band)?
+        }
+    };
     read.upper = match &read.offset {
         projected::Offset::Bound(b) | projected::Offset::Miss { bound: Ok(b), .. } => b.hi(),
         projected::Offset::Miss { bound: Err(_), .. } => f64::NAN,
@@ -3471,27 +3504,22 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
 /// so no collision can return another input's round (D9: a hit returns
 /// exactly what a miss computes).
 ///
-/// **Where it lives**: a thread-local map, cleared whole when it reaches
-/// [`limb2_memo::CAPACITY`] entries, so it is bounded, and it needs no
-/// owner to thread through every door that attaches an edge. A round
-/// is a pure function of its key, so an entry left from another body
-/// or document is still that key's round, never stale.
+/// **Where it lives**: a bounded thread-local memo ([`crate::memo`]),
+/// so it needs no owner to thread through every door that attaches an
+/// edge. A round is a pure function of its key, so an entry left from
+/// another body or document is still that key's round, never stale.
 mod limb2_memo {
     use super::{PcurveCertifyError, projected};
     use geom::{Curve3, Surface};
     use geom_core::CertifiedBounds;
     use geom_core::predicate::Band;
 
-    /// How many rounds the memo holds before it is cleared.
-    pub(super) const CAPACITY: usize = 4096;
-
     pub(super) type Round =
         Result<(projected::ProjectedHull, projected::NetSize), PcurveCertifyError>;
 
     std::thread_local! {
-        static MEMO: core::cell::RefCell<std::collections::HashMap<(String, Vec<u64>), Round>> =
-            core::cell::RefCell::new(std::collections::HashMap::new());
-        static COUNTS: core::cell::Cell<(u64, u64)> = const { core::cell::Cell::new((0, 0)) };
+        static MEMO: core::cell::RefCell<crate::memo::Memo<(String, Vec<u64>), Round>> =
+            core::cell::RefCell::new(crate::memo::Memo::new());
     }
 
     /// The inputs a round reads, rendered whole.
@@ -3504,25 +3532,40 @@ mod limb2_memo {
             surface: &Surface<T>,
             band: Band,
         ) -> Self {
-            let end = |x: T, hi: bool| {
-                x.certified_bracket()
-                    .map_or(f64::NAN, |(lo, up)| if hi { up } else { lo })
-            };
-            let lo = |x: T| end(x, false);
-            let hi = |x: T| end(x, true);
+            let (lo, hi) = (|x: T| end(x, false), |x: T| end(x, true));
             let bits = |x: f64| x.to_bits();
             Self(format!(
-                "{:?}|{:?}|{:?}|{:?}|{:?}|{:x?}|{:x},{:x}",
-                T::WITNESS,
-                carrier.map_scalar(lo),
-                carrier.map_scalar(hi),
-                surface.map_scalar(lo),
-                surface.map_scalar(hi),
+                "{}|{:x?}|{:x},{:x}",
+                rendered(carrier, surface),
                 [lo(window.0), hi(window.0), lo(window.1), hi(window.1)].map(bits),
                 band.zero().to_bits(),
                 band.escalate().to_bits(),
             ))
         }
+    }
+
+    /// A scalar's certified bracket's lower (`hi` false) or upper end,
+    /// NaN where it does not certify.
+    fn end<T: CertifiedBounds>(x: T, hi: bool) -> f64 {
+        x.certified_bracket()
+            .map_or(f64::NAN, |(lo, up)| if hi { up } else { lo })
+    }
+
+    /// The carrier and the surface rendered whole, each scalar as its
+    /// certified bracket's two ends beside the scalar's witness kind.
+    pub(super) fn rendered<T: CertifiedBounds>(
+        carrier: &Curve3<T>,
+        surface: &Surface<T>,
+    ) -> String {
+        let (lo, hi) = (|x: T| end(x, false), |x: T| end(x, true));
+        format!(
+            "{:?}|{:?}|{:?}|{:?}|{:?}",
+            T::WITNESS,
+            carrier.map_scalar(lo),
+            carrier.map_scalar(hi),
+            surface.map_scalar(lo),
+            surface.map_scalar(hi),
+        )
     }
 
     /// The round at `key` cut at `cuts`: the memo's, or `compute`'s,
@@ -3532,34 +3575,364 @@ mod limb2_memo {
             key.0.clone(),
             cuts.iter().map(|c| c.to_bits()).collect::<Vec<_>>(),
         );
-        if let Some(hit) = MEMO.with(|m| m.borrow().get(&k).cloned()) {
-            COUNTS.with(|c| c.set((c.get().0 + 1, c.get().1)));
-            return hit;
-        }
-        COUNTS.with(|c| c.set((c.get().0, c.get().1 + 1)));
-        let round = compute();
-        MEMO.with(|m| {
-            let mut m = m.borrow_mut();
-            if m.len() >= CAPACITY {
-                m.clear();
-            }
-            m.insert(k, round.clone());
-        });
-        round
+        crate::memo::read(&MEMO, k, compute)
     }
 
     /// This thread's memo hits and misses so far.
     #[cfg(test)]
     #[must_use]
     pub(crate) fn counts() -> (u64, u64) {
-        COUNTS.with(core::cell::Cell::get)
+        crate::memo::counts(&MEMO)
     }
 
     /// Empties this thread's memo, so the next read of every key
     /// computes.
     #[cfg(test)]
     pub(crate) fn clear() {
-        MEMO.with(|m| m.borrow_mut().clear());
+        crate::memo::clear(&MEMO);
+    }
+}
+
+/// **Limb 2's first reading of a curved closed form**: the carrier cut
+/// at the dyadic points of its angle parameter (multiples of `τ/2ᵈ`),
+/// each span enclosed alone as a degree-[`limb2_quick::ORDER`] Bézier
+/// segment ([`crate::carrier_net::framed_span_net`]) in the operand's
+/// twin frame and composed with the twin's canonical form as the rounds
+/// compose each part ([`twin_span_hulls`]). A span whose bound does not
+/// clear the band is replaced by its dyadic halves that meet the edge's
+/// outer ends, and only those are recomposed.
+///
+/// **What it hands on.** Parts that clear the band and **cover** the
+/// outer ends: sorted, each starting exactly where the one before ends,
+/// the first starting at or before the lower end and the last ending at
+/// or past the upper one ([`limb2_quick::covering`]). Anything else is
+/// `None`, so the rounds decide: a span with no certified net or
+/// composite, a halving that no longer halves the bound, a span at
+/// [`limb2_quick::DEPTH`], more than [`limb2_quick::WORK`] spans, or a
+/// covering with a gap. No span is ever dropped from the reading: a span
+/// that cannot be halved further ends it with no pass.
+///
+/// **Past the window.** A span may reach past the outer ends: a bound
+/// over a span holding a piece of the window bounds that piece. A span
+/// past the ends whose halving no longer halves its bound (the carrier
+/// past the edge's ends is not the edge's: a spiric past its oval has
+/// no net there) is read again clipped to the ends, and halved clipped
+/// from then on; a span past the ends that still halves keeps halving
+/// unclipped, its halves that leave the ends dropped as not the edge's.
+///
+/// **Why the spans are dyadic and alone.** A span's reading is then a
+/// function of the carrier, the operand, the chart (a cone's nappe,
+/// which the chart takes from the window's middle, is in the key) and
+/// the span's ends, so every edge that shares a carrier, an operand and
+/// a nappe shares its spans inside both windows (a split edge's pieces,
+/// an edge read at its attach and at rest, an edge re-attached over a
+/// moved window), and they are read once ([`limb2_quick`]'s memo). The
+/// degree is the Taylor remainder's lever: the remainder falls as the
+/// span's `ORDER + 1`th power, so a higher degree reaches the band on a
+/// few spans where [`crate::carrier_net::ORDER`] needs tens.
+mod limb2_quick {
+    use super::twin_span_hulls;
+    use crate::pcurve_cache::projected::{NetSize, ProjectedChart, ProjectedHull, SpanHull};
+    use geom::{Curve3, Surface};
+    use geom_core::CertifiedBounds;
+    use geom_core::predicate::Band;
+
+    /// The Taylor degree of a span's net. The remainder of a span of
+    /// length `h` is about `h^(ORDER+1)/(ORDER+1)!` times the carrier's
+    /// size: at 12, a quarter turn of a unit circle carries
+    /// `(π/2)¹³/13! ≈ 5.7e-8` and an eighth `≈ 7e-12`, so the finest
+    /// band is reached within a halving or two, while the conversion's
+    /// cost grows as the degree's square and its rounding with the
+    /// binomials it divides by.
+    pub(super) const ORDER: usize = 12;
+
+    /// The first spans' level: quarter turns. A coarser span's remainder
+    /// at [`ORDER`] is above every band on a unit carrier (a half turn
+    /// carries `π¹³/13! ≈ 0.04`), so its composite would only be thrown
+    /// away; a finer start composes spans a quarter turn would have
+    /// cleared.
+    const START: u32 = 2;
+
+    /// The most spans one reading composes, memo hits included: a few
+    /// rounds' worth of the rounds' own work (a round composes tens of
+    /// spans), so a carrier the first reading cannot clear costs about
+    /// that before the rounds decide.
+    pub(super) const WORK: usize = 256;
+
+    /// The deepest level a span is halved to. [`dyadic`]'s step is
+    /// `τ/2ᵈ` with `2ᵈ` a `u32`, so a level-30 span's halves are still
+    /// representable; a span of `τ/2³⁰ ≈ 5.9e-9` rad that has not
+    /// cleared is at its net's rounding, not its remainder, and a span
+    /// at this level that does not clear ends the reading.
+    pub(super) const DEPTH: u32 = 30;
+
+    /// One span's reading: its part, and its net's widths and box.
+    #[derive(Clone, Copy)]
+    pub(super) struct Part {
+        pub(super) hull: SpanHull,
+        width: f64,
+        rounding: f64,
+        boxed: Option<[(f64, f64); 3]>,
+    }
+
+    type Key = (std::rc::Rc<str>, u64, u64);
+
+    std::thread_local! {
+        static MEMO: core::cell::RefCell<crate::memo::Memo<Key, Option<Part>>> =
+            core::cell::RefCell::new(crate::memo::Memo::new());
+    }
+
+    #[cfg(test)]
+    std::thread_local! {
+        static OFF: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
+    }
+
+    /// Whether the first reading is taken: always, but under a test's
+    /// [`without`].
+    pub(super) fn enabled() -> bool {
+        #[cfg(test)]
+        {
+            !OFF.with(core::cell::Cell::get)
+        }
+        #[cfg(not(test))]
+        {
+            true
+        }
+    }
+
+    /// `f` with the first reading not taken on this thread, so limb 2
+    /// is its rounds alone.
+    #[cfg(test)]
+    pub(crate) fn without<R>(f: impl FnOnce() -> R) -> R {
+        let was = OFF.with(|o| o.replace(true));
+        let r = f();
+        OFF.with(|o| o.set(was));
+        r
+    }
+
+    /// This thread's span hits and misses so far.
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn counts() -> (u64, u64) {
+        crate::memo::counts(&MEMO)
+    }
+
+    /// A cleared part over `range`, for rows of [`covering`].
+    #[cfg(test)]
+    pub(crate) fn part_over(range: (f64, f64)) -> Part {
+        Part {
+            hull: SpanHull {
+                range,
+                f_sup: 0.0,
+                rho_lo: 1.0,
+                z: (0.0, 0.0),
+                meters: 0.0,
+                floors: (0.0, 0.0),
+            },
+            width: 0.0,
+            rounding: 0.0,
+            boxed: None,
+        }
+    }
+
+    /// Empties this thread's memo, so the next read of every span
+    /// computes.
+    #[cfg(test)]
+    pub(crate) fn clear() {
+        crate::memo::clear(&MEMO);
+    }
+
+    /// Dyadic span `k` at level `d`, `[k·τ/2ᵈ, (k + 1)·τ/2ᵈ]`. Two
+    /// neighbours' shared end is the same bits at every level: `τ/2ᵈ⁺¹`
+    /// is `τ/2ᵈ` halved exactly, so `2j·τ/2ᵈ⁺¹` and `j·τ/2ᵈ` round the
+    /// same real.
+    fn dyadic(d: u32, k: i64) -> (f64, f64) {
+        let h = core::f64::consts::TAU / f64::from(1u32 << d);
+        #[allow(clippy::cast_precision_loss)]
+        ((k as f64) * h, ((k + 1) as f64) * h)
+    }
+
+    /// [`dyadic`] clipped to `[lo, hi]`; `None` where the clip is empty.
+    fn clip(d: u32, k: i64, (lo, hi): (f64, f64)) -> Option<(f64, f64)> {
+        let (a, b) = dyadic(d, k);
+        let (a, b) = (a.max(lo), b.min(hi));
+        (a < b).then_some((a, b))
+    }
+
+    /// The level-`d` spans meeting `[lo, hi]`; `None` past [`WORK`].
+    fn cover(d: u32, (lo, hi): (f64, f64)) -> Option<Vec<(u32, i64)>> {
+        let h = core::f64::consts::TAU / f64::from(1u32 << d);
+        let (first, last) = ((lo / h).floor(), (hi / h).ceil());
+        #[allow(clippy::cast_precision_loss)]
+        if !(first.is_finite() && last.is_finite()) || last - first > WORK as f64 {
+            return None;
+        }
+        #[allow(clippy::cast_possible_truncation)]
+        let (first, last) = (first as i64 - 1, last as i64 + 1);
+        Some(
+            (first..=last)
+                .filter(|&k| clip(d, k, (lo, hi)).is_some())
+                .map(|k| (d, k))
+                .collect(),
+        )
+    }
+
+    /// `(d, k)`'s halves that meet `[lo, hi]`, each descended (where
+    /// read `clipped`) past any level where the clip leaves it whole, so
+    /// every half read is a shorter span than its parent's. `None` where
+    /// a half would be past [`DEPTH`], or none meets `[lo, hi]`: the
+    /// span cannot be halved, and the reading ends.
+    fn halves(d: u32, k: i64, domain: (f64, f64), clipped: bool) -> Option<Vec<(u32, i64)>> {
+        let whole = if clipped { clip(d, k, domain) } else { None };
+        let (mut d, mut k) = (d, k);
+        loop {
+            if d >= DEPTH {
+                return None;
+            }
+            let kids: Vec<(u32, i64)> = [(d + 1, 2 * k), (d + 1, 2 * k + 1)]
+                .into_iter()
+                .filter(|&(e, j)| clip(e, j, domain).is_some())
+                .collect();
+            match kids.as_slice() {
+                [] => return None,
+                [(e, j)] if clip(*e, *j, domain) == whole => (d, k) = (*e, *j),
+                _ => return Some(kids),
+            }
+        }
+    }
+
+    /// **The cleared parts as a covering of `[lo, hi]`**, sorted: the
+    /// first starts at or before `lo`, each next one starts exactly where
+    /// the one before ends, and the last ends at or past `hi`. `None`
+    /// otherwise: a gap is a piece of the edge no part has read, which
+    /// [`super::projected::window_of`] would read as the part before
+    /// it, so a reading with one does not pass.
+    pub(super) fn covering(mut parts: Vec<Part>, (lo, hi): (f64, f64)) -> Option<Vec<Part>> {
+        parts.sort_by(|x, y| x.hull.range.0.total_cmp(&y.hull.range.0));
+        let first = parts.first()?;
+        let reaches_lo = first.hull.range.0 <= lo;
+        if !reaches_lo {
+            return None;
+        }
+        let mut reach = first.hull.range.1;
+        for p in &parts[1..] {
+            if p.hull.range.0 != reach {
+                return None;
+            }
+            reach = p.hull.range.1;
+        }
+        (reach >= hi).then_some(parts)
+    }
+
+    /// [`super::limb2_offset_sup`]'s first reading (module docs): the
+    /// parts covering `domain`, every one clearing the band, and the
+    /// size of their nets; `None` otherwise.
+    pub(super) fn read<T: CertifiedBounds>(
+        carrier: &Curve3<T>,
+        domain: (f64, f64),
+        surface: &Surface<T>,
+        frame: &crate::carrier_net::Frame,
+        twin: &Surface<T>,
+        chart: &ProjectedChart<T>,
+        band: Band,
+    ) -> Option<(ProjectedHull, NetSize)> {
+        if !crate::carrier_net::has_span_nets(carrier) {
+            return None;
+        }
+        let nappe = match chart {
+            ProjectedChart::Cone { nappe, .. } => format!("{nappe:?}"),
+            _ => String::new(),
+        };
+        let base: std::rc::Rc<str> = format!(
+            "{}|{nappe}|{ORDER}",
+            super::limb2_memo::rendered(carrier, surface)
+        )
+        .into();
+        let compute = |range: (f64, f64)| -> Option<Part> {
+            let net = crate::carrier_net::framed_span_net(carrier, range, frame, ORDER).ok()?;
+            let curve = net.curve()?;
+            let hull = match twin_span_hulls(&curve, twin, chart, 1, &[])
+                .ok()?
+                .as_slice()
+            {
+                [one] => *one,
+                _ => return None,
+            };
+            Some(Part {
+                hull,
+                width: net.width(),
+                rounding: net.rounding(),
+                boxed: net.control_box(),
+            })
+        };
+        let clears =
+            |p: &Option<Part>| p.is_some_and(|p| crate::ssi::certify::clears(p.hull.meters, band));
+        // Each pending span: its dyadic index, its parent's bound, and
+        // whether it is read clipped to the window's outer ends.
+        let mut pending: Vec<((u32, i64), f64, bool)> = cover(START, domain)?
+            .into_iter()
+            .map(|dk| (dk, f64::INFINITY, false))
+            .collect();
+        let (mut cleared, mut work) = (Vec::new(), 0usize);
+        while let Some(((d, k), parent, clipped)) = pending.pop() {
+            work += 1;
+            if work > WORK {
+                return None;
+            }
+            let range = if clipped {
+                clip(d, k, domain)?
+            } else {
+                dyadic(d, k)
+            };
+            let p = crate::memo::read(
+                &MEMO,
+                (base.clone(), range.0.to_bits(), range.1.to_bits()),
+                || compute(range),
+            );
+            if clears(&p) {
+                cleared.extend(p);
+                continue;
+            }
+            // A halving that no longer halves the bound is at the net's
+            // rounding (or the bound is NaN, or the span has no net):
+            // no deeper span clears. A span reaching past the window's
+            // ends is then read again within them, since the carrier
+            // past the edge's ends is not the edge's.
+            let bound = p.map_or(f64::NAN, |p| p.hull.meters);
+            let halved = bound <= 0.5 * parent;
+            if !halved {
+                if clipped || clip(d, k, domain) == Some(range) {
+                    return None;
+                }
+                pending.push(((d, k), f64::INFINITY, true));
+                continue;
+            }
+            pending.extend(
+                halves(d, k, domain, clipped)?
+                    .into_iter()
+                    .map(|dk| (dk, bound, clipped)),
+            );
+        }
+        let cleared = covering(cleared, domain)?;
+        let widest = crate::carrier_net::widest;
+        let boxed = cleared
+            .iter()
+            .try_fold([(f64::INFINITY, f64::NEG_INFINITY); 3], |acc, p| {
+                let b = p.boxed?;
+                Some(core::array::from_fn(|i| {
+                    (acc[i].0.min(b[i].0), acc[i].1.max(b[i].1))
+                }))
+            });
+        let size = NetSize {
+            width: cleared.iter().map(|p| p.width).fold(0.0, widest),
+            rounding: cleared.iter().map(|p| p.rounding).fold(0.0, widest),
+            extent: boxed.map_or(f64::NAN, |b| crate::carrier_net::diagonal(&b)),
+        };
+        let hull = ProjectedHull {
+            pieces: Vec::new(),
+            spans: cleared.iter().map(|p| p.hull).collect(),
+        };
+        Some((hull, size))
     }
 }
 
@@ -13295,6 +13668,10 @@ mod limb2_memo_rows {
     use geom::{Curve3, Surface};
     use geom_core::{Band, Point3, Real, Vec3};
 
+    /// The wall a micron inside the rim: limb 2's first reading does
+    /// not clear it, so its rounds, which the memo serves, decide.
+    const WALL: f64 = 1.25 - 1e-6;
+
     fn rim(radius: f64) -> (Curve3<f64>, Surface<f64>) {
         let rim = Curve3::Circle {
             center: Point3::new(0.3, -0.2, 0.7),
@@ -13305,7 +13682,7 @@ mod limb2_memo_rows {
         let wall = Surface::Cylinder {
             origin: Point3::new(0.3, -0.2, 0.0),
             axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 1.25,
+            radius: WALL,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         (rim, wall)
@@ -13337,7 +13714,7 @@ mod limb2_memo_rows {
             }
             format!("{:?}", limb2_offset_sup(&c, window, &s, band))
         };
-        let base = || read(1.25, 1.25, (0.2, 2.9), band);
+        let base = || read(1.25, WALL, (0.2, 2.9), band);
         limb2_memo::clear();
         let (h0, m0) = limb2_memo::counts();
         let cold = base();
@@ -13365,16 +13742,16 @@ mod limb2_memo_rows {
             assert!(after > before, "a changed {what} misses");
         };
         misses("carrier", &|| {
-            let _ = read(1.25f64.next_up(), 1.25, (0.2, 2.9), band);
+            let _ = read(1.25f64.next_up(), WALL, (0.2, 2.9), band);
         });
         misses("surface", &|| {
-            let _ = read(1.25, 1.25f64.next_up(), (0.2, 2.9), band);
+            let _ = read(1.25, WALL.next_up(), (0.2, 2.9), band);
         });
         misses("window", &|| {
-            let _ = read(1.25, 1.25, (0.2, 2.8), band);
+            let _ = read(1.25, WALL, (0.2, 2.8), band);
         });
         misses("band", &|| {
-            let _ = read(1.25, 1.25, (0.2, 2.9), Band::new(1e-10, 1e-9).unwrap());
+            let _ = read(1.25, WALL, (0.2, 2.9), Band::new(1e-10, 1e-9).unwrap());
         });
         let (c, s) = rim(1.25);
         let key = limb2_memo::Key::of(&c, (0.2, 2.9), &s, band);
@@ -13467,5 +13844,409 @@ mod limb2_memo_rows {
             ),
             "{at_iv}"
         );
+    }
+}
+
+/// Limb 2's first reading (`limb2_quick`): a span hit is the miss's
+/// bits, every input its key holds misses when it changes, the window
+/// is not one of them, a span past the window's ends is read within
+/// them where the carrier has no net past them, and a reading that does
+/// not clear leaves the rounds' verdict as it was.
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod limb2_quick_rows {
+    use super::{limb2_memo, limb2_offset_sup, limb2_quick, projected};
+    use geom::{Curve3, Surface};
+    use geom_core::{Band, Point3, Real, Vec3};
+
+    fn rim(radius: f64, wall: f64) -> (Curve3<f64>, Surface<f64>) {
+        (
+            Curve3::Circle {
+                center: Point3::new(0.3, -0.2, 0.7),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                radius,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            Surface::Cylinder {
+                origin: Point3::new(0.3, -0.2, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                radius: wall,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+        )
+    }
+
+    /// The reading's bits, `f64` fields included.
+    fn bits<T: core::fmt::Debug>(
+        read: &Result<projected::OffsetRead<T>, super::PcurveCertifyError>,
+    ) -> String {
+        match read {
+            Ok(r) => format!(
+                "{:?} {:x} {:x} {:x} {:x}",
+                r.offset,
+                r.upper.to_bits(),
+                r.size.width.to_bits(),
+                r.size.rounding.to_bits(),
+                r.size.extent.to_bits()
+            ),
+            Err(e) => format!("{e:?}"),
+        }
+    }
+
+    /// **A span hit is the fresh compute, and only the window is shared.**
+    /// A rim against its wall read cold, warm and cold again after the
+    /// memo is emptied reads the same bits, and passes without a round.
+    /// A second window over the same rim reads every span as a hit (the
+    /// spans are dyadic, so a window is not in their key), while a
+    /// carrier or a surface a ulp off, or a radius with the same ends
+    /// that does not certify, misses. `Sym<Interval>` reads
+    /// `Interval`'s spans and the same `f64` fields. Red under a key
+    /// that leaves out an input a span reads, or one that holds the
+    /// window.
+    #[test]
+    fn a_span_hit_is_the_fresh_compute_and_a_window_shares_its_spans() {
+        use geom_core::spline::SpanLocate as _;
+        use geom_core::{Interval, Sym};
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let read = |radius: f64, wall: f64, window: (f64, f64)| {
+            let (c, s) = rim(radius, wall);
+            bits(&limb2_offset_sup(&c, window, &s, band))
+        };
+        limb2_quick::clear();
+        let rounds_before = limb2_memo::counts();
+        let (h0, m0) = limb2_quick::counts();
+        let cold = read(1.25, 1.25, (0.2, 2.9));
+        let (h1, m1) = limb2_quick::counts();
+        assert!(m1 > m0 && h1 == h0, "a cold read computes its spans");
+        assert!(cold.starts_with("Bound("), "the rim clears: {cold}");
+        assert_eq!(
+            limb2_memo::counts(),
+            rounds_before,
+            "a reading that clears asks no round"
+        );
+        let warm = read(1.25, 1.25, (0.2, 2.9));
+        let (h2, m2) = limb2_quick::counts();
+        assert!(h2 > h1 && m2 == m1, "a warm read hits");
+        assert_eq!(warm, cold, "a hit is the miss's bits");
+        limb2_quick::clear();
+        assert_eq!(
+            read(1.25, 1.25, (0.2, 2.9)),
+            cold,
+            "a recompute is the same bits"
+        );
+        let (_, before) = limb2_quick::counts();
+        let _ = read(1.25, 1.25, (0.3, 2.7));
+        assert_eq!(
+            limb2_quick::counts().1,
+            before,
+            "another window over the same rim reads the same spans"
+        );
+        let misses = |what: &str, f: &dyn Fn()| {
+            let (_, before) = limb2_quick::counts();
+            f();
+            assert!(limb2_quick::counts().1 > before, "a changed {what} misses");
+        };
+        misses("carrier", &|| {
+            let _ = read(1.25f64.next_up(), 1.25, (0.2, 2.9));
+        });
+        misses("surface", &|| {
+            let _ = read(1.25, 1.25f64.next_up(), (0.2, 2.9));
+        });
+        let lift = Interval::from_f64;
+        let iv = |radius: Interval| {
+            let (c, s) = rim(1.25, 1.25);
+            let Curve3::Circle {
+                center,
+                axis,
+                u_ref,
+                ..
+            } = c.map_scalar(lift)
+            else {
+                unreachable!()
+            };
+            let c = Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            };
+            bits(&limb2_offset_sup(
+                &c,
+                (lift(0.2), lift(2.9)),
+                &s.map_scalar(lift),
+                band,
+            ))
+        };
+        let uncertified = Interval::from_bounds(-1.0, 1.5625)
+            .sqrt()
+            .clip_to(1.25, 1.25);
+        assert!(!uncertified.is_certified());
+        let at_iv = iv(lift(1.25));
+        misses("decoration", &|| {
+            let _ = iv(uncertified);
+        });
+        let (_, before) = limb2_quick::counts();
+        let sym = geom_core::sym::with_session(
+            geom_core::SymBudget {
+                max_terms: 64,
+                max_degree: 8,
+            },
+            || {
+                let lift = |x: f64| <Sym<Interval> as Real>::from_f64(x);
+                let (c, s) = rim(1.25, 1.25);
+                let r = limb2_offset_sup(
+                    &c.map_scalar(lift),
+                    (lift(0.2), lift(2.9)),
+                    &s.map_scalar(lift),
+                    band,
+                )
+                .unwrap();
+                (
+                    r.upper.to_bits(),
+                    r.size.width.to_bits(),
+                    r.size.rounding.to_bits(),
+                )
+            },
+        )
+        .0;
+        assert_eq!(
+            limb2_quick::counts().1,
+            before,
+            "Sym reads Interval's spans"
+        );
+        let r = limb2_offset_sup(
+            &rim(1.25, 1.25).0.map_scalar(lift),
+            (lift(0.2), lift(2.9)),
+            &rim(1.25, 1.25).1.map_scalar(lift),
+            band,
+        )
+        .unwrap();
+        assert_eq!(
+            sym,
+            (
+                r.upper.to_bits(),
+                r.size.width.to_bits(),
+                r.size.rounding.to_bits()
+            ),
+            "{at_iv}"
+        );
+    }
+
+    /// **A span past the window's ends is read within them where the
+    /// carrier has none past them.** A spiric section of a torus whose
+    /// oval ends at `cos t = −0.4` (`t ≈ ±1.98`), over `[0.1, 1.9]`: the
+    /// quarter-turn span `[π/2, π]` reaches past the oval's end, where
+    /// the square root's argument is negative and the span has no net,
+    /// so it is read again as `[π/2, 1.9]`. The first reading clears
+    /// against both operands, and no round is asked. Red under a first
+    /// reading that gives up on a span past the window, or one that
+    /// passes on a net it could not certify.
+    #[test]
+    fn a_span_past_the_window_is_read_within_it_where_the_carrier_ends() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let (axis, u_ref) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
+        let center = Point3::new(0.4, -0.3, 0.2);
+        let spiric = Curve3::Spiric {
+            center,
+            axis,
+            u_ref,
+            major_radius: 1.0,
+            minor_radius: 0.5,
+            offset: 0.8,
+        };
+        let torus = Surface::Torus {
+            center,
+            axis,
+            major_radius: 1.0,
+            minor_radius: 0.5,
+            u_ref,
+        };
+        let plane = Surface::Plane {
+            origin: center + u_ref * 0.8,
+            normal: u_ref,
+            u_ref: axis.cross(u_ref),
+        };
+        assert!(
+            crate::carrier_net::carrier_net(&spiric, (0.0, 3.0), &[]).is_err(),
+            "the spiric has no net past its oval's end"
+        );
+        limb2_quick::clear();
+        let rounds = limb2_memo::counts();
+        for operand in [&torus, &plane] {
+            let read = limb2_offset_sup(&spiric, (0.1, 1.9), operand, band).unwrap();
+            assert!(
+                matches!(read.offset, projected::Offset::Bound(_)) && read.upper <= band.zero(),
+                "{:?}: the spiric clears: {:?}",
+                operand.kind(),
+                read.offset
+            );
+        }
+        assert_eq!(limb2_memo::counts(), rounds, "the first reading decided it");
+    }
+
+    /// **A first reading that does not clear leaves the rounds'
+    /// verdict, bit for bit.** A rim a micron off its wall, at a
+    /// nanometre band: limb 2's reading asks the rounds, is a measured
+    /// miss, and is the reading limb 2 gives with the first reading not
+    /// taken, `f64` fields included (the rounds' memo emptied between,
+    /// so each computes). Red under a first reading that passes or
+    /// refuses on its own, or leaves any trace in the reading.
+    #[test]
+    fn a_reading_that_does_not_clear_is_the_rounds() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let (c, s) = rim(1.25 + 1e-6, 1.25);
+        limb2_memo::clear();
+        let (_, misses) = limb2_memo::counts();
+        let read = limb2_offset_sup(&c, (0.2, 2.9), &s, band);
+        assert!(limb2_memo::counts().1 > misses, "the rounds are asked");
+        assert!(
+            matches!(
+                read,
+                Ok(projected::OffsetRead {
+                    offset: projected::Offset::Miss { .. },
+                    ..
+                })
+            ),
+            "a micron off is a measured miss: {}",
+            bits(&read)
+        );
+        limb2_memo::clear();
+        let alone = limb2_quick::without(|| limb2_offset_sup(&c, (0.2, 2.9), &s, band));
+        assert_eq!(bits(&read), bits(&alone), "the rounds' reading");
+    }
+
+    /// **A covering has no gap.** Parts over `[lo, hi]` cover it when,
+    /// sorted, the first starts at or before `lo`, each next starts at
+    /// the bits the one before ends at, and the last ends at or past
+    /// `hi`: any order of a partition passes, reaching past either end
+    /// passes, and a gap, an overlap, a part short of either end, or no
+    /// part at all does not. Red under a covering that reads a gap as
+    /// the part before it.
+    #[test]
+    fn a_covering_has_no_gap() {
+        let parts = |r: &[(f64, f64)]| r.iter().map(|&x| limb2_quick::part_over(x)).collect();
+        let covers = |r: &[(f64, f64)], d| limb2_quick::covering(parts(r), d).is_some();
+        let d = (0.1, 0.9);
+        assert!(covers(&[(0.5, 1.0), (0.0, 0.25), (0.25, 0.5)], d));
+        assert!(covers(&[(0.1, 0.9)], d));
+        assert!(covers(&[(-2.0, 0.5), (0.5, 3.0)], d));
+        assert!(!covers(&[(0.0, 0.25), (0.5, 1.0)], d), "a gap");
+        assert!(
+            !covers(&[(0.0, 0.25), (0.25f64.next_up(), 1.0)], d),
+            "a gap of a ulp"
+        );
+        assert!(!covers(&[(0.0, 0.6), (0.5, 1.0)], d), "an overlap");
+        assert!(!covers(&[(0.2, 1.0)], d), "short of the lower end");
+        assert!(!covers(&[(0.0, 0.8)], d), "short of the upper end");
+        assert!(!covers(&[], d), "no part");
+    }
+
+    /// **Every pass bounds the true deviation.** A unit circle about `ẑ`
+    /// against the plane `y = 1` it touches at `t = π/2`, where its
+    /// deviation is `1 − cos s = 2·sin²(s/2)` at `s = t − π/2`. Over
+    /// windows `[π/2 + s₀, π/2 + s₁]`, symmetric and lopsided either way,
+    /// some under the band's `1e-9` throughout and some reaching past it
+    /// at one end only, every `Bound` limb 2 reads is at least the
+    /// window's true greatest deviation, and the symmetric windows under
+    /// the band pass in the first reading. Red under a first reading that
+    /// passes without reading a piece of the window: keeping one half of
+    /// each halving, say, passes the lopsided windows on the half that
+    /// clears.
+    #[test]
+    fn every_pass_bounds_the_true_deviation() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let circle = Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 1.0, 0.0),
+            normal: Vec3::new(0.0, 1.0, 0.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let deviation = |s: f64| 2.0 * (s / 2.0).sin().powi(2);
+        let quarter = core::f64::consts::FRAC_PI_2;
+        let ends = [1e-5, 2e-5, 3e-5, 6e-5, 1e-4];
+        let (mut passes, mut first) = (0, 0);
+        for &lo in &ends {
+            for &hi in &ends {
+                let window = (quarter - lo, quarter + hi);
+                let truth = deviation(lo).max(deviation(hi));
+                let (_, misses) = limb2_memo::counts();
+                let read = limb2_offset_sup(&circle, window, &plane, band).unwrap();
+                if let projected::Offset::Bound(b) = read.offset {
+                    passes += 1;
+                    if limb2_memo::counts().1 == misses {
+                        first += 1;
+                    }
+                    assert!(
+                        b >= truth * (1.0 - 1e-9),
+                        "[π/2 − {lo}, π/2 + {hi}]: a pass at {} under the true {truth}",
+                        b
+                    );
+                }
+                if lo == hi && truth < 0.5e-9 {
+                    assert!(
+                        matches!(read.offset, projected::Offset::Bound(_)),
+                        "[π/2 ± {lo}]: under the band, a pass"
+                    );
+                }
+            }
+        }
+        assert!(
+            first > 0,
+            "the first reading passes some window ({passes} passes)"
+        );
+    }
+
+    /// **No piece of the window goes unread** (dual review of PR 5885,
+    /// R1). A circle of radius 0.2 about `ẑ` against the plane
+    /// `y = 0.5e-9`, at the band `(1e-9, 1e-8)`, over the window
+    /// `[−5e-9, 1e-10]`: the carrier's deviation reaches `1.5e-9` at the
+    /// window's lower end, so no bound below the band holds there. The
+    /// clipped piece `[−5e-9, 0]` stays whole down to the deepest level,
+    /// where it cannot be halved: the first reading ends there rather
+    /// than passing on `[0, 1e-10]` alone. At `f64` and at `Interval`
+    /// limb 2's reading is the rounds' alone, bit for bit, and a
+    /// measured miss. Red under a first reading that drops a span it
+    /// cannot halve, or passes on parts with a gap between them.
+    #[test]
+    fn a_window_piece_no_span_reads_ends_the_first_reading() {
+        use geom_core::Interval;
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let circle = Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 0.2,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.5e-9, 0.0),
+            normal: Vec3::new(0.0, 1.0, 0.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let window = (-5e-9, 1e-10);
+        let miss = |what: &str, read: &str| {
+            assert!(read.starts_with("Miss"), "{what}: a measured miss: {read}");
+        };
+        limb2_memo::clear();
+        let read = bits(&limb2_offset_sup(&circle, window, &plane, band));
+        limb2_memo::clear();
+        let alone = bits(&limb2_quick::without(|| {
+            limb2_offset_sup(&circle, window, &plane, band)
+        }));
+        assert_eq!(read, alone, "f64: the rounds' reading");
+        miss("f64", &read);
+        let lift = Interval::from_f64;
+        let (c, p) = (circle.map_scalar(lift), plane.map_scalar(lift));
+        let w = (lift(window.0), lift(window.1));
+        limb2_memo::clear();
+        let read = bits(&limb2_offset_sup(&c, w, &p, band));
+        limb2_memo::clear();
+        let alone = bits(&limb2_quick::without(|| limb2_offset_sup(&c, w, &p, band)));
+        assert_eq!(read, alone, "Interval: the rounds' reading");
+        miss("Interval", &read);
     }
 }
