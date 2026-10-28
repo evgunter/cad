@@ -1119,6 +1119,28 @@ impl PickIndex {
         }
     }
 
+    /// The face the patch `id` denotes: its name and the (node, body)
+    /// it is drawn on, which tells two copies of one body apart where
+    /// the name alone does not.
+    ///
+    /// # Errors
+    ///
+    /// As [`PickIndex::name_of`]. The id map is derived from the same
+    /// windows as the name table, so a name with no patch would be an
+    /// id no patch draws, and is said as one.
+    pub fn face_of(&self, id: u32) -> Result<FaceSelection, PatchNameFault> {
+        let name = self.name_of(id)?;
+        let patch = self
+            .ids
+            .key_of(id)
+            .ok_or(PatchNameFault::Unassigned { id })?;
+        Ok(FaceSelection {
+            name: name.clone(),
+            node: patch.node,
+            body: patch.body,
+        })
+    }
+
     /// The ids a name is drawn as — **the id map's inverse**, across
     /// every drawn (node, body). A name drawn twice answers two ids;
     /// which of them a SELECTION means is [`PickIndex::ids_of_target`].
