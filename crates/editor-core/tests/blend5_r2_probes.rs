@@ -128,9 +128,10 @@ fn trims(ev: &Evaluation<f64>, id: RecipeNodeId) -> Vec<(RimSupport, Surface<f64
     let body = corpus::body_of(ev, id);
     t.iter()
         .filter_map(|(n, _)| match n.path.first() {
-            Some(RoleSeg::BandTrim { support, .. }) => {
-                Some((*support, support_surface(body, edge_of(t, "a trim arc", n))))
-            }
+            Some(RoleSeg::BandTrim { support, .. }) => Some((
+                *support,
+                support_surface(&body, edge_of(t, "a trim arc", n)),
+            )),
             _ => None,
         })
         .collect()

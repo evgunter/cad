@@ -652,7 +652,8 @@ struct Gathered {
     /// The at-rest badge for this pair ([`DocSession::at_rest`]);
     /// `None` where [`AtRestBadge`] says none is taken.
     at_rest: Option<AtRestBadge>,
-    /// **The aggregate the landing's own gather produced**, kept so
+    /// **The aggregate the landing's own gather produced**, in the
+    /// world's coordinates ([`crate::scene::product_in_world`]), kept so
     /// that a consumer which needs the product does not gather it a
     /// second time ([`DocSession::landed_body`]). Written once, by
     /// `land`.
@@ -1438,8 +1439,15 @@ impl DocSession {
                     .as_ref()
                     .filter(|_| assembly_shaped)
                     .map(|(report, _)| AtRestBadge::of(report));
-                let body = Arc::new(product.body.into_body());
-                (Ok(Gathered { at_rest, body }), checks)
+                // Kept as the picture draws it: in the world, composed
+                // by the scene's door, never in the gather's computing
+                // frame.
+                let gather =
+                    crate::scene::product_in_world(product, doc, self.tol).map(|body| Gathered {
+                        at_rest,
+                        body: Arc::new(body),
+                    });
+                (gather, checks)
             }
             Err(fault) => {
                 // **The product's own verdict.** The gather is the only
@@ -4234,10 +4242,12 @@ fn frame_off(
     let Some(NodeResult::Ok(value)) = ev.result(node) else {
         return Err(PinRefusal::Unevaluated { node });
     };
+    // A copy's body is its source's, in the source's coordinates: the
+    // frame is read there, as `at` states it.
     let solid = match &value.payload {
         ValuePayload::Body(b)
         | ValuePayload::Boolean(pncad::document::BooleanValue::Body { body: b, .. }) => {
-            std::sync::Arc::clone(b)
+            std::sync::Arc::clone(b.shared())
         }
         _ => return Err(PinRefusal::NotABody { node }),
     };
@@ -4283,9 +4293,7 @@ fn frame_off(
         })
     });
     let (edge_name, vertex_name, frame) = picked.ok_or(PinRefusal::NoFrame { node })?;
-    let at = value
-        .motion
-        .map_or_else(|| at.affine(), |m| m.to_affine() * at.affine());
+    let at = at.affine();
     use pncad::document::pose::PoseDef;
     let read = |def: PoseDef<Operand, Formula>| RoleRead::plain(Operand::Pose(Box::new(def)));
     let base = Operand::Pose(Box::new(PoseDef::Through {

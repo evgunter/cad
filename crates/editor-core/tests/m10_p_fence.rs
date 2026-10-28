@@ -162,7 +162,7 @@ pub(crate) fn walk<T: editor_core::EvalScalar>(mut seen: impl FnMut(Seen<'_, T>)
             if let NodeResult::Ok(v) = result
                 && let ValuePayload::Body(b) = &v.payload
             {
-                for (i, (key, p)) in b.points().enumerate() {
+                for (i, (key, p)) in b.body().points().enumerate() {
                     seen(Seen::Point {
                         doc: doc.name,
                         id: id.0,
@@ -325,7 +325,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0xe13a_10e3_d120_99e6, 0x5499_9dad_5f7c_1212),
+        (0x4583_c3fa_3b7a_cb6c, 0xd182_ede3_bc45_4050),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -351,7 +351,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x2cef_47e3_f344_c7f3, 0x6092_40f6_5a7d_77c7),
+        (0xdb26_9fdb_4183_daff, 0x5f2d_0b57_7a7f_fa73),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -375,7 +375,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0xe13a_10e3_d120_99e6, 0x5499_9dad_5f7c_1212),
+        (0x4583_c3fa_3b7a_cb6c, 0xd182_ede3_bc45_4050),
         "the corpus's Probe evaluation moved"
     );
 }
@@ -448,7 +448,7 @@ fn the_corpus_geometry_is_bit_identical_with_ids_masked() {
     println!("m10-p fence id-free: {got:016x?}");
     assert_eq!(
         got,
-        (0x9908_6a3c_2d59_12d4, 0xf591_dbe9_14da_6360),
+        (0xd63a_0b2b_fa04_b5a2, 0x75b7_edb1_22aa_4b06),
         "an outcome or a point of the corpus moved — every other row here also \
          moves with ids, and this one does not"
     );

@@ -95,7 +95,7 @@ fn the_fin_group_is_one_node_and_one_body() {
     assert_eq!(body.solids().count(), 5, "one solid per fin");
     assert_eq!(body.shells().count(), 5, "five shells, one per placement");
     assert!(
-        topo::validate_geometric(body, Tol::witness()).is_ok(),
+        topo::validate_geometric(&body, Tol::witness()).is_ok(),
         "the group validates"
     );
 }
@@ -171,12 +171,12 @@ fn the_fin_group_equals_the_placement_union_chain() {
     assert!(failures(&ev_group).is_empty(), "{:?}", failures(&ev_group));
     let a = topo::test_support::finished(
         "a",
-        topo::Body::clone(body_of(&ev_chain, acc.expect("the chain's root"))),
+        topo::Body::clone(&(body_of(&ev_chain, acc.expect("the chain's root")))),
         Tol::witness(),
     );
     let b = topo::test_support::finished(
         "b",
-        topo::Body::clone(body_of(&ev_group, group)),
+        topo::Body::clone(&(body_of(&ev_group, group))),
         Tol::witness(),
     );
     let (ma, mb) = (
@@ -271,7 +271,7 @@ fn the_die_tool_is_one_node_and_still_cuts() {
     let ev = eval::<f64>(&d.doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let pipped = body_of(&ev, d.result.expect("the pipped die"));
-    assert!(topo::validate_geometric(pipped, Tol::witness()).is_ok());
+    assert!(topo::validate_geometric(&pipped, Tol::witness()).is_ok());
     // Six cavities: each contributes its own faces to the one solid.
     assert_eq!(pipped.solids().count(), 1);
 }
@@ -430,7 +430,7 @@ fn a_circular_group_places_around_an_axis() {
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let body = body_of(&ev, group);
     assert_eq!(body.shells().count(), 4);
-    assert!(topo::validate_geometric(body, Tol::witness()).is_ok());
+    assert!(topo::validate_geometric(&body, Tol::witness()).is_ok());
 }
 
 /// **"How many placements" has exactly one spelling.** The edit door
@@ -923,12 +923,12 @@ fn the_rotated_explicit_group_equals_the_placement_union_chain() {
     assert!(failures(&ev_c).is_empty(), "{:?}", failures(&ev_c));
     let g = topo::test_support::finished(
         "g",
-        topo::Body::clone(body_of(&ev_g, group)),
+        topo::Body::clone(&(body_of(&ev_g, group))),
         Tol::witness(),
     );
     let c = topo::test_support::finished(
         "c",
-        topo::Body::clone(body_of(&ev_c, acc.expect("the chain's root"))),
+        topo::Body::clone(&(body_of(&ev_c, acc.expect("the chain's root")))),
         Tol::witness(),
     );
     let (mg, mc) = (
