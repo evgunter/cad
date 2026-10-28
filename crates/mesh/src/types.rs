@@ -590,6 +590,20 @@ pub enum TessellateError {
 
 /// Why the trimmed lane's sphere arm refuses a face's shape
 /// ([`TessellateError::SphereTrimShape`]).
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names
+/// this rung; the disposition table cites this paragraph as its home).
+/// A Rust caller can already name and match it — `pncad` re-exports
+/// `mesh` whole — the Python binding projects it as the error's `note`
+/// ([`SphereTrimCause::name`]), and the refusal's sentence states the
+/// shape. What a person does with any cause is the same: re-pose or
+/// re-author the face so its chart poles are away from its circles.
+///
+/// **The falsifier is a caller that acts on the cause by itself**: a
+/// driver that turns the sphere's chart when it reads `ThroughPole` but
+/// splits the face when it reads `PoleInside`. Then carry it and delete
+/// this paragraph and the disposition row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SphereTrimCause {
     /// An edge's image runs past a chart pole mid-edge (`|v| > π/2`):
