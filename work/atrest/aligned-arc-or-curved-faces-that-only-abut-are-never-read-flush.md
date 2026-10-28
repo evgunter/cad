@@ -60,14 +60,19 @@ rustdoc. `face_interiors_meet` runs it where the witness search finds
 no meeting, so an aligned arc-bounded disc pair or a cylinder or sphere
 pair on one carrier (Door 1 `Definite`) is read either way:
 
-- `flush_at_rest` records the pair flush, the arc-bounded discs through
-  the region door's refusal and the cylinder and sphere pairs through
-  its curved half (`curved_flush_at_rest`), on a shared run of an edge
-  of each;
+- `flush_at_rest` records the pair flush through one loop over planes,
+  cylinders and spheres: the shared run is read by the one meeting
+  reading for every edge kind (so a rod's end disc flush with a tube's
+  end annulus is a row too), and every path it does not decide is a
+  finding;
 - the curved aligned arm hands the census's arm 1 the pairs certified
   apart, so the seam-sharing half-cylinders' walls are no longer
   `CurvedWithinReach`. Cylinder faces whose axial spans meet at most at
   a point are apart without the reading.
+
+A lens shallower than the zero between two crossing arcs still reads
+as shared interior through the witness search, which answers first:
+`an-in-band-lens-reads-as-shared-interior`.
 
 What stays unread is loud as before: Door 1 in band, other curved
 kinds, a meeting reader that refuses, and the rim pairs (two carriers,
