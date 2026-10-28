@@ -30,11 +30,12 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::Formula;
 use viewer::session::BooleanSpec;
 
 use core::f64::consts::PI;
 
-use common::{ang, body_volume, len, len3, near, scl3, session_insert, shape};
+use common::{body_volume, len, len3, near, scl3, session_insert, shape};
 use pncad::document::{
     Dimension, Doc, DocEdit, EditError, FreeVar, ProfileProgram, RecipeNodeId, SlotId, StepArg,
     VarName,
@@ -325,7 +326,7 @@ fn the_parametric_living_walk() {
             // stayed driving would be caught by the stage-9/11 ripples.
             translation: len3([0.0, 0.0, 0.025]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
     );
     let hull = session_insert(
@@ -394,7 +395,7 @@ fn the_parametric_living_walk() {
             // be caught by the stage-9/11 variable ripples.
             translation: len3([0.0, 0.0, 0.08]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
     );
     let lighthouse = session_insert(

@@ -1073,7 +1073,7 @@ fn bracket(
         post_solid,
         [
             Formula::named(name("offset"), Dimension::Length),
-            len(0.0),
+            Formula::zero(Dimension::Length),
             Formula::sub(
                 len(1.0),
                 Formula::neg(Formula::named(name("lift"), Dimension::Length))

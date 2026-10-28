@@ -51,6 +51,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::AuthoredNode;
+use editor_core::{Dimension, Formula};
 use std::collections::BTreeSet;
 
 use crate::corpus;
@@ -149,9 +150,15 @@ fn stacked_blocks() -> (ProfileDoc, EvalOptions) {
             fixture::head_at(base, in_part(base, base_body, CapEnd::End)),
         ),
         &[
-            (Coord::Slide(TargetAxis::X), len(0.0)),
-            (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::SPIN, fixture::ang(0.0)),
+            (
+                Coord::Slide(TargetAxis::X),
+                Formula::zero(Dimension::Length),
+            ),
+            (
+                Coord::Slide(TargetAxis::Y),
+                Formula::zero(Dimension::Length),
+            ),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     );
     (doc, opts)

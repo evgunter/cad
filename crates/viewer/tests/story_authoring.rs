@@ -36,6 +36,7 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::{Dimension, Formula};
 use viewer::session::BooleanSpec;
 
 use core::f64::consts::{FRAC_PI_2, PI};
@@ -170,7 +171,7 @@ fn lifted(session: &mut DocSession, body: RecipeNodeId, translation: [f64; 3]) -
             input: body.into(),
             translation: len3(translation),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
     )
 }

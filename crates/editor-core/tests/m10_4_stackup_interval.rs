@@ -361,7 +361,11 @@ fn kink(dist: Distribution) -> (ProfileDoc, VarId) {
         &mut r,
         cube,
         cube,
-        [param("t", Dimension::Length), len(0.0), len(0.0)],
+        [
+            param("t", Dimension::Length),
+            Formula::zero(Dimension::Length),
+            Formula::zero(Dimension::Length),
+        ],
     );
     let ev = eval(&r.doc);
     let at = |node, x: f64| {

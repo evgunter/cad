@@ -56,6 +56,12 @@ pub fn len3(v: [f64; 3]) -> [Formula; 3] {
     [len(v[0]), len(v[1]), len(v[2])]
 }
 
+/// The constant zero translation: three lengths no one wrote, so they
+/// mint no variables (`[variables.literals]`).
+pub fn no_translation() -> [Formula; 3] {
+    std::array::from_fn(|_| Formula::zero(Dimension::Length))
+}
+
 /// Three dimensionless literals — a normal, a direction, an axis.
 pub fn scl3(v: [f64; 3]) -> [Formula; 3] {
     [scl(v[0]), scl(v[1]), scl(v[2])]

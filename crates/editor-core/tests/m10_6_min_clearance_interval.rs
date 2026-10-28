@@ -141,8 +141,8 @@ fn dumbbell() -> Dumbbell {
         solid,
         [
             Formula::named(name("place"), Dimension::Length),
-            len(0.0),
-            len(0.0),
+            Formula::zero(Dimension::Length),
+            Formula::zero(Dimension::Length),
         ],
     );
     let measured = r.measure(

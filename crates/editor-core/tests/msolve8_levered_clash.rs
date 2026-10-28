@@ -13,6 +13,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::Dimension;
 use editor_core::Formula;
 
 use editor_core::{
@@ -20,7 +21,7 @@ use editor_core::{
     RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{ang, insert, len, run, solve};
+use fixture::{insert, len, run, solve};
 use geom_core::Tol;
 
 // ---- Substrate ----
@@ -143,9 +144,15 @@ fn c4_poses_of_another_document_reaches_no_row() {
                 fixture::head_at(lower, in_part(lower, body, CapEnd::End)),
             ),
             vec![
-                (Coord::Slide(TargetAxis::X), len(0.0)),
-                (Coord::Slide(TargetAxis::Y), len(0.0)),
-                (Coord::SPIN, ang(0.0)),
+                (
+                    Coord::Slide(TargetAxis::X),
+                    Formula::zero(Dimension::Length),
+                ),
+                (
+                    Coord::Slide(TargetAxis::Y),
+                    Formula::zero(Dimension::Length),
+                ),
+                (Coord::SPIN, Formula::zero(Dimension::Angle)),
             ],
         );
     }
@@ -211,7 +218,7 @@ fn a_determined_bundle_and_a_v_block_keep_their_verdicts_under_the_witness() {
         r.lateral(r.t, 0),
         vec![
             (Coord::Slide(TargetAxis::Z), len(1.0)),
-            (Coord::SPIN, ang(0.0)),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     );
     let poses = solve(&r.doc, &EvalOptions::default(), Tol::witness());
