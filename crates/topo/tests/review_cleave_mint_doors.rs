@@ -68,7 +68,7 @@ where
     let spec = geom_brep::EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Intersection {
             pair: geom_brep::SurfacePair::new(wall, nface.surface),
-            selector: geom_brep::Selector::Witness(p0.lerp(p1, T::from_f64(0.5))),
+            selector: geom_brep::CurveSelector::Witness(p0.lerp(p1, T::from_f64(0.5))),
         },
         carrier: geom::Curve3::Nurbs(std::sync::Arc::new(
             geom::NurbsCurve3::new(
@@ -164,7 +164,7 @@ where
     let spec = geom_brep::EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Intersection {
             pair: geom_brep::SurfacePair::new(wall, plane),
-            selector: geom_brep::Selector::Witness(p0.lerp(mid, T::from_f64(0.5))),
+            selector: geom_brep::CurveSelector::Witness(p0.lerp(mid, T::from_f64(0.5))),
         },
         carrier: geom::Curve3::Nurbs(std::sync::Arc::new(
             geom::NurbsCurve3::new(

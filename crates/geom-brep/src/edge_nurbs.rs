@@ -1419,7 +1419,8 @@ pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
             extent,
             i,
             band,
-        )?;
+        )
+        .map_err(FeetRefusal::lane)?;
         min_sin = min_sin.min(sin_theta);
         Ok(())
     })?;
@@ -1495,22 +1496,56 @@ pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     })
 }
 
+/// A spline pair's crossing angle refused at a sample, or its reported
+/// minimum poisoned: [`PlaneNurbsRefusal`]'s three transversality arms,
+/// holding the lever's reach as the scalar it was read at.
+pub(crate) enum FeetRefusal<T> {
+    /// [`PlaneNurbsRefusal::NotTransverse`].
+    NotTransverse {
+        sample: u32,
+        reach: T,
+        verdict: Refused,
+    },
+    /// [`PlaneNurbsRefusal::TransversalityEscalated`].
+    Escalated { sample: u32, cause: Indeterminate },
+    /// [`PlaneNurbsRefusal::ReportedTransversalityPoisoned`].
+    Poisoned(Indeterminate),
+}
+
+impl<T: Bounds> FeetRefusal<T> {
+    /// The lane's refusal, its lever named by the reach's bracket.
+    pub(crate) fn lane(self) -> PlaneNurbsRefusal {
+        match self {
+            FeetRefusal::NotTransverse {
+                sample,
+                reach,
+                verdict,
+            } => PlaneNurbsRefusal::NotTransverse {
+                sample,
+                lever: PointLever::of(Bounds::lo(reach)),
+                verdict,
+            },
+            FeetRefusal::Escalated { sample, cause } => {
+                PlaneNurbsRefusal::TransversalityEscalated { sample, cause }
+            }
+            FeetRefusal::Poisoned(cause) => {
+                PlaneNurbsRefusal::ReportedTransversalityPoisoned(cause)
+            }
+        }
+    }
+}
+
 /// **Two spline charts definitely transverse at sample `i`'s feet**:
 /// the sine of the angle between their normals at `(ua, va)` on `a` and
 /// `(ub, vb)` on `b`, levered over the larger principal curvature at an
 /// edge of `extent`, decided. The sine where it is definite.
-///
-/// # Errors
-///
-/// [`PlaneNurbsRefusal::NotTransverse`] or
-/// [`PlaneNurbsRefusal::TransversalityEscalated`] at sample `i`.
-fn feet_transversality<T: Decide + Bounds>(
+fn feet_transversality<T: Decide>(
     (a, (ua, va)): (&NurbsSurface<T>, (T, T)),
     (b, (ub, vb)): (&NurbsSurface<T>, (T, T)),
     extent: T,
     i: u32,
     band: Band,
-) -> Result<T, PlaneNurbsRefusal> {
+) -> Result<T, FeetRefusal<T>> {
     let (ja, jb) = (a.ders(ua, va), b.ders(ub, vb));
     let sin_theta = normal_angle_sine(ja.du.cross(ja.dv), jb.du.cross(jb.dv));
     let kappa = crate::shape_operator::max_principal_curvature(&ja)
@@ -1519,14 +1554,14 @@ fn feet_transversality<T: Decide + Bounds>(
     let margin = geom_core::Margin::levered(sin_theta, arm);
     match crate::dihedral::decide_reported("nurbs_pair_transversality", margin, band) {
         Ok(decided) => match Refused::of(decided, band) {
-            Some(verdict) => Err(PlaneNurbsRefusal::NotTransverse {
+            Some(verdict) => Err(FeetRefusal::NotTransverse {
                 sample: i,
-                lever: PointLever::of(Bounds::lo(reach)),
+                reach,
                 verdict,
             }),
             None => Ok(sin_theta),
         },
-        Err(cause) => Err(PlaneNurbsRefusal::TransversalityEscalated { sample: i, cause }),
+        Err(cause) => Err(FeetRefusal::Escalated { sample: i, cause }),
     }
 }
 
@@ -1536,18 +1571,13 @@ fn feet_transversality<T: Decide + Bounds>(
 /// row image (`image_a` on `a`, `image_b` on `b`), the feet the row
 /// states rather than ones a projection found. The smallest sine, gated
 /// as that lane gates its own.
-///
-/// # Errors
-///
-/// [`feet_transversality`]'s, and
-/// [`PlaneNurbsRefusal::ReportedTransversalityPoisoned`].
-pub(crate) fn row_transversality<T: Decide + Bounds>(
+pub(crate) fn row_transversality<T: Decide>(
     params: (T, T),
     (a, image_a): (&NurbsSurface<T>, &Pcurve<T>),
     (b, image_b): (&NurbsSurface<T>, &Pcurve<T>),
     extent: T,
     band: Band,
-) -> Result<T, PlaneNurbsRefusal> {
+) -> Result<T, FeetRefusal<T>> {
     let (t0, t1) = params;
     let mut min_sin = T::from_f64(f64::MAX);
     for i in 1..crate::certify::CERT_SAMPLES - 1 {
@@ -1557,7 +1587,7 @@ pub(crate) fn row_transversality<T: Decide + Bounds>(
         min_sin = min_sin.min(sin_theta);
     }
     geom_core::k_stats::gate_measured("nurbs_pair_transversality_reported", min_sin, band)
-        .map_err(PlaneNurbsRefusal::ReportedTransversalityPoisoned)
+        .map_err(FeetRefusal::Poisoned)
 }
 
 /// **A circle carrier's exact image on a spline chart** ([`exact_arc_rim`],

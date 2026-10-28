@@ -6891,7 +6891,7 @@ pub(crate) mod pole_slit_tests {
         let rim = |t0: f64, t1: f64| EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(sphere, rim_plane),
-                selector: geom_brep::Selector::Witness(at(0.5 * (t0 + t1), v0)),
+                selector: geom_brep::CurveSelector::Witness(at(0.5 * (t0 + t1), v0)),
             },
             carrier: Curve3::Circle {
                 center: Point3::new(0.0, 0.0, v0.sin()),
@@ -6952,7 +6952,7 @@ pub(crate) mod pole_slit_tests {
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(sphere, meridian_plane),
-                    selector: geom_brep::Selector::Witness(at(PI, 0.5 * (v0 + FRAC_PI_2))),
+                    selector: geom_brep::CurveSelector::Witness(at(PI, 0.5 * (v0 + FRAC_PI_2))),
                 },
                 carrier: Curve3::Circle {
                     center: Point3::new(0.0, 0.0, 0.0),
@@ -7019,7 +7019,7 @@ pub(crate) mod pole_slit_tests {
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(cylinder, plane),
-                    selector: geom_brep::Selector::Witness(p(0.5 * (t0 + t1), z)),
+                    selector: geom_brep::CurveSelector::Witness(p(0.5 * (t0 + t1), z)),
                 },
                 carrier: Curve3::Circle {
                     center: Point3::new(0.0, 0.0, z),
@@ -7123,7 +7123,7 @@ pub(crate) mod pole_slit_tests {
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(cone, plane),
-                    selector: geom_brep::Selector::Witness(p(0.5 * (t0 + t1), z)),
+                    selector: geom_brep::CurveSelector::Witness(p(0.5 * (t0 + t1), z)),
                 },
                 carrier: Curve3::Circle {
                     center: Point3::new(0.0, 0.0, z),

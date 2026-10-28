@@ -200,7 +200,7 @@ fn certify_axis(carrier: Curve3<f64>, t0: f64, t1: f64) -> Result<EdgeCurve<f64>
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(s1, s2),
-            selector: geom_brep::Selector::Witness(witness),
+            selector: geom_brep::CurveSelector::Witness(witness),
         },
         carrier,
         param_start: t0,

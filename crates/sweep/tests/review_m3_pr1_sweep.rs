@@ -211,7 +211,7 @@ fn split_circle_carrier_intersection_edge() {
     ] {
         let child = body.get_curve_geom(curve_key).unwrap().certified().unwrap();
         let EdgeDescription::Intersection {
-            selector: geom_brep::Selector::Witness(witness),
+            selector: geom_brep::CurveSelector::Witness(witness),
             ..
         } = *child.description()
         else {

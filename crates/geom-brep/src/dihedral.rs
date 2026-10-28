@@ -1274,7 +1274,7 @@ pub fn reask_pair<T: Decide>(
     match must_carry_over_edge(sa, sb, carrier, t0, t1, reach, band) {
         MustCarryVerdict::Transverse => Ok(crate::EdgeDescriptionSpec::Intersection {
             pair,
-            selector: crate::Selector::Witness(witness),
+            selector: crate::CurveSelector::Witness(witness),
         }),
         MustCarryVerdict::JetDeterminate => {
             Ok(crate::EdgeDescriptionSpec::TangentIntersection { pair, witness })

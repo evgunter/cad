@@ -173,7 +173,7 @@ fn r2_the_mutant_cut_off_arc_is_refused_at_the_attachment_gate() {
     };
     let EdgeDescription::Intersection {
         pair,
-        selector: geom_brep::Selector::Witness(witness),
+        selector: geom_brep::CurveSelector::Witness(witness),
     } = c.description()
     else {
         panic!("a cut-off arc is a transverse intersection");
@@ -206,7 +206,7 @@ fn r2_the_mutant_cut_off_arc_is_refused_at_the_attachment_gate() {
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair,
-                    selector: geom_brep::Selector::Witness(witness),
+                    selector: geom_brep::CurveSelector::Witness(witness),
                 },
                 carrier,
                 param_start: t0,

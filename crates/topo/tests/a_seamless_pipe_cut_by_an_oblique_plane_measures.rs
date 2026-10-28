@@ -229,7 +229,7 @@ fn pipe<T: Decide + AtRestPolicy>(pose: Pose, f: &Frame, tol: Tol) -> Body<T> {
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(cyl, plane),
-                selector: geom_brep::Selector::Witness(witness),
+                selector: geom_brep::CurveSelector::Witness(witness),
             },
             carrier,
             param_start: T::zero(),

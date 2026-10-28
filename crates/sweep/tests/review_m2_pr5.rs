@@ -831,7 +831,7 @@ fn survives_rim_witness_is_bitwise_mid_parameter_antipode() {
         let e = t.body.get_edge(r.unwrap()).unwrap();
         let c = t.body.get_curve_geom(e.curve).unwrap().certified().unwrap();
         let EdgeDescription::Intersection {
-            selector: geom_brep::Selector::Witness(witness),
+            selector: geom_brep::CurveSelector::Witness(witness),
             ..
         } = *c.description()
         else {
@@ -889,7 +889,7 @@ fn survives_start_point_witness_on_full_rim_is_refused() {
     let forged = geom_brep::EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair,
-            selector: geom_brep::Selector::Witness(start),
+            selector: geom_brep::CurveSelector::Witness(start),
         },
         carrier,
         param_start: t0,

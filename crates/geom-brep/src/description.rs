@@ -124,25 +124,25 @@ impl<T: Real> EdgeAuthority<T> {
 ///
 /// D2 asks one question of the geometry: is the curve known in advance?
 /// Where it must be derived numerically, the selector is a
-/// [`Selector::Witness`]: the branch through a point, admitted where its
+/// [`CurveSelector::Witness`]: the branch through a point, admitted where its
 /// transversality certifies, and owing C2's limb 3 (the branch is the only
 /// one near the carrier). Where it is known, the selector is
-/// [`Selector::Structural`]: that closed form, certified through each
+/// [`CurveSelector::Structural`]: that closed form, certified through each
 /// surface's chart-image certificate, owing no limb 3.
 #[derive(Clone, Debug)]
-pub enum Selector<T: Real> {
+pub enum CurveSelector<T: Real> {
     /// The branch through this point, the carrier's mid-parameter point.
     Witness(geom_core::Point3<T>),
     /// A curve known in advance.
     Structural(Structural<T>),
 }
 
-impl<T: Real> Selector<T> {
+impl<T: Real> CurveSelector<T> {
     /// The witness point, where the selector is one.
     pub fn witness(&self) -> Option<geom_core::Point3<T>> {
         match self {
-            Selector::Witness(p) => Some(*p),
-            Selector::Structural(_) => None,
+            CurveSelector::Witness(p) => Some(*p),
+            CurveSelector::Structural(_) => None,
         }
     }
 
@@ -160,11 +160,11 @@ impl<T: Real> Selector<T> {
         let (new_lo, new_hi) = (f(lo)?, f(hi)?);
         let new = SurfacePair::new(new_lo, new_hi);
         let selector = match self {
-            Selector::Witness(p) => Selector::Witness(*p),
-            Selector::Structural(Structural::SharedRow(row)) => {
+            CurveSelector::Witness(p) => CurveSelector::Witness(*p),
+            CurveSelector::Structural(Structural::SharedRow(row)) => {
                 let [a, b] = row.images.clone();
                 let images = if new_lo <= new_hi { [a, b] } else { [b, a] };
-                Selector::Structural(Structural::SharedRow(SharedRow { images }))
+                CurveSelector::Structural(Structural::SharedRow(SharedRow { images }))
             }
         };
         Some((new, selector))
@@ -250,7 +250,7 @@ pub enum EdgeDescription<T: Real> {
         /// The two surfaces, as a set.
         pair: SurfacePair,
         /// Which curve of the pair's intersection this edge is.
-        selector: Selector<T>,
+        selector: CurveSelector<T>,
     },
     /// Intrinsic, one differential order up: the tangential contact
     /// component selected by `witness` (D2 as sharpened by OQ7).
@@ -365,7 +365,7 @@ pub enum EdgeDescriptionSpec<T: Real> {
         /// The two surfaces, as a set.
         pair: SurfacePair,
         /// Which curve of the pair's intersection this edge is.
-        selector: Selector<T>,
+        selector: CurveSelector<T>,
     },
     /// Intrinsic, one differential order up: the tangential contact
     /// component selected by `witness` (D2 as sharpened by OQ7).

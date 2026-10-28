@@ -1001,7 +1001,7 @@ mod recertify_door_tests {
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(s1, s2),
-                selector: geom_brep::Selector::Witness(p0.lerp(p1, 0.5)),
+                selector: geom_brep::CurveSelector::Witness(p0.lerp(p1, 0.5)),
             },
             carrier: Curve3::Nurbs(Arc::new(
                 NurbsCurve3::new(kv, vec![p0, p1], vec![1.0, 1.0]).unwrap(),

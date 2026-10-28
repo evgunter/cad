@@ -61,7 +61,7 @@ use geom_core::{
 };
 
 use crate::description::{
-    ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, Selector, Structural,
+    ChartCurve, CurveSelector, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, Structural,
     SurfacePair, authority_of,
 };
 use crate::dihedral::{
@@ -2894,13 +2894,15 @@ impl<T: SpanLocate> EdgeCurve<T> {
                         selector: match selector {
                             // The point the WitnessMidpoint pin reads:
                             // zero residual by construction.
-                            Selector::Witness(_) => {
-                                Selector::Witness(self.carrier.mid_point(ta, tb))
+                            CurveSelector::Witness(_) => {
+                                CurveSelector::Witness(self.carrier.mid_point(ta, tb))
                             }
                             // Each row image is a function of the
                             // carrier's own parameter, as a chart
                             // image is, so a child keeps it verbatim.
-                            Selector::Structural(row) => Selector::Structural(row.clone()),
+                            CurveSelector::Structural(row) => {
+                                CurveSelector::Structural(row.clone())
+                            }
                         },
                     }
                 }
@@ -3192,13 +3194,17 @@ impl<T: Real> IntersectionDraft<T> {
     /// description alone where the draft kept the edge's own carrier and
     /// interval, the whole chord spec where it drew one.
     pub fn into_intersection(self, pair: SurfacePair) -> DraftedIntersection<T> {
-        let witness = Selector::Witness(self.witness);
+        let witness = CurveSelector::Witness(self.witness);
         self.into_selected(pair, witness)
     }
 
     /// The `Intersection` of `pair` that `selector` picks, over this
     /// draft's carrier.
-    pub fn into_selected(self, pair: SurfacePair, selector: Selector<T>) -> DraftedIntersection<T> {
+    pub fn into_selected(
+        self,
+        pair: SurfacePair,
+        selector: CurveSelector<T>,
+    ) -> DraftedIntersection<T> {
         let description = EdgeDescriptionSpec::Intersection { pair, selector };
         if self.kept {
             DraftedIntersection::Kept(description)
@@ -3230,7 +3236,7 @@ impl<T: Decide> IntersectionDraft<T> {
         pair: SurfacePair,
         walls: [(SurfaceKey, &Surface<T>, Pcurve<T>); 2],
         band: Band,
-    ) -> Option<Selector<T>> {
+    ) -> Option<CurveSelector<T>> {
         if !self.kept {
             return None;
         }
@@ -3252,7 +3258,7 @@ impl<T: Decide> IntersectionDraft<T> {
             return None;
         }
         let row = crate::description::SharedRow::new(pair, (ka, ia), (kb, ib))?;
-        Some(Selector::Structural(Structural::SharedRow(row)))
+        Some(CurveSelector::Structural(Structural::SharedRow(row)))
     }
 }
 
@@ -3545,7 +3551,7 @@ fn resolve_spec<T: Decide>(
     Ok(match spec.description {
         EdgeDescriptionSpec::Intersection {
             pair,
-            selector: Selector::Structural(Structural::SharedRow(ref row)),
+            selector: CurveSelector::Structural(Structural::SharedRow(ref row)),
         } => {
             let [k1, k2] = pair.keys();
             if k1 == k2 {
@@ -3568,7 +3574,7 @@ fn resolve_spec<T: Decide>(
         }
         EdgeDescriptionSpec::Intersection {
             pair,
-            selector: Selector::Witness(witness),
+            selector: CurveSelector::Witness(witness),
         } => {
             let [k1, k2] = pair.keys();
             if k1 == k2 {
@@ -3832,7 +3838,7 @@ fn canonical_of<T: Decide>(
             };
             EdgeDescription::Intersection {
                 pair,
-                selector: Selector::Witness(*witness),
+                selector: CurveSelector::Witness(*witness),
             }
         }
         Resolved::SharedRow { .. } => {
@@ -4480,7 +4486,7 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
             return Err(CertifyError::Unimplemented);
         };
         crate::edge_nurbs::row_transversality((t0, t1), (a, image_a), (b, image_b), extent, band)
-            .map_err(from_plane_nurbs)?;
+            .map_err(|e| from_plane_nurbs(e.lane()))?;
     }
 
     // ---- Intersection of two analytic surfaces: C2's limbs, through
@@ -6256,7 +6262,7 @@ mod tests {
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(src_keys[0], src_keys[1]),
-                selector: crate::Selector::Witness(Point3::new(0.5, 0.0, 0.0)),
+                selector: crate::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
             },
             carrier: Curve3::Line {
                 origin: p0,
@@ -6285,7 +6291,7 @@ mod tests {
         match *moved.description() {
             EdgeDescription::Intersection {
                 pair,
-                selector: Selector::Witness(witness),
+                selector: CurveSelector::Witness(witness),
             } => {
                 assert_eq!(pair, SurfacePair::new(dst_keys[0], dst_keys[1]));
                 // ...and the witness, a POINT, did not.
@@ -6357,7 +6363,7 @@ mod tests {
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(keys[0], keys[1]),
-                selector: crate::Selector::Witness(Point3::new(0.5, 0.0, 0.0)),
+                selector: crate::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
             },
             carrier: Curve3::Line {
                 origin: p0,
@@ -6410,7 +6416,7 @@ mod tests {
         let mut bad = spec.clone();
         bad.description = EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(keys[0], keys[1]),
-            selector: crate::Selector::Witness(Point3::new(0.5, 0.0, 0.25)),
+            selector: crate::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.25)),
         };
         let err = EdgeCurve::certify(bad, p0, p1, &lookup, 1.0, band(), NurbsLane::certified())
             .unwrap_err();
@@ -6430,7 +6436,7 @@ mod tests {
         let mut bad = spec.clone();
         bad.description = EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(keys[0], keys[0]),
-            selector: crate::Selector::Witness(Point3::new(0.5, 0.0, 0.0)),
+            selector: crate::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
         };
         assert_eq!(
             EdgeCurve::certify(bad, p0, p1, &lookup, 1.0, band(), NurbsLane::certified())
@@ -6442,7 +6448,7 @@ mod tests {
         let mut bad = spec.clone();
         bad.description = EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(keys[0], SurfaceKey::default()),
-            selector: crate::Selector::Witness(Point3::new(0.5, 0.0, 0.0)),
+            selector: crate::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
         };
         assert_eq!(
             EdgeCurve::certify(bad, p0, p1, &lookup, 1.0, band(), NurbsLane::certified())
@@ -6475,7 +6481,7 @@ mod tests {
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(keys[0], keys[1]),
-                selector: crate::Selector::Witness(Point3::new(0.5, 0.0, 0.0)),
+                selector: crate::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
             },
             carrier: Curve3::Line {
                 origin: p0,
@@ -6520,7 +6526,7 @@ mod tests {
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(keys[0], keys[1]),
-                selector: crate::Selector::Witness(Point3::new(0.5, 0.0, 0.0)),
+                selector: crate::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
             },
             carrier: Curve3::Line {
                 origin: p0,
@@ -8855,7 +8861,7 @@ mod tests {
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(keys[0], keys[1]),
-                selector: crate::Selector::Witness(p0 + dir * (reach / 2.0)),
+                selector: crate::CurveSelector::Witness(p0 + dir * (reach / 2.0)),
             },
             carrier: Curve3::Line { origin: p0, dir },
             param_start: 0.0,
@@ -9142,7 +9148,7 @@ mod tests {
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(keys[0], keys[1]),
-                selector: crate::Selector::Witness(on + Vec3::unit_z() * 0.5),
+                selector: crate::CurveSelector::Witness(on + Vec3::unit_z() * 0.5),
             },
             carrier: Curve3::Line {
                 origin: on,

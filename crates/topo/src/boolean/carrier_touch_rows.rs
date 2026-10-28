@@ -186,7 +186,7 @@ fn elliptic_edge(b_in_major: bool) -> (Body<f64>, EdgeKey) {
     let arc = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(plane, cyl),
-            selector: geom_brep::Selector::Witness(carrier.eval(0.5 * (t0 + t1))),
+            selector: geom_brep::CurveSelector::Witness(carrier.eval(0.5 * (t0 + t1))),
         },
         carrier,
         param_start: t0,
@@ -371,7 +371,7 @@ fn edge_on(
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(a, b),
-            selector: geom_brep::Selector::Witness(carrier.mid_point(t0, t1)),
+            selector: geom_brep::CurveSelector::Witness(carrier.mid_point(t0, t1)),
         },
         carrier,
         param_start: t0,

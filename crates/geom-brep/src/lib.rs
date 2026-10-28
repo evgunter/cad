@@ -109,7 +109,7 @@ pub use certify::{
 };
 pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side};
 pub use description::{
-    ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, Selector, SharedRow,
+    ChartCurve, CurveSelector, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, SharedRow,
     Structural, authority_of,
 };
 pub use dihedral::{

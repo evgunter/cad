@@ -569,7 +569,7 @@ fn split_edge_intersection_witness_bitwise_remint() {
             .unwrap();
         let topo::EdgeDescription::Intersection {
             pair,
-            selector: geom_brep::Selector::Witness(witness),
+            selector: geom_brep::CurveSelector::Witness(witness),
         } = *child.description()
         else {
             panic!("child lost its Intersection description");

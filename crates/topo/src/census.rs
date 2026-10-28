@@ -13806,7 +13806,7 @@ mod tests {
                 EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
                         pair: SurfacePair::new(cyl, plane),
-                        selector: geom_brep::Selector::Witness(Point3::new(0.0, 1.0, 0.0)),
+                        selector: geom_brep::CurveSelector::Witness(Point3::new(0.0, 1.0, 0.0)),
                     },
                     carrier: Curve3::Circle {
                         center: Point3::origin(),
@@ -13877,7 +13877,7 @@ mod tests {
                 EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
                         pair: SurfacePair::new(torus, plane),
-                        selector: geom_brep::Selector::Witness(spiric.eval(0.5 * (v0 + v1))),
+                        selector: geom_brep::CurveSelector::Witness(spiric.eval(0.5 * (v0 + v1))),
                     },
                     carrier: spiric,
                     param_start: v0,
@@ -16764,7 +16764,7 @@ mod tests {
             let spec = EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair,
-                    selector: geom_brep::Selector::Witness(q0.lerp(q1, 0.5)),
+                    selector: geom_brep::CurveSelector::Witness(q0.lerp(q1, 0.5)),
                 },
                 carrier: Curve3::Nurbs(std::sync::Arc::new(spline)),
                 param_start: 0.0,
@@ -17042,7 +17042,7 @@ mod tests {
                     EdgeCurveSpec {
                         description: EdgeDescriptionSpec::Intersection {
                             pair: geom_brep::SurfacePair::new(cyl, plane),
-                            selector: geom_brep::Selector::Witness(
+                            selector: geom_brep::CurveSelector::Witness(
                                 carrier.eval(geom::mid_param(t0, t1)),
                             ),
                         },
@@ -19402,7 +19402,7 @@ mod curved_edge_edge {
                 EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
                         pair: SurfacePair::new(cyl, plane),
-                        selector: geom_brep::Selector::Witness(
+                        selector: geom_brep::CurveSelector::Witness(
                             circle.eval(std::f64::consts::FRAC_PI_2),
                         ),
                     },
@@ -20381,7 +20381,7 @@ mod arc_interiors {
                 EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
                         pair: SurfacePair::new(cyl, plane),
-                        selector: geom_brep::Selector::Witness(circle.eval(0.5 * (t0 + t1))),
+                        selector: geom_brep::CurveSelector::Witness(circle.eval(0.5 * (t0 + t1))),
                     },
                     carrier: circle,
                     param_start: t0,

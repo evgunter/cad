@@ -330,7 +330,7 @@ fn door_spec(
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(s1, s2),
-                selector: geom_brep::Selector::Witness(witness),
+                selector: geom_brep::CurveSelector::Witness(witness),
             },
             carrier,
             param_start: 0.0,

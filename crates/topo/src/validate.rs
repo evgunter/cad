@@ -14118,7 +14118,7 @@ mod tests {
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: geom_brep::SurfacePair::new(cyl, plane),
-                    selector: geom_brep::Selector::Witness(frame.at((u0 + u1) * 0.5, v0)),
+                    selector: geom_brep::CurveSelector::Witness(frame.at((u0 + u1) * 0.5, v0)),
                 },
                 carrier: geom::Curve3::Circle {
                     center: centre,
@@ -15172,7 +15172,7 @@ mod tests {
         let spec = geom_brep::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
                 pair: geom_brep::SurfacePair::new(plane, cylinder),
-                selector: geom_brep::Selector::Witness(carrier.mid_point(t0, t1)),
+                selector: geom_brep::CurveSelector::Witness(carrier.mid_point(t0, t1)),
             },
             carrier,
             param_start: t0,
@@ -15462,7 +15462,7 @@ mod tests {
                 EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
                         pair: SurfacePair::new(torus, plane),
-                        selector: geom_brep::Selector::Witness(spiric.eval(0.0)),
+                        selector: geom_brep::CurveSelector::Witness(spiric.eval(0.0)),
                     },
                     carrier: spiric.clone(),
                     param_start: -FRAC_PI_2,

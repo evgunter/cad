@@ -40,3 +40,15 @@ those two first. At 1e-12 the tour stands lily's walls down before wall 8
 (the lower stem's declared frontier), so 1e-6 is the only coarse row
 that reaches it.
 
+## 2026-10-28: read by the shared row's certificate
+
+The rim is now described as its walls' shared row (D2's structural
+selector,
+`the-boolean-recovers-no-structural-selector-for-a-rim-known-in-advance`),
+whose certificate reads the same crossing angle through the same
+reading (`edge_nurbs::feet_transversality`, via `row_transversality`),
+at the certification schedule's samples and at the feet each wall's row
+states. At 1e-6 it escalates at sample 3 of that schedule with the same
+levered margin, 8.313e-6. The default-ε row now gets past the rim to the
+interior-loop guard.
+

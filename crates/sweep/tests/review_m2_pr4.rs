@@ -573,7 +573,7 @@ fn survives_shallow_corner_strut_keeps_its_canonical_index_both_directions() {
         let swept = if d > 0.0 { 1 } else { 4 - 1 };
         match description(&t.body, t.strut_edges()[0][swept].unwrap()) {
             EdgeDescription::Intersection {
-                selector: geom_brep::Selector::Witness(witness),
+                selector: geom_brep::CurveSelector::Witness(witness),
                 ..
             } => assert_eq!(
                 (witness.x, witness.y),

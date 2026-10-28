@@ -601,13 +601,11 @@ fn mapped_image<T: Real>(
     match hand {
         Hand::Proper => Ok(image.clone()),
         Hand::Improper => {
-            let class = body
-                .surfaces
-                .get(surface)
-                .map(OrientationClass::of)
-                .ok_or(TransformError::Corrupt {
+            let class = body.surfaces.get(surface).map(OrientationClass::of).ok_or(
+                TransformError::Corrupt {
                     found: "a chart image lies on a missing surface",
-                })?;
+                },
+            )?;
             reflected_image(image, class)
         }
     }
@@ -782,11 +780,11 @@ pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
             EdgeDescription::Intersection { pair, selector } => EdgeDescriptionSpec::Intersection {
                 pair: *pair,
                 selector: match selector {
-                    geom_brep::Selector::Witness(_) => {
-                        geom_brep::Selector::Witness(carrier.mid_point(param_start, param_end))
+                    geom_brep::CurveSelector::Witness(_) => {
+                        geom_brep::CurveSelector::Witness(carrier.mid_point(param_start, param_end))
                     }
                     // Each wall's row maps as a chart image does.
-                    geom_brep::Selector::Structural(geom_brep::Structural::SharedRow(row)) => {
+                    geom_brep::CurveSelector::Structural(geom_brep::Structural::SharedRow(row)) => {
                         let [ka, kb] = pair.keys();
                         let mapped = |k| -> Result<_, TransformError> {
                             let image = row.image_on(*pair, k).ok_or(TransformError::Corrupt {
@@ -798,7 +796,7 @@ pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
                             .ok_or(TransformError::Corrupt {
                                 found: "a shared row's mapped image is no row",
                             })?;
-                        geom_brep::Selector::Structural(geom_brep::Structural::SharedRow(row))
+                        geom_brep::CurveSelector::Structural(geom_brep::Structural::SharedRow(row))
                     }
                 },
             },

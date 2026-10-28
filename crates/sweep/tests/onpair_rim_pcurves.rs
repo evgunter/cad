@@ -90,7 +90,7 @@ fn restate(
     spec.description = if intersection {
         EdgeDescriptionSpec::Intersection {
             pair,
-            selector: geom_brep::Selector::Witness(
+            selector: geom_brep::CurveSelector::Witness(
                 spec.carrier.eval(0.5 * (spec.param_start + spec.param_end)),
             ),
         }

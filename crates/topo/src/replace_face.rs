@@ -2866,7 +2866,7 @@ fn plan_edge<'s, T: Decide>(
             } else {
                 EdgeDescriptionSpec::Intersection {
                     pair,
-                    selector: geom_brep::Selector::Witness(new_mid),
+                    selector: geom_brep::CurveSelector::Witness(new_mid),
                 }
             }
         }
@@ -3337,7 +3337,7 @@ fn derive_edge<'w, 's, T: Decide>(
         )?,
         _ => EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(old_key, other_key),
-            selector: geom_brep::Selector::Witness(witness),
+            selector: geom_brep::CurveSelector::Witness(witness),
         },
     };
     Ok(EdgePlan {
@@ -3902,8 +3902,10 @@ fn plan_reanchors<T: Decide>(
                 EdgeDescriptionSpec::Intersection {
                     pair,
                     selector: match selector {
-                        geom_brep::Selector::Witness(_) => geom_brep::Selector::Witness(mid),
-                        structural @ geom_brep::Selector::Structural(_) => structural,
+                        geom_brep::CurveSelector::Witness(_) => {
+                            geom_brep::CurveSelector::Witness(mid)
+                        }
+                        structural @ geom_brep::CurveSelector::Structural(_) => structural,
                     },
                 }
             }
@@ -4617,7 +4619,7 @@ fn read_ends<T: Decide>(
     let restated = |m| restate(restate(m, p_start, true)?, p_end, false);
     match &mut plan.spec.description {
         EdgeDescriptionSpec::Intersection {
-            selector: geom_brep::Selector::Witness(witness),
+            selector: geom_brep::CurveSelector::Witness(witness),
             ..
         } => {
             *witness = plan.spec.carrier.mid_point(t0, t1);
@@ -4625,7 +4627,7 @@ fn read_ends<T: Decide>(
         // A row is stated on the carrier's own parameter: the new
         // interval keeps it, and the certificate decides it still holds.
         EdgeDescriptionSpec::Intersection {
-            selector: geom_brep::Selector::Structural(_),
+            selector: geom_brep::CurveSelector::Structural(_),
             ..
         } => {}
         EdgeDescriptionSpec::Chart {
@@ -5307,7 +5309,7 @@ mod read_ends_rows {
             spec: EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(SurfaceKey::default(), SurfaceKey::default()),
-                    selector: geom_brep::Selector::Witness(Point3::origin()),
+                    selector: geom_brep::CurveSelector::Witness(Point3::origin()),
                 },
                 carrier,
                 param_start: 0.0,
@@ -5428,7 +5430,7 @@ mod pair_over_its_span_rows {
                 spec: EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
                         pair: SurfacePair::new(SurfaceKey::default(), SurfaceKey::default()),
-                        selector: geom_brep::Selector::Witness(Point3::origin()),
+                        selector: geom_brep::CurveSelector::Witness(Point3::origin()),
                     },
                     carrier: l1.clone(),
                     param_start: from,
@@ -5507,7 +5509,7 @@ mod pair_over_its_span_rows {
                 spec: EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
                         pair: SurfacePair::new(SurfaceKey::default(), SurfaceKey::default()),
-                        selector: geom_brep::Selector::Witness(Point3::origin()),
+                        selector: geom_brep::CurveSelector::Witness(Point3::origin()),
                     },
                     carrier: l1.clone(),
                     param_start: 0.0,

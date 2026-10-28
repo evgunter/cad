@@ -64,7 +64,7 @@ fn witnesses_are_construction_fresh_bits() {
             continue;
         };
         if let EdgeDescription::Intersection {
-            selector: geom_brep::Selector::Witness(witness),
+            selector: geom_brep::CurveSelector::Witness(witness),
             ..
         } = ec.description()
         {
@@ -110,7 +110,7 @@ fn transform_chain_stays_fresh() {
             continue;
         };
         if let EdgeDescription::Intersection {
-            selector: geom_brep::Selector::Witness(witness),
+            selector: geom_brep::CurveSelector::Witness(witness),
             ..
         } = ec.description()
         {

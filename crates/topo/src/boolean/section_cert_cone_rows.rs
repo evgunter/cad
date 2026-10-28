@@ -412,7 +412,7 @@ fn cone_rim(
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(cone, rim_plane),
-            selector: geom_brep::Selector::Witness(p(-z, 0.0, z)),
+            selector: geom_brep::CurveSelector::Witness(p(-z, 0.0, z)),
         },
         carrier: Curve3::Circle {
             center: p(0.0, 0.0, z),

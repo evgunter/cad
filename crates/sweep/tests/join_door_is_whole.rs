@@ -68,7 +68,7 @@ fn a_join_refused_after_an_earlier_kill_leaves_the_body_as_found() {
         topo::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
                 pair,
-                selector: geom_brep::Selector::Witness(mid),
+                selector: geom_brep::CurveSelector::Witness(mid),
             },
             carrier: geom::Curve3::Nurbs(Arc::new(
                 geom::NurbsCurve3::new(

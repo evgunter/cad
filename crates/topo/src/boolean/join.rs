@@ -6534,7 +6534,7 @@ mod frame_dispatch_tests {
                 geom_brep::EdgeCurveSpec {
                     description: geom_brep::EdgeDescriptionSpec::Intersection {
                         pair: geom_brep::SurfacePair::new(cyl, plane),
-                        selector: geom_brep::Selector::Witness(
+                        selector: geom_brep::CurveSelector::Witness(
                             carrier.eval(core::f64::consts::FRAC_PI_2),
                         ),
                     },
@@ -6844,7 +6844,7 @@ mod frame_dispatch_tests {
             geom_brep::EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::Intersection {
                     pair: geom_brep::SurfacePair::new(cyl, rim_plane),
-                    selector: geom_brep::Selector::Witness(carrier.mid_point(0.0, quarter)),
+                    selector: geom_brep::CurveSelector::Witness(carrier.mid_point(0.0, quarter)),
                 },
                 carrier,
                 param_start: 0.0,
@@ -7804,7 +7804,7 @@ mod radical_plane_rows {
         let conic = curve(Some(spec(
             geom_brep::EdgeDescriptionSpec::Intersection {
                 pair: geom_brep::SurfacePair::new(s1, s2),
-                selector: geom_brep::Selector::Witness(witness),
+                selector: geom_brep::CurveSelector::Witness(witness),
             },
             &circle,
         )));

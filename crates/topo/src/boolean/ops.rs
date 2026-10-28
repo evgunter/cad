@@ -7871,7 +7871,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
             geom_brep::EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::Intersection {
                     pair: geom_brep::SurfacePair::new(sphere, plane),
-                    selector: geom_brep::Selector::Witness(carrier.mid_point(T::zero(), span)),
+                    selector: geom_brep::CurveSelector::Witness(carrier.mid_point(T::zero(), span)),
                 },
                 carrier,
                 param_start: T::zero(),

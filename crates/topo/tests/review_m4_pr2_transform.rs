@@ -265,7 +265,7 @@ fn max_witness_residual(b: &Body<f64>) -> f64 {
         };
         if let EdgeDescription::Intersection {
             pair,
-            selector: geom_brep::Selector::Witness(witness),
+            selector: geom_brep::CurveSelector::Witness(witness),
         } = geom.description()
         {
             for sk in pair.keys() {

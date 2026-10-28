@@ -1,7 +1,7 @@
 //! **A shared row is certified per wall** (D2's structural selector, C2):
 //! a rim that is a row on each of two spline walls' chart boundaries is
 //! the curve known in advance, recovered as a
-//! [`Selector::Structural`] shared row and certified through each wall's
+//! [`CurveSelector::Structural`] shared row and certified through each wall's
 //! own row certificate, with no uniqueness tube.
 //!
 //! The walls are rings of revolution about `z`, as in
@@ -23,8 +23,8 @@ use geom_brep::edge_nurbs::{pick_arc_rim, sub_arc_joint};
 use geom_brep::keys::SurfaceKey;
 use geom_brep::pcurve_cache::{Pcurve, PcurveCache};
 use geom_brep::{
-    CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec,
-    IntersectionDraft, NurbsLane, Selector, SharedRow, Structural, SurfacePair,
+    CertifyError, CurveSelector, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec,
+    IntersectionDraft, NurbsLane, SharedRow, Structural, SurfacePair,
 };
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Vec3};
@@ -133,7 +133,7 @@ impl Pair {
     /// The edge `selector` picks over `carrier` on `params`, certified.
     fn certify(
         &self,
-        selector: Selector<f64>,
+        selector: CurveSelector<f64>,
         carrier: &Curve3<f64>,
         (t0, t1): (f64, f64),
     ) -> Result<EdgeCurve<f64>, CertifyError> {
@@ -165,7 +165,7 @@ impl Pair {
         carrier: &Curve3<f64>,
         params: (f64, f64),
         images: [Pcurve<f64>; 2],
-    ) -> Option<Selector<f64>> {
+    ) -> Option<CurveSelector<f64>> {
         self.recover_on(
             EdgeDescriptionSpec::chart(self.plane),
             carrier,
@@ -181,7 +181,7 @@ impl Pair {
         carrier: &Curve3<f64>,
         (t0, t1): (f64, f64),
         images: [Pcurve<f64>; 2],
-    ) -> Option<Selector<f64>> {
+    ) -> Option<CurveSelector<f64>> {
         let spec = EdgeCurveSpec {
             description,
             carrier: carrier.clone(),
@@ -212,11 +212,11 @@ impl Pair {
 }
 
 /// The structural selector stating `images[i]` on `pair.keys[i]`.
-fn shared(pair: &Pair, images: [Pcurve<f64>; 2]) -> Selector<f64> {
+fn shared(pair: &Pair, images: [Pcurve<f64>; 2]) -> CurveSelector<f64> {
     let [ia, ib] = images;
     let row = SharedRow::new(pair.pair(), (pair.keys[0], ia), (pair.keys[1], ib))
         .expect("two row images on the pair's two walls");
-    Selector::Structural(Structural::SharedRow(row))
+    CurveSelector::Structural(Structural::SharedRow(row))
 }
 
 /// The largest of each wall's row certificate numbers: the residual at
@@ -263,7 +263,7 @@ fn a_rim_on_both_walls_rows_is_a_certified_shared_row() {
                     .recover(&carrier, params, images.clone())
                     .unwrap_or_else(|| panic!("{what}: the rim is recovered as a shared row"));
                 assert!(
-                    matches!(selector, Selector::Structural(_)),
+                    matches!(selector, CurveSelector::Structural(_)),
                     "{what}: structural"
                 );
                 let edge = pair
@@ -279,7 +279,7 @@ fn a_rim_on_both_walls_rows_is_a_certified_shared_row() {
                 );
                 assert!(edge.certificate().max_residual <= eps(), "{what}: within ε");
                 let EdgeDescription::Intersection {
-                    selector: Selector::Structural(Structural::SharedRow(row)),
+                    selector: CurveSelector::Structural(Structural::SharedRow(row)),
                     ..
                 } = edge.description()
                 else {
@@ -357,7 +357,7 @@ fn a_shared_row_is_symmetric_in_its_pair() {
     // on the annulus refuses on the wall whose row it is not.
     let swapped = SharedRow::new(pair.pair(), (pair.keys[0], ib), (pair.keys[1], ia)).unwrap();
     let got = pair.certify(
-        Selector::Structural(Structural::SharedRow(swapped)),
+        CurveSelector::Structural(Structural::SharedRow(swapped)),
         &carrier,
         params,
     );

@@ -92,7 +92,7 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
                 edge,
                 EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(s1, s2),
-                    selector: geom_brep::Selector::Witness(data.witness),
+                    selector: geom_brep::CurveSelector::Witness(data.witness),
                 },
                 tol,
             )?;

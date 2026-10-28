@@ -79,8 +79,8 @@ pub(crate) fn restate<T: Real>(
         EdgeDescription::Intersection { pair, selector } => EdgeDescriptionSpec::Intersection {
             pair,
             selector: match selector {
-                geom_brep::Selector::Witness(_) => geom_brep::Selector::Witness(mid),
-                structural @ geom_brep::Selector::Structural(_) => structural,
+                geom_brep::CurveSelector::Witness(_) => geom_brep::CurveSelector::Witness(mid),
+                structural @ geom_brep::CurveSelector::Structural(_) => structural,
             },
         },
         EdgeDescription::TangentIntersection { pair, .. } => {

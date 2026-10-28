@@ -493,7 +493,7 @@ pub fn one_circle_cut(
             let spec = EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(s_seed, s_made),
-                    selector: geom_brep::Selector::Witness(circle.eval(mid)),
+                    selector: geom_brep::CurveSelector::Witness(circle.eval(mid)),
                 },
                 ..spec
             };
