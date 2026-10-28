@@ -61,7 +61,7 @@ Find the `mfkrh` call on these paths that ends with the face's surface unreferen
 
 A hosted run of `cargo nextest run --profile ci --workspace --exclude
 viewer --all-features` on `origin/main` `4beeeb05` (run `40720990736`, job
-`122931500237`) ran 14 009 tests in 116 s. 24 failed. Twenty of those are
+`122931500237`) ran 14 009 tests in 116 s. 24 failed. Twenty-one of those are
 this item: `surgery.rs:385`, `mfkrh postcondition`, `OrphanGeometry {
 Surface(1v3) }`. By file:
 

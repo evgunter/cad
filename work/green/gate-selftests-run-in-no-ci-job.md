@@ -44,10 +44,14 @@ seam.
 ## Closed (2026-10-28)
 
 `nightly.yml` gains a `gate self-tests (scripts/gates)` job. It runs
-`bash "$g" --selftest` for every `scripts/gates/*.sh` except `lib.sh`,
-prints each gate's wall time in its own log group, and fails at the end
-with an `::error::` line for each red gate. It runs nightly only, so an
-ordinary PR's wall clock is unchanged. `record` waits on it.
+`scripts/run-gates.sh --selftest`, the same runner `ci.yml`'s `lint`
+job now runs plain, so the roster (every `scripts/gates/*.sh` but
+`lib.sh`) is read in one place. Each gate gets its own log group with
+its wall time, and the job fails with an `::error::` line for each gate
+that exits non-zero or that exits 0 without printing its own
+`<gate> selftest OK` line (a gate that ignored the flag would scan the
+repo plainly and pass). It runs nightly only, so an ordinary PR's wall
+clock is unchanged. `record` waits on it.
 
 Measured first, on `main` at `4beeeb05`:
 
@@ -63,8 +67,10 @@ Measured first, on `main` at `4beeeb05`:
   the job: **the step took 1 min 41 s and the whole job 2 min 10 s**,
   green.
 
-Not done: a per-PR step for diffs that touch `scripts/gates/`. A gate
-edit that breaks its own self-test is seen the next night rather than
-on its PR. The per-PR gate's `lint` job is the latency lane's ground
-this week, and the instance this row was filed on (a self-test red
-for 20 days) is the kind a nightly catches.
+**A per-PR self-test step was considered and declined, on latency
+grounds.** Even scoped to diffs that touch `scripts/gates/`, it would
+add about two minutes to the `lint` job of those PRs, against a gate
+already over its 15-minute bar. A gate edit that breaks its own
+self-test is seen the next night rather than on its PR, and the
+instance this row was filed on (a self-test red for 20 days) is the
+kind a nightly catches.

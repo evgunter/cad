@@ -44,11 +44,12 @@ on both rows. The default build still runs and asserts them.
 
 ## Repair shape
 
-Decide what each row claims under the scalpel. The derivation-count row
-could subtract the scalpel's per-operator sweeps, or state the claim only
-for the default build, in which case the `cfg_attr` stays as the
-statement and this row closes. The should-panic row could plant its tear
-where the first catching operator is `offset_planes_together`, or accept
-either postcondition's message. The torn-body rows that
+Make each row hold under the scalpel, then delete both `cfg_attr` pins
+in the PR that closes this row: a pin is the red parked, not a
+statement of what the row claims. The derivation-count row could count
+only the join's own sweeps, leaving out the scalpel's per-operator ones.
+The should-panic row could plant its tear where the first catching
+operator is `offset_planes_together`, or accept either postcondition's
+message. The torn-body rows that
 `torn-body-rows-are-red-under-per-op-postcondition` closed are the
 precedent: they were fixed with `on_a_torn_body` in `surgery.rs`.

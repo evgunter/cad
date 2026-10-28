@@ -113,7 +113,7 @@ runs `-p viewer --features app` already.
 policy that a lane does not fix kernel causes, each one is pinned or held
 out with the row that owns it:
 
-- **20 sweep rows** fail with `mfkrh postcondition … OrphanGeometry
+- **21 sweep rows** fail with `mfkrh postcondition … OrphanGeometry
   { Surface }`, under topo's `per-op-postcondition` scalpel. That
   item is `work/topo/mfkrh-leaves-an-orphan-surface-under-the-per-op-scalpel.md`
   (open, P2; today's list was added to it). The nightly row holds the
@@ -138,11 +138,12 @@ out with the row that owns it:
 **Cost, measured** with a temporary push-triggered copy of the job
 (deleted before review). Run `40751709384` took **27 min build + 87 s
 suite**, about 29 min in all: 14 008 run, 14 008 passed, 1 840 skipped.
-The cold-cache build took 31 to 33 min. The job runs in parallel with
-`full suite` (about 123 min), so it does not lengthen the nightly. It
-adds about 30 runner-minutes a night, and it adds nothing to the per-PR
-gate. `cache-on-failure: true` keeps a red night from costing the next
-one a cold build. One of the three measuring runs hung in `build` for
+The cold-cache build took 31 to 33 min, so the job keeps no Rust cache:
+a warm build saves about 5 minutes, and a whole `--all-features` target
+would compete with the PR gate's caches for the repo's 10 GB Actions
+cache quota. The job runs in parallel with `full suite` (about 123 min),
+so it does not lengthen the nightly. It adds about 35 runner-minutes a
+night, and it adds nothing to the per-PR gate. One of the three measuring runs hung in `build` for
 two hours. That is filed as
 `work/green/nightly-all-features-build-hung-once-with-a-test-binary-running.md`,
 and the step timeouts (60 min and 30 min) bound a repeat.

@@ -203,17 +203,7 @@ jobs:
         run: rm -rf local-scripts .claude
       - uses: dtolnay/rust-toolchain@stable
       - name: every gate's --selftest
-        run: |
-          rc=0
-          for g in scripts/gates/*.sh; do
-            case "$(basename "$g")" in lib.sh) continue ;; esac
-            echo "::group::$g --selftest"
-            start=$SECONDS
-            bash "$g" --selftest || { echo "::error::$g --selftest failed"; rc=1; }
-            echo "$g: $((SECONDS - start)) s"
-            echo "::endgroup::"
-          done
-          exit $rc
+        run: scripts/run-gates.sh --selftest
   rebuild-latency:
     name: rebuild latency (reporting)
     runs-on: ubuntu-latest
@@ -500,7 +490,7 @@ jobs:
     # - viewer, whose `app` feature needs the GPU stack the viewer job
     #   installs and runs;
     # - topo's `per-op-postcondition` scalpel, under which mfkrh leaves
-    #   an orphan surface across ~20 sweep rows
+    #   an orphan surface across 21 sweep rows
     #   (work/topo/mfkrh-leaves-an-orphan-surface-under-the-per-op-scalpel.md;
     #   the row that brings the scalpel back is
     #   work/ciw/no-ci-row-runs-topo-under-the-per-op-postcondition-scalpel.md);
@@ -526,12 +516,9 @@ jobs:
       - name: prune local-only tooling (hosted CI may not depend on it)
         run: rm -rf local-scripts .claude
       - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: nightly-all-features
-          # This row is expected to red while a held-out row's owner
-          # works; a red must not cost the next night a cold build.
-          cache-on-failure: true
+      # No rust-cache: a warm build saves about 5 of 32 minutes here, and a
+      # whole --all-features target would compete for the repo's cache
+      # quota with the PR gate's.
       - name: read the nextest pin from ci.yml
         id: nextest
         run: echo "version=$(scripts/ci-pin.py NEXTEST_VERSION)" >> "$GITHUB_OUTPUT"
