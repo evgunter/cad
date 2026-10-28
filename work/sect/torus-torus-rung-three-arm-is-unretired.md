@@ -2,11 +2,12 @@
 id: torus-torus-rung-three-arm-is-unretired
 kind: issue
 title: Torus × torus routes to rung 3 and refuses: no ℝ³ implicit-pair door or tangency decision for the pair
-status: open
+status: parked
 opened: 2026-10-27
 priority: P0
 cost: M
 refs: [torus-germ-pairs-have-no-section-frame, torus-certificate-runs-root-free-through-its-quartic]
+blocked_on: [each-torus-pair-decides-tangency-on-one-pose]
 ---
 
 Filed by SECT's `sect-toruscert` lane (branch `sect/torus-certificate`),
@@ -40,3 +41,13 @@ donut placements, the lily's stem and arch walls), then `route` and
 `route_pose` flipped. Torus × torus waits on this before
 `torus-germ-pairs-have-no-section-frame`'s torus half can join, so it
 carries that row's band.
+
+## Designed (2026-10-28)
+
+The tangency decision this row called "the design work" is the critical
+gap of `each-torus-pair-decides-tangency-on-one-pose`, which this row now
+waits on. What remains here is the door over a Positive gap (through
+`implicit_pair_r3`), a measured certified pose, and `route`/`route_pose`
+flipped. Also owed: the tube-circle tangency (equal minor radii with the
+cores touching, or `r_c = r` with the axis touching the core) as a Zero
+row, which neither this row's text nor its sibling's named.

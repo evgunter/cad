@@ -4,7 +4,6 @@ kind: issue
 title: fused_two_shell_body says its shape is not publicly constructible, but movefac builds it
 status: closed
 opened: 2026-09-06
-track: P
 refs: [S69, 2014]
 priority: P4
 cost: E

@@ -215,20 +215,47 @@ fn undecided_pairs(
         .collect()
 }
 
+/// The faces of each flush row.
+fn flush_faces(flush: &topo::FlushAtRest) -> Vec<[topo::FaceKey; 2]> {
+    flush
+        .rows
+        .iter()
+        .map(|row| {
+            row.cells.map(|cell| match cell {
+                topo::RowCell::Result {
+                    cell: topo::Cell::Face(f),
+                } => f,
+                other => panic!("a flush row names two faces: {other:?}"),
+            })
+        })
+        .collect()
+}
+
 /// That `body`'s two solids read as one `SameSideInterference` and no
 /// other interference, with no unrecorded touch left beside it (a
 /// coincident vertex, edge or rim is a touch in the closure of the
-/// pair's shared area, which the pair answers for), and that neither
-/// solid lies flush in the other.
-fn assert_one_same_side(label: &str, body: &Body<f64>) -> topo::RecordedAtRest {
+/// pair's shared area, which the pair answers for), and that `flush`
+/// face pairs lie flush, each sharing only boundary, none of them the
+/// interfering pair.
+fn assert_one_same_side(label: &str, body: &Body<f64>, flush_rows: usize) -> topo::RecordedAtRest {
     let (recorded, flush) = at_rest(body);
+    let [ValidationError::SameSideInterference { a, b }] =
+        interference(body, &recorded.findings)[..]
+    else {
+        panic!(
+            "{label}: one same-side interference: {:?}",
+            recorded.findings
+        );
+    };
+    let flushed = flush_faces(&flush);
+    assert_eq!(
+        flushed.len(),
+        flush_rows,
+        "{label}: the flush pairs: {flushed:?}"
+    );
     assert!(
-        matches!(
-            interference(body, &recorded.findings)[..],
-            [ValidationError::SameSideInterference { .. }]
-        ),
-        "{label}: one same-side interference: {:?}",
-        recorded.findings
+        !flushed.iter().any(|p| p.contains(a) && p.contains(b)),
+        "{label}: the overlapping pair is not flush: {flushed:?}"
     );
     assert!(
         !recorded
@@ -239,7 +266,7 @@ fn assert_one_same_side(label: &str, body: &Body<f64>) -> topo::RecordedAtRest {
         recorded.findings
     );
     assert!(
-        recorded.rows.is_empty() && flush.rows.is_empty() && flush.findings.is_empty(),
+        recorded.rows.is_empty() && flush.findings.is_empty(),
         "{label}: an overlapping pair records nothing: {:?} {flush:?}",
         recorded.rows
     );
@@ -254,39 +281,39 @@ fn assert_one_same_side(label: &str, body: &Body<f64>) -> topo::RecordedAtRest {
 /// the faces' own reading where the region door refuses the arc, and the
 /// walls, on two keys, by the curved aligned arm.
 ///
-/// What stays undecidable is pinned: no pair of discs (each pair whose
-/// interiors meet is decided), and in the coincident copies only the
+/// No pair of discs or of walls stays undecidable: each pair whose
+/// interiors meet is decided, and in the coincident copies the
 /// half-bands that share a seam ruling and no interior (one of each
-/// copy, a turn apart), which the curved arm finds no witness for and
-/// does not read as apart. The spun copy's half-bands each share
-/// interior with both of the other's, so no wall pair is left. A disc
-/// against the other copy's wall, two carriers meeting along the rim,
-/// is the proximity arm's, and stays undecidable.
+/// copy, a turn apart) are certified apart, two flush pairs. The spun
+/// copy's half-bands each share interior with both of the other's, so no
+/// wall pair is flush. A disc against the other copy's wall, two
+/// carriers meeting along the rim, is the proximity arm's, and stays
+/// undecidable.
 ///
 /// Red if the arc-bounded disc pair goes back to the region door's
-/// refusal, the curved arm stops reading two keys, or a same-side pair
-/// is still refused by the proximity arm beside its decided overlap.
+/// refusal, the curved arm stops reading two keys, a same-side pair is
+/// still refused by the proximity arm beside its decided overlap, or the
+/// half-bands sharing a seam are not read flush.
 #[test]
 fn copies_of_one_cylinder_are_one_interference() {
     let base = cylinder(1.0, Revolution::Full);
     let half = cylinder(0.5, Revolution::Full);
-    for (label, b, walls_left) in [
+    for (label, b, flush) in [
         ("coincident", placed(&base, spun(0.0)), 2),
         ("spun", placed(&base, spun(1.1)), 0),
         ("half height", placed(&half, spun(0.4)), 0),
     ] {
         let body = two(&placed(&base, spun(0.0)), &b);
-        let recorded = assert_one_same_side(label, &body);
+        let recorded = assert_one_same_side(label, &body, flush);
         let discs = undecided_pairs(&body, &recorded.findings, geom::SurfaceKind::Plane);
         assert!(
             discs.is_empty(),
             "{label}: every disc pair is decided: {discs:?}"
         );
         let walls = undecided_pairs(&body, &recorded.findings, geom::SurfaceKind::Cylinder);
-        assert_eq!(
-            walls.len(),
-            walls_left,
-            "{label}: the wall pairs left: {walls:?}"
+        assert!(
+            walls.is_empty(),
+            "{label}: every wall pair is decided: {walls:?}"
         );
     }
 }
@@ -294,34 +321,35 @@ fn copies_of_one_cylinder_are_one_interference() {
 /// **Two copies of one ball fill one volume**, spun or not, and so does a
 /// ball with a cap cut off inside it: its sphere face is a proper part of
 /// the ball's. Each is one `SameSideInterference`, read off the sphere
-/// faces on two keys. Red if the curved arm stops reading spheres.
+/// faces on two keys; the coincident copies' halves that share only a
+/// seam meridian are flush. Red if the curved arm stops reading spheres.
 #[test]
 fn copies_of_one_ball_are_one_interference() {
     let ball = ball();
-    for (label, b) in [
-        ("coincident", placed(&ball, spun(0.0))),
-        ("spun", placed(&ball, spun(2.3))),
-        ("cut", placed(&cut_ball(), spun(0.9))),
+    for (label, b, flush) in [
+        ("coincident", placed(&ball, spun(0.0)), 2),
+        ("spun", placed(&ball, spun(2.3)), 0),
+        ("cut", placed(&cut_ball(), spun(0.9)), 0),
     ] {
         let body = two(&placed(&ball, spun(0.0)), &b);
-        assert_one_same_side(label, &body);
+        assert_one_same_side(label, &body, flush);
     }
 }
 
-/// **Copies that only abut are no interference.** A cylinder stacked on
-/// the base along its axis: the walls lie on one carrier facing the same
-/// way and share only the rim, so their cones there lie on either side
-/// of it. Two half-cylinders of one carrier side by side, each the
-/// other's half-turn: their walls share only the two seam rulings and
-/// their half-discs only a diameter. Neither is a `SameSideInterference`
-/// or any other interference. The half-cylinders' walls and discs are
-/// read no further, so the census stays loud about the pair: the
-/// same-side reading on an arc or a curved carrier only ever finds a
-/// meeting and cannot say there is none, so the walls stay undecidable
-/// and each half-disc pair keeps the region door's refusal of its arc.
+/// **Copies that only abut are no interference, and lie flush.** A
+/// cylinder stacked on the base along its axis: the walls lie on one
+/// carrier facing the same way and share only the rim, so their cones
+/// there lie on either side of it. Two half-cylinders of one carrier side
+/// by side, each the other's half-turn: their walls share only the two
+/// seam rulings and their half-discs only a diameter. Neither is a
+/// `SameSideInterference` or any other interference, and each pair
+/// sharing boundary and no interior is a flush row: the stacked walls'
+/// half-bands over the rim, and the halves' walls and two half-disc
+/// pairs. A disc against the other copy's wall, two carriers meeting
+/// along the rim, is the proximity arm's, and stays undecidable.
 ///
 /// Red if the same-side reading takes a shared rim or seam for shared
-/// interior.
+/// interior, or cannot certify that interiors sharing one do not meet.
 #[test]
 fn copies_that_abut_along_a_rim_or_a_seam_are_no_interference() {
     let base = placed(&cylinder(1.0, Revolution::Full), spun(0.0));
@@ -338,9 +366,10 @@ fn copies_that_abut_along_a_rim_or_a_seam_are_no_interference() {
         &placed(&wedge, spun(0.0)),
         &placed(&wedge, RigidMotion::half_turn_y()),
     );
-    for (label, body, loud) in [
-        ("stacked", two(&base, &stacked), false),
-        ("halves", halves, true),
+    use geom::SurfaceKind::{Cylinder, Plane};
+    for (label, body, flush_kinds) in [
+        ("stacked", two(&base, &stacked), vec![Cylinder, Cylinder]),
+        ("halves", halves, vec![Plane, Plane, Cylinder]),
     ] {
         let (recorded, flush) = at_rest(&body);
         assert!(
@@ -358,35 +387,31 @@ fn copies_that_abut_along_a_rim_or_a_seam_are_no_interference() {
             recorded.findings,
             flush.findings
         );
-        if loud {
-            assert!(
-                recorded.findings.iter().any(|f| matches!(
-                    f,
-                    ValidationError::CensusUndecidable {
-                        reason: topo::Undecidable::MayOverlap,
-                        ..
-                    }
-                )),
-                "{label}: the walls' shared seams stay undecidable: {:?}",
-                recorded.findings
-            );
-            assert!(
-                matches!(
-                    flush.findings[..],
-                    [
-                        ValidationError::CensusUnsupported {
-                            cause: topo::CensusUnsupportedCause::ChartRegion(
-                                topo::ChartRegionError::NonPlanarTrim { .. }
-                            ),
-                            ..
-                        },
-                        ValidationError::CensusUnsupported { .. }
-                    ]
-                ),
-                "{label}: the two half-disc pairs keep the region door's refusal: {:?}",
-                flush.findings
-            );
-        }
+        assert!(
+            flush.findings.is_empty(),
+            "{label}: every flush pair is read: {:?}",
+            flush.findings
+        );
+        let mut kinds: Vec<_> = flush_faces(&flush)
+            .iter()
+            .map(|&[a, b]| {
+                let (ka, kb) = (
+                    kind(&body, EntityId::Face(a)),
+                    kind(&body, EntityId::Face(b)),
+                );
+                assert_eq!(ka, kb, "{label}: a flush pair lies on one carrier");
+                ka.unwrap()
+            })
+            .collect();
+        kinds.sort_by_key(|k| format!("{k:?}"));
+        let mut want = flush_kinds.clone();
+        want.sort_by_key(|k| format!("{k:?}"));
+        assert_eq!(kinds, want, "{label}: the flush pairs");
+        let walls = undecided_pairs(&body, &recorded.findings, Cylinder);
+        assert!(
+            walls.is_empty(),
+            "{label}: the walls are decided: {walls:?}"
+        );
     }
 }
 
@@ -420,8 +445,9 @@ fn copies_apart_within_the_band_are_no_interference() {
     }
 }
 
-/// The same-side findings over `body`, at rest and flush.
-fn same_sides(body: &Body<f64>) -> (usize, String) {
+/// The same-side findings over `body`, at rest and flush, and its flush
+/// rows.
+fn same_sides(body: &Body<f64>) -> (usize, usize, String) {
     let (recorded, flush) = at_rest(body);
     let all: Vec<_> = recorded.findings.iter().chain(&flush.findings).collect();
     let n = all
@@ -429,7 +455,7 @@ fn same_sides(body: &Body<f64>) -> (usize, String) {
         .filter(|f| matches!(f, ValidationError::SameSideInterference { .. }))
         .count();
     let interfering = interference(body, &recorded.findings).len();
-    (n.max(interfering), format!("{all:?}"))
+    (n.max(interfering), flush.rows.len(), format!("{all:?}"))
 }
 
 /// **Faces of one carrier that only abut are no interference**, on
@@ -448,11 +474,14 @@ fn same_sides(body: &Body<f64>) -> (usize, String) {
 ///   mirror image: they share rulings, or only the axis;
 /// - two tubes end to end: they share a rim;
 /// - a rod in a tube, a shaft in its bore and a ball in a shell's cavity:
-///   one carrier, the senses opposed.
+///   walls on one carrier, the senses opposed; the rod's and the shaft's
+///   end discs lie flush with the tube's end annuli, sharing a circle.
 ///
-/// None is a `SameSideInterference` or any other interference. Red if
-/// the witness search takes a shared circle, meridian, ruling or pole for
-/// shared interior, or the curved arm reads an opposed pair.
+/// None is a `SameSideInterference` or any other interference, and each
+/// aligned pair sharing a run of boundary is a flush row. Red if the
+/// witness search takes a shared circle, meridian, ruling or pole for
+/// shared interior, the curved arm reads an opposed pair, or an aligned
+/// pair sharing only boundary is not certified apart.
 #[test]
 fn faces_of_one_carrier_that_only_abut_are_no_interference() {
     let half = Revolution::Partial(PI);
@@ -531,8 +560,25 @@ fn faces_of_one_carrier_that_only_abut_are_no_interference() {
             two(&rest(&ball(), 0.0), &rest(&shell(), 0.0)),
         ),
     ] {
-        let (n, all) = same_sides(&body);
+        let (n, rows, all) = same_sides(&body);
         assert_eq!(n, 0, "{label}: no interference: {all}");
+        // Each face pair sharing a run of boundary on one carrier facing
+        // the same way: a hemisphere's two halves against the other's
+        // two, along the equator; the lunes' and wedges' walls along a
+        // meridian or ruling, the wedges' discs along a radius; the
+        // tubes' walls and bores along a rim; the rod's and the shaft's
+        // end discs against the tube's end annuli, along the circle they
+        // share. Pairs meeting at a pole or on the axis share no run, and
+        // opposed pairs (the walls about a rod or a shaft) are no flush
+        // pair.
+        let flush = match label {
+            "hemispheres on the equator" | "cap and cut ball" => 4,
+            "lunes side by side" | "reflex lune and its complement" => 1,
+            "reflex wedge and its complement" | "half cylinder and its mirror" => 3,
+            "tubes end to end" | "rod in a tube" | "shaft in its bore" => 2,
+            _ => 0,
+        };
+        assert_eq!(rows, flush, "{label}: the flush pairs: {all}");
     }
 }
 
@@ -560,7 +606,7 @@ fn halves_off_by_a_few_eps_are_decided_past_the_band_only() {
             ("into", shifted(d), k >= 100.0),
             ("away", shifted(-d), false),
         ] {
-            let (n, all) = same_sides(&two(&a, &b));
+            let (n, _, all) = same_sides(&two(&a, &b));
             assert_eq!(n, usize::from(overlaps), "{label} by {k} eps: {all}");
         }
     }
@@ -668,4 +714,172 @@ fn pins_stacked_end_to_end_reach_no_witness_search() {
         !copies.examined.is_empty() && copies.accepted.len() == copies.examined.len(),
         "coincident copies' walls reach the search and are found: {copies:?}"
     );
+}
+
+/// **Copies that overlap on one carrier are never read clear, and copies
+/// that only abut are never read as interference** (the review's probes,
+/// ported). Each overlapping pair below shares material, so the census
+/// reports an interference or leaves the pair uncleared: wedges and
+/// lunes straddling a seam or a joint, reflex pieces against each other,
+/// a half-height wedge sharing part of a ruling, a hemisphere against a
+/// lune across the equator, a cut ball against a hemisphere, a rod
+/// inside a tube's wall, a tube over a tube by half, and pins or half
+/// pins overlapping by `1000·ε`. Each abutting pair shares only
+/// boundary: a rod in a tube or inside its hole, pins stacked or
+/// overlapping by less than the band, half pins stacked and spun, half
+/// cylinders side by side, a reflex wedge and its complement. Red if a
+/// flush or apart reading hides an overlap, or reads an abutment as one.
+#[test]
+fn overlaps_are_never_read_clear_and_abutments_never_interfere() {
+    let eps = Tol::witness().eps();
+    let full = Revolution::Full;
+    let half = Revolution::Partial(PI);
+    let quarter = Revolution::Partial(FRAC_PI_2);
+    let reflex = Revolution::Partial(1.5 * PI);
+    let rest = |b: &Body<f64>, at| placed(b, spun(at));
+    let lift = |b: &Body<f64>, dy: f64, at: f64| {
+        placed(b, moved(Vec3::new(0.0, dy, 0.0)).compose(spun(at)).unwrap())
+    };
+    let (pin, tube) = (cylinder(1.0, full), rect(0.5, 1.0, 0.0, 1.0, full));
+    let overlapping = [
+        (
+            "quarter wedge over the seam",
+            two(
+                &rest(&pin, 0.0),
+                &rest(&cylinder(1.0, quarter), -FRAC_PI_2 / 2.0),
+            ),
+        ),
+        (
+            "quarter wedge over the joint",
+            two(
+                &rest(&pin, 0.0),
+                &rest(&cylinder(1.0, quarter), PI - FRAC_PI_2 / 2.0),
+            ),
+        ),
+        (
+            "reflex wedges a half turn apart",
+            two(
+                &rest(&cylinder(1.0, reflex), 0.0),
+                &rest(&cylinder(1.0, reflex), PI),
+            ),
+        ),
+        (
+            "a quarter inside a reflex wedge",
+            two(
+                &rest(&cylinder(1.0, reflex), 0.0),
+                &rest(&cylinder(1.0, quarter), 0.5),
+            ),
+        ),
+        (
+            "half-height wedge on a ruling",
+            two(
+                &rest(&cylinder(1.0, half), 0.0),
+                &rest(&cylinder(0.5, quarter), 0.0),
+            ),
+        ),
+        (
+            "reflex lune and a half lune",
+            two(&rest(&lune(reflex), 0.0), &rest(&lune(half), PI)),
+        ),
+        (
+            "reflex lunes a half turn apart",
+            two(&rest(&lune(reflex), 0.0), &rest(&lune(reflex), PI)),
+        ),
+        (
+            "hemisphere and a lune",
+            two(&rest(&hemisphere(true), 0.0), &rest(&lune(quarter), 0.4)),
+        ),
+        (
+            "cut ball and a hemisphere",
+            two(&rest(&cut_ball(), 0.0), &rest(&hemisphere(false), 0.7)),
+        ),
+        (
+            "a rod in a tube's wall",
+            two(
+                &rest(&pin, 0.0),
+                &rest(&rect(1.0, 2.0, 0.0, 1.0, full), 0.7),
+            ),
+        ),
+        (
+            "a tube over a tube by half",
+            two(&rest(&tube, 0.0), &lift(&tube, 0.5, 0.3)),
+        ),
+        (
+            "pins over by 1000 eps",
+            two(&rest(&pin, 0.0), &lift(&pin, 1.0 - 1000.0 * eps, 0.3)),
+        ),
+        (
+            "half pins over by 1000 eps",
+            two(
+                &rest(&cylinder(1.0, half), 0.0),
+                &lift(&cylinder(1.0, half), 1.0 - 1000.0 * eps, 0.0),
+            ),
+        ),
+    ];
+    for (label, body) in &overlapping {
+        let (recorded, _) = at_rest(body);
+        let held = recorded
+            .findings
+            .iter()
+            .any(|f| topo::census_uncleared_solids(body, f).is_some());
+        assert!(
+            held,
+            "{label}: an overlap is never clear: {:?}",
+            recorded.findings
+        );
+    }
+    let abutting = [
+        (
+            "rod in a tube",
+            two(
+                &rest(&pin, 0.0),
+                &rest(&rect(1.0, 2.0, 0.0, 1.0, full), 0.7),
+            ),
+        ),
+        (
+            "rod in a tube's hole",
+            two(
+                &rest(&rect(0.0, 0.5, 0.0, 1.0, full), 0.0),
+                &rest(&rect(1.0, 2.0, 0.0, 1.0, full), 0.7),
+            ),
+        ),
+        ("pins stacked", two(&rest(&pin, 0.0), &lift(&pin, 1.0, 0.3))),
+        (
+            "pins over by 0.5 eps",
+            two(&rest(&pin, 0.0), &lift(&pin, 1.0 - 0.5 * eps, 0.3)),
+        ),
+        (
+            "pins over by 3 eps",
+            two(&rest(&pin, 0.0), &lift(&pin, 1.0 - 3.0 * eps, 0.3)),
+        ),
+        (
+            "half pins stacked, spun",
+            two(
+                &rest(&cylinder(1.0, half), 0.0),
+                &lift(&cylinder(1.0, half), 1.0, 1.0),
+            ),
+        ),
+        (
+            "half cylinders side by side",
+            two(
+                &rest(&cylinder(1.0, half), 0.0),
+                &rest(&cylinder(1.0, half), PI),
+            ),
+        ),
+        (
+            "reflex wedge and complement",
+            two(
+                &rest(&cylinder(1.0, reflex), 0.0),
+                &rest(&cylinder(1.0, quarter), 1.5 * PI),
+            ),
+        ),
+    ];
+    for (label, body) in &abutting {
+        let (recorded, _) = at_rest(body);
+        assert!(
+            interference(body, &recorded.findings).is_empty(),
+            "{label}: an abutment is no interference: {:?}",
+            recorded.findings
+        );
+    }
 }

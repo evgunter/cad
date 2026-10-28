@@ -82,7 +82,7 @@ fn peg_in_bore(bore_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 /// copy.
 fn body_of(ev: &Evaluation<f64>, n: RecipeNodeId) -> &Body<f64> {
     match &ev.value(n).expect("the node evaluates").payload {
-        ValuePayload::Body(b) => b,
+        ValuePayload::Body(b) => b.body(),
         other => panic!("{n}'s payload is one body, got {}", other.kind_name()),
     }
 }
@@ -125,9 +125,9 @@ fn a_peg_in_a_bore_of_its_own_radius_unions() {
     else {
         panic!("a union's value is a body");
     };
-    assert_eq!(topo::validate_closed(body), Ok(()), "tier 2");
+    assert_eq!(topo::validate_closed(body.body()), Ok(()), "tier 2");
     assert_eq!(
-        topo::validate_geometric(body, Tol::witness()),
+        topo::validate_geometric(body.body(), Tol::witness()),
         Ok(()),
         "tier 3"
     );
@@ -135,7 +135,7 @@ fn a_peg_in_a_bore_of_its_own_radius_unions() {
         "the measured body",
         &topo::test_support::finished(
             "the measured body",
-            topo::Body::clone(&**body),
+            topo::Body::clone(body.body()),
             Tol::witness(),
         ),
         Tol::witness(),
@@ -145,5 +145,5 @@ fn a_peg_in_a_bore_of_its_own_radius_unions() {
         (v - want).abs() <= 1e-9 * want,
         "the peg and the block only touch: {v} against {want}"
     );
-    sweep::test_support::assert_legal_operand("peg ∪ block", body, Tol::witness());
+    sweep::test_support::assert_legal_operand("peg ∪ block", body.body(), Tol::witness());
 }

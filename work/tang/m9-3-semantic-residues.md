@@ -4,7 +4,6 @@ kind: issue
 title: M9-3 semantic residues - vtxfac/recl tangent-descent divergence, ring-count refusal shadowed, unpinned lane-desync arm
 status: closed
 opened: 2026-08-23
-github: 975
 refs: [967, 971, 974]
 priority: P1
 cost: M

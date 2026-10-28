@@ -2,10 +2,11 @@
 id: main-red-the-gallery-chain-pins-196-at-rest-findings-after-pr-5853
 kind: issue
 title: Main red (on main alone; suspected from PR 5853): the gallery's chain document reads 10 at-rest findings, overlaps among them, where gallery.rs pins 196 could-not-look; PR 5853's CI skipped the demos job
-status: open
+status: closed
 opened: 2026-10-27
 priority: P0
 cost: E
+closed: 2026-10-28
 ---
 
 
@@ -57,3 +58,17 @@ Run locally (`cd demos/tour && cargo nextest run -E
 So the red is main's, with no PR in between. PR 5853 is the suspect by
 subject and by its skipped demos job; a run at `3bb4dc553` and its first
 parent would pin it.
+
+## Closed — a duplicate, fixed by PR 5888
+
+The same red was filed twice: here by SPLICE's lane, and as
+`the-tour-gallery-pin-reads-the-chains-old-could-not-look-count` by
+SECT's. PR 5888 closed the other filing: all 10 findings are true
+interference, not a reading that over-reports. The pins are separate
+extrudes rather than bores, so each shares a half-disc with every bar
+end it stands in, and the target coincides with the tip pin. That was
+checked by a closed form of box against cylinder, independent of the
+census. The pin is re-pinned from 196 to 10, and `demos (tour + wild)`
+is green on that PR. The cause is #5853's census change, whose CI skipped
+the demos job; a census change now runs the demos locally
+(`work/atrest/log.md`, 2026-10-28).

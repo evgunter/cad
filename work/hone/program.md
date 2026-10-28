@@ -4,7 +4,7 @@ kind: program
 title: HONE — the split and boolean lane's P2 residue: margins and error propagation on split and boolean ground
 status: ready
 opened: 2026-10-01
-area: kernel
+group: kernel/boolean/margin
 prefix: hone/
 tag: (HONE orchestrator)
 ab_band: 9900-9919

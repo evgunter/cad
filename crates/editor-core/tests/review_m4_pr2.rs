@@ -65,7 +65,7 @@ fn fingerprint(b: &Body<f64>) -> String {
 
 fn boolean_body(ev: &Evaluation<f64>, id: RecipeNodeId) -> &Body<f64> {
     match &ev.value(id).expect("node evaluated").payload {
-        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
+        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body.body(),
         other => panic!("expected boolean body, got {}", other.kind_name()),
     }
 }
@@ -168,7 +168,7 @@ fn delete_and_reinsert_identical_node_recomputes() {
     );
     let e0 = run(&doc, None, false);
     let fp_old = fingerprint(match &e0.value(e_old).unwrap().payload {
-        ValuePayload::Body(b) => b,
+        ValuePayload::Body(b) => b.body(),
         other => panic!("expected body, got {}", other.kind_name()),
     });
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: e_old });
@@ -186,7 +186,7 @@ fn delete_and_reinsert_identical_node_recomputes() {
     // bit-identical anyway (D9 determinism).
     assert!(e1.value(e_old).is_none(), "the deleted id must not appear");
     let fp_new = fingerprint(match &e1.value(e_new).unwrap().payload {
-        ValuePayload::Body(b) => b,
+        ValuePayload::Body(b) => b.body(),
         other => panic!("expected body, got {}", other.kind_name()),
     });
     assert_eq!(fp_new, fp_old, "identical recipe, identical bits");
@@ -440,10 +440,10 @@ fn eval_digest(ev: &Evaluation<f64>) -> String {
                 let _ = write!(s, "{id:?} Ok key={:?} ", v.content_key);
                 match &v.payload {
                     ValuePayload::Body(b) => {
-                        let _ = writeln!(s, "body\n{}", fingerprint(b));
+                        let _ = writeln!(s, "body\n{}", fingerprint(b.body()));
                     }
                     ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
-                        let _ = writeln!(s, "bool\n{}", fingerprint(body));
+                        let _ = writeln!(s, "bool\n{}", fingerprint(body.body()));
                     }
                     ValuePayload::Boolean(BooleanValue::Empty) => {
                         let _ = writeln!(s, "empty");
@@ -452,7 +452,7 @@ fn eval_digest(ev: &Evaluation<f64>) -> String {
                         for side in [above, below] {
                             match side {
                                 editor_core::SplitSide::Body(b) => {
-                                    let _ = writeln!(s, "side\n{}", fingerprint(b));
+                                    let _ = writeln!(s, "side\n{}", fingerprint(b.body()));
                                 }
                                 editor_core::SplitSide::Empty => {
                                     let _ = writeln!(s, "side empty");
@@ -462,7 +462,7 @@ fn eval_digest(ev: &Evaluation<f64>) -> String {
                     }
                     ValuePayload::Instances(v) => {
                         for b in v {
-                            let _ = writeln!(s, "inst\n{}", fingerprint(b));
+                            let _ = writeln!(s, "inst\n{}", fingerprint(b.body()));
                         }
                     }
                     other => {
@@ -546,7 +546,7 @@ fn revolve_volume(angle: f64) -> Result<f64, String> {
             ValuePayload::Body(b) => Ok(topo::mass_properties(
                 &topo::test_support::finished(
                     "the measured body",
-                    topo::Body::clone(&**b),
+                    topo::Body::clone(b.body()),
                     Tol::witness(),
                 ),
                 Tol::witness(),
@@ -845,7 +845,7 @@ fn interval_memo_reuses_and_invalidates_like_f64() {
             topo::mass_properties(
                 &topo::test_support::finished(
                     "the measured body",
-                    topo::Body::clone(body.as_ref()),
+                    topo::Body::clone(body.body()),
                     Tol::witness(),
                 ),
                 Tol::witness(),

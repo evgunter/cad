@@ -4,7 +4,6 @@ kind: issue
 title: patch_bound and offset_fit recentre the same homogeneous nets against different origins — unifying the two centres needs a measurement
 status: open
 opened: 2026-09-01
-github: 1532
 refs: [1403, 1006]
 priority: P1
 cost: M

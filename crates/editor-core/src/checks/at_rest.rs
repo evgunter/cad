@@ -272,7 +272,7 @@ pub(crate) fn quiet_contact<P, T: Decide>(
 /// has no form for, a name that does not resolve, and a gap read
 /// non-zero are none of them: no `Gap = 0` over the row holds, so the
 /// finding never refuses (CHECKS DS6).
-pub(crate) fn contact_quietable<P: crate::ProfilePayload, T: Decide>(
+pub(crate) fn contact_quietable<P: crate::ProfilePayload, T: Decide + topo::AtRestPolicy>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     row: &crate::coincide::NamedCoincidence,
@@ -284,7 +284,7 @@ pub(crate) fn contact_quietable<P: crate::ProfilePayload, T: Decide>(
     let Some(cells) = contact_cells(row) else {
         return false;
     };
-    let mut carriers = cells.iter().enumerate().map(|(i, (read, name))| {
+    let mut reads = cells.iter().enumerate().map(|(i, (read, name))| {
         let slot = crate::OperandSlot::Measured(
             crate::measure::MeasureVerb::Gap,
             u8::try_from(i).unwrap_or(u8::MAX),
@@ -299,11 +299,28 @@ pub(crate) fn contact_quietable<P: crate::ProfilePayload, T: Decide>(
         })
         .ok()?;
         let body = crate::eval::reference_body(&evaluation.nodes, slot, *read, at).ok()?;
-        Some(crate::eval::measure::carrier_of(body, at.1))
+        Some((body, at.1))
     });
-    let (Some(Some(a)), Some(Some(b))) = (carriers.next(), carriers.next()) else {
+    let (Some(Some((framed_a, ent_a))), Some(Some((framed_b, ent_b)))) =
+        (reads.next(), reads.next())
+    else {
         return false;
     };
+    // The two cells are read as the measure reads its two references: in
+    // one computing frame (`Framed::computing_among`), the other read
+    // into it through `relative`. A frame that refuses to read is no
+    // `Gap = 0` either.
+    let Some(computing) = crate::eval::Framed::computing_among([framed_a, framed_b]) else {
+        return false;
+    };
+    let (Ok(body_a), Ok(body_b)) = (
+        computing.read_in(framed_a, tol),
+        computing.read_in(framed_b, tol),
+    ) else {
+        return false;
+    };
+    let a = crate::eval::measure::carrier_of(&body_a, ent_a);
+    let b = crate::eval::measure::carrier_of(&body_b, ent_b);
     [(&a, &b), (&b, &a)].into_iter().any(|(outer, inner)| {
         gap_sign(outer, inner, AT_REST_QUIET_CONTACT_BOUND, band) == Some(Sign::Zero)
     })

@@ -169,7 +169,7 @@ fn through_the_document(tol: Tol) -> Body<f64> {
         tol,
     );
     match &ev.value(revolved).expect("the revolve evaluated").payload {
-        ValuePayload::Body(b) => (**b).clone(),
+        ValuePayload::Body(b) => crate::world::in_its_space(b, tol),
         other => panic!("expected a body, got {other:?}"),
     }
 }

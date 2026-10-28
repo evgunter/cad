@@ -100,7 +100,7 @@ fn split_volumes(session: &mut DocSession, split: RecipeNodeId, tol: Tol) -> (f6
         SplitSide::Body(body) => {
             pncad::topo::test_support::pinned_volume(
                 "mass properties",
-                &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body), tol)
+                &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body.body()), tol)
                     .expect("the measured body passes tier 3"),
                 tol,
             )

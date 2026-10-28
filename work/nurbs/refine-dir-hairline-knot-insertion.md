@@ -4,7 +4,6 @@ kind: issue
 title: refine_dir's exact-equality insertion guard leaves knot pairs one ulp apart - de Boor divides by the hairline
 status: closed
 opened: 2026-08-31
-github: 1358
 refs: [1314, C3, D30]
 priority: P0
 cost: H

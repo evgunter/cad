@@ -115,9 +115,12 @@ side clears only
 - on a definitely-positive separation margin between certified reach boxes
   (`face_reach_in`), read along each world axis and then along the
   directions that turn with the pair: the axis between the two faces'
-  anchors, either face's normal where it is planar, and the offset from
+  anchors, either face's normal where it is planar, the offset from
   an axis or centre either face proposes to the other's nearest boundary
-  segment point (`census::depth_gap::toward`). Along these turned
+  segment point (`census::depth_gap::toward`), the normal of each arc's
+  chord in its conic's plane on either face's boundary, and the line
+  between the two faces' carrier axes or centres
+  (`census::depth_gap::across`). Along these turned
   directions only (`boolean::separating::apart_by`), not the world axes,
   a sphere face is taken to reach no further than its boundary at an
   end whose pole the face places definitely `Out`

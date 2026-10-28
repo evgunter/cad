@@ -4,7 +4,7 @@ kind: program
 title: S-TCOST — test-suite cost
 status: ready
 opened: 2026-09-02
-area: infra
+group: infra/tests
 prefix: tcost/
 tag: (S-TCOST orchestrator)
 ab_band: 1400-1499

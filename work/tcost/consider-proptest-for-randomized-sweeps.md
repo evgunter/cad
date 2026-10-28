@@ -4,7 +4,6 @@ kind: issue
 title: Consider migrating the hand-rolled randomized sweeps to proptest
 status: closed
 opened: 2026-08-13
-github: 466
 blocked_on: [tcost]
 refs: [452, 462]
 closed: 2026-09-11

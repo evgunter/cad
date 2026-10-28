@@ -4,12 +4,12 @@ kind: program
 title: BOXES — one boolean fact, decided in several places: the box rules, the staleness ladders and the doors with two homes
 status: ready
 opened: 2026-09-20
-area: kernel
+group: kernel/boolean/one-home
 prefix: boxes/
 tag: (BOXES orchestrator)
 ab_band: 7300-7399
 paths: [crates/topo/src/boolean/boxes.rs]
-keep_out: [opened by REACH's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - REACH measured 151 budget points, about five sittings, and was cut into six tracks meant to run in PARALLEL (Ev, in chat: for these high priority tracks it is ideal to have several components that can be worked on at once), the six are REACH GERM CONTACT ZIP BOXES PIN and they SHARE crates/topo/src/boolean/* by design - shared ground is legitimate per the README's 2026-09-20 rule and what is owed is awareness while a lane is live, so run scripts/work.py territory on your branch and announce the seam in the PR rather than drawing a fence, TANG shares chord_join.rs and boolean/rest.rs for the declared-tangency and germ/pierce lanes, CHART owns the pcurve and SSI side, CURVED keeps offset_axial.rs]
+keep_out: [opened by REACH's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - REACH measured 151 budget points, about five sittings, and was cut into six tracks meant to run in PARALLEL (Ev, in chat: for these high priority tracks it is ideal to have several components that can be worked on at once), the six are REACH GERM CONTACT ZIP BOXES PIN and they SHARE crates/topo/src/boolean/* by design - shared ground is legitimate per the README's 2026-09-20 rule and what is owed is awareness while a lane is live, so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled rather than drawing a fence, TANG shares chord_join.rs and boolean/rest.rs for the declared-tangency and germ/pierce lanes, CHART owns the pcurve and SSI side, CURVED keeps offset_axial.rs]
 ---
 PRED's class on the boolean lane's ground: **one fact, decided in
 several places, each copy with its own arithmetic.** `census.rs`'s

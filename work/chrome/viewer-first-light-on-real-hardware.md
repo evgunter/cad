@@ -4,7 +4,6 @@ kind: issue
 title: viewer first light - run the app on real hardware, and settle what only a GPU can settle
 status: closed
 opened: 2026-08-27
-github: 1097
 refs: [1094, 1106, 1110]
 branch: chrome/viewer-first-light-on-real-hardware
 pr: 1771

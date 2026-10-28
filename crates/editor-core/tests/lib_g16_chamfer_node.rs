@@ -63,7 +63,7 @@ fn die_chamfer_evaluates_green_and_meters_the_closed_form() {
 
     let body = topo::test_support::finished(
         "body",
-        topo::Body::clone(body_of(&ev, d.result.expect("the blank is the head"))),
+        topo::Body::clone(&(body_of(&ev, d.result.expect("the blank is the head")))),
         Tol::witness(),
     );
     assert_eq!(topo::validate(&body), Ok(()), "tier 1");
@@ -108,7 +108,7 @@ fn the_chamfer_removes_more_than_the_fillet_of_the_same_size() {
     let ev = eval::<f64>(&ch.doc);
     let chamfered = topo::test_support::finished(
         "chamfered",
-        topo::Body::clone(body_of(&ev, ch.result.expect("head"))),
+        topo::Body::clone(&(body_of(&ev, ch.result.expect("head")))),
         Tol::witness(),
     );
     let cv =
@@ -118,7 +118,7 @@ fn the_chamfer_removes_more_than_the_fillet_of_the_same_size() {
     let fev = eval::<f64>(&fi.doc);
     let filleted = topo::test_support::finished(
         "filleted",
-        topo::Body::clone(body_of(&fev, fi.result.expect("head"))),
+        topo::Body::clone(&(body_of(&fev, fi.result.expect("head")))),
         Tol::witness(),
     );
     let fv = topo::test_support::pinned_volume("mass properties", &filleted, Tol::witness()).volume;
