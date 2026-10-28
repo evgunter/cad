@@ -406,6 +406,8 @@ pub fn assert_sound_and_meshed(
     let mesh = mesh::tessellate(&bb.body, 5e-3, tol)
         .unwrap_or_else(|e| panic!("{label}: the mesh: {e:?}"));
     mesh::validate::check_mesh(&mesh).unwrap_or_else(|e| panic!("{label}: the mesh: {e:?}"));
+    mesh::validate::check_volume(&mesh, want, 5e-3)
+        .unwrap_or_else(|e| panic!("{label}: the mesh encloses the body, got {e:?}"));
     let line = outcome(r, want, tol);
     assert!(line.starts_with("OK SOUND"), "{label}: {line}");
 }

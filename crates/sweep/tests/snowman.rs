@@ -55,6 +55,8 @@ fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
         Ok(()),
         "{label}: a closed manifold mesh"
     );
+    mesh::validate::check_volume(&m, expected, 1e-3)
+        .unwrap_or_else(|e| panic!("{label}: the mesh encloses the body, got {e:?}"));
     assert_solid(label, body, expected);
 }
 

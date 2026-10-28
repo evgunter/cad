@@ -117,6 +117,8 @@ fn check(
             let m = mesh::tessellate(&bb.body, 5e-3, tol)
                 .unwrap_or_else(|e| panic!("{label}: the mesh: {e:?}"));
             mesh::validate::check_mesh(&m).unwrap_or_else(|e| panic!("{label}: the mesh: {e:?}"));
+            mesh::validate::check_volume(&m, volume, 5e-3)
+                .unwrap_or_else(|e| panic!("{label}: the mesh encloses the body, got {e:?}"));
         }
         NearPole => {
             let drawn = mesh::tessellate(&bb.body, 5e-3, tol);

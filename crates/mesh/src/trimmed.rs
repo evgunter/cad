@@ -2624,5 +2624,10 @@ mod tests {
         );
         let mesh = sized.expect("at the arm's own steps the body meshes");
         crate::validate::check_mesh(&mesh).expect("and the mesh checks");
+        // Two unit balls 1.4 apart: twice the ball less their lens,
+        // `π(4r + d)(2r − d)²/12`.
+        let pi = core::f64::consts::PI;
+        let volume = 2.0 * 4.0 / 3.0 * pi - pi * 5.4 * 0.6f64.powi(2) / 12.0;
+        crate::validate::check_volume(&mesh, volume, 1e-2).expect("and it encloses the body");
     }
 }

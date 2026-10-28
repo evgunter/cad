@@ -53,6 +53,8 @@ fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
     let mesh = mesh::tessellate(body, 1e-2, Tol::witness())
         .unwrap_or_else(|e| panic!("{label}: tessellate, got {e:?}"));
     mesh::validate::check_mesh(&mesh).unwrap_or_else(|e| panic!("{label}: the mesh: {e:?}"));
+    mesh::validate::check_volume(&mesh, expected, 1e-2)
+        .unwrap_or_else(|e| panic!("{label}: the mesh encloses the body, got {e:?}"));
 }
 
 /// Every tier of validation, then the volume against `expected` through
