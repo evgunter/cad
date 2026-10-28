@@ -62,10 +62,11 @@ use slotmap::SecondaryMap;
 use super::neighborhood::EntryRay;
 use super::{
     NullEdgeRecord, PlaneSide, SectionGermFault, SectionGermReading, SectorEntry, SectorEntryKind,
-    SplitReduceError,
+    SplitPlane, SplitReduceError,
 };
 use crate::body::Body;
-use crate::entity::{EntityId, VertexKey};
+use crate::chord_join::{SectionCase, SplitJoinError, WallSection};
+use crate::entity::{EntityId, HalfEdgeKey, VertexKey};
 use crate::euler::{MevSite, RunSite};
 use crate::live::proven;
 use crate::null::NewVertexSide;
@@ -146,7 +147,8 @@ pub(super) fn above_runs(entries: &[SectorEntry]) -> Vec<AboveRun> {
 /// no line, two germs of different sectors lie on one line, or the order
 /// read does not alternate starts and ends.
 fn section_chords<T: Decide>(
-    normal: Vec3<T>,
+    body: &Body<T>,
+    plane: &SplitPlane<T>,
     hood: &Neighborhood<'_, T>,
     cuts: &[usize],
     band: Band,
@@ -157,6 +159,7 @@ fn section_chords<T: Decide>(
         rays,
     } = *hood;
     let n = entries.len();
+    let normal = plane.normal.get();
     let escalated = |reading, diag| SplitReduceError::SectionGermsEscalated {
         vertex,
         reading,
@@ -176,6 +179,9 @@ fn section_chords<T: Decide>(
                 (false, true) => return Ok((w.dir.normalize(), arm, Some(b))),
                 (true, true) => return Err(unordered(SectionGermFault::NoLine)),
                 (false, false) => {}
+            }
+            if let Some(germ) = apex_germ(body, plane, hood, c, band)? {
+                return Ok((germ, arm, None));
             }
             let (u, w) = (u.dir.normalize(), w.dir.normalize());
             let d = u * w.dot(normal).abs() + w * u.dot(normal).abs();
@@ -276,6 +282,88 @@ fn section_chords<T: Decide>(
         .collect())
 }
 
+/// **Cut `c`'s germ where its sector is a cone face at its apex**, or
+/// `None` where the face has a tangent plane there. The sector's
+/// interior is a fan of rulings, not the positive cone of its bounds, so
+/// the germ is the ruling of the plane's section that lies inside the
+/// cut's sub-sector, `rays[c]` back to `rays[c + 1]`: one of the
+/// section's two rulings through the apex (or its one, where the plane
+/// is tangent), read off the same section table the join pairs the
+/// face's crossings along ([`crate::chord_join::wall_section`]), and
+/// turned onto the face's nappe. The walk subdivided the sector where
+/// the plane's side along its rulings turns, so the sub-sector's bounds
+/// lie on opposite sides and exactly one section ruling lies inside it;
+/// which one is read as its turn from each bound into the sweep
+/// (`split_germ_apex`, [`ConeApex::turn`] levered at the sub-sector's
+/// arm).
+///
+/// # Errors
+///
+/// [`SplitReduceError::SectionGermsEscalated`] where the table or the
+/// reading escalates; [`SplitReduceError::SectionGermsUnordered`] where
+/// the table reads no ruling, or not exactly one lies inside.
+fn apex_germ<T: Decide>(
+    body: &Body<T>,
+    plane: &SplitPlane<T>,
+    hood: &Neighborhood<'_, T>,
+    c: usize,
+    band: Band,
+) -> Result<Option<Vec3<T>>, SplitReduceError> {
+    let Neighborhood {
+        vertex,
+        entries,
+        rays,
+    } = *hood;
+    let (u, w) = (rays[c], rays[(c + 1) % entries.len()]);
+    let Some(apex) = u.apex else {
+        return Ok(None);
+    };
+    let escalated = |diag| SplitReduceError::SectionGermsEscalated {
+        vertex,
+        reading: SectionGermReading::Line,
+        diag,
+    };
+    let unordered = |fault| SplitReduceError::SectionGermsUnordered { vertex, fault };
+    let face = crate::sector_face::face_of(body, vertex, entries[c].he);
+    let lines = match crate::chord_join::wall_section(
+        body,
+        band,
+        plane.origin,
+        plane.normal,
+        face,
+        vertex,
+    ) {
+        Ok(Some(WallSection {
+            case: SectionCase::Straight([l1, l2]),
+            ..
+        })) => vec![l1, l2],
+        Ok(Some(WallSection {
+            case: SectionCase::Tangent(l),
+            ..
+        })) => vec![l],
+        Err(SplitJoinError::Escalated { diag, .. }) => return Err(escalated(diag)),
+        Ok(_) | Err(_) => return Err(unordered(SectionGermFault::NoLine)),
+    };
+    let arm = u.dir.norm().min(w.dir.norm());
+    let nappe = u.dir.dot(apex.axis);
+    let mut inside = None;
+    for line in lines {
+        let geom::Curve3::Line { dir, .. } = line else {
+            return Err(unordered(SectionGermFault::NoLine));
+        };
+        let z = dir.normalize() * T::one().copysign(dir.dot(apex.axis) * nappe);
+        let into = apex.turn(w.dir, z).min(apex.turn(z, u.dir));
+        match decide("split_germ_apex", Margin::levered(into, arm), band).map_err(escalated)? {
+            Sign::Positive if inside.is_none() => inside = Some(z),
+            Sign::Positive => return Err(unordered(SectionGermFault::Coincident)),
+            Sign::Zero | Sign::Negative => {}
+        }
+    }
+    inside
+        .map(Some)
+        .ok_or_else(|| unordered(SectionGermFault::NoLine))
+}
+
 /// One ON vertex's classified neighborhood: its entries, and each
 /// entry's ray (`neighborhood::classify_neighborhood_rays`).
 #[derive(Clone, Copy)]
@@ -295,10 +383,11 @@ pub(super) struct Neighborhood<'a, T: Real> {
 /// where the corners cross as chords of the orbit, and the mint's own.
 pub(super) fn insert_null_edges<T: Decide>(
     body: &mut Body<T>,
-    normal: Vec3<T>,
+    plane: &SplitPlane<T>,
     hood: &Neighborhood<'_, T>,
     sides: &mut SecondaryMap<VertexKey, PlaneSide>,
     records: &mut Vec<NullEdgeRecord>,
+    germs: &mut SecondaryMap<HalfEdgeKey, Vec3<T>>,
     band: Band,
 ) -> Result<(), SplitReduceError> {
     let (vertex, entries) = (hood.vertex, hood.entries);
@@ -311,7 +400,7 @@ pub(super) fn insert_null_edges<T: Decide>(
     let corners = match cuts[..] {
         [] => return Ok(()),
         [a, b] => vec![[a, b]],
-        _ => section_chords(normal, hood, &cuts, band)?,
+        _ => section_chords(body, plane, hood, &cuts, band)?,
     };
     let unordered = |fault| SplitReduceError::SectionGermsUnordered { vertex, fault };
     // Each corner as its arc after the anchor, `(p, q)`: the entries
@@ -332,6 +421,30 @@ pub(super) fn insert_null_edges<T: Decide>(
     let order: Vec<usize> = order.into_iter().flatten().collect();
     let tree = crate::null::ring_tree(&order, Some(0))
         .ok_or_else(|| unordered(SectionGermFault::Crossing))?;
+    // Each arc's two cuts' germs where the cut's sector is a cone face at
+    // its apex: the direction the section leaves the apex in there, which
+    // the join reads to put the null-edge half on its section ruling.
+    let apex_cut_germ = |c: usize| -> Result<Option<Vec3<T>>, SplitReduceError> {
+        let (u, w) = (hood.rays[c], hood.rays[(c + 1) % n]);
+        if u.apex.is_none() {
+            return Ok(None);
+        }
+        Ok(match (u.in_plane, w.in_plane) {
+            (true, false) => Some(u.dir.normalize()),
+            (false, true) => Some(w.dir.normalize()),
+            (true, true) => None,
+            (false, false) => apex_germ(body, plane, hood, c, band)?,
+        })
+    };
+    let arc_germs = arcs
+        .iter()
+        .map(|&(p, q)| {
+            Ok([
+                apex_cut_germ((anchor + p) % n)?,
+                apex_cut_germ((anchor + q) % n)?,
+            ])
+        })
+        .collect::<Result<Vec<_>, SplitReduceError>>()?;
     // The vertex standing for each corner's child region, once minted.
     let mut child: Vec<Option<VertexKey>> = vec![None; arcs.len()];
     for strut in tree {
@@ -413,6 +526,28 @@ pub(super) fn insert_null_edges<T: Decide>(
         let (created, attr) = (mint.created, mint.attr);
         child[strut.run] = Some(if whole_orbit { at } else { created.vertex });
         sides.insert(created.vertex, PlaneSide::On);
+        // The half leaving `at` lies in the sector the orbit reaches just
+        // before it, its mate in the one just after: the arc's first cut
+        // and its last where the copy takes the arc, the other way round
+        // where `at` keeps it.
+        let edge = proven(&body.edges, created.edge, EntityId::Edge);
+        let (from_at, to_at) =
+            if proven(&body.half_edges, edge.he_plus, EntityId::HalfEdge).start == at {
+                (edge.he_plus, edge.he_minus)
+            } else {
+                (edge.he_minus, edge.he_plus)
+            };
+        let [first, last] = arc_germs[strut.run];
+        let (from_at_germ, to_at_germ) = if whole_orbit {
+            (last, first)
+        } else {
+            (first, last)
+        };
+        for (half, germ) in [(from_at, from_at_germ), (to_at, to_at_germ)] {
+            if let Some(germ) = germ {
+                germs.insert(half, germ);
+            }
+        }
         records.push(NullEdgeRecord {
             at_vertex: at,
             edge: created.edge,

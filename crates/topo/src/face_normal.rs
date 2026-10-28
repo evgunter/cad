@@ -349,24 +349,38 @@ fn face_nappe_or_double<T: Decide>(
     }
 }
 
-/// **Whether `p` stands definitely off a cone's axis**, the one place
-/// the boolean decides it has a normal at a point of a cone face. The
-/// implicit gradient is `0/0` on the axis, and the apex is the axis
+/// **Whether `p` stands definitely off a cone's axis** (`cone_off_axis`,
+/// its distance off the axis in metres): the one test of whether a point
+/// of a cone face has a tangent plane, for both of the crate's readers
+/// of one ([`cone_axis_clearance`] and [`crate::sector_face::resolve`]).
+/// The implicit gradient is `0/0` on the axis, and the apex is the axis
 /// point ON the surface, so a point of the surface within the band of
-/// the axis has no tangent plane to read: `Zero` and in band refuse
-/// alike ([`NormalAtError::AtConeApex`]). The test is the distance off
-/// the axis, not off the apex: on a cone of half-angle `α` it refuses
-/// surface points up to `band / sin α` along the generator from the
-/// apex, which on a needle cone is a long way.
+/// the axis is the apex: `Positive` reads a tangent plane, `Zero` the
+/// apex. The test is the distance off the axis, not off the apex: on a
+/// cone of half-angle `α` it reads surface points up to `band / sin α`
+/// along the generator from the apex as the apex, which on a needle cone
+/// is a long way.
+pub(crate) fn cone_off_axis<T: Decide>(
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    p: Point3<T>,
+    band: Band,
+) -> Result<Sign, geom_core::Indeterminate> {
+    let q = p - apex;
+    let radial = q - axis * q.dot(axis);
+    decide("cone_off_axis", Margin::norm3(radial), band)
+}
+
+/// [`cone_off_axis`] as the pierce door reads it: a point with no
+/// tangent plane, definitely or in band, has no normal to answer with
+/// ([`NormalAtError::AtConeApex`]).
 pub(crate) fn cone_axis_clearance<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
     p: Point3<T>,
     band: Band,
 ) -> Result<(), NormalAtError> {
-    let q = p - apex;
-    let radial = q - axis * q.dot(axis);
-    match decide("bool_cone_off_axis", Margin::norm3(radial), band) {
+    match cone_off_axis(apex, axis, p, band) {
         Ok(Sign::Positive) => Ok(()),
         Ok(Sign::Zero | Sign::Negative) | Err(_) => Err(NormalAtError::AtConeApex { band }),
     }

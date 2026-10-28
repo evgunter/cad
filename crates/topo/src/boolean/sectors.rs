@@ -62,7 +62,7 @@ use crate::body::Body;
 use crate::chord_join::StaleSite;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::live::{Proven, linked, proven};
-use crate::sector_face::{SectorCarrier, SectorFaceError};
+use crate::sector_face::{SectorCarrier, SectorFaceError, VertexFace};
 use crate::sector_shape::{SectorFault, SectorRung, SectorShape, sector_shape};
 use crate::validate::decide;
 use geom_brep::recourse::Refused;
@@ -585,11 +585,13 @@ pub(super) fn orbit_corners<T: Decide>(
 /// pole of its chart, where it has no one normal.
 ///
 /// **A sector based at a cone's apex refuses**
-/// ([`BooleanError::NormalAtConeApex`]). The walk mints the cone's
-/// normal from its implicit gradient, which is `0/0` on the axis, and
-/// the apex is the axis point ON the cone: a vertex there has no
-/// tangent plane, and the poison would otherwise reach the first
-/// decision that reads it under that decision's name.
+/// ([`BooleanError::NormalAtConeApex`]): the shared walk reads the face
+/// there as its circle of rulings ([`VertexFace::Apex`]), each with a
+/// normal of its own, while this lane's sector pair algebra reads one
+/// normal per sector. What is missing is that algebra over a sector
+/// whose interior is a fan of rulings; the split's walk has its own
+/// (`splitting::neighborhood`). A vertex in the band of the axis refuses
+/// the same way.
 ///
 /// The normal arrives as an [`OutwardNormal`] with the face's `sense`
 /// folded in (S10), minted at the shared chokepoint — which makes that
@@ -626,6 +628,11 @@ pub(super) fn sector_face<T: Decide>(
             face,
             kind,
         },
+        SectorFaceError::ApexUndecided { face, .. } => BooleanError::NormalAtConeApex {
+            operand,
+            face,
+            band,
+        },
     })?;
     // Exhaustive on purpose, exactly as the splitting wrapper is: a
     // new carrier arm added to the shared walk must be a compile
@@ -636,25 +643,17 @@ pub(super) fn sector_face<T: Decide>(
         | SectorCarrier::Cylinder
         | SectorCarrier::Sphere
         | SectorCarrier::Torus
+        | SectorCarrier::Cone
         | SectorCarrier::Spline(_) => {}
-        SectorCarrier::Cone => {
-            let geom::Surface::Cone { apex, axis, .. } = *body.face_surface_linked(
-                resolved.face,
-                proven(&body.faces, resolved.face, EntityId::Face),
-            ) else {
-                unreachable!("the shared walk's cone arm read a face that carries no cone")
-            };
-            let p = body.resolve_vertex_point(vertex, Proven);
-            crate::face_normal::cone_axis_clearance(apex, axis, p, band).map_err(|_| {
-                BooleanError::NormalAtConeApex {
-                    operand,
-                    face: resolved.face,
-                    band,
-                }
-            })?;
-        }
     }
-    Ok((resolved.face, resolved.normal))
+    match resolved.at_vertex {
+        VertexFace::Tangent(normal) => Ok((resolved.face, normal)),
+        VertexFace::Apex(_) => Err(BooleanError::NormalAtConeApex {
+            operand,
+            face: resolved.face,
+            band,
+        }),
+    }
 }
 
 /// The refusal for a bisector reading On between two bounds definitely

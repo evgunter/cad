@@ -75,7 +75,7 @@ pub(crate) mod finish;
 mod insert;
 pub(crate) mod join;
 mod neighborhood;
-pub(crate) use neighborhood::{EntryFault, entry_side, wide_entry};
+pub(crate) use neighborhood::{EntryFault, entry_side, wide_entries};
 // `pub(crate)` for `order::exact_band` alone: the bit-hairline band is
 // a shared DEVICE (audit note N6), and the boolean backstop's
 // sign-certainty arm decides against the same one rather than minting
@@ -91,7 +91,7 @@ pub(crate) mod spiric_arc;
 pub(crate) mod spline_arc;
 
 use geom_brep::recourse::{LeverOnly, Reading, RefusedArm};
-use geom_core::{Band, BandError, Indeterminate, MarginDiag, Point3, Real, UnitVec3};
+use geom_core::{Band, BandError, Indeterminate, MarginDiag, Point3, Real, UnitVec3, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
@@ -264,6 +264,11 @@ pub struct SplitReduction<T: Real> {
     pub on_vertices: Vec<VertexKey>,
     /// Every null edge minted, in insertion order.
     pub null_edges: Vec<NullEdgeRecord>,
+    /// Each null-edge half whose face is a cone at its apex there, with
+    /// the unit ruling of the section the face leaves the apex along
+    /// beside it: the germ its cut was read at (`insert`), which the join
+    /// puts the half on its section ruling by.
+    pub(crate) apex_germs: SecondaryMap<HalfEdgeKey, Vec3<T>>,
     /// The pinches the ON verdicts decided, in ON-vertex order, keyed in
     /// the operand ([`crate::coincidence`]).
     pub coincidences: Vec<crate::Coincidence>,
@@ -889,6 +894,7 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
         classify::insert_crossings(&mut body, plane, &mut sides, &mut on_vertices, tol)?;
 
     let mut null_edges = Vec::new();
+    let mut apex_germs = SecondaryMap::new();
     let mut coincidences = Vec::new();
     for &v in &on_vertices {
         let (entries, rays) =
@@ -921,10 +927,11 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
         };
         insert::insert_null_edges(
             &mut body,
-            plane.normal.get(),
+            plane,
             &hood,
             &mut sides,
             &mut null_edges,
+            &mut apex_germs,
             band,
         )?;
     }
@@ -936,6 +943,7 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
         sides,
         on_vertices,
         null_edges,
+        apex_germs,
         coincidences,
         edge_pieces,
     })

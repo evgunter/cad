@@ -157,7 +157,7 @@
 
 use geom_brep::{EntersMaterial, NormalAlignment, ParallelSense, WallBend, enters_material};
 use geom_core::k_stats::{Magnitude, decide_magnitude_reported};
-use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Point3, Real, Sign};
+use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3};
 
 use super::neighborhood::{chord, sector_face};
 use super::{
@@ -167,6 +167,7 @@ use super::{
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::live::{BoundaryMember, Proven, proven};
+use crate::sector_face::{ConeApex, VertexFace};
 use crate::validate::decide;
 
 /// Rule (a): reclassify both bounding entries of every
@@ -192,6 +193,7 @@ pub(super) fn apply_rule_a<T: Decide>(
     plane: &SplitPlane<T>,
     vertex: VertexKey,
     entries: &mut [SectorEntry],
+    rays: &[Vec3<T>],
     band: Band,
 ) -> Result<Vec<WallReading<T>>, SplitReduceError> {
     let n = entries.len();
@@ -203,7 +205,7 @@ pub(super) fn apply_rule_a<T: Decide>(
         .map(|e| e.class == PlaneSide::On && e.kind == SectorEntryKind::Edge)
         .collect();
     for k in 0..n {
-        let (face, n_face, is_plane) = sector_face(body, vertex, entries[k].he, band)?;
+        let (face, at_vertex, is_plane) = sector_face(body, vertex, entries[k].he, band)?;
         let refuse = |reading| SplitReduceError::SliverSector {
             vertex,
             face,
@@ -229,6 +231,33 @@ pub(super) fn apply_rule_a<T: Decide>(
             ),
             Err(diag) => return Err(sliver(diag)),
         }
+        // Where a knife edge at this sector touches: an in-plane straight
+        // edge bounding it, else the vertex.
+        let knife_at = || {
+            [k, (k + 1) % n]
+                .into_iter()
+                .filter(|&j| in_plane[j])
+                .map(|j| proven(&body.half_edges, entries[j].he, EntityId::HalfEdge).edge)
+                .find(|&e| straight(body, e))
+                .map_or(KnifeEdgeSite::Vertex(vertex), KnifeEdgeSite::Edge)
+        };
+        let n_face = match at_vertex {
+            VertexFace::Tangent(n_face) => n_face,
+            VertexFace::Apex(apex) => {
+                let reading = apex_reading(plane, &apex, [rays[k], rays[(k + 1) % n]], extent, band)
+                    .map_err(sliver)?;
+                if let WallReading::Grazed(_) = reading
+                    && !apex.material_inside()
+                {
+                    return Err(SplitReduceError::KnifeEdge(KnifeEdge {
+                        wall: face,
+                        at: knife_at(),
+                    }));
+                }
+                readings.push(reading);
+                continue;
+            }
+        };
         // Oriented parallelism, part 1: are the normals parallel at
         // all? Margin ‖n_face × n_SP‖·extent (≥ 0; sin θ metered at
         // the face extent). For curved faces `n_face` is the LOCAL
@@ -289,22 +318,9 @@ pub(super) fn apply_rule_a<T: Decide>(
                                     continue;
                                 }
                                 WallBend::OutOfMaterial => {
-                                    let at = [k, (k + 1) % n]
-                                        .into_iter()
-                                        .filter(|&j| in_plane[j])
-                                        .map(|j| {
-                                            proven(
-                                                &body.half_edges,
-                                                entries[j].he,
-                                                EntityId::HalfEdge,
-                                            )
-                                            .edge
-                                        })
-                                        .find(|&e| straight(body, e))
-                                        .map_or(KnifeEdgeSite::Vertex(vertex), KnifeEdgeSite::Edge);
                                     return Err(SplitReduceError::KnifeEdge(KnifeEdge {
                                         wall: face,
-                                        at,
+                                        at: knife_at(),
                                     }));
                                 }
                                 // A cylinder or cone has one zero principal
@@ -342,6 +358,48 @@ pub(super) fn apply_rule_a<T: Decide>(
         entries[(k + 1) % n].class = class;
     }
     Ok(readings)
+}
+
+/// Rule (a) at a cone's apex, for the sub-sector between the entry rays
+/// `bounds` (an edge's chord, or an extremal ruling the walk subdivided
+/// at, `neighborhood::wide_entries`). A cone is never coplanar with the
+/// plane, and the apex has no tangent plane to be tangent with: the
+/// plane grazes the face where it holds a ruling the face's side along
+/// the plane is extremal at, and every such ruling is an entry's ray. So
+/// the sub-sector is grazed where the outward normal along either of its
+/// bounding rays is parallel to the plane's over the face's extent
+/// (`split_sector_coplanar`), and otherwise clear. The cone is straight
+/// along a ruling, so there is no bend to read past the first order: a
+/// graze's material side is the parallel normal's sense, and whether the
+/// cone bends into its material is its sense alone
+/// ([`ConeApex::material_inside`], the caller's).
+fn apex_reading<T: Decide>(
+    plane: &SplitPlane<T>,
+    apex: &ConeApex<T>,
+    bounds: [Vec3<T>; 2],
+    extent: T,
+    band: Band,
+) -> Result<WallReading<T>, Indeterminate> {
+    let mut clear = None;
+    for ray in bounds {
+        match geom_brep::normal_alignment(
+            "split_sector_coplanar",
+            plane.normal.get(),
+            apex.normal_along(ray),
+            extent,
+            band,
+        )? {
+            NormalAlignment::Parallel(parallel) => {
+                return Ok(WallReading::Grazed(ParallelFace(parallel)));
+            }
+            NormalAlignment::Oblique(sine) => {
+                clear.get_or_insert(sine);
+            }
+        }
+    }
+    Ok(WallReading::Clear(clear.unwrap_or_else(|| {
+        unreachable!("a sub-sector has two bounding rays")
+    })))
 }
 
 /// What rule (a) read of an entry's face against the split plane, for
@@ -465,6 +523,8 @@ pub(super) fn apply_rule_b<T: Decide>(
 /// is on is not its question: that sign is [`enters_material`] of the
 /// direction into the mate's face, across the edge, against the own
 /// face's outward normal, metered over the same folded lever arm.
+/// Where either face is a cone at its apex, both are read along the
+/// edge's ray ([`VertexFace::normal_along`]).
 fn edge_wedge<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
@@ -472,17 +532,26 @@ fn edge_wedge<T: Decide>(
     he: HalfEdgeKey,
     band: Band,
 ) -> Result<Option<bool>, SplitReduceError> {
-    let (own_face, n_own, _) = sector_face(body, vertex, prev, band)?;
-    let (mate_face, n_mate, _) = sector_face(body, vertex, he, band)?;
+    let (own_face, own_at, _) = sector_face(body, vertex, prev, band)?;
+    let (mate_face, mate_at, _) = sector_face(body, vertex, he, band)?;
     let sliver = |diag| SplitReduceError::SliverSector {
         vertex,
         face: mate_face,
         reading: SectorReading::Escalated(diag),
     };
     let (s_own, s_mate) = (face_surface(body, own_face), face_surface(body, mate_face));
-    let p = body.resolve_vertex_point(vertex, Proven);
     let (_, along, _) = chord(body, vertex, he)?;
     let extent = along.norm();
+    // Both faces are read along the edge's ray: at the vertex where each
+    // has a tangent plane, and out along the ray where either is a cone at
+    // its apex, whose normal is constant along the ruling the ray lies on
+    // and undefined at the apex itself.
+    let p = body.resolve_vertex_point(vertex, Proven);
+    let p = match (own_at, mate_at) {
+        (VertexFace::Tangent(_), VertexFace::Tangent(_)) => p,
+        _ => p + along,
+    };
+    let (n_own, n_mate) = (own_at.normal_along(along), mate_at.normal_along(along));
     match geom_brep::classify_dihedral(s_own, s_mate, p, extent, band) {
         Ok(geom_brep::DihedralClass::Smooth) => return Ok(None),
         Ok(geom_brep::DihedralClass::Transverse) => {}
@@ -1322,6 +1391,9 @@ mod tests {
             .find_map(|&he| {
                 let (_, n_face, _) =
                     sector_face(body, vertex, he, Band::linear(Tol::witness()).unwrap()).unwrap();
+                let crate::sector_face::VertexFace::Tangent(n_face) = n_face else {
+                    panic!("a cube corner has a tangent plane on every face")
+                };
                 ((n_face.vec() - n).norm() == 0.0).then_some((he, n_face))
             })
             .expect("a face at the corner has that normal")
@@ -1374,6 +1446,7 @@ mod tests {
             &corner_plane((0.0, 0.0, 1.0)),
             vertex,
             &mut on_entries(&orbit),
+            &[],
             band,
         );
     }
@@ -1442,6 +1515,7 @@ mod tests {
                 &corner_plane(n),
                 vertex,
                 &mut on_entries(&orbit),
+                &[],
                 band,
             ) {
                 Err(e) => too_short_to_read(&label, &e),

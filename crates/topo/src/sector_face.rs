@@ -20,7 +20,11 @@
 //!    the radial from its centre, a torus the offset from the vertex's
 //!    foot on its core circle, a cone its chart normal off the
 //!    generator through the vertex, a spline face its chart's
-//!    `S_u × S_v` at the vertex's chart parameters.
+//!    `S_u × S_v` at the vertex's chart parameters. A cone has no
+//!    tangent plane at its apex, and is read there as its circle of
+//!    rulings ([`VertexFace::Apex`]), each with its own normal: a
+//!    reader takes the normal along the ruling it means
+//!    ([`VertexFace::normal_along`]), and none is NaN.
 //!
 //! **Every arm folds in the face's `sense` bit** (S10) by minting an
 //! [`OutwardNormal`]: each reads a CHART normal and returns it as the
@@ -62,7 +66,7 @@
 
 use geom::SurfaceKind;
 use geom_brep::OutwardNormal;
-use geom_core::{Band, Decide};
+use geom_core::{Band, Decide, Point3, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
@@ -100,12 +104,119 @@ pub(crate) enum SectorCarrier {
 pub(crate) struct SectorFace<T: geom_core::Real> {
     /// The face the sector is a corner of.
     pub face: FaceKey,
-    /// That face's OUTWARD unit normal at the base vertex, minted here
-    /// from the chart normal and the face's `sense` bit — the type
-    /// carries the obligation not to re-apply the sense downstream.
-    pub normal: OutwardNormal<T>,
-    /// Which arm produced the normal.
+    /// What the face is at the base vertex: a tangent plane, or a cone's
+    /// apex.
+    pub at_vertex: VertexFace<T>,
+    /// Which arm read it.
     pub carrier: SectorCarrier,
+}
+
+/// **What a face is at a vertex.** Every arm but one has a tangent plane
+/// there. A cone has none at its apex, where its directions are the
+/// circle of its rulings, each with a normal of its own: a reader that
+/// asks for one normal at the vertex has to say which ruling it means.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum VertexFace<T: geom_core::Real> {
+    /// The face's OUTWARD unit normal at the vertex, minted here from the
+    /// chart normal and the face's `sense` bit — the type carries the
+    /// obligation not to re-apply the sense downstream.
+    Tangent(OutwardNormal<T>),
+    /// The vertex is the apex of the face's cone.
+    Apex(ConeApex<T>),
+}
+
+impl<T: Decide> VertexFace<T> {
+    /// The outward normal approached along `d`, a direction the face
+    /// leaves the vertex in: the tangent plane's, or at an apex the
+    /// normal along the ruling `d` lies on, which is constant along it
+    /// ([`ConeApex::normal_along`]).
+    pub(crate) fn normal_along(&self, d: Vec3<T>) -> OutwardNormal<T> {
+        match self {
+            Self::Tangent(normal) => *normal,
+            Self::Apex(apex) => apex.normal_along(d),
+        }
+    }
+
+    /// The tangent plane's outward normal; a row that read an apex
+    /// panics naming it.
+    #[cfg(test)]
+    #[allow(clippy::panic)]
+    pub(crate) fn tangent(&self) -> Vec3<T> {
+        match self {
+            Self::Tangent(normal) => normal.vec(),
+            Self::Apex(apex) => panic!("a tangent plane, not {apex:?}"),
+        }
+    }
+}
+
+/// **A cone at its apex**: the face's cone, read as the circle of rulings
+/// the face leaves its apex along, and the face's `sense` bit.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ConeApex<T: geom_core::Real> {
+    /// The apex.
+    pub apex: Point3<T>,
+    /// The cone's unit axis.
+    pub axis: Vec3<T>,
+    /// The half-angle between a ruling and the axis.
+    pub half_angle: T,
+    /// The cone's seam direction, which places azimuth zero.
+    pub u_ref: Vec3<T>,
+    /// The face's `sense` bit.
+    pub sense: bool,
+}
+
+impl<T: Decide> ConeApex<T> {
+    /// The cone as a surface.
+    pub(crate) fn surface(&self) -> geom::Surface<T> {
+        geom::Surface::Cone {
+            apex: self.apex,
+            axis: self.axis,
+            half_angle: self.half_angle,
+            u_ref: self.u_ref,
+        }
+    }
+
+    /// The outward normal along the ruling `d` leaves the apex by: the
+    /// chart normal at the ruling's point a unit from the apex, the
+    /// face's sense folded once. A cone's normal is constant along a
+    /// ruling, so this is the normal at every point of it, and the limit
+    /// of the face's normal at points approaching the apex along it.
+    pub(crate) fn normal_along(&self, d: Vec3<T>) -> OutwardNormal<T> {
+        let chart = geom_brep::implicit_gradient(&self.surface(), self.apex + d.normalize());
+        OutwardNormal::from_chart(chart.normalize(), self.sense)
+    }
+
+    /// How far the face's sweep turns from the ruling along `from` to the
+    /// one along `to`: `sin²α` times the sine of the azimuth between
+    /// them, signed the way the face's interior leaves a ruling `d`
+    /// (`n × d̂`, `n` the outward normal along it, the orbit convention).
+    /// Positive where `to` lies less than a half-turn into the sweep.
+    pub(crate) fn turn(&self, from: Vec3<T>, to: Vec3<T>) -> T {
+        let (f, t) = (from.normalize(), to.normalize());
+        let sweep = self.normal_along(f).vec().cross(f).dot(self.axis.cross(f));
+        f.cross(t).dot(self.axis) * T::one().copysign(sweep)
+    }
+
+    /// The face's ruling at azimuth `phi` about its axis, from the
+    /// orthonormal pair `(e1, e2)` square to it, on the nappe `nappe`
+    /// (`±1`, the sign of the ruling's component along the axis): a
+    /// unit direction out of the apex.
+    pub(crate) fn ruling(&self, (e1, e2): (Vec3<T>, Vec3<T>), nappe: T, phi: T) -> Vec3<T> {
+        let (s, c) = phi.sin_cos();
+        let (sin_a, cos_a) = self.half_angle.sin_cos();
+        self.axis * (cos_a * nappe) + (e1 * c + e2 * s) * sin_a
+    }
+
+    /// Whether the face's material lies inside its cone: the outward
+    /// normal points off the axis exactly where the face's sense keeps
+    /// the chart normal ([`geom_brep::implicit_gradient`]'s cone arm
+    /// points off the axis on both nappes). Inside, the cone bends into
+    /// its material at every ruling, so a plane touching it along one
+    /// grazes it from outside; outside (a conical socket), the plane
+    /// leaves material on both sides of the contact.
+    pub(crate) const fn material_inside(&self) -> bool {
+        self.sense
+    }
 }
 
 /// Why a sector face could not be resolved. Each lane maps this onto
@@ -141,6 +252,15 @@ pub(crate) enum SectorFaceError {
         /// Its kind, `Nurbs` or `Approx`.
         kind: SurfaceKind,
     },
+    /// A cone face's vertex lies in the band of the cone's axis
+    /// ([`crate::face_normal::cone_off_axis`] escalated): neither a
+    /// tangent plane nor the apex is decided.
+    ApexUndecided {
+        /// The cone face.
+        face: FaceKey,
+        /// The escalation.
+        diag: geom_core::Indeterminate,
+    },
 }
 
 /// The face orbit half-edge `he`'s sector at `vertex` is a corner of:
@@ -153,8 +273,9 @@ pub(crate) fn face_of<T: Decide>(body: &Body<T>, vertex: VertexKey, he: HalfEdge
 }
 
 /// Resolves the sector CW-after `he` (`face(loop(mate(he)))`) to its
-/// face, that face's outward normal at `vertex`, and the carrier arm
-/// that produced the normal.
+/// face, what that face is at `vertex` (its outward normal there, or a
+/// cone's apex, decided by [`crate::face_normal::cone_off_axis`]), and
+/// the carrier arm that read it.
 ///
 /// Named `resolve` rather than `sector_face`: the module is the noun,
 /// and each lane's thin wrapper keeps that name for its own callers,
@@ -170,8 +291,9 @@ pub(crate) fn face_of<T: Decide>(body: &Body<T>, vertex: VertexKey, he: HalfEdge
 ///
 /// # Errors
 ///
-/// [`SectorFaceError`] — a carrier with no arm, or a spline face with no
-/// one normal at the vertex or no chart image to read it at.
+/// [`SectorFaceError`] — a carrier with no arm, a spline face with no
+/// one normal at the vertex or no chart image to read it at, or a cone
+/// face whose vertex lies in the band of its axis.
 #[track_caller]
 pub(crate) fn resolve<T: Decide>(
     body: &Body<T>,
@@ -190,7 +312,7 @@ pub(crate) fn resolve<T: Decide>(
     if let Some(normal) = face_outward_normal(body, face) {
         return Ok(SectorFace {
             face,
-            normal,
+            at_vertex: VertexFace::Tangent(normal),
             carrier: SectorCarrier::Plane,
         });
     }
@@ -206,7 +328,7 @@ pub(crate) fn resolve<T: Decide>(
     let charted = |chart, carrier| {
         Ok(SectorFace {
             face,
-            normal: OutwardNormal::from_chart(chart, sense),
+            at_vertex: VertexFace::Tangent(OutwardNormal::from_chart(chart, sense)),
             carrier,
         })
     };
@@ -223,7 +345,7 @@ pub(crate) fn resolve<T: Decide>(
         )?;
         return Ok(SectorFace {
             face,
-            normal,
+            at_vertex: VertexFace::Tangent(normal),
             carrier: SectorCarrier::Spline(kind),
         });
     }
@@ -249,13 +371,34 @@ pub(crate) fn resolve<T: Decide>(
             SectorCarrier::Torus,
         ),
         // A cone's implicit gradient IS its chart normal, nappe sign
-        // included. It poisons on the axis — at the apex, where no
-        // tangent plane exists — and the poison escalates typed at the
-        // first decide that reads it.
-        s @ geom::Surface::Cone { .. } => charted(
-            geom_brep::implicit_gradient(s, point()).normalize(),
-            SectorCarrier::Cone,
-        ),
+        // included, everywhere off its axis. On the axis it is `0/0`, and
+        // the axis point of the surface is the apex, read as its rulings.
+        s @ &geom::Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            u_ref,
+        } => {
+            let p = point();
+            match crate::face_normal::cone_off_axis(apex, axis, p, band) {
+                Ok(geom_core::Sign::Positive) => charted(
+                    geom_brep::implicit_gradient(s, p).normalize(),
+                    SectorCarrier::Cone,
+                ),
+                Ok(geom_core::Sign::Zero | geom_core::Sign::Negative) => Ok(SectorFace {
+                    face,
+                    at_vertex: VertexFace::Apex(ConeApex {
+                        apex,
+                        axis: axis.normalize(),
+                        half_angle,
+                        u_ref,
+                        sense,
+                    }),
+                    carrier: SectorCarrier::Cone,
+                }),
+                Err(diag) => Err(SectorFaceError::ApexUndecided { face, diag }),
+            }
+        }
         // The planar and spline arms returned above; anything else has
         // no arm.
         s => Err(SectorFaceError::Unsupported {
@@ -471,9 +614,9 @@ pub(crate) mod tests {
         let tube = x * cv + z * sv;
         let want = OutwardNormal::from_chart(tube, body.get_face(face).unwrap().sense).vec();
         assert!(
-            (resolved.normal.vec() - want).norm() < 1e-12,
+            (resolved.at_vertex.tangent() - want).norm() < 1e-12,
             "{:?} is not the tube's outward normal {want:?}",
-            resolved.normal.vec()
+            resolved.at_vertex.tangent()
         );
     }
 
@@ -584,7 +727,7 @@ pub(crate) mod tests {
                     SectorCarrier::Spline(SurfaceKind::Nurbs),
                     "sense {sense}"
                 );
-                let n = resolved.normal.vec();
+                let n = resolved.at_vertex.tangent();
                 assert!(
                     (n - geom_core::Vec3::new(0.0, 0.0, 1.0)).norm() < 1e-12,
                     "sense {sense}, corner {v:?}: {n:?} is not the outward +z"
@@ -617,7 +760,7 @@ pub(crate) mod tests {
                     "a vertex on the crease refuses: {got:?}"
                 );
             } else {
-                let n = got.expect("a vertex on a smooth knot reads").normal.vec();
+                let n = got.expect("a vertex on a smooth knot reads").at_vertex.tangent();
                 assert!(
                     (n - geom_core::Vec3::new(0.0, 0.0, 1.0)).norm() < 1e-12,
                     "{n:?}"
@@ -677,7 +820,7 @@ pub(crate) mod tests {
                     "{at:?}: the irregular corner refuses: {got:?}"
                 );
             } else {
-                let n = got.expect("a regular corner reads").normal.vec();
+                let n = got.expect("a regular corner reads").at_vertex.tangent();
                 assert!(
                     (n - geom_core::Vec3::new(0.0, 0.0, 1.0)).norm() < 1e-12,
                     "{at:?}: {n:?}"
@@ -781,8 +924,8 @@ mod review_5802 {
             let mid = split_top(&mut body, |p| p.y == 0.0);
             let n = resolve(&body, mid, sector_of(&body, mid, top), band())
                 .unwrap_or_else(|e| panic!("sense {sense}: {e:?}"))
-                .normal
-                .vec();
+                .at_vertex
+                .tangent();
             assert!(
                 (n - want).norm() < 1e-9,
                 "sense {sense}: {n:?} not {want:?}"
@@ -790,8 +933,8 @@ mod review_5802 {
             let rev = body.revert().unwrap();
             let n = resolve(&rev, mid, sector_of(&rev, mid, top), band())
                 .unwrap_or_else(|e| panic!("reverted, sense {sense}: {e:?}"))
-                .normal
-                .vec();
+                .at_vertex
+                .tangent();
             assert!(
                 (n + want).norm() < 1e-9,
                 "reverted, sense {sense}: {n:?} not {:?}",
@@ -824,8 +967,8 @@ mod review_5802 {
                 let mid = split_top(&mut body, on);
                 let n = resolve(&body, mid, sector_of(&body, mid, top), band())
                     .unwrap_or_else(|e| panic!("{e:?}"))
-                    .normal
-                    .vec();
+                    .at_vertex
+                    .tangent();
                 assert!(
                     (n - want.normalize()).norm() < 1e-9,
                     "sense {sense}: {n:?} not {want:?}"
