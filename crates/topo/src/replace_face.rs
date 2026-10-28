@@ -687,12 +687,19 @@ pub enum ReplaceFaceError<T: Real> {
         /// Which shape it is.
         what: &'static str,
     },
-    /// **An edge the axial door would carry along an open conic.** A cone
-    /// wall's section with a plane parallel to the axis that stands off
-    /// the moved apex is a hyperbola, minted as a rational-quadratic
-    /// NURBS arc (`geom_brep`'s C1) whose uniqueness tube has no cone
-    /// enclosure yet, so no body carrying it certifies. Refused at the
-    /// door's gate, before any corner is solved.
+    /// **An edge the axial door carries along an open conic that does not
+    /// certify.** A cone wall's section with a plane parallel to the axis
+    /// that stands off the moved apex is a hyperbola, minted as a
+    /// rational-quadratic NURBS arc (`geom_brep`'s C1) between the moved
+    /// corners. Its uniqueness tube has no cone enclosure, so it rests
+    /// only where the plane×cone section states the bounds that retire
+    /// the tube (C2); an arc whose pose states none
+    /// (`geom_brep::intersect::Unstated`: its stretch at the apex's
+    /// height, the overlap not clear of its tube, no section point
+    /// certified beside it, or a box too wide for any of these) is
+    /// refused here, read off the re-chart's refusal of that edge
+    /// (`EulerOpError::RechartFalsifies` with the cone's
+    /// `NoTubeEnclosure`).
     TogetherConicArc {
         /// The edge.
         edge: EdgeKey,
@@ -947,8 +954,8 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             Self::TogetherConicArc { conic, .. } => write!(
                 f,
                 "an edge of the body would follow the offset along {}, where the moved flat \
-                 face cuts the cone off its axis, and that arc cannot yet be certified on a \
-                 cone. {NOT_YET_ENDING}",
+                 face cuts the cone off its axis, and the section states no bound that \
+                 certifies that arc there. {NOT_YET_ENDING}",
                 conic.named()
             ),
             Self::DegenerateTorus { refusal, .. } => refusal.fmt(f),

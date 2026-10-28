@@ -546,11 +546,11 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
     }
     // The structural curved-rim arm. A spiric bounds a plane cap or a
     // torus wall and nothing else (`Pcurve::Spiric` certifies on those two
-    // chart kinds only); the face walk routes a plane here only when a
-    // spiric or a rational spline rim is on its boundary, and a torus wall
-    // comes here when a spiric is on any of its loops, its outer loop or a
-    // ring.
-    if matches!(surface, Surface::Plane { .. })
+    // chart kinds only); the face walk routes a plane or a cone here only
+    // when a spiric or a rational spline rim is on its boundary, and a
+    // torus wall comes here when a spiric is on any of its loops, its
+    // outer loop or a ring.
+    if matches!(surface, Surface::Plane { .. } | Surface::Cone { .. })
         || (matches!(surface, Surface::Torus { .. })
             && loops
                 .iter()
@@ -779,6 +779,24 @@ fn rim_face<T: Decide + geom_core::CertifiedBounds>(
                 .collect();
             plane_cap(&loops, centre)?
         }
+        Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } => {
+            let loops: Vec<Vec<LoopEdge<Interval>>> = loops
+                .iter()
+                .map(|(edges, _)| edges.iter().map(lift).collect())
+                .collect();
+            let apex = Point3::new(iv(apex.x), iv(apex.y), iv(apex.z));
+            let axis = geom_core::Vec3::new(iv(axis.x), iv(axis.y), iv(axis.z));
+            let axis = axis / (axis.x.sqr() + axis.y.sqr() + axis.z.sqr()).sqrt();
+            // Lane evaluation at `T`, crossed in through its bracket.
+            let sin_a = iv(half_angle.sin());
+            let face = cap_about(&loops, apex, centre)?;
+            return spiric::cone_cap_rounds::<T>(&face, (rv(axis), sin_a), band, window, accept);
+        }
         Surface::Torus {
             center,
             major_radius,
@@ -867,7 +885,17 @@ fn plane_cap(
     loops: &[Vec<LoopEdge<Interval>>],
     centre: Point3<Interval>,
 ) -> Result<spiric::RimFaceQ, PropsError> {
-    let anchor = loops_anchor(loops)?;
+    cap_about(loops, loops_anchor(loops)?, centre)
+}
+
+/// A cap's loops read about `anchor`: [`plane_cap`]'s reading, taken
+/// about a point of a plane, or about a cone's apex for
+/// [`spiric::cone_cap_rounds`].
+fn cap_about(
+    loops: &[Vec<LoopEdge<Interval>>],
+    anchor: Point3<Interval>,
+    centre: Point3<Interval>,
+) -> Result<spiric::RimFaceQ, PropsError> {
     let mut closed_va = [Interval::zero(); 3];
     let mut spirics = Vec::new();
     let mut rationals = Vec::new();

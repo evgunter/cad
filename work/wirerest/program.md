@@ -1,7 +1,7 @@
 ---
 id: wirerest
 kind: program
-title: WIREREST — WIRE's second P3 and P4 tail: a split's plane and seam-vertex residue, the flush helpers' twins, the verb door's record type, and refusals that state the wrong ending
+title: WIREREST — WIRE's second P3 and P4 tail: a split's plane and seam-vertex residue, a union's fold-step and coincidence-row residue, and naming tests that do not hold at every K
 status: ready
 opened: 2026-10-20
 group: api/eval
