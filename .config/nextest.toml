@@ -25,6 +25,10 @@ fail-fast = false
 # turns into annotations and a step summary: a session reads the job log only
 # through its last 5000 lines, and one run prints ~14 000 PASS lines.
 failure-output = "immediate-final"
+# Limb 2 at a parameter-family scalar, where the box's spread keeps its
+# first reading from clearing and its rounds decide
+# (work/offset/closed-form-limb-2-costs-milliseconds-per-curved-edge.md):
+#    1.43 s  editor-core::all m10_4_stackup_interval::a_foreign_verdict_or_box_refuses_typed
 # The filter's own entries are its count; the last measured total, under
 # 817 s of test time on 4 vCPU, was taken when it held 145.
 default-filter = """
@@ -135,6 +139,7 @@ not (
   (binary_id(geom-brep) & (test(=props::quad::trimmed::tests::n_gons_of_arcs_on_a_flat_chart_certify_at_their_round) | test(=props::quad::trimmed::tests::a_32_gon_of_arcs_stops_at_the_wall_holding_its_closed_form) | test(=props::quad::patch::tests::a_never_accepted_face_stops_at_its_cumulative_wall))) |
   (binary_id(geom-brep::all) & (test(=review_r1_rational_probes::a_conic_torus_costlier_per_round_stops_at_the_wall_holding_its_closed_form))) |
   (binary_id(mesh::all) & (test(=lofted_circle::a_loft_of_two_circles_tessellates))) |
+  (binary_id(editor-core::all) & (test(=m10_4_stackup_interval::a_foreign_verdict_or_box_refuses_typed))) |
   (binary_id(geom-brep) & (test(=props::quad::trimmed::tests::q6_a_chart_past_the_newton_cotes_window_refuses_typed) | test(=props::quad::trimmed::tests::q14_the_composite_arm_holds_a_closed_form_at_every_round) | test(=props::quad::trimmed::tests::q15_a_composite_face_short_of_its_caller_stops_at_the_wall) | test(=props::quad::trimmed::tests::q16_the_composite_arm_holds_an_independent_reference_across_knots) | test(=props::quad::trimmed::tests::q17_the_closure_gap_is_paid_over_the_column_below_the_trim))) |
   (binary_id(sweep::all) & (test(=m6_loft_body::shape_iii_volume_matches_the_derived_closed_form) | test(=r1_area_gauge_probes::r1_e2e_gauge_is_silent_on_an_honest_body_through_the_public_door)))
 )

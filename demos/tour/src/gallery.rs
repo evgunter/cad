@@ -314,7 +314,7 @@ mod tests {
                 name: "chain",
                 doc: crate::chain::gallery_document(tol),
                 placements: 10,
-                at_rest: 196,
+                at_rest: 10,
                 // Each bar a six-face box; each pin a cylinder wall in
                 // two halves and its two caps.
                 product: Some(Product {
@@ -326,11 +326,12 @@ mod tests {
                     "copies: one bar extrude, each link placed against its parent, is ",
                     "four copies, each its own output with its own names; the target ",
                     "stands in the world because the tip measure reads it beside the ",
-                    "tip pin's copy. ONE HUNDRED NINETY-SIX at-rest findings, all ",
-                    "could-not-look and none interference: each pin's curved wall is ",
-                    "within reach of the bar ends it joins, the bars meet at the joints ",
-                    "in edge contacts no door recorded, and the pairs those leave ",
-                    "unchecked wait on them. No mate declares a joint",
+                    "tip pin's copy. TEN at-rest findings: each bar is a solid box and ",
+                    "each pin passes through the bar ends it joins, so nine bar-pin ",
+                    "pairs overlap (the last bar with the target pin among them), each ",
+                    "bounded by its faces, and the tip pin and the target pin, whose ",
+                    "boundaries do not cross, are an overlap the kernel could not ",
+                    "bound. No mate declares a joint",
                 ),
             },
         ];
