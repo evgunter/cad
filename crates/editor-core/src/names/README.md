@@ -300,6 +300,10 @@ this rule, and so do profile pieces:
   (`LoftSectionEdge`) and vertex (`LoftSectionVertex`) hold the section and
   that section's own locator. The slab or section is what tells two walls
   of one segment apart, since two sections may be drawn by the same steps.
+  Counting from the start section is a positional PLACEHOLDER: inserting or
+  deleting an earlier section renames every later slab and ring. These
+  names are to key on each section's input identity instead
+  (`work/tess/loft-slab-and-section-names-are-positional.md`).
   Setting the degree slot to 1 or from 1 changes the walls the body has,
   so the names of the other degree's walls vanish.
 - **Swept walls over a run.** Extrude and revolve build one wall per run of

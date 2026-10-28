@@ -394,14 +394,21 @@ fn a_higher_degree_loft_keeps_one_wall_per_segment() {
     }
 }
 
-/// Maximality: the slab walls of one segment lie on one plane here (a
-/// translated square), each on its own spline surface, and the merge
-/// the boolean's output stage runs (`Body::merge_coplanar_faces`) glues
-/// none of them: a spline pair is outside the carrier ladder's
-/// inventory, so only one key would merge it. The boolean's
-/// maximal-faces gate reads an operand the same way, so it passes too;
-/// what refuses the union is the boolean's spline-edge frontier, as on
-/// a two-section loft (`band_subdivided_side_walls`).
+/// **A ladder gap, pinned so it goes red when the gap closes.** The
+/// construction cuts a wall at each section, and the ordinary
+/// maximal-faces join should then merge the slab walls whose carriers
+/// coincide (Ev on PR 5913). Here they do coincide: a translated
+/// square's slab walls of one segment lie on one plane. Each is its own
+/// spline surface, though, and the carrier ladder cannot read a spline
+/// carrier, so the merge the boolean's output stage runs
+/// (`Body::merge_coplanar_faces`) glues none of them
+/// (`work/coincide/the-carrier-ladder-cannot-read-a-spline-carrier-so-coincident-spline-faces-never-merge.md`).
+/// That is a missing reading, not a property of the loft. When the
+/// ladder reads them, these assertions fail and are rewritten to expect
+/// the merge. The boolean's maximal-faces gate reads an operand the
+/// same way, so it passes too; what refuses the union is the boolean's
+/// spline-edge frontier, as on a two-section loft
+/// (`band_subdivided_side_walls`).
 #[test]
 fn the_output_stage_merge_keeps_every_slab_wall() {
     let zs = heights(4, "uniform");
@@ -410,7 +417,9 @@ fn the_output_stage_merge_keeps_every_slab_wall() {
     let outcome = merged.merge_coplanar_faces(tol()).unwrap();
     assert!(
         outcome.groups.is_empty(),
-        "no two slab walls merge: {:?}",
+        "coplanar slab walls merged: the carrier ladder now reads spline carriers \
+         (work/coincide/the-carrier-ladder-cannot-read-a-spline-carrier-so-coincident-\
+         spline-faces-never-merge.md); rewrite this row to expect the merge: {:?}",
         outcome.groups
     );
     assert_eq!(merged.faces().count(), lofted.body.faces().count());
