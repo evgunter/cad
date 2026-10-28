@@ -7223,3 +7223,4 @@ Signed (WIRE orchestrator).
   - MINORs: a stale `Rederived` cite in a WIRE row, and `groups.rs` tie_summed docs.
   - Fix pass sent to the lane.
   - Filed `wirerest/the-judgement-naming-fault-seam-refuses-other-tests-unions` (P4, E) for a pre-existing threaded-cargo-test flake.
+- 2026-10-28 (WIRE orchestrator) PR 5902 fix pass: the unequal-tied-groups witness is red on base, the PR body is corrected, and the docs are fixed. Merged at e341b9d915; row closed; worktree removed.
