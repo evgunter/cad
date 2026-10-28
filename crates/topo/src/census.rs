@@ -2624,7 +2624,10 @@ const LINE_WEDGE: crate::validate::WedgeNames = crate::validate::WedgeNames {
     before_arriving: LINE_WEDGE_BEFORE_ARRIVING,
     turn: LINE_WEDGE_TURN,
     straight: LINE_WEDGE_STRAIGHT,
-    // A line's wedge is scaled to its own arm, exact: never read twice.
+    // Unreachable: `strictly_inside` hands only exact departures (every
+    // direction scaled to the wedge's own arm), so no sign here is read
+    // at two bounds and this row never records. It names the row only
+    // because every `WedgeNames` carries one.
     straddle: "pm_census_wedge_straddle",
 };
 

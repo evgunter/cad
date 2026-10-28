@@ -8658,7 +8658,9 @@ pub(crate) struct WedgeNames {
     /// Whether a wedge of no turn is straight or a cusp.
     pub(crate) straight: &'static str,
     /// Where a sign read at both bounds of its lever straddles the band
-    /// ([`decide_agreed`]).
+    /// ([`decide_agreed`]). Recorded only where a departure is
+    /// [`Departure::Between`]; a caller that hands exact departures alone
+    /// names a row that never records, and says so at its site.
     pub(crate) straddle: &'static str,
 }
 
