@@ -4,7 +4,7 @@ kind: issue
 title: Main red: three editor-core M10 interval pins moved at every eps since PR 5728 (certification half-width, stepped-shaft leaves, two_hole_plate symbolic count)
 status: open
 opened: 2026-10-28
-priority: P0
+priority: P2
 cost: M
 ---
 
@@ -57,3 +57,57 @@ Reproduce: `cargo nextest run -p editor-core --ignore-default-filter -E
 'test(/^m10_3_driver_interval::the_certification_width/) |
 test(/^m10_4_r1_probes_interval::r1_a_real_tolerance_study/) |
 test(/^m10_9_pins_interval::m10_9_no_registrant_lies/)'`.
+
+## Band
+
+P2, not P0 (2026-10-28): these are slow-set rows at interval and
+tight-ε ground, which `work/README.md`'s bands put at P2; a main red is
+not P0 by itself. The rows are pinned at what main produces, so main
+is green on them while this row stays open for the mechanism.
+
+## Pinned (2026-10-28)
+
+Re-measured on main `974f160a`, identical at all three ε rows, and
+each row pinned at that number with a comment naming this row:
+
+- `m10_3`: the whole-certifying half-width is 0.094756 at every row
+  (was 0.438988 / 0.488315 / 0.497892 at 1e-6 / 1e-9 / 1e-12). Its
+  assertion (4) says why: just past the new ceiling the one-leaf replay
+  refuses on limb 2, `CarrierEnclosure { kind: Line }` (an extrude
+  wall's line carrier has no certified enclosure over the box), before
+  the `dihedral_wedge` / `SliverJoin` regime the row's doc describes.
+  The row now asserts that predicate. Still unread: why limb 2 cannot
+  enclose a line over that box, and whether it should.
+- `m10_4`: `Receipt { certified: 4, refused: 0, splits: 3 }`; the
+  study's chamber is the leaf `[-0.1, 0]` on both axes, not the whole
+  box. Likely the same limb-2 ceiling, unmeasured.
+- `m10_9`: every measured document moved, by the same amount at every
+  row: the plate 1101 -> 1149, the annulus 630 -> 654, the link
+  922 -> 954, the bracket 1473 -> 1535, the pad 1544 -> 1592. None
+  refuses a registration or disputes a theorem. The 1305 / 1249 above
+  predate PR 5811, which merged after 5728 but was measured on a main
+  without it and moved the plate's pin 1249 -> 1101. The row stops at
+  its first study, which is why only the plate was reported.
+
+Four more slow-set rows were red on main with the same documents, and
+the triage did not file them. They are pinned the same way. Each was
+last re-taken before both PR 5811 (INTENT, copies that no longer run
+their maps) and PR 5728, so which of the two moved each is unbisected:
+
+- `m10_9_the_pad_at_both_rule_f_dials`: the pad's receipt
+  (1546, 1260, 3026) -> (1592, 1250, 2465), at both dials.
+- `m10_9_what_the_registry_buys`: with the door shut the link now
+  refuses at limb 2's stall against the cylinder, not `pcurve_envelope`,
+  after (709, 585). The bracket (1566, 1384) -> (1474, 1228); the pad
+  (1546, 1260) -> (1592, 1250), the same as shipped.
+- `sym11_the_exact_channel_never_contradicts_past_the_ceiling`: every
+  receipt past the ceiling moved, `frozen` most (the plate 1557 -> 229).
+  No dispute fired.
+- `m10_3`'s `a_planted_flip_refuses_flip_crossing_and_names_what_flipped`:
+  the witness side certifies no leaf within 4096, so the flip is never
+  reached. The row asserts that, and its flip checks wait in
+  `names_what_flipped`. This one is a behaviour loss rather than a count
+  that moved.
+
+Closing this row takes the mechanism of each move. The pins keep main
+green until then.

@@ -4,7 +4,7 @@ kind: issue
 title: Main red: five slow-set rows refuse at 1e-12 as limb 2's KernelLimit since PR 5728, and the torus support plate refuses NoOffsetBound at 1e-6
 status: open
 opened: 2026-10-28
-priority: P0
+priority: P2
 cost: M
 ---
 
@@ -60,3 +60,20 @@ Reproduce: `CAD_TOLERANCE_EPS=1e-12 cargo nextest run -p sweep -p mesh
 | test(/^band_turn_overrun_oracles::leaning_prisms/) |
 test(/^reach_split_gate_(azimuth|pose)::(every_cut_clear|a_cut_clear)/) |
 test(/^operand_gate_support_plates::plates_at/)'`.
+
+## Band
+
+P2, not P0 (2026-10-28): these are slow-set rows at interval and
+tight-ε ground, which `work/README.md`'s bands put at P2; a main red is
+not P0 by itself. The rows are pinned at what main produces, so main
+is green on them while this row stays open for the mechanism.
+
+## Pinned (2026-10-28)
+
+All six refusals reproduced on main `974f160a` with the bounds and
+extents above. Each row is pinned whole at the ε it refuses at
+(`test_utils::kernel_limit::pinned_row` at 1e-12; the torus plate's
+1e-6 `NoOffsetBound` through `panic_capture::caught`), with a comment
+naming this row. Each row stops at its first refusal, so which other
+cases of the row also refuse is unmeasured; closing this row narrows
+each pin to its refusing cases or removes it.
