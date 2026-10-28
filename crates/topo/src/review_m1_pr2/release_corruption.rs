@@ -53,8 +53,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::panic_message;
+use crate::construction::{MefSite, MevSite};
 use crate::fixtures::deep_snapshot;
-use crate::{BadArgument, Body, EntityId, EulerOpError, MefSite, MevSite};
+use crate::{BadArgument, Body, EntityId, EulerOpError};
 use geom_core::Point3;
 use std::panic::AssertUnwindSafe;
 // Only the release-profile garbage-out test validates; guard the import
@@ -74,9 +75,9 @@ fn pillow(
     tol: Tol,
 ) -> (
     Body<f64>,
-    crate::MvfsCreated,
-    crate::MevCreated,
-    crate::MefCreated,
+    crate::construction::MvfsCreated,
+    crate::construction::MevCreated,
+    crate::construction::MefCreated,
 ) {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(0.0), true).unwrap();

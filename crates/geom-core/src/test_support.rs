@@ -14,6 +14,19 @@ pub fn upper(margin: MarginDiag) -> f64 {
     }
 }
 
+/// The lower end of a reporting margin: the point margin, or the
+/// enclosure's lower end; `NaN` for a poisoned reading. A measured
+/// miss's floor reads here: at an enclosure scalar limb 2 refuses on
+/// the enclosure `[floor, upper]` of the carrier's distance, whose
+/// lower end is the floor.
+#[must_use]
+pub fn lower(margin: MarginDiag) -> f64 {
+    match margin.diagnostic_f64_for_error_text() {
+        ErrorTextReading::Value(m) | ErrorTextReading::Enclosure { lo: m, .. } => m,
+        ErrorTextReading::Invalid => f64::NAN,
+    }
+}
+
 /// **A matrix a suite holds, admitted at the decided door** at `tol`'s
 /// linear band ([`RigidMotion::check_rigid`]): the question a suite
 /// that builds its map as twelve numbers asks before it moves a body

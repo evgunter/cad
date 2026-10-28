@@ -1834,7 +1834,7 @@ fn squashed_with_offsets(code: &str) -> (String, Vec<usize>) {
 /// source-scanning guards below all read this one list;
 /// `the_boundary_guard_scans_every_facade_source_file` pins it
 /// against the directory, so a new module cannot arrive unguarded.
-const FACADE_SOURCES: [(&str, &str); 11] = [
+const FACADE_SOURCES: [(&str, &str); 12] = [
     ("lib.rs", include_str!("../src/lib.rs")),
     ("analysis.rs", include_str!("../src/analysis.rs")),
     ("prelude.rs", include_str!("../src/prelude.rs")),
@@ -1845,6 +1845,7 @@ const FACADE_SOURCES: [(&str, &str); 11] = [
     ("export.rs", include_str!("../src/export.rs")),
     ("guide.rs", include_str!("../src/guide.rs")),
     ("tolerance.rs", include_str!("../src/tolerance.rs")),
+    ("topo.rs", include_str!("../src/topo.rs")),
     ("workspace.rs", include_str!("../src/workspace.rs")),
 ];
 
@@ -5703,11 +5704,141 @@ fn every_profile_layer_root_export_is_carried_or_listed() {
     );
 }
 
+/// **The topology layer's guard: whole but for its construction tier.**
+///
+/// `crate::topo` is a glob of the topo crate with the construction
+/// tier's modules shadowed by private empty ones (`src/topo.rs`), so the
+/// layer cannot drift except through the shadows. This pins what the
+/// curation rests on:
+///
+/// - the glob is there;
+/// - the shadows are derived, not listed: `construction`, `movefac`
+///   (which holds tier doors and nothing public) and every module
+///   `construction` re-exports the tier's vocabulary from, each still a
+///   public module of topo (a shadow over a module topo no longer has is
+///   stale);
+/// - no `pub use` in topo's root or in any public module left
+///   unshadowed names a tier name (the trait `Construct` or its
+///   vocabulary) or globs through a shadowed module, either of which
+///   would carry the tier past the shadows.
+///
+/// The doors themselves are methods: that none is public on `Body` is
+/// topo's own pin (`source_walk::every_construction_door_is_a_crate_private_body_method`).
+#[test]
+fn the_topo_layer_is_whole_but_for_its_construction_tier() {
+    let (_, facade) = FACADE_SOURCES
+        .iter()
+        .find(|(name, _)| *name == "topo.rs")
+        .unwrap_or_else(|| panic!("FACADE_SOURCES no longer lists src/topo.rs"));
+    let facade = code_and_literals(facade);
+    // Spelled in pieces: this file names the kernel only through the
+    // façade (`this_file_reaches_the_kernel_only_through_pncad`).
+    let glob = ["pub use ::", "topo", "::*;"].concat();
+    assert!(
+        facade.contains(&glob),
+        "src/topo.rs no longer re-exports the topo layer by glob"
+    );
+    let shadows: std::collections::BTreeSet<String> = facade
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix("mod ")?.strip_suffix(" {}"))
+        .map(str::to_owned)
+        .collect();
+
+    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../topo/src");
+    let read = |path: &std::path::Path| {
+        let text = std::fs::read_to_string(path)
+            .unwrap_or_else(|e| panic!("reading {}: {e}", path.display()));
+        code_without_cfg_gated(&code_and_literals(&text))
+    };
+    let construction = read(&src.join("construction.rs"));
+    let mut tier = module_pub_use_names(&construction);
+    assert!(
+        tier.len() > 10,
+        "the scanner read only {} tier names",
+        tier.len()
+    );
+    tier.insert("Construct".to_owned());
+    let mut derived: std::collections::BTreeSet<String> =
+        ["construction", "movefac"].map(str::to_owned).into();
+    for stmt in construction.split("pub use crate::").skip(1) {
+        let module = stmt.split("::").next().unwrap_or_default().trim();
+        derived.insert(module.to_owned());
+    }
+    assert_eq!(
+        shadows, derived,
+        "the façade's shadows are the construction tier's modules"
+    );
+
+    let root = read(&src.join("lib.rs"));
+    for module in &shadows {
+        assert!(
+            root.contains(&format!("pub mod {module};")),
+            "the shadow `{module}` names no public module of topo: drop it"
+        );
+    }
+    // The root, and every file of every public module left unshadowed.
+    let mut files = vec![src.join("lib.rs")];
+    let public: Vec<&str> = root
+        .lines()
+        .filter_map(|l| l.trim().strip_prefix("pub mod ")?.strip_suffix(';'))
+        .collect();
+    assert!(
+        public.len() > 20,
+        "read only {} public modules",
+        public.len()
+    );
+    for module in public.iter().filter(|m| !shadows.contains(**m)) {
+        let file = src.join(format!("{module}.rs"));
+        if file.exists() {
+            files.push(file);
+        }
+        let mut dirs = vec![src.join(module)];
+        while let Some(dir) = dirs.pop() {
+            let Ok(entries) = std::fs::read_dir(&dir) else {
+                continue;
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    dirs.push(path);
+                } else if path.extension().is_some_and(|e| e == "rs") {
+                    files.push(path);
+                }
+            }
+        }
+    }
+    let ident = |c: char| c.is_alphanumeric() || c == '_';
+    let mut carried = Vec::new();
+    for file in &files {
+        let code = read(file);
+        let mut rest = code.as_str();
+        while let Some(at) = rest.find("pub use ") {
+            rest = &rest[at + "pub use ".len()..];
+            let Some(end) = rest.find(';') else { break };
+            let stmt = &rest[..end];
+            rest = &rest[end + 1..];
+            let names: Vec<&str> = stmt
+                .split(|c| !ident(c))
+                .filter(|w| !w.is_empty())
+                .collect();
+            let named = names.iter().any(|n| tier.contains(*n));
+            let globbed = stmt.contains('*') && names.iter().any(|n| shadows.contains(*n));
+            if named || globbed {
+                carried.push(format!("{}: pub use {}", file.display(), stmt.trim()));
+            }
+        }
+    }
+    assert!(
+        carried.is_empty(),
+        "a `pub use` carries the construction tier past the façade's shadows: {carried:#?}"
+    );
+}
+
 /// The layers whose surfaces the façade curates name by name, and
 /// which therefore have a completeness guard above. Anything not here
 /// must be re-exported whole; the test below is what makes that an
 /// enforced dichotomy rather than a description.
-const PER_NAME_GUARDED: [&str; 2] = ["editor_core", "profile"];
+const PER_NAME_GUARDED: [&str; 3] = ["editor_core", "profile", "topo"];
 
 /// Every crate the façade re-exports WHOLE at its root — `pub use
 /// foo;`, no path and no brace list — so every name that crate's root

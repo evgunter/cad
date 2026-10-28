@@ -6,6 +6,7 @@
 use geom_core::Point3;
 use profile::SketchPlane;
 use profile::test_support::bulge_loop;
+use topo::construction::Construct;
 
 use geom_core::Point2;
 use sweep::loft_body;

@@ -122,9 +122,10 @@ use crate::names::emit::{
     check_total, edge_ends, ent, face_half_edges, vertex_point,
 };
 use crate::names::emit_topo::{
-    CornerCopies, Cover, EdgeCarrier, EdgePieces, EdgeReading, Lone, UNSIDED, edge_reading,
-    edges_holding, is_straight, joined_along, joined_candidates, line_name as line_name_of,
-    name_corner_copies, name_edge_pieces, name_parent_faces, sense_along_line, sets_per_line,
+    CornerCopies, Cover, EdgeCarrier, EdgePieces, EdgeReading, Lone, ParentEntities, UNSIDED,
+    edge_reading, edges_holding, is_straight, joined_along, joined_candidates,
+    line_name as line_name_of, name_corner_copies, name_edge_pieces, name_parent_faces,
+    sense_along_line, sets_per_line,
 };
 use crate::names::groups::Rederived;
 use crate::names::least_root::LeastRoot;
@@ -2528,8 +2529,9 @@ fn name_by_parents<T: geom_core::Decide>(
         }
         seams.extend(edges);
     }
-    // Base → (from a tie, its edges).
-    let mut seam_groups: BTreeMap<StableName, (bool, Vec<topo::EdgeKey>)> = BTreeMap::new();
+    // (base, the two parents) → (from a tie, its edges).
+    type SeamKey = (StableName, ParentEntities<MemberFace>);
+    let mut seam_groups: BTreeMap<SeamKey, (bool, Vec<topo::EdgeKey>)> = BTreeMap::new();
     for &k in &seams {
         // `Incidence` dedups a wrap edge's one face: a wrap edge pierced
         // at a point and joined back after the boolean is one way in.
@@ -2562,14 +2564,15 @@ fn name_by_parents<T: geom_core::Decide>(
                 b: NameRef::new(b.clone()),
             }],
         };
-        let slot = seam_groups.entry(base).or_default();
+        let sides = BTreeSet::from([p0.entities.clone(), p1.entities.clone()]);
+        let slot = seam_groups.entry((base, sides)).or_default();
         slot.0 |= p0.tied || p1.tied;
         slot.1.push(k);
     }
     // Edge → its seam's head, for the rows that cite it.
     let mut seam_head: BTreeMap<topo::EdgeKey, StableName> = BTreeMap::new();
     let mut groups = Vec::with_capacity(seam_groups.len());
-    for (base, (tied, keys)) in seam_groups {
+    for ((base, _), (tied, keys)) in seam_groups {
         record(
             &base,
             keys.iter().map(|&k| ent(0, EntityKey::Edge(k))).collect(),
@@ -3180,6 +3183,7 @@ mod tests {
 
     use super::*;
     use crate::names::role::{CapEnd, EntityKind};
+    use topo::construction::Construct;
 
     fn face(node: RecipeNodeId, path: Vec<RoleSeg>) -> StableName {
         StableName {
@@ -3554,7 +3558,7 @@ mod tests {
                 .mvfs(geom_core::Point3::new(x, 0.0, 0.0), true)
                 .expect("mvfs births a lone vertex");
             body.mev_line(
-                topo::MevSite::Lone {
+                topo::construction::MevSite::Lone {
                     r#loop: born.r#loop,
                 },
                 geom_core::Point3::new(x + 1.0, 0.0, 0.0),
@@ -3643,7 +3647,7 @@ mod tests {
                 .expect("mvfs births a lone vertex");
             let edge = member_body
                 .mev_line(
-                    topo::MevSite::Lone {
+                    topo::construction::MevSite::Lone {
                         r#loop: born.r#loop,
                     },
                     geom_core::Point3::new(1.0, 0.0, 0.0),
@@ -3945,7 +3949,7 @@ mod tests {
                 .expect("mvfs births a lone vertex");
             let edge = body
                 .mev_line(
-                    topo::MevSite::Lone {
+                    topo::construction::MevSite::Lone {
                         r#loop: born.r#loop,
                     },
                     geom_core::Point3::new(q[0], q[1], q[2]),

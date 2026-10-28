@@ -28,12 +28,14 @@
 use geom_core::Real;
 use geom_core::spline::Knots;
 use std::sync::Arc;
+use topo::construction::Construct;
 
 use geom::{Curve3, NurbsCurve2, NurbsCurve3, NurbsSurface, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, Pcurve, PcurveCertifyError};
 use geom_core::spline::KnotVector;
 use geom_core::{Point2, Point3, Tol};
-use topo::{AtRestPolicy, Body, FaceKey, FaceSurface, MefSite, MevSite};
+use topo::construction::{FaceSurface, MefSite, MevSite};
+use topo::{AtRestPolicy, Body, FaceKey};
 
 /// Which carrier every edge of the lamina is re-described with.
 #[derive(Clone, Copy, Debug)]

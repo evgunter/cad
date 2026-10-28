@@ -1,7 +1,7 @@
 //! **The document layer's curated surface**.
 //!
-//! The façade re-exports the KERNEL crates wholesale (`pncad::topo`,
-//! `pncad::sweep`, …): they are geometry, and a consumer that reaches
+//! The façade re-exports the KERNEL crates wholesale (`pncad::sweep`,
+//! …; `pncad::topo` whole but for its construction tier): they are geometry, and a consumer that reaches
 //! past the prelude into them finds nothing that outlives the value it
 //! is holding. The document layer is different — its arena keys
 //! (`EntityRef`, `EntityKey`, and the `topo` keys they wrap) are
@@ -458,13 +458,16 @@ pub use editor_core::{
 // whether one could (`quietable`): one no assertion could quiet refuses
 // at no severity. A pair the census could not look at is an
 // `AtRestEvidence`, loud and never refusing. A part's own findings cross the seam with it, each
-// reported once, as the part's: `CarriedInterference` and
-// `CarriedAtRestFinding`, each with the `Route` it arrived by (one type,
-// on every carrier of that fact); `CarriedFindings` is what an
-// instantiated value carries up.
+// reported once, as the part's: `CarriedInterference`,
+// `CarriedAtRestFinding` and `CarriedCoincidence`, each with the `Route`
+// it arrived by (one type, on every carrier of that fact);
+// `CarriedFindings` is what an instantiated value carries up, its
+// `CarriedCoincidenceRows` the rows a part's own door judges, each over
+// the part's `PinnedDoc`.
 pub use editor_core::{
-    AtRestEvidence, CarriedAtRestFinding, CarriedFindings, CarriedInterference, CopyRef, FaceSite,
-    InterferenceFinding, Overlap, Route, Unlocalized,
+    AtRestEvidence, CarriedAtRestFinding, CarriedCoincidence, CarriedCoincidenceRows,
+    CarriedFindings, CarriedInterference, CopyRef, FaceSite, InterferenceFinding, Overlap,
+    PinnedDoc, Route, Unlocalized,
 };
 
 // Split, inline and flatten: the first-class

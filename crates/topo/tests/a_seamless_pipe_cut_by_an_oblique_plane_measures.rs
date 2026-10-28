@@ -31,8 +31,10 @@ use core::f64::consts::{PI, TAU};
 use geom::{Curve3, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::{Bounds, CertifiedBounds, Decide, Interval, Point3, Real, Tol, Vec3};
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, MefSite, MevSite, Rechart};
 use topo::validate::{validate_closed, validate_geometric};
-use topo::{AtRestPolicy, Body, FaceSurface, MefSite, MevSite, Rechart, mass_properties};
+use topo::{AtRestPolicy, Body, mass_properties};
 
 /// An orthonormal frame: origin and axes, in world coordinates.
 #[derive(Clone, Copy)]

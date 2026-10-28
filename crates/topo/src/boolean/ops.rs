@@ -1387,7 +1387,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // The curved kinds the extent scan leaves: every torus,
         // cylinder and cone face's pairs, certified per pair by the
         // section certificate or refused typed.
-        section_extent_pass(a, b, &red.rest_contacts, band)?;
+        section_extent_pass(a, b, &red.sections, &red.rest_contacts, band)?;
         return fallback(op, &mut red, a, b, &glued, band, tol)
             .map(|result| Joined::Answered(Box::new(result)));
     }
@@ -1458,6 +1458,7 @@ fn interior_loop_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let pairs = section_pairs(
         a,
         b,
+        &red.sections,
         band,
         SectionPath::Crossings,
         Exempt::Glued(&glued),
@@ -1617,24 +1618,16 @@ enum WalkRefusal {
 /// [`WalkRefusal`] of `e`, matched whole so a new refusal is read here
 /// before it is folded anywhere. A certification refusal is torn where
 /// it says the stored rows are not the face's (a malformed or misstated
-/// row, a span or a winding past its gate, a carrier off its chart),
-/// and unread where it is a precision limit or a lane not built: a face
-/// whose rows are not owed (`pcurves::not_owed`) is legal at rest, and
-/// its fresh derivation can meet one.
-///
-/// A carrier off its chart is torn whatever its authority or read: the
-/// walk does not hold the edge's authority, and on a face whose rows the
-/// at-rest pass certified, the edge passed its incidence on this chart
-/// there, so a fresh refusal is the kernel's. The at-rest pass itself
-/// ends one by who placed it (`validate::off_face_ending`): a declared
-/// carrier in the modeler's lever, and an at-pose read is not called off
-/// its face. On a face whose rows are not owed, a declared or at-pose
-/// carrier can reach this walk unread at rest and still end here as the
-/// kernel's: `work/pcert/who-placed-it-is-read-off-the-description-not-the-door.md`
-/// (S12) holds that instance.
+/// row, a span or a winding past its gate, a carrier decided off its
+/// chart: a definite contradiction the kernel holds), and unread where
+/// it is a precision limit, a lane not built or a read in band (a
+/// carrier at a pose where its chart holds no curve of its kind, D3): a
+/// face whose rows are not owed (`pcurves::not_owed`) is legal at rest,
+/// and its fresh derivation can meet one. An incidence refusal is read
+/// by the one classifier ([`geom_brep::IncidenceRead::of`]) and its one
+/// policy ([`geom_brep::IncidenceRead::is_definite`]), as its ending is.
 fn walk_refusal(e: &crate::pcurves::PcurveMintError) -> WalkRefusal {
     use crate::pcurves::PcurveMintError as M;
-    use geom_brep::PcurveCertifyError as C;
     match e {
         M::Stale { .. }
         | M::PlaceholderChart { .. }
@@ -1648,32 +1641,47 @@ fn walk_refusal(e: &crate::pcurves::PcurveMintError) -> WalkRefusal {
         | M::JointWithoutRoom { .. }
         | M::Band(_) => WalkRefusal::Unread,
         M::Unminted { .. } => WalkRefusal::NotRaised,
-        M::Certify { error, .. } => match error {
-            C::PlaceholderChart
-            | C::CarrierOffChart { .. }
-            | C::ChartRow { .. }
-            | C::ImageMismatch { .. }
-            | C::ChannelKindMismatch { .. }
-            | C::WindingMismatch { .. }
-            | C::FittedCertificate { .. }
-            | C::IntervalNotForward
-            | C::AzimuthPeriodExceeded
-            | C::TubePeriodExceeded => WalkRefusal::Torn,
-            C::UnsupportedChart { .. }
-            | C::IsoUnsupported { .. }
-            | C::ChartWindingUnsupported
-            | C::NoGeneralLane { .. }
-            | C::SectorRefused { .. }
-            | C::FittedLaneUnsupported { .. }
-            | C::CarrierDomain(_)
-            | C::PlacementTurnsExceeded
-            | C::CarrierEnclosure(_)
-            | C::ResidualExceeded { .. }
-            | C::FittedLimb { .. }
-            | C::FittedEscalated { .. }
-            | C::Escalated { .. }
-            | C::Band(_) => WalkRefusal::Unread,
+        // An incidence refusal is read by the one classifier and its one
+        // policy: a definite read (decided off, or a margin that could
+        // not be read) is torn, a read in band unread.
+        M::Certify { error, .. } => match geom_brep::IncidenceRead::of(error) {
+            Some(read) if read.is_definite() => WalkRefusal::Torn,
+            Some(_) => WalkRefusal::Unread,
+            None => walk_certify_refusal(error),
         },
+    }
+}
+
+/// [`walk_refusal`] of a certification refusal that carries no incidence
+/// read (the incidence variants are listed for the match, and read by
+/// the classifier before they reach it).
+fn walk_certify_refusal(error: &geom_brep::PcurveCertifyError) -> WalkRefusal {
+    use geom_brep::PcurveCertifyError as C;
+    match error {
+        C::PlaceholderChart
+        | C::CarrierOffChart { .. }
+        | C::ChartRow { .. }
+        | C::ImageMismatch { .. }
+        | C::ChannelKindMismatch { .. }
+        | C::WindingMismatch { .. }
+        | C::FittedCertificate { .. }
+        | C::IntervalNotForward
+        | C::AzimuthPeriodExceeded
+        | C::TubePeriodExceeded => WalkRefusal::Torn,
+        C::UnsupportedChart { .. }
+        | C::IsoUnsupported { .. }
+        | C::ChartWindingUnsupported
+        | C::NoGeneralLane { .. }
+        | C::SectorRefused { .. }
+        | C::FittedLaneUnsupported { .. }
+        | C::CarrierDomain(_)
+        | C::PlacementTurnsExceeded
+        | C::CarrierEnclosure(_)
+        | C::ResidualExceeded { .. }
+        | C::FittedLimb { .. }
+        | C::FittedEscalated { .. }
+        | C::Escalated { .. }
+        | C::Band(_) => WalkRefusal::Unread,
     }
 }
 
@@ -1880,16 +1888,24 @@ fn overlap_reach<T: Real>(box_a: &bvh::Aabb, box_b: &bvh::Aabb) -> super::sectio
 fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     (a, fa): (&Body<T>, &FaceRow<T>),
     (b, fb): (&Body<T>, &FaceRow<T>),
+    sections: &super::section_table::SectionTable<T>,
     band: Band,
     evented: bool,
     charts: &mut ChartCache,
 ) -> Result<Result<Vec<super::section_cert::Cleared>, SectionRefusal>, BooleanError> {
-    use super::section_cert::{Side, certify, classify};
+    use super::section_cert::{Side, certify, classify, of_pair_section};
     if has_lone_vertex(a, fa.face) || has_lone_vertex(b, fb.face) {
         return Ok(Err(SectionRefusal::LoneVertex));
     }
-    let reach = overlap_reach(&fa.bbox, &fb.bbox);
-    let section = classify(&fa.surface, &fb.surface, reach, band);
+    let section = match sections.held((a, fa.face), (b, fb.face)) {
+        Some(held) => of_pair_section(held),
+        None => classify(
+            &fa.surface,
+            &fb.surface,
+            overlap_reach(&fa.bbox, &fb.bbox),
+            band,
+        ),
+    };
     let mut torn = None;
     let verdict = certify(
         &section,
@@ -1975,6 +1991,7 @@ fn face_boundary_meets<T: Decide + Bounds>(
 fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
     (a, a_rows): (&Body<T>, impl IntoIterator<Item = &'r FaceRow<T>>),
     (b, b_rows): (&Body<T>, impl IntoIterator<Item = &'r FaceRow<T>>),
+    sections: &super::section_table::SectionTable<T>,
     band: Band,
     charts: &mut ChartCache,
     admit: impl Fn(&FaceRow<T>, &FaceRow<T>) -> bool,
@@ -2002,7 +2019,14 @@ fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
             ) {
                 continue;
             }
-            let verdict = pair_verdict((a, fa), (b, fb), band, evented(fa.face, fb.face), charts)?;
+            let verdict = pair_verdict(
+                (a, fa),
+                (b, fb),
+                sections,
+                band,
+                evented(fa.face, fb.face),
+                charts,
+            )?;
             let refused = verdict.is_err();
             out.push(PairVerdict {
                 a_face: fa.face,
@@ -2032,9 +2056,11 @@ fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
 /// [`BooleanError::ClassificationInvariant`] for a face whose surface
 /// or loops do not resolve, or whose loop walk reads it torn
 /// ([`ChartCache::describes`]), and the box builder's own errors.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
+    sections: &super::section_table::SectionTable<T>,
     band: Band,
     path: SectionPath,
     exempt: Exempt<'_>,
@@ -2045,6 +2071,7 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
     walk_pairs(
         (a, &a_rows),
         (b, &b_rows),
+        sections,
         band,
         &mut ChartCache::default(),
         |fa, fb| path.scope(&fa.surface, &fb.surface) && !exempt.answers(fa.face, fb.face),
@@ -2104,12 +2131,14 @@ impl Exempt<'_> {
 fn section_extent_pass<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
+    sections: &super::section_table::SectionTable<T>,
     rest: &[(FaceKey, FaceKey)],
     band: Band,
 ) -> Result<(), BooleanError> {
     let pairs = section_pairs(
         a,
         b,
+        sections,
         band,
         SectionPath::Fallback,
         Exempt::Rest(rest),
@@ -2154,6 +2183,7 @@ pub(crate) fn section_report<T: Decide + Bounds + crate::props::AtRestPolicy>(
     section_pairs(
         a,
         b,
+        &red.sections,
         band,
         SectionPath::Crossings,
         Exempt::Nothing,
@@ -2179,6 +2209,7 @@ pub(crate) fn no_crossings_section_report(
     section_pairs(
         a,
         b,
+        &super::section_table::SectionTable::default(),
         Band::linear(tol)?,
         SectionPath::Fallback,
         Exempt::Nothing,
@@ -2208,7 +2239,13 @@ pub(crate) fn no_crossings_certificates(
     let recuts = sphere_extent_scan(a, b, no_rest, band)?;
     let asked = recuts.rechart.len() + recuts.cut_in.len();
     if asked == 0 {
-        section_extent_pass(a, b, no_rest, band)?;
+        section_extent_pass(
+            a,
+            b,
+            &super::section_table::SectionTable::default(),
+            no_rest,
+            band,
+        )?;
     }
     Ok(asked)
 }
@@ -3370,9 +3407,20 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
         let reach =
             crate::wedge_reach(body, [sides.plus.face, sides.minus.face], carrier, interval);
         let witness = draft.witness;
-        match seam_reading(surf1, surf2, witness, reach, band)
-            .map_err(|(reading, diag)| DescribeRefusal::undecided(edge, reading, diag))?
-        {
+        let face = |side, surface| seam_face(body, edge, side, surface, existing.as_ref(), band);
+        let faces = [face(sides.plus, surf1)?, face(sides.minus, surf2)?];
+        match seam_reading(faces, witness, reach, band).map_err(|refusal| match refusal {
+            geom_brep::SeamEscalation::Lever(e) => {
+                let (reading, diag) = DihedralReading::of_lever(e);
+                DescribeRefusal::undecided(edge, reading, diag)
+            }
+            geom_brep::SeamEscalation::Crease(_) => {
+                DescribeRefusal::failed(edge, EdgeDescribeFailure::Crease)
+            }
+            geom_brep::SeamEscalation::SplineReadAsAnalytic => {
+                unreachable!("seam_face reads every spline face by its chart")
+            }
+        })? {
             geom_brep::DihedralClass::Transverse => {
                 let carrier = draft.span().0.kind();
                 body.describe_intersection(
@@ -3495,28 +3543,78 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
 /// dihedral of its two surfaces at `witness` over `reach`, its faces' extent, whose arm
 /// rung is the seam's own lever and whose reading is the seam's wedge.
 #[cfg(test)]
-pub(super) fn seam_class<T: Decide>(
+pub(super) fn seam_class<T: Decide + crate::props::AtRestPolicy>(
     surf1: &geom::Surface<T>,
     surf2: &geom::Surface<T>,
     witness: Point3<T>,
     reach: T,
     band: Band,
 ) -> Result<geom_brep::DihedralClass, BooleanError> {
-    seam_reading(surf1, surf2, witness, reach, band)
-        .map_err(|(reading, diag)| seam_refusal(reading, diag))
+    let faces = [surf1, surf2].map(geom_brep::SeamFace::Analytic);
+    seam_reading(faces, witness, reach, band).map_err(|refusal| match refusal {
+        geom_brep::SeamEscalation::Lever(e) => {
+            let (reading, diag) = DihedralReading::of_lever(e);
+            seam_refusal(reading, diag)
+        }
+        geom_brep::SeamEscalation::Crease(_) | geom_brep::SeamEscalation::SplineReadAsAnalytic => {
+            unreachable!("seam_class reads analytic pairs: {surf1:?} {surf2:?}")
+        }
+    })
 }
 
-/// `seam_class`'s reading, unworded: the rung that could not decide
-/// and its diagnostics.
-fn seam_reading<T: Decide>(
-    surf1: &geom::Surface<T>,
-    surf2: &geom::Surface<T>,
+/// `seam_class`'s reading, unworded: the dihedral of the seam's two
+/// faces, each read by its kind ([`geom_brep::classify_seam`]).
+fn seam_reading<T: Decide + crate::props::AtRestPolicy>(
+    faces: [geom_brep::SeamFace<'_, T>; 2],
     witness: Point3<T>,
     reach: T,
     band: Band,
-) -> Result<geom_brep::DihedralClass, (DihedralReading, Indeterminate)> {
-    geom_brep::classify_dihedral(surf1, surf2, witness, reach, band)
-        .map_err(DihedralReading::of_lever)
+) -> Result<geom_brep::DihedralClass, geom_brep::SeamEscalation> {
+    geom_brep::classify_seam(faces, witness, reach, T::spline_chart_arm, band)
+}
+
+/// **A face of a seam edge, as its dihedral reads it** at the edge's
+/// witness ([`geom_brep::SeamFace`]): an analytic face at the witness;
+/// a spline face at the witness's parameters on its own chart, read off
+/// an image of the edge in that chart ([`crate::pcurves::pcurve_of`]) at
+/// the edge's own parameter of the witness, the middle of its interval.
+/// The image is the stored one where the half-edge has it, and otherwise
+/// the one the chart's description derives, an iso row or arc rim of the
+/// chart. Either is the edge on the face's own sheet, where a projection
+/// foot of the witness could land on another sheet of the chart; a
+/// stored `Pcurve::Fitted` image was itself fitted through the chart's
+/// feet of a trace, placed on the face's sheet when it was minted.
+///
+/// A null edge has no carrier and no image to read a spline face at, and
+/// is refused unplaced. Its witness could be placed off its neighbour in
+/// the face's loop, but no class would follow: its zero-length chord gives
+/// the wedge no reach, so its dihedral escalates at the arm whatever the
+/// faces read.
+///
+/// # Errors
+///
+/// [`DescribeRefusal::Failed`] with [`EdgeDescribeFailure::Unplaced`]:
+/// a spline face with no image of the edge in its chart to read the
+/// witness's parameters off, or a null edge.
+fn seam_face<'s, T: Decide + crate::props::AtRestPolicy>(
+    body: &Body<T>,
+    edge: crate::entity::EdgeKey,
+    side: crate::readback::EdgeSide,
+    surface: &'s geom::Surface<T>,
+    curve: Option<&geom_brep::EdgeCurve<T>>,
+    band: Band,
+) -> Result<geom_brep::SeamFace<'s, T>, DescribeRefusal> {
+    let Some(chart) = surface.spline_chart() else {
+        return Ok(geom_brep::SeamFace::Analytic(surface));
+    };
+    let unplaced = || DescribeRefusal::failed(edge, EdgeDescribeFailure::Unplaced);
+    let (t0, t1) = curve.ok_or_else(unplaced)?.params();
+    let image = crate::pcurves::pcurve_of(body, side.half_edge, band).map_err(|_| unplaced())?;
+    let uv = image.eval(geom::mid_param(t0, t1));
+    Ok(geom_brep::SeamFace::Spline {
+        chart,
+        uv: (uv.x, uv.y),
+    })
 }
 
 /// The boolean's refusal for an undecided seam reading: the seam's
@@ -7068,6 +7166,7 @@ fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
         Operand::A => walk_pairs(
             (x, on_sphere),
             (y, [y_row]),
+            &super::section_table::SectionTable::default(),
             band,
             charts,
             |_, _| true,
@@ -7079,6 +7178,7 @@ fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
         Operand::B => walk_pairs(
             (y, [y_row]),
             (x, on_sphere),
+            &super::section_table::SectionTable::default(),
             band,
             charts,
             |_, _| true,
@@ -8574,6 +8674,73 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+    /// **The loop walk reads a carrier decided off its chart as torn, and
+    /// one read in band at a pose as unread** (D3): only a definite miss
+    /// is a contradiction the kernel holds; a read in band is never a
+    /// defect, so W2 reads nothing of the face rather than claiming one.
+    /// It reads through the one classifier and its one policy, so it
+    /// agrees with the ending on every read: the test's residual exceeded
+    /// and a poisoned margin are definite, an undecided read in band is
+    /// not (review on PR 5844, H7).
+    #[test]
+    fn the_walk_tears_only_on_a_definite_incidence_miss() {
+        use super::{WalkRefusal, walk_refusal};
+        use geom_brep::{OffMargin, PcurveCertifyError};
+        let off = |margin| crate::pcurves::PcurveMintError::Certify {
+            half_edge: crate::HalfEdgeKey::default(),
+            error: PcurveCertifyError::CarrierOffChart {
+                chart: geom::SurfaceKind::Cone,
+                carrier: geom::CurveKind::Circle,
+                why: "a circle no cone holds here",
+                margin,
+            },
+        };
+        let m = geom_core::MarginDiag::value(4e-10);
+        let poisoned = geom_core::MarginDiag::INVALID;
+        for (margin, want) in [
+            (None, WalkRefusal::Torn),
+            (Some(OffMargin::Past(m)), WalkRefusal::Torn),
+            (Some(OffMargin::InBand(m)), WalkRefusal::Unread),
+            // A margin that could not be read is definite, as its ending.
+            (Some(OffMargin::InBand(poisoned)), WalkRefusal::Torn),
+        ] {
+            assert_eq!(walk_refusal(&off(margin)), want, "{margin:?}");
+        }
+        // The rest of the classifier's reads, each by the same policy.
+        let certify = |error| crate::pcurves::PcurveMintError::Certify {
+            half_edge: crate::HalfEdgeKey::default(),
+            error,
+        };
+        let undecided = |margin| PcurveCertifyError::Escalated {
+            check: geom_brep::PcurveCheck::ChartIncidence,
+            sample: 0,
+            cause: geom_core::Indeterminate {
+                margin,
+                band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("pcurve_cone_chart_incident"),
+                terminal_sliver: false,
+            },
+        };
+        for (error, want) in [
+            (
+                PcurveCertifyError::ResidualExceeded {
+                    check: geom_brep::PcurveCheck::ChartIncidence,
+                    sample: 0,
+                },
+                WalkRefusal::Torn,
+            ),
+            (
+                undecided(geom_core::MarginDiag::value(5e-9)),
+                WalkRefusal::Unread,
+            ),
+            (undecided(poisoned), WalkRefusal::Torn),
+        ] {
+            let read = geom_brep::IncidenceRead::of(&error).expect("an incidence refusal");
+            assert_eq!(read.is_definite(), want == WalkRefusal::Torn, "{error:?}");
+            assert_eq!(walk_refusal(&certify(error.clone())), want, "{error:?}");
+        }
+    }
+
     /// **A re-charted shell's cell reads as its input shell's faces**
     /// ([`super::respell_through_cuts`]): a meeting on a turned edge, and
     /// a vertex on a turned face, of a two-face shell are the meeting of
@@ -10013,8 +10180,8 @@ mod tests {
         use crate::boolean::{
             Contact, ContactKind, ContactRecords, ReductionContacts, VfContact, VvContact,
         };
+        use crate::construction::{MefSite, MevSite};
         use crate::entity::VertexKey;
-        use crate::{MefSite, MevSite};
         use geom_core::Point3;
 
         let tol = Tol::witness();
@@ -11051,7 +11218,7 @@ mod tests {
         capped
             .set_face_surface(
                 top,
-                crate::FaceSurface::New {
+                crate::construction::FaceSurface::New {
                     surface: geom::Surface::Sphere {
                         center: Point3::new(0.0, 0.0, 0.0),
                         radius: 1.0,
@@ -11342,15 +11509,16 @@ mod from_computed_rows {
 /// **Rows for [`place_found`] on a divided face**, each through
 /// [`carry_in_place`] on a 2×2×1 prism whose top face a diagonal chord
 /// divides, with the division logged as a fragment row. The record's
-/// vertex is a lone vertex ([`Body::mvfs`]) set where the row needs it,
+/// vertex is a lone vertex ([`Body::mvfs`](crate::construction::Construct::mvfs)) set where the row needs it,
 /// so it bounds no piece and only the placement decides.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod found_on_a_divided_face {
     use super::{Cell, Descendants, carry_in_place};
+    use crate::Body;
     use crate::boolean::{BooleanError, Contact, ContactKind, ContactRecords};
+    use crate::construction::{MefSite, MevSite};
     use crate::entity::{FaceKey, VertexKey};
-    use crate::{Body, MefSite, MevSite};
     use geom_core::{Band, Point3, Tol};
 
     fn band() -> Band {
@@ -11595,6 +11763,227 @@ mod found_on_a_divided_face {
                 .kinds()
                 .collect::<Vec<_>>(),
             [ContactKind::EdgeFace(edge, other)]
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod spline_seam_rows {
+    use geom_core::spline::KnotVector;
+    use geom_core::{Band, Point3, Tol};
+
+    use super::{DescribeRefusal, seam_face, seam_reading};
+    use crate::{Body, EdgeKey, FaceKey};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn spline((ku, kv): (KnotVector, KnotVector), control: Vec<Point3<f64>>) -> geom::Surface<f64> {
+        let n = control.len();
+        geom::Surface::Nurbs(std::sync::Arc::new(
+            geom::NurbsSurface::new(ku, kv, control, vec![1.0; n]).unwrap(),
+        ))
+    }
+
+    fn linear() -> KnotVector {
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap()
+    }
+
+    fn quadratic() -> KnotVector {
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap()
+    }
+
+    /// The bilinear chart through the four corners, `u` from `o` along
+    /// `du`, `v` along `dv`.
+    fn flat(o: [f64; 3], du: [f64; 3], dv: [f64; 3]) -> geom::Surface<f64> {
+        let at = |a: f64, b: f64| {
+            Point3::new(
+                o[0] + a * du[0] + b * dv[0],
+                o[1] + a * du[1] + b * dv[1],
+                o[2] + a * du[2] + b * dv[2],
+            )
+        };
+        let control = vec![at(0.0, 0.0), at(0.0, 1.0), at(1.0, 0.0), at(1.0, 1.0)];
+        spline((linear(), linear()), control)
+    }
+
+    /// The flat top `z = 1`, `u` along `x` and `v` along `y`.
+    fn flat_top() -> geom::Surface<f64> {
+        flat([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0])
+    }
+
+    /// A biquadratic top on the same unit square, its boundary rows the
+    /// square's sides, whose middle control point drops under the `y = 0`
+    /// side: along that side it leaves flat at the two corners and turns
+    /// to stand vertical at the middle.
+    fn turning_top() -> geom::Surface<f64> {
+        let mut control = Vec::new();
+        for (i, x) in [0.0, 0.5, 1.0].into_iter().enumerate() {
+            for (j, y) in [0.0, 0.5, 1.0].into_iter().enumerate() {
+                control.push(if (i, j) == (1, 1) {
+                    Point3::new(x, -0.5, 1.4)
+                } else {
+                    Point3::new(x, y, 1.0)
+                });
+            }
+        }
+        spline((quadratic(), quadratic()), control)
+    }
+
+    /// The unit cube with its top on `top` and its `y = 0` side on a flat
+    /// spline chart, and the two faces and the edge they share.
+    fn two_spline_faces(top: geom::Surface<f64>) -> (Body<f64>, [FaceKey; 2], EdgeKey) {
+        let cube = crate::test_support_fixtures::prism::<f64>(
+            &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+            1.0,
+            Tol::witness(),
+        );
+        let mut body = cube.body;
+        let side = cube.side_faces[0];
+        for (face, surface) in [
+            (cube.top_face, top),
+            (
+                side,
+                flat([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+            ),
+        ] {
+            body.set_face_surface_unvouched_for_tests(
+                face,
+                crate::euler::FaceSurface::New {
+                    surface,
+                    sense: true,
+                },
+            )
+            .unwrap();
+        }
+        let faces = [cube.top_face, side];
+        let edge = body
+            .edges()
+            .map(|(e, _)| e)
+            .find(|&e| {
+                let sides = crate::readback::edge_sides_of(&body, e, body.get_edge(e).unwrap());
+                let (a, b) = sides.faces();
+                faces.contains(&a) && faces.contains(&b) && a != b
+            })
+            .expect("the top's edge on the side");
+        (body, faces, edge)
+    }
+
+    /// The seam reading of `edge`, each face read as `describe_edges`
+    /// reads it, its curve read through `curve`.
+    fn reading(
+        body: &Body<f64>,
+        edge: EdgeKey,
+    ) -> Result<geom_brep::DihedralClass, geom_brep::SeamEscalation> {
+        let sides = crate::readback::edge_sides_of(body, edge, body.get_edge(edge).unwrap());
+        let surface = |side: crate::readback::EdgeSide| body.get_surface(side.surface).unwrap();
+        let curve = body.stored_curve(edge).unwrap();
+        let face = |side| seam_face(body, edge, side, surface(side), Some(curve), band()).unwrap();
+        seam_reading(
+            [face(sides.plus), face(sides.minus)],
+            curve.mid_point(),
+            1.0,
+            band(),
+        )
+    }
+
+    /// **A seam between two spline faces reads its dihedral**: each
+    /// face's normal is its chart's at the edge's pcurve on it, so the
+    /// cube's top edge between two flat spline faces reads transverse,
+    /// where the two carriers' implicit forms read no arm.
+    #[test]
+    fn a_seam_between_two_spline_faces_reads_transverse() {
+        let (body, _, edge) = two_spline_faces(flat_top());
+        assert_eq!(
+            reading(&body, edge),
+            Ok(geom_brep::DihedralClass::Transverse),
+            "the spline seam"
+        );
+        let sides = crate::readback::edge_sides_of(&body, edge, body.get_edge(edge).unwrap());
+        let surface = |side: crate::readback::EdgeSide| body.get_surface(side.surface).unwrap();
+        let analytic = geom_brep::classify_dihedral(
+            surface(sides.plus),
+            surface(sides.minus),
+            body.stored_curve(edge).unwrap().mid_point(),
+            1.0,
+            band(),
+        );
+        assert!(
+            matches!(analytic, Err(e) if e.diag().predicate == Some("dihedral_arm")),
+            "the carriers' implicit forms: {analytic:?}"
+        );
+    }
+
+    /// **The normal is read at the witness's own parameter**: along the
+    /// `y = 0` side the turning top leaves flat at the corners, a corner
+    /// against the side, and stands vertical at the middle, tangent to it.
+    /// The seam reads smooth at the witness, the middle of the edge's
+    /// interval; read at either end of the interval, it would read
+    /// transverse.
+    #[test]
+    fn the_seam_is_read_at_its_witness_on_a_turning_chart() {
+        let (body, _, edge) = two_spline_faces(turning_top());
+        assert_eq!(
+            reading(&body, edge),
+            Ok(geom_brep::DihedralClass::Smooth),
+            "tangent at the witness"
+        );
+        let top = turning_top();
+        let chart = top.spline_chart().unwrap();
+        let normal = |u: f64| {
+            let j = chart.ders(u, 0.0);
+            j.du.cross(j.dv).normalize()
+        };
+        assert!(
+            normal(0.0).z > 0.9 && normal(1.0).z > 0.9,
+            "flat at the corners: {:?} {:?}",
+            normal(0.0),
+            normal(1.0)
+        );
+    }
+
+    /// **A null edge is refused unplaced**: a null edge minted at the
+    /// cube's corner between the two spline faces has no carrier and no
+    /// image to read either face at, and the describer says so rather than
+    /// placing it. Placed, it would stop at its arm, its zero-length chord
+    /// giving the wedge no reach.
+    #[test]
+    fn a_null_edge_between_two_spline_faces_is_refused_unplaced() {
+        let (mut body, [top, side], edge) = two_spline_faces(flat_top());
+        let he_of = |body: &Body<f64>, face: FaceKey| {
+            let e = body.get_edge(edge).unwrap();
+            [e.he_plus, e.he_minus]
+                .into_iter()
+                .find(|&h| {
+                    let l = body.get_half_edge(h).unwrap().parent_loop;
+                    body.get_loop(l).unwrap().face == face
+                })
+                .unwrap()
+        };
+        let (on_top, on_side) = (he_of(&body, top), he_of(&body, side));
+        let corner = body.get_half_edge(on_top).unwrap().start;
+        let leaving = |body: &Body<f64>, he: crate::entity::HalfEdgeKey| {
+            let h = body.get_half_edge(he).unwrap();
+            if h.start == corner { he } else { h.next }
+        };
+        let (he1, he2) = (leaving(&body, on_top), leaving(&body, on_side));
+        let null = body
+            .mev_null(
+                crate::euler::MevSite::Fan { he1, he2 },
+                crate::null::NewVertexSide::Above,
+            )
+            .unwrap();
+        let got =
+            crate::boolean::describe_edges(&mut body, [null.edge], &[], band(), Tol::witness());
+        assert_eq!(
+            got,
+            Err(DescribeRefusal::failed(
+                null.edge,
+                crate::merge_faces::EdgeDescribeFailure::Unplaced
+            )),
+            "the null edge"
         );
     }
 }

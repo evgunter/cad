@@ -25,6 +25,7 @@ use crate::common;
 use common::*;
 use geom_core::Tol;
 use topo::Body;
+use topo::construction::Construct;
 
 /// Interior-grid vertex count per patch, and the shared mark.
 fn interior_census(m: &mesh::Mesh) -> (u32, Vec<(usize, usize, usize)>) {
@@ -167,7 +168,8 @@ fn r2_seam_and_pairing_census_over_the_corpus() {
 #[test]
 fn r2_scaffold_strut_body_through_tessellate() {
     use geom_core::Point3;
-    use topo::{MevSite, test_support};
+    use topo::construction::MevSite;
+    use topo::test_support;
     let tol = Tol::witness();
     // Declined is what this probe wants: the faces stay on the `mvfs`
     // placeholder, which is why `tessellate` answers `UnsupportedSurface`

@@ -1580,6 +1580,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::RechartedRowUnstated => "recharted_row_unstated",
         BooleanErrorKind::SpheresMeet => "spheres_meet",
         BooleanErrorKind::GermFrameUnsupported => "germ_frame_unsupported",
+        BooleanErrorKind::GermSectionUnbuilt => "germ_section_unbuilt",
         BooleanErrorKind::GermSectionOpenConic => "germ_section_open_conic",
         BooleanErrorKind::GermSectionSpiric => "germ_section_spiric",
         BooleanErrorKind::NodeUnbuilt => "node_unbuilt",
@@ -1630,7 +1631,6 @@ pub fn transform_error_tag(err: &TransformError) -> &'static str {
         TransformError::NullScaffold { .. } => "null_scaffold",
         TransformError::NurbsPlaceholder => "nurbs_placeholder",
         TransformError::ApproxLaneUnsupported { .. } => "approx_lane_unsupported",
-        TransformError::NurbsLaneUnsupported { .. } => "nurbs_lane_unsupported",
         TransformError::ApproxRecertify { .. } => "approx_recertify",
         TransformError::Corrupt { .. } => "corrupt",
     }
@@ -2923,6 +2923,7 @@ pub fn check_evidence_tag(evidence: &CheckEvidence) -> &'static str {
         CheckEvidence::UnprovenCoincidence { .. } => "unproven_coincidence",
         CheckEvidence::Interference { .. } => "interference",
         CheckEvidence::CarriedInterference { .. } => "carried_interference",
+        CheckEvidence::CarriedCoincidence { .. } => "carried_coincidence",
         CheckEvidence::AtRest { .. } => "at_rest",
     }
 }

@@ -32,7 +32,7 @@
 //!   containment ([`crate::splitting::containment`] on a plane,
 //!   [`chart_ring_side`] on a cylinder wall's chart,
 //!   [`path_ring_side`] on a sphere, a cone or a torus) +
-//!   [`Body::ring_move`] — the `laringmv` step (lkemr/ring-placement
+//!   [`Body::ring_move`](crate::construction::Construct::ring_move) — the `laringmv` step (lkemr/ring-placement
 //!   mirror site);
 //! - two halves of one null edge making up a ring alone (a one-site
 //!   section loop's pierce of a planar or spherical face), or with the
@@ -501,6 +501,20 @@ pub enum SplitJoinError {
         /// Its surface kind.
         kind: geom::SurfaceKind,
     },
+    /// A run edge's image refused on its incidence on the divided face's
+    /// chart (`geom_brep::IncidenceRead::of`): decided off it, read at a
+    /// pose, or undecided. It ends by the one map
+    /// (`geom_brep::IncidenceRead::ending`): a definite miss is the
+    /// kernel's defect (the join reads a body the kernel built), a read in
+    /// band the geometry's lever.
+    RunImageIncidence {
+        /// The face being divided.
+        face: FaceKey,
+        /// Its surface kind.
+        kind: geom::SurfaceKind,
+        /// The image's refusal, verbatim (`Debug`), read for its ending.
+        refusal: geom_brep::PcurveCertifyError,
+    },
     /// A ring whose island the ring lane does not read: on a curved face
     /// it winds an island, and re-homes a ring, on a cylinder wall's
     /// chart and on a sphere, a cone or a torus by a path's parity; on a
@@ -805,6 +819,28 @@ impl core::fmt::Display for SplitJoinError {
                      divide the {} face there. {}",
                     crate::boolean::kind_word(*divided),
                     crate::boolean::meeting_recourse(wall),
+                )
+            }
+            Self::RunImageIncidence { kind, refusal, .. } => {
+                use geom_brep::IncidenceRead as R;
+                let kind = crate::boolean::kind_word(*kind);
+                // Worded by what was read and ended by the one map; a
+                // refusal that carried no read is no incidence refusal.
+                let Some(read) = R::of(refusal) else {
+                    return write!(f, "{refusal}");
+                };
+                let what = match read {
+                    _ if read.is_definite() && !matches!(read, R::Off(_)) => {
+                        "could not be read against it"
+                    }
+                    R::Off(_) => "does not lie on it",
+                    R::AtPose(_) => "sits, within the band, where it holds no curve of its kind",
+                    R::Undecided(_) => "is not shown on it",
+                };
+                write!(
+                    f,
+                    "an edge of a {kind} face the join divides {what}. {}",
+                    read.ending(geom_brep::recourse::Reading::Build)
                 )
             }
             Self::RunImageNotYet { kind, .. } => write!(
@@ -3007,6 +3043,45 @@ fn outer_cycle<T: Decide>(
     Ok(Some(body.loop_walk(first).closed("loop", first)))
 }
 
+/// **How a run edge's chart-image refusal ends at the join** (D3): a
+/// class reading or a lane not built "not yet" ([`SplitJoinError::RunImageNotYet`]);
+/// an incidence refusal by its read, through the one map
+/// ([`SplitJoinError::RunImageIncidence`]); another escalation as the
+/// join's; anything else an invariant the shipped carriers keep.
+fn run_image_refusal(
+    face: FaceKey,
+    kind: geom::SurfaceKind,
+    e: geom_brep::PcurveCertifyError,
+) -> SplitJoinError {
+    match e {
+        // The class reading is a lane choice (D3): in band, and
+        // with no general lane written, it ends "not yet".
+        geom_brep::PcurveCertifyError::Escalated {
+            check: geom_brep::PcurveCheck::ChartClass | geom_brep::PcurveCheck::GeneralLane,
+            ..
+        }
+        | geom_brep::PcurveCertifyError::NoGeneralLane { .. } => {
+            SplitJoinError::RunImageNotYet { face, kind }
+        }
+        // An incidence refusal ends by its read, through the one
+        // map, never as an invariant break or the join's own lever.
+        refusal if geom_brep::IncidenceRead::of(&refusal).is_some() => {
+            SplitJoinError::RunImageIncidence {
+                face,
+                kind,
+                refusal,
+            }
+        }
+        geom_brep::PcurveCertifyError::Escalated { cause, .. } => {
+            SplitJoinError::Escalated { face, diag: cause }
+        }
+        _ => SplitJoinError::SectionInvariant {
+            face,
+            what: "a run edge has no closed-form chart image on the divided face's chart",
+        },
+    }
+}
+
 /// The walk behind [`face_azimuth_images`]:
 /// each charted half-edge's image, its branch pinned to the previous
 /// edge's exit.
@@ -3040,28 +3115,8 @@ fn run_azimuth_images<T: Decide>(
             continue; // null scaffolding: zero-length, no azimuth extent
         };
         let (t0, t1) = curve.params();
-        let base =
-            chart_pcurve_over(curve.carrier(), t0, t1, surface, band).map_err(|e| match e {
-                // The class reading is a lane choice (D3): in band, and
-                // with no general lane written, it ends "not yet".
-                geom_brep::PcurveCertifyError::Escalated {
-                    check: geom_brep::PcurveCheck::ChartClass | geom_brep::PcurveCheck::GeneralLane,
-                    ..
-                }
-                | geom_brep::PcurveCertifyError::NoGeneralLane { .. } => {
-                    SplitJoinError::RunImageNotYet {
-                        face,
-                        kind: surface.kind(),
-                    }
-                }
-                geom_brep::PcurveCertifyError::Escalated { cause, .. } => {
-                    SplitJoinError::Escalated { face, diag: cause }
-                }
-                _ => SplitJoinError::SectionInvariant {
-                    face,
-                    what: "a run edge has no closed-form chart image on the divided face's chart",
-                },
-            })?;
+        let base = chart_pcurve_over(curve.carrier(), t0, t1, surface, band)
+            .map_err(|e| run_image_refusal(face, surface.kind(), e))?;
         let plus = edge.he_plus == he;
         let (entry_t, exit_t) = if plus { (t0, t1) } else { (t1, t0) };
         let pcurve = match prev_exit {
@@ -5485,7 +5540,7 @@ mod tests {
         let seed = body.mvfs(p1, true).unwrap();
         body.set_face_surface(
             seed.face,
-            crate::FaceSurface::New {
+            crate::construction::FaceSurface::New {
                 surface: geom::Surface::Cylinder {
                     origin: Point3::origin(),
                     axis: Vec3::unit_z(),
@@ -5498,7 +5553,7 @@ mod tests {
         .unwrap();
         let mev = body
             .mev_line(
-                crate::MevSite::Lone {
+                crate::construction::MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
                 p2,
@@ -5543,7 +5598,7 @@ mod tests {
         });
         let made = body
             .mev(
-                crate::MevSite::Lone {
+                crate::construction::MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
                 carrier.eval(t1),
@@ -5583,7 +5638,7 @@ mod tests {
             let seed = body.mvfs(base, true).unwrap();
             body.set_face_surface(
                 seed.face,
-                crate::FaceSurface::New {
+                crate::construction::FaceSurface::New {
                     surface: geom::Surface::Cylinder {
                         origin: Point3::origin() + axis * along,
                         axis,
@@ -5595,7 +5650,7 @@ mod tests {
             )
             .unwrap();
             body.mev_line(
-                crate::MevSite::Lone {
+                crate::construction::MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
                 Point3::new(1.0, 0.0, 1.0),
@@ -5641,7 +5696,7 @@ mod tests {
             let seed = body.mvfs(base, true).unwrap();
             body.set_face_surface(
                 seed.face,
-                crate::FaceSurface::New {
+                crate::construction::FaceSurface::New {
                     surface: geom::Surface::Cylinder {
                         origin: Point3::origin(),
                         axis: Vec3::unit_z(),
@@ -5653,7 +5708,7 @@ mod tests {
             )
             .unwrap();
             body.mev_line(
-                crate::MevSite::Lone {
+                crate::construction::MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
                 Point3::new(1.0, 0.0, h),
@@ -5709,7 +5764,7 @@ mod tests {
         let seed = body.mvfs(base, true).unwrap();
         body.set_face_surface(
             seed.face,
-            crate::FaceSurface::New {
+            crate::construction::FaceSurface::New {
                 surface: geom::Surface::Cylinder {
                     origin: Point3::origin(),
                     axis: Vec3::unit_z(),
@@ -5721,7 +5776,7 @@ mod tests {
         )
         .unwrap();
         body.mev_line(
-            crate::MevSite::Lone {
+            crate::construction::MevSite::Lone {
                 r#loop: seed.r#loop,
             },
             Point3::new(1.0, 0.0, 2.0),
@@ -5822,7 +5877,7 @@ mod tests {
             let seed = body.mvfs(base, true).unwrap();
             body.set_face_surface(
                 seed.face,
-                crate::FaceSurface::New {
+                crate::construction::FaceSurface::New {
                     surface: geom::Surface::Cylinder {
                         origin: Point3::origin(),
                         axis: Vec3::unit_z(),
@@ -5834,7 +5889,7 @@ mod tests {
             )
             .unwrap();
             body.mev_line(
-                crate::MevSite::Lone {
+                crate::construction::MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
                 Point3::new(r, 0.0, e),
@@ -5879,74 +5934,84 @@ mod tests {
     /// split, and never serves the whole turn's conic.
     #[test]
     fn a_rim_patchs_turn_is_levered_at_its_arcs_not_their_whole_turn() {
-        let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
-        let eps = Tol::witness().eps();
-        let (r, e, w) = (1000.0, 1e3 * eps, 1e5 * eps);
-        let mut body = crate::Body::<f64>::new();
-        let face = crate::test_support_fixtures::cyl_wall_sheet(
-            &mut body,
-            crate::test_support_fixtures::CylFrame::canonical(r),
-            (0.0, w / r),
-            (0.0, e),
-            Tol::witness(),
+        // Pinned to limb 2's kernel limit at ε = 1e-12: the 1 km-radius rim rounds at its radius
+        // (`work/offset/the-closed-form-net-builder-rounds-at-a-km-radius-not-at-the-span.md`).
+        test_utils::kernel_limit::pinned_row(
+            geom_core::Tol::witness().eps(),
+            &[1e-12],
+            "a_rim_patchs_turn_is_levered_at_its_arcs_not_their_whole_turn",
+            || {
+                let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
+                let eps = Tol::witness().eps();
+                let (r, e, w) = (1000.0, 1e3 * eps, 1e5 * eps);
+                let mut body = crate::Body::<f64>::new();
+                let face = crate::test_support_fixtures::cyl_wall_sheet(
+                    &mut body,
+                    crate::test_support_fixtures::CylFrame::canonical(r),
+                    (0.0, w / r),
+                    (0.0, e),
+                    Tol::witness(),
+                );
+                let base = Point3::new(r, 0.0, 0.0);
+                let corner = body
+                    .vertex_points()
+                    .find(|(_, p)| (*p - base).norm() < 1e-9)
+                    .map(|(v, _)| v)
+                    .expect("the patch's corner");
+                for k in [0.5, 0.8, 0.95] {
+                    let c: f64 = k * band.zero() / e;
+                    let normal =
+                        UnitVec3::new(Vec3::new(0.0, (1.0 - c * c).sqrt(), c), "rim patch", band)
+                            .unwrap();
+                    let bracket = geom_core::k_stats::Bracket::open();
+                    let got = wall_section(&body, band, base, normal, face, corner);
+                    let recorded = bracket.finish();
+                    let err = match got {
+                        Err(err @ SplitJoinError::Escalated { .. }) => err,
+                        got => panic!(
+                            "k = {k}: the span's rulings against the whole turn's conic, got {:?}",
+                            got.map(|w| w.map(|w| match w.case {
+                                SectionCase::Straight(_) => "straight",
+                                SectionCase::Tangent(_) => "tangent",
+                                SectionCase::Conic(_) => "conic",
+                                SectionCase::Loops { .. } => "loops",
+                            }))
+                        ),
+                    };
+                    let SplitJoinError::Escalated { diag, .. } = &err else {
+                        unreachable!("matched as an escalation")
+                    };
+                    assert_eq!(
+                        diag.predicate,
+                        Some("pc_axis_plane_parallel_straddle"),
+                        "k = {k}"
+                    );
+                    // The two readings' enclosure, on the frame: never poison.
+                    assert_eq!(
+                        diag.margin.kind(),
+                        geom_core::MarginKind::Enclosure,
+                        "k = {k}"
+                    );
+                    assert_eq!(
+                        recorded.escalations.last().map(|e| e.source),
+                        Some(*diag),
+                        "k = {k}: on the frame"
+                    );
+                    // The section's escalation ends as geom-brep ends it: the
+                    // enclosure's whole ending, kind lever first. (That a
+                    // straddle's enclosure reads as subdividable is open on the
+                    // cleave row `split-escalations-end-a-poisoned-margin-in-the-plane-lever`.)
+                    assert!(
+                        err.to_string().contains(&format!(
+                            "{}. Recourse: subdivide the parameter box for a tighter enclosure, or \
+                         move the geometry",
+                            diag.payload()
+                        )),
+                        "k = {k}: {err}"
+                    );
+                }
+            },
         );
-        let base = Point3::new(r, 0.0, 0.0);
-        let corner = body
-            .vertex_points()
-            .find(|(_, p)| (*p - base).norm() < 1e-9)
-            .map(|(v, _)| v)
-            .expect("the patch's corner");
-        for k in [0.5, 0.8, 0.95] {
-            let c: f64 = k * band.zero() / e;
-            let normal =
-                UnitVec3::new(Vec3::new(0.0, (1.0 - c * c).sqrt(), c), "rim patch", band).unwrap();
-            let bracket = geom_core::k_stats::Bracket::open();
-            let got = wall_section(&body, band, base, normal, face, corner);
-            let recorded = bracket.finish();
-            let err = match got {
-                Err(err @ SplitJoinError::Escalated { .. }) => err,
-                got => panic!(
-                    "k = {k}: the span's rulings against the whole turn's conic, got {:?}",
-                    got.map(|w| w.map(|w| match w.case {
-                        SectionCase::Straight(_) => "straight",
-                        SectionCase::Tangent(_) => "tangent",
-                        SectionCase::Conic(_) => "conic",
-                        SectionCase::Loops { .. } => "loops",
-                    }))
-                ),
-            };
-            let SplitJoinError::Escalated { diag, .. } = &err else {
-                unreachable!("matched as an escalation")
-            };
-            assert_eq!(
-                diag.predicate,
-                Some("pc_axis_plane_parallel_straddle"),
-                "k = {k}"
-            );
-            // The two readings' enclosure, on the frame: never poison.
-            assert_eq!(
-                diag.margin.kind(),
-                geom_core::MarginKind::Enclosure,
-                "k = {k}"
-            );
-            assert_eq!(
-                recorded.escalations.last().map(|e| e.source),
-                Some(*diag),
-                "k = {k}: on the frame"
-            );
-            // The section's escalation ends as geom-brep ends it: the
-            // enclosure's whole ending, kind lever first. (That a
-            // straddle's enclosure reads as subdividable is open on the
-            // cleave row `split-escalations-end-a-poisoned-margin-in-the-plane-lever`.)
-            assert!(
-                err.to_string().contains(&format!(
-                    "{}. Recourse: subdivide the parameter box for a tighter enclosure, or \
-                     move the geometry",
-                    diag.payload()
-                )),
-                "k = {k}: {err}"
-            );
-        }
     }
 
     /// **The Boolean's germ join never serves a rim patch where main
@@ -6066,7 +6131,7 @@ mod tests {
         let seed = body.mvfs(base, true).unwrap();
         body.set_face_surface(
             seed.face,
-            crate::FaceSurface::New {
+            crate::construction::FaceSurface::New {
                 surface: geom::Surface::Cylinder {
                     origin: Point3::origin(),
                     axis: Vec3::unit_z(),
@@ -6085,7 +6150,7 @@ mod tests {
         });
         let quarter = core::f64::consts::FRAC_PI_2;
         body.mev(
-            crate::MevSite::Lone {
+            crate::construction::MevSite::Lone {
                 r#loop: seed.r#loop,
             },
             carrier.eval(quarter),
@@ -6146,7 +6211,7 @@ mod tests {
         let seed = body.mvfs(base, true).unwrap();
         body.set_face_surface(
             seed.face,
-            crate::FaceSurface::New {
+            crate::construction::FaceSurface::New {
                 surface: geom::Surface::Cylinder {
                     origin: Point3::origin(),
                     axis: Vec3::unit_z(),
@@ -6158,7 +6223,7 @@ mod tests {
         )
         .unwrap();
         body.mev_line(
-            crate::MevSite::Lone {
+            crate::construction::MevSite::Lone {
                 r#loop: seed.r#loop,
             },
             Point3::new(r, 0.0, e),
@@ -6892,7 +6957,7 @@ mod null_site_rows {
         let he = body.get_vertex(seed).unwrap().emanating.unwrap();
         let created = body
             .mev_null(
-                crate::MevSite::Fan { he1: he, he2: he },
+                crate::construction::MevSite::Fan { he1: he, he2: he },
                 NewVertexSide::Above,
             )
             .unwrap();
@@ -7963,6 +8028,69 @@ mod run_edge_carrier_rows {
                 }
                 other => panic!("{name}: expected the run-edge refusal, got {other:?}"),
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod run_image_incidence {
+    #![allow(clippy::unwrap_used)]
+    use super::SplitJoinError;
+    use geom_brep::recourse::{INCIDENCE_AT_POSE, INCIDENCE_UNSHOWN};
+    use geom_brep::{OffMargin, PcurveCertifyError, PcurveCheck};
+    use geom_core::{Band, Indeterminate, KERNEL_DEFECT_ENDING, MarginDiag};
+
+    /// **A run edge's incidence refusal ends by the one map** (review on
+    /// PR 5844, H3), through the run walk's own mapping
+    /// (`run_image_refusal`): decided off, the kernel's defect; at a pose, the pose
+    /// lever; undecided, its lever; a poisoned margin, the defect. Never
+    /// the invariant break or the join's own coincidence lever it ended in
+    /// before.
+    #[test]
+    fn a_run_edges_incidence_refusal_ends_by_its_read() {
+        let off = |margin| PcurveCertifyError::CarrierOffChart {
+            chart: geom::SurfaceKind::Cone,
+            carrier: geom::CurveKind::Circle,
+            why: "WHY",
+            margin,
+        };
+        let undecided = |margin| PcurveCertifyError::Escalated {
+            check: PcurveCheck::ChartIncidence,
+            sample: 0,
+            cause: Indeterminate {
+                margin,
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("pcurve_cone_chart_incident"),
+                terminal_sliver: false,
+            },
+        };
+        let m = MarginDiag::value(4e-10);
+        for (refusal, ending) in [
+            (off(None), KERNEL_DEFECT_ENDING),
+            (off(Some(OffMargin::InBand(m))), INCIDENCE_AT_POSE.lever),
+            (undecided(MarginDiag::value(5e-9)), INCIDENCE_UNSHOWN.lever),
+            (undecided(MarginDiag::INVALID), KERNEL_DEFECT_ENDING),
+        ] {
+            let mapped = super::run_image_refusal(
+                crate::FaceKey::default(),
+                geom::SurfaceKind::Cone,
+                refusal.clone(),
+            );
+            assert!(
+                matches!(mapped, SplitJoinError::RunImageIncidence { .. }),
+                "{refusal:?}: {mapped:?}"
+            );
+            let text = mapped.to_string();
+            assert!(text.contains(ending), "{refusal:?}: {text}");
+            assert_eq!(
+                text.matches("Recourse").count() + text.matches("defect").count(),
+                1,
+                "{text}"
+            );
+            assert!(
+                !text.contains("invariant") && !text.contains("coincide"),
+                "{text}"
+            );
         }
     }
 }

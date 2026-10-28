@@ -354,7 +354,7 @@ pub struct SplitNaming {
     /// same mefs); consumers exclude the keys listed in `sections`.
     pub face_fragments: crate::lineage::FaceDivisions,
     /// Crossing-split piece rows: `(new edge, divided-from edge)` in
-    /// mint order, call-time keys ([`crate::Body::split_edge`] keeps the
+    /// mint order, call-time keys ([`crate::Body::split_edge`](crate::construction::Construct::split_edge) keeps the
     /// divided edge's key on the piece from its start), each checked as
     /// it was minted.
     pub edge_pieces: crate::lineage::SplitEdgeDivisions,
@@ -366,7 +366,7 @@ pub struct SplitNaming {
     /// corner's arc holds — so consumers read a key's side from the body
     /// that holds it.
     pub vertex_pairs: Vec<(crate::entity::VertexKey, crate::entity::VertexKey)>,
-    /// The joins each side ended with ([`crate::Body::join_edges`]), in
+    /// The joins each side ended with ([`crate::Body::join_edges`](crate::construction::Construct::join_edges)), in
     /// the order made, with the side whose body they were made on: each
     /// row's `vertex` and `gone` edge are dead there, and `kept` holds
     /// them (`docs/DESIGN.md`, maximal edges).
@@ -812,7 +812,7 @@ pub enum SplitFinishError {
         /// The binding shell's certified reading.
         diag: geom_core::Indeterminate,
     },
-    /// The join a side ends with ([`crate::Body::join_edges`]) refused
+    /// The join a side ends with ([`crate::Body::join_edges`](crate::construction::Construct::join_edges)) refused
     /// on that side's body.
     EdgeJoin {
         /// The side whose join refused.
@@ -2147,7 +2147,7 @@ pub(crate) fn carve<T: Decide>(
 /// boundary edge panics naming the link, with the body unchanged. Two
 /// reads name that link: the description's own, and
 /// the plan of the door that writes it ([`crate::Body::restate_edge`]
-/// or [`crate::Body::set_edge_curve`]), which every arm that describes
+/// or [`crate::Body::set_edge_curve`](crate::construction::Construct::set_edge_curve)), which every arm that describes
 /// the edge reaches before its write. The row holds whichever
 /// panics first, so it cannot tell the two apart.
 #[cfg(test)]

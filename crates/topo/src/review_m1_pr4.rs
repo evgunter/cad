@@ -177,7 +177,9 @@ fn mk_kill_roundtrip_every_mev_site_case() {
         body.clone().mev_line(site, p(9.0), tol),
         Err(EulerOpError::RebasedCarrier { .. })
     ));
-    let split = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
+    let split = body
+        .mev_null(site, crate::construction::NewVertexSide::Above)
+        .unwrap();
     body.kev(split.he_plus).unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(canonical_form(&body), before, "v5 fan mev∘kev");
@@ -194,7 +196,9 @@ fn mk_kill_roundtrip_every_mev_site_case() {
         body.clone().mev_line(site, p(9.0), tol),
         Err(EulerOpError::RebasedCarrier { .. })
     ));
-    let split = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
+    let split = body
+        .mev_null(site, crate::construction::NewVertexSide::Above)
+        .unwrap();
     body.kev(split.he_plus).unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(canonical_form(&body), before, "v5 wrapping fan mev∘kev");
@@ -220,7 +224,9 @@ fn mk_kill_roundtrip_every_mev_site_case() {
         body.clone().mev_line(site, p(9.0), tol),
         Err(EulerOpError::RebasedCarrier { .. })
     ));
-    let fan = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
+    let fan = body
+        .mev_null(site, crate::construction::NewVertexSide::Above)
+        .unwrap();
     body.kev(fan.he_plus).unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(canonical_form(&body), before, "cross-loop fan mev∘kev");
@@ -366,7 +372,9 @@ fn kev_from_both_ends_of_an_asymmetric_valence_five_split() {
         body.clone().mev_line(site, p(9.0), tol),
         Err(EulerOpError::RebasedCarrier { .. })
     ));
-    let split = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
+    let split = body
+        .mev_null(site, crate::construction::NewVertexSide::Above)
+        .unwrap();
     // End 1: kill the new vertex.
     {
         let mut probe = body.clone();
@@ -985,7 +993,7 @@ fn hexagon_pillow_with_fully_degenerate_coordinates_is_stable() {
                 he2: last.he_minus,
             },
             circle(),
-            crate::FaceSurface::Inherit,
+            crate::construction::FaceSurface::Inherit,
             tol,
         )
         .unwrap();
