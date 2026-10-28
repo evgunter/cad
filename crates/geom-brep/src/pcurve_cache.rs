@@ -10236,16 +10236,18 @@ fn incidence_escalated(cause: Indeterminate) -> PcurveCertifyError {
 /// `v₀` is zero at the mint and gains `k·τ` only from the loop walk's
 /// branch shift.
 ///
-/// Nothing here is a class decision beyond the sign and the tag: the image is
-/// built, and [`PcurveCache::certify`] then measures it against the
-/// chart and the carrier. A spiric handed a torus that is neither of
-/// its two mints an image whose check 1 refuses it as off the chart,
-/// which is the module's standing posture.
+/// Nothing here is a class decision beyond the sign and the tag: the
+/// chart's incidence test reads the oval on the plane or the torus first
+/// (a torus that is neither of its two is off it), then the image is
+/// built, and [`PcurveCache::certify`] measures it against the chart and
+/// the carrier.
 ///
 /// # Errors
 ///
-/// [`spiric_off_own_chart`]'s refusal for a cylinder, cone or sphere
-/// chart and for a torus whose axis is perpendicular to the carrier's;
+/// The incidence test's for a plane or torus the oval is not shown on
+/// ([`incidence::incident`]); [`spiric_off_own_chart`]'s for a cylinder,
+/// cone or sphere chart and for a torus whose axis is perpendicular to
+/// the carrier's;
 /// [`PcurveCertifyError::UnsupportedChart`] for a spline or
 /// approximating chart, whose images are description-driven.
 fn spiric_chart_pcurve<T: Decide>(
@@ -10271,6 +10273,11 @@ fn spiric_chart_pcurve<T: Decide>(
         offset,
         image,
     };
+    // D3: whether the oval lies on the chart is read first, by the
+    // chart's incidence test, before the cap or the wall is imaged.
+    if matches!(surface, Surface::Plane { .. } | Surface::Torus { .. }) {
+        incidence::incident(carrier, surface, place, band)?;
+    }
     match *surface {
         Surface::Plane {
             origin,

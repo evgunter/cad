@@ -538,6 +538,59 @@ fn the_mint_refuses_every_chart_a_spiric_does_not_lie_on() {
     );
 }
 
+/// **A plane or torus the oval does not lie on is read off it at the
+/// mint, before the cap or the wall is imaged** (D3): the cutting plane
+/// moved a millimetre along its normal, and a torus parallel to the
+/// carrier's own that is neither it nor its mirror, end as the chart's
+/// incidence read, the definite miss, at `f64` and at `Interval`. A mint
+/// that imaged first hands both an image (`Ok`).
+#[test]
+fn a_plane_or_torus_off_the_oval_is_read_off_at_the_mint() {
+    use geom_brep::{IncidenceRead, OffMargin};
+    use geom_core::{Interval, Real};
+    let moved = Surface::Plane {
+        origin: Point3::new(D + 1e-3, 0.0, 0.0),
+        normal: Vec3::unit_x(),
+        u_ref: Vec3::unit_y().cross(Vec3::unit_x()),
+    };
+    let neither = Surface::Torus {
+        center: Point3::new(4.0 * D, 0.0, 0.0),
+        axis: Vec3::unit_y(),
+        major_radius: R,
+        minor_radius: RR,
+        u_ref: Vec3::unit_x(),
+    };
+    let lift = Interval::from_f64;
+    for (what, surface, why) in [
+        ("the moved cutting plane", moved, "not on the plane"),
+        ("a third torus", neither, "not on the torus"),
+    ] {
+        for (lane, got) in [
+            (
+                "f64",
+                geom_brep::chart_pcurve(&carrier(), &surface, band()).map(|_| ()),
+            ),
+            (
+                "Interval",
+                geom_brep::chart_pcurve(
+                    &carrier().map_scalar(lift),
+                    &surface.map_scalar(lift),
+                    band(),
+                )
+                .map(|_| ()),
+            ),
+        ] {
+            let e = got.unwrap_err_or_else_msg(what);
+            assert!(
+                matches!(&e, PcurveCertifyError::CarrierOffChart { why: w, margin, .. }
+                    if w.contains(why) && !matches!(margin, Some(OffMargin::InBand(_))))
+                    && IncidenceRead::of(&e).is_some_and(IncidenceRead::is_definite),
+                "{what} ({lane}): the incidence read's definite miss: {e:?}"
+            );
+        }
+    }
+}
+
 /// **The one foreign torus that holds the oval, imaged.** Reflecting
 /// the carrier's torus through the cutting plane (centre moved `2·D`
 /// along the plane normal) leaves the section unchanged, so the oval
