@@ -20461,6 +20461,38 @@ mod arc_interiors {
         assert_eq!(read(r, 0.1 * r), Ok(false), "apart");
     }
 
+    /// REVIEW PROBE (JCGqDd): near-tangent double crossings on SMALL arcs,
+    /// where a lens one escalation width wide can be deeper than zero.
+    #[test]
+    fn review_probe_small_radius_lens() {
+        let tol = Tol::witness();
+        let width = tol.k() * tol.eps();
+        let zero = band().zero();
+        let mut bad = Vec::new();
+        for c in [0.3, 0.5, 1.0, 2.0, 5.0, 20.0, 100.0] {
+            let r = c * width;
+            for s in [0.1, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0] {
+                let half = 0.5 * s * width;
+                if half >= r { continue; }
+                // centres 2r - d apart with half-chord `half`: d = 2(r - sqrt(r^2 - half^2))
+                let depth = 2.0 * (r - (r * r - half * half).sqrt());
+                let got = read(r, -depth);
+                let f = {
+                    let (c0, _, _, v) = frame();
+                    let mut body = Body::<f64>::new();
+                    let a = add_piece(&mut body, c0, r, (0.0, PI));
+                    let b = add_piece(&mut body, c0 + v * (2.0 * r - depth), r, (PI, 2.0 * PI));
+                    face_interiors_meet(&body, &snapshot(&body), a, b, band())
+                };
+                eprintln!("PROBE eps={:e} r={c}w s={s}w depth/zero={:.4} pieces={got:?} faces={f:?}", tol.eps(), depth / zero);
+                if depth > zero && (got == Ok(false) || f == Ok(false)) {
+                    bad.push((c, s, depth / zero));
+                }
+            }
+        }
+        assert!(bad.is_empty(), "lens deeper than zero read apart: {bad:?}");
+    }
+
     /// **Halves of one disc sharing a diameter are certified apart**, and
     /// a half turned a quarter against the other shares interior. Red if
     /// a shared chord reads as shared interior, or the reading of pieces

@@ -711,3 +711,63 @@ fn pins_stacked_end_to_end_reach_no_witness_search() {
         "coincident copies' walls reach the search and are found: {copies:?}"
     );
 }
+
+/// REVIEW PROBE (JCGqDd): overlapping pairs never read flush or apart,
+/// and which abutting pairs are flush.
+#[test]
+fn review_probe_jcgqdd() {
+    let eps = Tol::witness().eps();
+    let half = Revolution::Partial(PI);
+    let quarter = Revolution::Partial(FRAC_PI_2);
+    let reflex = Revolution::Partial(1.5 * PI);
+    let rest = |b: &Body<f64>, at| placed(b, spun(at));
+    let lift = |b: &Body<f64>, dy: f64, at: f64| {
+        placed(b, moved(Vec3::new(0.0, dy, 0.0)).compose(spun(at)).unwrap())
+    };
+    let mut bad = Vec::new();
+    let overlapping: Vec<(&str, Body<f64>)> = vec![
+        ("quarter wedge straddling the full cylinder's seam", two(&rest(&cylinder(1.0, Revolution::Full), 0.0), &rest(&cylinder(1.0, quarter), -FRAC_PI_2 / 2.0))),
+        ("quarter wedge straddling the half-band joint", two(&rest(&cylinder(1.0, Revolution::Full), 0.0), &rest(&cylinder(1.0, quarter), PI - FRAC_PI_2 / 2.0))),
+        ("reflex wedges a half turn apart", two(&rest(&cylinder(1.0, reflex), 0.0), &rest(&cylinder(1.0, reflex), PI))),
+        ("reflex wedge and a quarter inside it", two(&rest(&cylinder(1.0, reflex), 0.0), &rest(&cylinder(1.0, quarter), 0.5))),
+        ("half-height half wedge sharing a ruling part-way", two(&rest(&cylinder(1.0, half), 0.0), &rest(&cylinder(0.5, quarter), 0.0))),
+        ("reflex lune and a half lune", two(&rest(&lune(reflex), 0.0), &rest(&lune(half), PI))),
+        ("reflex lunes a half turn apart", two(&rest(&lune(reflex), 0.0), &rest(&lune(reflex), PI))),
+        ("hemisphere and a lune across the equator", two(&rest(&hemisphere(true), 0.0), &rest(&lune(quarter), 0.4))),
+        ("cut ball and lower hemisphere", two(&rest(&cut_ball(), 0.0), &rest(&hemisphere(false), 0.7))),
+        ("rod r=1.5 in a tube 1..2", two(&rest(&cylinder(1.0, Revolution::Full), 0.0), &rest(&rect(1.0, 2.0, 0.0, 1.0, Revolution::Full), 0.7))),
+        ("tube over a tube by half", two(&rest(&rect(0.5, 1.0, 0.0, 1.0, Revolution::Full), 0.0), &lift(&rect(0.5, 1.0, 0.0, 1.0, Revolution::Full), 0.5, 0.3))),
+        ("pins overlapping by 1000 eps", two(&rest(&cylinder(1.0, Revolution::Full), 0.0), &lift(&cylinder(1.0, Revolution::Full), 1.0 - 1000.0 * eps, 0.3))),
+        ("half pins overlapping by 1000 eps", two(&rest(&cylinder(1.0, half), 0.0), &lift(&cylinder(1.0, half), 1.0 - 1000.0 * eps, 0.0))),
+    ];
+    for (label, body) in &overlapping {
+        let (recorded, flush) = at_rest(body);
+        let n = interference(body, &recorded.findings).len();
+        let und = recorded.findings.iter().filter(|f| topo::census_uncleared_solids(body, f).is_some()).count();
+        eprintln!("PROBE eps={eps:e} OVERLAP {label}: interference={n} uncleared={und} flush_rows={} flush_findings={}", flush.rows.len(), flush.findings.len());
+        if n == 0 && und == 0 {
+            bad.push(format!("{label}: overlap read clear: {:?}", recorded.findings));
+        }
+    }
+    let abutting: Vec<(&str, Body<f64>)> = vec![
+        ("rod in a tube", two(&rest(&cylinder(1.0, Revolution::Full), 0.0), &rest(&rect(1.0, 2.0, 0.0, 1.0, Revolution::Full), 0.7))),
+        ("rod r=0.5 inside a tube's hole", two(&rest(&rect(0.0, 0.5, 0.0, 1.0, Revolution::Full), 0.0), &rest(&rect(1.0, 2.0, 0.0, 1.0, Revolution::Full), 0.7))),
+        ("pins stacked", two(&rest(&cylinder(1.0, Revolution::Full), 0.0), &lift(&cylinder(1.0, Revolution::Full), 1.0, 0.3))),
+        ("pins overlapping by 0.5 eps", two(&rest(&cylinder(1.0, Revolution::Full), 0.0), &lift(&cylinder(1.0, Revolution::Full), 1.0 - 0.5 * eps, 0.3))),
+        ("pins overlapping by 3 eps", two(&rest(&cylinder(1.0, Revolution::Full), 0.0), &lift(&cylinder(1.0, Revolution::Full), 1.0 - 3.0 * eps, 0.3))),
+        ("half pins stacked, spun", two(&rest(&cylinder(1.0, half), 0.0), &lift(&cylinder(1.0, half), 1.0, 1.0))),
+        ("half cylinders side by side", two(&rest(&cylinder(1.0, half), 0.0), &rest(&cylinder(1.0, half), PI))),
+        ("reflex wedge and complement", two(&rest(&cylinder(1.0, reflex), 0.0), &rest(&cylinder(1.0, quarter), 1.5 * PI))),
+    ];
+    for (label, body) in &abutting {
+        let (recorded, flush) = at_rest(body);
+        let n = interference(body, &recorded.findings).len();
+        let und = recorded.findings.iter().filter(|f| topo::census_uncleared_solids(body, f).is_some()).count();
+        let kinds: Vec<_> = flush_faces(&flush).iter().map(|[a, b]| (kind(body, EntityId::Face(*a)), kind(body, EntityId::Face(*b)))).collect();
+        eprintln!("PROBE eps={eps:e} ABUT {label}: interference={n} uncleared={und} flush_rows={kinds:?} flush_findings={:?}", flush.findings);
+        if n != 0 {
+            bad.push(format!("{label}: abutting read as interference: {:?}", recorded.findings));
+        }
+    }
+    assert!(bad.is_empty(), "{bad:#?}");
+}
