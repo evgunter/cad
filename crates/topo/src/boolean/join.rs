@@ -4604,7 +4604,7 @@ fn along_facing<T: Decide>(
             })
     };
     let ((f1, up1), (f2, up2)) = (foot(g1, p1)?, foot(g2, p2)?);
-    if up1 == up2 {
+    if f1.component != f2.component || up1 == up2 {
         return Ok(Faced::Apart);
     }
     let component = &section.components()[f1.component];
@@ -4798,7 +4798,7 @@ fn choose_roles<T: crate::props::AtRestPolicy>(
     // Ring lane: decided by the run's winding. A planar, sphere, cone or
     // torus face's run is closed by the segment's curve, so it waits on
     // that curve ([`RoleLane::resolve`]), and so does a carried chord's
-    // cylinder or sphere face; a cylinder face's on a planar section
+    // cylinder, sphere or torus face; a cylinder face's on a planar section
     // closes along its section plane on its chart, decided here, before
     // the curve is computed in the order it decides. An along-edge
     // segment reads no section: a curved face there refuses typed,
@@ -4818,7 +4818,8 @@ fn choose_roles<T: crate::props::AtRestPolicy>(
         RingClosure::Chord => match crate::ring_path::Quadric::of(surface()?) {
             Some(
                 crate::ring_path::Quadric::Cylinder { .. }
-                | crate::ring_path::Quadric::Sphere { .. },
+                | crate::ring_path::Quadric::Sphere { .. }
+                | crate::ring_path::Quadric::Torus { .. },
             ) => RingFace::Carried,
             _ => {
                 return Err(BooleanError::CurvedBooleanUnsupported {
@@ -4908,7 +4909,8 @@ enum RoleLane<T: geom_core::Real> {
     Ring { face: FaceKey, normal: Vec3<T> },
     /// A ring of the sphere, cone or torus `face`.
     QuadricRing { face: FaceKey },
-    /// A ring of the cylinder or sphere `face` a carried chord closes.
+    /// A ring of the cylinder, sphere or torus `face` a carried chord
+    /// closes.
     CarriedRing { face: FaceKey },
 }
 

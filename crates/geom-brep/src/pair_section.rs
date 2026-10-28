@@ -588,6 +588,18 @@ pub(crate) enum Sides<T: Real> {
         along: (T, T),
         row: &'static str,
     },
+    /// The side, in the meridian plane of `(center, axis)` through the
+    /// site, of the line through the tube circle's centre (`major` from
+    /// the axis) and the foot of `sphere`, a sphere's centre, in that
+    /// plane: the line through the centres of the two circles the site
+    /// is a crossing of, the tube's and the sphere's trace.
+    Trace {
+        center: Point3<T>,
+        axis: Vec3<T>,
+        major: T,
+        sphere: Point3<T>,
+        row: &'static str,
+    },
     /// No reading of the classification tells them apart.
     Untold(&'static str),
 }
@@ -764,6 +776,13 @@ fn cylinder_sphere<T: Decide>(pose: CylinderSpherePose<T>) -> PairSection<T> {
     }
 }
 
+/// The signed distance of `(x, z)` from the line through `through` along
+/// `(dx, dz)`, positive on its left.
+fn line_side<T: Real>((x, z): (T, T), (x0, z0): (T, T), (dx, dz): (T, T)) -> T {
+    let (x, z) = (x - x0, z - z0);
+    (dx * z - dz * x) / (dx.powi(2) + dz.powi(2)).sqrt()
+}
+
 /// **Why a site has no component of its section**, or more than one.
 #[derive(Clone, Debug, PartialEq)]
 pub enum SiteRefusal {
@@ -813,9 +832,10 @@ impl<T: Decide> PairSection<T> {
     /// **The component the site `p` lies on**, by the classification
     /// alone, so no march is owed for it: a section of one component
     /// answers it; two are told apart by the side of a plane or of a
-    /// meridian line the arm names (for cylinder × sphere the plane
-    /// through the sphere centre's foot square to the cylinder's axis,
-    /// `cs_component_side`), the first component on its positive side.
+    /// line in the site's meridian plane the arm names (for cylinder ×
+    /// sphere the plane through the sphere centre's foot square to the
+    /// cylinder's axis, `cs_component_side`), the first component on its
+    /// positive side.
     /// Both components keep a definite side, so a `Zero` there is a site
     /// on neither, a desync. More than two, or two the arm cannot tell
     /// apart, are untold. Whether the site lies within the band of the
@@ -851,15 +871,33 @@ impl<T: Decide> PairSection<T> {
                 Sides::Meridian {
                     center,
                     axis,
-                    through: (x0, z0),
-                    along: (dx, dz),
+                    through,
+                    along,
                     row,
                 },
             ) => {
                 let w = p - center;
                 let (_, rho) = square_part(w, axis);
-                let (x, z) = (rho - x0, w.dot(axis) - z0);
-                side(row, (dx * z - dz * x) / (dx.powi(2) + dz.powi(2)).sqrt())
+                side(row, line_side((rho, w.dot(axis)), through, along))
+            }
+            (
+                2,
+                Sides::Trace {
+                    center,
+                    axis,
+                    major,
+                    sphere,
+                    row,
+                },
+            ) => {
+                let w = p - center;
+                let (radial, rho) = square_part(w, axis);
+                let c = sphere - center;
+                let along = (c.dot(radial) / rho - major, c.dot(axis));
+                side(
+                    row,
+                    line_side((rho, w.dot(axis)), (major, T::zero()), along),
+                )
             }
             (2, Sides::Untold(why)) => Err(SiteRefusal::Untold(why)),
             (2, Sides::One) => Err(SiteRefusal::Untold(

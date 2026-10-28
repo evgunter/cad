@@ -7,7 +7,10 @@
 //!   their evidence of lying on the surfaces ([`SplineArc::of_section`]),
 //!   read on the cylinder against membership in the ball and on the
 //!   sphere against membership in the cylinder, between points clustered
-//!   from 1e-5 to 5e-2 off the loop;
+//!   from 1e-5 to 5e-2 off the loop; and a sphere × torus section's oval
+//!   (the sphere cutting one tube circle of its meridian), read on the
+//!   torus against membership in the ball and on the sphere against
+//!   membership in the torus;
 //! - islands on a cylinder bounded by two rulings and two tilted plane
 //!   sections, every edge an exact spline (a degree-one ruling, rational
 //!   quadratic arcs of the ellipses), whose extrema in height fall inside
@@ -154,6 +157,113 @@ fn a_path_across_a_carried_loop_reads_the_membership_parity() {
         }
     }
     println!("[fuzz] carried loop: {decided} of {asked} paths decided");
+}
+
+/// **No path across a sphere × torus oval's arcs reads a parity the
+/// membership oracle contradicts**, on the torus and on the sphere, over
+/// ovals on the tube's outer side, on its crest and on its inner side.
+#[test]
+fn a_path_across_a_carried_torus_oval_reads_the_membership_parity() {
+    let mut rng = fuzz::start("ring_path::spline_fuzz::torus_oval");
+    let (big_r, r) = (0.6, 0.2);
+    let torus = geom::Surface::Torus {
+        center: Point3::origin(),
+        axis: Vec3::unit_z(),
+        major_radius: big_r,
+        minor_radius: r,
+        u_ref: Vec3::unit_x(),
+    };
+    let on_torus = |q: Point3<f64>| {
+        let core = Point3::new(q.x, q.y, 0.0);
+        let k = Point3::origin() + (core - Point3::origin()) / core.x.hypot(core.y) * big_r;
+        k + (q - k) / (q - k).norm() * r
+    };
+    let torus_margin = |q: Point3<f64>| (q.x.hypot(q.y) - big_r).hypot(q.z) - r;
+    let poses = [
+        (Point3::new(0.85, 0.0, 0.1), 0.15),
+        (Point3::new(0.6, 0.1, 0.25), 0.1),
+        (Point3::new(0.3, -0.1, -0.05), 0.2),
+    ];
+    let (mut asked, mut decided) = (0usize, 0usize);
+    for (centre, big) in poses {
+        let sphere = geom::Surface::Sphere {
+            center: centre,
+            radius: big,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let geom_brep::SectionRead::Built(section) =
+            geom_brep::pair_section(&torus, &sphere, band()).unwrap()
+        else {
+            panic!("the value builds sphere × torus");
+        };
+        assert_eq!(
+            section.components().len(),
+            1,
+            "centre {centre:?}, radius {big}: the pose is one oval"
+        );
+        let carried = section
+            .carry(Some(geom_brep::SsiLane::marched()), band())
+            .unwrap();
+        for _ in 0..fuzz::scaled(2) {
+            let mut arcs = Vec::new();
+            for c in carried.components() {
+                let (lo, hi) = c.span;
+                let mut cuts: Vec<f64> = (0..rng.below(3))
+                    .map(|_| rng.range(lo + 0.05 * (hi - lo), hi - 0.05 * (hi - lo)))
+                    .collect();
+                cuts.sort_by(f64::total_cmp);
+                cuts.dedup_by(|a, b| (*a - *b).abs() < 0.01 * (hi - lo));
+                arcs.extend(cut_into(c, &cuts));
+            }
+            let near = |rng: &mut Rng, on_sphere: bool| loop {
+                let c = &carried.components()[0];
+                let p = c.carrier.eval(rng.range(c.span.0, c.span.1));
+                let off = rng.log_uniform(1e-5, 5e-2);
+                let q = if on_sphere {
+                    let n = (p - centre) / big;
+                    let moved = p + tangent(n, rng) * off - centre;
+                    centre + moved / moved.norm() * big
+                } else {
+                    let foot = on_torus(p);
+                    let core = Point3::new(foot.x, foot.y, 0.0);
+                    let k =
+                        Point3::origin() + (core - Point3::origin()) / core.x.hypot(core.y) * big_r;
+                    on_torus(foot + tangent((foot - k) / r, rng) * off)
+                };
+                let margin = if on_sphere {
+                    torus_margin(q)
+                } else {
+                    (q - centre).norm() - big
+                };
+                if margin.abs() > 1e-8 {
+                    return (q, margin < 0.0);
+                }
+            };
+            for (on_sphere, surface) in [(false, &torus), (true, &sphere)] {
+                let quadric = Quadric::of(surface).unwrap();
+                let (a, ia) = near(&mut rng, on_sphere);
+                let (b, ib) = near(&mut rng, on_sphere);
+                let Ok(paths) = quadric.paths((a, b), band()) else {
+                    continue;
+                };
+                for path in paths {
+                    asked += 1;
+                    if let Ok(Some(got)) = path_parity(&path, &arcs, None, band()) {
+                        decided += 1;
+                        assert_eq!(
+                            got,
+                            ia != ib,
+                            "centre {centre:?}, radius {big}, on the {}: {a:?} → {b:?}; {}",
+                            if on_sphere { "sphere" } else { "torus" },
+                            fuzz::replay()
+                        );
+                    }
+                }
+            }
+        }
+    }
+    println!("[fuzz] torus oval: {decided} of {asked} paths decided");
 }
 
 /// The rational quadratic arcs of `e(θ) = c + U·cos θ + V·sin θ` over

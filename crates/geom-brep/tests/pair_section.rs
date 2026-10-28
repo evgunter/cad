@@ -844,3 +844,41 @@ fn one_loop_keeps_its_order_near_the_node_row() {
         }
     }
 }
+
+/// **A sphere cutting both tube circles of its meridian carries its two
+/// curves about the torus axis, each site told to its own**: the side of
+/// the line, in the site's meridian plane, through the tube circle's
+/// centre and the sphere centre's foot. The march's two closed branches
+/// land on the two components (one each), every point of each carrier
+/// reads its own component in either order the pair is asked of (a slip
+/// in the reading sends both branches to one component, which the carry
+/// refuses as a desync, or a stretch of one to the other's).
+#[test]
+fn a_sphere_about_the_torus_axis_tells_its_two_curves_apart() {
+    let torus = Surface::Torus {
+        center: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        major_radius: 0.6,
+        minor_radius: 0.2,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    for centre in [Point3::new(0.1, 0.05, 0.08)] {
+        let ball = sphere_at(centre, 0.65);
+        for (a, b) in [(&torus, &ball), (&ball, &torus)] {
+            let section = built(a, b);
+            assert_eq!(section.components().len(), 2, "{centre:?}: two curves");
+            let carried = section
+                .carry(Some(SsiLane::marched()), band())
+                .unwrap_or_else(|e| panic!("{centre:?}: the two curves carry: {e:?}"));
+            for (k, c) in carried.components().iter().enumerate() {
+                assert!(c.closed, "{centre:?}: component {k} closes");
+                let (lo, hi) = c.span;
+                for i in 0..48 {
+                    let p = c.carrier.eval(lo + (hi - lo) * f64::from(i) / 48.0);
+                    let got = section.component_of(p, band());
+                    assert_eq!(got, Ok(k), "{centre:?}: point {i} of component {k}");
+                }
+            }
+        }
+    }
+}
