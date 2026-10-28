@@ -270,6 +270,8 @@ mod sphere_torus_ssi;
 mod spline_pair_any_carrier;
 #[path = "spline_pair_arc_rim.rs"]
 mod spline_pair_arc_rim;
+#[path = "spline_pair_arc_rim_review_r1.rs"]
+mod spline_pair_arc_rim_review_r1;
 #[path = "ssi_limb3_one_arc.rs"]
 mod ssi_limb3_one_arc;
 #[path = "stored_span_winding_bound.rs"]
