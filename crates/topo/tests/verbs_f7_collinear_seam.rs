@@ -9,10 +9,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use topo::construction::Construct;
 
 use common::prism_z;
 use geom_core::{Point3, Tol};
-use topo::{MefSite, MevSite, validate_closed};
+use topo::construction::{MefSite, MevSite};
+use topo::validate_closed;
 
 /// A prism whose top face is split by a chord from `(0,0)` to `(2,2)`
 /// carrying an interior vertex; `on_segment` places that vertex on the

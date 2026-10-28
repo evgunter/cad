@@ -21,7 +21,9 @@ use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_core::Tol;
 use geom_core::{Point3, Vec3};
-use topo::{Body, FaceKey, FaceSurface, MefSite, MevSite, ValidationError, validate_geometric};
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, MefSite, MevSite};
+use topo::{Body, FaceKey, ValidationError, validate_geometric};
 
 /// Apex at the origin, axis `+Z`, half-angle 45°; the rim sits 10 mm
 /// of slant from the apex.

@@ -138,7 +138,7 @@ pub struct SkippedMerge {
 pub struct MergeCoplanarOutcome {
     /// The merged runs, in group order (first face's arena order).
     pub groups: Vec<MergedGroup>,
-    /// The joins the public doors end with ([`Body::join_edges`]), in
+    /// The joins the public doors end with ([`Body::join_edges`](crate::construction::Construct::join_edges)), in
     /// the order made, on the merged body: each killed `vertex` and
     /// `gone` edge, and the `kept` edge that holds them. Empty from the
     /// boolean's own merge, which joins in its output stage.
@@ -535,7 +535,7 @@ pub enum MergeCoplanarError {
         /// The mint pass's typed refusal.
         source: crate::pcurves::PcurveMintError,
     },
-    /// The join the public merge door ends with ([`Body::join_edges`])
+    /// The join the public merge door ends with ([`Body::join_edges`](crate::construction::Construct::join_edges))
     /// refused on the merged body: a reading in the band, a carrier the
     /// joined edge cannot be run on, or the kill's own refusal. The
     /// body is untouched, exactly as on every other variant.
@@ -1996,7 +1996,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// was — never a partial commit, and the unglued curved adjacency
     /// persists in the cut-carrying form the operands already carried.
     ///
-    /// The door ends with the join ([`Body::join_edges`], recorded in
+    /// The door ends with the join ([`Body::join_edges`](crate::construction::Construct::join_edges), recorded in
     /// [`MergeCoplanarOutcome::joins`]), so the body it leaves has
     /// maximal faces and maximal edges (`docs/DESIGN.md`, maximal
     /// edges); a body with nothing to merge is still joined.
@@ -3558,7 +3558,7 @@ mod tests {
         describe_shared_key(&mut body);
         let ring = body.get_face(top).expect("live").rings[0];
         body.mekr_chord(
-            crate::MekrSite::Cycles {
+            crate::construction::MekrSite::Cycles {
                 target: outer_he_at(&body, top, [0.0, 0.0, 1.0]),
                 ring: loop_he_at(&body, ring, [0.25, 0.25, 1.0]),
             },
@@ -3567,7 +3567,7 @@ mod tests {
         .expect("the bridge joins the ring to the outline");
         let half = body
             .mef_chord(
-                crate::MefSite::Chords {
+                crate::construction::MefSite::Chords {
                     he1: outer_he_at(&body, top, [1.0, 1.0, 1.0]),
                     he2: outer_he_at(&body, top, [0.75, 0.75, 1.0]),
                 },

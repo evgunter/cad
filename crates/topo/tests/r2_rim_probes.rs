@@ -10,12 +10,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::TAU;
+use topo::construction::Construct;
 
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Point3, Tol, Vec3};
+use topo::construction::{FaceSurface, MefSite, MevSite};
 use topo::query::rim_of;
-use topo::{Body, EdgeKey, FaceSurface, MefSite, MevSite};
+use topo::{Body, EdgeKey};
 
 const RIM_Z: f64 = 0.5;
 

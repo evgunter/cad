@@ -19,6 +19,7 @@
 
 use core::f64::consts::PI;
 use std::collections::BTreeMap;
+use topo::construction::Construct;
 
 use super::common::certificates::assert_certificates_fresh;
 

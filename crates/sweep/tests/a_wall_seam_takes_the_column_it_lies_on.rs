@@ -17,7 +17,9 @@ use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::test_support::bulge_loop;
 use std::sync::Arc;
 use sweep::test_support::stacked_at;
-use topo::{Body, FaceKey, FaceSurface, HalfEdgeKey, Pcurve};
+use topo::construction::Construct;
+use topo::construction::FaceSurface;
+use topo::{Body, FaceKey, HalfEdgeKey, Pcurve};
 
 fn tol() -> Tol {
     Tol::witness()

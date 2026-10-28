@@ -423,6 +423,19 @@ impl CheckEvidence {
         }
     }
 
+    /// A part's unproven coincidence carried up, on
+    /// `carried_coincidence` alone: the part's own finding, as its own
+    /// door judged it.
+    #[getter]
+    fn carried_coincidence(&self) -> Option<CarriedCoincidence> {
+        match &self.0 {
+            d::CheckEvidence::CarriedCoincidence { finding } => {
+                Some(CarriedCoincidence((**finding).clone()))
+            }
+            _ => None,
+        }
+    }
+
     /// Why the at-rest check could not look, whole, on `at_rest` alone.
     #[getter]
     fn at_rest(&self) -> Option<AtRestEvidence> {
@@ -691,7 +704,7 @@ impl CheckFinding {
     /// intended" stays distinct from "not checked"; `enforce_checks`
     /// never refuses it. A part's carried finding names the part's own
     /// assertion, an id in the part's document
-    /// (`CarriedInterference.of`).
+    /// (`CarriedInterference.of`, `CarriedCoincidence.of`).
     #[getter]
     fn quiet(&self) -> Option<NodeId> {
         self.finding.quiet.map(NodeId)
@@ -730,6 +743,61 @@ impl CheckFinding {
             "CheckFinding({}, {subject}, {:?})",
             self.finding.check,
             check_evidence_tag(&self.finding.evidence)
+        )
+    }
+}
+
+/// A coincidence a document BELOW this one leaves unproven, with the
+/// route this document reached it by: an `unproven_coincidence`
+/// finding's `CheckEvidence.carried_coincidence`, as the part's own door
+/// judged it and quiet only by the part's own assertions.
+///
+/// The finding is the part's: its ids are `of`'s, and it is spoken from
+/// the version of `of` that `pin` fixes.
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct CarriedCoincidence(d::CarriedCoincidence);
+
+#[pymethods]
+impl CarriedCoincidence {
+    /// The part's own finding, over the part's document.
+    #[getter]
+    fn finding(&self) -> CheckFinding {
+        CheckFinding {
+            finding: self.0.finding.clone(),
+            doc: Arc::clone(self.0.doc.get()),
+        }
+    }
+
+    /// The instantiating node OF THIS DOCUMENT the finding came through.
+    #[getter]
+    fn through(&self) -> NodeId {
+        NodeId(self.0.route.through)
+    }
+
+    /// Which version of `of` found it.
+    #[getter]
+    fn pin(&self) -> super::store::ContentPin {
+        super::store::ContentPin(self.0.pin)
+    }
+
+    /// The document whose coincidence it is, as opaque id text.
+    #[getter]
+    fn of(&self, py: Python<'_>) -> Py<PyAny> {
+        super::assembly::route_fields(py, &self.0.route).0
+    }
+
+    /// The instances this document reached it through, nearest first.
+    #[getter]
+    fn via(&self, py: Python<'_>) -> Py<PyAny> {
+        super::assembly::route_fields(py, &self.0.route).1
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "CarriedCoincidence(of={}, loud={})",
+            self.0.route.of,
+            self.0.finding.quiet.is_none()
         )
     }
 }
@@ -1013,6 +1081,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ChecksConfig>()?;
     m.add_class::<CheckEvidence>()?;
     m.add_class::<CheckFinding>()?;
+    m.add_class::<CarriedCoincidence>()?;
     m.add_class::<ChecksReport>()?;
     m.add_function(wrap_pyfunction!(run_checks, m)?)?;
     m.add_function(wrap_pyfunction!(enforce_checks, m)?)?;

@@ -2126,38 +2126,21 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         runner_up
     );
 
-    // 1. The stem is ONE stem. Its two arcs meet on a shared disk —
-    //    an exact coincident planar contact, the crosslap mate, which
-    //    the union glues on its decided zero.
-    //
-    //    The torus is on the operand gate's KIND roster, and the
-    //    crossing layer has a circle × torus root lane: the stem's inner
-    //    equator seam and the arch's outer equator seam each cross the
-    //    other tube's carrier only outside that face's window, which
-    //    the roots certify. So the glue reaches the join, whose germ
-    //    pair of the stem's weld cap against the arch's wall (plane ×
-    //    torus, the arch's rim lying in the cap) takes the plane × wall
-    //    arm and its chord, an arc of the arch's meridian circle. Past
-    //    the join, the section certificate's interior-loop guard refuses
-    //    the stem's tube wall against the arch's: two tori with parallel
-    //    axes apart, which it has no arm for.
-    wall(
-        1,
-        "glue the two stem arcs into one stem (coincident-planar mate)",
-        crate::booleans::try_union(stem, arch, tol),
-        |e| {
-            matches!(
-                e,
-                BooleanError::CurvedPairUnsupported {
-                    site: pncad::topo::PairRefusalSite::InteriorLoopGuard,
-                    kind: pncad::geom::SurfaceKind::Torus,
-                    other_kind: pncad::geom::SurfaceKind::Torus,
-                    ..
-                }
-            )
-        },
-        "make the stem a single body — and close #968, whose whole content this is",
+    // Wall 1 — RETIRED, kept live. The stem's two arcs meet on a shared
+    //    disc, an exact coincident planar contact the union glues on its
+    //    decided zero, and the glue builds: the section certificate
+    //    reads the two tube walls (tori with parallel axes apart) as two
+    //    loops, mirror images across the weld plane, each outside one
+    //    face's window. The scene still ships the stem as two pieces;
+    //    gluing them is the scene's own change to make.
+    let glued = crate::booleans::try_union(stem, arch, tol)
+        .expect("the stem's two arcs glue into one stem");
+    assert_eq!(
+        glued.body().map(|b| b.body.shells().count()),
+        Some(1),
+        "the glued stem is one shell"
     );
+    println!("   wall 1 — RETIRED: the stem's two arcs glue into one stem");
 
     // 2. The flower grows OUT OF the pedicel, and it is now authored
     //    so that it CAN: the neck cone's rim and the arch tube's
@@ -4110,29 +4093,8 @@ mod verbs_gate_r1_probes {
             &operand("lily_lantern"),
         );
 
-        let glued = crate::booleans::try_union(stem, arch, tol)
-            .expect_err("the stem's two arcs still cannot be glued");
-        println!("lily wall 1: {glued:?}");
-        // **Wall 1 is past the gate, the crossing layer and the
-        // join.** The circle × torus root lane certifies each seam's
-        // crossing of the other tube's carrier as lying outside that
-        // face's window, so the glue reaches the join, whose germ pair
-        // of the stem's weld cap against the arch's wall (plane × torus)
-        // takes the plane × wall arm and its chord. Past the join, the
-        // interior-loop guard refuses the stem's tube wall against the
-        // arch's, two tori with parallel axes apart.
-        assert!(
-            matches!(
-                glued,
-                BooleanError::CurvedPairUnsupported {
-                    site: pncad::topo::PairRefusalSite::InteriorLoopGuard,
-                    kind: pncad::geom::SurfaceKind::Torus,
-                    other_kind: pncad::geom::SurfaceKind::Torus,
-                    ..
-                }
-            ),
-            "wall 1 stops at the interior-loop guard on its two tube walls: {glued:?}"
-        );
+        crate::booleans::try_union(stem, arch, tol).expect("the stem's two arcs glue");
+
         // **The weld itself has no torus contact**, measured
         // off the two loci: the stem tube's end circle has radius
         // `STEM_R` = 0.060 and the arch's start disc radius `ARCH_R` =

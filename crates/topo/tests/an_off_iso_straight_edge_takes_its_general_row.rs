@@ -18,13 +18,13 @@
 use geom_core::Real;
 use geom_core::spline::{KnotVector, Knots};
 use std::sync::Arc;
+use topo::construction::Construct;
 
 use geom::{NurbsSurface, Surface};
 use geom_brep::{Pcurve, PcurveCertifyError};
 use geom_core::{Band, Point3, Tol};
-use topo::{
-    AtRestPolicy, Body, FaceKey, FaceSurface, HalfEdgeKey, MefSite, MevSite, PcurveMintError,
-};
+use topo::construction::{FaceSurface, MefSite, MevSite};
+use topo::{AtRestPolicy, Body, FaceKey, HalfEdgeKey, PcurveMintError};
 
 /// The lamina at `T`, lifted `lift` off the chart along its normal, with
 /// its two faces and the `he_plus` of its row, column and diagonal.

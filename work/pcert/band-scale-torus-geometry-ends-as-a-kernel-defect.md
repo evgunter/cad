@@ -70,8 +70,10 @@ On the both-apart route `unit_sign`'s magnitudes restate the class
 gates. The tube-rate part is `_axial`'s own number. The orientation
 part is `_meridian`'s divided by `R/r`. `R·cos θ` at the band's scale
 forces `R − r ≤ (K·ε)²/2R`, where `R/r` is one to below rounding, so
-there a Zero or in-band `unit_sign` reading would be two readings
-disagreeing: a defect, rightly. That is the comment at `unit_sign`.
+on that route the parts restate gates decided apart and decide too, up
+to rounding. Both routes' undecided readings therefore end as the class
+not shown, a lane choice: "not yet" (`ChartClass`). That is the comment
+at `unit_sign`.
 
 ## The design question
 
@@ -126,3 +128,5 @@ a sentence in D10.
 Ev on `[ev]` PR 5113 (2026-10-14/15): decision 1 accepted (windings are structure the row stores and `certify` compares exactly); decision 3 replaced by the D3 principle (a class gate is a lane choice: in band or definite it takes a lane whose certificate does not rest on the class, records nothing, never ends as a defect; where no lane exists yet it refuses lever-only with "not yet", never a tolerance offer); the edge join records its class Zeros (D10). Decision 2 (the torus convention at admission) is split out to `a-torus-faces-convention-is-decided-where-the-face-is-admitted`, waiting on the import-validation conversation.
 
 - 2026-10-20 (ENCL implementer, `encl/unsized-gate-word`): item 3's `unit_sign` reproduction is pinned whole as `pcurve_villarceau::a_tube_rate_gates_rejected_zero_renders_its_current_ending` (`crates/geom-brep/tests/pcurve_villarceau.rs`): "pcurve certification: ChartIncidence at sample 0 escalated: margin 9e-10 lies within the zero band (±1e-9). There is no way through: this is a kernel defect; report it". The pin records the ending this row says is false, so the fix the answer above schedules (a class gate is a lane choice, never a defect) moves it visibly; re-baseline it then. The gate's tag (`MarginDiag::rejected_sign`, Zero here) adds no word to the payload, which only a rejected nonzero sign does.
+- 2026-10-27 (PCERT E1d, Ev's ruling on PR 5838): `Escalated{ChartIncidence}` no longer routes to `Unsized::Defect`. An incidence read in band ends in the geometry's lever at every door (`geom_brep::recourse::INCIDENCE_UNSHOWN`). So the pinned row above is re-baselined to "Recourse: the edge's curve is not shown on the face it bounds at this tolerance: move the geometry so it lies clearly on that face". The torus arm's `Escalated{ChartWinding}` arms are untouched and still end in the defect, and so is the class-gate half of this item.
+- 2026-10-27 (PCERT E1d, review fix G2): the Villarceau tangent's parts are not an incidence reading, so they no longer escalate `ChartIncidence`. At `K ≤ 3` (the reproduction above) the tube-rate part's rejected Zero is a class reading and ends lever-only "not yet" (`ChartClass`, through the incidence test's witness); past `K = 3` it ended briefly as a defect check of its own (`ClassReread`), deleted on review (H6): nothing reaches it, so the both-apart route's readings end as the class reading too. The pinned row is renamed `pcurve_villarceau::a_tube_rate_gates_rejected_zero_is_a_class_reading` and re-baselined to "pcurve certification: ChartClass at sample 0 escalated: margin 9e-10 lies within the zero band (±1e-9). There is no way through yet".

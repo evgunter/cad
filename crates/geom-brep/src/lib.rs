@@ -80,12 +80,14 @@ mod krawczyk;
 pub mod ladder;
 pub mod locus;
 pub mod mapped;
+pub(crate) mod memo;
 pub mod newell;
 pub mod nurbs_iso;
 pub mod offset;
 pub mod offset_fit;
 pub mod offset_fit_lane;
 pub mod offset_meters;
+pub mod pair_section;
 pub mod patch_bound;
 pub mod pcurve;
 pub mod pcurve_cache;
@@ -103,12 +105,11 @@ pub use carrier_net::CarrierEnclosureRefusal;
 pub use certify::{
     CERT_SAMPLES, CertCheck, Certificate, CertifiedTurn, CertifyError, DraftedIntersection,
     EdgeCurve, EdgeCurveSpec, ForwardReading, IntersectionDraft, MintedEdge, NurbsLane, SplineFoot,
-    StatedImage, StatedSpan, WindingReading, edge_extent, folded_parallelism, sample_param,
-    schedule_param,
+    StatedImage, StatedSpan, WindingReading, folded_parallelism, sample_param, schedule_param,
 };
 pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side};
 pub use description::{
-    AuthorityKind, ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
+    ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
 };
 pub use dihedral::{
     DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DIHEDRAL_ARM_NOUN, DihedralClass, DihedralReading,
@@ -136,7 +137,10 @@ pub use enters::{
     ParallelSense, ReferenceNormal, WallBend, WallBendError, bends_into_material, enters_material,
     enters_material_order2, enters_material_reported, normal_alignment,
 };
-pub use extent::{ExtentBall, Reach, control_net_reach};
+pub use extent::{
+    ExtentBall, LeverBounds, Reach, control_net_reach, edge_extent_inf, edge_extent_sup,
+    edge_reach_bounds, edge_reach_from,
+};
 pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 /// The ring-torus convention's one home is `geom` (below this crate, so
 /// the spiric carrier's constructor reads it too); re-exported so the
@@ -153,13 +157,13 @@ pub use implicit::{
     implicit_residual, min_radius_of_curvature, min_radius_of_curvature_toward,
 };
 pub use intersect::{
-    ConeCylinderSection, ConicArcError, ConicBranch, CylinderSphereSection, EqualCylinderSection,
-    OpenConic, OpenConicSection, PairRoute, ParallelAxes, PlaneConeSection, PlaneCylinderSection,
-    PlaneSite, PlaneSphereSection, PlaneTorusSection, Rung, SectionError, SectionPlane,
-    SectionRadius, SphereSphereSection, cone_cylinder_section, cylinder_axes_coplanar,
-    cylinder_axes_parallel, cylinder_cylinder_section, cylinder_sphere_section, parallel_axes_at,
-    plane_cone_section, plane_cylinder_section, plane_cylinder_section_read, plane_sphere_section,
-    plane_torus_section, route, route_pose, sphere_sphere_section, tilted_section_major,
+    ConeCylinderSection, ConicArcError, ConicBranch, EqualCylinderSection, OpenConic,
+    OpenConicSection, PairRoute, ParallelAxes, PlaneConeSection, PlaneCylinderSection, PlaneSite,
+    PlaneSphereSection, PlaneTorusSection, Rung, SectionError, SectionPlane, SectionRadius,
+    SphereSphereSection, cone_cylinder_section, cylinder_axes_coplanar, cylinder_axes_parallel,
+    cylinder_cylinder_section, parallel_axes_at, plane_cone_section, plane_cylinder_section,
+    plane_cylinder_section_read, plane_sphere_section, plane_torus_section, route, route_pose,
+    sphere_sphere_section, tilted_section_major,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey, SurfacePair};
 pub use locus::{
@@ -179,6 +183,11 @@ pub use offset_fit::{
     certify_offset_over_at, fit_offset, fit_offset_at, recertify_approx, recertify_approx_at,
 };
 pub use offset_fit_lane::{OFFSET_FIT_DOOR_HOLDERS, OffsetFitLane, ScalarList};
+pub use pair_section::{
+    CarriedComponent, CarriedSection, CarryError, ClassCarrier, ComponentShape, CsDecision,
+    CsStance, CylinderSpherePose, FittedCarrier, PairSection, PoseRefusal, SectionComponent,
+    SectionRead, SiteFoot, SiteRefusal, SsiLane, ZeroKind, ZeroVerdict, pair_section, square_part,
+};
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
 };
@@ -206,7 +215,7 @@ pub use ssi::{
     SettlingRefusal, SsiBoundaryContact, SsiBranch, SsiCertificate, SsiDecision, SsiDomain,
     SsiError, SsiLimb, SsiOperand, SsiOutcome, SsiTube, StepFault, StepperMode, TraceDecision,
     TubeDegeneracy, boundary_section, certify_rung3, cylinder_sphere_ssi, idealized_trace_r3,
-    plane_nurbs_ssi, trace_plane_nurbs_uncertified,
+    march_cylinder_sphere, plane_nurbs_ssi, trace_plane_nurbs_uncertified,
 };
 pub use tangent::{
     TangentJet, TangentSpanBounds, tangent_certificate_lane, tangent_jet, tangent_span_bounds,

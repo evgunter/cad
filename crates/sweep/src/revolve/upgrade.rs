@@ -15,6 +15,7 @@ use geom_brep::{
 };
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Point3, Real};
+use topo::construction::Construct;
 use topo::{Body, DihedralReading, EdgeKey, EulerOpError, SurfaceKey};
 
 use super::RevolveError;

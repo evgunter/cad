@@ -153,8 +153,8 @@
 //! that rewires it out from under the null edge — the boolean's and the
 //! splitting lane's join, whose chord `mef`s leave the section's null
 //! halves on the sliver between the chords — or the edge's first
-//! description ([`crate::Body::set_edge_curve`], or a
-//! [`crate::Body::kev_describing`] that lists it), which walks every
+//! description ([`crate::Body::set_edge_curve`](crate::construction::Construct::set_edge_curve), or a
+//! [`crate::Body::kev_describing`](crate::construction::Construct::kev_describing) that lists it), which walks every
 //! loop of the face and mints what it misses; on a spline chart either
 //! leaves the face as found.
 //! A face half-minted any other way is left as found. Other doors still
@@ -190,7 +190,7 @@
 //! [`crate::graft_disjoint`] through it) remaps each row onto the
 //! transplanted half-edge's fresh key and DROPS any row whose key the
 //! graft walk did not reach, which is exactly the staleness test.
-//! [`crate::Body::split_edge`] carries rows across a parameter split:
+//! [`crate::Body::split_edge`](crate::construction::Construct::split_edge) carries rows across a parameter split:
 //! each child's row is its own edge's, so a closed-form or projected
 //! image is derived again over the child's sub-interval and placed in
 //! the chart's principal window as the mint places it (C4), and a
@@ -236,8 +236,8 @@
 //! and a cone through its apex.
 //!
 //! The **loop-re-parenting** doors hold the same posture for a
-//! different reason: [`crate::Body::kfmrh`],
-//! [`crate::Body::mfkrh`] and [`crate::Body::ring_move`] move a whole
+//! different reason: [`crate::Body::kfmrh`](crate::construction::Construct::kfmrh),
+//! [`crate::Body::mfkrh`](crate::construction::Construct::mfkrh) and [`crate::Body::ring_move`](crate::construction::Construct::ring_move) move a whole
 //! LOOP between faces, which changes the CHART every row on that loop
 //! is stated in while changing no key. Each carries the moved loop's
 //! rows where the two faces are on one CHART
@@ -245,8 +245,8 @@
 //! ([`crate::Body::drop_rows`]). Where the moved rows do not stand on
 //! the destination — dropped, or missing — and the destination was
 //! complete, a re-mint is owed, and each door answers it at one of two
-//! doors, as the kill family does ([`crate::Body::kev`] and
-//! [`crate::Body::kev_describing`]): the keys-only door refuses
+//! doors, as the kill family does ([`crate::Body::kev`](crate::construction::Construct::kev) and
+//! [`crate::Body::kev_describing`](crate::construction::Construct::kev_describing)): the keys-only door refuses
 //! [`SiteRowRefusal::KeysOnly`] before it mutates, and its `_minting`
 //! twin takes a band and runs the site mint over the destination,
 //! planned before it mutates ([`crate::Body::plan_moved_rows`]). The
@@ -261,12 +261,12 @@
 //! Their old `Neither` reading was the one the guard's table could not see: no posture
 //! makes a claim about what a row MEANS, and these doors changed
 //! nothing else. Two more doors move a RUN of half-edges between two
-//! faces' loops rather than a whole loop — [`crate::Body::mef`]'s
-//! chord surgery and [`crate::Body::kef`]'s unsplice — and take the
+//! faces' loops rather than a whole loop — [`crate::Body::mef`](crate::construction::Construct::mef)'s
+//! chord surgery and [`crate::Body::kef`](crate::construction::Construct::kef)'s unsplice — and take the
 //! same answer over the run; `staleness_posture::DECLARED` carries
 //! each door's note.
 //!
-//! [`crate::Body::set_face_surface`] reaches the same posture from the
+//! [`crate::Body::set_face_surface`](crate::construction::Construct::set_face_surface) reaches the same posture from the
 //! other side: nothing moves, and the CHART moves under every row the
 //! face stores at once. It carries them across a swap onto the same
 //! chart and drops them on any other ([`crate::Body::drop_rows`], over
@@ -275,8 +275,8 @@
 //! placeholder used to leave a COMPLETE row set stated in the chart
 //! the face left, and this pass skips exactly that face.
 //!
-//! **Completes the map** — [`crate::Body::set_edge_curve`] and
-//! [`crate::Body::kev_describing`]'s listed members. A carrier swap is
+//! **Completes the map** — [`crate::Body::set_edge_curve`](crate::construction::Construct::set_edge_curve) and
+//! [`crate::Body::kev_describing`](crate::construction::Construct::kev_describing)'s listed members. A carrier swap is
 //! the surface setter's sibling, NOT the same case: it moves neither
 //! the row's key nor its chart, and pass 2 re-derives every row's
 //! agreement from the edge's current carrier, so what it stales is
@@ -297,11 +297,11 @@
 //! **A kill that takes the last null edge off a loop releases it**, and
 //! the rows the loop missed while it was held open are owed there
 //! ([`releases_a_gap`]). The kills answer at two doors,
-//! as the loop-re-parenting doors do: [`crate::Body::kev`],
-//! [`crate::Body::kef`] and [`crate::Body::kemr`] take no band and
+//! as the loop-re-parenting doors do: [`crate::Body::kev`](crate::construction::Construct::kev),
+//! [`crate::Body::kef`](crate::construction::Construct::kef) and [`crate::Body::kemr`](crate::construction::Construct::kemr) take no band and
 //! refuse [`SiteRowRefusal::KeysOnly`] before they mutate, and their
-//! band twins — [`crate::Body::kev_describing`],
-//! [`crate::Body::kef_minting`] and [`crate::Body::kemr_minting`] — run
+//! band twins — [`crate::Body::kev_describing`](crate::construction::Construct::kev_describing),
+//! [`crate::Body::kef_minting`](crate::construction::Construct::kef_minting) and [`crate::Body::kemr_minting`](crate::construction::Construct::kemr_minting) — run
 //! the site mint over the loops they release, planned before they mutate
 //! ([`crate::Body::plan_released_rows`]), so the face leaves complete, or
 //! storing nothing where the closed-form lane cannot mint it. A face the
@@ -311,12 +311,12 @@
 //! **Neither clears nor re-mints** — the Euler operators that add no
 //! half-edge to an existing loop (`mvfs`, `kemr`), the null-edge `mev`
 //! (whose scaffolding has no carrier to derive a row from), and the
-//! kill ops other than [`crate::Body::kev_describing`] and the band
+//! kill ops other than [`crate::Body::kev_describing`](crate::construction::Construct::kev_describing) and the band
 //! twins (above). These are primitives: they keep every image they
 //! find, and on each joint they make they write its element keys-only
 //! and exactly. A kill sums
-//! the elements of the joints it bridges ([`crate::Body::kev`],
-//! [`crate::Body::kef`], [`crate::Body::kemr`]; [`JointElement::then`]):
+//! the elements of the joints it bridges ([`crate::Body::kev`](crate::construction::Construct::kev),
+//! [`crate::Body::kef`](crate::construction::Construct::kef), [`crate::Body::kemr`](crate::construction::Construct::kemr); [`JointElement::then`]):
 //! an edge's two halves share one image, so where one ends the other
 //! begins, and the sum carries the survivor's image onto the
 //! predecessor's exit exactly as the pass's decision there does. A null
@@ -407,7 +407,7 @@ pub enum PcurveMintError {
     },
     /// `half_edge`'s edge is null scaffolding
     /// ([`crate::null::CurveGeom::NullScaffold`], minted by
-    /// [`crate::Body::mev_null`]): it has no carrier yet, so there is
+    /// [`crate::Body::mev_null`](crate::construction::Construct::mev_null)): it has no carrier yet, so there is
     /// no chart image to derive over it. Scaffolding is a legal state
     /// mid-surgery; tier 2 refuses it at rest.
     NoCarrier {
@@ -420,11 +420,6 @@ pub enum PcurveMintError {
         half_edge: HalfEdgeKey,
         /// The typed certification failure, nested whole.
         error: PcurveCertifyError,
-        /// Who determined the half-edge's edge locus, stamped where the
-        /// refusal is built ([`certify_refused`]): a declared carrier off
-        /// its face ends in the modeler's lever, a derived one in the
-        /// kernel's defect (D3).
-        authority: geom_brep::AuthorityKind,
     },
     /// The chart image of a half-edge does not meet its predecessor's
     /// in the chart: the loop's one-branch unwrap is not continuous
@@ -481,17 +476,17 @@ pub enum PcurveMintError {
     /// - the moving doors carrying a loop's rows, across one chart,
     ///   onto a face that stored none of its own — or a rowless loop
     ///   onto a half-minted one — which leaves the rows they find;
-    /// - [`crate::Body::mev_null`], whose scaffolding edge has no
+    /// - [`crate::Body::mev_null`](crate::construction::Construct::mev_null), whose scaffolding edge has no
     ///   carrier to derive a row from. The loop it joins misses the
     ///   edge's two rows, and those of any half-edge an operator adds
     ///   to the loop meanwhile, while a null edge holds it open; the
     ///   door that releases the loop — an operator rewiring it out from
     ///   under the edge, as the pipelines' joins do, or the edge's first
-    ///   description ([`crate::Body::set_edge_curve`], or a
-    ///   [`crate::Body::kev_describing`] that lists it), or the band kill
+    ///   description ([`crate::Body::set_edge_curve`](crate::construction::Construct::set_edge_curve), or a
+    ///   [`crate::Body::kev_describing`](crate::construction::Construct::kev_describing) that lists it), or the band kill
     ///   of the edge ([`crate::Body::plan_released_rows`]) — mints it
     ///   whole, except on a spline chart;
-    /// - a caller's own [`crate::Body::detach_pcurve`];
+    /// - a caller's own [`crate::Body::detach_pcurve`](crate::construction::Construct::detach_pcurve);
     ///
     /// and a face that arrives half-minted any of these ways, but for a
     /// loop a null edge holds open, stays so through the three
@@ -558,21 +553,45 @@ pub enum PcurveMintError {
 }
 
 impl PcurveMintError {
+    /// **The ending this refusal gives at `at`**, for a door that reports
+    /// it under its own sentence (the shell op's closing mint): a nested
+    /// certification refusal's decision's ([`PcurveCertifyError::ending`]);
+    /// an undecided reading's "not yet", as the at-rest table ends it
+    /// (`validate::classify_pcurve`); and the lever of a refusal a lever
+    /// answers (a joint too near a pole, a band the tolerance cannot form,
+    /// a placeholder chart). `None` for a torn arm (a key that does not
+    /// resolve, a null carrier, a loop that does not meet or close, a row
+    /// missing, misstated or unminted): on a body the kernel built, the
+    /// door's defect.
+    #[must_use]
+    pub fn ending(&self, at: impl Into<geom_brep::recourse::ReadAt>) -> Option<String> {
+        let at = at.into();
+        match self {
+            Self::Certify { error, .. } => error.ending(at),
+            Self::Escalated { cause, .. } | Self::NetStretchUndecided { cause, .. } => Some(
+                geom_brep::recourse::not_yet(geom_brep::recourse::RefusedArm::Undecided(cause), at),
+            ),
+            Self::JointWithoutRoom { .. } => Some(JOINT_WITHOUT_ROOM_RECOURSE.to_owned()),
+            Self::Band(_) => Some(crate::validate::TOLERANCE.to_owned()),
+            Self::PlaceholderChart { .. } => Some(PLACEHOLDER_RECOURSE.to_owned()),
+            Self::Stale { .. }
+            | Self::NoCarrier { .. }
+            | Self::LoopDiscontinuity { .. }
+            | Self::LoopNotClosed { .. }
+            | Self::MissingCache { .. }
+            | Self::Unminted { .. }
+            | Self::RowInterval { .. } => None,
+        }
+    }
+
     /// This refusal's text read at `at`: a certification refusal nested
     /// whole renders at that door ([`PcurveCertifyError::render`]).
     #[must_use]
     pub fn render(&self, at: impl Into<geom_brep::recourse::ReadAt>) -> String {
         match self {
-            // The row's own authority ends an incidence refusal
-            // ([`geom_brep::IncidenceRead::ending`]), at every door this
-            // refusal is read at, as at rest.
-            Self::Certify {
-                half_edge,
-                error,
-                authority,
-            } => format!(
+            Self::Certify { half_edge, error } => format!(
                 "the pcurve of half-edge {half_edge:?} failed certification: {}",
-                error.render_by(*authority, at)
+                error.render(at)
             ),
             _ => core::fmt::from_fn(|f| self.write_payload(f)).to_string(),
         }
@@ -615,8 +634,7 @@ impl PcurveMintError {
                 "loop {lp:?} of face {face:?} passes so near a sphere pole or cone apex at \
                  half-edge {half_edge:?} that its azimuth period is decided with less room than \
                  the joint bound, so its winding is not read; there is nothing in the body to \
-                 repair. Recourse: ask about a face whose loops keep farther from the pole or \
-                 apex, or ask at a smaller ε"
+                 repair. {JOINT_WITHOUT_ROOM_RECOURSE}"
             ),
             Self::MissingCache { half_edge } => write!(
                 f,
@@ -687,6 +705,11 @@ impl PcurveMintError {
         self
     }
 }
+
+/// The recourse for a joint decided with less room than the joint bound
+/// ([`PcurveMintError::JointWithoutRoom`]).
+const JOINT_WITHOUT_ROOM_RECOURSE: &str = "Recourse: ask about a face whose loops keep farther \
+     from the pole or apex, or ask at a smaller ε";
 
 /// The recourse for a placeholder chart, whichever enum refuses it.
 pub(crate) const PLACEHOLDER_RECOURSE: &str =
@@ -789,7 +812,7 @@ pub fn pcurve_of<T: AtRestPolicy>(
     if surface.spline_chart().is_some() {
         return nurbs_iso_derive(body, half_edge, &surface, band);
     }
-    analytic_derive(body, &carrier, t0, t1, &surface, band, half_edge)
+    analytic_derive(&carrier, t0, t1, &surface, band, half_edge)
 }
 
 /// The chart image of a carrier on an ANALYTIC chart, on the chart's
@@ -802,7 +825,6 @@ pub fn pcurve_of<T: AtRestPolicy>(
 ///
 /// [`PcurveMintError::Certify`] with the derivation's refusal.
 fn analytic_derive<T: Decide>(
-    body: &Body<T>,
     carrier: &geom::Curve3<T>,
     t0: T,
     t1: T,
@@ -811,7 +833,7 @@ fn analytic_derive<T: Decide>(
     half_edge: HalfEdgeKey,
 ) -> Result<Pcurve<T>, PcurveMintError> {
     chart_pcurve_over(carrier, t0, t1, surface, band)
-        .map_err(|error| certify_refused(body, half_edge, error))
+        .map_err(|error| PcurveMintError::Certify { half_edge, error })
 }
 
 /// **Whether a stored row states its edge's whole interval** — copied
@@ -952,34 +974,6 @@ fn half_edge_curve<T: Real>(
         .ok_or(PcurveMintError::NoCarrier { half_edge })
 }
 
-/// **A certification refusal of `half_edge`'s row**, stamped with its
-/// edge's authority ([`geom_brep::EdgeAuthority::kind`]): the one place a
-/// [`PcurveMintError::Certify`] reads who determined the locus. A row is
-/// certified only against a certified carrier, so the edge holds one:
-/// every caller (batched ones included) refused a certification it ran
-/// against the carrier this re-fetches, and nothing between the two
-/// re-describes the edge. The carrier is re-fetched rather than passed
-/// because the batched callers hold only the half-edge and the error.
-#[track_caller]
-fn certify_refused<T: Real>(
-    body: &Body<T>,
-    half_edge: HalfEdgeKey,
-    error: PcurveCertifyError,
-) -> PcurveMintError {
-    let (edge, data) = edge_record(body, half_edge);
-    let Some(curve) = body.edge_curve_linked(edge, data).certified() else {
-        unreachable!(
-            "{half_edge:?}: a row's certification refused against a certified carrier, \
-             yet the edge holds none (re-described between the certification and its refusal?)"
-        );
-    };
-    PcurveMintError::Certify {
-        half_edge,
-        error,
-        authority: curve.authority().kind(),
-    }
-}
-
 /// The certified carrier and parameter interval of `half_edge`'s edge.
 ///
 /// # Errors
@@ -1115,8 +1109,9 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
     band: Band,
 ) -> Result<Pcurve<T>, PcurveMintError> {
     use geom_core::{Point2, Vec2};
-    let refuse = |what: &'static str| {
-        certify_refused(body, half_edge, PcurveCertifyError::IsoUnsupported { what })
+    let refuse = |what: &'static str| PcurveMintError::Certify {
+        half_edge,
+        error: PcurveCertifyError::IsoUnsupported { what },
     };
     let (carrier, t0, t1) = half_edge_carrier(body, half_edge)?;
     let span = t1 - t0;
@@ -1315,7 +1310,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                         PcurveCertifyError::ResidualExceeded { .. }
                         | PcurveCertifyError::IsoUnsupported { .. },
                     ) => {}
-                    Err(error) => return Err(certify_refused(body, half_edge, error)),
+                    Err(error) => return Err(PcurveMintError::Certify { half_edge, error }),
                 },
                 refused => return refused,
             }
@@ -1339,7 +1334,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         }
         derive_general_image(&carrier, (t0, t1), wall)
             .map(|image| Pcurve::General(std::sync::Arc::new(image)))
-            .map_err(|error| certify_refused(body, half_edge, error))
+            .map_err(|error| PcurveMintError::Certify { half_edge, error })
     };
     let own = half_edge_surface_key(body, half_edge);
     match half_edge_description(body, half_edge)? {
@@ -2357,7 +2352,7 @@ pub(crate) enum SplitRefusal {
 }
 
 /// The **rows of an edge's two half-edges stated over the two
-/// children of a parameter split** — [`crate::Body::split_edge`]'s
+/// children of a parameter split** — [`crate::Body::split_edge`](crate::construction::Construct::split_edge)'s
 /// pcurve limb, and the reason that op carries its rows across the
 /// surgery instead of staling them. The answer holds one entry per
 /// given half-edge: that half-edge's [`CarriedRows`], or `None` where
@@ -2452,7 +2447,7 @@ pub(crate) enum SplitRefusal {
 /// Where a record the restriction reads does not resolve — each half's
 /// edge, curve, loop, face and surface — or a half's edge is null
 /// scaffolding: `halves` are the live halves of an edge whose curve
-/// [`crate::Body::split_edge`] resolved `Certified`.
+/// [`crate::Body::split_edge`](crate::construction::Construct::split_edge) resolved `Certified`.
 #[track_caller]
 pub(crate) fn split_cache<T: AtRestPolicy>(
     body: &Body<T>,
@@ -2792,7 +2787,10 @@ fn carry_rows<T: AtRestPolicy>(
             band,
             T::fitted_lane(),
         )
-        .map_err(|error| certify_refused(body, he, error))?;
+        .map_err(|error| PcurveMintError::Certify {
+            half_edge: he,
+            error,
+        })?;
         carried.push((he, restated, body.joint(he)));
     }
     Ok(carried)
@@ -2943,7 +2941,7 @@ fn derive_face<T: AtRestPolicy>(
                 refused.extend(
                     certs
                         .into_iter()
-                        .map(|(half_edge, error)| certify_refused(body, half_edge, error)),
+                        .map(|(half_edge, error)| PcurveMintError::Certify { half_edge, error }),
                 );
             }
         }
@@ -2953,7 +2951,7 @@ fn derive_face<T: AtRestPolicy>(
         first_owed::<T>(
             refused
                 .into_iter()
-                .map(|(half_edge, error)| certify_refused(body, half_edge, error))
+                .map(|(half_edge, error)| PcurveMintError::Certify { half_edge, error })
                 .collect(),
         )
     })
@@ -3361,7 +3359,7 @@ pub(crate) fn releases_a_gap<T: Decide>(
 /// **The rows a site mint writes onto one face**, derived before its
 /// door mutates: a face an Euler operator adds half-edges to, one a
 /// null edge's halves are on at its first description
-/// ([`crate::Body::set_edge_curve`]), one a door moves a loop or run
+/// ([`crate::Body::set_edge_curve`](crate::construction::Construct::set_edge_curve)), one a door moves a loop or run
 /// onto whose rows do not stand there ([`crate::Body::drop_rows`] names
 /// the doors), or one a band kill releases a loop of with a gap
 /// ([`crate::Body::plan_released_rows`]). `from` is the face as found, on a face
@@ -3870,7 +3868,7 @@ fn derive_image<T: AtRestPolicy>(
         // description (M6-3) — see `nurbs_iso_derive`.
         nurbs_iso_derive(body, he, surface, band)?
     } else {
-        analytic_derive(body, &carrier, t0, t1, surface, band, he)?
+        analytic_derive(&carrier, t0, t1, surface, band, he)?
     };
     Ok((carrier, t0, t1, base))
 }
@@ -4383,7 +4381,7 @@ fn decide_joint<T: Decide>(
 /// **A killed half's turn**: the element carrying its image's exit onto
 /// its entry, where the two coincide in space — a closed carrier, whose
 /// two vertices hold one point. A kill that crosses the half whole sums
-/// it with the elements either side ([`crate::Body::kev_describing`]).
+/// it with the elements either side ([`crate::Body::kev_describing`](crate::construction::Construct::kev_describing)).
 /// `Ok(None)` where the half stores no image or its ends do not meet.
 ///
 /// Whether the ends meet is decided in 3-D, as the distance between the
@@ -4861,7 +4859,10 @@ fn read_loop<T: AtRestPolicy>(
         for w in &walked {
             if !matches!(w.pcurve, Pcurve::Fitted(_) | Pcurve::General(_)) {
                 PcurveCache::certify(w.pcurve.clone(), w.t0, w.t1, &w.carrier, chart, band)
-                    .map_err(|error| certify_refused(body, w.key, error))?;
+                    .map_err(|error| PcurveMintError::Certify {
+                        half_edge: w.key,
+                        error,
+                    })?;
             }
         }
         for w in &walked {
@@ -5056,7 +5057,10 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
                     findings.push(e);
                 }
                 if let Err(error) = cache.recertify(&carrier, surface, band, lane) {
-                    findings.push(certify_refused(body, he, error));
+                    findings.push(PcurveMintError::Certify {
+                        half_edge: he,
+                        error,
+                    });
                 }
             }
         }
@@ -6547,7 +6551,6 @@ mod recourse_tests {
             PcurveMintError::Certify {
                 half_edge: HalfEdgeKey::default(),
                 error: certify_error.clone(),
-                authority: geom_brep::EdgeAuthority::<f64>::Derived.kind(),
             },
             PcurveMintError::LoopDiscontinuity {
                 half_edge: HalfEdgeKey::default(),
@@ -6624,7 +6627,6 @@ mod recourse_tests {
                     terminal_sliver: false,
                 },
             },
-            authority: geom_brep::EdgeAuthority::<f64>::Derived.kind(),
         };
         assert_eq!(
             finding.to_string(),
@@ -6806,7 +6808,9 @@ pub(crate) mod pole_slit_tests {
     use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
     use geom_core::{Band, Point3, Tol, Vec3};
 
-    use crate::{Body, FaceKey, FaceSurface, LoopBoundary, MefSite, MevSite};
+    use crate::{Body, FaceKey, LoopBoundary};
+
+    use crate::construction::{FaceSurface, MefSite, MevSite};
 
     /// The unit sphere's point at chart `(u, v)`: axis `+z`, seam `+x`.
     fn at(u: f64, v: f64) -> Point3<f64> {
@@ -8775,8 +8779,9 @@ mod lift_rows {
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod turn_miss {
     use super::{Deck, JointElement, turn_element};
+    use crate::construction::{MevSite, NewVertexSide};
     use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
-    use crate::{Body, LoopBoundary, MevSite, NewVertexSide};
+    use crate::{Body, LoopBoundary};
     use geom::Surface;
     use geom_core::{Band, Tol};
 

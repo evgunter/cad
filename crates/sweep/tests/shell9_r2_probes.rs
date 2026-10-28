@@ -6,6 +6,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::f64::consts::PI;
+use topo::construction::Construct;
 
 use geom_core::{Point2, Tol, Vec3};
 use profile::test_support::bulge_loop;

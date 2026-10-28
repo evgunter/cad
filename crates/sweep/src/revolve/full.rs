@@ -42,7 +42,9 @@
 use geom::Surface;
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Band, Decide, Margin, Point2, Point3, Real, Sign};
-use topo::{Body, EdgeKey, FaceKey, FaceSurface, MefSite, MekrSite, MevSite, VertexKey};
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, MefSite, MekrSite, MevSite};
+use topo::{Body, EdgeKey, FaceKey, VertexKey};
 
 use super::axis::{AxisFrame, AxisRun, LoopClasses, VertexClass, WallClass, WallKind};
 use super::chain::build_chain;
@@ -826,7 +828,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
     // adjacent wire walls continue one carrier: each takes its own
     // surface.
     let axis_c = turn_axis(Sign::Positive, frame.a3);
-    let mut struts: Vec<Option<topo::MevCreated>> = vec![None];
+    let mut struts: Vec<Option<topo::construction::MevCreated>> = vec![None];
     for i in 1..k {
         let m = body.mev(
             MevSite::Fan {

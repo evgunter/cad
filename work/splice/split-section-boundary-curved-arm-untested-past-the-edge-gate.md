@@ -47,3 +47,7 @@ the split's describer is the same shape and wants the same reading when
 its gate admits a NURBS edge. The split's sector rule
 (`splitting::rules`, its `classify_dihedral` at a vertex) is the same
 case at a vertex.
+
+## The edge extent's new home (OFFSET, 2026-10-27)
+
+`geom_brep::edge_extent` no longer exists (OFFSET, PR 5875). Its home is `geom_brep::extent`, beside the reach family, as three functions: `edge_extent_inf` (≤ the edge's diameter `D`: the chord, the minor-axis folds and the sampled pairs; the lever of a reading whose Zero only refuses), `edge_extent_sup` (≥ `D`; a reading whose Zero is acted on and whose definite signs only refuse) and `edge_reach_from` (the edge's farthest distance from a point of it; a reading that acts on every sign, read from that point). The curved arm this row cites reads `edge_extent_inf` through `ConicDeparture`.

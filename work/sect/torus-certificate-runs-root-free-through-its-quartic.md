@@ -2,10 +2,12 @@
 id: torus-certificate-runs-root-free-through-its-quartic
 kind: unit
 title: The torus's rung-3 certificate runs root-free through its quartic: exclusion on F's sign, limb 2 by sup|F∘C|/(2r·inf A∘C), the tube gradient ∇F/(4rA)
-status: open
-priority: P2
+status: dispatched
+priority: P0
 cost: H
 opened: 2026-09-29
+branch: sect/torus-certificate
+refs: [torus-germ-pairs-have-no-section-frame]
 ---
 
 Filed by CURVED from a design fork (2026-09-30; `docs/DESIGN-FORK-LOG.md`
@@ -83,3 +85,17 @@ None of the last two has been measured on this rim. When the arms land,
 widen the roster, and re-pin that row and
 `analytic_rung3_certificate.rs`'s
 `a_cone_or_torus_operand_refuses_the_tube_by_name`.
+
+## Claimed by SECT (2026-10-27), re-banded P0
+
+Teapot wall 2 (sphere × torus, P0 `torus-germ-pairs-have-no-section-frame`)
+cannot join until C5 has a sphere × torus arm, and every torus pair but
+plane × torus is `Rung::General`, `implemented: false` at `route`, blocked
+on exactly these arms (SECT log, 2026-10-27 C5 torus survey). A blocker
+inherits the band of what waits on it, so this is P0 work, and it moves to
+the track building the torus pairs. Since this row was written,
+certification arithmetic has gained a certified root
+(`geom_core::interval::certification`'s `sqrt`), so the factored meters
+form is available beside the root-free one. "Measure first" still picks
+between them. The first route pair to retire is sphere × torus, the
+teapot's.
