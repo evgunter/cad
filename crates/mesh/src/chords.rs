@@ -724,7 +724,7 @@ pub(crate) fn sphere_uv_speeds(
             let (z_lo, z_hi) = crate::trimmed::harmonic_range(c.z, a.z, b.z, params);
             let rho_sq_min = p_sq_min - z_lo.abs().max(z_hi.abs()).powi(2);
             let nearest = (crate::trimmed::NEAR_POLE_ROW_SHARE * hv).sin();
-            if !(rho_sq_min > p_sq_min * nearest * nearest && speed_sq.is_finite()) {
+            if !(rho_sq_min > p_sq_min * nearest.powi(2) && speed_sq.is_finite()) {
                 return Err(refuse(
                     "trimmed sphere face bounded by a tilted circle whose arc passes nearer a \
                      chart pole than the sphere arm's lattice resolves — a uniform chord \

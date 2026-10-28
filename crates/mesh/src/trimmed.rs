@@ -336,7 +336,7 @@ fn sphere_widest_cos(
         1.0
     } else {
         let s = (lo.abs().min(hi.abs()) / radius).min(1.0);
-        (1.0 - s * s).sqrt()
+        (1.0 - s.powi(2)).sqrt()
     })
 }
 
