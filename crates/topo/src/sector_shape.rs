@@ -418,7 +418,11 @@ pub(crate) fn sector_shape<T: Decide>(
 
 /// Rungs 0 and 1 of [`sector_shape`]: both bounds' lengths are numbers,
 /// and the shorter, the corner's metering arm, is positive.
-fn sector_arm<T: Decide>(dir_own: Vec3<T>, dir_next: Vec3<T>, band: Band) -> Result<T, SectorFault> {
+fn sector_arm<T: Decide>(
+    dir_own: Vec3<T>,
+    dir_next: Vec3<T>,
+    band: Band,
+) -> Result<T, SectorFault> {
     let (norm_own, norm_next) = (dir_own.norm(), dir_next.norm());
     if !is_finite_length(norm_own) || !is_finite_length(norm_next) {
         return Err(SectorFault::NonFiniteChord);

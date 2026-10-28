@@ -760,7 +760,10 @@ pub(crate) mod tests {
                     "a vertex on the crease refuses: {got:?}"
                 );
             } else {
-                let n = got.expect("a vertex on a smooth knot reads").at_vertex.tangent();
+                let n = got
+                    .expect("a vertex on a smooth knot reads")
+                    .at_vertex
+                    .tangent();
                 assert!(
                     (n - geom_core::Vec3::new(0.0, 0.0, 1.0)).norm() < 1e-12,
                     "{n:?}"

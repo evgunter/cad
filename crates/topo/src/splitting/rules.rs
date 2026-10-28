@@ -116,7 +116,11 @@
 //!   ([`geom_brep::bends_into_material`], a second-order read): a
 //!   cylinder or a cone touched from outside. Every bit of material at
 //!   the vertex is on `S`, so the entry goes to `S` and the body lands
-//!   whole on its material's side, as a planar edge contact does.
+//!   whole on its material's side, as a planar edge contact does. At a
+//!   cone's apex there is no tangent plane and no bend to read: the
+//!   plane grazes the face along a ruling it holds, and the cone bends
+//!   into its material wherever its sense keeps the material inside it
+//!   (`apex_reading`).
 //! - **Concave graze** — the wall bends away from its material: a
 //!   round hole or a conical socket touched from inside. Material lies
 //!   on both sides of the plane, and the piece on the wall's side meets
@@ -244,8 +248,9 @@ pub(super) fn apply_rule_a<T: Decide>(
         let n_face = match at_vertex {
             VertexFace::Tangent(n_face) => n_face,
             VertexFace::Apex(apex) => {
-                let reading = apex_reading(plane, &apex, [rays[k], rays[(k + 1) % n]], extent, band)
-                    .map_err(sliver)?;
+                let reading =
+                    apex_reading(plane, &apex, [rays[k], rays[(k + 1) % n]], extent, band)
+                        .map_err(sliver)?;
                 if let WallReading::Grazed(_) = reading
                     && !apex.material_inside()
                 {

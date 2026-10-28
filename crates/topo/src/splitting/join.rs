@@ -584,7 +584,10 @@ fn ruling_pairs<T: Decide>(
             // on the ruling its section leaves along.
             Some(germ) => decide_nonzero(
                 "split_join_ruling_germ",
-                Margin::levered(germ.cross(lines[1].1).norm() - germ.cross(lines[0].1).norm(), reach),
+                Margin::levered(
+                    germ.cross(lines[1].1).norm() - germ.cross(lines[0].1).norm(),
+                    reach,
+                ),
                 band,
             ),
             None => decide_nonzero(

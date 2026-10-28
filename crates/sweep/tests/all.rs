@@ -94,12 +94,12 @@ mod a_pierce_held_in_a_curved_face;
 mod a_plane_across_a_one_face_wall;
 #[path = "a_plane_along_an_elliptic_cut.rs"]
 mod a_plane_along_an_elliptic_cut;
-#[path = "a_plane_through_a_cones_apex.rs"]
-mod a_plane_through_a_cones_apex;
 #[path = "a_plane_holding_a_conic_tangent_at_a_vertex.rs"]
 mod a_plane_holding_a_conic_tangent_at_a_vertex;
 #[path = "a_plane_moved_to_a_cone_apex.rs"]
 mod a_plane_moved_to_a_cone_apex;
+#[path = "a_plane_through_a_cones_apex.rs"]
+mod a_plane_through_a_cones_apex;
 #[path = "a_point_past_a_spline_solids_reach.rs"]
 mod a_point_past_a_spline_solids_reach;
 #[path = "a_pole_and_an_apex_join_nothing.rs"]

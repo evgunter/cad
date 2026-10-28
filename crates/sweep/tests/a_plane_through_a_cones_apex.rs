@@ -43,7 +43,17 @@ const THETAS: [f64; 10] = [
 ];
 
 /// The tilts off tangency about the held ruling.
-const TILTS: [f64; 9] = [NEAR_TANGENT, 0.05, 0.4, 1.0, FRAC_PI_2, 2.0, 3.0, -0.4, -1.2];
+const TILTS: [f64; 9] = [
+    NEAR_TANGENT,
+    0.05,
+    0.4,
+    1.0,
+    FRAC_PI_2,
+    2.0,
+    3.0,
+    -0.4,
+    -1.2,
+];
 
 /// The tilt whose sliver lies within the band at ε 1e-6.
 const NEAR_TANGENT: f64 = 1e-3;
@@ -75,7 +85,10 @@ fn cone(alpha: f64) -> (f64, topo::AtRestBody<f64>) {
     )
     .unwrap()
     .body;
-    (r, sweep::test_support::finished("the cone", body, Tol::witness()))
+    (
+        r,
+        sweep::test_support::finished("the cone", body, Tol::witness()),
+    )
 }
 
 /// One plane through the apex.
@@ -202,6 +215,81 @@ fn every_pose_answers(deg: f64) {
         }
     }
     eprintln!("α = {deg}°, ε {eps:e}: refused {refused:?}");
+}
+
+/// **A plane grazing a conical pit along a ruling through its apex
+/// refuses the knife edge.** A unit cylinder with a 30° pit sunk from
+/// its top: the pit's wall bends away from the material round it, so
+/// the plane tangent to it along a ruling leaves material on both sides
+/// of the contact, which the split cannot declare. It refuses at the
+/// apex in the reduction, naming the pit's wall, at every azimuth of
+/// `THETAS` with either normal.
+#[test]
+fn a_plane_grazing_a_conical_pit_through_its_apex_refuses_the_knife_edge() {
+    let tol = Tol::witness();
+    let (rim, depth) = (0.5, 0.5 / 30f64.to_radians().tan());
+    let lp = bulge_loop(
+        [
+            (0.0, 0.0),
+            (1.0, 0.0),
+            (1.0, 1.0),
+            (rim, 1.0),
+            (0.0, 1.0 - depth),
+        ]
+        .iter()
+        .map(|&(x, y)| (Point2::new(x, y), 0.0))
+        .collect(),
+    );
+    let vp = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(tol)
+        .unwrap();
+    let body = sweep::revolve(
+        &vp,
+        sweep::RevolveAxis {
+            origin: Point2::new(0.0, 0.0),
+            dir: Vec2::new(0.0, 1.0),
+        },
+        sweep::Revolution::Full,
+        tol,
+    )
+    .unwrap()
+    .body;
+    let body = sweep::test_support::finished("the pitted cylinder", body, tol);
+    let apex = Point3::new(0.0, 1.0 - depth, 0.0);
+    for a in THETAS {
+        let radial = Vec3::new(a.cos(), 0.0, a.sin());
+        let ruling = (Point3::new(0.0, 1.0, 0.0) + radial * rim) - apex;
+        let round = Vec3::new(-a.sin(), 0.0, a.cos());
+        for s in [1.0, -1.0] {
+            let what = format!("θ = {a}, normal {s}·n");
+            let plane =
+                topo::test_support::split_plane(apex, ruling.cross(round).normalize() * s, tol);
+            let e = match split(&body, &plane, tol) {
+                Ok(r) => panic!(
+                    "{what}: answered ({:?}, {:?})",
+                    r.above.body().is_some(),
+                    r.below.body().is_some()
+                ),
+                Err(e) => e,
+            };
+            let knife = e
+                .knife_edge()
+                .unwrap_or_else(|| panic!("{what}: refused {e:?}, not the knife edge"));
+            assert!(
+                matches!(e, SplitError::Reduce(_)),
+                "{what}: read in the reduction: {e:?}"
+            );
+            let wall = body
+                .get_face(knife.wall)
+                .and_then(|f| body.get_surface(f.surface))
+                .map(geom::Surface::kind);
+            assert_eq!(
+                wall,
+                Some(geom::SurfaceKind::Cone),
+                "{what}: names the pit's wall"
+            );
+        }
+    }
 }
 
 /// The 30° cone: the two seam meridians meet at 60°, under a half-turn.

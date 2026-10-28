@@ -301,7 +301,9 @@ fn section_chords<T: Decide>(
 ///
 /// [`SplitReduceError::SectionGermsEscalated`] where the table or the
 /// reading escalates; [`SplitReduceError::SectionGermsUnordered`] where
-/// the table reads no ruling, or not exactly one lies inside.
+/// the table reads no ruling through the apex (it reads the plane's
+/// section as a conic standing off the apex, though the walk read the
+/// plane through it), or not exactly one ruling lies inside.
 fn apex_germ<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
@@ -325,25 +327,20 @@ fn apex_germ<T: Decide>(
     };
     let unordered = |fault| SplitReduceError::SectionGermsUnordered { vertex, fault };
     let face = crate::sector_face::face_of(body, vertex, entries[c].he);
-    let lines = match crate::chord_join::wall_section(
-        body,
-        band,
-        plane.origin,
-        plane.normal,
-        face,
-        vertex,
-    ) {
-        Ok(Some(WallSection {
-            case: SectionCase::Straight([l1, l2]),
-            ..
-        })) => vec![l1, l2],
-        Ok(Some(WallSection {
-            case: SectionCase::Tangent(l),
-            ..
-        })) => vec![l],
-        Err(SplitJoinError::Escalated { diag, .. }) => return Err(escalated(diag)),
-        Ok(_) | Err(_) => return Err(unordered(SectionGermFault::NoLine)),
-    };
+    let lines =
+        match crate::chord_join::wall_section(body, band, plane.origin, plane.normal, face, vertex)
+        {
+            Ok(Some(WallSection {
+                case: SectionCase::Straight([l1, l2]),
+                ..
+            })) => vec![l1, l2],
+            Ok(Some(WallSection {
+                case: SectionCase::Tangent(l),
+                ..
+            })) => vec![l],
+            Err(SplitJoinError::Escalated { diag, .. }) => return Err(escalated(diag)),
+            Ok(_) | Err(_) => return Err(unordered(SectionGermFault::NoLine)),
+        };
     let arm = u.dir.norm().min(w.dir.norm());
     let nappe = u.dir.dot(apex.axis);
     let mut inside = None;
