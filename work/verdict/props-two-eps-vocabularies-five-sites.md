@@ -4,7 +4,6 @@ kind: issue
 title: props/ — S25's two-epsilon-vocabularies class is open at three signatures and two call sites
 status: open
 opened: 2026-08-20
-github: 699
 refs: [692]
 priority: P1
 cost: D

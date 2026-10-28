@@ -97,7 +97,7 @@ fn fillet_both(
 ) -> (ProfileDoc, RecipeNodeId) {
     let ev = fixture::run(&doc, &EvalOptions::default());
     let (t, body) = (table(&ev, target), corpus::body_of(&ev, target));
-    let mut selection = [rim_names(t, body, lo), rim_names(t, body, hi)].concat();
+    let mut selection = [rim_names(t, &body, lo), rim_names(t, &body, hi)].concat();
     selection.sort();
     fixture::insert(
         doc,

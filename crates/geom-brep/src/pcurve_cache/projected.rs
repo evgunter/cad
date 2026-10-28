@@ -1920,43 +1920,9 @@ pub(crate) fn offset_rounds<T: Decide>(
     band: Band,
 ) -> Result<OffsetRead<T>, PcurveCertifyError> {
     use crate::ssi::certify::{Hull, Subdivided, subdivide_until};
-    let round = |cuts: &[f64]| -> Result<Hull<(ProjectedHull, NetSize)>, PcurveCertifyError> {
+    let round = |cuts: &[f64]| {
         let (hull, size) = hull(cuts)?;
-        let Window { parts, inside } = window_of(&hull, window)?;
-        let read = &hull.spans[parts.clone()];
-        let spans: Vec<f64> = read.iter().map(|s| s.meters).collect();
-        let floor = |k: usize| {
-            if !inside.contains(&k) {
-                return 0.0;
-            }
-            let before = k.checked_sub(1).and_then(|i| hull.spans.get(i));
-            let after = hull.spans.get(k);
-            before
-                .map_or(0.0, |s| s.floors.1)
-                .max(after.map_or(0.0, |s| s.floors.0))
-        };
-        Ok(Hull {
-            // A refused part refuses the bound (`f64::max` would pass
-            // over its NaN).
-            sup: spans.iter().fold(0.0, |m: f64, &b| {
-                if m.is_nan() || b.is_nan() {
-                    f64::NAN
-                } else {
-                    m.max(b)
-                }
-            }),
-            breaks: read
-                .iter()
-                .map(|s| s.range.0)
-                .chain(read.last().map(|s| s.range.1))
-                .collect(),
-            floors: (*parts.start()..=*parts.end() + 1).map(floor).collect(),
-            spans,
-            // The composite reads the whole carrier, whatever the
-            // window reads.
-            work: hull.spans.len(),
-            data: (hull, size),
-        })
+        read_round(hull, size, window)
     };
     // The stored carrier is the net itself, so the radial floor's
     // fidelity term is zero; limb 2 reads the incidence alone.
@@ -1990,6 +1956,75 @@ pub(crate) fn offset_rounds<T: Decide>(
             upper: f64::NAN,
             floor,
         },
+    })
+}
+
+/// **Limb 2 on one composite, where it clears** — the first round of
+/// [`offset_rounds`] alone: `Some` with the reading [`offset_rounds`]
+/// gives a round that clears the band, decided on the same
+/// [`net_incidence`]; `None` where the bound does not clear, so the
+/// caller's full rounds decide.
+///
+/// # Errors
+///
+/// As [`net_incidence`] over a round that clears.
+pub(crate) fn offset_cleared<T: Decide>(
+    hull: ProjectedHull,
+    size: NetSize,
+    window: (T, T),
+    chart: &ProjectedChart<T>,
+    twin: &Surface<T>,
+    band: Band,
+) -> Result<Option<OffsetRead<T>>, PcurveCertifyError> {
+    let round = read_round(hull, size, window)?;
+    if !crate::ssi::certify::clears(round.sup, band) {
+        return Ok(None);
+    }
+    let (hull, size) = round.data;
+    let (incidence, _) = net_incidence(&hull, window, chart, twin, T::zero(), band, true)?;
+    Ok(Some(OffsetRead {
+        offset: Offset::Bound(incidence),
+        size,
+        upper: f64::NAN,
+        floor: 0.0,
+    }))
+}
+
+/// One round of limb 2 read on the parts `window` overlaps: its bound,
+/// its breaks and floors there, and its work over the whole composite.
+fn read_round<T: Decide>(
+    hull: ProjectedHull,
+    size: NetSize,
+    window: (T, T),
+) -> Result<crate::ssi::certify::Hull<(ProjectedHull, NetSize)>, PcurveCertifyError> {
+    use crate::ssi::certify::Hull;
+    let Window { parts, inside } = window_of(&hull, window)?;
+    let read = &hull.spans[parts.clone()];
+    let spans: Vec<f64> = read.iter().map(|s| s.meters).collect();
+    let floor = |k: usize| {
+        if !inside.contains(&k) {
+            return 0.0;
+        }
+        let before = k.checked_sub(1).and_then(|i| hull.spans.get(i));
+        let after = hull.spans.get(k);
+        before
+            .map_or(0.0, |s| s.floors.1)
+            .max(after.map_or(0.0, |s| s.floors.0))
+    };
+    Ok(Hull {
+        // A refused part refuses the bound.
+        sup: spans.iter().copied().fold(0.0, crate::carrier_net::widest),
+        breaks: read
+            .iter()
+            .map(|s| s.range.0)
+            .chain(read.last().map(|s| s.range.1))
+            .collect(),
+        floors: (*parts.start()..=*parts.end() + 1).map(floor).collect(),
+        spans,
+        // The composite reads the whole carrier, whatever the
+        // window reads.
+        work: hull.spans.len(),
+        data: (hull, size),
     })
 }
 

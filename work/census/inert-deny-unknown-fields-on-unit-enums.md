@@ -4,7 +4,6 @@ kind: unit
 title: Inert #[serde(deny_unknown_fields)] on unit-only enums — nine sites in role.rs, and a ledger entry that believed it load-bearing
 status: closed
 opened: 2026-08-30
-github: 1308
 refs: [1301]
 branch: census/inert-deny
 pr: 2634

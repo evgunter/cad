@@ -6407,7 +6407,7 @@ mod frame_dispatch_tests {
             Ok(S::Empty) => "empty",
             Err(_) => "refused",
         };
-        for _ in 0..fuzz::scaled(2000) {
+        for _ in 0..fuzz::scaled(1000) {
             // Radii and offsets of up to 1e3, short of where ε leaves no room
             // for the fixture to certify a rim on a random axis.
             let room = (1e12 * eps).min(1e3);

@@ -136,12 +136,12 @@ fn touches(
     let ValuePayload::Boolean(BooleanValue::Body { body, contacts, .. }) = &value.payload else {
         panic!("{what}: not a boolean body");
     };
-    assert_eq!(body.solids().count(), solids, "{what}: solids");
+    assert_eq!(body.body().solids().count(), solids, "{what}: solids");
     let v = topo::test_support::pinned_volume(
         "the measured body",
         &topo::test_support::finished(
             "the measured body",
-            topo::Body::clone(&**body),
+            topo::Body::clone(body.body()),
             Tol::witness(),
         ),
         Tol::witness(),
@@ -152,8 +152,8 @@ fn touches(
         "{what}: volume {v}, want {volume}"
     );
     let kind = |f: topo::FaceKey| {
-        let face = body.get_face(f).unwrap();
-        body.get_surface(face.surface).unwrap().kind()
+        let face = body.body().get_face(f).unwrap();
+        body.body().get_surface(face.surface).unwrap().kind()
     };
     let ff: Vec<_> = contacts
         .rows()
@@ -297,7 +297,7 @@ fn a_slab_across_the_line_leaves_the_touch_on_its_pieces() {
             "the measured body",
             &topo::test_support::finished(
                 "the measured body",
-                topo::Body::clone(crate::corpus::body_of(&ev, u)),
+                topo::Body::clone(&(crate::corpus::body_of(&ev, u))),
                 Tol::witness(),
             ),
             Tol::witness(),
@@ -470,7 +470,7 @@ fn a_slab_across_the_whole_face_pairs_each_piece_with_its_own_side() {
             "the measured body",
             &topo::test_support::finished(
                 "the measured body",
-                topo::Body::clone(crate::corpus::body_of(&ev, u)),
+                topo::Body::clone(&(crate::corpus::body_of(&ev, u))),
                 Tol::witness(),
             ),
             Tol::witness(),

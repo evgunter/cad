@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-27
 priority: P2
 cost: M
-needs_ev: true
 ---
 
 D10 `[assertions.quiet]` quiets a finding only by an assertion that

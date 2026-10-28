@@ -4,12 +4,12 @@ kind: program
 title: BORDERS — a piece's Borders and the lineage it reads: the joins the records cannot place, the pieces named bare, and the unions that refuse by member order
 status: ready
 opened: 2026-10-19
-area: api
+group: api/names
 prefix: borders/
 tag: (BORDERS orchestrator)
 ab_band: 13900-13999
 paths: [crates/editor-core/src/names/borders.rs, crates/editor-core/src/names/emit_topo.rs]
-keep_out: [opened 2026-10-19 by EMIT's close (work/README.md, A closed program's directory is deleted - residue that coheres into a track of its own goes to a new program the closing one opens; Ev agreed the close in chat 2026-10-19) - the rows moved by git mv with ids and bodies kept (only their work/emit/ citations re-pointed) and EMIT's directory left the tracker (docs/doc-ledger/emit-leaves-the-tracker.md); EMIT's live rows were cut by subject into SEAMRANK and BORDERS because nearly all are P3 and the priority seam inside them is empty, and the label rows went to WIRETAIL; names/* is shared with REFS, DOCTAIL (role.rs, emit_blend.rs) and WIRETAIL (geompred.rs), so run scripts/work.py territory on your branch and announce the seam in the PR]
+keep_out: [opened 2026-10-19 by EMIT's close (work/README.md, A closed program's directory is deleted - residue that coheres into a track of its own goes to a new program the closing one opens; Ev agreed the close in chat 2026-10-19) - the rows moved by git mv with ids and bodies kept (only their work/emit/ citations re-pointed) and EMIT's directory left the tracker (docs/doc-ledger/emit-leaves-the-tracker.md); EMIT's live rows were cut by subject into SEAMRANK and BORDERS because nearly all are P3 and the priority seam inside them is empty, and the label rows went to WIRETAIL; names/* is shared with REFS, DOCTAIL (role.rs, emit_blend.rs) and WIRETAIL (geompred.rs), so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled]
 ---
 
 **How a face or edge piece is told from its siblings.** EMIT built

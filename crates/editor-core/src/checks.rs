@@ -53,7 +53,7 @@ use std::sync::Arc;
 use core::fmt;
 
 use geom_core::{BandError, CertifiedBounds, Decide, Tol};
-use topo::{AtRestPolicy, Body, ContactRecords, ShellClassifyError, ShellRole, classify_shells};
+use topo::{AtRestPolicy, ContactRecords, ShellClassifyError, ShellRole, classify_shells};
 
 use crate::doc::Doc;
 use crate::eval::{Evaluation, NodeStanding};
@@ -1863,7 +1863,7 @@ fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds + AtRestP
             // The shell door reads a finished body. Nothing upstream keeps a
             // root's verdict in its value yet (F2 carries it), so the root is
             // gated here, once.
-            let body = match T::gate_at_rest_kept(Body::clone(&body), tol) {
+            let body = match T::gate_at_rest_kept(body.body().clone(), tol) {
                 Ok(body) => body,
                 Err(errors) => {
                     report.findings.push(CheckFinding {
@@ -1984,7 +1984,7 @@ fn chart_coherence<P: crate::ProfilePayload, T: Decide + ChartCoherenceLane>(
                 evidence,
                 quiet: None,
             };
-            let Some(examined) = T::examine_chart_coherence(body.as_ref(), tol) else {
+            let Some(examined) = T::examine_chart_coherence(body.body(), tol) else {
                 report
                     .findings
                     .push(at(CheckEvidence::ChartCoherenceUnavailable));
@@ -2134,7 +2134,7 @@ pub fn subject_body<T: Decide>(
     ev: &Evaluation<T>,
     root: RecipeNodeId,
     output_ix: u32,
-) -> Option<(Arc<Body<T>>, Arc<ContactRecords>)> {
+) -> Option<(crate::eval::Framed<T>, Arc<ContactRecords>)> {
     let sources = product::sources_of(ev.value(root)?)?;
     sources
         .into_iter()

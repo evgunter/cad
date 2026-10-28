@@ -44,10 +44,10 @@ pub use coset::{Coset, PoseSymmetry, Subgroup, SubgroupFamily};
 pub use member::{Member, Placing, head_face, head_of, member_of, member_reading};
 pub use orient::{Orientation, SignedAxis};
 pub use pin::{FrameMove, Placed, moved_frame, stand};
-pub use reach::{ReachRefusal, SurfaceKind, body_reach, part_reach};
+pub use reach::{ReachRefusal, SurfaceKind, body_reach, part_reach, part_reach_from};
 pub use solve::{
-    Atan2Branch, PoseRefusal, SolveScalar, SolvedPoses, mate_coset, relative_freedom_components,
-    solve_document, solve_document_at,
+    Atan2Branch, Composing, PoseRefusal, SolveScalar, SolvedPoses, in_space, mate_coset,
+    relative_freedom_components, solve_document, solve_document_at,
 };
 pub use turn::{LeastTurn, slides_left_along};
 pub use unobservable::{Unobservable, unobservable};

@@ -4,7 +4,6 @@ kind: issue
 title: M10-4 the_bore_pin_fit_as_a_consumer_reads_it is red at interval / eps 1e-6 on main
 status: closed
 opened: 2026-09-03
-github: 1646
 refs: [1627, TCOST-1]
 closed: 2026-09-15
 ---

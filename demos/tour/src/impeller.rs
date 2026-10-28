@@ -287,7 +287,7 @@ fn build_doc(tol: Tol) -> Recipe {
 /// The document's own final body, read back.
 fn body_of(ev: &Evaluation<f64>, at: RecipeNodeId) -> Body<f64> {
     match &ev.value(at).expect("the node evaluated").payload {
-        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body.as_ref().clone(),
+        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body.body().clone(),
         other => panic!("the impeller's root is a union, got {other:?}"),
     }
 }

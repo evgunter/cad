@@ -162,7 +162,7 @@ pub(crate) fn every_member_edge_lies_on_its_source(
         let src_body = body_of(ev, member);
         let src = edge_of(table(ev, member), "the member's edge", of);
         let se = src_body.get_edge(src).unwrap();
-        (point(src_body, se.he_plus), point(src_body, se.he_minus))
+        (point(&src_body, se.he_plus), point(&src_body, se.he_minus))
     };
     // Where `p` lies against segment `q0..q1`: its distance off the
     // line, and its parameter along it.
@@ -182,7 +182,7 @@ pub(crate) fn every_member_edge_lies_on_its_source(
             continue;
         };
         let edge = body.get_edge(k).unwrap();
-        let ends = [point(body, edge.he_plus), point(body, edge.he_minus)];
+        let ends = [point(&body, edge.he_plus), point(&body, edge.he_minus)];
         match name.path.first() {
             Some(RoleSeg::From { read, of }) if of.kind == EntityKind::Edge => {
                 let seg = source(*read, of);
@@ -249,7 +249,7 @@ pub(crate) fn every_member_edge_lies_on_its_source(
                         if parents != [true, true] {
                             continue;
                         }
-                        let (q0, q1) = (point(mb, me.he_plus), point(mb, me.he_minus));
+                        let (q0, q1) = (point(&mb, me.he_plus), point(&mb, me.he_minus));
                         let (o0, s0) = place(q0, (ends[0], ends[1]));
                         let (o1, s1) = place(q1, (ends[0], ends[1]));
                         let overlap = s0.max(s1).min(1.0) - s0.min(s1).max(0.0);

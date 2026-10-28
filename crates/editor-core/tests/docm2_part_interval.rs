@@ -102,11 +102,15 @@ fn assert_parts_are_their_bodies(ev: &Evaluation<Interval>, doc: &ProfileDoc, la
         };
         let read: &Arc<Body<Interval>> = match (&select, &ev.value(of).expect("the input").payload)
         {
-            (PartSelect::Instance(_), ValuePayload::Instances(v)) => &v[1],
+            (PartSelect::Instance(_), ValuePayload::Instances(v)) => v[1].shared(),
             other => panic!("{label}: {other:?}"),
         };
-        assert!(Arc::ptr_eq(part, read), "{label}: node {}'s Arc", id.0);
-        assert_eq!(bits(part), bits(read), "{label}: node {}", id.0);
+        assert!(
+            Arc::ptr_eq(part.shared(), read),
+            "{label}: node {}'s Arc",
+            id.0
+        );
+        assert_eq!(bits(part.body()), bits(read), "{label}: node {}", id.0);
     }
 }
 
@@ -297,6 +301,7 @@ fn a7_the_corpus_document_evaluates_at_interval_with_a_widened_height() {
         panic!("a split with an above half");
     };
     let top = above
+        .body()
         .points()
         .map(|(_, p)| p.z)
         .max_by(|a, b| a.hi().partial_cmp(&b.hi()).expect("finite"))

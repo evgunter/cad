@@ -38,7 +38,7 @@ pub(super) struct Operand<T: Decide> {
     /// the seat's, or the piece's.
     pub read: crate::VarId,
     /// Its body, where the node reads it.
-    pub body: Arc<Body<T>>,
+    pub body: crate::eval::Framed<T>,
     /// Its own names, total over `body`.
     pub table: Arc<NameTable>,
     /// Its own contact records, keyed in `body`'s arena.
@@ -74,13 +74,36 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
         })
     }
 
-    /// Its body, finished: the gate every boolean operand passes.
+    /// Its body, finished in its own frame: the gate every boolean
+    /// operand passes.
     pub(super) fn finished(&self, tol: Tol) -> Result<topo::AtRestBody<T>, NodeErrorKind> {
-        T::gate_at_rest_kept((*self.body).clone(), tol).map_err(|errors| {
-            NodeErrorKind::UnfinishedOperand {
-                input: self.node,
-                errors,
-            }
+        self.gated(self.body.body().clone(), tol)
+    }
+
+    /// **Its body read into `into`'s frame, finished**: `own`, its
+    /// finished body in its own frame, where the two are one frame, so
+    /// an operand read twice is gated once.
+    pub(super) fn finished_in(
+        &self,
+        into: &crate::eval::Framed<T>,
+        own: &topo::AtRestBody<T>,
+        tol: Tol,
+    ) -> Result<topo::AtRestBody<T>, NodeErrorKind> {
+        if into
+            .relative(&self.body)
+            .map_err(NodeErrorKind::Motion)?
+            .is_none()
+        {
+            return Ok(own.clone());
+        }
+        let read = into.read_in(&self.body, tol)?;
+        self.gated((*read).clone(), tol)
+    }
+
+    fn gated(&self, body: Body<T>, tol: Tol) -> Result<topo::AtRestBody<T>, NodeErrorKind> {
+        T::gate_at_rest_kept(body, tol).map_err(|errors| NodeErrorKind::UnfinishedOperand {
+            input: self.node,
+            errors,
         })
     }
 
@@ -97,16 +120,16 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
     /// Its pieces, each an operand where it stands: a family piece is
     /// one per member, each its member's names and none of the
     /// family's records (as a union reads a family's members).
-    pub(super) fn units(&self, tol: Tol) -> Result<Vec<Self>, NodeErrorKind> {
+    pub(super) fn units(&self) -> Result<Vec<Self>, NodeErrorKind> {
         let Some(pieces) = &self.pieces else {
             return Ok(Vec::new());
         };
         let mut units = Vec::with_capacity(pieces.pieces.len());
         for piece in &pieces.pieces {
-            let bodies = super::place_each_by(&piece.bodies, piece.motion.as_ref(), tol)?;
+            let bodies = piece.bodies.clone();
             let mut wraps = self.wraps.clone();
             wraps.push((pieces.by, piece.read));
-            let unit = |body: Arc<Body<T>>, table, records, pieces| Self {
+            let unit = |body: crate::eval::Framed<T>, table, records, pieces| Self {
                 node: self.node,
                 read: piece.read,
                 body,
@@ -129,12 +152,11 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
                 let Some(body) = bodies.into_iter().next() else {
                     unreachable!("a piece that is a body holds one")
                 };
-                let nested = super::moved_pieces(piece.pieces.as_ref(), piece.motion.as_ref())?;
                 units.push(unit(
                     body,
                     Arc::clone(&piece.table),
                     Arc::clone(&piece.contacts),
-                    nested,
+                    piece.pieces.clone(),
                 ));
             }
         }
@@ -186,8 +208,21 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
 pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     outs: Vec<(crate::VarId, OpOut<T>)>,
+    tol: Tol,
 ) -> OpResult<T> {
     let mut fused = Body::new();
+    // Computed in the first result's frame that is its space's, else the
+    // first's ([`crate::eval::Framed::computing_among`]), each other read
+    // into it.
+    let mut computing: Option<crate::eval::Framed<T>> = crate::eval::Framed::computing_among(
+        outs.iter().filter_map(|(_, out)| match &out.payload {
+            ValuePayload::Boolean(BooleanValue::Body { body, .. }) | ValuePayload::Body(body) => {
+                Some(body)
+            }
+            _ => None,
+        }),
+    )
+    .cloned();
     let mut named: Vec<(crate::VarId, Arc<NameTable>, Vec<topo::GraftKeys>)> = Vec::new();
     let mut pieces: Vec<Piece<T>> = Vec::new();
     let mut contacts = topo::ContactRecords::default();
@@ -202,15 +237,17 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
                 body,
                 kind,
                 contacts,
-            }) => (Arc::clone(body), *kind, Arc::clone(contacts)),
+            }) => (body.clone(), *kind, Arc::clone(contacts)),
             ValuePayload::Body(body) => (
-                Arc::clone(body),
+                body.clone(),
                 topo::BooleanResultKind::OperandA,
                 Arc::clone(&out.contacts),
             ),
             _ => unreachable!("a boolean of one piece makes a body or nothing"),
         };
-        let keys = topo::graft_disjoint_all_keyed(&mut fused, body.as_ref())
+        let first = computing.get_or_insert_with(|| body.clone());
+        let read_in = first.read_in(&body, tol)?;
+        let keys = topo::graft_disjoint_all_keyed(&mut fused, read_in.as_ref())
             .map_err(NodeErrorKind::Boolean)?;
         let base = coincidences.len();
         let inputs: Vec<u32> = out
@@ -261,7 +298,6 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
             pieces: out.pieces.clone(),
             census: out.census.clone(),
             censused: out.censused,
-            motion: None,
         });
         named.push((read, table, vec![keys]));
     }
@@ -276,6 +312,7 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
         _ => topo::BooleanResultKind::Assembly,
     };
     let table = names::name_assemble(id, &named, &fused).map_err(NodeErrorKind::Naming)?;
+    let frame = computing.map_or(crate::eval::Frame::Own, |first| first.frame().clone());
     let pieces = Arc::new(Pieces { by: id, pieces });
     Ok(OpOut {
         // What it made is the `⊔` of what each piece's boolean made, so
@@ -289,7 +326,7 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
         pieces: Some(pieces),
         ..OpOut::plain(
             ValuePayload::Boolean(BooleanValue::Body {
-                body: Arc::new(fused),
+                body: crate::eval::Framed::in_frame(Arc::new(fused), frame),
                 kind,
                 contacts: Arc::new(contacts),
             }),

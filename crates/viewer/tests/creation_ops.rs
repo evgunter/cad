@@ -196,7 +196,7 @@ fn the_ring_stream_reproduces_the_gallery_document_bit_for_bit() {
     match &eval.value(revolve).expect("the revolve evaluated").payload {
         ValuePayload::Body(body) => {
             assert_eq!(
-                body.shells().count(),
+                body.body().shells().count(),
                 2,
                 "outer torus + toroidal cavity, in one solid"
             );

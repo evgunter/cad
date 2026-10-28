@@ -59,7 +59,7 @@ fn the_flush_boss_unions() {
                 "the union measures",
                 &topo::test_support::finished(
                     "the measured body",
-                    topo::Body::clone(&**body),
+                    topo::Body::clone(body.body()),
                     Tol::witness(),
                 ),
                 Tol::witness(),

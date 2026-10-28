@@ -55,7 +55,7 @@ fn cut_cylinder_sides_carry_exact_ellipses() {
         panic!("both sides carry material");
     };
     let phi = corpus::cut_cylinder::TILT;
-    for part in [above.as_ref(), below.as_ref()] {
+    for part in [above.body(), below.body()] {
         let ellipses = ellipse_edges(part);
         assert_eq!(ellipses.len(), 2, "two ellipse arcs bound the section");
         for c in &ellipses {

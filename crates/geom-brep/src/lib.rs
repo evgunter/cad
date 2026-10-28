@@ -80,6 +80,7 @@ mod krawczyk;
 pub mod ladder;
 pub mod locus;
 pub mod mapped;
+pub(crate) mod memo;
 pub mod newell;
 pub mod nurbs_iso;
 pub mod offset;
@@ -114,10 +115,10 @@ pub use dihedral::{
     DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DIHEDRAL_ARM_NOUN, DihedralClass, DihedralReading,
     MATERIAL_PAIRING, MATERIAL_PAIRING_CLAUSE, MaterialPairing, MaterialWedge, MixedStations,
     MustCarryDescription, MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, PairRefusal,
-    RestLocus, SecondOrder, SecondOrderWalk, SmoothJoin, Station, StationHook, classify_dihedral,
-    classify_material_pairing, classify_material_pairing_as, folded_lever_arm, interior_stations,
-    material_kappa_rel, must_carry_description, must_carry_over_edge, reask_chart, reask_pair,
-    second_order_walk, tangent_second_order,
+    RestLocus, SeamEscalation, SeamFace, SecondOrder, SecondOrderWalk, SmoothJoin, Station,
+    StationHook, classify_dihedral, classify_material_pairing, classify_material_pairing_as,
+    classify_seam, folded_lever_arm, interior_stations, material_kappa_rel, must_carry_description,
+    must_carry_over_edge, reask_chart, reask_pair, second_order_walk, tangent_second_order,
 };
 pub use dihedral_side::{
     CreaseReading, EdgeHalf, EdgeWalk, FaceSide, SideEscalation, SideFace, SideRole,
@@ -212,9 +213,10 @@ pub use ssi::{
     ExhaustivenessRefusal, FloorFault, FloorKind, FloorRefusal, PlaneSection, ReachBound,
     SSI_FIT_DEGREE, SSI_FLOOR, SSI_MAX_STEPS, Section, SectionReading, SectionRoot,
     SettlingRefusal, SsiBoundaryContact, SsiBranch, SsiCertificate, SsiDecision, SsiDomain,
-    SsiError, SsiLimb, SsiOperand, SsiOutcome, SsiTube, StepFault, StepperMode, TraceDecision,
-    TubeDegeneracy, boundary_section, certify_rung3, cylinder_sphere_ssi, idealized_trace_r3,
-    march_cylinder_sphere, plane_nurbs_ssi, trace_plane_nurbs_uncertified,
+    SsiError, SsiLimb, SsiOperand, SsiOutcome, SsiTube, StepFault, StepperMode, TangentPair,
+    TraceDecision, TubeDegeneracy, boundary_section, certify_rung3, cylinder_sphere_ssi,
+    idealized_trace_r3, march_cylinder_sphere, plane_nurbs_ssi, sphere_torus_ssi,
+    trace_plane_nurbs_uncertified,
 };
 pub use tangent::{
     TangentJet, TangentSpanBounds, tangent_certificate_lane, tangent_jet, tangent_span_bounds,
