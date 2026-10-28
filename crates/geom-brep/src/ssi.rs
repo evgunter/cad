@@ -2744,9 +2744,9 @@ pub fn march_cylinder_sphere(
 /// # Errors
 ///
 /// As [`cylinder_sphere_ssi`], the pair's tangency being
-/// [`TangentPair::SphereTorus`]'s; a torus whose `|q|² + R² − r²`
-/// reaches zero in a swept cell (a spindle or horn torus near its axis)
-/// refuses [`SsiError::UnsupportedCertificate`].
+/// [`TangentPair::SphereTorus`]'s; a torus not shown inside its ring
+/// convention (a spindle or horn torus) refuses
+/// [`SsiError::DegenerateTorus`] before any rung.
 pub fn sphere_torus_ssi(
     a: &Surface<f64>,
     b: &Surface<f64>,
