@@ -46,3 +46,24 @@ refusal and "can only be a bug" architecture, P1, design-heavy roll-ups)
 and PERF's `fnv-digest-and-memo-machinery-copies` (production
 duplication of the memo machinery, P1). Each is correctly P1, and none
 is a green-main or gate-latency row.
+
+## 2026-10-28 — five lanes dispatched
+
+All five at once (`plan.md`, Lanes). The three that build heavily run
+as their own cloud sessions, since this box has 4 cores and one build
+slot: **slow-set reds** (`green/slow-set-reds*`), **tess-lint**
+(`green/tess-lint-red`), **small reds** (`green/tilted-cut-upper`,
+`green/rustdoc-red`). The two that are mostly workflow and data run as
+subagents here: **latency** (`green/latency-*`) and **gate trust**
+(`green/<row>`).
+
+Review tiers, chosen at dispatch:
+- latency: single FULL review per lever PR — a workflow change that
+  takes a row off the gate can hide a red, which reading alone does not
+  rule out;
+- slow-set reds and tess-lint: single FULL review — every re-bless has
+  to be explained, and the review falsifies the explanation;
+- small reds: single STYLE review (an explained re-bless and a doc fix);
+- gate trust: orchestrator's read for the seed and pick-guard fixes
+  (mechanical, with witness seeds), STYLE review for the two new
+  nightly rows.
