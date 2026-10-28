@@ -5,6 +5,7 @@ title: A split whose tool is a pose definition has no tool node, so a tool-cell 
 status: review
 priority: P2
 branch: intent/refactor-pose-definitions
+pr: 5915
 opened: 2026-10-10
 ---
 
