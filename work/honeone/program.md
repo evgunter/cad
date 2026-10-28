@@ -4,7 +4,7 @@ kind: program
 title: HONEONE — one reading per question on boolean ground: the D3 pair-table audit and the duplicate readers
 status: ready
 opened: 2026-10-26
-area: kernel
+group: kernel/boolean/one-home
 prefix: honeone/
 tag: (HONEONE orchestrator)
 ab_band: 9960-9979

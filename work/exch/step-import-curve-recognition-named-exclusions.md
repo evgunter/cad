@@ -4,7 +4,6 @@ kind: issue
 title: step-import stage-1 curve recognition — the NAMED EXCLUSIONS (open arcs, ellipse, helix) and the surjectivity certificate
 status: open
 opened: 2026-08-11
-github: 389
 refs: [327, 388, 391]
 priority: P3
 cost: H

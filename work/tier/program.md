@@ -4,12 +4,12 @@ kind: program
 title: TIER — the symbolic tier's frontier, its cost and its prose: what it bounds, what it costs, and what its header claims
 status: ready
 opened: 2026-09-20
-area: kernel
+group: kernel/symbolic
 prefix: tier/
 tag: (TIER orchestrator)
 ab_band: 8700-8799
 paths: []
-keep_out: [opened by SYM's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - SYM measured 78.5 budget points and was cut into tracks meant to run in PARALLEL (Ev, in chat: for these high priority tracks it is ideal to have several components that can be worked on in parallel), the siblings are SYM DECIDE TIER and they share their parent's territory by design - shared ground is legitimate by the README's 2026-09-20 rule and what is owed is awareness while a lane is LIVE, so run scripts/work.py territory on your branch and announce the seam in the PR rather than drawing a fence, FRAME owns the who-answers-give-me-a-frame family and the decision-door row is the fold it is owed, CLEAR holds the row where this tier and the clearance engine do not compose, PROPS owns the analysis lane]
+keep_out: [opened by SYM's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - SYM measured 78.5 budget points and was cut into tracks meant to run in PARALLEL (Ev, in chat: for these high priority tracks it is ideal to have several components that can be worked on in parallel), the siblings are SYM DECIDE TIER and they share their parent's territory by design - shared ground is legitimate by the README's 2026-09-20 rule and what is owed is awareness while a lane is LIVE, so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled rather than drawing a fence, FRAME owns the who-answers-give-me-a-frame family and the decision-door row is the fold it is owed, CLEAR holds the row where this tier and the clearance engine do not compose, PROPS owns the analysis lane]
 ---
 The tier seen from outside: **the ceiling that bounds each document
 today, what the tier costs to run, and what its own header says about

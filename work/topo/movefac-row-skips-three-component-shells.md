@@ -6,7 +6,6 @@ status: closed
 pr: 3574
 branch: topo/movefac-proofs
 opened: 2026-09-06
-track: P
 refs: [S69, 2014]
 priority: P3
 cost: E

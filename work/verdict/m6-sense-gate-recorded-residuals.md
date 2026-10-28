@@ -4,7 +4,6 @@ kind: issue
 title: M6-6 sense-gate residuals — the recorded classes outside the gate, with their flip conditions
 status: open
 opened: 2026-08-07
-github: 226
 refs: [223, 250]
 priority: P1
 cost: D

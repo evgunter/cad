@@ -4,12 +4,12 @@ kind: program
 title: REACHHOLD — REACH's leftovers: the in-band reach stage 4 released, the census at the door, and the P4 tail
 status: ready
 opened: 2026-10-08
-area: kernel
+group: kernel/boolean/curved
 prefix: reachhold/
 tag: (REACHHOLD orchestrator)
 ab_band: 11700-11799
 paths: [crates/topo/src/boolean/zip.rs, crates/topo/src/boolean/contain.rs, crates/topo/src/boolean/ops.rs]
-keep_out: [opened 2026-10-08 by REACH's closing cut on its priority seam (Ev in chat 2026-10-08: split REACH into priority-stratified successors and close it) - the rows moved by git mv with ids and bodies unchanged and REACH's directory left the tracker (docs/doc-ledger/reach-leaves-the-tracker.md), crates/topo/src/boolean/* and crates/topo/src/splitting/* are shared ground with REACH's sibling successors (ORBIT ROOTS TALLY APEX GAUGE REACHHOLD; REACHTAIL folded in 2026-10-26) and with CLEAVE HONE GERM CONTACT ZIP BOXES PIN TANG SECT and FLUSH - run scripts/work.py territory on your branch and announce the seam in the PR]
+keep_out: [opened 2026-10-08 by REACH's closing cut on its priority seam (Ev in chat 2026-10-08: split REACH into priority-stratified successors and close it) - the rows moved by git mv with ids and bodies unchanged and REACH's directory left the tracker (docs/doc-ledger/reach-leaves-the-tracker.md), crates/topo/src/boolean/* and crates/topo/src/splitting/* are shared ground with REACH's sibling successors (ORBIT ROOTS TALLY APEX GAUGE REACHHOLD; REACHTAIL folded in 2026-10-26) and with CLEAVE HONE GERM CONTACT ZIP BOXES PIN TANG SECT and FLUSH - run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled]
 ---
 
 **REACH's two leftover tracks, as one.** REACHHOLD's own rows were

@@ -4,7 +4,6 @@ kind: issue
 title: Purchasable area tightness - a demand-triggered valve on the patch lanes' area enclosure (caller-requested target, typed refusal)
 status: deferred
 opened: 2026-08-31
-github: 1367
 refs: [870, 873, 472, 1315, 1366, S230]
 priority: P2
 cost: H
