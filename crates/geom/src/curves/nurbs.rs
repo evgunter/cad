@@ -1796,7 +1796,9 @@ impl NurbsCurve3<Interval> {
             let hd = if p == 0 {
                 [Interval::zero(); 4]
             } else {
-                fold(&mut (0..p).map(|k| [0, 1, 2, 3].map(|c| (net[k + 1][c] - net[k][c]) * scale)))?
+                fold(
+                    &mut (0..p).map(|k| [0, 1, 2, 3].map(|c| (net[k + 1][c] - net[k][c]) * scale)),
+                )?
             };
             let w = h[3];
             let (aa, ad) = (Vec3::new(h[0], h[1], h[2]), Vec3::new(hd[0], hd[1], hd[2]));
@@ -1846,7 +1848,11 @@ impl NurbsCurve3<Interval> {
             let mut net = vec![[Interval::zero(); 4]; p + 1];
             for c in 0..4 {
                 let row: Vec<Interval> = (0..=p).map(|k| homogeneous(k)[c]).collect();
-                let restricted = win.span().with_window(&row)?.restrict((at(a), at(b))).ok()?;
+                let restricted = win
+                    .span()
+                    .with_window(&row)?
+                    .restrict((at(a), at(b)))
+                    .ok()?;
                 for (slot, x) in net.iter_mut().zip(restricted) {
                     slot[c] = x;
                 }

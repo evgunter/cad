@@ -357,9 +357,7 @@ pub(crate) enum Outcome {
     Refuse(EngineRefusal),
     /// The two faces meet at wedge 0 or 2π on the shared edge, which
     /// only the second-order arm reads.
-    Cusp {
-        shared: SharedCell,
-    },
+    Cusp { shared: SharedCell },
 }
 
 /// **The analytic carrier's own injectivity**: every analytic carrier
@@ -369,7 +367,11 @@ pub(crate) enum Outcome {
 /// # Errors
 ///
 /// The torus that is not decided a ring.
-pub(crate) fn by_kind(face: FaceKey, surface: &Surface<Interval>, band: Band) -> Result<(), EngineRefusal> {
+pub(crate) fn by_kind(
+    face: FaceKey,
+    surface: &Surface<Interval>,
+    band: Band,
+) -> Result<(), EngineRefusal> {
     match surface {
         Surface::Torus {
             major_radius,
@@ -475,7 +477,11 @@ fn arc_deriv(c: &Curve3<Interval>, t: (f64, f64)) -> Vec3<Interval> {
 /// closed forms at the two intervals. A spline rectangle with no extent
 /// on an axis, or one the net door does not read, is the whole line,
 /// which decides nothing.
-fn rect_jet(s: &Surface<Interval>, u: (f64, f64), v: (f64, f64)) -> (Vec3<Interval>, Vec3<Interval>, Vec3<Interval>) {
+fn rect_jet(
+    s: &Surface<Interval>,
+    u: (f64, f64),
+    v: (f64, f64),
+) -> (Vec3<Interval>, Vec3<Interval>, Vec3<Interval>) {
     match s {
         Surface::Nurbs(net) => net.rect_jet(u, v).unwrap_or_else(|| {
             let line = Interval::from_bounds(f64::NEG_INFINITY, f64::INFINITY);
@@ -527,9 +533,7 @@ fn overlap(a: Point3<Interval>, b: Point3<Interval>) -> bool {
 
 fn periodic(surface: &Surface<Interval>, axis: Axis) -> bool {
     match surface {
-        Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. } => {
-            axis == Axis::U
-        }
+        Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. } => axis == Axis::U,
         Surface::Torus { .. } => true,
         _ => false,
     }
@@ -540,11 +544,7 @@ const TURN: f64 = core::f64::consts::TAU;
 /// `x` moved by whole turns to sit nearest `near`.
 fn wrap(x: Interval, near: f64) -> Interval {
     let k = ((near - mid(x)) / TURN).round();
-    if k == 0.0 {
-        x
-    } else {
-        x + at(k * TURN)
-    }
+    if k == 0.0 { x } else { x + at(k * TURN) }
 }
 
 // ------------------------------------------------------- presentations
@@ -680,7 +680,11 @@ impl<'a> Presented<'a> {
 
     /// `(Φ_x, Φ_y, Φ_xy)` over `x × y`. On a spline chart a side, with
     /// no extent across, reads the whole rectangle's, which holds it.
-    fn jet_on(&self, x: (f64, f64), y: (f64, f64)) -> (Vec3<Interval>, Vec3<Interval>, Vec3<Interval>) {
+    fn jet_on(
+        &self,
+        x: (f64, f64),
+        y: (f64, f64),
+    ) -> (Vec3<Interval>, Vec3<Interval>, Vec3<Interval>) {
         if let Map::Chart = self.map {
             let flat = !(x.0 < x.1 && y.0 < y.1);
             if flat && matches!(self.surface, Surface::Nurbs(_)) {
@@ -769,7 +773,10 @@ fn along(u: &Use, iso: Iso) -> Option<Interval> {
         Axis::V => p.x,
     };
     let (a, b) = (m(p), m(q));
-    Some(Interval::from_bounds(a.lo().min(b.lo()), a.hi().max(b.hi())))
+    Some(Interval::from_bounds(
+        a.lo().min(b.lo()),
+        a.hi().max(b.hi()),
+    ))
 }
 
 /// Whether `want` lies in the union of `ranges`, each moved by whole
@@ -969,7 +976,11 @@ fn present_chart<'a>(
             if (lo && y.0 > 0.0) || (!lo && y.1 < 0.0) {
                 continue;
             }
-            y = if lo { (y.0.max(0.0), y.1) } else { (y.0, y.1.min(0.0)) };
+            y = if lo {
+                (y.0.max(0.0), y.1)
+            } else {
+                (y.0, y.1.min(0.0))
+            };
             clips.push(Clip {
                 side: Side::of(Axis::V, lo),
                 at: at(0.0),
@@ -1318,8 +1329,16 @@ fn present_plane<'a>(
             let (p2, q2) = segment(*e2)?;
             // Each edge's chart point at the vertex, its far point, and
             // its traversal direction.
-            let start1 = if r1.uses[0].plus { r1.ends[0] } else { r1.ends[1] };
-            let start2 = if r2.uses[0].plus { r2.ends[0] } else { r2.ends[1] };
+            let start1 = if r1.uses[0].plus {
+                r1.ends[0]
+            } else {
+                r1.ends[1]
+            };
+            let start2 = if r2.uses[0].plus {
+                r2.ends[0]
+            } else {
+                r2.ends[1]
+            };
             let (o, far1) = if start1 == vtx { (p1, q1) } else { (q1, p1) };
             let far2 = if start2 == vtx { q2 } else { p2 };
             let t1 = [q1.x - p1.x, q1.y - p1.y];
@@ -1408,7 +1427,10 @@ enum Implicit {
 #[derive(Clone, Copy, Debug)]
 enum Psi {
     /// `n·(p − q)`.
-    Linear { n: Vec3<Interval>, q: Point3<Interval> },
+    Linear {
+        n: Vec3<Interval>,
+        q: Point3<Interval>,
+    },
     /// A face's carrier.
     Carrier(Implicit),
     /// `h(p) − γ(s(p))`: `h = m·p`, `s = t·p`, `γ` the shared edge's
@@ -1691,7 +1713,12 @@ fn heading(p: &Presented<'_>, q: Point3<f64>) -> Option<Vec3<f64>> {
 /// through one line edge, bisecting the faces' headings about it;
 /// through two line edges at a shared vertex; or, at a shared vertex
 /// alone, across the faces' two headings.
-fn plane_through(x: &Piece<'_>, near: &Near, px: &Presented<'_>, py: &Presented<'_>) -> Option<Psi> {
+fn plane_through(
+    x: &Piece<'_>,
+    near: &Near,
+    px: &Presented<'_>,
+    py: &Presented<'_>,
+) -> Option<Psi> {
     let q = anchor(x, near)?;
     let q0 = pmid(q);
     let (hx, hy) = (heading(px, q0)?, heading(py, q0)?);
@@ -1776,7 +1803,11 @@ fn edge_piece(
             if !(a < m && m < b) {
                 break;
             }
-            let (near, far) = if from_left { ((a, m), (m, b)) } else { ((m, b), (a, m)) };
+            let (near, far) = if from_left {
+                ((a, m), (m, b))
+            } else {
+                ((m, b), (a, m))
+            };
             (a, b) = if meets(near.0, near.1) { near } else { far };
         }
         if from_left { a } else { b }
@@ -1807,7 +1838,7 @@ fn graph_of(
         *span,
         e.ends[0] == e.ends[1],
         &[px.whole(), py.whole()],
-)?;
+    )?;
     let middle = at(geom::mid_param(piece.0, piece.1));
     let t = unit(vmid(carrier.deriv(middle)))?;
     let q0 = pmid(carrier.eval(middle));
@@ -1859,12 +1890,14 @@ fn cusp(
 /// the spans), so `L∘S` is near the identity there, and the arm holds
 /// where the least eigenvalue of the symmetric part of `J(L∘S)` is
 /// decided positive over the whole rectangle.
-pub(crate) fn monotone(surface: &Surface<Interval>, u: (f64, f64), v: (f64, f64), band: Band) -> bool {
+pub(crate) fn monotone(
+    surface: &Surface<Interval>,
+    u: (f64, f64),
+    v: (f64, f64),
+    band: Band,
+) -> bool {
     let (du, dv) = (u.1 - u.0, v.1 - v.0);
-    let centre = surface.jet(
-        at(geom::mid_param(u.0, u.1)),
-        at(geom::mid_param(v.0, v.1)),
-    );
+    let centre = surface.jet(at(geom::mid_param(u.0, u.1)), at(geom::mid_param(v.0, v.1)));
     let (a, b) = (vmid(centre.du) * du, vmid(centre.dv) * dv);
     // G = JᵀJ and its square root R; L = R⁻¹Jᵀ has orthonormal rows and
     // L·J = R.
@@ -1889,7 +1922,10 @@ pub(crate) fn monotone(surface: &Surface<Interval>, u: (f64, f64), v: (f64, f64)
     let half = at(0.5);
     let p12 = (m12 + m21) * half;
     let least = (m11 + m22) * half - (((m11 - m22) * half).powi(2) + p12.powi(2)).sqrt();
-    matches!(decide(MONOTONE, Margin::of(least), band), Ok(Sign::Positive))
+    matches!(
+        decide(MONOTONE, Margin::of(least), band),
+        Ok(Sign::Positive)
+    )
 }
 
 #[cfg(test)]
@@ -1902,11 +1938,21 @@ mod rows {
     fn coverage_reads_unions_and_turns() {
         use geom_core::interval::Interval;
         let r = |a: f64, b: f64| Interval::from_bounds(a, b);
-        assert!(covered((0.2, 0.8), &[r(0.0, 0.5), r(0.5, 1.0)], false), "a joined union");
-        assert!(!covered((0.2, 0.8), &[r(0.0, 0.4), r(0.5, 1.0)], false), "a gap");
+        assert!(
+            covered((0.2, 0.8), &[r(0.0, 0.5), r(0.5, 1.0)], false),
+            "a joined union"
+        );
+        assert!(
+            !covered((0.2, 0.8), &[r(0.0, 0.4), r(0.5, 1.0)], false),
+            "a gap"
+        );
         let turn = core::f64::consts::TAU;
         assert!(
-            covered((turn - 0.1, turn + 0.1), &[r(0.0, 1.0), r(turn - 1.0, turn)], true),
+            covered(
+                (turn - 0.1, turn + 0.1),
+                &[r(0.0, 1.0), r(turn - 1.0, turn)],
+                true
+            ),
             "a periodic range through the seam"
         );
     }

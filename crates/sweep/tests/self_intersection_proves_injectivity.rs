@@ -30,9 +30,9 @@ use profile::{Open, Profile, ProfileLoop, RawLoop, SketchPlane, Start};
 use sweep::test_support::revolved_about_y;
 use sweep::{Revolution, extrude, loft_body, revolve, sweep_body};
 use topo::clearance::{
-    BoundReport, BoundVerdict, Candidate, CertificateArm, ClearanceBound, DEFAULT_MAX_CELL_DEPTH,
-    CLEARANCE_MARGIN, EngineRefusal, MinSeparationConfig, SharedCell, Side,
-    Sweep, min_separation,
+    BoundReport, BoundVerdict, CLEARANCE_MARGIN, Candidate, CertificateArm, ClearanceBound,
+    DEFAULT_MAX_CELL_DEPTH, EngineRefusal, MinSeparationConfig, SharedCell, Side, Sweep,
+    min_separation,
 };
 use topo::{Body, FaceKey};
 
@@ -127,7 +127,11 @@ fn injective(body: &Body<f64>, faces: Option<Vec<FaceKey>>, budget: usize) -> Bo
         true,
         verify(body, ClearanceBound::StrictlyPositive),
     );
-    assert!(report.receipt.holds(), "the receipt adds up: {:?}", report.receipt);
+    assert!(
+        report.receipt.holds(),
+        "the receipt adds up: {:?}",
+        report.receipt
+    );
     report
 }
 
@@ -142,8 +146,14 @@ fn pairs(n: usize) -> usize {
 /// `certified` touching pairs discharged by a local certificate.
 fn assert_holds(what: &str, report: &BoundReport<Witness>, faces: usize, certified: usize) {
     let r = report.receipt;
-    println!("[selfx] {what}: {:?} {r:?} {:?}", report.verdict, report.widths);
-    assert!(matches!(report.verdict, BoundVerdict::Holds), "{what} is embedded: {r:?}");
+    println!(
+        "[selfx] {what}: {:?} {r:?} {:?}",
+        report.verdict, report.widths
+    );
+    assert!(
+        matches!(report.verdict, BoundVerdict::Holds),
+        "{what} is embedded: {r:?}"
+    );
     assert!(
         r.candidates <= pairs(faces) && r.candidates >= faces,
         "{what}: every face against itself, and the pairs the tree admits: {r:?}"
@@ -202,8 +212,7 @@ fn a_370_degree_flat_ribbon_reads_violated() {
     let path = helix(370.0 / 360.0, 0.0);
     let place = normal_start_place(&path);
     let profile = quad([(-0.1, -0.02), (0.1, -0.02), (0.1, 0.02), (-0.1, 0.02)]);
-    let swept = sweep_body::<f64>(&profile, place, &path, 48, 3, tol())
-        .expect("the ribbon sweeps");
+    let swept = sweep_body::<f64>(&profile, place, &path, 48, 3, tol()).expect("the ribbon sweeps");
     let wall = top_wall(&swept);
     let report = injective(&swept.body, Some(vec![wall]), BUDGET);
     println!("[selfx] ribbon: {:?} {:?}", report.verdict, report.receipt);
@@ -233,10 +242,26 @@ fn a_370_degree_flat_ribbon_reads_violated() {
 /// one the global drop never examined.
 #[test]
 fn the_carvetail_fold_reads_violated_at_its_middle_station() {
-    let pent = |pts: [(f64, f64); 5]| vec![ProfileLoop::polygon(pts.iter().map(|&(x, y)| Point2::new(x, y)))];
+    let pent = |pts: [(f64, f64); 5]| {
+        vec![ProfileLoop::polygon(
+            pts.iter().map(|&(x, y)| Point2::new(x, y)),
+        )]
+    };
     let sections = [
-        pent([(0.0, 0.0), (2.0, 0.0), (0.03, 0.347), (-2.0, 1.0), (-2.0, -1.0)]),
-        pent([(0.0, 0.0), (2.0, 0.0), (0.03, -0.347), (3.0, -3.0), (3.0, 3.0)]),
+        pent([
+            (0.0, 0.0),
+            (2.0, 0.0),
+            (0.03, 0.347),
+            (-2.0, 1.0),
+            (-2.0, -1.0),
+        ]),
+        pent([
+            (0.0, 0.0),
+            (2.0, 0.0),
+            (0.03, -0.347),
+            (3.0, -3.0),
+            (3.0, 3.0),
+        ]),
     ];
     let places = [0.0, 1.0].map(|z| SketchPlane::xy_at(Point3::new(0.0, 0.0, z)));
     let lofted = loft_body::<f64>(&sections, &places, 1, tol()).expect("the fold lofts");
@@ -252,7 +277,11 @@ fn the_carvetail_fold_reads_violated_at_its_middle_station() {
             (p.x - 2.0).abs() < 1e-9 && p.y.abs() < 1e-9
         })
     };
-    let walls: Vec<FaceKey> = lofted.side_faces[0].iter().copied().filter(|&f| on_seam(f)).collect();
+    let walls: Vec<FaceKey> = lofted.side_faces[0]
+        .iter()
+        .copied()
+        .filter(|&f| on_seam(f))
+        .collect();
     assert_eq!(walls.len(), 2, "two walls share the seam at (2, 0)");
     let report = injective(&lofted.body, Some(walls.clone()), BUDGET);
     println!("[selfx] fold: {:?} {:?}", report.verdict, report.receipt);
@@ -261,7 +290,10 @@ fn the_carvetail_fold_reads_violated_at_its_middle_station() {
     };
     assert!(walls.contains(&w.a) && walls.contains(&w.b), "{w:?}");
     for p in [w.pa, w.pb] {
-        assert!((p.z - 0.5).abs() < 0.05, "the witness is at the fold's station: {w:?}");
+        assert!(
+            (p.z - 0.5).abs() < 0.05,
+            "the witness is at the fold's station: {w:?}"
+        );
     }
 }
 
@@ -273,7 +305,9 @@ fn a_revolved_cone_holds() {
     let profile = validated(vec![ProfileLoop::polygon(
         [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)].map(|(x, y)| Point2::new(x, y)),
     )]);
-    let body = revolve(&profile, axis_y(), Revolution::Full, tol()).unwrap().body;
+    let body = revolve(&profile, axis_y(), Revolution::Full, tol())
+        .unwrap()
+        .body;
     let n = body.faces().count();
     let report = injective(&body, None, BUDGET);
     assert_holds("the cone", &report, n, 1);
@@ -286,7 +320,12 @@ fn a_revolved_cone_holds() {
 fn a_pyramid_holds() {
     use topo::test_support::meeting::{Pose, posed_pyramid};
     let at_rest = posed_pyramid(
-        &[[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]],
+        &[
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [1.0, 1.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ],
         [0.5, 0.5, 0.8],
         &Pose::rest(),
         tol(),
@@ -303,7 +342,9 @@ fn a_pyramid_holds() {
 fn an_embedded_triangle_loft_holds() {
     let tri = |s: f64, turn: f64| {
         let p = |a: f64| Point2::new(s * (a + turn).cos(), s * (a + turn).sin());
-        vec![ProfileLoop::polygon([0.0, TAU / 3.0, 2.0 * TAU / 3.0].map(p))]
+        vec![ProfileLoop::polygon(
+            [0.0, TAU / 3.0, 2.0 * TAU / 3.0].map(p),
+        )]
     };
     let sections = [tri(1.0, 0.0), tri(0.6, 0.3)];
     let places = [0.0, 1.0].map(|z| SketchPlane::xy_at(Point3::new(0.0, 0.0, z)));
@@ -334,7 +375,9 @@ fn a_declared_wedge_0_kiss_refuses_naming_the_second_order_arm() {
         .tangent_arc_to(Start, tol())
         .unwrap()
         .into();
-    let profile = Profile::new(SketchPlane::xy(), vec![lune]).validate(tol()).unwrap();
+    let profile = Profile::new(SketchPlane::xy(), vec![lune])
+        .validate(tol())
+        .unwrap();
     let body = extrude(&profile, to_offset(1.0), tol()).unwrap().body;
     let report = injective(&body, None, BUDGET);
     println!("[selfx] kiss: {:?} {:?}", report.verdict, report.receipt);
@@ -346,9 +389,16 @@ fn a_declared_wedge_0_kiss_refuses_naming_the_second_order_arm() {
         }) => {
             let he = body.get_edge(e).unwrap().he_plus;
             let p = *body
-                .get_point(body.get_vertex(body.get_half_edge(he).unwrap().start).unwrap().point)
+                .get_point(
+                    body.get_vertex(body.get_half_edge(he).unwrap().start)
+                        .unwrap()
+                        .point,
+                )
                 .unwrap();
-            assert!(p.x.abs() < 1e-9 && p.y.abs() < 1e-9, "the refusal names the kiss: {p:?}");
+            assert!(
+                p.x.abs() < 1e-9 && p.y.abs() < 1e-9,
+                "the refusal names the kiss: {p:?}"
+            );
         }
         other => panic!("the kiss refuses at the second-order arm: {other:?}"),
     }
@@ -359,9 +409,12 @@ fn a_declared_wedge_0_kiss_refuses_naming_the_second_order_arm() {
 /// own scope. Their minimum separation is `[0, 0]`, naming the edge.
 #[test]
 fn clearance_between_scopes_sharing_an_edge_is_violated_at_zero() {
-    let profile = Profile::new(SketchPlane::xy(), quad([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]))
-        .validate(tol())
-        .unwrap();
+    let profile = Profile::new(
+        SketchPlane::xy(),
+        quad([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]),
+    )
+    .validate(tol())
+    .unwrap();
     let built = extrude(&profile, to_offset(1.0), tol()).unwrap();
     let walls = built.side_faces();
     let (fa, fb) = (walls[0][0], walls[0][1]);
@@ -385,10 +438,16 @@ fn clearance_between_scopes_sharing_an_edge_is_violated_at_zero() {
     });
     assert!(report.receipt.holds(), "{:?}", report.receipt);
     let BoundVerdict::Violated(w) = report.verdict else {
-        panic!("two walls sharing an edge are 0 apart: {:?}", report.verdict)
+        panic!(
+            "two walls sharing an edge are 0 apart: {:?}",
+            report.verdict
+        )
     };
     assert!(w.d < 1e-12, "the witness is at 0: {w:?}");
-    assert!(matches!(met, Some(SharedCell::Edge(_))), "named on the shared edge: {met:?}");
+    assert!(
+        matches!(met, Some(SharedCell::Edge(_))),
+        "named on the shared edge: {met:?}"
+    );
     assert_eq!(CLEARANCE_MARGIN, bound.predicate());
     let m = min_separation(&sa, &sb, true, MinSeparationConfig::default()).unwrap();
     assert_eq!((m.lo(), m.window_hi()), (0.0, 0.0), "{}", m.render());
@@ -401,9 +460,14 @@ fn clearance_between_scopes_sharing_an_edge_is_violated_at_zero() {
 /// **A full torus certifies by kind**: one face, `R = 2 > r = 1/2`.
 #[test]
 fn a_full_torus_certifies_by_kind() {
-    let body = revolve(&validated(vec![donut_profile()]), axis_y(), Revolution::Full, tol())
-        .unwrap()
-        .body;
+    let body = revolve(
+        &validated(vec![donut_profile()]),
+        axis_y(),
+        Revolution::Full,
+        tol(),
+    )
+    .unwrap()
+    .body;
     let report = injective(&body, None, BUDGET);
     println!("[selfx] torus: {:?} {:?}", report.verdict, report.receipt);
     assert!(matches!(report.verdict, BoundVerdict::Holds));

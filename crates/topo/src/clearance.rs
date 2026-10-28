@@ -910,10 +910,13 @@ impl Sweep {
                 let cell = if x.face == y.face {
                     SharedCell::Face(x.face)
                 } else {
-                    sh.cell(&x.boundary)
-                        .unwrap_or(SharedCell::Face(x.face))
+                    sh.cell(&x.boundary).unwrap_or(SharedCell::Face(x.face))
                 };
-                match decide(self.bound.predicate(), Margin::of(Interval::from_bounds(-c, -c)), self.band) {
+                match decide(
+                    self.bound.predicate(),
+                    Margin::of(Interval::from_bounds(-c, -c)),
+                    self.band,
+                ) {
                     Ok(Sign::Positive) => receipt.discharged += 1,
                     Ok(Sign::Zero) if self.bound.zero_discharges() => receipt.discharged += 1,
                     _ => {
@@ -1035,12 +1038,24 @@ impl Sweep {
                 // distance.
                 if injective {
                     let same = x.face == y.face;
-                    let meet = same && injective::rects_meet((pair.a.u, pair.a.v), (pair.b.u, pair.b.v));
-                    // Two cells whose enclosures are disjoint hold no
-                    // common point, of M or of space: the enclosures are
-                    // rigorous, so this selects the distance test and
-                    // decides nothing it would not.
-                    let apart = separation(&pair.a.enc, &pair.b.enc).lo() > 0.0;
+                    let meet =
+                        same && injective::rects_meet((pair.a.u, pair.a.v), (pair.b.u, pair.b.v));
+                    // Two cells the distance test discharges hold no
+                    // common point, of M or of space: this selects that
+                    // test and decides nothing it would not. Disjoint
+                    // enclosures are not enough — two carriers that hold
+                    // a shared edge only to rounding enclose it an ulp
+                    // apart, and the distance test reads that within the
+                    // band, where only a certificate decides it. The
+                    // strict bound's `c` is 0.
+                    let apart = matches!(
+                        decide(
+                            self.bound.predicate(),
+                            Margin::of(separation(&pair.a.enc, &pair.b.enc)),
+                            self.band
+                        ),
+                        Ok(Sign::Positive)
+                    );
                     let near = if meet || sh.is_empty() || apart {
                         None
                     } else {
@@ -1097,14 +1112,17 @@ impl Sweep {
                                 receipt.refused += 1;
                                 first_refusal.get_or_insert(r);
                             }
-                            Outcome::Cusp { .. } => unreachable!("read as a split or a refusal above"),
+                            Outcome::Cusp { .. } => {
+                                unreachable!("read as a split or a refusal above")
+                            }
                             Outcome::Split { arm, shared } => {
-                                let refuse = |receipt: &mut CellReceipt,
-                                              first: &mut Option<EngineRefusal>,
-                                              r: EngineRefusal| {
-                                    receipt.refused += 1;
-                                    first.get_or_insert(r);
-                                };
+                                let refuse =
+                                    |receipt: &mut CellReceipt,
+                                     first: &mut Option<EngineRefusal>,
+                                     r: EngineRefusal| {
+                                        receipt.refused += 1;
+                                        first.get_or_insert(r);
+                                    };
                                 if pair.depth >= self.max_cell_depth {
                                     refuse(
                                         &mut receipt,
@@ -1271,7 +1289,11 @@ impl Sweep {
                         // The injectivity question halves a cell along its
                         // length in metres; every other question keeps the
                         // relative rule its receipts were taken under.
-                        let axes = if injective { Axes::Metric } else { Axes::Relative };
+                        let axes = if injective {
+                            Axes::Metric
+                        } else {
+                            Axes::Relative
+                        };
                         match split_by(pair, x, y, axes) {
                             Some((lo, hi)) => {
                                 receipt.splits += 1;
@@ -1466,7 +1488,14 @@ struct LocalMemo {
 }
 
 impl LocalMemo {
-    fn get<T: Real>(&mut self, side_b: bool, index: usize, w: &Window<'_, T>, c: Cell, band: Band) -> Local {
+    fn get<T: Real>(
+        &mut self,
+        side_b: bool,
+        index: usize,
+        w: &Window<'_, T>,
+        c: Cell,
+        band: Band,
+    ) -> Local {
         let key = (
             side_b,
             index,
@@ -2165,7 +2194,9 @@ impl RegionMemo {
             Region::Whole => w.u.0 <= u && u <= w.u.1 && w.v.0 <= v && v <= w.v.1,
             Region::Trimmed => matches!(
                 self.station(side_b, index, w, (u, v)),
-                Some(FaceContainment::In | FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_))
+                Some(
+                    FaceContainment::In | FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_)
+                )
             ),
         }
     }
@@ -2535,7 +2566,10 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                         let (t0, t1) = row.row.params();
                         let lift = |t: T| {
                             let q = row.pcurve.eval(t);
-                            Point2::new(Interval::from_certified(q.x), Interval::from_certified(q.y))
+                            Point2::new(
+                                Interval::from_certified(q.x),
+                                Interval::from_certified(q.y),
+                            )
                         };
                         images.insert(row.half_edge, ([lift(t0), lift(t1)], iso_of(&row.pcurve)));
                     }
@@ -2564,11 +2598,13 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                 Use {
                     plus: e.he_plus == *he,
                     image: found.map(|(image, _)| *image),
-                    iso: found.and_then(|(_, iso)| *iso).map(|(held, at, angle)| Iso {
-                        held,
-                        at,
-                        full: angle && ends[0] == ends[1],
-                    }),
+                    iso: found
+                        .and_then(|(_, iso)| *iso)
+                        .map(|(held, at, angle)| Iso {
+                            held,
+                            at,
+                            full: angle && ends[0] == ends[1],
+                        }),
                 }
             })
             .collect();
@@ -2757,7 +2793,12 @@ enum Axes {
     Relative,
     /// The axis of greatest extent in metres at the cell's centre: a
     /// touching pair's, whose certificates fail on what the surface does
-    /// along its length, not across a narrow strip.
+    /// along its length, not across a narrow strip. Where the chart
+    /// collapses in the cell — an axis whose speed at one of the cell's
+    /// nine stations is under an eighth of its most, as at a cone's apex
+    /// — the relative rule instead: there the length across shrinks with
+    /// the length along, so metres alone would only ever halve toward
+    /// the collapse and never narrow the turn the certificates need.
     Metric,
 }
 
@@ -2766,13 +2807,30 @@ fn split_axis<T: Real>(cell: Cell, root: &Window<'_, T>, axes: Axes) -> bool {
     let (ru, rv) = match axes {
         Axes::Relative => cell.relative(root),
         Axes::Metric => {
-            let at = |(lo, hi): (f64, f64)| {
-                let m = geom::mid_param(lo, hi);
-                Interval::from_bounds(m, m)
-            };
-            let j = root.surface.jet(at(cell.u), at(cell.v));
-            let len = |d: Vec3<Interval>, span: (f64, f64)| d.norm().hi() * (span.1 - span.0);
-            (len(j.du, cell.u), len(j.dv, cell.v))
+            let stations = |(lo, hi): (f64, f64)| [lo, geom::mid_param(lo, hi), hi];
+            let at = |x: f64| Interval::from_bounds(x, x);
+            let (mut u_least, mut u_most) = (f64::INFINITY, 0.0f64);
+            let (mut v_least, mut v_most) = (f64::INFINITY, 0.0f64);
+            for u in stations(cell.u) {
+                for v in stations(cell.v) {
+                    let j = root.surface.jet(at(u), at(v));
+                    let (su, sv) = (j.du.norm().hi(), j.dv.norm().hi());
+                    (u_least, u_most) = (u_least.min(su), u_most.max(su));
+                    (v_least, v_most) = (v_least.min(sv), v_most.max(sv));
+                }
+            }
+            if 8.0 * u_least < u_most || 8.0 * v_least < v_most {
+                cell.relative(root)
+            } else {
+                let j = root.surface.jet(
+                    at(geom::mid_param(cell.u.0, cell.u.1)),
+                    at(geom::mid_param(cell.v.0, cell.v.1)),
+                );
+                (
+                    j.du.norm().hi() * (cell.u.1 - cell.u.0),
+                    j.dv.norm().hi() * (cell.v.1 - cell.v.0),
+                )
+            }
         }
     };
     rv.total_cmp(&ru) == core::cmp::Ordering::Greater

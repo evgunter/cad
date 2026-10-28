@@ -135,8 +135,8 @@ pub(crate) mod chart_groups;
 pub mod chart_iso;
 pub mod chart_region;
 pub mod clearance;
-pub(crate) mod injective;
 pub mod construction;
+pub(crate) mod injective;
 // The shared chord-join core — ch. 14's `join`/`cut` mechanics and the
 // section-chord geometry, a top-level sibling of `boolean/` and
 // `splitting/` for the reason its own docs give. Non-doc comment for

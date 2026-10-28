@@ -1629,7 +1629,11 @@ impl NurbsSurface<Interval> {
     /// domain, a restriction the blossom door refuses, and a weight not
     /// certified positive: no partial is claimed there.
     #[allow(clippy::type_complexity)]
-    pub fn rect_jet(&self, u: (f64, f64), v: (f64, f64)) -> Option<(Vec3<Interval>, Vec3<Interval>, Vec3<Interval>)> {
+    pub fn rect_jet(
+        &self,
+        u: (f64, f64),
+        v: (f64, f64),
+    ) -> Option<(Vec3<Interval>, Vec3<Interval>, Vec3<Interval>)> {
         if !(u.0 < u.1 && v.0 < v.1) {
             return None;
         }
@@ -1731,9 +1735,8 @@ fn restricted_jet(
 ) -> Option<(Vec3<Interval>, Vec3<Interval>, Vec3<Interval>)> {
     let net = restricted_net(win, eu, ev)?;
     let (pu, pv) = (net.len() - 1, net.first()?.len() - 1);
-    let hull4 = |a: [Interval; 4], b: [Interval; 4]| {
-        [0, 1, 2, 3].map(|c| a[c].enclosure_hull(b[c]))
-    };
+    let hull4 =
+        |a: [Interval; 4], b: [Interval; 4]| [0, 1, 2, 3].map(|c| a[c].enclosure_hull(b[c]));
     let fold = |cells: &mut dyn Iterator<Item = [Interval; 4]>| -> Option<[Interval; 4]> {
         cells.reduce(hull4)
     };
@@ -1749,9 +1752,11 @@ fn restricted_jet(
         zero
     } else {
         scale(
-            fold(&mut (0..pu).flat_map(|k| (0..=pv).map(move |l| (k, l))).map(|(k, l)| {
-                sub(net[k + 1][l], net[k][l])
-            }))?,
+            fold(
+                &mut (0..pu)
+                    .flat_map(|k| (0..=pv).map(move |l| (k, l)))
+                    .map(|(k, l)| sub(net[k + 1][l], net[k][l])),
+            )?,
             fu / lu,
         )
     };
@@ -1759,9 +1764,11 @@ fn restricted_jet(
         zero
     } else {
         scale(
-            fold(&mut (0..=pu).flat_map(|k| (0..pv).map(move |l| (k, l))).map(|(k, l)| {
-                sub(net[k][l + 1], net[k][l])
-            }))?,
+            fold(
+                &mut (0..=pu)
+                    .flat_map(|k| (0..pv).map(move |l| (k, l)))
+                    .map(|(k, l)| sub(net[k][l + 1], net[k][l])),
+            )?,
             fv / lv,
         )
     };
@@ -1769,12 +1776,16 @@ fn restricted_jet(
         zero
     } else {
         scale(
-            fold(&mut (0..pu).flat_map(|k| (0..pv).map(move |l| (k, l))).map(|(k, l)| {
-                sub(
-                    sub(net[k + 1][l + 1], net[k + 1][l]),
-                    sub(net[k][l + 1], net[k][l]),
-                )
-            }))?,
+            fold(
+                &mut (0..pu)
+                    .flat_map(|k| (0..pv).map(move |l| (k, l)))
+                    .map(|(k, l)| {
+                        sub(
+                            sub(net[k + 1][l + 1], net[k + 1][l]),
+                            sub(net[k][l + 1], net[k][l]),
+                        )
+                    }),
+            )?,
             (fu * fv) / (lu * lv),
         )
     };

@@ -1417,7 +1417,12 @@ fn recorded_contact(
             topo::Cell::Face(f) => vec![f],
             topo::Cell::Edge(e) => body
                 .get_edge(e)
-                .map(|e| [e.he_plus, e.he_minus].into_iter().filter_map(loop_face).collect())
+                .map(|e| {
+                    [e.he_plus, e.he_minus]
+                        .into_iter()
+                        .filter_map(loop_face)
+                        .collect()
+                })
                 .unwrap_or_default(),
             topo::Cell::Vertex(v) => body
                 .half_edges()
