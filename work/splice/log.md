@@ -816,3 +816,24 @@ Filed by the lane:
 The lane also gave both lanes one `ArcRimRefusal`, behind one mapping
 door. The orchestrator re-ran the arc-rim, any-carrier and on-pair rows
 at three ε, and the exact-never-used mutation reds 5 of 6 rows.
+
+## 2026-10-28 — limb 3's two shapes claimed; a design fork weighed
+
+Lily's next stop is limb 3's one-arc walk (PR 5907's log entry). Its
+two rows move into SPLICE:
+- `ssiedge/…a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary`
+  (P0). SSIEDGE is ready with no live lane.
+- `nurbs/…a-pair-walk-end-at-a-domain-corner-refuses-undecided`. It is
+  re-banded P4 → P0, because a blocker inherits the band of what waits
+  on it, and lily is the consumer the row said did not exist.
+
+These are moves with no design implication (CLAUDE.md), so they are
+done and logged.
+
+How to read a solution set that runs along a cut box's face, or ends
+on two faces at once, is a design fork. Candidates include a box
+search over the charts' extension, an edge reading, or the topology
+the operands already state. One Opus and one Fable designer weigh it
+under `docs/DESIGN-FORK-PROTOCOL.md`, blinded (byte 123) on
+`analysis/design-fork/limb-three-boundary`. No lane is dispatched
+until they are reconciled.
