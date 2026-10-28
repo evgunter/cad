@@ -124,8 +124,9 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// Every check the insert door makes of a node's reads is made
     /// here, of the REWRITTEN node, through the same functions: each
     /// entry's lowering at its seat's kind ([`EditError::UnresolvedInput`],
-    /// [`EditError::SlotVarKind`], which a family read beside a member
-    /// meets), acyclicity ([`EditError::WouldCycle`]), and one space
+    /// [`EditError::SlotVarKind`]; a family spelled beside a body is read
+    /// whole there, its members joining the list, D10 `[repetition]`),
+    /// acyclicity ([`EditError::WouldCycle`]), and one space
     /// over every entry ([`EditError::SpaceMismatch`], D10
     /// `[placement.spaces]`). A loft's sections are spelled, so a family
     /// there refuses [`EditError::LoftSectionsSpelled`], and each keeps

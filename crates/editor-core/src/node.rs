@@ -3401,20 +3401,16 @@ where
             (None, None) => {}
             _ => return false,
         }
-        // A literal FRAME is float payload no slot addresses, and the
-        // `PartialEq` above compares its coordinates by value: a
-        // transform's literal steps, an explicit rule's listed frames,
-        // and each constraint's own scalars compare here, by bits.
-        match (self, other) {
-            (
-                Node::Place { constraints: a, .. } | Node::InstantiatePart { constraints: a, .. },
-                Node::Place { constraints: b, .. } | Node::InstantiatePart { constraints: b, .. },
-            ) => {
-                if a.len() != b.len() || !a.iter().zip(b).all(|(x, y)| x.bit_eq(y)) {
-                    return false;
-                }
-            }
-            _ => {}
+        // A constraint's own scalars are float payload no slot
+        // addresses, and the `PartialEq` above compares them by value:
+        // they compare here, by bits.
+        if let (
+            Node::Place { constraints: a, .. } | Node::InstantiatePart { constraints: a, .. },
+            Node::Place { constraints: b, .. } | Node::InstantiatePart { constraints: b, .. },
+        ) = (self, other)
+            && (a.len() != b.len() || !a.iter().zip(b).all(|(x, y)| x.bit_eq(y)))
+        {
+            return false;
         }
         // Equal payloads have identical slot sets; compare each
         // slot's literal bits (slots() order is deterministic).
