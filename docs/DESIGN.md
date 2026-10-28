@@ -897,24 +897,8 @@ tiers".
   another builds is a kernel defect ([operations.operators]). Merging
   **never fuses two vertices into one**; the record carry rests on it.
 - **A seam is a property of a face**, not a place on its surface, and a
-  wall keeps the cuts its author wrote; a spline wall is also cut
-  wherever its representation is not C¹ by structure, and that seam is
-  smooth. A face boundary sits at each authored junction where the
-  result creases: a loft at v-degree 1 cuts its walls at every section,
-  one wall per profile segment per slab between consecutive sections,
-  each interior section a ring of edges and each strut one straight
-  edge per slab; the finishing join then merges the slabs whose
-  carriers coincide, as it merges any faces.
-- **Every face chart and edge carrier is C¹ by its knot structure**
-  strictly inside its cell: it carries no interior knot of multiplicity
-  at least its degree (`KnotStructure::crease_runs` is empty), and
-  tier 3 checks that from the knots alone. Where a construction's
-  surface or curve is not C¹ by structure, the construction puts an
-  edge or a vertex there; the skin cuts an arc wall at each sub-arc
-  joint, so its sub-arc ceiling (`MAX_SUB_ARC`) is a construction
-  constant that sets topology. Import splits a foreign face or edge at
-  each such knot at its door. No reader of a face or edge carries a
-  crease arm.
+  wall keeps the cuts its author wrote: the kernel adds none, except
+  where a face or edge carrier is not C¹ by its knot structure.
 
 **The frontier is typed and named.** Every unbuilt case refuses with a
 message naming its own blocker ([failure.taxonomy], row 2), so the
