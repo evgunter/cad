@@ -6799,7 +6799,8 @@ class Coincidence:
     `same_oriented`, `same_opposite`, `on_carrier`, `common_foot`,
     `tangent`, `cusp`, `surface_tangent`, `coaxial`, `same_radius`,
     `axes_meet`, `co_ruled` or `meet`; `site` is `plane_ladder`, `carrier_ladder`,
-    `tangent_witness`, `coaxial_sphere`, `crossing_cylinders`, `split_on`,
+    `tangent_witness`, `coaxial_sphere`, `sphere_on_torus_axis`,
+    `coaxial_cylinder_torus`, `coaxial_tori`, `crossing_cylinders`, `split_on`,
     `battery_turn`, `battery_joint`, `battery_support_axis`,
     `profile_junction`, `vertex_fusion` or
     `census_at_rest`. A `profile_junction` row is `tangent` or `cusp`

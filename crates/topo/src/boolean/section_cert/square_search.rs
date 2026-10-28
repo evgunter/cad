@@ -552,8 +552,12 @@ fn square_pose_at(
     let d0 = b1 * psi.cos() + b2 * psi.sin();
     let across = a.cross(d0);
     let foot = c + across * e + a * z0;
-    // The foot is the pivot: the axis's point nearest the reach's centre.
-    let lever = super::lever(foot, reach_of(&ring));
+    // The foot is the pivot: the axis's point nearest the torus's centre,
+    // levered over the torus's own ball, as the section value reads it.
+    let lever = geom_brep::pair_section::torus::lever(
+        foot,
+        geom_brep::ExtentBall::new(ring.c, ring.big_r + ring.r),
+    );
     let tilt = if rng.unit() < 0.3 {
         band().zero() / lever * rng.range(1e-6f64.ln(), 0.25f64.ln()).exp()
     } else {

@@ -199,8 +199,9 @@ pub(super) fn overlapping_pairs<T: Decide + Bounds>(
 /// of faces whose boxes overlap and whose kinds the section value builds
 /// ([`geom_brep::pair_section::serves`]), and the coincidences the join
 /// reads, per face pair of the two operands: a pair whose section stands
-/// on a coincidence decided `Zero` (the sphere's centre on the
-/// cylinder's axis) one row, read from the table; and a crossing
+/// on a coincidence decided `Zero` (a sphere's centre on a cylinder's or
+/// a torus's axis, a cylinder or a torus coaxial with a torus) one row,
+/// read from the table, at the coincidence's own site; and a crossing
 /// cylinder pair's two rows, its radii decided equal and its axes decided
 /// meeting ([`super::join::crossing_cylinder_margins`]), the
 /// classification the join's bisector lane reads. The rows in A's face
@@ -266,15 +267,32 @@ pub(crate) fn section_door<T: Decide + Bounds>(
             Some(Err(_)) | None => None,
         };
         if let (true, Some(zero)) = (recorded, coincidence) {
-            rows.push(row(
-                (fa, fb),
-                crate::Relation::OnCarrier,
-                crate::DecisionSite::CoaxialSphere,
-                zero.margin,
-            ));
+            let (relation, site) = coincidence_site(zero.decision);
+            rows.push(row((fa, fb), relation, site, zero.margin));
         }
     }
     Ok((table.finish(), rows))
+}
+
+/// **The record a coincidence the section value decided is kept as**:
+/// the relation it decides and its own site.
+fn coincidence_site(
+    decision: geom_brep::SectionDecision,
+) -> (crate::Relation, crate::DecisionSite) {
+    use crate::{DecisionSite as Site, Relation};
+    use geom_brep::{CsDecision, SectionDecision as D};
+    match decision {
+        D::CylinderSphere(CsDecision::Coaxial) => (Relation::OnCarrier, Site::CoaxialSphere),
+        D::SphereTorusCoaxial => (Relation::OnCarrier, Site::SphereOnTorusAxis),
+        D::CylinderTorusCoaxial => (Relation::Coaxial, Site::CoaxialCylinderTorus),
+        D::TorusTorusCoaxial => (Relation::Coaxial, Site::CoaxialTori),
+        D::CylinderSphere(CsDecision::WallReach | CsDecision::NearReach | CsDecision::FarReach)
+        | D::TorusTangency(_) => unreachable!(
+            "`{}` decides a tangency, and the section lists only coincidences among its \
+             coincidence records",
+            decision.name()
+        ),
+    }
 }
 
 /// **The face-pair rows whose faces meet**: each row deciding faces

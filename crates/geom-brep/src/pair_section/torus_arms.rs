@@ -38,14 +38,16 @@ impl From<Pinch> for ArmRefusal {
     }
 }
 
-/// A margin a reading could not take as a side: decided `Zero`
+/// **A margin a row reading could not take as a side**: decided `Zero`
 /// (`undecided` `None`), or undecided, with its diagnostics.
 #[derive(Clone, Copy, Debug)]
-pub(super) struct Pinch {
-    pub(super) name: &'static str,
+pub struct Pinch {
+    /// The row, or the predicate left undecided.
+    pub name: &'static str,
     /// The margin's place in the list [`signs`] decided.
-    pub(super) index: usize,
-    pub(super) undecided: Option<Indeterminate>,
+    pub index: usize,
+    /// The diagnostics, where the margin was undecided.
+    pub undecided: Option<Indeterminate>,
 }
 
 impl Pinch {
@@ -92,8 +94,9 @@ fn first_pinch<R, const N: usize>(
     Ok(out)
 }
 
-/// Decides every margin in `ms` ([`first_pinch`]).
-pub(super) fn signs<T: Decide, const N: usize>(
+/// **Decides every margin in `ms`**, the first `Zero` or undecided one
+/// the pinch ([`first_pinch`]).
+pub fn signs<T: Decide, const N: usize>(
     ms: [(&'static str, T); N],
     band: Band,
 ) -> Result<[bool; N], Pinch> {
@@ -102,7 +105,7 @@ pub(super) fn signs<T: Decide, const N: usize>(
 
 /// [`signs`], each row `(far, floor, datum)` read across the reach beside
 /// `slack` ([`decide_across`]).
-pub(super) fn signs_across<T: Decide, const N: usize>(
+pub fn signs_across<T: Decide, const N: usize>(
     rows: [(&'static str, &'static str, T); N],
     slack: T,
     band: Band,

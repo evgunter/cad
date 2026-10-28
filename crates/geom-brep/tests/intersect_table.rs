@@ -925,7 +925,11 @@ fn a_coaxial_crossing_is_two_circles() {
         let s = cs_section(&cyl, &sph).unwrap();
         let circles = cs_circles(&s);
         assert_eq!(circles.len(), 2, "{label}: two circles");
-        let centre = s.pose().center();
+        let centre = s
+            .pose()
+            .cylinder_sphere()
+            .expect("a cylinder × sphere pose")
+            .center();
         for (c, axis, radius) in circles {
             assert_eq!(radius, 1.0, "{label}: the circles carry the CYLINDER's r");
             let station = (c - centre).dot(axis).abs();
@@ -978,7 +982,11 @@ fn a_coaxial_tangency_is_classification_data_at_both_doors() {
         };
         assert!(matches!(c.carrier, ClassCarrier::Unminted(_)), "{label}");
         // It IS the contact locus: zero residual against both.
-        let (centre, axis, (r, _)) = (s.pose().center(), s.pose().axis(), s.pose().radii());
+        let pose = s
+            .pose()
+            .cylinder_sphere()
+            .expect("a cylinder × sphere pose");
+        let (centre, axis, (r, _)) = (pose.center(), pose.axis(), pose.radii());
         for p in circle_samples(centre, axis, r, 0.0) {
             assert!(implicit_residual(&cyl, p).abs() < 1e-13, "{label}");
             assert!(implicit_residual(&sph, p).abs() < 1e-13, "{label}");

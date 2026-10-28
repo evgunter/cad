@@ -576,6 +576,9 @@ pub(crate) const fn site_words(site: topo::DecisionSite) -> &'static str {
         topo::DecisionSite::CarrierLadder => "a pair of carriers its margins read as one",
         topo::DecisionSite::TangentWitness => "a tangency verified along its locus",
         topo::DecisionSite::CoaxialSphere => "a sphere's centre read on a cylinder's axis",
+        topo::DecisionSite::SphereOnTorusAxis => "a sphere's centre read on a torus's axis",
+        topo::DecisionSite::CoaxialCylinderTorus => "a cylinder read coaxial with a torus",
+        topo::DecisionSite::CoaxialTori => "two tori read on one axis",
         topo::DecisionSite::CrossingCylinders => {
             "two cylinders read as one radius with meeting axes"
         }

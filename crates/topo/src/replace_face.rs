@@ -2756,6 +2756,8 @@ fn plan_edge<'s, T: Decide>(
                 | geom_brep::SectionError::CoincidentSurfaces
                 | geom_brep::SectionError::RoutesToGeneralRung { .. }
                 | geom_brep::SectionError::Carrier(_)
+                | geom_brep::SectionError::Pinched { .. }
+                | geom_brep::SectionError::Unordered { .. }
                 | geom_brep::SectionError::Spiric(_)) => unreachable!(
                     "{edge:?}: `route_pose` answers only an escalation, a torus refusal or a misdispatch, and \
                  returned {other:?}"
@@ -3208,7 +3210,9 @@ fn derive_edge<'w, 's, T: Decide>(
         | geom_brep::SectionError::CoincidentSurfaces
         | geom_brep::SectionError::RoutesToGeneralRung { .. }
         | geom_brep::SectionError::Carrier(_)
-        | geom_brep::SectionError::Spiric(_)) => unreachable!(
+        | geom_brep::SectionError::Pinched { .. }
+                | geom_brep::SectionError::Unordered { .. }
+                | geom_brep::SectionError::Spiric(_)) => unreachable!(
             "{edge:?}: `route_pose` answers only an escalation, a torus refusal or a misdispatch, and returned \
              {other:?}"
         ),

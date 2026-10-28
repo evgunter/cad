@@ -583,12 +583,7 @@ fn perpendicular<T: geom_core::Real>(v: Vec3<T>, axis: Vec3<T>) -> Vec3<T> {
     v - axis * v.dot(axis)
 }
 
-/// The angle between two axis LINES as a chord, `|a₁ − σ·a₂|` for the
-/// sign σ that brings them nearest: `2·sin(θ/2)`, which bounds how far
-/// a unit offset turns between them. Comparison-free (`min`).
-pub(crate) fn line_tilt<T: geom_core::Real>(a1: Vec3<T>, a2: Vec3<T>) -> T {
-    (a1 - a2).norm().min((a1 + a2).norm())
-}
+pub(crate) use geom_brep::line_tilt;
 
 /// **The pair as the undeclared ladder reads it when its verdict is
 /// consumed over `reach`**: each description anchored where its

@@ -327,7 +327,9 @@ impl<T: Decide> Sweep<'_, T> {
         let mid = (a + b) / two;
         let r = read(self.core, self.spine, far, mid);
         let guess = self.bend(r, T::zero())?;
-        let mut h = (T::from_f64(self.band.zero()) / (two * guess)).sqrt() / big;
+        // `bend·h²/2` at half the zero band: `h` in radians, `bend` in
+        // metres per radian squared.
+        let mut h = (T::from_f64(self.band.zero()) / guess).sqrt();
         for _ in 0..GAP_WINDOWS {
             if let Some(bend) = self.bend(r, big * h) {
                 let (left, right) = (self.turn(far, mid - h), self.turn(far, mid + h));

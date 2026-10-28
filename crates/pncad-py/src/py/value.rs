@@ -2729,7 +2729,8 @@ impl Coincidence {
     }
 
     /// Where it was decided: `plane_ladder`, `carrier_ladder`,
-    /// `tangent_witness`, `coaxial_sphere`, `crossing_cylinders`,
+    /// `tangent_witness`, `coaxial_sphere`, `sphere_on_torus_axis`,
+    /// `coaxial_cylinder_torus`, `coaxial_tori`, `crossing_cylinders`,
     /// `split_on`, `battery_turn`, `battery_joint`, `battery_support_axis`,
     /// `profile_junction`, `vertex_fusion` or `census_at_rest`.
     #[getter]

@@ -38,13 +38,18 @@
 //! the statement that the scalar may march (`SsiLane::marched`, at
 //! `f64` alone).
 //!
-//! # Cylinder × sphere
+//! # The pairs it serves
 //!
-//! The one pair this value serves today. Its pose
-//! ([`CylinderSpherePose`]) is decided once, and every reader of the
-//! pair reads it: the C5 table's pose question ([`crate::route_pose`]),
-//! the ℝ³ march ([`crate::ssi::cylinder_sphere_ssi`]), and through this
-//! value the Boolean's section table.
+//! Cylinder × sphere and the three torus pairs (a ring torus against a
+//! sphere, a cylinder or another ring torus, [`torus`]). Each pair's pose
+//! ([`CylinderSpherePose`], [`SphereTorusPose`], [`CylinderTorusPose`],
+//! [`TorusTorusPose`]) is decided once, and every reader of the pair
+//! reads it: the C5 table's pose question ([`crate::route_pose`]), the
+//! ℝ³ march ([`crate::ssi::cylinder_sphere_ssi`],
+//! [`crate::ssi::sphere_torus_ssi`]), and through this value the
+//! Boolean's section table and the section certificate. A torus pair's
+//! tangency is its critical gap's ([`gap`]), the one place it is
+//! decided.
 
 use geom::{Curve3, Surface, SurfaceKind};
 use geom_core::{
@@ -54,6 +59,17 @@ use geom_core::{
 use crate::intersect::{PairRoute, SectionError, SectionRadius, route};
 use crate::ssi::{BranchEnd, SsiCertificate, SsiDomain, SsiError};
 
+pub mod gap;
+pub mod torus;
+mod torus_arms;
+
+pub use gap::Gap;
+pub use torus::{
+    AxisPose, CtStance, CylinderTorusPose, Ring, SphereTorusPose, StStance, TorusGap,
+    TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, axis_pose,
+};
+pub use torus_arms::{Pinch, SquareWall, signs, signs_across};
+
 /// **`v`'s part square to the unit `a`, and its norm**, taken as
 /// `a × (v × a)`, which stands square to `a` to the rounding of its own
 /// size: `v − a·(a·v)` keeps a component along `a` of `v`'s size times
@@ -62,6 +78,13 @@ use crate::ssi::{BranchEnd, SsiCertificate, SsiDomain, SsiError};
 pub fn square_part<T: Real>(v: Vec3<T>, a: Vec3<T>) -> (Vec3<T>, T) {
     let perp = a.cross(v.cross(a));
     (perp, perp.norm())
+}
+
+/// The angle between two axis LINES as a chord, `|a₁ − σ·a₂|` for the
+/// sign σ that brings them nearest: `2·sin(θ/2)`, which bounds how far
+/// a unit offset turns between them. Comparison-free (`min`).
+pub fn line_tilt<T: Real>(a1: Vec3<T>, a2: Vec3<T>) -> T {
+    (a1 - a2).norm().min((a1 + a2).norm())
 }
 
 // ---------------------------------------------------------------------
@@ -371,7 +394,7 @@ impl<T: Decide> CylinderSpherePose<T> {
     pub fn tangency(&self) -> Option<ZeroVerdict> {
         let tangent = |decision: CsDecision, d: Decided| {
             (d.sign == Sign::Zero).then_some(ZeroVerdict {
-                decision,
+                decision: SectionDecision::CylinderSphere(decision),
                 margin: d.margin,
                 kind: ZeroKind::Tangency,
             })
@@ -405,11 +428,40 @@ pub enum ZeroKind {
     Tangency,
 }
 
+/// **Which decision a `Zero` verdict was decided on.**
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SectionDecision {
+    /// A cylinder × sphere pose question.
+    CylinderSphere(CsDecision),
+    /// `st_coaxial`: the sphere's centre on the torus's axis.
+    SphereTorusCoaxial,
+    /// `section_axes_offset`: the cylinder's axis on the torus's.
+    CylinderTorusCoaxial,
+    /// `section_axes_offset`: the second torus's axis on the first's.
+    TorusTorusCoaxial,
+    /// A torus pair's tangency, by the row that decided it: the critical
+    /// gap's, or a coaxial pose's closed-form tube row.
+    TorusTangency(&'static str),
+}
+
+impl SectionDecision {
+    /// The decision's K-funnel name.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::CylinderSphere(d) => d.name(),
+            Self::SphereTorusCoaxial => "st_coaxial",
+            Self::CylinderTorusCoaxial | Self::TorusTorusCoaxial => "section_axes_offset",
+            Self::TorusTangency(row) => row,
+        }
+    }
+}
+
 /// One `Zero` verdict that chose the section's arm.
 #[derive(Clone, Copy, Debug)]
 pub struct ZeroVerdict {
     /// The decision.
-    pub decision: CsDecision,
+    pub decision: SectionDecision,
     /// Its margin.
     pub margin: MarginDiag,
     /// What it means.
@@ -435,6 +487,10 @@ pub enum ClassCarrier<T: Real> {
     /// None mints: the component is classification data, for the reason
     /// given.
     Unminted(&'static str),
+    /// The general rung's, whose door for the pair is unbuilt: the
+    /// component is classified, and carrying it waits on the door the
+    /// note names.
+    Unbuilt(&'static str),
 }
 
 /// One connected component of a section, as classified.
@@ -454,9 +510,61 @@ pub struct SectionComponent<T: Real> {
 /// **The section of two distinct surfaces, classified** (module docs).
 #[derive(Clone, Debug)]
 pub struct PairSection<T: Real> {
-    pose: CylinderSpherePose<T>,
+    pose: PairPose<T>,
     decided: Vec<ZeroVerdict>,
     components: Vec<SectionComponent<T>>,
+    sides: Sides<T>,
+    lever: T,
+}
+
+/// **The pose a section was built over**, one per pair it serves.
+#[derive(Clone, Debug)]
+pub enum PairPose<T: Real> {
+    /// Cylinder × sphere.
+    CylinderSphere(CylinderSpherePose<T>),
+    /// Sphere × torus.
+    SphereTorus(SphereTorusPose<T>),
+    /// Cylinder × torus.
+    CylinderTorus(CylinderTorusPose<T>),
+    /// Torus × torus.
+    TorusTorus(TorusTorusPose<T>),
+}
+
+impl<T: Real> PairPose<T> {
+    /// The cylinder × sphere pose, where it is one.
+    pub fn cylinder_sphere(&self) -> Option<&CylinderSpherePose<T>> {
+        match self {
+            Self::CylinderSphere(p) => Some(p),
+            Self::SphereTorus(_) | Self::CylinderTorus(_) | Self::TorusTorus(_) => None,
+        }
+    }
+}
+
+/// **How a site's component is told apart** among a section's two
+/// ([`PairSection::component_of`]); the first component is the one on
+/// the positive side.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Sides<T: Real> {
+    /// One component or none: nothing to tell apart.
+    One,
+    /// The side of the plane through `origin` normal to `normal`.
+    Plane {
+        origin: Point3<T>,
+        normal: Vec3<T>,
+        row: &'static str,
+    },
+    /// The side, in the meridian half-plane of `(center, axis)` through
+    /// the site, of the line through `through` along `along`, each
+    /// `(distance from the axis, height)`.
+    Meridian {
+        center: Point3<T>,
+        axis: Vec3<T>,
+        through: (T, T),
+        along: (T, T),
+        row: &'static str,
+    },
+    /// No reading of the classification tells them apart.
+    Untold(&'static str),
 }
 
 /// What [`pair_section`] answers.
@@ -477,7 +585,12 @@ pub enum SectionRead<T: Real> {
 /// The arm's [`SectionError`]: an operand's radius not definitely
 /// positive ([`SectionError::DegenerateOperand`], or
 /// [`SectionError::RadiusEscalated`] in band), and a pose question in
-/// the band ([`SectionError::Escalated`]).
+/// the band ([`SectionError::Escalated`]); a torus outside its ring
+/// convention ([`SectionError::DegenerateTorus`]), two tori decided one
+/// ([`SectionError::CoincidentSurfaces`]), a closed-form count refused
+/// ([`SectionError::Pinched`], [`SectionError::Unordered`]), and a
+/// general cylinder × torus or torus × torus pose, whose door is unbuilt
+/// ([`SectionError::RoutesToGeneralRung`]).
 pub fn pair_section<T: Decide>(
     a: &Surface<T>,
     b: &Surface<T>,
@@ -492,11 +605,29 @@ pub fn pair_section<T: Decide>(
                 expected: "a cylinder and a sphere",
             }),
         },
+        (Sphere, Torus) | (Torus, Sphere) => match SphereTorusPose::decide(a, b, band) {
+            Some(pose) => torus::sphere_torus(pose?, band).map(SectionRead::Built),
+            None => Err(SectionError::WrongLane {
+                expected: "a sphere and a torus",
+            }),
+        },
+        (Cylinder, Torus) | (Torus, Cylinder) => match CylinderTorusPose::decide(a, b, band) {
+            Some(pose) => torus::cylinder_torus(pose?, band).map(SectionRead::Built),
+            None => Err(SectionError::WrongLane {
+                expected: "a cylinder and a torus",
+            }),
+        },
+        (Torus, Torus) => match TorusTorusPose::decide(a, b, band) {
+            Some(pose) => torus::torus_torus(pose?, band).map(SectionRead::Built),
+            None => Err(SectionError::WrongLane {
+                expected: "two tori",
+            }),
+        },
         (Plane, Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx)
-        | (Cylinder, Plane | Cylinder | Cone | Torus | Nurbs | Approx)
+        | (Cylinder, Plane | Cylinder | Cone | Nurbs | Approx)
         | (Cone, Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx)
-        | (Sphere, Plane | Cone | Sphere | Torus | Nurbs | Approx)
-        | (Torus, Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx)
+        | (Sphere, Plane | Cone | Sphere | Nurbs | Approx)
+        | (Torus, Plane | Cone | Nurbs | Approx)
         | (Nurbs, Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx)
         | (Approx, Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx) => {
             Ok(SectionRead::Elsewhere(route(ka, kb)))
@@ -512,8 +643,8 @@ pub fn pair_section<T: Decide>(
 pub fn serves(kind: SurfaceKind) -> bool {
     use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
     match kind {
-        Cylinder | Sphere => true,
-        Plane | Cone | Torus | Nurbs | Approx => false,
+        Cylinder | Sphere | Torus => true,
+        Plane | Cone | Nurbs | Approx => false,
     }
 }
 
@@ -547,7 +678,7 @@ fn cylinder_sphere<T: Decide>(pose: CylinderSpherePose<T>) -> PairSection<T> {
     let components = match pose.stance {
         CsStance::Coaxial { coaxial, wall } => {
             decided.push(ZeroVerdict {
-                decision: CsDecision::Coaxial,
+                decision: SectionDecision::CylinderSphere(CsDecision::Coaxial),
                 margin: coaxial,
                 kind: ZeroKind::Coincidence,
             });
@@ -597,7 +728,13 @@ fn cylinder_sphere<T: Decide>(pose: CylinderSpherePose<T>) -> PairSection<T> {
     };
     decided.extend(pose.tangency());
     PairSection {
-        pose,
+        sides: Sides::Plane {
+            origin: pose.foot,
+            normal: pose.axis,
+            row: "cs_component_side",
+        },
+        lever: pose.r,
+        pose: PairPose::CylinderSphere(pose),
         decided,
         components,
     }
@@ -611,11 +748,14 @@ pub enum SiteRefusal {
     /// The site lies on no component, or on two: the site was not read
     /// from this section.
     Desync(&'static str),
+    /// The classification does not tell the section's components apart
+    /// at a site, for the reason given.
+    Untold(&'static str),
 }
 
 impl<T: Decide> PairSection<T> {
     /// The pose the arm decided.
-    pub fn pose(&self) -> &CylinderSpherePose<T> {
+    pub fn pose(&self) -> &PairPose<T> {
         &self.pose
     }
 
@@ -648,32 +788,63 @@ impl<T: Decide> PairSection<T> {
 
     /// **The component the site `p` lies on**, by the classification
     /// alone, so no march is owed for it: a section of one component
-    /// answers it; two are told apart by the side of the plane through
-    /// the sphere centre's foot square to the cylinder's axis
-    /// (`cs_component_side`), the first component on its positive side.
-    /// Both components of a two-loop section keep a definite height over
-    /// that plane, so a `Zero` there is a site on neither, a desync.
-    /// Whether the site lies within the band of the component is the
-    /// carried section's question ([`CarriedSection::foot`]).
+    /// answers it; two are told apart by the side of a plane or of a
+    /// meridian line the arm names (for cylinder × sphere the plane
+    /// through the sphere centre's foot square to the cylinder's axis,
+    /// `cs_component_side`), the first component on its positive side.
+    /// Both components keep a definite side, so a `Zero` there is a site
+    /// on neither, a desync. More than two, or two the arm cannot tell
+    /// apart, are untold. Whether the site lies within the band of the
+    /// component is the carried section's question
+    /// ([`CarriedSection::foot`]).
     ///
     /// # Errors
     ///
     /// [`SiteRefusal`]; a section with no component is a desync.
     pub fn component_of(&self, p: Point3<T>, band: Band) -> Result<usize, SiteRefusal> {
-        match self.components.len() {
-            0 => Err(SiteRefusal::Desync("a site on a section with no component")),
-            1 => Ok(0),
-            _ => {
-                let height = (p - self.pose.foot).dot(self.pose.axis);
-                match geom_core::k_stats::decide("cs_component_side", Margin::of(height), band) {
-                    Ok(Sign::Positive) => Ok(0),
-                    Ok(Sign::Negative) => Ok(1),
-                    Ok(Sign::Zero) => Err(SiteRefusal::Desync(
-                        "a site lies between the two loops of its section",
-                    )),
-                    Err(diag) => Err(SiteRefusal::Escalated(diag)),
-                }
+        let side =
+            |row: &'static str, m: T| match geom_core::k_stats::decide(row, Margin::of(m), band) {
+                Ok(Sign::Positive) => Ok(0),
+                Ok(Sign::Negative) => Ok(1),
+                Ok(Sign::Zero) => Err(SiteRefusal::Desync(
+                    "a site lies between the two components of its section",
+                )),
+                Err(diag) => Err(SiteRefusal::Escalated(diag)),
+            };
+        match (self.components.len(), self.sides) {
+            (0, _) => Err(SiteRefusal::Desync("a site on a section with no component")),
+            (1, _) => Ok(0),
+            (
+                2,
+                Sides::Plane {
+                    origin,
+                    normal,
+                    row,
+                },
+            ) => side(row, (p - origin).dot(normal)),
+            (
+                2,
+                Sides::Meridian {
+                    center,
+                    axis,
+                    through: (x0, z0),
+                    along: (dx, dz),
+                    row,
+                },
+            ) => {
+                let w = p - center;
+                let (_, rho) = square_part(w, axis);
+                let (x, z) = (rho - x0, w.dot(axis) - z0);
+                side(row, (dx * z - dz * x) / (dx.powi(2) + dz.powi(2)).sqrt())
             }
+            (2, Sides::Untold(why)) => Err(SiteRefusal::Untold(why)),
+            (2, Sides::One) => Err(SiteRefusal::Untold(
+                "the section's two components have no reading that tells them apart",
+            )),
+            _ => Err(SiteRefusal::Untold(
+                "a section of more than two components, which the classification does not \
+                 tell apart at a site",
+            )),
         }
     }
 
@@ -691,11 +862,12 @@ impl<T: Decide> PairSection<T> {
         lane: Option<SsiLane<T>>,
         band: Band,
     ) -> Result<CarriedSection<T>, CarryError> {
-        if let Some(why) = self.components.iter().find_map(|c| match c.carrier {
-            ClassCarrier::Unminted(why) => Some(why),
-            ClassCarrier::Closed(_) | ClassCarrier::General => None,
-        }) {
-            return Err(CarryError::Unminted(why));
+        for c in &self.components {
+            match c.carrier {
+                ClassCarrier::Unminted(why) => return Err(CarryError::Unminted(why)),
+                ClassCarrier::Unbuilt(why) => return Err(CarryError::Unbuilt(why)),
+                ClassCarrier::Closed(_) | ClassCarrier::General => {}
+            }
         }
         let mut fitted = if self
             .components
@@ -748,11 +920,12 @@ impl<T: Decide> PairSection<T> {
                     "the march found no branch on a component the classification names",
                 )),
                 (ClassCarrier::Unminted(why), _) => Err(CarryError::Unminted(why)),
+                (ClassCarrier::Unbuilt(why), _) => Err(CarryError::Unbuilt(why)),
             })
             .collect::<Result<_, _>>()?;
         Ok(CarriedSection {
             components,
-            lever: self.pose.r,
+            lever: self.lever,
         })
     }
 }
@@ -777,13 +950,13 @@ pub struct FittedCarrier<T: Real> {
 }
 
 /// **The general rung's door** (module docs): the ℝ³ march of a
-/// cylinder × sphere pose, written at `f64`. Holding one is the
+/// cylinder × sphere or a sphere × torus pose, written at `f64`. Holding one is the
 /// statement that the scalar may march; [`SsiLane::marched`], at `f64`,
 /// is its one constructor.
 #[derive(Clone, Copy, Debug)]
 pub struct SsiLane<T: Real> {
     /// One march of a decided pose.
-    march: fn(&CylinderSpherePose<T>, Band) -> Marched<T>,
+    march: fn(&PairPose<T>, Band) -> Marched<T>,
 }
 
 /// What one march of a pose answers: its fitted branches.
@@ -803,21 +976,32 @@ impl SsiLane<f64> {
 /// every component of a sphere's section: a cube, as an [`SsiDomain`]
 /// states one, padded by a hundredth of the radius so the slab's faces
 /// stand off the sphere's extreme points, where a component can reach
-/// the box. The cylinder's box is unbounded along its axis, so the
-/// sphere's is the smallest cube the pair always fits. The feature
-/// extent is the sphere's diameter; the accounting floor is the
-/// standard one (`floor_scale` 1).
+/// the box. A cylinder's box is unbounded along its axis, and the
+/// torus's need not be smaller, so the sphere's is the one cube the pair
+/// always fits. The feature extent is the sphere's diameter; the
+/// accounting floor is the standard one (`floor_scale` 1). A pose with
+/// no sphere has no general carrier this door marches.
 fn march_over_the_sphere(
-    pose: &CylinderSpherePose<f64>,
+    pose: &PairPose<f64>,
     band: Band,
 ) -> Result<Vec<FittedCarrier<f64>>, SsiError> {
-    let domain = SsiDomain {
-        center: pose.center,
-        half_extent: pose.big_r * 1.01,
-        extent: pose.big_r * 2.0,
+    let over = |(center, radius): (Point3<f64>, f64)| SsiDomain {
+        center,
+        half_extent: radius * 1.01,
+        extent: radius * 2.0,
         floor_scale: 1.0,
     };
-    let out = crate::ssi::march_cylinder_sphere(pose, domain, band)?;
+    let out = match pose {
+        PairPose::CylinderSphere(p) => {
+            crate::ssi::march_cylinder_sphere(p, over((p.center, p.big_r)), band)?
+        }
+        PairPose::SphereTorus(p) => crate::ssi::march_sphere_torus(p, over(p.ball()), band)?,
+        PairPose::CylinderTorus(_) | PairPose::TorusTorus(_) => {
+            return Err(SsiError::WrongLane {
+                expected: "a section with a sphere, whose box holds it",
+            });
+        }
+    };
     Ok(out
         .branches
         .into_iter()
@@ -836,6 +1020,8 @@ fn march_over_the_sphere(
 pub enum CarryError {
     /// A component has no carrier: a tangency, classification only (C7).
     Unminted(&'static str),
+    /// A component's general-rung door is unbuilt, as the note says.
+    Unbuilt(&'static str),
     /// The general rung is not marched at this scalar.
     NoLane {
         /// The scalar, by name.
@@ -889,8 +1075,9 @@ impl<T: Decide> CarriedSection<T> {
     }
 
     /// **The length a direction's angle to a component is levered by**:
-    /// the cylinder's radius, the scale every component of a cylinder ×
-    /// sphere section turns on.
+    /// the scale every component of the section turns on, the cylinder's
+    /// radius for cylinder × sphere and a torus's minor radius (the
+    /// smaller of two) for a torus pair.
     pub fn lever(&self) -> T {
         self.lever
     }

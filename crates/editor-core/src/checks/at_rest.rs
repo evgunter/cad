@@ -341,7 +341,8 @@ fn gap_sign<T: Decide>(
 /// | `VertexFusion` | `OnCarrier`, `Meet` of two cells | yes: a vertex on a cell, two cells sharing a point |
 /// | any | `SameOriented` | no: a flush pair is no contact (`[assertions]`) |
 /// | `TangentWitness` | `SurfaceTangent` | no: a tangency is more than meeting |
-/// | `CoaxialSphere` | `OnCarrier` | no: a sphere's centre on a cylinder's axis |
+/// | `CoaxialSphere`, `SphereOnTorusAxis` | `OnCarrier` | no: a sphere's centre on a cylinder's or a torus's axis |
+/// | `CoaxialCylinderTorus`, `CoaxialTori` | `Coaxial` | no: one axis of revolution |
 /// | `CrossingCylinders` | `SameRadius`, `AxesMeet` | no |
 /// | `BatteryTurn` | `CommonFoot` | no |
 /// | `BatteryJoint` | `Tangent` | no |
@@ -359,6 +360,9 @@ fn contact_cells(row: &crate::coincide::NamedCoincidence) -> Option<[(VarId, Sta
         Site::VertexFusion => matches!(row.relation, R::OnCarrier | R::Meet),
         Site::TangentWitness
         | Site::CoaxialSphere
+        | Site::SphereOnTorusAxis
+        | Site::CoaxialCylinderTorus
+        | Site::CoaxialTori
         | Site::CrossingCylinders
         | Site::BatteryTurn
         | Site::BatteryJoint
