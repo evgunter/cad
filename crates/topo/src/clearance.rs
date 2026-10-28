@@ -76,17 +76,19 @@
 //! region. [`BoundReport::decided`] counts the cells and witness
 //! stations the doors decided.
 //!
-//! # No ε here, and two funnelled compares of its own
+//! # No ε here, and the funnelled compares
 //!
 //! Every decision goes through the one `k_stats` funnel at a named
-//! predicate with a [`Margin`] door. This module decides exactly two:
+//! predicate with a [`Margin`] door. The distance test decides at two:
 //! [`CLEARANCE_MARGIN`] (`d − c`, metres minus metres) and
-//! [`SELF_INTERSECTION_GAP`] (`d`, the separation a non-adjacent face
-//! pair must classify strictly positive). The cell and station verdicts
-//! it asks for decide on [`crate::cell_region`]'s rows, inside those
-//! doors. All carry a row in `docs/predicate-dimension-audit.md`. No
-//! DECISION here compares a float raw, mints a tolerance, or reads a
-//! width as evidence.
+//! [`SELF_INTERSECTION_GAP`] (`d`, the separation a cell pair that does
+//! not touch in M must classify strictly positive). Under the
+//! injectivity question a TOUCHING pair is decided instead by a local
+//! certificate ([`crate::injective`]), at that module's own sites. The
+//! cell and station verdicts the sweep asks for decide on
+//! [`crate::cell_region`]'s rows, inside those doors. All carry a row
+//! in `docs/predicate-dimension-audit.md`. No DECISION here compares a
+//! float raw, mints a tolerance, or reads a width as evidence.
 //!
 //! One raw compare survives, and it is not a decision: the proximity
 //! tree's admission test, which decides which pairs are EXAMINED
@@ -112,7 +114,9 @@ use crate::cell_region::{
     Ball, BoundaryStop, CellRegion, cell_region_lifted, lift_boundary, station_region,
 };
 use crate::entity::{EdgeKey, Face, FaceKey, HalfEdgeKey, LoopBoundary, VertexKey};
-use crate::injective::{self, Axis, Boundary, Iso, Local, Near, Outcome, Piece, Rim, Shared, Use};
+use crate::injective::{
+    self, Axis, Boundary, Iso, Local, Near, Outcome, Piece, Rim, Shared, Use, full_turn,
+};
 
 /// The funnel site name of the clearance comparison — the separation
 /// enclosure between two domain cells minus the requested clearance,
@@ -123,13 +127,13 @@ use crate::injective::{self, Axis, Boundary, Iso, Local, Near, Outcome, Piece, R
 pub const CLEARANCE_MARGIN: &str = "clearance_margin";
 
 /// The funnel site name of the self-intersection comparison — the
-/// separation enclosure itself, which a non-adjacent face pair must
-/// classify strictly positive.
+/// separation enclosure itself, which a cell pair that does not touch
+/// in M must classify strictly positive.
 ///
 /// This is E7's "certified strictly positive distance" spelled as a
 /// funnelled compare rather than as an ε: the band's own coincidence
-/// threshold is what "strictly" means, so `Sign::Zero` — two
-/// non-adjacent faces coincident at the run's tolerance — is a
+/// threshold is what "strictly" means, so `Sign::Zero` — two cells
+/// that do not touch, coincident at the run's tolerance — is a
 /// violation here, where under [`CLEARANCE_MARGIN`]'s non-strict `≥ c`
 /// it is a discharge. Same margin shape, same band, two readings of
 /// zero, one per site.
@@ -149,7 +153,20 @@ pub const DEFAULT_MAX_CELL_DEPTH: u32 = 40;
 /// any uncertified one, so the cells it holds away from the edge are
 /// still decided — the walk is breadth-first, and a violation there is
 /// reported first; past it the cells at the edge stop multiplying along
-/// it. A recorded run dial.
+/// it.
+///
+/// **Why ten, a trade and not a derivation.** The split alternates the
+/// two cells, so ten halvings narrow each to `2^-5` of its window: a
+/// violation off the edge that wide, a thirty-second of the face, is
+/// reached before the refusal. The pairs AT the edge multiply along it
+/// as the cells narrow — some `2^5` of them per cusp edge by then —
+/// which is small against [`DEFAULT_MAX_CELL_DEPTH`]'s floor and the
+/// default pair budget, so the refusal arrives in a few hundred pairs
+/// (the kiss row's 213) rather than by budget exhaustion. A deeper dial
+/// reaches smaller violations beside a cusp at an exponential cost in
+/// pairs; the second-order arm
+/// (`work/clear/the-second-order-arm-certifies-a-declared-wedge-0-edge.md`)
+/// retires the dial. A recorded run dial.
 pub const CUSP_DEPTH: u32 = 10;
 
 /// The whole-query cell-pair budget of ONE [`min_separation`] query.
@@ -2315,24 +2332,6 @@ impl RegionMemo {
         cells + self.stations.values().filter(|p| p.is_some()).count()
     }
 }
-
-/// The canonical full turn, one ulp wider at each end so the rounding
-/// of `TAU` itself can never shave a sliver of azimuth off a periodic
-/// window. An ulp guard is not a tolerance — the same idiom
-/// [`bvh::Aabb::padded`] uses, for the same reason.
-fn full_turn() -> (f64, f64) {
-    (0.0f64.next_down(), TURN_CEILING)
-}
-
-/// **The widest azimuth extent a periodic window may carry**: one whole
-/// turn, one ulp wider, so the rounding of `TAU` itself can never make
-/// a band that really is a turn read as more than one.
-const TURN_CEILING: f64 = {
-    // `next_up` is not const on this toolchain; the bit pattern above
-    // `TAU` is, and it is the same number `f64::next_up` returns for a
-    // positive finite value.
-    f64::from_bits(core::f64::consts::TAU.to_bits() + 1)
-};
 
 /// The canonical latitude range, widened the same way. Evaluating a
 /// hair past a pole lands on the sphere's far side, which is still on

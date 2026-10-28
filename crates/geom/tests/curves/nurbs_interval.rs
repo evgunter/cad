@@ -211,4 +211,43 @@ fn span_enclosure_and_span_deriv_contain_every_sampled_value() {
             "{lo}..{hi} is declined"
         );
     }
+    // **And they NARROW**, which containment alone cannot see: the whole
+    // line contains every sample. A range inside another has an
+    // enclosure no wider on any axis, and a range a millionth of the
+    // domain long encloses the curve within a few millionths of its
+    // radius (2.5) — the curve's speed bounds its motion over the range.
+    let width = |p: Point3<Interval>| {
+        [p.x, p.y, p.z]
+            .map(|c| c.hi() - c.lo())
+            .into_iter()
+            .fold(0.0f64, f64::max)
+    };
+    let (outer, inner) = (
+        ni.span_enclosure(0.1, 0.6).unwrap(),
+        ni.span_enclosure(0.2, 0.3).unwrap(),
+    );
+    assert!(
+        width(inner) <= width(outer) && width(outer).is_finite(),
+        "a sub-range encloses no wider: {inner:?} within {outer:?}"
+    );
+    let tiny = ni.span_enclosure(0.3, 0.3 + 1e-6).unwrap();
+    assert!(width(tiny) < 1e-4, "a millionth of the domain: {tiny:?}");
+    let speed = |d: geom_core::Vec3<Interval>| {
+        [d.x, d.y, d.z]
+            .map(|c| c.lo().abs().max(c.hi().abs()))
+            .into_iter()
+            .fold(0.0f64, f64::max)
+    };
+    let (d_outer, d_inner) = (
+        ni.span_deriv(0.1, 0.6).unwrap(),
+        ni.span_deriv(0.2, 0.3).unwrap(),
+    );
+    assert!(
+        speed(d_outer).is_finite() && speed(d_inner) <= speed(d_outer),
+        "the hodograph narrows with the range: {d_inner:?} within {d_outer:?}"
+    );
+    // The circle's speed is bounded on a quarter's span: a hodograph
+    // enclosure tens of radii wide would be the whole line by another
+    // name.
+    assert!(speed(d_inner) < 100.0, "{d_inner:?}");
 }

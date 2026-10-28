@@ -152,6 +152,17 @@ fn rect_jet_contains_every_sampled_partial_of_its_rectangle() {
                 continue;
             };
             jets += 1;
+            // A claimed enclosure is finite: the whole line contains every
+            // sample and would pass containment, so it is refused here.
+            for e in [eu, ev, euv] {
+                assert!(
+                    [e.x, e.y, e.z]
+                        .iter()
+                        .all(|c| c.lo().is_finite() && c.hi().is_finite()),
+                    "rect_jet over {u:?} × {v:?} claims an unbounded partial {e:?}; {}",
+                    fuzz::replay()
+                );
+            }
             let at = |(lo, hi): (f64, f64), s: f64| lo + s * (hi - lo);
             let stations = [0.0, 0.5, 1.0];
             let samples = stations
@@ -175,6 +186,15 @@ fn rect_jet_contains_every_sampled_partial_of_its_rectangle() {
         }
     }
     println!("[rect_jet] {jets} jets checked, {declined} declined");
+    // The door reads every rectangle inside the domain with extent on
+    // both axes, which is every draw here: a decline is a door that
+    // stopped reading, and a run of them would pass the row vacuously.
+    assert_eq!(
+        declined,
+        0,
+        "rect_jet declined {declined} of {} rectangles",
+        jets + declined
+    );
 }
 
 /// The unit bilinear patch `(u, v) ↦ (u, v, u·v)` at `Interval`.

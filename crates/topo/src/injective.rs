@@ -143,6 +143,17 @@ pub(crate) struct Iso {
     pub(crate) full: bool,
 }
 
+impl Iso {
+    /// The coordinate the line moves along, read off a chart point: the
+    /// one it does not hold.
+    fn moving(self, p: Point2<Interval>) -> Interval {
+        match self.held {
+            Axis::U => p.y,
+            Axis::V => p.x,
+        }
+    }
+}
+
 /// One half-edge of a face on an edge.
 #[derive(Clone, Debug)]
 pub(crate) struct Use {
@@ -411,17 +422,24 @@ pub(crate) enum Outcome {
 
 /// **The analytic carrier's own injectivity**: every analytic carrier
 /// the engine admits is one-to-one on its chart's fundamental domain,
-/// and a face is a region of it. A torus is, where `R > r`.
+/// and a face is a region of it — the premise is that the face's
+/// parameter domain covers its carrier at most once, which the face's
+/// validation owns. A torus is, where `R > r`.
 ///
 /// # Errors
 ///
-/// The torus that is not decided a ring.
+/// The torus that is not decided a ring, and a free-form carrier, which
+/// no kind makes injective: its own pairs go to the monotone arm.
 pub(crate) fn by_kind(
     face: FaceKey,
     surface: &Surface<Interval>,
     band: Band,
 ) -> Result<(), EngineRefusal> {
     match surface {
+        Surface::Plane { .. }
+        | Surface::Cylinder { .. }
+        | Surface::Cone { .. }
+        | Surface::Sphere { .. } => Ok(()),
         Surface::Torus {
             major_radius,
             minor_radius,
@@ -430,7 +448,10 @@ pub(crate) fn by_kind(
             Ok(Sign::Positive) => Ok(()),
             _ => Err(EngineRefusal::TorusNotRing { face }),
         },
-        _ => Ok(()),
+        Surface::Nurbs(_) | Surface::Approx(_) => Err(EngineRefusal::Unsupported {
+            carrier: "a free-form face, which no carrier kind makes injective",
+            face,
+        }),
     }
 }
 
@@ -512,7 +533,7 @@ fn arc_enclosure(c: &Curve3<Interval>, t: (f64, f64)) -> Point3<Interval> {
 /// hodograph door does not read is the whole line.
 fn arc_deriv(c: &Curve3<Interval>, t: (f64, f64)) -> Vec3<Interval> {
     match c {
-        Curve3::Nurbs(n) => n.span_deriv(t.0, t.1).unwrap_or_else(|| whole_space()),
+        Curve3::Nurbs(n) => n.span_deriv(t.0, t.1).unwrap_or_else(whole_space),
         _ => c.deriv(iv(t)),
     }
 }
@@ -576,7 +597,15 @@ fn overlap(a: Point3<Interval>, b: Point3<Interval>) -> bool {
     o(a.x, b.x) && o(a.y, b.y) && o(a.z, b.z)
 }
 
-fn periodic(surface: &Surface<Interval>, axis: Axis) -> bool {
+// --------------------------------------------- the periodic vocabulary
+//
+// ONE home for which chart axes are periodic and what a turn is: the
+// windows ([`crate::clearance`]'s `window_of`, whose periodic axes are
+// these) and the presentations read the same table and the same turn.
+
+/// **Whether a chart axis is periodic**: an analytic carrier's azimuth,
+/// and a torus's both angles.
+pub(crate) fn periodic(surface: &Surface<Interval>, axis: Axis) -> bool {
     match surface {
         Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. } => axis == Axis::U,
         Surface::Torus { .. } => true,
@@ -584,7 +613,26 @@ fn periodic(surface: &Surface<Interval>, axis: Axis) -> bool {
     }
 }
 
-const TURN: f64 = core::f64::consts::TAU;
+/// One turn of a periodic axis.
+pub(crate) const TURN: f64 = core::f64::consts::TAU;
+
+/// **The widest extent a periodic window may carry**: one whole turn,
+/// one ulp wider, so the rounding of `TAU` itself can never make a band
+/// that really is a turn read as more than one.
+pub(crate) const TURN_CEILING: f64 = {
+    // `next_up` is not const on this toolchain; the bit pattern above
+    // `TAU` is, and it is the same number `f64::next_up` returns for a
+    // positive finite value.
+    f64::from_bits(TURN.to_bits() + 1)
+};
+
+/// The canonical full turn, one ulp wider at each end so the rounding
+/// of `TAU` itself can never shave a sliver of azimuth off a periodic
+/// window. An ulp guard is not a tolerance — the same idiom
+/// [`bvh::Aabb::padded`] uses, for the same reason.
+pub(crate) fn full_turn() -> (f64, f64) {
+    (0.0f64.next_down(), TURN_CEILING)
+}
 
 /// `x` moved by whole turns to sit nearest `near`.
 fn wrap(x: Interval, near: f64) -> Interval {
@@ -787,21 +835,24 @@ impl<'a> Presented<'a> {
     }
 }
 
+/// **Which way an iso use's image runs** along its moving coordinate,
+/// from the curve's start parameter to its end: `+1` or `-1`, decided by
+/// the image's ends; `None` where they do not decide it.
+fn forward(u: &Use, iso: Iso) -> Option<f64> {
+    let [p, q] = u.image?;
+    let delta = iso.moving(q) - iso.moving(p);
+    match (delta.lo() > 0.0, delta.hi() < 0.0) {
+        (true, _) => Some(1.0),
+        (_, true) => Some(-1.0),
+        _ => None,
+    }
+}
+
 /// Which side of an iso edge's line its face lies on, along the held
 /// axis: the face is to the left of its boundary about the outward
 /// normal, and the chart is positively oriented about `+(S_u × S_v)`.
 fn face_side(u: &Use, iso: Iso, sense: bool) -> Option<f64> {
-    let [p, q] = u.image?;
-    let moving = |p: Point2<Interval>| match iso.held {
-        Axis::U => p.y,
-        Axis::V => p.x,
-    };
-    let delta = moving(q) - moving(p);
-    let forward = match (delta.lo() > 0.0, delta.hi() < 0.0) {
-        (true, _) => 1.0,
-        (_, true) => -1.0,
-        _ => return None,
-    };
+    let forward = forward(u, iso)?;
     let traversal = if u.plus { forward } else { -forward };
     let side = match iso.held {
         Axis::V => traversal,
@@ -813,11 +864,7 @@ fn face_side(u: &Use, iso: Iso, sense: bool) -> Option<f64> {
 /// The moving coordinate's range along a use, outer hull of its ends.
 fn along(u: &Use, iso: Iso) -> Option<Interval> {
     let [p, q] = u.image?;
-    let m = |p: Point2<Interval>| match iso.held {
-        Axis::U => p.y,
-        Axis::V => p.x,
-    };
-    let (a, b) = (m(p), m(q));
+    let (a, b) = (iso.moving(p), iso.moving(q));
     Some(Interval::from_bounds(
         a.lo().min(b.lo()),
         a.hi().max(b.hi()),
@@ -1378,20 +1425,7 @@ fn convex(b: &Boundary, c: &Clip, d: &Clip) -> bool {
     let away = |ei: usize, v: VertexKey| -> Option<f64> {
         let e = b.edges.get(ei)?;
         let u = e.uses.first()?;
-        let iso = u.iso?;
-        let [p, q] = u.image?;
-        let m = |p: Point2<Interval>| match iso.held {
-            Axis::U => p.y,
-            Axis::V => p.x,
-        };
-        let delta = m(q) - m(p);
-        let forward = if delta.lo() > 0.0 {
-            1.0
-        } else if delta.hi() < 0.0 {
-            -1.0
-        } else {
-            return None;
-        };
+        let forward = forward(u, u.iso?)?;
         // Away from `v` along the curve: forward from its start.
         if e.ends[0] == v {
             Some(forward)
