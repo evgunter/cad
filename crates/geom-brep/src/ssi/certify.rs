@@ -118,8 +118,8 @@ use geom_core::spline::algebra::{dehomogenize, domain_grid_points, range_grid_po
 use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface, tensor};
 use geom_core::spline::{KnotVector, RingRefinement};
 use geom_core::{
-    Band, Bounds, CertifiedEnclosure, Decide, Decided, Indeterminate, Interval, Margin, Point3,
-    Real, Sign, Vec3,
+    Band, Bounds, CertifiedBounds, CertifiedEnclosure, Decide, Decided, Indeterminate, Interval,
+    Margin, Point3, Real, Sign, Vec3,
 };
 
 use crate::certify::CertCheck;
@@ -1402,6 +1402,20 @@ impl Rung {
     }
 }
 
+/// **One padded chain box's graph margin** for an analytic pair: the
+/// zero-free reading ([`tube_margin`]) of `(∇f₁ × ∇f₂)·e` over `bx`
+/// ([`graph_margin`]); `None` where the enclosure is refused. Limb 3's
+/// probe and the coarse-span reading ([`coarse_tube_spans`]) read a box
+/// by it.
+fn box_graph_margin<T: CertifiedBounds>(
+    s1: &Surface<T>,
+    s2: &Surface<T>,
+    bx: Box3,
+    e: Vec3<T>,
+) -> Option<f64> {
+    tube_margin(graph_margin(s1, s2, bx, e))
+}
+
 /// Limb 3's **enclosure probe** for an analytic pair: the graph
 /// criterion in ℝ³ over a box chain of the given radius, and, where the
 /// margin is zero-free, the one-arc proof over the chain cut to `slab`
@@ -1442,7 +1456,7 @@ fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
         }
         prev = Some(bx);
         padded.push(bx);
-        let Some(m) = tube_margin(graph_margin(s1, s2, bx, *e)) else {
+        let Some(m) = box_graph_margin(s1, s2, bx, *e) else {
             return Some(Rung::refused(SsiTube::Spatial { radius }));
         };
         if m < worst {
@@ -1822,23 +1836,27 @@ pub(crate) fn tube_boxes<T: Decide + Bounds + CertifiedEnclosure>(
         .collect()
 }
 
-/// **The spans that hold an ℝ³ tube below the rung `radius`**
-/// ([`super::refine::refine_for_tube`]): the carrier's parameter
-/// intervals whose chain box ([`box_chain`]) is wider than `radius` and,
-/// padded by it, is not shown a graph ([`graph_margin`]). A box no wider
-/// than the rung is held by its padding, which halving its span does not
-/// narrow, so it is not named.
+/// **The spans that hold an ℝ³ tube at the rung `radius`**
+/// ([`super::refine::refine_for_tube`]): with `up` the ladder's next
+/// rung above `radius` ([`tube_ladder`] over `extent` and `band`), the
+/// carrier's parameter intervals whose chain box ([`box_chain`]) is wider
+/// than `up` and, padded by it, is not shown a graph
+/// ([`box_graph_margin`]). A box no wider than the rung is held by its
+/// padding, which halving its span does not narrow, so it is not named.
+/// Empty where `radius` is the ladder's widest rung.
 pub(crate) fn coarse_tube_spans(
     carrier: &NurbsCurve3<f64>,
-    s1: &Surface<f64>,
-    s2: &Surface<f64>,
+    (s1, s2): (&Surface<f64>, &Surface<f64>),
     radius: f64,
+    (extent, band): (f64, Band),
 ) -> Vec<RefusedSpan> {
+    let Some(up) = tube_ladder(extent, band).filter(|r| *r > radius).last() else {
+        return Vec::new();
+    };
     box_chain(carrier)
         .into_iter()
         .filter(|(raw, e, _)| {
-            raw.width() > radius
-                && !tube_margin(graph_margin(s1, s2, raw.pad(radius), *e)).is_some_and(|m| m > 0.0)
+            raw.width() > up && !box_graph_margin(s1, s2, raw.pad(up), *e).is_some_and(|m| m > 0.0)
         })
         .map(|(_, _, (lo, hi))| RefusedSpan { lo, hi })
         .collect()

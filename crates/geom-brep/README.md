@@ -356,6 +356,16 @@ margin each earlier round refused (`SsiError::RefinementExhausted`). At
 the wall, a refused residual that stopped falling over the last two
 rounds ends in the tolerance as the arithmetic's floor; one still
 falling ends as the curvature-held march's does.
+A certified ℝ³ analytic branch is refined once more where limb 3
+certifies it narrowly (`refine_for_tube`): the tube's rung is the
+whole chain's, so where a chain box wider than the ladder's next rung
+up is no graph padded by it, the gaps that box meets are halved the
+same way, the carrier is refitted and certified again, and the finer
+carrier is kept only where its tube is wider. These rounds keep a
+certified carrier throughout and refuse nothing: they stop where no box
+holds the tube, nothing halves, the step wall would be passed, the
+finer tube is no wider, or the finer carrier does not certify; each
+kept round climbs a rung, so there are at most `SSI_TUBE_RUNGS`.
 Before any march, the
 plane × NURBS lane decides its own domain boundary, the wall's knot
 rectangle, against the plane, one side at a time

@@ -81,3 +81,20 @@ test thread sits in `PairSection::carry` → `march_cylinder_sphere` →
 every cell. The march's samples are spaced as `ε^¼`, so at 1e-12 a
 branch holds about 5.6 times the default ε's boxes (2460 at the
 default ε at `d 0.2, R 0.699`), and each cell pays them all.
+
+## Nearer the node, on both trees (review of PR 5961, 2026-10-28)
+
+Measured by the review of `sect/near-node-at-1e-6` at `19b3396f83`,
+the same on main and on the branch (`r = 0.5`):
+
+- at ε = 1e-6, `d 0.2` with `R` 0.6995, 0.6999, 0.7001 and 0.7005
+  refuses `TubeStraddles`;
+- at the default ε, `d 0.2` with `R` 0.6995, 0.6999 and 0.7001, and
+  `d 0.1, R 0.599`, refuse `CellBudget`.
+
+At `d 0.1, R 0.599` and the default ε the tube is 2.34e-3 and no chain
+box holds it (`coarse_tube_spans` names none), while the branch accounts
+the same tube at 1e-6 on 477 boxes. So that budget is not a coarse box
+holding the tube (the class PR 5961 fixed): at the default ε the
+accounting spends its cells around a tube of the same radius on more
+boxes.
