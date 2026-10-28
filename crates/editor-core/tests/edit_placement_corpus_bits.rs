@@ -108,6 +108,7 @@ use editor_core::Node;
 ///   (one ulp closer), one of them a floor point;
 /// - a sphere carrier's and a torus carrier's centres read `z = 0.5`
 ///   where they read `0.49999999999999994`.
+///
 /// So of its points four coordinates come closer and fifteen go
 /// further. The pips'
 /// union computes in its first pip's frame and reads every other pip
