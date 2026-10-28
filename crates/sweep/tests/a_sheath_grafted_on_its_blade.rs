@@ -79,11 +79,14 @@ fn blade(
 /// **Both orders get past the contact, the shared cap, the spline walls
 /// and the seam's dihedral**, and stop where the result's shared rim, a
 /// seam between a NURBS wall of each body, is described as the walls'
-/// `Intersection`: its certification refuses. The rim's derived image
-/// misses a chart by 9.0e-6 m, a definite miss at ε 1e-9 and 1e-12
-/// (`PlaneNurbs(Limb { ImageMiss })`) and in band at 1e-6
-/// (`Escalated { PlaneNurbsHullValue }`), so the site is pinned, not the
-/// cause. Before the seam's
+/// `Intersection`: its certification refuses. Limbs 1 and 2 read the
+/// rim through each wall's exact boundary-row image, and limb 3 refuses
+/// at every ε: the two-chart tube, cut to the charts' domains, holds the
+/// rim on a face of every box, and its one-arc walk is undecided
+/// (`PlaneNurbs(TubeNotOneArc { Undecided })`,
+/// `work/ssiedge/a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary.md`).
+/// The site is pinned, not the cause. Before the exact images, limb 2
+/// refused on the fitted image's 9.0e-6 m miss. Before the seam's
 /// spline entry, each stopped one step earlier, at the seam's dihedral
 /// arm (`Escalated { LeverArm(Seam), "dihedral_arm" }`, an invalid
 /// margin); before the spline span × spline face arm,

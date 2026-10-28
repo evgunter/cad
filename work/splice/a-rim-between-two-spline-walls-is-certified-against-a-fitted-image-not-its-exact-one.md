@@ -2,8 +2,9 @@
 id: a-rim-between-two-spline-walls-is-certified-against-a-fitted-image-not-its-exact-one
 kind: issue
 title: A rim shared by two spline walls is certified against a degree-1 image fitted through feet, though each wall carries it exactly as an iso arc, so lily wall 8 refuses at ImageMiss
-status: open
+status: closed
 opened: 2026-10-28
+closed: 2026-10-28
 priority: P0
 cost: M
 ---
@@ -44,3 +45,28 @@ each chart. It falls back to the fitted image only where none does, and
 lily wall 8 moves past the rim. This row does not take the fixed-schedule
 question (SSIEDGE's design row), which stays open for edges with no
 exact image.
+
+## Closed
+
+`edge_nurbs::nurbs_pair_limbs` reads a circle carrier's limbs 1 and 2 on
+each chart through that chart's exact `IsoArc` image where one
+certifies. It takes the image from `exact_arc_rim`, now the one home it
+shares with `plane_nurbs_incidence`. It falls back to the chart's fitted
+image where no candidate holds or the certificate refuses definitely, and
+refuses `PlaneNurbsRefusal::ArcRimEscalated` where the pick or the
+certificate escalates. Limb 3's tube on an exact chart is built about a
+polyline through the exact image at the fitted image's knots
+(`exact_chart_image`).
+
+Lily wall 8 moves past the rim's image miss at every ε that reaches it.
+It now stops at limb 3, whose two-chart tube cannot prove one arc along
+a boundary row of both charts. That row is filed as
+`ssiedge/a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary`.
+The tour's 1e-6 stop, the crossing angle at a sample, comes before any
+image limb and is filed as
+`splice/lily-wall-8-at-1e-6-reads-the-rims-crossing-angle-in-band`.
+
+Witnesses: `geom-brep::all spline_pair_arc_rim::*` (five rows, at ε
+default, 1e-6 and 1e-12), and
+`sweep::all a_sheath_grafted_on_its_blade::a_sheath_on_its_blade_unions_past_the_shared_rim`
+(its doc re-derived).

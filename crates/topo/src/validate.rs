@@ -3265,6 +3265,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             certify_undecided(CertCheck::Transversality)
         }
         CertifyError::PlaneNurbs(P::Escalated { limb, .. }) => certify_undecided(limb.check()),
+        CertifyError::PlaneNurbs(p @ P::ArcRimEscalated { .. }) => p
+            .decision()
+            .map_or(KIND, |(check, _)| certify_undecided(check)),
         CertifyError::AnalyticRung3(A::Escalated { limb, .. }) => certify_undecided(limb.check()),
         CertifyError::AnalyticRung3(A::Stalled { .. }) => {
             certify_undecided(geom_brep::Rung3Limb::HullSup.check())
@@ -3317,6 +3320,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
                 | P::TubeStraddles { .. }
                 | P::TubeNotOneArc { .. }
                 | P::Escalated { .. }
+                | P::ArcRimEscalated { .. }
                 | P::ReportedTransversalityPoisoned(_)
                 | P::ChartSpeed(_)
                 | P::PcurveFit,

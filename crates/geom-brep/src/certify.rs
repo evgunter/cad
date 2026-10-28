@@ -764,7 +764,7 @@ fn exact_arc_rim_words(iso: Option<crate::pcurve_cache::PcurveCheck>) -> &'stati
 /// not the edge's, whose interval it does not decide. A check no
 /// `IsoArc` certificate runs
 /// reads as the hull bound it would feed.
-fn arc_rim_check(check: crate::pcurve_cache::PcurveCheck) -> CertCheck {
+pub(crate) fn arc_rim_check(check: crate::pcurve_cache::PcurveCheck) -> CertCheck {
     match check {
         crate::pcurve_cache::PcurveCheck::ParamSpan => CertCheck::ImageSpan,
         other => other
@@ -3414,6 +3414,11 @@ fn from_plane_nurbs(e: crate::edge_nurbs::PlaneNurbsRefusal) -> CertifyError {
         },
         P::Escalated { limb, cause } => CertifyError::Escalated {
             check: limb.check(),
+            sample: NOT_A_SAMPLE,
+            cause,
+        },
+        P::ArcRimEscalated { check, cause } => CertifyError::Escalated {
+            check: arc_rim_check(check),
             sample: NOT_A_SAMPLE,
             cause,
         },

@@ -411,6 +411,10 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
             limb: geom_brep::SsiLimb::Tube,
             cause: diag(),
         },
+        PlaneNurbsRefusal::ArcRimEscalated {
+            check: geom_brep::PcurveCheck::MapResidual,
+            cause: diag(),
+        },
         PlaneNurbsRefusal::TubeNotOneArc {
             rungs: 3,
             cause: geom_brep::ssi::OneArcRefusal::Short,

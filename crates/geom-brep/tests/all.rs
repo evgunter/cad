@@ -268,6 +268,8 @@ mod span_meter_dim_twins;
 mod sphere_torus_ssi;
 #[path = "spline_pair_any_carrier.rs"]
 mod spline_pair_any_carrier;
+#[path = "spline_pair_arc_rim.rs"]
+mod spline_pair_arc_rim;
 #[path = "ssi_limb3_one_arc.rs"]
 mod ssi_limb3_one_arc;
 #[path = "stored_span_winding_bound.rs"]
