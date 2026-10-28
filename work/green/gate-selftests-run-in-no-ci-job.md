@@ -2,10 +2,11 @@
 id: gate-selftests-run-in-no-ci-job
 kind: issue
 title: No CI job runs any scripts/gates/*.sh --selftest, so a gate's selftest can sit red on main for weeks unseen
-status: open
+status: closed
 opened: 2026-10-26
 priority: P3
 cost: E
+closed: 2026-10-28
 ---
 
 
@@ -39,3 +40,31 @@ total wall time of all self-tests (some plant whole fixture trees), and
 whether every gate accepts `--selftest`. The wiring is in
 `.github/workflows/*`, which is CIW's ground, so it lands by announced
 seam.
+
+## Closed (2026-10-28)
+
+`nightly.yml` gains a `gate self-tests (scripts/gates)` job. It runs
+`bash "$g" --selftest` for every `scripts/gates/*.sh` except `lib.sh`,
+prints each gate's wall time in its own log group, and fails at the end
+with an `::error::` line for each red gate. It runs nightly only, so an
+ordinary PR's wall clock is unchanged. `record` waits on it.
+
+Measured first, on `main` at `4beeeb05`:
+
+- **Every gate accepts `--selftest`.** All 30 gates parse it through
+  `lib.sh`'s `gate_parse_args`, and each one's last log line is its own
+  `selftest OK: …` sentence, so none silently ran plain.
+- **All 30 pass on main.** None is red today, so there is no finding to
+  fix or file.
+- **Wall time.** About 181 s locally, on a box shared with a running
+  build. The slowest were `probe-suite-census` (50 s), `bounds-allowlist`
+  (31 s), `viewer-module-kinds` (19 s) and `certification-doors` (18 s).
+  On a hosted runner, measured through a temporary push-triggered copy of
+  the job: **the step took 1 min 41 s and the whole job 2 min 10 s**,
+  green.
+
+Not done: a per-PR step for diffs that touch `scripts/gates/`. A gate
+edit that breaks its own self-test is seen the next night rather than
+on its PR. The per-PR gate's `lint` job is the latency lane's ground
+this week, and the instance this row was filed on (a self-test red
+for 20 days) is the kind a nightly catches.
