@@ -337,3 +337,40 @@ fn a_rim_ending_on_both_charts_sides_refuses_by_them() {
         "each end lies on a u side of both charts: {got:?}"
     );
 }
+
+/// **Review 5938: a rim just inside a boundary row.** The interior rim of
+/// [`an_exact_charts_tube_is_about_the_rim`], with the annulus' inner row
+/// moved `δ` inside the rim, for `δ` either side of the end box (`ε/8`).
+#[test]
+fn review_5938_a_rim_just_inside_a_row() {
+    let eps = crate::shared::tol::eps();
+    let span = 0.03 * (eps / 1e-6).sqrt();
+    let params = (0.5, 0.5 + span);
+    let carrier = rim(1.0);
+    let inside_cylinder = ring(1, TURN, [(1.0, -1.0), (1.0, 1.0)], |_| 1.0);
+    for k in [0.0, 1.0 / 64.0, 1.0 / 16.0, 1.0 / 9.0, 1.0 / 4.0, 1.0, 4.0] {
+        let delta = k * eps;
+        let near = ring(1, TURN, [(1.0 - delta, 0.0), (2.0, 0.0)], |_| 1.0);
+        for (what, a, b) in [("cyl×ann", &inside_cylinder, &near), ("ann×cyl", &near, &inside_cylinder)] {
+            let got = limbs(&carrier, params, a, b);
+            eprintln!("REVIEW eps={eps:e} delta={k}ε {what}: {:?}", got.as_ref().map(|_| "Ok"));
+        }
+    }
+}
+
+#[test]
+fn review_5938_endings() {
+    use geom_brep::recourse::Reading; use geom_core::{Band, Indeterminate, MarginDiag};
+    let und = OneArcRefusal::Undecided(Indeterminate {
+        margin: MarginDiag::value(f64::NAN),
+        band: Band::new(1e-9, 1e-8).unwrap(),
+        predicate: Some("ssi_tube_one_arc"),
+        terminal_sliver: false,
+    });
+    for c in [und, OneArcRefusal::AlongSide { chart: 0 }, OneArcRefusal::Count { solutions: 0 }] {
+        for r in [Reading::Build, Reading::AtRest] {
+            let p = PlaneNurbsRefusal::TubeNotOneArc { rungs: 20, cause: c };
+            eprintln!("REVIEW {c:?} {r:?}: {:?}", p.ending(r));
+        }
+    }
+}
