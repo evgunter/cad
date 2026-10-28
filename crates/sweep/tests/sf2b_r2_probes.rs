@@ -7,6 +7,7 @@ use core::f64::consts::PI;
 
 use crate::common::approx::band;
 use crate::common::bulge;
+use crate::common::oracles::{frustum_wedge_cavity, volume_slack};
 use geom::Surface;
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
@@ -181,20 +182,25 @@ fn r2_per_chart_door_on_a_mirror_nappe_cone() {
     }
 }
 
-/// **A CONICAL wedge: `meridian plane ∩ cone`.** A cavity moves the
-/// wedge's meridian caps off the axis, and a plane parallel to a cone's
-/// axis that misses its apex cuts it in a HYPERBOLA, not a line: the
-/// moved pair's section is a rational-quadratic NURBS arc on a cone,
-/// which no tube certifies yet. The axial door refuses it at its gate,
-/// naming the conic, at a quarter turn and at a 1/12 turn alike, before
-/// any corner is solved (where the quarter turn's ends used to come
-/// back 0.64 mm apart and the 1/12 turn's window to read backwards).
+/// **A CONICAL wedge hollows, its meridian edges resting as exact
+/// hyperbolic arcs.** A cavity moves the wedge's meridian caps off the
+/// axis, and a plane parallel to a cone's axis beside its apex cuts it
+/// in a hyperbola: each moved wall/cap edge is the moved pair's
+/// rational-quadratic arc between the moved corners, and it rests
+/// because the plane×cone section states the crossing angle's floor and
+/// the tube's clearance (C2). At a quarter turn and a third of a turn
+/// the hollow passes tier 3, carries the two hyperbolic arcs, and
+/// measures the operand less the cavity's closed form
+/// ([`frustum_wedge_cavity`]). At a 1/12 turn the moved caps' crossing
+/// line, `T/sin 15°` from the axis, leaves the shrunk top disc (radius
+/// `R(h − T) ≈ 0.025`): the cavity is not the operand's shape, and the
+/// door refuses the edge that would run backwards.
 #[test]
-fn r2_a_conical_wedge_meridian_edge() {
+fn r2_a_conical_wedge_hollows_with_hyperbolic_meridian_edges() {
     let tol = Tol::witness();
     let (r0, r1, h) = (4.0 / 64.0, 2.0 / 64.0, 8.0 / 64.0);
-    for (what, turn) in [("a quarter turn", PI / 2.0), ("a 1/12 turn", PI / 6.0)] {
-        let body = topo::test_support::finished(
+    let wedge = |turn: f64| {
+        topo::test_support::finished(
             "body",
             revolved(
                 bulge_loop(vec![
@@ -206,27 +212,69 @@ fn r2_a_conical_wedge_meridian_edge() {
                 Revolution::Partial(turn),
             ),
             tol,
-        );
-        let err = topo::shell(
+        )
+    };
+    for (what, turn) in [
+        ("a quarter turn", PI / 2.0),
+        ("a third of a turn", 2.0 * PI / 3.0),
+    ] {
+        let body = wedge(turn);
+        let topo::Shelled { body: hollow, .. } = topo::shell(
             &finished("the operand", topo::Body::clone(&body.clone()), tol),
             T,
             tol,
         )
-        .expect_err("the conical wedge's moved caps cut its cone in a hyperbola");
-        let topo::ShellError::Face { error, .. } = &err else {
-            panic!("conical wedge {what}: expected the axial door's refusal, got {err}");
-        };
+        .unwrap_or_else(|e| panic!("conical wedge {what}: the hollow builds, got {e}"));
+        assert_eq!(
+            topo::validate_geometric(&hollow, tol),
+            Ok(()),
+            "conical wedge {what}: tier 3"
+        );
+        let arcs = hollow
+            .edges()
+            .filter(|(_, edge)| {
+                matches!(
+                    hollow.get_curve_geom(edge.curve),
+                    Some(topo::CurveGeom::Certified(c))
+                        if matches!(c.carrier(), geom::Curve3::Nurbs(_))
+                )
+            })
+            .count();
+        assert_eq!(
+            arcs, 2,
+            "conical wedge {what}: the two moved meridian edges are arcs"
+        );
+        let measured = topo::test_support::pinned_volume(
+            "props",
+            &topo::test_support::finished("the measured body", topo::Body::clone(&hollow), tol),
+            tol,
+        );
+        let want = turn / (2.0 * PI) * frustum_volume(r0, r1, h)
+            - frustum_wedge_cavity(r0, r1, h, turn, T);
+        println!(
+            "[r2] conical wedge {what}: wall {} want {want} delta {:e}",
+            measured.volume,
+            measured.volume - want
+        );
         assert!(
-            matches!(
-                **error,
-                topo::ReplaceFaceError::TogetherConicArc {
-                    conic: geom_brep::OpenConic::Hyperbola,
-                    ..
-                }
-            ),
-            "conical wedge {what}: the gate names the hyperbola, got {error}"
+            (measured.volume - want).abs() <= volume_slack(&measured, want),
+            "conical wedge {what}: the wall's closed form is {want}, got {}",
+            measured.volume
         );
     }
+    let err = topo::shell(
+        &finished("the operand", topo::Body::clone(&wedge(PI / 6.0)), tol),
+        T,
+        tol,
+    )
+    .expect_err("the 1/12 turn's cavity is not the operand's shape");
+    let topo::ShellError::Face { error, .. } = &err else {
+        panic!("conical wedge a 1/12 turn: expected the axial door's refusal, got {err}");
+    };
+    assert!(
+        matches!(**error, topo::ReplaceFaceError::TogetherAxialEdge { .. }),
+        "conical wedge a 1/12 turn: an edge with no forward span, got {error}"
+    );
 }
 
 /// **The wedge at degenerate turns.** The azimuth solve's two roots are

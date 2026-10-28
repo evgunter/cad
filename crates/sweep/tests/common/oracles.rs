@@ -354,6 +354,30 @@ pub fn ball_in_box(r: f64, c: (f64, f64, f64), b: [(f64, f64); 3]) -> f64 {
     simpson(&area, lo, hi)
 }
 
+/// **The cavity a shell of thickness `t` cuts in a frustum wedge**: the
+/// frustum of radii `r0` at `z = 0` and `r1` at `z = h` about `z`, turned
+/// `turn` about its axis between two meridian caps. At height `z` the
+/// cavity's section is the disc of the moved cone's radius
+/// `R(z) = r0 + k·z − t·√(1 + k²)` (`k = (r1 − r0)/h`) met by the moved
+/// caps, whose crossing line stands `a = t/sin γ` out along the
+/// bisector, `γ = turn/2`. The rays from it within `γ` of the bisector
+/// meet the disc at `√(R² − a² sin² ψ) − a cos ψ`, so the area is
+/// `½∫(√(R² − a² sin² ψ) − a cos ψ)² dψ`
+/// `= R²(γ − asin(t/R)) + t²·cot γ − t·√(R² − t²)` (the substitution
+/// `u = a sin ψ` takes the cross term to `∫√(R² − u²) du` over `|u| ≤ t`).
+/// A reflex turn moves the complement's wedge out by the same rule, and
+/// `π − γ` for `γ` gives the same expression. Stacked over
+/// `[t, h − t]`.
+pub fn frustum_wedge_cavity(r0: f64, r1: f64, h: f64, turn: f64, t: f64) -> f64 {
+    let k = (r1 - r0) / h;
+    let gamma = 0.5 * turn;
+    let area = |z: f64| {
+        let r = r0 + k * z - t * k.hypot(1.0);
+        r * r * (gamma - (t / r).asin()) + t * t / gamma.tan() - t * (r * r - t * t).sqrt()
+    };
+    simpson(&area, t, h - t)
+}
+
 /// The volume of a ball of radius `r`.
 pub fn ball_volume(r: f64) -> f64 {
     4.0 / 3.0 * PI * r.powi(3)
