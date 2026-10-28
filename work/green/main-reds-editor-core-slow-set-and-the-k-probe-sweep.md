@@ -4,8 +4,8 @@ kind: issue
 title: Main carries 24 editor-core slow-set reds and two reds that abort scripts/k_probe_sweep.sh (sweep ray_wall_margin_twins, editor-core m4_pr8_k_probe content key)
 status: open
 opened: 2026-10-21
-priority: P2
-cost: M
+priority: P1
+cost: H
 ---
 
 
