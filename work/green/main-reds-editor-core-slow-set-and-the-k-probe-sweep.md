@@ -170,3 +170,77 @@ Measured on main itself at the default ε:
 - **`m10_p_fence::the_corpus_evaluation_is_bit_identical_at_interval`:** reads `(11122170326591155306, 14158967091460525030)` against its pin `(13242046646792044098, 15401937490762412494)`. The f64 and ids-masked rows hold, so a change on main moved the Interval lane's bits without re-pinning. PR 5742 re-pins this row at its own reading, because the mate's orientation moves the ids the digest feeds; that reading takes in main's move too.
 - **`perf12_census_goldens::the_at_rest_census_verdicts_are_goldened_bit_exact`:** drifts from line 13 at every ε. The new lines are `CoincidentWedgesOverlap` findings (`work/restread/main-red-coincident-wedges-overlap-refuses-flush-copies.md`). PR 5742 re-blesses all three ε files at its own reading, for the same reason.
 - **`r2_m10_di_probes::assemble_census_door_matches_f64_at_dual64`:** the divergence set gains `heat_sink`, reading `["heat_sink", "kitchen_sink", "cut_cylinder"]` against `["kitchen_sink", "cut_cylinder"]`. It reads the same on PR 5742, which leaves it.
+
+## 2026-10-28 — the `segment_gap` cause fixed; what is still red (GREEN, `green/slow-set-reds`)
+
+Today's failing set comes from nightly run 40637814390 (main `a1cfd1cfdb`), default ε.
+In this file: `docm9_range` ×5, `revalue_corpus` ×7, `intent_s2_c_world`,
+`m10_3_driver_interval::a_planted_flip…`, `m10_3_r2_probes_interval`
+containment, `m10_6_ci_rows_interval` accounting, `m10_9_pins_interval`
+×2, `m10_sym_profile_interval` ×2, `sym11`, `sym_9_retry_interval` ×2,
+`m4_pr3_names_ci`, `perf12_census_goldens`. The two `m10_bulge` rows were
+green on main that night and go red on this branch's fix, which re-pins them.
+
+**The cause (#5542, confirmed).** Two defects in the gap reading #5542
+put first in `profile::seg`'s `line_line`:
+- a pair that shares a vertex was read, although its gap is zero by
+  construction;
+- `geom_core::one_line`'s `apart()` read an overlap by its length, so a
+  perpendicular span, which projects to a point, sat at the gap's zero
+  at any depth inside the other span.
+
+At `Sym<f64>` both are in-band Zero decisions that flip to Negative
+under the revalue row's apart move (`revalue_*`: the flips were all
+`segment_gap`; the p1 margin scales with the step, so it is geometry,
+not noise). At Interval they stop range and drive leaves. Fixed: the
+shared-vertex pair is not read, and `apart()` reads the overlap's
+depth. Positive readings are bit-identical, and every caller acts only
+on Positive.
+
+Green on the fix, measured locally at the default ε:
+- `revalue_corpus` ×7, `intent_s2_c_world`, and
+  `m10_3_driver_interval::a_planted_flip…`;
+- `docm9_range` ×5, after the notch fixture moved (below);
+- `profile`, `geom-core`, `topo` and `geom-brep` at `--profile ci`;
+- `m10_bulge` ×2, re-pinned: `segment_gap` 0/6 → 0/2.
+
+**docm9's notch.** Its seed held two real `segment_gap` flips below the
+crossing, at h = (1 − √2)/2 and h = −1/2. The rows' subject is the
+crossing, so the fixture moved: nominal −0.125, seed [−0.0625, 0.15].
+A new row pins the gap's flip from the old nominal. Filed on CPAIR:
+`work/cpair/a-line-pairs-gap-reading-is-a-range-boundary-where-no-contact-changes.md`.
+
+**Still red after the fix (default ε, local):**
+- Receipts this fix moves:
+  - two_hole_plate's SymCounts go from main `[1305, 987, 297]` to `[1149, 824, 229]`
+    (`sym11`, `sym_9` ladder, `m10_9_no_registrant`);
+  - the slab's forms go from main Plain/Decision 992 to 976
+    (`m10_sym_profile` ×2);
+  - m10_6's planted_flip: main certifies 0 of it, the fix certifies 0.5 with
+    flip_crossing 0.5;
+  - the m10_6 cert keys.
+
+  These rows need a re-bless at the reading after this fix, each move
+  explained. Their stored values also carry drift from other merges
+  (5742 and 5728, per the sections above), so they are left for a
+  follow-up PR.
+- Receipts this fix does not move, read the same on main:
+  - `m10_9_the_pad_at_both_rule_f_dials` `(1592, 1250, 2465)`;
+  - `sym_9_the_drive_writes_the_ladders_receipt` `[1463, 1380, 34]`;
+  - `r1_annulus` `[654, 555, 212]`;
+  - `m4_pr3_names_ci` `0x35eb46e3c6c938ab`.
+
+  Not bisected yet.
+- `m10_9_what_the_registry_buys`: r2_link's door refuses at
+  "another predicate" (limb 2's rung-3 certificate against the
+  cylinder) where the pin says `pcurve_envelope`. A behaviour move, not
+  a count. Not bisected.
+- `m10_3_r2_probes_interval` containment (≈ 2000 s): not run locally.
+- Owned by other rows, left to them:
+  - `m10_3_driver::the_certification_width…`, `m10_4_r1_probes` and
+    `m10_9_no_registrant` (`work/offset/main-red-three-m10-interval-pins-moved-at-5728.md`);
+  - `e6_drive_over_a_loft` ×2 (`work/isotail/a-loft-drive-at-interval-refuses-every-leaf-since-the-one-polynomial-weight-test.md`);
+  - `perf12` (`work/restread/main-red-perf12-census-golden-kitchen-sink-loses-a-curved-pair-at-5817.md`).
+- `k-lint (dev-probe)`: still stops on the ray-wall row, 62 pairs. The
+  widening from 6 belongs to `work/charttail/main-red-ringed-curved-doors-reds-four-sweep-rows.md`.
+  The base 6 is not investigated here.
