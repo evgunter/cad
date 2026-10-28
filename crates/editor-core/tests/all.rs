@@ -868,3 +868,5 @@ mod union_flush_fuses;
 mod union_member_orders_decide_alike;
 #[path = "value_chart_sweeps.rs"]
 mod value_chart_sweeps;
+#[path = "r2_g_probes.rs"]
+mod r2_g_probes;
