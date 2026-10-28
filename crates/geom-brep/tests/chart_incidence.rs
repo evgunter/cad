@@ -1234,3 +1234,88 @@ fn a_tiny_ellipse_within_eps_of_the_sphere_or_torus_is_not_yet() {
         }
     }
 }
+
+/// **The incidence read is the distance from the surface the chart
+/// denotes, at the carrier's own size** (D3). Two carriers on their
+/// face that a read taken where they sit would call off:
+/// - a cylinder's rim and a sphere's polar circle placed 1e7 m out along
+///   each axis (their data exact there), whose points' coordinates round
+///   by about ε;
+/// - a ruling `h` up a cylinder whose axis is long by `δ = ε/4`, inside
+///   the at-rest margin, where a distance taken through the long axis
+///   levers it by the height (`2δ²h²/R`, here `100·ε`).
+///
+/// Each is shown on its face at `f64` and at `Interval`: the mint images
+/// it or refuses it for a reason that is no incidence read.
+#[test]
+fn a_carrier_on_its_face_is_read_on_it_far_out_and_on_a_long_axis() {
+    let e = eps();
+    let far = Vec3::new(1e7, 1e7, 1e7);
+    let at = Point3::origin() + far;
+    let delta = 0.25 * e;
+    let height = (50.0 * e).sqrt() / delta;
+    let rows = [
+        (
+            "a cylinder's rim far out",
+            Surface::Cylinder {
+                origin: at,
+                axis: Vec3::unit_z(),
+                radius: 1.0,
+                u_ref: Vec3::unit_x(),
+            },
+            Curve3::Circle {
+                center: at,
+                axis: Vec3::unit_z(),
+                radius: 1.0,
+                u_ref: Vec3::unit_x(),
+            },
+        ),
+        (
+            "a sphere's polar circle far out",
+            Surface::Sphere {
+                center: at,
+                radius: 5.0,
+                axis: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+            },
+            Curve3::Circle {
+                center: at + Vec3::new(0.0, 0.0, 3.0),
+                axis: Vec3::unit_z(),
+                radius: 4.0,
+                u_ref: Vec3::unit_x(),
+            },
+        ),
+        (
+            "a ruling high up a long axis",
+            Surface::Cylinder {
+                origin: Point3::origin(),
+                axis: Vec3::new(0.0, 0.0, 1.0 + delta),
+                radius: 1.0,
+                u_ref: Vec3::unit_x(),
+            },
+            Curve3::Line {
+                origin: Point3::new(1.0, 0.0, height),
+                dir: Vec3::unit_z(),
+            },
+        ),
+    ];
+    for (what, surface, carrier) in rows {
+        let lift = Interval::from_f64;
+        for (lane, got) in [
+            ("f64", chart_pcurve(&carrier, &surface, band()).map(|_| ())),
+            (
+                "Interval",
+                chart_pcurve(&carrier.map_scalar(lift), &surface.map_scalar(lift), band())
+                    .map(|_| ()),
+            ),
+        ] {
+            assert!(
+                got.as_ref()
+                    .err()
+                    .and_then(geom_brep::IncidenceRead::of)
+                    .is_none(),
+                "{what} ({lane}): shown on its face: {got:?}"
+            );
+        }
+    }
+}

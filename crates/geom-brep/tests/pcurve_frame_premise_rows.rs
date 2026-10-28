@@ -179,9 +179,12 @@ fn a_long_axis_inside_the_rest_margin_refuses_a_far_ruling_over_the_box() {
 /// few ulps), and the bare `Interval` lift of an f64 body carries that
 /// datum as the chart. At `1e9` m along the axis — `sym11`'s furthest
 /// placement — the ruling's origin is itself rounded by an ulp of `1e9`
-/// (about `1.2e-7`), so it is off the wall by more than the band. The
-/// mint reads that first, at both scalars: no image is minted, so no
-/// envelope is ever certified under the residual.
+/// (about `1.2e-7`) off the wall. The mint reads that first: at `f64`
+/// it images the ruling where the miss is within the band and reads it
+/// off past it; over the box, whose enclosure of the distance 1e9 m out
+/// is wider than any band, it is not shown on the wall. No image is
+/// minted that the read did not admit, so none is certified under its
+/// residual.
 #[test]
 fn a_rounded_unit_axis_at_a_far_placement_is_never_under_its_residual() {
     let axis = Vec3::new(1.0, 2.0, 3.0).normalize();
@@ -209,24 +212,28 @@ fn a_rounded_unit_axis_at_a_far_placement_is_never_under_its_residual() {
         origin: Point3::origin() + u_ref * radius + axis * far,
         dir: axis,
     };
+    let by_incidence = |lane: &str, e: &PcurveCertifyError| {
+        assert!(
+            matches!(
+                e,
+                PcurveCertifyError::CarrierOffChart { .. }
+                    | PcurveCertifyError::Escalated {
+                        check: PcurveCheck::ChartIncidence,
+                        ..
+                    }
+            ),
+            "the {lane} mint refuses only by its incidence read: {e:?}"
+        );
+    };
     let at_point = chart_pcurve(&ruling, &cyl, band());
     println!("[rounded axis far] the f64 mint: {at_point:?}");
-    assert!(
-        matches!(at_point, Err(PcurveCertifyError::CarrierOffChart { .. })),
-        "the f64 mint reads the rounded ruling off the wall: {at_point:?}"
-    );
+    if let Err(e) = &at_point {
+        by_incidence("f64", e);
+    }
     let lift = |x: f64| Interval::from_f64(x);
-    let at_box = chart_pcurve(&ruling.map_scalar(lift), &cyl.map_scalar(lift), band());
+    let at_box = chart_pcurve(&ruling.map_scalar(lift), &cyl.map_scalar(lift), band())
+        .map(|_| ())
+        .expect_err("the box cannot show a ruling 1e9 m out on the wall");
     println!("[rounded axis far] the interval mint: {at_box:?}");
-    assert!(
-        matches!(
-            at_box,
-            Err(PcurveCertifyError::CarrierOffChart { .. }
-                | PcurveCertifyError::Escalated {
-                    check: PcurveCheck::ChartIncidence,
-                    ..
-                })
-        ),
-        "the interval mint refuses by its incidence read: {at_box:?}"
-    );
+    by_incidence("interval", &at_box);
 }

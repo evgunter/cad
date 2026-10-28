@@ -10101,6 +10101,38 @@ mod incidence {
         _tested: (),
     }
 
+    /// The carrier and the chart moved together so the chart's anchor
+    /// (a plane's or cylinder's origin, a sphere's or torus's centre, a
+    /// cone's apex) is the origin, and the chart's axis made unit: a move
+    /// keeps every distance, and the surface an axisymmetric chart
+    /// denotes reads its axis's direction only (its length is a frame
+    /// defect the at-rest margin bounds, which a distance taken through
+    /// it would lever by the sample's height). So the read is the
+    /// distance from that surface, evaluated at the carrier's own size
+    /// rather than at its placement's. `None` for a spline carrier or
+    /// chart, read where it is.
+    fn anchored<T: geom_core::Real>(
+        carrier: &Curve3<T>,
+        surface: &Surface<T>,
+    ) -> Option<(Curve3<T>, Surface<T>)> {
+        let mut moved = surface.clone();
+        let anchor = match &mut moved {
+            Surface::Plane { origin, .. } | Surface::Cylinder { origin, .. } => origin,
+            Surface::Sphere { center, .. } | Surface::Torus { center, .. } => center,
+            Surface::Cone { apex, .. } => apex,
+            Surface::Nurbs(_) | Surface::Approx(_) => return None,
+        };
+        let by = geom_core::Point3::origin() - *anchor;
+        *anchor = geom_core::Point3::origin();
+        if let Surface::Cylinder { axis, .. }
+        | Surface::Cone { axis, .. }
+        | Surface::Torus { axis, .. } = &mut moved
+        {
+            *axis = axis.normalize();
+        }
+        Some((carrier.translated(by)?, moved))
+    }
+
     /// **The chart's incidence test of `carrier`**: a carrier shown off
     /// the chart refuses `CarrierOffChart`, one whose test lands in band
     /// escalates [`PcurveCheck::ChartIncidence`], and only one not shown
@@ -10124,6 +10156,12 @@ mod incidence {
         if super::mutants::skip_incidence() || UNREAD.get() {
             return Ok(tested);
         }
+        // Read in the chart's own frame, so a sample's distance carries
+        // the rounding of the carrier's size, not of its placement.
+        let anchored = anchored(carrier, surface);
+        let (carrier, surface) = anchored
+            .as_ref()
+            .map_or((carrier, surface), |(c, s)| (c, s));
         let (name, off_why) = match (carrier, surface) {
             (Curve3::Circle { .. } | Curve3::Ellipse { .. }, Surface::Cone { .. }) => {
                 return cone_conic_incidence(carrier, surface, band).map(|()| tested);
