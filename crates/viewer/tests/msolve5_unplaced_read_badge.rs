@@ -38,13 +38,17 @@ fn read_below_pattern(bench: &asm::Bench, tol: Tol) -> std::path::PathBuf {
     let room = insert_into(&mut asm, Node::Space, tol);
     let room = Operand::Var(asm.output(room, 0).expect("a new space defines its space"));
     let (doc, lifting) = fixture::index(asm, "lift", 2);
+    let lifted_by = Placed::of(
+        &doc,
+        Vec::new(),
+        fixture::slides_along(lifting, [0.0, 0.0, 1.0], 0.1),
+    );
     let (doc, lift) = fixture::insert(
         doc,
         Node::place(
             BodyRead::plain(Operand::Node(shelf)),
             room.clone(),
-            Placed::of(&doc, Vec::new(), fixture::slides_along(lifting, [0.0, 0.0, 1.0], 0.1))
-                .bundle(),
+            lifted_by.bundle(),
         ),
     );
     let (doc, lifted) = fixture::insert(
@@ -57,17 +61,17 @@ fn read_below_pattern(bench: &asm::Bench, tol: Tol) -> std::path::PathBuf {
     );
     // The second copy clears the post and the first copy.
     let (doc, stepping) = fixture::index(doc, "step", 2);
+    let stepped = Placed::of(
+        &doc,
+        Vec::new(),
+        fixture::slides_along(stepping, [1.0, 0.0, 0.0], 2.0 * asm::SHELF_LENGTH),
+    );
     let (doc, pattern) = fixture::insert(
         doc,
         Node::place(
             BodyRead::plain(Operand::Node(lifted)),
             room,
-            Placed::of(
-                &doc,
-                Vec::new(),
-                fixture::slides_along(stepping, [1.0, 0.0, 0.0], 2.0 * asm::SHELF_LENGTH),
-            )
-            .bundle(),
+            stepped.bundle(),
         ),
     );
     // The world (A10): each of the family's two members copied in.

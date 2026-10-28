@@ -29,8 +29,8 @@
 use crate::common;
 
 use pncad::document::{
-    Axis3, Dimension, Doc, DocEdit, Formula, FreeVar, Node, ProfileProgram, SlotId,
-    VarName, VectorSlot,
+    Axis3, Dimension, Doc, DocEdit, Formula, FreeVar, Node, ProfileProgram, SlotId, VarName,
+    VectorSlot,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{DEG, IN, MM, PI, RAD};

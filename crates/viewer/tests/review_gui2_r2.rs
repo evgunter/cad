@@ -42,7 +42,7 @@ use pncad::document::AuthoredNode;
 use std::sync::{Arc, Mutex};
 
 use crate::common;
-use crate::common::{len, scl};
+use crate::common::len;
 
 use pncad::document::{Doc, Evaluation, Node, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol};
@@ -1206,11 +1206,7 @@ fn a_consumed_instance_leaves_the_selection_unresolved_until_undone() {
         .face_at(evaluation(&session), &down_at(0.0875, 0.0075))
         .expect("no refusal")
         .expect("the third instance is hit");
-    assert_eq!(
-        face.node,
-        copies[2],
-        "the picked face is on the last copy"
-    );
+    assert_eq!(face.node, copies[2], "the picked face is on the last copy");
     session.perform(SessionOp::Select(Selection::Face(face.clone())));
     assert!(session.standing().live());
 

@@ -23,8 +23,8 @@
 
 use pncad::document::AuthoredNode;
 use pncad::document::{
-    Doc, Evaluation, Formula, HeldNodes, Node, NodeStanding, Operand,
-    ProfileProgram, RecipeNodeId, Said, Speaker, SpokenNode, held_by,
+    Doc, Evaluation, Formula, HeldNodes, Node, NodeStanding, Operand, ProfileProgram, RecipeNodeId,
+    Said, Speaker, SpokenNode, held_by,
 };
 use pncad::geom_core::{Tol, Vec3};
 use pncad::prelude::StableName;
@@ -849,10 +849,14 @@ pub fn row_steps(
 /// nonzero, which the slide along the axis spans.
 pub fn ring_slide_axis(direction: &[Formula; 3]) -> pncad::document::TargetAxis {
     use pncad::document::TargetAxis as A;
-    [(A::Z, &direction[2]), (A::Y, &direction[1]), (A::X, &direction[0])]
-        .into_iter()
-        .find(|(_, d)| !d.is_zero())
-        .map_or(A::Z, |(axis, _)| axis)
+    [
+        (A::Z, &direction[2]),
+        (A::Y, &direction[1]),
+        (A::X, &direction[0]),
+    ]
+    .into_iter()
+    .find(|(_, d)| !d.is_zero())
+    .map_or(A::Z, |(axis, _)| axis)
 }
 
 /// **The part tool**: one pick of a family, committing one
@@ -1364,7 +1368,12 @@ pub fn duplicate_moves(
         .into_iter()
         .zip(STEP_DIRECTION)
         .filter(|&(_, d)| d != 0.0)
-        .map(|(axis, d)| Ok((Coord::Slide(axis), Formula::literal(d * step, Dimension::Length)?)))
+        .map(|(axis, d)| {
+            Ok((
+                Coord::Slide(axis),
+                Formula::literal(d * step, Dimension::Length)?,
+            ))
+        })
         .collect()
 }
 

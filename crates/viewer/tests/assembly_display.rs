@@ -25,7 +25,7 @@ use viewer::frame;
 use viewer::marks;
 use viewer::pickindex::IdMap;
 use viewer::scene::SceneMesh;
-use viewer::session::{DocSession, PatternRuleSpec, Refusal, Selection, SessionOp};
+use viewer::session::{DocSession, Refusal, Selection, SessionOp};
 use viewer::tree::RowStatus;
 
 // --- the resolver (deliverable 1) ---------------------------------

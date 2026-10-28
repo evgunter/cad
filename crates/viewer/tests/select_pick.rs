@@ -23,9 +23,7 @@ use crate::common::plate_index;
 
 use std::collections::BTreeMap;
 
-use pncad::document::{
-    Doc, Evaluation, Frame, Node, ProfileProgram, RecipeNodeId, TargetAxis,
-};
+use pncad::document::{Doc, Evaluation, Frame, Node, ProfileProgram, RecipeNodeId, TargetAxis};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{HitTestError, Ray, Resolution};
 use viewer::camera::Camera;
@@ -59,7 +57,12 @@ fn eval_of(session: &DocSession) -> &Evaluation<f64> {
 fn patterned_blocks(
     tol: Tol,
     count: i64,
-) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId, Vec<RecipeNodeId>) {
+) -> (
+    Doc<ProfileProgram>,
+    RecipeNodeId,
+    RecipeNodeId,
+    Vec<RecipeNodeId>,
+) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui2-pattern", tol);
     let (doc, profile) = common::square_profile(&doc, 0.02, tol);
     let (doc, extrude) = common::inserted(
@@ -681,11 +684,7 @@ fn deleting_the_selected_feature_leaves_a_typed_unresolved_selection() {
         .face_at(eval_of(&session), &common::down_at(0.01, 0.01))
         .expect("no refusal")
         .expect("the first block is under this ray");
-    assert_eq!(
-        face.node,
-        copies[0],
-        "the first copy is hit"
-    );
+    assert_eq!(face.node, copies[0], "the first copy is hit");
     session.perform(SessionOp::Select(Selection::Face(face.clone())));
     assert!(session.standing().live());
 
@@ -720,11 +719,7 @@ fn a_structural_edit_that_consumes_the_selected_face_leaves_it_unresolved() {
         .face_at(eval_of(&session), &common::down_at(0.11, 0.01))
         .expect("no refusal")
         .expect("the third block is under this ray");
-    assert_eq!(
-        face.node,
-        copies[2],
-        "the third copy is hit"
-    );
+    assert_eq!(face.node, copies[2], "the third copy is hit");
     session.perform(SessionOp::Select(Selection::Face(face.clone())));
     assert!(session.standing().live());
 

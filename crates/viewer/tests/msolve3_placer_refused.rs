@@ -72,7 +72,10 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
         cap,
         fixture::rest(
             common::head(in_part(cap, top_body, CapEnd::Start)),
-            common::head_at(pattern, fixture::in_copy(pattern, k, 1, in_part(legs, leg_body, CapEnd::End))),
+            common::head_at(
+                pattern,
+                fixture::in_copy(pattern, k, 1, in_part(legs, leg_body, CapEnd::End)),
+            ),
         ),
         Vec::new(),
         tol,

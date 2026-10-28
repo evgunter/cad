@@ -700,10 +700,18 @@ fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [Reci
     let room = Operand::Var(doc.output(room, 0).expect("a new space defines its space"));
     let family = |doc: Doc<ProfileProgram>, name: &str, of: RecipeNodeId, dir: [f64; 3]| {
         let (doc, k) = crate::fixture::index(doc, name, 2);
-        let placed = Placed::of(&doc, Vec::new(), crate::fixture::slides_along(k, dir, NEST_STEP));
+        let placed = Placed::of(
+            &doc,
+            Vec::new(),
+            crate::fixture::slides_along(k, dir, NEST_STEP),
+        );
         crate::fixture::insert(
             doc,
-            Node::place(BodyRead::plain(Operand::Node(of)), room.clone(), placed.bundle()),
+            Node::place(
+                BodyRead::plain(Operand::Node(of)),
+                room.clone(),
+                placed.bundle(),
+            ),
         )
     };
     let read = |doc: Doc<ProfileProgram>, of: RecipeNodeId, at: i64, into: Operand| {
@@ -728,11 +736,19 @@ fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [Reci
     let world = Operand::Var(VarId::WORLD);
     let (doc, _) = crate::fixture::insert(
         doc,
-        Node::place(BodyRead::plain(Operand::Node(part)), world.clone(), stand().bundle()),
+        Node::place(
+            BodyRead::plain(Operand::Node(part)),
+            world.clone(),
+            stand().bundle(),
+        ),
     );
     let (doc, _) = crate::fixture::insert(
         doc,
-        Node::place(BodyRead::plain(Operand::Node(outer_one)), world, stand().bundle()),
+        Node::place(
+            BodyRead::plain(Operand::Node(outer_one)),
+            world,
+            stand().bundle(),
+        ),
     );
     let mut ws = pncad::workspace::Workspace::open(&bench.dir).expect("the workspace opens");
     let path = ws.create(&doc, tol).expect("the nested assembly stores");

@@ -129,8 +129,13 @@ fn literal_and_pattern_doc(
         },
         tol,
     );
-    let (doc, pattern) =
-        common::row_of_copies(&doc, extrude, 3, (pncad::document::TargetAxis::X, 0.03), tol);
+    let (doc, pattern) = common::row_of_copies(
+        &doc,
+        extrude,
+        3,
+        (pncad::document::TargetAxis::X, 0.03),
+        tol,
+    );
     let (doc, member) = common::member_read(&doc, pattern, 1, tol);
     (doc, extrude, member)
 }

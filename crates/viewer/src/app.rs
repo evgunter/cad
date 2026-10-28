@@ -4716,7 +4716,7 @@ mod properties_pane_tests {
         let axes = [Axis3::X, Axis3::Y];
         let sources = ["1.5 mm + 0.5 mm", "2.5 mm + 0.5 mm"];
         let (mut pane, pattern) = with_revolve(|_| Vec::new());
-    let mut ops: Vec<SessionOp> = axes
+        let mut ops: Vec<SessionOp> = axes
             .iter()
             .zip(sources)
             .map(|(axis, source)| SessionOp::SetSlotExpression {

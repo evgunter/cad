@@ -40,9 +40,7 @@ use crate::common;
 use std::f64::consts::FRAC_PI_2;
 
 use common::asm;
-use pncad::document::{
-    DocumentId, Frame, ProfileDoc, RecipeNodeId,
-};
+use pncad::document::{DocumentId, Frame, ProfileDoc, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol};
 use pncad::select::face_frame;
 use pncad::workspace::Workspace;

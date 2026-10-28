@@ -21,8 +21,8 @@ use std::sync::Arc;
 use crate::common;
 
 use pncad::document::{
-    CancelToken, Doc, DocEdit, DocRef, EvalOptions, Formula, Label, Node, NodeResult,
-    ProfileDoc, RecipeNodeId, content_pin, evaluate,
+    CancelToken, Doc, DocEdit, DocRef, EvalOptions, Formula, Label, Node, NodeResult, ProfileDoc,
+    RecipeNodeId, content_pin, evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;

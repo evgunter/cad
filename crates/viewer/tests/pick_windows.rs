@@ -61,13 +61,8 @@ fn fixture(tol: Tol) -> Doc<ProfileProgram> {
         },
         tol,
     );
-    let (doc, pattern) = common::row_of_copies(
-        &doc,
-        block,
-        3,
-        (pncad::document::TargetAxis::X, 0.05),
-        tol,
-    );
+    let (doc, pattern) =
+        common::row_of_copies(&doc, block, 3, (pncad::document::TargetAxis::X, 0.05), tol);
     let doc = (0..3).fold(doc, |doc, index| {
         let (doc, copy) = common::member_read(&doc, pattern, index, tol);
         common::placed(&doc, copy, tol).0

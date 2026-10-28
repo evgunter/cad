@@ -857,11 +857,8 @@ pub fn member_read(
     at: i64,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let node = viewer::combine::part_node(
-        doc,
-        family,
-        viewer::session::PartSelectSpec::Instance(at),
-    );
+    let node =
+        viewer::combine::part_node(doc, family, viewer::session::PartSelectSpec::Instance(at));
     inserted(doc, node, tol)
 }
 

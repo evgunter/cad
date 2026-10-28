@@ -3489,8 +3489,8 @@ mod value_field_tests {
     use crate::test_support::{declared, inserted, len, square_profile};
     use eframe::egui;
     use pncad::document::{
-        Dimension, DimensionError, Doc, Formula, FreeVar, Node, ProfileProgram,
-        RecipeNodeId, SlotId, VarId, VarName,
+        Dimension, DimensionError, Doc, Formula, FreeVar, Node, ProfileProgram, RecipeNodeId,
+        SlotId, VarId, VarName,
     };
     use pncad::geom_core::Tol;
     use pncad::prelude::MM;

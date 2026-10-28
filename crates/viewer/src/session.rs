@@ -60,8 +60,8 @@ use pncad::document::{
     AuthoredNode, CheckId, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc, DocEdit,
     DocRef, DocumentId, EditError, EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar,
     HeldNodes, Label, LoopProgram, Maintenance, Node, Operand, OperandSlot, PartResolver,
-    ProductError, ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId,
-    Subject, VarId, VarName, apply, cascade_delete_order, parse_formula, product_recorded,
+    ProductError, ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId, Subject,
+    VarId, VarName, apply, cascade_delete_order, parse_formula, product_recorded,
     run_checks_at_rest_on,
 };
 use pncad::geom_core::Tol;
