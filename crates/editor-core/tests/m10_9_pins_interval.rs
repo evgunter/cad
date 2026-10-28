@@ -198,6 +198,11 @@ pub(crate) struct Study {
 /// the pad held; none refuses a registration or disputes a theorem.
 /// Over main's merge at `1f851964` (plate 1249, bracket 1621) the same
 /// 148 each: the plate 1101 and the bracket 1473.
+///
+/// **Pinned at what main measures since PR 5728** (limb 2 for every
+/// carrier), identical at all three ε rows: the plate 1101 -> 1149.
+/// Which registrant or rule the 48 decisions are is unread
+/// (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`).
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
@@ -211,7 +216,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // the door, and the plate refuses nowhere the bisection
             // reaches.
             without_the_registry: None,
-            symbolic: [1101, 1101, 1101],
+            symbolic: [1149, 1149, 1149],
             at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
         },
         Study {

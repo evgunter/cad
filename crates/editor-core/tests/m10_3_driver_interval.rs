@@ -544,22 +544,22 @@ fn the_certification_width_is_no_longer_bounded_by_epsilon() {
     );
 }
 
-/// The whole-certifying half-width measured on the slab at each ε row,
-/// with the relative band this row admits.
+/// The whole-certifying half-width measured on the slab, with the
+/// relative band this row admits.
 ///
-/// Three numbers rather than one because the ceiling is ε-dependent (the
-/// row's docs say why). The band is 2%: wide enough to absorb the last
-/// bits of a bisection search, far too narrow to absorb a change of
+/// **Pinned at what main measures since PR 5728** (limb 2 for every
+/// carrier): 0.094756 at every ε row. It was ε-dependent before (the
+/// row's docs say why): 0.438988 at 1e-6, 0.488315 at 1e-9, 0.497892
+/// at 1e-12, measured 2026-09-04. A move this far DOWN is, by this
+/// row's own reading, the tier no longer discharging an identity, and
+/// the mechanism is unread
+/// (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`):
+/// closing that row restores the per-ε ceilings or re-documents the
+/// account above. The band is 2%: wide enough to absorb the last bits
+/// of a bisection search, far too narrow to absorb a change of
 /// mechanism.
-fn ceiling_at(eps: f64) -> (f64, f64) {
-    // `Tol` admits exactly the rows CI draws from.
-    if eps >= 1.0e-7 {
-        (0.438_988, 0.02)
-    } else if eps >= 1.0e-10 {
-        (0.488_315, 0.02)
-    } else {
-        (0.497_892, 0.02)
-    }
+fn ceiling_at(_eps: f64) -> (f64, f64) {
+    (0.094_756, 0.02)
 }
 
 /// Every node failure of a `Sym<Interval>` evaluation over `analyzed`'s
