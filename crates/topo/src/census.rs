@@ -20476,7 +20476,10 @@ mod arc_interiors {
                 if half >= r { continue; }
                 // centres 2r - d apart with half-chord `half`: d = 2(r - sqrt(r^2 - half^2))
                 let depth = 2.0 * (r - (r * r - half * half).sqrt());
-                let got = read(r, -depth);
+                let Ok(got) = std::panic::catch_unwind(|| read(r, -depth)) else {
+                    eprintln!("PROBE eps={:e} r={c}w s={s}w fixture refused", tol.eps());
+                    continue;
+                };
                 let f = {
                     let (c0, _, _, v) = frame();
                     let mut body = Body::<f64>::new();

@@ -745,6 +745,10 @@ fn review_probe_jcgqdd() {
         let n = interference(body, &recorded.findings).len();
         let und = recorded.findings.iter().filter(|f| topo::census_uncleared_solids(body, f).is_some()).count();
         eprintln!("PROBE eps={eps:e} OVERLAP {label}: interference={n} uncleared={und} flush_rows={} flush_findings={}", flush.rows.len(), flush.findings.len());
+        for [fa, fb] in flush_faces(&flush) {
+            let d = |f: topo::FaceKey| format!("{:?} {:?}", body.solid_of_face(f), body.get_surface(body.get_face(f).unwrap().surface));
+            eprintln!("PROBE   flush row {label}: {} | {}", d(fa), d(fb));
+        }
         if n == 0 && und == 0 {
             bad.push(format!("{label}: overlap read clear: {:?}", recorded.findings));
         }
