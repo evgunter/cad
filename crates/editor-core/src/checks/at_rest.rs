@@ -301,7 +301,8 @@ pub(crate) fn contact_quietable<P: crate::ProfilePayload, T: Decide + topo::AtRe
         let body = crate::eval::reference_body(&evaluation.nodes, slot, *read, at).ok()?;
         Some((body, at.1))
     });
-    let (Some(Some((framed_a, ent_a))), Some(Some((framed_b, ent_b)))) = (reads.next(), reads.next())
+    let (Some(Some((framed_a, ent_a))), Some(Some((framed_b, ent_b)))) =
+        (reads.next(), reads.next())
     else {
         return false;
     };
