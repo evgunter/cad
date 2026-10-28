@@ -112,3 +112,14 @@ and moves to the door with the frame's retirement. First dispatches:
 - 2026-10-28 — **PR 5886 merged** (the torus certificate, sphere × torus at rung 3). It took two main merges: once conflicting with no CI run, and once on a slow-set conflict resolved as main's file plus this branch's one line. **The cylinder × torus and torus × torus rung-3 rows go to the designer pair first** (blinding record `analysis/design-fork/torus-pair-tangency`). Both rows name the same open question: how the door decides a pose is not transverse when the pair has no closed-form scalar gap like the sphere's. That must also settle how `pair_section`, the SSI doors and `section_cert`'s torus classifiers share the decision.
 
 - 2026-10-28 — **The torus-pair tangency question converged** (two designers; record `analysis/design-fork/torus-pair-tangency`). Every torus pair decides "not transverse" on one pose value's **critical gap**, `min |D − (ρ₁ ± ρ₂)|` over the critical values of the spine-to-spine distance (offset duality), by a certified 1-D sweep. The symmetric closed forms move from `section_cert` into the value. The designers differed only on the sweep: 1-D over the core angle against 2-D over the torus chart with a separately named tube-circle arm. I took the 1-D form, which covers the tube-circle tangency without a special arm; that tangency is a required Zero row. One designer proposed a C5 sentence stating the principle; that would bind future work, so it is put to Ev, not written. Unit `each-torus-pair-decides-tangency-on-one-pose` (P0 H, dual) is dispatched. The cylinder × torus and torus × torus door rows are parked on it. Sphere × torus's double tangency decision (the 5886 door against `section_cert`) closes inside the unit.
+
+- 2026-10-28 — **Step 1b merges** (PR 5894, `cylinder-sphere-germ-pair-has-no-join-lane` closed). The cylinder × sphere chord lane and island closure stand on the section object. All 54 fixture runs pass the join and stop typed downstream, so none builds a body yet. **What waits:**
+  - props, which has no `Projected` arm on an analytic chart (SPIRICARM, filed);
+  - `edge_join`, which cannot join a spline carrier (SPLICE).
+
+  **Review:** dual concurrent (H), R1 APPROVE and R2 APPROVE-WITH-FIXES, with no MAJOR. Row `docs/dual-review-log/rows/PR-5894.md`.
+
+  **Classes** recorded for later steps:
+  - an arc a reader trusts on-surface must carry that evidence in its type, not by convention;
+  - an undecided nearness must escalate, never fold into a verdict (my delta read caught one);
+  - a surface pair's section is carried in operand order (P3, filed).
