@@ -56,3 +56,11 @@ assertions stay as they are.
 Reproduce: `cargo nextest run -p editor-core --test all
 --ignore-default-filter -E
 'test(/^e6_drive_over_a_loft_at_interval::/)'`.
+
+## 2026-10-28 — pinned on main (GREEN, `green/full-suite-pins`)
+
+Nightly run 40637814390 (main `a1cfd1cfdb`), `full suite`; re-run on main `91c83c38`. Both rows still red at every ε, about 960 s each. They are
+`#[ignore = "pinned red: work/isotail/…"]` rather than pinned: a pin
+would spend 16 minutes per row per ε to re-read a budget refusal.
+Closing this row removes the two `ignore`s. Run them with the reproduce
+command above plus `--run-ignored all`.

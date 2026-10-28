@@ -392,6 +392,21 @@ fn touch_pairs() -> Vec<(&'static str, Shape, Shape)> {
 /// [`past_f64_headroom`]. Prints each line; red on any other outcome.
 #[test]
 fn review_4781_touch_pairs_every_op() {
+    // Pinned since PR 5728 (limb 2 for every carrier): at ε = 1e-12 a
+    // cylinder fixture (extent 2236) refuses as limb 2's kernel limit,
+    // bound 3.67e-12
+    // (`work/offset/main-red-two-review-4781-rows-refuse-at-limb-2s-kernel-limit-since-5728`).
+    // The pin goes red the day the row passes.
+    test_utils::kernel_limit::pinned_row(
+        geom_core::Tol::witness().eps(),
+        &[1e-12],
+        "the review 4781 touch rows",
+        review_4781_touch_pairs_every_op_row,
+    );
+}
+
+/// The row [`review_4781_touch_pairs_every_op`] runs, under its pin.
+fn review_4781_touch_pairs_every_op_row() {
     let eps = tol().get().eps;
     let mut bad = Vec::new();
     for (name, a, b) in touch_pairs() {

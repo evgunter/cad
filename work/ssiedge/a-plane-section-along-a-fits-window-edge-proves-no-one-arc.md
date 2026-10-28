@@ -64,3 +64,10 @@ Re-run by name at `CAD_TOLERANCE_EPS=1e-6` on main `8dc4a60767` by the FUSE curv
 ## 2026-10-19 — the 1e-6 red dates from PR 4472's merge
 
 CONTACTHOLD's nightly-red lane built `sweep`'s `all` binary on both sides of `108b06955d`, the merge of PR 4472 (`shell/fitted-corners`). At ε 1e-6, `r1_lane0_e2e::the_f64_seam_answers_every_public_door` passes at its first parent `cb4172aa9f` and fails at the merge, with this row's `TubeNotOneArc { rungs: 15, cause: Undecided(..) }` refusal. It is still red in the 2026-10-19 nightly (run 39205007024).
+
+## 2026-10-28 — pinned on main (GREEN, `green/full-suite-pins`)
+
+Nightly run 40637814390 (main `a1cfd1cfdb`), `full suite`; re-run on main `91c83c38`. `r1_lane0_e2e::the_f64_seam_answers_every_public_door` is still red
+at 1e-6 (`PlaneNurbs(TubeNotOneArc { rungs: 15, cause: Undecided(… MarginDiag(Invalid) … ssi_tube_one_arc) })`).
+It is pinned at 1e-6 on `TubeNotOneArc`; the pin goes red the day the
+row passes.

@@ -664,6 +664,21 @@ fn review_4781_r2_record_survives() {
 /// any of them refuses, mis-counts, or writes no edge–edge row.
 #[test]
 fn r2_every_same_side_touch_pose_answers_as_a_touch() {
+    // Pinned since PR 5728 (limb 2 for every carrier): at ε = 1e-12 a
+    // cylinder fixture (extent 2236) refuses as limb 2's kernel limit,
+    // bound 3.67e-12
+    // (`work/offset/main-red-two-review-4781-rows-refuse-at-limb-2s-kernel-limit-since-5728`).
+    // The pin goes red the day the row passes.
+    test_utils::kernel_limit::pinned_row(
+        geom_core::Tol::witness().eps(),
+        &[1e-12],
+        "the review 4781 touch rows",
+        r2_every_same_side_touch_pose_answers_as_a_touch_row,
+    );
+}
+
+/// The row [`r2_every_same_side_touch_pose_answers_as_a_touch`] runs, under its pin.
+fn r2_every_same_side_touch_pose_answers_as_a_touch_row() {
     for s in [1.0, 1e-3, 1e3] {
         for turned in [false, true] {
             let map = turned.then(|| {

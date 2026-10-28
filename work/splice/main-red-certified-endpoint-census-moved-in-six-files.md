@@ -47,3 +47,23 @@ reads are OFFSET's.
 
 Reproduce: `cargo nextest run -p geom-core --ignore-default-filter -E
 'test(every_production_endpoint_read_is_counted_and_dispositioned)'`.
+
+## 2026-10-28 — pinned on main (GREEN, `green/full-suite-pins`)
+
+Nightly run 40637814390 (main `a1cfd1cfdb`), `full suite`; re-run on main `91c83c38`. Three more files moved after the nightly, attributed the same way
+(each file swapped to each merge that touched it):
+
+| file | roster | live | moved by |
+|---|---|---|---|
+| `crates/geom-brep/src/intersect/section_bounds.rs` | absent | (13, 13) | PR 5897 (`offset/tube-exemption-by-pair`) |
+| `crates/topo/src/clearance.rs` | absent | (17, 0), then (20, 3) | PR 5909 (`clear/shell-3-engine-into-topo`), then PR 5927 (`clear/nurbswin`) |
+| `crates/geom/src/surfaces/nurbs.rs` | absent | (4, 1) | PR 5927 |
+
+The roster now holds main's counts. Where every read sits in a function
+that asks (`krawczyk.rs`, `ssi/enclose.rs`, `intersect/section_bounds.rs`)
+the count is re-blessed. Where reads sit outside one (`spline_face.rs` +3,
+`offset_meters.rs` +2, `pcurve_cache.rs` +1, `spline/blossom.rs` +1,
+`surfaces/nurbs.rs` +3, `topo/src/clearance.rs` +17) the entry is pinned
+with a note naming this row. Closing it dispositions each of those reads
+and replaces each note. The `clearance.rs` and `surfaces/nurbs.rs` reads
+are CLEAR's.

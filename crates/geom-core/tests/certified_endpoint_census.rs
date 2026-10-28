@@ -305,7 +305,12 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
         "pinned red at main's count since PR 5855: the new reads are not yet \
          dispositioned (`work/splice/main-red-certified-endpoint-census-moved-in-six-files`)",
     ),
-    ("crates/geom-brep/src/intersect/section_bounds.rs", 13, 13, ""),
+    (
+        "crates/geom-brep/src/intersect/section_bounds.rs",
+        13,
+        13,
+        "",
+    ),
     (
         "crates/geom-brep/src/krawczyk.rs",
         5,

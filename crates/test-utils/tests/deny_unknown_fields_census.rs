@@ -371,7 +371,11 @@ fn every_deny_unknown_fields_attribute_has_a_named_field_to_deny() {
     let (pinned, offenders): (Vec<String>, Vec<String>) = sites(&root)
         .into_iter()
         .filter_map(|(site, verdict)| offence(&site, &verdict))
-        .partition(|o| PINNED_INERT.iter().any(|file| o.starts_with(&format!("{file}:"))));
+        .partition(|o| {
+            PINNED_INERT
+                .iter()
+                .any(|file| o.starts_with(&format!("{file}:")))
+        });
     // Pinned red: the two `Qualifier` enums lost their one named variant
     // and still carry the attribute
     // (`work/census/main-red-inert-deny-on-the-qualifier-enums`). The pin

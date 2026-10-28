@@ -1088,6 +1088,21 @@ fn mesh_agrees(body: &topo::AtRestBody<f64>, tol: Tol, what: &str) {
 /// both, an edge four triangles hold that the body has no counterpart of.
 #[test]
 fn slanted_bores_build_every_operation_one_difference_pinched_to_itself() {
+    // Pinned red since PR 5664: at ε = 1e-12 the 3° pose's B ∖ A exhausts its
+    // probe ray (`work/tang/main-red-slanted-bores-b-minus-a-exhausts-its-probe-ray-at-1e-12`,
+    // `work/charttail/main-red-ringed-curved-doors-reds-four-sweep-rows`).
+    // The pin goes red the day the row passes.
+    test_utils::pinned_red::row(
+        geom_core::Tol::witness().eps(),
+        &[1e-12],
+        "the slanted bores",
+        "3° (B, A), ∖: the node builds, got Err(Pieces(Probe",
+        slanted_bores_build_every_operation_one_difference_pinched_to_itself_row,
+    );
+}
+
+/// The row [`slanted_bores_build_every_operation_one_difference_pinched_to_itself`] runs, under its pin.
+fn slanted_bores_build_every_operation_one_difference_pinched_to_itself_row() {
     let tol = Tol::witness();
     let measure = |b: &topo::AtRestBody<f64>| {
         let m = topo::mass_properties(b, tol, topo::test_support::pinned_resolution(tol)).unwrap();

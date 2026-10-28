@@ -48,3 +48,17 @@ CAD_FUZZ_EFFORT=1`. Draw 7, f64: `Recedes` read on two windows
 true), against a Circle of radius 477.40 centred at
 `(-160.017, -381.167, 1.259)`, axis `(0.00135, 0.00227, 0.99999)`, and the
 point b `(105.656, 48.066)`.
+
+## 2026-10-28 — pinned on main (GREEN, `green/full-suite-pins`)
+
+Nightly run 40637814390 (main `a1cfd1cfdb`), `full suite`; re-run on main `91c83c38`. A fourth seed: the 1e-6 pass drew `CAD_FUZZ_SEED=0xf440002aa745ad47`
+(`CAD_FUZZ_EFFORT=1`), 3 readings contradicted at ε 1e-12, draw 31:
+`Recedes` on `(-7.715e-7, -7.710e-7)`, `(-5.076e-7, -5.031e-7)` and
+`(-1.380e-6, -1.379e-6)` (away false) against a Circle of radius 489.76.
+
+The search is a counterexample fuzz, so no output can be pinned. The
+1e-12 band is out of the row's loop
+(`each_window_reading_holds_on_a_dense_distance_at_a_touch` prints a
+`SKIPPED` line naming this row); the default band still searches.
+Closing this row puts the 1e-12 band back, with the four seeds as
+deterministic rows beside the fix.

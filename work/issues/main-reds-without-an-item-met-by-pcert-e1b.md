@@ -46,3 +46,14 @@ Filed together, to be split by whoever picks them up.
     row expects the operand named.
 
 Not bisected.
+
+## 2026-10-28 — pinned on main (GREEN, `green/full-suite-pins`)
+
+Nightly run 40637814390 (main `a1cfd1cfdb`), `full suite`; re-run on main `91c83c38`. `spline_spiric_operands::no_spline_or_spiric_operand_builds_wrong`
+still builds the wrong volume at 1e-6 (`lofted cylinder / far / O ∪ B:
+builds V = 7.283217721708709`, closed form `7.283185307179586`). It is
+pinned at 1e-6 on that text, citing this file, and at 1e-12 on its
+operand measurement
+(`work/splice/the-lofted-cylinder-operand-runs-out-of-quadrature-budget-at-1e-12`).
+The 1e-6 case is split out to its owner as
+`work/splice/main-red-the-lofted-cylinders-far-union-builds-the-wrong-volume-at-1e-6`.
