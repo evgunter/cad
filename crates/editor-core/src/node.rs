@@ -2575,7 +2575,6 @@ impl<S> TubeWindow<S> {
     }
 }
 
-
 /// **One port of an operation's output signature** (D10, Operations):
 /// the variable the operation defines there ([`crate::VarDef::Output`]),
 /// named and typed by the variant.
@@ -3082,7 +3081,6 @@ pub(crate) fn assertion_reads<P>(
 /// The construction doors, in either slot form: a node built from
 /// authored formulas is what an edit carries, and the door lowers it.
 impl<P, S: Slot> Node<P, S> {
-
     /// The [`StableName`]s this payload REFERENCES — an instance's
     /// interface crossings' `outer`s; a
     /// name read through a slot is a selection's

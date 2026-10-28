@@ -1099,13 +1099,13 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
     );
     let changed = Diagnosis::StructuralParam {
         node: extrude,
-        param: SlotId::Count,
+        param: SlotId::Stations,
     };
     assert_eq!(
         changed.spoken(&doc),
         format!(
             "a structural parameter changed on the derivation path: slot {} of {plate}",
-            SlotId::Count.label()
+            SlotId::Stations.label()
         )
     );
     let vanished = ResolveError::Vanished {
@@ -1117,7 +1117,7 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
         vanished.spoken(&doc, &ev).starts_with(&format!(
             "the end cap of {plate} no longer resolves in this evaluation: a structural \
              parameter changed on the derivation path: slot {} of {plate}",
-            SlotId::Count.label()
+            SlotId::Stations.label()
         )),
         "{}",
         vanished.spoken(&doc, &ev)

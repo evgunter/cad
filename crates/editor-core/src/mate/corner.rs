@@ -114,14 +114,20 @@ pub(crate) fn read_of(
     // names: what a reader evaluated once per member reads at each
     // (D10 `[repetition]`).
     if let Some(members) = &value.members {
-        let (_, first) = members.members.first().ok_or(PinRefusal::NotABody { node })?;
+        let (_, first) = members
+            .members
+            .first()
+            .ok_or(PinRefusal::NotABody { node })?;
         let (ValuePayload::Body(solid)
         | ValuePayload::Boolean(crate::eval::BooleanValue::Body { body: solid, .. })) =
             &first.payload
         else {
             return Err(PinRefusal::NotABody { node });
         };
-        let table = first.output(0).ok_or(PinRefusal::NotABody { node })?.table();
+        let table = first
+            .output(0)
+            .ok_or(PinRefusal::NotABody { node })?
+            .table();
         return Ok((node, solid.clone(), table.clone(), first.motion));
     }
     let port = match body {

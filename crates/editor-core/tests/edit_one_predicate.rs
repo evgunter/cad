@@ -45,9 +45,9 @@ use editor_core::AuthoredNode;
 use crate::wire::doctored;
 use editor_core::CapEnd;
 use editor_core::{
-    Dimension, DocEdit, DocRef, DocumentId, EditError, EntityKind, FaceName, Formula,
-    FreeVar, InterfaceCrossing, InterfaceRecord, Mate, MateRef, Node, PersistError,
-    ProfileDoc, RecipeNodeId, RoleSeg, SnapshotError, StableName, VarName, apply, load, save,
+    Dimension, DocEdit, DocRef, DocumentId, EditError, EntityKind, FaceName, Formula, FreeVar,
+    InterfaceCrossing, InterfaceRecord, Mate, MateRef, Node, PersistError, ProfileDoc,
+    RecipeNodeId, RoleSeg, SnapshotError, StableName, VarName, apply, load, save,
 };
 use editor_core::{VarNameReason, parse_formula};
 use fixture::resolver::{PartStore, in_part};

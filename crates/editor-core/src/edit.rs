@@ -936,9 +936,9 @@ impl Lowering {
                 }
             };
             let dim = decl.dim();
-            minted
-                .defined
-                .set(minted.defined.get() | matches!(def, WrittenDef::Defined(_) | WrittenDef::Index(_)));
+            minted.defined.set(
+                minted.defined.get() | matches!(def, WrittenDef::Defined(_) | WrittenDef::Index(_)),
+            );
             if let Some(name) = name
                 && let Some(holder) = new.var_named(name.as_str())
             {
@@ -7044,9 +7044,8 @@ pub(crate) fn apply_insert<P: Clone + crate::ProfilePayload>(
     node: &Node<P::Authored, Formula>,
     tol: Tol,
 ) -> Result<(Applied<P>, RecipeNodeId), EditError> {
-    let (doc, minted, maintenance) = door(doc, None, |new, _| {
-        insert_into(doc, new, node, &[], tol)
-    })?;
+    let (doc, minted, maintenance) =
+        door(doc, None, |new, _| insert_into(doc, new, node, &[], tol))?;
     let id = minted.0;
     let applied = Applied {
         doc,

@@ -115,7 +115,6 @@ pub(crate) fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
         Node::Profile(_) => Some(NodeKindWanted::Profile),
         Node::Split { .. }
         | Node::Mirror { .. }
-        | Node::Pattern { .. }
         | Node::Extrude { .. }
         | Node::Revolve { .. }
         | Node::Tube { .. }
@@ -129,8 +128,6 @@ pub(crate) fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
         | Node::Union { .. }
         | Node::Intersect { .. }
         | Node::Assemble { .. }
-        | Node::Part { .. }
-        | Node::PlacedUnion { .. }
         | Node::InstantiatePart { .. }
         | Node::Place { .. }
         | Node::World
@@ -1004,6 +1001,7 @@ pub(crate) fn one_body(payload: &ValuePayload<f64>) -> Option<&pncad::document::
         | ValuePayload::Profile(_)
         | ValuePayload::Split { .. }
         | ValuePayload::Instances(_)
+        | ValuePayload::Family
         | ValuePayload::Measure { .. }
         | ValuePayload::MeasureUnavailable { .. }
         | ValuePayload::Assertion(_) => None,

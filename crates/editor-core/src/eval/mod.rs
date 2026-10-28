@@ -2251,7 +2251,12 @@ impl crate::spoken::Say for NodeErrorKind {
                     .iter()
                     .map(|&(index, value)| format!("{} = {value}", by.read(index)))
                     .collect();
-                write!(f, "the member at {} refused: {}", at.join(", "), Said(&**source, by))
+                write!(
+                    f,
+                    "the member at {} refused: {}",
+                    at.join(", "),
+                    Said(&**source, by)
+                )
             }
             Self::IndicesUnrelated { a, b } => write!(
                 f,
@@ -2259,12 +2264,14 @@ impl crate::spoken::Say for NodeErrorKind {
                  they meet in no reader. {}",
                 by.read(*a),
                 by.read(*b),
-                crate::sentence::Recourse(
-                    "declare one within the other, or read one index here"
-                )
+                crate::sentence::Recourse("declare one within the other, or read one index here")
             ),
             Self::IndexCount { index, source } => {
-                write!(f, "the count of index {} did not evaluate: {source}", by.read(*index))
+                write!(
+                    f,
+                    "the count of index {} did not evaluate: {source}",
+                    by.read(*index)
+                )
             }
             // Every role word is already a complete noun phrase for
             // the vector (the `*_ROLE` constants are where they are
@@ -5318,8 +5325,7 @@ where
             v_degree: _,
         }
         | Node::Split { target: _, tool: _ }
-        | Node::Mirror { body: _, plane: _ }
-        => {}
+        | Node::Mirror { body: _, plane: _ } => {}
     }
     let indexed: Vec<(usize, usize)> = node
         .body_reads()

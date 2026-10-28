@@ -3486,15 +3486,22 @@ mod value_field_tests {
     use crate::props;
     use crate::session::ValueGestureName;
     use crate::session::{DocSession, Refusal, SessionOp};
-    use crate::test_support::{declared, inserted, len, scl, square_profile};
+    use crate::test_support::{declared, inserted, len, square_profile};
     use eframe::egui;
     use pncad::document::{
-        Dimension, DimensionError, Doc, Formula, FreeVar, Node, PatternKind, ProfileProgram,
+        Dimension, DimensionError, Doc, Formula, FreeVar, Node, ProfileProgram,
         RecipeNodeId, SlotId, VarId, VarName,
     };
     use pncad::geom_core::Tol;
     use pncad::prelude::MM;
     use pncad::quantity::WrittenLength;
+
+    /// A member read's index: the structural count slot a row of the
+    /// count dimension is drawn for.
+    const INDEX: SlotId = SlotId::Index {
+        seat: pncad::document::OperandSlot::Source,
+        k: 0,
+    };
 
     /// **Which of the panel's two rows the field under test is drawn
     /// for.**
@@ -3631,23 +3638,43 @@ mod value_field_tests {
             let Subject::Slot { node: extrude, .. } = base.subject else {
                 panic!("the base row is a slot row");
             };
-            let (doc, pattern) = inserted(
+            let index = pncad::document::VarName::new("k").expect("a name");
+            let declared = pncad::document::apply(
                 base.session.doc(),
-                Node::Pattern {
-                    input: extrude.into(),
-                    count: Formula::count(count),
-                    kind: PatternKind::Linear {
-                        direction: [scl(0.0), scl(1.0), scl(0.0)],
-                        spacing: len(0.08),
+                &pncad::document::DocEdit::DeclareVar {
+                    name: index.clone(),
+                    def: pncad::document::VarDecl::Index {
+                        count: Formula::count(count + 1),
+                        within: None,
                     },
                 },
+                tol,
+            )
+            .expect("an index declares")
+            .doc;
+            let target = declared.node_space(extrude).expect("the extrude's space");
+            let row = pncad::pattern::linear_pattern(
+                &index,
+                pncad::document::BodyRead::plain(pncad::document::Operand::from(extrude)),
+                pncad::document::Operand::Var(target),
+                &[(pncad::document::TargetAxis::Y, len(0.08))],
+            )
+            .expect("a length pitch");
+            let (doc, row) = inserted(&declared, row, tol);
+            let (doc, member) = inserted(
+                &doc,
+                Node::place(
+                    pncad::document::BodyRead::indexed(row, vec![Formula::count(count)]),
+                    pncad::document::Operand::Var(target),
+                    pncad::document::stand().bundle(),
+                ),
                 tol,
             );
             Self {
                 session: DocSession::inline(doc, tol),
                 subject: Subject::Slot {
-                    node: pattern,
-                    slot: SlotId::Count,
+                    node: member,
+                    slot: INDEX,
                 },
                 ..base
             }

@@ -565,4 +565,3 @@ fn sibling_members_of_one_instances_family_are_not_on_the_copy() {
         refusal.err()
     );
 }
-

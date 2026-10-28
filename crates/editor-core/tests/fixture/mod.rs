@@ -1101,7 +1101,11 @@ pub fn ring(
     let (doc, k) = index(doc, name, n);
     let step = Formula::turn_over(u64::try_from(n).expect("a count")).expect("a turn's fraction");
     let spin = Formula::mul(scalar_of(k), step).expect("an angle");
-    let (doc, ring) = family_of(doc, body, vec![(editor_core::Coord::Spin(Some(axis)), spin)]);
+    let (doc, ring) = family_of(
+        doc,
+        body,
+        vec![(editor_core::Coord::Spin(Some(axis)), spin)],
+    );
     (doc, k, ring)
 }
 
@@ -1169,7 +1173,9 @@ pub fn linear(
 /// **An axis read as a mate's operand**: a plain read as it is, and a
 /// read through a role (a frame's `z`) as the axis slid zero along
 /// itself, which is that axis.
-pub fn axis_operand(axis: editor_core::pose::RoleRead<editor_core::Operand>) -> editor_core::Operand {
+pub fn axis_operand(
+    axis: editor_core::pose::RoleRead<editor_core::Operand>,
+) -> editor_core::Operand {
     match axis.role {
         None => axis.read,
         Some(_) => editor_core::Operand::Pose(Box::new(editor_core::pose::PoseDef::Slide {
@@ -1189,17 +1195,89 @@ pub fn axis_operand(axis: editor_core::pose::RoleRead<editor_core::Operand>) -> 
 pub fn circular(
     doc: ProfileDoc,
     input: RecipeNodeId,
-    (axis, along): (
+    axis: (
         editor_core::pose::RoleRead<editor_core::Operand>,
         editor_core::TargetAxis,
     ),
     step: f64,
     count: i64,
 ) -> (ProfileDoc, VarId, RecipeNodeId) {
+    circular_from(doc, input, axis, (0.0, 0.0), step, count)
+}
+
+/// **The spin and the slide that seat member 0 of a ring at `posed`**,
+/// `input`'s pose in its space, about the axis whose direction there is
+/// `dir`, the slide along the target axis `along`: the mate's chart
+/// measures the spin from the least turn `S` carrying the copy's axis
+/// (`posed⁻¹·d`) onto the target's (`d`), and the slide as the copy's
+/// origin along `S·along` (`mate/value.rs`), so a source posed by
+/// anything but a turn about `d` stands at neither zero.
+pub fn ring_seat(posed: editor_core::Frame, dir: [f64; 3], along: usize) -> (f64, f64) {
+    let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    let cross = |a: [f64; 3], b: [f64; 3]| {
+        [
+            a[1] * b[2] - a[2] * b[1],
+            a[2] * b[0] - a[0] * b[2],
+            a[0] * b[1] - a[1] * b[0],
+        ]
+    };
+    let unit = |a: [f64; 3]| {
+        let l = dot(a, a).sqrt();
+        [a[0] / l, a[1] / l, a[2] / l]
+    };
+    let turn = |c: [[f64; 3]; 3], v: [f64; 3]| {
+        [0, 1, 2].map(|r| c[0][r] * v[0] + c[1][r] * v[1] + c[2][r] * v[2])
+    };
+    let d = unit(dir);
+    // The copy's axis in its own coordinates: `posed`'s turn undone.
+    let n = [0, 1, 2].map(|c| dot(posed.columns[c], d));
+    // The least turn carrying `n` onto `d`, by Rodrigues.
+    let least = |v: [f64; 3]| {
+        let w = cross(n, d);
+        let (sin, cos) = (dot(w, w).sqrt(), dot(n, d));
+        if sin == 0.0 {
+            return v;
+        }
+        let k = [w[0] / sin, w[1] / sin, w[2] / sin];
+        let kv = cross(k, v);
+        let kkv = dot(k, v);
+        [0, 1, 2].map(|i| v[i] * cos + kv[i] * sin + k[i] * kkv * (1.0 - cos))
+    };
+    let seed = if n[0].abs() <= n[1].abs().max(n[2].abs()) {
+        [1.0, 0.0, 0.0]
+    } else {
+        [0.0, 1.0, 0.0]
+    };
+    let u = unit([0, 1, 2].map(|i| seed[i] - n[i] * dot(n, seed)));
+    let (a, b) = (least(u), turn(posed.columns, u));
+    let spin = dot(cross(a, b), d).atan2(dot(a, b));
+    let mut e = [0.0; 3];
+    e[along] = 1.0;
+    (spin, dot(posed.translation, least(e)))
+}
+
+/// [`circular`] with member `k` spun `spin + scalar(k)·step` and slid
+/// `slide`: [`ring_seat`]'s pair seats member 0 where a posed `input`
+/// stands.
+pub fn circular_from(
+    doc: ProfileDoc,
+    input: RecipeNodeId,
+    (axis, along): (
+        editor_core::pose::RoleRead<editor_core::Operand>,
+        editor_core::TargetAxis,
+    ),
+    (spin0, slide0): (f64, f64),
+    step: f64,
+    count: i64,
+) -> (ProfileDoc, VarId, RecipeNodeId) {
     let name = fresh_index_name(&doc);
     let (doc, k) = index(doc, &name, count);
     let axis = axis_operand(axis);
-    let spin = Formula::mul(scalar_of(k), ang(step)).expect("an angle");
+    let spin = Formula::add(
+        ang(spin0),
+        Formula::mul(scalar_of(k), ang(step)).expect("an angle"),
+    )
+    .expect("an angle");
     let target = space(&doc, input);
     let read = body_read(&doc, input.into());
     let placed = editor_core::Placed::of(
@@ -1207,7 +1285,7 @@ pub fn circular(
         vec![mate(axis.clone(), axis)],
         vec![
             (editor_core::Coord::SPIN, spin),
-            (editor_core::Coord::Slide(along), len(0.0)),
+            (editor_core::Coord::Slide(along), len(slide0)),
         ],
     );
     let (doc, ring) = insert(
@@ -1237,8 +1315,11 @@ pub fn linear_on(
     let name = fresh_index_name(&doc);
     let (doc, k) = index(doc, &name, count);
     let next = Formula::count_to_scalar(
-        Formula::add(Formula::var(k, editor_core::Dimension::Count), Formula::count(1))
-            .expect("a count"),
+        Formula::add(
+            Formula::var(k, editor_core::Dimension::Count),
+            Formula::count(1),
+        )
+        .expect("a count"),
     )
     .expect("a count");
     let values = [A::X, A::Y, A::Z]
@@ -2409,7 +2490,9 @@ impl Recorder {
                 within: None,
             },
         });
-        self.doc.var_named(name.as_str()).expect("the index is declared")
+        self.doc
+            .var_named(name.as_str())
+            .expect("the index is declared")
     }
 
     /// **A row of `count` copies of `input` along `dir`, `spacing`

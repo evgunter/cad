@@ -331,7 +331,10 @@ fn the_recorded_map_rewrites_a_family_head_s_ids_and_never_its_member_value() {
         panic!("the seat's target reads a face");
     };
     let a = editor_core::head_of(&out.part, a).expect("the moved head resolves");
-    let new_k = out.part.var_named("k").expect("the index crosses with its family");
+    let new_k = out
+        .part
+        .var_named("k")
+        .expect("the index crosses with its family");
     assert_eq!(
         a,
         crate::fixture::head(in_copy(
@@ -376,7 +379,8 @@ fn an_underqualified_family_head_reaches_the_seam_and_contributes_no_crossing() 
     let (doc, leg, leg_body) = pinned_block(doc, "fix-xs-n-leg");
     let (doc, i, inner) = fixture::linear(doc, leg, [1.0, 0.0, 0.0], 2.0, 2);
     let (doc, j) = fixture::index_of(doc, "j", Formula::count(2), Some(i));
-    let (doc, outer) = fixture::family_of(doc, inner, fixture::slides_along(j, [0.0, 1.0, 0.0], 5.0));
+    let (doc, outer) =
+        fixture::family_of(doc, inner, fixture::slides_along(j, [0.0, 1.0, 0.0], 5.0));
     let (top_ref, top_body) = block_ref("fix-xs-n-top");
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     // The constraint door is structural, so a target whose head

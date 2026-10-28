@@ -315,7 +315,10 @@ fn r1_oblique_circular_axis_with_a_non_identity_group_frame() {
         unturn(f, axis_dir),
         &o,
     );
-    let (doc, k, pattern) = crate::fixture::circular(doc, leg, (axis, TargetAxis::Z), theta, 3);
+    // Member 0 seated where the leg stands ([`crate::fixture::ring_seat`]).
+    let at = crate::fixture::ring_seat(f, axis_dir, 2);
+    let (doc, k, pattern) =
+        crate::fixture::circular_from(doc, leg, (axis, TargetAxis::Z), at, theta, 3);
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
     let (doc, mate) = seat(
         doc,
@@ -399,15 +402,24 @@ fn r1_no_mate_can_give_one_copy_a_pose_apart_from_its_siblings() {
     let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(mate.placement), None);
 
-    // The pattern node holds no pose and no space: copies are not
-    // placements, so per-instance freedom is unrepresentable.
-    assert_eq!(poses.relative(pattern), None, "a pattern holds no pose");
-    assert_eq!(poses.space(pattern), None, "a pattern is no placement");
+    // The family is one placement whose pose is its members' at each
+    // value of its index: member 0 slides nothing, so the family's pose
+    // is the identity, and there is no member node to give a pose of
+    // its own.
+    assert_eq!(poses.relative(pattern), Some(Frame::IDENTITY));
+    assert!(
+        doc.placements().into_iter().all(
+            |p| !matches!(doc.node(p), Some(Node::Place { source, .. }) if source.is_member())
+        ),
+        "no placement copies one member"
+    );
     // The master stays at the identity of its own space — the mates
     // moved the copy they place, the top.
     assert_eq!(poses.relative(leg), Some(Frame::IDENTITY));
 
-    // And the edit door refuses a constraint on a pattern.
+    // And a constraint on the family is the family's: one between two
+    // of its members reads the family's own copy, which no placement
+    // may read.
     let bad = editor_core::apply(
         &doc,
         &DocEdit::AddConstraint {
@@ -422,11 +434,8 @@ fn r1_no_mate_can_give_one_copy_a_pose_apart_from_its_siblings() {
         Tol::witness(),
     );
     assert!(
-        matches!(
-            bad,
-            Err(editor_core::EditError::ConstraintOnNonPlacement { .. })
-        ),
-        "a pattern node cannot carry a placement of its own: {:?}",
+        matches!(bad, Err(editor_core::EditError::WouldCycle { .. })),
+        "a member's pose is never its own: {:?}",
         bad.err()
     );
 }
@@ -613,7 +622,14 @@ fn r1_an_underqualified_nested_name_refuses_and_a_family_of_a_placed_copy_places
     // The copy's names are its placement's: the leg's own, under the
     // `Placed` layer of `xf`.
     let copy = |n: StableName| n;
-    let (doc2, m2) = seat(doc2, ti, &top2, |n| in_copy(pat, pat_k, 1, copy(n)), &leg2, li);
+    let (doc2, m2) = seat(
+        doc2,
+        ti,
+        &top2,
+        |n| in_copy(pat, pat_k, 1, copy(n)),
+        &leg2,
+        li,
+    );
     let poses2 = solve(&doc2, &o2, Tol::witness());
     // A family OF A PLACED COPY resolves: the face is read through the
     // family's `Member` and on through the copy's placement, and the

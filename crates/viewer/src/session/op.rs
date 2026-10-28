@@ -756,21 +756,22 @@ pub enum SessionOp {
         rotation_angle: Formula,
     },
     /// Insert one pattern of an existing body — the pattern tool's one
-    /// committed edit. A pattern defines several bodies, which no world
-    /// placement reads, so it changes nothing in the world: each copy
-    /// reaches it through its projection (`SessionOp::AddPart`).
+    /// committed edit: an index `k = index(count)` and one placement of
+    /// the body in its own space whose values read it (D10
+    /// `[repetition]`), a family of `count` copies. The family is
+    /// placed where the body is; each copy reaches a seat whole or
+    /// through an indexed read (`SessionOp::AddPart`).
     ///
-    /// The count is an `i64` and lands as an exact Count literal: it
-    /// is the node's STRUCTURAL slot (spec D3), edited afterwards
-    /// through `SetStructuralParam` and never through the continuous
-    /// door. A count of zero or less is admitted here and refuses at
-    /// evaluation on the node's own badge — the same division of
-    /// labour a degenerate profile takes, one rule for authored and
+    /// The count is an `i64` and lands as the index's exact Count
+    /// literal, edited afterwards by redefining the index. A count of
+    /// zero or less is admitted here and refuses at evaluation on the
+    /// placement's own badge — the same division of labour a
+    /// degenerate profile takes, one rule for authored and
     /// hand-written documents.
     AddPattern {
         /// The body replicated.
         input: Operand,
-        /// Instance count.
+        /// Copy count.
         count: i64,
         /// The replication rule; a circular rule's axis is read off
         /// the input's own geometry at its numbers' nominal values, and
@@ -782,31 +783,21 @@ pub enum SessionOp {
     /// of a pattern points at.
     ///
     /// [`SessionOp::AddPattern`]'s twin, seat for seat and slot for
-    /// slot, because `Node::PlacedUnion` takes exactly what
-    /// `Node::Pattern` takes: a PROTOTYPE body, a count, a rule. What
-    /// differs is the result — ONE body, the union of the prototype at
-    /// every placement, which every downstream body seat consumes
-    /// where a pattern's several instances are refused.
+    /// slot: the same index and placement, and a `Union` reading the
+    /// family whole — ONE body, the union of the prototype at every
+    /// placement.
     ///
-    /// **The prototype, not a pattern node.** The fused node replicates
-    /// a body itself rather than consuming a `Node::Pattern`, so this
-    /// door's seat wants a BODY and refuses
-    /// [`Refusal::WrongNodeKind`] for a pattern exactly as the
-    /// unfused door does. A user who already authored the unfused
-    /// pattern re-commits over the same prototype and deletes the
-    /// pattern; there is no edit that converts one node into the
-    /// other, and inventing one here would be a second spelling of a
-    /// rule the document already has.
+    /// **The prototype, not a family.** This door's seat wants a BODY,
+    /// as the unfused door's does. A user who already authored the
+    /// unfused pattern fuses it with a boolean over the family instead.
     ///
     /// **The fused body takes the prototype's place in the world** (A10,
     /// Ev's residue 1): the prototype's placements are re-pointed to it
     /// in the same action.
     ///
-    /// **Disjointness is the node's question, not this door's.**
-    /// Placements that overlap refuse typed at evaluation on the
-    /// node's own badge, the same division of labour a non-positive
-    /// count takes: the door authors what the user asked for and the
-    /// node says whether it can be built.
+    /// **Whether the copies meet is the union's question, not this
+    /// door's**: the door authors what the user asked for and the union
+    /// says what it builds.
     AddPlacedUnion {
         /// The prototype placed at every placement.
         input: Operand,

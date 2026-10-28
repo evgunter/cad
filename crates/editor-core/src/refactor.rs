@@ -154,9 +154,7 @@ use crate::names::{
     Carry, EntityKind, FaceName, NameRef, ProfileEdgeRef, ProfileVertexRef, RoleSeg, SegRewrite,
     StableName,
 };
-use crate::node::{
-    AuthoredNode, InterfaceCrossing, InterfaceRecord, Node, RecipeNodeId, StepId,
-};
+use crate::node::{AuthoredNode, InterfaceCrossing, InterfaceRecord, Node, RecipeNodeId, StepId};
 use crate::part::{PartResolver, ResolveFailure};
 use crate::persist::{PersistError, content_pin};
 use crate::program::{ProfileDoc, ProfileProgram};
@@ -534,59 +532,112 @@ fn carry<E>(
                     .zip(images.into_iter().flatten()),
             );
         }
-        if !bundle.is_empty() {
+        // A family's placement takes its bundle at once where every read
+        // in it is carried, since its values are what make its copy a
+        // family for the member reads carried after it.
+        let family_now = !bundle.is_empty()
+            && !source.node_reach(old).is_none()
+            && carry_bundle(
+                source,
+                target,
+                vars,
+                (&node_map, &step_map, &out_map),
+                new,
+                &bundle,
+            )
+            .map_or_else(
+                |error| match error {
+                    BundleMiss::Remap(_) => Ok(false),
+                    BundleMiss::Edit(error) => Err(edit(error)),
+                },
+                |()| Ok(true),
+            )?;
+        if !bundle.is_empty() && !family_now {
             bundles.push((old, new, bundle));
         }
     }
     // The bundles, now every node is in, each as one write, verbatim.
     for (old, new, bundle) in bundles {
-        let whole = Node::Place {
-            source: crate::BodyRead::plain(VarId::WORLD),
-            target: VarId::WORLD,
-            constraints: bundle.clone(),
-        };
-        let (carried, selects) =
-            remap_with_selects(source, &whole, vars, (&node_map, &step_map, &out_map))
-                .map_err(|error| miss(old, error))?;
-        let (authored, fresh) = vars.author(&carried, &selects);
-        let Node::Place {
-            constraints: authored,
-            ..
-        } = authored
-        else {
-            unreachable!("a carried placement carrier stays one")
-        };
-        let record = target
-            .apply_recorded(DocEdit::SetConstraints {
-                placement: new,
-                constraints: authored,
-                fresh: fresh.fresh.clone(),
-            })
-            .map_err(&edit)?;
-        vars.minted(fresh, &record.fresh);
-        let minted: Vec<crate::mate::Mate> = target
-            .doc()
-            .node(new)
-            .and_then(crate::mate::solve::bundle_of)
-            .map(|bundle| {
-                bundle
-                    .iter()
-                    .filter_map(crate::mate::Constraint::mate)
-                    .cloned()
-                    .collect()
-            })
-            .unwrap_or_default();
-        let reads = |mate: &crate::mate::Mate| vec![mate.on, mate.to];
-        for (source_mate, minted) in bundle
-            .iter()
-            .filter_map(crate::mate::Constraint::mate)
-            .zip(&minted)
-        {
-            name_selections(source, target, vars, reads(source_mate), reads(minted))
-                .map_err(&edit)?;
-        }
+        carry_bundle(
+            source,
+            target,
+            vars,
+            (&node_map, &step_map, &out_map),
+            new,
+            &bundle,
+        )
+        .map_err(|error| match error {
+            BundleMiss::Remap(error) => miss(old, error),
+            BundleMiss::Edit(error) => edit(error),
+        })?;
     }
     Ok((node_map, step_map, out_map))
+}
+
+/// Why [`carry_bundle`] could not carry a bundle.
+enum BundleMiss {
+    /// A read the maps do not hold yet, or cannot.
+    Remap(RemapMiss),
+    /// The target's door refused the write.
+    Edit(EditError),
+}
+
+/// **`bundle`, the constraints of a source placement, carried onto
+/// `new`** as one write, each mate's selections named as their
+/// sources are.
+fn carry_bundle(
+    source: &ProfileDoc,
+    target: &mut Recording<'_, ProfileProgram>,
+    vars: &mut VarCarry<'_>,
+    maps: (&NodeMap, &StepMap, &ReadMap),
+    new: RecipeNodeId,
+    bundle: &[crate::mate::Constraint],
+) -> Result<(), BundleMiss> {
+    let whole = Node::Place {
+        source: crate::BodyRead::plain(VarId::WORLD),
+        target: VarId::WORLD,
+        constraints: bundle.to_vec(),
+    };
+    let (carried, selects) =
+        remap_with_selects(source, &whole, vars, maps).map_err(BundleMiss::Remap)?;
+    let (authored, fresh) = vars.author(&carried, &selects);
+    let Node::Place {
+        constraints: authored,
+        ..
+    } = authored
+    else {
+        unreachable!("a carried placement carrier stays one")
+    };
+    let record = target
+        .apply_recorded(DocEdit::SetConstraints {
+            placement: new,
+            constraints: authored,
+            fresh: fresh.fresh.clone(),
+        })
+        .map_err(BundleMiss::Edit)?;
+    vars.minted(fresh, &record.fresh);
+    let minted: Vec<crate::mate::Mate> = target
+        .doc()
+        .node(new)
+        .and_then(crate::mate::solve::bundle_of)
+        .map(|bundle| {
+            bundle
+                .iter()
+                .filter_map(crate::mate::Constraint::mate)
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default();
+    let reads = |mate: &crate::mate::Mate| vec![mate.on, mate.to];
+    for (source_mate, minted) in bundle
+        .iter()
+        .filter_map(crate::mate::Constraint::mate)
+        .zip(&minted)
+    {
+        name_selections(source, target, vars, reads(source_mate), reads(minted))
+            .map_err(BundleMiss::Edit)?;
+    }
+    Ok(())
 }
 
 /// **`node` remapped for the target, with each selection it reads
@@ -635,13 +686,7 @@ fn remap_with_selects(
     // carries it as the source's did.
     // A name's `Member` indices are declared variables the carry has
     // mapped, read beside the outputs.
-    let reads_and_indices: ReadMap = out_map
-        .iter()
-        .chain(vars.map.iter().filter(|&(&var, _)| {
-            source.var(var).is_some_and(|held| held.def().index().is_some())
-        }))
-        .map(|(&from, &to)| (from, to))
-        .collect();
+    let reads_and_indices = vars.with_indices(out_map);
     let carried_name = |n: &StableName, body: VarId| -> Result<StableName, RemapMiss> {
         remap_name_keeping(
             n,
@@ -2165,6 +2210,23 @@ struct VarCarry<'s> {
     map: BTreeMap<VarId, VarId>,
 }
 
+impl VarCarry<'_> {
+    /// `reads` with the carried index variables beside them: a name's
+    /// `Member` indices are declared variables, mapped by the carry
+    /// rather than read at a port.
+    fn with_indices(&self, reads: &ReadMap) -> ReadMap {
+        reads
+            .iter()
+            .chain(self.map.iter().filter(|&(&var, _)| {
+                self.source
+                    .var(var)
+                    .is_some_and(|held| held.def().index().is_some())
+            }))
+            .map(|(&from, &to)| (from, to))
+            .collect()
+    }
+}
+
 /// One carried edit's variables: the fresh table it carries and the
 /// source variable each entry stands for.
 struct Carried {
@@ -2243,7 +2305,9 @@ impl<'s> VarCarry<'s> {
             VarDef::Index(index) => {
                 let read = |var: VarId| self.reader(anonymous, var, Dimension::Count);
                 let count = Formula::from(&index.count)
-                    .substitute_vars(&mut |var| Some(self.reader(anonymous, var, kind_of(self.source, var)?)))
+                    .substitute_vars(&mut |var| {
+                        Some(self.reader(anonymous, var, kind_of(self.source, var)?))
+                    })
                     .unwrap_or_else(|fault| {
                         unreachable!(
                             "a reader re-pointed at its own kind keeps every dimension: {fault}"
@@ -3188,6 +3252,7 @@ pub fn split(
             .output(carried, 0)
             .unwrap_or_else(|| unreachable!("a placement defines its copy"))
     };
+    let names_map = vars.with_indices(&read_map);
     // A cut name as the part's product spells it ([`home`] above): the
     // name its copy carries, keyed by that copy's read where the
     // product is a `⊔`.
@@ -3204,7 +3269,7 @@ pub fn split(
                 // A part's ids inside the name (a pattern copy of an
                 // instance's face) cross as they are.
                 None => (
-                    remap_name_keeping(name, &node_map, &step_map, &read_map, (doc, true))
+                    remap_name_keeping(name, &node_map, &step_map, &names_map, (doc, true))
                         .map_err(|missing| SplitError::straddles(doc, name, missing))?,
                     home(name, body).ok_or_else(outside)?.0,
                 ),

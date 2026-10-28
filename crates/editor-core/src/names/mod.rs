@@ -80,8 +80,8 @@ pub(crate) use nest::HoldMut;
 pub use nest::NameTextError;
 pub(crate) use nest::{read_door, write_door};
 pub use role::{
-    CapEnd, EntityKind, FaceName, MemberAt, MeridianEnd, NameRef, NotAFaceName, PieceRole, PieceRun,
-    ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, RunLine,
+    CapEnd, EntityKind, FaceName, MemberAt, MeridianEnd, NameRef, NotAFaceName, PieceRole,
+    PieceRun, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, RunLine,
     SectionCircle, Sense, SplitHalf, StableName, band, band_pi, band_rim, band_rim_pi, carried,
     meridian_vertex,
 };

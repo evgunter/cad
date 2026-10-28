@@ -1192,9 +1192,8 @@ impl ViewerBehavior<'_> {
     /// choice, and the one committed edit.
     ///
     /// The output row is what fuses a pattern into the part: `fused`
-    /// commits `Node::PlacedUnion`, whose ONE body every downstream
-    /// seat consumes, where `instances` commits the several bodies a
-    /// boolean seat refuses.
+    /// commits the family with a `Union` over it, ONE body, where
+    /// `instances` commits the family of several bodies.
     pub(crate) fn pattern_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.pattern() else {
             if ui.button(ToolKind::Pattern.button()).clicked() {
@@ -1543,8 +1542,8 @@ impl ViewerBehavior<'_> {
             },
             ToolKind::Transform => "Transform",
             ToolKind::Pattern => match self.drafts.pattern_output {
-                PatternOutputChoice::Instances => "Pattern",
-                PatternOutputChoice::Fused => "PlacedUnion",
+                PatternOutputChoice::Instances => "Place",
+                PatternOutputChoice::Fused => "Union",
             },
             ToolKind::Blend => match self.drafts.blend_kind {
                 BlendKindChoice::Fillet => "Fillet",

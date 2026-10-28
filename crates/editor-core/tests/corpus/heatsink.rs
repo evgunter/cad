@@ -163,4 +163,3 @@ pub fn placed_fins(fins: i64) -> editor_core::ProfileDoc {
     r.in_world_by(fin, values);
     r.doc
 }
-

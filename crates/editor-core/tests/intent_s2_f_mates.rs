@@ -456,13 +456,14 @@ fn lifted_cube_measured(label: &str) -> (ProfileDoc, [RecipeNodeId; 3]) {
     (doc, [x, t, px])
 }
 
-/// **A selection of a pattern's copies is a mate pose's alone** (review
-/// R1, MAJOR-2). A mate's target reads the plane of a face of copy 2 in
-/// the pattern's `Bodies`, which a pose admits; the document saves. A measure
-/// reading that same selection by its variable is refused at the door,
-/// so the editor never holds a document `persist::save` refuses.
+/// **A selection of a family's members reads the family whole** (review
+/// R1, MAJOR-2: the door and `persist::save` agree). A mate's target
+/// reads the plane of a face of member 2 of the family, which a pose
+/// admits; the document saves. A measure reading that same selection by
+/// its variable is one measure of member 2's face, admitted at the door,
+/// and the document holding it saves too.
 #[test]
-fn a_side_selection_of_a_patterns_copies_is_read_by_sides_alone() {
+fn a_selection_of_a_familys_members_reads_the_family_whole() {
     let mut store = PartStore::default();
     let (leg_ref, leg) = store.insert_part(cube_part("f-shared-leg"), Tol::witness());
     let (top_ref, top_body) = store.insert_part(cube_part("f-shared-top"), Tol::witness());
@@ -472,17 +473,7 @@ fn a_side_selection_of_a_patterns_copies_is_read_by_sides_alone() {
         crate::fixture::mated_instance(leg_ref),
         &with_resolver(store),
     );
-    let (doc, pattern) = insert(
-        doc,
-        Node::Pattern {
-            input: instance.into(),
-            count: Formula::count(4),
-            kind: editor_core::PatternKind::Linear {
-                direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],
-                spacing: len(2.0),
-            },
-        },
-    );
+    let (doc, k, pattern) = crate::fixture::linear(doc, instance, [1.0, 0.0, 0.0], 2.0, 4);
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, mate) = fixture::constrain(
         doc,
@@ -490,6 +481,7 @@ fn a_side_selection_of_a_patterns_copies_is_read_by_sides_alone() {
             fixture::head_at(top, in_part(top, top_body, CapEnd::Start)),
             fixture::head(fixture::in_copy(
                 pattern,
+                k,
                 2,
                 in_part(instance, leg, CapEnd::End),
             )),
@@ -509,7 +501,7 @@ fn a_side_selection_of_a_patterns_copies_is_read_by_sides_alone() {
     );
     assert!(
         editor_core::persist::save(&doc, &[], Tol::witness()).is_ok(),
-        "a pose reading a pattern's copy saves"
+        "a pose reading a family's member saves"
     );
     let measured = editor_core::measure(
         &doc,
@@ -523,16 +515,18 @@ fn a_side_selection_of_a_patterns_copies_is_read_by_sides_alone() {
         }],
         Tol::witness(),
     );
+    let measured = measured.expect("a measure reads a selection of a family's members");
     assert!(
-        matches!(
-            &measured,
-            Err(editor_core::EditError::SlotVarKind {
-                found: editor_core::VarKind::Bodies,
-                ..
-            })
-        ),
-        "a measure reads no selection of a pattern's copies: {:?}",
-        measured.map(|out| editor_core::persist::save(&out.doc, &[], Tol::witness()).map(|_| ()))
+        measured
+            .doc
+            .node_reach(measured.measured.measures[0])
+            .chain()
+            .is_none(),
+        "the selection reads the family whole, so the measure is one measure"
+    );
+    assert!(
+        editor_core::persist::save(&measured.doc, &[], Tol::witness()).is_ok(),
+        "the door's measure saves"
     );
 }
 

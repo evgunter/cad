@@ -19,10 +19,9 @@ use editor_core::{
     CapEnd, Diagnosis, Dimension, DimensionError, DocRef, DocumentId, EditError, EntityKind,
     EvalError, FreeValue, HitTestError, InterrogateError, LeverRefusal, Maintenance, MateFault,
     MateRef, MeshPickError, MetaVersionError, NamingError, NodeErrorKind, NodePickError,
-    ParseError, PartFault, ProgramFault, ReachRefusal, RecipeNodeId,
-    RecordedProgramError, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, SelectRefusal,
-    SlotId, SnapshotError, StableName, StepArg, StepId, StepIdFault, StepSegmentsError,
-    UnnamedEntity, VarName,
+    ParseError, PartFault, ProgramFault, ReachRefusal, RecipeNodeId, RecordedProgramError,
+    ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, SelectRefusal, SlotId, SnapshotError,
+    StableName, StepArg, StepId, StepIdFault, StepSegmentsError, UnnamedEntity, VarName,
 };
 use editor_core::{ListFault, Mispaired, NameLookupError, NodeStanding, SpokenName, SpokenNode};
 use geom_core::BandError;
@@ -1965,6 +1964,15 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
             ),
         ),
         (
+            Diagnosis::IndexCount {
+                node: RecipeNodeId::new(0, tagged(9)),
+                index: editor_core::VarId::new(0, tagged(2)),
+            },
+            "the count of read 000000000002, an index node 000000000009 on the derivation path \
+             is repeated over, changed"
+                .to_owned(),
+        ),
+        (
             Diagnosis::RecipeEdit {
                 edit: RecipeEditRef::NodeDeleted {
                     node: RecipeNodeId::new(0, tagged(4)),
@@ -2002,6 +2010,13 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
             format!("a structural parameter changed: slot {count} of node 00000000000a{tail}"),
         ),
         (
+            upstream(UpstreamCause::IndexCount {
+                node: RecipeNodeId::new(0, tagged(10)),
+                index: editor_core::VarId::new(0, tagged(2)),
+            }),
+            format!("the count of read 000000000002, an index node 00000000000a is repeated over, changed{tail}"),
+        ),
+        (
             upstream(UpstreamCause::RecipeEdit {
                 edit: RecipeEditRef::NodeDeleted {
                     node: RecipeNodeId::new(0, tagged(4)),
@@ -2020,6 +2035,7 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
                 "UpstreamCause",
                 "PredicateFlip",
                 "StructuralParam",
+                "IndexCount",
                 "RecipeEdit",
             ],
         );

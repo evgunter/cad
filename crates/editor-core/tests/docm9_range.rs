@@ -36,8 +36,8 @@ use editor_core::range::{
 };
 use editor_core::{
     CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula, FreeVar,
-    LoopProgram, Node, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId,
-    SpokenNode, StableName, VarName, evaluate,
+    LoopProgram, Node, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, SpokenNode,
+    StableName, VarName, evaluate,
 };
 
 use fixture::{Recorder, len, scl, tol};
@@ -771,10 +771,7 @@ fn a_structural_slot_on_a_node_that_has_none_is_an_unknown_slot() {
     assert_eq!(
         derive(
             &doc,
-            &RangeField::Slot {
-                node,
-                slot: INDEX
-            },
+            &RangeField::Slot { node, slot: INDEX },
             RangeSeed::symmetric(0.25),
             tol()
         ),

@@ -21,8 +21,8 @@
 use crate::fixture;
 
 use editor_core::{
-    CapEnd, DocEdit, DocRef, DocumentId, EditError, EntityKind, EvalOptions, Evaluation, MateFault,
-    Formula, MateRef, MateSide, Node, Operand, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
+    CapEnd, DocEdit, DocRef, DocumentId, EditError, EntityKind, EvalOptions, Evaluation, Formula,
+    MateFault, MateRef, MateSide, Node, Operand, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
     VarId, load, product, save,
 };
 use fixture::resolver::{PartStore, in_part, in_part_of, with_resolver};
@@ -205,7 +205,12 @@ fn row_on(
         .into_iter()
         .zip(dir)
         .filter(|&(_, d)| d != 0.0)
-        .map(|(axis, d)| (Coord::Slide(axis), Formula::mul(next.clone(), len(d * spacing)).unwrap()))
+        .map(|(axis, d)| {
+            (
+                Coord::Slide(axis),
+                Formula::mul(next.clone(), len(d * spacing)).unwrap(),
+            )
+        })
         .collect();
     let (doc, row) = fixture::family_of(doc, input, values);
     (doc, k, row)
@@ -544,14 +549,7 @@ fn a3a_a_pattern_of_a_placed_copy_seats() {
             poses.fault(top)
         );
         let ev = run(&doc, &opts);
-        assert_seated(
-            &doc,
-            &ev,
-            &a,
-            &b,
-            &seat_frame,
-            "A3 family of a placed copy",
-        );
+        assert_seated(&doc, &ev, &a, &b, &seat_frame, "A3 family of a placed copy");
         assert!(
             could_look(&doc, &ev).is_ok(),
             "A3 family of a placed copy: the gate refused: {:?}",

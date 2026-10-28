@@ -9,14 +9,14 @@
 //!
 //! - **A3, the `f64` fence**: a mate corpus — every kind of mate the
 //!   fold has a branch for, a LOOSE bundle and an OVERCONSTRAINED one,
-//!   a parametric seat under a pattern, a parametric standoff, a
+//!   a parametric seat under a family, a parametric standoff, a
 //!   parametric world mate, a chain of bundles — solved and evaluated
 //!   at `f64`, digested, and pinned; and the same corpus at `Dual64`
 //!   reading the `f64` bits on its value channel.
 //! - **A2**: a parameter a bundle reads — a value's slide, a standoff,
 //!   a value's spin — moves the mated part in the run that binds it,
 //!   on a `Dual64` seed run by its tangent and on an `Interval` box run
-//!   by an enclosure: the patterned bolt (∂B/∂s = −2, ∂copy2/∂s = 0),
+//!   by an enclosure: the bolt and its row (∂B/∂s = −2, ∂copy2/∂s = 0),
 //!   a standoff and a slid, spun seat.
 //! - **A4**: a seeded pass threaded an unseeded `Dual64` prior reuses no
 //!   zero-tangent pose (the memo key carries the pose's two channels).
@@ -39,9 +39,9 @@ use std::sync::Arc;
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     BoxAxis, CancelToken, CapEnd, Coord, Dimension, DocEdit, DocRef, DocumentId, EvalOptions,
-    Evaluation, Formula, FreeVar, MateRef, Node, NodeResult, Operand, ParamBox, PatternKind,
-    ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis, VarName, all_vertices,
-    evaluate, vertex_position,
+    Evaluation, Formula, FreeVar, MateRef, Node, NodeResult, Operand, ParamBox, ProfileDoc,
+    RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis, VarName, all_vertices, evaluate,
+    vertex_position,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, head, insert, len, on_frame, scl, solve, step};
@@ -389,8 +389,8 @@ fn turned_slab(p: &Parts, label: &str) -> (ProfileDoc, RecipeNodeId) {
 // ---- The documents the rows share ----
 
 /// **The patterned bolt** (the designers' worked example): the bolt
-/// seated on the slab with its origin at `(6 − 2s, 4)`, and a linear
-/// pattern of it along `+x` at spacing `s`, three copies. Copy #2
+/// seated on the slab with its origin at `(6 − 2s, 4)`, and a row of it
+/// along `+x` slid `scalar(k)·s`, three members. Member #2
 /// stands at `6` for every `s`, so the bolt moves by `−2` per unit of
 /// `s`, copy #1 by `−1` and copy #2 not at all.
 struct Bolted {
@@ -421,17 +421,10 @@ fn bolted(label: &str) -> Bolted {
         len(0.0),
         (x, len(4.0), ang(0.0)),
     );
-    let (doc, pattern) = insert(
-        doc,
-        Node::Pattern {
-            input: bolt.into(),
-            count: Formula::count(3),
-            kind: PatternKind::Linear {
-                direction: [1.0, 0.0, 0.0].map(scl),
-                spacing: named(spacing(), Dimension::Length),
-            },
-        },
-    );
+    let (doc, k) = fixture::index(doc, "k", 3);
+    let slide = Formula::mul(fixture::scalar_of(k), named(spacing(), Dimension::Length))
+        .expect("a count times a length");
+    let (doc, pattern) = fixture::family_of(doc, bolt, vec![(Coord::Slide(TargetAxis::X), slide)]);
     Bolted {
         doc,
         opts: p.opts(),
@@ -1131,11 +1124,11 @@ fn f64_vertices_at(
         .collect()
 }
 
-/// The copy of a pattern a vertex of the pattern's value belongs to.
+/// The member of a family a vertex of the family's value belongs to.
 fn copy_of(name: &StableName) -> u32 {
     match name.path.first() {
-        Some(editor_core::RoleSeg::Instance { i, .. }) => *i,
-        other => panic!("a pattern's vertex is copy-wrapped, got {other:?}"),
+        Some(editor_core::RoleSeg::Member { at, .. }) => at[0].1,
+        other => panic!("a family's vertex is member-wrapped, got {other:?}"),
     }
 }
 
@@ -1348,9 +1341,9 @@ fn assert_pose_encloses_corners(
 // ---- A2: a parameter a bundle reads moves its mated part in the run that binds it ----
 
 /// **The patterned bolt, seeded on its spacing** (the designers' worked
-/// example): the bolt instance — seated at `6 − 2s` and the pattern's
-/// master — moves by `∂B/∂s = −2` along `x`, copy #1 by `−1`, and copy
-/// #2 by `∂copy2/∂s = 0`. Every vertex's tangent is the central
+/// example): the bolt instance — seated at `6 − 2s` and the family's
+/// source — moves by `∂B/∂s = −2` along `x`, member #1 by `−1`, and
+/// member #2 by `∂copy2/∂s = 0`. Every vertex's tangent is the central
 /// difference of two `f64` builds, and the value channel is the nominal
 /// build's bits.
 ///
@@ -1384,7 +1377,7 @@ fn a2_a_seed_on_the_bolts_spacing_moves_the_bolt_by_minus_two_and_holds_copy_two
         b.pattern,
         spacing(),
         SPACING,
-        "the pattern",
+        "the family",
     );
     for (name, t) in &copies {
         let want = [-2.0, -1.0, 0.0][copy_of(name) as usize];
@@ -1392,14 +1385,14 @@ fn a2_a_seed_on_the_bolts_spacing_moves_the_bolt_by_minus_two_and_holds_copy_two
     }
     assert!(
         copies.iter().any(|(n, _)| copy_of(n) == 2),
-        "copy #2 is among the pattern's vertices"
+        "member #2 is among the family's vertices"
     );
 }
 
 /// **The patterned bolt over a box on its spacing.** At the solve: the
 /// bolt's pose encloses its `f64` pose at both corners and the nominal,
 /// and is at least twice the box wide along `x` — not the nominal's
-/// point. Through the evaluation: every vertex of the bolt, the pattern
+/// point. Through the evaluation: every vertex of the bolt, the family
 /// and the slab — whose face the seat reads, and which holds still — is
 /// enclosed at both corners and the nominal.
 ///
@@ -1445,10 +1438,10 @@ fn a2_a_box_on_the_bolts_spacing_encloses_the_bolt_at_every_corner() {
 /// box-wide motion is the copy's frame and no mapped carrier is
 /// certified again — the placement door's re-certification, which
 /// refused over this box while a placement mapped its source, is not
-/// run. The pattern reading the bolt builds its copies the same way.
+/// run. The family reading the bolt builds its members the same way.
 ///
 /// *Breaks if* a copy is rebuilt under a box-wide motion (the mapped
-/// carriers refuse certification), or the pattern is poisoned through
+/// carriers refuse certification), or the family is poisoned through
 /// the bolt.
 #[test]
 fn a2_over_a_wide_box_the_bolt_builds_its_copy_unbuilt() {
@@ -1465,7 +1458,7 @@ fn a2_over_a_wide_box_the_bolt_builds_its_copy_unbuilt() {
     );
     assert!(
         matches!(ev.result(b.pattern), Some(NodeResult::Ok(_))),
-        "the pattern builds over the box: {:?}",
+        "the family builds over the box: {:?}",
         ev.node_error(b.pattern)
     );
 }

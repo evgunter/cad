@@ -195,7 +195,11 @@ pub(crate) fn names_members<P>(doc: &Doc<P>, select: &crate::var::Select) -> boo
     };
     !select.names.is_empty()
         && select.names.iter().all(|name| {
-            name.node == at && matches!(name.path.first(), Some(crate::names::RoleSeg::Member { .. }))
+            name.node == at
+                && matches!(
+                    name.path.first(),
+                    Some(crate::names::RoleSeg::Member { .. })
+                )
         })
 }
 
@@ -261,14 +265,11 @@ impl<P: crate::ProfilePayload> Doc<P> {
         }
         reached.remove(&index);
         // The innermost: the one no other reached index is within.
-        reached
-            .iter()
-            .copied()
-            .find(|&candidate| {
-                reached
-                    .iter()
-                    .all(|&other| other == candidate || !reach.within(other, candidate))
-            })
+        reached.iter().copied().find(|&candidate| {
+            reached
+                .iter()
+                .all(|&other| other == candidate || !reach.within(other, candidate))
+        })
     }
 
     /// Whether the document declares an index: where it declares none,

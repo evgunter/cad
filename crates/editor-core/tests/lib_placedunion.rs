@@ -94,7 +94,11 @@ fn union_of(
 fn the_fin_group_is_one_placement_and_one_union() {
     let d = doc_named("heat_sink_fins");
     // The fins' placement and the world placement of their union.
-    assert_eq!(unions_and_places(&d.doc), (1, 2), "one union over one family");
+    assert_eq!(
+        unions_and_places(&d.doc),
+        (1, 2),
+        "one union over one family"
+    );
     let ev = eval::<f64>(&d.doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let root = d.result.expect("the group is the document's result");
@@ -132,8 +136,10 @@ fn the_fin_group_equals_the_placement_union_chain() {
         acc = Some(match acc {
             None => placed,
             Some(a) => {
-                let (doc, id) =
-                    union_of(chain, editor_core::Bodies::Spelled(vec![a.into(), placed.into()]));
+                let (doc, id) = union_of(
+                    chain,
+                    editor_core::Bodies::Spelled(vec![a.into(), placed.into()]),
+                );
                 chain = doc;
                 id
             }
@@ -305,4 +311,3 @@ fn overlapping_copies_fuse_rather_than_refuse() {
     .volume;
     assert!((volume - 1.5).abs() < 1e-9, "{volume}");
 }
-

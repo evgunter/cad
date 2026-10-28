@@ -103,4 +103,3 @@ pub(crate) fn count<T>(values: &SlotValues<T>, slot: SlotId) -> Option<i64> {
         _ => None,
     })
 }
-

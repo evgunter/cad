@@ -67,12 +67,12 @@ pub mod range;
 mod ratio;
 pub mod refactor;
 pub mod refusal;
+pub mod repetition;
 /// The E10/E11.6 reporting layer: the goldening and human forms every
 /// derived report carries, the priced-vs-forced budget type, the
 /// leaf-mass histogram, and the one content-key cache. Every report
 /// in it is derived from a drive.
 pub mod report;
-pub mod repetition;
 pub mod resolve;
 pub mod sentence;
 pub mod spoken;
@@ -181,14 +181,15 @@ pub use names::{
     CONTACT_RECOURSE, CapEnd, Cmp, ContactRefusal, ContactVerdict, CrossingSensesShape, CurveKind,
     CurveKindSet, DeclaredContact, Denotation, DisagreeShape, DuplicateName, EntityKey, EntityKind,
     EntityNamed, EntityRef, Entry, FaceName, FragmentGroups, GeomPred, InterrogateError, JoinShape,
-    KindMismatch, LeafRole, MemberAt, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NameTextError,
-    NamingError, NotAFaceName, OpGroup, PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef,
-    Qualifier, RimShare, RimSupport, RolePath, RoleSeg, RunLine, SEL_PLANE_DISTANCE,
-    SeamSidesShape, SeamVertexShape, SeatingRefusal, SectionCircle, SegPat, SegTag, SelectRefusal,
-    Selector, Sense, ShortTie, Side, SplitHalf, StableName, SurfaceKindSet, TagPat, UnionNameShape,
-    WayShape, all_bodies, all_edges, all_faces, all_vertices, attribute, band, band_pi, band_rim,
-    band_rim_pi, carried, denotation, edge_carrier_kind, edge_frame, face_carrier_kind, face_frame,
-    leaf_role, meridian_vertex, role_leaf, select, select_where, vertex_position,
+    KindMismatch, LeafRole, MemberAt, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable,
+    NameTextError, NamingError, NotAFaceName, OpGroup, PieceRole, PieceRun, ProfileEdgeRef,
+    ProfileVertexRef, Qualifier, RimShare, RimSupport, RolePath, RoleSeg, RunLine,
+    SEL_PLANE_DISTANCE, SeamSidesShape, SeamVertexShape, SeatingRefusal, SectionCircle, SegPat,
+    SegTag, SelectRefusal, Selector, Sense, ShortTie, Side, SplitHalf, StableName, SurfaceKindSet,
+    TagPat, UnionNameShape, WayShape, all_bodies, all_edges, all_faces, all_vertices, attribute,
+    band, band_pi, band_rim, band_rim_pi, carried, denotation, edge_carrier_kind, edge_frame,
+    face_carrier_kind, face_frame, leaf_role, meridian_vertex, role_leaf, select, select_where,
+    vertex_position,
 };
 pub use node::{
     AuthoredNode, Axis3, ConstraintId, InputFault, InterfaceCrossing, InterfaceRecord, ListFault,
@@ -242,9 +243,8 @@ pub use step_handle::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
 };
 pub use var::{
-    Index,
-    FreshEntry, Pick, Select, SelectionCount, SelectionFault, Var, VarDecl, VarDef, VarId, VarKind,
-    VarRef, WrittenDef,
+    FreshEntry, Index, Pick, Select, SelectionCount, SelectionFault, Var, VarDecl, VarDef, VarId,
+    VarKind, VarRef, WrittenDef,
 };
 // GUI-1: the hit-test service (G1 `ray → stable ref`), with the ray
 // vocabulary re-exported from `bvh` so a layer-3 consumer needs no

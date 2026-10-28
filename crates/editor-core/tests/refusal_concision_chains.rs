@@ -770,10 +770,7 @@ fn every_node_refusal_renders_within_the_budget() {
 }
 
 use editor_core::clearance::ClearanceRefusal;
-use editor_core::{
-    BifurcationKind, Diagnosis, EvalError, ParamBoxError, ResolveError,
-    SeedError,
-};
+use editor_core::{BifurcationKind, Diagnosis, EvalError, ParamBoxError, ResolveError, SeedError};
 
 test_utils::f6_variants! {
     /// `EvalError`'s arms, for the `Expr/`, `PoseScalar/`,
@@ -1782,9 +1779,9 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             "MemberRefused",
             NodeErrorKind::MemberRefused {
                 at: vec![(editor_core::VarId::new(0, tagged(2)), 0)],
-                source: Box::new(NodeErrorKind::EmptyHalf {
+                source: Box::new(NodeErrorKind::MemberOutOfRange {
                     input: RecipeNodeId::new(0, tagged(3)),
-                    half: editor_core::SplitHalf::Above,
+                    at: vec![7],
                 }),
             },
         ),
@@ -4318,9 +4315,8 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
 /// analysis seeds, naming, the name ladder.
 fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     use editor_core::{
-        Diagnosis, Dimension, EntityKind, EvalError, NamingError, ParamBoxError,
-        RecipeEditRef, ResolveError, RimShare, SeedError, SlotId, StableName,
-        TieWitness, VarName,
+        Diagnosis, Dimension, EntityKind, EvalError, NamingError, ParamBoxError, RecipeEditRef,
+        ResolveError, RimShare, SeedError, SlotId, StableName, TieWitness, VarName,
     };
     use geom_core::Sign;
     use payloads::*;
@@ -4725,6 +4721,13 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                 }),
             ),
             (
+                "Vanished(IndexCount)",
+                vanished(Diagnosis::IndexCount {
+                    node: at,
+                    index: editor_core::VarId::new(0, tagged(2)),
+                }),
+            ),
+            (
                 "Vanished(RecipeEdit)",
                 vanished(Diagnosis::RecipeEdit {
                     edit: RecipeEditRef::NodeDeleted { node: at },
@@ -4775,7 +4778,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     };
     let mut rows: Vec<(String, NodeErrorKind)> = Vec::new();
     type EvalWrap = fn(EvalError) -> NodeErrorKind;
-    let eval_wraps: [(&str, EvalWrap); 4] = [
+    let eval_wraps: [(&str, EvalWrap); 5] = [
         ("Expr", |source| NodeErrorKind::Expr {
             slot: SlotId::Distance,
             source,
@@ -4790,6 +4793,10 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         ("PayloadExpr", |source| NodeErrorKind::PayloadExpr {
             what: "placement",
             index: 2,
+            source,
+        }),
+        ("IndexCount", |source| NodeErrorKind::IndexCount {
+            index: editor_core::VarId::new(0, tagged(2)),
             source,
         }),
     ];

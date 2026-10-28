@@ -2,12 +2,12 @@
 id: patterns-are-index-variables
 kind: issue
 title: Patterns are index variables: PatternKind, Node::Pattern, Node::PlacedUnion and Instance(i) retire into index(N), families and Member names; mirror is a construction; presets are the façade's
-status: parked
+status: review
 opened: 2026-10-08
 priority: P0
 cost: H
 refs: [interference-at-rest-is-a-finding, a-placement-is-the-bundle-of-mates, intent-stage3-is-built]
-blocked_on: [an-operation-computes-in-a-frame-of-its-reads]
+branch: intent/g-patterns-are-index-variables
 design: true
 ---
 

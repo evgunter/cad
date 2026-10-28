@@ -105,18 +105,20 @@ pub use editor_core::cascade_delete_order;
 pub use editor_core::{SketchOutcome, SketchedOnFace, sketch_on_face};
 
 // Node vocabulary. A union or intersect takes one `Bodies` argument (a
-// family read, or spelled reads); a subtract is binary. `CountMismatch`
-// rides with `PlacementRuleFault`: it is what that fault and
-// `EditError::PlacementRuleMismatch` carry. An operand field is an
+// family read, or spelled reads); a subtract is binary. An operand
+// field is an
 // `Operand` read, written at an `OperandSlot` (a `SlotId::Operand`)
 // that admits a `SlotKind`; `DocEdit::SetParam` writes a `SlotValue`.
 // A placement copies one source; a read of one member of a `⊔` (an
 // instance's copy of a part's product, say) is a pick of it. A
 // placement's constraints are addressed by their `ConstraintId`.
+// Repetition is an index (D10 `[repetition]`): `k = index(N)` is a
+// `VarDecl::Index`, a family's member is named under `Member { at }`.
+pub use editor_core::{Index, MemberAt};
 pub use editor_core::{
-    Axis3, Bodies, BodyRead, ConstraintId, CountMismatch, InputFault, ListFault, LoftSection,
-    MintId, Node, Operand, OperandSlot, OutputPort, PartSelect, PatternKind, PlacementRuleFault,
-    PortKind, RecipeNodeId, SlotId, SlotKind, StationMove, TubeWindow, VectorSlot,
+    Axis3, Bodies, BodyRead, ConstraintId, InputFault, ListFault, LoftSection, MintId, Node,
+    Operand, OperandSlot, OutputPort, PortKind, RecipeNodeId, SlotId, SlotKind, StationMove,
+    TubeWindow, VectorSlot,
 };
 
 // How a sentence names a node: the kind noun and tag a person reads, the
@@ -327,7 +329,7 @@ pub use editor_core::{
     BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, ComputingTwist,
     DirectionRefusal, EvalCounters, EvalOptions, EvalOutcome, Evaluation, Framed, Mispaired,
     NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue,
-    PoseValue, SplitSide, StepTurns, ValuePayload, evaluate,
+    PoseValue, SplitSide, ValuePayload, evaluate,
 };
 // The pieces a body holds (`NodeValue::pieces`): what a `⊔` grafted,
 // each by its read, which a pick reads one of.
@@ -396,7 +398,7 @@ pub use editor_core::gathers_on_this_thread;
 // carries the product's stable names — what an instance's own names
 // are minted from.
 pub use editor_core::{
-    AxisRefusal, Frame, FrameFault, FrameSite, PartFault, PartResolver, ResolveFailure,
+    AxisRefusal, Frame, FrameFault, PartFault, PartResolver, ResolveFailure,
     ResolveFault, product_named,
 };
 

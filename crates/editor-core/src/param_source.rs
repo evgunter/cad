@@ -339,7 +339,7 @@ mod tests {
             | ExprKind::Sin(_)
             | ExprKind::Cos(_)
             | ExprKind::Tan(_)
-            | ExprKind::CountToScalar(_) => 17,
+            | ExprKind::CountToScalar(_) => 18,
             // The stored form adds no leaf of its own.
             ExprKind::Leaf(own) => match own {},
         };

@@ -12,9 +12,8 @@
 use crate::blocks::{block, block_on};
 use crate::fixture;
 use editor_core::{
-    Dimension, Distribution, DocEdit, DocumentId, EditError, Formula, FreeVar, Node,
-    ProfileDoc, ProfileProgram, RecipeNodeId, SplitError, UnitSym, UpstreamCause, VarKind, VarName,
-    apply,
+    Dimension, Distribution, DocEdit, DocumentId, EditError, Formula, FreeVar, Node, ProfileDoc,
+    ProfileProgram, RecipeNodeId, SplitError, UnitSym, UpstreamCause, VarKind, VarName, apply,
 };
 use fixture::{insert, len, run, step};
 use geom_core::{Sign, Tol};

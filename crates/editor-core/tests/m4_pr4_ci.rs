@@ -36,7 +36,8 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 ///
 /// What the pin holds: flip-vanish → PredicateFlip on the cutting
 /// slab's wall, which slid from inside `a` to outside; cascade → Cascade;
-/// structural-param → StructuralParam; node-gone; ambiguous. It moves
+/// structural-param → IndexCount (the row's index's count shrinks);
+/// node-gone; ambiguous. It moves
 /// with every spelling the diagnosed names carry (node and profile step
 /// ids, `Borders` on the ambiguous row's piece, `Ends` on the probed rim
 /// pieces) as well as with a row's diagnosis; a move that keeps every

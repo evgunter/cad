@@ -832,29 +832,16 @@ fn inline_carries_a_reader_of_an_instance_whose_part_places_at_a_pose() {
     );
 }
 
-/// **An empty world names a pattern among the unplaced.** A block and a
-/// pattern of it, nothing placed: `EmptyProduct` lists both outputs,
-/// the pattern's `Bodies` included, and the recourse says how a list of
-/// bodies is placed.
+/// **An empty world holds a family placed in its block's own space.** A
+/// block and a row of it in the block's space, nothing in the world:
+/// the product is empty, and says it reads nothing.
 ///
-/// Red if `Doc::unplaced` lists `Body` outputs only (the pattern is
-/// missing), or the recourse does not name the `Part` pick.
+/// Red if a family placed outside the world reaches the product.
 #[test]
-fn an_empty_world_names_a_pattern_and_how_to_place_one_of_its_bodies() {
+fn an_empty_world_holds_no_family_placed_beside_its_block() {
     let doc = ProfileDoc::empty_derived("intent-c-unplaced-pattern", Tol::witness());
     let (doc, a) = block(doc, 0.0);
-    let (doc, pattern) = insert(
-        doc,
-        Node::Pattern {
-            input: a.into(),
-            count: editor_core::Formula::count(2),
-            kind: editor_core::PatternKind::Linear {
-                direction: [1.0, 0.0, 0.0].map(crate::fixture::scl),
-                spacing: len(2.0),
-            },
-        },
-    );
-    let _ = pattern;
+    let (doc, _, _) = crate::fixture::linear(doc, a, [1.0, 0.0, 0.0], 2.0, 2);
     let refused = product(&doc, &ev(&doc), Tol::witness()).expect_err("nothing is placed");
     assert!(
         matches!(&refused, ProductError::EmptyProduct),

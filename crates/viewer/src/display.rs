@@ -499,8 +499,8 @@ impl core::error::Error for DisplayFault {}
 ///
 /// It is NOT the mate MEMBER vocabulary, which
 /// [`pncad::document::member_of`] owns and which additionally admits a
-/// pattern copy — an `Instance(i)`-qualified head on a `Pattern` over a
-/// live instance. The two differ because they ask different questions:
+/// family member — a `Member`-qualified head on a placement under an
+/// index. The two differ because they ask different questions:
 /// a copy is a member (the solve places it) while having no per-copy
 /// display state of its own. An authoring door that gates on this
 /// predicate refuses heads the solve already places.

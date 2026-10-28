@@ -421,46 +421,48 @@ fn holding_gaps<'a, P, T: Decide>(
     doc: &'a Doc<P>,
     evaluation: &'a Evaluation<T>,
 ) -> impl Iterator<Item = HoldingGap<'a, T>> + 'a {
-    doc.ids().into_iter().flat_map(move |id| {
-        let Some(Node::Assertion {
-            value, relation, ..
-        }) = doc.node(id)
-        else {
-            return None;
-        };
-        let (measure, 0) = doc.var(*value).and_then(|v| v.def().output())? else {
-            return None;
-        };
-        let Some(Node::Measure {
-            primitive: MeasurePrimitive::Gap { outer, inner },
-        }) = doc.node(measure)
-        else {
-            return None;
-        };
-        let value = evaluation.value(id)?;
-        let members: Vec<(crate::names::MemberAt, &'a ValuePayload<T>)> = match &value.members {
-            Some(family) => family
-                .members
-                .iter()
-                .map(|(values, member)| (family.member_at(values), &member.payload))
-                .collect(),
-            None => vec![(Vec::new(), &value.payload)],
-        };
-        Some(members.into_iter().filter_map(move |(at, payload)| {
-            let ValuePayload::Assertion(AssertionVerdict::Holds { bound, .. }) = payload else {
+    doc.ids()
+        .into_iter()
+        .flat_map(move |id| {
+            let Some(Node::Assertion {
+                value, relation, ..
+            }) = doc.node(id)
+            else {
                 return None;
             };
-            Some(HoldingGap {
-                id,
-                at,
-                relation: *relation,
-                outer: *outer,
-                inner: *inner,
-                bound,
-            })
-        }))
-    })
-    .flatten()
+            let (measure, 0) = doc.var(*value).and_then(|v| v.def().output())? else {
+                return None;
+            };
+            let Some(Node::Measure {
+                primitive: MeasurePrimitive::Gap { outer, inner },
+            }) = doc.node(measure)
+            else {
+                return None;
+            };
+            let value = evaluation.value(id)?;
+            let members: Vec<(crate::names::MemberAt, &'a ValuePayload<T>)> = match &value.members {
+                Some(family) => family
+                    .members
+                    .iter()
+                    .map(|(values, member)| (family.member_at(values), &member.payload))
+                    .collect(),
+                None => vec![(Vec::new(), &value.payload)],
+            };
+            Some(members.into_iter().filter_map(move |(at, payload)| {
+                let ValuePayload::Assertion(AssertionVerdict::Holds { bound, .. }) = payload else {
+                    return None;
+                };
+                Some(HoldingGap {
+                    id,
+                    at,
+                    relation: *relation,
+                    outer: *outer,
+                    inner: *inner,
+                    bound,
+                })
+            }))
+        })
+        .flatten()
 }
 
 /// **The name a selection holds, as the member at `at` reads it**: the

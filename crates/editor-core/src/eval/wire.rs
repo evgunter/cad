@@ -24,8 +24,8 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use geom_core::{
-    Band, Decide, OrthoAxis, Point2, Point3, RigidMotion, Sign, Tol, UnitVec3,
-    UnitVec3Error, Vec2, Vec3,
+    Band, Decide, OrthoAxis, Point2, Point3, RigidMotion, Sign, Tol, UnitVec3, UnitVec3Error, Vec2,
+    Vec3,
 };
 use sweep::{Revolution, RevolveAxis};
 use topo::splitting::SplitPart;
@@ -2575,13 +2575,12 @@ fn instance_of<T: Decide>(
 ) -> Result<(super::Framed<T>, u32), NodeErrorKind> {
     let index = slots::count(vals, slot).ok_or(NodeErrorKind::MissingSlot { slot })?;
     let count = names::output_body(instances.len()).map_err(NodeErrorKind::Naming)?;
-    let ix = u32::try_from(index)
-        .ok()
-        .filter(|i| *i < count)
-        .ok_or(NodeErrorKind::MemberOutOfRange {
+    let ix = u32::try_from(index).ok().filter(|i| *i < count).ok_or(
+        NodeErrorKind::MemberOutOfRange {
             input: of,
             at: vec![index],
-        })?;
+        },
+    )?;
     Ok((instances[ix as usize].clone(), ix))
 }
 
@@ -2621,7 +2620,10 @@ fn member_of<T: Decide>(
         .ok_or_else(out)?;
     let index = members.position(&narrow).ok_or_else(out)?;
     let body = instances.get(index).cloned().ok_or_else(out)?;
-    Ok((body, names::output_body(index).map_err(NodeErrorKind::Naming)?))
+    Ok((
+        body,
+        names::output_body(index).map_err(NodeErrorKind::Naming)?,
+    ))
 }
 
 /// One half of a split's value, or [`NodeErrorKind::EmptyHalf`].
@@ -4244,7 +4246,6 @@ fn escalated(decision: Decision) -> impl FnOnce(geom_core::Indeterminate) -> Nod
         source,
     }
 }
-
 
 // ---------------------------------------------------------------------
 // The definitional §10.3/§10.4 nodes

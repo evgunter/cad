@@ -48,9 +48,7 @@
 //! pins is validity and the census.
 
 use super::PlacePart;
-use editor_core::{
-    Coord, DocEdit, Formula, LoopProgram, Node, ProfileProgram, SlotId, TargetAxis,
-};
+use editor_core::{Coord, DocEdit, Formula, LoopProgram, Node, ProfileProgram, SlotId, TargetAxis};
 
 use crate::fixture::{ang, len, revolve_about};
 

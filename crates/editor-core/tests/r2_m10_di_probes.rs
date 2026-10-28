@@ -310,6 +310,7 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
                             }
                         }
                     }
+                    ValuePayload::Family => d.u64(19),
                     ValuePayload::Instances(bodies) => {
                         d.u64(18);
                         d.u64(bodies.len() as u64);

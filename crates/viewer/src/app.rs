@@ -4709,34 +4709,19 @@ mod properties_pane_tests {
     }
 
     /// **Each component of a driven vector opens its edit on its OWN
-    /// source**, and clicking away from it writes nothing — over a linear
-    /// pattern's step direction, the vector a document holds.
+    /// source**, and clicking away from it writes nothing — over a
+    /// revolve's axis point, the vector a document holds.
     #[test]
     fn each_driven_vector_component_edits_its_own_source() {
-        let axes = [Axis3::X, Axis3::Y, Axis3::Z];
-        // Decimal, so each reads as a scalar and not a count.
-        let sources = ["1.5 + 0.5", "2.5 + 0.5", "3.5 + 0.5"];
-        let mut pane = Driven::with(vec![SessionOp::AddPattern {
-            input: extrude().into(),
-            count: 2,
-            rule: crate::session::PatternRuleSpec::Linear {
-                direction: crate::test_support::scl3([1.0, 0.0, 0.0]),
-                spacing: crate::test_support::len(0.1),
-            },
-        }]);
-        let pattern = {
-            let doc = pane.app.session.committed_doc();
-            doc.ids()
-                .into_iter()
-                .find(|&id| matches!(doc.node(id), Some(Node::Pattern { .. })))
-                .expect("the pattern was added")
-        };
-        let mut ops: Vec<SessionOp> = axes
+        let axes = [Axis3::X, Axis3::Y];
+        let sources = ["1.5 mm + 0.5 mm", "2.5 mm + 0.5 mm"];
+        let (mut pane, pattern) = with_revolve(|_| Vec::new());
+    let mut ops: Vec<SessionOp> = axes
             .iter()
             .zip(sources)
             .map(|(axis, source)| SessionOp::SetSlotExpression {
                 node: pattern,
-                slot: SlotId::Direction(*axis),
+                slot: SlotId::Origin(*axis),
                 text: source.to_owned(),
             })
             .collect();
@@ -4746,7 +4731,7 @@ mod properties_pane_tests {
         let history = pane.app.session.history().len();
         for (axis, source) in axes.iter().zip(sources) {
             let shown = crate::props::field_text(
-                &pane.row(pattern, SlotId::Direction(*axis)),
+                &pane.row(pattern, SlotId::Origin(*axis)),
                 pane.app.session.notation(),
             );
             pane.click(&shown);

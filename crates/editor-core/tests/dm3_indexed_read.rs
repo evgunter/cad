@@ -386,16 +386,13 @@ fn the_doors_refuse_an_index_where_no_family_is_read() {
         ),
         "only a family is indexed"
     );
-    // A family read whole at a body seat, as before.
-    assert!(
-        matches!(
-            insert_refused(&doc, subtract(BodyRead::plain(xs), xs)),
-            EditError::SlotVarKind {
-                found: editor_core::VarKind::Bodies,
-                ..
-            }
-        ),
-        "a family read whole is not a body"
+    // A family read plainly at a body seat makes its reader a family
+    // under the same index: the subtract is evaluated once per member.
+    let (per_member, cut) = fixture::insert(doc.clone(), subtract(BodyRead::plain(xs), xs));
+    assert_eq!(
+        per_member.node_reach(cut).chain(),
+        doc.node_reach(xs).chain(),
+        "a plain read of a family carries its index to the reader"
     );
     // A family argument carries no index.
     assert!(
@@ -424,7 +421,11 @@ fn the_doors_refuse_an_index_where_no_family_is_read() {
                 },
             ),
             EditError::IndexedRead {
-                fault: editor_core::InputFault::IndexRank { found: 2, rank: 1, .. },
+                fault: editor_core::InputFault::IndexRank {
+                    found: 2,
+                    rank: 1,
+                    ..
+                },
                 ..
             }
         ),

@@ -732,7 +732,7 @@ pub use stl::{
 pub use crate::document::{
     AuthoredNode, CancelToken, Dimension, Doc, DocEdit, EditError, EvalOptions, Evaluation, Expr,
     FaceName, Formula, FreeVar, LoopProgram, Node, NodeError, NotAFaceName, ParseError,
-    PatternKind, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
+    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
     RecordedNotation, RecordedProgramError, SitedFace, SlotId, StepArg, ValuePayload, VarDecl,
     VarDef, VarEnv, VarName, VarNameFault, apply, evaluate, parse_formula, unparse,
 };

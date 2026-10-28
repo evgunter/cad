@@ -20,7 +20,7 @@ use editor_core::{
     appearance_rebind_suggestions, enrich_appearance_loss, enrich_appearance_loss_with_prior,
     evaluate,
 };
-use fixture::{insert, len, minted, on_frame, scl, step};
+use fixture::{insert, len, minted, on_frame, step};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -308,26 +308,16 @@ fn node_gone_loss_enriches_with_the_derived_deletion_edit() {
 
 #[test]
 fn vanished_loss_with_prior_enriches_diagnosis_and_tombstone() {
-    // Count 3 -> 2 vanishes instance 2's face name; the coarse loss
-    // (empty structural candidates) enriches to the pinned
-    // StructuralParam diagnosis plus the last-good tombstone.
+    // The index's count 3 -> 2 vanishes member 2's face name; the
+    // coarse loss (empty structural candidates) enriches to the pinned
+    // diagnosis of the edit that took it plus the last-good tombstone.
     let (doc, ext) = block(
         ProfileDoc::empty_derived("m4_pr4_appearance_hook", Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
         1.0,
     );
-    let (doc, pat) = insert(
-        doc,
-        Node::Pattern {
-            input: ext.into(),
-            count: editor_core::Formula::count(3),
-            kind: editor_core::PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(2.0),
-            },
-        },
-    );
+    let (doc, k, pat) = crate::fixture::linear(doc, ext, [1.0, 0.0, 0.0], 2.0, 3);
     let ev = run(&doc);
     let inst2_face = ev
         .table_at(pat)
@@ -335,24 +325,17 @@ fn vanished_loss_with_prior_enriches_diagnosis_and_tombstone() {
         .iter()
         .find_map(|(n, _)| {
             (n.kind == EntityKind::Face
-                && matches!(n.path.first(), Some(RoleSeg::Instance { i: 2, .. })))
+                && matches!(n.path.first(), Some(RoleSeg::Member { at, .. }) if at.as_slice() == [(k, 2)]))
             .then(|| n.clone())
         })
-        .expect("pattern mints instance-2 face names");
+        .expect("the family mints member-2 face names");
     let doc = set(doc, inst2_face.clone(), red());
     let prior_doc = doc.clone();
     let prior_ev = run(&prior_doc);
     assert!(prior_ev.appearance.is_lossless());
 
-    let (doc, _) = step(
-        doc,
-        DocEdit::SetStructuralParam {
-            node: pat,
-            slot: SlotId::Count,
-            expr: editor_core::Formula::count(2),
-            fresh: Vec::new(),
-        },
-    );
+    let edit = crate::fixture::recount_edit(&doc, k, editor_core::Formula::count(2));
+    let (doc, _) = step(doc, edit);
     let ev = rerun(&doc, &prior_ev);
     assert_eq!(ev.appearance.losses.len(), 1);
     let loss = &ev.appearance.losses[0];
@@ -386,19 +369,18 @@ fn vanished_loss_with_prior_enriches_diagnosis_and_tombstone() {
         panic!("expected Vanished, got {:?}", f.error);
     };
     assert_eq!(*name, inst2_face);
-    assert_eq!(
-        *diagnosis,
-        Diagnosis::StructuralParam {
-            node: pat,
-            param: SlotId::Count
-        }
+    // The count is the index's, a definition and no slot of the
+    // family: the edit that took the name is a recipe edit.
+    assert!(
+        matches!(diagnosis, Diagnosis::RecipeEdit { .. }),
+        "{diagnosis:?}"
     );
     let t = last_good.as_ref().expect("the prior run resolved the name");
     assert_eq!(t.kind, EntityKind::Face);
     assert_eq!(t.patch.node, pat);
     // The coarse structural candidates (empty here) are a subset of
     // the ladder's offers by construction; nothing structural offers
-    // itself for a dropped instance.
+    // itself for a dropped member.
     assert!(f.offers.is_empty());
 }
 

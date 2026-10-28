@@ -14,7 +14,6 @@
 //!
 //! | `verbatim_kind`  | the node's table                         |
 //! |------------------|------------------------------------------|
-//! | `Some(Selected)` | at least one row, and every row foreign  |
 //! | `Some(Intact)`   | at least one foreign and one own row     |
 //! | `Some(Copied)`   | at least one foreign row                 |
 //! | `None`           | no foreign row                           |
@@ -91,9 +90,6 @@ test_utils::f6_variants! {
         Place,
         World,
         Space,
-        Pattern,
-        Part,
-        PlacedUnion,
         InstantiatePart,
         Measure,
         Assertion,
@@ -228,7 +224,6 @@ fn evaluated() -> Vec<Sample> {
 fn disagreement(s: &Sample) -> Option<String> {
     let (foreign, own) = (s.foreign.is_some(), s.own.is_some());
     let wanted = match s.edge {
-        Some(VerbatimKind::Selected) if !foreign || own => "every row headed by another node",
         Some(VerbatimKind::Copied) if !foreign => "rows headed by another node",
         Some(VerbatimKind::Intact) if !foreign || !own => {
             "rows headed by another node AND rows headed by itself"
@@ -255,7 +250,7 @@ fn disagreement(s: &Sample) -> Option<String> {
 
 /// INVARIANT (N1, held against the producer): every evaluated node's
 /// rows are headed the way the edge `verbatim_edge` reads it as
-/// requires — foreign only for `Whole`/`Selected`, both for `Intact`,
+/// requires — foreign only for `Whole`, both for `Intact`,
 /// own only for `None` — and a `ROW_FREE` kind publishes none.
 ///
 /// Red when a node that evaluates to its input's names is filed under

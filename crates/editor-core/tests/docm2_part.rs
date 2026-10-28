@@ -905,11 +905,7 @@ fn a_member_of_a_family_of_a_tied_master_keeps_the_tie() {
     assert!(!master_ties.is_empty(), "the fixture carries a tie");
     for (_, c) in ties(&ev, pat) {
         let bodies: std::collections::BTreeSet<u32> = c.iter().map(|e| e.body).collect();
-        assert_eq!(
-            bodies.len(),
-            1,
-            "a family's tie lives in one member: {c:?}"
-        );
+        assert_eq!(bodies.len(), 1, "a family's tie lives in one member: {c:?}");
     }
     let projected = ties(&ev, p1);
     assert_eq!(
@@ -918,10 +914,7 @@ fn a_member_of_a_family_of_a_tied_master_keeps_the_tie() {
         "one tie per master tie, still tied"
     );
     for (name, c) in &projected {
-        assert!(
-            is_member(name.path.first(), k, 1),
-            "{name}"
-        );
+        assert!(is_member(name.path.first(), k, 1), "{name}");
         assert!(c.iter().all(|e| e.body == 0), "re-keyed to body 0: {c:?}");
     }
 }

@@ -18,8 +18,8 @@
 use crate::fixture;
 
 use editor_core::{
-    CapEnd, Coord, DocumentId, EvalOptions, Formula, Frame, MateRef, MateSide, Node,
-    NodeErrorKind, ProfileDoc, RecipeNodeId, TargetAxis, VarId,
+    CapEnd, Coord, DocumentId, EvalOptions, Formula, Frame, MateRef, MateSide, Node, NodeErrorKind,
+    ProfileDoc, RecipeNodeId, TargetAxis, VarId,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, in_copy, insert, len, on_frame, run, solve};
@@ -244,7 +244,10 @@ fn r2_oblique_circular_seat_at_a_pinned_world_frame() {
     let axis =
         crate::mate1_member_vocab::axis_with(&doc, leg, own_origin, unturn([1.0, 1.0, 1.0]), &o);
     let theta = 2.0 * core::f64::consts::PI / 5.0;
-    let (doc, k, pattern) = crate::fixture::circular(doc, leg, (axis, TargetAxis::Z), theta, 3);
+    // Member 0 seated where the leg stands ([`crate::fixture::ring_seat`]).
+    let at = crate::fixture::ring_seat(leg_frame(), [1.0, 1.0, 1.0], 2);
+    let (doc, k, pattern) =
+        crate::fixture::circular_from(doc, leg, (axis, TargetAxis::Z), at, theta, 3);
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, mate) = seat(
         doc,

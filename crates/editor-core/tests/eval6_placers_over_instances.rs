@@ -76,7 +76,14 @@ pub(crate) fn along_y(
 /// `j = index(N) within i`. Returns `(doc, cube, inner, outer, i, j)`.
 pub(crate) fn nested_doc(
     label: &str,
-) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId, VarId, VarId) {
+) -> (
+    ProfileDoc,
+    RecipeNodeId,
+    RecipeNodeId,
+    RecipeNodeId,
+    VarId,
+    VarId,
+) {
     let (doc, cube) = cube_doc(label);
     let (doc, i, inner) = fixture::linear(doc, cube, [1.0, 0.0, 0.0], 2.0, M);
     let (doc, j) = fixture::index_of(doc, "j", Formula::count(N), Some(i));
@@ -195,7 +202,11 @@ fn a_family_of_families_is_one_member_per_pair_outer_first() {
         let master = inner_name;
         assert_eq!(master.node, cube, "over the master's own name: {name:?}");
         let inner_entry = of_inner
-            .lookup(&in_member(inner, vec![(i_var, *i)], master.as_ref().clone()))
+            .lookup(&in_member(
+                inner,
+                vec![(i_var, *i)],
+                master.as_ref().clone(),
+            ))
             .expect("the inner row exists");
         let at_flat = |e: &editor_core::EntityRef| editor_core::EntityRef {
             body: u32::try_from(flat(*i as usize, *j as usize)).unwrap(),
@@ -254,10 +265,8 @@ fn a_two_index_read_picks_its_member() {
     }
     let (doc, past) = fixture::member_at(doc, outer, vec![Formula::count(M), Formula::count(0)]);
     let ev = run(&doc, &opts());
-    let ValuePayload::Instances(bodies) = &ev
-        .value(outer)
-        .expect("the outer family evaluated")
-        .payload
+    let ValuePayload::Instances(bodies) =
+        &ev.value(outer).expect("the outer family evaluated").payload
     else {
         panic!("the outer placement is a family")
     };
@@ -277,7 +286,11 @@ fn a_two_index_read_picks_its_member() {
             "outer[{i}, {j}] is member body {k} itself, in its frame"
         );
         let at = |v: i64| u32::try_from(v).unwrap();
-        let name = in_member(outer, vec![(i_var, at(i)), (j_var, at(j))], cube_cap.clone());
+        let name = in_member(
+            outer,
+            vec![(i_var, at(i)), (j_var, at(j))],
+            cube_cap.clone(),
+        );
         assert!(
             ev.table_at(p).expect("the read").lookup(&name).is_some(),
             "the ({i}, {j}) name resolves in outer[{i}, {j}]'s table"
@@ -314,7 +327,11 @@ fn the_placers_admit_a_body_or_a_family_and_a_union_reads_a_family_whole() {
     );
     let (doc, k, row) = fixture::linear(doc, cube, [1.0, 0.0, 0.0], 2.0, M);
     let target = fixture::space(&doc, cube);
-    let placed = editor_core::Placed::of(&doc, Vec::new(), fixture::slides_along(k, [0.0, 1.0, 0.0], 2.0));
+    let placed = editor_core::Placed::of(
+        &doc,
+        Vec::new(),
+        fixture::slides_along(k, [0.0, 1.0, 0.0], 2.0),
+    );
     let refusal = fixture::insert_refused(
         &doc,
         Node::place(
@@ -338,8 +355,10 @@ fn the_placers_admit_a_body_or_a_family_and_a_union_reads_a_family_whole() {
         },
     );
     let ev = run(&doc, &opts());
-    let ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. }) =
-        &ev.value(both).unwrap_or_else(|| panic!("{:?}", ev.node_error(both))).payload
+    let ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. }) = &ev
+        .value(both)
+        .unwrap_or_else(|| panic!("{:?}", ev.node_error(both)))
+        .payload
     else {
         panic!("the union is a body")
     };
@@ -371,7 +390,11 @@ fn a_family_of_families_is_one_member_per_pair_at_dual64() {
     for (i, row) in rows.iter().enumerate() {
         let alone = instances_of(&ev, *row);
         for j in 0..N as usize {
-            assert_eq!(bits(&nested[flat(i, j)]), bits(&alone[j]), "member ({i}, {j})");
+            assert_eq!(
+                bits(&nested[flat(i, j)]),
+                bits(&alone[j]),
+                "member ({i}, {j})"
+            );
         }
     }
 }

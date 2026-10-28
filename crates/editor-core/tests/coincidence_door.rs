@@ -13,9 +13,8 @@ use crate::fixture::{fname, insert, len, len2, on_frame, out, table};
 use editor_core::{
     Advisory, CapEnd, CheckEvidence, CheckId, ChecksConfig, EntityKey, EntityKind, Entry,
     EvalOptions, Evaluation, FindingSubject, Formula, LoopProgram, NamedCell, NamedCoincidence,
-    Node, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    Proof, RecipeNodeId, RoleSeg, Rung, Severity, SplitHalf, StableName, ValuePayload, VarId,
-    coincide,
+    Node, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, Proof,
+    RecipeNodeId, RoleSeg, Rung, Severity, SplitHalf, StableName, ValuePayload, VarId, coincide,
 };
 use geom_core::{MarginDiag, Point3, Tol};
 use topo::{DecisionSite, Relation};

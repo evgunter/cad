@@ -57,20 +57,30 @@ impl<T: Decide> Members<T> {
     /// The member standing at the values `bound` gives the indices of
     /// `over`, where it gives every one.
     fn bound_at(&self, bound: &BTreeMap<VarId, u32>) -> Option<&NodeValue<T>> {
-        let at: Option<Vec<u32>> = self.over.iter().map(|index| bound.get(index).copied()).collect();
+        let at: Option<Vec<u32>> = self
+            .over
+            .iter()
+            .map(|index| bound.get(index).copied())
+            .collect();
         self.at(&at?)
     }
 
     /// Each member's position in the family's flat body list, with its
     /// index values: the order an `Instances` payload holds them in.
     pub(crate) fn position(&self, at: &[u32]) -> Option<usize> {
-        self.members.iter().position(|(values, _)| values.as_slice() == at)
+        self.members
+            .iter()
+            .position(|(values, _)| values.as_slice() == at)
     }
 
     /// Each member's index values, paired with the indices they are of:
     /// what its names' `Member` segment holds.
     pub(crate) fn member_at(&self, values: &[u32]) -> crate::names::MemberAt {
-        self.over.iter().copied().zip(values.iter().copied()).collect()
+        self.over
+            .iter()
+            .copied()
+            .zip(values.iter().copied())
+            .collect()
     }
 }
 
@@ -147,7 +157,9 @@ fn overlay<T: Decide>(
                 (Some(member), _) => NodeResult::Ok(member.clone()),
                 (None, NodeResult::Ok(value)) => NodeResult::Ok(value.clone()),
                 (None, NodeResult::Failed(_)) => NodeResult::Poisoned { through: id },
-                (None, NodeResult::Poisoned { through }) => NodeResult::Poisoned { through: *through },
+                (None, NodeResult::Poisoned { through }) => {
+                    NodeResult::Poisoned { through: *through }
+                }
             };
             (id, result)
         })
@@ -192,7 +204,8 @@ where
             .iter()
             .map(|&v| u32::try_from(v).unwrap_or_else(|_| unreachable!("a count is within u32")))
             .collect();
-        let bound: BTreeMap<VarId, u32> = chain.iter().copied().zip(narrow.iter().copied()).collect();
+        let bound: BTreeMap<VarId, u32> =
+            chain.iter().copied().zip(narrow.iter().copied()).collect();
         let mut member_env = env.clone();
         doc.bind_member(&mut member_env, &at);
         let mut nominal = op_env.lane.nominal.clone();
@@ -290,7 +303,10 @@ fn family_value<T: Decide>(
     content.write_tag(tag::member::FAMILY);
     naming.write_tag(tag::member::FAMILY);
     for (_, value) in &members.members {
-        for (h, key) in [(&mut content, value.content_key.0), (&mut naming, value.naming_key.0)] {
+        for (h, key) in [
+            (&mut content, value.content_key.0),
+            (&mut naming, value.naming_key.0),
+        ] {
             h.write_u64(key as u64);
             h.write_u64((key >> 64) as u64);
         }
@@ -309,8 +325,8 @@ fn family_value<T: Decide>(
                 })
                 .collect();
             let raw: Vec<&topo::Body<T>> = bodies.iter().map(super::Framed::body).collect();
-            let table = crate::names::name_family(id, &tables, &raw)
-                .map_err(NodeErrorKind::Naming)?;
+            let table =
+                crate::names::name_family(id, &tables, &raw).map_err(NodeErrorKind::Naming)?;
             (
                 ValuePayload::Instances(bodies),
                 Arc::from([super::OutputNames::new(table, Arc::default())]),

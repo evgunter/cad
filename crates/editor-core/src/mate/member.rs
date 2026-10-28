@@ -115,7 +115,10 @@ impl Walk {
 /// stand a member on. That is the node a refusal names, and it is not
 /// in general the reference's own head — a stranded operand stops the
 /// walk before the head is ever reached.
-pub(super) fn walk<P: crate::ProfilePayload>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, RecipeNodeId> {
+pub(super) fn walk<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    r: &crate::node::SitedFace,
+) -> Result<Walk, RecipeNodeId> {
     let mut at = r.at;
     let mut name: &crate::names::StableName = &r.name;
     let mut chain: Vec<Placing> = Vec::new();
@@ -240,7 +243,10 @@ pub(super) fn walk<P: crate::ProfilePayload>(doc: &Doc<P>, r: &crate::node::Site
 /// does not admit would mint a record for a mate that never solved,
 /// which is what AQ8 option (b) SKIP refuses (`ASSEMBLY.md`'s AQ8
 /// clause).
-pub fn member_of<P: crate::ProfilePayload>(doc: &Doc<P>, head: &crate::node::SitedFace) -> Option<Member> {
+pub fn member_of<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    head: &crate::node::SitedFace,
+) -> Option<Member> {
     walk(doc, head).ok().map(|w| w.member)
 }
 
@@ -265,7 +271,10 @@ pub fn member_reading<P: crate::ProfilePayload>(
 ///
 /// `None` when the side is outside A11's member vocabulary
 /// ([`member_of`] answers `None`), or when that name is no face's.
-pub fn head_face<P: crate::ProfilePayload>(doc: &Doc<P>, head: &crate::node::SitedFace) -> Option<crate::FaceName> {
+pub fn head_face<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    head: &crate::node::SitedFace,
+) -> Option<crate::FaceName> {
     walk(doc, head).ok()?.part_face()
 }
 

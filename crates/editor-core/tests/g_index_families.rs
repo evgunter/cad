@@ -55,7 +55,11 @@ pub(crate) fn ring(n: i64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, _) = index(doc, "k", Formula::count(n));
     let (doc, the_block) = block(doc, (4.0, 5.0), (-0.5, 0.5), 1.0);
     let spin = formula(&doc, &format!("scalar(k) * turn / {n}"));
-    let placed = editor_core::Placed::of(&doc, Vec::new(), vec![(Coord::Spin(Some(TargetAxis::Z)), spin)]);
+    let placed = editor_core::Placed::of(
+        &doc,
+        Vec::new(),
+        vec![(Coord::Spin(Some(TargetAxis::Z)), spin)],
+    );
     let node = fixture::place_node(
         &doc,
         editor_core::BodyRead::plain(Operand::Node(the_block)),
@@ -70,7 +74,11 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 }
 
 fn bodies(ev: &Evaluation<f64>, id: RecipeNodeId) -> usize {
-    match &ev.value(id).unwrap_or_else(|| panic!("{id:?}: {:?}", ev.result(id))).payload {
+    match &ev
+        .value(id)
+        .unwrap_or_else(|| panic!("{id:?}: {:?}", ev.result(id)))
+        .payload
+    {
         ValuePayload::Instances(bodies) => bodies.len(),
         ValuePayload::Body(_) | ValuePayload::Boolean(_) => 1,
         other => panic!("a body or a family, got {}", other.kind_name()),
@@ -139,12 +147,20 @@ fn a_union_reads_the_family_whole_and_an_indexed_read_one_member() {
     let (doc, one) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![editor_core::BodyRead::indexed(ring, vec![Formula::count(2)])]),
+            members: Bodies::Spelled(vec![editor_core::BodyRead::indexed(
+                ring,
+                vec![Formula::count(2)],
+            )]),
         },
     );
     let ev = run(&doc);
     assert_eq!(bodies(&ev, ring), 4);
-    assert_eq!(bodies(&ev, fused), 1, "the union is one body: {:?}", ev.result(fused));
+    assert_eq!(
+        bodies(&ev, fused),
+        1,
+        "the union is one body: {:?}",
+        ev.result(fused)
+    );
     assert_eq!(bodies(&ev, one), 1, "{:?}", ev.result(one));
 }
 
@@ -210,7 +226,11 @@ fn one_assertion_over_a_family_quiets_each_members_own_finding() {
         let ev = run(doc);
         let findings = fixture::at_rest(doc, &ev).unwrap_or_else(|e| panic!("{e}"));
         let interference = fixture::interference(&findings);
-        assert_eq!(interference.len(), n as usize, "one finding per fin: {interference:#?}");
+        assert_eq!(
+            interference.len(),
+            n as usize,
+            "one finding per fin: {interference:#?}"
+        );
         let mut quieted_by: Vec<u32> = interference
             .iter()
             .map(|finding| {
@@ -224,12 +244,20 @@ fn one_assertion_over_a_family_quiets_each_members_own_finding() {
                     .into_iter()
                     .find(|copy| copy.var == fins)
                     .expect("a fin is one of the two copies");
-                assert_eq!(fin.member, *value, "fin {} is quieted by its own member", fin.member);
+                assert_eq!(
+                    fin.member, *value,
+                    "fin {} is quieted by its own member",
+                    fin.member
+                );
                 *value
             })
             .collect();
         quieted_by.sort_unstable();
-        assert_eq!(quieted_by, (0..n).collect::<Vec<_>>(), "each member quiets one finding");
+        assert_eq!(
+            quieted_by,
+            (0..n).collect::<Vec<_>>(),
+            "each member quiets one finding"
+        );
     };
     check(&doc, 12);
     let (doc, _) = fixture::step(
@@ -277,7 +305,9 @@ fn a_grid_is_two_indices_one_within_the_other() {
     let at: Vec<Vec<u32>> = members.members.iter().map(|(at, _)| at.clone()).collect();
     assert_eq!(
         at,
-        [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [2, 1]].map(Vec::from).to_vec(),
+        [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [2, 1]]
+            .map(Vec::from)
+            .to_vec(),
         "every (i, j), i outer"
     );
     let named: std::collections::BTreeSet<Vec<(VarId, u32)>> = fixture::table(&ev, grid)
@@ -322,7 +352,10 @@ fn a_reader_of_two_unrelated_indices_refuses_at_the_door() {
         panic!("unrelated indices refuse: {refused:?}")
     };
     assert_eq!([a.id(), b.id()], [i, j], "{refused}");
-    assert!(refused.to_string().contains("neither is within the other"), "{refused}");
+    assert!(
+        refused.to_string().contains("neither is within the other"),
+        "{refused}"
+    );
 }
 
 /// **A read out of range is unresolved, typed**: `row[3]` of a row of
@@ -337,7 +370,10 @@ fn a_member_read_out_of_range_refuses_typed() {
         let (doc, read) = insert(
             doc.clone(),
             Node::Union {
-                members: Bodies::Spelled(vec![editor_core::BodyRead::indexed(row, vec![Formula::count(at)])]),
+                members: Bodies::Spelled(vec![editor_core::BodyRead::indexed(
+                    row,
+                    vec![Formula::count(at)],
+                )]),
             },
         );
         let ev = run(&doc);
@@ -368,7 +404,8 @@ fn a_construction_reading_the_index_is_built_per_member() {
         vec![fixture::square(0.0, 0.0, 0.5)],
     );
     let depth = |offset: i64| {
-        let count = Formula::add(Formula::var(k, Dimension::Count), Formula::count(offset)).unwrap();
+        let count =
+            Formula::add(Formula::var(k, Dimension::Count), Formula::count(offset)).unwrap();
         Formula::mul(Formula::count_to_scalar(count).unwrap(), fixture::len(0.25)).unwrap()
     };
     let (doc, tall) = insert(
@@ -386,19 +423,30 @@ fn a_construction_reading_the_index_is_built_per_member() {
         },
     );
     let ev = run(&doc);
-    let members = ev.value(tall).unwrap().members.as_ref().expect("a family of extrudes");
+    let members = ev
+        .value(tall)
+        .unwrap()
+        .members
+        .as_ref()
+        .expect("a family of extrudes");
     let heights: Vec<f64> = members
         .members
         .iter()
         .map(|(_, member)| {
-            let ValuePayload::Body(body) = &member.payload else { panic!("a body") };
+            let ValuePayload::Body(body) = &member.payload else {
+                panic!("a body")
+            };
             let body = fixture::in_space(body);
             body.vertices()
                 .map(|(v, _)| fixture::point(&body, v).z)
                 .fold(f64::NEG_INFINITY, f64::max)
         })
         .collect();
-    assert_eq!(heights, [0.25, 0.5, 0.75], "one body per member, each its own depth");
+    assert_eq!(
+        heights,
+        [0.25, 0.5, 0.75],
+        "one body per member, each its own depth"
+    );
     match ev.result(flat).and_then(|r| r.error()).map(|e| &e.kind) {
         Some(editor_core::NodeErrorKind::MemberRefused { at, source }) => {
             assert_eq!(at.as_slice(), [(k, 0)], "named at k = 0: {source:?}");
@@ -431,15 +479,28 @@ fn a_rings_neighbours_are_read_through_mod() {
         },
     );
     let ev = run(&doc);
-    let members = ev.value(pairs).unwrap_or_else(|| panic!("{:?}", ev.result(pairs))).members.as_ref().expect("one union per k");
+    let members = ev
+        .value(pairs)
+        .unwrap_or_else(|| panic!("{:?}", ev.result(pairs)))
+        .members
+        .as_ref()
+        .expect("one union per k");
     assert_eq!(members.members.len(), 4);
     for (at, member) in &members.members {
-        let ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. }) = &member.payload else {
+        let ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. }) = &member.payload
+        else {
             panic!("k = {at:?}: a body, got {}", member.payload.kind_name())
         };
-        assert_eq!(body.body().solids().count(), 2, "k = {at:?}: two neighbours, apart");
+        assert_eq!(
+            body.body().solids().count(),
+            2,
+            "k = {at:?}: two neighbours, apart"
+        );
     }
-    assert_eq!(doc.var(k).map(editor_core::Var::kind), Some(editor_core::VarKind::Count));
+    assert_eq!(
+        doc.var(k).map(editor_core::Var::kind),
+        Some(editor_core::VarKind::Count)
+    );
 }
 
 /// **A member is reused by its key** (D9: a node reading an index keys
@@ -453,7 +514,8 @@ fn a_member_is_reused_by_its_key() {
     let first = run(&doc);
     let again = fixture::run_with_prior(&doc, &first);
     assert!(
-        again.reused >= 1 && again.value(ring).unwrap().content_key == first.value(ring).unwrap().content_key,
+        again.reused >= 1
+            && again.value(ring).unwrap().content_key == first.value(ring).unwrap().content_key,
         "the family is served again"
     );
     let k = doc.var_named("k").unwrap();
@@ -470,7 +532,15 @@ fn a_member_is_reused_by_its_key() {
     );
     let after = fixture::run_with_prior(&grown, &first);
     let keys = |ev: &Evaluation<f64>| -> Vec<editor_core::ContentKey> {
-        ev.value(ring).unwrap().members.as_ref().unwrap().members.iter().map(|(_, m)| m.content_key).collect()
+        ev.value(ring)
+            .unwrap()
+            .members
+            .as_ref()
+            .unwrap()
+            .members
+            .iter()
+            .map(|(_, m)| m.content_key)
+            .collect()
     };
     let (before, now) = (keys(&first), keys(&after));
     assert_eq!(now.len(), 6);
@@ -507,9 +577,13 @@ fn interleaved(width: f64, pitch: f64) -> (u64, usize) {
     );
     let before = editor_core::EvalCounters::on_this_thread();
     let ev = run(&doc);
-    let judged = editor_core::EvalCounters::on_this_thread().since(before).judgements;
-    let ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. }) =
-        &ev.value(fused).unwrap_or_else(|| panic!("{:?}", ev.result(fused))).payload
+    let judged = editor_core::EvalCounters::on_this_thread()
+        .since(before)
+        .judgements;
+    let ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. }) = &ev
+        .value(fused)
+        .unwrap_or_else(|| panic!("{:?}", ev.result(fused)))
+        .payload
     else {
         panic!("the union is a body")
     };

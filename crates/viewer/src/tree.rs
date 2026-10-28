@@ -662,7 +662,8 @@ fn readout_of(
         ValuePayload::Body(_)
         | ValuePayload::Boolean(BooleanValue::Body { .. })
         | ValuePayload::Profile(_)
-        | ValuePayload::Instances(_) => None,
+        | ValuePayload::Instances(_)
+        | ValuePayload::Family => None,
     }
 }
 
@@ -1000,17 +1001,19 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         // A mate refusal is the placement's: the pose that did not
         // evaluate is carried in its own node's words (module header).
         NodeErrorKind::Mate(_) => None,
+        // A member's refusal names what that member's own refusal names.
+        NodeErrorKind::MemberRefused { source, .. } => repair_named(source),
         // The named input evaluated to a legal value that the failing
         // node's own choice does not fit — a family the operand does
         // not take, an empty body or split side, an index outside the
-        // pattern's instances — and nothing on it refused.
+        // family's members — and nothing on it refused.
         NodeErrorKind::WrongOperand { .. }
         // An operand reads an output its operation no longer defines:
         // the repair is a re-point at the reading node itself.
         | NodeErrorKind::UnresolvedRead { .. }
         | NodeErrorKind::EmptyOperand { .. }
         | NodeErrorKind::EmptyHalf { .. }
-        | NodeErrorKind::InstanceOutOfRange { .. } => None,
+        | NodeErrorKind::MemberOutOfRange { .. } => None,
         // Names an id no live node holds, so there is no row to go to.
         NodeErrorKind::MissingInput { .. } => None,
         // The input's door shipped a body that does not finish: a
@@ -1070,12 +1073,8 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::PlacementAxisEscalated { .. }
         | NodeErrorKind::PoseDirectionEscalated { .. }
         | NodeErrorKind::CountOutOfRange { .. }
-        | NodeErrorKind::NegativeSpacing { .. }
-        | NodeErrorKind::DegenerateSpacing
-        | NodeErrorKind::DegenerateStep
-        | NodeErrorKind::FullRangeStep { .. }
-        | NodeErrorKind::PlacementsUncertified { .. }
-        | NodeErrorKind::PlacementRule(_)
+        | NodeErrorKind::IndicesUnrelated { .. }
+        | NodeErrorKind::IndexCount { .. }
         | NodeErrorKind::UnschedulableCycle
         | NodeErrorKind::Shell(_)
         | NodeErrorKind::ShellLaneUnsupported { .. }
