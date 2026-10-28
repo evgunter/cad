@@ -299,3 +299,4 @@ Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `cra
   - So it is a stale pin (196 → 10), not a P0.
   - Tier: orchestrator's read, as a mechanical re-pin of an independently verified count. Merge on green.
   - The item's "the links interlock" framing was wrong: the bars butt end to end.
+- 2026-10-28 01:09Z (orchestrator): **#5888 merged** at `c56ac2cd`, head `0f450205`, with CI green including `demos (tour + wild)`. That is the chain-scene re-pin, 196 → 10, all true interference. The lane is archived. #5884's R1 reported APPROVE-WITH-FIXES, 0/3/7, and R2 is pending.
