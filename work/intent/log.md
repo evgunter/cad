@@ -1001,3 +1001,12 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
   - #5919 (roots rename) and #5915 (refactor pose definitions) are in single review.
   - Filed `a-construction-is-called-the-root-of-its-own-space` (P3), the second sense of "root" the rename left.
   - The 10-28 nightly triage lane is `session_01VyvYnLhN6A3wRdBEuKhm5g`.
+- 2026-10-28 10:40 —
+  - **Nightly triage 10-28 (#5917) merged** on the orchestrator's read. It fixed nine rustdoc links: the job had hidden every crate's errors behind the first crate that failed, so future triages run the full `scripts/doc-gate.sh`.
+  - **Filed P0 main reds:**
+    - two on OFFSET from PR 5728 (five slow rows at limb 2's kernel limit; three M10 interval pins). Whether the torus refusals are among those Ev accepted on 5728 is left open in the item, for OFFSET and Ev;
+    - one on SECT (the cyl×sphere march runs out of cells near the node at 1e-6, plus a fuzz counterexample that reds geom-brep PRs at random);
+    - one on SPLICE (the certified-endpoint census in six files).
+  - **Duplicate closed:** `issues/main-red-perf12-kitchen-sink-…`; RESTREAD's row is kept.
+  - **Correction:** the scalar dual-corpus red stays P3. The README's bands make no main red P0 by itself (an f64/Interval disagreement at 1e-12 is interval ground), so triage briefs stop saying "main reds are P0".
+  - **#5919 roots rename:** STYLE review APPROVE-WITH-FIXES. The orchestrator refined the piece ruling: the arm raised for the node the slot reads is `ProductError::Read`, since a `⊔` is not its own piece; `PieceInvalid` keeps "piece". The fix pass is sent.
