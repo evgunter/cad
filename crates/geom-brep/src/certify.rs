@@ -3231,6 +3231,11 @@ impl<T: Decide> IntersectionDraft<T> {
     ///
     /// Asked of the geometry alone: the images are what the walls' charts
     /// state for this carrier, whoever built the edge.
+    ///
+    /// Built for boundary rows, which a rim between two walls grafted at a
+    /// shared section needs. D2's structural selector covers any row or
+    /// column known in advance; the domain-side restriction is this
+    /// reader's scope, not the selector's definition.
     pub fn shared_row(
         &self,
         pair: SurfacePair,

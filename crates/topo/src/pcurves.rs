@@ -820,8 +820,9 @@ pub fn pcurve_of<T: AtRestPolicy>(
 /// walls and the edge's image on each ([`pcurve_of`]) is a row on its
 /// chart's domain side that certifies there, the curve is that shared row
 /// ([`geom_brep::IntersectionDraft::shared_row`]); otherwise the draft's
-/// witness. `sides` are the seam's two half-edges, each with its face's
-/// surface key and surface.
+/// witness. Built for boundary rows (the reader's scope, not D2's rule).
+/// `sides` are the seam's two half-edges, each with its face's surface
+/// key and surface.
 pub(crate) fn seam_intersection<T: AtRestPolicy>(
     body: &Body<T>,
     draft: geom_brep::IntersectionDraft<T>,

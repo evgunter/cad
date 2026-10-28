@@ -370,6 +370,81 @@ fn a_shared_row_is_symmetric_in_its_pair() {
     );
 }
 
+/// **The span is gated per wall.** The cylinder turns 1.4 rad, the
+/// annulus 1.2: over `(0, 1.3)` the rim runs past the annulus's row. D2's
+/// question finds no shared row, and the annulus's whole row stated over
+/// that span refuses, on the annulus.
+#[test]
+fn a_carrier_past_one_walls_row_refuses_on_that_wall() {
+    let carrier = rim(1.0);
+    let pair = Pair::of(cylinder(1, 1.4), annulus(1, TURN));
+    let past = (0.0, 1.3);
+    let images = [
+        row(&carrier, past, pair.wall(0)),
+        row(&carrier, (0.0, TURN), pair.wall(1)),
+    ];
+    assert!(
+        pair.recover(&carrier, past, images.clone()).is_none(),
+        "a rim past the annulus's row reads no shared row"
+    );
+    let got = pair.certify(shared(&pair, images), &carrier, past);
+    assert!(
+        matches!(got, Err(CertifyError::RowImage { surface, .. }) if surface == pair.keys[1]),
+        "the annulus refuses the span past its row, definitely: {got:?}"
+    );
+}
+
+/// **Both operand orders recover one description.** The cylinder and the
+/// annulus whose rim is its `v = 1` row, keyed in either order: each
+/// wall's row is the same image whichever order recovered it, and the
+/// first order's edge, re-keyed into the second's arena (which flips the
+/// pair's order), states each wall's row exactly as the second recovered.
+#[test]
+fn both_operand_orders_recover_one_description() {
+    let (carrier, params) = (rim(1.0), (0.0, TURN));
+    let forward = Pair::of(cylinder(1, TURN), outward_annulus(1, TURN));
+    let backward = Pair::of(outward_annulus(1, TURN), cylinder(1, TURN));
+    let recovered = |pair: &Pair| {
+        let images = [0, 1].map(|i| row(&carrier, params, pair.wall(i)));
+        let selector = pair
+            .recover(&carrier, params, images)
+            .expect("a shared row");
+        pair.certify(selector, &carrier, params)
+            .expect("it certifies")
+    };
+    let rows = |pair: &Pair, edge: &EdgeCurve<f64>, cylinder: SurfaceKey, annulus: SurfaceKey| {
+        let EdgeDescription::Intersection {
+            pair: stated,
+            selector: CurveSelector::Structural(Structural::SharedRow(row)),
+        } = edge.description()
+        else {
+            panic!("a shared row");
+        };
+        assert_eq!(*stated, pair.pair());
+        [cylinder, annulus].map(|k| format!("{:?}", row.image_on(*stated, k)))
+    };
+    let (a, b) = (recovered(&forward), recovered(&backward));
+    let want = rows(&backward, &b, backward.keys[1], backward.keys[0]);
+    assert_eq!(
+        rows(&forward, &a, forward.keys[0], forward.keys[1]),
+        want,
+        "each wall's row, whichever order recovered it"
+    );
+    let bridge = |k: SurfaceKey| {
+        Some(if k == forward.keys[0] {
+            backward.keys[1]
+        } else {
+            backward.keys[0]
+        })
+    };
+    let moved = a.with_remapped_surfaces(bridge).expect("both keys map");
+    assert_eq!(
+        rows(&backward, &moved, backward.keys[1], backward.keys[0]),
+        want,
+        "re-keyed across the flip, each wall keeps its own row"
+    );
+}
+
 /// **A rim a few bands off the row is no shared row.** Two hundred ε
 /// outside the unit circle, a score of escalation bands, the rim is no row of the cylinder: D2's
 /// question finds no shared row, so the boolean keeps today's witness,
