@@ -2212,6 +2212,14 @@ pub enum LoftFault {
         /// The section, in skin order (the first is `0`).
         section: usize,
     },
+    /// A section after the first whose station's moves, under the
+    /// current values, carry the first section's plane exactly onto
+    /// itself (a slide by nothing, a spin in the plane): it stands in
+    /// that plane as an empty station does.
+    StationInFirstPlane {
+        /// The section, in skin order (the first is `0`).
+        section: usize,
+    },
     /// A v degree outside `1 ..= sections − 1`.
     DegreeOutOfRange {
         /// The degree the slot holds.
@@ -3774,6 +3782,21 @@ impl EditError {
                         f,
                         format_args!(
                             "write the moves that carry the first section's plane to its own"
+                        ),
+                    )
+                }
+                LoftFault::StationInFirstPlane { section } => {
+                    write!(
+                        f,
+                        "the station of section {section} of {node} carries the first \
+                         section's plane onto itself under the current values, so the \
+                         section stands in that plane"
+                    )?;
+                    tail.recourse(
+                        f,
+                        format_args!(
+                            "move it off that plane: slide it along the first section's z, \
+                             or spin it about its x or y"
                         ),
                     )
                 }
@@ -6195,9 +6218,14 @@ fn check_loft_shape<P: crate::ProfilePayload>(
     if let Some(k) = then.iter().position(|s| s.station.is_empty()) {
         return Err(LoftFault::EmptyStation { section: k + 1 });
     }
-    if let Some(crate::expr::ParamValue::Count(degree)) =
-        new.var_env::<f64>().bindings.get(v_degree)
+    let env = new.var_env::<f64>();
+    if let Some(k) = then
+        .iter()
+        .position(|s| station_keeps_the_first_plane(&s.station, &env.bindings))
     {
+        return Err(LoftFault::StationInFirstPlane { section: k + 1 });
+    }
+    if let Some(crate::expr::ParamValue::Count(degree)) = env.bindings.get(v_degree) {
         let most = i64::try_from(sections - 1).unwrap_or(i64::MAX);
         if !(1..=most).contains(degree) {
             return Err(LoftFault::DegreeOutOfRange {
@@ -6207,6 +6235,52 @@ fn check_loft_shape<P: crate::ProfilePayload>(
         }
     }
     Ok(())
+}
+
+/// **Whether `station` carries the first section's plane exactly onto
+/// itself** under `values`: the moves composed in `f64` as the
+/// evaluation composes them (each about the first section's own axes
+/// through its origin), and the plane's normal and height compared
+/// exactly. Exact, so it refuses only a plane that certainly coincides;
+/// one rounding leaves near it (a half turn about x twice) is the
+/// skin's to refuse (`LoftError::DegenerateStacking`). A move whose
+/// value is not bound answers `false`: what is wrong then is the
+/// binding, which its own check names.
+fn station_keeps_the_first_plane(
+    station: &[crate::node::StationMove],
+    values: &std::collections::BTreeMap<VarId, crate::expr::ParamValue<f64>>,
+) -> bool {
+    use crate::node::StationMove as M;
+    let value = |var: &VarId| match values.get(var) {
+        Some(crate::expr::ParamValue::Continuous { value, .. }) => Some(*value),
+        _ => None,
+    };
+    let index = |axis: crate::Axis3| match axis {
+        crate::Axis3::X => 0,
+        crate::Axis3::Y => 1,
+        crate::Axis3::Z => 2,
+    };
+    // The plane through `origin` with `normal`, the first section's
+    // to begin with.
+    let (mut origin, mut normal) = ([0.0_f64; 3], [0.0, 0.0, 1.0]);
+    for m in station {
+        match m {
+            M::Slide { along, by } => {
+                let Some(by) = value(by) else { return false };
+                origin[index(*along)] += by;
+            }
+            M::Spin { about, by } => {
+                let Some(by) = value(by) else { return false };
+                let a = index(*about);
+                let (i, j) = ((a + 1) % 3, (a + 2) % 3);
+                let (sin, cos) = by.sin_cos();
+                for v in [&mut origin, &mut normal] {
+                    (v[i], v[j]) = (v[i] * cos - v[j] * sin, v[i] * sin + v[j] * cos);
+                }
+            }
+        }
+    }
+    normal[0] == 0.0 && normal[1] == 0.0 && origin[2] == 0.0
 }
 
 /// What of a node a door writes ([`check_written_node`]).

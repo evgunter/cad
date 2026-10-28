@@ -283,8 +283,9 @@ fn assert_shape(err: &EditError, fault: &LoftFault, what: &str) {
 }
 
 /// **A shape no evaluation can loft refuses at both doors alike**: one
-/// section, a section with an empty station (it stands in the first
-/// section's plane), and a degree the sections cannot carry, each
+/// section, a section with an empty station or one whose moves carry
+/// the first section's plane onto itself under the current values (it
+/// stands in that plane), and a degree the sections cannot carry, each
 /// through `InsertNode` and through `SetLoftSections`. Broken by a
 /// shape check that one door asks and the other does not, or that
 /// either leaves to evaluation.
@@ -295,7 +296,15 @@ fn a_loft_shape_no_evaluation_lofts_refuses_at_both_doors() {
         profile: b.into(),
         station: Vec::new(),
     };
-    let rows: [(Sections, i64, LoftFault, &str); 3] = [
+    let in_plane = |station| LoftSection {
+        profile: b.into(),
+        station,
+    };
+    let slide = |along, by| StationMove::Slide {
+        along,
+        by: len(by),
+    };
+    let rows: [(Sections, i64, LoftFault, &str); 6] = [
         (
             Vec::new(),
             1,
@@ -307,6 +316,33 @@ fn a_loft_shape_no_evaluation_lofts_refuses_at_both_doors() {
             1,
             LoftFault::EmptyStation { section: 2 },
             "an empty station",
+        ),
+        (
+            vec![up(b, 0.0)],
+            1,
+            LoftFault::StationInFirstPlane { section: 1 },
+            "a slide by nothing",
+        ),
+        (
+            vec![
+                up(c, 2.0),
+                in_plane(vec![
+                    slide(Axis3::X, 1.0),
+                    StationMove::Spin {
+                        about: Axis3::Z,
+                        by: fixture::ang(0.5),
+                    },
+                ]),
+            ],
+            1,
+            LoftFault::StationInFirstPlane { section: 2 },
+            "a slide and a spin within the plane",
+        ),
+        (
+            vec![in_plane(vec![slide(Axis3::Z, 1.0), slide(Axis3::Z, -1.0)])],
+            1,
+            LoftFault::StationInFirstPlane { section: 1 },
+            "a slide up and back",
         ),
         (
             vec![up(c, 2.0)],
@@ -335,6 +371,13 @@ fn a_loft_shape_no_evaluation_lofts_refuses_at_both_doors() {
     assert!(
         err.to_string().contains("through 1 section"),
         "the sentence: {err}"
+    );
+    let err = fixture::insert_refused(&doc, lofted(a, vec![up(b, 0.0)], 1));
+    let said = err.to_string();
+    assert!(
+        said.contains("onto itself under the current values")
+            && said.contains("slide it along the first section's z"),
+        "the sentence and its recourse: {said}"
     );
 }
 
@@ -396,5 +439,50 @@ fn set_members_on_a_loft_names_set_loft_sections() {
     assert!(
         err.to_string().contains("SetLoftSections"),
         "the recourse names the edit: {err}"
+    );
+}
+
+/// **A station rounding leaves next to the first plane is the skin's to
+/// refuse**: two half turns about x compose, in `f64`, to a plane a
+/// rounding off the first, which the door's exact check admits and the
+/// evaluation refuses typed. Broken by a door that judges coincidence
+/// within a tolerance of its own, or a skin that lofts the sliver.
+#[test]
+fn a_station_rounded_next_to_the_first_plane_is_refused_by_the_skin() {
+    let (doc, [a, b, _], _) = two_section_loft();
+    let half_turn = || StationMove::Spin {
+        about: Axis3::X,
+        by: fixture::ang(std::f64::consts::PI),
+    };
+    let (doc, loft) = insert(
+        doc,
+        lofted(
+            a,
+            vec![LoftSection {
+                profile: b.into(),
+                station: vec![half_turn(), half_turn()],
+            }],
+            1,
+        ),
+    );
+    let ev = editor_core::evaluate::<f64>(
+        &doc,
+        None,
+        &editor_core::CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
+    assert!(
+        matches!(
+            ev.result(loft),
+            Some(NodeResult::Failed(editor_core::NodeError {
+                kind: editor_core::NodeErrorKind::Loft(sweep::LoftError::DegenerateStacking {
+                    slab: 0
+                }),
+                ..
+            }))
+        ),
+        "{:?}",
+        ev.result(loft)
     );
 }

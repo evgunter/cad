@@ -3368,7 +3368,8 @@ class DocEdit:
         same kernel checks: `slot_var_kind` for a section that is not a
         profile, `slot_dimension_mismatch` for a station move of the
         wrong dimension, `loft_shape` (`fault`: `too_few_sections`,
-        `empty_station`, `degree_out_of_range`). A node that is not a
+        `empty_station`, `station_in_first_plane`,
+        `degree_out_of_range`). A node that is not a
         loft refuses `set_loft_sections_on_non_loft`."""
 
     @staticmethod
