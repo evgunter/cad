@@ -3346,7 +3346,11 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::SplitBody
         | RoleSeg::SectionFace
         | RoleSeg::LoftWall(_)
-        | RoleSeg::LoftSeam(_) => Vec::new(),
+        | RoleSeg::LoftSeam(_)
+        | RoleSeg::LoftSlabWall(..)
+        | RoleSeg::LoftSlabSeam(..)
+        | RoleSeg::LoftSectionEdge(..)
+        | RoleSeg::LoftSectionVertex(..) => Vec::new(),
     }
 }
 

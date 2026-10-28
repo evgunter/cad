@@ -1696,6 +1696,7 @@ pub fn loft_error_tag(err: &LoftError) -> &'static str {
         LoftError::Pcurve(_) => "pcurve",
         LoftError::SeamStructure { .. } => "seam_structure",
         LoftError::SectionStructure => "section_structure",
+        LoftError::SectionRim { .. } => "section_rim",
         LoftError::PlacementNotFinite { .. } => "placement_not_finite",
         LoftError::SectionNotFinite { .. } => "section_not_finite",
         LoftError::ReversedStacking { .. } => "reversed_stacking",
