@@ -338,9 +338,10 @@ fn a_parallel_axis_cylinder_every_class() {
 /// **R-reach**: a torus against an oblique cylinder (the backstop's
 /// tilted rod,
 /// `union-backstop-catches-a-suspect-body-from-a-tilted-rod-in-a-half-donut`)
-/// and a non-coaxial torus; a cone against a non-coaxial torus and a
+/// and a tilted torus; a cone against a non-coaxial torus and a
 /// spline. (A cone against an oblique cylinder or a tilted or
-/// parallel-axis cone is the ruling charts', `section_cert_cone_pair_rows`.)
+/// parallel-axis cone is the ruling charts', `section_cert_cone_pair_rows`;
+/// a torus on a parallel axis is `section_cert_parallel_tori_rows`'.)
 #[test]
 fn intractable_poses_refuse_on_reach() {
     let rod = cylinder(
@@ -349,10 +350,14 @@ fn intractable_poses_refuse_on_reach() {
         0.15,
     );
     assert!(matches!(classify(&donut(), &rod), Section::Intractable));
-    assert!(matches!(
-        classify(&donut(), &torus(p(1.0, 0.0, 0.0), 2.0, 0.5)),
-        Section::Intractable
-    ));
+    let tilted = Surface::Torus {
+        center: p(1.0, 0.0, 0.0),
+        axis: v(0.0, (0.5f64).sin(), (0.5f64).cos()),
+        major_radius: 2.0,
+        minor_radius: 0.5,
+        u_ref: Vec3::unit_x(),
+    };
+    assert!(matches!(classify(&donut(), &tilted), Section::Intractable));
     let cone = Surface::Cone {
         apex: p(0.0, 0.0, 3.0),
         axis: Vec3::unit_z(),

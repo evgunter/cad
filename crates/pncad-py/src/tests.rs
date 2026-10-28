@@ -3503,6 +3503,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
         }),
         recourse: pncad::document::coincide::Recourse::OneConstruction,
         restated: Vec::new(),
+        quietable: false,
     };
     // One fold row reported with it: the payload counts it.
     let unproven = {
@@ -3510,6 +3511,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
             row,
             residual,
             recourse,
+            quietable,
             ..
         } = &unproven
         else {
@@ -3524,6 +3526,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
             residual: residual.clone(),
             recourse: *recourse,
             restated: vec![(fold, (**residual).clone(), *recourse)],
+            quietable: *quietable,
         }
     };
     carries(&unproven, &["reason", "relation", "site", "restated"]);
