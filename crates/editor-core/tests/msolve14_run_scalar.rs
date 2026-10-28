@@ -1001,10 +1001,19 @@ fn run_at<T: editor_core::EvalScalar>(
 /// `0xd5ec_4277_864d_1dcf`, `0x35c1_08d4_5569_8e4e` and
 /// `0x132e_b1b7_811d_4fd3`): with each copy rebuilt at `place` as
 /// before E, this branch reads main's word at 1e-9 exactly.
+///
+/// Re-taken for G (`patterns-are-index-variables`): `patterned-bolt`'s
+/// bolts are a family, one placement over an index, where they were a
+/// `Pattern`'s copies, so its document is another document. Compared
+/// against main (`0217fb09`) label by label at 1e-9, every other
+/// label's word is main's bit for bit (`seats`, `coaxial-slide-spin`,
+/// `overconstrained`, `standoff`, `pinned-chain`, `chain`, `shaft`);
+/// `patterned-bolt`'s alone moved, `0x5d25_c2a0_4ecf_5a9c` →
+/// `0xcc06_7466_9142_3ed7`.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x1b2d_48e7_2dce_64ba),
-    (1e-6, 0x9c64_e122_2cde_2239),
-    (1e-12, 0xb126_9c4f_16e2_eb54),
+    (1e-9, 0x1703_8d6a_7d03_29cd),
+    (1e-6, 0xa35b_8458_f343_5ef7),
+    (1e-12, 0xbe88_829e_0b8d_8360),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
