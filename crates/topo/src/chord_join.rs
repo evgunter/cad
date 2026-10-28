@@ -3360,7 +3360,7 @@ fn run_azimuth_images<T: Decide>(
         let (t0, t1) = curve.params();
         let base = chart_pcurve_over(curve.carrier(), t0, t1, surface, band)
             .map_err(|e| run_image_refusal(face, surface.kind(), e))?;
-        let plus = edge.he_plus == he;
+        let plus = crate::pcurves::is_plus(body, he);
         let (entry_t, exit_t) = if plus { (t0, t1) } else { (t1, t0) };
         let pcurve = match prev_exit {
             None => base,
