@@ -3369,7 +3369,8 @@ class DocEdit:
         same kernel checks: `slot_var_kind` for a section that is not a
         profile, `slot_dimension_mismatch` for a station move of the
         wrong dimension, `loft_shape` (`fault`: `too_few_sections`,
-        `empty_station`, `degree_out_of_range`). A node that is not a
+        `empty_station`, `station_in_first_plane`,
+        `degree_out_of_range`). A node that is not a
         loft refuses `set_loft_sections_on_non_loft`."""
 
     @staticmethod
@@ -4069,8 +4070,9 @@ class Doc:
         node the document does not hold; a port the live node's
         signature does not have raises ValueError."""
     def slot(self, node: NodeId, slot: str) -> Var | None:
-        """The variable a node's slot reads, or None for a node or a
-        slot the document does not hold. Every slot reads one: a value
+        """The variable a node's slot reads, at an operand its read, or
+        None for a node or a slot the document does not hold. Every
+        slot reads one: a value
         written there is its own anonymous variable, and passing the
         handle to another slot is how two slots share it."""
     def var_name(self, var: Var) -> VarName | None:

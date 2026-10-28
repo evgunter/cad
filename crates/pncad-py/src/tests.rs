@@ -567,7 +567,7 @@ fn the_fourth_verbs_two_refusals_are_stable() {
     let empty = refused(ClearanceRefusal::Engine(EngineRefusal::EmptyScope));
     let unpaired = refused(ClearanceRefusal::Engine(EngineRefusal::NoAdmittedPair));
     let unsupported = refused(ClearanceRefusal::Engine(EngineRefusal::Unsupported {
-        carrier: "a free-form face",
+        carrier: "an approximated face",
         face: FaceKey::default(),
     }));
     let poison = refused(ClearanceRefusal::Engine(EngineRefusal::PoisonEnclosure {
@@ -2347,6 +2347,13 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &E::LoftShape {
             node: sp(1),
             fault: pncad::document::LoftFault::EmptyStation { section: 1 },
+        },
+        &["node", "index"],
+    );
+    carries(
+        &E::LoftShape {
+            node: sp(1),
+            fault: pncad::document::LoftFault::StationInFirstPlane { section: 1 },
         },
         &["node", "index"],
     );
@@ -4932,6 +4939,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "stranded_part_read",
             "unknown_node",
             "unplaceable_part",
+            "unread_pose",
             "unresolved_var_crosses_cut",
             "var_name_conflict",
         ],
@@ -5015,7 +5023,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "loft_fault_tag",
-        values: &["degree_out_of_range", "empty_station", "too_few_sections"],
+        values: &[
+            "degree_out_of_range",
+            "empty_station",
+            "station_in_first_plane",
+            "too_few_sections",
+        ],
         delegates: &[],
     },
     TagEntry {

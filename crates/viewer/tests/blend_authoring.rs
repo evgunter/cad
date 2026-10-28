@@ -26,7 +26,7 @@
 use crate::common;
 use viewer::session::BooleanSpec;
 
-use common::{ang, len, len3, plate_index, scl3, session_insert};
+use common::{len, len3, plate_index, scl3, session_insert};
 use pncad::document::{
     Dimension, Doc, Formula, Node, NodeErrorKind, NodeResult, NodeStanding, ProfileProgram,
     RecipeNodeId, Said, SlotId, Speaker,
@@ -975,7 +975,7 @@ fn an_upstream_edit_that_strands_held_edges_drops_them_and_says_so() {
             input: raw_b.into(),
             translation: len3([SIDE * 0.5, SIDE * 0.25, SIDE * 0.25]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
     );
     let union = session_insert(

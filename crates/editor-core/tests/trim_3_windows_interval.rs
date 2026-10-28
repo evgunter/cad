@@ -246,7 +246,7 @@ fn ell_with_a_planted_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         probe,
         [
             Formula::named(name("place"), Dimension::Length),
-            len(0.0),
+            Formula::zero(Dimension::Length),
             len(-0.05),
         ],
     );
@@ -398,8 +398,8 @@ fn scalloped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Some(solid),
         probe,
         [
-            len(0.0),
-            len(0.0),
+            Formula::zero(Dimension::Length),
+            Formula::zero(Dimension::Length),
             Formula::named(name("place"), Dimension::Length),
         ],
     );
@@ -512,8 +512,8 @@ fn block_at_azimuth(r: &mut Recorder, peg: RecipeNodeId, theta: f64, gap: f64) -
         Some(peg),
         b,
         [
-            len(0.0),
-            len(0.0),
+            Formula::zero(Dimension::Length),
+            Formula::zero(Dimension::Length),
             Formula::add(len(0.3), Formula::named(name("place"), Dimension::Length))
                 .expect("a length"),
         ],
@@ -630,8 +630,8 @@ fn a_revolved_quarter_band_is_windowed_and_holds() {
         None,
         block,
         [
-            len(0.0),
-            len(0.0),
+            Formula::zero(Dimension::Length),
+            Formula::zero(Dimension::Length),
             Formula::add(len(-0.2), Formula::named(name("place"), Dimension::Length))
                 .expect("a length"),
         ],
@@ -722,8 +722,8 @@ fn a_quarter_ball_beside_its_missing_quarters_holds_against_a_dense_distance() {
         None,
         block,
         [
-            len(0.0),
-            len(0.0),
+            Formula::zero(Dimension::Length),
+            Formula::zero(Dimension::Length),
             Formula::add(len(-0.2), Formula::named(name("place"), Dimension::Length))
                 .expect("a length"),
         ],

@@ -848,7 +848,7 @@ mod tests {
             C::MeasureClearanceRefused => {
                 K::MeasureClearanceRefused(crate::clearance::ClearanceRefusal::Engine(
                     crate::clearance::EngineRefusal::Unsupported {
-                        carrier: "a free-form face",
+                        carrier: "an approximated face",
                         face: topo::FaceKey::default(),
                     },
                 ))

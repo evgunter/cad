@@ -5032,7 +5032,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             (
                 "Engine/Unsupported",
                 engine(EngineRefusal::Unsupported {
-                    carrier: "a free-form face",
+                    carrier: "an approximated face",
                     face: FaceKey::default(),
                 }),
             ),
