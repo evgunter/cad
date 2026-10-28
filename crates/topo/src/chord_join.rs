@@ -3027,54 +3027,76 @@ impl<T: Decide> SegmentCurve<T> {
                 "a chord starts at neither of its segment's matched halves",
             ));
         }
-        // A spline runs back by its net reflected through 0, exact
-        // ([`geom_brep::reversed_column`]); every closed form has its
-        // own reversal.
-        let carrier = match &spec.carrier {
-            geom::Curve3::Nurbs(net) => {
-                geom::Curve3::Nurbs(std::sync::Arc::new(geom_brep::reversed_column(net)))
-            }
-            other => other
-                .reversed()
-                .ok_or(invariant("a segment curve with no reversal"))?,
-        };
-        let (t0, t1) = (T::zero() - spec.param_end, T::zero() - spec.param_start);
-        // A surface-pair description names the locus, not its sense,
-        // and a chart image the door derives from the carrier follows
-        // the carrier; a scaffold names its start point's trajectory,
-        // so it is re-stated from the other end.
-        match &spec.description {
-            geom_brep::EdgeDescriptionSpec::Intersection { .. }
-            | geom_brep::EdgeDescriptionSpec::TangentIntersection { .. }
-            | geom_brep::EdgeDescriptionSpec::OnPair { declared: None, .. }
-            | geom_brep::EdgeDescriptionSpec::Chart {
-                image: None,
-                wrap: false,
-                declared: None,
-                ..
-            } => Ok(Some(EdgeCurveSpec {
-                description: spec.description.clone(),
-                carrier,
-                param_start: t0,
-                param_end: t1,
-            })),
-            geom_brep::EdgeDescriptionSpec::Scaffold(_) => match carrier {
-                geom::Curve3::Line { .. } => Ok(EdgeCurveSpec::segment_of_line(carrier, t0, t1)),
-                back => EdgeCurveSpec::arc_of_circle(back, t0, t1)
-                    .map(Some)
-                    .ok_or(invariant(
-                        "a scaffold segment curve that is neither a line nor a circle",
-                    )),
-            },
-            geom_brep::EdgeDescriptionSpec::OnPair { .. } => Err(invariant(
-                "a segment curve stating a declaration on a pair (no chord lane states one)",
-            )),
-            // A chord bounds two faces, so it is never a wrap edge (D1).
-            geom_brep::EdgeDescriptionSpec::Chart { .. } => Err(invariant(
-                "a segment curve stating a chart image, a declaration or a wrap (no chord lane \
-                 states one)",
-            )),
+        run_back(spec, face).map(Some)
+    }
+}
+
+/// `spec` run back: the same locus from its other end. A spline runs
+/// back by its net reflected through 0, exact
+/// ([`geom_brep::reversed_column`]); every closed form has its own
+/// reversal. A surface-pair description names the locus, not its sense,
+/// and a chart image the door derives from the carrier follows the
+/// carrier; a scaffold names its start point's trajectory, so it is
+/// re-stated from the other end.
+fn run_back<T: Decide>(
+    spec: &EdgeCurveSpec<T>,
+    face: FaceKey,
+) -> Result<EdgeCurveSpec<T>, SplitJoinError> {
+    let invariant = |what| SplitJoinError::SectionInvariant { face, what };
+    let carrier = match &spec.carrier {
+        geom::Curve3::Nurbs(net) => {
+            geom::Curve3::Nurbs(std::sync::Arc::new(geom_brep::reversed_column(net)))
         }
+        other => other
+            .reversed()
+            .ok_or(invariant("a segment curve with no reversal"))?,
+    };
+    let (t0, t1) = (T::zero() - spec.param_end, T::zero() - spec.param_start);
+    match &spec.description {
+        geom_brep::EdgeDescriptionSpec::Scaffold(_) => match carrier {
+            geom::Curve3::Line { .. } => EdgeCurveSpec::segment_of_line(carrier, t0, t1),
+            back => EdgeCurveSpec::arc_of_circle(back, t0, t1),
+        }
+        .ok_or(invariant(
+            "a scaffold segment curve that is neither a line nor a circle",
+        )),
+        description => Ok(EdgeCurveSpec {
+            description: chord_description(description, face)?,
+            carrier,
+            param_start: t0,
+            param_end: t1,
+        }),
+    }
+}
+
+/// `description` as a chord running forward along it may state it: one
+/// naming its surface pair, a chart image the door derives, or a
+/// scaffold from the same start. A chord bounds two faces, so it is
+/// never a wrap edge (D1), and no chord lane states a declaration.
+fn chord_description<T: Real>(
+    description: &geom_brep::EdgeDescriptionSpec<T>,
+    face: FaceKey,
+) -> Result<geom_brep::EdgeDescriptionSpec<T>, SplitJoinError> {
+    match description {
+        geom_brep::EdgeDescriptionSpec::Intersection { .. }
+        | geom_brep::EdgeDescriptionSpec::TangentIntersection { .. }
+        | geom_brep::EdgeDescriptionSpec::OnPair { declared: None, .. }
+        | geom_brep::EdgeDescriptionSpec::Chart {
+            image: None,
+            wrap: false,
+            declared: None,
+            ..
+        }
+        | geom_brep::EdgeDescriptionSpec::Scaffold(_) => Ok(description.clone()),
+        geom_brep::EdgeDescriptionSpec::OnPair { .. } => Err(SplitJoinError::SectionInvariant {
+            face,
+            what: "a segment curve stating a declaration on a pair (no chord lane states one)",
+        }),
+        geom_brep::EdgeDescriptionSpec::Chart { .. } => Err(SplitJoinError::SectionInvariant {
+            face,
+            what: "a segment curve stating a chart image, a declaration or a wrap (no chord lane \
+                   states one)",
+        }),
     }
 }
 
@@ -4347,8 +4369,9 @@ fn path_ring_side<T: Decide>(
 /// section the lane would compute from the germ's face pair, which may
 /// be two faces on one carrier, or meet in no conic. A line is the
 /// straight chord; a circle is its own arc, on the carrier reversed
-/// when the chord runs against it (a closed edge's copy is
-/// [`closed_edge_spec`]'s, in every lane). The boolean takes this lane on both
+/// when the chord runs against it; any other curve is the edge's own
+/// spec, run back when the chord runs against it ([`run_back`]) (a
+/// closed edge's copy is [`closed_edge_spec`]'s, in every lane). The boolean takes this lane on both
 /// solids for an edge of both, and on the edge's solid alone for a
 /// conic edge of one lying in a face of the other whose pair has no
 /// section lane (a tube's rim on a ball). `None` on every other lane:
@@ -4393,45 +4416,46 @@ fn along_edge_spec<T: Decide>(
             what: "the segment's edge carries no certified curve",
         });
     };
-    let (t0, t1) = curve.params();
-    match *curve.carrier() {
-        geom::Curve3::Line { .. } => Ok(Some(EdgeCurveSpec::line_between(p1, p2))),
-        geom::Curve3::Circle { .. } => {
-            // The chord starts at the copy of whichever end of the edge
-            // null edges tie `u1` to; the curve runs from its `he_plus`
-            // start.
-            let e_start = linked(
-                &body.half_edges,
-                e.he_plus,
-                EntityId::HalfEdge,
-                EntityId::Edge(edge),
-                "he_plus",
-            )
-            .start;
-            let e_end = body.proven_half_edge_end(e.he_plus);
-            let tied =
-                null_site(body, &[u1]).map_err(|StaleSite| SplitJoinError::SectionInvariant {
-                    face,
-                    what: StaleSite::WHAT,
-                })?;
-            let forward = match (tied.contains(&e_start), tied.contains(&e_end)) {
-                (true, false) => true,
-                (false, true) => false,
-                _ => {
-                    return Err(SplitJoinError::SectionInvariant {
-                        face,
-                        what: "a chord end along the segment's edge is tied to neither or both \
-                               of the edge's ends",
-                    });
-                }
-            };
-            Ok(arc_along(curve.carrier().clone(), (t0, t1), forward))
+    if let geom::Curve3::Line { .. } = curve.carrier() {
+        return Ok(Some(EdgeCurveSpec::line_between(p1, p2)));
+    }
+    // The chord starts at the copy of whichever end of the edge null
+    // edges tie `u1` to; the curve runs from its `he_plus` start.
+    let e_start = linked(
+        &body.half_edges,
+        e.he_plus,
+        EntityId::HalfEdge,
+        EntityId::Edge(edge),
+        "he_plus",
+    )
+    .start;
+    let e_end = body.proven_half_edge_end(e.he_plus);
+    let tied = null_site(body, &[u1]).map_err(|StaleSite| SplitJoinError::SectionInvariant {
+        face,
+        what: StaleSite::WHAT,
+    })?;
+    let forward = match (tied.contains(&e_start), tied.contains(&e_end)) {
+        (true, false) => true,
+        (false, true) => false,
+        _ => {
+            return Err(SplitJoinError::SectionInvariant {
+                face,
+                what: "a chord end along the segment's edge is tied to neither or both of the \
+                       edge's ends",
+            });
         }
-        _ => Err(SplitJoinError::SectionInvariant {
-            face,
-            what: "a section segment along an edge whose carrier has no chord lane (only lines \
-                   and circles are copied)",
-        }),
+    };
+    if let geom::Curve3::Circle { .. } = curve.carrier() {
+        return Ok(arc_along(curve.carrier().clone(), curve.params(), forward));
+    }
+    let copy = curve.restated_spec();
+    if forward {
+        Ok(Some(EdgeCurveSpec {
+            description: chord_description(&copy.description, face)?,
+            ..copy
+        }))
+    } else {
+        run_back(&copy, face).map(Some)
     }
 }
 
