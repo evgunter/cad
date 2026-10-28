@@ -1,6 +1,6 @@
 //! **The section table**: the section of every cross-operand surface
 //! pair whose faces' boxes meet and whose kinds the section value builds
-//! ([`geom_brep::pair_section`]), read once per operation at the glue
+//! ([`geom_brep::pair_section()`]), read once per operation at the glue
 //! door ([`super::glue::section_door`]) and held on the reduction.
 //!
 //! Keyed by surface pair, A's surface then B's: two faces on one carrier
