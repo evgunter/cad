@@ -56,7 +56,9 @@
 //! holds on a plane, a cylinder, a cone, a sphere and a torus. A cell
 //! straddling the boundary, within `K · ε` of it, or one whose station
 //! the point door does not place, is kept: the set the sweep covers
-//! still contains the face.
+//! still contains the face. A NURBS face's window is exact rather than
+//! a superset: it is admitted only where the face is the whole patch
+//! (`iso_bounded_domain`), so neither door is asked about it.
 //!
 //! So the looseness runs one way, and it is the safe way for a defect
 //! gate. `Holds` covers strictly more than the faces and is therefore
@@ -93,7 +95,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use bvh::{Aabb, Bvh};
-use geom::Surface;
+use geom::{NurbsSurface, Surface};
+use geom_brep::Pcurve;
 use geom_core::interval::Interval;
 use geom_core::k_stats::decide;
 use geom_core::{Band, Bounds, CertifiedBounds, Decide, Margin, Point3, Real, Sign, Vec3};
@@ -101,7 +104,7 @@ use geom_core::{Band, Bounds, CertifiedBounds, Decide, Margin, Point3, Real, Sig
 use crate::Body;
 use crate::FaceContainment;
 use crate::cell_region::{CellRegion, cell_region, station_region};
-use crate::entity::{EdgeKey, FaceKey, LoopBoundary, VertexKey};
+use crate::entity::{EdgeKey, Face, FaceKey, LoopBoundary, VertexKey};
 
 /// The funnel site name of the clearance comparison — the separation
 /// enclosure between two domain cells minus the requested clearance,
@@ -623,12 +626,16 @@ fn admitted<T: Decide + CertifiedBounds>(
     let mut out = Vec::with_capacity(9);
     for u in stations(c.u) {
         for v in stations(c.v) {
-            if matches!(
-                region.station(side_b, index, w, (u, v)),
-                Some(
-                    FaceContainment::In | FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_)
+            if w.whole
+                || matches!(
+                    region.station(side_b, index, w, (u, v)),
+                    Some(
+                        FaceContainment::In
+                            | FaceContainment::OnEdge(_)
+                            | FaceContainment::OnVertex(_)
+                    )
                 )
-            ) {
+            {
                 out.push((u, v));
             }
         }
@@ -1453,6 +1460,11 @@ pub fn min_separation<T: Decide + CertifiedBounds>(
 #[derive(Debug, Clone)]
 struct Window<'b, T: Real> {
     face: FaceKey,
+    /// **The window IS the face**: an iso-bounded NURBS face's knot
+    /// domain ([`iso_bounded_domain`]). No cell of it is outside the
+    /// face and every station of it is a point of the face, so neither
+    /// point-in-face door is asked about it.
+    whole: bool,
     surface: Surface<Interval>,
     u: (f64, f64),
     v: (f64, f64),
@@ -1501,6 +1513,9 @@ impl RegionMemo {
         w: &Window<'_, T>,
         c: Cell,
     ) -> CellRegion {
+        if w.whole {
+            return CellRegion::Undecided;
+        }
         let key = (
             side_b,
             index,
@@ -1596,12 +1611,13 @@ fn full_latitude() -> (f64, f64) {
 ///   take their canonical ranges.
 /// - **Torus**: both coordinates are periodic and no boundary bounds
 ///   either.
-/// - **Everything else** — a NURBS patch, a fitted approximation, the
-///   placeholder — refuses [`EngineRefusal::Unsupported`] naming the
-///   class. Not because the evaluator would not run, but because a
-///   free-form patch's knot domain is not a certified superset of a
-///   TRIMMED region without the boundary in chart coordinates, and
-///   inventing one is exactly the downgrade E7 forbids.
+/// - **NURBS**: a face whose boundary is its chart's own isos, run
+///   once around the knot domain — every loft and sweep wall — is the
+///   whole patch, and its window is that domain
+///   ([`iso_bounded_domain`]). A trimmed face, one with a boundary edge
+///   that is not an iso, and one whose isos do not cover the domain's
+///   boundary refuse [`EngineRefusal::Unsupported`] naming which.
+/// - **A fitted approximation** refuses, named.
 ///
 /// The carrier is read in its STORED chart, for every carrier kind, and
 /// lifted to the interval scalar ([`Interval::from_certified`]): a
@@ -1632,11 +1648,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         let d = (extent - origin).dot(dir);
         (d.lo(), d.hi())
     };
-    let charted = match stored {
-        Surface::Nurbs(_) => return unsupported("a free-form face"),
-        Surface::Approx(_) => return unsupported("an approximated face"),
-        other => other.map_scalar(Interval::from_certified),
-    };
+    let charted = stored.map_scalar(Interval::from_certified);
     let (u, v) = match &charted {
         Surface::Plane {
             origin,
@@ -1650,7 +1662,11 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         }
         Surface::Sphere { .. } => (full_turn(), full_latitude()),
         Surface::Torus { .. } => (full_turn(), full_turn()),
-        Surface::Nurbs(_) | Surface::Approx(_) => return unsupported("a free-form face"),
+        Surface::Nurbs(net) => match iso_bounded_domain(body, f, net) {
+            Ok(domain) => domain,
+            Err(carrier) => return unsupported(carrier),
+        },
+        Surface::Approx(_) => return unsupported("an approximated face"),
     };
     if !(u.0.is_finite() && u.1.is_finite() && v.0.is_finite() && v.1.is_finite()) {
         return unsupported("a face whose carrier window is not a finite rectangle");
@@ -1663,12 +1679,130 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
     }
     Ok(Window {
         face,
+        whole: matches!(charted, Surface::Nurbs(_)),
         surface: charted,
         u,
         v,
         body,
         vertices,
     })
+}
+
+/// A rectangle of carrier parameters, `(u, v)` ranges.
+type ParamRect = ((f64, f64), (f64, f64));
+
+/// **The window of a NURBS face bounded by its chart's own isos**: the
+/// whole knot domain `[u0, u1] × [v0, v1]`, admitted only where the
+/// face's boundary IS that domain's boundary, traversed once.
+///
+/// The test reads the face's one loop through its lift
+/// ([`crate::pcurves::loop_lift`]): each half-edge's stored chart image,
+/// moved by the joint elements summed along the loop, so the two halves
+/// of a seam sit on the two columns they bound. It admits when
+///
+/// - the face has no ring, and every image is an iso by VARIANT
+///   ([`Pcurve::IsoLine`], [`Pcurve::IsoArc`]): a straight segment of
+///   the chart, a shape no scalar test has to decide;
+/// - each image holds one chart coordinate at a bound of the exact
+///   knot domain at both of its ends, so the whole segment lies on that
+///   side. The held coordinate is exact structure by the variant (its
+///   velocity is an exact zero); the moving one is read as the interval
+///   the image evaluates to, since an edge's parameter span need not be
+///   a point;
+/// - each image's end meets the next one's start, as intervals, so the
+///   images chain into one closed curve on the domain's boundary;
+/// - that curve winds once. Its shoelace is the winding times the
+///   domain's area, so the interval quotient of the two encloses an
+///   integer, and it is admitted only where that enclosure isolates
+///   `±1`. The compare identifies an integer under interval bounds; it
+///   decides nothing against a band.
+///
+/// A closed curve on a rectangle's boundary that winds once passes
+/// every point of that boundary, so the loop is the whole boundary and
+/// the face is the whole patch. Every other face refuses naming what
+/// it found.
+fn iso_bounded_domain<T: Decide + CertifiedBounds>(
+    body: &Body<T>,
+    f: &Face,
+    net: &NurbsSurface<Interval>,
+) -> Result<ParamRect, &'static str> {
+    const NOT_ISO: &str = "a free-form face with a boundary edge that is not an iso of its chart";
+    const NOT_COVERING: &str =
+        "a free-form face whose iso boundary does not run once around its knot domain";
+    if net.is_placeholder() {
+        return Err("the placeholder free-form face");
+    }
+    if !f.rings.is_empty() {
+        return Err("a trimmed free-form face (it carries an inner loop)");
+    }
+    let exact = |x: Interval| {
+        (x.is_certified() && x.lo() == x.hi() && x.lo().is_finite()).then_some(x.lo())
+    };
+    let domain = |(lo, hi): (Interval, Interval)| Some((exact(lo)?, exact(hi)?));
+    let (Some(u), Some(v)) = (
+        domain(net.knot_values_u().domain()),
+        domain(net.knot_values_v().domain()),
+    ) else {
+        return Err("a free-form face whose knot domain is not exact structure");
+    };
+    let rows = crate::pcurves::loop_lift(body, f.outer)
+        .map_err(|_| "a free-form face whose boundary stores no chart image to lift")?;
+    let on_side = |(x, y): (Interval, Interval)| {
+        let (x, y) = (exact(x), exact(y));
+        [
+            x == Some(u.0),
+            x == Some(u.1),
+            y == Some(v.0),
+            y == Some(v.1),
+        ]
+    };
+    let mut path: Vec<[(Interval, Interval); 2]> = Vec::with_capacity(rows.len());
+    for row in &rows {
+        if !matches!(
+            row.row.pcurve(),
+            Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. }
+        ) {
+            return Err(NOT_ISO);
+        }
+        let (t0, t1) = row.row.params();
+        let point = |t: T| {
+            let p = row.pcurve.eval(t);
+            (Interval::from_certified(p.x), Interval::from_certified(p.y))
+        };
+        let (a, b) = (point(t0), point(t1));
+        let (sa, sb) = (on_side(a), on_side(b));
+        if !(0..4).any(|side| sa[side] && sb[side]) {
+            return Err(NOT_COVERING);
+        }
+        let forward = body
+            .get_half_edge(row.half_edge)
+            .and_then(|h| body.get_edge(h.edge))
+            .is_some_and(|e| e.he_plus == row.half_edge);
+        path.push(if forward { [a, b] } else { [b, a] });
+    }
+    let meet = |p: Interval, q: Interval| {
+        p.is_certified() && q.is_certified() && p.lo() <= q.hi() && q.lo() <= p.hi()
+    };
+    let closes = path
+        .iter()
+        .zip(path.iter().cycle().skip(1))
+        .all(|(this, next)| meet(this[1].0, next[0].0) && meet(this[1].1, next[0].1));
+    if path.is_empty() || !closes {
+        return Err("a free-form face whose iso boundary does not close in its chart");
+    }
+    let at = |x: f64| Interval::from_bounds(x, x);
+    let shoelace = path
+        .iter()
+        .map(|&[(xa, ya), (xb, yb)]| xa * yb - xb * ya)
+        .fold(at(0.0), |acc, term| acc + term);
+    let area = (at(u.1) - at(u.0)) * (at(v.1) - at(v.0));
+    let winding = shoelace * at(0.5) / area;
+    let isolates =
+        |k: f64| winding.is_certified() && winding.lo() > k - 0.5 && winding.hi() < k + 0.5;
+    if !(isolates(1.0) || isolates(-1.0)) {
+        return Err(NOT_COVERING);
+    }
+    Ok((u, v))
 }
 
 /// Whether halving the window on either axis actually narrows the
@@ -1797,10 +1931,7 @@ struct Task {
 
 /// One cell's interval enclosure on its carrier.
 fn enclosure(surface: &Surface<Interval>, u: (f64, f64), v: (f64, f64)) -> Point3<Interval> {
-    surface.eval(
-        Interval::from_bounds(u.0, u.1),
-        Interval::from_bounds(v.0, v.1),
-    )
+    surface.rect_enclosure(u, v)
 }
 
 /// The enclosure of a cell as a box — one interval surface evaluation,
