@@ -185,8 +185,9 @@ pub use offset_fit::{
 pub use offset_fit_lane::{OFFSET_FIT_DOOR_HOLDERS, OffsetFitLane, ScalarList};
 pub use pair_section::{
     CarriedComponent, CarriedSection, CarryError, ClassCarrier, ComponentShape, CsDecision,
-    CsStance, CylinderSpherePose, FittedCarrier, PairSection, PoseRefusal, SectionComponent,
-    SectionRead, SiteFoot, SiteRefusal, SsiLane, ZeroKind, ZeroVerdict, pair_section, square_part,
+    CsStance, CylinderSpherePose, FittedCarrier, PairSection, PoseRefusal, Seated,
+    SectionComponent, SectionRead, SiteFoot, SiteRefusal, SsiLane, ZeroKind, ZeroVerdict,
+    pair_section, square_part,
 };
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
