@@ -4,7 +4,7 @@ kind: program
 title: SSIEDGE — the plane×NURBS lane's edges: near-tangent poses, sides, slabs and placement
 status: ready
 opened: 2026-10-08
-area: kernel
+group: kernel/geom/ssi
 prefix: ssiedge/
 tag: (SSIEDGE orchestrator)
 ab_band: 11100-11199

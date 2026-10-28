@@ -4,7 +4,7 @@ kind: program
 title: CLEAVETAIL — CLEAVE's P3 and P4 tail: refusal stories, guards that cannot go red, latent soundness and hygiene
 status: ready
 opened: 2026-10-26
-area: kernel
+group: kernel/boolean/split
 prefix: cleavetail/
 tag: (CLEAVETAIL orchestrator)
 paths: [crates/topo/src/splitting/*, crates/topo/src/boolean/*, crates/topo/src/chord_join.rs]

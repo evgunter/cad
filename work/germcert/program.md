@@ -4,7 +4,7 @@ kind: program
 title: GERMCERT — GERM's rounding and certificate tail: section and root margins that read a datum on the band, at its whole width, or not at all
 status: ready
 opened: 2026-10-20
-area: kernel
+group: kernel/boolean/curved
 prefix: germcert/
 tag: (GERMCERT orchestrator)
 ab_band: 14000-14099

@@ -4,7 +4,7 @@ kind: program
 title: PCERT — pcurve certification and what validate_pcurves actually checks
 status: active
 opened: 2026-09-20
-area: kernel
+group: kernel/topo/certify
 prefix: pcert/
 tag: (PCERT orchestrator)
 ab_band: 7600-7699

@@ -4,7 +4,7 @@ kind: program
 title: TWICE — one question read twice or spelled twice, and reach measures read past their span
 status: ready
 opened: 2026-10-17
-area: kernel
+group: kernel/boolean/one-home
 prefix: twice/
 tag: (TWICE orchestrator)
 ab_band: 13600-13699

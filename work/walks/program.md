@@ -4,7 +4,7 @@ kind: program
 title: WALKS — one topological relation, implemented n times across topo/src
 status: ready
 opened: 2026-09-20
-area: kernel
+group: kernel/topo/euler
 prefix: walks/
 tag: (WALKS orchestrator)
 ab_band: 6600-6699

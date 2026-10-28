@@ -4,7 +4,7 @@ kind: program
 title: OFFER — what the viewer offers a person to do about what it shows, and what it asks of the platform beneath it
 status: ready
 opened: 2026-09-22
-area: gui
+group: gui/author
 prefix: offer/
 tag: (OFFER orchestrator)
 ab_band: 10100-10199

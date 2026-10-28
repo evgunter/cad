@@ -4,7 +4,7 @@ kind: program
 title: CLEAR — the E7 clearance engine: where it lives, what it composes with, and what its refusals say
 status: active
 opened: 2026-09-20
-area: kernel
+group: api/assembly
 prefix: clear/
 tag: (CLEAR orchestrator)
 ab_band: 8000-8099

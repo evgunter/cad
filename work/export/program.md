@@ -4,7 +4,7 @@ kind: program
 title: EXPORT — the writing direction, and the refusal plumbing both exchange crates share
 status: ready
 opened: 2026-09-20
-area: kernel
+group: kernel/exchange
 prefix: export/
 tag: (EXPORT orchestrator)
 ab_band: 9200-9299

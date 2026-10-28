@@ -3,7 +3,7 @@
 enforces; this header says only what the contract does not.
 
     work.py lint                         every rule in work/README.md
-    work.py status [--program P]         the render, to stdout
+    work.py status [--program P]         the render, to stdout (P: an id, or a group)
     work.py render [--out PATH]          the render, to work/STATUS.md
     work.py new ID --kind K --title T [--program P] [--set key=value ...]
     work.py set ID key=value [key=value ...]
@@ -81,7 +81,10 @@ RULING_STATUS = ("open", "closed")
 # There is no `closed`: a program that closes is DELETED in the sweep that
 # closes it, so a closed program is an ABSENT one and no status has to say so.
 PROGRAM_STATUS = ("ready", "active", "blocked")
-AREAS = ("kernel", "api", "gui", "infra")
+# A program's place in the hierarchy the board shows (work/README.md, "The
+# header"): `kernel/boolean/split`. The directories stay flat, so re-filing a
+# program edits one header line and no `work/<id>/` citation moves.
+GROUP_RE = re.compile(r"^[a-z0-9-]+(/[a-z0-9-]+)*$")
 
 # The priority bands (work/README.md, "Priority"). P0 is most urgent. A band
 # says WHAT to do, never WHEN: dispatch order is priority together with cost
@@ -138,7 +141,7 @@ SCHEMA: dict[str, tuple[str, tuple[str, ...]]] = {
     "cost": ("enum:cost", ("unit", "issue", "ruling")),
     "points": ("int", ("unit", "issue", "ruling")),
     "design": ("flag", ("unit", "issue", "ruling")),
-    "area": ("enum:area", ("program",)),
+    "group": ("group", ("program",)),
     "prefix": ("str", ("program",)),
     "tag": ("str", ("program",)),
     "ab_band": ("str", ("program",)),
@@ -395,8 +398,9 @@ def _check_type(item: Item, key: str, typ: str, value: object) -> list[str]:
         return [f"{w}: {x!r} is not a string" for x in value if not isinstance(x, str) or x == ""]
     if typ == "enum:kind":
         return [] if value in KINDS else [f"{w} must be one of {KINDS}"]
-    if typ == "enum:area":
-        return [] if value in AREAS else [f"{w} must be one of {AREAS}"]
+    if typ == "group":
+        return [] if isinstance(value, str) and GROUP_RE.match(value) else [
+            f"{w} must be lowercase segments joined by `/`, like `kernel/boolean`"]
     if typ == "enum:priority":
         return [] if value in PRIORITIES else [f"{w} must be one of {PRIORITIES}"]
     if typ == "enum:cost":
@@ -430,6 +434,12 @@ def _load(rows: list[Item]) -> int:
         else:
             total += COST_WEIGHT.get(str(c), UNPRICED_WEIGHT)
     return total
+
+
+def _path(p: Item) -> str:
+    """A program as the board names it: its group, then its id."""
+    g = p.get("group")
+    return f"{g}/{p.id}" if isinstance(g, str) and g else p.id
 
 
 def _budget(p: Item) -> int:
@@ -571,6 +581,8 @@ def lint(root: str, warnings: list[str] | None = None) -> list[str]:
         # placement and naming
         stem = os.path.basename(it.path)[:-3]
         if it.kind == "program":
+            if it.get("group") is None:
+                errors.append(f"{it.path}: missing `group` (work/README.md, The header)")
             if stem != "program":
                 errors.append(f"{it.path}: kind program belongs only in program.md")
             elif it.id != it.program:
@@ -742,12 +754,14 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
         if it.kind != "program":
             by_program[it.program].append(it)
     programs = sorted((it for it in items if it.kind == "program"),
-                      key=lambda p: (_board_key(by_program.get(p.id, [])), str(p.get("area")), p.id))
+                      key=lambda p: (_board_key(by_program.get(p.id, [])), _path(p)))
     live = [it for it in items if it.kind != "program" and it.status != "closed"]
     if only_program:
-        programs = [p for p in programs if p.id == only_program]
+        # a program's id or full path, or a group: the whole subtree under it
+        programs = [p for p in programs if only_program in (p.id, _path(p))
+                    or _path(p).startswith(only_program.rstrip("/") + "/")]
         if not programs:
-            raise Bail(f"no program `{only_program}`")
+            raise Bail(f"no program or group `{only_program}`")
 
     out: list[str] = []
     out.append("# Work status")
@@ -760,8 +774,8 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
     out.append("## Programs")
     out.append("")
     bands = " | ".join(PRIORITIES)
-    out.append(f"| area | program | top | {bands} | load | status | open | spec | dispatched | review | parked | deferred | closed |")
-    out.append("|---|---|---|" + "---|" * len(PRIORITIES) + "---|---|---|---|---|---|---|---|---|")
+    out.append(f"| program | top | {bands} | load | status | open | spec | dispatched | review | parked | deferred | closed |")
+    out.append("|---|---|" + "---|" * len(PRIORITIES) + "---|---|---|---|---|---|---|---|---|")
     totals = {b: 0 for b in PRIORITIES}
     for p in programs:
         rows = by_program.get(p.id, [])
@@ -774,10 +788,10 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
         for b in PRIORITIES:
             totals[b] += band[b]
         cells = " | ".join(str(band[b] or "") for b in PRIORITIES)
-        out.append(f"| {p.get('area') or '—'} | `{p.id}` | {_top_band(rows)} | {cells} | "
+        out.append(f"| `{_path(p)}` | {_top_band(rows)} | {cells} | "
                    f"{_fmt_load(rows, p)} | {p.status} | {c['open']} | {c['spec']} | "
                    f"{c['dispatched']} | {c['review']} | {c['parked']} | {c['deferred']} | {c['closed']} |")
-    out.append("| | **all programs** | | " + " | ".join(f"**{totals[b]}**" for b in PRIORITIES)
+    out.append("| **all programs** | | " + " | ".join(f"**{totals[b]}**" for b in PRIORITIES)
                + " | | | | | | | | | |")
     out.append("")
     out.append("`P0`–`P4` count this program's LIVE rows in each band "
@@ -795,10 +809,10 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
     # per-program slates
     for p in programs:
         rows = [r for r in by_program.get(p.id, []) if r.status != "closed"]
-        out.append(f"## `{p.id}` — {p.get('title')}")
+        out.append(f"## `{_path(p)}` — {p.get('title')}")
         out.append("")
         meta = []
-        for key in ("area", "prefix", "tag", "ab_band"):
+        for key in ("prefix", "tag", "ab_band"):
             if p.get(key) is not None:
                 meta.append(f"{key} `{p.get(key)}`")
         if meta:
@@ -1081,7 +1095,7 @@ def _fixture(root: str) -> None:
     _write(root, "work/README.md", "contract\n")
     _write(root, "work/mesh/program.md",
            "---\nid: mesh\nkind: program\ntitle: S-MESH\nstatus: active\nopened: 2026-08-31\n"
-           "area: kernel\nprefix: mesh/\nab_band: 1200-1299\npaths: [crates/mesh/*]\n---\n")
+           "group: kernel\nprefix: mesh/\nab_band: 1200-1299\npaths: [crates/mesh/*]\n---\n")
     _write(root, "work/mesh/plan.md", "plan\n")
     _write(root, "work/mesh/log.md", "log\n")
     _write(root, "work/mesh/MESH-1.md",
@@ -1091,7 +1105,7 @@ def _fixture(root: str) -> None:
            "---\nid: MESH-2\nkind: issue\ntitle: second\nstatus: open\nopened: 2026-09-01\nbranch: mesh/second\n---\n")
     _write(root, "work/topo/program.md",
            "---\nid: topo\nkind: program\ntitle: swept clean\nstatus: ready\nopened: 2026-08-01\n"
-           "area: kernel\nprefix: topo/\npaths: [crates/topo/*]\n---\n")
+           "group: kernel/shape\nprefix: topo/\npaths: [crates/topo/*]\n---\n")
     _write(root, "work/topo/T-1.md",
            "---\nid: T-1\nkind: unit\ntitle: done\nstatus: closed\nopened: 2026-08-01\nclosed: 2026-08-19\n---\n")
     _write(root, "work/issues/stray-thing.md",
@@ -1127,14 +1141,17 @@ def selftest() -> int:
         expect("clean fixture", lint(root, warns))
         expect("clean fixture (warnings)", warns)
         text = render(root, today=far)
-        for needle in ("`MESH-2`", "`stray-thing`", "## Blocked", "MESH-2, #1601", "`topo`"):
+        for needle in ("`MESH-2`", "`stray-thing`", "## Blocked", "MESH-2, #1601", "`kernel/shape/topo`"):
             if needle not in text:
                 failures.append(f"render lacks {needle!r}")
         if "MESH-1" not in text.split("## Untouched")[1]:
             failures.append(f"render: fixture items committed 'today' should still be listed stale at +{STALE_DAYS + 5} days")
         p = render(root, only_program="mesh", today=far)
-        if "## Blocked" in p or "`topo`" in p:
+        if "## Blocked" in p or "`kernel/shape/topo`" in p:
             failures.append("--program render leaked whole-board sections")
+        if "`kernel/shape/topo`" not in render(root, only_program="kernel/shape", today=far) \
+                or "`kernel/mesh`" in render(root, only_program="kernel/shape", today=far):
+            failures.append("--program with a group should render exactly that subtree")
 
         # new / set round-trip, the CLI spelling included
         if main(["--root", root, "new", "MESH-4", "--kind", "issue", "--title", "fourth", "--program", "mesh", "--set", "branch=R", "--set", "opened=2026-09-03"]) != 0:
@@ -1171,6 +1188,8 @@ def selftest() -> int:
             ("parked needs blocker", "work/mesh/MESH-2.md", "status: open", "status: parked"),
             ("glob matches nothing", "work/mesh/program.md", "paths: [crates/mesh/*]", "paths: [crates/nope/*]"),
             ("prefix shape", "work/mesh/program.md", "prefix: mesh/", "prefix: mesh"),
+            ("group shape", "work/mesh/program.md", "group: kernel\n", "group: Kernel/\n"),
+            ("group required", "work/mesh/program.md", "group: kernel\n", ""),
             ("program field on a unit", "work/mesh/MESH-1.md", "pr: 1605", "prefix: x/"),
             ("nested yaml refused", "work/mesh/MESH-1.md", "pr: 1605", "pr:\n  - 1605"),
             ("unit outside a program", "work/issues/stray-thing.md", "kind: issue", "kind: unit"),
@@ -1195,7 +1214,7 @@ def selftest() -> int:
         ]
         expectations = ["unknown key", "no item", "must equal the file name", "must be one of",
                         "needs a `closed:` date", "non-empty `blocked_on`",
-                        "matches no tracked path", "must end in `/`", "not a field of kind unit",
+                        "matches no tracked path", "must end in `/`", "lowercase segments joined by `/`", "missing `group`", "not a field of kind unit",
                         "indented line", "only kind issue lives under",
                         "nothing else gates this row", "so prune the fired entry",
                         "cite the ratification in the body",
@@ -1261,11 +1280,11 @@ def selftest() -> int:
         _write(root, "work/mesh/MESH-2.md", o2)
 
         # THE BOARD'S ORDER comes from the rows. With no banded row anywhere it
-        # falls back to area then id; a dispatchable P1 on topo puts it first,
+        # falls back to the program's path; a dispatchable P1 on topo puts it first,
         # and a parked P0 on mesh does not take the lead back from it.
         def board_order() -> list[str]:
             table = render(root, today=far).split("## Programs")[1].split("all programs")[0]
-            return [ln.split("`")[1] for ln in table.splitlines() if ln.startswith("| ") and "`" in ln]
+            return [ln.split("`")[1].rsplit("/", 1)[-1] for ln in table.splitlines() if ln.startswith("| ") and "`" in ln]
         if board_order() != ["mesh", "topo"]:
             failures.append(f"board order with one live slate: {board_order()}")
         _write(root, "work/topo/T-2.md",
@@ -1277,7 +1296,7 @@ def selftest() -> int:
         expect("board-order fixture", lint(root))
         if board_order() != ["topo", "mesh"]:
             failures.append(f"board order: a dispatchable P1 should lead a parked P0, got {board_order()}")
-        if "| kernel | `topo` | P1 |" not in render(root, today=far):
+        if "| `kernel/shape/topo` | P1 |" not in render(root, today=far):
             failures.append("render: `top` is not the best dispatchable band")
         os.remove(os.path.join(root, "work/topo/T-2.md"))
         _write(root, "work/mesh/MESH-2.md", o2)
@@ -1396,7 +1415,7 @@ def selftest() -> int:
         mp = open(os.path.join(root, "work/mesh/program.md"), encoding="utf-8").read()
         _write(root, "work/verbs/program.md",
                "---\nid: verbs\nkind: program\ntitle: VERBS\nstatus: ready\nopened: 2026-09-01\n"
-               "area: kernel\nprefix: verbs/\npaths: [crates/mesh/*]\n---\n")
+               "group: kernel\nprefix: verbs/\npaths: [crates/mesh/*]\n---\n")
         _write(root, "work/verbs/plan.md", "plan\n")
         _write(root, "work/verbs/log.md", "log\n")
         warns = []
@@ -1410,7 +1429,7 @@ def selftest() -> int:
                 failures.append(f"the at-rest overlap report should still name it: {want!r} not in {rep!r}")
         _write(root, "work/verbs/program.md",
                "---\nid: verbs\nkind: program\ntitle: VERBS\nstatus: ready\nopened: 2026-09-01\n"
-               "area: kernel\nprefix: verbs/\npaths: [crates/mesh/*]\nkeep_out: [the mesh crate is S-MESH's until it cedes it]\n---\n")
+               "group: kernel\nprefix: verbs/\npaths: [crates/mesh/*]\nkeep_out: [the mesh crate is S-MESH's until it cedes it]\n---\n")
         warns = []
         expect("a one-sided record is not an error", lint(root, warns))
         progs = [it for it in load_tree(root)[0] if it.kind == "program"]
@@ -1461,7 +1480,7 @@ def selftest() -> int:
         mp2 = open(os.path.join(root, "work/mesh/program.md"), encoding="utf-8").read()
         _write(root, "work/verbs2/program.md",
                "---\nid: verbs2\nkind: program\ntitle: VERBS2\nstatus: ready\nopened: 2026-09-01\n"
-               "area: kernel\nprefix: verbs2/\npaths: [crates/mesh/*]\n---\n")
+               "group: kernel\nprefix: verbs2/\npaths: [crates/mesh/*]\n---\n")
         _write(root, "work/verbs2/plan.md", "plan\n")
         _write(root, "work/verbs2/log.md", "log\n")
         lines, mine = territory(root, "master" if _branch_exists(root, "master") else "main", "mesh/y")

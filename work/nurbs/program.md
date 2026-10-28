@@ -4,7 +4,7 @@ kind: program
 title: NURBS — the spline, net and fit doors: knot insertion and splits, the net-state reads, wide-parameter evaluation, and fit doors that refuse for reasons that are not geometric
 status: ready
 opened: 2026-09-20
-area: kernel
+group: kernel/geom/curves
 prefix: nurbs/
 tag: (NURBS orchestrator)
 ab_band: 9300-9399

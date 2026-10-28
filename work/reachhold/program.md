@@ -4,7 +4,7 @@ kind: program
 title: REACHHOLD — REACH's leftovers: the in-band reach stage 4 released, the census at the door, and the P4 tail
 status: ready
 opened: 2026-10-08
-area: kernel
+group: kernel/boolean/curved
 prefix: reachhold/
 tag: (REACHHOLD orchestrator)
 ab_band: 11700-11799

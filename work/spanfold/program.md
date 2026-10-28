@@ -4,7 +4,7 @@ kind: program
 title: SPANFOLD — the quadrature's span folds and loop-area arms: refusals dropped through f64::min, chord lengths rooted to nearest, and pieces no arm takes
 status: ready
 opened: 2026-10-27
-area: kernel
+group: kernel/props
 prefix: spanfold/
 tag: (SPANFOLD orchestrator)
 ab_band: 15500-15599

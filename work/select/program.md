@@ -4,7 +4,7 @@ kind: program
 title: SELECT — the D2 selector: a two-surface edge picked by a structural selector or a witness, and the OnPair lanes it retires
 status: ready
 opened: 2026-10-17
-area: kernel
+group: kernel/topo/certify
 prefix: select/
 tag: (SELECT orchestrator)
 ab_band: 13400-13499

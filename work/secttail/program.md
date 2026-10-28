@@ -4,7 +4,7 @@ kind: program
 title: SECTTAIL — the section-first join's P2/P3 remainder, behind SECT
 status: ready
 opened: 2026-10-25
-area: kernel
+group: kernel/boolean/join
 prefix: secttail/
 tag: (SECTTAIL orchestrator)
 paths: [crates/topo/src/boolean/join.rs, crates/topo/src/splitting/join.rs]

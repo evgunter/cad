@@ -4,7 +4,7 @@ kind: program
 title: TALLY — the boolean's result-side refusals: volume bounds, the result gate, and ops that disagree on one pair
 status: ready
 opened: 2026-10-08
-area: kernel
+group: kernel/boolean/split
 prefix: tally/
 tag: (TALLY orchestrator)
 ab_band: 11300-11399

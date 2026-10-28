@@ -4,7 +4,7 @@ kind: program
 title: PROFILETAIL — the profile lattice's P3 and P4 tail: the path door's gaps, the lift, the coverage and the refusal text, behind PROFILEREST
 status: ready
 opened: 2026-10-21
-area: kernel
+group: kernel/sketch
 prefix: profiletail/
 budget: 35
 tag: (PROFILETAIL orchestrator)

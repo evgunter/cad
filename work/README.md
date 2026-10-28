@@ -84,7 +84,7 @@ kind: program
 title: MESH — the tessellation kernel
 status: ready              # ready | active | blocked (Vocabularies)
 opened: 2026-09-02
-area: kernel               # kernel | api | gui | infra
+group: kernel/mesh          # where the board files it (below)
 prefix: mesh/              # the program's branch prefix; ends in `/`
 tag: (MESH orchestrator)   # the away-channel role tag
 ab_band: 1200-1299         # the program's band in docs/MODEL-AB-LOG.md
@@ -99,6 +99,16 @@ conventions in `memories/orchestration-model.md`: unit branches are
 `<prefix><unit>`, the orchestrator's branch is `<prefix>orchestrator`,
 and every comment the orchestrator posts leads with its tag. A program
 carries no priority (Priority, below).
+
+**`group`** places the program in the hierarchy the board shows:
+lowercase segments joined by `/`, top level first (`kernel`, `api`,
+`gui`, `infra`), then a subsystem or two (`kernel/boolean/split`). The
+board names each program by its group and id together,
+`kernel/mesh/tess`. Only the header carries the hierarchy: the
+directories stay flat at `work/<id>/`, so re-filing a program edits one
+line and no citation of `work/<id>/` moves. File a program beside the
+programs whose work it most resembles; a split's successors usually
+share their parent's group.
 
 ## Vocabularies
 
@@ -506,7 +516,7 @@ each check-in and before bringing main into its branch.
 
 ```
 python3 scripts/work.py lint                  every checkable rule above; CI runs it
-python3 scripts/work.py status [--program P]  the board, to stdout
+python3 scripts/work.py status [--program P]  the board, to stdout; P is an id, or a group for its subtree
 python3 scripts/work.py render                the board, to work/STATUS.md (CI's job)
 python3 scripts/work.py new <id> --kind K --title T [--program P] [--set k=v]
 python3 scripts/work.py set <id> key=value [key=value ...]

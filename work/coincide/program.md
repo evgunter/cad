@@ -4,7 +4,7 @@ kind: program
 title: COINCIDE — the coincidence door and its lint after stage 4: what a row says, what it costs, where it runs
 status: ready
 opened: 2026-10-11
-area: api
+group: api/assembly
 prefix: coincide/
 tag: (COINCIDE orchestrator)
 ab_band: 12900-12999

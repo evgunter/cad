@@ -4,7 +4,7 @@ kind: program
 title: SECT — the section-first join, led by the torus pairs it is built for
 status: active
 opened: 2026-10-10
-area: kernel
+group: kernel/boolean/join
 prefix: sect/
 tag: (SECT orchestrator)
 paths: [crates/topo/src/boolean/join.rs, crates/topo/src/splitting/join.rs]

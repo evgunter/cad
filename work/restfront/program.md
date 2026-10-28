@@ -4,7 +4,7 @@ kind: program
 title: RESTFRONT — the at-rest validator's not-yet-checked list, and what its checks cost
 status: ready
 opened: 2026-09-27
-area: kernel
+group: kernel/topo/certify
 prefix: restfront/
 tag: (RESTFRONT orchestrator)
 paths: [crates/topo/src/validate.rs, crates/topo/src/tier3_tests.rs]

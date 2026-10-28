@@ -4,7 +4,7 @@ kind: program
 title: OFFSET — the offset lane: the carriers it cannot hold and the folds it calls bounds
 status: active
 opened: 2026-09-20
-area: kernel
+group: kernel/shell-offset
 prefix: offset/
 tag: (OFFSET orchestrator)
 ab_band: 8100-8199

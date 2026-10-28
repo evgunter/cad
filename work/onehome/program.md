@@ -4,7 +4,7 @@ kind: program
 title: ONEHOME — one implementation per logic on split and boolean ground, where CLEAVE's review residue found two or more
 status: ready
 opened: 2026-10-26
-area: kernel
+group: kernel/boolean/one-home
 prefix: onehome/
 tag: (ONEHOME orchestrator)
 paths: [crates/topo/src/splitting/*, crates/topo/src/boolean/*, crates/topo/src/chord_join.rs, crates/topo/src/ring_path.rs]

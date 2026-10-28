@@ -4,7 +4,7 @@ kind: program
 title: BANDRULE — what a band refuses that its rule would build, or refuses under the wrong name: features in and around its region, chain ends and joints, and the corner and geometry endings
 status: ready
 opened: 2026-10-26
-area: kernel
+group: kernel/sweep/blend
 prefix: bandrule/
 tag: (BANDRULE orchestrator)
 ab_band: 17800-17899

@@ -4,7 +4,7 @@ kind: program
 title: DOORS — the viewer's authoring doors: the halves of AUTHOR's ruled node shapes, the picture of a thing being authored, and the authoring chrome's hygiene
 status: ready
 opened: 2026-10-02
-area: gui
+group: gui/author
 prefix: doors/
 tag: (DOORS orchestrator)
 ab_band: 10600-10699

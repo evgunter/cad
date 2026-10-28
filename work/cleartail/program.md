@@ -4,7 +4,7 @@ kind: program
 title: CLEARTAIL — CLEAR's tail behind its P0/P1 slate - the clearance engine's witness, seam and refusal-text rows
 status: ready
 opened: 2026-10-27
-area: kernel
+group: api/assembly
 prefix: cleartail/
 tag: (CLEARTAIL orchestrator)
 ab_band: 18100-18199

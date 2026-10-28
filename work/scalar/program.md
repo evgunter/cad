@@ -4,7 +4,7 @@ kind: program
 title: SCALAR — the scalar doors and the readers over them: the certified-door family, margins and their recourse, unit directions, and the box driver's readings
 status: ready
 opened: 2026-10-10
-area: kernel
+group: kernel/geom/numeric
 prefix: scalar/
 tag: (SCALAR orchestrator)
 ab_band: 12400-12499

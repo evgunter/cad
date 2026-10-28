@@ -4,7 +4,7 @@ kind: program
 title: BIND — the bindings' own housekeeping: the stubs, the tag pins, the censuses and the prose beside them
 status: ready
 opened: 2026-09-20
-area: api
+group: api/python
 prefix: bind/
 tag: (BIND orchestrator)
 ab_band: 9600-9699

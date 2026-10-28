@@ -4,7 +4,7 @@ kind: program
 title: CHORD — the tessellator's arithmetic and its certificates: the chord counts, the sizing schedules and the guards over them
 status: ready
 opened: 2026-09-20
-area: kernel
+group: kernel/mesh
 prefix: chord/
 tag: (CHORD orchestrator)
 ab_band: 6900-6999

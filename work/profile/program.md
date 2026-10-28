@@ -4,7 +4,7 @@ kind: program
 title: PROFILE — the profile lattice after PATHS, its goal: the lowering epic's tail, the planar-primitive dedupe and the validation pair pass
 status: ready
 opened: 2026-10-21
-area: kernel
+group: kernel/sketch
 prefix: profile/
 tag: (PROFILE orchestrator)
 paths: [crates/profile/*, docs/PATHS-DESIGN.md]

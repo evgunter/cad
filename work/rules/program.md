@@ -4,7 +4,7 @@ kind: program
 title: RULES — the tier's rules and receipts: where a fold's reach depends on order or spelling, and what a receipt cannot say
 status: ready
 opened: 2026-10-06
-area: kernel
+group: kernel/symbolic
 prefix: rules/
 tag: (RULES orchestrator)
 ab_band: 10900-10999

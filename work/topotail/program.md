@@ -4,7 +4,7 @@ kind: program
 title: TOPOTAIL — topo's tail: torn records read as absent, refusals that end on their lever or offer the wrong value, and hygiene the Euler doors left
 status: ready
 opened: 2026-10-11
-area: kernel
+group: kernel/topo/euler
 prefix: topotail/
 tag: (TOPOTAIL orchestrator)
 ab_band: 12800-12899

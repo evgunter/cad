@@ -4,7 +4,7 @@ kind: program
 title: TOPO — the Euler operators: the surgery doors' P2 breaks, and their endings, cost and hygiene
 status: ready
 opened: 2026-09-04
-area: kernel
+group: kernel/topo/euler
 prefix: topo/
 tag: (TOPO orchestrator)
 ab_band: 2700-2799

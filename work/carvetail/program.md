@@ -4,7 +4,7 @@ kind: program
 title: CARVETAIL — CARVE's tail behind its P0 slate: the revolve's decisions and refusals, the loft's arc columns, and the rows the D10 hold parks
 status: ready
 opened: 2026-10-06
-area: kernel
+group: kernel/sweep/loft
 prefix: carvetail/
 tag: (CARVETAIL orchestrator)
 ab_band: 11000-11099

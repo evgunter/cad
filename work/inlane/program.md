@@ -4,7 +4,7 @@ kind: program
 title: INLANE — every carrier's values in the lane scalar: the skin, the loft's sections, the profile lift
 status: ready
 opened: 2026-10-11
-area: kernel
+group: kernel/symbolic
 prefix: inlane/
 tag: (INLANE orchestrator)
 ab_band: 13000-13099

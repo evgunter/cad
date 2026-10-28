@@ -4,7 +4,7 @@ kind: program
 title: WIREREST — WIRE's second P3 and P4 tail: a split's plane and seam-vertex residue, the flush helpers' twins, the verb door's record type, and refusals that state the wrong ending
 status: ready
 opened: 2026-10-20
-area: api
+group: api/eval
 prefix: wirerest/
 tag: (WIREREST orchestrator)
 ab_band: 14300-14399

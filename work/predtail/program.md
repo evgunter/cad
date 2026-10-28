@@ -4,7 +4,7 @@ kind: program
 title: PREDTAIL — one numeric fact, decided in several places: PRED's parked P1 rows and its P3/P4 tail
 status: ready
 opened: 2026-10-25
-area: kernel
+group: kernel/boolean/one-home
 prefix: predtail/
 tag: (PREDTAIL orchestrator)
 ab_band: 14600-14699

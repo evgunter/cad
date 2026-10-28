@@ -4,7 +4,7 @@ kind: program
 title: INTENT — build DESIGN.md D10, one way to say dependency, placement and intent
 status: active
 opened: 2026-10-03
-area: api
+group: api/eval
 prefix: intent/
 tag: (INTENT orchestrator)
 ab_band: 10800-10899

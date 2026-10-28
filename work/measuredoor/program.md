@@ -4,7 +4,7 @@ kind: program
 title: MEASUREDOOR — the measurement door and tier 3 around it: the backstop's main red, verdicts dropped and paid twice, and the seam-region reads
 status: ready
 opened: 2026-10-27
-area: kernel
+group: kernel/props
 prefix: measuredoor/
 tag: (MEASUREDOOR orchestrator)
 ab_band: 15800-15899

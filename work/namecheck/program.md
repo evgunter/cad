@@ -4,7 +4,7 @@ kind: program
 title: NAMECHECK — N0's checks: the denotation verifier, the coverage fuzzer, the RoleSeg form map, the storage-order perturbation, and the clauses that point at N0
 status: ready
 opened: 2026-10-20
-area: api
+group: api/names
 prefix: namecheck/
 tag: (NAMECHECK orchestrator)
 ab_band: 14200-14299

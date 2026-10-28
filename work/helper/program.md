@@ -4,7 +4,7 @@ kind: program
 title: HELPER — one test helper, oracle or walk with several private homes
 status: ready
 opened: 2026-09-20
-area: infra
+group: infra/tests
 prefix: helper/
 tag: (HELPER orchestrator)
 ab_band: 9000-9099

@@ -4,7 +4,7 @@ kind: program
 title: GAUGE — the boolean and split gates' coverage: arms no row reaches, guards that repeat, and readers that see a chord
 status: ready
 opened: 2026-10-08
-area: kernel
+group: kernel/boolean/split
 prefix: gauge/
 tag: (GAUGE orchestrator)
 ab_band: 11500-11599

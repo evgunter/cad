@@ -4,7 +4,7 @@ kind: program
 title: BANDMETER — the blend surgery's ring, cap and strip meters reading wider than they need
 status: ready
 opened: 2026-10-26
-area: kernel
+group: kernel/sweep/blend
 prefix: bandmeter/
 tag: (BANDMETER orchestrator)
 ab_band: 18000-18099

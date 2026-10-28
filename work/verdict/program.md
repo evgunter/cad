@@ -4,7 +4,7 @@ kind: program
 title: VERDICT — the gates props answers through: the size and coincidence bands, the epsilon vocabularies, the door identity checks
 status: ready
 opened: 2026-09-20
-area: kernel
+group: kernel/props
 prefix: verdict/
 tag: (VERDICT orchestrator)
 ab_band: 9500-9599

@@ -4,7 +4,7 @@ kind: program
 title: BANDREACH — predicate 2 reading wider than it needs: the blend's reach meter and its support screen
 status: ready
 opened: 2026-10-26
-area: kernel
+group: kernel/sweep/blend
 prefix: bandreach/
 tag: (BANDREACH orchestrator)
 ab_band: 17900-17999

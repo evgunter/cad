@@ -4,7 +4,7 @@ kind: program
 title: ROOTS — the curved lanes' root and section arithmetic: the charges, the harmonics and the arms short of a lane
 status: ready
 opened: 2026-10-08
-area: kernel
+group: kernel/boolean/curved
 prefix: roots/
 tag: (ROOTS orchestrator)
 ab_band: 11200-11299

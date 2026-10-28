@@ -4,7 +4,7 @@ kind: program
 title: VACUITY — rows that cannot fail: assertions on their own codomain, probes that print, floors that count what they discard
 status: ready
 opened: 2026-09-20
-area: infra
+group: infra/tests
 prefix: vacuity/
 tag: (VACUITY orchestrator)
 ab_band: 8800-8899

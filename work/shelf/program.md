@@ -4,7 +4,7 @@ kind: program
 title: SHELF — the shell family's follow-on - the offset doors' shape, the rigid map's certificates, and the hygiene behind them
 status: ready
 opened: 2026-10-06
-area: kernel
+group: kernel/shell-offset
 prefix: shelf/
 tag: (SHELF orchestrator)
 paths: [crates/topo/src/offset_together.rs, crates/topo/src/offset_axial.rs, crates/topo/src/transform.rs, crates/topo/src/replace_face.rs, crates/topo/src/shell.rs]

@@ -4,7 +4,7 @@ kind: program
 title: CONEARM — the cone arm: what a cone face's rings and holes bound, and the section-ellipse and slant readings under its closed form
 status: ready
 opened: 2026-10-27
-area: kernel
+group: kernel/props
 prefix: conearm/
 tag: (CONEARM orchestrator)
 ab_band: 15200-15299

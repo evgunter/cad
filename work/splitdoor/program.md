@@ -4,7 +4,7 @@ kind: program
 title: SPLITDOOR — split and boolean shapes that refuse, or ship a side their own gate fails, where a uniform reading would build
 status: ready
 opened: 2026-10-26
-area: kernel
+group: kernel/boolean/split
 prefix: splitdoor/
 tag: (SPLITDOOR orchestrator)
 paths: [crates/topo/src/splitting/*, crates/topo/src/boolean/*, crates/topo/src/chord_join.rs]
