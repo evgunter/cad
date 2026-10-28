@@ -149,7 +149,7 @@ prefix `clear/`; tag `(CLEAR orchestrator)`; ab_band `8000-8099`.
 | pri | item | kind | cost | status | title | blocked on | PR |
 |---|---|---|---|---|---|---|---|
 | P0 | `SHELL-3` | unit | H | open | the clearance engine's body-level half moves into topo behind interval — one engine, two consumers |  |  |
-| P0 | `self-intersection-drops-every-vertex-sharing-face-pair-globally` | issue | H +design | open | clearance's self-intersection drops every face pair that shares a vertex, and a face against itself, globally - vacuous on a cone's lateral faces or a triangle-section loft |  |  |
+| P0 | `self-intersection-drops-every-vertex-sharing-face-pair-globally` | issue | H | open | clearance's self-intersection drops every face pair that shares a vertex, and a face against itself, globally - vacuous on a cone's lateral faces or a triangle-section loft |  |  |
 | P0 | `window-of-refuses-an-untrimmed-iso-bounded-nurbs-patch` | issue | M | open | clearance's window_of refuses every NURBS face, including an untrimmed patch bounded by its own chart isos, so the engine cannot answer about any loft or sweep wall |  |  |
 | P1 | `clearance-refusal-names-one-face-twice-across-bodies` | issue | E | open | ClearanceRefusal prints one FaceKey twice for a cross-body pair, at two renderings over three raise sites, and has no Display at all |  |  |
 | P1 | `clearance-replays-a-leaf-off-the-verdicts-lane` | issue | E | open | clearance_with replays a certified leaf at plain Interval whatever lane the drive certified it on |  |  |
