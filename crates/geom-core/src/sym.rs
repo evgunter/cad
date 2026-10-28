@@ -1249,6 +1249,13 @@ enum SymOp {
     /// can carry different enclosures, so keying it by form would claim
     /// an equality that does not hold.
     Hull,
+    /// **The free parameter of a limb-2 identity**
+    /// ([`Decide::free_identity`]): a carrier's parameter left free, one
+    /// indeterminate whatever value it was minted at. Never bracketed —
+    /// no session records a range for it — so the decision read
+    /// ([`signed`]) encloses no form that holds it, and it reaches the
+    /// zero test alone.
+    Free,
 }
 
 impl SymOp {
@@ -1281,13 +1288,14 @@ impl SymOp {
             Self::Hull => 23,
             Self::Opaque => 24,
             Self::Select => 25,
+            Self::Free => 26,
         }
     }
 
     /// How many of the node's three child slots this op reads.
     fn arity(self) -> usize {
         match self {
-            Self::Param | Self::Opaque | Self::Lit | Self::Pi => 0,
+            Self::Param | Self::Opaque | Self::Lit | Self::Pi | Self::Free => 0,
             Self::Neg
             | Self::Powi
             | Self::Inv
@@ -1345,12 +1353,14 @@ impl SymNode {
     }
 
     /// The free indeterminate this node's form IS, where it is one —
-    /// a parameter, an opaque value or a hull — and `None` for every
+    /// a parameter, an opaque value, a limb identity's free parameter
+    /// ([`SymOp::Free`]) or a hull — and `None` for every
     /// other op, whose form is built from its children's.
     fn free_indet(&self) -> Option<u128> {
         match self.op {
             SymOp::Param => Some(indet_param(self.payload)),
             SymOp::Opaque => Some(indet_opaque(self.payload)),
+            SymOp::Free => Some(INDET_FREE),
             SymOp::Hull => Some(indet_hull(self.kids[0], self.kids[1])),
             _ => None,
         }
@@ -2516,7 +2526,7 @@ struct Session {
     /// Every opaque atom minted so far, by its indeterminate id.
     atoms: IndetMap<AtomInfo>,
     /// **The free indeterminates this session's table names** — the
-    /// key of each `Param`, `Opaque` and `Hull` node it recorded,
+    /// key of each `Param`, `Opaque`, `Free` and `Hull` node it recorded,
     /// written as the node is interned. Every other non-atom
     /// indeterminate a form carries is an unknown the session cannot
     /// see into: a node the walk froze, or one minted outside the
@@ -3260,6 +3270,11 @@ fn indet_opaque(seq: u64) -> u128 {
         .finish()
 }
 
+/// The indeterminate a limb identity's free parameter enters the form
+/// as ([`SymOp::Free`]): keyed apart from every parameter symbol and
+/// opaque value, and recorded in no session's brackets.
+const INDET_FREE: u128 = 0x4652_4545_5f50_4152_414d_5f5f_5f5f_5f5f;
+
 /// The indeterminate a parameter symbol enters the form as.
 fn indet_param(symbol: u64) -> u128 {
     Hash128::new()
@@ -3421,6 +3436,9 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
     };
     match node.op {
         SymOp::Param => Some(Form::poly(Poly::indet(indet_param(node.payload)))),
+        // A limb identity's free parameter: one indeterminate, with no
+        // bracket (`SymOp::Free`'s docs).
+        SymOp::Free => Some(Form::poly(Poly::indet(INDET_FREE))),
         // One untracked real: its OWN indeterminate, keyed by the
         // sequence number the node carries (`SymOp::Opaque`'s docs).
         SymOp::Opaque => Some(Form::poly(Poly::indet(indet_opaque(node.payload)))),
@@ -4518,7 +4536,7 @@ fn any_indet(sess: &Session, form: &Form, mut hit: impl FnMut(u128) -> bool) -> 
 }
 
 /// **Whether `x` is a free indeterminate this session can name** — π,
-/// or the key of a `Param`, `Opaque` or `Hull` node in its table
+/// or the key of a `Param`, `Opaque`, `Free` or `Hull` node in its table
 /// ([`Session::free`]). An indeterminate that is neither this nor an
 /// atom stands for structure the session cannot see.
 fn names_free(sess: &Session, x: u128) -> bool {
@@ -5127,6 +5145,10 @@ impl<T: Real> Real for Sym<T> {
 
     const NAME: &'static str = "symbolic";
 
+    /// The lane scalar's: the tier changes how a margin decides, not
+    /// whether the scalar certifies.
+    type Carries<C: Copy + core::fmt::Debug + Send + Sync + 'static> = T::Carries<C>;
+
     fn from_f64(x: f64) -> Self {
         Self::literal(T::from_f64(x), x)
     }
@@ -5259,9 +5281,21 @@ impl<T: Bounds> Bounds for Sym<T> {
 /// Certification delegates: whether the computation was defined on the
 /// whole box is a question about the numeric channel, and the symbolic
 /// tier neither widens nor narrows the answer.
-impl<T: CertifiedEnclosure> CertifiedEnclosure for Sym<T> {
+impl<T: crate::real::CertifiedBounds> CertifiedEnclosure for Sym<T> {
     fn certified_bracket(self) -> Option<(f64, f64)> {
         self.value.certified_bracket()
+    }
+
+    fn carried<C: Copy + core::fmt::Debug + Send + Sync + 'static>(
+        record: C,
+    ) -> <Self as Real>::Carries<C> {
+        T::carried(record)
+    }
+
+    fn held<C: Copy + core::fmt::Debug + Send + Sync + 'static>(
+        held: &<Self as Real>::Carries<C>,
+    ) -> &C {
+        T::held(held)
     }
 }
 
@@ -5403,6 +5437,23 @@ impl<T: Decide> Decide for Sym<T> {
         #[cfg(feature = "sym-revalue-testing")]
         revalue::settle(noted, &decided);
         decided
+    }
+
+    /// The value channel `self`'s and the node the identity's
+    /// ([`Decide::free_identity`]): the identity is built over a free
+    /// variable ([`SymOp::Free`]) minted at the value the caller reads
+    /// the carrier at, and its own value channel is discarded — the
+    /// margin's numeric reading is the caller's, never the identity's
+    /// evaluation over the box.
+    fn free_identity<F>(self, identity: F) -> Self
+    where
+        F: FnOnce(&dyn Fn(Self) -> Self) -> Self,
+    {
+        let free = |at: Self| Self::nullary(at.value, SymOp::Free, 0);
+        Sym {
+            value: self.value,
+            node: identity(&free).node,
+        }
     }
 }
 

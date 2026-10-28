@@ -4,7 +4,6 @@ kind: issue
 title: C5 table - plane x torus and cone x cylinder section arms (blocking the Klein wall-pair debt)
 status: open
 opened: 2026-08-27
-github: 1057
 refs: [VERBS-C5ARMS, 1048]
 priority: P1
 cost: H

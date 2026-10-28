@@ -173,7 +173,7 @@ impl SunkBossCut {
             .filter_map(|(name, entry)| match entry {
                 Entry::Unique(ent) => match ent.key {
                     EntityKey::Face(f)
-                        if topo::query::face_surface_kind(boss_body, f)
+                        if topo::query::face_surface_kind(&boss_body, f)
                             == Some(geom::SurfaceKind::Cylinder) =>
                     {
                         Some(name.clone())
@@ -191,7 +191,7 @@ impl SunkBossCut {
             let EntityKey::Edge(e) = ent.key else {
                 continue;
             };
-            let [p0, p1] = crate::fixture::ends(body, e).map(|v| point(body, v));
+            let [p0, p1] = crate::fixture::ends(&body, e).map(|v| point(&body, v));
             if ends(p0, p1) || ends(p1, p0) {
                 assert_cites_the_merged_wall(label, name, &pieces);
                 named.push(name.clone());
@@ -420,7 +420,7 @@ fn a_split_fixture_with_a_merged_wall_fuses_in_every_order() {
             "{order:?}: the union fuses: {:?}",
             failure(&ev, union)
         );
-        let v = volume(body_of(&ev, union));
+        let v = volume(&(body_of(&ev, union)));
         assert!((v - 1.6).abs() < 1e-9, "{order:?}: volume {v}");
         crate::emit_shared_rim_several::every_member_edge_lies_on_its_source(
             &docx,
@@ -457,7 +457,7 @@ fn a_split_fixture_with_its_block_sunk_flush_fuses_in_every_order() {
             "{order:?}: the union fuses: {:?}",
             failure(&ev, union)
         );
-        let v = volume(body_of(&ev, union));
+        let v = volume(&(body_of(&ev, union)));
         assert!((v - 1.5).abs() < 1e-9, "{order:?}: volume {v}");
     }
 }
@@ -490,7 +490,7 @@ fn a_rim_in_several_pieces_is_named_not_refused() {
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
     // a ∪ b is 1.5; g (z = 0.5..3.5) adds 0.1 × 3 × 3 less its
     // 0.1 × 1 × 0.5 inside.
-    let v = volume(body_of(&ev, union));
+    let v = volume(&(body_of(&ev, union)));
     assert!((v - 2.35).abs() < 1e-9, "volume {v}");
 }
 
@@ -546,7 +546,7 @@ fn every_order(
             let ev = run(&docx);
             let outcome = match failure(&ev, union) {
                 None => {
-                    let v = volume(body_of(&ev, union));
+                    let v = volume(&(body_of(&ev, union)));
                     assert!(
                         (v - fused_volume).abs() < 1e-9,
                         "[{label}]: volume {v}, want {fused_volume}"

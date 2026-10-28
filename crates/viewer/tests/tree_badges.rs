@@ -720,14 +720,14 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
         ),
         (
             "scene.rs",
-            "product(",
+            "product_recorded(",
             "`scene_of`'s headless path; no chrome surface draws its refusal",
         ),
         (
             "scene.rs",
             "product(",
-            "runs only over a pair whose gather already succeeded (the A5 gate ate the \
-             body), so no placement refusal reaches it",
+            "runs only over a pair whose gather already succeeded, so no placement \
+             refusal reaches it",
         ),
         (
             "session.rs",

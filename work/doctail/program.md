@@ -4,12 +4,12 @@ kind: program
 title: DOCTAIL — the document model's tail: the certified pick's two rounding rows, refusal prose, name hygiene and the nesting bounds
 status: ready
 opened: 2026-10-02
-area: api
+group: api/eval
 prefix: doctail/
 tag: (DOCTAIL orchestrator)
 ab_band: 10500-10599
 budget: 45
-paths: [crates/editor-core/src/resolve/hit.rs, crates/editor-core/src/resolve/pick.rs, crates/editor-core/src/persist/*, crates/editor-core/src/program.rs, crates/editor-core/src/doc.rs, crates/editor-core/src/edit.rs, crates/editor-core/src/node.rs, crates/editor-core/src/names/role.rs, crates/editor-core/src/names/emit_blend.rs, crates/editor-core/src/eval/parts.rs, crates/editor-core/src/eval/memo.rs, crates/editor-core/src/resolve/mod.rs, crates/editor-core/src/assembly.rs, crates/editor-core/src/range.rs, crates/editor-core/REFERENCES.md, crates/editor-core/IDENTITY.md]
+paths: [crates/editor-core/src/resolve/hit.rs, crates/editor-core/src/resolve/pick.rs, crates/editor-core/src/persist/*, crates/editor-core/src/program.rs, crates/editor-core/src/doc.rs, crates/editor-core/src/edit.rs, crates/editor-core/src/node.rs, crates/editor-core/src/names/role.rs, crates/editor-core/src/names/emit_blend.rs, crates/editor-core/src/eval/parts.rs, crates/editor-core/src/eval/memo.rs, crates/editor-core/src/resolve/mod.rs, crates/editor-core/src/range.rs, crates/editor-core/REFERENCES.md, crates/editor-core/IDENTITY.md]
 keep_out: [opened 2026-10-02 at EDIT's exit (Ev, in chat) as the lower half of EDIT's priority-seam cut, and took RECIPE's ground and live residue when RECIPE closed on 2026-10-11 (docs/doc-ledger/recipe-leaves-the-tracker.md) — INTENT builds D10 on the same ground (doc.rs, edit.rs, node.rs, persist/*) and every crossing either way is announced on the other's log, the names rows land on names/* where WIRE and EMIT also hold files, mate.rs and mate/* are MSOLVE's, the viewer's pick index is VGEOM's, docs/RECIPE-DOORS-DESIGN.md is LIB's despite the name — the README pages above are ratified design (DM1–DM8, DI1–DI5): a change to what a clause decides waits for Ev — budget 45, not 30: 35 was set for the 13-row EDIT slate (7 of them E or prose), and RECIPE's residue adds 8 points, 5 of them E or legacy D, on the same ground; a seam cut now would leave a two-row pick track, which the README's splitting rule warns against]
 ---
 

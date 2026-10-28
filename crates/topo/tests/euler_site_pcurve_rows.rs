@@ -24,12 +24,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Band, Point3, Tol};
+use topo::construction::Construct;
+use topo::construction::{MekrSite, MevSite};
 use topo::pcurves::validate_pcurves;
 use topo::test_support::{
     CylFrame, NullStrutListing, arc_chain_over_the_jump, cyl_arc_at, cyl_wall_sheet,
     kill_under_a_null_strut,
 };
-use topo::{Body, FaceKey, HalfEdgeKey, MekrSite, MevSite, PcurveMintError, VertexKey};
+use topo::{Body, FaceKey, HalfEdgeKey, PcurveMintError, VertexKey};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -142,7 +144,7 @@ fn rows_deep(body: &Body<f64>) -> Vec<String> {
 }
 
 /// A strut up the ruling from the split vertex `m` to `(UM, 0.5)`.
-fn strut(body: &mut Body<f64>, face: FaceKey, m: VertexKey) -> topo::MevCreated {
+fn strut(body: &mut Body<f64>, face: FaceKey, m: VertexKey) -> topo::construction::MevCreated {
     let he = leaving(body, face, m);
     body.mev_line(MevSite::Fan { he1: he, he2: he }, at(UM, 0.5), tol())
         .unwrap()
@@ -254,7 +256,7 @@ fn a_lone_vertex_face_on_a_minting_chart_stays_unminted() {
     let seed = body.mvfs(at(0.6, 0.2), true).unwrap();
     body.set_face_surface(
         seed.face,
-        topo::FaceSurface::New {
+        topo::construction::FaceSurface::New {
             surface: CylFrame::canonical(1.0).surface(),
             sense: true,
         },
@@ -468,9 +470,9 @@ fn a_mef_closing_a_rim_circle_at_a_lone_vertex_mints_both_pieces() {
         geom_brep::EdgeCurveSpec::arc_of_circle(carrier, 0.0, core::f64::consts::TAU).unwrap();
     let made = body
         .mef(
-            topo::MefSite::Lone { r#loop: ring },
+            topo::construction::MefSite::Lone { r#loop: ring },
             spec,
-            topo::FaceSurface::Inherit,
+            topo::construction::FaceSurface::Inherit,
             tol(),
         )
         .unwrap();
@@ -743,9 +745,9 @@ fn kef_merging_a_complete_face_into_an_unminted_one_leaves_it_half_minted() {
     let chord = geom_brep::EdgeCurveSpec::line_between(point(m), point(top));
     let made = body
         .mef(
-            topo::MefSite::Chords { he1, he2 },
+            topo::construction::MefSite::Chords { he1, he2 },
             chord,
-            topo::FaceSurface::Inherit,
+            topo::construction::FaceSurface::Inherit,
             tol(),
         )
         .unwrap();
@@ -802,13 +804,13 @@ fn null_strut_at_tip(
     body: &mut Body<f64>,
     face: FaceKey,
     m: VertexKey,
-) -> (topo::MevCreated, Point3<f64>) {
+) -> (topo::construction::MevCreated, Point3<f64>) {
     let tip = strut(body, face, m).vertex;
     let he = leaving(body, face, tip);
     let null = body
         .mev_null(
             MevSite::Fan { he1: he, he2: he },
-            topo::NewVertexSide::Above,
+            topo::construction::NewVertexSide::Above,
         )
         .unwrap();
     let mut want = vec![null.he_plus, null.he_minus];
@@ -1008,10 +1010,10 @@ fn circle_at(v: f64) -> geom_brep::EdgeCurveSpec<f64> {
 }
 
 /// A null strut at the vertex `he` leaves.
-fn null_at(body: &mut Body<f64>, he: HalfEdgeKey) -> topo::MevCreated {
+fn null_at(body: &mut Body<f64>, he: HalfEdgeKey) -> topo::construction::MevCreated {
     body.mev_null(
         MevSite::Fan { he1: he, he2: he },
-        topo::NewVertexSide::Above,
+        topo::construction::NewVertexSide::Above,
     )
     .unwrap()
 }
@@ -1473,7 +1475,7 @@ fn a_kill_that_re_describes_only_a_certified_member_re_mints_both_its_faces() {
 /// `mef_chord` up the ruling `u = 4.5`. The chord's plus half is the old
 /// loop's `first` (`MefCreated::he_plus`). Returns the body, the old
 /// face and the chord.
-fn chord_across_the_branch_jump() -> (Body<f64>, FaceKey, topo::MefCreated) {
+fn chord_across_the_branch_jump() -> (Body<f64>, FaceKey, topo::construction::MefCreated) {
     let mut body = Body::<f64>::new();
     let face = cyl_wall_sheet(
         &mut body,
@@ -1502,7 +1504,7 @@ fn chord_across_the_branch_jump() -> (Body<f64>, FaceKey, topo::MefCreated) {
     let top = body.split_edge(top, 0.9, tol()).unwrap().vertex;
     let (he1, he2) = (leaving(&body, face, bottom), leaving(&body, face, top));
     let made = body
-        .mef_chord(topo::MefSite::Chords { he1, he2 }, tol())
+        .mef_chord(topo::construction::MefSite::Chords { he1, he2 }, tol())
         .unwrap();
     let outer = body.get_face(face).unwrap().outer;
     assert_eq!(

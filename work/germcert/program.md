@@ -4,12 +4,12 @@ kind: program
 title: GERMCERT — GERM's rounding and certificate tail: section and root margins that read a datum on the band, at its whole width, or not at all
 status: ready
 opened: 2026-10-20
-area: kernel
+group: kernel/boolean/curved
 prefix: germcert/
 tag: (GERMCERT orchestrator)
 ab_band: 14000-14099
 paths: [crates/geom-brep/src/intersect.rs, crates/topo/src/boolean/circle_torus.rs, crates/topo/src/boolean/sectors.rs, crates/geom/src/curves.rs]
-keep_out: [opened 2026-10-20 by GERM's closing cut (work/README.md Track size: GERM measured about 48 budget points against 30 and splits; Ev in chat 2026-10-19: finish what is important and leave GERM or its successor ready) - below GERM's P1 and P2 rows the slate is nearly all P3, so the cut is by finding class into GERMCERT (rounding and certificate margins) and GERMTAIL (refusals and structure), the rows moved by git mv with ids and bodies unchanged, crates/topo/src/boolean/* crates/topo/src/ring_path.rs and crates/geom-brep/src/intersect.rs are shared ground with GERM and its sibling successor and with CLEAVE CHART TANG and the REACH successors - run scripts/work.py territory on your branch and announce the seam in the PR]
+keep_out: [opened 2026-10-20 by GERM's closing cut (work/README.md Track size: GERM measured about 48 budget points against 30 and splits; Ev in chat 2026-10-19: finish what is important and leave GERM or its successor ready) - below GERM's P1 and P2 rows the slate is nearly all P3, so the cut is by finding class into GERMCERT (rounding and certificate margins) and GERMTAIL (refusals and structure), the rows moved by git mv with ids and bodies unchanged, crates/topo/src/boolean/* crates/topo/src/ring_path.rs and crates/geom-brep/src/intersect.rs are shared ground with GERM and its sibling successor and with CLEAVE CHART TANG and the REACH successors - run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled]
 ---
 
 **Where GERM's margins still read the wrong quantity.** The section

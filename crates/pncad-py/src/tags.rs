@@ -126,7 +126,7 @@ use pncad::analysis::{
 };
 use pncad::document::LabelFault;
 use pncad::document::{
-    AssemblyError, AttrKind, Axis3, CheckEvidence, ChecksError, Coord, CountMismatch,
+    AtRestEvidence, AttrKind, Axis3, CheckEvidence, ChecksError, Coord, CountMismatch,
     DimensionError, Distribution, DistributionFault, DistributionField, EditError, EvalError,
     FlattenError, InlineError, InterfaceCrossing, LeverRefusal, LoftFault, Maintenance, MateFault,
     MeasureUnavailableAt, MetaVersionError, NoChartWhy, NodeErrorClass, NodeErrorKind,
@@ -303,6 +303,7 @@ pub fn select_refusal_tag(err: &pncad::select::SelectRefusal) -> &'static str {
         R::InBand { .. } => "in_band",
         R::TiedDisagrees { .. } => "tied_disagrees",
         R::Unreadable { .. } => "unreadable",
+        R::Frame { .. } => "frame_refused",
         R::NotAPlane { .. } => "not_a_plane",
         R::FaceUnresolved { .. } => "face_unresolved",
         R::NotALength { .. } => "not_a_length",
@@ -1523,10 +1524,8 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
 ///
 /// The FFI spelling is this crate's to own; the DISCRIMINANT is not.
 /// It is `BooleanError::kind`, and this map keys off it — the
-/// [`path_error_tag`] shape. Two doors publish it: the evaluation
-/// ladder's `inner_kind` behind [`node_inner_kind_tag`], and the
-/// advisory checks' `separation_unavailable` evidence. One map answers
-/// both.
+/// [`path_error_tag`] shape. The evaluation ladder's `inner_kind`
+/// publishes it, behind [`node_inner_kind_tag`].
 ///
 /// Over `BooleanErrorKind`'s arms rather than `..`, so a new kernel
 /// refusal stops this build instead of acquiring a silent tag. A kind
@@ -1582,6 +1581,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::RechartedRowUnstated => "recharted_row_unstated",
         BooleanErrorKind::SpheresMeet => "spheres_meet",
         BooleanErrorKind::GermFrameUnsupported => "germ_frame_unsupported",
+        BooleanErrorKind::GermSectionUnbuilt => "germ_section_unbuilt",
         BooleanErrorKind::GermSectionOpenConic => "germ_section_open_conic",
         BooleanErrorKind::GermSectionSpiric => "germ_section_spiric",
         BooleanErrorKind::NodeUnbuilt => "node_unbuilt",
@@ -1632,7 +1632,6 @@ pub fn transform_error_tag(err: &TransformError) -> &'static str {
         TransformError::NullScaffold { .. } => "null_scaffold",
         TransformError::NurbsPlaceholder => "nurbs_placeholder",
         TransformError::ApproxLaneUnsupported { .. } => "approx_lane_unsupported",
-        TransformError::NurbsLaneUnsupported { .. } => "nurbs_lane_unsupported",
         TransformError::ApproxRecertify { .. } => "approx_recertify",
         TransformError::Corrupt { .. } => "corrupt",
     }
@@ -2266,6 +2265,7 @@ pub fn export_error_tag(err: &pncad::export::ExportError) -> &'static str {
         E::NotABody { .. } => "not_a_body",
         E::EmptyBoolean { .. } => "empty_boolean",
         E::BodyInvalid { .. } => "body_invalid",
+        E::Compose(_) => "compose_refused",
         E::Step(_) => "step_refused",
         E::Product(inner) => product_error_tag(inner),
     }
@@ -2283,6 +2283,7 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
         K::EmptyProduct => "empty_product",
         K::StrandedProduct => "stranded_product",
         K::ProductOutsideWorld => "product_outside_world",
+        K::Frame => "frame_refused",
         K::Graft => "graft_refused",
         K::RootInvalid => "root_invalid",
         K::ProductInvalid => "product_invalid",
@@ -2479,20 +2480,17 @@ pub fn binary_header_error_tag(err: &BinaryHeaderError) -> &'static str {
     }
 }
 
-/// The stable tag for an at-rest gate refusal.
-///
-/// The `Product` arm delegates to [`product_error_tag`] rather than
-/// collapsing every gather refusal to one tag: a caller branching on
-/// "why did my assembly not gather" wants the gather's own answer,
-/// and the wrapper adds nothing they can act on. The two namespaces
-/// do not collide — the gather's tags are bare (`empty_product`), the
-/// gate's carry their own words.
-pub fn assembly_error_tag(err: &AssemblyError) -> &'static str {
-    match err {
-        AssemblyError::Product(inner) => product_error_tag(inner),
-        AssemblyError::CarriedAtRest { .. } => "carried_at_rest",
-        AssemblyError::AtRest { .. } => "at_rest",
-        AssemblyError::Assemble { .. } => "assemble",
+/// The stable tag for why the at-rest check could not look
+/// ([`AtRestEvidence`]): a finding, loud and refusing at no severity,
+/// never an exception.
+pub fn at_rest_evidence_tag(evidence: &AtRestEvidence) -> &'static str {
+    match evidence {
+        AtRestEvidence::NoLane(_) => "no_lane",
+        AtRestEvidence::Malformed(_) => "malformed",
+        AtRestEvidence::InsideArrival(_) => "inside_arrival",
+        AtRestEvidence::NotGathered(_) => "not_gathered",
+        AtRestEvidence::NotRun => "not_run",
+        AtRestEvidence::Carried(_) => "carried",
     }
 }
 
@@ -2742,7 +2740,7 @@ pub fn name_lookup_error_tag(err: &NameLookupError) -> &'static str {
 /// The stable tag for a pick-index build refusal.
 ///
 /// Three arms FORWARD rather than wrap, the
-/// [`interrogate_error_tag`] / [`assembly_error_tag`] convention: the
+/// [`interrogate_error_tag`] convention: the
 /// standing arrives under [`node_standing_tag`]'s words, and a
 /// tessellation refusal arrives under the tessellator's own tag,
 /// because "the chordal budget was not finite" is that fact whether it
@@ -2891,11 +2889,8 @@ pub fn resolve_indeterminate_tag(cause: &ResolveIndeterminate) -> &'static str {
 /// namespaces apart is the report/gate posture at the tag level:
 /// "not checked" and "checked and wrong" are different answers.
 ///
-/// The `Product` arm cannot delegate the way [`assembly_error_tag`]
-/// does — the kernel carries the gather's refusal as its RENDERED
-/// message, not as a `ProductError` value (a report is `Clone` and
-/// `PartialEq` and that type is neither) — so the tag names the stage
-/// that refused and the message carries the gather's own prose.
+/// The `Product` arm names the stage that refused, and the message
+/// carries the gather's own prose.
 pub fn checks_error_tag(err: &ChecksError) -> &'static str {
     match err {
         ChecksError::Root { .. } => "root_without_value",
@@ -2925,12 +2920,14 @@ pub fn check_evidence_tag(evidence: &CheckEvidence) -> &'static str {
         CheckEvidence::Unsupported { .. } => "unsupported",
         CheckEvidence::NotAtRest { .. } => "not_at_rest",
         CheckEvidence::StaleExpectation { .. } => "stale_expectation",
-        CheckEvidence::NotSeparated { .. } => "not_separated",
-        CheckEvidence::SeparationUnavailable { .. } => "separation_unavailable",
         CheckEvidence::ChartCoherence { .. } => "chart_coherence",
         CheckEvidence::ChartCoherenceUnexamined { .. } => "chart_coherence_unexamined",
         CheckEvidence::ChartCoherenceUnavailable => "chart_coherence_unavailable",
         CheckEvidence::UnprovenCoincidence { .. } => "unproven_coincidence",
+        CheckEvidence::Interference { .. } => "interference",
+        CheckEvidence::CarriedInterference { .. } => "carried_interference",
+        CheckEvidence::CarriedCoincidence { .. } => "carried_coincidence",
+        CheckEvidence::AtRest { .. } => "at_rest",
     }
 }
 

@@ -21,6 +21,7 @@ use geom::Surface;
 use geom_core::{Point2, Point3, Tol, Vec2};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
+use topo::construction::Construct;
 use topo::{Body, FaceKey};
 
 /// The wall thickness the SHELL-6 rows offset by.
@@ -147,7 +148,7 @@ pub fn reanchor_cone(body: &mut Body<f64>, group: &[FaceKey], apex_y: f64) -> Su
     let key = body
         .set_face_surface_unvouched_for_tests(
             group[0],
-            topo::FaceSurface::New {
+            topo::construction::FaceSurface::New {
                 surface: moved.clone(),
                 sense: true,
             },
@@ -157,7 +158,7 @@ pub fn reanchor_cone(body: &mut Body<f64>, group: &[FaceKey], apex_y: f64) -> Su
         // Lifts RechartStrandsDescriptions: the re-anchored cone is geometric nonsense on purpose.
         body.set_face_surface_unvouched_for_tests(
             other,
-            topo::FaceSurface::Shared { key, sense: true },
+            topo::construction::FaceSurface::Shared { key, sense: true },
         )
         .expect("its neighbours share it");
     }

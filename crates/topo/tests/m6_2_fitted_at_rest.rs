@@ -30,6 +30,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use topo::construction::Construct;
 
 use geom_brep::{EnvelopeStatement, Pcurve};
 use geom_core::Band;
@@ -91,13 +92,13 @@ fn a_rung3_edge_at_rest_carries_its_projected_rows_and_its_edge_the_tube() {
             .unwrap()
     };
     curve
-        .recertify_via(
+        .recertify(
             point(built.he_plus),
             point(built.he_minus),
             |k| built.body.get_surface(k).cloned(),
             1.0,
             band,
-            Some(geom_brep::NurbsLane::certified()),
+            geom_brep::NurbsLane::certified(),
         )
         .expect("AT-REST: the edge re-certifies with its tube");
 }
@@ -182,12 +183,11 @@ fn a_split_restricts_the_projected_row_to_each_child() {
     assert!(findings.is_empty(), "AT-REST after the split: {findings:?}");
 }
 
-/// **The `Dual` lane holds neither door, and each refusal says why.**
-/// The edge's own certificate states C2's limbs through the NURBS lane
-/// and a net's projected row reads its hull terms through the fitted
-/// door, and a dual holds neither (D1, 2026-08-19: certification
-/// arithmetic, C9, is not reachable from it), so the dual's mev refuses
-/// the edge naming the dual, before any row is in question. At `f64`, the same row
+/// **The `Dual` lane holds no fitted door, and the refusal says why.**
+/// A net's projected row reads its hull terms through the fitted door,
+/// which a dual does not hold (D1, 2026-08-19: certification arithmetic,
+/// C9, is not reachable from it); the dual's edge door only mints, so
+/// its mev mints the rung-3 edge (DL3). At `f64`, the same row
 /// offered with the door withheld refuses at check 4 naming `f64`, and
 /// its text does not deny `f64` the right it has; the dual's own refusal
 /// names every scalar whose fitted door answers `Some`.
@@ -199,11 +199,8 @@ fn the_dual_holds_neither_lane_and_each_refusal_names_its_scalar() {
     let band = Band::linear(Tol::witness()).unwrap();
     let dual = fixture::try_build::<Dual64>().map(|_| ());
     assert!(
-        matches!(
-            dual,
-            Err(topo::EulerOpError::NurbsLaneUnsupported { scalar: "dual", .. })
-        ),
-        "DUAL: the mev refuses the rung-3 edge, naming the scalar: {dual:?}"
+        dual.is_ok(),
+        "DUAL: the mev mints the rung-3 edge: {dual:?}"
     );
 
     let built = fixture::build::<f64>();

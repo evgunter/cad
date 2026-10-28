@@ -1509,12 +1509,7 @@ pub(crate) fn carrier_loop<T: Decide>(
             edges.push(LoopEdge::Chord);
             continue;
         };
-        match ConicArc::of(
-            curve.carrier(),
-            curve.certificate().turn.as_ref(),
-            conic,
-            band,
-        ) {
+        match ConicArc::of(curve.carrier(), curve.turn(), conic, band) {
             // A whole-turn scaffold circle is how
             // `EdgeCurveSpec::self_loop_circle_at` certifies a NULL edge:
             // a deliberately arbitrary unit circle, which the conic row

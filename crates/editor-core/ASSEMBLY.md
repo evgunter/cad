@@ -8,22 +8,21 @@ what checks an assembly at rest is DESIGN `[assertions]`. The census and
 contact vocabulary is `crates/topo/README.md`; the user-facing walk is
 `docs/guide/assembly.md`.
 
-**The intent refactor is in progress here.** The at-rest gate in the
-code still refuses. Those clauses (A3 and A5) are gathered under
+**The intent refactor is in progress here.** A3 is gathered under
 [Until the intent refactor lands](#until-the-intent-refactor-lands) and
-describe the code as it stands. INTENT's stage 5 deletes the gate as it
-lands; where they disagree with DESIGN, DESIGN is the design.
+describes the code as it stands; where it disagrees with DESIGN, DESIGN
+is the design.
 
 ## Where in the code
 
 | Decisions | Modules |
 |---|---|
-| A2 evaluation seam, memo | `src/part.rs` (`PartResolver`, `ResolveFault`), `src/eval/parts.rs` (`PartStore`, `Reached`, `PartFault`); `transform_rigid`, `graft_disjoint_all_keyed` in `crates/topo/src/instance.rs` |
-| A2a pairing doors | `mispaired`, `Mispaired` in `src/ident.rs`; the doors in `src/product.rs`, `src/assembly.rs`, `src/mate/solve.rs`, `src/checks.rs`, `src/resolve/mod.rs`, `src/resolve/pick.rs`, `src/stackup.rs`; the memo's drop in `src/eval/mod.rs` |
+| A2 evaluation seam, memo | `src/part.rs` (`PartResolver`, `ResolveFault`), `src/eval/parts.rs` (`PartStore`, `Reached`, `PartFault`); `graft_disjoint_all_keyed` in `crates/topo/src/instance.rs`; the copy's frame in `src/eval/framed.rs` |
+| A2a pairing doors | `mispaired`, `Mispaired` in `src/ident.rs`; the doors in `src/product.rs`, `src/mate/solve.rs`, `src/checks.rs`, `src/resolve/mod.rs`, `src/resolve/pick.rs`, `src/stackup.rs`; the memo's drop in `src/eval/mod.rs` |
 | A3, A11 placements, mates, solve | `Node::Place`, `Node::World`, `InstantiatePart`'s `constraints` in `src/node.rs`; `src/mate.rs` (`Constraint`, `Mate`, `Value`, `Coord`, `MateRef`, `MateFault`), `src/mate/orient.rs` (`Orientation`), `src/mate/coset.rs`, `src/mate/solve.rs`, `src/mate/value.rs`, `src/mate/pin.rs` (`Placed`, `stand`), `src/mate/corner.rs` (`corner_frame`), `src/mate/unobservable.rs`; the fold in `src/eval/wire.rs` (`fold_with`); `DocEdit::SetConstraints`/`AddConstraint`/`RemoveConstraint` in `src/edit.rs` |
 | A4, A13 identity, pins, update | `src/ident.rs`, `src/update.rs`, `DocEdit::UpdateReference` in `src/edit.rs` |
 | A4 split, inline and flatten | `src/refactor.rs`; `InterfaceRecord` in `src/node.rs` |
-| A5 at-rest gate | `src/assembly.rs` (`assemble`, `AssemblyError`) |
+| A5 at-rest check | `src/checks/at_rest.rs` (`AtRestEvidence`, `InterferenceFinding`, the quieting rule), `src/checks/at_rest/carried.rs` (`Route`, `CarriedInterference`, `CarriedAtRestFinding`, `CarriedCoincidence`, `AtRestRow`); `CheckId::AtRest` in `src/checks.rs` |
 | A6 improper frames | `src/placement.rs` (`Frame`); `Node::Mirror` in `src/node.rs`, `wire_mirror` in `src/eval/wire.rs`, `mirror_body` in `crates/topo/src/mirror.rs` |
 | A7, A8 interchange | `PlacedInstance` in `crates/step-import/src/lib.rs` |
 | A9 partitions | `relative_freedom_components` in `src/mate/solve.rs` |
@@ -48,9 +47,9 @@ instantiate node resolves its `DocRef` through the evaluation's
 refuse typed), evaluates the pinned document at the ambient ε, takes its
 product (A10), the one `Body` its product slot reads, a `⊔`'s pieces
 side by side (no body has world coordinates: the world sets only the
-coordinates export writes), and materializes it through `topo::transform_rigid`
-(rigidity carried by the witness or decided at the door, every
-carrier re-certified) and the disjoint graft. A resolved document whose recorded ε disagrees refuses
+coordinates export writes), and its copy is that body, shared, under the
+instance's map composed onto the product's frame (D10 `[placement.frame]`):
+nothing is rebuilt, and export composes the frame into the world. A resolved document whose recorded ε disagrees refuses
 `ResolveFault::EpsilonSeam`. An evaluation enters each `(DocRef, ε)` it
 instantiates at most once (`PartStore`), before its mate solve and node
 map read it (`Reached`); a part the prior evaluation carried under the
@@ -77,8 +76,7 @@ about identity, never version (DI3), except at the stackup doors below.
 The doors that refuse:
 
 - `product` (with `product_named` and `product_recorded`,
-  `ProductError::EvaluationOfAnotherDocument`), and `assemble` through
-  them (the same refusal, wrapped as `AssemblyError::Product`);
+  `ProductError::EvaluationOfAnotherDocument`);
 - `SolvedPoses::placement` (`MateFault::PosesOfAnotherDocument`), which
   pairs a document with a solve rather than an evaluation;
 - `run_checks_on`, and `run_checks` as its wrapper
@@ -297,7 +295,7 @@ deleted is a stranded reader (D10): the gather refuses
 and re-point the slot where they take what it reads (A4).
 `product::product` gathers the slot's body, a `⊔`'s pieces each its own
 source; a `⊔` the slot does not read is gathered by itself
-(`product::assemble_gathers`) and checked at the gate (A5).
+(`product::assemble_gathers`) and checked by the at-rest check (A5).
 
 ## The constructive-solve boundary
 
@@ -361,8 +359,9 @@ empty one included, refuses `MateFault::Unpinned` at the door. The copy
 is in its placement's target space, the world's or another's. Nothing
 outside a space is compared with it: a read across two spaces refuses
 (`NodeErrorKind::SpaceMismatch`), decided from the recipe, while
-everything inside a space solves as usual. The at-rest gate and STEP
-export read the world. The viewer shows a set of spaces, each at a
+everything inside a space solves as usual. STEP export reads the world;
+the at-rest check reads the world and every `⊔` beside it, each
+against nothing outside it. The viewer shows a set of spaces, each at a
 display frame that no logic reads (IDENTITY DI5).
 
 No edit records a frame: removing a constraint, deleting an instance or
@@ -430,6 +429,138 @@ placement `MateFault::SideUnevaluated`, carrying the evaluation layer's
 own refusal; a copy whose reach is not in hand faults it
 `MateFault::Unleverable`. A target read off a node that failed poisons
 the placement through that node, whose own row states the cause.
+
+## At rest
+
+**A5 — The at-rest check.** At each `⊔`, the census examines every
+pair of arrivals the census's pre-filter cannot prove apart, and decides
+each one apart, in contact, overlapping or undecided. A contact is
+recorded at the coincidence door; unless it is structural, the
+`unproven-coincidence` lint reports it, quiet under a holding `Gap = 0`
+between its two cells. An overlap is an `AtRest` interference finding,
+localised to the faces bounding it, or loud and unquietable when the
+intersection refuses; a finding no assertion the quieting rule accepts
+could quiet refuses at no severity. An
+undecided pair is an `AtRest` could-not-look finding, which refuses at
+no severity (CHECKS DS6). Each finding is
+quiet or loud. Nothing refuses: a caller that wants a gate runs
+`enforce_checks` at `Error`.
+
+The census runs once, in the gather (`product::product_recorded`, and
+each `⊔`'s own census, `product::Census`), which keeps its findings on
+the product (`Product::census`); the check (`CheckId::AtRest`,
+`checks::at_rest`) reads them and runs no census or predicate of its
+own. Every touch between two copies that no carried record backs, a
+seat a mate set up or a touch no mate relates alike, is recorded
+(`topo::record_at_rest`, each arrival its own group) as a
+`CensusAtRest` row of the product (`Product::coincidences`, an
+`AtRestRow` naming its two copies) and a record citing it, which the
+census's next pass confirms. The coincidence door proves a mated seat's
+row from the mate's own statement (`[coincidence.structural]`). Two
+copies' planar faces meeting over an area are one such row, the face
+pair. Two faces of two copies on one plane, facing the same way, whose
+boundaries share a segment and whose interiors do not meet, are a flush
+pair: a row of its own (`topo::AtRestPolicy::flush_at_rest`) that no
+record cites, reported unless the door proves it, and never quieted by
+an assertion. A pierce or a same-side crossing is no touch: it is an
+overlap between two copies. The findings follow the gathers: the
+product's, then each `⊔` the product does not read, in document order,
+each under the `⊔` whose census decided it (`FindingSubject::Census`).
+What the check could not look at names why (`AtRestEvidence`): a pair
+the census had no lane for or left undecided, a body failing a check of
+its own structure, a meeting inside one arrival no carried record
+backs, a `⊔` whose operands did not gather, or a scalar that runs no
+census. A disjoint assembly reports nothing.
+
+*Across the seam.* A sub-assembly's records ride through the seam
+(`PartValue::contacts`), with the rows they cite
+(`PartValue::coincidences`). A record's faces are re-keyed at every
+graft through the graft's own descendant map. Nothing is re-verified
+across the seam.
+
+*A part's own census findings.* A part crosses the seam as one copy,
+whose meetings its own census decided. The part's reading of its
+census crosses with it (`checks::at_rest::seam_verdict`, at the part
+store): each overlap between two of its copies rides
+`PartValue::interference`, and each pair it could not look at rides
+`PartValue::at_rest`, each finding routed (`Route`: the instantiating
+node, the document that found it, and the instances below). An
+instance's copy is censused (`NodeValue::censused`): a census reading
+it as one arrival discards what it finds inside it
+(`product::gather_sources`), as it discards what it finds inside any
+arrival a door already censused (a `⊔`, or a copy of one). The kernel's
+census has no group scope, so it still computes inside such an arrival,
+and the door discards what it found. Each carried finding is reported
+once per part row, by the first route in gather order, so a part placed
+twice reports its overlap once, as the part's (`CarriedInterference`,
+`CarriedAtRestFinding`), quiet or loud as the part's own assertions
+judged it, and never refusing. The rows a part owes its own coincidence
+door cross the same way, unproven (`PartValue::door_rows`, each with the
+part's pinned document): the host's door judges them over that document,
+as the part's own door would, and reports each unproven one once per
+part row at the route's first instance, as the part's
+(`CarriedCoincidence`), quiet only as the part's assertions quiet it. A
+host `Gap` quiets none of them, wherever its cells lie, since a finding
+belongs to the door that decided it (D10 `[assertions]`). A loud one
+refuses at `Error` exactly when the part's own finding would, under the
+host's `unproven-coincidence` severity. A finding that names no pair of
+solids (a census escalation, a pair it had no lane for, a stale record of a
+vertex or an edge) is inside no one arrival, and is kept: one the census
+re-finds inside an instance's copy is reported as the host's beside the
+part's carried row, until the finding names its pair and the discard
+places it (`work/contacthold/an-escalated-census-finding-names-no-pair.md`).
+What does not cross: the census of a part's spaces other than its
+world, and the rows
+of a part read one member at a time rather than whole
+(`work/intent/a-parts-loose-spaces-and-member-reads-drop-its-census-rows.md`).
+
+*Interference.* An overlap of two copies' material is an `AtRest`
+finding of its own (D10; `checks::at_rest`). The census decides that
+two copies interfere: a vertex of one strictly inside the other's
+material (`ValidationError::InstanceInterference`), a face of each on
+one plane, cylinder or sphere facing the same way and sharing interior
+(`ValidationError::SameSideInterference`), a touch where the two
+materials meet (`ValidationError::TouchInterference`), an edge piercing
+a face (`CensusContact::EdgeFacePierce`), an in-plane crossing whose
+side test reads `SameSide`, or an edge of each on one line whose wedges
+overlap (`ValidationError::CoincidentWedgesOverlap`). The check takes
+those verdicts, with every
+`CensusUndecidable` the census left on the same pair of copies, and
+intersects the two copies. Each connected solid of the intersection is
+one `InterferenceFinding`, named by the faces of both copies that bound
+it. An intersection the kernel cannot form leaves one
+`Overlap::Unlocalized` finding for the pair, which is loud and which
+nothing quiets; so does a decided overlap at an analysis scalar, which
+has no localizing lane (`LocalizeLane`: `f64` builds bodies). A pair the
+census decided nothing about is a could-not-look finding.
+
+An interference finding is quiet when a holding assertion reads a
+`Gap`'s output directly over an opposed pair of faces of the two copies
+(the material pairing door decides opposed), admits only
+negative values (`≤ b` or `= b`, `b` decided negative), and its two
+faces bound the overlap, and the overlap lies between their carriers.
+The last is the kernel's own boolean: the
+region past each asserted carrier, away from its copy's material, is
+built as a solid (a box past a plane, the solid cylinder inside a bore,
+the tube outside a pin) and intersected with the overlap, which lies
+between when neither intersection keeps any of it. A containment check
+that refuses leaves the finding `Unlocalized`. A quiet finding carries
+no verdict nothing checked: every `CensusUndecidable` on the pair must
+be a face pair bounding the quieted overlap, so an undecided pair
+beside it (a pin pressed into one bore and slipped into another) keeps
+it loud. Every other overlap is loud. Between two solids of one copy an overlap stays the kernel's
+typed error. The partition takes interference verdicts only: a press
+fit whose pin is flush with its plate also touches at the coplanar
+caps, which the gather records as rows of the two copies.
+
+A contact row is quiet when a holding assertion reads a `Gap`'s output
+directly, relates it by `=` to a bound decided zero, and its two
+selections are the row's two cells, in either order, each the read its
+arrival entered the `⊔` through and the cell's name there, at whatever
+dimension the cells are (`checks::at_rest::quiet_contact`; the
+`unproven-coincidence` lint reads it). It matches cells, so another
+contact between the same two copies stays loud, and it reads verdicts
+only, so a failed assertion quiets nothing.
 
 ## Until the intent refactor lands
 
@@ -524,114 +655,6 @@ pose's moves written as values on the world's axes; the "place part"
 gesture writes the identity bundle (`mate::stand`). A frame read off
 geometry is `mate::corner_frame`'s, which a caller asks before writing
 the moves it means.
-
-**A5 — The at-rest gate.** `assembly::assemble` gathers the product
-(`product::product_recorded`), which runs the scalar's at-rest policy,
-`topo::validate_pseudomanifold`'s census, over body plus records, once,
-keeping its findings on the product (`Product::census`); the gate reads
-them and runs no census of its own. The gather's own tier-3 verdict
-rides on the product's body (`topo::AtRestBody`), so the gate reads
-both verdicts rather than running either a second time, and runs no
-predicate of its own. A mate places and never checks (D10). Every
-touch between two copies that no carried record backs, a seat a mate
-set up or a touch no mate relates alike, refuses nothing (D1 (iii),
-D10): the gather's census records it (`topo::record_at_rest`, each copy
-its own group) as a `CensusAtRest` row of the product
-(`Product::coincidences`, an `AtRestRow` naming its two copies) and a
-record citing it, which the census's next pass confirms. The coincidence
-door proves a mated seat's row from the mate's own statement
-(`[coincidence.structural]`), and the `unproven-coincidence` check
-reports each row the door does not prove. Two copies' planar faces
-meeting over an area are one such row, the face pair, and the census
-asks nothing of the edges and corners bounding it. Two faces of two
-copies on one plane, facing the same way, whose boundaries share a
-segment and whose interiors do not meet, are a flush pair: a row of its
-own (`topo::AtRestPolicy::flush_at_rest`) that no record cites,
-reported unless the door proves it. A pierce or a same-side crossing is
-no touch: it is an overlap between two copies, reported on
-`Assembly::interference` and never refused. The `Separation` check
-quiets a finding about two copies only where a record cites a row the
-coincidence door's first rung proves from a mate. A touch inside one
-copy that no record backs is that copy's defect, and refuses, unless it
-is a part's own finding found again (*A part's own census findings*,
-below). `AssemblyError::AtRest` is a verdict against the document, each
-`AtRestFinding` the census's own finding with its recourse. A disjoint
-assembly certifies as a multi-solid tier-3 body.
-
-*Across the seam.* A sub-assembly's records ride through the seam
-(`PartValue::contacts`), with the rows they cite
-(`PartValue::coincidences`). A record's faces are re-keyed at every
-graft through the graft's own descendant map. Nothing is re-verified
-across the seam: verification runs once, at the outermost gate.
-
-*A part's own census findings.* A part crosses the seam as one copy,
-whose meetings its own census decided. The part's verdict crosses with
-it, the at-rest stage of its own gate over its product
-(`assembly::seam_verdict`, at the part store): each overlap between two
-of its copies rides `PartValue::interference`, and a refusal of its
-gate's rides `PartValue::at_rest` whole, each finding routed (`Route`:
-the instantiating node, the document that found it, and the instances
-below). A part whose gate refuses before that stage (an at-rest refusal
-carried from below) crosses no census finding of its own: what refuses
-it crosses on its own rows. An instance's copy is censused
-(`NodeValue::censused`): a census reading it as one arrival discards
-what it finds inside it (`product::gather_sources`), as it discards
-what it finds inside any arrival a door already censused (a `⊔`, or a
-copy of one). The kernel's census has no group scope, so it still
-computes inside such an arrival, and the door discards what it found.
-Each carried finding is reported once per part row, by the first route
-in gather order, so a part placed twice reports its overlap once. A
-carried overlap is reported on `Assembly::carried_interference` and
-never refuses (D10). A carried refusal refuses the outer gate as the
-part's (`AssemblyError::CarriedAtRest`), before this document's own
-refusals: a placement carries its source's census findings, which stay
-the source's, and a finding is reported once, as the deciding door's
-(D10, `[placement.placement]`). A finding that names no pair of solids
-(a census escalation, a pair it had no lane for, a stale record of a
-vertex or an edge) is inside no one arrival, and is kept
-(`work/contacthold/an-escalated-census-finding-names-no-pair.md`).
-What does not cross: the census of a part's spaces other than its
-world, and the rows
-of a part read one member at a time rather than whole
-(`work/intent/a-parts-loose-spaces-and-member-reads-drop-its-census-rows.md`).
-
-*Interference.* An overlap of two copies' material is a finding of its
-own, never a refusal (D10; `checks::at_rest`). The census decides that
-two copies interfere: a vertex of one strictly inside the other's
-material (`ValidationError::InstanceInterference`), a face of each on
-one plane facing the same way and sharing interior
-(`ValidationError::SameSideInterference`), a touch where the two
-materials meet (`ValidationError::TouchInterference`), an edge piercing
-a face (`CensusContact::EdgeFacePierce`), an in-plane crossing whose
-side test reads `SameSide`, or an edge of each on one line whose wedges
-overlap (`ValidationError::CoincidentWedgesOverlap`). The gate takes
-those verdicts out of its refusal, with every `CensusUndecidable` the
-census left on the same pair of copies, and intersects the two copies.
-Each connected solid of the intersection is one `InterferenceFinding` on
-`Assembly::interference`, named by the faces of both copies that bound
-it. An intersection the kernel cannot form leaves one
-`Overlap::Unlocalized` finding for the pair, which is loud and which
-nothing quiets; so does a decided overlap at an analysis scalar, which
-has no localizing lane (`LocalizeLane`: `f64` builds bodies). A pair the
-census decided nothing about is refused as before.
-
-A finding is quiet when a holding assertion reads a `Gap`'s output
-directly over an opposed pair of faces of the two copies, admits only
-negative values (`≤ b` or `= b`, `b` decided negative), and its two
-faces bound the overlap, and the overlap lies between their carriers.
-The last is the kernel's own boolean: the
-region past each asserted carrier, away from its copy's material, is
-built as a solid (a box past a plane, the solid cylinder inside a bore,
-the tube outside a pin) and intersected with the overlap, which lies
-between when neither intersection keeps any of it. A containment check
-that refuses leaves the finding `Unlocalized`. A quiet finding carries
-no verdict nothing checked: every `CensusUndecidable` on the pair must
-be a face pair bounding the quieted overlap, so an undecided pair
-beside it (a pin pressed into one bore and slipped into another) keeps
-it loud. Every other overlap is loud. Between two solids of one copy an overlap stays the kernel's
-typed error. The partition takes interference verdicts only: a press
-fit whose pin is flush with its plate also touches at the coplanar
-caps, which the gather records as rows of the two copies.
 
 ## Open questions
 

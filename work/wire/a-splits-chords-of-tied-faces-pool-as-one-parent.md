@@ -2,10 +2,11 @@
 id: a-splits-chords-of-tied-faces-pool-as-one-parent
 kind: issue
 title: A split groups its edges by parent NAME, so the chords of two tied faces are named against each other as pieces of one parent
-status: open
+status: closed
 opened: 2026-10-26
 priority: P2
 cost: M
+closed: 2026-10-27
 ---
 
 
@@ -55,3 +56,5 @@ on a frame at z = 1) should reach the same table.
   one tie, so it is not only a key change.
 - Then key `edge_groups` by the parent's candidate (or by the operand
   face set for a merged parent), with a witness on the fixture above.
+
+Closed by PR 5857 (2026-10-27). A split's chord groups are keyed by their parents' operand-entity sets, so an undivided tied candidate's chord is the bare name and ties (N4). A dump over 217 split tests shows them identical apart from the witness.

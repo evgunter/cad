@@ -991,10 +991,27 @@ fn run_at<T: editor_core::EvalScalar>(
 /// them, so their rotations' off-diagonal entries no longer agree bit
 /// for bit, one translation entry (`z`) moved by an ulp, and five of
 /// their vertices by an ulp each. Every other pose is main's.
+///
+/// And, all three rows, when a body value came to be its body in its own
+/// coordinates under a frame (INTENT stage 3 E). The evaluation digest
+/// feeds each body where it stands, composed through `in_space`.
+/// Compared against main (`29110056e8`, `9d97abd7`, and again `1f851964`
+/// over main's value chart) at 1e-9:
+/// every fault, space and node error is main's; two of the 47 solved
+/// poses moved, each by one ulp in one translation entry and every
+/// rotation entry bit-identical (a mate's `to` read off a copy is the
+/// pose read off the source moved by the copy's frame, where it was read
+/// off the mapped body); and of the evaluations only `pinned-chain`'s
+/// moved, three copies of copies by up to 1.8e-15 at 7, 8 and 16 of
+/// their points, each composing one map where it was rebuilt link by
+/// link. Re-taken over main's merge at `cd5f9dee` (main's three words
+/// `0xd5ec_4277_864d_1dcf`, `0x35c1_08d4_5569_8e4e` and
+/// `0x132e_b1b7_811d_4fd3`): with each copy rebuilt at `place` as
+/// before E, this branch reads main's word at 1e-9 exactly.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0xaa45_2c35_08a5_7082),
-    (1e-6, 0x12ee_6451_f129_634c),
-    (1e-12, 0x8257_e764_d53a_2109),
+    (1e-9, 0x1b2d_48e7_2dce_64ba),
+    (1e-6, 0x9c64_e122_2cde_2239),
+    (1e-12, 0xb126_9c4f_16e2_eb54),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
@@ -1045,6 +1062,12 @@ fn each_seat_stands_on_what_it_is_seated_on() {
 
 /// **A3, the `f64` fence**: the corpus's solved poses, spaces, faults and
 /// evaluations are byte-identical to the pre-generic tree's.
+///
+/// RE-BLESSED for limb 2 for every carrier (PR 5728): check 2's turn
+/// moved from the edge's `Certificate` onto the edge, which changes the
+/// edge curve's `Debug` the digest feeds. With that `Debug` written in
+/// main's shape every digest here reproduces main's value at all three
+/// ε rows, so nothing else moved.
 #[test]
 fn a3_the_f64_solve_is_mains_bit_for_bit_on_the_mate_corpus() {
     let eps = Tol::witness().eps();
@@ -1417,15 +1440,18 @@ fn a2_a_box_on_the_bolts_spacing_encloses_the_bolt_at_every_corner() {
     }
 }
 
-/// **Over a wide box the bolt meets the placement door's refusal** —
-/// the residual every boxed placer meets today: the bolt's own refusal is
-/// the rigid motion's, not its bundle's, and the pattern, which reads
-/// the bolt, is poisoned through it.
+/// **Over a wide box the bolt builds**: a copy is its source's body
+/// under its frame (D10 `[placement.frame]`), never rebuilt, so the
+/// box-wide motion is the copy's frame and no mapped carrier is
+/// certified again — the placement door's re-certification, which
+/// refused over this box while a placement mapped its source, is not
+/// run. The pattern reading the bolt builds its copies the same way.
 ///
-/// *Breaks if* a box-wide motion is certified rigid, or the refusal
-/// reads as the bundle's.
+/// *Breaks if* a copy is rebuilt under a box-wide motion (the mapped
+/// carriers refuse certification), or the pattern is poisoned through
+/// the bolt.
 #[test]
-fn a2_over_a_wide_box_the_bolts_refusal_is_the_placement_doors() {
+fn a2_over_a_wide_box_the_bolt_builds_its_copy_unbuilt() {
     let b = bolted("msolve14-a2-wide");
     let ev = run_at::<Interval>(
         &b.doc,
@@ -1433,23 +1459,14 @@ fn a2_over_a_wide_box_the_bolts_refusal_is_the_placement_doors() {
         None,
     );
     assert!(
-        matches!(
-            ev.result(b.pattern),
-            Some(NodeResult::Poisoned { through }) if *through == b.bolt
-        ),
-        "{:?}",
-        ev.result(b.pattern)
+        ev.node_error(b.bolt).is_none(),
+        "the bolt builds over the box: {:?}",
+        ev.node_error(b.bolt)
     );
-    let kind = &ev
-        .node_error(b.bolt)
-        .expect("the placement door refuses")
-        .kind;
     assert!(
-        matches!(
-            kind,
-            editor_core::NodeErrorKind::Transform(_) | editor_core::NodeErrorKind::Motion(_)
-        ),
-        "the bolt refuses at the rigid motion: {kind:?}"
+        matches!(ev.result(b.pattern), Some(NodeResult::Ok(_))),
+        "the pattern builds over the box: {:?}",
+        ev.node_error(b.pattern)
     );
 }
 
@@ -2366,4 +2383,49 @@ fn a5_certified_clearance_runs_over_a_seated_mate() {
         (lo, hi),
         "the clearance leaf",
     );
+}
+
+/// R1 probe (INTENT E review): clearance asked in either selection's
+/// frame answers alike.
+#[test]
+fn r1_clearance_answers_alike_in_either_order() {
+    use editor_core::clearance::{ClearanceQuery, FaceScope, Selection, clearance_with};
+    let b = bolted("msolve14-a5-clearance");
+    let resolver = b.opts.resolver.clone().expect("the store resolves");
+    let (lo, hi) = narrow(0.05);
+    let leaf = ParamBox::from_axes(BTreeMap::from([(
+        var_of(&b.doc, &spacing()),
+        BoxAxis::Varying { lo, hi },
+    )]));
+    let copy2 = Selection {
+        at: b.pattern,
+        body: 2,
+        faces: FaceScope::All,
+    };
+    let bolt = Selection::body_of(b.bolt);
+    let ask = |x: &Selection, y: &Selection, c: f64| {
+        let r = clearance_with(
+            &b.doc,
+            &leaf,
+            x,
+            y,
+            &ClearanceQuery::at_least(c, Tol::witness()).resolved_by(&resolver),
+        );
+        format!("{:?}", r.verdict())
+            .chars()
+            .take(60)
+            .collect::<String>()
+    };
+    let mut apart = Vec::new();
+    for c in [
+        2.5, 2.9, 2.99, 2.999, 2.9999, 2.99999, 3.0, 3.00001, 3.0001, 3.001, 3.01, 3.5,
+    ] {
+        let (p, q) = (ask(&bolt, &copy2, c), ask(&copy2, &bolt, c));
+        eprintln!("c={c}: bolt-first {p} | copy-first {q}");
+        let kind = |s: &str| s.split([' ', '(', '{']).next().unwrap_or("").to_owned();
+        if kind(&p) != kind(&q) {
+            apart.push(format!("c={c}: {p} vs {q}"));
+        }
+    }
+    assert!(apart.is_empty(), "the order decides: {apart:#?}");
 }

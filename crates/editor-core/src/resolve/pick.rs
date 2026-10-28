@@ -545,6 +545,11 @@ pub struct PickTarget<'a> {
     body: u32,
     /// The body's mesh index ([`MeshPick::build_every_table`]).
     pick: &'a MeshPick,
+    /// **The frame the tessellated body stands in** (D10
+    /// `[placement.frame]`): the mesh is in the body's own coordinates,
+    /// and [`pick_face`] reads the ray into them. `None` for a body in
+    /// its space's coordinates.
+    map: Option<geom_core::RigidMotion<f64>>,
 }
 
 impl<'a> PickTarget<'a> {
@@ -586,6 +591,7 @@ impl<'a> PickTarget<'a> {
             node,
             body,
             pick,
+            map: None,
         }
     }
 }
@@ -790,6 +796,9 @@ pub struct NodePick {
     document: DocumentId,
     node: RecipeNodeId,
     body: u32,
+    /// The frame the mesh is in: the body's (D10 `[placement.frame]`),
+    /// composed into its space by [`crate::mate::in_space`] alone.
+    pub(crate) frame: crate::eval::Frame<f64>,
     mesh: Arc<Mesh>,
     pick: Arc<MeshPick>,
     chords: Arc<ChordFaces>,
@@ -803,6 +812,10 @@ pub struct NodePick {
 /// another.
 struct PickEntry {
     content_key: ContentKey,
+    /// The body tessellated: a value whose frame alone moved (a copy
+    /// under a value edit) holds this same `Arc`, and is served this
+    /// tessellation under its own frame.
+    body: Arc<topo::Body<f64>>,
     naming_key: NamingKey,
     /// δ and the ambient ε and k, by bit pattern.
     tolerances: [u64; 3],
@@ -824,7 +837,13 @@ struct PickEntry {
 /// the document's identity (node ids are minted per document) and
 /// `(δ, ε, k)`. Under that key the previous picture's `NodePick` IS this
 /// picture's, BVH included, because a `NodePick` is a pure function of
-/// what the key names.
+/// what the key names. The two keys may also be answered by the body
+/// itself: a value holding the entry's very `Arc` (a copy whose values
+/// moved, D10 `[placement.frame]`) holds the bits and the face keys the
+/// keys stood for — the naming key hashes the content key, so it moves
+/// with the value though the body did not — and is that tessellation
+/// under the frame it stands in now, so a value edit moves a frame, not
+/// a mesh.
 ///
 /// **The document comparison is this memo's DI3 refusal**, and it is
 /// the only half of the key that CAN refuse a prior of another
@@ -1123,12 +1142,14 @@ impl NodePick {
         else {
             return Err(NodePickError::NoSuchBody { node, body });
         };
-        let mesh = mesh::tessellate(&body_arc, delta, tol).map_err(NodePickError::Tessellate)?;
+        let mesh =
+            mesh::tessellate(body_arc.body(), delta, tol).map_err(NodePickError::Tessellate)?;
         let pick = MeshPick::build_every_table(&mesh).map_err(NodePickError::Index)?;
         Ok(Self {
             document: eval.document,
             node,
             body,
+            frame: body_arc.frame().clone(),
             chords: Arc::new(ChordFaces::of(&mesh)),
             mesh: Arc::new(mesh),
             pick: Arc::new(pick),
@@ -1136,8 +1157,9 @@ impl NodePick {
     }
 
     /// [`NodePick::build`] over `memo`: the previous picture's pick for
-    /// this (node, body) when the node's content and naming keys, the
-    /// document and `(delta, tol)` all match, else a build whose
+    /// this (node, body) when the node's content and naming keys (or the
+    /// body's very `Arc`), the document and `(delta, tol)` all match,
+    /// else a build whose
     /// tessellation goes through the patch memo. The answer is byte-identical to
     /// [`NodePick::build`]'s either way ([`PickMemo`]).
     ///
@@ -1165,20 +1187,28 @@ impl NodePick {
         let picture = memo.picture;
         if let Some(entry) = memo.nodes.get_mut(&(node, body))
             && entry.pick.document == eval.document
-            && entry.content_key == value.content_key
-            && entry.naming_key == value.naming_key
+            && ((entry.content_key == value.content_key && entry.naming_key == value.naming_key)
+                || Arc::ptr_eq(&entry.body, body_arc.shared()))
             && entry.tolerances == tolerances
         {
             entry.picture = picture;
             memo.patches.keep(&entry.keys);
             let keys = entry.keys.clone();
-            let pick = entry.pick.clone();
+            // The same body under the frame it stands in now: a value
+            // edit moves a frame, not a mesh.
+            let pick = Self {
+                frame: body_arc.frame().clone(),
+                ..entry.pick.clone()
+            };
+            entry.pick = pick.clone();
+            entry.content_key = value.content_key;
+            entry.naming_key = value.naming_key;
             memo.keep_tables(&keys);
             memo.node_hits += 1;
             return Ok(pick);
         }
         memo.node_misses += 1;
-        let tessellation = tessellate_with(&body_arc, delta, tol, &mut memo.patches)
+        let tessellation = tessellate_with(body_arc.body(), delta, tol, &mut memo.patches)
             .map_err(NodePickError::Tessellate)?;
         let pick = MeshPick::build_with(&tessellation.mesh, &tessellation.keys, memo)
             .map_err(NodePickError::Index)?;
@@ -1186,6 +1216,7 @@ impl NodePick {
             document: eval.document,
             node,
             body,
+            frame: body_arc.frame().clone(),
             chords: Arc::new(ChordFaces::of(&tessellation.mesh)),
             mesh: Arc::new(tessellation.mesh),
             pick: Arc::new(pick),
@@ -1194,6 +1225,7 @@ impl NodePick {
             (node, body),
             PickEntry {
                 content_key: value.content_key,
+                body: Arc::clone(body_arc.shared()),
                 naming_key: value.naming_key,
                 tolerances,
                 pick: pick.clone(),
@@ -1214,6 +1246,7 @@ impl NodePick {
             node: self.node,
             body: self.body,
             pick: &self.pick,
+            map: self.frame.map().copied(),
         }
     }
 
@@ -1687,6 +1720,18 @@ pub fn pick_face<T: Decide>(
     let mut lowest_hi = f64::INFINITY;
     let mut undecided: Vec<Cand> = Vec::new();
     for (target_pos, target) in targets.iter().enumerate() {
+        // The ray read into the coordinates the target's mesh is in: a
+        // rigid map keeps the ray's parameter, so every target's `t` is
+        // one parameter along the one ray, and a hit's point is read off
+        // the ray as handed.
+        let local = target.map.map_or(*ray, |map| {
+            let back = map.linear().transpose();
+            Ray {
+                origin: Point3::origin() + back * (ray.origin - map.origin()),
+                dir: back * ray.dir,
+            }
+        });
+        let ray = &local;
         for cand in target.pick.candidates(ray) {
             let Some((tri, face)) = target.pick.triangle(&cand) else {
                 // Unreachable: the trees were built over exactly the

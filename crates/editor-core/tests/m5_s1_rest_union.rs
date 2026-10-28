@@ -77,7 +77,7 @@ fn rest_union_evaluates_green() {
             "the measured body",
             &topo::test_support::finished(
                 "the measured body",
-                topo::Body::clone(&**body),
+                topo::Body::clone(body.body()),
                 Tol::witness()
             ),
             Tol::witness()
@@ -86,7 +86,7 @@ fn rest_union_evaluates_green() {
         8.0
     );
     assert_eq!(
-        topo::validate_pseudomanifold(body, contacts, Tol::witness()),
+        topo::validate_pseudomanifold(body.body(), contacts, Tol::witness()),
         Ok(())
     );
     assert!(

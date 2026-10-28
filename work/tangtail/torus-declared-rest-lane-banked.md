@@ -4,7 +4,6 @@ kind: issue
 title: Banked - the torus declared-Rest lane (lily wall 1's retirement path), deferred by ruling on #966
 status: deferred
 opened: 2026-08-23
-github: 968
 refs: [966, 1477, 1488, 1489]
 priority: P3
 cost: H
@@ -77,4 +76,12 @@ cylinder pairs, plus pairs ending on one circle
 (`crates/topo/src/boolean/glue.rs:110-141`, `ruled` at `:145`). Reopen
 the row when a consumer claims that arm. The lily's stem is the standing
 demand.
+
+## 2026-10-27 — wall 1 builds undeclared (SECT, PR 5869)
+
+The lily's stem glue (`stem ∪ arch`, no declaration) builds one shell of
+the two tubes' volume: the section certificate's parallel-tori arm
+(`boolean/section_cert.rs` `torus_parallel_torus`) clears the two tube
+walls, which meet in two loops outside the faces' windows. Wall 1 no
+longer stands on this item; the item stays open on the kissing arm.
 

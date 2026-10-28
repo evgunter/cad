@@ -104,7 +104,7 @@ fn a_reused_kiss_carries_its_record_into_the_next_union() {
         "the kiss's vertex-vertex record"
     );
     assert_eq!(
-        validate_pseudomanifold(body, contacts, Tol::witness()),
+        validate_pseudomanifold(body.body(), contacts, Tol::witness()),
         Ok(()),
         "the union over the reused kiss: 3′"
     );
@@ -134,7 +134,7 @@ fn flush_plane_pair_glues() {
             "the measured body",
             &topo::test_support::finished(
                 "the measured body",
-                topo::Body::clone(&**body),
+                topo::Body::clone(body.body()),
                 Tol::witness()
             ),
             Tol::witness()
@@ -143,7 +143,7 @@ fn flush_plane_pair_glues() {
         1.5
     );
     assert_eq!(
-        topo::validate::validate_geometric(body, Tol::witness()),
+        topo::validate::validate_geometric(body.body(), Tol::witness()),
         Ok(())
     );
     let merged = |kind| {
@@ -175,7 +175,7 @@ fn flush_plane_pair_glues() {
             "the measured body",
             &topo::test_support::finished(
                 "the measured body",
-                topo::Body::clone(&**body),
+                topo::Body::clone(body.body()),
                 Tol::witness()
             ),
             Tol::witness()
@@ -230,7 +230,7 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
             "the measured body",
             &topo::test_support::finished(
                 "the measured body",
-                topo::Body::clone(&**body),
+                topo::Body::clone(body.body()),
                 Tol::witness()
             ),
             Tol::witness()
@@ -239,7 +239,7 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
         9.0 - (3.0 * 0.5 + 3.0 * 0.5 - 0.5) * 1.0
     );
     assert_eq!(
-        topo::validate_pseudomanifold(body, contacts, Tol::witness()),
+        topo::validate_pseudomanifold(body.body(), contacts, Tol::witness()),
         Ok(())
     );
     // Resolution corpus seed (boolean-of-boolean DAG): the two slot
@@ -315,7 +315,7 @@ fn l_corner_caps_merge_at_the_recipe_door_tier3_green() {
             "the measured body",
             &topo::test_support::finished(
                 "the measured body",
-                topo::Body::clone(&**body),
+                topo::Body::clone(body.body()),
                 Tol::witness()
             ),
             Tol::witness()
@@ -325,14 +325,18 @@ fn l_corner_caps_merge_at_the_recipe_door_tier3_green() {
     );
     // Both caps merged: two octagonal caps and eight walls, where two
     // unglued cap pairs would leave twelve faces.
-    assert_eq!(body.faces().count(), 10, "each cap pair merged into one");
     assert_eq!(
-        topo::validate::validate_geometric(body, Tol::witness()),
+        body.body().faces().count(),
+        10,
+        "each cap pair merged into one"
+    );
+    assert_eq!(
+        topo::validate::validate_geometric(body.body(), Tol::witness()),
         Ok(()),
         "tier 3"
     );
     assert_eq!(
-        topo::validate_pseudomanifold(body, contacts, Tol::witness()),
+        topo::validate_pseudomanifold(body.body(), contacts, Tol::witness()),
         Ok(())
     );
     // Review F6: the merged caps keep, on their boundary, the vertices
@@ -392,7 +396,7 @@ fn crossing_slots_swapped_order_names_the_floor_corner_for_both_edges() {
             "the measured body",
             &topo::test_support::finished(
                 "the measured body",
-                topo::Body::clone(&**body),
+                topo::Body::clone(body.body()),
                 Tol::witness()
             ),
             Tol::witness()
@@ -401,7 +405,7 @@ fn crossing_slots_swapped_order_names_the_floor_corner_for_both_edges() {
         9.0 - (3.0 * 0.5 + 3.0 * 0.5 - 0.5) * 1.0
     );
     assert_eq!(
-        topo::validate_pseudomanifold(body, contacts, Tol::witness()),
+        topo::validate_pseudomanifold(body.body(), contacts, Tol::witness()),
         Ok(())
     );
     let corner = crate::fixture::table(&ev, s2)
@@ -409,7 +413,10 @@ fn crossing_slots_swapped_order_names_the_floor_corner_for_both_edges() {
         .filter_map(|(n, e)| match (n.kind, e) {
             (EntityKind::Vertex, editor_core::Entry::Unique(r)) => match r.key {
                 editor_core::EntityKey::Vertex(v) => {
-                    let p = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+                    let p = body
+                        .body()
+                        .get_point(body.body().get_vertex(v).unwrap().point)
+                        .unwrap();
                     ((p.x - 1.0).abs() < 1e-12
                         && (p.y - 1.0).abs() < 1e-12
                         && (p.z - 0.5).abs() < 1e-12)

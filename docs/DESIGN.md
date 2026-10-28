@@ -36,11 +36,18 @@ intent until it lands (`d10-one-way-to-say-intent-is-unbuilt`).
   (stage 3 A and A′); a placement as the bundle of its mates, the
   world a node and spaces as kinds, with gauges, offsets and the
   mates' spanning tree retired (stage 3 B); booleans gluing on a Zero verdict
-  and the boolean declare surface retired (stage 4 E and F).
+  and the boolean declare surface retired (stage 4 E and F); assertions
+  relating by `=`, interference at rest as a finding, and the at-rest
+  census as a check whose contacts a holding `Gap = 0` quiets, with A5's
+  at-rest gate (`assemble` and its refusal) and CHECKS DS6's
+  product-separation resident (`Separation`) retired (stage 5); an
+  operation's unproven contact (a boolean's glue, a vertex fusion)
+  quieted the same way.
 - **Not built:** the rest of placement (stage 3 — a constraint is
   still a mate's payload); the rest of the coincidence door and its lint (stage 4);
-  assertions and the at-rest lints (stage 5); tangency constructions
-  (stage 6).
+  an assertion quieting an unproven row no `Gap = 0` says (a tangency,
+  a coaxiality, a blend's turn, a split's ON verdict); tangency
+  constructions (stage 6).
 - **What retires as the build reaches it.** Where a companion clause
   disagrees with these sections, these govern, and the companion
   clause retires when the program reaches it: the declared-contact
@@ -54,9 +61,7 @@ intent until it lands (`d10-one-way-to-say-intent-is-unbuilt`).
   `AxisSource`); PARAM-LINT's declared-distinct record; the profiles'
   stored tangent-joint flags; ASSEMBLY A3, A10's gathered product and
   sink rule, and A12's
-  reading edges; and A5's at-rest gate (`assemble` and its refusal), whose
-  census becomes a check, with CHECKS DS6's product-separation
-  resident (`Separation`).
+  reading edges.
 
 The program's exit walk checks that list against the code
 (`work/intent/plan.md`, "Exit criteria").

@@ -252,9 +252,7 @@ fn hit_test_value(
 /// the tessellator's. What they do NOT forward is the inner refusal's
 /// own extra ATTRIBUTES — a tessellation refusal's numbers stay on
 /// `TessellateError`, which is where a caller who tessellates directly
-/// reads them. That is the `AssemblyError` precedent (a gather refusal
-/// arrives there under the gather's own tag, without the gather's
-/// `node`), and this class's docstring says so.
+/// reads them, and this class's docstring says so.
 ///
 /// The index arm neither forwards nor withholds: `variant` stays
 /// `mesh_index`, which is the door whose invariant broke, and
@@ -593,10 +591,9 @@ impl NodePick {
     #[getter]
     fn mesh(&self) -> Mesh {
         Mesh {
-            inner: Arc::clone(
-                self.mesh
-                    .get_or_init(|| Arc::new(self.inner.mesh().clone())),
-            ),
+            inner: Arc::clone(self.mesh.get_or_init(|| {
+                Arc::new(pncad::export::pick_mesh_in_space(&self.inner).into_owned())
+            })),
         }
     }
 

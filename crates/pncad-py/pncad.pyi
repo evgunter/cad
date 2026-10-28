@@ -40,14 +40,14 @@ The ASSEMBLY vocabulary is the layer above a single document:
 `Workspace` holds the parts, `Node.instantiate_part` references one,
 a placement's bundle of `Mate`s and `MateValue`s places each copy
 (`Doc.place`, `Doc.constrain`, `Placed`), `solve_document` poses
-them, `product` gathers what
-the document IS and `assemble` says whether it is valid at rest.
+them, and `product` gathers what
+the document IS.
 `split`, `inline` and `flatten` refactor across the seam, and
 `update_references` moves a pin at its sites.
 
 The advisory CHECKS registry is `run_checks`: a report over an
-evaluated document — component counts and product separation — that
-gates nothing. `evaluate` does not run it and no finding stops
+evaluated document — component counts, unproven coincidences, and
+whether it is valid at rest — that gates nothing. `evaluate` does not run it and no finding stops
 anything; `enforce_checks` is the one door that turns findings the
 caller marked `Severity.Error` into a refusal, which is how a program
 chooses to gate rather than having the kernel choose for it.
@@ -649,7 +649,9 @@ class SelectRefusal(PncadError):
     own typed refusal, crossing under its own name.
 
     `reason` is `in_band`, `tied_disagrees`, `unreadable`,
-    `not_a_plane`, `face_unresolved`, `not_a_length`, `bad_value`,
+    `frame_refused` (a candidate's body could not be read into the
+    frame of the plane it is measured from), `not_a_plane`,
+    `face_unresolved`, `not_a_length`, `bad_value`,
     `band`, `read_not_an_output` (`Evaluation.resolve` asked in a read
     that is no body output, so no table to ask), or `node_not_held`
     (`Evaluation.resolve` at a node handle the document no longer
@@ -684,30 +686,6 @@ class MateError(PncadError):
 
     variant: str
     fault: MateFault
-
-class AssemblyError(PncadError):
-    """The at-rest assembly gate refused.
-
-    `variant` is the refusing arm's stable tag; `findings`, `node`,
-    `through`, `name` are the arms' payloads, present on every arm and
-    `None` where that arm does not carry one.
-
-    `at_rest` is the census's verdict against the product: `findings`
-    carries every one of its findings, in the kernel's own sweep order.
-    A gather refusal arrives under the GATHER's own tag
-    (`empty_product`, `root_poisoned`, ...), not a wrapper tag.
-
-    `carried_at_rest` is a part's own at-rest refusal: a document BELOW
-    this one refused, and the refusal crosses whole. Each is the part's,
-    reported once, and `findings` is then a `CarriedAtRestFinding` per
-    finding with the route it arrived by. It is raised before this
-    document's own arms."""
-
-    variant: str
-    findings: Optional[list[AtRestFinding] | list[CarriedAtRestFinding]]
-    name: Optional[str]
-    node: Optional[NodeId]
-    through: Optional[NodeId]
 
 class ProductError(PncadError):
     """The whole-document gather refused. A product is the body the
@@ -956,9 +934,10 @@ class CheckRefusal(PncadError):
 
     The registry's one refusing path, and it refuses on nothing the
     caller did not ask to be refused on — no resident defaults to
-    `Error`, and the separation resident's knob cannot express it.
-    `findings` is every refusing finding, in report order, and the
-    message speaks each root from the document the checks ran over."""
+    `Error`, a finding an assertion quiets never refuses, and nor does
+    one the at-rest check could not look at. `findings` is every
+    refusing finding, in report order, and the message speaks each root
+    from the document the checks ran over."""
 
     findings: list[CheckFinding]
 
@@ -4815,11 +4794,11 @@ class Body:
         declaration and every declaration must have a geometric
         witness — neither direction is blessed from discovery. So the
         verdict turns on which door minted the body, and that is the
-        contract rather than a wrinkle: `assemble`'s at-rest body
-        carries the records its census minted for the seats between
-        copies and passes over them, while `product`, which gathers the
-        same solids and records nothing, reports every seat as an
-        unrecorded contact. With no
+        contract rather than a wrinkle: an instance of an assembly
+        carries the records its document's census minted for the seats
+        between copies and passes over them, while `product`, which
+        gathers the same solids and records nothing, reports every seat
+        as an unrecorded contact. With no
         declarations at all this is simply the strictest rung — the
         census still runs, and on a body with no coincidences it finds
         nothing.
@@ -5409,8 +5388,8 @@ class Evaluation:
     An evaluation is the (document, evaluation) PAIR captured at
     `evaluate`, and it is immutable. The document's product is a pure
     function of that pair, so it is gathered ONCE per evaluation and
-    shared by every door that wants one — `run_checks`, `assemble`,
-    `product`, `product_named`. Asking several questions of one
+    shared by every door that wants one — `run_checks`, `product`,
+    `product_named`. Asking several questions of one
     evaluation costs one gather; asking them of a fresh `evaluate`
     each time costs one apiece.
     """
@@ -5725,11 +5704,11 @@ def evaluate(
 
 # --- the assembly vocabulary ------------------------------------------
 # Two part documents in a store, instances of them in a third, mates
-# saying how the instances meet, and one gate that says whether the
-# result is valid at rest. Authoring is `Node.instantiate_part` +
-# `Doc.place` + `Mate` + `Doc.constrain` + `Placed`; reading is
-# `solve_document`, `product` and `assemble`; refactoring is `split` /
-# `inline` / `flatten`.
+# saying how the instances meet, and the at-rest check that reports
+# whether the result is valid at rest. Authoring is
+# `Node.instantiate_part` + `Doc.place` + `Mate` + `Doc.constrain` +
+# `Placed`; reading is `solve_document`, `product` and `run_checks`;
+# refactoring is `split` / `inline` / `flatten`.
 #
 # A copy is made by a PLACEMENT — a `Place` over shapes, or an
 # instance, which is its part's world, moved — and placed by its
@@ -6191,7 +6170,7 @@ class Maintenance:
     @property
     def name(self) -> Optional[str]: ...
 
-# --- the gather and the at-rest gate ----------------------------------
+# --- the gather and the at-rest check's findings ----------------------
 
 def product(doc: Doc, evaluation: Evaluation) -> Body:
     """The document's PRODUCT: the body its product slot reads
@@ -6221,15 +6200,41 @@ def product_named(doc: Doc, evaluation: Evaluation) -> tuple[Body, list[str]]:
     alphabet, so "the third post's top cap" is one name rather than a
     coordinate. Raises ProductError, typed."""
 
-class AtRestFinding:
-    """One at-rest refusal. `str(finding)` is the kernel's own finding,
-    which carries its own recourse."""
+class AtRestEvidence:
+    """Why the at-rest check could not look: one `AtRest` finding,
+    loud, unquietable, and refusing at no severity, read off
+    `CheckEvidence.at_rest`. `str(evidence)` is the library's own
+    sentence, which carries its own recourse."""
+
+    @property
+    def variant(self) -> str:
+        """Why, as a stable word: `no_lane` (a pair the census had no
+        lane for or left undecided, or a touch it could not clear),
+        `malformed` (the gathered body fails a check of its own
+        structure or geometry), `inside_arrival` (a touch or overlap
+        inside one arrival that nothing backs), `not_gathered` (a `⊔`
+        the product does not read whose operands did not gather),
+        `not_run` (this evaluation's scalar runs no census at rest) or
+        `carried` (a part's own, with its route)."""
+
+    @property
+    def inner_variant(self) -> Optional[str]:
+        """The validator finding's word on `no_lane`, `malformed` and
+        `inside_arrival` (`ValidationError`'s vocabulary), the gather
+        refusal's on `not_gathered` (`ProductError`'s); `None` on
+        `not_run` and `carried`."""
+
+    @property
+    def carried(self) -> Optional[CarriedAtRestFinding]:
+        """The part's own evidence and its route, on `carried` alone."""
+
+    def __eq__(self, other: object) -> bool: ...
 
 class CarriedInterference:
     """An overlap a document BELOW this one reported between two of its
-    own copies, with the route this document reached it by: a row of
-    `Assembly.carried_interference`, reported and never raised, quiet
-    or loud as the part's own assertions judged it.
+    own copies, with the route this document reached it by: an `AtRest`
+    finding's `CheckEvidence.carried_interference`, reported and never
+    raised, quiet or loud as the part's own assertions judged it.
 
     The finding is the part's: its copies are variables of `of`, which
     this document does not hold, so their `Var` handles carry no kind."""
@@ -6246,14 +6251,16 @@ class CarriedInterference:
     @property
     def via(self) -> list[NodeId]: ...
 
-class CarriedAtRestFinding:
-    """One finding of an at-rest refusal a document BELOW this one
-    raised: a row of `AssemblyError.findings` under `carried_at_rest`,
-    with the route it arrived by."""
+class CarriedCoincidence:
+    """A coincidence a document BELOW this one leaves unproven, with the
+    route it arrived by: an `unproven_coincidence` finding's
+    `CheckEvidence.carried_coincidence`, as the part's own door judged it
+    over the part's own document, quiet only by the part's assertions.
+    Each part row is reported once."""
 
     @property
-    def finding(self) -> AtRestFinding:
-        """The part's own finding, said as the part holds its nodes."""
+    def finding(self) -> CheckFinding:
+        """The part's own finding, its ids and its words the part's."""
 
     @property
     def through(self) -> NodeId: ...
@@ -6265,29 +6272,24 @@ class CarriedAtRestFinding:
     @property
     def via(self) -> list[NodeId]: ...
 
-class Assembly:
-    """A validated assembly: the gathered body and its product names.
-
-    Reaching one means the kernel's at-rest door PASSED over the
-    product and the records its census minted for the touches between
-    copies."""
+class CarriedAtRestFinding:
+    """What a document BELOW this one's census could not look at, with
+    the route it arrived by: `AtRestEvidence.carried`, loud and never
+    refusing. Each part row is reported once."""
 
     @property
-    def body(self) -> Body: ...
-    @property
-    def names(self) -> list[str]: ...
-    @property
-    def interference(self) -> list[InterferenceFinding]:
-        """Every overlap between two copies' material, quiet or loud,
-        in the census's order. An overlap is reported here, never
-        raised."""
+    def finding(self) -> AtRestEvidence:
+        """The part's own evidence, said as the part holds its nodes."""
 
     @property
-    def carried_interference(self) -> list[CarriedInterference]:
-        """Every overlap a document BELOW this one reported between two
-        of its own copies, once per part row, in gather order: the
-        part's findings, reported here and never raised. An overlap
-        inside one part's copy is the part's, not this document's."""
+    def through(self) -> NodeId: ...
+    @property
+    def pin(self) -> ContentPin:
+        """Which version of `of` found it: two pins are two findings."""
+    @property
+    def of(self) -> str: ...
+    @property
+    def via(self) -> list[NodeId]: ...
 
 class FaceSite:
     """A face of a copy, as the copy's own name table spells it: the
@@ -6307,7 +6309,8 @@ class FaceSite:
         """The face's name, as opaque text."""
 
 class InterferenceFinding:
-    """An overlap of two copies' material at rest.
+    """An overlap of two copies' material at rest: an `AtRest` finding's
+    `CheckEvidence.interference`, reported and never raised.
 
     One finding per connected overlap, named by the faces of both
     copies that bound it. It is quiet only under a holding assertion
@@ -6346,25 +6349,12 @@ class InterferenceFinding:
 
     @property
     def loud(self) -> bool: ...
-
-def assemble(doc: Doc, evaluation: Evaluation) -> Assembly:
-    """The AT-REST ASSEMBLY GATE: gather the product, whose census
-    records every touch between copies, mated or not, and read the
-    census's verdict.
-
-    The check the authoring vocabulary can otherwise construct and
-    never make. `evaluation` must be an evaluation of `doc` that
-    RESOLVED — an instantiate node with no resolver produced no body,
-    so the gather refuses `root_failed` before the gate runs.
-
-    An overlap between two copies' material is not raised: it is an
-    `InterferenceFinding` on `Assembly.interference`, or, between two
-    copies of a part, the part's own finding on
-    `Assembly.carried_interference`.
-
-    Raises AssemblyError, typed. Read `variant` first: `at_rest` is the
-    census's verdict against the product, and the remaining arms
-    (`carried_at_rest`, the gather's own tags) refuse before it."""
+    @property
+    def quietable(self) -> bool:
+        """Whether an assertion the quieting rule accepts could quiet it,
+        as the rule itself answers: some holding `gap` assertion over two
+        of its bounding faces would quiet it. One no assertion could
+        quiet refuses at no severity."""
 
 # --- the recorded refactorings ----------------------------------------
 # Both are PURE: they hand back the new document VALUES plus the
@@ -6610,19 +6600,20 @@ class CheckKind:
 
 class CheckId:
     """Which check fired — the registry's closed set. `Connectedness`
-    counts a subject's components; `Separation` holds the product's
-    cross-root solid pairs to a disjointness certificate;
-    `ChartCoherence` measures, in metres, how far a curved face's
-    carriers and its vertices disagree about a chart coordinate they
-    both state; `UnprovenCoincidence` reports each coincidence a node
-    decided from values that the coincidence door does not prove
-    structural (it may still hold structurally by an argument the door
-    does not yet make)."""
+    counts a subject's components; `ChartCoherence` measures, in
+    metres, how far a curved face's carriers and its vertices disagree
+    about a chart coordinate they both state; `UnprovenCoincidence`
+    reports each coincidence a node decided from values that the
+    coincidence door does not prove structural (it may still hold
+    structurally by an argument the door does not yet make), an at-rest
+    contact between two operands of a `⊔` included; `AtRest` reports,
+    at each `⊔`, each overlap of two arrivals' material and each pair
+    its census could not look at."""
 
     Connectedness: Final[CheckId]
-    Separation: Final[CheckId]
     ChartCoherence: Final[CheckId]
     UnprovenCoincidence: Final[CheckId]
+    AtRest: Final[CheckId]
 
     @property
     def kind(self) -> CheckKind:
@@ -6646,8 +6637,9 @@ class Advisory:
 
     DS6's waiver rule is an *iff*: a check may offer `error` only if it
     ships a per-finding acknowledgment record with a staleness
-    direction. The separation resident ships none, so its refusing
-    position is not merely discouraged, it is UNSPELLABLE."""
+    direction. The chart-coherence and unproven-coincidence residents
+    ship none, so their refusing position is not merely discouraged, it
+    is UNSPELLABLE."""
 
     Off: Final[Advisory]
     Warn: Final[Advisory]
@@ -6663,10 +6655,12 @@ class ChecksConfig:
     `SplitOutcome.node_map` spelling); a subject stated twice is
     refused rather than silently resolved last-wins.
 
-    Three of the knobs are `Advisory` rather than `Severity`, which is
-    DS6's waiver rule made static: none of `separation`,
-    `chart_coherence` and `unproven_coincidence` can be set to
-    `Severity.Error`.
+    Two of the knobs are `Advisory` rather than `Severity`, which is
+    DS6's waiver rule made static: neither `chart_coherence` nor
+    `unproven_coincidence` can be set to `Severity.Error`. `at_rest` is
+    a `Severity`, because an assertion quiets every interference the
+    kernel can bound; at `Error`, `enforce_checks` refuses a loud
+    interference and nothing else the check reports.
 
     `chart_coherence` is `Advisory.Off` by default — the one resident
     not in the default pass. It reads every face of every rest body,
@@ -6678,18 +6672,18 @@ class ChecksConfig:
         self,
         connectedness: Severity = ...,
         expected_components: Optional[list[tuple[NodeId, int, int]]] = None,
-        separation: Advisory = ...,
         chart_coherence: Advisory = ...,
         unproven_coincidence: Advisory = ...,
+        at_rest: Severity = ...,
     ) -> None: ...
     @property
     def connectedness(self) -> Severity: ...
     @property
-    def separation(self) -> Advisory: ...
-    @property
     def chart_coherence(self) -> Advisory: ...
     @property
     def unproven_coincidence(self) -> Advisory: ...
+    @property
+    def at_rest(self) -> Severity: ...
     @property
     def expected_components(self) -> list[tuple[NodeId, int, int]]:
         """The stated expectations, ascending by subject."""
@@ -6718,14 +6712,7 @@ class CheckEvidence:
     read; `reason` and `inner_variant` are the validator's first finding,
     in `ValidationError`'s vocabulary.
     `stale_expectation` (`expected`) — an
-    expectation no subject consumed. `not_separated` (`other_root`,
-    `other_output`) — a pair the box certificate could not prove apart,
-    which is a fact about the CERTIFICATE and never a claim that the
-    two overlap. `separation_unavailable` (`reason`,
-    `boolean_variant`) — the machinery could not be built over the
-    product, so there is no verdict for any pair, and
-    `boolean_variant` is which kernel boolean refusal that was, in the
-    vocabulary `EvaluationError.inner_kind` publishes.
+    expectation no subject consumed.
 
     `chart_coherence` (`chart_variant`, `metres`, `gap`, `lever`,
     `eps`) — a curved face's carriers and its vertices state one chart
@@ -6742,12 +6729,24 @@ class CheckEvidence:
     `unproven_coincidence` (`relation`, `site`, `reason`, the row as
     `coincidence`, and `restated`) — a node decided a coincidence of
     its cells from values and the coincidence door does not prove it
-    structural. `reason` says what separates the constructions, or why
+    structural. `carried_coincidence` (the part's finding as
+    `carried_coincidence`) — a part leaves a coincidence of its own
+    unproven, as its own door judged it over its own document, quiet
+    only by its own assertions; the finding shows at the instance it
+    came through. `reason` says what separates the constructions, or why
     a cell's could not be read. `restated` lists a union's fold-step
     rows decided at a member vertex this row names, reported with it.
     A `profile_junction` row's `relation` is `tangent` or `cusp`
     between two carriers and `same_oriented` on one. A report, never a
-    refusal."""
+    refusal.
+
+    The at-rest check's three: `interference` (the overlap as
+    `interference`) — two arrivals of one `⊔` whose material overlaps,
+    quiet or loud; `carried_interference` (the part's row as
+    `carried_interference`) — an overlap a part reported between two of
+    its own arrivals, as the part judged it; `at_rest` (`at_rest_variant`,
+    `reason`, `inner_variant`, the evidence whole as `at_rest`) — a pair
+    the census could not look at, loud and refusing at no severity."""
 
     @property
     def variant(self) -> str: ...
@@ -6756,15 +6755,11 @@ class CheckEvidence:
     @property
     def expected(self) -> Optional[int]: ...
     @property
-    def other_root(self) -> Optional[NodeId]: ...
-    @property
-    def other_output(self) -> Optional[int]: ...
-    @property
     def reason(self) -> Optional[str]: ...
     @property
     def inner_variant(self) -> Optional[str]: ...
     @property
-    def boolean_variant(self) -> Optional[str]: ...
+    def at_rest_variant(self) -> Optional[str]: ...
     @property
     def chart_variant(self) -> Optional[str]: ...
     @property
@@ -6783,6 +6778,14 @@ class CheckEvidence:
     def coincidence(self) -> Optional[Coincidence]: ...
     @property
     def restated(self) -> Optional[list[Coincidence]]: ...
+    @property
+    def interference(self) -> Optional[InterferenceFinding]: ...
+    @property
+    def carried_interference(self) -> Optional[CarriedInterference]: ...
+    @property
+    def carried_coincidence(self) -> Optional[CarriedCoincidence]: ...
+    @property
+    def at_rest(self) -> Optional[AtRestEvidence]: ...
     def __eq__(self, other: object) -> bool: ...
 
 class Coincidence:
@@ -6832,9 +6835,11 @@ class CheckFinding:
     """One finding of one check on one subject: a copy a placement
     defines, attributed as `(root, output_ix)` with `root` the placement,
     a node of the document (`node`) — the node that decided an unproven
-    coincidence — or two copies the at-rest census found touching with
-    no mate between them (`copies`). Whichever it is not answers
-    `None`.
+    coincidence — two copies the at-rest census found touching with no
+    mate between them (`copies`), or the body a census at rest was
+    taken over (`census`: a `⊔`'s output, or the body the product slot
+    reads), which every `AtRest` finding is about. Whichever it is not
+    answers `None`.
 
     A REPORT about geometry, not a verdict on the program: holding one
     changes nothing. `subject_body` resolves the attribution back to
@@ -6849,16 +6854,21 @@ class CheckFinding:
     def check(self) -> CheckId: ...
     @property
     def root(self) -> NodeId | None:
-        """The root whose value carries the subject body; `None` for a
-        finding about a node or two copies."""
+        """The root whose value carries the subject body; `None` for
+        any other subject."""
     @property
     def output_ix(self) -> int | None:
-        """Which output body of that root; `None` for a finding about a
-        node or two copies."""
+        """Which output body of that root; `None` for any other
+        subject."""
     @property
     def node(self) -> NodeId | None:
-        """The node the finding is about, root or not; `None` for a
-        finding about a root output or two copies."""
+        """The node the finding is about, root or not; `None` for any
+        other subject."""
+    @property
+    def census(self) -> Var | None:
+        """The body a census at rest was taken over, by the read it is
+        (a `⊔`'s output, or the body the product slot reads); `None` for
+        any other subject."""
     @property
     def copies(self) -> tuple[tuple[Var, int], tuple[Var, int]] | None:
         """The two copies the finding is about, earlier in gather order
@@ -6867,6 +6877,14 @@ class CheckFinding:
         subject."""
     @property
     def evidence(self) -> CheckEvidence: ...
+    @property
+    def quiet(self) -> NodeId | None:
+        """The assertion that quiets it, or `None` when it is loud. A
+        quiet finding is listed, naming its assertion, so "checked and
+        intended" stays distinct from "not checked"; `enforce_checks`
+        never refuses it. A part's carried finding names the part's own
+        assertion, an id in the part's document (`CarriedInterference.of`,
+        `CarriedCoincidence.of`)."""
     def __eq__(self, other: object) -> bool: ...
 
 class ChecksReport:
@@ -6927,12 +6945,12 @@ def enforce_checks(
     Consumes a FINISHED report — evaluates nothing, checks nothing
     further, changes nothing. The caller chooses where to gate, and
     this is the door that lets them. Under the default configuration
-    it can never refuse: no resident defaults to `Error` and the
-    separation resident cannot be set to it at all. A program that
-    gates does so because it SAID so.
+    it can never refuse: no resident defaults to `Error`. A finding an
+    assertion quiets never refuses, nor does one the at-rest check
+    could not look at. A program that gates does so because it SAID so.
 
-    Raises CheckRefusal, carrying `findings` — every `Error`-severity
-    finding in report order."""
+    Raises CheckRefusal, carrying `findings` — every refusing finding
+    in report order."""
 
 def subject_body(
     evaluation: Evaluation, root: NodeId, output_ix: int

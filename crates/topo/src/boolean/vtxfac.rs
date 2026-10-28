@@ -1355,7 +1355,14 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             (Some(plane), Some(branch)) => (pierce_germ_dir(s, plane.vec(), out, band)?, branch),
             _ => (
                 pierce_germ_dir(s, n_pierced.vec(), out, band)?,
-                germ_branch((&*piercing_body, pierced_body), piercing, cells, p, band)?,
+                germ_branch(
+                    &declared.sections,
+                    (&*piercing_body, pierced_body),
+                    piercing,
+                    cells,
+                    p,
+                    band,
+                )?,
             ),
         };
         Ok((cells, dir, branch))
@@ -2138,6 +2145,7 @@ pub(super) struct HeldPierce<T: geom_core::Real> {
 /// point lies in the pierced face's tangent plane, which a valid operand
 /// cannot reach.
 pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
+    sections: &super::section_table::SectionTable<T>,
     piercing_body: &mut Body<T>,
     pierced_body: &Body<T>,
     box_holds: &dyn Fn(crate::entity::FaceKey, geom_core::Point3<T>) -> bool,
@@ -2148,7 +2156,14 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
     let mut reads: Vec<HeldRead<T>> = Vec::new();
     let mut escalated = None;
     for plan in plans {
-        for read in held_reads(&*piercing_body, pierced_body, box_holds, plan, band)? {
+        for read in held_reads(
+            sections,
+            &*piercing_body,
+            pierced_body,
+            box_holds,
+            plan,
+            band,
+        )? {
             match read {
                 // Two pierces of one face at one point would mint two ring
                 // vertices there. No row reaches the pose, so no answer
@@ -2228,6 +2243,7 @@ struct HeldRead<T: geom_core::Real> {
 /// face of `piercing_body`, writing nothing: each face that holds the
 /// point, or that refuses. The outer error is the plan's own.
 fn held_reads<T: Decide + crate::props::AtRestPolicy>(
+    sections: &super::section_table::SectionTable<T>,
     piercing_body: &Body<T>,
     pierced_body: &Body<T>,
     box_holds: &dyn Fn(crate::entity::FaceKey, geom_core::Point3<T>) -> bool,
@@ -2458,7 +2474,14 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
             dir: int.normalize(),
             arm,
             cells,
-            branch: germ_branch((piercing_body, pierced_body), piercing, cells, p, band)?,
+            branch: germ_branch(
+                sections,
+                (piercing_body, pierced_body),
+                piercing,
+                cells,
+                p,
+                band,
+            )?,
             on,
         }))
     };
@@ -2862,6 +2885,7 @@ type Germ<T> = (
 /// A pierce germ's branch ([`super::join::germ_branch`]), read at the
 /// pierce point `p` with the piercing and pierced bodies in that order.
 fn germ_branch<T: Decide>(
+    sections: &super::section_table::SectionTable<T>,
     (piercing_body, pierced_body): (&Body<T>, &Body<T>),
     piercing: Operand,
     (faces, loci): (
@@ -2875,7 +2899,7 @@ fn germ_branch<T: Decide>(
         Operand::A => (piercing_body, pierced_body),
         Operand::B => (pierced_body, piercing_body),
     };
-    super::join::germ_branch((a, faces.0), (b, faces.1), loci, p, band)
+    super::join::germ_branch(sections, (a, faces.0), (b, faces.1), loci, p, band)
 }
 
 fn half_germ<T: geom_core::Real>(
@@ -3568,7 +3592,7 @@ mod tests {
             u_ref: -z,
         };
         let span = core::f64::consts::FRAC_PI_2;
-        let extent = geom_brep::edge_extent(&arc, 0.0, span, 2f64.sqrt());
+        let extent = geom_brep::edge_extent_inf(&arc, 0.0, span, 2f64.sqrt());
         let bend = ConicBend::of(&arc, arc.deriv(0.0), arc.deriv2(0.0), span);
         let partner = [BoolSector {
             he: HalfEdgeKey::default(),

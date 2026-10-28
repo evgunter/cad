@@ -80,6 +80,7 @@ impl Steep {
             |k| self.surfaces.get(k).cloned(),
             1.0,
             band,
+            geom_brep::NurbsLane::certified(),
         )
     }
 }
@@ -95,7 +96,7 @@ enum Out {
 
 fn classify(got: &Result<EdgeCurve<f64>, CertifyError>) -> Out {
     match got {
-        Ok(e) => match e.certificate().turn.map(|t| t.turn()) {
+        Ok(e) => match e.turn().copied().map(|t| t.turn()) {
             Some(Within::Short) => Out::Short,
             Some(Within::Whole) => Out::Whole,
             None => panic!("a certified ellipse with no turn"),
@@ -292,8 +293,9 @@ fn r1_spiric_whole_ovals_certify_whole() {
                 |k| surfaces.get(k).cloned(),
                 1.0,
                 band,
+                geom_brep::NurbsLane::certified(),
             );
-            let turn = got.as_ref().ok().and_then(|e| e.certificate().turn);
+            let turn = got.as_ref().ok().and_then(|e| e.turn().copied());
             assert_eq!(
                 turn.map(|t| t.turn()),
                 Some(Within::Whole),

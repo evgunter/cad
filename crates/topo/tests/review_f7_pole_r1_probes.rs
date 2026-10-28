@@ -31,12 +31,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use topo::construction::Construct;
 
 use common::{brick, finished, plant_ring_face, prism_z};
 use geom_core::Tol;
+use topo::construction::{FaceSurface, MefSite, MekrSite, MevSite};
 use topo::{
-    AtRestBody, Body, BooleanError, BooleanOp, FaceSurface, MefSite, MekrSite, MevSite,
-    ValidationError, boolean_reduce, validate_closed,
+    AtRestBody, Body, BooleanError, BooleanOp, ValidationError, boolean_reduce, validate_closed,
 };
 
 /// A brick far away from every fixture, so `gate_operand_pairs`' boxes

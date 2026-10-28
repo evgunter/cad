@@ -23,7 +23,7 @@ use editor_core::{
     CancelToken, ContentPin, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation,
     Frame, Node, NodeErrorKind, NodeResult, PartFault, PartResolver, ProductErrorKind, ProfileDoc,
     RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, StableName, content_pin, evaluate, load,
-    product, product_named, save,
+    product_named, save,
 };
 use fixture::{insert, len, on_frame, scl, square, step};
 use geom_core::Tol;
@@ -229,9 +229,9 @@ fn placed_nominally(doc: ProfileDoc, body: RecipeNodeId) -> (ProfileDoc, RecipeN
 }
 
 /// The one product body an instance's copies carry.
-fn copies_body(ev: &Evaluation<f64>, node: RecipeNodeId) -> &topo::Body<f64> {
+fn copies_body(ev: &Evaluation<f64>, node: RecipeNodeId) -> topo::Body<f64> {
     match ev.value(node).map(|v| &v.payload) {
-        Some(editor_core::ValuePayload::Body(b)) => b,
+        Some(editor_core::ValuePayload::Body(b)) => fixture::in_space(b),
         other => panic!("an instance's value is its part's product body, got {other:?}"),
     }
 }
@@ -293,13 +293,14 @@ fn row1_two_instances_gather_into_a_two_solid_product() {
     let doc = repinned(doc, ids[1], &Frame::translation([5.0, 0.0, 0.0]), &opts);
 
     let ev = run(&doc, &opts);
-    let body = product(&doc, &ev, Tol::witness()).expect("the product gathers");
+    let body = fixture::product_in_world(&doc, &ev, Tol::witness()).expect("the product gathers");
     assert_eq!(body.solids().count(), 2, "one solid per instance");
 
     // The part's own product, for the volume comparison.
     let part_doc = part("asm2a-r1-part", 0.0, 1.0);
     let part_ev = run(&part_doc, &EvalOptions::default());
-    let part_body = product(&part_doc, &part_ev, Tol::witness()).expect("the part's product");
+    let part_body =
+        fixture::product_in_world(&part_doc, &part_ev, Tol::witness()).expect("the part's product");
     // The second copy's pin is read off its geometry and composed
     // through world turns, so its rotation is the identity only to
     // rounding: the volume is twice the part's to a few ulps.
@@ -312,13 +313,14 @@ fn row1_two_instances_gather_into_a_two_solid_product() {
     // Solid order IS root order: the first root's solid sits at x = 0,
     // the second's at x = 5.
     let ev2 = run(&doc, &opts);
-    let body2 = product(&doc, &ev2, Tol::witness()).expect("the product gathers again");
+    let body2 =
+        fixture::product_in_world(&doc, &ev2, Tol::witness()).expect("the product gathers again");
     assert_eq!(
         volume(&body).to_bits(),
         volume(&body2).to_bits(),
         "two evaluations agree bit for bit (D9)"
     );
-    let placed_x = |node: RecipeNodeId| min_x(copies_body(&ev, node));
+    let placed_x = |node: RecipeNodeId| min_x(&copies_body(&ev, node));
     assert!((placed_x(ids[0]) + 0.5).abs() < 1e-12);
     assert!((placed_x(ids[1]) - 4.5).abs() < 1e-12);
 }
@@ -341,7 +343,7 @@ fn row2_one_part_two_instances_one_evaluation() {
         "three instances of one part evaluate it once"
     );
     assert_eq!(
-        product(&doc, &ev, Tol::witness())
+        fixture::product_in_world(&doc, &ev, Tol::witness())
             .expect("gathers")
             .solids()
             .count(),
@@ -364,10 +366,9 @@ fn row2_one_part_two_instances_one_evaluation() {
 /// same at every instance of the part.** The part is evaluated once,
 /// under a shielding bracket, before any node runs; both instances'
 /// frames must come back holding exactly the instantiate op's own
-/// decisions — the
-/// placement and the geometric validation of the placed body — which
-/// is what "the verdicts a node's op produced" means when the op's
-/// work includes another document: that document's decisions are
+/// decisions — none, since a copy shares the part's product body —
+/// which is what "the verdicts a node's op produced" means when the
+/// op's work includes another document: that document's decisions are
 /// recorded on ITS nodes, in the nested evaluation, and never in the
 /// instantiator's frame.
 ///
@@ -405,13 +406,6 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
         .filter_map(NodeResult::value)
         .map(|v| v.verdicts.len())
         .sum();
-    assert!(
-        !first.is_empty(),
-        "the instance that ran the part records its own op's decisions: {} verdicts at the \
-         first instance, {} at the second, {direct_total} on the part evaluated directly",
-        first.len(),
-        second.len()
-    );
     assert_eq!(
         first,
         second,
@@ -420,17 +414,25 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
         second.len()
     );
     // The counts are literals on purpose: a row that only compares the
-    // two instances passes when both lose the same decisions. 456 is
-    // the placing op's own log on this part: its pin, values on the
-    // world's axes composed as a motion (reading no pose and deciding no
-    // margin), then placement and
-    // validation of the placed body; 826 is the part's, on its own
-    // nodes — its profile's pre-pass on the Profile node's log, then
-    // what the second pass the `f64` lane skips decides, logged in its
-    // place (`editor_core::ProfileLane`). Its placement's stand is the
+    // two instances passes when both gain the same decisions. A copy
+    // shares the part's product body under its own frame, so the
+    // placing op builds nothing and decides nothing: its pin is values
+    // on the world's axes composed as a motion, reading no pose and
+    // deciding no margin. 826 is the part's, on its own nodes — its
+    // profile's pre-pass on the Profile node's log, then what the second
+    // pass the `f64` lane skips decides, logged in its place
+    // (`editor_core::ProfileLane`). Its placement's stand is the
     // identity bundle, placed by no map, which decides nothing.
-    assert_eq!(first.len(), 456, "the instantiate op's own decisions");
-    assert_eq!(direct_total, 826, "the part's decisions on its own nodes");
+    // Each validation of the part's own box re-certifies its edges,
+    // where limb 2's distance bound (`ssi_hull_sup`, C2) adds 24 = 12 box
+    // edges × 2 operands: 826 → 850 on the part. The copy is validated by
+    // no one, so main's matching +24 on the placing op does not arise.
+    assert_eq!(
+        first.len(),
+        0,
+        "the instantiate op decides nothing; the part's {direct_total} decisions are its own"
+    );
+    assert_eq!(direct_total, 850, "the part's decisions on its own nodes");
 }
 
 // ---- Row 3: instance-qualified naming ----
@@ -549,7 +551,7 @@ fn row4_the_world_pin_moves_undoes_and_refuses() {
     assert!(held.is_some(), "the instance is pinned to the world");
 
     let before = run(&doc, &opts);
-    let before_body = product(&doc, &before, Tol::witness()).expect("gathers");
+    let before_body = fixture::product_in_world(&doc, &before, Tol::witness()).expect("gathers");
     let moved = repinned(
         doc.clone(),
         ids[0],
@@ -562,7 +564,7 @@ fn row4_the_world_pin_moves_undoes_and_refuses() {
         "the pin moves to the new pose"
     );
     let after = run(&moved, &opts);
-    let after_body = product(&moved, &after, Tol::witness()).expect("gathers");
+    let after_body = fixture::product_in_world(&moved, &after, Tol::witness()).expect("gathers");
     // A pin away from the identity is composed through world turns, so
     // it is rigid to rounding: the volume holds to a few ulps.
     let (b, a) = (volume(&before_body), volume(&after_body));
@@ -700,13 +702,14 @@ fn row5d_multi_solid_part_instantiates_since_asm_2b() {
         ),
         other => panic!("a multi-solid part instantiates since ASM-2B, got {other:?}"),
     }
-    let body = product(&doc, &ev, Tol::witness()).expect("the product gathers");
+    let body = fixture::product_in_world(&doc, &ev, Tol::witness()).expect("the product gathers");
     assert_eq!(body.solids().count(), 2);
 
     // The part's own product, for the volume comparison: one instance
     // at identity is the part, bit for bit.
     let part_ev = run(&part_doc, &EvalOptions::default());
-    let part_body = product(&part_doc, &part_ev, Tol::witness()).expect("the part's product");
+    let part_body =
+        fixture::product_in_world(&part_doc, &part_ev, Tol::witness()).expect("the part's product");
     assert_eq!(
         volume(&body).to_bits(),
         volume(&part_body).to_bits(),
@@ -778,7 +781,7 @@ fn row6_placement_is_part_of_the_content_key() {
         (1, 0),
         "the cold run evaluates the part; a pose edit takes it from the prior"
     );
-    let body = product(&moved, &second, Tol::witness()).expect("gathers");
+    let body = fixture::product_in_world(&moved, &second, Tol::witness()).expect("gathers");
     assert!((min_x(&body) - 3.5).abs() < 1e-12);
 
     // And a re-evaluation with NO edit reuses — and asks the seam
@@ -905,7 +908,7 @@ fn row7_instantiate_and_placement_round_trip() {
 fn the_named_gather_agrees_with_the_plain_one() {
     let doc = part("asm2a-gather", 0.0, 1.0);
     let ev = run(&doc, &EvalOptions::default());
-    let plain = product(&doc, &ev, Tol::witness()).expect("gathers");
+    let plain = fixture::product_in_world(&doc, &ev, Tol::witness()).expect("gathers");
     let (named, table) = product_named(&doc, &ev, Tol::witness()).expect("gathers with names");
     assert_eq!(volume(&plain).to_bits(), volume(&named).to_bits());
     let entities = named.faces().count() + named.edges().count() + named.vertices().count();
@@ -1441,7 +1444,8 @@ fn r1_both_sweep_strategies_agree_on_a_part_carrying_a_boolean() {
             };
             let (doc, _) = placed_assembly("asm2a-sweep-asm", &[doc_ref], &opts);
             let ev = run(&doc, &opts);
-            let body = product(&doc, &ev, Tol::witness()).expect("the product gathers");
+            let body =
+                fixture::product_in_world(&doc, &ev, Tol::witness()).expect("the product gathers");
             volume(&body).to_bits()
         })
         .collect();

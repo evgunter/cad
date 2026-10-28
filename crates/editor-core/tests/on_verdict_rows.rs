@@ -94,13 +94,13 @@ fn answer(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<(f64, usize, Boolean
                 "the measured body",
                 &topo::test_support::finished(
                     "the measured body",
-                    topo::Body::clone(&**body),
+                    topo::Body::clone(body.body()),
                     Tol::witness(),
                 ),
                 Tol::witness(),
             )
             .volume;
-            Some((volume, body.shells().count(), *kind))
+            Some((volume, body.body().shells().count(), *kind))
         }
         other => panic!("node {} is a {}, not a boolean", id.0, other.kind_name()),
     }
@@ -182,7 +182,7 @@ fn two_parts_of_one_copy_answer_under_every_op() {
     let copy = topo::mass_properties(
         &topo::test_support::finished(
             "the measured body",
-            topo::Body::clone(crate::corpus::body_of(&ev, union)),
+            topo::Body::clone(&(crate::corpus::body_of(&ev, union))),
             Tol::witness(),
         ),
         Tol::witness(),

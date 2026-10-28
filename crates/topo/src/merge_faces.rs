@@ -138,7 +138,7 @@ pub struct SkippedMerge {
 pub struct MergeCoplanarOutcome {
     /// The merged runs, in group order (first face's arena order).
     pub groups: Vec<MergedGroup>,
-    /// The joins the public doors end with ([`Body::join_edges`]), in
+    /// The joins the public doors end with ([`Body::join_edges`](crate::construction::Construct::join_edges)), in
     /// the order made, on the merged body: each killed `vertex` and
     /// `gone` edge, and the `kept` edge that holds them. Empty from the
     /// boolean's own merge, which joins in its output stage.
@@ -535,7 +535,7 @@ pub enum MergeCoplanarError {
         /// The mint pass's typed refusal.
         source: crate::pcurves::PcurveMintError,
     },
-    /// The join the public merge door ends with ([`Body::join_edges`])
+    /// The join the public merge door ends with ([`Body::join_edges`](crate::construction::Construct::join_edges))
     /// refused on the merged body: a reading in the band, a carrier the
     /// joined edge cannot be run on, or the kill's own refusal. The
     /// body is untouched, exactly as on every other variant.
@@ -628,6 +628,15 @@ pub enum EdgeDescribeFailure {
     /// Its curve does not certify as the pair its two faces'
     /// surfaces under-determine (incidence on both).
     Pair,
+    /// A spline face it bounds has no one normal where its dihedral is
+    /// read: the point lies on a crease of the face's chart, on the line
+    /// where a closed chart's two ends meet, or on a point where the
+    /// chart's normal vanishes ([`geom_brep::SeamEscalation::Crease`]).
+    Crease,
+    /// A spline face it bounds has no image of it in its chart to read
+    /// the face's normal at: [`crate::pcurves::pcurve_of`] derives none, or
+    /// it is a null edge, which has no carrier.
+    Unplaced,
 }
 
 impl EdgeDescribeFailure {
@@ -641,6 +650,15 @@ impl EdgeDescribeFailure {
             Self::Tangency => "its two faces' tangency does not certify on its curve",
             Self::Chart => "its curve does not certify as an image in its face's chart",
             Self::Pair => "its curve does not certify as lying on both its faces' surfaces",
+            Self::Crease => {
+                "it meets a crease, a closed seam or a pinch in the parameterization of a \
+                 spline face it bounds, where that face has no single direction to read the \
+                 angle between its faces by"
+            }
+            Self::Unplaced => {
+                "it has no image in the parameterization of a spline face it bounds to read \
+                 that face's direction at"
+            }
         }
     }
 }
@@ -733,13 +751,14 @@ pub(crate) fn edge_on_plane_refusal(diag: &Indeterminate) -> String {
 /// line carrier. A line is the chord between those vertices, so its miss
 /// is their offset plus a few ulp of coordinates, within the share of
 /// the band K's headroom presumes (`crate::validate::resolved`'s
-/// premise). A circle, ellipse, spiric or spline is a construction from
-/// the surfaces, whose own error can be amplified into the band (an
-/// ellipse nearly along a cylinder's axis carries its semi-major axis's
-/// rounding): at these doors it keeps the gate's refusal, as does every
-/// other check and a definite miss. The join reads a section conic's
-/// pins against its carrier's resolution instead
-/// (`chord_join::section_pin_refusal`).
+/// premise). Limb 2's bound of a line against a plane is that residual
+/// over the whole span where it lies far above the net's own rounding:
+/// the composite is linear, so the bound is attained at an end, and limb
+/// 2 decides it as a measured value
+/// (`geom_brep::AnalyticRung3Refusal::Escalated` on its `HullValue`
+/// limb), which reads as the input's like the sampled one. Within the
+/// rounding it stays the kernel's limit
+/// (`geom_brep::AnalyticRung3Refusal::KernelLimit`), a kilometre chord's.
 pub(crate) fn edge_on_faces_reading(
     carrier: geom::CurveKind,
     refusal: &EulerOpError,
@@ -758,6 +777,14 @@ pub(crate) fn edge_on_faces_reading(
                 cause,
                 ..
             },
+        ) => Some(*cause),
+        (
+            geom::CurveKind::Line,
+            geom_brep::CertifyError::AnalyticRung3(geom_brep::AnalyticRung3Refusal::Escalated {
+                operand: Some(geom::SurfaceKind::Plane),
+                limb: geom_brep::Rung3Limb::HullValue,
+                cause,
+            }),
         ) => Some(*cause),
         _ => None,
     }
@@ -1695,7 +1722,6 @@ impl OpPlacement {
             E::SameFace { .. }
             | E::Certification { .. }
             | E::RebasedCarrier { .. }
-            | E::NurbsLaneUnsupported { .. }
             | E::RebasedNullEdge { .. }
             | E::MergeRebasesCarriers { .. }
             | E::NotMergedMember { .. }
@@ -1970,7 +1996,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// was — never a partial commit, and the unglued curved adjacency
     /// persists in the cut-carrying form the operands already carried.
     ///
-    /// The door ends with the join ([`Body::join_edges`], recorded in
+    /// The door ends with the join ([`Body::join_edges`](crate::construction::Construct::join_edges), recorded in
     /// [`MergeCoplanarOutcome::joins`]), so the body it leaves has
     /// maximal faces and maximal edges (`docs/DESIGN.md`, maximal
     /// edges); a body with nothing to merge is still joined.
@@ -3532,7 +3558,7 @@ mod tests {
         describe_shared_key(&mut body);
         let ring = body.get_face(top).expect("live").rings[0];
         body.mekr_chord(
-            crate::MekrSite::Cycles {
+            crate::construction::MekrSite::Cycles {
                 target: outer_he_at(&body, top, [0.0, 0.0, 1.0]),
                 ring: loop_he_at(&body, ring, [0.25, 0.25, 1.0]),
             },
@@ -3541,7 +3567,7 @@ mod tests {
         .expect("the bridge joins the ring to the outline");
         let half = body
             .mef_chord(
-                crate::MefSite::Chords {
+                crate::construction::MefSite::Chords {
                     he1: outer_he_at(&body, top, [1.0, 1.0, 1.0]),
                     he2: outer_he_at(&body, top, [0.75, 0.75, 1.0]),
                 },

@@ -271,6 +271,16 @@ type Run = (&'static str, Result<BooleanResult<f64>, BooleanError>, f64);
 /// where the closed form is more than a sliver ε thick over the
 /// operands' faces.
 fn check_pose((name, edge, a, d): (&str, usize, f64, f64), tol: Tol) -> (Vec<String>, usize) {
+    let (wrong, built, _) = check_pose_refusals((name, edge, a, d), tol);
+    (wrong, built)
+}
+
+/// [`check_pose`], with each run that refused: its op and the refusal's
+/// `Debug`.
+fn check_pose_refusals(
+    (name, edge, a, d): (&str, usize, f64, f64),
+    tol: Tol,
+) -> (Vec<String>, usize, Vec<(&'static str, String)>) {
     let prisms = nt_prisms();
     let pr = prisms
         .iter()
@@ -308,7 +318,7 @@ fn check_pose((name, edge, a, d): (&str, usize, f64, f64), tol: Tol) -> (Vec<Str
             vb - common,
         ),
     ];
-    let (mut wrong, mut built) = (Vec::new(), 0);
+    let (mut wrong, mut built, mut refused) = (Vec::new(), 0, Vec::new());
     for (op, r, want) in runs {
         let tag = format!("{name} nt e{edge} a{a} d{d:e}, {op}");
         let pinned = SHIPS_A_FINDING
@@ -322,6 +332,7 @@ fn check_pose((name, edge, a, d): (&str, usize, f64, f64), tol: Tol) -> (Vec<Str
                 if topo::test_support::offer_key(e).1 {
                     wrong.push(format!("{tag}: a kernel defect: {e:?}"));
                 }
+                refused.push((op, format!("{e:?}")));
                 continue;
             }
             Ok(res) => res.body(),
@@ -398,7 +409,7 @@ fn check_pose((name, edge, a, d): (&str, usize, f64, f64), tol: Tol) -> (Vec<Str
             _ => {}
         }
     }
-    (wrong, built)
+    (wrong, built, refused)
 }
 
 #[test]
@@ -455,20 +466,120 @@ const UNREAD: &str = "UNREAD ";
 /// ε not listed.
 const UNREADS: &[(f64, usize)] = &[(1e-9, 2), (1e-6, 2), (1e-12, 3)];
 
+/// A pose: `(prism, edge, sixteenths, tilt)`.
+type Pose = (&'static str, usize, f64, f64);
+
+/// The poses' runs pinned to refuse on limb 2's measured in-band
+/// escalation, by ε: on the zero band's edge (`|d| = ε`), the
+/// [`EDGE_ON_FACES`] class — the section edge from the pierce to the far
+/// vertex measures its end one rounding past the band (about `ε + 2e-16`
+/// m at ε = 1e-9), in certification arithmetic, so limb 2 escalates on
+/// that measured value (`Escalated` on `HullValue`, which the boolean
+/// refuses as `Escalated` on `EdgeOnFaces`), the input ambiguous
+/// at this ε. No other run of these poses refuses on it.
+const BAND_EDGE_RUNS: &[(f64, Pose, &[&str])] = &[
+    (
+        1e-9,
+        ("Lmirror", 0, 12.0, -1e-9),
+        &["prism ∪ cube", "cube ∩ prism", "prism ∖ cube"],
+    ),
+    (
+        1e-9,
+        ("Ltop", 0, 12.0, -1e-9),
+        &["prism ∪ cube", "cube ∩ prism", "prism ∖ cube"],
+    ),
+    (
+        1e-9,
+        ("Ltop", 0, 12.0, 1e-9),
+        &["prism ∪ cube", "cube ∩ prism", "prism ∖ cube"],
+    ),
+    (
+        1e-6,
+        ("Lmirror", 1, 0.0, -1e-6),
+        &[
+            "prism ∪ cube",
+            "prism ∩ cube",
+            "cube ∩ prism",
+            "prism ∖ cube",
+            "cube ∖ prism",
+        ],
+    ),
+    (
+        1e-6,
+        ("Ltop", 0, 12.0, -1e-6),
+        &[
+            "prism ∪ cube",
+            "cube ∪ prism",
+            "cube ∩ prism",
+            "prism ∖ cube",
+        ],
+    ),
+];
+
+/// Whether a run's refusal is limb 2's measured in-band escalation as
+/// the boolean reads it: `Escalated` on [`BooleanDecision::EdgeOnFaces`],
+/// decided by limb 2's value predicate (`ssi_hull_value`) — the section
+/// edge's end measured in the ambiguity band or straddling its edge.
+fn measured_in_band(refusal: &str) -> bool {
+    refusal.contains("Escalated { decision: EdgeOnFaces")
+        && refusal.contains("predicate: Some(\"ssi_hull_value\")")
+}
+
+/// **The band-edge runs escalate on the measured value**
+/// ([`BAND_EDGE_RUNS`]): at their ε each pinned pose's runs that refuse
+/// on limb 2's measured value ([`measured_in_band`]) are exactly the pinned ones,
+/// and none of them reads as the kernel's limit.
+#[test]
+fn the_band_edge_runs_escalate_on_the_measured_value() {
+    let tol = Tol::witness();
+    for (eps, pose, ops) in BAND_EDGE_RUNS {
+        if (tol.eps() - eps).abs() > eps * 1e-9 {
+            continue;
+        }
+        let (_, _, refused) = check_pose_refusals(*pose, tol);
+        let in_band: Vec<&str> = refused
+            .iter()
+            .filter(|(_, e)| measured_in_band(e))
+            .map(|(op, _)| *op)
+            .collect();
+        assert_eq!(&in_band, ops, "{pose:?} at ε = {eps:e}: {refused:#?}");
+        for (op, e) in &refused {
+            assert!(
+                !test_utils::kernel_limit::is_kernel_limit(e),
+                "{pose:?}, {op}: a band-edge run read as the kernel's limit: {e}"
+            );
+        }
+    }
+}
+
+/// **The germ witnesses build every run**, but for the band-edge runs
+/// [`BAND_EDGE_RUNS`] pins, which refuse as the input's measured in-band
+/// escalation and as nothing else.
 #[test]
 fn the_pierce_germs_witnesses_build_every_run() {
     let tol = Tol::witness();
     for pose in GERM_WITNESSES {
-        let (wrong, built) = check_pose(pose, tol);
+        let (wrong, built, refused) = check_pose_refusals(pose, tol);
         let wrong: Vec<_> = wrong
             .into_iter()
             .filter(|l| !l.starts_with(UNREAD))
             .collect();
+        let pinned: &[&str] = BAND_EDGE_RUNS
+            .iter()
+            .find(|(eps, p, _)| *p == pose && (tol.eps() - eps).abs() <= eps * 1e-9)
+            .map_or(&[], |(_, _, ops)| ops);
+        let ops: Vec<&str> = refused.iter().map(|(op, _)| *op).collect();
         assert!(
-            wrong.is_empty() && built == 6,
-            "{pose:?}: {built} of 6 built:\n{}",
+            wrong.is_empty() && built == 6 - pinned.len() && ops == pinned,
+            "{pose:?}: {built} of 6 built, refused {ops:?}, pinned {pinned:?}:\n{}",
             wrong.join("\n")
         );
+        for (op, e) in &refused {
+            assert!(
+                measured_in_band(e),
+                "{pose:?}, {op}: pinned to the measured in-band escalation, got {e}"
+            );
+        }
     }
 }
 

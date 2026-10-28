@@ -55,7 +55,7 @@ fn die_fillet_evaluates_green_and_meters_the_closed_form() {
 
     let body = topo::test_support::finished(
         "body",
-        topo::Body::clone(body_of(&ev, d.result.expect("the blank is the head"))),
+        topo::Body::clone(&(body_of(&ev, d.result.expect("the blank is the head")))),
         Tol::witness(),
     );
     assert_eq!(topo::validate(&body), Ok(()), "tier 1");
@@ -124,7 +124,7 @@ fn the_extrude_bump_recomputes_the_cone_and_the_fillet_needs_no_reselection() {
     // The stretched blank is still a rounded box, metered the same way.
     let body = topo::test_support::finished(
         "body",
-        topo::Body::clone(body_of(&after, d.result.expect("head"))),
+        topo::Body::clone(&(body_of(&after, d.result.expect("head")))),
         Tol::witness(),
     );
     assert_eq!(

@@ -4,6 +4,8 @@ kind: issue
 title: A union's published vertex group reads size 1 in one member order and no group in another
 status: open
 opened: 2026-10-26
+priority: P3
+cost: M
 ---
 
 

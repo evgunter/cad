@@ -2,18 +2,20 @@
 id: the-dual-attach-gate-refuses-lane-classes-its-f64-anchor-certified
 kind: issue
 title: a Dual Euler door refuses plane x NURBS Intersection and analytic rung-3 edges that the f64 anchor certified: not run at a dual, or delegated to the value scalar?
-status: open
+status: closed
 opened: 2026-10-16
 priority: P2
 cost: M
 design: true
 refs: [stackup-pairing-reads-the-shells-dual-refusal-as-a-violation, onpair-has-no-incidence-lane-on-a-spline-adjacent-pair]
+closed: 2026-10-26
+pr: 5728
+parent: closed-form-edge-carriers-pass-on-samples-with-no-stated-bound-between-them
 ---
 
 
 Filed by the designer lanes of the plane × spline rim fork, off their
-question. It is a question for Ev, to be raised as its own fork;
-`needs_ev` is set when that `[ev]` PR opens.
+question. It is a question for Ev, to be raised as its own fork in an `[ev]` PR.
 
 ## Finding
 
@@ -84,3 +86,20 @@ is certification arithmetic?
    that mints a certificate is never lane-exempt).
 3. **Refuse by name (today).** Keep the refusal and give `pair_pass` a
    valve for it, as the shell item proposes.
+
+## Closed
+
+Claimed by OFFSET and closed by conic unit 1
+(`closed-form-edge-carriers-pass-on-samples-with-no-stated-bound-between-them`),
+which builds Ev's answer to this question as ratified on PR 5689 (C2 in
+`crates/geom-brep/README.md`, DL3 in `docs/DUAL-DESIGN.md`): neither of
+the three options above, but the door split. The attach gate at a dual
+is the dual's edge door, which only mints
+(`topo::AtRestPolicy::attach_edge`, `crates/topo/src/props.rs`; the
+dual's body `policy_lane::minting_attach`), and the edge carries no
+certificate (`geom_core::Real::Carries` is `geom_core::Uncertified` at a
+dual). `EulerOpError::NurbsLaneUnsupported` and
+`CertifyError::NurbsLaneNotSupplied` are gone. The four lofts named in
+the witness are in the dual corpus the unit ran, which passes in full;
+the pairing half is the sibling unit
+`the-sensitivity-report-binds-by-build-identity-and-checks-the-measured-value`.

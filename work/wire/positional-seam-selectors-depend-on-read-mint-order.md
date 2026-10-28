@@ -2,10 +2,11 @@
 id: positional-seam-selectors-depend-on-read-mint-order
 kind: issue
 title: A positional SegPat over a seam's sides now depends on which read was minted first, though a seam's sides are a set
-status: open
+status: closed
 opened: 2026-10-20
 priority: P2
 cost: E
+closed: 2026-10-27
 ---
 
 
@@ -37,3 +38,12 @@ documented positional one over the name order. Which, and whether
 `SegPat` grows a set form, is the question.
 
 Signed (WIRE lane `wire-seamorder`).
+
+Closed by PR 5854 (2026-10-27). These positions now match pattern arguments as sets, by distinct-member bipartite matching:
+- a seam's sides;
+- `Merged` constituents;
+- `EdgeCrossing` lines;
+- `BandFace`, and `BandCross`/`BandSlit`'s band;
+- a junction's run of seam lines.
+
+Positional roles are unchanged. The four witnesses are red on base, and the re-authoring test asserts that the side order flips. The old positional wording was unsigned lane text.

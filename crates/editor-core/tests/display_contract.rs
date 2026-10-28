@@ -27,6 +27,7 @@ use editor_core::{
 use editor_core::{ListFault, Mispaired, NameLookupError, NodeStanding, SpokenName, SpokenNode};
 use geom_core::BandError;
 use test_utils::refusal::tagged;
+use topo::construction::Construct;
 
 /// The `Debug` field-name punctuation **this binary can ban**, which is
 /// far short of what its refusal payloads carry.
@@ -2286,7 +2287,7 @@ fn keys() -> (topo::EdgeKey, topo::FaceKey, topo::VertexKey) {
         .expect("mvfs births a solid, shell, face and lone vertex");
     let edge = body
         .mev_line(
-            topo::MevSite::Lone {
+            topo::construction::MevSite::Lone {
                 r#loop: born.r#loop,
             },
             geom_core::Point3::new(1.0, 0.0, 0.0),

@@ -4,7 +4,6 @@ kind: issue
 title: mesh + props - widen an Approx face's tolerance by its certificate's bound, so the mesh certifies against the DESCRIPTION
 status: open
 opened: 2026-08-26
-github: 1018
 refs: [1012]
 priority: P1
 cost: H

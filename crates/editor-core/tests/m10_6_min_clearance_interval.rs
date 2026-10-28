@@ -218,7 +218,7 @@ impl<'v> Neck<'v> {
             k
         };
         Self {
-            body,
+            body: body.body(),
             at: f.placed,
             faces: [key(2), key(9)],
         }

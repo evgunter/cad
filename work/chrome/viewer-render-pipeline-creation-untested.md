@@ -4,7 +4,6 @@ kind: issue
 title: Nothing exercises viewer render-pipeline creation: a startup panic shipped invisibly
 status: closed
 opened: 2026-09-01
-github: 1451
 branch: chrome/viewer-app-feature-ci-coverage
 pr: 1755
 closed: 2026-09-04

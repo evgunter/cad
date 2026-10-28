@@ -358,19 +358,22 @@ pub(crate) fn encloses_or_escalates<T: geom_core::Decide>(
 
 /// The one body a node's value holds: a body, or a placement's copies
 /// gathered as one.
-pub(crate) fn body_of<T: geom_core::Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> Arc<Body<T>> {
-    let one = |bodies: &[Arc<Body<T>>]| {
+pub(crate) fn body_of<T: geom_core::Decide + topo::AtRestPolicy>(
+    ev: &Evaluation<T>,
+    id: RecipeNodeId,
+) -> Arc<Body<T>> {
+    let one = |bodies: &[editor_core::Framed<T>]| {
         let [b] = bodies else {
             panic!("{id:?} holds {} bodies, not one", bodies.len());
         };
-        Arc::clone(b)
+        Arc::new(crate::fixture::in_space(b))
     };
     match &ev
         .value(id)
         .unwrap_or_else(|| panic!("{id:?} evaluated: {:?}", ev.node_error(id)))
         .payload
     {
-        ValuePayload::Body(b) => Arc::clone(b),
+        ValuePayload::Body(b) => Arc::new(crate::fixture::in_space(b)),
         ValuePayload::Instances(bodies) => one(bodies),
         other => panic!("{id:?} is a {}, not a body", other.kind_name()),
     }
@@ -702,8 +705,7 @@ fn a_loose_copy_is_gathered_and_measured_against_nothing_outside_it() {
         world(base).to_bits(),
         "the product is the world's material alone"
     );
-    editor_core::assemble(&doc, &ev, Tol::witness())
-        .expect("the gate certifies the world and the top's own space");
+    crate::fixture::could_look(&doc, &ev).expect("the world and the top's own space are at rest");
     // The measure across the two spaces is refused at the edit door,
     // before any evaluation (D′1).
     let error = fixture::insert_refused(&doc, measure());

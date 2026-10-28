@@ -13,12 +13,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use topo::construction::Construct;
 
 use common::{brick, finished, line, prism_z};
 use geom_core::{Point3, Tol};
+use topo::construction::{FaceSurface, MefSite, MevSite};
 use topo::{
-    AtRestBody, Body, BooleanError, BooleanOp, FaceSurface, LoopBoundary, MefSite, MevSite,
-    ValidationError, boolean_reduce, validate, validate_closed,
+    AtRestBody, Body, BooleanError, BooleanOp, LoopBoundary, ValidationError, boolean_reduce,
+    validate, validate_closed,
 };
 
 fn point_of(b: &Body<f64>, he: topo::HalfEdgeKey) -> Point3<f64> {

@@ -30,7 +30,6 @@ use editor_core::pose::PoseRole;
 use editor_core::{
     CapEnd, DocEdit, DocRef, DocumentId, EvalOptions, Frame, InlineOutcome, Label, MateRef, Node,
     PartResolver, ProfileDoc, RecipeNodeId, SitedFace, SplitError, SplitOutcome, StableName, VarId,
-    product,
 };
 use fixture::resolver::{PartName, PartStore, in_part, with_resolver};
 use fixture::round_trip::{composed, same_up_to_ids};
@@ -153,7 +152,7 @@ fn inline(doc: &ProfileDoc, instance: RecipeNodeId, store: &PartStore) -> Inline
 fn extent(doc: &ProfileDoc, o: &EvalOptions) -> ([f64; 3], [f64; 3], f64) {
     let body = topo::test_support::finished(
         "body",
-        product(doc, &run(doc, o), Tol::witness()).expect("gathers"),
+        crate::fixture::product_in_world(doc, &run(doc, o), Tol::witness()).expect("gathers"),
         Tol::witness(),
     );
     let pts = points(&body);
@@ -587,11 +586,11 @@ fn i1_inline_at_a_pose_places_the_parts_world_under_the_instances_bundle() {
         let o = with_resolver(store);
         let ev = run(&out.doc, &o);
         let stood = match &ev.value(out.placement).expect("the copy evaluates").payload {
-            editor_core::ValuePayload::Body(body) => {
-                body.vertex_points().fold([f64::INFINITY; 3], |m, (_, p)| {
+            editor_core::ValuePayload::Body(body) => crate::fixture::in_space(body)
+                .vertex_points()
+                .fold([f64::INFINITY; 3], |m, (_, p)| {
                     [m[0].min(p.x), m[1].min(p.y), m[2].min(p.z)]
-                })
-            }
+                }),
             other => panic!(
                 "{what}: the new placement holds a copy: {}",
                 other.kind_name()

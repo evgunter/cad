@@ -614,7 +614,7 @@ pub(crate) struct Body {
 
 impl Body {
     /// A body with no contact records — every door but those that have
-    /// records to carry (an evaluated value, `assemble`, an import).
+    /// records to carry (an evaluated value, an import).
     pub(crate) fn plain(inner: Arc<topo::Body<f64>>) -> Self {
         Self {
             inner,
@@ -1079,16 +1079,21 @@ impl Value {
     /// "output body 0" names nothing there), so `Instances` and
     /// `Split` halves are plain — no home to read from, and none is
     /// invented.
-    fn recorded_body(&self, body: &Arc<topo::Body<f64>>) -> Body {
-        match &self.payload {
-            d::ValuePayload::Body(_) => {
-                Body::recorded(Arc::clone(body), Arc::clone(&self.contacts))
-            }
+    ///
+    /// The body is read as it stands in its space, through the façade's
+    /// read-out door ([`pncad::export::body_in_space`]); its records
+    /// cite it there as they cite its own coordinates, the rigid map
+    /// keeping every key.
+    fn recorded_body(&self, py: Python<'_>, body: &d::Framed<f64>) -> PyResult<Body> {
+        let body = pncad::export::body_in_space(body, Tol::witness())
+            .map_err(|err| compose_err(py, self.node, &err))?;
+        Ok(match &self.payload {
+            d::ValuePayload::Body(_) => Body::recorded(body, Arc::clone(&self.contacts)),
             d::ValuePayload::Boolean(d::BooleanValue::Body { contacts, .. }) => {
-                Body::recorded(Arc::clone(body), Arc::clone(contacts))
+                Body::recorded(body, Arc::clone(contacts))
             }
-            _ => Body::plain(Arc::clone(body)),
-        }
+            _ => Body::plain(body),
+        })
     }
 }
 
@@ -1109,9 +1114,9 @@ impl Value {
     /// kind, and for an empty Boolean.
     fn body(&self, py: Python<'_>) -> PyResult<Body> {
         match &self.payload {
-            d::ValuePayload::Body(body) => Ok(self.recorded_body(body)),
+            d::ValuePayload::Body(body) => self.recorded_body(py, body),
             d::ValuePayload::Boolean(d::BooleanValue::Body { body, .. }) => {
-                Ok(self.recorded_body(body))
+                self.recorded_body(py, body)
             }
             d::ValuePayload::Boolean(d::BooleanValue::Empty) => Err(eval_err(
                 py,
@@ -1131,31 +1136,33 @@ impl Value {
     /// Every body this value denotes: one for `Body`/`Boolean`, the
     /// whole list for `Instances`, both sides for a
     /// `Split`.
-    fn bodies(&self) -> Vec<Body> {
-        let wrap = |body: &Arc<topo::Body<f64>>| self.recorded_body(body);
+    fn bodies(&self, py: Python<'_>) -> PyResult<Vec<Body>> {
+        let wrap = |body: &d::Framed<f64>| self.recorded_body(py, body);
         let side = |s: &d::SplitSide<f64>| match s {
             d::SplitSide::Body(body) => Some(wrap(body)),
             d::SplitSide::Empty => None,
         };
         match &self.payload {
-            d::ValuePayload::Body(body) => vec![wrap(body)],
-            d::ValuePayload::Boolean(d::BooleanValue::Body { body, .. }) => vec![wrap(body)],
+            d::ValuePayload::Body(body) => Ok(vec![wrap(body)?]),
+            d::ValuePayload::Boolean(d::BooleanValue::Body { body, .. }) => Ok(vec![wrap(body)?]),
             d::ValuePayload::Instances(bodies) => bodies.iter().map(wrap).collect(),
             d::ValuePayload::Split { above, below } => {
                 [side(above), side(below)].into_iter().flatten().collect()
             }
-            _ => Vec::new(),
+            _ => Ok(Vec::new()),
         }
     }
 
     /// A split's two sides, `(above, below)`; `None` where empty.
     fn split(&self, py: Python<'_>) -> PyResult<(Option<Body>, Option<Body>)> {
         let side = |s: &d::SplitSide<f64>| match s {
-            d::SplitSide::Body(body) => Some(Body::plain(Arc::clone(body))),
-            d::SplitSide::Empty => None,
+            d::SplitSide::Body(body) => pncad::export::body_in_space(body, Tol::witness())
+                .map(|body| Some(Body::plain(body)))
+                .map_err(|err| compose_err(py, self.node, &err)),
+            d::SplitSide::Empty => Ok(None),
         };
         match &self.payload {
-            d::ValuePayload::Split { above, below } => Ok((side(above), side(below))),
+            d::ValuePayload::Split { above, below } => Ok((side(above)?, side(below)?)),
             other => Err(eval_err(
                 py,
                 format!("a `{}` value is not a split", other.kind_name()),
@@ -1272,8 +1279,8 @@ pub(crate) struct Evaluation {
     /// It lives HERE because a product is a pure function of the pair
     /// above and the run's tolerance, and this object is that pair: it
     /// is frozen, so nothing can move under the memo, and the doors
-    /// that want a product — `run_checks`, `assemble`, `product`,
-    /// `product_named` — keep their signatures and share one gather.
+    /// that want a product — `run_checks`, `product`, `product_named` —
+    /// share one gather.
     product: crate::product_memo::ProductMemo,
 }
 
@@ -1905,6 +1912,32 @@ impl Evaluation {
     }
 }
 
+/// Raise `ExportError` with variant `compose_refused` for a read-out
+/// whose body the kernel would not compose into its space
+/// ([`pncad::export::body_in_space`]): the same arm `export_step` raises
+/// for the same refusal, `node` the value's.
+pub(crate) fn compose_err(py: Python<'_>, node: NodeId, err: &topo::TransformError) -> PyErr {
+    let node_obj = match node.into_pyobject(py) {
+        Ok(bound) => bound.unbind().into_any(),
+        Err(failed) => return failed,
+    };
+    let fields: Vec<(&str, Py<PyAny>)> = vec![
+        (
+            "variant",
+            PyString::new(py, "compose_refused").unbind().into_any(),
+        ),
+        ("node", node_obj),
+        ("through", py.None().into_any()),
+        ("kind", py.None().into_any()),
+    ];
+    typed_err(
+        py,
+        ErrorClass::Export,
+        format!("the body could not be composed into its space: {err}"),
+        &fields,
+    )
+}
+
 /// Raise `ExportError` mirroring the Rust door's refusal: `variant`
 /// is the arm's stable tag, `node` rides along, a poisoning adds
 /// `through`, and a wrong-kind value adds `kind`. The message is the
@@ -1944,7 +1977,11 @@ fn export_err(
         // the world's placements, not this call's node, so it adds no field
         // here. The arm is spelled out because the match
         // is exhaustive on purpose — the tripwire, not a wildcard.
-        E::EmptyBoolean { .. } | E::BodyInvalid { .. } | E::Step(_) | E::Product(_) => {}
+        E::EmptyBoolean { .. }
+        | E::BodyInvalid { .. }
+        | E::Compose(_)
+        | E::Step(_)
+        | E::Product(_) => {}
     }
     typed_err(py, ErrorClass::Export, err.spoken(doc), &fields)
 }
@@ -2588,6 +2625,7 @@ pub(crate) fn evaluate(
         seed: defaults.seed,
         symbols: defaults.symbols,
         pin: defaults.pin,
+        computing_twist: defaults.computing_twist,
     };
     let token = cancel.map_or_else(d::CancelToken::new, CancelToken::token);
     let recipe = &doc.inner;

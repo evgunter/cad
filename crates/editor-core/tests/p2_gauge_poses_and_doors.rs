@@ -401,16 +401,13 @@ fn the_gate_checks_the_world_whatever_another_space_holds() {
     );
     let ev = run(&doc_m, &o);
     assert!(ev.value(meas).is_some(), "{:?}", ev.node_error(meas));
-    editor_core::assemble(&doc_m, &ev, Tol::witness())
+    crate::fixture::could_look(&doc_m, &ev)
         .expect("the world certifies whatever another space holds");
     // The base goes: the product reads a body that is gone.
     let (alone, _) = step(doc, DocEdit::DeleteNode { id: base });
     let ev = run(&alone, &o);
-    match editor_core::assemble(&alone, &ev, Tol::witness()) {
-        Err(editor_core::AssemblyError::Product(e)) => match *e {
-            editor_core::ProductError::StrandedProduct { .. } => {}
-            ref other => panic!("the gather refuses a stranded product: {other:?}"),
-        },
+    match editor_core::product_recorded(&alone, &ev, Tol::witness()).map(|_| ()) {
+        Err(editor_core::ProductError::StrandedProduct { .. }) => {}
         other => panic!("a stranded product refuses at the gather: {other:?}"),
     }
 }
@@ -452,12 +449,13 @@ fn a_copy_in_another_space_below_stays_out_of_the_outer_product() {
         )
         .volume
     };
-    let gathered = editor_core::product(&outer, &ev, Tol::witness()).expect("the world gathers");
+    let gathered =
+        crate::fixture::product_in_world(&outer, &ev, Tol::witness()).expect("the world gathers");
     assert!(
         (vol(&gathered) - vol(&body_of(&ev_sub, base))).abs() < 1e-9,
         "the outer product is the sub-assembly's world"
     );
-    editor_core::assemble(&outer, &ev, Tol::witness()).expect("the outer gate certifies");
+    crate::fixture::could_look(&outer, &ev).expect("the outer product is at rest");
 }
 
 fn split_of(

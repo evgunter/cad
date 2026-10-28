@@ -533,7 +533,8 @@ fn every_saved_document_in_the_tree_loads_or_refuses_typed() {
 }
 
 fn world_bounds(doc: &ProfileDoc, ev: &Evaluation<f64>) -> ([f64; 3], [f64; 3]) {
-    let body = editor_core::product(doc, ev, Tol::witness()).expect("the product gathers");
+    let body =
+        crate::fixture::product_in_world(doc, ev, Tol::witness()).expect("the product gathers");
     let mut lo = [f64::INFINITY; 3];
     let mut hi = [f64::NEG_INFINITY; 3];
     for (_, p) in body.points() {
@@ -618,22 +619,21 @@ fn a_document_of_copies_in_another_space_has_an_empty_world() {
     let (doc, x) = insert(doc, fixture::mated_instance(p.base));
     let (doc, space) = fixture::into_new_space(doc, x);
     let ev = run(&doc, &o);
-    match editor_core::product(&doc, &ev, Tol::witness()) {
+    match crate::fixture::product_in_world(&doc, &ev, Tol::witness()) {
         Err(editor_core::ProductError::EmptyProduct) => {}
         other => panic!("the world gather refuses empty: {other:?}"),
     }
-    let said = editor_core::product(&doc, &ev, Tol::witness())
+    let said = crate::fixture::product_in_world(&doc, &ev, Tol::witness())
         .err()
         .map(|e| e.spoken(&doc))
         .unwrap_or_default();
     assert!(said.contains("Recourse:"), "{said}");
-    match editor_core::assemble(&doc, &ev, Tol::witness()) {
-        Err(editor_core::AssemblyError::Product(e)) => assert!(
-            matches!(*e, editor_core::ProductError::EmptyProduct),
-            "{e:?}"
-        ),
-        other => panic!("the gate raises the world's refusal: {other:?}"),
-    }
+    let checked =
+        crate::fixture::at_rest(&doc, &ev).expect("an empty world is checked all the same");
+    assert!(
+        checked.is_empty(),
+        "nothing is at rest to report: {checked:?}"
+    );
     // Two tops seated at one spot on the base: in its space.
     let (doc, a) = insert(doc, fixture::mated_instance(p.top));
     let (doc, b) = insert(doc, fixture::mated_instance(p.top));
@@ -660,12 +660,19 @@ fn a_document_of_copies_in_another_space_has_an_empty_world() {
         vec![doc.output(group, 0).expect("the `⊔`'s body")],
         "the other space's `⊔` is gathered by itself"
     );
-    let assembly = editor_core::assemble_gathered(product, Tol::witness())
+    let findings = crate::fixture::at_rest(&doc, &ev)
         .unwrap_or_else(|e| panic!("an overlap is a finding: {e}"));
+    let interference = crate::fixture::interference(&findings);
     assert!(
-        matches!(&assembly.interference[..], [finding] if finding.is_loud()),
-        "the two tops clash in their space: {:?}",
-        assembly.interference
+        matches!(&interference[..], [finding] if finding.is_loud()),
+        "the two tops clash in their space: {interference:?}"
+    );
+    assert!(
+        findings.iter().all(|f| f.subject
+            == editor_core::FindingSubject::Census {
+                read: doc.output(group, 0).expect("the `⊔`'s body")
+            }),
+        "under the space's `⊔`: {findings:?}"
     );
 }
 
@@ -1023,15 +1030,14 @@ fn the_gate_checks_each_new_space_whatever_the_world_holds() {
     // The space alone, nothing in the world: the gather names where the
     // copies went, and the space, holding no clash, is no refusal.
     let ev = run(&doc, &o);
-    match editor_core::assemble(&doc, &ev, Tol::witness()) {
-        Err(editor_core::AssemblyError::Product(e)) => match *e {
-            editor_core::ProductError::EmptyProduct => {
-                assert!(e.to_string().contains("reads nothing"), "{e}");
-            }
-            ref other => panic!("the gather names where the copies went: {other:?}"),
-        },
+    match editor_core::product_recorded(&doc, &ev, Tol::witness()).map(|_| ()) {
+        Err(e @ editor_core::ProductError::EmptyProduct) => {
+            assert!(e.to_string().contains("reads nothing"), "{e}");
+        }
         other => panic!("an empty world refuses at the gather: {other:?}"),
     }
+    let checked = crate::fixture::at_rest(&doc, &ev).expect("an empty world is checked");
+    assert!(checked.is_empty(), "the space holds no clash: {checked:?}");
     // A second top at the first's seat clashes inside the space; the
     // world beside it certifies, and the gate reports the clash all the
     // same.
@@ -1054,11 +1060,11 @@ fn the_gate_checks_each_new_space_whatever_the_world_holds() {
     );
     let (doc, _) = pinned(doc, p.base, Frame::translation([100.0, 0.0, 0.0]), &o);
     let ev = run(&doc, &o);
-    let assembly = editor_core::assemble(&doc, &ev, Tol::witness())
+    let findings = crate::fixture::at_rest(&doc, &ev)
         .unwrap_or_else(|e| panic!("the world gathers, and an overlap is a finding: {e}"));
+    let interference = crate::fixture::interference(&findings);
     assert!(
-        matches!(&assembly.interference[..], [finding] if finding.is_loud()),
-        "two tops at one seat are one loud interference inside their space: {:?}",
-        assembly.interference
+        matches!(&interference[..], [finding] if finding.is_loud()),
+        "two tops at one seat are one loud interference inside their space: {interference:?}"
     );
 }

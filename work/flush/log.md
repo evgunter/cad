@@ -622,3 +622,4 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
 ## 2026-10-27 — seam note from QUAD's main-red triage
 
 Filed `main-red-reader-census-lists-the-deleted-given-pair-test` on this slate: PR 5772 deleted `crates/topo/tests/a_given_pair_is_made_from_a_kernel_verdict.rs`, but test-utils' `reader_census` ledger still lists it, and the census is red on main. (QUAD triage lane, PR 5824)
+- 2026-10-27 (ATREST orchestrator): closed `main-red-reader-census-lists-the-deleted-given-pair-test`. Its dead ledger entry was removed in ATREST's reader_census fix (the same row was red on `topo/src/link.rs`).

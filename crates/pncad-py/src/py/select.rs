@@ -818,6 +818,14 @@ pub(crate) fn select_refusal(
                 error.spoken(doc)
             )
         }
+        R::Frame { name, .. } => {
+            let name = match crate::py::doc::name_text(py, name) {
+                Ok(t) => t,
+                Err(failed) => return failed,
+            };
+            fill(&mut fields, "name", text(&name));
+            err.spoken(doc, evaluation)
+        }
         R::NotAPlane { face } => {
             let face = match crate::py::doc::name_text(py, face) {
                 Ok(t) => t,

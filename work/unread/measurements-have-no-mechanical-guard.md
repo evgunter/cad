@@ -4,7 +4,6 @@ kind: issue
 title: Measurements have no mechanical guard — the size_of pin from PR 646 is the only one in the tree
 status: open
 opened: 2026-08-19
-github: 651
 refs: [613, 614, 646, 667, 681]
 priority: P3
 cost: E

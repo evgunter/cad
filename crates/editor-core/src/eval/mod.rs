@@ -21,6 +21,8 @@
 
 mod anchor;
 mod class;
+mod counters;
+mod framed;
 pub mod measure;
 mod memo;
 pub(crate) mod parts;
@@ -34,10 +36,14 @@ pub(crate) use wire::{
 };
 
 pub(crate) use wire::unit as unit_direction;
+pub(crate) use wire::{reference_body, resolve_name};
 
 pub use anchor::{CanonicalSegment, LoopAnchor, ProfileNaming, ProfilePieces, ProfileValue};
 pub(crate) use anchor::{derive_naming, validated_naming};
 pub use class::NodeErrorClass;
+pub use counters::EvalCounters;
+pub(crate) use framed::Frame;
+pub use framed::Framed;
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
 pub use wire::DirectionRefusal;
 
@@ -50,7 +56,7 @@ use profile::ProfileError;
 use sweep::{ExtrudeError, RevolveError, SkinError, TubeError};
 use topo::splitting::SplitError;
 use topo::transform::TransformError;
-use topo::{Body, BooleanError, BooleanResultKind, ContactRecords};
+use topo::{BooleanError, BooleanResultKind, ContactRecords};
 
 use crate::appearance::{self, AppearanceResolution};
 use crate::doc::Doc;
@@ -304,7 +310,7 @@ impl<T: Decide> Evaluation<T> {
         &self,
         var: crate::VarId,
         index: u32,
-    ) -> Result<Result<&Body<T>, crate::InterrogateError>, NodeStanding> {
+    ) -> Result<Result<&Framed<T>, crate::InterrogateError>, NodeStanding> {
         let Some((node, port)) = self.read_port(var) else {
             return Ok(Err(crate::InterrogateError::NoSuchBody { index }));
         };
@@ -815,7 +821,7 @@ pub struct NodeValue<T: Decide> {
     /// keyed in the same arena as `contacts` and filled at the same one
     /// op. Rides the value, so memo reuse transfers them with the
     /// geometry they are keyed into.
-    pub carried: Arc<crate::assembly::CarriedFindings>,
+    pub carried: Arc<crate::checks::at_rest::CarriedFindings>,
     /// **The coincidences the node's op decided from values**
     /// ([`crate::coincide`]), in decision order, each cell named in the
     /// table of the input the decision read, so a row survives a later
@@ -958,7 +964,7 @@ impl NodeValue<f64> {
             payload: ValuePayload::Boolean(BooleanValue::Empty),
             outputs: vec![OutputNames::new(Arc::new(table), Arc::new(groups))].into(),
             contacts: Arc::new(topo::ContactRecords::default()),
-            carried: Arc::new(crate::assembly::CarriedFindings::default()),
+            carried: Arc::new(crate::checks::at_rest::CarriedFindings::default()),
             coincidences: Arc::new([]),
             cited_inputs: Arc::new([]),
             parts: 1,
@@ -1063,7 +1069,7 @@ pub enum ValuePayload<T: Decide> {
     /// `Part`) and a `Place` of one body — a placement over one shape
     /// has that shape's shape, so a placement of instances is
     /// [`Self::Instances`].
-    Body(Arc<Body<T>>),
+    Body(Framed<T>),
     /// A boolean's result: a body with its contact records, or the
     /// typed empty success (F8; D3).
     Boolean(BooleanValue<T>),
@@ -1094,7 +1100,7 @@ pub enum ValuePayload<T: Decide> {
     /// blend of N bodies is N blends, and the recipe does not guess
     /// which (D3), so the asymmetry between the placers and the rest
     /// is the decision, not an omission.
-    Instances(Vec<Arc<Body<T>>>),
+    Instances(Vec<Framed<T>>),
     /// A `Measure` node's typed F1 quantity (E3): the measured value
     /// in kernel units with the dimension it was measured in. Not
     /// body-denoting — the product gather skips it exactly as it skips
@@ -1257,7 +1263,7 @@ impl<T: Decide> ValuePayload<T> {
     /// [`crate::InterrogateError::NoSuchBody`] for an index the value
     /// has no body at (an empty half among them),
     /// [`crate::InterrogateError::NoBodies`] for a value that holds none.
-    pub fn output_body(&self, index: u32) -> Result<&Body<T>, crate::InterrogateError> {
+    pub fn output_body(&self, index: u32) -> Result<&Framed<T>, crate::InterrogateError> {
         crate::names::interrogate::output_body(self, index)
     }
 
@@ -1290,7 +1296,7 @@ pub enum BooleanValue<T: Decide> {
     /// A real result body.
     Body {
         /// The result body.
-        body: Arc<Body<T>>,
+        body: Framed<T>,
         /// How the kernel produced it.
         kind: BooleanResultKind,
         /// Contacts, declared or glued on a decided Zero, surviving into
@@ -1320,9 +1326,10 @@ pub struct Pieces<T: Decide> {
 pub struct Piece<T: Decide> {
     /// The variable the `⊔` read it through.
     pub read: crate::VarId,
-    /// Its bodies where the `⊔` read them: one, or until patterns are
-    /// index variables a pattern's family.
-    pub bodies: Vec<Arc<Body<T>>>,
+    /// Its bodies in the holder's space: one, or until patterns are
+    /// index variables a pattern's family. A copy holds its source's
+    /// pieces under its own map ([`Framed::moved`]).
+    pub bodies: Vec<Framed<T>>,
     /// Whether it is a family, whatever its count.
     pub family: bool,
     /// The parts it delivers ([`NodeValue::parts`]).
@@ -1333,7 +1340,7 @@ pub struct Piece<T: Decide> {
     /// census at the `⊔`'s door carries for it.
     pub contacts: Arc<topo::ContactRecords>,
     /// The mate bookkeeping those records travel with.
-    pub carried: Arc<crate::assembly::CarriedFindings>,
+    pub carried: Arc<crate::checks::at_rest::CarriedFindings>,
     /// The pieces it holds in turn: a member that is itself a `⊔`, or a
     /// copy of one.
     pub pieces: Option<Arc<Pieces<T>>>,
@@ -1343,10 +1350,6 @@ pub struct Piece<T: Decide> {
     /// Whether a door already decided the meetings inside it
     /// ([`NodeValue::censused`]).
     pub censused: bool,
-    /// **The motion a reader moves `bodies` by**: a copy holds its
-    /// source's pieces where the source put them, placed when a pick
-    /// reads one. `None` for pieces that stand where they are read.
-    pub motion: Option<geom_core::RigidMotion<T>>,
 }
 
 impl<T: Decide> Pieces<T> {
@@ -1368,7 +1371,7 @@ pub enum SplitSide<T: Decide> {
     /// No material on this side.
     Empty,
     /// This side's material as an independent body.
-    Body(Arc<Body<T>>),
+    Body(Framed<T>),
 }
 
 // An evaluated pose lives in the pose module (`crate::pose`), beside
@@ -3102,6 +3105,99 @@ pub struct EvalOptions {
     /// costs a sizeable fraction of a build and the memo needs no pin.
     /// The run a sensitivity report is bound to asks for it (DL3).
     pub pin: bool,
+    /// **A second computing frame** (D10 `[placement.frame]`, test 13):
+    /// each construction's body mapped by a rotation and translation of
+    /// its own ([`ComputingTwist::for_node`], this twist varied
+    /// irrationally by the node's identity, a part's nodes too) and
+    /// framed by its inverse, so every operation computes in a frame the
+    /// twist turned, its operands in frames turned apart, while every
+    /// body stands where it did in its space. Answer-preserving up to the
+    /// rounding of the frames, and test-facing as [`Self::parallel`] is:
+    /// the row that holds the frame no part of meaning compares both.
+    /// `None` — the default — is the evaluation as built.
+    pub computing_twist: Option<ComputingTwist>,
+}
+
+/// **A rigid motion stated in `f64`**, lifted to an evaluation's scalar
+/// ([`EvalOptions::computing_twist`]): a turn of `angle` radians about
+/// the unit `axis` through the origin, then the translation `by`.
+#[derive(Debug, Clone, Copy)]
+pub struct ComputingTwist {
+    /// The turn's axis, unit.
+    pub axis: [f64; 3],
+    /// The turn, in radians.
+    pub angle: f64,
+    /// The translation after it.
+    pub by: [f64; 3],
+}
+
+impl ComputingTwist {
+    /// **This twist varied for one construction**, a deterministic and
+    /// irrational function of the node's identity (its ordinal and its
+    /// mint digest, which differs between documents, so a part's nodes
+    /// turn apart from the host's): its angle advanced, its axis tipped
+    /// and its translation moved by sines of irrational multiples of a
+    /// number the identity reads. Two constructions of one run compute in
+    /// frames turned apart, so an operation that read an operand's body
+    /// as its own coordinates would compare bodies in two frames.
+    #[must_use]
+    pub fn for_node(self, id: crate::RecipeNodeId) -> Self {
+        // Reduced so the sines stay well conditioned; any spread works.
+        #[allow(clippy::cast_precision_loss)]
+        let k = f64::from(id.0.ordinal()) + (id.0.digest() % 10_007) as f64;
+        let (s2, s3, s5, s7) = (
+            2.0_f64.sqrt(),
+            3.0_f64.sqrt(),
+            5.0_f64.sqrt(),
+            7.0_f64.sqrt(),
+        );
+        let tipped = [
+            self.axis[0] + 0.5 * (k * s3).sin(),
+            self.axis[1] + 0.5 * (k * s5).cos(),
+            self.axis[2] + 0.5 * (k * s7).sin(),
+        ];
+        let norm = tipped.iter().map(|c| c.powi(2)).sum::<f64>().sqrt();
+        let axis = if norm > 0.25 {
+            tipped.map(|c| c / norm)
+        } else {
+            self.axis
+        };
+        Self {
+            axis,
+            angle: (self.angle + k * (s2 - 1.0)).rem_euclid(std::f64::consts::TAU),
+            by: [
+                self.by[0] + (k * s3 * s5).cos(),
+                self.by[1] + (k * s5 * s7).sin(),
+                self.by[2] + (k * s2 * s7).cos(),
+            ],
+        }
+    }
+
+    /// The motion at scalar `T`.
+    ///
+    /// # Errors
+    ///
+    /// An axis no unit direction decides (refused as the map not being
+    /// rigid, `computing_twist_axis_unit`), or a part that is not finite.
+    pub(crate) fn at<T: Decide>(
+        &self,
+        tol: Tol,
+    ) -> Result<geom_core::RigidMotion<T>, geom_core::RigidMotionError> {
+        let lift = |v: [f64; 3]| {
+            geom_core::Vec3::new(T::from_f64(v[0]), T::from_f64(v[1]), T::from_f64(v[2]))
+        };
+        let not_unit = geom_core::RigidMotionError::NotRigid {
+            check: "computing_twist_axis_unit",
+        };
+        let band = geom_core::Band::linear(tol).map_err(|_| not_unit)?;
+        let axis = geom_core::UnitVec3::new(lift(self.axis), "computing twist axis", band)
+            .map_err(|_| not_unit)?;
+        geom_core::RigidMotion::rotation_then_translation(
+            axis,
+            T::from_f64(self.angle),
+            lift(self.by),
+        )
+    }
 }
 
 /// **Whether this scalar's lane IS the profile's first pass** — the
@@ -3368,6 +3464,7 @@ impl Default for EvalOptions {
             seed: None,
             symbols: false,
             pin: false,
+            computing_twist: None,
         }
     }
 }
@@ -3614,6 +3711,7 @@ where
         },
         None => parts::PartStore::<T>::new(opts.resolver.as_ref(), opts.boolean_sweep, tol)
             .with_symbols(opts.symbols)
+            .with_twist(opts.computing_twist)
             .enter_census(doc, prior.map(|p| &p.parts), cancel, tol),
     };
     // A placement's bundle is folded where the placement evaluates
@@ -3621,6 +3719,7 @@ where
     // this run, at its scalar over the lane environment (A11 (5)), so a
     // seed or a box that binds what a mate reads moves the copy with it.
     let op_env = wire::OpEnv {
+        twist: opts.computing_twist,
         boolean_sweep: opts.boolean_sweep,
         parts: &entry.reached,
         lane: wire::LaneEnv {
