@@ -4932,6 +4932,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "stranded_part_read",
             "unknown_node",
             "unplaceable_part",
+            "unread_pose",
             "unresolved_var_crosses_cut",
             "var_name_conflict",
         ],
