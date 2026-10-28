@@ -2,12 +2,13 @@
 id: each-torus-pair-decides-tangency-on-one-pose
 kind: unit
 title: Each torus pair decides tangency on one pose value: the critical gap, read by C5, the SSI doors and the section certificate
-status: dispatched
+status: closed
 opened: 2026-10-28
 priority: P0
 cost: H
 branch: sect/torus-pose
 refs: [torus-germ-pairs-have-no-section-frame, the-section-of-a-surface-pair-is-one-object]
+closed: 2026-10-28
 ---
 
 
@@ -86,3 +87,23 @@ over a Positive gap and flip `route`.
 
 Review: **dual (concurrent)**. It is a new decision every torus row,
 the cone pairs and NURBS × analytic build on.
+
+## Closed
+
+2026-10-28, by `sect/torus-pose`. `geom_brep::pair_section` builds the
+three torus pairs on `SphereTorusPose`, `CylinderTorusPose` and
+`TorusTorusPose`, each decided once: the guards, the symmetry reading
+(`axis_pose` and the square reading, moved from `section_cert` and read
+over the torus's own ball), a coincident torus pair refused, and the
+critical gap (`pair_section::gap`), a certified sweep of the core angle
+on `D` and `D²`, never a root formula. The closed-form components moved
+from `section_cert`'s torus arms (`pair_section::torus_arms`); a
+general sphere × torus pose carries through `march_sphere_torus`; a
+general cylinder × torus or torus × torus pose answers
+`RoutesToGeneralRung`, and their symmetric poses' components carry
+`ClassCarrier::Unbuilt` naming the door rows. `route_pose`'s torus
+arms, `sphere_torus_ssi` (its `ssi_st_tangency` retired) and
+`section_cert` read the poses; `glue::section_door` keeps each
+coincidence at its own site. Off the band every measured certificate
+verdict stands; tangencies are named by the gap.
+

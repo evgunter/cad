@@ -27,16 +27,21 @@
 //!
 //! The turn is cut into cells. On a cell of half-width `w` about `m`,
 //! `D` moves by at most `R·w` (the spine distance is 1-Lipschitz in
-//! space and `p` moves at the core's speed `R`, kinks included), and
-//! off the spine and off the kinks it is smooth with `|D″| ≤ R + R²/κ`,
-//! `κ` the least of `D` and the distance from the circle's axis over the
-//! cell (each bounds a principal curvature of the distance's level set).
-//! A cell clears when every branch either
+//! space and `p` moves at the core's speed `R`, kinks included). The
+//! squared distance `G = D²` is smooth off the kinks (a point's and a
+//! line's are trigonometric polynomials, a circle's `|w|² ∓ 2R₂ρ + R₂²`
+//! with `ρ` the distance from its axis), so its slope over the cell is
+//! bounded by Taylor's theorem: `G′(m)` and `G″(m)` read at the point,
+//! and a bound on `|G‴|` over the cell from `|p′| = |p″| = |p‴| = R`
+//! (and, for the circle, `ρ` bounded below over the cell, the kink's
+//! distance). A cell clears when every branch either
 //!
 //! - stands past the band from both levels over the whole cell
 //!   (`|D(m) − L| − R·w` definitely positive), or
-//! - is smooth on it and monotone (`|D′(m)| − |D″|·w` definitely
-//!   positive), so it holds no critical point.
+//! - is smooth on it and monotone (`|G′(m)| − |G″(m)|·w − |G‴|·w²/2`
+//!   positive, read as the least `|D′|` it bounds), so it holds no
+//!   critical point: `G′ = 2D·D′` vanishes at every critical point of the
+//!   spine distance, its zeros included.
 //!
 //! Every cell clearing is a certified [`Gap::Transverse`]: a critical
 //! point of the spine distance lies in some cell, where neither test can
@@ -47,16 +52,17 @@
 //!
 //! - **a turn**: on a smooth window `D′` reads definitely negative at one
 //!   end and definitely positive at the other (or the reverse), so a
-//!   critical point lies inside, and the window's bound on `|D − L|` is
-//!   decided `Zero`. The window is centred where `D′` changes sign, found
-//!   by bisection across the open cell padded by half its width each
-//!   side (a turn on a cut lies inside both neighbours' reach), and sized
-//!   so its second-order bound fits the band;
+//!   critical point lies inside, and the window's bound on `|D − L|`,
+//!   `G`'s Taylor bound about the turn read back through `√`, is decided
+//!   `Zero`. The window is centred where `G′` changes sign, found by
+//!   bisection across the open cell padded by half its width each side
+//!   (a turn on a cut lies inside both neighbours' reach), and shrunk by
+//!   halves until its bound fits the band;
 //! - **the least distance**: the spine distance's global minimum is
 //!   always a critical value, and no larger than `D` anywhere, so `D(m)`
 //!   and the level `|ρ₁ − ρ₂|` both within the zero band decide it. This
 //!   is the tube-circle tangency (equal minor radii, cores touching),
-//!   whose critical point sits where `D` is zero and not smooth.
+//!   where `D′` reads no sign.
 //!
 //! Any other cell is split, down to a floor where it stands within a
 //! quarter band of the core, or until the cell budget is spent: there it

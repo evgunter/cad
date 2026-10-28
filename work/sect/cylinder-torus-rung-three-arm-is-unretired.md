@@ -2,12 +2,11 @@
 id: cylinder-torus-rung-three-arm-is-unretired
 kind: issue
 title: Cylinder × torus routes to rung 3 and refuses: no ℝ³ implicit-pair door or pose classification for the pair
-status: parked
+status: open
 opened: 2026-10-27
 priority: P0
 cost: M
-refs: [torus-germ-pairs-have-no-section-frame, torus-certificate-runs-root-free-through-its-quartic]
-blocked_on: [each-torus-pair-decides-tangency-on-one-pose]
+refs: [torus-germ-pairs-have-no-section-frame, torus-certificate-runs-root-free-through-its-quartic, each-torus-pair-decides-tangency-on-one-pose]
 ---
 
 Filed by SECT's `sect-toruscert` lane (branch `sect/torus-certificate`),
@@ -52,3 +51,17 @@ waits on. What remains here is the door over a Positive gap (through
 flipped. Also owed: the tube-circle tangency (equal minor radii with the
 cores touching, or `r_c = r` with the axis touching the core) as a Zero
 row, which neither this row's text nor its sibling's named.
+
+## Opened (2026-10-28)
+
+`each-torus-pair-decides-tangency-on-one-pose` closed: the pair's pose
+and its critical gap are `geom_brep::pair_section::torus`'s, and the
+tube-circle tangency rows are `crates/geom-brep/tests/torus_gap.rs`
+`the_tube_circle_tangency_decides_zero`. What waits here is the door: a
+general pose answers `SectionError::RoutesToGeneralRung` naming this
+row, and a symmetric pose's components carry `ClassCarrier::Unbuilt`
+naming it, so `PairSection::carry` refuses `CarryError::Unbuilt`. A
+`cylinder_torus_ssi` door marches past a transverse gap; the section value's
+`march_over_the_sphere` takes a sphere's box today, and this pair has
+none, so the door also owes its domain.
+

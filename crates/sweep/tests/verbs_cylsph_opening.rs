@@ -336,11 +336,12 @@ fn a_ball_scraping_the_wall_refuses_at_the_section_pass() {
 /// cylinder's wall, the conic × quadric root door
 /// (`topo::boolean::conic_quadric`). Their pierces' sector sides
 /// certify, and what refuses is a germ pair's section — never a body.
-/// A germ's branch is read where it is minted, so the first section
-/// read is the end cap's against the torus: the cap plane stands
-/// parallel to the torus's axis at its inner equator, a general-rung
-/// spiric (`GermSectionSpiric`), ahead of the cylinder × torus pair,
-/// which has no frame either.
+/// A germ's branch is read where it is minted: the wall × torus pair
+/// stands square to the torus's axis, a section the value lists but
+/// tells no site's component apart in (`GermSectionUnbuilt`), and the
+/// end cap's against the torus, the cap plane parallel to the torus's
+/// axis at its inner equator, is a general-rung spiric
+/// (`GermSectionSpiric`); whichever germ is minted first refuses.
 ///
 /// The pair gate's own sentence is pinned on a cone, the kind it still
 /// refuses (`review_m3_pr4::curved_face_gate_witness`); the germ-pair
@@ -398,7 +399,7 @@ fn a_torus_operand_passes_the_pair_gate_and_refuses_at_the_crossing_layer() {
         &finished("the torus", torus, Tol::witness()),
         Tol::witness(),
     )
-    .expect_err("the cap plane × torus germ pair's section is a general spiric");
+    .expect_err("a germ pair's section refuses");
     assert!(
         matches!(
             err,
@@ -406,9 +407,14 @@ fn a_torus_operand_passes_the_pair_gate_and_refuses_at_the_crossing_layer() {
                 a_kind: geom::SurfaceKind::Plane,
                 b_kind: geom::SurfaceKind::Torus,
                 ..
+            } | BooleanError::GermSectionUnbuilt {
+                a_kind: geom::SurfaceKind::Cylinder,
+                b_kind: geom::SurfaceKind::Torus,
+                why: topo::SectionUnbuilt::Untold(_),
+                ..
             }
         ),
-        "expected the cap's spiric section door, got {err:?}"
+        "expected a germ pair's section door, got {err:?}"
     );
 }
 

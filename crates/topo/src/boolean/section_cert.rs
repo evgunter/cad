@@ -1738,9 +1738,12 @@ fn sphere_sphere<T: Decide>(c1: Point3<T>, r1: T, c2: Point3<T>, r2: T, band: Ba
 /// **A pair the section value builds** ([`geom_brep::pair_section`]),
 /// classified from it, its first surface `F`: a tangency it decided is a
 /// [`Touch`] at the point where the section is one point and R-tan
-/// otherwise; a pose question undecided R-tan, named by the decision; a
-/// radius not definitely positive, decided or not, R-reach: an operand's
-/// size is no tangency, and the pair has no arm for it. Every other section is its
+/// otherwise; a pose question undecided, a closed-form count that
+/// pinches, and two tori decided one, R-tan, named by the decision; a
+/// crossing the closed form cannot order R-order; a radius not definitely
+/// positive, decided or not, a torus off its ring convention, and a pose
+/// whose general-rung door is unbuilt, R-reach: an operand's size is no
+/// tangency, and the pair has no arm for it. Every other section is its
 /// components, each with whether it winds about each carrier and its
 /// witness, certified single when there is one.
 pub(super) fn of_pair_section<T: Decide>(
@@ -1754,6 +1757,9 @@ pub(super) fn of_pair_section<T: Decide>(
         }
         Err(SectionError::Pinched { predicate }) => return Section::Tangent(predicate),
         Err(SectionError::Unordered { predicate }) => return Section::Unordered(predicate),
+        // Two surfaces decided one share a carrier: no component count
+        // is certified, as at a tangency.
+        Err(SectionError::CoincidentSurfaces) => return Section::Tangent("tt_coincident"),
         Err(_) => return Section::Intractable,
     };
     let components = section.components();
