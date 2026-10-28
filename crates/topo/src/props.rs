@@ -6804,10 +6804,10 @@ pub trait AtRestPolicy: Decide {
     /// through `crate::policy_lane`: the transform
     /// ([`crate::transform_rigid`]); the Euler surface's attachment gate,
     /// which every door that mints or re-describes an edge runs — the
-    /// new-edge mints ([`Body::mev`], [`Body::mef`], [`Body::mekr`] and
-    /// the ring doors), [`Body::set_edge_curve`], [`Body::split_edge`]
-    /// and [`Body::kev_describing`]'s list; the re-chart
-    /// ([`Body::set_face_surfaces_describing`]); the re-basing gate of a
+    /// new-edge mints ([`Body::mev`](crate::construction::Construct::mev), [`Body::mef`](crate::construction::Construct::mef), [`Body::mekr`](crate::construction::Construct::mekr) and
+    /// the ring doors), [`Body::set_edge_curve`](crate::construction::Construct::set_edge_curve), [`Body::split_edge`](crate::construction::Construct::split_edge)
+    /// and [`Body::kev_describing`](crate::construction::Construct::kev_describing)'s list; the re-chart
+    /// ([`Body::set_face_surfaces_describing`](crate::construction::Construct::set_face_surfaces_describing)); the re-basing gate of a
     /// fan `mev` and of the kill doors' merge; and a graft's bridge.
     ///
     /// Certification is a property of the scalar's type (C2): a

@@ -3,7 +3,7 @@
 //! two edges are one edge cut for no reason (`docs/DESIGN.md`, maximal
 //! edges). The join kills the vertex and makes the two edges one.
 //!
-//! **The join door** ([`Body::join_edges`]) is the one public spelling:
+//! **The join door** ([`Body::join_edges`](crate::construction::Construct::join_edges)) is the one public spelling:
 //! every door that finishes a body ends with it (`docs/DESIGN.md`, the
 //! merge stage), and it returns each join it made ([`EdgeJoin`]) for a
 //! door that carries records or names keyed by the body's cells. The
@@ -612,7 +612,7 @@ pub(crate) fn joinable_at_rest<T: Decide>(
         .collect()
 }
 
-/// Joins every joinable vertex of `body` ([`Body::join_edges`]) and
+/// Joins every joinable vertex of `body` ([`Body::join_edges`](crate::construction::Construct::join_edges)) and
 /// writes each join's substitution rows into `desc` (`w → kept`,
 /// `gone → kept`, and where the join leaves a conventional vertex, that
 /// vertex `→ kept`), so the op's one [`super::ops::carry`] takes every
@@ -627,7 +627,7 @@ pub(crate) fn joinable_at_rest<T: Decide>(
 ///
 /// # Errors
 ///
-/// As [`Body::join_edges`].
+/// As [`Body::join_edges`](crate::construction::Construct::join_edges).
 pub(super) fn join_stage<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     desc: &mut Descendants,
@@ -819,36 +819,8 @@ impl core::fmt::Display for JoinRefusal {
 }
 
 impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
-    /// **The join** (`docs/DESIGN.md`, maximal edges): every joinable
-    /// vertex ([`joinable_vertices`]) of the body, one at a time in
-    /// vertex-arena order until none is left, killed and its two edges
-    /// made one. The door every finisher ends with, so no body reaches
-    /// rest holding a vertex the predicate would join
-    /// (`ValidationError::JoinableVertexAtRest`). Returns the joins in
-    /// the order made, a later one's `gone` or `kept` possibly an
-    /// earlier one's `kept`: a door carrying records or names keyed by
-    /// the body's cells reads each join as `vertex → kept`,
-    /// `gone → kept`, and `conventional → kept` where it is set.
-    ///
-    /// Atomic: the joins run on a clone, which is adopted only once every
-    /// join is made and, where the body carried pcurve rows, they are
-    /// re-derived whole, so no row is left keyed by a killed half-edge.
-    /// On any refusal the body is as found. The clone is under one
-    /// surgery scope ([`crate::surgery`]) for every kill, so the door
-    /// derives tier 1 once, before it adopts.
-    ///
-    /// # Panics
-    ///
-    /// On a kernel bug: an edge the body stores, re-minted or restated on its
-    /// own carrier and interval, whose span or winding reads certainly
-    /// refused at the run's band.
-    ///
-    /// # Errors
-    ///
-    /// [`BooleanError::JoinUndecided`], the kill's own refusal
-    /// ([`BooleanError::Euler`]), a carrier the joined edge cannot be
-    /// restated on ([`BooleanError::JoinCarrierUnsupported`]), the
-    /// description's, or the re-mint's ([`BooleanError::Pcurves`]).
+    /// The door [`Construct::join_edges`](crate::construction::Construct::join_edges) forwards to;
+    /// documented there.
     pub(crate) fn join_edges(
         &mut self,
         band: Band,
@@ -878,32 +850,8 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
         Ok(joined)
     }
 
-    /// [`Body::join_edges`] over the vertices `within` holds, on a body
-    /// the caller has staged: the join of a door that owes no write
-    /// outside the entities its call writes (the offset doors, and the
-    /// blend over the shells it carved), or of one that joins its own
-    /// fresh output in place (the shell). Not staged itself —
-    /// a refusal past the first kill leaves `self` part-joined, for the
-    /// caller to discard with its staging — and no reading outside
-    /// `within` is taken, so a vertex the call does not hold can neither
-    /// be joined nor refuse it. The rows the kills moved are re-derived
-    /// over the joined edges' faces alone: the killed edges' rows are
-    /// dropped and [`crate::pcurves::mint_pcurves_of`] runs on the faces
-    /// each kept edge bounds, where the body carries rows at all.
-    ///
-    /// The kills run under one surgery scope ([`crate::surgery`]), so a
-    /// run of joins derives tier 1 once, at its close; a run that joins
-    /// nothing writes nothing and sweeps nothing.
-    ///
-    /// # Panics
-    ///
-    /// On a kernel bug: an edge the body stores, re-minted or restated on its
-    /// own carrier and interval, whose span or winding reads certainly
-    /// refused at the run's band.
-    ///
-    /// # Errors
-    ///
-    /// As [`Body::join_edges`], for the vertices `within` holds.
+    /// The door [`Construct::join_edges_within`](crate::construction::Construct::join_edges_within) forwards to;
+    /// documented there.
     pub(crate) fn join_edges_within(
         &mut self,
         band: Band,
@@ -935,7 +883,7 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
     }
 }
 
-/// [`Body::join_edges`]' loop, on the staged body.
+/// [`Body::join_edges`](crate::construction::Construct::join_edges)' loop, on the staged body.
 fn join_all<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     band: Band,

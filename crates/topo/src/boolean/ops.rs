@@ -11416,7 +11416,7 @@ mod from_computed_rows {
 /// **Rows for [`place_found`] on a divided face**, each through
 /// [`carry_in_place`] on a 2×2×1 prism whose top face a diagonal chord
 /// divides, with the division logged as a fragment row. The record's
-/// vertex is a lone vertex ([`Body::mvfs`]) set where the row needs it,
+/// vertex is a lone vertex ([`Body::mvfs`](crate::construction::Construct::mvfs)) set where the row needs it,
 /// so it bounds no piece and only the placement decides.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

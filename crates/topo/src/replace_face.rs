@@ -732,7 +732,7 @@ pub enum ReplaceFaceError<T: Real> {
         source: PcurveMintError,
     },
     /// The join the public offset doors end with
-    /// ([`Body::join_edges`]) refused on the offset body. The body is
+    /// ([`Body::join_edges`](crate::construction::Construct::join_edges)) refused on the offset body. The body is
     /// untouched.
     Join {
         /// Why the join refused.
@@ -1694,7 +1694,7 @@ pub fn offset_corner_arms_for_tests<T: Decide + crate::props::AtRestPolicy>(
 }
 
 /// What a public offset door did to the body's topology: the joins it
-/// ended with ([`Body::join_edges`], `docs/DESIGN.md`, maximal edges),
+/// ended with ([`Body::join_edges`](crate::construction::Construct::join_edges), `docs/DESIGN.md`, maximal edges),
 /// in the order made, each killed `vertex` and `gone` edge held by
 /// `kept`. Empty where the moved body held no joinable vertex.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -1748,7 +1748,7 @@ impl OffsetOutcome {
 /// The join an offset door ends with where `join` is set, on its staged
 /// body before it is adopted, over the vertices `within` holds: the
 /// door's own scope, so a vertex of an entity the call does not write
-/// is neither joined nor read ([`Body::join_edges_within`]). The
+/// is neither joined nor read ([`Body::join_edges_within`](crate::construction::Construct::join_edges_within)). The
 /// staging is the door's, so a refusal discards the half-joined clone
 /// with it.
 pub(crate) fn staged_join<T: Decide + crate::props::AtRestPolicy>(
@@ -3480,7 +3480,7 @@ pub(crate) fn offset_rechart<T: Real>(
 
 /// **The points move first, then one re-chart**: every group in
 /// `moved` moves onto its new point, and then every chart moves in ONE
-/// [`Body::set_face_surfaces_describing`] with every spec, which so
+/// [`Body::set_face_surfaces_describing`](crate::construction::Construct::set_face_surfaces_describing) with every spec, which so
 /// certifies each at the endpoints the offset leaves it. One call,
 /// because an edge between two moving charts certifies on neither pair
 /// of mixed charts; a spec names a chart by the key its face wears now.

@@ -48,14 +48,14 @@
 //! face.
 //!
 //! A record's two loops are therefore its face's own: the door refuses
-//! any other ([`crate::Body::set_null_face_pair`]), and an op that
+//! any other ([`crate::Body::set_null_face_pair`](crate::construction::Construct::set_null_face_pair)), and an op that
 //! removes a loop, or moves it off its face, drops each record naming
 //! it, since that face no longer holds the two loops the record
 //! describes. Every such op stays `Ok`.
 //!
 //! # Consumers (one line each, per the M3 doc convention)
 //!
-//! - [`Body::mev_null`](crate::Body::mev_null) serves `splitclassify` /
+//! - [`Body::mev_null`](crate::construction::Construct::mev_null) serves `splitclassify` /
 //!   `separ1`-`separ2` null-edge insertion (M3 PRs 2 and 4).
 //! - [`NullFacePair`] serves `splitconnect`'s completed section
 //!   polygons and `setopfinish`'s in/out copies (M3 PRs 3 and 5).
@@ -140,7 +140,7 @@ impl NullFacePair {
     }
 }
 
-/// Which side the **new** vertex of a [`Body::mev_null`] call faces —
+/// Which side the **new** vertex of a [`Body::mev_null`](crate::construction::Construct::mev_null) call faces —
 /// the caller's declaration, recorded into the minted [`NullEdge`]
 /// attribute (the old vertex takes the other side).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -192,66 +192,8 @@ impl<T: Real> CurveGeom<T> {
 }
 
 impl<T: geom_core::Decide> Body<T> {
-    /// MEV, null-edge form — *make (null) edge, vertex*: the zero-length
-    /// `lmev` idiom of ch. 14/15 (`separ1`/`separ2`), minting a new
-    /// vertex **on the site's old vertex's point** (the same
-    /// `PointKey` — structural coincidence, no comparison; D1 tier 3′
-    /// reads two vertices on one point as structural sharing) joined by a
-    /// **null edge** whose curve entry is [`CurveGeom::NullScaffold`]
-    /// carrying the F9 side attribute (`new_side` declares which side
-    /// the new vertex faces; the old vertex takes the other).
-    ///
-    /// Serves ch. 14 `splitclassify` null-edge insertion and ch. 15
-    /// null-edge pairs (M3 PRs 2 and 4). Site semantics — fan split,
-    /// strut (`he1 == he2`, ch. 15's dangling null edge), lone — and
-    /// the surgery are exactly [`Body::mev`]'s; only the geometry lane
-    /// differs, and BOTH of `mev`'s geometry gates are skipped rather
-    /// than passed:
-    ///
-    /// - the new edge's own certification, because there is no carrier
-    ///   to certify, by type (the ratified F9 shape, module docs);
-    /// - the re-basing gate over a fan site's moved run
-    ///   ([`Body::certify_rebased_run`]), because the new vertex's
-    ///   point is the old one's, so no re-based edge's
-    ///   endpoint moves and every certificate is the one it had. A
-    ///   structural coincidence, not a comparison — which is why this
-    ///   door needs no `Tol`.
-    ///
-    /// Tier 1 accepts the result; tier 2 refuses it at rest
-    /// ([`crate::ValidationError::NullEdgeAtRest`]).
-    ///
-    /// **Pcurve rows** ([`crate::pcurves`]): the null edge has no
-    /// carrier to derive its halves' rows from, so the loop it joins is
-    /// held open, missing those two, and the site mint cannot walk it.
-    /// The door that releases the loop mints it whole, with the rows of
-    /// any half an operator added to it meanwhile: an Euler operator
-    /// that rewires the loop out from under the edge — the boolean's and
-    /// the splitting lane's joins, whose chord `mef`s cut the section's
-    /// null halves off the faces they cross — the edge's first
-    /// description ([`Body::set_edge_curve`], or a
-    /// [`Body::kev_describing`] that lists it), or the band kill of the
-    /// edge ([`Body::kev_describing`], [`Body::kef_minting`],
-    /// [`Body::kemr_minting`]); on a spline chart each leaves the face as
-    /// found. The keys-only kills take no band to mint it with, and
-    /// refuse [`crate::pcurves::SiteRowRefusal::KeysOnly`] where the
-    /// loop they release would miss a row.
-    ///
-    /// Euler vector: `(v +1, e +1, f 0, h 0, r 0, s 0)` — identical to
-    /// `mev` (a null edge is an edge).
-    ///
-    /// **Minting order** (D9, exact — deviates from `mev`'s): no point,
-    /// then **vertex**, curve entry (the F9 attribute names the new vertex,
-    /// so the vertex must exist first), edge, `he_plus`, `he_minus`.
-    /// Emanating rule and splice positions: as [`Body::mev`].
-    ///
-    /// # Precondition check order
-    ///
-    /// [`Body::mev`]'s site list, and nothing after it.
-    ///
-    /// # Errors
-    ///
-    /// The first failing precondition above; the body is untouched on
-    /// `Err`.
+    /// The door [`Construct::mev_null`](crate::construction::Construct::mev_null) forwards to;
+    /// documented there.
     pub(crate) fn mev_null(
         &mut self,
         site: MevSite,
@@ -319,7 +261,7 @@ impl<T: geom_core::Decide> Body<T> {
     ///
     /// # Errors
     ///
-    /// As [`Body::mev_null`].
+    /// As [`Body::mev_null`](crate::construction::Construct::mev_null).
     pub(crate) fn mev_null_run(
         &mut self,
         site: MevSite,
@@ -371,33 +313,8 @@ pub(crate) struct NullRunMint {
 // `Real` bound (the tiers' posture: structural bookkeeping never
 // classifies).
 impl<T: Real> Body<T> {
-    /// Marks `face` as a null face with the given F9 loop-role
-    /// attribute (replacing any existing mark — the record is data the
-    /// splitting/boolean pipeline maintains as it builds the pair).
-    ///
-    /// Preconditions: the face resolves, both role loops resolve, they
-    /// are distinct, and both are the face's own — its outer loop or
-    /// one of its rings. A null face is one face's two coincident loops
-    /// (module docs), so a record naming another face's loop describes
-    /// none, and the door refuses it before it writes. The type cannot
-    /// say it instead: the record names its loops by explicit key
-    /// (F9), not by outer-vs-ring designation.
-    ///
-    /// Every op that removes a named loop, or moves it off its face,
-    /// drops the record rather than refusing (module docs), so no op
-    /// leaves a record naming a loop its face does not hold, and tier 1
-    /// checks ownership too
-    /// ([`crate::ValidationError::StaleNullFaceOwnership`]). Tier 2
-    /// refuses marked faces at rest
-    /// ([`crate::ValidationError::NullFaceAtRest`]).
-    ///
-    /// # Errors
-    ///
-    /// [`crate::BadArgument::Stale`] if the face or a role loop does not
-    /// resolve; [`EulerOpError::SameLoop`] if the two role loops are
-    /// one loop; [`EulerOpError::NullPairForeignLoop`] naming the first
-    /// role loop, in declaration order, that is not the face's own. The
-    /// body is untouched on `Err`.
+    /// The door [`Construct::set_null_face_pair`](crate::construction::Construct::set_null_face_pair) forwards to;
+    /// documented there.
     pub(crate) fn set_null_face_pair(
         &mut self,
         face: FaceKey,
@@ -421,9 +338,8 @@ impl<T: Real> Body<T> {
         Ok(())
     }
 
-    /// Removes `face`'s null-face mark, returning it (or `None` if the
-    /// face was not marked — total, like the accessor: clearing is the
-    /// consuming pipeline's bookkeeping, not a checked surgery).
+    /// The door [`Construct::clear_null_face_pair`](crate::construction::Construct::clear_null_face_pair) forwards to;
+    /// documented there.
     pub(crate) fn clear_null_face_pair(&mut self, face: FaceKey) -> Option<NullFacePair> {
         self.null_faces.remove(face)
     }
