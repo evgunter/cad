@@ -836,6 +836,27 @@ fn a_planted_flip_refuses_flip_crossing_and_names_what_flipped() {
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let v = drive(&doc, &analyzed, &config(4096), Tol::witness()).expect("the nominal builds");
     assert!(v.receipt().holds());
+    // Pinned at what main does (2026-10-28): the witness side certifies
+    // no leaf within the 4096-leaf budget, so the flip this row names is
+    // never reached. Unbisected between PR 5728 (limb 2 for every
+    // carrier) and PR 5811
+    // (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`).
+    // The pin goes red the day the witness side certifies again; then
+    // it comes out and the row calls `names_what_flipped(&v)` again.
+    assert!(
+        v.certified().is_empty(),
+        "pinned: the witness side certified nothing on main, and now it certifies {} \
+         leaves; drop this pin and call `names_what_flipped(&v)`: {:?}",
+        v.certified().len(),
+        v.receipt()
+    );
+}
+
+/// The planted flip's own checks, which
+/// [`a_planted_flip_refuses_flip_crossing_and_names_what_flipped`] runs
+/// once its pin comes out.
+#[allow(dead_code)]
+fn names_what_flipped(v: &editor_core::ParamBoxVerdict) {
     assert!(!v.certified().is_empty(), "the witness side must certify");
 
     let flips: Vec<&FlipEvidence> = v

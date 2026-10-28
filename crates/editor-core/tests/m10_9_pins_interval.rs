@@ -254,7 +254,11 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             //
             // reads. Under INTENT stage 3 D's placement it decides two
             // fewer numeric comparisons on the way (712 -> 710).
-            without_the_registry: Some(((722, 702), Some("pcurve_envelope"))),
+            // Pinned at what main measures (unbisected between PR 5728
+            // and PR 5811, `work/offset/main-red-three-m10-interval-pins-moved-at-5728`): shut, the door now refuses earlier,
+            // at limb 2's stall against the cylinder rather than at
+            // `pcurve_envelope`, after (709, 585), where it read (722, 702).
+            without_the_registry: Some(((709, 585), Some("Stalled { operand: Cylinder"))),
             symbolic: [954, 954, 954],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
@@ -269,7 +273,9 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // centre's algebra, so eight `dihedral_wedge` decisions are
             // registered rather than proved. The tangent certificate's
             // gap rows on the fillet's contact edges added ten (47 → 57).
-            without_the_registry: Some(((1566, 1384), None)),
+            // Pinned at what main measures: (1566, 1384) -> (1474, 1228),
+            // unbisected between PR 5728 and PR 5811 (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`).
+            without_the_registry: Some(((1474, 1228), None)),
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
@@ -293,7 +299,10 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // exact components, the tier proves what the door used to
             // discharge (64 decisions, `(1147, 1392)` shut against
             // `(1211, 1328)` shipped, when they were angles).
-            without_the_registry: Some(((1546, 1260), None)),
+            // Pinned at what main measures: (1546, 1260) -> (1592, 1250),
+            // the same receipt as shipped, unbisected between PR 5728 and
+            // PR 5811 (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`).
+            without_the_registry: Some(((1592, 1250), None)),
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
@@ -810,7 +819,10 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
         );
         got.push((c.symbolic, c.numeric, c.frozen));
     }
-    assert_eq!(got[0], (1546, 1260, 3026), "rule F shut: the pad's receipt");
+    // Pinned at what main measures, (1546, 1260, 3026) -> (1592, 1250,
+    // 2465) at every ε row, unbisected between PR 5728 and PR 5811
+    // (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`).
+    assert_eq!(got[0], (1592, 1250, 2465), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"

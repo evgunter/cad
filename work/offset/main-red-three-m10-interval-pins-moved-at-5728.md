@@ -89,5 +89,25 @@ each row pinned at that number with a comment naming this row:
   without it and moved the plate's pin 1249 -> 1101. The row stops at
   its first study, which is why only the plate was reported.
 
+Four more slow-set rows were red on main with the same documents, and
+the triage did not file them. They are pinned the same way. Each was
+last re-taken before both PR 5811 (INTENT, copies that no longer run
+their maps) and PR 5728, so which of the two moved each is unbisected:
+
+- `m10_9_the_pad_at_both_rule_f_dials`: the pad's receipt
+  (1546, 1260, 3026) -> (1592, 1250, 2465), at both dials.
+- `m10_9_what_the_registry_buys`: with the door shut the link now
+  refuses at limb 2's stall against the cylinder, not `pcurve_envelope`,
+  after (709, 585). The bracket (1566, 1384) -> (1474, 1228); the pad
+  (1546, 1260) -> (1592, 1250), the same as shipped.
+- `sym11_the_exact_channel_never_contradicts_past_the_ceiling`: every
+  receipt past the ceiling moved, `frozen` most (the plate 1557 -> 229).
+  No dispute fired.
+- `m10_3`'s `a_planted_flip_refuses_flip_crossing_and_names_what_flipped`:
+  the witness side certifies no leaf within 4096, so the flip is never
+  reached. The row asserts that, and its flip checks wait in
+  `names_what_flipped`. This one is a behaviour loss rather than a count
+  that moved.
+
 Closing this row takes the mechanism of each move. The pins keep main
 green until then.
