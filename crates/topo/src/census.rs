@@ -20479,4 +20479,194 @@ mod arc_interiors {
             );
         }
     }
+
+    // ---- review probes (atrest-flush, KNuPYm) ----
+
+    /// Two pieces, each its own lamina, read both ways.
+    fn pair(
+        a: (Point3<f64>, f64, (f64, f64)),
+        b: (Point3<f64>, f64, (f64, f64)),
+    ) -> (Result<bool, InteriorsUnread>, Result<bool, InteriorsUnread>) {
+        let mut body = Body::<f64>::new();
+        let fa = add_piece(&mut body, a.0, a.1, a.2);
+        let fb = add_piece(&mut body, b.0, b.1, b.2);
+        let geo = snapshot(&body);
+        (
+            face_interiors_meet(&body, &geo, fa, fb, band()),
+            arc_interiors_meet(&body, &geo, fa, fb, band()),
+        )
+    }
+
+    #[test]
+    fn probe_overlaps_never_read_apart() {
+        let (c, _, _, v) = frame();
+        let cases: Vec<(
+            &str,
+            (Point3<f64>, f64, (f64, f64)),
+            (Point3<f64>, f64, (f64, f64)),
+        )> = vec![
+            ("identical halves", (c, 1.0, (0.0, PI)), (c, 1.0, (0.0, PI))),
+            (
+                "reflex vs half",
+                (c, 1.0, (0.0, 1.5 * PI)),
+                (c, 1.0, (PI, 2.0 * PI)),
+            ),
+            (
+                "reflex vs reflex turned",
+                (c, 1.0, (0.0, 1.5 * PI)),
+                (c, 1.0, (PI, 2.5 * PI)),
+            ),
+            (
+                "half vs sub-run quarter",
+                (c, 1.0, (0.0, PI)),
+                (c, 1.0, (0.0, 0.5 * PI)),
+            ),
+            (
+                "half vs inner sub-run",
+                (c, 1.0, (0.0, PI)),
+                (c, 1.0, (0.25 * PI, 0.75 * PI)),
+            ),
+            (
+                "sub-run vs half",
+                (c, 1.0, (0.25 * PI, 0.75 * PI)),
+                (c, 1.0, (0.0, PI)),
+            ),
+            (
+                "straddling a vertex",
+                (c, 1.0, (0.0, PI)),
+                (c, 1.0, (-0.25 * PI, 0.25 * PI)),
+            ),
+            (
+                "big circle segment inside",
+                (c, 1.0, (0.0, PI)),
+                (c + v * 0.5, 0.3, (0.0, 2.0 * PI - 0.01)),
+            ),
+            (
+                "nearly full disc vs half",
+                (c, 1.0, (0.0, 2.0 * PI - 0.01)),
+                (c, 1.0, (PI, 2.0 * PI)),
+            ),
+        ];
+        let mut bad = Vec::new();
+        for (label, a, b) in cases {
+            let (faces, pieces) = pair(a, b);
+            let (faces2, pieces2) = pair(b, a);
+            eprintln!(
+                "{label}: faces {faces:?} pieces {pieces:?} | swapped {faces2:?} {pieces2:?}"
+            );
+            if [faces, pieces, faces2, pieces2].contains(&Ok(false)) {
+                bad.push(label);
+            }
+        }
+        assert!(bad.is_empty(), "overlaps read apart: {bad:?}");
+    }
+
+    #[test]
+    fn probe_abutting_pieces_read_apart() {
+        let (c, ..) = frame();
+        for (label, a, b) in [
+            (
+                "reflex vs complement",
+                (c, 1.0, (0.0, 1.5 * PI)),
+                (c, 1.0, (1.5 * PI, 2.0 * PI)),
+            ),
+            (
+                "segments sharing an end",
+                (c, 1.0, (0.0, 0.5 * PI)),
+                (c, 1.0, (0.5 * PI, PI)),
+            ),
+        ] {
+            let (faces, pieces) = pair(a, b);
+            eprintln!("{label}: faces {faces:?} pieces {pieces:?}");
+        }
+    }
+
+    /// The lens claim at small radii: never `Ok(false)` where the lens
+    /// is deeper than the zero.
+    #[test]
+    fn probe_lens_depth_against_zero_at_small_radii() {
+        let tol = Tol::witness();
+        let eps = tol.eps();
+        let width = tol.k() * eps;
+        let zero = band().zero();
+        let mut bad = Vec::new();
+        for rw in [0.6, 1.0, 2.0, 3.0, 10.0, 30.0, 100.0, 1000.0, 1e5] {
+            let r = rw * width;
+            for de in [0.3, 0.9, 1.1, 1.5, 2.0, 3.0, 5.0, 8.0, 12.0, 20.0, 50.0] {
+                let depth = de * eps;
+                if depth >= r {
+                    continue;
+                }
+                let Ok(got) = std::panic::catch_unwind(|| read(r, -depth)) else {
+                    eprintln!("r={rw} widths depth={de} eps -> not built");
+                    continue;
+                };
+                eprintln!("r={rw} widths depth={de} eps -> {got:?}");
+                if depth > zero && got == Ok(false) {
+                    bad.push((rw, de));
+                }
+            }
+        }
+        assert!(
+            bad.is_empty(),
+            "lenses deeper than zero read apart: {bad:?}"
+        );
+    }
+
+    #[test]
+    fn probe_lens_which_reading() {
+        let tol = Tol::witness();
+        let eps = tol.eps();
+        let width = tol.k() * eps;
+        let r = 1000.0 * width;
+        for de in [0.0, 0.05, 0.3, 0.9, 2.0, 5.0] {
+            let depth = de * eps;
+            let (c, _, _, v) = frame();
+            let mut body = Body::<f64>::new();
+            let a = add_piece(&mut body, c, r, (0.0, PI));
+            let b = add_piece(&mut body, c + v * (2.0 * r - depth), r, (PI, 2.0 * PI));
+            let geo = snapshot(&body);
+            let witness = shared_interior_witness(&body, &geo, a, b, band()).map(|_| true);
+            let pieces = arc_interiors_meet(&body, &geo, a, b, band());
+            // A's arc midpoint, the lens's deepest point, placed in B.
+            let circle = Curve3::Circle {
+                center: c,
+                axis: frame().1,
+                radius: r,
+                u_ref: frame().2,
+            };
+            let q = circle.eval(0.5 * PI);
+            let mut errs = Vec::new();
+            let placed_q = placed(&body, &geo, b, q, band(), &mut errs);
+            let sa = curved::edge_span(
+                &body,
+                crate::boolean::solid_contain::face_edges(&body, a)
+                    .unwrap()
+                    .into_iter()
+                    .map(|e| e.edge)
+                    .find(|&e| geo.line_edge(e).is_none())
+                    .unwrap(),
+                band(),
+            )
+            .unwrap();
+            let sb = curved::edge_span(
+                &body,
+                crate::boolean::solid_contain::face_edges(&body, b)
+                    .unwrap()
+                    .into_iter()
+                    .map(|e| e.edge)
+                    .find(|&e| geo.line_edge(e).is_none())
+                    .unwrap(),
+                band(),
+            )
+            .unwrap();
+            let m = meet(&sa.span(), &sb.span(), band());
+            let m = m
+                .map(|m| m.points.len())
+                .map_err(|e| format!("{:?}", e.fault));
+            eprintln!(
+                "depth {de} eps: witness {witness:?} pieces {pieces:?} deepest point in B {placed_q:?} arc meet {m:?}"
+            );
+        }
+    }
 }
