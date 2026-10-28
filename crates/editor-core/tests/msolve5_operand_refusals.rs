@@ -193,7 +193,7 @@ fn assert_refused_at_the_block(doc: &ProfileDoc, ev: &Evaluation<f64>, top: Reci
         matches!(
             &err,
             e
-                if matches!(*e, ProductError::Root(NodeStanding::Poisoned { through, .. }) if through == top)
+                if matches!(*e, ProductError::Read(NodeStanding::Poisoned { through, .. }) if through == top)
         ),
         "{err:?}"
     );
@@ -378,7 +378,7 @@ fn a_poisoned_operand_never_reaches_the_gate() {
         matches!(
             &err,
             e
-                if matches!(*e, ProductError::Root(NodeStanding::Poisoned { through, .. }) if through == top)
+                if matches!(*e, ProductError::Read(NodeStanding::Poisoned { through, .. }) if through == top)
         ),
         "the gather refuses at the failed placement before any reference is read: {err:?}"
     );

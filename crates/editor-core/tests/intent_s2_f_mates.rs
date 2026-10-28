@@ -254,7 +254,7 @@ fn a_mate_on_unplaced_operands_states_nothing_of_the_world() {
         Err(refusal) => assert!(
             matches!(
                 refusal,
-                editor_core::ProductError::Root(editor_core::NodeStanding::Poisoned {
+                editor_core::ProductError::Read(editor_core::NodeStanding::Poisoned {
                     through,
                     ..
                 }) if through == mate.placement
@@ -412,7 +412,7 @@ fn a_mate_whose_side_no_longer_resolves_refuses_and_the_gate_says_so() {
         Err(refusal) => assert!(
             matches!(
                 refusal,
-                editor_core::ProductError::Root(editor_core::NodeStanding::Poisoned {
+                editor_core::ProductError::Read(editor_core::NodeStanding::Poisoned {
                     through,
                     ..
                 }) if through == mate.placement
