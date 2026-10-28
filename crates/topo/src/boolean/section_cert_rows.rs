@@ -79,7 +79,9 @@ fn donut() -> Surface<f64> {
 }
 
 /// The rows' reach: a ball of diameter [`LEVER`] about the origin,
-/// where every row's torus and walls stand.
+/// where every row's torus and walls stand. A torus pair's section value
+/// reads its own ball and not this one (`geom_brep::pair_section::torus`),
+/// so it serves the rows of every pair alike.
 pub(super) fn classify(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
     super::classify(
         f,
@@ -280,9 +282,9 @@ fn torus_and_ball_every_class() {
         0
     );
     // A ball in the hole tangent to the inner equator, a saddle point:
-    // R-tan.
+    // R-tan, on the critical gap.
     let s = classify(&donut(), &sphere(p(1.0, 0.0, 0.0), 0.5));
-    assert_eq!(tangent(&s), "section_torus_sphere_near_tube");
+    assert_eq!(tangent(&s), "st_critical_gap");
 }
 
 // -------------------------------------------------------------------
@@ -351,14 +353,24 @@ fn intractable_poses_refuse_on_reach() {
         0.15,
     );
     assert!(matches!(classify(&donut(), &rod), Section::Intractable));
-    let tilted = Surface::Torus {
-        center: p(1.0, 0.0, 0.0),
+    let tilted = |center| Surface::Torus {
+        center,
         axis: v(0.0, (0.5f64).sin(), (0.5f64).cos()),
         major_radius: 2.0,
         minor_radius: 0.5,
         u_ref: Vec3::unit_x(),
     };
-    assert!(matches!(classify(&donut(), &tilted), Section::Intractable));
+    assert!(matches!(
+        classify(&donut(), &tilted(p(1.0, 0.2, 0.3))),
+        Section::Intractable
+    ));
+    // About `(1, 0, 0)` the second core passes `(3, 0, 0)` and
+    // `(−1, 0, 0)`, each a unit from the first core along a common normal:
+    // the tubes touch there, a tangency the critical gap decides.
+    assert_eq!(
+        tangent(&classify(&donut(), &tilted(p(1.0, 0.0, 0.0)))),
+        "tt_critical_gap"
+    );
     let cone = Surface::Cone {
         apex: p(0.0, 0.0, 3.0),
         axis: Vec3::unit_z(),
@@ -923,8 +935,9 @@ fn a_torus_touch_is_the_centre_of_every_loop_its_margin_admits() {
     let in_tube = p(2.2, 0.0, 0.1);
     let d_near = 0.2f64.hypot(0.1);
     const PLANE_NEAR: &str = "section_torus_plane_near_tube";
-    const SPHERE_NEAR: &str = "section_torus_sphere_near_tube";
-    const WALL: &str = "section_torus_offset_wall_near_outer";
+    // A sphere's or a wall's touch is decided by its pair's critical gap.
+    const SPHERE_NEAR: &str = "st_critical_gap";
+    const WALL: &str = "ct_critical_gap";
     // (label, the margin, the exact pose, the pose pushed across, the
     // tangent point)
     type Row = (
@@ -965,7 +978,7 @@ fn a_torus_touch_is_the_centre_of_every_loop_its_margin_admits() {
         ),
         (
             "ball about the torus",
-            "section_torus_sphere_far_tube",
+            SPHERE_NEAR,
             sphere(about, d_far + 0.5),
             sphere(about, d_far + 0.5 - push),
             p(-2.0 - 0.5 * 2.5 / d_far, 0.0, -0.5 * 0.3 / d_far),
@@ -1026,22 +1039,23 @@ fn torus_tangencies_off_an_elliptic_extreme_are_not_touches() {
             "{label}"
         );
     }
-    for ball in [sphere(p(0.0, 0.0, 0.0), 2.5), sphere(p(2.0, 0.0, 0.0), 0.5)] {
-        assert_eq!(
-            tangent(&classify(&donut(), &ball)),
-            "section_torus_sphere_near_tube",
-            "{ball:?}"
-        );
+    // The ball on the axis is a coaxial pose, its tangency the closed
+    // form's tube row; the ball on the core circle has every point of a
+    // meridian on a normal through its centre, and its touch reading
+    // refuses before it divides by that offset.
+    for (ball, row) in [
+        (sphere(p(0.0, 0.0, 0.0), 2.5), "st_coaxial_tube"),
+        (sphere(p(2.0, 0.0, 0.0), 0.5), "st_critical_gap"),
+    ] {
+        assert_eq!(tangent(&classify(&donut(), &ball)), row, "{ball:?}");
     }
     let z = Vec3::unit_z();
-    assert_eq!(
-        tangent(&classify(&donut(), &cylinder(p(1.0, 0.0, -1.0), z, 0.5))),
-        "section_torus_offset_wall_far_inner"
-    );
-    assert_eq!(
-        tangent(&classify(&donut(), &cylinder(p(2.2, 0.0, -1.0), z, 0.3))),
-        "section_torus_offset_wall_far_outer"
-    );
+    for wall in [
+        cylinder(p(1.0, 0.0, -1.0), z, 0.5),
+        cylinder(p(2.2, 0.0, -1.0), z, 0.3),
+    ] {
+        assert_eq!(tangent(&classify(&donut(), &wall)), "ct_critical_gap");
+    }
 }
 
 /// **A touch clears only on a pair with no event, and only out of a
@@ -1425,17 +1439,6 @@ fn a_lone_vertex_ring_refuses_the_pair() {
 // The lever's pivot: the same carrier line, whatever its stored origin
 // -------------------------------------------------------------------
 
-/// The classification of a torus pair whose region is the ball
-/// `(centre, radius)`: the overlap box's centre and half-diagonal.
-pub(super) fn classify_near(
-    f: &Surface<f64>,
-    g: &Surface<f64>,
-    centre: Point3<f64>,
-    radius: f64,
-) -> Section<f64> {
-    super::classify(f, g, super::Reach { centre, radius }, band())
-}
-
 /// A carrier line through `through` with direction `d`, stored with its
 /// origin `far` metres along `d` from there.
 fn far_cylinder(through: Point3<f64>, d: Vec3<f64>, radius: f64, far: f64) -> Surface<f64> {
@@ -1457,7 +1460,7 @@ fn far_cylinder(through: Point3<f64>, d: Vec3<f64>, radius: f64, far: f64) -> Su
 fn a_far_origin_does_not_move_a_pins_offset() {
     let tilt = 1.9e-10;
     let pin = far_cylinder(p(2.7 - 8e-8, 0.0, 0.0), v(tilt, 0.0, 1.0), 0.2, 1000.0);
-    let s = classify_near(&donut(), &pin, p(2.5, 0.0, 0.0), 2.5);
+    let s = classify(&donut(), &pin);
     match &s {
         Section::Components { parts, .. } => {
             assert!(!parts.is_empty(), "a true scrape loop cleared as apart")
@@ -1481,7 +1484,7 @@ fn a_far_origin_does_not_move_a_pins_offset() {
 fn a_far_origin_does_not_make_a_wall_coaxial() {
     let tilt = 1.5e-10;
     let wall = cylinder(p(0.0, 0.0, 1000.0), v(-tilt, 0.0, -1.0), 2.5 - 1e-7);
-    let s = classify_near(&donut(), &wall, p(0.0, 0.0, 0.0), 3.0);
+    let s = classify(&donut(), &wall);
     if let Section::Components { parts, .. } = &s {
         assert!(
             !(parts.len() == 2 && parts.iter().all(|c| c.essential_f && c.essential_g)),

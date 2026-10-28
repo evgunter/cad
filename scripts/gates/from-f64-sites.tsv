@@ -42,6 +42,9 @@ crates/geom-brep/src/half_angle.rs	2	constant	share	a fixed split fraction (SPLI
 crates/geom-brep/src/half_angle.rs	3	constant	f64::from(k)	a subdivision index
 crates/geom-brep/src/implicit.rs	1	constant	k as f64	a sample index
 crates/geom-brep/src/newell.rs	1	constant	points.len() as f64	a point count
+crates/geom-brep/src/pair_section/gap.rs	1	constant	k as f64	the index of a cell of the critical gap's first cut of the turn
+crates/geom-brep/src/pair_section/torus_arms.rs	1	constant	band.escalate()	the band's escalation width, a tolerance (the parallel-tori arm's level-row width)
+crates/geom-brep/src/pair_section/torus_arms.rs	1	constant	n as f64	a strand count along a loop of the parallel-tori arm's matching curve
 crates/geom-brep/src/pcurve_cache.rs	1	constant	a	own_interval: a net's knot-domain lower end, a knot of its bare KnotVector, which holds no value in a scalar
 crates/geom-brep/src/pcurve_cache.rs	1	constant	b	own_interval: a net's knot-domain upper end, a knot of its bare KnotVector, which holds no value in a scalar
 crates/geom-brep/src/pcurve_cache.rs	1	constant	f64::from(i) / n	a sample schedule's fraction
@@ -131,8 +134,6 @@ crates/topo/src/boolean/mod.rs	1	constant	boxes::sweep_pad(band)	the band's swee
 crates/topo/src/boolean/rim_wedge.rs	1	constant	k	a fixed wrap count
 crates/topo/src/boolean/rim_wedge.rs	1	constant	phase(i)	a fixed station of the sample schedule
 crates/topo/src/boolean/rim_wedge.rs	1	constant	sgn	a root's sign, ±1
-crates/topo/src/boolean/section_cert.rs	1	constant	n as f64	a strand count along a loop of the parallel-tori arm's matching curve
-crates/topo/src/boolean/section_cert.rs	1	constant	band.escalate()	the band's escalation width, a tolerance (the parallel-tori arm's level-row width)
 crates/topo/src/boolean/section_cert/ruling.rs	1	constant	<block> if charged	the band's zero width or zero, a tolerance (the reader cuts the argument at its brace)
 crates/topo/src/boolean/section_cert/ruling.rs	2	constant	f64::from(k)	an eighth-turn sample index
 crates/topo/src/boolean/sectors.rs	1	constant	2.0 * sectors.len() as f64	a count
