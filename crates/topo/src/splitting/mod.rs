@@ -1164,6 +1164,15 @@ pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
             crate::pieces::sort_into_pieces(&mut body, band, tol, T::quad_lane(), None)
                 .map_err(SplitError::Pieces)?;
             T::gate_at_rest_kept(body, tol)
+                .and_then(|kept| {
+                    let records = crate::ContactRecords::default();
+                    let declared = T::gate_at_rest_declared(&kept, &records, tol);
+                    measure_3prime(side, &declared);
+                    match (declared, std::env::var("SPLIT3P_MODE").as_deref()) {
+                        (Err(errors), Ok("gate")) => Err(errors),
+                        _ => Ok(kept),
+                    }
+                })
                 .map(finish::SplitPart::Body)
                 .map_err(|errors| SplitError::from(SplitFinishError::not_at_rest(side, errors)))
         }
@@ -1175,6 +1184,29 @@ pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
         naming,
         coincidences,
     })
+}
+
+/// Measurement only: appends each side's tier-3′ refusal to
+/// `$SPLIT3P_LOG/<pid>`, one line per side, naming the test.
+fn measure_3prime(
+    side: PlaneSide,
+    declared: &Result<crate::AtRestOutcome, Vec<crate::validate::ValidationError>>,
+) {
+    use std::io::Write;
+    let (Err(errors), Ok(dir)) = (declared, std::env::var("SPLIT3P_LOG")) else {
+        return;
+    };
+    let test = std::env::var("NEXTEST_TEST_NAME")
+        .ok()
+        .or_else(|| std::thread::current().name().map(str::to_owned))
+        .unwrap_or_default();
+    let binary = std::env::var("NEXTEST_BINARY_ID").unwrap_or_default();
+    let eps = std::env::var("CAD_TOLERANCE_EPS").unwrap_or_default();
+    let line = format!("{eps}\t{binary}\t{test}\t{side:?}\t{} errors\t{errors:?}\n", errors.len());
+    let path = std::path::Path::new(&dir).join(std::process::id().to_string());
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+        let _ = f.write_all(line.as_bytes());
+    }
 }
 
 /// One run of the split pipeline over an operand read as one solid.
