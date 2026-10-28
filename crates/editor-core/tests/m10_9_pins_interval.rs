@@ -200,9 +200,11 @@ pub(crate) struct Study {
 /// 148 each: the plate 1101 and the bracket 1473.
 ///
 /// **Pinned at what main measures since PR 5728** (limb 2 for every
-/// carrier), identical at all three ε rows: the plate 1101 -> 1149.
-/// Which registrant or rule the 48 decisions are is unread
-/// (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`).
+/// carrier), identical at all three ε rows: the plate 1101 -> 1149,
+/// the annulus 630 -> 654, the link 922 -> 954, the bracket 1473 ->
+/// 1535 and the pad 1544 -> 1592. None refuses a registration or
+/// disputes a theorem. Which decisions the added symbolic ones are is
+/// unread (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`).
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
@@ -227,7 +229,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // As the plate: the circles' stored carrier makes every rim
             // decision a theorem.
             without_the_registry: None,
-            symbolic: [630, 630, 630],
+            symbolic: [654, 654, 654],
             at: Box::new(move |s: f64| crate::m10_8_r1_probes_interval::annulus(s, tol).0),
         },
         Study {
@@ -253,7 +255,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // reads. Under INTENT stage 3 D's placement it decides two
             // fewer numeric comparisons on the way (712 -> 710).
             without_the_registry: Some(((722, 702), Some("pcurve_envelope"))),
-            symbolic: [922, 922, 922],
+            symbolic: [954, 954, 954],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -273,7 +275,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // How many the tier reaches depends on the order the
             // variables' symbols sort in
             // (`work/rules/sym-tier-reach-depends-on-symbol-order`).
-            symbolic: [1473, 1473, 1473],
+            symbolic: [1535, 1535, 1535],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -295,7 +297,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
-            symbolic: [1544, 1544, 1544],
+            symbolic: [1592, 1592, 1592],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]

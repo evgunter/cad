@@ -521,19 +521,17 @@ fn the_certification_width_is_no_longer_bounded_by_epsilon() {
     // other predicate.
     let past = slab(1.0, hi);
     let why = node_failures(&past, &analyzed_box(&past, &AnalysisPolicy::default()));
+    // Since PR 5728 the predicate past the ceiling is limb 2's, not
+    // `dihedral_wedge` at the extrude's wall join (`SliverJoin`): a
+    // wall's line carrier has no certified enclosure over the box, and
+    // that arrives first. It is what moved the ceiling down
+    // (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`).
     assert!(
-        why.iter().any(|f| f.contains("dihedral_wedge")),
-        "just past the ceiling a ONE-LEAF replay must fail on `dihedral_wedge`; a \
-         different predicate means the mechanism that sets the ceiling moved, and the \
-         doc above is then wrong rather than the number: {why:?}"
-    );
-    // That read is the extrude's first-order wall join, `SliverJoin`,
-    // an arm no point input reaches since the wedge is levered at its
-    // faces (`work/lever/the-arms-the-faces-lever-left-without-a-row.md`):
-    // this row is where it is reached.
-    assert!(
-        why.iter().any(|f| f.contains("SliverJoin")),
-        "just past the ceiling the one-leaf replay refuses at the extrude's wall join: {why:?}"
+        why.iter()
+            .any(|f| f.contains("CarrierEnclosure(CarrierEnclosureRefusal { kind: Line")),
+        "just past the ceiling a ONE-LEAF replay must fail on limb 2's line-carrier \
+         enclosure; a different predicate means the mechanism that sets the ceiling \
+         moved, and the doc above is then wrong rather than the number: {why:?}"
     );
     let wide = slab(1.0, 0.5);
     let why = node_failures(&wide, &analyzed_box(&wide, &AnalysisPolicy::default()));
