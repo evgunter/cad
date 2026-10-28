@@ -79,3 +79,25 @@ Signed: (CARVE orchestrator)
   for E, as that row asks.
 - **Blinding.** The byte for both forks was drawn late, after the first
   reports and before any `[ev]` PR. Both rows say so.
+
+## 2026-10-28 — Ev ruled on E7; E merged; SHELL-3 and the minsep designers dispatched
+
+- **#5866 merged.** Ev approved the rewording of E7's
+  *Self-intersection scope* clause, and it now leads with injectivity.
+  Ev's words are on the row.
+  - Ev asked whether big curved faces are a problem. They are not; the
+    cost is near-tangency. A large-curved-body budget row is now pinned
+    on the self-intersection unit.
+- **INTENT's E (#5811) merged** as `6f1c805c25`. Its final
+  `clearance.rs` frames through `Framed::computing_among` and `read_in`
+  in `clearance_with`, and repeats that at `f64` in `verify_witness`.
+  Both stay in `editor-core` under SHELL-3's spec. INTENT's next units
+  (the carry, G) announce `wire_place`, `product.rs` and
+  `eval/parts.rs`, not `clearance.rs`.
+- **SHELL-3 dispatched** on `clear/shell-3-engine-into-topo`, spec
+  `docs/SHELL-3-SPEC.md`.
+  - Review: single FULL review on the frozen head. It is a move with no
+    behaviour change, and the goldens are the differential.
+- **`min-separation-tightening-crosses-the-drive`'s designers
+  dispatched.** The row asked for them to wait until E landed. The
+  blinding byte was drawn at dispatch this time (analysis branch).
