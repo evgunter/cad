@@ -246,7 +246,7 @@ fn r2_oblique_circular_seat_at_a_pinned_world_frame() {
     let axis =
         crate::mate1_member_vocab::axis_with(&doc, leg, own_origin, unturn([1.0, 1.0, 1.0]), &o);
     let theta = 2.0 * core::f64::consts::PI / 5.0;
-    let (doc, k, pattern) = crate::fixture::circular(doc, leg, (axis, TargetAxis::Z), theta, 3);
+    let (doc, k, pattern) = crate::fixture::circular_pivot(doc, leg, axis, theta, 3);
     let mut doc = doc;
     let mut tops = Vec::new();
     for member in [0, 1] {

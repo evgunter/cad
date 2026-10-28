@@ -521,10 +521,8 @@ fn a_selection_of_a_familys_members_reads_the_family_whole() {
             .doc
             .node_reach(measured.measured.measures[0])
             .chain()
-            .is_none(),
-        "the selection reads the family whole, so the measure is one measure: side {:?}, top {:?}",
-        measured.doc.var_reach(side).chain(),
-        measured.doc.node_reach(top).chain()
+            .is_some_and(<[_]>::is_empty),
+        "the selection reads the family whole, so the measure is one measure"
     );
     assert!(
         editor_core::persist::save(&measured.doc, &[], Tol::witness()).is_ok(),

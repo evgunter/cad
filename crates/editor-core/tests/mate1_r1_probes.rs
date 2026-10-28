@@ -318,7 +318,7 @@ fn r1_oblique_circular_axis_with_a_non_identity_group_frame() {
         unturn(f, axis_dir),
         &o,
     );
-    let (doc, k, pattern) = crate::fixture::circular(doc, leg, (axis, TargetAxis::Z), theta, 3);
+    let (doc, k, pattern) = crate::fixture::circular_pivot(doc, leg, axis, theta, 3);
     let mut doc = doc;
     let mut seated = Vec::new();
     for member in [0, 2] {

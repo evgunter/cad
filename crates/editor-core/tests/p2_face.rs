@@ -275,21 +275,13 @@ fn a_mate_reading_a_family_member_crosses_split_and_inline_unmoved() {
         Tol::witness(),
     )
     .unwrap_or_else(|e| panic!("inline refused: {e}"));
-    // Flattened, the target reads member 2 where the part placed it in
-    // the world, which split's crossing read it through, rather than at
-    // the family: the one difference from `d`, and the member lands
-    // where it landed.
+    // Flattened, the target reads member 2 of the family again: the
+    // member's name maps back through its index, so inline of split is
+    // the document up to ids.
     let flat = crate::fixture::round_trip::flat(&back);
     let (map, steps) = composed(&doc, &out, &back);
-    let said = same_up_to_ids(&doc, &flat, &map, &steps)
-        .expect_err("the target reads the identity placement's copy");
-    let [only] = said.lines().collect::<Vec<_>>()[..] else {
-        panic!("the target's read is the one difference: {said}")
-    };
-    assert!(
-        only.starts_with(&format!("payload: {k:?} -> ")),
-        "the kept mate's target: {said}"
-    );
+    same_up_to_ids(&doc, &flat, &map, &steps)
+        .unwrap_or_else(|said| panic!("inline of split is the document up to ids: {said}"));
     let corner = |doc: &ProfileDoc| {
         crate::p2_gauges::min_corner(&crate::p2_gauges::body_of(&run(doc, &o), k))
     };
