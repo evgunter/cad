@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-02
 priority: P0
 cost: M
+design: true
 ---
 
 
@@ -102,3 +103,38 @@ and on the apex fix, at three ε. This asymmetry is not yet explained.
 
 - Re-banded P3 → P0 (CLEAVE orchestrator's ruling on PR 5765): a plane through a full cone's apex refuses the split at every pose measured, at all three ε, which is a normal verb broken on normal geometry, P0 by `work/README.md` Priority.
 - Moved to SPLITDOOR (`work/splitdoor/`) by `git mv`, id and body unchanged: the P1 track opened for split and boolean shapes that refuse, or ship a side their own gate fails, where a uniform reading would build: the split door's tier-3′ bar, tangent and pinch poses, and the curved-carrier lanes that read lines and circles only. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## Measured on main (2026-10-28, SPLITDOOR)
+
+Probe branch `splitdoor/cone-apex-probe` (95b1843b1d, measurement only, not for merge):
+`crates/sweep/tests/a_plane_through_a_cones_apex.rs` `zz_probe_cone_apex`; a full cone,
+profile (0,0),(1,0),(0,1) revolved `Full` about y. 74 poses through the apex (the 20 grazes of
+`THETAS` × both normals; 54 secants θ ∈ {0, 0.3, 2} × the row's nine t × both normals): all 74 refuse
+identically at ε 1e-6, 1e-9 and 1e-12, `Reduce(SliverSector { vertex, face,
+Escalated(margin 0.0, "sector_straight") })`, raised by `sector_shape` from
+`neighborhood::wide_entry`.
+
+**The cause is a class, not the rung.** `sector_face::resolve`'s cone arm takes
+`implicit_gradient` at the apex, which is 0/0, so the face normal there is NaN; the reflex rung
+reads NaN and the straight rung reads the angle between the two bounding rulings, which is
+exactly 90° at this half-angle (the 0 margin is a coincidence of α = 45°: below it the rung
+decides straight with a NaN bisector, above it refuses as a spike). Every apex reader in the
+split takes the face normal at the vertex: rule (a)'s coplanarity, graze, osculation
+(`implicit_max_normal_curvature`) and bend reads, rule (b)'s edge wedge, the join's `leave_on`
+(`implicit_outward_normal`) and `chord_join::Leave`. And an apex sector's interior directions
+are rulings, not positive combinations of its bounds, so a plane through the apex can flip side
+twice inside one sector at any width: the planar convex-sector argument does not hold there.
+
+An f64-only hack on the probe branch (`ZZ_HACK=1`: subdivide each apex sector at the plane's
+extremal ruling, read rule (a)'s normal along the bounding ruling) lands 21 of 74 at every ε,
+each side at its closed form to 3.3e-16; 27 then refuse `Join(Escalated
+"split_join_ruling_side")` at margin 0 (the row's predicted `ruling_pairs` refusal); the grazes
+refuse `chord_join` `SectionInvariant` (20/16/16) or `tangent_sector_osculation` (4 at θ ∈ {0, π});
+t = 1e-3 refuses per ε (`ConsecutiveOnSectors`, `pn_apex_pair_reach` in band, and
+`OpenConicChord { Hyperbola }`, likely
+`work/germ/a-plane-cone-apex-tangent-reads-a-residue-generator-off-the-tangency.md`).
+`sector_shape` is shared with the Boolean, which refuses at an apex by design
+(`BooleanError::NormalAtConeApex`).
+
+What is open: one coherent reading of a cone apex for the split, across all those readers, and
+where it lives. Weighed by the designer pair before any build.
