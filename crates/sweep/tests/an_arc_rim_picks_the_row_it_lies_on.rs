@@ -24,8 +24,10 @@ use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use profile::test_support::bulge_loop;
 use sweep::test_support::{stacked_at, tube_frame};
 use sweep::{TubeWindow, tube_along_arc};
+use topo::construction::Construct;
+use topo::construction::FaceSurface;
 use topo::pcurves::PcurveMintError;
-use topo::{Body, EulerOpError, FaceKey, FaceSurface, HalfEdgeKey, Pcurve};
+use topo::{Body, EulerOpError, FaceKey, HalfEdgeKey, Pcurve};
 
 fn tol() -> Tol {
     Tol::witness()

@@ -13,10 +13,9 @@ use geom_brep::{
     CertCheck, CertifyError, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, SurfacePair,
 };
 use geom_core::{Point3, Vec3};
-use topo::{
-    Body, ContactRecords, EulerOpError, FaceSurface, MefSite, MevSite, validate, validate_closed,
-    validate_geometric,
-};
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, MefSite, MevSite};
+use topo::{Body, ContactRecords, EulerOpError, validate, validate_closed, validate_geometric};
 
 use crate::common;
 use common::{

@@ -9,6 +9,7 @@ use geom_core::Tol;
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
+use topo::construction::Construct;
 
 #[test]
 fn symmetric_double_rim_split_volume_at_base() {

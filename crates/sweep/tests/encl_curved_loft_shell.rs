@@ -22,6 +22,7 @@
 
 use geom_core::test_support::upper;
 use geom_core::{Dual64, Tol, Vec3};
+use topo::construction::Construct;
 use topo::{Body, EdgeKey, FaceKey, ReplaceFaceError, ShellError};
 
 use crate::common::approx::{nurbs_walls, prism, twisted_loft};
@@ -999,7 +1000,7 @@ fn a_moved_fitted_cap_stands_its_corners_on_the_held_sides() {
         // Lifts RechartStrandsDescriptions: the cap's chart is the lane under test; its edges are not.
         body.set_face_surface_unvouched_for_tests(
             cap,
-            topo::FaceSurface::New {
+            topo::construction::FaceSurface::New {
                 surface: geom::Surface::Nurbs(Arc::new(patch.clone())),
                 sense: true,
             },
@@ -1133,7 +1134,7 @@ fn a_moved_curved_fitted_cap_builds_where_its_fit_certifies() {
         // Lifts RechartStrandsDescriptions: the cap's chart is the lane under test; its edges are not.
         body.set_face_surface_unvouched_for_tests(
             cap,
-            topo::FaceSurface::New {
+            topo::construction::FaceSurface::New {
                 surface: geom::Surface::Nurbs(Arc::new(patch.clone())),
                 sense: true,
             },
@@ -1358,7 +1359,7 @@ fn a_spline_caps_row_beside_a_tilted_side_is_their_section() {
     let tilted = body
         .set_face_surface_unvouched_for_tests(
             side,
-            topo::FaceSurface::New {
+            topo::construction::FaceSurface::New {
                 surface: geom::Surface::Plane {
                     origin: geom_core::Point3::new(2.0, 0.0, 1.0),
                     normal,

@@ -95,6 +95,7 @@
 //! replay byte-identically.
 
 use core::fmt;
+use topo::construction::Construct;
 
 use geom::Curve3;
 use geom::Surface;
@@ -106,10 +107,8 @@ use geom_core::{
     Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
 };
 use profile::{SegmentKind, ValidatedLoop, ValidatedProfile};
-use topo::{
-    Body, DihedralReading, EdgeKey, EulerOpError, FaceKey, FaceSurface, MefSite, MevCreated,
-    MevSite, ShellKey, SolidKey, SurfaceKey,
-};
+use topo::construction::{FaceSurface, MefSite, MevCreated, MevSite};
+use topo::{Body, DihedralReading, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey, SurfaceKey};
 
 use crate::swept;
 use crate::swept::{

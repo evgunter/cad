@@ -36,6 +36,7 @@ use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::test_support::finished;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use topo::construction::Construct;
 use topo::{AtRestBody, Body, BooleanError};
 
 /// The cylinder: a circle of radius `r` at the origin, extruded along
@@ -443,7 +444,7 @@ fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
     // Lifts RechartStrandsDescriptions: the relabelled face is the join dispatch's input.
     b.set_face_surface_unvouched_for_tests(
         face,
-        topo::FaceSurface::New {
+        topo::construction::FaceSurface::New {
             surface: geom::Surface::Nurbs(std::sync::Arc::new(geom::NurbsSurface::placeholder())),
             sense: true,
         },

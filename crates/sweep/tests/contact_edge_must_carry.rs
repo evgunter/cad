@@ -69,7 +69,7 @@ use std::fmt::Write as _;
 
 use geom::SurfaceKind;
 use geom_brep::{
-    CERT_SAMPLES, EdgeDescription, MustCarryVerdict, edge_extent, must_carry_over_edge,
+    CERT_SAMPLES, EdgeDescription, MustCarryVerdict, edge_extent_inf, must_carry_over_edge,
     sample_param, tangent_certificate_lane, tangent_second_order,
 };
 use geom_core::{Band, ErrorTextReading, Margin, Sign, Tol, Vec3};
@@ -141,9 +141,11 @@ impl ContactReading {
 }
 
 /// Every edge storing `TangentIntersection`, re-read through the rule
-/// and, station by station, through the metered predicate — the same
-/// extent (`edge_extent` over the stored window) and the same band the
-/// surgery hands the rule. The station walk is DIAGNOSTIC (the rule
+/// and, station by station, through the metered predicate, at the edge's
+/// extent from below over the stored window (`edge_extent_inf`; the
+/// surgery hands the rule its faces' reach, `topo::wedge_reach`, so this
+/// is a reading of the rule, not a replay) and the band the surgery
+/// hands it. The station walk is DIAGNOSTIC (the rule
 /// returns a verdict, not its readings); the rule's own verdict is
 /// what the rows assert, and the walk's margin is the rule's spelling,
 /// `Margin::sagitta` over the jet and the folded arm.
@@ -163,7 +165,7 @@ fn contact_readings(body: &Body<f64>) -> Vec<ContactReading> {
         let carrier = c.carrier();
         let (t0, t1) = c.params();
         let chord = carrier.eval(t0).distance(carrier.eval(t1));
-        let extent = edge_extent(carrier, t0, t1, chord);
+        let extent = edge_extent_inf(carrier, t0, t1, chord);
         let in_lane = tangent_certificate_lane(carrier, s1, s2);
         let stations = (1..CERT_SAMPLES - 1)
             .map(|i| {
@@ -759,7 +761,7 @@ fn the_rule_reads_every_corpus_contact_the_same_in_both_orders_at_interval() {
             let carrier = c.carrier().map_scalar(Interval::from_f64);
             let (t0, t1) = c.params();
             let chord = c.carrier().eval(t0).distance(c.carrier().eval(t1));
-            let extent = Interval::from_f64(edge_extent(c.carrier(), t0, t1, chord));
+            let extent = Interval::from_f64(edge_extent_inf(c.carrier(), t0, t1, chord));
             let (t0, t1) = (Interval::from_f64(t0), Interval::from_f64(t1));
             let ab = must_carry_over_edge(&a, &b, &carrier, t0, t1, extent, band);
             let ba = must_carry_over_edge(&b, &a, &carrier, t0, t1, extent, band);

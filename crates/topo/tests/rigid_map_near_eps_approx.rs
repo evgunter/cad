@@ -43,11 +43,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;
+use topo::construction::Construct;
 
 use geom::{NurbsSurface, Surface};
 use geom_brep::{OffsetFitError, OffsetFitLane, OffsetLimb};
 use geom_core::{Affine3, Band, Point3, Tol, Vec3};
-use topo::{Body, FaceKey, FaceSurface};
+use topo::construction::FaceSurface;
+use topo::{Body, FaceKey};
 
 /// How far under ε the minted face's bound is aimed, as fractions of ε,
 /// tried in order (module docs): the `1/4096` the rows used before PR

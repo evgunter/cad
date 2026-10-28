@@ -10,6 +10,7 @@ use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::tube_frame;
 use sweep::{Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc, tube_along_arc_hollow};
+use topo::construction::Construct;
 use topo::{Body, EdgeKey, ReplaceFaceError, ShellError, VertexKey};
 
 pub(crate) fn tol() -> Tol {

@@ -32,7 +32,7 @@
 //!   containment ([`crate::splitting::containment`] on a plane,
 //!   [`chart_ring_side`] on a cylinder wall's chart,
 //!   [`path_ring_side`] on a sphere, a cone or a torus) +
-//!   [`Body::ring_move`] — the `laringmv` step (lkemr/ring-placement
+//!   [`Body::ring_move`](crate::construction::Construct::ring_move) — the `laringmv` step (lkemr/ring-placement
 //!   mirror site);
 //! - two halves of one null edge making up a ring alone (a one-site
 //!   section loop's pierce of a planar or spherical face), or with the
@@ -5744,7 +5744,7 @@ mod tests {
         let seed = body.mvfs(p1, true).unwrap();
         body.set_face_surface(
             seed.face,
-            crate::FaceSurface::New {
+            crate::construction::FaceSurface::New {
                 surface: geom::Surface::Cylinder {
                     origin: Point3::origin(),
                     axis: Vec3::unit_z(),
@@ -5757,7 +5757,7 @@ mod tests {
         .unwrap();
         let mev = body
             .mev_line(
-                crate::MevSite::Lone {
+                crate::construction::MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
                 p2,
@@ -5802,7 +5802,7 @@ mod tests {
         });
         let made = body
             .mev(
-                crate::MevSite::Lone {
+                crate::construction::MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
                 carrier.eval(t1),
@@ -5842,7 +5842,7 @@ mod tests {
             let seed = body.mvfs(base, true).unwrap();
             body.set_face_surface(
                 seed.face,
-                crate::FaceSurface::New {
+                crate::construction::FaceSurface::New {
                     surface: geom::Surface::Cylinder {
                         origin: Point3::origin() + axis * along,
                         axis,
@@ -5854,7 +5854,7 @@ mod tests {
             )
             .unwrap();
             body.mev_line(
-                crate::MevSite::Lone {
+                crate::construction::MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
                 Point3::new(1.0, 0.0, 1.0),
@@ -5900,7 +5900,7 @@ mod tests {
             let seed = body.mvfs(base, true).unwrap();
             body.set_face_surface(
                 seed.face,
-                crate::FaceSurface::New {
+                crate::construction::FaceSurface::New {
                     surface: geom::Surface::Cylinder {
                         origin: Point3::origin(),
                         axis: Vec3::unit_z(),
@@ -5912,7 +5912,7 @@ mod tests {
             )
             .unwrap();
             body.mev_line(
-                crate::MevSite::Lone {
+                crate::construction::MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
                 Point3::new(1.0, 0.0, h),
@@ -5968,7 +5968,7 @@ mod tests {
         let seed = body.mvfs(base, true).unwrap();
         body.set_face_surface(
             seed.face,
-            crate::FaceSurface::New {
+            crate::construction::FaceSurface::New {
                 surface: geom::Surface::Cylinder {
                     origin: Point3::origin(),
                     axis: Vec3::unit_z(),
@@ -5980,7 +5980,7 @@ mod tests {
         )
         .unwrap();
         body.mev_line(
-            crate::MevSite::Lone {
+            crate::construction::MevSite::Lone {
                 r#loop: seed.r#loop,
             },
             Point3::new(1.0, 0.0, 2.0),
@@ -6081,7 +6081,7 @@ mod tests {
             let seed = body.mvfs(base, true).unwrap();
             body.set_face_surface(
                 seed.face,
-                crate::FaceSurface::New {
+                crate::construction::FaceSurface::New {
                     surface: geom::Surface::Cylinder {
                         origin: Point3::origin(),
                         axis: Vec3::unit_z(),
@@ -6093,7 +6093,7 @@ mod tests {
             )
             .unwrap();
             body.mev_line(
-                crate::MevSite::Lone {
+                crate::construction::MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
                 Point3::new(r, 0.0, e),
@@ -6335,7 +6335,7 @@ mod tests {
         let seed = body.mvfs(base, true).unwrap();
         body.set_face_surface(
             seed.face,
-            crate::FaceSurface::New {
+            crate::construction::FaceSurface::New {
                 surface: geom::Surface::Cylinder {
                     origin: Point3::origin(),
                     axis: Vec3::unit_z(),
@@ -6354,7 +6354,7 @@ mod tests {
         });
         let quarter = core::f64::consts::FRAC_PI_2;
         body.mev(
-            crate::MevSite::Lone {
+            crate::construction::MevSite::Lone {
                 r#loop: seed.r#loop,
             },
             carrier.eval(quarter),
@@ -6415,7 +6415,7 @@ mod tests {
         let seed = body.mvfs(base, true).unwrap();
         body.set_face_surface(
             seed.face,
-            crate::FaceSurface::New {
+            crate::construction::FaceSurface::New {
                 surface: geom::Surface::Cylinder {
                     origin: Point3::origin(),
                     axis: Vec3::unit_z(),
@@ -6427,7 +6427,7 @@ mod tests {
         )
         .unwrap();
         body.mev_line(
-            crate::MevSite::Lone {
+            crate::construction::MevSite::Lone {
                 r#loop: seed.r#loop,
             },
             Point3::new(r, 0.0, e),
@@ -7161,7 +7161,7 @@ mod null_site_rows {
         let he = body.get_vertex(seed).unwrap().emanating.unwrap();
         let created = body
             .mev_null(
-                crate::MevSite::Fan { he1: he, he2: he },
+                crate::construction::MevSite::Fan { he1: he, he2: he },
                 NewVertexSide::Above,
             )
             .unwrap();

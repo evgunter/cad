@@ -2541,6 +2541,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("fate.rs", "contained", "BooleanDecision::Containment", 1),
+    ("fate.rs", "corner_refused", "Coincide::Sectors", 1),
     ("fate.rs", "places", "BooleanDecision::of_normal", 1),
     (
         "fate.rs",
@@ -2548,7 +2549,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::CutRingWinding",
         1,
     ),
-    ("fate.rs", "sign", "Coincide::Sectors", 1),
     ("glue.rs", "tangency", "Coincide::Rim", 1),
     ("insert.rs", "beside_order", "Coincide::Sectors", 1),
     ("insert.rs", "germ_dir", "BooleanDecision::SelfCheck", 1),

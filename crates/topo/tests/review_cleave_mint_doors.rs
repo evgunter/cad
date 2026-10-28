@@ -9,16 +9,21 @@
 use crate::common;
 use crate::fixture::m7_8::{m7_8_edges, nurbs_wall};
 use geom_core::spline::Knots;
+use topo::construction::Construct;
 
 use geom_core::{Dual64, Point3, Real, Tol};
-use topo::{Body, EulerOpError, FaceSurface, MefSite, MevSite};
+use topo::construction::{FaceSurface, MefSite, MevSite};
+use topo::{Body, EulerOpError};
 
 /// The cube with its front face on the described wall, and a `mef`
 /// across the wall face that doubles one wall edge: the new edge's
 /// `he_plus` stays on the wall (NURBS), its `he_minus` bounds a new face
 /// sharing the neighbour's PLANE key. The spec is the plane × NURBS
 /// `Intersection` of those two keys.
-fn mef_the_class<T>() -> (Body<T>, Result<topo::MefCreated, EulerOpError>)
+fn mef_the_class<T>() -> (
+    Body<T>,
+    Result<topo::construction::MefCreated, EulerOpError>,
+)
 where
     T: geom_core::Decide + topo::AtRestPolicy,
 {
@@ -117,7 +122,7 @@ fn review_mef_at_a_dual_mints_the_class() {
 /// the new edge are in ONE face, yet neither `IntersectionSameSurface`
 /// (the keys differ) nor `DescriptionNotAdjacent` (no adjacency gate at
 /// `mev`) comes first, so the edge door decides.
-fn mev_the_class<T>() -> Result<topo::MevCreated, EulerOpError>
+fn mev_the_class<T>() -> Result<topo::construction::MevCreated, EulerOpError>
 where
     T: geom_core::Decide + topo::AtRestPolicy,
 {

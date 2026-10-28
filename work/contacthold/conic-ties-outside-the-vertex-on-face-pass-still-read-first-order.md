@@ -78,3 +78,22 @@ Fixture: `crates/sweep/tests/an_arc_tangent_at_a_boolean_vertex.rs`
 (the `flush` and `corner` postures reach the vertex-vertex pass's
 `pair_codes` with the arc tied; their refusal is not this one,
 `a-flush-quarter-round-refuses-an-odd-crossing-count-at-its-rim-vertex`).
+
+## The tie's lever is the edge's extent from below (OFFSET, 2026-10-27)
+
+OFFSET's `edge-extent-reads-a-steep-nurbs-arcs-chord-four-to-ten-times-short`
+split the edge extent into `geom_brep::edge_extent_inf` and
+`geom_brep::edge_extent_sup`. `ConicDeparture` (and so `Reach::Conic`)
+keeps the bound from below, because `conic_bend_side`'s witness and the
+sector walk's other `Reach::length` readings (`sagitta_charge`'s reach,
+`crossing`'s location) need an arm no longer than the arc. So the
+first-order reading that ties here (`side_code`'s `enters_material` at
+`Reach::length`) is levered short of the edge's diameter on a steep
+arc, by up to the ratio that unit measured on the steep plane×cone
+hyperbola (the chord there is 0.1 to 0.23 of the diameter; the bound
+from below now reads within 0.1% of it on those arcs). That matters only
+where the tie is read as `On` outright, which is this item's ground:
+the plane face's descent levers its own `Zero` at `BendBounds::Planar`'s
+`reach` (an upper bound), and a spline's descent escalates. Whatever
+replaces the first-order `On` here should lever its `Zero` at
+`edge_extent_sup` rather than at `Reach::length`.
