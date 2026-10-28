@@ -2353,6 +2353,13 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(
         &E::LoftShape {
             node: sp(1),
+            fault: pncad::document::LoftFault::StationInFirstPlane { section: 1 },
+        },
+        &["node", "index"],
+    );
+    carries(
+        &E::LoftShape {
+            node: sp(1),
             fault: pncad::document::LoftFault::DegreeOutOfRange {
                 degree: 2,
                 sections: 2,
@@ -4932,6 +4939,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "stranded_part_read",
             "unknown_node",
             "unplaceable_part",
+            "unread_pose",
             "unresolved_var_crosses_cut",
             "var_name_conflict",
         ],
@@ -5015,7 +5023,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "loft_fault_tag",
-        values: &["degree_out_of_range", "empty_station", "too_few_sections"],
+        values: &[
+            "degree_out_of_range",
+            "empty_station",
+            "station_in_first_plane",
+            "too_few_sections",
+        ],
         delegates: &[],
     },
     TagEntry {

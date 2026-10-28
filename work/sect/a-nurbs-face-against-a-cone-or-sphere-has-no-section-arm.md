@@ -2,12 +2,11 @@
 id: a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm
 kind: issue
 title: A NURBS face against a cone or sphere face has no C5 section arm, and no boolean reads a rung-3 section, so klein wall 3 and teapot wall 3 cannot join
-status: parked
+status: open
 opened: 2026-10-25
 priority: P0
 cost: H
 design: true
-blocked_on: [cylinder-sphere-germ-pair-has-no-join-lane]
 refs: [c5-plane-torus-cone-cylinder-arms, nurbs-edge-crossing-rung-is-the-ring-composite, joining-a-spline-carrier-is-unbuilt]
 ---
 
@@ -62,3 +61,13 @@ NURBS, tangent along the rim**: the "tangent section decided at the
 door" clause of SECT's design, not a transverse cone × NURBS arm.
 Teapot wall 3 is sphere × NURBS, as filed. C5's new curve × face clause
 (PR 5727) is the substrate a section's boundary pass will read with.
+
+## Unparked (2026-10-28, SECT step 1b)
+
+Both gates it was parked on have gone: the boolean reads a rung-3
+section at the join (`cylinder-sphere-germ-pair-has-no-join-lane`,
+closed: the cylinder × sphere chord lane cuts its chords from the
+section's fitted loop), and SPLICE's operand edge gate is deleted
+(`splice/delete-the-boolean-operand-edge-gate`, closed). What remains is
+this row's own open design read, the certification of a NURBS face's
+section against a sphere or a cone.

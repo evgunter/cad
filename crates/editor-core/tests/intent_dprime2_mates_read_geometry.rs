@@ -19,6 +19,7 @@
 
 use crate::fixture;
 use crate::fixture::resolver::{PartStore, with_resolver};
+use editor_core::Formula;
 use editor_core::pose::PoseDef;
 use editor_core::{
     BodyRead, CapEnd, Coord, Dimension, DocEdit, DocumentId, EvalOptions, FlattenError, FreeValue,
@@ -100,8 +101,11 @@ fn boss_on_the_plate(turn: f64, through_union: bool) -> editor_core::Frame {
         mates: vec![fixture::rest(head(start), target)],
         values: vec![
             (Coord::Slide(TargetAxis::X), len(10.0)),
-            (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::SPIN, fixture::ang(0.0)),
+            (
+                Coord::Slide(TargetAxis::Y),
+                Formula::zero(Dimension::Length),
+            ),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     };
     let (doc, _) = fixture::write_bundle(doc, placement, placed.bundle());
@@ -488,7 +492,7 @@ fn a_slide_value_sets_its_translation_with_no_width() {
         values: vec![
             (Coord::Slide(TargetAxis::X), len(3.0)),
             (Coord::Slide(TargetAxis::Y), len(2.0)),
-            (Coord::SPIN, fixture::ang(0.0)),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     };
     let (doc, _) = fixture::write_bundle(doc, placement, placed.bundle());

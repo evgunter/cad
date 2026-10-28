@@ -25,6 +25,7 @@
 
 use crate::fixture;
 use crate::wire;
+use editor_core::Dimension;
 use editor_core::Formula;
 
 use editor_core::{
@@ -292,7 +293,11 @@ fn a1_a_value_is_admitted_by_its_bundle() {
         fixture::axis(cap(lines[2], body, CapEnd::Start)),
         meet,
     ));
-    bundle.push(value_at(2, Coord::Slide(TargetAxis::Z), len(0.0)));
+    bundle.push(value_at(
+        2,
+        Coord::Slide(TargetAxis::Z),
+        Formula::zero(Dimension::Length),
+    ));
     bundle.push(value_at(3, Coord::SPIN, ang(0.1)));
     whole_door(&doc, lines[2], bundle).expect("a target over two bodies has one chart");
 }

@@ -518,7 +518,7 @@ fn new_document_refuses_a_blank_name_and_a_gesture_in_flight() {
             },
             loops: vec![common::rectangle_loop([0.0, 0.0], 0.002, 0.002)],
             distance: len(0.002),
-            spin: ang(0.0),
+            spin: Formula::zero(Dimension::Angle),
         },
         SessionOp::AddProfile {
             loops: vec![shape(&ProfileShape::Circle {
@@ -701,7 +701,7 @@ fn a_refusal_at_any_creation_door_leaves_no_history_state() {
             },
             loops: vec![common::rectangle_loop([0.0, 0.0], 0.002, 0.002)],
             distance: scl(0.01),
-            spin: ang(0.0),
+            spin: Formula::zero(Dimension::Angle),
         },
     ] {
         let outcome = session.perform(op);
@@ -1081,7 +1081,7 @@ fn a_boss_is_authored_on_a_picked_face() {
             radius: 0.005,
         })],
         distance: len(0.004),
-        spin: ang(0.0),
+        spin: Formula::zero(Dimension::Angle),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let doc = session.committed_doc();

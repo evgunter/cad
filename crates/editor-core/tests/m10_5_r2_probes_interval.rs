@@ -167,8 +167,8 @@ fn comb() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         solid,
         solid,
         Formula::named(name("place"), Dimension::Length),
-        len(0.0),
-        len(0.0),
+        Formula::zero(Dimension::Length),
+        Formula::zero(Dimension::Length),
     );
     (r.doc, solid, placed)
 }
@@ -218,7 +218,7 @@ fn ell_with_a_block_in_the_notch() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         solid,
         probe,
         Formula::named(name("place"), Dimension::Length),
-        len(0.0),
+        Formula::zero(Dimension::Length),
         len(-0.05),
     );
     (r.doc, solid, placed)
@@ -235,14 +235,21 @@ fn blocks_apart(gap: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
         1.0,
     );
-    let b = translated(&mut r, a, a, len(1.0 + gap), len(0.0), len(0.0));
+    let b = translated(
+        &mut r,
+        a,
+        a,
+        len(1.0 + gap),
+        Formula::zero(Dimension::Length),
+        Formula::zero(Dimension::Length),
+    );
     let _ = translated(
         &mut r,
         a,
         a,
         Formula::named(name("place"), Dimension::Length),
-        len(0.0),
-        len(0.0),
+        Formula::zero(Dimension::Length),
+        Formula::zero(Dimension::Length),
     );
     (r.doc, a, b)
 }

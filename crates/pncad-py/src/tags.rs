@@ -1680,6 +1680,7 @@ pub fn loft_fault_tag(fault: &LoftFault) -> &'static str {
     match fault {
         LoftFault::TooFewSections { .. } => "too_few_sections",
         LoftFault::EmptyStation { .. } => "empty_station",
+        LoftFault::StationInFirstPlane { .. } => "station_in_first_plane",
         LoftFault::DegreeOutOfRange { .. } => "degree_out_of_range",
     }
 }
@@ -2547,6 +2548,7 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::EpsilonSeam { .. } => "epsilon_seam",
         InlineError::PartCarriesMetadata { .. } => "part_carries_metadata",
         InlineError::VarNameConflict { .. } => "var_name_conflict",
+        InlineError::UnreadPose { .. } => "unread_pose",
         InlineError::UnresolvedVarCrossesCut { .. } => "unresolved_var_crosses_cut",
         InlineError::InstanceBodyNameReferenced { .. } => "instance_body_name_referenced",
         InlineError::StrandedPartName { .. } => "stranded_part_name",
