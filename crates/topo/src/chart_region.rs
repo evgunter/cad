@@ -2566,7 +2566,7 @@ fn loop_uv_polygon<T: Decide + Bounds>(
         let edge = body
             .get_edge(he_data.edge)
             .ok_or(ChartRegionError::Corrupt)?;
-        let forward = edge.he_plus == he;
+        let forward = crate::pcurves::is_plus(body, he);
         let refuse = |what| ChartRegionError::NonPlanarTrim {
             face,
             half_edge: he,

@@ -1,14 +1,18 @@
 //! **The clearance engine reads an iso-bounded NURBS face.** A loft or
 //! sweep wall is bounded by its chart's own isos, so it is the whole
 //! patch and its window is the knot domain (`topo::clearance`'s
-//! `iso_bounded_domain`). These rows run the engine on such walls at
-//! `Interval`, each against a gap the fixture fixes:
+//! `iso_bounded_domain`). These rows run the engine on such walls, each
+//! against a separation the fixture fixes:
 //!
-//! - two facing loft walls `GAP` apart hold above the gap and are
-//!   violated below it, with a witness on the two walls;
-//! - a sweep's outer wall against a plane under its lowest station,
-//!   `GAP` off;
-//! - the minimum separation of the two loft walls brackets `GAP`;
+//! - two facing loft walls `GAP` apart, at `Interval`, hold below the
+//!   gap and are violated above it, with a witness on the two walls,
+//!   and their minimum separation brackets `GAP`;
+//! - a swept wall, at `f64`, against a slab under its rising flank,
+//!   where the root cells overlap and only subdivision answers;
+//! - two pillows' curved rational walls, at `f64`, violated 1 % above
+//!   their separation, which only a sound enclosure of every cell
+//!   reaches: an enclosure that missed part of its cell would discharge
+//!   the nearest pair and read `Holds`;
 //! - a rational (arc-railed) loft's every face has a window, at `f64`;
 //! - the enclosure of a wall cell narrows as the cell halves.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -201,13 +205,15 @@ fn facing_loft_walls_hold_above_the_gap_and_violate_below_it() {
             (GAP - 1e-12..1.25 * GAP).contains(&d),
             "the witness is a pair of wall points, no nearer than the gap: {d}"
         ),
-        other => panic!("twice the gap is violated, got {other:?}"),
+        other => panic!("1.25 × the gap is violated, got {other:?}"),
     }
 }
 
-/// **The minimum separation of the two walls brackets the gap.** The
-/// walls are their whole windows, so both ends of the bracket are
-/// about the faces.
+/// **The minimum separation of the two walls brackets the gap.** Both
+/// walls are iso-bounded, so each window IS its face and `window_hi`
+/// bounds the faces' separation from above as well as `lo` from below
+/// (`MinSeparation`'s docs); that is why this row may read `window_hi`,
+/// which a row over a trimmed analytic face may not.
 #[test]
 fn the_minimum_separation_of_two_loft_walls_brackets_the_gap() {
     let ((left, lw), (right, rw)) = facing();
@@ -394,5 +400,94 @@ fn a_wall_cell_enclosure_narrows_as_it_halves() {
         "ten halvings narrow the enclosure at least 256-fold: {} -> {}",
         widths[0],
         widths[10]
+    );
+}
+
+/// **The pillow**: a quad of half-width `a`, its top edge `0.05`
+/// longer at each end, whose two slanted `x` sides are arcs bulging
+/// outward, lofted at v-degree 2 through sections at `z = 0, 0.1, 1`
+/// of half-widths `0.15, 0.2, 0.12`, centred on `x = cx`. Its `x`
+/// walls are rational patches curved in both directions, mirror images
+/// of each other through `x = cx`. The slant puts each wall's furthest
+/// point off its arc's middle, and the uneven sections put it off the
+/// middle section, so it is at no station of the wall's root cell.
+fn pillow(cx: f64) -> Lofted<f64> {
+    let section = |a: f64| {
+        let v = |x: f64, y: f64, bulge: f64| (Point2::new(x, y), bulge);
+        vec![bulge_loop(vec![
+            v(-a, -a, 0.0),
+            v(a, -a, -0.3),
+            v(a + 0.05, a, 0.0),
+            v(-a - 0.05, a, -0.3),
+        ])]
+    };
+    let places = [0.0, 0.1, 1.0].map(|z| SketchPlane::xy_at(Point3::new(cx, 0.0, z)));
+    loft_body::<f64>(
+        &[section(0.15), section(0.2), section(0.12)],
+        &places,
+        2,
+        Tol::witness(),
+    )
+    .expect("the pillow lofts")
+}
+
+/// **A curved pair violated just above its separation.** Two pillows
+/// face across their bulging walls. The walls are mirror images through
+/// the plane between them, so their separation is `d − 2·m`, `m` the
+/// furthest the left wall reaches past its centre, and a dense sample
+/// of `m` bounds that separation from above. At 5 % above the sampled
+/// separation the pair is violated, which the walk can only certify
+/// once its cells close in on the one nearest point pair: an enclosure
+/// that missed part of its cell would discharge that pair on a `lo`
+/// above the bound, and the row would read `Holds`. The minimum
+/// separation's `lo` must not rise above the sampled separation either.
+#[test]
+fn curved_walls_are_violated_just_above_their_separation() {
+    let d = 0.7;
+    let (left, right) = (pillow(0.0), pillow(d));
+    let lw = wall_by(&left, |p| p.x);
+    let rw = wall_by(&right, |p| -p.x);
+    let surface = left
+        .body
+        .get_surface(left.body.get_face(lw).unwrap().surface)
+        .unwrap();
+    let Surface::Nurbs(net) = surface else {
+        panic!("the bulging wall is a NURBS face");
+    };
+    let ((u0, u1), (v0, v1)) = (net.knot_values_u().domain(), net.knot_values_v().domain());
+    let n = 400;
+    let reach = (0..=n)
+        .flat_map(|i| (0..=n).map(move |j| (i, j)))
+        .map(|(i, j)| {
+            let s = |k: usize, lo: f64, hi: f64| lo + (hi - lo) * (k as f64) / (n as f64);
+            surface.eval(s(i, u0, u1), s(j, v0, v1)).x
+        })
+        .fold(f64::NEG_INFINITY, f64::max);
+    let sampled = d - 2.0 * reach;
+    assert!(sampled > 0.05, "the pillows stand apart: {sampled}");
+    let c = 1.01 * sampled;
+    match bound((&left.body, lw), (&right.body, rw), c) {
+        BoundVerdict::Violated(w) => assert!(w < c, "the witness: {w} against {c}"),
+        other => panic!("{c} is violated (separation at most {sampled}), got {other:?}"),
+    }
+    let side = |body, face| Side {
+        body,
+        faces: vec![face],
+    };
+    let bracket = min_separation(
+        &side(&left.body, lw),
+        &side(&right.body, rw),
+        false,
+        MinSeparationConfig::default(),
+    )
+    .expect("two iso-bounded walls have a bracket");
+    println!(
+        "[nurbswin] pillows: sampled {sampled}; {}",
+        bracket.render()
+    );
+    assert!(
+        bracket.lo() <= sampled,
+        "lo {} bounds the separation, which is at most {sampled}, from below",
+        bracket.lo()
     );
 }

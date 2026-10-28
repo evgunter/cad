@@ -1559,19 +1559,29 @@ impl NurbsSurface<Interval> {
     /// weight sum it divides by can straddle zero, which encloses a
     /// whole knot cell by the whole line.
     ///
-    /// A rectangle that meets no cell, a restriction the blossom door
-    /// refuses, and a restricted weight not certified positive answer
-    /// poison: an unclaimable extent, never a smaller one.
+    /// A rectangle that reaches past the knot domain, one that meets no
+    /// cell, a restriction the blossom door refuses, and a restricted
+    /// weight not certified positive answer poison: an unclaimable
+    /// extent, never a smaller one. Past the domain the patch has no
+    /// points, and `eval` there reads the end pieces' polynomial
+    /// extension, so a clipped answer would be smaller than `eval`'s.
     pub fn rect_enclosure(&self, u: (f64, f64), v: (f64, f64)) -> Point3<Interval> {
         let (iu, iv) = (
             Interval::from_bounds(u.0, u.1),
             Interval::from_bounds(v.0, v.1),
         );
         let poison = || poison_point(iu + iv);
+        let inside = |knots: &Knots<Interval>, (lo, hi): (f64, f64)| {
+            let (start, end) = knots.domain();
+            start.hi() <= lo && lo <= hi && hi <= end.lo()
+        };
+        if !(inside(&self.knots_u, u) && inside(&self.knots_v, v)) {
+            return poison();
+        }
         let (Some(su), Some(sv)) = (self.knots_u.locate(iu), self.knots_v.locate(iv)) else {
             return poison();
         };
-        let meet = |knots: &Knots<Interval>, span: Span<'_>, (lo, hi): (f64, f64)| {
+        let clip_to_span = |knots: &Knots<Interval>, span: Span<'_>, (lo, hi): (f64, f64)| {
             let values = knots.values();
             let a = lo.max(values.get(span.index())?.lo());
             let b = hi.min(values.get(span.index() + 1)?.hi());
@@ -1584,8 +1594,8 @@ impl NurbsSurface<Interval> {
                     continue;
                 };
                 let (Some(eu), Some(ev)) = (
-                    meet(&self.knots_u, win.span_u(), u),
-                    meet(&self.knots_v, win.span_v(), v),
+                    clip_to_span(&self.knots_u, win.span_u(), u),
+                    clip_to_span(&self.knots_v, win.span_v(), v),
                 ) else {
                     continue;
                 };

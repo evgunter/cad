@@ -88,9 +88,12 @@
 //! door's: two selections whose only candidate pairs the wedge rule
 //! drops. Rows below cover
 //! `Budget(Pairs)`,
-//! `Budget(Depth)`, `Selection` (two shapes), `Unsupported`,
-//! `NotADistance` and `EmptyScope`; `NothingCertified` is covered by the
-//! adopted probe suites, and `NoAdmittedPair` by M10-6's own suite.
+//! `Budget(Depth)`, `Selection` (two shapes), `NotADistance` and
+//! `EmptyScope`; `NothingCertified` is covered by the adopted probe
+//! suites, `NoAdmittedPair` by M10-6's own suite, and `Unsupported` at
+//! the engine (`topo/tests/clearance_windows_on_a_spline_chart.rs`): a
+//! loft's walls, the one free-form face these fixtures build, now have
+//! windows.
 //! FIVE refusal shapes have NO row, and the reason
 //! is the same for each: they are not reachable on any document these
 //! fixtures can build.

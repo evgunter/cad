@@ -1139,7 +1139,7 @@ fn the_unsupported_arm_names_its_carrier_class_when_it_fires() {
     // the row asserts the reachable half: the refusal type carries a
     // named class and a face, and `name()` is stable for goldening.
     let refusal = ClearanceRefusal::Engine(EngineRefusal::Unsupported {
-        carrier: "a free-form face",
+        carrier: "an approximated face",
         face: topo::entity::FaceKey::default(),
     });
     assert_eq!(refusal.name(), "unsupported");

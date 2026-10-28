@@ -567,7 +567,7 @@ fn the_fourth_verbs_two_refusals_are_stable() {
     let empty = refused(ClearanceRefusal::Engine(EngineRefusal::EmptyScope));
     let unpaired = refused(ClearanceRefusal::Engine(EngineRefusal::NoAdmittedPair));
     let unsupported = refused(ClearanceRefusal::Engine(EngineRefusal::Unsupported {
-        carrier: "a free-form face",
+        carrier: "an approximated face",
         face: FaceKey::default(),
     }));
     let poison = refused(ClearanceRefusal::Engine(EngineRefusal::PoisonEnclosure {

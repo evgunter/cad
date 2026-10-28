@@ -5,6 +5,8 @@
 //!   isos is the whole patch, and both its faces are admitted;
 //! - the triangle lamina, whose third edge is the diagonal, refuses
 //!   naming the edge that is not an iso;
+//! - the same square on a chart twice as wide refuses: its isos run
+//!   round half the domain, one of them an interior column;
 //! - the bored block's top cap re-charted onto a patch refuses naming
 //!   its inner loops.
 //!
@@ -20,19 +22,20 @@ use topo::clearance::{EngineRefusal, Side};
 use topo::construction::{Construct, FaceSurface, MefSite, MevSite};
 use topo::{AtRestPolicy, Body, FaceKey};
 
-/// The lamina through `corners` on the identity chart at `T`: `mvfs`,
-/// a `mev_line` to each later corner, and a `mef_chord` back to the
-/// first, every edge's pcurve minted. Returns the body and its faces.
-fn lamina<T: AtRestPolicy>(corners: &[(f64, f64)]) -> (Body<T>, Vec<FaceKey>) {
+/// The lamina through `corners` on the identity chart over
+/// `[0, width] × [0, 1]` at `T`: `mvfs`, a `mev_line` to each later
+/// corner, and a `mef_chord` back to the first, every edge's pcurve
+/// minted. Returns the body and its faces.
+fn lamina<T: AtRestPolicy>(width: f64, corners: &[(f64, f64)]) -> (Body<T>, Vec<FaceKey>) {
     let tol = Tol::witness();
     let pt = |(x, y): (f64, f64)| Point3::new(T::from_f64(x), T::from_f64(y), T::zero());
     let mut body = Body::<T>::new();
     let seed = body.mvfs(pt(corners[0]), true).unwrap();
-    let unit = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let span = |w: f64| KnotVector::clamped(vec![0.0, 0.0, w, w], 1).unwrap();
     let net = NurbsSurface::new(
-        Knots::from(unit()).lift(Real::from_f64),
-        Knots::from(unit()).lift(Real::from_f64),
-        [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
+        Knots::from(span(width)).lift(Real::from_f64),
+        Knots::from(span(1.0)).lift(Real::from_f64),
+        [(0.0, 0.0), (0.0, 1.0), (width, 0.0), (width, 1.0)]
             .into_iter()
             .map(pt)
             .collect(),
@@ -115,7 +118,7 @@ fn refused_naming<T: AtRestPolicy + geom_core::CertifiedBounds>(
 /// The square's four edges are the chart's four boundary isos: both
 /// faces of the lamina are the whole patch.
 fn the_iso_square_is_admitted<T: AtRestPolicy + geom_core::CertifiedBounds>() {
-    let (body, faces) = lamina::<T>(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]);
+    let (body, faces) = lamina::<T>(1.0, &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]);
     for face in faces {
         assert_eq!(
             windows(&body, face),
@@ -128,9 +131,19 @@ fn the_iso_square_is_admitted<T: AtRestPolicy + geom_core::CertifiedBounds>() {
 
 /// The triangle's diagonal is no iso of the chart.
 fn the_triangle_refuses_its_diagonal<T: AtRestPolicy + geom_core::CertifiedBounds>() {
-    let (body, faces) = lamina::<T>(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)]);
+    let (body, faces) = lamina::<T>(1.0, &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)]);
     for face in faces {
         refused_naming(&body, face, "not an iso of its chart");
+    }
+}
+
+/// The square `[0, 1]²` on the chart over `[0, 2] × [0, 1]`: its edges
+/// are all isos of the chart, and its right edge, `u = 1`, is an
+/// interior column, so the loop runs round half the domain.
+fn the_half_square_refuses_as_not_covering<T: AtRestPolicy + geom_core::CertifiedBounds>() {
+    let (body, faces) = lamina::<T>(2.0, &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]);
+    for face in faces {
+        refused_naming(&body, face, "does not run once around its knot domain");
     }
 }
 
@@ -187,4 +200,10 @@ fn a_cap_with_holes_on_a_patch_refuses_as_trimmed() {
     )
     .unwrap();
     refused_naming(&body, top, "trimmed free-form face");
+}
+
+#[test]
+fn a_square_on_half_its_chart_refuses_as_not_covering_at_f64_and_interval() {
+    the_half_square_refuses_as_not_covering::<f64>();
+    the_half_square_refuses_as_not_covering::<Interval>();
 }
