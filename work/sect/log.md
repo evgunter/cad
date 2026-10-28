@@ -126,3 +126,8 @@ and moves to the door with the frame's retirement. First dispatches:
   - an arc a reader trusts on-surface must carry that evidence in its type, not by convention;
   - an undecided nearness must escalate, never fold into a verdict (my delta read caught one);
   - a surface pair's section is carried in operand order (P3, filed).
+
+- 2026-10-28 — **The torus poses merge** (PR 5924, `each-torus-pair-decides-tangency-on-one-pose` closed). Every torus pair decides tangency on one critical gap, and sphere × torus is back on main's closed form. The cylinder × torus and torus × torus door rows are open. Teapot wall 2's union now builds and is refused at validation (`VolumeUncomputable`, a conic trim on the sphere chart, which is SPIRICARM's volume lane).
+  - **Review:** dual concurrent (H). Both reviewers were NOT-MERGEABLE on one bilateral MAJOR, by execution: f64 rounding in G′ divided by D ≈ 0 made in-band poses read Transverse, and a transverse joint read Tangent. Both confirmation passes then APPROVE on `e42da4cecb`. Row `docs/dual-review-log/rows/PR-5924.md`.
+  - **Classes:** a margin that is divided must carry its own rounding first; a certifying sweep's premise must reach generic frames, grid-aligned critical points and scale.
+  - **Filed:** SECTRUNG `the-torus-gaps-rounding-charge-is-first-order-and-reads-the-world-origin` (P2).
