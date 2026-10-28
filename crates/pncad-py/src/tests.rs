@@ -5015,6 +5015,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "reversed_stacking",
             "seam_structure",
             "section_not_finite",
+            "section_rim",
             "section_structure",
             "skin",
             "stacking_escalated",
