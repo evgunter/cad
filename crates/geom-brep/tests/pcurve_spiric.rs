@@ -690,27 +690,31 @@ fn a_wall_image_names_one_torus_and_is_refused_on_the_other() {
     }
 }
 
-/// **A chart gate decided apart answers past an earlier in-band one**
-/// (`geom_brep::ladder`'s rule on the wall's chart ladders). Each pose
-/// puts one gate `2ε` off, inside the band, ahead of another `3·K·ε`
-/// off, past it; the chart is then neither torus that holds the oval,
-/// and refuses as off it, where a ladder returning on its first in-band
-/// gate escalates:
+/// **A chart with a datum apart is read off before its ladder; one in
+/// band escalates on the read** (D3). Each pose puts one of the chart's
+/// data `2ε` off, inside the band, beside another `3·K·ε` off, past it:
 ///
 /// - the own torus, its centre in band and its major radius apart;
 /// - the mirror torus (centre apart from the own), its minor radius in
-///   band and its axis tilted apart — the other torus's ladder;
+///   band and its axis tilted apart;
 /// - the mirror torus moved apart from the mirror, its major radius in
-///   band — the other torus's ladder, answered by its last datum.
+///   band.
 ///
-/// The control is the mirror torus with its major radius in band and
-/// nothing else apart: no datum decides, so the in-band one refuses.
+/// A datum apart carries the oval past the band off the chart, so the
+/// incidence read every image meets first reads it off definitely, at
+/// the mint and at `PcurveCache::certify` alike, and the wall's chart
+/// ladders (`geom_brep::ladder`'s rule, a gate decided apart answering
+/// past an earlier in-band one) are not reached: a pose that reaches
+/// them is one the read passed, whose data all lie within the band of
+/// a torus that holds the oval. The control is the mirror torus with its
+/// major radius in band and nothing else apart: the read is in band, so
+/// it escalates there.
 ///
 /// The poses are multiples of `Tol::witness`'s own ε and K, so the row
 /// reads the same at every ε row by design. Every pose is read before
 /// any assertion, so a regression names all of them.
 #[test]
-fn a_chart_gate_decided_apart_answers_past_an_in_band_one() {
+fn a_chart_with_a_datum_apart_is_read_off_before_its_ladder() {
     let (eps, k) = (tol().eps(), tol().k());
     let (inside, past) = (2.0 * eps, 3.0 * k * eps);
     let chart = |center: Point3<f64>, axis: Vec3<f64>, major: f64, minor: f64| Surface::Torus {
@@ -743,15 +747,16 @@ fn a_chart_gate_decided_apart_answers_past_an_in_band_one() {
         ),
     ] {
         let got = certify(wall(1.0, 0.0), &surface, band());
-        let neither = matches!(
+        let read_off = matches!(
             &got,
-            Err(PcurveCertifyError::CarrierOffChart { why, .. })
-                if why.starts_with("the chart torus is neither the carrier's own nor its mirror")
+            Err(PcurveCertifyError::CarrierOffChart {
+                why,
+                margin: Some(geom_brep::OffMargin::Past(_)),
+                ..
+            }) if why.starts_with("the carrier's points are not on the torus")
         );
-        if !neither {
-            wrong.push(format!(
-                "{what}: a definite gate answers neither torus: {got:?}"
-            ));
+        if !read_off {
+            wrong.push(format!("{what}: the read answers off, definitely: {got:?}"));
         }
     }
     let control = chart(mirror, Vec3::unit_y(), R + inside, RR);
@@ -759,16 +764,16 @@ fn a_chart_gate_decided_apart_answers_past_an_in_band_one() {
     if !matches!(
         got,
         Err(PcurveCertifyError::Escalated {
-            check: geom_brep::PcurveCheck::ImageIdentity,
+            check: geom_brep::PcurveCheck::ChartIncidence,
             cause: geom_core::Indeterminate {
-                predicate: Some("pcurve_spiric_chart_major"),
+                predicate: Some("pcurve_torus_chart_incident"),
                 ..
             },
             ..
         })
     ) {
         wrong.push(format!(
-            "control: the mirror with only its major radius in band refuses on it: {got:?}"
+            "control: the mirror with only its major radius in band escalates on the read: {got:?}"
         ));
     }
     assert!(wrong.is_empty(), "{wrong:#?}");

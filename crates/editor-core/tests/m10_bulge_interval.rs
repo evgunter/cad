@@ -240,7 +240,11 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// `pcurve_cylinder_chart_incident` 16/4 and `pcurve_line_chart_incident`
 /// 18/4 (both new). Nothing else moved. The stated image an edge's
 /// certificate carries is read on its chart before it is metered, so
-/// `pcurve_line_chart_incident` 18/4 -> 20/4, both of them theorems.
+/// `pcurve_line_chart_incident` 18/4 -> 20/4, both of them theorems. A
+/// pcurve row is read on its chart before check 3 meters it
+/// (`PcurveCache::certify`), so a row the mint certifies there reads its
+/// carrier a second time: `pcurve_cylinder_chart_incident` 16/4 -> 24/6 and
+/// `pcurve_line_chart_incident` 20/4 -> 28/6.
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("arc_apex_identity", [0, 1]),
     ("arc_diameter_clearance", [0, 6]),
@@ -272,10 +276,10 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("pcurve_chart_orientation", [0, 20]),
     ("pcurve_chart_placement", [0, 84]),
     ("pcurve_chart_radial_moving", [22, 20]),
-    ("pcurve_cylinder_chart_incident", [16, 4]),
+    ("pcurve_cylinder_chart_incident", [24, 6]),
     ("pcurve_envelope", [16, 4]),
     ("pcurve_interval_forward", [0, 20]),
-    ("pcurve_line_chart_incident", [20, 4]),
+    ("pcurve_line_chart_incident", [28, 6]),
     ("pcurve_loop_branch", [0, 42]),
     ("pcurve_map_residual", [36, 0]),
     ("segment_gap", [0, 6]),
@@ -432,6 +436,11 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
 /// stated image is read for incidence before it is metered, so
 /// `pcurve_line_chart_incident` 18/4 -> 20/4, both of them theorems.
 /// Nothing else moved.
+///
+/// **A pcurve row is read on its chart before check 3 meters it**
+/// (`PcurveCache::certify`): a row the mint certifies there reads its
+/// carrier a second time, `pcurve_cylinder_chart_incident` 16/4 -> 24/6 and
+/// `pcurve_line_chart_incident` 20/4 -> 28/6. Nothing else moved.
 #[test]
 fn m10_bulge_the_bosss_split_at_the_nominal() {
     let tol = Tol::witness();
@@ -469,10 +478,10 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("pcurve_chart_orientation", [0, 20]),
             ("pcurve_chart_placement", [0, 84]),
             ("pcurve_chart_radial_moving", [22, 20]),
-            ("pcurve_cylinder_chart_incident", [16, 4]),
+            ("pcurve_cylinder_chart_incident", [24, 6]),
             ("pcurve_envelope", [20, 0]),
             ("pcurve_interval_forward", [0, 20]),
-            ("pcurve_line_chart_incident", [20, 4]),
+            ("pcurve_line_chart_incident", [28, 6]),
             ("pcurve_loop_branch", [0, 42]),
             ("pcurve_map_residual", [36, 0]),
             ("segment_straightness", [2, 6]),

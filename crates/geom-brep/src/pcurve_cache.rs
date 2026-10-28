@@ -4214,6 +4214,11 @@ impl<T: Decide> PcurveCache<T> {
     ///
     /// The check sequence (fixed order, D9; every margin in metres):
     ///
+    /// 0. **Incidence**: the carrier is read on the chart before any
+    ///    image is metered (`read_incidence`, the mint's own read, D3),
+    ///    so a carrier off its face ends as that read, the stored culprit
+    ///    at rest, and never as check 3's residual; check 3 then meters
+    ///    the image's fidelity to a carrier on the face.
     /// 1. **Lane**: the chart and carrier kinds are ones this module
     ///    certifies in closed form. On a [`Pcurve::Harmonic`] image, the
     ///    **kind check**: each channel is its chart coordinate's kind, a
@@ -4290,6 +4295,7 @@ impl<T: Decide> PcurveCache<T> {
         surface: &Surface<T>,
         band: Band,
     ) -> Result<Self, PcurveCertifyError> {
+        read_incidence(carrier, t0, t1, surface, band)?;
         let certificate = match &pcurve {
             Pcurve::Fitted(_) | Pcurve::General(_) => {
                 return Err(PcurveCertifyError::ImageMismatch {
@@ -4481,8 +4487,8 @@ impl<T: Decide> PcurveCache<T> {
     }
 
     /// Re-runs the full certification at rest — the tier-3 validator's
-    /// per-half-edge pass, for EITHER lane. Same checks, same schedule,
-    /// same errors; the stored certificate is not consulted
+    /// per-half-edge pass, for EITHER lane. Same checks, the incidence
+    /// read first, same schedule, same errors; the stored certificate is not consulted
     /// (re-certification re-derives, it does not trust — for a fitted
     /// cache, its hull bound).
     ///
@@ -4506,6 +4512,7 @@ impl<T: Decide> PcurveCache<T> {
         band: Band,
         lane: Option<crate::FittedLane<T>>,
     ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
+        read_incidence(carrier, self.param_start, self.param_end, surface, band)?;
         match &self.pcurve {
             Pcurve::Fitted(image) | Pcurve::General(image) => run_fitted_checks(
                 image,
@@ -12011,9 +12018,10 @@ mod tests {
     /// band, yet its fidelity term levers the drift by the window's
     /// reach from the origin, and refuses definitely. At rest that
     /// refusal ends in the kernel-limit recourse and claims only that
-    /// the certificate cannot show the image; the row stored for the rim,
-    /// certified against the rim moved off the axis by `100·ε`, whose
-    /// sample residual is the miss itself, ends in the defect ending.
+    /// the certificate cannot show the image. The rim's image moved up
+    /// its axis by `100·ε`, whose sample residual is the miss itself,
+    /// ends in the defect ending; the rim itself moved off the axis is
+    /// read off its face before any meter.
     #[test]
     fn a_refused_envelope_reads_as_a_bound_at_rest() {
         use crate::recourse::{Reading, defect_ending};
@@ -12060,17 +12068,33 @@ mod tests {
             "{loose}"
         );
         // The rim moved off the axis by 100·ε: the mint reads it off the
-        // cylinder (D3), and the row stored for the rim, certified
-        // against it, is refused by its samples, which read the miss.
+        // cylinder (D3), and so does the row stored for the rim,
+        // certified against it: the read comes before any meter.
         let off = rim(Point3::new(100.0 * Tol::witness().eps(), 0.0, 0.0));
         assert!(matches!(
             chart_pcurve(&off, &cyl, band()),
             Err(PcurveCertifyError::CarrierOffChart { .. })
         ));
         let image = chart_pcurve(&carrier, &cyl, band()).unwrap();
-        let miss = PcurveCache::certify(image, 0.0, PI, &off, &cyl, band())
+        let read = PcurveCache::certify(image.clone(), 0.0, PI, &off, &cyl, band())
             .map(|_| ())
             .expect_err("a rim off the axis by 100·ε refuses");
+        assert!(
+            matches!(
+                read,
+                PcurveCertifyError::CarrierOffChart {
+                    margin: Some(OffMargin::Past(_)),
+                    ..
+                }
+            ),
+            "the stored row's rim is read off its face: {read:?}"
+        );
+        // The rim on its face and its image moved up the axis by 100·ε:
+        // the read passes it, and the samples meter the image's miss.
+        let moved = bumped(&image, 0.0, [100.0 * Tol::witness().eps(), 0.0, 0.0, 0.0]);
+        let miss = PcurveCache::certify(moved, 0.0, PI, &carrier, &cyl, band())
+            .map(|_| ())
+            .expect_err("an image moved by 100·ε refuses");
         assert!(
             matches!(
                 miss,
