@@ -605,23 +605,14 @@ fn a_circular_pattern_copy_is_a_target_whose_rotation_is_applied_once() {
     let bench = asm::bench("matespun", tol);
     let mut session = asm::open_bench(&bench, tol);
     let pattern = spun_post(&mut session, &bench);
-    eprintln!("DEBUG ring: {:?}", session.evaluation().map(|e| e.result(pattern).map(|r| format!("{r:?}").chars().take(1500).collect::<String>())));
 
-    // Copy 0 stands where post_b does (the rule's identity step), and
-    // post_b draws it: its cap faces +z and is picked from above.
+    // Member 0 stands where post_b does (the rule's identity step), so
+    // a ray onto that cap meets two coincident copies; copy 1's cap
+    // faces +x, under the ground plane, and is picked along -x.
     let half = asm::POST_SECTION / 2.0;
-    let copy_zero = asm::pick_face(
-        &session,
-        &asm::down_at(asm::POST_B_AT[0] + half, asm::POST_B_AT[1] + half),
-    );
-    // Copy 1's cap faces +x, under the ground plane: picked along -x.
     let copy_one = asm::pick_face(
         &session,
         &common::along_x(-1.0, asm::POST_B_AT[1] + half, -(asm::POST_B_AT[0] + half)),
-    );
-    assert!(
-        [bench.post_b, pattern].contains(&copy_zero.node),
-        "post_b and member 0 draw copy 0: {copy_zero:?}"
     );
     assert_eq!(
         copy_one.node, pattern,
@@ -633,11 +624,11 @@ fn a_circular_pattern_copy_is_a_target_whose_rotation_is_applied_once() {
         "the copy rides in the head: {:?}",
         copy_one.name
     );
-    // The two rays met ONE part-local face on two copies.
+    // The ray met the post's own top cap, on the spun member.
     assert_eq!(
         master_face(&copy_one),
-        master_face(&copy_zero),
-        "one part-local face, two copies"
+        bench.post_top,
+        "one part-local face, on the member"
     );
 
     let shelf_bottom = asm::shelf_underside(&session);
@@ -751,6 +742,7 @@ fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [Reci
             stand().bundle(),
         ),
     );
+    let doc = editor_core::test_support::assemble_world_copies(doc, tol);
     let mut ws = pncad::workspace::Workspace::open(&bench.dir).expect("the workspace opens");
     let path = ws.create(&doc, tol).expect("the nested assembly stores");
     let mut session = DocSession::inline(Doc::empty_derived("nested-boot", tol), tol);

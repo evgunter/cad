@@ -839,7 +839,7 @@ pub fn row_steps(
     [A::X, A::Y, A::Z]
         .into_iter()
         .zip(direction)
-        .filter(|(_, d)| !d.is_zero())
+        .filter(|(_, d)| !written_zero(d))
         .map(|(axis, d)| Ok((axis, Formula::mul(spacing.clone(), d.clone())?)))
         .collect()
 }
@@ -855,8 +855,13 @@ pub fn ring_slide_axis(direction: &[Formula; 3]) -> pncad::document::TargetAxis 
         (A::X, &direction[0]),
     ]
     .into_iter()
-    .find(|(_, d)| !d.is_zero())
+    .find(|(_, d)| !written_zero(d))
     .map_or(A::Z, |(axis, _)| axis)
+}
+
+/// Whether `d` is written zero: the zero formula, or a literal `0`.
+fn written_zero(d: &Formula) -> bool {
+    d.is_zero() || d.literal_value() == Some(0.0)
 }
 
 /// **The part tool**: one pick of a family, committing one

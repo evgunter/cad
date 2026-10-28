@@ -889,8 +889,8 @@ fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
 /// the cause.
 ///
 /// One document, built up: an intersect of two blocks that do not
-/// meet, first alone and then under a pattern; a
-/// split whose tool plane clears the block, with a pattern reading its
+/// meet, first alone and then under a shell; a
+/// split whose tool plane clears the block, with a shell reading its
 /// empty side; and a member read indexed past a family's count.
 #[test]
 fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
@@ -963,13 +963,13 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     );
 
     // A consumer of the empty value: `EmptyOperand`.
-    let pattern_of = |doc: &Doc<ProfileProgram>, input: pncad::document::Operand| {
-        common::row_of_copies(doc, input, 2, (TargetAxis::X, 0.05), tol)
+    let shell_of = |doc: &Doc<ProfileProgram>, input: pncad::document::Operand| {
+        common::inserted(doc, Node::shell(input, common::len(0.001), Vec::new()), tol)
     };
-    let (doc, moved) = pattern_of(&doc, apart.into());
+    let (doc, moved) = shell_of(&doc, apart.into());
 
     // A tool plane above the block, read off its own geometry: the
-    // split's above side is empty, and a pattern reading it refuses
+    // split's above side is empty, and a shell reading it refuses
     // `EmptyHalf`.
     let tool =
         editor_core::test_support::plane_on(&doc, near, [0.0, 0.0, 0.05], [0.0, 0.0, 1.0], tol);
@@ -981,7 +981,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         },
         tol,
     );
-    let (doc, above) = pattern_of(
+    let (doc, above) = shell_of(
         &doc,
         pncad::document::Operand::output(split, SplitHalf::Above.port()),
     );
@@ -1055,7 +1055,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     assert_eq!(
         common::row_of(&rows, apart).readout,
         Some(Readout::Empty(Emptiness::Whole)),
-        "the intersect still says so under a pattern"
+        "the intersect still says so under a shell"
     );
     assert_eq!(
         common::row_of(&rows, pattern).readout,

@@ -90,7 +90,7 @@ impl<T: Decide> Members<T> {
 /// # Errors
 ///
 /// [`NodeErrorKind::IndexCount`] where an index's count does not
-/// evaluate, or evaluates below zero.
+/// evaluate. A count below zero gives no value, as zero does.
 fn tuples<P: crate::ProfilePayload, T: Decide>(
     doc: &Doc<P>,
     env: &crate::expr::VarEnv<T>,

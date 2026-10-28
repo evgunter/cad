@@ -50,7 +50,6 @@ use viewer::session::{
     Refusal, Selection, SessionOp,
 };
 use viewer::tools::{ToolKind, Tools};
-use viewer::tree::{self, RowStatus};
 
 /// The big block: 40 × 20 × 10 mm, extruded up from the sketch plane.
 const A: [f64; 3] = [0.04, 0.02, 0.01];
@@ -619,7 +618,9 @@ fn the_split_door_takes_a_body_and_a_plane_in_its_coordinates() {
 
 /// A split's OUTPUT is two bodies, so it is not a body seat's pick —
 /// the door says so rather than letting the operand mismatch surface
-/// after the edit lands. The same is true of a pattern's instances.
+/// after the edit lands. A family is not refused: a reader of it is
+/// evaluated once per member, and a union's member seat reads it
+/// whole.
 #[test]
 fn several_bodies_are_not_one_body_at_a_seat() {
     let tol = Tol::witness();
@@ -633,18 +634,8 @@ fn several_bodies_are_not_one_body_at_a_seat() {
             normal: scl3([0.0, 0.0, 1.0]),
         },
     );
-    let pattern = session_insert(
-        &mut session,
-        SessionOp::AddPattern {
-            input: body.into(),
-            count: 2,
-            rule: PatternRuleSpec::Linear {
-                direction: scl3([1.0, 0.0, 0.0]),
-                spacing: len(0.05),
-            },
-        },
-    );
-    for wrong in [split, pattern] {
+    {
+        let wrong = split;
         for op in [
             SessionOp::AddBoolean {
                 spec: BooleanSpec::Union(vec![wrong.into(), body.into()]),
@@ -2849,7 +2840,9 @@ fn step_of(session: &DocSession, copy: RecipeNodeId) -> [f64; 3] {
             .find(|value| value.coord == Coord::Slide(axis))
             .map(|value| doc.written(&Expr::var(value.by, Dimension::Length)))
             .filter(|written| !written.is_zero())
-            .map_or(0.0, |written| written.literal_value().expect("a literal slide"))
+            .map_or(0.0, |written| {
+                written.literal_value().expect("a literal slide")
+            })
     })
 }
 
@@ -3096,9 +3089,9 @@ fn a_duplicate_keeps_the_notes_promise() {
 }
 
 /// **A body whose value is several bodies is refused, typed** — a
-/// placement of a family, which is several bodies again. The body seat refuses it
-/// by the kind of the variable it defines, before the duplicate door
-/// asks its value.
+/// placement of a family, which is several bodies again. Its variable
+/// is a body's, so the body seat takes it, and the duplicate door
+/// refuses it by its value (`DuplicateFault::NotOneBody`).
 #[test]
 fn duplicating_a_several_body_value_is_refused() {
     let tol = Tol::witness();
@@ -3134,7 +3127,7 @@ fn duplicating_a_several_body_value_is_refused() {
     assert!(
         matches!(
             &out.refusal,
-            Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Body }) if node.id() == placed
+            Some(Refusal::Duplicate(DuplicateFault::NotOneBody { input })) if input.id() == placed
         ),
         "{:?}",
         out.refusal

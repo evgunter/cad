@@ -1,13 +1,13 @@
 //! **The tree row names the cause, not a dangling head.**
 //!
-//! The finding's document — a mate onto a pattern copy whose
-//! direction slot is `1e200` — once drew a row about a member that
-//! did not resolve, about a pattern that resolves and is well-formed
-//! apart from one slot. A mate's target reads the pattern's copy, so
-//! the pattern is upstream of the placement: a pattern that refuses
-//! poisons the placement through it, and the placement's row points at
-//! the pattern's, which states the direction refusal in its own words.
-//! A target the pattern no longer defines is the mate's own refusal
+//! The finding's document — a mate onto a family member whose slide
+//! overflows to infinity — once drew a row about a member that did not
+//! resolve, about a family that resolves and is well-formed apart from
+//! one value. A mate's target reads the family's member, so the family
+//! is upstream of the placement: a family that refuses poisons the
+//! placement through it, and the placement's row points at the
+//! family's, which states the slide's refusal in its own words. A
+//! target the family no longer defines is the mate's own refusal
 //! (`SideUnevaluated`). The row is the chrome's whole channel for a
 //! refusal, so what it says is the measurement.
 
@@ -106,12 +106,12 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     assert_eq!(
         error.spoken(&doc, &ev),
         format!(
-            "Pattern {} failed: the pattern direction has no finite length (a component \
-             overflows the norm or is not a number). Recourse: {}",
+            "Place {} failed: the expression at slot slide value failed to evaluate: the \
+             evaluated result is not finite — the arithmetic overflowed or hit a pole (1/0, \
+             0/0). Recourse: fix the expression or the values feeding it",
             test_utils::refusal::tag(pattern.0.digest()),
-            geom_core::RANGE_RECOURSE
         ),
-        "the pattern's own words name the direction"
+        "the family's own words name the slide"
     );
     let placer = common::row_of(&rows, pattern);
     assert!(
@@ -264,46 +264,4 @@ fn a_stranded_copy_blames_the_mate_and_not_the_pattern_it_stopped_at() {
         "the fixture strands the mate's target: {fault:?}"
     );
     assert_the_mate_is_blamed(&ev, &doc, s.mate, s.pattern);
-}
-
-/// **When the named node fails in its own right, it is the cause and
-/// the mate's placement points at it** — the counter-case to the row
-/// above, whose named node evaluates. The mate's target reads the named
-/// node, so the placement is poisoned through it, and the named node's
-/// row is the evaluation's own verdict about it, in its own words.
-fn assert_the_named_node_is_the_cause(
-    ev: &Evaluation<f64>,
-    doc: &Doc<ProfileProgram>,
-    mate: RecipeNodeId,
-    named: RecipeNodeId,
-) {
-    let rows = tree::rows(doc, Some(ev), &viewer::parts::PartFiles::default());
-    let Some(NodeResult::Failed(error)) = ev.result(named) else {
-        panic!("{named:?} must be Failed in the evaluation");
-    };
-    let status = common::status_of(&rows, named);
-    assert!(
-        matches!(&status, RowStatus::Failed { message, .. } if *message == error.spoken(doc, ev)),
-        "{named:?} carries its own words: {status:?}"
-    );
-    assert!(
-        matches!(common::status_of(&rows, mate), RowStatus::Poisoned { through, .. } if through == named),
-        "the mate's placement points at the named node"
-    );
-    assert_no_row_links(&rows);
-}
-
-/// A pattern shrunk to ZERO copies fails on its own, and the mate's
-/// placement, whose target reads it, points at it.
-#[test]
-fn a_pattern_of_no_copies_fails_beside_the_mate() {
-    let tol = Tol::witness();
-    let s = copies("msolve3-view-dangling-zero", 1, tol);
-    let (doc, _) = common::edited(
-        &s.doc,
-        fixture::recount_edit(&s.doc, s.index, Formula::count(0)),
-        tol,
-    );
-    let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &s.opts, tol);
-    assert_the_named_node_is_the_cause(&ev, &doc, s.mate, s.pattern);
 }

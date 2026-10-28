@@ -1,10 +1,11 @@
 //! **The at-rest badge on a mate read below a pattern.**
 //!
 //! A mate's at-rest record is minted on the world copies of the bodies
-//! its sides read. On the issue's document — a pattern over a moved
+//! its sides read. On the issue's document — a family over a moved
 //! body of the shelf, the mate read AT that body — no world placement
-//! reads the moved body, so the mate records nothing, and the seat it
-//! places the post on reaches the checks as a touch between two copies.
+//! reads the moved body, so the mate records nothing: it places the
+//! post in the space of the body it is read at, which no placement
+//! copies into the world, so the post is no copy the checks see.
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
@@ -107,12 +108,15 @@ fn read_below_pattern(bench: &asm::Bench, tol: Tol) -> std::path::PathBuf {
         asm::own_space_seat_values(),
         tol,
     );
+    // The product is gathered once the mate has placed the post, which
+    // stands in the lift's space with the body it is read at.
+    let asm = editor_core::test_support::assemble_world_copies(asm, tol);
     let mut ws = Workspace::open(&bench.dir).expect("the bench's workspace opens");
     ws.create(&asm, tol).expect("the assembly stores")
 }
 
 #[test]
-fn a_mate_read_below_a_pattern_records_nothing_and_its_seat_is_a_finding() {
+fn a_mate_read_below_a_pattern_records_nothing_and_places_the_post_beside_it() {
     let tol = Tol::witness();
     let bench = asm::bench("msolve5-badge", tol);
     let path = read_below_pattern(&bench, tol);
@@ -128,20 +132,26 @@ fn a_mate_read_below_a_pattern_records_nothing_and_its_seat_is_a_finding() {
         "the product gathers: {:?}",
         session.product_fault()
     );
-    // The seat the mate records nothing for is a touch between two copies:
-    // the gather records it, the badge stays green, and the checks
-    // window reports it against the two copies (D10).
+    // The mate records nothing and refuses nothing: the badge stays
+    // green.
     assert!(
         matches!(session.at_rest(), Some(AtRestBadge { .. })),
         "an unmated seat refuses nothing: {:?}",
         session.at_rest()
     );
+    // The post stands in the lift's space, beside the body its mate
+    // reads, and no placement copies it into the world.
+    let doc = session.committed_doc();
+    let posts_off_world: Vec<_> = doc
+        .ids()
+        .into_iter()
+        .filter(|&id| matches!(doc.node(id), Some(Node::InstantiatePart { .. })))
+        .filter(|&id| doc.node_space(id) != Some(VarId::WORLD))
+        .collect();
+    assert_eq!(posts_off_world.len(), 1, "the post is placed off the world");
     let report = session.checks().expect("the checks ran");
     assert!(
-        report
-            .findings
-            .iter()
-            .any(|f| matches!(f.subject, pncad::document::FindingSubject::Copies { .. })),
-        "the seat is the two copies' finding: {report:?}"
+        report.findings.is_empty(),
+        "no copy the checks see touches another: {report:?}"
     );
 }

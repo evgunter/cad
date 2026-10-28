@@ -114,7 +114,7 @@ pub use editor_core::{SketchOutcome, SketchedOnFace, sketch_on_face};
 // placement's constraints are addressed by their `ConstraintId`.
 // Repetition is an index (D10 `[repetition]`): `k = index(N)` is a
 // `VarDecl::Index`, a family's member is named under `Member { at }`.
-pub use editor_core::{Index, MemberAt};
+pub use editor_core::{Index, IndexFault, MemberAt};
 pub use editor_core::{
     Axis3, Bodies, BodyRead, ConstraintId, InputFault, ListFault, LoftSection, MintId, Node,
     Operand, OperandSlot, OutputPort, PortKind, RecipeNodeId, SlotId, SlotKind, StationMove,

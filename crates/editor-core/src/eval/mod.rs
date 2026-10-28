@@ -1085,26 +1085,19 @@ pub enum ValuePayload<T: Decide> {
         /// Material on the opposite side.
         below: SplitSide<T>,
     },
-    /// A pattern's instances AS DATA (D3: patterns do not implicitly
-    /// union; index `i` is the A8/N1 `Instance(i)` substrate — for a
-    /// nested pattern the flat index `j·M + i`, `wire_pattern`'s
-    /// layout).
+    /// **A family's members AS DATA** (D10 `[repetition]`): one body
+    /// per value of the family's indices, outermost index first, the
+    /// value a family's output holds read whole.
     ///
-    /// **Who takes it, and who refuses.** The placers take it WHOLE
-    /// and are shape-preserving over it: `Place` yields the same
-    /// instances under one rigid map, `Pattern` yields their `N·M`
-    /// placements, both as `Instances`, because a rigid map of N
-    /// bodies is N rigid maps and needs no guess. `Part` takes one
-    /// instance out of it by index, and the product gather takes
-    /// every instance in order. Every other consumer of a body
-    /// operand — the set is `wire::read_body`'s callers (a pose read
-    /// off a face, a blend's and a shell's body, a split's target, a
-    /// boolean's and a union's members, a placed union's prototype) —
-    /// takes ONE body and refuses this value typed (`WrongOperand`):
-    /// a boolean of N bodies is N booleans or one union of them, a
-    /// blend of N bodies is N blends, and the recipe does not guess
-    /// which (D3), so the asymmetry between the placers and the rest
-    /// is the decision, not an omission.
+    /// **Who takes it, and who refuses.** A reader of the same index
+    /// reads one member, never this value. A reader that reads the
+    /// family whole takes it at a member seat (a union's, an
+    /// intersect's or an assemble's), an indexed read takes one member
+    /// out of it by its tuple, and the product gather takes every
+    /// member in order. Any other body seat that meets it whole takes
+    /// ONE body and refuses it typed (`WrongOperand`): a boolean of N
+    /// bodies is N booleans or one union of them, and the recipe does
+    /// not guess which (D3).
     Instances(Vec<Framed<T>>),
     /// A `Measure` node's typed F1 quantity (E3): the measured value
     /// in kernel units with the dimension it was measured in. Not

@@ -80,8 +80,7 @@ pub fn admits(doc: &Doc<ProfileProgram>, node: RecipeNodeId, wanted: NodeKindWan
                     .read_of_node(node)
                     .and_then(|read| doc.var(read))
                     .is_some_and(|var| {
-                        pncad::document::SlotKind::Is(pncad::document::VarKind::Bodies)
-                            .admits(var)
+                        pncad::document::SlotKind::Is(pncad::document::VarKind::Bodies).admits(var)
                     })
         }
         NodeKindWanted::Profile => held.and_then(seat_kind) == Some(wanted),

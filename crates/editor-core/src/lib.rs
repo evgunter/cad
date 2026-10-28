@@ -130,7 +130,7 @@ pub use drive::{
     RefusalReason, RefusedLeaf, StructureFlip, drive,
 };
 pub use edit::{
-    Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, EditError, EditRecord, LoftFault,
+    Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, EditError, EditRecord, IndexFault, LoftFault,
     Maintenance, MaintenanceNet, MeasureOutcome, Measured, ProductReadFault, Recorded, Recording,
     SketchOutcome, SketchedOnFace, SlotValue, Took, apply, apply_replayed, cascade_delete_order,
     measure, sketch_on_face,

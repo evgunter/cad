@@ -3980,11 +3980,10 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         self.assertEqual(
             sorted(n for n in dir(Node) if not n.startswith("_")),
             [
-                "assemble", "assertion", "chamfer",
-                "extrude", "fillet", "hollow_tube", "instantiate_part",
-                "bolt_circle", "circular_pattern", "grid",
-                "intersect", "linear_pattern", "loft", "measure", "mirror",
-                "place",
+                "assemble", "assertion", "bolt_circle", "chamfer",
+                "circular_pattern", "extrude", "fillet", "grid",
+                "hollow_tube", "instantiate_part", "intersect",
+                "linear_pattern", "loft", "measure", "mirror", "place",
                 "polygon", "profile", "revolve", "shell", "space",
                 "split", "subtract", "tube", "union",
             ],

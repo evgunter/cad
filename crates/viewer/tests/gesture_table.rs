@@ -679,15 +679,14 @@ fn nothing_is_fenced_when_no_gesture_is_in_flight() {
 /// gesture's commit runs cannot discard what it is holding.
 ///
 /// **The gesture here drags a node's slot.** A read of one member of
-/// a row over the probed instance carries a structural index — the
-/// node slot the identity is actually about. Dragging a document
+/// a row over the other post carries a structural index — the node
+/// slot the identity is actually about. Dragging a document
 /// variable instead would write only `doc.params`, which no display
 /// predicate reads, and every assertion below would hold for any
 /// implementation of them.
 ///
-/// The row and the read stand in the instance's own space and place
-/// nothing (A10), so `drawn_targets` resolves the instance to its own
-/// copy.
+/// The row and the read stand in a space of their own and draw nothing
+/// (A10), so `drawn_targets` resolves the instance to its own copy.
 ///
 /// Where it goes red: give a value gesture an edit that changes the
 /// node graph and the identity block fails outright (`free_move_check`
@@ -724,19 +723,40 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
         outcome
     }
 
-    // A row over the probed instance, and a read of one of its members:
-    // the member's index is the node slot a value gesture can open on
-    // in an assembly of bare instances. Both stand in the instance's
-    // own space, so they place nothing in the world (A10) and the
-    // instance's display state stays on its own copy. No session door
-    // authors a member read that stays out of the world (the part door
-    // places its read), so the two are written into the bench's stored
-    // assembly and the bench reopened.
-    let doc = session.committed_doc().clone();
+    // A row over the other post, and a read of one of its members: the
+    // member's index is the node slot a value gesture can open on in an
+    // assembly of bare instances. Both stand in a space of their own,
+    // which no placement reaches the world from, so they draw nothing
+    // and the probed instance's display state stays on its own copy. No
+    // session door authors a member read that stays out of the world
+    // (the part door places its read), so the two are written into the
+    // bench's stored assembly and the bench reopened.
+    use pncad::document::{BodyRead, Formula, Node, Operand, Placed, stand};
+    let mut doc = session.committed_doc().clone();
+    let room = common::insert_into(&mut doc, Node::Space, tol);
+    let room = Operand::Var(doc.output(room, 0).expect("a new space defines its space"));
     let (doc, k) = crate::fixture::index(doc, "k", 4);
-    let (doc, family) =
-        crate::fixture::family_of(doc, post, crate::fixture::slides_along(k, [1.0, 0.0, 0.0], 0.03));
-    let (doc, pattern) = crate::fixture::member(doc, family, 0);
+    let stepped = Placed::of(
+        &doc,
+        Vec::new(),
+        crate::fixture::slides_along(k, [1.0, 0.0, 0.0], 0.03),
+    );
+    let (doc, family) = crate::fixture::insert(
+        doc,
+        Node::place(
+            BodyRead::plain(Operand::Node(bench.post_b)),
+            room.clone(),
+            stepped.bundle(),
+        ),
+    );
+    let (doc, pattern) = crate::fixture::insert(
+        doc,
+        Node::place(
+            BodyRead::indexed(family, vec![Formula::count(0)]),
+            room,
+            stand().bundle(),
+        ),
+    );
     let mut ws = pncad::workspace::Workspace::open(&bench.dir).expect("the workspace opens");
     ws.resave(&doc, tol).expect("the assembly stores");
     let mut session = common::asm::open_bench(&bench, tol);
@@ -859,10 +879,10 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
             "{slot:?}: one edit for the whole drag"
         );
         // The door actually taken, so the claim above is executed
-        // rather than described: a value gesture writes the value of
-        // the variable its slot reads (Q6), a count's as a length's.
+        // rather than described: a structural slot's drag writes the
+        // node's slot (`DocEdit::SetStructuralParam`).
         assert!(
-            matches!(&outcome.committed[0], DocEdit::SetVarValue { .. }),
+            matches!(&outcome.committed[0], DocEdit::SetStructuralParam { .. }),
             "{slot:?} took an unexpected door: {:?}",
             outcome.committed[0]
         );

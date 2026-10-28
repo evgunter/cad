@@ -3156,6 +3156,24 @@ DEFINITION_NODE_BOUND: Final[int]
 definitions it reads may hold: a definition past it refuses
 `definition_too_large`, whose `count` is the expansion's size."""
 
+class Recognised:
+    """A placement read back as the pattern it is (`Doc.recognise`): a
+    row (`kind == "linear"`, its `steps`) or a ring
+    (`kind == "circular"`, its `step`), under `index`."""
+
+    @property
+    def kind(self) -> Literal["linear", "circular"]: ...
+    @property
+    def index(self) -> Var: ...
+    @property
+    def steps(self) -> list[tuple[Literal["x", "y", "z"], Formula]]:
+        """A row's slides, each axis and its pitch per member; empty
+        for a ring."""
+    @property
+    def step(self) -> Formula | None:
+        """A ring's turn per member; None for a row."""
+    def __repr__(self) -> str: ...
+
 class VarDecl:
     """A variable's definition as an edit carries it: a free value, a
     `Formula` over other variables, which the edit door lowers (its
@@ -4013,6 +4031,13 @@ class Doc:
         slot the document does not hold. Every slot reads one: a value
         written there is its own anonymous variable, and passing the
         handle to another slot is how two slots share it."""
+    def recognise(self, placement: NodeId) -> Recognised | None:
+        """What pattern `placement` is, for display: a row where it is
+        a placement under exactly one index with no mate whose every
+        non-zero value is a slide a multiple of the index, a ring where
+        it has one mate and its spin is that multiple. None for any
+        other node. It reads the recipe as written and decides
+        nothing."""
     def var_name(self, var: Var) -> VarName | None:
         """The name this document holds for `var`, or None — for an
         anonymous variable, or one the document no longer holds."""
@@ -6291,6 +6316,11 @@ class InterferenceFinding:
     @property
     def quiet_by(self) -> Optional[NodeId]:
         """The assertion that quiets it, or `None` when it is loud."""
+
+    @property
+    def quiet_at(self) -> list[tuple[Var, int]]:
+        """The member of `quiet_by`'s family that quiets it, each index
+        and its value; empty for an assertion evaluated once."""
 
     @property
     def loud(self) -> bool: ...
