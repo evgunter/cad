@@ -5046,7 +5046,7 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
                 let Some(cache) = body.pcurve(he) else {
                     continue;
                 };
-                let (carrier, _, _) = match half_edge_carrier(body, he) {
+                let (carrier, t0, t1) = match half_edge_carrier(body, he) {
                     Ok(found) => found,
                     Err(e) => {
                         findings.push(e);
@@ -5056,7 +5056,7 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
                 if let Err(e) = row_interval(body, he, cache, &carrier, band) {
                     findings.push(e);
                 }
-                if let Err(error) = cache.recertify(&carrier, surface, band, lane) {
+                if let Err(error) = cache.recertify(&carrier, (t0, t1), surface, band, lane) {
                     findings.push(PcurveMintError::Certify {
                         half_edge: he,
                         error,

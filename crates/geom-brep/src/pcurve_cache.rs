@@ -4488,10 +4488,18 @@ impl<T: Decide> PcurveCache<T> {
     }
 
     /// Re-runs the full certification at rest — the tier-3 validator's
-    /// per-half-edge pass, for EITHER lane. Same checks, the incidence
-    /// read first, same schedule, same errors; the stored certificate is not consulted
+    /// per-half-edge pass, for EITHER lane. Same checks, same schedule,
+    /// same errors; the stored certificate is not consulted
     /// (re-certification re-derives, it does not trust — for a fitted
     /// cache, its hull bound).
+    ///
+    /// The carrier's incidence on the chart is read first, over
+    /// `edge_span`, the edge's own interval: the read is about the edge,
+    /// not the row. A row stored over another span (a foreign arc of the
+    /// same locus, a row cut short) is the row's defect, which its own
+    /// checks name (check 1's identity, `topo`'s row interval); read over
+    /// the row's span, the carrier past its edge's ends would wear an
+    /// incidence ending instead.
     ///
     /// `lane` is the pass's fitted door (`topo::AtRestPolicy::fitted_lane`),
     /// or `None` where the scalar may not certify or the caller
@@ -4509,11 +4517,12 @@ impl<T: Decide> PcurveCache<T> {
     pub fn recertify(
         &self,
         carrier: &Curve3<T>,
+        (t0, t1): (T, T),
         surface: &Surface<T>,
         band: Band,
         lane: Option<crate::FittedLane<T>>,
     ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
-        read_incidence(carrier, self.param_start, self.param_end, surface, band)?;
+        read_incidence(carrier, t0, t1, surface, band)?;
         match &self.pcurve {
             Pcurve::Fitted(image) | Pcurve::General(image) => run_fitted_checks(
                 image,
