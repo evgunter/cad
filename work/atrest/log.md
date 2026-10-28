@@ -330,3 +330,9 @@ Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `cra
     - a census change runs `demos/tour` locally, because CI's change filter skips it;
     - check DESIGN's own clause, not a spec's restatement, before ruling a rule "as ratified";
     - merge main and re-run the slow goldens at three ε before merging a census PR.
+- 2026-10-28 — (INTENT orchestrator) Six census rows move here from INTENT by `git mv`, ids unchanged, on Ev's ask to cut INTENT to D10's core:
+  - the census per `⊔` (`each-space-runs-its-census-between-arrivals`, P1 M), still parked on INTENT's carry (`a-placement-carries-its-sources-at-rest-result`, dispatched, single review);
+  - `the-in-arrival-census-check-retires` (P1 E), parked on it;
+  - `the-census-at-a-union-of-assembles-is-not-carried`, `the-separation-check-misses-an-overlap-inside-a-nested-or-unread-assemble`, `a-parts-loose-spaces-and-member-reads-drop-its-census-rows`, `a-census-witness-is-stated-in-the-products-computing-frame` (open).
+
+  They meet stage 5 C at the same `⊔` door. INTENT keeps the carry and announces its merge here.

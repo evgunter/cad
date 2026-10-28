@@ -7192,8 +7192,42 @@ Signed (WIRE orchestrator).
 - 2026-10-28 (WIRE orchestrator) Budget: main's merge plus the priced PR 5876 rows put WIRE at 35/30.
   - Priced: split tie-witness row E; union fold row M.
   - Moved to WIRETAIL (P3, 5 points): `the-older-missing-rule-naming-variants-lack-the-unsupported-prefix` and `a-body-value-consumed-by-k-nodes-is-gated-at-rest-k-times`. The measuredoor citation is repointed.
+- 2026-10-28 (WIRE orchestrator) PR 5887 (state sync) merged.
+- 2026-10-28 (WIRE orchestrator) Dispatched two lanes:
+  - `wire-unionrecord` (wire/union-tied-groups-record-their-own-count): `a-unions-tied-groups-go-to-the-fold-though-formed-per-parent`. It decides whether to record or fold; FULL review.
+  - `wire-tiewitness` (wire/tie-summed-decline-witnessed): the tie-summed decline witness and the split Seam/SetPiece tie witness, tests only; STYLE review.
+- 2026-10-28 (WIRE orchestrator) `wire-tiewitness` opened PR 5891 (head fc5bf60b1f), tests only.
+  - A tied pair seam group's own count is pinned; it goes red with name-only keys.
+  - The split `Joined::Seam` tie witness is built; it goes red with `(slot, name)`.
+  - The redundant assertion is dropped.
+  - The end-to-end tie-summed decline turns out unreachable: `group_resized` returns at `fragment_base` before reading the record, and neither `record_by_name` site leaves a fragment-tailed row. A proposal to retire `record_by_name` is on the row.
+  - `SetPiece` is still unwitnessed. Both rows stay open with findings.
+  - Review dispatched (`wire-tiewitness-rev`).
 - 2026-10-28 (`wire-tiewitness`) Tests only.
   - Pinned a tied pair seam group's own count, 2 → 0, which reads 4 with the name-only key.
   - Witnessed the split's `Joined::Seam` key with a vertical split of a pocketed U-tie. It goes red on revert.
   - Argued that the `record_by_name` tie-summed decline cannot be reached, and measured it: zero `sizes() == None` across the suite.
   - `SetPiece` has no witness; what was tried is on its row. Both rows stay open.
+- 2026-10-28 (WIRE orchestrator) PR 5891 review: mergeable. Both reverts went red when the reviewer ran them.
+  - MINOR: the row's closed-carrier claim was wrong. A tied joined set on a closed carrier would decline needlessly, because it is recorded tie-summed; the case is still unbuilt.
+  - MINORs: fixture copies (U profile, prism, a private run, twin prong fixtures).
+  - A fix pass shared them through `fixture` and corrected the row.
+  - Merged at df2462ff36. Both rows stay open, with the `record(.., Parent::Elsewhere)` proposal for joined sets on the tie-summed row.
+- 2026-10-28 (WIRE orchestrator) `wire-unionrecord` opened PR 5902 (head e2888ac188).
+  - A union records its tied parents' face and seam groups with `record`; `Rederived`/`by_fold` are deleted.
+  - Dump over 11,648 union evaluations: 0 rows and 0 sizes moved; 101 tied bases are now recorded as the union's own.
+  - The witness passes on base too: no document was found where the fold and the union's own count differ.
+  - Filed `doctail/a-unions-seam-piece-on-a-divided-parent-diagnoses-as-cascade`. FULL review dispatched (`wire-unionrecord-rev`).
+- 2026-10-28 (WIRE orchestrator) PR 5902 FULL review: the code is correct, and the README reword needs no Ev sign-off (f457b08861 is an implementation commit).
+  - MAJOR: the PR claimed the readings never differ, which is false. The reviewer's two-bar document has unequal tied groups. Base read `GroupResized` in one member order and declined in the other; the branch declines in both, which is right by N5. The PR owes this as a red-on-base pin.
+  - MINORs: a stale `Rederived` cite in a WIRE row, and `groups.rs` tie_summed docs.
+  - Fix pass sent to the lane.
+  - Filed `wirerest/the-judgement-naming-fault-seam-refuses-other-tests-unions` (P4, E) for a pre-existing threaded-cargo-test flake.
+- 2026-10-28 (WIRE orchestrator) PR 5902 fix pass: the unequal-tied-groups witness is red on base, the PR body is corrected, and the docs are fixed. Merged at e341b9d915; row closed; worktree removed.
+- 2026-10-28 (WIRE orchestrator) Main re-weighted the cost tiers (2f96694d12: E 1, M 3, H 8), which put WIREREST at 37/30 and WIRETAIL at 34/30.
+  - Split on the refusal seam into the new track WIREREFUSE (ab_band 18200–18299): five rows from WIREREST and four from WIRETAIL, by `git mv`. Nothing cited their paths.
+  - Corrected both plans' slates: closed flush-helper rows dropped; moved-in rows listed.
+  - Loads: WIRE 29, WIREREST 26, WIRETAIL 24, WIREREFUSE 21, WIREHOLD 23.
+- 2026-10-28 (WIRE orchestrator) Dispatched two lanes, both with FULL review.
+  - `wire-unionvertex` (wire/union-vertex-groups-from-the-finished-body): union vertex group sizes come from the finished body, not the fold steps' spelling. Takes the member-corner tied-fold row if it falls out of the same pass.
+  - `wire-joinedsets` (wire/joined-sets-record-per-candidate): joined sets record per candidate, and `record_by_name`/`tie_summed` are retired or their docs made exact. Also the joined set over two tied operand edges. D10 constructs are kept out of fixtures.

@@ -8,7 +8,8 @@ closed: 2026-10-28
 priority: P1
 pr: 5911
 branch: tess/thin-rings-repin
-refs: [a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta]
+refs: [a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta, a-thin-nested-rings-row-pins-untriangulated-where-the-mesh-now-meshes]
+cost: E
 ---
 
 
