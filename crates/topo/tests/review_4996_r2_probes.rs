@@ -6,6 +6,7 @@
 use crate::common;
 use common::brick;
 use geom_core::{Point3, Tol};
+use topo::construction::Construct;
 use topo::{Body, Cell, Cited, Cites, Contact, ContactRecords, FaceKey, Surface, VertexKey};
 
 fn tol() -> Tol {

@@ -10,7 +10,9 @@
 
 use geom_brep::{EdgeCurveSpec, Pcurve};
 use geom_core::{Band, Point3, Tol, Vec3};
-use topo::{Body, FaceSurface, MefSite};
+use topo::Body;
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, MefSite};
 
 #[test]
 fn a_whole_villarceau_circle_closes_one_edge_on_a_torus_face() {

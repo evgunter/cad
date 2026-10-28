@@ -123,7 +123,7 @@ pub fn classify_kind(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> Option
 /// RULE, in one home.
 ///
 /// An iso side of a curved face may be carried by SEVERAL edges: a
-/// vertex dropped on it by [`crate::Body::split_edge`], a boolean, or
+/// vertex dropped on it by [`crate::Body::split_edge`](crate::construction::Construct::split_edge), a boolean, or
 /// an exporter emitting two collinear edges. Two consecutive
 /// traversals continue ONE side when they are the same KIND and the
 /// junction between them lies OFF the chart axis; anything else opens

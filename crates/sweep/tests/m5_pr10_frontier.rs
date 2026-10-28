@@ -24,7 +24,9 @@ use profile::{Profile, ProfileLoop, SketchPlane};
 use sweep::ExtrudeSide;
 use sweep::skin::{loft_geometry, loft_parameters};
 use sweep::{Extrusion, extrude};
-use topo::{FaceSurface, validate_geometric};
+use topo::construction::Construct;
+use topo::construction::FaceSurface;
+use topo::validate_geometric;
 
 use crate::common;
 

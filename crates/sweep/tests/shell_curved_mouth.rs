@@ -18,6 +18,7 @@ use crate::common::shell_operands::{
 use core::f64::consts::PI;
 use geom_core::Tol;
 use sweep::test_support::finished;
+use topo::construction::Construct;
 use topo::{Body, FaceKey, ShellError};
 
 /// Every face of `body` on a surface of `kind`.
@@ -602,7 +603,7 @@ pub(crate) fn split_d_section(r: f64, h: f64) -> Body<f64> {
     let (he1, he2) = (leaving(&body, bottom), leaving(&body, top));
     let (pb, pt) = (p(&body, bottom), p(&body, top));
     body.mef(
-        topo::MefSite::Chords { he1, he2 },
+        topo::construction::MefSite::Chords { he1, he2 },
         geom_brep::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::chart(surface),
             carrier: geom::Curve3::Line {
@@ -612,7 +613,7 @@ pub(crate) fn split_d_section(r: f64, h: f64) -> Body<f64> {
             param_start: 0.0,
             param_end: (pt - pb).norm(),
         },
-        topo::FaceSurface::Inherit,
+        topo::construction::FaceSurface::Inherit,
         tol,
     )
     .unwrap();
@@ -945,7 +946,7 @@ fn split_tube(ri: f64, ro: f64, h: f64) -> Body<f64> {
     let (he1, he2) = (leaving(&body, mids[0]), leaving(&body, mids[1]));
     let (p1, p2) = (p(&body, mids[0]), p(&body, mids[1]));
     body.mef(
-        topo::MefSite::Chords { he1, he2 },
+        topo::construction::MefSite::Chords { he1, he2 },
         geom_brep::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::chart(surface),
             carrier: geom::Curve3::Line {
@@ -955,7 +956,7 @@ fn split_tube(ri: f64, ro: f64, h: f64) -> Body<f64> {
             param_start: 0.0,
             param_end: (p2 - p1).norm(),
         },
-        topo::FaceSurface::Inherit,
+        topo::construction::FaceSurface::Inherit,
         tol,
     )
     .unwrap();

@@ -22,7 +22,9 @@ use sweep::blend::{BlendDecision, BlendError, BlendSite, CornerConfig, RunOutPol
 use sweep::test_support::cube;
 use sweep::test_support::disc_of_arcs;
 use sweep::{Extrusion, extrude};
-use topo::{Body, EdgeKey, FaceKey, FaceSurface, VertexKey};
+use topo::construction::Construct;
+use topo::construction::FaceSurface;
+use topo::{Body, EdgeKey, FaceKey, VertexKey};
 
 fn tol() -> Tol {
     Tol::witness()

@@ -1246,6 +1246,7 @@ fn passes(rings: Vec<Vec<P>>, at: &[PieceAt]) -> Result<Vec<Sector<f64>>, TouchV
                 apex: o,
                 wedges: piece.chunks_exact(2).map(|w| (w[0], w[1])).collect(),
                 closed: false,
+                clear: None,
             })
         })
         .collect()

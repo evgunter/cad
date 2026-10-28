@@ -5,11 +5,13 @@
 
 use profile::SketchPlane;
 use std::sync::Arc;
+use topo::construction::Construct;
 
 use geom::{NurbsSurface, Surface};
 use geom_core::{Band, Point2, Point3, Tol};
 use profile::{ProfileLoop, test_support::bulge_loop};
-use topo::{Body, FaceKey, FaceSurface};
+use topo::construction::FaceSurface;
+use topo::{Body, FaceKey};
 
 fn square() -> Vec<ProfileLoop<f64>> {
     let v = |x: f64, y: f64| (Point2::new(x, y), 0.0);

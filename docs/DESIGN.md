@@ -40,10 +40,13 @@ intent until it lands (`d10-one-way-to-say-intent-is-unbuilt`).
   relating by `=`, interference at rest as a finding, and the at-rest
   census as a check whose contacts a holding `Gap = 0` quiets, with A5's
   at-rest gate (`assemble` and its refusal) and CHECKS DS6's
-  product-separation resident (`Separation`) retired (stage 5).
+  product-separation resident (`Separation`) retired (stage 5); an
+  operation's unproven contact (a boolean's glue, a vertex fusion)
+  quieted the same way.
 - **Not built:** the rest of placement (stage 3 — a constraint is
   still a mate's payload); the rest of the coincidence door and its lint (stage 4);
-  an assertion quieting an operation's unproven row; tangency
+  an assertion quieting an unproven row no `Gap = 0` says (a tangency,
+  a coaxiality, a blend's turn, a split's ON verdict); tangency
   constructions (stage 6).
 - **What retires as the build reaches it.** Where a companion clause
   disagrees with these sections, these govern, and the companion

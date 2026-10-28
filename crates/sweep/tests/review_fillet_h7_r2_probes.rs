@@ -31,6 +31,7 @@ use sweep::test_support::{
     ROD_FILLET, ROD_FLAT, ROD_R, assert_naming_totality, cube, rod_creases,
     rod_d_profile_of_length_at, rod_section_cut, rod_with_flat,
 };
+use topo::construction::Construct;
 use topo::query;
 use topo::{Body, validate_geometric};
 

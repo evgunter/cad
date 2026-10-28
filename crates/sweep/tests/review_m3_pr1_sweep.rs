@@ -12,6 +12,7 @@ use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
+use topo::construction::Construct;
 use topo::{Body, ValidationError, validate_closed, validate_geometric};
 
 fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
@@ -450,8 +451,8 @@ fn split_then_null_lifecycle_on_prism() {
     let he = body.get_vertex(v).unwrap().emanating.unwrap();
     let created = body
         .mev_null(
-            topo::MevSite::Fan { he1: he, he2: he },
-            topo::NewVertexSide::Below,
+            topo::construction::MevSite::Fan { he1: he, he2: he },
+            topo::construction::NewVertexSide::Below,
         )
         .unwrap();
     // Raw door: the measured body carries a null scaffolding strut, which tier 3 refuses (ScaffoldingStrutVertex), and the door's typed refusal of it is the subject.

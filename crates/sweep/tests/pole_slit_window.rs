@@ -41,6 +41,7 @@
 use geom_core::{Band, Bounds, Decide, Dual64, Interval, Point2, Point3, Real, Tol, Vec3};
 use sweep::Revolution;
 use sweep::test_support::{finished, revolved_about_y_at};
+use topo::construction::Construct;
 use topo::{
     AtRestPolicy, Body, BooleanError, BooleanOp, BooleanResult, SolidContainment, SplitError,
     SplitJoinError, SplitReduceError, SweepStrategy, ValidationError, face_azimuth_window_traces,
@@ -205,11 +206,11 @@ fn strutted<T: Decide + topo::AtRestPolicy + Bounds>(slit: &Body<T>) -> Body<T> 
         .expect("the meridian leaves the pole");
     let mut body = slit.clone();
     body.mev_null(
-        topo::MevSite::Fan {
+        topo::construction::MevSite::Fan {
             he1: down,
             he2: down,
         },
-        topo::NewVertexSide::Above,
+        topo::construction::NewVertexSide::Above,
     )
     .expect("a null strut at the pole");
     body

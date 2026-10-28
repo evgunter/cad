@@ -37,6 +37,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use topo::construction::Construct;
 
 use geom::Surface;
 use geom::SurfaceKind;
@@ -45,8 +46,9 @@ use sweep::Revolution;
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{one_edge_rim_at, revolved_about_y};
+use topo::construction::FaceSurface;
 use topo::query::{self, SurfaceKindSet};
-use topo::{Body, EdgeKey, FaceSurface, ValidationError, validate_geometric};
+use topo::{Body, EdgeKey, ValidationError, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()

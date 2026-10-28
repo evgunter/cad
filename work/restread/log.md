@@ -151,3 +151,13 @@ crossing lane and the edge-on-face lane (plan.md, Order).
   - **Tier:** dual, arm concurrent (class H). R1 returned APPROVE and R2 APPROVE-WITH-FIXES, with no MAJOR. The pair is excluded under 6(e): a restart killed R2 mid-run.
   - **Fix pass:** the chord taken as `n̂ × (q − p)` and the common normal of two axes removed. Verifier: VERIFIED-WITH-NITS.
   - **Rows filed:** `arm-one-has-no-row-for-a-cone-pair-only-the-common-normal-would-part` (P3). — (RESTREAD orchestrator)
+- 2026-10-28 — PR 5856 (`restread/curved-edge-in-face`) merges. It closes `tier-3-prime-reads-no-side-for-an-edge-with-a-curved-face-lying-in-a-face` (P1).
+  - **The row's diagnosis was wrong.** The 42 refusals measured on main (not 38) were planar faces with a curved edge elsewhere on their boundary, not curved edge faces. They read now as a cleared fan about the point, with its rim past the face and its radius capping where a crossing is confirmed. All 42 pass.
+  - **Tier:** dual, arm concurrent (class H), fair. R2 found a false Rest at link level (a cleared sector read at its radius, not the face's reach), which R1 contradicted. The coder sided with R2: +1 R2 (blinding byte 214).
+  - **Fix passes:**
+    - Pass 1 put the rim past the face. The verifier found the ball cap ungated.
+    - Pass 2 gated it.
+  - **Process:** the orchestrator removed the implementer's worktree before the PR merged, so a fresh lane took the fix pass. Worktrees stay until merge.
+  - **Rows filed:**
+    - `tier-3-prime-reads-no-side-for-an-edge-on-a-ruling-of-a-curved-face-lying-in-a-face` (P1);
+    - `the-pierce-span-clearance-gives-up-on-a-face-with-a-curved-edge` (P1). — (RESTREAD orchestrator)

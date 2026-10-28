@@ -516,15 +516,7 @@ fn unit<T: Real>(v: Vec3<T>) -> Vec3<T> {
     v / v.norm()
 }
 
-/// `v`'s part perpendicular to the unit `a`, and its norm. Taken as
-/// `a × (v × a)`, which stands square to `a` to the rounding of its own
-/// size: `v − a·(a·v)` keeps a component along `a` of `v`'s size times
-/// the rounding, which dividing by a small norm (a plane or a centre
-/// near the axis) turns into a direction off the plane square to `a`.
-fn perp_to<T: Real>(v: Vec3<T>, a: Vec3<T>) -> (Vec3<T>, T) {
-    let perp = a.cross(v.cross(a));
-    (perp, perp.norm())
-}
+use geom_brep::square_part as perp_to;
 
 /// **The meridian half-plane `Π` of the torus `(c, a)` toward `v`**: the
 /// norm `s` of `v`'s part square to `a`, and the map from `Π`'s
@@ -735,31 +727,13 @@ pub(crate) fn classify<T: Decide>(
                 ..
             },
         ) => sphere_sphere(c1, r1, c2, r2, band),
-        (
-            &S::Sphere { center, radius, .. },
-            &S::Cylinder {
-                origin,
-                axis,
-                radius: rc,
-                ..
-            },
-        ) => sphere_cylinder(center, radius, origin, unit(axis), rc, band),
-        (
-            &S::Cylinder {
-                origin,
-                axis,
-                radius: rc,
-                ..
-            },
-            &S::Sphere { center, radius, .. },
-        ) => swapped(sphere_cylinder(
-            center,
-            radius,
-            origin,
-            unit(axis),
-            rc,
-            band,
-        )),
+        (S::Sphere { .. }, S::Cylinder { .. }) | (S::Cylinder { .. }, S::Sphere { .. }) => {
+            match geom_brep::pair_section(f, g, band) {
+                Ok(geom_brep::SectionRead::Built(section)) => of_pair_section(&Ok(section)),
+                Ok(geom_brep::SectionRead::Elsewhere(_)) => Section::Intractable,
+                Err(e) => of_pair_section(&Err(e)),
+            }
+        }
         (S::Nurbs(patch), &S::Plane { origin, normal, .. })
         | (&S::Plane { origin, normal, .. }, S::Nurbs(patch)) => {
             nurbs_plane(patch, origin, unit(normal), band)
@@ -2926,58 +2900,49 @@ fn sphere_sphere<T: Decide>(c1: Point3<T>, r1: T, c2: Point3<T>, r2: T, band: Ba
     }
 }
 
-/// **Sphere × cylinder** (the sphere is `F`).
-fn sphere_cylinder<T: Decide>(
-    cs: Point3<T>,
-    rho: T,
-    o: Point3<T>,
-    d: Vec3<T>,
-    rc: T,
-    band: Band,
+/// **A pair the section value builds** ([`geom_brep::pair_section`]),
+/// classified from it, its first surface `F`: a tangency it decided is a
+/// [`Touch`] at the point where the section is one point and R-tan
+/// otherwise; a pose question undecided R-tan, named by the decision; a
+/// radius not definitely positive, decided or not, R-reach: an operand's
+/// size is no tangency, and the pair has no arm for it. Every other section is its
+/// components, each with whether it winds about each carrier and its
+/// witness, certified single when there is one.
+pub(super) fn of_pair_section<T: Decide>(
+    read: &Result<geom_brep::PairSection<T>, geom_brep::SectionError>,
 ) -> Section<T> {
-    let w = cs - o;
-    let foot = o + d * w.dot(d);
-    let (perp, e) = perp_to(w, d);
-    let q_min = (e - rc).abs();
-    const REACH: &str = "section_sphere_cylinder_reach";
-    let [reach, girdle] = match signs(
-        [
-            (REACH, rho - q_min),
-            ("section_sphere_cylinder_girdle", e + rc - rho),
-        ],
-        band,
-    ) {
-        Ok(x) => x,
-        // The touch is on the nearest ruling, at the foot's height: the
-        // loop's centre, which the reflections through the plane of the
-        // axis and the centre and across the foot fix. It is the extreme
-        // of the distance from the axis over the sphere only while the
-        // girdle margin, `2·min(e, ρc)` there, is decided: a ball about
-        // the axis touches the wall all round. A girdle pinch is not a
-        // touch.
-        Err(tan) => {
-            if tan.name == REACH
-                && sign(
-                    "section_sphere_cylinder_girdle",
-                    Margin::of(e + rc - rho),
-                    band,
-                ) != Some(Sign::Positive)
-            {
-                return tan.into();
-            }
-            return tan.touch(&[REACH], || foot + perp / e * rc);
+    use geom_brep::{ComponentShape, SectionError};
+    let section = match read {
+        Ok(section) => section,
+        Err(SectionError::Escalated(diag)) => {
+            return Section::Tangent(diag.predicate.unwrap_or("cs_pose"));
         }
+        Err(_) => return Section::Intractable,
     };
-    match (reach, girdle) {
-        (false, _) => none(),
-        // The ball holds every ruling's nearest point: two loops, each
-        // encircling the cylinder.
-        (true, false) => essential_pair(false, true),
-        // One loop, witnessed on the ruling nearest the centre.
-        (true, true) => {
-            let t = ((rho - q_min) * (rho + q_min)).sqrt();
-            lone(foot + perp / e * rc + d * t)
-        }
+    let components = section.components();
+    if let Some(zero) = section.tangency() {
+        return match components {
+            [c] if c.shape == ComponentShape::Point => match c.witness {
+                Some(at) => Section::Touch(Touch {
+                    name: zero.decision.name(),
+                    at,
+                }),
+                None => Section::Tangent(zero.decision.name()),
+            },
+            _ => Section::Tangent(zero.decision.name()),
+        };
+    }
+    Section::Components {
+        parts: components
+            .iter()
+            .map(|c| Component {
+                unbounded: false,
+                essential_f: c.winds[0],
+                essential_g: c.winds[1],
+                witness: c.witness,
+            })
+            .collect(),
+        single: components.len() == 1,
     }
 }
 

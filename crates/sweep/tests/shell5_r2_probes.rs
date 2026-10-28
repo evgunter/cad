@@ -12,6 +12,7 @@
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
+use topo::construction::Construct;
 use topo::{Body, LoopBoundary, ShellError, ShellKey, ShellRole};
 
 use crate::common::cavity::cut;

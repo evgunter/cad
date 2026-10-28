@@ -23,6 +23,7 @@ use geom_core::{Point2, Point3, Real, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use topo::construction::Construct;
 use topo::{Body, SplitPart, split};
 
 use super::shell_operands::vessel;
@@ -233,9 +234,9 @@ pub fn f64_only_corpus() -> Vec<(String, Body<f64>)> {
     };
     let (a, b) = (point_of(&body, he1), point_of(&body, he2));
     body.mef(
-        topo::MefSite::Chords { he1, he2 },
+        topo::construction::MefSite::Chords { he1, he2 },
         topo::EdgeCurveSpec::line_between(a, b),
-        topo::FaceSurface::Inherit,
+        topo::construction::FaceSurface::Inherit,
         tol,
     )
     .unwrap();

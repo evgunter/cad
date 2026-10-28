@@ -15,7 +15,9 @@ use geom::Curve3;
 use geom_brep::recourse::SpanDecision;
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, StatedSpan};
 use geom_core::{Band, Point3, Tol, Vec3};
-use topo::{Body, EulerOpError, MefSite, MevSite};
+use topo::construction::Construct;
+use topo::construction::{MefSite, MevSite};
+use topo::{Body, EulerOpError};
 
 const TAU: f64 = core::f64::consts::TAU;
 
