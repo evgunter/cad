@@ -10550,12 +10550,21 @@ fn incidence_over_span<T: Decide>(
     // charge at `a`; and clamped at zero (`max(0, 0)` is a zero form
     // too), so an on reading's enclosure does not straddle a negative
     // escalation.
-    let charged = if farthest.is_poison() {
-        farthest
-    } else {
-        let c = slack + rounding_charge(T::from_f64(2.0) * reach);
-        let zero = T::from_f64(band.zero());
-        (farthest * (T::one() - T::from_f64(2.0) * c / (farthest + zero))).max(T::zero())
+    //
+    // At an enclosure scalar ([`geom_core::Witness::Exact`]: `Interval`,
+    // `Sym<Interval>`) none of this is charged: the move into the
+    // carrier's frame and the distance are computed in the enclosure's
+    // own arithmetic, which already holds the exact value, so the
+    // distance is decided as it is, and its width is the lane's honest
+    // reading.
+    let charged = match T::WITNESS {
+        geom_core::Witness::Exact => farthest,
+        geom_core::Witness::Inexact if farthest.is_poison() => farthest,
+        geom_core::Witness::Inexact => {
+            let c = slack + rounding_charge(T::from_f64(2.0) * reach);
+            let zero = T::from_f64(band.zero());
+            (farthest * (T::one() - T::from_f64(2.0) * c / (farthest + zero))).max(T::zero())
+        }
     };
     match geom_core::k_stats::decide_reported(name, Margin::of(charged), band)
         .map_err(incidence_escalated)?
