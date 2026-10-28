@@ -1759,7 +1759,8 @@ fn classify_replay<T: geom_core::Decide>(
         };
         // (1) **Box-independent measure refusals are TERMINAL** (M10-6,
         // R1's MINOR-6). A selection naming the wrong kind of entity,
-        // or a scope naming no face, is a fact about the document: every sub-box inherits it exactly, so refining
+        // or a scope naming no face, is a fact about the document:
+        // every sub-box inherits it exactly, so refining
         // re-derives the same refusal until the budget runs out and
         // then prices the mass `Budget`, naming the symptom. The
         // classes listed in `box_independent_measure_class` are the

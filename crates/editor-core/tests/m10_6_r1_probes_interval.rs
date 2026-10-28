@@ -374,11 +374,14 @@ fn a_convex_pair_brackets_the_built_gap_at_every_budget() {
 // ------------------------------------------------- 2. unary (D8)
 
 /// The dumbbell of the unit's own suite, but measured BODY against
-/// BODY: `min_clearance(sel, sel)` is E7's unary shape, and on one body
-/// it is the self-clearance over every non-adjacent face pair — the
-/// neck's 0.4.
+/// BODY: `min_clearance(sel, sel)` is E7's unary shape. It used to drop
+/// every pair that shared a vertex and read the neck's 0.4; a
+/// clearance is metric now (E7, *Self-intersection scope*), so the
+/// body meets itself and reads exactly 0, named on the cell the scopes
+/// share. Whether the body is embedded is the injectivity question,
+/// `self_intersection`.
 #[test]
-fn min_clearance_of_a_body_against_itself_is_the_selections_self_clearance() {
+fn min_clearance_of_a_body_against_itself_meets_itself_and_reads_zero() {
     let mut r = Recorder::new();
     let solid = prism(
         &mut r,
@@ -415,14 +418,18 @@ fn min_clearance_of_a_body_against_itself_is_the_selections_self_clearance() {
         "dumbbell self-clearance: {}",
         m.serialize().replace('\n', " | ")
     );
-    assert!(
-        m.lo() <= 0.4 && 0.4 <= m.window_hi(),
+    assert_eq!(
+        (m.lo(), m.window_hi()),
+        (0.0, 0.0),
         "[{}, {}]",
         m.lo(),
         m.window_hi()
     );
-    // Tight enough to be the neck and not the outer walls (5 apart).
-    assert!(m.window_hi() < 1.0);
+    assert!(
+        m.meets().is_some(),
+        "named on the shared cell: {}",
+        m.render()
+    );
 }
 
 // ------------------------------------ 3. the certifying vector
@@ -860,20 +867,19 @@ fn equal_over_min_clearance_answers_only_off_the_faces_end() {
     }
 }
 
-/// Planted engine refusal (a wall against itself, `NoAdmittedPair`):
-/// the f64 witness still builds (no engine call at a point scalar), the
-/// interval replay fails the measure node, the leaf is refused, and the
-/// unresolved mass overruns a zero budget — the row reds through the
-/// budget, naming the mass.
+/// **A wall against itself** — once the planted engine refusal
+/// (`NoAdmittedPair`, retired by SELFX). A clearance is metric now: the
+/// wall meets itself and `min_clearance` reads exactly `[0, 0]`, so the
+/// measure node builds and the drive certifies the leaf. The `AtLeast
+/// 0.3` bound would be violated off the UPPER end, which `Certified`
+/// does not admit for a `min_clearance` (the window-superset table), so
+/// the assertion refuses by name rather than reading 0 — even though a
+/// meeting's 0 is the faces' own
+/// (`work/clear/an-assertion-over-scopes-that-meet-refuses-a-window-superset-for-an-exact-zero.md`).
 #[test]
-fn a_planted_engine_refusal_becomes_refused_mass_that_overruns_a_zero_budget() {
-    let (doc, _) = neck(0.3, 2, uniform());
+fn a_wall_against_itself_reads_zero_and_its_at_least_bound_refuses_by_name() {
+    let (doc, assertion) = neck(0.3, 2, uniform());
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    // CAPPED: a box-independent engine refusal (`NoAdmittedPair`) fails
-    // the measure node on every leaf, and `classify` answers any other
-    // node failure with `Bisect` — so the default 65,536-leaf budget is
-    // spent bisecting a refusal that no subdivision can change, and the
-    // accounting names `budget` rather than the engine's own class.
     let verdict = drive(
         &doc,
         &analyzed,
@@ -886,17 +892,24 @@ fn a_planted_engine_refusal_becomes_refused_mass_that_overruns_a_zero_budget() {
     .expect("the f64 witness builds: no engine runs at a point scalar");
     let budget = MassBudget::of(verdict.accounting(), &analyzed);
     eprintln!("{}", budget.render(&doc));
-    let unresolved = budget.unresolved.clone().expect("priced");
-    assert!(unresolved > 0.0, "the refused leaf is priced: {unresolved}");
-    assert!(verdict.certified().is_empty());
+    let leaf = verdict
+        .certified()
+        .first()
+        .expect("the measure builds, so the leaf certifies");
+    let ev = eval_over::<geom_core::Interval>(&doc, Some(leaf.box_.clone()));
+    match assertion_verdict(&ev, assertion) {
+        AssertionVerdict::Unevaluated {
+            reason: UnevaluatedReason::WindowSuperset { endpoint, .. },
+        } => assert_eq!(endpoint, "upper"),
+        other => panic!("expected the upper end refused by name, got {other:?}"),
+    }
 }
 
 /// **A wide box over a copy certifies whole.** The neck's placed prism
 /// is its source's body under a frame the box moves (D10
 /// `[placement.frame]`), so no copy is rebuilt over the box and nothing
 /// widens past the band: the box that issue 1191's class refused while
-/// the copy was rebuilt leaves no unresolved mass. A zero budget's
-/// overrun is the planted refusal's row above.
+/// the copy was rebuilt leaves no unresolved mass.
 ///
 /// *Breaks if* a copy is rebuilt over the box again (the leaf refuses
 /// and its mass is unresolved).

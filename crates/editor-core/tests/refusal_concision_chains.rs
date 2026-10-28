@@ -203,22 +203,42 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
     Admission {
         row: "MeasureClearanceRefused/Engine/Unsupported",
         span: "FaceKey(null)",
-        filed: "work/clear/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
+        filed: "work/cleartail/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
     },
     Admission {
         row: "MeasureClearanceRefused/Engine/PoisonEnclosure",
         span: "FaceKey(null)/FaceKey(null)",
-        filed: "work/clear/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
+        filed: "work/cleartail/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
     },
     Admission {
         row: "MeasureClearanceRefused/NotADistance",
         span: "bff0000000000000",
-        filed: "work/clear/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
+        filed: "work/cleartail/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
     },
     Admission {
         row: "MeasureClearanceRefused/Engine/Budget",
         span: "Depth { max_cell_depth: 24 }",
-        filed: "work/clear/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
+        filed: "work/cleartail/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
+    },
+    Admission {
+        row: "MeasureClearanceRefused/Engine/Uncertified",
+        span: "FaceKey(null)/FaceKey(null) edge EdgeKey(null)",
+        filed: "work/cleartail/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
+    },
+    Admission {
+        row: "MeasureClearanceRefused/Engine/CollapsedChart",
+        span: "FaceKey(null) VertexKey(null)",
+        filed: "work/cleartail/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
+    },
+    Admission {
+        row: "MeasureClearanceRefused/Engine/TorusNotRing",
+        span: "FaceKey(null)",
+        filed: "work/cleartail/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
+    },
+    Admission {
+        row: "MeasureClearanceRefused/RecordedContact",
+        span: "Face(FaceKey(null))/Face(FaceKey(null))",
+        filed: "work/cleartail/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
     },
     // A smooth-join refusal names its edge by key.
     Admission {
@@ -315,16 +335,19 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ProfileReplay/Path/UnderdeterminedLeg",
     "ProfileReplay/Path/ZeroDirection",
     "ProfileReplay/Transition",
-    // work/clear/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md
+    // work/cleartail/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md
     "MeasureClearanceRefused/Engine/Budget",
+    "MeasureClearanceRefused/Engine/CollapsedChart",
     "MeasureClearanceRefused/Engine/EmptyScope",
-    "MeasureClearanceRefused/Engine/NoAdmittedPair",
     "MeasureClearanceRefused/Engine/PoisonEnclosure",
     "MeasureClearanceRefused/Engine/Sliver",
+    "MeasureClearanceRefused/Engine/TorusNotRing",
+    "MeasureClearanceRefused/Engine/Uncertified",
     "MeasureClearanceRefused/Engine/Unsupported",
     "MeasureClearanceRefused/Engine/WitnessUnverified",
     "MeasureClearanceRefused/NotADistance",
     "MeasureClearanceRefused/NothingCertified",
+    "MeasureClearanceRefused/RecordedContact",
     "MeasureClearanceRefused/Selection",
     "MeasureClearanceRefused/ToleranceHasNoBand",
     // work/profiletail/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
@@ -1071,6 +1094,7 @@ test_utils::f6_variants! {
     /// `ClearanceRefusal`'s arms, for the `MeasureClearanceRefused/` rows.
     const CLEARANCE_REFUSAL: ClearanceRefusal = [
         Engine, Selection, NothingCertified, NotADistance, ToleranceHasNoBand,
+        RecordedContact,
     ];
 }
 
@@ -1078,8 +1102,8 @@ test_utils::f6_variants! {
     /// `EngineRefusal`'s arms, for the `MeasureClearanceRefused/Engine/`
     /// rows.
     const ENGINE_REFUSAL: EngineRefusal = [
-        Sliver, Budget, Unsupported, PoisonEnclosure, EmptyScope, NoAdmittedPair,
-        WitnessUnverified,
+        Sliver, Budget, Unsupported, PoisonEnclosure, EmptyScope, Uncertified,
+        CollapsedChart, TorusNotRing, WitnessUnverified,
     ];
 }
 
@@ -1202,7 +1226,8 @@ fn forward(kind: &NodeErrorKind) -> Forward {
                 ClearanceRefusal::Selection(_)
                 | ClearanceRefusal::NothingCertified { .. }
                 | ClearanceRefusal::NotADistance { .. }
-                | ClearanceRefusal::ToleranceHasNoBand => {}
+                | ClearanceRefusal::ToleranceHasNoBand
+                | ClearanceRefusal::RecordedContact { .. } => {}
             }
             welded(levels)
         }
@@ -5058,8 +5083,33 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             ("Engine/EmptyScope", engine(EngineRefusal::EmptyScope)),
             ("ToleranceHasNoBand", ClearanceRefusal::ToleranceHasNoBand),
             (
-                "Engine/NoAdmittedPair",
-                engine(EngineRefusal::NoAdmittedPair),
+                "Engine/Uncertified",
+                engine(EngineRefusal::Uncertified {
+                    a: FaceKey::default(),
+                    b: FaceKey::default(),
+                    shared: topo::clearance::SharedCell::Edge(topo::EdgeKey::default()),
+                    arm: topo::clearance::CertificateArm::SecondOrder,
+                }),
+            ),
+            (
+                "Engine/CollapsedChart",
+                engine(EngineRefusal::CollapsedChart {
+                    face: FaceKey::default(),
+                    vertex: topo::VertexKey::default(),
+                }),
+            ),
+            (
+                "Engine/TorusNotRing",
+                engine(EngineRefusal::TorusNotRing {
+                    face: FaceKey::default(),
+                }),
+            ),
+            (
+                "RecordedContact",
+                ClearanceRefusal::RecordedContact {
+                    a: topo::Cell::Face(FaceKey::default()),
+                    b: topo::Cell::Face(FaceKey::default()),
+                },
             ),
             (
                 "Engine/WitnessUnverified",
