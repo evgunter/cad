@@ -52,7 +52,7 @@ pub(crate) enum Origin {
 pub(crate) enum KernelSite {
     /// [`crate::transform_rigid`]'s re-mint of each moved edge.
     RigidTransform,
-    /// [`crate::Body::split_edge`]'s two children.
+    /// [`crate::Body::split_edge`](crate::construction::Construct::split_edge)'s two children.
     SplitChild,
     /// A graft's re-certification of the source body's edges.
     Graft,
@@ -79,11 +79,11 @@ pub(crate) enum KernelSite {
     SectionRechart,
     /// A shell's re-chart of a promoted rim face, its edges restated.
     RimRechart,
-    /// [`crate::Body::describe_at_rest`]'s restatement.
+    /// [`crate::Body::describe_at_rest`](crate::construction::Construct::describe_at_rest)'s restatement.
     AtRest,
     /// The restatement of a wrap edge whose halves an operation parted.
     PartedWrap,
-    /// [`crate::Body::restate_stored_edge`]'s restatement.
+    /// [`crate::Body::restate_stored_edge`](crate::construction::Construct::restate_stored_edge)'s restatement.
     StoredRestatement,
 }
 

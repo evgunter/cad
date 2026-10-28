@@ -8,6 +8,7 @@
 
 use core::f64::consts::TAU;
 use sweep::ExtrudeSide;
+use topo::construction::Construct;
 
 use geom::Surface;
 use geom_core::Tol;

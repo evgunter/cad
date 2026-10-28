@@ -17,13 +17,15 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;
+use topo::construction::Construct;
 
 use crate::common;
 use geom::{NurbsSurface, Surface, SurfaceKind};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point3, Tol, Vec3};
+use topo::construction::FaceSurface;
 use topo::test_support::{split_carrier_gate, split_reduce_unfinished};
-use topo::{Body, FaceKey, FaceSurface, SplitPlane, SplitReduceError};
+use topo::{Body, FaceKey, SplitPlane, SplitReduceError};
 
 /// A gently bowed biquadratic patch over the cube's top face, its
 /// control net spanning `z ∈ [1, 1.015]` (the bowed patch

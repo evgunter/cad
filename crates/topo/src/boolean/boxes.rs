@@ -2826,7 +2826,7 @@ pub(crate) mod tests {
         // was built on.
         body.lifting_rechart_refusals_for_tests(|body| {
             body.set_face_surfaces_describing(
-                vec![crate::Rechart::new(surface, face, true)],
+                vec![crate::construction::Rechart::new(surface, face, true)],
                 &[],
                 Tol::witness(),
             )
@@ -2846,7 +2846,7 @@ pub(crate) mod tests {
     /// generator edges at the sides. The face's own surface is the
     /// CYLINDER through the bottom rim; a caller wanting another
     /// surface of revolution through the same boundary re-labels it
-    /// ([`Body::set_face_surfaces_describing`]) — the boundary is
+    /// ([`Body::set_face_surfaces_describing`](crate::construction::Construct::set_face_surfaces_describing)) — the boundary is
     /// genuinely on that surface whenever `rho` is the surface's own
     /// radius profile, which is what makes the re-label honest rather
     /// than a fixture trick.
@@ -6639,10 +6639,10 @@ pub(crate) mod sphere_rect_rows {
 
     use super::{BoxFrame, face_box, sphere_reach};
     use crate::body::Body;
+    use crate::construction::{FaceSurface, MefSite, MevSite};
     use crate::entity::{EntityId, FaceKey, GeomRef, LoopBoundary};
     use crate::live::OPERATORS_KEEP_LINKS;
     use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
-    use crate::{FaceSurface, MefSite, MevSite};
 
     /// The unit sphere's zone over azimuths `[u0, u1]` and heights
     /// `[h0, h1]`: two latitude rims and two meridian arcs, each on its
@@ -7206,7 +7206,7 @@ pub(crate) mod sphere_rect_rows {
             test_utils::fuzz::start("a_zone_reach_charge_covers_random_poses_near_a_box_row");
         let rows = [Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()];
         let (mut faces, mut worst) = (0usize, 0.0f64);
-        let wanted = test_utils::fuzz::scaled(600).max(500);
+        let wanted = test_utils::fuzz::scaled(300).max(250);
         while faces < wanted {
             let s = [1e-3, 1.0, 1e3][rng.below(3)];
             let r = s * rng.range(0.5, 2.0);

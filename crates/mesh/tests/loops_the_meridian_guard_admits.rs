@@ -32,7 +32,9 @@ use geom::SurfaceKind;
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Point3, Tol, Vec3};
-use topo::{Body, MevSite};
+use topo::Body;
+use topo::construction::Construct;
+use topo::construction::MevSite;
 
 fn unit_sphere() -> Surface<f64> {
     Surface::Sphere {

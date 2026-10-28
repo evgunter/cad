@@ -21,7 +21,9 @@ use geom::Surface;
 use geom_core::{Point2, Tol};
 use profile::test_support::bulge_loop;
 use sweep::test_support::stacked_at;
-use topo::{Body, EdgeKey, FaceKey, FaceSurface, HalfEdgeKey, Pcurve};
+use topo::construction::Construct;
+use topo::construction::FaceSurface;
+use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, Pcurve};
 
 fn tol() -> Tol {
     Tol::witness()

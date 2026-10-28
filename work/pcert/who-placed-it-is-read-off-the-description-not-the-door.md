@@ -2,8 +2,9 @@
 id: who-placed-it-is-read-off-the-description-not-the-door
 kind: issue
 title: Who placed a carrier is read off its description, not the door that placed it, so kernel builders declare and public input reads as the kernel's
-status: open
+status: closed
 opened: 2026-10-26
+closed: 2026-10-27
 priority: P2
 cost: M
 design: true
@@ -172,5 +173,5 @@ The text: geom-brep README D3 and DESIGN D4 ¶1 (iv) (this PR). The implementati
   - `IncidenceRead::ending(at)` is the one map: a definite miss ends by the door, and a read in band ends in the geometry's lever.
   - `CertifyError::CarrierOffChart` and `CertCheck::ChartIncidence` serve every carrier.
   - The import door ends a definite miss in the damaged-file ending, but only on the path that reaches the incidence reading: the pcurve re-mint on the adopted body (`StepImportError::Pcurves`). A real STEP file whose curve misses its face refuses earlier, at the description ladder's residual meters (the surface residual, the endpoint residuals, the mapped source), with the set-ε-to-ε_in stopgap where the miss is within ε_in. That stopgap is EXCH's, under Ev's Q2 ruling, and E1d does not change it. Measured on PR 5844 with review B's probe (a cone fixture's half-angle, apex line or rim radius nudged by 1e-12 to 1e-2 m, at three ε_in): no run reached the re-mint. The note is in `work/exch/adoption-rebuilds-caches-at-eps-from-eps-in-interpretation.md`.
-- **E1d2 (`work/pcert/plan.md`): seals topo's construction tier** behind a trait that pncad does not re-export, and closes this item. Until then a pncad consumer can still call `Body::set_edge_curve`, and its miss reads as a kernel defect; no product code calls it.
+- **E1d2 (`pcert/seal-construction`): seals topo's construction tier** behind `topo::construction::Construct`, implemented for `Body` with its 46 doors `pub(crate)` inherent methods. pncad's `topo` is curated without `construction` and the modules that hold only its vocabulary, pinned by three `compile_fail` doctests. A pncad consumer cannot name `Body::set_edge_curve` or any other construction door, so every curve-and-face pair a build door reads is the kernel's. This closes the item.
 - **Filed:** `policy-lane-origin-callers-outlives-the-sealed-construction-tier` (`policy_lane::Origin`'s `Callers` arm after the sealing).

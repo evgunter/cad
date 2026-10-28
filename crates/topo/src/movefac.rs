@@ -11,14 +11,14 @@
 //! unbounded recursion) over the same edge-adjacency relation the
 //! validator's pass-11 component enumeration uses.
 //!
-//! Like [`Body::ring_move`], `movefac` is **not an Euler operator**: it
+//! Like [`Body::ring_move`](crate::construction::Construct::ring_move), `movefac` is **not an Euler operator**: it
 //! re-partitions ownership. Unlike `ring_move` it mints entities (the
 //! new shells), so it records [`Provenance::Movefac`] birth records for
 //! them; the moved faces keep their own birth records (re-homing is not
 //! a re-birth). Serves ch. 14 `splitfinish` / ch. 15 `setopfinish`
 //! component distribution (M3 PRs 3 and 5).
 //!
-//! [`Body::move_shells_to_new_solid`] is the same kind of door one
+//! [`Body::move_shells_to_new_solid`](crate::construction::Construct::move_shells_to_new_solid) is the same kind of door one
 //! level up: shells re-homed into a new solid, minted with
 //! [`Provenance::MoveShells`]; nothing about a shell's faces changes.
 
@@ -33,52 +33,9 @@ use crate::live::{Arg, link, linked, lookup, proven};
 use crate::provenance::Provenance;
 
 impl<T: Decide> Body<T> {
-    /// Partitions `shell`'s faces into connected components of the
-    /// incidence complex (the validator's pass-11 relation: a face
-    /// glues all its loops; a cycle loop glues across each edge via
-    /// mate; an empty-loop face is its own dartless component) and
-    /// re-homes every component after the first into a **new shell of
-    /// the same solid**.
-    ///
-    /// Returns the component → shell map, in component order:
-    /// `result[0]` is always `shell` (which keeps the first
-    /// component), `result[i]` for i ≥ 1 are the minted shells. A
-    /// connected shell returns `vec![shell]` with the body untouched
-    /// (deterministic no-op, like `ring_move`'s).
-    ///
-    /// The minted shells stay under the one solid, so a shell that falls
-    /// apart into separate pieces of material leaves construction state:
-    /// several `Outer` shells under one solid, which tier 3's check 10
-    /// refuses until the verb that cut it sorts its result
-    /// ([`crate::pieces`]).
-    ///
-    /// **Determinism (D9)**: components are seeded in the shell's
-    /// face-list order; the worklist expands loops in (outer, rings)
-    /// list order and cycles in `next` order; each new shell's face
-    /// list preserves the original list's relative order; new shells
-    /// are appended to the solid's shell list in component order.
-    /// **Minting order** (exact): the new shells, in component order —
-    /// nothing else is minted or killed.
-    ///
-    /// Tier-1 preservation: components move **whole**, so every edge's
-    /// two faces stay in one shell (pass 10) and each new shell's
-    /// complex is exactly one component with its old per-component
-    /// Euler–Poincaré count (pass 11) — the partition is re-labeled,
-    /// never re-cut.
-    ///
-    /// # Errors
-    ///
-    /// [`BadArgument::Stale`](crate::euler::BadArgument::Stale) if `shell` does not resolve. All checks
-    /// precede any mutation (atomic).
-    ///
-    /// # Panics
-    ///
-    /// Where the walk reaches a record that does not resolve, a face that
-    /// is not the shell's (either direction), a loop its face does not
-    /// own (either direction), or a cycle that is not its loop's whole
-    /// cycle: on a tier-1-valid body ownership is mutual and a loop's
-    /// `next` cycle is exactly the half-edges that claim it.
-    pub fn movefac(&mut self, shell: ShellKey) -> Result<Vec<ShellKey>, EulerOpError> {
+    /// The door [`Construct::movefac`](crate::construction::Construct::movefac) forwards to;
+    /// documented there.
+    pub(crate) fn movefac(&mut self, shell: ShellKey) -> Result<Vec<ShellKey>, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
 
@@ -290,43 +247,9 @@ impl<T: Decide> Body<T> {
         Ok(result)
     }
 
-    /// Moves `shells` — some, not all, of ONE solid's shells — into a
-    /// **new solid** and returns it. Not an Euler operator: it
-    /// re-partitions ownership, like [`Body::movefac`] one level up.
-    /// The moved shells keep their keys and their faces; what changes
-    /// is their `solid` back-pointer and the two solids' shell lists.
-    ///
-    /// **Determinism (D9)**: the new solid's shell list is `shells` in
-    /// the order given; the source solid keeps its remaining shells in
-    /// their relative order. **Minting order** (exact): the one solid,
-    /// recorded as [`Provenance::MoveShells`] naming the source — nothing
-    /// else is minted or killed.
-    ///
-    /// Tier-1 preservation: shells move **whole**, so every edge's two
-    /// faces stay in one shell and every shell's complex is untouched;
-    /// both solids keep at least one shell (pass 9's floor).
-    ///
-    /// **Ownership, not material coherence.** Nothing here reads which
-    /// shell is an outer boundary and which a cavity: moving a lone
-    /// void mints a solid with no outer shell, and tier 3 accepts it
-    /// (`shell5_r2_probes::r2_the_new_door_mints_a_solid_with_no_outer_shell`).
-    /// A caller owns the pairing it moves.
-    ///
-    /// # Errors
-    ///
-    /// All checks precede any mutation (atomic).
-    /// [`EulerOpError::NoShellsNamed`] on an empty list;
-    /// [`EulerOpError::ShellRepeated`] when a shell is named twice;
-    /// [`BadArgument::Stale`](crate::euler::BadArgument::Stale) if a shell does not resolve;
-    /// [`EulerOpError::ShellsAcrossSolids`] if the shells are not all in
-    /// one solid; [`EulerOpError::SolidWouldEmpty`] if the list is every
-    /// shell of that solid.
-    ///
-    /// # Panics
-    ///
-    /// Where a shell's solid does not resolve or does not list it: on a
-    /// tier-1-valid body ownership is mutual.
-    pub fn move_shells_to_new_solid(
+    /// The door [`Construct::move_shells_to_new_solid`](crate::construction::Construct::move_shells_to_new_solid) forwards to;
+    /// documented there.
+    pub(crate) fn move_shells_to_new_solid(
         &mut self,
         shells: &[ShellKey],
     ) -> Result<SolidKey, EulerOpError> {
@@ -410,7 +333,7 @@ impl<T: Decide> Body<T> {
 
     /// Refiles every shell of `donor` under `keeper` — appended to
     /// `keeper`'s shell list in `donor`'s order, each back-pointer moved —
-    /// and removes `donor`: [`Body::move_shells_to_new_solid`] run
+    /// and removes `donor`: [`Body::move_shells_to_new_solid`](crate::construction::Construct::move_shells_to_new_solid) run
     /// backwards, and the one home of "these shells are one solid's".
     /// Not an Euler operator; ownership moves and nothing else, every
     /// shell keeping its key and faces. The emptied donor is REMOVED, not

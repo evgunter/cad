@@ -21,6 +21,7 @@
 
 use core::f64::consts::PI;
 use sweep::ExtrudeSide;
+use topo::construction::Construct;
 
 use crate::common::shell_operands::{tube, vessel};
 use geom::Surface;

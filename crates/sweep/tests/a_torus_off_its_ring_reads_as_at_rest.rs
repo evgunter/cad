@@ -12,6 +12,7 @@
 
 use geom_brep::{TorusConvention, TorusRefusal, TorusVerdict};
 use geom_core::{Band, Point2, Tol, Vec2};
+use topo::construction::Construct;
 use topo::{Body, FaceKey, ReplaceFaceError};
 
 /// The upper half of the torus of radii `(big_r, r)` about the sketch
@@ -70,7 +71,7 @@ fn a_ring_half_in_band_reads_as_at_rest() {
         panic!("the wall is a torus");
     };
     let sense = body.get_face(wall).unwrap().sense;
-    let charts = vec![topo::Rechart::new(
+    let charts = vec![topo::construction::Rechart::new(
         geom::Surface::Torus {
             center,
             axis,

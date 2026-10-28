@@ -37,6 +37,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use topo::construction::Construct;
 
 use common::witness_bodies::{keyway, oblique_lens, slit};
 use common::*;

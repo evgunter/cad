@@ -38,6 +38,7 @@ use crate::mate2_common::{full_turn_collar, onto_y, peg_at, walls_at};
 use core::f64::consts::PI;
 use geom_core::{Affine3, Point3, Tol};
 use sweep::test_support::finished;
+use topo::construction::Construct;
 use topo::{AtRestBody, Body, BooleanOp, BooleanResult};
 
 /// The collar's bore and outer radii and its span in `y`.
@@ -319,9 +320,9 @@ fn split_collar() -> Body<f64> {
         panic!("the seam vertex is visited twice: {visits:?}");
     };
     c.mef(
-        topo::MefSite::Chords { he1: up, he2: down },
+        topo::construction::MefSite::Chords { he1: up, he2: down },
         spec,
-        topo::FaceSurface::Inherit,
+        topo::construction::FaceSurface::Inherit,
         tol,
     )
     .unwrap();
