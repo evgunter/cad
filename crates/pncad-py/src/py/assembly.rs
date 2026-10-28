@@ -88,15 +88,15 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
     };
     let none = || py.None();
     match err {
-        E::Root(standing) => (
+        E::Piece(standing) => (
             id(&standing.node()),
             standing.through().map_or_else(none, |through| id(&through)),
             none(),
         ),
         E::Frame { node, .. } | E::Graft { node, .. } => (id(node), none(), none()),
-        // The first failing placement, in gather order; every failing
-        // placement and output is in the message.
-        E::RootInvalid { findings } => (
+        // The first failing piece, in gather order; every failing
+        // piece and output is in the message.
+        E::PieceInvalid { findings } => (
             findings.first().map_or_else(none, |first| id(&first.node)),
             none(),
             none(),

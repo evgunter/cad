@@ -1371,7 +1371,7 @@ BOUND_AS = {
     "PlacementRuleFault": "EditError.variant",
     "ProductReadFault": "EditError.inner_variant",
     "Pick": "PickRead",
-    # What a `RootInvalid` refusal lists, one per failing source body;
+    # What a `PieceInvalid` refusal lists, one per failing source body;
     # the arm crosses as its tag word, its first failing root as
     # `node`, and every root, output and finding in its message.
     "SourceFinding": "ProductError.node",
@@ -3862,12 +3862,12 @@ MEMBERS_BOUND_AS = {
     "PersistError::ToleranceConflict": "PersistError.variant",
     "PersistError::ToleranceInvalid": "PersistError.variant",
     "ProductError::EvaluationOfAnotherDocument": "ProductError.variant",
-    "ProductError::Root": "ProductError.variant",
+    "ProductError::Piece": "ProductError.variant",
     "ProductError::EmptyProduct": "ProductError.variant",
     "ProductError::StrandedProduct": "ProductError.variant",
     "ProductError::ProductOutsideWorld": "ProductError.variant",
     "ProductError::Graft": "ProductError.variant",
-    "ProductError::RootInvalid": "ProductError.variant",
+    "ProductError::PieceInvalid": "ProductError.variant",
     "ProductError::ProductInvalid": "ProductError.variant",
     "ProductError::ContactLineage": "ProductError.variant",
     "ProductError::Frame": "ProductError.variant",

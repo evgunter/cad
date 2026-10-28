@@ -613,7 +613,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
     // refused copy downstream of the refused shelf, and the at-rest badge says
     // nothing about it.
     let refused = match session.product_fault() {
-        Some(ProductError::Root(
+        Some(ProductError::Piece(
             NodeStanding::Failed { node } | NodeStanding::Poisoned { node, .. },
         )) => *node,
         other => panic!("the gather refuses on a placement, got {other:?}"),

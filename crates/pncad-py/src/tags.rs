@@ -2278,14 +2278,14 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
     match err.kind() {
         K::EvaluationOfAnotherDocument => "evaluation_of_another_document",
         K::UnknownNode => "unknown_node",
-        K::RootFailed => "root_failed",
-        K::RootPoisoned => "root_poisoned",
+        K::PieceFailed => "piece_failed",
+        K::PiecePoisoned => "piece_poisoned",
         K::EmptyProduct => "empty_product",
         K::StrandedProduct => "stranded_product",
         K::ProductOutsideWorld => "product_outside_world",
         K::Frame => "frame_refused",
         K::Graft => "graft_refused",
-        K::RootInvalid => "root_invalid",
+        K::PieceInvalid => "piece_invalid",
         K::ProductInvalid => "product_invalid",
         K::ContactLineage => "contact_lineage",
     }
@@ -2709,7 +2709,7 @@ pub fn hit_test_error_tag(err: &HitTestError) -> &'static str {
 /// failed node at one of them branches on it at every one. The
 /// export, resolution, product and checks doors keep the words they
 /// shipped with (`unknown_node`/`node_failed`/`poisoned`, `target_*`,
-/// `unknown_node`/`root_*`, `placement_without_value`) and map the same
+/// `unknown_node`/`piece_*`, `placement_without_value`) and map the same
 /// standing onto them; the evaluation door reads this map except for
 /// its own `unknown_node` and `poisoned` ([`eval_reason_tag`]).
 ///

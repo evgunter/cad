@@ -474,7 +474,7 @@ impl AssertionRelation {
 /// reads it: no gate consults it, no op takes it as an operand, and no
 /// product or export changes shape because of it. That is structural
 /// rather than promised — an assertion node denotes no body, so the
-/// root gather skips it exactly as it skips a declaration, and its
+/// product gather skips it exactly as it skips a declaration, and its
 /// value payload is not an admissible operand for any op in the
 /// vocabulary. A `Violated` verdict is therefore a fact a REPORT reads:
 /// an assertion checks and never places (D10).

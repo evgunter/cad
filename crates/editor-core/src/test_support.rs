@@ -1050,7 +1050,7 @@ pub enum VerbatimKind {
 
 /// **The name-carrying edge the recipe walks read `node` as, if any**:
 /// `names::verbatim_edge`, the one statement of N1's pass-through set
-/// that the product's two-roots check and the mate member walk follow,
+/// that the recipe walks (refactor, coincidence, the mate member walk) follow,
 /// reduced to its variant.
 ///
 /// Carries no oracle: it IS the classification, lifted out of the

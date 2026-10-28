@@ -1443,7 +1443,7 @@ fn drawn_lines(kind: NodeErrorKind) -> Vec<String> {
 }
 
 /// **Every line a carried refusal draws fits where it is drawn.** A
-/// part whose root failed and a mate whose pose did not evaluate each
+/// part whose piece failed and a mate whose pose did not evaluate each
 /// name that node and point at it; the refusal they carry is drawn as
 /// its own line, one per document level, and never inside theirs.
 ///
@@ -5110,7 +5110,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ));
     }
-    // A part's root failure carries the part's own node refusal, typed,
+    // A part's piece failure carries the part's own node refusal, typed,
     // and its sentence never renders it: the carried refusal is its own
     // line ([`every_carried_refusal_draws_within_the_budget_at_every_line`]).
     //
@@ -5268,8 +5268,8 @@ fn part_products_forwarding() -> Vec<(String, NodeErrorKind)> {
     };
     [
         (
-            "Part/PartProduct(RootInvalid)",
-            ProductError::RootInvalid {
+            "Part/PartProduct(PieceInvalid)",
+            ProductError::PieceInvalid {
                 findings: vec![SourceFinding {
                     node: RecipeNodeId::new(0, tagged(3)),
                     output: 0,

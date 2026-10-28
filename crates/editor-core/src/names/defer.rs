@@ -342,8 +342,8 @@ pub(super) fn put(
 /// that source's rows as it goes, so a name whose candidates lie in
 /// two different source bodies arrives in two pieces — which is what
 /// a split that separates a tie without cutting either candidate
-/// hands it, one candidate per half, whether as the split root's two
-/// bodies or as two `Part` roots over them. So this is [`TieRows`]
+/// hands it, one candidate per half, whether as the split piece's two
+/// bodies or as two `Part` pieces over them. So this is [`TieRows`]
 /// again, one level out: every row is carried through
 /// [`TieRows::carry`]'s rule and narrowed through [`narrow_into`], the
 /// door `flush` and [`NameTable::project`] also narrow through, so no
@@ -354,7 +354,7 @@ pub(super) fn put(
 /// candidates of one tie merge back into the tie. The same candidate
 /// twice — one entity placed twice — refuses, and so does a strict
 /// name carried twice, since a strict name is its own only candidate.
-/// The refusal is read as each row is carried, so it names the root
+/// The refusal is read as each row is carried, so it names the piece
 /// whose row repeated the pair.
 ///
 /// **Why this door knows the gather's body model.** The source-body
@@ -402,7 +402,7 @@ impl CarriedRows {
 
     /// Writes every carried name onto the aggregate — once, after the
     /// last source has been carried: `Unique` for one candidate (a
-    /// strict name, or a lone `Part` root's piece of a separated tie),
+    /// strict name, or a lone `Part` piece of a separated tie),
     /// `Tied` for several.
     ///
     /// # Errors
@@ -552,7 +552,7 @@ mod tests {
             ],
         )
         .expect("the split's tie");
-        let whole = gather(&[(&split, 0), (&split, 1)]).expect("the split root gathers");
+        let whole = gather(&[(&split, 0), (&split, 1)]).expect("the split piece gathers");
         let (above, below) = (split.project(0).unwrap(), split.project(1).unwrap());
         assert!(
             matches!(above.lookup(&name()), Some(Entry::Unique(_))),
@@ -568,7 +568,7 @@ mod tests {
         assert_eq!(
             gather(&[(&above, 0), (&split, 0)]).map(|t| t.len()),
             Err((1, Box::new(name()))),
-            "a half beside the split root's same body carries candidate 0 twice"
+            "a half beside the split piece's same body carries candidate 0 twice"
         );
     }
 

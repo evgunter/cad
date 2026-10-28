@@ -206,7 +206,7 @@ fn every_standing_renders_one_way_through_every_door() {
             .expect_err("a placement with no value refuses the gather");
         speaks(
             "the product gather",
-            "product: placement ",
+            "product: piece ",
             &gather,
             standing,
         );
@@ -549,7 +549,7 @@ const READERS: [(&str, usize, &str); 14] = [
     (
         "crates/editor-core/src/eval/parts.rs",
         1,
-        "moves the failure behind a failed or poisoned part root out of the part's \
+        "moves the failure behind a failed or poisoned piece of the part's product out of the part's \
          evaluation, which the standing does not carry",
     ),
 ];

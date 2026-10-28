@@ -301,10 +301,10 @@ class TestTheResolutionRefusals(CorpusCase):
 
     THREE arms are exercised here — `part_no_resolver` (the class
     above), `part_pin_mismatch` and `part_unresolved` — and three more
-    below: `part_product_failed`, by `TestAPartWhoseRootFails`, whose
-    part's root is an instance that fails on its own;
+    below: `part_product_failed`, by `TestAPartWhosePieceFails`, whose
+    part's piece is an instance that fails on its own;
     `part_product_poisoned`, by it one level down and by
-    `TestAPartWhoseRootIsPoisoned`; and `part_product` by
+    `TestAPartWhosePieceIsPoisoned`; and `part_product` by
     `TestAPartWithAnEmptyWorld`. The rest of the family is typed and
     tagged but UNREACHED from Python today, each for its own reason, and
     none of them is singled out: `part_epsilon_seam` needs a stored document recording a different
@@ -395,11 +395,11 @@ class TestTheResolutionRefusals(CorpusCase):
         self.assertEqual(failures(evaluate(docs["layout"], resolver=store)), {})
 
 
-class TestAPartWhoseRootFails(unittest.TestCase):
-    """A part whose own product refuses because its root failed, one
-    document down and two: the bracket's root is an instance of the
+class TestAPartWhosePieceFails(unittest.TestCase):
+    """A part whose own product refuses because its piece failed, one
+    document down and two: the bracket's piece is an instance of the
     boss, a placement that fails on its own (`part_product_failed`), and
-    the boss's root is poisoned through its extrude
+    the boss's piece is poisoned through its extrude
     (`part_product_poisoned`).
 
     The instance's message is its own short sentence: it names the
@@ -409,7 +409,7 @@ class TestAPartWhoseRootFails(unittest.TestCase):
     way that node's own evaluation raises it — so a part inside a part
     is a chain of causes, one per document.
 
-    The assembly's first node is the bracket's root again, an instance
+    The assembly's first node is the bracket's piece again, an instance
     of the boss, so it has the same id (both documents mint from the
     zero chain) under another label: a part's node said with the
     host's label would show.
@@ -432,8 +432,8 @@ class TestAPartWhoseRootFails(unittest.TestCase):
         # standing in the bracket's world by the identity bundle.
         building = DocRef(boss.id, pncad.content_pin(boss))
         bracket = pncad.Doc("pncad-partroot-bracket")
-        self.bracket_root = bracket.insert(Node.instantiate_part(building, bracket.world))
-        bracket.apply(DocEdit.set_label(self.bracket_root, "bracket seat"))
+        self.bracket_piece = bracket.insert(Node.instantiate_part(building, bracket.world))
+        bracket.apply(DocEdit.set_label(self.bracket_piece, "bracket seat"))
         # Then the boss's extrude is edited to no length, and the bracket
         # takes that version.
         (extrude,) = [n for n in boss.order() if boss.node_kind(n) == "extrude"]
@@ -445,7 +445,7 @@ class TestAPartWhoseRootFails(unittest.TestCase):
         assemble_world_copies(bracket)
         self.store.create(bracket)
         self.bracket_ref = DocRef(bracket.id, pncad.content_pin(bracket))
-        # The assembly's twin is inserted as the bracket's root was, and
+        # The assembly's twin is inserted as the bracket's piece was, and
         # takes the flat version the same way.
         self.assembly = pncad.Doc("pncad-partroot-assembly")
         self.twin = self.assembly.insert(Node.instantiate_part(building, self.assembly.world))
@@ -455,26 +455,26 @@ class TestAPartWhoseRootFails(unittest.TestCase):
         self.instance = self.assembly.insert(Node.instantiate_part(self.bracket_ref, self.assembly.world))
 
     def test_the_part_refusal_is_short_and_its_cause_is_typed(self):
-        bracket_root, instance = self.bracket_root, self.instance
+        bracket_piece, instance = self.bracket_piece, self.instance
         refusal = failures(evaluate(self.assembly, resolver=self.store))[instance]
         self.assertEqual(refusal.kind, "part_product_failed")
         text = str(refusal)
         self.assertLessEqual(len(text.split()), self.BUDGET, text)
         self.assertEqual(
-            bracket_root, self.twin, "both documents mint from the zero chain"
+            bracket_piece, self.twin, "both documents mint from the zero chain"
         )
-        seat = f'InstantiatePart "bracket seat" ({tag(bracket_root)})'
+        seat = f'InstantiatePart "bracket seat" ({tag(bracket_piece)})'
         self.assertIn(f"the part's {seat} failed", text)
         self.assertIn(f"repair {seat}", text)
         self.assertNotIn("host twin", text)
 
-        # One level down: the bracket's root, itself a part whose root
+        # One level down: the bracket's piece, itself a part whose piece
         # failed — in the bracket's own id space, said with the
         # bracket's label and never the assembly's for the same id.
         bracket_refusal = refusal.__cause__
         self.assertIsInstance(bracket_refusal, pncad.EvaluationError)
         self.assertEqual(bracket_refusal.kind, "part_product_poisoned")
-        self.assertEqual(bracket_refusal.node, bracket_root)
+        self.assertEqual(bracket_refusal.node, bracket_piece)
         self.assertTrue(
             str(bracket_refusal).startswith(f"{seat} failed: "), str(bracket_refusal)
         )
@@ -506,7 +506,7 @@ class TestAPartWhoseRootFails(unittest.TestCase):
         cause = refusal.__cause__
         self.assertIsInstance(cause, pncad.EvaluationError)
         self.assertEqual(
-            (cause.node, cause.document), (self.bracket_root, self.bracket_ref),
+            (cause.node, cause.document), (self.bracket_piece, self.bracket_ref),
             "the poisoned node hands on the chain its root cause carries",
         )
         self.assertEqual(cause.__cause__.document, self.boss_ref)
@@ -545,7 +545,7 @@ class TestAPartWithAnEmptyWorld(unittest.TestCase):
         self.assertIn("the product slot reads nothing", str(refusal))
 
 
-class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
+class TestAPartWhosePieceIsPoisoned(unittest.TestCase):
     """`part_product_poisoned`, reached: a part whose extrude refuses and
     whose one placed copy of it never runs.
 
@@ -582,7 +582,7 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
         self.assembly = pncad.Doc("pncad-partpoison-assembly")
         self.instance = self.assembly.insert(Node.instantiate_part(self.part_ref, self.assembly.world))
 
-    def test_the_instance_carries_the_failure_that_poisoned_the_root(self):
+    def test_the_instance_carries_the_failure_that_poisoned_the_piece(self):
         refusal = failures(evaluate(self.assembly, resolver=self.store))[self.instance]
         self.assertEqual(refusal.kind, "part_product_poisoned")
         text = str(refusal)
@@ -605,7 +605,7 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
         with self.assertRaises(pncad.ProductError) as caught:
             pncad.product(self.part, evaluate(self.part))
         refusal = caught.exception
-        self.assertEqual(refusal.variant, "root_poisoned")
+        self.assertEqual(refusal.variant, "piece_poisoned")
         self.assertEqual(
             (refusal.node, refusal.through),
             (self.placed, self.extrude),
@@ -613,11 +613,11 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
         )
 
     def test_two_documents_down_the_cause_chain_ends_at_the_failing_node(self):
-        """A bracket whose root is a placement of an instance of the
-        part: the bracket's root is poisoned through
+        """A bracket whose piece is a placement of an instance of the
+        part: the bracket's piece is poisoned through
         that failed instance, and the chain runs instance, instance,
         extrude. The inner instance is placed into a space of its own, so
-        it is no root of the bracket's world itself."""
+        it is no piece of the bracket's product."""
         # The bracket is placed while the part builds — the gesture
         # reads the instance's faces — and then pinned to the part as
         # it stands, edited to no length.

@@ -504,14 +504,14 @@ fn product_recourse(kind: crate::product::ProductErrorKind) -> ProductRecourse {
         | K::StrandedProduct
         | K::ProductOutsideWorld
         | K::Graft
-        | K::RootInvalid
+        | K::PieceInvalid
         | K::ProductInvalid => ProductRecourse::Carried,
         K::ContactLineage
         | K::Frame
         | K::EvaluationOfAnotherDocument
         | K::UnknownNode
-        | K::RootFailed
-        | K::RootPoisoned => ProductRecourse::KernelDefect,
+        | K::PieceFailed
+        | K::PiecePoisoned => ProductRecourse::KernelDefect,
     }
 }
 
@@ -1050,7 +1050,7 @@ fn product_fault<T: Decide>(
         _ => Err(failed),
     };
     let arm: Arm = match error {
-        crate::product::ProductError::Root(NodeStanding::Failed { node }) => {
+        crate::product::ProductError::Piece(NodeStanding::Failed { node }) => {
             match refusal_at(node) {
                 Ok(refusal) => Box::new(move |held| PartFault::PartProductFailed {
                     node,
@@ -1060,7 +1060,7 @@ fn product_fault<T: Decide>(
                 Err(failed) => unrecorded(failed),
             }
         }
-        crate::product::ProductError::Root(NodeStanding::Poisoned { node, through }) => {
+        crate::product::ProductError::Piece(NodeStanding::Poisoned { node, through }) => {
             match refusal_at(through) {
                 Ok(refusal) => Box::new(move |held| PartFault::PartProductPoisoned {
                     node,

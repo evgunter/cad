@@ -1026,7 +1026,7 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
         Err(refusal) => assert!(
             matches!(
                 refusal,
-                editor_core::ProductError::Root(editor_core::NodeStanding::Poisoned {
+                editor_core::ProductError::Piece(editor_core::NodeStanding::Poisoned {
                     through,
                     ..
                 }) if through == mate.placement
@@ -1288,7 +1288,7 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
     use editor_core::ProductError;
 
     let cases = vec![
-        ProductError::RootInvalid {
+        ProductError::PieceInvalid {
             findings: vec![editor_core::SourceFinding {
                 node: RecipeNodeId::new(0, tagged(3)),
                 output: 1,
@@ -1315,12 +1315,12 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
     ];
     let expected: [&[&str]; 3] = [
         &[
-            "product: 1 placement not valid at rest:",
-            "\n  placement 000000000003 output 1: a solid encloses negative volume, so it is \
+            "product: 1 piece not valid at rest:",
+            "\n  piece 000000000003 output 1: a solid encloses negative volume, so it is \
              inside-out",
         ],
         &["the product reads", "a body that is gone"],
-        &["the kernel could not graft placement 000000000005's body: the band's "],
+        &["the kernel could not graft piece 000000000005's body: the band's "],
     ];
     for (error, needles) in cases.into_iter().zip(expected) {
         let msg = error.to_string();
@@ -1330,7 +1330,7 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
         }
         for guts in [
             "{",
-            "RootInvalid",
+            "PieceInvalid",
             "SourceFinding",
             "NegativeVolume",
             "ProductError",
