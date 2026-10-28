@@ -37,3 +37,7 @@ names that space, and no `space_mismatch` is raised for it.
 ## D′2 re-read (2026-10-23)
 
 This stays open. D′2 (`a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space`) does not touch the pose door: `PoseRefusal::OtherSpace` and `pose_err` (`crates/pncad-py/src/py/mate.rs:856`) are as this row describes. The fix is a word on an `ErrorClass` of its own, and it shares nothing with D′2's chart.
+
+## Slate triage (2026-10-28, INTENT)
+
+Moved from `work/intent/` by `git mv`, id and body unchanged: residue of INTENT's D10 build that belongs to BIND's charter (the Python bindings). INTENT keeps D10's core (G and its riders, the stage-3 umbrellas, the carry, the refactor rows, the roots rename); Ev asked for INTENT's slate to be cut to its charter and its residue handed on (in chat, 2026-10-28).

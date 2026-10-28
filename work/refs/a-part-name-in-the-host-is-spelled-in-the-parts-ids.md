@@ -3,6 +3,7 @@ id: a-part-name-in-the-host-is-spelled-in-the-parts-ids
 kind: issue
 title: A part's name enters the host verbatim, so its node id is the part's, read by host doors as the host's
 status: open
+priority: P2
 opened: 2026-10-23
 ---
 
@@ -56,3 +57,7 @@ that crosses is recorded) has no exhaustive row until this is
 settled. The foreign-master adversary is also gone as written:
 `in_part(c, …)` and `in_part(a, …)` spell one block part's ids, so
 the head resolves to `a`'s member.
+
+## Slate triage (2026-10-28, INTENT)
+
+Moved from `work/intent/` by `git mv`, id and body unchanged: residue of INTENT's D10 build that belongs to REFS's charter (names scoped by their read). INTENT keeps D10's core (G and its riders, the stage-3 umbrellas, the carry, the refactor rows, the roots rename); Ev asked for INTENT's slate to be cut to its charter and its residue handed on (in chat, 2026-10-28).

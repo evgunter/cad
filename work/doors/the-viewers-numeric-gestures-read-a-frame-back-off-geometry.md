@@ -60,3 +60,6 @@ a spin, or offer only the three axes). Until then the two heuristics
 are the viewer's, and their numbers are the evaluation's, not the
 author's.
 
+## Slate triage (2026-10-28, INTENT)
+
+Moved from `work/intent/` by `git mv`, id and body unchanged: residue of INTENT's D10 build that belongs to DOORS's charter (the viewer's authoring doors). INTENT keeps D10's core (G and its riders, the stage-3 umbrellas, the carry, the refactor rows, the roots rename); Ev asked for INTENT's slate to be cut to its charter and its residue handed on (in chat, 2026-10-28).
