@@ -94,12 +94,14 @@ use geom_core::Tol;
 /// not that it looped.
 pub(crate) const MAX_DEPTH: usize = 1024;
 
-/// A resolved part: the referenced document's product, the product
-/// entities' part-local stable names, the product's CONTACT RECORDS
-/// (ASM-R2b D-1 — a part's records cross the document seam with its
-/// geometry, in the same keys), and its at-rest census verdict.
+/// A resolved part: the referenced document's product body and its
+/// part-local stable names, what that body carries
+/// ([`super::Carry`]: its CONTACT RECORDS, ASM-R2b D-1, in the same keys
+/// as its geometry, and its pieces), and the part's rows, which cross
+/// the document seam routed through the instance copying it
+/// ([`Self::carry_through`]).
 ///
-/// Each of the two row lists (`interference`, `at_rest`) is the
+/// Each row list (`interference`, `at_rest`, `door_rows`) is the
 /// referenced document's OWN rows first, then what it carried up from
 /// ITS parts, each as a [`PartRow`] that already holds the document's
 /// nodes it names. Instantiation adds its own instance to the route;
@@ -108,17 +110,9 @@ pub(crate) struct PartValue<T: Decide> {
     /// The product body, in the frame the part's product computed in.
     pub body: super::Framed<T>,
     pub names: Arc<NameTable>,
-    /// The pieces the product holds ([`super::Pieces`]), in the part's
-    /// frame: what a pick of one piece of an instance reads.
-    pub pieces: Option<Arc<super::Pieces<T>>>,
-    pub contacts: Arc<topo::ContactRecords>,
-    /// The at-rest census's rows the product's records cite
-    /// ([`crate::Product::coincidences`]), named in the part's
-    /// document.
-    pub coincidences: Arc<Vec<crate::checks::at_rest::AtRestRow>>,
-    /// The product's inputs its carried records cite
-    /// ([`crate::Product::cited_inputs`]).
-    pub cited_inputs: Arc<Vec<crate::coincide::CitedInput>>,
+    /// What the product body carries, its rows aside: the census that
+    /// decided the meetings inside it is the part's.
+    pub carry: super::Carry<T>,
     /// **The part's own at-rest census verdict**, its own rows first and
     /// then those it carried up: the overlaps between its copies,
     /// reported and never refused, as its own at-rest check reads them
@@ -136,11 +130,56 @@ pub(crate) struct PartValue<T: Decide> {
     /// document, when a report asks (`checks::DoorJob`).
     pub door_rows:
         Arc<Vec<PartRow<crate::checks::at_rest::Pinned<crate::checks::at_rest::DocRows>>>>,
-    /// How many parts the referenced document's product is: its
-    /// placements' copies ([`crate::product::Product::solid_copies`]),
-    /// each counted at its own value's `parts`, so a sub-assembly's
-    /// parts count through (`NodeValue::parts`).
-    pub parts: usize,
+}
+
+impl<T: Decide> PartValue<T> {
+    /// **What the copy instance `through` defines carries**: the
+    /// product body's carry, and the part's rows, each the part's,
+    /// routed through `through` ([`PartRow::through`]). The door rows
+    /// ride unjudged: they are the part's, named in its document, and
+    /// judged over it where a report asks.
+    pub(crate) fn carry_through(&self, through: RecipeNodeId) -> super::Carry<T> {
+        use crate::checks::at_rest as a;
+        let findings = a::CarriedFindings {
+            interference: self
+                .interference
+                .iter()
+                .map(|row| {
+                    let (route, pinned, _) = row.through(through);
+                    a::CarriedInterference {
+                        route,
+                        pin: pinned.pin,
+                        finding: pinned.finding,
+                    }
+                })
+                .collect(),
+            at_rest: self
+                .at_rest
+                .iter()
+                .map(|row| {
+                    let (route, pinned, held) = row.through(through);
+                    a::CarriedAtRestFinding {
+                        route,
+                        pin: pinned.pin,
+                        finding: pinned.finding,
+                        held,
+                    }
+                })
+                .collect(),
+            coincidences: self
+                .door_rows
+                .iter()
+                .map(|row| {
+                    let (route, pinned, _) = row.through(through);
+                    (route, pinned).into()
+                })
+                .collect(),
+        };
+        super::Carry {
+            findings: Arc::new(findings),
+            ..self.carry.clone()
+        }
+    }
 }
 
 impl<T: Decide> Clone for PartValue<T> {
@@ -148,14 +187,10 @@ impl<T: Decide> Clone for PartValue<T> {
         Self {
             body: self.body.clone(),
             names: Arc::clone(&self.names),
-            pieces: self.pieces.clone(),
-            contacts: Arc::clone(&self.contacts),
-            coincidences: Arc::clone(&self.coincidences),
-            cited_inputs: Arc::clone(&self.cited_inputs),
+            carry: self.carry.clone(),
             interference: Arc::clone(&self.interference),
             at_rest: Arc::clone(&self.at_rest),
             door_rows: Arc::clone(&self.door_rows),
-            parts: self.parts,
         }
     }
 }
@@ -884,13 +919,15 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                     .collect(),
             ),
             door_rows: Arc::new(door_rows),
-            parts,
-            pieces,
             body: super::Framed::in_frame(Arc::new(product.body.into_body()), product.frame),
             names: Arc::new(product.names),
-            contacts: Arc::new(product.contacts),
-            coincidences: Arc::new(product.coincidences),
-            cited_inputs: Arc::new(product.cited_inputs),
+            carry: super::Carry {
+                contacts: Arc::new(product.contacts),
+                parts,
+                pieces,
+                censused: true,
+                ..super::Carry::default()
+            },
         })
     }
 }

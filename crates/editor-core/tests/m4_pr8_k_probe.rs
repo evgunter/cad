@@ -406,12 +406,12 @@ fn probe_agrees_with_f64_bit_for_bit_over_the_corpus() {
                     // with the emptiness disclosed in this row's docs
                     // rather than dressed up as coverage.
                     assert!(
-                        vf.contacts == vp.contacts,
+                        vf.carry.contacts == vp.carry.contacts,
                         "{}: node {id:?}: contact records",
                         d.name
                     );
                     assert!(
-                        vf.carried == vp.carried,
+                        vf.carry.findings == vp.carry.findings,
                         "{}: node {id:?}: carried mate declarations",
                         d.name
                     );

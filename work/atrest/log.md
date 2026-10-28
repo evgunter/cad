@@ -336,3 +336,6 @@ Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `cra
   - `the-census-at-a-union-of-assembles-is-not-carried`, `the-separation-check-misses-an-overlap-inside-a-nested-or-unread-assemble`, `a-parts-loose-spaces-and-member-reads-drop-its-census-rows`, `a-census-witness-is-stated-in-the-products-computing-frame` (open).
 
   They meet stage 5 C at the same `⊔` door. INTENT keeps the carry and announces its merge here.
+- 2026-10-28 14:15 (INTENT) — **The carry merged (#5903).** A placement, an instance, a pattern's members and a pick now carry their source's at-rest result. A meeting the source's door decided is reported once, as the source's, and a copy's pieces stand where the copy stands. `each-space-runs-its-census-between-arrivals` is released to open, and the carry is pruned from `the-in-arrival-census-check-retires`. The review's findings landed here:
+  - a new P1, `run-checks-panics-on-a-cut-of-an-instances-copy`: `checks.rs:1709`'s `unreachable!` is reachable from ordinary documents;
+  - evidence folded into `a-boolean-over-an-instance-drops-its-parts-census-findings`, whose pick half the carry fixed.
