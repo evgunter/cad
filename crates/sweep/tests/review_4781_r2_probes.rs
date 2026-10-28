@@ -668,11 +668,14 @@ fn r2_every_same_side_touch_pose_answers_as_a_touch() {
     // cylinder fixture (extent 2236) refuses as limb 2's kernel limit,
     // bound 3.67e-12
     // (`work/offset/main-red-two-review-4781-rows-refuse-at-limb-2s-kernel-limit-since-5728`).
-    // The pin goes red the day the row passes.
-    test_utils::kernel_limit::pinned_row(
+    test_utils::pinned_red::row(
         geom_core::Tol::witness().eps(),
         &[1e-12],
         "the review 4781 touch rows",
+        &[
+            "Op { source: Certification { error: AnalyticRung3(KernelLimit { operand: Cylinder, bound: 3.667082637548463e-12",
+            "extent: 2236.067977499794",
+        ],
         r2_every_same_side_touch_pose_answers_as_a_touch_row,
     );
 }

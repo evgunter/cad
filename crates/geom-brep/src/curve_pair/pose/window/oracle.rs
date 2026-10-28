@@ -320,11 +320,12 @@ fn each_window_reading_holds_on_a_dense_distance() {
 
 /// **No reading contradicts the dense distance at a touch.** Each draw
 /// a conic tangent to `b` at `J` whose plane turns about that tangent
-/// (`pair`'s `touch`), at the default band and at `ε = 10⁻¹²`, where a
-/// touch's run outlasts the first-order on readings, its pieces drawn as
-/// above, at every scale about the joint and wide. Red where the on
-/// reading along `b` drops its bend term, whose pieces then read on past
-/// the zero band.
+/// (`pair`'s `touch`), at the default band, its pieces drawn as above,
+/// at every scale about the joint and wide. Red where the on reading
+/// along `b` drops its bend term, whose pieces then read on past the
+/// zero band. The band at `ε = 10⁻¹²`, where a touch's run outlasts the
+/// first-order on readings, is out of the loop while its contradictions
+/// are open (below).
 #[test]
 fn each_window_reading_holds_on_a_dense_distance_at_a_touch() {
     let mut rng = fuzz::start("curve_pair::pose::window::oracle::touch");

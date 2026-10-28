@@ -46,7 +46,7 @@ Nightly run 40637814390 (main `a1cfd1cfdb`), `full suite`; re-run on main `91c83
   It goes red the day either attribute leaves; this row's fix removes
   both and the pin with them.
 - `the_walk_still_sees_every_attribute_site` is re-blessed:
-  `editor-core/src/var.rs` holds four sites since PR 5835 (`Var`, a
+  `editor-core/src/var.rs` holds four sites since D′3 (`a752273555`, 2026-10-23: `Var`, a
   named-field struct the census reads as live), and the table says four.
 - `hand_written_impl_census::the_walk_still_sees_every_file_holding_one`
   was red too: `editor-core/src/checks/at_rest/carried.rs` arrived with

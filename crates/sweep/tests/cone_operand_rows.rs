@@ -380,12 +380,14 @@ fn an_oblique_rod_and_a_tilted_cone_inside_or_clear_build_their_closed_forms() {
     // Pinned red since the row landed (PR 4522): at ε = 1e-6 and 1e-12 the
     // clear rod's union refuses `FallbackExtentUnsupported` on near-tangent
     // carriers (`work/germ/an-oblique-rod-clear-of-a-cone-refuses-the-extent-scan-at-1e-12`).
-    // The pin goes red the day the row passes.
     test_utils::pinned_red::row(
         geom_core::Tol::witness().eps(),
         &[1e-6, 1e-12],
         "the oblique rod and tilted cone",
-        "a rod clear, ∪: wanted Body",
+        &[
+            "a rod clear, ∪: wanted Body(1.0511245420135849, 1.0511245420135848e-9), refused FallbackExtentUnsupported { operand: A, face: FaceKey(1v1)",
+            "tangent or near-tangent carriers and no crossing layer saw an event",
+        ],
         an_oblique_rod_and_a_tilted_cone_inside_or_clear_build_their_closed_forms_row,
     );
 }

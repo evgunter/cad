@@ -43,12 +43,14 @@ fn the_f64_seam_answers_every_public_door() {
     // Pinned red since PR 4472: at ε = 1e-6 the moved cap's plane × fit
     // section refuses its tube's one-arc proof undecided
     // (`work/ssiedge/a-plane-section-along-a-fits-window-edge-proves-no-one-arc`).
-    // The pin goes red the day the row passes.
     test_utils::pinned_red::row(
         geom_core::Tol::witness().eps(),
         &[1e-6],
         "the f64 seam",
-        "TubeNotOneArc",
+        &[
+            "RechartFalsifies { door: SetFaceSurfacesDescribing, edge: EdgeKey(10v1), error: PlaneNurbs(TubeNotOneArc { rungs: 15, cause: Undecided(Indeterminate { margin: MarginDiag(Invalid)",
+            "predicate: Some(\"ssi_tube_one_arc\")",
+        ],
         the_f64_seam_answers_every_public_door_row,
     );
 }

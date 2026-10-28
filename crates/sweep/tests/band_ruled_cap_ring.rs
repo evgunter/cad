@@ -214,12 +214,13 @@ fn a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval() {
     // Pinned red since PR 5227: at ε = 1e-12 the curve-pair polish meters its
     // iterate's accumulated width and refuses the cap ring's meeting
     // (`work/cpair/curve-pair-polish-at-interval-reads-the-iterates-width`).
-    // The pin goes red the day the row passes.
     test_utils::pinned_red::row(
         geom_core::Tol::witness().eps(),
         &[1e-12],
         "the bore at Interval",
-        "the meeting reading of two curved edges could not settle a count",
+        &[
+            "Interval: tier 3′, [CensusUnsupported { subject: Entity(Edge(EdgeKey(1v3))), cause: ContactLane(NotCertifiable { what: \"the meeting reading of two curved edges could not settle a count\" }) }",
+        ],
         a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval_row,
     );
 }

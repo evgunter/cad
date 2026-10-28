@@ -63,3 +63,5 @@ Nightly run 40637814390 (main `a1cfd1cfdb`), `full suite`; re-run on main `91c83
 - `verbs_germarms2_interval::the_meeting_axes_pose_…`: pinned at every
   ε on `bool_ruled_region_span`
   (`work/charttail/main-red-the-meeting-axes-pose-refuses-on-a-ruled-region-span-since-5664`).
+
+Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured. Known behind the review_4781 r1 pin: this row's `RayExhausted`.

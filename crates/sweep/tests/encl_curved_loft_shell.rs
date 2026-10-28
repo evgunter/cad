@@ -1117,12 +1117,11 @@ fn a_moved_curved_fitted_cap_builds_where_its_fit_certifies() {
     // Pinned red since PR 4551: at ε = 1e-12 the cap's fit stops on (45, 48),
     // not the pinned (45, 45)
     // (`work/shell/a-curved-fitted-cap-rows-sample-cap-grid-pin-is-red-at-1e-12-on-main`).
-    // The pin goes red the day the row passes.
     test_utils::pinned_red::row(
         geom_core::Tol::witness().eps(),
         &[1e-12],
         "the moved curved fitted cap",
-        "d = 0.05: the cap's fit stopped at",
+        &["eps 1e-12, d = 0.05: the cap's fit stopped at 4.38189780844083e-11 on (45, 48)"],
         a_moved_curved_fitted_cap_builds_where_its_fit_certifies_row,
     );
 }

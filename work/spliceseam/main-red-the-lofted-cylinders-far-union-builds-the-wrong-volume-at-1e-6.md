@@ -47,3 +47,5 @@ Reproduce: `CAD_TOLERANCE_EPS=1e-6 cargo nextest run -p sweep --profile ci
 --ignore-default-filter -E 'test(=spline_spiric_operands::no_spline_or_spiric_operand_builds_wrong)'`
 With the pin in place it passes while the row is red; the panic it
 catches is printed in the test's output.
+
+Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured. Known behind it: the far union's other operations after `O ∪ B`.

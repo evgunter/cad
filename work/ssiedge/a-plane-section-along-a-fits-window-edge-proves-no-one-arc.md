@@ -71,3 +71,5 @@ Nightly run 40637814390 (main `a1cfd1cfdb`), `full suite`; re-run on main `91c83
 at 1e-6 (`PlaneNurbs(TubeNotOneArc { rungs: 15, cause: Undecided(… MarginDiag(Invalid) … ssi_tube_one_arc) })`).
 It is pinned at 1e-6 on `TubeNotOneArc`; the pin goes red the day the
 row passes.
+
+Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured.

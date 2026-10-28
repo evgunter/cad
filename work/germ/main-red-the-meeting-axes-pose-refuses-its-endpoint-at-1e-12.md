@@ -46,3 +46,5 @@ Nightly run 40637814390 (main `a1cfd1cfdb`), `full suite`; re-run on main `91c83
 other two ε, not on `carrier_endpoint_end`. The row is pinned at every ε
 on that predicate
 (`work/charttail/main-red-the-meeting-axes-pose-refuses-on-a-ruled-region-span-since-5664`).
+
+Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured. Known behind the 1e-12 pin: possibly this row's `carrier_endpoint_end`, which the `bool_ruled_region_span` stop now precedes.

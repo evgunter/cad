@@ -79,3 +79,5 @@ Nightly run 40637814390 (main `a1cfd1cfdb`), `full suite`; re-run on main `91c83
 pinned at the default ε and 1e-6 on its message (`the fixture's premise:
 the two rods' midpoints differ` and `a fattening by δ = ε/100 is below
 the stated resolution`); each pin goes red the day its row passes.
+
+Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured.

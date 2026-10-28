@@ -358,12 +358,13 @@ fn planted_subtraction_results_refuse_down_to_the_stated_resolution() {
     // Pinned red since PR 5734: at the default ε and 1e-6 the ε/100 plant
     // refuses `ResultVolumeImplausible` too
     // (`work/measuredoor/main-red-reach-volume-backstop-rows-after-the-exact-sliver-bracket`).
-    // The pin goes red the day the row passes.
     test_utils::pinned_red::row(
         geom_core::Tol::witness().eps(),
         &[1e-9, 1e-6],
         "the planted subtractions",
-        "a fattening by δ = ε/100 is below the stated resolution",
+        &[
+            "a fattening by δ = ε/100 is below the stated resolution\n  left: Err(ResultVolumeImplausible)\n right: Ok(Validated)",
+        ],
         planted_subtraction_results_refuse_down_to_the_stated_resolution_row,
     );
 }
@@ -484,12 +485,13 @@ fn a_result_equal_in_truth_but_larger_at_the_midpoint_passes() {
     // Pinned red since PR 5734: at the default ε and 1e-6 both rods read the
     // same midpoint, so the fixture lost its witness
     // (`work/measuredoor/main-red-reach-volume-backstop-rows-after-the-exact-sliver-bracket`).
-    // The pin goes red the day the row passes.
     test_utils::pinned_red::row(
         geom_core::Tol::witness().eps(),
         &[1e-9, 1e-6],
         "the midpoint fixture",
-        "the fixture's premise: the two rods' midpoints differ",
+        &[
+            "the fixture's premise: the two rods' midpoints differ (2.7488935718910685, 2.7488935718910685)",
+        ],
         a_result_equal_in_truth_but_larger_at_the_midpoint_passes_row,
     );
 }

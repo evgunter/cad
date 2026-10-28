@@ -368,23 +368,31 @@ const PINNED_INERT: [&str; 2] = [
 #[test]
 fn every_deny_unknown_fields_attribute_has_a_named_field_to_deny() {
     let root = repo_root(env!("CARGO_MANIFEST_DIR"));
-    let (pinned, offenders): (Vec<String>, Vec<String>) = sites(&root)
-        .into_iter()
-        .filter_map(|(site, verdict)| offence(&site, &verdict))
-        .partition(|o| {
-            PINNED_INERT
-                .iter()
-                .any(|file| o.starts_with(&format!("{file}:")))
-        });
     // Pinned red: the two `Qualifier` enums lost their one named variant
     // and still carry the attribute
-    // (`work/census/main-red-inert-deny-on-the-qualifier-enums`). The pin
-    // goes red the day either attribute leaves.
-    assert_eq!(
-        pinned.len(),
-        PINNED_INERT.len(),
-        "the pinned inert sites moved: {pinned:#?}"
-    );
+    // (`work/census/main-red-inert-deny-on-the-qualifier-enums`). Each
+    // named file must hold exactly one site read as having nothing to
+    // deny; an unreadable site is never pinned.
+    let found = sites(&root);
+    for file in PINNED_INERT {
+        let inert = found
+            .iter()
+            .filter(|(site, verdict)| {
+                site.starts_with(&format!("{file}:")) && *verdict == Governed::NothingToDeny
+            })
+            .count();
+        assert_eq!(inert, 1, "{file}: the pinned inert site moved");
+    }
+    let offenders: Vec<String> = found
+        .into_iter()
+        .filter(|(site, verdict)| {
+            !(*verdict == Governed::NothingToDeny
+                && PINNED_INERT
+                    .iter()
+                    .any(|file| site.starts_with(&format!("{file}:"))))
+        })
+        .filter_map(|(site, verdict)| offence(&site, &verdict))
+        .collect();
     assert!(
         offenders.is_empty(),
         "`#[serde(deny_unknown_fields)]` needs a NAMED field to deny. These sites have \

@@ -126,12 +126,11 @@ fn a_curved_spline_cap_moves_with_its_sides_where_its_certificates_hold() {
     // Pinned red since PR 4551: at ε = 1e-12 the cap's fit stops on (48, 48)
     // without a refusal the row lists
     // (`work/shell/a-curved-fitted-cap-rows-sample-cap-grid-pin-is-red-at-1e-12-on-main`).
-    // The pin goes red the day the row passes.
     test_utils::pinned_red::row(
         geom_core::Tol::witness().eps(),
         &[1e-12],
         "the curved spline cap",
-        "eps 1e-12: the cap's fit stopped at",
+        &["eps 1e-12: the cap's fit stopped at 3.239736902471488e-12 on (48, 48)"],
         a_curved_spline_cap_moves_with_its_sides_where_its_certificates_hold_row,
     );
 }

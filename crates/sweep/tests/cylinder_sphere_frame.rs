@@ -398,12 +398,13 @@ fn a_ball_across_a_cylinder_wall_wider_than_the_wall() {
     // Pinned red since PR 5872: at ε = 1e-6 the cylinder × sphere march
     // runs out of its cell budget near the node
     // (`work/sect/main-red-cylinder-sphere-section-runs-out-of-cells-near-the-node-at-1e-6`).
-    // The pin goes red the day the row passes.
     test_utils::pinned_red::row(
         geom_core::Tol::witness().eps(),
         &[1e-6],
         "the ball wider than the wall",
-        "one loop, ball wider than the wall, A ∪ B: refused GermSectionUnbuilt",
+        &[
+            "one loop, ball wider than the wall, A ∪ B: refused GermSectionUnbuilt { a_face: FaceKey(3v1), a_kind: Cylinder, b_face: FaceKey(1v1), b_kind: Sphere, why: March(CellBudget { budget: 200000 }) }",
+        ],
         || {
             builds_sound_or_refuses_past_the_join(
                 4,
@@ -455,12 +456,13 @@ fn every_segment_joins_neighbouring_sites_along_its_loop() {
     // Pinned red since PR 5872: at ε = 1e-6 the cylinder × sphere march runs
     // out of its cell budget near the node
     // (`work/sect/main-red-cylinder-sphere-section-runs-out-of-cells-near-the-node-at-1e-6`).
-    // The pin goes red the day the row passes.
     test_utils::pinned_red::row(
         geom_core::Tol::witness().eps(),
         &[1e-6],
         "the segments along each loop",
-        "one loop, ball wider than the wall, A ∪ B: the matcher refused GermSectionUnbuilt",
+        &[
+            "one loop, ball wider than the wall, A ∪ B: the matcher refused GermSectionUnbuilt { a_face: FaceKey(3v1), a_kind: Cylinder, b_face: FaceKey(1v1), b_kind: Sphere, why: March(CellBudget { budget: 200000 }) }",
+        ],
         every_segment_joins_neighbouring_sites_along_its_loop_row,
     );
 }

@@ -412,12 +412,13 @@ fn no_spline_or_spiric_operand_builds_wrong() {
     // (`work/spliceseam/main-red-the-lofted-cylinders-far-union-builds-the-wrong-volume-at-1e-6`); at
     // 1e-12 the bare operand's measurement stops at its wall
     // (`work/spliceseam/the-lofted-cylinder-operand-runs-out-of-quadrature-budget-at-1e-12`).
-    // Each pin goes red the day its row passes.
     let eps = geom_core::Tol::witness().eps();
-    let says = if test_utils::kernel_limit::at_row(eps, &[1e-6]) {
-        "lofted cylinder / far / O ∪ B: builds V ="
+    let says: &[&str] = if test_utils::kernel_limit::at_row(eps, &[1e-6]) {
+        &[
+            "lofted cylinder / far / O ∪ B: builds V = 7.283217721708709, the closed form gives 7.283185307179586",
+        ]
     } else {
-        "the operand measures: the measurement did not meet its resolution"
+        &["the operand measures: the measurement did not meet its resolution: it stopped at `wall`"]
     };
     test_utils::pinned_red::row(
         eps,

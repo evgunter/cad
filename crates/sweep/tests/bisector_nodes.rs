@@ -1091,12 +1091,13 @@ fn slanted_bores_build_every_operation_one_difference_pinched_to_itself() {
     // Pinned red since PR 5664: at ε = 1e-12 the 3° pose's B ∖ A exhausts its
     // probe ray (`work/tang/main-red-slanted-bores-b-minus-a-exhausts-its-probe-ray-at-1e-12`,
     // `work/charttail/main-red-ringed-curved-doors-reds-four-sweep-rows`).
-    // The pin goes red the day the row passes.
     test_utils::pinned_red::row(
         geom_core::Tol::witness().eps(),
         &[1e-12],
         "the slanted bores",
-        "3° (B, A), ∖: the node builds, got Err(Pieces(Probe",
+        &[
+            "3° (B, A), ∖: the node builds, got Err(Pieces(Probe { shell: ShellKey(2v5), source: Loop(RayExhausted { loop: LoopKey(16v5) }) }))",
+        ],
         slanted_bores_build_every_operation_one_difference_pinched_to_itself_row,
     );
 }

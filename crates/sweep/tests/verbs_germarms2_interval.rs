@@ -220,12 +220,14 @@ fn the_meeting_axes_pose_builds_at_the_certified_scalar() {
     // `bool_ruled_region_span` at the certified scalar
     // (`work/charttail/main-red-the-meeting-axes-pose-refuses-on-a-ruled-region-span-since-5664`,
     // `work/germ/main-red-the-meeting-axes-pose-refuses-its-endpoint-at-1e-12`).
-    // The pin goes red the day the row passes.
     test_utils::pinned_red::row(
         geom_core::Tol::witness().eps(),
         &test_utils::pinned_red::EVERY_ROW,
         "the meeting-axes pose",
-        "bool_ruled_region_span",
+        &[
+            "the meeting-axes pose builds: Err(Escalated { decision: Containment { decision: None, escalation: Margin }, diag: Indeterminate { margin: MarginDiag(Enclosure { lo: -1.5707963267956369, hi: 4.712388980385431, tag: None, zero: ZeroWord(0) }), terminal_sliver: false",
+            "predicate: Some(\"bool_ruled_region_span\")",
+        ],
         the_meeting_axes_pose_builds_at_the_certified_scalar_row,
     );
 }

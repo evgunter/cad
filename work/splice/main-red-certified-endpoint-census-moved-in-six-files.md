@@ -1,7 +1,7 @@
 ---
 id: main-red-certified-endpoint-census-moved-in-six-files
 kind: issue
-title: Main red: the certified endpoint census moved in six files (PRs 5855, 5868, 5886, 5728); seven new reads outside an is_certified function
+title: Main red: the certified endpoint census moved in nine files (PRs 5855, 5868, 5886, 5728, 5897, 5909, 5927); 27 new reads sit outside an is_certified function
 status: open
 opened: 2026-10-28
 priority: P0
@@ -67,3 +67,13 @@ the count is re-blessed. Where reads sit outside one (`spline_face.rs` +3,
 with a note naming this row. Closing it dispositions each of those reads
 and replaces each note. The `clearance.rs` and `surfaces/nurbs.rs` reads
 are CLEAR's.
+
+Today's count: nine files moved, and 27 of the new reads sit outside a
+function that asks (`spline_face.rs` 3, `offset_meters.rs` 2,
+`pcurve_cache.rs` 1, `spline/blossom.rs` 1, `surfaces/nurbs.rs` 3,
+`topo/src/clearance.rs` 17). **Closing this row owes the notes too**:
+each of those six roster entries in `certified_endpoint_census.rs` now
+carries a "pinned red at main's count since PR …" note naming this row.
+Whoever argues a read safe (or makes it ask) replaces that note with the
+argument; the census checks the counts, not the notes, so a stale note
+does not go red by itself.

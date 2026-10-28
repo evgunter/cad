@@ -42,3 +42,5 @@ now reads `the measurement did not meet its resolution: it stopped at
 `wall`` (`crates/topo/src/lib.rs`), not `QuadratureBudget`. The row is
 pinned at 1e-12 on `the operand measures: the measurement did not meet
 its resolution`; the pin goes red the day the row passes.
+
+Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured. Known behind the 1e-12 pin: whether the far union's wrong volume (`spliceseam/main-red-the-lofted-cylinders-far-union-builds-the-wrong-volume-at-1e-6`) also holds at 1e-12.

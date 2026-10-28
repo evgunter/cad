@@ -25,3 +25,5 @@ Nightly run 40637814390 (main `a1cfd1cfdb`), `full suite`; re-run on main `91c83
 (`work/charttail/main-red-ringed-curved-doors-reds-four-sweep-rows`). The
 row is pinned at 1e-12 on `3° (B, A), ∖: the node builds, got
 Err(Pieces(Probe`; it goes red the day the row passes.
+
+Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured.

@@ -73,3 +73,5 @@ take a typed refusal at that ε, or a smaller fixture) or a regression.
 
 Reproduce: `CAD_TOLERANCE_EPS=1e-12 cargo nextest run -p sweep --profile
 ci --ignore-default-filter -E 'test(/^review_4781_r[12]_probes::/)'`.
+
+Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured. Known behind it: r1's `RayExhausted` (`charttail/main-red-ringed-curved-doors-reds-four-sweep-rows`) and r2's `curve_pair_pose_offset` escalation (`cpair/a-same-side-touch-pose-escalates-the-curve-pair-extreme-at-1e-12`).

@@ -74,3 +74,5 @@ is still red at 1e-12 (tier 3′: `ContactLane(NotCertifiable { the meeting
 reading of two curved edges could not settle a count })`). It is pinned
 at 1e-12 on that text, citing this row; the pin goes red the day the row
 passes.
+
+Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured.

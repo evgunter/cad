@@ -218,12 +218,13 @@ fn at_rest_census_verdicts_match_f64_at_interval() {
     // Pinned red: at ε = 1e-12 `reshaped_rod`'s census reads f64 `Some(false)`
     // against Interval `Some(true)`
     // (`work/scalar/main-red-dual-corpus-reshaped-rod-census-disagrees-at-1e-12`).
-    // The pin goes red the day the row passes.
     test_utils::pinned_red::row(
         geom_core::Tol::witness().eps(),
         &[1e-12],
         "the at-rest census across scalars",
-        "reshaped_rod: the census disagreed across certifying scalars",
+        &[
+            "reshaped_rod: the census disagreed across certifying scalars (f64 None vs Interval None)\n  left: Some(false)\n right: Some(true)",
+        ],
         at_rest_census_verdicts_match_f64_at_interval_row,
     );
 }

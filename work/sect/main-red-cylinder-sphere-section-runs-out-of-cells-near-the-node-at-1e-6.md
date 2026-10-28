@@ -96,3 +96,5 @@ is red (the other eight pass at 1e-6). Each red row is pinned at 1e-6 with
   `one loop, ball wider than the wall, A ∪ B: … GermSectionUnbuilt`.
 
 Each pin goes red the day its row passes; closing this row removes them.
+
+Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured. Known behind the pins: the poses after `d 0.2, R 0.699` and after `d 0.2, R 0.71, θ 4.27` in the two `pair_section` rows, and the operations after `A ∪ B` in the two `cylinder_sphere_frame` rows.
