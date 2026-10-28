@@ -7180,3 +7180,5 @@ Signed (WIRE orchestrator).
   - Pair and union witnesses are red on base. The split Seam/SetPiece witnesses were unbuildable and are filed.
   - The dump shows 643 tests emitting tables and 7 differing, all tie conversions.
   - A FULL review (`wire-seamgroups-rev`) is dispatched. Also freed 7 GB of stale review scratch.
+- 2026-10-27 — **Seam (ATREST):** `atrest/an-instance-carries-its-parts-coincidences` touches this program's ground. `eval/wire.rs`: `wire_instantiate_part` fills the new `CarriedFindings::coincidences` (each part row with this instance as its first hop).
+- 2026-10-27 — **Seam (ATREST):** `atrest/an-assertion-quiets-an-operations-unproven-row` touches this program's ground. `eval/wire.rs`: `select_one` resolves its one name through the new `resolve_name` (the ladder, at the name's kind), and `wire_measure` reads a reference's body through the new `reference_body`; both `pub(crate)`, re-exported from `eval`, and read by the quieting rule's `checks::at_rest::contact_quietable` so a row's cell resolves as a measure's reference does. `ladder::live`/`resolve_key` take any `Doc<P: ProfilePayload>`. No refusal changes.

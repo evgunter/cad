@@ -860,8 +860,10 @@ where
     // keys verbatim. Re-deriving them from the placed geometry is the
     // scan-to-bless move F1 bans. Each record cites the part's record
     // it is, through this instance ([`crate::coincide::CitedInput::Part`]).
-    // The bookkeeping rows ride unchanged for the same reason; what is
-    // added here is each row's first hop, this instance
+    // The census findings ride unchanged for the same reason. The door
+    // rows ride unjudged for another: they are the part's, named in its
+    // document, and judged over it where a report asks. What is added to
+    // each row here is its first hop, this instance
     // ([`crate::checks::at_rest::PartRow::through`]).
     let carried = crate::checks::at_rest::CarriedFindings {
         interference: part
@@ -889,7 +891,14 @@ where
                 }
             })
             .collect(),
-        // Keyed in the part's body, which the placement moves without
+        coincidences: part
+            .door_rows
+            .iter()
+            .map(|row| {
+                let (route, pinned, _) = row.through(id);
+                (route, pinned).into()
+            })
+            .collect(),
     };
     Ok(OpOut {
         payload: ValuePayload::Body(Arc::new(placed)),
@@ -897,7 +906,8 @@ where
         contacts: Arc::new(part.contacts.carried_from(0)),
         carried: Arc::new(carried),
         parts: part.parts,
-        // The part's own rows are its document's, read there.
+        // The part's own rows ride `carried`, proven over the part's
+        // document where a report asks.
         coincidences: Arc::new([]),
         cited_inputs: Arc::new([crate::coincide::CitedInput::Part(*doc_ref)]),
         pieces: moved_pieces(part.pieces.as_ref(), map.as_ref())?,
@@ -1943,7 +1953,6 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 mod ladder {
     use crate::names::interrogate::{Denoted, TableRefusal, key_in};
     use crate::names::{NameTable, StableName};
-    use crate::program::ProfileProgram;
     use crate::resolve::ResolveError;
 
     /// Proof that rung 1 passed: `name`'s minting node is live.
@@ -1957,9 +1966,9 @@ mod ladder {
 
     /// Rung 1: `NodeGone` with the deleted-vs-foreign split, taken
     /// from the one home that mints it ([`ResolveError::node_gone`]).
-    pub(super) fn live<'n>(
+    pub(super) fn live<'n, P: crate::ProfilePayload>(
         name: &'n StableName,
-        doc: &crate::doc::Doc<ProfileProgram>,
+        doc: &crate::doc::Doc<P>,
         read: crate::VarId,
     ) -> Result<Live<'n>, Box<ResolveError>> {
         if ResolveError::part_name(name, read, doc) {
@@ -1981,9 +1990,9 @@ mod ladder {
     /// names at its kind ([`crate::var::Select::fault`]), and every
     /// `NameTable` door that seats a row holds its key at its name's
     /// kind, so it panics.
-    pub(super) fn resolve_key<K: Denoted>(
+    pub(super) fn resolve_key<K: Denoted, P: crate::ProfilePayload>(
         name: &StableName,
-        doc: &crate::doc::Doc<ProfileProgram>,
+        doc: &crate::doc::Doc<P>,
         read: crate::VarId,
         table: &NameTable,
         refuse: impl Fn(Box<ResolveError>) -> super::NodeErrorKind,
@@ -2077,29 +2086,95 @@ fn select_one<T: Decide>(
     slot: crate::OperandSlot,
     var: crate::VarId,
 ) -> Result<(RecipeNodeId, names::EntityRef), NodeErrorKind> {
-    fn one<K: names::interrogate::Denoted>(
-        selected: Selected<K>,
-    ) -> (RecipeNodeId, names::EntityRef) {
-        let [(body, key)] = selected.ents.as_slice() else {
-            unreachable!("a singleton selection holds one name (`Select::fault`)")
-        };
-        let ent = names::EntityRef {
-            body: *body,
-            key: key.entity(),
-        };
-        (selected.at, ent)
-    }
-    let Some((entity, crate::var::SelectionCount::One)) =
-        doc.var(var).and_then(|held| held.kind().selection())
-    else {
+    let (Some((entity, crate::var::SelectionCount::One)), Some(selection)) = (
+        doc.var(var).and_then(|held| held.kind().selection()),
+        doc.selection(var),
+    ) else {
         return Err(NodeErrorKind::UnresolvedRead { slot, var });
     };
-    Ok(match entity {
-        names::EntityKind::Face => one(select::<T, topo::FaceKey>(doc, results, slot, var)?),
-        names::EntityKind::Edge => one(select::<T, topo::EdgeKey>(doc, results, slot, var)?),
-        names::EntityKind::Vertex => one(select::<T, topo::VertexKey>(doc, results, slot, var)?),
-        names::EntityKind::Body => unreachable!("a selection names faces, edges or vertices"),
+    let [name] = selection.names.as_slice() else {
+        unreachable!("a singleton selection holds one name (`Select::fault`)")
+    };
+    if name.kind != entity {
+        unreachable!(
+            "selection {var:?} holds {} {} name, though the edit and load doors hold a \
+             selection's names at its kind, {} {}",
+            name.kind.article(),
+            name.kind.noun(),
+            entity.article(),
+            entity.noun()
+        );
+    }
+    resolve_name(doc, results, slot, selection.body, name, |error| {
+        NodeErrorKind::SelectResolve {
+            slot,
+            var,
+            reference: 0,
+            error,
+        }
     })
+}
+
+/// **One name of the body `read` holds, resolved as a measure's
+/// reference resolves it**: the read to the operation whose value
+/// holds it, then the name through that value's table under the
+/// [`ladder`], into an entity of the name's own kind. [`select_one`]
+/// resolves a selection's one name here, and so does the quieting
+/// rule's [`crate::checks::at_rest::contact_quietable`] for a row's
+/// cell, so the two read one entity.
+///
+/// # Errors
+///
+/// [`NodeErrorKind::UnresolvedRead`] for a read no live operation
+/// defines, `refuse`'s for a name the ladder refuses.
+pub(crate) fn resolve_name<P: crate::ProfilePayload, T: Decide>(
+    doc: &crate::doc::Doc<P>,
+    results: &Results<T>,
+    slot: crate::OperandSlot,
+    read: crate::VarId,
+    name: &names::StableName,
+    refuse: impl Fn(Box<crate::resolve::ResolveError>) -> NodeErrorKind,
+) -> Result<(RecipeNodeId, names::EntityRef), NodeErrorKind> {
+    use names::interrogate::Denoted;
+    fn entity<K: Denoted>((body, key): (u32, K)) -> names::EntityRef {
+        names::EntityRef {
+            body,
+            key: key.entity(),
+        }
+    }
+    let at = super::read_at(doc, slot, read)?;
+    let table = read_table(value_of(results, at)?);
+    let ent = match name.kind {
+        names::EntityKind::Face => entity(ladder::resolve_key::<topo::FaceKey, P>(
+            name, doc, read, &table, refuse,
+        )?),
+        names::EntityKind::Edge => entity(ladder::resolve_key::<topo::EdgeKey, P>(
+            name, doc, read, &table, refuse,
+        )?),
+        names::EntityKind::Vertex => entity(ladder::resolve_key::<topo::VertexKey, P>(
+            name, doc, read, &table, refuse,
+        )?),
+        names::EntityKind::Body => unreachable!("a cell's name names a face, an edge or a vertex"),
+    };
+    Ok((at, ent))
+}
+
+/// **The body a resolved reference lands in**, as a measure reads it:
+/// body `ent.body` of the value `at`.
+///
+/// # Errors
+///
+/// [`NodeErrorKind::MissingInput`] for `at` with no value,
+/// [`NodeErrorKind::MeasureRefUnreadable`] for a value holding no such
+/// body.
+pub(crate) fn reference_body<T: Decide>(
+    results: &Results<T>,
+    slot: crate::OperandSlot,
+    var: crate::VarId,
+    (at, ent): (RecipeNodeId, names::EntityRef),
+) -> Result<&topo::Body<T>, NodeErrorKind> {
+    crate::names::interrogate::output_body(&value_of(results, at)?.payload, ent.body)
+        .map_err(|error| NodeErrorKind::MeasureRefUnreadable { slot, var, error })
 }
 
 /// **A selection's names resolved in `table`**, the value read `at`:
@@ -2231,9 +2306,7 @@ fn wire_measure<'r, T: Decide + crate::measure::MinClearanceLane>(
                 },
             )
         };
-        let value = value_of(results, at)?;
-        let body = crate::names::interrogate::output_body(&value.payload, ent.body)
-            .map_err(|error| NodeErrorKind::MeasureRefUnreadable { slot, var, error })?;
+        let body = reference_body(results, slot, var, (at, ent))?;
         let carrier = super::measure::carrier_of(body, ent);
         sides.push((
             Measured {

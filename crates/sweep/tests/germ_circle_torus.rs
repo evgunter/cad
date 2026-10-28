@@ -144,26 +144,19 @@ fn accepted_against_torus(
 /// reaches the join, where the germ pair of the stem's weld cap (plane)
 /// against the arch's wall (torus) takes the plane × wall arm and its
 /// chord, an arc of the arch's meridian circle. Past the join the
-/// section certificate's interior-loop guard refuses the stem's tube
-/// wall against the arch's, two tori with parallel axes apart, which it
-/// has no arm for; no body to measure.
+/// section certificate's parallel-tori arm clears the stem's tube wall
+/// against the arch's, and the glue builds (its volume is
+/// `mate7a_r1_probes::p1_wall1_glues_the_stem_into_one_body`'s).
 #[test]
 fn the_lily_stem_glue_is_past_the_circle_torus_pairs() {
     let Some(s) = stem() else { return };
     let a = arch();
-    let err = topo::union(&s, &a, Tol::witness())
-        .expect_err("the stem glue still refuses, past the join");
-    assert!(
-        matches!(
-            err,
-            BooleanError::CurvedPairUnsupported {
-                site: topo::PairRefusalSite::InteriorLoopGuard,
-                kind: geom::SurfaceKind::Torus,
-                other_kind: geom::SurfaceKind::Torus,
-                ..
-            }
-        ),
-        "the lily's next door is the interior-loop guard on its two tube walls: {err:?}"
+    let r = topo::union(&s, &a, Tol::witness())
+        .unwrap_or_else(|e| panic!("the stem glue builds: {e:?}"));
+    assert_eq!(
+        r.body().map(|b| b.body.shells().count()),
+        Some(1),
+        "the stem glue is one body"
     );
 }
 

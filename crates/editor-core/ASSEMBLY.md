@@ -22,7 +22,7 @@ is the design.
 | A3, A11 placements, mates, solve | `Node::Place`, `Node::World`, `InstantiatePart`'s `constraints` in `src/node.rs`; `src/mate.rs` (`Constraint`, `Mate`, `Value`, `Coord`, `MateRef`, `MateFault`), `src/mate/orient.rs` (`Orientation`), `src/mate/coset.rs`, `src/mate/solve.rs`, `src/mate/value.rs`, `src/mate/pin.rs` (`Placed`, `stand`), `src/mate/corner.rs` (`corner_frame`), `src/mate/unobservable.rs`; the fold in `src/eval/wire.rs` (`fold_with`); `DocEdit::SetConstraints`/`AddConstraint`/`RemoveConstraint` in `src/edit.rs` |
 | A4, A13 identity, pins, update | `src/ident.rs`, `src/update.rs`, `DocEdit::UpdateReference` in `src/edit.rs` |
 | A4 split, inline and flatten | `src/refactor.rs`; `InterfaceRecord` in `src/node.rs` |
-| A5 at-rest check | `src/checks/at_rest.rs` (`AtRestEvidence`, `InterferenceFinding`, the quieting rule), `src/checks/at_rest/carried.rs` (`Route`, `CarriedInterference`, `CarriedAtRestFinding`, `AtRestRow`); `CheckId::AtRest` in `src/checks.rs` |
+| A5 at-rest check | `src/checks/at_rest.rs` (`AtRestEvidence`, `InterferenceFinding`, the quieting rule), `src/checks/at_rest/carried.rs` (`Route`, `CarriedInterference`, `CarriedAtRestFinding`, `CarriedCoincidence`, `AtRestRow`); `CheckId::AtRest` in `src/checks.rs` |
 | A6 improper frames | `src/placement.rs` (`Frame`); `Node::Mirror` in `src/node.rs`, `wire_mirror` in `src/eval/wire.rs`, `mirror_body` in `crates/topo/src/mirror.rs` |
 | A7, A8 interchange | `PlacedInstance` in `crates/step-import/src/lib.rs` |
 | A9 partitions | `relative_freedom_components` in `src/mate/solve.rs` |
@@ -494,8 +494,17 @@ and the door discards what it found. Each carried finding is reported
 once per part row, by the first route in gather order, so a part placed
 twice reports its overlap once, as the part's (`CarriedInterference`,
 `CarriedAtRestFinding`), quiet or loud as the part's own assertions
-judged it, and never refusing. A finding that names no pair of solids
-(a census escalation, a pair it had no lane for, a stale record of a
+judged it, and never refusing. The rows a part owes its own coincidence
+door cross the same way, unproven (`PartValue::door_rows`, each with the
+part's pinned document): the host's door judges them over that document,
+as the part's own door would, and reports each unproven one once per
+part row at the route's first instance, as the part's
+(`CarriedCoincidence`), quiet only as the part's assertions quiet it. A
+host `Gap` quiets none of them, wherever its cells lie, since a finding
+belongs to the door that decided it (D10 `[assertions]`). A loud one
+refuses at `Error` exactly when the part's own finding would, under the
+host's `unproven-coincidence` severity. A finding that names no pair of
+solids (a census escalation, a pair it had no lane for, a stale record of a
 vertex or an edge) is inside no one arrival, and is kept: one the census
 re-finds inside an instance's copy is reported as the host's beside the
 part's carried row, until the finding names its pair and the discard
@@ -509,7 +518,7 @@ of a part read one member at a time rather than whole
 finding of its own (D10; `checks::at_rest`). The census decides that
 two copies interfere: a vertex of one strictly inside the other's
 material (`ValidationError::InstanceInterference`), a face of each on
-one plane facing the same way and sharing interior
+one plane, cylinder or sphere facing the same way and sharing interior
 (`ValidationError::SameSideInterference`), a touch where the two
 materials meet (`ValidationError::TouchInterference`), an edge piercing
 a face (`CensusContact::EdgeFacePierce`), an in-plane crossing whose

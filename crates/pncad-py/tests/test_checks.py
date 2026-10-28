@@ -35,7 +35,10 @@ fired on the geometry and not on every document it is handed.
 """
 
 import math
+import shutil
+import tempfile
 import unittest
+from pathlib import Path
 
 import pncad
 from pncad import (
@@ -61,6 +64,7 @@ from pncad import (
     Severity,
     Start,
     VarName,
+    Workspace,
     enforce_checks,
     evaluate,
     m,
@@ -69,7 +73,7 @@ from pncad import (
     subject_body,
 )
 
-from placing import against, assemble_world_copies
+from placing import against, assemble_world_copies, placed
 from test_assembly_eval import identities, opened
 from measuring import pinned
 
@@ -595,6 +599,53 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
         self.assertEqual(
             [f for f in off.findings if f.check == CheckId.UnprovenCoincidence], []
         )
+
+    def test_a_parts_unproven_rest_is_reported_through_its_instance(self):
+        """The resting part, instanced: the instantiating document
+        reports each of the part's five unproven rows once, the part's
+        own finding over the part's document, by the route through the
+        instance and shown there."""
+        part = Doc("pncad-carried-coincidence-part")
+        lower = slab(part, 0.0, 1.0)
+        upper = slab(part, 0.25, 0.75, 0.25, 0.75, 1.0, 1.5, on=lower)
+        glued = part.insert(Node.union([lower, upper]))
+        placed(part, glued, Frame.translation((0 * m, 0 * m, 0 * m)))
+        assemble_world_copies(part)
+        cfg = ChecksConfig(
+            connectedness=Severity.Off,
+            at_rest=Severity.Off,
+            unproven_coincidence=Advisory.Warn,
+        )
+        own = run_checks(part, evaluate(part), cfg).findings
+        self.assertEqual(len(own), 5)
+        directory = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, directory, ignore_errors=True)
+        store = Workspace(str(directory))
+        store.create(part)
+        outer = Doc("pncad-carried-coincidence")
+        instance = outer.insert(
+            Node.instantiate_part(DocRef(part.id, pncad.content_pin(part)), outer.world)
+        )
+        outer.set_product(instance)
+        found = run_checks(outer, evaluate(outer, resolver=store), cfg).findings
+        self.assertEqual(len(found), len(own), "each of the part's rows, once")
+        for finding, mine in zip(found, own, strict=True):
+            self.assertEqual(finding.check, CheckId.UnprovenCoincidence)
+            self.assertEqual(finding.node, instance, "shown at the instance")
+            self.assertIsNone(finding.quiet)
+            self.assertEqual(finding.evidence.variant, "carried_coincidence")
+            self.assertIsNone(finding.evidence.coincidence, "not this document's row")
+            carried = finding.evidence.carried_coincidence
+            self.assertEqual(carried.finding, mine, "the part's own finding")
+            self.assertEqual(carried.finding.node, glued, "in the part's ids")
+            self.assertEqual(
+                carried.finding.evidence.coincidence.cells, mine.evidence.coincidence.cells
+            )
+            self.assertEqual(carried.of, part.id)
+            self.assertEqual(carried.through, instance)
+            self.assertEqual(carried.via, [instance])
+            self.assertEqual(carried.pin, pncad.content_pin(part))
+            self.assertIn("leaves a coincidence of its own unproven", str(finding))
 
 
 class TestAProfileJunctionTheDoorDecides(unittest.TestCase):
