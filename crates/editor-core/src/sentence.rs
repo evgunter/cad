@@ -9,7 +9,7 @@
 //! rendering. The label is the kernel's ([`Recourse`]).
 
 /// Whether a rendering keeps a refusal's own labels: its stage word,
-/// and whatever labels its arms carry (a finding's `root N output M`
+/// and whatever labels its arms carry (a finding's `placement N output M`
 /// subject, a forwarded load's stage word).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Labels {

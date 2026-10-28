@@ -1,4 +1,4 @@
-//! **A part's root failure draws one level per document, each line the
+//! **A part's product failure draws one level per document, each line the
 //! node's own and each within the budget.**
 //!
 //! An instance whose part does not evaluate names the part's failed
@@ -97,7 +97,7 @@ fn hold_to_the_standard(message: &str, carried: &[CarriedLine]) {
 }
 
 /// **Depth 2**: an assembly instantiates `bracket.pncad`, whose one
-/// root instantiates `boss.pncad`, whose one root, an extrude, refuses.
+/// piece instantiates `boss.pncad`, whose one piece, an extrude, refuses.
 ///
 /// Before the run lands the instance row says its part's file is not
 /// read yet, never that there is none. Once it lands, the row names its
@@ -108,7 +108,7 @@ fn hold_to_the_standard(message: &str, carried: &[CarriedLine]) {
 /// its node, labels included, no line quotes the line under it, and
 /// every line is within the budget.
 ///
-/// The assembly's first node is the bracket's root again, an instance
+/// The assembly's first node is the bracket's piece again, an instance
 /// of the boss, so it has the same id (both documents mint from the
 /// zero chain) under another label: every line that says the bracket's
 /// node says the bracket's label, and none says the assembly's.
@@ -122,7 +122,7 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
     // not evaluate, so the boss has no product.
     let (boss, profile) =
         common::square_profile(&Doc::empty_derived("partroot-boss", tol), 0.04, tol);
-    let (boss, boss_root) = common::inserted(
+    let (boss, boss_piece) = common::inserted(
         &boss,
         Node::Extrude {
             profile: profile.into(),
@@ -131,21 +131,21 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
         },
         tol,
     );
-    let boss = labelled(&boss, boss_root, "boss plate", tol);
-    let (boss, _) = common::placed(&boss, boss_root, tol);
+    let boss = labelled(&boss, boss_piece, "boss plate", tol);
+    let (boss, _) = common::placed(&boss, boss_piece, tol);
     store
         .save_at(&boss, "boss.pncad", tol)
         .expect("the boss stores");
 
     // The bracket: its one placed body instantiates the boss.
     let mut bracket = Doc::empty_derived("partroot-bracket", tol);
-    let bracket_root = common::insert_into(
+    let bracket_piece = common::insert_into(
         &mut bracket,
         crate::fixture::mated_instance(reference(&boss, tol)),
         tol,
     );
-    let bracket = labelled(&bracket, bracket_root, "bracket seat", tol);
-    let (bracket, _) = common::placed(&bracket, bracket_root, tol);
+    let bracket = labelled(&bracket, bracket_piece, "bracket seat", tol);
+    let (bracket, _) = common::placed(&bracket, bracket_piece, tol);
     store
         .save_at(&bracket, "bracket.pncad", tol)
         .expect("the bracket stores");
@@ -157,7 +157,7 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
         tol,
     );
     assert_eq!(
-        twin, bracket_root,
+        twin, bracket_piece,
         "both documents mint from the zero chain"
     );
     let mut assembly = labelled(&assembly, twin, "host twin", tol);
@@ -195,17 +195,17 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
         &vec![
             CarriedLine {
                 document: "bracket.pncad".to_owned(),
-                line: own_line(&bracket, bracket_root, &dir, tol),
+                line: own_line(&bracket, bracket_piece, &dir, tol),
             },
             CarriedLine {
                 document: "boss.pncad".to_owned(),
-                line: own_line(&boss, boss_root, &dir, tol),
+                line: own_line(&boss, boss_piece, &dir, tol),
             },
         ],
         "one level per document below the instance, each labelled with its file and drawn \
          byte for byte as its part's own tree draws it"
     );
-    let (bracket_node, boss_node) = (bracket.spoken(bracket_root), boss.spoken(boss_root));
+    let (bracket_node, boss_node) = (bracket.spoken(bracket_piece), boss.spoken(boss_piece));
     assert!(
         message.contains(&format!("repair {bracket_node}"))
             && carried[0].line.contains(&format!("repair {boss_node}")),
@@ -235,32 +235,32 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
     std::fs::remove_dir_all(&dir).expect("remove the fixture directory");
 }
 
-/// **A poisoned root draws the failure that poisoned it, at depth 2.**
+/// **A poisoned part product draws the failure that poisoned it, at depth 2.**
 ///
 /// `broken.pncad` is [`common::broken_document`]: its extrude refuses
-/// and its one root, a placement of the extrude, never runs.
+/// and its one piece, a placement of the extrude, never runs.
 /// `bracket.pncad`'s one placed body is an instance of it, placed
 /// moved, so that placement never runs either; the instance is a placement
 /// of its own, loose, and the bracket's gather names it as the node
 /// that failed. An assembly instantiating the bracket draws two levels
-/// under its row, each at the node that FAILED rather than the root it
+/// under its row, each at the node that FAILED rather than the piece it
 /// cost: the bracket's instance, labelled `bracket.pncad`, and the
 /// broken part's extrude, labelled `broken.pncad`. The traceback ends
 /// at the failing node, drawn byte for byte as its own document draws
 /// it.
 #[test]
-fn a_poisoned_part_root_draws_the_failure_that_poisoned_it() {
+fn a_poisoned_part_product_draws_the_failure_that_poisoned_it() {
     let tol = Tol::witness();
     let dir = common::tempdir("partroot-poisoned");
     let mut store = Workspace::open(&dir).expect("the empty workspace opens");
 
-    let (broken, extrude, broken_root) = common::broken_document(tol);
+    let (broken, extrude, broken_piece) = common::broken_document(tol);
     store
         .save_at(&broken, "broken.pncad", tol)
         .expect("the broken part stores");
 
     let mut bracket = Doc::empty_derived("partroot-poisoned-bracket", tol);
-    // The instance's bundle empty, so it is no root of the bracket's
+    // The instance's bundle empty, so it is no piece of the bracket's
     // product of its own: the moved placement of it is.
     let inner = common::insert_into(
         &mut bracket,
@@ -308,19 +308,21 @@ fn a_poisoned_part_root_draws_the_failure_that_poisoned_it() {
          drawn as its part's own tree draws it"
     );
     // Each carrying line points at the node that failed; where that
-    // node poisoned a root of its part's product — the body's world
-    // placement (A10) — it names the root it cost too.
+    // node poisoned a piece of its part's product — the body's world
+    // placement (A10) — it names the piece it cost too.
     let inner_said = bracket.spoken(inner);
     assert!(
         message.contains(&format!("the part's {inner_said} failed"))
             && message.contains(&format!("repair {inner_said}")),
         "the top line points at the bracket's failed instance: {message}"
     );
-    let (root, failed) = (broken.spoken(broken_root), broken.spoken(extrude));
+    let (piece, failed) = (broken.spoken(broken_piece), broken.spoken(extrude));
     assert!(
-        carried[0].line.contains(&format!("its root, {root}"))
+        carried[0]
+            .line
+            .contains(&format!("poisoned {piece}, which its product reads"))
             && carried[0].line.contains(&format!("repair {failed}")),
-        "the broken part's line names the root it cost and points at the node that failed: \
+        "the broken part's line names the piece it cost and points at the node that failed: \
          {}",
         carried[0].line
     );

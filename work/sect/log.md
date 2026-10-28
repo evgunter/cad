@@ -116,3 +116,13 @@ and moves to the door with the frame's retirement. First dispatches:
 - 2026-10-28 — **The 5869 main red is fixed** (PR 5925, `sweep` `germ_torus_doors::subtract_and_intersect_refuse_where_union_does`). `torus_parallel_torus` refuses a level-end tie only where W's node lies in the triangle or within its neck. Each branch gets its own neck, derived for its shape (`√(2(r+r₂)δ)` for slabs, `√(2·max(r,r₂)·δ)` for top and bottom), and δ comes from the row's own datum. This also closes SECTTAIL's `level-tubes-of-parallel-tori-refuse-at-the-node`. It files `r-tan-carries-the-arms-proof-gaps-as-tangent-carriers` (P2) for the wider wording class.
   - **Review:** single FULL. The first pass found one MAJOR by execution: the slabs neck took one sheet's deviation where both add, so it certified `none()` over a real intersection, a regression to a false certificate. The fix pass corrected it, and the same reviewer re-ran its probes on the fixed head: APPROVE.
   - **Class:** a clearance bound is derived per shape; one constant fitted to two shapes hid this MAJOR.
+- 2026-10-28 — **Step 1b merges** (PR 5894, `cylinder-sphere-germ-pair-has-no-join-lane` closed). The cylinder × sphere chord lane and island closure stand on the section object. All 54 fixture runs pass the join and stop typed downstream, so none builds a body yet. **What waits:**
+  - props, which has no `Projected` arm on an analytic chart (SPIRICARM, filed);
+  - `edge_join`, which cannot join a spline carrier (SPLICE).
+
+  **Review:** dual concurrent (H), R1 APPROVE and R2 APPROVE-WITH-FIXES, with no MAJOR. Row `docs/dual-review-log/rows/PR-5894.md`.
+
+  **Classes** recorded for later steps:
+  - an arc a reader trusts on-surface must carry that evidence in its type, not by convention;
+  - an undecided nearness must escalate, never fold into a verdict (my delta read caught one);
+  - a surface pair's section is carried in operand order (P3, filed).

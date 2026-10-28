@@ -7,7 +7,7 @@ opened: 2026-09-16
 refs: [2752, 368]
 priority: P0
 cost: H
-blocked_on: [window-of-refuses-an-untrimmed-iso-bounded-nurbs-patch, self-intersection-drops-every-vertex-sharing-face-pair-globally]
+blocked_on: [self-intersection-drops-every-vertex-sharing-face-pair-globally]
 ---
 
 Found by both of BOOL-6's reviews (PR 2752) and filed by the S-BOOL

@@ -4,8 +4,9 @@ kind: issue
 title: PR CI's median (21.8 min) is the demos job's: its release build takes 20 min and it is the last job to finish in 44 of 61 runs over 20 min
 status: open
 opened: 2026-10-24
-priority: P4
+priority: P0
 cost: M
+parent: pr-ci-wall-clock-root-cause-measured
 ---
 
 ## Found (INTENT nightly triage, 2026-10-24)

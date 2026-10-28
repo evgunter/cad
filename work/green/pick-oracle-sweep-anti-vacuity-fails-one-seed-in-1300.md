@@ -4,7 +4,7 @@ kind: issue
 title: review_gui1_r1's pick-oracle sweep asserts a hit it never plants: about one seed in 1300 draws 120 misses and goes red
 status: open
 opened: 2026-10-21
-priority: P2
+priority: P3
 cost: E
 ---
 

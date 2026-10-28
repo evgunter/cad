@@ -759,3 +759,110 @@ close.
 touch-window fuzz seed (`0xdcf91059414eafd4`) to CPAIR's open row
 `a-touch-window-fuzz-seed-contradicts-the-dense-distance-at-1e-12`. It
 turned up in the lane's slow sets.
+
+## 2026-10-28 — the rim's exact image dispatched
+
+Lily wall 8's next stop is the rim's certification. `nurbs_pair_limbs`
+reads each chart's degree-1 image fitted through feet, though the rim is
+an exact `IsoArc` row of each wall. Filed as
+`a-rim-between-two-spline-walls-is-certified-against-a-fitted-image-not-its-exact-one`
+(P0, lily's blocker), and dispatched on `splice/rim-exact-image`.
+- The precedent is `plane_nurbs_incidence`'s `exact_arc_rim` arm, so
+  this is the same arm on the NURBS-pair lane, not a design fork.
+- SSIEDGE's fixed-schedule design row stays open for edges with no
+  exact image.
+- The ground is shared with `isotail`, `select` (edge_nurbs.rs,
+  certify.rs), `ssiedge`/`ssiarith`/`ssimarch` (ssi/certify.rs) and
+  `pcert`/`pctail` (pcurve_cache.rs). All of them are ready with no live
+  lane, so the seam is announced on the PR.
+- Letter H (a certificate's soundness), so a concurrent pair.
+- The brief binds the full slow sets of geom-brep, topo and sweep, plus
+  demo-tour's three ε rows, which CI does not run (lesson from PR 5868).
+
+## 2026-10-28 — PR 5907 (the rim's exact image) merges; lily reaches limb 3
+
+Letter H, a concurrent pair frozen at `c40a01aa44`. Both reviewers:
+APPROVE-WITH-FIXES, no MAJOR, so nothing is tallied (row `PR-5907`).
+Both re-derived the mixed certificate's containment and found it sound,
+and both found that the fallback launders nothing.
+
+The reviewers disagreed on a fact: does a rim interior to both charts
+certify at limb 3? The lane settled it by measurement. Limb 3's
+`TubeNotOneArc{Undecided}` is decided by where the carrier lies against
+the domain-cut box, in two shapes:
+1. an arc along a chart's boundary row;
+2. a carrier ending on both charts' domain sides.
+Span, ε and the sub-arc count only decide whether the carrier reaches
+limb 3 at all.
+
+**Lily wall 8:** limbs 1–2 now pass on the exact images, so she reaches
+limb 3. She has both shapes, and shape 2 (her end on a corner of both
+charts) fires first.
+- Shape 1 is `ssiedge/a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary`,
+  re-derived in this PR.
+- Shape 2 overlaps `nurbs/a-pair-walk-end-at-a-domain-corner-refuses-undecided`,
+  a P4 that says it has no consumer. Lily is one.
+- Both stand between lily and limb 3. The routing is the orchestrator's
+  next step.
+
+Filed by the lane:
+- `ssiedge/a-tube-whose-graph-margin-straddles-zero-refuses-as-a-decided-zero`
+  (P1): undecided is read as decided. This is lily's tour stop at default ε.
+- `splice/lily-wall-8-at-1e-6-reads-the-rims-crossing-angle-in-band` (P1).
+- `issues/main-red-two-tori-subtract-refuses-on-tangent-carriers-not-on-no-section-classification`.
+  SECT bisected it to its own PR 5869 (not 5886) and is fixing it on
+  `sect/two-tori-subtract-red`. Its PR moves the row into `work/sect/`.
+
+The lane also gave both lanes one `ArcRimRefusal`, behind one mapping
+door. The orchestrator re-ran the arc-rim, any-carrier and on-pair rows
+at three ε, and the exact-never-used mutation reds 5 of 6 rows.
+
+## 2026-10-28 — limb 3's two shapes claimed; a design fork weighed
+
+Lily's next stop is limb 3's one-arc walk (PR 5907's log entry). Its
+two rows move into SPLICE:
+- `ssiedge/…a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary`
+  (P0). SSIEDGE is ready with no live lane.
+- `nurbs/…a-pair-walk-end-at-a-domain-corner-refuses-undecided`. It is
+  re-banded P4 → P0, because a blocker inherits the band of what waits
+  on it, and lily is the consumer the row said did not exist.
+
+These are moves with no design implication (CLAUDE.md), so they are
+done and logged.
+
+How to read a solution set that runs along a cut box's face, or ends
+on two faces at once, is a design fork. Candidates include a box
+search over the charts' extension, an edge reading, or the topology
+the operands already state. One Opus and one Fable designer weigh it
+under `docs/DESIGN-FORK-PROTOCOL.md`, blinded (byte 123) on
+`analysis/design-fork/limb-three-boundary`. No lane is dispatched
+until they are reconciled.
+
+## 2026-10-28 — limb 3's fork reconciled; to Ev
+
+Three rounds. The designers converged:
+- lily's rim is a structural selector under D2 (PR 5216), owing no
+  limb 3;
+- the boolean's `describe_edges` must recover the selector, not map
+  `Transverse` to a witness;
+- a carrier along a domain side refuses by name.
+
+The ratified-text change goes to Ev as an `[ev]` PR. C1/C2's limb-3
+wording (PR 5652, 2026-10-25) is later than D2's ruling (PR 5216,
+2026-10-16), so the two conflict in letter. Both designers recommend
+that C2 open on a witness-selected carrier.
+
+The near-rim exclusion belongs to the boolean's interior-loop guard. It
+has no NURBS×NURBS arm and refuses spline pairs. SPLICE files that row.
+
+SELECT owns the selector type (unit 1) and import's recovery (unit 6).
+The boolean-recovery unit is in no program's list yet. SPLICE takes it
+once Ev rules, and asks SELECT's blessing on the PR.
+
+## 2026-10-28 — Ev approves the limb-3 re-wording (PR 5933)
+
+Ev: "nice catch, sounds good!". C2 now opens on a witness-selected
+carrier, and a structural selector is certified per surface, owing no
+limb 3. Fork-log row 208 is completed: B's first recommendation, as
+converged. Next is the boundary-row recovery in the boolean's
+`describe_edges` and the split's `finish`, which SPLICE takes.

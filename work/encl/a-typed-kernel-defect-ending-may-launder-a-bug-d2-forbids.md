@@ -135,7 +135,7 @@ HELD); class 3 — 2; class 4 — 0. No site was left unclassified:
 
 ### DOCTAIL — the document model (row `part-and-refactor-kernel-defect-endings-split-by-class`)
 
-- `editor-core/src/eval/parts.rs` `PartFault` `Display`, `PartProduct` where `product_recourse` says `KernelDefect` (~426) — evaluation of an instantiate node — **2**, likely, for `EvaluationOfAnotherDocument`, `UnknownNode`, `RootFailed`, `RootPoisoned`; its `ContactLineage` kind is **HELD** (contact records).
+- `editor-core/src/eval/parts.rs` `PartFault` `Display`, `PartProduct` where `product_recourse` says `KernelDefect` (~426) — evaluation of an instantiate node — **2**, likely, for `EvaluationOfAnotherDocument`, `UnknownNode`, `ReadFailed`, `ReadPoisoned`; its `ContactLineage` kind is **HELD** (contact records).
 - `parts.rs` `PartFault` `Display`, `ReferenceCycle` (~445) — evaluation with a caller's `PartResolver` (a `pub trait` the `EvalOptions` carry) — **1**, sure (editor-core `tests/part_depth_bound.rs` ~266 builds the unpinned resolver): the evaluator does not check that the resolved document hashes to its pin (`parts.rs` `.resolve(doc_ref, tol)`, ~1031), so a resolver that returns a document referring back closes a loop; the "a store that checks pins cannot hold a loop" premise holds only for the pncad store.
 - `parts.rs` `PartFault` `Display`, `NotEntered` (~457) — same — **2**, unsure: the census pass enters every part before the run reads it, but the `enter_census` doc (~632) says a cancel leaves rows that refuse `NotEntered`; a conversion must prove nothing reads after a cancel.
 - `editor-core/src/refactor.rs` `RefactorError` `Display`, `Pin` (~1203) — the split-part refactor — **2**, likely: the part replayed through the edit doors and the save validator agrees.
@@ -288,7 +288,7 @@ caller renders them (`topo/src/offset_derive.rs` prints the payload,
 ### DOCTAIL — the document model (row `part-and-refactor-kernel-defect-endings-split-by-class`)
 
 - `editor-core/src/resolve/hit.rs` `UnnamedEntity` `Say` (~65) — the public `editor_core::entity_name` / `face_name` (~306, ~320), pick resolution, and pncad-py's `unnamed` — **1**, likely: those doors take a caller's `EntityRef { body: u32, key }`, and `body: 999` passes unchecked to the name table's miss. This is the shape of the first pass's REFS `NoSuchBody`.
-- `editor-core/src/eval/parts.rs` `PartFault` `Display`, `RootFailureUnrecorded` (~410) — evaluation of an instantiate node — **2**, unsure: the product and the evaluation should be one evaluation's, but the first pass found the caller's `PartResolver` reaching `ReferenceCycle`, and a resolver whose product disagrees with its evaluation is not excluded.
+- `editor-core/src/eval/parts.rs` `PartFault` `Display`, `PartProductFailureUnrecorded` (~410) — evaluation of an instantiate node — **2**, unsure: the product and the evaluation should be one evaluation's, but the first pass found the caller's `PartResolver` reaching `ReferenceCycle`, and a resolver whose product disagrees with its evaluation is not excluded.
 
 ### TESS — `crates/mesh/src/types.rs` (row `tessellation-ring-and-step-refusals-name-the-kernel`)
 

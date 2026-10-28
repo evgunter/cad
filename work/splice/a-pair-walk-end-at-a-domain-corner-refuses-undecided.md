@@ -4,7 +4,7 @@ kind: issue
 title: ssi/four: a pair-walk carrier ending at a domain corner refuses Undecided, because face_roots resolves no corner root
 status: open
 opened: 2026-10-14
-priority: P4
+priority: P0
 cost: H
 ---
 

@@ -2720,6 +2720,9 @@ pub enum SectionUnbuilt {
     },
     /// The march refused.
     March(geom_brep::SsiError),
+    /// A closed loop of the section could not be opened at its first
+    /// site: the knot edit refused.
+    Seat(geom_core::spline::KnotAlgebraError),
 }
 
 impl core::fmt::Display for SectionUnbuilt {
@@ -2736,6 +2739,10 @@ impl core::fmt::Display for SectionUnbuilt {
                  {scalar}. Recourse: run the operation at f64"
             ),
             Self::March(e) => write!(f, "{}", e.render(geom_brep::recourse::Reading::Build)),
+            Self::Seat(e) => write!(
+                f,
+                "the section's closed loop could not be opened at its first site ({e})"
+            ),
         }
     }
 }

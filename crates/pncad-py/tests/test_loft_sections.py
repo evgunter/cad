@@ -78,11 +78,13 @@ class TestSetLoftSections(unittest.TestCase):
 
     def test_a_shape_no_evaluation_lofts_refuses_at_both_doors(self):
         # Broken by a shape check one door asks and the other does not:
-        # one section, an empty station, and degree 2 through two
-        # sections, each through `insert` and `set_loft_sections`.
+        # one section, an empty station, a station that slides by
+        # nothing, and degree 2 through two sections, each through
+        # `insert` and `set_loft_sections`.
         rows = [
             ([], 1, "too_few_sections"),
             ([(self.b, [])], 1, "empty_station"),
+            ([(self.b, up(0.0))], 1, "station_in_first_plane"),
             ([(self.b, up(1.0))], 2, "degree_out_of_range"),
         ]
         for then, degree, fault in rows:
@@ -94,6 +96,7 @@ class TestSetLoftSections(unittest.TestCase):
         for then, fault in [
             ([], "too_few_sections"),
             ([(self.b, [])], "empty_station"),
+            ([(self.b, up(0.0))], "station_in_first_plane"),
         ]:
             with self.subTest(fault=fault, door="set_loft_sections"):
                 with self.assertRaises(EditError) as rewritten:
