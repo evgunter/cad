@@ -53,7 +53,6 @@ use crate::fixture;
 use std::collections::BTreeMap;
 
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box, sample_offset};
-use editor_core::clearance::{MinSepSelection, MinSeparationConfig, min_separation};
 use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, certifying_vector, drive};
 use editor_core::mc::{McConfig, monte_carlo};
 use editor_core::report::{Dials, report_key};
@@ -63,6 +62,7 @@ use editor_core::{
     RecipeNodeId, RoleSeg, SitedRef, StableName, UnitSym, ValuePayload, VarName,
 };
 use geom_core::{Bounds, Tol};
+use topo::clearance::{MinSeparationConfig, Side, min_separation};
 
 use fixture::{Recorder, len};
 
@@ -325,16 +325,14 @@ fn min_separation_brackets_a_curved_pair_at_every_budget() {
     let truth = d - 2.0 * r; // 1.0, by construction.
     let (doc, a, b) = pins(d, r);
     let ev: editor_core::Evaluation<geom_core::Interval> = eval_over(&doc, None);
-    let side = |node: RecipeNodeId| -> MinSepSelection<'_> {
+    let side = |node: RecipeNodeId| -> Side<'_, geom_core::Interval> {
         let Some(NodeResult::Ok(value)) = ev.result(node) else {
             panic!("the pin evaluated");
         };
         let ValuePayload::Body(body) = &value.payload else {
             panic!("an extrude's value is one body");
         };
-        MinSepSelection {
-            at: node,
-            index: 0,
+        Side {
             body: body.body(),
             faces: body.body().faces().map(|(k, _)| k).collect(),
         }
@@ -344,6 +342,8 @@ fn min_separation_brackets_a_curved_pair_at_every_budget() {
         let m = min_separation(
             &side(a),
             &side(b),
+            // Two pins, two nodes.
+            a == b,
             MinSeparationConfig {
                 max_cell_pairs: pairs,
                 ..MinSeparationConfig::default()

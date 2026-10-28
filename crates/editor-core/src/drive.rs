@@ -1236,11 +1236,10 @@ pub enum DriveRefusal {
     /// (E12's unit, deviation D3; issue `symbolic-tier-and-clearance-engine`).
     ///
     /// `min_clearance` answers with an enclosure computed by
-    /// [`crate::clearance`]'s engine, which is written at
-    /// [`geom_core::Interval`] concretely — it borrows a
-    /// `&Body<Interval>` — so it cannot be handed the leaf replay's
-    /// `Body<Sym<Interval>>`, and no scalar remap of a body exists to
-    /// strip one. The lane therefore has no clearance answer at all.
+    /// [`topo::clearance`]'s engine, and the symbolic lane does not hand
+    /// it the leaf replay's `Body<Sym<Interval>>`:
+    /// [`crate::measure::MinClearanceLane`] answers `None` at `Sym`. The
+    /// lane therefore has no clearance answer at all.
     ///
     /// Refused up front rather than degraded: the trait's honest `None`
     /// reads downstream as the typed absence
@@ -1561,8 +1560,8 @@ fn clearance_measure(doc: &Doc<ProfileProgram>) -> Option<RecipeNodeId> {
 /// and it does not ride here: it rides on the verdict
 /// ([`ParamBoxVerdict::symbolic`]) and reaches a consumer through
 /// `crate::eval::replay_leaf`. The clearance engine is the one consumer
-/// that cannot take it — its selection type is written at `Interval`
-/// concretely — which is why a document carrying a `min_clearance`
+/// that does not take it — the `min_clearance` lane answers `None` at
+/// `Sym` — which is why a document carrying a `min_clearance`
 /// measure refuses the symbolic tier up front
 /// ([`DriveRefusal::SymbolicClearanceUnsupported`]) rather than
 /// certifying leaves the engine could not then read.
@@ -1867,27 +1866,12 @@ fn log_read(escalations: &[geom_core::k_stats::Escalation]) -> Option<LeafVerdic
 }
 
 /// What one escalation makes of a leaf: a terminal sliver when its
-/// enclosure sits wholly inside the band ([`sliver`]), otherwise the
+/// enclosure sits wholly inside the band ([`topo::clearance::sliver`]), otherwise the
 /// cue to bisect. One spelling for the three reads of `classify_replay`.
 fn indeterminate(source: &geom_core::Indeterminate) -> LeafVerdict {
-    sliver(source).map_or(LeafVerdict::Bisect, |predicate| {
+    topo::clearance::sliver(source).map_or(LeafVerdict::Bisect, |predicate| {
         LeafVerdict::Refused(RefusalReason::SliverTerminal { predicate })
     })
-}
-
-/// The predicate name of an escalation whose enclosure sits WHOLLY
-/// inside the ambiguity band `(ε, Kε)` — the ratified terminal-sliver
-/// test, the classifier's own verdict
-/// ([`geom_core::Indeterminate::terminal_sliver`]) — or `None` when
-/// refinement could still decide it.
-///
-/// **Crate-visible because the clearance engine's inner subdivision
-/// refuses by the same rule** ([`crate::clearance`]): one home, so the
-/// two subdivisions cannot drift apart on what a sliver is.
-pub(crate) fn sliver(source: &geom_core::Indeterminate) -> Option<&'static str> {
-    source
-        .terminal_sliver
-        .then_some(source.predicate.unwrap_or("<unnamed>"))
 }
 
 /// The D9 split: the axis of greatest relative width, ties to the
@@ -2217,27 +2201,28 @@ pub fn assertion_at(
 /// enumerated, and every refusal not listed bisects.
 ///
 /// The clearance arm matches every [`ClearanceRefusal`] arm, but its
-/// carrier's one producer — `clearance::min_separation`, through
-/// [`MinClearanceLane`]'s interval impl — refuses with four of them:
-/// `EmptyScope`, `NoAdmittedPair`, `Unsupported` and `PoisonEnclosure`.
-/// The other seven are classed by what they mean, so the match stays
-/// exhaustive and an arm added to the enum does not compile unclassed;
-/// the carrier narrows to the measure path's own arms when the enum
-/// splits (`work/clear/SHELL-3.md`).
+/// carrier's one producer — `topo::clearance::min_separation`, through
+/// [`MinClearanceLane`]'s interval impl — refuses with four of the
+/// engine's: `EmptyScope`, `NoAdmittedPair`, `Unsupported` and
+/// `PoisonEnclosure`. The other seven are classed by what they mean, so
+/// the match stays exhaustive and an arm added to either enum does not
+/// compile unclassed; the carrier narrows to the engine's own type when
+/// `MinClearanceLane` goes
+/// (`work/clear/symbolic-tier-and-clearance-engine.md`).
 ///
 /// [`ClearanceRefusal`]: crate::clearance::ClearanceRefusal
 /// [`MinClearanceLane`]: crate::measure::MinClearanceLane
 fn box_independent_measure_class(kind: &NodeErrorKind) -> Option<MeasureRefusalClass> {
     match kind {
         NodeErrorKind::MeasureClearanceRefused(r) => {
-            use crate::clearance::ClearanceRefusal as C;
+            use crate::clearance::{ClearanceRefusal as C, EngineRefusal as E};
             let engine = || Some(MeasureRefusalClass::Clearance(r.clone()));
             match r {
                 // Reached: which faces are in scope, whether the two
                 // scopes pair at all, and whether the carrier has an
                 // implementation are decided by the document's own
                 // topology and the engine's support table, not by the box.
-                C::EmptyScope | C::NoAdmittedPair | C::Unsupported { .. } => engine(),
+                C::Engine(E::EmptyScope | E::NoAdmittedPair | E::Unsupported { .. }) => engine(),
                 // Not reached from `min_separation`. The bound and the
                 // run's tolerance are fixed for the whole drive, so no
                 // sub-box changes them either.
@@ -2245,16 +2230,14 @@ fn box_independent_measure_class(kind: &NodeErrorKind) -> Option<MeasureRefusalC
                 // Reached: an enclosure that did not evaluate over this
                 // box (NaI, or empty) may evaluate over a smaller one, so
                 // nothing proves it box-independent.
-                C::PoisonEnclosure { .. } => None,
+                C::Engine(E::PoisonEnclosure { .. }) => None,
                 // Not reached from `min_separation`. Each is a function
                 // of the box — a budget, an in-band decision, a witness,
                 // a certified leaf, or a selection read at one leaf's
                 // replay (a node that did not build there) — and can
                 // differ over a smaller one.
-                C::Budget(_)
+                C::Engine(E::Budget(_) | E::Sliver { .. } | E::WitnessUnverified { .. })
                 | C::Selection(_)
-                | C::Sliver { .. }
-                | C::WitnessUnverified { .. }
                 | C::NothingCertified { .. } => None,
             }
         }

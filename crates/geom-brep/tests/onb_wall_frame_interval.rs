@@ -77,7 +77,7 @@ fn segment<T: Real>(i: usize) -> geom_core::Vec3<T> {
     w[1] - w[0]
 }
 
-/// `editor_core::clearance::refines`, copied: BOTH axes must move a
+/// `topo::clearance`'s `refines`, copied: BOTH axes must move a
 /// bound of the cell's enclosure when the window is halved.
 fn refines(surface: &Surface<Interval>, u: (f64, f64), v: (f64, f64)) -> bool {
     let cell = |u: (f64, f64), v: (f64, f64)| {

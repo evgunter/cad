@@ -200,12 +200,12 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
     // the goldening form, and this arm prints it: faces as `FaceKey`
     // `Debug`, a bound as its bits, a budget as its `Debug`.
     Admission {
-        row: "MeasureClearanceRefused/Unsupported",
+        row: "MeasureClearanceRefused/Engine/Unsupported",
         span: "FaceKey(null)",
         filed: "work/clear/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
     },
     Admission {
-        row: "MeasureClearanceRefused/PoisonEnclosure",
+        row: "MeasureClearanceRefused/Engine/PoisonEnclosure",
         span: "FaceKey(null)/FaceKey(null)",
         filed: "work/clear/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
     },
@@ -215,7 +215,7 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
         filed: "work/clear/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
     },
     Admission {
-        row: "MeasureClearanceRefused/Budget",
+        row: "MeasureClearanceRefused/Engine/Budget",
         span: "Depth { max_cell_depth: 24 }",
         filed: "work/clear/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
     },
@@ -315,17 +315,17 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ProfileReplay/Path/ZeroDirection",
     "ProfileReplay/Transition",
     // work/clear/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md
-    "MeasureClearanceRefused/Budget",
-    "MeasureClearanceRefused/EmptyScope",
-    "MeasureClearanceRefused/NoAdmittedPair",
+    "MeasureClearanceRefused/Engine/Budget",
+    "MeasureClearanceRefused/Engine/EmptyScope",
+    "MeasureClearanceRefused/Engine/NoAdmittedPair",
+    "MeasureClearanceRefused/Engine/PoisonEnclosure",
+    "MeasureClearanceRefused/Engine/Sliver",
+    "MeasureClearanceRefused/Engine/Unsupported",
+    "MeasureClearanceRefused/Engine/WitnessUnverified",
     "MeasureClearanceRefused/NotADistance",
     "MeasureClearanceRefused/NothingCertified",
-    "MeasureClearanceRefused/PoisonEnclosure",
     "MeasureClearanceRefused/Selection",
-    "MeasureClearanceRefused/Sliver",
     "MeasureClearanceRefused/ToleranceHasNoBand",
-    "MeasureClearanceRefused/Unsupported",
-    "MeasureClearanceRefused/WitnessUnverified",
     // work/profiletail/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     "Profile/InconsistentArc",
     // work/honeword/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
@@ -776,7 +776,7 @@ fn every_node_refusal_renders_within_the_budget() {
     }
 }
 
-use editor_core::clearance::ClearanceRefusal;
+use editor_core::clearance::{ClearanceRefusal, EngineRefusal};
 use editor_core::{
     BifurcationKind, Diagnosis, EvalError, ParamBoxError, PlacementRuleFault, ResolveError,
     SeedError,
@@ -1069,8 +1069,16 @@ test_utils::f6_variants! {
 test_utils::f6_variants! {
     /// `ClearanceRefusal`'s arms, for the `MeasureClearanceRefused/` rows.
     const CLEARANCE_REFUSAL: ClearanceRefusal = [
-        Sliver, Budget, Unsupported, Selection, PoisonEnclosure, NothingCertified, NotADistance,
-        EmptyScope, ToleranceHasNoBand, NoAdmittedPair, WitnessUnverified,
+        Engine, Selection, NothingCertified, NotADistance, ToleranceHasNoBand,
+    ];
+}
+
+test_utils::f6_variants! {
+    /// `EngineRefusal`'s arms, for the `MeasureClearanceRefused/Engine/`
+    /// rows.
+    const ENGINE_REFUSAL: EngineRefusal = [
+        Sliver, Budget, Unsupported, PoisonEnclosure, EmptyScope, NoAdmittedPair,
+        WitnessUnverified,
     ];
 }
 
@@ -1089,6 +1097,7 @@ const ROSTERS: &[(&str, &[&str])] = {
         ("Diagnosis", DIAGNOSIS.identifiers()),
         ("BifurcationKind", BIFURCATION_KIND.identifiers()),
         ("ClearanceRefusal", CLEARANCE_REFUSAL.identifiers()),
+        ("EngineRefusal", ENGINE_REFUSAL.identifiers()),
         (
             "NamingError",
             crate::display_contract::NAMING_ERROR.identifiers(),
@@ -1185,7 +1194,17 @@ fn forward(kind: &NodeErrorKind) -> Forward {
             welded(levels)
         }
         NodeErrorKind::WitnessBifurcation(e) => one("BifurcationKind", &e.kind),
-        NodeErrorKind::MeasureClearanceRefused(e) => one("ClearanceRefusal", e),
+        NodeErrorKind::MeasureClearanceRefused(e) => {
+            let mut levels = vec![level("ClearanceRefusal", e)];
+            match e {
+                ClearanceRefusal::Engine(engine) => levels.push(level("EngineRefusal", engine)),
+                ClearanceRefusal::Selection(_)
+                | ClearanceRefusal::NothingCertified { .. }
+                | ClearanceRefusal::NotADistance { .. }
+                | ClearanceRefusal::ToleranceHasNoBand => {}
+            }
+            welded(levels)
+        }
         // Labelled by the standing each carries, the names the filed
         // rows cite them by.
         NodeErrorKind::MeasureRefUnreadable { error, .. } => Forward::Welded {
@@ -4994,24 +5013,27 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         ));
     }
     {
-        use editor_core::clearance::{CellBudget, SelectionRefusal};
+        use editor_core::clearance::{CellBudget, EngineRefusal, SelectionRefusal};
+        let engine = |refusal| ClearanceRefusal::Engine(refusal);
         for (n, refusal) in [
             (
-                "Sliver",
-                ClearanceRefusal::Sliver {
+                "Engine/Sliver",
+                engine(EngineRefusal::Sliver {
                     predicate: "clearance_pair_separation",
-                },
+                }),
             ),
             (
-                "Budget",
-                ClearanceRefusal::Budget(CellBudget::Depth { max_cell_depth: 24 }),
+                "Engine/Budget",
+                engine(EngineRefusal::Budget(CellBudget::Depth {
+                    max_cell_depth: 24,
+                })),
             ),
             (
-                "Unsupported",
-                ClearanceRefusal::Unsupported {
+                "Engine/Unsupported",
+                engine(EngineRefusal::Unsupported {
                     carrier: "a free-form face",
                     face: FaceKey::default(),
-                },
+                }),
             ),
             (
                 "Selection",
@@ -5021,25 +5043,28 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
                 }),
             ),
             (
-                "PoisonEnclosure",
-                ClearanceRefusal::PoisonEnclosure {
+                "Engine/PoisonEnclosure",
+                engine(EngineRefusal::PoisonEnclosure {
                     a: FaceKey::default(),
                     b: FaceKey::default(),
-                },
+                }),
             ),
             (
                 "NothingCertified",
                 ClearanceRefusal::NothingCertified { refused_leaves: 12 },
             ),
             ("NotADistance", ClearanceRefusal::NotADistance { c: -1.0 }),
-            ("EmptyScope", ClearanceRefusal::EmptyScope),
+            ("Engine/EmptyScope", engine(EngineRefusal::EmptyScope)),
             ("ToleranceHasNoBand", ClearanceRefusal::ToleranceHasNoBand),
-            ("NoAdmittedPair", ClearanceRefusal::NoAdmittedPair),
             (
-                "WitnessUnverified",
-                ClearanceRefusal::WitnessUnverified {
+                "Engine/NoAdmittedPair",
+                engine(EngineRefusal::NoAdmittedPair),
+            ),
+            (
+                "Engine/WitnessUnverified",
+                engine(EngineRefusal::WitnessUnverified {
                     what: "the f64 rebuild found the pair clear of the bound".to_owned(),
-                },
+                }),
             ),
         ] {
             rows.push(row(

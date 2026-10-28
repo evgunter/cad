@@ -66,7 +66,7 @@ pub enum MeasurePrimitive<R = SitedRef> {
     /// ([`crate::eval::ValuePayload::MeasureUnavailable`]): a station
     /// pair found by a point-scalar search is an upper bound on the
     /// minimum and not the minimum. At `Interval` over a leaf the value
-    /// IS `clearance::min_separation`'s bracket.
+    /// IS `topo::clearance::min_separation`'s bracket.
     MinClearance {
         /// The first selection.
         a: R,
@@ -309,7 +309,7 @@ impl core::fmt::Display for MeasureUnavailableAt {
 /// call site rather than a quietly degraded answer.
 ///
 /// The engine that computes it is the interval lane's
-/// (`clearance::min_separation`) and so is the only `Some`.
+/// (`topo::clearance::min_separation`) and so is the only `Some`.
 pub trait MinClearanceLane: geom_core::Real {
     /// The minimum separation between two resolved selections, or
     /// `None` when this scalar cannot carry an enclosure.
@@ -393,20 +393,23 @@ impl MinClearanceLane for geom_core::Interval {
     ) -> Option<Result<Self, crate::clearance::ClearanceRefusal>> {
         fn side<'b>(
             o: &MinClearanceOperand<'b, geom_core::Interval>,
-        ) -> crate::clearance::MinSepSelection<'b> {
-            crate::clearance::MinSepSelection {
-                at: o.at,
-                index: o.index,
+        ) -> topo::clearance::Side<'b, geom_core::Interval> {
+            topo::clearance::Side {
                 body: o.body,
                 faces: o.faces.clone(),
             }
         }
+        // One body when both references read the same output of the
+        // same node: the engine's wedge rule then applies.
+        let same_body = a.at == b.at && a.index == b.index;
         Some(
-            crate::clearance::min_separation(
+            topo::clearance::min_separation(
                 &side(a),
                 &side(b),
-                crate::clearance::MinSeparationConfig::default(),
+                same_body,
+                topo::clearance::MinSeparationConfig::default(),
             )
+            .map_err(crate::clearance::ClearanceRefusal::Engine)
             .map(|m| m.enclosure()),
         )
     }
@@ -417,12 +420,12 @@ impl MinClearanceLane for geom_core::Interval {
 /// deviation D3; issue `symbolic-tier-and-clearance-engine`).
 ///
 /// Every other lane the tier composes with is scalar-generic and runs
-/// at `Sym<T>` unaltered. This one is not: `clearance`'s engine
-/// is written at [`geom_core::Interval`] concretely — its selection type
-/// borrows a `&Body<Interval>` and its inner subdivision is spelled in
-/// that type — so the door cannot be handed a `Body<Sym<Interval>>`, and
-/// stripping one would need a scalar remap of a whole body, which no
-/// door in `topo` offers today.
+/// at `Sym<T>` unaltered. This one does not yet: the engine's door
+/// ([`topo::clearance::min_separation`]) reads a `Body<T>` at any
+/// certifying scalar, but this lane does not call it, because the
+/// bracket's way back into `Sym` — each end a fresh unknown through
+/// [`geom_core::Real::from_computed`] — is not written
+/// (`work/clear/symbolic-tier-and-clearance-engine.md`).
 ///
 /// `None` is therefore the honest answer, and it behaves exactly as the
 /// point scalars' `None` does: `min_clearance` refuses TYPED at this
@@ -584,7 +587,7 @@ pub enum UnevaluatedReason {
 /// **What it bought, and where.** The clearance SWEEP's windows are
 /// cut and its cells dropped. The path that raises
 /// [`UnevaluatedReason::WindowSuperset`] is
-/// `min_clearance -> clearance::min_separation`, and **no window on
+/// `min_clearance -> topo::clearance::min_separation`, and **no window on
 /// that path is tightened at all**: minting a description inside an
 /// evaluation records the boundary walk's funnel rows in the leaf's
 /// census while the `f64` witness build never walks, so every leaf of
