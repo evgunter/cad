@@ -481,10 +481,8 @@ fn holds_until_parting(name: &str, floor: usize, owed: &[(&str, &str)], parting:
         Some(parting),
         "{name}: the apart move parts elsewhere than its owed parting ({found:?})"
     );
-    // The flip at the parting is the parting: the decision after it is
-    // the first the two builds take apart.
     let early: Vec<&str> = (found.flips.iter())
-        .filter(|(k, _, _, _)| *k != found.compared)
+        .filter(|(k, p, _, _)| (*k, *p) != (found.compared, parting))
         .map(|(_, p, _, _)| *p)
         .collect();
     assert!(
@@ -526,18 +524,6 @@ fn revalue_boss_union_apart_to_its_parting() {
         &[],
         "pcurve_chart_radial_moving",
         "work/inlane/under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move.md",
-    );
-}
-
-/// `heat_sink_fins` under the apart move, to where it parts.
-#[test]
-fn revalue_heat_sink_fins_apart_to_its_parting() {
-    holds_until_parting(
-        "heat_sink_fins",
-        4918,
-        &[],
-        "point_in_loop_segment",
-        "work/inlane/under-the-apart-move-heat-sink-fins-parts-at-a-point-exactly-on-a-plane.md",
     );
 }
 

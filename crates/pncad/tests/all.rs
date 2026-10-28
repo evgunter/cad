@@ -7393,7 +7393,7 @@ fn a_far_turned_copy_builds_and_its_read_out_refuses_to_compose() {
 /// axis is any axis read the door admits: the box's end cap's.
 mod pattern_presets_are_recognised_as_themselves {
     use pncad::document::{
-        BodyRead, DocEdit, Formula, Operand, ProfileDoc, RecipeNodeId, TargetAxis, VarName,
+        BodyRead, Formula, Operand, ProfileDoc, RecipeNodeId, TargetAxis, VarName,
     };
     use pncad::pattern::{Recognised, RingStep};
 
