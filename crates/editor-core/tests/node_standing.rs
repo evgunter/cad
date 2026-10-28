@@ -204,12 +204,7 @@ fn every_standing_renders_one_way_through_every_door() {
         );
         let gather = editor_core::product(&placed, &eval, Tol::witness())
             .expect_err("a placement with no value refuses the gather");
-        speaks(
-            "the product gather",
-            "product: piece ",
-            &gather,
-            standing,
-        );
+        speaks("the product gather", "product: piece ", &gather, standing);
     }
 
     // The clearance engine replays the document itself, so its

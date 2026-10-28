@@ -403,7 +403,7 @@ fn the_subject_door_refuses_an_evaluation_or_a_subject_of_another_document() {
 /// placement, rather
 /// than forwarding the gather's account of the same state.
 #[test]
-fn a_root_without_a_value_refuses_as_the_registrys_own_precondition() {
+fn a_placement_without_a_value_refuses_as_the_registrys_own_precondition() {
     let tol = Tol::witness();
     let (doc, placement) = failing_placement("docm5-precedence");
     let ev: Evaluation<f64> = corpus::eval(&doc);

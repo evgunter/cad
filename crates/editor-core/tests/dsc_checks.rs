@@ -284,7 +284,7 @@ fn annihilation_without_a_stated_expectation_is_clean() {
 }
 
 #[test]
-fn stale_expectation_on_a_nonexistent_root() {
+fn stale_expectation_on_a_nonexistent_placement() {
     // The key names no placement output at all (wrong id): same staleness,
     // attributed at the entry's own key.
     let (doc, placement) = disjoint_union();
@@ -429,7 +429,7 @@ fn a_findings_attribution_resolves_to_its_subject() {
 /// Two slabs placed as two SEPARATE copies (no boolean joining them),
 /// `b` centered at `cx`: the two placements, the shape a document
 /// grows when a body is placed beside what it was meant to join.
-fn two_roots(cx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+fn two_placements(cx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("dsc-checks-two-roots", Tol::witness());
     let (doc, a) = slab(doc, 0.0, 0.5, 1.0);
     let (doc, b) = slab(doc, cx, 0.5, 1.0);
@@ -451,10 +451,10 @@ fn at_rest(report: &editor_core::ChecksReport) -> Vec<CheckFinding> {
 }
 
 #[test]
-fn overlapping_roots_are_one_interference_finding_naming_both() {
+fn overlapping_placements_are_one_interference_finding_naming_both() {
     // Half over each other: the census decides the two copies' material
     // overlaps, and the check bounds the overlap.
-    let (doc, a, b) = two_roots(0.5);
+    let (doc, a, b) = two_placements(0.5);
     let report = checks(&doc, &ChecksConfig::default());
     assert_eq!(report.skipped, vec![CheckId::ChartCoherence]);
     let found = at_rest(&report);
@@ -477,20 +477,20 @@ fn overlapping_roots_are_one_interference_finding_naming_both() {
 }
 
 #[test]
-fn roots_moved_apart_are_clean() {
+fn placements_moved_apart_are_clean() {
     // Same two placements, far apart: the census finds no pair at all.
-    let (doc, _, _) = two_roots(3.0);
+    let (doc, _, _) = two_placements(3.0);
     let report = checks(&doc, &ChecksConfig::default());
     assert_eq!(report.findings, Vec::new());
     assert_eq!(report.skipped, vec![CheckId::ChartCoherence]);
 }
 
 #[test]
-fn touching_roots_are_the_lints_contact_and_no_at_rest_finding() {
+fn touching_placements_are_the_lints_contact_and_no_at_rest_finding() {
     // Face-to-face at x = 0.5: disjoint interiors, shared boundary. The
     // census records the contact as a row, the lint reports it, and the
     // at-rest check reports nothing of it.
-    let (doc, _, _) = two_roots(1.0);
+    let (doc, _, _) = two_placements(1.0);
     let report = checks(&doc, &ChecksConfig::default());
     assert_eq!(at_rest(&report), Vec::new(), "{report}");
     let rests = report
@@ -569,7 +569,7 @@ fn failed_placement_world(id: &str) -> (ProfileDoc, EvalOptions, RecipeNodeId) {
 
 #[test]
 fn at_rest_off_is_visibly_skipped_and_independent() {
-    let (doc, _, _) = two_roots(0.5);
+    let (doc, _, _) = two_placements(0.5);
     let cfg = ChecksConfig {
         at_rest: Severity::Off,
         ..ChecksConfig::default()
@@ -715,7 +715,7 @@ fn the_registry_order_is_every_check() {
 /// exception).
 #[test]
 fn at_rest_refuses_a_loud_interference_at_error_only() {
-    let (doc, _, _) = two_roots(0.5);
+    let (doc, _, _) = two_placements(0.5);
     let warn = ChecksConfig::default();
     let report = checks(&doc, &warn);
     assert_eq!(at_rest(&report).len(), 1, "{report}");
@@ -731,7 +731,7 @@ fn at_rest_refuses_a_loud_interference_at_error_only() {
 #[test]
 fn at_rest_findings_are_certified_and_deterministic() {
     assert_eq!(CheckId::AtRest.kind(), CheckKind::Certified);
-    let (doc, _, _) = two_roots(0.5);
+    let (doc, _, _) = two_placements(0.5);
     let cfg = ChecksConfig::default();
     assert_eq!(checks(&doc, &cfg), checks(&doc, &cfg));
 }
@@ -964,7 +964,7 @@ fn a_coherence_measurement_renders_its_length_and_its_band() {
 /// turned inside out (`Body::revert`, a public op), which tier 3 refuses
 /// `NegativeVolume`.
 #[test]
-fn a_root_tier_3_refuses_is_reported_not_at_rest() {
+fn a_placement_tier_3_refuses_is_reported_not_at_rest() {
     use editor_core::{NodeResult, ValuePayload};
     let doc = ProfileDoc::empty_derived("dsc-checks-not-at-rest", Tol::witness());
     let (doc, slab) = slab(doc, 0.0, 0.5, 1.0);

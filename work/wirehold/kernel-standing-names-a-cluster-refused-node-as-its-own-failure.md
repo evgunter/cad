@@ -34,13 +34,13 @@ consumer that is not the viewer:
 - `appearance::AppearanceLossCause::Indeterminate`
   (`crates/editor-core/src/appearance.rs`), which is what the CHROME row
   named. The viewer does not surface appearance losses today;
-- `resolve::ResolveIndeterminate`, `checks::ChecksError::Root`,
+- `resolve::ResolveIndeterminate`, `checks::ChecksError::Placement`,
   `names::interrogate::InterrogateError::Standing`,
   `resolve::pick::NodePickError::Standing` and `NameLookupError::Standing`,
   `resolve::hit::HitTestError::Standing`, `stackup`'s no-measure
   refusal, `clearance::SelectionRefusal::NodeDidNotBuild`,
   `names::geompred`'s `NodeHasNoValue`/`DatumHasNoValue`;
-- `product::ProductError::Root`, which carries the root's standing
+- `product::ProductError::Piece`, which carries the root's standing
   whole and renders it as `product: root {standing}`, so it inherits
   the standing's recourse, *"fix the node's own failure"* included.
 

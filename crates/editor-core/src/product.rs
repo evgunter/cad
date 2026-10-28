@@ -1832,7 +1832,7 @@ mod tests {
     /// gather's subject: the standing names the node, its state and the
     /// repair, so the gather adds only that the node is a piece.
     #[test]
-    fn a_root_without_a_value_renders_its_standing() {
+    fn a_piece_without_a_value_renders_its_standing() {
         let standing = NodeStanding::Poisoned {
             node: RecipeNodeId::new(0, test_utils::refusal::tagged(4)),
             through: RecipeNodeId::new(0, test_utils::refusal::tagged(2)),
@@ -1847,7 +1847,7 @@ mod tests {
     /// each as a piece, so a carrier that draws no per-line subject
     /// still says which pieces failed.
     #[test]
-    fn the_bare_root_invalid_header_names_each_root() {
+    fn the_bare_piece_invalid_header_names_each_piece() {
         let source = |node: u64| SourceFinding {
             node: RecipeNodeId::new(0, test_utils::refusal::tagged(node)),
             output: 0,

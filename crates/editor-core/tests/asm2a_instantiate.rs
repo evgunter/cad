@@ -1021,7 +1021,7 @@ fn r1_a_reference_cycle_refuses_naming_the_loop() {
 /// an `Evaluation` that died with the resolution. The failed node is
 /// the part's one instance, itself the placement.
 #[test]
-fn r1_a_broken_part_names_its_failing_root_and_cause() {
+fn r1_a_broken_part_names_its_failing_piece_and_cause() {
     // The part's own instance names a reference its store cannot
     // resolve: a typed cause, one document down.
     let missing = DocRef {
@@ -1160,7 +1160,7 @@ fn a_depth_three_chain_keeps_every_level_and_its_document() {
 /// level of its chain is the extrude's line exactly as the part's own
 /// evaluation draws it.
 #[test]
-fn a_poisoned_root_carries_the_failure_that_poisoned_it() {
+fn a_poisoned_piece_carries_the_failure_that_poisoned_it() {
     let tol = Tol::witness();
     let (part, extrude, placed) = poisoned_part("asm2a-poisoned-part");
     let own = own_line(&part, extrude, &EvalOptions::default());
@@ -1258,7 +1258,7 @@ fn own_line(doc: &ProfileDoc, node: RecipeNodeId, opts: &EvalOptions) -> String 
 /// instance carries both levels, typed, each drawn as its own document
 /// draws it, and the last is the extrude's line.
 #[test]
-fn a_poisoned_root_two_documents_down_chains_to_the_failing_node() {
+fn a_poisoned_piece_two_documents_down_chains_to_the_failing_node() {
     let tol = Tol::witness();
     let mut store = StubStore::default();
     let (part, extrude, part_piece) = poisoned_part("asm2a-poisoned-deep-part");

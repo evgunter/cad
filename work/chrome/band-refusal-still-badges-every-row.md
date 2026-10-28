@@ -244,10 +244,10 @@ document-level mark existed, which was wrong):
   fault on an assembly-shaped document, and every document a Band
   refusal reaches is one — the fault is recorded against instances.
 - What that badge lacks is the band's WORDS: its message is
-  `AssemblyError::product_refusal` over `ProductError::RootFailed
+  `AssemblyError::product_refusal` over `ProductError::PieceFailed
   { node }`, which reads *"product: root N failed to evaluate (ask
   `Evaluation::node_error` for the typed cause)"* — the gather error
-  carries no cause, and `frame::badge_site` leaves `RootFailed` to the
+  carries no cause, and `frame::badge_site` leaves `PieceFailed` to the
   tree.
 
 **Moved since (2026-10-01, `at-rest-badge-repeats-a-gather-refusal-another-channel-carries`):**
@@ -270,7 +270,7 @@ The options:
   reached rows a run-refusal `RowStatus` (e.g. `RunRefused`) toned
   `Advisory`. One loud mark for one cause, at document level — which
   is where the cause lives (the document's tolerance). The badge half
-  helps every `RootFailed`, not only Band. `badge_site`'s one-for-one
+  helps every `PieceFailed`, not only Band. `badge_site`'s one-for-one
   pairing is restated (the new state pairs with no gather class) and
   its guard test with it; the link decision answers `None` for the
   new state.

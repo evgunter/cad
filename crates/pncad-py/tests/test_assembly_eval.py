@@ -600,7 +600,7 @@ class TestAPartWhosePieceIsPoisoned(unittest.TestCase):
         self.assertIsNone(cause.__cause__, "the chain ends at the refusing node")
         self.assertNotIn(str(cause), text, "the instance never quotes it")
 
-    def test_the_parts_own_gather_names_the_root_and_its_failed_ancestor(self):
+    def test_the_parts_own_gather_names_the_piece_and_its_failed_ancestor(self):
         """`ProductError.node` and `.through` are the standing's."""
         with self.assertRaises(pncad.ProductError) as caught:
             pncad.product(self.part, evaluate(self.part))

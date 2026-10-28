@@ -969,7 +969,7 @@ class TestAssemblyRefusals(BenchWorkspace):
         self.assertEqual(checks.exception.variant, "placement_without_value")
         self.assertEqual(checks.exception.node, gather.exception.node)
 
-    def test_a_gather_refusal_speaks_its_root_from_the_evaluated_document(self):
+    def test_a_gather_refusal_speaks_its_piece_from_the_evaluated_document(self):
         doc = Doc("no-resolver-labelled")
         lonely = self.pinned(doc, self.post_ref)
         doc.apply(DocEdit.set_label(lonely, "lonely post"))
