@@ -128,6 +128,10 @@ and moves to the door with the frame's retirement. First dispatches:
   - an undecided nearness must escalate, never fold into a verdict (my delta read caught one);
   - a surface pair's section is carried in operand order (P3, filed).
 
+- 2026-10-28 — **The torus poses merge** (PR 5924, `each-torus-pair-decides-tangency-on-one-pose` closed). Every torus pair decides tangency on one critical gap, and sphere × torus is back on main's closed form. The cylinder × torus and torus × torus door rows are open. Teapot wall 2's union now builds and is refused at validation (`VolumeUncomputable`, a conic trim on the sphere chart, which is SPIRICARM's volume lane).
+  - **Review:** dual concurrent (H). Both reviewers were NOT-MERGEABLE on one bilateral MAJOR, by execution: f64 rounding in G′ divided by D ≈ 0 made in-band poses read Transverse, and a transverse joint read Tangent. Both confirmation passes then APPROVE on `e42da4cecb`. Row `docs/dual-review-log/rows/PR-5924.md`.
+  - **Classes:** a margin that is divided must carry its own rounding first; a certifying sweep's premise must reach generic frames, grid-aligned critical points and scale.
+  - **Filed:** SECTRUNG `the-torus-gaps-rounding-charge-is-first-order-and-reads-the-world-origin` (P2).
 - 2026-10-28 — **Split on Ev's request in chat.** SECT was over its budget, and SECTTAIL was at 27/30.
   - **SECTARMS** (new, P0-led, 22 points) takes the section object's remaining transverse arms: NURBS × cone/sphere, the cone frames, skew cylinders and the walk order.
   - **SECTSITE** (new, P1, 16 points) takes the closed edge in a curved face and the C5 plane × torus / cone × cylinder residue (U-H1, D10-held).
@@ -148,3 +152,19 @@ on main's exact stop: `pair_section::one_loop_keeps_its_order_near_the_node`,
 A pin goes red the day its row passes, so the fix on
 `sect/near-node-at-1e-6` removes the four pins (and restores the macro
 row) in the same PR, and re-measures what each row runs after the stop.
+
+## 2026-10-28 — the near-node main red fixed (PR 5961)
+
+- `main-red-cylinder-sphere-section-runs-out-of-cells-near-the-node-at-1e-6`
+  closed by PR 5961: an R3 branch whose uniqueness tube its coarse chain
+  boxes hold narrow is refined again (`ssi::refine::refine_for_tube`, the
+  coarse spans read by `certify::coarse_tube_spans` on the tube ladder),
+  keeping a finer carrier only where its tube is wider; a closed spline's
+  foot polishes from both ends across its seam. Tier: **single FULL**
+  (one Opus reviewer); the fix pass took all ten items, and the
+  orchestrator's delta read found the ladder's "next rung up" preserved
+  (`filter(r > radius).last()` over a descending ladder equals the old
+  `2 · radius`). The four `pinned_red` rows main added at 1e-6 come out,
+  since they pass. The near-node cost residue (`CellBudget` at the default
+  ε, unmeasured cause) stays on SECTRUNG's
+  `a-cylinder-sphere-march-near-its-node-costs-seconds-and-refuses-by-budget`.

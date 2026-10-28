@@ -212,9 +212,11 @@ fn a_torus_just_clear_of_the_rim_is_decided_by_its_roots() {
 /// millimetre, and a ring of radius 0.45 about the drum's axis at the
 /// cut's centre whose tube the rim enters and leaves: the rim's pairs are
 /// accepted at its certified roots, the crossing layer passes, and every
-/// op stops at the join's germ frame: an oblique plane × torus germ pair
-/// cuts a general spiric quartic, refused by name, and a wall × torus
-/// pair has no frame (the same filed door).
+/// op stops at the join: an oblique plane × torus germ pair cuts a
+/// general spiric quartic, refused by name, and a wall × torus pair in a
+/// general pose routes to the general rung, whose cylinder × torus door
+/// is unbuilt, refused at the section
+/// (`work/sect/cylinder-torus-rung-three-arm-is-unretired.md`).
 #[test]
 fn a_torus_crossing_the_rim_reaches_the_join() {
     let a = drum_lower();
@@ -236,8 +238,12 @@ fn a_torus_crossing_the_rim_reaches_the_join() {
             assert!(
                 matches!(
                     e,
-                    BooleanError::GermFrameUnsupported { .. }
-                        | BooleanError::GermSectionSpiric { .. }
+                    BooleanError::GermSectionUnbuilt {
+                        why: topo::SectionUnbuilt::Refused(
+                            geom_brep::SectionError::RoutesToGeneralRung { .. }
+                        ),
+                        ..
+                    } | BooleanError::GermSectionSpiric { .. }
                 ),
                 "{label}, {op}: got {e:?}"
             );

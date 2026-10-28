@@ -87,6 +87,7 @@ pub mod offset;
 pub mod offset_fit;
 pub mod offset_fit_lane;
 pub mod offset_meters;
+pub mod order;
 pub mod pair_section;
 pub mod patch_bound;
 pub mod pcurve;
@@ -185,10 +186,12 @@ pub use offset_fit::{
 };
 pub use offset_fit_lane::{OFFSET_FIT_DOOR_HOLDERS, OffsetFitLane, ScalarList};
 pub use pair_section::{
-    CarriedComponent, CarriedSection, CarryError, ClassCarrier, ComponentShape, CsDecision,
-    CsStance, CylinderSpherePose, FittedCarrier, PairSection, PoseRefusal, Seated,
-    SectionComponent, SectionRead, SiteFoot, SiteRefusal, SsiLane, ZeroKind, ZeroVerdict,
-    pair_section, square_part,
+    AxisPose, CarriedComponent, CarriedSection, CarryError, ClassCarrier, Coincident,
+    ComponentShape, CsDecision, CsStance, CtStance, CylinderSpherePose, CylinderTorusPose,
+    FittedCarrier, Gap, PairPose, PairSection, PoseRefusal, Ring, Seated, SectionComponent,
+    SectionDecision, SectionRead, SiteFoot, SiteRefusal, SphereTorusPose, SquareWall, SsiLane,
+    StStance, TorusGap, TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, ZeroKind,
+    ZeroVerdict, axis_pose, line_tilt, pair_section, square_part,
 };
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
