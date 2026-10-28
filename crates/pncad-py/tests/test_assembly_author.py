@@ -125,7 +125,7 @@ from pncad import (
     solve_document,
 )
 
-from placing import against, moves, placed, assemble_world_copies
+from placing import against, moves, placed, plane_on, assemble_world_copies
 from measuring import pinned
 
 
@@ -962,14 +962,14 @@ class TestAssemblyRefusals(BenchWorkspace):
         ev = evaluate(doc)
         with self.assertRaises(pncad.ProductError) as gather:
             product(doc, ev)
-        self.assertEqual(gather.exception.variant, "root_failed")
+        self.assertEqual(gather.exception.variant, "read_failed")
         self.assertIsNotNone(gather.exception.node)
         with self.assertRaises(pncad.ChecksError) as checks:
             run_checks(doc, ev)
-        self.assertEqual(checks.exception.variant, "root_without_value")
+        self.assertEqual(checks.exception.variant, "placement_without_value")
         self.assertEqual(checks.exception.node, gather.exception.node)
 
-    def test_a_gather_refusal_speaks_its_root_from_the_evaluated_document(self):
+    def test_a_gather_refusal_speaks_its_piece_from_the_evaluated_document(self):
         doc = Doc("no-resolver-labelled")
         lonely = self.pinned(doc, self.post_ref)
         doc.apply(DocEdit.set_label(lonely, "lonely post"))
@@ -981,7 +981,7 @@ class TestAssemblyRefusals(BenchWorkspace):
         for door in (product, pncad.product_named):
             with self.assertRaises(pncad.ProductError) as gather:
                 door(doc, ev)
-            self.assertEqual(gather.exception.variant, "root_failed")
+            self.assertEqual(gather.exception.variant, "read_failed")
             self.assertIn('InstantiatePart "lonely post" (', str(gather.exception))
             self.assertEqual(gather.exception.node, lonely)
 
@@ -1295,6 +1295,30 @@ class TestRefactorings(BenchWorkspace):
             pncad.inline(doc, body, self.ws)
         self.assertEqual(caught.exception.variant, "not_an_instance")
         self.assertEqual(caught.exception.node, body)
+
+    def test_inline_refuses_a_part_holding_a_named_pose_nothing_reads(self):
+        # A named pose outlives its reader, and a pose crosses only with
+        # one, so inline refuses rather than drop it.
+        part = Doc("unread-pose-part")
+        profile = part.insert(Node.polygon([
+            (Formula.length_in(0, m), Formula.length_in(0, m)),
+            (Formula.length_in(1, m), Formula.length_in(0, m)),
+            (Formula.length_in(1, m), Formula.length_in(1, m)),
+        ]))
+        block = part.insert(Node.extrude(profile, Formula.length_in(1, m)))
+        placed(part, block, Frame.translation((0 * m, 0 * m, 0 * m)))
+        assemble_world_copies(part)
+        cut = part.insert(Node.split(block, plane_on(part, block, (0.0, 0.0, 0.5), (0.0, 0.0, 1.0))))
+        pose = part.slot(cut, "tool")
+        part.apply(DocEdit.rename_var(pose, VarName("cut_plane")))
+        part.apply(DocEdit.delete_node(cut))
+        self.ws.create(part)
+        host = Doc("unread-pose-host")
+        instance = host.insert(Node.instantiate_part(DocRef(part.id, content_pin(part)), host.world))
+        with self.assertRaises(pncad.InlineError) as caught:
+            pncad.inline(host, instance, self.ws)
+        self.assertEqual(caught.exception.variant, "unread_pose")
+        self.assertIn("cut_plane", str(caught.exception))
 
     def test_split_refuses_a_definition_tied_to_both_sides_naming_each(self):
         # `k = w + j` is read by nothing; `w` only by the cut block and

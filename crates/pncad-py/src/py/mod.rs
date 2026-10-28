@@ -466,8 +466,8 @@ pyo3::create_exception!(
     ChecksError,
     PncadError,
     "The advisory-check registry could not RUN. Carries `variant`, the \
-     stable tag of the refusing arm (`root_without_value`, `band`, \
-     `product_unavailable`), and `node` — the root without a value, \
+     stable tag of the refusing arm (`placement_without_value`, `band`, \
+     `product_unavailable`), and `node` — the placement without a value, \
      `None` on the other arms. Its message names each node as the \
      evaluation's own document holds it, the gather's included.\n\n\
      NOT a finding. A check that ran and disagreed is a value in the \

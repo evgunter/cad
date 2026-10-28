@@ -14,6 +14,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::Dimension;
 use editor_core::Formula;
 
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
@@ -118,8 +119,11 @@ fn seated(doc: ProfileDoc, mate: Mate<Formula>, shift: f64) -> (ProfileDoc, Mate
         mate,
         &[
             (Coord::Slide(TargetAxis::X), len(shift)),
-            (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::SPIN, fixture::ang(0.0)),
+            (
+                Coord::Slide(TargetAxis::Y),
+                Formula::zero(Dimension::Length),
+            ),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     );
     (doc, mate)
@@ -713,10 +717,10 @@ fn a_parts_product_refusal_says_the_parts_label_where_the_outer_document_holds_t
     let (fault, _) = part_fault(error);
     // The part's product is its placement's copy, and the placement
     // reads a body that is gone: its root failed.
-    let editor_core::PartFault::PartRootFailed { node, .. } = fault else {
-        panic!("the part's root fails: {fault:?}");
+    let editor_core::PartFault::PartProductFailed { node, .. } = fault else {
+        panic!("the part's piece fails: {fault:?}");
     };
-    assert_eq!(*node, block, "the failed root is the stranded placement");
+    assert_eq!(*node, block, "the failed piece is the stranded placement");
     let in_outer = error.spoken(&outer, &ev);
     assert!(
         in_outer.contains(&format!("Place \"inner block\" ({t})"))

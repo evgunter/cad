@@ -248,7 +248,16 @@ pub(crate) fn slid_by(
 
 /// A copy of `input` slid by `by` along its own +x ([`slid_by`]).
 fn translated(r: &mut Recorder, input: RecipeNodeId, by: Formula) -> RecipeNodeId {
-    slid_by(r, input, input, [by, len(0.0), len(0.0)])
+    slid_by(
+        r,
+        input,
+        input,
+        [
+            by,
+            Formula::zero(Dimension::Length),
+            Formula::zero(Dimension::Length),
+        ],
+    )
 }
 
 /// A prism over a literal polygon, extruded a literal depth.
