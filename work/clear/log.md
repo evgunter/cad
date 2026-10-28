@@ -115,3 +115,15 @@ Signed: (CARVE orchestrator)
   - `the-clearance-budget-pair-is-spelled-three-times` (P1);
   - `the-clearance-sliver-rule-lives-in-one-of-its-two-consumers` (P4, on CLEARTAIL).
 - **Scope added to the symbolic row:** narrowing `MeasureClearanceRefused`'s carrier, and a row that runs the generic door at a non-`Interval` `T`.
+
+## 2026-10-28 — the second wave
+
+- **SHELL-3 merged (#5909)**, `a1b4b82930`.
+- **NURBSWIN dispatched** (P0, `window-of-refuses-an-untrimmed-iso-bounded-nurbs-patch`) as a local lane on `clear/nurbswin`, spec `docs/NURBSWIN-SPEC.md`. Review: single FULL.
+- **SYMCLEAR dispatched** (`symbolic-tier-and-clearance-engine`, carrying the lane-replay row and the `NeedsEnclosure` door-path row) as a cloud session, `session_018u3gVF5GZTM5S9659fmMRF`, on `clear/symclear`, spec `docs/SYMCLEAR-SPEC.md`. Review: single FULL. It ran in the cloud because the container's disk holds one lane's build at a time.
+- **Sequenced after SYMCLEAR:** CLEARTEXT, the four refusal rows (spec drafted). SYMCLEAR narrows `MeasureClearanceRefused`'s carrier, which those rows reshape.
+- **After NURBSWIN:**
+  - the self-intersection build (dual review);
+  - the loop-duplication and budget-triple refactor, which goes ahead of it because the self-intersection build changes the same loop;
+  - `min-separation-tightening-crosses-the-drive`;
+  - then `SHELL-4`.
