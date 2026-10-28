@@ -4,7 +4,7 @@ kind: issue
 title: Main red: three editor-core M10 interval pins moved at every eps since PR 5728 (certification half-width, stepped-shaft leaves, two_hole_plate symbolic count)
 status: open
 opened: 2026-10-28
-priority: P0
+priority: P2
 cost: M
 ---
 
@@ -57,3 +57,10 @@ Reproduce: `cargo nextest run -p editor-core --ignore-default-filter -E
 'test(/^m10_3_driver_interval::the_certification_width/) |
 test(/^m10_4_r1_probes_interval::r1_a_real_tolerance_study/) |
 test(/^m10_9_pins_interval::m10_9_no_registrant_lies/)'`.
+
+## Band
+
+P2, not P0 (2026-10-28): these are slow-set rows at interval and
+tight-ε ground, which `work/README.md`'s bands put at P2; a main red is
+not P0 by itself. The rows are pinned at what main produces, so main
+is green on them while this row stays open for the mechanism.
