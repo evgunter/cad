@@ -268,7 +268,7 @@ fn assert_ok(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str) {
 /// is the whole question here.
 fn reused_value(earlier: &Evaluation<f64>, later: &Evaluation<f64>, id: RecipeNodeId) -> bool {
     match (earlier.value(id), later.value(id)) {
-        (Some(a), Some(b)) => Arc::ptr_eq(&a.contacts, &b.contacts),
+        (Some(a), Some(b)) => Arc::ptr_eq(&a.carry.contacts, &b.carry.contacts),
         _ => false,
     }
 }
