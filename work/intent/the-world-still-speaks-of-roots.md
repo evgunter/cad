@@ -8,6 +8,7 @@ opened: 2026-10-08
 refs: [assemble-is-an-operator-and-the-product-is-a-slot]
 pr: 5919
 branch: intent/world-not-roots
+closed: 2026-10-28
 ---
 
 

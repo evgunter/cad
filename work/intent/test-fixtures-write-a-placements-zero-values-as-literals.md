@@ -9,6 +9,7 @@ cost: M
 refs: [the-tour-writes-a-mates-spin-as-a-literal-zero]
 pr: 5926
 branch: intent/cost-e-batch
+closed: 2026-10-28
 ---
 
 ## What

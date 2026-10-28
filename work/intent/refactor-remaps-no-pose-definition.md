@@ -7,6 +7,7 @@ priority: P2
 branch: intent/refactor-pose-definitions
 pr: 5915
 opened: 2026-10-10
+closed: 2026-10-28
 ---
 
 ## What
