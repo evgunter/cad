@@ -6426,9 +6426,16 @@ mod tests {
                     (pi() * lit(7.0) / lit(5.0)).cos() + (pi() * lit(2.0) / lit(5.0)).cos(),
                 ),
                 decides_zero(c6 * c6 - lit(0.75)),
+                // A rational-radian angle is symbolic, so its product with a
+                // constant atom is the split, left as it is.
+                decides_zero(
+                    (lit(1.0) + pi() / lit(5.0)).sin()
+                        - lit(1.0).sin() * (pi() / lit(5.0)).cos()
+                        - lit(1.0).cos() * (pi() / lit(5.0)).sin(),
+                ),
             ]
         });
-        assert_eq!((out, counts.symbolic), ([true; 3], 3), "{counts:?}");
+        assert_eq!((out, counts.symbolic), ([true; 4], 4), "{counts:?}");
     }
 
     /// **Rule H proves no false angle sum**: `cos a cos b − sin a sin b`

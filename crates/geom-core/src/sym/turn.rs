@@ -31,7 +31,8 @@
 //!
 //! so every atom this rule mints is of one of two CLASSES: a
 //! **constant** atom, of `qπ` alone, and a **symbolic** atom, of an `ω`
-//! with no rational-turn part.
+//! with no rational-turn part (a rational number of radians, `sin 1`,
+//! among them).
 //!
 //! - A constant angle is reduced to the first octant: `qπ` modulo `2π`,
 //!   then `x − π` (both negate), `π − x` (the cosine negates), and
@@ -277,8 +278,11 @@ fn class(sess: &Session, id: u128) -> Option<bool> {
         return None;
     }
     let arg = info.args[0].as_ref()?;
-    let on_pi = |p: &Poly| p.monos().flatten().all(|&(i, _)| i == INDET_PI);
-    Some(on_pi(&arg.num) && arg.den.as_constant().is_some())
+    // `q·π` alone: an angle with a rational term (`sin 1`) is symbolic,
+    // or a product of it with a constant atom would be split back into
+    // the pair it came from.
+    let on_pi = matches!(arg.num.terms(), [(m, _)] if m.as_slice() == [(INDET_PI, 1)]);
+    Some(on_pi && arg.den.as_constant().is_some())
 }
 
 /// The first two factors of one class in `mono` (one atom twice where
