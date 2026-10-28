@@ -7,6 +7,8 @@
 //! refusal it names; this one takes the stop's text from the caller,
 //! who cites the open row beside it.
 
+#![allow(clippy::panic)]
+
 /// Every ε row CI draws from: the default (`geom_core::DEFAULT_EPS`),
 /// 1e-6 and 1e-12, as the nightly's full-suite loop spells them
 /// (`.github/workflows/nightly.yml`, `for eps in default 1e-6 1e-12`).
