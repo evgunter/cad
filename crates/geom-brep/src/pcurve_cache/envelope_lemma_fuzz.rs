@@ -2581,3 +2581,107 @@ mod focal_section_term_rows {
         );
     }
 }
+
+/// Review 5889 delta probe P1 (local only): a rim exactly on a cylinder
+/// whose tilted axis runs through the origin, `h` up it.
+#[test]
+fn review5889_p1_tilted_rim_far_up() {
+    let tilted = Vec3::new(0.0, 0.6, 0.8);
+    let lift = Interval::from_f64;
+    let mut bad = Vec::new();
+    for &(h, off) in &[
+        (1e3, 0.0), (1e4, 0.0), (1e5, 0.0), (1e6, 0.0), (4.2e6, 0.0), (8.4e6, 0.0),
+        (1024.0, 0.0), (8388608.0, 0.0), (1e3, 0.5), (8.4e6, 0.5),
+    ] {
+        let cyl = Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: tilted,
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let rim = Curve3::Circle {
+            center: Point3::origin() + tilted * h,
+            axis: tilted,
+            radius: 1.0 + off,
+            u_ref: Vec3::unit_x(),
+        };
+        let f = chart_pcurve(&rim, &cyl, band()).and_then(|img| {
+            PcurveCache::certify(img, 0.0, TAU, &rim, &cyl, band()).map(|_| ())
+        });
+        let (rim_i, cyl_i) = (rim.map_scalar(lift), cyl.map_scalar(lift));
+        let i = chart_pcurve(&rim_i, &cyl_i, band()).and_then(|img| {
+            PcurveCache::certify(img, lift(0.0), lift(TAU), &rim_i, &cyl_i, band()).map(|_| ())
+        });
+        for (lane, got) in [("f64", f), ("Interval", i)] {
+            let read = got.as_ref().err().and_then(IncidenceRead::of);
+            let verdict = match (&got, read) {
+                (Ok(()), _) => "CERTIFIED".to_owned(),
+                (Err(_), Some(r)) if r.is_definite() => "READ OFF".to_owned(),
+                (Err(_), Some(_)) => "READ IN BAND".to_owned(),
+                (Err(e), None) => format!("other refusal: {e:?}"),
+            };
+            println!("[p1] eps {:e} h {h:e} off {off} {lane}: {verdict}", band().zero());
+            let want_off = off > 0.0;
+            if want_off != (verdict == "READ OFF") || (!want_off && verdict != "CERTIFIED") {
+                bad.push(format!("h {h:e} off {off} {lane}: {verdict}"));
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{bad:#?}");
+}
+
+/// Review 5889 delta probe P2 (local only): a lifted copy of a cone rim
+/// whose half turn is in the zero band but whose whole turn is past it.
+#[test]
+fn review5889_p2_lift_between_zero_over_two_pi_and_zero_over_pi() {
+    let mut certified = Vec::new();
+    for frac in [0.1, 0.17, 0.2, 0.21, 0.22, 0.23, 0.24, 0.25, 0.3, 0.31] {
+        let rho = frac * band().zero();
+        let half_angle = (rho / (1e3 * band().escalate())).atan();
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle,
+            u_ref: Vec3::unit_x(),
+        };
+        let carrier = circle(
+            Point3::new(0.0, 0.0, rho / half_angle.tan()),
+            Vec3::unit_z(),
+            rho,
+            Vec3::unit_x(),
+        );
+        let (derived, _) = derive_harmonic(
+            &carrier,
+            &cone,
+            super::Placement::own(&carrier, &cone),
+            band(),
+        )
+        .unwrap();
+        let lifted = derived.shift_branch(-1, Period::new(TAU));
+        let f = Interval::from_f64;
+        let got = [
+            PcurveCache::certify(lifted.clone(), 0.0, TAU, &carrier, &cone, band()).map(|_| ()),
+            PcurveCache::certify(
+                lift_harmonic(&lifted),
+                f(0.0),
+                f(TAU),
+                &carrier.map_scalar(f),
+                &cone.map_scalar(f),
+                band(),
+            )
+            .map(|_| ()),
+        ];
+        for (lane, g) in ["f64", "Interval"].iter().zip(got) {
+            println!(
+                "[p2] eps {:e} K {} rho {frac}*zero {lane}: {:?}",
+                band().zero(),
+                band().escalate() / band().zero(),
+                g.as_ref().map_err(|e| format!("{e:?}").chars().take(120).collect::<String>())
+            );
+            if g.is_ok() {
+                certified.push(format!("{frac} {lane}"));
+            }
+        }
+    }
+    assert!(certified.is_empty(), "lifted copies certified: {certified:?}");
+}

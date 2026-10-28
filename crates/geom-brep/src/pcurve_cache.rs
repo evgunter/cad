@@ -4513,7 +4513,9 @@ impl<T: Decide> PcurveCache<T> {
         band: Band,
         lane: Option<crate::FittedLane<T>>,
     ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
-        read_incidence(carrier, self.param_start, self.param_end, surface, band)?;
+        if std::env::var_os("MUT_NOREAD").is_none() {
+            read_incidence(carrier, self.param_start, self.param_end, surface, band)?;
+        }
         match &self.pcurve {
             Pcurve::Fitted(image) | Pcurve::General(image) => run_fitted_checks(
                 image,
@@ -5652,7 +5654,11 @@ fn constant_and_pair<T: Real>(c: Vec3<T>, a: Vec3<T>, b: Vec3<T>) -> T {
 /// ulps), together with the image's height `R·sin v` off `h`.
 fn polar_read_radius<T: Real>(radius: T, h: T) -> (T, T) {
     let x = h / radius;
-    let rho_sq = radius.powi(2) * ((T::one() - x) * (T::one() + x));
+    let rho_sq = if std::env::var_os("MUT_POLAR").is_some() {
+        radius.powi(2) - h.powi(2)
+    } else {
+        radius.powi(2) * ((T::one() - x) * (T::one() + x))
+    };
     (rho_sq.sqrt(), rho_sq)
 }
 
@@ -6290,7 +6296,13 @@ fn fidelity<T: Decide>(
             derived: derived_windings,
         });
     }
-    let du = (p0.x - q0.x).abs()
+    let du0 = (p0.x - q0.x).abs();
+    let du0 = if std::env::var_os("MUT_C4").is_some() {
+        du0.min((du0 - T::tau()).abs())
+    } else {
+        du0
+    };
+    let du = du0
         + harmonic_sup_scalar(pa.x - qa.x, pb.x - qb.x)
         + (pl.x - ql.x).abs() * reach;
     let dv = (p0.y - q0.y).abs()
@@ -10544,7 +10556,11 @@ fn incidence_over_span<T: Decide>(
     let charged = if farthest.is_poison() {
         farthest
     } else {
-        let c = slack + rounding_charge(T::from_f64(2.0) * reach);
+        let c = if std::env::var_os("MUT_CHARGE").is_some() {
+            T::zero()
+        } else {
+            slack + rounding_charge(T::from_f64(2.0) * reach)
+        };
         let zero = T::from_f64(band.zero());
         (farthest * (T::one() - T::from_f64(2.0) * c / (farthest + zero))).max(T::zero())
     };

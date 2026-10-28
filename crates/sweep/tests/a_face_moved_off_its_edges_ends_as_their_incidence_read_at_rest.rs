@@ -225,6 +225,11 @@ fn check<T: Decide + AtRestPolicy + Bounds + CertifiedBounds>() {
         ];
         for (face, errors) in rows {
             let what = format!("{lane}, {face} moved {miss:?} ({d:e} m)");
+            for e in &errors {
+                if matches!(e, ValidationError::PlanarFaceResidual { .. } | ValidationError::PlanarFaceEscalated { .. }) {
+                    println!("[p3] {what}: {e}");
+                }
+            }
             let reads = incidence_findings(&what, &errors);
             assert!(
                 reads.len() >= 2,
