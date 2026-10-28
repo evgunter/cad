@@ -79,3 +79,22 @@ equals the cylinder radius. The section value calls it `Tangent` where
 the retired formulas said `Touch`. Pin it as a deterministic row beside
 the fix, or as the sampler's boundary if a sphere that small falls
 outside the formulas' domain.
+
+## 2026-10-28 — pinned on main (GREEN, `green/full-suite-pins`)
+
+Nightly run 40637814390 (main `a1cfd1cfdb`), `full suite`; re-run on main `91c83c38`. All four rows still red at 1e-6. PR 5894 has since merged and renamed
+`a_ball_across_a_cylinder_wall_builds_sound_or_stops_at_the_lane` into
+one row per pose; only `a_ball_across_a_cylinder_wall_wider_than_the_wall`
+is red (the other eight pass at 1e-6). Each red row is pinned at 1e-6 with
+`test_utils::pinned_red::row` on its stop:
+
+- `pair_section::one_loop_keeps_its_order_near_the_node`: `d 0.2, R 0.699: March(CellBudget`;
+- `pair_section::two_loops_keep_their_sites_and_order_near_the_node`: `curve_carrier_piece_clear`;
+- `cylinder_sphere_frame::a_ball_across_a_cylinder_wall_wider_than_the_wall`
+  (written out of the `pose_rows!` macro to carry its pin) and
+  `cylinder_sphere_frame::every_segment_joins_neighbouring_sites_along_its_loop`:
+  `one loop, ball wider than the wall, A ∪ B: … GermSectionUnbuilt`.
+
+Each pin goes red the day its row passes; closing this row removes them.
+
+Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured. Known behind the pins: the poses after `d 0.2, R 0.699` and after `d 0.2, R 0.71, θ 4.27` in the two `pair_section` rows, and the operations after `A ∪ B` in the two `cylinder_sphere_frame` rows.
