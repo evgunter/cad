@@ -2,10 +2,11 @@
 id: tests-red-under-all-features-never-run-by-ci
 kind: issue
 title: Three tests fail on main when built with --all-features, and no CI row runs tests that way
-status: open
+status: closed
 opened: 2026-10-02
 priority: P2
 cost: E
+closed: 2026-10-28
 ---
 
 
@@ -86,3 +87,67 @@ analytic rung-3 edge; the rows certified that class lane-free. Found by
 PR 4846's `--all-features` run, fixed by PR 4876
 (`work/pcert/probe-rows-refuse-nurbs-lane-not-supplied-at-the-lane-free-door.md`).
 The gap is this row's first bullet again.
+
+## Closed (2026-10-28)
+
+**The three named rows are green on main under `--all-features`**
+(`4beeeb05`), each run on its own:
+
+- `cargo test -p sweep --all-features --test all -- r1_ring_clearance_decisions_per_carve`
+- `cargo test -p topo --all-features --test all -- boolean_margin_streams_scale_linearly_with_the_model`
+- `cargo test -p pncad-py --all-features --lib -- prose_census` (18 of 18;
+  the crate's test targets link with `extension-module` on)
+
+REACH fixed the first two on 2026-10-02. The pncad-py entry was fixed
+somewhere along the way, so nothing was owed there.
+
+**The row is added.** `nightly.yml` gains `suite under --all-features
+(default eps)`. It runs `cargo nextest run --profile ci --workspace
+--exclude viewer` with every workspace feature on, at default eps. The
+slow set is left to the full-suite rows. `viewer` is excluded because its
+`app` feature needs the GPU stack the viewer job installs, and that job
+runs `-p viewer --features app` already.
+
+**What a whole-workspace `--all-features` run found first** (hosted run
+`40720990736`): 14 009 tests, 24 red, in three causes. Per the GREEN
+policy that a lane does not fix kernel causes, each one is pinned or held
+out with the row that owns it:
+
+- **21 sweep rows** fail with `mfkrh postcondition … OrphanGeometry
+  { Surface }`, under topo's `per-op-postcondition` scalpel. That
+  item is `work/topo/mfkrh-leaves-an-orphan-surface-under-the-per-op-scalpel.md`
+  (open, P2; today's list was added to it). The nightly row holds the
+  scalpel out, along with every feature that forwards to it
+  (`pncad/per-op-postcondition`), through `HELD_OUT_FEATURES`. A
+  transitive check derives this, and it fails loudly if a held-out
+  feature stops existing. Bringing the scalpel back into the row is
+  `work/ciw/no-ci-row-runs-topo-under-the-per-op-postcondition-scalpel.md`,
+  which now says so.
+- **2 topo rows read the default build** under the scalpel: a
+  tier-1-derivation count, and a `should_panic` message. They are now
+  `#[cfg_attr(feature = "per-op-postcondition", ignore = "pinned red: …")]`,
+  citing the new `work/topo/two-topo-rows-assume-the-default-build-under-the-per-op-scalpel.md`.
+  Locally, under `-p topo --lib --features per-op-postcondition`, both
+  fail before the pin and are ignored, with that reason, after it.
+- **1 probe row**, `ray_wall_margin_twins::the_wall_arms_margins_scale_linearly_with_the_model`,
+  is already red on main in `k-lint (dev-probe)` and owned by
+  `work/green/main-reds-editor-core-slow-set-and-the-k-probe-sweep.md`.
+  Another GREEN lane holds that row, so it is held out of this job by a
+  nextest filter (`HELD_OUT_TESTS`) rather than edited.
+
+**Cost, measured** with a temporary push-triggered copy of the job
+(deleted before review). Run `40751709384` took **27 min build + 87 s
+suite**, about 29 min in all: 14 008 run, 14 008 passed, 1 840 skipped.
+The cold-cache build took 31 to 33 min, so the job keeps no Rust cache:
+a warm build saves about 5 minutes, and a whole `--all-features` target
+would compete with the PR gate's caches for the repo's 10 GB Actions
+cache quota. The job runs in parallel with `full suite` (about 123 min),
+so it does not lengthen the nightly. It adds about 35 runner-minutes a
+night, and it adds nothing to the per-PR gate. One of the three measuring runs hung in `build` for
+two hours. That is filed as
+`work/green/nightly-all-features-build-hung-once-with-a-test-binary-running.md`,
+and the step timeouts (60 min and 30 min) bound a repeat.
+
+**Not done:** an `--all-features` leg at the PR gate. The probe-suite
+part of the "owed" list above stays open on its own terms; this row's
+ask was the nightly.
