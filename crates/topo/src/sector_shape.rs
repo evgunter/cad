@@ -468,7 +468,9 @@ pub(crate) struct ApexShape<T: Real> {
 /// directions are the cone's rulings between them, round the axis, at
 /// every width. Along the ruling at azimuth `φ` the plane (unit normal
 /// `across`) reads `s(φ) = n·d(φ) = σ cos α (n·a) + sin α (n_r·r̂(φ))`,
-/// which is monotone between its two extrema, the rulings along `±n_r`.
+/// which is monotone between its two extrema, the rulings along `±n_r`:
+/// the apex lane's own ([`geom_brep::plane_cone_apex_extrema`]), so the
+/// section rulings the lane serves lie between them.
 /// So the bounds decide the interior's sides only where no extremum lies
 /// strictly inside the window, and the sector is subdivided at each one
 /// that does: none, one, or (in a window over a half-turn) two. Each
