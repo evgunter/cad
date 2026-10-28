@@ -193,6 +193,7 @@ fn top_wall(lofted: &sweep::Lofted<f64>) -> FaceKey {
     };
     lofted.side_faces[0]
         .iter()
+        .flatten()
         .copied()
         .max_by(|&a, &b| centre(a).z.total_cmp(&centre(b).z))
         .unwrap()
@@ -279,6 +280,7 @@ fn the_carvetail_fold_reads_violated_at_its_middle_station() {
     };
     let walls: Vec<FaceKey> = lofted.side_faces[0]
         .iter()
+        .flatten()
         .copied()
         .filter(|&f| on_seam(f))
         .collect();

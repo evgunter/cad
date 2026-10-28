@@ -1405,7 +1405,7 @@ fn recorded_contact(
     let value = ev.value(sel.at)?;
     let records = match &value.payload {
         ValuePayload::Boolean(BooleanValue::Body { contacts, .. }) => Arc::clone(contacts),
-        _ => Arc::clone(&value.contacts),
+        _ => Arc::clone(&value.carry.contacts),
     };
     let loop_face = |he| {
         body.get_half_edge(he)
