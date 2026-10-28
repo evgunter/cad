@@ -755,6 +755,37 @@ impl<T: Decide> PairSection<T> {
             lever: self.pose.r,
         })
     }
+
+    /// **A closed fitted component, opened at the parameter `at`** of
+    /// its carrier, so that no chord cut from it straddles the carrier's
+    /// parameter seam: the carrier is split at `at` (knot insertion to
+    /// full multiplicity), its two pieces are joined the other way round
+    /// (the piece after `at` first, the piece before it shifted by the
+    /// carrier's period), and the joined carrier is certified again
+    /// against the pose's operands through `lane`, since the shifted
+    /// knots are rounded. The seated carrier runs from `at`'s point
+    /// round to it. A component that is open, or whose carrier is a
+    /// closed form, is returned as it is: a closed form's parameter is an
+    /// angle, which a chord reads on any branch.
+    ///
+    /// # Errors
+    ///
+    /// [`CarryError::NoLane`] off the march's scalar,
+    /// [`CarryError::Seat`] where the knot edit refuses, and the
+    /// certificate's refusal as [`CarryError::March`].
+    pub fn seat(
+        &self,
+        lane: Option<SsiLane<T>>,
+        component: &CarriedComponent<T>,
+        at: T,
+        band: Band,
+    ) -> Result<CarriedComponent<T>, CarryError> {
+        if !component.closed || component.certificate.is_none() {
+            return Ok(component.clone());
+        }
+        let lane = lane.ok_or(CarryError::NoLane { scalar: T::NAME })?;
+        (lane.seat)(&self.pose, component, at, band)
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -784,7 +815,13 @@ pub struct FittedCarrier<T: Real> {
 pub struct SsiLane<T: Real> {
     /// One march of a decided pose.
     march: fn(&CylinderSpherePose<T>, Band) -> Marched<T>,
+    /// One closed fitted component seated at a parameter, re-certified
+    /// against the pose's operands ([`PairSection::seat`]).
+    seat: fn(&CylinderSpherePose<T>, &CarriedComponent<T>, T, Band) -> Seated<T>,
 }
+
+/// What one seating answers: the component opened at the parameter.
+type Seated<T> = Result<CarriedComponent<T>, CarryError>;
 
 /// What one march of a pose answers: its fitted branches.
 type Marched<T> = Result<Vec<FittedCarrier<T>>, SsiError>;
@@ -795,6 +832,7 @@ impl SsiLane<f64> {
     pub fn marched() -> Self {
         Self {
             march: march_over_the_sphere,
+            seat: seat_at,
         }
     }
 }
@@ -831,6 +869,91 @@ fn march_over_the_sphere(
         .collect())
 }
 
+/// **[`PairSection::seat`] at `f64`.** `at` at either end of the
+/// carrier's domain is a seat already: the carrier starts there.
+fn seat_at(
+    pose: &CylinderSpherePose<f64>,
+    component: &CarriedComponent<f64>,
+    at: f64,
+    band: Band,
+) -> Result<CarriedComponent<f64>, CarryError> {
+    let Curve3::Nurbs(net) = &component.carrier else {
+        return Err(CarryError::Desync(
+            "a fitted component's carrier is not a spline",
+        ));
+    };
+    let (lo, hi) = net.domain();
+    if at <= lo || at >= hi {
+        return Ok(component.clone());
+    }
+    let (before, after) = net.split_at(at).map_err(CarryError::Seat)?;
+    let seated = rotated(&after, &before, hi - lo).map_err(CarryError::Seat)?;
+    let (a, b) = pose.operands();
+    let certificate = crate::ssi::certify_rung3(
+        &seated,
+        None,
+        &crate::ssi::SsiOperand::Analytic(a),
+        &crate::ssi::SsiOperand::Analytic(b),
+        pose.big_r * 2.0,
+        band,
+    )
+    .map_err(CarryError::March)?;
+    let span = seated.domain();
+    Ok(CarriedComponent {
+        carrier: Curve3::Nurbs(std::sync::Arc::new(seated)),
+        span,
+        closed: true,
+        certificate: Some(certificate),
+    })
+}
+
+/// **`first` followed by `second` shifted by `period`**: two clamped
+/// pieces of one closed carrier, `first` ending where `second` starts
+/// (the carrier's own start and end, one point). The join keeps
+/// `first`'s last control point and drops `second`'s first, its knot
+/// at the join of multiplicity the degree, and scales `second`'s weights
+/// to meet `first`'s there, so the joined carrier is continuous.
+fn rotated(
+    first: &geom::NurbsCurve3<f64>,
+    second: &geom::NurbsCurve3<f64>,
+    period: f64,
+) -> Result<geom::NurbsCurve3<f64>, geom_core::spline::KnotAlgebraError> {
+    use core::num::NonZeroUsize;
+    use geom_core::spline::{KnotAlgebraError, Knots};
+    let p = first.degree();
+    let runs = |c: &geom::NurbsCurve3<f64>| -> Vec<(f64, usize)> { c.knot_values().runs().collect() };
+    let (r1, r2) = (runs(first), runs(second));
+    let mut joined: Vec<(f64, NonZeroUsize)> = Vec::with_capacity(r1.len() + r2.len());
+    let mut push = |v: f64, m: usize| {
+        if let Some(m) = NonZeroUsize::new(m) {
+            joined.push((v, m));
+        }
+    };
+    let last = r1.len() - 1;
+    for &(v, m) in &r1[..last] {
+        push(v, m);
+    }
+    push(r1[last].0, p);
+    for &(v, m) in &r2[1..] {
+        push(v + period, m);
+    }
+    let knots = Knots::new(joined, p).map_err(KnotAlgebraError::Structure)?;
+    let (w1, w2) = (first.weights(), second.weights());
+    let scale = w1[w1.len() - 1] / w2[0];
+    let control: Vec<Point3<f64>> = first
+        .control()
+        .iter()
+        .chain(&second.control()[1..])
+        .copied()
+        .collect();
+    let weights: Vec<f64> = w1
+        .iter()
+        .copied()
+        .chain(w2[1..].iter().map(|w| w * scale))
+        .collect();
+    geom::NurbsCurve3::new(knots, control, weights).map_err(KnotAlgebraError::Structure)
+}
+
 /// **Why a section was not carried.**
 #[derive(Clone, Debug)]
 pub enum CarryError {
@@ -847,6 +970,9 @@ pub enum CarryError {
     Site(SiteRefusal),
     /// The march and the classification disagree.
     Desync(&'static str),
+    /// A closed fitted component could not be opened at its first site
+    /// ([`PairSection::seat`]): the knot edit refused.
+    Seat(geom_core::spline::KnotAlgebraError),
 }
 
 /// One component of a carried section.
@@ -940,7 +1066,7 @@ impl<T: Decide> CarriedSection<T> {
 
 #[cfg(test)]
 mod wiring {
-    use super::{SsiLane, march_over_the_sphere};
+    use super::{SsiLane, march_over_the_sphere, seat_at};
 
     /// `Ok(())` when the lane holds its march; otherwise the field that
     /// does not.
@@ -950,6 +1076,9 @@ mod wiring {
             march_over_the_sphere as fn(_, _) -> _,
         ) {
             return Err("march is not `march_over_the_sphere`");
+        }
+        if !std::ptr::fn_addr_eq(SsiLane::marched().seat, seat_at as fn(_, _, _, _) -> _) {
+            return Err("seat is not `seat_at`");
         }
         Ok(())
     }

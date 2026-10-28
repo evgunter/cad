@@ -552,22 +552,29 @@ pub(crate) enum AxialCarrier<T> {
     /// A conic arc's axial image over its certified span, already
     /// entered into the reading lane's spans ([`axial_carrier`]).
     Conic(Span<T>),
+    /// A spline's control points, already entered into the reading
+    /// lane's boxes: the locus lies in their convex hull, so its axial
+    /// image lies in theirs.
+    Hull(Vec<SpanBox<T>>),
 }
 
 /// [`EdgeBoxRule`] as an axial span reads it: the one map from a rule
 /// to an [`AxialCarrier`], the conic arm's axial image computed by the
 /// lane (`conic`), which reads `geom`'s directional door at its own
 /// scalar — the certified bracket door on the bracket lane, the
-/// carrier's own arithmetic on the census's. No axial-span closed form
-/// is written for the spiric, and an edge with no sound box claims
-/// nothing: both are [`AxialCarrier::Unclaimable`].
+/// carrier's own arithmetic on the census's. A spline's is its control
+/// points, each entered into the lane's boxes (`enter`). No axial-span
+/// closed form is written for the spiric, and an edge with no sound box
+/// claims nothing: both are [`AxialCarrier::Unclaimable`].
 pub(crate) fn axial_carrier<'c, T: Real, S>(
     rule: EdgeBoxRule<'c, T>,
     conic: impl FnOnce(&ConicArc<'c, T>) -> Span<S>,
+    enter: impl Fn(Point3<T>) -> SpanBox<S>,
 ) -> AxialCarrier<S> {
     match rule {
-        EdgeBoxRule::NoSoundBox | EdgeBoxRule::ControlHull(_) | EdgeBoxRule::Spiric { .. } => {
-            AxialCarrier::Unclaimable
+        EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric { .. } => AxialCarrier::Unclaimable,
+        EdgeBoxRule::ControlHull(net) => {
+            AxialCarrier::Hull(net.control().iter().map(|&p| enter(p)).collect())
         }
         EdgeBoxRule::Chord => AxialCarrier::Chord,
         EdgeBoxRule::ConicAmplitude(arc) => AxialCarrier::Conic(conic(&arc)),
@@ -592,6 +599,9 @@ pub(crate) fn edge_axial_span<T: Real>(
         AxialCarrier::Unclaimable => chord.widen(poison_value::<T>()),
         AxialCarrier::Chord => chord,
         AxialCarrier::Conic(arc) => arc.hull(chord),
+        AxialCarrier::Hull(points) => points
+            .iter()
+            .fold(chord, |hull, p| hull.hull(along(p, origin))),
     }
 }
 
@@ -1939,6 +1949,7 @@ pub(crate) fn face_box<T: Decide + Bounds>(
                     let axial = axial_carrier(
                         edge_box_rule(body.edge_curve_linked(ek, e).certified()),
                         conic,
+                        bracket_point,
                     );
                     grow(edge_axial_span(
                         &origin,
@@ -2251,8 +2262,8 @@ fn boundary_hull<T: Decide + Bounds>(
 ///   prunes every face the net's hull does not reach, which is sound
 ///   because the crossing lanes read a spline edge against every face
 ///   it does reach: the curve × face table's ring-composite arm at a
-///   plane, a typed refusal at a lane with no arm. No axial projection
-///   is written for it ([`AxialCarrier::Unclaimable`]).
+///   plane, a typed refusal at a lane with no arm. Its axial image is
+///   its control points' ([`AxialCarrier::Hull`]).
 /// - [`NoSoundBox`](Self::NoSoundBox) — an edge whose carrier is null
 ///   scaffolding. Nothing is certified about the locus, so nothing is
 ///   claimed; the chord is NOT a bound.

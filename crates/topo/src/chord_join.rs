@@ -1230,6 +1230,11 @@ pub(crate) enum JoinLane<'a, T: Real> {
         /// rides.
         branch: crate::boolean::Branch,
     },
+    /// The boolean's chord on a germ pair whose section the operation's
+    /// section table carries (`boolean::section_table`): an arc of the
+    /// component's carrier between the two sites, on both sides
+    /// ([`carried_chord_spec`]).
+    Carried(&'a mut CarriedCtx<T>),
     /// A section segment that is an edge of this solid: this side's
     /// chord is a copy of that edge ([`along_edge_spec`]) and reads no
     /// section, since the germ's face pair there may be two faces on
@@ -1237,6 +1242,25 @@ pub(crate) enum JoinLane<'a, T: Real> {
     /// alone, the other solid's chord may read one (the boolean's
     /// edge-plane lane cuts its face by the edge's plane).
     AlongEdge,
+}
+
+/// **The component a carried chord is an arc of** ([`JoinLane::Carried`]):
+/// its carrier as the section table seated it, the partner face's
+/// surface, the copy of it this body holds once one is minted, and the
+/// length a direction's angle to the component is levered by.
+pub(crate) struct CarriedCtx<T: Real> {
+    /// The component's carrier, a closed one opened at its first site.
+    pub(crate) carrier: geom::Curve3<T>,
+    /// Its parameter span.
+    pub(crate) span: (T, T),
+    /// Whether the component is closed: its span's ends are one point.
+    pub(crate) closed: bool,
+    /// The other operand's germ face's surface.
+    pub(crate) partner: geom::Surface<T>,
+    /// The copy of `partner` in this body, once minted.
+    pub(crate) partner_key: Option<SurfaceKey>,
+    /// The section's own scale ([`geom_brep::CarriedSection::lever`]).
+    pub(crate) lever: T,
 }
 
 /// The section conic's frame — the curve both chord lanes take an arc
@@ -2237,6 +2261,9 @@ fn chord_spec<T: Decide>(
     if u1 == u2 && matches!(lane, JoinLane::Planar | JoinLane::AlongEdge) {
         return Ok(None);
     }
+    if let JoinLane::Carried(ctx) = lane {
+        return carried_chord_spec(body, band, face, ctx, (u1, u2), leave).map(Some);
+    }
     body.get_vertex(u1).ok_or(SplitJoinError::Corrupt {
         entity: EntityId::Vertex(u1),
     })?;
@@ -2266,6 +2293,7 @@ fn chord_spec<T: Decide>(
                 leave,
             ),
             JoinLane::Planar | JoinLane::Split(_) => Ok(None),
+            JoinLane::Carried(_) => unreachable!("the carried lane is answered above"),
             JoinLane::AlongEdge => Err(SplitJoinError::SectionInvariant {
                 face,
                 what: "a chord along an edge asked for a section: it copies the edge",
@@ -2687,6 +2715,177 @@ fn bool_planar_chord_spec<T: Decide>(
     }))
 }
 
+/// **A carried chord** ([`JoinLane::Carried`]): the arc of the
+/// component's carrier from `u1`'s site to `u2`'s, the way the section
+/// leaves `u1` (`chord_arc_leave_germ`, levered at the section's scale),
+/// described as the intersection of the divided face's surface and this
+/// body's copy of the partner's. A site's parameter is its foot on the
+/// carrier, read on it. A closed component is seated at its first site
+/// (`boolean::section_table`): its carrier runs from that site round to
+/// it, so a chord leaving the seat starts at the span's start when it
+/// runs forward and at its end when it runs back, one arriving there
+/// the other way round, and a one-site loop's chord is the whole loop.
+/// No chord straddles the seat: the arc runs forward from its start's
+/// parameter to its end's (`chord_carried_forward`), cut from the
+/// carrier's bits over that interval ([`cut_arc`]) and run back where it
+/// leaves backward ([`run_back`]), so the two solids' chords are cut
+/// from one carrier's bits.
+///
+/// # Errors
+///
+/// [`SplitJoinError::Escalated`] for a reading in the band;
+/// [`SplitJoinError::SectionInvariant`] for a site off the component, a
+/// departure across it or of the split's datum, and an arc that would
+/// cross the seat.
+fn carried_chord_spec<T: Decide>(
+    body: &mut Body<T>,
+    band: Band,
+    face: FaceKey,
+    ctx: &mut CarriedCtx<T>,
+    (u1, u2): (VertexKey, VertexKey),
+    leave: Departure<T>,
+) -> Result<SectionChord<T>, SplitJoinError> {
+    let invariant = |what| SplitJoinError::SectionInvariant { face, what };
+    let escalated = |diag| SplitJoinError::Escalated { face, diag };
+    let own = body.get_face(face).ok_or_else(|| corrupt_face(face))?.surface;
+    let (lo, hi) = ctx.span;
+    let seat = ctx.carrier.eval(lo);
+    let at_seat = |p: Point3<T>| -> Result<bool, SplitJoinError> {
+        if !ctx.closed {
+            return Ok(false);
+        }
+        Ok(decide("chord_carried_at_seat", Margin::norm3(p - seat), band)
+            .map_err(escalated)?
+            == Sign::Zero)
+    };
+    let foot = |p: Point3<T>| -> Result<T, SplitJoinError> {
+        let foot = ctx.carrier.foot(p, lo);
+        match foot.on_carrier(band) {
+            Ok(geom::OnCarrier::On { .. }) => Ok(foot.t()),
+            Ok(geom::OnCarrier::Off) => Err(invariant("a carried chord's end lies off its component")),
+            Err(geom::CarrierRefusal::Escalated(diag) | geom::CarrierRefusal::Straddle(diag)) => {
+                Err(escalated(diag))
+            }
+            Err(geom::CarrierRefusal::Exhausted | geom::CarrierRefusal::Unbounded) => Err(
+                invariant("a carried chord end's distance from its component could not be read"),
+            ),
+        }
+    };
+    let (p1, p2) = (vertex_point(body, u1), vertex_point(body, u2));
+    let seat1 = at_seat(p1)?;
+    let from = if seat1 { lo } else { foot(p1)? };
+    let tangent = ctx.carrier.deriv(from);
+    if leave.datum != Datum::Germ {
+        return Err(invariant(
+            "a carried chord's departure is not a germ's direction",
+        ));
+    }
+    let along = leave.dir.dot(tangent) / tangent.norm();
+    let up = match decide(
+        "chord_arc_leave_germ",
+        Margin::levered(along, ctx.lever),
+        band,
+    )
+    .map_err(escalated)?
+    {
+        Sign::Positive => true,
+        Sign::Negative => false,
+        Sign::Zero => {
+            return Err(invariant(
+                "the section's direction of departure handed to a chord end has no component \
+                 along the section there",
+            ));
+        }
+    };
+    let (start, stop) = if up { (lo, hi) } else { (hi, lo) };
+    let t1 = if seat1 { start } else { from };
+    let t2 = if u1 == u2 || at_seat(p2)? {
+        stop
+    } else {
+        foot(p2)?
+    };
+    let forward = if up { t2 - t1 } else { t1 - t2 };
+    if decide(
+        "chord_carried_forward",
+        Margin::metered(forward, InfSpeed::new(tangent.norm())),
+        band,
+    )
+    .map_err(escalated)?
+        != Sign::Positive
+    {
+        return Err(invariant(
+            "a carried chord would cross its component's seat",
+        ));
+    }
+    let (lo_cut, hi_cut) = if up { (t1, t2) } else { (t2, t1) };
+    let arc = cut_arc(&ctx.carrier, (lo_cut, hi_cut)).ok_or(invariant(
+        "a carried chord's arc could not be cut from its component's carrier",
+    ))?;
+    let (carrier, t_start, t_end) = if up {
+        (arc, t1, t2)
+    } else {
+        (run_back(&arc), T::zero() - t1, T::zero() - t2)
+    };
+    let partner = match ctx.partner_key {
+        Some(k) => k,
+        None => {
+            let k = body.add_surface(ctx.partner.clone());
+            ctx.partner_key = Some(k);
+            k
+        }
+    };
+    let witness = carrier.mid_point(t_start, t_end);
+    Ok(SectionChord {
+        spec: EdgeCurveSpec {
+            description: geom_brep::EdgeDescriptionSpec::Intersection {
+                pair: geom_brep::SurfacePair::new(own, partner),
+                witness,
+            },
+            carrier,
+            param_start: t_start,
+            param_end: t_end,
+        },
+        ends: None,
+    })
+}
+
+/// **The arc of `carrier` over `[lo, hi]`, cut from its bits**: a
+/// spline split at each end inside its domain
+/// ([`geom::NurbsCurve3::split_at`], which keeps the parent's
+/// parameter), so the arc is the carrier's own net over the interval and
+/// every reader of the chord reads only that; any other carrier as it
+/// is. `None` where an end is no point, or the split refuses.
+fn cut_arc<T: Decide>(carrier: &geom::Curve3<T>, (lo, hi): (T, T)) -> Option<geom::Curve3<T>> {
+    let geom::Curve3::Nurbs(net) = carrier else {
+        return Some(carrier.clone());
+    };
+    let (d0, d1) = net.knot_values().domain();
+    let (a, b) = (lo.point_value()?, hi.point_value()?);
+    let (e0, e1) = (d0.point_value()?, d1.point_value()?);
+    let mut piece = (**net).clone();
+    if a > e0 {
+        piece = piece.split_at(a).ok()?.1;
+    }
+    if b < e1 {
+        piece = piece.split_at(b).ok()?.0;
+    }
+    Some(geom::Curve3::Nurbs(std::sync::Arc::new(piece)))
+}
+
+/// **`carrier` run back** (its point at `t` is `carrier`'s at `−t`):
+/// [`geom::Curve3::reversed`], and for a spline its net reflected
+/// through 0 ([`geom_brep::reversed_column`]). Both are exact.
+fn run_back<T: Decide>(carrier: &geom::Curve3<T>) -> geom::Curve3<T> {
+    match carrier {
+        geom::Curve3::Nurbs(net) => {
+            geom::Curve3::Nurbs(std::sync::Arc::new(geom_brep::reversed_column(net)))
+        }
+        other => other
+            .reversed()
+            .unwrap_or_else(|| unreachable!("every carrier but a spline has its reversal")),
+    }
+}
+
 /// **A section segment's chord curve**: the curve both of its chords
 /// are minted on, computed ONCE per join ([`ChordJoiner::segment_curve`])
 /// and read by everything that needs the chord's geometry — the joiner's
@@ -2792,9 +2991,7 @@ impl<T: Decide> SegmentCurve<T> {
                 "a chord starts at neither of its segment's matched halves",
             ));
         }
-        let carrier = spec.carrier.reversed().ok_or(invariant(
-            "a segment curve on a spline carrier (no chord lane mints one)",
-        ))?;
+        let carrier = run_back(&spec.carrier);
         let (t0, t1) = (T::zero() - spec.param_end, T::zero() - spec.param_start);
         // A surface-pair description names the locus, not its sense,
         // and a chart image the door derives from the carrier follows
@@ -3696,11 +3893,11 @@ pub(crate) fn chart_island_winding<T: Decide>(
 }
 
 /// The loop arc of an edge on `quadric` over `params`; `None` on a
-/// carrier its loops do not carry: on a sphere any but a circle (a
-/// cylinder's or a torus's section), on a cone a spiric or a spline, on
-/// a torus any but a meridian, a parallel
-/// ([`Quadric::torus_circle_arc`]) or a spiric oval
-/// ([`Quadric::torus_spiric_arc`]).
+/// carrier its loops do not carry: on a sphere a line, an ellipse or a
+/// spiric, on a cylinder or a cone a spiric, on a torus any but a
+/// meridian, a parallel ([`Quadric::torus_circle_arc`]), a spiric oval
+/// ([`Quadric::torus_spiric_arc`]) or a spline. A spline is an arc on
+/// every face ([`LoopArc::Spline`]).
 fn quadric_loop_arc<T: Decide>(
     quadric: &Quadric<T>,
     carrier: &geom::Curve3<T>,
@@ -3708,9 +3905,10 @@ fn quadric_loop_arc<T: Decide>(
     band: Band,
 ) -> Result<Option<LoopArc<T>>, Indeterminate> {
     Ok(match (quadric, carrier) {
-        (Quadric::Sphere { .. }, geom::Curve3::Circle { .. })
+        (_, geom::Curve3::Nurbs(_))
+        | (Quadric::Sphere { .. }, geom::Curve3::Circle { .. })
         | (
-            Quadric::Cone { .. },
+            Quadric::Cylinder { .. } | Quadric::Cone { .. },
             geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } | geom::Curve3::Line { .. },
         ) => LoopArc::of(carrier, params),
         (Quadric::Torus { .. }, geom::Curve3::Spiric { .. }) => {

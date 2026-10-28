@@ -282,7 +282,9 @@ fn a_radius_not_definitely_positive_is_degenerate_on_every_reading() {
 /// **The general rung carries through its door**: the lone loop marched
 /// over the sphere's box at `f64`, one closed fitted component with its
 /// certificate, the witness's foot on it; without the door the carrying
-/// refuses by the scalar's name.
+/// refuses by the scalar's name. Seated at an interior parameter it is
+/// the same locus run from that point round to it, certified again; at
+/// its start it is kept.
 #[test]
 fn the_general_rung_carries_through_its_door() {
     let (cyl, sph) = (cylinder(0.5), sphere(0.5, 0.3));
@@ -306,6 +308,47 @@ fn the_general_rung_carries_through_its_door() {
     );
     let witness = section.components()[0].witness.unwrap();
     assert_eq!(carried.foot(witness, band()).unwrap().component, 0);
+    // Seated at an interior parameter: the loop opened there, certified
+    // again, the same locus run from that point round to it.
+    let (lo, hi) = c.span;
+    let at = lo + 0.37 * (hi - lo);
+    assert!(
+        matches!(
+            section.seat(None, c, at, band()),
+            Err(CarryError::NoLane { scalar: "f64" })
+        ),
+        "no door, no seat"
+    );
+    let seated = section
+        .seat(Some(SsiLane::marched()), c, at, band())
+        .expect("the loop seats");
+    assert!(
+        seated.closed && seated.certificate.is_some(),
+        "the seated loop is closed and certified again"
+    );
+    let (s0, s1) = seated.span;
+    let start = seated.carrier.eval(s0);
+    assert!(
+        (start - c.carrier.eval(at)).norm() < band().zero(),
+        "the seated loop starts at the seat"
+    );
+    assert!(
+        (seated.carrier.eval(s1) - start).norm() < band().zero(),
+        "the seated loop ends where it starts"
+    );
+    for k in 1..64 {
+        let p = seated.carrier.eval(s0 + (s1 - s0) * f64::from(k) / 64.0);
+        let foot = c.carrier.foot(p, at);
+        assert!(
+            (c.carrier.eval(foot.t()) - p).norm() < band().zero(),
+            "the seated loop's point {k} lies on the loop"
+        );
+    }
+    // At the domain's end the loop starts there already.
+    let kept = section
+        .seat(Some(SsiLane::marched()), c, lo, band())
+        .expect("a seat at the start");
+    assert_eq!(kept.span, c.span, "a loop seated at its start is kept");
 }
 
 /// **Every other kind pair is read elsewhere**, with `route`'s own arm.

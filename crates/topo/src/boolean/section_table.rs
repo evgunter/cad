@@ -34,7 +34,7 @@ use std::cell::{OnceCell, RefCell};
 use std::collections::BTreeMap;
 
 use geom_brep::{
-    CarriedSection, CarryError, PairSection, SectionError, SiteFoot, SiteRefusal, SsiLane,
+    CarriedComponent, CarriedSection, CarryError, PairSection, SectionError, SiteFoot, SiteRefusal, SsiLane,
 };
 use geom_core::{Band, Indeterminate, Real};
 
@@ -50,7 +50,13 @@ struct Held<T: Real> {
     read: Result<PairSection<T>, SectionError>,
     band: Band,
     carried: OnceCell<Result<CarriedSection<T>, CarryError>>,
+    /// Each carried component, seated on the first ask for it
+    /// ([`SectionTable::seated`]).
+    seated: OnceCell<Vec<OnceCell<Seated<T>>>>,
 }
+
+/// One component's seating, held ([`SectionTable::seated`]).
+type Seated<T> = Result<CarriedComponent<T>, CarryError>;
 
 /// **The table's key**: A's surface, then B's. Both are keys of their
 /// own body's arena, and the two arenas reuse keys, so the order is the
@@ -147,6 +153,7 @@ impl<T: geom_core::Decide> SectionReader<T> {
                             read,
                             band,
                             carried: OnceCell::new(),
+                            seated: OnceCell::new(),
                         })
                         .read,
                 )
@@ -206,6 +213,43 @@ impl<T: geom_core::Decide> SectionTable<T> {
         )
     }
 
+    /// **Component `k` of the pair's carried section, seated**
+    /// ([`PairSection::seat`]) at its parameter `at`, on the first ask
+    /// for that component, and held for the operation: every chord cut
+    /// from the component reads the one seated carrier, so the component
+    /// is opened once, at the first site the join cuts a chord from, and
+    /// both operands' chords cut the same bits. `None` where the table
+    /// holds no section for the pair.
+    pub(crate) fn seated(
+        &self,
+        a: (&Body<T>, FaceKey),
+        b: (&Body<T>, FaceKey),
+        k: usize,
+        at: T,
+    ) -> Option<Result<&CarriedComponent<T>, Uncarried<'_>>> {
+        let held = self.entry(a, b)?;
+        let section = match &held.read {
+            Ok(section) => section,
+            Err(e) => return Some(Err(Uncarried::Section(e))),
+        };
+        let carried = match self.carried(a, b)? {
+            Ok(carried) => carried,
+            Err(e) => return Some(Err(e)),
+        };
+        let Some(component) = carried.components().get(k) else {
+            return Some(Err(Uncarried::Component));
+        };
+        let slots = held
+            .seated
+            .get_or_init(|| carried.components().iter().map(|_| OnceCell::new()).collect());
+        Some(
+            slots[k]
+                .get_or_init(|| section.seat(self.lane, component, at, held.band))
+                .as_ref()
+                .map_err(Uncarried::Carry),
+        )
+    }
+
     /// **The place on the section of A's face `fa` against B's `fb` of
     /// the germ that operand `side`'s half `he` faces**, read by `read`
     /// on the first ask and held for the operation: a germ's site and
@@ -251,8 +295,10 @@ impl<T: geom_core::Decide> SectionTable<T> {
 pub(crate) enum Uncarried<'t> {
     /// The pair's section refused at the glue door.
     Section(&'t SectionError),
-    /// The section did not carry.
+    /// The section did not carry, or a component did not seat.
     Carry(&'t CarryError),
+    /// A germ names a component the carried section does not have.
+    Component,
 }
 
 #[cfg(test)]
