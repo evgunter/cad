@@ -148,7 +148,8 @@ pub fn document() -> CorpusDoc {
     });
 
     // A moved copy of the union in its own space, its row of `n`; a
-    // lone block's ring of two about its own z.
+    // lone block's ring of two about the vertical line through
+    // (-2, 0, 0).
     let band = Band::linear(Tol::witness()).expect("a band");
     let turned = Frame::rotate_then_translate(
         [0.0, 0.0, 1.0],
@@ -173,14 +174,23 @@ pub fn document() -> CorpusDoc {
         profile: profile.into(),
         distance: len(0.5),
     });
+    // The ring turns about the vertical line through (-2, 0, 0): a half
+    // turn about the copy's origin, then the slide that carries that
+    // line back onto itself, `(-4, 0, 0)` per member.
     let c = r.index("c", Formula::count(2));
     let circular = r.copies(
         lone,
-        vec![(
-            Coord::Spin(Some(TargetAxis::Z)),
-            Formula::mul(scalar_of(c), Formula::turn_over(2).expect("a half turn"))
-                .expect("an angle"),
-        )],
+        vec![
+            (
+                Coord::Spin(Some(TargetAxis::Z)),
+                Formula::mul(scalar_of(c), Formula::turn_over(2).expect("a half turn"))
+                    .expect("an angle"),
+            ),
+            (
+                Coord::Slide(TargetAxis::X),
+                Formula::mul(scalar_of(c), len(-4.0)).expect("a length"),
+            ),
+        ],
     );
     // One member of the row, read by its index (a STRUCTURAL slot).
     let first = r.insert(Node::Union {
