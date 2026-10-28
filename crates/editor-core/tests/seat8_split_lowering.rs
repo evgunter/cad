@@ -401,11 +401,6 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// main's merge at `1f851964`). Re-taken over main's merge at
 /// `cd5f9dee`, whose word is `0x2cab_0c2d_cbd8_4ea8`: with each copy
 /// rebuilt at `place` as before E, this branch reads main's word.
-///
-/// RE-BLESSED, `part_select` and `kitchen_sink` only, for G
-/// (`patterns-are-index-variables`): each held a pattern, now a placement
-/// over an index (`part_select`'s middle instance an indexed read), its
-/// members named `Member { (k, i), of }`. No other row moved.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();

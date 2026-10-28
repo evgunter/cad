@@ -565,7 +565,7 @@ fn a_pick_on_a_union_of_instances_stands_on_the_member() {
 const QUARTER_TURN: f64 = core::f64::consts::FRAC_PI_2;
 
 /// Pattern post_b twice about the world +y axis and answer the
-/// pattern node.
+/// family's placement.
 ///
 /// A quarter turn about +y carries the post's top cap from `z =
 /// POST_HEIGHT` facing +z to `x = POST_HEIGHT` facing +x, standing

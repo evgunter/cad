@@ -1985,9 +1985,7 @@ pub(crate) trait SegRewrite {
     /// # Errors
     ///
     /// The rewriter's own.
-    fn index(&mut self, index: VarId) -> Result<VarId, Self::Error> {
-        Ok(index)
-    }
+    fn index(&mut self, index: VarId) -> Result<VarId, Self::Error>;
 }
 
 /// What a rewrite does with a name a segment carries.
@@ -2409,6 +2407,11 @@ impl SegRewrite for StepPieces {
         _: StableName,
     ) -> Result<Option<StableName>, Self::Error> {
         Ok(None)
+    }
+
+    /// An index is the document's own: stepping a piece keeps it.
+    fn index(&mut self, index: VarId) -> Result<VarId, Self::Error> {
+        Ok(index)
     }
 }
 /// The [`RoleSeg`] variants a BOOLEAN emitter never mints, as a

@@ -859,7 +859,7 @@ fn the_fused_door_mints_one_body_a_boolean_seat_takes() {
     let (mut session, part, proto) = two_boxes(tol);
     let fused = session_insert(
         &mut session,
-        SessionOp::AddPlacedUnion {
+        SessionOp::AddFusedPattern {
             input: proto.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
@@ -938,7 +938,7 @@ fn overlapping_copies_fuse_into_one_body() {
     // meets.
     let crowded = session_insert(
         &mut session,
-        SessionOp::AddPlacedUnion {
+        SessionOp::AddFusedPattern {
             input: proto.into(),
             count: 3,
             rule: PatternRuleSpec::Linear {
@@ -985,7 +985,7 @@ fn a_fused_pattern_round_trips_through_save_and_open() {
     let proto = common::xy_box_in(&mut authoring, B);
     let fused = session_insert(
         &mut authoring,
-        SessionOp::AddPlacedUnion {
+        SessionOp::AddFusedPattern {
             input: proto.into(),
             count: 3,
             rule: PatternRuleSpec::Linear {
@@ -1044,7 +1044,7 @@ fn undo_and_redo_walk_the_fused_pattern_out_and_back() {
     let states = session.history().len();
     let fused = session_insert(
         &mut session,
-        SessionOp::AddPlacedUnion {
+        SessionOp::AddFusedPattern {
             input: proto.into(),
             count: 3,
             rule: PatternRuleSpec::Linear {
@@ -1109,7 +1109,10 @@ fn the_output_choice_names_both_doors_and_defaults_to_instances() {
         let minted = matches!(
             (output, &op),
             (PatternOutputChoice::Instances, SessionOp::AddPattern { .. })
-                | (PatternOutputChoice::Fused, SessionOp::AddPlacedUnion { .. })
+                | (
+                    PatternOutputChoice::Fused,
+                    SessionOp::AddFusedPattern { .. }
+                )
         );
         assert!(minted, "{label} commits its own op: {op:?}");
     }
@@ -1186,7 +1189,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
                 spacing: len(0.05),
             },
         },
-        SessionOp::AddPlacedUnion {
+        SessionOp::AddFusedPattern {
             input: body.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
@@ -1260,7 +1263,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
                 step: ang(1.0),
             },
         },
-        SessionOp::AddPlacedUnion {
+        SessionOp::AddFusedPattern {
             input: plane.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
@@ -1268,7 +1271,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
                 spacing: len(0.05),
             },
         },
-        SessionOp::AddPlacedUnion {
+        SessionOp::AddFusedPattern {
             input: body.into(),
             count: 2,
             rule: PatternRuleSpec::Circular {
@@ -1487,7 +1490,7 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
             scl3([1.0, 0.0, 0.0]),
             len(0.05)
         ),
-        Ok(SessionOp::AddPlacedUnion { count: 3, .. })
+        Ok(SessionOp::AddFusedPattern { count: 3, .. })
     ));
     pattern.clear();
     assert_eq!(pattern.input(), None);
@@ -2221,7 +2224,7 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
             Node::chamfer(body, common::len(0.001), edges.clone()),
         ),
         (
-            "placed union",
+            "family union",
             Node::Union {
                 members: Bodies::Family(pncad::document::BodyRead::plain(Operand::from(
                     pattern_of_body,

@@ -292,7 +292,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
                 spacing: len(0.05),
             },
         },
-        SessionOp::AddPlacedUnion {
+        SessionOp::AddFusedPattern {
             input: node.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
@@ -445,7 +445,7 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::AddSplit { .. } => (34, false),
         SessionOp::AddTransform { .. } => (35, false),
         SessionOp::AddPattern { .. } => (36, false),
-        SessionOp::AddPlacedUnion { .. } => (37, false),
+        SessionOp::AddFusedPattern { .. } => (37, false),
         SessionOp::AddFillet { .. } => (38, false),
         SessionOp::AddChamfer { .. } => (39, false),
         SessionOp::AddInstance { .. } => (40, false),
@@ -989,7 +989,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::AddMirror { .. }
         | SessionOp::AddTransform { .. }
         | SessionOp::AddPattern { .. }
-        | SessionOp::AddPlacedUnion { .. }
+        | SessionOp::AddFusedPattern { .. }
         | SessionOp::AddFillet { .. }
         | SessionOp::AddChamfer { .. }
         | SessionOp::AddPart { .. }
@@ -1604,7 +1604,7 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::AddMirror { .. }
         | SessionOp::AddTransform { .. }
         | SessionOp::AddPattern { .. }
-        | SessionOp::AddPlacedUnion { .. }
+        | SessionOp::AddFusedPattern { .. }
         | SessionOp::AddFillet { .. }
         | SessionOp::AddChamfer { .. }
         | SessionOp::AddPart { .. }

@@ -544,20 +544,18 @@ BOUNDS_ALLOWLIST=(
   # forwards to `run_members` with those pairs and reads no bracket of
   # its own. 2 + 1 = 3.
   'crates/topo/src/boolean/nary.rs 3 2026-07-29 (M5 PR 8), the driver amendment'
-  # `separation.rs` is FOUR and the ledger entry enumerates THREE
-  # (`Separation::of`, `Separation::certify`, `image`). The fourth,
+  # `separation.rs` is FIVE. The ledger entry enumerates three seams
+  # (`Separation::of`, the pair certificate, `image`), and the pair
+  # certificate is `Separation::apart`, every pair of placed copies the
+  # boxes separate, with `may_meet`, its per-pair step: both read the
+  # prototype's face boxes through `image` and the tree `of` built, and
+  # neither reads a bracket of its own. The fifth,
   # `SolidSeparation::of`, is argued in that struct's own doc as
   # INHERITANCE from the sibling door — a dual-admission argument, not
   # the necessity standard the ledger asks for — so its ledger row is
   # owed and the entry says so rather than letting the count read as
-  # ratified by a ruling that does not mention it. Two more ride the
-  # first three's seam: `Separation::apart`, `certify`'s reading pair by
-  # pair (every pair of placed copies the boxes separate, where
-  # `certify` stops at the first they cannot), and `may_meet`, the one
-  # per-pair step the two share. Both read the prototype's face boxes
-  # through `image` and the tree `of` built, and neither reads a bracket
-  # of its own. 4 + 2 = 6.
-  "crates/topo/src/separation.rs 6 2026-07-29 (M5 PR 8) for three of them; the fourth (SolidSeparation::of) rests on SolidSeparation's own doc and OWES a ledger row"
+  # ratified by a ruling that does not mention it.
+  "crates/topo/src/separation.rs 5 2026-07-29 (M5 PR 8) for three of them; the fourth (SolidSeparation::of) rests on SolidSeparation's own doc and OWES a ledger row"
   'crates/editor-core/src/eval/mod.rs 7 2026-07-29 (M5 PR 8), the driver amendment'
   # 15 -> 16: `wire_shell` joined its nine sibling lowerings on the
   # same header. The shell's seat door stopped being a trait method

@@ -487,10 +487,6 @@ fn both_sweeps_evaluate_in_one_document() {
 /// main's merge at `1f851964`). Re-taken over main's merge at
 /// `cd5f9dee`, whose word is `0x2cab_0c2d_cbd8_4ea8`: with each copy
 /// rebuilt at `place` as before E, this branch reads main's word.
-///
-/// RE-BLESSED, `kitchen_sink` only, for G (`patterns-are-index-variables`):
-/// its pattern is a placement over an index, its members named
-/// `Member { (k, i), of }`. No other row moved.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [

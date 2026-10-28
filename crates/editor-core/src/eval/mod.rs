@@ -1049,9 +1049,9 @@ pub enum ValuePayload<T: Decide> {
     /// of its edges is authored at ([`ProfileValue`]).
     Profile(Arc<ProfileValue<T>>),
     /// A single body: every one-body op (extrude, revolve, the tubes,
-    /// loft, sweep, blends, shell, union, placed union, instantiate,
-    /// `Part`) and a `Place` of one body — a placement over one shape
-    /// has that shape's shape, so a placement of instances is
+    /// loft, sweep, blends, shell, union, assemble, instantiate) and a
+    /// `Place` of one body — a placement over one shape has that shape's
+    /// shape, so a placement of a family read whole is
     /// [`Self::Instances`].
     Body(Framed<T>),
     /// A boolean's result: a body with its contact records, or the

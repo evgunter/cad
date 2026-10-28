@@ -632,8 +632,8 @@ fn depth_of(inputs: &[RecipeNodeId], depths: &BTreeMap<RecipeNodeId, usize>) -> 
 /// **What `id`'s value says in `evaluation`** — asked only of a row
 /// [`rows`] has read `Ok`, so this decides which payload, never
 /// whether there is one. `None` for a payload whose `Ok` is the whole
-/// of it: a body, a profile, a pattern's instances (its
-/// count is authored, and the words of any refusal state it), a
+/// of it: a body, a profile, a family's members (its count is
+/// authored, and the words of any refusal state it), a
 /// placement's copy, the world.
 fn readout_of(
     doc: &Doc<ProfileProgram>,

@@ -286,10 +286,9 @@ impl Frame {
     /// frame the document admits carries only numbers and is a rigid
     /// motion, so it preserves orientation.
     ///
-    /// One predicate with one home, asked wherever a document admits a
-    /// frame — a placement rule's listed frames
-    /// ([`crate::node::PlacementRuleFault`]) — so no door can come to
-    /// hold frames to a different standard. Its caller says WHICH frame
+    /// One predicate with one home, asked wherever a frame is admitted
+    /// — the viewer's drawn frame — so no door can come to hold frames to
+    /// a different standard. Its caller says WHICH frame
     /// is at fault in its own vocabulary ([`FrameSite`]), and forwards
     /// this answer's sentence rather than restating it.
     ///

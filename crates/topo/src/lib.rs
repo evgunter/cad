@@ -1334,7 +1334,7 @@ pub use replace_face::{
     offset_edge_specs_for_tests,
 };
 pub use revert::RevertError;
-pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, SolidsMeet};
+pub use separation::{Separation, SolidOwners, SolidSeparation, SolidsMeet};
 pub use shell::{
     HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
 };

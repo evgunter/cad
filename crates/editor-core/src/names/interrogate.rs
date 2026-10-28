@@ -642,8 +642,7 @@ fn kind_mismatch(wanted: EntityKind, found: EntityKind) -> InterrogateError {
 
 /// The node's output body at `index` — the same body ordering the
 /// naming emission used (single-body ops: 0; a split's halves by
-/// [`SplitHalf::output_body`]; a pattern's instances by instance
-/// index).
+/// [`SplitHalf::output_body`]; a family's members by member index).
 pub(crate) fn output_body<T: Decide>(
     payload: &ValuePayload<T>,
     index: u32,

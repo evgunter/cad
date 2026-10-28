@@ -58,16 +58,11 @@ use topo::BooleanOp;
 /// It says its claimed name by tag, which says each read a carry came
 /// through.
 ///
-/// Raised 80 → 92 by INTENT stage 3 D (Transform retires into a
-/// placement): every construction is the root of its own space, so a
-/// later operand of a union is placed against the first before it is
-/// joined, and the name says that read too ("joined at Union … from
-/// Place …"), and its claimed name says one more read by tag. Filed as
-/// `name-words-budget-grew-under-placed-copy-wrapping`.
-///
-/// Lowered 92 → 80 by G (`patterns-are-index-variables`), which
-/// shortened the corpus's names ([`NAME_WORDS`]): the row's
-/// 90th-percentile name says fewer words, and the row renders 80.
+/// Every construction is the root of its own space, so a later operand
+/// of a union is placed against the first before it is joined, and the
+/// name says that read too ("joined at Union … from Place …"), and its
+/// claimed name says one more read by tag
+/// (`name-words-budget-grew-under-placed-copy-wrapping`).
 const OVER_BUDGET: &[(&str, usize)] = &[("NodeErrorKind::CrossingUnverified", 80)];
 
 /// **The rows whose own prose states its recourse in words the standard
@@ -200,19 +195,9 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// brings the run line's bare sense (above) beneath D′3's names: full
 /// total 343104 → 343208, the percentiles and scoped faces held. No
 /// outcome moved.
-///
-/// Lowered for G (`patterns-are-index-variables`): a family's members
-/// are named `Member { (k, i), of }` over their master's names, one
-/// segment, where a `Pattern`'s copies were `Instance(i)` over a gather
-/// and a `PlacedUnion`'s fused body wrapped each copy again, and a
-/// union of a family reads it once rather than once per copy. Scoped p99
-/// 45 → 43, total 47003 → 44546; full p99 122 → 121, total 343208 →
-/// 320999. Every number shrank; the documents that moved are the
-/// families' (`heat_sink`, `heat_sink_fins`, `kitchen_sink`, `die_tool`,
-/// `part_select`, per `lib_g16_corpus_name_digests`).
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
-    ("scoped faces", [16, 43, 57, 44_546]),
-    ("full", [19, 121, 196, 320_999]),
+    ("scoped faces", [16, 43, 57, 46_335]),
+    ("full", [19, 121, 196, 332_976]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -387,11 +372,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// `Borders` walls' reads under D′3's names.
 ///
 /// Measured again with [`NAME_WORDS`] over main's merge at `4c341b9225`.
-///
-/// Re-pinned for G with [`NAME_WORDS`]: the words that moved are the
-/// families' members, said "member i's copy of" their master's names
-/// where they were said as a pattern's instance.
-const SAID_DIGEST: u64 = 0xddd8_14c4_9779_1c01;
+const SAID_DIGEST: u64 = 0x725d_81bf_b29f_a0a9;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

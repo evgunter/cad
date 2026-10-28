@@ -5,7 +5,9 @@
 //! `k = index(fins)` (D10 `[repetition]`): fin `k` slid
 //! `scalar(k)·pitch` along the base's `x`, its foot `FOOT` up; the
 //! `fins` Count document parameter is the index's count. A union of the
-//! base and that family makes ONE solid.
+//! base and that family makes ONE solid, and the family stands in the
+//! world beside it too, so the product is the union and every fin, each
+//! fin overlapping the union.
 //!
 //! Vocabulary: Profile, Extrude, Place, Union, `InsertNode`,
 //! `DeclareVar` (a Count and an index), `SetParam`.
@@ -90,10 +92,11 @@ pub fn document() -> CorpusDoc {
         members: editor_core::Bodies::Spelled(vec![base.into(), fins.into()]),
     });
     r.place_part(acc);
+    r.place(fins);
 
     CorpusDoc {
         name: "heat_sink",
-        about: "parametric fin strip: one placement over an index, unioned with its base",
+        about: "parametric fin strip: one placement over an index, unioned with its base and placed beside it",
         edits: r.edits,
         doc: r.doc,
         result: Some(acc),

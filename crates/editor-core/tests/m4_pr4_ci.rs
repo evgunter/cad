@@ -92,15 +92,6 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 /// through): the ambiguous row's piece's wall moved from the tool's bare
 /// face name to that `From`. Every row keeps its shape: a spelling
 /// change. Re-measured with both merged.
-///
-/// **Re-pinned for G** (`patterns-are-index-variables`): the row the
-/// two family rows read is a placement over an index, its member named
-/// `Member { (k, 1) }` where a `Pattern` named `Instance(1)`, and the
-/// count edit is the index's definition, so `structural-param`'s
-/// diagnosis is `IndexCount` where it was `StructuralParam`. Compared
-/// against main (`0217fb09`) row by row: `flip-vanish`, `node-gone`
-/// and `ambiguous` are main's bit for bit; `cascade` (a spelling
-/// change: its shape is `Cascade`) and `structural-param` moved.
 const DIAGNOSIS_DIGEST: u64 = 0xe3b5_eba1_51c9_d9ca;
 
 #[test]

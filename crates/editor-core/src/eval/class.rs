@@ -22,8 +22,7 @@ use crate::part::ResolveFault;
 /// variant per value, named for the arm and then the value. The two
 /// blends share one kernel error type and one arm, so the VERB decides
 /// ([`Self::Fillet`], [`Self::Chamfer`], and their selection refusals);
-/// a placement rule's fault, an instantiation's fault and a mate's
-/// fault each decide theirs. Nothing else in a payload is read.
+/// an instantiation's fault and a mate's fault each decide theirs. Nothing else in a payload is read.
 ///
 /// [`NodeErrorKind::class`] matches exhaustively, and so does every
 /// split inside it — an arm added to the error, or a value added to a

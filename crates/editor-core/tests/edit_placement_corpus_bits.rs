@@ -182,12 +182,6 @@ use editor_core::Node;
 /// `1235f4c050`, which brings stage 4 I's re-pin of every row
 /// (`f077063267`, ids only): D′3's moved ids land over main's, so every
 /// row that moved on either side moved here; the ids-masked fence held.
-/// Re-pinned for G (`patterns-are-index-variables`): the rows of the
-/// five families' documents alone (`heat_sink`, `heat_sink_fins`,
-/// `kitchen_sink`, `die_tool`, `part_select`). Each family is one
-/// placement over an index, its word every member's body in member
-/// order, where a `Pattern`'s copies were placed one by one; every other
-/// document's row is main's bit for bit.
 const PINNED: &[(&str, u32, u64)] = &[
     ("die", 160, 0x0b0e_9ff2_2465_e66d),
     ("die", 196, 0x36ae_6d4e_acb1_34a2),
@@ -218,6 +212,7 @@ const PINNED: &[(&str, u32, u64)] = &[
     ("corner_table", 178, 0xe601_a4b2_16e2_54c4),
     ("heat_sink", 48, 0xd1ab_a4f3_417b_c486),
     ("heat_sink", 64, 0x41f5_a137_b222_8a90),
+    ("heat_sink", 78, 0x6dd2_9e74_7294_1dc4),
     ("crossing_slots", 50, 0xc1dd_3b0e_9159_b3a2),
     ("crossing_slots", 88, 0x09f9_ba1c_9f87_1dc9),
     ("crossing_slots", 102, 0xf97d_e0f5_7717_0fca),

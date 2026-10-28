@@ -351,16 +351,10 @@ fn sans_epsilon(t: &str) -> String {
 /// Measured again for D′3 over main's merge at `4c341b9225`, which
 /// brings the run line's bare sense (above) beneath D′3's names and ids;
 /// the ids-masked fence held.
-///
-/// Re-pinned for G (`patterns-are-index-variables`), the five families'
-/// documents alone (`heat_sink`, `heat_sink_fins`, `kitchen_sink`,
-/// `die_tool`, `part_select`), their names and persisted text: each is
-/// a placement over an index where it held a `Pattern` or a
-/// `PlacedUnion`. Every other document's row is main's.
 const PINNED: &[(&str, u64, u64)] = &[
     ("die", 0x874a19bb0c1cb210, 0xfe1f3779173f909d),
     ("corner_table", 0x1538f5150ad6647a, 0xde5c69b920f6fdea),
-    ("heat_sink", 0x79d3_af7f_048d_04c7, 0x42a2_7e9c_3a9d_dede),
+    ("heat_sink", 0x5a65_8b2b_816b_abfb, 0x83ab_6af2_145b_adc8),
     ("crossing_slots", 0x531c69e7e9ff59e6, 0xd0f6429faf4510be),
     ("nested_islands_105", 0xa3260846d5b40f15, 0xe9af7ac8f708e855),
     (

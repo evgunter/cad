@@ -12,8 +12,10 @@
 //! box rule, for a caller holding entity-keyed records that it needs to
 //! ask about at solid granularity.
 //!
-//! The recipe layer's group boolean (`PlacedUnion`) fuses N copies of one
-//! prototype into ONE body through the disjoint-graft door
+//! The recipe layer's union of one family (D10 `[repetition]`) reads N
+//! rigid copies of one prototype, and the n-ary door
+//! ([`crate::nary_boolean_apart`]) grafts the pairs this module
+//! certifies apart without judging them, through the disjoint-graft door
 //! ([`crate::graft_disjoint_all_keyed`]). That door asserts nothing about
 //! its operands (its module docs spell out the gap: overlapping solids
 //! pass the at-rest validator undetected, #382), so the caller must
@@ -60,12 +62,12 @@
 //!
 //! # This door GRANTS, and it admits a `Dual` (D1, 2026-08-19)
 //!
-//! `Separation::of`, [`Separation::certify`] and `image` are
+//! `Separation::of`, [`Separation::apart`] and `image` are
 //! `T: Decide + Bounds` with **no** `geom_core::CertifiedEnclosure`, so
 //! since the D1 ruling they are instantiable at `Dual64` and at
 //! `Dual<Interval>`. Worth saying plainly because the direction is easy
 //! to get backwards: box NON-overlap here is a **grant**, not a refusal —
-//! `Ok(())` IS the certificate, and `crate::graft_disjoint_all_keyed`
+//! a pair [`Separation::apart`] lists IS the certificate, and `crate::graft_disjoint_all_keyed`
 //! re-checks nothing (#382), so this module is the whole establishment of
 //! disjointness.
 //!
@@ -115,26 +117,11 @@ use crate::boolean::BooleanError;
 use crate::boolean::boxes::{face_box, sweep_pad};
 use crate::entity::SolidKey;
 
-/// A pair of placements the certificate could not separate: their padded
-/// boxes meet, so the union of those two copies is not provably a
-/// disjoint union.
-///
-/// Indices are into the placement list, ascending (`i < j`), and the pair
-/// reported is the FIRST in that order — deterministic (D9), so the
-/// refusal a document produces does not depend on iteration luck.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PlacementsMeet {
-    /// The lower placement index.
-    pub i: usize,
-    /// The higher placement index.
-    pub j: usize,
-}
-
 /// The prototype's separation certificate machinery: its padded face
 /// boxes, their hull, and the one tree over them.
 ///
 /// Built ONCE per prototype ([`Separation::of`]) and queried per placement
-/// pair ([`Separation::certify`]).
+/// pair ([`Separation::apart`]).
 #[derive(Debug, Clone)]
 pub struct Separation {
     /// The padded per-face boxes, in the prototype's face-arena order —
@@ -186,34 +173,12 @@ impl Separation {
         self.hull
     }
 
-    /// Certifies that no two of `maps`'s placed copies can meet.
-    ///
-    /// `Ok(())` is the certificate. `Err(PlacementsMeet)` names the first
-    /// pair (ascending `(i, j)`) the boxes could not separate — the typed
-    /// refusal, NOT a claim that the copies actually overlap (module
-    /// docs: sufficient, not necessary).
-    ///
-    /// Fewer than two placements is vacuously certified.
-    ///
-    /// # Errors
-    ///
-    /// [`PlacementsMeet`] — see above.
-    pub fn certify<T: Decide + Bounds>(&self, maps: &[Affine3<T>]) -> Result<(), PlacementsMeet> {
-        let hulls: Vec<Aabb> = maps.iter().map(|m| image(&self.hull, m)).collect();
-        for j in 1..maps.len() {
-            for i in 0..j {
-                if self.may_meet(&hulls, maps, i, j) {
-                    return Err(PlacementsMeet { i, j });
-                }
-            }
-        }
-        Ok(())
-    }
-
     /// **Every pair of `maps`'s placed copies certified apart**, as
-    /// ascending `(i, j)`: the pairs [`Self::certify`] separates, each
-    /// on its own, so one pair the boxes cannot separate leaves every
-    /// other pair's certificate standing.
+    /// ascending `(i, j)`: the pairs no box of one copy can meet any box
+    /// of the other's, each on its own, so one pair the boxes cannot
+    /// separate leaves every other pair's certificate standing. A pair
+    /// left out is NOT a claim that the copies overlap (module docs:
+    /// sufficient, not necessary).
     pub fn apart<T: Decide + Bounds>(&self, maps: &[Affine3<T>]) -> Vec<(usize, usize)> {
         let hulls: Vec<Aabb> = maps.iter().map(|m| image(&self.hull, m)).collect();
         (1..maps.len())
@@ -333,8 +298,8 @@ fn image<T: Decide + Bounds>(b: &Aabb, m: &Affine3<T>) -> Aabb {
 /// body's solid-arena order (D9) so a report does not depend on
 /// iteration luck.
 ///
-/// **Not a claim that the solids overlap.** Like [`PlacementsMeet`],
-/// this is the failure of a SUFFICIENT test: two solids that merely
+/// **Not a claim that the solids overlap.** Like a pair
+/// [`Separation::apart`] leaves out, this is the failure of a SUFFICIENT test: two solids that merely
 /// touch, and two that interpenetrate, both land here, and so does a
 /// disjoint pair whose boxes happen to interpenetrate. What it denies
 /// is the certificate, and denying the certificate is the honest

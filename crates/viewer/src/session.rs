@@ -1800,7 +1800,7 @@ impl DocSession {
             SessionOp::AddPattern { input, count, rule } => {
                 self.add_pattern(input, count, rule, PatternOutputChoice::Instances)
             }
-            SessionOp::AddPlacedUnion { input, count, rule } => {
+            SessionOp::AddFusedPattern { input, count, rule } => {
                 self.add_pattern(input, count, rule, PatternOutputChoice::Fused)
             }
             SessionOp::AddFillet {
@@ -3105,7 +3105,7 @@ impl DocSession {
     }
 
     /// Insert one pattern of an existing body, fused or not
-    /// ([`SessionOp::AddPattern`], [`SessionOp::AddPlacedUnion`]): the
+    /// ([`SessionOp::AddPattern`], [`SessionOp::AddFusedPattern`]): the
     /// index `k = index(count)` and one placement of the body in its own
     /// space whose values read it (D10 `[repetition]`,
     /// [`pncad::pattern`]) — a row slid `scalar(k)·spacing` along the

@@ -403,7 +403,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     // boolean seat takes without complaint.
     let merlons = session_insert(
         &mut session,
-        SessionOp::AddPlacedUnion {
+        SessionOp::AddFusedPattern {
             input: block.into(),
             count: 4,
             rule: PatternRuleSpec::Circular {

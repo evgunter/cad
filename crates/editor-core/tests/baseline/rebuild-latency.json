@@ -81,9 +81,9 @@
       "cone": 4
     },
     "heat_sink": {
-      "about": "parametric fin strip: one placement over an index, unioned with its base",
-      "nodes": 7,
-      "cone": 4
+      "about": "parametric fin strip: one placement over an index, unioned with its base and placed beside it",
+      "nodes": 9,
+      "cone": 6
     },
     "heat_sink_fins": {
       "about": "the parametric fin group fused: a union of one family over the fins index",

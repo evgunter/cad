@@ -886,8 +886,8 @@ impl InterfaceRecord {
 /// door**, which the spec asked for and which is satisfied VACUOUSLY
 /// here — measured, not skipped. A canonicalizing door exists where a
 /// payload is SET-SHAPED and two spellings denote one artifact:
-/// [`Node::fillet`]/[`Node::chamfer`] sort and dedupe a selection,
-/// `PlacedUnion` orders its placements. Every field either tube kind
+/// [`Node::fillet`]/[`Node::chamfer`] sort and dedupe a selection.
+/// Every field either tube kind
 /// carries is a scalar, a bare direction, a node id, or this
 /// two-variant window — nothing set-shaped, nothing with a second
 /// spelling to fold — so a door could only re-wrap the struct

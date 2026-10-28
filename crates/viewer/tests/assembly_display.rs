@@ -1702,7 +1702,7 @@ fn a_frame_whose_copies_are_fused_goes_saying_so() {
                 display::display_check(session.doc(), instance),
                 Err(AdmissionFault::FusedGeometry { .. })
             ),
-            "the placed union fuses {instance:?}"
+            "the family's union fuses {instance:?}"
         );
     }
     let [withdrawn] = &outcome.withdrawn.superseded[..] else {

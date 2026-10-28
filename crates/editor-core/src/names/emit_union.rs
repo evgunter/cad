@@ -1962,6 +1962,11 @@ impl<T: geom_core::Decide> SegRewrite for WholeMemberEdges<'_, '_, T> {
     ) -> Result<Option<StableName>, NamingError> {
         Ok((walked != *n).then_some(walked))
     }
+
+    /// An index is the document's own: re-citing a member edge keeps it.
+    fn index(&mut self, index: VarId) -> Result<VarId, Self::Error> {
+        Ok(index)
+    }
 }
 
 /// A member face, by entity: the member's position in the list and the
@@ -2675,6 +2680,11 @@ impl SegRewrite for CiteParents<'_> {
         walked: StableName,
     ) -> Result<Option<StableName>, NamingError> {
         Ok((walked != *n).then_some(walked))
+    }
+
+    /// An index is the document's own: citing a parent keeps it.
+    fn index(&mut self, index: VarId) -> Result<VarId, Self::Error> {
+        Ok(index)
     }
 }
 

@@ -13,7 +13,7 @@ use crate::blend::{BlendKindChoice, BlendTarget, FREEZE_NOTE};
 use crate::combine::{BooleanTool, DUPLICATE_GAP, PatternOutputChoice, STEP_DIRECTION};
 use crate::drafts::{CommitFault, Drafts, scalars};
 use crate::forms::{
-    ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, FIELD_DRAG_SPEED, PatternKindChoice, ShapeKind,
+    ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, FIELD_DRAG_SPEED, PatternLayoutChoice, ShapeKind,
     UNIT_DRAG_SPEED, boolean_op_label, split_half_label,
 };
 use crate::frame::{self, Tone};
@@ -32,9 +32,9 @@ use crate::widgets::{
 
 /// **The smallest instance index the part form offers.**
 ///
-/// A pattern's instances are indexed from zero, and an index below it
-/// refuses at evaluation (`InstanceOutOfRange`, typed, on the node's
-/// own badge), so the form declines to author one — the same rule
+/// A family's members are indexed from zero, and an index below it
+/// refuses at evaluation (`MemberOutOfRange`, typed, on the node's own
+/// badge), so the form declines to author one — the same rule
 /// [`MIN_PATTERN_COUNT`] follows. There is deliberately no upper
 /// bound: how many instances the pattern has is a fact about its
 /// VALUE, not about the document, so a cap here would be a limit read
@@ -1211,7 +1211,7 @@ impl ViewerBehavior<'_> {
         }
         ui.horizontal(|ui| {
             ui.label("rule");
-            for (kind, label) in PatternKindChoice::ALL {
+            for (kind, label) in PatternLayoutChoice::ALL {
                 ui.radio_value(&mut self.drafts.pattern_kind, kind, label);
             }
         });
@@ -1232,7 +1232,7 @@ impl ViewerBehavior<'_> {
             );
         });
         match self.drafts.pattern_kind {
-            PatternKindChoice::Linear => {
+            PatternLayoutChoice::Linear => {
                 vec3_row(
                     ui,
                     "direction",
@@ -1250,7 +1250,7 @@ impl ViewerBehavior<'_> {
                     length_picker(ui, "pattern_spacing", &mut self.notation.length);
                 });
             }
-            PatternKindChoice::Circular => {
+            PatternLayoutChoice::Circular => {
                 ui.horizontal(|ui| {
                     unit_vec3_row(
                         ui,
@@ -1281,13 +1281,13 @@ impl ViewerBehavior<'_> {
         }
         self.tool_commit_row(ui, ToolKind::Pattern, |drafts, notation| {
             match drafts.pattern_kind {
-                PatternKindChoice::Linear => Ok(tool.linear_op(
+                PatternLayoutChoice::Linear => Ok(tool.linear_op(
                     drafts.pattern_output,
                     drafts.pattern_count,
                     scalars(drafts.pattern_direction)?,
                     notation.length_literal(drafts.pattern_spacing)?,
                 )?),
-                PatternKindChoice::Circular => Ok(tool.circular_op(
+                PatternLayoutChoice::Circular => Ok(tool.circular_op(
                     drafts.pattern_output,
                     drafts.pattern_count,
                     notation.length_literals(drafts.pattern_through)?,

@@ -767,10 +767,9 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
     );
 }
 
-// ── 7. An instance a `Pattern` consumes ──────────────────────────
+// ── 7. An instance a family copies ───────────────────────────────
 
-/// **Both G3 display operations reach an instance a `Pattern`
-/// consumes** (the fix-pass rule; this row pinned the silent no-op as
+/// **Both G3 display operations reach an instance a family copies** (the fix-pass rule; this row pinned the silent no-op as
 /// shipped and went red when propagation landed).
 ///
 /// A hide names the INSTANCE; the drawn scene is keyed by world

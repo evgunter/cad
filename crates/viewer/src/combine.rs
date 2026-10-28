@@ -674,7 +674,7 @@ vocabulary! {
 }
 
 /// **The pattern tool**: a body pick, committing one
-/// [`SessionOp::AddPattern`] or one [`SessionOp::AddPlacedUnion`] (a
+/// [`SessionOp::AddPattern`] or one [`SessionOp::AddFusedPattern`] (a
 /// family, or the union of one); the
 /// circular rule's axis is a point and a direction in the body's own
 /// coordinates, read off its geometry by the session door.
@@ -806,7 +806,7 @@ fn pattern_op(
 ) -> SessionOp {
     match output {
         PatternOutputChoice::Instances => SessionOp::AddPattern { input, count, rule },
-        PatternOutputChoice::Fused => SessionOp::AddPlacedUnion { input, count, rule },
+        PatternOutputChoice::Fused => SessionOp::AddFusedPattern { input, count, rule },
     }
 }
 

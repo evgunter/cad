@@ -251,9 +251,7 @@ pub(super) fn narrow_into(
 /// **The narrowing rule for a name this op MINTS**: [`narrow_into`]'s
 /// counterpart for a wrapped name, whose candidates are numbered afresh
 /// as its name is fresh — one survivor is strict, several are a tie the
-/// insert door numbers. The flush writes a minted name through it, and
-/// so does `emit::name_placed_union` for the prototype candidates the
-/// fuse kept.
+/// insert door numbers. The flush writes a minted name through it.
 ///
 /// # Errors
 ///

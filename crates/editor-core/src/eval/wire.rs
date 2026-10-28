@@ -2545,12 +2545,12 @@ fn wire_mirror<T: Decide + topo::AtRestPolicy>(
     .citing(vec![crate::coincide::CitedInput::Read(read)]))
 }
 
-/// **The instance of `of`'s `Instances` value the count in `slot`
-/// picks**, with its index. The index is into the value's FLAT list
-/// (`j·M + i`, the layout `wire_pattern` fixes); a negative index and
-/// one past the end refuse alike ([`NodeErrorKind::InstanceOutOfRange`]).
-/// A count past u32 is the pattern's own emission bug, refused before
-/// any index is judged against it.
+/// **The body of `of`'s `Instances` value the count in `slot` picks**,
+/// with its index into the value's list of bodies: a piece's family's
+/// members in index order. A negative index and one past the end refuse
+/// alike ([`NodeErrorKind::MemberOutOfRange`]). A list past u32 is its
+/// minting op's own emission bug, refused before any index is judged
+/// against it.
 fn instance_of<T: Decide>(
     of: RecipeNodeId,
     instances: &[super::Framed<T>],
@@ -4086,8 +4086,8 @@ fn wire_place<T: Decide + topo::AtRestPolicy>(
 /// the member's read ([`names::name_assemble`]); its records are each
 /// member's, carried through the graft and citing that member by its
 /// read; its pieces are its members, each with its own body, names and
-/// pieces. A member that is a pattern's family is a piece of several
-/// bodies.
+/// pieces. A member that is a family is a piece of several bodies,
+/// each member's records keyed in its own arena.
 fn wire_assemble<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     members: &[(RecipeNodeId, crate::VarId, &Results<T>)],

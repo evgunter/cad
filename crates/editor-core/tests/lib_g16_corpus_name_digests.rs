@@ -318,17 +318,10 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// Measured again for D′3 over main's merge at `4c341b9225`, which
 /// brings the run line's bare sense (above) beneath D′3's names and ids;
 /// the ids-masked fence held.
-///
-/// Re-pinned for G (`patterns-are-index-variables`), the five families'
-/// documents alone (`heat_sink`, `heat_sink_fins`, `kitchen_sink`,
-/// `die_tool`, `part_select`): a family's members are named `Member {
-/// (k, i), of }` over their master's names, one segment, where a
-/// `Pattern`'s copies were `Instance(i)` and a `PlacedUnion`'s body
-/// wrapped each copy again. Every other document's table is main's.
 const PINNED: &[(&str, u64)] = &[
     ("die", 0x842c07a9245e3188),
     ("corner_table", 0x9f694f6348a96dd6),
-    ("heat_sink", 0xa1d9_e282_7a43_ce45),
+    ("heat_sink", 0x7956_4324_d870_c32d),
     ("crossing_slots", 0xe8dc66f2cb5166ab),
     ("nested_islands_105", 0x15d51d7c25dfe6df),
     ("nested_islands_106_depth1", 0x4677e01cb07a25ee),

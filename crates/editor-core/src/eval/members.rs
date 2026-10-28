@@ -43,7 +43,8 @@ pub struct Members<T: Decide> {
     /// The indices the family reaches, outermost first.
     pub over: Arc<[VarId]>,
     /// Each member: its index values, one per index of `over`, and its
-    /// value.
+    /// value, in ascending order of the values, so a member is found by
+    /// them in logarithmic time.
     pub members: Vec<(Vec<u32>, NodeValue<T>)>,
 }
 
@@ -51,10 +52,7 @@ impl<T: Decide> Members<T> {
     /// The member at `at`, the values of `over` in order.
     #[must_use]
     pub fn at(&self, at: &[u32]) -> Option<&NodeValue<T>> {
-        self.members
-            .iter()
-            .find(|(values, _)| values.as_slice() == at)
-            .map(|(_, value)| value)
+        self.position(at).map(|i| &self.members[i].1)
     }
 
     /// The member standing at the values `bound` gives the indices of
@@ -72,8 +70,8 @@ impl<T: Decide> Members<T> {
     /// index values: the order an `Instances` payload holds them in.
     pub(crate) fn position(&self, at: &[u32]) -> Option<usize> {
         self.members
-            .iter()
-            .position(|(values, _)| values.as_slice() == at)
+            .binary_search_by(|(values, _)| values.as_slice().cmp(at))
+            .ok()
     }
 
     /// Each member's index values, paired with the indices they are of:

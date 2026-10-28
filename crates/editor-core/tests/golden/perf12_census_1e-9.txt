@@ -9,9 +9,14 @@ at rest: 0 interference, 0 could not look
 census: Ok
 rows: 0
 ## heat_sink
-solids=1 faces=31 edges=72 vertices=48
-at rest: 0 interference, 0 could not look
-census: Ok
+solids=6 faces=61 edges=132 vertices=88
+at rest: 5 interference, 0 could not look
+census: 5 findings
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(2v1), witness: VertexKey(49v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(3v1), witness: VertexKey(57v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(4v1), witness: VertexKey(65v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(5v1), witness: VertexKey(73v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(6v1), witness: VertexKey(81v1) }
 rows: 0
 ## crossing_slots
 solids=1 faces=18 edges=48 vertices=32

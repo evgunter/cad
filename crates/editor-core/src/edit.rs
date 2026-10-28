@@ -1091,8 +1091,7 @@ fn mint_anonymous<P>(new: &mut Doc<P>, def: WrittenDef) -> Result<VarId, EditErr
 /// `rows` — the value's addressed formulas, in table order — that does
 /// not ([`Lowering::fault`]), with its address; `None` for the address
 /// where no row holds a fault, a formula the walk maps and the table
-/// does not address (a count beside a listed placement rule, the one
-/// such field: [`Node::exprs`]' edge), and the walk's own fault is
+/// does not address ([`Node::exprs`]' edge), and the walk's own fault is
 /// handed back for the caller to refuse typed. A refusal of the mint's
 /// names a variable, not an address, and is the refusal as it stands.
 fn lower_value<P, K: Copy, U>(
