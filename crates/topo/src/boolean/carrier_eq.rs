@@ -297,6 +297,16 @@ impl<T: geom_core::Real> ConsumedExtent<'static, T> {
     }
 }
 
+/// **The curved kinds the undeclared ladder decides exactly**, on its
+/// sphere and cylinder data rungs: the curved surfaces whose aligned
+/// pairs the boolean's glue and the census read as one carrier.
+pub(crate) fn exact_curved<T: geom_core::Real>(s: &geom::Surface<T>) -> bool {
+    matches!(
+        s,
+        geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. }
+    )
+}
+
 /// **`carrier_eq`** — module docs for the ladder. `id` says whether
 /// the pair is declared; `extent` the region the verdict is consumed
 /// on, which levers the ANGULAR margins and bounds a declared pair's

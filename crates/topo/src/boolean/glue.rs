@@ -220,12 +220,7 @@ pub(crate) fn frame_rows<T: Decide + Bounds>(
             .and_then(|face| body.get_surface(face.surface))
             .cloned()
     };
-    let curved = |s: &geom::Surface<T>| {
-        matches!(
-            s,
-            geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. }
-        )
-    };
+    let curved = super::carrier_eq::exact_curved::<T>;
     let row = |(fa, fb), relation, site, margin| crate::Coincidence {
         cells: [
             crate::RowCell::face(Operand::A, fa),

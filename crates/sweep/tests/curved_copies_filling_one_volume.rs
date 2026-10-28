@@ -474,7 +474,8 @@ fn same_sides(body: &Body<f64>) -> (usize, usize, String) {
 ///   mirror image: they share rulings, or only the axis;
 /// - two tubes end to end: they share a rim;
 /// - a rod in a tube, a shaft in its bore and a ball in a shell's cavity:
-///   one carrier, the senses opposed.
+///   walls on one carrier, the senses opposed; the rod's and the shaft's
+///   end discs lie flush with the tube's end annuli, sharing a circle.
 ///
 /// None is a `SameSideInterference` or any other interference, and each
 /// aligned pair sharing a run of boundary is a flush row. Red if the
@@ -565,13 +566,16 @@ fn faces_of_one_carrier_that_only_abut_are_no_interference() {
         // the same way: a hemisphere's two halves against the other's
         // two, along the equator; the lunes' and wedges' walls along a
         // meridian or ruling, the wedges' discs along a radius; the
-        // tubes' walls and bores along a rim. Pairs meeting at a pole or
-        // on the axis share no run, and opposed pairs are no flush pair.
+        // tubes' walls and bores along a rim; the rod's and the shaft's
+        // end discs against the tube's end annuli, along the circle they
+        // share. Pairs meeting at a pole or on the axis share no run, and
+        // opposed pairs (the walls about a rod or a shaft) are no flush
+        // pair.
         let flush = match label {
             "hemispheres on the equator" | "cap and cut ball" => 4,
             "lunes side by side" | "reflex lune and its complement" => 1,
             "reflex wedge and its complement" | "half cylinder and its mirror" => 3,
-            "tubes end to end" => 2,
+            "tubes end to end" | "rod in a tube" | "shaft in its bore" => 2,
             _ => 0,
         };
         assert_eq!(rows, flush, "{label}: the flush pairs: {all}");
