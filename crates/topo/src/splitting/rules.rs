@@ -249,9 +249,8 @@ pub(super) fn apply_rule_a<T: Decide>(
         let n_face = match at_vertex {
             VertexFace::Tangent(n_face) => n_face,
             VertexFace::Apex(apex) => {
-                let reading =
-                    apex_reading(plane, &apex, [rays[k], rays[(k + 1) % n]], band)
-                        .map_err(sliver)?;
+                let reading = apex_reading(plane, &apex, [rays[k], rays[(k + 1) % n]], band)
+                    .map_err(sliver)?;
                 if let WallReading::Grazed(_) = reading
                     && !apex.material_inside()
                 {
@@ -365,7 +364,6 @@ pub(super) fn apply_rule_a<T: Decide>(
     }
     Ok(readings)
 }
-
 
 /// Rule (a) at a cone's apex, for the sub-sector between the entry rays
 /// `bounds`: an edge's chord, or an extremal ruling the walk subdivided

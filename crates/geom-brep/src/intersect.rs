@@ -2052,7 +2052,9 @@ struct ApexFan<T: Real> {
 impl<T: Real> ApexFan<T> {
     /// The fan of `cone`'s rulings on the nappe of its axis.
     fn of(axis: Vec3<T>, u_ref: Vec3<T>, half_angle: T) -> Self {
-        let SquareFrame { axis: a, u_ref: u, .. } = square_frame(axis, u_ref);
+        let SquareFrame {
+            axis: a, u_ref: u, ..
+        } = square_frame(axis, u_ref);
         let (sin_a, cos_a) = half_angle.sin_cos();
         Self {
             a,
@@ -2089,7 +2091,10 @@ impl<T: Real> ApexFan<T> {
 ///
 /// `None` for a surface that is not a cone.
 #[must_use]
-pub fn plane_cone_apex_extrema<T: Real>(cone: &Surface<T>, normal: Vec3<T>) -> Option<[Vec3<T>; 2]> {
+pub fn plane_cone_apex_extrema<T: Real>(
+    cone: &Surface<T>,
+    normal: Vec3<T>,
+) -> Option<[Vec3<T>; 2]> {
     let &Surface::Cone {
         axis,
         half_angle,

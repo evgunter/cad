@@ -64,7 +64,6 @@ use geom_core::{Band, Decide, Margin, Real, Sign, Vec3};
 use slotmap::SecondaryMap;
 
 use super::neighborhood::{EntryRay, sector_face};
-use crate::sector_face::VertexFace;
 use super::{
     NullEdgeRecord, PlaneSide, SectionGermFault, SectionGermReading, SectorEntry, SectorEntryKind,
     SplitPlane, SplitReduceError,
@@ -75,6 +74,7 @@ use crate::entity::{EntityId, HalfEdgeKey, VertexKey};
 use crate::euler::{MevSite, RunSite};
 use crate::live::{Proven, proven};
 use crate::null::NewVertexSide;
+use crate::sector_face::VertexFace;
 use crate::validate::{decide, decide_nonzero};
 
 /// A maximal cyclic run of ABOVE entries, by entry index.
@@ -389,7 +389,7 @@ fn apex_germ<T: Decide>(
                 return Err(SplitReduceError::ApexSection {
                     vertex,
                     face,
-                    section,
+                    section: Box::new(section),
                 });
             }
             Ok(_) => return Err(unordered(SectionGermFault::NoLine)),

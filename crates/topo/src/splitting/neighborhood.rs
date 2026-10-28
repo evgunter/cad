@@ -131,11 +131,9 @@ pub(super) fn sector_face<T: Decide>(
         | SectorFaceError::Unplaced { face, kind } => {
             SplitReduceError::CurvedBooleanUnsupported { face, kind }
         }
-        SectorFaceError::ApexUndecided { face, diag } => SplitReduceError::ApexUndecided {
-            vertex,
-            face,
-            diag,
-        },
+        SectorFaceError::ApexUndecided { face, diag } => {
+            SplitReduceError::ApexUndecided { vertex, face, diag }
+        }
     })?;
     match resolved.carrier {
         SectorCarrier::Plane => Ok((resolved.face, resolved.at_vertex, true)),

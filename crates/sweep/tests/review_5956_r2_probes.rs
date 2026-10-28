@@ -496,7 +496,7 @@ fn r2_planar_analogue_a_notch_corner_touching_the_plane() {
 /// Every pose of the over-π partial cones, each split caught so a panic
 /// names its pose.
 #[test]
-fn r2_partial_over_a_half_turn_panics() {
+fn r2_partial_over_a_half_turn_never_panics() {
     let tol = Tol::witness();
     let mut panicked = Vec::new();
     for (solid, w) in [

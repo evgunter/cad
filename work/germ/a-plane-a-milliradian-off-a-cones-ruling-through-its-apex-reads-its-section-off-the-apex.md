@@ -29,8 +29,8 @@ does not serve the pair:
   `Reduce(SectionGermsEscalated { reading: Line, .. })`), all 18 poses;
 - ε 1e-12: it reads Positive, the table serves the section off the
   apex, and `plane_wall_case` refuses
-  `OpenConicChord { conic: Hyperbola }` (split refuses
-  `Reduce(SectionGermsUnordered { fault: NoLine })`), all 18 poses.
+  `OpenConicChord { conic: Hyperbola }`, which the split carries as
+  `Reduce(ApexSection { section: OpenConicChord { .. } })`, all 18 poses.
 
 At ε 1e-6 the pair is served (θ ≠ 0 lands whole, the sliver ≈ t²/2
 within the band). Every other tilt of the row

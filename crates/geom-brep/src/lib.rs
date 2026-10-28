@@ -163,9 +163,8 @@ pub use intersect::{
     PlaneSphereSection, PlaneTorusSection, Rung, SectionError, SectionPlane, SectionRadius,
     SphereSphereSection, cone_cylinder_section, cylinder_axes_coplanar, cylinder_axes_parallel,
     cylinder_cylinder_section, parallel_axes_at, plane_cone_apex_extrema, plane_cone_section,
-    plane_cylinder_section,
-    plane_cylinder_section_read, plane_sphere_section, plane_torus_section, route, route_pose,
-    sphere_sphere_section, tilted_section_major,
+    plane_cylinder_section, plane_cylinder_section_read, plane_sphere_section, plane_torus_section,
+    route, route_pose, sphere_sphere_section, tilted_section_major,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey, SurfacePair};
 pub use locus::{

@@ -207,7 +207,9 @@ impl<T: Decide> ConeApex<T> {
     /// less than a half-turn into the sweep.
     pub(crate) fn turn(&self, from: Vec3<T>, to: Vec3<T>) -> T {
         let (f, t) = (from.normalize(), to.normalize());
-        (t - f).norm().copysign(f.cross(t).dot(self.axis) * self.sweep(f))
+        (t - f)
+            .norm()
+            .copysign(f.cross(t).dot(self.axis) * self.sweep(f))
     }
 
     /// Whether the face's material lies inside its cone: the outward
@@ -572,6 +574,57 @@ pub(crate) mod tests {
         let resolved = resolve(&body, vertex, orbit_he, band()).expect("the sphere arm resolves");
         assert_eq!(resolved.carrier, SectorCarrier::Sphere);
         assert_eq!(resolved.face, face);
+    }
+
+    /// **A cone face reads its apex only at its apex.** A 2° needle cone
+    /// is installed on a prism side face with one of the face's vertices
+    /// on a generator: at the apex the vertex reads the apex's rulings;
+    /// a hundred band widths along the generator, within the band of
+    /// the axis but definitely off the apex, it reads its tangent plane
+    /// (marked near the axis, which the Boolean refuses); a generator's
+    /// length out it reads its tangent plane plainly.
+    #[test]
+    fn a_cone_reads_its_apex_only_at_the_apex() {
+        let alpha = 2f64.to_radians();
+        let g = Vec3::new(alpha.sin(), 0.0, alpha.cos());
+        let eps = band().zero();
+        for (along, want) in [(0.0, "apex"), (100.0 * eps, "near"), (1.0, "off")] {
+            let p = raw_prism(3, Tol::witness());
+            let face = p.face_side[0];
+            let mut body = p.body;
+            let he = body
+                .get_loop(body.get_face(face).unwrap().outer)
+                .and_then(|l| match l.boundary {
+                    crate::entity::LoopBoundary::Cycle { first } => Some(first),
+                    crate::entity::LoopBoundary::Empty { .. } => None,
+                })
+                .unwrap();
+            let orbit_he = body.mate(he).unwrap();
+            let vertex = body.get_half_edge(orbit_he).unwrap().start;
+            let at = *body
+                .get_point(body.get_vertex(vertex).unwrap().point)
+                .unwrap();
+            body.set_face_surface(
+                face,
+                crate::construction::FaceSurface::New {
+                    surface: geom::Surface::Cone {
+                        apex: at - g * along,
+                        axis: Vec3::new(0.0, 0.0, 1.0),
+                        half_angle: alpha,
+                        u_ref: Vec3::new(1.0, 0.0, 0.0),
+                    },
+                    sense: true,
+                },
+            )
+            .unwrap();
+            let got = resolve(&body, vertex, orbit_he, band()).expect("the cone arm resolves");
+            let read = match (got.at_vertex, got.near_axis) {
+                (VertexFace::Apex(_), _) => "apex",
+                (VertexFace::Tangent(_), true) => "near",
+                (VertexFace::Tangent(_), false) => "off",
+            };
+            assert_eq!(read, want, "{along} along the generator");
+        }
     }
 
     /// **The torus arm answers the tube's outward normal at the base

@@ -34,3 +34,9 @@ Unmeasured: no fixture is known to reach either at an apex.
 
 Whether each should read the apex arm (`VertexFace::normal_along` along
 the edge or carrier) or refuse `NormalAtConeApex` by name.
+
+A third reader, found in the fix pass of PR 5956:
+`boolean/ruled_region.rs` `outward` takes the normal at the point where
+a leg lands on a boundary edge (`region::offer`, which reads it as the
+landing's `face_side`). That point is not a vertex, but a landing exactly
+at a cone's apex would read a NaN normal there. Unmeasured.

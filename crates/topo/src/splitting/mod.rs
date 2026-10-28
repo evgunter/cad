@@ -459,7 +459,7 @@ pub enum SplitReduceError {
         /// The cone face.
         face: FaceKey,
         /// The table's refusal.
-        section: SplitJoinError,
+        section: Box<SplitJoinError>,
     },
     /// A vertex of a cone face lies within the band of the cone's axis
     /// ([`crate::face_normal::cone_point`] escalated): whether the

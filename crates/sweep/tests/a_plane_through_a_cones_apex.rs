@@ -12,12 +12,12 @@
 //! tangency about it by each tilt of `TILTS` at `θ ∈ {0, 0.3, 2}`, the
 //! seam meridian and two azimuths off it.
 //!
-//! Each side lands at its closed form and passes tier 3′; a graze lands
-//! whole on its material side. The `t = 10⁻³` family turns the plane a
+//! Each side lands at its closed form and passes tier 3′ (which the
+//! split's own gate does not read); a graze lands whole on its material
+//! side. The `t = 10⁻³` family turns the plane a
 //! sliver `≈ t²/2` deep off the cone, which at ε 1e-6 lies within the
-//! band: there each side lands at its closed form, lands whole where the
-//! sliver is within the band, or refuses typed
-//! (`near_tangent_refusal`), never an invariant or a wrong body.
+//! band: it lands or refuses typed as measured per ε (`near_tangent`),
+//! never an invariant or a wrong body.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -98,6 +98,7 @@ struct Pose {
     foot: Point3<f64>,
     normal: Vec3<f64>,
     near_tangent: bool,
+    theta: f64,
 }
 
 /// Every pose (module docs) on the cone of base radius `r`.
@@ -112,6 +113,7 @@ fn poses(r: f64) -> Vec<Pose> {
             foot: Point3::new(0.0, 0.0, 0.0) + radial * r,
             normal: (outward * t.cos() + ruling.cross(outward) * t.sin()) * s,
             near_tangent: t == NEAR_TANGENT,
+            theta: a,
         }
     };
     let grazes = THETAS.iter().map(|&a| (a, 0.0));
@@ -144,21 +146,53 @@ fn closed_forms(r: f64, pose: &Pose) -> [(f64, f64); 2] {
     ]
 }
 
-/// The near-tangent family's typed refusals: the reduction reads the
-/// sliver's two rulings into one (`ConsecutiveOnSectors`), the apex
-/// lane reads the plane's section past or within the band of the apex
-/// (`SectionGerms*`, `pn_apex_pair_reach`), or the base circle's crossing
-/// reads the sliver's graze within the band (`CrossingEscalated`).
-fn near_tangent_refusal(e: &SplitError) -> bool {
-    matches!(
-        e,
-        SplitError::Reduce(
-            SplitReduceError::ConsecutiveOnSectors { .. }
-                | SplitReduceError::SectionGermsEscalated { .. }
-                | SplitReduceError::SectionGermsUnordered { .. }
-                | SplitReduceError::CrossingEscalated { .. }
-        )
-    )
+/// What the `t = 10⁻³` family does on the cone of half-angle `deg`°
+/// holding the ruling at azimuth `theta`, at the run's ε, as measured:
+/// `Some(None)` where it lands, `Some(Some(name))` where it refuses
+/// that variant, `None` at an ε no row measured.
+///
+/// - ε 1e-6: the sliver lies within the band. Off the seam it lands
+///   whole on its material side; along the seam the reduction reads the
+///   seam edge and the extremal ruling beside it both On
+///   (`ConsecutiveOnSectors`,
+///   `a-plane-a-milliradian-off-a-cones-seam-through-its-apex-refuses-consecutive-ons-at-1e-6`);
+///   at 60° the base circle reads the near graze in band first
+///   (`CrossingEscalated`,
+///   `a-sixty-degree-cones-base-circle-reads-a-milliradian-graze-in-band-at-1e-6`).
+/// - ε 1e-9 and 1e-12: the apex lane's pair reach reads in band
+///   (`SectionGermsEscalated`) and then off the apex (`ApexSection`,
+///   `a-plane-a-milliradian-off-a-cones-ruling-through-its-apex-reads-its-section-off-the-apex`).
+fn near_tangent(deg: f64, theta: f64, eps: f64) -> Option<Option<&'static str>> {
+    Some(if eps == 1e-6 {
+        if deg == 60.0 {
+            Some("CrossingEscalated")
+        } else if theta == 0.0 {
+            Some("ConsecutiveOnSectors")
+        } else {
+            None
+        }
+    } else if eps == 1e-9 {
+        Some("SectionGermsEscalated")
+    } else if eps == 1e-12 {
+        Some("ApexSection")
+    } else {
+        return None;
+    })
+}
+
+/// The variant name of a refusal [`near_tangent`] names.
+fn refusal_name(e: &SplitError) -> Option<&'static str> {
+    match e {
+        SplitError::Reduce(SplitReduceError::ConsecutiveOnSectors { .. }) => {
+            Some("ConsecutiveOnSectors")
+        }
+        SplitError::Reduce(SplitReduceError::CrossingEscalated { .. }) => Some("CrossingEscalated"),
+        SplitError::Reduce(SplitReduceError::SectionGermsEscalated { .. }) => {
+            Some("SectionGermsEscalated")
+        }
+        SplitError::Reduce(SplitReduceError::ApexSection { .. }) => Some("ApexSection"),
+        _ => None,
+    }
 }
 
 /// Splits the cone of half-angle `deg`° at every pose and checks each
@@ -171,20 +205,26 @@ fn every_pose_answers(deg: f64) {
     let whole = PI * r * r / 3.0;
     // The pinned resolution's displacement over the cone's whole boundary.
     let slack = 2048.0 * eps * PI * r * (r + (1.0 + r * r).sqrt());
-    let mut refused = Vec::new();
     for pose in poses(r) {
         let what = format!("α = {deg}°, {}", pose.label);
         let plane = topo::test_support::split_plane(pose.foot, pose.normal, tol);
-        let result = match split(&body, &plane, tol) {
-            Ok(result) => result,
-            Err(e) => {
-                assert!(
-                    pose.near_tangent && near_tangent_refusal(&e),
-                    "{what}: refused {e:?}"
-                );
-                refused.push(what);
+        let measured = if pose.near_tangent {
+            near_tangent(deg, pose.theta, eps)
+        } else {
+            Some(None)
+        };
+        let result = match (split(&body, &plane, tol), measured) {
+            (Err(e), Some(Some(name))) => {
+                assert_eq!(refusal_name(&e), Some(name), "{what}: refused {e:?}");
                 continue;
             }
+            (Err(e), None) => {
+                assert!(refusal_name(&e).is_some(), "{what}: refused {e:?}");
+                continue;
+            }
+            (Err(e), Some(None)) => panic!("{what}: refused {e:?}"),
+            (Ok(_), Some(Some(name))) => panic!("{what}: landed, where {name} was measured"),
+            (Ok(result), _) => result,
         };
         let forms = closed_forms(r, &pose);
         for ((side, part), (want, depth)) in [("above", &result.above), ("below", &result.below)]
@@ -214,80 +254,95 @@ fn every_pose_answers(deg: f64) {
             );
         }
     }
-    eprintln!("α = {deg}°, ε {eps:e}: refused {refused:?}");
 }
 
 /// **A plane grazing a conical pit along a ruling through its apex
 /// refuses the knife edge.** A unit cylinder with a 30° pit sunk from
-/// its top: the pit's wall bends away from the material round it, so
-/// the plane tangent to it along a ruling leaves material on both sides
-/// of the contact, which the split cannot declare. It refuses at the
-/// apex in the reduction, naming the pit's wall, at every azimuth of
-/// `THETAS` with either normal.
+/// its top (its rulings leave the apex up the axis) or from its bottom
+/// (down it, the other nappe): the pit's wall bends away from the
+/// material round it, so the plane tangent to it along a ruling leaves
+/// material on both sides of the contact, which the split cannot
+/// declare. It refuses at the apex in the reduction, naming the pit's
+/// wall, at every azimuth of `THETAS` with either normal.
 #[test]
 fn a_plane_grazing_a_conical_pit_through_its_apex_refuses_the_knife_edge() {
     let tol = Tol::witness();
     let (rim, depth) = (0.5, 0.5 / 30f64.to_radians().tan());
-    let lp = bulge_loop(
-        [
-            (0.0, 0.0),
-            (1.0, 0.0),
-            (1.0, 1.0),
-            (rim, 1.0),
-            (0.0, 1.0 - depth),
-        ]
-        .iter()
-        .map(|&(x, y)| (Point2::new(x, y), 0.0))
-        .collect(),
-    );
-    let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(tol)
-        .unwrap();
-    let body = sweep::revolve(
-        &vp,
-        sweep::RevolveAxis {
-            origin: Point2::new(0.0, 0.0),
-            dir: Vec2::new(0.0, 1.0),
-        },
-        sweep::Revolution::Full,
-        tol,
-    )
-    .unwrap()
-    .body;
-    let body = sweep::test_support::finished("the pitted cylinder", body, tol);
-    let apex = Point3::new(0.0, 1.0 - depth, 0.0);
-    for a in THETAS {
-        let radial = Vec3::new(a.cos(), 0.0, a.sin());
-        let ruling = (Point3::new(0.0, 1.0, 0.0) + radial * rim) - apex;
-        let round = Vec3::new(-a.sin(), 0.0, a.cos());
-        for s in [1.0, -1.0] {
-            let what = format!("θ = {a}, normal {s}·n");
-            let plane =
-                topo::test_support::split_plane(apex, ruling.cross(round).normalize() * s, tol);
-            let e = match split(&body, &plane, tol) {
-                Ok(r) => panic!(
-                    "{what}: answered ({:?}, {:?})",
-                    r.above.body().is_some(),
-                    r.below.body().is_some()
-                ),
-                Err(e) => e,
-            };
-            let knife = e
-                .knife_edge()
-                .unwrap_or_else(|| panic!("{what}: refused {e:?}, not the knife edge"));
-            assert!(
-                matches!(e, SplitError::Reduce(_)),
-                "{what}: read in the reduction: {e:?}"
-            );
-            let wall = body
-                .get_face(knife.wall)
-                .and_then(|f| body.get_surface(f.surface))
-                .map(geom::Surface::kind);
-            assert_eq!(
-                wall,
-                Some(geom::SurfaceKind::Cone),
-                "{what}: names the pit's wall"
-            );
+    for (pit, profile, apex_y, rim_y) in [
+        (
+            "from the top",
+            vec![
+                (0.0, 0.0),
+                (1.0, 0.0),
+                (1.0, 1.0),
+                (rim, 1.0),
+                (0.0, 1.0 - depth),
+            ],
+            1.0 - depth,
+            1.0,
+        ),
+        (
+            "from the bottom",
+            vec![(0.0, depth), (rim, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+            depth,
+            0.0,
+        ),
+    ] {
+        let lp = bulge_loop(
+            profile
+                .iter()
+                .map(|&(x, y)| (Point2::new(x, y), 0.0))
+                .collect(),
+        );
+        let vp = Profile::new(SketchPlane::xy(), vec![lp])
+            .validate(tol)
+            .unwrap();
+        let body = sweep::revolve(
+            &vp,
+            sweep::RevolveAxis {
+                origin: Point2::new(0.0, 0.0),
+                dir: Vec2::new(0.0, 1.0),
+            },
+            sweep::Revolution::Full,
+            tol,
+        )
+        .unwrap()
+        .body;
+        let body = sweep::test_support::finished("the pitted cylinder", body, tol);
+        let apex = Point3::new(0.0, apex_y, 0.0);
+        for a in THETAS {
+            let radial = Vec3::new(a.cos(), 0.0, a.sin());
+            let ruling = (Point3::new(0.0, rim_y, 0.0) + radial * rim) - apex;
+            let round = Vec3::new(-a.sin(), 0.0, a.cos());
+            for s in [1.0, -1.0] {
+                let what = format!("a pit {pit}, θ = {a}, normal {s}·n");
+                let plane =
+                    topo::test_support::split_plane(apex, ruling.cross(round).normalize() * s, tol);
+                let e = match split(&body, &plane, tol) {
+                    Ok(r) => panic!(
+                        "{what}: answered ({:?}, {:?})",
+                        r.above.body().is_some(),
+                        r.below.body().is_some()
+                    ),
+                    Err(e) => e,
+                };
+                let knife = e
+                    .knife_edge()
+                    .unwrap_or_else(|| panic!("{what}: refused {e:?}, not the knife edge"));
+                assert!(
+                    matches!(e, SplitError::Reduce(_)),
+                    "{what}: read in the reduction: {e:?}"
+                );
+                let wall = body
+                    .get_face(knife.wall)
+                    .and_then(|f| body.get_surface(f.surface))
+                    .map(geom::Surface::kind);
+                assert_eq!(
+                    wall,
+                    Some(geom::SurfaceKind::Cone),
+                    "{what}: names the pit's wall"
+                );
+            }
         }
     }
 }
