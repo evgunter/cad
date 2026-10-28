@@ -20,7 +20,9 @@
 
 use core::f64::consts::{FRAC_PI_2, PI};
 
-use crate::{Body, FaceSurface, MefSite, MevSite};
+use crate::Body;
+
+use crate::construction::{FaceSurface, MefSite, MevSite};
 use geom::{Curve3, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, EqualCylinderSection, SurfacePair};
 use geom_core::{Band, Point3, Tol, Vec3};

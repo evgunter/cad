@@ -27,6 +27,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use topo::construction::Construct;
 
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
@@ -337,7 +338,7 @@ fn brick_with_face(surface: geom::Surface<f64>) -> (Body<f64>, topo::FaceKey) {
     // Lifts RechartStrandsDescriptions: the relabel is the at-rest gate's input.
     b.set_face_surface_unvouched_for_tests(
         face,
-        topo::FaceSurface::New {
+        topo::construction::FaceSurface::New {
             surface,
             sense: true,
         },

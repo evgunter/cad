@@ -4,7 +4,7 @@ kind: program
 title: PERF — the performance work still owed
 status: ready
 opened: 2026-07-21
-area: kernel
+group: infra/measure
 prefix: perf/
 tag: (PERF orchestrator)
 ab_band: 3400-3499

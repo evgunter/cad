@@ -7,6 +7,7 @@
 use geom_core::Tol;
 use geom_core::test_support::upper;
 use step_import::{ImportOptions, StepImport, import_step};
+use topo::construction::Construct;
 
 /// The `work/exch/a-placed-step-instance-with-a-plane-nurbs-edge-refuses-at-transform`
 /// ask: a placed instance carrying the M7-8 class imports. With the

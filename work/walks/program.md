@@ -4,11 +4,11 @@ kind: program
 title: WALKS — one topological relation, implemented n times across topo/src
 status: ready
 opened: 2026-09-20
-area: kernel
+group: kernel/topo/euler
 prefix: walks/
 tag: (WALKS orchestrator)
 ab_band: 6600-6699
-keep_out: [opened by TOPO's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - TOPO keeps the Euler operators proper and its band 2700-2799, the sibling cuts are ORIGIN ATREST TQUERY WALKS PROBE, a row here that has to edit another of the six announces the seam in the PR that lands it rather than drawing a second fence]
+keep_out: [opened by TOPO's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - TOPO keeps the Euler operators proper and its band 2700-2799, the sibling cuts are ORIGIN ATREST TQUERY WALKS PROBE, a row here that has to edit another of the six announces the seam in the PR that lands it where the changes are coupled rather than drawing a second fence]
 ---
 The entrenching class on topology's own ground: **one relation, spelled
 n times, each copy re-deciding what it means.** The face-loop walk

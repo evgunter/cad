@@ -4,12 +4,12 @@ kind: program
 title: SSIARITH — the plane×NURBS lane's arithmetic: f64 reads, units and frames
 status: ready
 opened: 2026-10-08
-area: kernel
+group: kernel/geom/ssi
 prefix: ssiarith/
 tag: (SSIARITH orchestrator)
 ab_band: 11200-11299
 paths: [crates/geom-brep/src/ssi.rs, crates/geom-brep/src/ssi/*]
-keep_out: [opened 2026-10-08 by SSI's close (Ev, in chat: wind down and open successor programs for the rest) - SSI's thirty open rows were split along the priority seam into SSIEDGE SSIARITH SSIMARCH, which share crates/geom-brep/src/ssi with each other and with the CHART PCERT ISO siblings by design - what is owed is awareness while a lane is LIVE, so run scripts/work.py territory on your branch and announce the seam in the PR rather than drawing a fence]
+keep_out: [opened 2026-10-08 by SSI's close (Ev, in chat: wind down and open successor programs for the rest) - SSI's thirty open rows were split along the priority seam into SSIEDGE SSIARITH SSIMARCH, which share crates/geom-brep/src/ssi with each other and with the CHART PCERT ISO siblings by design - what is owed is awareness while a lane is LIVE, so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled rather than drawing a fence]
 ---
 SSI's P3 arithmetic tail. Each row is a place the lane's certificates
 read a number less carefully than they claim: f64 point evaluations

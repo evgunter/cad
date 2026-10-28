@@ -2,10 +2,11 @@
 id: tier-3-prime-reads-no-side-for-an-edge-with-a-curved-face-lying-in-a-face
 kind: issue
 title: Tier 3′ cannot read the side of an edge with a curved face lying in a face of its own solid, and refuses it undecided
-status: open
+status: closed
 opened: 2026-10-20
 priority: P1
 cost: M
+closed: 2026-10-27
 ---
 
 
@@ -58,3 +59,20 @@ wedge's points drawn on the surface rather than on the tangent plane,
 so the reading stays sound inside the ball `rest::judge` confirms a
 crossing in. Then the 38 outside touches pass tier 3′; re-pin both
 tests to that.
+
+## Closed
+
+2026-10-27, branch `restread/curved-edge-in-face`. Measured on main at
+`39134695b9`, the refusals were 42: the 20 `a_pierce_held_in_a_curved_face`
+pins (the union, 8, and every member order of the fold, 12) and the 22
+`rest_zip_admission` pins. In every one, all three faces were planar. The
+curve was a face's far boundary: an ellipse where the lying cylinder trims
+the prisms' side faces, and the post's rounded footprint (circles) ringing
+`a`'s top. `Sector::of` refused any face with a non-line edge. Such a face,
+held inside it or inside one of its line edges, now reads as the disc about
+the point that its other edges clear (`link::Sector::cleared`,
+`link::clearance`). All 42 read `Rest`, and both tests pin them as passing
+tier 3′ whole. The fix this row proposed, for an edge face that is itself
+curved, reached no measured body; it is filed as
+`tier-3-prime-reads-no-side-for-an-edge-on-a-ruling-of-a-curved-face-lying-in-a-face`.
+

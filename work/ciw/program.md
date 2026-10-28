@@ -4,7 +4,7 @@ kind: program
 title: CIW — hosted CI, workflows and scripts
 status: ready
 opened: 2026-09-03
-area: infra
+group: infra/ci
 prefix: ciw/
 tag: (CIW orchestrator)
 ab_band: 1500-1599

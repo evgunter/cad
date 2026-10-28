@@ -46,11 +46,12 @@
 
 use geom_core::Point3;
 use geom_core::Tol;
-use topo::readback::euler_counts;
-use topo::{
-    Body, EntityId, KemrResult, KfmrhResult, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated,
-    Provenance, validate, validate_closed,
+use topo::construction::Construct;
+use topo::construction::{
+    KemrResult, KfmrhResult, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated,
 };
+use topo::readback::euler_counts;
+use topo::{Body, EntityId, Provenance, validate, validate_closed};
 
 /// Every operator result of one holed-box construction, in call order.
 /// Comparing two of these key-for-key is the lineage-determinism check.

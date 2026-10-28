@@ -15,7 +15,7 @@
 //! ([`crate::ring_path::cone_islands`]).
 
 use super::*;
-use crate::MevSite;
+use crate::construction::MevSite;
 use crate::ring_path::cone_islands::{
     Frame, Island, IslandEdge, cone, frames, lune, on_nappe, plane, sector,
 };
@@ -188,7 +188,7 @@ fn run_from(
 ) -> ((HalfEdgeKey, HalfEdgeKey), IslandEdge) {
     let n = island.edges.len();
     let ring = empty_ring(body, face, island.corners[r]);
-    let mut halves: Vec<crate::MevCreated> = Vec::new();
+    let mut halves: Vec<crate::construction::MevCreated> = Vec::new();
     for k in 0..n - 1 {
         let e = &island.edges[(r + k) % n];
         let spec = edge_spec(body, surface, e);

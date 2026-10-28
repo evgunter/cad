@@ -12,6 +12,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use topo::construction::Construct;
 
 use geom::Surface;
 use geom_core::{Band, Tol};
@@ -69,7 +70,7 @@ fn wedge_top_reversed(ccw: bool) -> Body<f64> {
     corners.reverse();
     body.set_face_surface(
         top,
-        topo::FaceSurface::New {
+        topo::construction::FaceSurface::New {
             surface: common::plane(&corners, tol),
             sense: false,
         },

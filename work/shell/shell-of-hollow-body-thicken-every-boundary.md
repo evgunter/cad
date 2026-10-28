@@ -4,7 +4,6 @@ kind: issue
 title: shell of an already-hollow body - refused today; the ratified semantics is thicken every boundary
 status: closed
 opened: 2026-08-27
-github: 1056
 refs: [1048, SHELL-5]
 closed: 2026-09-08
 ---

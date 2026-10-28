@@ -2,12 +2,13 @@
 id: the-section-of-a-surface-pair-is-one-object
 kind: unit
 title: SECT step 1a: the section of a surface pair is one object, built at one door - cylinder x sphere first; the frames, the glue record and the guard read it
-status: dispatched
+status: closed
 opened: 2026-10-27
 priority: P0
 cost: H
 branch: sect/section-object
 refs: [cylinder-sphere-germ-pair-has-no-join-lane]
+closed: 2026-10-27
 ---
 
 
@@ -77,3 +78,23 @@ leaned seat, unsure).
 
 Review: **dual (concurrent pair)** — a new type every later step and
 the torus rows build on, hard to change once they do.
+
+## Closed
+
+2026-10-27, by `sect/section-object`. `geom_brep::pair_section` is the
+value: one constructor, its kind match exhaustive with no wildcard, the
+cylinder × sphere arm built on `CylinderSpherePose` (decided once), and
+every other kind pair answered `SectionRead::Elsewhere` with `route`'s
+arm. It is classified (`PairSection`, no march) and carried on demand
+(`PairSection::carry` → `CarriedSection`, the general rung marched at
+`f64` through `AtRestPolicy::ssi_lane`, refused by name at any other
+scalar). `topo::boolean::section_table` holds it per surface pair,
+built at the glue door (`glue::section_door`) and carried lazily for
+the pairs whose germs the join matches; its readers are the
+coincidence records, the interior-loop guard, the germ mint and the
+matcher, which pairs cylinder × sphere germs by foot parameter.
+`cs_pair_frame`, `cs_transverse_frame` and `cs_germ_frame` retired.
+The 54 pinned runs keep their refusal at `bool_connect`; three
+turned-chart runs name the sphere's other face, the first segment the
+join reaches now being found by foot travel. `route` keeps its own
+match (`the-c5-kind-dispatch-is-spelled-twice`).

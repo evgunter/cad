@@ -4,7 +4,7 @@ kind: program
 title: DOCTAIL — the document model's tail: the certified pick's two rounding rows, refusal prose, name hygiene and the nesting bounds
 status: ready
 opened: 2026-10-02
-area: api
+group: api/eval
 prefix: doctail/
 tag: (DOCTAIL orchestrator)
 ab_band: 10500-10599

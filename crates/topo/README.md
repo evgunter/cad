@@ -115,9 +115,12 @@ side clears only
 - on a definitely-positive separation margin between certified reach boxes
   (`face_reach_in`), read along each world axis and then along the
   directions that turn with the pair: the axis between the two faces'
-  anchors, either face's normal where it is planar, and the offset from
+  anchors, either face's normal where it is planar, the offset from
   an axis or centre either face proposes to the other's nearest boundary
-  segment point (`census::depth_gap::toward`). Along these turned
+  segment point (`census::depth_gap::toward`), the normal of each arc's
+  chord in its conic's plane on either face's boundary, and the line
+  between the two faces' carrier axes or centres
+  (`census::depth_gap::across`). Along these turned
   directions only (`boolean::separating::apart_by`), not the world axes,
   a sphere face is taken to reach no further than its boundary at an
   end whose pole the face places definitely `Out`
@@ -1068,8 +1071,9 @@ of an edge lying in a face of its own solid (`edge_in_own_face`, by
 `rest::judge`); arm 2's touches between two solids
 (`TouchSite::verdict`, by `rest::judge`); and every point where one
 solid touches itself, its whole link there (`sweep_self_touch_points`,
-by `rest::one_material`), a link holding a curved face or edge left
-unread. Every other use of a face's normal in the coincidence sweeps is
+by `rest::one_material`), a link holding a curved face, a face with a
+curved edge held at its corner, a planar face with a spline edge, or a
+point tied inside a curved edge, left unread. Every other use of a face's normal in the coincidence sweeps is
 sense-invariant.
 
 **Confirmed pairs.** Every face-pair rung (`Declared::confine` around the

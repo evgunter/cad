@@ -4,7 +4,7 @@ kind: program
 title: ENCL — certified enclosures: what a certificate claims, and what it is worth
 status: ready
 opened: 2026-09-20
-area: kernel
+group: kernel/geom/numeric
 prefix: encl/
 tag: (ENCL orchestrator)
 ab_band: 5800-5899

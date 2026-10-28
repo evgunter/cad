@@ -12,4 +12,4 @@ Raised in a GUI session (Ev in chat, 2026-10-14): the datum-frame form takes `u`
 
 A designer pair weighed it (fork log row 149) and converged after six rounds; both reports are in the `[ev]` PR titled "a pose is moved by lengths and angles". The PR edits D10, VR4 and `docs/INTENT-STAGE3-SPEC.md` (§1, the A′ unit, Q1, Q7, the restate ladder, G's explicit frames, and the bit-equal rows Ev disowned in the same chat). Ev answered on the PR that "united zeroes are still variables" (fork log row 97) meant zeros written with a unit, such as `0 mm`; so the façade's default is the constant `0`.
 
-On approval: file `poses-move-by-lengths-and-angles` (A′) and the `Sym` π-fold unit, fill row 149, clear `needs_ev`, close this.
+On approval: file `poses-move-by-lengths-and-angles` (A′) and the `Sym` π-fold unit, fill row 149, close this.

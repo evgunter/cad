@@ -15,7 +15,9 @@
 //! a station inside a run has no entity.
 
 use geom_core::{Band, Decide, Point3, Sign};
-use topo::{Body, EdgeKey, FaceKey, FaceSurface, MevSite};
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, MevSite};
+use topo::{Body, EdgeKey, FaceKey};
 
 use super::axis::{AxisFrame, LoopClasses, WallClass};
 use super::chain::build_chain;
@@ -469,7 +471,7 @@ pub(super) fn sweep_loop<T: Decide + topo::AtRestPolicy>(
     let n = segs.len();
 
     // Struts: one latitude arc per off-axis vertex, in traversal order.
-    let mut struts: Vec<Option<topo::MevCreated>> = Vec::with_capacity(n);
+    let mut struts: Vec<Option<topo::construction::MevCreated>> = Vec::with_capacity(n);
     for j in 0..n {
         if cls.verts[j].pinned {
             struts.push(None);

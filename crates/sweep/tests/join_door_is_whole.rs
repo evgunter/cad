@@ -12,6 +12,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;
+use topo::construction::Construct;
 
 use geom_core::{Band, Tol};
 use topo::{Body, EdgeKey};

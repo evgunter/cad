@@ -316,26 +316,26 @@ fn a_boss_beside_a_ring_and_over_a_hole() {
     );
 }
 
-/// **The containment fallback cuts a closed rim, or says why not.** The
+/// **The containment fallback cuts a closed rim, beside a ring too.** The
 /// boss `r = 0.3` less the plate is the boss, by the fallback, which
 /// divides the plate's top along the boss's rim, one closed edge whose
 /// vertex touches the top with no surgery, with a circular edge from a
 /// lone vertex: the disc is held by the boss's floor, and the rest of the
 /// top is a discard.
 ///
-/// Over the hole `r = 0.1` the cut meets a placement limit, the rim's
-/// vertex reading in no corner of the top beside the hole's ring
-/// (`work/flush/a-fallback-cut-refuses-beside-a-ring-a-seam-or-a-pinch.md`):
-/// this half pins that known limit, not a target. The top is uncut, with
-/// that reason, and no row names any part of it, neither held nor
-/// discarded. With a lid standing on the boss as well, the lid's bottom is
-/// cut along the boss's top rim and held there, beside the uncut top: each
-/// face is cut on its own, and only the face whose cut refused is uncut.
-/// The body is the boss throughout. Red before the fallback cut: the plain
-/// top was one whole row; before the per-face record, the lid's bottom
-/// was uncut with the plate's reason.
+/// Over the hole `r = 0.1` the cut is the same: the rim's vertex reads in
+/// the corner of the top it leaves into, beside the hole's ring, because
+/// the corner's lever is each bound's extent from above
+/// (`geom_brep::edge_extent_sup`), the closed ring's diameter, where its
+/// collapsed chord read every side Zero and the vertex in no corner
+/// (`work/flush/a-fallback-cut-refuses-beside-a-ring-a-seam-or-a-pinch.md`,
+/// its ring pose). With a lid standing on the boss as well, the lid's
+/// bottom is cut along the boss's top rim and held there too: each face
+/// is cut on its own. The body is the boss throughout. Red before the
+/// fallback cut: the plain top was one whole row; at the chord lever the
+/// holed top was uncut, "lies in no corner".
 #[test]
-fn the_fallback_cuts_a_closed_rim_or_records_why_not() {
+fn the_fallback_cuts_a_closed_rim_beside_a_ring() {
     let boss = fin(
         "the boss",
         extruded(vec![circle(0.0, 0.0, 0.3, 0.0)], 0.0, 1.0),
@@ -356,13 +356,13 @@ fn the_fallback_cuts_a_closed_rim_or_records_why_not() {
     };
     let lid = fin("the lid", extruded(vec![square()], 1.0, 0.5));
     let lidded = united(&holed(), &lid);
-    // Each case: the plate's top cut, then whether a lid's bottom is.
+    // Each case, and whether a lid's bottom is cut beside the top.
     let cases = [
-        ("the plate", plate(), (true, false)),
-        ("the holed plate", holed(), (false, false)),
-        ("the holed plate and a lid", lidded, (false, true)),
+        ("the plate", plate(), false),
+        ("the holed plate", holed(), false),
+        ("the holed plate and a lid", lidded, true),
     ];
-    for (label, other, (top_cut, lid_held)) in cases {
+    for (label, other, lid_held) in cases {
         let Ok(BooleanResult::Body(out)) = topo::subtract(&boss, &other, tol()) else {
             panic!("{label}: the boss less it builds");
         };
@@ -385,10 +385,7 @@ fn the_fallback_cuts_a_closed_rim_or_records_why_not() {
             .iter()
             .map(|u| (level(u.face), u.what.as_str()))
             .collect();
-        let want: Vec<i8> = [(top_cut, 0), (lid_held, 2)]
-            .into_iter()
-            .filter_map(|(on, z)| on.then_some(z))
-            .collect();
+        let want: Vec<i8> = if lid_held { vec![0, 2] } else { vec![0] };
         assert_eq!(held, want, "{label}: the faces held in part, by level");
         for s in &n.substituted {
             assert!(
@@ -398,24 +395,7 @@ fn the_fallback_cuts_a_closed_rim_or_records_why_not() {
                 "{label}: the rest of a cut face is a discard"
             );
         }
-        if top_cut {
-            assert_eq!(uncut, vec![], "{label}: nothing left uncut");
-            continue;
-        }
-        let [(0, why)] = uncut.as_slice() else {
-            panic!("{label}: the top alone is uncut, {:?}", n.uncut);
-        };
-        assert!(
-            why.contains("lies in no corner")
-                && n.uncut[0].kind == topo::BooleanErrorKind::ClassificationInvariant,
-            "{label}: the top's own reason, {why}"
-        );
-        assert!(
-            n.discards
-                .iter()
-                .all(|r| (r.operand, root(r.face)) != (n.uncut[0].operand, n.uncut[0].face)),
-            "{label}: no discard row names the uncut top"
-        );
+        assert_eq!(uncut, vec![], "{label}: nothing left uncut");
     }
 }
 

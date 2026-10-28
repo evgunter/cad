@@ -4,7 +4,6 @@ kind: issue
 title: Python stub checking never descends into class attributes — a forgotten .pyi enum member leaves the whole suite green
 status: closed
 opened: 2026-08-30
-github: 1309
 refs: [1301]
 closed: 2026-09-03
 ---

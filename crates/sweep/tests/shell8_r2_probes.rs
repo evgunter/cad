@@ -11,6 +11,7 @@
 )]
 
 use core::f64::consts::PI;
+use topo::construction::Construct;
 
 use geom_core::{Point3, Tol, Vec3};
 use sweep::test_support::{block, brick, finished};
@@ -958,7 +959,7 @@ fn opposed_pair() -> (Body<f64>, SolidKey, SolidKey, FaceKey, FaceKey) {
         })
         .collect();
     body.set_face_surfaces_describing(
-        vec![topo::Rechart::shared(key, bottom, sense)],
+        vec![topo::construction::Rechart::shared(key, bottom, sense)],
         &specs,
         tol(),
     )

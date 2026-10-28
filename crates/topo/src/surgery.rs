@@ -60,7 +60,7 @@
 //!
 //! # The spellings, and what each claims
 //!
-//! - [`Body::begin_surgery`] opens the scope and hands back a
+//! - [`Body::begin_surgery`](crate::construction::Construct::begin_surgery) opens the scope and hands back a
 //!   [`Surgery`] guard that borrows the body. Every operator reached
 //!   through the guard is inside the scope.
 //! - [`Surgery::sweep_and_close`] closes it and, at the outermost
@@ -299,21 +299,10 @@ impl SurgeryDepth {
 }
 
 impl<T: Real> Body<T> {
-    /// **Opens a surgery scope on this body** — the door's declaration
-    /// that it, and not the operators it runs, owns the tier-1
-    /// postcondition.
-    ///
-    /// The returned guard derefs to the body, so the door's operator
-    /// sequence is written through it unchanged. Close it with
-    /// [`Surgery::sweep_and_close`] on the success path; an `Err`
-    /// returned mid-sequence drops the guard instead, which closes
-    /// the scope and sweeps nothing.
-    ///
-    /// See the [module docs](self) for what the scope claims and for
-    /// the per-operator scalpel that recovers the failing operator's
-    /// name.
+    /// The door [`Construct::begin_surgery`](crate::construction::Construct::begin_surgery) forwards to;
+    /// documented there.
     #[must_use = "a scope that is opened and immediately dropped silences nothing"]
-    pub fn begin_surgery(&mut self) -> Surgery<'_, T> {
+    pub(crate) fn begin_surgery(&mut self) -> Surgery<'_, T> {
         #[cfg(debug_assertions)]
         self.surgery.open();
         Surgery { body: self }
@@ -339,7 +328,7 @@ impl<T: Real> Body<T> {
     }
 
     /// **Opens a surgery scope on a body a test tore on purpose** —
-    /// [`Body::begin_surgery`], and the `per-op-postcondition` scalpel
+    /// [`Body::begin_surgery`](crate::construction::Construct::begin_surgery), and the `per-op-postcondition` scalpel
     /// sweeps nothing inside it either.
     ///
     /// A row that tears a body to read what an operator does with it
@@ -430,7 +419,7 @@ impl<T: Real> Body<T> {
 
     /// **Opens a surgery scope without a guard.**
     ///
-    /// [`Body::begin_surgery`] is the spelling for every site that can
+    /// [`Body::begin_surgery`](crate::construction::Construct::begin_surgery) is the spelling for every site that can
     /// take it, and almost every site can: the guard cannot leak a
     /// scope, because the only way to release the borrow it holds is
     /// to drop it or to consume it in a close. **This pair exists for

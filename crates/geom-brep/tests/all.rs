@@ -97,6 +97,8 @@ mod cylinder_green_conditioning;
 mod d290_r2_e2e;
 #[path = "decoration_plane_mint.rs"]
 mod decoration_plane_mint;
+#[path = "edge_extent_bounds.rs"]
+mod edge_extent_bounds;
 #[path = "ellipse_signed_semi_axis_gate.rs"]
 mod ellipse_signed_semi_axis_gate;
 #[path = "end_samples_read_the_carrier.rs"]
@@ -139,6 +141,8 @@ mod offb_r1_probes;
 mod onb_wall_frame_interval;
 #[path = "onpair_plane_nurbs.rs"]
 mod onpair_plane_nurbs;
+#[path = "pair_section.rs"]
+mod pair_section;
 #[path = "pcurve_frame_premise_rows.rs"]
 mod pcurve_frame_premise_rows;
 #[path = "plane_cone_arc.rs"]
@@ -260,6 +264,8 @@ mod s81_one_rim_level_rule;
 mod sketch_segment_restriction;
 #[path = "span_meter_dim_twins.rs"]
 mod span_meter_dim_twins;
+#[path = "sphere_torus_ssi.rs"]
+mod sphere_torus_ssi;
 #[path = "spline_pair_any_carrier.rs"]
 mod spline_pair_any_carrier;
 #[path = "ssi_limb3_one_arc.rs"]
