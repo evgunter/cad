@@ -27,6 +27,7 @@
 )]
 
 use std::sync::Arc;
+use topo::construction::Construct;
 
 use geom::{Curve3, NurbsCurve2, Surface};
 use geom_brep::{
@@ -35,7 +36,8 @@ use geom_brep::{
 };
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point2, Point3, Vec2, Vec3};
-use topo::{Body, EdgeKey, FaceSurface, HalfEdgeKey, MevSite, ValidationError};
+use topo::construction::{FaceSurface, MevSite};
+use topo::{Body, EdgeKey, HalfEdgeKey, ValidationError};
 
 use super::common::certificates::assert_certificates_fresh;
 use super::common::latitude_seam::{

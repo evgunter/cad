@@ -14,7 +14,9 @@ use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_core::Tol;
 use geom_core::{Point3, Vec3};
-use topo::{Body, FaceSurface, MefSite, MevSite};
+use topo::Body;
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, MefSite, MevSite};
 
 fn arc(circle: Curve3<f64>, t0: f64, t1: f64) -> EdgeCurveSpec<f64> {
     EdgeCurveSpec::arc_of_circle(circle, t0, t1).expect("arc spec")

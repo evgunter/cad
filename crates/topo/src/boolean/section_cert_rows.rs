@@ -17,8 +17,9 @@
 use super::search_kit::band;
 use super::*;
 use crate::boolean::ops;
+use crate::construction::{FaceSurface, MefSite, MevSite};
 use crate::test_support_fixtures::{CylFrame, brick, cyl_wall_sheet};
-use crate::{Body, FaceKey, FaceSurface, MefSite, MevSite, Operand};
+use crate::{Body, FaceKey, Operand};
 use core::f64::consts::{PI, TAU};
 use geom::{Curve3, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
@@ -620,7 +621,7 @@ fn sphere_pairs_every_class() {
     );
     // Viviani's pinch: tangent.
     let s = classify(&ball, &cylinder(p(0.5, 0.0, -2.0), Vec3::unit_z(), 0.5));
-    assert_eq!(tangent(&s), "section_sphere_cylinder_girdle");
+    assert_eq!(tangent(&s), "cs_far_reach");
 }
 
 // -------------------------------------------------------------------
@@ -793,21 +794,13 @@ fn a_touch_is_the_centre_of_every_loop_its_margin_admits() {
         ("ball deep in a wall", 1.0, 0.02, 0.98),
     ] {
         let wall = cylinder(origin, Vec3::unit_z(), rc);
-        let t = touch_both_ways(
-            &sphere(p(e, 0.0, 0.0), rho),
-            &wall,
-            "section_sphere_cylinder_reach",
-        );
+        let t = touch_both_ways(&sphere(p(e, 0.0, 0.0), rho), &wall, "cs_near_reach");
         assert!(
             (t.at - p(rc, 0.0, 0.0)).norm() < 1e-12,
             "{label}: tangent at {:?}",
             t.at
         );
-        let t = touch_both_ways(
-            &sphere(p(e, 0.0, 0.0), rho + push),
-            &wall,
-            "section_sphere_cylinder_reach",
-        );
+        let t = touch_both_ways(&sphere(p(e, 0.0, 0.0), rho + push), &wall, "cs_near_reach");
         centres(label, &t, &ball_wall_loop(rc, e, rho + push));
     }
     // Skew walls outside one another, square and 5.7° apart.
@@ -843,10 +836,7 @@ fn pinches_and_undecided_tangencies_are_not_touches() {
     let pl = plane(p(0.0, 0.0, 1.0 - in_sliver()), Vec3::unit_z());
     assert_eq!(tangent(&classify(&ball, &pl)), "section_sphere_plane_reach");
     let girdle = cylinder(p(0.5, 0.0, -2.0), Vec3::unit_z(), 0.5);
-    assert_eq!(
-        tangent(&classify(&ball, &girdle)),
-        "section_sphere_cylinder_girdle"
-    );
+    assert_eq!(tangent(&classify(&ball, &girdle)), "cs_far_reach");
     let fat = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 1.0);
     let inner = cylinder(p(0.0, 0.8, 0.0), Vec3::unit_x(), 0.2);
     assert_eq!(
@@ -865,7 +855,7 @@ fn pinches_and_undecided_tangencies_are_not_touches() {
     let off = 0.3 * band().zero();
     assert_eq!(
         tangent(&classify(&sphere(p(off, 0.0, 0.0), 1.0), &fat)),
-        "section_sphere_cylinder_reach"
+        "cs_wall_reach"
     );
     assert_eq!(
         tangent(&classify(&ball, &sphere(p(off, 0.0, 0.0), 1.0 - off))),
@@ -1301,6 +1291,7 @@ pub(super) fn scan(
     ops::section_pairs(
         a,
         b,
+        &crate::boolean::section_table::SectionTable::default(),
         band(),
         ops::SectionPath::Crossings,
         ops::Exempt::Nothing,
@@ -1512,6 +1503,7 @@ pub(super) fn scan_b(
     ops::section_pairs(
         a,
         b,
+        &crate::boolean::section_table::SectionTable::default(),
         band(),
         ops::SectionPath::Crossings,
         ops::Exempt::Nothing,
@@ -1997,7 +1989,7 @@ fn chain_sheet(
             },
         )
         .unwrap();
-    let mut edges: Vec<crate::MevCreated> = Vec::new();
+    let mut edges: Vec<crate::construction::MevCreated> = Vec::new();
     for i in 0..n {
         let site = match edges.last() {
             None => MevSite::Lone {
@@ -3049,8 +3041,9 @@ fn a_plane_touch_near_the_top_parallel_stands_on_both_carriers() {
 
 /// **A ball touching a wall from inside, nearly coaxial, stands its
 /// touch on both carriers** (`Touch::at`'s contract): the ball of
-/// radius `ρc − e` about a centre `e` off the wall's axis, `e` from 10ε
-/// to 1e3ε, about 16 axes spread over the sphere, the wall's origin at
+/// radius `ρc − e` about a centre `e` off the wall's axis, `e` from
+/// twice the band's escalation threshold (a centre the pose decides off
+/// the axis, `cs_coaxial`) to 1e3ε, about 16 axes spread over the sphere, the wall's origin at
 /// the ball or 1e3 along the axis, at ×1e-3, ×1 and ×1e3, both operand
 /// orders. `at` is read on the ruling through the centre's part square
 /// to the axis, of norm `e`: it stands within ε of each carrier, plus 8
@@ -3069,7 +3062,7 @@ fn a_ball_touching_a_wall_near_its_axis_stands_on_both_carriers() {
             centre: base,
             radius: 2.0 * scale,
         };
-        let mut touches = 0;
+        let (mut touches, mut poses) = (0, 0);
         for i in 0..16 {
             let z = 1.0 - (f64::from(i) + 0.5) / 8.0;
             let phi = 2.4 * f64::from(i);
@@ -3081,7 +3074,14 @@ fn a_ball_touching_a_wall_near_its_axis_stands_on_both_carriers() {
                 let o = base - d * far;
                 let wall = Partner::Wall(o, d, rc);
                 let ulps = 8.0 * f64::EPSILON * (far + 2.0 * scale);
-                for e in [10.0, 100.0, 1e3].map(|k| k * eps) {
+                // The ball's radius `ρc − e` must stay definitely positive:
+                // a radius the band cannot tell from zero is a degenerate
+                // operand, which the pose refuses rather than touches.
+                for e in [2.0 * band.escalate(), 100.0 * eps, 1e3 * eps]
+                    .into_iter()
+                    .filter(|&e| rc - e > 2.0 * band.escalate())
+                {
+                    poses += 1;
                     let ball = Partner::Sphere(base + q * e, rc - e);
                     let label = format!("×{scale:e}, axis {i}, origin {far:e} along, e {e:e}");
                     for section in [
@@ -3106,7 +3106,8 @@ fn a_ball_touching_a_wall_near_its_axis_stands_on_both_carriers() {
                 }
             }
         }
-        assert_eq!(touches, 192, "×{scale:e}: every pose a touch");
+        assert!(touches >= 128, "×{scale:e}: {touches} touches");
+        assert_eq!(touches, poses * 2, "×{scale:e}: every pose a touch");
     }
 }
 

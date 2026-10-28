@@ -46,7 +46,9 @@ use geom::{Surface, SurfaceData};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource, SurfacePair};
 use geom_core::spline::SplineError;
 use geom_core::{Affine3, FileCoincidence, Point2, Point3};
-use topo::{Body, FaceKey, FaceSurface, LoopKey};
+use topo::construction::Construct;
+use topo::construction::FaceSurface;
+use topo::{Body, FaceKey, LoopKey};
 
 use crate::assemble::Assembled;
 use crate::entities::SolidSpec;
@@ -232,7 +234,11 @@ fn rotate_loop_firsts(
             })?;
         let offset = Point3::new(p.x + 1.0, p.y, p.z);
         let strut = body
-            .mev_line(topo::MevSite::Fan { he1: t, he2: t }, offset, tol)
+            .mev_line(
+                topo::construction::MevSite::Fan { he1: t, he2: t },
+                offset,
+                tol,
+            )
             .map_err(op_err)?;
         body.kev(strut.he_plus).map_err(op_err)?;
     }

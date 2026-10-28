@@ -11,7 +11,9 @@ use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
 use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
-use topo::{Body, MevSite, NewVertexSide};
+use topo::Body;
+use topo::construction::Construct;
+use topo::construction::{MevSite, NewVertexSide};
 
 /// TARGET 2 (tessellation door): a null strut on an extruded prism
 /// closes tessellation with the typed NullScaffoldEdge - the mesh walk

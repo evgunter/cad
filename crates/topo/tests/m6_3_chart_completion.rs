@@ -30,6 +30,7 @@ use geom_brep::{
 use geom_core::Tol;
 use geom_core::{Band, Point3, Real, Vec3};
 use topo::Body;
+use topo::construction::Construct;
 
 /// The chart sphere: unit-ish radius, polar axis +z.
 fn sphere<T: Real>() -> Surface<T> {
@@ -86,7 +87,7 @@ where
     let sph_key = body
         .set_face_surface(
             seed.face,
-            topo::FaceSurface::New {
+            topo::construction::FaceSurface::New {
                 surface: sphere::<T>(),
                 sense: true,
             },
@@ -96,7 +97,7 @@ where
     let pl_key = body
         .set_face_surface(
             anchor.face,
-            topo::FaceSurface::New {
+            topo::construction::FaceSurface::New {
                 surface: plane,
                 sense: true,
             },
@@ -105,7 +106,7 @@ where
     let mid = T::from_f64(0.5 * (f0 + f1));
     let made = body
         .mev(
-            topo::MevSite::Lone {
+            topo::construction::MevSite::Lone {
                 r#loop: seed.r#loop,
             },
             p1,

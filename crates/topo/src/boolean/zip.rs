@@ -628,7 +628,7 @@ fn split_side<T: Decide + crate::props::AtRestPolicy>(
                     he1: he_of(from),
                     he2: he_of(to),
                 },
-                crate::NewVertexSide::Above,
+                crate::construction::NewVertexSide::Above,
             )?;
             let split = proven(&body.half_edges, made.he_plus, EntityId::HalfEdge).start;
             splits.push((made.vertex, split))?;

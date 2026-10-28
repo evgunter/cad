@@ -33,7 +33,7 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 // `Band`/`BandError` are here because the verbs' typed refusals quote
 // them: a caller that matches `BlendError::Band` (this prelude) or
 // `ShellError::Band` (reachable as `pncad::topo::ShellError`, through
-// the wholesale `topo` re-export) has to be able to name what the arm
+// the `topo` re-export) has to be able to name what the arm
 // carries. No prelude operation
 // TAKES a band — every kernel verb derives `Band::linear(tol)` from the
 // tolerance witness at its own entry (ε as the coincidence threshold,

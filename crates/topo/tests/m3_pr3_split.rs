@@ -10,6 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use topo::construction::Construct;
 
 use common::{brick, prism};
 use geom_core::Tol;
@@ -1156,7 +1157,7 @@ fn seed<T: geom_core::Decide + topo::AtRestPolicy>() -> (Body<T>, topo::LoopKey)
     let seed = body.mvfs(Point3::origin(), true).unwrap();
     body.set_face_surface(
         seed.face,
-        topo::FaceSurface::New {
+        topo::construction::FaceSurface::New {
             surface: Surface::Plane {
                 origin: Point3::origin(),
                 normal: Vec3::unit_z(),
@@ -1205,7 +1206,7 @@ fn strutted_brick<T: geom_core::Decide + geom_core::Bounds + topo::AtRestPolicy>
         .map(|(k, _)| k)
         .expect("the top face's half-edge leaving the corner");
     body.mev_line(
-        topo::MevSite::Fan { he1: he, he2: he },
+        topo::construction::MevSite::Fan { he1: he, he2: he },
         Point3::new(0.2, 0.2, 1.0).map(T::from_f64),
         tol,
     )

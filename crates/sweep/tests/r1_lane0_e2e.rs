@@ -16,10 +16,11 @@
 
 use std::sync::Arc;
 use sweep::ExtrudeSide;
+use topo::construction::Construct;
 
 use geom::Surface;
 use geom_core::{Affine3, Tol, Vec3};
-use topo::FaceSurface;
+use topo::construction::FaceSurface;
 
 #[allow(unused_imports)]
 use crate::common::approx::{band, box_with_approx_cap, planar_patch, pulled_back};

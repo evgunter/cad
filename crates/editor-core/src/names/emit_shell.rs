@@ -328,6 +328,7 @@ mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::*;
+    use topo::construction::Construct;
 
     fn carried_in(of: crate::names::NameRef) -> RoleSeg {
         RoleSeg::From {
@@ -508,7 +509,7 @@ mod tests {
                 .unwrap();
             let made = body
                 .mef(
-                    topo::MefSite::Chords { he1, he2 },
+                    topo::construction::MefSite::Chords { he1, he2 },
                     geom_brep::EdgeCurveSpec {
                         description: geom_brep::EdgeDescriptionSpec::chart(surface),
                         carrier: geom::Curve3::Line {
@@ -518,7 +519,7 @@ mod tests {
                         param_start: 0.0,
                         param_end: (q - p).norm(),
                     },
-                    topo::FaceSurface::Inherit,
+                    topo::construction::FaceSurface::Inherit,
                     tol,
                 )
                 .unwrap();

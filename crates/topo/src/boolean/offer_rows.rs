@@ -361,18 +361,17 @@ cases! {
         pierced_torus(1.0, D);
     horn_torus_at_the_band: "Torus(Ring)", D, NORMAL_SITE, Valued =>
         pierced_torus(1.0, 1.0 - D);
-    // The join reaches this guard through `cs_germ_frame` on a
-    // cylinder × sphere germ pair whose axis offset decides Zero: the
-    // section asks its radius guard on the coaxial arm only.
+    // The join reaches this guard through the section door on a
+    // cylinder × sphere germ pair: the pose asks its radius guards first.
     coaxial_thin_cylinder: "Radius(Cylinder)", D, FRAME_SITE, Valued =>
         coaxial_frame(D, 1.0);
     // The cylinder's guard asks first, so a sphere radius in band beside
     // a clear cylinder radius is a pair that does not meet: decided, it
-    // is no section, which a real germ pair never is (the frame's defect).
+    // is no section, which a real germ site never lies on (a desync).
     coaxial_tiny_sphere: "Radius(Sphere)", D, FRAME_SITE,
-        Withdrawn(Because::Desyncs("cylinder×sphere section is not a locus")) =>
+        Withdrawn(Because::Desyncs("a site on a section with no component")) =>
         coaxial_frame(0.5, D);
-    // The transverse frame's reach a band past and short of the walls'
+    // The pose's far reach a band past and short of the walls'
     // tangency. The section's coincidence names its lever and no
     // tolerance; the tolerance it withdrew decides the loop count.
     transverse_frame_reach_past_tangency: "Coincidence(Section)", D, TRANSVERSE_FRAME_SITE,
@@ -478,13 +477,13 @@ const NORMAL_SITE: Door = Door::Site(
      directly",
 );
 const FRAME_SITE: Door = Door::Site(
-    "the radius guards run on the coaxial cylinder and sphere frame, whose radii are set \
-     directly",
+    "the radius guards run on the cylinder and sphere pose at the section door, whose radii \
+     are set directly",
 );
 const TRANSVERSE_FRAME_SITE: Door = Door::Site(
-    "the transverse cylinder and sphere frame's reach is read on the two surfaces, set \
-     directly: a ball whose wall reaches the cylinder's far side within the band crosses it \
-     near-tangent, which the crossing layer meets first",
+    "the cylinder and sphere pose's far reach is read at the section door on the two \
+     surfaces, set directly: a ball whose wall reaches the cylinder's far side within the band \
+     crosses it near-tangent, which the crossing layer meets first",
 );
 const RADICAL_PLANE_SITE: Door = Door::Site(
     "a parallel cylinder pair's radical plane is read on the two surfaces, set directly: two \
@@ -743,7 +742,7 @@ fn arc_against_a_wall(r: f64, class: Option<GlueClass>) -> Result<(), BooleanErr
         ..Glue::none()
     };
     let one = super::super::verify_declared_contacts(&x, &y, &decls, band())?;
-    let declared = GluedPairs::build(&decls, one, &x, &y, band())?;
+    let declared = GluedPairs::build(&decls, one, &x, &y, Default::default(), band())?;
     let (edge_key, edge) = x
         .edges()
         .map(|(k, e)| (k, e.clone()))
@@ -1230,10 +1229,10 @@ fn pierced_torus(major: f64, minor: f64) -> Result<(), BooleanError> {
         .map_err(|refusal| BooleanError::of_pierced_normal(refusal, Operand::B, st.face))
 }
 
-/// The coaxial frame of a cylinder of radius `cyl` and a
-/// sphere of radius `sph` on one axis.
+/// The section door's reading of a germ site on the coaxial pair of a
+/// cylinder of radius `cyl` and a sphere of radius `sph` on one axis,
+/// as the germ mint reads it.
 fn coaxial_frame(cyl: f64, sph: f64) -> Result<(), BooleanError> {
-    use super::super::join::{cs_pair_frame, frame_refusal};
     let c = geom::Surface::Cylinder {
         origin: Point3::new(0.0, 0.0, 0.0),
         axis: Vec3::new(0.0, 0.0, 1.0),
@@ -1246,10 +1245,24 @@ fn coaxial_frame(cyl: f64, sph: f64) -> Result<(), BooleanError> {
         axis: Vec3::new(0.0, 0.0, 1.0),
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
+    section_site(&c, &s, Point3::new(cyl, 0.0, 0.3))
+}
+
+/// [`super::super::join::section_branch`] at `site` on the section of
+/// `c` and `s`.
+fn section_site(
+    c: &geom::Surface<f64>,
+    s: &geom::Surface<f64>,
+    site: Point3<f64>,
+) -> Result<(), BooleanError> {
     let face = crate::entity::FaceKey::default();
-    cs_pair_frame(&c, &s, band())
+    let held = match geom_brep::pair_section(c, s, band()) {
+        Ok(geom_brep::SectionRead::Built(section)) => Ok(section),
+        Ok(geom_brep::SectionRead::Elsewhere(_)) => panic!("the value builds this pair"),
+        Err(e) => Err(e),
+    };
+    super::super::join::section_branch(&held, (face, c.kind()), (face, s.kind()), site, band())
         .map(|_| ())
-        .map_err(|e| frame_refusal(e, (face, &c), (face, &s)))
 }
 
 /// The radical plane of a radius-0.5 cylinder about `z` and a
@@ -1266,11 +1279,10 @@ fn parallel_radical_plane_at(offset: f64) -> Result<(), BooleanError> {
         .map(|_| ())
 }
 
-/// The transverse frame of a radius-0.5 cylinder about `z` and a
-/// sphere centred 0.25 off its axis whose radius reaches `reach` past
-/// the cylinder's far side.
+/// The section door's reading of a germ site on a radius-0.5 cylinder
+/// about `z` and a sphere centred 0.25 off its axis whose radius
+/// reaches `reach` past the cylinder's far side.
 fn transverse_frame(reach: f64) -> Result<(), BooleanError> {
-    use super::super::join::{frame_refusal, pair_section_frame};
     let c = geom::Surface::Cylinder {
         origin: Point3::new(0.0, 0.0, 0.0),
         axis: Vec3::new(0.0, 0.0, 1.0),
@@ -1283,10 +1295,7 @@ fn transverse_frame(reach: f64) -> Result<(), BooleanError> {
         axis: Vec3::new(0.0, 0.0, 1.0),
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    let face = crate::entity::FaceKey::default();
-    pair_section_frame(&c, &s, Point3::new(0.0, 0.0, 0.0), None, band())
-        .map(|_| ())
-        .map_err(|e| frame_refusal(e, (face, &c), (face, &s)))
+    section_site(&c, &s, Point3::new(0.5, 0.0, 0.3))
 }
 
 /// The arc `[0, 1]` of the unit circle about `z` against the plane
@@ -1548,7 +1557,7 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
         ..Glue::none()
     };
     let one = super::super::verify_declared_contacts(&pa.body, &pb.body, &decls, band())?;
-    let declared = GluedPairs::build(&decls, one, &pa.body, &pb.body, band())?;
+    let declared = GluedPairs::build(&decls, one, &pa.body, &pb.body, Default::default(), band())?;
     let sa = [sector(z, x, fa), sector(x, z, fa)];
     let sb = [sector(z, flank, fb), sector(flank, z, fb)];
     resolve_edge_edge(
@@ -2228,6 +2237,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::NurbsExtentUnsupported
         | BooleanErrorKind::FallbackExtentUnsupported
         | BooleanErrorKind::GermFrameUnsupported
+        | BooleanErrorKind::GermSectionUnbuilt
         | BooleanErrorKind::GermSectionOpenConic
         | BooleanErrorKind::GermSectionSpiric
         | BooleanErrorKind::NodeUnbuilt
@@ -2531,6 +2541,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("fate.rs", "contained", "BooleanDecision::Containment", 1),
+    ("fate.rs", "corner_refused", "Coincide::Sectors", 1),
     ("fate.rs", "places", "BooleanDecision::of_normal", 1),
     (
         "fate.rs",
@@ -2538,7 +2549,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::CutRingWinding",
         1,
     ),
-    ("fate.rs", "sign", "Coincide::Sectors", 1),
     ("glue.rs", "tangency", "Coincide::Rim", 1),
     ("insert.rs", "beside_order", "Coincide::Sectors", 1),
     ("insert.rs", "germ_dir", "BooleanDecision::SelfCheck", 1),
@@ -2553,7 +2563,14 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::Radius",
         1,
     ),
-    ("join.rs", "cs_pair_frame", "BooleanDecision::Radius", 1),
+    ("join.rs", "section_unbuilt", "BooleanDecision::Radius", 1),
+    (
+        "join.rs",
+        "section_undecided",
+        "BooleanDecision::Coincidence",
+        1,
+    ),
+    ("join.rs", "section_undecided", "Coincide::Section", 1),
     (
         "join.rs",
         "cylinder_pair_axes",

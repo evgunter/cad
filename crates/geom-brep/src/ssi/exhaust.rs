@@ -969,11 +969,12 @@ fn sweep_r3(
         if !e1.is_certified() || !e2.is_certified() {
             // The lane gate (`cylinder_sphere_ssi`'s `WrongLane`)
             // admits only kinds in the enclosure roster
-            // (`enclose::has_implicit_enclosure`), so a refused
-            // enclosure here is a degenerate operand, not a missing
-            // arm. A gate that admits a kind outside the roster must
-            // revisit this sentence, or the arm starts blaming a radius
-            // for a missing arm.
+            // (`enclose::has_implicit_enclosure`), and the pair's pose
+            // refuses a radius not definitely positive before any sweep
+            // (`CylinderSpherePose::decide`), so this arm is the
+            // defence behind both. A gate that admits a kind outside the
+            // roster must revisit this sentence, or the arm starts
+            // blaming a radius for a missing arm.
             return Err(SsiError::UnsupportedCertificate {
                 what: "a degenerate operand — a sphere or cylinder of zero \
                        radius, whose implicit form divides by that radius — \
@@ -1371,6 +1372,42 @@ mod tests {
         SweepFloor, UvRect, sweep,
     };
     use crate::ssi::SsiError;
+
+    /// **The ℝ³ sweep's refusal arm**, below the pose that guards every
+    /// door to it: a zero-radius sphere has no ring-computable implicit
+    /// enclosure (it divides by `2r`), so the first cell's enclosure is
+    /// refused and the sweep says so typed, naming the cause, rather
+    /// than refining to its cell budget.
+    #[test]
+    fn a_zero_radius_operand_refuses_the_enclosure_typed() {
+        use geom::Surface;
+        use geom_core::{Point3, Vec3};
+        let point = Surface::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius: 0.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let wall = Surface::Cylinder {
+            origin: Point3::new(0.03, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 0.08,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let floor = SweepFloor::r3(
+            Box3::around(Point3::new(0.0, 0.0, 0.0), 1.5),
+            1e-3,
+            FloorKind::Seeding,
+        )
+        .unwrap();
+        match super::seed_r3(&wall, &point, floor) {
+            Err(SsiError::UnsupportedCertificate { what }) => {
+                assert!(what.contains("zero radius"), "{what}");
+                assert!(what.contains("cannot be proved exhausted"), "{what}");
+            }
+            other => panic!("expected the enclosure refusal, got {other:?}"),
+        }
+    }
 
     fn unit_square() -> UvRect {
         UvRect {

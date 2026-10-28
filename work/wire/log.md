@@ -7203,3 +7203,8 @@ Signed (WIRE orchestrator).
   - The end-to-end tie-summed decline turns out unreachable: `group_resized` returns at `fragment_base` before reading the record, and neither `record_by_name` site leaves a fragment-tailed row. A proposal to retire `record_by_name` is on the row.
   - `SetPiece` is still unwitnessed. Both rows stay open with findings.
   - Review dispatched (`wire-tiewitness-rev`).
+- 2026-10-28 (`wire-tiewitness`) Tests only.
+  - Pinned a tied pair seam group's own count, 2 → 0, which reads 4 with the name-only key.
+  - Witnessed the split's `Joined::Seam` key with a vertical split of a pocketed U-tie. It goes red on revert.
+  - Argued that the `record_by_name` tie-summed decline cannot be reached, and measured it: zero `sizes() == None` across the suite.
+  - `SetPiece` has no witness; what was tried is on its row. Both rows stay open.

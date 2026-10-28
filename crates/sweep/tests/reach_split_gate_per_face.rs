@@ -5,6 +5,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use topo::construction::Construct;
 
 use crate::revolve_common::{axis_y, validated};
 use geom::SurfaceKind;
@@ -577,7 +578,7 @@ fn a_sphere_face_whose_side_is_not_certified_keeps_the_ball() {
     reverted
         .set_face_surface_unvouched_for_tests(
             zone,
-            topo::FaceSurface::New {
+            topo::construction::FaceSurface::New {
                 surface,
                 sense: !sense,
             },

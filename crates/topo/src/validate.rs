@@ -518,6 +518,55 @@ pub(crate) fn decide_reported<T: Decide>(
     geom_core::k_stats::decide_reported(name, margin, band)
 }
 
+/// **One reading taken at both bounds of its lever**: `lower` and
+/// `upper` are the reading levered at the bound from below and from
+/// above ([`geom_brep::LeverBounds`]), each decided under `name`. A
+/// verdict both give is the reading's; where they differ no verdict
+/// answers for the lever between them, and the reading is their
+/// straddle of the band under `straddle`, the site's own row
+/// ([`geom_core::k_stats::straddle`]), refused as an in-band reading is.
+///
+/// # Errors
+///
+/// Either reading's escalation, or the straddle.
+pub(crate) fn decide_agreed<T: Decide>(
+    (name, straddle): (&'static str, &'static str),
+    lower: Margin<T>,
+    upper: Margin<T>,
+    band: Band,
+) -> Result<Sign, Indeterminate> {
+    let a = decide_reported(name, lower, band)?;
+    let b = decide_reported(name, upper, band)?;
+    if a.sign == b.sign {
+        return Ok(a.sign);
+    }
+    let (lower, upper) = if a.sign < b.sign { (a, b) } else { (b, a) };
+    Err(geom_core::k_stats::straddle(straddle, lower, upper, band))
+}
+
+/// `x`, a dimensionless reading, levered at `lever`: decided once where
+/// the lever is exact, else at both its bounds ([`decide_agreed`]).
+///
+/// # Errors
+///
+/// As [`decide_agreed`].
+pub(crate) fn decide_levered<T: Decide>(
+    names: (&'static str, &'static str),
+    x: T,
+    lever: geom_brep::LeverBounds<T>,
+    band: Band,
+) -> Result<Sign, Indeterminate> {
+    match lever {
+        geom_brep::LeverBounds::Exact(arm) => decide(names.0, Margin::levered(x, arm), band),
+        geom_brep::LeverBounds::Between { below, above } => decide_agreed(
+            names,
+            Margin::levered(x, below),
+            Margin::levered(x, above),
+            band,
+        ),
+    }
+}
+
 /// [`decide`] gated on a nonzero margin, for a side read off a sign
 /// that has no side at zero
 /// ([`geom_core::k_stats::decide_nonzero`]): the refusal is on the
@@ -2484,7 +2533,7 @@ pub enum ValidationError {
         edge: EdgeKey,
     },
     /// **Tier 2 (M3 PR 1).** A null face at rest: the face carries an
-    /// F9 loop-role record (`crate::NullFacePair`) — mid-surgery
+    /// F9 loop-role record (`crate::construction::NullFacePair`) — mid-surgery
     /// scaffolding that must be consumed before a body rests.
     NullFaceAtRest {
         /// The marked face.
@@ -8371,7 +8420,88 @@ fn pinch_corner_errors<T: Decide>(
 
 /// One corner side: the half-edge leaving the point, its edge, and
 /// its departure there.
-pub(crate) type CornerSide<T> = (HalfEdgeKey, EdgeKey, Option<geom_core::Vec3<T>>);
+pub(crate) type CornerSide<T> = (HalfEdgeKey, EdgeKey, Option<Departure<T>>);
+
+/// **A departure scaled to its edge's lever**, so a cross product over
+/// its length is a length ([`wedge_holds_named`]): exact where the
+/// lever is (a line's chord, a circle arc's reach), else the one
+/// direction at both bounds of the lever
+/// ([`geom_brep::edge_reach_bounds`]), each sign it levers then read at
+/// both and acted on only where they agree.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Departure<T: Real> {
+    /// Scaled to the lever itself.
+    Exact(geom_core::Vec3<T>),
+    /// Scaled to the lever's bound from below, and from above.
+    Between(geom_core::Vec3<T>, geom_core::Vec3<T>),
+}
+
+impl<T: Real> Departure<T> {
+    /// The unit direction `dir` scaled to `lever`.
+    pub(crate) fn along(dir: geom_core::Vec3<T>, lever: geom_brep::LeverBounds<T>) -> Self {
+        match lever {
+            geom_brep::LeverBounds::Exact(arm) => Self::Exact(dir * arm),
+            geom_brep::LeverBounds::Between { below, above } => {
+                Self::Between(dir * below, dir * above)
+            }
+        }
+    }
+
+    /// Scaled to the lever's bound from below.
+    pub(crate) fn below(self) -> geom_core::Vec3<T> {
+        match self {
+            Self::Exact(v) | Self::Between(v, _) => v,
+        }
+    }
+
+    /// Scaled to the lever's bound from above (the lever where exact).
+    pub(crate) fn above(self) -> geom_core::Vec3<T> {
+        match self {
+            Self::Exact(v) | Self::Between(_, v) => v,
+        }
+    }
+
+    /// `f` of each scaling.
+    #[must_use]
+    pub(crate) fn map(self, f: impl Fn(geom_core::Vec3<T>) -> geom_core::Vec3<T>) -> Self {
+        match self {
+            Self::Exact(v) => Self::Exact(f(v)),
+            Self::Between(lo, hi) => Self::Between(f(lo), f(hi)),
+        }
+    }
+
+    /// `f` of the two departures' scalings, below with below and above
+    /// with above: exact where both are.
+    #[must_use]
+    pub(crate) fn zip(
+        self,
+        other: Self,
+        f: impl Fn(geom_core::Vec3<T>, geom_core::Vec3<T>) -> geom_core::Vec3<T>,
+    ) -> Self {
+        match (self, other) {
+            (Self::Exact(a), Self::Exact(b)) => Self::Exact(f(a, b)),
+            _ => Self::Between(
+                f(self.below(), other.below()),
+                f(self.above(), other.above()),
+            ),
+        }
+    }
+}
+
+/// A departure scaled to an exact lever.
+impl<T: Real> From<geom_core::Vec3<T>> for Departure<T> {
+    fn from(v: geom_core::Vec3<T>) -> Self {
+        Self::Exact(v)
+    }
+}
+
+impl<T: Real> core::ops::Neg for Departure<T> {
+    type Output = Self;
+
+    fn neg(self) -> Self {
+        self.map(|v| -v)
+    }
+}
 
 /// [`pinch_corner_errors`] at one point key, whose corners are the
 /// half-edges of `cycle` at the indices `group` carries: the first
@@ -8460,7 +8590,13 @@ pub(crate) fn mate<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<HalfEdgeK
 
 /// `he`'s edge and its departure from `he`'s start, scaled to the
 /// edge's extent so a cross product over its length is a lever: a line
-/// by its chord, a conic or spiric arc by its walk tangent there.
+/// by its chord, a conic or spiric arc by its walk tangent there at the
+/// arc's reach from that start ([`geom_brep::edge_reach_bounds`]). The
+/// wedge acts on every sign, so its lever is the region's own measure
+/// from where it is read; where that is known only from both sides (an
+/// ellipse or spiric arc, whose bound from above can pass it many times
+/// over near a spiric's pinch) the departure carries both
+/// ([`Departure`]) and the wedge acts only on a sign both read.
 /// `None` for the departure of a NURBS edge, the residue.
 pub(crate) fn side<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<CornerSide<T>> {
     let h = body.half_edges.get(he)?;
@@ -8471,13 +8607,16 @@ pub(crate) fn side<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<CornerS
         vertex_point(body, body.half_edge_end(he)?)?,
     );
     let departure = match curve.carrier() {
-        geom::Curve3::Line { .. } => Some(p1 - p0),
+        geom::Curve3::Line { .. } => Some(Departure::Exact(p1 - p0)),
         geom::Curve3::Circle { .. }
         | geom::Curve3::Ellipse { .. }
         | geom::Curve3::Spiric { .. } => {
             let (t0, t1) = curve.params();
-            let extent = geom_brep::edge_extent(curve.carrier(), t0, t1, p0.distance(p1));
-            Some(curve.walk_tangents(plus).0.normalize() * extent)
+            let lever = geom_brep::edge_reach_bounds(curve.carrier(), t0, t1, p0);
+            Some(Departure::along(
+                curve.walk_tangents(plus).0.normalize(),
+                lever,
+            ))
         }
         geom::Curve3::Nurbs(_) => None,
     };
@@ -8487,17 +8626,21 @@ pub(crate) fn side<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<CornerS
 /// Whether `d` lies strictly inside the wedge swept counterclockwise
 /// about `n` from `a` to `b`, all three departures from one point. Each
 /// sign is a lever: `n · (x × y) / |x|`, how far `y`'s tip stands off
-/// `x`'s line. A side along either bound is not inside, and a wedge
-/// whose bounds leave along one tangent is a cusp, not read.
+/// `x`'s line, so it is levered at `y`'s length; where `y` is known only
+/// between two scalings ([`Departure::Between`]) the sign is read at
+/// both and taken only where they agree, their straddle refusing as an
+/// in-band sign does. A side along either bound is not inside, and a
+/// wedge whose bounds leave along one tangent is a cusp, not read.
 ///
 /// # Errors
 ///
-/// The escalation of a sign the verdict needed.
+/// The escalation of a sign the verdict needed, or the straddle of its
+/// two readings.
 fn wedge_holds<T: Decide>(
     n: geom_core::Vec3<T>,
-    a: geom_core::Vec3<T>,
-    b: geom_core::Vec3<T>,
-    d: geom_core::Vec3<T>,
+    a: impl Into<Departure<T>>,
+    b: impl Into<Departure<T>>,
+    d: impl Into<Departure<T>>,
     band: Band,
 ) -> Result<bool, Indeterminate> {
     wedge_holds_named(&PINCH_CORNER, n, a, b, d, band)
@@ -8514,6 +8657,11 @@ pub(crate) struct WedgeNames {
     pub(crate) turn: &'static str,
     /// Whether a wedge of no turn is straight or a cusp.
     pub(crate) straight: &'static str,
+    /// Where a sign read at both bounds of its lever straddles the band
+    /// ([`decide_agreed`]). Recorded only where a departure is
+    /// [`Departure::Between`]; a caller that hands exact departures alone
+    /// names a row that never records, and says so at its site.
+    pub(crate) straddle: &'static str,
 }
 
 /// Tier 3's pinch-corner names ([`wedge_holds`]).
@@ -8522,6 +8670,7 @@ const PINCH_CORNER: WedgeNames = WedgeNames {
     before_arriving: "pinch_corner_before_arriving",
     turn: "pinch_corner_turn",
     straight: "pinch_corner_straight",
+    straddle: "pinch_corner_straddle",
 };
 
 /// [`wedge_holds`] under the caller's predicate names: the same reading,
@@ -8533,19 +8682,33 @@ const PINCH_CORNER: WedgeNames = WedgeNames {
 pub(crate) fn wedge_holds_named<T: Decide>(
     names: &WedgeNames,
     n: geom_core::Vec3<T>,
-    a: geom_core::Vec3<T>,
-    b: geom_core::Vec3<T>,
-    d: geom_core::Vec3<T>,
+    a: impl Into<Departure<T>>,
+    b: impl Into<Departure<T>>,
+    d: impl Into<Departure<T>>,
     band: Band,
 ) -> Result<bool, Indeterminate> {
-    let left = |name, x: geom_core::Vec3<T>, y: geom_core::Vec3<T>| {
-        decide(name, Margin::of(n.dot(x.cross(y)) / x.norm()), band).map(|s| s == Sign::Positive)
+    let (a, b, d) = (a.into(), b.into(), d.into());
+    // `f(x, y)` is levered at `y`'s length: read once where it is exact,
+    // else at both its scalings.
+    let read = |name,
+                x: Departure<T>,
+                y: Departure<T>,
+                f: &dyn Fn(geom_core::Vec3<T>, geom_core::Vec3<T>) -> T| match y {
+        Departure::Exact(y) => decide(name, Margin::of(f(x.above(), y)), band),
+        Departure::Between(lo, hi) => decide_agreed(
+            (name, names.straddle),
+            Margin::of(f(x.below(), lo)),
+            Margin::of(f(x.above(), hi)),
+            band,
+        ),
     };
+    let off = |x: geom_core::Vec3<T>, y: geom_core::Vec3<T>| n.dot(x.cross(y)) / x.norm();
+    let left = |name, x, y| read(name, x, y, &off).map(|s| s == Sign::Positive);
     let (after_a, before_b) = (
         left(names.after_leaving, a, d),
         left(names.before_arriving, d, b),
     );
-    match decide(names.turn, Margin::of(n.dot(a.cross(b)) / a.norm()), band)? {
+    match read(names.turn, a, b, &off)? {
         // Under a half turn: inside both bounds.
         Sign::Positive => match (after_a, before_b) {
             (Ok(false), _) | (_, Ok(false)) => Ok(false),
@@ -8558,7 +8721,7 @@ pub(crate) fn wedge_holds_named<T: Decide>(
             (Ok(false), Ok(false)) => Ok(false),
             (Err(e), _) | (_, Err(e)) => Err(e),
         },
-        Sign::Zero => match decide(names.straight, Margin::of(a.dot(b) / a.norm()), band)? {
+        Sign::Zero => match read(names.straight, a, b, &|x, y| x.dot(y) / x.norm())? {
             Sign::Negative => after_a,
             Sign::Zero | Sign::Positive => Ok(false),
         },
@@ -13774,7 +13937,7 @@ mod tests {
             body.lifting_rechart_refusals_for_tests(|body| {
                 body.set_face_surface(
                     bottom,
-                    crate::FaceSurface::New {
+                    crate::construction::FaceSurface::New {
                         surface: crate::Surface::Cone {
                             apex,
                             axis: geom_core::Vec3::new(1.0, 0.0, 0.0),
@@ -13994,7 +14157,7 @@ mod tests {
                     he2: first.he_plus,
                 },
                 close,
-                crate::FaceSurface::Shared { key: cyl, sense },
+                crate::construction::FaceSurface::Shared { key: cyl, sense },
                 tol,
             )
             .unwrap()
@@ -14148,6 +14311,73 @@ mod tests {
         assert_eq!(wedge_holds(n, a, dir(180.0), dir(270.0), band), Ok(false));
     }
 
+    /// **A departure whose lever is known only from both sides refuses
+    /// where its two readings disagree.** A spline with clustered knots
+    /// and weights 1e±3, on a window where its parameter crawls: its
+    /// reach from the start is read from below by the samples and from
+    /// above through the whole carrier's speed bound, about 90 times
+    /// over. A side `θ = 1e-6` off the corner's first bound stands
+    /// `θ·reach` off it, Zero at the bound from below and definitely
+    /// inside at the bound from above, so neither verdict answers for
+    /// the reach between them: the wedge refuses with their straddle,
+    /// and reads no definite side.
+    #[test]
+    fn a_departure_known_from_both_sides_refuses_where_its_readings_disagree() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let p = Point3::new;
+        let wild = geom::Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                geom_core::spline::KnotVector::clamped(
+                    vec![
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.5,
+                        0.500_000_1,
+                        0.500_000_2,
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0,
+                    ],
+                    3,
+                )
+                .unwrap(),
+                vec![
+                    p(0.0, 0.0, 0.0),
+                    p(1.0, 2.0, 0.0),
+                    p(2.0, -1.0, 1.0),
+                    p(3.0, 0.5, 0.0),
+                    p(4.0, 1.0, 0.0),
+                    p(5.0, 0.0, 2.0),
+                    p(6.0, 0.0, 0.0),
+                ],
+                vec![1.0, 1e3, 1e-3, 1e3, 1e-3, 1e3, 1.0],
+            )
+            .unwrap(),
+        ));
+        let (t0, t1) = (0.2, 0.2001);
+        let lever = geom_brep::edge_reach_bounds(&wild, t0, t1, wild.eval(t0));
+        let geom_brep::LeverBounds::Between { below, above } = lever else {
+            panic!("a spline's reach is known from both sides, got {lever:?}");
+        };
+        assert!(
+            above > 50.0 * below,
+            "the window's bound from above passes the samples' reach many times: {below}, {above}"
+        );
+        let n = geom_core::Vec3::new(0.0, 0.0, 1.0);
+        let theta = 1e-6_f64;
+        let d = Departure::along(geom_core::Vec3::new(theta.cos(), theta.sin(), 0.0), lever);
+        let (a, b) = (dir(0.0), dir(90.0));
+        // Each bound alone reads a definite verdict, and they differ.
+        assert_eq!(wedge_holds(n, a, b, d.above(), band), Ok(true));
+        assert_eq!(wedge_holds(n, a, b, d.below(), band), Ok(false));
+        // Read at both, the wedge refuses with the straddle.
+        let refused = wedge_holds(n, a, b, d, band).expect_err("the readings disagree");
+        assert_eq!(refused.predicate, Some("pinch_corner_straddle"));
+    }
+
     fn recarry_line(body: &mut Body<f64>, edge: EdgeKey, tol: Tol) {
         let e = body.get_edge(edge).unwrap().clone();
         let (s, t) = edge_endpoints(body, e.he_plus).unwrap();
@@ -14283,7 +14513,7 @@ mod tests {
         recarry_full_circle(&mut body, arc_edge, Point3::new(0.0, 0.2, 0.0), axis, tol);
         // The oracle: every side of every corner at P, edges ignored.
         let len = cycle.len();
-        let corners: Vec<[geom_core::Vec3<f64>; 2]> = (0..len)
+        let corners: Vec<[Departure<f64>; 2]> = (0..len)
             .filter(|&i| {
                 let v = body.get_half_edge(cycle[i]).unwrap().start;
                 vertex_point(&body, v).unwrap().distance(p) < 1e-12
@@ -14703,7 +14933,7 @@ mod tests {
             let sense = c.get_face(face).unwrap().sense;
             c.set_face_surface(
                 face,
-                crate::FaceSurface::New {
+                crate::construction::FaceSurface::New {
                     surface: geom::Surface::nurbs_placeholder(),
                     sense,
                 },

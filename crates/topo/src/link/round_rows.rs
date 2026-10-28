@@ -193,6 +193,7 @@ fn turned_link(at: Point3<f64>, rot: &dyn Fn(Vec3<f64>) -> Vec3<f64>, fans: &Fan
                 apex: at,
                 wedges: pts.windows(2).map(|w| (w[0], w[1])).collect(),
                 closed: false,
+                clear: None,
             }
         })
         .collect();
@@ -510,6 +511,7 @@ fn a_corner_meeting_a_bores_wall_again_within_reach_crosses() {
                 apex: p,
                 wedges: vec![(pts[0], pts[1])],
                 closed: false,
+                clear: None,
             }
         })
         .collect();

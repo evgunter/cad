@@ -158,7 +158,7 @@ struct Roster {
 }
 
 /// The rosters, one per door value in the tree.
-const ROSTERS: [Roster; 8] = [
+const ROSTERS: [Roster; 9] = [
     Roster {
         door: "FittedLane",
         file: "crates/geom-brep/src/fitted_lane.rs",
@@ -201,6 +201,16 @@ const ROSTERS: [Roster; 8] = [
             "`SectionLane::f64` is concrete at `f64`: the plane × spline-wall march it holds \
              is a DERIVATION written at `f64`, not a certification right, so a new \
              `CertifiedEnclosure` impl forms no `SectionLane` and owes this roster nothing",
+        ),
+    },
+    Roster {
+        door: "SsiLane",
+        file: "crates/geom-brep/src/pair_section.rs",
+        helper: "holds_the_ssi_lane",
+        formed: Formed::F64Only(
+            "`SsiLane::marched` is concrete at `f64`: the cylinder × sphere march it holds is \
+             written at `f64` alone, so a new `CertifiedEnclosure` impl forms no `SsiLane` \
+             and owes this roster nothing",
         ),
     },
     Roster {

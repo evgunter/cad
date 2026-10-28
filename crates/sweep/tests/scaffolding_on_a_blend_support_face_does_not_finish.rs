@@ -24,6 +24,7 @@ use sweep::blend::battery::{BlendRequest, run_battery_for};
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, BlendKind, Breach};
 use sweep::test_support::block;
+use topo::construction::Construct;
 use topo::{AtRestBody, Body, EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, ValidationError};
 
 /// The unit block, one of its faces, and that face's outer anchor
@@ -71,11 +72,11 @@ fn a_null_strut_on_a_support_face_does_not_finish() {
 
     let strut = body
         .mev_null(
-            topo::MevSite::Fan {
+            topo::construction::MevSite::Fan {
                 he1: anchor,
                 he2: anchor,
             },
-            topo::NewVertexSide::Below,
+            topo::construction::NewVertexSide::Below,
         )
         .expect("a null strut at the anchor's start");
     assert_eq!(topo::validate(&body), Ok(()), "tier 1 holds with the strut");
@@ -117,7 +118,7 @@ fn a_lone_vertex_ring_on_a_support_face_does_not_finish() {
     );
     let chord = body
         .mev(
-            topo::MevSite::Fan {
+            topo::construction::MevSite::Fan {
                 he1: anchor,
                 he2: anchor,
             },
@@ -162,11 +163,11 @@ fn the_raw_battery_refuses_a_null_strut_as_scaffolding_with_the_doors_advice() {
     let edges = block_edges(&body);
     let strut = body
         .mev_null(
-            topo::MevSite::Fan {
+            topo::construction::MevSite::Fan {
                 he1: anchor,
                 he2: anchor,
             },
-            topo::NewVertexSide::Below,
+            topo::construction::NewVertexSide::Below,
         )
         .expect("a null strut at the anchor's start");
     let band = geom_core::Band::linear(Tol::witness()).expect("the witness band");
