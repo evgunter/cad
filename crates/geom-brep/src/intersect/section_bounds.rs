@@ -51,18 +51,18 @@
 //! point on `Γ_c` lies in the stretch stands between `w` and `T` of
 //! `Γ_c` — the **clearance** `T − w` of the tube of radius `w` from every
 //! other piece of `O` there, a second component of the section and the
-//! near-miss regions alike (the same inequality at `y ∈ Γ` puts no other
-//! section point within `T·(1 − 2ε/(sT))` of `Γ_c`). The carrier lies in
+//! near-miss regions alike. The carrier lies in
 //! `O` (limb 2) and is connected, so its distance from `Γ_c` is
 //! continuous and never crosses the moat: one point of it within `T`
 //! puts all of it within `w`.
 //!
 //! **The stretch** is `Γ` inside the carrier's control hulls padded by
-//! `T`: each span the edge's interval meets is cut into pieces by knot
-//! insertion in certification arithmetic, and a piece lies in the box
-//! of its control points, so a point of the carrier and its nearest
-//! point on `Γ_c` within `T` both lie in one of the padded boxes. Each
-//! floor is the least over the boxes. **The one point within `T`** is the
+//! `T`: each span the edge's interval meets is cut into pieces, each
+//! piece's Bernstein net read off the span's homogeneous coefficients by
+//! the blossom in certification arithmetic, and a piece lies in the box
+//! of its Cartesian control points, so a point of the carrier and its
+//! nearest point on `Γ_c` within `T` both lie in one of the padded
+//! boxes. Each floor is the least over the boxes. **The one point within `T`** is the
 //! carrier's point at an interior parameter, enclosed by evaluating the
 //! carrier in certification arithmetic, beside which Poincaré–Miranda
 //! finds a common zero of `Q₁` and `Q₂` on a square whose sides are
@@ -101,7 +101,8 @@
 
 use geom::{NurbsCurve3, Surface, SurfaceKind};
 use geom_core::interval::certification::Certification;
-use geom_core::{Band, Bounds, CertifiedBounds, Interval, Point3};
+use geom_core::spline::pieces::span_row;
+use geom_core::{Band, Bounds, CertifiedBounds, Interval, Point3, Vec3};
 
 use crate::ssi::enclose::Box3;
 
@@ -180,10 +181,11 @@ pub fn tube_bounds<T: CertifiedBounds>(
     let hulls = control_hulls(carrier, params).ok_or(Unstated::Pose(
         "the carrier's control hull over the edge's interval is not certified",
     ))?;
-    // The stretch is the section inside the hulls padded by `T`, and `T`
-    // is read off the floor over it: a floor over the bare hulls sizes a
-    // pad of twice the `T` it implies, and the floor over those padded
-    // boxes must keep at least half the first for its own `T` to fit.
+    // The stretch is the section inside the hulls padded by `T = 16ε/s`,
+    // and `s` is the floor over that stretch, so the pad is fixed first:
+    // the floor `s₀` over the bare hulls pads them by `32ε/s₀`, and the
+    // floor `s` over those padded boxes fits `T` inside the pad exactly
+    // when `16ε/s ≤ 32ε/s₀`, that is `s ≥ s₀/2`.
     let over = |pad: f64| -> Result<Floors, Unstated> {
         hulls.iter().try_fold(
             Floors {
@@ -217,7 +219,7 @@ pub fn tube_bounds<T: CertifiedBounds>(
                 Interval::point(m),
             );
             let moat = m * (t * s / Interval::point(2.0) - e)
-                - Interval::point(q.hess()) * t.powi(2)
+                - Interval::point(q.hess()) * t.sqr()
                 - e * Interval::point(q.lipschitz()) * t;
             if !(moat.is_certified() && moat.lo() > 0.0) {
                 return Err(Unstated::Pose(
@@ -247,68 +249,48 @@ pub fn tube_bounds<T: CertifiedBounds>(
 #[derive(Clone, Copy, Debug)]
 enum Quadric {
     Plane {
-        origin: [Interval; 3],
-        normal: [Interval; 3],
+        origin: V3,
+        normal: V3,
     },
     Cylinder {
-        origin: [Interval; 3],
-        axis: [Interval; 3],
+        origin: V3,
+        axis: V3,
         radius: Interval,
     },
     Sphere {
-        center: [Interval; 3],
+        center: V3,
         radius: Interval,
     },
     Cone {
-        apex: [Interval; 3],
-        axis: [Interval; 3],
+        apex: V3,
+        axis: V3,
         sin_a: Interval,
         cos_a: Interval,
     },
 }
 
-fn point<T: CertifiedBounds>(p: Point3<T>) -> [Interval; 3] {
-    [p.x, p.y, p.z].map(Interval::from_certified)
+/// A point or a direction in certification arithmetic.
+type V3 = Vec3<Interval>;
+
+fn point<T: CertifiedBounds>(p: Point3<T>) -> V3 {
+    Vec3::new(
+        Interval::from_certified(p.x),
+        Interval::from_certified(p.y),
+        Interval::from_certified(p.z),
+    )
 }
 
-fn unit<T: CertifiedBounds>(v: geom_core::Vec3<T>) -> [Interval; 3] {
-    let v = [v.x, v.y, v.z].map(Interval::from_certified);
-    let n = norm_sq(v).sqrt();
-    v.map(|c| c / n)
+fn unit<T: CertifiedBounds>(v: Vec3<T>) -> V3 {
+    let v = Vec3::new(
+        Interval::from_certified(v.x),
+        Interval::from_certified(v.y),
+        Interval::from_certified(v.z),
+    );
+    v / v.norm_squared().sqrt()
 }
 
-fn dot(a: [Interval; 3], b: [Interval; 3]) -> Interval {
-    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-}
-
-/// `‖a‖²` as a sum of squares, so a component straddling zero keeps the
-/// floor at zero.
-fn norm_sq(a: [Interval; 3]) -> Interval {
-    a[0].sqr() + a[1].sqr() + a[2].sqr()
-}
-
-fn sub(a: [Interval; 3], b: [Interval; 3]) -> [Interval; 3] {
-    [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
-}
-
-fn add(a: [Interval; 3], b: [Interval; 3]) -> [Interval; 3] {
-    [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
-}
-
-fn scale(a: [Interval; 3], k: Interval) -> [Interval; 3] {
-    a.map(|c| c * k)
-}
-
-fn cross(a: [Interval; 3], b: [Interval; 3]) -> [Interval; 3] {
-    [
-        a[1] * b[2] - a[2] * b[1],
-        a[2] * b[0] - a[0] * b[2],
-        a[0] * b[1] - a[1] * b[0],
-    ]
-}
-
-fn boxed(b: Box3) -> [Interval; 3] {
-    [b.x, b.y, b.z]
+fn boxed(b: Box3) -> V3 {
+    Vec3::new(b.x, b.y, b.z)
 }
 
 impl Quadric {
@@ -342,15 +324,11 @@ impl Quadric {
                 // as the composite's cone form crosses it: certification
                 // calls no transcendental (C9).
                 let (sin_a, cos_a) = half_angle.sin_cos();
-                let (sin_a, cos_a) = (
-                    Interval::from_certified(sin_a),
-                    Interval::from_certified(cos_a),
-                );
                 Self::Cone {
                     apex: point(apex),
                     axis: unit(axis),
-                    sin_a,
-                    cos_a,
+                    sin_a: Interval::from_certified(sin_a),
+                    cos_a: Interval::from_certified(cos_a),
                 }
             }
             Surface::Torus { .. } | Surface::Nurbs(_) | Surface::Approx(_) => return None,
@@ -358,45 +336,42 @@ impl Quadric {
     }
 
     /// `Q` at `y`.
-    fn value(self, y: [Interval; 3]) -> Interval {
+    fn value(self, y: V3) -> Interval {
         match self {
-            Self::Plane { origin, normal } => dot(sub(y, origin), normal),
+            Self::Plane { origin, normal } => (y - origin).dot(normal),
             Self::Cylinder {
                 origin,
                 axis,
                 radius,
             } => {
-                let v = sub(y, origin);
-                norm_sq(v) - dot(v, axis).powi(2) - radius.powi(2)
+                let v = y - origin;
+                v.norm_squared() - v.dot(axis).sqr() - radius.sqr()
             }
-            Self::Sphere { center, radius } => {
-                let v = sub(y, center);
-                norm_sq(v) - radius.powi(2)
-            }
+            Self::Sphere { center, radius } => (y - center).norm_squared() - radius.sqr(),
             Self::Cone {
                 apex, axis, cos_a, ..
             } => {
-                let v = sub(y, apex);
-                cos_a.powi(2) * norm_sq(v) - dot(v, axis).powi(2)
+                let v = y - apex;
+                cos_a.sqr() * v.norm_squared() - v.dot(axis).sqr()
             }
         }
     }
 
     /// `∇Q` at `y`.
-    fn grad(self, y: [Interval; 3]) -> [Interval; 3] {
+    fn grad(self, y: V3) -> V3 {
         let two = Interval::point(2.0);
         match self {
             Self::Plane { normal, .. } => normal,
             Self::Cylinder { origin, axis, .. } => {
-                let v = sub(y, origin);
-                scale(sub(v, scale(axis, dot(v, axis))), two)
+                let v = y - origin;
+                (v - axis * v.dot(axis)) * two
             }
-            Self::Sphere { center, .. } => scale(sub(y, center), two),
+            Self::Sphere { center, .. } => (y - center) * two,
             Self::Cone {
                 apex, axis, cos_a, ..
             } => {
-                let v = sub(y, apex);
-                scale(sub(scale(v, cos_a.powi(2)), scale(axis, dot(v, axis))), two)
+                let v = y - apex;
+                (v * cos_a.sqr() - axis * v.dot(axis)) * two
             }
         }
     }
@@ -429,11 +404,11 @@ struct Floors {
 fn floors(a: Quadric, b: Quadric, region: Box3, pair: Unstated) -> Result<Floors, Unstated> {
     let one = Interval::point(1.0);
     let two = Interval::point(2.0);
+    let zero = Interval::point(0.0);
     let y = boxed(region);
     let (cos, m): (Interval, [Interval; 2]) = match (a, b) {
         (Quadric::Plane { normal: n1, .. }, Quadric::Plane { normal: n2, .. }) => {
-            let x = cross(n1, n2);
-            return finish(norm_sq(x).sqrt(), [one, one]);
+            return finish(n1.cross(n2).norm_squared().sqrt(), [one, one]);
         }
         (
             Quadric::Plane { origin, normal },
@@ -443,16 +418,16 @@ fn floors(a: Quadric, b: Quadric, region: Box3, pair: Unstated) -> Result<Floors
                 radius,
             },
         ) => {
-            let delta = dot(sub(c, origin), normal);
-            let z = dot(sub(y, c), axis);
+            let delta = (c - origin).dot(normal);
+            let z = (y - c).dot(axis);
             (
-                Interval::point(0.0) - (delta + z * dot(normal, axis)) / radius,
+                zero - (delta + z * normal.dot(axis)) / radius,
                 [one, two * radius],
             )
         }
         (Quadric::Plane { origin, normal }, Quadric::Sphere { center, radius }) => {
-            let delta = dot(sub(center, origin), normal);
-            (Interval::point(0.0) - delta / radius, [one, two * radius])
+            let delta = (center - origin).dot(normal);
+            (zero - delta / radius, [one, two * radius])
         }
         (
             Quadric::Plane { origin, normal },
@@ -463,8 +438,8 @@ fn floors(a: Quadric, b: Quadric, region: Box3, pair: Unstated) -> Result<Floors
                 cos_a,
             },
         ) => {
-            let delta = dot(sub(apex, origin), normal);
-            let z = dot(sub(y, apex), axis);
+            let delta = (apex - origin).dot(normal);
+            let z = (y - apex).dot(axis);
             if !(z.is_certified() && (z.lo() > 0.0 || z.hi() < 0.0)) {
                 return Err(Unstated::Pose(
                     "the carrier's stretch reaches the height of the cone's apex",
@@ -473,8 +448,7 @@ fn floors(a: Quadric, b: Quadric, region: Box3, pair: Unstated) -> Result<Floors
             let side = Interval::point(if z.lo() > 0.0 { 1.0 } else { -1.0 });
             let height = z * side;
             (
-                Interval::point(0.0)
-                    - (delta * cos_a.powi(2) / height + side * dot(normal, axis)) / sin_a,
+                zero - (delta * cos_a.sqr() / height + side * normal.dot(axis)) / sin_a,
                 [one, two * Interval::point(height.lo()) * sin_a],
             )
         }
@@ -493,14 +467,14 @@ fn floors(a: Quadric, b: Quadric, region: Box3, pair: Unstated) -> Result<Floors
             let same = |x: Interval, y: Interval| {
                 x.is_certified() && x.lo() == x.hi() && y.lo() == x.lo() && y.hi() == x.hi()
             };
-            if !(same(r1, r2) && (0..3).all(|i| same(c1[i], c2[i]))) {
+            if !(same(r1, r2) && same(c1.x, c2.x) && same(c1.y, c2.y) && same(c1.z, c2.z)) {
                 return Err(Unstated::Pose(
                     "the cylinders' radii or the point their axes share are not one stored value",
                 ));
             }
-            let v = sub(y, c1);
-            let k = dot(a1, a2);
-            let (minus, plus) = (dot(v, sub(a2, a1)), dot(v, add(a2, a1)));
+            let v = y - c1;
+            let k = a1.dot(a2);
+            let (minus, plus) = (v.dot(a2 - a1), v.dot(a2 + a1));
             let clear = |p: Interval| p.is_certified() && (p.lo() > 0.0 || p.hi() < 0.0);
             // `Γ` lies where `minus` or `plus` vanishes; the bisector the
             // stretch keeps clear of is not the one holding it.
@@ -513,8 +487,8 @@ fn floors(a: Quadric, b: Quadric, region: Box3, pair: Unstated) -> Result<Floors
                     "the carrier's stretch reaches the line where the two ellipses cross",
                 ));
             };
-            let zeta = dot(v, a1);
-            (one - zeta.powi(2) * lean / r1.powi(2), [two * r1, two * r1])
+            let zeta = v.dot(a1);
+            (one - zeta.sqr() * lean / r1.sqr(), [two * r1, two * r1])
         }
         _ => return Err(pair),
     };
@@ -540,34 +514,46 @@ fn finish(sin: Interval, m: [Interval; 2]) -> Result<Floors, Unstated> {
     Ok(Floors { sin, m: [m0, m1] })
 }
 
-/// How many pieces each Bézier span of the carrier is cut into for its
-/// hulls: a quadratic's control polygon stands off its arc by a quarter
-/// of its sagitta's scale, so a piece's hull is the arc's own to the
-/// square of the cut.
+/// How many pieces each span of the carrier is cut into for its hulls.
+/// A piece's control net stands off its arc by an amount that falls with
+/// the square of the piece's length (a quadratic's middle control point
+/// stands off its arc by half its sagitta), so eight pieces take the
+/// hulls' overshoot down about 64-fold — enough that each floor reads the
+/// carrier rather than its net on the rows of `tests/section_bounds.rs`
+/// — at eight Bernstein rows per span.
 const PIECES: u32 = 8;
 
-/// **The hulls of the carrier over `params`**: for each span the edge's
-/// interval meets, its homogeneous control points `(w·P, w)` crossed into
-/// certification arithmetic, and the box of the piece's Cartesian control
-/// points, every weight certified positive (a rational curve lies in the
-/// convex hull of its span's control points). A span whose ends carry
-/// full multiplicity is a Bézier segment, cut into [`PIECES`] by its
-/// blossom at dyadic parameters, exact in its own `[0, 1]`; any other
-/// span keeps the box of its whole window.
+/// **The hulls of the carrier over `params`**: each span the edge's
+/// interval meets is cut into [`PIECES`] at equal steps of its parameter,
+/// and each piece's Bernstein net is read off the span's homogeneous
+/// coefficients `(w·P, w)` by the blossom
+/// ([`geom_core::spline::pieces::span_row`]) over the held knots, all in
+/// certification arithmetic. A piece lies in the convex hull of its
+/// Cartesian control points `w·P/w` where every weight is certified
+/// positive, so the box of those points holds it for every member of the
+/// box.
 fn control_hulls<T: CertifiedBounds>(
     carrier: &NurbsCurve3<T>,
     params: (T, T),
 ) -> Option<Vec<Box3>> {
     let (lo, hi) = (Bounds::lo(params.0), Bounds::hi(params.1));
     let p = carrier.degree();
-    let homogeneous: Vec<([Interval; 3], Interval)> = carrier
+    let weights: Vec<Interval> = carrier
+        .weights()
+        .iter()
+        .map(|&w| Interval::from_certified(w))
+        .collect();
+    let lifted: Vec<V3> = carrier
         .control()
         .iter()
-        .zip(carrier.weights())
-        .map(|(c, &w)| {
-            let w = Interval::from_certified(w);
-            (scale(point(*c), w), w)
-        })
+        .zip(&weights)
+        .map(|(c, &w)| point(*c) * w)
+        .collect();
+    let knots: Vec<Interval> = carrier
+        .knot_values()
+        .values()
+        .iter()
+        .map(|&k| Interval::from_certified(k))
         .collect();
     // Each span is the gap between two consecutive knot runs; its window
     // ends at the last knot of the first run.
@@ -575,41 +561,32 @@ fn control_hulls<T: CertifiedBounds>(
     let mut last = 0_usize;
     let mut hulls = Vec::new();
     for pair in runs.windows(2) {
-        let ((a, ma), (b, mb)) = (pair[0], pair[1]);
+        let ((a, ma), (b, _)) = (pair[0], pair[1]);
         last += ma;
         let s = last - 1;
         if !(Bounds::hi(b) >= lo && Bounds::lo(a) <= hi) || s < p {
             continue;
         }
-        let window = homogeneous.get(s - p..=s)?;
-        let bezier = ma >= p && mb >= p;
-        let pieces = if bezier { PIECES } else { 1 };
-        for j in 0..pieces {
-            let net: Vec<([Interval; 3], Interval)> = if bezier {
-                let (t0, t1) = (
-                    f64::from(j) / f64::from(pieces),
-                    f64::from(j + 1) / f64::from(pieces),
-                );
-                (0..=p)
-                    .map(|i| {
-                        let mut ts = vec![t0; p - i];
-                        ts.extend(vec![t1; i]);
-                        blossom(window, &ts)
-                    })
-                    .collect()
-            } else {
-                window.to_vec()
+        let (ka, kb) = (*knots.get(s)?, *knots.get(s + 1)?);
+        let window = s - p..=s;
+        for j in 0..PIECES {
+            let at = |i: u32| {
+                let f = Interval::point(f64::from(i) / f64::from(PIECES));
+                ka + (kb - ka) * f
             };
+            let ends = (at(j), at(j + 1));
+            let points = span_row(lifted.get(window.clone())?, &knots, s - p, ends)?;
+            let masses = span_row(weights.get(window.clone())?, &knots, s - p, ends)?;
             let mut hull: Option<Box3> = None;
-            for (pw, w) in net {
+            for (pw, w) in points.into_iter().zip(masses) {
                 if !(w.is_certified() && w.lo() > 0.0) {
                     return None;
                 }
-                let c = pw.map(|x| x / w);
+                let c = pw / w;
                 let corner = Box3 {
-                    x: c[0],
-                    y: c[1],
-                    z: c[2],
+                    x: c.x,
+                    y: c.y,
+                    z: c.z,
                 };
                 hull = Some(hull.map_or(corner, |h| h.hull(corner)));
             }
@@ -623,38 +600,21 @@ fn control_hulls<T: CertifiedBounds>(
     (!hulls.is_empty()).then_some(hulls)
 }
 
-/// The blossom of a homogeneous Bézier net at `ts` (de Casteljau with
-/// one parameter per level), each `t` and `1 − t` exact.
-fn blossom(net: &[([Interval; 3], Interval)], ts: &[f64]) -> ([Interval; 3], Interval) {
-    let mut row = net.to_vec();
-    for &t in ts {
-        let (t, u) = (Interval::point(t), Interval::point(1.0 - t));
-        row = row
-            .windows(2)
-            .map(|w| {
-                (
-                    add(scale(w[0].0, u), scale(w[1].0, t)),
-                    w[0].1 * u + w[1].1 * t,
-                )
-            })
-            .collect();
-    }
-    row[0]
-}
-
 /// The carrier's point at a parameter inside `params` for every member
 /// of the box, evaluated in certification arithmetic.
 // `!(lo < hi)` is deliberate (NaN-catching).
 #[allow(clippy::neg_cmp_op_on_partial_ord)]
-fn witness<T: CertifiedBounds>(carrier: &NurbsCurve3<T>, params: (T, T)) -> Option<[Interval; 3]> {
+fn witness<T: CertifiedBounds>(carrier: &NurbsCurve3<T>, params: (T, T)) -> Option<V3> {
     let (lo, hi) = (Bounds::hi(params.0), Bounds::lo(params.1));
     if !(lo < hi) {
         return None;
     }
     let lifted = carrier.map_scalar(Interval::from_certified);
     let p = lifted.eval(Interval::point(0.5 * lo + 0.5 * hi));
-    let p = [p.x, p.y, p.z];
-    p.iter().all(|c| c.is_certified()).then_some(p)
+    [p.x, p.y, p.z]
+        .iter()
+        .all(|c| c.is_certified())
+        .then_some(Vec3::new(p.x, p.y, p.z))
 }
 
 /// **A common zero of `Q₁` and `Q₂` within `reach` of every point of
@@ -663,57 +623,52 @@ fn witness<T: CertifiedBounds>(carrier: &NurbsCurve3<T>, params: (T, T)) -> Opti
 /// `G` at the centre `c`, `Qᵢ` takes opposite certified signs on the
 /// sides `±A` along `uᵢ`. Each side's value is `Qᵢ(c) + ∇Qᵢ(c)·(y − c)`
 /// within `qᵢ‖y − c‖²`, exact for a quadric.
-fn miranda(a: Quadric, b: Quadric, at: [Interval; 3], reach: f64) -> bool {
+fn miranda(a: Quadric, b: Quadric, at: V3, reach: f64) -> bool {
     let mid = |i: Interval| 0.5 * i.lo() + 0.5 * i.hi();
-    let c = at.map(|i| Interval::point(mid(i)));
-    let g = [a.grad(c), b.grad(c)].map(|g| g.map(mid));
+    let c = Vec3::new(
+        Interval::point(mid(at.x)),
+        Interval::point(mid(at.y)),
+        Interval::point(mid(at.z)),
+    );
+    let g = [a.grad(c), b.grad(c)].map(|g| Vec3::new(mid(g.x), mid(g.y), mid(g.z)));
     // `u = Gᵀ(GGᵀ)⁻¹`, at `f64`: a preconditioner, so any choice is sound.
-    let d = |x: [f64; 3], y: [f64; 3]| x[0] * y[0] + x[1] * y[1] + x[2] * y[2];
-    let (g11, g12, g22) = (d(g[0], g[0]), d(g[0], g[1]), d(g[1], g[1]));
+    let (g11, g12, g22) = (g[0].dot(g[0]), g[0].dot(g[1]), g[1].dot(g[1]));
     let det = g11 * g22 - g12.powi(2);
     if !(det.is_finite() && det > 0.0) {
         return false;
     }
-    let inv = [[g22 / det, -g12 / det], [-g12 / det, g11 / det]];
-    let u: [[f64; 3]; 2] =
-        [0, 1].map(|j| [0, 1, 2].map(|k| g[0][k] * inv[0][j] + g[1][k] * inv[1][j]));
-    let len = |v: [f64; 3]| {
-        let v = v.map(Interval::point);
-        norm_sq(v).sqrt().hi()
-    };
-    let side = 0.99 * reach / (len(u[0]) + len(u[1]));
+    let u = [
+        (g[0] * g22 - g[1] * g12) / det,
+        (g[1] * g11 - g[0] * g12) / det,
+    ]
+    .map(|v| Vec3::new(Interval::point(v.x), Interval::point(v.y), Interval::point(v.z)));
+    let len = |v: V3| v.norm_squared().sqrt();
+    let side = 0.99 * reach / (len(u[0]).hi() + len(u[1]).hi());
     if !(side.is_finite() && side > 0.0) {
         return false;
     }
-    let off = sub(at, c);
-    let off_len = norm_sq(off).sqrt();
-    let u = u.map(|v| v.map(Interval::point));
+    let off = at - c;
     let span = Interval::from_bounds(-side, side);
-    let radius = (off_len
-        + Interval::point(side) * norm_sq(u[0]).sqrt()
-        + Interval::point(side) * norm_sq(u[1]).sqrt())
-    .powi(2);
-    let mut sign = [0.0_f64; 2];
+    let radius = (len(off) + Interval::point(side) * len(u[0]) + Interval::point(side) * len(u[1]))
+        .sqr();
     for (i, q) in [a, b].into_iter().enumerate() {
         let (value, grad) = (q.value(c), q.grad(c));
         let curve = Interval::point(q.hess()) * radius;
         let along = |k: f64| {
-            let lin = dot(grad, off)
-                + Interval::point(k * side) * dot(grad, u[i])
-                + span * dot(grad, u[1 - i]);
+            let lin = grad.dot(off)
+                + Interval::point(k * side) * grad.dot(u[i])
+                + span * grad.dot(u[1 - i]);
             value + lin + Interval::from_bounds(-1.0, 1.0) * curve
         };
         let (hi_side, lo_side) = (along(1.0), along(-1.0));
         if !(hi_side.is_certified() && lo_side.is_certified()) {
             return false;
         }
-        sign[i] = if hi_side.lo() > 0.0 && lo_side.hi() < 0.0 {
-            1.0
-        } else if hi_side.hi() < 0.0 && lo_side.lo() > 0.0 {
-            -1.0
-        } else {
+        let opposite = (hi_side.lo() > 0.0 && lo_side.hi() < 0.0)
+            || (hi_side.hi() < 0.0 && lo_side.lo() > 0.0);
+        if !opposite {
             return false;
-        };
+        }
     }
-    sign.iter().all(|&s| s != 0.0)
+    true
 }
