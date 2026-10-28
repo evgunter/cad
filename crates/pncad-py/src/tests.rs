@@ -6272,6 +6272,11 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One fact (INTENT-LITERALS C) at the edit door and outside it: a
     // formula reads a fresh-table entry its edit does not hold, or at
     // another kind.
+    // Two doors' own refusals, each with its own payload: the gather's
+    // frame refusing to compose (`ProductError::Frame`) and a
+    // selection's candidate refusing to read into its plane's frame
+    // (`SelectRefusal::Frame`). A coincidence of words, not one fact.
+    ("frame_refused", 2),
     ("fresh_kind", 2),
     ("fresh_unheld", 2),
     // Two: a resolution lands in the ambiguity band exactly as a
