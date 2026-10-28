@@ -2,10 +2,11 @@
 id: self-intersection-drops-every-vertex-sharing-face-pair-globally
 kind: issue
 title: clearance's self-intersection drops every face pair that shares a vertex, and a face against itself, globally - vacuous on a cone's lateral faces or a triangle-section loft
-status: open
+status: dispatched
 opened: 2026-10-06
 priority: P0
 cost: H
+branch: clear/selfx
 ---
 
 
