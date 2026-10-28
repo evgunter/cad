@@ -111,10 +111,7 @@ fn posed(what: &str, body: &Body<f64>, map: &Affine3<f64>, tol: Tol) -> AtRestBo
 /// What one op reads, compared across poses.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum Reading {
-    Body {
-        faces: usize,
-        face_pair_rows: usize,
-    },
+    Body { faces: usize, face_pair_rows: usize },
     Empty,
 }
 
