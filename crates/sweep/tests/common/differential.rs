@@ -403,6 +403,7 @@ pub fn assert_sound_and_meshed(
     let Ok(Some(bb)) = r.as_ref().map(BooleanResult::body) else {
         panic!("{label}: wanted a body, got {r:?}");
     };
+    delta_probe(label, &bb.body, want);
     let mesh = mesh::tessellate(&bb.body, 5e-3, tol)
         .unwrap_or_else(|e| panic!("{label}: the mesh: {e:?}"));
     mesh::validate::check_mesh(&mesh).unwrap_or_else(|e| panic!("{label}: the mesh: {e:?}"));
@@ -895,4 +896,28 @@ pub fn nt_poly_volume(poly: &NtPoly) -> f64 {
         })
         .sum::<f64>()
         / 6.0
+}
+
+/// TEMPORARY (spherearm fix pass): with `SPHEREARM_PROBE` set, mesh
+/// `body` at a sweep of δ and print each outcome.
+pub fn delta_probe(label: &str, body: &Body<f64>, volume: f64) {
+    if std::env::var_os("SPHEREARM_PROBE").is_none() {
+        return;
+    }
+    for delta in [4e-2, 2e-2, 1e-2, 5e-3, 4e-3, 2.5e-3, 1e-3, 5e-4, 2.5e-4] {
+        let line = match mesh::tessellate(body, delta, Tol::witness()) {
+            Ok(m) => match (
+                mesh::validate::check_mesh(&m),
+                mesh::validate::check_volume(&m, volume, delta),
+            ) {
+                (Ok(()), Ok(())) => "OK".to_string(),
+                (c, v) => format!("BAD {c:?} {v:?}"),
+            },
+            Err(e) => {
+                let s = format!("{e:?}");
+                format!("ERR {}", &s[..s.len().min(90)])
+            }
+        };
+        eprintln!("PROBE\t{label}\t{delta:e}\t{line}");
+    }
 }

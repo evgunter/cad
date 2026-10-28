@@ -31,7 +31,7 @@ use topo::{AtRestBody, BooleanError, BooleanResult};
 use crate::common::differential::outcome;
 use crate::common::oracles::{ball_lens as lens, ball_volume, cap_volume};
 
-use Want::{Draws, NearPole, Refuses};
+use Want::{Draws, Folds, Refuses, Unmeshed};
 
 /// A `y`-poled ball of radius `r` turned by `turn`, then moved to `c`.
 fn placed(r: f64, turn: Affine3<f64>, c: Vec3<f64>) -> AtRestBody<f64> {
@@ -85,11 +85,14 @@ fn unit() -> AtRestBody<f64> {
 enum Want {
     /// `SOUND`, and the body meshes and checks.
     Draws,
-    /// `SOUND`, and the mesher refuses a sphere face whose tilted circle
-    /// passes so near a chart pole that its chord schedule would be finer
-    /// than the whole sphere's lattice
+    /// `SOUND`, and the mesher refuses a triangle folded over the chord
+    /// beside it near a chart pole
     /// (`work/tess/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`).
-    NearPole,
+    Folds,
+    /// `SOUND`, and not meshed in this suite: the tilted circle passes so
+    /// near a chart pole that its uniform chord schedule asks millions of
+    /// chords (under `sizing::MAX_COUNT`, minutes in a debug build).
+    Unmeshed,
     /// A typed refusal the predicate accepts.
     Refuses(fn(&BooleanError) -> bool),
 }
@@ -113,6 +116,7 @@ fn check(
     let Ok(Some(bb)) = out.as_ref().map(BooleanResult::body) else {
         panic!("{label}: wanted a body, got {out:?}");
     };
+    crate::common::differential::delta_probe(label, &bb.body, volume);
     match want {
         Draws => {
             let m = mesh::tessellate(&bb.body, 5e-3, tol)
@@ -121,20 +125,15 @@ fn check(
             mesh::validate::check_volume(&m, volume, 5e-3)
                 .unwrap_or_else(|e| panic!("{label}: the mesh encloses the body, got {e:?}"));
         }
-        NearPole => {
+        Folds => {
             let drawn = mesh::tessellate(&bb.body, 5e-3, tol);
             assert!(
-                matches!(
-                    &drawn,
-                    Err(mesh::TessellateError::SphereTrimShape {
-                        cause: mesh::types::SphereTrimCause::NearPole,
-                        ..
-                    })
-                ),
-                "{label}: the near-pole refusal, got {:?}",
+                matches!(&drawn, Err(mesh::TessellateError::FoldedTriangle { .. })),
+                "{label}: the folded-triangle refusal, got {:?}",
                 drawn.map(|m| m.positions.len())
             );
         }
+        Unmeshed => {}
         Refuses(_) => unreachable!(),
     }
     let v = topo::test_support::pinned_volume("the measured body", &bb.body, tol).volume;
@@ -394,10 +393,12 @@ fn two_trimmed_spheres_build() {
 /// `δ` builds, `10⁻⁷` included: the arc's pcurve beside the pole is the
 /// projected image (C4), whose sector pieces refine toward the pole and
 /// certify while the arc stays clear of it, and every op's volume holds.
-/// At `10⁻³` the mesher draws every op; at `10⁻⁵` and `10⁻⁷` the
-/// circle's uniform chord schedule would be finer than the whole
-/// sphere's lattice, so the mesher refuses the face typed
-/// ([`Want::NearPole`]).
+/// At `10⁻³` the mesher draws every op. At `10⁻⁵` the uniform chord
+/// schedule the circle asks near the pole draws the unit ball's
+/// remnant in three ops and folds a triangle over the chord beside the
+/// pole in the other three, which refuse typed ([`Want::Folds`]). At
+/// `10⁻⁷` the schedule asks millions of chords, and the suite does not
+/// mesh it ([`Want::Unmeshed`]).
 /// The distances are band-relative (at `ε = 10⁻⁶` the `10⁻⁵` circle's
 /// crossings read the meridian's half in the escalation gap), so the
 /// other ε rows stand down.
@@ -430,7 +431,13 @@ fn a_trimmed_face_cut_beside_its_pole_builds() {
                 ball_volume(r),
                 lens(1.0, r, 1.0),
             ),
-            [if delta >= 1e-3 { Draws } else { NearPole }; 6],
+            if delta > 1e-4 {
+                [Draws; 6]
+            } else if delta > 1e-6 {
+                [Folds, Folds, Folds, Draws, Draws, Draws]
+            } else {
+                [Unmeshed; 6]
+            },
         );
     }
 }

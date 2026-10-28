@@ -58,12 +58,14 @@
 //! already tightened): the `Circle` arm's
 //! `sizing::grid_boundary_step`, the headroom target ([`edge_target`]),
 //! [`nurbs_tighten`] and [`sphere_arm_tighten`]. Each reads the face
-//! through `tessellate::face_surface`, and all but `nurbs_tighten`
-//! through the dispatch itself (`tessellate::lane_of`), so a face
-//! tightens an edge only for the lane that will mesh it. **Nothing in
-//! the tree checks that these are the only four**: a fifth caller
-//! compiles green, and it would be a fifth way for a neighbour to enter
-//! the count.
+//! through `tessellate::face_surface`; the `Circle` arm and the
+//! headroom target read the dispatch itself (`tessellate::lane_of`),
+//! `sphere_arm_tighten` reads `trimmed::takes_sphere_arm`, the predicate
+//! `lane_of` routes a sphere face by, and `nurbs_tighten` reads the
+//! surface's spline chart, so a face tightens an edge only for the lane
+//! that will mesh it. **This list is not enforced**: nothing in the
+//! tree checks that these are the only four, and a fifth caller
+//! compiles green as a fifth way for a neighbour to enter the count.
 //!
 //! With that door held, chord points are a pure function of (carrier +
 //! interval, endpoint points, adjacent surface parameters, an adjacent
@@ -659,24 +661,14 @@ fn sphere_arm_tighten(
             });
         };
         let (su, sv) = sphere_uv_speeds(cache.pcurve(), params, ek, fk)?;
-        let asked = ceil_count(su * span, hu)?.max(ceil_count(sv * span, hv)?);
-        // THE CAP IS THE ARM'S OWN LATTICE. A uniform schedule on an arc
-        // passing near a pole is as fine everywhere as at its closest
-        // approach, so an arc at polar distance `d` asks about
-        // `ρ_c·Δt/(r·d·h_u)` chords. Past the point count of the whole
-        // sphere's lattice at these steps, `⌈2π/h_u⌉·⌈π/h_v⌉`, one edge
-        // would be a finer boundary than any face of this sphere has
-        // interior: that refuses typed rather than allocate it.
-        let lattice = ceil_count(core::f64::consts::TAU, hu)?
-            .saturating_mul(ceil_count(core::f64::consts::PI, hv)?);
-        if asked > lattice {
-            return Err(TessellateError::SphereTrimShape {
-                face: fk,
-                edge: ek,
-                cause: crate::types::SphereTrimCause::NearPole,
-            });
-        }
-        n = n.max(asked);
+        // An arc passing near a pole asks about `ρ_c·Δt/(r·d·h_u)`
+        // chords at polar distance `d` (the schedule is uniform, so as
+        // fine everywhere as at the closest approach); `ceil_count`
+        // refuses past `sizing::MAX_COUNT`, the cap every count in the
+        // crate is held to (`sphere_uv_speeds`' doc).
+        n = n
+            .max(ceil_count(su * span, hu)?)
+            .max(ceil_count(sv * span, hv)?);
     }
     Ok(n)
 }

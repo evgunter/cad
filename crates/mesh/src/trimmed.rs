@@ -48,9 +48,19 @@
 //! `(u′(t), v′(t))` (`crate::chords::sphere_uv_speeds`), and its
 //! certificate is the ball-convexity one (`cert::cert_sphere`), in 3-D.
 //! A pole the loop passes is a side of the trim polygon
-//! ([`sphere_polygon_shape`]); a face holding a pole inside it, and a
-//! tilted circle passing a pole nearer than the arm's lattice resolves
-//! ([`NEAR_POLE_ROW_SHARE`]), refuse typed. Conic and B-spline trims
+//! ([`sphere_polygon_shape`]), and each run of the loop between two
+//! poles is placed a whole turn where its equal-area shoelace says the
+//! face is ([`choose_pole_azimuths`]). A face holding a pole inside it,
+//! and a tilted circle passing so near a pole that its chord schedule
+//! would be finer than the whole sphere's lattice
+//! (`chords::sphere_arm_tighten`), refuse typed
+//! ([`TessellateError::SphereTrimShape`]). On both analytic arms a trim
+//! polygon wound against the face refuses typed
+//! ([`TessellateError::TrimLoopOrientation`]), a triangle folded over
+//! the chord beside it is dropped and rebuilt or refuses
+//! ([`TessellateError::FoldedTriangle`]), and a patch using a chord
+//! segment more often than its polygon walks it refuses
+//! ([`TessellateError::ChordSegmentReused`]). Conic and B-spline trims
 //! on cone/sphere/torus charts refuse typed naming that frontier (their
 //! pcurves mint since M6-3; the trimmed-lane geometry for them is
 //! unwritten). A **fitted** (rung-3) chart image still refuses typed
@@ -61,7 +71,7 @@
 //!
 //! # The lattice metric
 //!
-//! Neither lane's CDT runs in raw UV. Delaunay is not
+//! No arm's CDT runs in raw UV. Delaunay is not
 //! stretch-invariant, and a ruled wall's lattice is a strip whose
 //! columns are many times narrower than its rows (a lofted circle's
 //! wall: `s_u/s_v ≈ 0.03`; a cylinder of radius `r`, whose lattice is
@@ -71,8 +81,10 @@
 //! sliver across them. So points enter the CDT at `(u/k, v)`, with `k`
 //! the lattice metric (`crate::nurbs_cert::lattice_metric`, a power of
 //! two near the mean realized aspect: of the NURBS schedule's bands, or
-//! of the cylinder lane's one uniform lattice), where the lattice is
-//! near square. One face-wide `k` cannot square bands whose aspects
+//! of the cylinder arm's one uniform lattice; on the sphere arm the
+//! chart's own metric at the trim box's mid latitude, `1/cos v_mid`),
+//! where the lattice is near square. One face-wide `k` cannot square
+//! bands whose aspects
 //! spread far apart, so the NURBS schedule also raises a band's rows
 //! when its columns stay too narrow over `k`
 //! ([`crate::nurbs_cert::NurbsCellGrid::band_schedule`], **Rows for
@@ -192,7 +204,7 @@ const MAX_GRID_RETRIES: usize = 6;
 /// cells are the curved lane's sphere cells, whose theorem
 /// (`sizing::sphere_grid_steps`) does not cover a CDT triangle beside a
 /// trim chord the lattice did not place
-/// (`work/tess/the-trimmed-sphere-arm-has-no-worst-triangle-theorem.md`).
+/// (`work/tesssize/the-trimmed-sphere-arm-has-no-worst-triangle-theorem.md`).
 pub(crate) const UNPROVED_HEADROOM: f64 = 0.5;
 
 /// The most pole junctions a sphere arm loop may pass for
@@ -406,8 +418,9 @@ pub(crate) fn has_trim_carrier(body: &Body<f64>, fk: FaceKey) -> Result<bool, Te
 }
 
 /// Tessellates one trimmed curved face (module docs): pcurve-driven UV
-/// polygon, interior grid, CDT with even-odd classification, cylinder
-/// certificates.
+/// polygon, interior grid, CDT with even-odd classification, and the
+/// arm's certificate per triangle (`cert::cert_cylinder`,
+/// `cert::cert_sphere`, or the NURBS cell bound).
 pub(crate) fn tessellate_trimmed(
     body: &Body<f64>,
     fk: FaceKey,
@@ -587,12 +600,14 @@ pub(crate) fn tessellate_trimmed(
         // boundary UV steps by (`sphere_lattice_steps`), over the trim
         // box. The CDT runs in the chart's own metric at the box's mid
         // latitude, `(u·cos v, v)` to the nearest power of two: there a
-        // small face's boundary circle is near round, so every ear on it
-        // has the face's interior points in its circumcircle and the CDT
-        // cuts none. An ear on a boundary chain is the triangle of three
-        // consecutive chord points, which the neighbour across that chain
-        // may cut too: the two would be one triangle twice, and their
-        // diagonal an edge of four.
+        // small face's boundary circle is near round, so an ear on it
+        // usually has the face's interior points in its circumcircle and
+        // the CDT does not cut it. An ear on a boundary chain is the
+        // triangle of three consecutive chord points, which the
+        // neighbour across that chain may cut too. That is a steer, not
+        // a guarantee: what holds the line is the segment census in
+        // `attempt`, which refuses a patch that uses a chord segment
+        // more often than its polygon walks it.
         Lane::Sphere {
             steps: (hu, hv), ..
         } => (
@@ -657,6 +672,7 @@ pub(crate) fn tessellate_trimmed(
     let mut outcome: Option<Result<Patch, TessellateError>> = None;
     let trimmed = TrimmedFace {
         fk,
+        sense: face.sense,
         metric,
         surface,
         lane: &lane,
@@ -809,6 +825,9 @@ enum Next {
 /// What every attempt on one face reads and none changes.
 struct TrimmedFace<'a> {
     fk: FaceKey,
+    /// The face's orientation sense: its outward normal is the
+    /// surface's when true ([`Self::outward`]).
+    sense: bool,
     /// The lattice metric `k`: points enter the CDT at `(u/k, v)`,
     /// scaling the axis that shrinks ([`Self::cdt_point`]).
     metric: f64,
@@ -844,6 +863,10 @@ struct Emitted {
     interior: Vec<Point3<f64>>,
     triangles: Vec<[PatchVertex; 3]>,
     refine: Vec<(f64, f64)>,
+    /// The grid candidates of triangles wound against the face
+    /// ([`TrimmedFace::outward`]), to drop and rebuild; and whether a
+    /// folded triangle had no grid corner to drop.
+    folded: (Vec<usize>, bool),
 }
 
 impl TrimmedFace<'_> {
@@ -860,6 +883,22 @@ impl TrimmedFace<'_> {
         } else {
             SpadePoint::new(u, v * self.metric)
         }
+    }
+
+    /// The face's outward normal direction at `p`, on an analytic arm:
+    /// the surface's radial direction (off the cylinder's axis, off the
+    /// sphere's centre), reversed on a reversed face. `None` on the
+    /// NURBS arm, whose winding the census does not read.
+    fn outward(&self, p: Point3<f64>) -> Option<geom_core::Vec3<f64>> {
+        let radial = match *self.lane {
+            Lane::Cylinder { origin, axis, .. } => {
+                let d = p - origin;
+                d - axis * d.dot(axis)
+            }
+            Lane::Sphere { center, .. } => p - center,
+            Lane::Nurbs { .. } => return None,
+        };
+        Some(if self.sense { radial } else { -radial })
     }
 
     /// One attempt of the retry loop (module docs): the points, the
@@ -887,7 +926,26 @@ impl TrimmedFace<'_> {
             interior,
             triangles,
             refine,
+            folded,
         } = self.emit(&at, &crossings, candidates, measure, falsification)?;
+        // THE WINDING CENSUS (both analytic arms): a triangle whose
+        // normal points into the surface is folded over the chord beside
+        // it — a lattice point inside the UV polygon but past the 3-D
+        // chord, within the boundary arc's sagitta. Its grid corners are
+        // dropped and the face rebuilt, which takes the fold's apex off
+        // that side of the chord; a fold with no grid corner, or one
+        // the retry budget does not clear, refuses typed.
+        match folded {
+            (_, true) => return Err(TessellateError::FoldedTriangle { face: fk }),
+            (grid, false) if !grid.is_empty() => {
+                if attempt == MAX_GRID_RETRIES {
+                    return Err(TessellateError::FoldedTriangle { face: fk });
+                }
+                dropped.extend(grid);
+                return Ok(Next::Rebuild);
+            }
+            _ => {}
+        }
         // Refinement retry (module docs): a centroid is strictly
         // interior to its kept triangle, hence inside the trim polygon;
         // splitting an offending triangle shrinks the empty region its
@@ -933,6 +991,17 @@ impl TrimmedFace<'_> {
             interior,
             triangles,
         };
+        // THE SEGMENT CENSUS, in release: each boundary chord segment
+        // bounds the face once per time the polygon walks it (twice on
+        // a full-2π seam), so a patch using one more often than that has
+        // cut an ear of a chain it shares with another face, and the
+        // neighbour that cuts the same ear leaves an edge of four
+        // triangles (`work/tesslie/two-faces-cutting-one-ear-of-a-shared-chord-chain-leave-a-four-use-edge.md`).
+        // A pseudomanifold edge, four faces each using a segment once,
+        // reads one use per patch here and is not this.
+        if segment_reused(self.polygon, &patch.census_ids(self.shared)) {
+            return Err(TessellateError::ChordSegmentReused { face: fk });
+        }
         #[cfg(debug_assertions)]
         {
             let identified =
@@ -1190,6 +1259,7 @@ impl TrimmedFace<'_> {
         // round.
         let mut refine: Vec<(f64, f64)> = Vec::new();
         let refine_lane = matches!(self.lane, Lane::Nurbs { .. });
+        let (mut folded_grid, mut folded_boundary) = (Vec::new(), false);
         for f in cdt.inner_faces() {
             if !inside[f.fix().index()] {
                 continue;
@@ -1246,6 +1316,25 @@ impl TrimmedFace<'_> {
                 ids[1].position(shared, &interior),
                 ids[2].position(shared, &interior),
             ];
+            // Wound as emitted below: reversed under `flip`.
+            let normal = (tri[1] - tri[0]).cross(tri[2] - tri[0]);
+            let normal = if flip { -normal } else { normal };
+            let centroid = Point3::new(
+                (tri[0].x + tri[1].x + tri[2].x) / 3.0,
+                (tri[0].y + tri[1].y + tri[2].y) / 3.0,
+                (tri[0].z + tri[1].z + tri[2].z) / 3.0,
+            );
+            if self.outward(centroid).is_some_and(|n| normal.dot(n) <= 0.0) {
+                let grid: Vec<usize> = vs
+                    .iter()
+                    .filter_map(|vtx| match meta[vtx.fix().index()].2 {
+                        Slot::Grid(k) => Some(k),
+                        Slot::Boundary(_) => None,
+                    })
+                    .collect();
+                folded_boundary |= grid.is_empty();
+                folded_grid.extend(grid);
+            }
             let (bound, scale) = match *self.lane {
                 Lane::Cylinder {
                     origin,
@@ -1365,8 +1454,37 @@ impl TrimmedFace<'_> {
             interior,
             triangles,
             refine,
+            folded: (folded_grid, folded_boundary),
         })
     }
+}
+
+/// Whether a patch uses a boundary chord segment of `polygon` more often
+/// than the polygon walks it: the census [`TrimmedFace::attempt`] runs on
+/// every accepted patch.
+fn segment_reused(polygon: &[(f64, f64, u32)], triangles: &[[u32; 3]]) -> bool {
+    let key = |a: u32, b: u32| (a.min(b), a.max(b));
+    let n = polygon.len();
+    let mut walked: HashMap<(u32, u32), usize> = HashMap::new();
+    for i in 0..n {
+        let (a, b) = (polygon[i].2, polygon[(i + 1) % n].2);
+        if a != b {
+            *walked.entry(key(a, b)).or_default() += 1;
+        }
+    }
+    let mut used: HashMap<(u32, u32), usize> = HashMap::new();
+    for t in triangles {
+        for (a, b) in [(t[0], t[1]), (t[1], t[2]), (t[2], t[0])] {
+            if let Some(&w) = walked.get(&key(a, b)) {
+                let u = used.entry(key(a, b)).or_default();
+                *u += 1;
+                if *u > w {
+                    return true;
+                }
+            }
+        }
+    }
+    false
 }
 
 /// Whether any mesh id appears at two DIFFERENT UV locations in the
@@ -1451,8 +1569,11 @@ fn sphere_polygon_shape(
 /// doubled until no pole side of `polygon` has exactly one lattice
 /// column strictly between its ends — the shape #678's non-manifold fan
 /// needs (`curved::pole_columns` carries the argument). Doubling keeps
-/// every column it had, so a side's count only grows, and one past one
-/// is two.
+/// every column it had, so a side's count never falls, but it need not
+/// rise past one at the first doubling (the new columns can land
+/// outside a short side); the loop reads the count again after each, and
+/// ends once the spacing is under half the shortest pole side, where
+/// every side holds at least two. [`ceil_count`] caps the doubling.
 fn pole_side_columns(
     polygon: &[(f64, f64, u32)],
     (u0, u1): (f64, f64),
@@ -1484,12 +1605,12 @@ fn pole_side_columns(
     Ok(nu)
 }
 
-/// The uniform interior grid candidates of the cylinder lane: the trim
+/// The uniform interior grid candidates of the cylinder and sphere arms: the trim
 /// box divided `nu × nv`, interior points only (the box boundary is at
 /// or outside the trim polygon), in the historical arithmetic —
 /// positions are bit-identical to the pre-TESS-SPAN grid. Already
-/// generated in (v, u) row-major order; sorted anyway so both lanes
-/// hand the retry loop the same invariant.
+/// generated in (v, u) row-major order; sorted anyway so every arm
+/// hands the retry loop the same invariant.
 ///
 /// At `nu == 1` (or `nv == 1`) a range below is empty and the other
 /// axis' computed count is dropped — a member of the sibling class
@@ -2772,5 +2893,142 @@ mod tests {
         let pi = core::f64::consts::PI;
         let volume = 2.0 * 4.0 / 3.0 * pi - pi * 5.4 * 0.6f64.powi(2) / 12.0;
         crate::validate::check_volume(&mesh, volume, 1e-2).expect("and it encloses the body");
+    }
+
+    /// **`harmonic_range` reads an extremum inside the interval.** A
+    /// tilted circle's height turns inside its edge's interval, so the
+    /// ends alone under-read its range. Each case's range must hold a
+    /// dense sampling of the function and reach the extremum the
+    /// interval holds: `cos t` over `[−1, 1]` peaks at 1 with both ends at
+    /// `cos 1`, and the shifted forms put the turn off zero.
+    #[test]
+    fn harmonic_range_holds_a_turn_inside_the_interval() {
+        let (lo, hi) = super::harmonic_range(0.0, 1.0, 0.0, (-1.0, 1.0));
+        assert!((hi - 1.0).abs() < 1e-15, "the peak at t = 0: {hi}");
+        assert!((lo - 1f64.cos()).abs() < 1e-15, "the ends: {lo}");
+        for (c, a, b, t) in [
+            (0.3, 0.4, -0.7, (0.5, 3.0)),
+            (-0.2, -0.6, 0.1, (2.0, 4.5)),
+            (0.0, 0.5, 0.5, (-2.5, 2.5)),
+            (1.0, -0.3, -0.9, (4.0, 7.5)),
+        ] {
+            let (lo, hi) = super::harmonic_range(c, a, b, t);
+            let f = |x: f64| c + a * x.cos() + b * x.sin();
+            let (mut smin, mut smax) = (f64::INFINITY, f64::NEG_INFINITY);
+            for i in 0..=4096 {
+                let x = t.0 + (t.1 - t.0) * f64::from(i) / 4096.0;
+                smin = smin.min(f(x));
+                smax = smax.max(f(x));
+            }
+            assert!(lo <= smin + 1e-12 && hi >= smax - 1e-12, "{c} {a} {b} {t:?}");
+            assert!(
+                smin - lo < 1e-6 && hi - smax < 1e-6,
+                "{c} {a} {b} {t:?}: the range is the function's, not wider: \
+                 [{lo}, {hi}] against [{smin}, {smax}]"
+            );
+            let ends = (f(t.0).min(f(t.1)), f(t.0).max(f(t.1)));
+            assert!(
+                lo < ends.0 - 1e-3 || hi > ends.1 + 1e-3,
+                "{c} {a} {b} {t:?}: the case turns inside its interval"
+            );
+        }
+    }
+
+    /// **`pole_side_columns` takes the lattice off #678's shape.** A
+    /// pole side over `u ∈ [0.45, 0.55]` on a box `[0, 1]` has exactly
+    /// one column strictly between its ends at `nu = 2` (at ½), and the
+    /// first doubling's new columns (¼, ¾) land outside it; the count
+    /// must keep doubling until two columns stand between, and a side
+    /// with none or two between is left as it is.
+    #[test]
+    fn pole_side_columns_doubles_past_one_column_between() {
+        let half_pi = core::f64::consts::FRAC_PI_2;
+        let polygon = [
+            (0.0, 0.0, 1u32),
+            (0.45, half_pi, 7),
+            (0.55, half_pi, 7),
+            (1.0, 0.0, 2),
+        ];
+        let between = |nu: usize| {
+            (1..nu)
+                .filter(|&i| {
+                    #[allow(clippy::cast_precision_loss)]
+                    let u = i as f64 / nu as f64;
+                    u > 0.45 && u < 0.55
+                })
+                .count()
+        };
+        assert_eq!(between(2), 1);
+        assert_eq!(between(4), 1, "the first doubling alone does not clear it");
+        let nu = super::pole_side_columns(&polygon, (0.0, 1.0), 2).unwrap();
+        assert!(between(nu) >= 2, "nu {nu} leaves {} between", between(nu));
+        assert_eq!(super::pole_side_columns(&polygon, (0.0, 1.0), 3).unwrap(), 3);
+    }
+
+    /// **The tilted pair's faces meet their poles as polygon sides, and
+    /// the runs between the poles sit where the region is.** Each ball's
+    /// half-band remnant passes both chart poles at loop vertices
+    /// (`y`-poled balls, seam meridians pole to pole), so its polygon
+    /// carries two pole sides ([`super::ChartPoles::Kept`]) and the run
+    /// between them is placed by area ([`super::choose_pole_azimuths`]):
+    /// every such face's equal-area shoelace is positive and under `4π`.
+    /// Without the kept pole the polygon cuts the cap off the pole, and
+    /// with the lift's own azimuth the far meridian lands a turn away
+    /// (the whole-face inversion PR 5920's review found).
+    #[test]
+    fn the_tilted_pairs_faces_keep_their_poles_as_sides() {
+        use std::collections::HashMap;
+        let body = tilted_sphere_pair();
+        let mut positions = Vec::new();
+        let mut vids = HashMap::new();
+        for (vk, p) in body.vertex_points() {
+            #[allow(clippy::cast_possible_truncation)]
+            vids.insert(vk, positions.len() as u32);
+            positions.push(p);
+        }
+        let mut bounds = crate::nurbs_cert::FaceBounds::new();
+        let chords: ChordPass =
+            crate::chords::compute_chords(&body, 1e-2, &vids, &mut positions, &mut bounds)
+                .unwrap();
+        let mut with_poles = 0;
+        for (fk, face) in body.faces() {
+            let surface = body.get_surface(face.surface).unwrap();
+            if !super::takes_sphere_arm(&body, fk, surface).unwrap() {
+                continue;
+            }
+            let (polygon, _) = super::trim_polygon(
+                &body,
+                fk,
+                face.outer,
+                &chords,
+                false,
+                None,
+                ChartPoles::Kept { sense: face.sense },
+            )
+            .unwrap();
+            let n = polygon.len();
+            let pole_sides = (0..n)
+                .filter(|&i| {
+                    let (a, b) = (polygon[i], polygon[(i + 1) % n]);
+                    a.2 == b.2 && super::at_pole(a.1)
+                })
+                .count();
+            let area = 0.5
+                * (0..n)
+                    .map(|i| {
+                        let (a, b) = (polygon[i], polygon[(i + 1) % n]);
+                        a.0 * b.1.sin() - b.0 * a.1.sin()
+                    })
+                    .sum::<f64>();
+            let area = if face.sense { area } else { -area };
+            assert!(
+                area > 0.0 && area < 4.0 * core::f64::consts::PI,
+                "face {fk:?}: equal-area {area}"
+            );
+            if pole_sides == 2 {
+                with_poles += 1;
+            }
+        }
+        assert!(with_poles >= 2, "both balls' remnants pass both poles: {with_poles}");
     }
 }

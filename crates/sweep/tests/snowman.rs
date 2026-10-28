@@ -62,6 +62,7 @@ fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
 
 /// [`assert_body`] short of the mesh.
 fn assert_solid(label: &str, body: &Body<f64>, expected: f64) {
+    crate::common::differential::delta_probe(label, body, expected);
     assert_eq!(topo::validate(body), Ok(()), "{label}: validate");
     assert_eq!(
         topo::validate_closed(body),

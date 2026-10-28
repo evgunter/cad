@@ -130,10 +130,9 @@ pub enum TessellateError {
     /// (cone/torus, and a sphere bounded by anything but circles —
     /// those charts mint stored pcurves, but the written trimmed lane's
     /// geometry is the cylinder chart's and the circle-bounded
-    /// sphere's), a trimmed sphere face whose shape that arm does not
-    /// mesh (a pole inside it, a tilted circle passing a pole nearer
-    /// than its lattice resolves), or a trimmed face missing its stored
-    /// pcurve caches. The conic-on-cylinder and tilted-circle-on-sphere
+    /// sphere's), or a trimmed face missing its stored pcurve caches (a
+    /// trimmed sphere face whose shape that arm does not mesh refuses
+    /// [`Self::SphereTrimShape`] instead). The conic-on-cylinder and tilted-circle-on-sphere
     /// cases are CONSTRUCTION lanes (`trimmed`), not refusals.
     UnsupportedCurve {
         /// The offending edge.
@@ -598,10 +597,6 @@ pub enum SphereTrimCause {
     /// closed-form azimuth speed bound `|p′|/ρ` is unbounded on it: no
     /// chord schedule is sized, because none is bounded.
     ThroughPole,
-    /// A tilted circle passes so near a chart pole that the uniform
-    /// chord schedule its azimuth speed asks is finer than the whole
-    /// sphere's lattice at the arm's steps (`chords::sphere_arm_tighten`).
-    NearPole,
 }
 
 impl SphereTrimCause {
@@ -612,7 +607,6 @@ impl SphereTrimCause {
             Self::PoleInside => "pole_inside",
             Self::SeamTwice => "seam_twice",
             Self::ThroughPole => "through_pole",
-            Self::NearPole => "near_pole",
         }
     }
 }
@@ -843,12 +837,6 @@ impl core::fmt::Display for TessellateError {
                     SphereTrimCause::ThroughPole => {
                         "a tilted circle of its boundary passes so near a chart pole \
                          that its image's azimuth speed has no bound to size chords by"
-                    }
-                    SphereTrimCause::NearPole => {
-                        "a tilted circle of its boundary passes so near a chart pole \
-                         that chording it would ask more points of one edge than the \
-                         whole sphere's lattice holds; a finer δ, or a face whose \
-                         chart poles are away from its circles, may mesh"
                     }
                 };
                 write!(

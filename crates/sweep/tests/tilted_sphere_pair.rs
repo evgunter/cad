@@ -62,6 +62,7 @@ fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
 /// the slack is rounding's and a wrong arc (the complement of a cap
 /// selected) misses by the cap's own volume.
 fn assert_solid(label: &str, body: &Body<f64>, expected: f64) {
+    crate::common::differential::delta_probe(label, body, expected);
     assert_eq!(topo::validate(body), Ok(()), "{label}: validate");
     assert_eq!(
         topo::validate_closed(body),
@@ -497,19 +498,19 @@ fn a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed() {
             .unwrap_or_else(|e| panic!("δ {d}: the near-pole section refused: {e:?}"));
         let body = &out.body().unwrap_or_else(|| panic!("δ {d}: empty")).body;
         assert_solid(&format!("δ {d}"), body, expected);
-        let drawn = mesh::tessellate(body, 1e-2, Tol::witness());
-        assert!(
-            matches!(
-                &drawn,
-                Err(mesh::TessellateError::SphereTrimShape {
-                    cause: mesh::types::SphereTrimCause::NearPole,
-                    ..
-                })
-            ),
-            "δ {d}: the section's chord schedule would be finer than the whole sphere's \
-             lattice, and the mesher refuses typed by that cause, got {:?}",
-            drawn.map(|m| m.positions.len())
-        );
+        // Meshed at the nearest approach a debug build affords: at
+        // 3e-4 the uniform chord schedule the circle asks near the pole
+        // takes about 26 s and folds a triangle over the chord beside
+        // the pole, which refuses typed; at 1e-4 it takes minutes and at
+        // 1e-5 it asks millions of chords, so they are built, not meshed.
+        if d == 3e-4 {
+            let drawn = mesh::tessellate(body, 1e-2, Tol::witness());
+            assert!(
+                matches!(&drawn, Err(mesh::TessellateError::FoldedTriangle { .. })),
+                "δ {d}: the folded-triangle refusal, got {:?}",
+                drawn.map(|m| m.positions.len())
+            );
+        }
     }
     let (a, b) = pair(0.0);
     let out = run(BooleanOp::Union, &a, &b);
@@ -532,4 +533,28 @@ fn a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed() {
         "δ 0: the arc through the pole refuses not yet on its azimuth sector (the general \
          lane's own gap, PCERT E1's P3), got {out:?}"
     );
+}
+
+/// **A section near a pole meshes at every δ, coarse ones included.**
+/// Unit balls at the origin and at `(1, 0.8, 0)`: the radical circle
+/// passes the first ball's pole close enough that its chord schedule is
+/// fine there, and the sphere arm meshes it from δ = 0.1 down to 1e-3,
+/// each mesh enclosing the body. PR 5920's review measured the first
+/// cut's near-pole share refusing at δ = 0.1 and meshing finer: a cutoff
+/// that grows with δ. The schedule is held to `sizing::MAX_COUNT` alone
+/// now, so a coarser δ asks fewer chords, never more.
+#[test]
+fn a_section_near_a_pole_meshes_at_every_delta() {
+    let (a, b) = (ball(1.0, Vec3::new(0.0, 0.0, 0.0)), ball(1.0, Vec3::new(1.0, 0.8, 0.0)));
+    let out = run(BooleanOp::Union, &a, &b).expect("the pair unions");
+    let body = &out.body().expect("a body").body;
+    let expected = 2.0 * ball_volume(1.0) - lens_volume(1.0, 1.0, 1.0f64.hypot(0.8));
+    assert_solid("the (1, 0.8, 0) pair", body, expected);
+    for delta in [1e-1, 5e-2, 2e-2, 1e-2, 5e-3, 1e-3] {
+        let m = mesh::tessellate(body, delta, Tol::witness())
+            .unwrap_or_else(|e| panic!("δ {delta}: the pair meshes, got {e:?}"));
+        mesh::validate::check_mesh(&m).unwrap_or_else(|e| panic!("δ {delta}: {e:?}"));
+        mesh::validate::check_volume(&m, expected, delta)
+            .unwrap_or_else(|e| panic!("δ {delta}: the mesh encloses the body, got {e:?}"));
+    }
 }

@@ -17,26 +17,39 @@ of the circle's image (`mesh::chords::sphere_uv_speeds`):
 schedule is uniform in the carrier parameter, so a circle passing a
 pole at polar distance `d` is chorded everywhere as finely as its
 closest approach needs, about `1/d` times the chords an arc a row away
-needs. The arm refuses typed where `d < NEAR_POLE_ROW_SHARE · h_v`
-(`mesh::trimmed::NEAR_POLE_ROW_SHARE` = 1/16 of a lattice row):
+needs.
 
-```
-UnsupportedCurve { note: "trimmed sphere face bounded by a tilted circle
-  whose arc passes nearer a chart pole than the sphere arm's lattice
-  resolves — …" }
-```
+**The cap (since PR 5920's fix pass).** The first cut refused at a
+tuned `d < h_v/16`. Its review measured that as both too eager (at
+`d = 1e-3` the face meshes clean with the share at zero) and growing
+with δ. A second cut capped one edge's count at the point count of the
+whole sphere's lattice; that was perverse in δ too, refusing the unit
+balls at `(0, 0, 0)` and `(1, 0.8, 0)` at δ ≥ 2e-2 while they mesh
+finer. The schedule is now held to `sizing::MAX_COUNT` alone, the cap
+every count in the crate is held to (`ResolutionOverflow` past it). The
+pair meshes at every δ from 0.1 to 1e-3
+(`tilted_sphere_pair::a_section_near_a_pole_meshes_at_every_delta`).
+An arc whose speed bound fails (`ρ² ≤ 0` on its closed-form lower
+bound) refuses `SphereTrimShape { cause: ThroughPole }`.
 
-Witnesses, each building sound at its closed form and pinned at this
-refusal:
+What remains is cost and folds. Below `MAX_COUNT` the schedule can ask
+millions of chords, and near the pole the uniform lattice leaves
+triangles folded over the chord beside it, which the winding census
+refuses (`FoldedTriangle`) after its grid-drop retries:
 
 - `crates/sweep/tests/tilted_sphere_pair.rs`,
-  `a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed`:
-  two unit balls whose radical circle passes 1e-5, 1e-4 and 3e-4 from
-  the first ball's pole, meshed at δ = 1e-2;
+  `a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed`
+  (radical circle 1e-5, 1e-4, 3e-4 from the pole, δ = 1e-2): all
+  three build. At 3e-4 the mesh takes about 26 s in a debug build and
+  refuses `FoldedTriangle`, which is pinned. At 1e-4 it takes about
+  254 s and folds, and at 1e-5 it asks millions of chords, so neither
+  is meshed in the suite.
 - `crates/sweep/tests/spheres_crossing_off_every_edge.rs`,
-  `a_trimmed_face_cut_beside_its_pole_builds` (`Want::NearPole`): a
-  ball of radius 0.01 whose circle passes 1e-3, 1e-5 and 1e-7 from the
-  trimmed unit ball's pole, at δ = 5e-3.
+  `a_trimmed_face_cut_beside_its_pole_builds` (a ball of radius 0.01
+  whose circle passes 1e-3, 1e-5, 1e-7 from the pole, δ = 5e-3): at
+  1e-3 every op draws, its volume checked. At 1e-5 three ops draw and
+  three refuse `FoldedTriangle`, about 2 s each. At 1e-7 nothing is
+  meshed in the suite (millions of chords).
 
 **What a fix owes.** A chord schedule or a chart that follows such a
 circle without the uniform `1/d` cost: a schedule graded toward the
