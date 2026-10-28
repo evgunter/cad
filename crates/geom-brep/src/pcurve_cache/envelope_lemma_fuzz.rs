@@ -1493,7 +1493,8 @@ fn zero_winding_near_the_pole(
 /// exactly, and the same circle on the unit sphere where the parallel's
 /// radius is `1e-6`. Near the pole `asin(h/R)` is conditioned by `R/ρ`,
 /// so the image's parallel lies off `√(R² − h²)` by up to `ε·R²/ρ`; the
-/// sphere parallel's `Radius` carries that (`polar_read_conditioning`).
+/// sphere parallel's `Radius` reads the radius the image turns at
+/// (`polar_read_radius`).
 #[test]
 fn a_zero_winding_parallel_near_the_pole_is_bounded() {
     let rows = [(0.6400109500871758, 1.0536712127723509e-8), (1.0, 1e-6)].map(|(r, rho)| {

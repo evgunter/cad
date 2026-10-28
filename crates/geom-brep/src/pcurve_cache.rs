@@ -5636,30 +5636,23 @@ fn constant_and_pair<T: Real>(c: Vec3<T>, a: Vec3<T>, b: Vec3<T>) -> T {
     (c.norm_squared() + harmonic_sup(a, b).powi(2) + two * cross).sqrt()
 }
 
-/// **The sphere parallel's polar read, conditioned near the pole**: a
-/// bound on how far the image's parallel radius `R·cos v` lies from
-/// `ρ = √(R² − h²)`, `v = asin(h/R)` the polar angle the derivation
-/// reads off the carrier's centre height `h`.
+/// **The sphere parallel's radius as its image reads it**: `R·cos v`
+/// with `v = asin(x)` and `x = h/R` the quotient the derivation takes,
+/// spelled `R·√((1 − x)(1 + x))`, with its square.
 ///
-/// `asin` is conditioned by `R/ρ` at `h ≈ R`, so `v` and `ρ` themselves
-/// each carry a rounding that grows as `ε·R²/ρ` toward the pole, but the
-/// height round-trips: `R·sin v` lies within `e ≤ 5ε·R` of `h` (the
-/// quotient, the `asin`, the `sin` and the product each round by an ulp,
-/// `|v| ≤ π/2`). So `(R·cos v)² = R² − (R·sin v)²` lies within
-/// `2|h|·e + e²` of `R² − h²`, and `R² − h²` itself rounds within
-/// `ε·(R² + h²)`, with `h = w·e` read off a centre offset `w` within
-/// `ε·|w|`, `2|h|·ε·|w|` in the square. Their sum is under the charge
-/// `c = rounding_charge(R² + h² + 2|h|·(R + |w|))` (eight ulps of each
-/// part), so the image's radius is at most `√(ρ² + c)`, and the term is
-/// that less `ρ`, spelled `c / (√(ρ² + c) + ρ)` so neither root is
-/// subtracted from the other. It is `c/2ρ` on a parallel well clear of
-/// the pole and `√c` at it.
-fn polar_read_conditioning<T: Real>(radius: T, h: T, w: Vec3<T>, rho_sq: T, rho: T) -> T {
-    let two = T::one() + T::one();
-    let c = geom_core::rounding_charge(
-        radius.powi(2) + h.powi(2) + two * h.abs() * (radius + w.norm()),
-    );
-    c / ((rho_sq + c).sqrt() + rho)
+/// Near the pole `asin` is conditioned by `R/ρ`: an ulp of `x` moves the
+/// image's parallel by `ε·R²/ρ`, so `√(R² − h²)`, read off the carrier's
+/// own height, can miss the radius the image actually turns at by more
+/// than the band (the pinned envelope sweep's trial 2273: `1.05e-8`
+/// against the image's `1.35e-8`). The image's radius is read here off
+/// the same `x`, where `1 − x` is exact for `x` near 1, so it carries
+/// only the round trip through `asin`, `cos` and `sin`: a few ulps of `R`,
+/// which the caller charges beside it (`rounding_charge(R + |h|)`, eight
+/// ulps), together with the image's height `R·sin v` off `h`.
+fn polar_read_radius<T: Real>(radius: T, h: T) -> (T, T) {
+    let x = h / radius;
+    let rho_sq = radius.powi(2) * ((T::one() - x) * (T::one() + x));
+    (rho_sq.sqrt(), rho_sq)
 }
 
 /// A rim's or a parallel's **class circle** against the carrier's
@@ -5854,11 +5847,10 @@ fn incidence<T: Decide>(
             terms.add(Line, l.norm() * reach);
             match derivation {
                 Derivation::SphereParallel { beta } => {
-                    let rho_sq = radius.powi(2) - h.powi(2);
-                    let rho = rho_sq.sqrt();
+                    let (rho, rho_sq) = polar_read_radius(radius, h);
                     terms.add(Centre, w_r.norm());
                     class_circle(terms, beta, (rho, rho_sq), (a, b), axis, true, None);
-                    terms.add(Radius, polar_read_conditioning(radius, h, w, rho_sq, rho));
+                    terms.add(Radius, geom_core::rounding_charge(radius + h.abs()));
                 }
                 Derivation::SphereMeridian { pole, sigma, far } => {
                     // The image turns `(1 + k)·(a′·cos t + σ·b′·sin t)` with
