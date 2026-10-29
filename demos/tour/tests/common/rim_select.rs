@@ -21,8 +21,6 @@
 //! the library answers "which rim is this arc's" and leaves "which arc
 //! do I mean" to the caller.
 
-#![allow(dead_code)]
-
 use pncad::geom::Curve3;
 use pncad::prelude::query;
 use pncad::topo::{Body, EdgeKey};

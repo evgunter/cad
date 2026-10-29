@@ -21,6 +21,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::census::{genus, rings};
 use crate::common::printed;
 use core::f64::consts::FRAC_PI_2;
 use pncad::sweep::ExtrudeSide;
@@ -59,7 +60,6 @@ fn tube_frame(
     .expect("the spine axis has a direction and the reference radial is off it")
 }
 
-use crate::common::census::{genus, rings};
 use pncad::sweep::{
     Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, revolve, tube_along_arc,
 };

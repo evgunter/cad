@@ -60,6 +60,12 @@ tess-meter = { path = "../../tools/tess-meter" }
 # it directly.
 serde_json = "1.0.151"
 
+# The suite-aggregation row `tests/all.rs` carries, the same one every
+# kernel crate's aggregator carries. Test-only: the bin itself still
+# reaches the kernel through `pncad` alone.
+[dev-dependencies]
+test-utils = { path = "../../crates/test-utils" }
+
 
 # The tour is the ONLY release build of the kernel in CI (the ten
 # nextest legs are opt-2 DEV builds — `CARGO_PROFILE_{DEV,TEST}_OPT_LEVEL`

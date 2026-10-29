@@ -4,7 +4,7 @@ kind: issue
 title: demo-tour's unit tests build the 32k-line bin a second time as its test harness, about 3 min of the demos job's release build
 status: open
 opened: 2026-10-29
-priority: P1
+priority: P0
 cost: M
 parent: the-demos-job-is-pr-cis-long-pole-on-its-release-build
 ---

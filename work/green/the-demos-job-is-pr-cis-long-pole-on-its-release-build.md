@@ -106,10 +106,10 @@ measure, with `cargo build --timings` on a hosted run, are:
 ## The test binaries folded, 2026-10-29 (GREEN latency lane, #5989)
 
 `demos/tour`'s ten `tests/*.rs` binaries are now one, `all`
-(`autotests = false`, `tests/all.rs`, helpers in `tests/common/mod.rs`).
+(`autotests = false`, `tests/all.rs` with `#[path]` mounts as the kernel crates have, helpers in `tests/common/mod.rs`).
 The test set is the same, listed from the built binaries before and after:
 97 tests before; afterwards the same 97 as `all::<suite>::<test>` plus the
-module guard `every_suite_is_a_module`. The `ci` profile's filter and
+kernel crates' aggregation row `every_suite_file_is_aggregated` (test-utils is now a dev-dependency). The `ci` profile's filter and
 the nightly's probe row name the new binary.
 
 **Local, `cargo test --release --no-run --timings`, 4 cores, the tour's
