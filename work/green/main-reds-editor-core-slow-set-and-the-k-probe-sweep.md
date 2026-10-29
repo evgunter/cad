@@ -267,3 +267,21 @@ A new row pins the gap's flip from the old nominal. Filed on CPAIR:
 
 All three come from the shared-vertex pairs' gap readings leaving.
 Measured at all three ε.
+
+## 2026-10-29 — one more slow-set red after SELFX (CLEAR's LOOPS implementer)
+
+`m10_5_r2_probes_interval::the_cost_curve_is_flat_where_the_bound_is_broken`
+fails at default ε on `clear/loops`, merged up to main `5e934f49f9`
+(after SELFX, #5955). The frontier run at `c = 0.5` over the comb's
+walls 7 and 9, which are named in both scopes, comes back
+`Violated distance=0` on `FaceKey(10v1)/FaceKey(10v1)` with receipt
+`candidates=3 violated=1 abandoned=2`, where the row expects
+`Refused(Budget(_))` after more than 1 000 cells. LOOPS's differential
+ran the pre-LOOPS walk beside the shared one on this row, and the two
+agreed, so the red predates LOOPS. The likely cause is SELFX's root arm
+"two scopes that meet are at distance 0": a face named in both scopes
+meets itself, so every `c > 0` is violated off topology, and the row's
+frontier has gone. The last nightly (`a1cfd1cfdb`) predates #5955 and
+does not show it. CLEAR owns the cause.
+`the_margin_thin_accounting_is_goldened_bit_exact` (above) is still red
+on the same tree.
