@@ -271,8 +271,9 @@ fn rod_at(z0: f64, z1: f64, phi: f64) -> Body<f64> {
 /// short of `√band` refused at the crossing layer; read through the
 /// planes:
 ///
-/// - `δ` in the zero band: the two crossings are one, a node on the
-///   edge, which keeps the quadric's door;
+/// - `δ` in the zero band: the two crossings are one, a touch of the
+///   partner wall the quadric's roots read in band, which escalates on
+///   their decision;
 /// - `δ` a few bands: their distance in band escalates `VertexOnVertex`
 ///   (or, at a fragment's end, `VertexOnCurvedFace`);
 /// - `δ` beyond the band and short of `√band`: each pierce reads the
@@ -347,9 +348,14 @@ fn an_edge_near_a_node_crosses_through_the_bisector_planes() {
                             Want::Door => assert!(
                                 matches!(
                                     r,
-                                    Err(topo::BooleanError::CurvedPierceUnsupported { .. })
+                                    Err(topo::BooleanError::Escalated {
+                                        decision: topo::BooleanDecision::WallRoots(
+                                            topo::WallRung::Discriminant
+                                        ) | topo::BooleanDecision::ArcCylinderRoots,
+                                        ..
+                                    })
                                 ),
-                                "{cut}: one crossing, the quadric's door, got {r:?}"
+                                "{cut}: one crossing, a touch on the quadric's roots, got {r:?}"
                             ),
                             Want::Escalates => assert!(
                                 matches!(
