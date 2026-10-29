@@ -2140,12 +2140,11 @@ fn at_rest<P: crate::ProfilePayload, T: at_rest::LocalizeLane>(
 ///
 /// The two halves travel TOGETHER because a body without its
 /// declarations is a different subject from the one the check flagged.
-/// A record set has two homes — [`crate::Carry::contacts`]
-/// for an instantiate's carried D-1 declarations, `BooleanValue::
-/// contacts` for a boolean's own — and reconciling those two is
-/// precisely what [`product::sources_of`] exists to do; it builds the
-/// pair, and this door hands the whole pair on rather than dropping
-/// half of it. Splitting them again downstream re-opens the failure
+/// A body's records ride its value's carry ([`crate::Carry::contacts`]):
+/// a boolean's own, an instance's carried D-1 declarations, each member's
+/// of a family its own; [`product::sources_of`] builds the pair, and
+/// this door hands the whole pair on rather than dropping half of it.
+/// Splitting them again downstream re-opens the failure
 /// this signature closes: a subject that IS a declared boolean result
 /// reporting its own certified seam as an UNRECORDED contact under the
 /// tier-3′ gate, while the identical body read through its value

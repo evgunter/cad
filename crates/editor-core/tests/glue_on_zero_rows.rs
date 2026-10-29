@@ -118,11 +118,11 @@ fn the_same_blocks_a_sliver_apart_refuse_in_band() {
 fn a_zero_glued_union_passes_tier_three_prime() {
     let (doc, _, _, union) = plate_on_a_block(0.0);
     let ev = run(&doc);
-    let ValuePayload::Boolean(BooleanValue::Body { body, contacts, .. }) =
-        &ev.value(union).expect("the union evaluated").payload
-    else {
+    let value = ev.value(union).expect("the union evaluated");
+    let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else {
         panic!("the union is a body");
     };
+    let contacts = &value.carry.contacts;
     assert_eq!(
         topo::validate_pseudomanifold(body.body(), contacts, Tol::witness()),
         Ok(()),

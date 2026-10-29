@@ -81,7 +81,7 @@ pub use replay::with_replay_session;
 
 /// **What a contact record's positional input is**: the input a
 /// [`topo::Backing::Carried`] names by its position, as the value that
-/// holds the record publishes it ([`crate::eval::NodeValue::cited_inputs`]).
+/// holds the record publishes it ([`crate::Carry::cited_inputs`]).
 /// A carried citation names that input's record, which cites its own
 /// backing, so a chain of them ends at a row a node decided.
 #[derive(Clone, Debug, PartialEq, Eq)]
