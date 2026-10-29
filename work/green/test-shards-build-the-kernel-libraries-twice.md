@@ -209,9 +209,10 @@ class.
 |---|---|---|
 | 40847689090 | 17.7 (12.5, slow) | 14.3 (11.7, slow) |
 | 40857713276 | 11.9 (8.6, fast) | 14.0 (11.5, slow) |
+| 40861550771 | 13.9 (9.9, fast) | 15.2 (12.6, slow) |
 
-- On slow runners, kernel's build fell by about 1.2 min, and app's rose
-  by about 1.4.
+- Kernel's build fell by about 1.2 min on a slow runner and 0.2–1.0
+  on a fast one. App's rose by 1.0–2.4 on slow runners (base 9.9–10.7).
 - The slower shard went from 18.9–19.4 to 17.7.
 - The TIER=all gap left is test runtime, not build. TIER=all runs every
   test at three ε, and kernel's runtime (4.6 min against app's 2.0)
@@ -221,8 +222,9 @@ class.
   `turn-defect-speed-sup-bound-sits-one-ulp-under-an-interval-sample-at-the-ceiling`.
 
 **Closure tier, estimated from those deltas.** Kernel ~13.4 and app
-~12.8 at the median: within a minute of each other, the balance
-criterion here.
+~12.8–13.6 at the median, within a minute of each other, which is the
+balance criterion here. The estimate is from three runs; whether it
+holds is owed item 1 below.
 
 ## Owed, 2026-10-29
 
