@@ -148,8 +148,8 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
     // rows (arc-only predicates leaving, chord, span and one-line gap
     // (`segment_gap`) probes recounting: the arc's pair reads, which
     // miss a far crossing of the side carriers and so read the segment
-    // ends, are gone, and the straight pairs that replace them each
-    // read their gap first) —
+    // ends, are gone, and the straight pairs that replace them and
+    // share no vertex each read their gap first) —
     // never absorbed, never guessed about (vdiff module docs).
     assert_eq!(
         flips.nodes.len(),
@@ -211,8 +211,8 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
             },
             editor_core::SummaryDivergence {
                 predicate: "segment_gap".into(),
-                old_count: 12,
-                new_count: 24,
+                old_count: 4,
+                new_count: 8,
             },
         ],
     };

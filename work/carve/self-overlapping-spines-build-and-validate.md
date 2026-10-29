@@ -2,12 +2,11 @@
 id: self-overlapping-spines-build-and-validate
 kind: issue
 title: A loft or sweep whose spine revisits itself (a planar arc past a full turn) builds a self-overlapping body and every validation tier says Ok
-status: parked
+status: open
 opened: 2026-09-16
 refs: [2752, 368]
 priority: P0
 cost: H
-blocked_on: [self-intersection-drops-every-vertex-sharing-face-pair-globally]
 ---
 
 Found by both of BOOL-6's reviews (PR 2752) and filed by the S-BOOL
