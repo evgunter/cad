@@ -146,7 +146,7 @@ fn pairs(n: usize) -> usize {
 /// topology: every one touches, and on a body that holds each is
 /// certified at least once — the cells holding the shared point always
 /// touch, and a touching pair is discharged only by a certificate.
-fn touching_pairs(body: &Body<f64>) -> usize {
+fn touching_pairs(body: &Body<f64>) -> BTreeSet<(FaceKey, FaceKey)> {
     let vertices = |f: FaceKey| -> BTreeSet<VertexKey> {
         let face = body.get_face(f).unwrap();
         core::iter::once(face.outer)
@@ -162,47 +162,61 @@ fn touching_pairs(body: &Body<f64>) -> usize {
             })
             .collect()
     };
-    let faces: Vec<BTreeSet<VertexKey>> = body.faces().map(|(k, _)| vertices(k)).collect();
-    let mut n = 0;
-    for (i, a) in faces.iter().enumerate() {
-        n += faces
-            .iter()
-            .skip(i + 1)
-            .filter(|b| !a.is_disjoint(b))
-            .count();
+    let faces: Vec<(FaceKey, BTreeSet<VertexKey>)> =
+        body.faces().map(|(k, _)| (k, vertices(k))).collect();
+    let mut out = BTreeSet::new();
+    for (i, (f, a)) in faces.iter().enumerate() {
+        for (g, b) in faces.iter().skip(i + 1) {
+            if !a.is_disjoint(b) {
+                out.insert((*f.min(g), *f.max(g)));
+            }
+        }
     }
-    n
+    out
 }
 
 /// **Holds, every pair examined, and the touching ones certified ACROSS
 /// faces**: the receipt has a root for every face pair the tree admits,
 /// each face against itself discharged by kind or examined, and at least
-/// one cross-face certificate for every face pair of `body` that shares
-/// a vertex ([`touching_pairs`]). The cross-face floor is what goes red
-/// if the sweep stops examining pairs that share a cell: the monotone
-/// self-pairs a free-form face certifies are no part of it.
+/// one cross-face certificate for EACH face pair of `body` that shares
+/// a vertex ([`touching_pairs`]). The per-pair floor is what goes red
+/// if the sweep stops examining any one pair that shares a cell: the
+/// monotone self-pairs a free-form face certifies, and the other pairs'
+/// certificates, are no part of it.
 fn assert_holds(what: &str, report: &BoundReport<Witness>, body: &Body<f64>) {
     let r = report.receipt;
     let faces = body.faces().count();
     let touching = touching_pairs(body);
     println!(
-        "[selfx] {what}: {:?} {r:?} {:?} touching pairs = {touching}",
-        report.verdict, report.widths
+        "[selfx] {what}: {:?} {r:?} {:?} touching pairs = {}",
+        report.verdict,
+        report.widths,
+        touching.len()
     );
     assert!(
         matches!(report.verdict, BoundVerdict::Holds),
         "{what} is embedded: {r:?}"
     );
     assert!(
-        r.candidates <= pairs(faces) && r.candidates >= faces + touching,
+        r.candidates <= pairs(faces) && r.candidates >= faces + touching.len(),
         "{what}: every face against itself and every touching pair, and the pairs the tree \
          admits: {r:?}"
     );
-    assert!(touching > 0, "{what}: the row is about touching faces");
     assert!(
-        r.across >= touching,
-        "{what}: every one of the {touching} face pairs sharing a vertex is certified across \
-         faces, not dropped: {r:?}"
+        !touching.is_empty(),
+        "{what}: the row is about touching faces"
+    );
+    let dropped: Vec<&(FaceKey, FaceKey)> = touching
+        .iter()
+        .filter(|p| report.across.get(p).is_none_or(|&n| n == 0))
+        .collect();
+    assert!(
+        dropped.is_empty(),
+        "{what}: every face pair sharing a vertex is certified across faces, and these \
+         {} of {} are not: {dropped:?} (certified across: {:?})",
+        dropped.len(),
+        touching.len(),
+        report.across
     );
 }
 

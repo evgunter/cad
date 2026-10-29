@@ -736,7 +736,7 @@ impl ClearanceReport {
         let _ = writeln!(
             s,
             "receipt candidates={} discharged={} violated={} refused={} splits={} \
-             abandoned={} outside={} certified={} across={} by_kind={} holds={}",
+             abandoned={} outside={} certified={} by_kind={} holds={}",
             r.candidates,
             r.discharged,
             r.violated,
@@ -745,7 +745,6 @@ impl ClearanceReport {
             r.abandoned,
             r.outside,
             r.certified,
-            r.across,
             r.by_kind,
             r.holds()
         );

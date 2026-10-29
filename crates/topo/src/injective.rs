@@ -40,6 +40,23 @@
 //! Each arm's sign is read off a [`Presented`] face: the face's part of
 //! the cell written as the image of a rectangle on whose sides the shared
 //! cell lies, and a derivative across those sides.
+//!
+//! # The ε concessions
+//!
+//! A presentation drops points of the face in four places, each stated
+//! where it is decided. Every point dropped lies within a few ulps, in
+//! the chart, of a line the face's boundary or extent is placed on, or
+//! within the band, in metres, of a shared edge's image:
+//!
+//! - **the sliver** ([`SLIVER`], [`present_chart`]): a rectangle within
+//!   the band of a shared line reads as holding nothing off it;
+//! - **the sheet's overlap** ([`sheets`]): a cell overlapping a copy of
+//!   the face's extent by no more than [`few_ulps`] meets none of it,
+//!   and an extent within [`few_ulps`] of a turn reads as wrapping;
+//! - **the touch** ([`vacuous`]): a line within [`few_ulps`] of the
+//!   cell's side touches it;
+//! - **the cover** ([`covered`]): an edge whose range stops within
+//!   [`few_ulps`] of the cell's side covers it.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -79,8 +96,8 @@ pub(crate) const NAPPE: &str = "self_intersection_nappe";
 /// The funnel site of a presentation clipped to a shared line: the
 /// rectangle's extent across the line times the chart's speed across it
 /// (an upper bound, `rect_jet`'s), metres. `Zero` reads the strip as
-/// holding no point of the face off the line — the arm's one ε
-/// concession ([`present_chart`]).
+/// holding no point of the face off the line — one of the presentation's
+/// ε concessions (the module docs list them).
 pub(crate) const SLIVER: &str = "self_intersection_sliver";
 /// The funnel site of a wedge-0/2π shared edge: the length of the sum of
 /// the two faces' unit outward normals at the shared side's middle,
@@ -191,10 +208,21 @@ pub(crate) struct Boundary {
     /// as a hull: it is read only where every row of the loop is a
     /// coordinate line whose moving coordinate is monotone, so no row
     /// bulges past its ends. It is the FACE's extent only where the loop
-    /// does not wrap a periodic axis — then the face is the loop's inside
-    /// — and a reader that finds it a whole turn wide reads nothing of it
-    /// ([`sheets`]). `None` where the loop has no lift or a row is not
-    /// such a line.
+    /// does not wrap a periodic axis, and a reader that finds it a whole
+    /// turn wide reads nothing of it ([`sheets`]). `None` where the loop
+    /// has no lift or a row is not such a line.
+    ///
+    /// **Why a loop that does not wrap holds the face**: that rests on
+    /// the B-rep's region invariant, not on a check made here. The face
+    /// lies left of its outer loop about its outward normal (on the
+    /// analytic curved kinds, validate's check 6 curved arm reads the
+    /// loops' material side against the sense bit), so it is the loop's
+    /// bounded side, and its rings lie inside
+    /// that loop: every split that leaves a face owning rings re-homes
+    /// them by containment (`chord_join`'s `laringmv` step). At rest
+    /// that nesting is checked on planar faces only (check 9); on a
+    /// curved face it holds by construction (validate's not-yet-checked
+    /// list, #638).
     pub(crate) extent: Option<[(f64, f64); 2]>,
 }
 
@@ -640,6 +668,15 @@ fn wrap(x: Interval, near: f64) -> Interval {
     if k == 0.0 { x } else { x + at(k * TURN) }
 }
 
+/// **A few ulps of `x`**, never less than a few of 1: the one slack for
+/// a chart value that rounding alone can move — a line placed by whole
+/// turns, a copy of an extent, a pcurve's end evaluated at a parameter.
+/// Every reading that grants it is an ε concession and says so where it
+/// does (the module docs list them).
+pub(crate) fn few_ulps(x: f64) -> f64 {
+    8.0 * f64::EPSILON * x.abs().max(1.0)
+}
+
 // ------------------------------------------------------- presentations
 
 /// A side of a presentation rectangle.
@@ -872,12 +909,12 @@ fn along(u: &Use, iso: Iso) -> Option<Interval> {
 }
 
 /// Whether `want` lies in the union of `ranges`, each moved by whole
-/// turns where the axis is periodic. Its ends are taken a few ulps in:
-/// a line placed by whole turns ([`wrap`]) is rounded outward, which is
-/// no gap in the edge.
+/// turns where the axis is periodic. Its ends are taken [`few_ulps`]
+/// in, as a line placed by whole turns ([`wrap`]) is rounded outward:
+/// an ε concession, since an edge that truly stops that short of the
+/// side reads as covering it.
 fn covered(want: (f64, f64), ranges: &[Interval], periodic: bool) -> bool {
-    let slack = |x: f64| 4.0 * f64::EPSILON * x.abs().max(1.0);
-    let want = (want.0 + slack(want.0), want.1 - slack(want.1));
+    let want = (want.0 + few_ulps(want.0), want.1 - few_ulps(want.1));
     if want.0 > want.1 {
         return true;
     }
@@ -960,6 +997,8 @@ enum Sheets {
     /// The cell meets two or more copies: the face enters it more than
     /// once, which one rectangle does not present.
     Several,
+    /// The cell's bounds are not finite: no turn count places it.
+    Unplaced,
     /// Per axis, `[u, v]`.
     On([Sheet; 2]),
 }
@@ -988,12 +1027,17 @@ enum Sheet {
 /// an axis that is not periodic the extent still says what the cell
 /// holds.
 ///
-/// A cell MEETS a copy where their overlap has width. One that only
-/// touches it, along the copy's end line, holds the face's points
-/// there on its own boundary — and the closed cell beside it holds
-/// them too, with width, and is paired as this one is. So a cell
-/// meeting no copy with width holds none of the face this pair must
-/// read.
+/// A cell MEETS a copy where their overlap is wider than [`few_ulps`]
+/// of the values involved, the rounding of a copy moved by whole turns.
+/// **That is an ε concession**: a cell overlapping a copy by less reads
+/// [`Sheets::Missed`], and the face's points in the overlap — within a
+/// few ulps, in the chart, of the copy's end line — go unread by this
+/// pair. Likewise an extent within [`few_ulps`] of a whole turn reads
+/// as wrapping, its gap unread.
+///
+/// Every copy the cell can meet is tried: the turn counts from the
+/// cell's low end against the extent's high one to its high end against
+/// the extent's low one.
 fn sheets(
     surface: &Surface<Interval>,
     extent: Option<[(f64, f64); 2]>,
@@ -1015,7 +1059,7 @@ fn sheets(
     // it wraps, so no axis has a sheet to choose.
     let wraps = [Axis::U, Axis::V].into_iter().any(|axis| {
         let (lo, hi) = extent[axis.index()];
-        periodic(surface, axis) && hi - lo >= TURN - turn_slack(lo, hi)
+        periodic(surface, axis) && hi - lo >= TURN - few_ulps(TURN.max(lo.abs()).max(hi.abs()))
     });
     if wraps {
         return Sheets::On(on);
@@ -1023,7 +1067,12 @@ fn sheets(
     for axis in [Axis::U, Axis::V] {
         let (lo, hi) = extent[axis.index()];
         let (clo, chi) = axis.of(cell);
-        let slack = turn_slack(lo, hi);
+        let slack = few_ulps(
+            TURN.max(lo.abs())
+                .max(hi.abs())
+                .max(clo.abs())
+                .max(chi.abs()),
+        );
         let meets = |(a, b): (f64, f64)| b.min(chi) - a.max(clo) > slack;
         if !periodic(surface, axis) {
             if !meets((lo, hi)) {
@@ -1032,10 +1081,15 @@ fn sheets(
             on[axis.index()] = Sheet::Within(lo, hi);
             continue;
         }
-        #[allow(clippy::cast_precision_loss)]
-        let copies: Vec<(f64, f64)> = (-2i32..=2)
-            .map(|k| (lo + f64::from(k) * TURN, hi + f64::from(k) * TURN))
+        let (k0, k1) = (((clo - hi) / TURN).floor(), ((chi - lo) / TURN).ceil());
+        if !(k0.is_finite() && k1.is_finite()) {
+            return Sheets::Unplaced;
+        }
+        let copies: Vec<(f64, f64)> = core::iter::successors(Some(k0), |k| Some(k + 1.0))
+            .take_while(|&k| k <= k1)
+            .map(|k| (lo + k * TURN, hi + k * TURN))
             .filter(|&c| meets(c))
+            .take(2)
             .collect();
         match copies.as_slice() {
             [] => return Sheets::Missed,
@@ -1044,12 +1098,6 @@ fn sheets(
         }
     }
     Sheets::On(on)
-}
-
-/// A few ulps of a turn: copies of an extent shifted by whole turns are
-/// rounded.
-fn turn_slack(lo: f64, hi: f64) -> f64 {
-    8.0 * f64::EPSILON * TURN.max(lo.abs()).max(hi.abs())
 }
 
 /// **Where an edge's line lies in a cell's chart**: on a periodic axis,
@@ -1080,6 +1128,10 @@ fn placed(
 /// non-face side — along an edge that covers the cell's whole side, so
 /// the edge, not its end, is what the cell is beside. A line apart from
 /// the cell says nothing: the face may come back between them.
+///
+/// A line within [`few_ulps`] of the cell's side touches it, as a line
+/// placed by whole turns is rounded. **That is an ε concession**: a
+/// face that truly comes back in a gap that narrow goes unread.
 fn vacuous(
     b: &Boundary,
     surface: &Surface<Interval>,
@@ -1088,10 +1140,9 @@ fn vacuous(
 ) -> bool {
     outside.iter().any(|&(side, line, ei)| {
         let (lo, hi) = side.axis().of(cell);
-        let slack = |x: f64| 4.0 * f64::EPSILON * x.abs().max(1.0);
         let touches = match side {
-            Side::XLo | Side::YLo => line.lo() <= hi + slack(hi),
-            Side::XHi | Side::YHi => line.hi() >= lo - slack(lo),
+            Side::XLo | Side::YLo => line.lo() <= hi + few_ulps(hi),
+            Side::XHi | Side::YHi => line.hi() >= lo - few_ulps(lo),
         };
         let axis = side.axis().other();
         touches
@@ -1166,7 +1217,9 @@ fn whole_space() -> Vec3<Interval> {
 /// - A cell holds none of the face ([`Presentation::Vacuous`]) only
 ///   when it misses the face's extent, or every near line puts it on its
 ///   non-face side and one of them touches it along an edge that covers
-///   its side ([`vacuous`]).
+///   its side ([`vacuous`]), or its rectangle — read only once every
+///   side and corner is proven the face's own — is a sliver beside a
+///   shared line.
 fn present_chart<'a>(
     piece: &Piece<'a>,
     near_edges: &[usize],
@@ -1181,6 +1234,7 @@ fn present_chart<'a>(
         match sheets(piece.surface, b.extent, cell) {
             Sheets::Missed => return Ok(Presentation::Vacuous),
             Sheets::Several => return Err(Unpresented::Local),
+            Sheets::Unplaced => return Err(Unpresented::Structural),
             Sheets::On(s) => s,
         }
     };
@@ -1353,30 +1407,6 @@ fn present_chart<'a>(
             }
         }
     }
-    // A rectangle clipped to within the band of a shared line is read as
-    // holding no point of the face off that line: its extent across, in
-    // metres, is decided zero (`self_intersection_sliver`).
-    //
-    // **That is an ε concession, and it is the only one this arm
-    // makes.** Any coincidence it misses lies within the strip, so
-    // within ε of the shared edge's image in ℝ³. It is asymmetric with
-    // the distance test: two cells that do NOT touch and come as close
-    // read `Violated`, or refuse, while here, beside a shared edge, the
-    // same approach reads certified.
-    for c in &merged {
-        let on_shared = c.edges.iter().all(|e| near_edges.contains(e)) && !c.edges.is_empty();
-        if !on_shared {
-            continue;
-        }
-        let (across, lever) = match c.side.axis() {
-            Axis::U => (x.1 - x.0, rect_jet(piece.surface, x, y).0),
-            Axis::V => (y.1 - y.0, rect_jet(piece.surface, x, y).1),
-        };
-        let width = at(across) * at(lever.norm().hi());
-        if matches!(decide(SLIVER, Margin::of(width), band), Ok(Sign::Zero)) {
-            return Ok(Presentation::Vacuous);
-        }
-    }
     // Every clip's side must be the edges' own: an edge that ends inside
     // the cell leaves the face free to wrap round its end.
     for c in &merged {
@@ -1406,6 +1436,39 @@ fn present_chart<'a>(
                     return Err(Unpresented::Local);
                 }
             }
+        }
+    }
+    // A rectangle clipped to within the band of a shared line is read as
+    // holding no point of the face off that line: its extent across, in
+    // metres, is decided zero (`self_intersection_sliver`).
+    //
+    // **That is an ε concession** (the module docs list them all). Any
+    // coincidence it misses lies within the strip, so within ε of the
+    // shared edge's image in ℝ³. It is asymmetric with the distance
+    // test: two cells that do NOT touch and come as close read
+    // `Violated`, or refuse, while here, beside a shared edge, the same
+    // approach reads certified.
+    //
+    // **It reads only a rectangle the coverage and corner tests above
+    // have passed.** The strip is the face's part of the cell only once
+    // every clip's side is its edges' own and every corner convex;
+    // before that the rectangle may be a subset — a finger narrower than
+    // the band, rising through the cell from a shared wall, clips it to
+    // the finger and leaves the face's points beside the finger out —
+    // and reading it vacuous drops them. The order is required for
+    // soundness.
+    for c in &merged {
+        let on_shared = c.edges.iter().all(|e| near_edges.contains(e)) && !c.edges.is_empty();
+        if !on_shared {
+            continue;
+        }
+        let (across, lever) = match c.side.axis() {
+            Axis::U => (x.1 - x.0, rect_jet(piece.surface, x, y).0),
+            Axis::V => (y.1 - y.0, rect_jet(piece.surface, x, y).1),
+        };
+        let width = at(across) * at(lever.norm().hi());
+        if matches!(decide(SLIVER, Margin::of(width), band), Ok(Sign::Zero)) {
+            return Ok(Presentation::Vacuous);
         }
     }
     let zero = zero_of(b, &merged, near_edges, near_vertices)?;
@@ -2401,6 +2464,17 @@ mod presentation_rows {
         u: (f64, f64),
         v: (f64, f64),
     ) -> Read {
+        chart_near(surface, b, local, &[], (u, v))
+    }
+
+    /// [`chart`], the edges `near` shared with the pair's other face.
+    fn chart_near(
+        surface: &Surface<Interval>,
+        b: &Boundary,
+        local: &[usize],
+        near: &[usize],
+        (u, v): ((f64, f64), (f64, f64)),
+    ) -> Read {
         let local = Local {
             edges: local.to_vec(),
             vertices: Vec::new(),
@@ -2415,7 +2489,7 @@ mod presentation_rows {
             local: &local,
             ball: Ball::holding(origin(), origin()),
         };
-        read(present_chart(&piece, &[], &[], band()))
+        read(present_chart(&piece, near, &[], band()))
     }
 
     /// Every local edge of [`seam_strip`] in the given edge order.
@@ -2552,6 +2626,60 @@ mod presentation_rows {
             chart(&s, &b, &[0, 1], (0.5, 2.5), (0.3, 0.7)),
             Read::Local,
             "the face leaves the cell and comes back: no one rectangle"
+        );
+    }
+
+    /// **A finger narrower than the band**: a face over `u ∈ [0, 3]`,
+    /// `v ∈ [0, 0.5]`, with a finger `1e-13` wide rising at `u = 1` to
+    /// `v = 1`, its `u = 1` wall shared. A cell across the finger's foot
+    /// holds the face's points beside the finger, `0.1` from the shared
+    /// wall; its rectangle clipped to the finger is a subset, which the
+    /// coverage test refuses. Read as a sliver first, it was vacuous.
+    #[test]
+    fn a_finger_beside_a_shared_wall_is_not_read_as_a_sliver() {
+        let s = cylinder();
+        let w = 1.0 + 1e-13;
+        let b = Boundary {
+            sense: true,
+            edges: vec![
+                rim(1, [1, 2], Axis::U, 1.0, (1.0, 1.0), (1.0, 0.5)),
+                rim(2, [3, 4], Axis::U, w, (w, 0.5), (w, 1.0)),
+                rim(3, [5, 3], Axis::V, 0.5, (3.0, 0.5), (w, 0.5)),
+                rim(4, [2, 6], Axis::V, 0.5, (1.0, 0.5), (0.0, 0.5)),
+            ],
+            vertices: BTreeMap::new(),
+            extent: Some([(0.0, 3.0), (0.0, 1.0)]),
+        };
+        assert_eq!(
+            chart_near(&s, &b, &all(4), &[0], ((0.9, 1.1), (0.4, 0.6))),
+            Read::Local,
+            "the clipped rectangle is not yet a superset: not decided, never vacuous"
+        );
+    }
+
+    /// **Copies past two turns**: an extent lifted to `[−6.18, −0.05]`
+    /// and a cell at `[11.98, 12.98]` meet copies two and three turns up,
+    /// so the face enters the cell twice; a cell at `[13, 14]` meets the
+    /// third copy alone. Copies tried only within two turns read the
+    /// first as the second copy's part and the second as missed.
+    #[test]
+    fn every_copy_a_cell_can_meet_is_tried() {
+        let s = cylinder();
+        let b = Boundary {
+            sense: true,
+            edges: Vec::new(),
+            vertices: BTreeMap::new(),
+            extent: Some([(-6.18, -0.05), (0.0, 1.0)]),
+        };
+        assert_eq!(
+            chart(&s, &b, &[], (11.98, 12.98), (0.3, 0.7)),
+            Read::Local,
+            "two copies in one cell"
+        );
+        assert_eq!(
+            chart(&s, &b, &[], (13.0, 14.0), (0.3, 0.7)),
+            Read::Of((13.0, 14.0), (0.3, 0.7)),
+            "the third copy alone, [12.67, 18.80]"
         );
     }
 

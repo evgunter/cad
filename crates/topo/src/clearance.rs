@@ -558,12 +558,6 @@ pub struct CellReceipt {
     /// a local certificate ([`CertificateArm::Monotone`],
     /// [`CertificateArm::Departure`]) rather than by distance.
     pub certified: usize,
-    /// **A sub-count of `certified`**: the certified pairs whose two
-    /// cells are on DIFFERENT faces — departure across an edge or vertex
-    /// two faces share. A row that pins it goes red when the sweep stops
-    /// examining the pairs that share a cell, which the monotone
-    /// self-pairs every free-form face certifies cannot hide.
-    pub across: usize,
     /// **A sub-count of `discharged`**: faces against themselves
     /// discharged whole as injective by their carrier's kind
     /// ([`CertificateArm::ByKind`]), one per face, never subdivided.
@@ -592,14 +586,8 @@ impl CellReceipt {
     ///
     /// # Panics
     ///
-    /// When `outside > discharged`, or `across > certified`.
+    /// When `outside > discharged`.
     fn check_outside_is_a_sub_count(&self) {
-        assert!(
-            self.across <= self.certified,
-            "a receipt's `across` is a SUB-COUNT of `certified`: across = {}, certified = {}",
-            self.across,
-            self.certified
-        );
         assert!(
             self.outside + self.certified + self.by_kind <= self.discharged,
             "a receipt's `outside`, `certified` and `by_kind` are disjoint SUB-COUNTs of \
@@ -631,7 +619,6 @@ impl CellReceipt {
             splits: self.splits + other.splits,
             outside: self.outside + other.outside,
             certified: self.certified + other.certified,
-            across: self.across + other.across,
             by_kind: self.by_kind + other.by_kind,
             abandoned: self.abandoned + other.abandoned,
         }
@@ -720,6 +707,14 @@ pub struct BoundReport<W> {
     pub receipt: CellReceipt,
     /// The measured discharge widths.
     pub widths: DischargeWidths,
+    /// **The certified cell pairs whose two cells are on DIFFERENT
+    /// faces, per face pair** — departure across an edge or vertex the
+    /// two faces share — keyed by the pair's faces in key order. A
+    /// sub-count of [`CellReceipt::certified`]. A row that pins a count
+    /// for every face pair that shares a vertex goes red when the sweep
+    /// stops examining any one such pair, which neither the monotone
+    /// self-pairs nor another pair's certificates can hide.
+    pub across: BTreeMap<(FaceKey, FaceKey), usize>,
     /// **How many readings of the faces' regions the answer rests on**:
     /// distinct (window, cell) pairs [`crate::cell_region`] read as
     /// `Inside` or `Outside`, whichever partner they were paired with,
@@ -979,6 +974,7 @@ impl Sweep {
             candidates: candidates.len(),
             ..CellReceipt::default()
         };
+        let mut across: BTreeMap<(FaceKey, FaceKey), usize> = BTreeMap::new();
         let mut widths = DischargeWidths::empty();
         let mut region = RegionMemo::at(self.band);
         let mut locals = LocalMemo::default();
@@ -1207,7 +1203,9 @@ impl Sweep {
                                 discharge(&mut receipt, &mut widths);
                                 receipt.certified += 1;
                                 if x.face != y.face {
-                                    receipt.across += 1;
+                                    *across
+                                        .entry((x.face.min(y.face), x.face.max(y.face)))
+                                        .or_default() += 1;
                                 }
                             }
                             Outcome::Refuse(r) => {
@@ -1439,6 +1437,7 @@ impl Sweep {
             verdict,
             receipt,
             widths,
+            across,
             decided,
         }
     }
@@ -2556,7 +2555,7 @@ fn iso_bounded_domain<T: Decide + CertifiedBounds>(
     // an image's end is its chart point evaluated at a parameter
     // (`p0 + pl·t`), whose rounding can leave the joint an ulp apart.
     let meet = |p: Interval, q: Interval| {
-        let slack = |x: Interval| 4.0 * f64::EPSILON * x.lo().abs().max(x.hi().abs()).max(1.0);
+        let slack = |x: Interval| injective::few_ulps(x.lo().abs().max(x.hi().abs()));
         p.is_certified()
             && q.is_certified()
             && p.lo() - slack(p) <= q.hi()
@@ -3203,6 +3202,7 @@ impl<T: Decide> ClearanceLane<T> {
             verdict,
             receipt: report.receipt,
             widths: report.widths,
+            across: report.across,
             decided: report.decided,
         }
     }
