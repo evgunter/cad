@@ -1296,7 +1296,11 @@ mod review_4737_span_probes;
 #[path = "fallback_rows_review.rs"]
 mod fallback_rows_review;
 
+#[path = "a_plane_near_a_needle_cones_apex.rs"]
+mod a_plane_near_a_needle_cones_apex;
 #[path = "fallback_rows_review_head.rs"]
 mod fallback_rows_review_head;
 #[path = "review_5956_delta_needle.rs"]
 mod review_5956_delta_needle;
+#[path = "review_6002_needle_join.rs"]
+mod review_6002_needle_join;
