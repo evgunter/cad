@@ -2,10 +2,11 @@
 id: departure-reads-no-curved-corner
 kind: issue
 title: The injectivity check reads a curved shared edge only where it is a cell's one boundary edge, so a corner where it meets another edge refuses, and a cylinder-cylinder tee cannot be certified embedded
-status: open
+status: dispatched
 opened: 2026-10-29
 priority: P1
 cost: H
+branch: clear/corner
 ---
 
 ## Finding
@@ -25,12 +26,16 @@ The ordinary oblique cut refuses the same way. R1 of the CURVEDEP review execute
 
 In each, the cut leaves the wall split in halves, so the ellipse is two open arcs that meet the halves' seam lines at corners. Every curved edge CURVEDEP certifies is closed (the pipe's ellipse, the fillet's rim circle, the mitre's ellipse). The kernel-built cut is pinned as refusing typed by `a_kernel_built_oblique_cut_refuses_typed_at_its_curved_corners`, same file.
 
-**SHELL-4's bodies are of this shape.** Its row names three:
-- the OFF-D dumbbell's curved twin;
-- the tube;
-- the vessel.
+**SHELL-4 waits on this row.** Read at `origin/main` (CLEAR
+orchestrator, 2026-10-29), its three bodies are:
+- the tube: no curved corner, since every curved shared edge is a
+  closed rim;
+- the vessel: a full revolve that touches the axis, whose discs meet
+  the cylinder along open semicircles;
+- the OFF-D dumbbell's curved twin: not built yet.
 
-Their cavity clones are kernel-built walls whose curved rims meet split lines and caps at vertices. So the shell gate refuses `Uncertified { Departure }` at those corners until this row lands, wherever a curved edge is an open arc.
+The vessel is enough: until this row lands, the shell gate would refuse
+a valid vessel `Uncertified { Departure }`. SHELL-4 is parked here.
 
 The iso corners (`convex`, `zero_of`'s `Corner`/`Point`) are the existing reading for two coordinate lines; nothing reads a corner with a curve in it.
 
