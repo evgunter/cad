@@ -2,7 +2,7 @@
 id: foreign
 kind: program
 title: FOREIGN — what a foreign face becomes at the import door
-status: active
+status: ready
 opened: 2026-10-29
 group: kernel/exchange
 prefix: foreign/
@@ -25,3 +25,16 @@ faces lean on.
 import starts refusing files it accepts today.
 
 Charter and order: `work/foreign/plan.md`; narrative in `work/foreign/log.md`.
+
+## Handoff (2026-10-29)
+
+The first sitting closed the P0 (`import-normalizes-the-rim-only-cap`, PR 6007: every chart singularity in an imported face is a vertex, minted from `geom::pole_form`) and took two design questions to Ev on `[ev]` PR 6014 (fork rows 215, 216). Both P1 lines are now parked on other tracks:
+- **The wrap tip** (Ev: "if the complexity it adds is tolerable"): `import-mints-the-wrap-tip-at-a-chart-singularity` waits on the shared loop walk (`work/issues/loop-readers-each-derive-a-corners-turn-with-no-shared-loop-walk.md`), CARVE's one-band revolve and RESTFRONT's tier rules. The probe of every reader is on `probe/foreign-wraptip`.
+- **The C⁰-knot split** is built and held as draft PR 6013 (`foreign/c0-knot-split`), parked on QUAD's per-span quadrature row. When that lands:
+  - merge main into the branch. Its copy of the QUAD row is older than main's, so take main's;
+  - re-time the conic quarter torus;
+  - take the PR out of draft, review it (single FULL), and merge.
+
+  EXCH's promotion row is the other half of its cost.
+
+What is left here is P3/P4: OCC statements that still refuse (a sphere with a vertex-loop hole, an obliquely cut cone), rings on curved faces, outer-loop inference, hyperbola/parabola, the scaffold strut (`design`). Narrative in `log.md`.
