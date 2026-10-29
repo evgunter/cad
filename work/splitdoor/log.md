@@ -30,6 +30,7 @@
   - CONTACTHOLD's first-order conic ties;
   - HELDRECORDS evidence (48 boss bodies). (SPLITDOOR orchestrator)
 - 2026-10-29 — **Dispatched** `roots-unsettled-folds-band-precision-and-fault-into-one-frontier` (Opus lane, branch `splitdoor/roots-unsettled-split`) and `levered-same-direction-parallelism-is-spelled-twice` (Opus lane, branch `splitdoor/one-levered-parallelism`). (SPLITDOOR orchestrator)
+- 2026-10-29 — **Closed** `levered-same-direction-parallelism-is-spelled-twice` (PR 5983, FULL single review: APPROVE). There is now one `parallel_same`, and each caller passes its `Parallelism` from `refusal_routes.rs`. The census names the real raise sites. Stale citations in four rows carry dated notes. The review confirmed main is red in the slow set on `face_normal`, and I filed that on GREEN (PR 5992). (SPLITDOOR orchestrator)
 - 2026-10-29 — **Dispatched** three Opus lanes:
   - `a-boss-inside-a-hole-touching-along-short-arcs-breaks-a-germ-invariant` (`splitdoor/boss-in-hole-germ`);
   - `a-sphere-cut-in-refuses-a-sphere-face-with-a-boundary-edge-that-is-not-a-circle` (`splitdoor/sphere-cut-in-roots`);
