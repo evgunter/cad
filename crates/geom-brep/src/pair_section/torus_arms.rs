@@ -310,6 +310,9 @@ pub(super) fn sphere_touch<T: Decide>(
 // Torus × parallel-axis cylinder
 // ---------------------------------------------------------------------
 
+/// The parallel wall's side of the torus axis: its circle holds the axis.
+const WALL_ROUND_AXIS: &str = "section_torus_offset_wall_round_axis";
+
 /// The parallel wall's touch row: its nearest ruling on the torus's
 /// outer equator.
 pub(super) const WALL_NEAR_OUTER: &str = "section_torus_offset_wall_near_outer";
@@ -364,9 +367,22 @@ pub(super) fn parallel_cylinder_arm<T: Decide>(
     };
     Ok(
         match (min_over_lo, min_under_hi, max_over_lo, max_under_hi) {
-            // The whole ρ-range inside the tube's shadow: two loops, each
-            // encircling the cylinder.
-            (true, true, true, true) => essential_pair([false, true], &ClassCarrier::General),
+            // The whole ρ-range inside the tube's shadow: two loops, an
+            // upper and a lower, each a graph over the wall's circle, so
+            // each encircles the cylinder. On the torus each lies on one
+            // half of the tube, an annulus about the axis, and turns once
+            // about the axis exactly where the wall's circle holds it,
+            // `e < ρc`: then it is a longitude, essential, and otherwise
+            // null. `|ρc − e| = ρ_min` stands past `R − r` by the inner
+            // row just read, so its sign is decided.
+            (true, true, true, true) => {
+                let round_axis = match sign(WALL_ROUND_AXIS, Margin::of(rc - e), band) {
+                    Some(Sign::Positive) => true,
+                    Some(Sign::Negative) => false,
+                    _ => return Err(Pinch::named(WALL_ROUND_AXIS)),
+                };
+                essential_pair([round_axis, true], &ClassCarrier::General)
+            }
             // Wholly inside the hole, or wholly outside the torus.
             (_, _, false, _) | (_, false, _, _) => Vec::new(),
             // Across both bounds: two `(0,1)` loops on the torus.

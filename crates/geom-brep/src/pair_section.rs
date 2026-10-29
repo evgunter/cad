@@ -374,6 +374,11 @@ impl<T: Decide> CylinderSpherePose<T> {
         self.center
     }
 
+    /// The sphere's own ball, which holds the section.
+    pub fn ball(&self) -> ExtentBall<T> {
+        ExtentBall::new(self.center, self.big_r)
+    }
+
     /// The cylinder's radius `r` and the sphere's `R`, both decided
     /// positive.
     pub fn radii(&self) -> (T, T) {
@@ -584,13 +589,28 @@ impl<T: Decide> PairPose<T> {
     /// unbounded along its axis, so it is never the ball.
     pub fn ball(&self) -> ExtentBall<T> {
         match self {
-            Self::CylinderSphere(p) => ExtentBall::new(p.center, p.big_r),
-            Self::SphereTorus(p) => {
-                let (center, radius) = p.ball();
-                ExtentBall::new(center, radius)
-            }
-            Self::CylinderTorus(p) => p.ring().ball(),
+            Self::CylinderSphere(p) => p.ball(),
+            Self::SphereTorus(p) => p.ball(),
+            Self::CylinderTorus(p) => p.ball(),
             Self::TorusTorus(p) => p.ball(),
+        }
+    }
+}
+
+impl PairPose<f64> {
+    /// **The march's domain**: the cube about [`Self::ball`], padded by
+    /// a hundredth of its radius so the slab's faces stand off the ball,
+    /// which the bounding surface reaches (a sphere everywhere, a torus
+    /// round its outer equator); the feature extent the ball's diameter,
+    /// the standard accounting floor.
+    #[must_use]
+    pub fn domain(&self) -> SsiDomain {
+        let ball = self.ball();
+        SsiDomain {
+            center: ball.center(),
+            half_extent: ball.radius() * 1.01,
+            extent: ball.radius() * 2.0,
+            floor_scale: 1.0,
         }
     }
 }
@@ -1063,25 +1083,14 @@ impl SsiLane<f64> {
     }
 }
 
-/// **The ℝ³ march of `pose` over its ball's box** ([`PairPose::ball`]),
-/// which holds every component of the section: a cube, as an
-/// [`SsiDomain`] states one, padded by a hundredth of the radius so the
-/// slab's faces stand off the ball, which the surface bounding it
-/// reaches (a sphere everywhere, a torus round its outer equator). No
-/// branch reaches those faces, so every branch the march finds closes.
-/// The feature extent is the ball's diameter; the accounting floor is
-/// the standard one (`floor_scale` 1).
+/// **The ℝ³ march of `pose` over its ball's box** ([`PairPose::domain`]),
+/// which holds every component of the section. No branch reaches the
+/// box's faces, so every branch the march finds closes.
 fn march_over_the_ball(
     pose: &PairPose<f64>,
     band: Band,
 ) -> Result<Vec<FittedCarrier<f64>>, SsiError> {
-    let ball = pose.ball();
-    let domain = SsiDomain {
-        center: ball.center(),
-        half_extent: ball.radius() * 1.01,
-        extent: ball.radius() * 2.0,
-        floor_scale: 1.0,
-    };
+    let domain = pose.domain();
     let out = match pose {
         PairPose::CylinderSphere(p) => crate::ssi::march_cylinder_sphere(p, domain, band)?,
         PairPose::SphereTorus(p) => crate::ssi::march_sphere_torus(p, domain, band)?,
@@ -1137,9 +1146,9 @@ fn seat_at(
             };
         }
     };
-    // The feature extent the march read: the ball's diameter.
+    // The feature extent the march read.
     let (a, b) = pose.operands();
-    let extent = pose.ball().radius() * 2.0;
+    let extent = pose.domain().extent;
     let certificate = crate::ssi::certify_rung3(
         &seated,
         None,

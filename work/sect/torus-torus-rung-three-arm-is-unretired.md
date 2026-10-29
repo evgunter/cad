@@ -71,20 +71,24 @@ none, so the door also owes its domain.
 2026-10-28, by `sect/torus-doors`. `geom_brep::ssi::torus_torus_ssi` reads the
 pose decided once (`TorusTorusPose::decide`), refuses a tangent gap as the
 pair's own (`TangentPair`) before any rung, and marches a transverse
-one through `implicit_pair_r3` (`march_past_the_gap`, every door's).
-`route` and `route_pose` answer `implemented`. The march's domain is a
+one through `implicit_pair_r3` (`past_the_gap`, every door's).
+`route` answers `implemented`, and `route_pose` for every pose the
+section value lists components for (a general pose it refuses is not
+served). The march's domain is a
 ball that holds the whole section (`PairPose::ball`: a torus lies in
 `|x − c| ≤ R + r`, the smaller of two tori's), one construction for
-every pose (`march_over_the_ball`). The symmetric poses' components
+every pose (`PairPose::domain`, `march_over_the_ball`). The symmetric poses' components
 carry the general rung's carrier, which `PairSection::carry` marches;
 `ClassCarrier::Unbuilt` is gone. Five of the germ row's six donut × donut placements certify (two loops
 at three, one at two), the sixth a tangency the gap decides and the door
 refuses before any rung. The lily's stem and arch tori decide a
-transverse gap, but their tubes run 8 mm apart where the arch leaves
-the fork, and the door refuses `CellBudget` over the arch's ball
-(`crates/sweep/tests/mate7a_r1_probes.rs`
-`the_lilys_tori_exhaust_the_doors_cell_budget`, evidence on SECTRUNG's
-`a-cylinder-sphere-march-near-its-node-costs-seconds-and-refuses-by-budget`).
+transverse gap, but where the arch leaves the fork its tube runs 8 mm
+inside the stem's, and the door refuses `CellBudget` over the arch's
+ball (the smaller); this row closes with the lily pinned as that
+refusal (`crates/sweep/tests/mate7a_r1_probes.rs`
+`the_lilys_tori_exhaust_the_doors_cell_budget`), and a certified lily
+pose moved to SECTRUNG's
+`a-cylinder-sphere-march-near-its-node-costs-seconds-and-refuses-by-budget`.
 
 A general pose still refuses at the section value
 (`RoutesToGeneralRung`): it has no closed-form count of its components,

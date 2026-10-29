@@ -18,11 +18,11 @@ after merging PR 5961. At the compiled ε (1e-9) every transverse
 placement of the germ row certifies at `ssi::cylinder_torus_ssi` and
 `ssi::torus_torus_ssi`. At `CAD_TOLERANCE_EPS=1e-6`:
 
-- donut × moved drum: placements 2, 3 and 5 refuse `TubeStraddles`
+- moved donut × drum: placements 2, 3 and 5 refuse `TubeStraddles`
   (187-, 185- and 486-box chains, "the uniqueness tube's lower bound on
   the crossing angle is not clear of the zero band (bound 0e0 m)");
 - two donuts: placements 2 and 5 refuse the same (431- and 683-box
-  chains);
+  chains), while donut × moved drum certifies at all six;
 - the lily's stem and arch tori refuse the same (150 boxes) where at
   1e-9 they refuse `CellBudget`
   (`crates/sweep/tests/mate7a_r1_probes.rs`

@@ -16,7 +16,7 @@ Found by the dual review of `the-section-of-a-surface-pair-is-one-object`
 
 The section table carries a cylinder × sphere pair on the first germ
 that needs a carrier, once per Boolean, through
-`geom_brep::SsiLane::marched` (`march_over_the_sphere` in
+`geom_brep::SsiLane::marched` (`march_over_the_ball` in
 `crates/geom-brep/src/pair_section.rs`, which calls
 `geom_brep::ssi::march_cylinder_sphere`). The march's cost climbs as the
 pose nears its node, the far ruling where the two loops meet
@@ -107,15 +107,15 @@ gap of `δ`. At `δ = 1e-2` `cylinder_torus_ssi` spends 9.4 s and refuses
 `CellBudget` (200000 cells); at `δ = 1e-3` through `1e-6` it refuses in
 0.8–1.0 s on the tube (`TubeStraddles`, a 1244-box chain whose crossing
 angle bound reads zero). Far from any tangency the germ row's poses
-examine 3500–150000 cells, 1–20 s each in debug (`germ_row`, the slow
-set). So the cylinder × sphere shape holds for the torus pairs too: the
+examine 3500–150000 cells, about 2–8 s each in debug (`germ_row`, the
+slow set). So the cylinder × sphere shape holds for the torus pairs too: the
 cost is the accounting's, and nearer the tangency the refusal is typed
 but not cheap.
 
 The lily's stem and arch tori (`R = 5`, `r = 0.06` and `R = 1.1`,
 `r = 0.052`, axes parallel) are such a pose in a real scene: where the
 arch leaves the fork its core runs tangent to the stem's, its tube
-8 mm inside, and `torus_torus_ssi` over the arch's ball refuses
-`CellBudget` after about 14 s in debug
+8 mm inside the stem's, and `torus_torus_ssi` over the arch's ball (the
+smaller) refuses `CellBudget` after about 20 s in debug
 (`crates/sweep/tests/mate7a_r1_probes.rs`
 `the_lilys_tori_exhaust_the_doors_cell_budget`, the pin).

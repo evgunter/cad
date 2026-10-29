@@ -21,7 +21,7 @@ test_utils::gated_to![
 
 use crate::shared::tol::band;
 use geom::Surface;
-use geom_brep::ssi::{self, SsiDomain, SsiError, TangentPair};
+use geom_brep::ssi::{self, SsiDomain, SsiError, TangentPair, TorusPair};
 use geom_brep::{
     CarryError, ClassCarrier, CylinderTorusPose, PairPose, SectionRead, SiteRefusal, SsiLane,
     SsiOutcome, TorusGap, TorusTorusPose,
@@ -80,15 +80,22 @@ fn distance(s: &Surface<f64>, p: Point3<f64>) -> f64 {
     }
 }
 
-/// The march's domain over the pose's ball, as the section value's lane
-/// builds it.
-fn over(pose: &PairPose<f64>) -> SsiDomain {
-    let ball = pose.ball();
-    SsiDomain {
-        center: ball.center(),
-        half_extent: ball.radius() * 1.01,
-        extent: ball.radius() * 2.0,
-        floor_scale: 1.0,
+/// **The pair's door** over its decided pose's domain
+/// (`PairPose::domain`, the section value's own), in the order given.
+fn door(a: &Surface<f64>, b: &Surface<f64>) -> Result<SsiOutcome, SsiError> {
+    match (a, b) {
+        (Surface::Torus { .. }, Surface::Torus { .. }) => {
+            match TorusTorusPose::decide(a, b, band()).expect("two tori") {
+                Ok(pose) => ssi::torus_torus_ssi(a, b, PairPose::TorusTorus(pose).domain(), band()),
+                Err(e) => Err(SsiError::of_torus_pose(TorusPair::TorusTorus, e)),
+            }
+        }
+        _ => match CylinderTorusPose::decide(a, b, band()).expect("a cylinder and a torus") {
+            Ok(pose) => {
+                ssi::cylinder_torus_ssi(a, b, PairPose::CylinderTorus(pose).domain(), band())
+            }
+            Err(e) => Err(SsiError::of_torus_pose(TorusPair::CylinderTorus, e)),
+        },
     }
 }
 
@@ -173,6 +180,8 @@ fn verdict(got: &Result<SsiOutcome, SsiError>) -> String {
     match got {
         Ok(out) => format!("{} loops", out.branches.len()),
         Err(SsiError::PairTangent { pair, .. }) => format!("tangent ({pair:?})"),
+        Err(SsiError::TubeStraddles { .. }) => "tube straddles".to_owned(),
+        Err(SsiError::StepBudget { .. }) => "step budget".to_owned(),
         Err(e) => format!("refused: {e}"),
     }
 }
@@ -282,28 +291,19 @@ fn oracle_loops(t: &Surface<f64>, partner: &Surface<f64>, n: usize) -> usize {
 
 /// **One germ-row pair at every placement**: `pair(place)` is the two
 /// surfaces, the torus first; each pose is decided once and marched over
-/// its ball. Every certified pose's branches lie on both surfaces and
-/// number the oracle's loops. At the compiled ε the verdicts are `want`,
-/// by placement; at a coarser or finer ε a transverse pose may instead
-/// refuse on the tube or the march's budgets, the band's own limits
-/// (`work/sectrung/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`),
-/// and never otherwise. The first placement is read in both orders,
-/// which answer alike.
+/// its domain, in both orders, which answer alike. Every certified pose's
+/// branches lie on both surfaces and number the oracle's loops. The
+/// verdicts are `want`, by placement, at the compiled ε; `off` names the
+/// placements whose verdict differs at another ε row, measured: at
+/// `1e-6` a transverse pose may refuse on the tube, at `1e-12` on the
+/// step budget
+/// (`work/sectrung/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`).
 fn germ_row(
     pair: impl Fn(Option<(f64, Vec3<f64>, Vec3<f64>)>) -> [Surface<f64>; 2],
     want: [&str; 6],
+    off: &[(f64, usize, &str)],
 ) {
-    let door = |a: &Surface<f64>, b: &Surface<f64>| match (a, b) {
-        (Surface::Torus { .. }, Surface::Torus { .. }) => {
-            let pose = TorusTorusPose::decide(a, b, band()).unwrap().unwrap();
-            ssi::torus_torus_ssi(a, b, over(&PairPose::TorusTorus(pose)), band())
-        }
-        _ => {
-            let pose = CylinderTorusPose::decide(a, b, band()).unwrap().unwrap();
-            ssi::cylinder_torus_ssi(a, b, over(&PairPose::CylinderTorus(pose)), band())
-        }
-    };
-    let at_the_compiled_eps = crate::shared::tol::eps() == geom_core::tolerance::DEFAULT_EPS;
+    let eps = crate::shared::tol::eps();
     for (i, place) in placements().into_iter().enumerate() {
         let [a, b] = pair(Some(place));
         let got = door(&a, &b);
@@ -316,23 +316,17 @@ fn germ_row(
                 "{what}: the oracle's loop count"
             );
         }
-        if i == 0 {
-            assert_eq!(verdict(&door(&b, &a)), verdict(&got), "{what}, reversed");
-        }
-        if !matches!(
-            got,
-            Err(SsiError::TubeStraddles { .. }
-                | SsiError::StepBudget { .. }
-                | SsiError::CellBudget { .. })
-        ) || at_the_compiled_eps
-        {
-            assert_eq!(verdict(&got), want[i], "{what}'s verdict");
-        }
+        assert_eq!(verdict(&door(&b, &a)), verdict(&got), "{what}, reversed");
+        let expected = off
+            .iter()
+            .find(|&&(e, k, _)| e == eps && k == i)
+            .map_or(want[i], |&(_, _, v)| v);
+        assert_eq!(verdict(&got), expected, "{what} at ε {eps:e}");
     }
 }
 
-/// **The germ row's donut against its moved drum** (and, at the first
-/// placement, the drum first): every placement certifies.
+/// **The germ row's donut against its moved drum**: every placement
+/// certifies, at every ε row.
 #[test]
 fn the_germ_rows_donut_against_its_moved_drum() {
     germ_row(
@@ -340,11 +334,12 @@ fn the_germ_rows_donut_against_its_moved_drum() {
         [
             "2 loops", "2 loops", "2 loops", "2 loops", "2 loops", "1 loops",
         ],
+        &[],
     );
 }
 
 /// **The germ row's moved donut against its drum**: every placement
-/// certifies.
+/// certifies at the compiled ε; at `1e-6` three refuse on the tube.
 #[test]
 fn the_germ_rows_moved_donut_against_its_drum() {
     germ_row(
@@ -352,13 +347,19 @@ fn the_germ_rows_moved_donut_against_its_drum() {
         [
             "2 loops", "2 loops", "2 loops", "2 loops", "2 loops", "1 loops",
         ],
+        &[
+            (1e-6, 2, "tube straddles"),
+            (1e-6, 3, "tube straddles"),
+            (1e-6, 5, "tube straddles"),
+        ],
     );
 }
 
 /// **The germ row's two donuts**: every placement certifies but the one
 /// whose donuts share an axis line with each core through the other's
 /// centre, a tangency the gap decides and the door refuses before any
-/// rung.
+/// rung, at every ε row; at `1e-6` two refuse on the tube, at `1e-12` one
+/// on the step budget.
 #[test]
 fn the_germ_rows_two_donuts() {
     germ_row(
@@ -370,6 +371,11 @@ fn the_germ_rows_two_donuts() {
             "2 loops",
             "tangent (TorusTorus)",
             "1 loops",
+        ],
+        &[
+            (1e-6, 2, "tube straddles"),
+            (1e-6, 5, "tube straddles"),
+            (1e-12, 5, "step budget"),
         ],
     );
 }
@@ -389,7 +395,7 @@ fn near_tangent_cost() {
         let clock = std::time::Instant::now();
         let got = match CylinderTorusPose::decide(&t, &pipe, band()).unwrap() {
             Ok(pose) => {
-                ssi::cylinder_torus_ssi(&t, &pipe, over(&PairPose::CylinderTorus(pose)), band())
+                ssi::cylinder_torus_ssi(&t, &pipe, PairPose::CylinderTorus(pose).domain(), band())
                     .map(|o| (o.branches.len(), o.exhaustiveness.examined))
             }
             Err(e) => {
@@ -431,7 +437,7 @@ fn the_radial_hole_marches_the_square_walls_loops() {
                 .all(|c| matches!(c.carrier, ClassCarrier::General)),
             "{what}: every component is the general rung's"
         );
-        let out = ssi::cylinder_torus_ssi(&t, &rod, over(section.pose()), band())
+        let out = ssi::cylinder_torus_ssi(&t, &rod, section.pose().domain(), band())
             .unwrap_or_else(|e| panic!("{what}: {e}"));
         assert_eq!(
             out.branches.len(),
@@ -491,6 +497,54 @@ fn a_rod_through_the_tube_carries_both_loops() {
     }
 }
 
+/// **A parallel wall round the torus's hole winds the torus.** The torus
+/// `R = 1`, `r = 1/4` about `z` and a wall of radius `1` whose axis
+/// stands `0.1` off the torus's: its circle lies in the tube's shadow and
+/// holds the torus axis, so each of its two loops (upper and lower) turns
+/// once about the torus axis, a longitude, essential on the torus as on
+/// the wall. Each carried loop's turning about the axis is counted along
+/// it and must be what the classification says.
+#[test]
+fn a_parallel_wall_round_the_hole_winds_the_torus() {
+    use core::f64::consts::{PI, TAU};
+    let t = torus(Point3::origin(), Vec3::unit_z(), 1.0, 0.25);
+    for (e, round) in [(0.1, true), (0.9, false)] {
+        let rc = if round { 1.0 } else { 0.1 };
+        let c = cylinder(Point3::new(e, 0.0, 0.0), Vec3::unit_z(), rc);
+        let SectionRead::Built(s) = geom_brep::pair_section(&t, &c, band()).unwrap() else {
+            panic!("the value builds the pair");
+        };
+        assert_eq!(
+            s.components().len(),
+            2,
+            "e = {e}: an upper and a lower loop"
+        );
+        let carried = s
+            .carry(Some(SsiLane::marched()), band())
+            .unwrap_or_else(|err| panic!("e = {e}: {err:?}"));
+        for (k, comp) in carried.components().iter().enumerate() {
+            let (t0, t1) = comp.span;
+            let mut w = 0.0f64;
+            let mut prev: Option<f64> = None;
+            for i in 0..=2000 {
+                let p = comp.carrier.eval(t0 + (t1 - t0) * f64::from(i) / 2000.0);
+                let th: f64 = p.y.atan2(p.x);
+                if let Some(a) = prev {
+                    w += (th - a + PI).rem_euclid(TAU) - PI;
+                }
+                prev = Some(th);
+            }
+            let turns = (w / TAU).round().abs() == 1.0;
+            assert_eq!(turns, round, "e = {e}, component {k}: its turning");
+            assert_eq!(
+                s.components()[k].winds,
+                [round, true],
+                "e = {e}, component {k}"
+            );
+        }
+    }
+}
+
 // ---------------------------------------------------------------------
 // Refusals
 // ---------------------------------------------------------------------
@@ -515,7 +569,7 @@ fn a_tube_circle_tangency_refuses_at_each_door() {
     let pose = CylinderTorusPose::decide(&t, &pipe, band())
         .unwrap()
         .unwrap();
-    let got = ssi::cylinder_torus_ssi(&t, &pipe, over(&PairPose::CylinderTorus(pose)), band());
+    let got = ssi::cylinder_torus_ssi(&t, &pipe, PairPose::CylinderTorus(pose).domain(), band());
     assert!(
         matches!(
             got,
@@ -534,7 +588,7 @@ fn a_tube_circle_tangency_refuses_at_each_door() {
     let bend = torus(Point3::new(2.0, 0.0, 0.0), Vec3::unit_y(), 1.0, 0.25);
     let pose = TorusTorusPose::decide(&t, &bend, band()).unwrap().unwrap();
     assert!(matches!(pose.gap(), TorusGap::Tangent { .. }), "the bends");
-    let got = ssi::torus_torus_ssi(&t, &bend, over(&PairPose::TorusTorus(pose)), band());
+    let got = ssi::torus_torus_ssi(&t, &bend, PairPose::TorusTorus(pose).domain(), band());
     assert!(
         matches!(
             got,
@@ -575,7 +629,7 @@ fn each_torus_door_refuses_any_other_pair() {
     }
     let got = ssi::torus_torus_ssi(&t, &t.clone(), domain, band());
     assert!(
-        matches!(got, Err(SsiError::WrongLane { expected }) if expected.contains("decided one")),
+        matches!(got, Err(SsiError::CoincidentTori)),
         "one torus twice: {got:?}"
     );
 }
@@ -598,41 +652,42 @@ fn direction(g: &mut fuzz::Rng) -> Vec3<f64> {
 /// **No marched point leaves either surface by more than its certified
 /// bound** (a counterexample search). Random cylinder × torus and torus
 /// × torus poses about a torus `R = 1`, `r ∈ [0.1, 0.4]`: each pose the
-/// door marches, it marches over its ball, and every branch it returns
+/// door marches, it marches over its domain, and every branch it returns
 /// is closed and lies, sampled, within its limb-2 bound of both surfaces
-/// by the exact distance. A pose the door refuses is not a
+/// by the exact distance; the branches number the oracle's loops, and
+/// the reversed order answers alike. A pose the door refuses is not a
 /// counterexample: the search is for a certified point off a surface.
 #[test]
 fn no_certified_point_leaves_either_surface() {
     let mut g = fuzz::start("torus_doors_ssi::on_both");
-    let base = |g: &mut fuzz::Rng| torus(Point3::origin(), Vec3::unit_z(), 1.0, g.range(0.1, 0.4));
     let mut marched = 0;
     for _ in 0..fuzz::scaled(6) {
-        let a = base(&mut g);
+        let a = torus(Point3::origin(), Vec3::unit_z(), 1.0, g.range(0.1, 0.4));
         let at = Point3::new(g.range(-1.2, 1.2), g.range(-1.2, 1.2), g.range(-0.3, 0.3));
         let c = cylinder(at, direction(&mut g), g.range(0.05, 0.4));
-        let Ok(pose) = CylinderTorusPose::decide(&a, &c, band()).unwrap() else {
-            continue;
-        };
-        if let Ok(out) =
-            ssi::cylinder_torus_ssi(&a, &c, over(&PairPose::CylinderTorus(pose)), band())
-        {
-            on_both(
-                &format!("cylinder × torus ({})", fuzz::replay()),
-                &out,
-                &a,
-                &c,
+        let b = torus(at, direction(&mut g), g.range(0.5, 1.2), g.range(0.1, 0.4));
+        for partner in [c, b] {
+            let what = format!("{:?} × torus ({})", partner.kind(), fuzz::replay());
+            let Ok(out) = door(&a, &partner) else {
+                continue;
+            };
+            on_both(&what, &out, &a, &partner);
+            assert_eq!(
+                out.branches.len(),
+                oracle_loops(&a, &partner, 600),
+                "{what}: the oracle"
+            );
+            assert_eq!(
+                verdict(&door(&partner, &a)),
+                verdict(&Ok(out.clone())),
+                "{what}: the order"
             );
             marched += 1;
         }
-        let b = torus(at, direction(&mut g), g.range(0.5, 1.2), g.range(0.1, 0.4));
-        let Ok(pose) = TorusTorusPose::decide(&a, &b, band()).unwrap() else {
-            continue;
-        };
-        if let Ok(out) = ssi::torus_torus_ssi(&a, &b, over(&PairPose::TorusTorus(pose)), band()) {
-            on_both(&format!("torus × torus ({})", fuzz::replay()), &out, &a, &b);
-            marched += 1;
-        }
     }
-    eprintln!("torus doors: {marched} poses marched ({})", fuzz::replay());
+    assert!(
+        marched > 0,
+        "the search marched nothing ({})",
+        fuzz::replay()
+    );
 }

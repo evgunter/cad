@@ -657,9 +657,9 @@ impl<T: Decide> SphereTorusPose<T> {
         self.ring
     }
 
-    /// The sphere's centre and radius.
-    pub fn ball(&self) -> (Point3<T>, T) {
-        (self.center, self.radius)
+    /// The sphere's own ball, which holds the section.
+    pub fn ball(&self) -> ExtentBall<T> {
+        ExtentBall::new(self.center, self.radius)
     }
 
     /// How the sphere stands.
@@ -941,6 +941,11 @@ impl<T: Decide> CylinderTorusPose<T> {
     /// The torus, guarded.
     pub fn ring(&self) -> Ring<T> {
         self.ring
+    }
+
+    /// The torus's ball, which holds the section.
+    pub fn ball(&self) -> ExtentBall<T> {
+        self.ring.ball()
     }
 
     /// The cylinder's radius.

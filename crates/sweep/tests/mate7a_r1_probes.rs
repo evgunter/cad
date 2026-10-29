@@ -484,21 +484,13 @@ fn the_lilys_tori_exhaust_the_doors_cell_budget() {
         section.tangency().is_none() && !section.components().is_empty(),
         "a transverse gap, its components listed"
     );
-    let ball = section.pose().ball();
-    let domain = geom_brep::SsiDomain {
-        center: ball.center(),
-        half_extent: ball.radius() * 1.01,
-        extent: ball.radius() * 2.0,
-        floor_scale: 1.0,
-    };
-    let got = geom_brep::torus_torus_ssi(&stem, &arch, domain, band);
+    let got = geom_brep::torus_torus_ssi(&stem, &arch, section.pose().domain(), band);
+    let eps = Tol::witness().eps();
     assert!(
         match &got {
-            Err(geom_brep::SsiError::CellBudget { .. }) => true,
-            Err(
-                geom_brep::SsiError::TubeStraddles { .. }
-                | geom_brep::SsiError::RefinementExhausted { .. },
-            ) => Tol::witness().eps() != geom_core::tolerance::DEFAULT_EPS,
+            Err(geom_brep::SsiError::TubeStraddles { .. }) => eps == 1e-6,
+            Err(geom_brep::SsiError::RefinementExhausted { .. }) => eps == 1e-12,
+            Err(geom_brep::SsiError::CellBudget { .. }) => eps != 1e-6 && eps != 1e-12,
             _ => false,
         },
         "the door's stop on the lily's pair: {:?}",

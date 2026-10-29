@@ -72,11 +72,13 @@ none, so the door also owes its domain.
 2026-10-28, by `sect/torus-doors`. `geom_brep::ssi::cylinder_torus_ssi` reads the
 pose decided once (`CylinderTorusPose::decide`), refuses a tangent gap as the
 pair's own (`TangentPair`) before any rung, and marches a transverse
-one through `implicit_pair_r3` (`march_past_the_gap`, every door's).
-`route` and `route_pose` answer `implemented`. The march's domain is a
+one through `implicit_pair_r3` (`past_the_gap`, every door's).
+`route` answers `implemented`, and `route_pose` for every pose the
+section value lists components for (a general pose it refuses is not
+served). The march's domain is a
 ball that holds the whole section (`PairPose::ball`: a torus lies in
 `|x − c| ≤ R + r`, the smaller of two tori's), one construction for
-every pose (`march_over_the_ball`). The symmetric poses' components
+every pose (`PairPose::domain`, `march_over_the_ball`). The symmetric poses' components
 carry the general rung's carrier, which `PairSection::carry` marches;
 `ClassCarrier::Unbuilt` is gone. All six of the germ row's placements certify in both orders (drum ×
 donut and donut × drum: two loops at five, one at the sixth), each
