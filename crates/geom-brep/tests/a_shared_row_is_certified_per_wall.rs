@@ -730,6 +730,100 @@ fn a_shared_row_whose_walls_touch_off_its_samples_refuses() {
     }
 }
 
+/// The floor and an upright on its `x = 1` side whose `v` direction is
+/// `(1, 0, c·(y − y*)² + δ)`: the walls cross along the whole row, at an
+/// angle of about `δ` at `y*` and opening quadratically, at rate `c`,
+/// away from it.
+fn dipping_at(ys: f64, c: f64, delta: f64) -> (Pair, Curve3<f64>, [Pcurve<f64>; 2]) {
+    let (pair, line, images) = tangent_at(ys, 2.0);
+    let p = |x, y, z| Point3::new(x, y, z);
+    let h = [ys * ys, ys * ys - ys, (1.0 - ys) * (1.0 - ys)].map(|q| c * q + delta);
+    let mut control = Vec::new();
+    for (j, y) in [0.0, 0.5, 1.0].into_iter().enumerate() {
+        control.push(p(1.0, y, 0.0));
+        control.push(p(2.0, y, h[j]));
+    }
+    let upright = Surface::Nurbs(Arc::new(
+        NurbsSurface::new(
+            k2(),
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            control,
+            vec![1.0; 6],
+        )
+        .unwrap(),
+    ));
+    (Pair::of(pair.wall(0).clone(), upright), line, images)
+}
+
+/// **A crossing whose least bound lies in the band escalates; it is not a
+/// definite zero.** The walls dip to an angle of about `0.3 ε` at
+/// `y* = 0.19`, between the transversality samples, where every sample
+/// reads them clear of the band. The cover reads every piece there
+/// zero-free and positive, with no sign change: its least margin is a
+/// lower bound in the band, which tells no tangency from a crossing too
+/// shallow to read, so it escalates.
+#[test]
+fn a_crossing_bounded_in_the_band_with_no_turn_escalates() {
+    let e = eps();
+    let (pair, line, images) = dipping_at(0.19, 2e6 * e, 0.3 * e);
+    let got = pair.certify(shared(&pair, images), &line, (0.0, 1.0));
+    assert!(
+        matches!(
+            got,
+            Err(CertifyError::Escalated {
+                check: geom_brep::CertCheck::Transversality,
+                sample: geom_brep::certify::NOT_A_SAMPLE,
+                ..
+            })
+        ),
+        "a dip into the band between samples escalates at no sample: {got:?}"
+    );
+}
+
+/// **A sign change across a crease is no tangency.** The row is a
+/// polyline that turns 135° at its knot `t = ½`, the `v = 0` row of two
+/// degree-1 walls on that knot: a floor in `z = 0` whose cross-row edges
+/// all run along `−y` (so it folds back over itself past the corner) and
+/// a vertical upright. The walls cross at right angles along all of it,
+/// but past the corner the floor's chart turns over, and the cover's
+/// margin changes sign across the knot. The partials jump there, so the
+/// sign change says nothing about the tangent planes, and the row
+/// certifies.
+#[test]
+fn a_sign_change_across_a_crease_is_no_tangency() {
+    let p = |x, y, z| Point3::new(x, y, z);
+    let k = || KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap();
+    let k1 = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let row = [p(0.0, 0.0, 0.0), p(1.0, 0.0, 0.0), p(0.0, 1.0, 0.0)];
+    let wall = |cross: Vec3<f64>| {
+        Surface::Nurbs(Arc::new(
+            NurbsSurface::new(
+                k(),
+                k1(),
+                row.iter().flat_map(|&r| [r, r + cross]).collect(),
+                vec![1.0; 6],
+            )
+            .unwrap(),
+        ))
+    };
+    let line = Curve3::Nurbs(Arc::new(
+        NurbsCurve3::new(k(), row.to_vec(), vec![1.0; 3]).unwrap(),
+    ));
+    let image = || Pcurve::IsoLine {
+        p0: geom_core::Point2::new(0.0, 0.0),
+        pl: geom_core::Vec2::new(1.0, 0.0),
+    };
+    let pair = Pair::of(
+        wall(Vec3::new(0.0, -1.0, 0.0)),
+        wall(Vec3::new(0.0, 0.0, 1.0)),
+    );
+    let got = pair.certify(shared(&pair, [image(), image()]), &line, (0.0, 1.0));
+    assert!(
+        got.is_ok(),
+        "walls crossing at right angles certify across the crease: {got:?}"
+    );
+}
+
 /// A degree-2 clamped knot vector on `[s, s + 1]` with no interior knot.
 fn k2_at(s: f64) -> KnotVector {
     KnotVector::clamped(vec![s, s, s, s + 1.0, s + 1.0, s + 1.0], 2).unwrap()
