@@ -2915,7 +2915,10 @@ mod review_probes {
                         })
             })
         });
-        assert!(bounds_the_weld, "the refused cone face is bounded by the weld circle");
+        assert!(
+            bounds_the_weld,
+            "the refused cone face is bounded by the weld circle"
+        );
     }
 
     /// **The lantern's caps arrive whole** — the shape the F7 rule
