@@ -3475,7 +3475,6 @@ NOT_BOUND = {
     # the sharper statement of it: the LANE is what gates.
     "BoxAxis": SHAPE,
     "BudgetKind": SHAPE,
-    "Certified": SHAPE,
     "CertifiedLeaf": SHAPE,
     "Chamber": SHAPE,
     "ChamberSpan": SHAPE,
@@ -3507,7 +3506,6 @@ NOT_BOUND = {
     "Stackup": SHAPE,
     "StackupRefusal": SHAPE,
     "Unavailable": SHAPE,
-    "WINDOW_TIGHTENING": SHAPE,
     "WorstCase": SHAPE,
     "assertion_at": SHAPE,
     "drive": SHAPE,
@@ -3800,6 +3798,7 @@ MEMBERS_BOUND_AS = {
     # others' addresses.
     "DocEdit::RemoveConstraints": "Doc.remove_mate",
     "MeasureUnavailableAt::NeedsEnclosure": "MeasureUnavailableAt.variant",
+    "MeasureUnavailableAt::NoUpperBound": "MeasureUnavailableAt.variant",
     "NodePickError::Standing": "NodePickError.variant",
     "NodePickError::NotABody": "NodePickError.variant",
     "NodePickError::NoSuchBody": "NodePickError.variant",

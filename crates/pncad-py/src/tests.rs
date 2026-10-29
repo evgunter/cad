@@ -558,6 +558,18 @@ fn the_fourth_verbs_two_refusals_are_stable() {
     // The recourse is IN the refusal: it names the door that answers
     // rather than handing back a worse number.
     assert!(absent.to_string().contains("topo::ClearanceLane"));
+    let unbracketed = MeasureUnavailableAt::NoUpperBound {
+        verb: "min_clearance",
+        scalar: "Interval",
+        door: "topo::clearance::min_separation",
+    };
+    assert_eq!(measure_unavailable_at_tag(&unbracketed), "no_upper_bound");
+    assert!(crate::errors::reads_as_prose(&unbracketed.to_string()));
+    assert!(
+        unbracketed
+            .to_string()
+            .contains("topo::clearance::min_separation")
+    );
 
     // The three arms `topo::clearance::min_separation` refuses with
     // all cross as one tag.
@@ -5076,7 +5088,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "measure_unavailable_at_tag",
-        values: &["needs_enclosure"],
+        values: &["needs_enclosure", "no_upper_bound"],
         delegates: &[],
     },
     TagEntry {

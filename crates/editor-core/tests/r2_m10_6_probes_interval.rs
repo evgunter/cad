@@ -24,11 +24,10 @@ test_utils::roster! {
         "the enclosure over carriers the unit's own fixture never uses — two CYLINDERS \
          — at four budgets from starved to the shipped one, containing the \
          hand-derived truth at every one and narrowing monotonically",
-    min_clearance_between_two_separated_bodies_reads_zero:
-        "the carrier-WINDOW superset carried into the measure layer: two solids 0.1 m \
-         apart whose certified `min_clearance` lower bound reads 0 against that true \
-         0.1, and the requirement `min_clearance >= 0.05` — met by them twice over — that gets no \
-         `Holds` out of it",
+    min_clearance_between_two_separated_bodies_brackets_their_gap:
+        "two solids 0.1 m apart, one non-convex, whose carrier windows interpenetrate: \
+         the `min_clearance` bracket contains the true 0.1, and the requirement \
+         `min_clearance >= 0.05`, met by them twice over, never reads `Violated`",
     report_key_tells_the_dials_that_move_a_report_apart:
         "the cache seam's key. The run dials were missing from the (kind, slice, box, \
          eps, K) tuple, unnoticed rather than decided, so two MC runs a consumer would \
@@ -342,11 +341,12 @@ fn min_separation_brackets_a_curved_pair_at_every_budget() {
             },
         )
         .expect("two disjoint pins admit a pair");
+        let hi = m.hi().expect("a pair witnesses an upper end");
         eprintln!(
             "pins @ max_cell_pairs={pairs}: [{}, {}] width {:e} (truth {truth})",
             m.lo(),
-            m.hi().expect("an upper end"),
-            m.hi().expect("an upper end") - m.lo()
+            hi,
+            hi - m.lo()
         );
         assert!(
             m.lo() <= truth,
@@ -355,12 +355,12 @@ fn min_separation_brackets_a_curved_pair_at_every_budget() {
             m.lo()
         );
         assert!(
-            truth <= m.hi().expect("an upper end"),
+            truth <= hi,
             "budget {pairs}: hi {} is below the true minimum {truth}",
-            m.hi().expect("an upper end")
+            hi
         );
         assert!(m.receipt().holds(), "budget {pairs}: the receipt identity");
-        widths.push(m.hi().expect("an upper end") - m.lo());
+        widths.push(hi - m.lo());
     }
     for w in widths.windows(2) {
         assert!(
@@ -434,45 +434,18 @@ fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     (r.doc, measure, assertion)
 }
 
-/// **The carrier-window superset reaches the document's requirement.**
+/// **Two separated solids, one non-convex, bracket their gap.**
 ///
-/// The two solids are 0.1 m apart. The C's PLANAR cap faces are
+/// The two solids are 0.1 m apart. The C's planar cap faces are
 /// non-convex, and the engine's window for a planar face is the
-/// rectangle hull of its boundary — so the C's cap window covers the
-/// notch the block sits in, the two windows INTERPENETRATE, and no
-/// refinement can separate them: `lo` collapses to 0 and stays there at
-/// any budget.
-///
-/// `lo` is the sound direction, so nothing here is unsound. What it
-/// costs is the whole point of the door: the assertion
-/// `min_clearance ≥ 0.05` — met by these solids twice over — gets no
-/// verdict at all, and a `min_clearance` assertion registered in the
-/// corpus over a non-convex body would RED CI row 1 (which fails on a
-/// verdict-less leaf) for a reason that is about the window model and
-/// not about the part.
-///
-/// **`hi` is NOT the sound direction either**, and the row asserts
-/// both halves of what that costs. A minimum over a SUPERSET of the two
-/// faces is at most the minimum over the faces, so a window that covers
-/// the notch pulls BOTH ends of the enclosure down: `hi` lands below
-/// the truth, and the enclosure does not contain it. **That is the
-/// engine's window model, not this unit's frame.** These carriers are
-/// axis-aligned, so the frame this unit stores and the re-chart the
-/// engine used to compute differ by a quarter turn about the normal —
-/// the boundary AABB projected on the frame's axes is the SAME POINT
-/// SET under an axis swap. What a quarter turn changes is which axis
-/// the subdivision halves first, which is why the numbers moved and
-/// the defect did not.
-///
-/// The measure layer already owns the consequence: an arm that would
-/// read an endpoint the run certifies for the CARRIER rather than for
-/// the faces refuses typed, `UnevaluatedReason::WindowSuperset`, whose
-/// `recourse` names
-/// `work/trim/clearance-window-tightening-needs-chart-boundary.md` —
-/// the item that retires it. This row asserts that refusal rather than
-/// printing a number, so the containment property has a red somewhere.
+/// rectangle hull of its boundary, so the C's cap window covers the
+/// notch the block sits in and the two windows interpenetrate. The cells
+/// of that window decided outside the C drop out of the lower end, and
+/// the upper end is read only off points of the faces, so the bracket
+/// contains the solids' own 0.1, and `min_clearance ≥ 0.05`, which they
+/// meet twice over, is never `Violated`.
 #[test]
-fn min_clearance_between_two_separated_bodies_reads_zero() {
+fn min_clearance_between_two_separated_bodies_brackets_their_gap() {
     let truth = 0.1;
     let (doc, measure, assertion) = notched_pair(0.05);
     let ev: editor_core::Evaluation<geom_core::Interval> = eval_over(&doc, None);
@@ -488,19 +461,10 @@ fn min_clearance_between_two_separated_bodies_reads_zero() {
         value.hi()
     );
     assert!(
-        value.hi() < truth,
-        "the enclosure [{}, {}] now contains the true {truth}: the window model has been \
-         tightened and this finding — a minimum over a SUPERSET pulling BOTH ends down — \
-         is stale",
+        value.lo() <= truth && truth <= value.hi(),
+        "the enclosure [{}, {}] contains the solids' {truth}",
         value.lo(),
         value.hi()
-    );
-    assert_eq!(
-        value.lo(),
-        0.0,
-        "the C's cap window contains the block's, so the pair never separates and the \
-         certified lower bound is 0 against a true 0.1. If this row goes red the window \
-         model has been tightened and this finding is stale."
     );
     let Some(NodeResult::Ok(a)) = ev.result(assertion) else {
         panic!("the assertion evaluated");
@@ -509,26 +473,9 @@ fn min_clearance_between_two_separated_bodies_reads_zero() {
         panic!("an assertion's value is a verdict");
     };
     println!("notched pair: the assertion reads {verdict:?}");
-    let AssertionVerdict::Unevaluated {
-        reason:
-            editor_core::UnevaluatedReason::WindowSuperset {
-                endpoint, recourse, ..
-            },
-    } = verdict
-    else {
-        panic!(
-            "the requirement `min_clearance >= 0.05` is met by the solids twice over, and \
-             the endpoint it would be read off is the carrier's — the verdict owed is a \
-             typed WindowSuperset refusal, not {verdict:?}"
-        );
-    };
-    assert_eq!(
-        *endpoint, "upper",
-        "an `at least` verdict that reads Violated reads it off the UPPER end"
-    );
-    assert_eq!(
-        *recourse, "work/trim/clearance-window-tightening-needs-chart-boundary.md",
-        "the refusal's recourse names the item whose fix retires it"
+    assert!(
+        !matches!(verdict, AssertionVerdict::Violated { .. }),
+        "`min_clearance >= 0.05` is met by the solids twice over: {verdict:?}"
     );
 }
 

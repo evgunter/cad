@@ -368,7 +368,6 @@ fn classify<T: Decide>(
     outcome
 }
 
-
 /// **THE STAGED-CEILING DIAL** (`identity-pass-testing`, a test-only
 /// cargo feature — see this crate's manifest for why it is a feature
 /// and not a flag): the comma-separated predicate names whose
@@ -2006,7 +2005,10 @@ mod tests {
         let b = band();
         let mid = f64::midpoint(b.zero(), b.escalate());
         let bracket = Bracket::open();
-        assert_eq!(decide("scope_before", Margin::of(1.0f64), b), Ok(Sign::Positive));
+        assert_eq!(
+            decide("scope_before", Margin::of(1.0f64), b),
+            Ok(Sign::Positive)
+        );
         let inside = unlogged("F0", || {
             assert_eq!(open_frames(), 2, "the scope runs under a frame of its own");
             (
@@ -2020,7 +2022,10 @@ mod tests {
             (Ok(Sign::Negative), true, Ok(Sign::Negative)),
             "the scope hands its readings back unchanged"
         );
-        assert_eq!(decide("scope_after", Margin::of(-1.0f64), b), Ok(Sign::Negative));
+        assert_eq!(
+            decide("scope_after", Margin::of(-1.0f64), b),
+            Ok(Sign::Negative)
+        );
         let log = bracket.finish();
         let names: Vec<_> = log.verdicts.iter().map(|v| v.predicate).collect();
         assert_eq!(names, ["scope_before", "scope_after"]);

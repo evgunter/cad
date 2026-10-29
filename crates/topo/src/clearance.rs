@@ -25,20 +25,11 @@
 //! One walk, and the difference is what it does with a cell pair (the
 //! cut differs too: the injective arm bisects by metric axes and splits
 //! a cell against itself in three): the bound question DECIDES each
-//! pair at a funnel site;
-//! the minimum question decides nothing at all — it takes minima of
-//! enclosure endpoints, so it funnels no predicate and consults no
-//! tolerance. That door's own header carries the argument.
-//!
-//! **The windows and the cells are not the same, either**, and for
-//! that same reason. The bound question's sweep drops the cells decided
-//! outside their faces; [`min_separation`] keeps every cell of the
-//! carrier rectangles, because a drop is a decision and that door takes
-//! none (its own header). So
-//! `window_hi` is a minimum over strictly more of the carrier than a
-//! `Holds` covers, and the asymmetry is in the direction its own docs
-//! already state — except between windows that are their faces, where
-//! the two sets are one.
+//! pair at a funnel site; the minimum question takes minima of
+//! enclosure endpoints. Both drop the cells decided outside their faces.
+//! The minimum question's region readings choose only which pairs feed
+//! its bracket, so they are taken in [`k_stats::unlogged`]'s scope; that
+//! door's own header carries the argument.
 //!
 //! **The sweep stops at the first VERIFIED violation.** A cell pair the
 //! interval pass classifies as violating is handed to the caller's
@@ -839,8 +830,8 @@ impl<T: Decide + CertifiedBounds> Candidate<'_, '_, T> {
         let mut b = admitted(&mut *self.region, true, self.ib, self.y, self.cb);
         if self.strict
             && let Some((p, q)) = coincidence(self.x, self.ca, &a, self.y, self.cb, &b)
-            && on_face(&mut *self.region, false, self.ia, self.x, p)
-            && on_face(&mut *self.region, true, self.ib, self.y, q)
+            && Self::placed(&mut *self.region, false, self.ia, self.x, p)
+            && Self::placed(&mut *self.region, true, self.ib, self.y, q)
         {
             a.push(p);
             b.push(q);
@@ -848,23 +839,24 @@ impl<T: Decide + CertifiedBounds> Candidate<'_, '_, T> {
         (a, b)
     }
 
-}
-
-/// Whether the point door places `(u, v)` of window `index` on its face
-/// — in the window, for a window that is its face.
-fn on_face<T: Decide + CertifiedBounds>(
-    region: &mut RegionMemo,
-    side_b: bool,
-    index: usize,
-    w: &Window<'_, T>,
-    (u, v): (f64, f64),
-) -> bool {
-    match w.region {
-        Region::Whole => w.u.0 <= u && u <= w.u.1 && w.v.0 <= v && v <= w.v.1,
-        Region::Trimmed => matches!(
-            region.station(side_b, index, w, (u, v)),
-            Some(FaceContainment::In | FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_))
-        ),
+    /// Whether the point door places `(u, v)` of window `index` on its
+    /// face — in the window, for a window that is its face.
+    fn placed(
+        region: &mut RegionMemo,
+        side_b: bool,
+        index: usize,
+        w: &Window<'_, T>,
+        (u, v): (f64, f64),
+    ) -> bool {
+        match w.region {
+            Region::Whole => w.u.0 <= u && u <= w.u.1 && w.v.0 <= v && v <= w.v.1,
+            Region::Trimmed => matches!(
+                region.station(side_b, index, w, (u, v)),
+                Some(
+                    FaceContainment::In | FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_)
+                )
+            ),
+        }
     }
 }
 
@@ -1752,80 +1744,42 @@ fn ball_of(surface: &Surface<Interval>, c: Cell) -> Ball {
 
 // ------------------------------------- the minimum-separation door
 
-/// **A bracket on the minimum separation between two sides**, over
-/// whatever parameter box the two bodies were evaluated over — with its
-/// two ends certified about DIFFERENT SETS, which is the thing to read
-/// before anything else here.
+/// **A bracket on the minimum separation between two sides' FACES**,
+/// over whatever parameter box the two bodies were evaluated over.
 ///
 /// # What the two numbers mean, exactly
 ///
-/// Write `m(p)` for the minimum distance between the two sides' carrier
-/// WINDOWS at parameter point `p`, `M(p)` for the same over the trimmed
-/// FACES, and let the bodies have been evaluated over a box `B`. The
-/// windows contain the faces (this module's header), so
+/// Write `M(p)` for the minimum distance between the two sides' trimmed
+/// faces at parameter point `p`, and let the bodies have been evaluated
+/// over a box `B`.
 ///
-/// ```text
-///     m(p) ≤ M(p)   for every p
-/// ```
+/// - `lo` is a certified LOWER bound on `inf{ M(p) : p ∈ B }`: the least
+///   `separation_lo` over every cell pair the walk did not discharge,
+///   together with the pairs it excluded at admission (by their own
+///   `separation_lo`, which is what admission compared). A pair with a
+///   cell decided [`CellRegion::Outside`] its face holds no point of it
+///   and is discharged; every other pair, a cell the door cannot decide
+///   included, stays in, so the cells still standing cover the faces.
+/// - `hi`, when present, is a certified upper bound on
+///   `sup{ M(p) : p ∈ B }`: the least, over every pair examined, of the
+///   pair's `separation_hi` where both cells are decided
+///   [`CellRegion::Inside`], and of its two centre stations' separation
+///   where each station lies on its face ([`Bracket::witness`]). Each is
+///   the distance between two points of the faces, enclosed over the
+///   whole box. Absent when no examined pair witnessed one.
 ///
-/// and the two ends of this bracket inherit that asymmetry:
-///
-/// - `lo` is a certified LOWER bound on `inf{ m(p) : p ∈ B }` — the
-///   least `separation_lo` over every cell pair the sweep did not
-///   discharge, together with the pairs it excluded at admission (by
-///   their own `separation_lo`, which is what admission compared).
-///   Because `m ≤ M`, it is EQUALLY a lower bound on `inf M` — the
-///   faces' own worst-case clearance. **This is the end a defect gate
-///   reads, and it is sound for the faces.**
-/// - `hi` is a certified upper bound on `sup{ m(p) : p ∈ B }` — the
-///   least, over every cell pair the sweep examined, of that pair's
-///   `separation_hi` AND of its two centre cells' furthest separation.
-///   Each bounds the distance between some realizable point of each
-///   WINDOW at every `p ∈ B`. **It is not a bound on `M` in either
-///   direction**: the window points that attain it may lie in the trim
-///   holes, so `hi` can sit strictly below the faces' true clearance.
-///   It is named [`MinSeparation::window_hi`] for that reason.
-///
-/// **Between two windows that ARE their faces**, `m = M`: an
-/// iso-bounded NURBS face's window is its whole patch
-/// (`Region::Whole`), so a window point is a face point and `hi`
-/// bounds the faces' clearance from above too. A side mixing such
-/// faces with analytic ones keeps the asymmetry above, and this door
-/// does not say which case a query is; the caller that knows its faces
-/// are whole patches may read `hi`.
-///
-/// So `[lo, window_hi]` is a containment-true enclosure of `m`, and
-/// `[lo, ∞)` is what it certifies about `M`. Both readings matter and
-/// they are not the same statement: an assertion over this bracket may
-/// read `lo` and may not read `hi`.
-///
-/// A worked counterexample, in editor-core's suite: an L-shaped cap
-/// under a block parked over its notch brackets `[0.100…, 0.100…]`
-/// while the faces are `0.269` apart — the window pair straight across
-/// the notch belongs to neither face
-/// (`m10_6_r1_probes_interval::the_notch_bracket_is_the_windows_not_the_faces`).
-/// The bound sweep beside this door no longer offers that pair; THIS
-/// door still does, because it runs inside an evaluation and its
-/// windows may not decide (see [`min_separation`]).
+/// So `[lo, hi]` is a containment-true enclosure of the faces'
+/// separation. The window a trimmed face is subdivided over is a
+/// superset of the face; no pair of its points outside the face reaches
+/// either end.
 ///
 /// # Budget-honest, and no width rule anywhere
 ///
 /// Refinement narrows the bracket and can never falsify it: `lo` only
-/// rises as cells shrink, `window_hi` only falls, and every
-/// intermediate state is a true bracket on `m`. So a query that runs
-/// out of budget REPORTS — there is no width threshold below which
-/// this door starts answering and above which it refuses, no ε, and no
-/// decision: nothing here classifies a margin, which is why this door
-/// funnels no predicate.
-///
-/// # What closes the gap
-///
-/// An upper end read only off cells [`crate::cell_region`] decides
-/// [`CellRegion::Inside`] and stations the face's point door places
-/// on the face, which bound the FACES' separation from above; the
-/// lower end already bounds it from below. That needs this door to
-/// decide cells, and it decides none. The asymmetry is typed rather than
-/// papered over.
+/// rises as cells shrink, `hi` only falls, and every intermediate state
+/// is a true bracket. So a query that runs out of budget REPORTS — there
+/// is no width threshold below which this door starts answering and
+/// above which it refuses.
 ///
 /// # How WIDE the bracket actually is
 ///
@@ -1835,29 +1789,26 @@ fn ball_of(surface: &Surface<Interval>, c: Cell) -> Ball {
 /// `r2_m10_6_probes_interval::min_separation_brackets_a_curved_pair_at_every_budget`):
 ///
 /// ```text
-///   max_cell_pairs =   1   [1, 5.385]   width 4.385
-///   max_cell_pairs =   4   [1, 5.385]   width 4.385
+///   max_cell_pairs =   1   [1, 2.062]   width 1.062
+///   max_cell_pairs =   4   [1, 2.062]   width 1.062
 ///   max_cell_pairs =  32   [1, 2.062]   width 1.062
-///   max_cell_pairs = 512   [1, 1.586]   width 0.586   <- the default
+///   max_cell_pairs = 512   [1, 1.500]   width 0.500   <- the default
 /// ```
 ///
 /// So at the shipped budget the upper end of a curved pair's bracket
-/// is still ~59% above the truth. A planar neck does far better (~7%),
+/// is still ~50% above the truth. A planar neck does far better (~7%),
 /// because a plane's window IS its cell. A consumer who needs a tight
-/// upper bound on a curved pair must raise
-/// [`Budgets::max_cell_pairs`] and pay for it; a consumer
-/// who needs a sound LOWER bound — which is what gates — has one at
+/// upper bound on a curved pair must raise [`Budgets::max_cell_pairs`]
+/// and pay for it; a consumer who needs a sound LOWER bound has one at
 /// every budget, including the first.
 ///
-/// # `window_hi` is a CELL-BOX distance, not an attained point pair
+/// # `hi` is an enclosure, not an attained point pair
 ///
-/// Stated because "the least distance of any station pair found"
-/// reads as though a witness exists. It does not: `hi` is the least
-/// over the examined pairs of that pair's `separation_hi` and its two
-/// centre CELLS' furthest separation, each an interval-enclosed
-/// quantity. Every one of them bounds `m` from above at every `p`, so
-/// the fold is sound — but none of them is a pair of points anyone
-/// evaluated, and the number should not be reported as one.
+/// Each term of the fold is an interval-enclosed distance between two
+/// cells or two stations of the faces, which bounds the minimum from
+/// above at every parameter point, so the fold is sound — but none of
+/// them is a pair of points anyone evaluated, and the number should not
+/// be reported as one.
 ///
 /// # Cost, and where it is paid
 ///
@@ -2025,23 +1976,30 @@ impl MinSeparation {
 /// `[0, 0]` with the shared cell named ([`MinSeparation::meets`]),
 /// before anything is enclosed.
 ///
-/// `budgets` is all it is dialled by ([`Budgets::MIN_SEPARATION`] ships):
-/// no accelerator switch, since the door is handed bodies already
-/// evaluated over whatever parameter box their caller had.
+/// `band` is the one the faces' regions are read at; `budgets` is all
+/// the walk is dialled by ([`Budgets::MIN_SEPARATION`] ships): no
+/// accelerator switch, since the door is handed bodies already evaluated
+/// over whatever parameter box their caller had.
 ///
-/// # No tolerance argument, and that is not an omission
+/// # What decides, and what it is allowed to decide
 ///
-/// Nothing here decides. The bound comparison the sweep funnels
-/// (`d − c` at [`CLEARANCE_MARGIN`]) has no counterpart in a question
-/// with no `c` in it: this door computes enclosures and takes minima of
-/// their endpoints, so there is no margin to classify, no band to
-/// classify it against, and no ε. The pruning comparison
-/// (`separation_lo ≥ hi`) is not a decision either — the same
-/// distinction the module header draws about the proximity tree's
-/// admission test: it decides which pairs are EXAMINED, never what any
-/// of them means, and [`MinSeparation`]'s `lo` is floored at `hi` so a
-/// pair dropped at the moment it tied cannot narrow the bracket past
-/// the truth.
+/// The bracket itself classifies no margin: it takes minima of enclosure
+/// endpoints, and the pruning comparison (`separation_lo ≥ hi`) is not a
+/// decision either — the same distinction the module header draws about
+/// the proximity tree's admission test: it decides which pairs are
+/// EXAMINED, never what any of them means, and [`MinSeparation`]'s `lo`
+/// is floored at `hi` so a pair dropped at the moment it tied cannot
+/// narrow the bracket past the truth.
+///
+/// The region readings ([`crate::cell_region`] for a cell, the face's
+/// point door for a station) do decide, at `band`, and every outcome of
+/// each leaves a true bracket: a cell read `Outside` holds no point of
+/// its face, one read `Inside` or a station placed on its face is a
+/// place on it, and one the door cannot decide stays in the lower end
+/// and out of the upper. They choose which pairs feed the bracket and
+/// decide nothing a census must see, so they run in
+/// [`k_stats::unlogged`]'s scope (audit row F28), and
+/// [`MinSeparation::decided`] counts them.
 ///
 /// # Errors
 ///
@@ -2274,8 +2232,8 @@ impl Bracket {
                 region.ask(true, j, y, b) == CellRegion::Inside,
             );
             let placed = stations_would
-                && (inside.0 || on_face(region, false, i, x, sa))
-                && (inside.1 || on_face(region, true, j, y, sb));
+                && (inside.0 || Candidate::placed(region, false, i, x, sa))
+                && (inside.1 || Candidate::placed(region, true, j, y, sb));
             (cells_would && inside.0 && inside.1, placed)
         });
         if cells {

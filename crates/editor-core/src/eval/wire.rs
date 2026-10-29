@@ -248,7 +248,6 @@ pub(crate) enum OpInput<'n, T: geom_core::Real> {
     /// An assertion, with its value and bound evaluated
     /// ([`super::Payload`]) and the dimensions they are read at.
     Assertion {
-        value: crate::VarId,
         relation: crate::measure::AssertionRelation,
         dims: (crate::expr::Dimension, crate::expr::Dimension),
         payload: super::Payload<T>,
@@ -340,15 +339,11 @@ where
             );
         }
         OpInput::Assertion {
-            value,
             relation,
             dims,
             payload,
         } => {
-            // Which endpoints this assertion may read: structural, off
-            // the measures under its value, so the same at every scalar.
-            let certified = super::measure::certified(doc, *value);
-            return wire_assertion(*dims, certified, *relation, payload, tol);
+            return wire_assertion(*dims, *relation, payload, tol);
         }
         OpInput::Other(node) => *node,
     };
@@ -2375,10 +2370,10 @@ fn wire_measure<'r, T: Decide + topo::AtRestPolicy>(
             Ok(None) => {
                 return Ok(OpOut::plain(
                     ValuePayload::MeasureUnavailable {
-                        reason: crate::measure::MeasureUnavailableAt::NeedsEnclosure {
+                        reason: crate::measure::MeasureUnavailableAt::NoUpperBound {
                             verb: primitive.verb(),
                             scalar: T::NAME,
-                            door: "topo::ClearanceLane",
+                            door: "topo::clearance::min_separation",
                         },
                         dim,
                     },
@@ -2423,7 +2418,6 @@ fn wire_measure<'r, T: Decide + topo::AtRestPolicy>(
 /// touches the value or the document.
 fn wire_assertion<T: Decide>(
     (value_dim, bound_dim): (crate::expr::Dimension, crate::expr::Dimension),
-    certified: crate::measure::Certified,
     relation: crate::measure::AssertionRelation,
     payload: &super::Payload<T>,
     tol: Tol,
@@ -2458,7 +2452,6 @@ fn wire_assertion<T: Decide>(
             bound,
             relation,
             band(tol)?,
-            certified,
         )),
         names::empty(),
     ))

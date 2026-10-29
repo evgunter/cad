@@ -311,7 +311,9 @@ fn a_point_scalar_has_no_min_clearance_value_and_the_assertion_says_why() {
     match &v.payload {
         ValuePayload::MeasureUnavailable { reason, dim } => {
             assert_eq!(*dim, Dimension::Length);
-            let MeasureUnavailableAt::NeedsEnclosure { verb, scalar, door } = reason;
+            let MeasureUnavailableAt::NeedsEnclosure { verb, scalar, door } = reason else {
+                panic!("at f64 the measure needs an enclosure, not {reason:?}");
+            };
             assert_eq!(*verb, "min_clearance");
             assert_eq!(*scalar, "f64");
             assert_eq!(*door, "topo::ClearanceLane");
@@ -364,7 +366,10 @@ fn the_interval_value_is_the_engine_bracket_re_derived() {
         .ask(0, 1, Budgets::MIN_SEPARATION)
         .expect("the neck pair is admitted");
     assert_eq!(value.lo().to_bits(), direct.lo().to_bits());
-    assert_eq!(value.hi().to_bits(), direct.hi().expect("an upper end").to_bits());
+    assert_eq!(
+        value.hi().to_bits(),
+        direct.hi().expect("an upper end").to_bits()
+    );
 
     // And the bracket is a bracket: it contains the gap the geometry
     // was built with.
@@ -449,16 +454,14 @@ fn the_budget_narrows_the_bracket_and_never_falsifies_it() {
                 },
             )
             .expect("the neck pair is admitted");
+        let hi = m.hi().expect("a pair witnesses an upper end");
         assert!(
-            m.lo() <= NECK_GAP && NECK_GAP <= m.hi().expect("an upper end"),
+            m.lo() <= NECK_GAP && NECK_GAP <= hi,
             "budget {pairs}: [{}, {}] must enclose {NECK_GAP}",
             m.lo(),
-            m.hi().expect("an upper end")
+            hi
         );
-        assert!(
-            m.lo() <= m.hi().expect("an upper end"),
-            "budget {pairs}: a bracket is ordered"
-        );
+        assert!(m.lo() <= hi, "budget {pairs}: a bracket is ordered");
         assert!(
             m.receipt().holds(),
             "budget {pairs}: the receipt identity holds"
@@ -469,11 +472,11 @@ fn the_budget_narrows_the_bracket_and_never_falsifies_it() {
         eprintln!(
             "min_separation @ max_cell_pairs={pairs}: [{}, {}] (width {:e}), receipt {:?}",
             m.lo(),
-            m.hi().expect("an upper end"),
-            m.hi().expect("an upper end") - m.lo(),
+            hi,
+            hi - m.lo(),
             m.receipt()
         );
-        widths.push(m.hi().expect("an upper end") - m.lo());
+        widths.push(hi - m.lo());
         // The goldening form is exact bits and is stable across
         // repeats: the same query twice is the same text.
         let again = neck

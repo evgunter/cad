@@ -308,9 +308,7 @@ fn lines_under(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) -> Option<Recipe
                 }
             }
             AssertionVerdict::Unevaluated {
-                reason:
-                    reason @ (UnevaluatedReason::Indeterminate { .. }
-                    | UnevaluatedReason::WindowSuperset { .. }),
+                reason: reason @ UnevaluatedReason::Indeterminate { .. },
             } => advisory_line(ui, row.depth, &reason.to_string(), theme),
             AssertionVerdict::Holds { .. } | AssertionVerdict::Violated { .. } => {}
         },
@@ -1053,7 +1051,9 @@ mod tests {
             Some(ValuePayload::MeasureUnavailable { reason, .. }) => *reason,
             other => panic!("the premise: `min_clearance` has no value at f64: {other:?}"),
         };
-        let MeasureUnavailableAt::NeedsEnclosure { door, .. } = unavailable;
+        let MeasureUnavailableAt::NeedsEnclosure { door, .. } = unavailable else {
+            panic!("the premise: at f64 the measure needs an enclosure: {unavailable:?}")
+        };
         let reason = unavailable.to_string();
         assert!(
             reason.contains(door),

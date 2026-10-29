@@ -1104,9 +1104,12 @@ class MeasureUnavailableAt(PncadError):
     """A measure whose answer is an ENCLOSURE, read at a build whose
     scalar is a point.
 
-    `variant` is `needs_enclosure`; `verb` is the primitive, `scalar`
-    the scalar this build ran at, and `door` the one that CAN answer —
-    the recourse rides in the refusal rather than in a reader's memory.
+    `variant` is `needs_enclosure`, or `no_upper_bound` where the
+    engine's bracket has a lower end only (reached only at a certified
+    scalar, which this binding does not evaluate at); `verb` is the
+    primitive, `scalar` the scalar this build ran at, and `door` the one
+    that CAN answer — the recourse rides in the refusal rather than in a
+    reader's memory.
 
     NOT MeasureUnavailable, whose name is one word away and whose
     question is a different one: that is the analysis lane refusing to

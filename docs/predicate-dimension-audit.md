@@ -255,8 +255,9 @@ retired (`bool_sector_*` / `split_sector_*`, unified to `sector_*` by
 # `decide` keeping the verdict for the refusal's words, so their sites
 # are rows of this table like any other; `gate_measured` is deliberately
 # absent — it classifies no margin and has no comparand to dimension.
-# The `_reported` doors and `check_unlogged` (the F18–F25 door) are
-# the same decisions keeping their verdict or leaving the log.
+# The `_reported` doors and `check_unlogged` (the F18–F25 door, the
+# one-margin case of `unlogged`, F28's) are the same decisions keeping
+# their verdict or leaving the log.
 grep -rnE '\b(decide|decide_reported|decide_flagged|decide_flagged_reported|decide_invariant|decide_positive|decide_negative|decide_nonzero|decide_nonzero_reported|decide_magnitude|decide_magnitude_reported|check_unlogged|check_residual|classify|classify_len|require_zero|require_extent|gap_is_zero|signed_is_zero)\s*(::<[^()]*>)?\s*\(' \
   crates/geom-brep/src crates/topo/src
 # behavioural half — what the committed baseline emitted
@@ -1421,6 +1422,35 @@ Flagged, NOT fixed here (dispositions):
   the reach the margin over-reads by `ρ/reach`, and every root there
   is outside the face. Filed as
   `work/inside/ray-cone-discriminant-under-reads-by-its-lead-coefficient.md`.
+- **F28** (added by CLEAR's TIGHTEN unit) `topo/src/clearance.rs`
+  `min_separation`, the region readings its walk takes
+  (`Bracket::outside`, `Bracket::witness`): a cell's region
+  (`cell_region`, the `cell_region_*` rows above) and a centre station's
+  place on its face (the face's point door, the `bool_contact_*` and
+  point-in-face rows). Every row keeps its own dimension; what this row
+  argues is why their outcomes stay out of the verdict log.
+  - Every outcome of every reading leaves a true bracket on the faces'
+    separation. A cell read `Outside` holds no point of its face, so the
+    pair drops out of the lower end; one read `Inside`, or a station
+    placed `In`, `OnEdge` or `OnVertex`, is a place on the face, so its
+    distance bounds the upper end; one the door cannot decide (`Zero`,
+    in band, poison) stays in the lower end and out of the upper. The
+    readings choose which pairs feed the bracket and decide nothing a
+    census must see.
+  - `min_separation` runs inside an evaluation, under the
+    `min_clearance` measure, at the interval lane only: the `f64`
+    witness answers `MeasureUnavailable`. Logged, its readings would be
+    rows in the leaf's vector that the witness's cannot have, and every
+    leaf would refuse `flip_crossing`; its in-band escalations would
+    hand the driver a cue to bisect that no smaller parameter box
+    answers (measured on M10-6's neck and notch fixtures: every call
+    carries 137–186 of them).
+
+  **Carried as `k_stats::unlogged("F28", ..)`**, the scoped door whose
+  one-margin case is `check_unlogged`: the readings' K samples keep
+  their predicate names, and their verdicts and escalations are
+  discarded. `MinSeparation::decided` counts them as a receipt line. Not
+  a `decide_flagged` site; `LEDGER_FLAGGED_SITES` does not move.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a

@@ -170,8 +170,8 @@ pub use mc::{
     monte_carlo, sample_offsets,
 };
 pub use measure::{
-    ASSERT_BOUND, AssertionRelation, AssertionVerdict, Certified, MeasurePrimitive,
-    MeasureUnavailableAt, MeasureVerb, MinClearanceOperand, UnevaluatedReason, WINDOW_TIGHTENING,
+    ASSERT_BOUND, AssertionRelation, AssertionVerdict, MeasurePrimitive, MeasureUnavailableAt,
+    MeasureVerb, MinClearanceOperand, UnevaluatedReason,
 };
 pub use meta::{MetaError, MetaInt, MetaValue, MetaVersionError, from_value, to_value};
 pub use mint::{Mint, MintId, Minted};
