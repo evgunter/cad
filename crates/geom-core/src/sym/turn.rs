@@ -37,9 +37,9 @@
 //! - A constant angle is reduced to the first octant: `qπ` modulo `2π`,
 //!   then `x − π` (both negate), `π − x` (the cosine negates), and
 //!   `π/2 − x` (the two swap), which leaves `q ∈ [0, 1/4]`, with the
-//!   sine at `π/4` spelled as its cosine. Where the value there is
-//!   rational (`0`, `±1/2`, `±1`) it folds; otherwise the atom is
-//!   minted over the form `q·π` itself. Every constant atom is
+//!   sine at `π/4` spelled as its cosine. At `q = 0` the value folds
+//!   (`0`, `1`); otherwise the atom is minted over the form `q·π`
+//!   itself, `sin(π/6)` included (below). Every constant atom is
 //!   therefore keyed by its angle in the first octant, as
 //!   [`Turns`](crate::Turns) reads an exact turn, and two spellings of
 //!   one value are one atom.
@@ -76,19 +76,28 @@
 //! The budget is what bounds that, and a term the rewrite cannot fit
 //! keeps its atoms, which is the conservative direction.
 //!
+//! # The deferred fold
+//!
+//! The rewrite is exact over the angles as group elements, each
+//! constant atom the real or imaginary part of its own `ζ = e^{iqπ}`,
+//! and folding
+//! `sin(π/6)`, the one first-octant atom whose value is rational, to
+//! `1/2` mid-walk would impose `ζ₆`'s relation on that element alone:
+//! `cos(2π/9) · cos(2π/3)` would be `−½ cos(2π/9)`, never the
+//! `½ cos(8π/9) + ½ cos(4π/9)` its neighbour's product meets, and a
+//! ring of 9 would leave the steps beside its members at a third of a
+//! turn. So `sin(π/6)` stays an atom, [`Turns`](crate::Turns) reads a
+//! twelfth's sine as that atom (`Real::sin_exactly_half`), and [`settle`]
+//! folds it to `1/2` where the walk's form is read: its output, and
+//! every argument but a ring op's (an atom's, a reciprocal's, a
+//! decision's), so a value read there is the value the fold gives.
+//!
 //! # What it does not reach
 //!
 //! The constant atoms are linearly independent of each other only up to
 //! the algebraic relations among the `cos(qπ)` (`cos(π/9) − cos(2π/9) =
 //! sin(π/18)`); a residual that vanishes only through such a relation
-//! keeps its atoms. A ring's step is an angle addition and needs none,
-//! EXCEPT where one factor of a product reached the tier already folded
-//! to its rational value: [`Turns`](crate::Turns) reads `cos(turn/3)`
-//! as the literal `−1/2`, so the product `cos(2π/9) · cos(2π/3)` is
-//! `−½ cos(2π/9)` and never the two atoms the rewrite would meet. A
-//! ring of 9 proves every member but the two at a third and two thirds
-//! of a turn (`sym`'s
-//! `a_ring_member_at_a_rational_cosine_beside_irrational_steps_is_numeric`).
+//! keeps its atoms. A ring's step is an angle addition and needs none.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -178,12 +187,17 @@ fn atom(sess: &mut Session, op: SymOp, arg: Form) -> Form {
     Form::poly(Poly::indet(id))
 }
 
+/// `sin`/`cos` at the angle `0`.
+fn at_zero(op: SymOp) -> Option<Form> {
+    Rat::new(i128::from(op == SymOp::Cos), 1, 0).map(|c| Form::poly(Poly::constant(c)))
+}
+
 /// `sin`/`cos` of the constant angle `(p/s)·π`: `0` or `1` at the
 /// angle `0`, else `±` its atom, `sin(π/6)` among them (module docs).
 fn constant(sess: &mut Session, op: SymOp, p: i128, s: i128) -> Option<Form> {
     let (op, p, s, neg) = first_octant(op, p, s)?;
     let f = if p == 0 {
-        Form::poly(Poly::constant(Rat::new(i128::from(op == SymOp::Cos), 1, 0)?))
+        at_zero(op)?
     } else {
         atom(sess, op, times(Rat::new(p, s, 0)?, INDET_PI))
     };
@@ -237,11 +251,7 @@ pub(super) fn settle(f: &Form, sess: &Session) -> Option<Form> {
 /// sign normalised, rule D's closed form asked first.
 fn symbolic(sess: &mut Session, op: SymOp, omega: &Form) -> Option<Form> {
     if omega.is_zero() {
-        return Some(Form::poly(Poly::constant(Rat::new(
-            i128::from(op == SymOp::Cos),
-            1,
-            0,
-        )?)));
+        return at_zero(op);
     }
     let flipped = omega.neg()?;
     let (arg, neg) = if flipped.digest() < omega.digest() {

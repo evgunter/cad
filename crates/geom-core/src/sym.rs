@@ -1966,7 +1966,7 @@ impl SymRules {
     /// | G, the canonical root (`canonical_root`, DECIDE-3) | the tilted derived boss certifies at both halves and both lifts and the tilt-`u` one outright; the link, the bracket and the pad gain theorems and the plate's ledger loses its `Early/Assertion` and `Door/Decision` freezes | the differential is `without_canonical_root`; the numbers live in the PR that shipped it and in [`root`] | **yes** |
     /// | G's exact quotient (`root_quotient`, DECIDE-4) | R1's boss at bulge 2 `1.0309e3 · ε` → **0.5024 / 0.7267 / 0.7271 of its REAL study** at ε = 1e-6 / 1e-9 / 1e-12, bounded by `dihedral_wedge` (a real margin), its `arc_span` 5/0/0/1 → 6/0/0/0; no other split moves at the nominal on the plate, bracket, annulus, link, both D-tabs or the two controls; it trades the split spelling `sqrt(N)/sqrt(D)` of a re-keyed root (no measured document moves on it) | one whole-box leaf, release, best of 3, off → on: plate 0.339 → 0.349 s, plate at its real study 0.342 → 0.346, annulus 0.364 → 0.364, bracket 3.81 → 3.82, link 19.4 → 19.3, pad 144.5 → 145.7, boss 0.245 → 0.250; every receipt but the boss's unmoved | **yes**, with the bracket, the pad and the link over the 1.6 s line either way |
     /// | the decision read (`decision_read`, DECIDE-3) | the frame's conditioning comparisons, which no form settles; it answers at its node, and a zero through its arm is a zero (its differential is [`Self::without_the_reads`]; on the tilted derived-frame family the end cap refuses at `newell_plane_residual` with the read off) | the deep enclosure runs at every `Select` and `min`/`max`; the pin suites' wall time is the cost row `work/decide/decision-read-triples-the-plate-pin-suites-wall-time` | **yes**, with that cost disclosed |
-    /// | H, angle sums (`angle_sum`, G) | a ring stepped by an exact `turn/N` proves every side seat at the door's 256 terms, `N ∈ {4, 5, 6, 8, 12, 16}` (0/12 at `N = 12` shut; a ring of 9 leaves the four seats beside its rational members, the limit [`turn`] states); at the nominal, `carrier_matches_mapped_source` gains 2 on the bracket (339 → 341), 8 on the link (174 → 182) and 4 on the literal D-tab (188 → 192), every other split on the eight documents unmoved; no ceiling moves | one whole-box leaf, release, best of 3, off → on (`without_angle_sum`): plate 0.170 → 0.203 s, bracket 1.695 → 1.672, annulus 0.136 → 0.143, pad 0.793 → 0.801, link 0.337 → 0.343, boss 0.186 → 0.200; M10-4's stackup hulls certify in one leaf as before | **yes** |
+    /// | H, angle sums (`angle_sum`, G) | a ring stepped by an exact `turn/N` proves every side seat at the door's 256 terms, `N ∈ {4, 5, 6, 8, 9, 12, 16, 24}`, the members at a rational cosine included (0/12 at `N = 12` shut); at the nominal, `carrier_matches_mapped_source` gains 2 on the bracket (339 → 341), 8 on the link (174 → 182) and 4 on the literal D-tab (188 → 192), every other split on the eight documents unmoved; no ceiling moves | one whole-box leaf, release, best of 3, off → on (`without_angle_sum`): plate 0.104 → 0.110 s, bracket 1.149 → 1.161, annulus 0.089 → 0.097, pad 0.521 → 0.547, link 0.231 → 0.234, boss 0.115 → 0.123; M10-4's stackup hulls certify in one leaf as before | **yes** |
     ///
     /// The pins in `m10_8_pins_interval.rs`, `m10_9_pins_interval.rs`
     /// and `m10_10_pins_interval.rs` hold each layer to what it
@@ -5298,10 +5298,10 @@ impl<T: Real> Real for Sym<T> {
         (self.unary(s, SymOp::Sin, 0), self.unary(c, SymOp::Cos, 0))
     }
 
-    /// The `Sin` node, valued `value`: the tier folds a constant angle
+    /// The `Sin` node, valued `1/2`: the tier folds a constant angle
     /// itself (`trig_at_rational_pi`, rule H's settle).
-    fn sin_known(self, value: f64) -> Self {
-        self.unary(self.value.sin_known(value), SymOp::Sin, 0)
+    fn sin_exactly_half(self) -> Self {
+        self.unary(self.value.sin_exactly_half(), SymOp::Sin, 0)
     }
 
     fn tan(self) -> Self {
@@ -6456,6 +6456,11 @@ mod tests {
                     (pi() * lit(7.0) / lit(5.0)).cos() + (pi() * lit(2.0) / lit(5.0)).cos(),
                 ),
                 decides_zero(c6 * c6 - lit(0.75)),
+                // `sin(π/6)` is an atom until the walk ends, and folds
+                // where it is read: at the output, and in an atom's
+                // argument.
+                decides_zero(turned(1, 12).0 - lit(0.5)),
+                decides_zero((lit(1.0) + turned(1, 3).1).sqrt() - lit(0.5).sqrt()),
                 // A rational-radian angle is symbolic, so its product with a
                 // constant atom is the split, left as it is.
                 decides_zero(
@@ -6465,12 +6470,14 @@ mod tests {
                 ),
             ]
         });
-        assert_eq!((out, counts.symbolic), ([true; 4], 4), "{counts:?}");
+        assert_eq!((out, counts.symbolic), ([true; 6], 6), "{counts:?}");
     }
 
     /// **Rule H proves no false angle sum**: `cos a cos b − sin a sin b`
-    /// against `cos(a − b)`, and member 10 of a ring of 12 against the
-    /// whole turn, are not the zero form.
+    /// against `cos(a − b)`, member 10 of a ring of 12 against the
+    /// whole turn, member 3 of a ring of 9 (at a rational cosine) turned
+    /// by a ninth against member 6 (at another), and `sin(π/6)` against
+    /// `1/3`, are not the zero form.
     #[test]
     fn rule_h_proves_no_false_angle_sum() {
         let (out, counts) = with_session_rules(budget(), SymRules::shipped(), || {
@@ -6479,12 +6486,15 @@ mod tests {
             let r = p("r", 2.0);
             let (s1, c1) = turned(1, 12);
             let (sk, ck) = turned(10, 12);
+            let ((s9, c9), (s3, c3), (_, c6)) = (turned(1, 9), turned(3, 9), turned(6, 9));
             [
                 decides_zero(ca * cb - sa * sb - (a - b).cos()),
                 decides_zero(ck * (r * c1) - sk * (r * s1) - r),
+                decides_zero(c9 * (r * c3) - s9 * (r * s3) - r * c6),
+                decides_zero(turned(1, 12).0 - Sym::from_f64(1.0) / Sym::from_f64(3.0)),
             ]
         });
-        assert_eq!((out, counts.symbolic), ([false; 2], 0), "{counts:?}");
+        assert_eq!((out, counts.symbolic), ([false; 4], 0), "{counts:?}");
     }
 
     /// MEASUREMENT (rule H's budget): a chain of `m` rotations about
