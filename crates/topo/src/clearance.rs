@@ -234,19 +234,48 @@ pub struct Side<'b, T: Real> {
 
 impl<'b, T: Decide + CertifiedBounds> Side<'b, T> {
     /// The side's faces read into carrier windows for [`Sweep::run`],
-    /// in the order of [`Self::faces`].
+    /// in the order of [`Self::faces`]. `which` is the side this one is
+    /// of its question, which a refusal names the face by.
     ///
     /// # Errors
     ///
     /// [`EngineRefusal::Unsupported`] for the first face whose carrier
     /// has no admitted window.
-    pub fn windows(&self) -> Result<Windows<'b, T>, EngineRefusal> {
+    pub fn windows(&self, which: Which) -> Result<Windows<'b, T>, EngineRefusal> {
         let of = self
             .faces
             .iter()
-            .map(|&k| window_of(self.body, k))
+            .map(|&k| window_of(self.body, k, which))
             .collect::<Result<_, _>>()?;
         Ok(Windows { of })
+    }
+}
+
+/// **Which side of a clearance question** a face of a refusal is on:
+/// the first [`Side`] the question names, or the second.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Which {
+    /// The first side.
+    First,
+    /// The second side.
+    Second,
+}
+
+impl Which {
+    /// The side's word in a payload.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::First => "first",
+            Self::Second => "second",
+        }
+    }
+
+    /// Of `sides`, the one this names.
+    pub fn of<S>(self, [first, second]: [S; 2]) -> S {
+        match self {
+            Self::First => first,
+            Self::Second => second,
+        }
     }
 }
 
@@ -263,6 +292,14 @@ pub struct Windows<'b, T: Real> {
 /// These are the arms the engine itself raises. A caller that resolves
 /// selections, folds leaves or checks the bound before it asks wraps
 /// them beside its own.
+///
+/// **A face is named by side.** In every arm that carries two faces,
+/// `a` is a face of the question's first [`Side`] and `b` of its
+/// second, and an arm that carries one face or one scope carries its
+/// [`Which`]. A `FaceKey` keys one body's arena, so two sides over two
+/// bodies routinely carry equal keys for different faces; the
+/// rendering ([`Self::say`]) names each face with its side, and a
+/// caller that knows what each side is names it there.
 #[derive(Debug, Clone, PartialEq)]
 pub enum EngineRefusal {
     /// A genuine semantic sliver: the deciding enclosure sits WHOLLY
@@ -274,13 +311,16 @@ pub enum EngineRefusal {
     },
     /// A budget was exhausted, typed and named.
     Budget(CellBudget),
-    /// A face whose carrier has no admitted window (E7: refuse typed,
-    /// never downgrade to sampling).
+    /// A face whose carrier the engine does not read (E7: refuse
+    /// typed, never downgrade to sampling): no admitted window, or, for
+    /// the injectivity question, no kind that makes it injective.
     Unsupported {
         /// The carrier class, named.
         carrier: &'static str,
         /// The face that carries it.
         face: FaceKey,
+        /// The side it is on.
+        side: Which,
     },
     /// A carrier enclosure that did not evaluate: the margin came back
     /// [`geom_core::MarginKind::Invalid`] (NaI, or an empty enclosure),
@@ -288,23 +328,26 @@ pub enum EngineRefusal {
     /// budget. Its own class so a reader is not sent looking for a
     /// bigger dial.
     PoisonEnclosure {
-        /// The first face of the pair.
+        /// The pair's face on the first side.
         a: FaceKey,
-        /// The second.
+        /// Its face on the second side.
         b: FaceKey,
     },
     /// A scope naming no face. `Holds` over an empty selection is
     /// vacuously true and useless; a caller that asked about nothing is
     /// told so.
-    EmptyScope,
+    EmptyScope {
+        /// The side whose scope it is (the first, when both are empty).
+        side: Which,
+    },
     /// A touching cell pair of the injectivity question that no local
     /// certificate discharged down to the depth floor, or that no arm
     /// can read at any depth: the two faces, the cell they share, and
     /// the arm that failed.
     Uncertified {
-        /// The first face of the pair.
+        /// The pair's face on the first side.
         a: FaceKey,
-        /// The second.
+        /// Its face on the second side.
         b: FaceKey,
         /// The cell of M the two cells touch through.
         shared: SharedCell,
@@ -317,7 +360,9 @@ pub enum EngineRefusal {
     CollapsedChart {
         /// The face.
         face: FaceKey,
-        /// The vertex the chart collapses to.
+        /// The side it is on.
+        side: Which,
+        /// The vertex of the face's body the chart collapses to.
         vertex: VertexKey,
     },
     /// A face on a torus not decided a ring (`R > r`): the carrier meets
@@ -325,6 +370,8 @@ pub enum EngineRefusal {
     TorusNotRing {
         /// The face.
         face: FaceKey,
+        /// The side it is on.
+        side: Which,
     },
     /// A cell pair the interval pass classified as a definite violation
     /// whose witness the caller's verifier did not confirm. The engine
@@ -350,15 +397,25 @@ impl EngineRefusal {
         match self {
             Self::Sliver { predicate } => (*predicate).to_owned(),
             Self::Budget(k) => format!("{k:?}"),
-            Self::Unsupported { carrier, face } => format!("{carrier} {face:?}"),
+            Self::Unsupported {
+                carrier,
+                face,
+                side,
+            } => format!("{carrier} {}={face:?}", side.name()),
             Self::WitnessUnverified { what } => what.clone(),
-            Self::PoisonEnclosure { a, b } => format!("{a:?}/{b:?}"),
+            Self::PoisonEnclosure { a, b } => format!("first={a:?} second={b:?}"),
             Self::Uncertified { a, b, shared, arm } => {
-                format!("{a:?}/{b:?} {} {}", shared.payload(), arm.name())
+                format!(
+                    "first={a:?} second={b:?} {} {}",
+                    shared.payload(),
+                    arm.name()
+                )
             }
-            Self::CollapsedChart { face, vertex } => format!("{face:?} {vertex:?}"),
-            Self::TorusNotRing { face } => format!("{face:?}"),
-            Self::EmptyScope => String::new(),
+            Self::CollapsedChart { face, side, vertex } => {
+                format!("{}={face:?} {vertex:?}", side.name())
+            }
+            Self::TorusNotRing { face, side } => format!("{}={face:?}", side.name()),
+            Self::EmptyScope { side } => side.name().to_owned(),
         }
     }
 
@@ -371,13 +428,96 @@ impl EngineRefusal {
             Self::Unsupported { .. } => "unsupported",
             Self::WitnessUnverified { .. } => "witness_unverified",
             Self::PoisonEnclosure { .. } => "poison_enclosure",
-            Self::EmptyScope => "empty_scope",
+            Self::EmptyScope { .. } => "empty_scope",
             Self::Uncertified { .. } => "uncertified",
             Self::CollapsedChart { .. } => "collapsed_chart",
             Self::TorusNotRing { .. } => "torus_not_ring",
         }
     }
+
+    /// **The refusal in words**, each face and scope named with its
+    /// side as `sides` names it: the first side's, then the second's.
+    pub fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        sides: [&dyn core::fmt::Display; 2],
+    ) -> core::fmt::Result {
+        let [first, second] = sides;
+        match self {
+            Self::Sliver { predicate } => write!(
+                f,
+                "the separation sits wholly inside {predicate}'s ambiguity band, so no \
+                 refinement can decide it"
+            ),
+            Self::Budget(CellBudget::Depth { max_cell_depth }) => write!(
+                f,
+                "a cell pair was split {max_cell_depth} times, the depth budget, and is still \
+                 undecided"
+            ),
+            Self::Budget(CellBudget::Pairs { max_cell_pairs }) => write!(
+                f,
+                "the query examined {max_cell_pairs} cell pairs, its budget, with pairs still \
+                 undecided"
+            ),
+            Self::Budget(CellBudget::Resolution) => f.write_str(
+                "a cell pair could not be bisected: its midpoint lands on an endpoint, so the \
+                 f64 grid itself is the bound",
+            ),
+            Self::Unsupported {
+                carrier,
+                face,
+                side,
+            } => write!(
+                f,
+                "the clearance engine cannot answer for face {face:?} of {}: it is {carrier}",
+                side.of(sides)
+            ),
+            Self::WitnessUnverified { what } => write!(
+                f,
+                "a violation the interval pass found was not confirmed by the verifier: {what}"
+            ),
+            Self::PoisonEnclosure { a, b } => write!(
+                f,
+                "the enclosure between face {a:?} of {first} and face {b:?} of {second} did \
+                 not evaluate, which is geometry, not a budget"
+            ),
+            Self::EmptyScope { side } => write!(
+                f,
+                "the scope of {} names no face, so there is nothing to measure",
+                side.of(sides)
+            ),
+            Self::Uncertified { a, b, shared, arm } => write!(
+                f,
+                "face {a:?} of {first} and face {b:?} of {second} touch through {}, and the \
+                 {} certificate did not discharge them",
+                shared.payload(),
+                arm.name()
+            ),
+            Self::CollapsedChart { face, side, vertex } => write!(
+                f,
+                "the chart of face {face:?} of {} collapses an edge to its vertex {vertex:?} \
+                 near a touching pair, and the monotone certificate reads no collapsed chart",
+                side.of(sides)
+            ),
+            Self::TorusNotRing { face, side } => write!(
+                f,
+                "face {face:?} of {} lies on a torus not decided a ring (R > r), so its \
+                 carrier meets itself",
+                side.of(sides)
+            ),
+        }
+    }
 }
+
+/// The refusal where no caller names the sides: the first side and
+/// the second.
+impl core::fmt::Display for EngineRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.say(f, [&"the first side", &"the second side"])
+    }
+}
+
+impl core::error::Error for EngineRefusal {}
 
 /// **A cell of the boundary complex two scopes share**: where a
 /// touching pair touches, and where two scopes that meet meet.
@@ -442,25 +582,38 @@ pub enum MinSeparationRefusal {
         carrier: &'static str,
         /// The face that carries it.
         face: FaceKey,
+        /// The side it is on.
+        side: Which,
     },
     /// [`EngineRefusal::PoisonEnclosure`].
     PoisonEnclosure {
-        /// The first face of the pair.
+        /// The pair's face on the first side.
         a: FaceKey,
-        /// The second.
+        /// Its face on the second side.
         b: FaceKey,
     },
     /// [`EngineRefusal::EmptyScope`].
-    EmptyScope,
+    EmptyScope {
+        /// The side whose scope it is (the first, when both are empty).
+        side: Which,
+    },
 }
 
 impl MinSeparationRefusal {
     /// The refusal as the engine's whole vocabulary spells it.
     pub fn engine(&self) -> EngineRefusal {
         match *self {
-            Self::Unsupported { carrier, face } => EngineRefusal::Unsupported { carrier, face },
+            Self::Unsupported {
+                carrier,
+                face,
+                side,
+            } => EngineRefusal::Unsupported {
+                carrier,
+                face,
+                side,
+            },
             Self::PoisonEnclosure { a, b } => EngineRefusal::PoisonEnclosure { a, b },
-            Self::EmptyScope => EngineRefusal::EmptyScope,
+            Self::EmptyScope { side } => EngineRefusal::EmptyScope { side },
         }
     }
 
@@ -474,6 +627,15 @@ impl MinSeparationRefusal {
         self.engine().name()
     }
 }
+
+/// [`EngineRefusal`]'s `Display`, for this arm.
+impl core::fmt::Display for MinSeparationRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        core::fmt::Display::fmt(&self.engine(), f)
+    }
+}
+
+impl core::error::Error for MinSeparationRefusal {}
 
 /// Which bound stopped the subdivision.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1045,7 +1207,15 @@ impl Sweep {
                 ) {
                     Ok(Sign::Positive) => receipt.discharged += 1,
                     Ok(Sign::Zero) if self.bound.zero_discharges() => receipt.discharged += 1,
-                    _ => {
+                    // An exact margin in the band: no refinement moves a
+                    // distance topology fixed at 0.
+                    Err(source) => {
+                        receipt.refused += 1;
+                        q.first_refusal.get_or_insert(EngineRefusal::Sliver {
+                            predicate: source.predicate.unwrap_or(self.bound.predicate()),
+                        });
+                    }
+                    Ok(Sign::Negative | Sign::Zero) => {
                         receipt.violated += 1;
                         let stations = meeting_stations(x, y, sh, cell, self.band);
                         match (q.verify)(Candidate {
@@ -2041,20 +2211,28 @@ pub fn min_separation<T: Decide + CertifiedBounds>(
     same_body: bool,
     budgets: Budgets,
 ) -> Result<MinSeparation, MinSeparationRefusal> {
-    if a.faces.is_empty() || b.faces.is_empty() {
-        return Err(MinSeparationRefusal::EmptyScope);
+    for (side, which) in [(a, Which::First), (b, Which::Second)] {
+        if side.faces.is_empty() {
+            return Err(MinSeparationRefusal::EmptyScope { side: which });
+        }
     }
     // **No cell is decided here**: this walk holds no band, so it asks
     // neither point-in-face door anything and keeps every cell of the
     // carrier rectangles.
     let narrow = |refusal| match refusal {
-        EngineRefusal::Unsupported { carrier, face } => {
-            MinSeparationRefusal::Unsupported { carrier, face }
-        }
+        EngineRefusal::Unsupported {
+            carrier,
+            face,
+            side,
+        } => MinSeparationRefusal::Unsupported {
+            carrier,
+            face,
+            side,
+        },
         other => unreachable!("`Side::windows` refuses only `Unsupported`, not {other:?}"),
     };
-    let wa = a.windows().map_err(narrow)?.of;
-    let wb = b.windows().map_err(narrow)?.of;
+    let wa = a.windows(Which::First).map_err(narrow)?.of;
+    let wb = b.windows(Which::Second).map_err(narrow)?.of;
     if same_body {
         for x in &wa {
             for y in &wb {
@@ -2475,8 +2653,15 @@ fn full_latitude() -> (f64, f64) {
 fn window_of<'b, T: Decide + CertifiedBounds>(
     body: &'b Body<T>,
     face: FaceKey,
+    side: Which,
 ) -> Result<Window<'b, T>, EngineRefusal> {
-    let unsupported = |carrier| Err(EngineRefusal::Unsupported { carrier, face });
+    let unsupported = |carrier| {
+        Err(EngineRefusal::Unsupported {
+            carrier,
+            face,
+            side,
+        })
+    };
     let Some(f) = body.get_face(face) else {
         return unsupported("an unreadable face");
     };
@@ -3201,7 +3386,7 @@ fn split_self<T: Real>(pair: CellPair, w: &Window<'_, T>) -> Option<[CellPair; 3
 #[allow(clippy::type_complexity)]
 pub struct ClearanceLane<T: Decide> {
     /// [`Side::windows`] (`wiring_rows` pins the pointer).
-    windows: for<'b> fn(&Side<'b, T>) -> Result<Windows<'b, T>, EngineRefusal>,
+    windows: for<'b> fn(&Side<'b, T>, Which) -> Result<Windows<'b, T>, EngineRefusal>,
     /// [`Sweep::run`], with the verifier's witness kept by the caller
     /// ([`ClearanceLane::sweep`]).
     bound_sweep: fn(
@@ -3235,8 +3420,8 @@ impl<T: Decide + CertifiedBounds> ClearanceLane<T> {
         }
     }
 
-    fn windows_of<'b>(side: &Side<'b, T>) -> Result<Windows<'b, T>, EngineRefusal> {
-        side.windows()
+    fn windows_of<'b>(side: &Side<'b, T>, which: Which) -> Result<Windows<'b, T>, EngineRefusal> {
+        side.windows(which)
     }
 
     fn sweep_of(
@@ -3260,8 +3445,12 @@ impl<T: Decide> ClearanceLane<T> {
     /// # Errors
     ///
     /// [`Side::windows`]'s own.
-    pub fn windows<'b>(self, side: &Side<'b, T>) -> Result<Windows<'b, T>, EngineRefusal> {
-        (self.windows)(side)
+    pub fn windows<'b>(
+        self,
+        side: &Side<'b, T>,
+        which: Which,
+    ) -> Result<Windows<'b, T>, EngineRefusal> {
+        (self.windows)(side, which)
     }
 
     /// [`Sweep::run`], at this lane: the verdict, receipt and widths are
@@ -3336,7 +3525,10 @@ mod wiring_rows {
     fn holds_the_certified_clearance_lane<T: super::Decide + geom_core::CertifiedBounds>()
     -> Result<(), &'static str> {
         let lane = ClearanceLane::<T>::certified();
-        if !std::ptr::fn_addr_eq(lane.windows, ClearanceLane::<T>::windows_of as fn(_) -> _) {
+        if !std::ptr::fn_addr_eq(
+            lane.windows,
+            ClearanceLane::<T>::windows_of as fn(_, _) -> _,
+        ) {
             return Err("windows is not `Side::windows`");
         }
         if !std::ptr::fn_addr_eq(

@@ -2382,13 +2382,13 @@ impl crate::spoken::Say for NodeErrorKind {
                 index,
                 source,
             } => write!(f, "{what} {index} failed to evaluate: {source}"),
+            // The engine's one rendering, its two sides the measure's
+            // operands.
             Self::MeasureClearanceRefused(refusal) => {
-                write!(f, "the clearance engine refused `{}`", refusal.name())?;
-                let payload = refusal.payload();
-                if !payload.is_empty() {
-                    write!(f, " ({payload})")?;
-                }
-                Ok(())
+                f.write_str("the clearance engine refused: ")?;
+                refusal
+                    .engine()
+                    .say(f, [&"the first operand", &"the second operand"])
             }
             Self::AssertionDimension { measured, bound } => write!(
                 f,

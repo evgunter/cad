@@ -18,7 +18,7 @@ use std::sync::Arc;
 use geom::{NurbsSurface, Surface};
 use geom_core::spline::{KnotVector, Knots};
 use geom_core::{Interval, Point3, Real, Tol};
-use topo::clearance::{EngineRefusal, Side};
+use topo::clearance::{EngineRefusal, Side, Which};
 use topo::construction::{Construct, FaceSurface, MefSite, MevSite};
 use topo::{AtRestPolicy, Body, FaceKey};
 
@@ -97,7 +97,7 @@ fn windows<T: AtRestPolicy + geom_core::CertifiedBounds>(
         body,
         faces: vec![face],
     }
-    .windows()
+    .windows(Which::First)
     .map(|_| ())
 }
 
@@ -107,8 +107,17 @@ fn refused_naming<T: AtRestPolicy + geom_core::CertifiedBounds>(
     what: &str,
 ) {
     match windows(body, face) {
-        Err(EngineRefusal::Unsupported { carrier, face: at }) => {
+        Err(EngineRefusal::Unsupported {
+            carrier,
+            face: at,
+            side,
+        }) => {
             assert_eq!(at, face, "the refusal names the face");
+            assert_eq!(
+                side,
+                Which::First,
+                "the refusal names the side it was read as"
+            );
             assert!(carrier.contains(what), "{carrier:?} names {what:?}");
         }
         other => panic!("expected a refusal naming {what:?}, got {other:?}"),
