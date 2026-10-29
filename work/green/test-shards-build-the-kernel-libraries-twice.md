@@ -210,10 +210,12 @@ class.
 | 40847689090 | 17.7 (12.5, slow) | 14.3 (11.7, slow) |
 | 40857713276 | 11.9 (8.6, fast) | 14.0 (11.5, slow) |
 | 40861550771 | 13.9 (9.9, fast) | 15.2 (12.6, slow) |
+| 40864140159 | 18.3 (13.0, slow) | 14.6 (12.0, slow) |
 
-- Kernel's build fell by about 1.2 min on a slow runner and 0.2–1.0
-  on a fast one. App's rose by 1.0–2.4 on slow runners (base 9.9–10.7).
-- The slower shard went from 18.9–19.4 to 17.7.
+- Kernel's build fell by 0.6–1.2 min on slow runners and 0.2–1.0 on
+  fast ones. App's rose by 1.0–2.4 on slow runners (base 9.9–10.7).
+- On slow runners the slower shard went from 18.9–19.4 to 17.7–18.3.
+  That is about a minute at TIER=all.
 - The TIER=all gap left is test runtime, not build. TIER=all runs every
   test at three ε, and kernel's runtime (4.6 min against app's 2.0)
   is half sweep's. No package move short of sweep's shifts it.
@@ -221,9 +223,10 @@ class.
   this change. It is filed on tint's
   `turn-defect-speed-sup-bound-sits-one-ulp-under-an-interval-sample-at-the-ceiling`.
 
-**Closure tier, estimated from those deltas.** Kernel ~13.4 and app
-~12.8–13.6 at the median, within a minute of each other, which is the
-balance criterion here. The estimate is from three runs; whether it
+**Closure tier, estimated from those deltas.** Kernel 13.2–13.8 and app
+12.4–13.8 at the median (14.4 and 11.4, with kernel's build −0.6 to
+−1.2 and app's +1.0 to +2.4), within a minute of each other, which is the
+balance criterion here. The estimate is from four runs; whether it
 holds is owed item 1 below.
 
 ## Owed, 2026-10-29
