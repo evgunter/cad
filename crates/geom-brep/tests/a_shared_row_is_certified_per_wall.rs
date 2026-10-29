@@ -988,3 +988,173 @@ fn a_shared_row_admits_only_row_images() {
         );
     }
 }
+
+// ---- review r1 rows, verbatim ----
+
+/// **Claim 2 (class a).** Walls tangent between the transversality
+/// samples (`y* = 0.19`, between 0.125 and 0.25) or at an end (never
+/// sampled). With `lean = 0` the upright folds back over the floor and its
+/// ruling at `y*` lies inside both charts: a second branch of the pair, a
+/// unit long, crossing the rim. The witness lane refuses every case (its
+/// tube's crossing-angle bound); the shared row certifies all but the
+/// sampled one, and D2's question recovers it.
+#[test]
+fn r1_a_shared_row_between_walls_tangent_off_the_samples_refuses() {
+    for (ys, lean) in [(0.19, 0.0), (0.19, 2.0), (0.0, 0.0), (1.0, 0.0), (0.5, 0.0)] {
+        let (pair, line, images) = tangent_at(ys, lean);
+        let witness = pair.certify(CurveSelector::Witness(line.eval(0.5)), &line, (0.0, 1.0));
+        assert!(witness.is_err(), "y* = {ys}: the witness lane refuses");
+        let got = pair.certify(shared(&pair, images), &line, (0.0, 1.0));
+        assert!(
+            got.is_err(),
+            "y* = {ys}, lean {lean}: walls tangent on the row certify as a transverse shared row"
+        );
+    }
+}
+
+/// **Claims 3 and (c).** A floor creased along its interior column
+/// `u = ½`, one sheet folded up to within `0.1 ε` of the upright `x = ½`:
+/// the certifier, which (unlike recovery) admits an interior row, reads
+/// one span's derivative at the crease, so its verdict depends on which
+/// side the hugging sheet is on. Mirror images must get one verdict.
+#[test]
+fn r1_a_creased_interior_row_reads_one_verdict_for_mirror_images() {
+    let p = |x, y, z| Point3::new(x, y, z);
+    let upright = bilinear([
+        p(0.5, 0.0, 0.0),
+        p(0.5, 0.0, 1.0),
+        p(0.5, 1.0, 0.0),
+        p(0.5, 1.0, 1.0),
+    ]);
+    let line = Curve3::Nurbs(Arc::new(
+        NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            vec![p(0.5, 0.0, 0.0), p(0.5, 1.0, 0.0)],
+            vec![1.0, 1.0],
+        )
+        .unwrap(),
+    ));
+    let images = [
+        Pcurve::IsoLine {
+            p0: geom_core::Point2::new(0.5, 0.0),
+            pl: geom_core::Vec2::new(0.0, 1.0),
+        },
+        Pcurve::IsoLine {
+            p0: geom_core::Point2::new(0.0, 0.0),
+            pl: geom_core::Vec2::new(1.0, 0.0),
+        },
+    ];
+    let s = 0.1 * eps();
+    let verdict = |left_up: bool| {
+        let col = |x: f64, z: f64| [p(x, 0.0, z), p(x, 1.0, z)];
+        let rows = if left_up {
+            [col(0.5 - s, 1.0), col(0.5, 0.0), col(1.0, 0.0)]
+        } else {
+            [col(0.0, 0.0), col(0.5, 0.0), col(0.5 + s, 1.0)]
+        };
+        let creased = Surface::Nurbs(Arc::new(
+            NurbsSurface::new(
+                KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap(),
+                KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+                rows.iter().flatten().copied().collect(),
+                vec![1.0; 6],
+            )
+            .unwrap(),
+        ));
+        let pair = Pair::of(creased, upright.clone());
+        pair.certify(shared(&pair, images.clone()), &line, (0.0, 1.0))
+            .is_ok()
+    };
+    assert_eq!(
+        verdict(false),
+        verdict(true),
+        "the crease's verdict depends on the span read"
+    );
+}
+
+// ---- re-review (PR 5959) probes ----
+
+/// A degree-2 clamped knot vector on `[s, s + 1]` with no interior knot.
+fn k2_at(s: f64) -> KnotVector {
+    KnotVector::clamped(vec![s, s, s, s + 1.0, s + 1.0, s + 1.0], 2).unwrap()
+}
+
+/// The floor `z = 0` over `x, y ∈ [0, 1]` and an upright on its `x = 1`
+/// side whose `v` direction is `(1, 0, y − y*)`: the walls are tangent at
+/// `y*` alone, and the upright crosses the floor's plane there (its
+/// crossing angle linear in `y − y*`, as on lily's edge 9). Both walls'
+/// `y` coordinate, and the line's parameter, run over `[s, s + 1]`: the
+/// same geometry, its charts read away from 0.
+fn swapping_at(ys: f64, s: f64) -> (Pair, Curve3<f64>, [Pcurve<f64>; 2]) {
+    let p = |x, y, z| Point3::new(x, y, z);
+    let floor = Surface::Nurbs(Arc::new(
+        NurbsSurface::new(
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            k2_at(s),
+            [0.0, 1.0]
+                .into_iter()
+                .flat_map(|x| [0.0, 0.5, 1.0].map(|y| p(x, y, 0.0)))
+                .collect(),
+            vec![1.0; 6],
+        )
+        .unwrap(),
+    ));
+    let mut control = Vec::new();
+    for y in [0.0, 0.5, 1.0] {
+        control.push(p(1.0, y, 0.0));
+        control.push(p(2.0, y, y - ys));
+    }
+    let upright = Surface::Nurbs(Arc::new(
+        NurbsSurface::new(
+            k2_at(s),
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            control,
+            vec![1.0; 6],
+        )
+        .unwrap(),
+    ));
+    let line = Curve3::Nurbs(Arc::new(
+        NurbsCurve3::new(
+            k2_at(s),
+            vec![p(1.0, 0.0, 0.0), p(1.0, 0.5, 0.0), p(1.0, 1.0, 0.0)],
+            vec![1.0; 3],
+        )
+        .unwrap(),
+    ));
+    let images = [
+        Pcurve::IsoLine {
+            p0: geom_core::Point2::new(1.0, 0.0),
+            pl: geom_core::Vec2::new(0.0, 1.0),
+        },
+        Pcurve::IsoLine {
+            p0: geom_core::Point2::new(0.0, 0.0),
+            pl: geom_core::Vec2::new(1.0, 0.0),
+        },
+    ];
+    (Pair::of(floor, upright), line, images)
+}
+
+/// **Re-review, claim 1: a crossing that vanishes where the cover's
+/// one-ulp nudge skips is still read.** Walls tangent at the row's start,
+/// at its end, and at a halving join (`y* = 3/16`, no sample), with both
+/// charts' row coordinate on `[s, s + 1]`: the same geometry as at `s = 0`
+/// (where every case refuses), but one ulp of the chart coordinate is now
+/// `s·2⁻⁵²`, wide enough that the margin just inside the nudge clears the
+/// band. `s` is the least power of two whose ulp is `1000 ε`.
+#[test]
+fn rr_a_tangency_the_ulp_nudge_skips_refuses() {
+    let s = 2f64.powi(52 + (1000.0 * eps()).log2().ceil() as i32);
+    for ys in [0.0, 1.0, 0.1875] {
+        let at_zero = {
+            let (pair, line, images) = swapping_at(ys, 0.0);
+            pair.certify(shared(&pair, images), &line, (0.0, 1.0))
+        };
+        assert!(at_zero.is_err(), "y* = {ys}, s = 0: refuses");
+        let (pair, line, images) = swapping_at(ys, s);
+        let got = pair.certify(shared(&pair, images), &line, (s, s + 1.0));
+        assert!(
+            got.is_err(),
+            "y* = {ys}, s = {s}: walls tangent on the row certify as transverse"
+        );
+    }
+}
