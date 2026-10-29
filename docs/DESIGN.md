@@ -331,11 +331,18 @@ witnesses; two spans' meetings; a curve's crossings of a surface).
 **Total**: a reading is one exhaustive match over its kind or kind
 pair. An unlisted arm refuses typed, naming what it lacks; no arm
 answers a default value; one method is fixed per arm at write time, and
-a second method for the same question exists only as a test oracle. A
-stage may precede the method only if it is total in kind, decides the
-same question soundly at the same band, and cannot change the verdict
-by which stage decided (a box cull before exact roots); a method
-reached because another declined is a fallback, and is forbidden.
+a second method for the same question exists only as a test oracle.
+A reading may be built of several stages, always run together in a
+fixed order, when together they decide one rule: the stages are the
+parts of one proof of that rule, not a list of heuristics tried in turn,
+and each stage decides soundly at the reading's band. A box cull before
+exact roots is such a stage. So is the interior-loop guard's loop-free
+test before C3's whole reading of a plane × spline section: the rule is
+that no closed loop of the section lies inside both faces, which the
+test proves where it holds and the whole reading proves or refuses
+where it does not. What is forbidden is a method that decides a
+different rule, a second and similar predicate for the same fact,
+reached because the first declined: that is a fallback.
 **One**: each question has one reading, which every consumer reads,
 because two readings of one fact are two predicates that can decide it
 differently inside the band ([tolerance]). An outcome takes the pose reading's
@@ -793,13 +800,16 @@ tiers".
      Euler-reachable state, construction scaffolding included; what each
      operator asserts.
   2. **Tier 2, closed solid:** tier 1, with no empty loops, no
-     valence-1 vertices and one connected component per shell.
+     valence-1 vertices but a wrap edge's tip, and one connected
+     component per shell.
   3. **Tier 3, geometric:** tier 2, with every derived cache within ε
      of its description ([tolerance.residuals]); the **material wedge**
      at every edge in (0, 2π), its ends (a cusp, a knife slit) legal
      only where the tangency is jet-determinate; **maximal edges** (no
-     joinable vertex at rest); **prefer-intrinsic** descriptions
-     ([edges]); and the **orientation invariant**, a solid's faces
+     joinable vertex at rest); **chart singularities as vertices**
+     (every one in a face's closure is a vertex of it, and every wrap
+     edge's tip lies on its face's chart singularity);
+     **prefer-intrinsic** descriptions ([edges]); and the **orientation invariant**, a solid's faces
      leaving infinity outside it, read by the one reader of a shell's
      role ([coincidence.booleans]). A zero-volume lamina is a geometric
      defect.
@@ -899,7 +909,8 @@ tiers".
   and every door that finishes a body ends with the join. A body is
   then the unique complex with maximal faces and maximal edges over its
   face partition, up to the position of each closed edge's
-  conventional vertex, and the form is checked at rest on the result
+  conventional vertex and the place of each wrap edge that reaches a
+  chart singularity, and the form is checked at rest on the result
   alone. Within one n-ary operator, member order is not precedence: the
   written order decides only which description a glued face keeps and
   which fold step a refusal names, and an order that refuses where
@@ -907,7 +918,14 @@ tiers".
   **never fuses two vertices into one**; the record carry rests on it.
 - **A seam is a property of a face**, not a place on its surface, and a
   wall keeps the cuts its author wrote: the kernel adds none, except
-  where a face or edge carrier is not C¹ by its knot structure.
+  where a face or edge carrier is not C¹ by its knot structure, and at
+  a chart singularity (a sphere's pole, a cone's apex), which is a
+  vertex of every face whose closure holds it. Where no edge the author
+  wrote reaches that vertex, the kernel adds one wrap edge to it, and
+  only one: the singularity is that edge's tip, where the face's loop
+  walks the edge out and back, and the edge's place round the axis is
+  conventional, like a seam's. The join never removes a cut either
+  exception requires.
 
 **The frontier is typed and named.** Every unbuilt case refuses with a
 message naming its own blocker ([failure.taxonomy], row 2), so the

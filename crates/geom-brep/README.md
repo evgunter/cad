@@ -515,11 +515,29 @@ pass walks all eight faces as limb 3 walks a box's
 (`ssi::four::face_roots`), each solution it isolates settled onto both
 surfaces with its face's coordinate held, or refused
 `SsiError::EndNotOnLocus`; those are the crossings, the only ends an
-open branch has. A face the walk does not resolve within its pieces —
-the section touching or running along a side, or through a corner, of
-either rectangle — refuses `SsiError::PairBoundaryUnresolved`: this
-lane reports no `Side` or `Corner` region. Its two readings are one
-contract. `branch_at(seed)` settles the seed's feet on both charts
+open branch has. The lane reports the two boundary regions the
+plane × NURBS lane does, each built from a solution handed to the
+reading as known, because the lane has no parameter inverse to find a
+side's image on the other chart:
+- **A `Side` region** comes from a shared row: a row of both charts
+  that the caller hands in with its two certified images. The region
+  is the row's cover, a chain of boxes along the row, each wide enough
+  across it to hold the accounting floor's cells beside it, over which
+  the pair's crossing reading (`graph_margin`, `ssi::row_crossing` at
+  that width) is zero-free. Each slice across the row then holds at
+  most one solution, and the row is that solution. Its cells are
+  contact cells in the accounting.
+- **A `Corner` region** comes from a shared vertex at a corner of both
+  rectangles. The reading certifies the crossing reading zero-free
+  over the corner cell, and reads the signs of the direction the
+  section leaves along there, as the plane lane reads a corner's
+  inward partials: either the section leaves the domain (an isolated
+  point), or a branch starts there.
+
+A face the walk does not resolve within its pieces and that no handed-in
+row or vertex covers (the section touching or running along a side, or
+through a corner, of either rectangle) refuses
+`SsiError::PairBoundaryUnresolved`. Its two readings are one contract. `branch_at(seed)` settles the seed's feet on both charts
 onto the section by Newton (outside either rectangle it refuses
 `SeedOffDomain`; where the surfaces are tangent, by the march's
 transversality decision); a seed inside a tube already certified is
@@ -818,8 +836,20 @@ axis-parallel pose off the axis the `Spiric`) (rung 2); cylinder×sphere,
 sphere×torus, cylinder×torus, torus×torus, plane×NURBS and plane×`Approx`,
 NURBS×NURBS and every pairing of `Approx` with NURBS or `Approx` (rung 3). The offset door reads
 plane×NURBS through `PlaneSection::branch_at` and NURBS×NURBS through
-`Section::branch_at`, each at the old edge's middle; the whole-section
-readings a boolean takes are their `all()`, which no boolean reads yet.
+`Section::branch_at`, each at the old edge's middle. The boolean reads
+plane × NURBS and NURBS × NURBS (and `Approx` as its fit) through the
+section value, built from the whole-section reading `all()`:
+- each closed branch is a loop component, with its witness and carrier;
+- each open branch, `Side` region and `Corner` region is a component
+  that reaches its chart's boundary;
+- a refusal maps by name, tangency and grazes to tangent, and an
+  unclosed accounting to intractable, carrying its cause.
+
+A component that reaches its chart's boundary is not interior to the
+face. A point of the rectangle's side that lies in the face lies on one
+of the face's pcurves (C4), which is an edge of the face. So the
+interior-loop guard clears such a component as it clears an unbounded
+one.
 The boolean reads the rung-3 arms cylinder×sphere and the three torus
 pairs through the section value (`pair_section`: the pair's pose
 decided once, its components, and its loops marched and fitted at
