@@ -487,8 +487,8 @@ enum RingClosure<T: geom_core::Real> {
     /// plane, on the face's chart; a sphere's, a cone's or a torus's by
     /// the segment's curve.
     Wall((Point3<T>, UnitVec3<T>)),
-    /// A cylinder or sphere face, closed by the segment's curve, a
-    /// carried chord ([`GermLane::Carried`]).
+    /// A cylinder, sphere or torus face, closed by the segment's curve,
+    /// a carried chord ([`GermLane::Carried`]).
     Chord,
     /// A segment along an edge of this solid (the named operand), of
     /// both solids or of this one alone, reads no section on this side:
@@ -512,7 +512,7 @@ enum IslandClosing<'a, T: geom_core::Real> {
     /// an arc of a plane section or a cone's ruling
     /// ([`crate::chord_join::path_island_winding`]).
     Quadric(&'a SegmentCurve<T>),
-    /// A cylinder or sphere face closed by a carried chord, whose run may
+    /// A cylinder, sphere or torus face closed by a carried chord, whose run may
     /// hold earlier carried chords: closed by the chord's arc with its
     /// evidence of lying on the face
     /// ([`crate::chord_join::path_island_winding_closed_by`]).
@@ -5011,7 +5011,7 @@ fn ring_order<T: Decide>(
 /// closed along the plane this solid's chords lie in; a sphere, cone or
 /// torus face ([`IslandClosing::Quadric`]) asks it without a chart,
 /// [`crate::chord_join::path_island_winding`], closed by the curve, and
-/// a carried chord's cylinder or sphere face
+/// a carried chord's cylinder, sphere or torus face
 /// ([`IslandClosing::Carried`]) the same, closed by the chord's arc.
 fn ring_run_ccw<T: crate::props::AtRestPolicy>(
     (body, operand): (&Body<T>, Operand),
