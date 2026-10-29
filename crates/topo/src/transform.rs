@@ -589,6 +589,28 @@ pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
     Ok(out)
 }
 
+/// The chart image `image` on `surface` of `body` under a map of `hand`:
+/// itself under a proper map, whose mapped surface carries the whole map,
+/// and reflected with its chart under an improper one.
+fn mapped_image<T: Real>(
+    body: &Body<T>,
+    surface: geom_brep::SurfaceKey,
+    image: &geom_brep::Pcurve<T>,
+    hand: Hand,
+) -> Result<geom_brep::Pcurve<T>, TransformError> {
+    match hand {
+        Hand::Proper => Ok(image.clone()),
+        Hand::Improper => {
+            let class = body.surfaces.get(surface).map(OrientationClass::of).ok_or(
+                TransformError::Corrupt {
+                    found: "a chart image lies on a missing surface",
+                },
+            )?;
+            reflected_image(image, class)
+        }
+    }
+}
+
 /// **An edge's chart image under a reflection, in the inside-out
 /// image's own terms** ([`map_isometry`] at [`Hand::Improper`]).
 ///
@@ -755,9 +777,28 @@ pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
             // Re-mint (module docs above): construction-fresh witness
             // from the MAPPED carrier at the pinned mid parameter
             // (params are transform-invariant).
-            EdgeDescription::Intersection { pair, .. } => EdgeDescriptionSpec::Intersection {
+            EdgeDescription::Intersection { pair, selector } => EdgeDescriptionSpec::Intersection {
                 pair: *pair,
-                witness: carrier.mid_point(param_start, param_end),
+                selector: match selector {
+                    witness @ geom_brep::CurveSelector::Witness(_) => {
+                        witness.repinned(&carrier, param_start, param_end)
+                    }
+                    // Each wall's row maps as a chart image does.
+                    geom_brep::CurveSelector::Structural(geom_brep::Structural::SharedRow(row)) => {
+                        let [ka, kb] = pair.keys();
+                        let mapped = |k| -> Result<_, TransformError> {
+                            let image = row.image_on(*pair, k).ok_or(TransformError::Corrupt {
+                                found: "a shared row names a surface outside its pair",
+                            })?;
+                            Ok((k, mapped_image(body, k, image, hand)?))
+                        };
+                        let row = geom_brep::SharedRow::new(*pair, mapped(ka)?, mapped(kb)?)
+                            .ok_or(TransformError::Corrupt {
+                                found: "a shared row's mapped image is no row",
+                            })?;
+                        geom_brep::CurveSelector::Structural(geom_brep::Structural::SharedRow(row))
+                    }
+                },
             },
             // TangentIntersection maps as Intersection does: keys are
             // stable, the witness re-mints from the mapped carrier.
@@ -785,17 +826,7 @@ pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
             // The authority record travels with the map, because a
             // sketch pushforward is stated in 3-space.
             EdgeDescription::Chart(c) => {
-                let class = body
-                    .surfaces
-                    .get(c.surface)
-                    .map(OrientationClass::of)
-                    .ok_or(TransformError::Corrupt {
-                        found: "a chart image lies on a missing surface",
-                    })?;
-                let image = match hand {
-                    Hand::Proper => c.pcurve.clone(),
-                    Hand::Improper => reflected_image(&c.pcurve, class)?,
-                };
+                let image = mapped_image(body, c.surface, &c.pcurve, hand)?;
                 let chart = EdgeDescriptionSpec::Chart {
                     surface: c.surface,
                     image: Some(image),

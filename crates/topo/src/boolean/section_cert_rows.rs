@@ -1268,7 +1268,7 @@ fn full_rim(
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(cyl, rim_plane),
-            witness: p(-1.0, 0.0, z),
+            selector: geom_brep::CurveSelector::Witness(p(-1.0, 0.0, z)),
         },
         carrier: Curve3::Circle {
             center: p(0.0, 0.0, z),
@@ -1659,7 +1659,7 @@ fn sphere_cut(c: Point3<f64>, k: Vec3<f64>) -> (Body<f64>, [FaceKey; 2], Surface
     let rim = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(key, cut_plane),
-            witness: c - u_ref * rho,
+            selector: geom_brep::CurveSelector::Witness(c - u_ref * rho),
         },
         carrier: Curve3::Circle {
             center: c,
@@ -1865,7 +1865,7 @@ fn cone_bow_tie() -> (Body<f64>, FaceKey, FaceKey) {
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(cone, rim_plane),
-                witness: rim_at(0.5 * (t0 + t1)),
+                selector: geom_brep::CurveSelector::Witness(rim_at(0.5 * (t0 + t1))),
             },
             carrier: Curve3::Circle {
                 center: p(0.0, 0.0, 1.0),
@@ -2094,7 +2094,7 @@ pub(super) fn cone_sheet(start: Point3<f64>, steps: &[Step]) -> (Body<f64>, Face
                 let spec = EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
                         pair: SurfacePair::new(cone, rim_plane),
-                        witness: cone_at(h, 0.5 * (t0 + t1)),
+                        selector: geom_brep::CurveSelector::Witness(cone_at(h, 0.5 * (t0 + t1))),
                     },
                     // A descending arc runs forward on the reversed
                     // axis, its seam moved to `t0`.
@@ -2278,7 +2278,7 @@ fn torus_iso(
     EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(torus, cut),
-            witness: torus_at((major, minor), mid),
+            selector: geom_brep::CurveSelector::Witness(torus_at((major, minor), mid)),
         },
         carrier: Curve3::Circle {
             center,

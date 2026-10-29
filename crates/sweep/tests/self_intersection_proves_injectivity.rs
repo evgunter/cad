@@ -511,8 +511,8 @@ fn clearance_between_scopes_sharing_an_edge_is_violated_at_zero() {
         "named on the shared edge: {met:?}"
     );
     assert_eq!(CLEARANCE_MARGIN, bound.predicate());
-    let m = min_separation(&sa, &sb, true, Budgets::MIN_SEPARATION).unwrap();
-    assert_eq!((m.lo(), m.window_hi()), (0.0, 0.0), "{}", m.render());
+    let m = min_separation(&sa, &sb, true, band(), Budgets::MIN_SEPARATION).unwrap();
+    assert_eq!((m.lo(), m.hi()), (0.0, Some(0.0)), "{}", m.render());
     let meets = m.meets().expect("the scopes meet");
     assert!(matches!(meets.shared, SharedCell::Edge(_)), "{meets:?}");
 }

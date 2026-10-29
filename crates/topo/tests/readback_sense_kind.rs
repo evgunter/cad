@@ -288,7 +288,7 @@ fn nurbs_edge() -> (Body<f64>, EdgeKey) {
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(s1, s2),
-                witness: carrier.eval(0.5),
+                selector: geom_brep::CurveSelector::Witness(carrier.eval(0.5)),
             },
             carrier,
             param_start: 0.0,
