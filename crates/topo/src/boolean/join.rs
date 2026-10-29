@@ -4548,8 +4548,9 @@ enum Faced<T: geom_core::Real> {
 /// germ's foot and heading are its own, read once for the operation
 /// ([`super::section_table::SectionTable::germ_foot`]); both germs are
 /// A's halves, the B halves at their slots being mirror checks
-/// ([`partners`]). Two germs on
-/// different components, or leaving the same way, never face. A closed component is travelled round; on an
+/// ([`partners`]). Two germs whose branches name different
+/// components, as [`facing`] reads them, or leaving the same way, never
+/// face. A closed component is travelled round; on an
 /// open one the partner's foot must lie ahead. `Along` carries the
 /// carrier's parameter from `g1`'s foot to `g2`'s, the way `g1` leaves.
 ///
@@ -4565,6 +4566,9 @@ fn along_facing<T: Decide>(
     band: Band,
 ) -> Result<Faced<T>, BooleanError> {
     use super::section_table::{FootRefusal, GermFoot};
+    if g1.branch != g2.branch {
+        return Ok(Faced::Apart);
+    }
     let desync = |what| BooleanError::JoinDesync { what };
     let read = |germ: &HalfGerm<T>, p| -> Result<GermFoot<T>, FootRefusal> {
         let foot = section.foot(p, band).map_err(FootRefusal::Site)?;
@@ -4603,7 +4607,7 @@ fn along_facing<T: Decide>(
             })
     };
     let ((f1, up1), (f2, up2)) = (foot(g1, p1)?, foot(g2, p2)?);
-    if f1.component != f2.component || up1 == up2 {
+    if up1 == up2 {
         return Ok(Faced::Apart);
     }
     let component = &section.components()[f1.component];
