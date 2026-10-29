@@ -305,6 +305,24 @@ pub enum StepImportError {
         /// The graft's error, displayed.
         source: Box<topo::BooleanError>,
     },
+    /// A face chart or edge carrier with an interior C⁰ knot that the
+    /// import door's split cannot place (`crate::knot_split`): every
+    /// face chart and edge carrier is C¹ by its knot structure strictly
+    /// inside its cell (`docs/DESIGN.md` [topology]). The split of a
+    /// face needs the knot's iso line to part its single loop at two
+    /// points of its boundary, one chain on each sub-patch; the split
+    /// of an edge needs its knot vertex to be one the closing join
+    /// keeps. The refusal names the face, the knot and which part of
+    /// that shape is missing.
+    C0KnotUnsplit {
+        /// The `ADVANCED_FACE` entity instance: the face whose chart
+        /// holds the knot, or the least face the edge bounds.
+        face: u64,
+        /// The crease knot's value, in the carrier's own parameter.
+        knot: f64,
+        /// What the split lacks (static description).
+        what: &'static str,
+    },
     /// The adopted body failed the kernel's shared at-rest validation
     /// gate (M7-7, the #260 ruling (a)): `topo::validate_geometric` —
     /// tiers 1–3, the SAME function on the SAME body that a native
@@ -455,6 +473,13 @@ impl fmt::Display for StepImportError {
                 f,
                 "step import: pcurve re-mint on the adopted body: {}",
                 source.render(*file)
+            ),
+            Self::C0KnotUnsplit { face, knot, what } => write!(
+                f,
+                "step import: face #{face}: a B-spline carrier on it has a C⁰ knot at {knot:e}, \
+                 where the import splits its cell so that no cell carries a crease, and the \
+                 split cannot be placed: {what} \
+                 (work/exch/the-c0-knot-split-refuses-what-it-cannot-place.md)"
             ),
             Self::TierInvalid { solid, errors } => {
                 // Both forms of each verdict: the Debug shape names

@@ -834,6 +834,47 @@ fn iso_curve_candidates(
             }
         }
     }
+    // The `v` boundary rows, after every `u` column, between two
+    // spline walls only: the bitwise arm again, on the row a split
+    // along `v` shares between two sub-patches (`crate::knot_split`).
+    // Beside an analytic face such a row takes the intersection rung,
+    // as it always has. The row's own parameter is the chart's `u`, so
+    // the image is the line `v = const` the carrier runs along.
+    let Curve3::Nurbs(ref nurbs_carrier) = spec.carrier else {
+        return Ok(());
+    };
+    let spline = |k: topo::SurfaceKey| matches!(body.get_surface(k), Some(Surface::Nurbs(_)));
+    if fs_plus == fs_minus || !spline(fs_plus) || !spline(fs_minus) {
+        return Ok(());
+    }
+    for end in [false, true] {
+        for &wall in walls {
+            let Some(Surface::Nurbs(wp)) = body.get_surface(wall) else {
+                continue;
+            };
+            if wp.is_placeholder() {
+                continue;
+            }
+            let row = geom_brep::boundary_iso_v(wp.as_ref(), end)?;
+            if !bitwise_iso_match(nurbs_carrier, &row) {
+                continue;
+            }
+            let (dv0, dv1) = wp.knots_v_f64_interim().domain();
+            let v = if end { dv1 } else { dv0 };
+            let (u0, u1) = wp.knots_u_f64_interim().domain();
+            let slope = (u1 - u0) / (spec.t1 - spec.t0);
+            candidates.push((
+                AdoptionCandidate::IsoCurve,
+                EdgeDescriptionSpec::chart_image(
+                    wall,
+                    geom_brep::Pcurve::IsoLine {
+                        p0: geom_core::Point2::new(u0 - slope * spec.t0, v),
+                        pl: geom_core::Vec2::new(slope, 0.0),
+                    },
+                ),
+            ));
+        }
+    }
     Ok(())
 }
 

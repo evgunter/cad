@@ -497,7 +497,7 @@ const NIST09_STOPGAP: &str = "mapped curve: geometry attachment gate: the start-
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`
 /// rows are `step-export`'s corpus, which this crate imports from).
-const CORPUS: [(&str, Disposition); 78] = [
+const CORPUS: [(&str, Disposition); 81] = [
     ("tests/fixtures/band/band_a.stp", Pass(1, 1, 2, 4, 2)),
     ("tests/fixtures/band/band_a180.stp", Pass(1, 1, 2, 4, 2)),
     ("tests/fixtures/band/band_b180.stp", Pass(1, 1, 2, 4, 2)),
@@ -516,6 +516,15 @@ const CORPUS: [(&str, Disposition); 78] = [
     ("tests/fixtures/band/ftc11_uref_off.stp", EpsSensitive),
     ("tests/fixtures/band/washer180.stp", Pass(1, 1, 3, 3, 2)),
     ("tests/fixtures/band/washer90.stp", Pass(1, 1, 3, 3, 2)),
+    // The C⁰-knot split: the top wall is two sub-patches and each ridge
+    // edge two sub-arcs (`a_foreign_carrier_splits_at_each_c0_knot`);
+    // a knot on an edge alone refuses typed.
+    ("tests/fixtures/c0-knot/ridge_u.step", Pass(1, 1, 7, 15, 10)),
+    ("tests/fixtures/c0-knot/ridge_v.step", Pass(1, 1, 7, 15, 10)),
+    (
+        "tests/fixtures/c0-knot/seam_edge.step",
+        Refused("which the import's closing join would take back"),
+    ),
     ("tests/fixtures/freecad/box.step", Pass(1, 1, 6, 12, 8)),
     (
         "tests/fixtures/freecad/box_fillet_corner.step",

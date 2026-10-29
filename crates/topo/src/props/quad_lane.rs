@@ -1202,9 +1202,9 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
         perimeter += len;
         boundary_defect += len * Interval::from_certified(cache.certificate().envelope).mag();
     }
-    // The rectangle certificate: hull of the traversal polygon,
-    // every vertex on a corner, and the shoelace equal to ±the
-    // rectangle area — the sign IS the S10 winding.
+    // The rectangle certificate: hull of the traversal polygon, every
+    // vertex on its boundary, and the polygon walking that boundary
+    // once — the direction IS the S10 winding.
     let (mut u0, mut u1) = (f64::INFINITY, f64::NEG_INFINITY);
     let (mut v0, mut v1) = (f64::INFINITY, f64::NEG_INFINITY);
     for &(x, y) in &polygon {
@@ -1213,12 +1213,8 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
         v0 = v0.min(y);
         v1 = v1.max(y);
     }
-    let mut shoelace = 0.0f64;
-    for i in 0..polygon.len() {
-        let (xa, ya) = polygon[i];
-        let (xb, yb) = polygon[(i + 1) % polygon.len()];
-        shoelace += xa * yb - xb * ya;
-        if (xa != u0 && xa != u1) && (ya != v0 && ya != v1) {
+    for &(x, y) in &polygon {
+        if (x != u0 && x != u1) && (y != v0 && y != v1) {
             return Err(PropsError::QuadratureUnsupported {
                 what: "a NURBS-face boundary vertex sits strictly inside the UV \
                        rectangle — a re-entrant trim is outside the rectangle lane \
@@ -1226,19 +1222,13 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
             });
         }
     }
-    shoelace *= 0.5;
-    let rect_area = (u1 - u0) * (v1 - v0);
-    let winding = if shoelace == rect_area {
-        1.0
-    } else if shoelace == -rect_area {
-        -1.0
-    } else {
-        return Err(PropsError::QuadratureUnsupported {
+    let winding = rectangle_winding(&polygon, (u0, u1, v0, v1)).ok_or(
+        PropsError::QuadratureUnsupported {
             what: "the NURBS-face boundary does not traverse its UV rectangle exactly \
-                   once (shoelace ≠ ±rectangle area) — a trimmed or multiply-wound \
-                   region is outside the rectangle lane (the cut-loft unit's)",
-        });
-    };
+                   once — a trimmed or multiply-wound region is outside the rectangle \
+                   lane (the cut-loft unit's)",
+        },
+    )?;
     let control = about(
         payload
             .control()
@@ -1276,6 +1266,68 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
         flux: if winding < 0.0 { -b.flux } else { b.flux },
         area: b.area,
     }))
+}
+
+/// Whether `polygon`, every vertex on the boundary of the rectangle
+/// `(u0, u1, v0, v1)`, walks that boundary exactly once: `+1.0`
+/// counter-clockwise, `−1.0` clockwise, `None` otherwise. Read by
+/// comparisons alone, so a rectangle whose sides are not dyadic (a
+/// sub-patch at a knot of `1/9`) certifies as exactly as `[0, 1]²`,
+/// which a shoelace in `f64` cannot promise.
+///
+/// Each vertex has a place on the counter-clockwise perimeter: its
+/// side (bottom, right, top, left) and its coordinate along that side.
+/// A once-around walk steps along one side at a time, every step
+/// forward in that order (or every step backward), and passes each
+/// corner once, so its places wrap round exactly once.
+fn rectangle_winding(polygon: &[(f64, f64)], (u0, u1, v0, v1): (f64, f64, f64, f64)) -> Option<f64> {
+    if polygon.len() < 4 || u0 >= u1 || v0 >= v1 {
+        return None;
+    }
+    // The place on the counter-clockwise perimeter, as a side and a
+    // coordinate increasing along it. A corner takes the side it
+    // starts.
+    let place = |(x, y): (f64, f64)| -> (u8, f64) {
+        if y == v0 && x != u1 {
+            (0, x)
+        } else if x == u1 && y != v1 {
+            (1, y)
+        } else if y == v1 && x != u0 {
+            (2, -x)
+        } else {
+            (3, -y)
+        }
+    };
+    let on_side = |(x, y): (f64, f64), side: u8| match side {
+        0 => y == v0,
+        1 => x == u1,
+        2 => y == v1,
+        _ => x == u0,
+    };
+    let n = polygon.len();
+    let (mut forward, mut backward) = (0usize, 0usize);
+    for i in 0..n {
+        let (a, b) = (polygon[i], polygon[(i + 1) % n]);
+        // A step runs along one side: the two vertices share it.
+        if !(0..4).any(|side| on_side(a, side) && on_side(b, side)) {
+            return None;
+        }
+        let (pa, pb) = (place(a), place(b));
+        match pa.partial_cmp(&pb)? {
+            core::cmp::Ordering::Less => forward += 1,
+            core::cmp::Ordering::Greater => backward += 1,
+            core::cmp::Ordering::Equal => return None,
+        }
+    }
+    // Once round counter-clockwise: every step forward but the one
+    // that wraps past the start; clockwise, the mirror.
+    if backward == 1 && forward == n - 1 {
+        Some(1.0)
+    } else if forward == 1 && backward == n - 1 {
+        Some(-1.0)
+    } else {
+        None
+    }
 }
 
 /// A certified UPPER bound on a trim carrier's METRIC length, in

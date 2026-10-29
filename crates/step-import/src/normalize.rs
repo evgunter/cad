@@ -285,6 +285,7 @@ pub(crate) fn normalize_shell(
     mint: &mut dyn FnMut() -> u64,
     sink: &mut Vec<StructureNormalization>,
 ) -> Result<(), StepImportError> {
+    crate::knot_split::split_c0_knots(solid, eps_in, mint, sink)?;
     band_seam(solid, eps_in, chart_band, mint, sink)?;
     apex_cone(solid, chart_band, mint, sink)?;
     wall_inversion(solid, chart_band)

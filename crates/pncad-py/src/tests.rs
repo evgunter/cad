@@ -2978,6 +2978,14 @@ fn import_report_row_tags_are_stable() {
             "seamless_periodic_band",
         ),
         (NormalizationKind::JoinedEdges, "joined_edges"),
+        (
+            NormalizationKind::EdgeSplitAtC0Knot,
+            "edge_split_at_c0_knot",
+        ),
+        (
+            NormalizationKind::FaceSplitAtC0Knot,
+            "face_split_at_c0_knot",
+        ),
     ] {
         assert_eq!(normalization_kind_tag(&kind), word);
     }
@@ -5282,6 +5290,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "degenerate_apex_cone",
             "edge_free_sphere",
+            "edge_split_at_c0_knot",
+            "face_split_at_c0_knot",
             "joined_edges",
             "seamless_periodic_band",
             "surface_promotion",
@@ -5918,6 +5928,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "adoption",
             "assembly",
+            "c0_knot_unsplit",
             "dangling_reference",
             "instance",
             "invalid_eps_override",
