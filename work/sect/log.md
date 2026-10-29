@@ -359,3 +359,11 @@ the new marching rows take up to ~30 min each at opt-level 2 in the nightly
   (branch `sect/seam-region-speed`): the slowdown is SECT's own (PR 5894),
   the guard runs blind meanwhile, and PR 6011's new marching rows put the
   nightly job's headroom in question. Tier: **single FULL**.
+
+## 2026-10-29 — the repeated march dispatched (Ev: "the time seems pretty egregious")
+
+Filed and dispatched `a-surface-pairs-march-is-repeated-per-operation-and-per-germ`
+(P1 M) as `sect-marchonce` (branch `sect/march-once`), on Ev's go-ahead in
+chat. Measure first, share within an operation, then across operations if
+the answer is the pair's and band's alone; a cache that crosses the public
+API stops for the designer pair. Tier: **single FULL**.
