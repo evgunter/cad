@@ -2,12 +2,12 @@
 id: transform-and-pattern-drop-a-values-contact-records
 kind: issue
 title: Transform and Pattern nodes drop a value's contact records, so a touching boolean result refuses at rest one node downstream with no change to it
-status: parked
+status: open
 opened: 2026-10-02
 priority: P1
 cost: M
 refs: [3856]
-blocked_on: [patterns-are-index-variables]
+blocked_on: []
 ---
 
 
@@ -33,3 +33,5 @@ default to `OpOut::plain`'s empty records.
 Read against the tree at `fd218851f9`. Both `wire_transform` and `wire_pattern` still return `OpOut::plain`. The Transform half is `a-transform-drops-the-contact-records-a-placement-carries` and retires with stage 3 D; the Pattern half is owed again in index-variable copies, so this row waits on the pattern unit. Parked on `patterns-are-index-variables`, the INTENT row whose landing reaches this ground, and moved to WIREHOLD by WIRE's priority-seam cut, keeping its id.
 
 Signed (WIRE orchestrator).
+
+**Released 2026-10-29 (INTENT):** its trigger fired, because G (`patterns-are-index-variables`, #5954) merged and closed INTENT stage 3: `Node::Pattern`, `Node::PlacedUnion`, `PatternKind` and `Instance(i)` retired into `index(N)` families. Re-read this row against main: close it if its code is gone, keep it if its scene still stands.

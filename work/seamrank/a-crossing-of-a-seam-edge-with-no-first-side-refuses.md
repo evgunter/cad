@@ -2,12 +2,12 @@
 id: a-crossing-of-a-seam-edge-with-no-first-side-refuses
 kind: issue
 title: A crossing of a seam edge whose two sides carry one name has no orientation to read its sense along, and refuses where a lone one used to be named
-status: parked
+status: open
 opened: 2026-10-06
 priority: P3
 cost: M
 design: true
-blocked_on: [patterns-are-index-variables]
+blocked_on: []
 ---
 
 
@@ -48,3 +48,5 @@ question.
 ## Likely fixed, unwitnessed (WIRE orchestrator, 2026-10-26)
 
 PR 5758 ("nothing is ranked") retired the first-side reading. `emit_topo::edge_reading` now names a crossing of an equal-pair seam (`a == b`, emit_topo.rs ~4926), where the old code refused `UNORIENTED`. That is PR 5758's FULL review, by inspection; no test reaches it. The witness needs two placements of one prototype, which is D10 ground, so the row re-parks there. When D10 lifts, build the witness and close the row, or reopen it if the witness refuses.
+
+**Released 2026-10-29 (INTENT):** its trigger fired, because G (`patterns-are-index-variables`, #5954) merged and closed INTENT stage 3: `Node::Pattern`, `Node::PlacedUnion`, `PatternKind` and `Instance(i)` retired into `index(N)` families. Re-read this row against main: close it if its code is gone, keep it if its scene still stands.

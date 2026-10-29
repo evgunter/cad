@@ -2,12 +2,12 @@
 id: emit-rs-shared-helpers-raise-emission-for-torn-reads
 kind: issue
 title: names/emit.rs's shared helpers (to_u32, output_body, Incidence::of, the rim consts, vertex_point, face_half_edges, edge_ends) still raise NamingError::Emission for torn-body reads and u32 narrowings no body reaches
-status: parked
+status: open
 opened: 2026-10-20
 priority: P2
 cost: M
 refs: [names-emission-raises-panic-or-take-their-true-ending]
-blocked_on: [patterns-are-index-variables]
+blocked_on: []
 ---
 
 
@@ -51,3 +51,5 @@ What remains here is the D10-held list above: `flat_body_index` ×2, `name_place
 ## Moved to WIREHOLD (2026-10-26)
 
 What is left is D10-held, so the row parks with WIRE's other D10 rows. Signed (WIRE orchestrator).
+
+**Released 2026-10-29 (INTENT):** its trigger fired, because G (`patterns-are-index-variables`, #5954) merged and closed INTENT stage 3: `Node::Pattern`, `Node::PlacedUnion`, `PatternKind` and `Instance(i)` retired into `index(N)` families. Re-read this row against main: close it if its code is gone, keep it if its scene still stands.
