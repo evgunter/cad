@@ -2,10 +2,12 @@
 id: d10-exit-walk
 kind: issue
 title: D10's exit walk: no code path implements a clause D10 supersedes, and the companion pages state D10's design
-status: dispatched
+status: closed
 opened: 2026-10-29
 priority: P0
 cost: M
+closed: 2026-10-29
+pr: 5997
 ---
 
 

@@ -16,7 +16,7 @@ Found by the tier-3′ gate measurement (`splitdoor/split-gate-3prime`, 2026-10-
 Where the split pinches, or two cut copies meet at one point, the copies get two point keys. That contradicts `split`'s doc ("copies share its point key"), and the split returns no record of the touch. So tier 3′ refuses sides whose volumes are right.
 
 - **Straight:** payload `VertexVertex` + `EdgeEdgeOverlap`.
-  - `a_keel_wrapped_at_both_ends_splits_as_a_ring::a_later_cut_across_the_ring_builds_and_one_through_its_tip_refuses`: the cut at x = 2 mints 28v1 and 29v1, both at (2, 2, 0).
+  - `a_keel_wrapped_at_both_ends_splits_as_a_ring::a_later_cut_across_the_ring_builds_and_so_does_one_through_its_tip`: the cut at x = 2 mints 28v1 and 29v1, both at (2, 2, 0).
   - editor-core `split_pinch_keeps::a_moat_reaching_the_block_walls_at_its_corners_quarters_both_sections`.
   - editor-core `split_pinch_keeps::a_diamond_moat_reaching_the_block_wall_…`.
 - **Curved:** one `EdgeEdgeOverlap` on the rim circle r = 2, plus six `CensusUndecidable MayOverlap`. Every curved instance comes from one revolved-apex split:

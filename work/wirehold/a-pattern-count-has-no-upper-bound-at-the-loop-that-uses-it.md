@@ -7,7 +7,7 @@ opened: 2026-09-21
 priority: P1
 cost: D
 refs: [need-count-spells-every-failure-as-a-pattern-count]
-blocked_on: []
+
 ---
 
 
@@ -104,4 +104,6 @@ Read against the tree at `fd218851f9`. `wire_pattern` still loops `1..n` with no
 
 Signed (WIRE orchestrator).
 
-**Released 2026-10-29 (INTENT):** its trigger fired, because G (`patterns-are-index-variables`, #5954) merged and closed INTENT stage 3: `Node::Pattern`, `Node::PlacedUnion`, `PatternKind` and `Instance(i)` retired into `index(N)` families. Re-read this row against main: close it if its code is gone, keep it if its scene still stands.
+## D10 exit walk (2026-10-29)
+
+The scene still stands on main, re-sited. `wire_pattern` and `stepped_map` are gone (stage 3 G, #5954), and an index's count is now range-checked before its loop (`crates/editor-core/src/eval/members.rs:110-117`, `IndexCountOutOfRange`). But the range it admits is `0..=u32::MAX`, and `tuples` (`members.rs:120`) loops that many members inside one node. The cancel token is still checked only between nodes. So the bound sits ahead of the loop now but is still the name table's width rather than a size an evaluation can afford, and the loop is still not cancellable. Open.
