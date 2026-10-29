@@ -2,9 +2,9 @@
 id: main-red-the-seam-region-door-row-runs-15x-slower-since-the-cylinder-sphere-chord
 kind: issue
 title: Main red (timeout): the_door_names_the_flipped_face_tier_3_names runs 8 s → 127 s at default ε since PR 5894 and passes 960 s at 1e-12, which cancels the nightly full suite's 1e-12 row
-status: open
+status: dispatched
 opened: 2026-10-29
-priority: P3
+priority: P1
 cost: M
 ---
 
@@ -70,3 +70,11 @@ owes a 1e-12 timing of the row first.
 
 Time it at 1e-12: `CAD_TOLERANCE_EPS=1e-12` before the reproduce line
 above.
+
+## Re-banded P1 (SECT, 2026-10-29)
+
+SECT's orchestrator re-bands it: the slowdown is SECT's own (PR 5894), and
+the nightly's 1e-12 full-suite row is the guard that now runs blind on it.
+PR 6011 (merged 2026-10-29) adds marching rows that take up to ~30 min each
+at 1e-12, so the job's headroom is now in question too. Dispatched with
+that headroom measurement.

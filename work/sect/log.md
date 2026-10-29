@@ -345,3 +345,17 @@ confirmation review. The one-way winding cross-check is a filed deviation
 (`a-counted-sections-winding-is-a-claim-not-a-reading`, P2). Cost: at ε 1e-12
 the new marching rows take up to ~30 min each at opt-level 2 in the nightly
 (`sectrung/torus-germ-rows-march-for-an-hour-at-a-fine-band`).
+
+## 2026-10-29 — PR 6011 merged; the frames row closed; the seam-region red re-banded
+
+- **PR 6011 merged** (head 5c5ca02, CI green); lane reclaimed; `sect-rehome`
+  told to merge main.
+- **`torus-germ-pairs-have-no-section-frame` closed** by the orchestrator:
+  every measured pair passes the germ mint, and each stops at another row's
+  door (named in its `## Closed`).
+- **`main-red-the-seam-region-door-row-runs-15x-slower-since-the-cylinder-sphere-chord`**
+  (filed by nightly triage on SECT at P3, GREEN holding the row out of the
+  nightly's 1e-12 row) **re-banded P1** and dispatched as `sect-seamslow`
+  (branch `sect/seam-region-speed`): the slowdown is SECT's own (PR 5894),
+  the guard runs blind meanwhile, and PR 6011's new marching rows put the
+  nightly job's headroom in question. Tier: **single FULL**.
