@@ -219,6 +219,9 @@ fn a_pair_decided_one_or_apart_stands_where_the_decision_says() {
                 );
             }
             TorusCoincidence::Undecided(_) => tally[2] += 1,
+            TorusCoincidence::OffRing(refusal) => {
+                panic!("a ring torus refused {refusal:?}: {what}")
+            }
         }
         assert_eq!(
             matches!(pose(a, other), Err(TorusPoseRefusal::Coincident)),
