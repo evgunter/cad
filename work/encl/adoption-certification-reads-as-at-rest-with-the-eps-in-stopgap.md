@@ -23,7 +23,7 @@ Three changes, all following the ruling.
 - Where the lever should read for someone holding a file, one line in the `Adoption` preamble says levers apply to the source model, then re-export.
 
 **2. The import door's interim size decision.**
-- Until the D7 rebuild stage (`work/exch/adoption-rebuilds-caches-at-eps-from-eps-in-interpretation.md`) exists, a band-decided sized refusal whose margin m ≤ ε_in must not offer "if this size is intended, tighten": the file itself declares that size coincident.
+- Until the D7 rebuild stage (`work/interp/adoption-rebuilds-caches-at-eps-from-eps-in-interpretation.md`) exists, a band-decided sized refusal whose margin m ≤ ε_in must not offer "if this size is intended, tighten": the file itself declares that size coincident.
 - The door decides this with ε_in and ε, which only it knows. It should end in: "this {size} is below the file's declared coincidence distance ε_in = X m, so the file does not state it. Recourse: re-export with the geometry resolved, or its uncertainty declared below m".
 - `certify::recourse` stays ε_in-free.
 - The spans' definite arms carry no margin (`work/encl/certify-zero-arms-quote-no-margin-without-a-seam.md`). Say which arms the door can and cannot size.

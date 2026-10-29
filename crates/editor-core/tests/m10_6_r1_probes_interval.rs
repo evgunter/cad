@@ -72,7 +72,7 @@ use editor_core::{
     VarName, evaluate,
 };
 use geom_core::{Bounds, Tol};
-use topo::clearance::{MinSeparationConfig, Side, min_separation};
+use topo::clearance::{Budgets, Side, min_separation};
 
 use fixture::{Recorder, len};
 
@@ -365,9 +365,9 @@ fn a_convex_pair_brackets_the_built_gap_at_every_budget() {
             },
             // Body 0 of node `a` against body 0 of node `b`.
             a == b,
-            MinSeparationConfig {
+            Budgets {
                 max_cell_pairs: pairs,
-                ..MinSeparationConfig::default()
+                ..Budgets::MIN_SEPARATION
             },
         )
         .expect("admitted");
@@ -427,7 +427,7 @@ fn min_clearance_of_a_body_against_itself_meets_itself_and_reads_zero() {
         body: body.body(),
         faces: faces.clone(),
     };
-    let m = min_separation(&sel(), &sel(), true, MinSeparationConfig::default()).expect("admitted");
+    let m = min_separation(&sel(), &sel(), true, Budgets::MIN_SEPARATION).expect("admitted");
     eprintln!(
         "dumbbell self-clearance: {}",
         m.serialize().replace('\n', " | ")

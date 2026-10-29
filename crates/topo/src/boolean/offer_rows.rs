@@ -3033,6 +3033,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::VertexOnVertex",
         1,
     ),
+    ("vtxfac.rs", "ring_struts", "Coincide::Sectors", 1),
     (
         "zip.rs",
         "one_vertex_sense",
