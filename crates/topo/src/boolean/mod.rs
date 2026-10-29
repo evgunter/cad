@@ -142,6 +142,7 @@ pub(crate) mod sphere_region;
 pub(crate) mod spline_region;
 mod surface_group;
 pub mod tables;
+pub mod trace;
 #[cfg(test)]
 mod torn_hop_rows;
 #[cfg(test)]

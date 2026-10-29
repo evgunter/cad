@@ -1137,6 +1137,7 @@ fn an_arc_crossed_twice_reunites_by_construction() {
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::circle(0.0, 0.0, 0.5).expect("a circle")],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, disc) = insert(
@@ -1317,6 +1318,7 @@ fn profile_of(doc: ProfileDoc, steps: LoopProgram<Formula>) -> (ProfileDoc, Reci
         Node::Profile(ProfileProgram {
             loops: vec![steps],
             ids: Vec::new(),
+            on: None,
         }),
     )
 }
@@ -1400,6 +1402,7 @@ fn a_profile_junction_on_one_carrier_refuses_at_the_door() {
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
         ids: Vec::new(),
+        on: None,
     });
     match doc.apply(
         &editor_core::DocEdit::InsertNode {

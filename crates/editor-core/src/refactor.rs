@@ -2095,6 +2095,7 @@ fn remap_node(
         Node::Profile(p) => Node::Profile(ProfileProgram {
             loops: p.loops.clone(),
             ids: Vec::new(),
+            on: None,
         }),
         Node::Extrude { profile, distance } => Node::Extrude {
             profile: rd(crate::OperandSlot::Profile, *profile)?,

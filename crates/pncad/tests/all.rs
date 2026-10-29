@@ -2158,6 +2158,7 @@ fn square(s: f64) -> pncad::document::AuthoredNode {
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
         ids: Vec::new(),
+        on: None,
     })
 }
 
@@ -2438,6 +2439,7 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
         Node::Profile(ProfileProgram {
             loops: vec![lifted],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, body) = insert(
@@ -2595,6 +2597,7 @@ fn square_at(s: f64, x: f64) -> pncad::document::AuthoredNode {
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
         ids: Vec::new(),
+        on: None,
     })
 }
 
@@ -2836,6 +2839,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         Node::Profile(ProfileProgram {
             loops: vec![outline, hole(1.0, 1.0), hole(2.2, 1.0)],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, plate) = insert(
@@ -2853,6 +2857,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
                     .expect("finite tab corners"),
             ],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, tab) = insert(
@@ -6885,6 +6890,7 @@ mod the_hollowed_box_through_the_facade {
             Node::Profile(ProfileProgram {
                 loops: vec![square],
                 ids: Vec::new(),
+                on: None,
             }),
         );
         let (doc, blank) = super::insert(

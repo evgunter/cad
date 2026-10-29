@@ -52,6 +52,7 @@ fn cylinder() -> (ProfileDoc, RecipeNodeId) {
                 radius: len(1.0),
             }],
             ids: Vec::new(),
+            on: None,
         }),
     );
     fixture::insert(

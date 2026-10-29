@@ -57,6 +57,7 @@ fn square(s: f64) -> pncad::document::AuthoredNode {
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
         ids: Vec::new(),
+        on: None,
     })
 }
 
@@ -1233,6 +1234,7 @@ fn resolution_status_tags_are_stable() {
                     .expect("finite corners"),
             ],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, extrude) = insert(
@@ -1740,6 +1742,7 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() 
         node: Box::new(Node::Profile(ProfileProgram {
             loops: vec![square],
             ids: Vec::new(),
+            on: None,
         })),
         fresh: Vec::new(),
     };
@@ -2057,6 +2060,7 @@ fn node_error_tags_are_the_published_words() {
         Expr => "expr",
         Profile => "profile",
         ProfileReplay => "profile_replay",
+        Trace => "trace",
         ProfileLaneReplay => "profile_lane_replay",
         Extrude => "extrude",
         Revolve => "revolve",

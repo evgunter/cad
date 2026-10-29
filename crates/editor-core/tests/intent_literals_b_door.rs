@@ -321,7 +321,7 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
             loop {
                 let (mutated, seen) = unheld_at(form, at, |f| {
                     node.try_map_slots(
-                        |p, g| p.try_map_slots(&mut |e| g(e)),
+                        |p, g, r| p.try_map_slots(&mut |e| g(e), r),
                         &mut |e| f(e),
                         &mut |_, read| Ok(read.clone()),
                     )
@@ -447,6 +447,7 @@ impl editor_core::ProfilePayload for Unlisted<editor_core::VarId> {
     fn lower<E>(
         authored: &Unlisted<Formula>,
         f: &mut dyn FnMut(&Formula) -> Result<editor_core::VarId, E>,
+        _: &mut dyn FnMut(editor_core::OperandSlot, &editor_core::Operand) -> Result<editor_core::VarId, E>,
     ) -> Result<Self, E> {
         Ok(Unlisted {
             hidden: f(&authored.hidden)?,
@@ -455,6 +456,7 @@ impl editor_core::ProfilePayload for Unlisted<editor_core::VarId> {
     fn authored_with(
         &self,
         reader: &mut dyn FnMut(editor_core::VarId, Dimension) -> Formula,
+        _: &mut dyn FnMut(editor_core::VarId) -> editor_core::Operand,
     ) -> Unlisted<Formula> {
         Unlisted {
             hidden: reader(self.hidden, Dimension::Length),

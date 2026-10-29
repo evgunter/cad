@@ -118,6 +118,7 @@ fn dumbbell() -> Dumbbell {
             .expect("finite corners"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let solid = r.insert(Node::Extrude {
         profile: profile.into(),
@@ -626,6 +627,7 @@ fn a_selection_that_is_not_a_body_or_a_face_refuses_at_the_door() {
                 .expect("finite corners"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let solid = r.insert(Node::Extrude {
         profile: profile.into(),

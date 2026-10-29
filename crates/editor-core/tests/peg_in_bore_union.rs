@@ -48,6 +48,7 @@ fn peg_in_bore(bore_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Profile(ProfileProgram {
             loops: vec![circle(PEG_R)],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, peg) = insert(
@@ -65,6 +66,7 @@ fn peg_in_bore(bore_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
                 circle(bore_r),
             ],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, block) = insert(

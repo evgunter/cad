@@ -148,6 +148,7 @@ fn sharp_lid_in(
         Node::Profile(ProfileProgram {
             loops: vec![lid_meridian(bore)],
             ids: Vec::new(),
+            on: None,
         }),
         tol,
     );
@@ -693,6 +694,7 @@ fn a_split_carries_a_held_slits_band() {
                     .expect("finite corners"),
             ],
             ids: Vec::new(),
+            on: None,
         }),
         tol,
     );

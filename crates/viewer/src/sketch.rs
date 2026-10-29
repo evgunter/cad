@@ -49,7 +49,7 @@
 use pncad::document::{
     Dimension, DimensionError, Doc, EvalError, Evaluation, Expr, Formula, LoopProgram, Node,
     ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId, SpokenNode,
-    StepId, ValuePayload, WrittenLoopFault, resolve_loops, resolve_written_loops,
+    ProgramResolveFault, StepId, ValuePayload, WrittenLoopFault, resolve_loops, resolve_written_loops,
 };
 use pncad::geom_core::{Arc2, Point2, Tol};
 use pncad::profile::{
@@ -430,8 +430,10 @@ pub fn held_program(
             slots: driven,
         });
     }
-    resolve_loops(&program.loops, &doc.var_env::<f64>())
-        .map_err(|(slot, source)| HeldRefusal::Resolve { slot, source })
+    resolve_loops(&program.loops, &doc.var_env::<f64>()).map_err(|fault| match fault {
+        ProgramResolveFault::Expr { slot, source } => HeldRefusal::Resolve { slot, source },
+        ProgramResolveFault::Trace(refusal) => HeldRefusal::Traced(refusal),
+    })
 }
 
 /// **`program` as it was written** ([`Node::written`]): each argument
@@ -469,6 +471,7 @@ pub fn is_committed(
             == ProfileProgram {
                 loops: loops.to_vec(),
                 ids: base.ids.clone(),
+                on: None,
             }
 }
 
@@ -498,6 +501,9 @@ pub enum HeldRefusal {
         /// The evaluator's own reason.
         source: EvalError,
     },
+    /// A step reads a face's trace, which the editor's plain-number
+    /// steps cannot hold: the trace is the evaluation's.
+    Traced(editor_core::TraceRefusal),
 }
 
 impl core::fmt::Display for HeldRefusal {
@@ -525,6 +531,7 @@ impl core::fmt::Display for HeldRefusal {
             Self::Resolve { slot, source } => {
                 write!(f, "{} did not resolve: {source}", slot.label())
             }
+            Self::Traced(refusal) => write!(f, "the program reads a trace: {refusal}"),
         }
     }
 }
@@ -1058,9 +1065,13 @@ pub fn preview(
     // for it, in a scratch document of the resolver's own.
     let resolved = resolve_written_loops(&programs, tol).map_err(|fault| match fault {
         WrittenLoopFault::Resolve { slot, source } => PreviewError::Resolve { slot, source },
-        // A form writes numbers, never a name.
+        // A form writes numbers, never a name, and no step reading a
+        // trace.
         WrittenLoopFault::Refused(refusal) => {
             unreachable!("a form's program reads no name, yet {refusal}")
+        }
+        WrittenLoopFault::Trace(refusal) => {
+            unreachable!("a form's program reads no trace, yet {refusal}")
         }
     })?;
     let mut loops: Vec<ConstructedLoop<f64>> = Vec::with_capacity(resolved.len());

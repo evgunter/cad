@@ -2224,7 +2224,7 @@ impl<P> Node<P> {
                 bound: _,
                 relation: _,
             } => Vec::new(),
-            Node::Profile(_) => Vec::new(),
+            Node::Profile(p) => p.read_rows().into_iter().map(|(o, &r)| (o, r)).collect(),
             Node::Extrude {
                 profile,
                 distance: _,
@@ -2322,7 +2322,7 @@ impl<P> Node<P> {
                 bound: _,
                 relation: _,
             } => Vec::new(),
-            Node::Profile(_) => Vec::new(),
+            Node::Profile(p) => p.read_rows_mut(),
             Node::Extrude {
                 profile,
                 distance: _,
@@ -2674,7 +2674,7 @@ impl<P, S: Slot> Node<P, S> {
     /// the authored and the stored node: every slot and every payload
     /// expression rewritten by `f`, every operand by `read` (handed its
     /// address), the profile's payload by `payload` (handed both for
-    /// its own), and every other field kept. Lowering is this with the
+    /// its own slots and reads), and every other field kept. Lowering is this with the
     /// door's lowerings; re-authoring is this with
     /// [`crate::Formula::from`] and [`crate::Operand::Var`].
     ///
@@ -2684,13 +2684,17 @@ impl<P, S: Slot> Node<P, S> {
     #[allow(clippy::type_complexity)]
     pub fn try_map_slots<P2, S2: Slot, E>(
         &self,
-        payload: impl FnOnce(&P, &mut dyn FnMut(&S) -> Result<S2, E>) -> Result<P2, E>,
+        payload: impl FnOnce(
+            &P,
+            &mut dyn FnMut(&S) -> Result<S2, E>,
+            &mut dyn FnMut(crate::OperandSlot, &S::Read) -> Result<S2::Read, E>,
+        ) -> Result<P2, E>,
         f: &mut impl FnMut(&S) -> Result<S2, E>,
         read: &mut impl FnMut(crate::OperandSlot, &S::Read) -> Result<S2::Read, E>,
     ) -> Result<Node<P2, S2>, E> {
         use crate::OperandSlot as O;
         Ok(match self {
-            Node::Profile(p) => Node::Profile(payload(p, f)?),
+            Node::Profile(p) => Node::Profile(payload(p, f, read)?),
             Node::Extrude { profile, distance } => Node::Extrude {
                 profile: read(O::Profile, profile)?,
                 distance: f(distance)?,
@@ -3027,7 +3031,7 @@ impl<P: crate::ProfilePayload> Node<P> {
         dims.extend(self.payload_reads(doc).into_iter().flatten());
         let mut payload = None;
         if let Node::Profile(p) = self {
-            payload = Some(p.authored_with(reader));
+            payload = Some(p.authored_with(reader, operand));
         }
         let mut read = |var: &VarId| {
             let Some(&dim) = dims.get(var) else {
@@ -3039,7 +3043,7 @@ impl<P: crate::ProfilePayload> Node<P> {
             Ok::<_, core::convert::Infallible>(reader(*var, dim))
         };
         let reauthored = self.try_map_slots(
-            |_, _| {
+            |_, _, _| {
                 Ok(payload
                     .take()
                     .unwrap_or_else(|| unreachable!("a profile's payload is re-authored once")))

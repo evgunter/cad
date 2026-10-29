@@ -1468,6 +1468,7 @@ pub(crate) fn rod(doc: ProfileDoc, length: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::circle_split(0.0, 0.0, 0.3, 2, 0.0).unwrap()],
             ids: Vec::new(),
+            on: None,
         }),
     );
     insert(

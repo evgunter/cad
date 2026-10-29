@@ -1713,6 +1713,7 @@ impl Doc {
         let profile = d::ProfileProgram {
             loops: loops_from_outline(py, outline)?,
             ids: Vec::new(),
+            on: None,
         };
         let distance = slot_expr(py, d::SlotId::Distance, &distance)?;
         let spin = match spin {
@@ -2595,6 +2596,7 @@ impl Node {
             inner: d::Node::Profile(d::ProfileProgram {
                 loops: vec![d::LoopProgram::polygon_expr(corners)],
                 ids: Vec::new(),
+                on: None,
             }),
         })
     }
@@ -2622,6 +2624,7 @@ impl Node {
             inner: d::Node::Profile(d::ProfileProgram {
                 loops,
                 ids: Vec::new(),
+                on: None,
             }),
         })
     }

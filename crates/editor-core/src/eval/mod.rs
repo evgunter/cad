@@ -1223,6 +1223,10 @@ pub(crate) mod phrase {
     pub(crate) const AXIS_POSE: &str = concat!("axis ", family_word!(pose));
     /// A plane pose ([`super::PoseValue::Plane`]).
     pub(crate) const PLANE_POSE: &str = concat!("plane ", family_word!(pose));
+    /// A profile drawn on no frame: a loft's section after the first
+    /// stands at its station in the first section's axes, and reads no
+    /// frame of its own.
+    pub(crate) const FREE_PROFILE: &str = concat!("free ", family_word!(profile));
     /// What a placer places: one body, or a list of placed ones.
     pub(crate) const BODY_OR_INSTANCES: &str =
         concat!(family_word!(body), " or ", family_word!(instances));
@@ -1453,6 +1457,10 @@ pub enum NodeErrorKind {
         /// The consumed decision, when the wall was the record.
         structure: Option<profile::StructureRefusal>,
     },
+    /// A profile step reading a face's trace refused (D10,
+    /// "Constructing a coincidence"; [`crate::trace`]), naming the step
+    /// and the traced face.
+    Trace(crate::trace::TraceRefusal),
     /// The extrude op refused.
     Extrude(ExtrudeError),
     /// The revolve op refused.
@@ -2069,6 +2077,7 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::ProfileReplay { loop_, error } => {
                 write!(f, "profile loop {loop_} refused at {error}")
             }
+            Self::Trace(refusal) => write!(f, "the profile's trace refused at {refusal}"),
             Self::Mate(fault) => write!(f, "the mate solve refused: {}", Said(&**fault, by)),
             Self::SpaceMismatch { a, b } => write!(
                 f,
@@ -3882,6 +3891,16 @@ where
     }
 }
 
+/// A program's resolution refusal as the node's.
+fn resolve_refusal(fault: crate::program::ProgramResolveFault) -> NodeErrorKind {
+    match fault {
+        crate::program::ProgramResolveFault::Expr { slot, source } => {
+            NodeErrorKind::Expr { slot, source }
+        }
+        crate::program::ProgramResolveFault::Trace(refusal) => NodeErrorKind::Trace(refusal),
+    }
+}
+
 /// The tolerance `tol` witnesses, as the value an evaluation records.
 fn tolerance_of(tol: Tol) -> geom_core::Tolerance {
     geom_core::Tolerance {
@@ -4157,10 +4176,32 @@ where
         // `f64`, whose lane is this pass (`ProfileLane`), and ahead of
         // the op's own replay and validation at every other scalar.
         crate::node::Node::Profile(program) => {
-            let resolved = match program.resolve(op_env.lane.nominal) {
-                Ok(r) => r,
-                Err((slot, source)) => return fail(bracket, NodeErrorKind::Expr { slot, source }),
+            // A profile drawn on a frame reads its frame and its traced
+            // faces at the lane, and its first pass reads the faces at
+            // their midpoints (`wire::trace`).
+            let drawn = match wire::trace::drawn(doc, results, program, env, tol) {
+                Ok(drawn) => drawn,
+                Err(kind) => return fail(bracket, kind),
             };
+            let band = match wire::band(tol) {
+                Ok(band) => band,
+                Err(kind) => return fail(bracket, kind),
+            };
+            let nominal_faces = match drawn.as_ref().map(|d| d.nominal(tol)).transpose() {
+                Ok(faces) => faces,
+                Err(kind) => return fail(bracket, kind),
+            };
+            let nominal_traces = nominal_faces.as_deref().map(|faces| crate::trace::Traces {
+                faces,
+                records: None,
+                tol,
+                band,
+            });
+            let resolved =
+                match program.resolve_with(op_env.lane.nominal, nominal_traces.as_ref()) {
+                    Ok(r) => r,
+                    Err(fault) => return fail(bracket, resolve_refusal(fault)),
+                };
             let pre = match wire::prepare_profile(&resolved, &program.ids, tol) {
                 Ok(pre) => pre,
                 Err(kind) => return fail(bracket, kind),
@@ -4175,18 +4216,25 @@ where
             // seed would hit each other's memo.
             let form = match op_env.lane.pass_one(&pre) {
                 Some(first) => wire::ProfileForm::FirstPass(first.clone()),
-                None => match program.resolve(env) {
-                    Ok(r) => wire::ProfileForm::Lane(r),
-                    Err((slot, source)) => {
-                        return fail(bracket, NodeErrorKind::Expr { slot, source });
+                None => {
+                    let lane_traces = drawn.as_ref().map(|d| crate::trace::Traces {
+                        faces: &d.faces,
+                        records: Some(&pre.structure.replay),
+                        tol,
+                        band,
+                    });
+                    match program.resolve_with(env, lane_traces.as_ref()) {
+                        Ok(r) => wire::ProfileForm::Lane(r),
+                        Err(fault) => return fail(bracket, resolve_refusal(fault)),
                     }
-                },
+                }
             };
             wire::OpInput::Profile {
                 program,
                 resolved,
                 pre: Box::new(pre),
                 form,
+                frame: drawn.map(|d| d.frame),
             }
         }
         // PAYLOAD EXPRESSIONS (E10): an assertion's value and bound are

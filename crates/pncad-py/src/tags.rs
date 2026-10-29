@@ -553,6 +553,7 @@ pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
         S::Selection => "selection",
         S::Open => "open",
         S::Face => "face",
+        S::Traced(_) => "traced",
         S::Side { .. } => "side",
         S::Source => "source",
         S::Measured(..) => "measured",
@@ -870,6 +871,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::Profile => "profile",
         C::ProfileReplay => "profile_replay",
         C::ProfileLaneReplay => "profile_lane_replay",
+        C::Trace => "trace",
         C::Extrude => "extrude",
         C::Revolve => "revolve",
         // ONE tag for both tube kinds, matching every other op on
@@ -1041,6 +1043,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
             Some(refusal) => Some(structure_refusal_tag(&refusal.kind)),
             None => None,
         },
+        NodeErrorKind::Trace(refusal) => Some(trace_step_fault_tag(&refusal.fault)),
         NodeErrorKind::Extrude(inner) => Some(extrude_error_tag(inner)),
         NodeErrorKind::Revolve(inner) => Some(revolve_error_tag(inner)),
         NodeErrorKind::Tube(inner) => Some(tube_error_tag(inner)),
@@ -1835,6 +1838,26 @@ pub fn program_refusal_tag(err: &ProgramRefusal) -> &'static str {
         ProgramRefusal::Validate(_) => "validate",
         ProgramRefusal::Unminted => "unminted",
         ProgramRefusal::StepIds(_) => "step_ids",
+        ProgramRefusal::Trace(_) => "trace",
+    }
+}
+
+/// The stable tag for why a profile step reading a face's trace
+/// refused — the inner arm of a `trace` node refusal.
+pub fn trace_step_fault_tag(fault: &pncad::document::TraceStepFault) -> &'static str {
+    use pncad::document::TraceStepFault as F;
+    match fault {
+        F::Undrawn => "undrawn",
+        F::NoSuchFace { .. } => "no_such_face",
+        F::NoPen => "no_pen",
+        F::NoHeading => "no_heading",
+        F::NotARun => "not_a_run",
+        F::OffTrace => "off_trace",
+        F::NoTrace => "no_trace",
+        F::NoSuchCrossing { .. } => "no_such_crossing",
+        F::NoTangent => "no_tangent",
+        F::Unreached => "unreached",
+        F::Carrier(_) => "carrier",
     }
 }
 

@@ -442,6 +442,7 @@ fn frame_sharing_a_fresh_entry(seed: &str) -> (ProfileDoc, [RecipeNodeId; 3]) {
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::polygon(square(0.0, 0.0, 0.5)).unwrap()],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, extrude) = insert(
