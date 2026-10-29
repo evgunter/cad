@@ -631,7 +631,7 @@ fn mitred(pose: Pose, f: &Frame, drop: f64, tol: Tol) -> Body<f64> {
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(cyl, floor),
-            witness: f.p((-r, 0.0, z0)),
+            selector: geom_brep::CurveSelector::Witness(f.p((-r, 0.0, z0))),
         },
         carrier: circle,
         param_start: 0.0,
@@ -696,11 +696,11 @@ fn mitred(pose: Pose, f: &Frame, drop: f64, tol: Tol) -> Body<f64> {
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(mirror, plane),
-            witness: f.p((
+            selector: geom_brep::CurveSelector::Witness(f.p((
                 centre.0 - r * u2.0,
                 centre.1 - r * u2.1,
                 centre.2 - r * u2.2,
-            )),
+            ))),
         },
         carrier: lower,
         param_start: 0.0,
@@ -769,10 +769,11 @@ fn a_mitre_between_two_cylinders_certifies_across_its_ellipse() {
 /// **The mitre folded back through the wall reads `Violated`.** The
 /// fold of [`mitred`], the wall against the band: they touch on the
 /// ellipse and cross along the second one, which runs into it. The
-/// witness is a coincidence of the two faces, found at least `0.05` off
-/// the shared ellipse (measured, not pinned: `0.58` at ε = 1e-9, `0.12`
-/// at 1e-12, nearer the point the cylinders touch), where the two cells
-/// no longer touch and distance decides them. Red if a departure
+/// witness is a coincidence of the two faces off the shared ellipse,
+/// where the two cells no longer touch and distance decides them: pinned
+/// at least `0.05` off it, against `0.58` measured at ε = 1e-9 and
+/// `0.115` at 1e-12 (nearer the point the cylinders touch) — a 2.3×
+/// margin at the smallest ε. Red if a departure
 /// certificate discharges a wall–band cell pair whose cells hold the
 /// crossing — a presentation that reads less than a face's part of its
 /// cell, or a certificate that ignores it.
@@ -878,19 +879,20 @@ fn across_a_rim(lamina: bool, tol: Tol) -> (Body<f64>, topo::FaceKey, topo::Face
     (body, disk.face, seed.face)
 }
 
-/// **A curved rim folded back on itself refuses naming the second-order
-/// arm.** A lamina: the unit disk and the same disk again, its sense
-/// flipped, sharing the rim. Each is presented across the rim's chart
-/// curve; their outward normals are opposed there, wedge 0, so the pair
-/// reads as a cusp and refuses `SecondOrder` on the rim — never
-/// certified. No witness is offered, so the coincident interiors refuse
-/// too, at the small budget this row runs at; the first refusal is the
-/// rim's. Red if a curved side's normal is not read
-/// (`Presented::shared_normal`), which leaves the rim's pairs to split
-/// until the budget refuses.
+/// **A curved rim folded back on itself refuses, never certified.** A
+/// lamina: the unit disk and the same disk again, its sense flipped,
+/// sharing the rim. The two faces coincide, so no separator takes
+/// opposite strict signs on any pair of their cells and nothing
+/// certifies, whatever order the sweep reads the pairs in; no witness is
+/// offered, so the coincident interiors refuse. Which refusal comes
+/// first is the sweep's order, so it is not pinned here: the rim pair's
+/// own outcome, a cusp the sweep types `SecondOrder`, is pinned on the
+/// pair itself (`injective`'s
+/// `a_rim_folded_on_itself_is_a_cusp_and_across_it_certifies`). Red if
+/// a cell pair of the lamina is certified, or the lamina holds.
 #[test]
-fn a_curved_rim_folded_on_itself_refuses_naming_the_second_order_arm() {
-    use topo::clearance::{BoundVerdict, CertificateArm, EngineRefusal, SharedCell};
+fn a_curved_rim_folded_on_itself_refuses_never_certified() {
+    use topo::clearance::BoundVerdict;
     let tol = Tol::witness();
     let (body, disk, other) = across_a_rim(true, tol);
     let report = injectivity(&body, Some(vec![disk, other]), false, 4096, tol);
@@ -899,15 +901,8 @@ fn a_curved_rim_folded_on_itself_refuses_naming_the_second_order_arm() {
         report.verdict, report.receipt
     );
     assert!(
-        matches!(
-            report.verdict,
-            BoundVerdict::Refused(EngineRefusal::Uncertified {
-                shared: SharedCell::Edge(_),
-                arm: CertificateArm::SecondOrder,
-                ..
-            })
-        ),
-        "the lamina's rim is a cusp: {:?}",
+        matches!(report.verdict, BoundVerdict::Refused(_)),
+        "the lamina refuses: {:?}",
         report.verdict
     );
     assert_eq!(

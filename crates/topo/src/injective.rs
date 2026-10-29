@@ -550,7 +550,12 @@ pub(crate) fn exactly(x: Interval, k: f64) -> bool {
 }
 
 /// The hull of two enclosures, through the evaluation scalar's hull
-/// door: a poison operand poisons the hull.
+/// door: a poison operand poisons the hull. An uncertified operand is
+/// not poison: it passes, the hull takes the weaker decoration, and
+/// every caller here reads the hull's `lo`/`hi` alone, which drop it.
+/// Its bounds still bracket the values its expression was defined on,
+/// and the charts read here (a plane's affine map, a cylinder's
+/// harmonic one) have no domain to leave, so none arises from them.
 fn hull(a: Interval, b: Interval) -> Interval {
     geom_core::spline::SpanLocate::enclosure_hull(a, b)
 }
@@ -700,8 +705,10 @@ pub(crate) fn full_turn() -> (f64, f64) {
     (0.0f64.next_down(), TURN_CEILING)
 }
 
-/// `k` whole turns, enclosed: the one door every reading that moves a
-/// chart value by turns goes through.
+/// `k` whole turns, enclosed: the door every enclosed reading that
+/// moves a chart value by turns goes through. [`sheets`] alone moves
+/// bare `f64` bounds by `k·TURN`; its rounding, and `TURN`'s own, is
+/// within the [`few_ulps`] slack it grants and says so.
 fn turns(k: f64) -> Interval {
     Interval::tau() * at(k)
 }
@@ -1715,7 +1722,7 @@ fn zero_of(
 /// injectivity by kind is [`by_kind`]'s, decided for the face's own
 /// pairs. Its premise — the face's domain covers its carrier at most
 /// once — is the face validation's, and is not yet checked
-/// (`work/clear/an-analytic-face-may-cover-its-carrier-more-than-once.md`).
+/// (`work/cleartail/an-analytic-face-may-cover-its-carrier-more-than-once.md`).
 fn partial_zero(
     b: &Boundary,
     clips: &[Clip],
@@ -2522,11 +2529,10 @@ fn graph(piece: &Piece<'_>, ei: usize, plus: bool, p: &Pieces<'_>, band: Band) -
         })
         .collect::<Option<_>>()?;
     let inside = |g: &Interval| g.lo() <= b1 && b0 <= g.hi();
-    let mut held = reaches.iter().enumerate().filter(|(_, g)| inside(g));
-    let (chosen, _) = held.next()?;
-    if held.next().is_some() {
-        return None;
-    }
+    // A second run held by the cell is refused by `apart` below, which is
+    // the load-bearing guard: `R`'s range holds the cell's, so a run that
+    // meets the cell meets `R`. The first held run is the one read.
+    let (chosen, _) = reaches.iter().enumerate().find(|(_, g)| inside(g))?;
     let run = all.swap_remove(chosen);
     let mut others = reaches;
     others.swap_remove(chosen);
@@ -2544,8 +2550,13 @@ fn graph(piece: &Piece<'_>, ei: usize, plus: bool, p: &Pieces<'_>, band: Band) -
         })
         .reduce(hull)
         .map(nearest)?;
+    // `f64::min` passes over a NaN, so a poisoned `g` is refused here,
+    // before it can read as the cell's own range.
+    if !Real::is_bounded(g) {
+        return None;
+    }
     let rb = (b0.min(g.lo()), b1.max(g.hi()));
-    if !(rb.0.is_finite() && rb.1.is_finite()) || whole_turn(rb.0, rb.1) {
+    if whole_turn(rb.0, rb.1) {
         return None;
     }
     if !apart(rb, &others, periodic(surface, other)) {
@@ -2660,6 +2671,19 @@ fn monotone_run(
         sign_of(advance, COLUMN, band)
     };
     let first = sign(p.params(run.first()?))?;
+    // Every piece, not the first alone. On the charts read today — a
+    // plane's affine image of a conic, a cylinder's harmonic row — the
+    // column coordinate along a run is linear, or `c + a cos t + b sin t`
+    // over less than a turn of `t` (a run visits a piece once, and a
+    // closed one is none). Past both column ends at its ends, such a
+    // curve crosses each end's level, and every level between, once:
+    // twice more would be three crossings of one level within a turn. So
+    // what the columns hold is monotone whatever this reads, and the
+    // narrowing's predicates are too; this check is not load-bearing for
+    // them. It does change verdicts: a run that turns past the exit end,
+    // as an open arc may, refuses here, conservatively. It stays as the
+    // step's definition and the defence for charts whose coordinates
+    // turn more often.
     if !run.iter().all(|n| sign(p.params(n)) == Some(first)) {
         return None;
     }
@@ -2685,6 +2709,16 @@ fn monotone_run(
     if !ends.after(p.params(run.last()?).hi()) {
         grow(&mut run, false)?;
     }
+    // Passing both column ends. A monotone run that stops inside the
+    // columns stops at an end of its edge: it otherwise stops where the
+    // next piece misses the columns, past an end, and a closed edge's run
+    // continues through its join. That end is a vertex in `R`, and a
+    // valid loop runs on from it along another edge, which [`alone`]
+    // finds in `R` and refuses — an analytic seam included, across which
+    // the next edge is again at the vertex. So on the loops built today
+    // `alone` refuses first and this is not load-bearing; it stays as the
+    // step's definition, and the defence for a boundary `alone` reads
+    // otherwise.
     let (ts, te) = (p.params(run.first()?).lo(), p.params(run.last()?).hi());
     (ends.before(ts) && ends.after(te)).then_some((run, rising))
 }
@@ -2767,9 +2801,20 @@ fn narrowed(p: &Pieces<'_>, run: &Run, rising: bool, a: (f64, f64)) -> Option<(f
 /// **No other run in reach of `R`'s range `rb` on the other axis**
 /// ([`present_curved`]'s step 2), each other run's reach on the copy
 /// nearest the cell and, on a periodic axis, the copies a turn either
-/// side. The chosen run's own copies need no reading: `rb` spans less
-/// than a turn and holds the run's reach, so a copy a turn away lies
-/// past it.
+/// side. The copies a turn away are defence for the charts to come: on
+/// a cylinder — the one periodic other axis read today, `u`, the column
+/// `v` — the curve is `u = φ ± t`, one point per azimuth. A copy a turn
+/// away can meet `rb` while the nearest misses it only within `rb`'s
+/// reach past the cell on one side, where it reaches further than on
+/// the other; those azimuths are the chosen run's own, its pieces
+/// running on from the curve over the columns to the cell, and no other
+/// run lies there.
+///
+/// It is the one guard against a second run: a run the cell itself
+/// holds meets `rb`, which holds the cell's range, so [`graph`] does not
+/// test for one apart from it. The chosen run's own copies need no
+/// reading: `rb` spans less than a turn and holds the run's reach, so a
+/// copy a turn away lies past it.
 fn apart(rb: (f64, f64), others: &[Interval], periodic: bool) -> bool {
     let copies: &[f64] = if periodic { &[-1.0, 0.0, 1.0] } else { &[0.0] };
     others.iter().all(|&g| {
@@ -3466,8 +3511,32 @@ mod presentation_rows {
         slotmap::KeyData::from_ffi((1u64 << 32) | n).into()
     }
 
+    fn face(n: u64) -> FaceKey {
+        slotmap::KeyData::from_ffi((1u64 << 32) | n).into()
+    }
+
     fn origin() -> Point3<Interval> {
         Point3::new(iv0(0.0), iv0(0.0), iv0(0.0))
+    }
+
+    /// The degree-1 patch `S(u, v) = (u, 0, v)` on `[0, 1]²`: the plane
+    /// `y = 0` as a free-form carrier.
+    fn sheet() -> Surface<Interval> {
+        use geom_core::spline::{KnotVector, Knots};
+        let knots = || {
+            Knots::from(KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap())
+                .lift(Interval::from_f64)
+        };
+        let p = |x: f64, z: f64| Point3::new(iv0(x), iv0(0.0), iv0(z));
+        Surface::Nurbs(std::sync::Arc::new(
+            geom::NurbsSurface::new(
+                knots(),
+                knots(),
+                vec![p(0.0, 0.0), p(0.0, 1.0), p(1.0, 0.0), p(1.0, 1.0)],
+                vec![iv0(1.0); 4],
+            )
+            .unwrap(),
+        ))
     }
 
     fn cylinder() -> Surface<Interval> {
@@ -4098,6 +4167,54 @@ mod presentation_rows {
         assert_eq!(side(true, false), Some(Side::XLo), "the sense flipped");
     }
 
+    /// **A rim folded on itself is a cusp; across it, an annulus
+    /// certifies.** [`certify_pair`] on the cell `(0.69, 0.71) × (0.1,
+    /// 0.11)` beside the rim of a [`disk`], paired with the same cell of
+    /// a twin sharing the rim: the twin run backward with its sense
+    /// flipped lies on the same side, its normal opposed (wedge 0), and
+    /// the pair is [`Outcome::Cusp`] — the rim pair's own refusal, which
+    /// the sweep types `SecondOrder`. Run backward alone the twin lies
+    /// across the rim (wedge π) and the pair certifies. Red if a curved
+    /// side's normal is not read ([`Presented::shared_normal`]), which
+    /// leaves the cusp to split.
+    #[test]
+    fn a_rim_folded_on_itself_is_a_cusp_and_across_it_certifies() {
+        let s = floor();
+        let x = Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0));
+        let local = Local {
+            edges: vec![0],
+            vertices: Vec::new(),
+        };
+        let near = Near {
+            edges: vec![(0, 0)],
+            vertices: Vec::new(),
+        };
+        let disk_b = disk(0.7, x, true, true);
+        let pair = |twin: &Boundary| {
+            let [a, b] = [(&disk_b, face(1)), (twin, face(2))].map(|(boundary, face)| Piece {
+                face,
+                surface: &s,
+                whole: false,
+                boundary,
+                u: (0.69, 0.71),
+                v: (0.1, 0.11),
+                local: &local,
+                ball: Ball::holding(origin(), origin()),
+            });
+            certify_pair(&a, &b, &near, band())
+        };
+        let lamina = pair(&disk(0.7, x, false, false));
+        assert!(
+            matches!(lamina, Outcome::Cusp { shared: SharedCell::Edge(e) } if e == edge(1)),
+            "the folded rim is a cusp: {lamina:?}"
+        );
+        let annulus = pair(&disk(0.7, x, false, true));
+        assert!(
+            matches!(annulus, Outcome::Certified),
+            "across the rim the pair certifies: {annulus:?}"
+        );
+    }
+
     /// **A corner of a curved shared edge is read by no presentation**:
     /// a plane face bounded by a line and a circular arc meeting at a
     /// shared vertex refuses structurally in a cell holding the vertex,
@@ -4319,6 +4436,61 @@ mod presentation_rows {
         );
     }
 
+    /// **A rectangle a whole turn wide is not read.** An open arc of the
+    /// cylinder's oblique section, `u = t`, `v = sin t / 2` for `t` in
+    /// `[−0.5, 1]`: beside the arc, in a cell `0.1` wide, it is read as a
+    /// graph over `v`. In a cell spanning the whole turn of `u`, `R`
+    /// holds the curve over the columns on the lift nearest the cell's
+    /// middle, `t + 2π`, and the cell holds it again at `t`: two copies
+    /// of one curve, which no graph reads. Red if `R` may span a whole
+    /// turn.
+    #[test]
+    fn a_rectangle_a_whole_turn_wide_is_not_read() {
+        let cyl = cylinder();
+        let (t0, t1) = (-0.5, 1.0);
+        let n = (iv0(-0.5), iv0(1.0));
+        let norm = 1.25f64.sqrt();
+        let on = |t: f64| Point3::new(iv0(t.cos()), iv0(t.sin()), iv0(0.5 * t.sin()));
+        let b = Boundary {
+            sense: true,
+            edges: vec![Rim {
+                key: edge(1),
+                arc: Some((
+                    Curve3::Ellipse {
+                        center: origin(),
+                        axis: Vec3::new(iv0(0.0), iv0(-0.5 / norm), iv0(1.0 / norm)),
+                        semi_u: iv0(1.0),
+                        semi_v: iv0(norm),
+                        u_ref: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+                    },
+                    n,
+                )),
+                ends: [vertex(1), vertex(2)],
+                uses: vec![Use {
+                    plus: true,
+                    image: None,
+                    iso: None,
+                    harmonic: Some(Harmonic {
+                        p0: [iv0(0.0), iv0(0.0)],
+                        pa: [iv0(0.0), iv0(0.0)],
+                        pb: [iv0(0.0), iv0(0.5)],
+                        pl: [iv0(1.0), iv0(0.0)],
+                    }),
+                }],
+            }],
+            vertices: BTreeMap::from([(vertex(1), on(t0)), (vertex(2), on(t1))]),
+            extent: None,
+        };
+        let strip = (-0.148, 0.05);
+        let beside = chart_near(&cyl, &b, &[0], &[0], ((-0.05, 0.05), strip));
+        assert!(matches!(beside, Read::Of(..)), "beside the arc: {beside:?}");
+        let whole = chart_near(&cyl, &b, &[0], &[0], ((0.0, TURN), strip));
+        assert!(
+            !matches!(whole, Read::Of(..)),
+            "a whole turn of u: {whole:?}"
+        );
+    }
+
     /// **Another edge in reach of the widened rectangle is not read
     /// past.** The disk's rim, and a short line edge — material past the
     /// rim, a C's inner lip — clear of the cell's ball but inside the
@@ -4454,7 +4626,9 @@ mod presentation_rows {
     /// admitted** ([`sign_on`]): against a presentation whose zero set is
     /// on the shared cell, under a read separator. Not in the carrier arm
     /// (no other presentation), not under the graph separator, not
-    /// against another past side.
+    /// against another past side, not where the side is off the
+    /// separator's zero set, and not on a free-form carrier, whose
+    /// injectivity no kind gives.
     #[test]
     fn a_side_past_the_shared_cell_reads_only_where_admitted() {
         let cyl = cylinder();
@@ -4492,6 +4666,25 @@ mod presentation_rows {
             sign_on(&plane, &p, Some(&other), band()),
             None,
             "against a past side"
+        );
+        let off = Psi::Linear {
+            n: z,
+            q: Point3::new(iv0(0.0), iv0(0.0), iv0(0.01)),
+        };
+        assert_eq!(
+            sign_on(&off, &p, Some(&exact), band()),
+            None,
+            "a separator the side is 0.01 off"
+        );
+        let patch = sheet();
+        let free = Presented {
+            surface: &patch,
+            ..past(Zero::Past(Side::YLo))
+        };
+        assert_eq!(
+            sign_on(&plane, &free, Some(&exact), band()),
+            None,
+            "a free-form carrier"
         );
     }
 }
