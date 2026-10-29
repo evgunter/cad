@@ -105,7 +105,7 @@ use geom_core::{Band, Bounds, CertifiedBounds, Decide, Margin, Point2, Point3, R
 use crate::Body;
 use crate::FaceContainment;
 use crate::cell_region::{
-    Ball, BoundaryStop, CellRegion, cell_region_lifted, lift_boundary, station_region,
+    Ball, BoundaryStop, CellRegion, cell_region_lifted, centre, lift_boundary, station_region,
 };
 use crate::entity::{EdgeKey, Face, FaceKey, HalfEdgeKey, LoopBoundary, VertexKey};
 use crate::injective::{
@@ -1905,11 +1905,9 @@ fn piece_of<'a, T: Real>(w: &'a Window<'_, T>, c: Cell, local: &'a Local) -> Pie
 /// A cell's ball: its centre station on the carrier and the reach that
 /// holds the cell's enclosure.
 fn ball_of(surface: &Surface<Interval>, c: Cell) -> Ball {
-    let at = |(lo, hi): (f64, f64)| {
-        let m = geom::mid_param(lo, hi);
-        Interval::from_bounds(m, m)
-    };
-    Ball::holding(surface.eval(at(c.u), at(c.v)), c.enc)
+    let (u, v) = centre(c.u, c.v);
+    let at = |m| Interval::from_bounds(m, m);
+    Ball::holding(surface.eval(at(u), at(v)), c.enc)
 }
 
 // ------------------------------------- the minimum-separation door
@@ -1930,18 +1928,20 @@ fn ball_of(surface: &Surface<Interval>, c: Cell) -> Ball {
 ///   cell decided [`CellRegion::Outside`] its face holds no point of it
 ///   and is discharged; every other pair, a cell the door cannot decide
 ///   included, stays in, so the cells still standing cover the faces.
-/// - `hi`, when present, is a certified upper bound on
-///   `sup{ M(p) : p ∈ B }`: the least, over every pair examined, of the
-///   pair's `separation_hi` where both cells are decided
-///   [`CellRegion::Inside`], and of its two centre stations' separation
-///   where each station lies on its face ([`Bracket::witness`]). Each is
-///   the distance between two points of the faces, enclosed over the
-///   whole box. Absent when no examined pair witnessed one.
+/// - `hi`, when present, is an upper bound on `sup{ M(p) : p ∈ B }` up
+///   to the band: the least, over every pair examined, of its two centre
+///   stations' separation where each station is placed on its face
+///   ([`Bracket::witness`]). A station placed `In` is a point of the
+///   face; one placed `OnEdge` or `OnVertex` is a decision within the
+///   band, and may lie up to the band outside the face. Absent when no
+///   examined pair witnessed one.
 ///
-/// So `[lo, hi]` is a containment-true enclosure of the faces'
-/// separation. The window a trimmed face is subdivided over is a
-/// superset of the face; no pair of its points outside the face reaches
-/// either end.
+/// So `[lo, hi]` encloses the faces' separation, its upper end up to the
+/// band. The window a trimmed face is subdivided over is a superset of
+/// the face, and no point of it farther than the band outside the face
+/// reaches either end. One consequence, which is the kernel's ε model
+/// and not a defect: an `AtLeast c` over faces whose separation is
+/// within the band above `c` can read `Violated`.
 ///
 /// # Budget-honest, and no width rule anywhere
 ///
@@ -2163,13 +2163,27 @@ impl MinSeparation {
 ///
 /// The region readings ([`crate::cell_region`] for a cell, the face's
 /// point door for a station) do decide, at `band`, and every outcome of
-/// each leaves a true bracket: a cell read `Outside` holds no point of
-/// its face, one read `Inside` or a station placed on its face is a
-/// place on it, and one the door cannot decide stays in the lower end
-/// and out of the upper. They choose which pairs feed the bracket and
-/// decide nothing a census must see, so they run in
-/// [`k_stats::unlogged`]'s scope (audit row F28), and
+/// each leaves a bracket true to the band: a cell read `Outside` holds
+/// no point of its face, so it drops out of the lower end; a station
+/// placed `In` is a point of its face, and one placed `OnEdge` or
+/// `OnVertex` is within the band of it, so either may bound the upper
+/// end; a cell the door cannot decide stays in the lower end, and a
+/// station the door does not place stays out of the upper. They choose
+/// which pairs feed the bracket and decide nothing a census must see, so
+/// they run in [`k_stats::unlogged`]'s scope (audit row F28), and
 /// [`MinSeparation::decided`] counts them.
+///
+/// # Cost
+///
+/// The readings are taken only where they can change the answer: a
+/// station pair that would lower the incumbent, and an `Outside` test on
+/// a pair that would otherwise be split or floor the bracket. Even so
+/// they are most of a call's work, and the `Outside` test, asked of
+/// every pair the walk would split, is most of that. Measured on
+/// M10-6's `min_clearance` rows (debug build, one test at a time), a
+/// drive over the neck takes about 2.4× the wall time the walk took
+/// with no readings (0.9 s against 2.2 s), and the corpus row that
+/// drives every registered assertion about 1.25×.
 ///
 /// # Errors
 ///
@@ -2270,16 +2284,16 @@ pub fn min_separation<T: Decide + CertifiedBounds>(
     // root pairs witness ([`Bracket::witness`]), which is what makes the
     // very first bracket true.
     let mut q = Bracket {
-        hi: f64::INFINITY,
+        hi: None,
         floor: f64::INFINITY,
         poison: None,
         region: RegionMemo::at(band),
     };
-    for (i, j, sep) in &roots {
+    for (i, j, _) in &roots {
         if let (Some(x), Some(y), Some(&ca), Some(&cb)) =
             (wa.get(*i), wb.get(*j), root_a.get(*i), root_b.get(*j))
         {
-            q.witness((*i, x, ca), (*j, y, cb), *sep);
+            q.witness((*i, x, ca), (*j, y, cb));
         }
     }
     // Admission: a pair whose separation is entirely above the
@@ -2288,7 +2302,7 @@ pub fn min_separation<T: Decide + CertifiedBounds>(
     let mut frontier: Vec<Task> = Vec::new();
     let mut excluded = 0usize;
     for (i, j, sep) in &roots {
-        if sep.lo() >= q.hi {
+        if q.above(sep.lo()) {
             q.floor = q.floor.min(sep.lo());
             excluded += 1;
             continue;
@@ -2327,10 +2341,21 @@ pub fn min_separation<T: Decide + CertifiedBounds>(
     // and then `lo = hi` is the exact bracket rather than one that
     // walked past the truth. When every pair discharges, that is
     // precisely what comes out.
-    let lo = floor.min(hi);
+    let lo = hi.map_or(floor, |hi| floor.min(hi));
+    // A face holds a point, and a cell holding a point of its face is
+    // never decided `Outside`. Every root cell holds its whole face, and
+    // the halves of a split cell hold its points between them, so some
+    // pair holding points of both faces is refused, abandoned or pruned
+    // by a witnessed `hi`, and each of those leaves `lo` finite.
+    assert!(
+        lo.is_finite(),
+        "kernel defect: `min_separation` priced no pair into its lower end and witnessed no \
+         upper end, so a region door decided `Outside` a cell holding a point of its face \
+         (receipt {receipt:?})"
+    );
     Ok(MinSeparation {
         lo,
-        hi: hi.is_finite().then_some(hi),
+        hi,
         receipt,
         excluded,
         decided: region.decided(),
@@ -2339,86 +2364,80 @@ pub fn min_separation<T: Decide + CertifiedBounds>(
 }
 
 /// **The minimum question, per cell pair**: the incumbent upper bound,
-/// the floor every pair not discharged is priced into, the enclosure
-/// that did not evaluate, if one did not, and the region readings the
-/// walk took.
+/// once some pair has witnessed one, the floor every pair not
+/// discharged is priced into, the enclosure that did not evaluate, if
+/// one did not, and the region readings the walk took.
 struct Bracket {
-    hi: f64,
+    hi: Option<f64>,
     floor: f64,
     poison: Option<MinSeparationRefusal>,
     region: RegionMemo,
 }
 
-/// The audit row that argues why [`Bracket`]'s region readings are taken
-/// in [`k_stats::unlogged`]'s scope.
-const REGION_READINGS: &str = "F28";
-
 impl Bracket {
+    /// Whether a pair whose cells are `lo` apart at the least cannot
+    /// hold a smaller separation than the incumbent.
+    fn above(&self, lo: f64) -> bool {
+        self.hi.is_some_and(|hi| lo >= hi)
+    }
+
     /// Whether either cell of a pair is decided outside its face, read
-    /// in the unlogged scope ([`REGION_READINGS`]).
+    /// in the unlogged scope (audit row F28).
     fn outside<T: Decide + CertifiedBounds>(
         &mut self,
         (i, x, a): (usize, &Window<'_, T>, Cell),
         (j, y, b): (usize, &Window<'_, T>, Cell),
     ) -> bool {
         let region = &mut self.region;
-        k_stats::unlogged(REGION_READINGS, || {
+        k_stats::unlogged("F28", || {
             region.ask(false, i, x, a) == CellRegion::Outside
                 || region.ask(true, j, y, b) == CellRegion::Outside
         })
     }
 
     /// **What a pair witnesses about the FACES' separation from above**,
-    /// folded into the incumbent: the pair's own `separation_hi` when
-    /// both cells are decided [`CellRegion::Inside`], and the separation
-    /// of its two centre stations when each lies on its face (its cell
-    /// decided `Inside`, or the point door placing it `In`, `OnEdge` or
-    /// `OnVertex`).
+    /// folded into the incumbent: the separation of its two centre
+    /// stations, when each lies on its face. A station lies on its face
+    /// when its cell is decided [`CellRegion::Inside`], whose verdict
+    /// placed that very station `In`; not when the cell is decided
+    /// `Outside`, whose verdict placed it `Out`; and otherwise when the
+    /// face's point door places it `In`, `OnEdge` or `OnVertex`.
     ///
-    /// Either is the distance between two points of the faces, enclosed
-    /// over the whole parameter box, so it bounds the faces' minimum
-    /// from above at every parameter point. The station pair is what
-    /// makes that bound tight: `separation_hi` is the furthest two points
-    /// of the two cells can be, which approaches the separation only as
-    /// both cells shrink, while two stations across from each other are
-    /// tight the moment they are found.
+    /// `OnEdge` and `OnVertex` are decisions within the band: such a
+    /// station lies on the face's boundary or up to the band outside it.
+    /// So the station pair is the distance between two points within
+    /// the band of the faces, enclosed over the whole parameter box, and
+    /// it bounds the faces' minimum from above up to the band at every
+    /// parameter point.
     ///
     /// The readings choose which pairs feed the incumbent and decide
-    /// nothing else, so they run in the unlogged scope
-    /// ([`REGION_READINGS`]).
+    /// nothing else, so they run in the unlogged scope (audit row F28).
     fn witness<T: Decide + CertifiedBounds>(
         &mut self,
         (i, x, a): (usize, &Window<'_, T>, Cell),
         (j, y, b): (usize, &Window<'_, T>, Cell),
-        sep: Interval,
     ) {
-        let centre = |c: Cell| (geom::mid_param(c.u.0, c.u.1), geom::mid_param(c.v.0, c.v.1));
-        let (sa, sb) = (centre(a), centre(b));
+        let (sa, sb) = (centre(a.u, a.v), centre(b.u, b.v));
         let at = |w: &Window<'_, T>, (u, v): (f64, f64)| enclosure(&w.surface, (u, u), (v, v));
         let stations = separation(&at(x, sa), &at(y, sb)).hi();
         // A region is read only where its answer could lower the
         // incumbent.
-        let cells_would = sep.hi() < self.hi;
-        let stations_would = stations.is_finite() && stations < self.hi;
-        if !(cells_would || stations_would) {
+        if !(stations.is_finite() && self.hi.is_none_or(|hi| stations < hi)) {
             return;
         }
         let region = &mut self.region;
-        let (cells, placed) = k_stats::unlogged(REGION_READINGS, || {
-            let inside = (
-                region.ask(false, i, x, a) == CellRegion::Inside,
-                region.ask(true, j, y, b) == CellRegion::Inside,
-            );
-            let placed = stations_would
-                && (inside.0 || Candidate::placed(region, false, i, x, sa))
-                && (inside.1 || Candidate::placed(region, true, j, y, sb));
-            (cells_would && inside.0 && inside.1, placed)
+        let placed = k_stats::unlogged("F28", || {
+            let mut on = |side_b, index, w: &Window<'_, T>, c: Cell, station| match region
+                .ask(side_b, index, w, c)
+            {
+                CellRegion::Inside => true,
+                CellRegion::Outside => false,
+                CellRegion::Undecided => Candidate::placed(region, side_b, index, w, station),
+            };
+            on(false, i, x, a, sa) && on(true, j, y, b, sb)
         });
-        if cells {
-            self.hi = self.hi.min(sep.hi());
-        }
         if placed {
-            self.hi = self.hi.min(stations);
+            self.hi = Some(stations);
         }
     }
 }
@@ -2443,8 +2462,8 @@ impl<T: Decide + CertifiedBounds> Question<T> for Bracket {
         // Every examined pair may tighten the upper bound, INCLUDING the
         // ones dropped below: a pair that cannot hold the minimum still
         // witnesses a separation of the faces.
-        self.witness((task.i, x, pair.a), (task.j, y, pair.b), sep);
-        if sep.lo() >= self.hi {
+        self.witness((task.i, x, pair.a), (task.j, y, pair.b));
+        if self.above(sep.lo()) {
             walk.receipt.discharged += 1;
             return ControlFlow::Continue(());
         }
@@ -2515,8 +2534,9 @@ enum Region {
     /// face and every station of it is a point of the face, so a cell
     /// reads [`CellRegion::Inside`] and a station is admitted with no
     /// point-in-face door asked. A cell on the domain's edge holds
-    /// boundary points of the face too; what the walk reads off
-    /// `Inside` is only that the cell is not outside, which holds.
+    /// boundary points of the face too, and every one of its points is
+    /// still a point of the closed face, which is what the minimum walk
+    /// reads off `Inside`: its centre station is a point of the face.
     Whole,
     /// The window is a superset of the face (every analytic carrier):
     /// [`cell_region`](crate::cell_region::cell_region) reads each cell, and [`station_region`] each

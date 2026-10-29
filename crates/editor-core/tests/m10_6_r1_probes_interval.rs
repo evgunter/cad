@@ -171,6 +171,8 @@ fn notch(
 struct Notch {
     doc: ProfileDoc,
     measure: editor_core::VarId,
+    /// The measure node.
+    measure_node: RecipeNodeId,
     assertion: RecipeNodeId,
     /// The L, which mints and holds its cap.
     ell: RecipeNodeId,
@@ -205,15 +207,14 @@ fn notch_nodes(bound: f64, relation: AssertionRelation) -> Notch {
         block,
         &editor_core::Frame::translation([0.0, 0.0, 1.0 + LIFT]),
     );
-    let measure = r
-        .measure(
-            &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
-            &[
-                crate::fixture::sited_ref(fixture::fname(ell, RoleSeg::Cap(CapEnd::End))),
-                SitedRef::new(block_at, fixture::fname(block, RoleSeg::Cap(CapEnd::Start))),
-            ],
-        )
-        .outputs[0];
+    let measured = r.measure(
+        &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
+        &[
+            crate::fixture::sited_ref(fixture::fname(ell, RoleSeg::Cap(CapEnd::End))),
+            SitedRef::new(block_at, fixture::fname(block, RoleSeg::Cap(CapEnd::Start))),
+        ],
+    );
+    let (measure, measure_node) = (measured.outputs[0], measured.measures[0]);
     let assertion = r.insert(Node::Assertion {
         value: fixture::read_var(&r.doc, measure),
         bound: len(bound),
@@ -222,6 +223,7 @@ fn notch_nodes(bound: f64, relation: AssertionRelation) -> Notch {
     Notch {
         doc: r.doc,
         measure,
+        measure_node,
         assertion,
         ell,
         block,
@@ -318,6 +320,37 @@ fn the_notch_bracket_contains_the_faces_separation() {
             m.lo()
         );
     }
+}
+
+/// **The engine's region readings stay out of the measure node's log.**
+/// The notch's walk decides cells and stations at every level, and
+/// every one of those readings runs in the unlogged scope (audit row
+/// F28), so the node records none of their rows and none of their
+/// in-band escalations. What it does record is reading the block into
+/// the cap's frame. Breaks if the scope is removed: measured, the node
+/// then holds 3901 more verdicts, under the region doors' names, and
+/// 138 escalations.
+#[test]
+fn the_notch_measure_records_none_of_the_engines_region_readings() {
+    let n = notch_nodes(0.2, AssertionRelation::AtLeast);
+    let ev = eval_over::<geom_core::Interval>(&n.doc, None);
+    let Some(NodeResult::Ok(v)) = ev.result(n.measure_node) else {
+        panic!("the measure node evaluated");
+    };
+    let region = |name: &str| {
+        ["cell_region_", "bool_contact_", "point_in_loop_"]
+            .iter()
+            .any(|door| name.starts_with(door))
+    };
+    let leaked: Vec<_> = v.verdicts.iter().filter(|x| region(x.predicate)).collect();
+    assert!(
+        leaked.is_empty() && v.escalations.is_empty(),
+        "the measure node's log holds {} region-reading verdicts and {} escalations: {:?} {:?}",
+        leaked.len(),
+        v.escalations.len(),
+        leaked.iter().take(4).collect::<Vec<_>>(),
+        v.escalations.iter().take(4).collect::<Vec<_>>()
+    );
 }
 
 /// `min_clearance(cap, underside) ≥ 0.2` holds on the faces (they are

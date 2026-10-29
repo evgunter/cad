@@ -466,6 +466,19 @@ fn min_clearance_between_two_separated_bodies_brackets_their_gap() {
         value.lo(),
         value.hi()
     );
+    // The upper end is a station pair straight across the gap, so it is
+    // tight: within the band of the truth. A bracket whose upper end is
+    // read off anything looser goes red here. The lower end is 0 at the
+    // shipped budget (measured), because the cells of the C's cap that
+    // straddle its notch stay undecided and their enclosures meet the
+    // block's; that is the lower end's honest looseness, not pinned.
+    let band = band();
+    assert!(
+        value.hi() - truth <= band.zero(),
+        "the upper end {} is within the band ({:e}) of the solids' {truth}",
+        value.hi(),
+        band.zero()
+    );
     let Some(NodeResult::Ok(a)) = ev.result(assertion) else {
         panic!("the assertion evaluated");
     };

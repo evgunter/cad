@@ -1118,10 +1118,11 @@ class MeasureUnavailableAt(PncadError):
     A typed ABSENCE rather than a failure. The measure node evaluated
     fine and has no value, which is why an assertion over it reports
     `Unevaluated` carrying this same reason instead of being poisoned.
-    A `min_clearance` at `f64` is the whole of it today: a station pair
-    found by a point-scalar search is an upper bound on the minimum
-    rather than the minimum, and reporting one would be a degradation
-    ERROR-DESIGN E7 forbids by name."""
+    At `f64`, the only scalar this binding evaluates at, it is always
+    `needs_enclosure` on a `min_clearance`: a station pair found by a
+    point-scalar search is an upper bound on the minimum rather than
+    the minimum, and reporting one would be a degradation ERROR-DESIGN
+    E7 forbids by name."""
 
     variant: str
     verb: str
