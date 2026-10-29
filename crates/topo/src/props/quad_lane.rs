@@ -1147,6 +1147,7 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
         }
     };
     let mut polygon: Vec<(f64, f64)> = Vec::with_capacity(outer.len());
+    let mut segments: Vec<((f64, f64), (f64, f64))> = Vec::with_capacity(outer.len());
     let mut boundary_defect = 0.0f64;
     let mut perimeter = 0.0f64;
     let lifted = crate::pcurves::lifted_images(body, hes);
@@ -1194,8 +1195,10 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
         // start→end and reversed ones end→start.
         if le.forward {
             polygon.push((ax, ay));
+            segments.push(((ax, ay), (bx, by)));
         } else {
             polygon.push((bx, by));
+            segments.push(((bx, by), (ax, ay)));
         }
         // Metric boundary length bound + the map-residual defect.
         let len = carrier_metric_length(&le.carrier, t0, t1)?;
@@ -1222,12 +1225,13 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
             });
         }
     }
-    let winding =
-        rectangle_winding(&polygon, (u0, u1, v0, v1)).ok_or(PropsError::QuadratureUnsupported {
+    let winding = rectangle_winding(&segments, (u0, u1, v0, v1)).ok_or(
+        PropsError::QuadratureUnsupported {
             what: "the NURBS-face boundary does not traverse its UV rectangle exactly \
                    once — a trimmed or multiply-wound region is outside the rectangle \
                    lane (the cut-loft unit's)",
-        })?;
+        },
+    )?;
     let control = about(
         payload
             .control()
@@ -1267,69 +1271,61 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
     }))
 }
 
-/// Whether `polygon`, every vertex on the boundary of the rectangle
-/// `(u0, u1, v0, v1)`, walks that boundary exactly once: `+1.0`
-/// counter-clockwise, `−1.0` clockwise, `None` otherwise. Read by
-/// comparisons alone, so a rectangle whose sides are not dyadic (a
-/// sub-patch at a knot of `1/9`) certifies as exactly as `[0, 1]²`,
+/// Whether the trim's iso segments, each `(start, end)` in traversal
+/// order, walk the boundary of the rectangle `(u0, u1, v0, v1)` exactly
+/// once: `+1.0` counter-clockwise, `−1.0` clockwise, `None` otherwise.
+/// Read by comparisons alone, so a rectangle whose sides are not dyadic
+/// (a sub-patch at a knot of `1/9`) certifies as exactly as `[0, 1]²`,
 /// which a shoelace in `f64` cannot promise.
 ///
-/// Each vertex has a place on the counter-clockwise perimeter: its
-/// side (bottom, right, top, left) and its coordinate along that side.
-/// A once-around walk steps along one side at a time, every step
-/// forward in that order (or every step backward), and passes each
-/// corner once, so its places wrap round exactly once.
+/// Each segment is axis-aligned, so it lies on one side of the
+/// rectangle (or inside it, which refuses) and runs one way along it.
+/// A once-around walk runs every moving segment the same way round and
+/// visits the four sides in their order, each in one run.
 fn rectangle_winding(
-    polygon: &[(f64, f64)],
+    segments: &[((f64, f64), (f64, f64))],
     (u0, u1, v0, v1): (f64, f64, f64, f64),
 ) -> Option<f64> {
-    if polygon.len() < 4 || u0 >= u1 || v0 >= v1 {
+    if u0 >= u1 || v0 >= v1 {
         return None;
     }
-    // The place on the counter-clockwise perimeter, as a side and a
-    // coordinate increasing along it. A corner takes the side it
-    // starts.
-    let place = |(x, y): (f64, f64)| -> (u8, f64) {
-        if y == v0 && x != u1 {
-            (0, x)
-        } else if x == u1 && y != v1 {
-            (1, y)
-        } else if y == v1 && x != u0 {
-            (2, -x)
+    // Each moving segment's side (bottom, right, top, left: the
+    // counter-clockwise order) and whether it runs counter-clockwise.
+    let mut sides = Vec::with_capacity(segments.len());
+    let mut ccw = None;
+    for &((ax, ay), (bx, by)) in segments {
+        let (side, forward) = if ay == by && ax != bx {
+            match ay {
+                y if y == v0 => (0u8, bx > ax),
+                y if y == v1 => (2, bx < ax),
+                _ => return None,
+            }
+        } else if ax == bx && ay != by {
+            match ax {
+                x if x == u1 => (1, by > ay),
+                x if x == u0 => (3, by < ay),
+                _ => return None,
+            }
+        } else if ax == bx && ay == by {
+            // A segment whose image is one chart point walks no way.
+            continue;
         } else {
-            (3, -y)
-        }
-    };
-    let on_side = |(x, y): (f64, f64), side: u8| match side {
-        0 => y == v0,
-        1 => x == u1,
-        2 => y == v1,
-        _ => x == u0,
-    };
-    let n = polygon.len();
-    let (mut forward, mut backward) = (0usize, 0usize);
-    for i in 0..n {
-        let (a, b) = (polygon[i], polygon[(i + 1) % n]);
-        // A step runs along one side: the two vertices share it.
-        if !(0..4).any(|side| on_side(a, side) && on_side(b, side)) {
+            return None;
+        };
+        if *ccw.get_or_insert(forward) != forward {
             return None;
         }
-        let (pa, pb) = (place(a), place(b));
-        match pa.partial_cmp(&pb)? {
-            core::cmp::Ordering::Less => forward += 1,
-            core::cmp::Ordering::Greater => backward += 1,
-            core::cmp::Ordering::Equal => return None,
+        if sides.last() != Some(&side) {
+            sides.push(side);
         }
     }
-    // Once round counter-clockwise: every step forward but the one
-    // that wraps past the start; clockwise, the mirror.
-    if backward == 1 && forward == n - 1 {
-        Some(1.0)
-    } else if forward == 1 && backward == n - 1 {
-        Some(-1.0)
-    } else {
-        None
+    if sides.len() > 1 && sides.first() == sides.last() {
+        sides.pop();
     }
+    let ccw = ccw?;
+    let next = |s: u8| if ccw { (s + 1) % 4 } else { (s + 3) % 4 };
+    let once = sides.len() == 4 && (0..4).all(|i| sides[(i + 1) % 4] == next(sides[i]));
+    once.then_some(if ccw { 1.0 } else { -1.0 })
 }
 
 /// A certified UPPER bound on a trim carrier's METRIC length, in
