@@ -169,3 +169,24 @@ vertex then sits on the side's section face, a touch with no record.
 Measured at ε = 1e-9 for five cube tilts and for the three-cone variant
 (a parallelepiped in the notch's gap). The fusion that branch adds
 leaves it unchanged; it reproduces with the fusion switched off.
+
+### In-band tilts at a fused pinch (measured by PR 5981's review)
+
+The ignored sweep `crates/topo/tests/review_pinch_corner_split.rs`,
+`review_sweep_normals_through_the_pinch`, run with `REVIEW_PERTURB=1` at
+ε = 1e-9, splits through the corner at normals 1e-7 off the cube's
+bottom-face plane, unit (1, 1.3, 0.7) either way. 12 sides fail tier 3′
+against the union's records carried through the split with
+`CensusUndecidable` ("they touch where a face of one, seen from the
+touch, has corners or edges too nearly in line to trace at this
+tolerance"):
+
+| union | sides |
+|---|---|
+| three cones (the wedge in the notch's gap) | 4 (2 normals × ±; cones 3, kept 2) |
+| three cones (the wedge in the gap above the top) | 4 (the same) |
+| four cones | 4 (cones 4, kept 3) |
+
+The review measured every one as a cell that refuses with the fusion
+switched off. Tier 3 holds on each; the census cannot decide the touch
+in band. Typed, not fixed here.

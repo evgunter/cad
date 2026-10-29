@@ -149,6 +149,7 @@ pub mod entity;
 pub mod euler;
 pub mod euler_kill;
 pub mod euler_ring;
+pub(crate) mod fuse;
 // The one door for a planar face's outward normal — at the crate root
 // because its consumers now span both halves and the shared sector
 // walk; its own docs carry the argument. Non-doc comment for the same

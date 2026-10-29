@@ -245,6 +245,7 @@ impl<T: Real> SplitResult<T> {
             .iter()
             .flat_map(|(_, g)| g.substitutions());
         let mut lineage = crate::Lineage::new()
+            .through_fusions(&self.naming.vertex_fusions)
             .through_merges(merged)
             .through_joins(&joins)
             .one_cut();
@@ -399,6 +400,12 @@ pub struct SplitNaming {
     /// another, with the innermost such ring, read by the section nesting
     /// rule ([`section_loops::nest`]). A piece in no ring has no row.
     pub islands: Vec<(crate::entity::LoopKey, FaceKey)>,
+    /// The fusions of a pinch's cones each side made
+    /// ([`super::section_cones`]), `(dead, kept)` in the order their
+    /// `kev`s ran, before the side's merges and joins: a dead vertex is
+    /// held by the vertex that survives it, a copy as well as an
+    /// original ([`Self::vertex_pairs`]).
+    pub vertex_fusions: crate::lineage::Fusions,
 }
 
 /// A side's faces that hold part of the tool plane
@@ -627,6 +634,7 @@ impl Default for SplitNaming {
             merge_groups: Default::default(),
             merge_skipped: Default::default(),
             islands: Default::default(),
+            vertex_fusions: crate::lineage::Fusions::new(crate::lineage::LineageRows::Fusions),
         }
     }
 }
@@ -676,12 +684,32 @@ pub enum SplitFinishError {
     },
     /// Whether a section corner at a pinch holds another side of its
     /// loop, read to fuse the pinch's cones on a side
-    /// ([`super::section_cones`]), escalated.
+    /// ([`super::section_cones`]), escalated. No input is known to reach
+    /// it: two sides of different cones within the band of one line at
+    /// the pinch have so far refused earlier, in the boolean that made
+    /// the pinch (`bool_vertex_face_side`, `enters_material`) or in the
+    /// reduction ([`super::SplitReduceError::SectionGermsEscalated`]),
+    /// over the cube tilts of `tests/split_through_a_union_pinch.rs`'s
+    /// union, 1e-10 to 1e-6 off the section's line, at ε = 1e-9.
     ConeCornerEscalated {
         /// The corner's vertex.
         vertex: VertexKey,
         /// The deciding reading's diagnostic.
         source: geom_core::Indeterminate,
+    },
+    /// A corner of the cut where pieces of the solid touch could not be
+    /// read to fuse the pinch's cones ([`super::section_cones`]): a side
+    /// of it has no departure read (a NURBS edge), or its face no normal
+    /// there.
+    ConeCornerUnread {
+        /// The corner's vertex.
+        vertex: VertexKey,
+    },
+    /// The zero-length joint that fuses a pinch's cones on a side
+    /// ([`crate::fuse::fuse`]) lost a half-edge it made (a kernel bug).
+    ConeFusionDesync {
+        /// What no longer resolved.
+        what: &'static str,
     },
     /// A curved wall smooth against the section at an edge refused its
     /// material pairing ([`geom_brep::MATERIAL_PAIRING`]): in band, or
@@ -951,6 +979,19 @@ impl core::fmt::Display for SplitFinishError {
                     source.lever_ending(super::SPLIT_COINCIDENCE_RECOURSE),
                 )
                 .fmt(f),
+            Self::ConeCornerUnread { .. } => write!(
+                f,
+                "a corner of the cut, where pieces of the solid touch, has a side whose \
+                 direction cannot be read (a NURBS edge), so whether it overlaps another \
+                 cannot be decided. {}",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            ),
+            Self::ConeFusionDesync { what } => write!(
+                f,
+                "the joint between two pieces of the solid at a corner of the cut lost its \
+                 half-edge ({what}). {}",
+                geom_core::KERNEL_DEFECT_ENDING
+            ),
             Self::DescribeSideEscalated { diag, .. } => diag
                 .undecided(
                     geom_brep::MATERIAL_PAIRING_CLAUSE,
@@ -1140,6 +1181,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         merge_groups: Vec::new(),
         merge_skipped: Vec::new(),
         islands: Vec::new(),
+        vertex_fusions: crate::lineage::Fusions::new(crate::lineage::LineageRows::Fusions),
     };
 
     let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;

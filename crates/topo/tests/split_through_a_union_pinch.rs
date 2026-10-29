@@ -16,7 +16,7 @@ use crate::common;
 use common::{finished, split_plane};
 use geom_core::{Point3, Tol, Vec3};
 use topo::{
-    AtRestBody, ContactRecords, SplitPart, split, validate_geometric, validate_pseudomanifold,
+    AtRestBody, BooleanBody, SplitPart, split, validate_geometric, validate_pseudomanifold,
 };
 
 fn t() -> Tol {
@@ -234,20 +234,23 @@ pub(crate) fn wedge() -> AtRestBody<f64> {
     finished("the wedge", body, t())
 }
 
-fn united(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> AtRestBody<f64> {
+fn united(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> BooleanBody<f64> {
     match topo::union(a, b, t()) {
-        Ok(topo::BooleanResult::Body(b)) => b.body,
+        Ok(topo::BooleanResult::Body(b)) => b,
         other => panic!("the union builds: {other:?}"),
     }
 }
 
 /// The union split by x = 1 either way up, with and without the wedge
 /// as a third cone: each side at its closed form, its vertices at the
-/// corner (the cones it keeps apart there), tier 3 and tier 3′.
+/// corner (the cones it keeps apart there), tier 3, and tier 3′ against
+/// the union's records carried through the split, a record of a fused
+/// cone's vertex landing on the vertex that survives it.
 #[test]
 fn a_split_through_a_union_pinch_fuses_its_cones_on_the_side_that_joins_them() {
     let two = united(&ell(), &cube());
-    let three = united(&two, &wedge());
+    let three = united(&two.body, &wedge());
+    let band = geom_core::Band::linear(t()).expect("a band at the run's tolerance");
     let at_corner = |b: &AtRestBody<f64>| {
         b.vertex_points()
             .filter(|(_, p)| [p.x, p.y, p.z] == PINCH_AT)
@@ -266,18 +269,21 @@ fn a_split_through_a_union_pinch_fuses_its_cones_on_the_side_that_joins_them() {
         ),
     ];
     for (union, u, cones, sides) in cases {
-        assert_eq!(at_corner(u), cones, "{union}: one vertex per cone");
+        assert_eq!(at_corner(&u.body), cones, "{union}: one vertex per cone");
         for up in [true, false] {
             let s = if up { 1.0 } else { -1.0 };
             let plane = split_plane(Point3::new(1.0, 0.0, 0.0), Vec3::new(s, 0.0, 0.0), t());
-            let r = split(u, &plane, t())
+            let r = split(&u.body, &plane, t())
                 .unwrap_or_else(|e| panic!("{union}, up {up}: refused: {e:?}"));
+            let carried = r
+                .carry_contacts(&u.contacts, band, Some(topo::RegionLane::certified()))
+                .unwrap_or_else(|e| panic!("{union}, up {up}: the records carry: {e:?}"));
             let parts = if up {
-                [&r.above, &r.below]
+                [(&r.above, &carried.above), (&r.below, &carried.below)]
             } else {
-                [&r.below, &r.above]
+                [(&r.below, &carried.below), (&r.above, &carried.above)]
             };
-            for (part, (want, vertices), what) in parts
+            for ((part, records), (want, vertices), what) in parts
                 .into_iter()
                 .zip(sides)
                 .zip(["x ≥ 1", "x ≤ 1"])
@@ -298,7 +304,7 @@ fn a_split_through_a_union_pinch_fuses_its_cones_on_the_side_that_joins_them() {
                 assert_eq!(at_corner(b), vertices, "{what}: vertices at the corner");
                 assert_eq!(validate_geometric(b, t()), Ok(()), "{what}: tier 3");
                 assert_eq!(
-                    validate_pseudomanifold(b, &ContactRecords::default(), t()),
+                    validate_pseudomanifold(b, records, t()),
                     Ok(()),
                     "{what}: tier 3′"
                 );

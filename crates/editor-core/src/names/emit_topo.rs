@@ -1275,6 +1275,14 @@ fn name_split_edges_vertices<T: Decide>(
         // would alias across the two halves).
         let pair_originals: BTreeSet<VertexKey> =
             naming.vertex_pairs.iter().map(|&(_, o)| o).collect();
+        // Each vertex a fusion kept → the vertices fused into it.
+        let mut fused_into: BTreeMap<VertexKey, Vec<VertexKey>> = BTreeMap::new();
+        for &(dead, _) in naming.vertex_fusions.rows() {
+            fused_into
+                .entry(naming.vertex_fusions.survivor(dead))
+                .or_default()
+                .push(dead);
+        }
         // Crossing vertices, by the operand edge they cross: (from a
         // tie, the vertices).
         let mut crossings: BTreeMap<EdgeKey, (Upstream, Vec<VertexKey>)> = BTreeMap::new();
@@ -1293,8 +1301,22 @@ fn name_split_edges_vertices<T: Decide>(
                 continue;
             }
             // The vertex it stands for: itself, or the original its
-            // null-pair copy rows end at.
-            let src = pair_original(&copy_to_original, v);
+            // null-pair copy rows end at. A vertex a fusion of a pinch's
+            // cones kept stands for each vertex fused into it too
+            // (`SplitNaming::vertex_fusions`), and takes the one of
+            // those the target names least, whichever key survived.
+            let src =
+                fused_into
+                    .get(&v)
+                    .map_or(Ok(pair_original(&copy_to_original, v)), |dead| {
+                        least_named(
+                            core::iter::once(v)
+                                .chain(dead.iter().copied())
+                                .map(|k| pair_original(&copy_to_original, k)),
+                            target_table,
+                            target_node,
+                        )
+                    })?;
             if target_table
                 .name_of(&ent(0, EntityKey::Vertex(src)))
                 .is_some()
@@ -1445,6 +1467,34 @@ fn name_split_edges_vertices<T: Decide>(
 /// Where the rows cycle ([`chase::to_root`]): each row is a copy
 /// `SplitNaming` records with the vertex the null edge that minted it
 /// was minted at, so it names an earlier key.
+/// The vertex of `candidates` whose name in `table` is least, or the
+/// first where the table names none of them.
+///
+/// # Errors
+///
+/// [`upstream_name`]'s, where the table names a candidate it cannot
+/// resolve.
+fn least_named(
+    mut candidates: impl Iterator<Item = VertexKey>,
+    table: &NameTable,
+    node: RecipeNodeId,
+) -> Result<VertexKey, NamingError> {
+    let Some(first) = candidates.next() else {
+        unreachable!("a fused vertex stands for itself at least")
+    };
+    let mut least: Option<(NameRef, VertexKey)> = None;
+    for k in core::iter::once(first).chain(candidates) {
+        if table.name_of(&ent(0, EntityKey::Vertex(k))).is_none() {
+            continue;
+        }
+        let name = upstream_name(table, node, ent(0, EntityKey::Vertex(k)))?.name;
+        if least.as_ref().is_none_or(|(n, _)| name < *n) {
+            least = Some((name, k));
+        }
+    }
+    Ok(least.map_or(first, |(_, k)| k))
+}
+
 fn pair_original(copy_to_original: &BTreeMap<VertexKey, VertexKey>, v: VertexKey) -> VertexKey {
     let Ok(original) = chase::to_root::<_, Infallible>(
         v,

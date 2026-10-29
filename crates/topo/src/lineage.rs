@@ -236,6 +236,21 @@ impl Lineage {
         self
     }
 
+    /// The lineage read through `fusions`, the vertex fusions the op
+    /// made before its merges and joins: each image a fusion killed is
+    /// the vertex that survives every row after it
+    /// ([`Substitutions::survivor`]).
+    #[must_use]
+    pub(crate) fn through_fusions(mut self, fusions: &Fusions) -> Self {
+        self.merged.extend(
+            fusions
+                .rows()
+                .iter()
+                .map(|&(dead, _)| (Cell::Vertex(dead), Cell::Vertex(fusions.survivor(dead)))),
+        );
+        self
+    }
+
     /// The lineage of an op whose one cut made every pair of cells it
     /// minted on a record's two cells ([`MintedBacking::OneCut`]).
     #[must_use]

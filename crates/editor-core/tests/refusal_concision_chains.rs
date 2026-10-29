@@ -992,7 +992,7 @@ mod kernel {
         /// `SplitFinishError`'s arms, for the `Split/Finish/` rows.
         pub(super) const SPLIT_FINISH_ERROR: SplitFinishError = [
             DegenerateSide, TornComponent, UnclassifiableComponent, Corrupt, Euler,
-            Band, ConeCornerEscalated, DescribeEscalated, DescribeSideEscalated, DescribeBendEscalated,
+            Band, ConeCornerEscalated, ConeCornerUnread, ConeFusionDesync, DescribeEscalated, DescribeSideEscalated, DescribeBendEscalated,
             EdgeOnFacesEscalated, SmoothJoinRefuted, SectionWindingUndecided, KnifeEdge,
             NestingContradiction, SlitUnplaced, SlitHoming, ResultInvalid,
             ResultNotAtRest, ResultEscalated, EdgeJoin, Merge,
@@ -2714,6 +2714,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             F::ConeCornerEscalated {
                 vertex,
                 source: diag(),
+            },
+        ),
+        ("ConeCornerUnread", F::ConeCornerUnread { vertex }),
+        (
+            "ConeFusionDesync",
+            F::ConeFusionDesync {
+                what: "a joint half-edge has no end",
             },
         ),
         (
