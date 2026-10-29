@@ -4,6 +4,8 @@ kind: issue
 title: No row imports a STEP solid with an L-shaped torus or cone face and asks point_in_solid at its notch
 status: open
 opened: 2026-09-29
+priority: P3
+cost: M
 ---
 
 

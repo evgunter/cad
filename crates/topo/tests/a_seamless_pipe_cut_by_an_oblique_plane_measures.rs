@@ -384,7 +384,7 @@ fn injectivity(
 ) -> topo::clearance::BoundReport<(topo::FaceKey, topo::FaceKey, f64)> {
     use geom_core::k_stats::decide;
     use geom_core::{Band, Margin, Sign};
-    use topo::clearance::{ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep};
+    use topo::clearance::{Budgets, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep};
     let band = Band::linear(tol).unwrap();
     let faces = faces.unwrap_or_else(|| body.faces().map(|(k, _)| k).collect());
     let side = Side { body, faces };
@@ -393,8 +393,10 @@ fn injectivity(
     let sweep = Sweep {
         bound,
         band,
-        max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
-        max_cell_pairs: 65_536,
+        budgets: Budgets {
+            max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+            max_cell_pairs: 65_536,
+        },
     };
     let surface = |f: topo::FaceKey| {
         body.get_surface(body.get_face(f).unwrap().surface)

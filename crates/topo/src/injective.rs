@@ -2690,16 +2690,19 @@ impl Run<'_, '_> {
         }
         // Step 3: the face's side, left of its traversal about its
         // outward normal in a chart positively oriented about it.
-        let travel = if rising == plus { 1.0 } else { -1.0 };
-        let side = match column {
-            Axis::U => travel,
-            Axis::V => -travel,
+        // Travel along the column axis is forward where the curve rises
+        // with its parameter and the loop runs it forward; the left of
+        // a forward `u` is `+v`, of a forward `v` is `−u`; an outward
+        // normal against the chart's flips it.
+        let forward = rising == plus;
+        let left_is_above = match column {
+            Axis::U => forward,
+            Axis::V => !forward,
         };
-        let side = if b.sense { side } else { -side };
         Some(Graph {
             x,
             y,
-            above: side > 0.0,
+            above: left_is_above == b.sense,
             t: (ta, tb),
         })
     }

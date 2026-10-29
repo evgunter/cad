@@ -5,6 +5,7 @@ title: step-import: the parser recurses once per nested list with no bound, so a
 status: open
 opened: 2026-09-30
 priority: P1
+cost: E
 ---
 
 (Filed by EDIT's `edit/part-depth-bound` fix pass, from its review's

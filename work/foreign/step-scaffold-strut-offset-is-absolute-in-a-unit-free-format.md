@@ -5,7 +5,8 @@ title: step-import mints its scaffold strut at a fixed 1.0 offset, in a format w
 status: open
 opened: 2026-09-15
 priority: P3
-cost: D
+cost: M
+design: true
 ---
 
 

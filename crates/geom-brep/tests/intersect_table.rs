@@ -91,7 +91,9 @@ fn route_inventory() {
         // M5 PR 7 retired this arm: the ℝ³ implicit-pair march, all
         // three C2 limbs, in-op exhaustiveness.
         (Cylinder, Sphere, Rung::General, true),
-        (Cylinder, Torus, Rung::General, false),
+        // The ℝ³ implicit-pair march past the pose's critical gap
+        // (`ssi::cylinder_torus_ssi`).
+        (Cylinder, Torus, Rung::General, true),
         (Cylinder, Nurbs, Rung::General, false),
         (Cone, Cone, Rung::General, false),
         (Cone, Sphere, Rung::General, false),
@@ -105,7 +107,9 @@ fn route_inventory() {
         // quartic (`ssi::sphere_torus_ssi`).
         (Sphere, Torus, Rung::General, true),
         (Sphere, Nurbs, Rung::General, false),
-        (Torus, Torus, Rung::General, false),
+        // The same, both tori read through their quartics
+        // (`ssi::torus_torus_ssi`).
+        (Torus, Torus, Rung::General, true),
         (Torus, Nurbs, Rung::General, false),
         (Nurbs, Nurbs, Rung::General, true),
     ];

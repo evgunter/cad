@@ -14,7 +14,7 @@
 //! A rod that does cross the tube still stops, at the reduction's germ
 //! mint: the certificate answers every pair, and the section value lists
 //! the square wall's components without telling a site's component apart
-//! among them (`work/sect/cylinder-torus-rung-three-arm-is-unretired.md`).
+//! among them (`work/sect/torus-germ-pairs-have-no-section-frame.md`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

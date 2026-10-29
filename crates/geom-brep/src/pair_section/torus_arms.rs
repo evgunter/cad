@@ -10,7 +10,6 @@
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec2, Vec3};
 
-use super::torus::{CT_DOOR, TT_DOOR};
 use super::{ClassCarrier, ComponentShape, SectionComponent};
 use crate::intersect::decide_across;
 
@@ -135,11 +134,6 @@ fn essential_pair<T: Real>(
     carrier: &ClassCarrier<T>,
 ) -> Vec<SectionComponent<T>> {
     vec![arm_loop(winds, None, carrier); 2]
-}
-
-/// The cylinder × torus arms' carrier while the door is unbuilt.
-fn cylinder_carrier<T: Real>() -> ClassCarrier<T> {
-    ClassCarrier::Unbuilt(CT_DOOR)
 }
 
 // ---------------------------------------------------------------------
@@ -316,6 +310,9 @@ pub(super) fn sphere_touch<T: Decide>(
 // Torus × parallel-axis cylinder
 // ---------------------------------------------------------------------
 
+/// The parallel wall's side of the torus axis: its circle holds the axis.
+const WALL_ROUND_AXIS: &str = "section_torus_offset_wall_round_axis";
+
 /// The parallel wall's touch row: its nearest ruling on the torus's
 /// outer equator.
 pub(super) const WALL_NEAR_OUTER: &str = "section_torus_offset_wall_near_outer";
@@ -370,22 +367,35 @@ pub(super) fn parallel_cylinder_arm<T: Decide>(
     };
     Ok(
         match (min_over_lo, min_under_hi, max_over_lo, max_under_hi) {
-            // The whole ρ-range inside the tube's shadow: two loops, each
-            // encircling the cylinder.
-            (true, true, true, true) => essential_pair([false, true], &cylinder_carrier()),
+            // The whole ρ-range inside the tube's shadow: two loops, an
+            // upper and a lower, each a graph over the wall's circle, so
+            // each encircles the cylinder. On the torus each lies on one
+            // half of the tube, an annulus about the axis, and turns once
+            // about the axis exactly where the wall's circle holds it,
+            // `e < ρc`: then it is a longitude, essential, and otherwise
+            // null. `|ρc − e| = ρ_min` stands past `R − r` by the inner
+            // row just read, so its sign is decided.
+            (true, true, true, true) => {
+                let round_axis = match sign(WALL_ROUND_AXIS, Margin::of(rc - e), band) {
+                    Some(Sign::Positive) => true,
+                    Some(Sign::Negative) => false,
+                    _ => return Err(Pinch::named(WALL_ROUND_AXIS)),
+                };
+                essential_pair([round_axis, true], &ClassCarrier::General)
+            }
             // Wholly inside the hole, or wholly outside the torus.
             (_, _, false, _) | (_, false, _, _) => Vec::new(),
             // Across both bounds: two `(0,1)` loops on the torus.
-            (false, true, true, false) => essential_pair([true, false], &cylinder_carrier()),
+            (false, true, true, false) => essential_pair([true, false], &ClassCarrier::General),
             // Across the inner bound only: the null loop at θ = 0.
             (false, true, true, true) => lone(
                 c + toward * rho_max + a * height(rho_max),
-                &cylinder_carrier(),
+                &ClassCarrier::General,
             ),
             // Across the outer bound only: the null loop at θ = π.
             (true, true, true, false) => lone(
                 c + toward * (e - rc) + a * height(rho_min),
-                &cylinder_carrier(),
+                &ClassCarrier::General,
             ),
         },
     )
@@ -652,7 +662,7 @@ pub(super) fn parallel_torus_arm<T: Decide>(
         }
     }
     let mut parts = Vec::new();
-    let carrier = ClassCarrier::Unbuilt(TT_DOOR);
+    let carrier = ClassCarrier::General;
     let component = |w: Point3<T>| arm_loop([false, false], Some(w), &carrier);
     for (strands, mut points) in loops.iter().zip(on_pi) {
         if points.is_empty() {
@@ -1009,7 +1019,7 @@ fn lifts<T: Real>(
     at: impl Fn(T, T, T) -> Point3<T>,
 ) -> [SectionComponent<T>; 2] {
     let t = ((rho - y) * (rho + y)).sqrt();
-    [t, -t].map(|t| arm_loop([torus, partner], Some(at(y, z, t)), &cylinder_carrier()))
+    [t, -t].map(|t| arm_loop([torus, partner], Some(at(y, z, t)), &ClassCarrier::General))
 }
 
 fn through<T: Real>(
@@ -1020,7 +1030,7 @@ fn through<T: Real>(
     arm_loop(
         [torus, false],
         Some(at(f.y, f.z, T::zero())),
-        &cylinder_carrier(),
+        &ClassCarrier::General,
     )
 }
 

@@ -4,6 +4,8 @@ kind: issue
 title: step-import: a B-spline edge's parameters are pinned to its knot domain's ends, so a legal edge with interior vertices is refused as a damaged endpoint
 status: open
 opened: 2026-10-20
+priority: P3
+cost: M
 ---
 
 

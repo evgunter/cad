@@ -5,8 +5,9 @@ title: step-import adopts a DIRECTION and a ref_direction verbatim within the fi
 status: open
 opened: 2026-09-25
 priority: P3
-cost: D
+cost: M
 refs: [3238, step-import-restates-the-cone-half-angle-convention]
+design: true
 ---
 
 

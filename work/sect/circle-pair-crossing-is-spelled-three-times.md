@@ -2,7 +2,7 @@
 id: circle-pair-crossing-is-spelled-three-times
 kind: issue
 title: Whether two circles cross transversally is decided three times over: the coaxial-tube rows, the parallel-tori arm's reach and nest rows, and profile's circle_circle
-status: open
+status: dispatched
 opened: 2026-10-27
 priority: P1
 cost: E

@@ -158,7 +158,7 @@ Pinned in `crates/sweep/tests/m5_s10_face_sense.rs`:
 Write-up:
 `work/atrest/sense-inversion-is-invisible-to-tier-3-on-arc-capped-lofts.md`.
 The import-side consequence is
-`work/exch/step-import-adopts-an-inverted-same-sense-outside-the-cylinder-cone-guard.md`.
+`work/importgate/step-import-adopts-an-inverted-same-sense-outside-the-cylinder-cone-guard.md`.
 
 ## Home
 

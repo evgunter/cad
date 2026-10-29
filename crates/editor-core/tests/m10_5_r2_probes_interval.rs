@@ -45,7 +45,7 @@ use std::collections::BTreeMap;
 use editor_core::UnitSym;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::clearance::{
-    CellReceipt, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal,
+    Budgets, CellReceipt, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal,
     ClearanceReport, ClearanceVerdict, EngineRefusal, FaceScope, MonotoneOracle, NoTangents,
     Pruning, SELF_INTERSECTION_GAP, Selection, clearance_over, clearance_with, self_intersection,
 };
@@ -313,8 +313,10 @@ fn witness_distance(report: &ClearanceReport) -> f64 {
 
 fn cfg(pairs: usize, depth: u32) -> ClearanceConfig {
     ClearanceConfig {
-        max_cell_depth: depth,
-        max_cell_pairs: pairs,
+        budgets: Budgets {
+            max_cell_depth: depth,
+            max_cell_pairs: pairs,
+        },
         pruning: Pruning::Off,
     }
 }

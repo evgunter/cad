@@ -4,6 +4,8 @@ kind: issue
 title: STEP import refuses a ringed cylinder wall that the kernel builds and measures
 status: open
 opened: 2026-10-10
+priority: P3
+cost: M
 ---
 
 

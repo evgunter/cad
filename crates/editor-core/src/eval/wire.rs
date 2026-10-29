@@ -2375,7 +2375,7 @@ fn wire_measure<'r, T: Decide + topo::AtRestPolicy>(
             &oa.side(),
             &ob.side(),
             oa.same_body(&ob),
-            topo::clearance::MinSeparationConfig::default(),
+            topo::clearance::Budgets::MIN_SEPARATION,
         ) {
             Ok(v) => super::measure::finite(v),
             Err(refusal) => return Err(NodeErrorKind::MeasureClearanceRefused(refusal)),
