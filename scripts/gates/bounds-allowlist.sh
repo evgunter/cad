@@ -522,8 +522,14 @@ BOUNDS_ALLOWLIST=(
   # bracket of its own. 21 + 2 = 23. One more is `boolean_op_given`,
   # `boolean_op_with`'s body with a fold step's given pairs, which the
   # n-ary door (`nary.rs`) calls; it forwards to `boolean_door` and
-  # reads no bracket of its own. 23 + 1 = 24.
-  'crates/topo/src/boolean/ops.rs 24 2026-07-29 (M5 PR 8), the driver amendment'
+  # reads no bracket of its own. 23 + 1 = 24. Three more are the
+  # section certificate's own callers split out so each path and its
+  # test door read one walk: `crossings_section_pairs` (the guard's
+  # and `section_report`'s), `fallback_section_pairs` (the
+  # no-crossings pass's and its report's), and
+  # `reduced_as_the_op_does`, the test doors' glue door and reduction.
+  # None reads a bracket of its own. 24 + 3 = 27.
+  'crates/topo/src/boolean/ops.rs 27 2026-07-29 (M5 PR 8), the driver amendment'
   # reduce.rs's four are the sweep's own doors (`first_unsupported_pair`,
   # `gate_operand_pairs`, `face_tree`, `sweep_direction`); the fifth,
   # `sweep_and_settle`, is the one driver every boolean sweeps through,
