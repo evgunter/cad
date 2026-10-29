@@ -81,7 +81,9 @@ use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::live::{Proven, linked, proven};
 use crate::sector_face::{SectorCarrier, SectorFaceError, VertexFace};
-use crate::sector_shape::{ApexShape, SectorFault, SectorShape, apex_shape, sector_shape};
+use crate::sector_shape::{
+    ApexShape, SectorFault, SectorRung, SectorShape, SlitTips, apex_shape, sector_shape,
+};
 use crate::validate::decide;
 
 /// Resolves the sector face for the sector CW-after `he` (module docs:
@@ -284,7 +286,7 @@ pub(crate) fn wide_entries<T: Decide>(
     (vertex, face): (VertexKey, FaceKey),
     (dir_a, dir_b): (Vec3<T>, Vec3<T>),
     at_vertex: VertexFace<T>,
-    one_edge: bool,
+    (one_edge, slit_tip): (bool, bool),
     normal: Vec3<T>,
     band: Band,
 ) -> Result<Vec<(Vec3<T>, T, PlaneSide)>, SplitReduceError> {
@@ -300,9 +302,25 @@ pub(crate) fn wide_entries<T: Decide>(
     };
     let (arm, directions) = match at_vertex {
         VertexFace::Tangent(n_face) | VertexFace::NearAxis(n_face) => {
-            let SectorShape { arm, bisector, .. } =
-                sector_shape(dir_a, dir_b, n_face, one_edge, band).map_err(fault)?;
-            (arm, bisector.into_iter().collect())
+            match sector_shape(dir_a, dir_b, n_face, one_edge, band) {
+                Ok(SectorShape { arm, bisector, .. }) => (arm, bisector.into_iter().collect()),
+                // The two bounds leave along one ray, which between two
+                // distinct edges is a spike unless the structure says the
+                // face wraps round them: then the corner is a full turn,
+                // subdivided at its three quarters after `dir_a`.
+                Err(SectorFault::Rung {
+                    rung: SectorRung::Straight { .. },
+                    diag,
+                }) if slit_tip && diag.margin.rejected_sign() == Some(Sign::Positive) => {
+                    let unit_b = dir_b.normalize();
+                    let quarter = n_face.vec().cross(unit_b);
+                    (
+                        dir_a.norm().min(dir_b.norm()),
+                        vec![-quarter, -unit_b, quarter],
+                    )
+                }
+                Err(e) => return Err(fault(e)),
+            }
         }
         VertexFace::Apex(apex) => {
             let ApexShape { arm, rulings } =
@@ -348,7 +366,8 @@ pub fn classify_neighborhood<T: Decide>(
     vertex: VertexKey,
     band: Band,
 ) -> Result<Vec<SectorEntry>, SplitReduceError> {
-    classify_neighborhood_rays(body, plane, sides, vertex, band).map(|(entries, _)| entries)
+    classify_neighborhood_rays(body, plane, sides, vertex, &SlitTips::of(body), band)
+        .map(|(entries, _)| entries)
 }
 
 /// One entry's ray out of the vertex: its direction scaled to its
@@ -363,12 +382,14 @@ pub(super) struct EntryRay<T: geom_core::Real> {
     pub apex: Option<crate::sector_face::ConeApex<T>>,
 }
 
-/// [`classify_neighborhood`], with each entry's [`EntryRay`] beside it.
+/// [`classify_neighborhood`], with each entry's [`EntryRay`] beside it,
+/// `tips` the body's slit tips.
 pub(super) fn classify_neighborhood_rays<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
     sides: &SecondaryMap<VertexKey, PlaneSide>,
     vertex: VertexKey,
+    tips: &SlitTips,
     band: Band,
 ) -> Result<(Vec<SectorEntry>, Vec<EntryRay<T>>), SplitReduceError> {
     if body.get_vertex(vertex).is_none() {
@@ -438,7 +459,7 @@ pub(super) fn classify_neighborhood_rays<T: Decide>(
             (vertex, face),
             (dir_a, dir_b),
             at_vertex,
-            he == next_he,
+            (he == next_he, tips.holds(vertex, face)),
             plane.normal.get(),
             band,
         )?;

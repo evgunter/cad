@@ -666,7 +666,7 @@ fn mark_germ(rec: &mut PairRecord) -> Result<(), BooleanError> {
 ///   typed ([`BooleanError::CrossingsAlongAContactLine`]), whether two
 ///   wedge pairs cross or one composed material's boundary crosses
 ///   twice, except on a solid's own slit or ring line
-///   ([`super::sectors::SlitTips`]). There the slit's two edges are two
+///   ([`crate::sector_shape::SlitTips`]). There the slit's two edges are two
 ///   wedges lying apart, so the material sectors decide each germ: one
 ///   per wedge pair that crosses, a wedge crossing two of the other's
 ///   holding each on its flanker inside the wedge it crosses
@@ -709,7 +709,7 @@ pub(super) fn recl_edges<T: Decide>(
     reversed: &Reversed,
     held: [Option<HeldFace<T>>; 2],
     touches: &mut Vec<[crate::entity::HalfEdgeKey; 2]>,
-    tips: &[super::sectors::SlitTips; 2],
+    tips: &[crate::sector_shape::SlitTips; 2],
 ) -> Result<(), BooleanError> {
     let (n_a, n_b) = (a_sectors.len(), b_sectors.len());
 
@@ -805,7 +805,7 @@ pub(super) fn recl_edges<T: Decide>(
         // of the start holder is the next sector's own chord.
         let bound = |secs: &[BoolSector<T>], f_s: usize| secs[(f_s + 1) % secs.len()].he;
         // Whether this ray is a solid's own slit or ring line: the
-        // solid's vertex is the slit's tip ([`super::sectors::SlitTips`])
+        // solid's vertex is the slit's tip ([`crate::sector_shape::SlitTips`])
         // and an edge of its on this ray bounds the face the slit lies
         // in, which only the slit's two edges do at its tip. Its refusal
         // is a construction gap ([`BooleanError::SlitLineCrossed`]): the
@@ -1171,7 +1171,7 @@ pub(super) fn edge_edge_bound<T: geom_core::Real>(
 }
 
 /// **A solid's own slit or ring line through a vertex pair**
-/// ([`recl_edges`]): the solid, its tip there ([`super::sectors::SlitTips`])
+/// ([`recl_edges`]): the solid, its tip there ([`crate::sector_shape::SlitTips`])
 /// and the face the slit lies in.
 #[derive(Clone, Copy, Debug)]
 struct SlitLine {
@@ -3349,8 +3349,8 @@ mod tests {
                 .expect("a face the ray's edge does not bound");
             for (face, slit) in [(slit_face, true), (other_face, false)] {
                 let tips = [
-                    super::super::sectors::SlitTips::of_pairs([(want.0, face)]),
-                    super::super::sectors::SlitTips::default(),
+                    crate::sector_shape::SlitTips::of_pairs([(want.0, face)]),
+                    crate::sector_shape::SlitTips::default(),
                 ];
                 let mut records = vec![
                     rec(0, 0, (On, Out), (On, Out)),

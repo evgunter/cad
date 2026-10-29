@@ -63,7 +63,7 @@ use crate::chord_join::StaleSite;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::live::{Proven, linked, proven};
 use crate::sector_face::{SectorCarrier, SectorFaceError, VertexFace};
-use crate::sector_shape::{SectorFault, SectorRung, SectorShape, sector_shape};
+use crate::sector_shape::{SectorFault, SectorRung, SectorShape, SlitTips, sector_shape};
 use crate::validate::decide;
 use geom_brep::recourse::Refused;
 
@@ -272,68 +272,6 @@ pub(super) struct OrbitCorner<T: geom_core::Real> {
     pub face: FaceKey,
     /// The face's outward unit normal at the vertex ([`sector_face`]).
     pub normal: OutwardNormal<T>,
-}
-
-/// **The tips of an operand's slits and zero-area rings**, read from
-/// the operand at rest: each `(vertex, face)` where two distinct line
-/// edges on one segment by structure ([`crate::census::shared_segments`],
-/// the same two point keys) both end at `vertex` and both bound `face`.
-/// That is tier 3's two coincident distinct edges (`crates/topo/README.md`),
-/// and `face` carries them as a slit of one of its loops or as a ring:
-/// it wraps round the tip, so its corner there between the two edges is
-/// a full turn ([`build_sectors`]). The reduction may split the two
-/// edges apart from the tip, each at its own vertex, so the reading is
-/// taken before it.
-#[derive(Clone, Debug, Default)]
-pub(crate) struct SlitTips(std::collections::BTreeSet<(VertexKey, FaceKey)>);
-
-impl SlitTips {
-    /// The tips of `body` at rest.
-    pub(super) fn of<T: geom_core::Real>(body: &Body<T>) -> Self {
-        let mut tips = std::collections::BTreeSet::new();
-        for pair in crate::census::shared_segments(body) {
-            let [a, b] = pair.edges;
-            let (ea, eb) = (
-                crate::query::edge_ends(body, a),
-                crate::query::edge_ends(body, b),
-            );
-            let faces = |e: EdgeKey| -> Vec<FaceKey> {
-                let plus = proven(&body.edges, e, EntityId::Edge).he_plus;
-                [Some(plus), body.mate(plus)]
-                    .into_iter()
-                    .flatten()
-                    .filter_map(|h| body.face_of_half_edge(h))
-                    .collect()
-            };
-            let (fa, fb) = (faces(a), faces(b));
-            for v in [ea.0, ea.1] {
-                if v != eb.0 && v != eb.1 {
-                    continue;
-                }
-                for &f in fa.iter().filter(|f| fb.contains(f)) {
-                    tips.insert((v, f));
-                }
-            }
-        }
-        Self(tips)
-    }
-
-    /// Whether `face`'s corner at `vertex` lies between a slit's two
-    /// edges.
-    fn holds(&self, vertex: VertexKey, face: FaceKey) -> bool {
-        self.0.contains(&(vertex, face))
-    }
-
-    /// Tips named outright, for a unit row that has no body to read.
-    #[cfg(test)]
-    pub(super) fn of_pairs(pairs: impl IntoIterator<Item = (VertexKey, FaceKey)>) -> Self {
-        Self(pairs.into_iter().collect())
-    }
-
-    /// The face carrying a slit `vertex` is the tip of, if it is one.
-    pub(super) fn face_at(&self, vertex: VertexKey) -> Option<FaceKey> {
-        self.0.iter().find(|(v, _)| *v == vertex).map(|&(_, f)| f)
-    }
 }
 
 /// Builds the sector array of `vertex`'s neighborhood (module docs).

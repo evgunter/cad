@@ -284,7 +284,7 @@ fn entered_faces<T: Decide>(
                     (vertex, face),
                     (dir_a, dir_b),
                     resolved.at_vertex,
-                    he == orbit[next],
+                    (he == orbit[next], false),
                     n,
                     band,
                 )

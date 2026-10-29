@@ -977,6 +977,7 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
     let mut body = reduced.begin_surgery();
 
     classify::carrier_gate(&body, plane, band)?;
+    let tips = crate::sector_shape::SlitTips::of(&body);
     let (mut sides, mut on_vertices, on_margins) =
         classify::classify_vertices_margined(&body, plane, band)?;
     let edge_pieces =
@@ -987,7 +988,7 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
     let mut coincidences = Vec::new();
     for &v in &on_vertices {
         let (entries, rays) =
-            neighborhood::classify_neighborhood_rays(&body, plane, &sides, v, band)?;
+            neighborhood::classify_neighborhood_rays(&body, plane, &sides, v, &tips, band)?;
         let runs = insert::above_runs(&entries);
         // An operand vertex decided ON whose neighbourhood leaves two or
         // more runs on a side: pieces of the solid touch there. A

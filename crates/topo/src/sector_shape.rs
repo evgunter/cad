@@ -163,6 +163,9 @@ use geom_core::{
     is_underflowed_length,
 };
 
+use crate::body::Body;
+use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
+use crate::live::proven;
 use crate::validate::{decide, decide_negative, decide_positive};
 
 /// Rung 1's K name: the metering arm is positive.
@@ -438,6 +441,68 @@ fn sector_arm<T: Decide>(
     let arm = norm_own.min(norm_next);
     decide_positive(SECTOR_ARM, Margin::of(arm), band).map_err(refused(SectorRung::Arm))?;
     Ok(arm)
+}
+
+/// **The tips of an operand's slits and zero-area rings**, read from
+/// the operand at rest: each `(vertex, face)` where two distinct line
+/// edges on one segment by structure ([`crate::census::shared_segments`],
+/// the same two point keys) both end at `vertex` and both bound `face`.
+/// That is tier 3's two coincident distinct edges (`crates/topo/README.md`),
+/// and `face` carries them as a slit of one of its loops or as a ring:
+/// it wraps round the tip, so its corner there between the two edges is
+/// a full turn (`boolean::sectors::build_sectors`, [`crate::splitting::wide_entries`]). The reduction may split the two
+/// edges apart from the tip, each at its own vertex, so the reading is
+/// taken before it.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct SlitTips(std::collections::BTreeSet<(VertexKey, FaceKey)>);
+
+impl SlitTips {
+    /// The tips of `body` at rest.
+    pub(crate) fn of<T: Real>(body: &Body<T>) -> Self {
+        let mut tips = std::collections::BTreeSet::new();
+        for pair in crate::census::shared_segments(body) {
+            let [a, b] = pair.edges;
+            let (ea, eb) = (
+                crate::query::edge_ends(body, a),
+                crate::query::edge_ends(body, b),
+            );
+            let faces = |e: EdgeKey| -> Vec<FaceKey> {
+                let plus = proven(&body.edges, e, EntityId::Edge).he_plus;
+                [Some(plus), body.mate(plus)]
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|h| body.face_of_half_edge(h))
+                    .collect()
+            };
+            let (fa, fb) = (faces(a), faces(b));
+            for v in [ea.0, ea.1] {
+                if v != eb.0 && v != eb.1 {
+                    continue;
+                }
+                for &f in fa.iter().filter(|f| fb.contains(f)) {
+                    tips.insert((v, f));
+                }
+            }
+        }
+        Self(tips)
+    }
+
+    /// Whether `face`'s corner at `vertex` lies between a slit's two
+    /// edges.
+    pub(crate) fn holds(&self, vertex: VertexKey, face: FaceKey) -> bool {
+        self.0.contains(&(vertex, face))
+    }
+
+    /// Tips named outright, for a unit row that has no body to read.
+    #[cfg(test)]
+    pub(crate) fn of_pairs(pairs: impl IntoIterator<Item = (VertexKey, FaceKey)>) -> Self {
+        Self(pairs.into_iter().collect())
+    }
+
+    /// The face carrying a slit `vertex` is the tip of, if it is one.
+    pub(crate) fn face_at(&self, vertex: VertexKey) -> Option<FaceKey> {
+        self.0.iter().find(|(v, _)| *v == vertex).map(|&(_, f)| f)
+    }
 }
 
 /// K name: how far a plane's side varies round the rulings of a cone's

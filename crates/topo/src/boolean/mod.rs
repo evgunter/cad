@@ -2282,8 +2282,8 @@ pub struct BooleanReduction<T: Real> {
     /// The op the classification was performed for.
     pub op: BooleanOp,
     /// Each operand's slit and ring tips, A's then B's, read at rest
-    /// ([`sectors::SlitTips`]).
-    pub(crate) slit_tips: [sectors::SlitTips; 2],
+    /// ([`crate::sector_shape::SlitTips`]).
+    pub(crate) slit_tips: [crate::sector_shape::SlitTips; 2],
     /// The annotated A clone (crossings split, null edges inserted).
     pub a: Body<T>,
     /// The annotated B clone.
@@ -5953,10 +5953,10 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     // on the way closes both scopes by dropping them.
     // The operands' slit and ring tips, read at rest: the reduction may
     // split a slit's two edges apart from its tip
-    // ([`sectors::SlitTips`]).
+    // ([`crate::sector_shape::SlitTips`]).
     let tips = [
-        sectors::SlitTips::of(a_operand),
-        sectors::SlitTips::of(b_operand),
+        crate::sector_shape::SlitTips::of(a_operand),
+        crate::sector_shape::SlitTips::of(b_operand),
     ];
     let mut carved_a = a_operand.clone();
     let mut carved_b = b_operand.clone();
