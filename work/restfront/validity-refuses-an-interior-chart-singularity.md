@@ -2,12 +2,11 @@
 id: validity-refuses-an-interior-chart-singularity
 kind: issue
 title: Validity refuses a revolution-chart face whose loop is rims only (a pole or apex interior to the face)
-status: parked
+status: open
 opened: 2026-09-18
 refs: [rim-only-sphere-cap-panics-at-census, import-normalizes-the-rim-only-cap]
 priority: P0
 cost: H
-blocked_on: [import-normalizes-the-rim-only-cap]
 ---
 
 
@@ -179,3 +178,11 @@ face too. When validity refuses such a face, all three rows in that file
 go red at import, and so does `tier_gate`'s corpus row. Re-point them
 then: `sphere_region_material_sign` may read a pole on no member's loop
 as outside the region once this rule is enforced.
+
+## Re-aimed by FOREIGN's designer pair (2026-10-29)
+
+Both designers on `import-normalizes-the-rim-only-cap` found the kinds-only "the loop has no meridian" predicate is not the rule (this row's own FLUX and TESS sections say as much): a tilted cap holds a pole with no meridian in its loop, and a meridian spur stopping short of the pole has one and still holds it. The rule both reached, form-neutral: **every chart singularity in a face's closure is a vertex of it**, read off the face's region. Import's door (that row's unit) uses the same reading, so validity refuses exactly what import re-mints. When that row closes this one's trigger fires; re-open it then on this rule. (FOREIGN orchestrator)
+
+## Import's door has landed (FOREIGN implementer, 2026-10-29)
+
+`import-normalizes-the-rim-only-cap` closed: STEP import makes every sphere pole and cone apex in a face's closure a pole-form vertex (`NormalizationKind::ChartSingularityVertex`; the reading is `crates/step-import/src/normalize/singularity.rs`, `scan` and `holds`, on the pre-body `SolidSpec`, at the coarser of the file's band and the run's). So no committed import fixture ships the state this row refuses, and the seam-region rows named above now read normalized bodies (`poles_inside_a_seam_region.rs` asserts every flipped sphere face is named); they should not go red when this rule lands. The Euler doors still state the face (`crates/topo/tests/mesh12_rim_row_reach.rs::two_level_rim_cap`, `mesh`'s `witness_bodies::one_circle_cut`).

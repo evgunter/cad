@@ -606,6 +606,7 @@ class StepImportError(PncadError):
     `malformed_real`, `topology`,
     `assembly`, `adoption`, `rim_off_wall_boundary`,
     `wall_column_structure`, `recognition_ambiguous`, `pcurves`,
+    `singularity_undecided`,
     `placement`, `instance` or
     `tier_invalid` — or `wireframe`, which is not a refusal at all:
     the file parsed, to something this door does not adopt.
@@ -4826,9 +4827,11 @@ class StructureNormalization:
     Volume and validity are exact either way; what changed is only the
     cut, and the two censuses are that change counted.
 
-    `promoted_to` and `residual` are the one arm's payload, `None` on
-    the other four — present on every row, so a read never raises and
-    a caller never has to branch on `kind` first."""
+    `promoted_to` and `residual` are `surface_promotion`'s payload and
+    `singularity` is `chart_singularity_vertex`'s (`interior`,
+    `inside_edge` or `valence_one_vertex`), each `None` on the other
+    arms — present on every row, so a read never raises and a caller
+    never has to branch on `kind` first."""
 
     @property
     def face(self) -> int: ...
@@ -4838,6 +4841,8 @@ class StructureNormalization:
     def promoted_to(self) -> Optional[str]: ...
     @property
     def residual(self) -> Optional[float]: ...
+    @property
+    def singularity(self) -> Optional[str]: ...
     @property
     def file_census(self) -> FaceCensus: ...
     @property
