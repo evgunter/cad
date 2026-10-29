@@ -56,42 +56,40 @@ SPLICE files that separately.
 
 ## Closed
 
-Landed on `splice/structural-rim` (2026-10-28).
+Landed on `splice/structural-rim` (PR 5959).
 
 - **The selector.** A two-surface edge's description is
   `Intersection { pair, selector }`, the selector
-  `CurveSelector::Witness(point)` or `CurveSelector::Structural(..)`, whose one
-  form today is `Structural::SharedRow`: each wall's iso row image, held
-  in the pair's key order and admitted only as an `IsoLine` or `IsoArc`
-  along one chart coordinate (`geom-brep/src/description.rs`). A key remap
-  goes through `CurveSelector::remapped`, which re-orders the images with the
-  pair. `TangentIntersection` keeps its witness.
-- **Per-surface certification.** A shared row is certified by each
-  wall's own row certificate (`PcurveCache::certify`, limbs 1 and 2 read
-  through `PcurveCertificate::limbs`), and the walls are read
-  definitely transverse along the row at the feet it states
-  (`edge_nurbs::row_transversality`). No limb 3, no witness pin. A wall
-  whose row is not the edge refuses `CertifyError::RowImage`.
-- **Recovery.** `describe_edges` and the split's finish ask D2's
-  question through `pcurves::seam_intersection`: both faces spline
-  walls, each side's image an iso row on its chart's domain side that
-  certifies over the kept carrier (`IntersectionDraft::shared_row`).
-  Otherwise the witness, as before. The dihedral reading still decides
-  that the seam is transverse; it no longer picks the selector.
+  `CurveSelector::Witness(point)` or `CurveSelector::Structural(..)`, whose
+  one form is `Structural::SharedRow`: each wall's row image, held in the
+  pair's key order, admitted only as an iso row (`IsoLine` along either
+  coordinate, `IsoArc` along `u`). A key remap goes through
+  `CurveSelector::remapped`, a moved interval through
+  `CurveSelector::repinned`. `TangentIntersection` keeps its witness.
+- **Per-surface certification.** Each wall's row must lie on a side of its
+  chart's domain (`description::on_domain_side`, else `RowOffSide`) and
+  certify there (`PcurveCache::certify`, its limbs read through
+  `PcurveCertificate::limbs`; else `RowImage`, or an escalation named
+  `CertCheck::RowImage`). The walls' crossing is read at the certification
+  samples, and bounded over the whole row, ends included: the least
+  zero-free graph margin over a cover of the row (`ssi::row_crossing`,
+  limb 3's crossing reading without its one-arc count), decided clear of
+  the band. No limb 3, no witness pin.
+- **Recovery.** `describe_edges` and the split's finish ask D2's question
+  through `pcurves::seam_intersection`, built for boundary rows: both
+  faces spline walls, each side's image a row on its chart's domain side
+  that certifies over the kept carrier (`IntersectionDraft::shared_row`).
+  Otherwise the witness, as before.
 
 Measured first: the rim's existing description at the describer is the
-boolean's `Scaffold`, not a stated image, and neither half-edge has a
-stored pcurve; each side's `pcurve_of` derives the exact `IsoArc` on the
-`v = 0` row. Recovery reads the geometry, never the operands'
-descriptions.
+boolean's `Scaffold`, not a stated image; each side's `pcurve_of` derives
+the exact `IsoArc` on the `v = 0` row.
 
-Rows: `geom-brep` `a_shared_row_is_certified_per_wall` (six rows, at ε
-1e-9, 1e-6 and 1e-12; mutants of the recovery's certificate gate, its
-domain-side predicate, the per-wall gate, the recorded limbs, the remap's
-re-ordering and the transversality reading each red a row), and lily's
-`a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim`, which now describes
-both rims structurally, passes the gate, and stops at the interior-loop
-guard (`CurvedPairUnsupported { InteriorLoopGuard }`, B's NURBS wall ×
-A's cap plane, both orders, three ε). With the recovery forced to the
-witness, that row reds on the old limb-3 refusal.
+Lily wall 8's rims are recovered as shared rows, and on one of them the
+walls are tangent at a point: their crossing reading changes sign mid-rim
+(`lily-wall-8-at-1e-6-reads-the-rims-crossing-angle-in-band`, which now
+holds that blocker). Her sweep row stops there at every ε
+(`a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim`).
 
+Rows: `geom-brep` `a_shared_row_is_certified_per_wall`, eleven rows at ε
+1e-9, 1e-6 and 1e-12, each guarded by a mutant of the gate it pins.

@@ -152,29 +152,6 @@ impl<'a, T: CertifiedBounds> PairBoxes<'a, T> {
         self.jacobian_read(x, true)
     }
 
-    /// The Jacobian over `x`, each net cut to it along both axes
-    /// ([`NurbsBoxes::deriv_box_cut_both`]).
-    pub(crate) fn jacobian_cut_both(&self, x: Box4) -> [[Interval; 4]; 3] {
-        let col = |b: Box3, s: f64| {
-            [
-                b.x * Interval::point(s),
-                b.y * Interval::point(s),
-                b.z * Interval::point(s),
-            ]
-        };
-        let read = |n: &NurbsBoxes<'_, T>, w: Option<UvWindow>, u: bool| {
-            w.map_or_else(refused_box, |w| n.deriv_box_cut_both(w, u))
-        };
-        let (wa, wb) = (x.window_a(), x.window_b());
-        let cols = [
-            col(read(&self.a, wa, true), 1.0),
-            col(read(&self.a, wa, false), 1.0),
-            col(read(&self.b, wb, true), -1.0),
-            col(read(&self.b, wb, false), -1.0),
-        ];
-        core::array::from_fn(|r| core::array::from_fn(|c| cols[c][r]))
-    }
-
     /// The Jacobian, each net cut to `x` or read whole.
     fn jacobian_read(&self, x: Box4, cut: bool) -> [[Interval; 4]; 3] {
         let col = |b: Box3, s: f64| {
@@ -731,15 +708,7 @@ pub(crate) fn graph_margin<T: CertifiedBounds>(
     x: Box4,
     e: [f64; 4],
 ) -> Interval {
-    margin_of(pair, pair.jacobian(x), e)
-}
-
-/// [`graph_margin`] of the Jacobian `j` the caller read over a box.
-fn margin_of<T: CertifiedBounds>(
-    pair: &PairBoxes<'_, T>,
-    mut j: [[Interval; 4]; 3],
-    e: [f64; 4],
-) -> Interval {
+    let mut j = pair.jacobian(x);
     for row in &mut j {
         for (c, v) in row.iter_mut().enumerate() {
             *v = *v * Interval::point(1.0 / pair.speeds[c]);
@@ -833,9 +802,9 @@ pub(crate) fn row_crossing<T: CertifiedBounds>(
             }
         }));
         let scaled: [f64; 4] = core::array::from_fn(|k| chord[k] * pair.speeds[k]);
-        let norm = scaled.iter().map(|c| c * c).sum::<f64>().sqrt();
+        let norm = scaled.iter().map(|c| c.powi(2)).sum::<f64>().sqrt();
         let e = scaled.map(|c| c / norm);
-        let margin = margin_of(&pair, pair.jacobian_cut_both(x), e);
+        let margin = graph_margin(&pair, x, e);
         let (m_lo, m_hi) = (margin.lo(), margin.hi());
         if norm > 0.0 && (m_lo > 0.0 || m_hi < 0.0) {
             least = least.min(m_lo.abs().min(m_hi.abs()));

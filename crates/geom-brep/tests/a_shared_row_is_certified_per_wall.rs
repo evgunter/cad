@@ -876,3 +876,115 @@ fn a_shared_row_tangent_along_a_sub_span_escalates() {
         got.map(|e| e.certificate().max_residual)
     );
 }
+
+/// A ring of revolution about `z` through `turn` in `m` rational quadratic
+/// sub-arcs, its `v` direction quadratic through the three profile points
+/// `(radius, height)`.
+fn curled_ring(m: usize, turn: f64, profile: [(f64, f64); 3]) -> Surface<f64> {
+    let h = turn / m as f64;
+    let mut ku = vec![0.0; 3];
+    for k in 1..m {
+        ku.extend([sub_arc_joint(k, m); 2]);
+    }
+    ku.extend([1.0; 3]);
+    let (mut control, mut weights) = (Vec::new(), Vec::new());
+    for j in 0..=2 * m {
+        let theta = j as f64 * h / 2.0;
+        let (reach, w) = if j % 2 == 1 {
+            (1.0 / (h / 2.0).cos(), (h / 2.0).cos())
+        } else {
+            (1.0, 1.0)
+        };
+        for (r, z) in profile {
+            control.push(Point3::new(
+                r * reach * theta.cos(),
+                r * reach * theta.sin(),
+                z,
+            ));
+            weights.push(w);
+        }
+    }
+    Surface::Nurbs(Arc::new(
+        NurbsSurface::new(
+            KnotVector::clamped(ku, 2).unwrap(),
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+            control,
+            weights,
+        )
+        .unwrap(),
+    ))
+}
+
+/// **The crossing is read beside the row, not over the whole wall.** The
+/// cylinder and a flange that leaves the rim outward and curls down and
+/// back under itself, each one sub-arc 3 rad wide: across the flange's
+/// whole cell its tangents turn through the cylinder's, both across the
+/// row (the curl) and along it (the sub-arc's swing), but at the rim the
+/// two walls cross square. The row's crossing reading, cut along both
+/// axes to a sliver of each wall beside its piece of the row, certifies
+/// the rim.
+#[test]
+fn a_rim_beside_a_curling_wall_reads_its_crossing_at_the_row() {
+    const WIDE: f64 = 3.0;
+    let (carrier, params) = (rim(1.0), (0.0, WIDE));
+    let pair = Pair::of(
+        cylinder(1, WIDE),
+        curled_ring(1, WIDE, [(1.0, 0.0), (2.0, 0.0), (1.0, -1.0)]),
+    );
+    let images = [0, 1].map(|i| row(&carrier, params, pair.wall(i)));
+    let selector = pair
+        .recover(&carrier, params, images)
+        .expect("a shared row");
+    pair.certify(selector, &carrier, params)
+        .expect("the walls cross square at the rim");
+}
+
+/// **An arc rim runs along `u`.** An arc-rim image moving along `v` is no
+/// row image any certificate states, and the shared row refuses it, as it
+/// refuses an image that moves along neither coordinate.
+#[test]
+fn a_shared_row_admits_only_row_images() {
+    let (carrier, params) = (rim(1.0), (0.0, TURN));
+    let pair = Pair::of(cylinder(1, TURN), annulus(1, TURN));
+    let [ia, ib] = [0, 1].map(|i| row(&carrier, params, pair.wall(i)));
+    assert!(
+        SharedRow::new(
+            pair.pair(),
+            (pair.keys[0], ia.clone()),
+            (pair.keys[1], ib.clone())
+        )
+        .is_some(),
+        "two arc rims along u are a shared row"
+    );
+    let Pcurve::IsoArc {
+        p0,
+        pd,
+        t0,
+        angle,
+        breaks,
+    } = ib
+    else {
+        panic!("an arc rim");
+    };
+    for (what, pd) in [
+        ("along v", geom_core::Vec2::new(0.0, pd.x)),
+        ("along neither", geom_core::Vec2::new(pd.x, pd.x)),
+    ] {
+        let moved = Pcurve::IsoArc {
+            p0,
+            pd,
+            t0,
+            angle,
+            breaks: breaks.clone(),
+        };
+        assert!(
+            SharedRow::new(
+                pair.pair(),
+                (pair.keys[0], ia.clone()),
+                (pair.keys[1], moved)
+            )
+            .is_none(),
+            "an arc image {what} is no row"
+        );
+    }
+}

@@ -726,46 +726,11 @@ pub enum CertifyError {
     },
 }
 
-/// **The walls cross along the whole row**: the least crossing reading
-/// over a cover of the span ([`crate::ssi::row_crossing`]), levered over
-/// the edge's extent as the tube's is, decided positive clear of the band.
-/// A piece that cannot be read zero-free escalates.
-fn row_crossing_decided<T: Decide + geom_core::CertifiedBounds>(
-    (a, image_a): (&geom::NurbsSurface<T>, &Pcurve<T>),
-    (b, image_b): (&geom::NurbsSurface<T>, &Pcurve<T>),
-    (t0, t1): (T, T),
-    extent: T,
-    band: Band,
-) -> Result<(), CertifyError> {
-    let span = (t0.lo(), t1.hi());
-    // A row image runs monotonically along its row (an `IsoLine` is
-    // affine in `t`, an `IsoArc` traverses its segment monotonically), so
-    // over a piece it lies in the hull of its two ends' images.
-    let read = |lo: f64, hi: f64| {
-        let (lo_t, hi_t) = (T::from_f64(lo), T::from_f64(hi));
-        let ends = |image: &Pcurve<T>| (image.eval(lo_t), image.eval(hi_t));
-        let hull = |p: T, q: T| (p.lo().min(q.lo()), p.hi().max(q.hi()));
-        let mid = |x: T| x.lo() * 0.5 + x.hi() * 0.5;
-        let ((a0, a1), (b0, b1)) = (ends(image_a), ends(image_b));
-        let state = [
-            hull(a0.x, a1.x),
-            hull(a0.y, a1.y),
-            hull(b0.x, b1.x),
-            hull(b0.y, b1.y),
-        ];
-        let chord = [
-            mid(a1.x) - mid(a0.x),
-            mid(a1.y) - mid(a0.y),
-            mid(b1.x) - mid(b0.x),
-            mid(b1.y) - mid(b0.y),
-        ];
-        (crate::ssi::RowBox(state), chord)
-    };
-    let least = match crate::ssi::row_crossing((a, b), span, read) {
-        Ok(least) => least,
-        Err(crate::ssi::RowCrossing::Unreadable) => return Err(CertifyError::Unimplemented),
-        Err(crate::ssi::RowCrossing::Straddles(..)) => f64::NAN,
-    };
+/// **The walls cross along the whole row**: `least`, the least crossing
+/// reading over a cover of it ([`crate::ssi::row_crossing`], `NaN` where a
+/// piece could not be read zero-free), levered over the edge's extent as
+/// the tube's is, decided positive clear of the band.
+fn row_crossing_verdict<T: Decide>(least: f64, extent: T, band: Band) -> Result<(), CertifyError> {
     let margin = Margin::levered(T::from_computed(least), extent);
     match crate::dihedral::decide_reported("shared_row_crossing", margin, band) {
         Ok(decided) => match Refused::of(decided, band) {
@@ -4546,7 +4511,36 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
         };
         crate::edge_nurbs::row_transversality((t0, t1), (a, image_a), (b, image_b), extent, band)
             .map_err(|e| from_plane_nurbs(e.lane()))?;
-        row_crossing_decided((a, image_a), (b, image_b), (t0, t1), extent, band)?;
+        let span = (t0.lo(), t1.hi());
+        // A row image runs monotonically along its row (an `IsoLine` is
+        // affine in `t`, an `IsoArc` traverses its segment monotonically), so
+        // over a piece it lies in the hull of its two ends' images.
+        let read = |lo: f64, hi: f64| {
+            let (lo_t, hi_t) = (T::from_computed(lo), T::from_computed(hi));
+            let ends = |image: &Pcurve<T>| (image.eval(lo_t), image.eval(hi_t));
+            let hull = |p: T, q: T| (p.lo().min(q.lo()), p.hi().max(q.hi()));
+            let mid = |x: T| x.lo() * 0.5 + x.hi() * 0.5;
+            let ((a0, a1), (b0, b1)) = (ends(image_a), ends(image_b));
+            let state = [
+                hull(a0.x, a1.x),
+                hull(a0.y, a1.y),
+                hull(b0.x, b1.x),
+                hull(b0.y, b1.y),
+            ];
+            let chord = [
+                mid(a1.x) - mid(a0.x),
+                mid(a1.y) - mid(a0.y),
+                mid(b1.x) - mid(b0.x),
+                mid(b1.y) - mid(b0.y),
+            ];
+            (crate::ssi::RowBox(state), chord)
+        };
+        let least = match crate::ssi::row_crossing((a, b), span, read) {
+            Ok(least) => least,
+            Err(crate::ssi::RowCrossing::Unreadable) => return Err(CertifyError::Unimplemented),
+            Err(crate::ssi::RowCrossing::Straddles(..)) => f64::NAN,
+        };
+        row_crossing_verdict(least, extent, band)?;
     }
 
     // ---- Intersection of two analytic surfaces: C2's limbs, through

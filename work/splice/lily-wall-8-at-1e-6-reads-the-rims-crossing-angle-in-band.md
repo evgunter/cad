@@ -1,7 +1,7 @@
 ---
 id: lily-wall-8-at-1e-6-reads-the-rims-crossing-angle-in-band
 kind: issue
-title: At ε 1e-6 lily wall 8's rim escalates the NURBS pair's crossing angle at schedule sample 12 (levered margin 8.3e-6), before any image limb is read
+title: Lily wall 8's sheath and blade walls are tangent at a point on their shared rim, so the rim's crossing cannot certify at any ε (first seen at 1e-6 as an in-band sample)
 status: open
 opened: 2026-10-28
 priority: P1
@@ -40,15 +40,26 @@ those two first. At 1e-12 the tour stands lily's walls down before wall 8
 (the lower stem's declared frontier), so 1e-6 is the only coarse row
 that reaches it.
 
-## 2026-10-28: read by the shared row's certificate
+## 2026-10-29: the walls touch on the rim, at every ε
 
-The rim is now described as its walls' shared row (D2's structural
-selector,
-`the-boolean-recovers-no-structural-selector-for-a-rim-known-in-advance`),
-whose certificate reads the same crossing angle through the same
-reading (`edge_nurbs::feet_transversality`, via `row_transversality`),
-at the certification schedule's samples and at the feet each wall's row
-states. At 1e-6 it escalates at sample 3 of that schedule with the same
-levered margin, 8.313e-6. The default-ε row now gets past the rim to the
-interior-loop guard.
+The cause is the geometry. Once the rim's certificate bounds the walls'
+crossing over the whole row (`ssi::row_crossing`), the sweep row's rim
+(edge 9, `[0, 0.924]`) reads it definitely negative at `t = 0.64766` and
+definitely positive at `t = 0.64769` on boxes 2e-8 wide (−5.7e-7, then
++9.0e-7): the two walls' tangent planes coincide at a point between, and
+the walls swap sides across it. The rim is not transverse there, so no
+certificate of it as a crossing may pass. A reading at samples alone
+stepped over the point at 1e-9 and 1e-12, which is why this row once read
+it in band only at 1e-6.
 
+So this is lily wall 8's blocker at every ε. The sweep row
+(`a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim`) stops at
+it at 1e-9, 1e-6 and 1e-12; the tour's wall 8 at 1e-9 (the cover, no
+sample) and 1e-6 (sample 3, levered margin 8.313e-6).
+
+## What would close it
+
+A sheath and blade whose walls cross along the whole rim (a model change,
+the scene's to make), or a description for a rim whose walls touch at a
+point on it, which D2 has no form for: a seam that is transverse at some
+stations and tangent at one is certifiable as neither.

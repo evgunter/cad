@@ -158,7 +158,7 @@ use pncad::sweep::{
 };
 use pncad::topo::{
     AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, EdgeDescribeFailure, EdgeKey,
-    EulerOpError, Operand, PairRefusalSite,
+    EulerOpError, Operand,
 };
 
 use crate::booleans::{check, expect_seamed, finished, try_union};
@@ -2433,46 +2433,38 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         8,
         "graft the leaf's sheath onto its blade at their shared section",
         crate::booleans::try_union(leaf_a, &sheath, tol),
-        // The SITE moves with ε, so the pin is keyed by it (measured
-        // 2026-10-29). At 1e-9 the rim certifies as the walls' shared row
-        // and the interior-loop guard refuses B's spline wall against A's
-        // cap plane. At 1e-6 the rim's certificate reads the walls'
-        // crossing angle in band
+        // The rim's crossing refuses at every ε that reaches it; the
+        // reading that refuses is keyed by ε (measured 2026-10-29). At
+        // 1e-9 the rim's certificate bounds the walls' crossing over the
+        // whole row, and on a rim where they touch at a point no cover of
+        // it reads clear of zero: an escalation at no sample. At 1e-6 a
+        // sample's crossing reads in band first
         // (`work/splice/lily-wall-8-at-1e-6-reads-the-rims-crossing-angle-in-band`).
         // At 1e-12 the lower stem's declared frontier stands the lily walls
         // down before this one. If this ever refuses elsewhere, the
         // sentence above is wrong and must be re-derived before it is
         // believed.
         |e| {
-            if tol.eps() == 1e-6 {
-                matches!(
-                    e,
-                    BooleanError::EdgeUndescribed {
-                        failure: EdgeDescribeFailure::Intersection,
-                        cause: Some(cause),
+            let BooleanError::EdgeUndescribed {
+                failure: EdgeDescribeFailure::Intersection,
+                cause: Some(cause),
+                ..
+            } = e
+            else {
+                return false;
+            };
+            let EulerOpError::Certification {
+                error:
+                    CertifyError::Escalated {
+                        check: CertCheck::Transversality,
+                        sample,
                         ..
-                    } if matches!(
-                        **cause,
-                        EulerOpError::Certification {
-                            error: CertifyError::Escalated {
-                                check: CertCheck::Transversality,
-                                ..
-                            },
-                        }
-                    )
-                )
-            } else {
-                matches!(
-                    e,
-                    BooleanError::CurvedPairUnsupported {
-                        site: PairRefusalSite::InteriorLoopGuard,
-                        operand: Operand::B,
-                        kind: SurfaceKind::Nurbs,
-                        other_kind: SurfaceKind::Plane,
-                        ..
-                    }
-                )
-            }
+                    },
+            } = **cause
+            else {
+                return false;
+            };
+            (sample == pncad::geom_brep::certify::NOT_A_SAMPLE) == (tol.eps() != 1e-6)
         },
         "grow the leaves out of the stem instead of standing them beside it",
     );
