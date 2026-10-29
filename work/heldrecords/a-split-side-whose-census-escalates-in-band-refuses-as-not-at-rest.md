@@ -18,3 +18,7 @@ Tests:
 - `section_end_poses::along_the_miss_…`, 1e-9;
 - `a_rigid_turn_keeps_a_slivers_volume`, 1e-9 and 1e-12;
 - `split_seam_vanishing_tilt`, 1e-12.
+
+## Moved (2026-10-28, SPLITDOOR)
+
+- Moved to HELDRECORDS (`work/heldrecords/`) by `git mv`, id and body unchanged: SPLITDOOR's seam cut put the records chain Ev ratified on PR 5967 on a track of its own (`work/README.md` Track size).

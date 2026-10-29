@@ -51,3 +51,7 @@ lift the tilted arm of that test's 3′ pin.
 ## Measured under a tier-3′ split gate (2026-10-28, SPLITDOOR)
 
 `splitdoor/split-gate-3prime` (fefc1eea99): `a_keel_ring_in_an_elliptic_section::a_keel_ring_on_an_island_in_a_hole_nests_on_the_island` refuses at tier 3′ at all three ε with 18 errors (VertexOnFace 4, EdgeFaceOverlap 4, ConformalPatch 1, MayOverlap, BoundaryCrossesItselfUndecided, SameSide*). Not a records problem: the side is wrong-shaped until the nesting fix (`outlines_disjoint` segment against ellipse).
+
+## Moved (2026-10-28, SPLITDOOR)
+
+- Moved to HELDRECORDS (`work/heldrecords/`) by `git mv`, id and body unchanged: SPLITDOOR's seam cut put the records chain Ev ratified on PR 5967 on a track of its own (`work/README.md` Track size).
