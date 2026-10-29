@@ -3977,11 +3977,15 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # `assemble` JOINED it at D′3: the `⊔`, the fourth operator,
         # whose result the product slot reads (`Doc.set_product`). The
         # positive form is `tests/test_assembly_author.py`.
+        #
+        # `drawn_profile` JOINED it at INTENT stage 6 C: a profile drawn
+        # on a frame of a body's space, tracing its faces. The positive
+        # form is `tests/test_traced_profile.py`.
         self.assertEqual(
             sorted(n for n in dir(Node) if not n.startswith("_")),
             [
                 "assemble", "assertion", "bolt_circle", "chamfer",
-                "circular_pattern", "extrude", "fillet", "grid",
+                "circular_pattern", "drawn_profile", "extrude", "fillet", "grid",
                 "hollow_tube", "instantiate_part", "intersect",
                 "linear_pattern", "loft", "measure", "mirror", "place",
                 "polygon", "profile", "revolve", "shell", "space",

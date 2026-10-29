@@ -98,6 +98,7 @@ fn wedge(doc: ProfileDoc, n: u64, far: Far) -> (ProfileDoc, RecipeNodeId) {
                 ProgramStep::LineTo(ProgramTarget::Start),
             ])],
             ids: Vec::new(),
+            on: None,
         }),
     );
     insert(
@@ -238,17 +239,20 @@ fn a_ring_stepped_by_an_exact_turn_proves_every_side_seat() {
     }
 }
 
-/// **What rule H does not reach, pinned as a limit** (`geom_core`'s
-/// `sym::turn` docs): a ring of 9 leaves the four seats either side of
-/// its members at a third and two thirds of a turn, whose cosine `−1/2`
-/// reaches the tier as the rational, so the products it stands in are
-/// not angle sums the rewrite meets. Red when the tier reaches them.
+/// **A ring with a member at a rational cosine proves every side
+/// seat** (rule H): a ring of 9 or of 24 has members at a third and two
+/// thirds of a turn, whose cosine `−1/2` meets the irrational steps
+/// beside it as a constant atom of the rewrite (`geom_core`'s
+/// `sym::turn` docs). Red if a seat beside a rational member is left to
+/// the numeric channel.
 #[test]
-fn a_ring_of_nine_leaves_the_seats_beside_its_rational_members() {
-    let (doc, members) = ring(9, Far::Turn, Spin::Turns);
-    let (seats, _) = side_seats(&doc, &members);
-    assert_eq!(seats.len(), 9, "{seats:?}");
-    assert_eq!(unproven(&seats), [(2, 3), (3, 4), (5, 6), (6, 7)]);
+fn a_ring_with_a_member_at_a_rational_cosine_proves_every_side_seat() {
+    for n in [9, 24] {
+        let (doc, members) = ring(n, Far::Turn, Spin::Turns);
+        let (seats, _) = side_seats(&doc, &members);
+        assert_eq!(seats.len(), n as usize, "N = {n}: {seats:?}");
+        assert_eq!(unproven(&seats), [], "N = {n}");
+    }
 }
 
 /// **A ring stepped by a FREE step proves every seat but the closing
@@ -330,6 +334,7 @@ fn two_wedges(near: &str, spin: impl Fn(&ProfileDoc) -> Formula) -> Vec<Seat> {
                     ProgramStep::LineTo(ProgramTarget::Start),
                 ])],
                 ids: Vec::new(),
+                on: None,
             }),
         );
         let (d, wedge) = insert(

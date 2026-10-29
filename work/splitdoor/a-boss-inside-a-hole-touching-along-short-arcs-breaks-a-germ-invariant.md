@@ -2,10 +2,12 @@
 id: a-boss-inside-a-hole-touching-along-short-arcs-breaks-a-germ-invariant
 kind: issue
 title: A boss inside a hole, tangent, with short arcs either side of the touch: the union refuses ClassificationInvariant
-status: dispatched
+status: closed
 opened: 2026-10-28
 priority: P1
 cost: M
+closed: 2026-10-29
+pr: 6005
 ---
 
 
@@ -42,3 +44,17 @@ run, which tier 3′ represents.
 ## Slate triage (2026-10-28, SPLITDOOR)
 
 - Banded P1, priced M: a legal union refuses with a kernel invariant (`ClassificationInvariant`) rather than a typed frontier, on verb breadth beyond the everyday shapes; `work/README.md` Priority.
+
+## Closed (2026-10-29, PR 6005)
+
+**The cause** sits at the vertex beside the touch, not at the tip. The hole arc's tangent lies 6e-7 rad outside the boss floor sector. `sectors::pair_search` decided the hit with `within` at the sector's 1.8e-7 short arm, where the gap reads Zero, but the side codes are read at each bound's reach, where they are definite Out. That left a record `mark_germ` could not rewrite.
+
+**The fix:** `pair_search` records no pair when either sector's two side codes are the same definite side (`sectors::one_side`, shared with `recl::cancel_uniform`). A convex sector, under a half-turn, that lies wholly on one side of a plane meets it only at the vertex.
+
+**Result:** the unions build as two shells at 1.890044257 at every ε, with tier 3 and the certificate passing. Tier 3′ fails only on `CensusUndecidable`.
+
+**FULL review:** APPROVE. The reviewer ran topo and sweep with the slow set on both heads, plus a 2205-row pose grid. Only the 140 shared-vertex unions moved.
+
+**Filed:**
+- `a-held-germ-can-land-on-a-record-the-lump-cancelled`;
+- `sector-decisions-read-at-the-arm-disagree-with-codes-read-at-the-reach` (the class).

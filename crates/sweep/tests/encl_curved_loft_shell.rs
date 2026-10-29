@@ -936,7 +936,7 @@ fn a_moved_planes_section_with_a_held_fit_follows_the_plane() {
     let swapped = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(cap_key, once),
-            witness: curve.carrier().eval(0.5 * (t0 + t1)),
+            selector: geom_brep::CurveSelector::Witness(curve.carrier().eval(0.5 * (t0 + t1))),
         },
         carrier: curve.carrier().clone(),
         param_start: t0,

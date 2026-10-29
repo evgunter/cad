@@ -180,7 +180,7 @@ pub(crate) fn spiric_cap() -> (Body<f64>, crate::EdgeKey) {
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(torus, plane),
-                    witness: spiric.eval(0.0),
+                    selector: geom_brep::CurveSelector::Witness(spiric.eval(0.0)),
                 },
                 carrier: spiric,
                 param_start: -FRAC_PI_2,

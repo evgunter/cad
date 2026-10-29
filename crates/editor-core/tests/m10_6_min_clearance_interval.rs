@@ -55,6 +55,11 @@ use topo::clearance::{Budgets, min_separation};
 
 use fixture::{Recorder, len};
 
+/// The evaluation's own band, which the engine decides its cells at.
+fn band() -> geom_core::Band {
+    geom_core::Band::linear(Tol::witness()).expect("the witness tolerance has a band")
+}
+
 /// The true minimum separation between the neck walls, by construction.
 const NECK_GAP: f64 = 0.4;
 
@@ -113,6 +118,7 @@ fn dumbbell() -> Dumbbell {
             .expect("finite corners"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let solid = r.insert(Node::Extrude {
         profile: profile.into(),
@@ -236,7 +242,7 @@ impl<'v, T: geom_core::Decide> Neck<'v, T> {
         T: geom_core::CertifiedBounds,
     {
         let (a, b) = (self.operand(a), self.operand(b));
-        min_separation(&a.side(), &b.side(), a.same_body(&b), config)
+        min_separation(&a.side(), &b.side(), a.same_body(&b), band(), config)
     }
 
     /// The neck's bracket through this scalar's door value, as the
@@ -251,9 +257,11 @@ impl<'v, T: geom_core::Decide> Neck<'v, T> {
             &a.side(),
             &b.side(),
             a.same_body(&b),
+            band(),
             Budgets::MIN_SEPARATION,
         )
         .expect("the neck pair is admitted")
+        .expect("the neck pair witnesses an upper end")
     }
 }
 
@@ -304,7 +312,9 @@ fn a_point_scalar_has_no_min_clearance_value_and_the_assertion_says_why() {
     match &v.payload {
         ValuePayload::MeasureUnavailable { reason, dim } => {
             assert_eq!(*dim, Dimension::Length);
-            let MeasureUnavailableAt::NeedsEnclosure { verb, scalar, door } = reason;
+            let MeasureUnavailableAt::NeedsEnclosure { verb, scalar, door } = reason else {
+                panic!("at f64 the measure needs an enclosure, not {reason:?}");
+            };
             assert_eq!(*verb, "min_clearance");
             assert_eq!(*scalar, "f64");
             assert_eq!(*door, "topo::ClearanceLane");
@@ -357,7 +367,10 @@ fn the_interval_value_is_the_engine_bracket_re_derived() {
         .ask(0, 1, Budgets::MIN_SEPARATION)
         .expect("the neck pair is admitted");
     assert_eq!(value.lo().to_bits(), direct.lo().to_bits());
-    assert_eq!(value.hi().to_bits(), direct.window_hi().to_bits());
+    assert_eq!(
+        value.hi().to_bits(),
+        direct.hi().expect("an upper end").to_bits()
+    );
 
     // And the bracket is a bracket: it contains the gap the geometry
     // was built with.
@@ -390,7 +403,8 @@ fn the_engines_door_runs_at_the_symbolic_scalar_and_re_enters_computed() {
         let direct = neck
             .ask(0, 1, Budgets::MIN_SEPARATION)
             .expect("the neck pair is admitted")
-            .enclosure();
+            .enclosure()
+            .expect("an upper end");
         let lane = neck.bracket();
         assert_eq!(
             lane.repr_bits(),
@@ -441,16 +455,14 @@ fn the_budget_narrows_the_bracket_and_never_falsifies_it() {
                 },
             )
             .expect("the neck pair is admitted");
+        let hi = m.hi().expect("a pair witnesses an upper end");
         assert!(
-            m.lo() <= NECK_GAP && NECK_GAP <= m.window_hi(),
+            m.lo() <= NECK_GAP && NECK_GAP <= hi,
             "budget {pairs}: [{}, {}] must enclose {NECK_GAP}",
             m.lo(),
-            m.window_hi()
+            hi
         );
-        assert!(
-            m.lo() <= m.window_hi(),
-            "budget {pairs}: a bracket is ordered"
-        );
+        assert!(m.lo() <= hi, "budget {pairs}: a bracket is ordered");
         assert!(
             m.receipt().holds(),
             "budget {pairs}: the receipt identity holds"
@@ -461,11 +473,11 @@ fn the_budget_narrows_the_bracket_and_never_falsifies_it() {
         eprintln!(
             "min_separation @ max_cell_pairs={pairs}: [{}, {}] (width {:e}), receipt {:?}",
             m.lo(),
-            m.window_hi(),
-            m.window_hi() - m.lo(),
+            hi,
+            hi - m.lo(),
             m.receipt()
         );
-        widths.push(m.window_hi() - m.lo());
+        widths.push(hi - m.lo());
         // The goldening form is exact bits and is stable across
         // repeats: the same query twice is the same text.
         let again = neck
@@ -592,7 +604,7 @@ fn two_scopes_that_meet_read_zero_on_the_shared_cell() {
     let m = neck
         .ask(0, 0, Budgets::MIN_SEPARATION)
         .expect("a face against itself is at 0");
-    assert_eq!((m.lo(), m.window_hi()), (0.0, 0.0), "{}", m.serialize());
+    assert_eq!((m.lo(), m.hi()), (0.0, Some(0.0)), "{}", m.serialize());
     let meets = m.meets().expect("the scopes meet");
     assert_eq!(meets.a, meets.b, "on the one face: {meets:?}");
     assert!(
@@ -615,6 +627,7 @@ fn a_selection_that_is_not_a_body_or_a_face_refuses_at_the_door() {
                 .expect("finite corners"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let solid = r.insert(Node::Extrude {
         profile: profile.into(),

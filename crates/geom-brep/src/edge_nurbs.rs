@@ -1413,28 +1413,14 @@ pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         let Some(fa) = feet_a.get(i as usize) else {
             return Err(PlaneNurbsRefusal::PcurveFit);
         };
-        let (ua, va) = measured_foot(*fa);
-        let (ub, vb) = measured_foot(foot);
-        let (ja, jb) = (a.ders(ua, va), b.ders(ub, vb));
-        let sin_theta = normal_angle_sine(ja.du.cross(ja.dv), jb.du.cross(jb.dv));
-        let kappa = crate::shape_operator::max_principal_curvature(&ja)
-            .max(crate::shape_operator::max_principal_curvature(&jb));
-        let (arm, reach) = crate::ssi::point_arm(kappa, extent);
-        let margin = geom_core::Margin::levered(sin_theta, arm);
-        match crate::dihedral::decide_reported("nurbs_pair_transversality", margin, band) {
-            Ok(decided) => {
-                if let Some(verdict) = Refused::of(decided, band) {
-                    return Err(PlaneNurbsRefusal::NotTransverse {
-                        sample: i,
-                        lever: PointLever::of(Bounds::lo(reach)),
-                        verdict,
-                    });
-                }
-            }
-            Err(cause) => {
-                return Err(PlaneNurbsRefusal::TransversalityEscalated { sample: i, cause });
-            }
-        }
+        let sin_theta = feet_transversality(
+            (a, measured_foot(*fa)),
+            (b, measured_foot(foot)),
+            extent,
+            i,
+            band,
+        )
+        .map_err(FeetRefusal::lane)?;
         min_sin = min_sin.min(sin_theta);
         Ok(())
     })?;
@@ -1446,19 +1432,12 @@ pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         exact_chart_image(carrier, params, (b, &pcurve_b), band)?,
     );
     // Limbs 1 and 2 on each chart: an exact image's certificate where
-    // one certified, the fitted image's limbs otherwise. No row reaches
-    // an `Ok` through an exact chart, whose rim lies on a boundary row
-    // and refuses at limb 3
-    // (`work/splice/a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary.md`),
-    // so the exact certificate's numbers here are unguardable until that
-    // row lands: zeroing them turns no row red.
+    // one certified, read as a shared row's certificate reads it, the
+    // fitted image's limbs otherwise.
     let (mut on_locus_max, mut hull_sup) = (T::zero(), T::zero());
     for (chart, fitted, exact) in [(a, &pcurve_a, &exact_a), (b, &pcurve_b, &exact_b)] {
         let (on_locus, hull) = match exact {
-            Some(Ok((cache, _))) => (
-                cache.certificate().max_residual,
-                cache.certificate().envelope,
-            ),
+            Some(Ok((cache, _))) => cache.certificate().limbs(),
             _ => crate::ssi::certify::incidence_limbs(
                 carrier,
                 params,
@@ -1478,9 +1457,13 @@ pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         hull_sup = hull_sup.max(hull);
     }
     // Limb 3 alone, its tube about the image each chart's limb 2 read.
-    // The choice is unguardable on the same terms as the limbs above: the
-    // exact image's polyline and the fitted feet agree to the foot's
-    // precision, and no exact chart reaches `Ok`.
+    // In this witness lane the choice is unguardable: the exact image's
+    // polyline and the fitted feet agree to the foot's precision, and no
+    // witness through an exact chart reaches `Ok`, since a carrier on a
+    // chart's boundary row refuses here
+    // (`work/splice/a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary.md`).
+    // A rim on both walls' boundary rows is a shared row, certified
+    // without this tube.
     #[allow(clippy::type_complexity)]
     fn tube_image<'a, C, I, T: Real>(
         exact: &'a Option<Result<(C, NurbsCurve2<T>), I>>,
@@ -1514,6 +1497,100 @@ pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         tube_boxes: cert.tube_boxes,
         min_sin_theta: min_sin,
     })
+}
+
+/// A spline pair's crossing angle refused at a sample, or its reported
+/// minimum poisoned: [`PlaneNurbsRefusal`]'s three transversality arms,
+/// holding the lever's reach as the scalar it was read at.
+pub(crate) enum FeetRefusal<T> {
+    /// [`PlaneNurbsRefusal::NotTransverse`].
+    NotTransverse {
+        sample: u32,
+        reach: T,
+        verdict: Refused,
+    },
+    /// [`PlaneNurbsRefusal::TransversalityEscalated`].
+    Escalated { sample: u32, cause: Indeterminate },
+    /// [`PlaneNurbsRefusal::ReportedTransversalityPoisoned`].
+    Poisoned(Indeterminate),
+}
+
+impl<T: Bounds> FeetRefusal<T> {
+    /// The lane's refusal, its lever named by the reach's bracket.
+    pub(crate) fn lane(self) -> PlaneNurbsRefusal {
+        match self {
+            FeetRefusal::NotTransverse {
+                sample,
+                reach,
+                verdict,
+            } => PlaneNurbsRefusal::NotTransverse {
+                sample,
+                lever: PointLever::of(Bounds::lo(reach)),
+                verdict,
+            },
+            FeetRefusal::Escalated { sample, cause } => {
+                PlaneNurbsRefusal::TransversalityEscalated { sample, cause }
+            }
+            FeetRefusal::Poisoned(cause) => {
+                PlaneNurbsRefusal::ReportedTransversalityPoisoned(cause)
+            }
+        }
+    }
+}
+
+/// **Two spline charts definitely transverse at sample `i`'s feet**:
+/// the sine of the angle between their normals at `(ua, va)` on `a` and
+/// `(ub, vb)` on `b`, levered over the larger principal curvature at an
+/// edge of `extent`, decided. The sine where it is definite.
+fn feet_transversality<T: Decide>(
+    (a, (ua, va)): (&NurbsSurface<T>, (T, T)),
+    (b, (ub, vb)): (&NurbsSurface<T>, (T, T)),
+    extent: T,
+    i: u32,
+    band: Band,
+) -> Result<T, FeetRefusal<T>> {
+    let (ja, jb) = (a.ders(ua, va), b.ders(ub, vb));
+    let sin_theta = normal_angle_sine(ja.du.cross(ja.dv), jb.du.cross(jb.dv));
+    let kappa = crate::shape_operator::max_principal_curvature(&ja)
+        .max(crate::shape_operator::max_principal_curvature(&jb));
+    let (arm, reach) = crate::ssi::point_arm(kappa, extent);
+    let margin = geom_core::Margin::levered(sin_theta, arm);
+    match crate::dihedral::decide_reported("nurbs_pair_transversality", margin, band) {
+        Ok(decided) => match Refused::of(decided, band) {
+            Some(verdict) => Err(FeetRefusal::NotTransverse {
+                sample: i,
+                reach,
+                verdict,
+            }),
+            None => Ok(sin_theta),
+        },
+        Err(cause) => Err(FeetRefusal::Escalated { sample: i, cause }),
+    }
+}
+
+/// **A shared row's two walls, definitely transverse along it**: the
+/// reading [`nurbs_pair_limbs`] makes at its interior samples, here at
+/// the certification schedule's interior samples and at each wall's own
+/// row image (`image_a` on `a`, `image_b` on `b`), the feet the row
+/// states rather than ones a projection found. The smallest sine, gated
+/// as that lane gates its own.
+pub(crate) fn row_transversality<T: Decide>(
+    params: (T, T),
+    (a, image_a): (&NurbsSurface<T>, &Pcurve<T>),
+    (b, image_b): (&NurbsSurface<T>, &Pcurve<T>),
+    extent: T,
+    band: Band,
+) -> Result<T, FeetRefusal<T>> {
+    let (t0, t1) = params;
+    let mut min_sin = T::from_f64(f64::MAX);
+    for i in 1..crate::certify::CERT_SAMPLES - 1 {
+        let t = crate::certify::sample_param(t0, t1, i);
+        let (fa, fb) = (image_a.eval(t), image_b.eval(t));
+        let sin_theta = feet_transversality((a, (fa.x, fa.y)), (b, (fb.x, fb.y)), extent, i, band)?;
+        min_sin = min_sin.min(sin_theta);
+    }
+    geom_core::k_stats::gate_measured("nurbs_pair_transversality_reported", min_sin, band)
+        .map_err(FeetRefusal::Poisoned)
 }
 
 /// **A circle carrier's exact image on a spline chart** ([`exact_arc_rim`],
@@ -2859,6 +2936,30 @@ mod tests {
     use crate::recourse::Reading;
 
     use super::*;
+
+    /// **A refused bound stalls limb 2.** At an enclosure scalar the
+    /// reading's upper end is decided as `[floor, upper]`: a certified
+    /// bound at zero passes, and the same ends under a refused
+    /// decoration stall, where a read of its ordinary ends would pass.
+    #[test]
+    fn a_refused_offset_bound_stalls_limb_two() {
+        use crate::pcurve_cache::projected::Offset;
+        use geom_core::Interval;
+        let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+        let decide = |b: Interval| {
+            let upper = Offset::Bound(b).upper();
+            limb2_enclosure::<Interval>(geom::SurfaceKind::Plane, 0.0, upper, band, |_| b)
+        };
+        assert!(
+            decide(Interval::from_bounds(0.0, 0.0)).is_ok(),
+            "a certified zero passes"
+        );
+        let refused = decide(geom_core::test_support::refused_point(0.0));
+        assert!(
+            matches!(refused, Err(AnalyticRung3Refusal::Stalled { .. })),
+            "a refused zero stalls: {refused:?}"
+        );
+    }
 
     /// **A silent tube says why it is silent.** Where a transversality
     /// enclosure was refused at some rung the edge says so; where no rung

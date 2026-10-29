@@ -103,10 +103,11 @@
 //! against its own endpoint vertex's, two edges of one rim row, two
 //! edges of one meridian column — each as a gap times a lever arm, in
 //! metres, against the band. This is the door where defective source
-//! coordinates actually arrive: `tests/fixtures/halfcap/` is the
-//! recorded witness, a pole-crossing meridian arc whose carrier
-//! midpoint sits a half-turn from its own endpoint, and it reports
-//! here.
+//! coordinates actually arrive. Its recorded witness was a
+//! pole-crossing meridian arc (`tests/fixtures/halfcap/`), whose carrier
+//! midpoint sat a half-turn from its own endpoint; import now makes the
+//! pole a vertex ([`NormalizationKind::ChartSingularityVertex`]), so no
+//! committed file ships a finding.
 //!
 //! **Three things this channel is not.** It is not a gate: the at-rest
 //! validator above has already run and passed by the time the
@@ -229,7 +230,7 @@ mod recognize_curve;
 mod signed_zero;
 mod units;
 
-pub use error::{AdoptionAttempt, AdoptionCandidate, StepImportError};
+pub use error::{AdoptionAttempt, AdoptionCandidate, SingularityBand, StepImportError};
 
 use geom_core::Tol;
 
@@ -331,15 +332,26 @@ pub enum NormalizationKind {
     /// canonical splitting of it — the same 2 faces / 2 edges / 2
     /// vertices a natively revolved ball carries.
     EdgeFreeSphere,
-    /// A **cone with a degenerate apex**: Open CASCADE never splits a
-    /// periodic face, so a full cone's lateral side arrives as one
-    /// `ADVANCED_FACE` whose seam generator ends at the apex — a
-    /// vertex with a single incident edge, which `topo`'s tier-2
-    /// validity calls construction scaffolding, because in a finished
-    /// solid that is what it is. Re-minted as the kernel's own two
-    /// lateral half-faces, joined by a second generator half a turn
-    /// round the cone's axis.
-    DegenerateApexCone,
+    /// **A chart singularity in a face is a vertex of it.** A sphere's
+    /// pole or a cone's apex that lies in a face's closure is a vertex
+    /// of the face, in the pole form (`geom::pole_form`): the end of two
+    /// meridians half a turn apart, the face reaching it between them.
+    /// A file that states the point some other way is re-minted into
+    /// that form, by where the point lies ([`SingularityFound`]): the
+    /// face's boundary and the region its sense bit names say which.
+    /// The minted meridians are the surface's own (at its `u_ref`
+    /// azimuth and the half turn, or the half-turn twin of a seam the
+    /// file states), each ending at the first boundary edge it meets,
+    /// which is split there for every face sharing it. What the file
+    /// leaves undecidable refuses typed rather than guessing: a point
+    /// within the band of the boundary but neither on nor off it, a
+    /// boundary carrier the crossing reads nothing of (not a line or a
+    /// circle), a winding the chart inverse cannot read, and a seam
+    /// ending at the point on an orientation-inverted face.
+    ChartSingularityVertex {
+        /// Where the file put the point.
+        found: SingularityFound,
+    },
     /// A **seamless periodic band** (M7-5): a cylinder or torus
     /// lateral face stated as its two full-period rim bounds with NO
     /// seam generator between them (Open CASCADE never splits a
@@ -407,6 +419,25 @@ pub enum NormalizationKind {
     /// own splits) and the faces it became with every edge and vertex
     /// they use.
     FaceSplitAtC0Knot,
+}
+
+/// Where a file put a chart singularity that is not yet a vertex in
+/// the pole form ([`NormalizationKind::ChartSingularityVertex`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SingularityFound {
+    /// Inside the face, off its boundary: the point is minted as a
+    /// vertex with the pole form's two meridians, and the face is cut
+    /// in two along them (the rim-only sphere cap, a tilted cap, a
+    /// cone cap bounded by its rim alone).
+    Interior,
+    /// Inside a boundary edge: the edge is split at the point, for
+    /// every face sharing it (a meridian arc stated across the pole).
+    InsideEdge,
+    /// At a vertex with one edge, a seam the face uses both ways (Open
+    /// CASCADE's full cone and sphere cap): the pole form is completed
+    /// with the seam's half-turn twin, and the face is cut in two along
+    /// the pair.
+    ValenceOneVertex,
 }
 
 /// A **reported structure normalization** (D7 stage-3 repair, in its
@@ -605,10 +636,10 @@ pub enum StepImport {
         /// This is the door where defective source COORDINATES
         /// arrive. Every condition it states is a gap between two of
         /// the FILE's own statements about one chart coordinate,
-        /// measured in metres against the band — the half-cap of
-        /// `tests/fixtures/halfcap/` is the recorded witness, a
-        /// meridian arc whose carrier midpoint sits a half-turn from
-        /// its own endpoint.
+        /// measured in metres against the band — a meridian arc whose
+        /// carrier midpoint sat a half-turn from its own endpoint was
+        /// the recorded witness, before import made the pole it crossed
+        /// a vertex.
         ///
         /// **`None` is CONFIGURATION and `unexamined` is DATA, and
         /// they are two different facts.** `None` says the caller did

@@ -2985,7 +2985,7 @@ mod tests {
         let mut spec = EdgeCurveSpec::line_between(p0, p1);
         spec.description = EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(surf(body, plus), surf(body, minus)),
-            witness: p0.lerp(p1, 0.5),
+            selector: geom_brep::CurveSelector::Witness(p0.lerp(p1, 0.5)),
         };
         spec
     }
@@ -3450,7 +3450,7 @@ mod tests {
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(s1, s2),
-                witness: Point3::new(-1.0, 0.0, 0.0),
+                selector: geom_brep::CurveSelector::Witness(Point3::new(-1.0, 0.0, 0.0)),
             },
             carrier: geom::Curve3::Circle {
                 center: Point3::origin(),

@@ -216,11 +216,7 @@ fn facing_loft_walls_hold_above_the_gap_and_violate_below_it() {
     }
 }
 
-/// **The minimum separation of the two walls brackets the gap.** Both
-/// walls are iso-bounded, so each window IS its face and `window_hi`
-/// bounds the faces' separation from above as well as `lo` from below
-/// (`MinSeparation`'s docs); that is why this row may read `window_hi`,
-/// which a row over a trimmed analytic face may not.
+/// **The minimum separation of the two walls brackets the gap.**
 #[test]
 fn the_minimum_separation_of_two_loft_walls_brackets_the_gap() {
     let ((left, lw), (right, rw)) = facing();
@@ -232,6 +228,7 @@ fn the_minimum_separation_of_two_loft_walls_brackets_the_gap() {
         &side(&left.body, lw),
         &side(&right.body, rw),
         false,
+        band(),
         Budgets {
             max_cell_pairs: 16,
             ..Budgets::MIN_SEPARATION
@@ -242,17 +239,16 @@ fn the_minimum_separation_of_two_loft_walls_brackets_the_gap() {
     // The gap as built: the right column's centre `2 + GAP` rounds
     // once, and both subtractions are exact.
     let built = (2.0 + GAP - 1.0) - 1.0;
+    let hi = bracket.hi().expect("a wall pair witnesses an upper end");
     assert!(
-        bracket.lo() <= built && built <= bracket.window_hi(),
-        "[{}, {}] brackets {built}",
+        bracket.lo() <= built && built <= hi,
+        "[{}, {hi}] brackets {built}",
         bracket.lo(),
-        bracket.window_hi()
     );
     assert!(
-        bracket.window_hi() - bracket.lo() < GAP,
-        "the bracket is tighter than the gap it brackets: [{}, {}]",
+        hi - bracket.lo() < GAP,
+        "the bracket is tighter than the gap it brackets: [{}, {hi}]",
         bracket.lo(),
-        bracket.window_hi()
     );
 }
 
@@ -485,6 +481,7 @@ fn curved_walls_are_violated_just_above_their_separation() {
         &side(&left.body, lw),
         &side(&right.body, rw),
         false,
+        band(),
         Budgets::MIN_SEPARATION,
     )
     .expect("two iso-bounded walls have a bracket");

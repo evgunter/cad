@@ -90,6 +90,7 @@ pub(super) fn classify(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
             centre: p(0.0, 0.0, 0.0),
             radius: LEVER / 2.0,
         },
+        Some(geom_brep::SsiLane::marched()),
         band(),
     )
 }
@@ -338,21 +339,20 @@ fn a_parallel_axis_cylinder_every_class() {
     assert_eq!(shape(&s).2, vec![true, true]);
 }
 
-/// **R-reach**: a torus against an oblique cylinder (the backstop's
-/// tilted rod,
+/// **A general torus pose is read from its march**: a torus against an
+/// oblique cylinder (the backstop's tilted rod,
 /// `union-backstop-catches-a-suspect-body-from-a-tilted-rod-in-a-half-donut`)
-/// and a tilted torus; a cone against a non-coaxial torus and a
-/// spline. (A cone against an oblique cylinder or a tilted or
-/// parallel-axis cone is the ruling charts', `section_cert_cone_pair_rows`;
-/// a torus on a parallel axis is `section_cert_parallel_tori_rows`'.)
+/// and a tilted torus, which no closed form counts. Each loop the march
+/// lists carries a witness on both surfaces within its pad (the loop's
+/// tube), and a lone loop's count is certified; without a march the pose
+/// refuses R-lane by the scalar's name.
 #[test]
-fn intractable_poses_refuse_on_reach() {
+fn a_general_torus_pose_is_read_from_its_march() {
     let rod = cylinder(
         p(1.8, 0.0, 0.0),
         v(-(0.5f64).sin(), 0.0, -(0.5f64).cos()),
         0.15,
     );
-    assert!(matches!(classify(&donut(), &rod), Section::Intractable));
     let tilted = |center| Surface::Torus {
         center,
         axis: v(0.0, (0.5f64).sin(), (0.5f64).cos()),
@@ -360,10 +360,65 @@ fn intractable_poses_refuse_on_reach() {
         minor_radius: 0.5,
         u_ref: Vec3::unit_x(),
     };
-    assert!(matches!(
-        classify(&donut(), &tilted(p(1.0, 0.2, 0.3))),
-        Section::Intractable
-    ));
+    for (what, partner, count) in [
+        ("the tilted rod", rod.clone(), 2),
+        ("the tilted torus", tilted(p(1.0, 0.2, 0.3)), 1),
+    ] {
+        let s = classify(&donut(), &partner);
+        // At ε 1e-6 the tilted torus's march straddles its tube
+        // (`work/sectrung/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`).
+        if matches!(s, Section::Unmarched) && Tol::witness().eps() == 1e-6 {
+            continue;
+        }
+        let Section::Components { parts, single } = &s else {
+            panic!("{what}: {s:?}");
+        };
+        assert_eq!((parts.len(), *single), (count, count == 1), "{what}");
+        let Ok(geom_brep::SectionRead::Built(section)) =
+            geom_brep::pair_section(&donut(), &partner, band())
+        else {
+            panic!("{what}: the value builds the pair");
+        };
+        let carried = section
+            .carry(Some(geom_brep::SsiLane::marched()), band())
+            .expect("the march carries");
+        for (c, k) in parts.iter().zip(carried.components()) {
+            let w = c.witness.expect("a marched loop's witness");
+            assert!(
+                (w - k.witness).norm() == 0.0,
+                "{what}: the witness is the carrier's middle"
+            );
+            assert_eq!(c.pad, k.pad, "{what}: the witness's pad is its loop's");
+            // Closeness: the witness lies on the carrier, within its
+            // certified limb-2 bound of each surface.
+            let sup = k.certificate.as_ref().expect("a fitted loop").hull_sup;
+            for surface in [&donut(), &partner] {
+                let d = metric_distance(surface, w);
+                assert!(
+                    d <= sup + 1e-15,
+                    "{what}: witness {w:?} is {d:e} off, past {sup:e}"
+                );
+            }
+        }
+    }
+    let unmarched = super::classify(
+        &donut(),
+        &rod,
+        super::Reach {
+            centre: p(0.0, 0.0, 0.0),
+            radius: LEVER / 2.0,
+        },
+        None,
+        band(),
+    );
+    assert!(
+        matches!(unmarched, Section::NoLane("f64")),
+        "no march: {unmarched:?}"
+    );
+    assert_eq!(
+        certify(&unmarched, false, band(), |_| Sheet::Not, at(None, None)),
+        Err(Refusal::NoLane("f64"))
+    );
     // About `(1, 0, 0)` the second core passes `(3, 0, 0)` and
     // `(−1, 0, 0)`, each a unit from the first core along a common normal:
     // the tubes touch there, a tangency the critical gap decides.
@@ -371,6 +426,78 @@ fn intractable_poses_refuse_on_reach() {
         tangent(&classify(&donut(), &tilted(p(1.0, 0.0, 0.0)))),
         "tt_critical_gap"
     );
+}
+
+/// The distance in metres of `q` from a cylinder or a torus.
+fn metric_distance(s: &Surface<f64>, q: Point3<f64>) -> f64 {
+    match *s {
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            ..
+        } => {
+            let w = q - origin;
+            ((w - axis * w.dot(axis)).norm() - radius).abs()
+        }
+        Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        } => {
+            let w = q - center;
+            let z = w.dot(axis);
+            (((w - axis * z).norm() - major_radius).hypot(z) - minor_radius).abs()
+        }
+        _ => unreachable!("a cylinder or a torus"),
+    }
+}
+
+/// **A marched witness is placed against the band padded by twice its
+/// pad**, a closed-form one against the band itself: the placement is
+/// handed the band it reads, so a certificate that dropped the pad reads
+/// the marched witness at the bare band and this row goes red.
+#[test]
+fn a_marched_witness_is_placed_padded() {
+    let pad = 1e-3;
+    for (what, pad, want) in [
+        ("marched", pad, band().zero() + 2.0 * pad),
+        ("closed form", 0.0, band().zero()),
+    ] {
+        let s = Section::Components {
+            parts: vec![Component {
+                unbounded: false,
+                essential_f: false,
+                essential_g: false,
+                witness: Some(p(0.0, 0.0, 0.0)),
+                pad,
+            }],
+            single: true,
+        };
+        let mut seen = Vec::new();
+        let got = certify(
+            &s,
+            false,
+            band(),
+            |_| Sheet::Not,
+            |_, b| {
+                seen.push(b.zero());
+                [OUT, IN]
+            },
+        );
+        assert_eq!(got, Ok(vec![Cleared::Out(Side::F)]), "{what}");
+        assert_eq!(seen, [want], "{what}: the band it is placed against");
+    }
+}
+
+/// **R-reach**: a cone against a non-coaxial torus and a spline. (A
+/// cone against an oblique cylinder or a tilted or parallel-axis cone is
+/// the ruling charts', `section_cert_cone_pair_rows`; a torus on a
+/// parallel axis is `section_cert_parallel_tori_rows`'.)
+#[test]
+fn intractable_poses_refuse_on_reach() {
     let cone = Surface::Cone {
         apex: p(0.0, 0.0, 3.0),
         axis: Vec3::unit_z(),
@@ -1072,7 +1199,7 @@ fn a_touch_clears_only_out_of_a_face_on_a_silent_pair() {
     });
     let tan = Err(Refusal::Tangent("section_sphere_plane_reach"));
     let rule = |evented: bool, place: [Option<FaceContainment>; 2]| {
-        certify(&s, evented, |_| Sheet::Not, |_| place)
+        certify(&s, evented, band(), |_| Sheet::Not, |_, _| place)
     };
     assert_eq!(rule(false, [OUT, IN]), Ok(vec![Cleared::TouchOut(Side::F)]));
     assert_eq!(rule(false, [IN, OUT]), Ok(vec![Cleared::TouchOut(Side::G)]));
@@ -1093,6 +1220,7 @@ fn lone_at(w: Point3<f64>) -> Section<f64> {
             essential_f: false,
             essential_g: false,
             witness: Some(w),
+            pad: 0.0,
         }],
         single: true,
     }
@@ -1101,8 +1229,8 @@ fn lone_at(w: Point3<f64>) -> Section<f64> {
 pub(super) fn at(
     f: Option<FaceContainment>,
     g: Option<FaceContainment>,
-) -> impl FnMut(Point3<f64>) -> [Option<FaceContainment>; 2] {
-    move |_| [f, g]
+) -> impl FnMut(Point3<f64>, Band) -> [Option<FaceContainment>; 2] {
+    move |_, _| [f, g]
 }
 
 pub(super) const IN: Option<FaceContainment> = Some(FaceContainment::In);
@@ -1114,7 +1242,7 @@ pub(super) const OUT: Option<FaceContainment> = Some(FaceContainment::Out);
 #[test]
 fn the_no_event_decision_reads_one_point() {
     let s = lone_at(p(0.0, 0.0, 0.0));
-    let ok = |r| certify(&s, false, |_| Sheet::Not, r);
+    let ok = |r| certify(&s, false, band(), |_| Sheet::Not, r);
     assert_eq!(ok(at(OUT, IN)), Ok(vec![Cleared::Out(Side::F)]));
     assert_eq!(ok(at(IN, OUT)), Ok(vec![Cleared::Out(Side::G)]));
     assert_eq!(ok(at(IN, IN)), Err(Refusal::Loop));
@@ -1138,7 +1266,7 @@ fn the_no_event_decision_reads_one_point() {
 fn w4_clears_only_a_certified_single_component() {
     let s = lone_at(p(0.0, 0.0, 0.0));
     assert_eq!(
-        certify(&s, true, |_| Sheet::Not, at(IN, IN)),
+        certify(&s, true, band(), |_| Sheet::Not, at(IN, IN)),
         Ok(vec![Cleared::LoneEvented])
     );
     let c = Component {
@@ -1146,13 +1274,14 @@ fn w4_clears_only_a_certified_single_component() {
         essential_f: false,
         essential_g: false,
         witness: Some(p(0.0, 0.0, 0.0)),
+        pad: 0.0,
     };
     let two = Section::Components {
         parts: vec![c, c],
         single: false,
     };
     assert_eq!(
-        certify(&two, true, |_| Sheet::Not, at(IN, IN)),
+        certify(&two, true, band(), |_| Sheet::Not, at(IN, IN)),
         Err(Refusal::Undecided)
     );
     let uncounted = Section::Components {
@@ -1160,7 +1289,7 @@ fn w4_clears_only_a_certified_single_component() {
         single: false,
     };
     assert_eq!(
-        certify(&uncounted, true, |_| Sheet::Not, at(IN, IN)),
+        certify(&uncounted, true, band(), |_| Sheet::Not, at(IN, IN)),
         Err(Refusal::Undecided)
     );
 }
@@ -1176,15 +1305,21 @@ fn w2_clears_only_where_the_face_describes() {
     );
     let only = |on: Side, other: Sheet| move |side| if side == on { Sheet::One } else { other };
     assert_eq!(
-        certify(&s, false, only(Side::F, Sheet::Not), at(None, None)),
+        certify(&s, false, band(), only(Side::F, Sheet::Not), at(None, None)),
         Ok(vec![Cleared::Essential(Side::F)])
     );
     assert_eq!(
-        certify(&s, false, only(Side::G, Sheet::Not), at(None, None)),
+        certify(&s, false, band(), only(Side::G, Sheet::Not), at(None, None)),
         Err(Refusal::Undecided)
     );
     assert_eq!(
-        certify(&s, false, only(Side::G, Sheet::Unread), at(None, None)),
+        certify(
+            &s,
+            false,
+            band(),
+            only(Side::G, Sheet::Unread),
+            at(None, None)
+        ),
         Err(Refusal::Unread)
     );
     let witnessed = Section::Components {
@@ -1193,11 +1328,12 @@ fn w2_clears_only_where_the_face_describes() {
             essential_f: true,
             essential_g: false,
             witness: Some(p(1.0, 0.0, 0.5)),
+            pad: 0.0,
         }],
         single: false,
     };
     assert_eq!(
-        certify(&witnessed, false, |_| Sheet::Unread, at(None, OUT)),
+        certify(&witnessed, false, band(), |_| Sheet::Unread, at(None, OUT)),
         Ok(vec![Cleared::Out(Side::G)]),
         "an unread face leaves W3 to clear the component"
     );
@@ -1220,7 +1356,7 @@ fn full_rim(
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(cyl, rim_plane),
-            witness: p(-1.0, 0.0, z),
+            selector: geom_brep::CurveSelector::Witness(p(-1.0, 0.0, z)),
         },
         carrier: Curve3::Circle {
             center: p(0.0, 0.0, z),
@@ -1465,7 +1601,11 @@ fn a_far_origin_does_not_move_a_pins_offset() {
         Section::Components { parts, .. } => {
             assert!(!parts.is_empty(), "a true scrape loop cleared as apart")
         }
-        Section::Tangent(_) | Section::Unordered(_) | Section::Intractable => {}
+        Section::Tangent(_)
+        | Section::Unordered(_)
+        | Section::Intractable
+        | Section::NoLane(_)
+        | Section::Unmarched => {}
         Section::Touch(t) => assert!(
             (t.at - p(2.5 - 8e-8, 0.0, 0.0)).norm() < 1e-9,
             "the touch is read off the pivot: {t:?}"
@@ -1607,7 +1747,7 @@ fn sphere_cut(c: Point3<f64>, k: Vec3<f64>) -> (Body<f64>, [FaceKey; 2], Surface
     let rim = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(key, cut_plane),
-            witness: c - u_ref * rho,
+            selector: geom_brep::CurveSelector::Witness(c - u_ref * rho),
         },
         carrier: Curve3::Circle {
             center: c,
@@ -1813,7 +1953,7 @@ fn cone_bow_tie() -> (Body<f64>, FaceKey, FaceKey) {
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(cone, rim_plane),
-                witness: rim_at(0.5 * (t0 + t1)),
+                selector: geom_brep::CurveSelector::Witness(rim_at(0.5 * (t0 + t1))),
             },
             carrier: Curve3::Circle {
                 center: p(0.0, 0.0, 1.0),
@@ -2042,7 +2182,7 @@ pub(super) fn cone_sheet(start: Point3<f64>, steps: &[Step]) -> (Body<f64>, Face
                 let spec = EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
                         pair: SurfacePair::new(cone, rim_plane),
-                        witness: cone_at(h, 0.5 * (t0 + t1)),
+                        selector: geom_brep::CurveSelector::Witness(cone_at(h, 0.5 * (t0 + t1))),
                     },
                     // A descending arc runs forward on the reversed
                     // axis, its seam moved to `t0`.
@@ -2226,7 +2366,7 @@ fn torus_iso(
     EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(torus, cut),
-            witness: torus_at((major, minor), mid),
+            selector: geom_brep::CurveSelector::Witness(torus_at((major, minor), mid)),
         },
         carrier: Curve3::Circle {
             center,
@@ -3022,7 +3162,13 @@ fn a_plane_touch_near_the_top_parallel_stands_on_both_carriers() {
                     radius: 5.0 * scale,
                 };
                 let label = format!("×{scale:e}, axis {axis:?}, u {u}, t {t:e}");
-                match super::classify(&tor.surface(), &pl.surface(), reach, band) {
+                match super::classify(
+                    &tor.surface(),
+                    &pl.surface(),
+                    reach,
+                    Some(geom_brep::SsiLane::marched()),
+                    band,
+                ) {
                     Section::Touch(touch) => {
                         touches += 1;
                         let (off_t, off_p) = (tor.off(touch.at), pl.g(touch.at).abs());
@@ -3088,8 +3234,20 @@ fn a_ball_touching_a_wall_near_its_axis_stands_on_both_carriers() {
                     let ball = Partner::Sphere(base + q * e, rc - e);
                     let label = format!("×{scale:e}, axis {i}, origin {far:e} along, e {e:e}");
                     for section in [
-                        super::classify(&ball.surface(), &wall.surface(), reach, band),
-                        super::classify(&wall.surface(), &ball.surface(), reach, band),
+                        super::classify(
+                            &ball.surface(),
+                            &wall.surface(),
+                            reach,
+                            Some(geom_brep::SsiLane::marched()),
+                            band,
+                        ),
+                        super::classify(
+                            &wall.surface(),
+                            &ball.surface(),
+                            reach,
+                            Some(geom_brep::SsiLane::marched()),
+                            band,
+                        ),
                     ] {
                         let Section::Touch(touch) = section else {
                             panic!("{label}: not a touch: {section:?}");
@@ -3196,8 +3354,20 @@ fn every_torus_touch_holds_against_a_sampling_oracle() {
             };
             for partner in partners {
                 for section in [
-                    super::classify(&t.surface(), &partner.surface(), reach, band),
-                    super::classify(&partner.surface(), &t.surface(), reach, band),
+                    super::classify(
+                        &t.surface(),
+                        &partner.surface(),
+                        reach,
+                        Some(geom_brep::SsiLane::marched()),
+                        band,
+                    ),
+                    super::classify(
+                        &partner.surface(),
+                        &t.surface(),
+                        reach,
+                        Some(geom_brep::SsiLane::marched()),
+                        band,
+                    ),
                 ] {
                     if let Section::Touch(touch) = section {
                         touches += 1;

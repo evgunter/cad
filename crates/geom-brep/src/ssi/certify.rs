@@ -1738,10 +1738,7 @@ fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
     // steers which determinant is asked.
     let tangent = |t: T| -> Option<[f64; 4]> {
         let (da, db) = (pa.deriv(t), pb.deriv(t));
-        let raw = [da.x.hi(), da.y.hi(), db.x.hi(), db.y.hi()];
-        let scaled: [f64; 4] = core::array::from_fn(|k| raw[k] * speeds[k]);
-        let n = scaled.iter().map(|v| v.powi(2)).sum::<f64>().sqrt();
-        (n.is_finite() && n > 0.0).then(|| scaled.map(|v| v / n))
+        super::four::scaled_unit([da.x.hi(), da.y.hi(), db.x.hi(), db.y.hi()], speeds)
     };
     let mut worst = f64::INFINITY;
     let mut boxes = Vec::with_capacity(chain.len());

@@ -32,6 +32,7 @@ fn a_later_op_on_a_rod_resting_on_a_plate_carries_its_cap_records() {
                 phase: Formula::zero(Dimension::Angle),
             }],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, rod) = insert(
@@ -64,11 +65,11 @@ fn a_later_op_on_a_rod_resting_on_a_plate_carries_its_cap_records() {
         },
     );
     let ev = run(&doc);
-    let ValuePayload::Boolean(BooleanValue::Body { contacts, .. }) =
-        &ev.value(rested).expect("plate ∪ rod evaluates").payload
-    else {
+    let rested_value = ev.value(rested).expect("plate ∪ rod evaluates");
+    let ValuePayload::Boolean(BooleanValue::Body { .. }) = &rested_value.payload else {
         panic!("plate ∪ rod: a boolean body")
     };
+    let contacts = &rested_value.carry.contacts;
     let mut kinds: Vec<_> = contacts
         .kinds()
         .map(|k| match k {
@@ -92,12 +93,11 @@ fn a_later_op_on_a_rod_resting_on_a_plate_carries_its_cap_records() {
             "{what}: answers: {:?}",
             failure(&ev, node)
         );
-        let ValuePayload::Boolean(BooleanValue::Body {
-            contacts: carried, ..
-        }) = &ev.value(node).expect("the op evaluates").payload
-        else {
+        let value = ev.value(node).expect("the op evaluates");
+        let ValuePayload::Boolean(BooleanValue::Body { .. }) = &value.payload else {
             panic!("{what}: a boolean body")
         };
+        let carried = &value.carry.contacts;
         assert_eq!(
             (carried.edge_face().count(), carried.face_face().count()),
             (2, 1),

@@ -3147,7 +3147,21 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         | CertifyError::UnresolvedSurface { .. }
         | CertifyError::IntersectionSameSurface { .. }
         | CertifyError::WrapOnNonPeriodic
+        | CertifyError::Row {
+            refusal: geom_brep::RowRefusal::Image(_),
+            ..
+        }
         | CertifyError::PlaneNurbs(P::PcurveFit) => MISMATCH,
+        // A row image's escalation reads as its decision's check, routed
+        // as an arc rim's is (`RowRefusal::decision`).
+        CertifyError::Row {
+            refusal: geom_brep::RowRefusal::ImageEscalated { check, .. },
+            ..
+        } => certify_undecided(geom_brep::certify::arc_rim_check(*check)),
+        CertifyError::Row {
+            refusal: geom_brep::RowRefusal::ChartSpeed(r),
+            ..
+        } => chart_speed_reason(*r),
         // An incidence refusal, decided or escalated, reads its reason
         // off the one table, by what was read.
         _ if let Some(read) = e.incidence_read() => incidence_reason(read),
@@ -3255,6 +3269,10 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::PlaneNurbs(P::CarrierEnclosure(_))
         | CertifyError::AnalyticRung3(A::CarrierEnclosure(_)) => CARRIER_ENCLOSURE,
         CertifyError::Unimplemented
+        | CertifyError::Row {
+            refusal: geom_brep::RowRefusal::OffSide,
+            ..
+        }
         | CertifyError::TangentCertificateUnsupported
         | CertifyError::PlaneNurbs(P::Unsupported { .. })
         | CertifyError::AnalyticRung3(A::Unsupported { .. }) => KIND,
@@ -3296,6 +3314,10 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             | CertifyError::WrapOnNonPeriodic => DEFECT,
             CertifyError::PlaneNurbs(P::CarrierDomain(_)) => REPARAMETERIZE,
             CertifyError::Unimplemented
+            | CertifyError::Row {
+                refusal: geom_brep::RowRefusal::OffSide,
+                ..
+            }
             | CertifyError::TangentCertificateUnsupported
             | CertifyError::PlaneNurbs(
                 P::FootPointInconclusive { .. } | P::Unsupported { .. } | P::CarrierEnclosure(_),
@@ -3320,6 +3342,13 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             | CertifyError::NotSecondOrderSeparated { .. }
             | CertifyError::TubeNotSeparated { .. }
             | CertifyError::Escalated { .. }
+            | CertifyError::Row {
+                refusal:
+                    geom_brep::RowRefusal::Image(_)
+                    | geom_brep::RowRefusal::ImageEscalated { .. }
+                    | geom_brep::RowRefusal::ChartSpeed(_),
+                ..
+            }
             | CertifyError::PlaneNurbs(
                 P::NotTransverse { .. }
                 | P::TransversalityEscalated { .. }
@@ -8405,6 +8434,21 @@ fn pinch_corner_errors<T: Decide>(
     if inverted {
         return;
     }
+    for (cycle, group) in loop_point_groups(body, face) {
+        if let Err(error) = pinch_corners_at(body, face_key, &cycle, &group, band) {
+            errors.push(error);
+        }
+    }
+}
+
+/// **Check 9's grouping**: each loop of `face`, and each point key it
+/// passes at two or more corners, as the loop's cycle and the indices
+/// of its corners there. An empty loop has no corner.
+pub(crate) fn loop_point_groups<T: Real>(
+    body: &Body<T>,
+    face: &crate::entity::Face,
+) -> Vec<(Vec<HalfEdgeKey>, Vec<usize>)> {
+    let mut out = Vec::new();
     for l in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
         let Some(cycle) = loop_cycle_of(body, l) else {
             continue;
@@ -8419,14 +8463,12 @@ fn pinch_corner_errors<T: Decide>(
             .collect();
         keyed.sort_unstable();
         for group in keyed.chunk_by(|x, y| x.0 == y.0) {
-            if group.len() < 2 {
-                continue;
-            }
-            if let Err(error) = pinch_corners_at(body, face_key, &cycle, group, band) {
-                errors.push(error);
+            if group.len() >= 2 {
+                out.push((cycle.clone(), group.iter().map(|&(_, i)| i).collect()));
             }
         }
     }
+    out
 }
 
 /// One corner side: the half-edge leaving the point, its edge, and
@@ -8514,6 +8556,53 @@ impl<T: Real> core::ops::Neg for Departure<T> {
     }
 }
 
+/// One corner of a loop at a point: its vertex, and its leaving and
+/// arriving sides as departures from the point.
+pub(crate) type PointCorner<T> = (VertexKey, [CornerSide<T>; 2]);
+
+/// **Check 9's corners**: the corners of `cycle` at the indices `at`,
+/// the arriving side of each the mate of the half-edge before. A corner
+/// a key of which no longer resolves is left out.
+pub(crate) fn point_corners<T: Decide>(
+    body: &Body<T>,
+    cycle: &[HalfEdgeKey],
+    at: &[usize],
+) -> Vec<PointCorner<T>> {
+    let n = cycle.len();
+    at.iter()
+        .filter_map(|&i| {
+            let he = cycle[i];
+            let prev = mate(body, cycle[(i + n - 1) % n])?;
+            let vertex = body.half_edges.get(he)?.start;
+            Some((vertex, [side(body, he)?, side(body, prev)?]))
+        })
+        .collect()
+}
+
+/// **The normal check 9 reads a corner's wedge about**: `face_key`'s
+/// outward normal at `vertex`'s point
+/// ([`crate::face_normal::face_outward_normal_at`]); `None` where that
+/// door gives none there (`pinch_corner_errors`' residue).
+///
+/// # Errors
+///
+/// The reading's escalation.
+pub(crate) fn corner_normal<T: Decide>(
+    body: &Body<T>,
+    face_key: FaceKey,
+    vertex: VertexKey,
+    band: Band,
+) -> Result<Option<geom_core::Vec3<T>>, Indeterminate> {
+    let Some(p) = vertex_point(body, vertex) else {
+        return Ok(None);
+    };
+    match crate::face_normal::face_outward_normal_at(body, face_key, p, band) {
+        Ok(Some(nrm)) => Ok(Some(nrm.vec())),
+        Err(crate::face_normal::NormalAtError::Escalated { diag, .. }) => Err(diag),
+        Ok(None) | Err(_) => Ok(None),
+    }
+}
+
 /// [`pinch_corner_errors`] at one point key, whose corners are the
 /// half-edges of `cycle` at the indices `group` carries: the first
 /// corner found holding another side, or whose reading escalated.
@@ -8521,21 +8610,10 @@ fn pinch_corners_at<T: Decide>(
     body: &Body<T>,
     face_key: FaceKey,
     cycle: &[HalfEdgeKey],
-    group: &[(crate::geometry::PointKey, usize)],
+    group: &[usize],
     band: Band,
 ) -> Result<(), ValidationError> {
-    let n = cycle.len();
-    // Each corner's two sides, leaving and arriving, as departures from
-    // the point: the arriving side is the mate of the half-edge before.
-    let corners: Vec<(VertexKey, [CornerSide<T>; 2])> = group
-        .iter()
-        .filter_map(|&(_, i)| {
-            let he = cycle[i];
-            let prev = mate(body, cycle[(i + n - 1) % n])?;
-            let vertex = body.half_edges.get(he)?.start;
-            Some((vertex, [side(body, he)?, side(body, prev)?]))
-        })
-        .collect();
+    let corners = point_corners(body, cycle, group);
     // Every (corner, other side) pair to read. A side that IS one of
     // the corner's own two half-edges is skipped: it lies on the
     // corner's bound, where a seam's two uses of one edge put it.
@@ -8555,20 +8633,16 @@ fn pinch_corners_at<T: Decide>(
     let Some(&(first, ..)) = pairs.first() else {
         return Ok(());
     };
-    let Some(p) = vertex_point(body, first) else {
-        return Ok(());
-    };
-    let nrm = match crate::face_normal::face_outward_normal_at(body, face_key, p, band) {
-        Ok(Some(nrm)) => nrm.vec(),
-        Err(crate::face_normal::NormalAtError::Escalated { diag, .. }) => {
-            return Err(ValidationError::PinchCornerEscalated {
-                face: face_key,
-                vertex: first,
-                source: diag,
-            });
+    // No normal here: the residue (`pinch_corner_errors`).
+    let Some(nrm) = corner_normal(body, face_key, first, band).map_err(|source| {
+        ValidationError::PinchCornerEscalated {
+            face: face_key,
+            vertex: first,
+            source,
         }
-        // No normal here: the residue (`pinch_corner_errors`).
-        Ok(None) | Err(_) => return Ok(()),
+    })?
+    else {
+        return Ok(());
     };
     for (vertex, a, b, edge, d) in pairs {
         let crossed = wedge_holds(nrm, a, b, d, band).map_err(|source| {
@@ -14116,7 +14190,7 @@ mod tests {
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: geom_brep::SurfacePair::new(cyl, plane),
-                    witness: frame.at((u0 + u1) * 0.5, v0),
+                    selector: geom_brep::CurveSelector::Witness(frame.at((u0 + u1) * 0.5, v0)),
                 },
                 carrier: geom::Curve3::Circle {
                     center: centre,
@@ -15170,7 +15244,7 @@ mod tests {
         let spec = geom_brep::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
                 pair: geom_brep::SurfacePair::new(plane, cylinder),
-                witness: carrier.mid_point(t0, t1),
+                selector: geom_brep::CurveSelector::Witness(carrier.mid_point(t0, t1)),
             },
             carrier,
             param_start: t0,
@@ -15460,7 +15534,7 @@ mod tests {
                 EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
                         pair: SurfacePair::new(torus, plane),
-                        witness: spiric.eval(0.0),
+                        selector: geom_brep::CurveSelector::Witness(spiric.eval(0.0)),
                     },
                     carrier: spiric.clone(),
                     param_start: -FRAC_PI_2,

@@ -119,7 +119,7 @@ use crate::validate::decide;
 /// arm only from INSIDE the crate — which is exactly where its test
 /// row lives.
 ///
-/// The normal arrives as an [`OutwardNormal`] with the face's `sense`
+/// The normal arrives as an [`OutwardNormal`](geom_brep::enters::OutwardNormal) with the face's `sense`
 /// folded in (S10), minted at the shared chokepoint. Everything
 /// downstream of it here — `rules::apply_rule_a`'s `enters_material`
 /// call, the sector-shape rungs, the departure trileans — is

@@ -231,7 +231,7 @@ pub(crate) fn wall_beside_a_leaning_neighbour(tol: Tol) -> (Body<f64>, FaceKey, 
             let mut spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
             spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
                 pair: geom_brep::SurfacePair::new(s1, s2),
-                witness,
+                selector: geom_brep::CurveSelector::Witness(witness),
             };
             body.set_edge_curve(key, spec, tol).unwrap();
         }

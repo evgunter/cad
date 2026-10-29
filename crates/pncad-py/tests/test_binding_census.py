@@ -905,6 +905,12 @@ BOUND_AS = {
     # second attribute if it cares. Five words from an exhaustive
     # match, so a sixth normalization stops the bindings compiling.
     "NormalizationKind": "StructureNormalization.kind",
+    # `NormalizationKind::ChartSingularityVertex`'s payload, at the same
+    # spelling one attribute over: where the file put the pole or apex
+    # import made a vertex, as `singularity` beside the `kind` word
+    # (`interior`, `inside_edge`, `valence_one_vertex`; `None` on every
+    # other arm), the way `promoted_to` carries `surface_promotion`'s.
+    "SingularityFound": "StructureNormalization.singularity",
     # `CurvePromotion::kind`, the same rule one row over. Two words
     # (`circle`, `line` — the degree-1 follow-up, #388) and a map
     # rather than a literal because the recognizer's remaining named
@@ -973,6 +979,21 @@ BOUND_AS = {
     # cross at the two carriers' second words.
     "NamingError": "EvaluationError.inner_kind",
     "ProgramRefusal": "EditError.inner_variant",
+    # A profile drawn on a frame, tracing faces: Python writes it with
+    # `Node.drawn_profile(frame, faces, outline)`, the crossing as
+    # `TraceTarget.on_trace(face, passage, nth)` and the heading along
+    # the trace as `Chain.along_trace(sense)`. A trace step's refusal
+    # crosses as the `trace` class, its fault at the inner kind.
+    "DrawnOn": "Node.drawn_profile",
+    "TraceCrossing": "TraceTarget.on_trace",
+    "TracePassage": "TraceTarget.on_trace",
+    "TraceSense": "Chain.along_trace",
+    "TraceRefusal": "EvaluationError.inner_kind",
+    "TraceStepFault": "EvaluationError.inner_kind",
+    # Resolving a program refuses where its evaluation does: Python
+    # resolves no program apart from a document's evaluation, and its
+    # two arms cross there as `expr` and `trace`.
+    "ProgramResolveFault": "EvaluationError.kind",
     # `StepIdFault` is what `EditError::StepIdsRefused` carries, and
     # its arms cross at the carrier's second word.
     "StepIdFault": "EditError.inner_variant",
@@ -1800,7 +1821,7 @@ FAMILIES: dict[str, str] = {
 #: hands to Python.** The operation results and their geometry
 #: (`Extruded`, `Extrusion`, `Revolved`, `Revolution`, `Lofted`,
 #: `Filleted`, `AtRestBody`, `BooleanBody`, `BooleanResult`, `BooleanResultKind`,
-#: `Operand`, `Curve3`, `Surface`, `EdgeDescription`,
+#: `Operand`, `Curve3`, `Surface`, `EdgeDescription`, `CurveSelector`, `Structural`,
 #: `ChartCoherenceLane`):
 #: the document layer consumes them and Python receives a `Value`. The
 #: profile ladder's rungs (`Profile`, `ProfileLoop`,
@@ -2101,14 +2122,13 @@ FAMILIES: dict[str, str] = {
 #: `ContactRecords` accordingly stays `INTERIOR` — the same
 #: disposition, now with a second reason under it.
 #:
-#: **The capture reconciles the kernel's two homes for a record set,
-#: and does it where the kernel does.** `NodeValue::contacts` is what
-#: `instantiate` carried in (D-1); a boolean's records ride
-#: `BooleanValue::Body` instead; `editor_core::product::sources_of`
-#: is where the two meet, and `Value.body` / `Value.bodies` now make
-#: the same reconciliation so a body read off a value and the same
-#: body read by the gather cannot disagree about what was declared
-#: over it. An instance of an assembly is the second source (the
+#: **The capture reads a body's records where the kernel does.** A
+#: value's carry holds them (`Carry::contacts`): what `instantiate`
+#: carried in (D-1), or a boolean's own;
+#: `editor_core::product::sources_of` reads them there, and
+#: `Value.body` / `Value.bodies` read them alike so a body read off a
+#: value and the same body read by the gather cannot disagree about
+#: what was declared over it. An instance of an assembly is the second source (the
 #: records its document's census minted, carried across the seam),
 #: and `product` is deliberately the third case: it gathers and
 #: declares NOTHING, so its body is plain. Those two are
@@ -2738,6 +2758,10 @@ NOT_BOUND = {
     # the crossing: the scaffolding door is fenced to construction and
     # tier 3 refuses it at rest.
     "EdgeDescription": INTERIOR,
+    # `EdgeDescription::Intersection`'s selector and its structural form:
+    # read back off a description, which no door hands to Python.
+    "CurveSelector": INTERIOR,
+    "Structural": INTERIOR,
     "Extruded": INTERIOR,
     # `Extruded::walls` / `Revolved::bands` elements — one swept wall
     # per run of profile pieces. Behind the same door as their carriers:
@@ -3387,7 +3411,6 @@ NOT_BOUND = {
     # the sharper statement of it: the LANE is what gates.
     "BoxAxis": SHAPE,
     "BudgetKind": SHAPE,
-    "Certified": SHAPE,
     "CertifiedLeaf": SHAPE,
     "Chamber": SHAPE,
     "ChamberSpan": SHAPE,
@@ -3419,7 +3442,6 @@ NOT_BOUND = {
     "Stackup": SHAPE,
     "StackupRefusal": SHAPE,
     "Unavailable": SHAPE,
-    "WINDOW_TIGHTENING": SHAPE,
     "WorstCase": SHAPE,
     "assertion_at": SHAPE,
     "drive": SHAPE,
@@ -3711,6 +3733,7 @@ MEMBERS_BOUND_AS = {
     # others' addresses.
     "DocEdit::RemoveConstraints": "Doc.remove_mate",
     "MeasureUnavailableAt::NeedsEnclosure": "MeasureUnavailableAt.variant",
+    "MeasureUnavailableAt::NoUpperBound": "MeasureUnavailableAt.variant",
     "NodePickError::Standing": "NodePickError.variant",
     "NodePickError::NotABody": "NodePickError.variant",
     "NodePickError::NoSuchBody": "NodePickError.variant",
@@ -3843,6 +3866,7 @@ MEMBERS_BOUND_AS = {
     "StepImportError::RecognitionAmbiguous": "StepImportError.variant",
     "StepImportError::Pcurves": "StepImportError.variant",
     "StepImportError::Join": "StepImportError.variant",
+    "StepImportError::SingularityUndecided": "StepImportError.variant",
     "StepImportError::PlacementMap": "StepImportError.variant",
     "StepImportError::Placement": "StepImportError.variant",
     "StepImportError::Instance": "StepImportError.variant",

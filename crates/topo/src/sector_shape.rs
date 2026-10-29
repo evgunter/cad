@@ -77,7 +77,7 @@
 //! **Re-open trigger — FIRED, and it resolves the other way.** The
 //! `sector_face` twins are now unified as [`crate::sector_face`], the
 //! second consumer this paragraph was waiting for. That consumer takes
-//! a [`Body`](crate::body::Body) and three arena keys, so `geom-brep` —
+//! a [`Body`] and three arena keys, so `geom-brep` —
 //! which has neither — cannot host IT at any price. That settles where
 //! `sector_face` goes; it does not by itself settle this module, whose
 //! own body is still pure [`Vec3`]/[`Band`] algebra and would compile

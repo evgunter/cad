@@ -2,7 +2,7 @@
 id: a-curved-body-against-its-copy-refuses-at-the-sphere-scan-or-the-glue-door
 kind: issue
 title: A ball, a dome or a revolve with a cone face, booleaned with an identical copy, refuses before the On verdict: at the sphere extent scan or the glue door's second order
-status: open
+status: dispatched
 opened: 2026-10-28
 priority: P1
 cost: M

@@ -484,12 +484,16 @@ pub use geom::SurfaceKind;
 // fenced arm is the last one a reader needs and not the first.
 // Stated so the next curation pass re-measures rather than
 // re-deriving.
+//
+// **`CurveSelector` and `Structural` ARE here**: the discriminant a reader
+// of an at-rest `Intersection` branches on. `SharedRow`'s payload is a
+// `Pcurve`, which stays out on the argument above.
 pub use topo::{
     AtRestBody, Backing, Body, BooleanBody, BooleanError, BooleanOp, BooleanResult,
-    BooleanResultKind, Cited, Cites, ContactRecords, Curve3, EdgeCarrierSite, EdgeDescription,
-    EdgeKey, EntityId, FaceKey, GeomRef, LoopKey, Operand, PairRefusalSite, PlaneRelation,
-    ShellOrientation, Surface, TransformError, VertexKey, intersect, subtract, transform_rigid,
-    union,
+    BooleanResultKind, Cited, Cites, ContactRecords, Curve3, CurveSelector, EdgeCarrierSite,
+    EdgeDescription, EdgeKey, EntityId, FaceKey, GeomRef, LoopKey, Operand, PairRefusalSite,
+    PlaneRelation, ShellOrientation, Structural, Surface, TransformError, VertexKey, intersect,
+    subtract, transform_rigid, union,
 };
 
 // --- 5. The validation ladder ---------------------------------
@@ -689,8 +693,8 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 // `NotBound` row with its reason.
 pub use step_import::{
     CurvePromotion, FaceCensus, ImportOptions, NormalizationKind, PlacedInstance,
-    PromotedCurveKind, PromotedKind, StepImport, StepImportError, StructureNormalization,
-    import_step,
+    PromotedCurveKind, PromotedKind, SingularityFound, StepImport, StepImportError,
+    StructureNormalization, import_step,
 };
 pub use topo::{CoherenceCondition, CoherenceFinding, CoherenceReport, Unexaminable, Unexamined};
 // `StlError` is the writers' own refusal type — what `write_ascii` and

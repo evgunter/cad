@@ -1,10 +1,10 @@
 ---
 id: a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary
 kind: issue
-title: "The two-chart tube's one-arc walk is undecided where a cut box holds a solution that is no isolated root of one face: a rim along a chart's boundary row, or a carrier ending on the domain sides of both charts (lily wall 8 hits both)"
+title: "The two-chart tube's one-arc walk is undecided where a cut box holds a solution that is no isolated root of one face: a rim along a chart's boundary row, or a carrier ending on the domain sides of both charts (the sheath grafted on its blade hits both)"
 status: open
 opened: 2026-10-28
-priority: P0
+priority: P3
 cost: H
 refs: [a-plane-section-along-a-fits-window-edge-proves-no-one-arc, a-rim-between-two-spline-walls-is-certified-against-a-fitted-image-not-its-exact-one, a-pair-walk-end-at-a-domain-corner-refuses-undecided]
 ---
@@ -78,7 +78,7 @@ difference between PR 5907's two reviews. r1's interior control used a
 √ε-scaled span, which certifies. r2's interior rows used the whole
 turn, so their ends sat on both charts' `u` sides.
 
-**Lily**, the sweep row (`a_sheath_on_its_blade_unions_past_the_shared_rim`)
+**Lily**, the sweep row (`a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim`)
 at ε 1e-9: the rim is the full `v = 0` row of both walls, so it has both
 shapes. The walk fails first at shape 2, box 0's face `u_a = 1` with
 `v_a ≈ u_b ≈ v_b ≈ 0`, the end at a corner of both charts. Shape 1's
@@ -143,3 +143,37 @@ The walk's `Undecided` for this shape now refuses by name
 domain side, `EndOnSides { sides }` for an end on two or more domain
 sides at once. That changes the payload, not the reach: no row the
 shape refused now certifies.
+
+## Narrowed (2026-10-28)
+
+A rim that is a row on both walls' chart boundaries no longer reaches
+this tube: the boolean recovers it as the walls' shared row, D2's
+structural selector, certified per wall with no limb 3
+(`the-boolean-recovers-no-structural-selector-for-a-rim-known-in-advance`,
+closed). The sheath grafted on its blade (lily wall 8 until 2026-10-29, now
+the sweep row `a_sheath_grafted_on_its_blade`) is past this site.
+
+Of the two owed rows:
+
+- **The exact limbs** are now guarded. `nurbs_pair_limbs`' exact arm and
+  the shared row's certificate read an exact image's limbs through one
+  accessor (`PcurveCertificate::limbs`), and zeroing it reds
+  `a_rim_on_both_walls_rows_is_a_certified_shared_row`.
+- **The tube's image** stays unguardable, for the reason this row gives:
+  every exact chart image is a boundary row, and a witness along one
+  refuses here (`AlongSide`), so no exact chart reaches `Ok` in the witness lane.
+
+What stays open is the witness lane's: a rim that is a boundary row of
+one wall only (a graft of one body's section across the other's
+interior), and shape 2's end on two charts' sides. Neither has a
+consumer today.
+
+## Re-banded P0 → P3 (SPLICE, 2026-10-29)
+
+Lily wall 8 no longer waits on this row. PR 5959 gives a rim that is a
+domain-side row of two spline walls a structural selector, certified per
+wall with no limb 3. Lily's own rim then refuses at a tangency (two
+points), and the scene is being re-spelled as one loft. No consumer
+reaches this shape today. It is still a real gap for a witness-selected
+carrier, so it stays open at P3 until one does.
+

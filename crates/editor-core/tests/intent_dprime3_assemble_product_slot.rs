@@ -616,11 +616,15 @@ fn a_seat_unioned_with_a_bead_keeps_its_pieces_and_a_bridge_is_read_twice() {
         2,
         "the bolt and its bead, and the plate"
     );
-    let Some(ValuePayload::Boolean(editor_core::BooleanValue::Body { contacts, .. })) =
-        ev.value(kept).map(|v| &v.payload)
-    else {
+    let Some(value) = ev.value(kept).filter(|v| {
+        matches!(
+            v.payload,
+            ValuePayload::Boolean(editor_core::BooleanValue::Body { .. })
+        )
+    }) else {
         panic!("the union builds: {:?}", ev.result(kept))
     };
+    let contacts = &value.carry.contacts;
     assert_eq!(
         contacts.face_face().count(),
         1,

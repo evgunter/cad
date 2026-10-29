@@ -147,7 +147,9 @@ use pncad::select::{
     NameLookupError, NamingError, NodePickError, ReadbackError, Resolution, ResolveError,
     ResolveIndeterminate, RimShare, SeamSidesShape, SeamVertexShape, UnionNameShape, WayShape,
 };
-use pncad::step_import::{NormalizationKind, PromotedCurveKind, PromotedKind, StepImportError};
+use pncad::step_import::{
+    NormalizationKind, PromotedCurveKind, PromotedKind, SingularityFound, StepImportError,
+};
 use pncad::sweep::blend::BlendError;
 use pncad::sweep::{ExtrudeError, LoftError, RevolveError, SkinError, TubeError};
 use pncad::topo::splitting::SplitError as SplitOpError;
@@ -551,6 +553,7 @@ pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
         S::Selection => "selection",
         S::Open => "open",
         S::Face => "face",
+        S::Traced(_) => "traced",
         S::Side { .. } => "side",
         S::Source => "source",
         S::Measured(..) => "measured",
@@ -778,7 +781,7 @@ pub fn mc_refusal_tag(refusal: &McRefusal) -> &'static str {
 
 /// The stable tag for a measure with no value at this build's scalar.
 ///
-/// One arm today. Deliberately NOT sharing a function with
+/// Deliberately NOT sharing a function with
 /// [`measure_unavailable_tag`] one screen up: that one is the
 /// ANALYSIS lane's band refusal and this one the MEASUREMENT lane's
 /// missing enclosure, two kernel types whose names differ by one word
@@ -786,6 +789,7 @@ pub fn mc_refusal_tag(refusal: &McRefusal) -> &'static str {
 pub fn measure_unavailable_at_tag(reason: &MeasureUnavailableAt) -> &'static str {
     match reason {
         MeasureUnavailableAt::NeedsEnclosure { .. } => "needs_enclosure",
+        MeasureUnavailableAt::NoUpperBound { .. } => "no_upper_bound",
     }
 }
 
@@ -867,6 +871,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::Profile => "profile",
         C::ProfileReplay => "profile_replay",
         C::ProfileLaneReplay => "profile_lane_replay",
+        C::Trace => "trace",
         C::Extrude => "extrude",
         C::Revolve => "revolve",
         // ONE tag for both tube kinds, matching every other op on
@@ -1038,6 +1043,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
             Some(refusal) => Some(structure_refusal_tag(&refusal.kind)),
             None => None,
         },
+        NodeErrorKind::Trace(refusal) => Some(trace_step_fault_tag(&refusal.fault)),
         NodeErrorKind::Extrude(inner) => Some(extrude_error_tag(inner)),
         NodeErrorKind::Revolve(inner) => Some(revolve_error_tag(inner)),
         NodeErrorKind::Tube(inner) => Some(tube_error_tag(inner)),
@@ -1832,6 +1838,36 @@ pub fn program_refusal_tag(err: &ProgramRefusal) -> &'static str {
         ProgramRefusal::Validate(_) => "validate",
         ProgramRefusal::Unminted => "unminted",
         ProgramRefusal::StepIds(_) => "step_ids",
+        ProgramRefusal::Trace(_) => "trace",
+    }
+}
+
+/// The stable tag for why a profile step reading a face's trace
+/// refused — the inner arm of a `trace` node refusal. A carrier that
+/// could not be read along the piece says how
+/// (`topo::boolean::trace::TraceFault`): no closed form, a grazing or
+/// on-carrier piece, a sign in the band, an uncertified root count.
+pub fn trace_step_fault_tag(fault: &pncad::document::TraceStepFault) -> &'static str {
+    use pncad::document::TraceStepFault as F;
+    use pncad::topo::boolean::trace::TraceFault as C;
+    match fault {
+        F::Undrawn => "undrawn",
+        F::Unevaluated => "unevaluated",
+        F::NoSuchFace { .. } => "no_such_face",
+        F::NoPen => "no_pen",
+        F::NoHeading => "no_heading",
+        F::NotARun => "not_a_run",
+        F::OffTrace => "off_trace",
+        F::NoTrace => "no_trace",
+        F::NoSuchCrossing { .. } => "no_such_crossing",
+        F::NoTangent => "no_tangent",
+        F::Unreached => "unreached",
+        F::Carrier(C::Unsupported { .. }) => "unsupported_carrier",
+        F::Carrier(C::Grazing) => "grazing",
+        F::Carrier(C::Apex) => "apex",
+        F::Carrier(C::OnCarrier) => "on_carrier",
+        F::Carrier(C::Escalated(_)) => "escalated",
+        F::Carrier(C::Unsettled(_)) => "unsettled",
     }
 }
 
@@ -2115,6 +2151,7 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::RecognitionAmbiguous { .. } => "recognition_ambiguous",
         StepImportError::Pcurves { .. } => "pcurves",
         StepImportError::Join { .. } => "join",
+        StepImportError::SingularityUndecided { .. } => "singularity_undecided",
         StepImportError::PlacementMap { .. } => "placement_map",
         StepImportError::Placement { .. } => "placement",
         StepImportError::Instance { .. } => "instance",
@@ -2169,16 +2206,32 @@ pub fn promoted_kind_tag(kind: &PromotedKind) -> &'static str {
 ///
 /// The match is exhaustive, so a normalization minted kernel-side
 /// stops this crate compiling instead of arriving under one of these
-/// words.
+/// words. `chart_singularity_vertex` keeps its disposition beside the
+/// word too ([`singularity_found_tag`]).
 pub fn normalization_kind_tag(kind: &NormalizationKind) -> &'static str {
     match kind {
         NormalizationKind::EdgeFreeSphere => "edge_free_sphere",
-        NormalizationKind::DegenerateApexCone => "degenerate_apex_cone",
+        NormalizationKind::ChartSingularityVertex { .. } => "chart_singularity_vertex",
         NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
         NormalizationKind::SurfacePromotion { .. } => "surface_promotion",
         NormalizationKind::JoinedEdges => "joined_edges",
         NormalizationKind::EdgeSplitAtC0Knot => "edge_split_at_c0_knot",
         NormalizationKind::FaceSplitAtC0Knot => "face_split_at_c0_knot",
+    }
+}
+
+/// The stable tag for where a file put a chart singularity that import
+/// made a vertex — `NormalizationKind::ChartSingularityVertex`'s
+/// payload, which crosses at `singularity` beside the record's `kind`
+/// word rather than folded into it, as `surface_promotion`'s does.
+///
+/// The match is exhaustive, so a fourth disposition stops this crate
+/// compiling instead of arriving under one of these three words.
+pub fn singularity_found_tag(found: &SingularityFound) -> &'static str {
+    match found {
+        SingularityFound::Interior => "interior",
+        SingularityFound::InsideEdge => "inside_edge",
+        SingularityFound::ValenceOneVertex => "valence_one_vertex",
     }
 }
 

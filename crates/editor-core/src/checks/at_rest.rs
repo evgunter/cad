@@ -123,6 +123,60 @@ pub(crate) struct Reading {
     pub(crate) could_not_look: Vec<AtRestEvidence>,
 }
 
+/// **What a document's at-rest check reads, whole**: each gather's
+/// [`Reading`] together (the product's and each door's the product does
+/// not read, [`Product::assembles`]), a door whose operands did not
+/// gather one could-not-look finding, and the rows its parts carried
+/// up, each part row once. What a part's instance carries across the
+/// seam as the part's own report.
+pub(crate) struct WholeReading {
+    pub(crate) reading: Reading,
+    pub(crate) carried_interference: Vec<CarriedInterference>,
+    pub(crate) carried_at_rest: Vec<CarriedAtRestFinding>,
+}
+
+/// [`WholeReading`] over `product` and the gathers beside it.
+pub(crate) fn whole_reading<T: LocalizeLane>(product: &Product<T>, tol: Tol) -> WholeReading {
+    let mut whole = WholeReading {
+        reading: Reading {
+            interference: Vec::new(),
+            could_not_look: Vec::new(),
+        },
+        carried_interference: Vec::new(),
+        carried_at_rest: Vec::new(),
+    };
+    let gathers = std::iter::once(Ok(product))
+        .chain(product.assembles.iter().map(|door| door.gather.as_deref()));
+    for gather in gathers {
+        let product = match gather {
+            Ok(product) => product,
+            Err(refusal) if refusal.kind().means_no_body() => continue,
+            Err(refusal) => {
+                whole
+                    .reading
+                    .could_not_look
+                    .push(AtRestEvidence::NotGathered(refusal.clone()));
+                continue;
+            }
+        };
+        let Reading {
+            interference,
+            could_not_look,
+        } = reading(product, tol);
+        whole.reading.interference.extend(interference);
+        whole.reading.could_not_look.extend(could_not_look);
+        once_per_part_row(
+            &mut whole.carried_interference,
+            product.carried_interference.iter().cloned(),
+        );
+        once_per_part_row(
+            &mut whole.carried_at_rest,
+            product.carried_at_rest.iter().cloned(),
+        );
+    }
+    whole
+}
+
 /// **The at-rest check's reading of one gather**: the census's verdicts
 /// as the gather kept them ([`Product::census`]), partitioned into the
 /// interference between arrivals ([`partition`]) and the rest, each of

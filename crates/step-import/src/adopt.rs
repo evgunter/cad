@@ -451,7 +451,7 @@ fn adopt_edges(
                 AdoptionCandidate::Intersection,
                 EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(fs_plus, fs_minus),
-                    witness,
+                    selector: geom_brep::CurveSelector::Witness(witness),
                 },
             ));
             candidates.push((

@@ -70,8 +70,8 @@ crates/geom-core/src/dual.rs	1	constant	f64::from(n)	powi's exponent
 crates/geom-core/src/dual.rs	1	constant	x	the Real impl's own door: Dual::from_f64 embeds at its value scalar
 crates/geom-core/src/interval.rs	1	constant	x	the Real impl's own door: Interval::from_computed is the point embed by design
 crates/geom-core/src/interval/certification.rs	1	constant	x	the concrete Interval's point embed, the door itself: never Sym
-crates/geom-core/src/linalg/angle.rs	2	constant	at as f64	the numerator of an octant's fraction of a turn, an exact integer below 2^51
-crates/geom-core/src/linalg/angle.rs	2	constant	(4 * den) as f64	the denominator of an octant's fraction of a turn, an exact integer at most 2^53
+crates/geom-core/src/linalg/angle.rs	1	constant	at as f64	the numerator of an octant's fraction of a turn, an exact integer below 2^51
+crates/geom-core/src/linalg/angle.rs	1	constant	(4 * den) as f64	the denominator of an octant's fraction of a turn, an exact integer at most 2^53
 crates/geom-core/src/linalg/angle.rs	1	constant	n as f64	a written fraction's numerator or denominator, an exact integer of magnitude at most 2^53
 crates/geom-core/src/linalg/angle.rs	1	constant	hi as f64	the high half of a written fraction's integer past 2^53, an exact integer below 2^32
 crates/geom-core/src/linalg/angle.rs	1	constant	lo as f64	the low half of a written fraction's integer past 2^53, an exact integer below 2^32

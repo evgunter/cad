@@ -64,8 +64,12 @@
 //! The result ([`SplitReduction`]) is the annotated body the joining
 //! step consumes: cached per-vertex sides, the ON set, and the minted
 //! null edges with their side attributes. [`split`] composes
-//! reduce → join → finish; [`plane_section`] stops after join and
-//! reads the polygons off the scratch clone.
+//! reduce → join → finish's carve into two sides, then on each side:
+//! tier 2, the fusion of a pinch's cones where the section's corners
+//! pair their germs (`section_cones`), the coplanar merges and edge
+//! joins (`finish::end_maximal`), tier 2 again, and the pcurves.
+//! [`plane_section`] stops after join and reads the polygons off the
+//! scratch clone.
 
 mod classify;
 pub mod containment;
@@ -86,6 +90,7 @@ pub(crate) mod pieced_arc;
 pub(crate) mod reassembly;
 pub mod rules;
 mod section;
+mod section_cones;
 mod section_loops;
 pub(crate) mod spiric_arc;
 pub(crate) mod spline_arc;
@@ -1298,6 +1303,7 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
         if let finish::RawPart::Body(body) = part {
             crate::validate::validate_closed(body)
                 .map_err(|errors| SplitFinishError::ResultInvalid { side, errors })?;
+            section_cones::fuse_section_cones(body, side, &mut result.naming, tol)?;
             // On this run's own output: a refusal discards it.
             finish::end_maximal(body, side, &mut result.naming, plane.normal.get(), tol)?;
             // The side's tier-2 gate again, on the body as joined.

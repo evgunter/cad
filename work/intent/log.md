@@ -1042,3 +1042,58 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
   - one copy door / the mirror P2 (`session_01VyvYnL6PuWBydfcFrgSNNC`);
   - the stage 6 spec (`session_01VyvYnHPkMhNKLtauthWNa2`);
   - the exit walk (`session_01VyvYnLKYRbFgmsyKN3BzhP`, which also re-reads the six released rows).
+- 2026-10-29 07:05 —
+  - **Merged:** the D10 exit walk (#5997) and the stage 6 spec (#6000).
+    - The exit walk found one superseded mechanism still in the code: a glued pair re-read through the declared rung, which bridges in-band. It is CONTACTHOLD's row, now P0, and D10's umbrella waits on it and on stage 6.
+  - **Stage 6 A** (the corpus scenes) is dispatched as `session_01VyvYnHQcwXfQBk492iSNWj`, with the designers' measurement asks added.
+  - **Design forks**, each weighed by an Opus and a Fable designer:
+    - FORK-S6-1 (coaxiality) converged in round 2: rung-one pose classes over every mate kind, closed transitively; a revolve minter arm; the replay substituting stated poses. It went to Ev as `[ev]` #6004, fork-log row 213.
+    - FORK-S6-2/3/4 (tangent continuation) converged in round 3, except the point tier: a sketch on a frame in the traced body's space; the crossing spelling; the rung-one trace statement along a swept curve. It went to Ev as `[ev]` #6006, fork-log row 214.
+    - Stage 6 B waits on #6004, and C and D wait on #6006.
+  - **One copy door** (#5999): a FULL review gave APPROVE-WITH-FIXES with one MAJOR. A mirror-product part's overlap goes silent across a seam. The cause predates this PR, and the lane fixes it in the PR.
+  - **Housekeeping:** DESIGN's "state of the build" now lists stage 3 C–G and stage 4 as built. That describes merged work, so it needs no ratification.
+- 2026-10-29 08:45 —
+  - **#5999 merged: one copy door.**
+    - Every copy, mirror and pick goes through `Carry::copied`, and records have one home in `Carry`.
+    - Single FULL review: APPROVE-WITH-FIXES, with one MAJOR. A mirror-product part's overlap went silent across a seam, a gap that predates the PR.
+    - Fix: the seam now carries the part's whole at-rest reading (`checks::at_rest::whole_reading`).
+    - Filed a P3: `a-cut-of-a-nested-assemble-piece-reads-its-own-records-not-its-census`.
+  - **#6009 merged: a ring of N closes whatever its members' cosines.**
+    - Repair 1: the rational-turn fold is deferred past rule H's linearisation. N = 9 and 24 now prove every seat, at no cost and with no golden moved.
+    - Single FULL review: APPROVE-WITH-FIXES, no false proof found. The fix pass gave each settle branch a row that goes red without it, and one `turn::over` for a zero denominator.
+  - **Nightly triage 10-29** dispatched (`session_01VyvYnJYF72fBxdR7k7z2E7`) with the corrected brief: the full doc-gate, README bands, attribution without re-running the slow set.
+- 2026-10-29 16:05 — **Ev answered both stage 6 forks.**
+  - **FORK-S6-1 (#6004)** is approved with no ratified text changed. Ev asked how the edits contradicted DESIGN.md, and they do not: the recommendation implements the existing `[coincidence.structural]` and `[placement.placement]`, as with ring fork row 207. Fork-log row 213 is filled.
+  - **FORK-S6-2/3/4 (#6006)** is approved ("yes this looks good!"). On Ev's question "what's the actual principle", the text was restated: FORK-S3P's principle is stated once (only a placement relates two spaces; a construction reads poses of its own space only), in place of an exception list. The point tier is ratified in B's reading, with building deferred (P3 `a-traced-profile-is-tangent-at-a-point-where-its-plane-holds-a-symmetry-axis`). Ev's style notes trimmed the Profile bullet and "Constructing a coincidence". Fork-log row 214 is filled.
+  - Stage 6 C is dispatched (`session_01VyvYnKbd3CphktXfFu7w3j`). B waits on A (#6023, in its STYLE fix pass); D waits on A and C.
+- 2026-10-29 16:35 —
+  - **Stage 6 A merged (#6023), the corpus scenes.**
+    - New scenes: pin_in_bore, axis_projection, blocks_on_one_floor and revolves_on_one_axis in the registry; shaft_and_bearing, boss_tangent_by_value and the curved scenes beside it.
+    - Each row's proof is pinned as it stands today.
+    - Review: single STYLE, APPROVE-WITH-FIXES. The fix pass moved the fast pins out of the slow set, pinned the press fit at its wall pair, wrote the spec's departures into §2.1 and §7, and swept the provenance prose on every aggregate pin.
+  - **Filed:**
+    - GERM's coaxial unions;
+    - two INTENT P2s: the plane-transitivity gap and two revolves on one axis;
+    - `the-ruled-region-span-holds-two-stage6-scenes-off-the-registry` (P2).
+  - **Stage 6 B dispatched** (`session_01VyvYnHiQmPFKJF4LW5roUJ`) to #6004's converged design.
+- 2026-10-29 21:25 — **Stage 6 B merged (#6041).**
+  - Rung one reads every mate kind, closed transitively. A revolve minter arm and the replay's stated-axis substitution land with it.
+  - Dual H review, tally 2:
+    - R1's MAJOR, introduced here: refused bundles fed the classes. Fixed: only admitted bundles are read.
+    - R2's MAJOR, pre-existing: a revolve's wall classification has no door row. B no longer builds on it; filed P1 on COINCIDE.
+  - Row: `docs/dual-review-log/rows/PR-6041.md`.
+- **Stage 6 C** (#6043): dual H review in, tally 0, fix pass running.
+- **The D10 hold, brought up to date at Ev's request.**
+  - `d10-one-way-to-say-intent-is-unbuilt` now states where the build stands. Its old text said the code still had every mechanism D10 retires.
+  - `plan.md`'s stage state is updated.
+  - A lane re-reads the ~26 rows held on the hold (`session_01VyvYnH4C7X55BN67GaEqMo`). It releases those whose ground is built and re-parks the rest on the specific remainder.
+- 2026-10-29 23:30 — **Stage 6 C merged (#6043).** A profile drawn on a frame reads a face's trace, with the crossing vocabulary and typed refusals; the façade is `pncad::trace`.
+  - Review: dual H, tally 0. Row `docs/dual-review-log/rows/PR-6043.md`.
+  - Fix pass:
+    - pncad-py's word parsing and dimension checks moved into the façade;
+    - free AtX/AtY;
+    - torus, Sym, loft and refusal rows;
+    - one outward normal and one extent table;
+    - six P3s filed.
+  - The fix-pass head's `test (app)` was red only on the fast-set budget for two untouched m10_6 rows (1.052 s and 1.002 s). The re-run on the row commit was green.
+- **Stage 6 D dispatched** (`session_01VyvYnKSgWzCxCxYDXAhVSQ`), curve tier only, per #6006. Stage 6 now waits on D and E (the viewer's tool).

@@ -7,7 +7,11 @@
 //!   their evidence of lying on the surfaces ([`SplineArc::of_section`]),
 //!   read on the cylinder against membership in the ball and on the
 //!   sphere against membership in the cylinder, between points clustered
-//!   from 1e-5 to 5e-2 off the loop;
+//!   from 1e-5 to 5e-2 off the loop; and a sphere × torus section's oval
+//!   (the sphere cutting one tube circle of its meridian), read on the
+//!   torus against membership in the ball and on the sphere against
+//!   membership in the torus, and random sections of the torus by a ball
+//!   or a rod parallel to its axis, every component read at once;
 //! - islands on a cylinder bounded by two rulings and two tilted plane
 //!   sections, every edge an exact spline (a degree-one ruling, rational
 //!   quadratic arcs of the ellipses), whose extrema in height fall inside
@@ -154,6 +158,358 @@ fn a_path_across_a_carried_loop_reads_the_membership_parity() {
         }
     }
     println!("[fuzz] carried loop: {decided} of {asked} paths decided");
+}
+
+/// **No path across a sphere × torus oval's arcs reads a parity the
+/// membership oracle contradicts**, on the torus and on the sphere, over
+/// ovals on the tube's outer side, on its crest and on its inner side.
+#[test]
+fn a_path_across_a_carried_torus_oval_reads_the_membership_parity() {
+    let mut rng = fuzz::start("ring_path::spline_fuzz::torus_oval");
+    let (big_r, r) = (0.6, 0.2);
+    let torus = geom::Surface::Torus {
+        center: Point3::origin(),
+        axis: Vec3::unit_z(),
+        major_radius: big_r,
+        minor_radius: r,
+        u_ref: Vec3::unit_x(),
+    };
+    let on_torus = |q: Point3<f64>| {
+        let core = Point3::new(q.x, q.y, 0.0);
+        let k = Point3::origin() + (core - Point3::origin()) / core.x.hypot(core.y) * big_r;
+        k + (q - k) / (q - k).norm() * r
+    };
+    let torus_margin = |q: Point3<f64>| (q.x.hypot(q.y) - big_r).hypot(q.z) - r;
+    let poses = [
+        (Point3::new(0.85, 0.0, 0.1), 0.15),
+        (Point3::new(0.6, 0.1, 0.25), 0.1),
+        (Point3::new(0.3, -0.1, -0.05), 0.2),
+    ];
+    let (mut asked, mut decided) = (0usize, 0usize);
+    for (centre, big) in poses {
+        let sphere = geom::Surface::Sphere {
+            center: centre,
+            radius: big,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let geom_brep::SectionRead::Built(section) =
+            geom_brep::pair_section(&torus, &sphere, band()).unwrap()
+        else {
+            panic!("the value builds sphere × torus");
+        };
+        assert_eq!(
+            section.counted().map(<[_]>::len),
+            Some(1),
+            "centre {centre:?}, radius {big}: the pose is one oval"
+        );
+        let carried = section
+            .carry(Some(geom_brep::SsiLane::marched()), band())
+            .unwrap();
+        for _ in 0..fuzz::scaled(2) {
+            let mut arcs = Vec::new();
+            for c in carried.components() {
+                let (lo, hi) = c.span;
+                let mut cuts: Vec<f64> = (0..rng.below(3))
+                    .map(|_| rng.range(lo + 0.05 * (hi - lo), hi - 0.05 * (hi - lo)))
+                    .collect();
+                cuts.sort_by(f64::total_cmp);
+                cuts.dedup_by(|a, b| (*a - *b).abs() < 0.01 * (hi - lo));
+                arcs.extend(cut_into(c, &cuts));
+            }
+            let near = |rng: &mut Rng, on_sphere: bool| loop {
+                let c = &carried.components()[0];
+                let p = c.carrier.eval(rng.range(c.span.0, c.span.1));
+                let off = rng.log_uniform(1e-5, 5e-2);
+                let q = if on_sphere {
+                    let n = (p - centre) / big;
+                    let moved = p + tangent(n, rng) * off - centre;
+                    centre + moved / moved.norm() * big
+                } else {
+                    let foot = on_torus(p);
+                    let core = Point3::new(foot.x, foot.y, 0.0);
+                    let k =
+                        Point3::origin() + (core - Point3::origin()) / core.x.hypot(core.y) * big_r;
+                    on_torus(foot + tangent((foot - k) / r, rng) * off)
+                };
+                let margin = if on_sphere {
+                    torus_margin(q)
+                } else {
+                    (q - centre).norm() - big
+                };
+                if margin.abs() > 1e-8 {
+                    return (q, margin < 0.0);
+                }
+            };
+            for (on_sphere, surface) in [(false, &torus), (true, &sphere)] {
+                let quadric = Quadric::of(surface).unwrap();
+                let (a, ia) = near(&mut rng, on_sphere);
+                let (b, ib) = near(&mut rng, on_sphere);
+                let Ok(paths) = quadric.paths((a, b), band()) else {
+                    continue;
+                };
+                for path in paths {
+                    asked += 1;
+                    if let Ok(Some(got)) = path_parity(&path, &arcs, None, band()) {
+                        decided += 1;
+                        assert_eq!(
+                            got,
+                            ia != ib,
+                            "centre {centre:?}, radius {big}, on the {}: {a:?} → {b:?}; {}",
+                            if on_sphere { "sphere" } else { "torus" },
+                            fuzz::replay()
+                        );
+                    }
+                }
+            }
+        }
+    }
+    println!("[fuzz] torus oval: {decided} of {asked} paths decided");
+}
+
+/// A partner of the torus in [`random_torus_sections`]: a ball, or a
+/// rod parallel to the torus axis, with its signed distance (negative
+/// inside).
+#[derive(Clone, Copy, Debug)]
+enum Partner {
+    Ball { centre: Point3<f64>, radius: f64 },
+    Rod { x: f64, y: f64, radius: f64 },
+}
+
+impl Partner {
+    fn surface(self) -> geom::Surface<f64> {
+        match self {
+            Self::Ball { centre, radius } => geom::Surface::Sphere {
+                center: centre,
+                radius,
+                axis: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+            },
+            Self::Rod { x, y, radius } => geom::Surface::Cylinder {
+                origin: Point3::new(x, y, -2.0),
+                axis: Vec3::unit_z(),
+                radius,
+                u_ref: Vec3::unit_x(),
+            },
+        }
+    }
+
+    fn margin(self, q: Point3<f64>) -> f64 {
+        match self {
+            Self::Ball { centre, radius } => (q - centre).norm() - radius,
+            Self::Rod { x, y, radius } => (q.x - x).hypot(q.y - y) - radius,
+        }
+    }
+
+    /// The unit outward normal at `q`, a point of the partner.
+    fn normal(self, q: Point3<f64>) -> Vec3<f64> {
+        match self {
+            Self::Ball { centre, radius } => (q - centre) / radius,
+            Self::Rod { x, y, radius } => Vec3::new(q.x - x, q.y - y, 0.0) / radius,
+        }
+    }
+
+    /// The point of the partner nearest `q`.
+    fn project(self, q: Point3<f64>) -> Point3<f64> {
+        match self {
+            Self::Ball { centre, radius } => centre + (q - centre) / (q - centre).norm() * radius,
+            Self::Rod { x, y, radius } => {
+                let (dx, dy) = (q.x - x, q.y - y);
+                let h = dx.hypot(dy);
+                Point3::new(x + dx / h * radius, y + dy / h * radius, q.z)
+            }
+        }
+    }
+}
+
+/// **No path across a random torus section's arcs reads a parity the
+/// membership oracle contradicts** (shape 1). A ball about the torus
+/// (`R = 0.6`, `r = 0.2`), or a rod parallel to its axis, a third of
+/// them within 1e-4..3e-2 of a tangency; every carried component cut
+/// into one to three spline arcs and all of them read at once (the
+/// section bounds the part of either surface inside the other solid, so
+/// together the arcs separate even where one component winds round the
+/// torus); each end near a random component or anywhere on the surface,
+/// half of them pushed ±0.9e-9 along the normal, read against
+/// membership in the other solid past 1e-8. A pose the value refuses or
+/// carries no fitted component on is passed over.
+#[test]
+fn random_torus_sections() {
+    let mut rng = fuzz::start("ring_path::spline_fuzz::random_torus_sections");
+    let (big_r, r) = (0.6, 0.2);
+    let torus = geom::Surface::Torus {
+        center: Point3::origin(),
+        axis: Vec3::unit_z(),
+        major_radius: big_r,
+        minor_radius: r,
+        u_ref: Vec3::unit_x(),
+    };
+    let core = |q: Point3<f64>| {
+        let h = q.x.hypot(q.y);
+        Point3::new(q.x / h * big_r, q.y / h * big_r, 0.0)
+    };
+    let torus_project = |q: Point3<f64>| {
+        let k = core(q);
+        k + (q - k) / (q - k).norm() * r
+    };
+    let torus_margin = |q: Point3<f64>| (q.x.hypot(q.y) - big_r).hypot(q.z) - r;
+    let (mut poses, mut carried_poses, mut asked, mut decided) = (0usize, 0usize, 0usize, 0usize);
+    for _ in 0..fuzz::scaled(10) {
+        poses += 1;
+        let near_tangent = rng.below(3) == 0;
+        let partner = if rng.below(2) == 0 {
+            let centre = Point3::new(
+                rng.range(-0.9, 0.9),
+                rng.range(-0.9, 0.9),
+                rng.range(-0.4, 0.4),
+            );
+            let radius = if near_tangent {
+                // A critical distance of the centre from the core, off by
+                // a small amount: `|d ± r|` or `d + r` for a meridian `d`.
+                let s = centre.x.hypot(centre.y);
+                let d = [(s - big_r).hypot(centre.z), (s + big_r).hypot(centre.z)][rng.below(2)];
+                let level = [d + r, (d - r).abs()][rng.below(2)];
+                let off = rng.log_uniform(1e-4, 3e-2) * if rng.below(2) == 0 { 1.0 } else { -1.0 };
+                level + off
+            } else {
+                rng.range(0.05, 0.9)
+            };
+            if radius <= 0.02 {
+                continue;
+            }
+            Partner::Ball { centre, radius }
+        } else {
+            let (x, y) = (rng.range(-0.9, 0.9), rng.range(-0.9, 0.9));
+            let radius = if near_tangent {
+                let s = x.hypot(y);
+                let level = [s - big_r - r, s - big_r + r, s + big_r - r, s + big_r + r]
+                    [rng.below(4)]
+                .abs();
+                level + rng.log_uniform(1e-4, 3e-2) * if rng.below(2) == 0 { 1.0 } else { -1.0 }
+            } else {
+                rng.range(0.03, 0.5)
+            };
+            if radius <= 0.02 {
+                continue;
+            }
+            Partner::Rod { x, y, radius }
+        };
+        let other = partner.surface();
+        let Ok(geom_brep::SectionRead::Built(section)) =
+            geom_brep::pair_section(&torus, &other, band())
+        else {
+            continue;
+        };
+        let Ok(carried) = section.carry(Some(geom_brep::SsiLane::marched()), band()) else {
+            continue;
+        };
+        let components = carried.components();
+        if components.is_empty()
+            || components
+                .iter()
+                .any(|c| !matches!(c.carrier, geom::Curve3::Nurbs(_)) || !c.closed)
+        {
+            continue;
+        }
+        carried_poses += 1;
+        let mut arcs = Vec::new();
+        for c in components {
+            let (lo, hi) = c.span;
+            let mut cuts: Vec<f64> = (0..rng.below(3))
+                .map(|_| rng.range(lo + 0.05 * (hi - lo), hi - 0.05 * (hi - lo)))
+                .collect();
+            cuts.sort_by(f64::total_cmp);
+            cuts.dedup_by(|a, b| (*a - *b).abs() < 0.01 * (hi - lo));
+            arcs.extend(cut_into(c, &cuts));
+        }
+        // An end on the torus (or the partner), with its membership in the
+        // other solid.
+        let end = |rng: &mut Rng, on_partner: bool| loop {
+            let q = if rng.below(2) == 0 {
+                let c = &components[rng.below(components.len())];
+                let p = c.carrier.eval(rng.range(c.span.0, c.span.1));
+                let off = rng.log_uniform(1e-5, 5e-2);
+                if on_partner {
+                    let n = partner.normal(partner.project(p));
+                    partner.project(p + tangent(n, rng) * off)
+                } else {
+                    let foot = torus_project(p);
+                    torus_project(foot + tangent((foot - core(foot)) / r, rng) * off)
+                }
+            } else if on_partner {
+                match partner {
+                    Partner::Ball { centre, radius } => {
+                        let n = Vec3::new(
+                            rng.range(-1.0, 1.0),
+                            rng.range(-1.0, 1.0),
+                            rng.range(-1.0, 1.0),
+                        );
+                        if n.norm() < 1e-3 {
+                            continue;
+                        }
+                        centre + n / n.norm() * radius
+                    }
+                    Partner::Rod { x, y, radius } => {
+                        let t = rng.range(-PI, PI);
+                        Point3::new(
+                            x + radius * t.cos(),
+                            y + radius * t.sin(),
+                            rng.range(-0.5, 0.5),
+                        )
+                    }
+                }
+            } else {
+                let (u, v) = (rng.range(-PI, PI), rng.range(-PI, PI));
+                let rho = big_r + r * v.cos();
+                Point3::new(rho * u.cos(), rho * u.sin(), r * v.sin())
+            };
+            let margin = if on_partner {
+                torus_margin(q)
+            } else {
+                partner.margin(q)
+            };
+            if margin.abs() <= 1e-8 {
+                continue;
+            }
+            let q = if rng.below(2) == 0 {
+                let n = if on_partner {
+                    partner.normal(q)
+                } else {
+                    (q - core(q)) / r
+                };
+                q + n * (0.9e-9 * if rng.below(2) == 0 { 1.0 } else { -1.0 })
+            } else {
+                q
+            };
+            return (q, margin < 0.0);
+        };
+        for on_partner in [false, true] {
+            let surface = if on_partner { &other } else { &torus };
+            let quadric = Quadric::of(surface).unwrap();
+            let (a, ia) = end(&mut rng, on_partner);
+            let (b, ib) = end(&mut rng, on_partner);
+            let Ok(paths) = quadric.paths((a, b), band()) else {
+                continue;
+            };
+            for path in paths {
+                asked += 1;
+                if let Ok(Some(got)) = path_parity(&path, &arcs, None, band()) {
+                    decided += 1;
+                    assert_eq!(
+                        got,
+                        ia != ib,
+                        "{partner:?}, on the {}: {a:?} → {b:?}; {}",
+                        if on_partner { "partner" } else { "torus" },
+                        fuzz::replay()
+                    );
+                }
+            }
+        }
+    }
+    println!(
+        "[fuzz] random torus sections: {carried_poses} of {poses} poses carried, \
+         {decided} of {asked} paths decided"
+    );
 }
 
 /// The rational quadratic arcs of `e(θ) = c + U·cos θ + V·sin θ` over
@@ -330,6 +686,9 @@ fn a_spline_arc_is_made_only_on_its_evidence() {
         span: (0.0, 1.0),
         closed: false,
         certificate: None,
+        winds: [false, false],
+        pad: 0.0,
+        witness: curve.eval(0.5),
     };
     assert!(
         SplineArc::of_section(&uncertified, &curve, (0.0, 1.0)).is_none(),

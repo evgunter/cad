@@ -877,7 +877,7 @@ fn an_instances_record_cites_the_parts_record() {
         })
     );
     assert_eq!(
-        value.cited_inputs.as_ref(),
+        value.carry.cited_inputs.as_ref(),
         [editor_core::CitedInput::Part(stand_ref)]
     );
     let product = product_recorded(&outer, &ev, Tol::witness()).expect("the row gathers");

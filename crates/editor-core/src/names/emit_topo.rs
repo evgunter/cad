@@ -1275,6 +1275,14 @@ fn name_split_edges_vertices<T: Decide>(
         // would alias across the two halves).
         let pair_originals: BTreeSet<VertexKey> =
             naming.vertex_pairs.iter().map(|&(_, o)| o).collect();
+        // Each vertex a fusion kept → the vertices fused into it.
+        let mut fused_into: BTreeMap<VertexKey, Vec<VertexKey>> = BTreeMap::new();
+        for &(dead, _) in naming.vertex_fusions.rows() {
+            fused_into
+                .entry(naming.vertex_fusions.survivor(dead))
+                .or_default()
+                .push(dead);
+        }
         // Crossing vertices, by the operand edge they cross: (from a
         // tie, the vertices).
         let mut crossings: BTreeMap<EdgeKey, (Upstream, Vec<VertexKey>)> = BTreeMap::new();
@@ -1293,8 +1301,21 @@ fn name_split_edges_vertices<T: Decide>(
                 continue;
             }
             // The vertex it stands for: itself, or the original its
-            // null-pair copy rows end at.
-            let src = pair_original(&copy_to_original, v);
+            // null-pair copy rows end at. A vertex a fusion of a pinch's
+            // cones kept stands for each vertex fused into it too
+            // (`SplitNaming::vertex_fusions`), and takes the one of
+            // those the target names least, whichever key survived.
+            let src = fused_into
+                .get(&v)
+                .map_or(Ok(naming.original_of(v)), |dead| {
+                    least_named(
+                        core::iter::once(v)
+                            .chain(dead.iter().copied())
+                            .map(|k| naming.original_of(k)),
+                        target_table,
+                        target_node,
+                    )
+                })?;
             if target_table
                 .name_of(&ent(0, EntityKey::Vertex(src)))
                 .is_some()
@@ -1437,27 +1458,32 @@ fn name_split_edges_vertices<T: Decide>(
     Ok(())
 }
 
-/// The operand vertex a split's copy `v` stands for: `v` itself, or
-/// the end of its chain of null-pair rows (`copy_to_original`).
+/// The vertex of `candidates` whose name in `table` is least, or the
+/// first where the table names none of them.
 ///
-/// # Panics
+/// # Errors
 ///
-/// Where the rows cycle ([`chase::to_root`]): each row is a copy
-/// `SplitNaming` records with the vertex the null edge that minted it
-/// was minted at, so it names an earlier key.
-fn pair_original(copy_to_original: &BTreeMap<VertexKey, VertexKey>, v: VertexKey) -> VertexKey {
-    let Ok(original) = chase::to_root::<_, Infallible>(
-        v,
-        copy_to_original.len(),
-        "see `emit_topo::pair_original`'s Panics",
-        |k| {
-            Ok(match copy_to_original.get(&k) {
-                Some(&o) => ControlFlow::Continue(o),
-                None => ControlFlow::Break(k),
-            })
-        },
-    );
-    original
+/// [`upstream_name`]'s, where the table names a candidate it cannot
+/// resolve.
+fn least_named(
+    mut candidates: impl Iterator<Item = VertexKey>,
+    table: &NameTable,
+    node: RecipeNodeId,
+) -> Result<VertexKey, NamingError> {
+    let Some(first) = candidates.next() else {
+        unreachable!("a fused vertex stands for itself at least")
+    };
+    let mut least: Option<(NameRef, VertexKey)> = None;
+    for k in core::iter::once(first).chain(candidates) {
+        if table.name_of(&ent(0, EntityKey::Vertex(k))).is_none() {
+            continue;
+        }
+        let name = upstream_name(table, node, ent(0, EntityKey::Vertex(k)))?.name;
+        if least.as_ref().is_none_or(|(n, _)| name < *n) {
+            least = Some((name, k));
+        }
+    }
+    Ok(least.map_or(first, |(_, k)| k))
 }
 
 /// **The sense of a Split's crossing at `v`** (N2) against the half
@@ -6593,6 +6619,7 @@ mod split_carries_candidates {
             Node::Profile(ProfileProgram {
                 loops: vec![LoopProgram::polygon(pts.iter().copied()).expect("finite")],
                 ids: Vec::new(),
+                on: None,
             }),
         );
         ins(
@@ -6905,6 +6932,7 @@ mod wavy_loft {
                 Node::Profile(ProfileProgram {
                     loops: vec![LoopProgram::polygon(square).expect("finite")],
                     ids: Vec::new(),
+                    on: None,
                 }),
             );
             doc = d;
@@ -7003,6 +7031,7 @@ mod wavy_loft {
                         .expect("finite"),
                 ],
                 ids: Vec::new(),
+                on: None,
             }),
         );
         let (doc, block) = ins(
@@ -7165,6 +7194,7 @@ mod edge_pieces_of_one_line_tie {
             Node::Profile(ProfileProgram {
                 loops: vec![loop_],
                 ids: Vec::new(),
+                on: None,
             }),
         );
         ins(

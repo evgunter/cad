@@ -15,8 +15,6 @@ Filed by SPLITDOOR (2026-10-28). Both designers on SPLITDOOR's split-door-record
 
 `crates/editor-core/src/eval/wire.rs` `wire_split` builds each side's value through `OpOut::per_output` / `plain`, with the default empty `Carry.contacts`. It never calls `topo::SplitResult::carry_contacts`; only tests do. So when the operand carries contact records (a `⊔` product, or a Boolean that recorded a pinch), its sides lose them. Any later at-rest check or lint reads the sides as recordless.
 
-The value also keeps records in two places, `BooleanValue::Body.contacts` and `Carry.contacts`, and `records_of` chooses between them.
-
 ## Direction
 
 There are two ways forward:

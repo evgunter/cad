@@ -63,6 +63,8 @@ mod an_off_iso_line_on_a_spline_wall_imports_its_general_row;
 mod cert1_r1_import_probes;
 #[path = "cert_n2r2_consumer_probes.rs"]
 mod cert_n2r2_consumer_probes;
+#[path = "chart_singularity_vertex.rs"]
+mod chart_singularity_vertex;
 #[path = "coherence_channel.rs"]
 mod coherence_channel;
 #[path = "corpus_fold.rs"]
@@ -81,8 +83,6 @@ mod imported_loft_rim_offset;
 mod inst_review_probes;
 #[path = "lamina_annulus_round_trip.rs"]
 mod lamina_annulus_round_trip;
-#[path = "meridian_free_cap.rs"]
-mod meridian_free_cap;
 #[path = "mesh8r2_probes.rs"]
 mod mesh8r2_probes;
 #[path = "nurbs_import.rs"]
@@ -133,6 +133,8 @@ mod rev_import_probe;
 mod review_band_probes;
 #[path = "review_k3_probe.rs"]
 mod review_k3_probe;
+#[path = "review_pole_vertex_probes.rs"]
+mod review_pole_vertex_probes;
 #[path = "review_probes.rs"]
 mod review_probes;
 #[path = "review_probes_m7_3.rs"]

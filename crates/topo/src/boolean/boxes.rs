@@ -2774,7 +2774,7 @@ pub(crate) mod tests {
         let arc = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(plane, cyl),
-                witness,
+                selector: geom_brep::CurveSelector::Witness(witness),
             },
             carrier,
             param_start,
@@ -2966,7 +2966,7 @@ pub(crate) mod tests {
                 EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
                         pair: SurfacePair::new(wall, plane),
-                        witness: on((u0 + u1) * 0.5, z),
+                        selector: geom_brep::CurveSelector::Witness(on((u0 + u1) * 0.5, z)),
                     },
                     carrier,
                     param_start: t0,
@@ -4117,7 +4117,7 @@ pub(crate) mod tests {
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(torus, plane),
-                    witness: on((u0 + u1) * 0.5, v),
+                    selector: geom_brep::CurveSelector::Witness(on((u0 + u1) * 0.5, v)),
                 },
                 carrier,
                 param_start: t0,
@@ -4142,7 +4142,7 @@ pub(crate) mod tests {
                             u_ref: e(u),
                         }),
                     ),
-                    witness: on(u, (v0 + v1) * 0.5),
+                    selector: geom_brep::CurveSelector::Witness(on(u, (v0 + v1) * 0.5)),
                 }
             } else {
                 EdgeDescriptionSpec::chart(torus)
@@ -4458,38 +4458,39 @@ pub(crate) mod tests {
             },
         )
         .expect("the seed face is the torus annulus");
-        let meridian =
-            |body: &mut Body<f64>, u: f64| -> (EdgeCurveSpec<f64>, crate::geometry::SurfaceKey) {
-                let spine = center + e(u) * major;
-                let plane = Surface::Plane {
-                    origin: center,
-                    normal: axis.cross(e(u)),
-                    u_ref: e(u),
-                };
-                let pk = body.add_surface(plane);
-                let ax = if forward {
-                    e(u).cross(axis)
-                } else {
-                    axis.cross(e(u))
-                };
-                (
-                    EdgeCurveSpec {
-                        description: EdgeDescriptionSpec::Intersection {
-                            pair: SurfacePair::new(torus, pk),
-                            witness: on(u, core::f64::consts::PI),
-                        },
-                        carrier: Curve3::Circle {
-                            center: spine,
-                            axis: ax,
-                            radius: minor,
-                            u_ref: e(u),
-                        },
-                        param_start: 0.0,
-                        param_end: core::f64::consts::TAU,
-                    },
-                    pk,
-                )
+        let meridian = |body: &mut Body<f64>,
+                        u: f64|
+         -> (EdgeCurveSpec<f64>, crate::geometry::SurfaceKey) {
+            let spine = center + e(u) * major;
+            let plane = Surface::Plane {
+                origin: center,
+                normal: axis.cross(e(u)),
+                u_ref: e(u),
             };
+            let pk = body.add_surface(plane);
+            let ax = if forward {
+                e(u).cross(axis)
+            } else {
+                axis.cross(e(u))
+            };
+            (
+                EdgeCurveSpec {
+                    description: EdgeDescriptionSpec::Intersection {
+                        pair: SurfacePair::new(torus, pk),
+                        selector: geom_brep::CurveSelector::Witness(on(u, core::f64::consts::PI)),
+                    },
+                    carrier: Curve3::Circle {
+                        center: spine,
+                        axis: ax,
+                        radius: minor,
+                        u_ref: e(u),
+                    },
+                    param_start: 0.0,
+                    param_end: core::f64::consts::TAU,
+                },
+                pk,
+            )
+        };
         let (m0, cap0_plane) = meridian(&mut body, u0);
         let cap0 = body
             .mef(
@@ -4512,7 +4513,7 @@ pub(crate) mod tests {
         let strut_spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(torus, eq_plane),
-                witness: on((u0 + u1) * 0.5, 0.0),
+                selector: geom_brep::CurveSelector::Witness(on((u0 + u1) * 0.5, 0.0)),
             },
             carrier: Curve3::Circle {
                 center,
@@ -6750,7 +6751,7 @@ pub(crate) mod sphere_rect_rows {
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: geom_brep::SurfacePair::new(sphere, plane),
-                    witness,
+                    selector: geom_brep::CurveSelector::Witness(witness),
                 },
                 carrier,
                 param_start: t0,
@@ -7009,7 +7010,7 @@ pub(crate) mod sphere_rect_rows {
                 EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
                         pair: geom_brep::SurfacePair::new(sphere, plane),
-                        witness,
+                        selector: geom_brep::CurveSelector::Witness(witness),
                     },
                     carrier,
                     param_start: t0,

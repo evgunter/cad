@@ -78,301 +78,34 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// face said within its table, then every name a node holds said in
 /// full. A ratchet: a number that grows fails, one that shrinks lowers
 /// it. The total moves with a word said once more by every name of a
-/// kind, which the quantiles of a long tail need not.
+/// kind, which the quantiles of a long tail need not, and with every
+/// document the corpus gains.
 ///
-/// Raised by INTENT stage 2 PR C (the product is the world): each
-/// corpus document places its bodies, and a copy's names are its
-/// body's under the placement, said "the world copy of …", four words
-/// over the body's own. The p99s rise by those four words and the
-/// totals by the copies' names; the p50s and the maxima held.
-///
-/// Merged with main's blend change (`d5a518b1b2`, the die's blend ends
-/// with the join), which on main moved the full p99 97 → 98 and the
-/// total down: the die's names are said once more each as their copy's,
-/// so its longer names weigh twice in the tail and the full p99 reads
-/// 106. The total fell by twice main's drop; the p50s, the scoped row
-/// and the maxima held.
-///
-/// Every number rose with the three boolean nodes (FORK-DM4): a union's
-/// or an intersect's every member says its join and the read it came in
-/// through ("…, joined at Union d1aa from Extrude e548"), where a pair
-/// boolean's `a` operand was silent and its `b` said the join alone. A
-/// list has no primary member, so the longer names are the reading, not
-/// a regression. Merged over INTENT stage 2 C and D, both effects add:
-/// a world copy says its body's name, joins and all, under "the world
-/// copy of".
-///
-/// The totals rose again (12 and 68 words) when `part_select`'s union
-/// came to read the split's ports where it read a `Part` of each half:
-/// a member said as a port says the split and the half ("from Split
-/// …'s above"), where a `Part` was said by its one tag. The percentiles
-/// and maxima held.
-///
-/// The full total rose by 22 with the killed-lineage chase (`emit_topo`'s
-/// `KilledSplits`). In `crossing_slots` and its world copy, an edge read
-/// as a seam of two faces is now said as the piece of a rim it is,
-/// between its two ends. Its end vertices are said by the edges they lie
-/// on, not as a junction of seam lines. The longer sentences are the
-/// right names, not a regression. The percentiles, the maxima and the
-/// scoped row held.
-///
-/// The full total fell by 102 and its p99 by one with the vertex run
-/// (N2: an `EdgeCrossing` is a run of lines): each edge of a run is said
-/// against "the rest", where a pair was said "the other body" and "the
-/// first", in `corner_table`'s and `crossing_slots`' edge × edge vertices
-/// and the pieces whose ends cite them. No name moved: read as a set of
-/// (line, sense), every run is the pair it replaced. The maxima and the
-/// scoped row held.
-///
-/// The full total rose by 154 with the output stage's killed lineage
-/// (the records of the edges the merge kills, copied into
-/// `BooleanNaming::killed_lineage`). In `crossing_slots` and its world
-/// copy, a stretch of the first cavity's rim said as a seam of two faces
-/// is said as the piece of that rim it is, and a floor corner said as a
-/// touch of a wall is said as a crossing of two rims, as are the pieces
-/// whose ends cite it. The longer sentences are the right names, not a
-/// regression. The percentiles, the maxima and the scoped row held.
-///
-/// The full total rose by 96 with a seam citing the parent face (N3).
-/// In `crossing_slots` and its world copy, the two seams beside the
-/// merged floor say its `Merged` parent, over both floors, where they
-/// said one of them. The longer sentences are the right names, not a
-/// regression. The percentiles, the maxima and the scoped row held.
-///
-/// Every number but the p50s and the scoped maximum moved with INTENT
-/// stage 3 D (Transform retires into a placement), and the full row
-/// grew: p99 122 → 128, max 196 → 366, total 411230 → 444393; the
-/// scoped row's p99 fell 43 → 41 and its total rose 55615 → 59553.
-/// Every construction is the root of its own space, so each operand
-/// after a combine's first is placed against the first's root, and its
-/// names come in wrapped `Placed { of }`, said "joined at Union … from
-/// Place …". The longest full name, in `nested_islands_106_depth2`, is
-/// a piece of a lateral edge between two crossings, whose ends say the
-/// edge again: each extra placement read is said three times over in
-/// it. Filed as `name-words-budget-grew-under-placed-copy-wrapping`,
-/// which D′3 closed (below).
-///
-/// The full total rose by 11 970 and its p99 by seven, and the scoped
-/// total by 200, with a seam's sides and a crossing's edge and face named
-/// as the boolean's own table names them (N3): at every subtract each
-/// says the read it came in through, where it said the operand's entity
-/// alone, so two operands holding the same names are told apart. The
-/// longer sentences are the right names, not a regression. The maxima
-/// and the scoped percentiles held.
-///
-/// Merging main at `be82e5ad6b` into D, the two moves met: full p99
-/// 128 → 135, max 366 → 396, total 444393 → 458233; scoped p99 41 → 43,
-/// total 59553 → 59743. Each side a subtract carries in now says its
-/// read as well as the `Placed` copy it came through, and the longest
-/// name says it at each of its ends; the growth is the same placed-copy
-/// wrapping `name-words-budget-grew-under-placed-copy-wrapping` files.
-///
-/// D′3 retired that wrapping, so no name spells a placement: a copy
-/// carries its source's names as they are, so full p99 135 → 122, max
-/// 396 → 196 (main's before D's wrapping), total 461129 → 342994, and
-/// scoped total 60241 → 46933. Scoped p99 grew 43 → 45: a product that
-/// reads a `⊔` keys each copy's faces by the read they came through
-/// (`From { read }`), so a face scoped to the product says that read,
-/// where the gather's table said the copy's wrapped name.
-///
-/// A pair boolean's `Borders` wall came to cite its parent as the
-/// boolean's own table names it, the `From` it came in through: each
-/// wall of `crossing_slots`' pieces now says its read ("… through
-/// <read>"). Scoped p99 43 → 45, total 60241 → 60371; full total
-/// 461129 → 461339. No outcome moved.
-///
-/// An orientation is read, never chosen: a union's seam in a run says
-/// its sense where it said "runs through", and a line of several things
-/// says the things it enters along ("…, entering along …, crosses …").
-/// Full p99 135 → 137, total 461339 → 461547; scoped faces held. No
-/// outcome moved.
-///
-/// 461129 → 461339. No outcome moved. Main's merge into D′3 at
-/// `1235f4c050` (these walls and stage 4 I) moves D′3's scoped total
-/// 46933 → 47003 and full total 342994 → 343104; the percentiles held.
-///
-/// Measured again for D′3 over main's merge at `4c341b9225`, which
-/// brings the run line's bare sense (above) beneath D′3's names: full
-/// total 343104 → 343208, the percentiles and scoped faces held. No
-/// outcome moved.
+/// What makes the names as long as they are: a copy says its body's
+/// name under "the world copy of …"; a member of a union, an intersect
+/// or a subtract says its join and the read it came in through ("…,
+/// joined at Union … from Extrude …"); a seam's sides, a crossing's
+/// edge and face, a merged face's seams and a killed edge's pieces are
+/// said as the boolean's own table names them, by the read and the
+/// rim they stand on; a run of lines is said line by line against the
+/// rest, with its sense; and a member said as a split's port says the
+/// split and its half. The longer sentences are the right names, not a
+/// regression: a change that lengthens them says in its PR which names
+/// grew and why, and lowers the pin with any that shrank.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
-    ("scoped faces", [16, 43, 57, 46_335]),
-    ("full", [19, 121, 196, 332_976]),
+    ("scoped faces", [16, 43, 57, 48_003]),
+    ("full", [19, 121, 196, 341_097]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
 /// node holds, in full from the document, by tag, and within the
 /// evaluation, in the corpus's order: a wrong word of the same length
-/// moves it where [`NAME_WORDS`] cannot see. Re-pinned with the words
-/// that moved, said in the PR that moves them.
-///
-/// INTENT-LITERALS PR C: the words that moved are the node tags (`Extrude
-/// e548`): every slot holds a variable's id, so every node is minted
-/// from other bytes. [`NAME_WORDS`] held, so no name says a word more or
-/// fewer.
-///
-/// Ids as their mint ordinal and digest: a `Borders` refusal lists its
-/// walls in mint order now (it listed them by digest), and nothing else
-/// moved — the node tags are still the digest's. Re-taken on PR 4228's
-/// tree (a cited line, and `Ends` on every piece), whose words moved
-/// it. On that tree the ids reorder an `Ends` list the same way they
-/// reorder a `Borders` one (mint order, not digest order), and move no
-/// other word.
-///
-/// INTENT stage 2 PR C: the words that moved are the copies' names, new
-/// with the placements ("the world copy of …"), and the node tags of
-/// the placements; no name a document held before says another word.
-/// Re-taken merged with main's blend change, whose die names it says.
-///
-/// INTENT stage 2 PR D, merged over C: three words moved, all in
-/// `measured_web` — its placement's tag (`PlaceInWorld 57cd328e4061` is
-/// now `… 1d7dbb564bd2`), said three times. The placement is minted
-/// after the measure, whose preimage D changed. No other word moved.
-///
-/// INTENT stage 5 PR A: the same tag again (`… 1d7dbb564bd2` is now
-/// `… cd9c076ade6a`). The placement is minted after the assertion,
-/// whose stored field `dir` became `relation`.
-///
-/// INTENT stage 2 PR E, merged over stage 5 A: 6558 of 46614 words
-/// moved, every one a node tag — with each tag masked the two word
-/// lists are equal. A blend, shell, face frame or measure now reads a
-/// selection its insert mints, so its id and every id minted after it
-/// in the seven documents that hold one moved.
-///
-/// The three boolean nodes moved it with [`NAME_WORDS`]: every member
-/// says its join, and a carry said by tag says the read it came through.
-///
-/// `part_select`'s union reading the split's ports moved it with
-/// [`NAME_WORDS`]: its members are said as the ports, and the nodes
-/// minted after the two `Part`s it no longer holds took new tags.
-///
-/// INTENT stage 3 PR A: 5760 of 46614 words moved, every one a node
-/// tag — with each tag masked the two word lists are equal. A revolve
-/// writes its axis on itself rather than reading an in-plane axis
-/// datum, so every id minted after that datum in the revolving
-/// documents moved. (Counted on its own tree; re-taken merged over
-/// FORK-DM4 unit 1, PR 4527, and the split-half retirement, PR 4618.)
-///
-/// INTENT stage 4 PR F: a boolean node lost its `declare` field, so the
-/// nodes minted after the first boolean took new tags.
-///
-/// The killed-lineage chase moved it with [`NAME_WORDS`]: in
-/// `crossing_slots`, a rim piece named as a seam, two floor corners and
-/// the pieces ending at them say other words. No other document's words
-/// moved (`lib_g16_corpus_name_digests` moved that row alone).
-///
-/// Re-pinned for the vertex run: the words that moved are an
-/// `EdgeCrossing`'s, each line now "… the rest" where the pair said "…
-/// the other body and … the first", in `corner_table` and
-/// `crossing_slots`, the two documents whose pair booleans meet edge to
-/// edge (`lib_g16_corpus_name_digests` moved those two rows alone).
-///
-/// The output stage's killed lineage moved it with [`NAME_WORDS`]: in
-/// `crossing_slots`, a stretch of the first cavity's rim named as a
-/// seam is a piece of that rim, the floor corner it ends at is a
-/// crossing of two rims rather than a touch, and the pieces ending at
-/// that corner say other words (`lib_g16_corpus_name_digests` moved
-/// that row alone).
-///
-/// FORK-DM4 unit 2 (a name is scoped by the variable holding its body)
-/// moved it with [`NAME_WORDS`], in `cut_cylinder`, `kitchen_sink` and
-/// `part_select` alone, each holding a split: a split's names say no
-/// half, and `part_select`'s union, which declares the rest between the
-/// halves by the half-free section face, took a new tag. Both totals
-/// shrank. Re-taken merged over main at `8612ce48e8`, and again over
-/// INTENT stage 3 B (#5232), whose placement kind word moved: the merged
-/// digest and the full total are neither tree's.
-///
-/// INTENT stage 3 A′ (a pose is moved by lengths and angles) moved it in
-/// `kitchen_sink` alone, by ids: a revolve holds one slot fewer and a
-/// lone `0` is the constant, so the mint chain re-draws. No total moved.
-///
-/// INTENT stage 3 C (a mate relates two poses) moved it in every
-/// document, by tags: each places its copy where it stands, a loose
-/// `Place` and then the named interim's world pin, where one edit minted
-/// the placement holding its world pin, so the placement's tag moved
-/// and every tag minted after it. [`NAME_WORDS`] held: no name says a
-/// word more or fewer.
-///
-/// A seam citing the parent face (N3) moved it with [`NAME_WORDS`], in
-/// `crossing_slots` alone.
-///
-/// INTENT stage 3 D (Transform retires into a placement) moved it in
-/// every document, with [`NAME_WORDS`]: the documents were re-spelled
-/// without `Datum` or `Transform`, so every tag moved, and every
-/// operand placed against a first operand's root says that placement.
-///
-/// The kitchen sink's lone block hung below the world's xy, as its
-/// retired `SetExtrudeSide` edit had it, moved it in `kitchen_sink`
-/// alone, by tags: its copies are placed at a pose, which mints one id
-/// fewer than standing did, so every tag minted after them moved.
-/// [`NAME_WORDS`] held.
-///
-/// The identity bundle (FORK-REST) moved it by tags, in the documents
-/// that mint a node after a stand (`heat_sink`, `declared_tangency`,
-/// `kitchen_sink`, `cut_cylinder`, `part_select`, the five rows
-/// `lib_g16_corpus_name_digests` moved): a copy standing where its body
-/// stands is placed by no mate and the constant `0` on every freedom,
-/// written as one `AddValues`, which mints a different number of ids from the plane
-/// mate and three values it replaces, so every tag minted after a stand
-/// moved. [`NAME_WORDS`] held.
-///
-/// Exact turns (INTENT stage 3 D) moved it by tags in the five documents
-/// `lib_g16_corpus_name_digests` moved with them: `die_tool` writes its
-/// ball's spin as the constant `0` (one variable fewer); the pips of
-/// `die_pips`, `die_composed` and the tour die stand on lines stated
-/// from the cube's corner; `kitchen_sink`'s revolve stands upright by a
-/// bundle with no mate and its split's plane and pattern's axis are read
-/// off its faces. [`NAME_WORDS`] held.
-///
-/// It moved again by tags in `die_tool` alone, when its master ball came
-/// to stand on the cube's corner frame by an axis mate, which mints 42
-/// fewer ids than the retired place-against helper it replaces. [`NAME_WORDS`] held.
-///
-/// A seam's sides and a crossing's lines named in the boolean's own
-/// table (N3) moved it with [`NAME_WORDS`], in every document holding a
-/// subtract. Measured with [`NAME_WORDS`] merging main at `be82e5ad6b`
-/// into D.
-///
-/// Re-pinned, `die` alone, when its pips came to stand on frames stated
-/// from the cube's corner by whole quarter turns and dyadic slides (a
-/// frame mate each, `fixture::square_frame`), where the retired place-against helper had
-/// written `atan2`'s rounded turns: the die's world vertices are the
-/// merge base's (`f79829b57d`) bit for bit, 176 of 176, and its
-/// placements, their ids and the names under them are new.
-///
-/// D′1 (a placement names its target space): the words that moved are
-/// the node tags, every construction minting its space beside its body
-/// and every bundle written whole. With the tags masked, every name of
-/// every document says the words it said on the merge base
-/// (`e605bc0e`), and [`NAME_WORDS`] held: a read of a construction's
-/// body is said by the node alone, its space being no part of what it
-/// holds.
-///
-/// **Re-pinned for PR 5616**, taken merged over D′2 (PR 5613), which
-/// left this row red on main: D′2 moved every corpus document's ids,
-/// and this PR's `test_support::plane_on` reads `symmetric_plate`'s
-/// seam face plainly, so its node tags moved too; the words that moved
-/// are the node tags.
-///
-/// Re-pinned for D′3: no name says a placement layer, a
-/// product's names say the `⊔` read they came through, and node tags
-/// moved with the ids.
-///
-/// Re-pinned with [`NAME_WORDS`] when a pair boolean's `Borders` walls
-/// came to say the read each came in through: the words that moved are
-/// those walls'.
-///
-/// Re-pinned with [`NAME_WORDS`] when an orientation came to be read,
-/// never chosen: the words that moved are the senses of a union's seams
-/// in a run and of lines of several things, which say what they enter
-/// along.
-///
-/// Measured again for D′3 over main's merge at `1235f4c050`, with the
-/// `Borders` walls' reads under D′3's names.
-///
-/// Measured again with [`NAME_WORDS`] over main's merge at `4c341b9225`.
-const SAID_DIGEST: u64 = 0x725d_81bf_b29f_a0a9;
+/// moves it where [`NAME_WORDS`] cannot see. It moves with every node
+/// tag (a node's id, minted from its stored bytes), so a change to what
+/// a node stores, an id minted earlier, or a document the corpus gains
+/// re-pins it; the PR that moves it says which words moved, and that
+/// with each tag masked no other did where that is so.
+const SAID_DIGEST: u64 = 0x57d2_531f_af01_01ea;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
@@ -937,6 +670,7 @@ fn documents_outside_the_corpus_read_apart_too() {
         let pin = r.insert(Node::Profile(editor_core::ProfileProgram {
             loops: vec![editor_core::LoopProgram::circle(0.5, 0.5, 0.2).expect("a circle")],
             ids: Vec::new(),
+            on: None,
         }));
         let pin = extrude(&mut r, pin, 0.5);
         let copies = [0.0, 1.0, 2.0].map(|x| moved(&mut r, block, pin, [x, 0.0, PIN_Z]));
@@ -1053,6 +787,7 @@ fn respoken_after_a_dropped_step() {
         Node::Profile(ProfileProgram {
             loops: vec![rod_loop(false)],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, rod) = fixture::insert(

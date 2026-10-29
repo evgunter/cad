@@ -333,7 +333,7 @@ fn section_chords<T: Decide>(
 /// the plane's side along its rulings turns, so the sub-sector's bounds
 /// lie on opposite sides and exactly one section ruling lies inside it;
 /// which one is read as its turn from each bound into the sweep
-/// (`split_germ_apex`, [`ConeApex::turn`] levered at the sub-sector's
+/// (`split_germ_apex`, [`ConeApex::turn`](crate::sector_face::ConeApex::turn) levered at the sub-sector's
 /// arm).
 ///
 /// # Errors

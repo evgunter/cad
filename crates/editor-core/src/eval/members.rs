@@ -221,6 +221,10 @@ pub(super) fn eval_family<T: Decide>(
             lane: super::wire::LaneEnv {
                 params: &member_env,
                 nominal: &nominal,
+                // The nominal document's results hold the family, not
+                // this member: a member reading a trace off them resolves
+                // at the nominal lane alone.
+                nominal_results: None,
                 pass_two: op_env.lane.pass_two,
             },
         };
@@ -336,12 +340,7 @@ fn family_value<T: Decide>(
         members
             .members
             .iter()
-            .map(|(_, value)| {
-                value
-                    .carry
-                    .clone()
-                    .recording(super::wire::records_of(value))
-            })
+            .map(|(_, value)| value.carry.clone())
             .collect(),
     );
     let coincidences: Vec<crate::coincide::NamedCoincidence> = members
@@ -364,7 +363,6 @@ fn family_value<T: Decide>(
         outputs,
         carry,
         coincidences: coincidences.into(),
-        cited_inputs: Arc::from([]),
         motion: None,
         members: Some(Arc::new(members)),
         family: None,

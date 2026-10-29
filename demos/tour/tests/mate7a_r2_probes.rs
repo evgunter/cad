@@ -1,0 +1,112 @@
+//! R2 review probes for MATE-7a (PR #1477). Independent re-measurement
+//! of the unit's headline deviation: lily wall 1's refusal.
+//!
+//! These rows do not assert the PR's story; they PRINT the measured
+//! geometry and assert only what the reviewer independently confirms.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+use pncad::geom_core::{Point3, Tol};
+use pncad::topo::{Body, FaceKey};
+
+use demo_tour::booleans::finished;
+use demo_tour::lily::plant;
+
+fn body_of<'a>(pieces: &'a [demo_tour::lily::Piece<f64>], name: &str) -> &'a Body<f64> {
+    &pieces
+        .iter()
+        .find(|p| p.name == name)
+        .expect("named lily piece")
+        .body
+}
+
+/// **R2-2: the arch's far cap exists, and nothing names it.**
+/// Prints every planar face of the arch with its origin so the
+/// identification can be checked rather than assumed — and asserts
+/// unconditionally that the far cap EXISTS, so a `find` that misses
+/// cannot make a row vacuous. The gate names no pair now (the torus is
+/// on its roster), and wall 1 refuses at the declared-REST door, which
+/// names none either.
+#[test]
+fn r2_the_arch_far_cap_identification_is_not_conditional() {
+    let tol = Tol::witness();
+    let pieces = plant::<f64>(tol);
+    let arch = &finished("lily_arch", body_of(&pieces, "lily_arch").clone(), tol);
+    let planes: Vec<_> = arch
+        .faces()
+        .filter_map(|(k, f)| match arch.get_surface(f.surface) {
+            Some(&pncad::geom::Surface::Plane { origin, normal, .. }) => Some((k, origin, normal)),
+            _ => None,
+        })
+        .collect();
+    for (k, o, n) in &planes {
+        println!(
+            "R2 arch plane {k:?}: origin {o:?} |origin| {} normal {n:?}",
+            (*o - Point3::new(0.0, 0.0, 0.0)).norm()
+        );
+    }
+    let far = planes
+        .iter()
+        .find(|(_, o, _)| (*o - Point3::new(0.0, 0.0, 0.0)).norm() > 2.0);
+    assert!(
+        far.is_some(),
+        "R2: the shipped row's `find` must actually hit, or its assert_eq never runs"
+    );
+    println!("R2 far cap {:?}", far.map(|(k, _, _)| *k));
+}
+
+/// **R2-3: would a boundary-tight torus box actually retire wall 1?**
+///
+/// The PR's deviation 1 says wall 1 is the whole-torus box artifact.
+/// This row measures the counterfactual it does not state: for EVERY
+/// cross pair the kind roster can offend on, the TRUE separation of
+/// the two exact loci. A pair whose loci separation is ~0 would still
+/// offend under a perfect box, and no declaration can cover it unless
+/// the carrier ladder can give it a verdict.
+#[test]
+fn r2_which_pairs_survive_a_perfect_box() {
+    let tol = Tol::witness();
+    let pieces = plant::<f64>(tol);
+    let stem = body_of(&pieces, "lily_stem");
+    let arch = body_of(&pieces, "lily_arch");
+    let mesh_a = pncad::mesh::tessellate(stem, 2e-3, tol).expect("stem tessellates");
+    let mesh_b = pncad::mesh::tessellate(arch, 2e-3, tol).expect("arch tessellates");
+    let cloud = |m: &pncad::mesh::Mesh, f: FaceKey| -> Vec<Point3<f64>> {
+        let p = m.patches.iter().find(|p| p.face == f).expect("patch");
+        let mut idx: Vec<u32> = p.triangles.iter().flatten().copied().collect();
+        idx.sort_unstable();
+        idx.dedup();
+        idx.into_iter().map(|i| m.positions[i as usize]).collect()
+    };
+    let kind = |b: &Body<f64>, f: FaceKey| {
+        b.get_face(f)
+            .and_then(|x| b.get_surface(x.surface))
+            .map(|s| {
+                format!("{s:?}")
+                    .split_whitespace()
+                    .next()
+                    .unwrap_or("?")
+                    .to_string()
+            })
+            .unwrap_or_default()
+    };
+    for (ka, _) in stem.faces() {
+        if kind(stem, ka) != "Torus" {
+            continue;
+        }
+        let pa = cloud(&mesh_a, ka);
+        for (kb, _) in arch.faces() {
+            let pb = cloud(&mesh_b, kb);
+            let mut best = f64::INFINITY;
+            for x in &pa {
+                for y in &pb {
+                    best = best.min(x.distance(*y));
+                }
+            }
+            println!(
+                "[r2-3] stem {ka:?} ({}) vs arch {kb:?} ({}): true locus separation {best:.6}",
+                kind(stem, ka),
+                kind(arch, kb)
+            );
+        }
+    }
+}

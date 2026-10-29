@@ -2868,7 +2868,7 @@ fn plan_edge<'s, T: Decide>(
             } else {
                 EdgeDescriptionSpec::Intersection {
                     pair,
-                    witness: new_mid,
+                    selector: geom_brep::CurveSelector::Witness(new_mid),
                 }
             }
         }
@@ -2949,8 +2949,8 @@ fn plan_edge<'s, T: Decide>(
                 band,
             )?
         }
-        EdgeDescription::Intersection { pair, witness } => {
-            EdgeDescriptionSpec::Intersection { pair, witness }
+        EdgeDescription::Intersection { pair, selector } => {
+            EdgeDescriptionSpec::Intersection { pair, selector }
         }
         EdgeDescription::TangentIntersection { pair, witness } => {
             EdgeDescriptionSpec::TangentIntersection { pair, witness }
@@ -3014,7 +3014,6 @@ fn plan_between_moved<'w, 's, T: Decide>(
     let description = curve.description().clone();
     untilted(edge, &description)?;
     if let Some((carrier, delta)) = carried_alike(edge, old, (t0, t1), (a, b), band, tol)? {
-        let mid = carrier.mid_point(t0, t1);
         // Both charts move, so an image in either has slid within it and
         // is derived afresh from the moved carrier; a declaration rides
         // the edge's own rigid shift.
@@ -3034,7 +3033,7 @@ fn plan_between_moved<'w, 's, T: Decide>(
             curve.authority(),
             [(a.old_key, true), (b.old_key, true)],
             true,
-            mid,
+            (&carrier, t0, t1),
             carried,
             |declared| {
                 crate::offset_restate::re_ask_on_pair(
@@ -3341,7 +3340,7 @@ fn derive_edge<'w, 's, T: Decide>(
         )?,
         _ => EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(old_key, other_key),
-            witness,
+            selector: geom_brep::CurveSelector::Witness(witness),
         },
     };
     Ok(EdgePlan {
@@ -3587,10 +3586,12 @@ pub(crate) fn remap_description<T: Real>(
 ) -> EdgeDescriptionSpec<T> {
     let map = |k: SurfaceKey| if k == old { new } else { k };
     match description {
-        EdgeDescriptionSpec::Intersection { pair, witness } => EdgeDescriptionSpec::Intersection {
-            pair: pair.map(map),
-            witness,
-        },
+        EdgeDescriptionSpec::Intersection { pair, selector } => {
+            let Some((pair, selector)) = selector.remapped(pair, |k| Some(map(k))) else {
+                unreachable!("an infallible map answers every key")
+            };
+            EdgeDescriptionSpec::Intersection { pair, selector }
+        }
         EdgeDescriptionSpec::TangentIntersection { pair, witness } => {
             EdgeDescriptionSpec::TangentIntersection {
                 pair: pair.map(map),
@@ -3900,8 +3901,11 @@ fn plan_reanchors<T: Decide>(
         // read at the new midpoint.
         let mid = carrier.mid_point(t0, t1);
         description = match description {
-            EdgeDescriptionSpec::Intersection { pair, .. } => {
-                EdgeDescriptionSpec::Intersection { pair, witness: mid }
+            EdgeDescriptionSpec::Intersection { pair, selector } => {
+                EdgeDescriptionSpec::Intersection {
+                    pair,
+                    selector: selector.repinned(&carrier, t0, t1),
+                }
             }
             EdgeDescriptionSpec::TangentIntersection { pair, .. } => {
                 EdgeDescriptionSpec::TangentIntersection { pair, witness: mid }
@@ -4612,8 +4616,8 @@ fn read_ends<T: Decide>(
     };
     let restated = |m| restate(restate(m, p_start, true)?, p_end, false);
     match &mut plan.spec.description {
-        EdgeDescriptionSpec::Intersection { witness, .. } => {
-            *witness = plan.spec.carrier.mid_point(t0, t1);
+        EdgeDescriptionSpec::Intersection { selector, .. } => {
+            *selector = selector.repinned(&plan.spec.carrier, t0, t1);
         }
         EdgeDescriptionSpec::Chart {
             declared: Some(mc), ..
@@ -4937,14 +4941,16 @@ mod pose_reach_rows {
     /// The refusal is the offset row's: the arm refuses the same way a
     /// cylinder EXACTLY parallel to the cone's axis and as far off the
     /// apex is refused, which only `coc_coaxial` can do.
-    /// **A general cylinder × torus pose is not served at the neighbour
-    /// gate.** The section value lists no components for it, so
-    /// `route_pose` answers the kind's arm unimplemented with the value's
-    /// note, and the face replacement refuses the edge
-    /// (`NeighborPoseUnroutable`) rather than reach the offset lane; a
-    /// square pose, whose components the value lists, is served.
+    /// **A cylinder × torus pose is served at the neighbour gate, general
+    /// or square**: the section value classifies both, the general one
+    /// as its march's, so `route_pose` answers the kind's arm
+    /// implemented. Past the gate the offset door derives the moved
+    /// edge's section in closed form only (`offset_derive::section_closed`),
+    /// which has no cylinder × torus arm: the general pose's edge is
+    /// refused there, by that door's own `Unsupported`, and no carrier is
+    /// minted for it.
     #[test]
-    fn a_general_cylinder_torus_pose_is_not_served() {
+    fn a_general_cylinder_torus_pose_is_served() {
         let torus = Surface::Torus {
             center: Point3::origin(),
             axis: Vec3::unit_z(),
@@ -4969,8 +4975,8 @@ mod pose_reach_rows {
         ] {
             let got = pose_route(a, b, &edge, 0.0, 0.1, band());
             assert!(
-                matches!(got, Ok(ref r) if !r.implemented && r.note.contains("closed-form count")),
-                "({label}): the general pose is not served, got {got:?}"
+                matches!(got, Ok(ref r) if r.implemented),
+                "({label}): the general pose is served, got {got:?}"
             );
         }
         let square = rod(Vec3::unit_x());
@@ -4979,6 +4985,22 @@ mod pose_reach_rows {
             matches!(got, Ok(ref r) if r.implemented),
             "the square pose is served, got {got:?}"
         );
+        for (label, a, b) in [
+            ("cyl, torus", &general, &torus),
+            ("torus, cyl", &torus, &general),
+        ] {
+            let derived =
+                crate::offset_derive::section_closed(a, b, &edge, (0.0, 0.1), 0.1, band());
+            assert!(
+                matches!(
+                    derived,
+                    Ok(Err(
+                        crate::offset_derive::SectionVerdict::Unsupported { .. }
+                    ))
+                ),
+                "({label}): the offset door's derivation past the gate, got {derived:?}"
+            );
+        }
     }
 
     #[test]
@@ -5338,7 +5360,7 @@ mod read_ends_rows {
             spec: EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(SurfaceKey::default(), SurfaceKey::default()),
-                    witness: Point3::origin(),
+                    selector: geom_brep::CurveSelector::Witness(Point3::origin()),
                 },
                 carrier,
                 param_start: 0.0,
@@ -5459,7 +5481,7 @@ mod pair_over_its_span_rows {
                 spec: EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
                         pair: SurfacePair::new(SurfaceKey::default(), SurfaceKey::default()),
-                        witness: Point3::origin(),
+                        selector: geom_brep::CurveSelector::Witness(Point3::origin()),
                     },
                     carrier: l1.clone(),
                     param_start: from,
@@ -5538,7 +5560,7 @@ mod pair_over_its_span_rows {
                 spec: EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
                         pair: SurfacePair::new(SurfaceKey::default(), SurfaceKey::default()),
-                        witness: Point3::origin(),
+                        selector: geom_brep::CurveSelector::Witness(Point3::origin()),
                     },
                     carrier: l1.clone(),
                     param_start: 0.0,

@@ -1044,10 +1044,10 @@ fn joined_spec<T: Decide>(
         },
     };
     let description = match kept.description() {
-        geom_brep::EdgeDescription::Intersection { pair, .. } => {
+        geom_brep::EdgeDescription::Intersection { pair, selector } => {
             geom_brep::EdgeDescriptionSpec::Intersection {
                 pair: *pair,
-                witness: carrier.mid_point(a, b),
+                selector: selector.repinned(carrier, a, b),
             }
         }
         geom_brep::EdgeDescription::TangentIntersection { pair, .. } => {

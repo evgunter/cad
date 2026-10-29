@@ -44,3 +44,21 @@ Reproduce: `CAD_TOLERANCE_EPS=1e-9 cargo test -p editor-core --features
 probe --test all -- --ignored
 m4_pr8_k_probe::probe_agrees_with_f64_bit_for_bit_save_the_pinned_key_splits`, with
 `PINNED_KEY_SPLITS` emptied.
+
+**2026-10-29, nightly triage** (run 40823227622, `k-lint (dev-probe)`, main `5648e577eb`): `m4_pr8_k_probe::probe_agrees_with_f64_bit_for_bit_save_the_pinned_key_splits` (`crates/editor-core/tests/m4_pr8_k_probe.rs:646`) reds with "the content keys split between the lanes on other nodes than the pinned ones". Five documents' node ordinals moved off `PINNED_KEY_SPLITS`: `heat_sink`, `kitchen_sink`, `heat_sink_fins`, `die_tool` and `part_select`. These are the corpus documents PR 5954 (INTENT G, patterns as index variables) rewrote (`tests/corpus/{heatsink,sink,die_tool,part_select}.rs`). The probe row runs only under `--features probe`, so G's gate did not see it. The split itself is unchanged; the pin needs re-taking at G's ordinals.
+
+**Re-pinned 2026-10-29 (GREEN, after PR 5954).** PR 5954 (INTENT stage 3
+G, patterns are index variables) rewrote the `heat_sink`,
+`heat_sink_fins`, `kitchen_sink`, `die_tool` and `part_select` corpus
+documents. It was the only merge to touch `crates/editor-core/tests/corpus`
+after PR 5966 wrote the pin, and it merged without re-pinning. Their
+split nodes renumber with the new mint order, and the other 21 documents
+read the old pin exactly. `PINNED_KEY_SPLITS` now holds main's set,
+identical at 1e-6, 1e-9 and 1e-12 and identical to nightly 76's message.
+The split itself is unchanged in kind: 26 documents, and every node
+splits both keys.
+
+INTENT stage 6 A then added four corpus documents (`axis_projection`,
+`blocks_on_one_floor`, `pin_in_bore`, `revolves_on_one_axis`). They
+split the same way and are pinned too: 30 documents, with the other
+26 entries unchanged.

@@ -2,10 +2,13 @@
 id: an-assertion-over-scopes-that-meet-refuses-a-window-superset-for-an-exact-zero
 kind: issue
 title: an AtLeast assertion over min_clearance of scopes that meet refuses WindowSuperset, though the meeting's 0 is the faces' own
-status: open
+status: closed
 opened: 2026-10-28
 priority: P3
 cost: M
+branch: clear/tighten
+pr: 5998
+closed: 2026-10-29
 ---
 
 
@@ -36,3 +39,10 @@ Carry the meeting with the measured value through the clearance lane
 (today `MinClearanceLane`, which SYMCLEAR replaces with
 `topo::ClearanceLane`), and admit the upper end when the scopes meet:
 there `m = M = 0`. Then flip the pinned row to `Violated`.
+
+## Closed
+
+Resolved by TIGHTEN (#5998). `WindowSuperset` retired with all of
+`Certified`. Two scopes that meet now read the bracket `[0, 0]`, which
+is the faces' own: the wall against itself violates its `AtLeast`
+bound (`a_wall_against_itself_reads_zero_and_violates_its_at_least_bound`).

@@ -14,7 +14,8 @@ use crate::errors::{
 };
 use crate::tags::{
     expr_dimension_error_tag, normalization_kind_tag, path_error_tag, persist_error_tag,
-    promoted_curve_kind_tag, promoted_kind_tag, step_import_error_tag, workspace_error_tag,
+    promoted_curve_kind_tag, promoted_kind_tag, singularity_found_tag, step_import_error_tag,
+    workspace_error_tag,
 };
 use pncad::document::Dimension;
 use pncad::tolerance::Tol;
@@ -56,6 +57,7 @@ fn square(s: f64) -> pncad::document::AuthoredNode {
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
         ids: Vec::new(),
+        on: None,
     })
 }
 
@@ -558,6 +560,18 @@ fn the_fourth_verbs_two_refusals_are_stable() {
     // The recourse is IN the refusal: it names the door that answers
     // rather than handing back a worse number.
     assert!(absent.to_string().contains("topo::ClearanceLane"));
+    let unbracketed = MeasureUnavailableAt::NoUpperBound {
+        verb: "min_clearance",
+        scalar: "Interval",
+        door: "topo::clearance::min_separation",
+    };
+    assert_eq!(measure_unavailable_at_tag(&unbracketed), "no_upper_bound");
+    assert!(crate::errors::reads_as_prose(&unbracketed.to_string()));
+    assert!(
+        unbracketed
+            .to_string()
+            .contains("topo::clearance::min_separation")
+    );
 
     // The three arms `topo::clearance::min_separation` refuses with
     // all cross as one tag.
@@ -1220,6 +1234,7 @@ fn resolution_status_tags_are_stable() {
                     .expect("finite corners"),
             ],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, extrude) = insert(
@@ -1727,6 +1742,7 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() 
         node: Box::new(Node::Profile(ProfileProgram {
             loops: vec![square],
             ids: Vec::new(),
+            on: None,
         })),
         fresh: Vec::new(),
     };
@@ -2044,6 +2060,7 @@ fn node_error_tags_are_the_published_words() {
         Expr => "expr",
         Profile => "profile",
         ProfileReplay => "profile_replay",
+        Trace => "trace",
         ProfileLaneReplay => "profile_lane_replay",
         Extrude => "extrude",
         Revolve => "revolve",
@@ -2954,8 +2971,8 @@ fn promoted_kind_tags_are_stable() {
 /// Minted rather than reached, and for a sharper reason than the
 /// refusal above: four of these five normalizations need a file
 /// exercising a specific Open CASCADE export shape (an edge-free
-/// sphere, a degenerate apex, a full-period torus face, a seamless
-/// band) and those are `step-import`'s own corpus fixtures. What this
+/// sphere, a seam ending at a pole or apex, a full-period torus face, a
+/// seamless band) and those are `step-import`'s own corpus fixtures. What this
 /// pins is the wire spelling every row carries, and that
 /// `surface_promotion` does NOT fold its analytic kind into the word:
 /// which kind certified is the payload beside it, at
@@ -2963,13 +2980,11 @@ fn promoted_kind_tags_are_stable() {
 /// promoted" reads one word whichever kind it was.
 #[test]
 fn import_report_row_tags_are_stable() {
-    use pncad::step_import::{NormalizationKind, PromotedCurveKind, PromotedKind};
+    use pncad::step_import::{
+        NormalizationKind, PromotedCurveKind, PromotedKind, SingularityFound,
+    };
     for (kind, word) in [
         (NormalizationKind::EdgeFreeSphere, "edge_free_sphere"),
-        (
-            NormalizationKind::DegenerateApexCone,
-            "degenerate_apex_cone",
-        ),
         (
             NormalizationKind::SeamlessPeriodicBand,
             "seamless_periodic_band",
@@ -2995,6 +3010,18 @@ fn import_report_row_tags_are_stable() {
             "surface_promotion",
             "the arm's word is the normalization, not the kind"
         );
+    }
+    for (found, word) in [
+        (SingularityFound::Interior, "interior"),
+        (SingularityFound::InsideEdge, "inside_edge"),
+        (SingularityFound::ValenceOneVertex, "valence_one_vertex"),
+    ] {
+        assert_eq!(
+            normalization_kind_tag(&NormalizationKind::ChartSingularityVertex { found }),
+            "chart_singularity_vertex",
+            "the arm's word is the normalization, not where the file put the point"
+        );
+        assert_eq!(singularity_found_tag(&found), word);
     }
     assert_eq!(
         promoted_curve_kind_tag(&PromotedCurveKind::Circle),
@@ -3509,6 +3536,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
                 )),
             ],
             replay: pncad::document::coincide::Unreplayed::NotReplayed,
+            axes: None,
         }),
         recourse: pncad::document::coincide::Recourse::OneConstruction,
         restated: Vec::new(),
@@ -4025,8 +4053,9 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
             // move by its section and its place in the station, a
             // value's number by its constraint, a list's entry by its
             // position, a constraint's side by its constraint and which
-            // side, and an indexed read's index by its seat, none of
-            // which the word carries.
+            // side, an indexed read's index by its seat, and a drawn
+            // profile's traced face by its place among the faces it
+            // reads, none of which the word carries.
             None => assert!(
                 matches!(
                     *word,
@@ -4040,6 +4069,7 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
                         | "index"
                         | "measured"
                         | "side"
+                        | "traced"
                 ),
                 "`{word}` is a slot a caller can read off a refusal and cannot write back at"
             ),
@@ -5067,7 +5097,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "measure_unavailable_at_tag",
-        values: &["needs_enclosure"],
+        values: &["needs_enclosure", "no_upper_bound"],
         delegates: &[],
     },
     TagEntry {
@@ -5206,6 +5236,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "space_mismatch",
             "split",
             "tolerance_conflict",
+            "trace",
             "transform",
             "tube",
             "underflowed_direction",
@@ -5249,6 +5280,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "skin_error_tag",
             "split_op_error_tag",
             "structure_refusal_tag",
+            "trace_step_fault_tag",
             "transform_error_tag",
             "tube_error_tag",
         ],
@@ -5266,7 +5298,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "normalization_kind_tag",
         values: &[
-            "degenerate_apex_cone",
+            "chart_singularity_vertex",
             "edge_free_sphere",
             "edge_split_at_c0_knot",
             "face_split_at_c0_knot",
@@ -5301,6 +5333,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "target",
             "target_space",
             "tool",
+            "traced",
         ],
         delegates: &[],
     },
@@ -5481,6 +5514,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "geometry",
             "resolve",
             "step_ids",
+            "trace",
             "transition",
             "unminted",
             "validate",
@@ -5719,6 +5753,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &["join_refusal_tag"],
     },
     TagEntry {
+        function: "singularity_found_tag",
+        values: &["inside_edge", "interior", "valence_one_vertex"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "skin_error_tag",
         values: &[
             "arc_sweep_undecided",
@@ -5900,6 +5939,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placement_map",
             "recognition_ambiguous",
             "rim_off_wall_boundary",
+            "singularity_undecided",
             "structure",
             "syntax",
             "tier_invalid",
@@ -5962,6 +6002,29 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unsupported_curved_shape",
             "unsupported_nurbs_face",
             "unsupported_surface",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "trace_step_fault_tag",
+        values: &[
+            "apex",
+            "escalated",
+            "grazing",
+            "no_heading",
+            "no_pen",
+            "no_such_crossing",
+            "no_such_face",
+            "no_tangent",
+            "no_trace",
+            "not_a_run",
+            "off_trace",
+            "on_carrier",
+            "undrawn",
+            "unevaluated",
+            "unreached",
+            "unsettled",
+            "unsupported_carrier",
         ],
         delegates: &[],
     },
@@ -6253,7 +6316,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // refused at validation, and a body face's empty (scaffolding) loop,
     // refused by the tessellator.
     ("empty_loop", 2),
-    ("escalated", 10),
+    ("escalated", 11),
     ("euler", 2),
     ("evaluation_of_another_document", 5),
     // `face` is also the face frame's operand slot (`operand_slot_tag`):
@@ -6304,6 +6367,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("non_finite_direction", 2),
     ("not_a_body", 2),
     ("null_scaffold_edge", 3),
+    // A coincidence: a coincidence record's relation of a point lying
+    // on a carrier, and a sketch piece lying on the carrier it would
+    // cross (`trace_step_fault_tag`).
+    ("on_carrier", 2),
     ("op", 3),
     ("part_unresolved", 2),
     // A coincidence: a sweep's path operand and a replay's path fault.
@@ -6377,6 +6444,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One fact at the edit door and in the skin: a loft through fewer
     // than two sections.
     ("too_few_sections", 2),
+    // One fact at two doors: a step reading a face's trace refused
+    // (`TraceRefusal`), carried by the evaluation's node error and by
+    // the program's own check alike.
+    ("trace", 2),
     ("transition", 2),
     // A coincidence: a crossing side the band left undecided, and a
     // rigidity margin the decided door left undecided.

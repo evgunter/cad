@@ -1,30 +1,35 @@
 #!/usr/bin/env python3
-"""Hand-authored AP214 fixtures for the RIM-ONLY SPHERE CAP.  Writes
-TWO files into the directory given as argv[1]: rimonly2.step and
-rimonly1.step.  (Adapted from ../halfcap/gen_halfcap.py.)
+"""Hand-authored AP214 fixtures for a CHART SINGULARITY THAT IS NOT A
+VERTEX.  Writes six files into the directory given as argv[1].
+(Adapted from ../halfcap/gen_halfcap.py.)
 
-The solid is the cap of an R = 10 mm sphere above latitude B = 0.5 rad
+Three are the cap of an R = 10 mm sphere above latitude B = 0.5 rad
 (argv[2] overrides B), closed by its base disc: two faces sharing one
-rim circle, the north pole in the INTERIOR of the sphere face.  The
-sphere face's loop is the rim and nothing else -- no meridian edge, no
-pole vertex.
+rim circle.
 
-  * rimonly2.step: the rim as two half arcs, 2 V / 2 E / 2 F;
-  * rimonly1.step: the rim as ONE closed circle edge, 1 V / 1 E / 2 F.
+  * rimonly2.step: the rim as two half arcs and nothing else, the
+    north pole in the INTERIOR of the sphere face, 2 V / 2 E / 2 F;
+  * rimonly1.step: the rim as ONE closed circle edge, 1 V / 1 E / 2 F;
+  * seamed.step: Open CASCADE's statement -- the closed rim plus one
+    seam meridian from the rim vertex to a pole vertex of valence 1,
+    used twice by the sphere face, 2 V / 2 E / 2 F;
+  * spur.step: the same seam stopping short of the pole, at latitude
+    1.2 rad, so the pole is still INTERIOR to the face, 2 V / 2 E / 2 F.
 
-Both import as a solid that passes every tier and measures the closed
-form the generator prints; what `mesh::tessellate` answers for the
-sphere face is the row in ../../meridian_free_cap.rs.
+Two more state a singular point inside a face another way:
 
-THESE FILES' DISPOSITION IS EXPECTED TO CHANGE, BY DESIGN.  A pole
-inside a face is a vertex of it, so the face stated here is not one the
-kernel keeps: work/foreign/import-normalizes-the-rim-only-cap.md is the
-unit that makes import re-mint it in the seamed form.  When it lands,
-the two corpus rows in ../../tier_gate.rs (their edge and vertex
-census) and the "adopted as stated" assertions in
-../../meridian_free_cap.rs move with it -- that is the normalization
-working, not a regression.  The files themselves stay as they are: they
-are the input that unit normalizes.
+  * tilted.step: the cap of the same sphere cut by a plane tilted
+    0.3 rad off the axis at distance 6 mm from the centre (cap height
+    4 mm), the north pole interior to the cap face, the rim one closed
+    circle, 1 V / 1 E / 2 F;
+  * conecap.step: a cone of rim radius 5 mm and half-angle 0.5 rad,
+    its apex interior to the lateral face (no seam generator), closed
+    by its base disc, 1 V / 1 E / 2 F.
+
+A chart singularity inside a face is a vertex of it, so import re-mints
+each into the pole form (`NormalizationKind::ChartSingularityVertex`);
+the rows reading them are ../../meridian_free_cap.rs and
+../../tier_gate.rs.
 """
 import math
 import sys
@@ -66,9 +71,22 @@ class Step:
 def build(kind):
     h = R * math.sin(B)
     rc = R * math.cos(B)
-    pos = {"A": (rc, 0.0, h)}
+    # The rim circle: centre, axis, reference direction, radius.
+    rim = ((0.0, 0.0, h), (0.0, 0.0, 1.0), (1.0, 0.0, 0.0), rc)
+    if kind == "tilted":
+        n = (math.sin(TILT), 0.0, math.cos(TILT))
+        ref = (math.cos(TILT), 0.0, -math.sin(TILT))
+        rim = (tuple(TILT_D * c for c in n), n, ref, math.sqrt(R * R - TILT_D * TILT_D))
+    if kind == "conecap":
+        rim = ((0.0, 0.0, 0.0), (0.0, 0.0, 1.0), (1.0, 0.0, 0.0), CONE_R)
+    centre, normal, ref, radius = rim
+    pos = {"A": tuple(c + radius * r for c, r in zip(centre, ref, strict=True))}
     if kind == "rimonly2":
         pos["B"] = (-rc, 0.0, h)
+    if kind == "seamed":
+        pos["N"] = (0.0, 0.0, R)
+    if kind == "spur":
+        pos["N"] = (R * math.cos(SPUR), 0.0, R * math.sin(SPUR))
 
     s = Step()
     s.add("APPLICATION_PROTOCOL_DEFINITION('international standard','automotive_design',2000,#2)")
@@ -98,7 +116,7 @@ def build(kind):
     E = {}
 
     def rim_circle():
-        return s.add("CIRCLE('',#%d,%s)" % (s.ax2((0, 0, h), (0, 0, 1), (1, 0, 0)), num(rc)))
+        return s.add("CIRCLE('',#%d,%s)" % (s.ax2(centre, normal, ref), num(radius)))
 
     if kind == "rimonly2":
         E["r1"] = s.add("EDGE_CURVE('',#%d,#%d,#%d,.T.)" % (V["A"], V["B"], rim_circle()))
@@ -109,6 +127,11 @@ def build(kind):
         E["r"] = s.add("EDGE_CURVE('',#%d,#%d,#%d,.T.)" % (V["A"], V["A"], rim_circle()))
         rim_fwd = [("r", "T")]
         rim_rev = [("r", "F")]
+    seam = []
+    if kind in ("seamed", "spur"):
+        mc = s.add("CIRCLE('',#%d,%s)" % (s.ax2((0, 0, 0), (0, -1, 0), (1, 0, 0)), num(R)))
+        E["m"] = s.add("EDGE_CURVE('',#%d,#%d,#%d,.T.)" % (V["A"], V["N"], mc))
+        seam = [("m", "T"), ("m", "F")]
 
     faces = []
     _all_oriented = []
@@ -120,12 +143,23 @@ def build(kind):
         fb = s.add("FACE_OUTER_BOUND('',#%d,.T.)" % el)
         faces.append(s.add("ADVANCED_FACE('',(#%d),#%d,.T.)" % (fb, surf_id)))
 
-    sph = s.add("SPHERICAL_SURFACE('',#%d,%s)"
-                % (s.ax2((0, 0, 0), (0, 0, 1), (1, 0, 0)), num(R)))
-    # rim +u: interior toward the north pole.
-    face(sph, rim_fwd)
-    base = s.add("PLANE('',#%d)" % s.ax2((0, 0, h), (0, 0, -1), (1, 0, 0)))
-    face(base, rim_rev)
+    if kind == "conecap":
+        # The apex lies below the rim, at z = -CONE_R / tan(CONE_A); the
+        # lateral face runs from it up to the rim, which its CCW
+        # boundary traverses in -u.
+        cone = s.add("CONICAL_SURFACE('',#%d,%s,%s)"
+                     % (s.ax2((0, 0, 0), (0, 0, 1), (1, 0, 0)), num(CONE_R), num(CONE_A)))
+        face(cone, rim_rev)
+        base = s.add("PLANE('',#%d)" % s.ax2((0, 0, 0), (0, 0, 1), (1, 0, 0)))
+        face(base, rim_fwd)
+    else:
+        sph = s.add("SPHERICAL_SURFACE('',#%d,%s)"
+                    % (s.ax2((0, 0, 0), (0, 0, 1), (1, 0, 0)), num(R)))
+        # rim +u about its own normal: interior toward the north pole
+        # (then the seam up and back).
+        face(sph, [*rim_fwd, *seam])
+        base = s.add("PLANE('',#%d)" % s.ax2(centre, tuple(-c for c in normal), ref))
+        face(base, rim_rev)
 
     # --- self-check: every edge traversed exactly twice, once each way
     use = {}
@@ -167,10 +201,17 @@ DATA;
 
 
 B = float(sys.argv[2]) if len(sys.argv) > 2 else 0.5
+SPUR = 1.2  # the spur's tip latitude (rad)
+TILT, TILT_D = 0.3, 6.0  # the tilted cap's plane: tilt (rad), distance (mm)
+CONE_R, CONE_A = 5.0, 0.5  # the cone cap's rim radius (mm), half-angle (rad)
 hm = R * (1.0 - math.sin(B))
 print("exact volume = %.9e m^3 ; sphere face area = %.9e m^2"
       % (math.pi * hm * hm * (3 * R - hm) / 3 * 1e-9, 2 * math.pi * R * hm * 1e-6))
+ht = R - TILT_D
+print("tilted: exact volume = %.9e m^3" % (math.pi * ht * ht * (3 * R - ht) / 3 * 1e-9))
+print("conecap: exact volume = %.9e m^3"
+      % (math.pi * CONE_R ** 2 * (CONE_R / math.tan(CONE_A)) / 3 * 1e-9))
 d = sys.argv[1]
-for k in ("rimonly2", "rimonly1"):
+for k in ("rimonly2", "rimonly1", "seamed", "spur", "tilted", "conecap"):
     open("%s/%s.step" % (d, k), "w").write(build(k))
 print("ok")

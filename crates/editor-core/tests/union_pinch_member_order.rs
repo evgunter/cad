@@ -356,8 +356,9 @@ fn checked(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str, volume: f64) -> O
         "{what}: volume {v}, closed form {volume}"
     );
     let none = ContactRecords::default();
-    let contacts = match &ev.value(id).expect("node evaluated to a value").payload {
-        ValuePayload::Boolean(BooleanValue::Body { contacts, .. }) => &**contacts,
+    let value = ev.value(id).expect("node evaluated to a value");
+    let contacts = match &value.payload {
+        ValuePayload::Boolean(BooleanValue::Body { .. }) => &*value.carry.contacts,
         _ => &none,
     };
     let verdict = topo::validate_pseudomanifold(&body, contacts, Tol::witness()).map_err(|es| {
@@ -428,8 +429,9 @@ fn ring_fusion_recorded(ev: &Evaluation<f64>, id: RecipeNodeId, o: &Outcome, wha
 fn far_end_backed(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str) {
     let body = body_of(ev, id);
     let none = ContactRecords::default();
-    let contacts = match &ev.value(id).expect("the node evaluated").payload {
-        ValuePayload::Boolean(BooleanValue::Body { contacts, .. }) => &**contacts,
+    let value = ev.value(id).expect("the node evaluated");
+    let contacts = match &value.payload {
+        ValuePayload::Boolean(BooleanValue::Body { .. }) => &*value.carry.contacts,
         _ => &none,
     };
     let z = |v: topo::VertexKey| {

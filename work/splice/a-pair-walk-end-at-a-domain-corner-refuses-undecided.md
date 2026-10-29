@@ -4,7 +4,7 @@ kind: issue
 title: ssi/four: a pair-walk carrier ending at a domain corner refuses Undecided, because face_roots resolves no corner root
 status: open
 opened: 2026-10-14
-priority: P0
+priority: P3
 cost: H
 ---
 
@@ -39,3 +39,13 @@ The walk's `Undecided` for this shape now refuses by name
 domain side, `EndOnSides { sides }` for an end on two or more domain
 sides at once. That changes the payload, not the reach: no row the
 shape refused now certifies.
+
+## Re-banded P0 → P3 (SPLICE, 2026-10-29)
+
+Lily wall 8 no longer waits on this row. PR 5959 gives a rim that is a
+domain-side row of two spline walls a structural selector, certified per
+wall with no limb 3. Lily's own rim then refuses at a tangency (two
+points), and the scene is being re-spelled as one loft. No consumer
+reaches this shape today. It is still a real gap for a witness-selected
+carrier, so it stays open at P3 until one does.
+

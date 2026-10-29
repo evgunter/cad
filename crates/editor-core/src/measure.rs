@@ -250,10 +250,6 @@ impl MeasureVerb {
 
 /// **Why a measure has no value at the scalar the build ran at**
 /// ([`crate::eval::ValuePayload::MeasureUnavailable`]).
-///
-/// One arm today, and the type exists so the second one — whenever a
-/// primitive arrives whose answer some other lane cannot carry — lands
-/// as a variant rather than as a second mechanism.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MeasureUnavailableAt {
     /// The primitive's answer is an ENCLOSURE, and this build's scalar
@@ -273,6 +269,19 @@ pub enum MeasureUnavailableAt {
         /// refusal rather than in a reader's memory.
         door: &'static str,
     },
+    /// The engine's bracket has a lower end and no upper one: no pair it
+    /// examined within its cell budget was a pair of points of the two
+    /// scopes (`topo::clearance::MinSeparation::hi`). The lower end alone
+    /// is not an enclosure of the measure, so there is no value.
+    NoUpperBound {
+        /// Which primitive.
+        verb: &'static str,
+        /// The scalar this build ran at, in its own name
+        /// ([`geom_core::Real::NAME`]).
+        scalar: &'static str,
+        /// The door that answers it at a larger cell budget.
+        door: &'static str,
+    },
 }
 
 impl MeasureUnavailableAt {
@@ -280,7 +289,7 @@ impl MeasureUnavailableAt {
     /// goldening form needs, without spelling the whole prose.
     pub fn verb(&self) -> &'static str {
         match self {
-            Self::NeedsEnclosure { verb, .. } => verb,
+            Self::NeedsEnclosure { verb, .. } | Self::NoUpperBound { verb, .. } => verb,
         }
     }
 }
@@ -295,6 +304,12 @@ impl core::fmt::Display for MeasureUnavailableAt {
                  not the minimum. Recourse: evaluate the document at the {interval} scalar \
                  over a parameter box, where `{door}` computes the bracket",
                 interval = <geom_core::Interval as geom_core::Real>::NAME,
+            ),
+            Self::NoUpperBound { verb, scalar, door } => write!(
+                f,
+                "`{verb}` found no pair of points of the two scopes within its cell budget at \
+                 the {scalar} scalar, so its bracket has a lower end and no upper end. \
+                 Recourse: `{door}` at a larger cell budget"
             ),
         }
     }
@@ -453,109 +468,6 @@ pub enum UnevaluatedReason {
     /// requirement is recorded, the run cannot answer it, and neither
     /// half of that is hidden.
     MeasureUnavailable(MeasureUnavailableAt),
-    /// **The verdict would have been read off an endpoint this run
-    /// certifies for the CARRIER rather than for the thing the measure
-    /// names** (M10-6; R1's MAJOR). See [`Certified`] for the table of
-    /// which arm reads which endpoint and why only two of the four are
-    /// sound.
-    WindowSuperset {
-        /// The primitive that brought the superset in.
-        verb: &'static str,
-        /// The endpoint the arm would have read.
-        endpoint: &'static str,
-        /// The tracker item the refusal points a reader at. **Not the
-        /// item whose fix retires it** — see [`WINDOW_TIGHTENING`],
-        /// which narrows the superset on the clearance sweep's side
-        /// and retires nothing here.
-        recourse: &'static str,
-    },
-}
-
-/// **The tracker item this refusal points a reader at**, and which
-/// retires nothing on this path: a carrier window cut to the chart
-/// boundary of its trimmed face. Named from the type so the pointer
-/// travels with the refusal instead of living in a reader's memory.
-///
-/// **What it bought, and where.** The clearance SWEEP's windows are
-/// cut and its cells dropped. The path that raises
-/// [`UnevaluatedReason::WindowSuperset`] is
-/// `min_clearance -> topo::clearance::min_separation`, and **no window on
-/// that path is tightened at all**: minting a description inside an
-/// evaluation records the boundary walk's funnel rows in the leaf's
-/// census while the `f64` witness build never walks, so every leaf of
-/// a drive over such a document refuses `flip_crossing`
-/// (`work/trim/min-separation-tightening-crosses-the-drive.md`).
-///
-/// **And it would not retire the refusal even there.** The refusal
-/// retires when `m = M` — when the set the engine measures over is the
-/// trimmed face exactly. A tightened window is not that: a cell
-/// straddling the described boundary, or lying within `K · ε` of it,
-/// is KEPT, because the description is a certificate and every
-/// rounding in it keeps the cell. So `hi` would remain a minimum over
-/// a superset and the two unsound arms would still refuse. The
-/// recourse that retires them is exact-region cells,
-/// `work/charttail/exact-region-cells-for-lower-bound-only.md`.
-pub const WINDOW_TIGHTENING: &str = "work/trim/clearance-window-tightening-needs-chart-boundary.md";
-
-/// **How much of a measured enclosure is certified for the thing the
-/// measure NAMES**, as against the carrier the engine subdivided.
-///
-/// Every measure but `min_clearance` answers about its own subject, so
-/// both endpoints are the subject's and an assertion may read either.
-/// `min_clearance` does not: M10-5's engine subdivides carrier
-/// WINDOWS, a disclosed SUPERSET of the trimmed faces. Writing `m` for
-/// the window separation and `M` for the faces', `m ≤ M` pointwise —
-/// so a lower bound on `m` is a lower bound on `M`, while an attained
-/// window distance is NOT an upper bound on `M`. On an L-shaped cap
-/// the engine finds a window pair straight across the notch that
-/// neither face occupies, and reports it.
-///
-/// The endpoints are therefore not interchangeable, and which VERDICT
-/// an assertion may reach depends on which endpoint its arm reads:
-///
-/// | relation | verdict | endpoint | sound for the faces? |
-/// | --- | --- | --- | --- |
-/// | `AtLeast c` | `Holds` | `lo` | yes — `M ≥ m ≥ lo ≥ c` |
-/// | `AtLeast c` | `Violated` | `hi` | **no** |
-/// | `AtMost c` | `Violated` | `lo` | yes — `M ≥ m ≥ lo > c` |
-/// | `AtMost c` | `Holds` | `hi` | **no** |
-/// | `Equal c` | `Violated` (above) | `lo` | yes — `M ≥ m ≥ lo > c` |
-/// | `Equal c` | `Violated` (below) | `hi` | **no** |
-/// | `Equal c` | `Holds` | `lo` and `hi` | **no** |
-///
-/// The two unsound arms refuse [`UnevaluatedReason::WindowSuperset`]
-/// rather than answering; [`WINDOW_TIGHTENING`] narrows the superset
-/// on the clearance sweep's side, leaves this path's windows
-/// untightened, and retires the refusal in neither place.
-/// Both gating directions survive: a clearance requirement (`AtLeast`)
-/// still certifies, and a maximum-gap requirement (`AtMost`) still
-/// fails loudly.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Certified {
-    /// Both endpoints are the subject's — every tree that reads no
-    /// `min_clearance`.
-    Enclosure,
-    /// The LOWER endpoint only: the tree is exactly one
-    /// `min_clearance` primitive, so `lo` bounds the faces from below
-    /// and `hi` is the carrier's alone.
-    LowerBoundOnly,
-    /// NEITHER endpoint, because a `min_clearance` sits under
-    /// arithmetic that can carry it to either end (a `Neg`, a `Sub`
-    /// with it on the right, a `Min`/`Max` against something else).
-    /// Refusing the whole assertion is the reading that needs no
-    /// per-operator argument; no document this unit ships takes it.
-    Neither,
-}
-
-impl Certified {
-    /// Whether an arm reading `endpoint` may answer.
-    fn admits(self, upper: bool) -> bool {
-        match self {
-            Self::Enclosure => true,
-            Self::LowerBoundOnly => !upper,
-            Self::Neither => false,
-        }
-    }
 }
 
 impl core::fmt::Display for UnevaluatedReason {
@@ -568,16 +480,6 @@ impl core::fmt::Display for UnevaluatedReason {
                 ASSERT_BOUND_DECISION.recourse(RefusedArm::Undecided(cause), Reading::AtRest)
             ),
             Self::MeasureUnavailable(why) => write!(f, "there is no measured value: {why}"),
-            Self::WindowSuperset {
-                verb,
-                endpoint,
-                recourse,
-            } => write!(
-                f,
-                "this verdict would be read off the {endpoint} end of an enclosure `{verb}` \
-                 certifies only over carrier windows, a superset of the faces the measure \
-                 names. The opposite verdict on this bound still gates. Recourse: {recourse}"
-            ),
         }
     }
 }
@@ -626,22 +528,11 @@ impl<T> AssertionVerdict<T> {
 /// [`AssertionVerdict::Unevaluated`] rather than a node failure: a
 /// bound the run cannot separate from the measurement is a fact about
 /// the report, not a broken document.
-/// # Which arms may answer (M10-6/R1)
-///
-/// `certified` says which endpoints of `measured` belong to the thing
-/// the measure NAMES; [`Certified`] carries the table and the
-/// argument. The funnel runs either way — the decision is the same one
-/// at the same site, and demoting it after the fact rather than
-/// branching before it keeps `assert_bound`'s k-population complete,
-/// so the E6 telemetry still sees every comparison the document asked
-/// for. What changes is only whether the verdict it reached is one
-/// this run may report.
 pub(crate) fn decide_assertion<T: Decide>(
     measured: T,
     bound: T,
     relation: AssertionRelation,
     band: geom_core::Band,
-    certified: Certified,
 ) -> AssertionVerdict<T> {
     let comparand = match relation {
         AssertionRelation::AtLeast | AssertionRelation::Equal => measured - bound,
@@ -655,30 +546,13 @@ pub(crate) fn decide_assertion<T: Decide>(
             };
         }
     };
-    // Which ENDS of the enclosure the verdict reads (`true` the upper):
-    // `measured − bound` decided positive reads the smallest the
-    // measure can be, decided negative the largest, and `=` holds only
-    // off both. At the bound exactly, a non-strict relation holds.
+    // At the bound exactly, a non-strict relation holds.
     use AssertionRelation::{AtLeast, AtMost, Equal};
     use geom_core::Sign::{Negative, Positive, Zero};
-    let (holds, ends): (bool, &[bool]) = match (relation, sign) {
-        (AtLeast, Positive | Zero) => (true, &[false]),
-        (AtMost, Positive | Zero) => (true, &[true]),
-        (AtLeast, Negative) => (false, &[true]),
-        (AtMost, Negative) => (false, &[false]),
-        (Equal, Zero) => (true, &[false, true]),
-        (Equal, Positive) => (false, &[false]),
-        (Equal, Negative) => (false, &[true]),
+    let holds = match (relation, sign) {
+        (AtLeast | AtMost, Positive | Zero) | (Equal, Zero) => true,
+        (AtLeast | AtMost, Negative) | (Equal, Positive | Negative) => false,
     };
-    if let Some(&upper) = ends.iter().find(|&&upper| !certified.admits(upper)) {
-        return AssertionVerdict::Unevaluated {
-            reason: UnevaluatedReason::WindowSuperset {
-                verb: "min_clearance",
-                endpoint: if upper { "upper" } else { "lower" },
-                recourse: WINDOW_TIGHTENING,
-            },
-        };
-    }
     if holds {
         AssertionVerdict::Holds { measured, bound }
     } else {
@@ -710,15 +584,15 @@ pub const ASSERT_BOUND_DECISION: SizedDecision = SizedDecision {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use super::{AssertionRelation, AssertionVerdict, Certified, UnevaluatedReason};
-    use geom_core::{Band, Interval, Tol};
+    use super::{AssertionRelation, AssertionVerdict, UnevaluatedReason};
+    use geom_core::{Band, Tol};
 
     fn band() -> Band {
         Band::linear(Tol::witness()).expect("the run's band")
     }
 
     fn decide(measured: f64, bound: f64, relation: AssertionRelation) -> &'static str {
-        super::decide_assertion(measured, bound, relation, band(), Certified::Enclosure).label()
+        super::decide_assertion(measured, bound, relation, band()).label()
     }
 
     /// `=` holds on a Zero margin, is violated by either definite sign,
@@ -740,48 +614,11 @@ mod tests {
         assert_eq!(decide(ten, 0.009, AtLeast), "Holds");
         assert_eq!(decide(ten, 0.009, AtMost), "Violated");
         let sliver = ten + 3.0 * eps;
-        match super::decide_assertion(ten, sliver, Equal, band(), Certified::Enclosure) {
+        match super::decide_assertion(ten, sliver, Equal, band()) {
             AssertionVerdict::Unevaluated {
                 reason: UnevaluatedReason::Indeterminate { .. },
             } => {}
             other => panic!("a margin of 3ε is undecided under `=`, not {other:?}"),
         }
-    }
-
-    /// Over a window superset (`min_clearance`'s lower end only), `=`
-    /// holds only off both ends, so it never holds, and refuses by the
-    /// end it could not read; above the bound it is violated soundly
-    /// off the lower end, below it refuses the upper.
-    #[test]
-    fn equal_over_a_window_superset_needs_both_ends() {
-        let eps = Tol::witness().eps();
-        let at = |lo: f64, hi: f64, bound: f64, certified| {
-            super::decide_assertion(
-                Interval::from_bounds(lo, hi),
-                Interval::from_bounds(bound, bound),
-                AssertionRelation::Equal,
-                band(),
-                certified,
-            )
-        };
-        let refused = |v: AssertionVerdict<Interval>| match v {
-            AssertionVerdict::Unevaluated {
-                reason: UnevaluatedReason::WindowSuperset { endpoint, .. },
-            } => endpoint,
-            other => panic!("expected a window-superset refusal, got {other:?}"),
-        };
-        let two = 0.002;
-        let lower_only = Certified::LowerBoundOnly;
-        assert!(matches!(
-            at(two, two + eps / 4.0, two, Certified::Enclosure),
-            AssertionVerdict::Holds { .. }
-        ));
-        assert_eq!(refused(at(two, two + eps / 4.0, two, lower_only)), "upper");
-        assert_eq!(refused(at(two, two, two, Certified::Neither)), "lower");
-        assert!(matches!(
-            at(0.003, 0.004, two, lower_only),
-            AssertionVerdict::Violated { .. }
-        ));
-        assert_eq!(refused(at(0.001, 0.0015, two, lower_only)), "upper");
     }
 }

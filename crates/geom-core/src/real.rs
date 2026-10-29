@@ -572,6 +572,14 @@ pub trait Real:
         self.sin_cos().1
     }
 
+    /// **The sine of a twelfth of a turn**, exactly `1/2`. Defaults to
+    /// the literal. A scalar that records structure keeps the sine of
+    /// the angle instead, valued `1/2`, so what reads the structure sees
+    /// the angle and not only its value.
+    fn sin_of_a_twelfth() -> Self {
+        Self::from_f64(0.5)
+    }
+
     /// The tangent (argument in radians).
     fn tan(self) -> Self;
 

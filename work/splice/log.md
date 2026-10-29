@@ -891,6 +891,21 @@ has nothing dispatched. Ev was asked whether to start a SELECT
 orchestrator or have SPLICE take the units. SECT fixed the tori main
 red in PR 5925, so its issue file is closed.
 
+## 2026-10-28 — SPLICE takes the structural selector's lily slice
+
+Ev declined a SELECT orchestrator, since SELECT has one P0 and no P1:
+"you can take it yourself if you like".
+- `select/the-boolean-recovers-no-structural-selector-for-a-rim-known-in-advance`
+  moves to SPLICE (P0).
+- SPLICE builds the slice of SELECT's unit 1 (the selector type, with
+  per-surface certification) that it needs: the boundary-row structural
+  selector and the boolean's recovery.
+- SELECT's umbrella row
+  (`onpair-has-no-incidence-lane-on-a-spline-adjacent-pair`) and its
+  other units stay SELECT's.
+
+Dispatched on `splice/structural-rim`. Letter H (a type every two-surface
+edge reads), so a concurrent pair.
 ## 2026-10-28 — SPLICE splits along its seams
 
 The load was 91/30. Ev asked whether to split the track, keeping in
@@ -918,3 +933,81 @@ main, and the orchestrator reproduced it there. It has six hand folds
 of a face's sense bit, from two sources. Filed on their owners:
 `tess/main-red-trimmed-rs-folds-the-face-sense-by-hand` (PR 5920) and
 `clear/main-red-injective-rs-folds-the-face-sense-by-hand` (PR 5955).
+
+## 2026-10-29 — PR 5959 merges: the structural rim; lily stops at a tangent rim
+
+PR 5959 adds D2's selector to `Intersection`, with one structural form,
+a shared row, certified per wall with no limb 3. The boolean recovers
+it for a rim that is a domain-side row of two spline walls. It had a
+concurrent review pair (letter H), three fix passes and two single
+re-reviews; the row is `docs/dual-review-log/rows/PR-5959.md`.
+- **Pair, bilateral MAJOR:** the walls' crossing was read at the 7
+  CERT feet only, so walls tangent between feet certified.
+- **Re-review 1, MAJOR:** the whole-row cover's 1-ulp nudge skipped a
+  tangency on a chart far from 0.
+- **Re-review 2:** APPROVE-WITH-FIXES.
+
+The whole-row bound found lily's walls tangent at two points of one
+rim (u ≈ 0.3024 and 0.6977), confirmed independently by sampling the
+walls' derivatives. Lily wall 8 now refuses at the rim at every ε and
+never reaches the interior-loop guard. The guard's spline arms went to
+a design fork. Its `[ev]` PR 5990 also asks Ev what SPLICE's witness
+becomes.
+
+Filed: `doors-carrying-a-shared-row-have-no-row-at-rest` (P2) and
+`no-row-certifies-a-shared-row-at-interval` (P3).
+
+## 2026-10-29 — PR 6040 merges: the two geom-core census reds
+
+Review tier: a single FULL review, because the unit fixed soundness
+reads. The review (frozen at 889bc2da) was APPROVE-WITH-FIXES with no
+MAJOR.
+- Five reads are fixed: `spline_face` `Path::at`/`tangent`,
+  `offset_meters::cell_distance`, `limb2_offset_sup`,
+  `blossom::whole_bezier_span` and `enclose::first_order_continuous_in`.
+  Each fixed read has a row that reds when its fix is reverted.
+- `four::along_side` now asks `is_certified`. The reviewer showed its
+  "renames only" disposition was untrue: it could move an `Undecided`
+  refusal to `AlongSide`.
+- `chart_arm` refuses a non-finite `p`. A NaN `p` used to answer
+  `Some(reach)`.
+- One plant for a refused point bracket,
+  `geom_core::test_support::refused_point`.
+- `clearance.rs` and `injective.rs` are pinned at main's counts. Their
+  unsound reads are filed on CLEAR, each with its line:
+  `clear/clearance-lifts-trv-brackets-and-reads-their-ends` (P1).
+
+I read the fix pass myself, with no re-review.
+## 2026-10-29 — PR 5990 merges: the guard's spline arms, and `[one-way.readings]` re-phrased
+
+Ev approved the design for the interior-loop guard's spline arms, and
+ratified the W5 stage after a probe settled the factual crux.
+`[one-way.readings]` is re-phrased so that stages always run together
+may jointly prove one rule (fork row 217). Ev also approved re-spelling
+lily's leaf as one loft, with a stem graft as the new wall 8, now in
+flight.
+- Filed `w5-loop-free-stage-before-the-plane-nurbs-whole-reading` (P1),
+  to be built after PR 6026.
+- Re-banded P0 → P3: `a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary`
+  and `a-pair-walk-end-at-a-domain-corner-refuses-undecided`. Neither
+  has a consumer.
+
+## 2026-10-29 — PR 6042 merges: lily's leaf is one loft, and wall 8 is the leaf grafted onto the stem
+
+Ev approved this change on PR 5990, question 3. Review tier: a single
+STYLE review (a scene change, re-baselines and tracker re-points),
+APPROVE-WITH-FIXES. I read the fix pass myself.
+- The long leaf is one loft. It is authored from a root on the lower
+  stem's axis: the sheath curls out of the stem, and the blade arches
+  over from where the sheath ends.
+- Wall 8 unions the stem and the leaf as they are authored, and they
+  cross transversally. It refuses `EdgeCarrierUnsupported
+  { CurvedCrossing }` (a leaf NURBS seam against the stem's torus) at
+  1e-9 and 1e-6. At 1e-12 the stem's frontier stands it down.
+- SPLICE claims lily's next stop from SPLICEFACE:
+  `a-spline-span-against-a-curved-face-is-not-dispatched-to-the-composite`.
+  Behind it is the NURBS × torus section, filed on SECTARMS.
+- The old two-loft graft stays as the sweep row's witness that a rim
+  tangent at two points refuses.
+- The two SPLICECARRIER flush rows go back from P1 to P3: no live
+  consumer remains.

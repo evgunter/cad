@@ -14,13 +14,13 @@
 //! cut once each way, D1) assemble and certify as stated. Two shapes
 //! do not:
 //!
-//! - **The apex cone.** Its lateral face is `(seam, base circle,
-//!   seam)`, and the seam's far end is the apex — a vertex with ONE
-//!   incident edge. `topo`'s tier-2 validity calls a valence-1 vertex
-//!   construction scaffolding (`ScaffoldingStrutVertex`), because in a
-//!   finished solid it is: the strut tip of an unfinished Euler
-//!   sequence. A body carrying one is not a closed solid by the
-//!   kernel's own definition.
+//! - **A chart singularity that is not a vertex.** A sphere's pole or a
+//!   cone's apex inside a face, inside one of its edges, or at the end
+//!   of a seam that is its only edge (Open CASCADE's full cone and its
+//!   sphere cap). A chart singularity inside a face is a vertex of it,
+//!   in the pole form ([`geom::pole_form`]); the valence-1 tip is
+//!   also what `topo`'s tier 2 calls construction scaffolding
+//!   (`ScaffoldingStrutVertex`). The [`singularity`] pass mints it.
 //! - **The seamless band** (M7-5). A cylinder or torus lateral face
 //!   stated as its two full-period rim bounds with NO seam generator
 //!   at all. The kernel's face model is one outer loop plus rings,
@@ -37,14 +37,16 @@
 //! fully explained by the file's own surfaces and carriers and is
 //! adopted unchanged — only the boundary-graph tessellation is
 //! re-minted, into the splitting a natively built body carries (the
-//! kernel's own cone is two lateral half-faces; its own revolved wall
-//! is ONE face whose loop uses its wrap edge twice). The census mapping
+//! kernel's own cone is two lateral half-faces meeting at the apex on
+//! two half-turn generators; its own revolved wall is ONE face whose
+//! loop uses its wrap edge twice). The census mapping
 //! is carried out as [`crate::StructureNormalization`] data.
 //!
 //! What a mint may state that the file did not is bounded and named:
-//! the apex cone's minted curves are each either a sub-arc of a carrier
-//! the file states or that carrier's half-turn rotation about the
-//! face's own axis; the band's seam generator is a
+//! a singularity's minted curves are each a sub-arc of a carrier the
+//! file states, that carrier's half-turn rotation about the face's own
+//! axis, or the surface's own meridian at its `u_ref` azimuth or its
+//! half turn; the band's seam generator is a
 //! NEW carrier — the surface's own `u_ref` ruling (cylinder) or
 //! `u_ref` meridian arc (torus), the same license under which the
 //! edge-free sphere's re-mint ([`crate::entities`]) states its two
@@ -54,7 +56,7 @@
 //! any file-stated edge; no minted curve is a new shape.
 //!
 //! Anything that does not match these shapes exactly is left alone —
-//! this is a bounded repair of two named cases, not a licence to
+//! this is a bounded repair of named cases, not a licence to
 //! re-tessellate.
 //!
 //! # Orientation is derived, never minted
@@ -64,7 +66,7 @@
 //! right-side-out. So a re-mint reads the file's winding — against `u`
 //! and `v` directions sampled through the kernel's own chart inverse —
 //! and cross-checks it against the face's `same_sense` before it mints
-//! anything: the degenerate-apex cone inside [`apex_cone`], and —
+//! anything: the valence-1 tip inside [`singularity`], and —
 //! read-only — two-rim cylinder/cone walls ([`wall_inversion`]). The
 //! kernel's tier-3 curved sense gate (check 6, `CurvedSenseInverted`)
 //! refuses the inside-out body such a file would build, and import
@@ -84,50 +86,12 @@ use std::collections::BTreeMap;
 
 use geom::Curve3;
 use geom::Surface;
-use geom_core::{Point3, Vec3};
 
-use crate::entities::{EdgeSpec, EdgeUse, FaceSpec, LoopSpec, SolidSpec};
+use crate::entities::{EdgeSpec, EdgeUse, LoopSpec, SolidSpec};
 use crate::error::StepImportError;
 use crate::{FaceCensus, NormalizationKind, StructureNormalization};
 
-/// Rotates `w` a half turn about the unit direction `axis` — the exact
-/// f64 identity `2(w·â)â − w`, with no trigonometry to round.
-fn half_turn(w: Vec3<f64>, axis: Vec3<f64>) -> Vec3<f64> {
-    // A half turn negates exact zeros into `−0.0`; [`crate::signed_zero`]
-    // states why a minted field must not carry one.
-    crate::signed_zero::plus_zero(axis * (2.0 * w.dot(axis)) - w)
-}
-
-/// A carrier rotated a half turn about `(origin, axis)` — the copy of
-/// a seam curve half a period away. Only the two kinds the normalized
-/// shapes use exist here; anything else answers `None` and the caller
-/// leaves the face alone.
-fn half_turn_curve(
-    carrier: &Curve3<f64>,
-    origin: Point3<f64>,
-    axis: Vec3<f64>,
-) -> Option<Curve3<f64>> {
-    let point =
-        |p: Point3<f64>| crate::signed_zero::plus_zero_point(origin + half_turn(p - origin, axis));
-    match *carrier {
-        Curve3::Line { origin: o, dir } => Some(Curve3::Line {
-            origin: point(o),
-            dir: half_turn(dir, axis),
-        }),
-        Curve3::Circle {
-            center,
-            axis: n,
-            radius,
-            u_ref,
-        } => Some(Curve3::Circle {
-            center: point(center),
-            axis: half_turn(n, axis),
-            radius,
-            u_ref: half_turn(u_ref, axis),
-        }),
-        _ => None,
-    }
-}
+mod singularity;
 
 /// The shell's vertex valences: how many edge ENDS meet each vertex (a
 /// self-loop contributes two).
@@ -184,23 +148,11 @@ fn expand_split_uses(
     }
 }
 
-/// Splits `edge` at its parameter midpoint, minting the midpoint
-/// vertex and the two half-edges. Answers `(first, second, midpoint)`.
-fn split_at_midpoint(
-    solid: &mut SolidSpec,
-    edge: u64,
-    mint: &mut dyn FnMut() -> u64,
-) -> (u64, u64, u64) {
-    let spec = &solid.edges[&edge];
-    let tm = geom::mid_param(spec.t0, spec.t1);
-    split_at_param(solid, edge, tm, mint)
-}
-
 /// Splits `edge` at the interior carrier parameter `tm` (the caller
 /// guarantees `t0 < tm < t1`), minting the new vertex and the two
-/// halves. Answers `(first, second, new vertex)` — the
-/// [`split_at_midpoint`] contract at an arbitrary parameter (M7-5:
-/// the band mint splits rims at the seam azimuth, not the midpoint).
+/// halves. Answers `(first, second, new vertex)`, at an arbitrary
+/// parameter (M7-5: the band mint splits rims at the seam azimuth, not
+/// the midpoint).
 fn split_at_param(
     solid: &mut SolidSpec,
     edge: u64,
@@ -277,18 +229,23 @@ fn chart_direction(
 /// Runs the shell normalizations (module docs). `eps_in` is the
 /// file's own declared uncertainty in kernel metres — the band mint's
 /// budget for recognizing an existing rim vertex as already sitting
-/// at the seam azimuth.
+/// at the seam azimuth. `run_band` is the run's own linear band, which
+/// the singularity pass reads a pole or apex against beside the file's.
 pub(crate) fn normalize_shell(
     solid: &mut SolidSpec,
     eps_in: f64,
     chart_band: Option<geom_core::Band>,
+    run_band: Option<geom_core::Band>,
     mint: &mut dyn FnMut() -> u64,
     sink: &mut Vec<StructureNormalization>,
 ) -> Result<(), StepImportError> {
     crate::knot_split::split_c0_knots(solid, eps_in, mint, sink)?;
     band_seam(solid, eps_in, chart_band, mint, sink)?;
-    apex_cone(solid, chart_band, mint, sink)?;
-    wall_inversion(solid, chart_band)
+    // The walls' orientation is read first: an inverted cone wall holds
+    // its apex on the side its bit claims, and is refused as inverted,
+    // not cut.
+    wall_inversion(solid, chart_band)?;
+    singularity::singularity_vertices(solid, eps_in, chart_band, run_band, mint, sink)
 }
 
 /// **The seamless periodic band** (M7-5): a cylinder/torus face whose
@@ -856,275 +813,24 @@ fn wall_inversion(
     Ok(())
 }
 
-/// **The degenerate-apex cone** (module docs): a conical face whose
-/// loop is `(seam, base circle, seam)` with the seam's far vertex of
-/// valence 1. Re-minted as the kernel's own two lateral half-faces,
-/// joined by a second generator half a turn round the axis.
-///
-/// Census: 1 lateral face / 2 edges / (apex + 1 base vertex) becomes 2
-/// lateral faces / 4 edges / (apex + 2 base vertices). The base cap
-/// face keeps its identity; only its single circular bound becomes two
-/// half-circles.
-fn apex_cone(
-    solid: &mut SolidSpec,
-    chart_band: Option<geom_core::Band>,
-    mint: &mut dyn FnMut() -> u64,
-    sink: &mut Vec<StructureNormalization>,
-) -> Result<(), StepImportError> {
-    let valence = valences(solid);
-    // The one candidate shape, found by the defect it has: a valence-1
-    // vertex. Anything else this scan meets is left alone.
-    let Some((&apex_v, _)) = valence.iter().find(|&(_, &n)| n == 1) else {
-        return Ok(());
-    };
-    let mut found = None;
-    for (fi, face) in solid.faces.iter().enumerate() {
-        let Surface::Cone { apex, axis, .. } = face.surface else {
-            continue;
-        };
-        let [lp] = face.loops.as_slice() else {
-            continue;
-        };
-        let [a, b, c] = lp.uses.as_slice() else {
-            continue;
-        };
-        // (seam, circle, seam): the seam edge twice, the base circle
-        // once, in either rotation of the cycle.
-        let (seam, circle) = if a.edge == c.edge {
-            (*a, *b)
-        } else if a.edge == b.edge {
-            (*a, *c)
-        } else if b.edge == c.edge {
-            (*b, *a)
-        } else {
-            continue;
-        };
-        let seam_spec = &solid.edges[&seam.edge];
-        if (seam_spec.start != apex_v && seam_spec.end != apex_v)
-            || !matches!(seam_spec.carrier, Curve3::Line { .. })
-        {
-            continue;
-        }
-        // The shape's second seam use traverses the seam the OTHER
-        // way — a closed walk crosses its doubled edge once in each
-        // direction. A loop that states the seam twice in the SAME
-        // direction is not this shape (its walk does not close over
-        // the seam), so detection declines rather than picking one
-        // use twice and re-minting a guess.
-        let Some(&seam_back) = lp
-            .uses
-            .iter()
-            .find(|u| u.edge == seam.edge && u.forward != seam.forward)
-        else {
-            continue;
-        };
-        found = Some((fi, apex, axis, seam, circle, seam_back));
-        break;
-    }
-    let Some((fi, apex, axis, seam_a, circle_use, seam_b)) = found else {
-        // A valence-1 vertex that is NOT this shape is a defect the
-        // kernel's own validity ladder must report, not something to
-        // repair blind.
-        return Ok(());
-    };
-    let face_id = fi;
-    let (base_v, seam_carrier) = {
-        let seam_spec = &solid.edges[&seam_a.edge];
-        let base_v = if seam_spec.start == apex_v {
-            seam_spec.end
-        } else {
-            seam_spec.start
-        };
-        (base_v, seam_spec.carrier.clone())
-    };
-    // ---- Orientation cross-check (M6-6 rider, the torus pattern) --
-    //
-    // The re-mint below copies the file's sense and traversal, so an
-    // inverted description would survive it and build a body the
-    // kernel's tier-3 curved sense gate (check 6, CurvedSenseInverted)
-    // then refuses. Import returns certified bodies, so the honest
-    // story is the torus's: refuse PRE-BODY, with the same
-    // orientation-inverted diagnosis. The winding is derived, never
-    // assumed: which way the base circle's traversal runs in chart `u`
-    // (sampled through the kernel's own chart inverse), crossed with
-    // which side of the apex (`v = 0`) the base rim sits on — the CCW
-    // boundary of the lateral chart region traverses a `v > 0` rim in
-    // `−u` and a `v < 0` rim in `+u`. `sense == ccw` is right-side-out
-    // (both ISO encodings adopt); disagreement refuses. A reading the
-    // geometry does not answer skips the check rather than guessing —
-    // unlike the torus, this mint copies rather than re-orients, so an
-    // unreadable winding leaves a body the kernel gate still judges
-    // (true for this shape: a degenerate-apex cone's boundary is
-    // circle-rimmed, squarely in the kernel arm's analytic class).
-    {
-        let face = &solid.faces[fi];
-        let circle_spec = &solid.edges[&circle_use.edge];
-        let p = chart_direction(
-            &face.surface,
-            &circle_spec.carrier,
-            circle_spec.t0,
-            circle_spec.t1,
-            chart_band,
-        );
-        let v_b =
-            crate::chart::uv_of(&face.surface, solid.vertices[&base_v], chart_band).map(|uv| uv.y);
-        if let (Some(p), Some(v_b)) = (p, v_b)
-            && v_b != 0.0
-        {
-            let ru = circle_use.forward == p;
-            let ccw = ru != (v_b > 0.0);
-            if face.sense != ccw {
-                return Err(StepImportError::Topology {
-                    id: face.id,
-                    what: "an ORIENTATION-INVERTED degenerate-apex cone face: its stated \
-                           same_sense and the winding of its own loop (base-rim chart \
-                           direction against the rim's side of the apex) disagree, so \
-                           the solid it describes is inside out. This importer will not \
-                           re-tessellate it as stated — the kernel's tier-3 curved \
-                           sense gate (check 6) refuses the inside-out face it would \
-                           build — and import returns certified bodies, so the refusal \
-                           fires here, before any body exists",
-                });
-            }
-        }
-    }
-    let Some(second_seam) = half_turn_curve(&seam_carrier, apex, axis) else {
-        return Ok(());
-    };
-    // The half of the base circle each new face carries.
-    let (first_c, second_c, mid_v) = split_at_midpoint(solid, circle_use.edge, mint);
-    // The minted generator, from the new base vertex to the apex.
-    let gen_id = mint();
-    let (t0, t1) = crate::geometry::endpoint_params(
-        gen_id,
-        &second_seam,
-        solid.vertices[&mid_v],
-        solid.vertices[&apex_v],
-        false,
-    )?;
-    solid.edges.insert(
-        gen_id,
-        EdgeSpec {
-            start: mid_v,
-            end: apex_v,
-            carrier: second_seam,
-            t0,
-            t1,
-            // A minted edge: the importer states its own
-            // start → end, so there is no sense to compose.
-            reversed: false,
-        },
-    );
-    // Every OTHER loop's use of the base circle becomes its two halves
-    // (the cap face's single bound is the one that exists).
-    expand_split_uses(solid, circle_use.edge, first_c, second_c, &[face_id]);
-
-    // The two lateral half-faces. `seam_a` is the seam use that leaves
-    // the apex (it precedes the circle in the cycle); `seam_b` is the
-    // one that returns to it. Each new face walks out along one
-    // generator, round its half of the base, and back along the other.
-    let out_use = if solid_edge_leaves_apex(solid, seam_a, apex_v, base_v) {
-        seam_a
-    } else {
-        seam_b
-    };
-    let in_use = EdgeUse {
-        edge: out_use.edge,
-        forward: !out_use.forward,
-    };
-    let template = &solid.faces[face_id];
-    let (surface, sense, face_entity) = (template.surface.clone(), template.sense, template.id);
-    let g = circle_use.forward;
-    // Traversal order: under orientation `g` the base circle walks its
-    // two halves in this order, which is the order the two new faces
-    // take them in.
-    let (h1, h2) = if g {
-        (first_c, second_c)
-    } else {
-        (second_c, first_c)
-    };
-    let face_a = FaceSpec {
-        id: face_entity,
-        surface: surface.clone(),
-        sense,
-        loops: vec![LoopSpec {
-            outer: true,
-            uses: vec![
-                out_use,
-                EdgeUse {
-                    edge: h1,
-                    forward: g,
-                },
-                EdgeUse {
-                    edge: gen_id,
-                    forward: true,
-                },
-            ],
-        }],
-        band: false,
-    };
-    let face_b = FaceSpec {
-        id: face_entity,
-        surface,
-        sense,
-        loops: vec![LoopSpec {
-            outer: true,
-            uses: vec![
-                EdgeUse {
-                    edge: gen_id,
-                    forward: false,
-                },
-                EdgeUse {
-                    edge: h2,
-                    forward: g,
-                },
-                in_use,
-            ],
-        }],
-        band: false,
-    };
-    solid.faces[face_id] = face_a;
-    solid.faces.insert(face_id + 1, face_b);
-    sink.push(StructureNormalization {
-        face: face_entity,
-        kind: NormalizationKind::DegenerateApexCone,
-        file_census: FaceCensus {
-            faces: 1,
-            edges: 2,
-            vertices: 2,
-        },
-        kernel_census: FaceCensus {
-            faces: 2,
-            edges: 4,
-            vertices: 3,
-        },
-    });
-    Ok(())
-}
-
-/// Whether traversing `use_` walks from the apex towards the base.
-fn solid_edge_leaves_apex(solid: &SolidSpec, use_: EdgeUse, apex_v: u64, _base_v: u64) -> bool {
-    let spec = &solid.edges[&use_.edge];
-    let from = if use_.forward { spec.start } else { spec.end };
-    from == apex_v
-}
-
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use core::f64::consts::TAU;
 
     use super::*;
+    use crate::entities::FaceSpec;
+    use geom_core::{Point3, Vec3};
 
     /// A cone face whose loop states its seam twice in the SAME
-    /// direction is not the degenerate-apex shape — that walk does not
-    /// close over the seam — so detection declines and leaves the
-    /// shell untouched. The import pipeline never presents this shape
+    /// direction does not end that seam at a strut tip — the walk does
+    /// not close over the seam — so the singularity pass declines and
+    /// leaves the shell untouched. The import pipeline never presents this shape
     /// (the shell's manifold precondition refuses a twice-forward
     /// edge before normalize runs); the decline guards direct
     /// constructors of a `SolidSpec`.
     #[test]
-    fn apex_cone_declines_a_same_direction_doubled_seam() {
+    fn the_singularity_pass_declines_a_same_direction_doubled_seam() {
         let (apex_v, base_v) = (1, 2);
         let (seam_e, circle_e) = (10, 11);
         let apex = Point3::new(0.0, 0.0, 0.0);
@@ -1190,9 +896,11 @@ mod tests {
         };
         let mut minted = 0_u64;
         let mut sink = Vec::new();
-        apex_cone(
+        singularity::singularity_vertices(
             &mut solid,
+            1e-9,
             crate::chart::file_band(1e-9, geom_core::Tol::witness()),
+            geom_core::Band::linear(geom_core::Tol::witness()).ok(),
             &mut || {
                 minted += 1;
                 1000 + minted

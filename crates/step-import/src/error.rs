@@ -6,7 +6,8 @@
 
 use core::fmt;
 
-use geom_core::FileCoincidence;
+use geom_brep::recourse::{LeverOnly, RefusedArm, RefusedSide, SizedDecision};
+use geom_core::{FileCoincidence, Indeterminate};
 
 /// One rung of the D7 edge-adoption ladder, as data: which intensional
 /// interpretation was attempted, and the kernel gate's typed refusal.
@@ -50,6 +51,55 @@ impl fmt::Display for AdoptionCandidate {
             Self::MappedCurve => "mapped curve",
         })
     }
+}
+
+/// What [`StepImportError::SingularityUndecided`] asks.
+pub(crate) const SINGULARITY_SUBJECT: &str = "whether a sphere pole or cone apex, or where a meridian minted from one meets a face's \
+     boundary, lies on that boundary or at one of its vertices";
+
+/// **Whether a chart singularity lies on a face's boundary**, a sized
+/// decision: the distance from the point to the nearest vertex or edge
+/// of the face. Zero (on it) and a clear distance (off it) both pass;
+/// only a distance the band cannot call refuses, and a smaller
+/// tolerance calls any nonzero one.
+pub(crate) const SINGULARITY_ON_BOUNDARY: SizedDecision = SizedDecision {
+    lever: "move the face's boundary, or its vertex, onto that point or clear of it",
+    size: "distance",
+    passes: geom_core::SizedPass::AnySign,
+    side: RefusedSide::Lever,
+    no_size: None,
+};
+
+/// The same decision where the FILE's band could not call it (`(ε_in,
+/// K·ε_in)`, coarser than the run's): no smaller tolerance decides it,
+/// so it ends in its lever alone, which names the file's coincidence
+/// distance.
+pub(crate) const SINGULARITY_IN_FILE_BAND: LeverOnly = LeverOnly {
+    lever: "move the face's boundary, or its vertex, onto that point or clear of it, or, if \
+            this distance is intended, re-export the file with a smaller declared \
+            uncertainty (or pass a smaller ε_in override): the distance lies in the band past \
+            the file's coincidence distance, which no tolerance of this run decides",
+};
+
+/// Which band a [`StepImportError::SingularityUndecided`] could not call
+/// its distance in.
+///
+/// **Not carried by the `pncad` façade, argued.** It picks the refusal's
+/// ending, and the ending is the whole of what it changes for a caller:
+/// a smaller tolerance decides a `Run` reading, a finer ε_in a `File`
+/// one, and the rendered message names the lever for each. The façade
+/// carries the variant (and Python its word, `singularity_undecided`),
+/// which is what a caller routes on. The falsifier: a caller that must
+/// act on WHICH knob decides it without reading the message (a GUI
+/// offering the ε_in override in place of a tolerance) — then the carry
+/// is `pncad::prelude`'s export, the façade's matchability row, and a
+/// Python attribute beside `variant`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SingularityBand {
+    /// The run's own band: a smaller tolerance decides it.
+    Run,
+    /// The file's band, `(ε_in, K·ε_in)`: a finer ε_in decides it.
+    File,
 }
 
 /// Typed import failure. `#id` fields are Part 21 entity instance
@@ -266,6 +316,27 @@ pub enum StepImportError {
         solid: u64,
         /// Why the join refused.
         refusal: topo::JoinRefusal,
+        /// The file's ε_in: the import door the refusal is read at.
+        file: FileCoincidence,
+    },
+    /// Whether a sphere pole or cone apex lies on a face's boundary (at
+    /// one of its vertices, or inside one of its edges), or whether a
+    /// pole-form meridian minted from one lands at a boundary vertex or
+    /// beside it, reads in the band
+    /// the import decides it at, the coarser of the file's and the run's:
+    /// so whether it is a vertex of the face, lies inside an edge, or lies
+    /// inside the face is undecided, and the normalization that makes it a
+    /// vertex ([`crate::NormalizationKind::ChartSingularityVertex`])
+    /// refuses rather than guess. The distance is a size the file may
+    /// intend, so the refusal ends as the import door ends a sized
+    /// decision ([`SINGULARITY_ON_BOUNDARY`]).
+    SingularityUndecided {
+        /// The `ADVANCED_FACE` whose boundary the point lies near.
+        id: u64,
+        /// The decision's escalation: the distance, and the band.
+        cause: Indeterminate,
+        /// Which band could not call it.
+        band: SingularityBand,
         /// The file's ε_in: the import door the refusal is read at.
         file: FileCoincidence,
     },
@@ -513,6 +584,23 @@ impl fmt::Display for StepImportError {
                 "step import: joining the edges of the solid at #{solid}: {}",
                 refusal.render(*file)
             ),
+            Self::SingularityUndecided {
+                id,
+                cause,
+                band,
+                file,
+            } => {
+                let arm = RefusedArm::Undecided(cause);
+                let ending = match band {
+                    SingularityBand::Run => SINGULARITY_ON_BOUNDARY.recourse(arm, *file),
+                    SingularityBand::File => SINGULARITY_IN_FILE_BAND.recourse(arm, *file),
+                };
+                write!(
+                    f,
+                    "step import: face #{id}: {}",
+                    cause.undecided(SINGULARITY_SUBJECT, ending)
+                )
+            }
             Self::PlacementMap { transform, source } => write!(
                 f,
                 "step import: the assembly placement stated at #{transform} is not admitted \

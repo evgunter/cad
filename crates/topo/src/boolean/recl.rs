@@ -300,8 +300,7 @@ fn corner_of<T: Decide>(body: &Body<T>, s: &BoolSector<T>) -> geom_core::Point3<
 }
 
 fn cancel_uniform(r: &mut PairRecord) {
-    let uni = |c: (SideCode, SideCode)| c.0 == c.1 && c.0 != SideCode::On;
-    if uni(r.sa) || uni(r.sb) {
+    if super::sectors::one_side(r.sa) || super::sectors::one_side(r.sb) {
         r.intersect = false;
     }
 }

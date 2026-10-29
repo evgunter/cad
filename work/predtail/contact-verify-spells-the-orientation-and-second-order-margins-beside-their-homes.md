@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-25
 priority: P1
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [a-glued-pair-is-re-read-through-the-declared-rung-which-bridges-in-band]
 ---
 
 Cut from `lever-arm-fold-six-hand-rolled-siblings` by the PRED
@@ -44,3 +44,5 @@ whether these sites survive stage 4 is the first thing to settle.
 PRED folded into PREDTAIL (Ev, in chat, 2026-10-26): PRED was handed back
 `blocked` with this row and one other parked, and PREDTAIL now holds
 PRED's parked rows beside its tail. Id, body and blocker unchanged.
+
+**Re-read 2026-10-29 (INTENT, D10 hold):** re-parked on `a-glued-pair-is-re-read-through-the-declared-rung-which-bridges-in-band`. The sites survived stage 4: `contact_tangent_opposed`, `contact_tangent_second_order` and `contact_tangent_parallel` are at `crates/topo/src/boolean/contact_verify.rs:553`, `:634` and `:651`. `tangent_locus_relation` still takes `declared: bool` (`:291`), and that posture bridges in-band second-order residue. Whether the posture survives is that row's question, and it decides the second-order arm this row would fold.

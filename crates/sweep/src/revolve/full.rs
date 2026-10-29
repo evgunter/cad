@@ -751,8 +751,9 @@ impl<T: Real> Wire<T> {
 /// The wire case (file docs): the wire sweeps as an open chain
 /// anchored on the axis at both tips —
 /// in **two π-bands**, so each pole/apex ends with valence 2 (the
-/// angle-0 and angle-π meridians; a one-band wire would leave the tips
-/// valence-1, which tier 2 rightly bans as strut scaffolding). No seam
+/// angle-0 and angle-π meridians, the pole form [`geom::pole_form`]
+/// describes; a one-band wire would leave the tips valence-1, which
+/// tier 2 rightly bans as strut scaffolding). No seam
 /// zip exists in this path: band 2 is carved out of the original wire
 /// face by one rim-closing `mef` per interior vertex, and the wire
 /// face itself survives as segment 0's band-2 wall. The handles are

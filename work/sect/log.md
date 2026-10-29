@@ -273,3 +273,76 @@ off its axis-aligned arm (SECTSITE).
   each announces its seam, and the components unit merges first where
   they collide. The cylinder-face ring re-homing row waits for PR 5974 and
   the components unit's germ-mint change in `join.rs`.
+
+## 2026-10-29 — teapot wall 2's sphere × torus half (PR 5974)
+
+PR 5974: a carried ring on a torus face reads its spline arcs (the torus
+`ring_path` arm), and `join::along_facing` refuses germs on two components
+up front as `facing` does. Wall 2 still stops at SPIRICARM's volume door
+(conic trim), now pinned by exact payload; the matcher fix moves its
+refused face (`6v1` → `1v5`) and ball × rod's on every op, which restores
+the mirror symmetry main broke (row
+`a_rod_through_a_ball_pairs_both_loops_alike`). Tier: **single FULL**
+(re-tiered from dual at the PR, the unit having shrunk): APPROVE-WITH-FIXES,
+no soundness defect (0 wrong of 2617 decided paths over 330 random poses);
+one fix pass took every item, with the reviewer's random search landed
+as `random_torus_sections`. The `Untold` placements wait on the components
+unit.
+## 2026-10-29 — two circles cross is spelled once (PR 6001)
+
+`circle-pair-crossing-is-spelled-three-times` closed by PR 6001: the
+coaxial-tube, parallel-tori and square-wall rows and profile's two
+circle-pair sites read `geom_core::Circles` (`reach`, `secant` added).
+Tier: **orchestrator's read** — margins bit-identical (logged decisions
+equal across 952 tests, 800k seeded pairs at `f64` and `Interval`);
+crossings now placed by `Circles2::crossings`, within 3.2 ulps of both
+circles where the old form drifted up to 9.4e5 ulps, same order. The
+unclamped `half_chord` is read only past a decided secant, so its square
+is a product of decided-positive margins. Left as filed: the sphere ×
+tube-circle rows (a verdict would move at `Interval`), P3.
+
+## 2026-10-29 — a torus pair's tangency and coincidence decided once (PR 5994)
+
+PR 5994 closes `torus-coincidence-is-decided-at-the-carrier-ladder-and-the-torus-pose`
+(one decision, `geom_brep::tori_coincide`, read first by the pose in every
+stance and by the carrier ladder's undeclared arm; the declared reading is
+a different question and reads the same displacement) and
+`a-tube-circle-tangency-is-read-by-the-gap-and-by-the-glue-doors-tangency-lane`
+(two questions, argued at `tangency_reading`, one pose pinned showing both
+answers right; no implication between them is claimed). Main read a nearly
+coincident tilted pair Tangent (a wrong definite answer); head reads it one
+surface at both readers. Disclosed moves: in-band pairs main built now refuse
+undecided; corner sites decide One on the bound's sum, not each datum.
+Tier: **single FULL**: APPROVE-WITH-FIXES, no MAJOR (the bound held against an
+exact-distance oracle and an adversarial search); one fix pass took all 11
+items, including one home for the identity walk (`geom_brep::identity_walk`,
+which topo's `identity_data` reads — the orchestrator checked its ranking and
+non-finite handling match main's) and the ring convention refused at the
+ladder.
+
+## 2026-10-29 — components are the march's (PR 6011)
+
+PR 6011 closes `a-general-torus-pose-lists-no-components` as fork row 212
+decided it. Every P0 consumer passes the germ mint: GERM's radial hole (4
+and 3 loops), all six drum × donut placements, the general donut × donut
+placements and the ball × donut `AroundAxis` placement stop downstream
+(mostly SPIRICARM's volume door); the lily's stem at the march's
+`CellBudget` (SECTRUNG); a torus just clear of a tilted cut builds every op
+with checked volumes. Dual concurrent review (row
+`docs/dual-review-log/rows/PR-6011.md`): no MAJOR; two fix passes and one
+confirmation review. The one-way winding cross-check is a filed deviation
+(`a-counted-sections-winding-is-a-claim-not-a-reading`, P2). Cost: at ε 1e-12
+the new marching rows take up to ~30 min each at opt-level 2 in the nightly
+(`sectrung/torus-germ-rows-march-for-an-hour-at-a-fine-band`).
+
+## 2026-10-29 — the repeated march was not repeated (PR 6056)
+
+`sect-marchonce` measured one march per pair per operation on every slow
+torus row (shared inside an op by the section table's one carry), and the
+march at 3–16 % of each row's time; a gdb profile puts the time in
+certifying the fitted chord edges, pcurves and the result gate. PR 6056 adds
+a test-only march counter and pins one march per op; the row is re-banded
+P3 (cross-op sharing buys ≤ ~11 % and waits on canonical operand order).
+The orchestrator's earlier "about eight marches per pair" was wrong: each of
+a row's eight operations marches once, which is what that count was.
+Tier: **orchestrator's read** (a test-only counter and two pins).

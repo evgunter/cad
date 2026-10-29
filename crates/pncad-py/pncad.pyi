@@ -606,8 +606,8 @@ class StepImportError(PncadError):
     `malformed_real`, `topology`,
     `assembly`, `adoption`, `rim_off_wall_boundary`,
     `wall_column_structure`, `recognition_ambiguous`, `pcurves`,
-    `join`, `placement_map`, `placement`, `instance`,
-    `c0_knot_unsplit` or `tier_invalid` — or `wireframe`, which is not a refusal at all:
+    `join`, `singularity_undecided`, `placement_map`, `placement`,
+    `instance`, `c0_knot_unsplit` or `tier_invalid` — or `wireframe`, which is not a refusal at all:
     the file parsed, to something this door does not adopt.
 
     `recognition_ambiguous` neither forwards nor withholds. The word
@@ -1102,9 +1102,12 @@ class MeasureUnavailableAt(PncadError):
     """A measure whose answer is an ENCLOSURE, read at a build whose
     scalar is a point.
 
-    `variant` is `needs_enclosure`; `verb` is the primitive, `scalar`
-    the scalar this build ran at, and `door` the one that CAN answer —
-    the recourse rides in the refusal rather than in a reader's memory.
+    `variant` is `needs_enclosure`, or `no_upper_bound` where the
+    engine's bracket has a lower end only (reached only at a certified
+    scalar, which this binding does not evaluate at); `verb` is the
+    primitive, `scalar` the scalar this build ran at, and `door` the one
+    that CAN answer — the recourse rides in the refusal rather than in a
+    reader's memory.
 
     NOT MeasureUnavailable, whose name is one word away and whose
     question is a different one: that is the analysis lane refusing to
@@ -1114,10 +1117,11 @@ class MeasureUnavailableAt(PncadError):
     A typed ABSENCE rather than a failure. The measure node evaluated
     fine and has no value, which is why an assertion over it reports
     `Unevaluated` carrying this same reason instead of being poisoned.
-    A `min_clearance` at `f64` is the whole of it today: a station pair
-    found by a point-scalar search is an upper bound on the minimum
-    rather than the minimum, and reporting one would be a degradation
-    ERROR-DESIGN E7 forbids by name."""
+    At `f64`, the only scalar this binding evaluates at, it is always
+    `needs_enclosure` on a `min_clearance`: a station pair found by a
+    point-scalar search is an upper bound on the minimum rather than
+    the minimum, and reporting one would be a degradation ERROR-DESIGN
+    E7 forbids by name."""
 
     variant: str
     verb: str
@@ -1757,6 +1761,72 @@ def circle_split(
     phase: Angle,
 ) -> ClosedLoop: ...
 
+# --- a profile drawn on a frame, tracing faces --------------------------
+# A chain written in the document's own vocabulary: the document replays
+# it at every evaluation, against the traces of the faces it reads then.
+
+class TraceTarget:
+    """Where a traced chain's piece runs to, beyond a point and `Start`:
+    a crossing of a face's trace, or the point along the heading at a
+    written sketch coordinate."""
+
+    @staticmethod
+    def on_trace(face: int, passage: str, nth: int = 1) -> TraceTarget:
+        """The `nth` (from 1) crossing where the piece enters
+        (`"enter"`), or leaves (`"leave"`), the material of traced face
+        `face` (its place in the profile's `faces`). A straight piece
+        runs along its heading to it, an arc about its centre."""
+
+    @staticmethod
+    def at_x(x: _LengthArg) -> TraceTarget:
+        """The point along the heading whose sketch `x` is `x`."""
+
+    @staticmethod
+    def at_y(y: _LengthArg) -> TraceTarget:
+        """The point along the heading whose sketch `y` is `y`."""
+
+_ChainTarget: TypeAlias = TraceTarget | StartToken | tuple[_LengthArg, _LengthArg]
+
+class Chain:
+    """A chain written step by step: start it with `Chain.at`; each
+    method answers the chain with one more step. The document checks it
+    at `evaluate`."""
+
+    @staticmethod
+    def at(x: _LengthArg, y: _LengthArg) -> Chain:
+        """A chain starting at `(x, y)`."""
+
+    def angle(self, theta: _AngleArg) -> Chain:
+        """The departure as an angle from the sketch's `x`."""
+
+    def toward(self, dx: _ScalarArg, dy: _ScalarArg) -> Chain:
+        """The departure as components, their ratio read."""
+
+    def line(self, length: _LengthArg) -> Chain:
+        """A straight leg of `length` along the heading."""
+
+    def line_to(self, target: _ChainTarget) -> Chain:
+        """A straight leg to a point `(x, y)`, to `Start`, or, along a
+        director, to a `TraceTarget`."""
+
+    def continue_to(self, target: _ChainTarget) -> Chain:
+        """The straight continuation of the previous piece, to a point,
+        `Start` or a `TraceTarget`."""
+
+    def arc_about(
+        self, centre: tuple[_LengthArg, _LengthArg], winding: ArcSweep, target: _ChainTarget
+    ) -> Chain:
+        """An arc about `centre`, turning `winding`, to a point, `Start`
+        or a crossing."""
+
+    def along_trace(self, sense: str) -> Chain:
+        """The heading along the trace the previous piece ran onto:
+        `"with"` it (the face's material on the left) or `"against"`
+        it."""
+
+    def __len__(self) -> int:
+        """How many steps the chain holds."""
+
 # --- authored steps and pieces ----------------------------------------
 # A chain state's `.step` is the address of the step its verb recorded;
 # a profile binds it to the id that placement minted (`Doc.step`) and
@@ -2247,6 +2317,20 @@ class Node:
         halves, read by port (`doc.output(split, 0)` is the half above
         the plane's normal); a read of a half the cut left with no
         material refuses at `evaluate` (`empty_half`)."""
+
+    @staticmethod
+    def drawn_profile(
+        frame: _Operand, faces: list[tuple[_Operand, str]], outline: Chain | list[Chain]
+    ) -> Node:
+        """A profile drawn on `frame`, tracing `faces`: its chain (a
+        `Chain`, or a list of them, outer first) reads the trace of each
+        face, by its place in `faces`, in the frame's xy plane — a run
+        onto a crossing (`TraceTarget.on_trace`), a heading along the
+        trace (`Chain.along_trace`). `frame` is a frame pose of a body's
+        space and each face a `(body, name)` of that space; the profile,
+        and every sweep of it, is in that space. A step whose trace
+        refuses refuses at `evaluate` (`trace`), naming the step and the
+        face."""
 
     @staticmethod
     def mirror(body: _BodyArg, plane: _PoseRead) -> Node:
@@ -4826,9 +4910,11 @@ class StructureNormalization:
     Volume and validity are exact either way; what changed is only the
     cut, and the two censuses are that change counted.
 
-    `promoted_to` and `residual` are the one arm's payload, `None` on
-    the other four — present on every row, so a read never raises and
-    a caller never has to branch on `kind` first."""
+    `promoted_to` and `residual` are `surface_promotion`'s payload and
+    `singularity` is `chart_singularity_vertex`'s (`interior`,
+    `inside_edge` or `valence_one_vertex`), each `None` on the other
+    arms — present on every row, so a read never raises and a caller
+    never has to branch on `kind` first."""
 
     @property
     def face(self) -> int: ...
@@ -4838,6 +4924,8 @@ class StructureNormalization:
     def promoted_to(self) -> Optional[str]: ...
     @property
     def residual(self) -> Optional[float]: ...
+    @property
+    def singularity(self) -> Optional[str]: ...
     @property
     def file_census(self) -> FaceCensus: ...
     @property

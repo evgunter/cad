@@ -5140,7 +5140,7 @@ mod tests {
         );
         spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
             pair: geom_brep::SurfacePair::new(s_seed, s_plus),
-            witness: Point3::new(0.5, 0.0, 0.0),
+            selector: geom_brep::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
         };
         body.set_edge_curve(split.edge, spec, tol).unwrap();
         let hp = body.get_edge(split.edge).unwrap().he_plus;
@@ -5595,7 +5595,7 @@ mod tests {
         let spec = geom_brep::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
                 pair: geom_brep::SurfacePair::new(s_seed, s_plus),
-                witness: Point3::new(0.5, 0.0, 0.0),
+                selector: geom_brep::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
             },
             carrier: geom::Curve3::Nurbs(std::sync::Arc::new(chord)),
             param_start: 0.0,

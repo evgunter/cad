@@ -150,6 +150,7 @@ Signed: (CARVE orchestrator)
   - Q2: `let c = bound.c();` is shaped by the from-f64 gate's text matching.
 
   Main's cost-curve red, which the lane added to GREEN's main-reds row, was fixed by #5979. Unblocked: the minsep tightening.
+- 2026-10-29 — **TIGHTEN dispatched** (`docs/TIGHTEN-SPEC.md`, branch `clear/tighten`, cloud lane). It carries out the 2026-10-28 decision on `min-separation-tightening-crosses-the-drive`: a scoped unlogged `k_stats` door, `min_separation` deciding its cells, and the retirement of `LowerBoundOnly`. Review: DUAL.
 - 2026-10-29 — **CLEARTEXT merges (#5977)** with this commit last. The single STYLE review (`25f81b1897`) returned APPROVE-WITH-FIXES:
   - two refusal sentences were false in reachable cases: `Unsupported` at the injectivity raise, and the table-local body index of `Tied`/`OtherBody`;
   - the item-3 hit list was incomplete;
@@ -157,3 +158,57 @@ Signed: (CARVE orchestrator)
   - style: a broken invariant read as a caller fault, side-less one-face arms, two renderings of one refusal, and duplicated wording.
 
   The orchestrator read and accepted the fix pass at `7bc8900b`. Every item was taken. The new `_ =>`-over-`Result` pass found one real case: the meeting-pair margin's `Err`, possible only when the bound lies in the band, had counted as a violation and then been refused as `WitnessUnverified`; it now refuses `Sliver`. Filed to CLEARTAIL: `clearance-violated-verdict-names-its-pair-by-bare-keys`. Filed to TALLY: the `eval/measure.rs` corruption arms. `injective.rs` gained four one-line side arguments, so CURVEDEP (#5991, in DUAL review) will merge main over them.
+- 2026-10-29 — **Cut to CLEARTAIL**, at load 47/30. These rows move by `git mv`, with ids and bodies unchanged:
+  - P2: `a-recorded-contact-refuses-the-injectivity-question-until-contact-design-hands-it-off`, `an-analytic-face-may-cover-its-carrier-more-than-once`, `the-second-order-arm-certifies-a-declared-wedge-0-edge`;
+  - P3: `comb-rows-ask-a-scope-against-itself-since-the-metric-doors-dropped-pairing`;
+  - unpriced: `boundary-of-evaluates-a-spline-edge-over-its-whole-span`, `iso-bounded-domain-has-two-refusals-no-valid-body-reaches`, `restricted-net-hull-has-four-spellings`.
+
+  `an-assertion-over-scopes-that-meet-refuses-a-window-superset-for-an-exact-zero` stays, because TIGHTEN (#5998) closes it. Rows that open units in flight file into CLEARTAIL directly, unless they are P1. Queued: `main-red-injective-rs-folds-the-face-sense-by-hand` (P1/E), after CURVEDEP merges, since both are in `injective.rs`.
+
+## 2026-10-29 — the third wave
+
+- **SELFX merged (#5955)**, `5e934f49`. CARVE's loft-certificate row is open.
+- **Dispatched:**
+  - **LOOPS:** the duplicated frontier loop and the triple budget pair. It runs as a local lane; its review is a single FULL review.
+  - **CLEARTEXT:** the four refusal-text rows. It runs as a cloud session, `session_018u3gVFPqmdk3LCeY6Ud5ae`; its review is a single STYLE review.
+  - **CURVEDEP:** `departure-presents-no-curved-shared-edge`. It runs as a cloud session, `session_018u3gVF7V1QL1mSkAd58VeW`; its review is a DUAL concurrent pair.
+- **Waiting:** the minsep tightening on LOOPS, and SHELL-4 on CURVEDEP.
+- 2026-10-29 — **TIGHTEN merges (#5998)** with this commit last. The arm is SEQUENTIAL (byte 64, mod 3 = 1).
+  - **The review.** A single review at `e27260a2` returned APPROVE-WITH-FIXES with no MAJOR, so there was no second review. It probed 15 configurations, and every bracket contained the truth. Mutants A and B were killed by shipped rows. Mutant C (the scope removed) was caught only by wall time.
+  - **Its findings.** MINORs:
+    - `OnEdge` in `hi` while the docs claimed exact containment;
+    - a redundant station read and a dominated arm;
+    - stale docs.
+
+    NOTEs:
+    - `lo` could be `+∞`;
+    - the latent k-lint hazard.
+  - **The fix pass at `535a6988`**, read and accepted:
+    - `hi` is now stated "up to the band" at every claim site and in F28;
+    - one station read;
+    - an `Option` incumbent;
+    - a live kernel-defect assert on `lo`;
+    - a fast scope-pin row, red under mutant C;
+    - the r2 gap row pinned tight;
+    - `flagged_census` now checks every `unlogged` row.
+  - **Cost**, re-measured: about 2.4× on single-drive rows, about 1.25× on the suites.
+  - **Amended in the row's Decided section:** no bisection on an absent `hi`; `hi` up to the band.
+  - **Also closed:** `an-assertion-over-scopes-that-meet-…`.
+- 2026-10-29 — **CURVEDEP merges (#5991)** with this commit last. Departure now certifies across a closed curved shared edge (pipe, mitre, drum). The arm is concurrent (letter H).
+  - **The DUAL pair at `b7394bd758`.** R1 returned APPROVE-WITH-FIXES and R2 NOT-MERGEABLE-AS-IS. Coded blind with byte 162 (A = R1): tally 0. R2's MAJOR, that lax soundness guards go red on no row, is bilateral with R1's MINOR. Sensitivity: R2's partial-side mutants F/G, split out, would have scored 1. R1 alone found that kernel-built oblique cuts still refuse.
+  - **Fix pass 1 (`716862ab`):**
+    - a red row per mutant;
+    - a lamina (curved wedge-0) row;
+    - the oblique cut pinned refusing;
+    - `Run::graph` split per step;
+    - `Zero::Curve`/`Zero::Past` in the types.
+  - **The focused review**, `session_018u3gVJ4e`: APPROVE-WITH-FIXES. Six of its own mutants survived, plus a dangling citation and an `f64::min` that ignored NaN.
+  - **Fix pass 2 (`3470ea3b`), read and accepted:**
+    - red rows for the Past guard's `analytic` and `zero_on`, and the whole-turn `rb`;
+    - arguments at the guard for step 1's per-piece monotone check, "passes both ends" and `apart`'s ±1 copies. The orchestrator spot-checked two: a sinusoid over less than a turn crosses a level at most twice; a run ending inside the columns ends at a vertex, which `alone` refuses;
+    - a fail-closed `rb`;
+    - an order-independent lamina pin.
+  - **Moved to CLEARTAIL:** its two P2 filings, `curved-presentation-reads-plane-and-cylinder-images-only` and `a-coordinate-line-on-a-face-of-unknown-extent-is-unplaced`.
+  - **Stays P1 in CLEAR:** `departure-reads-no-curved-corner`, which SHELL-4 waits on.
+- 2026-10-29 — **SENSEFOLD dispatched** (`docs/SENSEFOLD-SPEC.md`, branch `clear/sensefold`, cloud lane) for `main-red-injective-rs-folds-the-face-sense-by-hand`, after CURVEDEP. Review: the orchestrator's read.
+- 2026-10-29 — **SENSEFOLD merges (#6028)** with this commit last. The orchestrator read the diff and accepted it: one hit goes through the sense door, and two chart-space signs are sanctioned with their reasons. Receipts are unchanged. The slow-set row stays red on TESS's `trimmed.rs` sibling only.

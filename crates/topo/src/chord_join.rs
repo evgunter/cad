@@ -121,6 +121,10 @@
 //! that edge whole on its own side ([`closed_edge_spec`]) and is the
 //! section conic in the partner's planar or spherical face. There the
 //! chord is the whole section conic, from the vertex round to itself.
+//! A chord between two copies of one site, which the null edges tie
+//! ([`same_site`]), runs round the same way: a section conic that meets
+//! a face's boundary at one site alone reaches it under whichever of
+//! the site's copies the split's null edges leave there.
 //! In the plane × plane
 //! lane, on a planar face the split divides, or on a ruling section, a
 //! self-loop is a lone site, and rides `mef`'s placeholder circle
@@ -158,7 +162,8 @@ pub enum ConicCrossingsCase {
     /// At a crossing the plane runs within the band of tangent to the
     /// face's wall (**`split_join_conic_heading`** Zero), so the
     /// crossing neither enters nor leaves the face definitely. No
-    /// shipped fixture reaches it.
+    /// shipped fixture reaches it; the same sine read Zero at a chord's
+    /// start is [`SplitJoinError::SectionDepartureGrazes`].
     Grazing,
     /// Taken along the conic, the crossings do not alternate between
     /// entering the face and leaving it. Crossings closer along the
@@ -596,6 +601,19 @@ pub enum SplitJoinError {
         /// The band the headings were decided against.
         band: Band,
     },
+    /// A section chord's start could not say which way the section runs
+    /// into the face: the plane lies within the band of tangent to the
+    /// wall there, read as the sine between them times the wall's
+    /// [`geom_brep::curvature_lever_arm`] (`chord_arc_leave_section`
+    /// Zero, its datum along the section). On a cone that lever is the
+    /// distance from the axis, so a cut a few band widths of radius from
+    /// the apex reaches it at any angle the band cannot resolve there.
+    SectionDepartureGrazes {
+        /// The curved face the chord divides.
+        face: FaceKey,
+        /// The band the departure was decided against.
+        band: Band,
+    },
 }
 
 impl From<EulerOpError> for SplitJoinError {
@@ -903,6 +921,16 @@ impl core::fmt::Display for SplitJoinError {
                 f,
                 "a curved face's crossings cannot be paired along the section: {case} \
                  ('split_join_conic_heading', band ({:e}, {:e})). Recourse: {JOIN_RECOURSE}",
+                band.zero(),
+                band.escalate(),
+            ),
+            Self::SectionDepartureGrazes { band, .. } => write!(
+                f,
+                "a section chord's start reads the plane within the band of tangent to \
+                 the wall: its angle to the wall times the wall's radius of curvature \
+                 ('chord_arc_leave_section', band ({:e}, {:e})). Recourse: cut where the \
+                 wall curves less (on a cone, farther from its apex), or tighten the \
+                 tolerance",
                 band.zero(),
                 band.escalate(),
             ),
@@ -1464,6 +1492,12 @@ fn section_loop<T: Decide>(
         Some(crate::boolean::Branch::Positive) => return Ok(positive),
         Some(crate::boolean::Branch::Negative) => return Ok(negative),
         Some(crate::boolean::Branch::Only) | None => {}
+        Some(crate::boolean::Branch::Component(_)) => {
+            return Err(SplitJoinError::SectionInvariant {
+                face,
+                what: "a germ riding a carried section's component reached a two-loop frame",
+            });
+        }
     }
     let side = |p| match decide("chord_section_loop", Margin::of(split.margin(p)), band) {
         Ok(Sign::Zero) => Err(SplitJoinError::SectionInvariant {
@@ -1892,7 +1926,7 @@ pub(crate) fn lone_site_placeholder<T: Real>(
 /// Where a chord's arc ends on its section conic.
 #[derive(Clone, Copy, Debug)]
 enum ArcEnd<T> {
-    /// At the conic parameter of a second, distinct vertex.
+    /// At the conic parameter of a vertex at a distinct site.
     At(T),
     /// Back at its start, a whole turn on: a self-loop chord's.
     WholeTurn,
@@ -1911,11 +1945,11 @@ fn oriented_arc<T: Real>(
     let tau = T::tau();
     // The span forward from `th1` to a distinct end, in `[0, τ)`: a
     // chord may span more than half the conic. Its window jumps at a
-    // span of zero, two distinct ends sharing a conic parameter, which
-    // is either a zero-length arc or a whole turn. Nothing here gates
-    // that: both lanes pair distinct sites at distinct points
-    // (`bool_join_chord` in the boolean), and a vertex with itself only
-    // as a self-loop, which says so (`ArcEnd::WholeTurn`).
+    // span of zero, two ends sharing a conic parameter, which is either
+    // a zero-length arc or a whole turn. A chord's two ends at one site
+    // say which ([`far_end`]: `ArcEnd::WholeTurn`). That ends at distinct
+    // sites lie at distinct points nothing here enforces: two that share
+    // a parameter read a zero span, which the chord's mint refuses.
     // Each span is read forward from its own start, never as a turn
     // less the other's, which would carry `ulp(τ)` in a short arc.
     if ccw {
@@ -1972,6 +2006,35 @@ fn chord_arc<T: Decide>(
     };
     let to = p2.map_or(ArcEnd::WholeTurn, |p2| ArcEnd::At(seamed.param(p2)));
     oriented_arc(&seamed, face, seamed.param(p1), to, ccw)
+}
+
+/// **Where a chord from `u1` to `u2` ends on its closed section**:
+/// `u2`'s point, or `None`, back at its start a whole turn on, where the
+/// two are one site ([`same_site`]). A chord leaves its start, and the
+/// null edges already join a site's copies, so a chord between two of
+/// them runs round its whole closed section.
+fn far_end<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    (u1, u2): (VertexKey, VertexKey),
+) -> Result<Option<Point3<T>>, SplitJoinError> {
+    Ok((!same_site(body, face, (u1, u2))?).then(|| vertex_point(body, u2)))
+}
+
+/// **Whether `u2` is one site with `u1`**: `u1` itself or a copy of it
+/// the null edges tie ([`null_site`]), the join's one reading of
+/// site-ness. A site that does not resolve is the join's broken
+/// invariant.
+fn same_site<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    (u1, u2): (VertexKey, VertexKey),
+) -> Result<bool, SplitJoinError> {
+    let tied = null_site(body, &[u1]).map_err(|StaleSite| SplitJoinError::SectionInvariant {
+        face,
+        what: StaleSite::WHAT,
+    })?;
+    Ok(tied.contains(&u2))
 }
 
 /// The direction the section leaves each of a join's two sites in,
@@ -2041,13 +2104,23 @@ impl<T: Real> Leave<T> {
 /// semi-axis or an oval's own (`chord_arc_leave_germ`); the split's sine on the wall's
 /// [`geom_brep::curvature_lever_arm`] at `p1`
 /// (`chord_arc_leave_section`), the lever its conic walk decides the
-/// same sine on, so the two cannot disagree outside the band. A datum
-/// with no component along the section is malformed and refuses.
+/// same sine on, so the two cannot disagree outside the band.
+///
+/// **A split Zero has two readings**, told apart by the datum's own
+/// direction against the tangent (`chord_arc_leave_section_aligned`: the
+/// cosine levered by the conic's extent, as the germ's is). Along the
+/// section, the small product is the plane within the band of tangent to
+/// the wall at `p1` — the sine small, or the lever short, as near a
+/// cone's apex — and the chord refuses the graze. Across it, the datum
+/// is not the section's departure at all: `±(n_plane × n_out)` is the
+/// section's tangent wherever `p1` lies on the conic, so that is a
+/// broken invariant, as is a germ with no component along the section.
 ///
 /// # Errors
 ///
-/// [`SplitJoinError::SectionInvariant`] for a datum normal to the
-/// section; [`SplitJoinError::Escalated`] in the band.
+/// [`SplitJoinError::SectionDepartureGrazes`] where the split's sine reads
+/// Zero along the section; [`SplitJoinError::SectionInvariant`] for a
+/// datum normal to the section; [`SplitJoinError::Escalated`] in the band.
 fn arc_leaving<T: Decide>(
     face: FaceKey,
     band: Band,
@@ -2056,6 +2129,12 @@ fn arc_leaving<T: Decide>(
     p1: Point3<T>,
     leave: Departure<T>,
 ) -> Result<bool, SplitJoinError> {
+    let escalated = |diag| SplitJoinError::Escalated { face, diag };
+    let off_section = SplitJoinError::SectionInvariant {
+        face,
+        what: "the section's direction of departure handed to a chord end has no \
+               component along the section there",
+    };
     let tangent = conic.tangent(conic.param(p1));
     let along = leave.dir.dot(tangent) / tangent.norm();
     let (name, margin) = match leave.datum {
@@ -2068,14 +2147,27 @@ fn arc_leaving<T: Decide>(
             Margin::levered(along, geom_brep::curvature_lever_arm(wall, p1)),
         ),
     };
-    match decide(name, margin, band).map_err(|diag| SplitJoinError::Escalated { face, diag })? {
+    match decide(name, margin, band).map_err(escalated)? {
         Sign::Positive => Ok(true),
         Sign::Negative => Ok(false),
-        Sign::Zero => Err(SplitJoinError::SectionInvariant {
-            face,
-            what: "the section's direction of departure handed to a chord end has no \
-                   component along the section there",
-        }),
+        Sign::Zero => match leave.datum {
+            Datum::Section => {
+                let cosine = along / leave.dir.norm();
+                match decide(
+                    "chord_arc_leave_section_aligned",
+                    Margin::levered(cosine, conic.lever()),
+                    band,
+                )
+                .map_err(escalated)?
+                {
+                    Sign::Zero => Err(off_section),
+                    Sign::Positive | Sign::Negative => {
+                        Err(SplitJoinError::SectionDepartureGrazes { face, band })
+                    }
+                }
+            }
+            Datum::Germ => Err(off_section),
+        },
     }
 }
 
@@ -2244,7 +2336,8 @@ fn section_pin_refusal<T: Decide>(
 ///    there as the lane that paired the chord's ends decided it
 ///    ([`Leave`], [`arc_leaving`]). Which arc lies in the face is the
 ///    pairing's answer; the chord does not ask the face again. A
-///    self-loop (`u1 == u2`) is the whole conic, run the same way; on
+///    chord from a vertex to itself or to a copy of its site
+///    ([`same_site`]) is the whole conic, run the same way; on
 ///    a ruling section, and in the plane × plane and along-edge lanes,
 ///    a self-loop stays a lone site (`None`, the placeholder circle). A
 ///    self-loop along a closed edge never reaches here: it copies the
@@ -2437,7 +2530,6 @@ fn chord_spec<T: Decide>(
         )?,
     };
     let p1 = vertex_point(body, u1);
-    let p2 = vertex_point(body, u2);
     let ccw = arc_leaving(face, band, &conic, &wall, p1, leave)?;
     // The aux plane surface (honest u_ref: a direction in the section
     // plane, ⊥ normal by construction), minted once per split.
@@ -2454,13 +2546,14 @@ fn chord_spec<T: Decide>(
         }
     };
     let ends = section_end_reading(&conic);
-    let (carrier, t_start, t_end) = chord_arc(conic, face, p1, (u1 != u2).then_some(p2), ccw)?;
+    let (carrier, t_start, t_end) =
+        chord_arc(conic, face, p1, far_end(body, face, (u1, u2))?, ccw)?;
     let witness = carrier.mid_point(t_start, t_end);
     Ok(Some(SectionChord {
         spec: EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
                 pair: geom_brep::SurfacePair::new(wall_key, plane_key),
-                witness,
+                selector: geom_brep::CurveSelector::Witness(witness),
             },
             carrier,
             param_start: t_start,
@@ -2701,10 +2794,10 @@ fn bool_planar_chord_spec<T: Decide>(
         )?,
     };
     let p1 = vertex_point(body, u1);
-    let p2 = vertex_point(body, u2);
     let ccw = arc_leaving(face, band, &conic, wall, p1, leave)?;
     let ends = section_end_reading(&conic);
-    let (carrier, t_start, t_end) = chord_arc(conic, face, p1, (u1 != u2).then_some(p2), ccw)?;
+    let (carrier, t_start, t_end) =
+        chord_arc(conic, face, p1, far_end(body, face, (u1, u2))?, ccw)?;
     // The aux WALL surface in this body (honest full copy of the
     // mate's wall; minted once per germ wall face, caller-cached).
     let wall_aux = match *partner_key {
@@ -2720,7 +2813,7 @@ fn bool_planar_chord_spec<T: Decide>(
         spec: EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
                 pair: geom_brep::SurfacePair::new(plane_key, wall_aux),
-                witness,
+                selector: geom_brep::CurveSelector::Witness(witness),
             },
             carrier,
             param_start: t_start,
@@ -2829,11 +2922,7 @@ fn carried_chord_spec<T: Decide>(
     };
     let (start, stop) = if up { (lo, hi) } else { (hi, lo) };
     let t1 = if seat1 { start } else { from };
-    let t2 = if u1 == u2 || at_seat(p2)? {
-        stop
-    } else {
-        foot(p2)?
-    };
+    let t2 = if at_seat(p2)? { stop } else { foot(p2)? };
     // The travel in parameter, metered by the carrier's speed at the
     // chord's start. Only its sign is consumed, and the margin's sign is
     // the travel's own (the speed is positive): the point speed sets only
@@ -2884,7 +2973,7 @@ fn carried_chord_spec<T: Decide>(
         spec: EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
                 pair: geom_brep::SurfacePair::new(own, partner),
-                witness,
+                selector: geom_brep::CurveSelector::Witness(witness),
             },
             carrier,
             param_start: t_start,
@@ -4017,9 +4106,10 @@ fn quadric_loop_arc<T: Decide>(
 /// contributes none, and an edge on a carrier the surface's loops do
 /// not carry ([`quadric_loop_arc`]) is a ring the lane does not read
 /// ([`SplitJoinError::RingIslandUnread`]). A spline edge is read on a
-/// cylinder or a sphere face where it is the certified intersection of
-/// the face's surface with another ([`SplineArc::of_edge`]), and is
-/// unread everywhere else.
+/// cylinder, a sphere or a torus face where it is the certified
+/// intersection of the face's surface with another
+/// ([`SplineArc::of_edge`]), and is unread on a cone, whose pairs the
+/// section table does not carry.
 fn run_loop_arcs<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -4039,10 +4129,11 @@ fn run_loop_arcs<T: Decide>(
             continue;
         };
         let arc = match (quadric, curve.carrier()) {
-            (Quadric::Cylinder { .. } | Quadric::Sphere { .. }, geom::Curve3::Nurbs(_)) => {
-                SplineArc::of_edge(curve, own).map(LoopArc::Spline)
-            }
-            (_, geom::Curve3::Nurbs(_)) => None,
+            (
+                Quadric::Cylinder { .. } | Quadric::Sphere { .. } | Quadric::Torus { .. },
+                geom::Curve3::Nurbs(_),
+            ) => SplineArc::of_edge(curve, own).map(LoopArc::Spline),
+            (Quadric::Cone { .. }, geom::Curve3::Nurbs(_)) => None,
             _ => quadric_loop_arc(quadric, curve.carrier(), curve.params(), band)
                 .map_err(|diag| SplitJoinError::Escalated { face, diag })?,
         };
@@ -4456,11 +4547,10 @@ fn along_edge_spec<T: Decide>(
     )
     .start;
     let e_end = body.proven_half_edge_end(e.he_plus);
-    let tied = null_site(body, &[u1]).map_err(|StaleSite| SplitJoinError::SectionInvariant {
-        face,
-        what: StaleSite::WHAT,
-    })?;
-    let forward = match (tied.contains(&e_start), tied.contains(&e_end)) {
+    let forward = match (
+        same_site(body, face, (u1, e_start))?,
+        same_site(body, face, (u1, e_end))?,
+    ) {
         (true, false) => true,
         (false, true) => false,
         _ => {
@@ -4539,7 +4629,7 @@ fn closed_edge_spec<T: Decide>(
 }
 
 /// **Whether `edge` is closed at the site of `u`**: both of its ends
-/// are copies of that site ([`null_site`]). The one test of a closed
+/// are copies of that site ([`same_site`]). The one test of a closed
 /// segment edge ([`JoinPlan::of`]).
 fn closed_at<T: Decide>(
     body: &Body<T>,
@@ -4553,11 +4643,7 @@ fn closed_at<T: Decide>(
             what: "the segment's edge no longer resolves",
         });
     };
-    let tied = null_site(body, &[u]).map_err(|StaleSite| SplitJoinError::SectionInvariant {
-        face,
-        what: StaleSite::WHAT,
-    })?;
-    Ok(tied.contains(&a) && tied.contains(&b))
+    Ok(same_site(body, face, (u, a))? && same_site(body, face, (u, b))?)
 }
 
 /// **Which way a closed edge's chord runs**, where both ends of the
@@ -4636,6 +4722,12 @@ fn closed_chord_runs_forward<T: Decide>(
 /// included — the copies one crossing site was split into, however
 /// many null edges it holds. A null edge's two ends are the same point,
 /// so the site is one point held by several vertices.
+///
+/// The split states the same relation a second way once its null edges
+/// are gone: each copy's null-pair row names the vertex it was minted
+/// at, and [`crate::splitting::SplitNaming::original_of`] chases a copy
+/// to the operand vertex. Two vertices one site ties here are two that
+/// read back to one original there.
 ///
 /// Runs on bodies mid-operation. [`StaleSite`]: a vertex of the site
 /// does not resolve, one of `from`, the caller's keys, or a copy a null
@@ -5946,7 +6038,7 @@ mod tests {
                 EdgeCurveSpec {
                     description: geom_brep::EdgeDescriptionSpec::Intersection {
                         pair: geom_brep::SurfacePair::new(cyl, plane),
-                        witness: carrier.mid_point(t0, t1),
+                        selector: geom_brep::CurveSelector::Witness(carrier.mid_point(t0, t1)),
                     },
                     carrier,
                     param_start: t0,
@@ -6498,7 +6590,7 @@ mod tests {
             EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::Intersection {
                     pair: geom_brep::SurfacePair::new(cyl, rim_plane),
-                    witness: carrier.mid_point(0.0, quarter),
+                    selector: geom_brep::CurveSelector::Witness(carrier.mid_point(0.0, quarter)),
                 },
                 carrier,
                 param_start: 0.0,
@@ -6741,22 +6833,35 @@ mod tests {
         }
     }
 
-    /// **A datum with no component along the section refuses**, typed,
-    /// and one whose component is in the band escalates naming
-    /// `chord_arc_leave_section`: the section's normal (the plane's own,
-    /// which no section tangent has a component along), and the tangent
-    /// scaled to put the levered margin `leave·Ĉ′ × r` at 5e-9 (the unit
-    /// cylinder's radius, the lever the split's walk reads).
+    /// **A split datum's Zero is a graze only along the section.** The
+    /// fixture's tangent at θ = 0 is `ŷ` and its lever the unit
+    /// cylinder's radius. `ŷ·5e-10` lies along the section and reads half
+    /// the zero band — the needle cone's shape, a short product, not a
+    /// crooked datum — so it grazes; `û_e = ŷ × n`, in the plane and
+    /// normal to the section, and `û_e + ŷ·5e-10`, nearly so, are no
+    /// departure along the section and name the invariant; `ŷ·5e-9`
+    /// escalates naming `chord_arc_leave_section`.
     #[test]
     fn a_datum_off_the_section_refuses() {
         let phi = 0.5f64;
         let n = Vec3::new(phi.sin(), 0.0, phi.cos());
-        let err = spec_leaving(n).unwrap_err();
+        let u_e = Vec3::unit_y().cross(n);
+        let err = spec_leaving(Vec3::unit_y() * 5e-10).unwrap_err();
         assert!(
-            matches!(err, SplitJoinError::SectionInvariant { .. }),
-            "{err:?}"
+            matches!(err, SplitJoinError::SectionDepartureGrazes { .. }),
+            "along the section, inside the zero band: {err:?}"
         );
-        let err = spec_leaving(n + Vec3::unit_y() * 5e-9).unwrap_err();
+        for (what, leave) in [
+            ("normal to the section", u_e),
+            ("nearly normal to the section", u_e + Vec3::unit_y() * 5e-10),
+        ] {
+            let err = spec_leaving(leave).unwrap_err();
+            assert!(
+                matches!(err, SplitJoinError::SectionInvariant { .. }),
+                "{what}: {err:?}"
+            );
+        }
+        let err = spec_leaving(Vec3::unit_y() * 5e-9).unwrap_err();
         let SplitJoinError::Escalated { diag, .. } = err else {
             panic!("expected an escalation, got {err:?}");
         };

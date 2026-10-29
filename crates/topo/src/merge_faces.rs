@@ -5977,7 +5977,7 @@ mod winding_arm_tests {
                             .unwrap()
                             .surface,
                     ),
-                    witness: curve.carrier().mid_point(t0, t1),
+                    selector: geom_brep::CurveSelector::Witness(curve.carrier().mid_point(t0, t1)),
                 },
                 carrier: curve.carrier().clone(),
                 param_start: t0,

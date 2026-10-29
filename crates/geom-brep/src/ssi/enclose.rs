@@ -973,6 +973,51 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         self.deriv_hull(w, along_u, false)
     }
 
+    /// [`NurbsBoxes::deriv_box`] over the CLOSED rectangle, each part read
+    /// through the cells it has width in: a cell the rectangle meets only
+    /// along an edge, in an axis where the rectangle has width, is not
+    /// read, so a rectangle ending on a knot is read through its own
+    /// span's polynomial up to and including that knot. `∂S` is that
+    /// polynomial's derivative there (the one-sided derivative from
+    /// inside the rectangle), which is what a continuity argument over
+    /// the closed rectangle needs; the neighbouring span's derivative at
+    /// a kink is not a value `∂S` takes on it. An axis of zero width
+    /// keeps every cell it touches.
+    pub(crate) fn deriv_box_closed(&self, w: UvWindow, along_u: bool) -> Box3 {
+        let clamped = self.clamped(w);
+        let (ku, kv) = self.cell_knots();
+        let meets = |k: &KnotVector, span: Span<'_>, r: ParamRange| {
+            let (lo, hi) = (r.start(), r.end());
+            let t = k.knots();
+            let ends = t.get(span.index()).zip(t.get(span.index() + 1));
+            lo == hi || ends.is_some_and(|(&ta, &tb)| lo.max(ta) < hi.min(tb))
+        };
+        self.fold_cells_where(
+            w,
+            Some((along_u, !along_u)),
+            |(su, sv)| meets(ku, su, clamped.u) && meets(kv, sv, clamped.v),
+            |net| net.derivative_box(along_u),
+            Box3::meet_enclosure,
+            Box3::hull,
+        )
+        .unwrap_or_else(refused_box)
+    }
+
+    /// Whether the surface's first partials are continuous inside the
+    /// window: no crease ([`Knots::crease_values`], an interior knot of
+    /// multiplicity at least the degree; a spline, rational or not, is
+    /// `C^(p−m)` across a knot of multiplicity `m`) may lie strictly
+    /// inside it, on either axis.
+    pub(crate) fn first_order_continuous_in(&self, w: UvWindow) -> bool {
+        let smooth = |k: &Knots<T>, r: ParamRange| {
+            k.crease_values().iter().all(|c| {
+                c.certified_bracket()
+                    .is_some_and(|(lo, hi)| hi <= r.start() || lo >= r.end())
+            })
+        };
+        smooth(self.surface.knot_values_u(), w.u) && smooth(self.surface.knot_values_v(), w.v)
+    }
+
     /// The derivative box over the rectangle, each touched cell's net cut
     /// to it or read whole.
     fn deriv_hull(&self, w: UvWindow, along_u: bool, cut: bool) -> Box3 {
@@ -1046,6 +1091,20 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         meet: impl Fn(R, R) -> R,
         join: impl Fn(R, R) -> R,
     ) -> Option<R> {
+        self.fold_cells_where(w, cut, |_| true, read, meet, join)
+    }
+
+    /// [`NurbsBoxes::fold_cells`] over the touched cells whose spans
+    /// `keep` admits; `None` when it admits none.
+    fn fold_cells_where<R>(
+        &self,
+        w: UvWindow,
+        cut: Option<(bool, bool)>,
+        keep: impl Fn((Span<'a>, Span<'a>)) -> bool,
+        read: impl Fn(&CellNet) -> R,
+        meet: impl Fn(R, R) -> R,
+        join: impl Fn(R, R) -> R,
+    ) -> Option<R> {
         let range = self.cells(w);
         let mut out: Option<R> = None;
         for su in range.u.0..=range.u.1 {
@@ -1059,6 +1118,9 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
                     continue;
                 }
                 let (whole, spans) = self.cell(su, sv)?;
+                if !keep(spans) {
+                    continue;
+                }
                 let r = read(whole);
                 let r = match cut.and_then(|axes| whole.cut(spans, range.clamped, axes)) {
                     Some(net) => meet(r, read(&net)),
@@ -1677,6 +1739,20 @@ pub(super) mod tests {
             }
         }
         NurbsSurface::new(ku, kv, control, weights).expect("valid patch")
+    }
+
+    /// **A crease that does not certify is no proof of continuity.** The
+    /// quadratic patch's crease at `u = 0.5`, lifted as a refused point
+    /// bracket on the knot: a window clear of `0.5` by its ordinary ends
+    /// is not read as continuous. Red under a read of the crease's ends.
+    #[test]
+    fn a_refused_crease_reads_as_not_continuous() {
+        let refused = geom_core::test_support::refused_point;
+        let w = win((0.0, 0.3, 0.0, 1.0));
+        let certified = multiplicity_2_patch().map_scalar(geom_core::Interval::point);
+        assert!(NurbsBoxes::new(&certified).first_order_continuous_in(w));
+        let s = multiplicity_2_patch().map_scalar(refused);
+        assert!(!NurbsBoxes::new(&s).first_order_continuous_in(w));
     }
 
     /// **A span cell's whole net is built once per [`NurbsBoxes`]**,

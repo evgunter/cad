@@ -2005,6 +2005,7 @@ pub fn wall_row(id: &str, loops: Vec<LoopProgram<Formula>>) -> Swept {
         Node::Profile(ProfileProgram {
             loops,
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, ext) = insert(
@@ -2067,6 +2068,7 @@ pub fn desc(loops: Vec<Vec<(f64, f64)>>) -> ProfileProgram<Formula> {
     ProfileProgram {
         loops,
         ids: Vec::new(),
+        on: None,
     }
 }
 
@@ -2136,6 +2138,15 @@ pub fn along_x() -> Formula {
 /// The heading along the profile's +y: the constant `turn/4`.
 pub fn along_y() -> Formula {
     Formula::turn_over(4).expect("a quarter turn")
+}
+
+/// **The leading identifier of a `Debug` rendering**: the variant
+/// name, without its fields.
+pub fn variant_name(debug: &str) -> String {
+    debug
+        .chars()
+        .take_while(|c| c.is_alphanumeric() || *c == '_')
+        .collect()
 }
 
 /// An axis-aligned square of half-width `h` centered at (cx, cy).

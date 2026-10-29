@@ -90,6 +90,7 @@ pub mod step_handle;
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
 pub mod test_support;
+pub mod trace;
 mod tree;
 pub mod update;
 pub mod var;
@@ -171,8 +172,8 @@ pub use mc::{
     monte_carlo, sample_offsets,
 };
 pub use measure::{
-    ASSERT_BOUND, AssertionRelation, AssertionVerdict, Certified, MeasurePrimitive,
-    MeasureUnavailableAt, MeasureVerb, MinClearanceOperand, UnevaluatedReason, WINDOW_TIGHTENING,
+    ASSERT_BOUND, AssertionRelation, AssertionVerdict, MeasurePrimitive, MeasureUnavailableAt,
+    MeasureVerb, MinClearanceOperand, UnevaluatedReason,
 };
 pub use meta::{MetaError, MetaInt, MetaValue, MetaVersionError, from_value, to_value};
 pub use mint::{Mint, MintId, Minted};
@@ -211,9 +212,10 @@ pub use product::{
     assemble_gathers, product, product_named, product_recorded,
 };
 pub use program::{
-    LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData, ProgramRefusal,
-    ProgramStep, ProgramTarget, RecordedNotation, RecordedProgramError, SlotPayload, StepIdFault,
-    StepSegmentsError, WrittenLoopFault, resolve_loops, resolve_written_loops,
+    DrawnOn, LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData,
+    ProgramRefusal, ProgramResolveFault, ProgramStep, ProgramTarget, RecordedNotation,
+    RecordedProgramError, SlotPayload, StepIdFault, StepSegmentsError, TraceCrossing, TracePassage,
+    TraceSense, WrittenLoopFault, resolve_loops, resolve_written_loops,
 };
 pub use range::{
     CertifiedRange, DerivedRange, RangeField, RangeRefusal, RangeSeed, RangeSide, certified_range,
@@ -241,6 +243,7 @@ pub use resolve::{
 pub use step_handle::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
 };
+pub use trace::{TraceRefusal, TraceStepFault, TracedFace, Traces};
 pub use var::{
     FreshEntry, Index, Pick, Select, SelectionCount, SelectionFault, Var, VarDecl, VarDef, VarId,
     VarKind, VarRef, WrittenDef,

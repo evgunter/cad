@@ -69,7 +69,8 @@ pub(crate) fn measure_unavailable_at_err(
     py: Python<'_>,
     reason: &d::MeasureUnavailableAt,
 ) -> PyErr {
-    let d::MeasureUnavailableAt::NeedsEnclosure { verb, scalar, door } = reason;
+    let (d::MeasureUnavailableAt::NeedsEnclosure { verb, scalar, door }
+    | d::MeasureUnavailableAt::NoUpperBound { verb, scalar, door }) = reason;
     let text = |s: &str| PyString::new(py, s).unbind().into_any();
     typed_err(
         py,

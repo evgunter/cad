@@ -60,9 +60,13 @@ fn block_at(
     (doc, b, at)
 }
 
-fn boolean_value(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> &BooleanValue<f64> {
-    match &ev.value(node).expect("boolean evaluated").payload {
-        ValuePayload::Boolean(b) => b,
+fn boolean_value(
+    ev: &editor_core::Evaluation<f64>,
+    node: RecipeNodeId,
+) -> (&BooleanValue<f64>, &topo::ContactRecords) {
+    let value = ev.value(node).expect("boolean evaluated");
+    match &value.payload {
+        ValuePayload::Boolean(b) => (b, &value.carry.contacts),
         other => panic!("expected boolean, got {}", other.kind_name()),
     }
 }
@@ -96,7 +100,7 @@ fn a_reused_kiss_carries_its_record_into_the_next_union() {
         },
     );
     let ev = run(&doc);
-    let BooleanValue::Body { body, contacts, .. } = boolean_value(&ev, u2) else {
+    let (BooleanValue::Body { body, .. }, contacts) = boolean_value(&ev, u2) else {
         panic!("union is a body");
     };
     assert!(
@@ -126,7 +130,7 @@ fn flush_plane_pair_glues() {
         },
     );
     let ev = run(&doc);
-    let BooleanValue::Body { body, .. } = boolean_value(&ev, u) else {
+    let (BooleanValue::Body { body, .. }, _) = boolean_value(&ev, u) else {
         panic!("the union is a body");
     };
     assert_eq!(
@@ -166,7 +170,7 @@ fn flush_plane_pair_glues() {
         },
     );
     let ev = run(&doc);
-    let BooleanValue::Body { body, .. } = boolean_value(&ev, u) else {
+    let (BooleanValue::Body { body, .. }, _) = boolean_value(&ev, u) else {
         panic!("decoupled union is a body");
     };
     // 1 + (b = 1·0.5·1.25) − (overlap = 0.5·0.5·0.75) = 1.4375.
@@ -221,7 +225,7 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
         },
     );
     let ev = run(&doc);
-    let BooleanValue::Body { body, contacts, .. } = boolean_value(&ev, s2) else {
+    let (BooleanValue::Body { body, .. }, contacts) = boolean_value(&ev, s2) else {
         panic!("crossing slots is a body");
     };
     // #90's oracle: 9 − two 0.5-deep slots + shared middle.
@@ -307,7 +311,7 @@ fn l_corner_caps_merge_at_the_recipe_door_tier3_green() {
         },
     );
     let ev = run(&doc);
-    let BooleanValue::Body { body, contacts, .. } = boolean_value(&ev, u) else {
+    let (BooleanValue::Body { body, .. }, contacts) = boolean_value(&ev, u) else {
         panic!("the flush-caps union is a body");
     };
     assert_eq!(
@@ -388,7 +392,7 @@ fn crossing_slots_swapped_order_names_the_floor_corner_for_both_edges() {
         },
     );
     let ev = run(&doc);
-    let BooleanValue::Body { body, contacts, .. } = boolean_value(&ev, s2) else {
+    let (BooleanValue::Body { body, .. }, contacts) = boolean_value(&ev, s2) else {
         panic!("swapped crossing slots is a body");
     };
     assert_eq!(

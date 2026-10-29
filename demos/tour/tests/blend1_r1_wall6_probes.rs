@@ -21,7 +21,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::printed;
+use demo_tour::booleans::at_rest;
 use pncad::authoring::{p2, validated};
 use pncad::geom::Curve3;
 use pncad::geom_core::{Tol, Vec2};
@@ -31,16 +31,6 @@ use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::{AtRestBody, Body, EdgeKey};
 
 use crate::common::rim_select::{Seeds, rim_at};
-
-/// A copy of `body` finished for the measurement doors, which read a
-/// finished body (Ev's decision on PR 4822).
-fn at_rest(
-    body: &pncad::topo::Body<f64>,
-    tol: pncad::geom_core::Tol,
-) -> pncad::topo::AtRestBody<f64> {
-    pncad::topo::AtRestBody::validate(body.clone(), tol)
-        .unwrap_or_else(|e| panic!("the measured body is not a finished body: {e:?}"))
-}
 
 const GLOBE: f64 = 0.44;
 const TOP: f64 = 0.40;
@@ -181,7 +171,7 @@ fn t3_the_mouth_rim_carves_and_adds_material() {
         (stored - 0.253).abs() < 5e-4,
         "the mouth arc's stored radius is the PR's fourth radius, got {stored}"
     );
-    let v0 = pncad::topo::mass_properties(&at_rest(&lant, tol), tol, printed::printed())
+    let v0 = pncad::topo::mass_properties(&at_rest(&lant, tol), tol, demo_tour::printed())
         .expect("mass properties")
         .enclosure
         .volume;
@@ -190,7 +180,7 @@ fn t3_the_mouth_rim_carves_and_adds_material() {
     pncad::topo::validate_geometric(&out.body, tol)
         .unwrap_or_else(|e| panic!("the mouth carves tier-3 valid, got {e:?}"));
     assert_eq!(out.band_faces.len(), 1, "the mouth leaves one band");
-    let props = pncad::topo::mass_properties(&at_rest(&out.body, tol), tol, printed::printed())
+    let props = pncad::topo::mass_properties(&at_rest(&out.body, tol), tol, demo_tour::printed())
         .expect("mass properties");
     assert_eq!(props.enclosure.volume_pad, 0.0, "closed-form inventory");
     assert!(

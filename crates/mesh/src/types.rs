@@ -393,9 +393,11 @@ pub enum TessellateError {
     /// all. The name is accordingly not `Unsupported*`, which row 2
     /// reserves for valid input. Bodies carrying the face can pass
     /// `topo`'s validation as it stands — the sphere member measures
-    /// its exact volume — and STEP import and the Euler doors both state
-    /// it, which is why this lane refuses it itself rather than lean on
-    /// a door in front of it.
+    /// its exact volume — and the Euler doors state it, which is why
+    /// this lane refuses it itself rather than lean on a door in front
+    /// of it. STEP import does not ship it: a file's statement of it is
+    /// re-minted in the seamed form
+    /// (`step_import::NormalizationKind::ChartSingularityVertex`).
     ///
     /// Row 0 (can the state be made unrepresentable?) is answered no:
     /// whether an edge is a rim or a meridian is a geometric
@@ -778,7 +780,8 @@ impl core::fmt::Display for TessellateError {
                     K::Sphere | K::Cone => {
                         "restate it in the seamed form — two half-faces, each bounded \
                          by half the rim and two meridians that meet at a vertex on the \
-                         pole or apex — which this lane meshes"
+                         pole or apex — which this lane meshes, and into which STEP \
+                         import re-mints a file's statement of the face"
                     }
                     K::Cylinder => {
                         "a cylinder face with a single rim is unbounded, so there is \

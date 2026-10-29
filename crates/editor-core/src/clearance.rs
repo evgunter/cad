@@ -1673,9 +1673,8 @@ fn faces_of<T: geom_core::Decide>(
 
 /// **A contact record between the two scopes**: the first record of the
 /// selection's body whose one cell bounds a face of one scope and whose
-/// other bounds a face of the other. The records are a body 0's
-/// (`crate::product::sources_of`'s reconciliation: a boolean's ride its
-/// payload, every other op's the value's channel).
+/// other bounds a face of the other. The records are a body 0's, as its
+/// value's carry holds them.
 fn recorded_contact<T: geom_core::Decide>(
     ev: &Evaluation<T>,
     sel: &Selection,
@@ -1683,15 +1682,11 @@ fn recorded_contact<T: geom_core::Decide>(
     fa: &[FaceKey],
     fb: &[FaceKey],
 ) -> Option<(topo::Cell, topo::Cell)> {
-    use crate::eval::{BooleanValue, ValuePayload};
     if sel.body != 0 {
         return None;
     }
     let value = ev.value(sel.at)?;
-    let records = match &value.payload {
-        ValuePayload::Boolean(BooleanValue::Body { contacts, .. }) => Arc::clone(contacts),
-        _ => Arc::clone(&value.carry.contacts),
-    };
+    let records = Arc::clone(&value.carry.contacts);
     let loop_face = |he| {
         body.get_half_edge(he)
             .and_then(|h| body.get_loop(h.parent_loop))
@@ -1741,7 +1736,7 @@ fn witness_point(leaf: &ParamBox) -> ParamWitness {
 /// **The witness verification** (E7's witness clause), the verifier the
 /// engine's sweep asks about each candidate violation: rebuild the
 /// document at `f64` over the leaf's midpoint, search the two violating
-/// cells' on-face stations ([`Candidate::on_face_stations`]) for the
+/// cells' on-face stations ([`Candidate::on_face_stations`](topo::clearance::Candidate::on_face_stations)) for the
 /// closest pair of points it can find, and put THAT distance through
 /// the SAME funnel site at the `f64` lane.
 ///

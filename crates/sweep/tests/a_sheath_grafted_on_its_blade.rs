@@ -1,8 +1,8 @@
-//! **A sheath grafted on its blade at their shared section**: the lily
-//! tour's wall 8 in miniature. Two lens lofts stand on one base section,
-//! in one plane, running away from it in opposite directions, so each
-//! one's base rim arcs ARE the other's, and each arc rises into a NURBS
-//! wall of its own body.
+//! **A sheath grafted on its blade at their shared section**: the
+//! witness that a rim tangent at two points refuses. Two lens lofts
+//! stand on one base section, in one plane, running away from it in
+//! opposite directions, so each one's base rim arcs ARE the other's, and
+//! each arc rises into a NURBS wall of its own body.
 //!
 //! The boolean reads each rim arc against the other body's spline walls
 //! by their boundary first (C5's curve × face clause): along the wall it
@@ -18,12 +18,14 @@
 //! for as the end vertex's meeting. At the result, the shared rim, a
 //! seam between the two bodies' NURBS walls, reads transverse: each
 //! wall's normal off the rim's image in its chart, levered over each
-//! chart's certified curvature. The union then stops where that seam is
-//! described as the walls' intersection: the NURBS pair's limb 2 reads
-//! the rim's derived degree-1 image in the walls' charts, which misses
-//! them between its feet by a definite margin
-//! (`work/ssiedge/plane-nurbs-certificate-bound-does-not-refine-with-eps`).
-//! This row is that site's tripwire: it reds when the site certifies.
+//! chart's certified curvature. The rim is the `v = 0` row of both walls,
+//! a curve known in advance, so it is described by that shared row (D2's
+//! structural selector), certified per wall with no uniqueness tube. Its
+//! certificate then bounds the walls' crossing over the whole rim, and on
+//! one of the lens's two rims the walls are tangent at two points,
+//! symmetric about the rim's middle: their crossing reading changes sign
+//! across each. The union refuses there. This row is that site's
+//! tripwire: it reds when the rim certifies.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Band, Point2, Point3, RigidMotion, Tol, Vec3};
@@ -76,28 +78,31 @@ fn blade(
     topo::test_support::finished("a lens blade", lofted, tol)
 }
 
-/// **Both orders get past the contact, the shared cap, the spline walls
-/// and the seam's dihedral**, and stop where the result's shared rim, a
-/// seam between a NURBS wall of each body, is described as the walls'
-/// `Intersection`: its certification refuses. Limbs 1 and 2 read the
-/// rim through each wall's exact boundary-row image. Limb 3 refuses at
-/// ε 1e-9, 1e-6 and 1e-12 by the rim's lie: the two-chart tube is cut to
-/// the charts' domains, and the rim runs along a boundary row of each
-/// (and ends at a corner of each), so it names the first operand's row,
-/// `TubeNotOneArc { AlongSide }`
-/// (`work/splice/a-two-chart-tube-cannot-prove-one-arc-along-a-chart-boundary.md`).
-/// Before that refusal was named, the walk read `Undecided`; before the
-/// exact images, limb 2
-/// refused on the fitted image's 9.0e-6 m miss. Before the seam's
-/// spline entry, each stopped one step earlier, at the seam's dihedral
-/// arm (`Escalated { LeverArm(Seam), "dihedral_arm" }`, an invalid
-/// margin); before the spline span × spline face arm,
-/// `CurvedBooleanUnsupported { operand: B, kind: Nurbs }` at B's ridge
-/// wall, a seam of A there; before the boundary pass, at the contact on
-/// a wall of B; before the ring-composite arm, at the planar lane,
-/// `EdgeCarrierUnsupported` on a tip seam of A against the cap of B.
+/// **Both orders stop where the walls touch on the rim.** Each rim is
+/// each wall's `v = 0` row, recovered as the walls' shared row. On one of
+/// them (rim 1) the walls are tangent at two points symmetric about
+/// `u = ½`, near `u ≈ 0.3024` and `u ≈ 0.6977` (the PR 5959 re-review's
+/// reading off the walls' own derivatives), and the crossing reading
+/// changes sign across each. The rim's certificate reads the whole row's
+/// cover, where zero-free pieces of opposite signs with the walls' first
+/// partials continuous between them hold a tangency, and refuses it
+/// definitely: `NotTransverse` with no sample (`NOT_A_SAMPLE`, the
+/// whole-row reading's verdict, where a sample's would name its index) and
+/// an exact zero. The row runs at `Tol::witness()`, the run's ε, so its
+/// three ε come from the CI matrix's `CAD_TOLERANCE_EPS` rows; it refuses
+/// alike at 1e-9, 1e-6 and 1e-12. A certificate that read the
+/// crossing at its samples alone stepped over both points and passed the
+/// rim; before the shared row, the rim's witness refused at limb 3
+/// (`TubeNotOneArc`).
+/// Before the exact images, limb 2 refused on the fitted image's 9.0e-6 m
+/// miss; before the seam's spline entry, the seam's dihedral arm
+/// (`Escalated { LeverArm(Seam), "dihedral_arm" }`); before the spline
+/// span × spline face arm, `CurvedBooleanUnsupported { operand: B, kind:
+/// Nurbs }`; before the boundary pass, the contact on a wall of B; before
+/// the ring-composite arm, `EdgeCarrierUnsupported` on a tip seam of A
+/// against the cap of B.
 #[test]
-fn a_sheath_on_its_blade_unions_past_the_shared_rim() {
+fn a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim() {
     let tol = Tol::witness();
     let base = [0.170, 0.028, 0.020];
     let (d, v) = (Vec3::unit_x(), Vec3::unit_z());
@@ -114,27 +119,25 @@ fn a_sheath_on_its_blade_unions_past_the_shared_rim() {
         ("sheath ∪ blade", &sheath, &leaf),
     ] {
         let err = topo::union(a, b, tol).expect_err(what);
-        let BooleanError::EdgeUndescribed {
-            failure: EdgeDescribeFailure::Intersection,
-            cause: Some(cause),
-            ..
-        } = &err
-        else {
-            panic!("{what}: past the seam's dihedral, at its intersection: {err:?}");
-        };
         assert!(
             matches!(
-                **cause,
-                EulerOpError::Certification {
-                    error: geom_brep::CertifyError::PlaneNurbs(
-                        geom_brep::PlaneNurbsRefusal::TubeNotOneArc {
-                            cause: geom_brep::ssi::OneArcRefusal::AlongSide { .. },
-                            ..
-                        }
-                    ),
-                }
+                &err,
+                BooleanError::EdgeUndescribed {
+                    failure: EdgeDescribeFailure::Intersection,
+                    cause: Some(cause),
+                    ..
+                } if matches!(
+                    **cause,
+                    EulerOpError::Certification {
+                        error: geom_brep::CertifyError::NotTransverse {
+                            sample: geom_brep::certify::NOT_A_SAMPLE,
+                            lever: None,
+                            verdict: geom_brep::recourse::Refused::Zero(_),
+                        },
+                    }
+                )
             ),
-            "{what}: the rim's tube, along a wall's boundary row: {cause:?}"
+            "{what}: at the rim, where its walls touch: {err:?}"
         );
         // The cap read on the way: every spline edge of A, against every
         // plane face of B, through the arm the planar lane reads, crosses

@@ -2940,6 +2940,13 @@ pub struct PcurveCertificate<T: Real> {
 }
 
 impl<T: Real> PcurveCertificate<T> {
+    /// The edge's limbs 1 and 2 on this chart, as an edge certificate
+    /// reads them off a row image's certificate: the residual at the
+    /// samples, and the envelope between them.
+    pub fn limbs(&self) -> (T, T) {
+        (self.max_residual, self.envelope)
+    }
+
     /// A certificate whose envelope is its own statement's bound.
     pub(crate) fn closed(
         samples: u32,
@@ -3473,10 +3480,7 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
             projected::offset_rounds(hull, window, &chart, &twin, band)?
         }
     };
-    read.upper = match &read.offset {
-        projected::Offset::Bound(b) | projected::Offset::Miss { bound: Ok(b), .. } => b.hi(),
-        projected::Offset::Miss { bound: Err(_), .. } => f64::NAN,
-    };
+    read.upper = read.offset.upper();
     Ok(read)
 }
 

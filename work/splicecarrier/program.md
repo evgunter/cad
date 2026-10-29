@@ -8,7 +8,7 @@ group: kernel/boolean/join
 prefix: splicecarrier/
 tag: (SPLICECARRIER orchestrator)
 paths: [crates/geom/src/curves.rs, crates/topo/src/boolean/vtxfac.rs]
-keep_out: [opened 2026-10-28 by SPLICE's split along its seams (Track size; Ev, in chat, 2026-10-28) - the rows moved by git mv with ids kept, each with a dated Moved note, SPLICE keeps lily wall 8's path (the limb-3 rows, the structural rim, lily at 1e-6), crates/topo/src/boolean/* and crates/geom-brep/src/curve_face/* are shared ground with SPLICE SECT and the boolean programs by design - run scripts/work.py territory on your branch and announce the seam in the PR]
+keep_out: [opened 2026-10-28 by SPLICE's split along its seams (Track size; Ev, in chat, 2026-10-28) - the rows moved by git mv with ids kept, each with a dated Moved note, SPLICE keeps lily wall 8's path (since 2026-10-29 the long leaf grown out of the stem - the curved crossing lane's spline dispatch then SECT's NURBS x torus section), crates/topo/src/boolean/* and crates/geom-brep/src/curve_face/* are shared ground with SPLICE SECT and the boolean programs by design - run scripts/work.py territory on your branch and announce the seam in the PR]
 ---
 
 A spline (NURBS) edge reaches the boolean's later doors since SPLICE's

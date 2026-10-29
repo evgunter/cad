@@ -37,9 +37,9 @@
 //! - A constant angle is reduced to the first octant: `qπ` modulo `2π`,
 //!   then `x − π` (both negate), `π − x` (the cosine negates), and
 //!   `π/2 − x` (the two swap), which leaves `q ∈ [0, 1/4]`, with the
-//!   sine at `π/4` spelled as its cosine. Where the value there is
-//!   rational (`0`, `±1/2`, `±1`) it folds; otherwise the atom is
-//!   minted over the form `q·π` itself. Every constant atom is
+//!   sine at `π/4` spelled as its cosine. At `q = 0` the value folds
+//!   (`0`, `1`); otherwise the atom is minted over the form `q·π`
+//!   itself, `sin(π/6)` included (below). Every constant atom is
 //!   therefore keyed by its angle in the first octant, as
 //!   [`Turns`](crate::Turns) reads an exact turn, and two spellings of
 //!   one value are one atom.
@@ -76,26 +76,35 @@
 //! The budget is what bounds that, and a term the rewrite cannot fit
 //! keeps its atoms, which is the conservative direction.
 //!
+//! # The deferred fold
+//!
+//! The rewrite is exact over the angles as group elements, each
+//! constant atom the real or imaginary part of its own `ζ = e^{iqπ}`,
+//! and folding
+//! `sin(π/6)`, the one first-octant atom whose value is rational, to
+//! `1/2` mid-walk would impose `ζ₆`'s relation on that element alone:
+//! `cos(2π/9) · cos(2π/3)` would be `−½ cos(2π/9)`, never the
+//! `½ cos(8π/9) + ½ cos(4π/9)` its neighbour's product meets, and a
+//! ring of 9 would leave the steps beside its members at a third of a
+//! turn. So `sin(π/6)` stays an atom, [`Turns`](crate::Turns) reads a
+//! twelfth's sine as that atom (`Real::sin_of_a_twelfth`), and [`settle`](crate::sym::turn::settle)
+//! folds it to `1/2` where the walk's form is read: its output, and
+//! every argument but a ring op's (an atom's, a reciprocal's, a
+//! decision's), so a value read there is the value the fold gives.
+//!
 //! # What it does not reach
 //!
 //! The constant atoms are linearly independent of each other only up to
 //! the algebraic relations among the `cos(qπ)` (`cos(π/9) − cos(2π/9) =
 //! sin(π/18)`); a residual that vanishes only through such a relation
-//! keeps its atoms. A ring's step is an angle addition and needs none,
-//! EXCEPT where one factor of a product reached the tier already folded
-//! to its rational value: [`Turns`](crate::Turns) reads `cos(turn/3)`
-//! as the literal `−1/2`, so the product `cos(2π/9) · cos(2π/3)` is
-//! `−½ cos(2π/9)` and never the two atoms the rewrite would meet. A
-//! ring of 9 proves every member but the two at a third and two thirds
-//! of a turn (`sym`'s
-//! `a_ring_member_at_a_rational_cosine_beside_irrational_steps_is_numeric`).
+//! keeps its atoms. A ring's step is an angle addition and needs none.
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use super::form::{Form, Mono, Poly, mono_mul};
 use super::rational::{Int, Rat};
-use super::{AtomInfo, INDET_PI, Session, SymOp, indet_atom, mint_atom, trig_at_rational_pi};
+use super::{AtomInfo, INDET_PI, Session, SymOp, indet_atom, mint_atom, unary_at_zero};
 
 /// The most pair rewrites one node's form takes before it is left as it
 /// was.
@@ -178,32 +187,77 @@ fn atom(sess: &mut Session, op: SymOp, arg: Form) -> Form {
     Form::poly(Poly::indet(id))
 }
 
-/// `sin`/`cos` of the constant angle `(p/s)·π`: a rational where the
-/// first octant's value is one, else `±` its atom.
+/// `sin`/`cos` of the constant angle `(p/s)·π`: `0` or `1` at the
+/// angle `0`, else `±` its atom, `sin(π/6)` among them (module docs).
 fn constant(sess: &mut Session, op: SymOp, p: i128, s: i128) -> Option<Form> {
     let (op, p, s, neg) = first_octant(op, p, s)?;
-    let arg = times(Rat::new(p, s, 0)?, INDET_PI);
-    let f = match trig_at_rational_pi(op, &arg) {
-        Some(f) => f,
-        None if p == 0 => Form::poly(Poly::constant(Rat::new(
-            i128::from(op == SymOp::Cos),
-            1,
-            0,
-        )?)),
-        None => atom(sess, op, arg),
+    let f = if p == 0 {
+        unary_at_zero(op)?
+    } else {
+        atom(sess, op, times(Rat::new(p, s, 0)?, INDET_PI))
     };
     if neg { f.neg() } else { Some(f) }
+}
+
+/// The key of the atom `sin(π/6)`, the one constant atom whose value is
+/// rational.
+fn sixth() -> Option<u128> {
+    static KEY: std::sync::OnceLock<Option<u128>> = std::sync::OnceLock::new();
+    *KEY.get_or_init(|| {
+        let arg = times(Rat::new(1, 6, 0)?, INDET_PI);
+        Some(indet_atom(SymOp::Sin.tag(), 0, &[arg.digest()]))
+    })
+}
+
+/// `num / den`, or poison where `den` is the zero polynomial: a
+/// denominator the rewrite or the fold shows to vanish is a real zero,
+/// and the form has no value. The walk settles a reciprocal's argument
+/// where it is made, so no document is known to reach this zero; it is
+/// the backstop behind that settle.
+fn over(num: Poly, den: Poly) -> Form {
+    if den.is_zero() {
+        Form::poison()
+    } else {
+        Form::quotient(num, den)
+    }
+}
+
+/// `p` with `sin(π/6)` read as `1/2`.
+fn settle_poly(p: &Poly, id: u128) -> Option<Poly> {
+    let mut out = Poly::zero();
+    for (mono, c) in p.terms() {
+        let e = super::form::exp_of(mono, id);
+        if e == 0 {
+            out.insert(mono.clone(), c.clone())?;
+            continue;
+        }
+        let half = Rat::new(1, 1, -i32::try_from(e).ok()?)?;
+        let rest: Mono = mono.iter().copied().filter(|&(x, _)| x != id).collect();
+        out.insert(rest, c.mul(&half)?)?;
+    }
+    Some(out)
+}
+
+/// **The fold rule H defers** (module docs): `f` with `sin(π/6)` read
+/// as its value `1/2` ([`over`]), `None` where `f` does not carry it
+/// or the fold does not fit the ring, and `f` stands.
+pub(super) fn settle(f: &Form, sess: &Session) -> Option<Form> {
+    let id = sixth()?;
+    if f.poisoned || !sess.atoms.contains_key(&id) {
+        return None;
+    }
+    let carries = |p: &Poly| p.monos().any(|m| super::form::exp_of(m, id) > 0);
+    if !carries(&f.num) && !carries(&f.den) {
+        return None;
+    }
+    Some(over(settle_poly(&f.num, id)?, settle_poly(&f.den, id)?))
 }
 
 /// `sin`/`cos` of a symbolic angle `ω` (no rational-turn part), its
 /// sign normalised, rule D's closed form asked first.
 fn symbolic(sess: &mut Session, op: SymOp, omega: &Form) -> Option<Form> {
     if omega.is_zero() {
-        return Some(Form::poly(Poly::constant(Rat::new(
-            i128::from(op == SymOp::Cos),
-            1,
-            0,
-        )?)));
+        return unary_at_zero(op);
     }
     let flipped = omega.neg()?;
     let (arg, neg) = if flipped.digest() < omega.digest() {
@@ -394,8 +448,9 @@ fn linear_poly(
 }
 
 /// **The product rewrite over one form** (module docs): `Some` of the
-/// rewritten form, the form itself where no term has a pair, `None`
-/// where the rewrite does not fit and the caller keeps the form.
+/// rewritten form ([`over`]), the form itself where no term has a
+/// pair, `None` where the rewrite does not fit and the caller keeps the
+/// form.
 pub(super) fn linearise(f: &Form, sess: &mut Session) -> Option<Form> {
     if f.poisoned {
         return Some(f.clone());
@@ -408,8 +463,5 @@ pub(super) fn linearise(f: &Form, sess: &mut Session) -> Option<Form> {
     let mut steps = 0;
     let num = linear_poly(&f.num, sess, &mut memo, &mut steps)?;
     let den = linear_poly(&f.den, sess, &mut memo, &mut steps)?;
-    if den.is_zero() {
-        return None;
-    }
-    Some(Form::quotient(num, den))
+    Some(over(num, den))
 }

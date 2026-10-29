@@ -797,9 +797,9 @@ fn run_at<T: editor_core::EvalScalar>(
 /// the three the hosted matrix runs; any other ε has no measurement and
 /// the row fails rather than pass on nothing.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x7691_1d18_51c0_4da3),
-    (1e-6, 0x32e0_70da_f7e6_9adf),
-    (1e-12, 0x6c6f_5536_7714_7ef2),
+    (1e-9, 0xb820_871c_94ff_0c0b),
+    (1e-6, 0xef7d_754d_6fdc_f337),
+    (1e-12, 0xf38a_1cb4_4a53_85fc),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
@@ -851,11 +851,12 @@ fn each_seat_stands_on_what_it_is_seated_on() {
 /// **A3, the `f64` fence**: the corpus's solved poses, spaces, faults and
 /// evaluations are byte-identical to the pre-generic tree's.
 ///
-/// RE-BLESSED for limb 2 for every carrier (PR 5728): check 2's turn
-/// moved from the edge's `Certificate` onto the edge, which changes the
-/// edge curve's `Debug` the digest feeds. With that `Debug` written in
-/// main's shape every digest here reproduces main's value at all three
-/// ε rows, so nothing else moved.
+/// RE-BLESSED twice for the edge curve's `Debug` the digest feeds: when
+/// check 2's turn moved from the edge's `Certificate` onto the edge (PR
+/// 5728), and when `Intersection`'s witness became its selector
+/// (`selector: Witness(p)` where it spelled `witness: p`). Each time, with
+/// that `Debug` written in main's shape, every digest here reproduced
+/// main's value at all three ε rows, so nothing else moved.
 #[test]
 fn a3_the_f64_solve_is_mains_bit_for_bit_on_the_mate_corpus() {
     let eps = Tol::witness().eps();

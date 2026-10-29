@@ -2,12 +2,12 @@
 id: the-door-proves-a-constructed-tangency
 kind: unit
 title: INTENT stage 6 PR D: the door proves the tangency row a trace-tangent construction makes
-status: parked
+status: dispatched
 opened: 2026-10-29
 priority: P0
 cost: M
 design: true
-blocked_on: [tangent-and-coaxial-scenes-are-in-the-corpus, a-sketch-continues-tangent-to-a-surfaces-trace]
+blocked_on: []
 ---
 
 

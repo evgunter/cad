@@ -75,6 +75,8 @@ mod a_face_inside_an_edges_wedge_refuses_at_tier_3_prime;
 mod a_keel_on_the_floor_subtracts_as_a_slit;
 #[path = "a_keel_wrapped_at_both_ends_splits_as_a_ring.rs"]
 mod a_keel_wrapped_at_both_ends_splits_as_a_ring;
+#[path = "a_trace_reads_a_piece_against_its_carrier.rs"]
+mod a_trace_reads_a_piece_against_its_carrier;
 #[path = "an_off_iso_straight_edge_takes_its_general_row.rs"]
 mod an_off_iso_straight_edge_takes_its_general_row;
 #[path = "analytic_rung3_at_rest.rs"]
@@ -458,10 +460,14 @@ mod review_4730_divided_carry_probes;
 mod review_4740_r1_probes;
 #[path = "review_cleave_mint_doors.rs"]
 mod review_cleave_mint_doors;
+#[path = "review_pinch_corner_split.rs"]
+mod review_pinch_corner_split;
 #[path = "spline_reanchor_rows.rs"]
 mod spline_reanchor_rows;
 #[path = "split_tangent_edge.rs"]
 mod split_tangent_edge;
+#[path = "split_through_a_union_pinch.rs"]
+mod split_through_a_union_pinch;
 #[path = "split_through_an_apex.rs"]
 mod split_through_an_apex;
 #[path = "tangent_touch_charges_both_sags.rs"]

@@ -815,6 +815,38 @@ pub fn pcurve_of<T: AtRestPolicy>(
     analytic_derive(&carrier, t0, t1, &surface, band, half_edge)
 }
 
+/// **A transverse seam's `Intersection`, its selector chosen by D2's
+/// question: is the curve known in advance?** Where both faces are spline
+/// walls and the edge's image on each ([`pcurve_of`]) is a row on its
+/// chart's domain side that certifies there, the curve is that shared row
+/// ([`geom_brep::IntersectionDraft::shared_row`]); otherwise the draft's
+/// witness. Built for boundary rows (the reader's scope, not D2's rule).
+/// `sides` are the seam's two half-edges, each with its face's surface
+/// key and surface.
+pub(crate) fn seam_intersection<T: AtRestPolicy>(
+    body: &Body<T>,
+    draft: geom_brep::IntersectionDraft<T>,
+    sides: [(HalfEdgeKey, geom_brep::SurfaceKey, &Surface<T>); 2],
+    band: Band,
+) -> geom_brep::DraftedIntersection<T> {
+    let [(ha, ka, wa), (hb, kb, wb)] = sides;
+    let pair = geom_brep::SurfacePair::new(ka, kb);
+    let spline = wa.spline_chart().is_some() && wb.spline_chart().is_some();
+    let row = spline
+        .then(|| {
+            let (ia, ib) = (
+                pcurve_of(body, ha, band).ok()?,
+                pcurve_of(body, hb, band).ok()?,
+            );
+            draft.shared_row(pair, [(ka, wa, ia), (kb, wb, ib)], band)
+        })
+        .flatten();
+    match row {
+        Some(selector) => draft.into_selected(pair, selector),
+        None => draft.into_intersection(pair),
+    }
+}
+
 /// The chart image of a carrier on an ANALYTIC chart, on the chart's
 /// principal branch: the closed form ([`chart_pcurve_over`]) wherever
 /// one exists, and the projected image for a carrier with none (a spline
@@ -6860,7 +6892,7 @@ pub(crate) mod pole_slit_tests {
         let rim = |t0: f64, t1: f64| EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(sphere, rim_plane),
-                witness: at(0.5 * (t0 + t1), v0),
+                selector: geom_brep::CurveSelector::Witness(at(0.5 * (t0 + t1), v0)),
             },
             carrier: Curve3::Circle {
                 center: Point3::new(0.0, 0.0, v0.sin()),
@@ -6921,7 +6953,7 @@ pub(crate) mod pole_slit_tests {
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(sphere, meridian_plane),
-                    witness: at(PI, 0.5 * (v0 + FRAC_PI_2)),
+                    selector: geom_brep::CurveSelector::Witness(at(PI, 0.5 * (v0 + FRAC_PI_2))),
                 },
                 carrier: Curve3::Circle {
                     center: Point3::new(0.0, 0.0, 0.0),
@@ -6988,7 +7020,7 @@ pub(crate) mod pole_slit_tests {
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(cylinder, plane),
-                    witness: p(0.5 * (t0 + t1), z),
+                    selector: geom_brep::CurveSelector::Witness(p(0.5 * (t0 + t1), z)),
                 },
                 carrier: Curve3::Circle {
                     center: Point3::new(0.0, 0.0, z),
@@ -7092,7 +7124,7 @@ pub(crate) mod pole_slit_tests {
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(cone, plane),
-                    witness: p(0.5 * (t0 + t1), z),
+                    selector: geom_brep::CurveSelector::Witness(p(0.5 * (t0 + t1), z)),
                 },
                 carrier: Curve3::Circle {
                     center: Point3::new(0.0, 0.0, z),

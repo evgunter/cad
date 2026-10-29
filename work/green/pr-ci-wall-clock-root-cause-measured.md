@@ -2,10 +2,11 @@
 id: pr-ci-wall-clock-root-cause-measured
 kind: issue
 title: PR CI's median wall-clock is past the 20-min alarm (23.1 min on nightly 74; Ev's bar is 15): the root cause measured, and the median owed back under the bar
-status: open
+status: closed
 opened: 2026-10-16
 priority: P0
 cost: M
+closed: 2026-10-29
 ---
 
 
@@ -263,3 +264,19 @@ moves the median most.
   catch. See `the-demos-job-is-pr-cis-long-pole-on-its-release-build`.
 - **Remains: `demos`.** It is 28.7 min whenever a diff touches `demos/`
   (29% of runs), and nearly all of that is the tour's release build.
+
+## Closed (2026-10-29)
+
+Nightly 76 (run 40823227622, job 123280253011): `PR CI wall-clock, last
+24 h: n=229 median=17.6 min p90=30.9 min (alarm at median > 20)`, down
+from 23.1 on nightly 74. The alarm is green. The levers that landed:
+#5941 (the `test` shards), #5984 (the roster into `ci-filter.py`), and
+#5989 (the tour's one test binary; it landed after this window). The
+24 h window starts before #5941 merged, so the next nightly is the
+first window that is wholly after it.
+
+Still open beside it, for the p90 (30.9) and for Ev's 15-minute bar:
+`the-demos-job-is-pr-cis-long-pole-on-its-release-build`,
+`a-sweep-seeded-diff-runs-the-test-job-past-the-fifteen-minute-bar`,
+`test-shards-build-the-kernel-libraries-twice` (the rebalance) and
+`demo-tour-unit-tests-compile-the-bin-twice`.

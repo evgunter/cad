@@ -560,10 +560,13 @@ impl<T: Real> Settler<'_, T> {
     /// [`SettleError::Dead`] where the chase ends on a cell `body` does
     /// not hold: a stage deleted it without its row.
     pub fn settle(&self, vertex: VertexKey) -> Result<Cell, SettleError> {
-        let start = Cell::Vertex(self.fusions.survivor(vertex));
-        self.rows
-            .chase(start, |c| holds(self.body, c))
-            .map_err(|reached| SettleError::Dead { vertex, reached })
+        crate::lineage::settle_through(
+            self.fusions,
+            Cell::Vertex(vertex),
+            |c| self.rows.get(c),
+            |c| holds(self.body, c),
+        )
+        .map_err(|reached| SettleError::Dead { vertex, reached })
     }
 
     /// The live cells `vertex`'s point lies in, one per cone of the
@@ -1902,16 +1905,26 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     evented: bool,
     charts: &mut ChartCache,
 ) -> Result<Result<Vec<super::section_cert::Cleared>, SectionRefusal>, BooleanError> {
-    use super::section_cert::{Side, certify, classify, of_pair_section};
+    use super::section_cert::{Side, certify, classify, of_carried, of_pair_section};
+    use super::section_table::Uncarried;
     if has_lone_vertex(a, fa.face) || has_lone_vertex(b, fb.face) {
         return Ok(Err(SectionRefusal::LoneVertex));
     }
     let section = match sections.held((a, fa.face), (b, fb.face)) {
-        Some(held) => of_pair_section(held),
+        Some(held) => of_pair_section(held, |_| {
+            match sections.carried((a, fa.face), (b, fb.face)) {
+                Some(Ok(carried)) => of_carried(Ok(carried)),
+                Some(Err(Uncarried::Carry(e))) => of_carried(Err(e)),
+                Some(Err(Uncarried::Section(_) | Uncarried::Component)) | None => {
+                    super::section_cert::Section::Unmarched
+                }
+            }
+        }),
         None => classify(
             &fa.surface,
             &fb.surface,
             overlap_reach(&fa.bbox, &fb.bbox),
+            T::ssi_lane(),
             band,
         ),
     };
@@ -1919,6 +1932,7 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let verdict = certify(
         &section,
         evented,
+        band,
         |side| {
             let (operand, body, row) = match side {
                 Side::F => (Operand::A, a, fa),
@@ -1931,7 +1945,7 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     Sheet::Unread
                 })
         },
-        |p| {
+        |p, band| {
             [
                 place_witness(a, fa.face, p, band),
                 place_witness(b, fb.face, p, band),
@@ -3494,10 +3508,19 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
         })? {
             geom_brep::DihedralClass::Transverse => {
                 let carrier = draft.span().0.kind();
+                let drafted = crate::pcurves::seam_intersection(
+                    body,
+                    draft,
+                    [
+                        (sides.plus.half_edge, s1, surf1),
+                        (sides.minus.half_edge, s2, surf2),
+                    ],
+                    band,
+                );
                 body.describe_intersection(
                     crate::policy_lane::KernelSite::SeamIntersection,
                     edge,
-                    draft.into_intersection(geom_brep::SurfacePair::new(s1, s2)),
+                    drafted,
                     tol,
                 )
                 .map_err(|e| of_attachment(edge, EdgeDescribeFailure::Intersection, carrier, e))?;
@@ -7933,7 +7956,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
             geom_brep::EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::Intersection {
                     pair: geom_brep::SurfacePair::new(sphere, plane),
-                    witness: carrier.mid_point(T::zero(), span),
+                    selector: geom_brep::CurveSelector::Witness(carrier.mid_point(T::zero(), span)),
                 },
                 carrier,
                 param_start: T::zero(),

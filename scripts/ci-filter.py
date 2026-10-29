@@ -2819,12 +2819,20 @@ def parse_config(tokens: list[str], source: str) -> dict[str, tuple[str, str]]:
 
 # THE TEST SHARDS. The test job's build is the per-PR floor and is
 # throughput-bound on one 4-core runner, so its scope is split in two and each
-# half builds and runs on its own runner: `app` is `APP_ROOT` and every member
-# that depends on it (dev edges included), `kernel` the rest. A half the scope
-# leaves empty is not run. The roster is spelled out so the shard scopes keep
-# their order; `_selftest_app_shard_premise` checks it against the member graph.
+# half builds and runs on its own runner: `app` is `APP_ROOT`, every member
+# that depends on it (dev edges included), and `APP_BALLAST`; `kernel` is the
+# rest. A half the scope leaves empty is not run.
+#
+# The graph rule alone leaves the halves unequal: `app` waits on the
+# editor-core chain with cores idle while `kernel` has more test binaries than
+# cores. `APP_BALLAST` is kernel members whose tests are moved into `app`'s idle
+# cores to even the two out; it is a timing choice the member graph cannot
+# express, so it is kept by hand and re-chosen when the shard times drift
+# apart. The roster is spelled out so the shard scopes keep their order;
+# `_selftest_app_shard_premise` checks it against the member graph.
 APP_ROOT = "verbs"
-APP_SHARD: tuple[str, ...] = ("verbs", "editor-core", "pncad", "pncad-py", "viewer")
+APP_BALLAST: tuple[str, ...] = ("mesh",)
+APP_SHARD: tuple[str, ...] = ("verbs", "editor-core", "pncad", "pncad-py", "viewer", "mesh")
 
 
 class ShardError(Exception):
@@ -3922,18 +3930,27 @@ _FIXTURE_NEXTEST = (
 
 
 def _selftest_app_shard_premise() -> None:
-    """`APP_SHARD` is `APP_ROOT` and its dependents on THIS tree's member graph,
-    so a new dependent of verbs or editor-core reds here rather than landing in
-    the kernel shard."""
+    """`APP_SHARD` is `APP_ROOT`, its dependents on THIS tree's member graph, and
+    `APP_BALLAST`, so a new dependent of verbs or editor-core reds here rather
+    than landing in the kernel shard. Each ballast entry is a member outside
+    that closure: a renamed member, or one that came to depend on verbs, reds
+    rather than leaving a ballast line that moves nothing."""
     try:
-        _, deps = _members(_repo_root())
-        want = set(_closure({APP_ROOT}, deps))
+        members, deps = _members(_repo_root())
+        dependents = set(_closure({APP_ROOT}, deps))
     except Bail as exc:
         raise SystemExit(f"SELFTEST FAILED: the app shard's roster cannot be derived: {exc}") from exc
+    for b in APP_BALLAST:
+        if b not in members or b in dependents:
+            raise SystemExit(
+                f"SELFTEST FAILED: APP_BALLAST names {b!r}, which is "
+                + ("not a member of this tree" if b not in members else f"already {APP_ROOT} or a dependent of it")
+            )
+    want = dependents | set(APP_BALLAST)
     if set(APP_SHARD) != want or len(APP_SHARD) != len(want):
         raise SystemExit(
-            f"SELFTEST FAILED: APP_SHARD is {sorted(APP_SHARD)}, but {APP_ROOT} and its "
-            f"dependents on this tree are {sorted(want)}"
+            f"SELFTEST FAILED: APP_SHARD is {sorted(APP_SHARD)}, but {APP_ROOT}, its "
+            f"dependents on this tree and APP_BALLAST are {sorted(want)}"
         )
 
 
@@ -3945,8 +3962,8 @@ def _selftest_test_shards(t: str) -> None:
         return json.dumps([{"shard": n, "scope": s} for n, s in halves], separators=(",", ":"))
 
     kernel = ("--workspace --exclude verbs --exclude editor-core --exclude pncad"
-              " --exclude pncad-py --exclude viewer")
-    app = "-p verbs -p editor-core -p pncad -p pncad-py -p viewer"
+              " --exclude pncad-py --exclude viewer --exclude mesh")
+    app = "-p verbs -p editor-core -p pncad -p pncad-py -p viewer -p mesh"
     for what, files, scope, want in (
         # test-utils, alone on the kernel side, rides with the app shard.
         ("an app-only closure", ["crates/verbs/src/lib.rs"], "-p verbs -p test-utils",
@@ -3968,6 +3985,9 @@ def _selftest_test_shards(t: str) -> None:
         ("test-utils is not added twice", ("closure", "-p geom-core -p test-utils -p verbs", "true"),
          ("-p geom-core -p test-utils -p verbs",
           shards(("kernel", "-p geom-core -p test-utils"), ("app", "-p verbs")))),
+        ("a ballast member rides with app", ("closure", "-p mesh -p topo -p test-utils", "true"),
+         ("-p mesh -p topo -p test-utils",
+          shards(("kernel", "-p topo -p test-utils"), ("app", "-p mesh")))),
     ):
         got = test_shards(*args)
         if got != want:

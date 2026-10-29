@@ -289,7 +289,7 @@ impl Frame {
     /// One predicate with one home, asked wherever a frame is admitted
     /// — the viewer's drawn frame — so no door can come to hold frames to
     /// a different standard. Its caller says WHICH frame
-    /// is at fault in its own vocabulary ([`FrameSite`]), and forwards
+    /// is at fault in its own vocabulary, and forwards
     /// this answer's sentence rather than restating it.
     ///
     /// Rigidity is [`RigidMotion::check_rigid`] at `tol`'s linear band,
@@ -365,7 +365,7 @@ pub enum FrameFault {
 }
 
 // The ONE prose for the frame rule: a predicate clause, so each door
-// forwards it into its own subject ([`FrameSite::subject`]) rather than
+// forwards it into its own subject rather than
 // inventing a second wording for the fact they share.
 impl core::fmt::Display for FrameFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {

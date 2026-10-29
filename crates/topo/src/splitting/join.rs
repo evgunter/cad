@@ -676,7 +676,9 @@ fn ruling_pairs<T: Decide>(
 ///
 /// **Unpinned**: no shipped fixture reaches [`ConicCrossingsCase::Grazing`]
 /// or [`ConicCrossingsCase::NotAlternating`]; both are typed and read
-/// here only.
+/// here only. The same heading read Zero at a chord's start is the
+/// chord's own refusal, [`SplitJoinError::SectionDepartureGrazes`],
+/// which a needle cone cut near its apex reaches.
 ///
 /// # Errors
 ///

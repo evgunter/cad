@@ -129,7 +129,7 @@ fn cut_ball(z: f64, seed_surface: Surface<f64>, made_surface: Option<Surface<f64
             let spec = EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(s_seed, s_made),
-                    witness,
+                    selector: geom_brep::CurveSelector::Witness(witness),
                 },
                 ..spec
             };

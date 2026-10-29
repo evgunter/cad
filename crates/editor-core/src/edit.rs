@@ -1169,7 +1169,7 @@ fn lower_node<P: crate::ProfilePayload>(
     // operand reads.
     let mut reads = lower_reads(new, node, None, &spoken)?.into_iter();
     lower_value(new, lowering, &rows, |f| {
-        node.try_map_slots(|p, g| P::lower(p, g), &mut |e| f(e), &mut |_, _| {
+        node.try_map_slots(|p, g, r| P::lower(p, g, r), &mut |e| f(e), &mut |_, _| {
             Ok(reads
                 .next()
                 .unwrap_or_else(|| unreachable!("one read per operand, walked in one order")))
@@ -1219,7 +1219,7 @@ fn lower_reads<P: crate::ProfilePayload>(
 ) -> Result<Vec<VarId>, EditError> {
     let mut reads = Vec::new();
     node.try_map_slots(
-        |p, g| P::lower(p, g),
+        |p, g, r| P::lower(p, g, r),
         &mut |_| Ok::<_, EditError>(VarId::new(0, 0)),
         &mut |slot, read| {
             let expected = match (slot, fixed) {
@@ -1889,7 +1889,7 @@ pub fn lower_node_into<P: crate::ProfilePayload>(
     let spoken = || SpokenNode::absent(RecipeNodeId::new(0, 0));
     let mut reads = lower_reads(doc, node, None, &spoken)?.into_iter();
     node.try_map_slots(
-        |p, g| P::lower(p, g),
+        |p, g, r| P::lower(p, g, r),
         &mut |f| lower_slot_into(doc, f),
         &mut |_, _| {
             Ok(reads
@@ -3170,8 +3170,8 @@ pub enum EditError {
     /// author building a frame and setting it speaks ONE error type
     /// from the constructor through the door.
     ///
-    /// Its own arm rather than [`EditError::NonFinitePlacement`]:
-    /// that one's subject is the frame's coordinates, and a reader
+    /// Its own arm rather than a non-finite frame's: that one's
+    /// subject is the frame's coordinates, and a reader
     /// told their frame is not finite goes looking at the frame,
     /// which is exactly the mistaken subject this arm exists to stop
     /// reporting. The cause is the axis, in the evaluation layer's
@@ -9230,7 +9230,10 @@ fn product_read<P: crate::ProfilePayload>(
 /// slot that reads a body in the world, and for one whose variable or
 /// space is gone, which is a stranded reader
 /// ([`crate::ProductError::StrandedProduct`]).
-pub(crate) fn product_fault<P>(doc: &Doc<P>, var: VarId) -> Option<ProductReadFault> {
+pub(crate) fn product_fault<P: crate::program::SlotPayload<VarId>>(
+    doc: &Doc<P>,
+    var: VarId,
+) -> Option<ProductReadFault> {
     let held = doc.var(var)?;
     if held.kind() != VarKind::Body {
         return Some(ProductReadFault::Kind { found: held.kind() });

@@ -52,6 +52,8 @@
 // directory carrying a `mod.rs`.
 mod shared;
 
+#[path = "a_shared_row_is_certified_per_wall.rs"]
+mod a_shared_row_is_certified_per_wall;
 #[path = "analytic_rung3_certificate.rs"]
 mod analytic_rung3_certificate;
 #[path = "approx_surface.rs"]
@@ -341,6 +343,8 @@ mod span_reach_differential;
 mod span_reach_hunt;
 #[path = "tangent_gap_hull_charges_both_sags.rs"]
 mod tangent_gap_hull_charges_both_sags;
+#[path = "tori_coincide.rs"]
+mod tori_coincide;
 #[path = "torus_chart_guards.rs"]
 mod torus_chart_guards;
 #[path = "torus_doors_ssi.rs"]

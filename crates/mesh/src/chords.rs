@@ -733,7 +733,7 @@ fn harmonic_uv_speeds(u: geom_brep::Channel<f64>, v: geom_brep::Channel<f64>) ->
 /// held to. Only where the bound itself fails — `ρ² ≤ 0` on the arc's
 /// closed-form lower bound, an arc through or numerically on the pole —
 /// is there no count to ask, and that refuses
-/// [`SphereTrimCause::ThroughPole`].
+/// [`SphereTrimCause::ThroughPole`](crate::types::SphereTrimCause::ThroughPole).
 ///
 /// The deck map moves an image by a translation and a sign, which no
 /// speed sees. A spline carrier's projected image, or any other form,

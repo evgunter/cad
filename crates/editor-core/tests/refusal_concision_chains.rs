@@ -792,7 +792,7 @@ test_utils::f6_variants! {
     /// census rows are checked against, so an arm with no row reds and
     /// an arm added to the enum stops this compiling until it is here.
     const NODE_ERROR_KIND: NodeErrorKind = [
-        Expr, Profile, ProfileReplay, ProfileLaneReplay, Extrude, Revolve, Tube, Split, Blend,
+        Expr, Profile, ProfileReplay, ProfileLaneReplay, Trace, Extrude, Revolve, Tube, Split, Blend,
         Boolean, Transform, Mirror, Motion, Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
         ToleranceConflict, ParamBox, Seed, WrongOperand, EmptyOperand,
         UnfinishedOperand, EmptyHalf, MemberOutOfRange, MemberRefused, IndicesUnrelated,
@@ -821,11 +821,13 @@ mod kernel {
     use sweep::blend::BlendError;
     pub(super) type ReplayErrorKind = profile::ReplayErrorKind<f64>;
     pub(super) type PathError = profile::path::PathError<f64>;
+    use editor_core::TraceStepFault;
     use profile::StructureRefusalKind;
     use topo::SplitError;
     use topo::SplitFinishError;
     use topo::SplitJoinError;
     use topo::SplitReduceError;
+    use topo::boolean::trace::TraceFault;
     pub(super) type ShellError = topo::ShellError<f64>;
     pub(super) type ReplaceFaceError = topo::ReplaceFaceError<f64>;
     use geom_core::BandError;
@@ -934,6 +936,21 @@ mod kernel {
     }
 
     test_utils::f6_variants! {
+        /// `TraceStepFault`'s arms, for the `Trace/` rows.
+        pub(super) const TRACE_STEP_FAULT: TraceStepFault = [
+            Undrawn, Unevaluated, NoSuchFace, NoPen, NoHeading, NotARun, OffTrace, NoTrace, NoSuchCrossing,
+            NoTangent, Unreached, Carrier,
+        ];
+    }
+
+    test_utils::f6_variants! {
+        /// `TraceFault`'s arms, for the `Trace/Carrier/` rows.
+        pub(super) const TRACE_FAULT: TraceFault = [
+            Unsupported, Grazing, Apex, OnCarrier, Escalated, Unsettled,
+        ];
+    }
+
+    test_utils::f6_variants! {
         /// `SplitError`'s arms, for the `Split/` rows.
         pub(super) const SPLIT_ERROR: SplitError = [
             Reduce, Join, Finish, Pcurves, Pieces,
@@ -965,7 +982,7 @@ mod kernel {
             RunImageIncidence, RingIslandUnread,
             RunEdgeCarrierUnsupported,
             TangentChordEscalated, TangentChordBendEscalated, TangentChordRefuted,
-            SectionCrossings,
+            SectionCrossings, SectionDepartureGrazes,
         ];
     }
 
@@ -973,7 +990,7 @@ mod kernel {
         /// `SplitFinishError`'s arms, for the `Split/Finish/` rows.
         pub(super) const SPLIT_FINISH_ERROR: SplitFinishError = [
             DegenerateSide, TornComponent, UnclassifiableComponent, Corrupt, Euler,
-            Band, DescribeEscalated, DescribeSideEscalated, DescribeBendEscalated,
+            Band, ConeCornerEscalated, ConeCornerUnread, ConeFusionDesync, DescribeEscalated, DescribeSideEscalated, DescribeBendEscalated,
             EdgeOnFacesEscalated, SmoothJoinRefuted, SectionWindingUndecided, KnifeEdge,
             NestingContradiction, SlitUnplaced, SlitHoming, ResultInvalid,
             ResultNotAtRest, ResultEscalated, EdgeJoin, Merge,
@@ -1068,6 +1085,8 @@ const ROSTERS: &[(&str, &[&str])] = {
         ("ReplayErrorKind", REPLAY_ERROR_KIND.identifiers()),
         ("PathError", PATH_ERROR.identifiers()),
         ("StructureRefusalKind", STRUCTURE_REFUSAL_KIND.identifiers()),
+        ("TraceStepFault", TRACE_STEP_FAULT.identifiers()),
+        ("TraceFault", TRACE_FAULT.identifiers()),
         ("SplitError", SPLIT_ERROR.identifiers()),
         ("SplitReduceError", SPLIT_REDUCE_ERROR.identifiers()),
         ("SplitJoinError", SPLIT_JOIN_ERROR.identifiers()),
@@ -1166,6 +1185,13 @@ fn forward(kind: &NodeErrorKind) -> Forward {
             Some(s) => one("StructureRefusalKind", &s.kind),
             None => welded(Vec::new()),
         },
+        NodeErrorKind::Trace(refusal) => {
+            let mut levels = vec![level("TraceStepFault", &refusal.fault)];
+            if let editor_core::TraceStepFault::Carrier(fault) = &refusal.fault {
+                levels.push(level("TraceFault", fault));
+            }
+            welded(levels)
+        }
         NodeErrorKind::Extrude(e) => one("ExtrudeError", e),
         NodeErrorKind::Revolve(e) => one("RevolveError", e),
         NodeErrorKind::Tube(e) => one("TubeError", e),
@@ -1632,6 +1658,7 @@ fn node_refusals() -> Vec<(String, NodeErrorKind)> {
     rows.extend(blend());
     rows.extend(profile());
     rows.extend(profile_replay());
+    rows.extend(trace());
     rows.extend(editor_payloads());
     rows.extend(document_arms());
     rows.extend(mate());
@@ -2628,6 +2655,10 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                     band: band(),
                 },
             ),
+            (
+                "SectionDepartureGrazes",
+                J::SectionDepartureGrazes { face, band: band() },
+            ),
         ]
     };
     let join = join_arms().map(|(n, e)| (format!("Join/{n}"), SplitError::Join(e)));
@@ -2657,6 +2688,20 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         (
             "DescribeEscalated",
             F::DescribeEscalated { edge, diag: diag() },
+        ),
+        (
+            "ConeCornerEscalated",
+            F::ConeCornerEscalated {
+                vertex,
+                source: diag(),
+            },
+        ),
+        ("ConeCornerUnread", F::ConeCornerUnread { vertex }),
+        (
+            "ConeFusionDesync",
+            F::ConeFusionDesync {
+                what: "a joint half-edge has no end",
+            },
         ),
         (
             "DescribeSideEscalated",
@@ -4334,6 +4379,66 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                 },
             ),
         ])
+        .collect()
+}
+
+/// A profile step reading a trace, refusing each way it can.
+fn trace() -> Vec<(String, NodeErrorKind)> {
+    use editor_core::{TraceCrossing, TracePassage, TraceRefusal, TraceStepFault as F};
+    use topo::boolean::trace::TraceFault;
+    let diag = || payloads::named(topo::boolean::trace::TRACE_CROSSING_SENSE);
+    let faults = vec![
+        ("Undrawn", F::Undrawn),
+        ("Unevaluated", F::Unevaluated),
+        ("NoSuchFace", F::NoSuchFace { traced: 1 }),
+        ("NoPen", F::NoPen),
+        ("NoHeading", F::NoHeading),
+        ("NotARun", F::NotARun),
+        ("OffTrace", F::OffTrace),
+        ("NoTrace", F::NoTrace),
+        (
+            "NoSuchCrossing",
+            F::NoSuchCrossing {
+                crossing: TraceCrossing {
+                    passage: TracePassage::Leave,
+                    nth: 2,
+                },
+                found: 1,
+            },
+        ),
+        ("NoTangent", F::NoTangent),
+        ("Unreached", F::Unreached),
+        (
+            "Carrier/Unsupported",
+            F::Carrier(TraceFault::Unsupported {
+                carrier: geom::SurfaceKind::Nurbs,
+            }),
+        ),
+        ("Carrier/Grazing", F::Carrier(TraceFault::Grazing)),
+        ("Carrier/Apex", F::Carrier(TraceFault::Apex)),
+        ("Carrier/OnCarrier", F::Carrier(TraceFault::OnCarrier)),
+        (
+            "Carrier/Escalated",
+            F::Carrier(TraceFault::Escalated(diag())),
+        ),
+        (
+            "Carrier/Unsettled",
+            F::Carrier(TraceFault::Unsettled(geom_brep::roots::Unsettled::Meter)),
+        ),
+    ];
+    faults
+        .into_iter()
+        .map(|(name, fault)| {
+            row(
+                &format!("Trace/{name}"),
+                NodeErrorKind::Trace(TraceRefusal {
+                    loop_: 0,
+                    step: 3,
+                    face: Some(0),
+                    fault,
+                }),
+            )
+        })
         .collect()
 }
 

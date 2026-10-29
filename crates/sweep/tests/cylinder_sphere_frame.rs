@@ -501,3 +501,61 @@ fn the_oracle_agrees_with_a_second_slicing() {
     let inside = oracle(0.1, [0.0, 0.0, 0.2], LOWER);
     assert!((inside - 4.0 / 3.0 * PI * 0.001).abs() < 1e-13, "{inside}");
 }
+
+/// **A rod through a ball pairs both loops alike**: the unit ball and a
+/// rod of radius 0.3 about the line `x = 0.1, y = 0` through it, mirror-symmetric in
+/// `z → −z`, so each op's segments on the upper loop are the lower
+/// loop's mirrored, and no segment joins a site of one loop to a site of
+/// the other. A matcher that faces germs on two components pairs one
+/// loop's sites the other way round.
+#[test]
+fn a_rod_through_a_ball_pairs_both_loops_alike() {
+    let tol = Tol::witness();
+    let unit = sweep::test_support::finished(
+        "the ball",
+        sweep::test_support::ball_poled(1.0, Vec3::new(0.0, 0.0, 0.0), Vec3::unit_z(), tol),
+        tol,
+    );
+    let rod = {
+        let lp = profile::circle(geom_core::Point2::new(0.1, 0.0), 0.3, tol).unwrap();
+        let plane = profile::SketchPlane::xy_at(Point3::new(0.0, 0.0, -2.0));
+        let profile = profile::Profile::new(plane, vec![lp.into()])
+            .validate(tol)
+            .unwrap();
+        let body = sweep::extrude(
+            &profile,
+            sweep::Extrusion::Distance {
+                depth: 4.0,
+                side: sweep::ExtrudeSide::Along,
+            },
+            tol,
+        )
+        .unwrap()
+        .body;
+        sweep::test_support::at_rest(&body, tol)
+    };
+    for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
+        let (_, segs) = topo::test_support::boolean_segment_sites(op, &unit, &rod, tol)
+            .unwrap()
+            .unwrap();
+        let key = |p: Point3<f64>| ((p.x * 1e6).round() as i64, (p.y * 1e6).round() as i64);
+        let loop_of = |up: bool| {
+            let mut v: Vec<_> = segs
+                .iter()
+                .filter(|[p, _]| (p.z > 0.0) == up)
+                .map(|[p, q]| (key(*p), key(*q)))
+                .collect();
+            v.sort();
+            v
+        };
+        assert!(
+            segs.iter().all(|[p, q]| (p.z > 0.0) == (q.z > 0.0)),
+            "{op:?}: a segment joins the two loops"
+        );
+        assert_eq!(
+            loop_of(true),
+            loop_of(false),
+            "{op:?}: the mirror-symmetric pose pairs its loops differently"
+        );
+    }
+}

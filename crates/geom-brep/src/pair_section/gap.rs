@@ -6,6 +6,10 @@
 //! critical values against a core circle are its two meridian distances
 //! ([`super::torus`]).
 //!
+//! It decides whether the pair is tangent and where, and says nothing of
+//! whether a given curve on both surfaces runs along the tangency within
+//! ε.
+//!
 //! # Offset duality
 //!
 //! A cylinder and a torus are each the points at distance `ρ` from a

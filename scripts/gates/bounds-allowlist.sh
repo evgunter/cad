@@ -721,8 +721,12 @@ BOUNDS_ALLOWLIST=(
   # impl (`Bound`), which asks the same two doors, `RegionMemo::ask`
   # and the verifier's `Candidate`, that `Sweep::run` asked in place.
   # One walk in two items; no new bracket read.
+  # 13 -> 16 (TIGHTEN): the minimum walk decides its cells as the bound
+  # walk does. Its `Question` impl (`Bracket`) asks the same two doors,
+  # `RegionMemo::ask` and `station`, through `Bracket::outside` and
+  # `Bracket::witness`, which the root pass shares; no new bracket read.
   'crates/topo/src/cell_region.rs 4 M5 PR 11, the certified-quadrature plumbing'
-  'crates/topo/src/clearance.rs 13 M5 PR 11, the certified-quadrature plumbing'
+  'crates/topo/src/clearance.rs 16 M5 PR 11, the certified-quadrature plumbing'
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
   # 15 -> 17: `chain_turns` is predicate 4's loop moved out of
   # `run_battery_for` whole (its junction-end pick the one bracket read,

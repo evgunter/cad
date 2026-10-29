@@ -935,8 +935,12 @@ mod germ_plane_torus_spiric;
 mod germ_radial_hole;
 #[path = "germ_sphere_no_crossings.rs"]
 mod germ_sphere_no_crossings;
+#[path = "germ_sphere_torus_placements.rs"]
+mod germ_sphere_torus_placements;
 #[path = "germ_tilted_rod.rs"]
 mod germ_tilted_rod;
+#[path = "germ_torus_components.rs"]
+mod germ_torus_components;
 #[path = "germ_torus_doors.rs"]
 mod germ_torus_doors;
 #[path = "germ_torus_rods.rs"]
@@ -1294,7 +1298,13 @@ mod review_4737_span_probes;
 #[path = "fallback_rows_review.rs"]
 mod fallback_rows_review;
 
+#[path = "a_plane_near_a_needle_cones_apex.rs"]
+mod a_plane_near_a_needle_cones_apex;
 #[path = "fallback_rows_review_head.rs"]
 mod fallback_rows_review_head;
 #[path = "review_5956_delta_needle.rs"]
 mod review_5956_delta_needle;
+#[path = "review_6002_needle_join.rs"]
+mod review_6002_needle_join;
+#[path = "review_6020_seam_probes.rs"]
+mod review_6020_seam_probes;
