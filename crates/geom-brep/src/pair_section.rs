@@ -579,7 +579,7 @@ pub enum PairPose<T: Real> {
     /// Torus × torus.
     TorusTorus(TorusTorusPose<T>),
     /// A plane and a spline wall.
-    PlaneSpline(PlaneSplinePose<T>),
+    PlaneSpline(Box<PlaneSplinePose<T>>),
 }
 
 impl<T: Real> PairPose<T> {
@@ -1058,7 +1058,7 @@ impl<T: Decide> PairSection<T> {
                     carrier: f.carrier.clone(),
                     span: f.span,
                     closed: f.closed,
-                    certificate: Some(f.certificate.clone()),
+                    certificate: Some(f.certificate),
                 }),
                 (ClassCarrier::Fitted(_), Some(_)) => Err(CarryError::Desync(
                     "the march found a branch on a component the reading already carries",
@@ -1138,8 +1138,11 @@ pub struct SsiLane<T: Real> {
     /// against the pose's operands ([`PairSection::seat`]).
     seat: fn(&PairPose<T>, &CarriedComponent<T>, T, Band) -> Seated<T>,
     /// The section of a plane and a spline wall ([`plane_spline`]).
-    spline: fn(&Surface<T>, &Surface<T>, Band) -> Result<PairSection<T>, SectionError>,
+    spline: SplineSection<T>,
 }
+
+/// What reads a plane and a spline's section ([`plane_spline`]).
+type SplineSection<T> = fn(&Surface<T>, &Surface<T>, Band) -> Result<PairSection<T>, SectionError>;
 
 /// What one seating answers: the component opened at the parameter
 /// ([`PairSection::seat`]).

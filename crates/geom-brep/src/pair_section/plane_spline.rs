@@ -20,7 +20,7 @@
 //! The reading is a march, so the arm is the march door's
 //! ([`SsiLane::marched`], at `f64` alone).
 
-use geom::{Surface, SurfaceKind};
+use geom::Surface;
 use geom_core::{Band, Point3, Real};
 
 use super::{
@@ -36,6 +36,9 @@ use crate::ssi::{BranchEnd, SsiCertificate, SsiDomain, SsiError, SsiTube};
 pub struct PlaneSplinePose<T: Real> {
     plane: Surface<T>,
     wall: Surface<T>,
+    /// The wall's net: a NURBS wall's own, an approximating surface's
+    /// fit's.
+    net: geom::NurbsSurface<T>,
     plane_first: bool,
 }
 
@@ -44,20 +47,17 @@ impl<T: Real> PlaneSplinePose<T> {
     /// approximating surface; `None` for any other pair.
     #[must_use]
     pub fn of(a: &Surface<T>, b: &Surface<T>) -> Option<Self> {
-        let spline = |s: &Surface<T>| matches!(s.kind(), SurfaceKind::Nurbs | SurfaceKind::Approx);
-        match (a, b) {
-            (Surface::Plane { .. }, w) if spline(w) => Some(Self {
-                plane: a.clone(),
-                wall: w.clone(),
-                plane_first: true,
-            }),
-            (w, Surface::Plane { .. }) if spline(w) => Some(Self {
-                plane: b.clone(),
-                wall: w.clone(),
-                plane_first: false,
-            }),
-            _ => None,
-        }
+        let (plane, wall, plane_first) = match (a, b) {
+            (Surface::Plane { .. }, w) => (a, w, true),
+            (w, Surface::Plane { .. }) => (b, w, false),
+            _ => return None,
+        };
+        Some(Self {
+            plane: plane.clone(),
+            wall: wall.clone(),
+            net: wall.spline_chart()?.clone(),
+            plane_first,
+        })
     }
 
     /// The two surfaces in the order the pose was asked of.
@@ -76,14 +76,8 @@ impl<T: Real> PlaneSplinePose<T> {
 
     /// The wall's net: a NURBS wall's own, an approximating surface's
     /// fit's.
-    ///
-    /// # Panics
-    ///
-    /// Never: [`Self::of`] holds a wall with a spline chart.
     pub fn net(&self) -> &geom::NurbsSurface<T> {
-        self.wall
-            .spline_chart()
-            .expect("the pose holds a spline wall")
+        &self.net
     }
 
     /// `[on the plane, on the wall]` in the order the pose was asked of.
@@ -97,19 +91,20 @@ impl<T: Real> PlaneSplinePose<T> {
 
     /// **A ball holding the whole section**: the wall lies in its net's
     /// convex hull (its weights are positive), so in the ball about the
-    /// net's control points.
-    ///
-    /// # Panics
-    ///
-    /// Never: a NURBS net holds a control point.
+    /// net's control points: about their mean, reaching the farthest.
     pub fn ball(&self) -> ExtentBall<T> {
-        let points: Vec<_> = self
-            .net()
-            .control()
+        let control = self.net.control();
+        let Some(&first) = control.first() else {
+            return ExtentBall::new(Point3::origin(), T::zero());
+        };
+        let zero = geom_core::Vec3::new(T::zero(), T::zero(), T::zero());
+        let mean = control.iter().fold(zero, |acc, &p| acc + (p - first))
+            / T::from_f64(control.len() as f64);
+        let center = first + mean;
+        let radius = control
             .iter()
-            .map(|&p| ExtentBall::point(p))
-            .collect();
-        ExtentBall::enclosing(&points).expect("a net holds a control point")
+            .fold(T::zero(), |r, &p| r.max((p - center).norm()));
+        ExtentBall::new(center, radius)
     }
 }
 
@@ -220,7 +215,7 @@ pub(super) fn section(
     }));
     let lever = pose.ball().radius();
     Ok(PairSection {
-        pose: PairPose::PlaneSpline(pose),
+        pose: PairPose::PlaneSpline(Box::new(pose)),
         decided: Vec::new(),
         components,
         sides: Sides::Untold(
