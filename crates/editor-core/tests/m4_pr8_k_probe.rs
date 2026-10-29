@@ -285,13 +285,23 @@ const PINNED_KEY_SPLITS: &[(&str, &[u32])] = &[
     ("plate_param", &[14, 24, 35, 43, 57, 63, 71]),
     ("kiss_carry", &[9, 17, 28, 36, 50, 56, 66, 74, 88, 94, 102]),
     ("reshaped_rod", &[14, 24, 29, 55]),
+    (
+        "pin_in_bore",
+        &[9, 20, 34, 47, 57, 71, 98, 109, 123, 136, 146, 162, 170],
+    ),
+    ("axis_projection", &[17, 32, 38, 43, 51]),
+    (
+        "blocks_on_one_floor",
+        &[9, 17, 28, 36, 45, 73, 81, 90, 110, 118, 132, 140],
+    ),
+    ("revolves_on_one_axis", &[11, 20, 32, 41, 51, 59, 67]),
 ];
 
 /// **The wrapper property at the EVALUATION lane, as a differential
 /// rather than as a claim: evaluating the corpus at `Probe` and at
 /// `f64` produces BIT-IDENTICAL results** — save, today, the content and
 /// naming keys of the nodes [`PINNED_KEY_SPLITS`] names, which split
-/// between the lanes on 26 documents while everything else about those
+/// between the lanes on 30 documents while everything else about those
 /// nodes agrees.
 ///
 /// Scope, because the scope is the part that was got wrong once: the

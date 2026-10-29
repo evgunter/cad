@@ -57,3 +57,8 @@ read the old pin exactly. `PINNED_KEY_SPLITS` now holds main's set,
 identical at 1e-6, 1e-9 and 1e-12 and identical to nightly 76's message.
 The split itself is unchanged in kind: 26 documents, and every node
 splits both keys.
+
+INTENT stage 6 A then added four corpus documents (`axis_projection`,
+`blocks_on_one_floor`, `pin_in_bore`, `revolves_on_one_axis`). They
+split the same way and are pinned too: 30 documents, with the other
+26 entries unchanged.
