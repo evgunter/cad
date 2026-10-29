@@ -60,4 +60,4 @@ What B2b's sweep found outside its fence is filed:
 - `chart-channel-periods-are-spelled-in-several-places.md`;
 - `a-lifted-copy-on-a-closed-spline-chart-has-no-placement-term.md`;
 - `a-sub-half-period-drift-names-envelope-on-the-focal-and-spiric-lanes.md`, all here;
-- `work/exch/step-import-unwrap-reads-a-whole-period-off-a-value.md`.
+- `work/foreign/step-import-unwrap-reads-a-whole-period-off-a-value.md`.

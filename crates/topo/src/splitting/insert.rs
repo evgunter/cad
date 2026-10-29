@@ -207,39 +207,31 @@ fn section_chords<T: Decide>(
     let order = |diag| escalated(SectionGermReading::Order, diag);
     let point = body.resolve_vertex_point(vertex, Proven);
     // How far cut `c`'s face's section curves off the tangent `t`
-    // toward `across`, the plane's quarter turn of `t`. Poison where the
-    // surface is singular at the vertex or the plane is tangent to it
-    // there, which refuses. At a cone's apex the section is a ruling,
-    // straight: it bends by nothing.
+    // toward `across`, the plane's quarter turn of `t`: poison or
+    // unbounded where the surface is singular at the vertex or the
+    // plane is tangent to it there, which refuses. At a cone's apex the
+    // section is a ruling, straight: it bends by nothing.
     let section_bend = |c: usize, t: Vec3<T>, across: Vec3<T>| -> Result<T, SplitReduceError> {
         let (face, at_vertex, _) = sector_face(body, vertex, entries[cuts[c]].he, band)?;
         if let VertexFace::Apex(_) = at_vertex {
             return Ok(T::zero());
         }
         let surface = body.face_surface_linked(face, proven(&body.faces, face, EntityId::Face));
-        let bend = geom_brep::implicit_graph_acceleration(surface, point, t, across);
-        if bend.is_poison() {
-            return Err(unordered(SectionGermFault::Singular));
-        }
-        Ok(bend)
+        Ok(geom_brep::implicit_graph_acceleration(
+            surface, point, t, across,
+        ))
     };
     // Whether germ `b`, tied with germ `a` along `a`'s tangent, curves
     // counterclockwise of it about `normal` (Positive) or clockwise.
     let curving = |a: usize, b: usize, arm: T| -> Result<Sign, SplitReduceError> {
         let t = germs[a].0;
         let across = normal.cross(t);
-        let bend = section_bend(b, t, across)? - section_bend(a, t, across)?;
-        match geom_brep::enters_material_order2(
-            across * bend,
-            T::one(),
-            geom_brep::ReferenceNormal::of_split_germ(normal, t),
-            arm,
-            band,
-        ) {
-            Ok(geom_brep::EntersMaterial::Exits) => Ok(Sign::Positive),
-            Ok(geom_brep::EntersMaterial::Enters) => Ok(Sign::Negative),
-            Ok(geom_brep::EntersMaterial::Tangent) => Err(unordered(SectionGermFault::Coincident)),
-            Err(escalation) => Err(order(escalation.diag())),
+        let bends = [section_bend(a, t, across)?, section_bend(b, t, across)?];
+        match geom_brep::tied_germ_turn(normal, t, bends, arm, band) {
+            Ok(Sign::Zero) => Err(unordered(SectionGermFault::Coincident)),
+            Ok(sign) => Ok(sign),
+            Err(geom_brep::TiedGermsError::Singular) => Err(unordered(SectionGermFault::Singular)),
+            Err(geom_brep::TiedGermsError::Lever(escalation)) => Err(order(escalation.diag())),
         }
     };
     // Each germ's slot counterclockwise from germ 0: along it (0), the

@@ -31,9 +31,8 @@ use std::collections::BTreeSet;
 use sweep::test_support::revolved_about_y;
 use sweep::{Revolution, extrude, loft_body, revolve, sweep_body};
 use topo::clearance::{
-    BoundReport, BoundVerdict, CLEARANCE_MARGIN, Candidate, CertificateArm, ClearanceBound,
-    DEFAULT_MAX_CELL_DEPTH, EngineRefusal, MinSeparationConfig, SharedCell, Side, Sweep,
-    min_separation,
+    BoundReport, BoundVerdict, Budgets, CLEARANCE_MARGIN, Candidate, CertificateArm,
+    ClearanceBound, DEFAULT_MAX_CELL_DEPTH, EngineRefusal, SharedCell, Side, Sweep, min_separation,
 };
 use topo::{Body, FaceKey, LoopBoundary, VertexKey};
 
@@ -119,8 +118,10 @@ fn injective(body: &Body<f64>, faces: Option<Vec<FaceKey>>, budget: usize) -> Bo
     let sweep = Sweep {
         bound: ClearanceBound::StrictlyPositive,
         band: band(),
-        max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
-        max_cell_pairs: budget,
+        budgets: Budgets {
+            max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+            max_cell_pairs: budget,
+        },
     };
     let report = sweep.run(
         &windows,
@@ -483,8 +484,10 @@ fn clearance_between_scopes_sharing_an_edge_is_violated_at_zero() {
     let sweep = Sweep {
         bound,
         band: band(),
-        max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
-        max_cell_pairs: BUDGET,
+        budgets: Budgets {
+            max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+            max_cell_pairs: BUDGET,
+        },
     };
     let mut met = None;
     let report = sweep.run(&wa, &wb, true, |candidate| {
@@ -504,7 +507,7 @@ fn clearance_between_scopes_sharing_an_edge_is_violated_at_zero() {
         "named on the shared edge: {met:?}"
     );
     assert_eq!(CLEARANCE_MARGIN, bound.predicate());
-    let m = min_separation(&sa, &sb, true, MinSeparationConfig::default()).unwrap();
+    let m = min_separation(&sa, &sb, true, Budgets::MIN_SEPARATION).unwrap();
     assert_eq!((m.lo(), m.window_hi()), (0.0, 0.0), "{}", m.render());
     let meets = m.meets().expect("the scopes meet");
     assert!(matches!(meets.shared, SharedCell::Edge(_)), "{meets:?}");

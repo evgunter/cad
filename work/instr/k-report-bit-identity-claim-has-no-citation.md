@@ -20,7 +20,7 @@ beside it asserted one-sided greenness only.
 
 It is now checked:
 `crates/editor-core/tests/m4_pr8_k_probe.rs`'s
-`probe_agrees_with_f64_bit_for_bit_over_the_corpus` evaluates the whole
+`probe_agrees_with_f64_bit_for_bit_save_the_pinned_key_splits` evaluates the whole
 Band 4 corpus at `Probe` and at `f64` and compares the two bit for bit
 — per-node value channel, mass properties, content keys, name tables,
 verdict and escalation logs — once per ε row `k_probe_sweep.sh` dumps
@@ -47,7 +47,7 @@ Filed by SUITE/D114.
 
 **Fixed in this sweep.** `docs/K-REPORT.md`'s Methodology bullet
 (`:24-35`) now cites
-`crates/editor-core/tests/m4_pr8_k_probe.rs::probe_agrees_with_f64_bit_for_bit_over_the_corpus`.
+`crates/editor-core/tests/m4_pr8_k_probe.rs::probe_agrees_with_f64_bit_for_bit_save_the_pinned_key_splits`.
 It keeps the two limits this row asked for: the differential does not
 read carriers, surface geometry or pcurves, and it does not cover the
 demo scenes or `cup`/`vessel`. The two sibling sentences, in

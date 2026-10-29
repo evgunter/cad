@@ -38,3 +38,22 @@ dual review (2026-10-28).
 - That bound measured at the pose's own scale: from the pair's own centre
   or pivot, never the world origin.
 - Then a fresh reading of which near-miss saddles can decide.
+
+## It reads the torus's `u_ref` too (SECT, 2026-10-28)
+
+Measured on `sect/torus-doors` at `CAD_TOLERANCE_EPS=1e-12`: the
+straight pipe entering its bend (torus `R = 1`, `r = 1/4` about `z` at
+the origin; a cylinder of radius `1/4` along `y` through `(1, 0, 0)`,
+the tube-circle tangency, the pose `torus_gap.rs`
+`the_tube_circle_tangency_decides_zero` decides Zero at `R = 2`)
+decides Zero (`ct_critical_gap`, margin `2.8e-13`) when the torus's
+`u_ref` is `+x`, the tangency at the sweep's first cell edge, and
+escalates (margin `9.82e-12`, inside `[1e-12, 1e-11]`) for `u_ref` `+y`,
+`(0.51, 0.86, 0)` and `(−0.86, 0.51, 0)`. The torus is the same surface
+in each; only its parameter origin moves, and with it where the sweep's
+cells fall about the critical point. At the default ε every `u_ref`
+decides Zero. So the gap's verdict at a tight band depends on the chart
+origin as well as the world origin, the frame-dependence this row's fix
+has to remove. `crates/geom-brep/tests/torus_doors_ssi.rs`
+`a_tube_circle_tangency_refuses_at_each_door` reads the pose with
+`u_ref = +x` for that reason.
