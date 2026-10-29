@@ -287,7 +287,11 @@ fn the_conic_quarter_torus_answers_a_bracket_holding_pappus() {
             )
         })
         .count();
-    assert_eq!(walls, 2, "both half bands are the conic surface");
+    // Re-baselined after the C⁰-knot split (FOREIGN): 162 one-span walls; this test runs ~259 s in release (import ~125-146 s) and the import alone ~1044 s in debug, against 19 s / 90 s at 2 walls.
+    assert_eq!(
+        walls, 162,
+        "each half band's 9 × 9 conic spans import as one wall per span"
+    );
     let measured = body
         .measure(topo::Settle::Resolution(Length::from_meters(1.024e-6)))
         .unwrap_or_else(|e| panic!("the conic torus measures, never refuses: {e:?}"));
@@ -301,9 +305,9 @@ fn the_conic_quarter_torus_answers_a_bracket_holding_pappus() {
     );
     assert_eq!(
         measured.stop,
-        topo::Stop::Wall,
-        "the costly face stops at its wall, short of the resolution: that is the witness \
-         (a face that met it would no longer be the review's case): {measured:?}"
+        topo::Stop::Met,
+        "every one-span wall meets the resolution, so no face is the review's costly \
+         case any more: {measured:?}"
     );
     eprintln!(
         "ACCEPTANCE-5 conic quarter torus @ ε = {:e}, resolution 1.024e-6 m: stop {:?}, V = {} ± {:e} (Pappus {pappus})",

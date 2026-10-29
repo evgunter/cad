@@ -1147,7 +1147,7 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
         }
     };
     let mut polygon: Vec<(f64, f64)> = Vec::with_capacity(outer.len());
-    let mut segments: Vec<((f64, f64), (f64, f64))> = Vec::with_capacity(outer.len());
+    let mut segments: Vec<ChartSegment> = Vec::with_capacity(outer.len());
     let mut boundary_defect = 0.0f64;
     let mut perimeter = 0.0f64;
     let lifted = crate::pcurves::lifted_images(body, hes);
@@ -1271,6 +1271,9 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
     }))
 }
 
+/// One trim edge's chart image as `(start, end)` in traversal order.
+type ChartSegment = ((f64, f64), (f64, f64));
+
 /// Whether the trim's iso segments, each `(start, end)` in traversal
 /// order, walk the boundary of the rectangle `(u0, u1, v0, v1)` exactly
 /// once: `+1.0` counter-clockwise, `−1.0` clockwise, `None` otherwise.
@@ -1283,7 +1286,7 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
 /// A once-around walk runs every moving segment the same way round and
 /// visits the four sides in their order, each in one run.
 fn rectangle_winding(
-    segments: &[((f64, f64), (f64, f64))],
+    segments: &[ChartSegment],
     (u0, u1, v0, v1): (f64, f64, f64, f64),
 ) -> Option<f64> {
     if u0 >= u1 || v0 >= v1 {
