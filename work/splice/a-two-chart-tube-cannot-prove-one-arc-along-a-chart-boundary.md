@@ -4,7 +4,7 @@ kind: issue
 title: "The two-chart tube's one-arc walk is undecided where a cut box holds a solution that is no isolated root of one face: a rim along a chart's boundary row, or a carrier ending on the domain sides of both charts (the sheath grafted on its blade hits both)"
 status: open
 opened: 2026-10-28
-priority: P0
+priority: P3
 cost: H
 refs: [a-plane-section-along-a-fits-window-edge-proves-no-one-arc, a-rim-between-two-spline-walls-is-certified-against-a-fitted-image-not-its-exact-one, a-pair-walk-end-at-a-domain-corner-refuses-undecided]
 ---
@@ -167,3 +167,13 @@ What stays open is the witness lane's: a rim that is a boundary row of
 one wall only (a graft of one body's section across the other's
 interior), and shape 2's end on two charts' sides. Neither has a
 consumer today.
+
+## Re-banded P0 → P3 (SPLICE, 2026-10-29)
+
+Lily wall 8 no longer waits on this row. PR 5959 gives a rim that is a
+domain-side row of two spline walls a structural selector, certified per
+wall with no limb 3. Lily's own rim then refuses at a tangency (two
+points), and the scene is being re-spelled as one loft. No consumer
+reaches this shape today. It is still a real gap for a witness-selected
+carrier, so it stays open at P3 until one does.
+
