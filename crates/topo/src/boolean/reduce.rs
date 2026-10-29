@@ -2557,6 +2557,9 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 | SpanVerdict::LiesOn
                 | SpanVerdict::Miss
                 | SpanVerdict::Unsettled => Err(frontier()),
+                SpanVerdict::Touch { decision, diag } => {
+                    Err(BooleanError::Escalated { decision, diag })
+                }
                 SpanVerdict::AtApex => Err(at_apex()),
                 SpanVerdict::NoInterior | SpanVerdict::Elsewhere | SpanVerdict::OffFace => {
                     // UNDECLARED: the undeclared `NoInterior` rule
@@ -2735,6 +2738,9 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 SpanVerdict::Constant | SpanVerdict::LiesOn | SpanVerdict::Unsettled => {
                     Err(frontier())
                 }
+                SpanVerdict::Touch { decision, diag } => {
+                    Err(BooleanError::Escalated { decision, diag })
+                }
                 SpanVerdict::AtApex => Err(at_apex()),
             }
         }
@@ -2858,8 +2864,13 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         // (a wall or a sphere), so its zero set is one
                         // point or one interval and a fragment's ends
                         // see it: deferred for the fragments.
-                        SpanVerdict::Unsettled if covered => Ok(CurvedEvent::Deferred),
+                        SpanVerdict::Unsettled | SpanVerdict::Touch { .. } if covered => {
+                            Ok(CurvedEvent::Deferred)
+                        }
                         SpanVerdict::Unsettled => Err(frontier()),
+                        SpanVerdict::Touch { decision, diag } => {
+                            Err(BooleanError::Escalated { decision, diag })
+                        }
                     }
                 }
                 Err(diag) => {
@@ -4000,6 +4011,14 @@ enum SpanVerdict<T: geom_core::Real> {
     /// The root door reached a limit ([`Unsettled`]), or has no lane for
     /// the pair, and the caller keeps its own typed frontier door.
     Unsettled,
+    /// The root door read the span in band (a touch of the carrier, or a
+    /// sign of its pose in the gap), and not every touch is certified off
+    /// this face: where the caller would keep its frontier door, the
+    /// door's `decision` escalates instead.
+    Touch {
+        decision: BooleanDecision,
+        diag: geom_core::Indeterminate,
+    },
     /// A root within the band of a cone's apex
     /// ([`Unsettled::AtApex`]): the caller refuses
     /// [`BooleanError::CrossingAtConeApex`].
@@ -4121,9 +4140,10 @@ fn wall_crossing<T: Decide + Bounds>(
     // face: off it, the roots are not this face's question.
     let off_face = || super::carrier_touch::off_face(y, face, surface, carrier, (t0, t1), band);
     // A door's reading in band, of its pose or of where its roots lie,
-    // escalates unless every touch of the span is off the face.
+    // is a touch unless every touch of the span is off the face.
     let in_band = |refusal: BooleanError| match refusal {
         BooleanError::Escalated { .. } if off_face()? => Ok(SpanVerdict::OffFace),
+        BooleanError::Escalated { decision, diag } => Ok(SpanVerdict::Touch { decision, diag }),
         refusal => Err(refusal),
     };
     let found = match *carrier {
