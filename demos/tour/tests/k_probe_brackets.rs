@@ -153,16 +153,27 @@ fn check(eps: &str, readings: &[Reading], expect: &[&str]) {
 
 #[test]
 fn k_probe_brackets_the_lofted_leaf_and_the_sepals_at_eps_1e_12() {
-    let readings = sweep("1e-12");
-    check(
-        "1e-12",
-        &readings,
-        &[
-            "lily_leaf_a",
-            "lily_sepal_a",
-            "lily_sepal_b",
-            "lily_sepal_c",
-        ],
+    // Pinned since PR 5728: the sweep's `lily` scene stops at 1e-12 on
+    // its stem tube's limb-2 kernel limit, so it records no lily volume
+    // (`work/offset/main-red-five-slow-rows-refuse-at-limb-2s-kernel-limit-since-5728.md`).
+    test_utils::pinned_red::row(
+        1e-12,
+        &[1e-12],
+        "the lily's brackets at 1e-12",
+        &["eps 1e-12: no volume record for lily_leaf_b"],
+        || {
+            let readings = sweep("1e-12");
+            check(
+                "1e-12",
+                &readings,
+                &[
+                    "lily_leaf_a",
+                    "lily_sepal_a",
+                    "lily_sepal_b",
+                    "lily_sepal_c",
+                ],
+            );
+        },
     );
 }
 
