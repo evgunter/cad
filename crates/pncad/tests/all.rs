@@ -1525,7 +1525,11 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
 fn normalization_kind_is_readable(kind: &NormalizationKind) -> &'static str {
     match kind {
         NormalizationKind::EdgeFreeSphere => "edge_free_sphere",
-        NormalizationKind::DegenerateApexCone => "degenerate_apex_cone",
+        NormalizationKind::ChartSingularityVertex { found } => match found {
+            SingularityFound::Interior => "chart_singularity_vertex_interior",
+            SingularityFound::InsideEdge => "chart_singularity_vertex_inside_edge",
+            SingularityFound::ValenceOneVertex => "chart_singularity_vertex_valence_one",
+        },
         NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
         NormalizationKind::JoinedEdges => "joined_edges",
         NormalizationKind::SurfacePromotion { to, residual } => {

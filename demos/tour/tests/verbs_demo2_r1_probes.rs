@@ -8,8 +8,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-#[path = "common/printed.rs"]
-mod printed;
+use crate::common::printed;
 use pncad::authoring::{p2, validated};
 use pncad::geom::Surface;
 use pncad::geom_core::{Point2, Point3, Tol, Vec2, Vec3};

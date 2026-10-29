@@ -39,6 +39,24 @@ pub fn donut_profile() -> ProfileLoop<f64> {
     ])
 }
 
+/// A needle cone: profile `(0, 0), (tan α, 0), (0, 1)` revolved about
+/// `y`, whole or over `window` radians, apex `(0, 1, 0)`, finished.
+pub fn needle(deg: f64, window: Option<f64>, tol: Tol) -> topo::AtRestBody<f64> {
+    let r = deg.to_radians().tan();
+    let lp = bulge_loop(
+        [(0.0, 0.0), (r, 0.0), (0.0, 1.0)]
+            .iter()
+            .map(|&(x, y)| (Point2::new(x, y), 0.0))
+            .collect(),
+    );
+    let vp = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(tol)
+        .unwrap();
+    let rev = window.map_or(sweep::Revolution::Full, sweep::Revolution::Partial);
+    let body = sweep::revolve(&vp, axis_y(), rev, tol).unwrap().body;
+    sweep::test_support::finished("needle", body, tol)
+}
+
 pub fn axis_y() -> RevolveAxis<f64> {
     RevolveAxis {
         origin: Point2::new(0.0, 0.0),

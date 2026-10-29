@@ -21,7 +21,9 @@
 //! - a boss over a hole or a pocket, by pose: tangent to its rim inside
 //!   or outside, apart, concentric, each read alike in the two-arc form,
 //!   and the tangent poses turned; and tangent inside with short arcs
-//!   either side of the tip, whose union is one shell pinched along them;
+//!   either side of the tip, whose union is one shell pinched along them,
+//!   and the rims swapped, a boss inside a hole touching it along them,
+//!   whose union is two solids;
 //! - a plug in the bore of an annulus standing on a plate;
 //! - two equal coaxial cylinders stacked end to end;
 //! - a tube whose rim lies inside one face of a ball;
@@ -33,8 +35,8 @@
 //! a mesh along the short arcs' pinch holds four triangles at an edge.
 //! The ∩ of two solids meeting only in a face is empty. Two rows pin
 //! what is not built yet, refused typed: the union of a boss over a hole
-//! tangent inside its rim, and a closed edge in a cylinder or a cone
-//! face. The coaxial
+//! whose rim is tangent inside the boss's (a crescent), and a closed edge
+//! in a cylinder or a cone face. The coaxial
 //! stack and the puck run their unions alone: their ∩ and differences
 //! refuse `FallbackExtentUnsupported` at the coincident walls, as the
 //! two-arc forms do
@@ -1426,9 +1428,13 @@ fn rim_about(c: (f64, f64), r: f64, az: &[f64]) -> ProfileLoop<f64> {
 /// the profile escalates on the short arcs.
 ///
 /// The rims swapped, the boss `r = 0.1` inside the hole `r = 0.3`,
-/// tangent there, the boss and the plate only touch, along the run;
-/// their union refuses `ClassificationInvariant` as `main` does
-/// (`work/splitdoor/a-boss-inside-a-hole-touching-along-short-arcs-breaks-a-germ-invariant.md`).
+/// tangent there, the boss and the plate only touch, along the run, and
+/// their union is two solids at the closed form, passing tier 3, whose
+/// tier 3′ reads as [`Reads::Undecided`]'s. At the rims' shared vertex
+/// either side of the tip the long arcs part at about `2s`, which the
+/// short arcs' arm leaves in band and the long arcs' reach decides: no
+/// sector pair of the boss's floor and the hole's wall meets there
+/// (`boolean::sectors` `pair_search`).
 #[test]
 fn short_arcs_at_a_turned_tip_at_the_finest_band() {
     let s = 3e-7;
@@ -1482,12 +1488,77 @@ fn short_arcs_at_a_turned_tip_at_the_finest_band() {
                 match op {
                     "A ∩ B" | "B ∩ A" => reads_as(&row, r, want, Reads::Empty),
                     "A ∖ B" | "B ∖ A" => reads_as(&row, r, want, Reads::Sound(1)),
-                    _ if pose == "swapped" => assert!(
-                        matches!(r, Err(BooleanError::ClassificationInvariant { .. })),
+                    _ if pose == "swapped" => {
+                        let b = r
+                            .as_ref()
+                            .ok()
+                            .and_then(BooleanResult::body)
+                            .unwrap_or_else(|| panic!("{row}: {:?}", r.as_ref().map(|_| "empty")));
+                        let t3 = topo::validate_geometric(&b.body, tol());
+                        assert!(t3.is_ok(), "{row}: tier 3 {t3:?}");
+                        reads_as(&row, r, want, Reads::Undecided);
+                    }
+                    _ => united_at_the_run(&row, r, want, run),
+                }
+            }
+        }
+    }
+}
+
+/// **The boss inside the hole, the rims sharing a vertex beside the
+/// tip, over the cut spacings and azimuths**
+/// (`work/splitdoor/a-boss-inside-a-hole-touching-along-short-arcs-breaks-a-germ-invariant.md`):
+/// [`short_arcs_at_a_turned_tip_at_the_finest_band`]'s `swapped` pose
+/// at `s = 1e-6` and `1e-5`, with and without a vertex at the tip. No
+/// union refuses `ClassificationInvariant` at any ε; at ε 1e-9 each
+/// reads as [`Reads::Undecided`]. Other ratios of the two rims' cuts
+/// leave no shared vertex and escalate `Crossing(OnEdge)` on either
+/// head, which this row does not read.
+#[test]
+fn a_boss_inside_a_hole_sharing_a_vertex_beside_the_tip() {
+    let fine = tol().eps() == 1e-9;
+    for s in [1e-6, 1e-5] {
+        for phi in [0.0, 2.0] {
+            for tip in [true, false] {
+                let az = |k: f64| {
+                    let mut az = vec![phi - k * s, phi + k * s, phi + PI];
+                    if tip {
+                        az.insert(1, phi);
+                    }
+                    az
+                };
+                let at = |d: f64| (d * phi.cos(), d * phi.sin());
+                // The boss's cuts at `±3s` on `r = 0.1` and the hole's at
+                // `±s` on `r = 0.3` land on one point each side.
+                let boss_rim = rim_about(at(0.2), 0.1, &az(3.0));
+                let hole_rim = rim_about(at(0.0), 0.3, &az(1.0));
+                let profiled = [vec![boss_rim.clone()], vec![square(), hole_rim.clone()]]
+                    .into_iter()
+                    .all(|loops| {
+                        Profile::new(SketchPlane::<f64>::xy(), loops)
+                            .validate(tol())
+                            .is_ok()
+                    });
+                assert!(profiled || !fine, "s = {s}, φ = {phi}: the profile");
+                if !profiled {
+                    continue;
+                }
+                let (vb, vh) = (PI * 0.01, 2.0 - 0.5 * PI * 0.09);
+                let boss = fin("the boss", extruded(vec![boss_rim], 0.0, 1.0));
+                let holed = fin("the plate", extruded(vec![square(), hole_rim], -0.5, 0.5));
+                for (op, r, want) in every_op_both_orders(&boss, &holed, (vb, vh, 0.0), tol()) {
+                    if !op.contains('∪') {
+                        continue;
+                    }
+                    let row = format!("s = {s}, φ = {phi}, tip {tip}: {op}");
+                    assert!(
+                        !matches!(r, Err(BooleanError::ClassificationInvariant { .. })),
                         "{row}: {:?}",
                         r.map(|_| "a body")
-                    ),
-                    _ => united_at_the_run(&row, r, want, run),
+                    );
+                    if fine {
+                        reads_as(&row, r, want, Reads::Undecided);
+                    }
                 }
             }
         }

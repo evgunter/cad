@@ -14,7 +14,7 @@
 //! | plane | origin, outward normal | `bool_plane_parallel` (·arm), `bool_plane_offset` |
 //! | sphere | centre, radius | `carrier_sphere_center`, `carrier_sphere_radius` |
 //! | cylinder | axis line, radius | `carrier_cyl_axis_parallel` (·arm), `carrier_cyl_axis_offset`, `carrier_cyl_radius` |
-//! | torus | centre, axis line, both radii | `carrier_torus_axis_parallel` (·arm), `carrier_torus_center`, `carrier_torus_major_radius`, `carrier_torus_minor_radius` |
+//! | torus | centre, axis line, both radii | the pair's own coincidence ([`geom_brep::tori_coincide`]): `carrier_torus_axis_parallel` (·the larger major radius), `carrier_torus_center`, `carrier_torus_major_radius`, `carrier_torus_minor_radius`, `tt_coincident` |
 //!
 //! The lever arms are the honest ones: an ANGULAR margin (two
 //! normalized directions crossed) is dimensionless, so it is metered
@@ -113,7 +113,9 @@ pub enum CarrierEqError {
     /// A declared pair whose displacement over the consumed extent may
     /// stand past the band — its upper bound does — while no point
     /// known to be consumed does: neither bridged nor contradicted
-    /// ([`declared_reading`]). The diagnostics carry the upper bound.
+    /// ([`declared_reading`]); or a declared torus off its ring
+    /// convention, which no bound reads. The diagnostics carry the upper
+    /// bound, or the convention's margin.
     Unsettled {
         /// The upper bound's diagnostics.
         diag: Indeterminate,
@@ -382,8 +384,10 @@ pub(crate) fn carrier_eq_reading<T: Decide>(
 /// extent: it stands only where the declared reading's sum decides Zero
 /// too ([`coincident_as_declared`]), so the glue an undeclared pair
 /// takes is the one its declaration would verify
-/// [`ContactVerdict::Definite`]. The corner sites read their own arm,
-/// not a pair's extent, and take [`carrier_eq_verdict`] as it is.
+/// [`ContactVerdict::Definite`]. A torus pair's undeclared coincidence
+/// already stands on that bound ([`geom_brep::tori_coincide`]). The
+/// corner sites read their own arm, not a pair's extent, and take
+/// [`carrier_eq_verdict`] as it is.
 ///
 /// # Errors
 ///
@@ -494,11 +498,35 @@ fn undeclared_ladder<T: Decide>(
                 minor_radius: t2,
                 outward: w2,
             },
-        ) => data_rungs(
-            &torus_data((*p1, *a1, *r1, *t1), (*p2, *a2, *r2, *t2), arm),
-            *w1 == *w2,
-            band,
-        ),
+        ) => {
+            let same = if w1 == w2 {
+                CarrierRelation::SameOriented
+            } else {
+                CarrierRelation::SameOpposite
+            };
+            let undecided = |coincidence| CarrierEqError::Undecided {
+                coincidence,
+                relation: same,
+            };
+            match geom_brep::tori_coincide(
+                torus((*p1, *a1, *r1, *t1)),
+                torus((*p2, *a2, *r2, *t2)),
+                band,
+            ) {
+                geom_brep::TorusCoincidence::One(margin) => {
+                    Ok((same, ContactVerdict::Definite, Some(margin)))
+                }
+                geom_brep::TorusCoincidence::Apart => {
+                    Ok((CarrierRelation::Distinct, ContactVerdict::Definite, None))
+                }
+                geom_brep::TorusCoincidence::Undecided(diag) => {
+                    Err(undecided(CoincidenceMeasure::not_zero(diag)))
+                }
+                geom_brep::TorusCoincidence::OffRing(refusal) => {
+                    Err(undecided(off_ring(&refusal, band)))
+                }
+            }
+        }
         // Different kinds: definitely different carriers. A plane is
         // not a cylinder at any radius, so this needs no numerics.
         _ => Ok((CarrierRelation::Distinct, ContactVerdict::Definite, None)),
@@ -553,39 +581,57 @@ fn cylinder_data<T: Decide>(
     ]
 }
 
-/// The torus's data. The axis LINE, as for a cylinder; the offset
-/// datum, however, is NOT a cylinder's: a torus pins a point ON its
-/// axis (the tube midplane's centre), so the whole centre separation is
-/// the datum and projecting out its axial part would discard a real
-/// difference — two coaxial tori slid along the axis are different
-/// carriers.
-fn torus_data<T: Decide>(
-    (p1, a1, r1, t1): (Point3<T>, Vec3<T>, T, T),
-    (p2, a2, r2, t2): (Point3<T>, Vec3<T>, T, T),
-    arm: T,
-) -> Vec<Datum<T>> {
-    vec![
-        (
-            "carrier_torus_axis_parallel",
-            Contradiction::TorusAxesNotParallel,
-            Margin::levered(a1.cross(a2).norm(), arm),
-        ),
-        (
-            "carrier_torus_center",
-            Contradiction::TorusCentresDiffer,
-            Margin::norm3(p1 - p2),
-        ),
-        (
-            "carrier_torus_major_radius",
-            Contradiction::TorusMajorRadiiDiffer,
-            Margin::of(r1 - r2),
-        ),
-        (
-            "carrier_torus_minor_radius",
-            Contradiction::TorusTubeRadiiDiffer,
-            Margin::of(t1 - t2),
-        ),
-    ]
+/// The torus's data, as the pair's coincidence reads them
+/// ([`geom_brep::TorusDisplacement`]), each with the fact it
+/// contradicts.
+fn torus_data<T: Decide>(d: &geom_brep::TorusDisplacement<T>) -> Vec<Datum<T>> {
+    use geom_brep::TorusDatum as D;
+    d.data
+        .iter()
+        .map(|&(datum, margin)| {
+            let fact = match datum {
+                D::AxisTilt => Contradiction::TorusAxesNotParallel,
+                D::Centre => Contradiction::TorusCentresDiffer,
+                D::MajorRadius => Contradiction::TorusMajorRadiiDiffer,
+                D::MinorRadius => Contradiction::TorusTubeRadiiDiffer,
+            };
+            (datum.row(), fact, margin)
+        })
+        .collect()
+}
+
+/// A torus description's data as the pair's coincidence reads them.
+fn torus<T: geom_core::Real>(
+    (center, axis, major_radius, minor_radius): (Point3<T>, Vec3<T>, T, T),
+) -> geom_brep::TorusData<T> {
+    geom_brep::TorusData {
+        center,
+        axis,
+        major_radius,
+        minor_radius,
+    }
+}
+
+/// A torus off its ring convention as the coincidence it leaves
+/// unread: in band where the convention's margin is, and otherwise
+/// unreadable, since such a torus has no carrier to compare (the body's
+/// own validity refuses it, `ValidationError::DegenerateTorus`, but the
+/// ladder also reads bodies no validation has passed).
+fn off_ring(refusal: &geom_brep::TorusRefusal, band: Band) -> CoincidenceMeasure {
+    match &refusal.verdict {
+        geom_brep::TorusVerdict::Undecided(diag) => CoincidenceMeasure::not_zero(*diag),
+        geom_brep::TorusVerdict::Refused(decided) => {
+            CoincidenceMeasure::Unreadable(Indeterminate {
+                margin: decided.margin(),
+                band,
+                predicate: Some(match refusal.convention {
+                    geom_brep::TorusConvention::Tube => "torus_tube_positive",
+                    geom_brep::TorusConvention::Ring => "ring_torus_convention",
+                }),
+                terminal_sliver: false,
+            })
+        }
+    }
 }
 
 /// `v`'s part perpendicular to the unit `axis`.
@@ -609,8 +655,8 @@ pub(crate) use geom_brep::line_tilt;
 /// - cylinder — the axis offset is read at the second description's
 ///   axis point, which moves along its axis to the foot of the
 ///   extent's centre;
-/// - torus — the datum is the centre: the arm is the extent's reach
-///   from it.
+/// - torus — the pair's coincidence reads no extent
+///   ([`geom_brep::tori_coincide`]), and the pair passes through.
 ///
 /// Sphere pairs and mixed kinds carry no angular datum; they pass
 /// through with the arm read from the extent's centre.
@@ -641,9 +687,6 @@ fn at_consumed_extent<T: geom_core::Real>(
                 },
                 foot,
             )
-        }
-        (c1, c2 @ CarrierDesc::Torus { center, .. }) if matches!(c1, CarrierDesc::Torus { .. }) => {
-            (c1, c2, center)
         }
         (c1, c2) => (c1, c2, centre),
     };
@@ -689,10 +732,9 @@ fn definite(predicate: &'static str, band: Band) -> Indeterminate {
 /// - cylinder — the axis offset at `p` (the foot of `c` on the second
 ///   axis) plus `t` times the reach from `p` (widened by that offset,
 ///   so it holds from either axis), plus the radius difference;
-/// - torus — the centre separation, the major-radius difference and
-///   `t·max(R₁, R₂)` move the tube's core circle, plus the
-///   minor-radius difference; this holds at every point of the torus,
-///   whatever the ball.
+/// - torus — the pair's own displacement bound
+///   ([`geom_brep::TorusDisplacement`]), which holds at every point of
+///   the torus, whatever the ball.
 ///
 /// The verdict, its trilean, and the margin its upper bound was decided
 /// on: Zero for a [`ContactVerdict::Definite`], in band for a
@@ -703,6 +745,29 @@ pub(super) fn declared_reading<T: Decide>(
     extent: &ConsumedExtent<'_, T>,
     band: Band,
 ) -> Result<(CarrierRelation, ContactVerdict, geom_core::MarginDiag), CarrierEqError> {
+    // The torus bound holds only on the ring convention; off it no
+    // reading below settles the declaration.
+    if let (
+        CarrierDesc::Torus {
+            major_radius: r1,
+            minor_radius: t1,
+            ..
+        },
+        CarrierDesc::Torus {
+            major_radius: r2,
+            minor_radius: t2,
+            ..
+        },
+    ) = (*c1, *c2)
+    {
+        for (major, minor) in [(r1, t1), (r2, t2)] {
+            if let Err(refusal) = geom_brep::TorusRefusal::require(major, minor, band) {
+                return Err(CarrierEqError::Unsettled {
+                    diag: off_ring(&refusal, band).reported(),
+                });
+            }
+        }
+    }
     let witnessed = witnessed(c1, c2, extent);
     let (sigma, relation) = match (*c1, *c2) {
         (CarrierDesc::Plane { normal: n1, .. }, CarrierDesc::Plane { normal: n2, .. }) => {
@@ -827,6 +892,14 @@ fn coincident_as_declared<T: Decide>(
     relation: CarrierRelation,
     band: Band,
 ) -> Result<Option<geom_core::MarginDiag>, Indeterminate> {
+    // Two tori's undeclared coincidence already stands on this bound
+    // ([`geom_brep::tori_coincide`]).
+    if matches!(
+        (c1, c2),
+        (CarrierDesc::Torus { .. }, CarrierDesc::Torus { .. })
+    ) {
+        return Ok(None);
+    }
     let sigma = match relation {
         CarrierRelation::SameOpposite => -T::one(),
         CarrierRelation::SameOriented | CarrierRelation::Distinct => T::one(),
@@ -987,15 +1060,13 @@ fn reading<T: Decide>(
                 ..
             },
         ) => {
-            let arm = r1.max(r2);
-            let core = (p1 - p2).norm()
-                + (r1 - r2).abs()
-                + Margin::levered(line_tilt(a1, a2), arm).value();
+            let d =
+                geom_brep::TorusDisplacement::of(torus((p1, a1, r1, t1)), torus((p2, a2, r2, t2)));
             (
-                ["carrier_torus_reach", "carrier_torus_reach_floor"],
-                (t1 - t2).abs() + core,
-                (t1 - t2).abs() - core,
-                torus_data((p1, a1, r1, t1), (p2, a2, r2, t2), arm),
+                [geom_brep::TT_COINCIDENT, geom_brep::TT_COINCIDENT_FLOOR],
+                d.upper,
+                d.across,
+                torus_data(&d),
             )
         }
         _ => return None,
@@ -1087,68 +1158,26 @@ fn data_rungs<T: Decide>(
 pub(crate) enum IdentityData {
     /// Some datum decided definitely nonzero: two things.
     Distinct,
-    /// Every datum decided Zero: one thing, the first datum's decided
-    /// margin standing for every one (`None` for no data).
+    /// Every datum decided Zero: one thing, the data's decided margins
+    /// taken jointly (`None` for no data).
     One(Option<geom_core::MarginDiag>),
     /// No datum decided nonzero and one did not decide: the first that
     /// cannot be read, else the first in band.
     Undecided(CoincidenceMeasure),
 }
 
-/// **The identity ladder's rule**: two descriptions are one only where
-/// every datum decides Zero, so any datum decided definitely nonzero
-/// answers `Distinct`, whatever another datum read before it. A datum
-/// in band or poisoned is kept, not returned, and refuses only where no
-/// later datum decides them apart. Every datum is read, in order.
+/// **The identity ladder's rule** ([`geom_brep::identity_walk`]), its
+/// refusal read as the coincidence it leaves undecided.
 pub(crate) fn identity_data<T: Decide>(
     data: impl IntoIterator<Item = (&'static str, Margin<T>)>,
     band: Band,
 ) -> IdentityData {
-    let mut first_zero = None;
-    // An unreadable datum is a limit no tolerance moves, ranked before an
-    // in-band one by the walk's one ranking.
-    let mut kept = crate::ray_walk::Evidence::default();
-    // The kept readings' runs: a later datum decided apart supersedes
-    // them, since the answer does not rest on them.
-    let mut kept_logs = Vec::new();
-    for (name, margin) in data {
-        let (read, log) =
-            geom_core::k_stats::detached(|| CoincidenceMeasure::decide(name, margin, band));
-        match read {
-            Ok(Decided {
-                sign: Sign::Positive | Sign::Negative,
-                ..
-            }) => {
-                kept_logs
-                    .into_iter()
-                    .for_each(geom_core::k_stats::splice_superseded);
-                geom_core::k_stats::splice(log);
-                return IdentityData::Distinct;
-            }
-            Ok(Decided {
-                sign: Sign::Zero,
-                margin,
-            }) => {
-                geom_core::k_stats::splice(log);
-                first_zero = Some(
-                    first_zero.map_or(margin, |first: geom_core::MarginDiag| first.jointly(margin)),
-                );
-            }
-            Err(unread @ CoincidenceMeasure::Unreadable(_)) => {
-                kept_logs.push(log);
-                kept.blocked(unread);
-            }
-            Err(in_band) => {
-                kept_logs.push(log);
-                kept.in_band(in_band);
-            }
+    match geom_brep::identity_walk(data, band) {
+        geom_brep::IdentityWalk::Distinct => IdentityData::Distinct,
+        geom_brep::IdentityWalk::One(joint) => IdentityData::One(joint),
+        geom_brep::IdentityWalk::Undecided(diag) => {
+            IdentityData::Undecided(CoincidenceMeasure::not_zero(diag))
         }
-    }
-    kept_logs.into_iter().for_each(geom_core::k_stats::splice);
-    match kept.ranked() {
-        crate::ray_walk::Ranked::Blocked(coincidence)
-        | crate::ray_walk::Ranked::InBand(coincidence) => IdentityData::Undecided(coincidence),
-        crate::ray_walk::Ranked::Neither => IdentityData::One(first_zero),
     }
 }
 
@@ -1683,6 +1712,149 @@ mod tests {
             }
             other => panic!("expected Contradicted at the crown, got {other:?}"),
         }
+    }
+
+    /// **Two torus faces read undeclared are one carrier exactly where
+    /// their pair's pose decides them one surface**
+    /// ([`geom_brep::tori_coincide`]), whatever extent the faces are read
+    /// over. The poses are the ring of `R = 5`, `r = 0.06` tilted so its
+    /// far side swings `0.74ε` (which the pose's gap read tangent beside
+    /// the ladder's one carrier), slid `0.6ε` along and across its axis
+    /// (which the pose escalated), its tube in the band, and its tube a
+    /// thousand escalation widths wider.
+    #[test]
+    fn the_ladder_reads_two_tori_as_their_pose_does() {
+        let b = band();
+        let e = b.zero();
+        let surface = |c: &CarrierDesc<f64>| match *c {
+            CarrierDesc::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                ..
+            } => geom::Surface::Torus {
+                center,
+                axis: axis.normalize(),
+                major_radius,
+                minor_radius,
+                u_ref: axis.normalize().orthonormal_basis().0,
+            },
+            _ => unreachable!("tori"),
+        };
+        let ring = torus([0.0; 3], [0.0, 0.0, 1.0], 5.0, 0.06, true);
+        let over = [
+            at(1.0),
+            ConsumedExtent::unwitnessed(geom_brep::ExtentBall::of_torus(
+                Point3::origin(),
+                5.0,
+                0.06,
+            )),
+        ];
+        for (what, other, one) in [
+            (
+                "tilted",
+                torus([0.0; 3], [0.148 * e, 0.0, 1.0], 5.0, 0.06, false),
+                Some(true),
+            ),
+            (
+                "slid",
+                torus([0.6 * e, 0.0, 0.6 * e], [0.0, 0.0, 1.0], 5.0, 0.06, false),
+                Some(true),
+            ),
+            (
+                "in band",
+                torus(
+                    [0.0; 3],
+                    [0.0, 0.0, 1.0],
+                    5.0,
+                    0.06 + 0.5 * (e + b.escalate()),
+                    false,
+                ),
+                None,
+            ),
+            (
+                "apart",
+                torus(
+                    [0.0; 3],
+                    [0.0, 0.0, 1.0],
+                    5.0,
+                    0.06 + 1000.0 * b.escalate(),
+                    false,
+                ),
+                Some(false),
+            ),
+        ] {
+            let pose = match geom_brep::TorusTorusPose::decide(&surface(&ring), &surface(&other), b)
+                .expect("two tori")
+            {
+                Err(geom_brep::TorusPoseRefusal::Coincident) => Some(true),
+                Err(geom_brep::TorusPoseRefusal::Undecided { .. }) => None,
+                Ok(_) => Some(false),
+                Err(refusal) => panic!("{what}: the pose refused {refusal:?}"),
+            };
+            assert_eq!(pose, one, "{what}: the pose");
+            for extent in &over {
+                let read = match pair_door_reading(&ring, &other, PlaneIdentity::NONE, extent, b) {
+                    Ok((CarrierRelation::SameOpposite, ContactVerdict::Definite, Some(_))) => {
+                        Some(true)
+                    }
+                    Ok((CarrierRelation::Distinct, ..)) => Some(false),
+                    Err(CarrierEqError::Undecided { .. }) => None,
+                    other => panic!("{what}: the ladder read {other:?}"),
+                };
+                assert_eq!(read, pose, "{what}: the ladder over {:?}", extent.reach);
+            }
+        }
+    }
+
+    /// **Data each within ε whose bound sums past it are undecided at
+    /// the corner sites too**: the corner door reads the pair's one
+    /// coincidence, which stands on the sum, where a datum-by-datum
+    /// reading called this pair one carrier.
+    #[test]
+    fn torus_data_in_zero_band_summing_past_it_is_undecided_at_every_reader() {
+        let b = band();
+        let e = b.zero();
+        let ring = torus([0.0; 3], [0.0, 0.0, 1.0], 2.0, 1.0, true);
+        let other = torus(
+            [0.0, 0.0, 0.9 * e],
+            [0.0, 0.0, 1.0],
+            2.0 + 0.9 * e,
+            1.0,
+            true,
+        );
+        let ext = ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(
+            Point3::new(1.0, 0.0, 0.0),
+            1e-3,
+        ));
+        assert!(matches!(
+            carrier_eq(&ring, &other, PlaneIdentity::NONE, &ext, b),
+            Err(CarrierEqError::Undecided { .. })
+        ));
+    }
+
+    /// **A torus off its ring convention has no carrier to compare**:
+    /// a spindle (`r > R`) against itself is unreadable at the ladder
+    /// and unsettled declared, as the pose refuses it, never one carrier
+    /// on a bound that holds only for a ring.
+    #[test]
+    fn a_spindle_torus_is_unreadable_at_the_ladder() {
+        let spindle = torus([0.0; 3], [0.0, 0.0, 1.0], 1.0, 1.5, true);
+        match carrier_eq(&spindle, &spindle, PlaneIdentity::NONE, &at(1.0), band()) {
+            Err(CarrierEqError::Undecided {
+                coincidence: CoincidenceMeasure::Unreadable(diag),
+                ..
+            }) => assert_eq!(diag.predicate, Some("ring_torus_convention")),
+            other => panic!("the spindle: {other:?}"),
+        }
+        assert!(
+            matches!(
+                carrier_eq(&spindle, &spindle, declared(), &at(1.0), band()),
+                Err(CarrierEqError::Unsettled { diag }) if diag.predicate == Some("ring_torus_convention")
+            ),
+            "declared, the spindle settles nothing"
+        );
     }
 
     /// Aligned coincidence is the carrier ladder's honest

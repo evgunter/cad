@@ -3,10 +3,10 @@
 //! one set of fields.
 //!
 //! [`Circles`] forms the centre distance `d`, `r₁ + r₂` and `r₁ − r₂`
-//! once. The identity, external, internal and nesting margins are read
-//! from those fields, and so are the four factors of the half-chord's
-//! square, so a caller that decides the margins and then places the
-//! crossings takes factors that are its decided margins, or their
+//! once. The identity, external, reach, internal, nesting and secant
+//! margins are read from those fields, and so are the four factors of
+//! the half-chord's square, so a caller that decides the margins and
+//! then places the crossings takes factors that are its decided margins, or their
 //! negations, bit for bit. [`CirclesAt`] holds the two centres beside
 //! it and places the foot and the chord's ends from them, in the plane
 //! ([`Circles2`]) or on a plane in space.
@@ -69,11 +69,28 @@ impl<T: Real> Circles<T> {
         self.d - self.sum
     }
 
+    /// The reach, `r₁ + r₂ − d`: positive when the two reach each
+    /// other, zero at external tangency. It is [`Self::external`]
+    /// negated, formed as its own difference for the reason
+    /// [`Self::nested`] is.
+    #[must_use]
+    pub fn reach(self) -> T {
+        self.sum - self.d
+    }
+
     /// The internal clearance, `d − |r₁ − r₂|`: negative when one lies
     /// inside the other, zero at internal tangency.
     #[must_use]
     pub fn internal(self) -> T {
         self.d - self.diff.abs()
+    }
+
+    /// The secant margin, the lesser of [`Self::reach`] and
+    /// [`Self::internal`]: positive exactly when the two cross
+    /// transversally in two points, zero at either tangency.
+    #[must_use]
+    pub fn secant(self) -> T {
+        self.reach().min(self.internal())
     }
 
     /// The nesting margin, `|r₁ − r₂| − d`: positive when one lies

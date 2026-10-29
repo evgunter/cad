@@ -94,7 +94,7 @@ fn certify(
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(keys[0], keys[1]),
-            witness: carrier.mid_point(t0, t1),
+            selector: geom_brep::CurveSelector::Witness(carrier.mid_point(t0, t1)),
         },
         carrier: carrier.clone(),
         param_start: t0,
@@ -241,7 +241,7 @@ fn every_closed_form_kind_owes_limb_2_through_the_lane() {
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(keys[0], keys[1]),
-                witness: carrier.mid_point(t0, t1),
+                selector: geom_brep::CurveSelector::Witness(carrier.mid_point(t0, t1)),
             },
             carrier: carrier.clone(),
             param_start: t0,

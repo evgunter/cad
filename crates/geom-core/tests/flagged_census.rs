@@ -162,13 +162,27 @@ const REPORTED: &str = "_reported";
 /// modules is not the fix: it buys a scanner, with blind spots of its
 /// own, to excuse a fixture that had no reason to sit in `src/`.
 fn calls_in(text: &str) -> Vec<(usize, String)> {
+    door_calls_in(text, "decide_flagged", 3, |_| false)
+}
+
+/// [`calls_in`] for any door that cites a ledger row: every call of
+/// `door` in `text`, with the row its `cite`-th argument (from 0) names.
+/// The `_reported` suffix rides as it does for `decide_flagged`. An
+/// argument `forwards` accepts is read as an empty row rather than
+/// refused for not being a literal.
+fn door_calls_in(
+    text: &str,
+    door: &str,
+    cite: usize,
+    forwards: impl Fn(&str) -> bool,
+) -> Vec<(usize, String)> {
     let code = test_utils::source::code_only(text);
     let bytes = code.as_bytes();
     let mut out = Vec::new();
     let mut i = 0;
-    while let Some(rel) = code[i..].find("decide_flagged") {
+    while let Some(rel) = code[i..].find(door) {
         let at = i + rel;
-        i = at + "decide_flagged".len();
+        i = at + door.len();
         // Not a longer identifier ending in this name, and not the
         // definition (`fn decide_flagged<T: Decide>(`, whose next
         // character is `<`).
@@ -189,18 +203,26 @@ fn calls_in(text: &str) -> Vec<(usize, String)> {
         if rest[open..].starts_with('(') {
             let line = test_utils::source::line(&code, at);
             let paren = i + open;
-            let end = test_utils::source::balanced_end(&code, paren).unwrap_or_else(|| {
-                panic!("unterminated decide_flagged argument list at byte {paren}")
-            });
+            let end = test_utils::source::balanced_end(&code, paren)
+                .unwrap_or_else(|| panic!("unterminated {door} argument list at byte {paren}"));
             let args = paren + 1;
-            let cite = test_utils::source::top_level_split(&code[args..end], ',');
-            let cite = cite.get(3).unwrap_or_else(|| {
+            let split = test_utils::source::top_level_split(&code[args..end], ',');
+            let cite = split.get(cite).unwrap_or_else(|| {
                 panic!(
-                    "decide_flagged call with fewer than 4 arguments: {:.200}",
+                    "{door} call with fewer than {} arguments: {:.200}",
+                    cite + 1,
                     &text[args..end]
                 )
             });
-            out.push((line, ledger_row(&text[args + cite.start..args + cite.end])));
+            let raw = &text[args + cite.start..args + cite.end];
+            out.push((
+                line,
+                if forwards(raw) {
+                    String::new()
+                } else {
+                    ledger_row(raw)
+                },
+            ));
             i = args;
         }
     }
@@ -228,9 +250,14 @@ fn ledger_row(raw: &str) -> String {
 /// each guard free to miss a subdirectory, silently and in the green
 /// direction.
 fn count_in_tree(dir: &Path, hits: &mut Vec<Site>) {
+    sites_in_tree(dir, hits, calls_in);
+}
+
+/// Every call `find` reads out of the `.rs` files under `dir`.
+fn sites_in_tree(dir: &Path, hits: &mut Vec<Site>, find: impl Fn(&str) -> Vec<(usize, String)>) {
     for path in test_utils::source::rust_sources(dir) {
         let text = std::fs::read_to_string(&path).expect("readable source file");
-        for (line, ledger_row) in calls_in(&text) {
+        for (line, ledger_row) in find(&text) {
             hits.push(Site {
                 file: path.clone(),
                 line,
@@ -238,6 +265,38 @@ fn count_in_tree(dir: &Path, hits: &mut Vec<Site>) {
             });
         }
     }
+}
+
+/// **The unlogged doors' sites**: `check_unlogged`, whose row is its
+/// fourth argument, and the scoped `unlogged`, whose row is its first.
+/// They carry the obligation `decide_flagged` does (their row argues why
+/// a decision is taken outside the log), and are not counted against
+/// [`LEDGER_FLAGGED_SITES`]. The one call that forwards a parameter
+/// rather than citing a row is `check_unlogged`'s own body in
+/// `k_stats.rs`, which hands its `ledger_row` to `unlogged`; it is the
+/// door's definition, not a site, and is the only one let through.
+fn unlogged_sites() -> Vec<Site> {
+    let crates_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("crates dir")
+        .to_path_buf();
+    let find = |text: &str| {
+        let forwards = |raw: &str| raw.trim() == "ledger_row";
+        let mut out = door_calls_in(text, "check_unlogged", 3, forwards);
+        out.extend(door_calls_in(text, "unlogged", 0, forwards));
+        out
+    };
+    let mut hits = Vec::new();
+    for entry in std::fs::read_dir(&crates_root).expect("crates dir listing") {
+        let src = entry.expect("dir entry").path().join("src");
+        if src.is_dir() {
+            sites_in_tree(&src, &mut hits, find);
+        }
+    }
+    hits.retain(|site| {
+        !(site.file.ends_with("geom-core/src/k_stats.rs") && site.ledger_row.is_empty())
+    });
+    hits
 }
 
 fn shipped_sites() -> (PathBuf, Vec<Site>) {
@@ -272,7 +331,8 @@ fn shipped_decide_flagged_sites_match_the_ledger() {
 
 #[test]
 fn every_shipped_site_cites_a_ledger_row_that_exists() {
-    let (crates_root, hits) = shipped_sites();
+    let (crates_root, mut hits) = shipped_sites();
+    hits.extend(unlogged_sites());
     let audit = crates_root
         .parent()
         .expect("workspace root")

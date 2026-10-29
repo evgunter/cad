@@ -427,17 +427,15 @@ class TestSubjectBodyCarriesItsDeclarations(unittest.TestCase):
     made it a diagnosis a caller could not act on rather than a wrong
     blessing.
 
-    The subject here is an INSTANCE of the mated stand, which is the
-    carried-declaration home (`NodeValue.contacts`, the D-1
-    declarations a referenced document's product minted). Its sibling
-    home — a boolean's own `BooleanValue.contacts` — is the same
-    channel and the same `sources_of` reconciliation, but it cannot
-    carry this row: a declared glue WELDS the faces it declares, so
-    its record set comes out empty and its 3′ pass is vacuous
-    (`test_validate`'s module header states the same measurement). So
-    this row is the one of the two homes that can be observed from
-    Python at all, and it is named as such rather than presented as
-    the whole claim.
+    The subject here is an INSTANCE of the mated stand, whose records
+    are the D-1 declarations a referenced document's product minted,
+    carried in its value's carry. A boolean's own records ride the same
+    carry, but they cannot carry this row: a declared glue WELDS the
+    faces it declares, so its record set comes out empty and its 3′
+    pass is vacuous (`test_validate`'s module header states the same
+    measurement). So this row is the one record source that can be
+    observed from Python at all, and it is named as such rather than
+    presented as the whole claim.
     """
 
     def instance_of_the_stand(self):

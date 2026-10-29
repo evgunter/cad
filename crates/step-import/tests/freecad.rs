@@ -398,7 +398,7 @@ fn structure_normalizations_are_reported_with_their_census_mapping() {
     if !corpus_scale_gate("structure_normalizations") {
         return;
     }
-    use step_import::{FaceCensus, NormalizationKind};
+    use step_import::{FaceCensus, NormalizationKind, SingularityFound};
     let cases = [
         // sphere.step #17: ADVANCED_FACE over the whole sphere, its
         // only bound a VERTEX_LOOP — 1 face, 0 edges, 1 vertex.
@@ -422,10 +422,13 @@ fn structure_normalizations_are_reported_with_their_census_mapping() {
             (2, 2, 2),
         ),
         // cone_apex.step #17: the lateral face, its seam generator
-        // ending at a valence-1 apex — 1 face, 2 edges, 2 vertices.
+        // ending at a valence-1 apex — 1 face, 2 edges, 2 vertices;
+        // the pole form completes it with the seam's half-turn twin.
         (
             "cone_apex",
-            NormalizationKind::DegenerateApexCone,
+            NormalizationKind::ChartSingularityVertex {
+                found: SingularityFound::ValenceOneVertex,
+            },
             (1, 2, 2),
             (2, 4, 3),
         ),

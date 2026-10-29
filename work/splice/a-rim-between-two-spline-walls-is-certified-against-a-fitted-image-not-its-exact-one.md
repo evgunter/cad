@@ -71,5 +71,5 @@ filed as `splice/lily-wall-8-at-1e-6-reads-the-rims-crossing-angle-in-band`.
 
 Witnesses: `geom-brep::all spline_pair_arc_rim::*` (six rows, at ε
 default, 1e-6 and 1e-12), and
-`sweep::all a_sheath_grafted_on_its_blade::a_sheath_on_its_blade_unions_past_the_shared_rim`
+`sweep::all a_sheath_grafted_on_its_blade::a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim`
 (its doc re-derived).
