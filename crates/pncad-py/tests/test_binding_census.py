@@ -905,6 +905,12 @@ BOUND_AS = {
     # second attribute if it cares. Five words from an exhaustive
     # match, so a sixth normalization stops the bindings compiling.
     "NormalizationKind": "StructureNormalization.kind",
+    # `NormalizationKind::ChartSingularityVertex`'s payload, at the same
+    # spelling one attribute over: where the file put the pole or apex
+    # import made a vertex, as `singularity` beside the `kind` word
+    # (`interior`, `inside_edge`, `valence_one_vertex`; `None` on every
+    # other arm), the way `promoted_to` carries `surface_promotion`'s.
+    "SingularityFound": "StructureNormalization.singularity",
     # `CurvePromotion::kind`, the same rule one row over. Two words
     # (`circle`, `line` — the degree-1 follow-up, #388) and a map
     # rather than a literal because the recognizer's remaining named
@@ -2101,14 +2107,13 @@ FAMILIES: dict[str, str] = {
 #: `ContactRecords` accordingly stays `INTERIOR` — the same
 #: disposition, now with a second reason under it.
 #:
-#: **The capture reconciles the kernel's two homes for a record set,
-#: and does it where the kernel does.** `NodeValue::contacts` is what
-#: `instantiate` carried in (D-1); a boolean's records ride
-#: `BooleanValue::Body` instead; `editor_core::product::sources_of`
-#: is where the two meet, and `Value.body` / `Value.bodies` now make
-#: the same reconciliation so a body read off a value and the same
-#: body read by the gather cannot disagree about what was declared
-#: over it. An instance of an assembly is the second source (the
+#: **The capture reads a body's records where the kernel does.** A
+#: value's carry holds them (`Carry::contacts`): what `instantiate`
+#: carried in (D-1), or a boolean's own;
+#: `editor_core::product::sources_of` reads them there, and
+#: `Value.body` / `Value.bodies` read them alike so a body read off a
+#: value and the same body read by the gather cannot disagree about
+#: what was declared over it. An instance of an assembly is the second source (the
 #: records its document's census minted, carried across the seam),
 #: and `product` is deliberately the third case: it gathers and
 #: declares NOTHING, so its body is plain. Those two are
@@ -3842,6 +3847,7 @@ MEMBERS_BOUND_AS = {
     "StepImportError::RecognitionAmbiguous": "StepImportError.variant",
     "StepImportError::Pcurves": "StepImportError.variant",
     "StepImportError::Join": "StepImportError.variant",
+    "StepImportError::SingularityUndecided": "StepImportError.variant",
     "StepImportError::PlacementMap": "StepImportError.variant",
     "StepImportError::Placement": "StepImportError.variant",
     "StepImportError::Instance": "StepImportError.variant",

@@ -1520,10 +1520,16 @@ fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
         |e| {
             matches!(
                 e,
-                BooleanError::ResultInvalid { errors } if errors.iter().any(|v| matches!(
-                    v,
-                    pncad::topo::ValidationError::VolumeUncomputable { .. }
-                ))
+                BooleanError::ResultInvalid { errors } if matches!(
+                    errors.as_slice(),
+                    [pncad::topo::ValidationError::VolumeUncomputable {
+                        source: pncad::topo::MassPropsError::Face {
+                            source: pncad::geom_brep::PropsError::QuadratureUnsupported { what },
+                            ..
+                        },
+                        ..
+                    }] if what.starts_with("conic trim on a cone/sphere/torus chart")
+                )
             )
         },
         "make the teapot ONE solid: union the handle and the spout into the vessel, drop \

@@ -147,7 +147,9 @@ use pncad::select::{
     NameLookupError, NamingError, NodePickError, ReadbackError, Resolution, ResolveError,
     ResolveIndeterminate, RimShare, SeamSidesShape, SeamVertexShape, UnionNameShape, WayShape,
 };
-use pncad::step_import::{NormalizationKind, PromotedCurveKind, PromotedKind, StepImportError};
+use pncad::step_import::{
+    NormalizationKind, PromotedCurveKind, PromotedKind, SingularityFound, StepImportError,
+};
 use pncad::sweep::blend::BlendError;
 use pncad::sweep::{ExtrudeError, LoftError, RevolveError, SkinError, TubeError};
 use pncad::topo::splitting::SplitError as SplitOpError;
@@ -2116,6 +2118,7 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::RecognitionAmbiguous { .. } => "recognition_ambiguous",
         StepImportError::Pcurves { .. } => "pcurves",
         StepImportError::Join { .. } => "join",
+        StepImportError::SingularityUndecided { .. } => "singularity_undecided",
         StepImportError::PlacementMap { .. } => "placement_map",
         StepImportError::Placement { .. } => "placement",
         StepImportError::Instance { .. } => "instance",
@@ -2169,14 +2172,30 @@ pub fn promoted_kind_tag(kind: &PromotedKind) -> &'static str {
 ///
 /// The match is exhaustive, so a sixth normalization minted
 /// kernel-side stops this crate compiling instead of arriving under
-/// one of these five words.
+/// one of these five words. `chart_singularity_vertex` keeps its
+/// disposition beside the word too ([`singularity_found_tag`]).
 pub fn normalization_kind_tag(kind: &NormalizationKind) -> &'static str {
     match kind {
         NormalizationKind::EdgeFreeSphere => "edge_free_sphere",
-        NormalizationKind::DegenerateApexCone => "degenerate_apex_cone",
+        NormalizationKind::ChartSingularityVertex { .. } => "chart_singularity_vertex",
         NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
         NormalizationKind::SurfacePromotion { .. } => "surface_promotion",
         NormalizationKind::JoinedEdges => "joined_edges",
+    }
+}
+
+/// The stable tag for where a file put a chart singularity that import
+/// made a vertex — `NormalizationKind::ChartSingularityVertex`'s
+/// payload, which crosses at `singularity` beside the record's `kind`
+/// word rather than folded into it, as `surface_promotion`'s does.
+///
+/// The match is exhaustive, so a fourth disposition stops this crate
+/// compiling instead of arriving under one of these three words.
+pub fn singularity_found_tag(found: &SingularityFound) -> &'static str {
+    match found {
+        SingularityFound::Interior => "interior",
+        SingularityFound::InsideEdge => "inside_edge",
+        SingularityFound::ValenceOneVertex => "valence_one_vertex",
     }
 }
 
