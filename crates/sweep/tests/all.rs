@@ -935,6 +935,8 @@ mod germ_plane_torus_spiric;
 mod germ_radial_hole;
 #[path = "germ_sphere_no_crossings.rs"]
 mod germ_sphere_no_crossings;
+#[path = "germ_sphere_torus_placements.rs"]
+mod germ_sphere_torus_placements;
 #[path = "germ_tilted_rod.rs"]
 mod germ_tilted_rod;
 #[path = "germ_torus_doors.rs"]

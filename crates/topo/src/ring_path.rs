@@ -683,8 +683,8 @@ pub(crate) enum LoopArc<T: Real> {
     Spline(SplineArc<T>),
 }
 
-/// **A spline arc on a cylinder or a sphere face, with the evidence
-/// that it lies on the face's surface to within the band.**
+/// **A spline arc on a cylinder, a sphere or a torus face, with the
+/// evidence that it lies on the face's surface to within the band.**
 ///
 /// [`spline_crossings`] reads a spline arc's meetings with a path's
 /// pieces through the curve-pair table, which finds the points where
@@ -703,8 +703,17 @@ pub(crate) enum LoopArc<T: Real> {
 ///   with its three-limb certificate against both surfaces of the
 ///   section, the chord a join is about to mint from it.
 ///
-/// Both are read on a cylinder or a sphere face only: the faces a carried
-/// chord bounds, which the ring lane's rows read (`ring_path::tests`).
+/// Both are read on a cylinder, a sphere or a torus face: the faces a
+/// carried chord bounds, which the ring lane's rows read
+/// (`ring_path::tests`). Every piece of a torus path past its lead lies
+/// on the tube through its end, within the band of the face's own, so the
+/// argument is the cylinder's: a crossing on the surface is a meeting in
+/// space. The lead, which moves the start onto that tube along its own
+/// tube radius, is off the surface but no longer than the two ends'
+/// offsets from it, within the band: an arc meeting it meets it within
+/// the band of the path's start, which the curve-pair table reads at the
+/// lead's span end, and there the path says nothing ([`spline_crossings`])
+/// and the caller asks another.
 #[derive(Clone)]
 pub(crate) struct SplineArc<T: Real> {
     carrier: geom::Curve3<T>,
