@@ -138,7 +138,7 @@ still unanswered.
 
 **2026-10-28, INTENT stage 3 G (PR 5954).** On main at `a195f777` the row reads `(392112, 131373, 12996, 6342)` against the pin `(392112, 131343, 26058, 8292)`. G leaves the pin as it is and moves only the second count, the rays answered at the aimed vertex: `(392112, 131405, 12996, 6342)`, 32 more grazes. Its corpus documents are families where they were patterns, and `heat_sink` stands its fins beside the union as main's does. A re-pin after G merges takes G's tally.
 
-## 2026-10-29 (GREEN, nightly 76): the refusal halving is #5920; re-pinned at main's reading
+## 2026-10-29 (GREEN, nightly 76): the refusal halving is #5920
 
 Red in `viewer app feature` and the full suite on nightly 76 (run
 40823227622, main `5648e577eb`), as `(392112, 131405, 12996, 6342)`
@@ -163,10 +163,10 @@ and the row's other asserts hold: no genuine crossing is refused, and
 there are no wide winners. G (#5954) then adds the 32 `kitchen_sink`
 grazes measured in G's entry above.
 
-The pin is now main's reading, with both moves in its doc comment, so
-main is green on the row. The question this row asks now covers a
-third refusal move: is #5920's halving what its sphere mesh should
-produce? TESS owns that answer, as the merge's program. This entry is
+INTENT stage 6 A has since re-pinned the row over a new corpus, so
+main is green on it. The question this row asks now covers a third
+refusal move: is #5920's halving what its sphere mesh should produce?
+TESS owns that answer, as the merge's program. This entry is
 the evidence: read the refused candidates per landing at `890d10746`
 against `148c1a24f`.
 
