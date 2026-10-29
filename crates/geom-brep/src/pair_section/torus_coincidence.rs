@@ -92,66 +92,69 @@ pub enum TorusCoincidence {
     /// Two surfaces: a datum decided past the band.
     Apart,
     /// Neither: a datum not finite (its margin invalid), else the first
-    /// datum in the band, else the upper bound, in the band or past it.
+    /// datum in the band, else the upper bound in the band, else the
+    /// data decided `Zero` beside the bound past it (`tt_coincident_straddle`).
     Undecided(Indeterminate),
 }
 
 /// **Decides whether two tori are one surface** (module docs): one where
 /// the upper bound decides `Zero`, apart where a datum decides past the
-/// band, and otherwise undecided. A datum not finite reads no sign,
-/// whatever it decides.
+/// band, and otherwise undecided. A datum not finite reads no sign: its
+/// residual `x − x`, poison, is what the funnel reads for it.
 pub fn tori_coincide<T: Decide>(a: TorusData<T>, b: TorusData<T>, band: Band) -> TorusCoincidence {
     let d = TorusDisplacement::of(a, b);
-    let unreadable = |name| Indeterminate {
-        margin: MarginDiag::INVALID,
-        band,
-        predicate: Some(name),
-        terminal_sliver: false,
-    };
+    let finite = |m: Margin<T>| geom_core::is_finite_length(m.value());
     let (upper, upper_log) = detached(|| decide_reported(TT_COINCIDENT, Margin::of(d.upper), band));
-    let finite = |x: T| geom_core::is_finite_length(x);
-    if let Ok(Decided {
-        sign: Sign::Zero,
-        margin,
-    }) = upper
-        && d.data.iter().all(|&(_, m)| finite(m.value()))
+    if let Ok(
+        decided @ Decided {
+            sign: Sign::Zero, ..
+        },
+    ) = upper
+        && d.data.iter().all(|&(_, m)| finite(m))
     {
         splice(upper_log);
-        return TorusCoincidence::One(margin);
+        return TorusCoincidence::One(decided.margin);
     }
     let mut logs = vec![upper_log];
-    let (mut blocked, mut in_band) = (None, None);
+    let (mut blocked, mut in_band, mut zero) = (None, None, None);
     for &(name, margin) in &d.data {
-        let (read, log) = detached(|| decide_reported(name, margin, band));
+        let read_on = if finite(margin) {
+            margin
+        } else {
+            Margin::of(margin.value() - margin.value())
+        };
+        let (read, log) = detached(|| decide_reported(name, read_on, band));
         match read {
-            _ if !finite(margin.value()) => {
-                blocked.get_or_insert(unreadable(name));
-                logs.push(log);
-            }
             Ok(Decided {
                 sign: Sign::Positive | Sign::Negative,
                 ..
-            }) => {
+            }) if finite(margin) => {
                 // The answer rests on this datum alone.
                 logs.into_iter().for_each(splice_superseded);
                 splice(log);
                 return TorusCoincidence::Apart;
             }
-            Ok(_) => logs.push(log),
+            Ok(decided) => {
+                zero.get_or_insert(decided);
+            }
+            Err(diag) if !finite(margin) || diag.margin.is_invalid() => {
+                blocked.get_or_insert(diag);
+            }
             Err(diag) => {
                 in_band.get_or_insert(diag);
-                logs.push(log);
             }
         }
+        logs.push(log);
     }
     logs.into_iter().for_each(splice);
-    TorusCoincidence::Undecided(blocked.or(in_band).unwrap_or(match upper {
-        Err(diag) => diag,
-        Ok(Decided { margin, .. }) => Indeterminate {
-            margin,
-            band,
-            predicate: Some(TT_COINCIDENT),
-            terminal_sliver: false,
-        },
-    }))
+    let undecided = match (blocked.or(in_band), upper, zero) {
+        (Some(diag), ..) | (None, Err(diag), _) => diag,
+        (None, Ok(upper), Some(lower)) => {
+            geom_core::k_stats::straddle("tt_coincident_straddle", lower, upper, band)
+        }
+        (None, Ok(_), None) => unreachable!(
+            "four data read, none definite, in the band or poisoned, and none decided Zero"
+        ),
+    };
+    TorusCoincidence::Undecided(undecided)
 }
