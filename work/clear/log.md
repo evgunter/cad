@@ -194,3 +194,21 @@ Signed: (CARVE orchestrator)
   - **Cost**, re-measured: about 2.4× on single-drive rows, about 1.25× on the suites.
   - **Amended in the row's Decided section:** no bisection on an absent `hi`; `hi` up to the band.
   - **Also closed:** `an-assertion-over-scopes-that-meet-…`.
+- 2026-10-29 — **CURVEDEP merges (#5991)** with this commit last. Departure now certifies across a closed curved shared edge (pipe, mitre, drum). The arm is concurrent (letter H).
+  - **The DUAL pair at `b7394bd758`.** R1 returned APPROVE-WITH-FIXES and R2 NOT-MERGEABLE-AS-IS. Coded blind with byte 162 (A = R1): tally 0. R2's MAJOR, that lax soundness guards go red on no row, is bilateral with R1's MINOR. Sensitivity: R2's partial-side mutants F/G, split out, would have scored 1. R1 alone found that kernel-built oblique cuts still refuse.
+  - **Fix pass 1 (`716862ab`):**
+    - a red row per mutant;
+    - a lamina (curved wedge-0) row;
+    - the oblique cut pinned refusing;
+    - `Run::graph` split per step;
+    - `Zero::Curve`/`Zero::Past` in the types.
+  - **The focused review**, `session_018u3gVJ4e`: APPROVE-WITH-FIXES. Six of its own mutants survived, plus a dangling citation and an `f64::min` that ignored NaN.
+  - **Fix pass 2 (`3470ea3b`), read and accepted:**
+    - red rows for the Past guard's `analytic` and `zero_on`, and the whole-turn `rb`;
+    - arguments at the guard for step 1's per-piece monotone check, "passes both ends" and `apart`'s ±1 copies. The orchestrator spot-checked two: a sinusoid over less than a turn crosses a level at most twice; a run ending inside the columns ends at a vertex, which `alone` refuses;
+    - a fail-closed `rb`;
+    - an order-independent lamina pin.
+  - **Moved to CLEARTAIL:** its two P2 filings, `curved-presentation-reads-plane-and-cylinder-images-only` and `a-coordinate-line-on-a-face-of-unknown-extent-is-unplaced`.
+  - **Stays P1 in CLEAR:** `departure-reads-no-curved-corner`, which SHELL-4 waits on.
+- 2026-10-29 — **SENSEFOLD dispatched** (`docs/SENSEFOLD-SPEC.md`, branch `clear/sensefold`, cloud lane) for `main-red-injective-rs-folds-the-face-sense-by-hand`, after CURVEDEP. Review: the orchestrator's read.
+- 2026-10-29 — **SENSEFOLD merges (#6028)** with this commit last. The orchestrator read the diff and accepted it: one hit goes through the sense door, and two chart-space signs are sanctioned with their reasons. Receipts are unchanged. The slow-set row stays red on TESS's `trimmed.rs` sibling only.

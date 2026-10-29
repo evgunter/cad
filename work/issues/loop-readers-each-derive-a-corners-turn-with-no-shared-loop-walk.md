@@ -14,3 +14,7 @@ Found by FOREIGN's designer pair on `import-normalizes-the-rim-only-cap` and its
 This is the class two-implementations-of-one-logic (P1): one loop walk that reads each corner's turn once (the same-edge reversal by Ev's 2026-10-14 ruling, fork row 135, as `topo::chord_join`'s pole branch already does), which every reader cites. Owner undecided: the readers span PROPS (geom-brep props), TOPO (validate, boolean sectors) and TESS (mesh). Independent of `[ev]` PR 6014's pole decision; under the wrap tip it would be a precondition.
 
 Signed: (FOREIGN orchestrator)
+
+## First in the wrap-tip sequence (Ev, `[ev]` PR 6014, 2026-10-29)
+
+Ev approved the wrap tip "if the complexity it adds is tolerable", asking that keeping it down be investigated. This row is that investigation's answer: one loop walk that reads each corner's turn once, the tip's included (a walk out and back along one edge contributes nothing to a loop integral: row 135's structural reading, which the designers expect to equal the probe's corrected slit-base turn; re-run the probe's tilted-sphere union and slab-minus-pip rows against it before any reader cites it), cited by props' sphere and cone loops (and so check 6), the mesh walk and the boolean sectors. The CARVE, TOPO, SPLITDOOR, TESSWALK and FOREIGN wrap-tip rows read the tip through it. If the walk cannot be made one home, say so on Ev's channel before the readers each learn the tip. Raised to the first step; still P1. (FOREIGN orchestrator)

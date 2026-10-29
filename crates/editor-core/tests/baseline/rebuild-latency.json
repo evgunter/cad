@@ -150,6 +150,26 @@
       "nodes": 4,
       "cone": 3
     },
+    "pin_in_bore": {
+      "about": "a shouldered pin seated in a bore by an axis mate, pressed and loose",
+      "nodes": 13,
+      "cone": 4
+    },
+    "axis_projection": {
+      "about": "two copies of one bushing stacked spigot in socket along its own axis, unioned",
+      "nodes": 5,
+      "cone": 4
+    },
+    "blocks_on_one_floor": {
+      "about": "two cubes each resting on one floor by a mate, abutting, unioned",
+      "nodes": 12,
+      "cone": 7
+    },
+    "revolves_on_one_axis": {
+      "about": "two rings whose revolves read one pair of axis variables, stacked and unioned",
+      "nodes": 7,
+      "cone": 4
+    },
     "symmetric_plate": {
       "about": "a mirror is a construction: an L plate and its mirror across the plane of its own face, unioned",
       "nodes": 5,
