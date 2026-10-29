@@ -3000,8 +3000,14 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                 }
                 if let Ok(rows) = crate::pcurves::loop_lift(body, lk) {
                     if lk == f.outer {
-                        out.extent =
-                            extent_of(rows.iter().map(|row| row_of(&row.pcurve, row.row.params())));
+                        out.extent = extent_of(rows.iter().map(|row| {
+                            let (t0, t1) = row.row.params();
+                            let end = |t: T| {
+                                let q = row.pcurve.eval(t);
+                                [Interval::from_certified(q.x), Interval::from_certified(q.y)]
+                            };
+                            row_of(&row.pcurve, (t0, t1), [end(t0), end(t1)])
+                        }));
                     }
                     for row in rows {
                         let (t0, t1) = row.row.params();
@@ -3079,9 +3085,14 @@ enum Row {
 }
 
 /// **One row of a loop's lift as [`extent_of`] reads it**: a monotone
-/// coordinate line by its ends, a harmonic image by its enclosure over
-/// its whole span `(t0, t1)`; `None` for any other image.
-fn row_of<T: Decide + CertifiedBounds>(pcurve: &Pcurve<T>, (t0, t1): (T, T)) -> Option<Row> {
+/// coordinate line by its `ends`, its chart points at `t0` and `t1`; a
+/// harmonic image by its enclosure over its whole span; `None` for any
+/// other image.
+fn row_of<T: CertifiedBounds>(
+    pcurve: &Pcurve<T>,
+    (t0, t1): (T, T),
+    ends: [[Interval; 2]; 2],
+) -> Option<Row> {
     if !monotone_line(pcurve) {
         let h = harmonic_of(pcurve)?;
         let t = Interval::from_bounds(
@@ -3090,11 +3101,7 @@ fn row_of<T: Decide + CertifiedBounds>(pcurve: &Pcurve<T>, (t0, t1): (T, T)) -> 
         );
         return Some(Row::Bulging(h.over(t)));
     }
-    let end = |t: T| {
-        let q = pcurve.eval(t);
-        [Interval::from_certified(q.x), Interval::from_certified(q.y)]
-    };
-    Some(Row::Ends([end(t0), end(t1)]))
+    Some(Row::Ends(ends))
 }
 
 /// **The face's own extent in its chart** ([`Boundary::extent`]): the
@@ -3756,6 +3763,7 @@ mod wiring_rows {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
 mod extent_rows {
     use super::{Row, extent_of, row_of};
     use core::f64::consts::{PI, TAU};
@@ -3779,13 +3787,24 @@ mod extent_rows {
         }
     }
 
+    /// The arch's chart points at `0` and `t`.
+    fn flat(t: f64) -> [[geom_core::interval::Interval; 2]; 2] {
+        let at = |x: f64, y: f64| {
+            [
+                geom_core::interval::Interval::from_bounds(x, x),
+                geom_core::interval::Interval::from_bounds(y, y),
+            ]
+        };
+        [at(0.0, 0.0), at(t, t.sin())]
+    }
+
     /// **A harmonic row's extent holds its bulge, not its ends alone.**
     /// `v = sin t` is `0` at both ends of `[0, π]` and `1` between, so a
     /// hull of its ends misses the face's points over the bulge. Red if
     /// a row that is no monotone line is read by its ends.
     #[test]
     fn a_harmonic_rows_extent_holds_its_bulge() {
-        let Some(Row::Bulging([u, v])) = row_of(&arch(), (0.0, PI)) else {
+        let Some(Row::Bulging([u, v])) = row_of(&arch(), (0.0, PI), flat(PI)) else {
             panic!("the arch is read by its enclosure");
         };
         assert!(
@@ -3793,7 +3812,7 @@ mod extent_rows {
             "the enclosure holds the arch: {u:?} {v:?}"
         );
         let [(_, _), (_, top)] =
-            extent_of([row_of(&arch(), (0.0, PI))].into_iter()).expect("an extent");
+            extent_of([row_of(&arch(), (0.0, PI), flat(PI))].into_iter()).expect("an extent");
         assert!(top >= 1.0, "the extent reaches the bulge: {top}");
     }
 
@@ -3804,7 +3823,7 @@ mod extent_rows {
     #[test]
     fn a_bulging_extent_a_whole_turn_wide_is_unknown() {
         assert!(
-            extent_of([row_of(&arch(), (0.0, TAU))].into_iter()).is_none(),
+            extent_of([row_of(&arch(), (0.0, TAU), flat(TAU))].into_iter()).is_none(),
             "a turn-wide superset reads unknown"
         );
     }
