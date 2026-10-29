@@ -816,19 +816,20 @@ fn riders<T: Decide>(
     Ok(out)
 }
 
-/// Whether edge `e`, both of whose ends lie on the plane face `f`, lies
-/// in it: a line whose midpoint `f` holds (two points of a plane hold
-/// the line between them), or a conic in `f`'s plane whose midpoint `f`
-/// holds. A face that is no plane holds nothing here.
+/// Whether edge `e`, both of whose ends lie on face `f`, lies in it,
+/// its midpoint held by `f`: on a plane, a line (two points of a plane
+/// hold the line between them) or a conic in `f`'s plane; on a
+/// cylinder, cone or sphere, a line whose midpoint lies on the carrier
+/// too (a quadric meeting a line in three points holds it: a ruling).
+/// A torus holds no line, and a face on any other carrier holds nothing
+/// here.
 fn lies_in<T: Decide>(
     body: &Body<T>,
     e: EdgeKey,
     f: FaceKey,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let Some(&geom::Surface::Plane { origin, normal, .. }) =
-        body.get_face(f).and_then(|d| body.get_surface(d.surface))
-    else {
+    let Some(surface) = body.get_face(f).and_then(|d| body.get_surface(d.surface)) else {
         return Ok(false);
     };
     let Some(curve) = body
@@ -837,6 +838,31 @@ fn lies_in<T: Decide>(
         .and_then(|c| c.certified())
     else {
         return Ok(false);
+    };
+    let (origin, normal) = match *surface {
+        geom::Surface::Plane { origin, normal, .. } => (origin, normal),
+        geom::Surface::Cylinder { .. } | geom::Surface::Cone { .. } | geom::Surface::Sphere { .. }
+            if matches!(curve.carrier(), geom::Curve3::Line { .. }) =>
+        {
+            let mid = curve.mid_point();
+            return match crate::validate::decide(
+                "bool_line_face_carrier_offset",
+                Margin::of(geom_brep::implicit::implicit_residual(surface, mid)),
+                band,
+            ) {
+                Ok(Sign::Zero) => Ok(matches!(
+                    piece_reading(body, f, mid, band, DoorInBand::Containment)?,
+                    PieceRead::In
+                )),
+                Ok(Sign::Positive | Sign::Negative) => Ok(false),
+                Err(diag) => Err(BooleanError::coincidence(
+                    Coincide::EdgeOnCurvedFace,
+                    DeclarationRead::Moot,
+                    diag,
+                )),
+            };
+        }
+        _ => return Ok(false),
     };
     let mid = match curve.carrier() {
         geom::Curve3::Line { .. } => curve.mid_point(),
@@ -913,9 +939,31 @@ fn walls_inside<T: Decide>(
         .carrier()
         .deriv((t0 + t1) * T::from_f64(0.5))
         .normalize();
-    let floor = crate::face_normal::face_outward_normal(body, f)
-        .ok_or_else(desync)?
-        .vec();
+    let floor = match crate::face_normal::face_outward_normal_at(body, f, mid, band) {
+        Ok(Some(n)) => n.vec(),
+        Ok(None) => return Err(desync()),
+        Err(crate::face_normal::NormalAtError::Escalated { decision, diag }) => {
+            return Err(BooleanError::Escalated {
+                decision: BooleanDecision::of_normal(decision),
+                diag,
+            });
+        }
+        Err(_) => return Err(refused(EdgeInFaceGap::NoNormal)),
+    };
+    let floor_surface = body
+        .get_face(f)
+        .and_then(|d| body.get_surface(d.surface))
+        .ok_or_else(desync)?;
+    // The direction from `mid` toward a curved carrier's centre of
+    // curvature; `None` on a plane.
+    let bend = |surface: &geom::Surface<T>| match *surface {
+        geom::Surface::Cylinder { origin, axis, .. } => {
+            Some(origin + axis * (mid - origin).dot(axis) - mid)
+        }
+        geom::Surface::Cone { apex, axis, .. } => Some(apex + axis * (mid - apex).dot(axis) - mid),
+        geom::Surface::Sphere { center, .. } => Some(center - mid),
+        _ => None,
+    };
     let mut inside = [false; 2];
     let mut flat = [false; 2];
     for (k, (he, dir)) in [(edge.he_plus, tangent), (edge.he_minus, -tangent)]
@@ -959,14 +1007,15 @@ fn walls_inside<T: Decide>(
                     .get_face(wall)
                     .and_then(|d| body.get_surface(d.surface))
                     .ok_or_else(desync)?;
-                let toward = match *surface {
-                    geom::Surface::Cylinder { origin, axis, .. } => {
-                        origin + axis * (mid - origin).dot(axis) - mid
+                let toward = match (surface, bend(floor_surface)) {
+                    // A plane wall tangent to a curved floor lies on the
+                    // floor's convex side, away from its centre of
+                    // curvature.
+                    (geom::Surface::Plane { .. }, Some(floor_bend)) => -floor_bend,
+                    (_, Some(_)) => return Err(refused(EdgeInFaceGap::Tangent)),
+                    (wall_surface, None) if bend(wall_surface).is_some() => {
+                        bend(wall_surface).ok_or_else(desync)?
                     }
-                    geom::Surface::Cone { apex, axis, .. } => {
-                        apex + axis * (mid - apex).dot(axis) - mid
-                    }
-                    geom::Surface::Sphere { center, .. } => center - mid,
                     // A plane wall tangent along the line lies in the
                     // floor's plane. Glued to the floor from outside
                     // (outward normals opposed), its material is across
@@ -977,7 +1026,7 @@ fn walls_inside<T: Decide>(
                     // its side was, so the reading is in metres: how far
                     // the wall's normal, carried across the wall, stands
                     // off the floor's.
-                    geom::Surface::Plane { .. } => {
+                    (geom::Surface::Plane { .. }, None) => {
                         match crate::validate::decide_nonzero(
                             "bool_rider_wall_coplanar",
                             Margin::levered(normal.dot(floor), arm),
