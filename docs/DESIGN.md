@@ -430,11 +430,7 @@ curve pairs.
   others. Cells are one only by topology (a Zero verdict glued them,
   and from then on they are one cell) or by structure
   ([coincidence.structural]); both are transitive because neither is
-  a comparison of values. A Zero on two carriers glues the cells on
-  them and decides nothing about cells derived from them: an edge two
-  glued faces cut on a third face keeps its own curve and is read by
-  its own reading, so two such edges may lie apart, and where they
-  part from Zero through the band their meeting is in band. A body is valid when every question its
+  a comparison of values. A body is valid when every question its
   topology poses decides definite, or Zero and recorded.
 - At `T = Interval` an indeterminate predicate aborts the operation:
   predicates return `Result<Sign, Indeterminate>` (the trichotomy is
