@@ -1222,13 +1222,12 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
             });
         }
     }
-    let winding = rectangle_winding(&polygon, (u0, u1, v0, v1)).ok_or(
-        PropsError::QuadratureUnsupported {
+    let winding =
+        rectangle_winding(&polygon, (u0, u1, v0, v1)).ok_or(PropsError::QuadratureUnsupported {
             what: "the NURBS-face boundary does not traverse its UV rectangle exactly \
                    once — a trimmed or multiply-wound region is outside the rectangle \
                    lane (the cut-loft unit's)",
-        },
-    )?;
+        })?;
     let control = about(
         payload
             .control()
@@ -1280,7 +1279,10 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
 /// A once-around walk steps along one side at a time, every step
 /// forward in that order (or every step backward), and passes each
 /// corner once, so its places wrap round exactly once.
-fn rectangle_winding(polygon: &[(f64, f64)], (u0, u1, v0, v1): (f64, f64, f64, f64)) -> Option<f64> {
+fn rectangle_winding(
+    polygon: &[(f64, f64)],
+    (u0, u1, v0, v1): (f64, f64, f64, f64),
+) -> Option<f64> {
     if polygon.len() < 4 || u0 >= u1 || v0 >= v1 {
         return None;
     }

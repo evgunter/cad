@@ -149,7 +149,11 @@ fn a_creased_wall_and_its_creased_edges_import_split_at_the_knot() {
                 .sum()
         };
         assert_eq!(
-            (delta(|c| c.faces), delta(|c| c.edges), delta(|c| c.vertices)),
+            (
+                delta(|c| c.faces),
+                delta(|c| c.edges),
+                delta(|c| c.vertices)
+            ),
             (1, 3, 2),
             "{name}: the records' deltas are the body's totals over the file's 6/12/8"
         );
@@ -160,7 +164,9 @@ fn a_creased_wall_and_its_creased_edges_import_split_at_the_knot() {
         let m = tessellate(b, 1e-2, tol).unwrap_or_else(|e| panic!("{name} meshes: {e:?}"));
         check_mesh(&m).unwrap_or_else(|e| panic!("{name}: the mesh is watertight: {e:?}"));
         let v = body
-            .measure(topo::Settle::Resolution(quantity::Length::from_meters(1e-6)))
+            .measure(topo::Settle::Resolution(quantity::Length::from_meters(
+                1e-6,
+            )))
             .unwrap_or_else(|e| panic!("{name} measures: {e:?}"))
             .enclosure;
         assert!(
@@ -190,5 +196,87 @@ fn a_knot_vertex_nothing_else_meets_refuses_typed() {
     assert!(
         what.contains("no other edge meets"),
         "the refusal names the lone vertex: {what}"
+    );
+}
+
+/// A rational wall smooth across its double knot, bounded by CIRCLE
+/// rims that carry no knot: the split places its vertices on the rims
+/// at the knot's iso line, and the two quarter-circle sub-patches
+/// import, mesh and measure as the file's half frustum.
+#[test]
+fn a_rational_wall_splits_where_its_rims_carry_no_knot() {
+    let tol = Tol::witness();
+    let imported = import_step(&fixture("half_cone.step"), &ImportOptions::default(), tol)
+        .unwrap_or_else(|e| panic!("the half cone imports: {e}"));
+    let StepImport::Solid {
+        body,
+        normalizations,
+        ..
+    } = imported
+    else {
+        panic!("the half cone is a solid");
+    };
+    let b = body.body();
+    assert_eq!(
+        (b.faces().count(), b.edges().count(), b.vertices().count()),
+        (5, 9, 6),
+        "the file's 4 faces, 6 edges and 4 vertices, with the wall split in two by one new \
+         edge whose ends split each rim"
+    );
+    assert_eq!(normalizations.len(), 1, "one record: {normalizations:?}");
+    assert_eq!(normalizations[0].kind, NormalizationKind::FaceSplitAtC0Knot);
+    assert_eq!(
+        (
+            normalizations[0].file_census,
+            normalizations[0].kernel_census
+        ),
+        (
+            FaceCensus {
+                faces: 1,
+                edges: 4,
+                vertices: 4
+            },
+            FaceCensus {
+                faces: 2,
+                edges: 7,
+                vertices: 6
+            }
+        ),
+        "the wall become two faces, its two rims four arcs, and one new edge between them"
+    );
+    let rim_points: Vec<_> = b
+        .points()
+        .map(|(_, p)| *p)
+        .filter(|p| p.y.abs() < 1e-12)
+        .collect();
+    assert_eq!(
+        rim_points.len(),
+        2,
+        "a vertex on each rim at the knot's meridian y = 0: {rim_points:?}"
+    );
+    for (_, face) in b.faces() {
+        if let Some(geom::Surface::Nurbs(s)) = b.get_surface(face.surface) {
+            assert!(
+                !creased(s.knots_u_f64_interim()) && !creased(s.knots_v_f64_interim()),
+                "a wall chart still carries a C⁰ knot"
+            );
+        }
+    }
+    topo::validate_geometric(b, tol).unwrap_or_else(|e| panic!("tier 3: {e:?}"));
+    let m = tessellate(b, 1e-2, tol).unwrap_or_else(|e| panic!("the half cone meshes: {e:?}"));
+    check_mesh(&m).unwrap_or_else(|e| panic!("the mesh is watertight: {e:?}"));
+    // Half a frustum of height 1 and radii 1 and 1/2: π/6 · (1 + 1/2 + 1/4).
+    let frustum = core::f64::consts::PI / 6.0 * 1.75;
+    let v = body
+        .measure(topo::Settle::Resolution(quantity::Length::from_meters(
+            1e-6,
+        )))
+        .unwrap_or_else(|e| panic!("the half cone measures: {e:?}"))
+        .enclosure;
+    assert!(
+        (v.volume - frustum).abs() <= v.volume_pad,
+        "volume {} ± {:e}, the half frustum's {frustum}",
+        v.volume,
+        v.volume_pad
     );
 }

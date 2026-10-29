@@ -21,8 +21,10 @@
 //! bitwise both sub-patches' boundary column.
 //!
 //! Every split is reported as a [`StructureNormalization`], never done
-//! silently. A face whose trim the split cannot place (module
-//! [`split_face_once`]) refuses typed rather than shipping its crease.
+//! silently. A face whose trim the split cannot place
+//! ([`split_face_once`]), and an edge knot whose vertex the closing join
+//! would take back ([`split_c0_knots`]), refuse typed rather than ship
+//! the crease.
 
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -79,7 +81,11 @@ fn least_face_using(solid: &SolidSpec, edge: u64) -> Option<u64> {
     solid
         .faces
         .iter()
-        .filter(|f| f.loops.iter().any(|l| l.uses.iter().any(|u| u.edge == edge)))
+        .filter(|f| {
+            f.loops
+                .iter()
+                .any(|l| l.uses.iter().any(|u| u.edge == edge))
+        })
         .map(|f| f.id)
         .min()
 }
@@ -99,13 +105,19 @@ fn expand_uses(solid: &mut SolidSpec, edge: u64, pieces: &[u64]) {
                     } else if u.forward {
                         pieces
                             .iter()
-                            .map(|&e| EdgeUse { edge: e, forward: true })
+                            .map(|&e| EdgeUse {
+                                edge: e,
+                                forward: true,
+                            })
                             .collect()
                     } else {
                         pieces
                             .iter()
                             .rev()
-                            .map(|&e| EdgeUse { edge: e, forward: false })
+                            .map(|&e| EdgeUse {
+                                edge: e,
+                                forward: false,
+                            })
                             .collect()
                     };
                     run
@@ -339,7 +351,10 @@ fn split_net_u(s: &NurbsSurface<f64>, k: f64) -> Option<(NurbsSurface<f64>, Nurb
     let (_, nv) = s.control_counts();
     let (control, weights) = (s.control(), s.weights_f64_interim());
     let lo_knots: Vec<f64> = knots[..first + p].iter().copied().chain([k]).collect();
-    let hi_knots: Vec<f64> = [k].into_iter().chain(knots[first..].iter().copied()).collect();
+    let hi_knots: Vec<f64> = [k]
+        .into_iter()
+        .chain(knots[first..].iter().copied())
+        .collect();
     let child = |knots: Vec<f64>, rows: core::ops::Range<usize>| {
         let net = rows.start * nv..rows.end * nv;
         NurbsSurface::new(
@@ -351,25 +366,51 @@ fn split_net_u(s: &NurbsSurface<f64>, k: f64) -> Option<(NurbsSurface<f64>, Nurb
         .ok()
     };
     let rows = s.control_counts().0;
-    Some((child(lo_knots, 0..first)?, child(hi_knots, first - 1..rows)?))
+    Some((
+        child(lo_knots, 0..first)?,
+        child(hi_knots, first - 1..rows)?,
+    ))
 }
 
-/// The face's first crease knot, along `u` before `v`, with the face's
-/// surface split there: `(low, high, transposed)`, where `transposed`
-/// says the split ran along `v` and both children are stated in the
-/// face's own chart again.
-fn first_split(
-    s: &NurbsSurface<f64>,
-) -> Option<Result<(f64, NurbsSurface<f64>, NurbsSurface<f64>, bool), f64>> {
-    if let Some(&k) = crease_knots(s.knots_u_f64_interim()).first() {
-        return Some(split_net_u(s, k).map(|(lo, hi)| (k, lo, hi, false)).ok_or(k));
+/// A chart split at one crease knot: the two children, each in the
+/// parent's own chart.
+struct NetSplit {
+    /// The knot, in the split direction's parameter.
+    knot: f64,
+    /// The child below the knot.
+    lo: NurbsSurface<f64>,
+    /// The child above it.
+    hi: NurbsSurface<f64>,
+    /// Whether the split ran along `v`.
+    along_v: bool,
+}
+
+/// The chart's first crease knot, along `u` before `v`, with the chart
+/// split there; `Err(knot)` where the partition refused.
+fn first_split(s: &NurbsSurface<f64>) -> Option<Result<NetSplit, f64>> {
+    if let Some(&knot) = crease_knots(s.knots_u_f64_interim()).first() {
+        return Some(
+            split_net_u(s, knot)
+                .map(|(lo, hi)| NetSplit {
+                    knot,
+                    lo,
+                    hi,
+                    along_v: false,
+                })
+                .ok_or(knot),
+        );
     }
     let t = s.transposed();
-    let &k = crease_knots(t.knots_u_f64_interim()).first()?;
+    let &knot = crease_knots(t.knots_u_f64_interim()).first()?;
     Some(
-        split_net_u(&t, k)
-            .map(|(lo, hi)| (k, lo.transposed(), hi.transposed(), true))
-            .ok_or(k),
+        split_net_u(&t, knot)
+            .map(|(lo, hi)| NetSplit {
+                knot,
+                lo: lo.transposed(),
+                hi: hi.transposed(),
+                along_v: true,
+            })
+            .ok_or(knot),
     )
 }
 
@@ -385,15 +426,17 @@ fn use_start(solid: &SolidSpec, u: EdgeUse) -> u64 {
 ///
 /// The iso line runs across the whole chart, from `Q₀` on the low
 /// boundary of the other direction to `Q₁` on the high one; both are
-/// control points of the net, so exact. The split places the line when
-/// the face's single loop passes through a vertex at each (within
-/// `eps_in`) and its two chains between them each hold a corner of one
-/// sub-patch and none of the other. The low sub-patch takes the chain
-/// through its corners, closed by the minted iso edge, and the high
-/// sub-patch the other. Anything else refuses typed, naming the face
-/// and the knot: a face with rings, a loop with no vertex at an end of
-/// the line, a chain that holds both sides' corners (a closed chart, or
-/// a trim that crosses the line elsewhere) or neither.
+/// control points of the net, so exact. The face's single loop must
+/// pass through each within `eps_in`: at a vertex, or inside one edge,
+/// which is split there first (an analytic rim, or a spline stated on
+/// other knots). The two chains between them must each hold a corner of
+/// one sub-patch and none of the other; on a chart closed across the
+/// split, whose two sides share their corners, each must walk the
+/// closed boundary the way its own sub-patch's counter-clockwise
+/// boundary does. The low sub-patch takes its chain, closed by the
+/// minted iso edge, and the high sub-patch the other. Anything else
+/// refuses typed, naming the face and the knot
+/// (`work/exch/the-c0-knot-split-refuses-what-it-cannot-place.md`).
 fn split_face_once(
     solid: &mut SolidSpec,
     fi: usize,
@@ -413,8 +456,12 @@ fn split_face_once(
         knot,
         what,
     };
-    let (knot, lo, hi, along_v) =
-        split.map_err(|k| refuse(k, "the chart refused its split at its own crease knot"))?;
+    let NetSplit {
+        knot,
+        lo,
+        hi,
+        along_v,
+    } = split.map_err(|k| refuse(k, "the chart refused its split at its own crease knot"))?;
     // The iso curve at the knot: the high child's start column (along
     // `u`) or start row (along `v`), bitwise the low child's end.
     let iso = if along_v {
@@ -424,7 +471,10 @@ fn split_face_once(
     }
     .map_err(|_| refuse(knot, "the knot's iso curve did not re-wrap as a curve"))?;
     if solid.faces[fi].loops.len() != 1 {
-        return Err(refuse(knot, "the face has rings, which the split does not place"));
+        return Err(refuse(
+            knot,
+            "the face has rings, which the split does not place",
+        ));
     }
     let near = |a: Point3<f64>, b: Point3<f64>| (a - b).norm() <= eps_in;
     let (q0, q1) = match (iso.control().first(), iso.control().last()) {
@@ -498,9 +548,11 @@ fn split_face_once(
     };
     let (a, b) = (chain(i0, i1), chain(i1, i0));
     let holds = |c: &[EdgeUse], corners: &[Point3<f64>; 2]| {
-        c.iter()
-            .skip(1)
-            .any(|&u| corners.iter().any(|&q| near(solid.vertices[&use_start(solid, u)], q)))
+        c.iter().skip(1).any(|&u| {
+            corners
+                .iter()
+                .any(|&q| near(solid.vertices[&use_start(solid, u)], q))
+        })
     };
     let a_low = holds(&a, &lo_corners) && !holds(&a, &hi_corners);
     let b_low = holds(&b, &lo_corners) && !holds(&b, &hi_corners);

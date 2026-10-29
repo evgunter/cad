@@ -119,18 +119,20 @@ fn dm1_no_longer_refuses_at_the_instancing_gate() {
             )
         }
         // **The frontier past the retired gap: the pcurve MINT on the
-        // l-bracket wall's ARC rim** (`MapResidual` — wall `#382`
-        // states four u spans while its rim circles are three-arc
-        // rationals; the l-bracket witness below pins the same
-        // frontier on the pruned text). Reached only because check 7
+        // l-bracket wall's ARC rim** (wall `#382` states its circle as
+        // four rational spans with unnormalized end weights, split at
+        // its C⁰ knots into one-span sub-patches, against three-arc
+        // rational rim circles: the arc-rim pick holds no row at its
+        // probe; the l-bracket witness below pins the same frontier on
+        // the pruned text). Reached only because check 7
         // certifies a SIGN (the at-rest gate admits every component's
         // enclosure at round 0) AND `#389` adopts (#388): the two
         // former frontiers each stood in front of this one.
         Err(StepImportError::Pcurves { source, .. }) => {
             let shown = source.to_string();
             assert!(
-                shown.contains("MapResidual"),
-                "the frontier past the retired gap is the arc-rim mint's residual: {shown}"
+                shown.contains("not an arc rim of this chart"),
+                "the frontier past the retired gap is the arc-rim pick: {shown}"
             );
         }
         Err(StepImportError::TierInvalid { solid, errors }) => {
@@ -305,11 +307,10 @@ fn l_bracket_only(text: &str) -> String {
 /// being REVERSED against its wall's boundary column, the one such
 /// reversal in the file — it adopts through the column candidate run
 /// backwards. The first refusal is now the pcurve MINT on the wall's
-/// ARC rim (`MapResidual`): wall `#382` states four u spans while its
-/// rim circles are three-arc rationals, so the imported-chart arc-rim
-/// construction ("one span per sub-arc") refuses this chart — a
-/// pre-existing frontier newly reachable, filed with the unit rather
-/// than widened past. At the merge base this same pruned text refused
+/// ARC rim: wall `#382` states its circle as four rational spans with
+/// unnormalized end weights (1 and 2), which the import splits at its
+/// C⁰ knots into one-span sub-patches, and the arc-rim pick holds no
+/// row at its probe against the three-arc rational rim circles. At the merge base this same pruned text refused
 /// `Adoption { id: 389, attempts: [] }` — the gap this pins retired.
 #[test]
 fn the_l_bracket_alone_adopts_its_reversed_slit() {
@@ -322,8 +323,8 @@ fn the_l_bracket_alone_adopts_its_reversed_slit() {
         Err(StepImportError::Pcurves { source, .. }) => {
             let shown = source.to_string();
             assert!(
-                shown.contains("MapResidual"),
-                "the successor frontier is the arc-rim mint's residual: {shown}"
+                shown.contains("not an arc rim of this chart"),
+                "the successor frontier is the arc-rim pick: {shown}"
             );
         }
         other => panic!("the l-bracket's frontier moved — re-measure: {other:?}"),
