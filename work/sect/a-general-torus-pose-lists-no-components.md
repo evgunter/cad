@@ -128,8 +128,7 @@ with no march and R-march where the march refuses, and matches every
 Reached: GERM's radial hole passes the mint at all four rods (4 and 3
 loops) and stops at the volume (`spiricarm/a-projected-boundary-…`);
 the drum × donut placements all pass the mint (volume, conic trim, the
-cap's spiric, the torus face's ring island); ball × donut 5 and
-donut × donut 2, 3 stop at the ring island, donut × donut 1 at the
-join's segment dispatch; the lily's long stem stops at the march's own
+cap's spiric, a wall run image); ball × donut 5 and donut × donut 1 to 3
+stop at the volume; the lily's long stem stops at the march's own
 `CellBudget` (SECTRUNG's). The tilted cut's clear torus builds every op
 (`orbit/a-torus-near-a-tilted-cut-stops-at-the-extent-scan`).

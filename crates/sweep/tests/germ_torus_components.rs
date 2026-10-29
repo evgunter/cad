@@ -113,13 +113,13 @@ fn stop(got: &Result<BooleanResult<f64>, BooleanError>) -> String {
         Err(BooleanError::Join(join))
             if matches!(
                 join.error(),
-                topo::SplitJoinError::RingIslandUnread {
-                    kind: geom::SurfaceKind::Torus,
+                topo::SplitJoinError::RunImageNotYet {
+                    kind: geom::SurfaceKind::Cylinder,
                     ..
                 }
             ) =>
         {
-            "torus ring island".to_owned()
+            "wall run image".to_owned()
         }
         Err(BooleanError::JoinCarrierUnsupported {
             carrier: geom::CurveKind::Nurbs,
@@ -172,8 +172,8 @@ fn row(
 /// on a face its fitted chords bound
 /// (`work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md`)
 /// or a conic trim on the torus chart, the cap plane's spiric
-/// (`GermSectionSpiric`), or the ring lane's island on the torus face,
-/// whose spline arm is unbuilt (`torus-germ-pairs-have-no-section-frame`).
+/// (`GermSectionSpiric`), or a run's image on the drum's wall chart that
+/// the ring lane does not yet read (`RunImageNotYet`).
 #[test]
 fn a_drum_against_a_moved_donut_passes_the_germ_mint() {
     row(
@@ -184,8 +184,8 @@ fn a_drum_against_a_moved_donut_passes_the_germ_mint() {
             ["projected", "projected"],
             ["projected", "conic trim"],
             ["spiric", "spiric"],
-            ["torus ring island", "torus ring island"],
-            ["torus ring island", "torus ring island"],
+            ["conic trim", "conic trim"],
+            ["wall run image", "wall run image"],
         ],
         &[
             (1e-6, 2, ["tube straddles"; 2]),
@@ -198,31 +198,25 @@ fn a_drum_against_a_moved_donut_passes_the_germ_mint() {
 /// **A ball cutting both tube circles of its meridian** (placement 5):
 /// two curves about the torus axis, counted, which no plane or meridian
 /// tells apart; each germ's component is its site's foot, and the run
-/// stops at the ring lane's island on the torus face.
+/// stops at the result gate's volume on a conic trim of the torus chart.
 #[test]
 fn a_ball_round_the_donuts_axis_passes_the_germ_mint() {
-    row(
-        ball,
-        &[5],
-        &[["torus ring island", "torus ring island"]],
-        &[],
-    );
+    row(ball, &[5], &[["conic trim", "conic trim"]], &[]);
 }
 
 /// **Two donuts in general pose** (placements 1, 2, 3): the section the
-/// march's, each germ's component its site's foot. Placement 1 stops at
-/// the join's segment dispatch, which has no torus lane for a segment
-/// it does not carry (`CurvedBooleanUnsupported`), the others at the
-/// ring lane's island on the torus face.
+/// march's, each germ's component its site's foot. Each passes the join
+/// and stops at the result gate's volume: a conic trim on the torus
+/// chart, or a ring left on a curved face (`RingOnCurvedFace`).
 #[test]
 fn two_donuts_in_general_pose_pass_the_germ_mint() {
     row(
         donut,
         &[1, 2, 3],
         &[
-            ["curved join A", "curved join B"],
-            ["torus ring island", "torus ring island"],
-            ["torus ring island", "torus ring island"],
+            ["ring on a curved face", "conic trim"],
+            ["conic trim", "conic trim"],
+            ["conic trim", "conic trim"],
         ],
         &[
             (1e-6, 1, ["pierce curvature"; 2]),

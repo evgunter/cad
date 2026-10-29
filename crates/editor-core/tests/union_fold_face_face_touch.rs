@@ -133,9 +133,10 @@ fn touches(
         let failed: Vec<_> = members.iter().filter_map(|&m| failure(&ev, m)).collect();
         panic!("{what}: the union did not evaluate; a member refused: {failed:?}");
     };
-    let ValuePayload::Boolean(BooleanValue::Body { body, contacts, .. }) = &value.payload else {
+    let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else {
         panic!("{what}: not a boolean body");
     };
+    let contacts = &value.carry.contacts;
     assert_eq!(body.body().solids().count(), solids, "{what}: solids");
     let v = topo::test_support::pinned_volume(
         "the measured body",

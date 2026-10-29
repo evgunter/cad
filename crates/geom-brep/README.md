@@ -838,7 +838,13 @@ operands, reads the partner's symmetry on the section certificate's
 lever and pivot margins over the torus's own ball `|x − c| ≤ R + r`
 (which holds the whole section, so no face's extent enters a value
 keyed by surface pair; the smaller ball for two tori), and decides the
-**critical gap**, the one place a torus pair's tangency is decided. A
+**critical gap**, the one place a torus pair's tangency is decided. Two
+tori are decided one surface or not before any of it
+(`pair_section::torus_coincidence`): one where the bound on their
+distance, the core circle's move plus the tube difference, decides
+`Zero`, apart where a datum alone decides past the band; the bound holds
+at every point of both, so it reads no ball, and the Boolean's carrier
+ladder reads the same decision for two torus faces it reads undeclared. A
 sphere, a cylinder and a torus are the points at distance `ρ` from a
 spine (a point, a line, a core circle), and two of them are tangent
 exactly where a critical value of the spine-to-spine distance equals

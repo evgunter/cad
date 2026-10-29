@@ -76,6 +76,7 @@ use crate::ssi::{BranchEnd, SsiCertificate, SsiDomain, SsiError};
 pub mod gap;
 pub mod torus;
 mod torus_arms;
+pub mod torus_coincidence;
 pub mod winds;
 
 pub use gap::Gap;
@@ -84,6 +85,10 @@ pub use torus::{
     TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, axis_pose,
 };
 pub use torus_arms::{Pinch, SquareWall, signs, signs_across};
+pub use torus_coincidence::{
+    TT_COINCIDENT, TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData, TorusDatum, TorusDisplacement,
+    tori_coincide,
+};
 pub use winds::{Winding, WindsRefusal};
 
 /// **`v`'s part square to the unit `a`, and its norm**, taken as

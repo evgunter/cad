@@ -336,9 +336,10 @@ fn a_held_flush_stretch_is_named_for_every_member_that_holds_it() {
 /// the node's own coincidences it cites.
 fn kiss_record(ev: &Evaluation<f64>, id: RecipeNodeId) -> editor_core::NamedCoincidence {
     let value = ev.value(id).expect("the node evaluated");
-    let ValuePayload::Boolean(BooleanValue::Body { contacts, .. }) = &value.payload else {
+    let ValuePayload::Boolean(BooleanValue::Body { .. }) = &value.payload else {
         panic!("a boolean body: {:?}", value.payload);
     };
+    let contacts = &value.carry.contacts;
     let [record] = contacts.rows() else {
         panic!("one vertex pair: {contacts:?}");
     };
@@ -396,7 +397,7 @@ fn a_kiss_record_cites_its_vertex_fusion_row_at_the_pair_and_the_union() {
     want.sort();
     assert_eq!(inputs, want, "the row names one corner of each member");
     assert_eq!(
-        pair_value.cited_inputs.as_ref(),
+        pair_value.carry.cited_inputs.as_ref(),
         [
             editor_core::CitedInput::Read(read_a),
             editor_core::CitedInput::Read(read_b)
