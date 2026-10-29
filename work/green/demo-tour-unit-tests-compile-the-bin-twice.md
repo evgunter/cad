@@ -2,10 +2,11 @@
 id: demo-tour-unit-tests-compile-the-bin-twice
 kind: issue
 title: demo-tour's unit tests build the 32k-line bin a second time as its test harness, about 3 min of the demos job's release build
-status: open
+status: closed
 opened: 2026-10-29
 priority: P0
 cost: M
+closed: 2026-10-29
 parent: the-demos-job-is-pr-cis-long-pole-on-its-release-build
 ---
 
@@ -45,3 +46,39 @@ A lib split alone does not help: the lib's own `#[cfg(test)]` harness
 is the same second copy. The eight bin rows the `ci` profile names
 (`demos/tour/.config/nextest.toml`) move to `binary_id(demo-tour::all)`
 with their new paths. Count the tests before and after.
+
+## Closed (2026-10-29, GREEN, PR #6039)
+
+`demos/tour` is a library (`src/lib.rs`, the scenes) and a thin bin
+(`src/main.rs` calls `demo_tour::cli`). Neither target has a test
+harness (`test = false`, `doctest = false`, `bench = false`). The 47
+unit tests moved to suites of `all` (`tests/<module>.rs`, one per
+source module, under their old names, so `snowman::tests::…` is still
+`snowman::tests::…`). The lib made public what they reach. The
+cfg(test) helpers moved into their suites, except lily's `Lance`
+closed forms, which are now `pub` methods. The scene code compiles
+once per build.
+
+**No test lost.** Listed from the built binaries before and after
+(`--features probe`, which adds the three `k_probe_brackets` rows):
+101 before (bin 47 + `all` 54) and 101 after (`all`), the same names;
+one ignored row before and after
+(`chaintol::tests::the_plain_lanes_reach_is_bisected`). Default
+features: 98 and 98.
+
+**Measured on one hosted runner** (a measurement-only CI commit,
+reverted: kernel warm, then `cargo test --release --no-run --timings`
+for main's layout and for this one, back to back):
+
+| layout | units (s) | tour phase |
+|---|---|---|
+| main: bin, bin harness, `all` in parallel | 648 + 623 + 407 | 648 s |
+| lib, then `all` (the bin is 0.7 s) | 268 + 184 | 453 s |
+
+That is −195 s (−30 %) of wall and −73 % of unit-seconds. Locally (4
+cores, a shared box) the same pair measured 605 and 461 s.
+
+**Reading a hosted log.** The lib starts on pncad's metadata, so
+`Compiling demo-tour` now prints while pncad is still in codegen. The
+time from that line to `Finished` is no longer the tour's own part,
+and it overstates it: the PR's two ordinary runs read 12.2 min there.
