@@ -595,7 +595,7 @@ workspace_manifests() {
 # ("target filters `bins`, `examples` specified, but no targets matched")
 # for a package with neither, which is what makes it safe to run
 # unconditionally; `--lib --bins` is NOT the shorter spelling, because
-# `--lib` is a hard error on a bin-only package like `demos/tour`, while
+# `--lib` is a hard error on a bin-only package like `demos/wild`, while
 # `--bins --examples` is not an error on any of them.
 #
 # THE LINT SET IS A PARAMETER, not a global read from in here, because
