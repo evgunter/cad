@@ -1,6 +1,6 @@
 //! **One member of a family is read as `xs[i]`** (REFERENCES DM3): a
 //! read of the family `xs` at one `Count` per index, at every body seat
-//! ([`BodyRead`]). The member keeps its `Instance { i, of }` names and
+//! ([`BodyRead`]). The member keeps its `Member { (k, i), of }` names and
 //! an operation reading it keys them by `xs` (DM4), so `Union(xs)` and
 //! `Union([xs[0], xs[1], xs[2]])` name and build alike. An index out of
 //! range leaves the reader unresolved and typed at evaluation; the index
@@ -9,7 +9,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::eval6_placers_over_instances::{cube_doc, linear};
+use crate::eval6_placers_over_instances::cube_doc;
 use crate::fixture;
 use editor_core::{
     Bodies, BodyRead, DocEdit, EditError, Evaluation, Formula, Node, NodeError, NodeErrorKind,
@@ -18,11 +18,11 @@ use editor_core::{
 use fixture::{insert, insert_refused, len, run, step, table};
 use geom_core::Tol;
 
-/// A unit cube and a linear pattern of three of it along x at spacing
-/// 2: instance `i` occupies `[2i, 2i + 1]` in x.
+/// A unit cube and a row of three of it along x at spacing 2: member
+/// `i` occupies `[2i, 2i + 1]` in x.
 fn family(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, cube) = cube_doc(label);
-    let (doc, xs) = insert(doc, linear(cube, [1.0, 0.0, 0.0], 2.0, 3));
+    let (doc, _, xs) = fixture::linear(doc, cube, [1.0, 0.0, 0.0], 2.0, 3);
     (doc, cube, xs)
 }
 
@@ -79,12 +79,12 @@ fn names(ev: &Evaluation<f64>, at: RecipeNodeId) -> Vec<StableName> {
     n
 }
 
-/// The instance index a name carried in from the family `xs` (read as
+/// The member index a name carried in from the family `xs` (read as
 /// `read`) says, `None` for a name not so carried.
 fn carried_instance(name: &StableName, read: editor_core::VarId) -> Option<u32> {
     match name.path.first()? {
         RoleSeg::From { read: r, of } if *r == read => match of.path.first()? {
-            RoleSeg::Instance { i, .. } => Some(*i),
+            RoleSeg::Member { at, .. } => at.first().map(|&(_, i)| i),
             _ => None,
         },
         _ => None,
@@ -125,7 +125,7 @@ fn a_union_of_a_family_and_of_its_members_spelled_name_and_build_alike() {
     assert_eq!(
         instances,
         [0, 1, 2].into_iter().collect(),
-        "every member's names are keyed by the family read, the index said once in `Instance`"
+        "every member's names are keyed by the family read, the index said once in `Member`"
     );
     assert!(
         (volume(&ev, whole) - 3.0).abs() < 1e-9 && (volume(&ev, spelled) - 3.0).abs() < 1e-9,
@@ -165,7 +165,7 @@ fn an_indexed_read_at_a_body_seat_reads_that_member() {
     let ev = eval(&doc);
     assert!(
         (least_x(&ev, lower) - 2.0).abs() < 1e-12,
-        "the split's target is instance 1: least x {}",
+        "the split's target is member 1: least x {}",
         least_x(&ev, lower)
     );
     assert!(
@@ -175,7 +175,7 @@ fn an_indexed_read_at_a_body_seat_reads_that_member() {
     );
     assert!(
         (least_x(&ev, cut) - 2.0).abs() < 1e-12 && (volume(&ev, cut) - 1.0).abs() < 1e-9,
-        "the subtract cuts instance 1 by the disjoint instance 0: least x {}, volume {}",
+        "the subtract cuts member 1 by the disjoint member 0: least x {}, volume {}",
         least_x(&ev, cut),
         volume(&ev, cut)
     );
@@ -183,7 +183,7 @@ fn an_indexed_read_at_a_body_seat_reads_that_member() {
         names(&ev, cut)
             .iter()
             .any(|n| carried_instance(n, read) == Some(1)),
-        "the cut's names are keyed by the family read, carrying instance 1's"
+        "the cut's names are keyed by the family read, carrying member 1's"
     );
 }
 
@@ -201,7 +201,7 @@ fn an_index_out_of_range_refuses_typed_and_an_index_edit_restores_it() {
     assert!(
         matches!(
             error_of(&ev, cut),
-            NodeErrorKind::InstanceOutOfRange { input, index: 5, count: 3 } if *input == xs
+            NodeErrorKind::MemberOutOfRange { input, at } if *input == xs && at.as_slice() == [5]
         ),
         "{:?}",
         error_of(&ev, cut)
@@ -229,7 +229,7 @@ fn an_index_out_of_range_refuses_typed_and_an_index_edit_restores_it() {
 #[test]
 fn the_index_variable_is_an_input_of_its_reader() {
     let (doc, _, xs) = family("dm3-index-upstream");
-    let k = VarName::from_static("k");
+    let k = VarName::from_static("which");
     let (doc, _) = step(
         doc,
         DocEdit::DeclareVar {
@@ -251,7 +251,7 @@ fn the_index_variable_is_an_input_of_its_reader() {
         (least_x(&ev, one) - 0.0).abs() < 1e-12,
         "k = 0 reads instance 0"
     );
-    let var = doc.var_named("k").expect("declared");
+    let var = doc.var_named("which").expect("declared");
     let (doc, _) = step(
         doc,
         DocEdit::SetVarValue {
@@ -386,16 +386,13 @@ fn the_doors_refuse_an_index_where_no_family_is_read() {
         ),
         "only a family is indexed"
     );
-    // A family read whole at a body seat, as before.
-    assert!(
-        matches!(
-            insert_refused(&doc, subtract(BodyRead::plain(xs), xs)),
-            EditError::SlotVarKind {
-                found: editor_core::VarKind::Bodies,
-                ..
-            }
-        ),
-        "a family read whole is not a body"
+    // A family read plainly at a body seat makes its reader a family
+    // under the same index: the subtract is evaluated once per member.
+    let (per_member, cut) = fixture::insert(doc.clone(), subtract(BodyRead::plain(xs), xs));
+    assert_eq!(
+        per_member.node_reach(cut).chain(),
+        doc.node_reach(xs).chain(),
+        "a plain read of a family carries its index to the reader"
     );
     // A family argument carries no index.
     assert!(
@@ -413,7 +410,7 @@ fn the_doors_refuse_an_index_where_no_family_is_read() {
         ),
         "a family argument reads every member"
     );
-    // A family is indexed by one count.
+    // A family is read by one value per index it is keyed by.
     let two = BodyRead::indexed(xs, vec![Formula::count(0), Formula::count(1)]);
     assert!(
         matches!(
@@ -424,11 +421,15 @@ fn the_doors_refuse_an_index_where_no_family_is_read() {
                 },
             ),
             EditError::IndexedRead {
-                fault: editor_core::InputFault::IndexRank { found: 2, .. },
+                fault: editor_core::InputFault::IndexRank {
+                    found: 2,
+                    rank: 1,
+                    ..
+                },
                 ..
             }
         ),
-        "a pattern's family has one index"
+        "a row's family has one index"
     );
 }
 
@@ -473,11 +474,10 @@ fn set_members_writes_indexed_members() {
 /// lands on one side and the seam vertex refuses `UnsupportedSeamVertex`.
 #[test]
 fn a_subtract_of_two_overlapping_members_of_one_family_builds_as_two_parts_do() {
-    use crate::eval6_placers_over_instances::part;
     let (doc, cube) = cube_doc("dm3-overlap-cut");
-    let (doc, xs) = insert(doc, linear(cube, [1.0, 1.0, 1.0], 0.5, 2));
-    let (doc, one) = insert(doc, part(xs, 1));
-    let (doc, zero) = insert(doc, part(xs, 0));
+    let (doc, _, xs) = fixture::linear(doc, cube, [1.0, 1.0, 1.0], 0.5, 2);
+    let (doc, one) = fixture::member(doc, xs, 1);
+    let (doc, zero) = fixture::member(doc, xs, 0);
     let (doc, by_parts) = insert(
         doc,
         Node::Subtract {
@@ -537,7 +537,7 @@ fn renoded_deep(name: &StableName, from: RecipeNodeId, to: RecipeNodeId) -> Stab
 #[test]
 fn an_overlapping_family_names_alike_read_whole_and_spelled() {
     let (doc, cube) = cube_doc("dm3-overlap-alike");
-    let (doc, xs) = insert(doc, linear(cube, [1.0, 1.0, 1.0], 0.5, 3));
+    let (doc, _, xs) = fixture::linear(doc, cube, [1.0, 1.0, 1.0], 0.5, 3);
     let (doc, whole) = insert(
         doc,
         Node::Union {

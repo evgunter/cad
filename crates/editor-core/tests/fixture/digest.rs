@@ -102,7 +102,8 @@ pub fn digest(ev: &Evaluation<f64>) -> u64 {
             | ValuePayload::Instances(_)
             | ValuePayload::Measure { .. }
             | ValuePayload::MeasureUnavailable { .. }
-            | ValuePayload::Assertion(_) => {}
+            | ValuePayload::Assertion(_)
+            | ValuePayload::Family => {}
         }
     }
     h

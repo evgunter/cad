@@ -294,9 +294,11 @@ fn r2_rule_d_folds_nothing_past_its_caps_or_at_other_shapes() {
 }
 
 /// **The half-π fold: exact forms only.** Theorems at `k·π/2`, and at
-/// `π/3` by the rational fold (`cos(π/3) = ½`), numerically zero; NEVER
-/// at `π·x` with `x` a parameter at 1.0, at a literal one ulp off π's
-/// coefficient, at `π/5` (irrational), or at `π + atan X`.
+/// `π/3` by the rational fold (`cos(π/3) = ½`), and at `cos(π/5) +
+/// cos(4π/5)` and `cos(π + atan X) + cos(atan X)` by rule H's angle
+/// sums, numerically zero; NEVER at `π·x` with `x` a parameter at 1.0,
+/// at a literal one ulp off π's coefficient, or at `π/5` against its
+/// `f64` (irrational).
 #[test]
 fn r2_half_pi_folds_only_the_exact_form() {
     fn one() -> Sym<f64> {
@@ -328,13 +330,11 @@ fn r2_half_pi_folds_only_the_exact_form() {
     for (name, mk) in theorems {
         assert_sound_theorem(name, how_f64(mk), 1.0e-15);
     }
-    let never: [(&str, fn() -> Sym<f64>); 4] = [
-        ("cos(π·x) + 1 at x = 1.0", || {
-            (pi() * p("x", 1.0)).sin_cos().1 + one()
-        }),
-        ("cos(π·(1 + ulp)) + 1", || {
-            (pi() * Sym::from_f64(1.0 + f64::EPSILON)).sin_cos().1 + one()
-        }),
+    // Rule H's: `cos(4π/5)` is `−cos(π/5)`, one first-octant atom;
+    // `cos(π + φ)` is `−cos φ` by angle addition; and `cos(φ + π/2)` is
+    // `−sin φ`, whose split reads `sin(π/2) ≠ 0`, so the sign of the
+    // split's `sin φ·sin qπ` term is what proves it.
+    let angle_sums: [(&str, fn() -> Sym<f64>); 4] = [
         ("cos(π/5) + cos(4π/5)", || {
             (pi() / Sym::from_f64(5.0)).sin_cos().1
                 + (pi() * Sym::from_f64(4.0) / Sym::from_f64(5.0)).sin_cos().1
@@ -342,6 +342,29 @@ fn r2_half_pi_folds_only_the_exact_form() {
         ("cos(π + atan x) + cos(atan x)", || {
             let x = p("x", 0.3);
             (pi() + x.atan()).sin_cos().1 + x.atan().sin_cos().1
+        }),
+        ("cos(atan x + π/2) + sin(atan x)", || {
+            let x = p("x", 0.3);
+            (x.atan() + pi() / Sym::from_f64(2.0)).sin_cos().1 + x.atan().sin_cos().0
+        }),
+        ("sin(atan x + π/2) − cos(atan x)", || {
+            let x = p("x", 0.3);
+            (x.atan() + pi() / Sym::from_f64(2.0)).sin_cos().0 - x.atan().sin_cos().1
+        }),
+    ];
+    for (name, mk) in angle_sums {
+        assert_sound_theorem(name, how_f64(mk), 1.0e-15);
+    }
+    let never: [(&str, fn() -> Sym<f64>); 3] = [
+        ("cos(π·x) + 1 at x = 1.0", || {
+            (pi() * p("x", 1.0)).sin_cos().1 + one()
+        }),
+        ("cos(π·(1 + ulp)) + 1", || {
+            (pi() * Sym::from_f64(1.0 + f64::EPSILON)).sin_cos().1 + one()
+        }),
+        ("cos(π/5) − its f64", || {
+            (pi() / Sym::from_f64(5.0)).sin_cos().1
+                - Sym::from_f64((core::f64::consts::PI / 5.0).cos())
         }),
     ];
     for (name, mk) in never {

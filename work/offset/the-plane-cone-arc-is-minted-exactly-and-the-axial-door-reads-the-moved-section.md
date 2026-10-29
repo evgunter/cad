@@ -66,5 +66,5 @@ is retired; the Boolean (`GermSectionOpenConic`), the split
 cone-cap section and refuses the hyperbola at its gate
 (`ReplaceFaceError::TogetherConicArc`) until unit 3 or CHARTTAIL
 certifies the arc. Residue filed:
-`work/exch/step-import-reads-no-hyperbola-or-parabola.md`,
+`work/foreign/step-import-reads-no-hyperbola-or-parabola.md`,
 `work/select/edge-extent-reads-a-steep-nurbs-arcs-chord-four-to-ten-times-short.md`.

@@ -2,10 +2,10 @@
 id: a-general-torus-pose-lists-no-components
 kind: issue
 title: A general cylinder × torus or torus × torus pose lists no components: the section value refuses it though the door marches it
-status: open
+status: dispatched
 opened: 2026-10-28
 priority: P0
-cost: M
+cost: H
 design: true
 refs: [torus-germ-pairs-have-no-section-frame, cylinder-torus-rung-three-arm-is-unretired, torus-torus-rung-three-arm-is-unretired]
 ---

@@ -70,7 +70,7 @@ routes and they are different decisions:
 **Reach.** The Euler doors, and any caller that meshes without
 validating. Not import: an exporter stating one arc twice between one
 vertex pair is what the normalization row
-(`work/exch/import-normalizes-the-rim-only-cap.md`) is about for the
+(`work/foreign/import-normalizes-the-rim-only-cap.md`) is about for the
 other member, and nothing has measured this one through the STEP door.
 Not the cylinder or torus twin: with no pole, both junctions of a
 coincident-edge slit are continuations, the loop opens one iso side, and

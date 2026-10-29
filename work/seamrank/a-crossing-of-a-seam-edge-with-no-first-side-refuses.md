@@ -2,12 +2,12 @@
 id: a-crossing-of-a-seam-edge-with-no-first-side-refuses
 kind: issue
 title: A crossing of a seam edge whose two sides carry one name has no orientation to read its sense along, and refuses where a lone one used to be named
-status: parked
+status: closed
 opened: 2026-10-06
 priority: P3
 cost: M
 design: true
-blocked_on: [patterns-are-index-variables]
+closed: 2026-10-29
 ---
 
 
@@ -48,3 +48,7 @@ question.
 ## Likely fixed, unwitnessed (WIRE orchestrator, 2026-10-26)
 
 PR 5758 ("nothing is ranked") retired the first-side reading. `emit_topo::edge_reading` now names a crossing of an equal-pair seam (`a == b`, emit_topo.rs ~4926), where the old code refused `UNORIENTED`. That is PR 5758's FULL review, by inspection; no test reaches it. The witness needs two placements of one prototype, which is D10 ground, so the row re-parks there. When D10 lifts, build the witness and close the row, or reopen it if the witness refuses.
+
+## Closed (2026-10-29, D10 exit walk)
+
+The refusal's code is gone. No "no first side" emission is left in `crates/editor-core/src/names/`. `emit_topo::edge_reading` names an equal-pair seam's crossing by its carried sides (`emit_topo.rs:5127`, the `a == b` arm). The witness this row asked for, two placements of one prototype crossing the seam, was not built by the walk. Reopen if it refuses.

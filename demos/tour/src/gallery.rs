@@ -252,9 +252,8 @@ mod tests {
                 at_rest: 0,
                 product: None,
                 why: "one placement, and nothing in the document interpenetrates: the base \
-                      is rounded by a Fillet, the fin group is a PlacedUnion, and a \
-                      Boolean folds the group into the rounded base, so the whole part \
-                      is in the recipe",
+                      is rounded by a Fillet after a Union folds the fin family into the \
+                      base, so the whole part is in the recipe",
             },
             Shape {
                 name: "teapot",
@@ -288,7 +287,7 @@ mod tests {
                     faces: 26 + 6 * 5,
                 }),
                 why: "the union of the hub and the blade group, at the scene's first count; \
-                      the group is a PlacedUnion, so its six blades are one body",
+                      the union fuses the blade family, so its six blades are one body",
             },
             Shape {
                 name: "plate",
