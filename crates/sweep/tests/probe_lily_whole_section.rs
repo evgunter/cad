@@ -143,3 +143,45 @@ fn probe_lilys_pairs_through_the_whole_section_readings() {
     }
     eprintln!("total {:.2?}", t.elapsed());
 }
+
+/// **A plane cutting the blade's walls**, where the section has a branch
+/// to march: across the spine (normal `x`, at `x = 0.5`), where W5 would
+/// clear the pair, and lengthwise (normal `z`, through the keel at
+/// `z = -0.01`), where it would not.
+#[test]
+fn probe_a_plane_cutting_the_blade_through_the_whole_reading() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).expect("band");
+    let base = [0.170, 0.028, 0.020];
+    let (d, v) = (Vec3::unit_x(), Vec3::unit_z());
+    let leaf = blade(
+        d,
+        v,
+        (1.2, -0.3),
+        |s| [0, 1, 2].map(|i| base[i] + ([0.300, 0.034, 0.016][i] - base[i]) * s),
+        tol,
+    );
+    let (_, walls) = parts(&leaf);
+    let across = Surface::Plane {
+        origin: Point3::new(0.5, 0.0, 0.0),
+        normal: Vec3::unit_x(),
+        u_ref: Vec3::unit_y(),
+    };
+    let along = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, -0.01),
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    for (what, plane) in [("across the spine", &across), ("lengthwise", &along)] {
+        for (i, w) in walls.iter().enumerate() {
+            let t = std::time::Instant::now();
+            let mut dom = domain(&[w]);
+            dom.center = match plane {
+                Surface::Plane { origin, .. } => *origin,
+                _ => unreachable!(),
+            };
+            let out = geom_brep::PlaneSection::of(plane, w, dom, band).and_then(|s| s.all());
+            report(&format!("plane {what} × blade wall {i} ({:.2?})", t.elapsed()), out);
+        }
+    }
+}
