@@ -2,7 +2,7 @@
 id: a-sketch-continues-tangent-to-a-surfaces-trace
 kind: unit
 title: INTENT stage 6 PR C: a sketch continues tangent to another surface's trace in its plane
-status: open
+status: dispatched
 opened: 2026-10-29
 priority: P0
 cost: H
