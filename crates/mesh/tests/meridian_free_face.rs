@@ -10,8 +10,10 @@
 //! which says so itself.
 //!
 //! The bodies come through the Euler doors
-//! (`witness_bodies::one_circle_cut`); the STEP route to the same state
-//! is `step-import/tests/meridian_free_cap.rs`. What this file pins
+//! (`witness_bodies::one_circle_cut`); a STEP file stating the same
+//! state imports with the pole made a vertex in the seamed form
+//! (`step-import/tests/chart_singularity_vertex.rs`), so the import
+//! door no longer reaches it. What this file pins
 //! about the kernel's own verbs is the control row and no more: the
 //! revolved dome and one plane-cut ball are stated on meridians through
 //! a pole vertex.

@@ -560,10 +560,13 @@ impl<T: Real> Settler<'_, T> {
     /// [`SettleError::Dead`] where the chase ends on a cell `body` does
     /// not hold: a stage deleted it without its row.
     pub fn settle(&self, vertex: VertexKey) -> Result<Cell, SettleError> {
-        let start = Cell::Vertex(self.fusions.survivor(vertex));
-        self.rows
-            .chase(start, |c| holds(self.body, c))
-            .map_err(|reached| SettleError::Dead { vertex, reached })
+        crate::lineage::settle_through(
+            self.fusions,
+            Cell::Vertex(vertex),
+            |c| self.rows.get(c),
+            |c| holds(self.body, c),
+        )
+        .map_err(|reached| SettleError::Dead { vertex, reached })
     }
 
     /// The live cells `vertex`'s point lies in, one per cone of the
@@ -3494,10 +3497,19 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
         })? {
             geom_brep::DihedralClass::Transverse => {
                 let carrier = draft.span().0.kind();
+                let drafted = crate::pcurves::seam_intersection(
+                    body,
+                    draft,
+                    [
+                        (sides.plus.half_edge, s1, surf1),
+                        (sides.minus.half_edge, s2, surf2),
+                    ],
+                    band,
+                );
                 body.describe_intersection(
                     crate::policy_lane::KernelSite::SeamIntersection,
                     edge,
-                    draft.into_intersection(geom_brep::SurfacePair::new(s1, s2)),
+                    drafted,
                     tol,
                 )
                 .map_err(|e| of_attachment(edge, EdgeDescribeFailure::Intersection, carrier, e))?;
@@ -7933,7 +7945,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
             geom_brep::EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::Intersection {
                     pair: geom_brep::SurfacePair::new(sphere, plane),
-                    witness: carrier.mid_point(T::zero(), span),
+                    selector: geom_brep::CurveSelector::Witness(carrier.mid_point(T::zero(), span)),
                 },
                 carrier,
                 param_start: T::zero(),

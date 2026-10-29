@@ -458,10 +458,14 @@ mod review_4730_divided_carry_probes;
 mod review_4740_r1_probes;
 #[path = "review_cleave_mint_doors.rs"]
 mod review_cleave_mint_doors;
+#[path = "review_pinch_corner_split.rs"]
+mod review_pinch_corner_split;
 #[path = "spline_reanchor_rows.rs"]
 mod spline_reanchor_rows;
 #[path = "split_tangent_edge.rs"]
 mod split_tangent_edge;
+#[path = "split_through_a_union_pinch.rs"]
+mod split_through_a_union_pinch;
 #[path = "split_through_an_apex.rs"]
 mod split_through_an_apex;
 #[path = "tangent_touch_charges_both_sags.rs"]

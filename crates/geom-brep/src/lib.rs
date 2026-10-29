@@ -73,6 +73,7 @@ pub mod fitted_lane;
 mod grid_offsets;
 pub mod half_angle;
 pub(crate) mod harmonic;
+pub mod identity;
 pub mod implicit;
 pub mod intersect;
 pub mod keys;
@@ -105,12 +106,14 @@ pub mod torus_convention;
 pub use carrier_net::CarrierEnclosureRefusal;
 pub use certify::{
     CERT_SAMPLES, CertCheck, Certificate, CertifiedTurn, CertifyError, DraftedIntersection,
-    EdgeCurve, EdgeCurveSpec, ForwardReading, IntersectionDraft, MintedEdge, NurbsLane, SplineFoot,
-    StatedImage, StatedSpan, WindingReading, folded_parallelism, sample_param, schedule_param,
+    EdgeCurve, EdgeCurveSpec, ForwardReading, IntersectionDraft, MintedEdge, NurbsLane, RowRefusal,
+    SplineFoot, StatedImage, StatedSpan, WindingReading, folded_parallelism, sample_param,
+    schedule_param,
 };
 pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side};
 pub use description::{
-    ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
+    ChartCurve, CurveSelector, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, SharedRow,
+    Structural, authority_of,
 };
 pub use dihedral::{
     DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DIHEDRAL_ARM_NOUN, DihedralClass, DihedralReading,
@@ -148,6 +151,7 @@ pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 /// the spiric carrier's constructor reads it too); re-exported so the
 /// doors above read it by the name they already use.
 pub use geom::ring_torus;
+pub use identity::{IdentityWalk, identity_walk};
 pub use implicit::{
     ARC_RESIDUAL_SAMPLES, CircleSphereHarmonic, Conic, ConicHarmonics, ConicTorusHarmonics,
     SurfaceSide, circle_arc_residual_range, circle_residual_curvature_bound,
@@ -191,8 +195,9 @@ pub use pair_section::{
     ComponentShape, CsDecision, CsStance, CtStance, CylinderSpherePose, CylinderTorusPose,
     FittedCarrier, Gap, PairPose, PairSection, PoseRefusal, Ring, Seated, SectionComponent,
     SectionDecision, SectionRead, SiteFoot, SiteRefusal, SphereTorusPose, SquareWall, SsiLane,
-    StStance, TorusGap, TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, ZeroKind,
-    ZeroVerdict, axis_pose, line_tilt, pair_section, square_part,
+    StStance, TT_COINCIDENT, TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData, TorusDatum,
+    TorusDisplacement, TorusGap, TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn,
+    ZeroKind, ZeroVerdict, axis_pose, line_tilt, pair_section, square_part, tori_coincide,
 };
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,

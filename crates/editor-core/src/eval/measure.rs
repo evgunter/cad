@@ -1290,36 +1290,6 @@ fn measured<T: Decide, P>(
     }
 }
 
-/// **Which endpoints of an observed value's enclosure belong to what it
-/// names** ([`Certified`](crate::measure::Certified)): structural, off
-/// the measures under it, so the same at every scalar. A value that is
-/// one `min_clearance` measure's output is its lower bound only; one a
-/// definition carries a `min_clearance` through is neither; every other
-/// value is a whole enclosure.
-pub(crate) fn certified<P>(doc: &crate::Doc<P>, var: crate::VarId) -> crate::measure::Certified {
-    use crate::measure::Certified;
-    let clearance = |out: &crate::VarId| {
-        doc.operation_of(*out)
-            .and_then(|node| doc.node(node))
-            .is_some_and(|node| {
-                matches!(
-                    node,
-                    crate::Node::Measure {
-                        primitive: MeasurePrimitive::MinClearance { .. }
-                    }
-                )
-            })
-    };
-    let outputs = doc.observed_outputs(var);
-    if outputs == [var] && clearance(&var) {
-        Certified::LowerBoundOnly
-    } else if outputs.iter().any(clearance) {
-        Certified::Neither
-    } else {
-        Certified::Enclosure
-    }
-}
-
 #[cfg(test)]
 mod tests {
     #![allow(clippy::expect_used, clippy::panic)]

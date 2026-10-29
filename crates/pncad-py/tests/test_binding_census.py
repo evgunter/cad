@@ -905,6 +905,12 @@ BOUND_AS = {
     # second attribute if it cares. Five words from an exhaustive
     # match, so a sixth normalization stops the bindings compiling.
     "NormalizationKind": "StructureNormalization.kind",
+    # `NormalizationKind::ChartSingularityVertex`'s payload, at the same
+    # spelling one attribute over: where the file put the pole or apex
+    # import made a vertex, as `singularity` beside the `kind` word
+    # (`interior`, `inside_edge`, `valence_one_vertex`; `None` on every
+    # other arm), the way `promoted_to` carries `surface_promotion`'s.
+    "SingularityFound": "StructureNormalization.singularity",
     # `CurvePromotion::kind`, the same rule one row over. Two words
     # (`circle`, `line` — the degree-1 follow-up, #388) and a map
     # rather than a literal because the recognizer's remaining named
@@ -1800,7 +1806,7 @@ FAMILIES: dict[str, str] = {
 #: hands to Python.** The operation results and their geometry
 #: (`Extruded`, `Extrusion`, `Revolved`, `Revolution`, `Lofted`,
 #: `Filleted`, `AtRestBody`, `BooleanBody`, `BooleanResult`, `BooleanResultKind`,
-#: `Operand`, `Curve3`, `Surface`, `EdgeDescription`,
+#: `Operand`, `Curve3`, `Surface`, `EdgeDescription`, `CurveSelector`, `Structural`,
 #: `ChartCoherenceLane`):
 #: the document layer consumes them and Python receives a `Value`. The
 #: profile ladder's rungs (`Profile`, `ProfileLoop`,
@@ -2737,6 +2743,10 @@ NOT_BOUND = {
     # the crossing: the scaffolding door is fenced to construction and
     # tier 3 refuses it at rest.
     "EdgeDescription": INTERIOR,
+    # `EdgeDescription::Intersection`'s selector and its structural form:
+    # read back off a description, which no door hands to Python.
+    "CurveSelector": INTERIOR,
+    "Structural": INTERIOR,
     "Extruded": INTERIOR,
     # `Extruded::walls` / `Revolved::bands` elements — one swept wall
     # per run of profile pieces. Behind the same door as their carriers:
@@ -3386,7 +3396,6 @@ NOT_BOUND = {
     # the sharper statement of it: the LANE is what gates.
     "BoxAxis": SHAPE,
     "BudgetKind": SHAPE,
-    "Certified": SHAPE,
     "CertifiedLeaf": SHAPE,
     "Chamber": SHAPE,
     "ChamberSpan": SHAPE,
@@ -3418,7 +3427,6 @@ NOT_BOUND = {
     "Stackup": SHAPE,
     "StackupRefusal": SHAPE,
     "Unavailable": SHAPE,
-    "WINDOW_TIGHTENING": SHAPE,
     "WorstCase": SHAPE,
     "assertion_at": SHAPE,
     "drive": SHAPE,
@@ -3710,6 +3718,7 @@ MEMBERS_BOUND_AS = {
     # others' addresses.
     "DocEdit::RemoveConstraints": "Doc.remove_mate",
     "MeasureUnavailableAt::NeedsEnclosure": "MeasureUnavailableAt.variant",
+    "MeasureUnavailableAt::NoUpperBound": "MeasureUnavailableAt.variant",
     "NodePickError::Standing": "NodePickError.variant",
     "NodePickError::NotABody": "NodePickError.variant",
     "NodePickError::NoSuchBody": "NodePickError.variant",
@@ -3842,6 +3851,7 @@ MEMBERS_BOUND_AS = {
     "StepImportError::RecognitionAmbiguous": "StepImportError.variant",
     "StepImportError::Pcurves": "StepImportError.variant",
     "StepImportError::Join": "StepImportError.variant",
+    "StepImportError::SingularityUndecided": "StepImportError.variant",
     "StepImportError::PlacementMap": "StepImportError.variant",
     "StepImportError::Placement": "StepImportError.variant",
     "StepImportError::Instance": "StepImportError.variant",

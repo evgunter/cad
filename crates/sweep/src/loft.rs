@@ -842,7 +842,7 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for L
 /// through two sections, the wall itself. At v-degree 1 through
 /// `sections ≥ 3`, one wall per slab: the skinned wall is not C¹ at its
 /// interior sections by its knot structure, which is where DESIGN
-/// [topology] lets the kernel cut ("the kernel adds none, except where a
+/// \[topology\] lets the kernel cut ("the kernel adds none, except where a
 /// face or edge carrier is not C¹ by its knot structure"). The net's
 /// control rows are its sections, so slab `s` is rows `s` and
 /// `s + 1` on `v ∈ [0, 1]`, the `u` structure and every weight copied —

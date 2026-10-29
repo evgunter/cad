@@ -14,7 +14,8 @@ use crate::errors::{
 };
 use crate::tags::{
     expr_dimension_error_tag, normalization_kind_tag, path_error_tag, persist_error_tag,
-    promoted_curve_kind_tag, promoted_kind_tag, step_import_error_tag, workspace_error_tag,
+    promoted_curve_kind_tag, promoted_kind_tag, singularity_found_tag, step_import_error_tag,
+    workspace_error_tag,
 };
 use pncad::document::Dimension;
 use pncad::tolerance::Tol;
@@ -558,6 +559,18 @@ fn the_fourth_verbs_two_refusals_are_stable() {
     // The recourse is IN the refusal: it names the door that answers
     // rather than handing back a worse number.
     assert!(absent.to_string().contains("topo::ClearanceLane"));
+    let unbracketed = MeasureUnavailableAt::NoUpperBound {
+        verb: "min_clearance",
+        scalar: "Interval",
+        door: "topo::clearance::min_separation",
+    };
+    assert_eq!(measure_unavailable_at_tag(&unbracketed), "no_upper_bound");
+    assert!(crate::errors::reads_as_prose(&unbracketed.to_string()));
+    assert!(
+        unbracketed
+            .to_string()
+            .contains("topo::clearance::min_separation")
+    );
 
     // The three arms `topo::clearance::min_separation` refuses with
     // all cross as one tag.
@@ -2954,8 +2967,8 @@ fn promoted_kind_tags_are_stable() {
 /// Minted rather than reached, and for a sharper reason than the
 /// refusal above: four of these five normalizations need a file
 /// exercising a specific Open CASCADE export shape (an edge-free
-/// sphere, a degenerate apex, a full-period torus face, a seamless
-/// band) and those are `step-import`'s own corpus fixtures. What this
+/// sphere, a seam ending at a pole or apex, a full-period torus face, a
+/// seamless band) and those are `step-import`'s own corpus fixtures. What this
 /// pins is the wire spelling every row carries, and that
 /// `surface_promotion` does NOT fold its analytic kind into the word:
 /// which kind certified is the payload beside it, at
@@ -2963,13 +2976,11 @@ fn promoted_kind_tags_are_stable() {
 /// promoted" reads one word whichever kind it was.
 #[test]
 fn import_report_row_tags_are_stable() {
-    use pncad::step_import::{NormalizationKind, PromotedCurveKind, PromotedKind};
+    use pncad::step_import::{
+        NormalizationKind, PromotedCurveKind, PromotedKind, SingularityFound,
+    };
     for (kind, word) in [
         (NormalizationKind::EdgeFreeSphere, "edge_free_sphere"),
-        (
-            NormalizationKind::DegenerateApexCone,
-            "degenerate_apex_cone",
-        ),
         (
             NormalizationKind::SeamlessPeriodicBand,
             "seamless_periodic_band",
@@ -2987,6 +2998,18 @@ fn import_report_row_tags_are_stable() {
             "surface_promotion",
             "the arm's word is the normalization, not the kind"
         );
+    }
+    for (found, word) in [
+        (SingularityFound::Interior, "interior"),
+        (SingularityFound::InsideEdge, "inside_edge"),
+        (SingularityFound::ValenceOneVertex, "valence_one_vertex"),
+    ] {
+        assert_eq!(
+            normalization_kind_tag(&NormalizationKind::ChartSingularityVertex { found }),
+            "chart_singularity_vertex",
+            "the arm's word is the normalization, not where the file put the point"
+        );
+        assert_eq!(singularity_found_tag(&found), word);
     }
     assert_eq!(
         promoted_curve_kind_tag(&PromotedCurveKind::Circle),
@@ -5059,7 +5082,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "measure_unavailable_at_tag",
-        values: &["needs_enclosure"],
+        values: &["needs_enclosure", "no_upper_bound"],
         delegates: &[],
     },
     TagEntry {
@@ -5258,7 +5281,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "normalization_kind_tag",
         values: &[
-            "degenerate_apex_cone",
+            "chart_singularity_vertex",
             "edge_free_sphere",
             "joined_edges",
             "seamless_periodic_band",
@@ -5709,6 +5732,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &["join_refusal_tag"],
     },
     TagEntry {
+        function: "singularity_found_tag",
+        values: &["inside_edge", "interior", "valence_one_vertex"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "skin_error_tag",
         values: &[
             "arc_sweep_undecided",
@@ -5889,6 +5917,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placement_map",
             "recognition_ambiguous",
             "rim_off_wall_boundary",
+            "singularity_undecided",
             "structure",
             "syntax",
             "tier_invalid",

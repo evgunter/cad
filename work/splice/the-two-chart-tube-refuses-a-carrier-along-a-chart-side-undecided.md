@@ -25,7 +25,7 @@ limb 3; until that recovery exists, the tube should say what it found.
 
 Measured on main 2026-10-28: the `spline_pair_arc_rim` rows on a
 boundary row, both orders, and lily's sweep row
-(`a_sheath_on_its_blade_unions_past_the_shared_rim`) at ε 1e-9, 1e-6
+(`a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim`) at ε 1e-9, 1e-6
 and 1e-12 all read `Undecided`.
 
 ## Closed
@@ -72,7 +72,7 @@ Witnesses, each at ε default, 1e-6 and 1e-12:
   `an_exact_charts_tube_is_about_the_rim` still certifies.
 - `ssi_limb3_one_arc::a_flush_side_on_a_conical_or_twisted_wall_certifies`
   (unchanged).
-- `a_sheath_on_its_blade_unions_past_the_shared_rim` (lily) pins
+- `a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim` (lily) pins
   `AlongSide { .. }` on the rim's certification in both orders.
 
 Mutations, each red: either naming removed (its rows read `Undecided`

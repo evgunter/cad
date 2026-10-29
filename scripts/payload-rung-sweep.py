@@ -152,6 +152,10 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
                                "declaration in crates/topo/src/validate.rs; the carry "
                                "is the facade crate's row and owes the CUR3 property "
                                "row plus a Python word"),
+    "SingularityBand": ("argued", "non-carriage with its falsifier, beside the "
+                        "declaration in crates/step-import/src/error.rs; the carry "
+                        "is the facade crate's row and owes the CUR3 property "
+                        "row plus a Python word"),
     "SetAsideWhy": ("argued", "non-carriage with its falsifier, beside the "
                     "declaration in crates/topo/src/side_reader.rs; the carry "
                     "is the facade crate's row and owes the CUR3 property "
