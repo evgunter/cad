@@ -95,6 +95,20 @@ pub(super) fn classify(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
     )
 }
 
+/// [`classify`] with no march door.
+fn unmarched(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
+    super::classify(
+        f,
+        g,
+        super::Reach {
+            centre: p(0.0, 0.0, 0.0),
+            radius: LEVER / 2.0,
+        },
+        None,
+        band(),
+    )
+}
+
 /// `(count, single, essential on F, essential on G, unbounded)`, per
 /// component.
 pub(super) type Shape = (usize, bool, Vec<bool>, Vec<bool>, Vec<bool>);
@@ -541,14 +555,16 @@ fn bump() -> Surface<f64> {
     ))
 }
 
-/// **NURBS × plane: W0 on the control net, else R-reach**, in both
-/// orders. A plane clear of every control point, on either side and
-/// either orientation, is apart; a plane that cuts the net, one that
-/// touches its top row, and a placeholder's poison net have no arm. Red
-/// against W0 reading any one point clear rather than all (the cut and
-/// touching planes), and against W0 dropped (the clear ones).
+/// **NURBS × plane with no march door: W0 on the control net, else
+/// R-lane**, in both orders. A plane clear of every control point, on
+/// either side and either orientation, is apart before any reading; a
+/// plane that cuts the net, one that touches its top row, and a
+/// placeholder's poison net are read whole (`section_cert_spline_rows`),
+/// which a scalar with no march door does not. Red against W0 reading
+/// any one point clear rather than all (the cut and touching planes),
+/// and against W0 dropped (the clear ones).
 #[test]
-fn a_nurbs_patch_and_a_plane_are_apart_by_the_net_or_refuse_on_reach() {
+fn a_nurbs_patch_and_a_plane_are_apart_by_the_net_or_refuse_with_no_lane() {
     let placeholder = Surface::Nurbs(std::sync::Arc::new(geom::NurbsSurface::placeholder()));
     let apart =
         |s: &Section<f64>| matches!(s, Section::Components { parts, .. } if parts.is_empty());
@@ -564,17 +580,20 @@ fn a_nurbs_patch_and_a_plane_are_apart_by_the_net_or_refuse_on_reach() {
         ("cutting", plane(p(0.0, 0.0, 0.8), v(0.0, 0.0, 1.0)), false),
         ("touching", plane(p(0.0, 0.0, 2.0), v(0.0, 0.0, 1.0)), false),
     ] {
-        for s in [classify(&bump(), &pl), classify(&pl, &bump())] {
+        for s in [unmarched(&bump(), &pl), unmarched(&pl, &bump())] {
             if want_apart {
                 assert!(apart(&s), "{what}: {s:?}");
             } else {
-                assert!(matches!(s, Section::Intractable), "{what}: {s:?}");
+                assert!(matches!(s, Section::NoLane("f64")), "{what}: {s:?}");
             }
         }
     }
     let pl = plane(p(0.0, 0.0, 2.5), v(0.0, 0.0, 1.0));
-    assert!(matches!(classify(&placeholder, &pl), Section::Intractable));
-    assert!(matches!(classify(&bump(), &bump()), Section::Intractable));
+    assert!(matches!(
+        unmarched(&placeholder, &pl),
+        Section::NoLane("f64")
+    ));
+    assert!(matches!(unmarched(&bump(), &bump()), Section::Intractable));
 }
 
 // -------------------------------------------------------------------
