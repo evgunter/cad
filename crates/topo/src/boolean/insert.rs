@@ -2258,8 +2258,13 @@ fn walk_faces_first<T: Decide>(
     {
         return Ok(tie);
     }
+    // The arrival edge bounds the half of its corner that ends on it.
+    let reach = sectors
+        .iter()
+        .find(|t| t.he == s.he && t.end_edge())
+        .map_or(s.arm, |t| t.end_reach.length());
     strut_order(
-        anchor_dir(body, s.he),
+        (anchor_dir(body, s.he), reach),
         s.normal.vec(),
         (first.1, second.1),
         s.arm,
@@ -2281,10 +2286,13 @@ fn walk_faces_first<T: Decide>(
 /// (along `e`: angle 0, near; against it: π, far). A germ in the near
 /// half-turn is the nearer. Within one half-turn the nearer germ is the
 /// one the other follows clockwise, `(g0 × g1)·n < 0`
-/// (`bool_strut_order`). Both readings are sines levered at `arm`, the
-/// germs' entry's bounding chord: the distance at that
-/// arm from one direction's line, so they are linear in the spacing
-/// at every angle, where a cosine is flat beside 0 and π. That is
+/// (`bool_strut_order`). Both readings are sines levered as distances:
+/// a germ's side of the arrival edge at the edge's `reach`, where the
+/// edge's far end lies that far off the germ's line, as a germ's side
+/// of a bound is read throughout (`sectors::within_reaching`); two
+/// germs' order at `arm`, the germs' entry's bounding chord. A sine is
+/// linear in the spacing at every angle, where a cosine is flat beside
+/// 0 and π. That is
 /// `splitting::containment`'s doctrine for angular windows: decided as
 /// distances, never as an angle. A decided zero of a side whose
 /// direction sense is in band refuses. Two germs along one direction
@@ -2294,7 +2302,7 @@ fn walk_faces_first<T: Decide>(
 /// one entry are its only comparands, where it agrees with
 /// [`walks_before`] ([`walk_faces_first`]).
 pub(super) fn strut_order<T: Decide>(
-    e_dir: Vec3<T>,
+    (e_dir, reach): (Vec3<T>, T),
     normal: Vec3<T>,
     germs: (Vec3<T>, Vec3<T>),
     arm: T,
@@ -2303,11 +2311,11 @@ pub(super) fn strut_order<T: Decide>(
 ) -> Result<bool, BooleanError> {
     let refuse = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
     let far = |g: Vec3<T>| -> Result<bool, BooleanError> {
-        let side = Margin::levered(g.cross(e_dir).dot(normal), arm);
+        let side = Margin::levered(g.cross(e_dir).dot(normal), reach);
         match crate::validate::decide("bool_strut_side", side, band).map_err(refuse)? {
             Sign::Positive => Ok(false),
             Sign::Negative => Ok(true),
-            Sign::Zero => Ok(!super::sectors::direction_sense(g, e_dir, arm, band)?),
+            Sign::Zero => Ok(!super::sectors::direction_sense(g, e_dir, reach, band)?),
         }
     };
     let (far0, far1) = (far(germs.0)?, far(germs.1)?);
@@ -2413,7 +2421,7 @@ fn record_germ_dir<T: Decide>(
 ///
 /// The sign is the membership `sectors::pair_search` made this crossing
 /// record on: the same `within` readings of the same line at the same
-/// arms, so they single out the ray they found there. `±(n_a × n_b)` is
+/// reaches, so they single out the ray they found there. `±(n_a × n_b)` is
 /// a LINE and membership picks the ray, so neither normal's sign
 /// survives into it; they arrive outward from `sectors::sector_face`
 /// and nothing is multiplied here. (A pierce germ is signed by its
@@ -3396,7 +3404,7 @@ mod tests {
             (300.0, 225.0, false, "both strictly in the far half-turn"),
         ] {
             assert_eq!(
-                strut_order(e, n, (at(g0), at(g1)), 1.0, || Ok(None), band).unwrap(),
+                strut_order((e, 1.0), n, (at(g0), at(g1)), 1.0, || Ok(None), band).unwrap(),
                 first_nearer,
                 "{row}: germs at {g0}° and {g1}°"
             );
@@ -3430,7 +3438,7 @@ mod tests {
             (180.001, 180.0),
         ] {
             let truth = g0 < g1;
-            match strut_order(e, n, (at(g0), at(g1)), 1.0, || Ok(None), band) {
+            match strut_order((e, 1.0), n, (at(g0), at(g1)), 1.0, || Ok(None), band) {
                 Ok(got) if got != truth => wrong.push(format!("{g0}°/{g1}°: got {got}")),
                 _ => {}
             }
@@ -3481,7 +3489,8 @@ mod tests {
                     for &d1 in grid.iter().filter(|&&d1| d1 != d0) {
                         let walk = walks_after(&entry, at(d0), at(d1), band).unwrap();
                         let strut =
-                            strut_order(e, n, (at(d0), at(d1)), 1.0, || Ok(None), band).unwrap();
+                            strut_order((e, 1.0), n, (at(d0), at(d1)), 1.0, || Ok(None), band)
+                                .unwrap();
                         assert_eq!(walk, Some(strut), "{alpha}°: {d0}° then {d1}°");
                         assert_eq!(strut, d0 < d1, "{alpha}°: {d0}° then {d1}°");
                         pairs += 1;
@@ -3502,7 +3511,7 @@ mod tests {
         let band = Band::linear(Tol::witness()).unwrap();
         let n = Vec3::new(0.0, 0.0, 1.0);
         let germs = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, -1.0, 0.0));
-        let got = strut_order(n, n, germs, 1.0, || Ok(None), band);
+        let got = strut_order((n, 1.0), n, germs, 1.0, || Ok(None), band);
         assert!(
             got.is_err(),
             "decided with no comparand away from zero: {got:?}"
@@ -3523,19 +3532,19 @@ mod tests {
         let y = Vec3::new(0.0, 1.0, 0.0);
         let tie = |sign: Option<Sign>| move || Ok(sign);
         assert_eq!(
-            strut_order(e, n, (y, y), 1.0, tie(Some(Sign::Negative)), band).ok(),
+            strut_order((e, 1.0), n, (y, y), 1.0, tie(Some(Sign::Negative)), band).ok(),
             Some(true),
             "g1 curving clockwise of g0: g0 first"
         );
         assert_eq!(
-            strut_order(e, n, (y, y), 1.0, tie(Some(Sign::Positive)), band).ok(),
+            strut_order((e, 1.0), n, (y, y), 1.0, tie(Some(Sign::Positive)), band).ok(),
             Some(false),
             "g1 curving counterclockwise of g0: g1 first"
         );
         for (what, sign) in [("reads nothing", None), ("curves alike", Some(Sign::Zero))] {
             assert!(
                 matches!(
-                    strut_order(e, n, (y, y), 1.0, tie(sign), band),
+                    strut_order((e, 1.0), n, (y, y), 1.0, tie(sign), band),
                     Err(BooleanError::Escalated {
                         decision: super::super::BooleanDecision::Coincidence(Coincide::Sectors, _),
                         ..
@@ -3547,13 +3556,13 @@ mod tests {
         let unread = || -> Result<Option<Sign>, BooleanError> { panic!("the tie was read") };
         let apart = Vec3::new(0.1, 1.0, 0.0).normalize();
         assert_eq!(
-            strut_order(e, n, (y, apart), 1.0, unread, band).ok(),
+            strut_order((e, 1.0), n, (y, apart), 1.0, unread, band).ok(),
             Some(true),
             "germs apart are ordered at first order"
         );
         let near = Vec3::new(-2.0 * band.zero(), 1.0, 0.0).normalize();
         assert!(
-            strut_order(e, n, (y, near), 1.0, unread, band).is_err(),
+            strut_order((e, 1.0), n, (y, near), 1.0, unread, band).is_err(),
             "germs in band of each other refuse without the tie"
         );
     }

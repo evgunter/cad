@@ -2788,7 +2788,7 @@ fn germ_order<T: Decide>(
                     Ok(None)
                 }
             };
-            if super::insert::strut_order(from, normal, (g, h), arm, tie, band)? {
+            if super::insert::strut_order((from, arm), normal, (g, h), arm, tie, band)? {
                 at = slot;
                 break;
             }
@@ -2833,7 +2833,7 @@ fn tie_breaks_after<T: Decide>(
     let (at, at_arm) = germs[i];
     let ((pi, pi_arm), (pj, pj_arm)) = (germs[i ^ 1], germs[j ^ 1]);
     let arm = at_arm.min(pi_arm).min(pj_arm);
-    super::insert::strut_order(at, normal, (pi, pj), arm, || Ok(None), band)
+    super::insert::strut_order((at, arm), normal, (pi, pj), arm, || Ok(None), band)
 }
 
 /// On-edge resolution (module docs; the deliberate divergence), after

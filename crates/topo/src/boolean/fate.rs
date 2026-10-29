@@ -525,23 +525,27 @@ fn contained(e: super::ContainError, what: &'static str) -> BooleanError {
 /// says whether the face wraps round it, the corner then the whole
 /// turn but the ray itself, or holds no direction.
 ///
-/// Every sign acts on its verdict, so each is levered at the corner's
-/// own arm, the lesser of its bounds' reaches; where that is known only
-/// from both sides every sign is read at both and acted on only where
-/// they agree ([`sign_at`]).
+/// Every sign acts on its verdict, so each is levered at a reach of the
+/// corner's own: `d`'s side of a bound at that bound's reach (`out_len`,
+/// `back_len`), as the sectors read a direction's side of a bound
+/// (`sectors::within_reaching`), and the bounds' turn against each
+/// other at the lesser of the two. Where a reach is known only from
+/// both sides its signs are read at both and acted on only where they
+/// agree ([`sign_at`]).
 fn corner_holds<T: Decide>(
     d: Vec3<T>,
     (out, back): (Vec3<T>, Vec3<T>),
     wraps: impl FnOnce() -> Result<bool, BooleanError>,
     n: Vec3<T>,
-    arm: LeverBounds<T>,
+    (out_len, back_len): (LeverBounds<T>, LeverBounds<T>),
     band: Band,
 ) -> Result<Option<bool>, BooleanError> {
-    let s1 = sign_at(n.dot(out.cross(d)), arm, band)?;
-    if s1 == Sign::Zero && sign_at(out.dot(d), arm, band)? == Sign::Positive {
+    let s1 = sign_at(n.dot(out.cross(d)), out_len, band)?;
+    if s1 == Sign::Zero && sign_at(out.dot(d), out_len, band)? == Sign::Positive {
         return Ok(None);
     }
-    let s2 = sign_at(n.dot(d.cross(back)), arm, band)?;
+    let s2 = sign_at(n.dot(d.cross(back)), back_len, band)?;
+    let arm = out_len.min(back_len);
     let turn = sign_at(n.dot(out.cross(back)), arm, band)?;
     let holds = match turn {
         Sign::Positive => s1 == Sign::Positive && s2 == Sign::Positive,
@@ -637,7 +641,7 @@ fn places<T: Decide>(
                 }
                 Ok(None) | Err(_) => return Err(no_normal),
             };
-            let arm = out_len.min(back.1);
+            let reaches = (out_len, back.1);
             let wraps = || {
                 let bounds = [p, h].map(|x| body.get_half_edge(x).map(|x| x.edge));
                 if bounds[0] == bounds[1] {
@@ -651,7 +655,7 @@ fn places<T: Decide>(
                 }
                 tip_wraps((body, operand), (f, h), band)
             };
-            match corner_holds(d, (out, back.0), wraps, normal.vec(), arm, band)? {
+            match corner_holds(d, (out, back.0), wraps, normal.vec(), reaches, band)? {
                 None => found.push(Place::Along(h)),
                 Some(true) => found.push(Place::Corner(h)),
                 Some(false) => {}
@@ -1958,7 +1962,7 @@ mod corner_bounds_rows {
         let d = Vec3::new(theta.cos(), theta.sin(), 0.0);
         let bounds = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
         let n = Vec3::new(0.0, 0.0, 1.0);
-        let at = |arm| super::corner_holds(d, bounds, || Ok(false), n, arm, band);
+        let at = |arm| super::corner_holds(d, bounds, || Ok(false), n, (arm, arm), band);
         // Each bound alone places the cut, and they differ.
         assert!(matches!(at(LeverBounds::Exact(above)), Ok(Some(true))));
         assert!(matches!(at(LeverBounds::Exact(below)), Ok(None)));
