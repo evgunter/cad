@@ -325,8 +325,15 @@ answers a default value; one method is fixed per arm at write time, and
 a second method for the same question exists only as a test oracle. A
 stage may precede the method only if it is total in kind, decides the
 same question soundly at the same band, and cannot change the verdict
-by which stage decided (a box cull before exact roots); a method
-reached because another declined is a fallback, and is forbidden.
+by which stage decided (a box cull before exact roots). A stage may
+also precede a complete reading when it soundly proves the one fact the
+consumer asks of that reading, if the complete reading can differ from
+the stage only by refusing, having been unable to finish its answer,
+and never by finding the opposite of what the stage proved. Such a
+stage reaches past the complete reading's frontier, and its verdict
+stands (the interior-loop guard's loop-free test before C3's whole reading of
+a plane × spline section). A method reached because another declined
+is a fallback, and is forbidden.
 **One**: each question has one reading, which every consumer reads,
 because two readings of one fact are two predicates that can decide it
 differently inside the band ([tolerance]). An outcome takes the pose reading's
