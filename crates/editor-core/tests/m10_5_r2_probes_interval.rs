@@ -1288,14 +1288,14 @@ fn a_violation_outranks_a_refusal_and_the_receipt_shows_both() {
 #[test]
 fn the_cost_curve_is_flat_where_the_bound_is_broken() {
     let (doc, minted, _placed) = comb();
-    let sel = named(
-        minted,
-        vec![wall_name(&doc, minted, 7), wall_name(&doc, minted, 9)],
-    );
+    // Two scopes, one wall each: a scope asked against itself meets
+    // itself and reads 0 off topology, which is not slot A's gap.
+    let left = named(minted, vec![wall_name(&doc, minted, 7)]);
+    let right = named(minted, vec![wall_name(&doc, minted, 9)]);
     let leaf = box_of(&doc, "place");
     let mut costs = Vec::new();
     for c in [2.0, 1.5, 1.0, 0.8, 0.6] {
-        let report = clearance_with(&doc, &leaf, &sel, &sel, &at_least(c, cfg(65_536, 40)));
+        let report = clearance_with(&doc, &leaf, &left, &right, &at_least(c, cfg(65_536, 40)));
         let r = report.receipt();
         assert!(r.holds());
         assert_eq!(
@@ -1321,7 +1321,7 @@ fn the_cost_curve_is_flat_where_the_bound_is_broken() {
     // The frontier: `c` ON the pair's closest approach. Nothing is ever
     // definitely under it, nothing ever definitely clears it, and the
     // run spends the whole dial before refusing, priced.
-    let frontier = clearance_with(&doc, &leaf, &sel, &sel, &at_least(0.5, cfg(65_536, 40)));
+    let frontier = clearance_with(&doc, &leaf, &left, &right, &at_least(0.5, cfg(65_536, 40)));
     let fr = frontier.receipt();
     assert!(fr.holds(), "{fr:?}");
     let frontier_cells = fr.discharged + fr.violated + fr.refused;
