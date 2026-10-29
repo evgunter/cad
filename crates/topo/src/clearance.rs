@@ -22,8 +22,10 @@
 //!
 //! # Two questions, one subdivision
 //!
-//! Same split rule, and the difference is what the walk does with a
-//! cell pair: the bound question DECIDES each pair at a funnel site;
+//! One walk, and the difference is what it does with a cell pair (the
+//! cut differs too: the injective arm bisects by metric axes and splits
+//! a cell against itself in three): the bound question DECIDES each
+//! pair at a funnel site;
 //! the minimum question decides nothing at all — it takes minima of
 //! enclosure endpoints, so it funnels no predicate and consults no
 //! tolerance. That door's own header carries the argument.
@@ -512,19 +514,22 @@ pub fn sliver(source: &geom_core::Indeterminate) -> Option<&'static str> {
 
 /// The counting receipt of one clearance query.
 ///
-/// Each candidate pair is the root of its own binary subdivision: a
-/// cell pair is discharged, violated, refused, split into exactly two,
-/// or ABANDONED where the sweep stopped. A forest of `candidates`
-/// binary trees with `splits` interior nodes has exactly
+/// Each candidate pair is the root of its own subdivision: a cell pair
+/// is discharged, violated, refused, ABANDONED unexamined, or split —
+/// into two, or into three where the injective walk splits a cell
+/// against itself — and `splits` counts each split's children less
+/// one. A forest of `candidates` trees counted so has exactly
 /// `splits + candidates` leaves, and every leaf is in one of the four
 /// buckets. It rides the shipped report, so a consumer re-checks it
 /// without trusting this module ([`CellReceipt::holds`]).
 ///
-/// **`abandoned` is what early exit costs the receipt, spelled rather
-/// than hidden.** The sweep stops at the first verified violation, so
-/// the frontier it was holding is neither discharged nor refused — it
-/// was never tried, and calling it `refused` would be a claim that it
-/// was. A query that runs to completion has `abandoned == 0`.
+/// **`abandoned` is what the walk did not examine, spelled rather than
+/// hidden.** Calling it `refused` would claim it was tried. The bound
+/// sweep abandons the frontier it held when it stops at a verified
+/// violation, so a bound query that runs to completion has
+/// `abandoned == 0`. [`min_separation`] abandons a level that does not
+/// fit its pair budget and prices it into the bracket, so a completed
+/// bracket can carry `abandoned > 0`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct CellReceipt {
     /// Candidate face pairs: what the interval BVH did not exclude,
@@ -1164,17 +1169,18 @@ struct Walk {
 }
 
 impl Walk {
-    /// **Split one cell pair into `halves` children, or refuse it**
-    /// naming the bound that stopped it: the depth floor, then the pair
-    /// budget — enforced AT ADMISSION, exactly as the driver's leaf
-    /// budget is, so a split is refused unless the leaf count it commits
-    /// to still fits — then the `f64` grid, where `cut` cannot bisect.
-    /// A refusal is counted here; what it reports is the question's.
-    fn split<I: IntoIterator<Item = CellPair>>(
+    /// **Split one cell pair into the `N` children `cut` yields, or
+    /// refuse it** naming the bound that stopped it: the depth floor,
+    /// then the pair budget — enforced AT ADMISSION, exactly as the
+    /// driver's leaf budget is, so a split is refused unless the leaf
+    /// count it commits to still fits — then the `f64` grid, where `cut`
+    /// cannot bisect. A refusal is counted here; what it reports is the
+    /// question's. `N` is `cut`'s array length, so the count admission
+    /// prices is the count the split commits.
+    fn split<const N: usize>(
         &mut self,
         task: Task,
-        halves: usize,
-        cut: impl FnOnce() -> Option<I>,
+        cut: impl FnOnce() -> Option<[CellPair; N]>,
     ) -> Result<(), CellBudget> {
         let r = &self.receipt;
         // What is already final, what this level has left to fold, and
@@ -1184,15 +1190,13 @@ impl Walk {
             CellBudget::Depth {
                 max_cell_depth: self.budgets.max_cell_depth,
             }
-        } else if committed + halves > self.budgets.max_cell_pairs {
+        } else if committed + N > self.budgets.max_cell_pairs {
             CellBudget::Pairs {
                 max_cell_pairs: self.budgets.max_cell_pairs,
             }
         } else if let Some(children) = cut() {
-            let before = self.next.len();
-            self.next
-                .extend(children.into_iter().map(|pair| Task { pair, ..task }));
-            self.receipt.splits += self.next.len() - before - 1;
+            self.next.extend(children.map(|pair| Task { pair, ..task }));
+            self.receipt.splits += N - 1;
             return Ok(());
         } else {
             CellBudget::Resolution
@@ -1409,14 +1413,14 @@ where
                             fresh: true,
                             ..pair
                         };
-                        let split = walk.split(task, if itself { 3 } else { 2 }, || {
-                            if itself {
-                                split_self(pair, x).map(|c| c.map(fresh).to_vec())
-                            } else {
+                        let split = if itself {
+                            walk.split(task, || split_self(pair, x).map(|c| c.map(fresh)))
+                        } else {
+                            walk.split(task, || {
                                 split_by(pair, x, y, Axes::Metric)
-                                    .map(|(p, q)| vec![fresh(p), fresh(q)])
-                            }
-                        });
+                                    .map(|(p, q)| [fresh(p), fresh(q)])
+                            })
+                        };
                         if let Err(stop) = split {
                             self.first_refusal.get_or_insert(match stop {
                                 CellBudget::Depth { .. } => EngineRefusal::Uncertified {
@@ -1530,9 +1534,9 @@ where
                 } else {
                     Axes::Relative
                 };
-                if let Err(stop) = walk.split(task, 2, || {
-                    split_by(pair, x, y, axes).map(|(lo, hi)| [lo, hi])
-                }) {
+                if let Err(stop) =
+                    walk.split(task, || split_by(pair, x, y, axes).map(|(lo, hi)| [lo, hi]))
+                {
                     self.first_refusal
                         .get_or_insert(EngineRefusal::Budget(stop));
                 }
@@ -2242,7 +2246,7 @@ impl<T: Real> Question<T> for Bracket {
         // examined, its `hi` is in the incumbent, and its own
         // `separation_lo` floors the bracket.
         if walk
-            .split(task, 2, || split(pair, x, y).map(|(lo, hi)| [lo, hi]))
+            .split(task, || split(pair, x, y).map(|(lo, hi)| [lo, hi]))
             .is_err()
         {
             self.floor = self.floor.min(sep.lo());
