@@ -45,3 +45,7 @@ Re-aimed to D3 "One reading per question". Coincident ± is one class of the car
 - `coaxial_rows` has an `if let Ok`. It was probed on the coaxiality row (`honeone/coaxiality-of-two-revolution-carriers-is-tested-five-ways`).
 
 Both are undeclared detection, so a refusal there is a refusal of a pair nobody asked about. Both belong in the one table this row asks for, as unread arms with a stated reading.
+
+## 2026-10-29: the ladder carries a cone (SPLITDOOR)
+
+`boolean::carrier_eq` has a cone arm (`splitdoor/curved-copy`): apex, axis line, half-angle, the carrier the double cone. A frustum's two wall faces declared one pair now record the `PeriodClosure` the sphere's and the torus's do (`sweep/tests/curved_mergedoor.rs` `sphere_torus_and_cone_pairs_record_their_period_closure`), and `DeclaredPairUnread` is left to NURBS and `Approx`. An undeclared cone pair is read too.

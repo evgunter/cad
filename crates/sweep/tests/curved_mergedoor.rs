@@ -605,36 +605,9 @@ fn frustum() -> Body<f64> {
         .body
 }
 
-/// Row 1⁷ (public door): a declared CONE pair — the frustum's two wall
-/// faces on two keys — is a pair the carrier ladder has no rung for
-/// (`face_carrier` is `None` for a cone). The door refuses it typed,
-/// naming the pair, where it used to read the unread pair as "no glue"
-/// and return `Ok` with the declaration silently unhonoured
-/// (`honeone/carrier-coincidence-is-decided-by-seven-readings`).
-#[test]
-fn a_declared_cone_pair_refuses_typed_rather_than_reading_no_glue() {
-    let mut body = frustum();
-    assert_eq!(validate_closed(&body), Ok(()), "frustum: tier 2");
-    let (k1, k2) = two_keys_of(&mut body, SurfaceKind::Cone);
-    let before = format!("{body:?}");
-    let got = body.merge_coplanar_faces_declared(&[(k1, k2)], Tol::witness());
-    let Err(MergeCoplanarError::DeclaredPairUnread { f1, f2, kind }) = got else {
-        panic!("a declared cone pair: {got:?}");
-    };
-    assert_eq!(
-        sorted(vec![f1, f2]),
-        faces_on(&body, k1, k2),
-        "the pair named"
-    );
-    assert_eq!(kind, SurfaceKind::Cone, "the kind named");
-    assert_eq!(format!("{body:?}"), before, "the body is untouched");
-}
-
-/// Row 4, across the inventory edge: a declared plane×cone pair (the
-/// cone outside the carrier ladder) takes the same refusal as a
-/// declared plane×cylinder pair (the cylinder inside it): two kinds are
-/// a torn argument, refused at the gate naming the second key, whatever
-/// the ladder could read.
+/// Row 4: a declared plane×cone pair takes the same refusal as a
+/// declared plane×cylinder pair: two kinds are a torn argument, refused
+/// at the gate naming the second key, whatever the ladder could read.
 #[test]
 fn a_declared_pair_of_two_kinds_refuses_alike_inside_and_outside_the_ladder() {
     let mut frustum = frustum();
@@ -722,16 +695,17 @@ fn two_keys_of(body: &mut Body<f64>, kind: SurfaceKind) -> (topo::SurfaceKey, to
     distinct_keys(body, faces[0], faces[1])
 }
 
-/// Row 1⁶ (public door): a declared sphere pair and a declared torus
-/// pair — a ball's two faces, a donut's two — are each one run closing
-/// its carrier's full period: the record is that `PeriodClosure`,
-/// naming both faces, the undeclared door's outcome and body. (After
-/// the R1 review probe.)
+/// Row 1⁶ (public door): a declared sphere pair, a declared torus pair
+/// and a declared cone pair — a ball's two faces, a donut's two, a
+/// frustum's two wall faces — are each one run closing its carrier's
+/// full period: the record is that `PeriodClosure`, naming both faces,
+/// the undeclared door's outcome and body. (After the R1 review probe.)
 #[test]
-fn sphere_and_torus_pairs_record_their_period_closure() {
+fn sphere_torus_and_cone_pairs_record_their_period_closure() {
     for (label, mut body, kind) in [
         ("ball", ball(0.7), SurfaceKind::Sphere),
         ("donut", donut(), SurfaceKind::Torus),
+        ("frustum", frustum(), SurfaceKind::Cone),
     ] {
         assert_eq!(validate_closed(&body), Ok(()), "{label}: tier 2");
         let (k1, k2) = two_keys_of(&mut body, kind);

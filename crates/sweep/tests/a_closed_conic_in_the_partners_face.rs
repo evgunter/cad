@@ -33,10 +33,9 @@
 //! each run is read through `differential::outcome` (tiers 2 and 3′, the
 //! certificate, the legal operand, the closed-form volume) and meshed;
 //! a mesh along the short arcs' pinch holds four triangles at an edge.
-//! The ∩ of two solids meeting only in a face is empty. Two rows pin
+//! The ∩ of two solids meeting only in a face is empty. One row pins
 //! what is not built yet, refused typed: the union of a boss over a hole
-//! whose rim is tangent inside the boss's (a crescent), and a closed edge
-//! in a cylinder or a cone face. The coaxial
+//! whose rim is tangent inside the boss's (a crescent). The coaxial
 //! stack and the puck run their unions alone: their ∩ and differences
 //! refuse `FallbackExtentUnsupported` at the coincident walls, as the
 //! two-arc forms do
@@ -1274,12 +1273,15 @@ fn short_arcs_at_a_crescents_tip() {
 
 /// **A closed edge lying in a cylinder or a cone face**: a triangle
 /// revolved about the axis straddling the wall, its vertex on the wall
-/// sweeping a circle in the wall's face. The one-site join has no arm
-/// for such a face (`chord_join`'s `RimSide`): a plane can cut it in more
-/// than the conic. Every op refuses before the join, at the crossing
-/// layer (`work/sect/a-closed-edge-lying-in-a-cone-cylinder-or-torus-face-has-no-join-arm.md`).
+/// sweeping a circle in the wall's face. The carrier ladder decides the
+/// straddle's cones distinct from the wall, so the crossing layer reads
+/// the circle as an edge lying on the wall's carrier, and every op holds
+/// its closed form. The straddle is `π/2`; the cylinder (`r = 1` over
+/// `y ∈ [−1, 1]`) is `2π` and holds `5π/24` of it, the cone frustum
+/// (radius `1.5` to `0.5` over the same height) `13π/6` and holds
+/// `3π/32`.
 #[test]
-fn a_closed_edge_in_a_cylinder_or_cone_face_refuses_typed() {
+fn a_closed_edge_in_a_cylinder_or_cone_face_holds_every_op() {
     let revolved = |what: &str, verts: &[(f64, f64)]| {
         fin(
             what,
@@ -1302,20 +1304,11 @@ fn a_closed_edge_in_a_cylinder_or_cone_face_refuses_typed() {
         "the cone",
         &[(0.0, -1.0), (1.5, -1.0), (0.5, 1.0), (0.0, 1.0)],
     );
-    for (what, wall) in [("cylinder", &cylinder), ("cone", &cone)] {
-        for (op, r) in [
-            ("A ∪ B", topo::union(wall, &straddle, tol())),
-            ("B ∪ A", topo::union(&straddle, wall, tol())),
-            ("A ∩ B", topo::intersect(wall, &straddle, tol())),
-            ("B ∩ A", topo::intersect(&straddle, wall, tol())),
-            ("A ∖ B", topo::subtract(wall, &straddle, tol())),
-            ("B ∖ A", topo::subtract(&straddle, wall, tol())),
-        ] {
-            assert!(
-                matches!(r, Err(BooleanError::CurvedPierceUnsupported { .. })),
-                "{what}, {op}: {r:?}"
-            );
-        }
+    for (what, wall, v_wall, v_in) in [
+        ("cylinder", &cylinder, 2.0 * PI, 5.0 * PI / 24.0),
+        ("cone", &cone, 13.0 * PI / 6.0, 3.0 * PI / 32.0),
+    ] {
+        every_op(what, wall, &straddle, (v_wall, PI / 2.0, v_in));
     }
 }
 

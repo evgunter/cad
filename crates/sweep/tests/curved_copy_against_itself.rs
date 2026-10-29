@@ -233,3 +233,126 @@ fn a_copy_moved_within_or_past_the_band_builds_right_or_refuses() {
         }
     }
 }
+
+/// **The sweep for other doors that refuse before the `On` verdict**:
+/// every op of more curved bodies against an identical copy, printed.
+/// Evidence for the PR's hit list, not a gate.
+#[test]
+#[ignore = "measurement: cargo nextest run -p sweep curved_copy_sweep --run-ignored only --no-capture"]
+fn curved_copy_sweep() {
+    use sweep::Revolution::{Full, Partial};
+    use sweep::test_support::{
+        bored_cylinder, bowl, disc_of_arcs, domed_boss, domed_cavity, hemisphere_on_flat_base,
+        loft_prism, lofted_cylinder, sphere_zone, spool, swept_elbow,
+    };
+    let t = tol();
+    let half = core::f64::consts::PI;
+    let bodies: Vec<(&str, Body<f64>)> = vec![
+        ("spool full", spool(Full, t)),
+        ("spool half", spool(Partial(half), t)),
+        ("sphere zone full", sphere_zone(0.5, Full, t)),
+        ("sphere zone half", sphere_zone(0.5, Partial(half), t)),
+        ("domed cavity", domed_cavity(t)),
+        ("bowl", bowl(t)),
+        ("hemisphere on a base", hemisphere_on_flat_base(1.0, t)),
+        ("domed boss", domed_boss(0.5, t)),
+        ("bored cylinder", bored_cylinder(0.3, 0.2, 0.1, t)),
+        ("disc of arcs", disc_of_arcs(4, 1.0, 1.0, t)),
+        (
+            "cone with apex",
+            revolved_about_y(corners(&[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)]), Full, t),
+        ),
+        (
+            "frustum half",
+            revolved_about_y(
+                corners(&[(0.0, 0.0), (1.0, 0.0), (0.5, 1.0), (0.0, 1.0)]),
+                Partial(half),
+                t,
+            ),
+        ),
+        (
+            "ring frustum",
+            revolved_about_y(
+                corners(&[(0.5, 0.0), (1.0, 0.0), (0.75, 1.0), (0.5, 1.0)]),
+                Full,
+                t,
+            ),
+        ),
+        ("lofted cylinder", lofted_cylinder(1.0, t)),
+        ("loft prism", loft_prism(t)),
+        ("swept elbow", swept_elbow(t)),
+    ];
+    for (label, body) in bodies {
+        for (op, r) in every_op(&body, &body) {
+            let s = match r {
+                Ok(BooleanResult::Body(bb)) => {
+                    let t3 = topo::validate_pseudomanifold(&bb.body, &bb.contacts, t).is_ok();
+                    format!("body, {} shells, t3' {t3}", bb.body.shells().count())
+                }
+                Ok(BooleanResult::Empty) => "Empty".into(),
+                Err(e) => format!("{e:?}"),
+            };
+            eprintln!("SWEEP {label} {op}: {s}");
+        }
+    }
+}
+
+/// **The sweep's second pass**: each body against its copy turned about
+/// its own axis by a turn its seams do not repeat at, the same point set
+/// in another chart. Evidence for the PR's hit list, not a gate.
+#[test]
+#[ignore = "measurement: cargo nextest run -p sweep curved_copy_turned_sweep --run-ignored only --no-capture"]
+fn curved_copy_turned_sweep() {
+    use geom_core::Point3;
+    use sweep::test_support::{sphere_zone, spool};
+    let t = tol();
+    let about =
+        |axis: Vec3<f64>, angle: f64| Affine3::rotation_about_axis(Point3::origin(), axis, angle);
+    let mut cases: Vec<(&str, Body<f64>, Affine3<f64>)> = bodies()
+        .into_iter()
+        .map(|(label, body, _)| {
+            let axis = if label == "a ball" {
+                Vec3::unit_z()
+            } else {
+                Vec3::unit_y()
+            };
+            (label, body, about(axis, 1.0))
+        })
+        .collect();
+    let [(_, ball, _), ..] = bodies();
+    cases.push((
+        "a ball, its pole turned",
+        ball,
+        about(Vec3::new(1.0, 1.0, 0.0).normalize(), 0.7),
+    ));
+    cases.push(("the waisted body", waisted(t), about(Vec3::unit_y(), 1.0)));
+    cases.push((
+        "a spool",
+        spool(sweep::Revolution::Full, t),
+        about(Vec3::unit_y(), 1.0),
+    ));
+    cases.push((
+        "a sphere zone",
+        sphere_zone(0.5, sweep::Revolution::Full, t),
+        about(Vec3::unit_y(), 1.0),
+    ));
+    for (label, body, turn) in cases {
+        let turned =
+            topo::transform_rigid(&body, &geom_core::test_support::rigid(&turn, t), t).unwrap();
+        for (op, r) in every_op(&body, &turned) {
+            let s = match r {
+                Ok(BooleanResult::Body(bb)) => {
+                    let t3p = topo::validate_pseudomanifold(&bb.body, &bb.contacts, t).is_ok();
+                    let v = topo::test_support::pinned_volume("p", &bb.body, t).volume;
+                    format!(
+                        "body, {} shells, t3' {t3p}, vol {v:.9}",
+                        bb.body.shells().count()
+                    )
+                }
+                Ok(BooleanResult::Empty) => "Empty".into(),
+                Err(e) => format!("{e:?}"),
+            };
+            eprintln!("TURNED {label} {op}: {s}");
+        }
+    }
+}

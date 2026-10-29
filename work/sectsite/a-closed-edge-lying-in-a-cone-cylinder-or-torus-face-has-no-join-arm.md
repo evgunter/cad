@@ -51,3 +51,7 @@ again. Once the crossing layer takes the pose, the join refuses it
 leaves the record for that refusal, reading the same `RimSide::of` that
 `join_lone_ring` sides by, so the two cannot disagree. No pose reaches
 that refusal today.
+
+## 2026-10-29: the cylinder's and the cone's straddles build (SPLITDOOR)
+
+With the carrier ladder's cone arm (`splitdoor/curved-copy`), the straddle's cone faces are decided distinct from the wall, so the crossing layer reads its circle as an edge lying on the wall's carrier (`reduce::curved_face_arm`'s `LiesOn` lane, `parents_distinct_from`). Every op, both orders, then builds at its closed form, tier 3 and 3′, one shell, meshed: against the cylinder (`2π`, straddle `π/2`, overlap `5π/24`) and against the cone frustum (`13π/6`, overlap `3π/32`). No `SingleSiteSectionLoop` appeared. Pinned as builds by `crates/sweep/tests/a_closed_conic_in_the_partners_face.rs` `a_closed_edge_in_a_cylinder_or_cone_face_holds_every_op`. The torus's straddle and the disc on a torus's top parallel were not re-measured.
