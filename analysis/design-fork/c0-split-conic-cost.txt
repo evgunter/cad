@@ -1,0 +1,5 @@
+fork: c0-split-conic-cost (FOREIGN, import-splits-a-foreign-face-or-edge-at-each-c0-knot)
+drawn: 2026-10-29T08:13:10Z, od -An -tu1 -N1 /dev/urandom
+byte: 247
+mapping: A = Fable designer, B = Opus designer
+protocol: 26db1af89e
