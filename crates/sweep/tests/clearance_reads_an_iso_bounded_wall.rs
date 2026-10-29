@@ -28,7 +28,7 @@ use profile::test_support::bulge_loop;
 use profile::{ProfileLoop, SketchPlane};
 use sweep::{Lofted, loft_body, sweep_body};
 use topo::clearance::{
-    BoundVerdict, Budgets, Candidate, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep,
+    BoundVerdict, Budgets, Candidate, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep, Which,
     min_separation,
 };
 use topo::{AtRestPolicy, Body, FaceKey};
@@ -165,8 +165,12 @@ fn bound<T: Lane>(
         faces: vec![face],
     };
     let (sa, sb) = (side(a, fa), side(b, fb));
-    let wa = sa.windows().expect("an iso-bounded wall has a window");
-    let wb = sb.windows().expect("an iso-bounded wall has a window");
+    let wa = sa
+        .windows(Which::First)
+        .expect("an iso-bounded wall has a window");
+    let wb = sb
+        .windows(Which::Second)
+        .expect("an iso-bounded wall has a window");
     let report = sweep(c).run(&wa, &wb, false, verify((a, b), c));
     println!(
         "[nurbswin] c = {c}: {:?}, {:?}",
@@ -212,11 +216,7 @@ fn facing_loft_walls_hold_above_the_gap_and_violate_below_it() {
     }
 }
 
-/// **The minimum separation of the two walls brackets the gap.** Both
-/// walls are iso-bounded, so each window IS its face and `window_hi`
-/// bounds the faces' separation from above as well as `lo` from below
-/// (`MinSeparation`'s docs); that is why this row may read `window_hi`,
-/// which a row over a trimmed analytic face may not.
+/// **The minimum separation of the two walls brackets the gap.**
 #[test]
 fn the_minimum_separation_of_two_loft_walls_brackets_the_gap() {
     let ((left, lw), (right, rw)) = facing();
@@ -228,6 +228,7 @@ fn the_minimum_separation_of_two_loft_walls_brackets_the_gap() {
         &side(&left.body, lw),
         &side(&right.body, rw),
         false,
+        band(),
         Budgets {
             max_cell_pairs: 16,
             ..Budgets::MIN_SEPARATION
@@ -238,17 +239,16 @@ fn the_minimum_separation_of_two_loft_walls_brackets_the_gap() {
     // The gap as built: the right column's centre `2 + GAP` rounds
     // once, and both subtractions are exact.
     let built = (2.0 + GAP - 1.0) - 1.0;
+    let hi = bracket.hi().expect("a wall pair witnesses an upper end");
     assert!(
-        bracket.lo() <= built && built <= bracket.window_hi(),
-        "[{}, {}] brackets {built}",
+        bracket.lo() <= built && built <= hi,
+        "[{}, {hi}] brackets {built}",
         bracket.lo(),
-        bracket.window_hi()
     );
     assert!(
-        bracket.window_hi() - bracket.lo() < GAP,
-        "the bracket is tighter than the gap it brackets: [{}, {}]",
+        hi - bracket.lo() < GAP,
+        "the bracket is tighter than the gap it brackets: [{}, {hi}]",
         bracket.lo(),
-        bracket.window_hi()
     );
 }
 
@@ -349,7 +349,7 @@ fn every_face_of_an_arc_railed_loft_has_a_window() {
         body: &prism,
         faces: prism.faces().map(|(k, _)| k).collect(),
     }
-    .windows()
+    .windows(Which::First)
     .expect("every face of the arc prism has a window");
 }
 
@@ -481,6 +481,7 @@ fn curved_walls_are_violated_just_above_their_separation() {
         &side(&left.body, lw),
         &side(&right.body, rw),
         false,
+        band(),
         Budgets::MIN_SEPARATION,
     )
     .expect("two iso-bounded walls have a bracket");

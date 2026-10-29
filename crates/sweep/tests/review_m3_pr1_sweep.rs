@@ -210,7 +210,11 @@ fn split_circle_carrier_intersection_edge() {
         (created.second_curve, (t, t1)),
     ] {
         let child = body.get_curve_geom(curve_key).unwrap().certified().unwrap();
-        let EdgeDescription::Intersection { witness, .. } = *child.description() else {
+        let EdgeDescription::Intersection {
+            selector: geom_brep::CurveSelector::Witness(witness),
+            ..
+        } = *child.description()
+        else {
             panic!("child lost its Intersection description");
         };
         let expected = parent.carrier().eval(ta + (tb - ta) * 0.5);

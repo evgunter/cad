@@ -1082,7 +1082,7 @@ mod tests {
                 geom_brep::EdgeCurveSpec {
                     description: geom_brep::EdgeDescriptionSpec::Intersection {
                         pair: geom_brep::SurfacePair::new(wall, rim_plane),
-                        witness: carrier.mid_point(0.0, t1),
+                        selector: geom_brep::CurveSelector::Witness(carrier.mid_point(0.0, t1)),
                     },
                     carrier: carrier.clone(),
                     param_start: 0.0,
