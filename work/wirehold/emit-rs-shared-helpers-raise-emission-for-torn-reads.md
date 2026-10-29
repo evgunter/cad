@@ -7,7 +7,7 @@ opened: 2026-10-20
 priority: P2
 cost: M
 refs: [names-emission-raises-panic-or-take-their-true-ending]
-blocked_on: []
+
 ---
 
 
@@ -52,4 +52,6 @@ What remains here is the D10-held list above: `flat_body_index` ×2, `name_place
 
 What is left is D10-held, so the row parks with WIRE's other D10 rows. Signed (WIRE orchestrator).
 
-**Released 2026-10-29 (INTENT):** its trigger fired, because G (`patterns-are-index-variables`, #5954) merged and closed INTENT stage 3: `Node::Pattern`, `Node::PlacedUnion`, `PatternKind` and `Instance(i)` retired into `index(N)` families. Re-read this row against main: close it if its code is gone, keep it if its scene still stands.
+## D10 exit walk (2026-10-29)
+
+The four D10-held raises this row lists are gone with their functions (`flat_body_index`, `name_placed_union`, `name_in_part`; stage 3 G, #5954). Their successors raise the same class, `NamingError::Emission`, for a torn member read: `name_family` (`crates/editor-core/src/names/emit.rs:1157`, "a family's member names a body the member does not have") and `name_assemble` (`emit.rs:1255`, `:1264`). The scene still stands under new names. Open, re-pointed at those three.
