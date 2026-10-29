@@ -1577,6 +1577,23 @@ pub enum ValidationError {
         /// The member the region was first read from.
         face: FaceKey,
     },
+    /// Tier 3, check 6's chart-singularity arm: **a chart singularity
+    /// of the face's surface lies in its closure and is not a vertex of
+    /// it** — a sphere's pole or a cone's apex in the face's interior or
+    /// inside one of its edges (`docs/DESIGN.md` `[topology.tiers]`:
+    /// every chart singularity in a face's closure is a vertex of it).
+    /// Read by `geom_brep::chart_singularity::locate`, the one reading
+    /// STEP import makes such a point a vertex by; `lies` says where, or
+    /// carries the escalation of a distance or a side the band could not
+    /// call.
+    ChartSingularityNotAVertex {
+        /// The face.
+        face: FaceKey,
+        /// Which singular point of its surface.
+        point: geom_brep::chart_singularity::Singularity,
+        /// Where it lies.
+        lies: SingularityLies,
+    },
     /// Tier 3, check 7: `solid` is **definitely inside out** — its faces
     /// leave infinity inside its material, so the volume they enclose is
     /// negative: global orientation corruption (the orientation
@@ -4158,6 +4175,25 @@ fn classify_census_cause(cause: &CensusUnsupportedCause) -> (Cow<'static, str>, 
 // arms: those report a damaged structure, and the key is what the bug
 // report needs. A nested refusal renders through its classifier above,
 // never whole.
+/// Where a chart singularity lies in a face it is not a vertex of
+/// ([`ValidationError::ChartSingularityNotAVertex`]).
+#[derive(Clone, Debug, PartialEq)]
+pub enum SingularityLies {
+    /// In the face's interior.
+    Interior,
+    /// Inside the edge, between its vertices.
+    InsideEdge {
+        /// The edge.
+        edge: EdgeKey,
+    },
+    /// Undecided at the band: its distance to the face's boundary, or
+    /// the side of one of its loops it lies on, is in band.
+    Undecided {
+        /// The escalation, carrying the margin.
+        cause: Indeterminate,
+    },
+}
+
 impl ValidationError {
     /// Whether this is one of tier 3's check-11 verdicts
     /// ([`ValidationError::JoinableVertexAtRest`],
@@ -4397,6 +4433,37 @@ impl fmt::Display for ValidationError {
                 "whether the faces of one sphere overlap cannot be decided at this tolerance. \
                  Recourse: validate at a finer tolerance"
             ),
+            Self::ChartSingularityNotAVertex { point, lies, .. } => {
+                let what = match point {
+                    geom_brep::chart_singularity::Singularity::North
+                    | geom_brep::chart_singularity::Singularity::South => "a pole of a sphere",
+                    geom_brep::chart_singularity::Singularity::Apex => "the apex of a cone",
+                };
+                match lies {
+                    SingularityLies::Interior => write!(
+                        f,
+                        "{what} lies inside a face on that surface rather than at one of its \
+                         corners. {DEFECT}"
+                    ),
+                    SingularityLies::InsideEdge { .. } => write!(
+                        f,
+                        "{what} lies inside an edge of a face on that surface rather than at \
+                         one of its corners. {DEFECT}"
+                    ),
+                    SingularityLies::Undecided { cause } => write!(
+                        f,
+                        "{}",
+                        cause.undecided(
+                            format_args!(
+                                "whether {what} lies at a corner of a face on that surface, on \
+                                 its boundary, or inside it"
+                            ),
+                            geom_brep::chart_singularity::ON_BOUNDARY
+                                .recourse(RefusedArm::Undecided(cause), Reading::AtRest)
+                        )
+                    ),
+                }
+            }
             Self::NegativeVolume { .. } => write!(
                 f,
                 "a solid encloses negative volume, so it is inside-out. {DEFECT}"
@@ -8002,6 +8069,59 @@ pub(crate) fn tier3_local_checks_marked<
             // exception is the conic-trimmed wall named above, whose
             // quadrature flux is winding-derived and answers.
             Err(_) => {}
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Tier 3, check 6, CHART-SINGULARITY arm (`docs/DESIGN.md`
+    // `[topology.tiers]`): every chart singularity in a face's closure is
+    // a vertex of it. Each sphere pole and cone apex is read against its
+    // face's region by `geom_brep::chart_singularity::locate`, the reading
+    // STEP import makes such a point a vertex by, so validity refuses
+    // exactly what import re-mints: one in the interior or inside an
+    // edge refuses, and one whose distance to the boundary or side of a
+    // loop is in band escalates with its margin. A face whose reading
+    // cannot place the point is exempt (the not-yet-checked list): an
+    // edge on a carrier with no closed-form distance passing near it, or
+    // a loop whose chart image states no winding.
+    // ------------------------------------------------------------------
+    for (face_key, face) in body.faces.iter() {
+        use geom_brep::chart_singularity::{Lies, Unread, locate};
+        let Some(surface) = body.surfaces.get(face.surface) else {
+            continue; // unreachable on tier-1 input
+        };
+        if !matches!(surface, Surface::Sphere { .. } | Surface::Cone { .. }) {
+            continue;
+        }
+        let Ok(flat) = core::iter::once(face.outer)
+            .chain(face.rings.iter().copied())
+            .map(|l| crate::props::loop_edges(body, l))
+            .collect::<Result<Vec<_>, _>>()
+        else {
+            continue; // tier 1 refuses a loop that does not flatten
+        };
+        let loops: Vec<&[geom_brep::props::LoopEdge<T>]> =
+            flat.iter().map(|(edges, _)| edges.as_slice()).collect();
+        for located in locate(surface, &loops, face.sense, band) {
+            let lies = match located.lies {
+                Ok(Lies::AtVertex { .. } | Lies::Outside)
+                | Err(Unread::Carrier { .. } | Unread::Loop { .. }) => continue,
+                Ok(Lies::Interior) => SingularityLies::Interior,
+                Ok(Lies::InsideEdge { r#loop, edge, .. }) => {
+                    let Some(he) = body.half_edges.get(flat[r#loop].1[edge]) else {
+                        continue; // unreachable: the flattening resolved it
+                    };
+                    SingularityLies::InsideEdge { edge: he.edge }
+                }
+                Err(Unread::Boundary { cause, .. } | Unread::Side(cause)) => {
+                    SingularityLies::Undecided { cause }
+                }
+            };
+            errors.push(ValidationError::ChartSingularityNotAVertex {
+                face: face_key,
+                point: located.singularity,
+                lies,
+            });
         }
     }
 

@@ -3069,6 +3069,7 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::CurvedSenseInverted { .. } => "curved_sense_inverted",
         ValidationError::SeamRegionOvercovered { .. } => "seam_region_overcovered",
         ValidationError::SeamRegionCoverUnresolved { .. } => "seam_region_cover_unresolved",
+        ValidationError::ChartSingularityNotAVertex { .. } => "chart_singularity_not_a_vertex",
         ValidationError::NegativeVolume { .. } => "negative_volume",
         ValidationError::SliverInsideOut { .. } => "sliver_inside_out",
         ValidationError::VolumeUncomputable { .. } => "volume_uncomputable",

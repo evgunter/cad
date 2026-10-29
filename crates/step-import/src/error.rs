@@ -6,7 +6,7 @@
 
 use core::fmt;
 
-use geom_brep::recourse::{LeverOnly, RefusedArm, RefusedSide, SizedDecision};
+use geom_brep::recourse::{LeverOnly, RefusedArm, SizedDecision};
 use geom_core::{FileCoincidence, Indeterminate};
 
 /// One rung of the D7 edge-adoption ladder, as data: which intensional
@@ -57,18 +57,11 @@ impl fmt::Display for AdoptionCandidate {
 pub(crate) const SINGULARITY_SUBJECT: &str = "whether a sphere pole or cone apex, or where a meridian minted from one meets a face's \
      boundary, lies on that boundary or at one of its vertices";
 
-/// **Whether a chart singularity lies on a face's boundary**, a sized
-/// decision: the distance from the point to the nearest vertex or edge
-/// of the face. Zero (on it) and a clear distance (off it) both pass;
-/// only a distance the band cannot call refuses, and a smaller
-/// tolerance calls any nonzero one.
-pub(crate) const SINGULARITY_ON_BOUNDARY: SizedDecision = SizedDecision {
-    lever: "move the face's boundary, or its vertex, onto that point or clear of it",
-    size: "distance",
-    passes: geom_core::SizedPass::AnySign,
-    side: RefusedSide::Lever,
-    no_size: None,
-};
+/// **Whether a chart singularity lies on a face's boundary**, the
+/// kernel's sized decision of it
+/// ([`geom_brep::chart_singularity::ON_BOUNDARY`]), which tier 3 ends
+/// the same refusal by.
+pub(crate) const SINGULARITY_ON_BOUNDARY: SizedDecision = geom_brep::chart_singularity::ON_BOUNDARY;
 
 /// The same decision where the FILE's band could not call it (`(ε_in,
 /// K·ε_in)`, coarser than the run's): no smaller tolerance decides it,

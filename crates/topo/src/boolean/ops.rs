@@ -6444,6 +6444,7 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
         | V::LoopRoleInverted { .. }
         | V::CurvedSenseInverted { .. }
         | V::SeamRegionOvercovered { .. }
+        | V::ChartSingularityNotAVertex { .. }
         | V::NegativeVolume { .. }
         | V::SliverInsideOut { .. }
         | V::RingMeetsOuter { .. }

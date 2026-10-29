@@ -3921,6 +3921,7 @@ MEMBERS_BOUND_AS = {
     "ValidationError::CurvedSenseInverted": "ValidationFinding.variant",
     "ValidationError::SeamRegionOvercovered": "ValidationFinding.variant",
     "ValidationError::SeamRegionCoverUnresolved": "ValidationFinding.variant",
+    "ValidationError::ChartSingularityNotAVertex": "ValidationFinding.variant",
     "ValidationError::NegativeVolume": "ValidationFinding.variant",
     "ValidationError::SliverInsideOut": "ValidationFinding.variant",
     "ValidationError::VolumeUncomputable": "ValidationFinding.variant",

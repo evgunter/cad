@@ -3,14 +3,14 @@
 //!
 //! The face a single planar cut leaves on a ball is bounded by one rim
 //! circle and nothing else, with the pole interior to it. A chart
-//! singularity inside a face is a vertex of it, so this statement is
-//! one validity owes a refusal and import a normalisation
-//! (`work/restfront/validity-refuses-an-interior-chart-singularity.md`).
-//! Until then the closed form reads it by Gauss–Bonnet: the rim has a
-//! pole on each side, so its loop encodes no side, and the face measures
-//! under its bit. These rows read the result from outside: assemble the
-//! body through the Euler doors, certify it at all three tiers, and weigh
-//! it against the spherical-cap closed form `πh²(3R − h)/3`.
+//! singularity in a face's closure is a vertex of it, so tier 3 refuses
+//! the statement (`ValidationError::ChartSingularityNotAVertex`) and
+//! import normalises it; the Euler doors still state it, and the closed
+//! form reads it by Gauss–Bonnet: the rim has a pole on each side, so
+//! its loop encodes no side, and the face measures under its bit. These
+//! rows read the result from outside: assemble the body through the
+//! Euler doors, hold it to all three tiers, and weigh it against the
+//! spherical-cap closed form `πh²(3R − h)/3`.
 //!
 //! Every volume here is a CLOSED FORM end to end — `volume_pad` is
 //! exactly zero, so no row is served by a certified enclosure whose
@@ -18,6 +18,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
+use geom_brep::chart_singularity::Singularity;
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::Tol;
 use geom_core::{Point3, Vec3};
@@ -146,22 +147,38 @@ fn cut_ball(z: f64, seed_surface: Surface<f64>, made_surface: Option<Surface<f64
 /// asserting that no part of it came from an enclosure (its pad is zero:
 /// every face took a closed form, rounding and all).
 ///
-/// The rim's two half-arcs meet at two vertices nothing else does, so
-/// the body is construction state until the join takes them back into
-/// one closed edge: tier 3 refuses exactly those two vertices (check
-/// 11) and nothing else. The half-arcs stay, because their spans
-/// summing back to `2π` is part of what these rows check.
-fn tier_checked_volume(name: &str, body: &Body<f64>) -> f64 {
+/// Tier 3 refuses each sphere face for the pole inside it, `poles[i]`
+/// for the `i`-th sphere face in arena order. The rim's two half-arcs
+/// meet at two vertices nothing else does, so the body is construction
+/// state until the join takes them back into one closed edge: tier 3
+/// refuses those two vertices too (check 11), and nothing else. The
+/// half-arcs stay, because their spans summing back to `2π` is part of
+/// what these rows check.
+fn tier_checked_volume(name: &str, body: &Body<f64>, poles: &[Singularity]) -> f64 {
     let tol = Tol::witness();
     assert_eq!(topo::validate(body), Ok(()), "{name}: tier 1");
     assert_eq!(topo::validate_closed(body), Ok(()), "{name}: tier 2");
+    let spheres = body
+        .faces()
+        .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Sphere { .. })))
+        .map(|(face, _)| face);
+    let inside = spheres
+        .zip(poles)
+        .map(|(face, &point)| topo::ValidationError::ChartSingularityNotAVertex {
+            face,
+            point,
+            lies: topo::SingularityLies::Interior,
+        });
     assert_eq!(
         topo::validate_geometric(body, tol),
-        Err(body
-            .vertices()
-            .map(|(vertex, _)| topo::ValidationError::JoinableVertexAtRest { vertex })
+        Err(inside
+            .chain(
+                body.vertices()
+                    .map(|(vertex, _)| topo::ValidationError::JoinableVertexAtRest { vertex })
+            )
             .collect()),
-        "{name}: tier 3 refuses the rim's two vertices and nothing else"
+        "{name}: tier 3 refuses each sphere face's pole and the rim's two vertices, and \
+         nothing else"
     );
     // Raw door: the measured body is construction state whose joinable vertices tier 3 refuses (JoinableVertexAtRest).
     let props = topo::test_support::measure_unvalidated(
@@ -192,7 +209,7 @@ fn a_ball_cut_by_one_plane_weighs_the_spherical_cap() {
         // The disc caps the solid from BELOW, so its outward normal
         // points down.
         let body = cut_ball(z, unit_sphere(), Some(cut_plane(z, false)));
-        let got = tier_checked_volume(&format!("cap above z={z}"), &body);
+        let got = tier_checked_volume(&format!("cap above z={z}"), &body, &[Singularity::North]);
         let want = cap_volume(1.0 - z);
         assert!(
             (got - want).abs() <= 1e-12 * want,
@@ -213,7 +230,7 @@ fn the_other_traversal_of_the_same_rim_weighs_the_rest_of_the_ball() {
         // Now the DISC is the seed face (rim `+u`, outward normal up)
         // and the sphere is the `−u` face.
         let body = cut_ball(z, cut_plane(z, true), Some(unit_sphere()));
-        let got = tier_checked_volume(&format!("ball below z={z}"), &body);
+        let got = tier_checked_volume(&format!("ball below z={z}"), &body, &[Singularity::South]);
         let want = ball - cap_volume(1.0 - z);
         assert!(
             (got - want).abs() <= 1e-12 * want,
@@ -229,7 +246,11 @@ fn the_other_traversal_of_the_same_rim_weighs_the_rest_of_the_ball() {
 fn a_sphere_split_into_two_rim_only_caps_weighs_the_ball() {
     for z in [0.5_f64, 0.0, -0.75] {
         let body = cut_ball(z, unit_sphere(), None);
-        let got = tier_checked_volume(&format!("two caps at z={z}"), &body);
+        let got = tier_checked_volume(
+            &format!("two caps at z={z}"),
+            &body,
+            &[Singularity::North, Singularity::South],
+        );
         let want = 4.0 * core::f64::consts::PI / 3.0;
         assert!(
             (got - want).abs() <= 1e-12 * want,
