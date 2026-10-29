@@ -3670,3 +3670,29 @@ fn every_band_a_revolve_mints_is_about_its_axis_output_at_sym() {
         "the corpus's revolves and their bands were read: {revolves} revolves, {bands} bands"
     );
 }
+
+#[test]
+fn r2_probe_collar_words() {
+    for cd in [
+        crate::corpus::shaft_and_bearing::collar_by_values(),
+    ] {
+        let ev = run(&cd.doc);
+        for f in unproven(&cd.doc, &ev) {
+            let s = f.to_string();
+            if s.contains("axes") {
+                eprintln!("R2 {}: {s}\n", cd.name);
+            }
+        }
+    }
+}
+
+#[test]
+fn r2_probe_split_bore() {
+    for top in [true, false] {
+        let cd = crate::corpus::shaft_and_bearing::r2_split_bore(top);
+        let ev = run(&cd.doc);
+        eprintln!("R2 failures {top}: {:?}", crate::corpus::failures(&ev));
+        let (_, lines) = door_lines(&cd);
+        eprintln!("R2 split top={top}: {lines:?}");
+    }
+}

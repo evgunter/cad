@@ -224,6 +224,12 @@ fn scene(
             def: VarDecl::Free(FreeVar::continuous(Dimension::Length, BORE_R)),
         });
     }
+    if bore {
+        r.push(DocEdit::DeclareVar {
+            name: VarName::from_static("bore2"),
+            def: VarDecl::Free(FreeVar::continuous(Dimension::Length, BORE_R)),
+        });
+    }
     let housing = revolved(&mut r, housing);
     let shaft = revolved(&mut r, rectangle(&len(0.0), shaft_r, SHAFT_Y));
     let quarter = Formula::turn_over(4).expect("a quarter turn");
@@ -322,4 +328,21 @@ fn scene(
         },
         bump_root: third.revolve,
     }
+}
+
+/// R2 probe: one_radius, but the housing's bore wall reads `bore` at one
+/// end and `bore2` (equal value, its own variable) at the other.
+pub fn r2_split_bore(bore2_at_top: bool) -> CorpusDoc {
+    let bore = Formula::named(VarName::from_static(BORE), Dimension::Length);
+    let bore2 = Formula::named(VarName::from_static("bore2"), Dimension::Length);
+    let (lo_x, hi_x) = if bore2_at_top { (bore.clone(), bore2) } else { (bore2, bore.clone()) };
+    let to = |x: &Formula, y| ProgramTarget::Point([x.clone(), len(y)]);
+    let housing = vec![
+        ProgramStep::At([lo_x, len(0.0)]),
+        ProgramStep::LineTo(to(&len(HOUSING_R), 0.0)),
+        ProgramStep::LineTo(to(&len(HOUSING_R), HOUSING_H)),
+        ProgramStep::LineTo(to(&hi_x, HOUSING_H)),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ];
+    scene(("r2_split_bore", "probe"), (housing, true), &bore, Below::Collar)
 }
