@@ -160,8 +160,8 @@ pub(crate) enum SegTag {
     Inner,
     Rim,
     HoleRim,
-    // Pattern
-    Instance,
+    // Repetition
+    Member,
 }
 
 impl SegTag {
@@ -216,7 +216,7 @@ impl SegTag {
             Self::Inner => s::SegTag::Inner,
             Self::Rim => s::SegTag::Rim,
             Self::HoleRim => s::SegTag::HoleRim,
-            Self::Instance => s::SegTag::Instance,
+            Self::Member => s::SegTag::Member,
         }
     }
 }
@@ -235,7 +235,7 @@ pub(crate) enum OpGroup {
     Boolean,
     Split,
     Fillet,
-    Pattern,
+    Repetition,
     Shell,
 }
 
@@ -248,8 +248,8 @@ impl OpGroup {
             Self::Boolean => s::OpGroup::Boolean,
             Self::Split => s::OpGroup::Split,
             Self::Fillet => s::OpGroup::Fillet,
-            Self::Pattern => s::OpGroup::Pattern,
             Self::Shell => s::OpGroup::Shell,
+            Self::Repetition => s::OpGroup::Repetition,
         }
     }
 }
@@ -963,7 +963,7 @@ mod growth_tripwire {
             s::SegTag::Inner => SegTag::Inner,
             s::SegTag::Rim => SegTag::Rim,
             s::SegTag::HoleRim => SegTag::HoleRim,
-            s::SegTag::Instance => SegTag::Instance,
+            s::SegTag::Member => SegTag::Member,
         }
     }
 
@@ -975,8 +975,8 @@ mod growth_tripwire {
             s::OpGroup::Boolean => OpGroup::Boolean,
             s::OpGroup::Split => OpGroup::Split,
             s::OpGroup::Fillet => OpGroup::Fillet,
-            s::OpGroup::Pattern => OpGroup::Pattern,
             s::OpGroup::Shell => OpGroup::Shell,
+            s::OpGroup::Repetition => OpGroup::Repetition,
         }
     }
 

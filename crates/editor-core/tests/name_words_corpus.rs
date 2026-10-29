@@ -35,12 +35,11 @@ use std::collections::BTreeMap;
 use std::time::Instant;
 
 use crate::corpus::{self, Recorder};
-use crate::fixture::{self, len, scl};
+use crate::fixture::{self, len};
 use editor_core::{
     Diagnosis, EntityKind, EvalOptions, Evaluation, FaceName, Formula, HitTestError,
-    InterrogateError, NameTable, NameTables, Node, NodeError, NodeErrorKind, PatternKind, PickHit,
-    ProfileDoc, RecipeEditRef, RecipeNodeId, ResolveError, RoleSeg, SelectRefusal, Speaker,
-    StableName,
+    InterrogateError, NameTable, NameTables, Node, NodeError, NodeErrorKind, PickHit, ProfileDoc,
+    RecipeEditRef, RecipeNodeId, ResolveError, RoleSeg, SelectRefusal, Speaker, StableName,
 };
 use topo::BooleanOp;
 
@@ -59,13 +58,12 @@ use topo::BooleanOp;
 /// It says its claimed name by tag, which says each read a carry came
 /// through.
 ///
-/// Raised 80 → 92 by INTENT stage 3 D (Transform retires into a
-/// placement): every construction is the root of its own space, so a
-/// later operand of a union is placed against the first before it is
-/// joined, and the name says that read too ("joined at Union … from
-/// Place …"), and its claimed name says one more read by tag. Filed as
-/// `name-words-budget-grew-under-placed-copy-wrapping`.
-const OVER_BUDGET: &[(&str, usize)] = &[("NodeErrorKind::CrossingUnverified", 92)];
+/// Every construction is the root of its own space, so a later operand
+/// of a union is placed against the first before it is joined, and the
+/// name says that read too ("joined at Union … from Place …"), and its
+/// claimed name says one more read by tag
+/// (`name-words-budget-grew-under-placed-copy-wrapping`).
+const OVER_BUDGET: &[(&str, usize)] = &[("NodeErrorKind::CrossingUnverified", 80)];
 
 /// **The rows whose own prose states its recourse in words the standard
 /// does not read as one** ("aim away from the shared edge" is marked;
@@ -198,8 +196,8 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// total 343104 → 343208, the percentiles and scoped faces held. No
 /// outcome moved.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
-    ("scoped faces", [16, 45, 57, 47_003]),
-    ("full", [19, 122, 196, 343_208]),
+    ("scoped faces", [16, 43, 57, 46_335]),
+    ("full", [19, 121, 196, 332_976]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -374,7 +372,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// `Borders` walls' reads under D′3's names.
 ///
 /// Measured again with [`NAME_WORDS`] over main's merge at `4c341b9225`.
-const SAID_DIGEST: u64 = 0xda87_4996_1194_12cf;
+const SAID_DIGEST: u64 = 0x725d_81bf_b29f_a0a9;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
@@ -856,7 +854,7 @@ fn block_and_pin(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
 
 /// **Documents built to attack the joins read apart too**: copies of
 /// one master carried through chained Subtracts and an n-ary Union,
-/// then also unioned on as bosses; two levels of pattern subtracted and
+/// then also unioned on as bosses; a grid of pins (one family over two indices) subtracted and
 /// split through the pockets; a profile of four loops, three of them
 /// alike, and two profiles of one shape joined by a Boolean and by an
 /// n-ary Union; round pins cut, and unioned, by three successive
@@ -884,35 +882,33 @@ fn documents_outside_the_corpus_read_apart_too() {
     let mut r = Recorder::new();
     let (block, pin) = block_and_pin(&mut r);
     let pin = moved(&mut r, block, pin, [0.0, 0.0, PIN_Z]);
-    let row = r.insert(
-        Node::placed_union(
-            pin,
-            Formula::count(3),
-            PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(0.75),
-            },
-        )
-        .expect("a linear pattern"),
-    );
-    let grid = r.insert(
-        Node::placed_union(
-            row,
-            Formula::count(2),
-            PatternKind::Linear {
-                direction: [scl(0.0), scl(1.0), scl(0.0)],
-                spacing: len(1.0),
-            },
-        )
-        .expect("a linear pattern"),
-    );
+    // A grid of pins: `j` within `i`, one placement over both, and the
+    // union of its family.
+    let i = r.index("i", Formula::count(3));
+    r.push(editor_core::DocEdit::DeclareVar {
+        name: editor_core::VarName::from_static("j"),
+        def: editor_core::VarDecl::Index {
+            count: Formula::count(2),
+            within: Some(Formula::var(i, editor_core::Dimension::Count)),
+        },
+    });
+    let j = r.doc.var_named("j").expect("the inner index");
+    let slides = [
+        fixture::slides_along(i, [1.0, 0.0, 0.0], 0.75),
+        fixture::slides_along(j, [0.0, 1.0, 0.0], 1.0),
+    ]
+    .concat();
+    let pins = r.copies(pin, slides);
+    let grid = r.insert(Node::Union {
+        members: editor_core::Bodies::Family(pins.into()),
+    });
     let cut = boolean(&mut r, BooleanOp::Subtract, block, grid);
     let tool = fixture::plane_on(&r.doc, block, [0.0, 0.5, 0.0], [0.0, 1.0, 0.0]);
     r.insert(Node::Split {
         target: cut.into(),
         tool,
     });
-    docs.push(("pattern and split".to_owned(), r.doc.clone()));
+    docs.push(("family and split".to_owned(), r.doc.clone()));
 
     let mut r = Recorder::new();
     let loops = |o: f64| {

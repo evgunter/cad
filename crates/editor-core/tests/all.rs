@@ -189,8 +189,6 @@ mod edit_one_predicate;
 mod edit_pair_apply_names;
 #[path = "edit_placement_corpus_bits.rs"]
 mod edit_placement_corpus_bits;
-#[path = "edit_placement_type.rs"]
-mod edit_placement_type;
 #[path = "edit_planar_carve.rs"]
 mod edit_planar_carve;
 #[path = "edit_recorded_notation.rs"]
@@ -229,6 +227,12 @@ mod fix_loop_polygon_expr;
 mod fix_pattern_mate_crossing;
 #[path = "fork7_shared_is_named.rs"]
 mod fork7_shared_is_named;
+#[path = "g_family_review_rows.rs"]
+mod g_family_review_rows;
+#[path = "g_index_families.rs"]
+mod g_index_families;
+#[path = "g_ring_closure_measure.rs"]
+mod g_ring_closure_measure;
 #[path = "gap_reads_a_cell_against_a_round_face.rs"]
 mod gap_reads_a_cell_against_a_round_face;
 #[path = "gap_reads_vertex_and_edge_cells.rs"]
@@ -548,8 +552,6 @@ mod parallel_node_map_probe;
 mod part_depth_bound;
 #[path = "parts_entered_before_the_map.rs"]
 mod parts_entered_before_the_map;
-#[path = "pattern_spacing_and_step.rs"]
-mod pattern_spacing_and_step;
 #[path = "perf12_census_bvh_diff.rs"]
 mod perf12_census_bvh_diff;
 #[path = "perf12_census_goldens.rs"]
@@ -564,8 +566,6 @@ mod pierce_ring_engraving;
 mod pirad_wire;
 #[path = "place_mate_frame_offset.rs"]
 mod place_mate_frame_offset;
-#[path = "placedunion_wire.rs"]
-mod placedunion_wire;
 #[path = "product_gate_attribution.rs"]
 mod product_gate_attribution;
 #[path = "props_verdict_shapes.rs"]

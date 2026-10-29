@@ -1987,7 +1987,7 @@ mod tests {
             ),
             (
                 PreviewError::Resolve {
-                    slot: SlotId::Count,
+                    slot: SlotId::Distance,
                     source: EvalError::CountExprInContinuousEval,
                 },
                 Tone::Actionable,

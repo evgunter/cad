@@ -1264,7 +1264,10 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     ) -> Result<(Sense, EdgeReading), NamingError> {
         let bug = |what| NamingError::Emission { what };
         let (n, name) = line;
-        let m = self.member(*n, name.name());
+        // The member by its place in the list: the members of a family
+        // read whole share one read and one body's keys, and the name
+        // tells them apart.
+        let (at_member, m) = member_at(self.members, *n, name.name());
         // The member's rows on the line, each with its edge, a tied
         // row with each candidate's: the classified piece is the one at
         // `v`. The line itself need not be a row.
@@ -1290,7 +1293,10 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         // Whether a judgement of the edge's member against one the name
         // cites recorded something at the point `at` that is `v`'s.
         let here = |member: usize, other: usize, at: geom_core::Point3<T>| {
-            if read(member) != Some(*n) || !read(other).is_some_and(|o| others.contains(&o)) {
+            // Another member of the line's own family is one the name
+            // cites: its read is the line's, which the name cites once.
+            let cited = |o: VarId| others.contains(&o) || (o == *n && other != at_member);
+            if member != at_member || !read(other).is_some_and(cited) {
                 return Ok(false);
             }
             let gap = Margin::of((at - p).norm());
@@ -1961,6 +1967,11 @@ impl<T: geom_core::Decide> SegRewrite for WholeMemberEdges<'_, '_, T> {
         walked: StableName,
     ) -> Result<Option<StableName>, NamingError> {
         Ok((walked != *n).then_some(walked))
+    }
+
+    /// An index is the document's own: re-citing a member edge keeps it.
+    fn index(&mut self, index: VarId) -> Result<VarId, Self::Error> {
+        Ok(index)
     }
 }
 
@@ -2675,6 +2686,11 @@ impl SegRewrite for CiteParents<'_> {
         walked: StableName,
     ) -> Result<Option<StableName>, NamingError> {
         Ok((walked != *n).then_some(walked))
+    }
+
+    /// An index is the document's own: citing a parent keeps it.
+    fn index(&mut self, index: VarId) -> Result<VarId, Self::Error> {
+        Ok(index)
     }
 }
 
@@ -4342,8 +4358,8 @@ mod tests {
         let fold_name = |i: u64| StableName {
             kind: EntityKind::Vertex,
             node: m.union,
-            path: vec![RoleSeg::Instance {
-                i: u32::try_from(i).unwrap(),
+            path: vec![RoleSeg::Member {
+                at: vec![(crate::VarId::new(9, 9), u32::try_from(i).unwrap())],
                 of: NameRef::new(tied.clone()),
             }],
         };
@@ -4439,8 +4455,8 @@ mod tests {
         for (i, v) in [v0, v1].into_iter().enumerate() {
             let fold = vertex(
                 tied.union,
-                vec![RoleSeg::Instance {
-                    i: u32::try_from(i).unwrap(),
+                vec![RoleSeg::Member {
+                    at: vec![(crate::VarId::new(9, 9), u32::try_from(i).unwrap())],
                     of: NameRef::new(tie.clone()),
                 }],
             );
