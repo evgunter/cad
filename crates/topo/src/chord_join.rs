@@ -156,9 +156,11 @@ use geom_core::Tol;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ConicCrossingsCase {
     /// At a crossing the plane runs within the band of tangent to the
-    /// face's wall (**`split_join_conic_heading`** Zero), so the
-    /// crossing neither enters nor leaves the face definitely. No
-    /// shipped fixture reaches it.
+    /// face's wall (**`split_join_conic_heading`** Zero, or the same
+    /// sine as `chord_arc_leave_section` reads it at a chord's start),
+    /// so the crossing neither enters nor leaves the face definitely. A
+    /// needle cone cut near its apex reaches it at the chord: the lever
+    /// there is the cone's radial distance, tens of bands.
     Grazing,
     /// Taken along the conic, the crossings do not alternate between
     /// entering the face and leaving it. Crossings closer along the
@@ -583,11 +585,11 @@ pub enum SplitJoinError {
         /// `None` where every station reads a corner.
         mixed: Option<geom_brep::MixedStations>,
     },
-    /// A curved face crossed more than twice could not have its
-    /// crossings paired along its section conic, or along each ruling
-    /// of a two-ruling section, which is the only pairing that keeps
-    /// each chord on an arc inside the face. The case says which way
-    /// the pairing failed.
+    /// A curved face's crossings could not be paired along its section
+    /// conic, or along each ruling of a two-ruling section, which is the
+    /// only pairing that keeps each chord on an arc inside the face; or
+    /// a chord's start could not say which way the section runs into the
+    /// face. The case says which way the heading failed.
     SectionCrossings {
         /// The curved face whose crossings were being paired.
         face: FaceKey,
@@ -2041,13 +2043,19 @@ impl<T: Real> Leave<T> {
 /// semi-axis or an oval's own (`chord_arc_leave_germ`); the split's sine on the wall's
 /// [`geom_brep::curvature_lever_arm`] at `p1`
 /// (`chord_arc_leave_section`), the lever its conic walk decides the
-/// same sine on, so the two cannot disagree outside the band. A datum
-/// with no component along the section is malformed and refuses.
+/// same sine on, so the two cannot disagree outside the band. The
+/// split's datum is `±(n_plane × n_out)`, in the plane by construction,
+/// so its Zero is the walk's: the plane within the band of tangent to
+/// the wall at `p1`, where the lever is short near a cone's apex as
+/// readily as the sine is small. A germ with no component along the
+/// section is malformed and refuses.
 ///
 /// # Errors
 ///
-/// [`SplitJoinError::SectionInvariant`] for a datum normal to the
-/// section; [`SplitJoinError::Escalated`] in the band.
+/// [`SplitJoinError::SectionCrossings`] ([`ConicCrossingsCase::Grazing`])
+/// where the split's sine reads Zero; [`SplitJoinError::SectionInvariant`]
+/// for a germ normal to the section; [`SplitJoinError::Escalated`] in the
+/// band.
 fn arc_leaving<T: Decide>(
     face: FaceKey,
     band: Band,
@@ -2071,11 +2079,18 @@ fn arc_leaving<T: Decide>(
     match decide(name, margin, band).map_err(|diag| SplitJoinError::Escalated { face, diag })? {
         Sign::Positive => Ok(true),
         Sign::Negative => Ok(false),
-        Sign::Zero => Err(SplitJoinError::SectionInvariant {
-            face,
-            what: "the section's direction of departure handed to a chord end has no \
-                   component along the section there",
-        }),
+        Sign::Zero => match leave.datum {
+            Datum::Section => Err(SplitJoinError::SectionCrossings {
+                face,
+                case: ConicCrossingsCase::Grazing,
+                band,
+            }),
+            Datum::Germ => Err(SplitJoinError::SectionInvariant {
+                face,
+                what: "the section's direction of departure handed to a chord end has no \
+                       component along the section there",
+            }),
+        },
     }
 }
 
@@ -6741,22 +6756,35 @@ mod tests {
         }
     }
 
-    /// **A datum with no component along the section refuses**, typed,
-    /// and one whose component is in the band escalates naming
-    /// `chord_arc_leave_section`: the section's normal (the plane's own,
-    /// which no section tangent has a component along), and the tangent
-    /// scaled to put the levered margin `leave·Ĉ′ × r` at 5e-9 (the unit
-    /// cylinder's radius, the lever the split's walk reads).
+    /// **A split datum whose levered margin reads Zero is a graze**, and
+    /// one in the band escalates naming `chord_arc_leave_section`. The
+    /// fixture's tangent at θ = 0 is `ŷ` and its lever the unit
+    /// cylinder's radius, so `û_e = ŷ × n`, in the plane and normal to the
+    /// section, reads exactly zero, `û_e + ŷ·5e-10` reads half the zero
+    /// band — nonzero, the shape a needle cone's short lever gives — and
+    /// `û_e + ŷ·5e-9` reads in the band.
     #[test]
     fn a_datum_off_the_section_refuses() {
         let phi = 0.5f64;
         let n = Vec3::new(phi.sin(), 0.0, phi.cos());
-        let err = spec_leaving(n).unwrap_err();
-        assert!(
-            matches!(err, SplitJoinError::SectionInvariant { .. }),
-            "{err:?}"
-        );
-        let err = spec_leaving(n + Vec3::unit_y() * 5e-9).unwrap_err();
+        let u_e = Vec3::unit_y().cross(n);
+        for (what, leave) in [
+            ("normal to the section", u_e),
+            ("inside the zero band", u_e + Vec3::unit_y() * 5e-10),
+        ] {
+            let err = spec_leaving(leave).unwrap_err();
+            assert!(
+                matches!(
+                    err,
+                    SplitJoinError::SectionCrossings {
+                        case: ConicCrossingsCase::Grazing,
+                        ..
+                    }
+                ),
+                "{what}: {err:?}"
+            );
+        }
+        let err = spec_leaving(u_e + Vec3::unit_y() * 5e-9).unwrap_err();
         let SplitJoinError::Escalated { diag, .. } = err else {
             panic!("expected an escalation, got {err:?}");
         };
