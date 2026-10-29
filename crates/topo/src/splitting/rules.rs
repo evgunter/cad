@@ -247,7 +247,7 @@ pub(super) fn apply_rule_a<T: Decide>(
                 .map_or(KnifeEdgeSite::Vertex(vertex), KnifeEdgeSite::Edge)
         };
         let n_face = match at_vertex {
-            VertexFace::Tangent(n_face) => n_face,
+            VertexFace::Tangent(n_face) | VertexFace::NearAxis(n_face) => n_face,
             VertexFace::Apex(apex) => {
                 let reading = apex_reading(plane, &apex, [rays[k], rays[(k + 1) % n]], band)
                     .map_err(sliver)?;
@@ -376,8 +376,12 @@ pub(super) fn apply_rule_a<T: Decide>(
 /// quantity the walk read the entry's side by, levered at the same reach
 /// (the ray's length). So the sub-sector is grazed where the outward
 /// normal along either bounding ray is parallel to the plane's at that
-/// ray's reach (`split_sector_coplanar`) — exactly where the walk read
-/// that entry On — and otherwise clear. The cone is straight along a
+/// ray's reach (`split_sector_coplanar`) — where the walk read that
+/// entry On — and otherwise clear. The two are not one predicate: the
+/// walk decides a signed side, and this decides a magnitude whose
+/// parallel verdict carries the sense rule (b) reads the material side
+/// by ([`geom_brep::ParallelNormal`]); they share the band, the lever
+/// and, at an extremal ruling, the quantity. The cone is straight along a
 /// ruling, so there is no bend to read: a graze's material side is the
 /// parallel normal's sense, and whether the cone bends into its material
 /// is its sense alone ([`ConeApex::material_inside`], the caller's).
@@ -550,7 +554,10 @@ fn edge_wedge<T: Decide>(
     // and undefined at the apex itself.
     let p = body.resolve_vertex_point(vertex, Proven);
     let p = match (own_at, mate_at) {
-        (VertexFace::Tangent(_), VertexFace::Tangent(_)) => p,
+        (
+            VertexFace::Tangent(_) | VertexFace::NearAxis(_),
+            VertexFace::Tangent(_) | VertexFace::NearAxis(_),
+        ) => p,
         _ => p + along,
     };
     let (n_own, n_mate) = (own_at.normal_along(along), mate_at.normal_along(along));

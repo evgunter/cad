@@ -2427,10 +2427,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             R::ApexSection {
                 vertex,
                 face,
-                section: Box::new(J::SectionInvariant {
-                    face,
-                    what: "a section arc with no endpoint on the face's boundary",
-                }),
+                reading: topo::ApexSectionReading::NoRulingInside,
             },
         ),
         (

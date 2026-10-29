@@ -145,6 +145,26 @@ pub enum SectionGermReading {
     Order,
 }
 
+/// How the section table's reading of a plane against a cone disagrees
+/// with the walk, which read the plane crossing one of the cone's
+/// sub-sectors at its apex ([`SplitReduceError::ApexSection`]).
+#[derive(Debug)]
+pub enum ApexSectionReading {
+    /// The table reads the plane's section of the cone as a closed
+    /// conic, standing off the apex.
+    ClosedOffApex,
+    /// The table refused the pair; its refusal, which for a plane the
+    /// walk read through the apex is most often an open conic standing
+    /// off it ([`SplitJoinError::OpenConicChord`]).
+    Refused(Box<SplitJoinError>),
+    /// The table's section rulings through the apex: none of them lies
+    /// inside the sub-sector the walk read the plane crossing.
+    NoRulingInside,
+    /// Both of the table's section rulings lie inside one sub-sector,
+    /// across which the walk read the plane's side monotone.
+    BothRulingsInside,
+}
+
 /// Why the germs round a vertex fix no corners of the section there
 /// ([`SplitReduceError::SectionGermsUnordered`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -449,17 +469,17 @@ pub enum SplitReduceError {
         /// What fixed no corners.
         fault: SectionGermFault,
     },
-    /// The plane crosses a cone face at its apex, which the walk read on
-    /// the plane, and the section table, asked for the rulings the plane
-    /// leaves the apex along, refused: it read the plane's section of
-    /// the cone as standing off the apex, or could not serve it.
+    /// The walk read the plane crossing a cone face at its apex, and the
+    /// section table, asked for the ruling the plane leaves the apex
+    /// along inside one of the face's sub-sectors, does not agree:
+    /// `reading` says how.
     ApexSection {
         /// The apex vertex.
         vertex: VertexKey,
         /// The cone face.
         face: FaceKey,
-        /// The table's refusal.
-        section: Box<SplitJoinError>,
+        /// How the table's section disagrees with the walk.
+        reading: ApexSectionReading,
     },
     /// A vertex of a cone face lies within the band of the cone's axis
     /// ([`crate::face_normal::cone_point`] escalated): whether the
@@ -783,12 +803,33 @@ impl core::fmt::Display for SplitReduceError {
                 };
                 write!(f, "{what}. Recourse: {SPLIT_COINCIDENCE_RECOURSE}")
             }
-            Self::ApexSection { .. } => write!(
-                f,
-                "the split plane passes through the tip of a cone, and the section it cuts \
-                 in the cone does not run through the tip. Recourse: \
-                 {SPLIT_COINCIDENCE_RECOURSE}"
-            ),
+            Self::ApexSection { reading, .. } => {
+                let what = match reading {
+                    ApexSectionReading::ClosedOffApex => {
+                        "the section it cuts in the cone reads as a closed curve clear of the tip"
+                    }
+                    ApexSectionReading::Refused(section) => match **section {
+                        SplitJoinError::OpenConicChord { .. } => {
+                            "the section it cuts in the cone reads as an open curve clear of \
+                             the tip"
+                        }
+                        _ => "the section it cuts in the cone does not read there",
+                    },
+                    ApexSectionReading::NoRulingInside => {
+                        "no line of the section it cuts in the cone leaves the tip where the \
+                         plane crosses the cone there"
+                    }
+                    ApexSectionReading::BothRulingsInside => {
+                        "both lines of the section it cuts in the cone leave the tip where the \
+                         plane crosses the cone once there"
+                    }
+                };
+                write!(
+                    f,
+                    "the split plane passes through the tip of a cone, and {what}. Recourse: \
+                     {SPLIT_COINCIDENCE_RECOURSE}"
+                )
+            }
             Self::ApexUndecided { diag, .. } => write!(
                 f,
                 "a corner of a cone face lies too near the cone's axis to say whether it is \

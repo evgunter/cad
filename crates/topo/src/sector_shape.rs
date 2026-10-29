@@ -503,7 +503,6 @@ pub(crate) fn apex_shape<T: Decide>(
     };
     let axis = apex.axis;
     let (unit_own, unit_next) = (dir_own.normalize(), dir_next.normalize());
-    let nappe = unit_next.dot(axis);
     let sin_a = apex.half_angle.sin();
     let tau = T::tau();
     // The sweep's frame: `e1` along the next bound's azimuth, `e2` the
@@ -549,21 +548,20 @@ pub(crate) fn apex_shape<T: Decide>(
     // nappe's ruling opposite it in azimuth, the other extremum.
     let [toward, away] = geom_brep::plane_cone_apex_extrema(&apex.surface(), across)
         .unwrap_or_else(|| unreachable!("an apex reading's surface is a cone"))
-        .map(|g| g * T::one().copysign(g.dot(axis) * nappe));
+        .map(|g| apex.onto_nappe_of(g, unit_next));
     let (psi_toward, psi_away) = (azimuth(toward), azimuth(away));
     // In orbit order: from the own bound, the larger azimuth, first.
     let later_first = psi_away - psi_toward;
-    let pick = |a: Vec3<T>, b: Vec3<T>| {
-        Vec3::new(
-            later_first.select_le_zero(a.x, b.x),
-            later_first.select_le_zero(a.y, b.y),
-            later_first.select_le_zero(a.z, b.z),
-        )
-    };
     let mut rulings = Vec::with_capacity(2);
     for (g, psi) in [
-        (pick(toward, away), psi_toward.max(psi_away)),
-        (pick(away, toward), psi_toward.min(psi_away)),
+        (
+            Vec3::select(later_first, toward, away),
+            psi_toward.max(psi_away),
+        ),
+        (
+            Vec3::select(later_first, away, toward),
+            psi_toward.min(psi_away),
+        ),
     ] {
         let from_next = decide(SECTOR_APEX_WINDOW, chord(psi), band).map_err(rung)?;
         let to_own = decide(SECTOR_APEX_WINDOW, chord(window - psi), band).map_err(rung)?;

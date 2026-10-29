@@ -647,8 +647,8 @@ pub(super) fn sector_face<T: Decide>(
         | SectorCarrier::Spline(_) => {}
     }
     match resolved.at_vertex {
-        VertexFace::Tangent(normal) if !resolved.near_axis => Ok((resolved.face, normal)),
-        VertexFace::Tangent(_) | VertexFace::Apex(_) => Err(BooleanError::NormalAtConeApex {
+        VertexFace::Tangent(normal) => Ok((resolved.face, normal)),
+        VertexFace::NearAxis(_) | VertexFace::Apex(_) => Err(BooleanError::NormalAtConeApex {
             operand,
             face: resolved.face,
             band,

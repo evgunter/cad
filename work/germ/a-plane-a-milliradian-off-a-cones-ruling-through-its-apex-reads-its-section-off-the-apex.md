@@ -41,7 +41,7 @@ its rulings): an instrumented `apex_germ` printed the table's error,
 `OpenConicChord { face, conic: Hyperbola }`, at every refused pose at
 1e-12. Pinned as typed refusals in
 `crates/sweep/tests/a_plane_through_a_cones_apex.rs`
-(`near_tangent_refusal`).
+(`near_tangent`).
 
 ## Where to look
 

@@ -67,8 +67,10 @@
 //! is what the run scan reads. Those entries are the walk's
 //! `WideBisector` duplicates, up to two in one sector (a window over a
 //! half-turn holds both extrema), where a tangent plane's wide sector
-//! holds one; every reader of the array takes any number per sector
-//! (`insert`'s dangling struts, rule (b)'s duplicate rows).
+//! holds one. Every reader of the array takes two in a sector (rule (b)'s
+//! duplicate rows); the plane's side changes sign at most twice in a
+//! sector, so at most one stretch of duplicates alone lies apart from its
+//! bounds (`insert`'s dangling strut).
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign, Vec3};
 use slotmap::SecondaryMap;
@@ -297,7 +299,7 @@ pub(crate) fn wide_entries<T: Decide>(
         SectorFault::Rung { diag, .. } => sliver(diag),
     };
     let (arm, directions) = match at_vertex {
-        VertexFace::Tangent(n_face) => {
+        VertexFace::Tangent(n_face) | VertexFace::NearAxis(n_face) => {
             let SectorShape { arm, bisector, .. } =
                 sector_shape(dir_a, dir_b, n_face, one_edge, band).map_err(fault)?;
             (arm, bisector.into_iter().collect())
@@ -428,7 +430,7 @@ pub(super) fn classify_neighborhood_rays<T: Decide>(
         let (_, dir_b, _) = chord(body, vertex, next_he)?;
         let (face, at_vertex, _) = sector_face(body, vertex, he, band)?;
         let apex = match at_vertex {
-            VertexFace::Tangent(_) => None,
+            VertexFace::Tangent(_) | VertexFace::NearAxis(_) => None,
             VertexFace::Apex(apex) => Some(apex),
         };
         apexes.push(apex);

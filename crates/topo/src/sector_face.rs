@@ -111,10 +111,6 @@ pub(crate) struct SectorFace<T: geom_core::Real> {
     pub at_vertex: VertexFace<T>,
     /// Which arm read it.
     pub carrier: SectorCarrier,
-    /// A cone face's vertex within the band of the cone's axis but not
-    /// at its apex ([`ConePoint::NearAxis`]): its tangent plane is read,
-    /// ill-conditioned, for a lane that reads it.
-    pub near_axis: bool,
 }
 
 /// **What a face is at a vertex.** Every arm but one has a tangent plane
@@ -127,6 +123,12 @@ pub(crate) enum VertexFace<T: geom_core::Real> {
     /// chart normal and the face's `sense` bit — the type carries the
     /// obligation not to re-apply the sense downstream.
     Tangent(OutwardNormal<T>),
+    /// A cone face's tangent plane at a vertex within the band of the
+    /// cone's axis but definitely off its apex
+    /// ([`ConePoint::NearAxis`]): read, ill-conditioned, for a lane that
+    /// reads it (the split, as it did before the apex was read); the
+    /// Boolean refuses it.
+    NearAxis(OutwardNormal<T>),
     /// The vertex is the apex of the face's cone.
     Apex(ConeApex<T>),
 }
@@ -138,7 +140,7 @@ impl<T: Decide> VertexFace<T> {
     /// ([`ConeApex::normal_along`]).
     pub(crate) fn normal_along(&self, d: Vec3<T>) -> OutwardNormal<T> {
         match self {
-            Self::Tangent(normal) => *normal,
+            Self::Tangent(normal) | Self::NearAxis(normal) => *normal,
             Self::Apex(apex) => apex.normal_along(d),
         }
     }
@@ -149,7 +151,7 @@ impl<T: Decide> VertexFace<T> {
     #[allow(clippy::panic)]
     pub(crate) fn tangent(&self) -> Vec3<T> {
         match self {
-            Self::Tangent(normal) => normal.vec(),
+            Self::Tangent(normal) | Self::NearAxis(normal) => normal.vec(),
             Self::Apex(apex) => panic!("a tangent plane, not {apex:?}"),
         }
     }
@@ -190,6 +192,13 @@ impl<T: Decide> ConeApex<T> {
     pub(crate) fn normal_along(&self, d: Vec3<T>) -> OutwardNormal<T> {
         let chart = geom_brep::implicit_gradient(&self.surface(), self.apex + d.normalize());
         OutwardNormal::from_chart(chart.normalize(), self.sense)
+    }
+
+    /// The unit ruling along the line through the apex along `d`, on the
+    /// nappe `like` (a ruling the face leaves the apex along) lies on: the
+    /// line holds one ruling of each nappe, opposite in azimuth.
+    pub(crate) fn onto_nappe_of(&self, d: Vec3<T>, like: Vec3<T>) -> Vec3<T> {
+        d.normalize() * T::one().copysign(d.dot(self.axis) * like.dot(self.axis))
     }
 
     /// Which way round the axis the face's interior leaves the ruling
@@ -313,7 +322,6 @@ pub(crate) fn resolve<T: Decide>(
     // the face alone.
     if let Some(normal) = face_outward_normal(body, face) {
         return Ok(SectorFace {
-            near_axis: false,
             face,
             at_vertex: VertexFace::Tangent(normal),
             carrier: SectorCarrier::Plane,
@@ -330,7 +338,6 @@ pub(crate) fn resolve<T: Decide>(
     };
     let charted = |chart, carrier| {
         Ok(SectorFace {
-            near_axis: false,
             face,
             at_vertex: VertexFace::Tangent(OutwardNormal::from_chart(chart, sense)),
             carrier,
@@ -348,7 +355,6 @@ pub(crate) fn resolve<T: Decide>(
             band,
         )?;
         return Ok(SectorFace {
-            near_axis: false,
             face,
             at_vertex: VertexFace::Tangent(normal),
             carrier: SectorCarrier::Spline(kind),
@@ -391,14 +397,14 @@ pub(crate) fn resolve<T: Decide>(
                     SectorCarrier::Cone,
                 ),
                 Ok(ConePoint::NearAxis) => Ok(SectorFace {
-                    near_axis: true,
-                    ..charted(
+                    face,
+                    at_vertex: VertexFace::NearAxis(OutwardNormal::from_chart(
                         geom_brep::implicit_gradient(s, p).normalize(),
-                        SectorCarrier::Cone,
-                    )?
+                        sense,
+                    )),
+                    carrier: SectorCarrier::Cone,
                 }),
                 Ok(ConePoint::Apex) => Ok(SectorFace {
-                    near_axis: false,
                     face,
                     at_vertex: VertexFace::Apex(ConeApex {
                         apex,
@@ -618,10 +624,10 @@ pub(crate) mod tests {
             )
             .unwrap();
             let got = resolve(&body, vertex, orbit_he, band()).expect("the cone arm resolves");
-            let read = match (got.at_vertex, got.near_axis) {
-                (VertexFace::Apex(_), _) => "apex",
-                (VertexFace::Tangent(_), true) => "near",
-                (VertexFace::Tangent(_), false) => "off",
+            let read = match got.at_vertex {
+                VertexFace::Apex(_) => "apex",
+                VertexFace::NearAxis(_) => "near",
+                VertexFace::Tangent(_) => "off",
             };
             assert_eq!(read, want, "{along} along the generator");
         }
