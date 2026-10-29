@@ -938,3 +938,62 @@ fn a_kernel_built_oblique_cut_refuses_typed_at_its_curved_corners() {
         report.receipt
     );
 }
+
+#[test]
+fn probe_corner_bodies() {
+    use core::f64::consts::{FRAC_PI_2, PI};
+    use geom_core::{Affine3, Vec3};
+    use sweep::test_support::{brick, finished};
+    let tol = tol();
+    let moved = |b: &topo::AtRestBody<f64>, m: &Affine3<f64>| {
+        let rigid = geom_core::test_support::rigid(m, tol);
+        finished("moved", topo::transform_rigid(b, &rigid, tol).unwrap(), tol)
+    };
+    let slab = |top: f64| finished("slab", brick((-50.0, 50.0), (-50.0, 50.0), (-100.0, top), tol), tol);
+    let body = |r: Result<topo::BooleanResult<f64>, topo::BooleanError>| match r {
+        Ok(topo::BooleanResult::Body(b)) => b.body,
+        other => panic!("the op builds: {other:?}"),
+    };
+    let rod = |(z0, z1): (f64, f64)| {
+        let rod = sweep::test_support::prism_at(
+            vec![(Point2::new(-1.0, 0.0), 1.0), (Point2::new(1.0, 0.0), 1.0)],
+            z0,
+            z1 - z0,
+            tol,
+        );
+        finished("the rod", rod, tol)
+    };
+    let show = |what: &str, b: &Body<f64>| {
+        let report = injective(b, None, BUDGET);
+        println!("[probe] {what}: {:?} {:?}", report.verdict, report.receipt);
+        if let BoundVerdict::Refused(EngineRefusal::Uncertified { a, b: bb, .. }) = report.verdict {
+            println!("[probe]   faces {} / {}", kind(b, a), kind(b, bb));
+        }
+    };
+    let which = std::env::var("PROBE").unwrap_or_default();
+    if which.is_empty() || which.contains("cut7") {
+        let disc = profile::circle(Point2::new(0.0, 0.0), 1.0, tol).unwrap();
+        let profile = Profile::new(SketchPlane::xy(), vec![disc.into()]).validate(tol).unwrap();
+        let drum = finished("drum", extrude(&profile, to_offset(2.0), tol).unwrap().body, tol);
+        let tilt = Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 1.0), Vec3::unit_y(), PI / 7.0);
+        let cut = body(topo::subtract(&drum, &moved(&slab(1.0), &tilt), tol));
+        show("cut pi/7", &cut);
+    }
+    if which.is_empty() || which.contains("rod5") {
+        let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), PI / 5.0);
+        let cut = body(topo::subtract(&rod((-3.0, 3.0)), &moved(&slab(0.0), &tilt), tol));
+        show("rod pi/5", &cut);
+    }
+    if which.is_empty() || which.contains("vessel") {
+        let v = crate::common::shell_operands::vessel(1.0, 2.0);
+        show("vessel", &v);
+    }
+    if which.is_empty() || which.contains("tee") {
+        let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), -PI / 4.0);
+        let a = body(topo::subtract(&rod((-3.0, 3.0)), &moved(&slab(0.0), &tilt), tol));
+        let onto_x = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), FRAC_PI_2);
+        let b = moved(&rod((0.2, 3.0)), &onto_x);
+        let tee = body(topo::union(&a, &b, tol));
+        show("tee", &tee);
+    }
+}

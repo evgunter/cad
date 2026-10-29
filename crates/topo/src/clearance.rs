@@ -2992,11 +2992,19 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                     if lk == f.outer {
                         out.extent = extent_of(rows.iter().map(|row| {
                             let (t0, t1) = row.row.params();
+                            if !monotone_line(&row.pcurve) {
+                                let h = harmonic_of(&row.pcurve)?;
+                                let t = Interval::from_bounds(
+                                    Interval::from_certified(t0).lo(),
+                                    Interval::from_certified(t1).hi(),
+                                );
+                                return Some(Row::Bulging(h.over(t)));
+                            }
                             let end = |t: T| {
                                 let q = row.pcurve.eval(t);
                                 [Interval::from_certified(q.x), Interval::from_certified(q.y)]
                             };
-                            (monotone_line(&row.pcurve), [end(t0), end(t1)])
+                            Some(Row::Ends([end(t0), end(t1)]))
                         }));
                     }
                     for row in rows {
@@ -3063,29 +3071,48 @@ fn boundary_of<T: Decide + CertifiedBounds>(
     Aabb::from_points(pts).map(|b| (b, out))
 }
 
+/// One row of a loop as [`extent_of`] reads it.
+enum Row {
+    /// A coordinate line whose moving coordinate is monotone
+    /// ([`monotone_line`]): its two ends' chart points `[u, v]`, whose
+    /// hull is the row's.
+    Ends([[Interval; 2]; 2]),
+    /// A harmonic image that may bulge past its ends: its enclosure over
+    /// its whole span, `[u, v]`, which holds it.
+    Bulging([Interval; 2]),
+}
+
 /// **The face's own extent in its chart** ([`Boundary::extent`]): the
-/// hull, on each axis, of the outer loop's lifted chain at its rows'
-/// ends. A hull of ends is the hull of the curve only where the curve
-/// does not bulge past them, so every row must be a coordinate line
-/// whose moving coordinate is monotone ([`monotone_line`]); otherwise
-/// `None`, and no reader may take the face's extent as known.
-///
-/// Each row comes as whether it is such a line, and its two ends' chart
-/// points `[u, v]`.
-fn extent_of(rows: impl Iterator<Item = (bool, [[Interval; 2]; 2])>) -> Option<[(f64, f64); 2]> {
+/// hull, on each axis, of the outer loop's lifted chain. A row that is a
+/// monotone coordinate line contributes its ends, which are its hull; a
+/// harmonic row its enclosure over its span, which holds it, so the
+/// extent is then a superset. A superset spanning a whole turn on any
+/// axis is not taken: a reader would read it as a loop that wraps. Any
+/// other row, or an end or enclosure not certified, is `None` (`None`
+/// as an item: a row with no closed form), and no reader may take the
+/// face's extent as known.
+fn extent_of(rows: impl Iterator<Item = Option<Row>>) -> Option<[(f64, f64); 2]> {
     let mut hull = [(f64::INFINITY, f64::NEG_INFINITY); 2];
-    for (line, ends) in rows {
-        if !line {
-            return None;
-        }
-        for end in ends {
-            for (h, c) in hull.iter_mut().zip(end) {
+    let mut bulged = false;
+    for row in rows {
+        let boxes: Vec<[Interval; 2]> = match row? {
+            Row::Ends(ends) => ends.to_vec(),
+            Row::Bulging(enclosure) => {
+                bulged = true;
+                vec![enclosure]
+            }
+        };
+        for b in boxes {
+            for (h, c) in hull.iter_mut().zip(b) {
                 if !c.is_certified() {
                     return None;
                 }
                 *h = (h.0.min(c.lo()), h.1.max(c.hi()));
             }
         }
+    }
+    if bulged && hull.iter().any(|&(lo, hi)| injective::whole_turn(lo, hi)) {
+        return None;
     }
     hull.iter().all(|h| h.0 <= h.1).then_some(hull)
 }
