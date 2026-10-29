@@ -21,10 +21,11 @@
 //! bitwise both sub-patches' boundary column.
 //!
 //! Every split is reported as a [`StructureNormalization`], never done
-//! silently. A face whose trim the split cannot place
-//! ([`split_face_once`]), and an edge knot whose vertex the closing join
-//! would take back ([`split_c0_knots`]), refuse typed rather than ship
-//! the crease.
+//! silently. A knot vertex is one the closing join keeps
+//! (`topo`'s `joinable`): two spline pieces meeting at a knot of full
+//! multiplicity are never joined. A face whose trim the split cannot
+//! place ([`split_face_once`]) refuses typed rather than ship the
+//! crease.
 
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -45,28 +46,8 @@ pub(crate) fn split_c0_knots(
     mint: &mut dyn FnMut() -> u64,
     sink: &mut Vec<StructureNormalization>,
 ) -> Result<(), StepImportError> {
-    let knot_vertices = split_edges(solid, mint, sink)?;
-    split_faces(solid, eps_in, mint, sink)?;
-    // A knot vertex no face's knot line reached joins only the two
-    // sub-arcs it parts. The import's closing join reads such a vertex
-    // as one edge cut for no reason and cannot run either sub-arc on
-    // through it, so it refuses here, typed, rather than there.
-    for (v, face, knot) in knot_vertices {
-        let valence = solid
-            .edges
-            .values()
-            .map(|e| usize::from(e.start == v) + usize::from(e.end == v))
-            .sum::<usize>();
-        if valence == 2 {
-            return Err(StepImportError::C0KnotUnsplit {
-                face,
-                knot,
-                what: "an edge carrier's C⁰ knot is a vertex no other edge meets, which the \
-                       import's closing join would take back",
-            });
-        }
-    }
-    Ok(())
+    split_edges(solid, mint, sink)?;
+    split_faces(solid, eps_in, mint, sink)
 }
 
 /// The knot values of `kv`'s crease runs, ascending.
@@ -139,8 +120,7 @@ fn split_edges(
     solid: &mut SolidSpec,
     mint: &mut dyn FnMut() -> u64,
     sink: &mut Vec<StructureNormalization>,
-) -> Result<Vec<(u64, u64, f64)>, StepImportError> {
-    let mut knot_vertices = Vec::new();
+) -> Result<(), StepImportError> {
     let ids: Vec<u64> = solid.edges.keys().copied().collect();
     for id in ids {
         let Curve3::Nurbs(ref carrier) = solid.edges[&id].carrier else {
@@ -170,9 +150,8 @@ fn split_edges(
             unreachable!("`ids` are the edge map's own keys, and each is removed once")
         };
         let mut ends = vec![spec.start];
-        for (arc, &k) in arcs.iter().zip(&knots) {
+        for arc in &arcs[..arcs.len() - 1] {
             let v = mint();
-            knot_vertices.push((v, face, k));
             let Some(&p) = arc.control().last() else {
                 unreachable!("a validated B-spline holds at least two control points")
             };
@@ -222,7 +201,7 @@ fn split_edges(
             },
         });
     }
-    Ok(knot_vertices)
+    Ok(())
 }
 
 /// The parameter at which `spec`'s carrier passes within `eps_in` of
@@ -375,43 +354,69 @@ fn split_net_u(s: &NurbsSurface<f64>, k: f64) -> Option<(NurbsSurface<f64>, Nurb
 /// A chart split at one crease knot: the two children, each in the
 /// parent's own chart.
 struct NetSplit {
-    /// The knot, in the split direction's parameter.
-    knot: f64,
     /// The child below the knot.
     lo: NurbsSurface<f64>,
     /// The child above it.
     hi: NurbsSurface<f64>,
-    /// Whether the split ran along `v`.
-    along_v: bool,
 }
 
-/// The chart's first crease knot, along `u` before `v`, with the chart
-/// split there; `Err(knot)` where the partition refused.
-fn first_split(s: &NurbsSurface<f64>) -> Option<Result<NetSplit, f64>> {
-    if let Some(&knot) = crease_knots(s.knots_u_f64_interim()).first() {
-        return Some(
-            split_net_u(s, knot)
-                .map(|(lo, hi)| NetSplit {
-                    knot,
-                    lo,
-                    hi,
-                    along_v: false,
-                })
-                .ok_or(knot),
-        );
+/// The chart's crease knots, along `u` before `v`: `(knot, along_v)`.
+fn crease_lines(s: &NurbsSurface<f64>) -> Vec<(f64, bool)> {
+    let u = crease_knots(s.knots_u_f64_interim())
+        .into_iter()
+        .map(|k| (k, false));
+    let v = crease_knots(s.knots_v_f64_interim())
+        .into_iter()
+        .map(|k| (k, true));
+    u.chain(v).collect()
+}
+
+/// The chart split at its crease knot `knot`, along `v` where
+/// `along_v`; `None` where the partition refused.
+fn split_net(s: &NurbsSurface<f64>, knot: f64, along_v: bool) -> Option<NetSplit> {
+    if !along_v {
+        let (lo, hi) = split_net_u(s, knot)?;
+        return Some(NetSplit { lo, hi });
     }
-    let t = s.transposed();
-    let &knot = crease_knots(t.knots_u_f64_interim()).first()?;
-    Some(
-        split_net_u(&t, knot)
-            .map(|(lo, hi)| NetSplit {
-                knot,
-                lo: lo.transposed(),
-                hi: hi.transposed(),
-                along_v: true,
-            })
-            .ok_or(knot),
-    )
+    let (lo, hi) = split_net_u(&s.transposed(), knot)?;
+    Some(NetSplit {
+        lo: lo.transposed(),
+        hi: hi.transposed(),
+    })
+}
+
+/// Which sides of the iso line `knot` (along `v` where `along_v`) the
+/// face's boundary reaches: `(below, above)`. Each edge is sampled at
+/// nine points and each sample's foot read on the chart by projection;
+/// a foot within `eps_in` of the line, carried into the chart by the
+/// local metric, is on it and on neither side. A SELECTION of which
+/// cell the line lies in, never a geometry: the split it gates is exact.
+fn sides(
+    solid: &SolidSpec,
+    fi: usize,
+    s: &NurbsSurface<f64>,
+    knot: f64,
+    along_v: bool,
+    eps_in: f64,
+) -> Option<(bool, bool)> {
+    let (mut below, mut above) = (false, false);
+    for u in solid.faces[fi].loops.iter().flat_map(|l| &l.uses) {
+        let spec = &solid.edges[&u.edge];
+        for i in 0..=8 {
+            let t = spec.t0 + (spec.t1 - spec.t0) * f64::from(i) / 8.0;
+            let foot = s.project(spec.carrier.eval(t)).ok()?;
+            let jet = s.ders(foot.u, foot.v);
+            let (c, metric) = if along_v {
+                (foot.v, jet.dv.norm())
+            } else {
+                (foot.u, jet.du.norm())
+            };
+            let reach = eps_in / metric;
+            below |= c < knot - reach;
+            above |= c > knot + reach;
+        }
+    }
+    Some((below, above))
 }
 
 /// The vertex a use starts at.
@@ -421,8 +426,10 @@ fn use_start(solid: &SolidSpec, u: EdgeUse) -> u64 {
 }
 
 /// Splits face `fi` once, along its first crease knot's iso line, and
-/// answers the index of the new face, or `None` where its chart holds
-/// no crease.
+/// answers the index of the new face, or `None` where no crease knot's
+/// iso line crosses the face ([`sides`]): a line outside the face's
+/// trimmed domain, or along its boundary, lies inside no cell, and the
+/// face keeps its chart.
 ///
 /// The iso line runs across the whole chart, from `Q₀` on the low
 /// boundary of the other direction to `Q₁` on the high one; both are
@@ -436,7 +443,7 @@ fn use_start(solid: &SolidSpec, u: EdgeUse) -> u64 {
 /// boundary does. The low sub-patch takes its chain, closed by the
 /// minted iso edge, and the high sub-patch the other. Anything else
 /// refuses typed, naming the face and the knot
-/// (`work/exch/the-c0-knot-split-refuses-what-it-cannot-place.md`).
+/// (`work/foreign/the-c0-knot-split-refuses-what-it-cannot-place.md`).
 fn split_face_once(
     solid: &mut SolidSpec,
     fi: usize,
@@ -448,20 +455,32 @@ fn split_face_once(
     };
     let s = Arc::clone(s);
     let face_id = solid.faces[fi].id;
-    let Some(split) = first_split(&s) else {
-        return Ok(None);
-    };
     let refuse = |knot: f64, what: &'static str| StepImportError::C0KnotUnsplit {
         face: face_id,
         knot,
         what,
     };
-    let NetSplit {
+    // The first knot whose line crosses the face. A line outside the
+    // face's trimmed domain, or along its boundary, lies in no cell's
+    // interior, and the face keeps its chart as stated.
+    let mut crossing = None;
+    for (knot, along_v) in crease_lines(&s) {
+        let (below, above) = sides(solid, fi, &s, knot, along_v, eps_in).ok_or(refuse(
+            knot,
+            "a point of the face's boundary did not invert onto its chart",
+        ))?;
+        if below && above {
+            crossing = Some((knot, along_v));
+            break;
+        }
+    }
+    let Some((knot, along_v)) = crossing else {
+        return Ok(None);
+    };
+    let NetSplit { lo, hi, .. } = split_net(&s, knot, along_v).ok_or(refuse(
         knot,
-        lo,
-        hi,
-        along_v,
-    } = split.map_err(|k| refuse(k, "the chart refused its split at its own crease knot"))?;
+        "the chart refused its split at its own crease knot",
+    ))?;
     // The iso curve at the knot: the high child's start column (along
     // `u`) or start row (along `v`), bitwise the low child's end.
     let iso = if along_v {
@@ -589,8 +608,7 @@ fn split_face_once(
             return Err(refuse(
                 knot,
                 "the knot's iso line does not part the face's loop into one chain on each \
-                 sub-patch (a trim that crosses the line elsewhere, or a line along the \
-                 boundary)",
+                 sub-patch (a trim that crosses the line more than once)",
             ));
         }
     };

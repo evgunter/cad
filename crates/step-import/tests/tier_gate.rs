@@ -521,14 +521,15 @@ const CORPUS: [(&str, Disposition); 82] = [
     ("tests/fixtures/band/washer180.stp", Pass(1, 1, 3, 3, 2)),
     ("tests/fixtures/band/washer90.stp", Pass(1, 1, 3, 3, 2)),
     // The C⁰-knot split: each wall is two sub-patches, each ridge edge
-    // two sub-arcs and each cone rim two arcs (`a_foreign_carrier_splits_at_each_c0_knot`);
-    // a knot on an edge alone refuses typed.
+    // two sub-arcs and each cone rim two arcs, and a knot on an edge alone
+    // is a vertex the closing join keeps
+    // (`a_foreign_carrier_splits_at_each_c0_knot`).
     ("tests/fixtures/c0-knot/half_cone.step", Pass(1, 1, 5, 9, 6)),
     ("tests/fixtures/c0-knot/ridge_u.step", Pass(1, 1, 7, 15, 10)),
     ("tests/fixtures/c0-knot/ridge_v.step", Pass(1, 1, 7, 15, 10)),
     (
         "tests/fixtures/c0-knot/seam_edge.step",
-        Refused("which the import's closing join would take back"),
+        Pass(1, 1, 6, 13, 9),
     ),
     ("tests/fixtures/freecad/box.step", Pass(1, 1, 6, 12, 8)),
     (

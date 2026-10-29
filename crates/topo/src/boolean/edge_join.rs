@@ -48,6 +48,14 @@
 //!   an `Intersection`. The joined edge is asked the must-carry rule
 //!   again over its own span.
 //!
+//! Two spline carriers that meet at a knot of multiplicity at least
+//! their degree, a clamped end or an interior crease run, are never
+//! joined, whatever arm their faces take: the joined edge's carrier
+//! would carry that crease inside its cell, and every face chart and
+//! edge carrier is C¹ by its knot structure strictly inside its cell
+//! (Ev's PR 5913 ruling), so such a vertex is one the knot structure
+//! puts there ([`crease_at`]).
+//!
 //! Distinct components of one locus never share a point, and one iso
 //! family has one member through a regular point, so the vertex decides
 //! the branch and nothing is compared between the two edges. A surface
@@ -378,6 +386,35 @@ pub(super) fn singular_at<T: Decide>(
         .map(|sign| sign != Sign::Positive)
 }
 
+/// Whether `e`'s carrier holds a crease run at its end `w`: a spline
+/// carrier whose parameter there is one point and is its own clamped
+/// end, or an interior knot of multiplicity at least its degree. A
+/// carrier run on through `w` would carry a knot of that multiplicity,
+/// so `w` is the vertex the knot structure puts there, not one a join
+/// takes back (module docs). Structural: the parameter's exact equality
+/// with one of the carrier's own knots, no margin.
+fn crease_at<T: Decide>(body: &Body<T>, e: EdgeKey, d: &crate::entity::Edge, w: VertexKey) -> bool {
+    let Some(c) = body.edge_curve_linked(e, d).certified() else {
+        return false;
+    };
+    let geom::Curve3::Nurbs(n) = c.carrier() else {
+        return false;
+    };
+    let (t0, t1) = c.params();
+    let starts_at_w = body.get_half_edge(d.he_plus).map(|h| h.start) == Some(w);
+    let t = if starts_at_w { t0 } else { t1 };
+    let knots = n.knot_values();
+    let (a, b) = knots.domain();
+    // Equal as an exact comparison reads it: the least band, where only
+    // a zero difference is Zero and an enclosure straddling it is no
+    // answer, so no crease.
+    [a, b].into_iter().chain(knots.crease_values()).any(|k| {
+        (t - k)
+            .sign_within(Band::least())
+            .is_ok_and(|d| d.sign == Sign::Zero)
+    })
+}
+
 /// `w`'s join, if `w` is joinable (module docs). The half-edges in
 /// `pass` were read out of the arena, so every hop past them is a link.
 ///
@@ -426,6 +463,11 @@ fn joinable<T: Decide>(
     };
     let (f, g) = pair(s1);
     if f == g || pair(s2) != (f, g) {
+        return Ok(None);
+    }
+    // Two spline pieces meeting at a knot of full multiplicity: the
+    // joined carrier would carry a crease run inside its cell.
+    if crease_at(body, e1, d1, w) || crease_at(body, e2, d2, w) {
         return Ok(None);
     }
     let Some(he) = body.mate(*h1) else {

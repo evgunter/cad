@@ -10,16 +10,15 @@
 //! iso curves, double knot included. On the merge base both import and
 //! the mesher refuses them (the face at its crease, the edges at their
 //! kink). `seam_edge` states the knot on one edge carrier alone, where
-//! nothing else meets it.
+//! nothing else meets it; `half_cone` is a rational wall whose CIRCLE
+//! rims carry no knot.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
 use mesh::tessellate;
 use mesh::validate::check_mesh;
-use step_import::{
-    FaceCensus, ImportOptions, NormalizationKind, StepImport, StepImportError, import_step,
-};
+use step_import::{FaceCensus, ImportOptions, NormalizationKind, StepImport, import_step};
 use topo::CurveGeom;
 
 fn fixture(name: &str) -> String {
@@ -178,25 +177,48 @@ fn a_creased_wall_and_its_creased_edges_import_split_at_the_knot() {
     }
 }
 
-/// A knot on an edge carrier alone, where the two sub-arcs would meet
-/// at a vertex no other edge meets, refuses typed: the import's closing
-/// join reads that vertex as one edge cut for no reason, and the split
-/// it owes would be taken back there.
+/// A knot on an edge carrier alone, where the curve is smooth: the edge
+/// is two sub-arcs meeting at a vertex no other edge meets, and the
+/// import's closing join keeps it, because the joined carrier would
+/// carry the knot again (Ev's PR 5913 ruling: the vertex is the one the
+/// knot structure puts there).
 #[test]
-fn a_knot_vertex_nothing_else_meets_refuses_typed() {
-    let refused = import_step(
-        &fixture("seam_edge.step"),
-        &ImportOptions::default(),
-        Tol::witness(),
-    );
-    let Err(StepImportError::C0KnotUnsplit { knot, what, .. }) = refused else {
-        panic!("the lone knot vertex refuses typed: {refused:?}");
+fn a_knot_vertex_nothing_else_meets_survives_the_closing_join() {
+    let tol = Tol::witness();
+    let imported = import_step(&fixture("seam_edge.step"), &ImportOptions::default(), tol)
+        .unwrap_or_else(|e| panic!("the lone knot imports: {e}"));
+    let StepImport::Solid {
+        body,
+        normalizations,
+        ..
+    } = imported
+    else {
+        panic!("seam_edge is a solid");
     };
-    assert_eq!(knot, 0.5, "the front edge's double knot");
-    assert!(
-        what.contains("no other edge meets"),
-        "the refusal names the lone vertex: {what}"
+    let b = body.body();
+    assert_eq!(
+        (b.faces().count(), b.edges().count(), b.vertices().count()),
+        (6, 13, 9),
+        "the file's 6 faces, 12 edges and 8 vertices, with the front edge two sub-arcs"
     );
+    let kinds: Vec<_> = normalizations.iter().map(|n| n.kind).collect();
+    assert_eq!(
+        kinds,
+        [NormalizationKind::EdgeSplitAtC0Knot],
+        "one edge split and no join taking it back"
+    );
+    let knot_vertex = b
+        .points()
+        .map(|(_, p)| *p)
+        .filter(|p| p.x == 1.0 && p.y == 0.0 && p.z == 1.25)
+        .count();
+    assert_eq!(
+        knot_vertex, 1,
+        "a vertex at the front edge's knot point (1, 0, 1.25)"
+    );
+    topo::validate_geometric(b, tol).unwrap_or_else(|e| panic!("tier 3: {e:?}"));
+    let m = tessellate(b, 1e-2, tol).unwrap_or_else(|e| panic!("seam_edge meshes: {e:?}"));
+    check_mesh(&m).unwrap_or_else(|e| panic!("the mesh is watertight: {e:?}"));
 }
 
 /// A rational wall smooth across its double knot, bounded by CIRCLE
