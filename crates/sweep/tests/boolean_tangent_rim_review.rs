@@ -15,7 +15,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI, TAU};
+use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, TAU};
+
+use super::a_split_through_a_wrap_edges_vertex::{hoof, square_hoof};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use geom_core::{Affine3, Arc2, Point2, Point3, Tol, Vec3};
@@ -28,56 +30,9 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-/// `∫∫ max(0, f0 + px·x + py·y) dA` over the unit disc.
-fn hoof(f0: f64, px: f64, py: f64) -> f64 {
-    let s = px.hypot(py);
-    if s == 0.0 {
-        return PI * f0.max(0.0);
-    }
-    let u0 = -f0 / s;
-    if u0 <= -1.0 {
-        PI * f0
-    } else if u0 >= 1.0 {
-        0.0
-    } else {
-        let w = (1.0 - u0 * u0).sqrt();
-        s * (2.0 / 3.0 * w * w * w - u0 * (u0.acos() - u0 * w))
-    }
-}
-
 /// As [`hoof`] over the disc of radius `r`.
 fn disc_hoof(r: f64, f0: f64, px: f64, py: f64) -> f64 {
     r * r * hoof(f0, px * r, py * r)
-}
-
-/// As [`hoof`] over the square `[-2, 2]²`.
-fn square_hoof(f0: f64, px: f64, py: f64) -> f64 {
-    let f = |q: [f64; 2]| f0 + px * q[0] + py * q[1];
-    let square = [[-2.0, -2.0], [2.0, -2.0], [2.0, 2.0], [-2.0, 2.0]];
-    let mut kept: Vec<[f64; 2]> = Vec::new();
-    for (i, &a) in square.iter().enumerate() {
-        let b = square[(i + 1) % 4];
-        if f(a) >= 0.0 {
-            kept.push(a);
-        }
-        if (f(a) >= 0.0) != (f(b) >= 0.0) {
-            let t = f(a) / (f(a) - f(b));
-            kept.push([a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])]);
-        }
-    }
-    let (mut area, mut cx, mut cy) = (0.0, 0.0, 0.0);
-    for (i, &a) in kept.iter().enumerate() {
-        let b = kept[(i + 1) % kept.len()];
-        let cross = a[0] * b[1] - b[0] * a[1];
-        area += cross / 2.0;
-        cx += (a[0] + b[0]) * cross / 6.0;
-        cy += (a[1] + b[1]) * cross / 6.0;
-    }
-    if area == 0.0 {
-        0.0
-    } else {
-        area * f([cx / area, cy / area])
-    }
 }
 
 /// A prism over a region, `z ∈ [lo, hi]`, cut below `z = f0 + px·x +

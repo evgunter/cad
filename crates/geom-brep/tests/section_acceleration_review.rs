@@ -84,7 +84,10 @@ fn frame(axis: Vec3<f64>) -> Vec3<f64> {
 }
 
 /// Pairs `(reference, other, p)` with `p` on both.
-fn poses() -> Vec<(&'static str, Surface<f64>, Surface<f64>, Point3<f64>)> {
+/// A named pose: the reference surface, the other, and their shared point.
+type Pose = (&'static str, Surface<f64>, Surface<f64>, Point3<f64>);
+
+fn poses() -> Vec<Pose> {
     let z = Vec3::new(0.0, 0.0, 1.0);
     let mut out = Vec::new();
     for &r in &[0.5, 1.0, 3.0] {
@@ -283,11 +286,17 @@ fn tied_germs_in_a_sphere_turn_as_their_traced_sections_do() {
     let p = Point3::new(0.0, 0.0, 1.5);
     let normal = z;
     let mut rows = 0;
-    for &(ta, tb) in &[(0.2, 0.5), (0.5, 0.2), (-0.3, 0.4), (0.7, -0.7), (1.2, 1.1)] {
+    for &(ta, tb) in &[
+        (0.2_f64, 0.5_f64),
+        (0.5, 0.2),
+        (-0.3, 0.4),
+        (0.7, -0.7),
+        (1.2, 1.1),
+    ] {
         // Two planes through p, both containing the x direction, tilted
         // about x by ta and tb: their sections leave p along ±x.
-        let g0 = plane(p, Vec3::new(0.0, (ta as f64).sin(), (ta as f64).cos()));
-        let g1 = plane(p, Vec3::new(0.0, (tb as f64).sin(), (tb as f64).cos()));
+        let g0 = plane(p, Vec3::new(0.0, ta.sin(), ta.cos()));
+        let g1 = plane(p, Vec3::new(0.0, tb.sin(), tb.cos()));
         for t in [Vec3::new(1.0, 0.0, 0.0), Vec3::new(-1.0, 0.0, 0.0)] {
             let across = normal.cross(t);
             let b0 = implicit_section_acceleration(&sphere, &g0, p, t, across);

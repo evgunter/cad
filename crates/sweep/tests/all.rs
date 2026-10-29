@@ -164,8 +164,6 @@ mod an_edge_running_past_a_face_reads_its_crossings;
 mod an_inside_out_thin_tube_operand;
 #[path = "at_rest_pcurve_faces.rs"]
 mod at_rest_pcurve_faces;
-#[path = "boolean_tangent_rim_review.rs"]
-mod boolean_tangent_rim_review;
 #[path = "band_apart_partners_on_a_steep_ellipse.rs"]
 mod band_apart_partners_on_a_steep_ellipse;
 #[path = "band_subdivided_side_walls.rs"]
@@ -204,6 +202,8 @@ mod bool6_r2_probes;
 mod bool6r1_probes;
 #[path = "bool6r1_probes_interval.rs"]
 mod bool6r1_probes_interval;
+#[path = "boolean_tangent_rim_review.rs"]
+mod boolean_tangent_rim_review;
 #[path = "carved_sphere_operand.rs"]
 mod carved_sphere_operand;
 #[path = "cell_region_bodies.rs"]

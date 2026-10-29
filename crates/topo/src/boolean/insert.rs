@@ -3509,6 +3509,55 @@ mod tests {
         );
     }
 
+    /// **Two germs along one direction take the caller's tie, and only
+    /// at a decided zero.** Both along `+y`, in one half-turn of
+    /// `e = +x` about `+z`: the tie's sign of `(g0 × g1)·n` one order down
+    /// orders them (`Negative`: `g0` first), and a tie that reads nothing
+    /// or reads them alike refuses as the sectors' coincidence. Two germs
+    /// apart, or in band of each other, never read the tie. Red if the
+    /// tie's sign is read the other way round, or read away from a zero.
+    #[test]
+    fn the_strut_order_reads_the_callers_tie_only_at_a_decided_zero() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (e, n) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let y = Vec3::new(0.0, 1.0, 0.0);
+        let tie = |sign: Option<Sign>| move || Ok(sign);
+        assert_eq!(
+            strut_order(e, n, (y, y), 1.0, tie(Some(Sign::Negative)), band).ok(),
+            Some(true),
+            "g1 curving clockwise of g0: g0 first"
+        );
+        assert_eq!(
+            strut_order(e, n, (y, y), 1.0, tie(Some(Sign::Positive)), band).ok(),
+            Some(false),
+            "g1 curving counterclockwise of g0: g1 first"
+        );
+        for (what, sign) in [("reads nothing", None), ("curves alike", Some(Sign::Zero))] {
+            assert!(
+                matches!(
+                    strut_order(e, n, (y, y), 1.0, tie(sign), band),
+                    Err(BooleanError::Escalated {
+                        decision: super::super::BooleanDecision::Coincidence(Coincide::Sectors, _),
+                        ..
+                    })
+                ),
+                "a tie that {what} refuses"
+            );
+        }
+        let unread = || -> Result<Option<Sign>, BooleanError> { panic!("the tie was read") };
+        let apart = Vec3::new(0.1, 1.0, 0.0).normalize();
+        assert_eq!(
+            strut_order(e, n, (y, apart), 1.0, unread, band).ok(),
+            Some(true),
+            "germs apart are ordered at first order"
+        );
+        let near = Vec3::new(-2.0 * band.zero(), 1.0, 0.0).normalize();
+        assert!(
+            strut_order(e, n, (y, near), 1.0, unread, band).is_err(),
+            "germs in band of each other refuse without the tie"
+        );
+    }
+
     /// **A germ tangent to a bound of its sector moves to the sector
     /// across that bound, and only there.** A's orbit is a cube's
     /// corner: sectors on `z = 0` (from `+x` to `+y`), `x = 0` (`+y` to
