@@ -472,15 +472,21 @@ fn a_curved_junction_certifies_across_the_departure_arm() {
     }
 }
 
-/// **The pipe folded at its roof**: the wall and floor of `pose`, and in
-/// place of the roof's plane a band of the OTHER circular cylinder that
-/// holds the roof's ellipse — the wall's own cylinder mirrored through
-/// the roof's plane — hung below the roof down to a circle `drop` along
-/// its axis. The two cylinders meet again along a second ellipse, in the
-/// plane `z = h + x·cot θ`, so below the roof the band passes through the
-/// wall on a curve that runs into the junction at the two points where
-/// the cylinders touch.
-fn folded(pose: Pose, f: &Frame, drop: f64, tol: Tol) -> Body<f64> {
+/// **The pipe mitred at its roof onto a second cylinder**: the wall and
+/// floor of `pose`, and in place of the roof's plane a band of the OTHER
+/// circular cylinder that holds the roof's ellipse — the wall's own
+/// cylinder mirrored through the roof's plane — from the ellipse to a
+/// circle `drop` along its axis past the ellipse's vertex, closed by a
+/// plane. The two cylinders touch at the ellipse's two points on the
+/// line `x = 0` of the roof's plane, and meet again along a second
+/// ellipse, in the plane `z = h + x·cot θ`.
+///
+/// - `drop < 0` hangs the band ABOVE the roof: an elbow, embedded, the
+///   band and the wall on opposite sides of the roof's plane.
+/// - `drop > 0` folds it back BELOW the roof, through the wall along the
+///   second ellipse, a crossing that runs into the junction at the two
+///   points the cylinders touch.
+fn mitred(pose: Pose, f: &Frame, drop: f64, tol: Tol) -> Body<f64> {
     let band_sense = drop < 0.0;
     let Pose { r, z0, h, theta } = pose;
     let (s, c) = theta.sin_cos();
@@ -553,15 +559,16 @@ fn folded(pose: Pose, f: &Frame, drop: f64, tol: Tol) -> Body<f64> {
                 he1: strut.he_minus,
                 he2: strut.he_minus,
             },
-            rim(cyl, ellipse.clone()),
+            rim(cyl, ellipse),
             FaceSurface::Inherit,
             tol,
         )
         .unwrap();
     body.kemr(strut.he_plus, strut.he_minus).unwrap();
     // Lifts `RechartUnvouched`: the ellipse lies on the mirrored cylinder
-    // by construction, and is re-described as the two cylinders'
-    // intersection below.
+    // by construction. It keeps its image on the wall's chart, since the
+    // cylinders touch at two of its points, where no intersection
+    // description certifies.
     body.set_face_surface_unvouched_for_tests(
         band.face,
         FaceSurface::New {
@@ -591,26 +598,16 @@ fn folded(pose: Pose, f: &Frame, drop: f64, tol: Tol) -> Body<f64> {
     .unwrap();
     let floor = body.get_face(cap_b.face).unwrap().surface;
     let mirror = body.get_face(band.face).unwrap().surface;
-    // The ellipse keeps its image on the wall's chart: the cylinders
-    // touch at two of its points, where no intersection description
-    // certifies.
-    let _ = ellipse;
-    for (edge, carrier, pair, witness) in [
-        (
-            cap_b.edge,
-            circle,
-            SurfacePair::new(cyl, floor),
-            f.p((-r, 0.0, z0)),
-        ),
-    ] {
-        let spec = EdgeCurveSpec {
-            description: EdgeDescriptionSpec::Intersection { pair, witness },
-            carrier,
-            param_start: 0.0,
-            param_end: TAU,
-        };
-        body.set_edge_curve(edge, spec, tol).unwrap();
-    }
+    let spec = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::Intersection {
+            pair: SurfacePair::new(cyl, floor),
+            witness: f.p((-r, 0.0, z0)),
+        },
+        carrier: circle,
+        param_start: 0.0,
+        param_end: TAU,
+    };
+    body.set_edge_curve(cap_b.edge, spec, tol).unwrap();
     // The band's far rim: the circle `drop` along the mirrored axis past
     // the ellipse's vertex, closed by a plane.
     let foot = (
@@ -684,48 +681,88 @@ fn folded(pose: Pose, f: &Frame, drop: f64, tol: Tol) -> Body<f64> {
     body
 }
 
-#[test]
-fn zz_probe_fold() {
-    let tol = Tol::witness();
-    let f = Frame::at([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
-    let body = folded(POSES[0], &f, std::env::var("DROP").map_or(1.5, |d| d.parse().unwrap()), tol);
-    println!("validate: {:?}", topo::validate::validate_geometric(&body, tol));
-    let faces: Vec<topo::FaceKey> = body.faces().map(|(k, _)| k).filter(|&k| matches!(body.get_surface(body.get_face(k).unwrap().surface).unwrap(), Surface::Cylinder{..})).collect();
-    let report = injectivity(&body, Some(faces), tol);
-    println!("[probe] fold {:?} {:?} {:?}", report.verdict, report.receipt, report.across);
+/// The faces of `body` on a cylinder: the wall and the band.
+fn walls(body: &Body<f64>) -> Vec<topo::FaceKey> {
+    body.faces()
+        .map(|(k, _)| k)
+        .filter(|&k| {
+            matches!(
+                body.get_surface(body.get_face(k).unwrap().surface).unwrap(),
+                Surface::Cylinder { .. }
+            )
+        })
+        .collect()
 }
 
+/// **A mitre between two cylinders certifies across its ellipse.** The
+/// elbow of [`mitred`]: the wall and the band meet on an ellipse that
+/// is no coordinate line of either chart, so each is presented by the
+/// region on its side of the ellipse's chart curve; through the two
+/// points where the cylinders touch no carrier separates them, and the
+/// graph of the ellipse or its own plane does. Holds over every face in
+/// two frames, the wall–band pair certified across. Red if the curved
+/// presentation is refused, or if a run that stops on a column end at
+/// the ellipse's join does not take the next piece (the join's cells
+/// then split to the floor).
 #[test]
-fn zz_probe_fold_region() {
+fn a_mitre_between_two_cylinders_certifies_across_its_ellipse() {
+    use topo::clearance::BoundVerdict;
     let tol = Tol::witness();
-    let f = Frame::at([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
-    let body = folded(POSES[0], &f, 1.5, tol);
-    let band = geom_core::Band::linear(tol).unwrap();
-    let (s, c) = POSES[0].theta.sin_cos();
-    for x in [-0.5f64, -0.3, -0.8] {
-        for sy in [1.0f64, -1.0] {
-            let y = sy * (1.0 - x * x).sqrt();
-            // The mirror, through the roof, of the wall's point under it.
-            let q = Point3::new(x, y, 1.0);
-            let n = geom_core::Vec3::new(s, 0.0, c);
-            let off = (q - Point3::new(0.0, 0.0, 2.0)).dot(n);
-            let p = q - n * (2.0 * off);
-            for (k, face) in body.faces() {
-                let surf = body.get_surface(face.surface).unwrap();
-                let (u, v) = match *surf {
-                    Surface::Cylinder { origin, axis, u_ref, .. } => {
-                        let w = p - origin;
-                        let v = w.dot(axis);
-                        let rad = w - axis * v;
-                        let vr = axis.cross(u_ref);
-                        (rad.dot(vr).atan2(rad.dot(u_ref)), v)
-                    }
-                    _ => continue,
-                };
-                let at = surf.eval(u, v);
-                println!("p {p:?} face {k:?} sense {} (u,v)=({u},{v}) back {:e} region {:?}", face.sense, (at - p).norm(),
-                    topo::cell_region::station_region(&body, k, (u, v), band));
-            }
+    for (o, axis) in [FRAMES[0], FRAMES[2]] {
+        let f = Frame::at(o, axis);
+        let body = mitred(POSES[0], &f, -1.5, tol);
+        let report = injectivity(&body, None, tol);
+        println!(
+            "[curvedep] mitre {o:?} {axis:?}: {:?} {:?}",
+            report.verdict, report.receipt
+        );
+        assert!(
+            matches!(report.verdict, BoundVerdict::Holds),
+            "the elbow in frame {o:?} {axis:?} is embedded: {:?} {:?}",
+            report.verdict,
+            report.receipt
+        );
+        let [a, b] = walls(&body)[..] else {
+            panic!("a wall and a band")
+        };
+        assert!(
+            report
+                .across
+                .get(&(a.min(b), a.max(b)))
+                .is_some_and(|&n| n > 0),
+            "the wall and the band are certified across: {:?}",
+            report.across
+        );
+    }
+}
+
+/// **The mitre folded back through the wall reads `Violated`.** The
+/// fold of [`mitred`], the wall against the band: they touch on the
+/// ellipse and cross along the second one, which runs into it. The
+/// witness is a coincidence of the two faces. Red if a departure
+/// certificate discharges a wall–band cell pair whose cells hold the
+/// crossing — a presentation that reads less than a face's part of its
+/// cell, or a certificate that ignores it.
+#[test]
+fn the_mitre_folded_back_through_the_wall_reads_violated() {
+    use topo::clearance::BoundVerdict;
+    let tol = Tol::witness();
+    let f = Frame::at(FRAMES[0].0, FRAMES[0].1);
+    let body = mitred(POSES[0], &f, 1.5, tol);
+    let faces = walls(&body);
+    let report = injectivity(&body, Some(faces.clone()), tol);
+    println!("[curvedep] fold: {:?} {:?}", report.verdict, report.receipt);
+    match report.verdict {
+        BoundVerdict::Violated((a, b, d)) => {
+            assert!(
+                faces.contains(&a) && faces.contains(&b) && a != b,
+                "the witness is the wall against the band: {a:?} {b:?}"
+            );
+            assert!(
+                d <= 10.0 * tol.eps(),
+                "a coincidence, at the run's tolerance: {d}"
+            );
         }
+        other => panic!("the band crosses the wall: {other:?} {:?}", report.receipt),
     }
 }

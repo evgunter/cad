@@ -692,75 +692,161 @@ fn a_seam_crossing_cylinder_pierced_by_a_face_on_its_edge_never_holds() {
     }
 }
 
-#[test]
-fn zz_probe_fillet() {
-    use sweep::blend::fillet_edges;
-    use sweep::test_support::finished;
-    let lp = profile::circle(Point2::new(0.0, 0.0), 1.0, tol()).unwrap();
-    let profile = Profile::new(SketchPlane::xy(), vec![lp.into()]).validate(tol()).unwrap();
-    let drum = extrude(&profile, to_offset(2.0), tol()).unwrap().body;
-    let drum = finished("drum", drum, tol());
-    let edges: Vec<topo::EdgeKey> = drum.edges().filter(|(_, e)| {
-        matches!(drum.get_curve_geom(e.curve).unwrap().certified().map(|g| g.carrier().clone()), Some(geom::Curve3::Circle { center, .. }) if (center.z - 2.0).abs() < 1e-9)
-    }).map(|(k, _)| k).collect();
-    println!("rim edges {}", edges.len());
-    let f = fillet_edges(&drum, &edges, 0.3, tol()).map_err(|e| e.error).unwrap();
-    let body = &f.body;
-    for (k, face) in body.faces() {
-        let s = surface(body, k);
-        let kind = match s { Surface::Plane{..}=>"plane", Surface::Cylinder{..}=>"cyl", Surface::Torus{..}=>"torus", Surface::Sphere{..}=>"sphere", Surface::Cone{..}=>"cone", _=>"other"};
-        println!("face {k:?} {kind} rings {}", face.rings.len());
+// ------------------------------------------- curved shared edges
+
+/// The surface kind of `f`, by name.
+fn kind(body: &Body<f64>, f: FaceKey) -> &'static str {
+    match surface(body, f) {
+        Surface::Plane { .. } => "plane",
+        Surface::Cylinder { .. } => "cylinder",
+        Surface::Torus { .. } => "torus",
+        _ => "other",
     }
-    for (k, e) in body.edges() {
-        let c = body.get_curve_geom(e.curve).unwrap();
-        let fa = body.get_loop(body.get_half_edge(e.he_plus).unwrap().parent_loop).unwrap().face;
-        let fb = body.get_loop(body.get_half_edge(e.he_minus).unwrap().parent_loop).unwrap().face;
-        println!("edge {k:?} {:?} {:?}-{:?} faces {fa:?} {fb:?}", c.certified().map(|g| match g.carrier() { geom::Curve3::Line{..}=>"line", geom::Curve3::Circle{..}=>"circle", geom::Curve3::Ellipse{..}=>"ellipse", _=>"other"}), body.get_half_edge(e.he_plus).unwrap().start, body.get_half_edge(e.he_minus).unwrap().start);
-    }
-    let pick: Vec<FaceKey> = body.faces().map(|(k, _)| k).filter(|&k| {
-        let s = surface(body, k);
-        matches!(s, Surface::Torus{..}) || matches!(s, Surface::Plane{origin, ..} if origin.y > 1.0)
-    }).collect();
-    let _ = pick; let report = injective(body, None, BUDGET);
-    println!("[probe] {:?} {:?} {:?}", report.verdict, report.receipt, report.across);
 }
 
+/// **A filleted drum certifies across its fillet.** The extruded unit
+/// disc, its top rim filleted at `0.3`: a torus band between the top
+/// plane and the wall's two halves. The band meets the plane on a whole
+/// circle tangentially — on the plane's chart no straight line, so the
+/// plane is presented by the region inside the circle's chart curve,
+/// and no carrier separates two faces that are tangent; the graph of the
+/// circle does. It meets each half of the wall on an arc of one circle,
+/// a coordinate line of both charts, which the circle's plane separates;
+/// where the arcs meet, the band's side runs on past the shared arc
+/// onto the next. Holds, every face pair sharing a vertex certified
+/// across. Red if the curved presentation, the graph separator read on
+/// a curved side, the conic's plane as a separator, or a zero side read
+/// past the shared cell, is withdrawn.
 #[test]
-fn zz_probe_tee() {
+fn a_filleted_drum_certifies_across_its_fillet() {
+    use sweep::blend::fillet_edges;
+    use sweep::test_support::finished;
+    let disc = profile::circle(Point2::new(0.0, 0.0), 1.0, tol()).unwrap();
+    let profile = Profile::new(SketchPlane::xy(), vec![disc.into()])
+        .validate(tol())
+        .unwrap();
+    let drum = finished(
+        "the drum",
+        extrude(&profile, to_offset(2.0), tol()).unwrap().body,
+        tol(),
+    );
+    let rim: Vec<topo::EdgeKey> = drum
+        .edges()
+        .filter(|(_, e)| {
+            matches!(
+                drum.get_curve_geom(e.curve).unwrap().certified().map(|g| g.carrier().clone()),
+                Some(geom::Curve3::Circle { center, .. }) if (center.z - 2.0).abs() < 1e-9
+            )
+        })
+        .map(|(k, _)| k)
+        .collect();
+    let filleted = fillet_edges(&drum, &rim, 0.3, tol())
+        .map_err(|e| e.error)
+        .expect("the rim fillets");
+    let body: &Body<f64> = &filleted.body;
+    let report = injective(body, None, BUDGET);
+    assert_holds("the filleted drum", &report, body);
+    let torus = body
+        .faces()
+        .map(|(k, _)| k)
+        .find(|&k| kind(body, k) == "torus")
+        .expect("a torus band");
+    for (k, _) in body.faces() {
+        if matches!(kind(body, k), "cylinder")
+            || (kind(body, k) == "plane" && {
+                let Surface::Plane { origin, normal, .. } = surface(body, k) else {
+                    unreachable!()
+                };
+                (origin.z - 2.0).abs() < 1e-9 || normal.z.abs() < 1e-9
+            })
+        {
+            let pair = (k.min(torus), k.max(torus));
+            if touching_pairs(body).contains(&pair) {
+                assert!(
+                    report.across.get(&pair).is_some_and(|&n| n > 0),
+                    "the band against its {} neighbour is certified across",
+                    kind(body, k)
+                );
+            }
+        }
+    }
+}
+
+/// **A cylinder–cylinder tee refuses typed at its curved corners.** Two
+/// radius-1 rods on crossing axes, one mitred by their bisector plane
+/// (`crossing_equal_rods`' pair at spins `(0, 0)`, `B` from `x = 0.2`),
+/// united: the junction is arcs of the bisector ellipse that meet the
+/// rods' lines and rims at vertices. Every presentation reads a curved
+/// edge only where it is the one boundary edge in reach, so a corner
+/// where a curved shared edge meets another edge is read by none, at any
+/// depth, and the pair refuses `Uncertified { Departure }` there —
+/// never certified, never measured by distance, and without splitting
+/// to the floor. A presentation of a curved corner moves this pin
+/// (`work/clear/departure-reads-no-curved-corner.md`).
+#[test]
+fn a_cylinder_cylinder_tee_refuses_typed_at_its_curved_corners() {
     use core::f64::consts::{FRAC_PI_2, PI};
     use geom_core::{Affine3, Vec3};
     use sweep::test_support::{brick, finished};
     let tol = tol();
-    let rod = |spin: f64, (z0, z1): (f64, f64)| {
+    let rod = |(z0, z1): (f64, f64)| {
         let rod = sweep::test_support::prism_at(
             vec![(Point2::new(-1.0, 0.0), 1.0), (Point2::new(1.0, 0.0), 1.0)],
             z0,
             z1 - z0,
             tol,
         );
-        let rod = finished("the rod", rod, tol);
-        let m = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), spin);
-        finished("spun", topo::transform_rigid(&rod, &geom_core::test_support::rigid(&m, tol), tol).unwrap(), tol)
+        finished("the rod", rod, tol)
+    };
+    let moved = |b: &topo::AtRestBody<f64>, m: &Affine3<f64>| {
+        let rigid = geom_core::test_support::rigid(m, tol);
+        finished("moved", topo::transform_rigid(b, &rigid, tol).unwrap(), tol)
     };
     let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), -PI / 4.0);
-    let slab = brick((-50.0, 50.0), (-50.0, 50.0), (-100.0, 0.0), tol);
-    let under = finished("under", topo::transform_rigid(&slab, &geom_core::test_support::rigid(&tilt, tol), tol).unwrap(), tol);
-    let a = match topo::subtract(&rod(0.0, (-3.0, 3.0)), &under, tol) { Ok(topo::BooleanResult::Body(b)) => b.body, o => panic!("{o:?}") };
-    let m = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), FRAC_PI_2);
-    let b = finished("b", topo::transform_rigid(&rod(0.0, (0.2, 3.0)), &geom_core::test_support::rigid(&m, tol), tol).unwrap(), tol);
-    let u = match topo::union(&a, &b, tol) { Ok(topo::BooleanResult::Body(b)) => b.body, o => panic!("{o:?}") };
-    let body: &Body<f64> = &u;
-    for (k, face) in body.faces() {
-        let s = surface(body, k);
-        let kind = match s { Surface::Plane{..}=>"plane", Surface::Cylinder{..}=>"cyl", _=>"other"};
-        println!("face {k:?} {kind} rings {}", face.rings.len());
+    let slab = finished(
+        "the slab",
+        brick((-50.0, 50.0), (-50.0, 50.0), (-100.0, 0.0), tol),
+        tol,
+    );
+    let under = moved(&slab, &tilt);
+    let body = |r: Result<topo::BooleanResult<f64>, topo::BooleanError>| match r {
+        Ok(topo::BooleanResult::Body(b)) => b.body,
+        other => panic!("the op builds: {other:?}"),
+    };
+    let a = body(topo::subtract(&rod((-3.0, 3.0)), &under, tol));
+    let onto_x = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), FRAC_PI_2);
+    let b = moved(&rod((0.2, 3.0)), &onto_x);
+    let tee = body(topo::union(&a, &b, tol));
+    let tee: &Body<f64> = &tee;
+    let report = injective(tee, None, BUDGET);
+    println!("[curvedep] tee: {:?} {:?}", report.verdict, report.receipt);
+    match report.verdict {
+        BoundVerdict::Refused(EngineRefusal::Uncertified {
+            a,
+            b,
+            shared: SharedCell::Edge(e),
+            arm: CertificateArm::Departure,
+        }) => {
+            assert!(
+                kind(tee, a) == "cylinder" && kind(tee, b) == "cylinder",
+                "the refusal names the two walls"
+            );
+            assert!(
+                matches!(
+                    tee.get_curve_geom(tee.get_edge(e).unwrap().curve)
+                        .unwrap()
+                        .certified()
+                        .map(|g| g.carrier().clone()),
+                    Some(geom::Curve3::Ellipse { .. })
+                ),
+                "and the junction ellipse"
+            );
+        }
+        other => panic!("the tee refuses at its corners: {other:?}"),
     }
-    for (k, e) in body.edges() {
-        let c = body.get_curve_geom(e.curve).unwrap();
-        let fa = body.get_loop(body.get_half_edge(e.he_plus).unwrap().parent_loop).unwrap().face;
-        let fb = body.get_loop(body.get_half_edge(e.he_minus).unwrap().parent_loop).unwrap().face;
-        println!("edge {k:?} {:?} {:?}-{:?} faces {fa:?} {fb:?}", c.certified().map(|g| match g.carrier() { geom::Curve3::Line{..}=>"line", geom::Curve3::Circle{..}=>"circle", geom::Curve3::Ellipse{..}=>"ellipse", _=>"other"}), body.get_half_edge(e.he_plus).unwrap().start, body.get_half_edge(e.he_minus).unwrap().start);
-    }
-    let report = injective(body, None, BUDGET);
-    println!("[probe] tee {:?} {:?} {:?}", report.verdict, report.receipt, report.across);
+    assert!(
+        report.receipt.splits < 1024,
+        "a corner refuses where it is met, not at the floor: {:?}",
+        report.receipt
+    );
 }
