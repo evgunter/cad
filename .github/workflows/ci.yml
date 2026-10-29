@@ -606,27 +606,6 @@ jobs:
           (cd demos/wild && cargo fmt --check && cargo clippy --all-targets -- -D warnings)
       # The `ci` profile (demos/tour/.config/nextest.toml) leaves out the
       # tour rows that run only nightly.
-      - name: tour build timings (measurement only)
-        run: |
-          cat > /tmp/timing.py <<'EOF'
-          import json, re, glob, sys
-          f = sorted(glob.glob("demos/tour/target/cargo-timings/cargo-timing-2*.html"))[-1]
-          units = json.loads(re.search(r"const UNIT_DATA = (\[.*?\]);", open(f).read(), re.S).group(1))
-          for u in units:
-              if u["name"] in ("pncad", "demo-tour"):
-                  print("TIMING", sys.argv[1], u["name"], u["target"] or "lib", "start", u["start"], "dur", u["duration"])
-          print("TIMING", sys.argv[1], "total", max(u["start"] + u["duration"] for u in units))
-          EOF
-          (cd demos/tour && cargo build --release -p pncad -p tess-meter -p serde_json -p test-utils)
-          git fetch --depth=1 origin 552b954fcfa97cf0c2ca714d478893b223f25e62
-          git checkout 552b954fcfa97cf0c2ca714d478893b223f25e62 -- demos/tour
-          rm demos/tour/src/lib.rs
-          (cd demos/tour && cargo test --release --no-run --timings)
-          python3 /tmp/timing.py base
-          git rm -rq --cached demos/tour && rm -rf demos/tour/src demos/tour/tests
-          git checkout HEAD -- demos/tour && git status --short
-          (cd demos/tour && cargo test --release --no-run --timings)
-          python3 /tmp/timing.py new
       - name: demos tour suite
         run: cd demos/tour && cargo nextest run --release --profile ci --no-fail-fast
 
