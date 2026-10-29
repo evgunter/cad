@@ -82,10 +82,21 @@ impl Box4 {
         Some(Self(s))
     }
 
-    /// The least box holding both.
+    /// The least box holding both; a `NaN` side in either poisons that
+    /// side (`f64::min` and `max` would drop it).
     fn hull(self, o: Self) -> Self {
+        let pick = |p: f64, q: f64, f: fn(f64, f64) -> f64| {
+            if p.is_nan() || q.is_nan() {
+                f64::NAN
+            } else {
+                f(p, q)
+            }
+        };
         Self(core::array::from_fn(|k| {
-            (self.0[k].0.min(o.0[k].0), self.0[k].1.max(o.0[k].1))
+            (
+                pick(self.0[k].0, o.0[k].0, f64::min),
+                pick(self.0[k].1, o.0[k].1, f64::max),
+            )
         }))
     }
 
@@ -127,6 +138,16 @@ pub(crate) struct PairBoxes<'a, T: CertifiedBounds> {
     pub(crate) speeds: [f64; 4],
 }
 
+/// How [`PairBoxes`] reads a wall's derivative box over a box.
+#[derive(Clone, Copy)]
+enum DerivRead {
+    /// Each touched cell's net cut to the box ([`NurbsBoxes::deriv_box`]).
+    Cut,
+    /// Over the closed box, through the cells it has width in
+    /// ([`NurbsBoxes::deriv_box_closed`]).
+    Closed,
+}
+
 impl<'a, T: CertifiedBounds> PairBoxes<'a, T> {
     /// The pair over the two operands' own cells (the enclosures they
     /// hold, shared), with its four chart speeds.
@@ -156,30 +177,13 @@ impl<'a, T: CertifiedBounds> PairBoxes<'a, T> {
     /// An enclosure of `F`'s Jacobian over `x`: column `j` is `∂F/∂xⱼ`,
     /// rows the three components.
     pub(crate) fn jacobian(&self, x: Box4) -> [[Interval; 4]; 3] {
-        self.jacobian_read(x, true)
+        self.jacobian_read(x, DerivRead::Cut)
     }
 
     /// The Jacobian over the closed box `x`, read only through the span
     /// cells `x` has width in ([`NurbsBoxes::deriv_box_closed`]).
     pub(crate) fn jacobian_closed(&self, x: Box4) -> [[Interval; 4]; 3] {
-        let col = |b: Box3, s: f64| {
-            [
-                b.x * Interval::point(s),
-                b.y * Interval::point(s),
-                b.z * Interval::point(s),
-            ]
-        };
-        let read = |n: &NurbsBoxes<'_, T>, w: Option<UvWindow>, u: bool| {
-            w.map_or_else(refused_box, |w| n.deriv_box_closed(w, u))
-        };
-        let (wa, wb) = (x.window_a(), x.window_b());
-        let cols = [
-            col(read(&self.a, wa, true), 1.0),
-            col(read(&self.a, wa, false), 1.0),
-            col(read(&self.b, wb, true), -1.0),
-            col(read(&self.b, wb, false), -1.0),
-        ];
-        core::array::from_fn(|r| core::array::from_fn(|c| cols[c][r]))
+        self.jacobian_read(x, DerivRead::Closed)
     }
 
     /// Whether both walls' first partials are continuous inside `x`
@@ -191,8 +195,8 @@ impl<'a, T: CertifiedBounds> PairBoxes<'a, T> {
                 .is_some_and(|w| self.b.first_order_continuous_in(w))
     }
 
-    /// The Jacobian, each net cut to `x` or read whole.
-    fn jacobian_read(&self, x: Box4, cut: bool) -> [[Interval; 4]; 3] {
+    /// The Jacobian, each wall's derivative box read as `how` says.
+    fn jacobian_read(&self, x: Box4, how: DerivRead) -> [[Interval; 4]; 3] {
         let col = |b: Box3, s: f64| {
             [
                 b.x * Interval::point(s),
@@ -201,12 +205,9 @@ impl<'a, T: CertifiedBounds> PairBoxes<'a, T> {
             ]
         };
         let read = |n: &NurbsBoxes<'_, T>, w: Option<UvWindow>, u: bool| {
-            w.map_or_else(refused_box, |w| {
-                if cut {
-                    n.deriv_box(w, u)
-                } else {
-                    n.cell_deriv_box(w, u)
-                }
+            w.map_or_else(refused_box, |w| match how {
+                DerivRead::Cut => n.deriv_box(w, u),
+                DerivRead::Closed => n.deriv_box_closed(w, u),
             })
         };
         let (wa, wb) = (x.window_a(), x.window_b());
@@ -793,14 +794,17 @@ pub(crate) struct RowUnreadable(pub(crate) usize, pub(crate) super::ChartSpeedRe
 
 /// What [`row_crossing`] read over a row's cover.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct RowCrossing {
-    /// The least zero-free graph margin over the cover, `NaN` where a
-    /// piece, halved [`ROW_DEPTH`] times, still read no sign.
-    pub(crate) least: f64,
-    /// Whether two zero-free pieces read opposite signs with both walls'
-    /// first partials continuous over the stretch between them: the
-    /// walls' tangent planes coincide at a state of the row there.
-    pub(crate) turns: bool,
+pub(crate) enum RowCrossing {
+    /// Two zero-free pieces read opposite signs with both walls' first
+    /// partials continuous over the stretch between them: the walls'
+    /// tangent planes coincide at a state of the row there.
+    Turns,
+    /// Every piece read zero-free, with no turn: the least graph margin
+    /// over the cover.
+    Clear(f64),
+    /// A piece, halved [`ROW_DEPTH`] times, still read no sign, and no
+    /// turn was read.
+    Unread,
 }
 
 /// **Two walls' crossing along a shared row, over its whole span**: the
@@ -815,11 +819,12 @@ pub(crate) struct RowCrossing {
 /// piece is read over its closed box through each wall's spans that the
 /// box has width in ([`PairBoxes::jacobian_closed`]), so a piece ending
 /// on a knot reads that knot through its own span's polynomial, and the
-/// pieces' boxes meet: every state of the row is read, at no precision
-/// below the boxes' own.
+/// pieces' boxes meet: every state of the row images as evaluated is
+/// read. A `NaN` in a box or a chord poisons its piece, which then reads
+/// no sign.
 ///
-/// **Opposite signs.** Along the row `F` vanishes, so the row's tangent
-/// `d` lies in the Jacobian's kernel. Write `n` for the Jacobian's
+/// **Opposite signs.** With the images exact, `F` vanishes along the row,
+/// so the row's tangent `d` lies in the Jacobian's kernel. Write `n` for the Jacobian's
 /// generalized cross product (scaled as the margin's): continuous wherever
 /// the first partials are, zero exactly where the rank drops, and along
 /// the kernel otherwise, so `n = λ·d`. The margin at a row state is `n·e`.
@@ -833,7 +838,12 @@ pub(crate) struct RowCrossing {
 /// the continuous `n·σ` both signs between them: it is zero at a state of
 /// the row there, where `λ`, and so the rank, drops and the tangent
 /// planes coincide. Across a knot of full multiplicity the partials jump,
-/// and a sign change there says nothing.
+/// and a sign change there says nothing. Where the images hold only to
+/// their certified residual, a turn may read a crossing at an angle of
+/// about that residual as an exact zero, a refusal either way.
+///
+/// The caller's `read` gives the states of two images
+/// `description::row_of` admits; nothing here checks it.
 ///
 /// A box with no width across the row is widened into the domain when its
 /// fixed coordinate is a domain end, so no net is cut to a point (a box
@@ -894,11 +904,6 @@ pub(crate) fn row_crossing<T: CertifiedBounds>(
             None => pieces.push((lo, x, None)),
         }
     }
-    // A min over the pieces would drop a `NaN`, so an unread piece is
-    // marked once the cover is done.
-    if pieces.iter().any(|p| p.2.is_none()) {
-        least = f64::NAN;
-    }
     pieces.sort_by(|p, q| p.0.total_cmp(&q.0));
     let signed: Vec<usize> = (0..pieces.len())
         .filter(|&k| pieces[k].2.is_some())
@@ -910,7 +915,13 @@ pub(crate) fn row_crossing<T: CertifiedBounds>(
                 pieces[i..=j].iter().fold(pieces[i].1, |h, p| h.hull(p.1)),
             )
     });
-    Ok(RowCrossing { least, turns })
+    Ok(if turns {
+        RowCrossing::Turns
+    } else if pieces.iter().any(|p| p.2.is_none()) {
+        RowCrossing::Unread
+    } else {
+        RowCrossing::Clear(least)
+    })
 }
 
 /// Wall `wall`'s chart speeds refused.

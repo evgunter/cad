@@ -31,7 +31,7 @@ decides whether the rows still hold:
 
 A shared row will usually not survive an offset or a face replacement.
 The moved wall's surface is new, and the carrier leaves the unmoved
-wall's row, so the re-run certificate refuses `RowImage` where a witness
+wall's row, so the re-run certificate refuses `Row { refusal: Image(..) }` where a witness
 edge could have been re-minted and certified. That is loud, not wrong,
 and it is SELECT unit 7's to re-ask D2's question at those doors.
 

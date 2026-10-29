@@ -949,7 +949,7 @@ fn a_shared_row_reads_one_verdict_wherever_its_charts_sit() {
 /// floor creased along its interior column `u = ½`, one sheet folded up to
 /// within `0.1 ε` of the upright `x = ½`, on either side: the shared row
 /// is built for boundary rows, so both mirror images refuse
-/// [`CertifyError::RowOffSide`] on the floor, before any reading that
+/// `CertifyError::Row { refusal: RowRefusal::OffSide, .. }` on the floor, before any reading that
 /// could tell the two sides apart.
 #[test]
 fn an_interior_row_refuses_whichever_way_its_crease_folds() {
@@ -1202,4 +1202,150 @@ fn a_shared_row_admits_only_row_images() {
             "an arc image {what} is no row"
         );
     }
+}
+
+// ---- the PR 5959 re-review 2 rows, ported ----
+
+/// The swapping geometry with the upright's row coordinate on the knot
+/// vector `knots` (local `[0, 1]`, shifted by `s`), its controls at the
+/// abscissae `at` and its outward lean `lean` there.
+fn swapping_on(
+    s: f64,
+    knots: Vec<f64>,
+    degree: usize,
+    at: &[f64],
+    lean: &[f64],
+) -> (Pair, Curve3<f64>, [Pcurve<f64>; 2]) {
+    let (pair, line, images) = swapping_at(0.5, s);
+    let p = |x, y, z| Point3::new(x, y, z);
+    let mut control = Vec::new();
+    for (y, l) in at.iter().zip(lean) {
+        control.push(p(1.0, *y, 0.0));
+        control.push(p(2.0, *y, *l));
+    }
+    let upright = Surface::Nurbs(Arc::new(
+        NurbsSurface::new(
+            KnotVector::clamped(knots.iter().map(|k| k + s).collect(), degree).unwrap(),
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            control,
+            vec![1.0; 2 * at.len()],
+        )
+        .unwrap(),
+    ));
+    let kv = || KnotVector::clamped(knots.iter().map(|k| k + s).collect(), degree).unwrap();
+    let floor = Surface::Nurbs(Arc::new(
+        NurbsSurface::new(
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            kv(),
+            [0.0, 1.0]
+                .into_iter()
+                .flat_map(|x| at.iter().map(move |&y| p(x, y, 0.0)))
+                .collect(),
+            vec![1.0; 2 * at.len()],
+        )
+        .unwrap(),
+    ));
+    let _ = (pair, line);
+    let line = Curve3::Nurbs(Arc::new(
+        NurbsCurve3::new(
+            kv(),
+            at.iter().map(|&y| p(1.0, y, 0.0)).collect(),
+            vec![1.0; at.len()],
+        )
+        .unwrap(),
+    ));
+    (Pair::of(floor, upright), line, images)
+}
+
+fn verdict(got: &Result<EdgeCurve<f64>, CertifyError>) -> String {
+    match got {
+        Ok(_) => "Ok".into(),
+        Err(CertifyError::NotTransverse {
+            sample, verdict, ..
+        }) => format!("NotTransverse({sample}, {verdict:?})"),
+        Err(CertifyError::Escalated { check, sample, .. }) => {
+            format!("Escalated({check:?}, {sample})")
+        }
+        Err(e) => format!("other: {e:?}"),
+    }
+}
+
+/// RR2: a tangency exactly on an interior C¹ knot of the upright (degree
+/// 2, one interior knot at `k`), the walls swapping sides there: the
+/// same geometry as `swapping_at(k, s)`, the knot only re-spelling it.
+/// It must not certify, at any `s`.
+#[test]
+fn rr2_a_tangency_on_a_c1_knot_refuses() {
+    let far = 2f64.powi(52 + (1000.0 * eps()).log2().ceil() as i32);
+    let mut bad = Vec::new();
+    for s in [0.0, 1.0, 1024.0, far] {
+        for k in [0.25, 0.3, 0.5, 0.6875, 0.9] {
+            let at = [0.0, k / 2.0, (k + 1.0) / 2.0, 1.0];
+            let lean = at.map(|y| y - k);
+            let (pair, line, images) =
+                swapping_on(s, vec![0.0, 0.0, 0.0, k, 1.0, 1.0, 1.0], 2, &at, &lean);
+            let got = pair.certify(shared(&pair, images), &line, (s, s + 1.0));
+            let v = verdict(&got);
+            eprintln!("c1 knot k={k} s={s}: {v}");
+            if v == "Ok" {
+                bad.push((k, s));
+            }
+        }
+    }
+    assert!(bad.is_empty(), "tangent on a C¹ knot certifies: {bad:?}");
+}
+
+/// RR2: a tangency exactly on a crease of the upright (degree 1 along the
+/// row, interior knot at `k`): its lean is piecewise linear and zero at
+/// `k`, crossing (`swap`) or touching (`!swap`). The upright's tangent
+/// plane from either side lies in the floor's at `k`: it must not certify.
+#[test]
+fn rr2_a_tangency_on_a_crease_refuses() {
+    let far = 2f64.powi(52 + (1000.0 * eps()).log2().ceil() as i32);
+    let mut bad = Vec::new();
+    for s in [0.0, 1024.0, far] {
+        for k in [0.25, 0.3, 0.5, 0.7] {
+            for (name, l0, l2) in [
+                ("swap", -k, 2.0 * (1.0 - k)),
+                ("touch", -k, -(1.0 - k)),
+                ("touch+", k, 3.0 * (1.0 - k)),
+            ] {
+                let (pair, line, images) = swapping_on(
+                    s,
+                    vec![0.0, 0.0, k, 1.0, 1.0],
+                    1,
+                    &[0.0, k, 1.0],
+                    &[l0, 0.0, l2],
+                );
+                let got = pair.certify(shared(&pair, images), &line, (s, s + 1.0));
+                let v = verdict(&got);
+                eprintln!("crease {name} k={k} s={s}: {v}");
+                if v == "Ok" {
+                    bad.push((name, k, s));
+                }
+            }
+        }
+    }
+    assert!(bad.is_empty(), "tangent on a crease certifies: {bad:?}");
+}
+
+/// RR2: tangent just past an end of the row (by δ), the walls swapping
+/// sides off the row: the closest crossing on the row is δ-shallow; at
+/// δ inside the band the row must not certify clear.
+#[test]
+fn rr2_a_tangency_a_hair_past_an_end_does_not_certify_clear() {
+    let far = 2f64.powi(52 + (1000.0 * eps()).log2().ceil() as i32);
+    let mut bad = Vec::new();
+    for s in [0.0, far] {
+        for ys in [-0.01 * eps(), 1.0 + 0.01 * eps()] {
+            let (pair, line, images) = swapping_at(ys, s);
+            let got = pair.certify(shared(&pair, images), &line, (s, s + 1.0));
+            let v = verdict(&got);
+            eprintln!("past end ys={ys} s={s}: {v}");
+            if v == "Ok" {
+                bad.push((ys, s));
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{bad:?}");
 }

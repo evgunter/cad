@@ -67,14 +67,18 @@ Landed on `splice/structural-rim` (PR 5959).
   `CurveSelector::remapped`, a moved interval through
   `CurveSelector::repinned`. `TangentIntersection` keeps its witness.
 - **Per-surface certification.** Each wall's row must lie on a side of its
-  chart's domain (`description::on_domain_side`, else `RowOffSide`) and
-  certify there (`PcurveCache::certify`, its limbs read through
-  `PcurveCertificate::limbs`; else `RowImage`, or an escalation named
-  `CertCheck::RowImage`). The walls' crossing is read at the certification
-  samples, and bounded over the whole row, ends included: the least
-  zero-free graph margin over a cover of the row (`ssi::row_crossing`,
-  limb 3's crossing reading without its one-arc count), decided clear of
-  the band. No limb 3, no witness pin.
+  chart's domain (`description::on_domain_side`, else
+  `CertifyError::Row { refusal: OffSide }`) and certify there
+  (`PcurveCache::certify`, its limbs read through
+  `PcurveCertificate::limbs`; else `Row { refusal: Image(check) }`, or
+  `Row { refusal: ImageEscalated { .. } }`, routed through
+  `arc_rim_check`). The walls' crossing is read at the certification
+  samples, and over a cover of the row images as evaluated, ends included
+  (`ssi::row_crossing`, limb 3's crossing reading without its one-arc
+  count): zero-free pieces of opposite signs with no crease between them
+  are a tangency, refused definitely; otherwise the least zero-free graph
+  margin passes clear of the band and escalates in it. No limb 3, no
+  witness pin.
 - **Recovery.** `describe_edges` and the split's finish ask D2's question
   through `pcurves::seam_intersection`, built for boundary rows: both
   faces spline walls, each side's image a row on its chart's domain side

@@ -88,7 +88,9 @@ fn blade(
 /// partials continuous between them hold a tangency, and refuses it
 /// definitely: `NotTransverse` with no sample (`NOT_A_SAMPLE`, the
 /// whole-row reading's verdict, where a sample's would name its index) and
-/// an exact zero, at ε 1e-9, 1e-6 and 1e-12. A certificate that read the
+/// an exact zero. The row runs at `Tol::witness()`, the run's ε, so its
+/// three ε come from the CI matrix's `CAD_TOLERANCE_EPS` rows; it refuses
+/// alike at 1e-9, 1e-6 and 1e-12. A certificate that read the
 /// crossing at its samples alone stepped over both points and passed the
 /// rim; before the shared row, the rim's witness refused at limb 3
 /// (`TubeNotOneArc`).

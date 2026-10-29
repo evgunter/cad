@@ -760,11 +760,12 @@ impl RowRefusal {
 /// **The walls cross along the whole row**, read over a cover of it
 /// ([`crate::ssi::row_crossing`]). Where the reading turns, the walls'
 /// tangent planes coincide at a state of the row: a zero crossing, decided
-/// as the exact zero it is, definite. Otherwise its least margin (`NaN`
-/// where a piece could not be read zero-free), levered over the edge's
-/// extent as the tube's is, is a lower bound only: it passes clear of the
-/// band, and in the band, or unread, escalates, since a lower bound there
-/// tells no tangency from a crossing too shallow to read.
+/// as the exact zero it is under its own name (`shared_row_turn`),
+/// definite. Otherwise the least margin, levered over the edge's extent as
+/// the tube's is, is a lower bound only: it passes clear of the band, and
+/// in the band escalates, since a lower bound there tells no tangency from
+/// a crossing too shallow to read. A cover with an unread piece is fed to
+/// the same gate as the invalid margin it is, which escalates.
 fn row_crossing_verdict<T: Decide>(
     crossing: crate::ssi::RowCrossing,
     extent: T,
@@ -775,20 +776,24 @@ fn row_crossing_verdict<T: Decide>(
         sample: NOT_A_SAMPLE,
         cause,
     };
-    if crossing.turns {
-        let zero = Margin::levered(T::from_computed(0.0), extent);
-        let decided = crate::dihedral::decide_reported("shared_row_crossing", zero, band)
-            .map_err(escalated)?;
-        return match Refused::of(decided, band) {
-            Some(verdict) => Err(CertifyError::NotTransverse {
+    let least = match crossing {
+        crate::ssi::RowCrossing::Turns => {
+            let zero = Margin::levered(T::from_computed(0.0), extent);
+            let decided = crate::dihedral::decide_reported("shared_row_turn", zero, band)
+                .map_err(escalated)?;
+            return Err(CertifyError::NotTransverse {
                 sample: NOT_A_SAMPLE,
                 lever: None,
-                verdict,
-            }),
-            None => unreachable!("an exact zero is decided no positive sign"),
-        };
-    }
-    let margin = Margin::levered(T::from_computed(crossing.least), extent);
+                verdict: Refused::Zero(crate::recourse::Classified {
+                    margin: decided.margin,
+                    band,
+                }),
+            });
+        }
+        crate::ssi::RowCrossing::Clear(least) => least,
+        crate::ssi::RowCrossing::Unread => f64::NAN,
+    };
+    let margin = Margin::levered(T::from_computed(least), extent);
     crate::dihedral::decide_positive("shared_row_crossing", margin, band).map_err(escalated)
 }
 
@@ -812,7 +817,8 @@ fn row_image_refusal(surface: SurfaceKey, refusal: PcurveCertifyError) -> Certif
 /// the image's span decision for the span check ([`CertCheck::ImageSpan`]),
 /// not the edge's, whose interval it does not decide. A check no `IsoArc`
 /// or `IsoLine` certificate runs reads as the hull bound it would feed.
-pub(crate) fn arc_rim_check(check: crate::pcurve_cache::PcurveCheck) -> CertCheck {
+#[must_use]
+pub fn arc_rim_check(check: crate::pcurve_cache::PcurveCheck) -> CertCheck {
     match check {
         crate::pcurve_cache::PcurveCheck::ParamSpan => CertCheck::ImageSpan,
         other => other
@@ -4580,7 +4586,17 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
         let read = |lo: f64, hi: f64| {
             let (lo_t, hi_t) = (T::from_computed(lo), T::from_computed(hi));
             let ends = |image: &Pcurve<T>| (image.eval(lo_t), image.eval(hi_t));
-            let hull = |p: T, q: T| (p.lo().min(q.lo()), p.hi().max(q.hi()));
+            // A `NaN` bracket end poisons what it feeds, which the cover
+            // then reads as no sign (`f64::min`, `max` and a comparison
+            // would each drop it).
+            let nan = |p: T, q: T| [p.lo(), p.hi(), q.lo(), q.hi()].iter().any(|v| v.is_nan());
+            let hull = |p: T, q: T| {
+                if nan(p, q) {
+                    (f64::NAN, f64::NAN)
+                } else {
+                    (p.lo().min(q.lo()), p.hi().max(q.hi()))
+                }
+            };
             let mid = |x: T| x.lo() * 0.5 + x.hi() * 0.5;
             let ((a0, a1), (b0, b1)) = (ends(image_a), ends(image_b));
             let state = [
@@ -4593,7 +4609,9 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
             // they are apart, so of its coordinate's sign, and zero
             // otherwise ([`crate::ssi::row_crossing`]'s turn reads that).
             let step = |p: T, q: T| {
-                if p.hi() < q.lo() || q.hi() < p.lo() {
+                if nan(p, q) {
+                    f64::NAN
+                } else if p.hi() < q.lo() || q.hi() < p.lo() {
                     mid(q) - mid(p)
                 } else {
                     0.0

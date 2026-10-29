@@ -3155,11 +3155,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         // A row image's escalation reads as its decision's check, routed
         // as an arc rim's is (`RowRefusal::decision`).
         CertifyError::Row {
-            refusal: geom_brep::RowRefusal::ImageEscalated { .. },
+            refusal: geom_brep::RowRefusal::ImageEscalated { check, .. },
             ..
-        } => e
-            .decision()
-            .map_or(KIND, |(check, _)| certify_undecided(check)),
+        } => certify_undecided(geom_brep::certify::arc_rim_check(*check)),
         CertifyError::Row {
             refusal: geom_brep::RowRefusal::ChartSpeed(r),
             ..
