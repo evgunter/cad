@@ -1,0 +1,5 @@
+fork: rim-only-cap (FOREIGN, import-normalizes-the-rim-only-cap)
+drawn: 2026-10-29T03:51:36Z, od -An -tu1 -N1 /dev/urandom
+byte: 10
+mapping: A = Opus designer, B = Fable designer
+protocol: 26db1af89e
