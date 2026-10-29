@@ -204,3 +204,28 @@ row) in the same PR, and re-measures what each row runs after the stop.
   tori, a sphere round both tube circles), which ask the same question.
   `sect-teapot2` is told to keep to the sphere × torus poses whose
   closed-form readings already tell components apart.
+
+## 2026-10-29 — the components fork decided; PR 5974 opened
+
+- **The components fork** (`a-general-torus-pose-lists-no-components`):
+  both designers, blind, reached one final state. The classification lists
+  components only where a closed form counts them (`Counted`) and otherwise
+  says they are the march's (`Marched`), never a refusal; `carry` lists the
+  march's branches (a counted list becomes a cross-check); a site's
+  component is its foot on the carried section at every reader, so
+  `component_of`, `Sides` and the `Untold` refusals retire, and the germ
+  mint's three-valued `Branch` gives way to a component index for table
+  pairs; the certificate carries a `Marched` pose. Decided by the
+  orchestrator, no `[ev]` PR: the text it replaces is agent-written (PR
+  5872), and fork row 100's "foot parameters replace frames" already reads
+  this way. Recorded with PR 5972's state sync; built as its own unit after
+  PR 5972 merges.
+- **`sect-teapot2` opened PR 5974** (head 0ebc2aa, CI green). Wall 2 was
+  already past the join on main (PR 5924; `AroundTube`, told by a plane)
+  and stops at SPIRICARM's volume door. The PR adds the torus ring-path arm
+  for spline arcs, a matcher check in `join::along_facing`, a parity fuzzer
+  and placement pins; the `AroundAxis` reading it had built was reverted
+  for the fork. **Re-tiered from dual to single FULL**: the unit shrank to
+  two gate widenings, one comparison and tests, where one review reads the
+  whole change; dual was set at dispatch for an H join-side build that did
+  not happen.
