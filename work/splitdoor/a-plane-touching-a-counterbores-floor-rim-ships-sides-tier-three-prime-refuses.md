@@ -4,6 +4,8 @@ kind: issue
 title: a plane touching a counterbore's floor rim ships sides tier 3′ refuses with unrecorded vertex-on-face contacts
 status: open
 opened: 2026-10-29
+priority: P1
+cost: M
 ---
 
 
@@ -27,6 +29,10 @@ tier 3′ (`validate_pseudomanifold` with no contact records):
   floor's outer rim, witnesses `(0.3, 0.6, ±0.5196)` (margins ~1e-17).
 - a = 0.3: `VertexOnFace` on face 12v1 at `(0.1330, 0.6, 0.5851)`, `(0.4402, 0.6, −0.4078)` (the
   outer-rim crossings) and `(0.2866, 0.6, 0.0887)` (`P`), margins ~1e-17.
+
+PR 6020's review (`review_6020_seam_probes.rs`, `review_6020_seam_poses`) reproduced it at
+every azimuth and found the `out` lean (the plane leaning toward the axis, so the bore wall is
+touched at `P` from outside its face) failing the same way; both halves' volumes are right.
 
 The tube's top cap, which differs only in having no counterbore wall above the rim's annulus,
 passes tier 3′ at every azimuth. Which face 11/12 is, and why the contact is undeclared, is
