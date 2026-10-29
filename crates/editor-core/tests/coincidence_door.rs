@@ -3670,3 +3670,288 @@ fn every_band_a_revolve_mints_is_about_its_axis_output_at_sym() {
         "the corpus's revolves and their bands were read: {revolves} revolves, {bands} bands"
     );
 }
+
+// ---- R1 review probes (review/intent-s6b-R1; not for merge) ----
+
+fn r1_rect(inner: &Formula, outer: &Formula, (lo, hi): (f64, f64)) -> Vec<ProgramStep<Formula>> {
+    let to = |x: &Formula, y| ProgramTarget::Point([x.clone(), len(y)]);
+    vec![
+        ProgramStep::At([inner.clone(), len(lo)]),
+        ProgramStep::LineTo(to(outer, lo)),
+        ProgramStep::LineTo(to(outer, hi)),
+        ProgramStep::LineTo(to(inner, hi)),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]
+}
+
+/// A housing (bore = `bore`) and a shaft (radius `bore`) placed in it by
+/// values alone, unioned; plus a ghost revolve placed twice, each copy
+/// by one axis mate (outer wall onto housing.axis; inner wall onto the
+/// shaft copy's wall). Returns (doc, union, pg, pg2).
+fn r1_scene() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
+    use crate::corpus::{Recorder, placed_in, revolved};
+    use editor_core::{
+        Coord, Dimension, DocEdit, FreeVar, Operand, TargetAxis, VarDecl, VarName,
+    };
+    let mut r = Recorder::new();
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static("bore"),
+        def: VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.5)),
+    });
+    let bore = Formula::named(VarName::from_static("bore"), Dimension::Length);
+    let housing = revolved(&mut r, r1_rect(&bore, &len(1.0), (0.0, 1.0)));
+    let shaft = revolved(&mut r, r1_rect(&len(0.0), &bore, (-2.0, 1.5)));
+    let shaft_wall = shaft.wall(&r, 2);
+    let none = || Formula::zero(Dimension::Angle);
+    let by_values = editor_core::Placed {
+        mates: Vec::new(),
+        values: vec![
+            (Coord::Slide(TargetAxis::X), len(0.0)),
+            (Coord::Slide(TargetAxis::Y), len(0.0)),
+            (Coord::Slide(TargetAxis::Z), len(0.0)),
+            (Coord::Spin(Some(TargetAxis::X)), none()),
+            (Coord::Spin(Some(TargetAxis::Y)), Formula::turn_over(4).expect("q")),
+            (Coord::Spin(Some(TargetAxis::Z)), none()),
+        ],
+    };
+    let pc = placed_in(&mut r, &housing.body(), shaft.body(), by_values);
+    let union = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![
+            editor_core::BodyRead::plain(housing.body()),
+            editor_core::BodyRead::plain(Operand::output(pc, 0)),
+        ]),
+    });
+    let ghost = revolved(&mut r, r1_rect(&len(0.1), &len(0.2), (5.0, 6.0)));
+    let (outer, inner) = (ghost.wall(&r, 2), ghost.wall(&r, 4));
+    let one = |r: &mut Recorder, wall, to| {
+        placed_in(
+            r,
+            &housing.body(),
+            ghost.body(),
+            editor_core::Placed {
+                mates: vec![crate::fixture::mate(
+                    crate::fixture::axis(Operand::select(ghost.body(), vec![wall])),
+                    to,
+                )],
+                values: vec![
+                    (Coord::Slide(TargetAxis::Y), Formula::zero(Dimension::Length)),
+                    (Coord::SPIN, Formula::zero(Dimension::Angle)),
+                ],
+            },
+        )
+    };
+    let pg = one(&mut r, outer, housing.axis());
+    let to_shaft = crate::fixture::axis(Operand::select(Operand::output(pc, 0), vec![shaft_wall]));
+    let pg2 = one(&mut r, inner, to_shaft);
+    (r.doc, union, pg, pg2)
+}
+
+#[test]
+fn r1_probe_print_wire() {
+    let (doc, union, pg, pg2) = r1_scene();
+    let ev = run(&doc);
+    eprintln!("failures: {:?}", crate::corpus::failures(&ev));
+    for (node, rows, proofs) in proved_rows(&doc, &ev) {
+        for (row, p) in rows.iter().zip(&proofs) {
+            eprintln!("node {node:?} (union {union:?}) {:?}/{:?}: {p:?}", row.relation, row.site);
+        }
+    }
+    let text = editor_core::save(&doc, &[], Tol::witness()).expect("saves");
+    let body = crate::wire::wire_body(&text);
+    eprintln!("pg {pg:?} pg2 {pg2:?}");
+    eprintln!("{}", serde_json::to_string_pretty(&body).unwrap().chars().take(200).collect::<String>());
+    std::fs::write("/tmp/claude-0/-home-user-cad/210f739f-80ff-5580-b2e6-b5f59f3cf597/scratchpad/R1-wire.json", serde_json::to_string_pretty(&body).unwrap()).unwrap();
+}
+
+/// The scene with pg2's mate moved into pg's bundle by a load (a state
+/// no edit door admits: two axis mates, Overconstrained).
+#[test]
+fn r1_probe_refused_bundle_still_states() {
+    let (doc, union, pg, pg2) = r1_scene();
+    let text = editor_core::save(&doc, &[], Tol::witness()).expect("saves");
+    let key = |n: RecipeNodeId| {
+        let body = crate::wire::wire_body(&text);
+        body["snapshot"]["nodes"]
+            .as_object()
+            .unwrap()
+            .keys()
+            .find(|k| k.starts_with(&format!("{}:", format!("{n:?}").split("ordinal: ").nth(1).unwrap().split(',').next().unwrap())))
+            .unwrap()
+            .clone()
+    };
+    let (kg, kg2) = (key(pg), key(pg2));
+    let doctored = crate::wire::doctored(&text, |w| {
+        let nodes = &mut w["snapshot"]["nodes"];
+        let moved = nodes[&kg2]["Place"]["constraints"].as_array_mut().unwrap().remove(0);
+        nodes[&kg]["Place"]["constraints"].as_array_mut().unwrap().insert(1, moved);
+    });
+    let loaded = match editor_core::load(&doctored, Tol::witness()) {
+        Ok(l) => l.doc,
+        Err(e) => panic!("load refused: {e:?}"),
+    };
+    let ev = run(&loaded);
+    eprintln!("failures: {:?}", crate::corpus::failures(&ev));
+    for (node, rows, proofs) in proved_rows(&loaded, &ev) {
+        if node != union {
+            continue;
+        }
+        for (row, p) in rows.iter().zip(&proofs) {
+            if row.site == DecisionSite::CarrierLadder {
+                eprintln!("R1 WALL {:?}: {p:?}", row.relation);
+            }
+        }
+    }
+}
+
+#[test]
+fn r1_probe_collar_findings() {
+    for cd in [
+        crate::corpus::shaft_and_bearing::collar_by_values(),
+        crate::corpus::shaft_and_bearing::document(),
+        crate::corpus::shaft_and_bearing::one_radius(),
+    ] {
+        let ev = run(&cd.doc);
+        for (_, rows, proofs) in proved_rows(&cd.doc, &ev) {
+            for (row, p) in rows.iter().zip(&proofs) {
+                if row.site != DecisionSite::CarrierLadder {
+                    continue;
+                }
+                let short = match p {
+                    Proof::Structural(r) => format!("{r:?}"),
+                    Proof::Unproven { residual, .. } => format!("unproven {:?}", residual.axes.map(|a| a.left)),
+                };
+                eprintln!("R1 {} {:?}: {short}", cd.name, row.relation);
+            }
+        }
+        for f in unproven(&cd.doc, &ev) {
+            let s = f.to_string();
+            if s.contains("the axes are") {
+                eprintln!("R1 FINDING {}: {s}", cd.name);
+            }
+        }
+    }
+}
+
+#[test]
+fn r1_probe_edit_with_collar_first() {
+    use crate::corpus::{Recorder, placed_in, revolved};
+    use editor_core::{Coord, Dimension, Operand, TargetAxis};
+    let mut r = Recorder::new();
+    let housing = revolved(&mut r, r1_rect(&len(0.5), &len(1.0), (0.0, 1.0)));
+    let shaft = revolved(&mut r, r1_rect(&len(0.0), &len(0.5), (-2.0, 1.5)));
+    let shaft_copy = placed_in(
+        &mut r,
+        &housing.body(),
+        shaft.body(),
+        editor_core::Placed {
+            mates: vec![crate::fixture::mate(shaft.axis(), housing.axis())],
+            values: vec![
+                (Coord::Slide(TargetAxis::Y), Formula::zero(Dimension::Length)),
+                (Coord::SPIN, Formula::turn_over(4).expect("q")),
+            ],
+        },
+    );
+    let collar = revolved(&mut r, r1_rect(&len(0.5), &len(0.75), (0.0, 0.5)));
+    let none = || Formula::zero(Dimension::Angle);
+    let collar_copy = placed_in(
+        &mut r,
+        &housing.body(),
+        collar.body(),
+        editor_core::Placed {
+            mates: Vec::new(),
+            values: vec![
+                (Coord::Slide(TargetAxis::X), len(0.0)),
+                (Coord::Slide(TargetAxis::Y), len(-1.0)),
+                (Coord::Slide(TargetAxis::Z), len(0.0)),
+                (Coord::Spin(Some(TargetAxis::X)), none()),
+                (Coord::Spin(Some(TargetAxis::Y)), none()),
+                (Coord::Spin(Some(TargetAxis::Z)), none()),
+            ],
+        },
+    );
+    let _ = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![
+            editor_core::BodyRead::plain(housing.body()),
+            editor_core::BodyRead::plain(Operand::output(collar_copy, 0)),
+            editor_core::BodyRead::plain(Operand::output(shaft_copy, 0)),
+        ]),
+    });
+    let ev = run(&r.doc);
+    eprintln!("R1 failures {:?}", crate::corpus::failures(&ev));
+    eprintln!(
+        "R1 ids: housing.axis {:?} shaft.axis {:?} collar.axis {:?} shaft_copy {:?} collar_copy {:?}",
+        r.doc.output(housing.revolve, 1),
+        r.doc.output(shaft.revolve, 1),
+        r.doc.output(collar.revolve, 1),
+        r.doc.output(shaft_copy, 0),
+        r.doc.output(collar_copy, 0)
+    );
+    for f in unproven(&r.doc, &ev) {
+        let s = f.to_string();
+        if let Some(i) = s.find("the axes are") {
+            eprintln!("R1 FINDING: {}", &s[i..s.find(" — Recourse").unwrap_or(s.len())]);
+        }
+    }
+}
+
+#[test]
+fn r1_probe_edit_with_shaft_by_values() {
+    use crate::corpus::{Recorder, placed_in, revolved};
+    use editor_core::{Coord, Dimension, Operand, TargetAxis};
+    let mut r = Recorder::new();
+    let housing = revolved(&mut r, r1_rect(&len(0.5), &len(1.0), (0.0, 1.0)));
+    let shaft = revolved(&mut r, r1_rect(&len(0.0), &len(0.5), (-2.0, 1.5)));
+    let shaft_copy = placed_in(
+        &mut r,
+        &housing.body(),
+        shaft.body(),
+        editor_core::Placed {
+            mates: Vec::new(),
+            values: vec![
+                (Coord::Slide(TargetAxis::X), len(0.0)),
+                (Coord::Slide(TargetAxis::Y), len(0.0)),
+                (Coord::Slide(TargetAxis::Z), len(0.0)),
+                (Coord::Spin(Some(TargetAxis::X)), Formula::zero(Dimension::Angle)),
+                (Coord::Spin(Some(TargetAxis::Y)), Formula::turn_over(4).expect("q")),
+                (Coord::Spin(Some(TargetAxis::Z)), Formula::zero(Dimension::Angle)),
+            ],
+        },
+    );
+    let collar = revolved(&mut r, r1_rect(&len(0.5), &len(0.75), (0.0, 0.5)));
+    let none = || Formula::zero(Dimension::Angle);
+    let collar_copy = placed_in(
+        &mut r,
+        &housing.body(),
+        collar.body(),
+        editor_core::Placed {
+            mates: vec![crate::fixture::mate(collar.axis(), housing.axis())],
+            values: vec![
+                (Coord::Slide(TargetAxis::Y), len(-1.0)),
+                (Coord::SPIN, none()),
+            ],
+        },
+    );
+    let _ = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![
+            editor_core::BodyRead::plain(housing.body()),
+            editor_core::BodyRead::plain(Operand::output(collar_copy, 0)),
+            editor_core::BodyRead::plain(Operand::output(shaft_copy, 0)),
+        ]),
+    });
+    let ev = run(&r.doc);
+    eprintln!("R1 failures {:?}", crate::corpus::failures(&ev));
+    eprintln!(
+        "R1 ids: housing.axis {:?} shaft.axis {:?} collar.axis {:?} shaft_copy {:?} collar_copy {:?}",
+        r.doc.output(housing.revolve, 1),
+        r.doc.output(shaft.revolve, 1),
+        r.doc.output(collar.revolve, 1),
+        r.doc.output(shaft_copy, 0),
+        r.doc.output(collar_copy, 0)
+    );
+    for f in unproven(&r.doc, &ev) {
+        let s = f.to_string();
+        if let Some(i) = s.find("the axes are") {
+            eprintln!("R1 FINDING: {}", &s[i..s.find(" — Recourse").unwrap_or(s.len())]);
+        }
+    }
+}
