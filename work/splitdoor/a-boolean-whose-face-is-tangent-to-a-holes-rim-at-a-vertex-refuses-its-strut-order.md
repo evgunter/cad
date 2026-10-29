@@ -2,11 +2,14 @@
 id: a-boolean-whose-face-is-tangent-to-a-holes-rim-at-a-vertex-refuses-its-strut-order
 kind: issue
 title: A boolean whose half-space face is tangent to a hole's rim at a vertex refuses at bool_strut_order: two germs along one tangent are not ordered by how they curve
-status: open
+status: closed
 opened: 2026-10-28
 priority: P1
 cost: M
 refs: [a-plane-tangent-to-a-holes-rim-at-a-vertex-refuses-its-germs-as-coincident, germ-orders-about-a-normal-have-two-homes]
+branch: splitdoor/boolean-strut-order
+closed: 2026-10-29
+pr: 5968
 ---
 
 Found by the sweep of `a-plane-tangent-to-a-holes-rim-at-a-vertex-refuses-its-germs-as-coincident`
@@ -47,3 +50,11 @@ read by `geom_brep::enters_material_order2`. Unmeasured: whether that
 descent at `strut_order`'s tie is all the boolean needs, and where the
 germs' faces are reached from there.
 
+
+## Closed (2026-10-29, PR 5968)
+
+The Boolean orders two germs of one pierce that tie at first order by their bends, one order down. `geom_brep::tied_germ_turn` is now the one home shared by the split and the ring. `geom_brep::implicit_section_acceleration` gives the bend in a curved face, and at a cone apex the bend is 0.
+
+A − B, A ∩ B and A ∪ B build at their closed forms at three ε for every pose of this row, except the one-segment hole's single-site class. That class refuses `JoinDesync` in the join and is held on SECTTAIL's row.
+
+FULL single review: APPROVE. It probed 1440 poses and found no wrong volume.

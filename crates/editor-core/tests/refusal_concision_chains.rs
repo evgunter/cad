@@ -306,7 +306,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ProfileReplay/Transition",
     // work/cleartail/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md
     "MeasureClearanceRefused/EmptyScope",
-    "MeasureClearanceRefused/NoAdmittedPair",
     "MeasureClearanceRefused/PoisonEnclosure",
     "MeasureClearanceRefused/Unsupported",
     // work/profiletail/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
@@ -966,7 +965,8 @@ mod kernel {
             Band, CurvedBooleanUnsupported, CurvedEdgeUnsupported, CrossingEscalated,
             TangencyUnsupported, KnifeEdge, ScaffoldingOperand, InsideOutOperand,
             UnjoinedOperand, SliverVertex, SliverSector, SectionGermsEscalated,
-            SectionGermsUnordered, NonFiniteSectorChord, UnderflowedSectorChord,
+            SectionGermsUnordered, ApexSection, ApexUndecided, NonFiniteSectorChord,
+            UnderflowedSectorChord,
             ConsecutiveOnSectors, StaleVertex, LoneVertex, NullEdgeAtVertex,
             UnrecordedSide, UnboundedFace, CrossingInsertion, Euler, LineageRow,
         ];
@@ -1052,7 +1052,7 @@ test_utils::f6_variants! {
 test_utils::f6_variants! {
     /// `MinSeparationRefusal`'s arms, for the `MeasureClearanceRefused/` rows.
     const MIN_SEPARATION_REFUSAL: MinSeparationRefusal =
-        [Unsupported, PoisonEnclosure, EmptyScope, NoAdmittedPair];
+        [Unsupported, PoisonEnclosure, EmptyScope];
 }
 
 /// Every roster the weld checks, by the refusal it is the census of.
@@ -2420,6 +2420,22 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             R::SectionGermsUnordered {
                 vertex,
                 fault: topo::SectionGermFault::Crossing,
+            },
+        ),
+        (
+            "ApexSection",
+            R::ApexSection {
+                vertex,
+                face,
+                reading: topo::ApexSectionReading::NoRulingInside,
+            },
+        ),
+        (
+            "ApexUndecided",
+            R::ApexUndecided {
+                vertex,
+                face,
+                diag: diag(),
             },
         ),
         ("ConsecutiveOnSectors", R::ConsecutiveOnSectors { vertex }),
@@ -5011,7 +5027,6 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
                 },
             ),
             ("EmptyScope", MinSeparationRefusal::EmptyScope),
-            ("NoAdmittedPair", MinSeparationRefusal::NoAdmittedPair),
         ] {
             rows.push(row(
                 &format!("MeasureClearanceRefused/{n}"),

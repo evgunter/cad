@@ -618,14 +618,14 @@ pub enum RefusalReason {
     Budget(BudgetKind),
     /// **A measure could not be taken, for a reason the BOX cannot
     /// change** (M10-6, R1's MINOR-6): a selection that names the wrong
-    /// kind of entity, a pairing the wedge rule empties, a carrier the
-    /// engine does not support.
+    /// kind of entity, a scope naming no face, a carrier the engine does
+    /// not support.
     ///
     /// These are facts about the DOCUMENT, not about the parameter
     /// values, so every sub-box inherits them exactly. Before this
     /// class they fell to the catch-all `Bisect` and the driver split
     /// its way through the whole leaf budget re-deriving the same
-    /// refusal — a measured >60 s on a `NoAdmittedPair` fixture — and
+    /// refusal — a measured >60 s on a pairing fixture — and
     /// then priced the mass as `Budget`, which named the symptom
     /// instead of the cause. Refusing terminally is both faster and
     /// truer: the mass is refused under its own class, and the class
@@ -1706,8 +1706,8 @@ fn classify_replay<T: geom_core::Decide>(
         };
         // (1) **Box-independent measure refusals are TERMINAL** (M10-6,
         // R1's MINOR-6). A selection naming the wrong kind of entity,
-        // or a pairing the wedge rule empties, is a fact about the
-        // document: every sub-box inherits it exactly, so refining
+        // or a scope naming no face, is a fact about the document:
+        // every sub-box inherits it exactly, so refining
         // re-derives the same refusal until the budget runs out and
         // then prices the mass `Budget`, naming the symptom. The
         // classes listed in `box_independent_measure_class` are the
@@ -2151,11 +2151,10 @@ fn box_independent_measure_class(kind: &NodeErrorKind) -> Option<MeasureRefusalC
         NodeErrorKind::MeasureClearanceRefused(r) => {
             use topo::clearance::MinSeparationRefusal as E;
             match r {
-                // Which faces are in scope, whether the two scopes pair
-                // at all, and whether the carrier has an implementation
-                // are decided by the document's own topology and the
-                // engine's support table, not by the box.
-                E::EmptyScope | E::NoAdmittedPair | E::Unsupported { .. } => {
+                // Which faces are in scope, and whether the carrier has
+                // an implementation, are decided by the document's own
+                // topology and the engine's support table, not by the box.
+                E::EmptyScope | E::Unsupported { .. } => {
                     Some(MeasureRefusalClass::Clearance(r.clone()))
                 }
                 // An enclosure that did not evaluate over this box (NaI,
@@ -2181,6 +2180,44 @@ mod tests {
 
     fn band() -> Band {
         Band::linear(Tol::witness()).expect("the run's linear band")
+    }
+
+    /// **An engine refusal under `min_clearance` that no smaller box can
+    /// change is refused mass under its own class, not a bisection to a
+    /// `Budget`**: the pricing the planted `NoAdmittedPair` row once
+    /// carried (`m10_6_r1_probes_interval`, row 5), re-pinned with the
+    /// refusals the engine still raises. A scope naming no face and a
+    /// carrier with no window are facts about the document; an enclosure
+    /// that did not evaluate may evaluate over a smaller box, so it
+    /// bisects.
+    #[test]
+    fn a_box_independent_clearance_refusal_is_terminal_refused_mass() {
+        use topo::clearance::MinSeparationRefusal as R;
+        let refused = |r: R| NodeErrorKind::MeasureClearanceRefused(r);
+        for r in [
+            R::EmptyScope,
+            R::Unsupported {
+                carrier: "an approximated face",
+                face: topo::FaceKey::default(),
+            },
+        ] {
+            let class = box_independent_measure_class(&refused(r.clone()));
+            assert_eq!(
+                class,
+                Some(MeasureRefusalClass::Clearance(r.clone())),
+                "{r:?}"
+            );
+            let reason = RefusalReason::MeasureRefused {
+                node: RecipeNodeId::new(0, 0),
+                class: class.unwrap(),
+            };
+            assert_eq!(reason.class(), ReasonClass::MeasureRefused, "{r:?}");
+        }
+        let poison = R::PoisonEnclosure {
+            a: topo::FaceKey::default(),
+            b: topo::FaceKey::default(),
+        };
+        assert_eq!(box_independent_measure_class(&refused(poison)), None);
     }
 
     /// A tangency certificate of the line `(x, 0, z)`, `z ∈ [0, 1]`,
