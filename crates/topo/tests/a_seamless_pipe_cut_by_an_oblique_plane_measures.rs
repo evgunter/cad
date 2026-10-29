@@ -371,17 +371,33 @@ fn a_seamless_pipe_cut_by_an_oblique_plane_encloses_its_closed_form_at_interval(
     }
 }
 
+/// The document door's default whole-query budget
+/// (`editor_core::clearance::DEFAULT_MAX_CELL_PAIRS`).
+const BUDGET: usize = 65_536;
+
+/// A witness: two faces, the closest pair of on-face stations, and
+/// their distance.
+#[derive(Clone, Copy, Debug)]
+struct Witness {
+    a: topo::FaceKey,
+    b: topo::FaceKey,
+    pa: Point3<f64>,
+    d: f64,
+}
+
 /// The injectivity question over `faces` of `body` (every face where
-/// `None`), at the default
-/// depth and the document door's default budget. A candidate pair is a
-/// witness where the closest pair of its cells' on-face stations,
-/// evaluated afresh, is decided at distance zero; it reports the two
-/// faces and that distance.
+/// `None`), at the default depth and `budget` cell pairs (the document
+/// door's default is [`BUDGET`]). Where `witnessed`, a candidate pair is a witness where the
+/// closest pair of its cells' on-face stations, evaluated afresh, is
+/// decided at distance zero; otherwise none is offered, so a
+/// coincidence refuses rather than reads `Violated`.
 fn injectivity(
     body: &Body<f64>,
     faces: Option<Vec<topo::FaceKey>>,
+    witnessed: bool,
+    budget: usize,
     tol: Tol,
-) -> topo::clearance::BoundReport<(topo::FaceKey, topo::FaceKey, f64)> {
+) -> topo::clearance::BoundReport<Witness> {
     use geom_core::k_stats::decide;
     use geom_core::{Band, Margin, Sign};
     use topo::clearance::{Budgets, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep, Which};
@@ -395,7 +411,7 @@ fn injectivity(
         band,
         budgets: Budgets {
             max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
-            max_cell_pairs: 65_536,
+            max_cell_pairs: budget,
         },
     };
     let surface = |f: topo::FaceKey| {
@@ -404,19 +420,31 @@ fn injectivity(
             .clone()
     };
     let report = sweep.run(&windows, &windows, true, |candidate| {
+        if !witnessed {
+            return Err("no witness is offered".to_owned());
+        }
         let (fa, fb) = candidate.faces();
         let (sa, sb) = (surface(fa), surface(fb));
         let (la, lb) = candidate.on_face_stations();
-        let mut d = f64::INFINITY;
+        let mut best: Option<Witness> = None;
         for &(au, av) in &la {
             let pa = sa.eval(au, av);
             for &(bu, bv) in &lb {
-                d = d.min((pa - sb.eval(bu, bv)).norm());
+                let d = (pa - sb.eval(bu, bv)).norm();
+                if best.is_none_or(|w| d < w.d) {
+                    best = Some(Witness {
+                        a: fa,
+                        b: fb,
+                        pa,
+                        d,
+                    });
+                }
             }
         }
-        match decide(bound.predicate(), Margin::of(d - bound.c()), band) {
-            Ok(Sign::Negative | Sign::Zero) => Ok((fa, fb, d)),
-            _ => Err(format!("the closest station pair is {d} apart")),
+        let w = best.ok_or("no station")?;
+        match decide(bound.predicate(), Margin::of(w.d - bound.c()), band) {
+            Ok(Sign::Negative | Sign::Zero) => Ok(w),
+            _ => Err(format!("the closest station pair is {} apart", w.d)),
         }
     });
     assert!(report.receipt.holds(), "{:?}", report.receipt);
@@ -440,7 +468,7 @@ fn a_curved_junction_certifies_across_the_departure_arm() {
         let f = Frame::at(o, axis);
         for pose in POSES {
             let body = pipe::<f64>(pose, &f, tol);
-            let report = injectivity(&body, None, tol);
+            let report = injectivity(&body, None, true, BUDGET, tol);
             println!(
                 "[curvedep] pipe {o:?} {axis:?} {pose:?}: {:?} {:?}",
                 report.verdict, report.receipt
@@ -713,7 +741,7 @@ fn a_mitre_between_two_cylinders_certifies_across_its_ellipse() {
     for (o, axis) in [FRAMES[0], FRAMES[2]] {
         let f = Frame::at(o, axis);
         let body = mitred(POSES[0], &f, -1.5, tol);
-        let report = injectivity(&body, None, tol);
+        let report = injectivity(&body, None, true, BUDGET, tol);
         println!(
             "[curvedep] mitre {o:?} {axis:?}: {:?} {:?}",
             report.verdict, report.receipt
@@ -741,7 +769,10 @@ fn a_mitre_between_two_cylinders_certifies_across_its_ellipse() {
 /// **The mitre folded back through the wall reads `Violated`.** The
 /// fold of [`mitred`], the wall against the band: they touch on the
 /// ellipse and cross along the second one, which runs into it. The
-/// witness is a coincidence of the two faces. Red if a departure
+/// witness is a coincidence of the two faces, found at least `0.05` off
+/// the shared ellipse (measured, not pinned: `0.58` at ε = 1e-9, `0.12`
+/// at 1e-12, nearer the point the cylinders touch), where the two cells
+/// no longer touch and distance decides them. Red if a departure
 /// certificate discharges a wall–band cell pair whose cells hold the
 /// crossing — a presentation that reads less than a face's part of its
 /// cell, or a certificate that ignores it.
@@ -752,19 +783,165 @@ fn the_mitre_folded_back_through_the_wall_reads_violated() {
     let f = Frame::at(FRAMES[0].0, FRAMES[0].1);
     let body = mitred(POSES[0], &f, 1.5, tol);
     let faces = walls(&body);
-    let report = injectivity(&body, Some(faces.clone()), tol);
+    let report = injectivity(&body, Some(faces.clone()), true, BUDGET, tol);
     println!("[curvedep] fold: {:?} {:?}", report.verdict, report.receipt);
     match report.verdict {
-        BoundVerdict::Violated((a, b, d)) => {
+        BoundVerdict::Violated(w) => {
             assert!(
-                faces.contains(&a) && faces.contains(&b) && a != b,
-                "the witness is the wall against the band: {a:?} {b:?}"
+                faces.contains(&w.a) && faces.contains(&w.b) && w.a != w.b,
+                "the witness is the wall against the band: {w:?}"
             );
             assert!(
-                d <= 10.0 * tol.eps(),
-                "a coincidence, at the run's tolerance: {d}"
+                w.d <= 10.0 * tol.eps(),
+                "a coincidence, at the run's tolerance: {w:?}"
+            );
+            // The roof's plane holds the shared ellipse: a point that far
+            // off it is that far off the ellipse.
+            let Pose { z0, h, theta, .. } = POSES[0];
+            let (s, c) = theta.sin_cos();
+            let off = (w.pa.x * s + (w.pa.z - z0 - h) * c).abs();
+            assert!(
+                off >= 0.05,
+                "the witness is off the shared ellipse, where the cells no longer \
+                 touch: {off} from the roof's plane, {w:?}"
             );
         }
         other => panic!("the band crosses the wall: {other:?} {:?}", report.receipt),
     }
+}
+
+/// **The unit disk on the plane `z = 0` and what lies across its rim.**
+/// The disk is one face; the other is the plane's region on the far side
+/// of the rim (where `lamina` is false) out to the circle of radius 2,
+/// the annulus, or the same disk again with its sense flipped (where
+/// `lamina`), a face folded back onto the first along the rim. Returns
+/// the body, the disk, and the other face.
+fn across_a_rim(lamina: bool, tol: Tol) -> (Body<f64>, topo::FaceKey, topo::FaceKey) {
+    let circle = |r: f64| Curve3::Circle {
+        center: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: r,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(Point3::new(1.0, 0.0, 0.0), true).unwrap();
+    let plane = body
+        .set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: Surface::Plane {
+                    origin: Point3::new(0.0, 0.0, 0.0),
+                    normal: Vec3::new(0.0, 0.0, 1.0),
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
+        )
+        .unwrap();
+    let disk = body
+        .mef(
+            MefSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            rim(plane, circle(1.0)),
+            FaceSurface::Inherit,
+            tol,
+        )
+        .unwrap();
+    if lamina {
+        let sense = body.get_face(seed.face).unwrap().sense;
+        body.set_face_sense(seed.face, !sense).unwrap();
+    } else {
+        let strut = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: disk.he_plus,
+                    he2: disk.he_plus,
+                },
+                Point3::new(2.0, 0.0, 0.0),
+                tol,
+            )
+            .unwrap();
+        body.mef(
+            MefSite::Chords {
+                he1: strut.he_minus,
+                he2: strut.he_minus,
+            },
+            rim(plane, circle(2.0)),
+            FaceSurface::Inherit,
+            tol,
+        )
+        .unwrap();
+        body.kemr(strut.he_plus, strut.he_minus).unwrap();
+    }
+    topo::mint_pcurves(&mut body, tol).unwrap();
+    (body, disk.face, seed.face)
+}
+
+/// **A curved rim folded back on itself refuses naming the second-order
+/// arm.** A lamina: the unit disk and the same disk again, its sense
+/// flipped, sharing the rim. Each is presented across the rim's chart
+/// curve; their outward normals are opposed there, wedge 0, so the pair
+/// reads as a cusp and refuses `SecondOrder` on the rim — never
+/// certified. No witness is offered, so the coincident interiors refuse
+/// too, at the small budget this row runs at; the first refusal is the
+/// rim's. Red if a curved side's normal is not read
+/// (`Presented::shared_normal`), which leaves the rim's pairs to split
+/// until the budget refuses.
+#[test]
+fn a_curved_rim_folded_on_itself_refuses_naming_the_second_order_arm() {
+    use topo::clearance::{BoundVerdict, CertificateArm, EngineRefusal, SharedCell};
+    let tol = Tol::witness();
+    let (body, disk, other) = across_a_rim(true, tol);
+    let report = injectivity(&body, Some(vec![disk, other]), false, 4096, tol);
+    println!(
+        "[curvedep] lamina: {:?} {:?}",
+        report.verdict, report.receipt
+    );
+    assert!(
+        matches!(
+            report.verdict,
+            BoundVerdict::Refused(EngineRefusal::Uncertified {
+                shared: SharedCell::Edge(_),
+                arm: CertificateArm::SecondOrder,
+                ..
+            })
+        ),
+        "the lamina's rim is a cusp: {:?}",
+        report.verdict
+    );
+    assert_eq!(
+        report.receipt.certified, 0,
+        "nothing certified: {:?}",
+        report.receipt
+    );
+}
+
+/// **The disk and its annulus certify across their rim** — the lamina's
+/// wedge-π complement: the rim's chart curve presents each face on its
+/// side, coplanar, so no carrier and no plane separate them, and the
+/// rim's graph does. Holds, the pair certified across.
+#[test]
+fn a_disk_and_its_annulus_certify_across_their_rim() {
+    use topo::clearance::BoundVerdict;
+    let tol = Tol::witness();
+    let (body, disk, other) = across_a_rim(false, tol);
+    let report = injectivity(&body, Some(vec![disk, other]), true, BUDGET, tol);
+    println!(
+        "[curvedep] annulus: {:?} {:?}",
+        report.verdict, report.receipt
+    );
+    assert!(
+        matches!(report.verdict, BoundVerdict::Holds),
+        "coplanar across a rim: {:?}",
+        report.verdict
+    );
+    assert!(
+        report
+            .across
+            .get(&(disk.min(other), disk.max(other)))
+            .is_some_and(|&n| n > 0),
+        "certified across: {:?}",
+        report.across
+    );
 }

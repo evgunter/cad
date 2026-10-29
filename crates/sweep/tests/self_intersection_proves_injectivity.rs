@@ -857,3 +857,84 @@ fn a_cylinder_cylinder_tee_refuses_typed_at_its_curved_corners() {
         report.receipt
     );
 }
+
+/// **A kernel-built oblique cut refuses typed at its curved corners.**
+/// The extruded unit disc less a half-space tilted `π/7` about `y`
+/// through `(0, 0, 1)`: the extrusion splits its wall in halves, so the
+/// cut is two open arcs of one ellipse meeting the halves' seam lines at
+/// two vertices. The departure arm certifies curved shared edges that
+/// are closed (the pipe's ellipse, the fillet's rim, the mitre's
+/// ellipse); an open arc ending at a corner waits on
+/// `work/clear/departure-reads-no-curved-corner.md`, and refuses
+/// `Uncertified { Departure }` naming an arc — never certified, never
+/// measured by distance, and without splitting to the floor. SHELL-4's
+/// cavity clones are of this shape. A presentation of a curved corner
+/// moves this pin.
+#[test]
+fn a_kernel_built_oblique_cut_refuses_typed_at_its_curved_corners() {
+    use core::f64::consts::PI;
+    use geom_core::{Affine3, Vec3};
+    use sweep::test_support::{brick, finished};
+    let tol = tol();
+    let disc = profile::circle(Point2::new(0.0, 0.0), 1.0, tol).unwrap();
+    let profile = Profile::new(SketchPlane::xy(), vec![disc.into()])
+        .validate(tol)
+        .unwrap();
+    let drum = finished(
+        "the drum",
+        extrude(&profile, to_offset(2.0), tol).unwrap().body,
+        tol,
+    );
+    let tilt = Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 1.0), Vec3::unit_y(), PI / 7.0);
+    let slab = finished(
+        "the slab",
+        brick((-50.0, 50.0), (-50.0, 50.0), (-100.0, 1.0), tol),
+        tol,
+    );
+    let rigid = geom_core::test_support::rigid(&tilt, tol);
+    let under = finished(
+        "the half-space",
+        topo::transform_rigid(&slab, &rigid, tol).unwrap(),
+        tol,
+    );
+    let cut = match topo::subtract(&drum, &under, tol) {
+        Ok(topo::BooleanResult::Body(b)) => b.body,
+        other => panic!("the cut builds: {other:?}"),
+    };
+    let cut: &Body<f64> = &cut;
+    let report = injective(cut, None, BUDGET);
+    println!(
+        "[curvedep] oblique cut: {:?} {:?}",
+        report.verdict, report.receipt
+    );
+    match report.verdict {
+        BoundVerdict::Refused(EngineRefusal::Uncertified {
+            shared: SharedCell::Edge(e),
+            arm: CertificateArm::Departure,
+            ..
+        }) => {
+            let ellipse = |e: topo::EdgeKey| {
+                matches!(
+                    cut.get_curve_geom(cut.get_edge(e).unwrap().curve)
+                        .unwrap()
+                        .certified()
+                        .map(|g| g.carrier().clone()),
+                    Some(geom::Curve3::Ellipse { .. })
+                )
+            };
+            assert!(ellipse(e), "the refusal names an arc of the cut");
+            let arcs: Vec<topo::EdgeKey> = cut
+                .edges()
+                .map(|(k, _)| k)
+                .filter(|&k| ellipse(k))
+                .collect();
+            assert_eq!(arcs.len(), 2, "two open arcs of the cut");
+        }
+        other => panic!("the cut refuses at its corners: {other:?}"),
+    }
+    assert!(
+        report.receipt.splits < 1024,
+        "a corner refuses where it is met, not at the floor: {:?}",
+        report.receipt
+    );
+}

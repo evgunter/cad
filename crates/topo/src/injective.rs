@@ -549,10 +549,10 @@ pub(crate) fn exactly(x: Interval, k: f64) -> bool {
     x.is_certified() && x.lo() == k && x.hi() == k
 }
 
-/// The hull of two enclosures, through the certification door: a
-/// refused operand refuses the hull.
+/// The hull of two enclosures, through the evaluation scalar's hull
+/// door: a poison operand poisons the hull.
 fn hull(a: Interval, b: Interval) -> Interval {
-    geom_core::interval::certification::Certification::hull(a, b)
+    geom_core::spline::SpanLocate::enclosure_hull(a, b)
 }
 
 fn iv((lo, hi): (f64, f64)) -> Interval {
@@ -4438,7 +4438,7 @@ mod presentation_rows {
         };
         let on = c.psi(&graph).expect("the edge is a conic");
         assert!(is_zero(on, band()), "on its own carrier: {on:?}");
-        let mut off = (*c).clone();
+        let mut off = *c;
         let wider = Curve3::Circle {
             center: origin(),
             axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
