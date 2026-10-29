@@ -877,13 +877,24 @@ impl<T: Decide> PairSection<T> {
         lane: Option<SsiLane<T>>,
         band: Band,
     ) -> Result<CarriedSection<T>, CarryError> {
-        let march = || {
+        let marched = || {
             let lane = lane.ok_or(CarryError::NoLane { scalar: T::NAME })?;
             (lane.march)(&self.pose, band)
         };
+        self.listed(marched, band)
+    }
+
+    /// **The components listed from the march's branches** as
+    /// [`Self::carry`] lists them, `branches` asked for only where a
+    /// component is the general rung's.
+    fn listed(
+        &self,
+        branches: impl FnOnce() -> Marched<T>,
+        band: Band,
+    ) -> Result<CarriedSection<T>, CarryError> {
         let components = match &self.components {
             Components::Marched => distinct(
-                march()?
+                branches()?
                     .into_iter()
                     .map(FittedCarrier::component)
                     .collect::<Result<_, _>>()?,
@@ -898,8 +909,8 @@ impl<T: Decide> PairSection<T> {
                 let general = listed
                     .iter()
                     .any(|c| matches!(c.carrier, ClassCarrier::General));
-                let branches = if general { march()? } else { Vec::new() };
-                Self::matched(listed, branches, band)?
+                let fitted = if general { branches()? } else { Vec::new() };
+                Self::matched(listed, fitted, band)?
             }
         };
         Ok(CarriedSection {
@@ -1633,17 +1644,15 @@ mod wiring {
 
     /// **A doubled ring is caught** (R1): two general rings of a sphere
     /// past a wall's far ruling, and the ball round the donut's axis,
-    /// carried through a lane whose march finds one loop twice. The count
-    /// agrees and no witness is listed, so only the loops' identity can
-    /// see it: each branch's witness lies on the other branch.
+    /// listed from a march that found one loop twice, read counted and
+    /// read marched. The count agrees and no witness is listed, so only
+    /// the loops' identity can see it: each branch's witness lies on the
+    /// other branch. (The lane is the door's own: its fields are written
+    /// by its constructor alone, so the doubled march is handed to the
+    /// listing `carry` hands its march to.)
     #[test]
-    #[allow(clippy::panic)]
     fn a_doubled_ring_is_caught() {
-        use super::{CarryError, ClassCarrier, SsiLane};
-        let lane = SsiLane {
-            march: doubled,
-            seat: seat_at,
-        };
+        use super::{CarryError, ClassCarrier, Components, SsiLane};
         for (what, (a, b)) in [
             (
                 "two rings round the wall",
@@ -1666,12 +1675,18 @@ mod wiring {
                 section.carry(Some(SsiLane::marched()), band()).is_ok(),
                 "{what}: the march carries"
             );
-            let got = section.carry(Some(lane), band());
-            assert!(
-                matches!(got, Err(CarryError::Desync(_))),
-                "{what}: one loop marched twice: {:?}",
-                got.map(|c| c.components().len())
-            );
+            let marched = super::PairSection {
+                components: Components::Marched,
+                ..section.clone()
+            };
+            for (read, s) in [("counted", &section), ("marched", &marched)] {
+                let got = s.listed(|| doubled(s.pose(), band()), band());
+                assert!(
+                    matches!(got, Err(CarryError::Desync(_))),
+                    "{what}, {read}: one loop marched twice: {:?}",
+                    got.map(|c| c.components().len())
+                );
+            }
         }
     }
 
@@ -1686,9 +1701,9 @@ mod wiring {
         let (a, b) = ball_round_the_axis();
         let section = built(&a, &b);
         let mut listed = section.counted().expect("counted").to_vec();
-        let march = march_over_the_ball(section.pose(), band()).expect("the march");
-        assert_eq!(march.len(), 2, "two loops");
-        for (order, branch) in march.iter().enumerate() {
+        let fitted = march_over_the_ball(section.pose(), band()).expect("the march");
+        assert_eq!(fitted.len(), 2, "two loops");
+        for (order, branch) in fitted.iter().enumerate() {
             let twice = vec![branch.clone(), branch.clone()];
             assert!(
                 matches!(
@@ -1700,7 +1715,7 @@ mod wiring {
             listed.reverse();
         }
         assert!(
-            PairSection::matched(&listed, march, band()).is_ok(),
+            PairSection::matched(&listed, fitted, band()).is_ok(),
             "the march's own two"
         );
         let (wall, here) = wall_and_ball((0.5, 0.0, 0.2), 0.3);
