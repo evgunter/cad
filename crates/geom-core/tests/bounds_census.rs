@@ -148,6 +148,24 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
+        path: "crates/geom-brep/src/edge_nurbs.rs",
+        subject: "impl<T: Bounds> FeetRefusal<T>",
+        why: Payload(
+            "`lane` folds a spline pair's transversality refusal into the lane's: the \
+             lever's reach is read at its low end into the refusal's `PointLever` and \
+             stops there; the verdict it travels with was decided before",
+        ),
+    },
+    Site {
+        path: "crates/geom-brep/src/ssi/four.rs",
+        subject: "along_side",
+        why: Payload(
+            "names a refusal: its bool is read only by the one-arc ladder's \
+             `one_arc_pair`, which reports a shortfall as `Shortfall::AlongSide` in \
+             place of `Undecided`; an `Ok` never reads it",
+        ),
+    },
+    Site {
         path: "crates/geom-brep/src/ssi/certify.rs",
         subject: "composite_form",
         why: HandedOff("Track Q's; a private helper S88's census names"),

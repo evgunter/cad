@@ -2,10 +2,12 @@
 id: main-red-bounds-roster-misses-the-four-along-side-door
 kind: issue
 title: Main red: the sole-bracket-bound roster misses four::along_side (PR 5938), which branches on a bracket's ends
-status: open
+status: closed
 opened: 2026-10-29
 priority: P3
 cost: E
+closed: 2026-10-29
+branch: splice/census-reds
 ---
 
 
@@ -47,3 +49,11 @@ Reproduce: `cargo nextest run -p geom-core --ignore-default-filter -E
 
 Banded P3: the row is a guard that went red. Nothing reports a wrong
 answer.
+
+## Closed
+
+Closed 2026-10-29 by `splice/census-reds`. Main `0011f58a` also missed
+`edge_nurbs.rs`'s `impl<T: Bounds> FeetRefusal<T>`, from PR 5959. Both
+doors are now in the roster as `Payload`. `along_side`'s bool only
+renames a shortfall `Shortfall::AlongSide`, and an `Ok` never reads it.
+`FeetRefusal::lane` reads the reach's low end into the refusal's lever.

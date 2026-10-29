@@ -1010,9 +1010,10 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// inside it, on either axis.
     pub(crate) fn first_order_continuous_in(&self, w: UvWindow) -> bool {
         let smooth = |k: &Knots<T>, r: ParamRange| {
-            k.crease_values()
-                .iter()
-                .all(|c| c.hi() <= r.start() || c.lo() >= r.end())
+            k.crease_values().iter().all(|c| {
+                c.certified_bracket()
+                    .is_some_and(|(lo, hi)| hi <= r.start() || lo >= r.end())
+            })
         };
         smooth(self.surface.knot_values_u(), w.u) && smooth(self.surface.knot_values_v(), w.v)
     }

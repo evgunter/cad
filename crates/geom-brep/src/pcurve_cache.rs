@@ -3481,7 +3481,9 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
         }
     };
     read.upper = match &read.offset {
-        projected::Offset::Bound(b) | projected::Offset::Miss { bound: Ok(b), .. } => b.hi(),
+        projected::Offset::Bound(b) | projected::Offset::Miss { bound: Ok(b), .. } => {
+            b.certified_bracket().map_or(f64::NAN, |(_, hi)| hi)
+        }
         projected::Offset::Miss { bound: Err(_), .. } => f64::NAN,
     };
     Ok(read)

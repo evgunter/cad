@@ -300,10 +300,14 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/curve_face/composite.rs", 9, 9, ""),
     (
         "crates/geom-brep/src/curve_face/spline_face.rs",
-        10,
-        7,
-        "pinned red at main's count since PR 5855: the new reads are not yet \
-         dispositioned (`work/splice/main-red-certified-endpoint-census-moved-in-six-files`)",
+        9,
+        8,
+        "`certified_window`, the NURBS carrier's window over a parameter enclosure, \
+         refuses one that does not certify by name: the sheet's boxes carry no \
+         decoration of the parameter's. The remainder is `end_state`'s midpoint of \
+         the carrier's point at a span end, which only seeds the chart foot search: \
+         the state it finds is re-enclosed at its exact coordinates, so the seed \
+         costs a proof and never makes one",
     ),
     (
         "crates/geom-brep/src/intersect/section_bounds.rs",
@@ -332,9 +336,10 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     (
         "crates/geom-brep/src/offset_meters.rs",
         9,
-        7,
-        "the mignitude and the curvature join refuse by name. Pinned red at main's count since PR 5868: the new \
-         reads are not yet dispositioned (`work/splice/main-red-certified-endpoint-census-moved-in-six-files`)",
+        9,
+        "the mignitude, the curvature join and `cell_distance` refuse by name: a cell \
+         whose partial does not certify is read at distance `0`, the vacuous lower \
+         bound",
     ),
     (
         "crates/geom-brep/src/patch_bound.rs",
@@ -348,13 +353,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          non-finite mean, so a refused input still yields a finite centre and the \
          reach about it reports the trouble",
     ),
-    (
-        "crates/geom-brep/src/pcurve_cache.rs",
-        3,
-        2,
-        "pinned red at main's count since PR 5728: the new reads are not yet \
-         dispositioned (`work/splice/main-red-certified-endpoint-census-moved-in-six-files`)",
-    ),
+    ("crates/geom-brep/src/pcurve_cache.rs", 2, 2, ""),
     ("crates/geom-brep/src/pcurve_cache/projected.rs", 2, 2, ""),
     ("crates/geom-brep/src/props/bracket.rs", 4, 4, ""),
     (
@@ -460,15 +459,19 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/ssi/exhaust.rs", 1, 1, ""),
     (
         "crates/geom-brep/src/ssi/four.rs",
-        3,
+        5,
         2,
         "the 2 that ask are the Krawczyk image's preconditioner midpoint and image \
          reads, which refuse a piece unless every image row is certified; its \
-         containment and miss tests compare the image's certified sides. The 1 that \
-         does not ask is `mean_value_excludes`' column midpoints, \
+         containment and miss tests compare the image's certified sides. Of the 3 that \
+         do not ask, `mean_value_excludes`' 1 is its column midpoints, \
          which select an exclusion direction: any fixed direction is sound, and the form \
          built along it is read only through `sign`, which refuses an uncertified \
-         enclosure by name",
+         enclosure by name. `row_crossing`'s 1 reads the graph margin's sign only \
+         after `tube_margin` has answered `Some`, which it does only for a margin \
+         that certifies. `along_side`'s 1 is a `T: Bounds` read of the pcurve's \
+         control points (blind spot 1) whose bool only names a refusal \
+         (`Shortfall::AlongSide` for `Undecided`; `bounds_census.rs` rosters it)",
     ),
     (
         "crates/geom-brep/src/ssi/one_arc.rs",
@@ -511,13 +514,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          and `mag`",
     ),
     ("crates/geom-core/src/spline/algebra.rs", 1, 1, ""),
-    (
-        "crates/geom-core/src/spline/blossom.rs",
-        1,
-        0,
-        "pinned red at main's count since PR 5728: the new reads are not yet \
-         dispositioned (`work/splice/main-red-certified-endpoint-census-moved-in-six-files`)",
-    ),
+    ("crates/geom-core/src/spline/blossom.rs", 1, 1, ""),
     ("crates/geom-core/src/spline/compose/tensor.rs", 4, 4, ""),
     (
         "crates/geom-core/src/sym/signed.rs",
@@ -529,21 +526,49 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          (`is_certified().then_some`), so every bracket read there certifies by \
          construction",
     ),
+    (
+        "crates/geom/src/curves/nurbs.rs",
+        3,
+        3,
+        "`restricted` asks only of its hull weight (`h[3]`). Its two knot clip ends \
+         are safe whatever the ask: they select a span and are re-admitted, clamped \
+         to the span's own knots, by the blossom door (`admit`), which refuses one \
+         outside it",
+    ),
     ("crates/geom/src/curves/second_derivative.rs", 1, 1, ""),
     (
         "crates/geom/src/surfaces/nurbs.rs",
-        4,
-        1,
-        "pinned red at main's count since PR 5927: the new reads are not yet \
-         dispositioned (`work/splice/main-red-certified-endpoint-census-moved-in-six-files`)",
+        8,
+        2,
+        "the remainder is `rect_enclosure`'s and `rect_jet`'s 3 knot reads each: the \
+         domain check and the span clip select cells and clip ends, which are minted \
+         as fresh point brackets and re-admitted to the span's own knots by the \
+         blossom door (`admit`). What either claims is gated by name: \
+         `restricted_hull` and `restricted_jet` refuse a restricted weight unless it \
+         is certified positive, and a control point that does not certify carries \
+         its decoration through the restriction into the answer",
     ),
     ("crates/mesh/src/chords.rs", 2, 2, ""),
     (
         "crates/topo/src/clearance.rs",
-        20,
-        3,
-        "pinned red at main's count since PRs 5909 and 5927: the new reads are not yet \
-         dispositioned (`work/splice/main-red-certified-endpoint-census-moved-in-six-files`)",
+        23,
+        6,
+        "pinned at main's count: `split_axis`'s 3 and the `coincidence` and \
+         `meeting_stations` seeds (3) are selections, and the other 11 read brackets \
+         lifted through `from_certified` with no refusal of a `Trv` one, so they are \
+         not sound yet (`work/clear/clearance-lifts-trv-brackets-and-reads-their-ends`)",
+    ),
+    (
+        "crates/topo/src/injective.rs",
+        52,
+        1,
+        "pinned at main's count: the 1 that asks is `exactly`. Of the other 51, the \
+         seeds and selections (`mid`, `graph`'s `inside` and `lever`), the reads \
+         behind a funnel (`present_plane`'s, `Pieces::of`'s `wind`) and the reads \
+         of `from_bounds` parameters (`monotone_run`, `narrowed`, `Curved::psi`'s \
+         shift) are sound; the rest read brackets lifted with no refusal of a `Trv` \
+         one, or mint certified intervals from a refused one's ends \
+         (`work/clear/clearance-lifts-trv-brackets-and-reads-their-ends`)",
     ),
     (
         "crates/topo/src/props.rs",

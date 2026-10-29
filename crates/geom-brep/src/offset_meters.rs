@@ -830,6 +830,11 @@ fn cell_distance(
     cell: &PatchCell,
     p: geom_core::Point3<f64>,
 ) -> f64 {
+    // A partial that does not certify bounds nothing, so the cell is read
+    // as touching `p`.
+    if !cell.s_u.iter().chain(&cell.s_v).all(|c| c.is_certified()) {
+        return 0.0;
+    }
     let corner = net.ders(cell.u.0, cell.v.0).point;
     let (du, dv) = (cell.u.1 - cell.u.0, cell.v.1 - cell.v.0);
     let gap = |c: f64, q: f64, su: Interval, sv: Interval| {
@@ -1309,6 +1314,45 @@ mod tests {
             ),
             "{escalation:?}"
         );
+    }
+
+    /// **A cell whose partial does not certify counts as touching the
+    /// point.** The unit square in `z = 0`, read from `(0.5, 0.5, 10)`:
+    /// at `10` with certified partials, and at `0` once `S_u`'s `z`
+    /// component is a point bracket that does not certify. Red under a
+    /// read of its ordinary ends, which still say `10`.
+    #[test]
+    fn a_refused_partial_puts_its_cell_at_the_point() {
+        let kv = || geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let control = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
+            .map(|(x, y)| geom_core::Point3::new(x, y, 0.0))
+            .to_vec();
+        let net = geom::surfaces::NurbsSurface::new(kv(), kv(), control, vec![1.0; 4]).unwrap();
+        let p =
+            |x: f64, y: f64, z: f64| [Interval::point(x), Interval::point(y), Interval::point(z)];
+        let cell = PatchCell {
+            u: (0.0, 1.0),
+            v: (0.0, 1.0),
+            s_u: p(1.0, 0.0, 0.0),
+            s_v: p(0.0, 1.0, 0.0),
+            s_uu: p(0.0, 0.0, 0.0),
+            s_uv: p(0.0, 0.0, 0.0),
+            s_vv: p(0.0, 0.0, 0.0),
+            s_u_sup: 1.0,
+            s_v_sup: 1.0,
+            m_sup: 1.0,
+            m_inf: 1.0,
+        };
+        let at = geom_core::Point3::new(0.5, 0.5, 10.0);
+        assert_eq!(cell_distance(&net, &cell, at), 10.0, "the certified cell");
+        let mut refused = cell;
+        refused.s_u[2] = Interval::from_bounds(-1.0, 1.0).sqrt() * Interval::point(0.0);
+        assert!(
+            !refused.s_u[2].is_certified() && refused.s_u[2].lo() == 0.0,
+            "the plant is a refused point bracket: {:?}",
+            refused.s_u[2]
+        );
+        assert_eq!(cell_distance(&net, &refused, at), 0.0, "the refused cell");
     }
 
     /// **A refused cell refuses the patch's chart speed.** One cell
