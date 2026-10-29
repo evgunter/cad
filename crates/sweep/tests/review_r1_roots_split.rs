@@ -87,3 +87,101 @@ fn review_r1_near_square_bar_through_the_tube() {
         println!("eps={e} delta=1e{exp}: {}", kind(&u));
     }
 }
+
+fn cyl_spun(spin: f64, about_x: bool) -> topo::Body<f64> {
+    use geom_core::{Affine3, Point2};
+    use profile::{Profile, SketchPlane};
+    let tol = Tol::witness();
+    let lp = profile::circle(Point2::new(0.0, 0.0), 1.0, tol).unwrap();
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, -2.0));
+    let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
+    let body = sweep::extrude(
+        &profile,
+        sweep::Extrusion::Distance {
+            depth: 4.0,
+            side: sweep::ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body;
+    let rig = |body: &topo::Body<f64>, axis: Vec3<f64>, angle: f64| {
+        topo::transform_rigid(
+            body,
+            &geom_core::test_support::rigid(
+                &Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), axis, angle),
+                tol,
+            ),
+            tol,
+        )
+        .unwrap()
+    };
+    // Spun about its own axis first: the solid is unchanged, its seam moves.
+    let body = rig(&body, Vec3::new(0.0, 0.0, 1.0), spin);
+    if about_x {
+        rig(&body, Vec3::new(1.0, 0.0, 0.0), core::f64::consts::PI / 2.0)
+    } else {
+        body
+    }
+}
+
+/// The Steinmetz pair (`verbs_cylcyl_probe`), each cylinder spun about
+/// its own axis: one solid pair, its seams placed elsewhere. Prints the
+/// union's outcome per spin.
+#[test]
+#[ignore = "review probe"]
+fn review_r1_steinmetz_by_seam_placement() {
+    let tol = Tol::witness();
+    for (sa, sb) in [
+        (0.0, 0.0),
+        (0.7, 0.0),
+        (0.0, 0.7),
+        (0.7, 1.1),
+        (1.5707963267948966, 0.0),
+    ] {
+        let a = finished("A", cyl_spun(sa, false), tol);
+        let b = finished("B", cyl_spun(sb, true), tol);
+        let u = topo::union(&a, &b, tol);
+        println!("spin A {sa}, B {sb}: {}", kind(&u));
+    }
+}
+
+/// **A seam the kernel placed is not the user's lever.** The Steinmetz
+/// pair (two unit cylinders, axes `z` and `y`, length 4): with each
+/// cylinder spun about its own axis, the same two solids, and their
+/// seams away from the tangent rulings, the union builds at the closed
+/// form `8π − 16/3`. With the seams where the extrusion puts them, one
+/// seam ruling of each is exactly tangent to the partner wall. On PR
+/// 5993's merge base that refused `CurvedPierceUnsupported` (the
+/// kernel's frontier); on its head it escalates
+/// `WallRoots(Discriminant)`, "move the parts so the edge clearly
+/// crosses the wall or clearly misses it": a lever on an edge the user
+/// never drew, for a pair the kernel builds once the seam is elsewhere.
+#[test]
+fn review_r1_a_seam_touch_is_not_the_users_lever() {
+    let tol = Tol::witness();
+    let spun = topo::union(
+        &finished("A", cyl_spun(0.7, false), tol),
+        &finished("B", cyl_spun(1.1, true), tol),
+        tol,
+    )
+    .expect("the spun Steinmetz pair builds");
+    let v = topo::test_support::pinned_volume(
+        "the spun union",
+        &spun.body().expect("a body").body,
+        tol,
+    )
+    .volume;
+    let want = 8.0 * core::f64::consts::PI - 16.0 / 3.0;
+    assert!((v - want).abs() < 1e-6, "the spun union: {v} vs {want}");
+    let seamed = topo::union(
+        &finished("A", cyl_spun(0.0, false), tol),
+        &finished("B", cyl_spun(0.0, true), tol),
+        tol,
+    );
+    assert!(
+        !matches!(seamed, Err(BooleanError::Escalated { .. })),
+        "the seam's touch offers the user a lever: {}",
+        kind(&seamed)
+    );
+}
