@@ -1911,11 +1911,10 @@ fn oriented_arc<T: Real>(
     let tau = T::tau();
     // The span forward from `th1` to a distinct end, in `[0, τ)`: a
     // chord may span more than half the conic. Its window jumps at a
-    // span of zero, two distinct ends sharing a conic parameter, which
-    // is either a zero-length arc or a whole turn. Nothing here gates
-    // that: both lanes pair distinct sites at distinct points
-    // (`bool_join_chord` in the boolean), and a vertex with itself only
-    // as a self-loop, which says so (`ArcEnd::WholeTurn`).
+    // span of zero, two ends sharing a conic parameter, which is either
+    // a zero-length arc or a whole turn. A chord's two ends at one site
+    // say which ([`far_end`]: `ArcEnd::WholeTurn`); ends at distinct
+    // sites lie at distinct points.
     // Each span is read forward from its own start, never as a turn
     // less the other's, which would carry `ulp(τ)` in a short arc.
     if ccw {
@@ -1972,6 +1971,23 @@ fn chord_arc<T: Decide>(
     };
     let to = p2.map_or(ArcEnd::WholeTurn, |p2| ArcEnd::At(seamed.param(p2)));
     oriented_arc(&seamed, face, seamed.param(p1), to, ccw)
+}
+
+/// **Where a chord from `u1` to `u2` ends on its closed section**:
+/// `u2`'s point, or `None`, back at its start a whole turn on, where
+/// `u2` is `u1` or a copy of its site ([`null_site`]). A chord leaves
+/// its start, and the null edges already tie a site's copies, so a
+/// chord between two copies of one site runs round the whole section.
+fn far_end<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    (u1, u2): (VertexKey, VertexKey),
+) -> Result<Option<Point3<T>>, SplitJoinError> {
+    let tied = null_site(body, &[u1]).map_err(|StaleSite| SplitJoinError::SectionInvariant {
+        face,
+        what: StaleSite::WHAT,
+    })?;
+    Ok((!tied.contains(&u2)).then(|| vertex_point(body, u2)))
 }
 
 /// The direction the section leaves each of a join's two sites in,
@@ -2437,7 +2453,6 @@ fn chord_spec<T: Decide>(
         )?,
     };
     let p1 = vertex_point(body, u1);
-    let p2 = vertex_point(body, u2);
     let ccw = arc_leaving(face, band, &conic, &wall, p1, leave)?;
     // The aux plane surface (honest u_ref: a direction in the section
     // plane, ⊥ normal by construction), minted once per split.
@@ -2454,7 +2469,8 @@ fn chord_spec<T: Decide>(
         }
     };
     let ends = section_end_reading(&conic);
-    let (carrier, t_start, t_end) = chord_arc(conic, face, p1, (u1 != u2).then_some(p2), ccw)?;
+    let (carrier, t_start, t_end) =
+        chord_arc(conic, face, p1, far_end(body, face, (u1, u2))?, ccw)?;
     let witness = carrier.mid_point(t_start, t_end);
     Ok(Some(SectionChord {
         spec: EdgeCurveSpec {
@@ -2701,10 +2717,10 @@ fn bool_planar_chord_spec<T: Decide>(
         )?,
     };
     let p1 = vertex_point(body, u1);
-    let p2 = vertex_point(body, u2);
     let ccw = arc_leaving(face, band, &conic, wall, p1, leave)?;
     let ends = section_end_reading(&conic);
-    let (carrier, t_start, t_end) = chord_arc(conic, face, p1, (u1 != u2).then_some(p2), ccw)?;
+    let (carrier, t_start, t_end) =
+        chord_arc(conic, face, p1, far_end(body, face, (u1, u2))?, ccw)?;
     // The aux WALL surface in this body (honest full copy of the
     // mate's wall; minted once per germ wall face, caller-cached).
     let wall_aux = match *partner_key {
