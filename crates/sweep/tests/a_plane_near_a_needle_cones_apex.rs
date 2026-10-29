@@ -15,47 +15,20 @@
 //! the seam is `1000ε·sin α`, 17ε at 1° and 52ε at 3°, and a wall normal
 //! read there moves by `ε/ρ`, 3.3° and 1.1° — as much as the 3.1° and
 //! 1.1° the plane makes with the wall at `tilt = 1.5`. Every margin of
-//! the pose is a fixed multiple of ε, so the same refusals hold at every
-//! ε, each typed with its lever; none names a broken invariant. At
-//! `k = 10⁵` the same planes land their closed forms.
+//! the pose is a fixed multiple of ε: the refusals pinned here were
+//! measured the same at ε 1e-6, 1e-9 and 1e-12, each typed with its
+//! lever, none naming a broken invariant. At `k = 10⁵` the same planes
+//! land their closed forms.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::f64::consts::PI;
 
+use crate::revolve_common::needle;
 use geom_brep::{CertCheck, CertifyError};
-use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
-use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use geom_core::{Point3, Tol, Vec3};
 use topo::splitting::{SplitError, SplitJoinError, split};
-use topo::{
-    CensusUnsupportedCause, ConicCrossingsCase, ContactRecords, ContactRefusal, EulerOpError,
-    ValidationError,
-};
-
-fn needle(deg: f64, tol: Tol) -> topo::AtRestBody<f64> {
-    let r = deg.to_radians().tan();
-    let lp = bulge_loop(
-        [(0.0, 0.0), (r, 0.0), (0.0, 1.0)]
-            .iter()
-            .map(|&(x, y)| (Point2::new(x, y), 0.0))
-            .collect(),
-    );
-    let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(tol)
-        .unwrap();
-    let body = sweep::revolve(
-        &vp,
-        sweep::RevolveAxis {
-            origin: Point2::new(0.0, 0.0),
-            dir: Vec2::new(0.0, 1.0),
-        },
-        sweep::Revolution::Full,
-        tol,
-    )
-    .unwrap()
-    .body;
-    sweep::test_support::finished("needle", body, tol)
-}
+use topo::{CensusUnsupportedCause, ContactRecords, ContactRefusal, EulerOpError, ValidationError};
 
 /// The pose's plane, and the tip's volume above it (the apex's side).
 fn pose(deg: f64, k: f64, tilt: f64, spin: f64, tol: Tol) -> (topo::SplitPlane<f64>, f64) {
@@ -76,7 +49,7 @@ fn pose(deg: f64, k: f64, tilt: f64, spin: f64, tol: Tol) -> (topo::SplitPlane<f
 
 /// **In the band of the apex, each pose refuses typed, with its lever.**
 /// At `tilt = 1.5`, `spin = 0` the chord's start reads the plane within
-/// the zero band of tangent to the wall (the walk's graze); at
+/// the zero band of tangent to the wall, its datum along the section; at
 /// `tilt = 1.2`, `spin = 2` on the 1° cone the chord's certificate reads
 /// its crossing angle inside the band. Neither is a broken invariant.
 #[test]
@@ -86,22 +59,26 @@ fn a_needle_cone_cut_in_band_of_its_apex_refuses_with_its_lever() {
     for deg in [1.0, 3.0] {
         let what = format!("α = {deg}°, tilt 1.5, spin 0");
         let (plane, _) = pose(deg, 1e3, 1.5, 0.0, tol);
-        let err = split(&needle(deg, tol), &plane, tol).expect_err(&what);
+        let err = split(&needle(deg, None, tol), &plane, tol).expect_err(&what);
         assert!(
             matches!(
                 err,
-                SplitError::Join(SplitJoinError::SectionCrossings {
-                    case: ConicCrossingsCase::Grazing,
-                    ..
-                })
+                SplitError::Join(SplitJoinError::SectionDepartureGrazes { .. })
             ),
             "{what}: {err:?}"
         );
-        assert!(err.to_string().contains("Recourse"), "{what}: {err}");
+        let text = err.to_string();
+        for (part, words) in [
+            ("the decision that ran", "'chord_arc_leave_section'"),
+            ("the lever", "farther from its apex"),
+        ] {
+            assert!(text.contains(words), "{what}: names {part}: {text}");
+        }
+        assert!(!text.contains("paired"), "{what}: pairs nothing: {text}");
     }
     let what = "α = 1°, tilt 1.2, spin 2";
     let (plane, _) = pose(1.0, 1e3, 1.2, 2.0, tol);
-    let err = split(&needle(1.0, tol), &plane, tol).expect_err(what);
+    let err = split(&needle(1.0, None, tol), &plane, tol).expect_err(what);
     let SplitError::Join(SplitJoinError::Euler(EulerOpError::Certification {
         error:
             CertifyError::Escalated {
@@ -138,7 +115,7 @@ fn a_needle_cone_cut_in_band_of_its_apex_refuses_with_its_lever() {
 fn a_needle_cone_cut_off_its_apex_lands_its_closed_forms() {
     let tol = Tol::witness();
     for deg in [1.0f64, 3.0] {
-        let body = needle(deg, tol);
+        let body = needle(deg, None, tol);
         let whole = PI * deg.to_radians().tan().powi(2) / 3.0;
         for (tilt, spin) in [(1.2, 0.0), (1.2, 2.0), (1.5, 0.0), (1.5, 2.0)] {
             let what = format!("α = {deg}°, tilt {tilt}, spin {spin}");
@@ -159,8 +136,8 @@ fn a_needle_cone_cut_off_its_apex_lands_its_closed_forms() {
                 if spin == 0.0 && tilt == 1.5 {
                     // The ellipse's vertices on the seams: the census
                     // cannot settle a ruling against the half ending on
-                    // it (work/splitdoor/tier-3-prime-cannot-settle-a-
-                    // ruling-against-an-ellipse-it-ends-at-on-a-needle-cone.md).
+                    // it, filed as
+                    // work/splitdoor/tier-3-prime-cannot-settle-a-ruling-against-an-ellipse-it-ends-at-on-a-needle-cone.md
                     let errs = t3p.expect_err(&what);
                     assert!(
                         errs.iter().all(|e| matches!(
