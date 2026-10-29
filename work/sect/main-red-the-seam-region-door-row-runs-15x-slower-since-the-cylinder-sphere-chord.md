@@ -53,3 +53,14 @@ Banded P3: the answers are right. The harm is a guard (the nightly's
 Reproduce: `cargo nextest run -p sweep --ignore-default-filter -E
 'test(=the_door_reads_seam_regions_as_tier_3_does::the_door_names_the_flipped_face_tier_3_names)'`
 (time it), at both merges.
+
+## Disabled (2026-10-29, GREEN)
+
+The row is `#[ignore = "disabled red: …"]`, naming this file, so the
+nightly full suite's 1e-12 row finishes again. It is slow, not hung:
+it passes at default ε and 1e-6, and was cancelled past 960 s at 1e-12
+(the table above). Because it is ignored at every ε, its default-ε and
+1e-6 coverage is gone too until this row closes. Closing this row
+removes the `#[ignore]`.
+
+Run it by hand: append `--run-ignored only` to the reproduce line above.
