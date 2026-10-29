@@ -130,6 +130,8 @@ mod plane;
 mod refine;
 pub mod section;
 pub mod system;
+#[doc(hidden)]
+pub mod w5_probe;
 
 use std::rc::Rc;
 
