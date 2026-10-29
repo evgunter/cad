@@ -1,5 +1,6 @@
 //! **`NurbsSurface::rect_enclosure` contains the patch over its
-//! rectangle** — a counterexample search, and the door's edge rows.
+//! rectangle, and `rect_jet` its partials** — counterexample searches,
+//! and the door's edge rows.
 //!
 //! The search draws patches of degree 1–5 in each direction, interior
 //! knots of multiplicity up to the degree, and half of them rational
@@ -131,6 +132,69 @@ fn rect_enclosure_contains_every_sampled_point_of_its_rectangle() {
         }
     }
     println!("[rect_enclosure] {boxes} boxes checked, {poisoned} poison");
+}
+
+/// **`NurbsSurface::rect_jet` encloses the partials over its
+/// rectangle**: on the same draws, every sampled `S_u`, `S_v` and
+/// `S_uv`, evaluated at `Interval` at a point parameter, meets the
+/// enclosure. A rectangle the door declines answers `None`, never a
+/// smaller box.
+#[test]
+fn rect_jet_contains_every_sampled_partial_of_its_rectangle() {
+    let mut rng = fuzz::start("rect_jet_contains");
+    let (mut jets, mut declined) = (0usize, 0usize);
+    for _ in 0..fuzz::scaled(15) {
+        let (net, iu, iv) = patch(&mut rng);
+        for _ in 0..8 {
+            let (u, v) = (side(&mut rng, &iu), side(&mut rng, &iv));
+            let Some((eu, ev, euv)) = net.rect_jet(u, v) else {
+                declined += 1;
+                continue;
+            };
+            jets += 1;
+            // A claimed enclosure is finite: the whole line contains every
+            // sample and would pass containment, so it is refused here.
+            for e in [eu, ev, euv] {
+                assert!(
+                    [e.x, e.y, e.z]
+                        .iter()
+                        .all(|c| c.lo().is_finite() && c.hi().is_finite()),
+                    "rect_jet over {u:?} × {v:?} claims an unbounded partial {e:?}; {}",
+                    fuzz::replay()
+                );
+            }
+            let at = |(lo, hi): (f64, f64), s: f64| lo + s * (hi - lo);
+            let stations = [0.0, 0.5, 1.0];
+            let samples = stations
+                .iter()
+                .flat_map(|&a| stations.iter().map(move |&b| (a, b)))
+                .chain((0..4).map(|_| (rng.unit(), rng.unit())))
+                .collect::<Vec<_>>();
+            for (a, b) in samples {
+                let (su, sv) = (at(u, a).min(u.1), at(v, b).min(v.1));
+                let j = net.ders(Interval::from_f64(su), Interval::from_f64(sv));
+                for (what, got, enc) in [("S_u", j.du, eu), ("S_v", j.dv, ev), ("S_uv", j.duv, euv)]
+                {
+                    assert!(
+                        meets(got.x, enc.x) && meets(got.y, enc.y) && meets(got.z, enc.z),
+                        "{what} at ({su}, {sv}) = {got:?} misses the enclosure {enc:?} of \
+                         {u:?} × {v:?}; {}",
+                        fuzz::replay()
+                    );
+                }
+            }
+        }
+    }
+    println!("[rect_jet] {jets} jets checked, {declined} declined");
+    // The door reads every rectangle inside the domain with extent on
+    // both axes, which is every draw here: a decline is a door that
+    // stopped reading, and a run of them would pass the row vacuously.
+    assert_eq!(
+        declined,
+        0,
+        "rect_jet declined {declined} of {} rectangles",
+        jets + declined
+    );
 }
 
 /// The unit bilinear patch `(u, v) ↦ (u, v, u·v)` at `Interval`.

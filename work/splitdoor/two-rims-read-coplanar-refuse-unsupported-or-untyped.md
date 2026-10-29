@@ -2,10 +2,11 @@
 id: two-rims-read-coplanar-refuse-unsupported-or-untyped
 kind: issue
 title: Two ellipse rims read coplanar refuse at frontiers — CurvedPierceUnsupported when definitely apart, FallbackExtentUnsupported when one curve within the band
-status: open
+status: dispatched
 opened: 2026-10-14
 priority: P1
 cost: M
+branch: splitdoor/two-rims-coplanar
 ---
 
 Found by the body pin added on `cleave/carrier-cross-one-curve`

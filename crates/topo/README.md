@@ -663,10 +663,19 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    boundary embedded (`shell`'s cavity clone) can run the same engine
    at a certifying scalar and refuse typed at the door.
 
-   A **finished body** (`AtRestBody`) passes tier 3′ against its own
-   contact records: none, for a body that touches nothing, where the
-   census must find no coincidence at all. Every door that returns or
-   consumes one pays that gate once, at the door that built it.
+   A **finished body** (`AtRestBody`) is a body together with its own
+   contact records, and passes tier 3′ against them: none, for a body
+   that touches nothing, where the census must find no coincidence at
+   all. Its records travel inside it, never beside it. Every door that
+   consumes a finished body has its operand's records by construction,
+   carries them through its own lineage, adds the records of the
+   coincidences it decided itself, and pays the gate on each finished
+   body it returns, once, at the door that built it. Two edges an op
+   decides lie on one locus (a slit's two copies, a ring's) are two
+   cells, each with its own face pair's description ([edges]), so the
+   op records them, straight or curved alike, citing its decision; the
+   census confirms the record, by reconstruction from its bounds for a
+   straight pair, and infers no record from shared bounds.
    The Boolean door's result meets tier 3 without the census: its
    contact records, each citing the coincidence that backs it, ride
    beside it (`BooleanBody::contacts`), and the
