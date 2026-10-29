@@ -2,11 +2,12 @@
 id: clearance-reports-a-no-bodies-payload-as-a-bad-body-index
 kind: issue
 title: clearance.rs discards two typed causes - InterrogateError::NoBodies reported as a bad body index, and a BandError dropped into the unit variant ToleranceHasNoBand
-status: open
+status: dispatched
 opened: 2026-09-11
 refs: [2378]
 priority: P1
 cost: E
+branch: clear/cleartext
 ---
 
 

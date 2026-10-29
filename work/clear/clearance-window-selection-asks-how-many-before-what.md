@@ -2,11 +2,12 @@
 id: clearance-window-selection-asks-how-many-before-what
 kind: issue
 title: clearance::windows_of refuses Unresolved for a tied face name before it can answer NotAFace
-status: open
+status: dispatched
 opened: 2026-09-15
 refs: [named-face-scope-refuses-not-a-face-without-naming-what-it-found]
 priority: P1
 cost: M
+branch: clear/cleartext
 ---
 
 

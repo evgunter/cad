@@ -2,10 +2,11 @@
 id: clearance-refusal-names-one-face-twice-across-bodies
 kind: issue
 title: ClearanceRefusal prints one FaceKey twice for a cross-body pair, at two renderings over three raise sites, and has no Display at all
-status: open
+status: dispatched
 opened: 2026-09-04
 priority: P1
 cost: E
+branch: clear/cleartext
 ---
 
 

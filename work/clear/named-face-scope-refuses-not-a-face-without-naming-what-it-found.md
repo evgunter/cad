@@ -2,10 +2,11 @@
 id: named-face-scope-refuses-not-a-face-without-naming-what-it-found
 kind: issue
 title: clearance.rs's named face scope refuses NotAFace without the kind, and conflates a wrong kind with a wrong body
-status: open
+status: dispatched
 opened: 2026-09-13
 priority: P1
 cost: E
+branch: clear/cleartext
 ---
 
 
