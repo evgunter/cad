@@ -316,3 +316,45 @@ fn kev_describing_runs_the_class_through_the_scalars_door() {
     let dual = kev_describing_the_class::<Dual64>();
     assert_eq!(dual, Ok(()), "the dual's door mints the moved member");
 }
+
+/// Review probe (PR 6007): **the join door refuses whole**, the property
+/// `step-import`'s deleted `a_join_refused_in_the_band_leaves_the_body_as_found`
+/// witnessed. An ordinary line edge split at its midpoint (joinable,
+/// first in arena order), then an M7-8 edge split (its join reading
+/// undecided at every ε): `join_edges` refuses before any kill and
+/// leaves the body exactly as found.
+#[test]
+fn a_join_refused_undecided_leaves_the_body_as_found() {
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).unwrap();
+    let mut body = m7_8_cube::<f64>();
+    let (line, (t0, t1)) = body
+        .edges()
+        .find_map(|(k, e)| match body.get_curve_geom(e.curve) {
+            Some(topo::CurveGeom::Certified(c))
+                if matches!(c.carrier(), geom::Curve3::Line { .. }) =>
+            {
+                Some((k, c.params()))
+            }
+            _ => None,
+        })
+        .expect("a line edge");
+    let ordinary = body.split_edge(line, 0.5 * (t0 + t1), tol).unwrap().vertex;
+    let (edge, _) = wall_edges(&body)[0].clone();
+    body.split_edge(edge, 0.5, tol).unwrap();
+    topo::mint_pcurves(&mut body, tol).expect("pcurves mint");
+    // The ordinary vertex alone joins: the same split on a fresh cube.
+    let mut alone = m7_8_cube::<f64>();
+    let lone = alone.split_edge(line, 0.5 * (t0 + t1), tol).unwrap().vertex;
+    assert_eq!(lone, ordinary, "the same arena slot");
+    alone
+        .join_edges(band, tol)
+        .expect("an ordinary split vertex joins");
+    let before = format!("{body:?}");
+    let got = body.join_edges(band, tol);
+    assert!(
+        matches!(got, Err(topo::BooleanError::JoinUndecided(_))),
+        "{got:?}"
+    );
+    assert_eq!(format!("{body:?}"), before, "refused, so untouched");
+}

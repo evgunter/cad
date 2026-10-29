@@ -1338,3 +1338,53 @@ fn cut(
     solid.faces.splice(fi..=fi, faces);
     Ok(count)
 }
+
+#[cfg(test)]
+mod review_on_boundary {
+    use super::{Read, on_boundary};
+
+    /// The three-step decision, swept over d at the eps rows with ε_in
+    /// above and below ε: "on" only within the coarser zero, "off" only
+    /// past both escalations, and a refusal only inside a band.
+    #[test]
+    fn on_boundary_decides_only_where_a_band_reads() {
+        let k = 10.0;
+        for eps in [1e-6, 1e-9, 1e-12] {
+            for eps_in in [eps * 1e-3, eps * 0.3, eps, eps * 3.0, eps * 1e3, 0.0] {
+                let run = geom_core::Band::new(eps, k * eps).ok();
+                let file = if eps_in == 0.0 {
+                    Some(geom_core::Band::least())
+                } else {
+                    geom_core::Band::new(eps_in, k * eps_in).ok()
+                };
+                let zero = |b: Option<geom_core::Band>| b.map_or(0.0, geom_core::Band::zero);
+                let esc = |b: Option<geom_core::Band>| b.map_or(0.0, geom_core::Band::escalate);
+                let read = Read {
+                    eps: eps_in.max(zero(file)).max(zero(run)),
+                    escalate: eps_in.max(esc(file)).max(esc(run)),
+                    band: file,
+                    run,
+                    file: geom_core::FileCoincidence::new(eps_in),
+                };
+                let top = 100.0 * eps.max(eps_in);
+                for i in 0..=4000 {
+                    let d = top * f64::from(i) / 4000.0;
+                    match on_boundary(d, &read, 1) {
+                        Ok(true) => assert!(
+                            d <= zero(run).max(zero(file)),
+                            "eps {eps} eps_in {eps_in}: on at d = {d}"
+                        ),
+                        Ok(false) => assert!(
+                            d >= esc(run).max(esc(file)) || d >= esc(run) && d >= esc(file),
+                            "eps {eps} eps_in {eps_in}: off at d = {d}"
+                        ),
+                        Err(e) => assert!(
+                            (d > zero(run) && d < esc(run)) || (d > zero(file) && d < esc(file)),
+                            "eps {eps} eps_in {eps_in}: refused at d = {d}: {e}"
+                        ),
+                    }
+                }
+            }
+        }
+    }
+}
