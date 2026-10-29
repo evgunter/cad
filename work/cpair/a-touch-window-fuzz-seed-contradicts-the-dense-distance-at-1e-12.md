@@ -62,3 +62,12 @@ The search is a counterexample fuzz, so no output can be pinned. The
 `SKIPPED` line naming this row); the default band still searches.
 Closing this row puts the 1e-12 band back, with the four seeds as
 deterministic rows beside the fix.
+
+## 2026-10-28 — another seed (SPLICE structural-rim lane)
+
+A local default-ε run of the whole `geom-brep` suite on
+`splice/structural-rim` (PR 5959, which does not touch `curve_pair`)
+red this row on `CAD_FUZZ_SEED=0xc8d7ad5a8a57245d CAD_FUZZ_EFFORT=1`,
+at the oracle's ε 1e-12 reading: draw 19 reads `Recedes` on
+`(1.05e-6, 1.20e-6)` for a circle of radius 727 m centred about 675 m
+from the origin. The seed replays deterministically.

@@ -4233,7 +4233,6 @@ where
             };
             let [(_, value_dim), (_, bound_dim)] = reads;
             wire::OpInput::Assertion {
-                value: *value,
                 relation: *relation,
                 dims: (value_dim, bound_dim),
                 payload: Payload {

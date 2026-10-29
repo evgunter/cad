@@ -6753,7 +6753,7 @@ mod lying_on_rows {
         let spec = geom_brep::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
                 pair: geom_brep::SurfacePair::new(s1, s2),
-                witness: p0.lerp(p1, 0.5),
+                selector: geom_brep::CurveSelector::Witness(p0.lerp(p1, 0.5)),
             },
             carrier,
             param_start: 0.0,

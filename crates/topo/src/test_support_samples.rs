@@ -500,6 +500,31 @@ fn certify_errors() -> Vec<CertifyError> {
             },
         )),
         CertifyError::IntersectionSameSurface { key },
+        CertifyError::Row {
+            surface: key,
+            refusal: geom_brep::RowRefusal::Image(Some(geom_brep::PcurveCheck::MapResidual)),
+        },
+        CertifyError::Row {
+            surface: key,
+            refusal: geom_brep::RowRefusal::Image(None),
+        },
+        CertifyError::Row {
+            surface: key,
+            refusal: geom_brep::RowRefusal::ImageEscalated {
+                check: geom_brep::PcurveCheck::ParamSpan,
+                cause: diag(),
+            },
+        },
+        CertifyError::Row {
+            surface: key,
+            refusal: geom_brep::RowRefusal::ChartSpeed(geom_brep::ChartSpeedRefusal::Zero {
+                axis: geom_brep::ChartAxis::U,
+            }),
+        },
+        CertifyError::Row {
+            surface: key,
+            refusal: geom_brep::RowRefusal::OffSide,
+        },
         CertifyError::WrapOnNonPeriodic,
         // Both zero-span stories: a length a smaller tolerance decides,
         // and a span of no length, which none does.

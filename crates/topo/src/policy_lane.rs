@@ -291,7 +291,7 @@ mod tests {
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(s1, s2),
-                witness: carrier.eval(T::from_f64(0.5)),
+                selector: geom_brep::CurveSelector::Witness(carrier.eval(T::from_f64(0.5))),
             },
             carrier: Curve3::Nurbs(Arc::new(carrier)),
             param_start: T::zero(),

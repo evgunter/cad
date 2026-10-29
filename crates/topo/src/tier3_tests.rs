@@ -1821,7 +1821,7 @@ fn a_drafted_chord_refused_its_span_is_typed() {
     let chord = EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Intersection {
             pair: geom_brep::SurfacePair::new(own, theirs),
-            witness: Point3::new(0.5, 0.0, 0.0),
+            selector: geom_brep::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
         },
         carrier: geom::Curve3::Line {
             origin: Point3::origin(),
@@ -1914,7 +1914,7 @@ fn dangling_description_is_a_tier1_error() {
         EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
     spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
         pair: geom_brep::SurfacePair::new(s_seed, s_plus),
-        witness: Point3::new(0.5, 0.0, 0.0),
+        selector: geom_brep::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
     };
     // NB: coincident planes would fail transversality — so tilt the
     // split face definitively first (a legal corner), then upgrade.
@@ -1955,7 +1955,7 @@ fn description_references_keep_a_surface_alive() {
         EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
     spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
         pair: geom_brep::SurfacePair::new(s_seed, s_plus),
-        witness: Point3::new(0.5, 0.0, 0.0),
+        selector: geom_brep::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
     };
     body.set_edge_curve(split.edge, spec, tol).unwrap();
     // Repoint the split face to a NEW surface: the old one is now
@@ -2155,7 +2155,7 @@ fn edge_spec(body: &Body<f64>, edge: crate::entity::EdgeKey, kind: Carrier) -> E
     } else {
         geom_brep::EdgeDescriptionSpec::Intersection {
             pair: geom_brep::SurfacePair::new(s1, s2),
-            witness,
+            selector: geom_brep::CurveSelector::Witness(witness),
         }
     };
     EdgeCurveSpec {
@@ -3841,7 +3841,7 @@ fn half_disc(r: f64, h: f64, (cx, cy, z0): (f64, f64, f64), far: bool, tol: Tol)
         let spec = EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
                 pair: geom_brep::SurfacePair::new(s1, s2),
-                witness,
+                selector: geom_brep::CurveSelector::Witness(witness),
             },
             carrier,
             param_start: 0.0,

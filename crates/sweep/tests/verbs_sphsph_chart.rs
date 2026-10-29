@@ -599,7 +599,7 @@ fn a_meridian_edge_through_a_pole_is_read_at_the_face_door() {
             geom_brep::EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::Intersection {
                     pair: geom_brep::SurfacePair::new(base.get_face(f).unwrap().surface, plane_key),
-                    witness: long.eval(width * 0.5),
+                    selector: geom_brep::CurveSelector::Witness(long.eval(width * 0.5)),
                 },
                 carrier: long,
                 param_start: 0.0,
@@ -710,7 +710,7 @@ fn a_boundary_circle_tilted_against_the_chart_is_read_at_the_face_door() {
                 geom_brep::EdgeCurveSpec {
                     description: geom_brep::EdgeDescriptionSpec::Intersection {
                         pair: geom_brep::SurfacePair::new(sph_key, plane_key),
-                        witness: tilted.eval(t1 * 0.5),
+                        selector: geom_brep::CurveSelector::Witness(tilted.eval(t1 * 0.5)),
                     },
                     carrier: tilted,
                     param_start: 0.0,

@@ -243,7 +243,7 @@ where
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(cyl_key, sph_key),
-                witness: carrier.eval(mid),
+                selector: geom_brep::CurveSelector::Witness(carrier.eval(mid)),
             },
             carrier: Curve3::Nurbs(Arc::clone(&carrier)),
             param_start: t0,

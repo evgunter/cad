@@ -66,7 +66,10 @@ fn a_join_refused_after_an_earlier_kill_leaves_the_body_as_found() {
     body.set_edge_curve(
         spline,
         topo::EdgeCurveSpec {
-            description: geom_brep::EdgeDescriptionSpec::Intersection { pair, witness: mid },
+            description: geom_brep::EdgeDescriptionSpec::Intersection {
+                pair,
+                selector: geom_brep::CurveSelector::Witness(mid),
+            },
             carrier: geom::Curve3::Nurbs(Arc::new(
                 geom::NurbsCurve3::new(
                     kv,
