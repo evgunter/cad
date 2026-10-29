@@ -760,7 +760,15 @@ parallelism at derived angular thresholds, centre/axis distances against
 radii): definitely generic goes to the arm's rung, exactly degenerate to
 the closed form, in-band to `SectionError::Escalated`. Equal cylinder
 radii, and a sphere's centre on a cylinder's axis, are decided by their
-margins like every other coincidence (D10). Tangential outcomes (`TangentLine`, `TangentPoint`) are
+margins like every other coincidence (D10). A pair of analytic surfaces
+decides its tangency and coincidence once, on its pose, before any rung,
+and every reader (the pair's SSI door, the section value, the section
+certificate) reads that one decision: a closed-form margin where the
+pose has one, and otherwise the pair's **critical gap**, a certified
+sweep of a one-parameter distance between the two surfaces' spines,
+never a root formula; in band, it escalates. A pair with a NURBS or
+`Approx` side has no such pose and is outside this rule: its tangency
+is its certificate's (C2). Tangential outcomes (`TangentLine`, `TangentPoint`) are
 classification data, refused as carriers. `SurfaceKind::Approx` is its
 own kind, and as an intersection operand it is its fit: `(Plane,
 Approx)` and `(Approx, Plane)` route to the plane×NURBS arm over

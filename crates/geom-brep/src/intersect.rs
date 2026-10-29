@@ -2066,6 +2066,77 @@ pub enum PlaneConeSection<T: Real> {
     OpenConic(OpenConicSection<T>),
 }
 
+/// A cone's rulings out of its apex, by azimuth about its squared axis
+/// from its seam: the apex lane's one frame ([`plane_cone_section`],
+/// [`plane_cone_apex_extrema`]).
+struct ApexFan<T: Real> {
+    a: Vec3<T>,
+    u: Vec3<T>,
+    v: Vec3<T>,
+    sin_a: T,
+    cos_a: T,
+}
+
+impl<T: Real> ApexFan<T> {
+    /// The fan of `cone`'s rulings on the nappe of its axis.
+    fn of(axis: Vec3<T>, u_ref: Vec3<T>, half_angle: T) -> Self {
+        let SquareFrame {
+            axis: a, u_ref: u, ..
+        } = square_frame(axis, u_ref);
+        let (sin_a, cos_a) = half_angle.sin_cos();
+        Self {
+            a,
+            u,
+            v: a.cross(u),
+            sin_a,
+            cos_a,
+        }
+    }
+
+    /// The azimuth of `n`'s part square to the axis: the ruling there
+    /// reads `g·n` greatest round the fan.
+    fn azimuth(&self, n: Vec3<T>) -> T {
+        self.v.dot(n).atan2(self.u.dot(n))
+    }
+
+    /// The ruling at azimuth `phi`.
+    fn ruling(&self, phi: T) -> Vec3<T> {
+        let (s, c) = phi.sin_cos();
+        self.a * self.cos_a + (self.u * c + self.v * s) * self.sin_a
+    }
+}
+
+/// **The rulings a plane through a cone's apex reads its extremes
+/// along**: `[g(φ), g(φ + π)]`, the rulings (on the nappe of the cone's
+/// axis) at the azimuth `φ` of `normal`'s part square to the axis and
+/// opposite it, where `g·normal` is greatest and least round the fan.
+/// [`plane_cone_section`]'s apex lane builds its section from the same
+/// `φ`: a tangent generator is one of these two, and a line pair stands
+/// at `φ ± δ`, symmetric about the first. So a reader that subdivides
+/// the cone's apex at these rulings and reads the lane's section between
+/// them reads one trace. A normal along the axis has no `φ`: every
+/// ruling reads it alike, and the caller decides that before asking.
+///
+/// `None` for a surface that is not a cone.
+#[must_use]
+pub fn plane_cone_apex_extrema<T: Real>(
+    cone: &Surface<T>,
+    normal: Vec3<T>,
+) -> Option<[Vec3<T>; 2]> {
+    let &Surface::Cone {
+        axis,
+        half_angle,
+        u_ref,
+        ..
+    } = cone
+    else {
+        return None;
+    };
+    let fan = ApexFan::of(axis, u_ref, half_angle);
+    let phi = fan.azimuth(normal);
+    Some([fan.ruling(phi), fan.ruling(phi + T::pi())])
+}
+
 /// Classifies and constructs the plane×cone section (spec §3.3): the
 /// apex-through degenerates, the axis-normal circle, the tilted ellipse,
 /// and the parabola or hyperbola in closed form.
@@ -2280,14 +2351,18 @@ pub fn plane_cone_section<T: Decide>(
             if verdict == Sign::Negative {
                 return Ok(PlaneConeSection::ApexPoint(apex));
             }
-            let v_ref = a.cross(cone_u);
-            let (nu, nv) = (cone_u.dot(n), v_ref.dot(n));
-            let phi = nv.atan2(nu);
+            let fan = ApexFan {
+                a,
+                u: cone_u,
+                v: a.cross(cone_u),
+                sin_a,
+                cos_a,
+            };
+            let phi = fan.azimuth(n);
             let gen_at = |u: T| -> Curve3<T> {
-                let (su, cu) = u.sin_cos();
                 Curve3::Line {
                     origin: apex,
-                    dir: a * cos_a + (cone_u * cu + v_ref * su) * sin_a,
+                    dir: fan.ruling(u),
                 }
             };
             return Ok(if verdict == Sign::Zero {

@@ -17,7 +17,7 @@
 //!
 //! Which faces a section enters from the vertex is the neighbourhood
 //! walk's reading of the vertex's edges and sectors
-//! ([`crate::splitting::entry_side`], [`crate::splitting::wide_entry`]):
+//! ([`crate::splitting::entry_side`], [`crate::splitting::wide_entries`]):
 //! a face's sector holds the plane's trace where its two bounds leave on
 //! opposite sides of the plane, or where it is wide and its subdivision
 //! direction leaves on the side its bounds do not. A sector with a bound
@@ -44,7 +44,7 @@ use crate::body::Body;
 use crate::chord_join::{SectionCase, WallSection, wall_section};
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::splitting::{
-    EntryFault, PlaneSide, SectorReading, SplitReduceError, entry_side, wide_entry,
+    EntryFault, PlaneSide, SectorReading, SplitReduceError, entry_side, wide_entries,
 };
 use crate::validate::decide_reported;
 
@@ -159,7 +159,7 @@ pub(crate) fn read_sections<T: Decide>(
         .iter()
         .map(|&he| crate::sector_face::face_of(body, vertex, he))
         .collect();
-    if !faces.iter().any(|&face| read_kind(body, face, at)) {
+    if !faces.iter().any(|&face| read_kind(body, face, at, band)) {
         return Ok(on_plane);
     }
     let plane = plane()?;
@@ -204,27 +204,29 @@ fn skew<T: Decide>(normal: Vec3<T>, plane: SectionPlane<T>, at: Point3<T>) -> T 
 /// and a tangent plane there. A planar face's section is a line through
 /// its ends; a fitted face has no implicit normal to read `ψ` from, and
 /// the section the join fits in it is certified at the fit's own
-/// resolution; at a cone's apex the wall has no normal, and a plane
-/// through it cuts the cone along rulings or at the apex alone, which
-/// the apex's own refusals answer.
+/// resolution. At a cone's apex (decided as the sector walk decides it,
+/// [`crate::face_normal::cone_point`]) the wall has no tangent plane,
+/// and a plane through the apex cuts the cone along rulings, which are
+/// minted straight, or meets it at the apex alone. A vertex near the
+/// axis but not at the apex is read; one whose apex reading escalates
+/// is read, and its sector's resolution refuses it.
 ///
 /// The split's walk refuses a sphere's or a torus's sector
 /// (`neighborhood::sector_face`) because the split's gate refuses those
 /// kinds wherever the plane may meet them; the Boolean serves them, so
 /// this reading resolves sectors through [`crate::sector_face::resolve`],
 /// which has an arm for every kind read here.
-fn read_kind<T: Decide>(body: &Body<T>, face: FaceKey, at: Point3<T>) -> bool {
+fn read_kind<T: Decide>(body: &Body<T>, face: FaceKey, at: Point3<T>, band: Band) -> bool {
     let f = crate::live::proven(&body.faces, face, EntityId::Face);
-    let wall = body.face_surface_linked(face, f);
-    matches!(
-        wall,
+    match *body.face_surface_linked(face, f) {
+        geom::Surface::Cone { apex, axis, .. } => !matches!(
+            crate::face_normal::cone_point(apex, axis, at, band),
+            Ok(crate::face_normal::ConePoint::Apex)
+        ),
         geom::Surface::Cylinder { .. }
-            | geom::Surface::Cone { .. }
-            | geom::Surface::Sphere { .. }
-            | geom::Surface::Torus { .. }
-    ) && {
-        let g = geom_brep::implicit_gradient(wall, at);
-        !(g.x.is_poison() || g.y.is_poison() || g.z.is_poison())
+        | geom::Surface::Sphere { .. }
+        | geom::Surface::Torus { .. } => true,
+        geom::Surface::Plane { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => false,
     }
 }
 
@@ -261,7 +263,7 @@ fn entered_faces<T: Decide>(
         .collect::<Result<Vec<_>, _>>()?;
     let mut entered = Vec::new();
     for (i, (&he, &face)) in orbit.iter().zip(faces).enumerate() {
-        if !read_kind(body, face, at) || entered.contains(&face) {
+        if !read_kind(body, face, at, band) || entered.contains(&face) {
             continue;
         }
         let next = (i + 1) % orbit.len();
@@ -269,20 +271,26 @@ fn entered_faces<T: Decide>(
         let holds = match (a, b) {
             (PlaneSide::Above, PlaneSide::Below) | (PlaneSide::Below, PlaneSide::Above) => true,
             (PlaneSide::Above, PlaneSide::Above) | (PlaneSide::Below, PlaneSide::Below) => {
-                let resolved =
-                    crate::sector_face::resolve(body, vertex, he, band).unwrap_or_else(|e| {
+                let resolved = match crate::sector_face::resolve(body, vertex, he, band) {
+                    Ok(resolved) => resolved,
+                    Err(crate::sector_face::SectorFaceError::ApexUndecided { diag, .. }) => {
+                        return Err(VertexRefusal::Undecided(diag));
+                    }
+                    Err(e) => {
                         unreachable!("{face:?}: a read face's kind has a sector arm, yet {e:?}")
-                    });
-                wide_entry(
+                    }
+                };
+                wide_entries(
                     (vertex, face),
                     (dir_a, dir_b),
-                    resolved.normal,
+                    resolved.at_vertex,
                     he == orbit[next],
                     n,
                     band,
                 )
                 .map_err(VertexRefusal::Walk)?
-                .is_some_and(|(_, _, side)| opposes(side, a))
+                .iter()
+                .any(|&(_, _, side)| opposes(side, a))
             }
             _ => false,
         };

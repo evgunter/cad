@@ -2,12 +2,13 @@
 id: a-convex-graze-of-a-cone-refuses-at-some-azimuths
 kind: issue
 title: a plane holding a cone's apex refuses at the apex vertex, grazing or cutting
-status: review
+status: closed
 opened: 2026-10-02
 priority: P0
 cost: H
 branch: splitdoor/cone-apex
 pr: 5956
+closed: 2026-10-29
 ---
 
 
@@ -172,3 +173,15 @@ did not disagree on anything Ev's preference would settle.
   (`docs/DUAL-REVIEW-PROTOCOL.md`), a shared type both verbs read, hard to change later.
 - Measure first at half-angles 30° and 60° on main: on one side of 45° the straight rung decides
   with a NaN bisector, which could ship a wrong side rather than refuse.
+
+## Closed (2026-10-29, PR 5956)
+
+A plane through a cone's apex now splits it. `sector_face::resolve` answers `VertexFace::{Tangent, NearAxis, Apex}`, and the split's readers take the apex's rulings from one trace (`geom_brep::plane_cone_apex_extrema`, which shares the apex lane's φ and `ApexFan`).
+
+Results across the pins and review probes, at three ε:
+- Full cones land 268–272 of 272 poses.
+- `Partial` windows land 60–63 of 63, including windows over π.
+- There are no panics and no wrong volumes.
+- The near-tangent family refuses typed, per ε. Each case is filed on its own row.
+
+The tier-3′ sides the split ships are evidence on HELDRECORDS' gate row. DUAL review: both reviewers found the same MAJOR (a panic on windows over π) and it was fixed. A delta review after the fix pass approved with fixes, and those were fixed too.
