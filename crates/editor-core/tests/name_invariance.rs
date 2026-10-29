@@ -1127,6 +1127,12 @@ const SPLITS: &[SplitCase] = &[
         [1.5, 0.0, 0.0],
         X,
     ),
+    (
+        "prism and cube through the pinch",
+        Target::Union(decide_alike::prism_and_cube),
+        [1.0, 0.0, 0.0],
+        X,
+    ),
 ];
 
 /// A split's tool, in the world's coordinates.

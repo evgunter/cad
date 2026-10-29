@@ -215,48 +215,94 @@ fn halves_volumes() -> [f64; 2] {
     })
 }
 
-/// The union split by x = 1 either way up: each side at its closed
-/// form, one vertex at the corner, tier 3 and tier 3′.
-#[test]
-fn a_split_through_a_union_pinch_fuses_its_cones_on_the_side_that_joins_them() {
-    let u = match topo::union(&ell(), &cube(), t()) {
+/// The edges at [`PINCH_AT`] of [`wedge`], each inside the gap the L's
+/// reflex notch leaves under the cube's bottom face (x, y > 1, z < 1,
+/// below the face), in a right-handed order.
+const WEDGE: [[f64; 3]; 3] = [[0.1, 0.1, -1.0], [0.1, 1.0, -2.5], [1.0, 0.1, -2.0]];
+
+/// The parallelepiped on [`WEDGE`]'s edges scaled by 0.3 from the
+/// corner: it touches the union only there, a third cone.
+fn wedge() -> AtRestBody<f64> {
+    let body = common::mapped_cube::<f64>(
+        |x, y, z| {
+            let q = [0, 1, 2]
+                .map(|i| PINCH_AT[i] + 0.3 * (x * WEDGE[0][i] + y * WEDGE[1][i] + z * WEDGE[2][i]));
+            Point3::new(q[0], q[1], q[2])
+        },
+        t(),
+    );
+    finished("the wedge", body, t())
+}
+
+fn united(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> AtRestBody<f64> {
+    match topo::union(a, b, t()) {
         Ok(topo::BooleanResult::Body(b)) => b.body,
         other => panic!("the union builds: {other:?}"),
-    };
+    }
+}
+
+/// The union split by x = 1 either way up, with and without the wedge
+/// as a third cone: each side at its closed form, its vertices at the
+/// corner (the cones it keeps apart there), tier 3 and tier 3′.
+#[test]
+fn a_split_through_a_union_pinch_fuses_its_cones_on_the_side_that_joins_them() {
+    let two = united(&ell(), &cube());
+    let three = united(&two, &wedge());
     let at_corner = |b: &AtRestBody<f64>| {
         b.vertex_points()
             .filter(|(_, p)| [p.x, p.y, p.z] == PINCH_AT)
             .count()
     };
-    assert_eq!(at_corner(&u), 2, "the union keeps one vertex per cone");
-    let want = halves_volumes();
-    for up in [true, false] {
-        let s = if up { 1.0 } else { -1.0 };
-        let plane = split_plane(Point3::new(1.0, 0.0, 0.0), Vec3::new(s, 0.0, 0.0), t());
-        let r = split(&u, &plane, t()).unwrap_or_else(|e| panic!("up {up}: refused: {e:?}"));
-        let (beyond, short) = if up {
-            (&r.above, &r.below)
-        } else {
-            (&r.below, &r.above)
-        };
-        for (part, k, what) in [(beyond, 0, "x ≥ 1"), (short, 1, "x ≤ 1")] {
-            let what = format!("{what}, the normal {}", if up { "+x" } else { "−x" });
-            let SplitPart::Body(b) = part else {
-                panic!("{what}: empty");
+    let [beyond, short] = halves_volumes();
+    let wedge_volume = 0.027 * dot(WEDGE[0], cross(WEDGE[1], WEDGE[2]));
+    // (what, the union, its cones, [x ≥ 1, x ≤ 1] as (volume, cones)).
+    let cases = [
+        ("two cones", &two, 2, [(beyond, 1), (short, 1)]),
+        (
+            "three cones",
+            &three,
+            3,
+            [(beyond + wedge_volume, 2), (short, 1)],
+        ),
+    ];
+    for (union, u, cones, sides) in cases {
+        assert_eq!(at_corner(u), cones, "{union}: one vertex per cone");
+        for up in [true, false] {
+            let s = if up { 1.0 } else { -1.0 };
+            let plane = split_plane(Point3::new(1.0, 0.0, 0.0), Vec3::new(s, 0.0, 0.0), t());
+            let r = split(u, &plane, t())
+                .unwrap_or_else(|e| panic!("{union}, up {up}: refused: {e:?}"));
+            let parts = if up {
+                [&r.above, &r.below]
+            } else {
+                [&r.below, &r.above]
             };
-            let v = topo::test_support::pinned_volume("the side", b, t()).volume;
-            assert!(
-                (v - want[k]).abs() < 1e-9 * want[k] + t().eps(),
-                "{what}: volume {v}, closed form {}",
-                want[k]
-            );
-            assert_eq!(at_corner(b), 1, "{what}: one vertex at the corner");
-            assert_eq!(validate_geometric(b, t()), Ok(()), "{what}: tier 3");
-            assert_eq!(
-                validate_pseudomanifold(b, &ContactRecords::default(), t()),
-                Ok(()),
-                "{what}: tier 3′"
-            );
+            for (part, (want, vertices), what) in parts
+                .into_iter()
+                .zip(sides)
+                .zip(["x ≥ 1", "x ≤ 1"])
+                .map(|((p, s), w)| (p, s, w))
+            {
+                let what = format!(
+                    "{union}, {what}, the normal {}",
+                    if up { "+x" } else { "−x" }
+                );
+                let SplitPart::Body(b) = part else {
+                    panic!("{what}: empty");
+                };
+                let v = topo::test_support::pinned_volume("the side", b, t()).volume;
+                assert!(
+                    (v - want).abs() < 1e-9 * want + t().eps(),
+                    "{what}: volume {v}, closed form {want}"
+                );
+                assert_eq!(at_corner(b), vertices, "{what}: vertices at the corner");
+                assert_eq!(validate_geometric(b, t()), Ok(()), "{what}: tier 3");
+                assert_eq!(
+                    validate_pseudomanifold(b, &ContactRecords::default(), t()),
+                    Ok(()),
+                    "{what}: tier 3′"
+                );
+            }
         }
     }
 }

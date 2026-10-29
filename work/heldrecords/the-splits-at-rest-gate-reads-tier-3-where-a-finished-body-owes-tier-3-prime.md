@@ -133,3 +133,22 @@ The order:
 ## Moved (2026-10-28, SPLITDOOR)
 
 - Moved to HELDRECORDS (`work/heldrecords/`) by `git mv`, id and body unchanged: SPLITDOOR's seam cut put the records chain Ev ratified on PR 5967 on a track of its own (`work/README.md` Track size).
+
+## Evidence: a plane along a union pinch's face (2026-10-29, SPLITDOOR, branch `splitdoor/pinch-corner-split`)
+
+Cause B, an operand pinch vertex on the section face. The L-prism ∪ the
+tilted cube (`crates/topo/tests/split_through_a_union_pinch.rs`) keeps
+two vertices at the pinch (1, 1, 1). Split by z = 1, the L's top plane,
+either way up, both sides pass tier 3. The z ≤ 1 side fails tier 3′
+against no records with one finding:
+
+    UnrecordedContact { contact: VertexOnFace { vertex, face }, witness: "(1.0, 1.0, 1.0)", margin: Some(0.0) }
+
+`SplitResult::coincidences` is empty. The plane leaves the reflex notch's
+cone vertex one-sided, so `splitting::reduce` mints no null edge there
+and records nothing: it pushes a `SplitOn` coincidence only for an ON
+vertex with two or more runs (`reduce`, the `runs.len() >= 2` arm). The
+vertex then sits on the side's section face, a touch with no record.
+Measured at ε = 1e-9 for five cube tilts and for the three-cone variant
+(a parallelepiped in the notch's gap). The fusion that branch adds
+leaves it unchanged; it reproduces with the fusion switched off.

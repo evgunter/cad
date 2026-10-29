@@ -136,8 +136,14 @@ fn next_fusion<T: Decide>(
                 .iter()
                 .enumerate()
                 .map(|(i, &he)| {
-                    let v = body.get_half_edge(he).ok_or(SplitFinishError::Corrupt)?.start;
-                    Ok((body.get_vertex(v).ok_or(SplitFinishError::Corrupt)?.point, i))
+                    let v = body
+                        .get_half_edge(he)
+                        .ok_or(SplitFinishError::Corrupt)?
+                        .start;
+                    Ok((
+                        body.get_vertex(v).ok_or(SplitFinishError::Corrupt)?.point,
+                        i,
+                    ))
                 })
                 .collect::<Result<_, SplitFinishError>>()?;
             keyed.sort_unstable();
@@ -214,9 +220,9 @@ fn fusion_at<T: Decide>(
                     continue;
                 }
                 let Some(dep) = d.2 else { continue };
-                if wedge_holds_named(&CONE_CORNER, n, a, b, dep, band).map_err(|source| {
-                    SplitFinishError::ConeCornerEscalated { vertex, source }
-                })? {
+                if wedge_holds_named(&CONE_CORNER, n, a, b, dep, band)
+                    .map_err(|source| SplitFinishError::ConeCornerEscalated { vertex, source })?
+                {
                     return Ok(true);
                 }
             }

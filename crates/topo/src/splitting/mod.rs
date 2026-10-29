@@ -64,8 +64,10 @@
 //! The result ([`SplitReduction`]) is the annotated body the joining
 //! step consumes: cached per-vertex sides, the ON set, and the minted
 //! null edges with their side attributes. [`split`] composes
-//! reduce → join → finish; [`plane_section`] stops after join and
-//! reads the polygons off the scratch clone.
+//! reduce → join → finish, then on each side fuses a pinch's cones
+//! where the section's corners pair their germs (`section_cones`);
+//! [`plane_section`] stops after join and reads the polygons off the
+//! scratch clone.
 
 mod classify;
 pub mod containment;
