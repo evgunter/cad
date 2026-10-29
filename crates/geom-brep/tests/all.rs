@@ -169,6 +169,8 @@ mod props_sphere_pole_side;
 mod r2_probe_sphere_polar;
 #[path = "section_bounds.rs"]
 mod section_bounds;
+#[path = "section_acceleration_review.rs"]
+mod section_acceleration_review;
 #[path = "section_reads_at_the_reach.rs"]
 mod section_reads_at_the_reach;
 
