@@ -4,6 +4,8 @@ kind: issue
 title: step-import: the import door renders a pcurve re-mint escalation whole, ending in the classifier's build-read coincidence menu and kernel-bug note
 status: open
 opened: 2026-10-10
+priority: P3
+cost: M
 ---
 
 

@@ -4,6 +4,8 @@ kind: issue
 title: stl: the writers emit a valid empty STL for a mesh with no triangles
 status: open
 opened: 2026-09-22
+priority: P3
+cost: E
 ---
 
 

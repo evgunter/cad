@@ -4,10 +4,9 @@ kind: issue
 title: step-import reads two area quantities' signs raw, outside Decide: infer_outer's shoelace orientation check and the NURBS-net plane recogniser's Newell alignment
 status: open
 opened: 2026-10-25
----
-
 priority: P3
 cost: E
+---
 
 Found by PRED's S18 sweep (the step-export shell-role pickup, branch
 `pred/s18-step-export-volume`), which looked in step-export and

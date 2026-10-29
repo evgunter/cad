@@ -4,6 +4,8 @@ kind: issue
 title: Two tori decided one surface are spelled twice: the carrier ladder's torus rows and the torus pose's tt_coincident
 status: closed
 opened: 2026-10-28
+priority: P1
+cost: M
 closed: 2026-10-29
 branch: sect/torus-decided-once
 ---

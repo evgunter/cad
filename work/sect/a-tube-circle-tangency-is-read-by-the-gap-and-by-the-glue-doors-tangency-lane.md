@@ -4,6 +4,8 @@ kind: issue
 title: A tube-circle tangency between two torus faces is read twice: the critical gap of the pair's pose and the glue door's tangency lane along a shared rim
 status: closed
 opened: 2026-10-28
+priority: P1
+cost: M
 closed: 2026-10-29
 branch: sect/torus-decided-once
 ---
