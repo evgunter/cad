@@ -2,11 +2,12 @@
 id: the-clearance-budget-pair-is-spelled-three-times
 kind: issue
 title: "{max_cell_depth, max_cell_pairs} is spelled three times: ClearanceConfig, the Sweep's fields and MinSeparationConfig"
-status: open
+status: dispatched
 opened: 2026-10-28
 priority: P1
 cost: E
 refs: [SHELL-3]
+branch: clear/loops
 ---
 
 

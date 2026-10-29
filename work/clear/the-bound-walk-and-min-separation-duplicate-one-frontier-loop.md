@@ -2,11 +2,12 @@
 id: the-bound-walk-and-min-separation-duplicate-one-frontier-loop
 kind: issue
 title: Sweep::run and min_separation duplicate the frontier, budget and split loop, and their overflow accounting diverges (refused vs abandoned)
-status: open
+status: dispatched
 opened: 2026-10-28
 priority: P1
 cost: M
 refs: [SHELL-3]
+branch: clear/loops
 ---
 
 
