@@ -79,12 +79,8 @@ pub fn digest(ev: &Evaluation<f64>) -> u64 {
         match &value.payload {
             ValuePayload::Body(body) => feed_body(&mut feed, &super::in_space(body)),
             ValuePayload::Boolean(bv) => match bv {
-                BooleanValue::Body {
-                    body,
-                    kind,
-                    contacts,
-                } => {
-                    feed(format!("{kind:?}{contacts:?}").as_bytes());
+                BooleanValue::Body { body, kind } => {
+                    feed(format!("{kind:?}{:?}", value.carry.contacts).as_bytes());
                     feed_body(&mut feed, &super::in_space(body));
                 }
                 BooleanValue::Empty => feed(b"empty"),

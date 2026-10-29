@@ -1022,3 +1022,33 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
   - the Carry fields are spelled out;
   - the docs say which copy paths go through which door.
   - **Filed:** `a-mirror-of-an-assemble-reports-its-findings-twice` (P2: a mirror double-counts, a pick drops an instance piece's records, and the cure is one copy door) and, on ATREST, the `checks.rs:1709` panic (P1). ATREST's census chain is released. The tour last ran green on the pre-fix head; hosted CI's change filter skips demos for this diff.
+- 2026-10-29 05:00 — **G merged (#5954)**, so INTENT stage 3 is built.
+  - **Review:** dual H concurrent. Both reviewers said NOT-MERGEABLE-AS-IS. Tally 2 (the product row and the four viewer reds, both R1's). The row is `docs/dual-review-log/rows/PR-5954.md`.
+  - **Fix pass:**
+    - a family carries each member's carry;
+    - one per-seat rule for reading a family whole;
+    - a negative count refuses typed;
+    - heat_sink denotes main's product again;
+    - perf12 keeps RESTREAD's red.
+  - **Known regression:** G merges with one P1, pinned red and filed (`work/inlane/under-the-apart-move-heat-sink-fins-parts-at-a-point-exactly-on-a-plane.md`).
+  - **Follow-up:** #5988 filed `g-moves-four-main-reds-messages` (P2).
+  - **Base comparison:** on Ev's word (2026-10-29), and per `memories/cad-working-style.md`, a fixable slow-set red does not hold a merge, so the full base comparison was cut short.
+- **Stage 3 closes** (`intent-stage3-is-built`), and six rows parked on it or on G are released with a re-read note: SCALAR's box driver, a SEAMRANK row and four WIREHOLD rows.
+- **D10's umbrella** is re-parked on two new P0s:
+  - `intent-stage6-is-built`: the tangency constructions, never sliced; stages 4 I and 5 C closed under ATREST;
+  - `d10-exit-walk`: the plan's exit criteria.
+- **Dispatched in parallel:**
+  - the ring P1 (`session_01VyvYnLbnzSwviumRPhZ4Yb`);
+  - one copy door / the mirror P2 (`session_01VyvYnL6PuWBydfcFrgSNNC`);
+  - the stage 6 spec (`session_01VyvYnHPkMhNKLtauthWNa2`);
+  - the exit walk (`session_01VyvYnLKYRbFgmsyKN3BzhP`, which also re-reads the six released rows).
+- 2026-10-29 07:05 —
+  - **Merged:** the D10 exit walk (#5997) and the stage 6 spec (#6000).
+    - The exit walk found one superseded mechanism still in the code: a glued pair re-read through the declared rung, which bridges in-band. It is CONTACTHOLD's row, now P0, and D10's umbrella waits on it and on stage 6.
+  - **Stage 6 A** (the corpus scenes) is dispatched as `session_01VyvYnHQcwXfQBk492iSNWj`, with the designers' measurement asks added.
+  - **Design forks**, each weighed by an Opus and a Fable designer:
+    - FORK-S6-1 (coaxiality) converged in round 2: rung-one pose classes over every mate kind, closed transitively; a revolve minter arm; the replay substituting stated poses. It went to Ev as `[ev]` #6004, fork-log row 213.
+    - FORK-S6-2/3/4 (tangent continuation) converged in round 3, except the point tier: a sketch on a frame in the traced body's space; the crossing spelling; the rung-one trace statement along a swept curve. It went to Ev as `[ev]` #6006, fork-log row 214.
+    - Stage 6 B waits on #6004, and C and D wait on #6006.
+  - **One copy door** (#5999): a FULL review gave APPROVE-WITH-FIXES with one MAJOR. A mirror-product part's overlap goes silent across a seam. The cause predates this PR, and the lane fixes it in the PR.
+  - **Housekeeping:** DESIGN's "state of the build" now lists stage 3 C–G and stage 4 as built. That describes merged work, so it needs no ratification.

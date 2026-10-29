@@ -1061,13 +1061,12 @@ fn names(py: Python<'_>, found: Vec<pncad::prelude::StableName>) -> PyResult<Vec
 #[derive(Clone)]
 pub(crate) struct Value {
     payload: d::ValuePayload<f64>,
-    /// The value's OWN contact-record channel (ASM-R2b D-1): what
-    /// `instantiate` carried in from a part. A boolean's records ride
-    /// its payload instead, and the two homes reconcile at
-    /// [`Value::recorded_body`] — deliberately the same reconciliation
-    /// `editor_core::product::sources_of` makes, because a Python
-    /// caller reading a body off a value and the gather reading the
-    /// same body must not disagree about the contacts it carries.
+    /// The value's contact records (ASM-R2b D-1), as its carry holds
+    /// them: a boolean's surviving contacts, or what a copy carries
+    /// from its source. [`Value::recorded_body`] reads them as
+    /// `editor_core::product::sources_of` does, because a Python caller
+    /// reading a body off a value and the gather reading the same body
+    /// must not disagree about the contacts it carries.
     contacts: Arc<topo::ContactRecords>,
     node: NodeId,
     /// A family's members (D10 `[repetition]`), in index order: each
@@ -1109,9 +1108,8 @@ impl Value {
         let body = pncad::export::body_in_space(body, Tol::witness())
             .map_err(|err| compose_err(py, self.node, &err))?;
         Ok(match &self.payload {
-            d::ValuePayload::Body(_) => Body::recorded(body, Arc::clone(&self.contacts)),
-            d::ValuePayload::Boolean(d::BooleanValue::Body { contacts, .. }) => {
-                Body::recorded(body, Arc::clone(contacts))
+            d::ValuePayload::Body(_) | d::ValuePayload::Boolean(d::BooleanValue::Body { .. }) => {
+                Body::recorded(body, Arc::clone(&self.contacts))
             }
             _ => Body::plain(body),
         })

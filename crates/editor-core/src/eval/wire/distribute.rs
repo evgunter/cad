@@ -41,10 +41,11 @@ pub(super) struct Operand<T: Decide> {
     pub body: crate::eval::Framed<T>,
     /// Its own names, total over `body`.
     pub table: Arc<NameTable>,
-    /// Its own contact records, keyed in `body`'s arena.
-    pub records: Arc<topo::ContactRecords>,
-    /// The pieces it holds.
-    pub pieces: Option<Arc<Pieces<T>>>,
+    /// What its body carries, as a reader reads it
+    /// ([`crate::eval::Carry::kept`]): its records keyed in `body`'s
+    /// arena, and the pieces it holds. A unit takes its piece's carry as
+    /// the piece holds it.
+    pub carry: crate::eval::Carry<T>,
     /// The read the node takes it in through: what its rows name it by.
     pub seat: crate::VarId,
     /// How a piece's names nest in the seat's table: each holder's
@@ -67,8 +68,7 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
             read,
             body: super::read_body(results, node)?,
             table: super::read_table(value),
-            records: super::operand_records(value, doc, tol),
-            pieces: value.carry.pieces.clone(),
+            carry: value.carry.kept(doc, tol),
             seat: read,
             wraps: Vec::new(),
         })
@@ -121,7 +121,7 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
     /// one per member, each its member's names and none of the
     /// family's records (as a union reads a family's members).
     pub(super) fn units(&self) -> Result<Vec<Self>, NodeErrorKind> {
-        let Some(pieces) = &self.pieces else {
+        let Some(pieces) = &self.carry.pieces else {
             return Ok(Vec::new());
         };
         let mut units = Vec::with_capacity(pieces.pieces.len());
@@ -129,13 +129,12 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
             let bodies = piece.bodies.clone();
             let mut wraps = self.wraps.clone();
             wraps.push((pieces.by, piece.read));
-            let unit = |body: crate::eval::Framed<T>, table, records, pieces| Self {
+            let unit = |body: crate::eval::Framed<T>, table, carry: &crate::eval::Carry<T>| Self {
                 node: self.node,
                 read: piece.read,
                 body,
                 table,
-                records,
-                pieces,
+                carry: carry.clone(),
                 seat: self.seat,
                 wraps: wraps.clone(),
             };
@@ -146,24 +145,13 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
                         .table
                         .project(index)
                         .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
-                    let member = piece.carry.member(j);
-                    units.push(unit(
-                        body,
-                        Arc::new(table),
-                        Arc::clone(&member.contacts),
-                        member.pieces.clone(),
-                    ));
+                    units.push(unit(body, Arc::new(table), piece.carry.member(j)));
                 }
             } else {
                 let Some(body) = bodies.into_iter().next() else {
                     unreachable!("a piece that is a body holds one")
                 };
-                units.push(unit(
-                    body,
-                    Arc::clone(&piece.table),
-                    Arc::clone(&piece.carry.contacts),
-                    piece.carry.pieces.clone(),
-                ));
+                units.push(unit(body, Arc::clone(&piece.table), &piece.carry));
             }
         }
         Ok(units)
@@ -237,18 +225,11 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
     let mut kinds = Vec::new();
     let mut parts = 0;
     for (read, out) in outs {
-        let (body, kind, records) = match &out.payload {
+        let records = &out.carry.contacts;
+        let (body, kind) = match &out.payload {
             ValuePayload::Boolean(BooleanValue::Empty) => continue,
-            ValuePayload::Boolean(BooleanValue::Body {
-                body,
-                kind,
-                contacts,
-            }) => (body.clone(), *kind, Arc::clone(contacts)),
-            ValuePayload::Body(body) => (
-                body.clone(),
-                topo::BooleanResultKind::OperandA,
-                Arc::clone(&out.carry.contacts),
-            ),
+            ValuePayload::Boolean(BooleanValue::Body { body, kind }) => (body.clone(), *kind),
+            ValuePayload::Body(body) => (body.clone(), topo::BooleanResultKind::OperandA),
             _ => unreachable!("a boolean of one piece makes a body or nothing"),
         };
         let first = computing.get_or_insert_with(|| body.clone());
@@ -257,6 +238,7 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
             .map_err(NodeErrorKind::Boolean)?;
         let base = coincidences.len();
         let inputs: Vec<u32> = out
+            .carry
             .cited_inputs
             .iter()
             .map(|input| {
@@ -267,7 +249,7 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
                 u32::try_from(at).unwrap_or(u32::MAX)
             })
             .collect();
-        let recited = (*records)
+        let recited = (**records)
             .clone()
             .recited(|b| match b {
                 topo::Backing::Decided(k) => vec![topo::Backing::Decided(
@@ -298,7 +280,7 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
             bodies: vec![body],
             family: false,
             table: Arc::clone(&table),
-            carry: out.carry.clone().recording(records),
+            carry: out.carry.clone(),
         });
         named.push((read, table, vec![keys]));
     }
@@ -326,7 +308,6 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
         ValuePayload::Boolean(BooleanValue::Body {
             body: crate::eval::Framed::in_frame(Arc::new(fused), frame),
             kind,
-            contacts: Arc::new(contacts),
         }),
         table,
     )
@@ -335,11 +316,10 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
         pieces: Some(pieces),
         census,
         censused: true,
-        // Its records ride the boolean's payload.
-        contacts: Arc::default(),
+        contacts: Arc::new(contacts),
+        cited_inputs: citing.into(),
         findings: Arc::default(),
         members: None,
     })
-    .with_coincidences(coincidences)
-    .citing(citing))
+    .with_coincidences(coincidences))
 }

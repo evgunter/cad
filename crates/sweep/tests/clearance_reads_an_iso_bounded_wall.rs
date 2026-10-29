@@ -28,7 +28,7 @@ use profile::test_support::bulge_loop;
 use profile::{ProfileLoop, SketchPlane};
 use sweep::{Lofted, loft_body, sweep_body};
 use topo::clearance::{
-    BoundVerdict, Budgets, Candidate, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep,
+    BoundVerdict, Budgets, Candidate, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep, Which,
     min_separation,
 };
 use topo::{AtRestPolicy, Body, FaceKey};
@@ -165,8 +165,12 @@ fn bound<T: Lane>(
         faces: vec![face],
     };
     let (sa, sb) = (side(a, fa), side(b, fb));
-    let wa = sa.windows().expect("an iso-bounded wall has a window");
-    let wb = sb.windows().expect("an iso-bounded wall has a window");
+    let wa = sa
+        .windows(Which::First)
+        .expect("an iso-bounded wall has a window");
+    let wb = sb
+        .windows(Which::Second)
+        .expect("an iso-bounded wall has a window");
     let report = sweep(c).run(&wa, &wb, false, verify((a, b), c));
     println!(
         "[nurbswin] c = {c}: {:?}, {:?}",
@@ -349,7 +353,7 @@ fn every_face_of_an_arc_railed_loft_has_a_window() {
         body: &prism,
         faces: prism.faces().map(|(k, _)| k).collect(),
     }
-    .windows()
+    .windows(Which::First)
     .expect("every face of the arc prism has a window");
 }
 
