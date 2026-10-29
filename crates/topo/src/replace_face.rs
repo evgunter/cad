@@ -4945,14 +4945,16 @@ mod pose_reach_rows {
     /// The refusal is the offset row's: the arm refuses the same way a
     /// cylinder EXACTLY parallel to the cone's axis and as far off the
     /// apex is refused, which only `coc_coaxial` can do.
-    /// **A general cylinder × torus pose is not served at the neighbour
-    /// gate.** The section value lists no components for it, so
-    /// `route_pose` answers the kind's arm unimplemented with the value's
-    /// note, and the face replacement refuses the edge
-    /// (`NeighborPoseUnroutable`) rather than reach the offset lane; a
-    /// square pose, whose components the value lists, is served.
+    /// **A cylinder × torus pose is served at the neighbour gate, general
+    /// or square**: the section value classifies both, the general one
+    /// as its march's, so `route_pose` answers the kind's arm
+    /// implemented. Past the gate the offset door derives the moved
+    /// edge's section in closed form only (`offset_derive::section_closed`),
+    /// which has no cylinder × torus arm: the general pose's edge is
+    /// refused there, by that door's own `Unsupported`, and no carrier is
+    /// minted for it.
     #[test]
-    fn a_general_cylinder_torus_pose_is_not_served() {
+    fn a_general_cylinder_torus_pose_is_served() {
         let torus = Surface::Torus {
             center: Point3::origin(),
             axis: Vec3::unit_z(),
@@ -4977,8 +4979,8 @@ mod pose_reach_rows {
         ] {
             let got = pose_route(a, b, &edge, 0.0, 0.1, band());
             assert!(
-                matches!(got, Ok(ref r) if !r.implemented && r.note.contains("closed-form count")),
-                "({label}): the general pose is not served, got {got:?}"
+                matches!(got, Ok(ref r) if r.implemented),
+                "({label}): the general pose is served, got {got:?}"
             );
         }
         let square = rod(Vec3::unit_x());
@@ -4987,6 +4989,22 @@ mod pose_reach_rows {
             matches!(got, Ok(ref r) if r.implemented),
             "the square pose is served, got {got:?}"
         );
+        for (label, a, b) in [
+            ("cyl, torus", &general, &torus),
+            ("torus, cyl", &torus, &general),
+        ] {
+            let derived =
+                crate::offset_derive::section_closed(a, b, &edge, (0.0, 0.1), 0.1, band());
+            assert!(
+                matches!(
+                    derived,
+                    Ok(Err(
+                        crate::offset_derive::SectionVerdict::Unsupported { .. }
+                    ))
+                ),
+                "({label}): the offset door's derivation past the gate, got {derived:?}"
+            );
+        }
     }
 
     #[test]

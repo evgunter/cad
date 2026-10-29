@@ -69,7 +69,8 @@ chart boundary in a channel the chart does not close and clear (W1′,
 by C4); a refusal maps by name. A spline witness is the wall's point
 at the middle of the branch's pcurve, with a point of the branch's own
 arc bracketed within a metre bound of it inside its tube window, and
-it is placed on the band widened by that bound (`witness_band`). The witnesses are
+that bound is its pad, which the rule pads the band by twice over
+(`Component::pad`). The witnesses are
 `crates/topo/src/boolean/section_cert_spline_rows.rs`,
 `crates/sweep/tests/nurbs_plane_guard.rs` (lily's four cap pairs, a
 plane cutting the blade, and a witness by a box's edge), and the bump × clamp row, re-pinned to

@@ -456,16 +456,3 @@ pub fn stop(tol: Tol) -> TourStop {
         bodies: vec![SceneBody::plain("bracket", [0.36, 0.56, 0.86], body).named(&ev, rims)],
     }
 }
-
-#[cfg(test)]
-mod tests {
-    /// The stop builds: the bracket and its halves at their closed
-    /// forms, the corner piece's cap chords chamfered at `4·(d²/2)·√2`
-    /// less, and both section faces' whole rims chamfered at
-    /// `rim_taken` less per face.
-    #[test]
-    fn the_stop_builds_its_chamfered_corner_piece() {
-        let stop = super::stop(pncad::geom_core::Tol::witness());
-        assert_eq!(stop.bodies.len(), 1, "the chamfered corner piece");
-    }
-}

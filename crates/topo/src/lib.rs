@@ -1140,8 +1140,8 @@ pub mod test_support {
         (centre, radius): (geom_core::Point3<f64>, f64),
         band: geom_core::Band,
     ) -> String {
-        use crate::boolean::section_cert::{Reach, Sheet, certify, classify_with};
-        let section = classify_with(
+        use crate::boolean::section_cert::{Reach, Sheet, certify, classify};
+        let section = classify(
             f,
             g,
             Reach { centre, radius },
@@ -1150,7 +1150,7 @@ pub mod test_support {
         );
         format!(
             "{:?}",
-            certify(&section, false, |_| Sheet::Not, |_, _| [None, None])
+            certify(&section, false, band, |_| Sheet::Not, |_, _| [None, None])
         )
     }
 

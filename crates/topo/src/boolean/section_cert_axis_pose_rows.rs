@@ -106,7 +106,10 @@ fn tori(e: f64, tilt: f64, m: f64, b: Band) -> (Section<f64>, (f64, f64)) {
         centre: p(0.0, 0.0, 0.0),
         radius: BALL,
     };
-    (classify(&donut, &t2, reach, b), tori_truth(&t2))
+    (
+        classify(&donut, &t2, reach, Some(geom_brep::SsiLane::marched()), b),
+        tori_truth(&t2),
+    )
 }
 
 /// The run's `K`, in zero bands.
@@ -210,7 +213,13 @@ fn parallel_rows(past: f64) -> [(&'static str, Section<f64>); 3] {
     // A wall of radius 0.2 standing `gap` off the cone's axis.
     let e = 0.2 + gap;
     let wall = cylinder(p(e, 0.0, 0.0), tilted(swing), 0.2);
-    let cone_wall = classify(&unit_cone(), &wall, one(p(e, 0.0, 0.0)), band());
+    let cone_wall = classify(
+        &unit_cone(),
+        &wall,
+        one(p(e, 0.0, 0.0)),
+        Some(geom_brep::SsiLane::marched()),
+        band(),
+    );
     // Two walls on one axis, radii `gap` apart; between walls the tilt's
     // lever is the reach's diameter and the swing its radius.
     let reach = Reach {
@@ -221,6 +230,7 @@ fn parallel_rows(past: f64) -> [(&'static str, Section<f64>); 3] {
         &cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 1.0),
         &cylinder(p(0.0, 0.0, 0.0), tilted(swing / 2.0), 1.0 + gap),
         reach,
+        Some(geom_brep::SsiLane::marched()),
         band(),
     );
     [
@@ -282,6 +292,7 @@ fn wide_walls_clearly_apart_serve_their_rulings() {
                 centre: p(r, 0.0, 0.0),
                 radius: 1.0,
             },
+            Some(geom_brep::SsiLane::marched()),
             band(),
         );
         rulings("section_cylinder_pair_coincident", &s);
@@ -322,7 +333,13 @@ fn the_turn_of_a_point_read_off_the_pivot_counts() {
         u_ref: Vec3::unit_y(),
     };
     for (rise, refuses) in [(0.5, true), (0.0, false)] {
-        let s = classify(&torus(p(0.0, 0.0, rise), 2.0, 0.5), &cone, reach, band());
+        let s = classify(
+            &torus(p(0.0, 0.0, rise), 2.0, 0.5),
+            &cone,
+            reach,
+            Some(geom_brep::SsiLane::marched()),
+            band(),
+        );
         if refuses {
             offset_row(&s);
         } else {
@@ -347,7 +364,13 @@ fn the_turn_of_a_point_read_off_the_pivot_counts() {
             half_angle: core::f64::consts::FRAC_PI_4,
             u_ref: Vec3::unit_x(),
         };
-        let s = classify(&first, &apexes, reach, band());
+        let s = classify(
+            &first,
+            &apexes,
+            reach,
+            Some(geom_brep::SsiLane::marched()),
+            band(),
+        );
         let coaxial = matches!(
             &s,
             Section::Components { parts, .. } if parts.len() == 2

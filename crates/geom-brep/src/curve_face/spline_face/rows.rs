@@ -1048,3 +1048,32 @@ fn a_crossing_in_the_bands_gap_from_a_domain_end_escalates() {
         "a crossing 2·zero from the end is neither the end's nor the span's: {got:?}"
     );
 }
+
+/// **A NURBS carrier read over a parameter that does not certify
+/// refuses.** The sheet's boxes carry no decoration of `t`'s, so the
+/// carrier's point and tangent over a refused point bracket on its
+/// domain refuse where the same point certifies. Red under a window
+/// read off the bracket's ends.
+#[test]
+fn a_nurbs_carrier_over_a_refused_parameter_refuses() {
+    use geom_core::Interval;
+    let curve = Curve3::Nurbs(std::sync::Arc::new(
+        geom::NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 2.0, 3.0)],
+            vec![1.0; 2],
+        )
+        .unwrap(),
+    ));
+    let carrier = super::SpanCarrier::of(&curve);
+    let path = super::Path::of(&carrier).unwrap();
+    let certified = |v: [Interval; 3]| v.iter().all(|c| c.is_certified());
+    let t = Interval::from_bounds(0.5, 0.5);
+    assert!(certified(path.at(t)) && certified(path.tangent(t)));
+    let refused = geom_core::test_support::refused_point(0.5);
+    assert!(!certified(path.at(refused)), "the point over a refused t");
+    assert!(
+        !certified(path.tangent(refused)),
+        "the tangent over a refused t"
+    );
+}

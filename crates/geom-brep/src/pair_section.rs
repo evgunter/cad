@@ -21,31 +21,43 @@
 //!   cylinder's axis) is a record its consumer keeps (D10), and a
 //!   tangency is classification data that refuses toward C7 wherever a
 //!   carrier is wanted;
-//! - **its components**, each a loop, a point, or a curve or region that
-//!   reaches a surface's chart boundary ([`ComponentShape`]), whether it
-//!   winds about each surface's carrier, a witness point with how far it
-//!   may stand from the section, and its carrier at classification
-//!   ([`ClassCarrier`]): a closed form, the general rung (marched on
-//!   demand by [`PairSection::carry`]), one fitted when the section was
-//!   read, or none (a tangency or a boundary region, classification
-//!   only).
+//! - **its components, where a closed form counts them**
+//!   ([`Components::Counted`]): each a loop, a point, or a curve or region
+//!   that reaches a surface's chart boundary ([`ComponentShape`]),
+//!   whether it winds about each surface's carrier, a witness point with
+//!   how far it may stand from the component, and its carrier at
+//!   classification ([`ClassCarrier`]): a closed form, the general rung
+//!   (marched on demand by [`PairSection::carry`]), or none (a tangency,
+//!   a boundary region or a spline section's piece, classification
+//!   only). Where no closed form counts them
+//!   ([`Components::Marched`]: a general cylinder × torus or torus ×
+//!   torus pose), the components are the march's, listed only once
+//!   carried. An empty count is the surfaces disjoint; `Marched` never
+//!   reads as that.
 //!
 //! # Classified, then carried
 //!
 //! The value is built in two states. [`PairSection`] is the
-//! classification, which costs no march but on a plane and a spline,
-//! whose classification is C3's whole reading ([`plane_spline`]): their
-//! components are fitted and certified as they are read.
-//! [`PairSection::carry`] turns it
-//! into a [`CarriedSection`], every component holding a carrier a
-//! reader can take a foot on: a closed form as classified, or the
-//! general rung's fitted curve with its C2 certificate
-//! ([`crate::ssi::SsiCertificate`]). Only `carry` builds a
-//! `CarriedSection`, and it refuses where a component has no carrier, so
-//! no reader takes a foot on a carrier that does not exist. The march is
-//! written at `f64`, and [`SsiLane`] is the door to it: holding one is
-//! the statement that the scalar may march (`SsiLane::marched`, at
-//! `f64` alone).
+//! classification: it costs no march and needs no lane, but on a plane
+//! and a spline, whose classification is C3's whole reading
+//! ([`plane_spline`]), read through the march door.
+//! [`PairSection::carry`] turns it into a [`CarriedSection`], which lists
+//! the components, every one holding a carrier a reader can take a foot
+//! on: a closed form as classified, or the general rung's fitted curve
+//! with its C2 certificate ([`crate::ssi::SsiCertificate`]). Where the
+//! classification is marched, the carried components are the march's
+//! closed branches, each winding as the fitted loop's turns about each
+//! surface's axis and core circle, read off the loop in ℝ³, say
+//! ([`winds`]); where it is counted, the march's distinct branches must
+//! match the count, so the closed form is a cross-check of the march's
+//! exhaustiveness receipt. A reader that needs a list no closed form
+//! counts carries. A site's component is its foot on the carried section
+//! ([`CarriedSection::foot`]), the one reading of it. Only `carry`
+//! builds a `CarriedSection`, and it refuses where a component has no
+//! carrier, so no reader takes a foot on a carrier that does not exist.
+//! The march is written at `f64`, and [`SsiLane`] is the door to it:
+//! holding one is the statement that the scalar may march
+//! (`SsiLane::marched`, at `f64` alone).
 //!
 //! # The pairs it serves
 //!
@@ -78,6 +90,7 @@ pub mod plane_spline;
 pub mod torus;
 mod torus_arms;
 pub mod torus_coincidence;
+pub mod winds;
 
 pub use gap::Gap;
 pub use plane_spline::PlaneSplinePose;
@@ -90,6 +103,7 @@ pub use torus_coincidence::{
     TT_COINCIDENT, TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData, TorusDatum, TorusDisplacement,
     tori_coincide,
 };
+pub use winds::{Winding, WindsRefusal};
 
 /// **`v`'s part square to the unit `a`, and its norm**, taken as
 /// `a × (v × a)`, which stands square to `a` to the rounding of its own
@@ -581,9 +595,6 @@ pub enum ClassCarrier<T: Real> {
     Closed(Curve3<T>),
     /// The general rung's: marched and fitted by [`PairSection::carry`].
     General,
-    /// Marched, fitted and certified when the section was read (a
-    /// spline section's whole reading).
-    Fitted(CarriedComponent<T>),
     /// None mints: the component is classification data, for the reason
     /// given.
     Unminted(&'static str),
@@ -594,22 +605,26 @@ pub enum ClassCarrier<T: Real> {
 pub struct SectionComponent<T: Real> {
     /// A loop or a point.
     pub shape: ComponentShape,
-    /// Whether it winds about each surface's carrier (it is essential
-    /// there), in the order the section was asked of.
+    /// Whether the arm proves it winds about each surface's carrier (it
+    /// is essential there), in the order the section was asked of:
+    /// `false` claims nothing, since an arm that does not read
+    /// essentiality lists none.
     pub winds: [bool; 2],
     /// One point of it, where the arm names one: in closed form, or a
-    /// spline section's point bracketed on the section.
+    /// spline section's wall point with a point of the component
+    /// bracketed near it ([`plane_spline`]).
     pub witness: Option<Point3<T>>,
-    /// How far, in metres past rounding, the witness may stand from the
-    /// section: zero for a closed form's.
-    pub residual: f64,
+    /// **How far the witness may stand from the component**, in metres:
+    /// zero for a closed form, the bracket's bound for a spline
+    /// section's.
+    pub pad: f64,
     /// Its carrier.
     pub carrier: ClassCarrier<T>,
 }
 
 impl<T: Real> SectionComponent<T> {
     /// A component a closed form reads: its witness, where it has one,
-    /// within rounding of the section.
+    /// on the component.
     pub(crate) fn closed_form(
         shape: ComponentShape,
         winds: [bool; 2],
@@ -620,10 +635,21 @@ impl<T: Real> SectionComponent<T> {
             shape,
             winds,
             witness,
-            residual: 0.0,
+            pad: 0.0,
             carrier,
         }
     }
+}
+
+/// **A section's components, as classified** (module docs).
+#[derive(Clone, Debug)]
+pub enum Components<T: Real> {
+    /// A closed form counts them: these, and no others. Empty is the
+    /// surfaces disjoint.
+    Counted(Vec<SectionComponent<T>>),
+    /// No closed form counts them: they are the march's closed branches,
+    /// listed by [`PairSection::carry`].
+    Marched,
 }
 
 /// **The section of two distinct surfaces, classified** (module docs).
@@ -631,8 +657,7 @@ impl<T: Real> SectionComponent<T> {
 pub struct PairSection<T: Real> {
     pose: PairPose<T>,
     decided: Vec<ZeroVerdict>,
-    components: Vec<SectionComponent<T>>,
-    sides: Sides<T>,
+    components: Components<T>,
     lever: T,
 }
 
@@ -683,8 +708,7 @@ impl<T: Decide> PairPose<T> {
     /// `|x − c| ≤ R + r` (each of its points is `r` from a core point,
     /// which is `R` from the centre), the smaller of two tori's as the
     /// pose decided it ([`TorusTorusPose::ball`]). A cylinder is
-    /// unbounded along its axis, so it is never the ball, nor is a plane;
-    /// a spline wall lies in its net's ([`PlaneSplinePose::ball`]).
+    /// unbounded along its axis, so it is never the ball.
     pub fn ball(&self) -> ExtentBall<T> {
         match self {
             Self::CylinderSphere(p) => p.ball(),
@@ -701,8 +725,7 @@ impl PairPose<f64> {
     /// a hundredth of its radius so the slab's faces stand off the ball,
     /// which the bounding surface reaches (a sphere everywhere, a torus
     /// round its outer equator); the feature extent the ball's diameter,
-    /// the standard accounting floor. A plane and a spline wall are read
-    /// over the plane's window ([`PlaneSplinePose::domain`]).
+    /// the standard accounting floor.
     #[must_use]
     pub fn domain(&self) -> SsiDomain {
         if let Self::PlaneSpline(p) = self {
@@ -716,33 +739,6 @@ impl PairPose<f64> {
             floor_scale: 1.0,
         }
     }
-}
-
-/// **How a site's component is told apart** among a section's two
-/// ([`PairSection::component_of`]); the first component is the one on
-/// the positive side.
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum Sides<T: Real> {
-    /// One component or none: nothing to tell apart.
-    One,
-    /// The side of the plane through `origin` normal to `normal`.
-    Plane {
-        origin: Point3<T>,
-        normal: Vec3<T>,
-        row: &'static str,
-    },
-    /// The side, in the meridian half-plane of `(center, axis)` through
-    /// the site, of the line through `through` along `along`, each
-    /// `(distance from the axis, height)`.
-    Meridian {
-        center: Point3<T>,
-        axis: Vec3<T>,
-        through: (T, T),
-        along: (T, T),
-        row: &'static str,
-    },
-    /// No reading of the classification tells them apart.
-    Untold(&'static str),
 }
 
 /// What [`pair_section`] answers.
@@ -766,11 +762,9 @@ pub enum SectionRead<T: Real> {
 /// the band ([`SectionError::Escalated`]); a torus outside its ring
 /// convention ([`SectionError::DegenerateTorus`]), two tori decided one
 /// ([`SectionError::CoincidentSurfaces`]), a closed-form count refused
-/// ([`SectionError::Pinched`], [`SectionError::Unordered`]), and a
-/// general cylinder × torus or torus × torus pose, whose components the
-/// classification does not list ([`SectionError::RoutesToGeneralRung`]);
-/// a plane and a spline, whose section is a march
-/// ([`SectionError::NoMarch`]; [`pair_section_with`] reads it).
+/// ([`SectionError::Pinched`], [`SectionError::Unordered`]); a plane and
+/// a spline, whose section is a march ([`SectionError::NoMarch`];
+/// [`pair_section_with`] reads it).
 pub fn pair_section<T: Decide>(
     a: &Surface<T>,
     b: &Surface<T>,
@@ -842,8 +836,8 @@ pub fn pair_section_with<T: Decide>(
 /// kind pair `kind` is a side of** — the filter a reader scanning many
 /// pairs applies before it asks [`pair_section`]. Exhaustive, as
 /// `pair_section`'s match is, and a second spelling of it
-/// (`work/sectrung/the-c5-kind-dispatch-is-spelled-twice.md`). A plane and a
-/// spline are not among them: their section is a whole reading, read
+/// (`work/sectrung/the-c5-kind-dispatch-is-spelled-twice.md`). A plane and
+/// a spline are not among them: their section is a whole reading, read
 /// per pair through [`pair_section_with`] by the reader that asks it.
 #[must_use]
 pub fn serves(kind: SurfaceKind) -> bool {
@@ -930,15 +924,10 @@ fn cylinder_sphere<T: Decide>(pose: CylinderSpherePose<T>) -> PairSection<T> {
     };
     decided.extend(pose.tangency());
     PairSection {
-        sides: Sides::Plane {
-            origin: pose.foot,
-            normal: pose.axis,
-            row: "cs_component_side",
-        },
         lever: pose.r,
         pose: PairPose::CylinderSphere(pose),
         decided,
-        components,
+        components: Components::Counted(components),
     }
 }
 
@@ -950,9 +939,6 @@ pub enum SiteRefusal {
     /// The site lies on no component, or on two: the site was not read
     /// from this section.
     Desync(&'static str),
-    /// The classification does not tell the section's components apart
-    /// at a site, for the reason given.
-    Untold(&'static str),
 }
 
 impl<T: Decide> PairSection<T> {
@@ -966,9 +952,17 @@ impl<T: Decide> PairSection<T> {
         &self.decided
     }
 
-    /// The components.
-    pub fn components(&self) -> &[SectionComponent<T>] {
+    /// The components, as classified.
+    pub fn components(&self) -> &Components<T> {
         &self.components
+    }
+
+    /// The components a closed form counts, where one does.
+    pub fn counted(&self) -> Option<&[SectionComponent<T>]> {
+        match &self.components {
+            Components::Counted(listed) => Some(listed),
+            Components::Marched => None,
+        }
     }
 
     /// The coincidence among [`Self::decided`], where the arm stands on
@@ -988,73 +982,11 @@ impl<T: Decide> PairSection<T> {
             .find(|z| z.decision.kind() == ZeroKind::Tangency)
     }
 
-    /// **The component the site `p` lies on**, by the classification
-    /// alone, so no march is owed for it: a section of one component
-    /// answers it; two are told apart by the side of a plane or of a
-    /// meridian line the arm names (for cylinder × sphere the plane
-    /// through the sphere centre's foot square to the cylinder's axis,
-    /// `cs_component_side`), the first component on its positive side.
-    /// Both components keep a definite side, so a `Zero` there is a site
-    /// on neither, a desync. More than two, or two the arm cannot tell
-    /// apart, are untold. Whether the site lies within the band of the
-    /// component is the carried section's question
-    /// ([`CarriedSection::foot`]).
-    ///
-    /// # Errors
-    ///
-    /// [`SiteRefusal`]; a section with no component is a desync.
-    pub fn component_of(&self, p: Point3<T>, band: Band) -> Result<usize, SiteRefusal> {
-        let side =
-            |row: &'static str, m: T| match geom_core::k_stats::decide(row, Margin::of(m), band) {
-                Ok(Sign::Positive) => Ok(0),
-                Ok(Sign::Negative) => Ok(1),
-                Ok(Sign::Zero) => Err(SiteRefusal::Desync(
-                    "a site lies between the two components of its section",
-                )),
-                Err(diag) => Err(SiteRefusal::Escalated(diag)),
-            };
-        match (self.components.len(), self.sides) {
-            (0, _) => Err(SiteRefusal::Desync("a site on a section with no component")),
-            (1, _) => Ok(0),
-            (
-                2,
-                Sides::Plane {
-                    origin,
-                    normal,
-                    row,
-                },
-            ) => side(row, (p - origin).dot(normal)),
-            (
-                2,
-                Sides::Meridian {
-                    center,
-                    axis,
-                    through: (x0, z0),
-                    along: (dx, dz),
-                    row,
-                },
-            ) => {
-                let w = p - center;
-                let (_, rho) = square_part(w, axis);
-                let (x, z) = (rho - x0, w.dot(axis) - z0);
-                side(row, (dx * z - dz * x) / (dx.powi(2) + dz.powi(2)).sqrt())
-            }
-            (2, Sides::Untold(why)) => Err(SiteRefusal::Untold(why)),
-            (2, Sides::One) => Err(SiteRefusal::Untold(
-                "the section's two components have no reading that tells them apart",
-            )),
-            _ => Err(SiteRefusal::Untold(
-                "a section of more than two components, which the classification does not \
-                 tell apart at a site",
-            )),
-        }
-    }
-
-    /// **The section carried** (module docs): every component's carrier,
-    /// a closed form as classified or the general rung's, marched through
-    /// `lane` and fitted with its certificate. The march finds each
-    /// component as one closed branch, assigned to the component its
-    /// witness lies on ([`Self::component_of`]).
+    /// **The section carried** (module docs): every component holding a
+    /// carrier. Marched, the components are the march's closed branches,
+    /// in the march's order. Counted, they are the classification's, in
+    /// its order: a closed form as classified, and the general rung's
+    /// marched, the march's branches matched to them ([`Self::matched`]).
     ///
     /// # Errors
     ///
@@ -1064,71 +996,171 @@ impl<T: Decide> PairSection<T> {
         lane: Option<SsiLane<T>>,
         band: Band,
     ) -> Result<CarriedSection<T>, CarryError> {
-        for c in &self.components {
-            match c.carrier {
-                ClassCarrier::Unminted(why) => return Err(CarryError::Unminted(why)),
-                ClassCarrier::Closed(_) | ClassCarrier::General | ClassCarrier::Fitted(_) => {}
-            }
-        }
-        let mut fitted = if self
-            .components
-            .iter()
-            .any(|c| matches!(c.carrier, ClassCarrier::General))
-        {
+        let marched = || {
             let lane = lane.ok_or(CarryError::NoLane { scalar: T::NAME })?;
-            let branches = (lane.march)(&self.pose, band).map_err(CarryError::March)?;
-            let mut slots: Vec<Option<FittedCarrier<T>>> = vec![None; self.components.len()];
-            for branch in branches {
-                if !branch.closed {
-                    return Err(CarryError::Desync(
-                        "the march left the ball's box, which holds the whole section",
-                    ));
-                }
-                let k = self
-                    .component_of(branch.witness, band)
-                    .map_err(CarryError::Site)?;
-                match slots.get_mut(k) {
-                    Some(slot @ None) => *slot = Some(branch),
-                    _ => {
-                        return Err(CarryError::Desync(
-                            "the march found two branches on one component",
-                        ));
+            (lane.march)(&self.pose, band)
+        };
+        self.listed(marched, band)
+    }
+
+    /// **The components listed from the march's branches** as
+    /// [`Self::carry`] lists them, `branches` asked for only where a
+    /// component is the general rung's.
+    fn listed(
+        &self,
+        branches: impl FnOnce() -> Marched<T>,
+        band: Band,
+    ) -> Result<CarriedSection<T>, CarryError> {
+        let components = match &self.components {
+            Components::Marched => distinct(
+                branches()?
+                    .into_iter()
+                    .map(FittedCarrier::component)
+                    .collect::<Result<_, _>>()?,
+                band,
+            )?,
+            Components::Counted(listed) => {
+                for c in listed {
+                    if let ClassCarrier::Unminted(why) = c.carrier {
+                        return Err(CarryError::Unminted(why));
                     }
                 }
+                let general = listed
+                    .iter()
+                    .any(|c| matches!(c.carrier, ClassCarrier::General));
+                let fitted = if general { branches()? } else { Vec::new() };
+                Self::matched(listed, fitted, band)?
             }
-            slots
-        } else {
-            vec![None; self.components.len()]
         };
-        let components = self
-            .components
+        Ok(CarriedSection {
+            components,
+            lever: self.lever,
+        })
+    }
+
+    /// **The march's branches matched to the listed components**, the
+    /// closed form a cross-check of the march: the march finds exactly as
+    /// many distinct branches as the classification lists general
+    /// components ([`distinct`]); a listed witness lies on exactly one
+    /// branch, which is its component's; and the witnessless components
+    /// take the rest, each a branch winding at least as it claims, by a
+    /// matching that does not depend on the list's order. Anything else
+    /// is a desync.
+    fn matched(
+        listed: &[SectionComponent<T>],
+        branches: Vec<FittedCarrier<T>>,
+        band: Band,
+    ) -> Result<Vec<CarriedComponent<T>>, CarryError> {
+        let general: Vec<usize> = (0..listed.len())
+            .filter(|&i| matches!(listed[i].carrier, ClassCarrier::General))
+            .collect();
+        if branches.len() != general.len() {
+            return Err(CarryError::Desync(
+                "the march found a different number of branches than the classification counts",
+            ));
+        }
+        let branches = distinct(
+            branches
+                .into_iter()
+                .map(FittedCarrier::component)
+                .collect::<Result<_, _>>()?,
+            band,
+        )?;
+        let claims = |listed: [bool; 2], marched: [bool; 2]| {
+            listed.iter().zip(marched).all(|(&l, m)| !l || m)
+        };
+        // `owner[j]`: the listed component branch `j` is matched to.
+        let mut owner: Vec<Option<usize>> = vec![None; branches.len()];
+        for &i in &general {
+            let Some(w) = listed[i].witness else {
+                continue;
+            };
+            let mut on = None;
+            for (j, b) in branches.iter().enumerate() {
+                if b.holds(w, band)? {
+                    if on.is_some() {
+                        return Err(CarryError::Desync(
+                            "a listed component's witness lies on two of the march's branches",
+                        ));
+                    }
+                    on = Some(j);
+                }
+            }
+            let j = on.ok_or(CarryError::Desync(
+                "a listed component's witness lies on no branch the march found",
+            ))?;
+            if owner[j].is_some() {
+                return Err(CarryError::Desync(
+                    "two listed components' witnesses lie on one branch",
+                ));
+            }
+            if !claims(listed[i].winds, branches[j].winds) {
+                return Err(CarryError::Desync(
+                    "a branch does not wind as the listed component it holds the witness of",
+                ));
+            }
+            owner[j] = Some(i);
+        }
+        // The witnessless components against the branches left, by
+        // augmenting paths: a matching exists exactly where this finds
+        // one, whatever order the components are listed in.
+        let free: Vec<usize> = (0..branches.len())
+            .filter(|&j| owner[j].is_none())
+            .collect();
+        let edge = |i: usize, j: usize| claims(listed[i].winds, branches[j].winds);
+        fn augment(
+            i: usize,
+            free: &[usize],
+            edge: &dyn Fn(usize, usize) -> bool,
+            seen: &mut [bool],
+            owner: &mut [Option<usize>],
+        ) -> bool {
+            for &j in free {
+                if seen[j] || !edge(i, j) {
+                    continue;
+                }
+                seen[j] = true;
+                if owner[j].is_none_or(|k| augment(k, free, edge, seen, owner)) {
+                    owner[j] = Some(i);
+                    return true;
+                }
+            }
+            false
+        }
+        for &i in general.iter().filter(|&&i| listed[i].witness.is_none()) {
+            let mut seen = vec![false; branches.len()];
+            if !augment(i, &free, &edge, &mut seen, &mut owner) {
+                return Err(CarryError::Desync(
+                    "the march's branches do not wind as the listed components claim",
+                ));
+            }
+        }
+        let mut slot: Vec<Option<CarriedComponent<T>>> = vec![None; listed.len()];
+        for (j, b) in branches.into_iter().enumerate() {
+            if let Some(i) = owner[j] {
+                slot[i] = Some(b);
+            }
+        }
+        listed
             .iter()
-            .zip(fitted.iter_mut())
-            .map(|(c, slot)| match (&c.carrier, slot.take()) {
+            .zip(slot)
+            .map(|(c, fitted)| match (&c.carrier, fitted) {
                 (ClassCarrier::Closed(curve), _) => Ok(CarriedComponent {
                     carrier: curve.clone(),
                     span: (T::zero(), T::from_f64(core::f64::consts::TAU)),
                     closed: true,
                     certificate: None,
+                    winds: c.winds,
+                    pad: 0.0,
+                    witness: curve.eval(T::pi()),
                 }),
-                (ClassCarrier::General, Some(f)) => Ok(CarriedComponent {
-                    carrier: f.carrier,
-                    span: f.span,
-                    closed: f.closed,
-                    certificate: Some(f.certificate),
-                }),
-                (ClassCarrier::Fitted(carried), _) => Ok(carried.clone()),
-
+                (ClassCarrier::General, Some(f)) => Ok(f),
                 (ClassCarrier::General, None) => Err(CarryError::Desync(
                     "the march found no branch on a component the classification names",
                 )),
                 (ClassCarrier::Unminted(why), _) => Err(CarryError::Unminted(why)),
             })
-            .collect::<Result<_, _>>()?;
-        Ok(CarriedSection {
-            components,
-            lever: self.lever,
-        })
+            .collect()
     }
 
     /// **A closed fitted component, opened at the parameter `at`** of
@@ -1180,15 +1212,42 @@ pub struct FittedCarrier<T: Real> {
     pub certificate: SsiCertificate<T>,
     /// A point of it (`carrier(mid)`).
     pub witness: Point3<T>,
+    /// How it winds about each operand, in the order the section was
+    /// asked of ([`winds`]).
+    pub winding: [Winding; 2],
+    /// How far from its carrier a point of the loop is read, in metres
+    /// ([`CarriedComponent::pad`], [`pad_of`]).
+    pub pad: f64,
 }
 
-/// **The general rung's door** (module docs): the march of a decided
-/// pose over its ball, and a plane and a spline's whole reading, written
-/// at `f64`. Holding one is the statement that the scalar may march;
-/// [`SsiLane::marched`], at `f64`, is its one constructor.
+impl<T: Decide> FittedCarrier<T> {
+    /// The branch as a carried component: a closed one, since the
+    /// march's box holds the whole section.
+    fn component(self) -> Result<CarriedComponent<T>, CarryError> {
+        if !self.closed {
+            return Err(CarryError::Desync(
+                "the march left the ball's box, which holds the whole section",
+            ));
+        }
+        Ok(CarriedComponent {
+            carrier: self.carrier,
+            span: self.span,
+            closed: true,
+            certificate: Some(self.certificate),
+            winds: self.winding.map(Winding::essential),
+            pad: self.pad,
+            witness: self.witness,
+        })
+    }
+}
+
+/// **The general rung's door** (module docs): the ℝ³ march of a
+/// decided pose over its ball, and a plane and a spline's whole reading,
+/// written at `f64`. Holding one is the statement that the scalar may
+/// march; [`SsiLane::marched`], at `f64`, is its one constructor.
 #[derive(Clone, Copy, Debug)]
 pub struct SsiLane<T: Real> {
-    /// One march of a decided pose.
+    /// One march of a decided pose, each branch's winding read.
     march: fn(&PairPose<T>, Band) -> Marched<T>,
     /// One closed fitted component seated at a parameter, re-certified
     /// against the pose's operands ([`PairSection::seat`]).
@@ -1205,7 +1264,7 @@ type SplineSection<T> = fn(&Surface<T>, &Surface<T>, Band) -> Result<PairSection
 pub type Seated<T> = Result<CarriedComponent<T>, CarryError>;
 
 /// What one march of a pose answers: its fitted branches.
-type Marched<T> = Result<Vec<FittedCarrier<T>>, SsiError>;
+type Marched<T> = Result<Vec<FittedCarrier<T>>, CarryError>;
 
 impl SsiLane<f64> {
     /// The march.
@@ -1221,36 +1280,91 @@ impl SsiLane<f64> {
 
 /// **The ℝ³ march of `pose` over its ball's box** ([`PairPose::domain`]),
 /// which holds every component of the section. No branch reaches the
-/// box's faces, so every branch the march finds closes.
+/// box's faces, so every branch the march finds closes; each closed
+/// branch's winding about each operand is read off its loop, padded by
+/// its tube ([`winds`]).
 fn march_over_the_ball(
     pose: &PairPose<f64>,
     band: Band,
-) -> Result<Vec<FittedCarrier<f64>>, SsiError> {
+) -> Result<Vec<FittedCarrier<f64>>, CarryError> {
     let domain = pose.domain();
     let out = match pose {
-        PairPose::CylinderSphere(p) => crate::ssi::march_cylinder_sphere(p, domain, band)?,
-        PairPose::SphereTorus(p) => crate::ssi::march_sphere_torus(p, domain, band)?,
-        PairPose::CylinderTorus(p) => crate::ssi::march_cylinder_torus(p, domain, band)?,
-        PairPose::TorusTorus(p) => crate::ssi::march_torus_torus(p, domain, band)?,
-        // Its components are carried when the section is read; none is
-        // left for the ball's march.
+        PairPose::CylinderSphere(p) => crate::ssi::march_cylinder_sphere(p, domain, band),
+        PairPose::SphereTorus(p) => crate::ssi::march_sphere_torus(p, domain, band),
+        PairPose::CylinderTorus(p) => crate::ssi::march_cylinder_torus(p, domain, band),
+        PairPose::TorusTorus(p) => crate::ssi::march_torus_torus(p, domain, band),
+        // Its components are read whole when the section is built, and
+        // none is carried.
         PairPose::PlaneSpline(_) => {
-            return Err(SsiError::WrongLane {
-                expected: "a pose whose loops the ball's march carries",
-            });
+            return Err(CarryError::Unminted(plane_spline::UNCARRIED));
         }
-    };
-    Ok(out
-        .branches
+    }
+    .map_err(CarryError::March)?;
+    let (a, b) = pose.operands();
+    out.branches
         .into_iter()
-        .map(|b| FittedCarrier {
-            carrier: b.carrier,
-            span: b.params,
-            closed: matches!(b.end, BranchEnd::Closed),
-            certificate: b.certificate,
-            witness: b.witness,
+        .map(|br| {
+            let closed = matches!(br.end, BranchEnd::Closed);
+            let pad = pad_of(&br.carrier, &br.certificate)?;
+            let winding = if closed {
+                let read = |s| winds::winding(s, &br.carrier, br.params, pad);
+                [read(a), read(b)]
+                    .into_iter()
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(CarryError::Winds)?
+                    .try_into()
+                    .map_err(|_| CarryError::Desync("a branch's winding is read per operand"))?
+            } else {
+                [Winding::default(); 2]
+            };
+            Ok(FittedCarrier {
+                carrier: br.carrier,
+                span: br.params,
+                closed,
+                certificate: br.certificate,
+                witness: br.witness,
+                winding,
+                pad,
+            })
         })
-        .collect())
+        .collect()
+}
+
+/// **How far from its fitted carrier a point of a marched loop lies**
+/// ([`CarriedComponent::pad`]): the uniqueness tube's radius plus the
+/// largest diameter of the hull boxes it pads, the boxes the march's
+/// exhaustiveness accounts cells to (`ssi::certify::tube_boxes`). A
+/// point of the loop lies in one padded box, within the radius of the
+/// raw box, whose every point is within its diameter of the carrier's
+/// piece it hulls. The carrier's limb-2 bound must lie within the pad
+/// too, so the carrier lies within the pad of each surface; otherwise
+/// the pad is refused ([`CarryError::PadShort`]).
+fn pad_of(carrier: &Curve3<f64>, certificate: &SsiCertificate<f64>) -> Result<f64, CarryError> {
+    let crate::ssi::SsiTube::Spatial { radius } = certificate.tube else {
+        return Err(CarryError::Desync(
+            "an ℝ³ march's certificate proved no spatial tube",
+        ));
+    };
+    let Curve3::Nurbs(net) = carrier else {
+        return Err(CarryError::Desync(
+            "a fitted component's carrier is not a spline",
+        ));
+    };
+    // The largest side of each raw box bounds its diameter by `√3` of
+    // it; the product is rounded up by a relative `1e-12`, far past one
+    // rounding.
+    let side = crate::ssi::certify::tube_boxes(net, 0.0)
+        .into_iter()
+        .map(crate::ssi::enclose::Box3::width)
+        .try_fold(0.0f64, |acc, w| w.is_finite().then(|| acc.max(w)));
+    let pad = side.map(|w| radius + 3.0f64.sqrt() * w * (1.0 + 1e-12));
+    match pad {
+        Some(pad) if certificate.hull_sup <= pad => Ok(pad),
+        _ => Err(CarryError::PadShort {
+            pad: pad.unwrap_or(f64::NAN),
+            hull_sup: certificate.hull_sup,
+        }),
+    }
 }
 
 /// **[`PairSection::seat`] at `f64`.** `at` at either end of the
@@ -1262,10 +1376,7 @@ fn seat_at(
     band: Band,
 ) -> Result<CarriedComponent<f64>, CarryError> {
     if let PairPose::PlaneSpline(_) = pose {
-        return Err(CarryError::Unminted(
-            "a plane × spline loop is seated against its wall's chart, which no seat \
-             certifies yet",
-        ));
+        return Err(CarryError::Unminted(plane_spline::UNCARRIED));
     }
     let Curve3::Nurbs(net) = &component.carrier else {
         return Err(CarryError::Desync(
@@ -1291,7 +1402,7 @@ fn seat_at(
             return match at_the_start(net.eval(at), ends, band) {
                 Ok(true) => Ok(component.clone()),
                 Ok(false) => Err(CarryError::Seat(e)),
-                Err(diag) => Err(CarryError::Site(SiteRefusal::Escalated(diag))),
+                Err(diag) => Err(CarryError::Escalated(diag)),
             };
         }
     };
@@ -1308,11 +1419,16 @@ fn seat_at(
     )
     .map_err(CarryError::March)?;
     let span = seated.domain();
+    let carrier = Curve3::Nurbs(std::sync::Arc::new(seated));
+    let pad = pad_of(&carrier, &certificate)?;
     Ok(CarriedComponent {
-        carrier: Curve3::Nurbs(std::sync::Arc::new(seated)),
+        witness: carrier.eval(0.5 * (span.0 + span.1)),
+        carrier,
         span,
         closed: true,
         certificate: Some(certificate),
+        winds: component.winds,
+        pad,
     })
 }
 
@@ -1395,8 +1511,19 @@ pub enum CarryError {
     },
     /// The march refused.
     March(SsiError),
-    /// A branch's witness has no component.
-    Site(SiteRefusal),
+    /// A branch's winding was not read.
+    Winds(WindsRefusal),
+    /// A reading in the band or poisoned.
+    Escalated(Indeterminate),
+    /// A fitted loop's limb-2 bound stands past the pad its points are
+    /// read within ([`CarriedComponent::pad`]), or the pad's boxes could
+    /// not be read (`NaN`).
+    PadShort {
+        /// The pad, in metres.
+        pad: f64,
+        /// The certificate's limb-2 bound, in metres.
+        hull_sup: f64,
+    },
     /// The march and the classification disagree.
     Desync(&'static str),
     /// A closed fitted component could not be opened at its first site
@@ -1415,6 +1542,97 @@ pub struct CarriedComponent<T: Real> {
     pub closed: bool,
     /// The general rung's certificate, where it was fitted.
     pub certificate: Option<SsiCertificate<T>>,
+    /// Whether it winds about each surface's carrier, in the order the
+    /// section was asked of: a closed form's as classified, a fitted
+    /// loop's turns about each surface's axis and core read off the loop
+    /// itself ([`winds`]).
+    pub winds: [bool; 2],
+    /// **How far from its carrier a point of this component is read**,
+    /// in metres; zero for a closed form. Every reading of a point
+    /// against the component pads its band by it ([`Self::reads`]), and
+    /// the winding ([`winds`]) and the certificate's W3 rest on it. For
+    /// a marched loop it is [`pad_of`]: two facts make it the pad, each
+    /// a limb of the loop's C2 certificate.
+    ///
+    /// - **Closeness**: every point of the component lies within `pad`
+    ///   of the carrier. The march's exhaustiveness receipt accounts each
+    ///   cell of the domain to a branch's uniqueness tube, the hull boxes
+    ///   padded by the tube radius (limb 3 says each holds exactly one
+    ///   arc, the branch's own); a point of a padded box lies within the
+    ///   radius plus the box's diameter of the carrier. And limbs 1 and 2
+    ///   put the carrier within `hull_sup` of each surface, which the pad
+    ///   is checked to hold ([`CarryError::PadShort`]), so a point of the
+    ///   carrier lies within the pad of each surface too.
+    /// - **Uniqueness**: limb 3's tube holds this loop's arc alone, so no
+    ///   other component crosses it. A point read on two components
+    ///   (each within its pad) is not chosen between: it desyncs.
+    pub pad: f64,
+    /// A point of the carrier, `carrier(mid)`: the witness the component
+    /// is read by.
+    pub witness: Point3<T>,
+}
+
+impl<T: Decide> CarriedComponent<T> {
+    /// **Where the point `p` of the section lies against this
+    /// component**: its foot on the carrier where `p` is within the band
+    /// padded by [`Self::pad`] ([`Curve3::on_carrier`], [`Band::padded`]),
+    /// `None` where it is past it. The one reading of "a point on this
+    /// component", by [`CarriedSection::foot`] and the counted section's
+    /// cross-check alike.
+    ///
+    /// # Errors
+    ///
+    /// [`SiteRefusal`]: an undecided reading escalates.
+    pub fn reads(&self, p: Point3<T>, band: Band) -> Result<Option<T>, SiteRefusal> {
+        use geom::{CarrierRefusal, OnCarrier};
+        let padded = band
+            .padded(self.pad)
+            .map_err(|_| SiteRefusal::Desync("a component's tube pads no band"))?;
+        let foot = self.carrier.foot(p, self.span.0);
+        match foot.on_carrier(padded) {
+            Ok(OnCarrier::On { .. }) => Ok(Some(foot.t())),
+            Ok(OnCarrier::Off) => Ok(None),
+            Err(CarrierRefusal::Escalated(diag) | CarrierRefusal::Straddle(diag)) => {
+                Err(SiteRefusal::Escalated(diag))
+            }
+            Err(CarrierRefusal::Exhausted | CarrierRefusal::Unbounded) => Err(SiteRefusal::Desync(
+                "a point's distance from a fitted component could not be read",
+            )),
+        }
+    }
+
+    /// [`Self::reads`] as the carry reads it.
+    fn holds(&self, w: Point3<T>, band: Band) -> Result<bool, CarryError> {
+        self.reads(w, band)
+            .map(|t| t.is_some())
+            .map_err(|e| match e {
+                SiteRefusal::Escalated(diag) => CarryError::Escalated(diag),
+                SiteRefusal::Desync(what) => CarryError::Desync(what),
+            })
+    }
+}
+
+/// **The march's branches, each a distinct loop**: each branch's
+/// witness, `carrier(mid)`, lies on that branch alone
+/// ([`CarriedComponent::reads`]). A march that found one loop twice
+/// holds a witness on two branches, which the count cannot see: a desync.
+/// The tube's uniqueness is what makes this a test of identity: no point
+/// of another loop lies within a branch's tube.
+fn distinct<T: Decide>(
+    branches: Vec<CarriedComponent<T>>,
+    band: Band,
+) -> Result<Vec<CarriedComponent<T>>, CarryError> {
+    for (i, b) in branches.iter().enumerate() {
+        let w = b.witness;
+        for (j, other) in branches.iter().enumerate() {
+            if i != j && other.holds(w, band)? {
+                return Err(CarryError::Desync(
+                    "the march found one loop of the section twice",
+                ));
+            }
+        }
+    }
+    Ok(branches)
 }
 
 /// **A section whose every component holds a carrier** (module docs),
@@ -1451,41 +1669,27 @@ impl<T: Decide> CarriedSection<T> {
         self.lever
     }
 
-    /// **The site `p`'s foot**: the one component it lies within the
-    /// band of ([`Curve3::on_carrier`]), the foot parameter there, and
-    /// the carrier's tangent. A site on none, or on two, is a desync.
+    /// **The site `p`'s foot**: the one component it lies on
+    /// ([`CarriedComponent::reads`]), the foot parameter there, and the
+    /// carrier's tangent. A site on none, or on two, is a desync.
     ///
     /// # Errors
     ///
     /// [`SiteRefusal`].
     pub fn foot(&self, p: Point3<T>, band: Band) -> Result<SiteFoot<T>, SiteRefusal> {
-        use geom::{CarrierRefusal, OnCarrier};
         let mut found = None;
         for (k, c) in self.components.iter().enumerate() {
-            let foot = c.carrier.foot(p, c.span.0);
-            match foot.on_carrier(band) {
-                Ok(OnCarrier::On { .. }) => {
-                    if found.is_some() {
-                        return Err(SiteRefusal::Desync(
-                            "a site lies within the band of two components of its section",
-                        ));
-                    }
-                    let t = foot.t();
-                    found = Some(SiteFoot {
-                        component: k,
-                        t,
-                        tangent: c.carrier.ders1(t).1,
-                    });
-                }
-                Ok(OnCarrier::Off) => {}
-                Err(CarrierRefusal::Escalated(diag) | CarrierRefusal::Straddle(diag)) => {
-                    return Err(SiteRefusal::Escalated(diag));
-                }
-                Err(CarrierRefusal::Exhausted | CarrierRefusal::Unbounded) => {
+            if let Some(t) = c.reads(p, band)? {
+                if found.is_some() {
                     return Err(SiteRefusal::Desync(
-                        "a site's distance from a fitted component could not be read",
+                        "a site lies on two components of its section",
                     ));
                 }
+                found = Some(SiteFoot {
+                    component: k,
+                    t,
+                    tangent: c.carrier.ders1(t).1,
+                });
             }
         }
         found.ok_or(SiteRefusal::Desync(
@@ -1495,6 +1699,7 @@ impl<T: Decide> CarriedSection<T> {
 }
 
 #[cfg(test)]
+#[allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
 mod wiring {
     use super::{SsiLane, march_over_the_ball, seat_at};
 
@@ -1536,6 +1741,297 @@ mod wiring {
             "between the band's edges: an escalation, never the start: {:?}",
             at(3.0 * band.zero())
         );
+    }
+
+    fn band() -> geom_core::Band {
+        geom_core::Band::linear(geom_core::Tol::witness()).expect("the witness band")
+    }
+
+    /// The cylinder `radius 0.5` about `z`, and the sphere `radius` at
+    /// `center`.
+    fn wall_and_ball(
+        center: (f64, f64, f64),
+        radius: f64,
+    ) -> (geom::Surface<f64>, geom::Surface<f64>) {
+        use geom_core::{Point3, Vec3};
+        (
+            geom::Surface::Cylinder {
+                origin: Point3::new(0.0, 0.0, -3.0),
+                axis: Vec3::unit_z(),
+                radius: 0.5,
+                u_ref: Vec3::unit_x(),
+            },
+            geom::Surface::Sphere {
+                center: Point3::new(center.0, center.1, center.2),
+                radius,
+                axis: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+            },
+        )
+    }
+
+    /// The germ row's ball (radius `1/2` at the origin) against its donut
+    /// (`R = 0.6`, `r = 0.2` about `y`) turned 0.9 rad about `(1, 1, 0)`
+    /// and moved to `(0.05, 0.1, 0.02)`: the sphere cuts both tube
+    /// circles of its meridian, two loops about the torus axis that no
+    /// witness names.
+    fn ball_round_the_axis() -> (geom::Surface<f64>, geom::Surface<f64>) {
+        use geom_core::{Point3, Vec3};
+        let k = Vec3::new(1.0, 1.0, 0.0).normalize();
+        let (sn, cs) = 0.9f64.sin_cos();
+        let y = Vec3::unit_y();
+        let axis = y * cs + k.cross(y) * sn + k * (k.dot(y) * (1.0 - cs));
+        let u_ref = axis.orthonormal_basis().0;
+        (
+            geom::Surface::Sphere {
+                center: Point3::origin(),
+                radius: 0.5,
+                axis: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+            },
+            geom::Surface::Torus {
+                center: Point3::new(0.05, 0.1, 0.02),
+                axis,
+                major_radius: 0.6,
+                minor_radius: 0.2,
+                u_ref,
+            },
+        )
+    }
+
+    fn built(a: &geom::Surface<f64>, b: &geom::Surface<f64>) -> super::PairSection<f64> {
+        match super::pair_section(a, b, band()) {
+            Ok(super::SectionRead::Built(s)) => s,
+            other => panic!("the value builds the pair: {other:?}"),
+        }
+    }
+
+    /// The march with its first branch in its second's place: one loop
+    /// found twice, the other dropped.
+    fn doubled(
+        pose: &super::PairPose<f64>,
+        band: geom_core::Band,
+    ) -> Result<Vec<super::FittedCarrier<f64>>, super::CarryError> {
+        let mut out = march_over_the_ball(pose, band)?;
+        assert!(out.len() >= 2, "a section of two loops at least");
+        out[1] = out[0].clone();
+        Ok(out)
+    }
+
+    /// **A doubled ring is caught** (R1): two general rings of a sphere
+    /// past a wall's far ruling, and the ball round the donut's axis,
+    /// listed from a march that found one loop twice, read counted and
+    /// read marched. The count agrees and no witness is listed, so only
+    /// the loops' identity can see it: each branch's witness lies on the
+    /// other branch. (The lane is the door's own: its fields are written
+    /// by its constructor alone, so the doubled march is handed to the
+    /// listing `carry` hands its march to.)
+    #[test]
+    fn a_doubled_ring_is_caught() {
+        use super::{CarryError, ClassCarrier, Components, SsiLane};
+        for (what, (a, b)) in [
+            (
+                "two rings round the wall",
+                wall_and_ball((0.1, 0.0, 0.2), 0.7),
+            ),
+            ("the ball round the donut's axis", ball_round_the_axis()),
+        ] {
+            let section = built(&a, &b);
+            let listed = section
+                .counted()
+                .unwrap_or_else(|| panic!("{what}: counted"));
+            assert!(
+                listed.len() == 2
+                    && listed
+                        .iter()
+                        .all(|c| c.witness.is_none() && matches!(c.carrier, ClassCarrier::General)),
+                "{what}: two witnessless general loops"
+            );
+            assert!(
+                section.carry(Some(SsiLane::marched()), band()).is_ok(),
+                "{what}: the march carries"
+            );
+            let marched = super::PairSection {
+                components: Components::Marched,
+                ..section.clone()
+            };
+            for (read, s) in [("counted", &section), ("marched", &marched)] {
+                let got = s.listed(|| doubled(s.pose(), band()), band());
+                assert!(
+                    matches!(got, Err(CarryError::Desync(_))),
+                    "{what}, {read}: one loop marched twice: {:?}",
+                    got.map(|c| c.components().len())
+                );
+            }
+        }
+    }
+
+    /// **A doubled loop among witnessless components is a desync** (R2),
+    /// read on the matching itself, in either list order; and a listed
+    /// witness on no branch the march found (a lone loop's, against
+    /// another pose's march) is one too.
+    #[test]
+    #[allow(clippy::panic)]
+    fn a_doubled_loop_among_witnessless_components_is_a_desync() {
+        use super::{CarryError, PairSection};
+        let (a, b) = ball_round_the_axis();
+        let section = built(&a, &b);
+        let mut listed = section.counted().expect("counted").to_vec();
+        let fitted = march_over_the_ball(section.pose(), band()).expect("the march");
+        assert_eq!(fitted.len(), 2, "two loops");
+        for (order, branch) in fitted.iter().enumerate() {
+            let twice = vec![branch.clone(), branch.clone()];
+            assert!(
+                matches!(
+                    PairSection::matched(&listed, twice, band()),
+                    Err(CarryError::Desync(_))
+                ),
+                "branch {order} twice"
+            );
+            assert!(
+                PairSection::matched(&listed, fitted.clone(), band()).is_ok(),
+                "the march's own two, listed in order {order}"
+            );
+            listed.reverse();
+        }
+        let (wall, here) = wall_and_ball((0.5, 0.0, 0.2), 0.3);
+        let (_, there) = wall_and_ball((0.5, 0.0, 1.2), 0.3);
+        let lone = built(&wall, &here);
+        let elsewhere = built(&wall, &there);
+        let listed = lone.counted().expect("counted");
+        assert!(listed[0].witness.is_some(), "a lone loop's witness");
+        let theirs = march_over_the_ball(elsewhere.pose(), band()).expect("the march");
+        assert!(
+            matches!(
+                PairSection::matched(listed, theirs, band()),
+                Err(CarryError::Desync(_))
+            ),
+            "a witness on no branch the march found"
+        );
+    }
+
+    /// **The witnessless matching is not first fit** (an order that
+    /// defeats it): the ball round the donut's axis with its two
+    /// components claiming `[true, false]` and `[false, true]` against
+    /// branches winding `[true, true]` and `[true, false]`, listed in the
+    /// order where first fit gives the first component the `[true, true]`
+    /// branch and leaves the second none. The matching takes the
+    /// `[true, false]` branch for the first and carries.
+    #[test]
+    fn the_witnessless_matching_is_not_first_fit() {
+        use super::{PairSection, Winding};
+        let (a, b) = ball_round_the_axis();
+        let section = built(&a, &b);
+        let mut listed = section.counted().expect("counted").to_vec();
+        listed[0].winds = [true, false];
+        listed[1].winds = [false, true];
+        let mut fitted = march_over_the_ball(section.pose(), band()).expect("the march");
+        let turn = Winding {
+            about_axis: 1,
+            about_core: 0,
+        };
+        fitted[0].winding = [turn, turn];
+        fitted[1].winding = [turn, Winding::default()];
+        let carried = PairSection::matched(&listed, fitted, band())
+            .unwrap_or_else(|e| panic!("a matching exists: {e:?}"));
+        assert_eq!(
+            carried.iter().map(|c| c.winds).collect::<Vec<_>>(),
+            [[true, false], [true, true]],
+            "each component on the branch its claim needs"
+        );
+    }
+
+    /// **Closeness is checked**: every marched loop's limb-2 bound lies
+    /// within its pad, which holds its uniqueness tube's radius; and a
+    /// certificate whose limb-2 bound stands past the pad refuses
+    /// `PadShort`.
+    #[test]
+    fn a_marched_loops_pad_holds_its_limb_two_bound() {
+        use super::{CarryError, pad_of};
+        use crate::ssi::SsiTube;
+        for (what, (a, b)) in [
+            (
+                "two rings round the wall",
+                wall_and_ball((0.1, 0.0, 0.2), 0.7),
+            ),
+            ("the ball round the donut's axis", ball_round_the_axis()),
+        ] {
+            let section = built(&a, &b);
+            for br in march_over_the_ball(section.pose(), band()).expect("the march") {
+                let SsiTube::Spatial { radius } = br.certificate.tube else {
+                    panic!("{what}: a spatial tube");
+                };
+                assert!(
+                    br.certificate.hull_sup <= br.pad && radius < br.pad,
+                    "{what}: limb 2 {:e}, tube {radius:e}, pad {:e}",
+                    br.certificate.hull_sup,
+                    br.pad
+                );
+                let mut loose = br.certificate;
+                loose.hull_sup = 2.0 * br.pad;
+                assert!(
+                    matches!(
+                        pad_of(&br.carrier, &loose),
+                        Err(CarryError::PadShort { .. })
+                    ),
+                    "{what}: a limb-2 bound past the pad refuses"
+                );
+            }
+        }
+    }
+
+    /// **Close loops carry**: the wall of radius `1/2` against a sphere at
+    /// `(0.1, 0, 0.2)` of radius `0.6 + δ`, its two rings `δ` from
+    /// meeting at the far ruling, carry as counted and as marched, two
+    /// loops each, from `δ = 3e-2` down to `3e-4`.
+    #[test]
+    fn close_rings_carry_counted_and_marched() {
+        use super::{Components, SsiLane};
+        for delta in [3e-2, 1e-2, 3e-3, 1e-3, 3e-4] {
+            let (wall, ball) = wall_and_ball((0.1, 0.0, 0.2), 0.6 + delta);
+            let section = built(&wall, &ball);
+            let marched = super::PairSection {
+                components: Components::Marched,
+                ..section.clone()
+            };
+            for (read, s) in [("counted", &section), ("marched", &marched)] {
+                let got = s
+                    .carry(Some(SsiLane::marched()), band())
+                    .unwrap_or_else(|e| panic!("δ {delta:e}, {read}: {e:?}"));
+                assert_eq!(got.components().len(), 2, "δ {delta:e}, {read}");
+            }
+        }
+    }
+
+    /// **A count the march disagrees with is a desync**: the two loops of
+    /// a sphere reaching past a wall's far ruling, listed as three. As
+    /// counted, they carry; read as marched, the march's two.
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn a_count_the_march_disagrees_with_refuses() {
+        use super::{CarryError, Components, SsiLane};
+        let (wall, ball) = wall_and_ball((0.1, 0.0, 0.2), 0.7);
+        let section = built(&wall, &ball);
+        let lane = Some(SsiLane::marched());
+        let listed = section.counted().unwrap().to_vec();
+        assert_eq!(listed.len(), 2, "two loops");
+        assert!(
+            section.carry(lane, band()).is_ok(),
+            "as counted, it carries"
+        );
+        let restated = |components| super::PairSection {
+            components,
+            ..section.clone()
+        };
+        let three = restated(Components::Counted(
+            listed.iter().chain(&listed[..1]).cloned().collect(),
+        ));
+        assert!(
+            matches!(three.carry(lane, band()), Err(CarryError::Desync(_))),
+            "three listed, two marched"
+        );
+        let marched = restated(Components::Marched).carry(lane, band()).unwrap();
+        assert_eq!(marched.components().len(), 2, "marched, the march's two");
     }
 
     #[test]

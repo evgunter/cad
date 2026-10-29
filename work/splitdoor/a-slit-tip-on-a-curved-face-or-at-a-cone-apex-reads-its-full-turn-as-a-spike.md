@@ -2,7 +2,7 @@
 id: a-slit-tip-on-a-curved-face-or-at-a-cone-apex-reads-its-full-turn-as-a-spike
 kind: issue
 title: A slit tip on a curved face's section reading, or at a cone's apex, reads the face's full turn as a spike
-status: open
+status: dispatched
 opened: 2026-10-29
 priority: P2
 cost: M

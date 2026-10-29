@@ -193,14 +193,14 @@ fn raised_leaf(tol: Tol) -> topo::AtRestBody<f64> {
 }
 
 /// **A spline witness by a face's edge is placed on the band widened by
-/// its residual, through the boolean's own placement.** The plane
+/// its pad, through the boolean's own placement.** The plane
 /// a little below the raised leaf's ridge peak meets its ridge wall in one oval, read as
-/// one loop with a witness `r` off it. A box whose bottom face lies in
+/// one loop with a witness within its pad `r` of it. A box whose bottom face lies in
 /// that plane, its edge `d` from the witness on the side the oval runs
 /// on, is read against the wall by the section pass on real faces:
-/// - `d` = the band's escalation plus `r/2`: past the band, inside the
-///   band widened by `r`, so the placement does not read the witness
-///   out of the box and the pair is not cleared;
+/// - `d` = the band's escalation plus `r`: past the band, inside the
+///   band the rule pads by `2r`, so the placement does not read the
+///   witness out of the box and the pair is not cleared;
 /// - `d` ten escalations: the witness is out of the box (W3).
 ///
 /// Red against the boolean placing a spline witness on the run's band
@@ -246,13 +246,16 @@ fn a_spline_witness_by_an_edge_is_placed_on_the_widened_band() {
     else {
         panic!("the ridge's section is read")
     };
-    let [c] = section.components() else {
+    let geom_brep::Components::Counted(components) = section.components() else {
+        panic!("a spline section is counted: {section:?}")
+    };
+    let [c] = components.as_slice() else {
         panic!("one oval: {section:?}")
     };
     assert_eq!(c.shape, geom_brep::ComponentShape::Loop, "{c:?}");
     let w = c.witness.expect("the oval carries a witness");
     for (d, want) in [
-        (band.escalate() + c.residual / 2.0, "Err(Undecided)"),
+        (band.escalate() + c.pad, "Err(Undecided)"),
         (10.0 * band.escalate(), "Ok([Out(G)])"),
     ] {
         // The box's edge stands `d` from the witness toward the ridge's

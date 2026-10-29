@@ -12,13 +12,13 @@ use super::search_kit::band;
 use super::section_cert_rows::{IN, OUT, at, p, plane, v};
 use super::*;
 use geom::Surface;
-use geom_core::Point3;
 use geom_core::spline::KnotVector;
+use geom_core::{Band, Point3};
 
 /// The section through the march door, over a reach the spline arm
 /// does not read.
 fn read(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
-    classify_with(
+    classify(
         f,
         g,
         Reach {
@@ -73,23 +73,23 @@ fn off_the_circle(w: Point3<f64>, h: f64) -> f64 {
 }
 
 /// **A loop inside a plane and a wall is never cleared, and its witness
-/// is placed on the band widened by its residual.** The dome cut at
+/// is placed on the band widened by its pad.** The dome cut at
 /// `z = −0.1` meets the plane in the circle of radius `√0.1` about the
 /// centre, inside the wall's rectangle: one closed component, reaching
-/// no chart boundary, its witness within its residual of the circle and
-/// that residual a few bands, not the wall's size. With no event its
+/// no chart boundary, its witness within its pad of the circle and
+/// that pad a few bands, not the wall's size. With no event its
 /// witness decides it: `In` both faces is R-loop, no verdict is R-undec,
 /// and it clears only `Out` of a face (W3); with an event it is the lone
 /// evented component (W4). Against a face whose edge stands `d` from the
-/// witness, past the band but inside the band widened by the residual,
+/// witness, past the band but inside the band widened by the pad,
 /// the placement reads the witness on the edge, so it does not clear.
 /// The same plane stored with its origin a kilometre off reads the same
 /// loop. Red against the boundary clause read true for a closed loop
-/// (every verdict clears as `Reaches`), against the residual dropped
+/// (every verdict clears as `Reaches`), against the pad dropped
 /// between the section and the placement (the component's or the rule's
 /// hand-off; the boolean's own widening is
 /// `nurbs_plane_guard::a_spline_witness_by_an_edge_is_placed_on_the_widened_band`),
-/// against a residual that does not scale with the band (a tube's rung),
+/// against a pad that does not scale with the band (a tube's rung),
 /// and against the plane read at its stored origin rather than its
 /// pivot (at ε 1e-12, where the kilometre's reach no longer settles). One reading of each plane serves every assertion: a loop's
 /// accounting is the expensive one.
@@ -101,12 +101,12 @@ fn a_loop_inside_a_plane_and_a_wall_is_never_cleared() {
     let w = c.witness.expect("a loop carries a witness");
     let off = off_the_circle(w, -0.1);
     assert!(
-        off <= c.residual && c.residual <= 1e3 * band().zero(),
-        "the witness stands {off:e} off the circle, within its residual {:e}, a few bands of {:e}",
-        c.residual,
+        off <= c.pad && c.pad <= 1e3 * band().zero(),
+        "the witness stands {off:e} off the circle, within its pad {:e}, a few bands of {:e}",
+        c.pad,
         band().zero()
     );
-    let rule = |evented, place| certify(&s, evented, |_| Sheet::Not, place);
+    let rule = |evented, place| certify(&s, evented, band(), |_| Sheet::Not, place);
     assert_eq!(rule(false, at(IN, IN)), Err(Refusal::Loop), "in both");
     assert_eq!(
         rule(false, at(None, None)),
@@ -123,37 +123,36 @@ fn a_loop_inside_a_plane_and_a_wall_is_never_cleared() {
         Ok(vec![Cleared::LoneEvented]),
         "evented"
     );
-    let d = band().zero() + c.residual / 2.0;
-    let edge = |_, r| {
-        let wide = witness_band(band(), r).expect("a band that wide exists");
-        [if d > wide.zero() { OUT } else { None }, IN]
-    };
+    // The rule pads the band by twice the pad ([`Component::pad`]): an
+    // edge one pad past the band's zero reads the witness on it.
+    let d = band().zero() + c.pad;
+    let edge = |_, wide: Band| [if d > wide.zero() { OUT } else { None }, IN];
     assert_eq!(
-        certify(&s, false, |_| Sheet::Not, edge),
+        certify(&s, false, band(), |_| Sheet::Not, edge),
         Err(Refusal::Undecided),
-        "a witness inside its residual of an edge does not clear"
+        "a witness inside its pad of an edge does not clear"
     );
     let far = read(&plane(p(1000.0, 1000.0, -0.1), v(0.0, 0.0, 1.0)), &dome());
     assert_eq!(
-        certify(&far, false, |_| Sheet::Not, at(IN, IN)),
+        certify(&far, false, band(), |_| Sheet::Not, at(IN, IN)),
         Err(Refusal::Loop),
         "the plane stored a kilometre off reads the same loop: {far:?}"
     );
 }
 
-/// **A spline witness stands within its residual of the section**, at
+/// **A spline witness stands within its pad of the section**, at
 /// other heights of the dome's cut: a wider and a narrower circle. Red
-/// against a residual that under-states the bracket (the certificate's
+/// against a pad that under-states the bracket (the certificate's
 /// sup bound alone).
 #[test]
-fn a_spline_witness_stands_within_its_residual_of_the_section() {
+fn a_spline_witness_stands_within_its_pad_of_the_section() {
     for h in [-0.2, -0.03] {
         let c = lone(&read(&level(h), &dome()));
         let off = off_the_circle(c.witness.expect("a loop carries a witness"), h);
         assert!(
-            off <= c.residual,
-            "h {h}: the witness stands {off:e} off, past its residual {:e}",
-            c.residual
+            off <= c.pad,
+            "h {h}: the witness stands {off:e} off, past its pad {:e}",
+            c.pad
         );
     }
 }
@@ -172,7 +171,7 @@ fn a_loop_hugging_the_walls_sides_is_a_loop() {
             "d {d:e}: a loop reads as reaching: {s:?}"
         );
         assert_eq!(
-            certify(&s, false, |_| Sheet::Not, at(None, None)),
+            certify(&s, false, band(), |_| Sheet::Not, at(None, None)),
             Err(Refusal::Undecided),
             "d {d:e}: a loop placed nowhere is not cleared"
         );
@@ -214,7 +213,7 @@ fn a_loop_beside_an_open_branch_is_not_cleared_by_an_event() {
     let open = parts.iter().filter(|c| c.reaches == Some(Side::G)).count();
     assert_eq!((loops, open, *single), (1, 1, false), "{s:?}");
     assert_eq!(
-        certify(&s, true, |_| Sheet::Not, at(IN, IN)),
+        certify(&s, true, band(), |_| Sheet::Not, at(IN, IN)),
         Err(Refusal::Undecided),
         "an evented pair with a loop beside an open branch"
     );
@@ -265,15 +264,15 @@ fn a_branch_across_a_closed_channels_seam_is_not_cleared_by_reaching_it() {
         assert!(
             matches!(
                 built.components(),
-                [c] if matches!(
-                    c.shape,
+                geom_brep::Components::Counted(c) if c.len() == 1 && matches!(
+                    c[0].shape,
                     geom_brep::ComponentShape::Open { reaches: [_, r] } if r.u_side && !r.v_side
                 )
             ),
             "closed {closed}: one branch from one u side to the other: {built:?}"
         );
         assert_eq!(
-            certify(&s, false, |_| Sheet::Not, at(None, None)),
+            certify(&s, false, band(), |_| Sheet::Not, at(None, None)),
             want,
             "closed {closed}: {s:?}"
         );
@@ -296,7 +295,7 @@ fn a_plane_cutting_a_wall_in_one_open_branch_is_cleared() {
         let s = read(&f, &g);
         assert_eq!(lone(&s).reaches, Some(side), "{s:?}");
         assert_eq!(
-            certify(&s, false, |_| Sheet::Not, at(IN, IN)),
+            certify(&s, false, band(), |_| Sheet::Not, at(IN, IN)),
             Ok(vec![Cleared::Reaches(side)])
         );
     }
@@ -317,7 +316,7 @@ fn a_plane_on_a_walls_side_is_cleared() {
         "a region: {s:?}"
     );
     assert_eq!(
-        certify(&s, false, |_| Sheet::Not, at(None, None)),
+        certify(&s, false, band(), |_| Sheet::Not, at(None, None)),
         Ok(vec![Cleared::Reaches(Side::G)])
     );
 }
@@ -340,8 +339,8 @@ fn a_graze_is_refused_by_name() {
 }
 
 /// **W0 stays the first door.** A plane clear of the dome's net is apart
-/// before any reading, and with no march door a plane that cuts it has
-/// no arm.
+/// before any reading, and with no march door a plane that cuts it is
+/// R-lane: the scalar does not march.
 #[test]
 fn w0_is_the_first_door_and_no_lane_has_no_arm() {
     let apart = read(&level(0.5), &dome());
@@ -356,7 +355,8 @@ fn w0_is_the_first_door_and_no_lane_has_no_arm() {
             centre: p(0.0, 0.0, 0.0),
             radius: 1.0,
         },
+        None,
         band(),
     );
-    assert!(matches!(unread, Section::Intractable), "{unread:?}");
+    assert!(matches!(unread, Section::NoLane("f64")), "{unread:?}");
 }

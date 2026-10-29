@@ -38,3 +38,12 @@ a bunch of different programs'"*): GREEN reads a red far enough to name
 its merge and its owner, and the owner works out the cause.
 
 Charter and order: `work/green/plan.md`; narrative in `work/green/log.md`.
+
+**GREEN acts on the nightly triage, not beside it** (2026-10-29). A
+daily nightly-triage session (`triage/nightly-<date>` PRs) attributes
+each red to its merge, files or annotates the owner's row, and fixes the
+trivial ones (doc links, stale counts). GREEN starts from that PR's
+table and greens what the triage left red (the pins, the disables, the
+re-blesses), citing the triage's rows rather than filing its own. On
+2026-10-29 a GREEN lane re-did the triage's rustdoc fixes in parallel
+(#6022, closed as superseded by #6018).

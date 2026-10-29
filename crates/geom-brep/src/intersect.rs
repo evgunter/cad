@@ -480,9 +480,9 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
 /// arms that march (cylinder×sphere and sphere×torus on their decided
 /// poses, plane×NURBS with plane×Approx over its fit, and NURBS×NURBS
 /// with every Approx pairing over its fits). Cylinder×torus and
-/// torus×torus read the section value ([`crate::pair_section()`]): a
-/// general pose, whose components it does not list, is not served,
-/// though its door marches it. Every unimplemented pair answers
+/// torus×torus read the section value ([`crate::pair_section()`]),
+/// which serves every pose its pose decision classifies, a general one
+/// through its march. Every unimplemented pair answers
 /// [`route`] unchanged. The match is
 /// exhaustive with no wildcard, as [`route`]'s is, so a kind added to
 /// the table is a compile-time visit here too.
@@ -538,9 +538,6 @@ pub fn route_pose<T: Decide>(
         (Torus, Plane) => plane_torus_section(b, a, extent, band).map(drop),
         (Cone, Cylinder) => cone_cylinder_section(a, b, extent, band).map(drop),
         (Sphere, Torus) | (Torus, Sphere) => torus_pose(crate::SphereTorusPose::decide(a, b, band)),
-        // A general pose's section lists no components the operation
-        // could take (`pair_section`'s refusal), so the pose is not
-        // served though the general rung's door marches it.
         (Cylinder, Torus) | (Torus, Cylinder) | (Torus, Torus) => {
             crate::pair_section(a, b, band).map(drop)
         }

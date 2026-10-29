@@ -7,8 +7,7 @@
 //! wall ([`PlaneSplinePose::anchored`]), so where its origin is stored
 //! changes nothing. Each piece of the section is a component:
 //!
-//! - a closed branch is a [`ComponentShape::Loop`], with its fitted and
-//!   certified carrier and its witness;
+//! - a closed branch is a [`ComponentShape::Loop`], with its witness;
 //! - an open branch, which runs between two crossings of the wall's
 //!   rectangle, and a `Side` or `Corner` region, where the section runs
 //!   along a side or leaves at a corner within the band, are
@@ -17,7 +16,7 @@
 //!   refused, never read as reaching.
 //!
 //! **A branch's witness** is the wall's point `q = S(P(mid))` at the
-//! middle of the branch's pcurve on the wall, and its residual a metre
+//! middle of the branch's pcurve on the wall, and its pad a metre
 //! bound on how far `q` stands from a point of that branch's own arc:
 //! a segment of the chart through `P(mid)` along the plane height's
 //! gradient, inside the window of the branch's certified chart tube
@@ -26,8 +25,12 @@
 //! inside the window limb 3 proves the section one arc, the branch's;
 //! the image's length is bounded by the segment's chart extents and the
 //! wall's certified chart speeds over the segment's own box, so the
-//! residual shrinks with the band. A branch no bracket fits carries no
+//! pad shrinks with the band. A branch no bracket fits carries no
 //! witness.
+//!
+//! The fitted carriers the reading certifies are not kept: no reader
+//! carries a plane × spline section ([`UNCARRIED`]), and a carried
+//! component's pad is a closeness bound a chart tube does not give.
 //!
 //! A refusal maps by name: a tangency the reading reports (the march's
 //! transversality, a graze of a side, a side held tangent) is a pinch
@@ -42,8 +45,7 @@ use geom::{NurbsSurface, Surface};
 use geom_core::{Band, Bounds, Interval, Point3, Real, Vec3};
 
 use super::{
-    CarriedComponent, ChartReach, ClassCarrier, ComponentShape, PairPose, PairSection,
-    SectionComponent, Sides,
+    ChartReach, ClassCarrier, ComponentShape, Components, PairPose, PairSection, SectionComponent,
 };
 use crate::ExtentBall;
 use crate::intersect::SectionError;
@@ -183,6 +185,13 @@ impl PlaneSplinePose<f64> {
         }
     }
 }
+
+/// **Why a plane × spline component has no carrier to carry**: the
+/// section is read whole for the section certificate alone, the glue
+/// door's table never holds it, and no seat certifies against a wall's
+/// chart.
+pub(super) const UNCARRIED: &str = "a plane × spline section is read whole for the section \
+    certificate alone, which carries none of its components";
 
 /// The note a region's component carries.
 const REGION: &str = "a Side or Corner region: the section runs along a side of the wall's \
@@ -355,18 +364,13 @@ pub(super) fn section(
                 });
             }
         };
-        let (witness, residual) = witness(&b, pose.net(), &anchored);
+        let (witness, pad) = witness(&b, pose.net(), &anchored);
         components.push(SectionComponent {
             shape,
             winds: [false, false],
             witness,
-            residual,
-            carrier: ClassCarrier::Fitted(CarriedComponent {
-                carrier: b.carrier,
-                span: b.params,
-                closed: shape == ComponentShape::Loop,
-                certificate: Some(b.certificate),
-            }),
+            pad,
+            carrier: ClassCarrier::Unminted(UNCARRIED),
         });
     }
     components.extend(out.boundary.iter().map(|region| {
@@ -381,7 +385,7 @@ pub(super) fn section(
             shape: open(reach),
             winds: [false, false],
             witness: None,
-            residual: 0.0,
+            pad: 0.0,
             carrier: ClassCarrier::Unminted(REGION),
         }
     }));
@@ -389,10 +393,7 @@ pub(super) fn section(
     Ok(PairSection {
         pose: PairPose::PlaneSpline(Box::new(pose)),
         decided: Vec::new(),
-        components,
-        sides: Sides::Untold(
-            "a spline section's components have no closed-form reading that tells them apart",
-        ),
+        components: Components::Counted(components),
         lever,
     })
 }
@@ -438,7 +439,7 @@ mod tests {
     /// **The bracket's reach is the segment's, read over its own box.**
     /// The plane `10⁻⁶` below the wall's point meets the ramp `2·10⁻⁶`
     /// back in `x`, about `2.2·10⁻⁶` from it along the wall: the
-    /// residual bounds that distance and stays within a few times it. Red
+    /// reach bounds that distance and stays within a few times it. Red
     /// against the chart speed read over the whole net (some four hundred
     /// times the first span's), and against the reach dropped.
     #[test]

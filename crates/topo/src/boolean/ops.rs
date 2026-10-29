@@ -1905,13 +1905,22 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     evented: bool,
     charts: &mut ChartCache,
 ) -> Result<Result<Vec<super::section_cert::Cleared>, SectionRefusal>, BooleanError> {
-    use super::section_cert::{Side, certify, classify_with, of_pair_section};
+    use super::section_cert::{Side, certify, classify, of_carried, of_pair_section};
+    use super::section_table::Uncarried;
     if has_lone_vertex(a, fa.face) || has_lone_vertex(b, fb.face) {
         return Ok(Err(SectionRefusal::LoneVertex));
     }
     let section = match sections.held((a, fa.face), (b, fb.face)) {
-        Some(held) => of_pair_section(held, band),
-        None => classify_with(
+        Some(held) => of_pair_section(held, band, |_| {
+            match sections.carried((a, fa.face), (b, fb.face)) {
+                Some(Ok(carried)) => of_carried(Ok(carried)),
+                Some(Err(Uncarried::Carry(e))) => of_carried(Err(e)),
+                Some(Err(Uncarried::Section(_) | Uncarried::Component)) | None => {
+                    super::section_cert::Section::Unmarched
+                }
+            }
+        }),
+        None => classify(
             &fa.surface,
             &fb.surface,
             overlap_reach(&fa.bbox, &fb.bbox),
@@ -1923,6 +1932,7 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let verdict = certify(
         &section,
         evented,
+        band,
         |side| {
             let (operand, body, row) = match side {
                 Side::F => (Operand::A, a, fa),
@@ -1935,13 +1945,10 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     Sheet::Unread
                 })
         },
-        |p, residual| {
-            let Some(wide) = super::section_cert::witness_band(band, residual) else {
-                return [None, None];
-            };
+        |p, band| {
             [
-                place_witness(a, fa.face, p, wide),
-                place_witness(b, fb.face, p, wide),
+                place_witness(a, fa.face, p, band),
+                place_witness(b, fb.face, p, band),
             ]
         },
     );
