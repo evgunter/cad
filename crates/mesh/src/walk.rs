@@ -938,7 +938,18 @@ pub(crate) fn loop_polygon(
     // loop below will read, and ahead of the two D2-row-5 re-derivations
     // for [`require_a_meridian`]'s reason: those presuppose a loop this
     // walk can walk.
-    require_two_columns(&travs, &starts, kinds, face, surface_kind)?;
+    // PROBE (foreign-wraptip): a rimless loop that walks ONE edge up
+    // and back (a wrap meridian pole to pole) is the whole chart strip,
+    // its two traversals the wrap edge's two sides a period apart.
+    let wrap_slit = no_rim
+        && m == 2
+        && travs[0].edge == travs[1].edge
+        && matches!(travs[0].kind, TravKind::Meridian { .. });
+    if wrap_slit {
+        starts.iter_mut().for_each(|s| *s = true);
+    } else {
+        require_two_columns(&travs, &starts, kinds, face, surface_kind)?;
+    }
     // The face's S10 orientation sense (module docs, the pole-to-pole
     // band). Consumed at exactly one site below, as a conditional
     // negation of the loop's area vector.
@@ -1086,6 +1097,7 @@ pub(crate) fn loop_polygon(
     // Pole-to-pole bands: precompute every column from the loop's 3-D
     // area vector (module docs). Reached only for a loop whose openings
     // stand on two distinct edges (`require_two_columns` above).
+    let mut band_wrap: Option<[f64; 2]> = None;
     let band_u: Option<Vec<f64>> = if no_rim {
         let pts: Vec<Point3<f64>> = travs
             .iter()
@@ -1115,7 +1127,22 @@ pub(crate) fn loop_polygon(
         let mid_az = chart_area
             .dot(chart.v_ref())
             .atan2(chart_area.dot(chart.u_ref()));
-        Some(
+        if wrap_slit {
+            let TravKind::Meridian { u_raw } = travs[0].kind else {
+                unreachable!("checked above")
+            };
+            let up0 = match (pole_v(travs[0].ids[0]), pole_v(travs[0].ids[travs[0].ids.len() - 1])) {
+                (Some(a), Some(b)) => b > a,
+                _ => true,
+            };
+            // CCW in the chart for a sense-true face: the rising side
+            // stands at the larger u.
+            let shift = if up0 == sense { -TAU } else { TAU };
+            band_wrap = Some([u_raw, u_raw + shift]);
+        }
+        if let Some(us) = band_wrap {
+            Some(us.to_vec())
+        } else { Some(
             travs
                 .iter()
                 .map(|t| match t.kind {
@@ -1123,7 +1150,7 @@ pub(crate) fn loop_polygon(
                     TravKind::Rim { .. } => f64::NAN,
                 })
                 .collect(),
-        )
+        ) }
     } else {
         None
     };

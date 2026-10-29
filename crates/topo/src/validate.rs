@@ -5284,8 +5284,27 @@ pub(crate) fn closed_by_tier<T: Real>(
             count_ref(&mut incidence, he.start);
         }
     }
+    // PROBE (foreign-wraptip): a valence-1 vertex whose one edge is a
+    // certified `Chart { wrap: true }` edge is a wrap tip (a chart
+    // singularity reached by one wrap meridian), not a strut.
+    let mut wrap_tip: SecondaryMap<VertexKey, bool> = SecondaryMap::new();
+    for (_, he) in body.half_edges.iter() {
+        let Some(edge) = body.edges.get(he.edge) else { continue };
+        let wrap = body
+            .curves
+            .get(edge.curve)
+            .and_then(CurveGeom::certified)
+            .is_some_and(|c| {
+                matches!(c.description(), geom_brep::EdgeDescription::Chart(ch) if ch.wrap)
+            });
+        if wrap && body.vertices.contains_key(he.start) {
+            wrap_tip.insert(he.start, true);
+        }
+    }
     for (vertex_key, _) in body.vertices.iter() {
-        if incidence.get(vertex_key).copied().unwrap_or(0) == 1 {
+        if incidence.get(vertex_key).copied().unwrap_or(0) == 1
+            && !wrap_tip.get(vertex_key).copied().unwrap_or(false)
+        {
             errors.push(ValidationError::ScaffoldingStrutVertex { vertex: vertex_key });
         }
     }

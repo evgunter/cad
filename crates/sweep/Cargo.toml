@@ -114,3 +114,8 @@ rayon = { workspace = true }
 [[test]]
 name = "all"
 path = "tests/all.rs"
+
+# PROBE (foreign-wraptip): standalone probe target.
+[[test]]
+name = "zz_wraptip_probe"
+path = "tests/zz_wraptip_probe.rs"

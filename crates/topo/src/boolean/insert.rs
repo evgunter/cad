@@ -2212,6 +2212,20 @@ pub(super) fn strut_faces_first<T: Decide>(
     )? {
         StrutFacing::PlusFirst => Ok(Some(true)),
         StrutFacing::MinusFirst => Ok(Some(false)),
+        // PROBE (foreign-wraptip): at a wrap tip the one edge is not
+        // closed (its ends differ), and the corner is the full turn from
+        // the arriving half round to the departing one: a germ along the
+        // edge is the run's start (beside the arrival, `he_plus`) or its
+        // end (beside the departure, `he_minus`), so `he_plus` faces the
+        // first germ either way.
+        StrutFacing::ClosedEdge if {
+            let (a, b) = crate::query::edge_ends(body, arrival);
+            a != b
+        } && (own_locus_edge(operand, first.1) == Some(arrival))
+            != (own_locus_edge(operand, second.1) == Some(arrival)) =>
+        {
+            Ok(Some(true))
+        }
         StrutFacing::ClosedEdge => Ok(None),
         StrutFacing::Unnamed => walk_faces_first(
             body,

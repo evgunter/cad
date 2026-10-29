@@ -286,7 +286,10 @@ pub(crate) fn normalize_shell(
     sink: &mut Vec<StructureNormalization>,
 ) -> Result<(), StepImportError> {
     band_seam(solid, eps_in, chart_band, mint, sink)?;
-    apex_cone(solid, chart_band, mint, sink)?;
+    // PROBE (foreign-wraptip): adopt the wrap-tip apex as stated.
+    if std::env::var_os("CAD_WRAPTIP").is_none() {
+        apex_cone(solid, chart_band, mint, sink)?;
+    }
     wall_inversion(solid, chart_band)
 }
 

@@ -315,6 +315,27 @@ impl SlitTips {
                 }
             }
         }
+        // PROBE (foreign-wraptip): a wrap tip — a vertex whose one edge
+        // has both halves in one face — is the full turn of that face,
+        // as a slit's tip is.
+        for (e, edge) in body.edges.iter() {
+            let (Some(fp), Some(fm)) = (
+                body.face_of_half_edge(edge.he_plus),
+                body.face_of_half_edge(edge.he_minus),
+            ) else {
+                continue;
+            };
+            if fp != fm {
+                continue;
+            }
+            let (v0, v1) = crate::query::edge_ends(body, e);
+            for v in [v0, v1] {
+                let valence = body.half_edges.iter().filter(|(_, h)| h.start == v).count();
+                if valence == 1 {
+                    tips.insert((v, fp));
+                }
+            }
+        }
         Self(tips)
     }
 
@@ -376,6 +397,19 @@ pub(super) fn build_sectors<T: Decide>(
         // NOT restated: it is the contract of `sector_shape`'s `normal`
         // parameter, which is the one place a caller has to read it.
         // The value arrives typed, so it cannot be the wrong one.
+        // PROBE (foreign-wraptip): a wrap tip's lone corner is its
+        // face's full turn (structure, not the straight reading).
+        if alone && tips.holds(vertex, face) {
+            push_full_turn(
+                &mut sectors,
+                he,
+                (dir_start, reach_start),
+                (dir_end, reach_end),
+                face,
+                normal,
+            );
+            continue;
+        }
         let shape = match sector_shape(dir_end, dir_start, normal, alone, band) {
             Ok(shape) => shape,
             Err(SectorFault::Rung {

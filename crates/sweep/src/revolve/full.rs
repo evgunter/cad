@@ -121,6 +121,10 @@ pub(super) fn build_full<T: Decide + topo::AtRestPolicy>(
             build_lamina(frame, 0, &outer, theta, band, tol)?,
             Vec::new(),
         ),
+        [run] if wraptip() => (
+            build_wire_one_band(frame, &Wire::off_run(&outer, run), theta, band, tol)?,
+            Vec::new(),
+        ),
         [run] => (
             build_wire(frame, &Wire::off_run(&outer, run), theta, band, tol)?,
             Vec::new(),
@@ -1200,4 +1204,247 @@ fn unslit_plane_wall<T: Decide>(
         }
     }
     Ok(())
+}
+
+/// PROBE (foreign-wraptip): whether full revolves build their wire walls
+/// in ONE band (each pole a wrap tip) instead of two π-bands.
+fn wraptip() -> bool {
+    std::env::var_os("CAD_WRAPTIP").is_some()
+}
+
+/// PROBE (foreign-wraptip): the wire case in ONE full-period band. The
+/// wire is swept by the whole turn (full-turn struts, the copied chain
+/// at the original coordinates), and the copied chain is zipped into the
+/// original exactly as the lamina case zips its seam (null `mef` + `kev`
+/// per interior vertex, `kef` of each copied meridian). Each curved
+/// wall's meridian then has both halves in its wall: a wrap edge ending
+/// at the pole, which keeps valence 1 (a wrap tip).
+fn build_wire_one_band<T: Decide + topo::AtRestPolicy>(
+    frame: &AxisFrame<T>,
+    wire: &Wire<T>,
+    theta: T,
+    band: Band,
+    tol: Tol,
+) -> Result<Revolved<T>, RevolveError> {
+    let (segs, walls, verts) = (&wire.segs[..], &wire.walls[..], &wire.verts[..]);
+    let place = frame.place;
+    let k = segs.len();
+    let pinned = |i: usize| verts[i].pinned;
+    let qw: Vec<Point3<T>> = wire.points.iter().map(|&p| frame.world(p)).collect();
+
+    let mut built = Body::<T>::new();
+    let mut body = built.begin_surgery();
+    let seed = body.mvfs(qw[0], true)?;
+    let mut hes = Vec::with_capacity(k);
+    let first = body.mev(
+        MevSite::Lone {
+            r#loop: seed.r#loop,
+        },
+        qw[1],
+        placed_segment_spec(&segs[0], place, frame.n3, qw[0], qw[1], tol),
+        tol,
+    )?;
+    hes.push(first.he_plus);
+    let mut prev = first;
+    for i in 1..k {
+        let m = body.mev(
+            MevSite::Fan {
+                he1: prev.he_minus,
+                he2: prev.he_minus,
+            },
+            qw[i + 1],
+            placed_segment_spec(&segs[i], place, frame.n3, qw[i], qw[i + 1], tol),
+            tol,
+        )?;
+        hes.push(m.he_plus);
+        prev = m;
+    }
+    let (pole_near, pole_far) = (seed.vertex, prev.vertex);
+
+    // One band: full-turn struts and the copied chain at the original
+    // coordinates (a full period is the identity).
+    let axis_c = turn_axis(Sign::Positive, frame.a3);
+    let mut struts: Vec<Option<topo::construction::MevCreated>> = vec![None];
+    for i in 1..k {
+        let m = body.mev(
+            MevSite::Fan {
+                he1: hes[i],
+                he2: hes[i],
+            },
+            qw[i],
+            revolved_strut_spec(wire.points[i], verts[i].r, qw[i], frame, theta, axis_c, tol),
+            tol,
+        )?;
+        struts.push(Some(m));
+    }
+    let mut faces: Vec<FaceKey> = Vec::with_capacity(k);
+    let mut tops: Vec<EdgeKey> = Vec::with_capacity(k);
+    for i in 0..k {
+        let he1 = match &struts[i] {
+            Some(s) => s.he_minus,
+            None => hes[0],
+        };
+        let he2 = if i + 1 < k {
+            match &struts[i + 1] {
+                Some(s) => s.he_minus,
+                None => hes[i + 1],
+            }
+        } else {
+            let edge = he_edge(&body, hes[k - 1]);
+            body.get_edge(edge)
+                .unwrap_or_else(|| unreachable!("live chain edge {edge:?}"))
+                .he_minus
+        };
+        let surface = match walls[i] {
+            WallClass::Wall { kind, sense } => FaceSurface::New {
+                surface: wall_surface(&kind, &segs[i], frame),
+                sense,
+            },
+            WallClass::OnAxis => FaceSurface::Inherit,
+        };
+        let mef = body.mef(
+            MefSite::Chords { he1, he2 },
+            placed_segment_spec(&segs[i], place, frame.n3, qw[i], qw[i + 1], tol),
+            surface,
+            tol,
+        )?;
+        faces.push(mef.face);
+        tops.push(mef.edge);
+    }
+    for i in 1..k {
+        let Some(strut) = &struts[i] else { continue };
+        let k_prev = face_surface_key(&body, faces[i - 1]);
+        let k_next = face_surface_key(&body, faces[i]);
+        if k_prev == k_next {
+            body.describe_at_rest(strut.edge, tol)?;
+            continue;
+        }
+        let vertex_index = wire.canon_verts[i];
+        upgrade_intersection(
+            &mut body,
+            strut.edge,
+            k_prev,
+            k_next,
+            band,
+            |reading, source| RevolveError::SliverJoin {
+                loop_index: 0,
+                vertex_index,
+                reading,
+                source,
+            },
+            tol,
+        )?;
+    }
+
+    // The zip (the lamina case's, with the pole as its fixed start).
+    let c_plus = |body: &Body<T>, edge: EdgeKey| -> topo::HalfEdgeKey {
+        body.get_edge(edge)
+            .unwrap_or_else(|| unreachable!("copied edge {edge:?} not yet killed"))
+            .he_plus
+    };
+    let e_minus = |body: &Body<T>, he: topo::HalfEdgeKey| -> topo::HalfEdgeKey {
+        let edge = he_edge(body, he);
+        body.get_edge(edge)
+            .unwrap_or_else(|| unreachable!("edge {edge:?} read off live {he:?}"))
+            .he_minus
+    };
+    for j in 1..k {
+        let (he1, he2) = (e_minus(&body, hes[j - 1]), c_plus(&body, tops[j]));
+        let nj = body.mef(
+            MefSite::Chords { he1, he2 },
+            EdgeCurveSpec::self_loop_circle_at(qw[j]),
+            FaceSurface::Inherit,
+            tol,
+        )?;
+        body.kev_describing(nj.he_plus, &[], tol)?;
+        let victim = c_plus(&body, tops[j - 1]);
+        body.kef(victim)?;
+    }
+    let victim = c_plus(&body, tops[k - 1]);
+    body.kef(victim)?;
+
+    // Plane walls: the meridian is a slit; it goes with its pole or
+    // into the annulus ring, as in the two-band build.
+    let mut plane = vec![false; k];
+    let mut pole_killed = [false, false];
+    for i in 0..k {
+        let WallClass::Wall {
+            kind: WallKind::Plane { outward },
+            ..
+        } = walls[i]
+        else {
+            continue;
+        };
+        plane[i] = true;
+        let end = match (pinned(i), pinned(i + 1)) {
+            (true, _) => {
+                pole_killed[0] = true;
+                SlitEnd::PoleAtStart
+            }
+            (_, true) => {
+                pole_killed[1] = true;
+                SlitEnd::PoleAtEnd
+            }
+            _ => SlitEnd::Annulus { outward },
+        };
+        unslit_plane_wall(&mut body, hes[i], end)?;
+    }
+    for i in 0..k {
+        if plane[i] {
+            continue;
+        }
+        let wall = face_surface_key(&body, faces[i]);
+        let edge = he_edge(&body, hes[i]);
+        upgrade_meridian_wrap(&mut body, edge, wall, tol)?;
+    }
+
+    #[cfg(debug_assertions)]
+    debug_assert_eq!(
+        topo::validate_closed(&body),
+        Ok(()),
+        "revolve (full, one-band wire) postcondition: result is not tier-2 valid",
+    );
+
+    let nc = wire.n_canon;
+    let mut walls_c = vec![None; nc];
+    let mut rims_c = vec![None; nc];
+    let mut mer_c = vec![None; nc];
+    for i in 0..k {
+        let mer = if plane[i] {
+            None
+        } else {
+            Some(he_edge(&body, hes[i]))
+        };
+        for &m in &wire.members[i] {
+            walls_c[m] = Some(faces[i]);
+            mer_c[m] = mer;
+        }
+        if let Some(strut) = &struts[i] {
+            rims_c[wire.canon_verts[i]] = Some(strut.edge);
+        }
+    }
+    let mut poles_c = vec![None; nc];
+    if !pole_killed[0] {
+        poles_c[wire.canon_verts[0]] = Some(pole_near);
+    }
+    if !pole_killed[1] {
+        poles_c[wire.canon_verts[k]] = Some(pole_far);
+    }
+    body.close_already_checked();
+    Ok(Revolved {
+        body: built,
+        solid: seed.solid,
+        shell: seed.shell,
+        cavities: Vec::new(),
+        bands: vec![super::bands_of(&walls_c, &wire.members)],
+        rims: vec![rims_c],
+        poles: vec![poles_c],
+        kind: RevolvedKind::Full {
+            wire: true,
+            meridians: vec![mer_c],
+            pi_walls: vec![None; nc],
+            pi_meridians: vec![None; nc],
+            pi_rims: vec![None; nc],
+        },
+    })
 }

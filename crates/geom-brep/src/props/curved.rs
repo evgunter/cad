@@ -2787,14 +2787,30 @@ fn cone_loop_winding<T: Decide>(
     };
     let mut total = T::zero();
     let mut vertices = Vec::with_capacity(edges.len());
+    // PROBE (foreign-wraptip): the loop turning back at the apex along
+    // the SAME edge (a wrap tip) goes round the apex by a whole turn
+    // against the rest of the loop; the vertex azimuths carry it, so a
+    // vertex the loop passes on both sides of the wrap edge reads its
+    // two copies a period apart (the sum `total` is left as it was).
+    let mut tip_turns = T::zero();
+    // (Its sign is not read: the vertex check reads |a − b|.)
+    let tip = T::tau();
     for (k, e) in edges.iter().enumerate() {
         let (step, ((_, start_apex), (end, end_apex))) = steps[k];
         vertices.push((
             e.traversal_ends().0,
-            if start_apex { None } else { Some(total) },
+            if start_apex { None } else { Some(total + tip_turns) },
         ));
         total = total + step;
         let ((start, next_apex), _) = steps[(k + 1) % steps.len()].1;
+        let next = &edges[(k + 1) % edges.len()];
+        if end_apex
+            && next_apex
+            && matches!((e.carrier_id, next.carrier_id), (Some(x), Some(y)) if x == y)
+            && e.forward != next.forward
+        {
+            tip_turns = tip_turns + tip;
+        }
         if !end_apex && !next_apex {
             total = total + turn_about(axis, end, start);
         }
@@ -3102,14 +3118,33 @@ fn sphere_face<T: Decide>(
     }
     // The face lies left of its loops under the OUTWARD normal, which
     // is the chart normal's left exactly when the bit is set.
+    // PROBE (foreign-wraptip): a pure slit's loop encodes no side, so
+    // its region is the whole sphere under the bit, whichever it is.
     let region = solid_angle(center, outer, sense);
+    // PROBE (foreign-wraptip): a loop made only of edges walked both
+    // ways (a slit: one wrap meridian pole to pole) bounds the whole
+    // sphere, so its complement's zero is the face's structure.
+    let slit = loops[0].iter().all(|e| {
+        e.carrier_id.is_some()
+            && loops[0]
+                .iter()
+                .any(|f| f.carrier_id == e.carrier_id && f.forward != e.forward)
+    });
     require_solid_angle(
         "props_sphere_loop_area",
-        region.min(solid_angle(center, outer, !sense)),
+        if slit {
+            T::from_f64(2.0) * T::tau()
+        } else {
+            region.min(solid_angle(center, outer, !sense))
+        },
         radius,
         band,
     )?;
-    let mut solid = region;
+    let mut solid = if slit {
+        T::from_f64(2.0) * T::tau()
+    } else {
+        region
+    };
     for ring in rings {
         let hole = solid_angle(center, ring, !sense);
         require_solid_angle("props_sphere_hole_area", hole, radius, band)?;
@@ -3472,19 +3507,47 @@ fn sphere_loop<T: Decide>(
             arrive: tangent(at),
         });
     }
-    let mut corners = T::zero();
+    // PROBE (foreign-wraptip): junction turns first; a junction where
+    // the loop turns back along the SAME edge (one carrier id, opposite
+    // senses) is a wrap tip, read after the others.
+    let n_arcs = arcs.len();
+    let mut turns: Vec<Option<T>> = Vec::with_capacity(n_arcs);
     for (i, arc) in arcs.iter().enumerate() {
-        let next = &arcs[(i + 1) % arcs.len()];
+        let next = &arcs[(i + 1) % n_arcs];
         require_on_loop(
             "props_loop_closed",
             Margin::of((next.from - arc.at).norm()),
             band,
         )?;
+        let (ea, eb) = (&edges[i], &edges[(i + 1) % n_arcs]);
+        if matches!((ea.carrier_id, eb.carrier_id), (Some(x), Some(y)) if x == y)
+            && ea.forward != eb.forward
+            && require_cusp_free(arc.arrive, next.depart, radius, band).is_err()
+        {
+            turns.push(None);
+            continue;
+        }
         require_cusp_free(arc.arrive, next.depart, radius, band)?;
-        corners = corners
-            + normal(arc.at)
+        turns.push(Some(
+            normal(arc.at)
                 .dot(arc.arrive.cross(next.depart))
-                .atan2(arc.arrive.dot(next.depart));
+                .atan2(arc.arrive.dot(next.depart)),
+        ));
+    }
+    // A tip's turn is the whole turn round it less the turns into and
+    // out of its slit (its face side, read off the loop); a slit with
+    // no regular junction at either end (the one-face ball) reads −π,
+    // the side a sense-true face claims: its loop encodes no side.
+    let mut corners = T::zero();
+    for i in 0..n_arcs {
+        corners = corners
+            + match turns[i] {
+                Some(t) => t,
+                None => match (turns[(i + n_arcs - 1) % n_arcs], turns[(i + 1) % n_arcs]) {
+                    (Some(a), Some(b)) => -(a + b),
+                    _ => -T::pi(),
+                },
+            };
     }
     Ok(SphereLoop {
         arcs,
