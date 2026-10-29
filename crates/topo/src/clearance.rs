@@ -2258,25 +2258,31 @@ impl Bracket {
     ) {
         let centre = |c: Cell| (geom::mid_param(c.u.0, c.u.1), geom::mid_param(c.v.0, c.v.1));
         let (sa, sb) = (centre(a), centre(b));
+        let at = |w: &Window<'_, T>, (u, v): (f64, f64)| enclosure(&w.surface, (u, u), (v, v));
+        let stations = separation(&at(x, sa), &at(y, sb)).hi();
+        // A region is read only where its answer could lower the
+        // incumbent.
+        let cells_would = sep.hi() < self.hi;
+        let stations_would = stations.is_finite() && stations < self.hi;
+        if !(cells_would || stations_would) {
+            return;
+        }
         let region = &mut self.region;
-        let (cells, stations) = k_stats::unlogged(REGION_READINGS, || {
+        let (cells, placed) = k_stats::unlogged(REGION_READINGS, || {
             let inside = (
                 region.ask(false, i, x, a) == CellRegion::Inside,
                 region.ask(true, j, y, b) == CellRegion::Inside,
             );
-            let placed = (inside.0 || on_face(region, false, i, x, sa))
+            let placed = stations_would
+                && (inside.0 || on_face(region, false, i, x, sa))
                 && (inside.1 || on_face(region, true, j, y, sb));
-            (inside.0 && inside.1, placed)
+            (cells_would && inside.0 && inside.1, placed)
         });
         if cells {
             self.hi = self.hi.min(sep.hi());
         }
-        if stations {
-            let at = |w: &Window<'_, T>, (u, v): (f64, f64)| enclosure(&w.surface, (u, u), (v, v));
-            let s = separation(&at(x, sa), &at(y, sb));
-            if s.hi().is_finite() {
-                self.hi = self.hi.min(s.hi());
-            }
+        if placed {
+            self.hi = self.hi.min(stations);
         }
     }
 }
@@ -2290,14 +2296,6 @@ impl<T: Decide + CertifiedBounds> Question<T> for Bracket {
         y: &Window<'_, T>,
     ) -> ControlFlow<()> {
         let pair = task.pair;
-        // **Off the face, before anything is enclosed.** A cell decided
-        // outside its face holds no point of it, so the pair is a leaf
-        // that neither floors the bracket nor witnesses its upper end.
-        if self.outside((task.i, x, pair.a), (task.j, y, pair.b)) {
-            walk.receipt.discharged += 1;
-            walk.receipt.outside += 1;
-            return ControlFlow::Continue(());
-        }
         let sep = separation(&pair.a.enc, &pair.b.enc);
         if !(sep.lo().is_finite() && sep.hi().is_finite()) {
             self.poison = Some(MinSeparationRefusal::PoisonEnclosure {
@@ -2312,6 +2310,14 @@ impl<T: Decide + CertifiedBounds> Question<T> for Bracket {
         self.witness((task.i, x, pair.a), (task.j, y, pair.b), sep);
         if sep.lo() >= self.hi {
             walk.receipt.discharged += 1;
+            return ControlFlow::Continue(());
+        }
+        // **Off the face.** A cell decided outside its face holds no
+        // point of it, so the pair is a leaf that neither floors the
+        // bracket nor is refined.
+        if self.outside((task.i, x, pair.a), (task.j, y, pair.b)) {
+            walk.receipt.discharged += 1;
+            walk.receipt.outside += 1;
             return ControlFlow::Continue(());
         }
         // A pair the walk cannot split — at the depth floor, past the
